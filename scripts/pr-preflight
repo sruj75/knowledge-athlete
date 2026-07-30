@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+ROOT="$(git rev-parse --show-toplevel)"
+cd "$ROOT"
+
+# shellcheck source=dev-harness/_resolve_python.sh
+source scripts/dev-harness/_resolve_python.sh
+PYTHON_BIN="$(dev_harness_python)"
+exec "$PYTHON_BIN" .github/scripts/pr_preflight.py "$@"
