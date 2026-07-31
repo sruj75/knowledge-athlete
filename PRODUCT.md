@@ -15,7 +15,10 @@ landing PRs that change product behavior. Engineering standards live in
    flashy features. Silent data loss and dual sources of truth are product bugs.
 
 3. **One product mind.** Surfaces are input/output against one shared product
-   experience — not separate products with their own histories.
+   experience — not separate products with competing authorities. This does
+   not make every capture cloud-backed: persisted Rewind OCR history,
+   embeddings, and video remain local to the Mac, with optional agent-VM
+   SQLite mirroring.
 
 4. **Harness over heuristics.** Where we integrate with surfaces we do not own,
    invest in durable harnesses and contracts, not brittle one-off automation.
