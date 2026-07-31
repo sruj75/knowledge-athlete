@@ -78,8 +78,11 @@ changing them, which is exactly why they are easy to ship by accident.
 
 ### Identity / credentials
 
-- **Firebase project `based-hardware`** — `desktop/macos/Desktop/Sources/GoogleService-Info{,-Dev,-Local}.plist`,
-  `desktop/windows/.env.example:7`, and a hardcoded key at `desktop/macos/run.sh:111`.
+- **Firebase projects** — production/dev macOS and Windows config use
+  `based-hardware`; the local macOS profile uses emulator-only
+  `demo-omi-local`. See `desktop/macos/Desktop/Sources/GoogleService-Info{,-Dev,-Local}.plist`,
+  `desktop/windows/.env.example:7`, and the public web API key at
+  `desktop/macos/run.sh:111`.
 - **Bundle IDs and OAuth scheme** — `com.omi.*` in `desktop/macos/scripts/app-config.sh:23,38`;
   `com.omi.computer-macos` in the Firebase plist; URL scheme `omi-computer-dev`.
 - **API base URLs** — `desktop/macos/Desktop/Sources/DesktopBackendEnvironment.swift:4,6`
@@ -91,11 +94,13 @@ changing them, which is exactly why they are easy to ship by accident.
 
 ### Signing & distribution
 
-- macOS: Developer ID certificate + notarization. `run.sh:442` already hard-errors
+- macOS: Developer ID certificate + notarization. `run.sh:447` already hard-errors
   without a signing identity; ad-hoc signing makes macOS reset TCC permissions on
   every build.
-- Windows: **currently unsigned** (see `electron-builder.config.mjs:101`). SmartScreen
-  will warn "unknown publisher" until you add an EV / Azure Trusted Signing cert.
+- Windows: the committed `electron-builder.config.mjs:101` is unsigned, while
+  `.github/workflows/desktop_windows_release.yml:213` conditionally injects Azure
+  Trusted Signing when all seven required secrets exist. Its fallback artifact
+  is unsigned and triggers the "unknown publisher" warning.
 
 ### Legal
 
@@ -103,3 +108,93 @@ MIT permits rebranding and commercial redistribution, but requires you keep the
 copyright notice and license text (`LICENSE`). The license covers the *code* — it
 does not grant rights to the "omi" name or logo, so the rename is not optional if
 you are shipping this as your own product.
+
+## Current architecture and as-is rebrand audit
+
+This current-state audit is anchored to baseline commit
+`81b5b889cad9eabe7477c9ff6a167a46f56912b6` and the upstream source snapshot
+listed above. The inventory below records what owns each identity today. It
+deliberately does not choose replacements or prescribe migration order.
+
+**Coupling legend:** **visible brand** is user-facing copy or imagery;
+**external identifier** is registered outside the process; **persistent
+identity** partitions user data or operating-system grants; **service
+endpoint** selects a network/data owner; **release infrastructure** selects or
+authenticates a shipped artifact; **internal-only symbol** is an in-repository
+name with no direct user-visible identity.
+
+### macOS identity and persistence
+
+| Surface | Current identity | Authority | Role | Ownership | Coupling |
+|---|---|---|---|---|---|
+| Product and bundle names | `omi`, `Omi`, `Omi Beta`, `Omi Dev`, Swift package/executable `Omi Computer` | `desktop/macos/Desktop/Info.plist`, `desktop/macos/Desktop/Package.swift`, `desktop/macos/run.sh`, `desktop/macos/scripts/create-omi-beta-variant.sh` | Finder, menus, onboarding, permission copy, and signed bundle names continue to show Omi while unchanged. | Omi/BasedHardware | visible brand |
+| Brand assets | `OmiIcon`, `omi_app_icon.png`, `omi_text_logo.png`, `omi_menu_bar_icon.png`, `omi_notch_logo.svg`, Omi demo media, and related source names | `desktop/macos/Desktop/Sources/Resources/`, `desktop/macos/omi_icon.icns` | Packaged app, menu bar, onboarding, chat, and installer artwork remain Omi artwork. | Omi/BasedHardware | visible brand |
+| Stable/beta identity | `com.omi.computer-macos`, `com.omi.computer-macos.beta` | `desktop/macos/Desktop/Sources/AppBuild.swift`, `desktop/macos/Desktop/Sources/OmiSupport/DesktopLocalProfile.swift`, `desktop/macos/scripts/smoke-signed-desktop-artifact.sh` | Selects production-family routing and partitions TCC, UserDefaults, Keychain ACLs, login items, single-instance locks, updates, and beta storage. | Omi/BasedHardware | external identifier; persistent identity |
+| Development/preview identity | `com.omi.desktop-dev`, `com.omi.omi-<slug>`, `com.omi.preview.<id>` | `desktop/macos/scripts/app-config.sh`, `desktop/macos/Desktop/Sources/AppBuild.swift`, `backend/database/desktop_previews.py` | Controls local automation, dev backend defaults, isolated state, and whether Sparkle is allowed. | Omi/BasedHardware | persistent identity |
+| OAuth callback schemes | Production `omi-computer`; dev `omi-computer-dev`; named bundles `omi-<slug>`; previews `omi-preview-<id>` | `desktop/macos/Desktop/Info.plist`, `desktop/macos/scripts/app-config.sh`, `desktop/macos/scripts/smoke-signed-desktop-artifact.sh`, `backend/routers/auth.py`, `backend/database/desktop_previews.py` | OAuth providers and macOS route callbacks only to registered schemes; unchanged callbacks remain in the Omi namespace. | Omi/BasedHardware plus provider registration | external identifier |
+| Google OAuth/Firebase app registrations | Production client `208440318997-suqloh00q5r3ovgoqikvsrf9aqn1t54e.apps.googleusercontent.com`, reversed client `com.googleusercontent.apps.208440318997-suqloh00q5r3ovgoqikvsrf9aqn1t54e`, app `1:208440318997:ios:5a9bb6d5a555e8d90e421c`; development client `208440318997-68pb7d72igtvl7jgr1ep6d3m6qn4pnbo.apps.googleusercontent.com`, reversed client `com.googleusercontent.apps.208440318997-68pb7d72igtvl7jgr1ep6d3m6qn4pnbo`, app `1:208440318997:ios:a1906bb92fe244810e421c`; local emulator client `local-omi-dev-local.apps.localhost`, app `1:000000000000:ios:omi-dev-local` | `desktop/macos/Desktop/Sources/GoogleService-Info.plist`, `desktop/macos/Desktop/Sources/GoogleService-Info-Dev.plist`, `desktop/macos/Desktop/Sources/GoogleService-Info-Local.plist` | Production and development Google sign-in remain bound to the upstream OAuth registrations; the local values are emulator-only and do not identify a hosted Google application. | Omi/BasedHardware; local harness; Google | external identifier |
+| Firebase apps | Production/dev project `based-hardware`; local project `demo-omi-local`; production bundle `com.omi.computer-macos` | `desktop/macos/Desktop/Sources/GoogleService-Info.plist`, `desktop/macos/Desktop/Sources/GoogleService-Info-Dev.plist`, `desktop/macos/Desktop/Sources/GoogleService-Info-Local.plist` | Default sign-in uses Omi Firebase identities; local profiles use emulators and a non-production project name. | Omi/BasedHardware; local harness | service endpoint; external identifier |
+| API routing | `api.omi.me`, `api.omiapi.com`, production/development `desktop-backend-*.run.app`, share host `h.omi.me` | `desktop/macos/Desktop/Sources/DesktopBackendEnvironment.swift`, `desktop/macos/Desktop/Sources/APIClient.swift`, `desktop/macos/run.sh` | Production-family builds send auth, product, agent, sync, and share traffic to Omi-owned services while unchanged. | Omi/BasedHardware | service endpoint |
+| PostHog | Hardcoded publishable token `phc_z3qU…v3sez3Y` at `us.i.posthog.com` | `desktop/macos/Desktop/Sources/PostHogManager.swift` | Product analytics and feature flags report to the existing Omi PostHog project. | Omi/BasedHardware; PostHog | service endpoint |
+| Sentry | Organization/project `o4511085999816704 / 4511086024851456` | `desktop/macos/Desktop/Sources/OmiApp.swift` | Production crashes, hangs, feedback, and diagnostics report to the existing Sentry project. | Omi/BasedHardware; Sentry | service endpoint |
+| Sparkle feed and trust key | `https://api.omi.me/v2/desktop/appcast.xml`; EdDSA public key `vWleho4gIOl932wM4v9Gz+FTCt90+vUVdPHsRReFX40=` | `desktop/macos/Desktop/Info.plist`, `desktop/macos/Desktop/Sources/AppBuild.swift` | Stable/beta clients poll Omi's feed and accept only update archives signed by the matching private key. | Omi/BasedHardware | service endpoint; release infrastructure |
+| Release channels | Stable and beta; beta bundle is pinned to beta; GitHub tags use `v<version>+<build>-macos` | `desktop/macos/Desktop/Sources/AppBuild.swift`, `backend/desktop_release_manifest.py`, `.github/workflows/desktop_auto_release.yml` | Channel state determines backend routing, appcast items, manual downloads, telemetry cohort, and promotion evidence. | Omi/BasedHardware | release infrastructure; persistent identity |
+| Signing profiles | Committed profiles `desktop/macos/Desktop/embedded.provisionprofile` and `desktop/macos/Desktop/embedded-dev.provisionprofile`, Apple Team `S6DP5HF77G` (`Matthew Diakonov`) | Those profiles, `desktop/macos/Desktop/Omi-Release.entitlements`, `desktop/macos/run.sh` | A different team cannot use these profiles as its own signing/notarization identity; ad-hoc builds do not reproduce stable TCC/Keychain behavior. | Current Apple developer team | external identifier; release infrastructure |
+| Keychain services | Bases `com.omi.desktop.firebase-rest-session`, `com.omi.desktop.local-agent-api`, `com.omi.client-device-id`, scoped by Team ID and bundle ID | `desktop/macos/Desktop/Sources/DesktopKeychainStore.swift`, `desktop/macos/Desktop/Sources/AuthService.swift` | Auth, local-agent credentials, and device identity remain stored under Omi-namespaced service identifiers; scope prevents cross-team/bundle reuse. | Local user Keychain; Omi namespace | persistent identity |
+| Local storage | Stable `~/Library/Application Support/Omi`; beta `Omi Beta`; named bundles `Omi Dev Bundles/<bundle-id>`; per-user GRDB/SQLite below each root | `desktop/macos/Desktop/Sources/OmiSupport/DesktopLocalProfile.swift`, `desktop/macos/Desktop/Sources/Rewind/Core/RewindDatabase.swift`, `desktop/macos/run.sh` | Existing capture, rewind, task, graph, and agent state remains attached to these directory and bundle identities. | Local user | persistent identity |
+| Development controls | `OMI_*` environment variables, `omi-*` bundle requirement, `omi-*` scripts and test flows | `desktop/macos/run.sh`, `desktop/macos/scripts/`, `desktop/macos/tests/`, `desktop/macos/e2e/` | These names form the current operator/test interface; changing them independently would break harness and release contracts even though most are not user-facing. | Repository-local | internal-only symbol |
+
+### Windows and shared desktop identity
+
+| Surface | Current identity | Authority | Role | Ownership | Coupling |
+|---|---|---|---|---|---|
+| Windows package | App ID `com.omiwindows.app`, product `Omi for Windows`, executable `omi-windows`, installer `Omi-for-Windows-Setup-*` | `desktop/windows/electron-builder.config.mjs`, `desktop/windows/package.json` | Windows install, shortcuts, uninstall entry, process, and artifact names remain Omi-branded. | Omi/BasedHardware | visible brand; external identifier |
+| Windows assets/copy | Committed Omi icons plus Omi website, help, terms, pricing, referral, device, and source links | `desktop/windows/resources/`, renderer settings/home components | Packaged UI and external navigation continue to present or open Omi properties. | Omi/BasedHardware | visible brand; service endpoint |
+| Windows Firebase/API | Firebase project `based-hardware`; `https://api.omi.me`; production desktop backend Cloud Run URL | `desktop/windows/.env.example`, `desktop/windows/src/main/ipc/auth.ts`, renderer API helpers | Default sign-in, product requests, live audio, sync, MCP, billing, and agent tools use Omi accounts and data services. | Omi/BasedHardware | service endpoint; external identifier |
+| Windows telemetry | Same default PostHog project as macOS; Sentry only when `VITE_SENTRY_DSN` is supplied | `desktop/windows/.env.example`, `desktop/windows/src/renderer/src/lib/analytics.ts`, renderer entry points | Default analytics joins the Omi desktop project; crash reporting follows the build-supplied DSN. | Omi/BasedHardware; PostHog/Sentry | service endpoint |
+| Windows persistence | Electron `userData`; `omi.db`; `omi-windows-prefs-v1`; `omi-windows-install-id`; auth, MCP, connector, rewind, and log files | `desktop/windows/src/main/ipc/db.ts`, `desktop/windows/src/main/ipc/authStore.ts`, `desktop/windows/src/renderer/src/lib/preferences.ts`, `desktop/windows/src/renderer/src/lib/clientDevice.ts` | Local identity and user state remain under Omi keys and the Electron app identity. | Local user | persistent identity |
+| Windows updates | Backend-selected immutable feed whose URLs must match `BasedHardware/omi/releases/download/<windows-tag>/` | `desktop/windows/src/main/updater.ts`, `desktop/windows/src/main/windowsUpdateFeed.ts`, `desktop/windows/electron-builder.config.mjs`, `backend/routers/updates.py` | Production updates resolve and download Omi GitHub release assets. | Omi/BasedHardware | service endpoint; release infrastructure |
+| Windows signing | Conditional Azure Trusted Signing using `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`, `AZURE_CODE_SIGNING_ENDPOINT`, `AZURE_CODE_SIGNING_ACCOUNT`, `AZURE_CERT_PROFILE_NAME`, and `AZURE_PUBLISHER_NAME`; unsigned fallback when any value is absent | `.github/workflows/desktop_windows_release.yml`, `desktop/windows/docs/release-pipeline.md`, `desktop/windows/electron-builder.config.mjs` | A complete secret set signs with the configured Azure account/profile/publisher; an incomplete set produces an unsigned installer identified as an unknown publisher. The tracked snapshot cannot prove which GitHub environment secrets are currently populated. | Omi/BasedHardware operator; Azure; local unsigned fallback | external identifier; release infrastructure |
+| Electron bridge names | `window.omi`, `window.omiOverlay`, `window.omiBar`, `window.omiGlow`; Omi-named IPC, types, tests, and helpers | `desktop/windows/src/preload/index.ts` and shared types | These are process-internal contracts; a blind rename would require coordinated main/preload/renderer/test changes but would not by itself change product ownership. | Repository-local | internal-only symbol |
+| Shared Rust crate | Package `omi-desktop-core`; no macOS or Windows build consumes it | `desktop/Cargo.toml`, `desktop/shared-rust/Cargo.toml`, client manifests | The name is currently internal and the code does not affect shipped desktop behavior. | Repository-local | internal-only symbol |
+
+### Backend, cloud, and release ownership
+
+| Surface | Current identity | Authority | Role | Ownership | Coupling |
+|---|---|---|---|---|---|
+| GitHub source/releases | `BasedHardware/omi`; this fork's remote is `sruj75/knowledge-athlete` | Backend update routes, `desktop/macos/Desktop/Sources/AppBuild.swift`, Electron builder/updater, desktop workflows | Changelogs, update assets, preview admission, release evidence, and allowlists still resolve or require the upstream repository. | Omi/BasedHardware; local fork | service endpoint; release infrastructure |
+| GCP/Firebase projects | Production `based-hardware`; development `based-hardware-dev`; Omi-named Cloud Run, GKE, service-account, image, and secret resources | `.github/workflows/gcp_*.yml`, `.github/workflows/desktop_backend_*.yml`, `backend/deploy/runtime_env.yaml`, `infrastructure/opentofu/` | Deployment and runtime identities target Omi projects and cloud principals while unchanged. | Omi/BasedHardware; Google Cloud | external identifier; release infrastructure |
+| Helm/GKE deployment identities | Namespaces `dev-omi-backend`, `prod-omi-backend`; LLM Gateway releases `dev-omi-llm-gateway`, `prod-omi-llm-gateway`; backend-listen releases `<env>-omi-backend-listen`; selected config maps, secrets, services, and service accounts use `<env>-omi-*`. Images use `gcr.io/based-hardware[-dev]/<service>` repositories, while some service accounts use service-specific names such as `prod-agent-vm-reaper-sa`. | `backend/deploy/runtime_env.yaml`, `backend/charts/backend-listen/`, `backend/charts/agent-vm-reaper/prod_agent_vm_reaper_cronjob.yaml`, `.github/workflows/gcp_backend.yml`, `.github/workflows/gcp_backend_auto_dev.yml`, `.github/workflows/gcp_backend_pusher.yml`, `.github/workflows/gcp_llm_gateway.yml` | Helm history, Kubernetes discovery, workload identity, image lookup, secret/config references, and deployment automation remain coupled to these names. | Omi/BasedHardware deployment; Google Cloud | external identifier; release infrastructure |
+| CI control-plane credentials | `GCP_CREDENTIALS`, `GCP_FIRESTORE_READONLY_CREDENTIALS`, and `CODEMAGIC_API_TOKEN`; the Windows Azure secret set is inventoried above | `.github/workflows/gcp_*.yml`, `.github/workflows/desktop_*.yml`, `desktop/macos/AGENTS.md`, `desktop/windows/docs/release-pipeline.md` | Backend deploys, release eligibility, desktop promotion/rollback, Codemagic intake checks, and Windows signing authenticate to the accounts supplied by these secrets; missing values fail or downgrade the documented lane. Secret values and current GitHub environment population are not present in the tracked snapshot. | Omi/BasedHardware operator; Google Cloud; Codemagic; Azure | external identifier; release infrastructure |
+| Public domains | `api.omi.me`, `api.omiapi.com`, `h.omi.me`, `macos.omi.me`, `windows.omi.me`, and service-specific Omi hosts | Backend routers/config, desktop clients, charts, workflows | Auth callbacks, APIs, sharing, downloads, health checks, and provider routing remain bound to Omi DNS and certificates. | Omi/BasedHardware | service endpoint |
+| Update asset origin | `https://github.com/BasedHardware/omi/releases/download/` | `backend/routers/updates.py` | Generated macOS appcasts and Windows feed directories hand clients Omi-hosted binaries. | Omi/BasedHardware | service endpoint; release infrastructure |
+| Backend data plane | Firestore plus Redis, object/search stores, queues, and Omi-named service deployments | `backend/database/`, `backend/deploy/runtime_env.yaml`, charts and workflows | User identity, memories, conversations, capture, release manifests, and operational state are owned by the configured Omi cloud environment. | Omi/BasedHardware; cloud providers | service endpoint; persistent identity |
+| Provider credentials | OpenAI, Anthropic, Gemini, Deepgram/Parakeet/Modulate, Pinecone/Typesense, Stripe, email, connector, and related environment-backed accounts | Backend env templates, runtime env contract, charts, and workflow secrets | Values are not selected by a visual rebrand; deployed behavior and billing remain attached to whichever external accounts supply these credentials. | Third-party accounts configured by operator | service endpoint |
+| macOS build lane | Codemagic workflow `omi-desktop-swift-release`, `CODEMAGIC_API_TOKEN`, self-hosted `omi-qual-m1-studio`, then GitHub promotion workflows | `desktop/macos/AGENTS.md`, release docs, `.github/workflows/desktop_*.yml` | Tags are expected to trigger Omi's Codemagic build and qualification infrastructure before beta/stable promotion. | Omi/BasedHardware; Codemagic/self-hosted runner | release infrastructure |
+| Internal source naming | `Omi*` Swift/Python/TypeScript symbols plus repository-local `OMI_*` variables and `omi-*` development scripts/test conventions | Retained source and tests; macOS development controls are inventoried above | These symbols can remain without contacting Omi and do not by themselves preserve an upstream account, endpoint, shipped bundle identity, or deployment resource. Blind renames would still require coordinated in-tree caller and test changes. | Local repository | internal-only symbol |
+| Legal provenance | MIT copyright and license from the upstream snapshot | [LICENSE](LICENSE), this file's provenance section | Redistribution must retain the license notice; the code license does not transfer Omi trademark or service ownership. | Upstream authors | external identifier |
+
+### Snapshot gaps
+
+These are facts about the retained tree, not proposed cleanup work:
+
+- `app/`, `web/`, `omi/`, `omiGlass/`, `plugins/`, `sdks/`, `mcp/`, `docs/`,
+  and root `codemagic.yaml` are absent.
+- `README.md`, `PRODUCT.md`, root/component `AGENTS.md` files, and multiple
+  workflows still point to excluded mobile, web, firmware, SDK, MCP, invariant,
+  API-contract, and Mintlify paths.
+- `backend/runtime_images.json` still registers `plugins/Dockerfile`, and
+  `config/public-build-contract.json` still registers excluded `web/*` images
+  and canaries.
+- Root `make preflight` currently stops during check-manifest resolution before
+  running the selected diff checks: retained check triggers require absent
+  `codemagic.yaml`, `app/`, `web/`, `plugins/`, `docs/`, and related upstream
+  files.
+- Retained mobile, web, firmware, SDK, plugin, documentation, and public-build
+  workflows can never be triggered by changes to their absent source paths;
+  manually dispatching jobs that require those paths would not be satisfiable
+  from this checkout.
+- The macOS release documentation and `desktop_auto_release.yml` expect root
+  `codemagic.yaml` and Codemagic workflow `omi-desktop-swift-release`, but the
+  build definition is not in this snapshot. The retained promotion workflows
+  therefore do not constitute a self-contained macOS build/sign/notarize lane.
