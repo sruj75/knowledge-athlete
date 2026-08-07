@@ -4,7 +4,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Researched; **blocked on S-08 identity semantics, owned development-project configuration, and human approval of the public seams below** |
+| Status | Researched; **blocked on the canonical S-08 identity seam and owned development-project configuration; public seams require live-requirements revalidation** |
 | Wave | 1 |
 | Owner | S-09 |
 | Authorizing and protecting decisions | IR-114, IR-115, IR-116, IR-117, IR-183, IR-204, IR-205, IR-206, IR-207, IR-208, IR-209, IR-210, IR-211, IR-254, IR-805, IR-827, IR-828, IR-832, IR-836, IR-837, IR-879, IR-886 |
@@ -16,7 +16,7 @@
 
 ## How this plan is executed
 
-1. Do not implement from this draft until the human agrees to every public seam in the approval table and S-08 has published its identity/sign-out contract.
+1. Do not implement from this draft until every public seam below is traced to the live requirements and S-08 has published its identity/sign-out contract.
 2. Then start with [engineering:implement](/Users/srujanu/.codex/plugins/cache/local-workspace/engineering/0.2.0/skills/implement/SKILL.md), using this file as the implementation spec. Work on the current branch, keep the branch name unchanged, and commit locally in independently testable vertical slices. Do not push or open a PR without a separate user request.
 3. Use [engineering:tdd](/Users/srujanu/.codex/plugins/cache/local-workspace/engineering/0.2.0/skills/tdd/SKILL.md) throughout implementation: observe one test fail for the intended behavioral reason, add only enough production code to make that outcome pass, and then move to the next tracer bullet. Do not write all tests first and do not refactor during RED → GREEN.
 4. Apply [engineering:codebase-design](/Users/srujanu/.codex/plugins/cache/local-workspace/engineering/0.2.0/skills/codebase-design/SKILL.md) only to the new product-analytics consent boundary. It should become one small, deep module around PostHog. Sentry, local diagnostics, LangSmith, metrics, and logging remain separate systems rather than implementations of a universal “observability provider” interface.
@@ -101,9 +101,12 @@ The live Mac rating path crosses `MainWindow/Components/ChatBubble.swift`, `Floa
 4. `backend/utils/log_sanitizer.py` and its tests protect ordinary Python logs. Cloud Run already captures stdout/stderr into Cloud Logging.
 5. Other service charts still contain service-owned `ServiceMonitor`, Prometheus annotations, counters, and autoscaling inputs. Their owners remove them when those services disappear. S-09 deletes the standalone monitoring product, not every occurrence of the word `metrics` or `prometheus` across future slices.
 
-## Proposed public seams — human approval gate
+## Requirements-backed public seams
 
-The human must agree to the following observable contracts before any new test is written. “Public” means a user, authenticated client, operator, or neighboring domain can observe it; it does not require Swift `public` access control.
+Trace the following observable contracts to the authorizing and protecting
+decisions before any new test is written. “Public” means a user, authenticated
+client, operator, or neighboring domain can observe it; it does not require
+Swift `public` access control.
 
 | Seam | Observable success and main error behavior | TDD surface |
 |---|---|---|
@@ -410,7 +413,7 @@ If owned credentials, project access, or a safe development backend are unavaila
 
 ## Completion checklist
 
-- [ ] The nine public seams were approved before tests were written.
+- [ ] The nine public seams were traced to the live requirements before tests were written.
 - [ ] S-08's canonical identity/sign-out contract was available and consumed without a second authority.
 - [ ] Owned PostHog, Sentry, LangSmith, and Google Cloud development identifiers/access were available; no Omi default remained on a live path.
 - [ ] Every production change began with one observed behavioral or deploy-contract RED and the minimum GREEN; no bulk tests-first phase occurred.

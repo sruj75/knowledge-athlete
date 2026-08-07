@@ -5,7 +5,7 @@
 | Field | Value |
 |---|---|
 | Target artifact | `bootstrap-scaffold/wave-1/s-05 tdd.md` |
-| Status | Ready; public seams approved and `omi-tools-stdio` resolved for deletion |
+| Status | Ready; requirements-backed public seams recorded and `omi-tools-stdio` resolved for deletion |
 | Wave / owner | Wave 1 / S-05 |
 | Decisions | IR-015, IR-048, IR-049, IR-113, IR-213–218, IR-603–606, IR-800–802, IR-922–924, IR-936, IR-937 |
 | Dependencies | None |
@@ -22,7 +22,7 @@ Research established that `omi-tools-stdio` has no retained production consumer:
 3. Apply [engineering:codebase-design](/Users/srujanu/.codex/plugins/cache/local-workspace/engineering/0.2.0/skills/codebase-design/SKILL.md): retain one deep internal `RuntimeAdapter` seam for Pi and test fakes, but remove public multi-provider configuration, redundant MCP plumbing, and compatibility aliases.
 4. Finish with [engineering:code-review](/Users/srujanu/.codex/plugins/cache/local-workspace/engineering/0.2.0/skills/code-review/SKILL.md), fixed at `origin/main`, with separate Standards and Spec Compliance reviews. Resolve findings and rerun affected and full gates.
 
-The approved public seams are:
+The requirements-backed public seams are:
 
 | Seam | Contract |
 |---|---|

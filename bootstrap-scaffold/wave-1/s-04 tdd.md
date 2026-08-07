@@ -1,7 +1,7 @@
 # S-04 TDD Plan — Remove Impossible Controls and Repository Zombies
 
 Status: ready
-Owning subagent: S-04
+Slice: S-04
 Wave: 1
 Authorizing and protecting decisions: IR-009, IR-010, IR-892, IR-897, IR-935, IR-939, IR-940, IR-941
 Depends on: none; coordinate shared registries with S-01, S-02, and S-03

@@ -7,14 +7,13 @@ This file turns the reviewed requirements in
 dependency-ordered map.
 
 It is **not** another requirements ledger, **not** a delete-everything list, and
-**not** one ticket per IR. The 31 `S-XX` entries are the stable implementation
-and subagent ownership slices. Each one receives exactly one TDD plan; its plan
-contains a variable number of sequential red-green cycles discovered during
-source-grounded planning.
+**not** one ticket per IR. The 31 `S-XX` entries are stable implementation
+slices. Each one has exactly one TDD plan containing a variable number of
+sequential red-green cycles discovered during source-grounded planning.
 
 The requirements ledger decides **what** the product keeps, deletes, or adapts.
 This map decides **in what order** those decisions can safely be implemented
-and what each `S-XX` subagent and its TDD plan are allowed to do.
+and what each `S-XX` plan is allowed to change.
 
 Every `S-XX` plan applies the five-step algorithm to its approved boundary, and
 each TDD cycle inside that plan handles one small, working vertical codeflow:
@@ -73,28 +72,21 @@ map must be refreshed before implementation continues.
 - [`requirements-challenge.md`](./requirements-challenge.md) contains 714
   reviewed code-grounded product decisions. It is the decision authority; this
   map does not reopen them.
-- Those decisions resolve into exactly 31 subagent-owned `S-XX` implementation
-  slices and therefore exactly 31 TDD plans. The source cross-check in
+- Those decisions resolve into exactly 31 `S-XX` implementation slices and
+  therefore exactly 31 TDD plans. The source cross-check in
   [`deletion-slice-research.md`](./deletion-slice-research.md) supplies planning
   evidence; it does not pre-decide the number of red-green cycles inside a plan.
 - Local authority is established before cloud data/storage/compute is removed,
   and infrastructure is deleted only after its final workload disappears.
 
-## Notes
-
-The human user is the top-level controller. There is no main orchestrator agent.
-The user takes the work through six waves. Each wave has one meta-orchestrator
-agent, and each `S-XX` slice has one dedicated implementation subagent plus one
-TDD plan. Refer to slices by their number and full name.
-
-### Operating rules
+## Operating rules
 
 1. **Question first, then delete.** A slice implements only decisions already
    reviewed in the requirements ledger.
 2. **Classify every touched behavior.** Every `S-XX` TDD plan must contain an explicit
    table with `KEEP AS IS`, `ADAPT`, `DELETE`, `SIMPLIFY AFTER`, and
-   `OUT OF SCOPE / DEFERRED`. An empty class is written as `none`; an agent may
-   not infer a missing class.
+   `OUT OF SCOPE / DEFERRED`. An empty class is written as `none`; a missing
+   class is not authorization to infer work.
 3. **Trace the whole path.** Do not stop after deleting a screen or a Swift
    service. Follow every exclusive caller and dependency through the Python
    backend, storage, jobs, infrastructure, tests, configuration, and docs.
@@ -142,42 +134,30 @@ TDD plan. Refer to slices by their number and full name.
     an exclusive producer, consumer, route, collection, job, secret, manifest,
     test, or operational document remains live.
 
-### Human, meta-orchestrator, and subagent ownership
+### Delivery boundary
 
-- **Human controller:** chooses when to start each wave, reviews each TDD plan's
-  proposed public seams, resolves reopened product decisions, and decides when
-  the wave may advance.
-- **Six wave meta-orchestrators:** one agent per wave. It reads that wave's
-  `waveN.md`, coordinates its assigned `S-XX` subagents, respects dependencies
-  and shared files, collects closure evidence, and reports blockers to the
-  human. It does not silently change requirements or implement all slices itself.
-- **Thirty-one `S-XX` subagents:** one dedicated implementation agent per
-  numbered slice across the six waves. The same subagent owns its entire TDD
-  plan and executes its red-green cycles sequentially.
-- **Thirty-one TDD plans:** exactly one `s-xx tdd.md` per `S-XX`. The number of
-  red-green cycles inside that plan is discovered while planning that slice; it
-  is not fixed by this map. The discarded 86-packet draft is not an execution
-  list and does not constrain any TDD plan.
-- **Default delivery boundary:** one named issue/PR per `S-XX`. Its ordered TDD
-  cycles are internal implementation checkpoints owned by the same subagent.
-  If source research proves that one PR cannot preserve a safe working state,
-  the human must approve a delivery split first; the slice owner and total of 31
-  TDD plans do not change.
-
-Parallelism is allowed only between dependency-independent `S-XX` agents in the
-same wave. The cycles inside one `S-XX` plan are intentionally sequential: each
-tracer bullet responds to what the previous cycle taught the owning agent.
+- There is exactly one `s-xx tdd.md` plan per numbered slice. The number of
+  red-green cycles inside the plan is discovered while planning that slice; the
+  discarded 86-packet draft is not an execution list.
+- The default delivery boundary is one named issue/PR per `S-XX`. Split delivery
+  only when source evidence proves that one change cannot preserve a safe,
+  independently verifiable working state. A split does not create another
+  numbered slice or TDD plan.
+- Dependency-independent slices may proceed concurrently. Cycles inside one
+  `S-XX` plan remain sequential so each tracer bullet can respond to what the
+  previous cycle established.
 
 ### Required `S-XX` TDD plan
 
 No `S-XX` implementation starts until its one TDD plan contains all of the
-following and the human has agreed to the public behavioral seams.
+following and each public behavioral seam is traced to an authorizing IR or an
+existing retained-behavior contract.
 
 ```markdown
 ## S-XX TDD Plan — One outcome-oriented name
 
 Status: researched | blocked | ready | in progress | closed
-Owning subagent: S-XX
+Slice: S-XX
 Wave: 1 through 6
 Authorizing and protecting decisions: exact IR IDs
 Depends on: exact S-XX slices
@@ -196,8 +176,8 @@ Postcondition: one sentence describing what works when this S-XX closes.
 
 Current codeflow: real entry points, authorities, mixed seams, tests, manifests.
 
-Proposed public seams: user-observable interfaces to test. The human must agree
-to these before any test is written.
+Public seams: user-observable interfaces to test. Trace each seam to an exact
+authorizing decision or retained-behavior contract before its first test.
 
 Ordered TDD cycles:
 1. RED: one failing behavioral test at an agreed seam.
@@ -212,14 +192,14 @@ residue searches, component tests, docs, measured cycle-time evidence, and any
 stable automation added last.
 ```
 
-If a plan lacks any field, its `S-XX` remains a research item. The subagent must
-not fill the gap with a guess while implementing.
+If a plan lacks any field, its `S-XX` remains a research item. A missing field is
+not authorization to fill the gap with a guess during implementation.
 
 ## Dependency graph
 
-The roadmap contains six human-run waves, six meta-orchestrator agents, 31
-subagent-owned slices, and 31 TDD plans. Slices in the same wave may proceed in
-parallel only when their TDD plans show no dependency or shared-owner conflict.
+The roadmap contains six dependency-ordered waves, 31 implementation slices,
+and 31 TDD plans. Slices in the same wave may proceed concurrently only when
+their TDD plans show no dependency or shared-owner conflict.
 
 ```text
 WAVE 1 — independent removals and stable ownership boundaries
@@ -258,15 +238,37 @@ WAVE 6 — truth and ship
   S-31 end-to-end closure, cycle-time measurement, and automation
 ```
 
+### Cross-slice integration constraints
+
+These are source-ownership constraints, not an execution-control system. A
+later slice changes only its own behavior on a shared surface and consumes the
+already-integrated predecessor shape first.
+
+| Shared surface | Required owner order |
+|---|---|
+| Repository checks, preflight, and absent-tree workflow routing | S-04 narrows the shared control plane first. S-01, S-02, S-03, S-06, and S-09 later remove only entries made exclusive by their own product deletions. |
+| Mixed desktop/backend contracts | S-04 preserves the retained T0 job. S-10 removes the hosted-conversation cases and fixtures; S-12 removes the hosted-memory cases and the final discovery-registry residue. |
+| `desktop/macos/vendor/libwebp/**` | S-04 preserves the current universal cache; S-29 owns its final provenance, architecture, signing, and rebuild contract. |
+| Runtime images, deployment manifests, and shared workflows | Integrate S-04 before product-specific cleanup, then S-01 -> S-02 -> S-03 -> S-06 -> S-09. A shared service remains until its final retained workload has an owner. |
+| Backend routes, route policy, OpenAPI, and generated non-Windows Swift | Integrate endpoint changes in the order S-01 -> S-02 -> S-03 -> S-06 -> S-07 -> S-08 -> S-09. Regenerate from the source contract; do not hand-edit generated Swift. |
+| Pi runtime and tool manifests | S-05 narrows the retained transport before S-06 removes rejected connector/calendar/knowledge tools; S-07 then removes BYOK propagation without changing Pi behavior. |
+| STT policy and provider configuration | S-03 removes hosted providers before S-07 removes customer-key propagation from the same surfaces. S-16 later owns the wider transient-listen protocol. |
+| Wearable and Limitless paths | S-02 deletes direct wearable hardware, including direct Limitless support. S-06 deletes only the hosted Limitless ZIP importer. |
+| Agent VM-adjacent journals and screen history | S-01 removes VM copies only. S-11 owns normal backend-journal removal; S-15 owns shared cloud screen-history removal. |
+| Account and telemetry identity | S-08 publishes the canonical account/sign-in/sign-out seam before S-09 adapts identity attachment and detachment. |
+
+Repository closure and live operational closure remain separate. Migrations,
+decommissions, data deletion, deploys, and other external mutations follow the
+authorization and safety rules in `AGENTS.md`.
+
 ### TDD plan artifacts
 
-The user creates and approves the plans one at a time. Creating this map does
-not create or authorize any implementation plan automatically.
+Creating this map does not implement any slice. Each TDD plan remains a separate
+source-grounded artifact.
 
-Wave 1 has one meta-orchestrator plan and nine subagent TDD plans:
+Wave 1 has nine TDD plans:
 
 ```text
-bootstrap-scaffold/wave-1/wave1.md
 bootstrap-scaffold/wave-1/s-01 tdd.md
 bootstrap-scaffold/wave-1/s-02 tdd.md
 bootstrap-scaffold/wave-1/s-03 tdd.md
@@ -278,19 +280,14 @@ bootstrap-scaffold/wave-1/s-08 tdd.md
 bootstrap-scaffold/wave-1/s-09 tdd.md
 ```
 
-`wave1.md` will coordinate the nine independently owned `S-XX` plans. It is not
-a replacement implementation plan and it has no authority to rewrite them.
-Each `s-xx tdd.md` is created separately, reviewed with the human, and then
-executed sequentially by that slice's dedicated subagent.
-
-Later waves follow the same pattern inside `wave-2/` through `wave-6/` and
-together produce exactly 31 `s-xx tdd.md` files across `S-01` through `S-31`.
+Later waves use the same one-plan-per-slice structure inside `wave-2/` through
+`wave-6/` and together produce exactly 31 `s-xx tdd.md` files across `S-01`
+through `S-31`.
 
 The exact blocking edges and each slice's keep/delete boundary are recorded in
-the complete slice register below. Only one product choice remains deliberately
-unresolved: whether a later release will choose Gemini Live, OpenAI Realtime,
-or continue retaining both. Until that decision is reopened, the current
-two-provider behavior is protected rather than redesigned.
+the complete slice register below. The current v1 provider choice is resolved:
+retain Gemini Live and OpenAI Realtime with Auto, explicit switching, and
+failover unless a later requirement deliberately reopens that decision.
 
 ## Shared closure contract
 
@@ -760,17 +757,17 @@ and the general cleanup does not hide unfinished work.
 
 ---
 
-## S-XX subagent slice register beyond the four root briefs
+## Implementation slice register beyond the four root briefs
 
-The remaining `S-XX` slices are named below. Each receives one dedicated
-subagent and one TDD plan. The bullets are requirements and source-research
-inputs to that future plan, not a prewritten list of red-green cycles. The plan
-may discover any number of vertical tracer bullets, but the `S-XX` ownership
-boundary and its approved product decisions remain stable.
+The remaining `S-XX` slices are named below. Each has one TDD plan. The bullets
+are requirements and source-research inputs to that future plan, not a prewritten
+list of red-green cycles. The plan may discover any number of vertical tracer
+bullets, but the `S-XX` ownership boundary and its approved product decisions
+remain stable.
 
 Where a research status says **split**, it means split into sequential tracer
 bullets or review stages inside that slice's one TDD plan. It never creates an
-extra numbered plan or an extra owning subagent.
+extra numbered slice or plan.
 
 ### S-05 — Keep one managed-Pi local agent and delete every alternate entrance
 
@@ -852,10 +849,10 @@ residue with S-05<br>
 ### S-08 — Re-own Firebase identity and narrow account lifecycle/data export
 
 **Type:** retained cloud-control adaptation<br>
-**Research status:** blocked; the researched plan proves the full closure cannot
-land safely in Wave 1 without an ownership repair<br>
-**Depends on:** human approval of the delivery boundary and owned Firebase /
-Apple / Google identity inputs; S-09 consumes the resulting identity/sign-out seam<br>
+**Research status:** ready for the narrow Wave 1 tranche once its exact external
+and released-contract start gates close; later closure remains dependency-gated<br>
+**Depends on:** owned Firebase / Apple / Google identity inputs and the applicable
+released-contract decision; S-09 consumes the resulting identity/sign-out seam<br>
 **Primary decisions:** IR-006, IR-120, IR-124, IR-170 through IR-190, IR-830,
 IR-868, IR-877, IR-878
 
@@ -863,30 +860,34 @@ IR-868, IR-877, IR-878
   blocking session validation, recovery, fail-closed foreground refresh, explicit
   sign-out, confirmed account deletion, durable queued worker, immediate sign-out
   after acceptance, completed tombstones, and minimal account-control Firestore.
-- **Proposed Wave 1 adaptation:** re-own Firebase/Apple/Google identity, protect
+- **Wave 1 adaptation:** re-own Firebase/Apple/Google identity, protect
   the current auth/session/sign-out seams, remove the backend acquisition-source
   mirror, remove unused deletion-reason fields, and publish a narrow retained
   deletion-orchestrator/account-metadata contract for later owners.
-- **Blocked full closure:** a complete local Export My Data flow needs the final
+- **Later closure dependencies:** a complete local Export My Data flow needs the final
   S-10 through S-14 authorities; safe deletion-worker pruning needs S-18/S-23/S-24;
   task retargeting and queue/IAM/region ownership need S-25/S-27. Making S-08
   depend on all of them creates cycles because downstream slices already consume
   S-08 identity semantics.
-- **Human roadmap decision required:** either approve the narrow Wave 1 delivery
-  and transfer each later closure obligation to its actual existing S-XX owner,
-  or move full S-08 closure to a later wave and repair every affected dependency.
-  Do not create S-08A/S-08B, a tenth Wave 1 subagent, or an extra TDD plan.
-- **Close the approved Wave 1 tranche when:** owned sign-in/recovery/sign-out
+- **Adopted ownership boundary:** S-08 owns the retained auth/session fences,
+  owned identity configuration, onboarding acquisition-mirror removal,
+  deletion-reason removal, and explicit account-deletion/account-metadata
+  handoff contracts. S-10 through S-14 own complete local export readers; S-18,
+  S-23, and S-24 own rejected-provider/data cleanup; S-25 owns task retargeting;
+  and S-27 owns queue/IAM/region infrastructure and live validation. The same
+  S-08 plan retains final export composition and acceptance after its reader
+  dependencies close; no S-08A/S-08B or extra plan is created.
+- **Close the Wave 1 tranche when:** owned sign-in/recovery/sign-out
   behavior works, rejected onboarding/deletion-reason fields are gone, S-09 has
   an explicit identity seam, and every deferred export/deletion/queue obligation
-  has a named acceptance handoff. Full IR closure remains with the approved
-  downstream owners and final wave acceptance.
+  has a named acceptance handoff. Full IR closure waits for the named downstream
+  dependencies and final acceptance.
 
 ### S-09 — Re-own telemetry, diagnostics, issue reporting, and model tracing
 
 **Type:** retained observability adaptation<br>
 **Research status:** split<br>
-**Depends on:** the approved S-08 account identity/sign-out seam, not unimplemented
+**Depends on:** the canonical S-08 account identity/sign-out seam, not unimplemented
 later export or queue cleanup<br>
 **Primary decisions:** IR-114 through IR-117, IR-183, IR-204 through IR-211,
 IR-254, IR-805, IR-827, IR-828, IR-832, IR-836, IR-837, IR-879, IR-886
@@ -1530,7 +1531,7 @@ When a slice closes:
 4. re-inventory the paths the slice was expected to unblock; and
 5. update dependencies and split the slice's internal TDD cycle sequence only
    when implementation evidence shows independently verifiable codeflows. Do
-   not create another `S-XX`, TDD plan, or owning subagent without a new human
+   not create another `S-XX` or TDD plan without a new requirements-backed
    roadmap decision.
 
 This keeps the plan attached to the real codebase instead of turning it into a

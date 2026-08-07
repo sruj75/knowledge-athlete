@@ -4,9 +4,9 @@
 
 | Field | Value |
 |---|---|
-| Status | `researched` — **the public seams and released-OpenAPI sunset decision below require human approval before implementation or test-writing starts** |
+| Status | `researched` — **the public seams must be traced to the live requirements and the released-OpenAPI sunset decision below must be recorded before its route-removal cycle starts** |
 | Wave | 1 |
-| Owning subagent | S-06 |
+| Slice | S-06 |
 | Authorizing decisions | IR-015, IR-045 through IR-047, IR-050, IR-051, IR-106, IR-135, IR-141, IR-142, IR-212, IR-213, IR-256, IR-258 through IR-261, IR-310, IR-375, IR-512, IR-637, IR-816 through IR-818, IR-824, IR-938 |
 | Protecting decisions | IR-002, IR-024, IR-025, IR-038, IR-041, IR-044, IR-052, IR-257, IR-260, IR-263 through IR-271, IR-311 through IR-315, IR-357 |
 | Dependencies | None at the roadmap level. Coordinate the private tool-transport boundary with S-05; S-05 deletes `omi-tools-stdio` and `LocalAgentAPIServer`, while S-06 must preserve Pi's `OMI_BRIDGE_PIPE` path. |
@@ -29,16 +29,17 @@
 
 S-06 deliberately removes released app-client endpoints, but the current compatibility policy in `backend/AGENTS.md` and `backend/scripts/check_app_client_openapi_compatibility.py` rejects every removed released path or operation and forbids a breaking-change allowlist. The app-client snapshot is absent from this reduced checkout, but CI compares against the merge-base copy, so absence here does not remove the conflict.
 
-Before any route-removal cycle starts, the human/API owner must choose and document a product-sunset boundary that satisfies both requirements:
+Before any route-removal cycle starts, the released-API contract must document a
+product-sunset boundary that satisfies both requirements:
 
 1. the rejected route and remote schema actually disappear — no dead 200/410 handler, deprecated compatibility shell, or stale generated client remains; and
 2. the ordinary compatibility gate remains strict for retained APIs — no one-off S-06 allowlist or globally weakened comparison.
 
-The recommended direction is an explicit, release-level endpoint-version retirement that changes the released baseline under the existing OpenAPI workflow. If that mechanism does not already exist, its policy/check implementation must be approved as part of the S-06 plan before Cycle 3. Until then, S-06 is researched but not ready. Record the chosen mechanism, owner, exact retired operation set, released-client migration evidence, and updated test lane here before implementation.
+The recommended direction is an explicit, release-level endpoint-version retirement that changes the released baseline under the existing OpenAPI workflow. If that mechanism does not already exist, its policy/check implementation must be recorded and verified as part of the S-06 plan before Cycle 3. Until then, that cycle is not ready. Record the chosen mechanism, owner, exact retired operation set, released-client migration evidence, and updated test lane here before implementation.
 
 ## How this plan is executed
 
-1. After the public seams below are approved, start with [engineering:implement](/Users/srujanu/.codex/plugins/cache/local-workspace/engineering/0.2.0/skills/implement/SKILL.md), using this file as the implementation spec. Begin with `make setup`, fetch `origin/main`, record the merge-base, and build an exact tracked-file/caller inventory. Work on the current branch; do not push or open a PR without a separate user request.
+1. After the public seams below are traced to the live requirements, start with [engineering:implement](/Users/srujanu/.codex/plugins/cache/local-workspace/engineering/0.2.0/skills/implement/SKILL.md), using this file as the implementation spec. Begin with `make setup`, fetch `origin/main`, record the merge-base, and build an exact tracked-file/caller inventory. Work on the current branch; do not push or open a PR without a separate user request.
 2. Use [engineering:tdd](/Users/srujanu/.codex/plugins/cache/local-workspace/engineering/0.2.0/skills/tdd/SKILL.md) for every cycle. Write one behavioral test at an approved public seam, observe the intended RED, implement only enough GREEN for that tracer bullet, and only then continue. Do not write all tests first.
 3. Apply [engineering:codebase-design](/Users/srujanu/.codex/plugins/cache/local-workspace/engineering/0.2.0/skills/codebase-design/SKILL.md) to the surviving seams: one small local-assistant interface, explicit local authorities, and adapters only where a real external/system boundary remains. Do not preserve deleted products as generic registries, compatibility aliases, empty tabs, ignored fields, or future-facing extension points.
 4. Refactor only after the deletion cycles are green. Commit locally in coherent, independently testable vertical slices and record the command/evidence for each.
@@ -98,7 +99,7 @@ This slice does **not**:
 - delete Limitless or other direct wearable hardware support (S-02 owns that already-approved deletion);
 - delete Rewind foreground-application filtering, Rewind OCR/vector indexes, FTS indexes for retained local data, or `ProactiveAssistantsPlugin` merely because their names collide with Apps/plugins/indexing;
 - create a replacement local knowledge graph, local connector framework, local marketplace, persona catalog, or generic plugin API;
-- decommission a live cloud service without an inventory/traffic check and explicit human sign-off.
+- decommission a live cloud service without an inventory/traffic check and explicit user authorization.
 
 ## Action ledger
 
@@ -181,9 +182,11 @@ Before the first RED, expand each grouped row into exact tracked files and runti
 2. `gcp_plugins.yml`, `runtime_images.json`, deployment concurrency checks, and monitoring preserve the zombie plugins service even where its image source is absent.
 3. `gcp_personas.yml`, public-build contracts, and persona configs preserve a public persona deployment whose product is rejected.
 
-## Proposed public seams — human approval gate
+## Requirements-backed public seams
 
-No S-06 test is written until the human agrees that these are the observable seams. Tests must exercise production behavior through these interfaces, not inspect source-string order.
+No S-06 test is written until these observable seams are traced to the
+authorizing and protecting decisions. Tests must exercise production behavior
+through these interfaces, not inspect source-string order.
 
 | Seam | Contract to prove | Primary test/real-path surface |
 |---|---|---|
@@ -195,7 +198,7 @@ No S-06 test is written until the human agrees that these are the observable sea
 | Canonical backend route surface | Removed marketplace, connector, task-integration/export, remote-MCP, KG, sharing, Calendar-creation, and Limitless-import endpoints are absent from FastAPI/OpenAPI and return 404; retained auth, product subscription, model/STT, and ordinary product routes remain registered. | real `app.routes`/OpenAPI/TestClient boundary and retained endpoint smoke tests |
 | Deployment graph | Retained services render and pass release checks; `backend-integration`, plugins, and persona-public-build have no deployable workflow/image/config/monitoring/secret owner after exclusive ownership is proven. | existing workflow, runtime-env, runtime-image, release-vector, deployment-concurrency, monitoring, and public-build contract checks |
 
-Approval also accepts these design choices:
+The same requirements trace establishes these design choices:
 
 - “one assistant” removes `selectedAppId` and app/persona partitioning rather than replacing them with a constant default app ID;
 - hosted routes are removed rather than returning a compatibility payload or feature-disabled response;
@@ -354,7 +357,7 @@ This is setup, not a passing characterization-test substitute.
 
 **GREEN:** Remove S-06-exclusive entries from backend deploy workflows, auto-dev workflows, runtime env/image manifests, release-vector/preflight/traffic/account-deletion scripts, OpenAPI/config generators, monitoring dashboards/alerts, public-build configs, concurrency checks, and docs. Delete whole workflows/images only when no retained owner remains; narrow shared scripts otherwise.
 
-**Live decommission gate:** repository cleanup may be implemented and tested locally. Before deleting or redirecting a live Cloud Run service, image, secret, domain, OAuth client, collection, or traffic target, capture live inventory/traffic/retention evidence and obtain explicit human sign-off. Code merge is not live-deletion approval.
+**Live decommission gate:** repository cleanup may be implemented and tested locally. Before deleting or redirecting a live Cloud Run service, image, secret, domain, OAuth client, collection, or traffic target, capture live inventory/traffic/retention evidence and obtain explicit user authorization. Code merge is not live-deletion approval.
 
 **Verify before review:** runtime-env render/validation, runtime-image closure, workflow/deployment-concurrency, release-vector, public-build, monitoring/config, OpenAPI, and pre-deploy checks; no unexplained service/secret/config residue.
 
@@ -478,7 +481,7 @@ There may be no unexplained live S-06 UI, route, collection, OAuth grant, webhoo
 
 ## Closure checklist
 
-- [ ] Human approved every proposed public seam and the five design choices below the seam table.
+- [ ] Every public seam and the five design choices below the seam table were traced to the live requirements.
 - [ ] Exact merge-base and complete caller/resource inventory recorded.
 - [ ] Each cycle showed an intended behavioral RED before its minimum GREEN.
 - [ ] Kept one-assistant, attachment, Pi/tool, local-data, permission, backend, billing, and hardware paths pass.
@@ -490,5 +493,5 @@ There may be no unexplained live S-06 UI, route, collection, OAuth grant, webhoo
 - [ ] Offline/credential-free startup and removed-route behavior were exercised.
 - [ ] Residue and live-resource inventories are classified with no unexplained S-06 owner.
 - [ ] Docs and desktop changelog fragment match the surviving product.
-- [ ] Risky live decommission actions received explicit human sign-off and have live evidence.
+- [ ] Risky live decommission actions received explicit user authorization and have live evidence.
 - [ ] `engineering:code-review` completed separate Standards and Spec Compliance reviews against pinned `origin/main`; all valid findings are resolved and checks rerun.

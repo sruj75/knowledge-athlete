@@ -4,9 +4,9 @@
 
 | Field | Value |
 |---|---|
-| Status | `ready` — the human approved the VM-only slice boundary, all three retained desktop seams, and gated live-cloud decommission on 2026-08-07 |
+| Status | `ready` — the requirements-backed VM-only boundary and three retained desktop seams are recorded; live-cloud decommission remains separately gated |
 | Wave | 1 |
-| Owning subagent | S-01 |
+| Slice | S-01 |
 | Authorizing decisions | IR-001, the VM half of IR-002, and IR-934 |
 | Protecting and scope-partition decisions | IR-003, IR-011, IR-113, IR-125, IR-127, IR-143, IR-806 through IR-809, IR-923, and IR-928 |
 | Coordinated owners | S-05 for deletion of `LocalAgentAPIServer` and `omi-tools-stdio`; S-11 for normal-chat backend journal projection; S-15 for shared cloud screen-history deletion; S-23 and later backend cleanup for product data that remains after its final caller disappears |
@@ -32,7 +32,7 @@
 
 ### Two repository-contract gates
 
-1. **Released app-client compatibility.** The backend guide normally forbids removing a released app-client endpoint. S-01 deliberately retires the complete rejected Agent VM product and the root guide forbids an in-repo no-op compatibility shell. Remove the seven endpoints from the current route/export/generated-client surfaces. If the restored released OpenAPI contract proves a shipped client still depends on them, do not add fake-success or dead forwarding handlers and do not bypass the check: stop the merge, attach the exact compatibility diff, and obtain an explicit contract-sunset decision from the human/release owner.
+1. **Released app-client compatibility.** The backend guide normally forbids removing a released app-client endpoint. S-01 deliberately retires the complete rejected Agent VM product and the root guide forbids an in-repo no-op compatibility shell. Remove the seven endpoints from the current route/export/generated-client surfaces. If the restored released OpenAPI contract proves a shipped client still depends on them, do not add fake-success or dead forwarding handlers and do not bypass the check: stop the merge, attach the exact compatibility diff, and obtain an explicit contract-sunset decision under the repository release policy.
 2. **Failure-class lifecycle.** The deletion map asks for exclusive failure-class residue to disappear, but the repository requires registry lifecycle transitions in separate PRs and preserves incident history. Keep `FC-agent-vm-stop-retains-disk` unchanged in the implementation PR. After code is deployed and live resources are retired, a separate lifecycle PR marks it dormant with `dormant_since`; it is never silently deleted.
 
 ## How this plan is executed
@@ -131,9 +131,11 @@ This slice does **not**:
 - Backend/deploy: FastAPI route tests, runtime-image contracts, workflow contracts, release-policy tests, deployment concurrency, rendered deployment validation, async-blocker scanning, and preflight.
 - Some existing tests are source-inspection tripwires. Preserve useful ones only where they still guard a stable static rule, label them honestly, and never use them as the sole proof of retained runtime behavior.
 
-## Approved public seams
+## Requirements-backed public seams
 
-The human approved all three retained desktop seams, the VM-only scope, and gated decommission. Tests and real-path evidence target these observable outcomes rather than private call order.
+The requirements ledger establishes all three retained desktop seams and the
+VM-only scope. Live decommission remains separately gated. Tests and real-path
+evidence target these observable outcomes rather than private call order.
 
 | Seam | Contract to prove | Primary evidence |
 |---|---|---|
@@ -441,6 +443,6 @@ Before a local commit is handed off:
 - [ ] Focused loops, desktop/backend full suites, harness, source closure, preflight, and final classified residue search are recorded.
 - [ ] `engineering:code-review` Standards and Spec Compliance findings are resolved from the pinned fixed point.
 - [ ] No compatibility shell, fake success, dormant provider switch, new orphaned deferral, or unowned screen/cloud-data deletion landed.
-- [ ] Released-client compatibility is either green or explicitly stopped for a human contract-sunset decision; it is never bypassed.
+- [ ] Released-client compatibility is either green or explicitly stopped for a contract-sunset decision; it is never bypassed.
 - [ ] Live resources remain untouched until explicit destructive approval; after approval, fleet/proxy/reaper/storage/IAM/state are removed in the safe order and zero-state evidence is captured.
 - [ ] The Agent-VM failure class is marked dormant only in its separate post-decommission lifecycle PR.

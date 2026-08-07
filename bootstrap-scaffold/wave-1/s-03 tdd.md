@@ -4,9 +4,9 @@
 
 | Field | Value |
 |---|---|
-| Status | `researched` — **public seams plus the IR-228, IR-400, and model-order decisions require human approval before implementation starts** |
+| Status | `researched` — **public seams plus the IR-228, IR-400, and model-order interpretations must be resolved against the live requirements before implementation starts** |
 | Wave | 1 |
-| Owning subagent | S-03 |
+| Slice | S-03 |
 | Authorizing decisions | IR-019, IR-062, IR-887, IR-888, IR-889 |
 | Protecting decisions | IR-023, IR-054, IR-055, IR-059 through IR-061, IR-069, IR-071, IR-072, IR-115 through IR-119, IR-228, IR-400 through IR-405, IR-891 |
 | Coordinated owners | S-07 for customer-BYOK/key deletion; S-16 for the wider `/v4/listen` wire-contract cleanup; S-30 for Local VAD Gate truthfulness if the copy conflict is not resolved here |
@@ -26,7 +26,7 @@
 
 ## How this plan is executed
 
-1. After the seams below are approved, start with [engineering:implement](/Users/srujanu/.codex/plugins/cache/local-workspace/engineering/0.2.0/skills/implement/SKILL.md), using this file as the implementation spec. Its first setup operation is `make setup`, followed by a clean baseline in the documented backend/Desktop environments. Work on the current branch, use the RED → GREEN cycles in order, and commit locally in testable vertical slices. Do not push or open a PR without a separate user request.
+1. After the seams below are traced to the live requirements, start with [engineering:implement](/Users/srujanu/.codex/plugins/cache/local-workspace/engineering/0.2.0/skills/implement/SKILL.md), using this file as the implementation spec. Its first setup operation is `make setup`, followed by a clean baseline in the documented backend/Desktop environments. Work on the current branch, use the RED → GREEN cycles in order, and commit locally in testable vertical slices. Do not push or open a PR without a separate user request.
 2. Use [engineering:tdd](/Users/srujanu/.codex/plugins/cache/local-workspace/engineering/0.2.0/skills/tdd/SKILL.md) throughout implementation. A new test must fail for the intended behavioral reason before production code changes; implement only enough to make that test pass. Do not write all tests first.
 3. Apply the interface rules from [engineering:codebase-design](/Users/srujanu/.codex/plugins/cache/local-workspace/engineering/0.2.0/skills/codebase-design/SKILL.md): keep the retained STT boundary provider-neutral and small, put provider behavior behind it, and delete the provider-selection abstraction that no longer has multiple production implementations.
 4. After all cycles and full verification are green, finish with [engineering:code-review](/Users/srujanu/.codex/plugins/cache/local-workspace/engineering/0.2.0/skills/code-review/SKILL.md). Pin the review fixed point to the freshly fetched `origin/main`, use this file as the spec, review Standards and Spec Compliance separately, fix findings, and rerun the affected checks.
@@ -82,9 +82,11 @@ The researched owner inventory at the snapshot is:
 | Dependencies/support | `deepgram-sdk` in backend/pusher/OpenAPI requirements and lockfiles; provider-specific benchmarks, repro tools, fixtures, container tests, unit tests, runbooks, environment templates, and current docs. |
 | Existing regression fences | Backend provider-policy, prerecorded-config/language, Modulate, listen-pipeline/failure/VAD, desktop-transcribe, voice-message, runtime-env, Helm, workflow, and runtime-image tests; Swift listen-protocol, transport, reducer, coordinator, and PTT state-machine tests. Source-inspection tripwires do not substitute for these behavioral seams. |
 
-## Proposed public seams — approval gate
+## Requirements-backed public seams
 
-Implementation must not begin until the following observable seams are accepted. Tests target these interfaces, not private call order or source-string placement.
+Implementation must not begin until the following observable seams are traced to
+the authorizing and protecting decisions above. Tests target these interfaces,
+not private call order or source-string placement.
 
 | Seam | Contract to preserve/prove | Main test surface |
 |---|---|---|
@@ -94,15 +96,15 @@ Implementation must not begin until the following observable seams are accepted.
 | Voice-turn fallback | A native hub/relay failure can reach a capability-named managed streaming/batch route without changing turn ownership, UI state, terminal state, journaling, or TTS. | `VoiceTurnStateMachine`, reducer, and coordinator behavioral tests |
 | Operator/deployment contract | Every backend runtime, image, secret, workflow, and chart resolves to Modulate-only STT; a retired provider cannot be selected or deployed. | Existing runtime-env, Helm-default, runtime-image, workflow, and deploy-preflight contract tests |
 
-### One requirements conflict to approve
+### One requirements conflict to resolve
 
 IR-228 says to preserve the Local VAD Gate card, state, restart behavior, disconnected `VADGateService`, diagnostics, tests, **and exact current copy**. That copy says the feature reduces “Deepgram API usage.” IR-889 and S-03 require all live Deepgram product claims to disappear. Both cannot be true at closure.
 
 Recommended interpretation: IR-889 supersedes only the retired provider noun. Keep every IR-228 behavior and the rest of the copy unchanged, but replace “Deepgram API usage” with “managed cloud transcription usage.” Do not wire up, repair, remove, or otherwise redesign the Local VAD Gate. If exact IR-228 wording must instead remain, S-03 cannot meet its no-live-Deepgram-residue postcondition; record an explicit exception owned by S-30 and leave this plan blocked rather than declaring it complete.
 
-Two narrower design choices are part of the proposed seam approval:
+Two narrower design choices are part of the requirements interpretation:
 
-- S-03 removes IR-400's `stt_service` query field and preferred-provider reordering end to end because its only behavior is to bias hosted Parakeet. Keeping it as an ignored field would be a forbidden compatibility shell. If the human assigns public-schema deletion to S-16 instead, S-03 still removes all routing effect and records the exact contract/file handoff.
+- S-03 removes IR-400's `stt_service` query field and preferred-provider reordering end to end because its only behavior is to bias hosted Parakeet. Keeping it as an ignored field would be a forbidden compatibility shell. If the live roadmap assigns public-schema deletion to S-16 instead, S-03 still removes all routing effect and records the exact contract/file handoff.
 - S-03 deletes `STT_SERVICE_MODELS` and `STT_PRERECORDED_MODEL` end to end. With one managed adapter, retaining comma-list parsing or a one-element “provider order” is misleading configuration. The deploy contract should instead prove the fixed Modulate policy and its product-owned `MODULATE_API_KEY` binding.
 
 ## Action ledger
@@ -321,7 +323,7 @@ Hermetic fakes prove control flow; they do not replace the live Modulate exercis
 
 ## Completion checklist
 
-- [ ] The five public seams and the IR-228 copy, IR-400 `stt_service`, and model-order-knob interpretations were approved before tests were written.
+- [ ] The five public seams and the IR-228 copy, IR-400 `stt_service`, and model-order-knob interpretations were traced to the live requirements before tests were written.
 - [ ] Every new test was observed RED for the intended behavioral reason, then GREEN with the minimum implementation.
 - [ ] Embedded Mac-local Parakeet passed automated and real-path verification.
 - [ ] Modulate passed managed live, prerecorded, and PTT-fallback success/error verification.

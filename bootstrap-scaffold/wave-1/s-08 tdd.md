@@ -1,40 +1,43 @@
 # S-08 TDD Plan — Re-own account identity without weakening lifecycle, deletion, or export
 
-Status: **blocked — roadmap ownership and external start gates are unresolved**
-Owning subagent: **S-08**
+Status: **ready for the narrow Wave 1 tranche once its applicable external and released-contract start gates close; later cycles remain dependency-gated**
+Slice: **S-08**
 Wave: **1**
 Authorizing and protecting decisions: **IR-006, IR-120, IR-124, IR-170 through IR-190, IR-830, IR-868, IR-877, IR-878**
 Roadmap entry: [`deletion-map.md`](../deletion-map.md), section **S-08 — Re-own Firebase identity and narrow account lifecycle/data export**
 Primary requirement source: [`requirements-challenge.md`](../requirements-challenge.md) lines 5189-6223, 18118-18140, 18720-18889, 19282-19535, and 19987-20069
-Research note: the source-grounded findings are incorporated into this tracked plan; no gitignored `.context` note is required by the implementing agent
+Research note: the source-grounded findings are incorporated into this tracked plan; no gitignored `.context` note is required for implementation
 Fixed review point: **`origin/main`**
 
 Postcondition: Apple and Google sign-in use our Firebase/OAuth control plane with the existing fail-closed Mac session lifecycle intact; Firestore contains only retained account-control data; account deletion remains durably queued, idempotent, retryable, and scoped to retained cloud account data; the Mac can write a complete offline export from the final local authorities; and the server export contains genuine account metadata rather than private Mac product content.
 
 ## How to execute this plan
 
-After every start gate below is closed and the human has agreed to the proposed public seams, start with **`engineering:implement`** using this file as the spec. Keep one S-08 owner for all cycles, execute the cycles in order, use the `engineering:tdd` red-to-green discipline at the named seams, and commit each independently green behavior on the current branch. Do not rename the branch, push, open a PR, deploy, or merge without the separate authorization required by the repository guide.
+After the applicable start gate is closed and the active public seam is traced to the authorizing decisions, start with **`engineering:implement`** using this file as the spec. Keep the S-08 boundary intact across all cycles, execute the cycles in order, use the `engineering:tdd` red-to-green discipline at the named seams, and commit each independently green behavior on the current branch. Do not rename the branch, push, open a PR, deploy, or merge without the separate authorization required by the repository guide.
 
 Use **`engineering:codebase-design`** during intake only if source discovery forces a change to one of the public seams below. Apply it to keep authentication, deletion orchestration, account-metadata export, and local-product export as deep modules with small interfaces; do not use it to create speculative adapters or compatibility shells.
 
 At the end, use **`engineering:code-review`** against **`origin/main`**. Its Standards axis must use the root, backend, desktop, and `.github` `AGENTS.md` files; its Spec axis must use this plan plus the authorizing IR sections above. Fix every accepted finding, rerun the affected verification, and repeat the review if the diff changed materially.
 
-## Why this plan is blocked
+## Adopted delivery boundary and remaining start gates
 
-The original roadmap said S-08 depended on no other slice. The live deletion map now records the conflict found by this plan: that is true only for a narrow early tranche, not for complete S-08 closure. Recording the conflict does not approve either delivery choice.
+The original roadmap said S-08 depended on no other slice. The live deletion map
+now adopts a narrow early tranche and assigns the later closure dependencies
+explicitly; complete S-08 closure still waits for those named dependencies.
 
 | Gate | Evidence and consequence | Unblocks when |
 |---|---|---|
-| **G1 — owned identity inputs** | Production-family Firebase and backend workflow configuration still names `based-hardware`; the desktop auth guide still names Apple Services ID `me.omi.web`; the Mac plists, backend OAuth, service-account signer, provider callbacks, and release probe must move as one environment-consistent identity. Guessing project IDs, OAuth redirect URIs, signer emails, API keys, or secrets would create an unauthenticatable app. | The human supplies or points to environment-owned development and production Firebase project IDs/numbers, Mac Firebase plist values for each bundle family, Google OAuth clients, Apple Services ID/team/key, callback URLs, Firebase Admin/runtime identities, and the intended backend hosts. Secrets stay in the environment and never enter this file or Git. |
+| **G1 — owned identity inputs** | Production-family Firebase and backend workflow configuration still names `based-hardware`; the desktop auth guide still names Apple Services ID `me.omi.web`; the Mac plists, backend OAuth, service-account signer, provider callbacks, and release probe must move as one environment-consistent identity. Guessing project IDs, OAuth redirect URIs, signer emails, API keys, or secrets would create an unauthenticatable app. | Environment-owned development and production Firebase project IDs/numbers, Mac Firebase plist values for each bundle family, Google OAuth clients, Apple Services ID/team/key, callback URLs, Firebase Admin/runtime identities, and intended backend hosts are available from their owned configuration sources. Secrets stay in the environment and never enter this file or Git. |
 | **G2 — complete local export authorities** | `ConversationRepository`, `MemoryStorage`, `TasksStore`/`ActionItemStorage`, `GoalStorage`, and Focus/Insight stores still reconcile with remote owners or incomplete caches. Exporting them now can silently omit data, which violates IR-830. | S-10, S-11, S-12, S-13, and S-14 have closed their local-authority contracts. S-14 transitively carries its S-15 dependency. Each owner exposes or confirms a complete owner-scoped read interface. |
 | **G3 — safe deletion-worker narrowing** | `account_deletion.py` still purges Twilio, Pinecone, cloud recordings, canonical memory derivatives, and Stripe because those systems can still hold live user data. Removing those cleanup steps before their writers/data are retired would make Delete Account incomplete. | S-18 has installed the retained Dodo cancellation seam and S-23/S-24 have removed the rejected hosted products, object data, and vector data, with migration/deletion evidence. |
 | **G4 — queue/service topology** | The account-deletion task currently targets `backend-sync`, shares stale `SYNC_TASKS_*` identity, assumes the queue already exists, and deploys in the current `us-central1` stack. IR-120/868/877 require the canonical backend, a dedicated signer, explicit queue shape, and the future `us-west1` owned platform. | S-25 has established the canonical service target and S-27 has established the owned development/production Cloud Run, IAM, region, and queue foundation. |
-| **G5 — delivery boundary** | One atomic S-08 PR cannot safely land in Wave 1 while G2-G4 remain open. Making S-08 depend on S-23 is not a repair because S-23 already depends on S-08; that would create a roadmap cycle. The roadmap permits a delivery split only after human approval. | Approve the ownership transfer recommended below, or explicitly reorder the later slices and all affected dependency edges. Do not create S-08A/S-08B slices or extra TDD plans. |
+| **G5 — delivery boundary** | One atomic S-08 PR cannot safely land in Wave 1 while G2-G4 remain open. Making S-08 depend on S-23 would create a roadmap cycle because S-23 already depends on S-08. | **Resolved:** deliver the narrow tranche below; retain Cycles 6-9 as dependency-gated acceptance contracts with their named owners. Do not create S-08A/S-08B slices or extra TDD plans. |
 | **G6 — invariant and released-API authority** | The live desktop tests refer to `INV-AUTH-1`, but the authoritative `docs/product/invariants/auth-session.md` is absent in this checkout. Removing `/v1/users/onboarding` may also change a released OpenAPI surface, while the repo forbids in-tree compatibility shells. | Restore or deliberately replace the authoritative auth invariant, and select an explicit released-client/API transition for the onboarding-route deletion. Run `scripts/pr-preflight --suggest` against the intended diff before RED. |
 
-## Recommended roadmap repair
+## Adopted roadmap repair
 
-Prefer a narrow Wave 1 S-08 delivery rather than blocking the wave on later infrastructure and local-authority slices. Under that repair, S-08 owns:
+The deletion map adopts a narrow Wave 1 S-08 delivery rather than blocking the
+wave on later infrastructure and local-authority slices. S-08 owns:
 
 1. behavioral fences for the retained Mac authentication/session/sign-out contract;
 2. owned Firebase/Apple/Google/backend configuration once G1 is supplied;
@@ -42,11 +45,17 @@ Prefer a narrow Wave 1 S-08 delivery rather than blocking the wave on later infr
 4. removal of unused account-deletion reason fields without changing durable execution; and
 5. an explicit retained deletion-orchestration boundary and account-metadata allowlist for downstream owners.
 
-Transfer the already-authorized closure work to its actual owner: S-10 through S-14 expose complete export readers; S-18 installs Dodo cancellation; S-23/S-24 remove rejected writers, data, and their cleanup; S-25 retargets the task to the canonical backend; and S-27 provisions and validates the owned `us-west1` queue/signer/platform. Those slices must satisfy the S-08 handoff seams recorded here. The deletion map now records this proposed ownership repair as a human gate; it must be amended with exact acceptance ownership after the human approves it.
+The remaining closure work stays with its actual owner: S-10 through S-14 expose
+complete export readers; S-18 installs Dodo cancellation; S-23/S-24 remove
+rejected writers, data, and their cleanup; S-25 retargets the task to the
+canonical backend; and S-27 provisions and validates the owned `us-west1`
+queue/signer/platform. Those slices must satisfy the S-08 handoff seams recorded
+here. S-08 retains final export composition and acceptance after its reader
+dependencies close.
 
-The alternative is to keep every listed IR inside S-08, move S-08 closure after S-10 through S-14, S-18, S-23, S-24, S-25, and S-27, and repair all downstream edges that currently require S-08 first. That is a roadmap rewrite, not an implementation detail.
-
-Until one option is approved, the safe early checkpoint is only a proposed delivery boundary. It must leave current product-data export, provider cleanup, queue target, and legacy task-drain compatibility intact.
+The narrow tranche leaves current product-data export, provider cleanup, queue
+target, and legacy task-drain compatibility intact until their named dependency
+gates close.
 
 ## Decision classification
 
@@ -214,11 +223,11 @@ The initial versioned JSON document contains exactly these top-level sections:
 - complete retained Focus and Insight history;
 - an explicit allowlist of product preferences supplied by the final local owner modules.
 
-Exclude Firebase refresh/ID tokens, Keychain items, customer/provider keys, service secrets, raw diagnostics/logs, telemetry identifiers, caches, sync/reconciliation flags, temporary files, and unrelated Application Support contents. Do not scan arbitrary UserDefaults or dump raw SQLite files. Attachments, Rewind screenshots/video, and other binary files are outside IR-830 unless a later human decision explicitly adds them.
+Exclude Firebase refresh/ID tokens, Keychain items, customer/provider keys, service secrets, raw diagnostics/logs, telemetry identifiers, caches, sync/reconciliation flags, temporary files, and unrelated Application Support contents. Do not scan arbitrary UserDefaults or dump raw SQLite files. Attachments, Rewind screenshots/video, and other binary files are outside IR-830 unless a later reviewed requirement explicitly adds them.
 
-The local export must work with product network access disabled. The authenticated server route remains separate and returns only genuine server-held account/control metadata; a server failure must not prevent the local export. Combining the two into one file is deferred unless the human explicitly expands the seam.
+The local export must work with product network access disabled. The authenticated server route remains separate and returns only genuine server-held account/control metadata; a server failure must not prevent the local export. Combining the two into one file is deferred unless a reviewed requirement explicitly expands the seam.
 
-## Proposed public seams — human agreement required before RED
+## Requirements-backed public seams
 
 1. **Identity configuration seam:** for a named environment and signed artifact, Mac Firebase project, token audience, backend verifier project, Firebase Admin signer project, Apple/Google callback host, and backend URL are one consistent owned tuple. A mismatch fails before traffic/publish; no secret value is printed.
 2. **Mac authentication seam:** Apple and Google each reach the same authenticated Firebase owner through the hosted flow; restore blocks owner UI until validation; transient failure reaches Retry/Sign In Again without deleting owner data; foreground refresh fails closed; explicit Sign Out clears only the already-approved session/draft/projection state.
@@ -239,7 +248,10 @@ This is a start gate, not a code cycle.
 
 1. Invoke `engineering:implement` with this plan.
 2. Run `make setup`, fetch `origin`, confirm the current branch without renaming/switching, and record `git rev-parse origin/main`.
-3. Confirm G1-G6, the roadmap repair, the IR-830 implementation owner, and the public seams with the human. If any remains open, stop rather than implementing a partial implicit contract.
+3. Confirm the gates applicable to the active cycle, the adopted roadmap repair,
+   the IR-830 ownership handoffs, and the public-seam requirements trace. If an
+   applicable gate remains open, stop that cycle rather than implementing a
+   partial implicit contract.
 4. Run focused existing auth, onboarding, deletion, export, runtime-env, workflow, and OpenAPI tests. Record pre-existing failures separately.
 5. Run `scripts/pr-preflight --suggest` after the first intended diff exists; record matched invariants and failure-class guidance. The identity guard should cite `FC-customer-data-plane-divergence` and `FC-release-probe-signer-identity` where applicable.
 
@@ -267,7 +279,7 @@ If a new test passes on the untouched baseline, record it as a characterization 
 
 **RED:** Through the real delete-account route with fake/strict Firestore and the strict Cloud Tasks substitute, assert a bodyless request creates/joins exactly one durable wipe authority and that the resulting `account_deletions/{uid}` record contains operational job fields but no deletion-survey fields. If a legacy arbitrary JSON body is sent, it must not create feedback state or change the durable outcome.
 
-**GREEN:** Remove `DeleteAccountRequest.reason`, `reason_details`, service parameters/branch, and `set_user_deletion_feedback`; regenerate affected contracts instead of hand-editing generated code. Preserve the accepted response, marker schema, billing-failure state, retry queries, and completed/failed lifecycle. Check released-client OpenAPI compatibility before deleting a published request shape; if the directional compatibility gate proves it is published, stop for a human-approved endpoint-version decision rather than adding a silent compatibility shell.
+**GREEN:** Remove `DeleteAccountRequest.reason`, `reason_details`, service parameters/branch, and `set_user_deletion_feedback`; regenerate affected contracts instead of hand-editing generated code. Preserve the accepted response, marker schema, billing-failure state, retry queries, and completed/failed lifecycle. Check released-client OpenAPI compatibility before deleting a published request shape; if the directional compatibility gate proves it is published, stop for an explicit endpoint-version decision rather than adding a silent compatibility shell.
 
 **Focused proof:** router, account-deletion service, strict Firestore transaction, generated contract, OpenAPI compatibility, and Mac delete-confirmation/cancel E2E tests.
 
@@ -301,7 +313,9 @@ This is a static configuration contract alongside, not instead of, Cycle 1's pro
 
 ### Gated Cycle 6 — RED/GREEN: prune provider cleanup only after its owners retire data
 
-**Gate:** G3. Under the preferred roadmap repair, S-18/S-23/S-24 own this code change and use this cycle as their acceptance contract; it is S-08 work only under the reordered all-in-S-08 alternative.
+**Gate:** G3. Under the adopted roadmap repair, S-18/S-23/S-24 own this code
+change and use this cycle as their acceptance contract; it is not part of the
+narrow Wave 1 S-08 tranche.
 
 **RED:** Seed retained account/control data and execute admission -> task -> worker -> redelivery using strict substitutes only for Firebase Admin and the S-18 Dodo cancellation seam. Assert cancellation and Firebase deletion occur once, retained Firestore data is removed according to the allowlist, the completed tombstone remains, and no Twilio/Pinecone/recording/canonical-memory cleanup adapter is invoked. Add the provider-failure/reconciler error path only after the core path is green.
 
@@ -323,7 +337,9 @@ This is a static configuration contract alongside, not instead of, Cycle 1's pro
 
 ### Gated Cycle 8 — RED/GREEN: complete offline local export document
 
-**Gate:** G2 plus the explicit IR-830 implementation owner chosen in G5. Under the preferred roadmap repair, S-10 through S-14 supply the complete readers; they do not implicitly own the cross-domain composer unless the map says so.
+**Gate:** G2. Under the adopted roadmap repair, S-10 through S-14 supply the
+complete readers and S-08 retains the cross-domain composer after those reader
+dependencies close.
 
 **RED:** At the proposed `LocalUserDataExport.export(ownerID:to:)` interface, create a temporary owner database and kernel journal with one independently specified record in every approved section. Disable product network access. Assert one exact normalized JSON document, stable schema version, owner fencing, complete pagination, deterministic ordering, and absence of credentials/internal sync fields. Use known literal expectations rather than re-encoding with the production implementation.
 

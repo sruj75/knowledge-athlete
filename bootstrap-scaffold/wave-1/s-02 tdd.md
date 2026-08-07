@@ -5,7 +5,7 @@
 | Field | Decision |
 |---|---|
 | Artifact | `bootstrap-scaffold/wave-1/s-02 tdd.md` |
-| Status | `ready` — public TDD seams approved |
+| Status | `ready` — requirements-backed public TDD seams recorded |
 | Wave / owner | Wave 1 / S-02 |
 | Authorizing decisions | IR-012, IR-013, IR-014, IR-359, IR-823 |
 | Protecting decisions | IR-007, IR-017, IR-018, IR-019, IR-021, IR-022, IR-023, IR-069, IR-070, IR-898 |

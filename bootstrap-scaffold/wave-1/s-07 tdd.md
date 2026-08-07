@@ -1,7 +1,7 @@
 # S-07 TDD Plan — Remove Customer BYOK and Preserve Managed Access
 
-Status: researched — awaiting human agreement on the public seams and legacy-data transition below
-Owning subagent: S-07
+Status: researched — public seams require live-requirements revalidation and the legacy-data transition below remains unresolved
+Slice: S-07
 Wave: 1
 Authorizing and protecting decisions: IR-007, IR-058, IR-062, IR-606,
 IR-712, and IR-937
@@ -29,9 +29,9 @@ sections listed above as the Spec source, and use `AGENTS.md`, `backend/AGENTS.m
 `desktop/macos/AGENTS.md` as the Standards sources. Resolve both review axes,
 rerun affected tests, and only then call the slice closed.
 
-No product test may be written before the human agrees to the public seams in
-this plan. Source-string scans below are closure evidence, not behavioral test
-coverage.
+No product test may be written before its public seam is traced to the live
+requirements in this plan. Source-string scans below are closure evidence, not
+behavioral test coverage.
 
 ## Evidence and snapshot
 
@@ -82,7 +82,7 @@ If any referenced IR has changed, refresh this plan before writing a test.
 
 Do not invoke `engineering:implement` until both gates are resolved:
 
-1. The human approves or amends the six public behavior seams below.
+1. Trace or amend the six public behavior seams below against the live requirements.
 2. An authorized operator runs a read-only cardinality dry run for
    `users/{uid}.byok` and `blocked_byok`/`requires_byok` finalization jobs, then
    records the chosen transition. Old finalization jobs must either be requeued
@@ -176,9 +176,9 @@ The deletion test is decisive here: if BYOK modules disappear, their complexity
 must disappear rather than reappearing as booleans or compatibility branches in
 each caller.
 
-## Proposed public seams — human approval required
+## Requirements-backed public seams
 
-Approve or amend these before Cycle 1. Tests must call these interfaces and
+Trace or amend these before Cycle 1. Tests must call these interfaces and
 observe outcomes; they must not mock our own internal modules or assert only on
 source text.
 
@@ -206,7 +206,7 @@ source text.
    changes a route, disables metering or falls back from customer-paid to
    product-paid compute.
 
-Human seam decision: **pending**.
+Public-seam requirements trace: **pending revalidation against the live ledger**.
 
 Legacy-data transition decision: **pending read-only cardinality dry run and
 operator choice between managed requeue or explicit terminalization**.
@@ -515,7 +515,7 @@ fixtures merely because BYOK used the same vendor.
 
 ## Closure checklist
 
-- [ ] Human approved all six public seams.
+- [ ] All six public seams were traced to the live requirements.
 - [ ] Read-only production cardinality is recorded and the legacy user/job transition is approved, tested, executed and reconciled before readers disappear.
 - [ ] Live IR sections still authorize this exact boundary; ledger validator is green.
 - [ ] Every TDD cycle went red for the intended behavior before its minimum green.
