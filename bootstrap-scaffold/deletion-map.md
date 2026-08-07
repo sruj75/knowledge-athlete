@@ -127,8 +127,9 @@ TDD plan. Refer to slices by their number and full name.
    - `desktop/macos/agent/` and managed Pi are the retained local runtime;
    - managed Pi currently receives tools through
      `pi-mono-extension -> OMI_BRIDGE_PIPE -> ChatToolExecutor`;
-   - `omi-tools-stdio` is a separate MCP process path whose post-adapter caller is
-     not yet proven and is therefore a reopened decision, not a keep boundary;
+   - `omi-tools-stdio` is a separate MCP process path whose completed S-05 caller
+     audit found no retained production consumer; S-05 deletes it while keeping
+     Pi's `OMI_BRIDGE_PIPE` tool path;
    - `DesktopAutomationBridge` is a retained test-only automation boundary;
    - `LocalAgentAPIServer` is a rejected production HTTP entrance for other
      local programs and belongs to a separate deletion slice; and
@@ -265,16 +266,16 @@ not create or authorize any implementation plan automatically.
 Wave 1 has one meta-orchestrator plan and nine subagent TDD plans:
 
 ```text
-bootstrap-scaffold/wave1.md
-bootstrap-scaffold/s-01 tdd.md
-bootstrap-scaffold/s-02 tdd.md
-bootstrap-scaffold/s-03 tdd.md
-bootstrap-scaffold/s-04 tdd.md
-bootstrap-scaffold/s-05 tdd.md
-bootstrap-scaffold/s-06 tdd.md
-bootstrap-scaffold/s-07 tdd.md
-bootstrap-scaffold/s-08 tdd.md
-bootstrap-scaffold/s-09 tdd.md
+bootstrap-scaffold/wave-1/wave1.md
+bootstrap-scaffold/wave-1/s-01 tdd.md
+bootstrap-scaffold/wave-1/s-02 tdd.md
+bootstrap-scaffold/wave-1/s-03 tdd.md
+bootstrap-scaffold/wave-1/s-04 tdd.md
+bootstrap-scaffold/wave-1/s-05 tdd.md
+bootstrap-scaffold/wave-1/s-06 tdd.md
+bootstrap-scaffold/wave-1/s-07 tdd.md
+bootstrap-scaffold/wave-1/s-08 tdd.md
+bootstrap-scaffold/wave-1/s-09 tdd.md
 ```
 
 `wave1.md` will coordinate the nine independently owned `S-XX` plans. It is not
@@ -282,8 +283,8 @@ a replacement implementation plan and it has no authority to rewrite them.
 Each `s-xx tdd.md` is created separately, reviewed with the human, and then
 executed sequentially by that slice's dedicated subagent.
 
-Later waves follow the same pattern (`wave2.md` through `wave6.md`) and together
-produce exactly 31 `s-xx tdd.md` files across `S-01` through `S-31`.
+Later waves follow the same pattern inside `wave-2/` through `wave-6/` and
+together produce exactly 31 `s-xx tdd.md` files across `S-01` through `S-31`.
 
 The exact blocking edges and each slice's keep/delete boundary are recorded in
 the complete slice register below. Only one product choice remains deliberately
@@ -320,8 +321,9 @@ contract.
 
 **Type:** complete vertical deletion<br>
 **Status:** ready for implementation planning<br>
-**Authorizing decisions:** IR-001, the VM half of IR-002, IR-003, IR-011, and
-IR-934
+**Authorizing decisions:** IR-001, the VM half of IR-002, and IR-934<br>
+**Scope-partition decisions:** IR-003 belongs to S-11 and IR-011 belongs to
+S-15; S-01 removes only their VM-mirroring overlap
 
 #### Outcome
 
@@ -350,8 +352,8 @@ Onboarding / signed-in Home warmup
 - `desktop/macos/agent/`, its local Node kernel, and `omi-agentd.sqlite3`
 - managed Pi foreground/background agent behavior and Agent Pill lifecycle
 - Swift `ChatToolExecutor` and its retained local tools
-- the verified private managed-Pi extension/bridge path; the S-05 TDD plan
-  separately resolves whether `omi-tools-stdio` has any retained consumer
+- the verified private managed-Pi extension/bridge path; S-05 separately deletes
+  the unused `omi-tools-stdio` process
 - local SQL, semantic search, daily recap, Rewind, tasks, goals, memories, and
   other reviewed local tool behavior
 - the local conversation journal and visible local turn projection
@@ -380,10 +382,13 @@ tools with similar names.
    - VM/proxy image registration, workflows, deploy checks, secrets, service
      accounts, metrics, alerts, failure-class records, tests, fixtures, and
      live docs that have no surviving owner.
-5. **Related rejected cloud read slice**
+5. **VM-only copies of retained local data access**
    - VM copies of SQL/semantic/daily-recap tools;
-   - cloud screen-activity persistence/retrieval that existed for remote agent
-     and MCP access, while preserving local Rewind and local embeddings.
+   - AgentSync's screenshot-table mirror into the VM copy.
+
+   General backend journal projection is S-11. Firestore/Pinecone/MCP
+   screen-history persistence and retrieval is S-15. S-01 must hand those
+   shared owners off rather than deleting or declaring them retained.
 
 #### Vertical closure order
 
@@ -412,14 +417,14 @@ None. The kept local runtime is already a separate path.
 - Find every source of `AgentSyncService.shared` lifecycle coupling.
 - Find every runtime-image, deployment-policy, alert, and release check that
   names the VM, proxy, or reaper.
-- Prove that any screen-activity backend helper is not also used by retained
-  local Rewind.
+- Classify every screen-activity helper as VM-only or an exact S-15 handoff;
+  never use S-01 to delete local Rewind or S-15's shared cloud-copy boundary.
 
 #### Forbidden scope
 
 - Do not delete or replace the managed Pi runtime.
 - Do not delete local tools or the verified managed-Pi extension/bridge path;
-  the separate stdio path is a blocked decision inside the S-05 TDD plan.
+  S-05 owns the already-decided deletion of the separate stdio path.
 - Do not delete the test-only automation bridge.
 - Do not bundle IR-922's `LocalAgentAPIServer` deletion into this slice; it is
   a separate external-local-access codeflow sharing some tools.
@@ -758,7 +763,7 @@ extra numbered plan or an extra owning subagent.
 ### S-05 — Keep one managed-Pi local agent and delete every alternate entrance
 
 **Type:** local runtime narrowing<br>
-**Research status:** split; `omi-tools-stdio` premise reopened<br>
+**Research status:** ready; the caller audit resolved `omi-tools-stdio` for deletion<br>
 **Depends on:** none<br>
 **Primary decisions:** IR-048, IR-049, IR-113, IR-213 through IR-218, IR-603
 through IR-606, IR-800 through IR-802, IR-922 through IR-924, IR-936, IR-937
@@ -770,14 +775,14 @@ through IR-606, IR-800 through IR-802, IR-922 through IR-924, IR-936, IR-937
 - **Delete:** Claude ACP, Hermes, OpenClaw, provider overrides, Playwright
   browser control, broad shell/file/native-app execution, Claude Code skills and
   project configuration compatibility, the shipped Prompt Lab, dormant Opus and
-  cosmetic Haiku callers, `LocalAgentAPIServer`, and the broken ACP bridge.
+  cosmetic Haiku callers, `LocalAgentAPIServer`, `omi-tools-stdio`, and the
+  broken ACP bridge.
 - **Adapt:** strip rejected BYOK, skills, broad-execution, audit, Opus, and Omi
   identity residue from `pi-mono-extension` without replacing its retained
   managed-provider/tool behavior.
-- **Reopen before implementation:** determine whether any retained production
-  caller consumes `omi-tools-stdio`. Current managed Pi does not; it uses the
-  packaged extension and `OMI_BRIDGE_PIPE`. Do not preserve or delete stdio
-  based on the superseded IR-015 premise.
+- **Resolved transport boundary:** the retained managed Pi uses the packaged
+  extension and `OMI_BRIDGE_PIPE`; no retained production caller consumes
+  `omi-tools-stdio`, so the stdio process is deleted without replacing it.
 - **Close when:** only managed Pi can start product agent work, its verified
   private bridge exposes only retained tools, the external port `47778` surface is gone, and
   normal Chat plus a background Agent Pill pass real-path verification.
@@ -800,6 +805,9 @@ through IR-261, IR-310, IR-375, IR-512, IR-637, IR-816 through IR-818, IR-824
   connectors, external-agent setup writers, Calendar creation, public Persona,
   hosted sharing, file indexing, Full Disk Access scanning, and Brain Map /
   knowledge graph.
+- **Coordinate:** S-06 deletes the hosted Limitless ZIP importer under IR-824.
+  Direct `LimitlessDeviceConnection` hardware support is already rejected by
+  IR-014 and belongs to S-02; it is not an S-06 keep boundary.
 - **Close when:** no UI, route, collection, OAuth grant, webhook, worker,
   marketplace charge, connector credential, remote MCP schema, indexer, or
   deployment remains, while the retained local agent can still call its tools.
@@ -815,8 +823,9 @@ residue with S-05<br>
 - **Keep:** product-managed provider credentials, subscriber credential minting,
   ordinary development/test secrets, Vertex/AI Studio product routing, and
   managed quota enforcement.
-- **Delete:** the free BYOK plan, Settings keys, Keychain records, validation,
-  request/WebSocket headers, Node/runtime environment propagation, Firestore
+- **Delete:** the free BYOK plan, Settings UI, the four raw customer-key
+  `UserDefaults` values found by source research, validation, request/WebSocket
+  headers, Node/runtime environment propagation, Firestore
   fingerprints, paywall/quota bypass, account copy, and provider-selection
   branches that exist only for customer keys.
 - **Close when:** no customer-supplied model key can change entitlement or reach
@@ -825,8 +834,10 @@ residue with S-05<br>
 ### S-08 — Re-own Firebase identity and narrow account lifecycle/data export
 
 **Type:** retained cloud-control adaptation<br>
-**Research status:** split<br>
-**Depends on:** none<br>
+**Research status:** blocked; the researched plan proves the full closure cannot
+land safely in Wave 1 without an ownership repair<br>
+**Depends on:** human approval of the delivery boundary and owned Firebase /
+Apple / Google identity inputs; S-09 consumes the resulting identity/sign-out seam<br>
 **Primary decisions:** IR-006, IR-120, IR-124, IR-170 through IR-190, IR-830,
 IR-868, IR-877, IR-878
 
@@ -834,21 +845,31 @@ IR-868, IR-877, IR-878
   blocking session validation, recovery, fail-closed foreground refresh, explicit
   sign-out, confirmed account deletion, durable queued worker, immediate sign-out
   after acceptance, completed tombstones, and minimal account-control Firestore.
-- **Adapt:** all identities/credentials to our Firebase/GCP projects; retain only
-  account, entitlement, deletion, operational release, and other explicitly
-  approved records; create one local Export My Data flow and limit server export
-  to genuine account metadata.
-- **Delete:** backend onboarding/device fields, unused deletion-reason feedback,
-  cleanup for rejected Omi products, and any assumption that private product
-  data is available in the account backend.
-- **Close when:** sign-in/recovery/sign-out/delete/export work against our project,
-  and the deletion worker can later move to the canonical backend in S-25/S-27.
+- **Proposed Wave 1 adaptation:** re-own Firebase/Apple/Google identity, protect
+  the current auth/session/sign-out seams, remove the backend acquisition-source
+  mirror, remove unused deletion-reason fields, and publish a narrow retained
+  deletion-orchestrator/account-metadata contract for later owners.
+- **Blocked full closure:** a complete local Export My Data flow needs the final
+  S-10 through S-14 authorities; safe deletion-worker pruning needs S-18/S-23/S-24;
+  task retargeting and queue/IAM/region ownership need S-25/S-27. Making S-08
+  depend on all of them creates cycles because downstream slices already consume
+  S-08 identity semantics.
+- **Human roadmap decision required:** either approve the narrow Wave 1 delivery
+  and transfer each later closure obligation to its actual existing S-XX owner,
+  or move full S-08 closure to a later wave and repair every affected dependency.
+  Do not create S-08A/S-08B, a tenth Wave 1 subagent, or an extra TDD plan.
+- **Close the approved Wave 1 tranche when:** owned sign-in/recovery/sign-out
+  behavior works, rejected onboarding/deletion-reason fields are gone, S-09 has
+  an explicit identity seam, and every deferred export/deletion/queue obligation
+  has a named acceptance handoff. Full IR closure remains with the approved
+  downstream owners and final wave acceptance.
 
 ### S-09 — Re-own telemetry, diagnostics, issue reporting, and model tracing
 
 **Type:** retained observability adaptation<br>
 **Research status:** split<br>
-**Depends on:** S-08 for account identity semantics<br>
+**Depends on:** the approved S-08 account identity/sign-out seam, not unimplemented
+later export or queue cleanup<br>
 **Primary decisions:** IR-114 through IR-117, IR-183, IR-204 through IR-211,
 IR-254, IR-805, IR-827, IR-828, IR-832, IR-836, IR-837, IR-879, IR-886
 
@@ -1130,14 +1151,18 @@ through IR-926, IR-932
 **Research status:** split; must land after domain owners<br>
 **Depends on:** S-05 through S-07; S-09 through S-15; S-17, S-18, and S-20<br>
 **Primary decisions:** IR-191 through IR-255, IR-500 through IR-530, IR-616,
-IR-659, IR-681, IR-801, IR-802, IR-930, IR-933
+IR-659, IR-681, IR-930, IR-933<br>
+**Protecting handoff:** S-05 implements IR-801 and IR-802 while deleting the
+provider/settings entrances; S-21 verifies the resulting shell and removes only
+leftover navigation/search residue
 
 - **Keep:** Home, Memory, Tasks, Insights/Focus, Conversations inside the
   retained grouping, Rewind, Plan/Usage, Privacy/Data, Advanced Settings, About,
   and every interaction explicitly retained in their domain slices.
 - **Adapt:** expose one combined Insights item, map Command-number shortcuts to
-  Home/Memory/Tasks/Insights, move Ask Mode to Advanced AI Setup, make Your Stats
-  read local stores, and narrow startup/foreground refresh to surviving owners.
+  Home/Memory/Tasks/Insights, verify S-05's moved Ask Mode is correctly reachable
+  from Advanced AI Setup and remove only leftover shell/search routing, make Your
+  Stats read local stores, and narrow startup/foreground refresh to surviving owners.
 - **Delete:** the Apps destination, empty AI Chat destination, old Home mode,
   hidden standalone Chat route, Brain Map, connector trays, rejected cards,
   Feature Tiers/gating, Apps Installed metric, phantom/broken Settings search
