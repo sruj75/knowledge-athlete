@@ -18,7 +18,7 @@
 
 ### Known research baseline
 
-- The requirements ledger passes: 710 indexed rows, 710 detailed sections, all reviewed.
+- The requirements ledger passes: 714 indexed rows, 714 detailed sections, all reviewed.
 - The structural validator proves ledger/detail shape, ordering, review status, one `### Decision` per IR, graph markers, and balanced fences. It does not prove semantic currency, so this plan also traced every Agent VM reference to later owning decisions and current source.
 - S-01's current product flow matches the deletion map: both onboarding variants and signed-in Home can start `AgentVMService`; that actor provisions/status-polls a GCE VM, gzips and uploads `omi.db`, starts `AgentSyncService`, and sends a Firebase token; AgentSync polls nine GRDB table families every three seconds and posts deltas to VM `/sync`.
 - `AgentSyncService` is additionally coupled to sleep, owner transition, and memory-pressure remediation. Those lifecycle owners remain; only their AgentSync calls disappear.

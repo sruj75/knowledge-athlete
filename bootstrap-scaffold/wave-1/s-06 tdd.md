@@ -7,7 +7,7 @@
 | Status | `researched` — **the public seams and released-OpenAPI sunset decision below require human approval before implementation or test-writing starts** |
 | Wave | 1 |
 | Owning subagent | S-06 |
-| Authorizing decisions | IR-015, IR-045 through IR-047, IR-050, IR-051, IR-106, IR-135, IR-141, IR-142, IR-212, IR-213, IR-256, IR-258 through IR-261, IR-310, IR-375, IR-512, IR-637, IR-816 through IR-818, IR-824 |
+| Authorizing decisions | IR-015, IR-045 through IR-047, IR-050, IR-051, IR-106, IR-135, IR-141, IR-142, IR-212, IR-213, IR-256, IR-258 through IR-261, IR-310, IR-375, IR-512, IR-637, IR-816 through IR-818, IR-824, IR-938 |
 | Protecting decisions | IR-002, IR-024, IR-025, IR-038, IR-041, IR-044, IR-052, IR-257, IR-260, IR-263 through IR-271, IR-311 through IR-315, IR-357 |
 | Dependencies | None at the roadmap level. Coordinate the private tool-transport boundary with S-05; S-05 deletes `omi-tools-stdio` and `LocalAgentAPIServer`, while S-06 must preserve Pi's `OMI_BRIDGE_PIPE` path. |
 | Coordinated owners | S-02 for direct wearable/Limitless hardware deletion; S-04 for repository-zombie cleanup that is not S-06-exclusive; S-05 for managed-Pi/private transport and Playwright; S-12 through S-16 for local-authority migrations; S-17 for remaining onboarding; S-18 for product billing migration; S-21 for broader shell/navigation; S-25 for shared worker and deployment closure |
@@ -17,7 +17,7 @@
 
 ### Research baseline
 
-- `python3 bootstrap-scaffold/validate-requirements-ledger.py` passes: 710 indexed rows, 710 detailed sections, all reviewed.
+- `python3 bootstrap-scaffold/validate-requirements-ledger.py` passes: 714 indexed rows, 714 detailed sections, all reviewed.
 - This plan follows the current S-06 assignment in `deletion-map.md`. Older scaffold research treated sharing/persona as downstream; the live map now assigns IR-310, IR-637, IR-816, and IR-824 directly to S-06, so this plan includes them.
 - The live managed-Pi path is `ChatProvider -> AgentRuntimeProcess -> Node kernel -> Pi adapter -> pi-mono-extension -> OMI_BRIDGE_PIPE -> ChatToolExecutor`. S-05's completed caller audit assigns the unused `omi-tools-stdio` path to deletion; S-06 protects only this verified Pi bridge.
 - `DesktopAutomationBridge` is the non-production UI verification bridge on port 47777. It is not the Apple Events Automation permission and is not hosted MCP. Keep the bridge while deleting only actions/screens belonging exclusively to rejected products.
@@ -55,6 +55,10 @@ marketplace
 connectors
   Home Connect/onboarding -> local connector automation -> OAuth/credentials
   -> backend integration routes/workers -> external providers
+
+external task export
+  backend task/conversation creation -> task_sync -> default provider
+  -> Todoist / Asana / Google Tasks / ClickUp API or Apple Reminders mobile push
 
 remote MCP
   hosted MCP/OAuth/API keys/SSE + outbound marketplace MCP
@@ -104,7 +108,7 @@ Before the first RED, expand each grouped row into exact tracked files and runti
 |---|---|
 | **KEEP AS IS** | The verified managed-Pi extension/`OMI_BRIDGE_PIPE`/`ChatToolExecutor` path; retained scoped tools; one personalized assistant; local AI Profile inputs; explicit local attachments; existing Memories/Tasks/Conversations and their relationships pending their later local-authority slices; Short-term/Long-term/Archive lifecycle; Memory grouping after Brain Map removal; Copy Transcript; automatic local commitment detection; Accessibility, Screen Recording, microphone, and notification permissions; `DesktopAutomationBridge`; canonical backend/auth; product subscription scaffold |
 | **ADAPT** | Mac navigation and home modes to surviving destinations; Chat/session/draft/request state from app-selected to one-assistant; shared conversation/finalization/notification pipelines to remove app/connector hooks; tool manifest and generated Swift surfaces to retained tools/permissions; onboarding stage transitions to the retained permission/product path; local GRDB schema through forward drop migrations; shared payment router to remove paid-app/creator branches while preserving product billing; deployment/check manifests to the retained service graph |
-| **DELETE** | Apps tab/catalog/install/review/creator/admin/persona/marketplace APIs and caches; paid-app billing and marketplace charges; first-party imports/exports and connector automation/OAuth/status/credentials/workers; external-agent setup writers; Calendar creation and hosted calendar links; Apple Events Automation setup; Full Disk Access and broad file indexing; Brain Map and local/hosted KG; hosted/public MCP/OAuth/API keys/SSE and outbound MCP; public Persona; public conversation/task sharing; Limitless ZIP import; S-06-exclusive backend-integration/plugins/persona deployment resources |
+| **DELETE** | Apps tab/catalog/install/review/creator/admin/persona/marketplace APIs and caches; paid-app billing and marketplace charges; first-party imports/exports and connector automation/OAuth/status/credentials/workers; complete Todoist/Asana/Google Tasks/ClickUp/Apple Reminders task export and automatic sync; external-agent setup writers; Calendar creation and hosted calendar links; Apple Events Automation setup; Full Disk Access and broad file indexing; Brain Map and local/hosted KG; hosted/public MCP/OAuth/API keys/SSE and outbound MCP; public Persona; public conversation/task sharing; Limitless ZIP import; S-06-exclusive backend-integration/plugins/persona deployment resources |
 | **SIMPLIFY / OPTIMIZE AFTER** | After all RED/GREEN cycles pass, remove orphan identifiers, registries, models, compatibility decoders, empty states, dead caches, generic selectors with one surviving choice, and duplicate adapters. Historical migrations stay registered; only a new forward migration drops rejected tables. |
 | **ACCELERATE AFTER** | `none` planned. Record focused-loop timing from `dev-feedback.py` and backend focused tests. Propose acceleration only if S-06 produces a measured local bottleneck. |
 | **AUTOMATE LAST** | `none` new planned. Adapt existing route/OpenAPI/tool-surface/runtime-image/workflow checks in their enforced lanes. Do not add a permanent residue scraper without a real escaped defect and an existing CI audience. |
@@ -121,6 +125,7 @@ Before the first RED, expand each grouped row into exact tracked files and runti
 | `RewindDatabase` | Do not rewrite or remove applied `createIndexedFiles` or `createLocalKnowledgeGraph` migration identities. Add a forward idempotent migration that drops only `indexed_files`, `local_kg_edges`, and `local_kg_nodes`; prove retained tables and data survive. |
 | `payment.py` | Remove app subscription, marketplace charge, creator/Connect, and app-specific webhook branches. Preserve the ordinary product subscription and account entitlement scaffold until S-18. |
 | conversation/finalization/notification jobs | Remove app integration, connector, public-share, and importer branches only. Preserve normal retained processing owned by other slices; do not delete a shared worker until its remaining callers are inventoried. |
+| `task_integrations.py`, `task_integrations_ops.py`, `task_sync.py`, action-item sync routes/storage, candidate integration outbox/drain machinery, and user integration storage | Delete the complete four-provider OAuth/write path, default-integration state, automatic single/batch export, candidate integration outbox/lease/drain path, and Apple Reminders push plus bidirectional pending/batch-sync branch under IR-938. Preserve ordinary local task and candidate creation/acceptance plus later S-13 authority work; do not create a generic replacement integration seam. |
 | `backend-integration`, `plugins`, persona public build | Delete repo definitions and live services only when their owners are exclusively rejected. Shared release, account-deletion, monitoring, and traffic scripts must be narrowed rather than blindly deleted. Live decommission is a separate explicit sign-off gate. |
 
 ## Current codeflow and ownership inventory
@@ -139,6 +144,7 @@ Before the first RED, expand each grouped row into exact tracked files and runti
 2. Onboarding data-source/export steps and local readers/exporters/import runners automate Apple Notes, Gmail, Google Calendar, Notion, X, and other external systems.
 3. Backend `integrations`, `integration`, `task_integrations`, `google_calendar`, `calendar_onboarding`, `x_connector`, and related OAuth/status/credential code provide the hosted half.
 4. App/connector hooks also enter normal chat, conversation processing/finalization, listen/pusher, and notification jobs. Those shared owners must survive minus the rejected hook.
+5. IR-938 makes `task_integrations` exact rather than a generic connector label: its four OAuth providers, user/default metadata, task-write APIs, automatic action-item/task-intelligence/conversation export, Apple Reminders push, `/v1/action-items/pending-sync`, `/v1/action-items/sync-batch`, export fields, database helpers, and exclusive tests/contracts all delete. Candidate acceptance also writes an integration-only `candidate_integration_outbox`; `candidate_service` leases/retries it, `/v1/candidates/integrations/drain` schedules it, and a Firestore index, generated binding, tests, and `task_candidate_lifecycle` invariant cover it. Delete that side-effect machinery while preserving ordinary local Tasks and candidate acceptance for S-13.
 
 ### 3. Hosted/public MCP versus the private Pi bridge
 
@@ -186,7 +192,7 @@ No S-06 test is written until the human agrees that these are the observable sea
 | Retained local tool bridge | A retained tool call travels through packaged Pi extension -> `OMI_BRIDGE_PIPE` -> `ChatToolExecutor` and returns a typed result. The public manifest does not expose Calendar creation, broad scanning, KG writes, or rejected permissions. | canonical TypeScript manifest, generator check, Pi extension tests, agent logic harness, one real retained tool call |
 | Onboarding/permission state | Onboarding advances, resumes, skips, and reports progress without connector, Automation, FDA, file-scan, or KG stages. Accessibility and other retained permissions still work. | onboarding coordinator/state-machine behavior plus named-bundle first-run/bridge exercise |
 | Local data continuity | Memories, Tasks, and Conversations remain navigable and related; Memory lifecycle/category/filter behavior retained by protecting decisions still works; Copy Transcript works; local commitment metadata remains without Calendar creation. | public view-model/storage APIs, GRDB migration test, existing Memory/Task/Conversation flows |
-| Canonical backend route surface | Removed marketplace, connector, remote-MCP, KG, sharing, Calendar-creation, and Limitless-import endpoints are absent from FastAPI/OpenAPI and return 404; retained auth, product subscription, model/STT, and ordinary product routes remain registered. | real `app.routes`/OpenAPI/TestClient boundary and retained endpoint smoke tests |
+| Canonical backend route surface | Removed marketplace, connector, task-integration/export, remote-MCP, KG, sharing, Calendar-creation, and Limitless-import endpoints are absent from FastAPI/OpenAPI and return 404; retained auth, product subscription, model/STT, and ordinary product routes remain registered. | real `app.routes`/OpenAPI/TestClient boundary and retained endpoint smoke tests |
 | Deployment graph | Retained services render and pass release checks; `backend-integration`, plugins, and persona-public-build have no deployable workflow/image/config/monitoring/secret owner after exclusive ownership is proven. | existing workflow, runtime-env, runtime-image, release-vector, deployment-concurrency, monitoring, and public-build contract checks |
 
 Approval also accepts these design choices:
@@ -262,11 +268,11 @@ This is setup, not a passing characterization-test substitute.
 
 ### Cycle 6 — delete connector runtimes, OAuth, credentials, and hosted workers
 
-**RED:** At public backend route and retained-auth seams, assert that first-party connector/OAuth/status routes are absent while ordinary product sign-in/auth remains. Through a retained conversation-processing test, prove finalization succeeds without connector callbacks.
+**RED:** At public backend route and retained-auth seams, assert that first-party connector/OAuth/status routes, every `/v1/task-integrations` plus `/v2/integrations/*/callback` route, `/v1/action-items/pending-sync`, `/v1/action-items/sync-batch`, and `/v1/candidates/integrations/drain` are absent while ordinary product sign-in/auth and local Task behavior remain. Through retained action-item, conversation-processing, and candidate-acceptance seams, prove task creation/finalization/candidate acceptance succeeds without external task export, sync-request state, candidate integration outbox rows, or Apple Reminders push.
 
-**GREEN:** Delete local connector readers/exporters/import runners and automation for Apple Notes, Gmail, Google Calendar, Notion, X, and equivalent sources; remove backend integration/task-integration/calendar-onboarding/X routes, registries, OAuth grants, credential stores, webhooks, connector status, and exclusive workers/tests/config. Narrow shared notification/finalization/listen/pusher jobs rather than deleting them.
+**GREEN:** Delete local connector readers/exporters/import runners and automation for Apple Notes, Gmail, Google Calendar, Notion, X, and equivalent sources; remove backend integration/calendar-onboarding/X routes, registries, OAuth grants, credential stores, webhooks, connector status, and exclusive workers/tests/config. Under IR-938, delete `task_integrations` routes/registration, `task_integrations_ops.py`, `task_sync.py`, provider credentials/default/list/project state, automatic action-item/task-intelligence/conversation export hooks, and the complete Apple Reminders push/pending-sync/sync-batch path. Remove its `SyncBatch*`/`PendingSyncResponse` models, database helpers, `sync_requested`/`exported`/`export_date`/`export_platform`/`apple_reminder_id` fields where exclusive, generated bindings, route-policy entries, mobile-lifecycle cases, and focused tests/docs. Delete integration-only outbox writes in both candidate/task and workstream acceptance, `candidate_integration_outbox`, its claim/complete/list helpers and exports, `candidate_service` dispatch/drain code, `/v1/candidates/integrations/drain`, its Firestore index/registry entry, generated binding, focused lifecycle/workstream/router tests, and only the corresponding workflow-invariant clause. Preserve candidate acceptance without that side effect. Narrow shared notification/finalization/listen/pusher jobs rather than deleting them.
 
-**Verify before continuing:** route/OpenAPI/auth tests, ordinary finalization/notification behavior, import isolation, workflow contracts, and no unexplained live connector credential/config residue.
+**Verify before continuing:** route/OpenAPI/auth tests, ordinary local task creation and candidate acceptance, ordinary finalization/notification behavior, import isolation, updated workflow contracts, and no unexplained live connector/task-provider credential, automatic-sync, candidate integration outbox/index/drain, or Apple Reminders export residue.
 
 ### Cycle 7 — remove Calendar creation and hosted calendar links
 
@@ -437,7 +443,7 @@ Exercise and capture evidence that:
 4. `home_attach` or the visible attachment picker attaches one explicitly selected local file and the agent can use it.
 5. One retained scoped tool call completes through managed Pi and `ChatToolExecutor`.
 6. Onboarding has no connector/import/export/Automation/FDA/scan/KG stage; retained Accessibility and other required permissions still behave correctly.
-7. Memories, Tasks, and Conversations open; retained lifecycle/filter/category behavior under protecting IRs still works.
+7. Memories, Tasks, and Conversations open; retained lifecycle/filter/category behavior under protecting IRs still works, and creating a task does not call an external task provider.
 8. Copy Transcript works; no conversation/task public-share action exists.
 9. A locally detected commitment remains readable without Calendar creation.
 10. Logs show no background broad file scan, connector status loop, marketplace fetch, or hosted MCP call.
@@ -455,7 +461,7 @@ Exercise and capture evidence that:
 Search tracked source, generated artifacts, workflow/configuration, tests/fixtures, and current docs. Do not declare closure from a raw zero count; classify ambiguous survivors.
 
 ```bash
-git grep -n -i -E 'apps marketplace|selectedAppId|persona|connector|notion|gmail|x_connector|calendar[_ -]?event|copy link|public[_ -]?share|limitless.*(zip|import)|knowledge[_ -]?graph|brain map|indexed_files|full disk access|apple events|mcp|backend-integration|gcp_plugins|gcp_personas'
+git grep -n -i -E 'apps marketplace|selectedAppId|persona|connector|notion|gmail|x_connector|task_integrations|task_sync|todoist|asana|google.tasks|clickup|apple.reminders|pending-sync|sync-batch|sync_requested|apple_reminder_id|export_platform|export_date|candidate_integration_outbox|candidates/integrations/drain|calendar[_ -]?event|copy link|public[_ -]?share|limitless.*(zip|import)|knowledge[_ -]?graph|brain map|indexed_files|full disk access|apple events|mcp|backend-integration|gcp_plugins|gcp_personas'
 ```
 
 Expected legitimate classes include:

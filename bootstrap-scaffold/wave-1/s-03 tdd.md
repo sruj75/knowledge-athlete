@@ -17,7 +17,7 @@
 
 ### Known research baseline
 
-- The requirements ledger passes: 710 indexed rows, 710 detailed sections, all reviewed.
+- The requirements ledger passes: 714 indexed rows, 714 detailed sections, all reviewed.
 - Development and production runtime-env validation pass with workflow checks.
 - The 28 focused policy/configuration/async-offload tests that can collect in the current environment pass.
 - The wider focused backend selection is not a known product failure, but it cannot collect in this shell yet: `backend/.venv` is absent and global Python lacks `fal_client` and `ulid`. `engineering:implement` must begin with `make setup` and the documented backend environment, then establish a full clean baseline before the first RED.

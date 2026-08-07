@@ -36,7 +36,7 @@ coverage.
 ## Evidence and snapshot
 
 - The live requirements ledger passes:
-  `Requirements ledger validation: PASS (710 indexed rows, 710 detailed
+  `Requirements ledger validation: PASS (714 indexed rows, 714 detailed
   sections, all reviewed)`.
 - Product source was inspected at `f293b62603145af15ce230a230f88017dce95f4a`.
   Current `HEAD` is `5ecb5e17aeab01955aff150a22054a957e15a48e`;

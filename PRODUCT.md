@@ -17,14 +17,40 @@ landing PRs that change product behavior. Engineering standards live in
 3. **One product mind.** Surfaces are input/output against one shared product
    experience — not separate products with competing authorities. This does
    not make every capture cloud-backed: persisted Rewind OCR history,
-   embeddings, and video remain local to the Mac, with optional agent-VM
-   SQLite mirroring.
+   embeddings, and video remain local to the Mac; the first release does not
+   mirror those databases into a per-user Agent VM.
 
 4. **Harness over heuristics.** Where we integrate with surfaces we do not own,
    invest in durable harnesses and contracts, not brittle one-off automation.
 
 5. **Taste floor.** Stay on-brand. Prefer deleting dual paths over
    feature-flagging them forever.
+
+## Proposed first-release renovation direction
+
+The code-grounded decision authority for the current pre-implementation
+renovation is
+[`bootstrap-scaffold/requirements-challenge.md`](bootstrap-scaffold/requirements-challenge.md),
+with implementation ownership in
+[`bootstrap-scaffold/deletion-map.md`](bootstrap-scaffold/deletion-map.md). These
+decisions change shipped behavior only when their owning implementation slices
+land with the required tests and product-doc updates.
+
+The supplemental closure pass fixes these first-release boundaries:
+
+- managed Pi remains the only product agent harness and reaches scoped Swift
+  tools through `pi-mono-extension -> OMI_BRIDGE_PIPE -> ChatToolExecutor`;
+  remote MCP, the external port 47778 API, alternate adapters, and unused stdio
+  MCP are deletion work, while test automation on port 47777 remains;
+- ordinary tasks remain local-authoritative and do not export or synchronize to
+  Todoist, Asana, Google Tasks, ClickUp, or Apple Reminders;
+- Gemini Live and OpenAI Realtime both remain in v1 with Auto, explicit
+  switching, and failover;
+- ordinary typed screen understanding remains, with current capture encoded as
+  WebP; the universal libwebp release cache is re-owned rather than discarded;
+  and
+- undiscoverable inherited workflows and unreferenced packaged media are
+  deleted without weakening the owned release system, Notifications, or Rewind.
 
 ## Proposed canonical memory lifecycle
 

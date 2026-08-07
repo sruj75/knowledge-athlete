@@ -51,7 +51,7 @@ Ship a macOS-first product with these boundaries:
 ## Snapshot
 
 - Requirements source: `bootstrap-scaffold/requirements-challenge.md`
-- Ledger validation: **PASS — 710 indexed rows, 710 detailed sections, all
+- Ledger validation: **PASS — 714 indexed rows, 714 detailed sections, all
   reviewed**
 - Snapshot time: **2026-08-07 11:24:34 IST**
 - Source commit inspected: `f293b62603145af15ce230a230f88017dce95f4a`
@@ -70,7 +70,7 @@ map must be refreshed before implementation continues.
 
 ## Decisions so far
 
-- [`requirements-challenge.md`](./requirements-challenge.md) contains 710
+- [`requirements-challenge.md`](./requirements-challenge.md) contains 714
   reviewed code-grounded product decisions. It is the decision authority; this
   map does not reopen them.
 - Those decisions resolve into exactly 31 subagent-owned `S-XX` implementation
@@ -650,7 +650,7 @@ separate BYOK deletion so each shared key/settings occurrence has one owner.
 
 **Type:** repository/control-plane deletion and narrowing<br>
 **Status:** ready for implementation planning<br>
-**Authorizing decisions:** IR-009, IR-010, IR-892, IR-897, and IR-935
+**Authorizing decisions:** IR-009, IR-010, IR-892, IR-897, IR-935, IR-940, and IR-941
 
 #### Outcome
 
@@ -684,6 +684,7 @@ not deleting the retained need for it.
 - the adapted local/offline backend harness from IR-891
 - the small external public/legal site requirement from IR-896
 - the future owned `codemagic.yaml` implementation from IR-892
+- the universal `vendor/libwebp` release cache from IR-939, protected for S-29
 - all Windows files and Windows-only controls, without evaluating them
 
 #### Delete or narrow boundary
@@ -706,7 +707,16 @@ not deleting the retained need for it.
 5. **Unowned present-tree zombies**
    - the unused `desktop/shared-rust/` crate plus its standalone Cargo workspace;
    - the standalone Omi-branded Remotion project under `desktop/macos/demo/`;
-   - live integration/privacy claims exclusive to either unowned package.
+   - the undiscoverable nested `desktop/macos/.github/workflows/test-install.yml`
+     plus its exclusive exact-file contract test and fixtures;
+   - unreferenced packaged `enable_notifications.gif` and `rewind-demo.mp4`;
+   - live integration/privacy claims exclusive to those unowned artifacts.
+6. **Mixed desktop/backend contract workflow**
+   - preserve `.github/workflows/desktop-backend-contracts.yml` and its retained
+     `desktop-core-e2e-t0` self-check in S-04;
+   - record an exact handoff for S-10 and S-12 to remove only the rejected hosted
+     conversation/memory parity job, path triggers, test cases, root fixtures,
+     and final test-discovery registry/guard-test residue.
 
 #### Vertical closure order
 
@@ -738,6 +748,8 @@ and the general cleanup does not hide unfinished work.
 - Treat historical text differently from live workflow/config references.
 - Record Windows-only matches as ignored; do not open or edit them.
 - Keep IR-892's missing Codemagic definition on the adaptation map.
+- Do not delete `desktop/macos/vendor/libwebp/`; S-29 must wire and re-own its
+  universal-architecture/provenance checks under IR-939.
 
 #### Forbidden scope
 
@@ -765,7 +777,7 @@ extra numbered plan or an extra owning subagent.
 **Type:** local runtime narrowing<br>
 **Research status:** ready; the caller audit resolved `omi-tools-stdio` for deletion<br>
 **Depends on:** none<br>
-**Primary decisions:** IR-048, IR-049, IR-113, IR-213 through IR-218, IR-603
+**Primary decisions:** IR-015, IR-048, IR-049, IR-113, IR-213 through IR-218, IR-603
 through IR-606, IR-800 through IR-802, IR-922 through IR-924, IR-936, IR-937
 
 - **Keep:** managed Pi for normal/background work, the local Node kernel,
@@ -791,10 +803,11 @@ through IR-606, IR-800 through IR-802, IR-922 through IR-924, IR-936, IR-937
 
 **Type:** complete multi-entry product deletion<br>
 **Research status:** split into independent product paths<br>
-**Depends on:** none; coordinate the private MCP keep boundary with S-05<br>
+**Depends on:** none; coordinate the private Pi tool-bridge keep boundary with S-05<br>
 **Primary decisions:** IR-015, IR-045 through IR-047, IR-050 through IR-051,
 IR-106, IR-135, IR-141 through IR-142, IR-212 through IR-213, IR-256, IR-258
-through IR-261, IR-310, IR-375, IR-512, IR-637, IR-816 through IR-818, IR-824
+through IR-261, IR-310, IR-375, IR-512, IR-637, IR-816 through IR-818, IR-824,
+IR-938
 
 - **Keep:** the verified managed-Pi extension/bridge tool path, explicit local attachments, local
   Memory/Task/Conversation relationships, one personalized assistant, and the
@@ -804,7 +817,12 @@ through IR-261, IR-310, IR-375, IR-512, IR-637, IR-816 through IR-818, IR-824
   OAuth/API keys, outbound marketplace MCP, first-party import/export
   connectors, external-agent setup writers, Calendar creation, public Persona,
   hosted sharing, file indexing, Full Disk Access scanning, and Brain Map /
-  knowledge graph.
+  knowledge graph; Todoist, Asana, Google Tasks, ClickUp, and Apple Reminders
+  task export, OAuth, automatic sync, pending/batch-sync routes, export metadata,
+  credentials, and exclusive support code; the integration-only
+  `candidate_integration_outbox`, lease helpers, drain route, composite index,
+  generated binding, tests, and workflow-invariant clause. Candidate
+  creation/acceptance itself remains protected.
 - **Coordinate:** S-06 deletes the hosted Limitless ZIP importer under IR-824.
   Direct `LimitlessDeviceConnection` hardware support is already rejected by
   IR-014 and belongs to S-02; it is not an S-06 keep boundary.
@@ -908,7 +926,10 @@ IR-293 through IR-405, IR-727, IR-732
   ownership/finalization/reconciliation, cloud playback audio, recording sync,
   reusable people, voice embeddings, sharing, billing locks, device provenance,
   generic external-data bags, cloud processing aliases, replacement/comparison
-  pipelines, and backend-only mutation APIs rejected by the ledger.
+  pipelines, backend-only mutation APIs rejected by the ledger, the
+  conversation-only cases in `backend/testing/contracts/test_desktop_backend_parity.py`,
+  root `contract_tests/fixtures/conversations.json`, and only their job/path
+  portion of the mixed `desktop-backend-contracts.yml` workflow.
 - **Close when:** recording, finalization, list/detail/search/edit/merge/delete,
   speaker naming, and enrichment work through local authority with the network
   unavailable; backend teardown itself completes in S-23.
@@ -956,7 +977,12 @@ through IR-730, IR-815
 - **Delete after proof:** `/v3/memories` authority, Firestore memory lifecycle,
   public/private/persona fields, Workflow category, device provenance, review and
   scoring metadata, generic reasoning, protected-string compatibility, old
-  model routes, graph projections, and cloud memory-maintenance jobs.
+  model routes, graph projections, cloud memory-maintenance jobs, the memory-only
+  parity cases in `backend/testing/contracts/test_desktop_backend_parity.py`,
+  root `contract_tests/fixtures/memories.json`, and only their job/path portion
+  of the mixed `desktop-backend-contracts.yml` workflow. Once this final contract
+  file is gone, remove `testing/contracts/` from `WORKFLOW_COVERED_PREFIXES` and
+  update `test_check_unit_test_discovery.py` in the same S-12 change.
 - **Close when:** every visible and agent-driven Memory mutation survives restart
   locally and no retained caller reads canonical memory state from Firestore.
 
@@ -1180,7 +1206,7 @@ leftover navigation/search residue
 IR-732, IR-827, IR-828
 
 - **Keep explicit routes only:** managed Claude normal Chat; both current realtime
-  providers and Auto policy pending the deferred choice; Gemini Flash/Lite
+  providers and the decided v1 Auto/switch/failover policy; Gemini Flash/Lite
   generation, translation, and embeddings; Vertex plus platform-key AI Studio;
   OpenAI memory normalization/extraction/conflict, conversation summary/action
   items, greeting, and discard; LangSmith and Prompt Hub.
@@ -1193,6 +1219,11 @@ IR-732, IR-827, IR-828
   LLM gateway, global premium/max/BYOK profiles, Perplexity/Sonar, all public web
   search, callerless ElevenLabs, unused Gemini Pro/streaming, OpenRouter, NLLB,
   old memory/chat/persona/proactive/glasses routes, and rejected provider config.
+- **Failure-class lifecycle:** the public-web implementation PR deletes
+  `backend/desktop_fixtures/public-web-routing-contract.fixture.json` and its
+  Pi-adapter/doc consumers. After that PR merges, the same owner opens a separate
+  registry-lifecycle PR that marks `FC-public-web-routing-parity` dormant with
+  `dormant_since`; do not combine the transition or erase the historical record.
 - **Close when:** every model identifier has a named retained caller and result
   owner, every removed route has no caller/config/secret/test, and no user data
   becomes durable merely because compute ran in the backend.
@@ -1337,7 +1368,7 @@ IR-890, IR-891
 **Research status:** split; owned external identities/configuration are start gates<br>
 **Depends on:** S-04, S-09, S-26, S-27, and S-28<br>
 **Primary decisions:** IR-010, IR-243 through IR-253, IR-804, IR-821, IR-892
-through IR-897, IR-927 through IR-929
+through IR-897, IR-927 through IR-929, IR-939
 
 - **Keep:** Sparkle manual/automatic update behavior, safe activity gate, local
   What's New, Stable/Beta choice with local preference, required-update blocker,
@@ -1347,8 +1378,10 @@ through IR-897, IR-927 through IR-929
 - **Adapt:** add the owned Codemagic workflow; our Developer ID, notarization,
   bundle/feed/signing identities, bot/runner/environment, GCS/GitHub artifacts,
   backend release authority, preview lifecycle, website, Terms, Privacy, support,
-  and GitHub Releases links; repair update install gating against retained local
-  activity state.
+  and GitHub Releases links; verify and bundle the retained universal libwebp /
+  libsharpyuv cache with version, checksum, architecture, minimum-OS, signing,
+  and rebuild-fallback ownership; repair update install gating against retained
+  local activity state.
 - **Delete:** Omi cloud announcements, inherited Codemagic assumptions, external
   Help Center, impossible absent-source controls, Omi domains/keys/buckets, and
   `backend_required` dormant exact-SHA mode.
@@ -1401,7 +1434,8 @@ through IR-896, IR-927 through IR-931
 The roadmap contains large deletions, but deletion is not the default for every
 complex neighboring behavior. These families are explicit regression fences:
 
-- **PTT and realtime voice:** IR-054 through IR-119 and IR-600 retain the many
+- **PTT and realtime voice:** IR-054 through IR-119, IR-600 through IR-602,
+  IR-924 through IR-926, and IR-932 govern the reviewed
   activation, capture, provider, interruption, screen, fallback, continuity,
   presentation, and diagnostic behaviors except the branches explicitly deleted
   or adapted by S-03, S-07, S-19, S-20, S-09, and S-22.
@@ -1431,7 +1465,7 @@ complex neighboring behavior. These families are explicit regression fences:
 
 ## Complete IR routing matrix
 
-This matrix accounts for all 710 reviewed ledger rows. A range can route to
+This matrix accounts for all 714 reviewed ledger rows. A range can route to
 multiple slices because one requirement may cross client, backend, and
 infrastructure boundaries; the detailed decision still lives in the ledger.
 
@@ -1458,17 +1492,21 @@ infrastructure boundaries; the detailed decision still lives in the ledger.
 | IR-892 through IR-897 | S-04, S-29, S-30 |
 | IR-898 through IR-921 | S-02, S-15, S-16; Rewind guard register applies |
 | IR-922 through IR-937 | S-01, S-04, S-05, S-09, S-11, S-28 through S-30 |
+| IR-938 | S-06, including candidate integration outbox/drain cleanup; S-13 protects ordinary local tasks/candidate acceptance and must not recreate export |
+| IR-939 | S-29; S-04 protects the present vendored cache during cleanup |
+| IR-940 | S-04; S-29 protects the separately retained release/qualification system |
+| IR-941 | S-04; live Notifications and Rewind remain protected behaviors |
 
-## Not yet specified — final realtime provider choice
+## Realtime provider choice for v1 — keep both
 
-The user explicitly deferred the final realtime model choice between Gemini Live
-and OpenAI Realtime. The current reviewed requirement keeps Auto, Gemini, OpenAI,
-explicit switching, and failover. Therefore:
+The reviewed v1 requirement is decided: keep Auto, Gemini Live, OpenAI Realtime,
+explicit switching, and failover. Choosing only one provider would be an optional
+future simplification, not an open requirement or Wave blocker. Therefore:
 
 - this choice does not block deletion/localization work;
 - S-19 and S-22 must preserve both current providers and their tests;
 - no new abstraction or migration should be added in anticipation; and
-- if the decision is reopened, create one narrow successor slice that removes
+- if a future decision reopens consolidation, create one narrow successor slice that removes
   the losing provider end to end without changing the rest of PTT.
 
 ## Out of scope
@@ -1478,7 +1516,7 @@ explicit switching, and failover. Therefore:
   automation
 - New product features not already selected in the requirements ledger
 - Re-deciding retained behavior merely because it is complex
-- The deferred Gemini Live versus OpenAI Realtime model choice
+- Any future consolidation of the decided v1 Gemini Live plus OpenAI Realtime portfolio
 - Replacing battle-tested retained behavior with a speculative rewrite
 - Opening issues, pushing branches, or creating a PR without a separate request
 

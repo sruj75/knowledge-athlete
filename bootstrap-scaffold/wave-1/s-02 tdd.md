@@ -12,7 +12,7 @@
 | Coordinated owners | S-06 for historical Dashboard Omi content and the separate hosted Limitless ZIP importer; S-25 for final shared worker/service deletion |
 | Dependencies | None |
 | Baseline | `origin/main`; fetch and record the exact merge-base when implementation starts |
-| Research evidence | Requirements validator currently passes: 710 indexed rows, 710 detailed sections, all reviewed |
+| Research evidence | Requirements validator currently passes: 714 indexed rows, 714 detailed sections, all reviewed |
 | Delivery | One slice and eventual PR, with separate vertical commits; no push or PR without a new user request |
 | Postcondition | The Mac records only approved Mac audio sources; no direct Omi or third-party wearable runtime—including the Limitless adapter—Omi raw-audio WAL, wearable upload, conversation-photo protocol, or hardware firmware API remains, while Mac capture, PTT, local persistence, ordinary Bluetooth audio devices, historical source decoding, and shared backend jobs continue working. |
 

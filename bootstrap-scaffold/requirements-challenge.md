@@ -57,7 +57,7 @@ Decisions are `keep`, `delete candidate`, or `unresolved`.
 | IR-012 | The macOS app must accept continuous audio from an Omi or third-party BLE wearable as a transcription input | Reviewed | Delete BLE audio input; IR-014 deletes the full direct-device branch |
 | IR-013 | BLE and device-stored encoded audio needs a local Omi WAL plus retrying upload to the product backend | Reviewed | Delete, including upload and job polling |
 | IR-014 | The macOS app must pair with and manage wearable devices beyond their transcription-audio role | Reviewed | Delete candidate |
-| IR-015 | Product data must be exposed to remote MCP clients | Reviewed | Delete hosted/public, marketplace, and connector MCP; keep private on-Mac `omi-tools-stdio` transport |
+| IR-015 | Product data must be exposed to remote MCP clients | Reviewed | Delete hosted/public, marketplace, and connector MCP plus the unused local stdio process; preserve managed Pi's separate private Unix-socket tool bridge |
 | IR-016 | Remaining server background jobs require a dedicated `backend-sync` Cloud Run deployment | Reviewed | Delete both sync deployments; no surviving workload requires them |
 | IR-017 | Continuous Mac transcription must capture audio produced by other apps as well as the microphone | Reviewed | Keep |
 | IR-018 | The app must automatically detect meetings and use that state to gate audio capture and end conversations | Reviewed | Keep |
@@ -530,7 +530,7 @@ Decisions are `keep`, `delete candidate`, or `unresolved`.
 | IR-648 | Tasks loading, local pagination, refresh, and state screens | Reviewed | keep Tasks state presentation and 100-row pagination, fully local |
 | IR-649 | Tasks-header shortcut to Task Assistant settings | Reviewed | keep the Tasks gear shortcut as implemented |
 | IR-650 | Task Assistant master enablement switch | Reviewed | keep the default-on Task Assistant switch locally and make disablement authoritative before task creation |
-| IR-651 | Task Assistant extraction-interval slider | Reviewed | delete the extraction-interval slider and keep a fixed ten-minute fallback |
+| IR-651 | Task Assistant extraction-interval slider | Reviewed; superseded by IR-652 | superseded by IR-652; keep the extraction-interval control exactly as implemented |
 | IR-652 | Retain the current Task Assistant extraction interval | Reviewed | keep the extraction-interval control exactly as implemented |
 | IR-653 | Task Assistant minimum-confidence control | Reviewed | keep the minimum-confidence control exactly as implemented |
 | IR-654 | Task Extraction Prompt editor | Reviewed | keep the Task Extraction Prompt editor as implemented and make it local-only |
@@ -753,6 +753,10 @@ Decisions are `keep`, `delete candidate`, or `unresolved`.
 | IR-935 | Standalone Remotion marketing-video project under `desktop/macos/demo/` | Reviewed | delete the unowned Omi-branded project and its inaccurate integration/privacy claims |
 | IR-936 | Orphaned compiled Claude ACP bridge under `desktop/macos/acp-bridge/` | Reviewed by dependency | delete the broken generated bridge as an explicit IR-800 child while preserving the managed Pi bridge and tools |
 | IR-937 | Live packaged managed-Pi provider and tool extension under `desktop/macos/pi-mono-extension/` | Reviewed by dependency | retain the package and strip only the BYOK, Opus, skills, broad execution, audit, and Omi-identity residue rejected by prior decisions |
+| IR-938 | External export of ordinary tasks to Todoist, Asana, Google Tasks, ClickUp, and Apple Reminders | Reviewed | delete the complete external task-integration/export product while preserving local tasks |
+| IR-939 | Vendored universal libwebp dylibs intended for the retained universal Mac release build | Reviewed by dependency | retain and re-own the small universal release cache with provenance and architecture checks; preserve live WebP capture |
+| IR-940 | Nested `desktop/macos/.github/workflows/test-install.yml` and its exclusive exact-file contract | Reviewed | delete the undiscoverable Omi install workflow and its exclusive contract artifacts; retain the owned release qualification system |
+| IR-941 | Bundled no-caller `enable_notifications.gif` and `rewind-demo.mp4` resources | Reviewed | delete both unreferenced packaged resources while preserving live Notifications and Rewind behavior |
 
 ## Dependency graph and closure status
 
@@ -774,12 +778,17 @@ macOS product
 │   ├── cloud attachment/OpenAI Files/GCS copy                  DELETE (IR-044)
 │   ├── app/persona-specific chat selector                       DELETE (IR-045)
 │   ├── one assistant + local AI Profile/memories               KEEP (IR-038/045)
+│   ├── ordinary typed screen tools/automatic attachment          KEEP; CURRENT CAPTURE IS WEBP (IR-223)
 │   ├── Playwright extension browser control                    DELETE (IR-048)
 │   ├── broad shell/file/native-app computer control            DELETE (IR-049)
 │   ├── external Local Agent HTTP API on port 47778              DELETE; PI PRIVATE TRANSPORT STAYS (IR-922)
+│   ├── test-only DesktopAutomationBridge on port 47777           KEEP; NOT A PRODUCT TOOL ENTRANCE (IR-922)
 │   ├── managed-Pi background runs + visible Agent Pills         KEEP COMPLETE LOCAL LIFECYCLE (IR-923)
 │   │   └── completed-run context into a live voice session      KEEP BOUNDED/EXACTLY ONCE (IR-924)
-│   └── managed Pi private tools + ChatToolExecutor              KEEP; NOT THE DELETED HTTP API (IR-922/923)
+│   ├── managed Pi extension -> Unix socket -> ChatToolExecutor  KEEP; WORKING PRIVATE TOOL PATH (IR-922/923/937)
+│   └── unused omi-tools-stdio MCP process                        DELETE; NOT USED BY PI (IR-015)
+├── Home and desktop shell
+│   └── retained Home/chat/navigation interaction family         KEEP REVIEWED CHILDREN (IR-500–530)
 ├── macOS permissions
 │   ├── Apple Events Automation                                 DELETE (IR-050)
 │   ├── Full Disk Access                                        DELETE (IR-051)
@@ -797,12 +806,14 @@ macOS product
 │   └── Agent VM screenshot mirror                               DELETE (IR-001)
 ├── Memories/knowledge
 │   ├── local GRDB memories table + local consumers              KEEP; SOLE AUTHORITY (IR-024)
+│   ├── detailed Memory UI, lifecycle, editing, and filters       KEEP/PRUNE AS REVIEWED (IR-256–292)
 │   ├── /v3/memories + Firestore canonical lifecycle             DELETE (IR-024)
 │   ├── Gemini screen-to-memory extraction                       KEEP; LOCAL MEMORY WRITES (IR-033)
 │   └── knowledge graph / hosted MCP / cross-device projections  DELETE OR SEPARATE REDESIGN (IR-024/015)
 ├── Tasks/goals
 │   ├── local GRDB action_items + ordinary task UI               KEEP; SOLE AUTHORITY (IR-025)
 │   ├── /v1/action-items + Firestore synchronization              DELETE (IR-025)
+│   ├── external task OAuth/export + Apple Reminders push         DELETE (IR-938)
 │   ├── staged tasks / candidates / task intelligence            DELETE (IR-026)
 │   ├── Gemini screen-to-task extraction                         KEEP; LOCAL TASK WRITES (IR-031)
 │   │   └── local task-candidate review lifecycle                DELETE; IR-643 SUPERSEDES IR-032
@@ -811,6 +822,7 @@ macOS product
 │   │   ├── legacy numeric tracker + backend synchronization     DELETE/REDUCE (IR-027)
 │   │   └── canonical focused/background goal lifecycle          DELETE (IR-027)
 │   ├── backend workstream/task threads + task-attached agent     DELETE (IR-028)
+│   ├── detailed Tasks UI, editing, recurrence, and Assistant     KEEP/PRUNE AS REVIEWED (IR-616–658; IR-652 supersedes IR-651)
 │   ├── simple local current/today/recent Focus page              KEEP (IR-029)
 │   └── Gemini screen-activity focus coach                       KEEP; LOCAL RESULTS (IR-030)
 ├── Proactive advice
@@ -823,6 +835,8 @@ macOS product
 │   ├── event-driven grounded Live Suggestions                  KEEP; LOCAL GROUNDING/JOURNAL (IR-035)
 │   ├── notch task receipt + conversation-end cards             KEEP; ADAPT TO LOCAL TASK AUTHORITY (IR-925)
 │   └── displayed notch-card context into live voice            KEEP FULL CARD + OWNER FENCE (IR-926)
+├── Insights and Focus presentation
+│   └── retained hub, views, actions, and navigation              KEEP/LOCALIZE AS REVIEWED (IR-659–682)
 ├── Personalization context
 │   ├── local ai_user_profiles history + Settings editor         KEEP; SOLE AUTHORITY (IR-038)
 │   ├── local chat/Focus/Task/Insight profile consumers          KEEP (IR-038)
@@ -851,11 +865,12 @@ macOS product
 │   ├── upload locally transcribed segments for cloud processing DELETE (IR-004)
 │   ├── local conversation completion/list/detail authority      KEEP + DEEPEN (IR-004)
 │   ├── local GRDB transcript persistence                        KEEP; SOLE AUTHORITY (IR-004/020)
+│   ├── detailed Conversation list/detail/transcript workflows    KEEP/PRUNE AS REVIEWED (IR-293–405)
 │   ├── local manual speaker labels                              KEEP (IR-021)
 │   │   └── conversation-local typed names                      KEEP; REUSABLE PEOPLE DELETE (IR-022)
 │   ├── language/auto-detect/vocabulary settings                 KEEP LOCAL; CLOUD SYNC DELETE (IR-023)
 │   ├── BLE wearable audio input                                 DELETE (IR-012)
-│   └── push-to-talk spoken-assistant parent capability         KEEP; CHILDREN RESOLVED (IR-054–119/600–732)
+│   └── push-to-talk spoken-assistant parent capability         KEEP; CHILDREN RESOLVED (IR-054–119/600–602/924–926/932)
 │       ├── global hold-to-talk activation                      KEEP; ACCESSIBILITY-TRUSTED (IR-063)
 │       ├── shortcut presets/customization/disable control      KEEP (IR-065)
 │       ├── PTT-specific manual microphone selection            KEEP (IR-066)
@@ -921,6 +936,7 @@ macOS product
 │           ├── Sentry + PostHog platform ownership              KEEP; MIGRATE PROJECTS (IR-115)
 │           └── legacy PTT start/end PostHog events             DELETE (IR-114)
 ├── Account and provider access
+│   ├── account, sign-in, billing, deletion, and quota family    KEEP/ADAPT AS REVIEWED (IR-170–203)
 │   ├── Firebase identity + our subscription/quota boundary     KEEP; DODO MIGRATION (IR-006)
 │   ├── managed credentials for retained hosted compute         KEEP IN PRINCIPLE (IR-006/007/053)
 │   ├── PTT personal OpenAI/Gemini keys                         DELETE (IR-058)
@@ -930,6 +946,9 @@ macOS product
 │   │   ├── Firestore fingerprint enrollment and validation    DELETE (IR-062)
 │   │   └── subscription/paywall/quota bypass                   DELETE (IR-062)
 │   └── ordinary deployment/test provider secrets              NOT A CUSTOMER BYOK PRODUCT
+├── Settings and local preferences
+│   └── Privacy, Advanced, Floating Bar, General, Notifications,
+│       Rewind, About, update, and support settings              KEEP/ADAPT/DELETE AS REVIEWED (IR-204–255)
 ├── AI model compute and Python backend
 │   ├── core local-agent Chat -> managed Claude proxy          KEEP AS-IS FOR V1 (IR-113)
 │   │   ├── packaged managed-Pi provider/tool extension          KEEP CORE; STRIP REJECTED RESIDUE (IR-937)
@@ -980,7 +999,11 @@ macOS product
 │   │   └── orphaned partial `agent-cloud/` source snapshot      DELETE BY DEPENDENCY (IR-934)
 │   ├── hosted Omi MCP server/OAuth/keys/data tools              DELETE (IR-015)
 │   ├── marketplace + first-party outbound MCP connectors        DELETE (IR-046/047)
-│   └── local Node stdio MCP tool transport                      KEEP INTERNAL; NOT REMOTE PRODUCT (IR-002/015)
+│   └── generic local Node stdio MCP process                     DELETE UNUSED; PI SOCKET STAYS (IR-015/937)
+├── Mac packaging and source artifacts
+│   ├── universal libwebp/libsharpyuv release dylibs             KEEP + RE-OWN WITH PROVENANCE (IR-939)
+│   ├── nested undiscoverable Omi install workflow/contracts      DELETE (IR-940)
+│   └── unreferenced bundled notification/Rewind media            DELETE (IR-941)
 ├── macOS lifecycle, identity, and settings
 │   ├── RAM-pressure cleanup + extreme-memory relaunch           KEEP; REMOVE REJECTED AGENTSYNC STEP (IR-928)
 │   ├── fork-local bundle/storage/cache/log/keychain identity    CREATE CLEAN PRODUCT NAMESPACES (IR-931)
@@ -1154,9 +1177,9 @@ macOS product
 | Branch exposed by | Current status |
 |---|---|
 | Realtime voice | Closed after the full child traversal: IR-055 through IR-119 plus the later model, fair-use, UI and backend children separately govern activation, providers, barge-in, grounding, tools, continuity, fallbacks, caching, settings, diagnostics and operations. |
-| Python backend simplification | Closed after the complete source cross-check: IR-887 through IR-889 select Mac-local Parakeet plus managed Modulate; IR-890 narrows Firestore index control; IR-891 adapts the isolated local harness to the retained stack. |
+| Python backend simplification | Closed after the complete source cross-check and supplemental router reconciliation: IR-887 through IR-889 select Mac-local Parakeet plus managed Modulate; IR-890 narrows Firestore index control; IR-891 adapts the isolated local harness; IR-938 deletes the previously missed external task-export product. |
 | Operational control planes | Closed after the complete source cross-check: IR-892 through IR-895 adapt the owned build, qualification, Beta/Stable and signed-preview system; IR-896 supplies a small external public/legal site; IR-897 deletes impossible controls for absent source trees without touching Windows. |
-| Supplemental macOS source-tree reconciliation | Closed after IR-922 through IR-937 explicitly covered the Local Agent API boundary, managed-Pi background lifecycle and packaged extension, notch and voice bridges, update/runtime lifecycle, local identity/settings residue, and all orphaned `agent-cloud`, Remotion, and compiled ACP trees discovered in the final codebase pass. |
+| Supplemental macOS source-tree reconciliation | Closed after IR-922 through IR-941 explicitly covered the Local Agent API boundary, managed-Pi background lifecycle and packaged extension, notch and voice bridges, update/runtime lifecycle, local identity/settings residue, orphaned source trees, universal libwebp release inputs, the nested install-workflow zombie, and no-caller packaged media discovered in the final codebase pass. |
 
 ## IR-009 - Windows excluded from the macOS audit; unused shared Rust crate
 
@@ -1183,6 +1206,86 @@ That means a later macOS cleanup must not use an adjacent Windows implementation
 Confirmed: do not inspect, question, modify, or delete `desktop/windows/**` or any Windows-only build, test, release, generated-client, documentation, or repository surface. Do not perform Windows cleanup as a consequence of macOS decisions.
 
 Delete `desktop/shared-rust/**`, `desktop/Cargo.toml`, and `desktop/Cargo.lock` when implementation begins because that standalone workspace has no surviving consumer or behavior. This deletion does not touch the macOS Swift app, its local Node/Pi runtime, the Python backend, any retained Rust SDK elsewhere in the repository, or any Windows file.
+
+No product code has been changed.
+
+## IR-938 - External task integrations and automatic export
+
+### Exact current behavior
+
+The canonical Python backend mounts `task_integrations.router` even though IR-025 makes the Mac's GRDB `action_items` table the sole authority for ordinary tasks. The router and `utils/task_integrations_ops.py` implement OAuth, token refresh, provider-specific discovery, stored connection/default state, and task creation for Todoist, Asana, Google Tasks, and ClickUp. The provider callbacks return Omi deep links, and environment configuration supplies each provider's client ID and secret.
+
+`utils/task_sync.py` then makes this more than an on-demand API. New backend action items and conversation-extracted action items automatically export to the user's default integration. Accepted task and workstream candidates take a second durable path: their transactions write `candidate_integration_outbox`, `candidate_service.py` claims/completes/retries its leased dispatch through `auto_sync_action_item`, and `POST /v1/candidates/integrations/drain` schedules pending work. A Firestore composite index, registry entry, generated client, focused lifecycle/router tests, and the `task_candidate_lifecycle` workflow invariant keep that integration-only queue executable.
+
+A separate Apple Reminders branch marks `sync_requested`, sends a mobile push so another client can create reminders, and exposes bidirectional `GET /v1/action-items/pending-sync` plus `PATCH /v1/action-items/sync-batch` routes. Their request/response models and Firestore helpers read and write `sync_requested`, `exported`, `export_date`, `export_platform`, and `apple_reminder_id`. Firestore user records separately retain integration credentials, defaults, list/project selections, and connection metadata. The Mac has generated bindings but no handwritten retained caller that needs this hosted product.
+
+This is not local task CRUD, local Task Assistant extraction, task creation by Chat/PTT, or the native notification/reminder behavior that stays inside this product. It is outbound synchronization of product tasks into external task systems and depends on cloud task authority and mobile/Omi behavior already rejected elsewhere.
+
+### Decision
+
+`delete the complete external task-integration and export product`
+
+Confirmed: remove `task_integrations.router` and registration; provider OAuth URL, callback, token-exchange/refresh, discovery and task-write endpoints; Todoist, Asana, Google Tasks, and ClickUp clients, credentials, settings, stored tokens/defaults/list/project metadata, generated non-Windows bindings, tests, docs, metrics, and deployment configuration; `task_integrations_ops.py`; automatic single/batch export hooks from action-item, task-intelligence, and conversation processing; and the integration-only candidate dispatch machinery. The latter includes `candidate_integration_outbox` writes from task/workstream acceptance, its claim/complete/list lease helpers and exports, `candidate_service` dispatch/drain code, `/v1/candidates/integrations/drain`, its Firestore index plus registry entry, generated binding, focused candidate/workstream/router tests, and the integration-dispatch clause in the `task_candidate_lifecycle` workflow invariant. Preserve candidate creation/acceptance itself after removing that side effect.
+
+Also remove the complete Apple Reminders export path. That path includes its mobile-push builder/sender, `batch_set_sync_requested`, `get_pending_apple_reminders_sync`, `batch_sync_update_action_items`, `/v1/action-items/pending-sync`, `/v1/action-items/sync-batch`, `SyncBatch*`/`PendingSyncResponse` models, the five export/sync fields where no other retained caller remains, route-policy/generated-client entries, mobile-lifecycle and focused unit tests, and current docs.
+
+Preserve ordinary local tasks, local Task Assistant extraction, local recurrence/edit/complete/delete behavior, and retained Chat/PTT/proactive producers writing the authoritative GRDB store. Do not replace the deleted providers with a generic integration framework or silently add a native Apple Reminders integration. A future local/native export is a new product decision with its own authority and consent boundary.
+
+No product code has been changed.
+
+## IR-939 - Vendored universal libwebp release libraries
+
+### Exact current behavior
+
+Ordinary typed screen capture is live and depends on libwebp: `ScreenCaptureManager.captureScreenData()` encodes the current display as WebP through the `CWebP` system-library target, and typed Chat, floating-bar attachments, capture tools, artifact storage, and MIME detection consume that format. Local development obtains libwebp through Homebrew/pkg-config and bundles/signs the dylibs from that installation.
+
+`desktop/macos/vendor/libwebp/` additionally contains libwebp 1.5.0 `libwebp.7.dylib` and `libsharpyuv.0.dylib`. Both are universal Mach-O binaries with `x86_64` and `arm64` slices. Their recorded SHA-256 values are `3515af9fc46957cbd3f879ee36b9bbc0283cf6e2bbd51032a943ec8a9e64b2ff` and `5a92b18c7deee56b134d1079712e41e77d151584c20e894a3a9c176e9f9ed119`. The accompanying README documents the original absent `codemagic.yaml` consumer: a universal release needs these cached binaries because the runner's Homebrew build is arm64-only, with a from-source universal rebuild as fallback.
+
+The current checkout cannot prove a live root Codemagic consumer because that inherited file is missing and IR-892 assigns creation of the owned release definition to S-29. Deleting the cache now would not simplify the live WebP feature; it would merely force S-29 to rediscover or rebuild a small, already-documented universal dependency.
+
+### Decision
+
+`retain and re-own the universal libwebp cache with the Mac release system`
+
+Confirmed: keep the two universal dylibs and the reproducible build instructions as an S-29 release input. The owned Codemagic/release definition must verify the expected version/checksums, both architectures, `@rpath` install names, minimum supported macOS version, signing, and the from-source fallback before copying them into a universal candidate. Update Omi names and missing-file claims when that owned consumer lands; do not treat a README as sufficient release wiring.
+
+Preserve `CWebP`, ordinary typed WebP screen capture, local Homebrew/pkg-config development behavior, artifact MIME handling, and signed-bundle library rewriting. Do not convert typed capture to PTT's separate JPEG path or delete live screen understanding to remove two release artifacts.
+
+No product code has been changed.
+
+## IR-940 - Nested undiscoverable Mac install workflow
+
+### Exact current behavior
+
+`desktop/macos/.github/workflows/test-install.yml` is nested below the repository root, so GitHub Actions does not discover or run it as a repository workflow. The file still targets `BasedHardware/omi`, downloads `omi.dmg`, installs `/Applications/Omi.app`, checks Omi process/crash names, and force-cleans that app. It therefore cannot be an owned release gate for this fork even if its steps are individually useful.
+
+`desktop/macos/tests/test-test-install-workflow-contract.sh` and two exact YAML fixtures under `desktop/macos/tests/fixtures/` byte- and semantic-match this dead workflow. A root CI script can run that contract test, but doing so only preserves an undiscoverable Omi workflow; it does not make GitHub schedule the nested file.
+
+### Decision
+
+`delete the nested install workflow and its exclusive exact-file contract`
+
+Confirmed: remove `desktop/macos/.github/workflows/test-install.yml`, `desktop/macos/tests/test-test-install-workflow-contract.sh`, `test-install-job-contract.yml`, `test-install-workflow-prefix-contract.yml`, and live manifest/runner/docs references whose only purpose is to preserve that nested artifact. Do not move it to the root or recreate an Omi release lane as part of cleanup.
+
+Preserve the actual root candidate, signing, notarization, qualification, Beta/Stable, preview, install/update, and rollback controls selected under IR-892 through IR-895 and assigned to S-29. The owned release system may implement a new discoverable signed-install test against this product's exact candidate; it must not inherit `BasedHardware/omi`, Omi bundle/process names, or destructive production-app cleanup.
+
+No product code has been changed.
+
+## IR-941 - Unreferenced packaged notification and Rewind media
+
+### Exact current behavior
+
+`desktop/macos/Desktop/Sources/Resources/enable_notifications.gif` is approximately 6.3 MB and `rewind-demo.mp4` is approximately 1.9 MB. SwiftPM processes the containing Resources directory, so both files are packaged into desktop builds. Repository-wide caller searches find no source, manifest, localization, test, documentation, or runtime lookup that names either resource.
+
+The filenames resemble live Notifications and Rewind product behavior, but bundling a no-caller demo asset does not implement either workflow. The current Notifications setup/UI and the complete local Rewind capture, search, timeline, recovery, and Settings behavior use other code and assets.
+
+### Decision
+
+`delete both unreferenced packaged media files`
+
+Confirmed: remove `enable_notifications.gif` and `rewind-demo.mp4` plus any newly discovered metadata or tests whose only owner is those exact files. Re-run the Mac resource/package and named-bundle checks to prove no dynamic lookup depended on them and record the bundle-size change.
+
+Preserve all live Notifications and Rewind source, reachable assets, settings, tests, local databases/media, and reviewed behavior. Do not interpret the no-caller resource deletion as authority to delete or redesign those product families.
 
 No product code has been changed.
 
@@ -1528,7 +1631,7 @@ The older hosted Python agent does inject Anthropic's built-in `web_search` serv
 
 `delete public-web search completely`
 
-Confirmed: remove normal typed Chat's public/current-fact routing rules; the Node public-web classifier and prompt injection; synthetic web-search progress and denial-stripping behavior; Claude/Anthropic server-side `web_search` declarations and event handling in hosted-agent residue; the rejected voice `omi_web_search` flag and claims already covered by IR-601/602; the Perplexity slice covered by IR-715; public-web onboarding lookups; and tests, fixtures, diagnostics, copy, and documentation that promise or simulate live search.
+Confirmed: remove normal typed Chat's public/current-fact routing rules; the Node public-web classifier and prompt injection; synthetic web-search progress and denial-stripping behavior; Claude/Anthropic server-side `web_search` declarations and event handling in hosted-agent residue; the rejected voice `omi_web_search` flag and claims already covered by IR-601/602; the Perplexity slice covered by IR-715; public-web onboarding lookups; and tests, fixtures, diagnostics, copy, and documentation that promise or simulate live search. The exact support boundary includes `backend/desktop_fixtures/public-web-routing-contract.fixture.json`, its Pi-adapter test and architecture-doc references. After the behavior-removal PR is merged, a separate registry-lifecycle PR transitions `.github/failure-classes/FC-public-web-routing-parity.json` from `open` to dormant with `dormant_since`; do not combine that lifecycle transition with the implementation deletion or erase the historical registry entry.
 
 After this deletion, Chat and PTT must not claim that they searched, browsed, verified, or used live information. They may answer from model knowledge while being honest about its limits, or state that current information cannot be verified. Do not replace web search with a different search vendor or local search proxy.
 
@@ -2015,7 +2118,7 @@ No product code has been changed.
 
 The previous text called this parent resolved too early. It correctly covered the main FastAPI service, deleted workers and services, ordinary model workloads, Cloud Run, Redis, storage, account deletion, health, metrics, logs and deployment mechanics. It did **not** independently decide every surviving backend dependency.
 
-The code-level pass found five previously unresolved children:
+The first code-level pass found five previously unresolved children:
 
 1. `backend/config/stt_provider_policy.py` makes Modulate Velma-2 a real managed provider on streaming, prerecorded and PTT surfaces (IR-887).
 2. `backend/parakeet/main.py`, its GPU image, Helm chart and deployment workflow form a separate hosted Parakeet product with model, capacity and admission ownership (IR-888).
@@ -2023,7 +2126,7 @@ The code-level pass found five previously unresolved children:
 4. `backend/database/firestore_index_registry.py` plus `gcp_firestore_indexes.yml` are a separate create-only schema-control plane whose retained and rejected indexes have not been pruned by decision (IR-890).
 5. `make dev-up` and `scripts/dev-harness/` operate a sizeable local backend environment with Firebase emulators, Redis, provider fakes, seeded profiles and lifecycle safety (IR-891).
 
-The source pass also checked every `backend/main.py` router include and every reachable `get_llm(...)` workload. Their product families map to existing decisions, including IR-710 through IR-732 for the ordinary retained/deleted model workloads. No additional unmatched user-facing router or ordinary LLM workload was found.
+That pass also checked every `backend/main.py` router include and every reachable `get_llm(...)` workload. It correctly mapped the ordinary retained/deleted model workloads, including IR-710 through IR-732, but its router-family summary missed one still-mounted product: `task_integrations.router` and its outbound task-export helpers. The supplemental reconciliation now closes that child under IR-938 rather than leaving the earlier “no unmatched router” claim standing.
 
 ### Decision
 
@@ -3852,7 +3955,7 @@ After the live demo, onboarding offers **OpenClaw**, **Hermes**, **Claude Code**
 
 Remove the stage, install/status probes, connect actions, external-agent config writers, MCP/memory-export connection state, brand rows, restart prompt, onboarding routing, and connector-specific tests. This is the first-party memory-export surface explicitly rejected under IR-047.
 
-Do **not** delete the retained local Node agent/chat runtime or its private `omi-tools-stdio` MCP transport. Those are internal on-Mac implementation boundaries under IR-002/015, not connections to OpenClaw, Hermes, Claude Code, or Codex.
+Do **not** delete the retained local Node agent/chat runtime, the packaged Pi extension, its `OMI_BRIDGE_PIPE` Unix-socket relay, or Swift `ChatToolExecutor`. Those are internal on-Mac implementation boundaries under IR-002/015/937, not connections to OpenClaw, Hermes, Claude Code, or Codex. The separate callerless `omi-tools-stdio` process is deleted by IR-015/S-05 rather than protected here.
 
 No code deletion is authorized yet.
 
@@ -7308,7 +7411,7 @@ IR-048 already deletes that entire local Playwright/browser-control product slic
 
 `resolved by dependency - delete with IR-048`
 
-Delete the Advanced Browser Extension card, its view state/sheet, token display/reset/reconfigure actions, and Settings search result with the rejected Playwright lifecycle. Do not delete the separate private on-Mac `omi-tools-stdio` transport or its retained scoped local product tools.
+Delete the Advanced Browser Extension card, its view state/sheet, token display/reset/reconfigure actions, and Settings search result with the rejected Playwright lifecycle. Preserve the retained managed-Pi extension, `OMI_BRIDGE_PIPE` Unix-socket relay, Swift `ChatToolExecutor`, and scoped local product tools. The separate callerless `omi-tools-stdio` process is deleted by IR-015/S-05.
 
 No code deletion is authorized yet.
 
@@ -7467,12 +7570,14 @@ No code deletion is authorized yet.
 
 The chosen mode is attached to an agent turn and reaches the local tool process. However, the traced enforcement is incomplete:
 
-- `omi-tools-stdio` checks Ask mode only when the model calls `execute_sql`, and only allows text beginning with `SELECT`;
+- the generic `omi-tools-stdio` path checks Ask mode only when the model calls `execute_sql`, and only allows text beginning with `SELECT`, but the retained Pi adapter never consumes that stdio path;
 - the mode is passed into Swift's `ChatToolExecutor` but is not used there to authorize or reject tools;
 - retained write tools such as task creation/update/completion/deletion are not blocked merely because the turn is in Ask mode; and
 - the rejected general shell/file tools had no complete Ask-mode enforcement either, which was already identified under IR-049.
 
 Therefore the visible promise **“Ask mode restricts the AI to read-only actions”** is not currently true. Removing broad computer-agent tools narrows the risk but does not repair the remaining typed local writes.
+
+IR-015/S-05 deletes the unused stdio process. Keeping Ask Mode exactly as implemented therefore does not transplant that unreachable SQL check into the real Pi Unix-socket path or invent replacement enforcement.
 
 ### Requirement materialized by this code
 
@@ -7696,7 +7801,7 @@ Local Rewind capture, Focus, proactive analysis, and the separately retained PTT
 
 ### Concrete bypass found in the floating bar
 
-The floating bar has a second typed-Chat image path that does not use either gated tool. Before sending a question, it searches the text for cues such as **“screen,” “look at this,” “what's on my screen,” “read this,”** or **“this error.”** When a cue matches, it directly captures the current screen and attaches the JPEG to the provider request.
+The floating bar has a second typed-Chat image path that does not use either gated tool. Before sending a question, it searches the text for cues such as **“screen,” “look at this,” “what's on my screen,” “read this,”** or **“this error.”** When a cue matches, it directly calls `ScreenCaptureManager.captureScreenData()`, encodes the current screen as WebP through libwebp, and attaches that image to the provider request. This ordinary typed-Chat WebP path is separate from PTT's JPEG path under IR-079.
 
 That automatic capture checks turn ownership and query relevance, but it never reads `chatScreenshotSharingEnabled`. Therefore turning **Screen Sharing in Chat** off does **not** prevent a typed floating-bar question such as “what is this?” from sending the current screenshot to the model. The visible Settings claim is broader than the actual enforcement.
 
@@ -13651,7 +13756,7 @@ The retained Mac database has a normalized `transcription_segments` table: every
 
 `delete the Firestore transcript compression format`
 
-Confirmed: remove `transcript_segments_compressed` from models and generated contracts; hosted zlib packing/unpacking; encrypted/uncompressed legacy branches; protection migration handling; public-share decoding; backend compatibility/parity tests; and exclusive migration code when hosted conversation documents are removed.
+Confirmed: remove `transcript_segments_compressed` from models and generated contracts; hosted zlib packing/unpacking; encrypted/uncompressed legacy branches; protection migration handling; public-share decoding; backend compatibility/parity tests; and exclusive migration code when hosted conversation documents are removed. This explicitly includes the conversation-only cases in `backend/testing/contracts/test_desktop_backend_parity.py`, root `contract_tests/fixtures/conversations.json`, and the `contracts` job/path triggers in `.github/workflows/desktop-backend-contracts.yml`. Preserve that mixed workflow's independent `desktop-core-e2e-t0` self-check unless its own retained owner moves it.
 
 Keep local GRDB segment rows and their ordinary ordered reads/writes unchanged. This decision removes a rejected cloud storage format; it does not prohibit an independently justified database-level optimization later and does not remove transcript text, timing, speakers, translations, or local indexes.
 
@@ -20103,7 +20208,7 @@ Must a user's memory content and lifecycle sync to the product backend for cross
 
 `keep memories as a local product; delete backend memory synchronization and authority`
 
-Confirmed: the Mac's GRDB `memories` table becomes the sole authority for memory content, identity, lifecycle/category, provenance, edits, deletion, read/dismissal state, search, and pagination. Remove normal Mac use of `/v3/memories`, Firestore memory copies, backend IDs/sync flags, upload/retry/reconciliation/pruning logic, and canonical memory maintenance jobs. Local Memory, Insight, Focus, import, manual-create, chat, and proactive consumers remain, rewritten to finish and read locally. Hosted knowledge graph, MCP/public visibility, persona, and cross-device memory projections lose their cloud source and are deletion candidates unless separately retained later. Account, entitlement, and billing data remain cloud-hosted under IR-006.
+Confirmed: the Mac's GRDB `memories` table becomes the sole authority for memory content, identity, lifecycle/category, provenance, edits, deletion, read/dismissal state, search, and pagination. Remove normal Mac use of `/v3/memories`, Firestore memory copies, backend IDs/sync flags, upload/retry/reconciliation/pruning logic, and canonical memory maintenance jobs. Delete the memory-only cases in `backend/testing/contracts/test_desktop_backend_parity.py`, root `contract_tests/fixtures/memories.json`, and the corresponding `contracts` job/path triggers in the mixed `.github/workflows/desktop-backend-contracts.yml`; preserve its independent retained T0 self-check. Because S-12 removes the final file under `backend/testing/contracts/`, it also removes that prefix's `WORKFLOW_COVERED_PREFIXES` registration in `backend/scripts/check_unit_test_discovery.py` and updates the dedicated discovery-check tests in the same change. Local Memory, Insight, Focus, manual-create, chat, and proactive consumers remain, rewritten to finish and read locally. Hosted knowledge graph, MCP/public visibility, persona, imports, and cross-device memory projections lose their cloud source and are deletion candidates unless separately retained later. Account, entitlement, and billing data remain cloud-hosted under IR-006.
 
 No code deletion is authorized yet.
 
@@ -20139,7 +20244,7 @@ complete/edit/delete/reorder/score
   -> merge or roll back according to the result
 ```
 
-The backend task product also contains sharing, third-party task integrations, relevance scoring, staged-task migration, candidates, task-intelligence interventions/feedback/outcomes, work intents, and workstreams. Those are not necessary for a local checklist and must be challenged separately rather than bundled into IR-025.
+The backend task product also contains sharing, third-party task integrations, relevance scoring, staged-task migration, candidates, task-intelligence interventions/feedback/outcomes, work intents, and workstreams. Those are not necessary for a local checklist and are challenged separately rather than bundled into IR-025. IR-938 closes the previously missing external task-integration/export child.
 
 ### Local-authority alternative
 
@@ -20148,7 +20253,7 @@ The backend task product also contains sharing, third-party task integrations, r
 - Remove `backendId`, `backendSynced`, API paging/merge, ID census, missing-row reconciliation, upload retries, rollback-on-remote-failure, full-sync flags, and server migration calls.
 - Keep local/manual and retained local-agent/proactive task producers writing the same table.
 - Delete `/v1/action-items` Firestore CRUD from normal Mac operation.
-- Review sharing, Todoist/Microsoft integration, staged suggestions/candidates, workstreams, and cross-device tasks as separate requirements.
+- Review sharing, external task integrations, staged suggestions/candidates, workstreams, and cross-device tasks as separate requirements. IR-938 now resolves the integration/export branch.
 
 ### Recommendation
 
@@ -20164,7 +20269,7 @@ Must ordinary tasks synchronize to the Python product backend for cross-device/s
 
 `keep ordinary tasks locally; delete backend task synchronization and authority`
 
-Confirmed: the Mac's GRDB `action_items` table becomes the sole authority for ordinary task identity, content, completion, deletion, dates, priority, tags, ordering, scores, recurrence, and metadata. Remove normal Mac use of `/v1/action-items`, Firestore action-item copies, backend IDs/sync flags, API paging/merge, server ID census, absent-row reconciliation, upload retries, rollback-on-remote-failure, full-sync flags, and server task migrations. Manual and retained local-agent/proactive producers finish locally. Sharing, external task integrations, staged suggestions/candidates, task intelligence, workstreams, and cross-device task access remain separate audits.
+Confirmed: the Mac's GRDB `action_items` table becomes the sole authority for ordinary task identity, content, completion, deletion, dates, priority, tags, ordering, scores, recurrence, and metadata. Remove normal Mac use of `/v1/action-items`, Firestore action-item copies, backend IDs/sync flags, API paging/merge, server ID census, absent-row reconciliation, upload retries, rollback-on-remote-failure, full-sync flags, and server task migrations. Manual and retained local-agent/proactive producers finish locally. Sharing, staged suggestions/candidates, task intelligence, workstreams, and cross-device task access remain separate audits; IR-938 separately deletes external task integration/export.
 
 No code deletion is authorized yet.
 
@@ -21654,14 +21759,15 @@ No code deletion is authorized yet.
 
 > Product data must be remotely accessible and mutable from ChatGPT, Claude, Codex, third-party agents, and developer clients through Omi-hosted MCP REST and streamable-HTTP endpoints, OAuth grants, and API keys.
 
-### Four different MCP-shaped implementations
+### Five different MCP-shaped implementations
 
-The code uses the term MCP for four separate boundaries:
+The code uses MCP-adjacent tool language for five separate boundaries:
 
 1. **Hosted Omi MCP product.** `backend/routers/mcp.py` and `mcp_sse.py` expose cloud memories, action items, conversations, goals, daily summaries, people, profile, screen activity, and chat through REST and `/v1/mcp/sse`. It includes OAuth discovery/consent/token flows, scopes, grants, API keys, sessions, generated clients, rate limits, and remote mutation authorization.
 2. **Marketplace outbound MCP client.** The Python app platform connects to third-party MCP servers so cloud marketplace apps can contribute tools. Deleted with IR-046.
 3. **First-party connector MCP clients/configuration.** The Mac connects to Notion MCP and configures hosted Omi MCP in ChatGPT, Claude, Claude Code, Codex, OpenClaw, and Hermes. Deleted with IR-047.
-4. **Private local agent tool transport.** The bundled Node runtime launches `omi-tools-stdio` as a child process and speaks MCP over stdin/stdout so retained local agent adapters can call local SQL/search and other Swift-backed tools. An optional local Playwright MCP child exposes browser tools. These processes do not create a hosted Omi endpoint, copy data to Firestore, or let another device access the Mac.
+4. **Generic local stdio MCP process.** The bundled Node runtime can build an `omi-tools-stdio` child-process configuration and speak MCP over stdin/stdout. That configuration served alternate adapter paths, but the retained Pi adapter ignores `mcpServers`; after ACP, Hermes, OpenClaw, and Playwright are removed, the stdio process has no retained production consumer.
+5. **Working managed-Pi private tool bridge.** `pi-mono-extension` registers the retained typed manifest, sends calls over the `OMI_BRIDGE_PIPE` Unix socket, and Swift `ChatToolExecutor` authorizes and executes them. This is not MCP stdio, not the hosted MCP product, not port 47778, and not port 47777.
 
 ### Why the hosted product has no surviving source
 
@@ -21687,21 +21793,21 @@ Keeping the hosted MCP endpoints would therefore preserve a remote access/auth p
 
 ### Internal local transport boundary
 
-Do not delete `omi-tools-stdio` or the local adapter's MCP configuration merely because the protocol has the same name. That is an implementation detail behind the retained local Node chat/tools requirement in IR-002. Deleting it would require replacing the agent SDK/ACP tool interface with another custom transport while preserving exactly the same local tools—more work and risk with no product simplification.
+Preserve the working Pi path: packaged `pi-mono-extension`, its retained typed manifest, `OMI_BRIDGE_PIPE`, `AgentToolBridgeServer`, Swift authorization, and `ChatToolExecutor`. Delete the generic `omi-tools-stdio` child process, stdio-only MCP configuration/projections, and exclusive tests/dependencies after the alternate adapters are removed. No replacement transport is needed because Pi already uses the separate Unix-socket bridge in production.
 
-The optional Playwright/browser capability remains a separate product audit. This decision only prevents deletion of its internal local transport as collateral damage.
+The optional Playwright/browser capability remains a separate product audit. This decision prevents deletion of Pi's socket bridge as collateral damage while allowing S-05 to remove the different callerless stdio path.
 
 ### Recommendation
 
-`delete every hosted, public, marketplace, and connector MCP surface; retain the private local stdio tool transport`
+`delete every hosted, public, marketplace, and connector MCP surface plus the unused local stdio process; retain managed Pi's private Unix-socket tool bridge`
 
 ### Question
 
-Do you agree with deleting the complete remote MCP product and all connector clients, while keeping MCP only as the private on-Mac protocol between the retained local agent and its local tools?
+Do you agree with deleting the complete remote MCP product, all connector clients, and the unused stdio process while preserving the already-working private Pi extension/socket bridge to its local tools?
 
 ### Decision
 
-`resolved - delete every hosted/public MCP endpoint, OAuth/API-key access surface, marketplace MCP client, and first-party connector MCP configuration. Keep MCP only as the private on-Mac tool protocol: the local Node runtime exposes the retained tool manifest through omi-tools-stdio, relays authorized calls locally, and Swift ChatToolExecutor executes them. This does not retain remote access, cloud data synchronization, or another-device access. The optional Playwright/browser capability remains a separate requirement to review.`
+`resolved - delete every hosted/public MCP endpoint, OAuth/API-key access surface, marketplace MCP client, first-party connector MCP configuration, and the unused omi-tools-stdio process/configuration. Preserve the separate private on-Mac managed-Pi path: pi-mono-extension exposes the retained typed manifest, OMI_BRIDGE_PIPE relays authorized calls locally, and Swift ChatToolExecutor executes them. This does not retain remote access, cloud data synchronization, another-device access, or another trusted program entrance. The optional Playwright/browser capability remains a separate requirement to review.`
 
 No code deletion is authorized yet.
 
@@ -21716,14 +21822,14 @@ No code deletion is authorized yet.
 - The app contains a multi-step `BrowserExtensionSetup` flow that asks the user to install the Playwright MCP Bridge extension and paste its authentication token.
 - The token and enablement choice live in local `UserDefaults`.
 - At agent startup, Swift verifies that a supported browser and extension are installed before setting `PLAYWRIGHT_MCP_ENABLED` and passing the token to the bundled Node runtime.
-- Node then launches a second private MCP subprocess, `playwright`, in addition to `omi-tools-stdio`.
+- Node can launch a separate private Playwright MCP subprocess beside its generic `omi-tools-stdio` configuration; neither is the retained Pi extension/socket route.
 - Normal Chat watches for browser-tool calls, presents setup when the token is missing, aborts that turn, and keeps the floating bar visible over Chrome while automation runs.
 - Proactive task execution explicitly tells the agent to use logged-in Gmail, Slack, Telegram, X, and Calendar through Playwright and to verify the action before claiming completion.
 - This is local browser automation, not the hosted MCP product from IR-015. It does not require Firestore, the product backend, or another device, but it does create browser-extension onboarding, token storage, settings, runtime packaging, UI state, prompts, tests, and a powerful browser-control/security surface.
 
 ### Effect of earlier decisions
 
-IR-046 and IR-047 remove the marketplace and first-party connector/export uses around browser automation. A narrower surviving behavior remains: ordinary local Chat and retained proactive execution can act inside arbitrary logged-in websites. Keeping the private `omi-tools-stdio` transport does not require keeping this separate Playwright server.
+IR-046 and IR-047 remove the marketplace and first-party connector/export uses around browser automation. A narrower surviving behavior remains: ordinary local Chat and retained proactive execution can act inside arbitrary logged-in websites. Preserving Pi's private extension/socket bridge does not require keeping this separate Playwright server or the callerless stdio MCP process.
 
 ### Recommendation
 
@@ -21733,11 +21839,11 @@ Reason: local SQL/search/memory tools are central to the retained personal assis
 
 ### Question
 
-Do you agree with deleting the Playwright extension, browser-tool server, browser setup/settings, prompts, and browser-specific Chat lifecycle from the first release while keeping the private local `omi-tools-stdio` tools?
+Do you agree with deleting the Playwright extension, browser-tool server, browser setup/settings, prompts, and browser-specific Chat lifecycle from the first release while keeping the scoped tools through the separate managed-Pi extension/socket route?
 
 ### Decision
 
-`resolved - delete Playwright browser control from the first release: the Playwright MCP child/server and package wiring, browser-extension detection and token storage, BrowserExtensionSetup, related settings and Chat failure/setup lifecycle, browser-specific prompts/floating-bar behavior, tests, and the browser-control parts of proactive execution. Keep the separate private omi-tools-stdio transport and its scoped local product tools.`
+`resolved - delete Playwright browser control from the first release: the Playwright MCP child/server and package wiring, browser-extension detection and token storage, BrowserExtensionSetup, related settings and Chat failure/setup lifecycle, browser-specific prompts/floating-bar behavior, tests, and the browser-control parts of proactive execution. Preserve the scoped local product tools through managed Pi's separate pi-mono-extension -> OMI_BRIDGE_PIPE -> ChatToolExecutor route; IR-015/S-05 deletes the unused omi-tools-stdio process.`
 
 No code deletion is authorized yet.
 
@@ -28812,7 +28918,7 @@ No product code has been changed.
 
 The production desktop app contains a second, optional entrance to local Omi tools that is separate from the managed Pi agent path. `LocalAgentAPIServer` binds an HTTP listener only to `127.0.0.1`, using port `47778` by default. Its unauthenticated health route identifies the running local service. Listing tools through `GET /v1/local/tools` and executing one through `POST /v1/local/tool` require a bearer token stored in the app's scoped macOS Keychain service. A persisted enabled flag causes `OmiApp` to start the listener again on later launches.
 
-This HTTP server exposes a generated ten-tool `local-agent-api` projection and then dispatches ordinary calls into the same Swift `ChatToolExecutor` used behind retained agent behavior. It is therefore an additional access path for another trusted local program, not the managed Pi harness itself and not the private `omi-tools-stdio` child-process transport used by the retained local Node runtime.
+This HTTP server exposes a generated ten-tool `local-agent-api` projection and then dispatches ordinary calls into the same Swift `ChatToolExecutor` used behind retained agent behavior. It is therefore an additional access path for another trusted local program, not the managed Pi harness itself. Managed Pi uses `pi-mono-extension -> OMI_BRIDGE_PIPE -> ChatToolExecutor`; the generic `omi-tools-stdio` child-process path is a third, callerless path deleted under IR-015/S-05.
 
 The enablement, token rotation, connection testing, and prompt-copy flows are coupled to the Memory Export / external-agent connector product already rejected under IR-047 and IR-015. The API-specific projection also includes `get_local_status` and historical `get_screenshot` wrappers that are not advertised to Pi. Pi separately retains its managed tool projection, including approved screen/context tools such as `capture_screen` and `get_work_context`.
 
@@ -28822,7 +28928,7 @@ The enablement, token rotation, connection testing, and prompt-copy flows are co
 
 Confirmed: remove `LocalAgentAPIServer`, `LocalAgentAPISettings`, the production `127.0.0.1:47778` listener, `/health`, `/v1/local/tools`, `/v1/local/tool`, persisted enablement and port state, scoped Keychain bearer-token lifecycle, app-launch startup, Memory Export connection setup/testing coupling, generated `local-agent-api` adapter projection, API-only wrappers, and tests/fixtures that exist only for this external HTTP surface.
 
-Do not delete or replace the managed Pi harness, retained local Node runtime, private `omi-tools-stdio` transport, `AgentRuntimeProcess` authorization/relay path, `ChatToolExecutor`, or any tool capability retained by Pi merely because the deleted API also exposed or executed it. Do not convert the API-only wrappers into new Pi tools as part of this deletion. Keep shared loopback HTTP parsing needed by the separately retained test-only `DesktopAutomationBridge`, relocating or renaming it if necessary rather than deleting that test safety boundary.
+Do not delete or replace the managed Pi harness, retained local Node runtime, packaged Pi extension, `OMI_BRIDGE_PIPE`, `AgentRuntimeProcess` authorization/relay path, `ChatToolExecutor`, or any tool capability retained by Pi merely because the deleted API also exposed or executed it. Delete the separate callerless `omi-tools-stdio` process under IR-015/S-05 without routing Pi through it. Do not convert the API-only wrappers into new Pi tools as part of this deletion. Keep shared loopback HTTP parsing needed by the separately retained test-only `DesktopAutomationBridge` on port 47777, relocating or renaming it if necessary rather than deleting that test safety boundary.
 
 No product code has been changed.
 
@@ -29120,7 +29226,7 @@ IR-800 already selects managed Pi as the only normal-chat and background-agent h
 
 Confirmed: remove `desktop/macos/acp-bridge/` completely together with the live Claude ACP adapter, activation and registry branches, Claude authentication, external-adapter policy, focused tests, configuration, packaging residue, and documentation already rejected by IR-800.
 
-Preserve `desktop/macos/agent/` as the retained local Node runtime, its managed Pi adapter and bridge, private tool transport, `omi-tools-stdio`, Swift `ChatToolExecutor`, tool authorization, local journal, and accepted normal-chat and background-agent behavior. Do not delete or weaken Pi merely because the obsolete ACP bridge also relayed Omi tools.
+Preserve `desktop/macos/agent/` as the retained local Node runtime, its managed Pi adapter, packaged extension, `OMI_BRIDGE_PIPE` bridge, Swift `ChatToolExecutor`, tool authorization, local journal, and accepted normal-chat and background-agent behavior. Delete the callerless `omi-tools-stdio` process with the alternate-adapter plumbing under IR-015/S-05; do not delete or weaken Pi merely because the obsolete ACP bridge also relayed Omi tools.
 
 No product code has been changed.
 

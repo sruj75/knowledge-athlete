@@ -3,7 +3,7 @@
 Status: ready
 Owning subagent: S-04
 Wave: 1
-Authorizing and protecting decisions: IR-009, IR-010, IR-892, IR-897, IR-935
+Authorizing and protecting decisions: IR-009, IR-010, IR-892, IR-897, IR-935, IR-939, IR-940, IR-941
 Depends on: none; coordinate shared registries with S-01, S-02, and S-03
 Delivery: one PR-sized change, implemented as separate testable commits
 
@@ -33,9 +33,9 @@ Use `engineering:codebase-design` only for the three mixed boundaries: backend-t
 
 | Action | Exact behavior and source boundary |
 |---|---|
-| KEEP AS IS | Present Mac source/tests and all non-Windows packaging, preview, qualification, promotion, update, rollback, and release controls; canonical backend tests/deploy/WIF/Firestore/runtime-image guards; local/offline harness; concrete brand/auth guards; packaged Mac demo-video resources; historical changelogs. Record Windows matches but never open, inspect, or change Windows files or Windows-only workflows. |
+| KEEP AS IS | Present Mac source/tests and all non-Windows packaging, preview, qualification, promotion, update, rollback, and release controls; canonical backend tests/deploy/WIF/Firestore/runtime-image guards; local/offline harness; concrete brand/auth guards; the universal `vendor/libwebp` cache protected for S-29; the `desktop-core-e2e-t0` job in the mixed desktop/backend contract workflow; historical changelogs. Record Windows matches but never open, inspect, or change Windows files or Windows-only workflows. |
 | ADAPT | Narrow the check manifest, repo workflow, change-detection action, local hooks, pre-push prediction, deployment policies, agent-document checks, OpenAPI workflow, production-routing checker, and release guards to present owners. Rename the mixed mobile production-routing checker to a desktop/backend-owned checker. Remove generic invariant-citation plumbing while retaining concrete guards. |
-| DELETE | Absent-product workflows: docs deploy/sync, firmware, mobile, web/admin/app/frontend/personas, plugin deploy, public-build preflight, CLI, and Rust SDK. Delete exclusive public-build actions/config/scripts/tests; Ray-Ban/app/web-only checks and helpers; plugin runtime-image ownership; absent documentation claims; `desktop/shared-rust/**` plus the desktop Cargo workspace; all of `desktop/macos/demo/**`. |
+| DELETE | Absent-product workflows: docs deploy/sync, firmware, mobile, web/admin/app/frontend/personas, plugin deploy, public-build preflight, CLI, and Rust SDK. Delete exclusive public-build actions/config/scripts/tests; Ray-Ban/app/web-only checks and helpers; plugin runtime-image ownership; absent documentation claims; `desktop/shared-rust/**` plus the desktop Cargo workspace; all of `desktop/macos/demo/**`; the nested undiscoverable `desktop/macos/.github/workflows/test-install.yml` and its exclusive contract test/fixtures; unreferenced packaged `enable_notifications.gif` and `rewind-demo.mp4`. |
 | SIMPLIFY / OPTIMIZE AFTER | After deletion is green, remove dead routing outputs, empty policy kinds, obsolete release parameters, stale ignore patterns, and names that still imply mobile/public-build ownership. Do not add compatibility aliases or “missing means pass” branches. |
 | ACCELERATE AFTER | `none`; record before/after preflight elapsed time and selected-check count, but do not widen S-04 into performance work. |
 | AUTOMATE LAST | `none`; the existing manifest validator, retained checker CLIs, and regression tests are the stable automation. |
@@ -48,6 +48,8 @@ Mixed-boundary decisions:
 - Pin `async-timeout==4.0.3` in the OpenAPI runner environment.
 - Make Swift generation derive its default schema directly from `export_openapi.generate_openapi("app-client")`, using a stable generated-file source label. If the live schema changes generated DTOs, commit the exact regenerated output and exercise affected adapters and desktop compilation.
 - Keep fixture-based release parsers and present GitHub release workflows. Remove live reads, digests, and assertions for the absent inherited Codemagic document. S-29 adds fresh live-document guards alongside the owned file.
+- Protect `desktop/macos/vendor/libwebp/` for S-29. S-04 may correct stale ownership text but does not delete, rebuild, or substitute the two universal dylibs.
+- Keep `.github/workflows/desktop-backend-contracts.yml` and its retained T0 self-check. Record the exact later S-10/S-12 handoff for the hosted conversation/memory parity job, root fixtures, and path triggers; after S-12 removes the final contract file, it also owns the `testing/contracts/` discovery-registry and guard-test cleanup. S-04 must not delete either behavior family early.
 - Delete the impossible generic product-invariant registry checker and PR citation requirement. Keep `PRODUCT.md` and concrete source-backed guards, rewriting live agent/contributor guidance so it references only present files.
 
 ## Ordered TDD Cycles
@@ -75,7 +77,7 @@ Mixed-boundary decisions:
 5. **Narrow CI and local routing**
    - RED: add cases showing repository-control, backend, and Mac changes currently request absent Flutter/web/firmware phases.
    - GREEN: delete exclusive workflows and narrow `detect-changes`, `repo-checks`, `pre_push_ci_prediction.py`, `scripts/pre-push`, pre-commit configuration, hatch disclosure, and workflow-contract tests.
-   - Preserve Python formatting, generic workflow linting, backend selection, Mac selection, and existing Windows branches byte-for-byte.
+   - Delete the nested undiscoverable `desktop/macos/.github/workflows/test-install.yml`, its exclusive exact-file shell contract, and both YAML fixtures rather than moving the Omi lane to the root. Preserve Python formatting, generic workflow linting, backend selection, Mac selection, and existing Windows branches byte-for-byte.
 
 6. **Repair backend-to-Mac OpenAPI**
    - RED: run the real OpenAPI environment against Swift generation; it currently fails on `async_timeout` and the missing committed docs schema.
@@ -94,8 +96,8 @@ Mixed-boundary decisions:
 
 9. **Delete unowned packages**
    - Establish a passing Mac compile/test baseline first; these no-consumer deletions do not justify a synthetic source-string test.
-   - Delete `desktop/shared-rust/**`, `desktop/Cargo.toml`, `desktop/Cargo.lock`, and all 32 Remotion files under `desktop/macos/demo/`, including exclusive ignore/provenance entries.
-   - Re-run the same Mac compile/tests and residue searches. Preserve native packaged video resources with similar names.
+   - Delete `desktop/shared-rust/**`, `desktop/Cargo.toml`, `desktop/Cargo.lock`, all 32 Remotion files under `desktop/macos/demo/`, and the no-caller packaged resources `Desktop/Sources/Resources/enable_notifications.gif` and `rewind-demo.mp4`, including exclusive ignore/provenance entries.
+   - Re-run the same Mac compile/tests, resource/package checks, named-bundle smoke, and residue searches. Preserve every reachable Notifications/Rewind asset and live behavior plus the separate universal libwebp cache.
 
 10. **Review and simplify after green**
     - Remove dead parameters, empty outputs, obsolete names, duplicate routing, and stale comments exposed by deletion.
@@ -130,7 +132,9 @@ Also:
 
 - Run pinned actionlint over every changed surviving workflow.
 - Launch only a named development bundle, such as `OMI_APP_NAME=omi-s04-controls OMI_SKIP_TUNNEL=1 ./run.sh --full --no-wait`; never touch production/Omi Beta bundles.
-- Prove no live absent-product workflow, public-build, `plugins/Dockerfile`, shared-Rust, Remotion, or stale Codemagic reference remains.
+- Prove no live absent-product workflow, nested `test-install.yml` contract, public-build, `plugins/Dockerfile`, shared-Rust, Remotion, no-caller notification/Rewind media, or stale Codemagic reference remains.
+- Prove the mixed desktop/backend workflow still runs its retained T0 job and records S-10/S-12 as the later owners of the hosted conversation/memory parity job and root fixtures.
+- Prove both vendored libwebp dylibs remain universal and unchanged for S-29.
 - Prove the diff contains no Windows path or Windows-only workflow.
 - Draft a temporary PR body, run `scripts/pr-preflight --suggest`, then validate it with `scripts/pr-preflight --pr-body-file`.
 - Use `Failure-Class: new` on the focused OpenAPI runner repair commit; planned deletion/narrowing commits use `chore:` subjects and need no fix trailer.

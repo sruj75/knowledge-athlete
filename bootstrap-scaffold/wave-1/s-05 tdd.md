@@ -7,7 +7,7 @@
 | Target artifact | `bootstrap-scaffold/wave-1/s-05 tdd.md` |
 | Status | Ready; public seams approved and `omi-tools-stdio` resolved for deletion |
 | Wave / owner | Wave 1 / S-05 |
-| Decisions | IR-048, IR-049, IR-113, IR-213–218, IR-603–606, IR-800–802, IR-922–924, IR-936, IR-937 |
+| Decisions | IR-015, IR-048, IR-049, IR-113, IR-213–218, IR-603–606, IR-800–802, IR-922–924, IR-936, IR-937 |
 | Dependencies | None |
 | Coordination | S-06 connectors/MCP, S-07 BYOK, S-17 onboarding/permissions, S-19 PTT tools, S-22 model aliases, S-28/S-30 identity |
 | Baseline | Re-fetch `origin/main` when implementation starts; current researched base is `97e4b8aef93912e47caf4ccb52fac53e12cbbd86` |

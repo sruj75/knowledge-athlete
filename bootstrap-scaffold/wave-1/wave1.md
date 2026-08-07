@@ -200,9 +200,13 @@ change the fixed total of nine Wave 1 implementation subagents.
 
 The Wave 1 planning audit established the following at document creation:
 
-- `python3 bootstrap-scaffold/validate-requirements-ledger.py` passes with 710
-  indexed rows, 710 detailed sections, and every row reviewed.
+- `python3 bootstrap-scaffold/validate-requirements-ledger.py` passes with 714
+  indexed rows, 714 detailed sections, and every row reviewed.
 - The nine plans cover every Wave 1 primary IR assignment in the deletion map.
+- The supplemental source pass added IR-938 through IR-941. Wave 1 S-06 owns the
+  complete external task-export deletion; S-04 owns the nested install-workflow
+  zombie and two no-caller packaged media files; S-04 protects the universal
+  libwebp cache for its later IR-939/S-29 release owner.
 - Direct Limitless hardware support is an S-02 deletion under IR-014. S-06 owns
   only the separate hosted Limitless ZIP importer under IR-824.
 - S-05's caller audit resolved both `omi-tools-stdio` and
@@ -264,9 +268,9 @@ assuming it stayed current.
 | S-01 | **READY** | Preserve its recorded approved seams. A released-client compatibility conflict, if the restored baseline exposes one, returns the slice to BLOCKED. Live VM/GCE/GKE/GCS/Firestore/IAM decommission remains a separate human gate. |
 | S-02 | **READY** | Preserve its recorded approved seams. Direct Limitless hardware is inside S-02. Live wearable resource/data cleanup remains a separate human gate. |
 | S-03 | **BLOCKED** | Human approves the public seams; resolves the IR-228 copy conflict; confirms `stt_service` ownership/removal timing; and confirms deletion of the one-element provider-order configuration. |
-| S-04 | **READY** | Preserve the agreed public CLI seam and present Mac/backend guards. It must not touch Windows or implement S-29's future owned Codemagic file. |
+| S-04 | **READY** | Preserve the agreed public CLI seam, present Mac/backend guards, mixed workflow's retained T0 job, and universal libwebp handoff. Delete the nested install-workflow contract and two no-caller media files. Do not touch Windows or implement S-29's future owned Codemagic file. |
 | S-05 | **READY** | Preserve its recorded approved seams and the resolved deletion of stdio plus port 47778. Keep `OMI_BRIDGE_PIPE`, Pi, Agent Pills, Ask Mode behavior, and port 47777 automation. |
-| S-06 | **BLOCKED** | Human approves the public seams and an explicit released-OpenAPI endpoint-sunset mechanism that removes rejected routes without weakening compatibility for retained routes. |
+| S-06 | **BLOCKED** | Human approves the public seams and an explicit released-OpenAPI endpoint-sunset mechanism that removes rejected routes, including IR-938 task-integration routes, without weakening compatibility for retained routes. |
 | S-07 | **BLOCKED** | Human approves six public seams. An authorized operator provides read-only cardinality for `users.byok` and `blocked_byok`/`requires_byok`, then the human chooses managed requeue versus explicit terminalization and purge versus tombstone. The write migration needs separate approval. |
 | S-08 | **BLOCKED** | Human resolves the roadmap ownership conflict, approves public seams, supplies or points to owned Firebase/Apple/Google/backend identity configuration, and resolves the auth-invariant/released-onboarding-API gate. |
 | S-09 | **BLOCKED** | The approved S-08 identity/sign-out seam exists; human approves S-09 seams; owned development PostHog, Sentry, LangSmith, and GCP configuration/inspection access exists. S-27 may retain the later Cloud Logging retention proof. |
@@ -330,7 +334,9 @@ baseline to the remaining slice workspaces before their repository-control
 closure cycles.
 
 S-04 must leave S-01/S-02/S-03 product-specific runtime entries for their owning
-slices and leave fresh Codemagic ownership to S-29.
+slices, preserve the mixed desktop/backend T0 self-check, and leave fresh
+Codemagic plus universal-libwebp ownership to S-29. Its exact hosted
+conversation/memory parity artifacts remain handoffs to S-10/S-12.
 
 ### Stage 2 — ready independent product boundaries
 
@@ -350,7 +356,10 @@ integrate in the lease order below.
   the same STT surfaces.
 - S-06 starts only after its seam/API-retirement decisions. Integrate S-05's
   private bridge boundary and S-02's direct-wearable boundary first so S-06
-  cannot preserve the wrong transport or hardware adapter.
+  cannot preserve the wrong transport or hardware adapter. IR-938's external
+  task OAuth/export, candidate integration outbox/drain machinery, and Apple
+  Reminders sync delete in the same S-06 connector cycle while ordinary local
+  Tasks and candidate acceptance stay protected for S-13.
 
 ### Stage 4 — identity, then observability
 
@@ -385,6 +394,8 @@ coordination, not permission to alter another slice's behavior.
 | Shared surface | Integration order / owner rule |
 |---|---|
 | `.github/checks-manifest.yaml`, preflight, absent-tree workflow routing | S-04 first. Later slices remove only their now-exclusive entries: S-01 -> S-02 -> S-03 -> S-06 -> S-09. |
+| `.github/workflows/desktop-backend-contracts.yml` and root conversation/memory fixtures | S-04 preserves the mixed workflow and retained T0 job. S-10 removes only hosted conversation parity cases/fixture/triggers; S-12 removes hosted memory parity cases/fixture/triggers, then removes the final `testing/contracts/` discovery-registry entry and updates its guard tests. |
+| `desktop/macos/vendor/libwebp/**` | S-04 protects the current universal cache; S-29 re-owns its version/checksum/architecture/minimum-OS/signing/fallback release contract. |
 | `backend/runtime_images.json`, deployment manifests and shared workflows | S-04 removes impossible owners first; product owners then integrate S-01 -> S-02 -> S-03 -> S-06 -> S-09. Never delete a shared service until its last accepted workload has an owner. |
 | `backend/main.py`, `desktop_backend.py`, route policy, OpenAPI, generated non-Windows Swift | Integrate endpoint deletions sequentially: S-01 -> S-02 -> S-03 -> S-06 -> S-07 -> approved S-08 tranche -> S-09. Each slice regenerates from the source owner; no hand-edit of generated Swift. |
 | Mac Settings/navigation/search and onboarding routing | S-05 owns agent settings/Ask Mode move; S-06 removes Apps/connectors/FDA/Automation; S-07 removes BYOK UI; approved S-08 owns account fields; S-09 owns analytics/privacy/support. Preserve later S-17/S-21 boundaries. |
