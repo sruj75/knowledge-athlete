@@ -5,9 +5,11 @@
 Coordinate the nine dedicated Wave 1 implementation agents. Each agent owns one
 existing `S-XX` TDD plan and executes that plan's red-green cycles sequentially.
 
-The human user is the top-level controller. This Wave 1 meta-orchestrator is not
-a replacement main orchestrator, is not a tenth implementation agent, and does
-not silently rewrite requirements or implement the nine slices itself.
+The user owns genuinely new product behavior and irreversible external actions.
+Within the approved requirements, this Wave 1 meta-orchestrator autonomously
+dispatches, sequences, and coordinates the nine slices. It is not a tenth
+implementation agent and does not silently rewrite requirements or implement the
+nine slices itself.
 
 Wave 1 contains exactly these agents and plans:
 
@@ -23,9 +25,12 @@ Wave 1 contains exactly these agents and plans:
 | S-08 | Account identity | [`s-08 tdd.md`](./s-08%20tdd.md) |
 | S-09 | Telemetry/support | [`s-09 tdd.md`](./s-09%20tdd.md) |
 
-Do not create S-08A/S-08B, a tenth subagent, or another Wave 1 TDD plan. A
-delivery split inside one slice requires prior human approval and retains the
-same S-XX owner.
+Do not create S-08A/S-08B, a tenth subagent, or another Wave 1 TDD plan. If live
+source facts require a delivery split, retain the same S-XX owner and record the
+exact downstream handoffs in the deletion map and slice plan. Proceed
+autonomously when this only repairs ownership of already-approved behavior;
+escalate only when it would choose new product behavior or authorize a risky
+live action.
 
 ## Required subagent model
 
@@ -39,20 +44,22 @@ reasoning effort: xhigh (Extra High)
 Do not rely on a workspace, user, or Conductor default to supply these values.
 The meta-orchestrator records the model and reasoning effort in every dispatch
 packet and status ledger. If that exact model or reasoning level is unavailable,
-stop that dispatch and report the blocker to the human; do not silently
-downgrade, substitute another model, or let one subagent inherit a different
-configuration.
+mark that slice blocked, continue other eligible dispatches, and report the exact
+configuration blocker. Do not silently downgrade, substitute another model, or
+let one subagent inherit a different configuration.
 
 ## Parallelism and one-commit delivery
 
-Dependency-independent slices may be implemented in parallel in their isolated
-Conductor workspaces, subject to available agent capacity and the shared-owner
-lease table below. A slice waits when its plan names a dependency, a human gate
-is unresolved, or an earlier owner must integrate a shared surface first.
+At Wave kickoff, dispatch or queue one dedicated subagent for every S-01 through
+S-09 plan, subject to available agent capacity. Dispatch authorizes immediate
+intake, research, and dependency-independent local implementation. A dispatched
+agent pauses only the exact cycle that needs an unmet dependency, unavailable
+external input, or an earlier owner's shared-surface integration; do not confuse
+a blocked cycle with a reason to withhold the agent itself.
 
 Parallelism exists **between** eligible S-XX slices. Inside one S-XX, its TDD
 cycles remain sequential: one RED -> minimum GREEN cycle at a time, then the
-approved after-green simplification and review.
+requirements-backed after-green simplification and review.
 
 Each S-XX is delivered as exactly **one Git commit** made by its owning subagent:
 
@@ -71,29 +78,34 @@ Each S-XX is delivered as exactly **one Git commit** made by its owning subagent
    is clean and the slice branch is exactly one commit ahead of its pinned slice
    baseline.
 
-This human-approved Wave 1 rule supersedes any individual TDD plan wording about
+This Wave 1 one-commit rule supersedes any individual TDD plan wording about
 committing each vertical cycle separately. The cycles remain separately tested
 and evidenced, but they are combined into the one outcome-oriented S-XX commit.
 No push, PR, merge, deploy, migration, or live cleanup is implied by that commit.
 
 ## Authority order
 
-When two documents or the live source disagree, use this order:
+Authority is domain-scoped rather than one blanket precedence list:
 
-1. [`../requirements-challenge.md`](../requirements-challenge.md) — approved
-   product decisions.
-2. [`../deletion-map.md`](../deletion-map.md) — slice ownership, dependencies,
-   and execution order.
-3. This `wave1.md` — Wave 1 dispatch, model, parallelism, scope-containment, and
-   one-commit execution rules.
-4. The applicable `s-xx tdd.md` — the implementation contract for that slice.
-5. Live source at the pinned implementation baseline — current codeflow facts.
-6. Research notes — evidence only; they do not override an approved decision.
+1. [`../requirements-challenge.md`](../requirements-challenge.md) controls
+   approved product behavior.
+2. This `wave1.md` controls Wave 1 dispatch, model, parallelism, gate
+   classification, scope containment, the S-08 ownership repair, and one-commit
+   delivery.
+3. [`../deletion-map.md`](../deletion-map.md) controls the remaining slice
+   ownership, dependencies, and execution order.
+4. The applicable `s-xx tdd.md` controls implementation details and ordered
+   cycles except where this file narrows a plan-level gate to its exact affected
+   cycle.
+5. Live source at the pinned implementation baseline controls current codeflow
+   facts.
+6. Research notes are evidence only; they do not override an approved product
+   decision.
 
 The meta-orchestrator may correct a proven factual reference or report a
 conflict. It may not choose a new product behavior, broaden a deletion, weaken a
-keep boundary, invent an API compatibility shell, or mark a human decision as
-approved.
+keep boundary, invent an API compatibility shell, or treat unresolved product
+behavior as approved.
 
 Before controlling Conductor workspaces or agents, read the bundled Conductor
 skill completely:
@@ -101,10 +113,12 @@ skill completely:
 `/Applications/Conductor.app/Contents/Resources/conductor-skill/skills/conductor/SKILL.md`
 
 Each slice owner follows the implementation, TDD, and review workflow named in
-its own plan. In particular, public seams must be approved by the human before
-the first product test is written, and the owner executes one RED -> minimum
-GREEN tracer at a time. Existing green characterization tests are keep fences,
-not retroactive RED tests.
+its own plan. Before the first product test, each public seam must be traced to a
+controlling IR decision or to existing retained behavior protected by that IR.
+User input is required only when those sources leave a genuine new product choice
+unresolved. The owner executes one RED -> minimum GREEN tracer at a time.
+Existing green characterization tests are keep fences, not retroactive RED
+tests.
 
 ## Mandatory skill workflow for every S-XX
 
@@ -122,7 +136,7 @@ slice, not an optional convenience.
 
 While implementing, follow its feedback contract:
 
-- use `engineering:tdd` at the pre-agreed seams;
+- use `engineering:tdd` at the requirements-backed seams;
 - run focused typechecking and individual test files regularly;
 - run the complete applicable component suite once at the end;
 - use `engineering:code-review` once the candidate slice commit exists; and
@@ -135,7 +149,8 @@ Invoke
 [`engineering:tdd`](/Users/srujanu/.codex/plugins/cache/local-workspace/engineering/0.2.0/skills/tdd/SKILL.md)
 throughout the ordered cycles:
 
-- no product test before the human confirms its public seam;
+- no product test before its public seam is traced to the controlling IR or an
+  existing retained-behavior keep fence;
 - test behavior through the module's public interface, not private call order;
 - mock only true external/system adapters, not the product's own internal
   modules;
@@ -223,26 +238,38 @@ The Wave 1 planning audit established the following at document creation:
 - S-09 protects local Rewind while deleting Crisp. It leaves the exact
   non-Crisp cloud screen-history remainder to S-15 and must not call that cloud
   synchronization retained.
-- S-08 contains a real roadmap conflict described below. It is not ready merely
-  because the other eight plan files exist.
+- S-08 contains a real roadmap conflict resolved by the Wave 1 ownership repair
+  below. Dispatch it normally and gate only the affected cycles.
 
 Re-run the ledger validator and re-read every referenced live IR at Wave kickoff
 and whenever the requirements document changes. A passing structural validator
 does not prove narrative summaries are semantically current.
 
-## Human control and safety boundary
+## Decision and safety boundary
 
-The human decides:
+Once the user asks to execute this Wave 1 plan, the meta-orchestrator
+autonomously:
 
-- when Wave 1 starts;
-- whether each proposed public seam is approved;
-- every reopened product or roadmap choice;
-- external project/account identifiers and where their secrets are injected;
-- legacy-data transition policy;
-- released-API retirement policy;
-- whether to push, open a PR, merge, deploy, migrate data, or delete live cloud
-  resources; and
-- whether Wave 1 may advance with any explicitly accepted operational follow-up.
+- dispatches or queues all nine S-XX agents and sequences their eligible work;
+- derives public test seams from the controlling IRs and retained behavior;
+- resolves implementation, module, test, shared-file, and ownership-handoff
+  choices that preserve those approved product decisions;
+- performs read-only discovery, local edits, local tests, named-development-bundle
+  verification, review, and local slice commits; and
+- advances code-complete slices without asking for ceremonial approval.
+
+User input is required only for:
+
+- a genuinely new or reopened product behavior not resolved by the authority
+  order;
+- a legacy-data transition that chooses loss, purge, tombstone, recovery, or
+  another user-visible retention outcome;
+- external project/account identifiers or secret locations that cannot be
+  discovered from the owned environment;
+- a released-API transition when the approved requirement and repository policy
+  do not determine a safe path; and
+- any push, PR, merge, deploy, production migration, live service/secret
+  deletion, queue drain, data purge, or other hard-to-reverse external action.
 
 The meta-orchestrator and slice agents must:
 
@@ -253,32 +280,34 @@ The meta-orchestrator and slice agents must:
 - use uniquely named development bundles for real-path checks;
 - never put a secret into Git, a plan, a log, a prompt, or a test fixture;
 - perform read-only inventory before any live mutation;
-- request fresh human authorization for every push/PR/merge/deploy, production
+- request fresh user authorization for every push/PR/merge/deploy, production
   migration, service deletion, secret deletion, queue drain, data purge, or
   other hard-to-reverse operation; and
 - distinguish repository code closure from operational cloud closure.
 
-## Initial readiness ledger
+## Initial dispatch ledger
 
-This is the dispatch state at plan creation. Recheck it at kickoff rather than
-assuming it stayed current.
+This is the dispatch posture at plan creation. Recheck it at kickoff rather than
+assuming it stayed current. `DISPATCH` means create or queue the agent and run
+intake now; a per-cycle gate can pause one change without preventing dispatch or
+unrelated safe cycles.
 
-| Slice | Initial state | What must be true before implementation |
+| Slice | Dispatch | Implementation boundary at intake |
 |---|---|---|
-| S-01 | **READY** | Preserve its recorded approved seams. A released-client compatibility conflict, if the restored baseline exposes one, returns the slice to BLOCKED. Live VM/GCE/GKE/GCS/Firestore/IAM decommission remains a separate human gate. |
-| S-02 | **READY** | Preserve its recorded approved seams. Direct Limitless hardware is inside S-02. Live wearable resource/data cleanup remains a separate human gate. |
-| S-03 | **BLOCKED** | Human approves the public seams; resolves the IR-228 copy conflict; confirms `stt_service` ownership/removal timing; and confirms deletion of the one-element provider-order configuration. |
-| S-04 | **READY** | Preserve the agreed public CLI seam, present Mac/backend guards, mixed workflow's retained T0 job, and universal libwebp handoff. Delete the nested install-workflow contract and two no-caller media files. Do not touch Windows or implement S-29's future owned Codemagic file. |
-| S-05 | **READY** | Preserve its recorded approved seams and the resolved deletion of stdio plus port 47778. Keep `OMI_BRIDGE_PIPE`, Pi, Agent Pills, Ask Mode behavior, and port 47777 automation. |
-| S-06 | **BLOCKED** | Human approves the public seams and an explicit released-OpenAPI endpoint-sunset mechanism that removes rejected routes, including IR-938 task-integration routes, without weakening compatibility for retained routes. |
-| S-07 | **BLOCKED** | Human approves six public seams. An authorized operator provides read-only cardinality for `users.byok` and `blocked_byok`/`requires_byok`, then the human chooses managed requeue versus explicit terminalization and purge versus tombstone. The write migration needs separate approval. |
-| S-08 | **BLOCKED** | Human resolves the roadmap ownership conflict, approves public seams, supplies or points to owned Firebase/Apple/Google/backend identity configuration, and resolves the auth-invariant/released-onboarding-API gate. |
-| S-09 | **BLOCKED** | The approved S-08 identity/sign-out seam exists; human approves S-09 seams; owned development PostHog, Sentry, LangSmith, and GCP configuration/inspection access exists. S-27 may retain the later Cloud Logging retention proof. |
+| S-01 | **DISPATCH** | Preserve its requirements-backed seams. If the restored baseline exposes a real released-client conflict, pause only that cycle. Live VM/GCE/GKE/GCS/Firestore/IAM decommission remains a separate user-authorized action. |
+| S-02 | **DISPATCH** | Preserve its requirements-backed seams. Direct Limitless hardware is inside S-02. Live wearable resource/data cleanup remains a separate user-authorized action. |
+| S-03 | **DISPATCH** | Reconcile the IR-228 copy wording, `stt_service` ownership/removal timing, and one-element provider-order configuration against the authority order. Proceed when existing decisions determine the result; pause only a genuinely unresolved product behavior. |
+| S-04 | **DISPATCH** | Preserve the requirements-backed public CLI seam, present Mac/backend guards, mixed workflow's retained T0 job, and universal libwebp handoff. Delete the nested install-workflow contract and two no-caller media files. Do not touch Windows or implement S-29's future owned Codemagic file. |
+| S-05 | **DISPATCH** | Preserve its requirements-backed seams and the resolved deletion of stdio plus port 47778. Keep `OMI_BRIDGE_PIPE`, Pi, Agent Pills, Ask Mode behavior, and port 47777 automation. |
+| S-06 | **DISPATCH** | Derive the released-OpenAPI endpoint sunset from the approved route deletions and existing compatibility policy. Pause only an endpoint-removal cycle for which those authorities provide no safe answer. |
+| S-07 | **DISPATCH** | Perform read-only cardinality inventory first and continue deterministic managed-only work. Pause the legacy `users.byok` / `blocked_byok` / `requires_byok` transition and any write migration until the exact retention/requeue policy and live authorization exist. |
+| S-08 | **DISPATCH** | Use the narrow Wave 1 ownership repair below. Proceed through requirements-backed fences and safe local removal cycles. Owned Firebase/Apple/Google/backend values gate only configuration and real-service proof; an unresolved auth-invariant or released-onboarding-API conflict gates only its affected cycle. |
+| S-09 | **DISPATCH** | Begin intake and identity-independent observability work. Its identity attach/detach cycle waits for S-08's canonical seam. Owned PostHog, Sentry, LangSmith, and GCP values gate only their configuration and real-service proof; S-27 may retain later Cloud Logging retention proof. |
 
-`READY` means the agent may begin after kickoff intake. It does not mean the
-meta-orchestrator may push, merge, deploy, migrate, or decommission anything.
+Dispatch and local implementation do not authorize push, merge, deploy,
+migration, or decommission.
 
-## S-08 roadmap decision
+## S-08 Wave 1 ownership repair
 
 Do not hide this conflict in implementation details.
 
@@ -292,19 +321,24 @@ but the source-grounded S-08 plan proves that:
 - making S-08 depend on those later slices creates cycles because S-23/S-27 and
   S-09 already need S-08 identity semantics.
 
-Present the human with the two documented choices in simple English:
+Wave 1 therefore adopts the narrow S-08 tranche as an ownership repair, not as a
+new product decision:
 
-1. **Recommended:** approve a narrow Wave 1 S-08 tranche for auth/session
-   fences, owned identity configuration, onboarding-record removal,
-   deletion-reason removal, and explicit downstream handoff contracts. Transfer
-   export, rejected-data cleanup, queue retargeting, and infrastructure closure
-   to the existing later S-XX owners. No extra agent or TDD plan is created.
-2. Move complete S-08 closure to a later wave and repair every dependency that
-   currently consumes S-08 first.
+- S-08 owns auth/session fences, owned identity configuration when inputs exist,
+  onboarding-record removal, deletion-reason removal, and explicit downstream
+  handoff contracts.
+- S-10 through S-14 own complete local export readers; S-18, S-23, and S-24 own
+  rejected-provider/data cleanup; S-25 owns task retargeting; and S-27 owns the
+  queue/IAM/region foundation and live validation.
+- The meta-orchestrator records those acceptance handoffs in the deletion map
+  and S-08 plan before the affected RED. This bookkeeping preserves the approved
+  IR outcomes and does not create S-08A/S-08B, another agent, or another plan.
 
-Until the human chooses, do not dispatch S-08 implementation and do not dispatch
-S-09. If the narrow tranche is approved, amend the deletion map and S-08 plan
-with the exact downstream acceptance owners before the first RED.
+Dispatch S-08 and S-09 at kickoff. S-08 progresses through its safe tranche;
+S-09 progresses through identity-independent work and waits only at the exact
+identity-coupled cycle until S-08 publishes the canonical seam. If live source
+proves that this repair would change product behavior rather than ownership,
+pause that affected cycle and surface the exact new product choice.
 
 ## Preferred Wave 1 execution order
 
@@ -320,7 +354,8 @@ The meta-orchestrator records:
 - each workspace/branch and clean-or-dirty status;
 - existing user-owned changes;
 - current requirements-validator output;
-- plan status and human seam-approval evidence; and
+- plan status, controlling-IR/public-seam evidence, and any exact user-only gate;
+  and
 - the shared-file lease ledger below.
 
 If agents start from different baselines, stop and normalize the dispatch plan
@@ -350,20 +385,25 @@ integrate in the lease order below.
 
 ### Stage 3 — provider and external-product deletions
 
-- S-03 starts only after its human decisions.
-- S-07 starts only after its seam and legacy-data decisions. Integrate S-03's
-  Deepgram/provider changes before S-07 removes customer-key propagation from
-  the same STT surfaces.
-- S-06 starts only after its seam/API-retirement decisions. Integrate S-05's
-  private bridge boundary and S-02's direct-wearable boundary first so S-06
-  cannot preserve the wrong transport or hardware adapter. IR-938's external
+- S-03 begins after intake and resolves planning wording against the authority
+  order; only a genuine remaining product conflict pauses its affected cycle.
+- S-07 begins with read-only inventory and deterministic managed-only work.
+  Integrate S-03's Deepgram/provider changes before S-07 removes customer-key
+  propagation from the same STT surfaces. Pause only the legacy-data transition
+  or live migration that needs user input.
+- S-06 begins after intake, then integrates S-05's private bridge boundary and
+  S-02's direct-wearable boundary before its shared deletions so it cannot
+  preserve the wrong transport or hardware adapter. Follow the approved route
+  decisions and existing compatibility policy; pause only an affected endpoint
+  cycle if they truly conflict. IR-938's external
   task OAuth/export, candidate integration outbox/drain machinery, and Apple
   Reminders sync delete in the same S-06 connector cycle while ordinary local
   Tasks and candidate acceptance stay protected for S-13.
 
 ### Stage 4 — identity, then observability
 
-- Dispatch only the human-approved S-08 delivery boundary.
+- Dispatch S-08 on the Wave 1 ownership repair above and dispatch S-09 for its
+  identity-independent cycles.
 - Once S-08 publishes the canonical account/sign-in/sign-out/account-switch
   seam, S-09 may adapt identity attachment and detachment around it.
 - S-09 may not turn the PostHog preference into a Sentry, local diagnostics, or
@@ -375,15 +415,15 @@ Run the integrated retained paths, component suites, preflight, residue
 classification, independent review, and operational handoff audit. Report two
 separate milestones:
 
-- **Wave 1 code-complete:** approved repository changes and local real-path
-  verification are complete.
+- **Wave 1 code-complete:** requirements-authorized repository changes and local
+  real-path verification are complete.
 - **Wave 1 fully closed:** every required live migration/decommission has also
-  received human approval and verified completion, or the human explicitly
+  received user authorization and verified completion, or the user explicitly
   accepts a named later operational owner.
 
-Do not report “Wave 1 complete” while silently carrying an unapproved migration,
-active rejected service, unknown legacy-data population, or unresolved S-08
-ownership decision.
+Do not report “Wave 1 complete” while silently carrying an unauthorized migration,
+active rejected service, unknown legacy-data population, or unresolved
+user-only decision.
 
 ## Shared-owner and integration ledger
 
@@ -397,14 +437,14 @@ coordination, not permission to alter another slice's behavior.
 | `.github/workflows/desktop-backend-contracts.yml` and root conversation/memory fixtures | S-04 preserves the mixed workflow and retained T0 job. S-10 removes only hosted conversation parity cases/fixture/triggers; S-12 removes hosted memory parity cases/fixture/triggers, then removes the final `testing/contracts/` discovery-registry entry and updates its guard tests. |
 | `desktop/macos/vendor/libwebp/**` | S-04 protects the current universal cache; S-29 re-owns its version/checksum/architecture/minimum-OS/signing/fallback release contract. |
 | `backend/runtime_images.json`, deployment manifests and shared workflows | S-04 removes impossible owners first; product owners then integrate S-01 -> S-02 -> S-03 -> S-06 -> S-09. Never delete a shared service until its last accepted workload has an owner. |
-| `backend/main.py`, `desktop_backend.py`, route policy, OpenAPI, generated non-Windows Swift | Integrate endpoint deletions sequentially: S-01 -> S-02 -> S-03 -> S-06 -> S-07 -> approved S-08 tranche -> S-09. Each slice regenerates from the source owner; no hand-edit of generated Swift. |
-| Mac Settings/navigation/search and onboarding routing | S-05 owns agent settings/Ask Mode move; S-06 removes Apps/connectors/FDA/Automation; S-07 removes BYOK UI; approved S-08 owns account fields; S-09 owns analytics/privacy/support. Preserve later S-17/S-21 boundaries. |
+| `backend/main.py`, `desktop_backend.py`, route policy, OpenAPI, generated non-Windows Swift | Integrate endpoint deletions sequentially: S-01 -> S-02 -> S-03 -> S-06 -> S-07 -> Wave 1 S-08 tranche -> S-09. Each slice regenerates from the source owner; no hand-edit of generated Swift. |
+| Mac Settings/navigation/search and onboarding routing | S-05 owns agent settings/Ask Mode move; S-06 removes Apps/connectors/FDA/Automation; S-07 removes BYOK UI; the Wave 1 S-08 tranche owns account fields; S-09 owns analytics/privacy/support. Preserve later S-17/S-21 boundaries. |
 | Pi/runtime/tool manifests | S-05 owns adapter/transport narrowing. S-06 removes rejected connector/calendar/KG tools only after consuming S-05. S-07 then removes BYOK propagation without changing Pi behavior. |
 | STT policy, listen/voice-message contracts, provider env | S-03 owns hosted-provider collapse. S-07 follows for customer-key removal. S-16 later owns the wider transient-listen protocol and server-conversation cleanup. |
 | Wearable versus Limitless import | S-02 deletes direct Limitless hardware with every wearable adapter. S-06 deletes only the hosted ZIP importer. Neither may use the other's surface as a keep fence. |
 | Chat journal and screen history adjacent to S-01 | S-01 removes VM copies only. S-11 owns normal backend journal projection; S-15 owns shared Firestore/Pinecone/MCP screen history. |
-| Auth identity and telemetry identity | Approved S-08 identity/sign-out seam first, S-09 consumption second. No second Firebase observer or independent identity cache. |
-| Live cloud inventory/decommission | The product slice inventories and proposes. Only the human authorizes mutation. S-23 through S-27 retain later shared data/service/platform owners. |
+| Auth identity and telemetry identity | Wave 1 S-08 identity/sign-out seam first, S-09 consumption second. No second Firebase observer or independent identity cache. |
+| Live cloud inventory/decommission | The product slice inventories and proposes. Only the user authorizes mutation. S-23 through S-27 retain later shared data/service/platform owners. |
 
 When an unexpected shared file appears, pause the affected cycle, name both
 owners, and update this ledger before either agent edits it. Do not resolve a
@@ -425,7 +465,8 @@ The meta-orchestrator actively audits scope at five checkpoints:
    `OUT OF SCOPE / DEFERRED` boundary.
 2. **After every RED/GREEN cycle:** inspect the changed-file list and behavior
    diff from the slice baseline. Every change must map to the active plan, its
-   named cycle, approved after-green simplification, or a leased shared-file row.
+   named cycle, requirements-backed after-green simplification, or a leased
+   shared-file row.
 3. **Before the candidate commit and code review:** freeze feature scope and
    classify the complete uncommitted diff. Only then may the owning subagent
    stage its proven slice files and create the one candidate commit that the
@@ -476,7 +517,8 @@ Classify code-review findings before fixing them:
 |---|---|
 | Same-slice correctness, test, safety, documentation, or simplification defect | Fix inside the current slice and rerun affected evidence before the one commit. |
 | Defect or cleanup owned by another existing S-XX | Do not fix it here. Record the exact file/symbol/behavior and hand it to the meta-orchestrator for that owner. |
-| New requirement or cross-slice design conflict | Stop, explain it to the human in plain English, and wait for an ownership/requirement decision. |
+| Genuine new requirement or product-behavior conflict | Stop the affected cycle, explain it to the user in plain English, and wait for that product decision. |
+| Ownership, sequencing, module, test, or handoff choice that preserves approved behavior | Resolve it autonomously, update the plan/ledger, and continue. |
 | Unrelated pre-existing or user-owned change | Preserve it and exclude it from the slice diff, staging, and evidence. |
 
 The repository's “leave it better” rule applies only when the small related
@@ -507,7 +549,9 @@ RESEARCHED
   -> CLOSED
 ```
 
-- `BLOCKED -> READY` requires the named gate evidence and human approval.
+- `BLOCKED -> READY` requires the named gate evidence. User input is additionally
+  required only when the exact gate matches the decision and safety boundary
+  above.
 - `READY -> RUNNING` requires a pinned baseline, clean intake, dependency
   satisfaction, and shared-file lease.
 - `RUNNING -> COMMIT_READY` requires every ordered TDD cycle to have its
@@ -524,7 +568,7 @@ RESEARCHED
 - `CODE_COMPLETE -> OPERATIONAL_PENDING` is allowed only when the plan explicitly
   separates safe repository work from a live migration/decommission.
 - `CLOSED` requires the plan's acceptance criteria and handoff ledger. The meta
-  agent cannot convert an unknown or unapproved live action into “not needed.”
+  agent cannot convert an unknown or unauthorized live action into “not needed.”
 
 ## Dispatch contract for each S-XX agent
 
@@ -554,17 +598,22 @@ Read, in order:
 Before editing, report:
 - branch/workspace, HEAD, origin/main, merge-base, and worktree status;
 - active model and reasoning effort;
-- plan state and human seam-approval evidence;
+- plan state, controlling-IR/public-seam evidence, and any exact user-only gate;
 - dependencies and shared-file leases;
 - exact keep/adapt/delete/out-of-scope boundary;
 - expected changed owners/files and adjacent S-XX boundaries you must not enter;
 - baseline commands/results and any blocker.
 
-If your plan is BLOCKED, stop before product tests or code changes. Research may
-clarify the blocker, but you may not choose for the human.
+Do not treat a plan-level BLOCKED label as a prohibition on dispatch or intake.
+Research, requirements-backed characterization, and safe cycles may proceed.
+Pause only the exact test or code change that depends on the named gate. Resolve
+ownership, sequencing, module, test, and handoff choices autonomously when they
+preserve approved behavior. If the remaining blocker is a genuine new product
+choice, unavailable owned external input, or risky live action, report it
+precisely and continue any unaffected work.
 
-When READY, execute one RED -> minimum GREEN cycle at a time through the public
-behavioral seams. Refactor/simplify only after the relevant deletion is green.
+For each eligible cycle, execute one RED -> minimum GREEN at a time through the
+public behavioral seams. Refactor/simplify only after the relevant deletion is green.
 Keep the work uncommitted during these cycles. Record commands, intended
 failure, passing result, changed owners, shared-file handoffs, real-path
 evidence, and operational follow-up.
@@ -587,7 +636,7 @@ meta-orchestrator to make your commit and do not create per-cycle commits.
 
 Do not rename the branch, edit Windows, touch production Omi bundles, push, open
 a PR, merge, deploy, migrate production data, or delete live resources without
-fresh human authorization.
+fresh user authorization.
 ```
 
 The meta-orchestrator must not shorten this into “implement the plan.” Every
@@ -609,7 +658,7 @@ For each cycle collect:
 | Commit | No per-cycle commit. Record the owning subagent's candidate SHA before review, every amendment after same-slice fixes, and the final proof that exactly one local S-XX commit remains above the pinned baseline. |
 | Real path | Named development bundle, local backend, hermetic external fake, or other plan-required exercise. |
 | Residue | Classified survivors: retained, historical, Windows, shared, generated, or exact later S-XX handoff. |
-| Operations | No live action needed, or exact inventory plus human-approval status. |
+| Operations | No live action needed, or exact inventory plus user-authorization status. |
 
 A compile-only result, a no-op compatibility service, a passing test that never
 observed RED, or an unclassified grep result is not closure evidence.
@@ -646,10 +695,12 @@ For each slice:
     other agent's or user's changes.
 11. Record code closure and operational closure separately.
 
-If an agent discovers that a plan's public seam is wrong, stop that slice. Show
-the human the current codeflow, the conflicting requirement, the choices, and a
-plain-English recommendation. Ask no more than three or four related decisions
-at a time.
+If an agent discovers that a plan's public seam is wrong, compare it with the
+authority order first. When one path preserves the approved behavior, update the
+plan and continue autonomously. Stop only the affected cycle when a genuine new
+product behavior remains unresolved; show the user the current codeflow, the
+conflicting requirement, the choices, and a plain-English recommendation. Ask no
+more than three or four related product decisions at a time.
 
 ## Wave status report
 
@@ -669,13 +720,15 @@ Model/reasoning audit: <S-XX = gpt-5.6-sol/xhigh>
 Skill audit: <implement/TDD/review evidence; codebase-design used or not-needed reason>
 Scope audit: <checkpoint/result and exact S-XX handoffs>
 Commit audit: <S-XX owner-created commit SHA; exactly one above slice baseline>
-Ready for human review: <slices>
-Human decisions needed next: <maximum 3-4 related decisions, explained plainly>
+Ready for user review: <slices>
+User-only decisions needed next: <exact unresolved product/data/external choice or none>
 Operational approvals pending: <exact resources/actions or none>
 ```
 
 Do not bury a blocker in a long implementation summary. Lead with what is ready,
-what is blocked, why it matters, and the precise human decision required.
+what is blocked, why it matters, and the exact next action. Do not imply that
+ordinary dispatch, test seams, sequencing, or ownership bookkeeping needs user
+approval.
 
 ## Wave 1 closure checklist
 
@@ -683,8 +736,8 @@ what is blocked, why it matters, and the precise human decision required.
 - [ ] Exactly nine S-XX agents used exactly nine TDD plans.
 - [ ] Every S-XX subagent ran with `gpt-5.6-sol` and `xhigh` reasoning, recorded at dispatch and intake.
 - [ ] Every S-XX recorded `engineering:implement`, `engineering:tdd`, and `engineering:code-review` evidence, plus `engineering:codebase-design` evidence or its explicit `not needed` reason.
-- [ ] Every public seam was approved before its first product test.
-- [ ] S-08 roadmap ownership was explicitly resolved and recorded.
+- [ ] Every public seam was traced to a controlling IR or retained-behavior keep fence before its first product test.
+- [ ] The S-08 Wave 1 ownership repair and downstream handoffs were recorded.
 - [ ] Shared-file integration order and every handoff were honored.
 - [ ] Scope was audited before implementation, after every RED/GREEN cycle, before review, after review fixes, and before commit/closure.
 - [ ] Every review finding outside the active slice was handed to its exact S-XX owner instead of being implemented opportunistically.
@@ -697,11 +750,11 @@ what is blocked, why it matters, and the precise human decision required.
 - [ ] S-05 left one managed-Pi bridge and removed alternate entrances.
 - [ ] S-06 removed external products without claiming later local-authority work.
 - [ ] S-07 removed customer keys without stranding legacy work.
-- [ ] The approved S-08 identity tranche and all downstream handoffs are proven.
+- [ ] The Wave 1 S-08 identity tranche and all downstream handoffs are proven.
 - [ ] S-09 re-owned retained observability without coupling unlike consent systems.
 - [ ] Every slice completed its ordered RED/GREEN evidence and after-green simplification.
 - [ ] Focused tests, full applicable suites, preflight, real paths, docs, and classified residue are recorded.
 - [ ] Independent Standards and Spec Compliance reviews are resolved.
 - [ ] No Windows edit, production Omi-bundle action, compatibility shell, unowned TODO, secret, or unrelated user change landed.
 - [ ] Code-complete and operationally-closed status are reported separately.
-- [ ] No push, PR, merge, deploy, migration, or destructive live cleanup occurred without its own human authorization.
+- [ ] No push, PR, merge, deploy, migration, or destructive live cleanup occurred without its own user authorization.
