@@ -44,7 +44,6 @@ ADMIN_KEY = 'omi-listen-pusher-stack-admin-'
 PROJECT = 'demo-omi-listen-stack'
 LOCAL_TASK_TOKEN = 'listen-pusher-stack-loopback-task'
 METRICS_SECRET = 'listen-pusher-stack-metrics'
-PUSHER_START_TIMEOUT_SECONDS = 45.0
 REST_FINALIZATION_RACE_ENV = (
     'OMI_STACK_FINALIZATION_RACE_UID',
     'OMI_STACK_FINALIZATION_RACE_CONVERSATION_ID',
@@ -343,12 +342,7 @@ class Stack:
             ],
             extra_env=pusher_env,
         )
-        _wait_for_port(
-            self.pusher_port,
-            label='pusher',
-            timeout=PUSHER_START_TIMEOUT_SECONDS,
-            child=pusher_child,
-        )
+        _wait_for_port(self.pusher_port, label='pusher', timeout=45.0, child=pusher_child)
         self._start_backend()
         if self.finalization_mode == 'cloud_tasks':
             worker_child = self._start(
@@ -372,18 +366,11 @@ class Stack:
             )
 
     def _start_backend(self, *, enable_rest_finalization_race: bool = True) -> None:
+        backend_app = 'testing.listen_pusher_stack.listener_app:app'
+        command = [str(PYTHON), '-m', 'uvicorn', backend_app, '--host', '127.0.0.1', '--port', str(self.backend_port)]
         backend_child = self._start(
             'backend',
-            [
-                str(PYTHON),
-                '-m',
-                'uvicorn',
-                'testing.listen_pusher_stack.listener_app:app',
-                '--host',
-                '127.0.0.1',
-                '--port',
-                str(self.backend_port),
-            ],
+            command,
             unset_env=() if enable_rest_finalization_race else REST_FINALIZATION_RACE_ENV,
         )
         _wait_for_port(self.backend_port, label='listen backend', timeout=45.0, child=backend_child)
@@ -405,12 +392,7 @@ class Stack:
             ],
             extra_env=pusher_env,
         )
-        _wait_for_port(
-            self.pusher_port,
-            label='restarted pusher',
-            timeout=PUSHER_START_TIMEOUT_SECONDS,
-            child=pusher_child,
-        )
+        _wait_for_port(self.pusher_port, label='restarted pusher', timeout=45.0, child=pusher_child)
 
     def restart_backend(self) -> None:
         """Prove the durable task survives loss of its originating listener."""

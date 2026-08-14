@@ -1564,10 +1564,8 @@ async def _record_restricted_sync_managed_stt_usage(
         return
     try:
         managed_stt_ms = int(total_speech_seconds * 1000)
-        should_record_managed_stt = bool(content_id) or await run_blocking(
-            db_executor, try_mark_once, job_id, 'managed_stt_ms'
-        )
-        if managed_stt_ms > 0 and should_record_managed_stt:
+        should_record = bool(content_id) or await run_blocking(db_executor, try_mark_once, job_id, 'managed_stt_ms')
+        if managed_stt_ms > 0 and should_record:
             await run_blocking(
                 db_executor,
                 record_managed_stt_usage_ms,
