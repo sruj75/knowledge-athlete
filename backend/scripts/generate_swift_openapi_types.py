@@ -19,9 +19,14 @@ import sys
 from pathlib import Path, PurePath
 from typing import Any
 
+if __package__:
+    from . import export_openapi
+else:
+    import export_openapi
+
 ROOT_DIR = Path(__file__).resolve().parents[2]
-DEFAULT_SPEC_PATH = ROOT_DIR / 'docs' / 'api-reference' / 'app-client-openapi.json'
 DEFAULT_OUTPUT = ROOT_DIR / 'desktop' / 'macos' / 'Desktop' / 'Sources' / 'Generated' / 'OmiApi.generated.swift'
+LIVE_SPEC_SOURCE_LABEL = 'live backend app-client schema'
 
 
 def source_label_for_path(path: PurePath, root_dir: PurePath = ROOT_DIR) -> str:
@@ -907,16 +912,22 @@ public struct OmiAnyCodable: Codable, Equatable {
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument('--spec', type=Path, default=DEFAULT_SPEC_PATH)
+    p.add_argument('--spec', type=Path, help='explicit JSON schema fixture; defaults to the live app-client surface')
     p.add_argument('--output', type=Path, default=DEFAULT_OUTPUT)
     p.add_argument('--check', action='store_true', help='verify generated file is fresh')
     return p.parse_args()
 
 
+def load_spec(path: Path | None) -> tuple[dict[str, Any], str]:
+    if path is None:
+        return export_openapi.generate_openapi('app-client'), LIVE_SPEC_SOURCE_LABEL
+    return json.loads(path.read_text(encoding='utf-8')), source_label_for_path(path)
+
+
 def main() -> int:
     args = parse_args()
-    spec = json.loads(args.spec.read_text(encoding='utf-8'))
-    generated = generate(spec, source_label_for_path(args.spec))
+    spec, source_label = load_spec(args.spec)
+    generated = generate(spec, source_label)
 
     if args.check:
         existing = args.output.read_text(encoding='utf-8') if args.output.exists() else ''

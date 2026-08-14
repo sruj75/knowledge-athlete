@@ -145,9 +145,7 @@ PY
 run_evidence_command test-preflight bash test-preflight.sh
 run_evidence_command backend-test bash test.sh
 run_evidence_command workflow-contracts python3 scripts/check_workflow_contracts.py
-run_evidence_command openapi-public scripts/openapi_runner.sh scripts/export_openapi.py --check ../docs/api-reference/openapi.json
-run_evidence_command openapi-app-client scripts/openapi_runner.sh scripts/export_openapi.py --surface app-client --check ../docs/api-reference/app-client-openapi.json
-run_evidence_command openapi-integration-public scripts/openapi_runner.sh scripts/export_openapi.py --surface integration-public --check ../docs/api-reference/integration-public-openapi.json
+run_evidence_command openapi-app-client-swift scripts/openapi_runner.sh scripts/generate_swift_openapi_types.py --check
 
 python3 - "$COMMANDS_FILE" "$EVIDENCE_FILE" "$TARGET_SHA" "$ISO_STAMP" <<'PY'
 import json

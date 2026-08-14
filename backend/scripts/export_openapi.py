@@ -6,9 +6,9 @@ Contract-surface decision for issue #8546:
 - The public contract is generated from the real FastAPI app, but filtered to
   `/v1/dev/...` routes so internal, admin, task, and app-client routes are not
   published through Mintlify by accident.
-- `docs/api-reference/app-client-openapi.json` is the first-party Flutter app
-  client contract. It is also generated from the real FastAPI app, but filtered
-  to the Firebase-authenticated routes consumed by the app.
+- The `app-client` surface is generated from the real FastAPI app and filtered
+  to Firebase-authenticated first-party routes. Retained macOS generation uses
+  this live surface directly; callers may still supply an explicit output path.
 - Public-like routes that intentionally stay out of Mintlify must be listed in
   `UNDOCUMENTED_PUBLIC_ROUTES` with a reason.
 
