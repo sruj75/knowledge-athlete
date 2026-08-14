@@ -39,3 +39,9 @@ def test_guard_has_no_live_provider_document_read():
 
     assert "codemagic.yaml" not in source
     assert "missing means pass" not in source
+
+
+def test_windows_only_workflows_are_excluded_before_release_guard_reads():
+    assert GUARDS._is_windows_only_workflow(Path("desktop-windows-ci.yml"))
+    assert GUARDS._is_windows_only_workflow(Path("desktop_windows_release.yml"))
+    assert not GUARDS._is_windows_only_workflow(Path("desktop_auto_release.yml"))

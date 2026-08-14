@@ -47,7 +47,7 @@ jobs:
           enable-cache: true
           cache-dependency-glob: backend/openapi-requirements.txt
 
-      - name: Fetch released app-client contract baseline
+      - name: Fetch route-policy comparison baseline
         if: github.event_name == 'pull_request'
         run: git fetch --no-tags origin "${{ github.base_ref }}"
 

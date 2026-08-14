@@ -39,6 +39,19 @@ class DesktopProductionRoutingContractTests(unittest.TestCase):
 
             self.assertTrue(any("retired GKE desktop-backend ownership" in error for error in errors), errors)
 
+    def test_ignores_windows_only_workflows_without_reading_them_as_mac_ownership(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _copy_protected_sources(root)
+            windows_workflow = root / ".github/workflows/desktop_windows_release.yml"
+            windows_workflow.parent.mkdir(parents=True)
+            windows_workflow.write_text(
+                "jobs:\n  release:\n    steps:\n      - run: helm upgrade desktop-backend\n",
+                encoding="utf-8",
+            )
+
+            self.assertEqual(CHECKER.validate(root), [])
+
     def test_rejects_mutated_production_routing_or_identity(self) -> None:
         for relative_path, fragments in CHECKER.REQUIRED_PRODUCTION_FRAGMENTS.items():
             for fragment in fragments:
@@ -58,7 +71,7 @@ class DesktopProductionRoutingContractTests(unittest.TestCase):
             with self.subTest(token=token), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
                 _copy_protected_sources(root)
-                target = root / CHECKER.LEGACY_BETA_ROUTING_PATH
+                target = root / CHECKER.DESKTOP_BACKEND_ENVIRONMENT_PATH
                 target.write_text(target.read_text(encoding="utf-8") + f"\n// {token}\n", encoding="utf-8")
 
                 self.assertTrue(CHECKER.validate(root))

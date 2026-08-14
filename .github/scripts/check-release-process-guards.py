@@ -15,6 +15,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 
 
+def _is_windows_only_workflow(path: Path) -> bool:
+    return "windows" in path.stem.lower()
+
+
 def _read(relative_path: str, errors: list[str]) -> str:
     path = ROOT / relative_path
     try:
@@ -52,6 +56,8 @@ def check_desktop_candidate_controls() -> list[str]:
     direct_build_endpoint = "https://api.codemagic.io/builds"
     preview_workflow = ROOT / ".github/workflows/desktop_publish_preview.yml"
     for workflow in sorted((ROOT / ".github/workflows").glob("*.yml")):
+        if _is_windows_only_workflow(workflow):
+            continue
         try:
             workflow_text = workflow.read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError) as exc:

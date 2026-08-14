@@ -10,7 +10,7 @@ RETIRED_GKE_DESKTOP_BACKEND_CHART_ROOTS = ("backend/charts", "desktop/macos/char
 RETIRED_GKE_DESKTOP_BACKEND_MANIFEST_SUFFIXES = {".tpl", ".yaml", ".yml"}
 RETIRED_GKE_DESKTOP_BACKEND_MARKERS = ("desktop-api.omi.me", "desktop-backend")
 GKE_WORKFLOW_MARKERS = ("gcloud container clusters", "helm ", "kubectl ")
-LEGACY_BETA_ROUTING_PATH = "desktop/macos/Desktop/Sources/DesktopBackendEnvironment.swift"
+DESKTOP_BACKEND_ENVIRONMENT_PATH = "desktop/macos/Desktop/Sources/DesktopBackendEnvironment.swift"
 FORBIDDEN_ROUTING_TOKENS = ("OMI_BETA_RELEASE_RING", "api-beta.omi.me", "STAGING_API_URL")
 REQUIRED_PRODUCTION_FRAGMENTS = {
     "desktop/macos/Desktop/Sources/AppBuild.swift": (
@@ -31,6 +31,10 @@ SANCTIONED_PRODUCTION_BUNDLE_IDENTIFIERS = {
 BUNDLE_IDENTIFIER_PATTERN = re.compile(r'"(com\.omi\.computer-macos(?:\.[^"]+)?)"')
 
 
+def _is_windows_only_workflow(path: Path) -> bool:
+    return "windows" in path.stem.lower()
+
+
 def _retired_gke_desktop_backend_manifests(root: Path) -> list[Path]:
     retired: list[Path] = []
     for relative_root in RETIRED_GKE_DESKTOP_BACKEND_CHART_ROOTS:
@@ -47,10 +51,11 @@ def _retired_gke_desktop_backend_manifests(root: Path) -> list[Path]:
     workflow_root = root / ".github/workflows"
     if workflow_root.is_dir():
         for workflow in workflow_root.glob("*.y*ml"):
+            if _is_windows_only_workflow(workflow):
+                continue
             source = workflow.read_text(encoding="utf-8")
-            if (
-                any(marker in source for marker in RETIRED_GKE_DESKTOP_BACKEND_MARKERS)
-                and any(marker in source for marker in GKE_WORKFLOW_MARKERS)
+            if any(marker in source for marker in RETIRED_GKE_DESKTOP_BACKEND_MARKERS) and any(
+                marker in source for marker in GKE_WORKFLOW_MARKERS
             ):
                 retired.append(workflow.relative_to(root))
     return retired
@@ -63,14 +68,14 @@ def validate(root: Path) -> list[str]:
             f"{manifest} declares retired GKE desktop-backend ownership; production desktop-backend is Cloud Run"
         )
 
-    routing_path = root / LEGACY_BETA_ROUTING_PATH
+    routing_path = root / DESKTOP_BACKEND_ENVIRONMENT_PATH
     if not routing_path.is_file():
-        errors.append(f"missing protected production-routing source {LEGACY_BETA_ROUTING_PATH}")
+        errors.append(f"missing protected production-routing source {DESKTOP_BACKEND_ENVIRONMENT_PATH}")
     else:
         routing_source = routing_path.read_text(encoding="utf-8")
         for token in FORBIDDEN_ROUTING_TOKENS:
             if token in routing_source:
-                errors.append(f"{LEGACY_BETA_ROUTING_PATH} must not contain legacy routing token {token}")
+                errors.append(f"{DESKTOP_BACKEND_ENVIRONMENT_PATH} must not contain legacy routing token {token}")
 
     for relative_path, required_fragments in REQUIRED_PRODUCTION_FRAGMENTS.items():
         source_path = root / relative_path
