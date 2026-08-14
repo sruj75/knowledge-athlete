@@ -167,9 +167,6 @@ changed_matches() {
 }
 
 CI_PREDICTION_SELECTION=$("$PYTHON_BIN" scripts/pre_push_ci_prediction.py --changed-files "$CHANGED_FILES_LIST" --base "$BASE_REF")
-if ci_prediction_selected "app-ci-only"; then
-  ci_prediction_note_deferred "full Flutter analyzer/tests and platform compiles"
-fi
 if ci_prediction_selected "desktop-ci-only"; then
   ci_prediction_note_deferred "full desktop harness, release builds, and platform packaging"
 fi
@@ -217,54 +214,18 @@ check_pr_preflight() {
 }
 
 check_optional_formatters() {
-  local -a dart_files=()
   local -a python_files=()
-  local -a arb_files=()
-  local -a firmware_files=()
   local file
   local -a black_cmd=()
 
   for file in "${CHANGED_FILES[@]}"; do
     [ -f "$file" ] || continue
     case "$file" in
-      *.dart)
-        if [[ "$file" != *.gen.dart && "$file" != *.g.dart ]]; then
-          dart_files+=("$file")
-        fi
-        ;;
       backend/*.py|backend/**/*.py)
         python_files+=("$file")
         ;;
-      *.arb)
-        arb_files+=("$file")
-        ;;
-      omi/*.c|omi/*.cc|omi/*.cpp|omi/*.cxx|omi/*.h|omi/*.hpp|omiGlass/*.c|omiGlass/*.cc|omiGlass/*.cpp|omiGlass/*.cxx|omiGlass/*.h|omiGlass/*.hpp)
-        firmware_files+=("$file")
-        ;;
     esac
   done
-
-  if [ "${#dart_files[@]}" -gt 0 ]; then
-    if [ "${PRE_PUSH_SKIP_DART_FORMAT:-}" = "1" ]; then
-      echo "Skipping Dart format check because PRE_PUSH_SKIP_DART_FORMAT=1."
-      if ci_prediction_selected "app-dart-format"; then
-        ci_prediction_note_skipped "Dart formatting (PRE_PUSH_SKIP_DART_FORMAT=1)"
-      fi
-    elif command -v dart >/dev/null 2>&1; then
-      echo "==> dart format --set-exit-if-changed (${#dart_files[@]} file(s))"
-      dart format --line-length 120 --set-exit-if-changed --output=none "${dart_files[@]}"
-      if ci_prediction_selected "app-dart-format"; then
-        ci_prediction_note_verified "Dart formatting"
-      fi
-    elif ci_prediction_selected "app-dart-format"; then
-      echo "FAIL: changed app Dart files require the Dart SDK for local CI certification." >&2
-      echo "      Install Flutter (which includes Dart), then ensure 'dart' is on PATH." >&2
-      echo "      Deliberate hatch: PRE_PUSH_SKIP_DART_FORMAT=1 git push" >&2
-      return 1
-    else
-      echo "Skipping Dart format check; dart is not installed."
-    fi
-  fi
 
   if [ "${#python_files[@]}" -gt 0 ]; then
     if command -v black >/dev/null 2>&1; then
@@ -281,124 +242,6 @@ check_optional_formatters() {
     fi
   fi
 
-  if [ "${#arb_files[@]}" -gt 0 ]; then
-    echo "==> ARB JSON formatting (${#arb_files[@]} file(s))"
-    "$PYTHON_BIN" - "${arb_files[@]}" <<'PY'
-import json
-import sys
-from pathlib import Path
-
-failed = False
-for raw_path in sys.argv[1:]:
-    path = Path(raw_path)
-    try:
-        original = path.read_text()
-        formatted = json.dumps(json.loads(original), indent=4, ensure_ascii=False) + "\n"
-    except json.JSONDecodeError as exc:
-        print(f"FAIL: {path} is not valid JSON: {exc}", file=sys.stderr)
-        failed = True
-        continue
-    if original != formatted:
-        print(f"FAIL: {path} not formatted with 4-space indent", file=sys.stderr)
-        failed = True
-
-if failed:
-    print("Fix: jq --indent 4 '.' <file> > tmp && mv tmp <file>", file=sys.stderr)
-    sys.exit(1)
-PY
-  fi
-
-  if [ "${#firmware_files[@]}" -gt 0 ]; then
-    if command -v clang-format >/dev/null 2>&1; then
-      echo "==> clang-format --dry-run (${#firmware_files[@]} file(s))"
-      clang-format --dry-run --Werror "${firmware_files[@]}"
-    else
-      echo "Skipping C/C++ format check; clang-format is not installed."
-    fi
-  fi
-}
-
-require_flutter_generated_prerequisites() {
-  if [ ! -f app/.dart_tool/package_config.json ]; then
-    echo "FAIL: Flutter generated-output checks need resolved app dependencies." >&2
-    echo "      Run: cd app && flutter pub get" >&2
-    # make setup provisions the backend venv only, so a contributor who never
-    # touches app/ can reach this with no Flutter toolchain at all -- and the
-    # selector wakes this lane for any ROUTING_INPUTS edit. CI still runs it.
-    echo "      Deliberate hatch: PRE_PUSH_SKIP_FLUTTER_GENERATED=1 git push" >&2
-    return 1
-  fi
-}
-
-check_flutter_generated_if_needed() {
-  local untracked
-
-  if ! ci_prediction_selected "flutter-codegen" && ! ci_prediction_selected "flutter-l10n"; then
-    return
-  fi
-
-  if [ "${PRE_PUSH_SKIP_FLUTTER_GENERATED:-}" = "1" ]; then
-    echo "Skipping Flutter generated-output checks because PRE_PUSH_SKIP_FLUTTER_GENERATED=1."
-    ci_prediction_note_skipped "Flutter generated output (PRE_PUSH_SKIP_FLUTTER_GENERATED=1)"
-    return
-  fi
-
-  require_flutter_generated_prerequisites
-
-  if ci_prediction_selected "flutter-codegen"; then
-    if ! command -v flutter >/dev/null 2>&1 || ! command -v dart >/dev/null 2>&1; then
-      echo "FAIL: changed Flutter generator inputs require Flutter and Dart for local CI certification." >&2
-      echo "      Install Flutter, then ensure both 'flutter' and its bundled 'dart' are on PATH." >&2
-      echo "      Deliberate hatch: PRE_PUSH_SKIP_FLUTTER_GENERATED=1 git push" >&2
-      return 1
-    fi
-    echo "==> Flutter build_runner generated-output check"
-    (
-      # Git exports linked-worktree metadata to hooks. Flutter resolves its own
-      # SDK version through Git, so those variables must not leak into Flutter.
-      unset GIT_DIR GIT_WORK_TREE
-      cd app
-      flutter pub run build_runner build --delete-conflicting-outputs
-      git diff --exit-code -- lib || {
-        echo "FAIL: generated Dart files are stale. Run: cd app && flutter pub run build_runner build --delete-conflicting-outputs" >&2
-        exit 1
-      }
-      untracked=$(git ls-files --others --exclude-standard -- lib)
-      if [ -n "$untracked" ]; then
-        echo "FAIL: generated Dart files are stale; untracked generated files were produced:" >&2
-        echo "$untracked" >&2
-        exit 1
-      fi
-    )
-    ci_prediction_note_verified "Flutter build_runner generated output"
-  fi
-
-  if ci_prediction_selected "flutter-l10n"; then
-    if ! command -v flutter >/dev/null 2>&1; then
-      echo "FAIL: changed Flutter localization inputs require Flutter for local CI certification." >&2
-      echo "      Install Flutter, then ensure 'flutter' is on PATH." >&2
-      echo "      Deliberate hatch: PRE_PUSH_SKIP_FLUTTER_GENERATED=1 git push" >&2
-      return 1
-    fi
-    echo "==> Flutter l10n generated-output check"
-    (
-      # Keep Flutter's SDK-version Git lookup isolated from hook worktree state.
-      unset GIT_DIR GIT_WORK_TREE
-      cd app
-      flutter gen-l10n
-      git diff --exit-code -- lib/l10n || {
-        echo "FAIL: generated localization files are stale. Run: cd app && flutter gen-l10n" >&2
-        exit 1
-      }
-      untracked=$(git ls-files --others --exclude-standard -- lib/l10n)
-      if [ -n "$untracked" ]; then
-        echo "FAIL: generated localization files are stale; untracked generated files were produced:" >&2
-        echo "$untracked" >&2
-        exit 1
-      fi
-    )
-    ci_prediction_note_verified "Flutter localization generated output"
-  fi
 }
 
 check_desktop_flow_lint_if_needed() {
@@ -607,10 +450,6 @@ check_runtime_image_source_closure_if_needed() {
     '.github/workflows/gcp_nllb_translation.yml' \
     '.github/workflows/gcp_memory_maintenance_job*.yml' \
     '.github/workflows/gcp_notifications_job.yml' \
-    '.github/workflows/gcp_plugins.yml' \
-    'plugins/*.py' \
-    'plugins/**/*.py' \
-    'plugins/Dockerfile' \
     'scripts/pre-push'
   then
     return
@@ -630,26 +469,20 @@ check_openapi_contract_if_needed() {
     'backend/models/**/*.py' \
     'backend/routers/*.py' \
     'backend/routers/**/*.py' \
-    'docs/api-reference/app-client-openapi.json' \
-    'app/lib/backend/http/api/**' \
-    'app/lib/backend/schema/**' \
+    'backend/scripts/export_openapi.py' \
+    'backend/scripts/generate_swift_openapi_types.py' \
+    'backend/openapi-requirements.txt' \
+    'desktop/macos/Desktop/Sources/Generated/OmiApi.generated.swift' \
     '.github/workflows/openapi-contract.yml' \
     'scripts/pre-push'
   then
     return
   fi
 
-  require_backend_python
-  "$BACKEND_PYTHON" backend/scripts/check_app_client_openapi_compatibility.py \
-    --base-ref "$BASE_REMOTE_REF"
   (
     cd backend
-    scripts/openapi_runner.sh scripts/export_openapi.py --surface app-client --check ../docs/api-reference/app-client-openapi.json
+    scripts/openapi_runner.sh scripts/generate_swift_openapi_types.py --check
   )
-
-  "$BACKEND_PYTHON" backend/scripts/generate_dart_models.py --all --check
-  "$BACKEND_PYTHON" backend/scripts/generate_ts_openapi_types.py --check
-  "$BACKEND_PYTHON" backend/scripts/generate_swift_openapi_types.py --check
 }
 
 check_release_process_guards_if_needed() {
@@ -763,7 +596,7 @@ check_desktop_tool_surfaces_if_needed() {
   local file
   for file in "${CHANGED_FILES[@]}"; do
     case "$file" in
-      desktop/macos/agent/*|desktop/macos/agent/**/*|desktop/macos/pi-mono-extension/*|desktop/macos/pi-mono-extension/**/*|desktop/macos/run.sh|desktop/macos/scripts/prepare-agent-runtime.sh|desktop/macos/scripts/test-tool-surfaces.sh|codemagic.yaml)
+      desktop/macos/agent/*|desktop/macos/agent/**/*|desktop/macos/pi-mono-extension/*|desktop/macos/pi-mono-extension/**/*|desktop/macos/run.sh|desktop/macos/scripts/prepare-agent-runtime.sh|desktop/macos/scripts/test-tool-surfaces.sh)
         desktop/macos/scripts/test-tool-surfaces.sh
         return
         ;;
@@ -791,7 +624,6 @@ run_step check_backend_unit_tests_if_needed
 run_step check_openapi_contract_if_needed
 run_step check_release_process_guards_if_needed
 run_step check_workflows_if_needed
-run_step check_flutter_generated_if_needed
 run_step check_desktop_flow_lint_if_needed
 run_step check_windows_kgworker_native_closure_if_needed
 run_step check_desktop_swift_if_needed

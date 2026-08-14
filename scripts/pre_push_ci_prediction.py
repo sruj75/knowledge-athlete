@@ -19,43 +19,17 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 LOCAL_CHECK_ORDER = (
-    "app-dart-format",
-    "flutter-l10n",
-    "flutter-codegen",
     "desktop-flow-lint",
     "windows-kgworker-native-closure",
-    "app-ci-only",
     "desktop-ci-only",
 )
 
 PHASE_ORDER = (
     *LOCAL_CHECK_ORDER,
-    "app-analysis-tests",
-    "app-compile-smoke",
     "desktop-agent-runtime",
     "desktop-swift-tests",
     "desktop-swift-release-compile",
     "desktop-swift-notification-release-regression",
-)
-
-CODEGEN_CONFIG_INPUTS = {
-    "app/build.yaml",
-    "app/pubspec.yaml",
-    "app/pubspec.lock",
-    "app/lib/pigeon_interfaces.dart",
-}
-
-CODEGEN_MARKERS = (
-    "@JsonSerializable",
-    "@freezed",
-    "@Freezed",
-    "@HiveType",
-    "@Riverpod",
-    "@riverpod",
-    "@Envied",
-    "@Pigeon",
-    "part '",
-    'part "',
 )
 
 WINDOWS_KGWORKER_NATIVE_CLOSURE_INPUTS = {
@@ -74,7 +48,6 @@ ROUTING_INPUTS = {
     ".github/scripts/test_desktop_swift_ci_contract.py",
     ".github/actions/detect-changes/action.yml",
     ".github/workflows/desktop-swift-ci.yml",
-    ".github/workflows/mobile-app-checks.yml",
     "scripts/pre_push_ci_prediction.py",
     ".github/scripts/test_pre_push_ci_prediction.py",
 }
@@ -104,7 +77,6 @@ DESKTOP_AGENT_RUNTIME_INPUTS = {
     "desktop/macos/scripts/prepare-desktop-bundle-native-deps.sh",
     "desktop/macos/scripts/test-tool-surfaces.sh",
     "desktop/macos/scripts/agent-logic-harness.sh",
-    "codemagic.yaml",
     "scripts/pre-push",
 }
 
@@ -150,70 +122,12 @@ def read_text_at_revision(revision: str) -> Callable[[str], str | None]:
     return read
 
 
-def _is_generated_dart(path: str) -> bool:
-    return path.endswith((".g.dart", ".gen.dart", ".freezed.dart")) or path.startswith("app/lib/l10n/app_localizations")
-
-
-def _contains_codegen_marker(source: str | None) -> bool:
-    return source is not None and any(marker in source for marker in CODEGEN_MARKERS)
-
-
-def _is_codegen_input(
-    path: str,
-    read_text: Callable[[str], str | None],
-    read_base_text: Callable[[str], str | None],
-) -> bool:
-    if path in CODEGEN_CONFIG_INPUTS or path.startswith("app/assets/"):
-        return True
-    if not path.startswith("app/lib/") or not path.endswith(".dart") or _is_generated_dart(path):
-        return False
-
-    source = read_text(path)
-    base_source = read_base_text(path)
-    # A deleted library or a removed final generator marker has no post-change
-    # annotation to inspect. The base revision is the ownership proof.
-    return (
-        source is None
-        or base_source is None
-        or _contains_codegen_marker(source)
-        or _contains_codegen_marker(base_source)
-    )
-
-
-def _is_app_l10n_input(path: str) -> bool:
-    return (path.startswith("app/lib/l10n/") and path.endswith(".arb")) or path == "app/l10n.yaml"
-
-
-def _is_app_compile_smoke_input(path: str) -> bool:
-    if path.startswith("app/lib/l10n/app_") and (path.endswith(".arb") or path.endswith(".dart")):
-        return False
-    return path.startswith(
-        (
-            "app/lib/",
-            "app/android/",
-            "app/ios/",
-            "app/setup/prebuilt/",
-            "app/setup/scripts/",
-            "app/config/",
-            "app/assets/",
-        )
-    ) or path in {
-        "app/pubspec.yaml",
-        "app/pubspec.lock",
-        "app/build.yaml",
-        "app/analysis_options.yaml",
-        "app/l10n.yaml",
-        "app/flavorizr.yaml",
-    }
-
-
 def _is_releasable_desktop_path(path: str) -> bool:
     if path.startswith("desktop/macos/changelog/"):
         return False
     if path in {"desktop/macos/CHANGELOG.json", "desktop/macos/AGENTS.md"}:
         return False
     return path.startswith("desktop/macos/") or path in {
-        "codemagic.yaml",
         ".github/scripts/plan-desktop-release.py",
         ".github/workflows/desktop_auto_release.yml",
         ".github/workflows/desktop-swift-ci.yml",
@@ -266,10 +180,6 @@ def resolve_impact(
     event: str = "local",
 ) -> ImpactPlan:
     """Resolve component and expensive CI phases for a changed path set."""
-    # Callers that only need the current-tree behavior (for example a focused
-    # unit fixture) can omit the base reader. Diff callers pass one so deleted
-    # inputs and marker removals remain conservative.
-    read_base_text = read_base_text or read_text
     selected: set[str] = set()
     normalized_paths = [raw_path.strip() for raw_path in paths if raw_path.strip()]
     selector_changed = any(
@@ -277,19 +187,6 @@ def resolve_impact(
     )
 
     for path in normalized_paths:
-        if path.startswith("app/"):
-            # Unknown paths within a component remain conservative: they wake
-            # its normal analyzer/test lane rather than silently doing nothing.
-            selected.update({"app-ci-only", "app-analysis-tests"})
-            if _is_app_compile_smoke_input(path):
-                selected.add("app-compile-smoke")
-            if path.endswith(".dart") and not _is_generated_dart(path):
-                selected.add("app-dart-format")
-            if _is_app_l10n_input(path):
-                selected.add("flutter-l10n")
-            if _is_codegen_input(path, read_text, read_base_text):
-                selected.add("flutter-codegen")
-
         if path.startswith("desktop/macos/"):
             if _is_releasable_desktop_path(path):
                 selected.add("desktop-ci-only")
@@ -310,11 +207,6 @@ def resolve_impact(
         # and conservatively wakes each component lane it can influence.
         selected.update(
             {
-                "app-ci-only",
-                "app-analysis-tests",
-                "app-compile-smoke",
-                "flutter-l10n",
-                "flutter-codegen",
                 "desktop-ci-only",
                 "desktop-flow-lint",
                 "desktop-swift-tests",
@@ -347,11 +239,6 @@ def select_checks(
 def github_outputs(plan: ImpactPlan) -> dict[str, str]:
     """Map shared phases to the established detect-changes action contract."""
     return {
-        "has_app_codegen": str(plan.includes("flutter-codegen")).lower(),
-        "has_app_l10n": str(plan.includes("flutter-l10n")).lower(),
-        "has_flutter_generated": str(plan.includes("flutter-codegen") or plan.includes("flutter-l10n")).lower(),
-        "has_app_compile_smoke": str(plan.includes("app-compile-smoke")).lower(),
-        "has_app_dart": str(plan.includes("app-analysis-tests")).lower(),
         "has_desktop_agent_runtime": str(plan.includes("desktop-agent-runtime")).lower(),
         "should_run": str(plan.includes("desktop-ci-only")).lower(),
         "should_run_tests": str(plan.includes("desktop-swift-tests")).lower(),

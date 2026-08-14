@@ -356,35 +356,12 @@ def test_backend_static_contract_job_uses_the_pinned_backend_environment():
     assert "python3 -c 'import pytest, yaml'" in pre_deploy
 
 
-def test_mobile_generated_files_only_run_for_codegen_or_localization_changes():
-    repo = BACKEND_DIR.parent
-    mobile_checks = (repo / '.github/workflows/mobile-app-checks.yml').read_text(encoding='utf-8')
-    generated = mobile_checks.split('\n  generated-files:\n', 1)[1].split('\n  analyze:\n', 1)[0]
-    android = mobile_checks.split('\n  android-compile-smoke:\n', 1)[1]
-    changes = mobile_checks.split('\n  changes:\n', 1)[1].split('\n  generated-files:\n', 1)[0]
+def test_present_repository_ci_routing_has_no_absent_product_outputs():
     resolver = _load_repo_script("pre_push_ci_prediction")
 
-    regular_dart = "app/lib/utils/date_formats.dart"
-    regular_plan = resolver.resolve_impact(
-        [regular_dart],
-        read_text=lambda path: {regular_dart: "class DateFormats {}"}.get(path),
-    )
-    regular_outputs = resolver.github_outputs(regular_plan)
-    assert regular_outputs["has_app_codegen"] == "false"
-    assert regular_outputs["has_app_l10n"] == "false"
-    assert regular_outputs["has_flutter_generated"] == "false"
-
-    asset_plan = resolver.resolve_impact(["app/assets/icons/omi.png"])
-    asset_outputs = resolver.github_outputs(asset_plan)
-    assert asset_outputs["has_app_codegen"] == "true"
-    assert asset_outputs["has_flutter_generated"] == "true"
-
-    assert "if: needs.changes.outputs.has_flutter_generated == 'true'" in generated
-    assert "if: needs.changes.outputs.has_app_codegen == 'true'" in generated
-    assert "if: needs.changes.outputs.has_app_l10n == 'true'" in generated
-    assert 'fetch-depth: 1' in generated
-    assert 'fetch-depth: 1' in android
-    assert 'fetch-depth: 0' in changes
+    plan = resolver.resolve_impact([".github/checks-manifest.yaml"])
+    assert all(not phase.startswith(("app-", "flutter-")) for phase in plan.phases)
+    assert all(not name.startswith(("has_app", "has_flutter")) for name in resolver.github_outputs(plan))
 
 
 def test_installed_pre_push_hook_falls_back_for_older_worktrees():

@@ -49,51 +49,6 @@ class PrePushCiPredictionTests(unittest.TestCase):
             event=event,
         )
 
-    def test_regular_app_dart_change_does_not_start_build_runner(self) -> None:
-        self.assertEqual(
-            self.select(
-                ["app/lib/utils/date_formats.dart"], {"app/lib/utils/date_formats.dart": "class DateFormats {}"}
-            ),
-            ["app-dart-format", "app-ci-only"],
-        )
-
-    def test_codegen_annotation_selects_build_runner_check(self) -> None:
-        self.assertEqual(
-            self.select(
-                ["app/lib/models/task.dart"],
-                {"app/lib/models/task.dart": "@JsonSerializable()\nclass Task {}"},
-            ),
-            ["app-dart-format", "flutter-codegen", "app-ci-only"],
-        )
-
-    def test_deleted_dart_generator_input_is_conservative(self) -> None:
-        self.assertEqual(
-            self.select(["app/lib/models/obsolete.dart"]),
-            ["app-dart-format", "flutter-codegen", "app-ci-only"],
-        )
-
-    def test_removing_last_generator_marker_selects_build_runner(self) -> None:
-        path = "app/lib/models/task.dart"
-        self.assertIn(
-            "flutter-codegen",
-            self.select(
-                [path],
-                {path: "class Task {}"},
-                {path: "@JsonSerializable()\nclass Task {}"},
-            ),
-        )
-
-    def test_asset_change_is_an_explicit_codegen_input(self) -> None:
-        plan = self.plan(["app/assets/icons/omi.png"])
-        self.assertTrue(plan.includes("flutter-codegen"))
-        self.assertEqual(github_outputs(plan)["has_app_codegen"], "true")
-
-    def test_l10n_and_generated_dart_have_the_right_local_contracts(self) -> None:
-        self.assertEqual(
-            self.select(["app/lib/l10n/app_en.arb", "app/lib/l10n/app_localizations.dart"]),
-            ["flutter-l10n", "app-ci-only"],
-        )
-
     def test_desktop_flow_contract_sources_select_flow_lint_only(self) -> None:
         self.assertEqual(
             self.select(["desktop/macos/e2e/flows/new-flow.yaml"]),
@@ -111,19 +66,25 @@ class PrePushCiPredictionTests(unittest.TestCase):
         self.assertEqual(github_outputs(plan)["should_run_tests"], "true")
 
     def test_unknown_component_paths_select_the_normal_component_lane(self) -> None:
-        app = self.plan(["app/tooling/unknown-input.txt"])
         desktop = self.plan(["desktop/macos/Resources/unknown-input.txt"])
-        self.assertTrue(app.includes("app-analysis-tests"))
         self.assertTrue(desktop.includes("desktop-ci-only"))
+
+    def test_present_repository_inputs_never_select_absent_product_phases(self) -> None:
+        for path in (
+            ".github/checks-manifest.yaml",
+            "backend/routers/chat_sessions.py",
+            "desktop/macos/Desktop/Sources/APIClient.swift",
+        ):
+            with self.subTest(path=path):
+                plan = self.plan([path])
+                self.assertFalse(any(phase.startswith(("app-", "flutter-")) for phase in plan.phases))
+                self.assertFalse(any(name.startswith(("has_app", "has_flutter")) for name in github_outputs(plan)))
 
     def test_selector_change_exercises_broad_resolver_fixtures(self) -> None:
         plan = self.plan(["scripts/pre_push_ci_prediction.py"])
         for phase in (
-            "flutter-codegen",
-            "flutter-l10n",
             "desktop-flow-lint",
             "desktop-swift-tests",
-            "app-analysis-tests",
         ):
             with self.subTest(phase=phase):
                 self.assertTrue(plan.includes(phase))

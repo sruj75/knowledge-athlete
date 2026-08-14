@@ -73,9 +73,7 @@ repos:
           (?x)^(
             \.firebase/.*\.json|    # Firebase config (may have comments)
             \.idea/.*\.json|       # IDE config
-            .*lock\.json|          # Lock files
-            app/lib/.*\.g\.json|   # Dart codegen generated JSON
-            app/.*arb              # App resource bundles (not strict JSON)
+            .*lock\.json           # Lock files
           )$
       - id: check-toml
 
