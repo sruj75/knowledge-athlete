@@ -33,7 +33,6 @@ MAX_SOURCE_STATUS_POLLS = 20
 AUTO_RELEASE_QUIET_SECONDS = 60
 DESKTOP_RELEASE_PATHS = (
     "desktop/macos",
-    "codemagic.yaml",
     # The M1 qualification job checks out the immutable candidate tag and
     # imports this exact lifecycle module. Keep the scope to that tag-bound
     # runtime surface; other dev-harness and backend changes are not releases.

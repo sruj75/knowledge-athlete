@@ -127,18 +127,3 @@ def test_memory_pinecone_validation_execute_requires_namespace_prefix_and_confir
     assert artifact["read_only"] is False
     assert artifact["namespace"] == "memory-proof-ns"
     assert artifact["shared_ns2_mode"] == "read_only_inventory_only"
-
-
-def test_memory_pinecone_validation_docs_reference_commands_and_non_claims():
-    root = Path(__file__).resolve().parents[2].parent
-    doc = (root / "docs" / "epics" / "memory_firestore_iam_deployment.md").read_text()
-
-    assert "python3 backend/scripts/pinecone_repair_validation_readiness.py" in doc
-    assert "--allow-throwaway-mutation" in doc
-    assert "--test-namespace" in doc
-    assert "--throwaway-prefix" in doc
-    assert "duplicate stale physical IDs" in doc
-    assert "tombstone precedence" in doc
-    assert "retry/dead-letter" in doc
-    assert "shared `ns2` isolation" in doc
-    assert "not production approval" in doc

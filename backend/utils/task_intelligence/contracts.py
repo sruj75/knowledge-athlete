@@ -30,7 +30,7 @@ REQUIRED_CONTRACT_DOMAINS = {
     'attribution_event',
 }
 REQUIRED_SOURCE_IDS = {
-    'mobile_manual',
+    'backend_action_item_api',
     'desktop_manual',
     'chat_voice_tools',
     'mcp_tools',
@@ -212,7 +212,7 @@ def _python_writer_anchors(path: Path, *, repository_root: Path) -> set[tuple[st
 
 
 def discover_backend_writer_anchors(*, repository_root: Path = REPOSITORY_ROOT) -> set[tuple[str, str]]:
-    """Discover task/goal mutation call sites across backend, Swift, and Dart."""
+    """Discover task/goal mutation call sites across the backend and macOS client."""
 
     discovered: set[tuple[str, str]] = set()
     backend_root = repository_root / 'backend'
@@ -225,10 +225,7 @@ def discover_backend_writer_anchors(*, repository_root: Path = REPOSITORY_ROOT) 
                 continue
             discovered.update(_python_writer_anchors(path, repository_root=repository_root))
 
-    for relative_root, suffix in (
-        ('desktop/macos/Desktop/Sources', '*.swift'),
-        ('app/lib', '*.dart'),
-    ):
+    for relative_root, suffix in (('desktop/macos/Desktop/Sources', '*.swift'),):
         root = repository_root / relative_root
         if not root.exists():
             continue

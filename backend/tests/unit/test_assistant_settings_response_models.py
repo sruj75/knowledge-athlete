@@ -1,10 +1,5 @@
-import json
-from pathlib import Path
-
 from routers.users import AssistantSettingsResponse
-
-ROOT_DIR = Path(__file__).resolve().parents[3]
-SPEC_PATH = ROOT_DIR / 'docs' / 'api-reference' / 'app-client-openapi.json'
+from scripts import export_openapi
 
 
 def test_assistant_settings_response_keeps_forward_compatible_sections():
@@ -30,7 +25,7 @@ def test_assistant_settings_model_schema_exposes_known_fields_and_allows_future_
 
 
 def test_app_client_openapi_assistant_settings_response_exposes_known_fields_and_allows_future_sections():
-    spec = json.loads(SPEC_PATH.read_text())
+    spec = export_openapi.generate_openapi('app-client')
     schema = spec['components']['schemas']['AssistantSettingsResponse']
 
     assert schema['title'] == 'AssistantSettingsResponse'

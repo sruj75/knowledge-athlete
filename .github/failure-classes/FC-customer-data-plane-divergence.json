@@ -8,10 +8,6 @@
     10214
   ],
   "scope_hints": [
-    "codemagic.yaml",
-    "app/lib/env/**",
-    "app/lib/main.dart",
-    "app/lib/startup_routing.dart",
     "desktop/macos/Desktop/Sources/AppBuild.swift",
     "desktop/macos/Desktop/Sources/DesktopBackendEnvironment.swift",
     "desktop/macos/Desktop/Sources/GoogleService-Info*.plist"

@@ -15,7 +15,6 @@ SCHEMA = "desktop-release-planner-source-identity/v2"
 RELEASE_TAG_RE = re.compile(r"^v[0-9]+\.[0-9]+\.[0-9]+\+[0-9]+-macos$")
 DESKTOP_RELEASE_PATHS = (
     "desktop/macos",
-    "codemagic.yaml",
     "scripts/dev-harness/dev_harness/qualification.py",
     ".github/scripts/plan-desktop-release.py",
     ".github/scripts/desktop-release-source-identity.py",
@@ -25,6 +24,8 @@ DESKTOP_RELEASE_PATHS = (
     ".github/workflows/desktop_qualify_beta.yml",
     ".github/workflows/desktop-swift-ci.yml",
 )
+
+
 def require_sha(name: str, value: str) -> str:
     if not SHA_RE.fullmatch(value):
         raise ValueError(f"{name} must be a 40-character lowercase SHA")

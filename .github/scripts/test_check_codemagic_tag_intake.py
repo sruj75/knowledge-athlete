@@ -305,11 +305,12 @@ class CodemagicTagIntakeTests(unittest.TestCase):
         self.assertEqual(page_request.method, "GET")
         self.assertEqual(urllib.parse.urlparse(page_request.full_url).path, "/builds")
         self.assertEqual(post_request.method, "POST")
-        self.assertEqual(json.loads(post_request.data.decode()), {"appId": APP_ID, "workflowId": WORKFLOW_ID, "tag": TAG})
+        self.assertEqual(
+            json.loads(post_request.data.decode()), {"appId": APP_ID, "workflowId": WORKFLOW_ID, "tag": TAG}
+        )
 
     def test_checked_in_workflow_keeps_native_wait_then_enables_only_fenced_fallback(self) -> None:
         workflow = (ROOT / ".github/workflows/desktop_auto_release.yml").read_text(encoding="utf-8")
-        codemagic = (ROOT / "codemagic.yaml").read_text(encoding="utf-8")
 
         for fragment in (
             "Verify native Codemagic tag intake or dispatch fenced fallback",
@@ -321,10 +322,6 @@ class CodemagicTagIntakeTests(unittest.TestCase):
             "Retain native Codemagic tag intake evidence",
         ):
             self.assertIn(fragment, workflow)
-        self.assertIn(
-            '        - pattern: "v*-macos"\n          include: true',
-            codemagic.split("  omi-desktop-swift-release:", 1)[1],
-        )
         self.assertNotIn(intake.BUILDS_API, workflow)
 
 

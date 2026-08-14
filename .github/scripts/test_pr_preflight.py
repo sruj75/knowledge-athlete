@@ -275,7 +275,7 @@ class SelectionTests(unittest.TestCase):
         if os.name == "nt":
             self.assertIn("Git/mingw64/libexec/git-core/../../../bin/bash.exe", result.stdout.replace("\\", "/"))
 
-    def test_9402_equivalent_diff_selects_invariants_changelog_and_e2e(self) -> None:
+    def test_desktop_diff_selects_changelog_and_e2e(self) -> None:
         checks = select_checks(
             [
                 "desktop/macos/Desktop/Sources/Providers/ChatProvider.swift",
@@ -284,19 +284,17 @@ class SelectionTests(unittest.TestCase):
             platform="macos",
         )
         names = {check.name for check in checks}
-        self.assertIn("product-invariants", names)
         self.assertIn("desktop-changelog-entry", names)
         self.assertIn("desktop-e2e-flow-coverage", names)
 
     def test_docs_diff_keeps_contract_small(self) -> None:
-        names = {check.name for check in select_checks(["docs/doc/developer/Contribution.mdx"])}
+        names = {check.name for check in select_checks(["CONTRIBUTING.md"])}
         self.assertEqual(
             names,
             {
                 "check-manifest-contract",
                 "diff-hygiene",
                 "architecture-guardrails",
-                "product-invariants",
                 "failure-class-protocol",
                 "failure-class-guard-artifact-ratchet",
                 "desktop-changelog-data",
@@ -306,33 +304,9 @@ class SelectionTests(unittest.TestCase):
             },
         )
 
-    def test_9402_equivalent_fixture_fails_missing_invariants_and_flow_coverage(self) -> None:
+    def test_desktop_fixture_fails_missing_flow_coverage(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             temp = Path(tmp)
-            changed = temp / "changed.txt"
-            body = temp / "body.md"
-            changed.write_text(
-                "desktop/macos/Desktop/Sources/Providers/ChatProvider.swift\n"
-                "desktop/macos/Desktop/Sources/Providers/UncoveredRoutingSurface.swift\n"
-                "desktop/macos/agent/src/runtime/control-tools.ts\n",
-                encoding="utf-8",
-            )
-            body.write_text("## Product invariants affected\n\nnone\n", encoding="utf-8")
-            invariant = subprocess.run(
-                [
-                    sys.executable,
-                    ".github/scripts/check_product_invariants.py",
-                    "--changed-files",
-                    str(changed),
-                    "--pr-body-file",
-                    str(body),
-                ],
-                cwd=REPO_ROOT,
-                check=False,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-            )
             coverage = subprocess.run(
                 [
                     sys.executable,
@@ -346,10 +320,6 @@ class SelectionTests(unittest.TestCase):
                 stderr=subprocess.STDOUT,
                 text=True,
             )
-            self.assertEqual(invariant.returncode, 1, invariant.stdout)
-            self.assertIn("INV-AUTH-1", invariant.stdout)
-            self.assertIn("INV-CHAT-1", invariant.stdout)
-            self.assertIn("INV-AGENT-*", invariant.stdout)
             self.assertEqual(coverage.returncode, 1, coverage.stdout)
             self.assertIn("UNCOVERED", coverage.stdout)
 
@@ -422,8 +392,8 @@ class SelectionTests(unittest.TestCase):
             text=True,
         )
         self.assertEqual(result.returncode, 0, result.stdout)
-        self.assertIn("## Product invariants affected", result.stdout)
         self.assertIn("## Failure class (fixes)", result.stdout)
+        self.assertNotIn("Product invariants affected", result.stdout)
         self.assertIn("No `fix:` commits were detected", result.stdout)
 
     def test_failure_class_suggestion_keeps_classification_manual(self) -> None:
@@ -448,9 +418,8 @@ class SelectionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             temp = Path(tmp)
             body = temp / "body.md"
-            body.write_text("## Product invariants affected\n\nnone\n", encoding="utf-8")
+            body.write_text("## Verification\n\nFocused checks passed.\n", encoding="utf-8")
             env = {**os.environ, "OMI_PR_BODY_FILE": str(body)}
-            # Empty diff vs itself: product-invariants should pass with any body.
             result = subprocess.run(
                 [
                     sys.executable,
@@ -506,12 +475,6 @@ class SelectionTests(unittest.TestCase):
             self.assertIn("actions/setup-java@v5", job)
             self.assertIn("java-version: '21'", job)
             self.assertLess(job.index("Set up Java for manifest-selected Firestore checks"), job.index(gate))
-
-    def test_issue_sync_action_is_pinned(self) -> None:
-        workflow = (REPO_ROOT / ".github/workflows/main.yml").read_text(encoding="utf-8")
-
-        self.assertIn("paritytech/github-issue-sync@34a24348bf2f2a73924e322f43d6132e0c276b5f", workflow)
-        self.assertNotIn("paritytech/github-issue-sync@master", workflow)
 
     def test_standard_actions_no_longer_use_node_20_majors(self) -> None:
         deprecated_references = (

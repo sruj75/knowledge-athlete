@@ -1,6 +1,6 @@
 # S-04 TDD Plan — Remove Impossible Controls and Repository Zombies
 
-Status: ready to start; all repository-local cycles are executable
+Status: closed on 2026-08-14; implementation and retained-surface verification complete, with two user-approved verification waivers recorded below
 Slice: S-04
 Wave: 1
 Authorizing and protecting decisions: IR-009, IR-010, IR-892, IR-897, IR-935, IR-939, IR-940, IR-941
@@ -142,3 +142,41 @@ Also:
 Commit by testable surface: manifest/governance, public-build/runtime ownership, CI routing, OpenAPI repair, release-boundary split, and unowned-package/docs cleanup.
 
 Finish with `engineering:code-review` against `origin/main`, using this plan as the spec. Run its independent Standards and Spec reviews, additionally inspect the S-04-only diff from the recorded pre-implementation HEAD, resolve all actionable findings, rerun closure, and mark the plan `closed` with commands and results recorded.
+
+## Closure Results — 2026-08-14
+
+Pre-implementation HEAD and merge base: `de122a91974e39fe6c64e0d299298615ea5ac9ad`.
+The implementation is contained in eleven testable commits from `163d452`
+through the final closure commit; nothing was pushed and no PR was opened.
+
+### Required and focused verification
+
+- `python3 bootstrap-scaffold/validate-requirements-ledger.py` — PASS: 714 indexed rows and 714 detailed sections.
+- `python3 .github/scripts/test_run_checks.py` — PASS: 40 tests.
+- `python3 .github/scripts/test_pr_preflight.py` — PASS: 35 tests, 3 skipped fixture cases.
+- `python3 .github/scripts/test_check_deployment_secret_boundary.py` — PASS: 8 tests.
+- `python3 .github/scripts/check-deployment-concurrency.py --self-test` and the live checker — PASS: 19 persistent writers and 1 run-scoped exemption.
+- `python3 .github/scripts/test_pre_push_ci_prediction.py`, `bash scripts/test-pre-push-diff-base.sh`, and `python3 .github/scripts/check_agent_doc_references.py` — PASS.
+- `bash scripts/run-release-process-guards.sh` — PASS without reading a root Codemagic document.
+- `make runtime-image-source-closure` — PASS for 11 retained runtime images.
+- `backend/scripts/openapi_runner.sh scripts/generate_swift_openapi_types.py --check` — PASS from the hermetic runner; the committed Swift DTOs match the live app-client schema.
+- `BACKEND_PYTEST_WORKERS=1 bash test.sh` from `backend/` — PASS for all 800 discovered unit-test files. The default eight-worker run reported 15 duration-guard failures under host load; the same 15 files passed through the same runner with one worker before the complete serial pass.
+- `bash test.sh` from `desktop/macos/` — PASS: launcher/shell contracts, 45 Python companion tests, debug compilation, and 441 isolated Swift suites.
+- Pinned actionlint 1.7.12 — PASS for all 5 changed surviving workflows.
+- `scripts/failure-class validate --base origin/main --head HEAD --pr-body-file .context/s04-pr-body.md` — PASS; the focused OpenAPI repair commit has a parseable `Failure-Class: new` trailer and the PR-scope draft correctly declares `none` for the mixed planned registry cleanup.
+- `git diff --check` and the final residue/scope probes — PASS.
+
+### Preflight measurement and explicit waivers
+
+- Before S-04, detached at `de122a91974e`, `make preflight` selected 10 always-on local checks and failed manifest resolution on 35 absent explicit paths in 1.74 seconds.
+- After S-04, the local manifest resolves and selects 95 retained checks. With a local PR-body draft and a canonical temporary-directory path, execution advanced through the retained checks and stopped after 23.42 seconds at the Firestore-emulator prerequisite because the machine has Java 19 and the retained test requires Java 21+.
+- The user explicitly waived completion of `make preflight` (including the equivalent full `scripts/pr-preflight --pr-body-file` execution) and instructed that Java 21 must not be installed. The attempted Homebrew Java 21 formula was removed immediately; the pre-existing Java 19 installation remains.
+- The user explicitly waived the named `omi-s04-controls` development-bundle smoke after the launcher required unavailable local backend configuration. The attempt was stopped; production `Omi.app` and `Omi Beta.app` were not targeted.
+
+### Preservation, residue, and review proof
+
+- Deleted-surface probes confirm no live public-build action/config, `plugins/Dockerfile`, `desktop/shared-rust`, desktop Cargo workspace, Remotion demo, nested `test-install.yml`, or the two no-caller media resources remain.
+- `.github/workflows/desktop-backend-contracts.yml` retains `desktop-core-e2e-t0` and records the exact S-10/S-12 hosted conversation/memory handoff.
+- Both `desktop/macos/vendor/libwebp` dylibs remain byte-identical to `origin/main`, with SHA-256 values `3515af9fc46957cbd3f879ee36b9bbc0283cf6e2bbd51032a943ec8a9e64b2ff` and `5a92b18c7deee56b134d1079712e41e77d151584c20e894a3a9c176e9f9ed119`; each remains universal `x86_64 arm64`.
+- The changed-path set contains no Windows path. Windows-named workflows are skipped before any read by the S-04 guards; no Windows file or Windows-only workflow was opened or changed.
+- Independent Standards and Spec reviews were rerun against the final S-04 diff. Their actionable findings were resolved: closure/waiver wording was corrected, stale deleted-test duration entries were removed, and the manifest reason now names only the retained actionlint hatch. The Standards reviewer withdrew an initial concern after confirming that retained readiness behavior tests remain and only absent-doc assertions were deleted.

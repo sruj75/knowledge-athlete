@@ -179,18 +179,6 @@
             "smoke_python": "python3",
             "dependency_probe_smoke": true,
             "pull_request_smoke": false
-        },
-        {
-            "name": "plugins",
-            "dockerfile": "plugins/Dockerfile",
-            "deployment_workflows": [".github/workflows/gcp_plugins.yml"],
-            "build_context": ".",
-            "source_root": "plugins",
-            "workdir": "/app",
-            "entrypoints": ["main"],
-            "image_import_smoke": true,
-            "dependency_probe_smoke": true,
-            "pull_request_smoke": true
         }
     ]
 }

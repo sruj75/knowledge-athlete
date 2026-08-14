@@ -2,8 +2,8 @@
 Tests for sync endpoint error handling fix (#4867/#4669).
 
 Verifies that process_segment() properly propagates errors via thread-safe
-error collection, that the legacy sync endpoint reports partial failures with
-207, and that sync v2 app-side reconciliation accepts 200 and 202 responses.
+error collection and that the legacy sync endpoint reports partial failures
+with 207.
 
 Previously, process_segment() had no error handling — Deepgram failures caused
 silent returns or thread crashes, and the endpoint always returned 200.
@@ -356,46 +356,7 @@ class TestDeepgramRetryBehavioral:
 
 
 # ---------------------------------------------------------------------------
-# 4. App-side behavior documentation (unchanged, for PR evidence)
-# ---------------------------------------------------------------------------
-
-
-class TestAppSideSyncBehavior:
-    """Documents current app-side WAL retry behavior for sync v2."""
-
-    @staticmethod
-    def _read_app_file(relative_path):
-        app_path = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'app', 'lib', relative_path)
-        if os.path.exists(app_path):
-            return _read_text(app_path)
-        return None
-
-    def test_app_accepts_200_and_202(self):
-        """App treats sync v2 200 as done and 202 as queued for reconciliation."""
-        source = self._read_app_file('backend/http/api/conversations.dart')
-        if source is None:
-            pytest.skip("App source not available")
-
-        assert 'response.statusCode == 200' in source
-        assert 'response.statusCode == 202' in source
-        assert 'UploadFilesResult.done' in source
-        assert 'UploadFilesResult.queued' in source
-
-    def test_app_keeps_wals_retryable_on_failed_reconcile(self):
-        """App keeps uploaded WALs retryable when sync v2 reconciliation fails."""
-        source = self._read_app_file('services/wals/local_wal_sync.dart')
-        if source is None:
-            pytest.skip("App source not available")
-
-        assert 'reconcileUploadedWals' in source, "Must reconcile uploaded sync v2 jobs"
-        assert 'case SyncJobFetchOutcome.notFound' in source, "Expired jobs must be recoverable"
-        assert 'w.status = WalStatus.miss' in source, "Failed terminal jobs must become retryable"
-        assert 'w.retryCount += 1' in source, "Retryable failures must increment retry count"
-        assert 'w.status = WalStatus.synced' in source, "Successful jobs must still mark WALs synced"
-
-
-# ---------------------------------------------------------------------------
-# 5. End-to-end data loss prevention verification
+# 4. End-to-end data loss prevention verification
 # ---------------------------------------------------------------------------
 
 

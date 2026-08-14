@@ -95,7 +95,6 @@ linkedin-*.md
 # Node.js projects
 **/node_modules/
 **/dist/
-demo/out/
 
 # Claude project instructions (user-local, contains absolute paths)
 CLAUDE.md

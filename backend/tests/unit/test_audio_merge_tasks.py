@@ -196,10 +196,6 @@ class TestUnavailableContract:
         assert 'def is_playback_unavailable' in src
         assert '.unavailable' in src
 
-    def test_app_treats_unavailable_as_terminal(self):
-        src = _read_source(os.path.join('..', 'app', 'lib', 'backend', 'http', 'api', 'audio.dart'))
-        assert "f.status != 'unavailable'" in src
-
 
 class TestStorageArtifactHelpers:
     def test_playback_prefix_and_helpers(self):

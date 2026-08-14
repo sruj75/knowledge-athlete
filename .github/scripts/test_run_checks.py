@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import ast
+import json
 import os
 import re
 import shutil
@@ -283,6 +284,39 @@ class ManifestContractTests(unittest.TestCase):
 
 
 class RunnerBehaviorTests(unittest.TestCase):
+    def test_cli_selects_present_macos_and_backend_checks_from_changed_file_fixtures(self) -> None:
+        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8") as changed:
+            changed.write("backend/routers/chat_sessions.py\n")
+            changed.write("desktop/macos/Desktop/Sources/APIClient.swift\n")
+            changed.flush()
+
+            completed = subprocess.run(
+                [
+                    sys.executable,
+                    str(SCRIPT_DIR / "run_checks.py"),
+                    "--lane",
+                    "ci",
+                    "--changed-files",
+                    changed.name,
+                    "--skip-pr-body-checks",
+                    "--platform",
+                    "macos",
+                    "--output",
+                    "json",
+                ],
+                cwd=REPO_ROOT,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        selected = {item["id"] for item in json.loads(completed.stdout)["checks"]}
+        self.assertIn("backend-route-policy-baseline", selected)
+        self.assertIn("desktop-e2e-flow-coverage", selected)
+        self.assertNotIn("public-build-contract", selected)
+        self.assertFalse(any(check_id.startswith("rayban-dat-") for check_id in selected))
+
     def test_run_git_decodes_unicode_checkout_path_as_utf8(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp) / "路径 checkout"
@@ -445,7 +479,9 @@ esac
 
     def test_trigger_matching_selects_only_relevant_checks(self) -> None:
         manifest = load_manifest(MANIFEST_PATH)
-        selected = {check.id for check in resolve_checks(manifest, ["app/lib/widgets/example.dart"], "ci")}
+        selected = {
+            check.id for check in resolve_checks(manifest, ["desktop/macos/Desktop/Sources/ExampleView.swift"], "ci")
+        }
         self.assertIn("brand-ui", selected)
         self.assertNotIn("backend-async-blockers", selected)
         self.assertNotIn("backend-route-policy-baseline", selected)
@@ -453,11 +489,6 @@ esac
     def test_posix_contracts_skip_windows_without_dropping_linux_ci(self) -> None:
         manifest = load_manifest(MANIFEST_PATH)
         expected_by_path = {
-            "app/ios/Podfile": {
-                "rayban-dat-plugin-boundary",
-                "rayban-dat-xcode-graph",
-                "rayban-dat-build-wrapper",
-            },
             ".github/workflows/desktop_qualify_beta.yml": {
                 "desktop-release-one-path-contract",
             },
@@ -514,7 +545,7 @@ esac
     def test_failure_class_protocol_runs_in_both_lanes(self) -> None:
         manifest = load_manifest(MANIFEST_PATH)
         for lane in ("local", "ci"):
-            selected = {check.id for check in resolve_checks(manifest, ["app/lib/example.dart"], lane)}
+            selected = {check.id for check in resolve_checks(manifest, ["backend/routers/example.py"], lane)}
             self.assertIn("failure-class-protocol", selected)
 
     def test_main_push_excludes_only_pr_body_checks(self) -> None:
@@ -523,7 +554,7 @@ esac
             check.id
             for check in resolve_checks(
                 manifest,
-                ["app/lib/example.dart"],
+                ["backend/routers/example.py"],
                 "ci",
                 include_pr_body_checks=False,
             )

@@ -7,20 +7,8 @@ variable for each gate, so the hatch always exists. What is not guaranteed is
 that a developer who trips the gate ever learns the variable's name -- and a
 hatch nobody can find is not a hatch.
 
-The real instance this was written for. `make setup` provisions the backend
-venv only ("It does not install app or desktop runtime environments" --
-AGENTS.md), while `.github/checks-manifest.yaml` is in ROUTING_INPUTS, so
-editing it makes pre_push_ci_prediction.py conservatively wake the Flutter
-codegen lane. A PR touching only .cursor/ and .github/ therefore hit:
-
-    FAIL: Flutter generated-output checks need resolved app dependencies.
-          Run: cd app && flutter pub get
-
-with no mention of PRE_PUSH_SKIP_FLUTTER_GENERATED, telling a contributor with
-no Flutter toolchain to install a multi-gigabyte SDK to push a docs change.
-The same omission was live in check_workflows_if_needed's actionlint branch.
-Both siblings in the same file already printed their hatch; these two were
-simply missed, which is exactly the drift a ratchet catches and review does not.
+The retained instance is the workflow-lint gate: a contributor without
+actionlint or Go must be told which explicit hatch can unblock a push.
 
 THIS IS A STATIC CHECKER, NOT A BEHAVIORAL TEST. It reads the shell source and
 matches text; it never executes pre-push. It cannot prove the message reaches
@@ -44,9 +32,7 @@ from pathlib import Path
 
 # A helper has no skip variable of its own; failing inside it is the calling
 # gate failing, so the caller's hatch is what a developer needs to be told.
-HELPER_OWNERS = {
-    "require_flutter_generated_prerequisites": "PRE_PUSH_SKIP_FLUTTER_GENERATED",
-}
+HELPER_OWNERS: dict[str, str] = {}
 
 # How far back from a `return 1` to look for the hatch. The message block
 # immediately precedes the return in every gate in this file; a larger window
@@ -134,12 +120,6 @@ def self_test() -> None:
     # A gate with no skip variable is out of scope and must not be reported.
     unscoped = "\n".join(["helper() {", '  echo "FAIL" >&2', "  return 1", "}"])
     assert check_source(unscoped) == [], "functions without a hatch are out of scope"
-
-    # A helper borrows its caller's hatch; without the mapping it would be
-    # unscoped and this regression would go unnoticed.
-    helper_name = sorted(HELPER_OWNERS)[0]
-    helper_bad = "\n".join([f"{helper_name}() {{", '  echo "FAIL" >&2', "  return 1", "}"])
-    assert len(check_source(helper_bad)) == 1, "a mapped helper must be in scope"
 
     # Distance matters: a hatch far above a later failure must not satisfy it.
     far = "\n".join(

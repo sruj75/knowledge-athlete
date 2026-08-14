@@ -11,7 +11,6 @@ ROOT = Path(__file__).resolve().parents[2]
 API_CLIENT = ROOT / "desktop/macos/Desktop/Sources/APIClient.swift"
 AUTH_SERVICE = ROOT / "desktop/macos/Desktop/Sources/AuthService.swift"
 OMI_APP = ROOT / "desktop/macos/Desktop/Sources/OmiApp.swift"
-CODEMAGIC = ROOT / "codemagic.yaml"
 SIGNED_SMOKE = ROOT / "desktop/macos/scripts/smoke-signed-desktop-artifact.sh"
 
 # Handlers that intentionally preserve the session on 401 (document each).
@@ -31,7 +30,6 @@ def main() -> int:
     text = API_CLIENT.read_text(encoding="utf-8")
     auth_text = AUTH_SERVICE.read_text(encoding="utf-8")
     app_text = OMI_APP.read_text(encoding="utf-8")
-    codemagic_text = CODEMAGIC.read_text(encoding="utf-8")
     smoke_text = SIGNED_SMOKE.read_text(encoding="utf-8")
     failures: list[str] = []
 
@@ -56,8 +54,6 @@ def main() -> int:
         failures.append("could not locate storedTokens migration implementation")
     elif "clearUserDefaultsTokens()" in auth_text[stored_tokens_start:stored_tokens_end]:
         failures.append("credential migration must not delete its legacy source before refresh commit")
-    if "--auth-storage-canary" not in codemagic_text:
-        failures.append("Codemagic must run the signed-app Keychain canary before publishing beta")
     if "run_auth_storage_canary" not in smoke_text:
         failures.append("signed artifact smoke must implement the in-app Keychain canary")
 

@@ -13,7 +13,6 @@ SCRIPTS = REPO_ROOT / ".github" / "scripts"
 PROMOTE_BETA_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "desktop_promote_beta.yml"
 PROMOTE_PROD_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "desktop_promote_prod.yml"
 QUALIFY_BETA_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "desktop_qualify_beta.yml"
-CODEMAGIC_CONFIG = REPO_ROOT / "codemagic.yaml"
 DMGBUILD_SETTINGS = REPO_ROOT / "desktop" / "macos" / "dmg-assets" / "dmgbuild_settings.py"
 QUALIFICATION_ADMISSION = SCRIPTS / "desktop_qualification_admission.py"
 
@@ -97,51 +96,6 @@ def test_beta_workflow_has_only_the_narrow_server_owned_promotion_capability():
         assert forbidden not in workflow
 
 
-# omi-test-quality: source-inspection -- static contract: a CI shell publication path cannot be exercised hermetically.
-def _canonical_candidate_reservation_contract(workflow: str) -> bool:
-    """Recognize only an executable reserve immediately before canonical publication."""
-    start = workflow.find("      - name: Create GitHub release\n")
-    end = workflow.find("      - name: Dispatch trusted macOS beta qualification\n", start)
-    if start < 0 or end < 0:
-        return False
-    publish = workflow[start:end]
-    reserve = publish.find("/v2/desktop/beta/candidates/reserve")
-    create = publish.find('gh release create "$CM_TAG"')
-    guard = publish.rfind("set -euo pipefail", 0, reserve)
-    return (
-        guard >= 0
-        and "set +e" not in publish[guard:reserve]
-        and 'Authorization: Bearer ${BETA_PROMOTION_TOKEN}' in publish
-        and '--data "{\\"tag\\":\\"${CM_TAG}\\"}"' in publish
-        and reserve >= 0
-        and create >= 0
-        and reserve < create
-    )
-
-
-def test_codemagic_reserves_the_exact_candidate_before_every_canonical_publish_and_rejects_bypasses():
-    workflow = CODEMAGIC_CONFIG.read_text(encoding="utf-8")
-    assert _canonical_candidate_reservation_contract(workflow)
-
-    publication = 'gh release create "$CM_TAG"'
-    reserve = "/v2/desktop/beta/candidates/reserve"
-    assert not _canonical_candidate_reservation_contract(
-        workflow.replace(reserve, "/v2/desktop/beta/promote-qualified")
-    )
-    assert not _canonical_candidate_reservation_contract(
-        workflow.replace(reserve, "reserve-placeholder").replace(publication, f"{publication}\n{reserve}")
-    )
-    assert not _canonical_candidate_reservation_contract(
-        workflow.replace(
-            '            set -euo pipefail\n            test -n "${BETA_PROMOTION_TOKEN:-}"',
-            '            set +e\n            test -n "${BETA_PROMOTION_TOKEN:-}"',
-        )
-    )
-    assert not _canonical_candidate_reservation_contract(
-        workflow.replace('{\\"tag\\":\\"${CM_TAG}\\"}', '{\\"tag\\":\\"${CM_TAG}\\",\\"channel\\":\\"beta\\"}')
-    )
-
-
 def test_qualification_workflow_binds_immutable_controls_and_candidate_identity():
     """A later main commit cannot replace controls or invalidate tag-bound evidence."""
     admission = _load("desktop_qualification_admission", "desktop_qualification_admission.py")
@@ -164,28 +118,13 @@ def test_qualification_workflow_binds_immutable_controls_and_candidate_identity(
     with pytest.raises(ValueError, match="candidate tag"):
         admission.validate_qualification_run(drifted_main_run, "BasedHardware/omi", tag, candidate_sha)
 
-    codemagic = CODEMAGIC_CONFIG.read_text(encoding="utf-8")
     qualification = QUALIFY_BETA_WORKFLOW.read_text(encoding="utf-8")
-    assert '-f release_tag="$CM_TAG" --ref "$CM_TAG"' in codemagic
     assert 'git -C "$source_dir" checkout --quiet --detach "refs/tags/$RELEASE_TAG"' in qualification
     # The release attachment is content-addressed from the exact checked-out
     # candidate SHA and evidence digest, not a mutable tag-only filename.
     assert 'asset="qualification-evidence-${TARGET_SHA}-${digest}.json"' in qualification
     assert 'digest=$(shasum -a 256 "$QUALIFICATION_STAGE/qualification-evidence.json"' in qualification
     assert "gh release upload" in qualification
-
-
-def test_codemagic_produces_canonical_app_and_strictly_verifiable_dmg():
-    workflow = CODEMAGIC_CONFIG.read_text(encoding="utf-8")
-    smoke = (REPO_ROOT / "desktop/macos/scripts/smoke-signed-desktop-artifact.sh").read_text(encoding="utf-8")
-    assert workflow.count('APP_NAME: "Omi"') == 1
-    assert 'APP_NAME: "omi"' not in workflow
-    assert "xattr -d com.apple.FinderInfo" in workflow
-    assert "xattr -d com.apple.ResourceFork" in workflow
-    assert 'codesign --verify --deep --strict --verbose=2 "$STAGING_DIR/$APP_NAME.app"' in workflow
-    assert 'dmg_app_name="$(expected_app_bundle_name)"' in smoke
-    assert 'dmg_app="$DMG_MOUNTPOINT/$dmg_app_name"' in smoke
-    assert "DMG-contained $dmg_app_name failed deep strict codesign verification" in smoke
 
 
 def test_dmgbuild_does_not_attach_finder_info_to_the_signed_app():
@@ -435,22 +374,13 @@ def test_stable_repair_bundle_requires_the_release_publication_time():
         repair_installer.build_repair_bundle(manifest, "gs://omi_macos_updates")
 
 
-def test_qualification_is_serialized_by_tag_and_retried_without_release_body_state():
-    codemagic = CODEMAGIC_CONFIG.read_text(encoding="utf-8")
-    dispatch = codemagic[codemagic.index("      - name: Dispatch trusted macOS beta qualification") :]
+def test_qualification_is_serialized_by_machine_without_release_body_state():
     qualification = QUALIFY_BETA_WORKFLOW.read_text(encoding="utf-8")
 
-    assert "duplicate dispatches" in dispatch
-    assert 'gh release edit "$CM_TAG"' not in dispatch
     # The sole M1 Studio is the serialized resource; a tag-scoped group would
     # permit competing qualifications to use that same runner concurrently.
     assert "group: desktop-beta-qualification-m1" in qualification
     assert "cancel-in-progress: false" in qualification
-    assert "for attempt in 1 2 3" in dispatch
-    assert "ERROR: qualification dispatch was not confirmed after bounded retry" in dispatch
-    assert dispatch.index("ERROR: qualification dispatch was not confirmed after bounded retry") < dispatch.index(
-        "exit 1"
-    )
     assert "desktop_qualification_dispatch.py" not in qualification
     # The verdict accepts a qualification only through the sole M1 job output.
     assert "M1_QUALIFIED: ${{ needs.qualify-m1-studio.outputs.qualified }}" in qualification

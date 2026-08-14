@@ -174,7 +174,7 @@ Backend runtime env contract: keep `backend/deploy/runtime_env.yaml` aligned wit
 
 Firestore index boundary: backend deploy workflows run `reconcile_firestore_indexes.py --check-only` against `RUNTIME_GCP_PROJECT_ID` in an isolated approved-source job using dedicated read-only credentials. Auto-dev deploys accept only a first-attempt successful same-repository `Release Eligibility` proof for `main` whose `head_sha` still equals freshly fetched and checked-out `main`, then use that admitted SHA for every source-derived step; manual **deploy** mode accepts only an exact main SHA with the same successful proof. Traffic-only repair leaves that input empty and stays source-independent because it changes no source-derived runtime state. A failed gate writes and locally revalidates a short-lived, redacted create-only proposal before upload; backend deployment must never mutate the serving schema.
 
-Keep this map up to date. When adding, removing, or changing inter-service calls, update this section. If a PR changes audio streaming, transcription, conversation lifecycle, speaker identification, or the listen/pusher WebSocket protocol — update `docs/doc/developer/backend/listen_pusher_pipeline.mdx` in the same PR.
+Keep this map up to date. When adding, removing, or changing inter-service calls, update this section and the executable workflow-contract tests in the same PR.
 
 ## Import Rules
 
@@ -230,7 +230,7 @@ npm run test:listen-lifecycle:emulator  # Real Firestore transaction contention 
 
 **OpenAPI contract runner** — OpenAPI contract checks use `backend/scripts/openapi_runner.sh`, which syncs the pinned `backend/openapi-requirements.txt` runner env and prewarms `tiktoken`; CI and `scripts/pre-push` must use this same path.
 
-**Released app-client compatibility** — `docs/api-reference/app-client-openapi.json` is a compatibility boundary, not only a generated snapshot. PR CI compares it directionally with the merge-base via `scripts/check_app_client_openapi_compatibility.py`: requests accepted by the released contract must remain accepted, and new responses must remain decodable by released clients. Additive optional request fields and response fields are allowed. Do not allowlist breaking changes; retain a deprecated boundary field/parameter or version the endpoint.
+**Desktop app-client generation** — `backend/scripts/generate_swift_openapi_types.py` derives its default schema directly from the live `app-client` FastAPI surface. The pinned `backend/scripts/openapi_runner.sh` environment must validate the committed macOS DTO output; explicit `--spec` remains fixture-only.
 
 **Test isolation / import purity** — never mutate `sys.modules` at module scope in tests; production modules must not construct clients or do IO at import time. Sanctioned seams: `monkeypatch.setattr` on a lazy-held singleton, FastAPI `app.dependency_overrides`. Enforced by `python scripts/check_module_stub_pollution.py` and `python scripts/scan_import_time_side_effects.py`. Full prescription: `backend/docs/test_isolation.md`.
 
@@ -249,7 +249,6 @@ pipeline invariants, and hermetic tests do **not** prove deployed-backend contin
 | **Gauntlet `--self-check`** | Required files, `canonical_memory_pipeline` workflow registration, suite/nonce wiring in `memory-continuity-gauntlet.py` | Any memory write or HTTP probe |
 | **Live gauntlet** (`memory-continuity-gauntlet.sh` with `ADMIN_KEY` + reachable backend) | Structural `/v3/memories` probes per suite on a running backend | Full Gate 2 synthetic matrix or Gate 3 prod activation |
 | **Gate 2 dev-cloud proof** (`v3_dev_cloud_proof.py` + deployed branch revision) | Multi-user synthetic matrix, indexes, IAM, auth, rollback on dev-cloud | Local hermetic fakes; not production activation |
-| **Gate 3 production proof** (`docs/rollout/memory-v3-proof-order.md`) | Prod-specific deltas after Gate 2 GO + independent review | Substitute for hermetic pipeline E2E or gauntlet self-check |
 
 CI runs `python3 backend/scripts/memory-continuity-gauntlet.py --self-check` only.
 Live suites record `NOT_RUN` when credentials/backend are unavailable — never fake `GO`.
@@ -331,7 +330,7 @@ WS handlers in `transcribe.py` and `pusher.py` manage 5-11 concurrent tasks per 
 7. **Firestore collection group queries** need explicit indexes — 500 with no useful error
 8. **Mutable WebSocket state races** — snapshot `nonlocal` variables before spawning async work
 9. **Silent fire-and-forget drops** — functions gating on connection state must log when dropping work
-10. **New fallbacks** — call `utils.observability.fallback.record_fallback` (see `docs/agents/fallback-telemetry.md`); do not invent a new `*_fallback_total` Counter
+10. **New fallbacks** — call `utils.observability.fallback.record_fallback`; do not invent a new `*_fallback_total` Counter
 11. **Queue caps for user data** — `private_cloud_queue` uses `deque(maxlen=20)` to prevent OOM kills (sized for 30 conns/pod); dropping oldest chunk is better than killing the pod and losing ALL data for ALL users
 12. **`langdetect` unreliable on short text** — don't use on <20 chars or gate paid API calls on interim streaming text
 13. **DG keepalive vs response timeout** — `keep_alive()` prevents DG's 10s idle timeout but NOT 1011 response timeout after all audio is processed. Post-session 1011 is benign.

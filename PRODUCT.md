@@ -2,8 +2,8 @@
 
 Short north star for humans and agents. Read this before proposing features or
 landing PRs that change product behavior. Engineering standards live in
-[`AGENTS.md`](AGENTS.md). Locked product rules live in
-[`docs/product/invariants/`](docs/product/invariants/).
+[`AGENTS.md`](AGENTS.md). Concrete behavior contracts live beside their owning
+source and tests.
 
 ## Principles
 
@@ -28,9 +28,8 @@ landing PRs that change product behavior. Engineering standards live in
 
 ## Proposed canonical memory lifecycle
 
-The enforceable design note is
-[`INV-MEM-4`](docs/product/invariants/memory-promotion-authority.md). It remains
-`proposed` for the required seven-day unchanged period.
+This direction remains proposed; it is not an enforced contract until the
+owning implementation and concrete guard tests establish it.
 
 All new memory intake starts as broad Short-term capture. Maintenance gives
 each pending item exactly one consolidation route: promote, archive, review, or
@@ -47,18 +46,13 @@ treated as memory authority themselves.
 
 ## Before you build
 
-- Large or ambiguous features start as a GitHub issue
-  ([Contribution guide](docs/doc/developer/Contribution.mdx)).
-- Check the [invariant registry](docs/product/invariants/) for locked rules that
-  apply to your change.
-- A product rule without a guard surface is taste advice, not a locked
-  invariant.
-- Keep a new or changed product rule as a proposed design note until its
-  behavior and guard have remained unchanged for seven days; only then may it
-  be locked.
+- Large or ambiguous features start as a GitHub issue.
+- Trace product behavior to its owning source, public seam, and concrete guard
+  test before changing it.
+- A product rule without a guard surface is guidance, not an enforced contract.
 
 ## Maintainer operating rule
 
-When declining a PR for direction or taste, either cite an existing invariant
-by ID or open a `proposed` invariant in `docs/product/invariants/` the same
-week. Tribal “no” becomes written law.
+When declining a PR for direction or taste, cite the applicable principle here
+or the concrete repository guard that protects it. Tribal “no” becomes written
+guidance or an enforceable test.

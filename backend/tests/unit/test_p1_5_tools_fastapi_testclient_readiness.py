@@ -9,7 +9,6 @@ pytestmark = pytest.mark.slow
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 SCRIPT = REPO_ROOT / 'backend' / 'scripts' / 'p1_5_tools_fastapi_testclient_readiness.py'
-EVIDENCE_MARKERS_DOC = REPO_ROOT / 'docs' / 'operational' / 'memory_readiness_evidence_markers.md'
 TEST_SH = REPO_ROOT / 'backend' / 'test.sh'
 
 
@@ -121,9 +120,8 @@ def test_tools_fastapi_testclient_readiness_pins_exact_dependency_and_install_bl
     assert 'externally-managed-environment' in text
 
 
-def test_tools_fastapi_testclient_readiness_registered_and_documented():
+def test_tools_fastapi_testclient_readiness_is_registered():
     test_sh = TEST_SH.read_text()
-    evidence_markers_doc = EVIDENCE_MARKERS_DOC.read_text()
     selected_tests = subprocess.check_output(
         [sys.executable, str(REPO_ROOT / 'backend' / 'scripts' / 'select_backend_unit_tests.py'), '--all'],
         text=True,
@@ -132,5 +130,3 @@ def test_tools_fastapi_testclient_readiness_registered_and_documented():
 
     assert 'scripts/select_backend_unit_tests.py --all' in test_sh
     assert 'tests/unit/test_p1_5_tools_fastapi_testclient_readiness.py' in selected_tests
-    assert 'p1_5_tools_fastapi_testclient_readiness.py' in evidence_markers_doc
-    assert 'FastAPI `TestClient` production-dependency proof remains BLOCKED/NOT_RUN' in evidence_markers_doc

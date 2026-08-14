@@ -4,7 +4,6 @@ on:
   pull_request:
     paths:
       - 'backend/**'
-      - 'plugins/**'
       - 'Makefile'
       - '.github/workflows/runtime_image_contracts.yml'
       - '.github/workflows/desktop_backend_auto_dev.yml'

@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "id": "FC-generated-contract-missing-source",
+  "violated_contract": "A retained generated-client freshness check must derive its contract from an authoritative source that exists in the checkout; it must not depend on a snapshot excluded from that repository boundary.",
+  "canonical_prevention": "Generate the retained client contract directly from the live backend schema inside the pinned hermetic runner, keep explicit fixture input available for unit tests, and execute the real freshness command in CI.",
+  "canonical_prevention_artifact": [
+    "backend/tests/unit/test_app_client_swift_generator.py",
+    ".github/workflows/openapi-contract.yml"
+  ],
+  "evidence_prs": [14],
+  "scope_hints": [
+    "backend/scripts/generate_swift_openapi_types.py",
+    "backend/openapi-requirements.txt",
+    ".github/workflows/openapi-contract.yml",
+    "desktop/macos/Desktop/Sources/Generated/OmiApi.generated.swift"
+  ],
+  "status": "open"
+}

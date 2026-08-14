@@ -2,8 +2,8 @@
 
 The desktop app (`desktop/macos/Desktop/Sources/APIClient.swift` and its
 `APIClient+*.swift` extensions) is a first-party REST consumer of the Python
-backend. Its routes map to the same Firebase-auth app-client OpenAPI surface the
-Flutter app uses (`docs/api-reference/app-client-openapi.json`). This test:
+backend. Its routes map to the Firebase-auth app-client OpenAPI surface exported
+directly from the live backend application. This test:
 
 - Extracts every backend REST route string hardcoded in the APIClient sources.
 - Excludes out-of-scope protocols (Rust desktop backend `/v2/agent/*`,
@@ -24,8 +24,9 @@ from typing import Any, Set
 
 import pytest
 
+from scripts import export_openapi
+
 ROOT_DIR = Path(__file__).resolve().parents[3]
-SPEC_PATH = ROOT_DIR / 'docs' / 'api-reference' / 'app-client-openapi.json'
 APICLIENT_SOURCE_ROOT = ROOT_DIR / 'desktop' / 'macos' / 'Desktop' / 'Sources'
 APICLIENT_SWIFT = APICLIENT_SOURCE_ROOT / 'APIClient.swift'
 # APIClient.swift owns only the stateful transport/auth boundary. Feature APIs
@@ -95,16 +96,12 @@ def _in_scope(routes: Set[str]) -> Set[str]:
 
 
 def _load_spec_paths() -> Set[str]:
-    import json
-
-    spec = json.loads(SPEC_PATH.read_text())
+    spec = _load_spec()
     return set(spec.get('paths', {}).keys())
 
 
 def _load_spec() -> dict[str, Any]:
-    import json
-
-    return json.loads(SPEC_PATH.read_text())
+    return export_openapi.generate_openapi('app-client')
 
 
 def _normalize_for_match(path: str) -> str:

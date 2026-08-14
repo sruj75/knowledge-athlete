@@ -16,16 +16,12 @@ import subprocess
 import sys
 from pathlib import Path
 
-UI_ROOTS = (
-    "desktop/macos/Desktop/Sources/",
-    "app/lib/",
-    "web/",
-)
-UI_SUFFIXES = {".swift", ".dart", ".ts", ".tsx", ".js", ".jsx", ".css"}
+UI_ROOTS = ("desktop/macos/Desktop/Sources/",)
+UI_SUFFIXES = {".swift"}
 SKIP_PARTS = {".git", "node_modules", "build", "dist", ".next", "__pycache__"}
 
 # Paths exempt from the ratchet (legacy debt being migrated, generated, etc.).
-# Prefer shrinking this list; do not grow it without citing INV-UI-1 in the PR.
+# Prefer shrinking this list; do not grow it without changing this guard deliberately.
 ALLOWLIST_FILES: set[str] = {
     # Theme token definitions still expose purple* names during migration.
     "desktop/macos/Desktop/Sources/Theme/OmiColors.swift",
@@ -109,7 +105,7 @@ def main() -> int:
 
     if regressions:
         print("FAIL: INV-UI-1 — purple usage increased in changed UI files.")
-        print("Purple is off-brand. Use white/neutral accents. See docs/product/invariants/brand-ui.md")
+        print("Purple is off-brand. Use white/neutral accents.")
         for line in regressions:
             print(f"  - {line}")
         return 1

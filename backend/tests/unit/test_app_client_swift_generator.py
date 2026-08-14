@@ -16,13 +16,12 @@ from pathlib import Path, PureWindowsPath
 from scripts import generate_swift_openapi_types
 
 ROOT_DIR = Path(__file__).resolve().parents[3]
-SPEC_PATH = ROOT_DIR / 'docs' / 'api-reference' / 'app-client-openapi.json'
 SWIFT_PATH = ROOT_DIR / 'desktop' / 'macos' / 'Desktop' / 'Sources' / 'Generated' / 'OmiApi.generated.swift'
 
 
-def test_swift_dto_file_is_generated_from_app_client_openapi():
-    spec = json.loads(SPEC_PATH.read_text())
-    generated = generate_swift_openapi_types.generate(spec, 'docs/api-reference/app-client-openapi.json')
+def test_swift_dto_file_is_generated_from_live_app_client_openapi():
+    spec, source_label = generate_swift_openapi_types.load_spec(None)
+    generated = generate_swift_openapi_types.generate(spec, source_label)
 
     assert SWIFT_PATH.read_text() == generated
     assert '// GENERATED CODE - DO NOT EDIT.' in generated
@@ -162,6 +161,23 @@ def test_swift_source_label_is_stable_for_windows_paths():
         generate_swift_openapi_types.source_label_for_path(spec_path, root)
         == 'docs/api-reference/app-client-openapi.json'
     )
+
+
+def test_swift_generator_defaults_to_live_app_client_schema(monkeypatch):
+    expected = {"openapi": "3.1.0", "paths": {}}
+    calls = []
+
+    monkeypatch.setattr(
+        generate_swift_openapi_types.export_openapi,
+        "generate_openapi",
+        lambda surface: calls.append(surface) or expected,
+    )
+
+    spec, source_label = generate_swift_openapi_types.load_spec(None)
+
+    assert spec is expected
+    assert calls == ["app-client"]
+    assert source_label == "live backend app-client schema"
 
 
 def test_swift_generator_cli_uses_utf8_when_the_process_locale_does_not():

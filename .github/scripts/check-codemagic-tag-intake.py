@@ -43,7 +43,7 @@ def validate_inputs(
     if not re.fullmatch(r"[0-9a-f]{24}", app_id):
         raise ValueError("app_id must be a 24-character lowercase hexadecimal Codemagic app ID")
     if not re.fullmatch(r"[A-Za-z0-9_-]+", workflow_id):
-        raise ValueError("workflow_id must be a codemagic.yaml workflow key")
+        raise ValueError("workflow_id must be a provider workflow key")
     if not RELEASE_TAG_RE.fullmatch(release_tag):
         raise ValueError("release_tag must be an exact v<version>+<build>-macos tag")
     if not SHA_RE.fullmatch(source_sha):
@@ -356,7 +356,8 @@ def poll_for_intake(
 
 
 def verify_build_identity(
-    build: dict[str, Any], *, release_tag: str, workflow_id: str, source_sha: str) -> dict[str, object]:
+    build: dict[str, Any], *, release_tag: str, workflow_id: str, source_sha: str
+) -> dict[str, object]:
     errors: list[str] = []
     if build_tag(build) != release_tag:
         errors.append(f"returned build tag {build_tag(build)!r} does not equal {release_tag!r}")
@@ -447,7 +448,11 @@ def dispatch_fallback_after_absence(
         source_sha=source_sha,
     )
     result["returned_build"] = returned_identity
-    result["outcome"] = "fallback_dispatched_and_verified" if returned_identity["valid"] else "fallback_returned_build_identity_mismatch"
+    result["outcome"] = (
+        "fallback_dispatched_and_verified"
+        if returned_identity["valid"]
+        else "fallback_returned_build_identity_mismatch"
+    )
     return result
 
 

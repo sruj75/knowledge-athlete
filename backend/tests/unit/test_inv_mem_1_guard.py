@@ -1,7 +1,8 @@
-"""INV-MEM-1/2/3 — Product memory tier, vector hydration, and canonical fail-closed guards.
+"""Product memory tier, vector hydration, and canonical fail-closed guards.
 
-Behavioral characterization plus source ratchet (no NEW violations) over memory
-invariant path globs. See docs/product/invariants/memory-*.md.
+Behavioral characterization plus a source ratchet over the retained memory
+implementation. These concrete guards do not depend on an external invariant
+registry.
 """
 
 from __future__ import annotations

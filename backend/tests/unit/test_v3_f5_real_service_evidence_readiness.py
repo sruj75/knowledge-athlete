@@ -40,7 +40,7 @@ def _approved_config(module, **overrides):
         project_number="123456789012",
         expected_principal="serviceAccount:memory-v3-f5-evidence@omi-memory-evidence-nonprod.iam.gserviceaccount.com",
         approval_subject="memory-V3-F5 real-service read-only evidence shared-nonprod 2026-06-20",
-        approval_artifact_path="docs/approvals/memory-v3-f5-shared-nonprod-oracle-review.md",
+        approval_artifact_path="memory-v3-f5-shared-nonprod-oracle-review",
         approved_paths=(
             "control/config metadata",
             "cursor secret metadata",
@@ -50,7 +50,7 @@ def _approved_config(module, **overrides):
             "firestore index state",
             "audit read log metadata",
         ),
-        oracle_review_artifact="docs/operational/memory_readiness_evidence_markers.md#f4-before-f5-real-service-evidence-2026-06-20",
+        oracle_review_artifact="memory-v3-f4-risk-review-2026-06-20",
     )
     kwargs.update(overrides)
     return module.EvidenceRunConfig(**kwargs)
@@ -74,7 +74,7 @@ def test_cli_default_is_not_run_and_constructs_no_client():
         ("project_number", "999"),
         ("expected_principal", "serviceAccount:wrong@example.iam.gserviceaccount.com"),
         ("approval_subject", "wrong subject"),
-        ("approval_artifact_path", "docs/approvals/missing.md"),
+        ("approval_artifact_path", "missing-approval-artifact"),
         ("approved_paths", ("control/config metadata",)),
         ("oracle_review_artifact", ""),
     ],
@@ -226,8 +226,7 @@ def test_f4_risk_confirmations_are_required_before_any_real_read():
     assert report["f4_risk_confirmations"]["read_only_f4_to_f3_call_graph_proof"] is True
 
 
-def test_docs_test_runner_and_parent_readiness_link_f5_preparation():
-    root = ROOT.parent
+def test_runner_and_parent_readiness_link_f5_preparation():
     test_sh = (ROOT / "test.sh").read_text(encoding="utf-8")
     selected_tests = subprocess.check_output(
         [sys.executable, str(ROOT / "scripts" / "select_backend_unit_tests.py"), "--all"],
@@ -241,7 +240,3 @@ def test_docs_test_runner_and_parent_readiness_link_f5_preparation():
     assert "memory-V3-F5 real-service read-only evidence preparation" in f5_script
     assert "build_evidence_report" in f5_utils
     assert "default-NOT_RUN" in f5_script
-    evidence_markers = (root / "docs" / "operational" / "memory_readiness_evidence_markers.md").read_text(
-        encoding="utf-8"
-    )
-    assert "memory-V3-F5 real-service read-only evidence preparation" in evidence_markers

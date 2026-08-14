@@ -9,7 +9,6 @@
   ],
   "evidence_prs": [10356],
   "scope_hints": [
-    "codemagic.yaml",
     ".github/scripts/plan-desktop-release.py",
     ".github/workflows/desktop_auto_release.yml",
     ".github/workflows/desktop-swift-ci.yml"
