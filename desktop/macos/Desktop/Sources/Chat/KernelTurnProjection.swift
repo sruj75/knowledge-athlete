@@ -447,7 +447,6 @@ final class KernelTurnProjection {
     origin: String,
     status: KernelJournalTurnStatus,
     continuityKey: String? = nil,
-    appId: String? = nil,
     sessionId: String? = nil,
     messageSource: String? = nil,
     ownerID: String? = nil
@@ -462,7 +461,6 @@ final class KernelTurnProjection {
           origin: origin,
           status: status,
           continuityKey: continuityKey,
-          appId: appId,
           sessionId: sessionId,
           messageSource: messageSource
         )
@@ -691,7 +689,6 @@ final class KernelTurnProjection {
     turns: [ExchangeTurn],
     origin: String,
     continuityKey: String,
-    appId: String? = nil,
     sessionId: String? = nil,
     messageSource: String,
     ownerID: String? = nil
@@ -701,7 +698,6 @@ final class KernelTurnProjection {
         origin: origin,
         status: entry.status,
         continuityKey: continuityKey,
-        appId: appId,
         sessionId: sessionId,
         messageSource: messageSource
       )

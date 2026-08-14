@@ -268,7 +268,7 @@ final class ScreenContextTelemetryTests: XCTestCase {
     XCTAssertTrue(source.contains(#""raw_image_tool": "capture_screen""#))
   }
 
-  func testChatMessageSentPropertyNamesDoNotUseAmbiguousHasContext() throws {
+  func testChatMessageSentHasNoDeletedAppContextProperty() throws {
     let sourcesDir = URL(fileURLWithPath: #filePath)
       .deletingLastPathComponent()
       .deletingLastPathComponent()
@@ -279,7 +279,7 @@ final class ScreenContextTelemetryTests: XCTestCase {
       encoding: .utf8
     )
     XCTAssertFalse(postHog.contains(#""has_context""#))
-    XCTAssertTrue(postHog.contains(#""has_selected_app_context""#))
+    XCTAssertFalse(postHog.contains(#""has_selected_app_context""#))
   }
 
   func testDesktopPromptSeparatesCurrentScreenCaptureFromHistoricalWorkContext() {

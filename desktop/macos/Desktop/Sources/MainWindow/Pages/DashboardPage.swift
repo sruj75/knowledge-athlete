@@ -259,11 +259,6 @@ struct DashboardPage: View {
   @State private var knowsRotation = 0
   private let knowsRotationTimer = Timer.publish(every: 7, on: .main, in: .common).autoconnect()
 
-  private var selectedApp: OmiApp? {
-    guard let appId = chatProvider.selectedAppId else { return nil }
-    return appProvider.chatApps.first { $0.id == appId }
-  }
-
   private var captureStatus: HomeStatusState {
     CaptureListeningLogic.captureStatus(appState: appState, isCaptureMonitoring: isCaptureMonitoring)
   }
@@ -602,7 +597,7 @@ struct DashboardPage: View {
         hasMoreMessages: chatProvider.hasMoreMessages,
         isLoadingMoreMessages: chatProvider.isLoadingMoreMessages,
         isLoadingInitial: chatProvider.isLoading && !chatProvider.isClearing,
-        app: selectedApp,
+        app: nil,
         onLoadMore: { await chatProvider.loadMoreMessages() },
         onRate: { messageId, rating in
           Task { await chatProvider.rateMessage(messageId, rating: rating) }
@@ -643,7 +638,6 @@ struct DashboardPage: View {
         onSend: { text in
           AnalyticsManager.shared.chatMessageSent(
             messageLength: text.count,
-            hasSelectedAppContext: selectedApp != nil,
             source: "dashboard_chat"
           )
           Task { await chatProvider.sendMainDraft(text) }
@@ -1097,7 +1091,7 @@ struct DashboardPage: View {
         hasMoreMessages: chatProvider.hasMoreMessages,
         isLoadingMoreMessages: chatProvider.isLoadingMoreMessages,
         isLoadingInitial: chatProvider.isLoading && !chatProvider.isClearing,
-        app: selectedApp,
+        app: nil,
         onLoadMore: { await chatProvider.loadMoreMessages() },
         onRate: { messageId, rating in
           Task { await chatProvider.rateMessage(messageId, rating: rating) }
@@ -1385,7 +1379,6 @@ struct DashboardPage: View {
     openHomeChat(focusInput: false)
     AnalyticsManager.shared.chatMessageSent(
       messageLength: text.count,
-      hasSelectedAppContext: selectedApp != nil,
       source: "home_ask_bar"
     )
     if chatProvider.isSending {
@@ -1399,7 +1392,6 @@ struct DashboardPage: View {
     openHomeChat(focusInput: false)
     AnalyticsManager.shared.chatMessageSent(
       messageLength: suggestion.count,
-      hasSelectedAppContext: selectedApp != nil,
       source: "home_suggested_question"
     )
     Task { await chatProvider.sendMessage(suggestion) }

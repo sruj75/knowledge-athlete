@@ -106,7 +106,6 @@ actor KernelJournalBackendSyncDriver {
     let journalRevision: Int
     let text: String
     let sender: String
-    let appId: String?
     let sessionId: String?
     let metadata: String?
     let messageSource: String
@@ -148,7 +147,6 @@ actor KernelJournalBackendSyncDriver {
       self.journalRevision = journalRevision
       self.text = text
       self.sender = sender
-      self.appId = payload["appId"] as? String
       self.sessionId = payload["sessionId"] as? String
       self.metadata = payload["metadata"] as? String
       self.messageSource = messageSource
@@ -367,7 +365,6 @@ actor KernelJournalBackendSyncDriver {
       response = try await APIClient.shared.saveMessage(
         text: request.text,
         sender: request.sender,
-        appId: request.appId,
         sessionId: request.sessionId,
         metadata: request.metadata,
         clientMessageId: request.turnId,
@@ -400,10 +397,7 @@ actor KernelJournalBackendSyncDriver {
       do {
         switch request.targetKind {
         case .messages:
-          _ = try await APIClient.shared.deleteMessages(
-            appId: request.targetId,
-            expectedOwnerId: request.ownerId
-          )
+          _ = try await APIClient.shared.deleteMessages(expectedOwnerId: request.ownerId)
         case .chatSession:
           guard let targetId = request.targetId else {
             await conversationBarrier.endDelete(conversationId: request.conversationId)
@@ -437,7 +431,6 @@ actor KernelJournalBackendSyncDriver {
     switch request.targetKind {
     case .messages:
       page = try await APIClient.shared.getMessagesReconcilePage(
-        appId: request.targetId,
         limit: request.pageLimit,
         cursor: request.pageCursor,
         expectedOwnerId: request.ownerId

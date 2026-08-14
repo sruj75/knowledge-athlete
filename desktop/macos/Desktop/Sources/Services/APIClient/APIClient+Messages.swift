@@ -10,16 +10,8 @@ struct EmptyBody: Encodable {}
 extension APIClient {
 
   /// Clear chat message history
-  func deleteMessages(
-    appId: String? = nil,
-    expectedOwnerId: String? = nil
-  ) async throws -> MessageDeleteResponse {
-    var endpoint = "v2/desktop/messages"
-    if let appId = appId {
-      endpoint += "?app_id=\(appId)"
-    }
-
-    guard let url = URL(string: baseURL + endpoint) else {
+  func deleteMessages(expectedOwnerId: String? = nil) async throws -> MessageDeleteResponse {
+    guard let url = URL(string: baseURL + "v2/desktop/messages") else {
       throw APIError.invalidResponse
     }
     var request = URLRequest(url: url)
@@ -63,14 +55,9 @@ extension APIClient {
   /// Mirrors the Flutter app's `uploadFilesServer` (lib/backend/http/api/messages.dart) —
   /// same `/v2/files` multipart endpoint, same response shape.
   func uploadChatFiles(
-    _ uploads: [(data: Data, fileName: String, mimeType: String)],
-    appId: String? = nil
+    _ uploads: [(data: Data, fileName: String, mimeType: String)]
   ) async throws -> [ChatFileResponse] {
-    var endpoint = "v2/files"
-    if let appId = appId, !appId.isEmpty, appId != "no_selected" {
-      endpoint += "?app_id=\(appId)"
-    }
-    guard let url = URL(string: baseURL + endpoint) else {
+    guard let url = URL(string: baseURL + "v2/files") else {
       throw APIError.invalidResponse
     }
 

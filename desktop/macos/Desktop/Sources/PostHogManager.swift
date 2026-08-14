@@ -555,12 +555,11 @@ extension PostHogManager {
 
   // MARK: - Chat Events
 
-  func chatMessageSent(messageLength: Int, hasSelectedAppContext: Bool = false, source: String) {
+  func chatMessageSent(messageLength: Int, source: String) {
     track(
       "Chat Message Sent",
       properties: [
         "message_length": messageLength,
-        "has_selected_app_context": hasSelectedAppContext,
         "source": source,
       ])
   }
@@ -618,13 +617,6 @@ extension PostHogManager {
   }
 
   // MARK: - Chat Events (Additional)
-
-  func chatAppSelected(appId: String?, appName: String?) {
-    var properties: [String: Any] = [:]
-    if let id = appId { properties["app_id"] = id }
-    if let name = appName { properties["app_name"] = name }
-    track("Chat App Selected", properties: properties.isEmpty ? nil : properties)
-  }
 
   func chatCleared() {
     track("Chat Cleared")

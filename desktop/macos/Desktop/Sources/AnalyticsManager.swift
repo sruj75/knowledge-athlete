@@ -621,9 +621,8 @@ class AnalyticsManager {
 
   // MARK: - Chat Events
 
-  func chatMessageSent(messageLength: Int, hasSelectedAppContext: Bool = false, source: String) {
-    PostHogManager.shared.chatMessageSent(
-      messageLength: messageLength, hasSelectedAppContext: hasSelectedAppContext, source: source)
+  func chatMessageSent(messageLength: Int, source: String) {
+    PostHogManager.shared.chatMessageSent(messageLength: messageLength, source: source)
   }
 
   // MARK: - Search Events
@@ -674,10 +673,6 @@ class AnalyticsManager {
 
   // MARK: - Chat Events (Additional)
 
-  func chatAppSelected(appId: String?, appName: String?) {
-    PostHogManager.shared.chatAppSelected(appId: appId, appName: appName)
-  }
-
   func chatCleared() {
     PostHogManager.shared.chatCleared()
   }
@@ -695,8 +690,8 @@ class AnalyticsManager {
     PostHogManager.shared.track("message_rated", properties: ["rating": ratingString])
   }
 
-  func initialMessageGenerated(hasApp: Bool) {
-    PostHogManager.shared.track("initial_message_generated", properties: ["has_app": hasApp])
+  func initialMessageGenerated() {
+    PostHogManager.shared.track("initial_message_generated", properties: [:])
   }
 
   func sessionTitleGenerated() {

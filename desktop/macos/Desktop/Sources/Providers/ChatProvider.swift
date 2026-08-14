@@ -175,7 +175,6 @@ struct ChatSession: Identifiable, Codable, Equatable {
   var preview: String?
   let createdAt: Date
   var updatedAt: Date
-  let appId: String?
   var messageCount: Int
   var starred: Bool
 
@@ -183,13 +182,12 @@ struct ChatSession: Identifiable, Codable, Equatable {
     case id, title, preview, starred
     case createdAt = "created_at"
     case updatedAt = "updated_at"
-    case appId = "app_id"
     case messageCount = "message_count"
   }
 
   init(
     id: String = UUID().uuidString, title: String = "New Chat", preview: String? = nil,
-    createdAt: Date = Date(), updatedAt: Date = Date(), appId: String? = nil,
+    createdAt: Date = Date(), updatedAt: Date = Date(),
     messageCount: Int = 0, starred: Bool = false
   ) {
     self.id = id
@@ -197,7 +195,6 @@ struct ChatSession: Identifiable, Codable, Equatable {
     self.preview = preview
     self.createdAt = createdAt
     self.updatedAt = updatedAt
-    self.appId = appId
     self.messageCount = messageCount
     self.starred = starred
   }
@@ -209,7 +206,6 @@ struct ChatSession: Identifiable, Codable, Equatable {
     preview = try container.decodeIfPresent(String.self, forKey: .preview)
     createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
     updatedAt = try container.decodeIfPresent(Date.self, forKey: .updatedAt) ?? Date()
-    appId = try container.decodeIfPresent(String.self, forKey: .appId)
     messageCount = try container.decodeIfPresent(Int.self, forKey: .messageCount) ?? 0
     starred = try container.decodeIfPresent(Bool.self, forKey: .starred) ?? false
   }
@@ -1129,9 +1125,6 @@ class ChatProvider: ObservableObject {
   var isOnboarding = false
   var preOnboardingMainMessages: [ChatMessage]?
   @Published var sessionsLoadError: String?
-  @Published var selectedAppId: String? {
-    didSet { restoreDraftForCurrentContextIfNeeded() }
-  }
   @Published var hasMoreMessages = false
   @Published var isLoadingMoreMessages = false
   @Published var showStarredOnly = false
@@ -1151,11 +1144,6 @@ class ChatProvider: ObservableObject {
   /// Set by TaskChatCoordinator to point at the user's project directory.
   var workingDirectory: String?
 
-  /// Override app ID for message routing (e.g. "task-chat" to isolate task messages).
-  /// When set, messages are saved with this app_id so the backend routes them
-  /// to the correct session instead of the default chat.
-  var overrideAppId: String?
-
   /// Override the Claude model for this provider's queries.
   /// When set, the bridge uses this model instead of the default (Opus).
   /// e.g. "claude-sonnet-4-6" for faster floating bar responses.
@@ -1164,7 +1152,7 @@ class ChatProvider: ObservableObject {
   /// This lets a single pill run Hermes/OpenClaw without changing the user's
   /// global chat provider preference stored in `chatBridgeMode`.
   private let bridgeHarnessOverride: AgentHarnessMode?
-  private var activeDraftKey = ChatDraftKey.mainChat(contextID: "omi:default")
+  private var activeDraftKey = ChatDraftKey.mainChat(contextID: "default")
   private var isRestoringDraft = false
   private var draftRevision: UInt64 = 0
 
@@ -1531,9 +1519,7 @@ class ChatProvider: ObservableObject {
   private var terminationObserver: NSObjectProtocol?
 
   private var currentDraftKey: ChatDraftKey {
-    let appContext = selectedAppId?.isEmpty == false ? selectedAppId! : "omi"
-    let chatContext = currentSession?.id ?? "default"
-    return .mainChat(contextID: "\(appContext):\(chatContext)")
+    .mainChat(contextID: currentSession?.id ?? "default")
   }
 
   private func restoreDraftForCurrentContextIfNeeded() {
@@ -1546,7 +1532,7 @@ class ChatProvider: ObservableObject {
   }
 
   private func resetDraftAfterSignOut() {
-    activeDraftKey = .mainChat(contextID: "omi:default")
+    activeDraftKey = .mainChat(contextID: "default")
     isRestoringDraft = true
     draftText = ""
     isRestoringDraft = false
@@ -1714,12 +1700,7 @@ class ChatProvider: ObservableObject {
   }
 
   func mainChatRuntimeChatId(sessionId: String?) -> String {
-    guard let sessionId, !sessionId.isEmpty else {
-      if let appId = selectedAppId, !appId.isEmpty {
-        return "default|\(appId)"
-      }
-      return "default"
-    }
+    guard let sessionId, !sessionId.isEmpty else { return "default" }
     return sessionId
   }
 
@@ -2161,10 +2142,7 @@ class ChatProvider: ObservableObject {
 
     for attempt in 1...maxAttempts {
       do {
-        sessions = try await APIClient.shared.getChatSessions(
-          appId: selectedAppId,
-          starred: showStarredOnly ? true : nil
-        )
+        sessions = try await APIClient.shared.getChatSessions(starred: showStarredOnly ? true : nil)
         log("ChatProvider loaded \(sessions.count) sessions (starred filter: \(showStarredOnly))")
         sessionsLoadError = nil
 
@@ -2198,15 +2176,13 @@ class ChatProvider: ObservableObject {
   /// - Parameters:
   ///   - title: Optional session title
   ///   - skipGreeting: Skip the initial AI greeting message
-  ///   - appId: Override app ID (e.g. "task-chat" to isolate task sessions from default chat)
   func createNewSession(
     title: String? = nil,
     skipGreeting: Bool = false,
-    appId: String? = nil,
     authoritativeSendGeneration: Int? = nil
   ) async -> ChatSession? {
     do {
-      let session = try await APIClient.shared.createChatSession(title: title, appId: appId ?? selectedAppId)
+      let session = try await APIClient.shared.createChatSession(title: title)
       guard authoritativeSendGeneration.map({ sendGeneration == $0 }) ?? true else { return nil }
       sessions.insert(session, at: 0)
       currentSession = session
@@ -2244,7 +2220,6 @@ class ChatProvider: ObservableObject {
       }
       let response = try await APIClient.shared.getInitialMessage(
         sessionId: session.id,
-        appId: selectedAppId,
         expectedOwnerId: ownerId
       )
       guard authoritativeSendGeneration.map({ sendGeneration == $0 }) ?? true else { return }
@@ -2278,7 +2253,7 @@ class ChatProvider: ObservableObject {
       }
 
       // Track analytics
-      AnalyticsManager.shared.initialMessageGenerated(hasApp: selectedAppId != nil)
+      AnalyticsManager.shared.initialMessageGenerated()
 
       log("Added initial greeting message for session \(session.id)")
     } catch {
@@ -3047,9 +3022,8 @@ class ChatProvider: ObservableObject {
           )
         }
       } else {
-        legacy = try await ChatLegacyPageCollector.all { [selectedAppId] limit, offset in
+        legacy = try await ChatLegacyPageCollector.all { limit, offset in
           try await APIClient.shared.getMessages(
-            appId: selectedAppId,
             limit: limit,
             offset: offset,
             expectedOwnerId: ownerId
@@ -3225,7 +3199,6 @@ class ChatProvider: ObservableObject {
     userMessage: ChatMessage,
     assistantMessage: ChatMessage,
     origin: String,
-    appId: String?,
     sessionId: String?,
     messageSource: String
   ) async -> Bool {
@@ -3239,7 +3212,6 @@ class ChatProvider: ObservableObject {
         turns: turns,
         origin: origin,
         continuityKey: continuityKey,
-        appId: appId,
         sessionId: sessionId,
         messageSource: messageSource,
         ownerID: ownerID
@@ -3467,9 +3439,8 @@ class ChatProvider: ObservableObject {
     }
     let toAdd = Array(attachments.prefix(room))
     pendingAttachments.append(contentsOf: toAdd)
-    let capturedAppId = overrideAppId ?? selectedAppId
     for attachment in toAdd {
-      uploadAttachment(id: attachment.id, appId: capturedAppId)
+      uploadAttachment(id: attachment.id)
     }
   }
 
@@ -3479,7 +3450,7 @@ class ChatProvider: ObservableObject {
 
   /// Upload a single staged attachment in the background. The user can send
   /// the message before this completes — `sendMessage` will await the upload.
-  private func uploadAttachment(id: String, appId: String?) {
+  private func uploadAttachment(id: String) {
     Task { [weak self] in
       guard let self = self,
         let attachment = await MainActor.run(body: {
@@ -3504,8 +3475,7 @@ class ChatProvider: ObservableObject {
       }
       do {
         let resp = try await APIClient.shared.uploadChatFiles(
-          [(data: bytes, fileName: attachment.fileName, mimeType: attachment.mimeType)],
-          appId: appId
+          [(data: bytes, fileName: attachment.fileName, mimeType: attachment.mimeType)]
         )
         guard let server = resp.first else {
           throw APIError.invalidResponse
@@ -3982,7 +3952,6 @@ class ChatProvider: ObservableObject {
     let userMessageId = turnMessageIds.user
     let isFirstMessage = messages.isEmpty
     let capturedSessionId = sessionId
-    let capturedAppId = overrideAppId ?? selectedAppId
     let journalOrigin = journalOrigin(for: resolvedSurface)
     let userMessage = ChatMessage(
       id: userMessageId,
@@ -4010,7 +3979,6 @@ class ChatProvider: ObservableObject {
       userMessage: userMessage,
       assistantMessage: aiMessage,
       origin: journalOrigin,
-      appId: capturedAppId,
       sessionId: capturedSessionId,
       messageSource: journalOrigin
     )
@@ -5970,29 +5938,6 @@ class ChatProvider: ObservableObject {
 
     log("Chat cleared")
     AnalyticsManager.shared.chatCleared()
-  }
-
-  // MARK: - App Selection
-
-  /// Select a chat app and load its sessions
-  func selectApp(_ appId: String?) async {
-    guard selectedAppId != appId else { return }
-    selectedAppId = appId
-    currentSession = nil
-    messages = []
-    resetMessagesPagination()
-    sessions = []
-    errorMessage = nil
-    isInDefaultChat = true
-
-    if multiChatEnabled {
-      // Multi-chat mode: load sessions, then switch to default chat
-      await fetchSessions()
-      await switchToDefaultChat()
-    } else {
-      // Single chat mode: just load default chat messages
-      await loadDefaultChatMessages()
-    }
   }
 
   // MARK: - Session Grouping Helpers
