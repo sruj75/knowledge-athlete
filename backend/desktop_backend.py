@@ -10,7 +10,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from database.google_credentials import prepare_google_credentials
 from routers import (
     auth,
-    desktop_agent_vm,
     desktop_chat,
     desktop_core,
     desktop_deprecated,
@@ -52,7 +51,6 @@ app.add_middleware(
 )
 app.include_router(desktop_core.router)
 app.include_router(auth.router)
-app.include_router(desktop_agent_vm.router)
 app.include_router(desktop_chat.router)
 app.include_router(desktop_proxy.router)
 app.include_router(desktop_realtime.router)

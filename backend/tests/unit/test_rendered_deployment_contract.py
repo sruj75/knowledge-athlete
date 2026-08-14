@@ -109,6 +109,13 @@ def test_all_owned_gke_deploy_paths_preserve_image_tags_as_strings(contracts: Si
     assert contracts.validate_image_tag_deployment_paths() == []
 
 
+def test_cloud_agent_deploy_ownership_is_retired(contracts: SimpleNamespace):
+    services = {contract.service for contract in contracts.CONTRACTS}
+
+    assert 'agent-proxy' not in services
+    assert not any('agent_proxy' in path for path in contracts.IMAGE_TAG_DEPLOYMENT_PATHS)
+
+
 def test_deploy_path_guard_rejects_an_untyped_numeric_image_tag(monkeypatch, tmp_path, contracts: SimpleNamespace):
     fixture = tmp_path / "deploy.sh"
     fixture.write_text('helm upgrade --set "image.tag=0123456"\n', encoding="utf-8")

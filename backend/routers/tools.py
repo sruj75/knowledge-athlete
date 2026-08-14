@@ -1,8 +1,7 @@
 """
 Platform tools router — exposes backend tools as REST endpoints for any client.
 
-Unlike /v1/agent/execute-tool (which wraps LangChain tools for VM agents),
-these endpoints are direct REST with proper HTTP semantics, designed for
+These endpoints are direct REST with proper HTTP semantics, designed for
 desktop, web, and mobile agent clients.
 
 Endpoints:

@@ -25,14 +25,12 @@ if [[ ! -x "$PYTHON_BIN" ]]; then
   exit 1
 fi
 "$PYTHON_BIN" -m pytest -q \
-  tests/unit/test_desktop_agent_vm.py \
   tests/unit/test_desktop_chat.py \
   tests/unit/test_desktop_core.py \
   tests/unit/test_desktop_proxy.py \
   tests/unit/test_desktop_realtime.py \
   tests/unit/test_desktop_screen_crisp.py \
-  tests/unit/test_desktop_tts_updates.py \
-  tests/unit/test_agent_vm_protocol.py
+  tests/unit/test_desktop_tts_updates.py
 echo ""
 
 echo "=== Swift App Tests (parallel per-suite process isolation) ==="

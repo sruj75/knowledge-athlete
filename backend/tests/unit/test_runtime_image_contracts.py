@@ -43,6 +43,12 @@ def test_registered_runtime_image_workflows_smoke_their_declared_dockerfile(cont
     assert contracts_module.workflow_contract_errors(contracts_module.load_contracts()) == []
 
 
+def test_cloud_agent_runtime_images_are_retired(contracts_module):
+    names = {contract.name for contract in contracts_module.load_contracts()}
+
+    assert names.isdisjoint({'agent-vm', 'agent-proxy'})
+
+
 def test_memory_maintenance_import_smoke_supplies_its_required_nonproduction_config(contracts_module):
     memory_maintenance_job = _contract(contracts_module, 'memory-maintenance-job')
 
@@ -63,19 +69,6 @@ def test_pusher_contract_rejects_omitted_shared_package(contracts_module, tmp_pa
     errors = contracts_module.source_closure_errors(replace(pusher, dockerfile=dockerfile))
 
     assert any('services.conversation_finalization' in error for error in errors)
-
-
-def test_agent_proxy_contract_rejects_omitted_individual_file(contracts_module, tmp_path):
-    agent_proxy = _contract(contracts_module, 'agent-proxy')
-    dockerfile = _dockerfile_without(
-        agent_proxy.dockerfile,
-        'COPY backend/utils/executors.py ./utils/executors.py\n',
-        tmp_path / 'Dockerfile',
-    )
-
-    errors = contracts_module.source_closure_errors(replace(agent_proxy, dockerfile=dockerfile))
-
-    assert any('utils.executors' in error for error in errors)
 
 
 def test_modal_contract_rejects_omitted_shared_package(contracts_module, tmp_path):

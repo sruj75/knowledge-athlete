@@ -631,7 +631,6 @@ final class SBOnboardingModel: ObservableObject {
     }
 
     Task {
-      await AgentVMService.shared.startPipeline()
       await GoalGenerationService.shared.generateNow()
     }
     applyLaunchAtLoginSelection()

@@ -104,7 +104,7 @@ rebuilt (verified against `{dev,prod}_omi_pusher_values.yaml`):
 
 Development Pusher alone tolerates `dedicated=pusher:NoSchedule`. Its existing
 required node affinity still requires matching `service=pusher` and `env=dev`
-labels, so that toleration does not admit LLM Gateway, Agent Proxy, or other
+labels, so that toleration does not admit LLM Gateway or other
 workloads to the pool. Production deliberately retains no corresponding
 toleration; it is a separate configuration boundary.
 

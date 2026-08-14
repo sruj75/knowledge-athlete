@@ -29,11 +29,6 @@ def _validate_production_python_runtime(text: str, *, workflow: str) -> list[str
         "SERVICE_ACCOUNT_JSON",
         "GOOGLE_APPLICATION_CREDENTIALS=/secrets/firebase/service-account.json",
         "/secrets/firebase/service-account.json=SERVICE_ACCOUNT_JSON:latest",
-        "AGENT_GCS_BUCKET: ${{ vars.AGENT_GCS_BUCKET }}",
-        "AGENT_GCS_BUCKET=${{ env.AGENT_GCS_BUCKET }}",
-        "Build and publish Agent VM image",
-        "backend/agent_vm/Dockerfile",
-        "gs://$AGENT_GCS_BUCKET/startup.sh",
         "GEMINI_API_KEY=DESKTOP_GEMINI_API_KEY:latest",
         "FIREBASE_API_KEY=DESKTOP_FIREBASE_API_KEY:latest",
         "REDIS_DB_PASSWORD=DESKTOP_REDIS_DB_PASSWORD:latest",
@@ -65,7 +60,6 @@ def _validate_production_python_runtime(text: str, *, workflow: str) -> list[str
             (
                 "Preflight production desktop secret resource names",
                 "Build and push immutable Docker image",
-                "Build and publish Agent VM image",
             ),
             workflow=workflow,
         )
@@ -187,10 +181,7 @@ def validate_deploy_workflow(text: str, *, production: bool) -> list[str]:
         ):
             if fragment not in text:
                 errors.append(f"{workflow}: missing development traffic guard {fragment!r}")
-        if any(
-            "--remove-env-vars" in line and "GOOGLE_APPLICATION_CREDENTIALS" in line
-            for line in text.splitlines()
-        ):
+        if any("--remove-env-vars" in line and "GOOGLE_APPLICATION_CREDENTIALS" in line for line in text.splitlines()):
             errors.append(
                 f"{workflow}: mounted Firestore credentials must not be removed from the candidate environment"
             )

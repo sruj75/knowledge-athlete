@@ -53,7 +53,6 @@ INTEGRATION_PUBLIC_PATHS = (
 )
 APP_CLIENT_PREFIXES = (
     '/v1/action-items',
-    '/v1/agent',
     '/v1/announcements',
     '/v1/app',
     '/v1/app-capabilities',

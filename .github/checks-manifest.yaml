@@ -254,8 +254,8 @@ checks:
     lanes: ["local", "ci"]
     reason: "development WIF pilot fixtures must reject secret access, apply, and scope expansion"
   - id: backend-async-blockers
-    command: ["python3", "backend/scripts/scan_async_blockers.py", "--dirs", "backend/routers", "backend/utils", "backend/agent-proxy", "backend/dependencies.py", "--diff-base", "{base}", "--fail-on", "high_network_io,async_helpers_with_blocking,time_sleep,mixed_await_sync_db,no_await_should_be_def,unmanaged_thread_offload"]
-    triggers: ["backend/**/*.py", "backend/agent-proxy/**", "backend/scripts/scan_async_blockers.py"]
+    command: ["python3", "backend/scripts/scan_async_blockers.py", "--dirs", "backend/routers", "backend/utils", "backend/dependencies.py", "--diff-base", "{base}", "--fail-on", "high_network_io,async_helpers_with_blocking,time_sleep,mixed_await_sync_db,no_await_should_be_def,unmanaged_thread_offload"]
+    triggers: ["backend/**/*.py", "backend/scripts/scan_async_blockers.py"]
     lanes: ["local", "ci"]
     reason: "backend Python changed"
   - id: backend-datetime-sort-sentinel-ratchet
@@ -508,12 +508,12 @@ checks:
     reason: "mutation-tests prod/all admission, serving smoke order, token handling, and rollback coverage"
   - id: direct-backend-production-admission
     command: ["python3", ".github/scripts/check-direct-backend-production-admission.py"]
-    triggers: [".github/workflows/gcp_backend_agent_proxy.yml", ".github/workflows/gcp_backend_listen_helm.yml", ".github/workflows/gcp_backend_pusher.yml", ".github/workflows/gcp_llm_gateway.yml", ".github/scripts/check-direct-backend-production-admission.py", ".github/scripts/test_check_direct_backend_production_admission.py", ".github/checks-manifest.yaml"]
+    triggers: [".github/workflows/gcp_backend_listen_helm.yml", ".github/workflows/gcp_backend_pusher.yml", ".github/workflows/gcp_llm_gateway.yml", ".github/scripts/check-direct-backend-production-admission.py", ".github/scripts/test_check_direct_backend_production_admission.py", ".github/checks-manifest.yaml"]
     lanes: ["local", "ci"]
     reason: "#10163 prevents direct production writers from deploying caller refs or mislabeling checked-out source"
   - id: direct-backend-production-admission-fixtures
     command: ["python3", ".github/scripts/test_check_direct_backend_production_admission.py"]
-    triggers: [".github/workflows/gcp_backend_agent_proxy.yml", ".github/workflows/gcp_backend_listen_helm.yml", ".github/workflows/gcp_backend_pusher.yml", ".github/workflows/gcp_llm_gateway.yml", ".github/scripts/check-direct-backend-production-admission.py", ".github/scripts/test_check_direct_backend_production_admission.py", ".github/checks-manifest.yaml"]
+    triggers: [".github/workflows/gcp_backend_listen_helm.yml", ".github/workflows/gcp_backend_pusher.yml", ".github/workflows/gcp_llm_gateway.yml", ".github/scripts/check-direct-backend-production-admission.py", ".github/scripts/test_check_direct_backend_production_admission.py", ".github/checks-manifest.yaml"]
     lanes: ["local", "ci"]
     reason: "#10163 mutation-tests branch bypass and GITHUB_SHA image mislabeling"
   - id: production-data-plane-routing

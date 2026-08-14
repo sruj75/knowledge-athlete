@@ -93,11 +93,6 @@ backend/
                           #   - POST /v1/diarization — speaker boundary detection (pyannote/speaker-diarization)
                           #   - POST /v1/embedding — speaker vector extraction (pyannote/embedding)
                           #   - POST /v2/embedding — alt speaker vectors (wespeaker-voxceleb-resnet34-LM)
-  agent-proxy/           # Subservice: WebSocket bridge between mobile app and user's agent VM
-                          #   - Firebase auth → Firestore VM lookup → GCE lifecycle (start/reset/health)
-                          #   - Bidirectional message pump with keepalive (120s)
-                          #   - Chat history injection (last 10 messages on first query)
-                          #   - Optional AES-256-GCM message encryption
   nllb_translation/      # Subservice: self-hosted NLLB translation (separate Docker, GPU/CUDA)
                           #   - POST /v1/translate — batch sentence translation (NLLB-200 + CTranslate2)
                           #   - Prometheus metrics at /metrics, health at /health, readiness at /ready
@@ -133,9 +128,6 @@ pusher
   ├── ──────► diarizer (diarizer/)
   └── ──────► parakeet / modulate (STT)
 
-agent-proxy (agent-proxy/main.py)
-  └── ws ──► user agent VM (private IP, port 8080)
-
 backend-sync (main.py, Cloud Run)
   ├── ──────► Cloud Tasks queue `sync-jobs` ──► POST /v2/sync-jobs/run (OIDC, same service; fresh lane)
   ├── ──────► Cloud Tasks queue `sync-backfill` ──► backend-sync-backfill POST /v2/sync-jobs/run (OIDC; historical lane)
@@ -145,10 +137,9 @@ backend-sync (main.py, Cloud Run)
 
 notifications-job (modal/job.py)  [cron]
 memory-maintenance-job (modal/memory_maintenance_job.py)  [cron]
-agent-vm-reaper (backend/charts/agent-vm-reaper)  [cron]
 ```
 
-Helm charts: `backend/charts/{agent-proxy,agent-vm-reaper,backend-listen,backend-secrets,deepgram-self-hosted,diarizer,llm-gateway,monitoring,nllb-translation,parakeet,pusher,vad}/`.
+Helm charts: `backend/charts/{backend-listen,backend-secrets,deepgram-self-hosted,diarizer,llm-gateway,monitoring,nllb-translation,parakeet,pusher,vad}/`.
 
 Serving STT provider/surface policy and canonical model order are owned exclusively by `config/stt_provider_policy.py`; deployment values are validated against it.
 
@@ -156,7 +147,6 @@ Serving STT provider/surface policy and canonical model order are owned exclusiv
 - **hosted MCP OAuth** (`routers/mcp_sse.py`) — Provider-neutral OAuth for `/v1/mcp/sse`. Configure public or confidential clients with `MCP_OAUTH_CLIENTS_JSON`; allowlist the exact connector callback URI from the provider. The temporary `MCP_OAUTH_CHATGPT_*` envs still define the legacy confidential ChatGPT test client, and `MCP_OAUTH_PUBLIC_*` can expose a no-secret PKCE public client. Also set `MCP_AUTHORIZATION_SERVER_URL`, optional `MCP_RESOURCE_URL`, and token TTL env vars.
 - **llm-gateway** (`llm_gateway/main.py`) — Internal FastAPI service for Omi-managed LLM auto lanes. Called by backend with service auth for `omi:auto:*` chat-completions routes; not exposed to clients. Public shared-conversation chat uses only the dedicated `omi:auto:public-shared-conversation-chat` lane and returns unavailable on every gateway fault.
 - **pusher** (`pusher/main.py`) — Receives audio via binary WebSocket protocol. Calls diarizer and the configured Parakeet/Modulate STT provider for speaker sample extraction (`utils/speaker_identification.py` → `utils/speaker_sample.py`).
-- **agent-proxy** (`agent-proxy/main.py`) — GKE. WebSocket proxy at `wss://agent.omi.me/v1/agent/ws`. Validates Firebase ID token, looks up `agentVm` in Firestore, proxies bidirectionally to VM's `ws://<ip>:8080/ws`.
 - **diarizer** (`diarizer/main.py`) — GPU. Speaker embeddings at `/v2/embedding`. Called by backend and pusher (`HOSTED_SPEAKER_EMBEDDING_API_URL`).
 - **vad** (`modal/main.py`) — GPU. `/v1/vad` and `/v1/speaker-identification`. Called by backend only.
 - **deepgram-self-hosted** — GPU STT deployment behind an explicit non-cloud endpoint. Hosted Deepgram is disabled on every serving surface; do not add a hosted API key or `api.deepgram.com` fallback.
@@ -167,7 +157,6 @@ Serving STT provider/surface policy and canonical model order are owned exclusiv
 - **notifications-job** (`modal/job.py`) — Cron job, reads Firestore/Redis, sends push notifications and runs X connector sync. It has no canonical maintenance flags or Typesense secrets; its deploy workflow removes only those retired bindings and preserves unrelated notification/X-sync env.
 - **memory-maintenance-job** (`modal/memory_maintenance_job.py`) — Cloud Run Job and sole host for canonical maintenance (required normalization → TTL audit with canonical rejection of expired processed items → one terminal consolidation route per remaining pending item). Manual deploy via `.github/workflows/gcp_memory_maintenance_job.yml`; auto-dev on push to `main` via `gcp_memory_maintenance_job_auto_dev.yml`. Enablement is a multi-var contract (`MEMORY_MODE`, `MEMORY_ENABLED_USERS`, `MEMORY_CANONICAL_MAINTENANCE_ENABLED`, and consolidation flags) enforced by `backend/scripts/validate-backend-runtime-env.py`; Cloud Scheduler owns cadence, and prod stays `MEMORY_MODE=off` until Gate 3.
 - **monitoring** (`backend/charts/monitoring/`) — Prometheus, Grafana, Loki, Alloy, alerts, and HPA metric adapters for backend services.
-- **agent-vm-reaper** (`backend/charts/agent-vm-reaper/`) — CronJob that deletes stale `omi-agent-*` GCE VMs left by desktop agent sandboxes.
 - **backend-secrets** (`backend/charts/backend-secrets/`) — ExternalSecret and SecretStore resources that sync backend runtime secrets into GKE namespaces.
 
 Backend runtime env contract: keep `backend/deploy/runtime_env.yaml` aligned with GKE Helm values and Cloud Run runtime env; run `backend/scripts/pre-deploy-check.sh` after backend runtime env or deploy workflow changes. The `llm_gateway` manifest section owns the release, ingress, and static-address identity; a reserved address alone is never an endpoint contract. Gateway-mode promotion requires the control-plane gate plus `probe-llm-gateway-from-cloud-run.sh` before Cloud Run revisions are created.

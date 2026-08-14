@@ -543,7 +543,7 @@ class ResourceMonitor {
 
   private func triggerMemoryRemediation() {
     log(
-      "ResourceMonitor: Triggering memory remediation — flushing video encoder, clearing assistant pending work, trimming transcript, pausing AgentSync"
+      "ResourceMonitor: Triggering memory remediation — flushing video encoder, clearing assistant pending work, trimming transcript"
     )
 
     let memoryBefore = getMemoryFootprintMB()
@@ -567,14 +567,6 @@ class ResourceMonitor {
       // Clear focus assistant pending tasks specifically
       if let focusAssistant = ProactiveAssistantsPlugin.shared.currentFocusAssistant {
         await focusAssistant.clearPendingWork()
-      }
-
-      // Pause AgentSync to reduce memory pressure and resume after 60s
-      await AgentSyncService.shared.pause()
-      Task {
-        try? await Task.sleep(nanoseconds: 60_000_000_000)  // 60s
-        await AgentSyncService.shared.resume()
-        log("ResourceMonitor: AgentSync resumed after 60s cooldown")
       }
 
       let memoryAfter = await MainActor.run { self.getMemoryFootprintMB() }

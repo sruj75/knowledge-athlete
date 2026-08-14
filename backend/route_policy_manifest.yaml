@@ -87,14 +87,6 @@ routes:
     policy: *desktop_migration_policy
   - route_type: http
     method: POST
-    path: /v2/agent/provision
-    policy: *desktop_migration_policy
-  - route_type: http
-    method: GET
-    path: /v2/agent/status
-    policy: *desktop_migration_policy
-  - route_type: http
-    method: POST
     path: /v2/chat/completions
     policy: *desktop_migration_policy
   - route_type: http

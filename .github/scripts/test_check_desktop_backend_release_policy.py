@@ -103,12 +103,11 @@ class DesktopBackendReleasePolicyTests(unittest.TestCase):
                     )
                     self.assertTrue(any(required in error for error in errors), errors)
 
-    def test_requires_production_agent_vm_artifacts(self) -> None:
-        errors = POLICY.validate_deploy_workflow(
-            self.prod.replace("      - name: Build and publish Agent VM image", "      - name: Omitted agent VM", 1),
-            production=True,
-        )
-        self.assertTrue(any("Build and publish Agent VM image" in error for error in errors), errors)
+    def test_cloud_agent_vm_artifacts_are_absent(self) -> None:
+        for workflow in (self.dev, self.prod):
+            self.assertNotIn("AGENT_GCS_BUCKET", workflow)
+            self.assertNotIn("backend/agent_vm", workflow)
+            self.assertNotIn("Build and publish Agent VM image", workflow)
 
     def test_rejects_traffic_before_candidate_proof(self) -> None:
         mutated = self.dev.replace(
@@ -208,8 +207,7 @@ class DesktopBackendReleasePolicyTests(unittest.TestCase):
             binding = f"{pinecone_key}={pinecone_key}:latest"
             mutated = self.prod.replace(
                 "            ANTHROPIC_API_KEY=DESKTOP_ANTHROPIC_API_KEY:latest\n",
-                f"            {binding}\n"
-                "            ANTHROPIC_API_KEY=DESKTOP_ANTHROPIC_API_KEY:latest\n",
+                f"            {binding}\n" "            ANTHROPIC_API_KEY=DESKTOP_ANTHROPIC_API_KEY:latest\n",
                 1,
             )
             with self.subTest(binding=binding):

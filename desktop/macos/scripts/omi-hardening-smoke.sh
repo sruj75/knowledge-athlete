@@ -264,8 +264,8 @@ launch_app() {
   # SIGTERM the app deliberately.
   disown "$APP_PID" 2>/dev/null || true
   APP_SPAWNED=1
-  # Cold starts can take >60s to accept bridge connections (agent VM provisioning,
-  # realtime warmup compete at launch) — 120s keeps marginal starts from reading
+  # Cold starts can take >60s to accept bridge connections while realtime
+  # services warm up — 120s keeps marginal starts from reading
   # as BLOCKED. Scaled by --timeout-mult.
   deadline=$(( $(now_s) + 120 * TIMEOUT_MULT ))
   while [ "$(now_s)" -lt "$deadline" ]; do
