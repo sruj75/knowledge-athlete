@@ -56,7 +56,6 @@
         "scripts/smoke-llm-gateway-openai-schemas.py",
         "scripts/smoke-llm-gateway.py",
         "scripts/stt/_generate_speaker_id_npy.py",
-        "scripts/stt/a_generate_samples_from_device.py",
         "scripts/stt/b_clean_samples.py",
         "scripts/stt/c_generate_models.py",
         "scripts/stt/d_test_models.py",

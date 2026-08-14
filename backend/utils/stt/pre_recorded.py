@@ -847,8 +847,9 @@ def parakeet_prerecorded_from_bytes(
         # A Parakeet result always carries both keys, even for silence ({"text": "",
         # "segments": []}). A 200 body with neither key is a degraded or foreign
         # responder (misrouted ILB, proxy error shell), not a no-speech verdict. Raise
-        # so the sync job stays truthful and clients keep the audio as retry material
-        # instead of marking the WAL synced and discarding it. See #9586.
+        # so retained voice-message callers receive an explicit provider failure
+        # instead of accepting an empty transcript and discarding retry material.
+        # See #9586.
         if not isinstance(payload, dict) or ('segments' not in payload and 'text' not in payload):
             raise RuntimeError('Parakeet response contained neither segments nor text')
 

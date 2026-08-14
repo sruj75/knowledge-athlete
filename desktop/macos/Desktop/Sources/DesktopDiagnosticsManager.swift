@@ -236,22 +236,6 @@ final class DesktopDiagnosticsManager {
       ])
   }
 
-  func recordBleDecodeDegraded(codec: String, failures: Int) {
-    recordFallback(
-      area: "ble_audio",
-      from: "decode",
-      to: "raw_capture",
-      reason: "ble_decode_failed",
-      outcome: .degraded,
-      extra: [
-        "codec": codec,
-        "consecutive_failures": failures,
-        "failure_class": "ble_decode_degraded",
-        "recovery_action": "continue_raw_capture",
-        "recovery_result": "degraded",
-      ])
-  }
-
   func recordAutomationBridgeBindFailed(port: Int, reason: String) {
     recordFallback(
       area: "automation_bridge",
@@ -1347,7 +1331,6 @@ final class DesktopDiagnosticsManager {
   ]
 
   private static let allowedFallbackAreas: Set<String> = [
-    "sync_dispatch",
     "pusher",
     "stt_selection",
     "vad",
@@ -1364,7 +1347,6 @@ final class DesktopDiagnosticsManager {
     "api_auth",
     "db_lock",
     "chat_bridge",
-    "ble_audio",
     "automation_bridge",
     "transcription_retry",
     "task_reconcile",
@@ -1400,16 +1382,12 @@ final class DesktopDiagnosticsManager {
     "byok",
     "other",
     "none",
-    "wal_directory_unavailable",
-    "wal_write_failed",
-    "upload_failed",
     "stale_alive_latch",
     "out_of_memory",
     "process_exited",
     "http_401",
     "db_lock_contention",
     "mode_switch_timeout",
-    "ble_decode_failed",
     "bind_failed",
     "db_backoff",
     "state_divergence",

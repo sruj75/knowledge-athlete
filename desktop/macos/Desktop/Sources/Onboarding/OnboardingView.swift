@@ -927,7 +927,6 @@ struct OnboardingPrivacySheet: View {
                 sheetTrackingItem("Onboarding steps completed")
                 sheetTrackingItem("Settings changes")
                 sheetTrackingItem("App installations and usage")
-                sheetTrackingItem("Device connection status")
                 sheetTrackingItem("Transcript processing events")
                 sheetTrackingItem("Conversation creation and updates")
                 sheetTrackingItem("Memory extraction events")

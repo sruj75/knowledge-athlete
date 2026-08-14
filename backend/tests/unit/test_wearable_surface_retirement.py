@@ -6,9 +6,13 @@ Exercise the real production FastAPI app so deleted handlers cannot survive as
 mounted compatibility shells.
 """
 
+from pathlib import Path
+
 from fastapi.testclient import TestClient
 
 import main
+from utils.llm.model_config import get_all_configured_features
+from utils.llm.usage_tracker import Features
 
 
 _RETIRED_ROUTES = (
@@ -20,6 +24,7 @@ _RETIRED_ROUTES = (
     ("GET", "/v2/firmware/latest"),
     ("GET", "/v2/firmware/stable"),
     ("GET", "/v2/firmware/version"),
+    ("GET", "/v1/conversations/retired-conversation/photos"),
 )
 
 
@@ -38,3 +43,9 @@ def test_neighboring_audio_and_desktop_update_routes_remain_mounted() -> None:
     assert ("GET", "/v1/sync/audio/{conversation_id}/{audio_file_id}") in route_keys
     assert ("POST", "/v2/audio-merge-jobs/run") in route_keys
     assert ("GET", "/v2/desktop/appcast.xml") in route_keys
+
+
+def test_wearable_vision_llm_surfaces_are_absent() -> None:
+    assert {"openglass", "smart_glasses"}.isdisjoint(get_all_configured_features())
+    assert not hasattr(Features, "OPENGLASS")
+    assert not (Path(__file__).resolve().parents[2] / "utils" / "llm" / "openglass.py").exists()

@@ -50,7 +50,6 @@ ALLOWED_REASONS = frozenset(
 
 ALLOWED_COMPONENTS = frozenset(
     {
-        'sync_dispatch',
         'pusher',
         'stt_selection',
         'vad',

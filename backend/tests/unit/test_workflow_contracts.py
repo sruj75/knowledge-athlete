@@ -407,7 +407,7 @@ def test_workflow_contracts_static_check_skips_workflows_without_tuple_check(tmp
     checker = _load_script("check_workflow_contracts")
     fake_repo = tmp_path / "repo"
     fake_repo.mkdir()
-    fake_source = fake_repo / "backend" / "routers" / "sync.py"
+    fake_source = fake_repo / "backend" / "routers" / "chat.py"
     fake_source.parent.mkdir(parents=True)
     fake_source.write_text("def bad_contract() -> tuple[int, int, int]:\n    return 1, 2, 3\n")
 
@@ -417,8 +417,8 @@ def test_workflow_contracts_static_check_skips_workflows_without_tuple_check(tmp
         "workflows": [
             {
                 "risk": "high",
-                "sources": ["backend/routers/sync.py"],
-                "tests": ["tests/unit/test_sync_v2.py"],
+                "sources": ["backend/routers/chat.py"],
+                "tests": ["tests/unit/test_voice_message_language.py"],
                 "checks": [],
             }
         ],

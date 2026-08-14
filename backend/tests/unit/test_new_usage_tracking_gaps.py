@@ -1,9 +1,9 @@
 """
-Integration tests for the 5 new usage-tracking feature constants added in PR #5834.
+Integration tests for the remaining usage-tracking feature constants added in PR #5834.
 
 Verifies:
-  1. All 5 new Features constants exist (PROACTIVE_NOTIFICATION, FOLLOWUP,
-     OPENGLASS, APP_GENERATOR, ONBOARDING).
+  1. The retained Features constants exist (PROACTIVE_NOTIFICATION, FOLLOWUP,
+     APP_GENERATOR, ONBOARDING).
   2. track_usage() context manager properly sets and resets context for each.
   3. get_usage_callback() returns a callback that correctly reads the context.
   4. Thread and asyncio safety of context propagation.
@@ -160,7 +160,6 @@ from utils.llm.usage_tracker import (
 NEW_FEATURES = {
     "PROACTIVE_NOTIFICATION": "proactive_notification",
     "FOLLOWUP": "followup",
-    "OPENGLASS": "openglass",
     "APP_GENERATOR": "app_generator",
     "ONBOARDING": "onboarding",
 }
@@ -453,11 +452,6 @@ class TestSourceTrackUsageWrapping:
         source = (BACKEND_ROOT / "utils" / "llm" / "followup.py").read_text(encoding="utf-8")
         assert "with track_usage(uid, Features.FOLLOWUP):" in source
 
-    def test_openglass_py(self):
-        """utils/llm/openglass.py must wrap the LLM call with OPENGLASS."""
-        source = (BACKEND_ROOT / "utils" / "llm" / "openglass.py").read_text(encoding="utf-8")
-        assert "with track_usage(uid, Features.OPENGLASS):" in source
-
     def test_routers_apps_app_generator(self):
         """routers/apps.py must wrap generator endpoints with APP_GENERATOR."""
         source = (BACKEND_ROOT / "routers" / "apps.py").read_text(encoding="utf-8")
@@ -509,7 +503,6 @@ class TestSourceTrackUsageWrapping:
         """Each modified file must import track_usage and Features from usage_tracker."""
         files_to_check = [
             "utils/llm/followup.py",
-            "utils/llm/openglass.py",
             "utils/onboarding.py",
             "utils/app_integrations.py",
             "routers/apps.py",
@@ -548,9 +541,9 @@ class TestSourceTrackUsageWrapping:
         a track_usage block (heuristic: the call and the track_usage must
         share the same function body).
         """
-        # For followup.py and openglass.py we can do a precise check:
+        # For followup.py we can do a precise check:
         # the invoke call must be indented further than the track_usage line.
-        for rel_path in ["utils/llm/followup.py", "utils/llm/openglass.py"]:
+        for rel_path in ["utils/llm/followup.py"]:
             source = (BACKEND_ROOT / rel_path).read_text(encoding="utf-8")
             lines = source.splitlines()
             in_track_block = False

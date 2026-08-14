@@ -17,7 +17,7 @@ from check_pr_scope import (
 class ClassificationTests(unittest.TestCase):
     def test_production_paths(self) -> None:
         for path in (
-            'backend/utils/sync/pipeline.py',
+            'backend/utils/chat.py',
             'app/lib/services/wals/wal.dart',
             'desktop/macos/Backend-Rust/src/routes/proxy.rs',
             'desktop/macos/Desktop/Sources/Chat/ChatToolExecutor.swift',
@@ -29,7 +29,7 @@ class ClassificationTests(unittest.TestCase):
 
     def test_excluded_test_trees_all_platform_conventions(self) -> None:
         for path in (
-            'backend/tests/unit/test_sync_v2.py',
+            'backend/tests/unit/test_voice_message_language.py',
             'backend/testing/e2e/test_crud.py',
             'app/test/widget_test.dart',
             'app/integration_test/onboarding_test.dart',

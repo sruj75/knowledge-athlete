@@ -369,7 +369,6 @@
         "backend/routers/conversations.py",
         "backend/routers/sync.py",
         "backend/routers/developer.py",
-        "backend/utils/sync/pipeline.py",
         "backend/utils/conversations/process_conversation.py",
         "backend/utils/app_integrations.py",
         "backend/utils/conversations/postprocess_conversation.py",

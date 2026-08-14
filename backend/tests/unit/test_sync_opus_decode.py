@@ -81,22 +81,6 @@ def _ensure_attrs(module_name, attrs):
     return module
 
 
-class _ConversationSource:
-    omi = 'omi'
-    limitless = 'limitless'
-    unknown = 'unknown'
-
-
-def _ensure_conversation_source_stub():
-    source = getattr(sys.modules.setdefault('models.conversation_enums', MagicMock()), 'ConversationSource', None)
-    if source is None or not all(hasattr(source, attr) for attr in ('omi', 'limitless')):
-        sys.modules['models.conversation_enums'].ConversationSource = _ConversationSource
-
-    conversation_mod = sys.modules.setdefault('models.conversation', MagicMock())
-    if not hasattr(getattr(conversation_mod, 'ConversationSource', None), 'omi'):
-        conversation_mod.ConversationSource = sys.modules['models.conversation_enums'].ConversationSource
-
-
 def _install_python_multipart_stub():
     if 'python_multipart' in sys.modules:
         return False
@@ -114,7 +98,6 @@ sys.modules['database._client'].db = MagicMock()
 _ensure_attrs('opuslib', ['Decoder'])
 _ensure_attrs('database.conversations', ['get_closest_conversation_to_timestamps', 'update_conversation_segments'])
 _ensure_attrs('models.conversation', ['Conversation', 'CreateConversation'])
-_ensure_conversation_source_stub()
 _ensure_attrs('models.transcript_segment', ['TranscriptSegment'])
 _ensure_attrs('utils.conversations.factory', ['deserialize_conversation'])
 _ensure_attrs('utils.conversations.process_conversation', ['process_conversation'])
@@ -126,8 +109,6 @@ _ensure_attrs(
         'get_syncing_file_temporal_signed_url',
         'delete_syncing_temporal_file',
         'schedule_syncing_temporal_file_deletion',
-        'upload_syncing_temporal_file',
-        'download_syncing_temporal_file',
         'download_audio_chunks_and_merge',
         'get_or_create_merged_audio',
         'get_merged_audio_signed_url',
@@ -145,10 +126,7 @@ _ensure_attrs('utils.byok', ['get_byok_keys', 'set_byok_keys', 'has_byok_keys'])
 _ensure_attrs(
     'utils.cloud_tasks',
     [
-        'get_sync_tasks_max_attempts',
         'is_audio_merge_dispatch_enabled',
-        'is_cloud_tasks_dispatch_enabled',
-        'verify_cloud_tasks_oidc',
     ],
 )
 _ensure_attrs('utils.http_client', ['_get_semaphore'])
@@ -223,7 +201,7 @@ FAKE_PCM_FRAME = b'\x00' * 320
 
 
 def _write_opus_bin(path: str, frames: list[bytes]) -> None:
-    """Write a length-prefixed Omi WAL file (the on-device Opus format)."""
+    """Write a length-prefixed Opus file accepted by retained voice-message decoding."""
     with open(path, 'wb') as f:
         for frame in frames:
             f.write(struct.pack('<I', len(frame)))

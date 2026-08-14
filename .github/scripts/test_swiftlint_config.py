@@ -150,6 +150,7 @@ class SwiftLintConfigTests(unittest.TestCase):
 
     def test_package_swift_has_plugin_on_swift_targets(self):
         content = PACKAGE_PATH.read_text(encoding="utf-8")
+        self.assertNotIn('name: "OmiWAL"', content)
         # Plugin must be on Swift targets
         for target in ["OmiSupport", "OmiTheme"]:
             self.assertIn(f'name: "{target}"', content)

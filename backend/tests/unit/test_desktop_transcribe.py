@@ -19,7 +19,7 @@ import pytest
 from starlette.websockets import WebSocketDisconnect
 
 # ---------------------------------------------------------------------------
-# Module-level stubs (same pattern as test_sync_transcription_prefs.py)
+# Module-level dependency stubs for this focused suite
 # ---------------------------------------------------------------------------
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]
