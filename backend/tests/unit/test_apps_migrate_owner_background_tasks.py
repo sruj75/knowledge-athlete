@@ -3,9 +3,8 @@ work (memory migration, persona connected-account sync) via the tracked
 start_background_task helper, not a bare asyncio.create_task().
 
 This endpoint fires when a user links an anonymous account to Google/Apple and the
-credential already belongs to an existing account (app/lib/providers/auth_provider.dart
--> migrateAppOwnerId). The client sends the anonymous source's Firebase ID token after
-it has signed into the destination account, and gets {"status": "ok"} back immediately
+credential already belongs to an existing account. The client sends the anonymous source's
+Firebase ID token after it has signed into the destination account, and gets {"status": "ok"} back immediately
 while the memory migration and persona sync continue in the background.
 
 A bare asyncio.create_task() with its result discarded is exactly the fire-and-forget

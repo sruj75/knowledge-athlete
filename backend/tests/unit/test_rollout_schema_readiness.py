@@ -136,33 +136,3 @@ def test_rollout_schema_readiness_rejected_legacy_shapes_fail_closed():
         )
         assert decision.read_decision == MemoryReadDecision.DENY_MEMORY
         assert decision.fallback_reason == shape["reason"]
-
-
-def test_rollout_schema_docs_use_canonical_v1_shape_and_label_legacy_aliases_as_rejected():
-    root = Path(__file__).resolve().parents[2].parent
-    rollout_doc = root / "docs" / "epics" / "memory_rollout_schema_migration.md"
-    assert rollout_doc.exists(), "missing rollout schema migration/compatibility note"
-    text = rollout_doc.read_text()
-
-    for required in [
-        "schema_version: 1",
-        "uid:",
-        "grants.mcp.default_memory",
-        "grants.developer_api.default_memory",
-        "grants.omi_chat.default_memory",
-        "grants.omi_chat.archive",
-        "Rejected legacy shapes",
-        "unsupported_rollout_schema",
-        "uid_mismatch",
-    ]:
-        assert required in text
-
-    canonical_section = text.split("## Rejected legacy shapes", 1)[0]
-    for legacy_alias in FORBIDDEN_LEGACY_ALIASES:
-        assert legacy_alias not in canonical_section
-
-    evidence_markers = (root / "docs" / "operational" / "memory_readiness_evidence_markers.md").read_text()
-    assert "rollout_schema_readiness.py" in evidence_markers
-    assert "schema_version=1" in evidence_markers
-    assert "canonical nested `grants.<consumer>.default_memory`" in evidence_markers
-    assert "production_rollout_approved=false" in evidence_markers

@@ -4,7 +4,7 @@ import pytest
 
 from utils.user_language import ACCEPTED_BASE_LANGUAGES, normalize_user_language
 
-# Every code the mobile picker can send (app/lib/providers/home_provider.dart).
+# Every language code accepted by the retained client wire contract.
 CLIENT_SENT_CODES = (
     'en',
     'en-US',

@@ -8,7 +8,7 @@ rejects an existing client's URI, CI will fail here before any deploy.
 
 Mapping to real-world clients:
 
-* ``omi://auth/callback``                — Flutter app (``app/lib/services/auth_service.dart``)
+* ``omi://auth/callback``                — retained legacy client scheme
 * ``omi-computer://auth/callback``       — desktop prod build
 * ``omi-computer-dev://auth/callback``   — desktop dev build (``Desktop/Info.plist``)
 * ``omi-fix-rewind://auth/callback``     — example named test bundle

@@ -273,7 +273,6 @@ def test_pre_push_requires_backend_python_lazily():
         "check_backend_runtime_env_if_needed",
         "check_backend_typecheck_if_needed",
         "check_backend_unit_tests_if_needed",
-        "check_openapi_contract_if_needed",
     ):
         function_start = pre_push.index(f"{function_name}()")
         function_end = pre_push.find("\n}\n", function_start)

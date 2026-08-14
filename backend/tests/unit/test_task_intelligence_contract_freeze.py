@@ -119,8 +119,7 @@ def test_source_manifest_negative_check_rejects_scanner_discovered_unregistered_
     discovered = set(discovered_writer_anchors)
     python_writer = tmp_path / 'backend' / 'services' / 'new_writer.py'
     swift_writer = tmp_path / 'desktop' / 'macos' / 'Desktop' / 'Sources' / 'NewWriter.swift'
-    dart_writer = tmp_path / 'app' / 'lib' / 'new_writer.dart'
-    for path in (python_writer, swift_writer, dart_writer):
+    for path in (python_writer, swift_writer):
         path.parent.mkdir(parents=True, exist_ok=True)
     python_writer.write_text(
         'from database import action_items as differently_named\n'
@@ -129,12 +128,10 @@ def test_source_manifest_negative_check_rejects_scanner_discovered_unregistered_
         encoding='utf-8',
     )
     swift_writer.write_text('func write() async { try await APIClient.shared.createActionItem() }\n', encoding='utf-8')
-    dart_writer.write_text('Future<void> write() async { await api.updateActionItem("id"); }\n', encoding='utf-8')
     synthetic = discover_backend_writer_anchors(repository_root=tmp_path)
     assert synthetic == {
         ('backend/services/new_writer.py', 'action_items_db.create_action_item'),
         ('desktop/macos/Desktop/Sources/NewWriter.swift', 'client.createActionItem'),
-        ('app/lib/new_writer.dart', 'client.updateActionItem'),
     }
     discovered.update(synthetic)
 

@@ -66,23 +66,3 @@ def test_memory_firestore_rules_iam_proof_runner_exists_and_is_read_only():
     )
     for forbidden in FORBIDDEN_MUTATING_TERMS:
         assert forbidden not in commands
-
-
-def test_memory_firestore_rules_iam_doc_references_proof_runner_and_pass_fail_gates():
-    root = Path(__file__).resolve().parents[2].parent
-    doc_path = root / "docs" / "epics" / "memory_firestore_iam_deployment.md"
-    doc = doc_path.read_text()
-
-    assert "python3 backend/scripts/firestore_rules_iam_proof.py" in doc
-    assert "users/{uid}/memory_outbox/{record_id}" in doc
-    assert "users/{uid}/memory_control/state" in doc
-    assert "users/{uid}/memory_control/app_key_memory_grants" in doc
-    assert "mcp_api_keys/{key_id}" in doc
-    assert "vector_repair_outbox_enabled" in doc
-    assert "client denial" in doc
-    assert "MCP API-key" in doc
-    assert "app/key memory grant" in doc
-    assert "Admin worker service account" in doc
-    assert "no client enablement of `vector_repair_outbox_enabled`" in doc
-    assert "no broad public access" in doc
-    assert "not production approval" in doc

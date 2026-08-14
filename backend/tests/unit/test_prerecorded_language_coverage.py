@@ -6,7 +6,7 @@ from config.prerecorded_stt import TranscriptionOutcome
 from utils.stt.outcomes import TranscriptionFailure, failure_from_exception
 from utils.stt.pre_recorded import PrerecordedSTTService, get_prerecorded_service
 
-# Every base language the mobile picker offers (app/lib/providers/home_provider.dart).
+# Every base language accepted by the retained client wire contract.
 CLIENT_OFFERED_LANGUAGES = (
     'ar',
     'be',

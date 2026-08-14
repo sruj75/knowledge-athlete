@@ -14,6 +14,13 @@
 # per-test fresh module reload) are marked `slow`/`integration` and are NOT listed here.
 # Renders all eight first-party charts in dev and prod; still hermetic and required in the unit lane.
 tests/unit/test_rendered_deployment_contract.py::test_repository_charts_render_the_full_contract_when_helm_is_available
+# These retained backend-to-macOS contract tests deliberately build the live FastAPI
+# app-client schema after S-04 removed the absent docs snapshot.
+tests/unit/test_app_client_swift_generator.py::test_swift_dto_file_is_generated_from_live_app_client_openapi
+tests/unit/test_assistant_settings_response_models.py::test_app_client_openapi_assistant_settings_response_exposes_known_fields_and_allows_future_sections
+tests/unit/test_desktop_rest_inventory.py::test_every_in_scope_desktop_rest_route_exists_in_app_client_openapi
+tests/unit/test_desktop_rest_inventory.py::test_known_missing_routes_do_not_drift
+tests/unit/test_desktop_rest_inventory.py::test_desktop_named_model_response_items_are_not_free_form_objects
 tests/unit/test_runtime_image_contracts.py::test_registered_runtime_image_sources_are_closed
 tests/unit/test_runtime_image_contracts.py::test_pusher_contract_rejects_omitted_shared_package
 tests/unit/test_runtime_image_contracts.py::test_pusher_dependency_probe_includes_jsonschema

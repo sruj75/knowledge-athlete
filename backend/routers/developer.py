@@ -1390,16 +1390,10 @@ def get_user_folders(uid: str = Depends(get_uid_with_conversations_read)):
     (violating the read-only contract) and opens a TOCTOU window where concurrent first
     requests can race past the outer empty-check and create duplicate system folders.
 
-    System folders (Work, Personal, Social) are still initialized lazily through other paths:
-    - The mobile app calls the internal `GET /v1/folders` whenever the conversations screen
-      is rendered (`app/lib/pages/conversations/conversations_page.dart`), which triggers
-      `initialize_system_folders` on first access.
-    - The conversation post-processing pipeline calls `initialize_system_folders` whenever
-      a new conversation is created (`backend/utils/conversations/process_conversation.py`).
-
-    In practice, any user who can issue a Developer API key has already gone through one of
-    those paths, so the empty-list case here only affects users who have never opened the
-    conversations tab nor created a single conversation.
+    System folders (Work, Personal, Social) are still initialized lazily by the conversation
+    post-processing pipeline whenever a new conversation is created
+    (`backend/utils/conversations/process_conversation.py`). The empty-list case here therefore
+    applies to users who have not created a conversation.
     """
     return folders_db.get_folders(uid)
 
