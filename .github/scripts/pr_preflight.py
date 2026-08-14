@@ -127,8 +127,8 @@ def resolve_pr_metadata(
         return load_from_gh(root)
     except RuntimeError as exc:
         print(f"PR metadata: unavailable ({exc})")
-        print("If invariant citations are required, rerun with --pr-body-file <draft.md>")
-        print("or set OMI_PR_BODY_FILE, or run: scripts/pr-preflight --suggest")
+        print("For fix-commit guidance, run: scripts/pr-preflight --suggest")
+        print("To validate a draft, rerun with --pr-body-file <draft.md> or set OMI_PR_BODY_FILE")
         return None
 
 
@@ -150,7 +150,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--suggest",
         action="store_true",
-        help="Print paste-ready product-invariant and failure-class PR guidance for the diff and exit 0",
+        help="Print paste-ready failure-class PR guidance for the diff and exit 0",
     )
     parser.add_argument("--root", type=Path)
     return parser.parse_args()
@@ -182,25 +182,6 @@ def main() -> int:
         files_path = temp / "changed-files.txt"
         files_path.write_text("".join(f"{path}\n" for path in files), encoding="utf-8")
         if args.suggest:
-            invariants = subprocess.run(
-                [
-                    sys.executable,
-                    ".github/scripts/check_product_invariants.py",
-                    "--changed-files",
-                    str(files_path),
-                    "--suggest",
-                ],
-                cwd=root,
-                check=False,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-            )
-            if invariants.stdout:
-                print(invariants.stdout, end="")
-            if invariants.returncode:
-                return invariants.returncode
-
             suggestion_body = temp / "suggest-pr-body.md"
             suggestion_body.write_text("", encoding="utf-8")
             failure_classes = subprocess.run(
@@ -263,8 +244,6 @@ def main() -> int:
         )
         if metadata:
             print(f"PR metadata: {metadata.source}, updated_at={metadata.updated_at}")
-        elif any(check.name == "product-invariants" for check in checks):
-            print("PR metadata: none (product-invariants will use an empty body)")
 
         body_path = temp / "pr-body.txt"
         body_path.write_text(metadata.body if metadata else "", encoding="utf-8")
