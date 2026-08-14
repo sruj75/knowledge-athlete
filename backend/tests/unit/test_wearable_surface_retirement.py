@@ -1,0 +1,40 @@
+"""S-02 contract: direct wearable HTTP surfaces are retired.
+
+The changed expectation is authorized by IR-012/IR-013/IR-014/IR-359/IR-823
+in bootstrap-scaffold/requirements-challenge.md and the S-02 deletion map.
+Exercise the real production FastAPI app so deleted handlers cannot survive as
+mounted compatibility shells.
+"""
+
+from fastapi.testclient import TestClient
+
+import main
+
+
+_RETIRED_ROUTES = (
+    ("POST", "/v1/sync-local-files"),
+    ("POST", "/v2/sync-local-files"),
+    ("GET", "/v2/sync-local-files/retired-job"),
+    ("POST", "/v2/sync-capture-manifest"),
+    ("POST", "/v2/sync-jobs/run"),
+    ("GET", "/v2/firmware/latest"),
+    ("GET", "/v2/firmware/stable"),
+    ("GET", "/v2/firmware/version"),
+)
+
+
+def test_wearable_sync_and_firmware_routes_are_absent() -> None:
+    client = TestClient(main.app, raise_server_exceptions=False)
+
+    for method, path in _RETIRED_ROUTES:
+        assert client.request(method, path).status_code == 404, f"{method} {path} is still mounted"
+
+
+def test_neighboring_audio_and_desktop_update_routes_remain_mounted() -> None:
+    route_keys = {(method, route.path) for route in main.app.routes for method in getattr(route, "methods", set())}
+
+    assert ("POST", "/v1/sync/audio/{conversation_id}/precache") in route_keys
+    assert ("GET", "/v1/sync/audio/{conversation_id}/urls") in route_keys
+    assert ("GET", "/v1/sync/audio/{conversation_id}/{audio_file_id}") in route_keys
+    assert ("POST", "/v2/audio-merge-jobs/run") in route_keys
+    assert ("GET", "/v2/desktop/appcast.xml") in route_keys

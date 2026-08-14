@@ -14,7 +14,6 @@ from database.announcements import (
     get_announcement_by_id,
     get_app_changelogs,
     get_app_features,
-    get_firmware_features,
     get_general_announcements,
     get_pending_announcements,
     get_recent_changelogs,
@@ -63,21 +62,13 @@ def get_changelogs(
 @router.get("/v1/announcements/features", response_model=List[Announcement])
 def get_features(
     version: str = Query(..., description="Version user upgraded to"),
-    version_type: str = Query(..., description="Type: 'app' or 'firmware'"),
-    device_model: Optional[str] = Query(None, description="Device model (for firmware features)"),
 ):
     """
     Get feature announcements for a specific version.
 
-    For firmware updates: returns features explaining new device behavior.
-    For app updates: returns features explaining major new app functionality.
+    Returns features explaining major new app functionality.
     """
-    if version_type == "firmware":
-        features = get_firmware_features(version, device_model)
-    else:
-        features = get_app_features(version)
-
-    return features
+    return get_app_features(version)
 
 
 @router.get("/v1/announcements/general", response_model=List[Announcement])
@@ -112,9 +103,7 @@ def get_announcements(
 def get_pending_announcements_endpoint(
     app_version: str = Query(..., description="Current app version (e.g., '1.0.522+240')"),
     platform: str = Query(..., description="Platform: 'ios' or 'android'"),
-    trigger: str = Query(..., description="Trigger: 'app_launch', 'version_upgrade', or 'firmware_upgrade'"),
-    firmware_version: Optional[str] = Query(None, description="Current firmware version (optional)"),
-    device_model: Optional[str] = Query(None, description="Device model name (optional)"),
+    trigger: str = Query(..., description="Trigger: 'app_launch' or 'version_upgrade'"),
     uid: str = Depends(auth_endpoints.get_current_user_uid),
 ):
     """
@@ -127,30 +116,25 @@ def get_pending_announcements_endpoint(
     1. active == True
     2. Not in user's dismissed_announcements (if show_once == True)
     3. Within time window (start_at <= now <= expires_at)
-    4. Matches targeting rules (version range, device, platform)
+    4. Matches targeting rules (version range and platform)
     5. Matches trigger type
     6. Sorted by priority (descending)
 
     Triggers:
     - app_launch: Check every app launch (for immediate announcements)
     - version_upgrade: Check only when app version changed
-    - firmware_upgrade: Check only when firmware version changed
     """
     if platform not in ["ios", "android"]:
         raise HTTPException(status_code=400, detail="Platform must be 'ios' or 'android'")
 
-    if trigger not in ["app_launch", "version_upgrade", "firmware_upgrade"]:
-        raise HTTPException(
-            status_code=400, detail="Trigger must be 'app_launch', 'version_upgrade', or 'firmware_upgrade'"
-        )
+    if trigger not in ["app_launch", "version_upgrade"]:
+        raise HTTPException(status_code=400, detail="Trigger must be 'app_launch' or 'version_upgrade'")
 
     announcements = get_pending_announcements(
         uid=uid,
         app_version=app_version,
         platform=platform,
         trigger=trigger,
-        firmware_version=firmware_version,
-        device_model=device_model,
     )
     return announcements
 
@@ -211,8 +195,6 @@ class CreateAnnouncementRequest(BaseModel):
     active: bool = True
     # Legacy fields (for backward compatibility)
     app_version: Optional[str] = None
-    firmware_version: Optional[str] = None
-    device_models: Optional[List[str]] = None
     expires_at: Optional[datetime] = None
     # New flexible targeting and display options
     targeting: Optional[Targeting] = None
@@ -226,8 +208,6 @@ class UpdateAnnouncementRequest(BaseModel):
     active: Optional[bool] = None
     # Legacy fields
     app_version: Optional[str] = None
-    firmware_version: Optional[str] = None
-    device_models: Optional[List[str]] = None
     expires_at: Optional[datetime] = None
     # New fields
     targeting: Optional[Targeting] = None
@@ -301,8 +281,6 @@ def create_announcement_endpoint(
         created_at=datetime.now(timezone.utc),
         active=data.active,
         app_version=data.app_version,
-        firmware_version=data.firmware_version,
-        device_models=data.device_models,
         expires_at=data.expires_at,
         targeting=data.targeting,
         display=data.display,
@@ -336,10 +314,6 @@ def update_announcement_endpoint(
         updates["active"] = data.active
     if data.app_version is not None:
         updates["app_version"] = data.app_version
-    if data.firmware_version is not None:
-        updates["firmware_version"] = data.firmware_version
-    if data.device_models is not None:
-        updates["device_models"] = data.device_models
     if data.expires_at is not None:
         updates["expires_at"] = data.expires_at
     if data.targeting is not None:

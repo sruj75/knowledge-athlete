@@ -58,7 +58,7 @@ def omi():
         yield module
 
 
-def _call(omi, query="How does the device connect to my phone?"):
+def _call(omi, query="How does conversation capture work?"):
     return omi.get_omi_product_info_tool.invoke({"query": query})
 
 

@@ -47,17 +47,6 @@ def _coerce_dt(value):
 _UTC_MIN = datetime.min.replace(tzinfo=timezone.utc)
 
 
-def _photo_created_at_sort_key(photo: Dict) -> datetime:
-    created_at = coerce_utc_datetime(photo.get('created_at'))
-    if created_at is None:
-        logger.warning(
-            'conversation_merge_photo_missing_or_invalid_created_at',
-            extra={'photo_id': photo.get('id'), 'has_created_at': 'created_at' in photo},
-        )
-        return _UTC_MIN
-    return created_at
-
-
 # Timestamp fields touched by the merge pipeline. Coerced once at the entry
 # point so every downstream caller (sort key, max(), .isoformat(), gap math
 # in _merge_transcript_segments) can assume a uniform tz-aware datetime
@@ -119,8 +108,7 @@ def validate_merge_compatibility(
 
     # Check none are soft-deleted. A soft-deleted tombstone is invisible to the
     # user, so merging it resurrects deleted content into a new visible
-    # conversation — the inverse of the tombstone contract the sync merge path
-    # already enforces (see conversations_db.eligible_merge_target, #10119).
+    # conversation — the inverse of the tombstone contract.
     # `get_conversation` returns tombstones unfiltered and the /merge endpoint
     # only 404s on a missing (None) doc, so a deleted id passed by an API client
     # or a delete-vs-merge race would otherwise flow straight through.
@@ -166,7 +154,7 @@ def perform_merge_async(
 
     Simplified flow:
     1. Fetch all source conversations
-    2. Merge raw data (transcripts, photos)
+    2. Merge transcript data
     3. Copy audio chunks with adjusted timestamps
     4. Create NEW conversation with merged raw data
     5. Process conversation (generates title, summary, action items, memories, etc.)
@@ -197,7 +185,7 @@ def perform_merge_async(
         # A source can be soft-deleted between admission (validate_merge_compatibility
         # at the endpoint) and this background re-fetch — the delete-vs-merge race. Re-check
         # here, before reading any content: merging a tombstone would resurrect its deleted
-        # transcript/photos/audio into a new visible conversation. Abort rather than merge.
+        # transcript/audio into a new visible conversation. Abort rather than merge.
         if any(conv.get('deleted') for conv in conversations):
             logger.error(f"Merge aborted: a source was deleted after admission uid={uid}")
             _handle_merge_failure(uid, conversation_ids)
@@ -217,7 +205,6 @@ def perform_merge_async(
 
         # 2. Merge raw data
         merged_segments = _merge_transcript_segments(sorted_convs)
-        merged_photos = _collect_all_photos(uid, sorted_convs)
 
         # 3. Generate new conversation ID and copy audio chunks
         new_conversation_id = str(uuid.uuid4())
@@ -275,7 +262,6 @@ def perform_merge_async(
             language=language,
             source=source,
             transcript_segments=merged_segments,
-            photos=merged_photos,
             audio_files=merged_audio_files,
             geolocation=geolocation,
             visibility=visibility,
@@ -298,10 +284,6 @@ def perform_merge_async(
             enqueue_conversation_artifact_build(
                 uid, new_conversation_id, compute_audio_files_fingerprint(files_payload), caller='merge_conversations'
             )
-
-        # Store photos in subcollection if any
-        if merged_photos:
-            conversations_db.store_conversation_photos(uid, new_conversation_id, merged_photos)
 
         # 8. Process conversation to generate title, summary, action items, memories, etc.
         if reprocess:
@@ -396,42 +378,6 @@ def _merge_transcript_segments(conversations: List[Dict]) -> List[Dict]:
                 cumulative_offset = offset + duration
 
     return merged
-
-
-def _collect_all_photos(uid: str, conversations: List[Dict]) -> List[Dict]:
-    """
-    Fetch and merge photos from all conversation subcollections.
-
-    Strategy:
-    - Fetch photos from each conversation's subcollection
-    - Deduplicate by photo ID
-    - Sort by created_at
-
-    Args:
-        uid: User ID
-        conversations: List of conversation dictionaries
-
-    Returns:
-        List of photo dictionaries
-    """
-    all_photos = []
-    seen_ids = set()
-
-    for conv in conversations:
-        try:
-            photos = conversations_db.get_conversation_photos(uid, conv['id'])
-            for photo in photos:
-                photo_id = photo.get('id')
-                if photo_id and photo_id not in seen_ids:
-                    all_photos.append(photo)
-                    seen_ids.add(photo_id)
-        except Exception as e:
-            logger.error(f"Error fetching photos for {conv['id']}: {e}")
-
-    # Sort by creation time with a uniform tz-aware UTC key. Missing or malformed
-    # created_at values are retained and ordered first, with structured metrics.
-    all_photos.sort(key=_photo_created_at_sort_key)
-    return all_photos
 
 
 def _copy_audio_chunks_for_merge(
@@ -539,7 +485,6 @@ def _delete_conversation_and_related_data(uid: str, conversation_id: str) -> Non
     Deletes:
     - Memories linked to this conversation
     - Action items linked to this conversation (standalone collection)
-    - Photos subcollection
     - Audio chunks in GCS
     - Vector embedding
     - Conversation document
@@ -569,12 +514,6 @@ def _delete_conversation_and_related_data(uid: str, conversation_id: str) -> Non
         action_items_db.delete_action_items_for_conversation(uid, conversation_id)
     except Exception as e:
         logger.error(f"Error deleting action items for {conversation_id}: {e}")
-
-    try:
-        # Delete photos subcollection
-        conversations_db.delete_conversation_photos(uid, conversation_id)
-    except Exception as e:
-        logger.error(f"Error deleting photos for {conversation_id}: {e}")
 
     try:
         # Delete audio chunks from GCS

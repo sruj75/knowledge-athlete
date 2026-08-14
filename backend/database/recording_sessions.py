@@ -164,7 +164,7 @@ def tombstone_and_delete_empty_conversation(
 ) -> bool:
     """Atomically delete an empty live row and terminalize its bound session.
 
-    Segment/photo writes set the conversation's durable ``has_content`` marker
+    Segment writes set the conversation's durable ``has_content`` marker
     in transactions on this same parent document. Firestore therefore retries
     this transaction when a late content write wins, preventing cleanup from
     deleting user data based on a stale empty read.

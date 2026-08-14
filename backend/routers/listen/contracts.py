@@ -75,14 +75,9 @@ class ListenSessionState:
 @dataclass(frozen=True)
 class ListenLimits:
     max_segment_buffer_size: int = 1000
-    max_photo_buffer_size: int = 100
     max_audio_buffer_size: int = 10 * 1024 * 1024
     max_pending_requests: int = 100
     max_pending_speaker_sample_requests: int = 50
-    max_image_chunks: int = 50
-    image_chunk_ttl: float = 60.0
-    image_chunk_cleanup_interval: float = 2.0
-    image_chunk_cleanup_min_size: int = 5
     ring_buffer_duration: float = 60.0
     speaker_id_min_audio: float = 2.0
     speaker_id_target_audio: float = 4.0

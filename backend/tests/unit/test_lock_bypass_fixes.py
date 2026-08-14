@@ -1536,7 +1536,7 @@ class TestConversationListRedaction:
         locked_conv = _make_conversation(locked=True)
         unlocked_conv = _make_conversation(locked=False, conversation_id='conv-2')
 
-        conversations_db.get_conversations_without_photos = MagicMock(return_value=[locked_conv, unlocked_conv])
+        conversations_db.get_conversations = MagicMock(return_value=[locked_conv, unlocked_conv])
 
         with patch('routers.conversations.auth') as mock_auth:
             mock_auth.get_current_user_uid = MagicMock(return_value='test-uid')

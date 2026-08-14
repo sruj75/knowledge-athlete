@@ -550,10 +550,6 @@ def delete_empty_recording_conversation(
         conversation_id,
         recording_session_id,
     )
-    if deleted:
-        # Parent deletion is transactionally fenced with content writes; photos
-        # are a subcollection and need their physical cleanup afterwards.
-        conversations_db.delete_conversation_photos(uid, conversation_id)
     return deleted
 
 

@@ -1,4 +1,4 @@
-"""Bounded instrumentation for voice, sync, and live transcription outcomes."""
+"""Bounded instrumentation for voice and live transcription outcomes."""
 
 from __future__ import annotations
 
@@ -11,8 +11,6 @@ from utils.metrics import (
     OMI_LIVE_STT_ACCEPTED_TOTAL,
     OMI_LIVE_STT_TERMINAL_TOTAL,
     OMI_LIVE_STT_TERMINAL_FAILURES_TOTAL,
-    OMI_SYNC_TRANSCRIPTION_JOBS_TOTAL,
-    OMI_SYNC_TRANSCRIPTION_SEGMENTS_TOTAL,
     OMI_TRANSCRIPTION_ACCEPTED_TOTAL,
     OMI_TRANSCRIPTION_COMPLETED_TOTAL,
     OMI_TRANSCRIPTION_LATENCY_SECONDS,
@@ -20,11 +18,9 @@ from utils.metrics import (
 from utils.env_loader import resolve_stage_from_env
 from utils.stt.outcomes import TranscriptionOutcome, bounded_provider
 
-_ROUTES = {'voice_chat_sse', 'voice_rest_multipart', 'voice_rest_pcm', 'sync'}
+_ROUTES = {'voice_chat_sse', 'voice_rest_multipart', 'voice_rest_pcm'}
 _PLATFORMS = {'android', 'desktop', 'ios', 'linux', 'macos', 'mobile', 'web', 'windows'}
 _REVISION_PATTERN = re.compile(r'[^a-zA-Z0-9_.-]')
-_SYNC_LANES = {'backfill', 'fresh'}
-_SYNC_MODELS = {'nova-3', 'parakeet', 'velma-2'}
 _LIVE_PHASES = {'connection', 'initialization', 'send'}
 _LIVE_TERMINAL_OUTCOMES = frozenset({'success', 'failure', 'cancelled'})
 _LIVE_TERMINAL_PHASES = frozenset({'connection', 'initialization', 'send', 'teardown', 'transcript_delivery'})
@@ -126,30 +122,6 @@ class LiveSTTAttempt:
             deployment_environment=self.deployment_environment,
             phase=phase,
         ).inc()
-
-
-def record_sync_transcription_outcome(
-    *,
-    kind: str,
-    provider: str | None,
-    model: str | None,
-    lane: str | None,
-    outcome: TranscriptionOutcome,
-) -> None:
-    """Record a bounded sync job or segment terminal outcome."""
-
-    if kind not in {'job', 'segment'}:
-        raise ValueError('kind must be job or segment')
-    counter = OMI_SYNC_TRANSCRIPTION_SEGMENTS_TOTAL if kind == 'segment' else OMI_SYNC_TRANSCRIPTION_JOBS_TOTAL
-    bounded_model = model if model in _SYNC_MODELS else 'unknown'
-    bounded_lane = lane if lane in _SYNC_LANES else 'unknown'
-    counter.labels(
-        provider=bounded_provider(provider),
-        model=bounded_model,
-        lane=bounded_lane,
-        outcome=outcome.value,
-        deployment_version=_deployment_version(),
-    ).inc()
 
 
 def record_live_stt_failure(

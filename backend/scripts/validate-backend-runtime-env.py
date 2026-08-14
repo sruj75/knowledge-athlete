@@ -49,8 +49,6 @@ _NOTIFICATIONS_JOB_FORBIDDEN_MEMORY_ENV = frozenset(
     }
 )
 _NOTIFICATIONS_JOB_FORBIDDEN_MEMORY_SECRETS = frozenset({'TYPESENSE_HOST', 'TYPESENSE_API_KEY'})
-_SYNC_LEDGER_FENCE_SERVICES = ('backend', 'backend-sync', 'backend-sync-backfill')
-_SYNC_LEDGER_FENCE_MODES = frozenset({'legacy', 'standby', 'active'})
 _MEMORY_MAINTENANCE_DEV_REQUIRED_FLAGS = {
     '--task-timeout': '3600s',
     '--cpu': '2',
@@ -166,7 +164,6 @@ def validate_runtime_env(
 
     if cloud_run_state is not None:
         errors.extend(_validate_cloud_run(env_config, cloud_run_state, strict_provisional=strict_provisional))
-        errors.extend(_validate_sync_ledger_fence_mode(env_config, cloud_run_state))
     return errors
 
 
@@ -294,69 +291,6 @@ def _validate_manifest_shape(env_config: ConfigDict, env: str) -> list[Validatio
     cloud_run_services = _as_config_dict(cloud_run.get('services'))
     if cloud_run_services is None or not cloud_run_services:
         errors.append(ValidationError(env, 'cloud_run.services must be a non-empty mapping'))
-    else:
-        for service in _SYNC_LEDGER_FENCE_SERVICES:
-            service_config = _as_config_dict(cloud_run_services.get(service)) or {}
-            env_entries = _as_config_dict(service_config.get('env')) or {}
-            entry = _as_config_dict(env_entries.get('SYNC_LEDGER_FENCE_MODE'))
-            if entry is None:
-                errors.append(ValidationError(f'{env}/cloud_run/{service}', 'missing SYNC_LEDGER_FENCE_MODE'))
-                continue
-            if entry.get('env_var') != 'SYNC_LEDGER_FENCE_MODE':
-                errors.append(
-                    ValidationError(
-                        f'{env}/cloud_run/{service}',
-                        'SYNC_LEDGER_FENCE_MODE must bind the protected SYNC_LEDGER_FENCE_MODE variable',
-                    )
-                )
-            if entry.get('default') != 'legacy':
-                errors.append(
-                    ValidationError(
-                        f'{env}/cloud_run/{service}',
-                        'SYNC_LEDGER_FENCE_MODE must default to legacy until protected cutover activation',
-                    )
-                )
-    return errors
-
-
-def _validate_sync_ledger_fence_mode(env_config: ConfigDict, cloud_run_state: ConfigDict) -> list[ValidationError]:
-    """Keep the protected rollout mode identical across all sync surfaces.
-
-    A normal deploy must never regress a live active cutover back to legacy,
-    nor leave one service in standby while another starts fenced work. The
-    renderer receives the desired value from the protected environment
-    variable; its absence deliberately means the safe legacy default.
-    """
-    expected = os.getenv('SYNC_LEDGER_FENCE_MODE', 'legacy').strip().lower() or 'legacy'
-    errors: list[ValidationError] = []
-    if expected not in _SYNC_LEDGER_FENCE_MODES:
-        return [ValidationError('sync_ledger_fence', f'invalid protected mode {expected!r}')]
-
-    services = _as_config_dict(cloud_run_state.get('services')) or {}
-    for service in _SYNC_LEDGER_FENCE_SERVICES:
-        state = _as_config_dict(services.get(service))
-        if state is None:
-            # Keep the existing provisional-rendered behavior intact. Live
-            # validation will still require every cutover service once it is
-            # deployed, because no state is then provisional.
-            continue
-        actual = _env_entries_by_name(state.get('env', [])).get('SYNC_LEDGER_FENCE_MODE')
-        actual_value = _literal_env_value(actual) if actual is not None else ''
-        if actual_value not in _SYNC_LEDGER_FENCE_MODES:
-            errors.append(
-                ValidationError(
-                    f'cloud_run/{service}',
-                    'SYNC_LEDGER_FENCE_MODE must be one of legacy, standby, active',
-                )
-            )
-            continue
-        if actual_value != expected:
-            errors.append(
-                ValidationError(
-                    f'cloud_run/{service}',
-                    f'SYNC_LEDGER_FENCE_MODE mismatch: expected protected mode {expected!r}, got {actual_value!r}',
-                )
-            )
     return errors
 
 
@@ -824,7 +758,6 @@ def _validate_cloud_run_workflows(
             manifest=manifest,
             workflow_root=workflow_root,
         )
-        errors.extend(_validate_sync_backfill_co_deploy(workflow_file, extracted['services']))
         workflow_services.update(extracted['services'])
         workflow_jobs.update(extracted['jobs'])
 
@@ -1396,24 +1329,6 @@ def _extract_workflow_cloud_run_targets(
     return {'services': services, 'jobs': jobs}
 
 
-def _validate_sync_backfill_co_deploy(workflow_file: str, services: dict[str, ConfigDict]) -> list[ValidationError]:
-    """Fail when a workflow deploys backend-sync without its bounded backfill worker.
-
-    Union-across-workflow_files validation can mask this: manual deploy of
-    backend-sync-backfill would otherwise hide an auto-dev omission.
-    """
-    if 'backend-sync' not in services:
-        return []
-    if 'backend-sync-backfill' in services:
-        return []
-    return [
-        ValidationError(
-            f'cloud_run_workflow/{workflow_file}',
-            'deploys backend-sync without backend-sync-backfill',
-        )
-    ]
-
-
 def _expand_cloud_run_deploy_steps(step: object, *, workflow_root: Path) -> list[ConfigDict]:
     step_dict = _as_config_dict(step)
     if step_dict is None:
@@ -1575,27 +1490,6 @@ def _resolve_step_output_reference(raw_value: object, rendered_outputs: StringMa
     resolved = raw_value
     for output_name, output_value in rendered_outputs.items():
         resolved = resolved.replace(f'{prefix}{output_name}{suffix}', output_value)
-    # The backfill worker clones backend-sync's live runtime contract and then
-    # overlays the manifest-rendered lane settings. Static validation checks
-    # that guaranteed overlay; the deploy step separately tests the live clone.
-    # Support both inline workflow steps and the sync-backfill-lifecycle composite.
-    resolved = resolved.replace(
-        '${{ steps.backfill-runtime.outputs.env_vars }}',
-        rendered_outputs.get('backend_sync_backfill_env_vars', ''),
-    )
-    resolved = resolved.replace(
-        '${{ steps.backfill-runtime.outputs.secrets }}',
-        rendered_outputs.get('backend_sync_backfill_secrets', ''),
-    )
-    sync_backfill_overlay = (
-        'SYNC_BACKFILL_TASKS_QUEUE=sync-backfill\n'
-        'SYNC_BACKFILL_TASKS_HANDLER_URL=https://backend-sync-backfill.example.invalid/v2/sync-jobs/run\n'
-        'SYNC_BACKFILL_TASKS_OIDC_AUDIENCE=https://backend-sync-backfill.example.invalid/v2/sync-jobs/run'
-    )
-    resolved = resolved.replace(
-        '${{ steps.sync-backfill.outputs.sync_backfill_env_vars }}',
-        sync_backfill_overlay,
-    )
     return resolved
 
 

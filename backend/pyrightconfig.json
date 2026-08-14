@@ -139,7 +139,6 @@
         "routers/conversations.py",
         "routers/developer.py",
         "routers/fair_use_admin.py",
-        "routers/firmware.py",
         "routers/mcp.py",
         "routers/mcp_sse.py",
         "routers/memory_product.py",

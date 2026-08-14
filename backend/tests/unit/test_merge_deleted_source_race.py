@@ -4,7 +4,7 @@ validate_merge_compatibility rejects a soft-deleted source at admission, but
 perform_merge_async re-fetches the sources later in the background task. If a source
 becomes a soft-deleted tombstone between admission and that fetch (the delete-vs-merge
 race), the worker must abort — otherwise it resurrects the deleted source's
-transcript/photos/audio into a new visible conversation and then re-deletes the sources.
+transcript/audio into a new visible conversation and then re-deletes the sources.
 """
 
 import os
@@ -67,7 +67,6 @@ def test_merge_does_not_abort_when_no_source_is_deleted(monkeypatch):
     )
     monkeypatch.setattr(merge, "_normalize_conversation_timestamps", lambda convs: convs)
     monkeypatch.setattr(merge, "_merge_transcript_segments", lambda convs: [])
-    monkeypatch.setattr(merge, "_collect_all_photos", lambda uid, convs: [])
     monkeypatch.setattr(merge, "_copy_audio_chunks_for_merge", lambda uid, convs, new_id: [])
     monkeypatch.setattr(merge, "Conversation", lambda **kw: MagicMock(**{'model_dump.return_value': {}}))
     create.side_effect = RuntimeError("stop at build; the guard already let us through")
@@ -101,7 +100,6 @@ def test_merge_renews_processing_lease_during_live_processing(monkeypatch):
     monkeypatch.setattr(merge, "_handle_merge_failure", MagicMock())
     monkeypatch.setattr(merge, "_normalize_conversation_timestamps", lambda convs: convs)
     monkeypatch.setattr(merge, "_merge_transcript_segments", lambda convs: [])
-    monkeypatch.setattr(merge, "_collect_all_photos", lambda uid, convs: [])
     monkeypatch.setattr(merge, "_copy_audio_chunks_for_merge", lambda uid, convs, new_id: [])
     monkeypatch.setattr(merge, "_determine_visibility", lambda convs: 'private')
     monkeypatch.setattr(merge, "_shared_client_device_provenance", lambda convs: (None, None))

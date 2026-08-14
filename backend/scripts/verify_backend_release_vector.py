@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
-CLOUD_RUN_SERVICES = ('backend', 'backend-sync', 'backend-sync-backfill', 'backend-integration')
+CLOUD_RUN_SERVICES = ('backend', 'backend-sync', 'backend-integration')
 MIN_CLOUD_RUN_TIMEOUT_SECONDS = 300
 
 

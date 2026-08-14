@@ -580,7 +580,6 @@ class Stack:
                         'person_id': None,
                     }
                 ],
-                'photos': [],
             }
         )
 

@@ -50,7 +50,6 @@ TARGET_SCHEMAS = (
     'Event',
     'TranscriptSegment',
     'Geolocation',
-    'ConversationPhoto',
     'AppResult',
     'PluginResult',
     'AudioFile',

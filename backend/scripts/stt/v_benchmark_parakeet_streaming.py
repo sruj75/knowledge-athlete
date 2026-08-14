@@ -2,8 +2,8 @@
 Benchmark Suite: Parakeet/Nemotron ASR — Streaming transcription.
 
 Compares Parakeet against Deepgram nova-3 streaming using LibriSpeech
-test-clean samples. Streams at real-time pace (3200 bytes/100ms) matching
-the Omi wearable output format.
+test-clean samples. Streams 16 kHz mono PCM at real-time pace
+(3200 bytes/100ms), matching the retained live-transcription input contract.
 
 Setup:
     1. Prepare samples:

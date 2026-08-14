@@ -27,7 +27,6 @@ from google.cloud import firestore
 
 from database import conversations as conversations_db
 from database import recording_sessions as recording_sessions_db
-from models.conversation_photo import ConversationPhoto
 from utils.conversations import lifecycle as lifecycle_service
 from utils.conversations.live_content import retry_fenced_live_content_once
 
@@ -295,77 +294,6 @@ def _assert_segment_content_contract(client: Any, uid: str) -> None:
     _assert_cleanup_lock_fences_late_segment_write(client, uid)
 
 
-def _assert_photo_content_contract(client: Any, uid: str) -> None:
-    conversation_id = f'photo-{uuid.uuid4().hex}'
-    recording_session_id = f'session-{uuid.uuid4().hex}'
-    _seed_live_generation(client, uid, conversation_id, recording_session_id)
-
-    def write_photo(target_conversation_id: str) -> bool:
-        return conversations_db.store_conversation_photos(
-            uid,
-            target_conversation_id,
-            [ConversationPhoto(id='late-photo', base64='aGVsbG8=', description='late screenshot')],
-            firestore_client=client,
-        )
-
-    conversation_ref = _assert_live_content_prevents_cleanup(
-        client,
-        uid,
-        conversation_id,
-        recording_session_id,
-        lambda: write_photo(conversation_id),
-    )
-    if len(list(conversation_ref.collection('photos').stream())) != 1:
-        raise AssertionError('late photo subdocument was not preserved')
-
-    _assert_cleanup_fences_then_rolls_over(
-        client,
-        uid,
-        content_kind='photo',
-        content_write=write_photo,
-        content_present=lambda ref: len(list(ref.collection('photos').stream())) == 1,
-    )
-
-
-def _assert_photo_only_finalization_is_admitted(client: Any, uid: str) -> None:
-    conversation_id = f'photo-finalization-{uuid.uuid4().hex}'
-    _seed_empty_live_conversation(client, uid, conversation_id)
-    if not conversations_db.store_conversation_photos(
-        uid,
-        conversation_id,
-        [ConversationPhoto(id='only-photo', base64='aGVsbG8=', description='photo-only listen conversation')],
-        firestore_client=client,
-    ):
-        raise AssertionError('photo-only writer unexpectedly lost its conversation parent')
-
-    intent = lifecycle_service.request_finalization(
-        uid,
-        conversation_id,
-        has_byok_keys=False,
-        firestore_client=client,
-    )
-    if intent['status'] != 'queued' or not intent['job_id']:
-        raise AssertionError(f'photo-only conversation was not admitted to durable finalization: {intent}')
-
-
-def _assert_legacy_photo_only_finalization_is_admitted(client: Any, uid: str) -> None:
-    """Pre-marker photo children must still admit a durable finalization job."""
-    conversation_id = f'legacy-photo-finalization-{uuid.uuid4().hex}'
-    conversation_ref = _seed_empty_live_conversation(client, uid, conversation_id)
-    conversation_ref.collection('photos').document('legacy-only-photo').set(
-        {'id': 'legacy-only-photo', 'description': 'pre-marker photo-only listen conversation'}
-    )
-
-    intent = lifecycle_service.request_finalization(
-        uid,
-        conversation_id,
-        has_byok_keys=False,
-        firestore_client=client,
-    )
-    if intent['status'] != 'queued' or not intent['job_id']:
-        raise AssertionError(f'legacy photo-only conversation was not admitted to durable finalization: {intent}')
-
-
 def main() -> int:
     if not os.environ.get('FIRESTORE_EMULATOR_HOST'):
         raise RuntimeError('FIRESTORE_EMULATOR_HOST is required; run through Firebase emulators:exec')
@@ -373,9 +301,6 @@ def main() -> int:
     client: Any = firestore.Client(project=PROJECT_ID)
     uid = f'listen-lifecycle-emulator-{uuid.uuid4().hex}'
     _assert_segment_content_contract(client, uid)
-    _assert_photo_content_contract(client, uid)
-    _assert_photo_only_finalization_is_admitted(client, uid)
-    _assert_legacy_photo_only_finalization_is_admitted(client, uid)
     print('PASS: Firestore emulator fenced cleanup races and preserved listen content through fresh-generation replay')
     return 0
 

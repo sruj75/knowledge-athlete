@@ -1,4 +1,4 @@
-"""Tests for PCM16 WAL file decode in sync.py."""
+"""Tests for the retained multipart voice-message PCM decoder."""
 
 import importlib.util
 import os
@@ -22,7 +22,6 @@ _stub_modules = [
     'database.user_usage',
     'database.conversations',
     'database.cache',
-    'database.sync_jobs',
     'firebase_admin',
     'firebase_admin.messaging',
     'opuslib',
@@ -96,25 +95,6 @@ sys.modules['database.redis_db'].r = MagicMock()
 sys.modules['database._client'].db = MagicMock()
 _ensure_attrs('opuslib', ['Decoder'])
 _ensure_attrs('database.conversations', ['get_closest_conversation_to_timestamps', 'update_conversation_segments'])
-_ensure_attrs(
-    'database.sync_jobs',
-    [
-        'TERMINAL_STATUSES',
-        'create_sync_job',
-        'get_sync_job',
-        'update_sync_job',
-        'mark_job_processing',
-        'finalize_sync_job',
-        'mark_job_completed',
-        'mark_job_failed',
-        'mark_job_queued_for_retry',
-        'try_acquire_job_run_lock',
-        'release_job_run_lock',
-        'add_processed_segment',
-        'get_processed_segments',
-        'try_mark_once',
-    ],
-)
 _ensure_attrs('models.conversation', ['Conversation', 'CreateConversation'])
 _ensure_conversation_source_stub()
 _ensure_attrs('models.transcript_segment', ['TranscriptSegment'])
@@ -147,7 +127,6 @@ _ensure_attrs('utils.byok', ['get_byok_keys', 'set_byok_keys', 'has_byok_keys'])
 _ensure_attrs(
     'utils.cloud_tasks',
     [
-        'enqueue_sync_job',
         'get_sync_tasks_max_attempts',
         'is_audio_merge_dispatch_enabled',
         'is_cloud_tasks_dispatch_enabled',
@@ -488,4 +467,4 @@ class TestDecodeFilesToWavPcmRouting:
         assert _is_pcm_codec('audio_omi_opus_16000_1_fs160_1710000000.bin') is False
         assert _is_pcm_codec('audio_omi_opus_fs320_16000_2_fs320_1710000000.bin') is False
         assert _is_pcm_codec('audio_omi_aac_16000_1_fs160_1710000000.bin') is False
-        assert _is_pcm_codec('audio_omi_lc3_16000_1_fs160_1710000000.bin') is False
+        assert _is_pcm_codec('audio_client_aac_16000_1_fs160_1710000000.bin') is False

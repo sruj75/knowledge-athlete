@@ -58,7 +58,6 @@ class TestReExportsRemoved:
             'AudioFile',
             'CalendarMeetingContext',
             'CategoryEnum',
-            'ConversationPhoto',
             'ConversationSource',
             'ConversationStatus',
             'ConversationVisibility',
@@ -84,7 +83,6 @@ class TestReExportsRemoved:
         from models.structured_extraction import ActionItemsExtraction
         from models.audio_file import AudioFile
         from models.calendar_context import CalendarMeetingContext, MeetingParticipant
-        from models.conversation_photo import ConversationPhoto
         from models.geolocation import Geolocation
 
         assert CategoryEnum.other.value == 'other'
@@ -243,18 +241,6 @@ class TestHelperMethods:
         assert "Standup" in result
         assert "15 mins" in result
 
-    def test_photo_to_string(self):
-        from models.conversation_photo import ConversationPhoto
-
-        photos = [ConversationPhoto(base64="abc", description="A cat")]
-        result = ConversationPhoto.photos_as_string(photos)
-        assert '"A cat"' in result
-
-    def test_photo_to_string_empty(self):
-        from models.conversation_photo import ConversationPhoto
-
-        assert ConversationPhoto.photos_as_string([]) == 'None'
-
     def test_event_to_string_empty(self):
         from models.structured import Event
 
@@ -276,27 +262,6 @@ class TestHelperMethods:
         assert "Created: 2025-03-01 10:00:00 UTC" in result
         assert "Due: 2025-03-02 10:00:00 UTC" in result
         assert "Completed: 2025-03-01 15:00:00 UTC" in result
-
-    def test_photo_to_string_with_timestamps(self):
-        from models.conversation_photo import ConversationPhoto
-
-        photos = [
-            ConversationPhoto(
-                base64="abc",
-                description="A dog",
-                created_at=datetime(2025, 6, 15, 14, 30, 45, tzinfo=timezone.utc),
-            )
-        ]
-        result = ConversationPhoto.photos_as_string(photos, include_timestamps=True)
-        assert "[14:30:45]" in result
-        assert '"A dog"' in result
-
-    def test_photo_to_string_no_description(self):
-        """Photos with no description should be excluded."""
-        from models.conversation_photo import ConversationPhoto
-
-        photos = [ConversationPhoto(base64="abc", description=None)]
-        assert ConversationPhoto.photos_as_string(photos) == 'None'
 
     def test_event_as_dict_cleaned_dates(self):
         from models.structured import Event
@@ -376,12 +341,10 @@ class TestPhase3NarrowImports:
     def test_domain_models_from_canonical_modules(self):
         from models.audio_file import AudioFile
         from models.calendar_context import CalendarMeetingContext, MeetingParticipant
-        from models.conversation_photo import ConversationPhoto
         from models.geolocation import Geolocation
 
         assert Geolocation(latitude=0, longitude=0).latitude == 0
         assert MeetingParticipant().name is None
-        assert ConversationPhoto(base64="abc").base64 == "abc"
 
     def test_all_controls_star_import(self):
         """__all__ restricts star import to locally-defined symbols only."""
