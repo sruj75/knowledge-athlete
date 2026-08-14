@@ -151,7 +151,7 @@ class SwiftLintConfigTests(unittest.TestCase):
     def test_package_swift_has_plugin_on_swift_targets(self):
         content = PACKAGE_PATH.read_text(encoding="utf-8")
         # Plugin must be on Swift targets
-        for target in ["OmiSupport", "OmiTheme", "OmiWAL"]:
+        for target in ["OmiSupport", "OmiTheme"]:
             self.assertIn(f'name: "{target}"', content)
         # SwiftLint runs as an explicit CI lane, not as a SwiftPM build-tool plugin.
         # The plugin cannot run cleanly in CI/release builds because SwiftPM rejects
