@@ -17,7 +17,6 @@ final class DesktopAutomationSecondaryActionTests: XCTestCase {
       "vocabulary_set_terms",
       "goals_snapshot",
       "create_test_goal",
-      "apps_catalog_snapshot",
       "subscription_snapshot",
       "settings_privacy_snapshot",
       "open_conversation",
@@ -87,10 +86,6 @@ final class DesktopAutomationSecondaryActionTests: XCTestCase {
 
   func testQualificationActionsRespectBackendContracts() throws {
     let source = try bridgeSource()
-    let appsBody = try actionBody(named: "apps_catalog_snapshot", in: source)
-    XCTAssertTrue(appsBody.contains("installedOnly: true, limit: 100"))
-    XCTAssertFalse(appsBody.contains("installedOnly: true, limit: 200"))
-
     let goalBody = try actionBody(named: "create_test_goal", in: source)
     XCTAssertTrue(goalBody.contains("source: \"user\""))
     XCTAssertFalse(goalBody.contains("source: \"harness\""))

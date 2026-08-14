@@ -5042,7 +5042,7 @@ struct TaskRow: View {
   }
 }
 
-// FlowLayout is defined in AppsPage.swift
+// FlowLayout is defined in the shared retained component.
 
 // MARK: - Interactive Badges
 

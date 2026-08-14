@@ -94,7 +94,7 @@ final class ConnectorImportRunner: ObservableObject {
     connectorID: String,
     progressTitle: String,
     progressDetail: String,
-    surface: IntegrationConnectTelemetry.Surface = .apps,
+    surface: IntegrationConnectTelemetry.Surface = .home,
     operation: @escaping @MainActor (ProgressSink) async -> RunOutcome
   ) -> Task<Void, Never>? {
     guard tasks[connectorID] == nil else { return nil }
@@ -150,7 +150,7 @@ final class ConnectorImportRunner: ObservableObject {
     tasks[connectorID] = nil
     let startedAt = runStartedAt[connectorID]
     runStartedAt[connectorID] = nil
-    let surface = runSurfaces[connectorID] ?? .apps
+    let surface = runSurfaces[connectorID] ?? .home
     runSurfaces[connectorID] = nil
     let durationMs = startedAt.map { max(0, Int(Date().timeIntervalSince($0) * 1000)) }
     switch outcome {

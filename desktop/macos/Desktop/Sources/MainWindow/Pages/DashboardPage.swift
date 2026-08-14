@@ -216,7 +216,6 @@ struct DashboardPage: View {
   @ObservedObject var viewModel: DashboardViewModel
   @ObservedObject var homeStatusStore: HomeStatusStore = HomeStatusStore()
   @ObservedObject var appState: AppState
-  @ObservedObject var appProvider: AppProvider
   @ObservedObject var chatProvider: ChatProvider
   @ObservedObject var memoriesViewModel: MemoriesViewModel
   var taskChatCoordinator: TaskChatCoordinator? = nil
@@ -231,14 +230,9 @@ struct DashboardPage: View {
   @State private var homeAskFocusPolicy = HomeAskFocusPolicy()
   @Binding var selectedIndex: Int
   @State private var citedConversation: ServerConversation? = nil
-  @State private var selectedCatalogApp: OmiApp?
   @State private var selectedImportConnector: ImportConnector?
   @State private var selectedExportDestination: MemoryExportDestination?
-  @State private var isShowingAppsPopup = false
-  @State private var appsPopupAcceptsInput = false
   @State private var homeConnectSheetAcceptsInput = false
-  @State private var appsPopupInitialSection: AppsCatalogInitialSection = .imports
-  @State private var appsPopupPresentationID = UUID()
   @State private var isLoadingCitation = false
   @State private var isCaptureMonitoring = false
   @State private var isTogglingCapture = false
@@ -285,35 +279,20 @@ struct DashboardPage: View {
   private static let homeStageTopPadding: CGFloat = 74
   private static let homeStageBottomPadding: CGFloat = 26
   private static let homeStageAnimation = Animation.spring(response: 0.46, dampingFraction: 0.86)
-  private static let appsPopupMaxWidth: CGFloat = 1040
-  private static let appsPopupMaxHeight: CGFloat = 600
-  private static let appsPopupMinWidth: CGFloat = 360
-  private static let appsPopupMinHeight: CGFloat = 360
-  private static let appsPopupHorizontalMargin: CGFloat = 48
-  private static let appsPopupVerticalMargin: CGFloat = 32
-  private static let appsPopupCornerRadius: CGFloat = 22
   private static let homeConnectSheetHorizontalMargin: CGFloat = 56
   private static let homeConnectSheetVerticalMargin: CGFloat = 44
   private static let homeConnectSheetMinWidth: CGFloat = 360
   private static let homeConnectSheetMinHeight: CGFloat = 360
   private static let homeConnectSheetCornerRadius: CGFloat = 24
-  private static let appDetailSheetPreferredSize = CGSize(width: 500, height: 600)
   private static let importConnectorSheetPreferredSize = CGSize(width: 520, height: 500)
   private static let exportDestinationSheetPreferredSize = CGSize(width: 520, height: 560)
 
   private var homeConnectSheetIsPresented: Bool {
-    selectedCatalogApp != nil || selectedImportConnector != nil || selectedExportDestination != nil
+    selectedImportConnector != nil || selectedExportDestination != nil
   }
 
   private var isHomeModalPresented: Bool {
-    isShowingAppsPopup || homeConnectSheetIsPresented
-  }
-
-  private var legacySelectedCatalogApp: Binding<OmiApp?> {
-    Binding(
-      get: { useLegacyHomeDesign ? selectedCatalogApp : nil },
-      set: { selectedCatalogApp = $0 }
-    )
+    homeConnectSheetIsPresented
   }
 
   private var legacySelectedImportConnector: Binding<ImportConnector?> {
@@ -414,13 +393,6 @@ struct DashboardPage: View {
         } else {
           ProgressView().frame(width: 300, height: 180)
         }
-      }
-      .dismissableSheet(item: legacySelectedCatalogApp) { app in
-        AppDetailSheet(app: app, appProvider: appProvider, onDismiss: { selectedCatalogApp = nil })
-          .frame(width: 500, height: 650)
-          .onAppear {
-            AnalyticsManager.shared.appDetailViewed(appId: app.id, appName: app.name)
-          }
       }
       .dismissableSheet(item: legacySelectedImportConnector) { connector in
         ImportConnectorSheet(
@@ -597,7 +569,6 @@ struct DashboardPage: View {
         hasMoreMessages: chatProvider.hasMoreMessages,
         isLoadingMoreMessages: chatProvider.isLoadingMoreMessages,
         isLoadingInitial: chatProvider.isLoading && !chatProvider.isClearing,
-        app: nil,
         onLoadMore: { await chatProvider.loadMoreMessages() },
         onRate: { messageId, rating in
           Task { await chatProvider.rateMessage(messageId, rating: rating) }
@@ -703,13 +674,6 @@ struct DashboardPage: View {
         // Capture/Listening now live in the shell's constant top bar (see
         // DesktopTopBar), so the home no longer renders its own header copy.
 
-        appsPopupOverlay(
-          contentWidth: proxy.size.width,
-          panelWidth: panelWidth,
-          panelHeight: panelHeight,
-          panelTop: panelTop
-        )
-
         homeConnectSheetOverlay(
           contentWidth: proxy.size.width,
           panelWidth: panelWidth,
@@ -729,7 +693,6 @@ struct DashboardPage: View {
           }
         }
       }
-      .omiAnimation(.easeOut(duration: 0.2), value: isShowingAppsPopup)
       .omiAnimation(.easeOut(duration: 0.2), value: homeConnectSheetIsPresented)
       .omiAnimation(Self.homeStageAnimation, value: homeMode)
     }
@@ -1091,7 +1054,6 @@ struct DashboardPage: View {
         hasMoreMessages: chatProvider.hasMoreMessages,
         isLoadingMoreMessages: chatProvider.isLoadingMoreMessages,
         isLoadingInitial: chatProvider.isLoading && !chatProvider.isClearing,
-        app: nil,
         onLoadMore: { await chatProvider.loadMoreMessages() },
         onRate: { messageId, rating in
           Task { await chatProvider.rateMessage(messageId, rating: rating) }
@@ -1398,72 +1360,6 @@ struct DashboardPage: View {
   }
 
   @ViewBuilder
-  private func appsPopupOverlay(
-    contentWidth: CGFloat,
-    panelWidth: CGFloat,
-    panelHeight: CGFloat,
-    panelTop: CGFloat
-  ) -> some View {
-    ZStack {
-      if isShowingAppsPopup {
-        Color.black.opacity(0.16)
-          .ignoresSafeArea()
-          .contentShape(Rectangle())
-          .onTapGesture {
-            dismissAppsPopup()
-          }
-          .transition(.opacity)
-          .zIndex(2)
-
-        let popupSize = appsPopupSize(panelWidth: panelWidth, panelHeight: panelHeight)
-
-        AppsPage(
-          appProvider: appProvider,
-          appState: appState,
-          connectorStatusStore: homeStatusStore.connectorStatusStore,
-          initialSection: appsPopupInitialSection,
-          onDismiss: {
-            dismissAppsPopup()
-          },
-          onSelectApp: { app in
-            openAppFromAppsPopup(app)
-          },
-          onSelectConnector: { connector in
-            openImportConnectorFromAppsPopup(connector)
-          },
-          onSelectDestination: { destination in
-            openExportDestinationFromAppsPopup(destination)
-          }
-        )
-        .id(appsPopupPresentationID)
-        .frame(width: popupSize.width, height: popupSize.height)
-        .background(OmiColors.backgroundPrimary)
-        .clipShape(RoundedRectangle(cornerRadius: Self.appsPopupCornerRadius, style: .continuous))
-        .overlay(
-          RoundedRectangle(cornerRadius: Self.appsPopupCornerRadius, style: .continuous)
-            .stroke(HomePalette.hairline.opacity(0.9), lineWidth: 1)
-        )
-        .shadow(color: .black.opacity(0.38), radius: 26, y: 14)
-        .position(x: contentWidth / 2, y: panelTop + panelHeight / 2)
-        .transition(.scale(scale: 0.95).combined(with: .opacity))
-        .accessibilityAddTraits(.isModal)
-        .zIndex(3)
-
-        // Only the topmost modal owns Esc; the connect sheet takes over
-        // while it is presented (including the brief crossfade overlap).
-        if appsPopupAcceptsInput && !homeConnectSheetIsPresented {
-          OverlayModalEscapeCatcher {
-            dismissAppsPopup()
-          }
-          .zIndex(3)
-        }
-      }
-    }
-    .allowsHitTesting(appsPopupAcceptsInput && !homeConnectSheetIsPresented)
-    .zIndex(2)
-  }
-
-  @ViewBuilder
   private func homeConnectSheetOverlay(
     contentWidth: CGFloat,
     panelWidth: CGFloat,
@@ -1524,9 +1420,6 @@ struct DashboardPage: View {
   }
 
   private var homeConnectSheetPreferredSize: CGSize {
-    if selectedCatalogApp != nil {
-      return Self.appDetailSheetPreferredSize
-    }
     if selectedImportConnector != nil {
       return Self.importConnectorSheetPreferredSize
     }
@@ -1535,12 +1428,7 @@ struct DashboardPage: View {
 
   @ViewBuilder
   private func homeConnectSheetContent() -> some View {
-    if let app = selectedCatalogApp {
-      AppDetailSheet(app: app, appProvider: appProvider, onDismiss: { dismissHomeConnectSheet() })
-        .onAppear {
-          AnalyticsManager.shared.appDetailViewed(appId: app.id, appName: app.name)
-        }
-    } else if let connector = selectedImportConnector {
+    if let connector = selectedImportConnector {
       ImportConnectorSheet(
         connector: connector,
         appState: appState,
@@ -1558,19 +1446,6 @@ struct DashboardPage: View {
         }
       )
     }
-  }
-
-  private func appsPopupSize(panelWidth: CGFloat, panelHeight: CGFloat) -> CGSize {
-    CGSize(
-      width: min(
-        Self.appsPopupMaxWidth,
-        max(Self.appsPopupMinWidth, panelWidth - (Self.appsPopupHorizontalMargin * 2))
-      ),
-      height: min(
-        Self.appsPopupMaxHeight,
-        max(Self.appsPopupMinHeight, panelHeight - (Self.appsPopupVerticalMargin * 2))
-      )
-    )
   }
 
   private var homeHeader: some View {
@@ -1643,9 +1518,6 @@ struct DashboardPage: View {
       HomeAIChoiceButton(title: "Omi Device", usesOmiMark: true, isConnected: hasOmiDeviceHistory) {
         openOmiDeviceWebsite()
       }
-      HomeAIChoiceButton(title: "More", systemImage: "plus") {
-        openAppsPopup(initialSection: .imports)
-      }
     }
   }
 
@@ -1678,46 +1550,12 @@ struct DashboardPage: View {
       HomeAIChoiceButton(title: "Hermes", brand: .hermes, isConnected: isMCPDestinationConnected(.hermes)) {
         openExportDestination(.hermes)
       }
-      HomeAIChoiceButton(title: "More", systemImage: "plus") {
-        openAppsPopup(initialSection: .exports)
-      }
     }
   }
 
   private func navigate(to item: SidebarNavItem) {
     selectedIndex = item.rawValue
     AnalyticsManager.shared.tabChanged(tabName: item.title)
-  }
-
-  private func openAppsPopup(initialSection: AppsCatalogInitialSection) {
-    // Filters left behind by earlier catalog visits (a category, a search,
-    // "Installed") would otherwise replace the Imports/Exports sections
-    // this popup exists to show.
-    appProvider.clearFilters()
-    appsPopupInitialSection = initialSection
-    appsPopupPresentationID = UUID()
-    appsPopupAcceptsInput = true
-    isShowingAppsPopup = true
-  }
-
-  private func dismissAppsPopup() {
-    appsPopupAcceptsInput = false
-    isShowingAppsPopup = false
-  }
-
-  private func openAppFromAppsPopup(_ app: OmiApp) {
-    dismissAppsPopup()
-    presentCatalogApp(app)
-  }
-
-  private func openImportConnectorFromAppsPopup(_ connector: ImportConnector) {
-    dismissAppsPopup()
-    presentImportConnector(connector)
-  }
-
-  private func openExportDestinationFromAppsPopup(_ destination: MemoryExportDestination) {
-    dismissAppsPopup()
-    presentExportDestination(destination)
   }
 
   private func openImportConnector(_ connectorID: String) {
@@ -1730,30 +1568,20 @@ struct DashboardPage: View {
     presentExportDestination(destination)
   }
 
-  private func presentCatalogApp(_ app: OmiApp) {
-    homeConnectSheetAcceptsInput = true
-    selectedImportConnector = nil
-    selectedExportDestination = nil
-    selectedCatalogApp = app
-  }
-
   private func presentImportConnector(_ connector: ImportConnector) {
     homeConnectSheetAcceptsInput = true
-    selectedCatalogApp = nil
     selectedExportDestination = nil
     selectedImportConnector = connector
   }
 
   private func presentExportDestination(_ destination: MemoryExportDestination) {
     homeConnectSheetAcceptsInput = true
-    selectedCatalogApp = nil
     selectedImportConnector = nil
     selectedExportDestination = destination
   }
 
   private func dismissHomeConnectSheet() {
     homeConnectSheetAcceptsInput = false
-    selectedCatalogApp = nil
     selectedImportConnector = nil
     selectedExportDestination = nil
   }
@@ -4440,7 +4268,6 @@ private struct HomeAIButton: View {
     DashboardPage(
       viewModel: DashboardViewModel(),
       appState: AppState(),
-      appProvider: AppProvider(),
       chatProvider: ChatProvider(),
       memoriesViewModel: MemoriesViewModel(),
       selectedIndex: .constant(0)

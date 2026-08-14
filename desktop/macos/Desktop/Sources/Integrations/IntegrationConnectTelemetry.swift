@@ -2,7 +2,7 @@ import Foundation
 
 /// Closed, privacy-safe telemetry contract for the macOS integration connect
 /// lifecycle (Calendar, Gmail, Apple Notes, Local Files, X, and the memory-log
-/// connectors surfaced on the Apps tab and during onboarding).
+/// connectors surfaced on Home and during onboarding).
 ///
 /// This closes the macOS half of a gap the Flutter app already covers: Flutter
 /// emits `Integration Connect Attempted/Succeeded/Failed`
@@ -43,8 +43,8 @@ enum IntegrationConnectTelemetry {
 
   /// macOS surface that initiated the connect action. Closed set.
   enum Surface: String, CaseIterable {
-    /// Apps tab → connector sheet → `ConnectorImportRunner` import run.
-    case apps = "apps"
+    /// Home Connect → connector sheet → `ConnectorImportRunner` import run.
+    case home = "home"
     /// Conversational Second-Brain onboarding "connect what I can see" step.
     case onboarding = "onboarding"
   }

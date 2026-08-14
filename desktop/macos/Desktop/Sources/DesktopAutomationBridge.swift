@@ -2895,21 +2895,6 @@ final class DesktopAutomationActionRegistry {
     }
 
     register(
-      name: "apps_catalog_snapshot",
-      summary: "Return apps marketplace catalog counts for harness assertions"
-    ) { _ in
-      let v2 = try await APIClient.shared.getAppsV2()
-      let marketplaceCount = v2.groups.reduce(0) { $0 + $1.data.count }
-      let installed = try await APIClient.shared.searchApps(installedOnly: true, limit: 100)
-      return [
-        "marketplace_count": "\(marketplaceCount)",
-        "group_count": "\(v2.meta.groupCount)",
-        "capability_count": "\(v2.meta.capabilities.count)",
-        "installed_count": "\(installed.count)",
-      ]
-    }
-
-    register(
       name: "subscription_snapshot",
       summary: "Return cached subscription/plan info from the billing API"
     ) { _ in
@@ -3363,7 +3348,6 @@ final class DesktopAutomationActionRegistry {
       case "3", "memories": item = .memories
       case "4", "tasks": item = .tasks
       case "5", "rewind": item = .rewind
-      case "6", "apps": item = .apps
       case ",", "comma", "settings": item = .settings
       default: item = nil
       }

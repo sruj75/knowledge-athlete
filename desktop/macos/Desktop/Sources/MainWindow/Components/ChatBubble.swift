@@ -6,7 +6,6 @@ import SwiftUI
 
 struct ChatBubble: View {
   let message: ChatMessage
-  let app: OmiApp?
   let showsOmiMark: Bool
   let onRate: (Int?) -> Void
   var onCitationTap: ((Citation) -> Void)? = nil
@@ -31,14 +30,13 @@ struct ChatBubble: View {
   @FocusState private var isMetadataControlFocused: Bool
 
   init(
-    message: ChatMessage, app: OmiApp?, showsOmiMark: Bool, onRate: @escaping (Int?) -> Void,
+    message: ChatMessage, showsOmiMark: Bool, onRate: @escaping (Int?) -> Void,
     onCitationTap: ((Citation) -> Void)? = nil, isDuplicate: Bool = false,
     onCancelTurn: (() -> Void)? = nil,
     onOpenAgent: ((UUID, @escaping (Bool) -> Void) -> Void)? = nil,
     onOpenAgentRef: ((AgentTimelineRef, @escaping (Bool) -> Void) -> Void)? = nil
   ) {
     self.message = message
-    self.app = app
     self.showsOmiMark = showsOmiMark
     self.onRate = onRate
     self.onCitationTap = onCitationTap
@@ -95,26 +93,6 @@ struct ChatBubble: View {
     )
 
     HStack(alignment: .top, spacing: OmiSpacing.md) {
-      // App personas keep their own image. The Omi mark is mounted below as an
-      // overlay in the leading gutter so it never changes the reply's x origin.
-      if message.sender == .ai {
-        if let app = app {
-          AsyncImage(url: URL(string: app.image)) { phase in
-            switch phase {
-            case .success(let image):
-              image
-                .resizable()
-                .aspectRatio(contentMode: .fill)
-            default:
-              Circle()
-                .fill(OmiColors.backgroundTertiary)
-            }
-          }
-          .frame(width: 32, height: 32)
-          .clipShape(Circle())
-        }
-      }
-
       // Bubbles hug their content up to a readable cap — omi replies sit
       // left, user messages sit right, neither spans the full column.
       VStack(alignment: message.sender == .user ? .trailing : .leading, spacing: OmiSpacing.xxs) {
@@ -128,11 +106,11 @@ struct ChatBubble: View {
     .frame(
       maxWidth: .infinity,
       minHeight: ChatOmiMarkPlacement.rowHeight(
-        showsMark: message.sender == .ai && app == nil && showsOmiMark),
+        showsMark: message.sender == .ai && showsOmiMark),
       alignment: message.sender == .user ? .trailing : .leading
     )
     .overlay(alignment: .topLeading) {
-      if message.sender == .ai, app == nil, showsOmiMark {
+      if message.sender == .ai, showsOmiMark {
         ChatOmiMark(
           motion: message.isStreaming ? ChatWorkingStatus.motion(for: message) : nil,
           size: 24
@@ -148,26 +126,10 @@ struct ChatBubble: View {
   @ViewBuilder
   private func messageContentView(_ groupedBlocks: [ContentBlockGroup]) -> some View {
     if message.isStreaming && message.text.isEmpty && message.contentBlocks.isEmpty {
-      // Omi's own reply shows the spinning Omi-mark avatar while thinking, so no
-      // extra typing dots are needed; only app personas (no spinning mark) do.
-      if app != nil {
-        TypingIndicator()
-      }
+      // The canonical assistant reply shows the spinning Omi mark while thinking.
     } else if message.sender == .ai && !message.contentBlocks.isEmpty {
       ForEach(groupedBlocks) { group in
         groupView(group)
-      }
-      if message.isStreaming, app != nil {
-        if case .toolCalls(_, let calls) = groupedBlocks.last,
-          calls.contains(where: { block in
-            if case .toolCall(_, _, let status, _, _, _) = block { return status.isInFlight }
-            return false
-          })
-        {
-          // Tool group has a running tool — its card already shows a spinner
-        } else {
-          TypingIndicator()
-        }
       }
       if !message.displayResources.isEmpty {
         ChatResourceStrip(resources: message.displayResources, density: .full, alignment: .leading)
@@ -904,7 +866,6 @@ extension ChatBubble: @preconcurrency Equatable {
     return lhs.message.id == rhs.message.id
       && lhs.message.text == rhs.message.text
       && lhs.message.rating == rhs.message.rating
-      && lhs.app?.id == rhs.app?.id
       && lhs.showsOmiMark == rhs.showsOmiMark
       && lhs.isDuplicate == rhs.isDuplicate
   }

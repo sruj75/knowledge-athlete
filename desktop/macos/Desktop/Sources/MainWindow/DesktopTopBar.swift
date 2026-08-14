@@ -393,7 +393,6 @@ enum TopNavigationRoutes {
     TopNavigationItem(index: SidebarNavItem.dashboard.rawValue, title: "Home", icon: "house.fill"),
     TopNavigationItem(index: SidebarNavItem.conversations.rawValue, title: "Memory", icon: "brain"),
     TopNavigationItem(index: SidebarNavItem.tasks.rawValue, title: "Tasks", icon: "checklist"),
-    TopNavigationItem(index: SidebarNavItem.apps.rawValue, title: "Apps", icon: "puzzlepiece.fill"),
   ]
 
   static let memoryDestinations = MemoryHubDestination.allCases
@@ -415,8 +414,6 @@ enum TopNavigationPillMetrics {
       baseWidth = 128
     case SidebarNavItem.tasks.rawValue:
       baseWidth = 84
-    case SidebarNavItem.apps.rawValue:
-      baseWidth = 80
     default:
       baseWidth = 88
     }

@@ -3,7 +3,6 @@ import OmiTheme
 import SwiftUI
 
 struct ChatPage: View {
-  @ObservedObject var appProvider: AppProvider
   @ObservedObject var chatProvider: ChatProvider
   let onHome: () -> Void
   @State private var selectedCitation: Citation?
@@ -12,11 +11,9 @@ struct ChatPage: View {
   @State private var copied = false
 
   init(
-    appProvider: AppProvider,
     chatProvider: ChatProvider,
     onHome: @escaping () -> Void = {}
   ) {
-    self.appProvider = appProvider
     self.chatProvider = chatProvider
     self.onHome = onHome
   }
@@ -317,7 +314,6 @@ struct ChatPage: View {
       hasMoreMessages: chatProvider.hasMoreMessages,
       isLoadingMoreMessages: chatProvider.isLoadingMoreMessages,
       isLoadingInitial: chatProvider.isLoading && !chatProvider.isClearing,
-      app: nil,
       onLoadMore: { await chatProvider.loadMoreMessages() },
       onRate: { messageId, rating in
         Task { await chatProvider.rateMessage(messageId, rating: rating) }
@@ -800,7 +796,7 @@ struct HistorySessionRow: View {
 
 #if canImport(PreviewsMacros)
   #Preview {
-    ChatPage(appProvider: AppProvider(), chatProvider: ChatProvider())
+    ChatPage(chatProvider: ChatProvider())
       .frame(width: 600, height: 700)
   }
 #endif

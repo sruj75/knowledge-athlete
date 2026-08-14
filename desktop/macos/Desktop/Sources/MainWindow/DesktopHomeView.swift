@@ -38,8 +38,6 @@ struct DesktopHomeView: View {
   @ObservedObject private var authState = AuthState.shared
   @ObservedObject private var apiKeyService = APIKeyService.shared
   @ObservedObject private var updatePolicyManager = DesktopUpdatePolicyManager.shared
-  @ObservedObject private var automationPresentationCoordinator =
-    DesktopAutomationPresentationCoordinator.shared
   @State private var selectedIndex: Int = {
     if OMIApp.launchMode == .rewind { return SidebarNavItem.rewind.rawValue }
     return SidebarNavItem.dashboard.rawValue
@@ -72,8 +70,6 @@ struct DesktopHomeView: View {
   @State private var proactiveMonitoringWarmupAnchor = Date()
   @State private var didScheduleConversationWarmup = false
   @State private var initialFileIndexingBackfill = DelayedFileIndexingBackfillState()
-  @State private var automationPresentationReadinessGate =
-    DesktopAutomationPresentationReadinessGate()
 
   // Pre-loaded hero logo to avoid NSImage init crashes during SwiftUI body evaluation
   private static let heroLogoImage: NSImage? = {
@@ -433,7 +429,6 @@ struct DesktopHomeView: View {
       // Redirect if current page isn't visible at current tier
       redirectIfPageHidden()
       reportAutomationState()
-      handleAutomationPresentationReadinessChange(viewModelContainer.isInitialLoadComplete)
     }
     .onChange(of: currentTierLevel) { _, _ in
       redirectIfPageHidden()
@@ -444,16 +439,6 @@ struct DesktopHomeView: View {
       // resets the window min — re-pin + re-disable to hold the minimum.
       enforceMainWindowMinimumSize()
       reportAutomationState()
-    }
-    .onChange(of: automationPresentationCoordinator.activeCommand?.generation) { _, _ in
-      guard
-        let command = automationPresentationReadinessGate.commandForConsumption(
-          automationPresentationCoordinator.activeCommand)
-      else { return }
-      handleAutomationPresentationCommand(command)
-    }
-    .onChange(of: viewModelContainer.isInitialLoadComplete) { _, isReady in
-      handleAutomationPresentationReadinessChange(isReady)
     }
     .onChange(of: selectedSettingsSection) { _, _ in reportAutomationState() }
     .onChange(of: highlightedSettingId) { _, _ in reportAutomationState() }
@@ -735,26 +720,6 @@ struct DesktopHomeView: View {
     reportAutomationState()
   }
 
-  private func handleAutomationPresentationCommand(
-    _ command: DesktopAutomationPresentationCommand
-  ) {
-    NSApp.activate()
-    if let window = NSApp.windows.first(where: { $0.title.lowercased().hasPrefix("omi") }) {
-      window.makeKeyAndOrderFront(nil)
-    }
-    selectedIndex = SidebarNavItem.apps.rawValue
-    reportAutomationState()
-  }
-
-  private func handleAutomationPresentationReadinessChange(_ isReady: Bool) {
-    guard
-      let command = automationPresentationReadinessGate.transition(
-        to: isReady,
-        activeCommand: automationPresentationCoordinator.activeCommand)
-    else { return }
-    handleAutomationPresentationCommand(command)
-  }
-
   private func resolvedAutomationTarget(_ target: String) -> SidebarNavItem? {
     let normalized = target.lowercased().replacingOccurrences(of: "-", with: "_")
     switch normalized {
@@ -774,8 +739,6 @@ struct DesktopHomeView: View {
       return .insight
     case "rewind":
       return .rewind
-    case "apps", "integrations":
-      return .apps
     case "settings":
       return .settings
     case "permissions":
@@ -1484,7 +1447,6 @@ private struct PageContentView: View {
           viewModel: viewModelContainer.dashboardViewModel,
           homeStatusStore: viewModelContainer.homeStatusStore,
           appState: appState,
-          appProvider: viewModelContainer.appProvider,
           chatProvider: viewModelContainer.chatProvider,
           memoriesViewModel: viewModelContainer.memoriesViewModel,
           taskChatCoordinator: viewModelContainer.taskChatCoordinator,
@@ -1498,7 +1460,6 @@ private struct PageContentView: View {
         )
       case 2:
         ChatPage(
-          appProvider: viewModelContainer.appProvider,
           chatProvider: viewModelContainer.chatProvider,
           onHome: { selectedTabIndex = SidebarNavItem.dashboard.rawValue }
         )
@@ -1545,13 +1506,6 @@ private struct PageContentView: View {
         InsightPage()
       case 7:
         RewindPage(appState: appState)
-      case 8:
-        constrainedListPage(
-          AppsPage(
-            appProvider: viewModelContainer.appProvider,
-            appState: appState,
-            connectorStatusStore: viewModelContainer.homeStatusStore.connectorStatusStore,
-            handlesAutomationPresentations: viewModelContainer.isInitialLoadComplete))
       case 9:
         SettingsPage(
           appState: appState,
@@ -1568,7 +1522,6 @@ private struct PageContentView: View {
           viewModel: viewModelContainer.dashboardViewModel,
           homeStatusStore: viewModelContainer.homeStatusStore,
           appState: appState,
-          appProvider: viewModelContainer.appProvider,
           chatProvider: viewModelContainer.chatProvider,
           memoriesViewModel: viewModelContainer.memoriesViewModel,
           taskChatCoordinator: viewModelContainer.taskChatCoordinator,

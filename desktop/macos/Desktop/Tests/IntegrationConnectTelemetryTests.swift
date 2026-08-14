@@ -32,17 +32,17 @@ final class IntegrationConnectTelemetryTests: XCTestCase {
   func testAttemptedPayloadHasKeysetExactlyAllowList() {
     let payload = IntegrationConnectTelemetry.attemptedPayload(
       integrationName: "Google Calendar", connectorID: "calendar",
-      surface: .apps, stage: "import")
+      surface: .home, stage: "import")
     XCTAssertEqual(
       Set(payload.keys),
       ["integration_name", "connector_id", "surface", "stage"])
     XCTAssertEqual(payload["integration_name"] as? String, "Google Calendar")
-    XCTAssertEqual(payload["surface"] as? String, "apps")
+    XCTAssertEqual(payload["surface"] as? String, "home")
   }
 
   func testSucceededPayloadHasKeysetExactlyAllowListWithAndWithoutBuckets() {
     let withBuckets = IntegrationConnectTelemetry.succeededPayload(
-      integrationName: "Gmail", connectorID: "email", surface: .apps, stage: "import",
+      integrationName: "Gmail", connectorID: "email", surface: .home, stage: "import",
       durationMs: 4_000, sourceCount: 42, memoryCount: 7, wasFirstSync: true)
     XCTAssertEqual(
       Set(withBuckets.keys),
@@ -64,7 +64,7 @@ final class IntegrationConnectTelemetryTests: XCTestCase {
 
   func testFailedPayloadHasKeysetExactlyAllowListAndCarriesReconnectRequired() {
     let payload = IntegrationConnectTelemetry.failedPayload(
-      integrationName: "Google Calendar", connectorID: "calendar", surface: .apps, stage: "import",
+      integrationName: "Google Calendar", connectorID: "calendar", surface: .home, stage: "import",
       errorClass: .notSignedIn, durationMs: 500)
     XCTAssertEqual(
       Set(payload.keys),
@@ -83,7 +83,7 @@ final class IntegrationConnectTelemetryTests: XCTestCase {
     // only declared keys survive the allow-list filter, and the only string
     // inputs are bounded identifiers.
     let payload = IntegrationConnectTelemetry.failedPayload(
-      integrationName: "Gmail", connectorID: "email", surface: .apps, stage: "import",
+      integrationName: "Gmail", connectorID: "email", surface: .home, stage: "import",
       errorClass: .network)
     let serialized = String(describing: payload)
     let forbidden = [
@@ -103,9 +103,9 @@ final class IntegrationConnectTelemetryTests: XCTestCase {
     // platform/app_version/app_build/update_channel ride PostHog
     // super-properties; they must NOT be re-added per-event.
     let attempted = IntegrationConnectTelemetry.attemptedPayload(
-      integrationName: "X", connectorID: "x", surface: .apps, stage: "import")
+      integrationName: "X", connectorID: "x", surface: .home, stage: "import")
     let failed = IntegrationConnectTelemetry.failedPayload(
-      integrationName: "X", connectorID: "x", surface: .apps, stage: "import",
+      integrationName: "X", connectorID: "x", surface: .home, stage: "import",
       errorClass: .unknown)
     for payload in [attempted, failed] {
       let contextKeys: Set<String> = [
@@ -167,7 +167,7 @@ final class IntegrationConnectTelemetryTests: XCTestCase {
   func testSurfaceEnumIsClosedSet() {
     XCTAssertEqual(
       Set(IntegrationConnectTelemetry.Surface.allCases.map(\.rawValue)),
-      ["apps", "onboarding"])
+      ["home", "onboarding"])
   }
 
   func testNoContentFailureClassIsNotReconnectRequired() {
@@ -176,7 +176,7 @@ final class IntegrationConnectTelemetryTests: XCTestCase {
     // reconnect-required, so analysts can exclude it from the failure rate.
     XCTAssertFalse(IntegrationConnectTelemetry.failureRequiresReconnect(.noContent))
     let payload = IntegrationConnectTelemetry.failedPayload(
-      integrationName: "ChatGPT", connectorID: "chatgpt", surface: .apps, stage: "import",
+      integrationName: "ChatGPT", connectorID: "chatgpt", surface: .home, stage: "import",
       errorClass: .noContent)
     XCTAssertEqual(payload["error_class"] as? String, "no_content")
     XCTAssertEqual(payload["reconnect_required"] as? Bool, false)
@@ -235,7 +235,7 @@ final class IntegrationConnectTelemetryTests: XCTestCase {
     XCTAssertEqual(captured.count, 2)
     XCTAssertEqual(captured[0].name, "Integration Connect Attempted")
     XCTAssertEqual(captured[0].properties["integration_name"] as? String, "Google Calendar")
-    XCTAssertEqual(captured[0].properties["surface"] as? String, "apps")
+    XCTAssertEqual(captured[0].properties["surface"] as? String, "home")
     XCTAssertEqual(captured[0].properties["stage"] as? String, "import")
 
     XCTAssertEqual(captured[1].name, "Integration Connect Succeeded")

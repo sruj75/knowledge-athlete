@@ -196,13 +196,6 @@ struct OMIApp: App {
         }
         .keyboardShortcut("5", modifiers: .command)
 
-        Button("Apps") {
-          NotificationCenter.default.post(
-            name: .navigateToSidebarItem, object: nil,
-            userInfo: ["rawValue": SidebarNavItem.apps.rawValue])
-        }
-        .keyboardShortcut("6", modifiers: .command)
-
         Divider()
 
         Button("Settings") {

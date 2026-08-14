@@ -112,10 +112,6 @@ final class MemoryGraphRevisitTests: XCTestCase {
       84
     )
     XCTAssertEqual(
-      TopNavigationPillMetrics.width(for: SidebarNavItem.apps.rawValue),
-      80
-    )
-    XCTAssertEqual(
       TopNavigationPillMetrics.width(
         for: SidebarNavItem.tasks.rawValue,
         badgeCount: 93

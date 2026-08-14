@@ -4,7 +4,6 @@ import Foundation
 final class StartupWarmupCoordinator {
   private let tasksStore: TasksStore
   private let dashboardViewModel: DashboardViewModel
-  private let appProvider: AppProvider
   private let chatProvider: ChatProvider
   private let retryDatabaseInit: () async -> Bool
   /// Warmup delays protect the busy launch window, so they count down from
@@ -22,14 +21,12 @@ final class StartupWarmupCoordinator {
   init(
     tasksStore: TasksStore,
     dashboardViewModel: DashboardViewModel,
-    appProvider: AppProvider,
     chatProvider: ChatProvider,
     retryDatabaseInit: @escaping () async -> Bool,
     launchAnchor: Date = Date()
   ) {
     self.tasksStore = tasksStore
     self.dashboardViewModel = dashboardViewModel
-    self.appProvider = appProvider
     self.chatProvider = chatProvider
     self.retryDatabaseInit = retryDatabaseInit
     self.launchAnchor = launchAnchor
@@ -155,14 +152,9 @@ final class StartupWarmupCoordinator {
     else { return }
 
     await measurePerfAsync("DATA LOAD: Deferred service warmup") { [self] in
-      async let apps: Void = measurePerfAsync("DATA LOAD: Chat apps") {
-        await appProvider.fetchChatAppsForStartup()
-      }
-      async let chatMessages: Void = measurePerfAsync("DATA LOAD: Chat messages") {
+      await measurePerfAsync("DATA LOAD: Chat messages") {
         await chatProvider.initializeVisibleMessages()
       }
-
-      _ = await (apps, chatMessages)
     }
 
     logPerf("DATA LOAD: Service warmup complete", cpu: true)

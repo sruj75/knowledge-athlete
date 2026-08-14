@@ -126,4 +126,4 @@ struct OnboardingHowDidYouHearStepView: View {
   }
 }
 
-// Uses FlowLayout from AppsPage.swift
+// Uses the shared retained FlowLayout component.

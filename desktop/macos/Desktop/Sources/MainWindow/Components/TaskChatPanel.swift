@@ -57,7 +57,6 @@ struct TaskChatPanel: View {
           hasMoreMessages: false,
           isLoadingMoreMessages: false,
           isLoadingInitial: false,
-          app: nil,
           onLoadMore: {},
           onRate: { _, _ in },
           localSendToken: taskState.localSendToken,

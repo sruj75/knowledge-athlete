@@ -601,7 +601,6 @@ extension SettingsContentView {
 
           if let stats = advancedStats {
             statRow(label: "Conversations", value: stats.conversations)
-            statRow(label: "Apps Installed", value: stats.appsInstalled)
             if isLoadingChatMessages {
               HStack {
                 Text("AI Chat Messages")

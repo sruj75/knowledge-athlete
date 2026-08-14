@@ -58,7 +58,6 @@ enum ViewExporter {
             DashboardPage(
               viewModel: DashboardViewModel(),
               appState: AppState(),
-              appProvider: AppProvider(),
               chatProvider: previewChatProvider(),
               memoriesViewModel: MemoriesViewModel(),
               selectedIndex: .constant(0)))
@@ -68,7 +67,7 @@ enum ViewExporter {
 
       (
         "03-ai-chat",
-        { AnyView(ChatPage(appProvider: AppProvider(), chatProvider: ChatProvider())) },
+        { AnyView(ChatPage(chatProvider: ChatProvider())) },
         CGSize(width: 900, height: 700)
       ),
 
@@ -94,12 +93,6 @@ enum ViewExporter {
         "07-rewind",
         { AnyView(RewindPage()) },
         CGSize(width: 1000, height: 700)
-      ),
-
-      (
-        "08-apps",
-        { AnyView(AppsPage(appProvider: AppProvider())) },
-        CGSize(width: 900, height: 700)
       ),
 
       (
@@ -304,7 +297,6 @@ enum ViewExporter {
             DashboardPage(
               viewModel: DashboardViewModel(),
               appState: AppState(),
-              appProvider: AppProvider(),
               chatProvider: ChatProvider(),
               memoriesViewModel: previewMemoriesViewModel(),
               selectedIndex: .constant(0)))
@@ -322,7 +314,7 @@ enum ViewExporter {
       ),
       (
         "full-ai-chat", 2,
-        { AnyView(ChatPage(appProvider: AppProvider(), chatProvider: previewChatProvider())) }
+        { AnyView(ChatPage(chatProvider: previewChatProvider())) }
       ),
       (
         "full-memories", 3,
@@ -345,7 +337,6 @@ enum ViewExporter {
       ("full-focus", 5, { AnyView(FocusPage()) }),
       ("full-insight", 6, { AnyView(InsightPage()) }),
       ("full-rewind", 7, { AnyView(RewindPage()) }),
-      ("full-apps", 8, { AnyView(AppsPage(appProvider: AppProvider())) }),
       (
         "full-settings", 9,
         {
