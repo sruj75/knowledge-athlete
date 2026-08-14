@@ -4,7 +4,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Researched; **blocked on the canonical S-08 identity seam and owned development-project configuration; public seams require live-requirements revalidation** |
+| Status | Ready to start the configuration-independent deletion phase; **S-08 identity and owned development-project inputs gate only the identity/configuration phase and final live closure** |
 | Wave | 1 |
 | Owner | S-09 |
 | Authorizing and protecting decisions | IR-114, IR-115, IR-116, IR-117, IR-183, IR-204, IR-205, IR-206, IR-207, IR-208, IR-209, IR-210, IR-211, IR-254, IR-805, IR-827, IR-828, IR-832, IR-836, IR-837, IR-879, IR-886 |
@@ -16,8 +16,8 @@
 
 ## How this plan is executed
 
-1. Do not implement from this draft until every public seam below is traced to the live requirements and S-08 has published its identity/sign-out contract.
-2. Then start with [engineering:implement](/Users/srujanu/.codex/plugins/cache/local-workspace/engineering/0.2.0/skills/implement/SKILL.md), using this file as the implementation spec. Work on the current branch, keep the branch name unchanged, and commit locally in independently testable vertical slices. Do not push or open a PR without a separate user request.
+1. The public seam table below is the adopted requirements trace. Revalidate it at the pinned baseline and reopen planning only if a controlling IR or production seam changed.
+2. Start with [engineering:implement](/Users/srujanu/.codex/plugins/cache/local-workspace/engineering/0.2.0/skills/implement/SKILL.md), using this file as the implementation spec. Execute the configuration-independent phase below while S-08 identity or owned-project inputs are pending; do not guess those inputs. Work on the current branch, keep the branch name unchanged, and commit locally in independently testable vertical slices. Do not push or open a PR without a separate user request.
 3. Use [engineering:tdd](/Users/srujanu/.codex/plugins/cache/local-workspace/engineering/0.2.0/skills/tdd/SKILL.md) throughout implementation: observe one test fail for the intended behavioral reason, add only enough production code to make that outcome pass, and then move to the next tracer bullet. Do not write all tests first and do not refactor during RED → GREEN.
 4. Apply [engineering:codebase-design](/Users/srujanu/.codex/plugins/cache/local-workspace/engineering/0.2.0/skills/codebase-design/SKILL.md) only to the new product-analytics consent boundary. It should become one small, deep module around PostHog. Sentry, local diagnostics, LangSmith, metrics, and logging remain separate systems rather than implementations of a universal “observability provider” interface.
 5. After all cycles and full verification are green, finish with [engineering:code-review](/Users/srujanu/.codex/plugins/cache/local-workspace/engineering/0.2.0/skills/code-review/SKILL.md). Use the immutable merge-base recorded at implementation start as the fixed point, this file as the spec, and the root/component `AGENTS.md`, `PRODUCT.md`, matched invariants, and requirements decisions as standards. Review Standards and Spec Compliance separately, fix valid findings, and rerun affected checks.
@@ -40,9 +40,12 @@
 
 The deletion work is similarly partitioned. Removing Crisp, the Sentry feedback-to-Task bridge, or the self-hosted monitoring deployment must not remove their retained neighbors from mixed files. `AnalyticsManager` also contains both accepted and rejected events; S-09 deletes only the two deprecated PTT helpers and their callers.
 
-## Research-backed start gates
+## Cycle-local external gates
 
-S-09 stays blocked until these facts are supplied or proven at the pinned implementation baseline. Missing values must not be guessed or copied from Omi:
+The configuration and identity phase stays gated until these facts are supplied
+or proven at the pinned implementation baseline. Missing values must not be
+guessed or copied from Omi. These gates do not block the configuration-independent
+deletion phase defined below:
 
 1. **S-08 identity contract:** canonical account ID, successful sign-in attachment point, explicit sign-out ordering, and account-switch behavior. IR-183 protects the outcome “record Signed Out for the departing account, then detach PostHog identity and clear Sentry identity.”
 2. **Owned PostHog development project:** project token, ingestion host, allowed environments, session/screen-capture policy, and a way to inspect the development project during verification. The token is configuration even if the provider treats it as public; it must not remain an Omi literal in source.
@@ -196,6 +199,21 @@ The exact names may change, but the responsibilities may not leak back out:
 - Split mixed Crisp/screen-sync and Sentry/desktop-core files only if it improves ownership after deletion. A file move is not required merely to make the diff look symmetric.
 
 ## Ordered TDD implementation cycles
+
+Execute S-09 in two internally sequential phases:
+
+1. **Configuration-independent deletion phase:** Cycle 0, then Cycles 6, 8, 9,
+   10, and the repository-deletion portion of Cycle 12. Preserve the retained
+   Sentry, LangSmith, metrics, logging, diagnostics, and S-08 identity seams.
+2. **Owned configuration and identity phase:** Cycles 1-5, 7, and 11 after the
+   applicable external inputs above exist. Then finish Cycle 12's owned-development
+   Cloud Logging/deployment proof when its S-27 dependency is available.
+
+Numeric labels preserve the behavior ownership already referenced throughout
+the plan; phase order is the implementation order. A gated live verification
+does not prevent the repository-local deletion contract from going green, but
+the slice cannot close until every required owned-project exercise or exact
+later-owner handoff is recorded.
 
 ### Cycle 0 — pin the baseline and keep fences
 

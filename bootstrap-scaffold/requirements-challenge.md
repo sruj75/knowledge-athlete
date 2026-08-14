@@ -270,7 +270,7 @@ Decisions are `keep`, `delete candidate`, or `unresolved`.
 | IR-225 | Floating-bar voice playback-speed control | Reviewed | resolved - keep it exactly as implemented |
 | IR-226 | Main-window font-scale control | Reviewed | resolved - keep it exactly as implemented |
 | IR-227 | Reset Window Size action | Reviewed | resolved - keep it exactly as implemented |
-| IR-228 | Local VAD Gate transcription setting | Reviewed | keep Local VAD Gate exactly as implemented with no repair |
+| IR-228 | Local VAD Gate transcription setting | Reviewed | keep Local VAD Gate behavior exactly as implemented with no repair; replace only a retired provider noun |
 | IR-229 | Notifications master switch and delivery-frequency slider | Reviewed | keep the Notifications master/frequency behavior locally and delete synchronization |
 | IR-230 | Per-assistant switches inside the Notifications card | Reviewed | keep the per-assistant notification switches locally and delete synchronization |
 | IR-231 | Daily Summary Settings card | Reviewed | delete the Daily Summary Settings card |
@@ -8043,9 +8043,9 @@ The PTT silence/noise admission gate retained under IR-069 is also separate. It 
 
 ### Recommendation
 
-`keep Local VAD Gate exactly as implemented`
+`keep Local VAD Gate behavior exactly as implemented; keep provider wording truthful`
 
-The mismatch remains documented because it is what the current code does, but it does not authorize cleanup. Preserve the feature without wiring it into a different audio path or simplifying its surrounding lifecycle.
+The mismatch remains documented because it is what the current code does, but it does not authorize cleanup. Preserve the feature without wiring it into a different audio path or simplifying its surrounding lifecycle. A provider noun in explanatory copy is not protected after that provider is retired elsewhere in the reviewed ledger.
 
 ### Question
 
@@ -8053,9 +8053,9 @@ Should we keep **Local VAD Gate** exactly as implemented, including its current 
 
 ### Decision
 
-`keep Local VAD Gate exactly as implemented with no repair`
+`keep Local VAD Gate behavior exactly as implemented with no repair; replace only a retired provider noun`
 
-Retain the **Local VAD Gate** card and copy, Settings search entry, `vadGateEnabled` preference/state, transcription-restart side effect, `VADGateService`, model/resource, diagnostics, and focused tests exactly as they are. Do not delete the feature and do not wire or repair it under this decision. The Python `/v4/listen` receiver's independently configured VAD and the PTT silence/noise admission gate remain separate.
+Retain the **Local VAD Gate** card, Settings search entry, `vadGateEnabled` preference/state, transcription-restart side effect, `VADGateService`, model/resource, diagnostics, focused tests, and the meaning of the existing explanatory copy. Do not delete the feature and do not wire or repair it under this decision. Because IR-889 retires Deepgram completely, replace only “Deepgram API usage” with “managed cloud transcription usage”; this wording adaptation does not change Local VAD Gate behavior. The Python `/v4/listen` receiver's independently configured VAD and the PTT silence/noise admission gate remain separate.
 
 No code deletion is authorized yet.
 

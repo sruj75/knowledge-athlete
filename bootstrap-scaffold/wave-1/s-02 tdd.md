@@ -5,7 +5,7 @@
 | Field | Decision |
 |---|---|
 | Artifact | `bootstrap-scaffold/wave-1/s-02 tdd.md` |
-| Status | `ready` — requirements-backed public TDD seams recorded |
+| Status | `ready to start` — requirements-backed public TDD seams are recorded; repository Cycles 0-6 are executable and destructive live closeout remains separately gated |
 | Wave / owner | Wave 1 / S-02 |
 | Authorizing decisions | IR-012, IR-013, IR-014, IR-359, IR-823 |
 | Protecting decisions | IR-007, IR-017, IR-018, IR-019, IR-021, IR-022, IR-023, IR-069, IR-070, IR-898 |

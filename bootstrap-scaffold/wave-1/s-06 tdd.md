@@ -4,7 +4,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `researched` — **the public seams must be traced to the live requirements and the released-OpenAPI sunset decision below must be recorded before its route-removal cycle starts** |
+| Status | `ready to start` — the public seam table is the adopted requirements trace; Cycles 0-2 are immediately executable and the released-OpenAPI evidence gate applies only before Cycle 3 and later route-removal cycles |
 | Wave | 1 |
 | Slice | S-06 |
 | Authorizing decisions | IR-015, IR-045 through IR-047, IR-050, IR-051, IR-106, IR-135, IR-141, IR-142, IR-212, IR-213, IR-256, IR-258 through IR-261, IR-310, IR-375, IR-512, IR-637, IR-816 through IR-818, IR-824, IR-938 |
@@ -25,21 +25,21 @@
 - No tracked `web/**` or `plugins/**` source exists in this checkout, but workflows, public-build contracts, runtime-image manifests, deploy checks, and monitoring still name the old app/persona/plugins products. Treat those as live operational residue; do not recreate missing source merely to delete it.
 - No product implementation or component suite was run while researching this plan. `engineering:implement` must establish the clean baseline before the first RED.
 
-### Blocking release-contract decision
+### Cycle-local released-contract gate
 
 S-06 deliberately removes released app-client endpoints, but the current compatibility policy in `backend/AGENTS.md` and `backend/scripts/check_app_client_openapi_compatibility.py` rejects every removed released path or operation and forbids a breaking-change allowlist. The app-client snapshot is absent from this reduced checkout, but CI compares against the merge-base copy, so absence here does not remove the conflict.
 
-Before any route-removal cycle starts, the released-API contract must document a
+Before Cycle 3 or any later route-removal cycle starts, the released-API contract must document a
 product-sunset boundary that satisfies both requirements:
 
 1. the rejected route and remote schema actually disappear — no dead 200/410 handler, deprecated compatibility shell, or stale generated client remains; and
 2. the ordinary compatibility gate remains strict for retained APIs — no one-off S-06 allowlist or globally weakened comparison.
 
-The recommended direction is an explicit, release-level endpoint-version retirement that changes the released baseline under the existing OpenAPI workflow. If that mechanism does not already exist, its policy/check implementation must be recorded and verified as part of the S-06 plan before Cycle 3. Until then, that cycle is not ready. Record the chosen mechanism, owner, exact retired operation set, released-client migration evidence, and updated test lane here before implementation.
+The adopted direction is an explicit, release-level endpoint-version retirement that changes the released baseline under the existing OpenAPI workflow. Cycle 0 inventories the merge-base contract and the in-tree released clients. If the operations were never released, record that evidence and proceed. If they were released, add the version/sunset contract change and client migration as a predecessor commit inside S-06 before Cycle 3. The ordinary compatibility checker remains strict for every retained operation. This gate does not block Cycles 0-2 or other repository-local research that cannot remove a public route.
 
 ## How this plan is executed
 
-1. After the public seams below are traced to the live requirements, start with [engineering:implement](/Users/srujanu/.codex/plugins/cache/local-workspace/engineering/0.2.0/skills/implement/SKILL.md), using this file as the implementation spec. Begin with `make setup`, fetch `origin/main`, record the merge-base, and build an exact tracked-file/caller inventory. Work on the current branch; do not push or open a PR without a separate user request.
+1. Start with [engineering:implement](/Users/srujanu/.codex/plugins/cache/local-workspace/engineering/0.2.0/skills/implement/SKILL.md), using this file as the implementation spec. Begin with `make setup`, fetch `origin/main`, record the merge-base, revalidate the adopted public seam table, and build an exact tracked-file/caller inventory. Reopen planning only if a controlling IR or production seam changed. Work on the current branch; do not push or open a PR without a separate user request.
 2. Use [engineering:tdd](/Users/srujanu/.codex/plugins/cache/local-workspace/engineering/0.2.0/skills/tdd/SKILL.md) for every cycle. Write one behavioral test at an approved public seam, observe the intended RED, implement only enough GREEN for that tracer bullet, and only then continue. Do not write all tests first.
 3. Apply [engineering:codebase-design](/Users/srujanu/.codex/plugins/cache/local-workspace/engineering/0.2.0/skills/codebase-design/SKILL.md) to the surviving seams: one small local-assistant interface, explicit local authorities, and adapters only where a real external/system boundary remains. Do not preserve deleted products as generic registries, compatibility aliases, empty tabs, ignored fields, or future-facing extension points.
 4. Refactor only after the deletion cycles are green. Commit locally in coherent, independently testable vertical slices and record the command/evidence for each.
@@ -184,9 +184,9 @@ Before the first RED, expand each grouped row into exact tracked files and runti
 
 ## Requirements-backed public seams
 
-No S-06 test is written until these observable seams are traced to the
-authorizing and protecting decisions. Tests must exercise production behavior
-through these interfaces, not inspect source-string order.
+These observable seams are the adopted trace to the authorizing and protecting
+decisions. Revalidate them at the pinned baseline; tests exercise production
+behavior through these interfaces, not source-string order.
 
 | Seam | Contract to prove | Primary test/real-path surface |
 |---|---|---|
@@ -226,6 +226,7 @@ This is setup, not a passing characterization-test substitute.
 2. Run the existing focused keep-boundary tests for normal Chat, attachments, Pi bridge/tools, onboarding, Memories, Tasks, Conversations, product billing, auth, and deployment manifests.
 3. Expand the ledger into an exact file/caller/resource inventory. Classify ambiguous tokens (`app`, `integration`, `automation`, `mcp`, `Limitless`, `graph`) before deletion.
 4. If a keep boundary lacks a behavioral test, make the first deletion at that seam produce the RED and then restore only the retained behavior; do not add a test that already passes and call it TDD.
+5. Compare every S-06 route operation with the merge-base released app-client contract and in-tree client callers. Record never-released operations or prepare the adopted release-level version/sunset predecessor change before Cycle 3; do not delay safe Mac-only Cycles 1-2 while that evidence is assembled.
 
 ### Cycle 1 — one-assistant Chat and explicit attachments
 
@@ -481,7 +482,7 @@ There may be no unexplained live S-06 UI, route, collection, OAuth grant, webhoo
 
 ## Closure checklist
 
-- [ ] Every public seam and the five design choices below the seam table were traced to the live requirements.
+- [ ] Every adopted public seam and the five design choices below the seam table were revalidated at the pinned baseline.
 - [ ] Exact merge-base and complete caller/resource inventory recorded.
 - [ ] Each cycle showed an intended behavioral RED before its minimum GREEN.
 - [ ] Kept one-assistant, attachment, Pi/tool, local-data, permission, backend, billing, and hardware paths pass.

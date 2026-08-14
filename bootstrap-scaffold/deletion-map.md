@@ -179,6 +179,12 @@ removed is part of the regression protection. Stop only the affected cycle;
 continue other safe work inside the slice when its plan preserves a working
 intermediate state.
 
+`Ready to start` means the plan has at least one safe, requirements-backed
+repository cycle that can begin without guessing. It does not mean every later
+cycle is unblocked, every live mutation is authorized, or the slice can already
+be marked closed. A cycle-local gate pauses only the work that consumes its
+missing decision, external input, or later-owner result.
+
 ### Required `S-XX` TDD plan
 
 No `S-XX` implementation starts until its one TDD plan contains all of the
@@ -188,7 +194,7 @@ existing retained-behavior contract.
 ```markdown
 ## S-XX TDD Plan — One outcome-oriented name
 
-Status: researched | blocked | ready | in progress | closed
+Status: researched | blocked | ready to start | in progress | closed
 Slice: S-XX
 Wave: 1 through 6
 Authorizing and protecting decisions: exact IR IDs
@@ -312,11 +318,11 @@ authorize implementing past an open gate in the slice's TDD plan.
 | **S-01** | Removes the Agent VM before later runtime and route cleanup while preserving local managed Pi. | If the restored released OpenAPI contract proves a shipped client still needs a removed VM endpoint, stop the merge for an explicit contract-sunset decision. Live VM/resource decommission remains separate. |
 | **S-02** | Removes wearable/WAL behavior before STT and connector cleanup touch shared jobs, images, and manifests. | Delete only wearable-owned behavior. Shared `backend-sync` or infrastructure remains until its final workload is gone; live cleanup is a separately authorized operation. |
 | **S-05** | Establishes one retained managed-Pi runtime and private `OMI_BRIDGE_PIPE` tool path before S-06 and S-07 prune adjacent tools and credentials. | Do not proceed with an uncertain transport boundary: keep the verified Pi bridge while deleting only the separately proven-unused entrances. |
-| **S-03** | Removes hosted STT providers before customer-key propagation is removed from the same STT surfaces. | Resolve IR-228 exact Local VAD Gate copy versus IR-889 no-live-Deepgram claims. Also confirm whether `stt_service` deletion closes here or is handed explicitly to S-16. |
-| **S-06** | Consumes S-05's retained Pi boundary, then removes Apps, connectors, public MCP, sharing, and their route/deployment residue. | Before a route-removal cycle, record and verify the released-OpenAPI version/sunset mechanism and client migration evidence. |
-| **S-07** | Removes BYOK after S-03 and S-05 have stabilized the shared STT and Pi surfaces. | Run the read-only legacy-data/job inventory. Decide managed requeue versus explicit terminalization and purge versus tombstone before deleting readers or running the write transition. |
-| **S-08** | Publishes the canonical identity/session/sign-out boundary consumed by S-09 and later slices. | Start only after the applicable owned-identity, invariant, and released-contract gates close. In Wave 1 execute the narrow Cycles 0-5 tranche; Cycles 6-9 wait for their named later owners and authorizations. |
-| **S-09** | Attaches telemetry and diagnostics only after canonical account identity and sign-out behavior exist. | Wait for the S-08 identity seam and owned development-project configuration; do not guess SDK projects, hosts, keys, identity mapping, or consent behavior. |
+| **S-03** | Removes hosted STT providers before customer-key propagation is removed from the same STT surfaces. | The provider-copy decision is adopted: keep Local VAD Gate behavior and use “managed cloud transcription usage.” S-03 owns complete `stt_service` deletion and fixed-Modulate policy; revalidate those decisions at the pinned baseline. |
+| **S-06** | Consumes S-05's retained Pi boundary, then removes Apps, connectors, public MCP, sharing, and their route/deployment residue. | Cycles 0-2 may start. Before Cycle 3 or another route-removal cycle, record never-released evidence or land the adopted release-level version/sunset predecessor with client migration proof. |
+| **S-07** | Removes BYOK after S-03 and S-05 have stabilized the shared STT and Pi surfaces. | Cycles 1-7 may start while durable readers remain. Before Cycle 8, run the read-only legacy-data/job inventory and decide managed requeue versus explicit terminalization and purge versus tombstone. |
+| **S-08** | Publishes the canonical identity/session/sign-out boundary consumed by S-09 and later slices. | Start config-independent fences immediately in the plan's safe phase order. Owned-identity, invariant, and released-contract inputs gate only their named cycles; Cycles 6-9 still wait for later owners and authorizations. |
+| **S-09** | Re-owns telemetry/diagnostics and removes rejected observability products without coupling their authorities. | Start the configuration-independent deletion phase after the S-08 keep fences. Owned projects and the canonical identity seam gate configuration/identity cycles and live closure; never guess their identifiers or secrets. |
 
 At every stop point, record the missing decision or evidence in the active TDD
 plan. Do not silently invent a compatibility path, weaken a guard, or declare
@@ -379,7 +385,8 @@ contract.
 ### S-01 — Remove cloud Agent VM and local-database mirroring
 
 **Type:** complete vertical deletion<br>
-**Status:** ready for implementation planning<br>
+**Status:** ready to start; repository Cycles 0-4 are executable and live-cloud
+decommission remains separately gated<br>
 **Authorizing decisions:** IR-001, the VM half of IR-002, and IR-934<br>
 **Scope-partition decisions:** IR-003 belongs to S-11 and IR-011 belongs to
 S-15; S-01 removes only their VM-mirroring overlap
@@ -494,7 +501,8 @@ None. The kept local runtime is already a separate path.
 ### S-02 — Remove wearable devices, Omi WAL, and device-audio ingestion
 
 **Type:** complete vertical deletion<br>
-**Status:** ready for implementation planning<br>
+**Status:** ready to start; repository Cycles 0-6 are executable and destructive
+live closeout remains separately gated<br>
 **Authorizing decisions:** IR-012, IR-013, IR-014, IR-359, and IR-823
 
 #### Outcome
@@ -602,7 +610,8 @@ deployment deletion to the later backend re-inventory.
 ### S-03 — Remove hosted GPU Parakeet and every Deepgram branch
 
 **Type:** provider deletion plus routing cleanup<br>
-**Status:** ready for implementation planning<br>
+**Status:** ready to start; the provider seams and requirements interpretations
+are adopted, with live Modulate exercise retained as closure evidence<br>
 **Authorizing decisions:** IR-019, IR-062, IR-887, IR-888, and IR-889
 
 #### Outcome
@@ -708,7 +717,7 @@ separate BYOK deletion so each shared key/settings occurrence has one owner.
 ### S-04 — Remove impossible controls and unowned repository zombies
 
 **Type:** repository/control-plane deletion and narrowing<br>
-**Status:** ready for implementation planning<br>
+**Status:** ready to start; all repository-local cycles are executable<br>
 **Authorizing decisions:** IR-009, IR-010, IR-892, IR-897, IR-935, IR-940, and IR-941
 
 #### Outcome
@@ -834,7 +843,8 @@ extra numbered slice or plan.
 ### S-05 — Keep one managed-Pi local agent and delete every alternate entrance
 
 **Type:** local runtime narrowing<br>
-**Research status:** ready; the caller audit resolved `omi-tools-stdio` for deletion<br>
+**Research status:** ready to start; the caller audit resolved `omi-tools-stdio`
+for deletion<br>
 **Depends on:** none<br>
 **Primary decisions:** IR-015, IR-048, IR-049, IR-113, IR-213 through IR-218, IR-603
 through IR-606, IR-800 through IR-802, IR-922 through IR-924, IR-936, IR-937
@@ -861,7 +871,8 @@ through IR-606, IR-800 through IR-802, IR-922 through IR-924, IR-936, IR-937
 ### S-06 — Delete Apps, marketplace, connectors, remote MCP, and broad indexing
 
 **Type:** complete multi-entry product deletion<br>
-**Research status:** split into independent product paths<br>
+**Research status:** ready to start; Cycles 0-2 are executable and the released
+contract gates only Cycle 3 and later route-removal work<br>
 **Depends on:** none; coordinate the private Pi tool-bridge keep boundary with S-05<br>
 **Primary decisions:** IR-015, IR-045 through IR-047, IR-050 through IR-051,
 IR-106, IR-135, IR-141 through IR-142, IR-212 through IR-213, IR-256, IR-258
@@ -892,7 +903,8 @@ IR-938
 ### S-07 — Delete the customer BYOK plan and all key propagation
 
 **Type:** complete access-plan deletion<br>
-**Research status:** ready after dependency expansion<br>
+**Research status:** ready to start; Cycles 1-7 preserve durable legacy readers
+while the read-only inventory and transition decision gate Cycle 8<br>
 **Depends on:** none; coordinate Deepgram key residue with S-03 and Pi extension
 residue with S-05<br>
 **Primary decisions:** IR-058, IR-062, IR-606, IR-937
@@ -911,8 +923,9 @@ residue with S-05<br>
 ### S-08 — Re-own Firebase identity and narrow account lifecycle/data export
 
 **Type:** retained cloud-control adaptation<br>
-**Research status:** ready for the narrow Wave 1 tranche once its exact external
-and released-contract start gates close; later closure remains dependency-gated<br>
+**Research status:** ready to start the config-independent Wave 1 tranche;
+external and released-contract gates apply only to their named cycles, and later
+closure remains dependency-gated<br>
 **Depends on:** owned Firebase / Apple / Google identity inputs and the applicable
 released-contract decision; S-09 consumes the resulting identity/sign-out seam<br>
 **Primary decisions:** IR-006, IR-120, IR-124, IR-170 through IR-190, IR-830,
@@ -948,7 +961,9 @@ IR-868, IR-877, IR-878
 ### S-09 — Re-own telemetry, diagnostics, issue reporting, and model tracing
 
 **Type:** retained observability adaptation<br>
-**Research status:** split<br>
+**Research status:** ready to start the configuration-independent deletion
+phase; identity, owned-project configuration, and live proof remain cycle-local
+gates<br>
 **Depends on:** the canonical S-08 account identity/sign-out seam, not unimplemented
 later export or queue cleanup<br>
 **Primary decisions:** IR-114 through IR-117, IR-183, IR-204 through IR-211,

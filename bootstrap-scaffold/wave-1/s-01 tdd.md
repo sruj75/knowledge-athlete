@@ -4,7 +4,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `ready` — the requirements-backed VM-only boundary and three retained desktop seams are recorded; live-cloud decommission remains separately gated |
+| Status | `ready to start` — repository Cycles 0-4 are executable; released-client compatibility is checked at its named boundary and live-cloud Cycle 5 remains separately gated |
 | Wave | 1 |
 | Slice | S-01 |
 | Authorizing decisions | IR-001, the VM half of IR-002, and IR-934 |

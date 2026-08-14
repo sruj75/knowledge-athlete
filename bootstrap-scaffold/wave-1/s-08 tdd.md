@@ -1,6 +1,6 @@
 # S-08 TDD Plan — Re-own account identity without weakening lifecycle, deletion, or export
 
-Status: **ready for the narrow Wave 1 tranche once its applicable external and released-contract start gates close; later cycles remain dependency-gated**
+Status: **ready to start the config-independent Wave 1 tranche; external and released-contract gates apply only to their named cycles, and later cycles remain dependency-gated**
 Slice: **S-08**
 Wave: **1**
 Authorizing and protecting decisions: **IR-006, IR-120, IR-124, IR-170 through IR-190, IR-830, IR-868, IR-877, IR-878**
@@ -13,13 +13,13 @@ Postcondition: Apple and Google sign-in use our Firebase/OAuth control plane wit
 
 ## How to execute this plan
 
-After the applicable start gate is closed and the active public seam is traced to the authorizing decisions, start with **`engineering:implement`** using this file as the spec. Keep the S-08 boundary intact across all cycles, execute the cycles in order, use the `engineering:tdd` red-to-green discipline at the named seams, and commit each independently green behavior on the current branch. Do not rename the branch, push, open a PR, deploy, or merge without the separate authorization required by the repository guide.
+Start with **`engineering:implement`** using this file as the spec. Revalidate the active public seam against the authorizing decisions and check only the gate named by that cycle. Keep the S-08 boundary intact, use the `engineering:tdd` red-to-green discipline at the named seams, and commit each independently green behavior on the current branch. Do not rename the branch, push, open a PR, deploy, or merge without the separate authorization required by the repository guide.
 
 Use **`engineering:codebase-design`** during intake only if source discovery forces a change to one of the public seams below. Apply it to keep authentication, deletion orchestration, account-metadata export, and local-product export as deep modules with small interfaces; do not use it to create speculative adapters or compatibility shells.
 
 At the end, use **`engineering:code-review`** against **`origin/main`**. Its Standards axis must use the root, backend, desktop, and `.github` `AGENTS.md` files; its Spec axis must use this plan plus the authorizing IR sections above. Fix every accepted finding, rerun the affected verification, and repeat the review if the diff changed materially.
 
-## Adopted delivery boundary and remaining start gates
+## Adopted delivery boundary and cycle-local gates
 
 The original roadmap said S-08 depended on no other slice. The live deletion map
 now adopts a narrow early tranche and assigns the later closure dependencies
@@ -241,6 +241,19 @@ The local export must work with product network access disabled. The authenticat
 ## Ordered vertical TDD cycles
 
 Every cycle is one tracer bullet: write only the named failing behavioral/contract test, observe the expected failure, add the smallest production change that passes, rerun the focused file, and commit the green state. Do not write tests for later cycles in advance. Refactoring waits until the review stage.
+
+Wave 1 uses this safe execution order when external inputs are not yet available:
+
+1. Cycle 0 intake;
+2. Cycle 1 authentication/session fences;
+3. Cycle 5 retained deletion-orchestration fence;
+4. Cycles 2 and 3 after the applicable G6 released-contract check;
+5. Cycle 4 after G1 and G6; and
+6. stop before Cycles 6-9 until their named later owners close G2-G4.
+
+This is the sole exception to numeric cycle order. It allows independent keep
+fences to land without guessing identity configuration or deleting a released
+shape. Within each listed step, tracer bullets remain sequential.
 
 ### Cycle 0 — implementation intake and immutable baseline
 

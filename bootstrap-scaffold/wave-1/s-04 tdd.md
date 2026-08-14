@@ -1,6 +1,6 @@
 # S-04 TDD Plan — Remove Impossible Controls and Repository Zombies
 
-Status: ready
+Status: ready to start; all repository-local cycles are executable
 Slice: S-04
 Wave: 1
 Authorizing and protecting decisions: IR-009, IR-010, IR-892, IR-897, IR-935, IR-939, IR-940, IR-941

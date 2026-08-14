@@ -5,7 +5,7 @@
 | Field | Value |
 |---|---|
 | Target artifact | `bootstrap-scaffold/wave-1/s-05 tdd.md` |
-| Status | Ready; requirements-backed public seams recorded and `omi-tools-stdio` resolved for deletion |
+| Status | Ready to start; requirements-backed public seams are recorded and `omi-tools-stdio` is resolved for deletion |
 | Wave / owner | Wave 1 / S-05 |
 | Decisions | IR-015, IR-048, IR-049, IR-113, IR-213–218, IR-603–606, IR-800–802, IR-922–924, IR-936, IR-937 |
 | Dependencies | None |

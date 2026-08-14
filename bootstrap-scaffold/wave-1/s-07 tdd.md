@@ -1,6 +1,6 @@
 # S-07 TDD Plan — Remove Customer BYOK and Preserve Managed Access
 
-Status: researched — public seams require live-requirements revalidation and the legacy-data transition below remains unresolved
+Status: ready to start — the public seam table is adopted; Cycles 1-7 are executable while the legacy-data inventory and transition remain a hard gate on Cycle 8 and later reader removal
 Slice: S-07
 Wave: 1
 Authorizing and protecting decisions: IR-007, IR-058, IR-062, IR-606,
@@ -78,12 +78,12 @@ git rev-parse HEAD origin/main
 
 If any referenced IR has changed, refresh this plan before writing a test.
 
-### Implementation start gates
+### Readiness and Cycle 8 transition gate
 
-Do not invoke `engineering:implement` until both gates are resolved:
+Implementation may start immediately with Cycles 1-7 after the normal pinned-baseline revalidation. Two rules apply:
 
-1. Trace or amend the six public behavior seams below against the live requirements.
-2. An authorized operator runs a read-only cardinality dry run for
+1. The six public behavior seams below are the adopted requirements trace. Revalidate them at the pinned baseline and reopen planning only if a controlling IR or production seam changed.
+2. Before Cycle 8, an authorized operator runs a read-only cardinality dry run for
    `users/{uid}.byok` and `blocked_byok`/`requires_byok` finalization jobs, then
    records the chosen transition. Old finalization jobs must either be requeued
    for normal managed processing after the ordinary entitlement boundary, or
@@ -92,7 +92,8 @@ Do not invoke `engineering:implement` until both gates are resolved:
    policies. The same decision records whether `users.byok` is purged or
    tombstoned after its last reader is retired.
 
-Any one-time migration artifact must carry the repository-required
+Cycles 1-7 must preserve the durable BYOK readers and job states required by
+Cycle 8. Any one-time migration artifact must carry the repository-required
 `LIFECYCLE: one-time` and `DELETE-AFTER:` header. Test the chosen transition on
 representative legacy documents before deleting the readers or status values.
 The dry run is read-only; executing the write pass is a separate,
@@ -178,9 +179,10 @@ each caller.
 
 ## Requirements-backed public seams
 
-Trace or amend these before Cycle 1. Tests must call these interfaces and
-observe outcomes; they must not mock our own internal modules or assert only on
-source text.
+Revalidate this adopted seam trace against the pinned baseline before Cycle 1;
+amend it only if a controlling IR or production seam changed. Tests must call
+these interfaces and observe outcomes; they must not mock our own internal
+modules or assert only on source text.
 
 1. **Settings and persisted-customer-secret seam.** A customer cannot find a
    Developer Keys/BYOK/free-forever control in Settings or Account & Plan. Old
@@ -206,10 +208,11 @@ source text.
    changes a route, disables metering or falls back from customer-paid to
    product-paid compute.
 
-Public-seam requirements trace: **pending revalidation against the live ledger**.
+Public-seam requirements trace: **adopted; revalidate at the pinned baseline**.
 
-Legacy-data transition decision: **pending read-only cardinality dry run and
-operator choice between managed requeue or explicit terminalization**.
+Legacy-data transition decision: **Cycle 8 gate pending read-only cardinality
+dry run and operator choice between managed requeue or explicit
+terminalization; it does not block Cycles 1-7**.
 
 ## Ordered TDD cycles
 
