@@ -26,7 +26,6 @@ POLICY = {
     "kinds": {
         "secret": ["FAKE_SERVER_SECRET"],
         "config": ["FAKE_RUNTIME_CONFIG"],
-        "public_build": ["FAKE_PUBLIC_BUILD"],
     },
     "exceptions": {},
 }
@@ -81,18 +80,10 @@ jobs:
     env:
       CONFIG: ${{ vars.FAKE_RUNTIME_CONFIG }}
       TOKEN: ${{ secrets.FAKE_SERVER_SECRET }}
-      BUILD: ${{ vars.FAKE_PUBLIC_BUILD }}
 """,
         )
 
         self.assertEqual(self.errors(), [])
-
-    def test_rejects_public_build_setting_from_github_secret(self) -> None:
-        self.write(".github/workflows/deploy.yml", "BUILD: ${{ secrets.FAKE_PUBLIC_BUILD }}\n")
-
-        self.assertIn(
-            "public_build setting FAKE_PUBLIC_BUILD must use vars.FAKE_PUBLIC_BUILD", "\n".join(self.errors())
-        )
 
     def test_rejects_config_external_secret_mapping(self) -> None:
         self.write(
@@ -112,7 +103,7 @@ jobs:
         self.write(".github/workflows/deploy.yml", "TOKEN: ${{ vars.FAKE_SERVER_SECRET }}\n")
 
         self.assertIn(
-            "github_vars binding FAKE_SERVER_SECRET is secret; expected config or public_build",
+            "github_vars binding FAKE_SERVER_SECRET is secret; expected config",
             "\n".join(self.errors()),
         )
 

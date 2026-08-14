@@ -196,7 +196,7 @@ def _policy_kinds(policy: dict[str, object]) -> dict[str, set[str]]:
     if not isinstance(raw_kinds, dict):
         raise ValueError("policy.kinds must be an object")
     kinds: dict[str, set[str]] = {}
-    for kind in ("secret", "config", "public_build"):
+    for kind in ("secret", "config"):
         names = raw_kinds.get(kind)
         if not isinstance(names, list) or not all(isinstance(name, str) for name in names):
             raise ValueError(f"policy.kinds.{kind} must be a list of names")
@@ -260,9 +260,9 @@ def _exception_allows(policy: dict[str, object], binding: Binding) -> bool:
 
 def _expected_kinds(source: str) -> set[str]:
     if source == "github_vars":
-        return {"config", "public_build"}
+        return {"config"}
     if source == "normal_env":
-        return {"config", "public_build"}
+        return {"config"}
     return {"secret"}
 
 
@@ -273,14 +273,7 @@ def validate_bindings(
     current = set(current_bindings)
     new_or_changed = current - set(base_bindings)
 
-    # Public build configuration is an explicit migration target, not legacy
-    # debt. Reject it even when a pre-ratchet line still exists in the base.
-    to_validate = new_or_changed | {
-        binding
-        for binding in current
-        if binding.source == "github_secrets" and _classification(policy, binding.name) == "public_build"
-    }
-    for binding in sorted(to_validate):
+    for binding in sorted(new_or_changed):
         kind = _classification(policy, binding.name)
         if kind is None:
             errors.append(f"{binding.path}: {binding.source} binding {binding.name} is unclassified")
@@ -288,15 +281,8 @@ def validate_bindings(
         expected = _expected_kinds(binding.source)
         if kind in expected or _exception_allows(policy, binding):
             continue
-        if binding.source == "github_secrets" and kind == "public_build":
-            errors.append(
-                f"{binding.path}: public_build setting {binding.name} must use vars.{binding.name}, not secrets.{binding.name}"
-            )
-        else:
-            expected_text = " or ".join(sorted(expected))
-            errors.append(
-                f"{binding.path}: {binding.source} binding {binding.name} is {kind}; expected {expected_text}"
-            )
+        expected_text = " or ".join(sorted(expected))
+        errors.append(f"{binding.path}: {binding.source} binding {binding.name} is {kind}; expected {expected_text}")
     return errors
 
 

@@ -39,12 +39,6 @@ LOCK_CONTRACTS = {
     "desktop_backend_auto_dev.yml": LockContract("desktop-backend-auto-dev"),
     "desktop_backend_prod.yml": LockContract("desktop-backend-prod"),
     "desktop_backend_recover_prod.yml": LockContract("desktop-backend-prod"),
-    "gcp_admin.yml": LockContract(
-        "deploy-cloud-run-omi-admin-dashboard-${{ github.event_name == 'workflow_dispatch' && github.event.inputs.environment || github.ref == 'refs/heads/development' && 'development' || github.ref == 'refs/heads/main' && 'prod' || format('nondeploy-{0}', github.run_id) }}"
-    ),
-    "gcp_app.yml": LockContract(
-        "deploy-cloud-run-omi-web-app-${{ github.event_name == 'workflow_dispatch' && github.event.inputs.environment || github.ref == 'refs/heads/development' && 'development' || github.ref == 'refs/heads/main' && 'prod' || format('nondeploy-{0}', github.run_id) }}"
-    ),
     "gcp_backend.yml": LockContract("deploy-backend-stack-${{ github.event.inputs.environment }}"),
     "gcp_firestore_indexes.yml": LockContract("deploy-backend-stack-${{ github.event.inputs.environment }}"),
     "gcp_backend_agent_proxy.yml": LockContract("deploy-gke-agent-proxy-${{ github.event.inputs.environment }}"),
@@ -58,9 +52,6 @@ LOCK_CONTRACTS = {
     ),
     "gcp_backend_pusher_auto_deploy.yml": LockContract("deploy-gke-pusher-development"),
     "gcp_diarizer.yml": LockContract("deploy-gke-diarizer-${{ github.event.inputs.environment }}"),
-    "gcp_frontend.yml": LockContract(
-        "deploy-cloud-run-frontend-${{ github.event_name == 'workflow_dispatch' && github.event.inputs.environment || github.ref == 'refs/heads/development' && 'development' || github.ref == 'refs/heads/main' && 'prod' || format('nondeploy-{0}', github.run_id) }}"
-    ),
     "gcp_llm_gateway.yml": LockContract("deploy-backend-stack-${{ github.event.inputs.environment }}"),
     "gcp_memory_maintenance_job.yml": LockContract(
         "deploy-cloud-run-memory-maintenance-job-${{ github.event.inputs.environment }}"
@@ -72,10 +63,6 @@ LOCK_CONTRACTS = {
         "deploy-cloud-run-notifications-job-${{ github.event.inputs.environment }}"
     ),
     "gcp_parakeet.yml": LockContract("deploy-gke-parakeet-${{ github.event.inputs.environment }}"),
-    "gcp_personas.yml": LockContract(
-        "deploy-cloud-run-omi-web-${{ github.event_name == 'workflow_dispatch' && github.event.inputs.environment || github.ref == 'refs/heads/development' && 'development' || github.ref == 'refs/heads/main' && 'prod' || format('nondeploy-{0}', github.run_id) }}"
-    ),
-    "gcp_plugins.yml": LockContract("deploy-cloud-run-plugins-${{ github.event.inputs.environment }}"),
 }
 
 
@@ -110,8 +97,6 @@ WRITER_MARKERS = (
     "gcloud run jobs deploy ",
     "gcloud run jobs update ",
 )
-PUBLIC_BUILD_DEPLOY_ACTION = "uses: ./.github/actions/deploy-public-build"
-
 PUSHER_CHART_MARKER = "backend/charts/pusher"
 PUSHER_CONFIGMAP_PREFLIGHT = (
     "kubectl -n ${{ vars.ENV }}-omi-backend get configmap " "${{ vars.ENV }}-omi-backend-config >/dev/null"
@@ -239,7 +224,10 @@ def validate_serving_release_vector(name: str, text: str) -> list[str]:
     verifier_text = "\n".join(verifier_step)
     if not any(
         marker in verifier_text
-        for marker in ("backend/scripts/verify_backend_release_vector.py", "$DEPLOY_CONTROL_SCRIPTS/verify_backend_release_vector.py")
+        for marker in (
+            "backend/scripts/verify_backend_release_vector.py",
+            "$DEPLOY_CONTROL_SCRIPTS/verify_backend_release_vector.py",
+        )
     ):
         errors.append(f"{name}: release-vector verification must use the canonical verifier")
     if "--environment" not in verifier_text:
@@ -284,7 +272,10 @@ def validate_phase_aware_backend_promotion(name: str, text: str) -> list[str]:
             errors.append(f"{name}: candidate acceptance must include {marker!r}")
     if not any(
         marker in candidate_text
-        for marker in ("backend/scripts/verify_backend_release_vector.py", "$DEPLOY_CONTROL_SCRIPTS/verify_backend_release_vector.py")
+        for marker in (
+            "backend/scripts/verify_backend_release_vector.py",
+            "$DEPLOY_CONTROL_SCRIPTS/verify_backend_release_vector.py",
+        )
     ):
         errors.append(f"{name}: candidate acceptance must include the canonical release-vector verifier")
 
@@ -314,7 +305,10 @@ def validate_phase_aware_backend_promotion(name: str, text: str) -> list[str]:
     snapshot_step = "\n".join(steps[snapshot_index]) if snapshot_index >= 0 else ""
     if not any(
         marker in snapshot_step
-        for marker in ("backend/scripts/cloud_run_traffic_snapshot.py capture", 'cloud_run_traffic_snapshot.py" capture')
+        for marker in (
+            "backend/scripts/cloud_run_traffic_snapshot.py capture",
+            'cloud_run_traffic_snapshot.py" capture',
+        )
     ):
         errors.append(f"{name}: pre-promotion snapshot must use the canonical Cloud Run snapshot helper")
     for service in ("backend", "backend-sync", "backend-sync-backfill", "backend-integration"):
@@ -336,11 +330,17 @@ def validate_phase_aware_backend_promotion(name: str, text: str) -> list[str]:
         )
     if restore_condition not in restore_step:
         errors.append(f"{name}: traffic restoration must run after a failed promotion when its snapshot exists")
-    if name == "gcp_backend.yml" and "steps.smoke-promoted-production-serving-api.outcome == 'failure'" not in restore_step:
+    if (
+        name == "gcp_backend.yml"
+        and "steps.smoke-promoted-production-serving-api.outcome == 'failure'" not in restore_step
+    ):
         errors.append(f"{name}: traffic restoration must include failed production serving smoke")
     if not any(
         marker in restore_step
-        for marker in ("backend/scripts/cloud_run_traffic_snapshot.py restore", 'cloud_run_traffic_snapshot.py" restore')
+        for marker in (
+            "backend/scripts/cloud_run_traffic_snapshot.py restore",
+            'cloud_run_traffic_snapshot.py" restore',
+        )
     ):
         errors.append(f"{name}: traffic restoration must use the canonical Cloud Run snapshot helper")
     for artifact in ("cloud-run-pre-promotion-traffic-snapshot.json", "cloud-run-traffic-restore.json"):
@@ -476,14 +476,7 @@ def validate_pusher_config_preflight(name: str, text: str) -> list[str]:
 
 
 def is_persistent_writer(text: str) -> bool:
-    return (
-        any(marker in text for marker in WRITER_MARKERS)
-        or any(
-            any(PUBLIC_BUILD_DEPLOY_ACTION in line and not line.lstrip().startswith("#") for line in step)
-            for step in workflow_steps(text)
-        )
-        or has_firestore_index_writer(text)
-    )
+    return any(marker in text for marker in WRITER_MARKERS) or has_firestore_index_writer(text)
 
 
 def resolve_environment(group: str, environment: str) -> str:
@@ -553,7 +546,6 @@ def validate_shared_families(groups: dict[str, str]) -> list[str]:
         "gcp_nllb_translation.yml",
         "gcp_notifications_job.yml",
         "gcp_parakeet.yml",
-        "gcp_plugins.yml",
     )
     for name in environment_scoped:
         if resolve_environment(groups[name], "development") == resolve_environment(groups[name], "prod"):
@@ -628,7 +620,10 @@ def check_repository() -> list[str]:
         for name, text in workflow_text.items()
         if any(
             marker in text
-            for marker in ("backend/scripts/verify_backend_release_vector.py", "$DEPLOY_CONTROL_SCRIPTS/verify_backend_release_vector.py")
+            for marker in (
+                "backend/scripts/verify_backend_release_vector.py",
+                "$DEPLOY_CONTROL_SCRIPTS/verify_backend_release_vector.py",
+            )
         )
     )
     # Release-ring deploys are admitted from an immutable record and bind the
@@ -709,16 +704,6 @@ jobs:
     )
     if is_persistent_writer(non_firestore_firebase_deploy):
         raise PolicyError("a functions-only Firebase deploy was classified as a Firestore writer")
-    centralized_public_build_writer = """name: fixture
-jobs:
-  deploy:
-    steps:
-      - uses: ./.github/actions/deploy-public-build
-"""
-    if not is_persistent_writer(centralized_public_build_writer):
-        raise PolicyError("centralized public-build deployment bypassed persistent-writer detection")
-    if is_persistent_writer(centralized_public_build_writer.replace("      - uses:", "      # - uses:")):
-        raise PolicyError("a commented centralized public-build deployment was classified as a writer")
     gcloud_list = direct_firebase_writer.replace(
         "npx firebase deploy --only firestore:indexes",
         "gcloud firestore indexes composite list",
