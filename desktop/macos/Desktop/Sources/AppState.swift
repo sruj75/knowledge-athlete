@@ -225,11 +225,6 @@ class AppState: ObservableObject {
   @Published var systemAudioPermissionStatus: SystemAudioPermissionStatus = .unknown
   @Published var isSystemAudioSupported = false
 
-  // Audio source (microphone or BLE device)
-  @Published var audioSource: AudioSource = .microphone
-  /// Tracks the source for the current recording (for API tagging)
-  var currentConversationSource: ConversationSource = .desktop
-
   /// Guards against re-entering the silent-mic fallback path multiple times in a single session.
   /// The user-visible banner lives in `SilentMicNoticeMonitor.shared`.
   var silentMicFallbackInProgress: Bool = false
@@ -286,8 +281,6 @@ class AppState: ObservableObject {
   /// app is running doesn't apply to this process until relaunch
   /// (see ScreenRecordingPermissionPolicy.needsRelaunchToApply).
   let screenRecordingGrantedAtLaunch = ScreenCaptureService.checkPermission()
-  @Published var hasBluetoothPermission = false
-
   // Track last notification settings for change detection (avoid duplicate analytics)
   var lastNotificationAuthStatus: String?
   var lastNotificationAlertStyle: String?
@@ -461,15 +454,6 @@ class AppState: ObservableObject {
   var wasTranscribingBeforeSleep = false
   var lastScreenLockTime: Date?
   var lastScreenUnlockTime: Date?
-  var buttonStreamTask: Task<Void, Never>? {
-    get { servicesCoordinator.buttonStreamTask }
-    set { servicesCoordinator.buttonStreamTask = newValue }
-  }
-  var bluetoothStateCancellable: AnyCancellable? {
-    get { servicesCoordinator.bluetoothStateCancellable }
-    set { servicesCoordinator.bluetoothStateCancellable = newValue }
-  }
-
   nonisolated(unsafe) private var ownerChangeObserver: NSObjectProtocol?
 
   /// Bumped on every in-place account switch. Owner-scoped loads capture it
@@ -599,9 +583,6 @@ class AppState: ObservableObject {
       isSystemAudioSupported = true
     }
 
-    // Note: Bluetooth subscription is initialized lazily via initializeBluetoothIfNeeded()
-    // to avoid triggering the permission dialog before the user reaches the Bluetooth step
-
     // Start periodic notification health check (every 30 min)
     // Detects when macOS silently revokes notification authorization and auto-repairs
     notificationHealthTimer = Timer.scheduledTimer(withTimeInterval: 30 * 60, repeats: true) {
@@ -610,39 +591,6 @@ class AppState: ObservableObject {
         self?.checkNotificationPermission()
       }
     }
-  }
-
-  /// Initialize Bluetooth manager and subscribe to state changes
-  /// Call this only when the user reaches the Bluetooth onboarding step
-  func initializeBluetoothIfNeeded() {
-    guard bluetoothStateCancellable == nil else {
-      log("Bluetooth already initialized, skipping")
-      return
-    }
-
-    log("Initializing Bluetooth manager...")
-
-    // Also initialize DeviceProvider's Bluetooth bindings
-    DeviceProvider.shared.initializeBluetoothBindingsIfNeeded()
-
-    // Subscribe to Bluetooth state changes for reactive permission updates
-    bluetoothStateCancellable = BluetoothManager.shared.$bluetoothState
-      .receive(on: DispatchQueue.main)
-      .sink { [weak self] state in
-        guard let self = self else { return }
-        let oldValue = self.hasBluetoothPermission
-        // poweredOn = ready to use, poweredOff = allowed but BT is off
-        let newValue = state == .poweredOn || state == .poweredOff
-        log(
-          "BLUETOOTH_SUBSCRIPTION: state=\(BluetoothManager.shared.bluetoothStateDescription), stateRaw=\(state.rawValue), auth=\(BluetoothManager.shared.authorizationDescription), granted=\(newValue)"
-        )
-        if newValue != oldValue {
-          log(
-            "Bluetooth permission changed via subscription: \(oldValue) -> \(newValue), state=\(BluetoothManager.shared.bluetoothStateDescription)"
-          )
-          self.hasBluetoothPermission = newValue
-        }
-      }
   }
 
   /// Setup observers for app quit and system sleep to finalize conversations

@@ -104,7 +104,6 @@ print('Connected to Firebase: based-hardware')
 library targets with enforced dependency edges:
 
 - `OmiTheme` — shared colors, typography, chrome (`Sources/Theme/`)
-- `OmiWAL` — write-ahead log model + coordinator (`Sources/OmiWAL/`)
 - `OmiSupport` — shared desktop runtime helpers (`Sources/OmiSupport/`, e.g.
   `DesktopLocalProfile` and `Dictionary(lastWriteWins:)`)
 

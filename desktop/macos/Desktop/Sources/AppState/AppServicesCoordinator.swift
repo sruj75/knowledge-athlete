@@ -25,15 +25,11 @@ final class AppServicesCoordinator {
   var systemAudioCaptureModeObserver: NSObjectProtocol?
   var coreAudioCaptureRecoveryObserver: NSObjectProtocol?
 
-  var buttonStreamTask: Task<Void, Never>?
-  var bluetoothStateCancellable: AnyCancellable?
   var cancellables = Set<AnyCancellable>()
 
   deinit {
     maxRecordingTimer?.invalidate()
     notificationHealthTimer?.invalidate()
-    buttonStreamTask?.cancel()
-    bluetoothStateCancellable?.cancel()
     cancellables.removeAll()
     removeLifecycleObservers()
   }

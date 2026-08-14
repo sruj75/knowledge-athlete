@@ -7,6 +7,7 @@ covers:
   - desktop/macos/Desktop/Sources/MainWindow/Pages/AppsPage.swift
   - desktop/macos/Desktop/Sources/MainWindow/Pages/Settings/Components/SearchableDropdown.swift
   - desktop/macos/Desktop/Sources/Providers/AppProvider.swift
+  - desktop/macos/Desktop/Sources/Services/APIClient/APIClient+Apps.swift
 preconditions:
   - auth_ready
 

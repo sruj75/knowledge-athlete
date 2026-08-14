@@ -1,5 +1,4 @@
 import Foundation
-import OmiWAL
 
 // MARK: - Action Items API
 

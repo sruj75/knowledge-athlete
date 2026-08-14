@@ -34,7 +34,6 @@ final class OnboardingPersistenceClearingTests: XCTestCase {
       "onboardingStep",
       "hasSeenRewindIntro",
       "hasTriggeredAccessibility",
-      "hasTriggeredBluetooth",
       // Second Brain onboarding keys — the redesign added these but left them out
       // of the shared list, leaking the prior user's resume step + role to the
       // next account on the same Mac.
