@@ -176,6 +176,24 @@ class DesktopBackendReleasePolicyTests(unittest.TestCase):
         self.assertTrue(any("immutable" in error for error in errors), errors)
         self.assertTrue(any("no_traffic" in error for error in errors), errors)
 
+    def test_rejects_rebuilding_instead_of_publishing_smoked_image(self) -> None:
+        mutated = self.dev.replace('          docker push "$image"\n', "", 1)
+        mutated = mutated.replace(
+            "      - name: Publish immutable Docker image\n        id: build-image\n        run: |",
+            "      - name: Publish immutable Docker image\n"
+            "        id: build-image\n"
+            "        uses: docker/build-push-action@v7\n"
+            "        with:\n"
+            "          context: .\n"
+            "          file: ./backend/Dockerfile.desktop_backend\n"
+            "          push: true\n"
+            "        run: |",
+            1,
+        )
+        errors = POLICY.validate_deploy_workflow(mutated, production=False)
+        self.assertTrue(any("one Python image build context" in error for error in errors), errors)
+        self.assertTrue(any('docker push "$image"' in error for error in errors), errors)
+
     def test_rejects_automatic_or_python_vector_production_deploy(self) -> None:
         mutated = self.prod.replace(
             "on:\n  workflow_dispatch:",

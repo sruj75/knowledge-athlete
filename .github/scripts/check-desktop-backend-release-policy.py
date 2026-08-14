@@ -73,8 +73,8 @@ def validate_deploy_workflow(text: str, *, production: bool) -> list[str]:
     workflow = "desktop_backend_prod.yml" if production else "desktop_backend_auto_dev.yml"
     errors: list[str] = []
     build_context = "with:\n          context: .\n          file: ./backend/Dockerfile.desktop_backend"
-    if text.count(build_context) != 2:
-        errors.append(f"{workflow}: expected two Python image build contexts {build_context!r}")
+    if text.count(build_context) != 1:
+        errors.append(f"{workflow}: expected one Python image build context {build_context!r}")
 
     required = (
         "no_traffic: true",
@@ -83,6 +83,9 @@ def validate_deploy_workflow(text: str, *, production: bool) -> list[str]:
         "voice-provider-probe.sh",
         "wait_cloud_run_candidate_readiness.py",
         "Verify candidate image lineage",
+        'docker push "$image"',
+        'docker buildx imagetools inspect "$image"',
+        'echo "digest=$digest" >> "$GITHUB_OUTPUT"',
         "@${{ steps.build-image.outputs.digest }}",
         '--build-image-ref="$BUILD_IMAGE_REF"',
         '--runtime-image-ref="$runtime_image_ref"',

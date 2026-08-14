@@ -16,7 +16,7 @@ ROUTE_SURFACES: List[Dict[str, Any]] = [
         'route_reference': 'backend/routers/tools.py GET /v1/tools/memories',
         'response_model': 'ToolResponse',
         'existing_local_proof': [
-            'backend/tests/unit/test_tools_agent_route_response_shape.py',
+            'backend/tests/unit/test_tools_route_response_shape.py',
             'backend/tests/unit/test_tools_rest_memory_runtime_adapter.py',
         ],
         'required_fastapi_testclient_proof': 'Exercise the real FastAPI route via TestClient with dependency overrides, then prove response-model serialization preserves bounded memory evidence text and fail-closed text.',
@@ -28,7 +28,7 @@ ROUTE_SURFACES: List[Dict[str, Any]] = [
         'route_reference': 'backend/routers/tools.py POST /v1/tools/memories/search',
         'response_model': 'ToolResponse',
         'existing_local_proof': [
-            'backend/tests/unit/test_tools_agent_route_response_shape.py',
+            'backend/tests/unit/test_tools_route_response_shape.py',
             'backend/tests/unit/test_tools_rest_memory_runtime_adapter.py',
         ],
         'required_fastapi_testclient_proof': 'Exercise the real FastAPI route via TestClient with dependency overrides, request-body validation, and response-model serialization for memory vector memory text.',

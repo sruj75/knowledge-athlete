@@ -80,7 +80,7 @@ def test_tools_fastapi_testclient_readiness_links_existing_local_proof_and_non_c
 
     assert 'backend/routers/tools.py GET /v1/tools/memories' in text
     assert 'backend/routers/tools.py POST /v1/tools/memories/search' in text
-    assert 'backend/tests/unit/test_tools_agent_route_response_shape.py' in text
+    assert 'backend/tests/unit/test_tools_route_response_shape.py' in text
     assert 'backend/tests/unit/test_tools_rest_memory_runtime_adapter.py' in text
     assert 'FastAPI TestClient production-dependency proof was not run' in text
     assert 'No production traffic' in text

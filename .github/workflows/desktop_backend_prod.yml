@@ -269,14 +269,16 @@ jobs:
 
       - name: Publish immutable Docker image
         id: build-image
-        uses: docker/build-push-action@v7
-        with:
-          context: .
-          file: ./backend/Dockerfile.desktop_backend
-          push: true
-          tags: gcr.io/${{ vars.GCP_PROJECT_ID }}/${{ env.SERVICE }}:${{ steps.admitted-source.outputs.image_tag }}
-          cache-from: type=registry,ref=gcr.io/${{ vars.GCP_PROJECT_ID }}/${{ env.SERVICE }}:buildcache
-          cache-to: type=registry,ref=gcr.io/${{ vars.GCP_PROJECT_ID }}/${{ env.SERVICE }}:buildcache,mode=max
+        run: |
+          set -euo pipefail
+          image="gcr.io/${{ vars.GCP_PROJECT_ID }}/${{ env.SERVICE }}:${{ steps.admitted-source.outputs.image_tag }}"
+          docker push "$image"
+          digest="$(docker buildx imagetools inspect "$image" --format '{{.Manifest.Digest}}')"
+          if [[ ! "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "ERROR: published desktop-backend image returned invalid digest $digest" >&2
+            exit 1
+          fi
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
 
       - name: Deploy production candidate at zero traffic
         id: deploy-candidate
