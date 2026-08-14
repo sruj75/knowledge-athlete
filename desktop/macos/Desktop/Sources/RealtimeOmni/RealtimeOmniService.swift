@@ -11,7 +11,7 @@ import Network
 //
 // Reasoning/tools are NOT done here — the transcript goes to ChatProvider
 // (pi-mono/Claude + tools) exactly as before; this service is only the voice
-// shell that replaces Deepgram (STT) + OpenAI TTS in the cascade.
+// shell that replaces the managed-STT + OpenAI-TTS cascade.
 //
 // Wire protocols are the ones verified in the realtime-voice-demos web app:
 //   OpenAI GA:  session.update {audio.input/output pcm}, input_audio_buffer.append,

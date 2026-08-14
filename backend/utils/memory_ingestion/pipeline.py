@@ -1165,7 +1165,7 @@ def _is_idle_speculation_frame(frame: MemoryEventFrame) -> bool:
     """Detect idle daydreaming vs active evaluation.
 
     Active evaluation (KEEP for extraction):
-      - "I'm comparing Deepgram vs AssemblyAI for our transcript pipeline"
+      - "I'm comparing two vendors for our transcript pipeline"
       - "We're considering Linear — ran a 2-week trial last month"
       - "Might switch to Raycast; the API looks cleaner than Alfred"
 

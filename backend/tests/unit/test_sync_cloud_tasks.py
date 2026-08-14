@@ -352,7 +352,7 @@ class TestFencedJobMutations:
         finalized = sync_jobs.fenced_finalize_sync_job(
             job_id,
             'owner-b',
-            {'total_segments': 1, 'failed_segments': 0, 'provider': 'deepgram', 'model': 'nova-3'},
+            {'total_segments': 1, 'failed_segments': 0, 'provider': 'modulate', 'model': 'modulate-velma-2'},
             now=102.0,
         )
         assert finalized.applied is True
@@ -397,7 +397,7 @@ class TestFencedJobMutations:
             {'job_id': job_id, 'status': 'queued', 'lane': 'fresh', 'result': None},
             owner='2:recovery-owner',
         )
-        result = {'total_segments': 1, 'failed_segments': 0, 'provider': 'deepgram', 'model': 'nova-3'}
+        result = {'total_segments': 1, 'failed_segments': 0, 'provider': 'modulate', 'model': 'modulate-velma-2'}
 
         ordinary = sync_jobs.fenced_finalize_sync_job(job_id, '2:recovery-owner', result, now=101.0)
         assert ordinary.outcome is sync_jobs.FencedSyncJobMutationOutcome.INVALID_STATE
@@ -1011,10 +1011,10 @@ def _load_sync_router_for_fast_path():
     sys.modules['utils.fair_use'].is_hard_restricted = MagicMock(return_value=False)
     sys.modules['utils.fair_use'].get_hard_restriction_status = MagicMock(return_value=(False, None))
     sys.modules['utils.fair_use'].is_daily_audio_ceiling_exceeded = MagicMock(return_value=False)
-    sys.modules['utils.fair_use'].is_dg_budget_exhausted = MagicMock(return_value=False)
+    sys.modules['utils.fair_use'].is_managed_stt_budget_exhausted = MagicMock(return_value=False)
     sys.modules['utils.fair_use'].get_enforcement_stage = MagicMock(return_value='off')
     sys.modules['utils.fair_use'].FAIR_USE_ENABLED = False
-    sys.modules['utils.fair_use'].FAIR_USE_RESTRICT_DAILY_DG_MS = 0
+    sys.modules['utils.fair_use'].FAIR_USE_RESTRICT_DAILY_MANAGED_STT_MS = 0
     sys.modules['utils.subscription'].has_transcription_credits = MagicMock(return_value=True)
     sys.modules['utils.request_validation'].parse_sync_filename_timestamp = MagicMock(return_value=time.time())
     saved_modules['utils.sync'] = prior_utils_sync
@@ -1199,8 +1199,8 @@ def test_polling_stale_job_releases_retry_claim_through_owned_finalizer():
         'uid': 'test-uid',
         'status': 'processing',
         'content_id': 'content-1',
-        'stt_provider': 'deepgram',
-        'stt_model': 'nova-3',
+        'stt_provider': 'modulate',
+        'stt_model': 'modulate-velma-2',
         'lane': 'fresh',
         'dispatch_mode': 'cloud_tasks',
         'ledger_fence_mode': 'active',
@@ -1227,8 +1227,8 @@ def test_polling_stale_job_releases_retry_claim_through_owned_finalizer():
             content_id='content-1',
             error_code='sync_worker_stale',
             outcome=module.TranscriptionOutcome.UPSTREAM_ERROR,
-            provider='deepgram',
-            model='nova-3',
+            provider='modulate',
+            model='modulate-velma-2',
             lane='fresh',
             run_lock_token='1:poll-lock',
         )
@@ -1258,8 +1258,8 @@ def test_polling_never_dispatched_queued_job_finalizes_as_dispatch_lost():
         'uid': 'test-uid',
         'status': 'queued',
         'content_id': 'content-q',
-        'stt_provider': 'deepgram',
-        'stt_model': 'nova-3',
+        'stt_provider': 'modulate',
+        'stt_model': 'modulate-velma-2',
         'lane': 'fresh',
         'dispatch_mode': 'cloud_tasks',
         'ledger_fence_mode': 'active',
@@ -1300,8 +1300,8 @@ def test_polling_stale_job_lease_loss_preserves_newer_owner_retry_material():
         'uid': 'test-uid',
         'status': 'processing',
         'content_id': 'content-1',
-        'stt_provider': 'deepgram',
-        'stt_model': 'nova-3',
+        'stt_provider': 'modulate',
+        'stt_model': 'modulate-velma-2',
         'lane': 'backfill',
         'dispatch_mode': 'cloud_tasks',
         'ledger_fence_mode': 'active',
@@ -1485,8 +1485,8 @@ async def test_sync_task_retry_retains_staged_audio_and_safe_failure_code():
         latest_job={
             'job_id': 'job-1',
             'status': 'processing',
-            'stt_provider': 'deepgram',
-            'stt_model': 'nova-3',
+            'stt_provider': 'modulate',
+            'stt_model': 'modulate-velma-2',
         },
     )
 
@@ -1757,8 +1757,8 @@ async def test_sync_task_cancellation_preserves_run_lock_and_retry_material():
         latest_job={
             'job_id': 'job-1',
             'status': 'processing',
-            'stt_provider': 'deepgram',
-            'stt_model': 'nova-3',
+            'stt_provider': 'modulate',
+            'stt_model': 'modulate-velma-2',
         },
     )
 
@@ -1829,8 +1829,8 @@ async def test_sync_task_persistence_fence_terminalizes_backfill_and_releases_it
         latest_job={
             'job_id': 'job-1',
             'status': 'processing',
-            'stt_provider': 'deepgram',
-            'stt_model': 'nova-3',
+            'stt_provider': 'modulate',
+            'stt_model': 'modulate-velma-2',
         },
     )
     request.json.return_value['lane'] = 'backfill'
@@ -1845,8 +1845,8 @@ async def test_sync_task_persistence_fence_terminalizes_backfill_and_releases_it
             job_id='job-1',
             run_lock_token='1:lock-token',
             lane='backfill',
-            provider='deepgram',
-            model='nova-3',
+            provider='modulate',
+            model='modulate-velma-2',
         )
         module._delete_staged_blobs_async.assert_awaited_once_with(['staged/audio.opus'])
         module.release_backfill_slot.assert_called_once_with('test-uid', 'job-1')
@@ -1943,8 +1943,8 @@ async def test_sync_task_final_attempt_converges_a_ledger_completed_by_the_faili
         latest_job={
             'job_id': 'job-1',
             'status': 'processing',
-            'stt_provider': 'deepgram',
-            'stt_model': 'nova-3',
+            'stt_provider': 'modulate',
+            'stt_model': 'modulate-velma-2',
         },
     )
 
@@ -1990,8 +1990,8 @@ async def test_sync_task_final_attempt_ledger_bind_loss_preserves_retry_material
         latest_job={
             'job_id': 'job-1',
             'status': 'processing',
-            'stt_provider': 'deepgram',
-            'stt_model': 'nova-3',
+            'stt_provider': 'modulate',
+            'stt_model': 'modulate-velma-2',
         },
     )
 
@@ -2030,8 +2030,8 @@ async def test_sync_task_final_attempt_publishes_one_bounded_terminal_failure():
         latest_job={
             'job_id': 'job-1',
             'status': 'processing',
-            'stt_provider': 'deepgram',
-            'stt_model': 'nova-3',
+            'stt_provider': 'modulate',
+            'stt_model': 'modulate-velma-2',
         },
     )
 
@@ -2046,8 +2046,8 @@ async def test_sync_task_final_attempt_publishes_one_bounded_terminal_failure():
             content_id='content-1',
             error_code='stt_timeout',
             outcome=module.TranscriptionOutcome.TIMEOUT,
-            provider='deepgram',
-            model='nova-3',
+            provider='modulate',
+            model='modulate-velma-2',
             lane='fresh',
             run_lock_token='1:lock-token',
         )
@@ -2117,8 +2117,8 @@ async def test_sync_task_retryable_failure_still_retries_before_exhaustion():
         latest_job={
             'job_id': 'job-1',
             'status': 'processing',
-            'stt_provider': 'parakeet',
-            'stt_model': 'parakeet',
+            'stt_provider': 'modulate',
+            'stt_model': 'modulate-velma-2',
         },
     )
 

@@ -5,7 +5,7 @@
 frame enqueued that sentinel and ended the send loop mid-session. The socket is not marked dead in
 that path, so ``is_connection_dead`` stays False and ``send()`` keeps returning True: every later
 frame is queued to a loop nobody is reading, and the user's transcription silently stops for the
-rest of the session with no error and no reconnect. Both Parakeet sockets already guard with
+rest of the session with no error and no reconnect. Both managed STT sockets already guard with
 ``if not data: return True``.
 
 Empty frames are reachable from the live path: ``send_live_stt_audio`` passes its ``audio``

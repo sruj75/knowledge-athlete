@@ -17,7 +17,7 @@ from listen_test_helpers import (
 
 
 def test_web_listen_custom_stt_dispatches_to_stream_handler(client, monkeypatch):
-    """The web listen route should auth and dispatch custom-STT sessions without Deepgram.
+    """The web listen route should auth and dispatch custom-STT sessions without provider access.
 
     The provider-heavy stream handler is replaced with a deterministic fake here; this
     still exercises the real websocket route, first-message auth protocol, query parsing,
@@ -33,7 +33,6 @@ def test_web_listen_custom_stt_dispatches_to_stream_handler(client, monkeypatch)
         codec,
         channels,
         include_speech_profile,
-        stt_service,
         conversation_timeout=120,
         source=None,
         custom_stt_mode=None,
@@ -50,7 +49,6 @@ def test_web_listen_custom_stt_dispatches_to_stream_handler(client, monkeypatch)
                 "codec": codec,
                 "channels": channels,
                 "include_speech_profile": include_speech_profile,
-                "stt_service": stt_service,
                 "conversation_timeout": conversation_timeout,
                 "source": source,
                 "custom_stt_mode": getattr(custom_stt_mode, "value", str(custom_stt_mode)),
@@ -82,7 +80,6 @@ def test_web_listen_custom_stt_dispatches_to_stream_handler(client, monkeypatch)
     assert captured["codec"] == "pcm8"
     assert captured["channels"] == 1
     assert captured["include_speech_profile"] is True
-    assert captured["stt_service"] is None
     assert captured["conversation_timeout"] == 1
     assert captured["source"] == "e2e"
     assert captured["custom_stt_mode"] == "enabled"
@@ -94,7 +91,7 @@ def test_web_listen_custom_stt_suggested_transcript_is_emitted_and_persisted(cli
     """Custom-STT suggested transcript exercises real listen handling after auth.
 
     This is still a named seam: the app/client side STT event is deterministic and
-    Deepgram is not contacted, but the real route, websocket loop, transcript
+    No managed provider is contacted, but the real route, websocket loop, transcript
     normalization, client emission, and fake-Firestore persistence all run.
     """
     seed_listen_user(test_uid)
@@ -362,7 +359,7 @@ def test_web_listen_streaming_stt_send_failure_emits_terminal_status_then_closes
             "status": "stt_failed",
             "status_text": "The transcription provider could not complete the request.",
             "outcome": "upstream_error",
-            "provider": "parakeet",
+            "provider": "modulate",
             "retryable": True,
             "reason": "send_failed",
         }

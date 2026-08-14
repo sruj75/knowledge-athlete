@@ -160,8 +160,8 @@ class TestSyncV2Structure:
         assert '_cleanup_files' in func_body, "Background worker must call _cleanup_files"
         assert 'rmtree' in func_body, "Background worker must clean up job directory"
 
-    def test_v2_background_records_dg_after_processing(self):
-        """DG usage must be recorded after processing, not before."""
+    def test_v2_background_records_managed_stt_after_processing(self):
+        """managed STT usage must be recorded after processing, not before."""
         source = _read_pipeline_source()
         start = source.index('async def _run_full_pipeline_background_async')
         next_boundary = source.find('\nasync def ', start + 1)
@@ -171,10 +171,12 @@ class TestSyncV2Structure:
             next_boundary = len(source)
         func_body = source[start:next_boundary]
 
-        dg_pos = func_body.index('_record_restricted_sync_dg_usage')
+        managed_stt_pos = func_body.index('_record_restricted_sync_managed_stt_usage')
         processing_pos = func_body.index('run_blocking(sync_executor, _process_one_segment')
-        assert dg_pos > processing_pos, "DG usage must be recorded AFTER segment processing"
-        assert 'record_dg_usage_ms' in _get_pipeline_async_function_body('_record_restricted_sync_dg_usage')
+        assert managed_stt_pos > processing_pos, "managed STT usage must be recorded AFTER segment processing"
+        assert 'record_managed_stt_usage_ms' in _get_pipeline_async_function_body(
+            '_record_restricted_sync_managed_stt_usage'
+        )
 
     def test_v2_background_does_decode_and_vad(self):
         """Background worker must run decode and VAD (#7281 — moved from inline)."""
@@ -192,7 +194,7 @@ class TestSyncV2Structure:
         assert 'retrieve_vad_segments' in _get_pipeline_async_function_body('_run_sync_vad_phase')
         assert '_load_sync_segment_context' in func_body, "Background must load segment context"
         assert 'build_person_embeddings_cache' in _get_pipeline_async_function_body('_load_sync_segment_context')
-        assert 'is_dg_budget_exhausted' in func_body, "Background must check DG budget"
+        assert 'is_managed_stt_budget_exhausted' in func_body, "Background must check managed STT budget"
 
     def test_v2_background_has_stage_heartbeats(self):
         """Background worker must heartbeat with stage info during decode and VAD."""
@@ -996,13 +998,15 @@ class TestAsyncCoordinatorStructure:
         assert 'chunk_size = 5' in body
         assert 'range(0, len(segment_list), chunk_size)' in body
 
-    def test_async_coordinator_records_dg_usage_after_processing(self):
-        """DG usage must be recorded after segment processing, not before."""
+    def test_async_coordinator_records_managed_stt_usage_after_processing(self):
+        """managed STT usage must be recorded after segment processing, not before."""
         body = self._get_bg_func_body()
-        dg_pos = body.index('_record_restricted_sync_dg_usage')
+        managed_stt_pos = body.index('_record_restricted_sync_managed_stt_usage')
         processing_pos = body.index('_process_one_segment')
-        assert dg_pos > processing_pos
-        assert 'record_dg_usage_ms' in _get_pipeline_async_function_body('_record_restricted_sync_dg_usage')
+        assert managed_stt_pos > processing_pos
+        assert 'record_managed_stt_usage_ms' in _get_pipeline_async_function_body(
+            '_record_restricted_sync_managed_stt_usage'
+        )
 
     def test_async_coordinator_result_shape(self):
         """Result must include new_memories, updated_memories, failed_segments, total_segments, errors."""
@@ -1078,7 +1082,7 @@ class TestAsyncCoordinatorSemaphore:
 
 class TestAsyncCoordinatorScenarios:
     """Structural tests covering pipeline scenarios: decode failure, empty decode,
-    VAD error/timeout, zero segments, DG budget, partial/all segment failure,
+    VAD error/timeout, zero segments, managed STT budget, partial/all segment failure,
     prefs/cache fallback, target_conversation_id forwarding, and cleanup."""
 
     @staticmethod
@@ -1146,29 +1150,33 @@ class TestAsyncCoordinatorScenarios:
         assert "'total_segments': 0" in section
         assert 'return' in section
 
-    # --- DG budget ---
+    # --- managed STT budget ---
 
-    def test_dg_budget_exhausted_cleans_up_segments(self):
-        """DG budget exhaustion must clean up segmented_paths before returning."""
+    def test_managed_stt_budget_exhausted_cleans_up_segments(self):
+        """managed STT budget exhaustion must clean up segmented_paths before returning."""
         body = self._get_bg_func_body()
-        dg_section = body[body.index('is_dg_budget_exhausted') : body.index('is_locked = should_lock')]
-        assert '_cleanup_files, list(segmented_paths)' in dg_section
+        managed_stt_section = body[
+            body.index('is_managed_stt_budget_exhausted') : body.index('is_locked = should_lock')
+        ]
+        assert '_cleanup_files, list(segmented_paths)' in managed_stt_section
 
-    def test_dg_budget_not_exhausted_continues(self):
-        """When DG budget is NOT exhausted, pipeline continues to segment processing."""
+    def test_managed_stt_budget_not_exhausted_continues(self):
+        """When managed STT budget is NOT exhausted, pipeline continues to segment processing."""
         body = self._get_bg_func_body()
-        dg_section_end = body.index('is_locked = should_lock')
-        after_dg = body[dg_section_end:]
+        managed_stt_section_end = body.index('is_locked = should_lock')
+        after_dg = body[managed_stt_section_end:]
         assert 'Phase 4: Fetch prefs' in after_dg
         assert '_process_one_segment' in after_dg
 
-    def test_dg_usage_recorded_after_processing(self):
-        """DG usage recording must happen after segment processing, not before."""
+    def test_managed_stt_usage_recorded_after_processing(self):
+        """managed STT usage recording must happen after segment processing, not before."""
         body = self._get_bg_func_body()
         processing_end = body.index("stage_timings['stt_llm_ms']")
-        record_dg_idx = body.index('_record_restricted_sync_dg_usage')
-        assert record_dg_idx > processing_end
-        assert 'record_dg_usage_ms' in _get_pipeline_async_function_body('_record_restricted_sync_dg_usage')
+        record_managed_stt_idx = body.index('_record_restricted_sync_managed_stt_usage')
+        assert record_managed_stt_idx > processing_end
+        assert 'record_managed_stt_usage_ms' in _get_pipeline_async_function_body(
+            '_record_restricted_sync_managed_stt_usage'
+        )
 
     # --- Partial / all segment failure ---
 
@@ -1382,7 +1390,7 @@ class TestAsyncCoordinatorBehavioral:
         sys.modules['python_multipart.multipart'].parse_options_header = MagicMock(return_value={})
         sys.modules['utils.log_sanitizer'].sanitize = lambda value: value
         sys.modules['utils.stt.pre_recorded'].get_prerecorded_service = MagicMock(
-            return_value=('deepgram', 'multi', 'nova-3')
+            return_value=('modulate', 'multi', 'modulate-velma-2')
         )
         sys.modules['utils.client_device'].resolve_client_device = MagicMock(
             return_value=MagicMock(client_device_id=None, platform=None)
@@ -1459,16 +1467,16 @@ class TestAsyncCoordinatorBehavioral:
 
         sys.modules['database.redis_db'] = MagicMock(r=MagicMock())
         sys.modules['utils.fair_use'].FAIR_USE_ENABLED = False
-        sys.modules['utils.fair_use'].FAIR_USE_RESTRICT_DAILY_DG_MS = 0
+        sys.modules['utils.fair_use'].FAIR_USE_RESTRICT_DAILY_MANAGED_STT_MS = 0
         sys.modules['utils.fair_use'].is_hard_restricted = MagicMock(return_value=False)
         sys.modules['utils.fair_use'].get_hard_restriction_status = MagicMock(return_value=(False, None))
-        sys.modules['utils.fair_use'].is_dg_budget_exhausted = MagicMock(return_value=False)
+        sys.modules['utils.fair_use'].is_managed_stt_budget_exhausted = MagicMock(return_value=False)
         sys.modules['utils.fair_use'].get_enforcement_stage = MagicMock(return_value='off')
         sys.modules['utils.fair_use'].record_speech_ms = MagicMock()
         sys.modules['utils.fair_use'].get_rolling_speech_ms = MagicMock(return_value={})
         sys.modules['utils.fair_use'].check_soft_caps = MagicMock(return_value=[])
         sys.modules['utils.fair_use'].trigger_classifier_if_needed = MagicMock()
-        sys.modules['utils.fair_use'].record_dg_usage_ms = MagicMock()
+        sys.modules['utils.fair_use'].record_managed_stt_usage_ms = MagicMock()
         sys.modules['utils.byok'].set_byok_keys = MagicMock()
         sys.modules['utils.byok'].set_byok_uid = MagicMock()
         sys.modules['utils.byok'].get_byok_keys = MagicMock(return_value={})
@@ -1607,7 +1615,7 @@ class TestAsyncCoordinatorBehavioral:
         pipeline = stubs['pipeline']
         pipeline._cleanup_files = MagicMock()
         pipeline.bind_or_converge_sync_ledger_completion = MagicMock(
-            return_value={'outcome': 'success', 'provider': 'deepgram', 'model': 'nova-3'}
+            return_value={'outcome': 'success', 'provider': 'modulate', 'model': 'modulate-velma-2'}
         )
         offloads = []
 
@@ -2234,7 +2242,9 @@ class TestAsyncCoordinatorBehavioral:
             stubs['pipeline'].users_db.get_user_private_cloud_sync_enabled = MagicMock(return_value=False)
             stubs['pipeline'].users_db.get_data_protection_level = MagicMock(return_value=None)
             stubs['pipeline'].build_person_embeddings_cache = MagicMock(return_value={})
-            stubs['pipeline'].get_prerecorded_service = MagicMock(return_value=('deepgram', 'multi', 'nova-3'))
+            stubs['pipeline'].get_prerecorded_service = MagicMock(
+                return_value=('modulate', 'multi', 'modulate-velma-2')
+            )
             stubs['pipeline'].prerecorded = MagicMock(return_value=([], 'en'))
             terminal_events = []
             stubs['pipeline'].mark_sync_content_completed.side_effect = lambda *_a, **_k: (
@@ -2282,7 +2292,7 @@ class TestAsyncCoordinatorBehavioral:
             pipeline.users_db.get_user_private_cloud_sync_enabled = MagicMock(return_value=False)
             pipeline.users_db.get_data_protection_level = MagicMock(return_value=None)
             pipeline.build_person_embeddings_cache = MagicMock(return_value={})
-            pipeline.get_prerecorded_service = MagicMock(return_value=('deepgram', 'multi', 'nova-3'))
+            pipeline.get_prerecorded_service = MagicMock(return_value=('modulate', 'multi', 'modulate-velma-2'))
 
             def _one_speech_segment(_path, segmented_paths, _errors):
                 segmented_paths.add('/tmp/seg_1700000001.wav')
@@ -2400,8 +2410,8 @@ class TestAsyncCoordinatorBehavioral:
             self._cleanup(stubs['saved_modules'])
 
     @pytest.mark.asyncio
-    async def test_dg_budget_exhausted_marks_failed(self):
-        """DG budget exhausted must mark job failed."""
+    async def test_managed_stt_budget_exhausted_marks_failed(self):
+        """managed STT budget exhausted must mark job failed."""
         module, stubs = self._load_sync_module()
         try:
             stubs['pipeline'].decode_files_to_wav = MagicMock(return_value=['/tmp/w.wav'])
@@ -2413,9 +2423,9 @@ class TestAsyncCoordinatorBehavioral:
             stubs['pipeline'].retrieve_vad_segments = _vad_with_segments
             stubs['pipeline'].get_wav_duration = MagicMock(return_value=5.0)
             stubs['pipeline'].FAIR_USE_ENABLED = True
-            stubs['pipeline'].FAIR_USE_RESTRICT_DAILY_DG_MS = 1000
+            stubs['pipeline'].FAIR_USE_RESTRICT_DAILY_MANAGED_STT_MS = 1000
             stubs['pipeline'].get_enforcement_stage = MagicMock(return_value='restrict')
-            stubs['pipeline'].is_dg_budget_exhausted = MagicMock(return_value=True)
+            stubs['pipeline'].is_managed_stt_budget_exhausted = MagicMock(return_value=True)
             module.record_speech_ms = MagicMock()
             module.get_rolling_speech_ms = MagicMock(return_value={})
             module.check_soft_caps = MagicMock(return_value=[])
@@ -2429,8 +2439,8 @@ class TestAsyncCoordinatorBehavioral:
             self._cleanup(stubs['saved_modules'])
 
     @pytest.mark.asyncio
-    async def test_dg_budget_not_exhausted_continues(self):
-        """DG budget NOT exhausted must continue to segment processing."""
+    async def test_managed_stt_budget_not_exhausted_continues(self):
+        """managed STT budget NOT exhausted must continue to segment processing."""
         module, stubs = self._load_sync_module()
         try:
             stubs['pipeline'].decode_files_to_wav = MagicMock(return_value=['/tmp/w.wav'])
@@ -2442,9 +2452,9 @@ class TestAsyncCoordinatorBehavioral:
             stubs['pipeline'].retrieve_vad_segments = _vad_with_segments
             stubs['pipeline'].get_wav_duration = MagicMock(return_value=5.0)
             stubs['pipeline'].FAIR_USE_ENABLED = True
-            stubs['pipeline'].FAIR_USE_RESTRICT_DAILY_DG_MS = 1000
+            stubs['pipeline'].FAIR_USE_RESTRICT_DAILY_MANAGED_STT_MS = 1000
             stubs['pipeline'].get_enforcement_stage = MagicMock(return_value='restrict')
-            stubs['pipeline'].is_dg_budget_exhausted = MagicMock(return_value=False)
+            stubs['pipeline'].is_managed_stt_budget_exhausted = MagicMock(return_value=False)
             stubs['pipeline'].record_speech_ms = MagicMock()
             stubs['pipeline'].get_rolling_speech_ms = MagicMock(return_value={})
             stubs['pipeline'].check_soft_caps = MagicMock(return_value=[])
@@ -2452,7 +2462,7 @@ class TestAsyncCoordinatorBehavioral:
             stubs['pipeline'].users_db.get_user_transcription_preferences = MagicMock(return_value={})
             stubs['pipeline'].build_person_embeddings_cache = MagicMock(return_value={})
             stubs['pipeline'].process_segment = MagicMock()
-            stubs['pipeline'].record_dg_usage_ms = MagicMock()
+            stubs['pipeline'].record_managed_stt_usage_ms = MagicMock()
             stubs['pipeline'].record_usage = MagicMock()
 
             await module._run_full_pipeline_background_async('j7', 'uid', ['/tmp/f.opus'], 'omi', False, '/tmp/job7')
@@ -2488,7 +2498,7 @@ class TestAsyncCoordinatorBehavioral:
             pipeline.retrieve_vad_segments = _vad_with_segments
             pipeline.get_wav_duration = MagicMock(return_value=5.0)
             pipeline.FAIR_USE_ENABLED = True
-            pipeline.FAIR_USE_RESTRICT_DAILY_DG_MS = 0
+            pipeline.FAIR_USE_RESTRICT_DAILY_MANAGED_STT_MS = 0
             pipeline.record_speech_ms = MagicMock()
             pipeline.get_rolling_speech_ms = MagicMock(return_value=speech_totals)
             pipeline.check_soft_caps = MagicMock(return_value=[])
@@ -2501,7 +2511,7 @@ class TestAsyncCoordinatorBehavioral:
             pipeline.users_db.get_data_protection_level = MagicMock(return_value=None)
             pipeline.build_person_embeddings_cache = MagicMock(return_value={})
             pipeline.process_segment = MagicMock()
-            pipeline.record_dg_usage_ms = MagicMock()
+            pipeline.record_managed_stt_usage_ms = MagicMock()
             pipeline.record_usage = MagicMock()
 
             await module._run_full_pipeline_background_async('j-plan', 'uid', ['/tmp/f.opus'], 'omi', False, '/tmp/job')
@@ -3070,7 +3080,7 @@ class TestV2EndpointExecution:
         sys.modules['python_multipart.multipart'].parse_options_header = MagicMock(return_value={})
         sys.modules['utils.log_sanitizer'].sanitize = lambda value: value
         sys.modules['utils.stt.pre_recorded'].get_prerecorded_service = MagicMock(
-            return_value=('deepgram', 'multi', 'nova-3')
+            return_value=('modulate', 'multi', 'modulate-velma-2')
         )
         sys.modules['utils.client_device'].resolve_client_device = MagicMock(
             return_value=MagicMock(client_device_id=None, platform=None)
@@ -3124,10 +3134,10 @@ class TestV2EndpointExecution:
         sys.modules['utils.fair_use'].is_hard_restricted = MagicMock(return_value=False)
         sys.modules['utils.fair_use'].get_hard_restriction_status = MagicMock(return_value=(False, None))
         sys.modules['utils.fair_use'].is_daily_audio_ceiling_exceeded = MagicMock(return_value=False)
-        sys.modules['utils.fair_use'].is_dg_budget_exhausted = MagicMock(return_value=False)
+        sys.modules['utils.fair_use'].is_managed_stt_budget_exhausted = MagicMock(return_value=False)
         sys.modules['utils.fair_use'].get_enforcement_stage = MagicMock(return_value='off')
         sys.modules['utils.fair_use'].FAIR_USE_ENABLED = False
-        sys.modules['utils.fair_use'].FAIR_USE_RESTRICT_DAILY_DG_MS = 0
+        sys.modules['utils.fair_use'].FAIR_USE_RESTRICT_DAILY_MANAGED_STT_MS = 0
         sys.modules['utils.subscription'].has_transcription_credits = MagicMock(return_value=True)
         sys.modules['utils.request_validation'].parse_sync_filename_timestamp = MagicMock(return_value=time.time())
         sync_pkg = types.ModuleType('utils.sync')
@@ -3688,33 +3698,6 @@ class TestTimeoutConfiguration:
         assert "get_llm('fair_use')" in classifier_source
         assert "'request_timeout': options.get('request_timeout', 120)" in providers_source
         assert "'max_retries': options.get('max_retries', 1)" in providers_source
-
-    def test_dg_timeout_read_within_budget(self):
-        """DG read timeout must be <= 150s so 2 attempts fit within 300s segment budget."""
-        source = self._read_pre_recorded_source()
-        assert 'read=120.0' in source, "DG read timeout must be 120s"
-
-    def test_dg_timeout_connect_reasonable(self):
-        source = self._read_pre_recorded_source()
-        assert 'connect=10.0' in source
-
-    def test_dg_max_two_attempts(self):
-        """Deepgram prerecorded must retry at most once (2 total attempts)."""
-        source = self._read_pre_recorded_source()
-        start = source.index('def deepgram_prerecorded(')
-        end = source.find('\ndef ', start + 1)
-        func_body = source[start:end]
-        assert 'attempts < 1' in func_body, "DG url transcription must use attempts < 1 (max 2 attempts)"
-
-    def test_dg_from_bytes_max_two_attempts(self):
-        """Deepgram prerecorded_from_bytes must retry at most once (2 total attempts)."""
-        source = self._read_pre_recorded_source()
-        start = source.index('def deepgram_prerecorded_from_bytes(')
-        end = source.find('\ndef ', start + 1)
-        if end == -1:
-            end = len(source)
-        func_body = source[start:end]
-        assert 'attempts < 1' in func_body, "DG bytes transcription must use attempts < 1 (max 2 attempts)"
 
     def test_segment_workers_are_not_detached_by_async_timeout(self):
         """Executor threads must not outlive the coordinator after an asyncio timeout."""

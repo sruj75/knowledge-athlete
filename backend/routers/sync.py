@@ -67,14 +67,14 @@ from utils.executors import (
 )
 from utils.fair_use import (
     FAIR_USE_ENABLED,
-    FAIR_USE_RESTRICT_DAILY_DG_MS,
+    FAIR_USE_RESTRICT_DAILY_MANAGED_STT_MS,
     check_soft_caps,
     get_enforcement_stage,
     get_hard_restriction_status,
     get_rolling_speech_ms,
     is_daily_audio_ceiling_exceeded,
-    is_dg_budget_exhausted,
-    record_dg_usage_ms,
+    is_managed_stt_budget_exhausted,
+    record_managed_stt_usage_ms,
     record_speech_ms,
     trigger_classifier_if_needed,
 )
@@ -693,21 +693,21 @@ async def sync_local_files(
         segment_lock = threading.Lock()
         total_segments = len(segmented_paths)
 
-        # DG budget gate: throttle cloud STT for restrict-stage users (#6083)
+        # managed STT budget gate: throttle cloud STT for restrict-stage users (#6083)
         # Check budget first; only record usage after successful processing.
-        dg_budget_blocked = False
+        managed_stt_budget_blocked = False
         fair_use_restrict_dg = False
         if FAIR_USE_ENABLED and lane_decision.lane == SyncLane.FRESH:
             try:
                 fair_use_stage = get_enforcement_stage(uid)
-                if fair_use_stage == 'restrict' and FAIR_USE_RESTRICT_DAILY_DG_MS > 0:
+                if fair_use_stage == 'restrict' and FAIR_USE_RESTRICT_DAILY_MANAGED_STT_MS > 0:
                     fair_use_restrict_dg = True
-                    dg_budget_blocked = is_dg_budget_exhausted(uid)
+                    managed_stt_budget_blocked = is_managed_stt_budget_exhausted(uid)
             except Exception as e:
-                logger.error(f'sync: DG budget check error for {uid}: {e}')
+                logger.error(f'sync: managed STT budget check error for {uid}: {e}')
 
-        if dg_budget_blocked:
-            logger.info(f'sync: DG budget exhausted, skipping {total_segments} segments uid={uid}')
+        if managed_stt_budget_blocked:
+            logger.info(f'sync: managed STT budget exhausted, skipping {total_segments} segments uid={uid}')
             _cleanup_files(list(segmented_paths))
             return await _fair_use_restriction_response(
                 uid=uid,
@@ -722,7 +722,7 @@ async def sync_local_files(
                     'new_memories': [],
                     'updated_memories': [],
                     'credits_exhausted': should_lock,
-                    'dg_budget_exhausted': True,
+                    'managed_stt_budget_exhausted': True,
                     'skipped_segments': total_segments,
                 },
             )
@@ -781,14 +781,14 @@ async def sync_local_files(
         if private_cloud_sync_enabled:
             await run_blocking(sync_executor, _finalize_sync_audio_files, uid, response)
 
-        # Record DG usage after successful processing (not before, to avoid charging on retries)
+        # Record managed STT usage after successful processing (not before, to avoid charging on retries)
         if fair_use_restrict_dg:
             try:
-                dg_ms = int(total_speech_seconds * 1000)
-                if dg_ms > 0:
-                    record_dg_usage_ms(uid, dg_ms)
+                managed_stt_ms = int(total_speech_seconds * 1000)
+                if managed_stt_ms > 0:
+                    record_managed_stt_usage_ms(uid, managed_stt_ms)
             except Exception as e:
-                logger.error(f'sync: DG usage record error for {uid}: {e}')
+                logger.error(f'sync: managed STT usage record error for {uid}: {e}')
 
         # Build JSON-serializable response
         result = {
@@ -1829,7 +1829,7 @@ async def run_sync_job(request: Request, task_retry_count: int = Depends(verify_
             return JSONResponse(status_code=500, content={'status': 'retry'})
 
         # Pipeline returned normally: completed, or it marked the job failed
-        # itself (decode/VAD/DG-budget) — terminal either way, staging is done.
+        # itself (decode/VAD/managed-STT budget) — terminal either way, staging is done.
         await _delete_staged_blobs_async(blob_paths)
         if sync_lane == SyncLane.BACKFILL.value:
             await run_blocking(db_executor, release_backfill_slot, uid, job_id)

@@ -125,10 +125,6 @@ def test_dev_deploy_migrates_only_exact_legacy_google_client_id_secrets_without_
                                     'name': 'GOOGLE_CLIENT_ID',
                                     'valueFrom': {'secretKeyRef': {'name': 'GOOGLE_CLIENT_ID', 'key': 'latest'}},
                                 },
-                                {
-                                    'name': 'STT_PRERECORDED_MODEL',
-                                    'valueFrom': {'secretKeyRef': {'name': 'STT_PRERECORDED_MODEL', 'key': 'latest'}},
-                                },
                             ]
                         }
                     ]
@@ -177,7 +173,7 @@ def test_dev_deploy_migrates_only_exact_legacy_google_client_id_secrets_without_
             'backend',
             '--project=based-hardware-dev',
             '--region=us-central1',
-            '--remove-secrets=GOOGLE_CLIENT_ID,STT_PRERECORDED_MODEL',
+            '--remove-secrets=GOOGLE_CLIENT_ID',
             '--no-traffic',
             '--quiet',
         ],

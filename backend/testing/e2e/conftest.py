@@ -71,7 +71,6 @@ def _set_e2e_env():
     os.environ["REDIS_DB_HOST"] = "localhost"
     os.environ["REDIS_DB_PORT"] = "6379"
     os.environ["REDIS_DB_PASSWORD"] = ""
-    os.environ["DEEPGRAM_API_KEY"] = "fake-deepgram-key"
     os.environ["OPENAI_API_KEY"] = "fake-openai-key"
     os.environ["ANTHROPIC_API_KEY"] = "fake-anthropic-key"
     os.environ["OPENROUTER_API_KEY"] = "fake-openrouter-key"

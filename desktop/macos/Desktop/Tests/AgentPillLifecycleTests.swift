@@ -27,7 +27,7 @@ import XCTest
     XCTAssertFalse(state.isVoiceResponseGlowActive)
 
     let turnID = coordinator.begin(intent: .hold)
-    coordinator.publish(.selectRoute(turnID: turnID, route: .deepgramBatch))
+    coordinator.publish(.selectRoute(turnID: turnID, route: .managedBatch))
     coordinator.publish(.finalize(turnID: turnID))
     coordinator.publish(.transcriptionFinal(turnID: turnID, text: "fixture"))
     XCTAssertTrue(state.isVoiceResponseWaiting)
@@ -2125,7 +2125,6 @@ import XCTest
     return try String(contentsOf: sourceURL, encoding: .utf8)
   }
 }
-
 private struct OmiMarkdownStreamingLayoutHarness: View {
   let table: String
   let streamed: String

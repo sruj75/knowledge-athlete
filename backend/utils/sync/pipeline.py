@@ -74,12 +74,12 @@ from utils.conversations.process_conversation import process_conversation
 from utils.executors import db_executor, run_blocking, start_background_task, storage_executor, sync_executor
 from utils.fair_use import (
     FAIR_USE_ENABLED,
-    FAIR_USE_RESTRICT_DAILY_DG_MS,
+    FAIR_USE_RESTRICT_DAILY_MANAGED_STT_MS,
     check_soft_caps,
     get_enforcement_stage,
     get_rolling_speech_ms,
-    is_dg_budget_exhausted,
-    record_dg_usage_ms,
+    is_managed_stt_budget_exhausted,
+    record_managed_stt_usage_ms,
     record_speech_ms,
     trigger_classifier_if_needed,
 )
@@ -125,7 +125,7 @@ MAX_VAD_SEGMENT_SECONDS = int(os.getenv('SYNC_MAX_VAD_SEGMENT_SECONDS', '300'))
 
 # Valid terminal segment results — a transcript, or audio with no speech. All else is a failure.
 _NON_ERROR_SEGMENT_OUTCOMES = frozenset({TranscriptionOutcome.SUCCESS, TranscriptionOutcome.EXPECTED_SILENCE})
-_SYNC_STT_MODELS = {'nova-3', 'velma-2', 'parakeet'}
+_SYNC_STT_MODELS = {'modulate-velma-2'}
 _PARTIAL_RESULT_FENCED_CONVERSATION_IDS = 'fenced_conversation_ids'
 _RESPONSE_FENCED_CONVERSATION_IDS = '_fenced_conversation_ids'
 _SYNC_FAILURE_REASON_CODES = {
@@ -1060,7 +1060,7 @@ def process_segment(
         provider, _, model = get_prerecorded_service(req_language)
 
         # When single-language mode is active, trust the user's language choice
-        # rather than Deepgram's detection (avoids overriding explicit selection).
+        # rather than managed STT detection (avoids overriding explicit selection).
         use_return_language = not (single_language_mode and user_language)
         words, detected_language = prerecorded(
             url,
@@ -1551,7 +1551,7 @@ async def _load_sync_segment_context(uid: str) -> tuple[bool, str | None, dict]:
     return private_cloud_sync_enabled, data_protection_level, person_embeddings_cache
 
 
-async def _record_restricted_sync_dg_usage(
+async def _record_restricted_sync_managed_stt_usage(
     *,
     enabled: bool,
     uid: str,
@@ -1559,24 +1559,26 @@ async def _record_restricted_sync_dg_usage(
     content_id: str | None,
     total_speech_seconds: float,
 ) -> None:
-    """Meter post-STT Deepgram usage without complicating the coordinator flow."""
+    """Meter post-STT managed STT usage without complicating the coordinator flow."""
     if not enabled:
         return
     try:
-        dg_ms = int(total_speech_seconds * 1000)
-        should_record_dg = bool(content_id) or await run_blocking(db_executor, try_mark_once, job_id, 'dg_ms')
-        if dg_ms > 0 and should_record_dg:
+        managed_stt_ms = int(total_speech_seconds * 1000)
+        should_record_managed_stt = bool(content_id) or await run_blocking(
+            db_executor, try_mark_once, job_id, 'managed_stt_ms'
+        )
+        if managed_stt_ms > 0 and should_record_managed_stt:
             await run_blocking(
                 db_executor,
-                record_dg_usage_ms,
+                record_managed_stt_usage_ms,
                 uid,
-                dg_ms,
+                managed_stt_ms,
                 idempotency_key=content_id,
                 raise_on_error=bool(content_id),
             )
     except Exception as error:
         logger.error(
-            'event=sync_usage outcome=dg_record_failed exception_type=%s',
+            'event=sync_usage outcome=managed_stt_record_failed exception_type=%s',
             _bounded_exception_type(error),
         )
         if content_id:
@@ -1955,14 +1957,14 @@ async def _run_full_pipeline_background_async(  # pyright: ignore[reportGeneralT
                                 _bounded_exception_type(e),
                             )
 
-            # DG budget gate
+            # managed STT budget gate
             fair_use_restrict_dg = False
             if FAIR_USE_ENABLED and sync_lane == SyncLane.FRESH.value:
                 try:
                     fair_use_stage = await run_blocking(db_executor, get_enforcement_stage, uid)
-                    if fair_use_stage == 'restrict' and FAIR_USE_RESTRICT_DAILY_DG_MS > 0:
+                    if fair_use_stage == 'restrict' and FAIR_USE_RESTRICT_DAILY_MANAGED_STT_MS > 0:
                         fair_use_restrict_dg = True
-                        if await run_blocking(db_executor, is_dg_budget_exhausted, uid):
+                        if await run_blocking(db_executor, is_managed_stt_budget_exhausted, uid):
                             await run_blocking(storage_executor, _cleanup_files, list(segmented_paths))
                             segmented_paths = set()
                             await _finalize_sync_job_failure(
@@ -2243,8 +2245,8 @@ async def _run_full_pipeline_background_async(  # pyright: ignore[reportGeneralT
 
             stage_timings['stt_llm_ms'] = int((time.monotonic() - t0) * 1000)
 
-            # Record DG usage after processing.
-            await _record_restricted_sync_dg_usage(
+            # Record managed STT usage after processing.
+            await _record_restricted_sync_managed_stt_usage(
                 enabled=fair_use_restrict_dg,
                 uid=uid,
                 job_id=job_id,

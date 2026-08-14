@@ -48,7 +48,7 @@ class SttBufferFlushDecision:
     should_flush: bool
     socket_dead: bool
     send_to_stt: bool
-    dg_usage_ms: int
+    managed_stt_usage_ms: int
 
 
 @dataclass(frozen=True)
@@ -290,8 +290,8 @@ def decide_stt_buffer_flush(
     force: bool,
     socket_dead: bool,
     socket_available: bool,
-    fair_use_dg_budget_exhausted: bool,
-    fair_use_track_dg_usage: bool,
+    fair_use_managed_stt_budget_exhausted: bool,
+    fair_use_track_managed_stt_usage: bool,
     sample_rate: int,
 ) -> SttBufferFlushDecision:
     if buffer_len == 0:
@@ -299,21 +299,25 @@ def decide_stt_buffer_flush(
     if not force and buffer_len < flush_size:
         return SttBufferFlushDecision(False, False, False, 0)
 
-    send_to_stt = socket_available and not socket_dead and not fair_use_dg_budget_exhausted
-    dg_usage_ms = 0
-    if send_to_stt and fair_use_track_dg_usage:
-        dg_usage_ms = buffer_len * 1000 // (sample_rate * 2)
-    return SttBufferFlushDecision(True, socket_dead, send_to_stt, dg_usage_ms)
+    send_to_stt = socket_available and not socket_dead and not fair_use_managed_stt_budget_exhausted
+    managed_stt_usage_ms = 0
+    if send_to_stt and fair_use_track_managed_stt_usage:
+        managed_stt_usage_ms = buffer_len * 1000 // (sample_rate * 2)
+    return SttBufferFlushDecision(True, socket_dead, send_to_stt, managed_stt_usage_ms)
 
 
 def decide_multi_channel_stt_send(
-    *, socket_available: bool, fair_use_dg_budget_exhausted: bool, pcm_len: int, fair_use_track_dg_usage: bool
+    *,
+    socket_available: bool,
+    fair_use_managed_stt_budget_exhausted: bool,
+    pcm_len: int,
+    fair_use_track_managed_stt_usage: bool,
 ) -> tuple[bool, int]:
-    should_send = socket_available and not fair_use_dg_budget_exhausted
-    dg_usage_ms = 0
-    if should_send and fair_use_track_dg_usage:
-        dg_usage_ms = pcm_len * 1000 // (TARGET_SAMPLE_RATE * 2)
-    return should_send, dg_usage_ms
+    should_send = socket_available and not fair_use_managed_stt_budget_exhausted
+    managed_stt_usage_ms = 0
+    if should_send and fair_use_track_managed_stt_usage:
+        managed_stt_usage_ms = pcm_len * 1000 // (TARGET_SAMPLE_RATE * 2)
+    return should_send, managed_stt_usage_ms
 
 
 def decide_multi_channel_mix(buffers: Sequence[bytearray], audio_bytes_enabled: bool) -> MultiChannelMixDecision:

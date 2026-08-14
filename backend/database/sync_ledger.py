@@ -273,7 +273,7 @@ def bind_sync_content_run_token(
 _SIDE_EFFECT_FIELDS = {
     'speech_ms': 'metered_at',
     'usage': 'usage_recorded_at',
-    'dg_ms': 'dg_recorded_at',
+    'managed_stt_ms': 'managed_stt_recorded_at',
 }
 
 

@@ -928,7 +928,7 @@ class TestSttBufferAccumulation:
     """Test STT audio buffer 30ms accumulation logic.
 
     Audio is buffered until 30ms worth of samples accumulate,
-    then flushed to Deepgram for better transcription quality.
+    then flushed to managed STT for better transcription quality.
     """
 
     def test_buffer_flush_size_16khz(self):

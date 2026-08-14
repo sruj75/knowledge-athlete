@@ -75,7 +75,7 @@ final class OnboardingPagedIntroCoordinator: ObservableObject {
 
   var primaryLanguageCode: String { selectedLanguageCodes.first ?? "en" }
 
-  /// Chip set offered in the language step (the languages Deepgram's multi mode covers,
+  /// Chip set offered in the language step (the common managed-STT languages,
   /// i.e. the ones the whole pipeline handles well). Anything else via the custom field.
   static let commonLanguages: [(code: String, name: String)] = [
     ("en", "English"), ("es", "Spanish"), ("fr", "French"), ("de", "German"),

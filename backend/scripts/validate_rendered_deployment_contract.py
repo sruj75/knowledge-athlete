@@ -33,7 +33,6 @@ IMAGE_TAG_DEPLOYMENT_PATHS = (
     ".github/workflows/gcp_diarizer.yml",
     ".github/workflows/gcp_models.yml",
     ".github/workflows/gcp_nllb_translation.yml",
-    ".github/workflows/gcp_parakeet.yml",
     "backend/scripts/deploy-llm-gateway.sh",
 )
 
@@ -69,7 +68,6 @@ CONTRACTS = (
     ),
     DeploymentContract(service="llm-gateway", image_name="llm-gateway", required_secret_name=True),
     DeploymentContract(service="diarizer", image_name="diarizer", required_secret_name=True),
-    DeploymentContract(service="parakeet", image_name="parakeet", required_secret_name=True),
     DeploymentContract(service="nllb-translation", image_name="nllb-translation"),
     DeploymentContract(service="vad", image_name="models", required_secret_name=True),
 )

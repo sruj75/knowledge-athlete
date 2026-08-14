@@ -12,6 +12,7 @@ from datetime import datetime, timedelta
 from unittest.mock import MagicMock, patch
 
 import pytest
+import fakeredis
 
 # In-memory fair_use DB. The autouse ``cleanup`` fixture installs fakes that read
 # and write here, replacing the former module-scope ``sys.modules`` stubs.
@@ -70,6 +71,10 @@ def cleanup(monkeypatch):
     ``monkeypatch.setattr`` (the sanctioned Tier-2 seam). Test bodies and assertions
     are unchanged.
     """
+    monkeypatch.setattr(fair_use, 'redis_client', fakeredis.FakeRedis())
+    monkeypatch.setattr(fair_use, 'FAIR_USE_ENABLED', True)
+    monkeypatch.setattr(_admin_module, 'ADMIN_KEY', 'test-admin-key-12345')
+    monkeypatch.setattr(_admin_module, 'FAIR_USE_ENABLED', True)
     monkeypatch.setattr(_fair_use_db_module, 'get_fair_use_state', lambda uid: _state_store.get(uid, {}))
     monkeypatch.setattr(
         _fair_use_db_module, 'update_fair_use_state', lambda uid, u: _state_store.setdefault(uid, {}).update(u)
@@ -207,16 +212,16 @@ class TestUserFacingEndpoint:
         assert data['stage'] == 'warning'
         assert 'personal conversations' in data['message']
 
-    def test_status_includes_dg_budget(self):
-        """Status response includes dg_budget fields."""
+    def test_status_includes_managed_stt_budget(self):
+        """Status response includes managed_stt_budget fields."""
         app.dependency_overrides[get_current_user_uid] = lambda: TEST_UID
         resp = client.get('/v1/fair-use/status')
         app.dependency_overrides.pop(get_current_user_uid, None)
 
         assert resp.status_code == 200
         data = resp.json()
-        assert 'dg_budget' in data
-        budget = data['dg_budget']
+        assert 'managed_stt_budget' in data
+        budget = data['managed_stt_budget']
         assert 'daily_limit_ms' in budget
         assert 'used_ms' in budget
         assert 'remaining_ms' in budget
@@ -396,7 +401,7 @@ class TestListenPathFairUseImports:
     """Structural test: extracted listen fair-use imports match expected design.
 
     Reads the source file directly (avoids heavy dep chain import).
-    Warning/throttle are notify-only. Restrict enforces DG budget cap only.
+    Warning/throttle are notify-only. Restrict enforces managed STT budget cap only.
     No VAD throttle, no blanket transcript blocking.
     """
 
@@ -415,50 +420,58 @@ class TestListenPathFairUseImports:
         assert 'get_user_vad_threshold_delta' not in source
 
     def test_fair_use_imports_include_budget_gate(self):
-        """Tracking + DG budget gate functions should be imported from fair_use."""
+        """Tracking + managed STT budget gate functions should be imported from fair_use."""
         source = self._read_listen_sources()
         # Tracking functions
         assert 'record_speech_ms' in source
         assert 'check_soft_caps' in source
         assert 'trigger_classifier_if_needed' in source
-        # DG budget gate (restrict-only)
+        # managed STT budget gate (restrict-only)
         assert 'get_enforcement_stage' in source
-        assert 'is_dg_budget_exhausted' in source
-        assert 'record_dg_usage_ms' in source
-        assert 'FAIR_USE_RESTRICT_DAILY_DG_MS' in source
+        assert 'is_managed_stt_budget_exhausted' in source
+        assert 'record_managed_stt_usage_ms' in source
+        assert 'FAIR_USE_RESTRICT_DAILY_MANAGED_STT_MS' in source
 
     def test_budget_gate_used_in_conditionals(self):
-        """fair_use_dg_budget_exhausted must appear in if-conditionals, not just as an import/comment."""
+        """fair_use_managed_stt_budget_exhausted must appear in if-conditionals, not just as an import/comment."""
         import re
 
         source = self._read_listen_sources()
         # Must be used as a guard, either inline or passed into the STT decision helpers.
         guard_uses = re.findall(
-            r'(?:if|and|not)\s+self\.(?:host\.)?state\.fair_use_dg_budget_exhausted'
-            r'|fair_use_dg_budget_exhausted=self\.(?:host\.)?state\.fair_use_dg_budget_exhausted',
+            r'(?:if|and|not)\s+self\.(?:host\.)?state\.fair_use_managed_stt_budget_exhausted'
+            r'|fair_use_managed_stt_budget_exhausted=self\.(?:host\.)?state\.fair_use_managed_stt_budget_exhausted',
             source,
         )
-        # Expect at least 3 guard points: session-start, periodic check, single-ch DG,
+        # Expect at least 3 guard points: session-start, periodic check, single-channel STT,
         # multi-channel (speech-profile excluded — small chunks, not budget-gated)
-        assert len(guard_uses) >= 3, f'Expected >=3 guard uses of fair_use_dg_budget_exhausted, found {len(guard_uses)}'
+        assert (
+            len(guard_uses) >= 3
+        ), f'Expected >=3 guard uses of fair_use_managed_stt_budget_exhausted, found {len(guard_uses)}'
 
     def test_budget_accounting_across_providers(self):
-        """DG usage must be tracked for STT provider paths (DG single-channel + multi-channel).
+        """Managed STT usage must be tracked for single-channel and multi-channel paths.
 
-        Since #5854, per-chunk calls are batched via dg_usage_ms_pending accumulator.
-        record_dg_usage_ms is called only at periodic flush + session-end flush.
-        The accumulation points (dg_usage_ms_pending +=) cover all active provider paths.
+        Since #5854, per-chunk calls are batched via managed_stt_usage_ms_pending accumulator.
+        record_managed_stt_usage_ms is called only at periodic flush + session-end flush.
+        The accumulation points (managed_stt_usage_ms_pending +=) cover all active provider paths.
         """
         receiver_source = self._read_listen_sources()
         runtime_path = os.path.join(os.path.dirname(__file__), '..', '..', 'routers', 'listen', 'runtime.py')
         runtime_source = open(runtime_path).read()
         import re
 
-        # Verify accumulation points cover DG single + multi-channel (#5854 batching)
-        accum_calls = re.findall(r'^\s+self\.host\.state\.dg_usage_ms_pending\s*\+=', receiver_source, re.MULTILINE)
-        assert len(accum_calls) >= 2, f'Expected >=2 dg_usage_ms_pending accumulation points, found {len(accum_calls)}'
+        # Verify accumulation points cover single + multi-channel managed STT (#5854 batching)
+        accum_calls = re.findall(
+            r'^\s+self\.host\.state\.managed_stt_usage_ms_pending\s*\+=', receiver_source, re.MULTILINE
+        )
+        assert (
+            len(accum_calls) >= 2
+        ), f'Expected >=2 managed_stt_usage_ms_pending accumulation points, found {len(accum_calls)}'
 
         # Periodic and final writes share one flush implementation.
-        assert 'record_dg_usage_ms, self.request.uid, self.state.dg_usage_ms_pending' in runtime_source
+        assert (
+            'record_managed_stt_usage_ms, self.request.uid, self.state.managed_stt_usage_ms_pending' in runtime_source
+        )
         assert '_flush_usage(final=False)' in runtime_source
         assert '_flush_usage(final=True)' in runtime_source

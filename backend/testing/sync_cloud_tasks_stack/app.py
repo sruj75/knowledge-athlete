@@ -370,7 +370,7 @@ else:
     # task route, fair-use policy/metering, Redis locks, ledger, and lifecycle
     # owner remain production code.
     sync_pipeline.vad_is_empty = _local_vad
-    sync_pipeline.get_prerecorded_service = lambda _language='en': ('parakeet', 'en', 'parakeet')
+    sync_pipeline.get_prerecorded_service = lambda _language='en': ('modulate', 'en', 'modulate-velma-2')
     sync_pipeline.prerecorded = _local_prerecorded
     sync_pipeline.process_conversation = _local_process_conversation
     sync_pipeline.schedule_syncing_temporal_file_deletion = _delete_segment_blob_immediately

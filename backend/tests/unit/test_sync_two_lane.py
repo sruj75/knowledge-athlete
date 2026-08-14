@@ -96,8 +96,8 @@ def test_cloud_run_clone_preserves_live_contract_and_overlays_lane_settings():
                             'env': [
                                 {'name': 'REDIS_DB_HOST', 'value': '10.0.0.1'},
                                 {
-                                    'name': 'DEEPGRAM_API_KEY',
-                                    'valueFrom': {'secretKeyRef': {'name': 'DEEPGRAM_API_KEY', 'key': '7'}},
+                                    'name': 'EXAMPLE_SECRET',
+                                    'valueFrom': {'secretKeyRef': {'name': 'EXAMPLE_SECRET', 'key': '7'}},
                                 },
                             ]
                         }
@@ -115,7 +115,7 @@ def test_cloud_run_clone_preserves_live_contract_and_overlays_lane_settings():
 
     assert 'REDIS_DB_HOST=10.0.0.2' in env_vars
     assert 'SYNC_TASKS_QUEUE=sync-backfill' in env_vars
-    assert 'DEEPGRAM_API_KEY=DEEPGRAM_API_KEY:7' in secrets
+    assert 'EXAMPLE_SECRET=EXAMPLE_SECRET:7' in secrets
     assert 'ENCRYPTION_SECRET=ENCRYPTION_SECRET:latest' in secrets
 
 
@@ -158,8 +158,8 @@ def test_cloud_run_clone_escapes_inherited_literals_without_reencoding_renderer_
                         {
                             'env': [
                                 {
-                                    'name': 'STT_PRERECORDED_MODEL',
-                                    'value': r'modulate-velma-2,parakeet\primary',
+                                    'name': 'INHERITED_LITERAL',
+                                    'value': r'alpha,beta\primary',
                                 }
                             ]
                         }
@@ -171,13 +171,13 @@ def test_cloud_run_clone_escapes_inherited_literals_without_reencoding_renderer_
 
     env_vars, _ = clone_environment(
         service,
-        r'RENDERED_STT=modulate-velma-2\,parakeet',
+        r'RENDERED_VALUE=alpha\,beta',
         '',
     )
 
     assert env_vars.splitlines() == [
-        r'RENDERED_STT=modulate-velma-2\,parakeet',
-        r'STT_PRERECORDED_MODEL=modulate-velma-2\,parakeet\\primary',
+        r'INHERITED_LITERAL=alpha\,beta\\primary',
+        r'RENDERED_VALUE=alpha\,beta',
     ]
 
 

@@ -389,7 +389,7 @@ def delete_syncing_temporal_file(file_path: str):
         pass
 
 
-# Long enough for every signed-URL consumer (Deepgram fetch, speaker-ID
+# Long enough for every signed-URL consumer (managed STT fetch, speaker-ID
 # download) to finish; the URLs themselves expire at 15 minutes.
 SYNCING_TEMPORAL_DELETE_DELAY_SECONDS = 480
 

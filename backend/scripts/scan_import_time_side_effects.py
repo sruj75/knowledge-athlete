@@ -11,7 +11,6 @@ source so the disease is not regenerated. See ``backend/docs/test_isolation.md``
 WHAT IT DETECTS (at module scope only — inside functions/classes is allowed):
   - Calls to a curated list of side-effecting constructors, e.g.:
       OpenAI / AsyncOpenAI / Anthropic / AsyncAnthropic
-      DeepgramClient
       Pinecone
       firebase_admin.initialize_app
       tiktoken.encoding_for_model / tiktoken.get_encoding
@@ -66,7 +65,6 @@ SIDE_EFFECT_CTORS: list[tuple[str, str]] = [
     ("langchain_openai", "OpenAIEmbeddings"),
     ("anthropic", "Anthropic"),
     ("anthropic", "AsyncAnthropic"),
-    ("deepgram", "DeepgramClient"),
     ("pinecone", "Pinecone"),
     ("firebase_admin", "initialize_app"),
     ("tiktoken", "encoding_for_model"),

@@ -70,16 +70,11 @@ final class ListenProtocolTests: XCTestCase {
   // MARK: - parseBackendResponse: Callback Dispatch
 
   /// Helper: create a TranscriptionService and wire its callbacks for testing.
-  /// Uses forBatchOnly init to avoid needing Firebase auth.
   private func makeServiceWithCallbacks(
     onSegments: @escaping ([TranscriptionService.BackendSegment]) -> Void,
     onEvent: @escaping (TranscriptionService.ListenEvent) -> Void
   ) -> TranscriptionService? {
-    // Use batch init to skip auth/URL requirements, then set callbacks manually
-    guard let service = try? TranscriptionService(language: "en", forBatchOnly: true) else {
-      // Batch init — create with streaming init fallback if needed
-      return try? TranscriptionService(language: "en")
-    }
+    guard let service = try? TranscriptionService(language: "en") else { return nil }
     service.start(
       onSegments: onSegments,
       onEvent: onEvent,

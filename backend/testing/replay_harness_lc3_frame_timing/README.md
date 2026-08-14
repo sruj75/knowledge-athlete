@@ -11,7 +11,7 @@ locked `lc3py==1.1.3` backend environment and rejects unsupported hosts rather
 than skipping. A test-owned `lc3.Encoder` produces three inert in-memory
 30-byte / 10 ms frames. The harness runs the production listen admission
 format check and codec normalizer, the real `ListenReceiver` LC3 decoder, and
-the real `ParakeetWebSocketSocket` against a local fake upstream.
+the real `ModulateWebSocketSocket` against a local fake upstream.
 
 The oracle proves that those frames decode to three 320-byte PCM frames and
 flush one 960-byte STT message after frame three. When the fake upstream

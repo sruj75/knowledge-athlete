@@ -4,7 +4,7 @@ Verifies that process_segment() applies user vocabulary, language, and model
 selection matching the realtime transcription path.
 
 ``routers.sync`` pulls a heavy transitive chain (Firestore/GCS clients, Firebase
-Admin, typesense, deepgram SDK, opus/pydub native audio) that constructs clients
+Admin, typesense, opus/pydub native audio) that constructs clients
 and reads credentials at import time. Importing it therefore requires fakes to
 be active *before* the import. This is the sanctioned Tier-2 "fake must precede
 import" case (see ``backend/docs/test_isolation.md`` and
@@ -105,12 +105,6 @@ def _build_fakes() -> dict:
     fakes['firebase_admin.messaging'] = fb.messaging
     fakes['firebase_admin.auth'] = fb.auth
 
-    # deepgram SDK
-    deepgram = ModuleType('deepgram')
-    deepgram.DeepgramClient = MagicMock
-    deepgram.DeepgramClientOptions = MagicMock
-    fakes['deepgram'] = deepgram
-
     # native audio / optional SDKs
     opuslib = ModuleType('opuslib')
     opuslib.Decoder = MagicMock
@@ -178,12 +172,13 @@ def _build_fakes() -> dict:
 def sync_module():
     """Load routers.sync + utils.stt.pre_recorded under stubbed heavy deps.
 
-    Ensures the heavy transitive imports (database/google/firebase/deepgram/native
+    Ensures the heavy transitive imports (database/google/firebase/native
     audio) are faked *before* the target modules are exec'd, then evicts the
     stub-fed modules on teardown so nothing leaks to other test files.
     """
-    os.environ.setdefault('OPENAI_API_KEY', 'sk-fake-for-test')
-    os.environ.setdefault('DEEPGRAM_API_KEY', 'fake-for-test')
+    env_patch = pytest.MonkeyPatch()
+    env_patch.setenv('OPENAI_API_KEY', 'sk-fake-for-test')
+    env_patch.setenv('MODULATE_API_KEY', 'fake-for-test')
 
     import google.cloud.storage as _gcs
 
@@ -201,200 +196,17 @@ def sync_module():
             load_module_fresh("utils.stt.pre_recorded", os.path.join(str(_BACKEND), "utils", "stt", "pre_recorded.py"))
             yield
     finally:
+        env_patch.undo()
         if _orig_storage_client is not None:
             _gcs.Client = _orig_storage_client
         else:
             delattr(_gcs, 'Client')
 
 
-# ---------------------------------------------------------------------------
-# deepgram_prerecorded: keywords parameter
-# ---------------------------------------------------------------------------
-
-
 def test_compare_embeddings_accepts_1d_vectors():
     """Speaker embedding stub should match production's 1D vector tolerance."""
     assert _compare_embeddings(np.array([1.0, 0.0]), np.array([1.0, 0.0])) == pytest.approx(0.0)
     assert _compare_embeddings(np.array([1.0, 0.0]), np.array([1.0])) == 2.0
-
-
-class TestDeepgramPrerecordedKeywords:
-    """Verify keywords are forwarded correctly to Deepgram options."""
-
-    @patch('utils.stt.pre_recorded._deepgram_client')
-    def test_keywords_nova3_uses_keyterm(self, mock_client):
-        """Nova-3 model should use 'keyterm' option for keywords."""
-        from utils.stt.pre_recorded import deepgram_prerecorded
-
-        mock_response = MagicMock()
-        mock_response.to_dict.return_value = {
-            'results': {
-                'channels': [
-                    {
-                        'detected_language': 'en',
-                        'alternatives': [
-                            {
-                                'words': [
-                                    {
-                                        'word': 'hello',
-                                        'start': 0.0,
-                                        'end': 0.5,
-                                        'speaker': 0,
-                                        'punctuated_word': 'Hello',
-                                    }
-                                ]
-                            }
-                        ],
-                    }
-                ]
-            }
-        }
-        mock_client.listen.rest.v.return_value.transcribe_url.return_value = mock_response
-
-        deepgram_prerecorded('http://example.com/audio.wav', model='nova-3', keywords=['Omi', 'Kelvin'])
-
-        call_args = mock_client.listen.rest.v.return_value.transcribe_url.call_args
-        options = call_args[0][1]
-        assert 'keyterm' in options
-        assert options['keyterm'] == ['Omi', 'Kelvin']
-        assert 'keywords' not in options
-
-    @patch('utils.stt.pre_recorded._deepgram_client')
-    def test_keywords_nova2_uses_keywords(self, mock_client):
-        """Nova-2 model should use 'keywords' option."""
-        from utils.stt.pre_recorded import deepgram_prerecorded
-
-        mock_response = MagicMock()
-        mock_response.to_dict.return_value = {
-            'results': {
-                'channels': [
-                    {
-                        'detected_language': 'en',
-                        'alternatives': [
-                            {'words': [{'word': 'hi', 'start': 0, 'end': 0.3, 'speaker': 0, 'punctuated_word': 'Hi'}]}
-                        ],
-                    }
-                ]
-            }
-        }
-        mock_client.listen.rest.v.return_value.transcribe_url.return_value = mock_response
-
-        deepgram_prerecorded('http://example.com/audio.wav', model='nova-2-general', keywords=['Omi'])
-
-        call_args = mock_client.listen.rest.v.return_value.transcribe_url.call_args
-        options = call_args[0][1]
-        assert 'keywords' in options
-        assert options['keywords'] == ['Omi']
-        assert 'keyterm' not in options
-
-    @patch('utils.stt.pre_recorded._deepgram_client')
-    def test_no_keywords_omits_option(self, mock_client):
-        """When keywords is None or empty, no keyword option should be set."""
-        from utils.stt.pre_recorded import deepgram_prerecorded
-
-        mock_response = MagicMock()
-        mock_response.to_dict.return_value = {
-            'results': {
-                'channels': [
-                    {
-                        'detected_language': 'en',
-                        'alternatives': [
-                            {'words': [{'word': 'ok', 'start': 0, 'end': 0.2, 'speaker': 0, 'punctuated_word': 'Ok'}]}
-                        ],
-                    }
-                ]
-            }
-        }
-        mock_client.listen.rest.v.return_value.transcribe_url.return_value = mock_response
-
-        deepgram_prerecorded('http://example.com/audio.wav', keywords=None)
-
-        call_args = mock_client.listen.rest.v.return_value.transcribe_url.call_args
-        options = call_args[0][1]
-        assert 'keyterm' not in options
-        assert 'keywords' not in options
-
-    @patch('utils.stt.pre_recorded._deepgram_client')
-    def test_empty_list_keywords_omits_option(self, mock_client):
-        """When keywords is an empty list, no keyword option should be set."""
-        from utils.stt.pre_recorded import deepgram_prerecorded
-
-        mock_response = MagicMock()
-        mock_response.to_dict.return_value = {
-            'results': {
-                'channels': [
-                    {
-                        'detected_language': 'en',
-                        'alternatives': [
-                            {'words': [{'word': 'ok', 'start': 0, 'end': 0.2, 'speaker': 0, 'punctuated_word': 'Ok'}]}
-                        ],
-                    }
-                ]
-            }
-        }
-        mock_client.listen.rest.v.return_value.transcribe_url.return_value = mock_response
-
-        deepgram_prerecorded('http://example.com/audio.wav', keywords=[])
-
-        call_args = mock_client.listen.rest.v.return_value.transcribe_url.call_args
-        options = call_args[0][1]
-        assert 'keyterm' not in options
-        assert 'keywords' not in options
-
-    @patch('utils.stt.pre_recorded._deepgram_client')
-    def test_keywords_preserved_on_retry(self, mock_client):
-        """Keywords should be passed through on retry attempts."""
-        from utils.stt.pre_recorded import deepgram_prerecorded
-
-        call_count = 0
-
-        def side_effect(*args, **kwargs):
-            nonlocal call_count
-            call_count += 1
-            if call_count == 1:
-                raise Exception("Temporary failure")
-            mock_resp = MagicMock()
-            mock_resp.to_dict.return_value = {
-                'results': {
-                    'channels': [
-                        {
-                            'detected_language': 'en',
-                            'alternatives': [
-                                {
-                                    'words': [
-                                        {'word': 'ok', 'start': 0, 'end': 0.2, 'speaker': 0, 'punctuated_word': 'Ok'}
-                                    ]
-                                }
-                            ],
-                        }
-                    ]
-                }
-            }
-            return mock_resp
-
-        mock_client.listen.rest.v.return_value.transcribe_url.side_effect = side_effect
-
-        deepgram_prerecorded('http://example.com/audio.wav', keywords=['TestWord'])
-
-        # Second call (retry) should also have keywords
-        retry_call = mock_client.listen.rest.v.return_value.transcribe_url.call_args_list[1]
-        options = retry_call[0][1]
-        assert 'keyterm' in options
-        assert 'TestWord' in options['keyterm']
-
-    @patch('utils.stt.pre_recorded._deepgram_client')
-    def test_empty_transcript_with_keywords_and_return_language(self, mock_client):
-        """Silence/noise with keywords and return_language should still return ([], lang)."""
-        from utils.stt.pre_recorded import deepgram_prerecorded
-
-        mock_response = MagicMock()
-        mock_response.to_dict.return_value = {
-            'results': {'channels': [{'detected_language': 'fr', 'alternatives': [{'words': []}]}]}
-        }
-        mock_client.listen.rest.v.return_value.transcribe_url.return_value = mock_response
-
-        result = deepgram_prerecorded('http://example.com/audio.wav', return_language=True, keywords=['Omi'])
-        assert result == ([], 'fr')
 
 
 # ---------------------------------------------------------------------------
@@ -418,11 +230,13 @@ class TestProcessSegmentPreferences:
     @patch('utils.sync.pipeline.prerecorded')
     @patch('utils.sync.pipeline.delete_syncing_temporal_file')
     @patch('utils.sync.pipeline.get_syncing_file_temporal_signed_url', return_value='http://example.com/audio.wav')
-    def test_vocabulary_passed_to_deepgram(self, mock_url, mock_delete, mock_dg, mock_ts, mock_closest, mock_process):
-        """User vocabulary should be passed as keywords to deepgram_prerecorded."""
+    def test_vocabulary_passed_to_managed_stt(
+        self, mock_url, mock_delete, mock_stt, mock_ts, mock_closest, mock_process
+    ):
+        """User vocabulary should be passed to managed prerecorded transcription."""
         from utils.sync.pipeline import process_segment
 
-        mock_dg.return_value = (self._make_mock_words(), 'en')
+        mock_stt.return_value = (self._make_mock_words(), 'en')
         mock_process.return_value = MagicMock(id='test-id')
 
         prefs = {'vocabulary': ['Kubernetes', 'FastAPI'], 'language': 'en', 'single_language_mode': False}
@@ -433,11 +247,11 @@ class TestProcessSegmentPreferences:
 
         process_segment('test/path.bin', 'uid123', response, lock, errors, transcription_prefs=prefs)
 
-        mock_dg.assert_called_once()
-        call_kwargs = mock_dg.call_args
+        mock_stt.assert_called_once()
+        call_kwargs = mock_stt.call_args
         keywords = call_kwargs[1].get('keywords') or call_kwargs[0][8] if len(call_kwargs[0]) > 8 else None
         # Check via keyword arg
-        _, kwargs = mock_dg.call_args
+        _, kwargs = mock_stt.call_args
         assert 'keywords' in kwargs
         kw_list = kwargs['keywords']
         assert 'Omi' in kw_list
@@ -451,12 +265,12 @@ class TestProcessSegmentPreferences:
     @patch('utils.sync.pipeline.delete_syncing_temporal_file')
     @patch('utils.sync.pipeline.get_syncing_file_temporal_signed_url', return_value='http://example.com/audio.wav')
     def test_single_language_mode_passes_user_language(
-        self, mock_url, mock_delete, mock_dg, mock_ts, mock_closest, mock_process
+        self, mock_url, mock_delete, mock_stt, mock_ts, mock_closest, mock_process
     ):
         """Single language mode with a language should pass the user language."""
         from utils.sync.pipeline import process_segment
 
-        mock_dg.return_value = (self._make_mock_words(), 'en')
+        mock_stt.return_value = (self._make_mock_words(), 'en')
         mock_process.return_value = MagicMock(id='test-id')
 
         prefs = {'vocabulary': [], 'language': 'en', 'single_language_mode': True}
@@ -467,7 +281,7 @@ class TestProcessSegmentPreferences:
 
         process_segment('test/path.bin', 'uid123', response, lock, errors, transcription_prefs=prefs)
 
-        _, kwargs = mock_dg.call_args
+        _, kwargs = mock_stt.call_args
         assert kwargs['language'] == 'en'
         assert kwargs['return_language'] is True
 
@@ -477,11 +291,11 @@ class TestProcessSegmentPreferences:
     @patch('utils.sync.pipeline.prerecorded')
     @patch('utils.sync.pipeline.delete_syncing_temporal_file')
     @patch('utils.sync.pipeline.get_syncing_file_temporal_signed_url', return_value='http://example.com/audio.wav')
-    def test_chinese_passes_user_language(self, mock_url, mock_delete, mock_dg, mock_ts, mock_closest, mock_process):
+    def test_chinese_passes_user_language(self, mock_url, mock_delete, mock_stt, mock_ts, mock_closest, mock_process):
         """Chinese language should be passed through in single-language mode."""
         from utils.sync.pipeline import process_segment
 
-        mock_dg.return_value = (self._make_mock_words(), 'zh')
+        mock_stt.return_value = (self._make_mock_words(), 'zh')
         mock_process.return_value = MagicMock(id='test-id')
 
         prefs = {'vocabulary': [], 'language': 'zh', 'single_language_mode': True}
@@ -492,7 +306,7 @@ class TestProcessSegmentPreferences:
 
         process_segment('test/path.bin', 'uid123', response, lock, errors, transcription_prefs=prefs)
 
-        _, kwargs = mock_dg.call_args
+        _, kwargs = mock_stt.call_args
         assert kwargs['language'] == 'zh'
         assert kwargs['return_language'] is True
 
@@ -502,11 +316,11 @@ class TestProcessSegmentPreferences:
     @patch('utils.sync.pipeline.prerecorded')
     @patch('utils.sync.pipeline.delete_syncing_temporal_file')
     @patch('utils.sync.pipeline.get_syncing_file_temporal_signed_url', return_value='http://example.com/audio.wav')
-    def test_no_prefs_uses_defaults(self, mock_url, mock_delete, mock_dg, mock_ts, mock_closest, mock_process):
+    def test_no_prefs_uses_defaults(self, mock_url, mock_delete, mock_stt, mock_ts, mock_closest, mock_process):
         """Without preferences, should use multi-language defaults."""
         from utils.sync.pipeline import process_segment
 
-        mock_dg.return_value = (self._make_mock_words(), 'en')
+        mock_stt.return_value = (self._make_mock_words(), 'en')
         mock_process.return_value = MagicMock(id='test-id')
 
         response = {'new_memories': set(), 'updated_memories': set()}
@@ -515,7 +329,7 @@ class TestProcessSegmentPreferences:
 
         process_segment('test/path.bin', 'uid123', response, lock, errors, transcription_prefs=None)
 
-        _, kwargs = mock_dg.call_args
+        _, kwargs = mock_stt.call_args
         assert kwargs['language'] == 'multi'
         assert kwargs['return_language'] is True
         # Vocabulary should still include "Omi" even without prefs
@@ -527,11 +341,11 @@ class TestProcessSegmentPreferences:
     @patch('utils.sync.pipeline.prerecorded')
     @patch('utils.sync.pipeline.delete_syncing_temporal_file')
     @patch('utils.sync.pipeline.get_syncing_file_temporal_signed_url', return_value='http://example.com/audio.wav')
-    def test_vocabulary_capped_at_100(self, mock_url, mock_delete, mock_dg, mock_ts, mock_closest, mock_process):
+    def test_vocabulary_capped_at_100(self, mock_url, mock_delete, mock_stt, mock_ts, mock_closest, mock_process):
         """Vocabulary should be capped at 100 items."""
         from utils.sync.pipeline import process_segment
 
-        mock_dg.return_value = (self._make_mock_words(), 'en')
+        mock_stt.return_value = (self._make_mock_words(), 'en')
         mock_process.return_value = MagicMock(id='test-id')
 
         large_vocab = [f'word_{i}' for i in range(150)]
@@ -543,7 +357,7 @@ class TestProcessSegmentPreferences:
 
         process_segment('test/path.bin', 'uid123', response, lock, errors, transcription_prefs=prefs)
 
-        _, kwargs = mock_dg.call_args
+        _, kwargs = mock_stt.call_args
         assert len(kwargs['keywords']) <= 100
         # "Omi" must be preserved even after truncation
         assert 'Omi' in kwargs['keywords']
@@ -555,12 +369,12 @@ class TestProcessSegmentPreferences:
     @patch('utils.sync.pipeline.delete_syncing_temporal_file')
     @patch('utils.sync.pipeline.get_syncing_file_temporal_signed_url', return_value='http://example.com/audio.wav')
     def test_single_language_empty_language_falls_back(
-        self, mock_url, mock_delete, mock_dg, mock_ts, mock_closest, mock_process
+        self, mock_url, mock_delete, mock_stt, mock_ts, mock_closest, mock_process
     ):
         """single_language_mode=True with empty language should fall back to multi."""
         from utils.sync.pipeline import process_segment
 
-        mock_dg.return_value = (self._make_mock_words(), 'en')
+        mock_stt.return_value = (self._make_mock_words(), 'en')
         mock_process.return_value = MagicMock(id='test-id')
 
         prefs = {'vocabulary': [], 'language': '', 'single_language_mode': True}
@@ -571,7 +385,7 @@ class TestProcessSegmentPreferences:
 
         process_segment('test/path.bin', 'uid123', response, lock, errors, transcription_prefs=prefs)
 
-        _, kwargs = mock_dg.call_args
+        _, kwargs = mock_stt.call_args
         assert kwargs['language'] == 'multi'
         assert kwargs['return_language'] is True
 
@@ -581,11 +395,11 @@ class TestProcessSegmentPreferences:
     @patch('utils.sync.pipeline.prerecorded')
     @patch('utils.sync.pipeline.delete_syncing_temporal_file')
     @patch('utils.sync.pipeline.get_syncing_file_temporal_signed_url', return_value='http://example.com/audio.wav')
-    def test_multi_language_mode_default(self, mock_url, mock_delete, mock_dg, mock_ts, mock_closest, mock_process):
+    def test_multi_language_mode_default(self, mock_url, mock_delete, mock_stt, mock_ts, mock_closest, mock_process):
         """Non-single-language mode should use multi-language detection."""
         from utils.sync.pipeline import process_segment
 
-        mock_dg.return_value = (self._make_mock_words(), 'en')
+        mock_stt.return_value = (self._make_mock_words(), 'en')
         mock_process.return_value = MagicMock(id='test-id')
 
         prefs = {'vocabulary': ['Custom'], 'language': 'fr', 'single_language_mode': False}
@@ -596,7 +410,7 @@ class TestProcessSegmentPreferences:
 
         process_segment('test/path.bin', 'uid123', response, lock, errors, transcription_prefs=prefs)
 
-        _, kwargs = mock_dg.call_args
+        _, kwargs = mock_stt.call_args
         assert kwargs['language'] == 'multi'
         assert kwargs['return_language'] is True
 
@@ -607,13 +421,13 @@ class TestProcessSegmentPreferences:
     @patch('utils.sync.pipeline.delete_syncing_temporal_file')
     @patch('utils.sync.pipeline.get_syncing_file_temporal_signed_url', return_value='http://example.com/audio.wav')
     def test_single_language_trusts_user_language(
-        self, mock_url, mock_delete, mock_dg, mock_ts, mock_closest, mock_process
+        self, mock_url, mock_delete, mock_stt, mock_ts, mock_closest, mock_process
     ):
-        """Single-language mode should trust user's language, not Deepgram's detection."""
+        """Single-language mode should trust the user's configured language."""
         from utils.sync.pipeline import process_segment
 
-        # Deepgram detects 'fr' but user chose 'en' in single-language mode
-        mock_dg.return_value = (self._make_mock_words(), 'fr')
+        # Managed detection returns 'fr' but the user chose 'en' in single-language mode.
+        mock_stt.return_value = (self._make_mock_words(), 'fr')
         mock_process.return_value = MagicMock(id='test-id')
 
         prefs = {'vocabulary': [], 'language': 'en', 'single_language_mode': True}
@@ -627,7 +441,7 @@ class TestProcessSegmentPreferences:
         # process_conversation should be called with user's language, not detected
         call_args = mock_process.call_args
         # The language arg is the second positional argument
-        assert call_args[0][1] == 'en', "Should use user's language 'en', not Deepgram's detected 'fr'"
+        assert call_args[0][1] == 'en', "Should use the user's configured language"
 
     @patch('utils.sync.pipeline.process_conversation')
     @patch('utils.sync.pipeline.get_closest_conversation_to_timestamps', return_value=None)
@@ -636,12 +450,12 @@ class TestProcessSegmentPreferences:
     @patch('utils.sync.pipeline.delete_syncing_temporal_file')
     @patch('utils.sync.pipeline.get_syncing_file_temporal_signed_url', return_value='http://example.com/audio.wav')
     def test_private_cloud_sync_flag_passed_to_new_conversation(
-        self, mock_url, mock_delete, mock_dg, mock_ts, mock_closest, mock_process
+        self, mock_url, mock_delete, mock_stt, mock_ts, mock_closest, mock_process
     ):
         """New offline sync conversations must retain private-cloud audio metadata intent."""
         from utils.sync.pipeline import process_segment
 
-        mock_dg.return_value = (self._make_mock_words(), 'en')
+        mock_stt.return_value = (self._make_mock_words(), 'en')
         mock_process.return_value = MagicMock(id='test-id')
 
         response = {'new_memories': set(), 'updated_memories': set()}
@@ -706,107 +520,6 @@ class TestSyncEndpointPrefsWiring:
         assert '_finalize_sync_audio_files' in fn_body
 
 
-# ---------------------------------------------------------------------------
-# get_deepgram_model_for_language edge cases
-# ---------------------------------------------------------------------------
-
-
-class TestGetDeepgramModelForLanguage:
-    """Verify model selection for edge-case language values."""
-
-    def test_none_language_falls_back(self):
-        from utils.stt.pre_recorded import get_deepgram_model_for_language
-
-        lang, model = get_deepgram_model_for_language(None)
-        assert lang == 'multi'
-        assert model == 'nova-3'
-
-    def test_empty_string_falls_back(self):
-        from utils.stt.pre_recorded import get_deepgram_model_for_language
-
-        lang, model = get_deepgram_model_for_language('')
-        assert lang == 'multi'
-        assert model == 'nova-3'
-
-    def test_multi_returns_nova3(self):
-        from utils.stt.pre_recorded import get_deepgram_model_for_language
-
-        lang, model = get_deepgram_model_for_language('multi')
-        assert lang == 'multi'
-        assert model == 'nova-3'
-
-    def test_chinese_returns_nova3(self):
-        from utils.stt.pre_recorded import get_deepgram_model_for_language
-
-        lang, model = get_deepgram_model_for_language('zh')
-        assert lang == 'zh'
-        assert model == 'nova-3'
-
-    def test_english_returns_nova3(self):
-        from utils.stt.pre_recorded import get_deepgram_model_for_language
-
-        lang, model = get_deepgram_model_for_language('en')
-        assert lang == 'en'
-        assert model == 'nova-3'
-
-    def test_thai_returns_nova3(self):
-        from utils.stt.pre_recorded import get_deepgram_model_for_language
-
-        lang, model = get_deepgram_model_for_language('th')
-        assert lang == 'th'
-        assert model == 'nova-3'
-
-    def test_arabic_returns_nova3(self):
-        from utils.stt.pre_recorded import get_deepgram_model_for_language
-
-        lang, model = get_deepgram_model_for_language('ar')
-        assert lang == 'ar'
-        assert model == 'nova-3'
-
-    def test_tamil_returns_nova3(self):
-        from utils.stt.pre_recorded import get_deepgram_model_for_language
-
-        lang, model = get_deepgram_model_for_language('ta')
-        assert lang == 'ta'
-        assert model == 'nova-3'
-
-    def test_locale_tagged_zh_tw_returns_nova3(self):
-        from utils.stt.pre_recorded import get_deepgram_model_for_language
-
-        lang, model = get_deepgram_model_for_language('zh-TW')
-        assert lang == 'zh-TW'
-        assert model == 'nova-3'
-
-    def test_locale_tagged_th_th_returns_nova3(self):
-        from utils.stt.pre_recorded import get_deepgram_model_for_language
-
-        lang, model = get_deepgram_model_for_language('th-TH')
-        assert lang == 'th-TH'
-        assert model == 'nova-3'
-
-    def test_locale_tagged_ar_ae_returns_nova3(self):
-        from utils.stt.pre_recorded import get_deepgram_model_for_language
-
-        lang, model = get_deepgram_model_for_language('ar-AE')
-        assert lang == 'ar-AE'
-        assert model == 'nova-3'
-
-    def test_locale_tagged_ko_kr_returns_nova3(self):
-        from utils.stt.pre_recorded import get_deepgram_model_for_language
-
-        lang, model = get_deepgram_model_for_language('ko-KR')
-        assert lang == 'ko-KR'
-        assert model == 'nova-3'
-
-    def test_unsupported_language_falls_back_to_multi(self):
-        from utils.stt.pre_recorded import get_deepgram_model_for_language
-
-        lang, model = get_deepgram_model_for_language('xx-INVALID')
-        assert lang == 'multi'
-        assert model == 'nova-3'
-
-
-# ---------------------------------------------------------------------------
 # Speaker identification for sync path
 # ---------------------------------------------------------------------------
 
@@ -1289,11 +1002,11 @@ class TestProcessSegmentSpeakerIdIntegration:
     @patch('utils.sync.pipeline.identify_speakers_for_segments')
     @patch('utils.sync.pipeline._download_audio_bytes')
     def test_speaker_id_called_when_cache_provided(
-        self, mock_download, mock_identify, mock_url, mock_delete, mock_dg, mock_ts, mock_closest, mock_process
+        self, mock_download, mock_identify, mock_url, mock_delete, mock_stt, mock_ts, mock_closest, mock_process
     ):
         from utils.sync.pipeline import process_segment
 
-        mock_dg.return_value = (self._mock_words(), 'en')
+        mock_stt.return_value = (self._mock_words(), 'en')
         mock_process.return_value = MagicMock(id='test-id')
         mock_download.return_value = b'fake-audio-bytes'
 
@@ -1324,11 +1037,11 @@ class TestProcessSegmentSpeakerIdIntegration:
     @patch('utils.sync.pipeline.identify_speakers_for_segments')
     @patch('utils.sync.pipeline._download_audio_bytes')
     def test_no_cache_skips_download_but_runs_identification(
-        self, mock_download, mock_identify, mock_url, mock_delete, mock_dg, mock_ts, mock_closest, mock_process
+        self, mock_download, mock_identify, mock_url, mock_delete, mock_stt, mock_ts, mock_closest, mock_process
     ):
         from utils.sync.pipeline import process_segment
 
-        mock_dg.return_value = (self._mock_words(), 'en')
+        mock_stt.return_value = (self._mock_words(), 'en')
         mock_process.return_value = MagicMock(id='test-id')
 
         response = {'new_memories': set(), 'updated_memories': set()}
@@ -1425,11 +1138,11 @@ class TestSpeakerIdExceptionHandling:
     @patch('utils.sync.pipeline.identify_speakers_for_segments', side_effect=RuntimeError("embedding API down"))
     @patch('utils.sync.pipeline._download_audio_bytes', return_value=b'audio')
     def test_speaker_id_exception_does_not_break_processing(
-        self, mock_download, mock_identify, mock_url, mock_delete, mock_dg, mock_ts, mock_closest, mock_process
+        self, mock_download, mock_identify, mock_url, mock_delete, mock_stt, mock_ts, mock_closest, mock_process
     ):
         from utils.sync.pipeline import process_segment
 
-        mock_dg.return_value = (self._mock_words(), 'en')
+        mock_stt.return_value = (self._mock_words(), 'en')
         mock_process.return_value = MagicMock(id='test-id')
 
         cache = {'p1': {'embedding': np.ones((1, 512)), 'name': 'Alice'}}

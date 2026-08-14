@@ -15,7 +15,7 @@ Usage:
         --chunk-ms 40
 
 Requires:
-    - DEEPGRAM_API_KEY env var (or backend .env loaded)
+    - MODULATE_API_KEY env var (or backend .env loaded)
     - jiwer (jiwer==3.0.4)
 """
 
@@ -30,7 +30,7 @@ from typing import Any, Dict, List, Tuple, cast
 # Add backend to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-# Load .env if present (for DEEPGRAM_API_KEY)
+# Load .env if present (for MODULATE_API_KEY)
 env_file = os.path.join(os.path.dirname(__file__), '..', '.env')
 if os.path.exists(env_file):
     with open(env_file) as f:
@@ -47,7 +47,7 @@ import numpy as np
 import numpy.typing as npt
 from jiwer import wer
 
-from utils.stt.pre_recorded import deepgram_prerecorded_from_bytes
+from utils.stt.pre_recorded import modulate_prerecorded_from_bytes
 from utils.stt.vad_gate import VADStreamingGate
 
 
@@ -62,7 +62,7 @@ def read_wav(path: str) -> Tuple[npt.NDArray[np.int16], int, int]:
 
 
 def samples_to_wav_bytes(samples: npt.NDArray[Any], sample_rate: int, channels: int = 1) -> bytes:
-    """Convert int16 samples to WAV bytes for Deepgram."""
+    """Convert int16 samples to WAV bytes for managed transcription."""
     buf = io.BytesIO()
     with wave.open(buf, 'wb') as wf:
         wf.setnchannels(channels)
@@ -84,8 +84,8 @@ def pcm_bytes_to_wav_bytes(pcm: bytes, sample_rate: int, channels: int = 1) -> b
 
 
 def transcribe(wav_bytes: bytes, sample_rate: int) -> str:
-    """Transcribe WAV bytes via Deepgram batch API."""
-    raw_words = deepgram_prerecorded_from_bytes(wav_bytes, sample_rate=sample_rate, diarize=False)
+    """Transcribe WAV bytes through the fixed managed batch adapter."""
+    raw_words = modulate_prerecorded_from_bytes(wav_bytes, sample_rate=sample_rate, diarize=False)
     words = cast(List[Dict[str, Any]], raw_words)
     return ' '.join(w['text'] for w in words)
 
@@ -100,8 +100,8 @@ def main() -> None:
     parser.add_argument('--verbose', action='store_true', help='Print per-chunk VAD decisions')
     args = parser.parse_args()
 
-    if not os.getenv('DEEPGRAM_API_KEY'):
-        print('ERROR: DEEPGRAM_API_KEY env var required')
+    if not os.getenv('MODULATE_API_KEY'):
+        print('ERROR: MODULATE_API_KEY env var required')
         sys.exit(1)
 
     # Read input audio

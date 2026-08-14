@@ -73,7 +73,6 @@ def _ensure_process_conversation_importable():
         "database.trends",
         "database.calendar_meetings",
         "database.auth",
-        "deepgram",
         "firebase_admin",
         "firebase_admin.messaging",
         "firebase_admin.auth",

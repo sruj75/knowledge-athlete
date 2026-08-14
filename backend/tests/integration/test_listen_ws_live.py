@@ -39,7 +39,7 @@ PUSHER_URL = f"ws://{BACKEND_HOST}:{PUSHER_PORT}/v1/trigger/listen"
 # Auth header for LOCAL_DEVELOPMENT=true mode (bypasses Firebase, returns uid='123')
 DEV_AUTH_HEADER = {"authorization": "Bearer dev-token"}
 
-# Test audio file (60s mono 16kHz PCM16 — real speech for Deepgram)
+# Test audio file (60s mono 16kHz PCM16 — real speech for Modulate)
 TEST_WAV = os.path.join(
     os.path.dirname(__file__),
     '../../pretrained_models/snakers4_silero-vad_master/tests/data/test.wav',
@@ -479,7 +479,7 @@ class TestListenHappyPath:
 class TestTranscriptionPipeline:
     """End-to-end transcription: send real speech audio → get transcript segments back.
 
-    Requires LOCAL_DEVELOPMENT=true, Deepgram credentials, and test WAV file.
+    Requires LOCAL_DEVELOPMENT=true, Modulate credentials, and a test WAV file.
     """
 
     @pytest.mark.asyncio
@@ -487,7 +487,7 @@ class TestTranscriptionPipeline:
         """Send real speech audio and verify transcript segments are returned.
 
         This is the primary happy-path test proving the full pipeline works:
-        Client → /v4/listen → Deepgram STT → transcript segments → Client
+        Client → /v4/listen → Modulate STT → transcript segments → Client
         """
         audio = load_test_audio_pcm16(seconds=10)
         if audio is None:

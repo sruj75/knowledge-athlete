@@ -1,8 +1,8 @@
 """
 Migration script to auto-set single_language_mode based on each user's language preference.
 
-Languages in Deepgram Nova-3 multi-language set → single_language_mode = False
-Languages NOT in the set → single_language_mode = True
+Languages supported by managed multilingual transcription → single_language_mode = False
+Languages outside that capability → single_language_mode = True
 Users with no language set are skipped.
 
 Usage:
@@ -23,7 +23,7 @@ import time
 # Add project root to the Python path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from utils.stt.streaming import deepgram_nova3_multi_languages
+from config.stt_provider_policy import supports_live_multilingual_mode
 import logging
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -58,7 +58,7 @@ def process_user(user_doc, dry_run=False):
     if not language:
         return 'skipped_no_language'
 
-    expected_single_language_mode = language not in deepgram_nova3_multi_languages
+    expected_single_language_mode = not supports_live_multilingual_mode(language)
 
     current_prefs = data.get('transcription_preferences', {})
     current_mode = current_prefs.get('single_language_mode')

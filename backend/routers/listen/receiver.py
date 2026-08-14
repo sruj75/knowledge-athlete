@@ -46,13 +46,10 @@ from utils.stt.live_failure import (
     terminate_live_stt_session,
 )
 from utils.stt.streaming import (
-    STTService,
-    connect_stt_socket_with_fallback,
     make_stream_callback,
-    process_audio_dg,
     process_audio_modulate,
-    process_audio_parakeet,
 )
+from config.stt_provider_policy import MODULATE_PROVIDER
 from utils.stt.vad_gate import GatedSTTSocket, VADStreamingGate, VAD_GATE_MODE, is_gate_enabled
 from utils.transcribe_decisions import (
     TARGET_SAMPLE_RATE,
@@ -147,43 +144,8 @@ class ListenReceiver:
         elif request.codec == 'lc3':
             self.lc3_decoder = _get_lc3().Decoder(self.host.lc3_frame_duration_us, request.sample_rate)
 
-    async def _create_stt_socket(self, callback: Any, sample_rate: int, modulate_callback: Any = None) -> Any:
-        keywords = self.host.vocabulary[:100] if self.host.vocabulary else []
-        if self.host.stt_service == STTService.parakeet:
-            socket, actual_service = await connect_stt_socket_with_fallback(
-                primary_service=STTService.parakeet,
-                connect_primary=lambda: process_audio_parakeet(
-                    callback,
-                    self.host.stt_language,
-                    sample_rate,
-                    1,
-                    model=self.host.stt_model,
-                    keywords=keywords,
-                    is_active=lambda: self.host.state.active,
-                ),
-                connect_modulate=lambda: process_audio_modulate(
-                    modulate_callback or callback,
-                    sample_rate,
-                    self.host.stt_language,
-                ),
-            )
-            self.host.stt_service = actual_service
-            if actual_service == STTService.modulate:
-                self.host.stt_model = 'velma-2'
-            return socket
-        if self.host.stt_service == STTService.modulate:
-            return await process_audio_modulate(modulate_callback or callback, sample_rate, self.host.stt_language)
-        if self.host.stt_service == STTService.deepgram:
-            return await process_audio_dg(
-                callback,
-                self.host.stt_language,
-                sample_rate,
-                1,
-                model=self.host.stt_model,
-                keywords=keywords,
-                is_active=lambda: self.host.state.active,
-            )
-        raise RuntimeError(f'Unsupported serving STT provider {self.host.stt_service!r}')
+    async def _create_stt_socket(self, callback: Any, sample_rate: int) -> Any:
+        return await process_audio_modulate(callback, sample_rate, self.host.stt_language)
 
     async def _drain_stt_sockets(self) -> None:
         sockets = self.stt_sockets_multi if self.host.is_multi_channel else [self.stt_socket]
@@ -208,7 +170,7 @@ class ListenReceiver:
 
     async def initialize_stt(self) -> bool:
         request = self.host.request
-        provider = getattr(self.host.stt_service, 'value', self.host.stt_service)
+        provider = MODULATE_PROVIDER
         if self.host.use_custom_stt:
             return True
         try:
@@ -251,13 +213,8 @@ class ListenReceiver:
                 self._capture('capture_inbound_stt', segments)
                 self.host.transcripts.enqueue(segments)
 
-            parakeet_callback = make_stream_callback(capture_and_enqueue, self.vad_gate, False)
-            modulate_callback = make_stream_callback(capture_and_enqueue, self.vad_gate, True)
-            raw = await self._create_stt_socket(
-                parakeet_callback,
-                request.sample_rate,
-                modulate_callback=modulate_callback,
-            )
+            managed_callback = make_stream_callback(capture_and_enqueue, self.vad_gate, True)
+            raw = await self._create_stt_socket(managed_callback, request.sample_rate)
             if raw is None:
                 await self._drain_stt_sockets()
                 await terminate_live_stt_session(
@@ -268,10 +225,7 @@ class ListenReceiver:
                     platform=self.host.client_device_context.platform,
                 )
                 return False
-            passthrough = self.host.stt_service == STTService.modulate
-            self.stt_socket = (
-                GatedSTTSocket(raw, gate=self.vad_gate, passthrough_audio=passthrough) if self.vad_gate else raw
-            )
+            self.stt_socket = GatedSTTSocket(raw, gate=self.vad_gate, passthrough_audio=True) if self.vad_gate else raw
             self.host.spawn(self._monitor_stt_death(provider), name='stt_death_monitor')
             return True
         except Exception as error:
@@ -365,13 +319,13 @@ class ListenReceiver:
             force=force,
             socket_dead=socket_dead,
             socket_available=self.stt_socket is not None,
-            fair_use_dg_budget_exhausted=self.host.state.fair_use_dg_budget_exhausted,
-            fair_use_track_dg_usage=self.host.state.fair_use_track_dg_usage,
+            fair_use_managed_stt_budget_exhausted=self.host.state.fair_use_managed_stt_budget_exhausted,
+            fair_use_track_managed_stt_usage=self.host.state.fair_use_track_managed_stt_usage,
             sample_rate=request.sample_rate,
         )
         if not decision.should_flush:
             return
-        if self.host.state.fair_use_dg_budget_exhausted:
+        if self.host.state.fair_use_managed_stt_budget_exhausted:
             buffer.clear()
             return
         outbound_audio = bytes(buffer)
@@ -380,12 +334,12 @@ class ListenReceiver:
             self.host.state,
             stt_socket=self.stt_socket,
             buffer=buffer,
-            provider=getattr(self.host.stt_service, 'value', self.host.stt_service),
+            provider=MODULATE_PROVIDER,
             platform=self.host.client_device_context.platform,
         )
         if sent:
             self._capture('capture_outbound_stt', outbound_audio)
-            self.host.state.dg_usage_ms_pending += decision.dg_usage_ms
+            self.host.state.managed_stt_usage_ms_pending += decision.managed_stt_usage_ms
 
     async def _handle_multi_channel_audio(self, data: bytes) -> None:
         request = self.host.request
@@ -412,11 +366,11 @@ class ListenReceiver:
         # Custom-STT clients own transcript production.  Their channel sockets are intentionally
         # absent, but captured audio still proceeds to the pusher mix path.
         if not self.host.use_custom_stt:
-            should_send, dg_usage_ms = decide_multi_channel_stt_send(
+            should_send, managed_stt_usage_ms = decide_multi_channel_stt_send(
                 socket_available=bool(self.stt_sockets_multi[channel_index]),
-                fair_use_dg_budget_exhausted=self.host.state.fair_use_dg_budget_exhausted,
+                fair_use_managed_stt_budget_exhausted=self.host.state.fair_use_managed_stt_budget_exhausted,
                 pcm_len=len(pcm),
-                fair_use_track_dg_usage=self.host.state.fair_use_track_dg_usage,
+                fair_use_track_managed_stt_usage=self.host.state.fair_use_track_managed_stt_usage,
             )
             if should_send:
                 sent = await send_live_stt_audio(
@@ -424,12 +378,12 @@ class ListenReceiver:
                     self.host.state,
                     stt_socket=self.stt_sockets_multi[channel_index],
                     audio=pcm,
-                    provider=getattr(self.host.stt_service, 'value', self.host.stt_service),
+                    provider=MODULATE_PROVIDER,
                     platform=self.host.client_device_context.platform,
                 )
                 if sent:
                     self._capture('capture_outbound_stt', pcm)
-                    self.host.state.dg_usage_ms_pending += dg_usage_ms
+                    self.host.state.managed_stt_usage_ms_pending += managed_stt_usage_ms
         # Only accumulate channel audio for the pusher mix when an audio-bytes consumer is attached.
         # decide_multi_channel_mix and the teardown flush both gate on this same condition, so
         # without a consumer nothing ever drains these per-channel buffers. Appending regardless (the

@@ -15,12 +15,12 @@ developer services.
 
 It starts an isolated Redis and local ASGI processes while Firebase's command
 owns a fresh Firestore emulator. The inline scenarios use the real backend,
-pusher, and Parakeet stub; durable scenarios start separate real listener and
+pusher, and Modulate stub; durable scenarios start separate real listener and
 finalization-worker processes with a strict loopback Cloud Tasks client:
 
 ```text
 native /v4/listen client → real backend → real pusher
-                               ↘ real Parakeet WS client → local protocol stub
+                               ↘ real Modulate WS client → local protocol stub
 
 real listener admission → real tasks_v2.Task → strict loopback task record
                                                    ↘ separate real finalization worker route
@@ -113,7 +113,7 @@ This complements, rather than replaces, the storage race test:
 npm run test:listen-lifecycle:emulator
 ```
 
-It intentionally does not test real Parakeet inference, LLM/vector quality,
+It intentionally does not test real Modulate inference, LLM/vector quality,
 GCS, or external integration delivery.  Those require their own environment
 and should not turn this deterministic local failure test into a credentialed
 integration suite.

@@ -56,8 +56,8 @@ _SYNC_JOB_OUTCOMES = (
     'superseded',
 )
 _SYNC_LANES = ('fresh', 'backfill')
-_SYNC_PROVIDERS = ('deepgram', 'modulate', 'parakeet')
-_SYNC_MODELS = ('nova-3', 'velma-2', 'parakeet')
+_SYNC_PROVIDERS = ('modulate',)
+_SYNC_MODELS = ('modulate-velma-2',)
 _SYNC_DISPATCH_MODES = ('inline', 'cloud_tasks')
 SYNC_LEDGER_FENCE_MODE_ENV = 'SYNC_LEDGER_FENCE_MODE'
 

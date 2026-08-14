@@ -450,7 +450,6 @@
         "backend/utils/stt/live_failure.py",
         "backend/utils/stt/streaming.py",
         "backend/config/stt_provider_policy.py",
-        "backend/charts/parakeet/**",
         "backend/utils/transcribe_decisions.py",
         "backend/pusher/main.py",
         "backend/utils/conversations/finalizer.py",
@@ -468,7 +467,6 @@
         "tests/unit/test_listen_runtime_regressions.py",
         "tests/unit/test_transcribe_decisions.py",
         "tests/unit/test_stt_provider_policy.py",
-        "tests/unit/test_streaming_deepgram_backoff.py",
         "tests/unit/utils/test_listen_pusher_session.py",
         "tests/unit/test_transcribe_teardown_flush.py",
         "tests/unit/test_listen_pusher_stack_ci_wiring.py",
@@ -480,8 +478,8 @@
         "teardown flushes tail audio before pusher close",
         "pending conversation requests retry until ack or give-up limit",
         "pusher heartbeat prevents idle connection drops",
-        "a client Parakeet preference cannot route a live session to an incompatible model",
-        "listen-to-pusher boundary changes run the credential-free local Firestore, Redis, and Parakeet-stub stack gauntlet in PR CI"
+        "the fixed managed adapter cannot be changed by a client provider hint",
+        "listen-to-pusher boundary changes run the credential-free local Firestore, Redis, and Modulate-stub stack gauntlet in PR CI"
       ]
     },
     {
@@ -600,7 +598,6 @@
         "backend/charts/pusher/**",
         "backend/charts/llm-gateway/**",
         "backend/charts/diarizer/**",
-        "backend/charts/parakeet/**",
         "backend/charts/nllb-translation/**",
         "backend/charts/vad/**",
         "backend/scripts/validate_rendered_deployment_contract.py"

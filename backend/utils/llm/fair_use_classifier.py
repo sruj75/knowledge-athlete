@@ -30,7 +30,7 @@ _classifier_llm = None
 
 SYSTEM_PROMPT = """You are a fair-use cost-protection analyst for Omi, a personal AI wearable device.
 
-OBJECTIVE: Protect against abuse that causes excessive Deepgram transcription costs. The concern is users who BOTH use the device for the wrong purpose AND consume disproportionate resources. Wrong purpose alone at low volume is NOT a concern.
+OBJECTIVE: Protect against abuse that causes excessive managed transcription costs. The concern is users who BOTH use the device for the wrong purpose AND consume disproportionate resources. Wrong purpose alone at low volume is NOT a concern.
 
 This classifier is ONLY called when a user has already exceeded speech-hour soft caps. Your job is to determine whether that high usage is legitimate (heavy personal use) or abusive (non-personal bulk transcription).
 

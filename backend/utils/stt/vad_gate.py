@@ -43,7 +43,7 @@ VAD_GATE_MODE = os.getenv('VAD_GATE_MODE', 'off')  # off | shadow | active
 VAD_GATE_PRE_ROLL_MS = 300
 VAD_GATE_HANGOVER_MS = 4000
 VAD_GATE_SPEECH_THRESHOLD = 0.65
-VAD_GATE_FINALIZE_SILENCE_MS = 300  # Flush DG transcript during hangover after this much silence
+VAD_GATE_FINALIZE_SILENCE_MS = 300  # Flush provider transcript during hangover after this much silence
 VAD_GATE_KEEPALIVE_SEC = 5
 
 
@@ -64,14 +64,14 @@ class GateState(str, Enum):
 class GateOutput:
     """Output from processing one audio chunk through the gate."""
 
-    audio_to_send: bytes  # PCM bytes to forward to DG (may be empty)
-    should_finalize: bool = False  # call dg_socket.finalize()
+    audio_to_send: bytes  # PCM bytes to forward to provider (may be empty)
+    should_finalize: bool = False  # call the STT socket's finalize()
     state: GateState = GateState.SILENCE
     is_speech: bool = False  # raw VAD decision for this chunk
 
 
 # ---------------------------------------------------------------------------
-# DG ↔ Wall-clock timestamp mapper
+# provider ↔ Wall-clock timestamp mapper
 # ---------------------------------------------------------------------------
 class WallTimeMapper:
     """Maps STT provider audio-time timestamps to wall-clock-relative timestamps.
@@ -86,17 +86,17 @@ class WallTimeMapper:
 
     def __init__(self):
         self._lock = threading.Lock()
-        # Each checkpoint: (dg_sec, wall_rel_sec) at silence→speech transition
+        # Each checkpoint: (provider_sec, wall_rel_sec) at silence→speech transition
         self._checkpoints: List[Tuple[float, float]] = []
         self._provider_cursor_sec: float = 0.0
         self._sending: bool = False
 
     def on_audio_sent(self, chunk_duration_sec: float, chunk_wall_rel_sec: float) -> None:
-        """Called when audio is actually sent to DG."""
+        """Called when audio is actually sent to provider."""
         with self._lock:
             if not self._sending:
                 # Enforce monotonicity: the new checkpoint's wall time must be at
-                # least prev_wall + (dg_elapsed since prev checkpoint).  Pre-roll
+                # least prev_wall + (provider_elapsed since prev checkpoint).  Pre-roll
                 # subtraction can produce wall times below the previous checkpoint,
                 # and simple clamping to prev_wall creates overlapping wall-time
                 # ranges that cause non-monotonic remapped timestamps.
@@ -115,20 +115,20 @@ class WallTimeMapper:
             self._provider_cursor_sec += chunk_duration_sec
 
     def on_silence_skipped(self) -> None:
-        """Called when silence is skipped (not sent to DG)."""
+        """Called when silence is skipped (not sent to provider)."""
         with self._lock:
             self._sending = False
 
-    def dg_to_wall_rel(self, dg_sec: float) -> float:
-        """Convert DG audio-time to wall-clock-relative time."""
+    def provider_to_wall_rel(self, provider_sec: float) -> float:
+        """Convert provider audio-time to wall-clock-relative time."""
         with self._lock:
             cps = self._checkpoints[:]
         if not cps:
-            return dg_sec
-        dg_marks = [c[0] for c in cps]
-        i = max(bisect_right(dg_marks, dg_sec) - 1, 0)
-        cp_dg, cp_wall = cps[i]
-        return cp_wall + (dg_sec - cp_dg)
+            return provider_sec
+        provider_marks = [c[0] for c in cps]
+        i = max(bisect_right(provider_marks, provider_sec) - 1, 0)
+        cp_provider, cp_wall = cps[i]
+        return cp_wall + (provider_sec - cp_provider)
 
 
 # ---------------------------------------------------------------------------
@@ -196,7 +196,7 @@ class VADStreamingGate:
         self._pre_roll_total_ms: float = 0.0
 
         # Timestamp mapper
-        self.dg_wall_mapper = WallTimeMapper()
+        self.wall_mapper = WallTimeMapper()
 
         # Metrics
         self._chunks_total = 0
@@ -232,8 +232,8 @@ class VADStreamingGate:
             self._vad_state, self._vad_context = make_fresh_state()
             self._vad_buffer = np.array([], dtype=np.float32)
             self._pcm_remainder = b''
-            # Sync mapper cursor: DG received all audio during shadow phase
-            self.dg_wall_mapper._provider_cursor_sec = self._audio_cursor_ms / 1000.0  # type: ignore[reportPrivateUsage]  # sync internal mapper cursor
+            # Sync mapper cursor: provider received all audio during shadow phase
+            self.wall_mapper._provider_cursor_sec = self._audio_cursor_ms / 1000.0  # type: ignore[reportPrivateUsage]  # sync internal mapper cursor
             logger.info(
                 'VADGate activated shadow->active uid=%s session=%s cursor=%.1fms',
                 self.uid,
@@ -406,7 +406,7 @@ class VADStreamingGate:
                 # Record mapper checkpoint for pre-roll start
                 pre_roll_duration = len(pre_roll_audio) / (self._sample_width * self.channels * self.sample_rate)
                 pre_roll_wall_rel = max(0.0, wall_rel - pre_roll_duration + chunk_duration_sec)
-                self.dg_wall_mapper.on_audio_sent(pre_roll_duration, pre_roll_wall_rel)
+                self.wall_mapper.on_audio_sent(pre_roll_duration, pre_roll_wall_rel)
                 self._bytes_sent += len(pre_roll_audio)
                 self._last_send_wall_time = wall_time
 
@@ -418,7 +418,7 @@ class VADStreamingGate:
                 )
             else:
                 # Stay in SILENCE: audio buffered in pre-roll (not yet skipped/sent)
-                self.dg_wall_mapper.on_silence_skipped()
+                self.wall_mapper.on_silence_skipped()
                 return GateOutput(
                     audio_to_send=b'',
                     should_finalize=False,
@@ -427,8 +427,8 @@ class VADStreamingGate:
                 )
 
         elif self._state == GateState.SPEECH:
-            # Send audio to DG
-            self.dg_wall_mapper.on_audio_sent(chunk_duration_sec, wall_rel)
+            # Send audio to provider
+            self.wall_mapper.on_audio_sent(chunk_duration_sec, wall_rel)
             self._bytes_sent += len(pcm_data)
             self._last_send_wall_time = wall_time
 
@@ -451,7 +451,7 @@ class VADStreamingGate:
                 # Speech resumed: HANGOVER → SPEECH (no finalize needed)
                 self._state = GateState.SPEECH
                 self._hangover_finalized = False
-                self.dg_wall_mapper.on_audio_sent(chunk_duration_sec, wall_rel)
+                self.wall_mapper.on_audio_sent(chunk_duration_sec, wall_rel)
                 self._bytes_sent += len(pcm_data)
                 self._last_send_wall_time = wall_time
                 return GateOutput(
@@ -474,7 +474,7 @@ class VADStreamingGate:
                 chunk_ms_local = (len(pcm_data) / (self._sample_width * self.channels * self.sample_rate)) * 1000.0
                 self._pre_roll_total_ms = chunk_ms_local
                 # pcm_data is buffered in pre-roll and will count as skipped if never sent
-                self.dg_wall_mapper.on_silence_skipped()
+                self.wall_mapper.on_silence_skipped()
                 return GateOutput(
                     audio_to_send=b'',
                     should_finalize=need_finalize,
@@ -482,7 +482,7 @@ class VADStreamingGate:
                     is_speech=False,
                 )
 
-            # Mid-hangover finalize: flush DG transcript early while keeping audio flowing
+            # Mid-hangover finalize: flush provider transcript early while keeping audio flowing
             should_finalize_now = False
             if not self._hangover_finalized and time_since_speech_ms >= self._finalize_silence_ms:
                 should_finalize_now = True
@@ -490,7 +490,7 @@ class VADStreamingGate:
                 self._finalize_count += 1
 
             # Still in hangover: send audio
-            self.dg_wall_mapper.on_audio_sent(chunk_duration_sec, wall_rel)
+            self.wall_mapper.on_audio_sent(chunk_duration_sec, wall_rel)
             self._bytes_sent += len(pcm_data)
             self._last_send_wall_time = wall_time
             return GateOutput(
@@ -554,8 +554,8 @@ class VADStreamingGate:
         """Remap STT provider timestamps to wall-clock-relative if gate is active."""
         if self.mode == 'active':
             for seg in segments:
-                seg['start'] = self.dg_wall_mapper.dg_to_wall_rel(seg['start'])
-                seg['end'] = self.dg_wall_mapper.dg_to_wall_rel(seg['end'])
+                seg['start'] = self.wall_mapper.provider_to_wall_rel(seg['start'])
+                seg['end'] = self.wall_mapper.provider_to_wall_rel(seg['end'])
 
     def record_keepalive(self, wall_time: float) -> None:
         """Record a keepalive send using the gate public API."""
@@ -609,8 +609,8 @@ class GatedSTTSocket(STTSocket):
         """Count frames that are not whole 16-bit samples, as the provider receives them.
 
         The gate re-chunks, so a count taken before it does not describe what a provider
-        gets. Deepgram accepts a misaligned frame silently; Velma rejects it and closes the
-        session, so the live Deepgram path is where that risk is measurable.
+        gets. managed STT accepts a misaligned frame silently; Velma rejects it and closes the
+        session, so the live managed STT path is where that risk is measurable.
         """
         if len(audio) % 2:
             OMI_LIVE_STT_MISALIGNED_FRAMES_TOTAL.labels(
@@ -700,8 +700,3 @@ class GatedSTTSocket(STTSocket):
     @property
     def is_gated(self) -> bool:
         return self._gate is not None
-
-
-# Backward-compatibility aliases
-GatedDeepgramSocket = GatedSTTSocket
-DgWallMapper = WallTimeMapper

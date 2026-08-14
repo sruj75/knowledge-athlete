@@ -286,12 +286,6 @@ env:
     value: "based-hardware"
   - name: GCP_LOCATION
     value: "us-central1"
-  - name: HOSTED_PARAKEET_API_URL
-    value: "http://parakeet.omi.me"
-  - name: STT_PRERECORDED_MODEL
-    value: "parakeet,modulate-velma-2"
-  - name: STT_SERVICE_MODELS
-    value: "modulate-velma-2,parakeet"
   - name: HOSTED_TRANSLATION_API_URL
     value: "http://nllb.omi.me"
   - name: TRANSLATION_SERVICE_MODELS
@@ -362,7 +356,7 @@ env:
     value: "300"
   - name: FAIR_USE_EXEMPT_UIDS
     value: ""
-  - name: FAIR_USE_RESTRICT_DAILY_DG_MS
+  - name: FAIR_USE_RESTRICT_DAILY_MANAGED_STT_MS
     value: "1800000"
   - name: METRICS_SECRET
     valueFrom:

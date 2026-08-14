@@ -90,7 +90,7 @@ async def connect_and_wait_ready(url, timeout=30):
                         statuses.append(status)
                         print(f'  [status] {status}')
                     if status in ('ready', 'stt_initiating'):
-                        # stt_initiating means Deepgram is connecting, good enough to start sending
+                        # stt_initiating means managed STT is connecting, good enough to start sending
                         return ws, statuses
                 except json.JSONDecodeError:
                     pass

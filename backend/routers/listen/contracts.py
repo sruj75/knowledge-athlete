@@ -29,7 +29,6 @@ class ListenRequest:
     codec: str = 'pcm8'
     channels: int = 1
     include_speech_profile: bool = True
-    stt_service: Optional[str] = None
     conversation_timeout: int = 120
     source: Optional[str] = None
     custom_stt_mode: CustomSttMode = CustomSttMode.disabled
@@ -64,10 +63,10 @@ class ListenSessionState:
     remaining_seconds_cache_ts: float = 0.0
     remaining_seconds_cache_initialized: bool = False
     fair_use_last_check_ts: float = 0.0
-    fair_use_dg_budget_exhausted: bool = False
-    fair_use_track_dg_usage: bool = False
+    fair_use_managed_stt_budget_exhausted: bool = False
+    fair_use_track_managed_stt_usage: bool = False
     fair_use_plan: Optional[Any] = None
-    dg_usage_ms_pending: int = 0
+    managed_stt_usage_ms_pending: int = 0
     last_audio_received_time: Optional[float] = None
     last_activity_time: Optional[float] = None
 

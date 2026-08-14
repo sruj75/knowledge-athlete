@@ -33,7 +33,7 @@ This version proves the backend can boot hermetically and that selected core CRU
 |---|---:|---|
 | CRUD golden path | ✅ Green | Conversations are seeded directly because `POST /v1/conversations` processes an existing in-progress conversation; action items and memories use real create/update/delete routes. |
 | Deterministic conversation-processing seam | ✅ Partial | Reprocess and finalize routes, auth, model serialization, Firestore update, memory readback, and action-item queryability run with the provider-heavy processing function replaced by deterministic output. Full LLM-client wiring remains v2. |
-| Listen/STT route seam | ✅ Partial | `/v4/web/listen` websocket auth/query parsing/custom-STT dispatch is covered with a fake stream handler; custom-STT suggested transcript events also run through the real listen websocket loop into client emission, reconnect behavior, decrypted conversation readback, and finalize lifecycle. Full Deepgram-compatible streaming fake remains v2. |
+| Listen/STT route seam | ✅ | `/v4/web/listen` websocket auth/query parsing/custom-STT dispatch is covered; managed-STT scenarios run the real Modulate socket against a loopback peer through client emission, reconnect behavior, terminal failure, decrypted conversation readback, and finalization lifecycle. |
 | Sync v2 job lifecycle | ✅ Partial | `/v2/sync-local-files` fast path, Redis job creation, deterministic background pipeline completion, job polling, and conversation persistence run with decode/VAD/STT/provider-heavy segment work replaced by deterministic seams. Full audio decoding and provider transcription remain lower-level/unit or v2 fake work. |
 | Storage / speech profile | ✅ Green | `google.cloud.storage.Client` is patched to a temp-dir fake; speech-profile presence, signed URL, sample list, and delete paths run through real routes/helpers. |
 | Webhooks | ✅ Partial | Developer webhook config/status routes, disabled no-op behavior, realtime delivery payload, non-2xx failure health recording, timeout/exception health recording, and threshold auto-disable are covered with `httpx.MockTransport`. Marketplace app webhook retry/circuit-breaker behavior remains v2. |
@@ -116,7 +116,7 @@ run.sh
         │   ├── storage.py                      # filesystem-backed fake GCS client
         │   ├── vector_search.py                # deterministic embeddings + in-memory Pinecone-like index
         │   ├── llm.py                          # deterministic LLM fake scaffold
-        │   ├── stt.py                          # deterministic custom-STT event helper; Deepgram WS TODO
+        │   ├── stt.py                          # deterministic custom and managed-STT socket helpers
         │   └── embeddings.py                   # VAD/diarization/embedding fake scaffold
         ├── fixtures/
         │   ├── conversations.json
@@ -172,7 +172,6 @@ def test_read_seeded_conversation(client, auth_headers, sample_conversation_data
 ## Current limitations / v2 work
 
 - [x] Add hermetic core-flow coverage for custom-STT listen reconnect/finalize, sync v2 job lifecycle, and conversation finalization.
-- [ ] Implement Deepgram streaming WebSocket fake for `/v4/listen` / pusher scenarios.
 - [ ] Wire deterministic LLM endpoints into all OpenAI/Anthropic/OpenRouter clients used by processing code.
 - [ ] Add per-test HTTP failure injection for LLM 500 / timeout scenarios.
 - [ ] Add real Redis-unavailable fail-open tests; v1 uses fakeredis-backed paths.

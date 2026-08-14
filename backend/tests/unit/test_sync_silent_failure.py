@@ -5,7 +5,7 @@ Verifies that process_segment() properly propagates errors via thread-safe
 error collection and that the legacy sync endpoint reports partial failures
 with 207.
 
-Previously, process_segment() had no error handling — Deepgram failures caused
+Previously, process_segment() had no error handling, so provider failures caused
 silent returns or thread crashes, and the endpoint always returned 200.
 """
 
@@ -165,7 +165,7 @@ class TestThreadSafeErrorCollection:
 
         def crashing_segment(lk, errs):
             try:
-                raise ConnectionError("Deepgram timeout")
+                raise ConnectionError("managed STT timeout")
             except Exception as e:
                 with lk:
                     errs.append(f'Failed: {e}')
@@ -175,7 +175,7 @@ class TestThreadSafeErrorCollection:
         t.join()
 
         assert len(errors) == 1
-        assert 'Deepgram timeout' in errors[0]
+        assert 'managed STT timeout' in errors[0]
 
     def test_status_code_logic(self):
         """Verify status code selection based on segment counts."""
@@ -201,162 +201,7 @@ class TestThreadSafeErrorCollection:
 
 
 # ---------------------------------------------------------------------------
-# 3. Deepgram retry behavior (unchanged)
-# ---------------------------------------------------------------------------
-
-
-class TestDeepgramRetryBehavior:
-    """Verifies retry exhaustion raises while valid empty transcriptions stay empty."""
-
-    @staticmethod
-    def _read_deepgram_source():
-        dg_path = os.path.join(os.path.dirname(__file__), '..', '..', 'utils', 'stt', 'pre_recorded.py')
-        return _read_text(dg_path)
-
-    def test_deepgram_raises_runtime_error_on_final_retry(self):
-        """After retry exhaustion, deepgram_prerecorded must raise instead of returning []."""
-        source = self._read_deepgram_source()
-        start = source.index('def deepgram_prerecorded(')
-        next_func_markers = ['@timeit', '\ndef ']
-        end = len(source)
-        for marker in next_func_markers:
-            try:
-                idx = source.index(marker, start + 100)
-                if idx < end:
-                    end = idx
-            except ValueError:
-                pass
-        func_body = source[start:end]
-
-        except_body = func_body[func_body.index('except Exception as e:') :]
-
-        assert 'raise RuntimeError' in except_body
-        assert 'Deepgram transcription failed after' in except_body
-        assert 'attempts < 1' in func_body
-
-    def test_deepgram_keeps_empty_words_as_success(self):
-        """A valid Deepgram response with no words must still return []."""
-        source = self._read_deepgram_source()
-        start = source.index('def deepgram_prerecorded(')
-        next_func_markers = ['@timeit', '\ndef ']
-        end = len(source)
-        for marker in next_func_markers:
-            try:
-                idx = source.index(marker, start + 100)
-                if idx < end:
-                    end = idx
-            except ValueError:
-                pass
-        func_body = source[start:end]
-        no_words_block = func_body[
-            func_body.index("dg_words = alternatives[0].get('words', [])") : func_body.index(
-                '# Convert Deepgram format'
-            )
-        ]
-
-        assert 'if not dg_words:' in no_words_block
-        assert 'return [], detected_lang or \'en\'' in no_words_block
-        assert 'return []' in no_words_block
-
-
-class TestDeepgramRetryBehavioral:
-    """Behavioral tests that execute deepgram_prerecorded with mocked DG client.
-
-    Uses setup_class/teardown_class to install stubs for deepgram + related deps,
-    then imports the real function under test.
-    """
-
-    _saved_modules = {}
-    _deepgram_prerecorded = None
-    _mock_client = None
-
-    @classmethod
-    def setup_class(cls):
-        from unittest.mock import MagicMock
-        from types import ModuleType
-
-        stubs = [
-            'deepgram',
-            'fal_client',
-            'models',
-            'models.transcript_segment',
-            'utils.other.endpoints',
-            'utils.stt.speaker_embedding',
-        ]
-        cls._saved_modules = {name: sys.modules.get(name) for name in stubs}
-        cls._saved_modules['utils.stt.pre_recorded'] = sys.modules.get('utils.stt.pre_recorded')
-
-        for mod_name in stubs:
-            sys.modules[mod_name] = ModuleType(mod_name)
-
-        sys.modules['deepgram'].DeepgramClient = MagicMock()
-        sys.modules['deepgram'].DeepgramClientOptions = MagicMock()
-        sys.modules['fal_client'].submit = MagicMock()
-        sys.modules['models.transcript_segment'].TranscriptSegment = MagicMock()
-        sys.modules['utils.other.endpoints'].timeit = lambda f: f
-        sys.modules['utils.stt.speaker_embedding'].SPEAKER_MATCH_THRESHOLD = 0.45
-        sys.modules['utils.stt.speaker_embedding'].compare_embeddings = MagicMock(return_value=1.0)
-        sys.modules['utils.stt.speaker_embedding'].extract_embedding_from_bytes = MagicMock()
-
-        # Force re-import so it picks up stubs
-        sys.modules.pop('utils.stt.pre_recorded', None)
-        from utils.stt.pre_recorded import deepgram_prerecorded
-
-        cls._deepgram_prerecorded = staticmethod(deepgram_prerecorded)
-
-    @classmethod
-    def teardown_class(cls):
-        sys.modules.pop('utils.stt.pre_recorded', None)
-        for name, orig in cls._saved_modules.items():
-            if orig is None:
-                sys.modules.pop(name, None)
-            else:
-                sys.modules[name] = orig
-        cls._saved_modules.clear()
-
-    def test_retry_exhaustion_raises_runtime_error(self):
-        """deepgram_prerecorded must raise RuntimeError when all retries fail."""
-        from unittest.mock import MagicMock, patch
-
-        mock_client = MagicMock()
-        mock_client.listen.rest.v.return_value.transcribe_url.side_effect = ConnectionError('timeout')
-
-        with patch('utils.stt.pre_recorded._deepgram_client_for_request', return_value=mock_client):
-            with pytest.raises(RuntimeError, match='Deepgram transcription failed after 2 attempts'):
-                self._deepgram_prerecorded('https://fake-audio.wav', attempts=0, return_language=True)
-
-        # Should have been called 2 times (initial + 1 retry)
-        assert mock_client.listen.rest.v.return_value.transcribe_url.call_count == 2
-
-    def test_valid_empty_transcription_returns_empty_list(self):
-        """deepgram_prerecorded must return ([], lang) when DG succeeds but finds no words."""
-        from unittest.mock import MagicMock, patch
-
-        mock_response = MagicMock()
-        mock_response.to_dict.return_value = {
-            'results': {
-                'channels': [
-                    {
-                        'alternatives': [{'words': []}],
-                        'detected_language': 'en',
-                    }
-                ]
-            }
-        }
-        mock_client = MagicMock()
-        mock_client.listen.rest.v.return_value.transcribe_url.return_value = mock_response
-
-        with patch('utils.stt.pre_recorded._deepgram_client_for_request', return_value=mock_client):
-            words, lang = self._deepgram_prerecorded('https://fake-audio.wav', return_language=True)
-
-        assert words == []
-        assert lang == 'en'
-        # Should be called exactly once (no retries for valid response)
-        assert mock_client.listen.rest.v.return_value.transcribe_url.call_count == 1
-
-
-# ---------------------------------------------------------------------------
-# 4. End-to-end data loss prevention verification
+# 3. Provider-failure data-loss behavior
 # ---------------------------------------------------------------------------
 
 
@@ -416,9 +261,7 @@ class TestDataLossPreventionFlow:
 
     def test_response_includes_error_details_for_debugging(self):
         """Response includes structured error info for debugging."""
-        segment_errors = [
-            'Failed to process segment /tmp/1700000100.wav: Deepgram transcription failed after 2 attempts: timeout'
-        ]
+        segment_errors = ['Failed to process segment /tmp/1700000100.wav: managed STT failed after 2 attempts: timeout']
         total_segments = 3
         failed_segments = len(segment_errors)
 
@@ -433,7 +276,7 @@ class TestDataLossPreventionFlow:
         assert result['failed_segments'] == 1
         assert result['total_segments'] == 3
         assert len(result['errors']) == 1
-        assert 'Deepgram transcription failed after 2 attempts' in result['errors'][0]
+        assert 'managed STT failed after 2 attempts' in result['errors'][0]
 
 
 # ---------------------------------------------------------------------------
@@ -642,11 +485,10 @@ class TestProcessSegmentReal:
         sys.modules['utils.sync.content_id'].compute_sync_segment_id = MagicMock(return_value='segment-id')
         sys.modules['utils.log_sanitizer'].sanitize = lambda value: value
         sys.modules['utils.encryption'].encrypt = MagicMock()
-        sys.modules['utils.stt.pre_recorded'].deepgram_prerecorded = MagicMock()
         sys.modules['utils.stt.pre_recorded'].prerecorded = MagicMock()
         sys.modules['utils.stt.pre_recorded'].postprocess_words = MagicMock()
         sys.modules['utils.stt.pre_recorded'].get_prerecorded_service = MagicMock(
-            return_value=('deepgram', 'multi', 'nova-3')
+            return_value=('modulate', 'multi', 'modulate-velma-2')
         )
         sys.modules['utils.stt.vad'].vad_is_empty = MagicMock()
         sys.modules['utils.speaker_assignment'].process_speaker_assigned_segments = MagicMock()
@@ -655,7 +497,7 @@ class TestProcessSegmentReal:
         sys.modules['utils.stt.speaker_embedding'].compare_embeddings = MagicMock(return_value=1.0)
         sys.modules['utils.stt.speaker_embedding'].SPEAKER_MATCH_THRESHOLD = 0.45
         sys.modules['utils.fair_use'].FAIR_USE_ENABLED = False
-        sys.modules['utils.fair_use'].FAIR_USE_RESTRICT_DAILY_DG_MS = 0
+        sys.modules['utils.fair_use'].FAIR_USE_RESTRICT_DAILY_MANAGED_STT_MS = 0
         sys.modules['utils.fair_use'].record_speech_ms = MagicMock()
         sys.modules['utils.fair_use'].get_rolling_speech_ms = MagicMock()
         sys.modules['utils.fair_use'].check_soft_caps = MagicMock()
@@ -664,9 +506,9 @@ class TestProcessSegmentReal:
         sys.modules['python_multipart'].__version__ = '0.0.99'
         sys.modules['python_multipart.multipart'].parse_options_header = MagicMock(return_value={})
         sys.modules['utils.fair_use'].trigger_classifier_if_needed = MagicMock()
-        sys.modules['utils.fair_use'].is_dg_budget_exhausted = MagicMock(return_value=False)
+        sys.modules['utils.fair_use'].is_managed_stt_budget_exhausted = MagicMock(return_value=False)
         sys.modules['utils.fair_use'].get_enforcement_stage = MagicMock(return_value='off')
-        sys.modules['utils.fair_use'].record_dg_usage_ms = MagicMock()
+        sys.modules['utils.fair_use'].record_managed_stt_usage_ms = MagicMock()
         sys.modules['utils.subscription'].has_transcription_credits = MagicMock(return_value=True)
         sys.modules['utils.conversations.process_conversation'].process_conversation = MagicMock()
 
@@ -784,7 +626,7 @@ class TestProcessSegmentReal:
         assert len(response['updated_memories']) == 0
 
     def test_exception_caught_and_collected(self):
-        """Real process_segment: Deepgram raises → exception caught, error collected."""
+        """Real process_segment: managed STT raises, so the error is collected."""
         process_segment = self._import_process_segment()
 
         response = {'updated_memories': set(), 'new_memories': set()}
@@ -851,19 +693,19 @@ class TestProcessSegmentReal:
         call_count = [0]
         call_lock = threading.Lock()
 
-        def mock_deepgram_mixed(url, speakers_count=3, attempts=0, return_language=True, **kwargs):
+        def mock_managed_stt_mixed(url, speakers_count=3, attempts=0, return_language=True, **kwargs):
             with call_lock:
                 call_count[0] += 1
                 n = call_count[0]
             if n == 2:
-                raise ConnectionError('Deepgram timeout')  # Segment 2 fails with exception
+                raise ConnectionError('managed STT timeout')  # Segment 2 fails with exception
             return [{'text': 'hello'}], 'en'
 
         real_segment = self._make_real_segment()
         mock_conv = MagicMock()
         mock_conv.id = 'conv-success'
 
-        with patch('utils.sync.pipeline.prerecorded', side_effect=mock_deepgram_mixed), patch(
+        with patch('utils.sync.pipeline.prerecorded', side_effect=mock_managed_stt_mixed), patch(
             'utils.sync.pipeline.postprocess_words', return_value=[real_segment]
         ), patch('utils.sync.pipeline.get_timestamp_from_path', return_value=1700000000.0), patch(
             'utils.sync.pipeline.get_closest_conversation_to_timestamps', return_value=None
@@ -974,8 +816,8 @@ class TestProcessSegmentReal:
         assert errors == []
         assert failed_segments == 0
 
-    def test_runtime_error_from_dg_becomes_segment_error(self):
-        """When deepgram_prerecorded raises RuntimeError (retry exhaustion),
+    def test_runtime_error_from_managed_stt_becomes_segment_error(self):
+        """When managed transcription raises RuntimeError,
         process_segment catches it and appends to errors list."""
         process_segment = self._import_process_segment()
 
@@ -985,7 +827,7 @@ class TestProcessSegmentReal:
 
         with patch(
             'utils.sync.pipeline.prerecorded',
-            side_effect=RuntimeError('Deepgram transcription failed after 2 attempts: timeout'),
+            side_effect=RuntimeError('managed STT failed after 2 attempts: timeout'),
         ), patch('utils.sync.pipeline.delete_syncing_temporal_file'), patch(
             'utils.sync.pipeline.get_syncing_file_temporal_signed_url', return_value='https://fake'
         ), patch(
@@ -1003,7 +845,6 @@ class TestProcessSegmentReal:
 # ---------------------------------------------------------------------------
 
 _CHAT_STUB_MODULES = [
-    'deepgram',
     'fal_client',
     'models',
     'models.chat',
@@ -1053,8 +894,6 @@ class TestVoiceMessageRuntimeErrorHandling:
         for mod_name in _CHAT_STUB_MODULES:
             sys.modules[mod_name] = ModuleType(mod_name)
 
-        sys.modules['deepgram'].DeepgramClient = MagicMock()
-        sys.modules['deepgram'].DeepgramClientOptions = MagicMock()
         sys.modules['fal_client'].submit = MagicMock()
         sys.modules['utils.other.endpoints'].timeit = lambda f: f
         sys.modules['utils.other.storage'].get_syncing_file_temporal_signed_url = MagicMock(return_value='https://fake')
@@ -1111,9 +950,8 @@ class TestVoiceMessageRuntimeErrorHandling:
         sys.modules['utils.stt.pre_recorded'].prerecorded = MagicMock()
         sys.modules['utils.stt.pre_recorded'].prerecorded_from_bytes = MagicMock()
         sys.modules['utils.stt.pre_recorded'].postprocess_words = MagicMock()
-        sys.modules['utils.stt.pre_recorded'].get_deepgram_model_for_language = MagicMock(return_value=('en', 'nova-3'))
         sys.modules['utils.stt.pre_recorded'].get_prerecorded_service = MagicMock(
-            return_value=('deepgram', 'en', 'nova-3')
+            return_value=('modulate', 'en', 'modulate-velma-2')
         )
         sys.modules['utils.stt.vad'].VADAudioDecodeError = type('VADAudioDecodeError', (RuntimeError,), {})
         sys.modules['utils.stt.vad'].VADProcessingError = type('VADProcessingError', (RuntimeError,), {})
@@ -1154,7 +992,7 @@ class TestVoiceMessageRuntimeErrorHandling:
 
         with patch(
             'utils.chat.prerecorded',
-            side_effect=RuntimeError('Deepgram transcription failed after 2 attempts: timeout'),
+            side_effect=RuntimeError('managed STT failed after 2 attempts: timeout'),
         ):
             with pytest.raises(TranscriptionFailure) as exc_info:
                 self._transcribe_fn('/tmp/test.wav', 'uid', language='en')
@@ -1166,7 +1004,7 @@ class TestVoiceMessageRuntimeErrorHandling:
 
         with patch(
             'utils.chat.prerecorded',
-            side_effect=RuntimeError('Deepgram transcription failed after 2 attempts: timeout'),
+            side_effect=RuntimeError('managed STT failed after 2 attempts: timeout'),
         ):
             with pytest.raises(TranscriptionFailure):
                 self._process_fn('/tmp/test.wav', 'uid', language='en')
@@ -1183,7 +1021,7 @@ class TestVoiceMessageRuntimeErrorHandling:
 
             with patch('utils.chat.run_blocking', side_effect=_run_inline), patch(
                 'utils.chat.prerecorded',
-                side_effect=RuntimeError('Deepgram transcription failed after 2 attempts: timeout'),
+                side_effect=RuntimeError('managed STT failed after 2 attempts: timeout'),
             ):
                 async for _chunk in self._process_stream_fn('/tmp/test.wav', 'uid', language='en'):
                     pass

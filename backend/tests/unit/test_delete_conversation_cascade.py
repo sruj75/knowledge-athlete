@@ -2,8 +2,8 @@
 
 ``delete_conversation`` used to purge only the ``photos`` subcollection before
 deleting the document. A conversation owns more children than that — the
-per-provider post-processing transcripts (``deepgram_streaming``,
-``soniox_streaming``, ``speechmatics_streaming``, ``fal_whisperx``, which store
+per-provider post-processing transcripts (``soniox_streaming``,
+``speechmatics_streaming``, ``fal_whisperx``, which store
 verbatim ``TranscriptSegment`` text), the Hume emotion predictions, and the
 ``analytics_markers`` marker written by the memory-extraction telemetry. Firestore
 does not cascade, so those survived the delete as documents no query can reach:
@@ -108,8 +108,8 @@ class _FakeFirestore:
 def _seed_conversation(store: _FakeFirestore) -> _FakeDocumentReference:
     conversation = store.collection('users').document('uid-1').collection('conversations').document('conv-1')
     conversation.collection('photos').document('photo-1')
-    conversation.collection('deepgram_streaming').document('seg-1')
-    conversation.collection('deepgram_streaming').document('seg-2')
+    conversation.collection('soniox_streaming').document('seg-1')
+    conversation.collection('soniox_streaming').document('seg-2')
     conversation.collection('fal_whisperx').document('seg-1')
     conversation.collection('analytics_markers').document('conversation_memories_extracted')
     return conversation

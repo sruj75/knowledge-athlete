@@ -19,6 +19,7 @@ import warnings
 from contextlib import contextmanager
 from dataclasses import replace
 from typing import Any, Iterator
+from urllib.parse import urlsplit
 from unittest.mock import AsyncMock, patch
 
 warnings.filterwarnings("ignore", message="Couldn't find ffmpeg or avconv", category=RuntimeWarning)
@@ -28,7 +29,7 @@ import websockets
 
 from routers.listen.contracts import ListenRequest
 from routers.listen.runtime import ListenSessionRuntime
-from utils.stt.streaming import STTService
+from utils.stt import streaming
 from utils.transcribe_decisions import normalize_codec_frame
 
 
@@ -92,10 +93,10 @@ class _LoopbackClient:
         self.closes.append((code, reason))
 
 
-class _LoopbackParakeet:
+class _LoopbackModulate:
     """A local fake upstream that records only structural send-size evidence."""
 
-    endpoint_path = "/v3/stream"
+    endpoint_path = "/api/velma-2-stt-streaming"
 
     def __init__(self, *, close_after_first_send: bool) -> None:
         self.close_after_first_send = close_after_first_send
@@ -111,9 +112,9 @@ class _LoopbackParakeet:
         if self._server is None:
             raise RuntimeError("loopback upstream has not started")
         port = int(self._server.sockets[0].getsockname()[1])
-        return f"http://127.0.0.1:{port}"
+        return f"ws://127.0.0.1:{port}"
 
-    async def __aenter__(self) -> "_LoopbackParakeet":
+    async def __aenter__(self) -> "_LoopbackModulate":
         self._server = await websockets.serve(self._handle, "127.0.0.1", 0, max_size=1024 * 1024)
         return self
 
@@ -127,10 +128,9 @@ class _LoopbackParakeet:
     async def _handle(self, websocket: Any) -> None:
         try:
             if websocket.path.split("?", 1)[0] != self.endpoint_path:
-                raise OracleFailure("STT client did not use the Parakeet stream endpoint")
+                raise OracleFailure("STT client did not use the Modulate stream endpoint")
             self.connections += 1
             self._socket = websocket
-            await websocket.send(json.dumps({"type": "ready"}))
             async for message in websocket:
                 if isinstance(message, bytes):
                     self.audio_sizes.append(len(message))
@@ -139,7 +139,7 @@ class _LoopbackParakeet:
                         await websocket.close(code=1011, reason="replay_terminal")
                         return
                     continue
-                if message == "finalize":
+                if message == "":
                     return
                 raise OracleFailure("STT client sent an unsupported frame class")
         except BaseException as error:
@@ -148,16 +148,26 @@ class _LoopbackParakeet:
 
 
 @contextmanager
-def _configured_parakeet_endpoint(url: str) -> Iterator[None]:
-    previous = os.environ.get("HOSTED_PARAKEET_API_URL")
-    os.environ["HOSTED_PARAKEET_API_URL"] = url
+def _configured_modulate_endpoint(url: str) -> Iterator[None]:
+    previous = os.environ.get("MODULATE_API_KEY")
+    original_connect = streaming.websockets.connect
+
+    async def connect_loopback(uri: str, *args: Any, **kwargs: Any) -> Any:
+        parsed = urlsplit(uri)
+        loopback_uri = f"{url}{parsed.path}"
+        if parsed.query:
+            loopback_uri = f"{loopback_uri}?{parsed.query}"
+        return await original_connect(loopback_uri, *args, **kwargs)
+
+    os.environ["MODULATE_API_KEY"] = "loopback-replay-key"
     try:
-        yield
+        with patch.object(streaming.websockets, "connect", connect_loopback):
+            yield
     finally:
         if previous is None:
-            os.environ.pop("HOSTED_PARAKEET_API_URL", None)
+            os.environ.pop("MODULATE_API_KEY", None)
         else:
-            os.environ["HOSTED_PARAKEET_API_URL"] = previous
+            os.environ["MODULATE_API_KEY"] = previous
 
 
 @contextmanager
@@ -299,9 +309,7 @@ async def _new_runtime(
     runtime.request = replace(runtime.request, codec=decision.codec)
     runtime.frame_size = decision.frame_size
     runtime.lc3_frame_duration_us = decision.lc3_frame_duration_us
-    runtime.stt_service = STTService.parakeet
     runtime.stt_language = "en"
-    runtime.stt_model = "parakeet"
     runtime.vocabulary = []
     runtime._build_components()  # noqa: SLF001 - production component construction is under test.
     runtime.receiver.initialize_decoders()
@@ -341,14 +349,14 @@ async def _run_receiver(*, decoder_bypass: bool) -> dict[str, Any]:
         bypass_decoder = _DecoderBypass(encoded_frames[0])
         runtime.receiver.lc3_decoder = bypass_decoder
 
-    async with _LoopbackParakeet(close_after_first_send=not decoder_bypass) as upstream:
-        with _configured_parakeet_endpoint(upstream.api_url), _loopback_only_egress_guard():
+    async with _LoopbackModulate(close_after_first_send=not decoder_bypass) as upstream:
+        with _configured_modulate_endpoint(upstream.api_url), _loopback_only_egress_guard():
             stt_socket = await runtime.receiver._create_stt_socket(  # noqa: SLF001 - actual receiver STT creation.
                 lambda _segments: None,
                 runtime.request.sample_rate,
             )
             if stt_socket is None:
-                raise OracleFailure("production Parakeet client did not construct a socket")
+                raise OracleFailure("production Modulate client did not construct a socket")
             runtime.receiver.stt_socket = stt_socket
             client.bind_provider(upstream, stt_socket)
             await asyncio.wait_for(runtime.receiver.receive_data(), timeout=8)

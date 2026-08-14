@@ -157,9 +157,9 @@ skip_no_pusher = pytest.mark.skipif(
 
 @skip_no_backend
 class TestSpeakerDiarization:
-    """Verify Deepgram diarization produces speaker labels in real-time.
+    """Verify managed-STT diarization produces speaker labels in real time.
 
-    The /v4/listen pipeline uses Deepgram's diarize=True to detect multiple
+    The /v4/listen pipeline asks managed STT to detect multiple
     speakers. Transcript segments should have speaker labels (SPEAKER_00, etc.)
     and speaker_id fields.
     """
@@ -253,7 +253,7 @@ class TestSpeakerTextDetection:
     2. SpeakerLabelSuggestionEvent sent to client
     3. speaker_to_person_map updated for session consistency
 
-    NOTE: This test uses real Deepgram STT — the test audio says
+    NOTE: This test uses real managed STT — the test audio says
     'how do I get to Dublin?' which won't trigger name detection.
     We verify the detection logic works via unit test patterns,
     and verify the event pipeline is wired correctly.

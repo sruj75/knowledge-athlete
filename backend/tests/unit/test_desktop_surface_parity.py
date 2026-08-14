@@ -13,7 +13,8 @@ def test_deprecated_route_surface_is_registered() -> None:
     }
     expected = {(method, path) for path, methods in desktop_deprecated._ROUTES.items() for method in methods}
     assert actual == expected
-    assert len(actual) == 130
+    assert len(actual) == 127
+    assert all('deepgram' not in path for _method, path in actual)
 
 
 def test_deprecated_routes_preserve_gone_response() -> None:
