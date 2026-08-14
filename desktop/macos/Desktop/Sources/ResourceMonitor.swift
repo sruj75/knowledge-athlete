@@ -541,6 +541,15 @@ class ResourceMonitor {
   /// Set by AppState on init to avoid tight coupling.
   var onMemoryPressureTrimTranscript: (() -> Void)?
 
+  /// Exercise the real remediation composition from a disposable automation
+  /// bundle without allocating enough memory to endanger the host machine.
+  /// Production bundles must reach this path only through measured pressure.
+  func triggerMemoryRemediationForAutomation() -> Bool {
+    guard isDevBuild else { return false }
+    triggerMemoryRemediation()
+    return true
+  }
+
   private func triggerMemoryRemediation() {
     log(
       "ResourceMonitor: Triggering memory remediation — flushing video encoder, clearing assistant pending work, trimming transcript"

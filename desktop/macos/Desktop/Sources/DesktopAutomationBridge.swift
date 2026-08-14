@@ -3639,6 +3639,25 @@ final class DesktopAutomationActionRegistry {
       return ["posted": "NSWorkspace.didWakeNotification"]
     }
 
+    // S-01/IR-928: exercise the retained memory-remediation composition without
+    // driving this Mac above the real 800 MB critical threshold. The production
+    // threshold path remains the sole production caller; this action is limited
+    // to disposable named bundles.
+    register(
+      name: "simulate_memory_remediation",
+      summary:
+        "Run the real ResourceMonitor memory-remediation composition without allocating critical memory. Non-prod only.",
+      params: []
+    ) { _ in
+      guard AppBuild.isNonProduction else {
+        return ["error": "simulate_memory_remediation is disabled on production bundles"]
+      }
+      let triggered = await MainActor.run {
+        ResourceMonitor.shared.triggerMemoryRemediationForAutomation()
+      }
+      return ["triggered": triggered ? "true" : "false"]
+    }
+
     // PERM-06: trigger the permission-flow "Quit & Reopen" restart — the exact
     // AppState.restartApp() path used after granting Accessibility / Screen
     // Recording — so a harness can prove the SAME bundle relaunches with the

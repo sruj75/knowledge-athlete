@@ -131,7 +131,6 @@
         "models/structured_extraction.py",
         "pretrained_models",
         "routers/action_items.py",
-        "routers/agent_tools.py",
         "routers/agents.py",
         "routers/apps.py",
         "routers/auto_model.py",

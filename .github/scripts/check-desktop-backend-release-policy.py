@@ -59,7 +59,9 @@ def _validate_production_python_runtime(text: str, *, workflow: str) -> list[str
             text,
             (
                 "Preflight production desktop secret resource names",
-                "Build and push immutable Docker image",
+                "Build immutable Docker image for smoke",
+                "Smoke desktop-backend image",
+                "Publish immutable Docker image",
             ),
             workflow=workflow,
         )
@@ -70,8 +72,11 @@ def _validate_production_python_runtime(text: str, *, workflow: str) -> list[str
 def validate_deploy_workflow(text: str, *, production: bool) -> list[str]:
     workflow = "desktop_backend_prod.yml" if production else "desktop_backend_auto_dev.yml"
     errors: list[str] = []
+    build_context = "with:\n          context: .\n          file: ./backend/Dockerfile.desktop_backend"
+    if text.count(build_context) != 2:
+        errors.append(f"{workflow}: expected two Python image build contexts {build_context!r}")
+
     required = (
-        "with:\n          context: .\n          file: ./backend/Dockerfile.desktop_backend",
         "no_traffic: true",
         "desktop_backend_candidate_probe.py",
         "verify_desktop_backend_image_lineage.py",
@@ -111,6 +116,7 @@ def validate_deploy_workflow(text: str, *, production: bool) -> list[str]:
         else "Route traffic to accepted desktop-backend revision"
     )
     verify_step = "Verify production serving identity" if production else "Verify development backend release identity"
+    build_step = "Build immutable Docker image for smoke" if production else "Build Docker image for smoke"
     probe_identity_steps = (
         ("Mint candidate probe identity",)
         if production
@@ -124,6 +130,9 @@ def validate_deploy_workflow(text: str, *, production: bool) -> list[str]:
             text,
             (
                 "Capture current serving revision",
+                build_step,
+                "Smoke desktop-backend image",
+                "Publish immutable Docker image",
                 "Wait for no-traffic candidate readiness",
                 "Verify candidate image lineage",
                 "Resolve exact no-traffic candidate URL",

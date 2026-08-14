@@ -167,7 +167,22 @@ jobs:
           )"
           echo "revision=$previous_revision" >> "$GITHUB_OUTPUT"
 
-      - name: Build and Push Docker image
+      - name: Build Docker image for smoke
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ./backend/Dockerfile.desktop_backend
+          load: true
+          tags: gcr.io/${{ vars.GCP_PROJECT_ID }}/${{ env.SERVICE }}:${{ steps.candidate-identity.outputs.image_tag }}
+          cache-from: type=registry,ref=gcr.io/${{ vars.GCP_PROJECT_ID }}/${{ env.SERVICE }}:buildcache
+
+      - name: Smoke desktop-backend image
+        run: |
+          image="gcr.io/${{ vars.GCP_PROJECT_ID }}/${{ env.SERVICE }}:${{ steps.candidate-identity.outputs.image_tag }}"
+          python3 backend/scripts/runtime_image_contracts.py smoke \
+            --dockerfile backend/Dockerfile.desktop_backend --image "$image"
+
+      - name: Publish immutable Docker image
         id: build-image
         uses: docker/build-push-action@v7
         with:
@@ -177,13 +192,6 @@ jobs:
           tags: gcr.io/${{ vars.GCP_PROJECT_ID }}/${{ env.SERVICE }}:${{ steps.candidate-identity.outputs.image_tag }}
           cache-from: type=registry,ref=gcr.io/${{ vars.GCP_PROJECT_ID }}/${{ env.SERVICE }}:buildcache
           cache-to: type=registry,ref=gcr.io/${{ vars.GCP_PROJECT_ID }}/${{ env.SERVICE }}:buildcache,mode=max
-
-      - name: Smoke desktop-backend image
-        run: |
-          image="gcr.io/${{ vars.GCP_PROJECT_ID }}/${{ env.SERVICE }}:${{ steps.candidate-identity.outputs.image_tag }}"
-          docker pull "$image"
-          python3 backend/scripts/runtime_image_contracts.py smoke \
-            --dockerfile backend/Dockerfile.desktop_backend --image "$image"
 
       - name: Deploy desktop-backend to Cloud Run
         id: deploy-candidate

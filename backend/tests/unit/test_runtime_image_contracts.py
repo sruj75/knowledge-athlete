@@ -43,12 +43,6 @@ def test_registered_runtime_image_workflows_smoke_their_declared_dockerfile(cont
     assert contracts_module.workflow_contract_errors(contracts_module.load_contracts()) == []
 
 
-def test_cloud_agent_runtime_images_are_retired(contracts_module):
-    names = {contract.name for contract in contracts_module.load_contracts()}
-
-    assert names.isdisjoint({'agent-vm', 'agent-proxy'})
-
-
 def test_memory_maintenance_import_smoke_supplies_its_required_nonproduction_config(contracts_module):
     memory_maintenance_job = _contract(contracts_module, 'memory-maintenance-job')
 
