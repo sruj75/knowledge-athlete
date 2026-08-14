@@ -605,5 +605,3 @@ exempt:
     reason: "deployment concurrency policy full-tree check, not diff-scoped"
   - path: ".github/scripts/check_isinstance_return_ratchet.py"
     reason: "typed error flow-control ratchet uses a committed baseline, not diff-scoped triggers"
-  - path: "backend/scripts/check_app_client_openapi_compatibility.py"
-    reason: "OpenAPI generation contract has component dependencies"
