@@ -20,7 +20,6 @@ this SHA is meaningful and cherry-picking upstream commits still applies cleanly
 |---|---|
 | `desktop/macos/` | Native Swift 6 / SwiftUI app + bundled Node agent runtime |
 | `desktop/windows/` | Electron + React + TS app (also builds mac/linux targets) |
-| `desktop/shared-rust/` | Carried per request; not built by either app today |
 | `backend/` | FastAPI + Firestore/Redis/LLM gateway, Helm charts |
 | `scripts/` | `dev-instance.sh` (sourced by `desktop/macos/run.sh`) and `dev-harness/` (local emulator stack) |
 | `.github/` | CI + the desktop release chain |
@@ -31,14 +30,13 @@ this SHA is meaningful and cherry-picking upstream commits still applies cleanly
 ## What was excluded
 
 `app/` (Flutter mobile), `web/`, `omi/` (firmware/hardware), `omiGlass/`, `plugins/`,
-`sdks/`, `mcp/`, `docs/`, root `Package.swift` (the iOS SDK), `codemagic.yaml` (mobile CI).
+`sdks/`, `mcp/`, `docs/`, and root `Package.swift` (the iOS SDK).
 
 Roughly 1.24 GB upstream to ~129 MB here.
 
-Some retained workflows have `paths:` filters pointing at excluded directories
-(`runtime_image_contracts.yml` → `plugins/**`, `public-build-config-preflight.yml` →
-`web/**`). They simply never trigger. Harmless, but they are dead weight if you
-never restore those directories.
+Repository controls are narrowed to retained backend and desktop sources.
+Absent-product workflows, manifest entries, and local routing branches are not
+kept as dormant restoration scaffolding.
 
 ## Running it
 
@@ -156,7 +154,6 @@ name with no direct user-visible identity.
 | Windows updates | Backend-selected immutable feed whose URLs must match `BasedHardware/omi/releases/download/<windows-tag>/` | `desktop/windows/src/main/updater.ts`, `desktop/windows/src/main/windowsUpdateFeed.ts`, `desktop/windows/electron-builder.config.mjs`, `backend/routers/updates.py` | Production updates resolve and download Omi GitHub release assets. | Omi/BasedHardware | service endpoint; release infrastructure |
 | Windows signing | Conditional Azure Trusted Signing using `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`, `AZURE_CODE_SIGNING_ENDPOINT`, `AZURE_CODE_SIGNING_ACCOUNT`, `AZURE_CERT_PROFILE_NAME`, and `AZURE_PUBLISHER_NAME`; unsigned fallback when any value is absent | `.github/workflows/desktop_windows_release.yml`, `desktop/windows/docs/release-pipeline.md`, `desktop/windows/electron-builder.config.mjs` | A complete secret set signs with the configured Azure account/profile/publisher; an incomplete set produces an unsigned installer identified as an unknown publisher. The tracked snapshot cannot prove which GitHub environment secrets are currently populated. | Omi/BasedHardware operator; Azure; local unsigned fallback | external identifier; release infrastructure |
 | Electron bridge names | `window.omi`, `window.omiOverlay`, `window.omiBar`, `window.omiGlow`; Omi-named IPC, types, tests, and helpers | `desktop/windows/src/preload/index.ts` and shared types | These are process-internal contracts; a blind rename would require coordinated main/preload/renderer/test changes but would not by itself change product ownership. | Repository-local | internal-only symbol |
-| Shared Rust crate | Package `omi-desktop-core`; no macOS or Windows build consumes it | `desktop/Cargo.toml`, `desktop/shared-rust/Cargo.toml`, client manifests | The name is currently internal and the code does not affect shipped desktop behavior. | Repository-local | internal-only symbol |
 
 ### Backend, cloud, and release ownership
 
@@ -170,31 +167,26 @@ name with no direct user-visible identity.
 | Update asset origin | `https://github.com/BasedHardware/omi/releases/download/` | `backend/routers/updates.py` | Generated macOS appcasts and Windows feed directories hand clients Omi-hosted binaries. | Omi/BasedHardware | service endpoint; release infrastructure |
 | Backend data plane | Firestore plus Redis, object/search stores, queues, and Omi-named service deployments | `backend/database/`, `backend/deploy/runtime_env.yaml`, charts and workflows | User identity, memories, conversations, capture, release manifests, and operational state are owned by the configured Omi cloud environment. | Omi/BasedHardware; cloud providers | service endpoint; persistent identity |
 | Provider credentials | OpenAI, Anthropic, Gemini, Deepgram/Parakeet/Modulate, Pinecone/Typesense, Stripe, email, connector, and related environment-backed accounts | Backend env templates, runtime env contract, charts, and workflow secrets | Values are not selected by a visual rebrand; deployed behavior and billing remain attached to whichever external accounts supply these credentials. | Third-party accounts configured by operator | service endpoint |
-| macOS build lane | Codemagic workflow `omi-desktop-swift-release`, `CODEMAGIC_API_TOKEN`, self-hosted `omi-qual-m1-studio`, then GitHub promotion workflows | `desktop/macos/AGENTS.md`, release docs, `.github/workflows/desktop_*.yml` | Tags are expected to trigger Omi's Codemagic build and qualification infrastructure before beta/stable promotion. | Omi/BasedHardware; Codemagic/self-hosted runner | release infrastructure |
+| macOS build lane | External workflow identity `omi-desktop-swift-release`, `CODEMAGIC_API_TOKEN`, self-hosted `omi-qual-m1-studio`, then GitHub promotion workflows | `desktop/macos/AGENTS.md`, release docs, `.github/workflows/desktop_*.yml` | GitHub can observe same-tag provider intake and qualify/publish an artifact, but this checkout has no tracked build-provider definition. S-29 owns adding that definition before the lane is self-contained. | Omi/BasedHardware; external build provider/self-hosted runner | release infrastructure |
 | Internal source naming | `Omi*` Swift/Python/TypeScript symbols plus repository-local `OMI_*` variables and `omi-*` development scripts/test conventions | Retained source and tests; macOS development controls are inventoried above | These symbols can remain without contacting Omi and do not by themselves preserve an upstream account, endpoint, shipped bundle identity, or deployment resource. Blind renames would still require coordinated in-tree caller and test changes. | Local repository | internal-only symbol |
 | Legal provenance | MIT copyright and license from the upstream snapshot | [LICENSE](LICENSE), this file's provenance section | Redistribution must retain the license notice; the code license does not transfer Omi trademark or service ownership. | Upstream authors | external identifier |
 
-### Snapshot gaps
-
-These are facts about the retained tree, not proposed cleanup work:
+### Current retained boundaries
 
 - `app/`, `web/`, `omi/`, `omiGlass/`, `plugins/`, `sdks/`, `mcp/`, `docs/`,
-  and root `codemagic.yaml` are absent.
-- `README.md`, `PRODUCT.md`, root/component `AGENTS.md` files, and multiple
-  workflows still point to excluded mobile, web, firmware, SDK, MCP, invariant,
-  API-contract, and Mintlify paths.
-- `backend/runtime_images.json` still registers `plugins/Dockerfile`, and
-  `config/public-build-contract.json` still registers excluded `web/*` images
-  and canaries.
-- Root `make preflight` currently stops during check-manifest resolution before
-  running the selected diff checks: retained check triggers require absent
-  `codemagic.yaml`, `app/`, `web/`, `plugins/`, `docs/`, and related upstream
-  files.
-- Retained mobile, web, firmware, SDK, plugin, documentation, and public-build
-  workflows can never be triggered by changes to their absent source paths;
-  manually dispatching jobs that require those paths would not be satisfiable
-  from this checkout.
-- The macOS release documentation and `desktop_auto_release.yml` expect root
-  `codemagic.yaml` and Codemagic workflow `omi-desktop-swift-release`, but the
-  build definition is not in this snapshot. The retained promotion workflows
-  therefore do not constitute a self-contained macOS build/sign/notarize lane.
+  and the root Mac build-provider definition are absent.
+- Repository preflight, CI routing, runtime-image ownership, OpenAPI generation,
+  and live agent documentation cover only present backend and desktop sources.
+- GitHub retains candidate tagging and intake observation plus qualification,
+  preview, promotion, retry, recovery, and rollback controls. S-29 owns adding a
+  fresh Mac build/sign/notarize provider definition; until then this checkout
+  does not claim a self-contained artifact-production lane.
+- The universal dylibs in `desktop/macos/vendor/libwebp/` remain protected
+  inputs for S-29 and are not proof that the missing provider lane exists.
+- `.github/workflows/desktop-backend-contracts.yml` keeps its independent
+  `desktop-core-e2e-t0` self-check. S-10 owns removing the conversation cases,
+  `contract_tests/fixtures/conversations.json`, and the
+  `backend/database/conversations.py` trigger. S-12 owns the memory cases,
+  `contract_tests/fixtures/memories.json`, the remaining hosted-contract job and
+  triggers, then the `backend/testing/contracts/` discovery-registry and guard
+  cleanup after the final contract file is removed.

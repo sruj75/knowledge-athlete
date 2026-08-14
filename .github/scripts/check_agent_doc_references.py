@@ -31,17 +31,35 @@ import tempfile
 from pathlib import Path
 
 # Docs whose references must resolve. Component AGENTS.md files are discovered.
-EXTRA_DOCS = ("CLAUDE.md", "PRODUCT.md", "docs/agents", ".cursor/cloud-agent-environment.md")
+EXTRA_DOCS = ("PRODUCT.md",)
 
 SOURCE_SUFFIXES = {
-    ".md", ".py", ".sh", ".yaml", ".yml", ".json", ".dart", ".swift",
-    ".ts", ".tsx", ".rs", ".mdx", ".toml", ".kt", ".java", ".h", ".c",
+    ".md",
+    ".py",
+    ".sh",
+    ".yaml",
+    ".yml",
+    ".json",
+    ".dart",
+    ".swift",
+    ".ts",
+    ".tsx",
+    ".rs",
+    ".mdx",
+    ".toml",
+    ".kt",
+    ".java",
+    ".h",
+    ".c",
 }
 
 # Top-level directories that make a backticked token unambiguously a repo path.
 REPO_ROOTS = (
-    ".github/", ".cursor/", "app/", "backend/", "desktop/", "docs/",
-    "infrastructure/", "omi/", "scripts/", "web/",
+    ".github/",
+    "backend/",
+    "desktop/",
+    "infrastructure/",
+    "scripts/",
 )
 
 MD_LINK = re.compile(r"\[[^\]]*\]\(\s*(?!https?:|mailto:|#)([^)\s#]+)")
@@ -100,10 +118,7 @@ def resolve(repo: Path, doc: Path, ref: str) -> bool:
 
 
 def collect_docs(repo: Path) -> list[Path]:
-    docs = sorted(
-        p for p in repo.rglob("AGENTS.md")
-        if "node_modules" not in p.parts and ".build" not in p.parts
-    )
+    docs = sorted(p for p in repo.rglob("AGENTS.md") if "node_modules" not in p.parts and ".build" not in p.parts)
     for extra in EXTRA_DOCS:
         target = repo / extra
         if target.is_dir():
@@ -163,9 +178,7 @@ def self_test() -> None:
         (repo / "backend" / "AGENTS.md").write_text("run `scripts/x.sh`\n")
         (repo / "backend" / "scripts").mkdir()
         (repo / "backend" / "scripts" / "x.sh").write_text("")
-        assert check_doc(repo, repo / "backend" / "AGENTS.md") == [], (
-            "component-relative reference must resolve"
-        )
+        assert check_doc(repo, repo / "backend" / "AGENTS.md") == [], "component-relative reference must resolve"
 
 
 def main() -> int:

@@ -4,35 +4,31 @@
 
 # Omi Agent Guide
 
-These rules apply to every AI agent working in this repository. This file is **high-level guidance plus an index** — component guides carry the detail; load them just-in-time for the area you are working in. `CLAUDE.md` just points here. A CI check (`.github/scripts/check_agents_md_lean.py`) keeps this file lean: add detail to the component guide, not here.
+These rules apply to every AI agent working in this repository. This file is **high-level guidance plus an index** — component guides carry the detail; load them just-in-time for the area you are working in. A CI check (`.github/scripts/check_agents_md_lean.py`) keeps this file lean: add detail to the component guide, not here.
 
-**Two audiences read this file.** Engineering standards (Definition of Done, testing, formatting) apply to everyone — maintainers and open-source contributors alike. Rules about this repo's `main` branch, production app bundles, deploys, and local machine workflows assume a maintainer environment; in a fork, follow your user's process for landing changes and skip those. Contributor flow: `docs/doc/developer/Contribution.mdx`.
+**Two audiences read this file.** Engineering standards (Definition of Done, testing, formatting) apply to everyone — maintainers and open-source contributors alike. Rules about this repo's `main` branch, production app bundles, deploys, and local machine workflows assume a maintainer environment; in a fork, follow your user's process for landing changes and skip those. Contributor flow: `CONTRIBUTING.md`.
 
 ## Read Next (just-in-time)
 
 | Working on | Read first |
 |---|---|
 | Backend Python (`backend/`) | `backend/AGENTS.md` — setup, async/executors, WebSocket rules, service map, logging security, testing |
-| Flutter app (`app/`) | `app/AGENTS.md` — build flavors, l10n, native bridge, tests, agent-flutter UI verification |
 | Desktop macOS (`desktop/macos/`) | `desktop/macos/AGENTS.md` — build/run, named bundles, self-testing, release pipeline, changelog |
-| Firmware (`omi/firmware/`) | `omi/firmware/AGENTS.md` — release workflow |
-| Product behavior | `PRODUCT.md` + `docs/product/invariants/` — locked invariants and guard tests |
-| Fallback/fail-open branches | `docs/agents/fallback-telemetry.md` — when to call `record_fallback` |
-| App flows / E2E | `app/e2e/SKILL.md`, `desktop/macos/e2e/SKILL.md` |
-| Cursor Cloud VM (Linux x86) | `.cursor/cloud-agent-environment.md` — hermetic E2E harness, known failures |
+| Product behavior | `PRODUCT.md` plus the concrete tests beside the owning source |
+| Desktop flows / E2E | `desktop/macos/e2e/SKILL.md` |
 
 ## Definition of Done
 
 Every change must satisfy this checklist before it is committed or put in a PR. When in doubt about any other rule, satisfying this list is the priority.
 
 1. **Behavior changed → a test changed.** Bug fixes include the regression test that would have caught the bug. New features test the core path and the main error path — no more.
-2. **The component's test suite passes** (`backend/test.sh`, `app/test.sh`, or the component's documented equivalent), run locally before committing.
+2. **The component's test suite passes** (`backend/test.sh`, `desktop/macos/test.sh`, or the component's documented equivalent), run locally before committing.
 3. **You exercised the change yourself** — ran the real user-facing path, not just compiled or lint-passed. If you truly could not, say so explicitly instead of implying it works.
 4. **Verification evidence is written down** — the commands you ran and what they showed, in the commit message or PR description.
 5. **No orphaned deferrals** — new `TODO`/`FIXME`/`HACK` comments reference a tracking issue or are resolved before merge.
-6. **Docs moved with the code** — setup, test commands, service boundaries, env vars, or agent-relevant behavior changes update the matching guide (this file, a component `AGENTS.md`, or `docs/doc/developer/`) in the same PR. Product-direction or invariant changes update `PRODUCT.md` / `docs/product/invariants/` in the same PR.
-7. **Failure-class declaration** — before drafting a `fix:` PR body, run `scripts/pr-preflight --suggest` for its invariant citations and failure-class guidance; every `fix:` commit then declares `Failure-Class: FC-<slug> | new | none` and validates it with `scripts/failure-class`.
-8. **PR contracts pass before opening the PR** — run `make preflight`; it executes the same deterministic check manifest CI runs (`.github/checks-manifest.yaml`). Draft the PR body and run `scripts/pr-preflight --pr-body-file /tmp/pr-body.md` (or `scripts/pr-preflight --suggest` for paste-ready invariant and failure-class guidance).
+6. **Docs moved with the code** — setup, test commands, service boundaries, env vars, or agent-relevant behavior changes update the matching guide (this file or a component `AGENTS.md`) in the same PR. Product-direction changes update `PRODUCT.md` and the owning guard tests in the same PR.
+7. **Failure-class declaration** — before drafting a `fix:` PR body, run `scripts/pr-preflight --suggest` for failure-class guidance; every `fix:` commit then declares `Failure-Class: FC-<slug> | new | none` and validates it with `scripts/failure-class`.
+8. **PR contracts pass before opening the PR** — run `make preflight`; it executes the same deterministic check manifest CI runs (`.github/checks-manifest.yaml`). Draft the PR body and run `scripts/pr-preflight --pr-body-file /tmp/pr-body.md` (or `scripts/pr-preflight --suggest` for paste-ready failure-class guidance).
 
 A deterministic diff-scoped check failing for the first time in CI is a manifest bug: fix the manifest instead of adding a one-off workflow step. Register new checks in `.github/checks-manifest.yaml` with both `local` and `ci` lanes.
 
@@ -84,11 +80,11 @@ The unit of work is the violated contract, not only the line where the symptom a
 
 ## Cross-Component Guidelines
 
-- **Product invariants:** read `PRODUCT.md` before changing product behavior. If your diff touches a locked invariant's path globs, name **every** matched invariant ID in the PR body (path-based, not intent-based; discover with `scripts/pr-preflight --suggest`) and update the invariant's guard test when behavior changes.
+- **Product behavior:** read `PRODUCT.md` before changing behavior and update the concrete guard test owned by the changed source.
 - **No in-repo compatibility layers:** migrate every in-tree caller in the same change; do not add deprecated aliases, duplicate adapters, or fallback paths to preserve a retired shape.
 - **Compiler-first boundaries:** express ownership and mutation invariants with target dependencies, access control, and typed APIs before adding source scrapes or runtime assertions; behavioral tests still prove the permitted paths.
-- **Never use purple** anywhere in UI (icons, accents, glows, gradients) — off-brand; use white/neutral. Enforced as a no-increase ratchet (`INV-UI-1`); see `docs/product/invariants/brand-ui.md`.
-- **Fallback telemetry:** when a branch changes provider, mode, or correctness, or takes a fail-open path, call the shared `record_fallback`/`recordFallback` helper — never a new one-off counter. Full contract: `docs/agents/fallback-telemetry.md`.
+- **Never use purple** anywhere in UI (icons, accents, glows, gradients) — off-brand; use white/neutral. The `INV-UI-1` no-increase checker enforces this directly.
+- **Fallback telemetry:** when a branch changes provider, mode, or correctness, or takes a fail-open path, call the existing component-owned `record_fallback`/`recordFallback` helper — never a new one-off counter.
 - **Logging:** never log raw sensitive data; sanitize API responses and PII (backend: `utils.log_sanitizer`).
 - **Deferred-work markers:** new `TODO`/`FIXME`/`HACK` must reference a tracking issue or be resolved before merge. Packages over 12 source files need a package-root `ARCHITECTURE.md`/`README.md` (`check_arch_guardrails.py` ratchet). Designated rollout scaffolding needs a `LIFECYCLE: permanent|one-time` header; one-time files also need `DELETE-AFTER: <issue URL or invariant ID>` (`check_lifecycle_headers.py`).
 - **New guards:** explain in the PR why the guard is not a shared primitive, and cite the real merged PR or incident it would have caught; no real instance means the check does not land.
@@ -99,14 +95,10 @@ The pre-commit hook (installed by `make setup`) auto-formats staged files. Verif
 
 | Language | Manual command |
 |----------|----------------|
-| Dart (`app/`) | `dart format --line-length 120 <files>` |
 | Python (`backend/`) | `black --line-length 120 --skip-string-normalization <files>` |
-| ARB (`app/lib/l10n/`) | `jq --indent 4 '.' <file> > tmp && mv tmp <file>` |
-| C/C++ (firmware) | `clang-format -i <files>` |
 | Swift (`desktop/macos/Desktop/`) | `desktop/macos/scripts/swift-format-wrapper.sh format -i <files>` |
-| Web (`web/`) | `npx prettier --write <files>` |
 
-Files ending in `.gen.dart` or `.g.dart` are auto-generated — don't format manually. Swift files under `Desktop/Sources/Generated/` are excluded from the formatter scope.
+Swift files under `Desktop/Sources/Generated/` are excluded from the formatter scope.
 
 ## Computer Control
 
@@ -121,13 +113,12 @@ Click at coordinates: `cliclick c:X,Y`. Mac screenshots: `screencapture -x /tmp/
 - **New fail-closed gates ship with a legacy-principal test** — an existing/unmigrated principal (no state doc, old API key, already-shipped client) asserting the intended fallback; gates without one have shipped day-one breakage.
 - **A test rewritten in the same PR as the code it asserts is suspect** — the PR body must cite an external source (platform doc, wire contract, measurement) for the new expected value, or the rewrite deletes the guard.
 - Delete or fix a flaky/obsolete test you encounter — a suite people distrust is worse than a smaller suite.
-- Component runners and prerequisites: see the component guides (`backend/AGENTS.md` → Testing, `app/AGENTS.md` → Test Strategy). High-risk backend workflows must be listed in `backend/testing/workflow_contracts.json` with contract tests.
+- Component runners and prerequisites: see `backend/AGENTS.md` and `desktop/macos/AGENTS.md`. High-risk backend workflows must be listed in `backend/testing/workflow_contracts.json` with contract tests.
 
 ## Deploys & Release Pipelines
 
 - Desktop (daily candidate → qualified beta → manual stable): `desktop/macos/AGENTS.md` → Release Pipeline.
 - Backend: `gh workflow run gcp_backend.yml -f environment=prod -f branch=main`. Runtime env contract: `backend/AGENTS.md` → Service Map.
-- Firmware (Omi CV1): `omi/firmware/AGENTS.md`.
 
 **Every gated surface has a break-glass hatch. A broken gate is never a reason to be stuck.** Each records a tracking issue; repeated use means the gate is the defect.
 
@@ -145,4 +136,4 @@ Hatches relax *evidence* requirements only. They never relax that code is merged
 - **Write rules mechanically, and back them with checks.** A rule is only reliable if a weak agent can apply it without judgment. Prefer encoding a rule as a script or CI check with a clear failure message — enforced rules don't drift; requested behavior does.
 - **New checks, probes, or validation scripts must be wired into an existing CI or deploy lane in the same PR.** On-demand scripts and scheduled jobs with no blocking audience are dead checks.
 - **When a defect ships because guidance was misread or missing, tighten the guidance in the fix PR** — make the rule mechanical enough that the same misreading can't recur, or add a check that catches it.
-- PR changes to setup, test commands, safety rules, service boundaries, or env vars update the matching guide in the same PR. Architecture / core-flow / API changes update Mintlify docs (`docs/doc/developer/`). Product direction or locked invariants update `PRODUCT.md` / `docs/product/invariants/` and guard tests.
+- PR changes to setup, test commands, safety rules, service boundaries, or env vars update the matching guide in the same PR. Product direction changes update `PRODUCT.md` and the concrete owning guard tests.
