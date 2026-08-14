@@ -147,6 +147,38 @@ map must be refreshed before implementation continues.
   `S-XX` plan remain sequential so each tracer bullet can respond to what the
   previous cycle established.
 
+### What "vertical" means here
+
+A vertical slice is **outcome-complete**, not **file-isolated**. It follows one
+product behavior from its user entry point through Mac code, backend routes,
+storage, jobs, infrastructure, tests, generated contracts, and docs, then proves
+that the retained neighboring behavior still works. It does not imply that the
+slice owns a unique set of files or can be implemented in any order.
+
+Several slices legitimately meet at shared control planes such as
+`backend/main.py`, route policy, OpenAPI and generated Swift, runtime-image and
+deployment manifests, Mac navigation and Settings, managed-Pi tool manifests,
+STT configuration, and Firebase identity. These are like shared plumbing:
+different end-to-end product outcomes can still pass through the same trunk.
+The shared surface is changed in owner order; it is not duplicated or divided
+artificially by file.
+
+Use these labels instead of treating every pause as a generic conflict:
+
+| Label | Meaning | Required response |
+|---|---|---|
+| **Requirement decision** | Two approved requirements demand incompatible final behavior. | Stop the affected cycle and record one explicit product interpretation in the requirements ledger. |
+| **Shared-surface order** | Multiple slices change different behavior in the same registry, contract, manifest, or runtime. | Integrate the earlier owner first; the later slice consumes that result and changes only its own behavior. |
+| **Dependency** | A slice needs an authority or keep boundary established by another slice. | Run the predecessor first, or defer only the dependent cycle when the plan defines a safe earlier tranche. |
+| **Released-contract gate** | Deletion would break an API or client contract already released to users. | Use an explicit version/sunset transition with migration evidence; do not add a fake compatibility shell or weaken the ordinary gate. |
+| **Live-data / operation gate** | Deployed jobs, records, services, secrets, or traffic may still depend on the retiring path. | Inventory read-only first, choose and test the transition, and obtain the separately required authorization before the mutation or decommission. |
+
+Finding one of these during source-grounded planning does not mean the vertical
+slice design failed. Exposing the shared trunk or unsafe deletion before code is
+removed is part of the regression protection. Stop only the affected cycle;
+continue other safe work inside the slice when its plan preserves a working
+intermediate state.
+
 ### Required `S-XX` TDD plan
 
 No `S-XX` implementation starts until its one TDD plan contains all of the
@@ -260,6 +292,36 @@ already-integrated predecessor shape first.
 Repository closure and live operational closure remain separate. Migrations,
 decommissions, data deletion, deploys, and other external mutations follow the
 authorization and safety rules in `AGENTS.md`.
+
+### Wave 1 manual implementation order and stop points
+
+For one human implementing Wave 1 sequentially, use this integration order:
+
+```text
+S-04 -> S-01 -> S-02 -> S-05 -> S-03 -> S-06 -> S-07 -> S-08 -> S-09
+```
+
+Start each slice from the already-integrated result of the previous slice. The
+order protects shared controls first, then removes product-specific behavior,
+then adapts identity and telemetry after their inputs are stable. It does not
+authorize implementing past an open gate in the slice's TDD plan.
+
+| Slice | Why it is in this position | Important stop point |
+|---|---|---|
+| **S-04** | Narrows repository checks, manifests, and absent-tree workflow routing before product slices edit those shared controls. | Do not delete a mixed Mac/backend check merely to make preflight green; classify its real owners first. |
+| **S-01** | Removes the Agent VM before later runtime and route cleanup while preserving local managed Pi. | If the restored released OpenAPI contract proves a shipped client still needs a removed VM endpoint, stop the merge for an explicit contract-sunset decision. Live VM/resource decommission remains separate. |
+| **S-02** | Removes wearable/WAL behavior before STT and connector cleanup touch shared jobs, images, and manifests. | Delete only wearable-owned behavior. Shared `backend-sync` or infrastructure remains until its final workload is gone; live cleanup is a separately authorized operation. |
+| **S-05** | Establishes one retained managed-Pi runtime and private `OMI_BRIDGE_PIPE` tool path before S-06 and S-07 prune adjacent tools and credentials. | Do not proceed with an uncertain transport boundary: keep the verified Pi bridge while deleting only the separately proven-unused entrances. |
+| **S-03** | Removes hosted STT providers before customer-key propagation is removed from the same STT surfaces. | Resolve IR-228 exact Local VAD Gate copy versus IR-889 no-live-Deepgram claims. Also confirm whether `stt_service` deletion closes here or is handed explicitly to S-16. |
+| **S-06** | Consumes S-05's retained Pi boundary, then removes Apps, connectors, public MCP, sharing, and their route/deployment residue. | Before a route-removal cycle, record and verify the released-OpenAPI version/sunset mechanism and client migration evidence. |
+| **S-07** | Removes BYOK after S-03 and S-05 have stabilized the shared STT and Pi surfaces. | Run the read-only legacy-data/job inventory. Decide managed requeue versus explicit terminalization and purge versus tombstone before deleting readers or running the write transition. |
+| **S-08** | Publishes the canonical identity/session/sign-out boundary consumed by S-09 and later slices. | Start only after the applicable owned-identity, invariant, and released-contract gates close. In Wave 1 execute the narrow Cycles 0-5 tranche; Cycles 6-9 wait for their named later owners and authorizations. |
+| **S-09** | Attaches telemetry and diagnostics only after canonical account identity and sign-out behavior exist. | Wait for the S-08 identity seam and owned development-project configuration; do not guess SDK projects, hosts, keys, identity mapping, or consent behavior. |
+
+At every stop point, record the missing decision or evidence in the active TDD
+plan. Do not silently invent a compatibility path, weaken a guard, or declare
+the slice closed. Resume from the same cycle after the gate closes, then apply
+the shared closure contract below.
 
 ### TDD plan artifacts
 
