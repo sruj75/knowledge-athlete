@@ -158,7 +158,7 @@ class DesktopCandidateSourceCheckTests(unittest.TestCase):
 
         self.assertEqual((status, conclusion, error), ("completed", "failure", None))
 
-    def test_codemagic_config_is_a_releasable_desktop_input(self) -> None:
+    def test_release_pathset_contains_only_present_repository_controls(self) -> None:
         expected_args = [
             "diff",
             "--name-only",
@@ -166,7 +166,6 @@ class DesktopCandidateSourceCheckTests(unittest.TestCase):
             f"{LATEST_TAG}..HEAD",
             "--",
             "desktop/macos",
-            "codemagic.yaml",
             QUALIFICATION_LIFECYCLE_PATH,
             ".github/scripts/plan-desktop-release.py",
             ".github/scripts/desktop-release-source-identity.py",
@@ -177,11 +176,11 @@ class DesktopCandidateSourceCheckTests(unittest.TestCase):
             ".github/workflows/desktop-swift-ci.yml",
         ]
 
-        with patch.object(planner, "git", return_value="codemagic.yaml\ndesktop/macos/AGENTS.md") as git:
+        with patch.object(planner, "git", return_value="desktop/macos/Desktop/Sources/AppBuild.swift") as git:
             changes = planner.releasable_desktop_changes_since(LATEST_TAG)
 
         git.assert_called_once_with(expected_args)
-        self.assertEqual(changes, ["codemagic.yaml"])
+        self.assertEqual(changes, ["desktop/macos/Desktop/Sources/AppBuild.swift"])
 
     def test_qualification_lifecycle_change_after_latest_tag_creates_candidate(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -192,7 +191,9 @@ class DesktopCandidateSourceCheckTests(unittest.TestCase):
                 patch.object(planner, "latest_releasable_desktop_sha", return_value=SOURCE_SHA),
                 patch.object(planner, "latest_change_age_seconds", return_value=601),
                 patch.object(planner, "existing_source_candidate_reason", return_value=None),
-                patch.object(planner, "wait_for_required_source_checks", return_value=planner.SourceCheckGate("ready")) as wait,
+                patch.object(
+                    planner, "wait_for_required_source_checks", return_value=planner.SourceCheckGate("ready")
+                ) as wait,
                 patch.object(planner, "active_release_reason", return_value=None),
                 patch.object(sys, "argv", [str(SCRIPT), "--repository", REPOSITORY]),
                 patch.dict(os.environ, {"GITHUB_OUTPUT": str(output_path)}, clear=False),
@@ -514,9 +515,17 @@ class DesktopCandidateSourceCheckTests(unittest.TestCase):
         self.assertIn("desktop/macos/scripts/pre-tag-readiness.sh", tag_release)
         self.assertIn(".github/scripts/verify-pre-tag-readiness.py verify", tag_release)
         self.assertIn(".github/scripts/publish-desktop-candidate-tag.py", tag_release)
-        self.assertLess(tag_release.index("Bind immutable planner evidence to fresh main"), tag_release.index("pre-tag-readiness.sh"))
-        self.assertLess(tag_release.index("pre-tag-readiness.sh"), tag_release.index("verify-pre-tag-readiness.py verify"))
-        self.assertLess(tag_release.index("verify-pre-tag-readiness.py verify"), tag_release.index("publish-desktop-candidate-tag.py"))
+        self.assertLess(
+            tag_release.index("Bind immutable planner evidence to fresh main"),
+            tag_release.index("pre-tag-readiness.sh"),
+        )
+        self.assertLess(
+            tag_release.index("pre-tag-readiness.sh"), tag_release.index("verify-pre-tag-readiness.py verify")
+        )
+        self.assertLess(
+            tag_release.index("verify-pre-tag-readiness.py verify"),
+            tag_release.index("publish-desktop-candidate-tag.py"),
+        )
         self.assertIn("if: always()", tag_release)
         self.assertIn("desktop-pre-tag-readiness", tag_release)
 

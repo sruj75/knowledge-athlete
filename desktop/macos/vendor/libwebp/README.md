@@ -5,17 +5,15 @@ builds of [libwebp](https://chromium.googlesource.com/webm/libwebp) **1.5.0**.
 
 ## Why they are committed
 
-The release pipeline (`codemagic.yaml` → `omi-desktop-swift-release`) builds a
-universal Omi.app. Homebrew's `libwebp` on the Codemagic Mac mini m2 runners is
-**arm64-only**, which breaks the x86_64 cross-compile link step. The pipeline
-therefore needs universal `libwebp.7.dylib` + `libsharpyuv.0.dylib` to patch over
-Homebrew's arm64-only copies.
+These dylibs are protected inputs for S-29, which owns adding the fresh Mac
+build/sign/notarize provider definition. A universal Omi.app needs universal
+`libwebp.7.dylib` + `libsharpyuv.0.dylib`; an arm64-only package-manager copy
+breaks the x86_64 cross-compile link step.
 
 Previously the "Prepare universal libwebp" step compiled libwebp **from source for
 both arches on every release run** (~several minutes each run). These prebuilt
-dylibs are vendored so that step just copies them instead. The from-source build
-remains as an automatic fallback in `codemagic.yaml` if these files are missing or
-not universal — so the pipeline stays fully reproducible from source.
+dylibs are vendored so a future owned release step can copy them. The rebuild
+instructions below keep that future lane reproducible from source.
 
 ## How to rebuild (exactly what the fallback / CI does)
 
@@ -54,5 +52,5 @@ lipo -create \
 Verify with `lipo -info libwebp.7.dylib` (expect `x86_64 arm64`). Both dylibs use
 `@rpath` install names, identical to a fresh from-source build.
 
-**When bumping the libwebp version**, update `WEBP_VERSION` in `codemagic.yaml`,
-rebuild these two files with the steps above, and update this README.
+**When bumping the libwebp version**, rebuild both files with the steps above,
+update this README, and update S-29's provider definition when it exists.

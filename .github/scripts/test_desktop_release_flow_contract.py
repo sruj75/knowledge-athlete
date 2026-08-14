@@ -24,7 +24,6 @@ def clean_git_environment(env: dict[str, str]) -> dict[str, str]:
 class DesktopReleaseFlowContractTests(unittest.TestCase):
     def setUp(self) -> None:
         self.workflow = (ROOT / ".github/workflows/desktop_qualify_beta.yml").read_text(encoding="utf-8")
-        self.codemagic = (ROOT / "codemagic.yaml").read_text(encoding="utf-8")
         self.release_guard = (ROOT / ".github/scripts/check-release-process-guards.py").read_text(encoding="utf-8")
 
     def _workflow_script(self, step_name: str) -> str:
@@ -105,7 +104,6 @@ class DesktopReleaseFlowContractTests(unittest.TestCase):
         self.assertIn("needs: qualify-m1-studio", self.workflow)
         self.assertNotIn("codemagic-lane", self.workflow)
         self.assertNotIn("omi-qual-m4-mini", self.workflow)
-        self.assertNotIn("omi-desktop-qualification:", self.codemagic)
         self.assertNotIn("desktop_codemagic_qualification", self.workflow)
 
     def test_m1_qualification_binds_the_immutable_tag(self) -> None:
@@ -140,7 +138,7 @@ class DesktopReleaseFlowContractTests(unittest.TestCase):
         guard = next(
             node
             for node in tree.body
-            if isinstance(node, ast.FunctionDef) and node.name == "check_desktop_qualification_runner"
+            if isinstance(node, ast.FunctionDef) and node.name == "check_desktop_qualification_and_promotion"
         )
         fragments = {
             node.value for node in ast.walk(guard) if isinstance(node, ast.Constant) and isinstance(node.value, str)
@@ -357,11 +355,6 @@ class DesktopReleaseFlowContractTests(unittest.TestCase):
             self.assertEqual(finalize_result.returncode, 0, finalize_result.stderr)
             cleanup = json.loads((stage / "cleanup-evidence.json").read_text(encoding="utf-8"))
             self.assertEqual(cleanup, {"cleanup_status": "no-lease-acquired"})
-
-    def test_normal_codemagic_candidate_build_still_dispatches_m1_workflow(self) -> None:
-        self.assertIn("omi-desktop-swift-release:", self.codemagic)
-        self.assertIn("Dispatch trusted macOS beta qualification", self.codemagic)
-        self.assertIn("gh workflow run desktop_qualify_beta.yml", self.codemagic)
 
 
 if __name__ == "__main__":

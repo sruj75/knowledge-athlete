@@ -107,7 +107,6 @@ class DesktopSwiftCIContractTests(unittest.TestCase):
     def test_release_control_inputs_produce_exact_sha_checks(self):
         """Candidate-building config must run the checks consumed by the release planner."""
         for path in (
-            "codemagic.yaml",
             ".github/scripts/plan-desktop-release.py",
             ".github/workflows/desktop_auto_release.yml",
             ".github/workflows/desktop-swift-ci.yml",
