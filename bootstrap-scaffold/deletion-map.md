@@ -717,7 +717,7 @@ separate BYOK deletion so each shared key/settings occurrence has one owner.
 ### S-04 — Remove impossible controls and unowned repository zombies
 
 **Type:** repository/control-plane deletion and narrowing<br>
-**Status:** ready to start; all repository-local cycles are executable<br>
+**Status:** closed on 2026-08-14; retained-surface verification complete with the full-preflight and named-bundle smoke waivers recorded in the S-04 TDD plan<br>
 **Authorizing decisions:** IR-009, IR-010, IR-892, IR-897, IR-935, IR-940, and IR-941
 
 #### Outcome
@@ -818,6 +818,14 @@ and the general cleanup does not hide unfinished work.
 - Keep IR-892's missing Codemagic definition on the adaptation map.
 - Do not delete `desktop/macos/vendor/libwebp/`; S-29 must wire and re-own its
   universal-architecture/provenance checks under IR-939.
+
+#### Closure evidence
+
+The S-04 TDD plan records the eleven implementation commits, before/after
+preflight measurements, 95 retained selected checks, full backend and macOS
+suite results, independent Standards and Spec reviews, residue proofs, and the
+two explicit user waivers. The resulting diff contains no Windows path and
+preserves the T0 plus S-10/S-12 handoff and both universal libwebp dylibs.
 
 #### Forbidden scope
 
