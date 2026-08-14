@@ -29,11 +29,6 @@ def _validate_production_python_runtime(text: str, *, workflow: str) -> list[str
         "SERVICE_ACCOUNT_JSON",
         "GOOGLE_APPLICATION_CREDENTIALS=/secrets/firebase/service-account.json",
         "/secrets/firebase/service-account.json=SERVICE_ACCOUNT_JSON:latest",
-        "AGENT_GCS_BUCKET: ${{ vars.AGENT_GCS_BUCKET }}",
-        "AGENT_GCS_BUCKET=${{ env.AGENT_GCS_BUCKET }}",
-        "Build and publish Agent VM image",
-        "backend/agent_vm/Dockerfile",
-        "gs://$AGENT_GCS_BUCKET/startup.sh",
         "GEMINI_API_KEY=DESKTOP_GEMINI_API_KEY:latest",
         "FIREBASE_API_KEY=DESKTOP_FIREBASE_API_KEY:latest",
         "REDIS_DB_PASSWORD=DESKTOP_REDIS_DB_PASSWORD:latest",
@@ -64,8 +59,9 @@ def _validate_production_python_runtime(text: str, *, workflow: str) -> list[str
             text,
             (
                 "Preflight production desktop secret resource names",
-                "Build and push immutable Docker image",
-                "Build and publish Agent VM image",
+                "Build immutable Docker image for smoke",
+                "Smoke desktop-backend image",
+                "Publish immutable Docker image",
             ),
             workflow=workflow,
         )
@@ -76,14 +72,20 @@ def _validate_production_python_runtime(text: str, *, workflow: str) -> list[str
 def validate_deploy_workflow(text: str, *, production: bool) -> list[str]:
     workflow = "desktop_backend_prod.yml" if production else "desktop_backend_auto_dev.yml"
     errors: list[str] = []
+    build_context = "with:\n          context: .\n          file: ./backend/Dockerfile.desktop_backend"
+    if text.count(build_context) != 1:
+        errors.append(f"{workflow}: expected one Python image build context {build_context!r}")
+
     required = (
-        "with:\n          context: .\n          file: ./backend/Dockerfile.desktop_backend",
         "no_traffic: true",
         "desktop_backend_candidate_probe.py",
         "verify_desktop_backend_image_lineage.py",
         "voice-provider-probe.sh",
         "wait_cloud_run_candidate_readiness.py",
         "Verify candidate image lineage",
+        'docker push "$image"',
+        'docker buildx imagetools inspect "$image"',
+        'echo "digest=$digest" >> "$GITHUB_OUTPUT"',
         "@${{ steps.build-image.outputs.digest }}",
         '--build-image-ref="$BUILD_IMAGE_REF"',
         '--runtime-image-ref="$runtime_image_ref"',
@@ -117,6 +119,7 @@ def validate_deploy_workflow(text: str, *, production: bool) -> list[str]:
         else "Route traffic to accepted desktop-backend revision"
     )
     verify_step = "Verify production serving identity" if production else "Verify development backend release identity"
+    build_step = "Build immutable Docker image for smoke" if production else "Build Docker image for smoke"
     probe_identity_steps = (
         ("Mint candidate probe identity",)
         if production
@@ -130,6 +133,9 @@ def validate_deploy_workflow(text: str, *, production: bool) -> list[str]:
             text,
             (
                 "Capture current serving revision",
+                build_step,
+                "Smoke desktop-backend image",
+                "Publish immutable Docker image",
                 "Wait for no-traffic candidate readiness",
                 "Verify candidate image lineage",
                 "Resolve exact no-traffic candidate URL",
@@ -187,10 +193,7 @@ def validate_deploy_workflow(text: str, *, production: bool) -> list[str]:
         ):
             if fragment not in text:
                 errors.append(f"{workflow}: missing development traffic guard {fragment!r}")
-        if any(
-            "--remove-env-vars" in line and "GOOGLE_APPLICATION_CREDENTIALS" in line
-            for line in text.splitlines()
-        ):
+        if any("--remove-env-vars" in line and "GOOGLE_APPLICATION_CREDENTIALS" in line for line in text.splitlines()):
             errors.append(
                 f"{workflow}: mounted Firestore credentials must not be removed from the candidate environment"
             )

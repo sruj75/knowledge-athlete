@@ -16,7 +16,7 @@ ROUTE_SURFACES: List[Dict[str, Any]] = [
         'route_reference': 'backend/routers/tools.py GET /v1/tools/memories',
         'response_model': 'ToolResponse',
         'existing_local_proof': [
-            'backend/tests/unit/test_tools_agent_route_response_shape.py',
+            'backend/tests/unit/test_tools_route_response_shape.py',
             'backend/tests/unit/test_tools_rest_memory_runtime_adapter.py',
         ],
         'required_fastapi_testclient_proof': 'Exercise the real FastAPI route via TestClient with dependency overrides, then prove response-model serialization preserves bounded memory evidence text and fail-closed text.',
@@ -28,19 +28,10 @@ ROUTE_SURFACES: List[Dict[str, Any]] = [
         'route_reference': 'backend/routers/tools.py POST /v1/tools/memories/search',
         'response_model': 'ToolResponse',
         'existing_local_proof': [
-            'backend/tests/unit/test_tools_agent_route_response_shape.py',
+            'backend/tests/unit/test_tools_route_response_shape.py',
             'backend/tests/unit/test_tools_rest_memory_runtime_adapter.py',
         ],
         'required_fastapi_testclient_proof': 'Exercise the real FastAPI route via TestClient with dependency overrides, request-body validation, and response-model serialization for memory vector memory text.',
-        'evidence': [],
-    },
-    {
-        'key': 'agent_execute_tool_memory_tools',
-        'status': 'NOT_RUN',
-        'route_reference': 'backend/routers/agent_tools.py POST /v1/agent/execute-tool',
-        'response_model': 'ExecuteToolResponse',
-        'existing_local_proof': ['backend/tests/unit/test_tools_agent_route_response_shape.py'],
-        'required_fastapi_testclient_proof': 'Exercise the real FastAPI route via TestClient with dependency overrides and in-process memory tool stubs, then prove ExecuteToolResponse serialization preserves or collapses output safely.',
         'evidence': [],
     },
 ]
@@ -49,7 +40,7 @@ BEHAVIOR_CASES: List[Dict[str, Any]] = [
     {
         'key': 'response_model_serialization',
         'status': 'NOT_RUN',
-        'required_proof': 'FastAPI response_model serialization for ToolResponse and ExecuteToolResponse must be exercised by TestClient, not only direct Pydantic model_validate calls.',
+        'required_proof': 'FastAPI response_model serialization for ToolResponse must be exercised by TestClient, not only direct Pydantic model_validate calls.',
         'evidence': [],
     },
     {
@@ -79,7 +70,7 @@ BEHAVIOR_CASES: List[Dict[str, Any]] = [
     {
         'key': 'archive_and_stale_short_term_default_unavailable',
         'status': 'NOT_RUN',
-        'required_proof': 'Archive remains default-unavailable and stale Short-term is not made default-visible for tools REST or agent execute-tool wrappers.',
+        'required_proof': 'Archive remains default-unavailable and stale Short-term is not made default-visible for tools REST wrappers.',
         'evidence': [],
     },
 ]

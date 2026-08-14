@@ -657,10 +657,6 @@ class TestRouterWiring(unittest.TestCase):
         matches = self._grep_file("routers/conversations.py", r'with_rate_limit.*test:prompt')
         self.assertGreaterEqual(len(matches), 1, "test-prompt endpoint missing rate limit")
 
-    def test_agent_tools_wired(self):
-        matches = self._grep_file("routers/agent_tools.py", r"with_rate_limit.*agent:")
-        self.assertGreaterEqual(len(matches), 1, "agent_tools.py missing rate limit wiring")
-
     def test_memories_router_has_rate_limits(self):
         matches = self._grep_file("routers/memories.py", r"with_rate_limit.*memories:")
         # create, batch, 3 review (list/get/resolve), delete, delete_all, delete_batch, 4 modify endpoints = 12

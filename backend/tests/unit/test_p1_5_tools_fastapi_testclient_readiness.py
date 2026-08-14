@@ -47,7 +47,7 @@ def test_tools_fastapi_testclient_readiness_is_safe_blocked_by_default():
     assert report['approval_claimed'] is False
     assert report['production_rollout_approved'] is False
     assert report['fastapi_testclient_importable'] == _local_fastapi_importable()
-    assert report['route_surfaces_count'] == 3
+    assert report['route_surfaces_count'] == 2
     assert report['behavior_cases_count'] == 6
 
 
@@ -59,7 +59,6 @@ def test_tools_fastapi_testclient_readiness_pins_exact_routes_and_gap_cases():
     assert route_keys == {
         'tools_rest_get_memories',
         'tools_rest_search_memories',
-        'agent_execute_tool_memory_tools',
     }
     assert case_keys == {
         'response_model_serialization',
@@ -81,8 +80,7 @@ def test_tools_fastapi_testclient_readiness_links_existing_local_proof_and_non_c
 
     assert 'backend/routers/tools.py GET /v1/tools/memories' in text
     assert 'backend/routers/tools.py POST /v1/tools/memories/search' in text
-    assert 'backend/routers/agent_tools.py POST /v1/agent/execute-tool' in text
-    assert 'backend/tests/unit/test_tools_agent_route_response_shape.py' in text
+    assert 'backend/tests/unit/test_tools_route_response_shape.py' in text
     assert 'backend/tests/unit/test_tools_rest_memory_runtime_adapter.py' in text
     assert 'FastAPI TestClient production-dependency proof was not run' in text
     assert 'No production traffic' in text

@@ -59,7 +59,6 @@ from routers import (
     workstreams,
     announcements,
     phone_calls,
-    agent_tools,
     tools,
     metrics,
     fair_use_admin,
@@ -67,7 +66,6 @@ from routers import (
     focus_sessions,
     advice,
     chat_sessions,
-    desktop_agent_vm,
     desktop_chat,
     desktop_core,
     desktop_proxy,
@@ -188,7 +186,6 @@ app.include_router(goals.router)
 app.include_router(workstreams.router)
 app.include_router(announcements.router)
 app.include_router(phone_calls.router)
-app.include_router(agent_tools.router)
 app.include_router(tools.router)
 app.include_router(metrics.router)
 app.include_router(fair_use_admin.router)
@@ -202,7 +199,6 @@ app.include_router(memory_admin.router)
 app.include_router(memory_product.router)
 app.include_router(task_recommendations.router)
 app.include_router(desktop_core.router)
-app.include_router(desktop_agent_vm.router)
 app.include_router(desktop_chat.router)
 app.include_router(desktop_proxy.router)
 app.include_router(desktop_realtime.router)

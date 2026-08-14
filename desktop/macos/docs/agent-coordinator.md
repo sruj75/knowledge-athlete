@@ -4,7 +4,7 @@ This document locks the Phase 0 boundary for the macOS Desktop Agent Coordinator
 
 ## Scope
 
-The first coordinator wave is macOS Desktop only. Backend canonical AgentRun APIs, mobile unification, AgentVM runtime-node work, cloud relay/directory work, public MCP coordinator controls, cross-device artifact sync, full artifact browsing, and model-assisted routing remain deferred. Track follow-up work in repo issues or checked-in planning docs before implementation.
+The first coordinator wave is macOS Desktop only. Backend canonical AgentRun APIs, mobile unification, public MCP coordinator controls, cross-device artifact sync, full artifact browsing, and model-assisted routing remain deferred. Track follow-up work in repo issues or checked-in planning docs before implementation.
 
 The coordinator uses the existing TypeScript desktop runtime kernel as the execution substrate and `omi-agentd.sqlite3` as the only durable local agent/coordinator authority. Swift is a projection and control-client layer through `AgentRuntimeProcess` / `AgentBridge`; it may cache UI projections, but it must not own run success, failure, approval, grant, or artifact-delivery truth.
 
@@ -26,7 +26,7 @@ The coordinator uses the existing TypeScript desktop runtime kernel as the execu
 7. Screenshots, screen history, and broad local context are sensitive. Screenshot image bytes or broad screen access require explicit policy allow or dispatch.
 8. Agents create memory/task candidates unless the user made an explicit unambiguous command and policy allows direct mutation.
 9. Surface state is not execution state: Ask Omi, task chat, floating pills, voice refs, and adapter-native session IDs are views or transport details.
-10. Desktop first: backend/mobile/cloud/AgentVM/public MCP coordinator work stays out of this wave.
+10. Desktop first: backend/mobile/public MCP coordinator work stays out of this wave.
 
 ## Phase 0 Decisions
 

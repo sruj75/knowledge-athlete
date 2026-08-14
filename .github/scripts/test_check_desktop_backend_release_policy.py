@@ -103,12 +103,11 @@ class DesktopBackendReleasePolicyTests(unittest.TestCase):
                     )
                     self.assertTrue(any(required in error for error in errors), errors)
 
-    def test_requires_production_agent_vm_artifacts(self) -> None:
-        errors = POLICY.validate_deploy_workflow(
-            self.prod.replace("      - name: Build and publish Agent VM image", "      - name: Omitted agent VM", 1),
-            production=True,
-        )
-        self.assertTrue(any("Build and publish Agent VM image" in error for error in errors), errors)
+    def test_cloud_agent_vm_artifacts_are_absent(self) -> None:
+        for workflow in (self.dev, self.prod):
+            self.assertNotIn("AGENT_GCS_BUCKET", workflow)
+            self.assertNotIn("backend/agent_vm", workflow)
+            self.assertNotIn("Build and publish Agent VM image", workflow)
 
     def test_rejects_traffic_before_candidate_proof(self) -> None:
         mutated = self.dev.replace(
@@ -177,6 +176,24 @@ class DesktopBackendReleasePolicyTests(unittest.TestCase):
         self.assertTrue(any("immutable" in error for error in errors), errors)
         self.assertTrue(any("no_traffic" in error for error in errors), errors)
 
+    def test_rejects_rebuilding_instead_of_publishing_smoked_image(self) -> None:
+        mutated = self.dev.replace('          docker push "$image"\n', "", 1)
+        mutated = mutated.replace(
+            "      - name: Publish immutable Docker image\n        id: build-image\n        run: |",
+            "      - name: Publish immutable Docker image\n"
+            "        id: build-image\n"
+            "        uses: docker/build-push-action@v7\n"
+            "        with:\n"
+            "          context: .\n"
+            "          file: ./backend/Dockerfile.desktop_backend\n"
+            "          push: true\n"
+            "        run: |",
+            1,
+        )
+        errors = POLICY.validate_deploy_workflow(mutated, production=False)
+        self.assertTrue(any("one Python image build context" in error for error in errors), errors)
+        self.assertTrue(any('docker push "$image"' in error for error in errors), errors)
+
     def test_rejects_automatic_or_python_vector_production_deploy(self) -> None:
         mutated = self.prod.replace(
             "on:\n  workflow_dispatch:",
@@ -208,8 +225,7 @@ class DesktopBackendReleasePolicyTests(unittest.TestCase):
             binding = f"{pinecone_key}={pinecone_key}:latest"
             mutated = self.prod.replace(
                 "            ANTHROPIC_API_KEY=DESKTOP_ANTHROPIC_API_KEY:latest\n",
-                f"            {binding}\n"
-                "            ANTHROPIC_API_KEY=DESKTOP_ANTHROPIC_API_KEY:latest\n",
+                f"            {binding}\n" "            ANTHROPIC_API_KEY=DESKTOP_ANTHROPIC_API_KEY:latest\n",
                 1,
             )
             with self.subTest(binding=binding):

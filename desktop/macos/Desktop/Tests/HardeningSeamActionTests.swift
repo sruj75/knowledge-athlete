@@ -59,6 +59,24 @@ final class HardeningSeamActionTests: XCTestCase {
       "the notification must post on the main actor like the real observers expect")
   }
 
+  func testSimulateMemoryRemediationIsRegisteredAndDoubleNonProdGated() throws {
+    let bridge = try bridgeSource()
+    guard let actionStart = bridge.range(of: "name: \"simulate_memory_remediation\"") else {
+      return XCTFail("simulate_memory_remediation registration not found")
+    }
+    let action = String(bridge[actionStart.lowerBound...].prefix(1000))
+    XCTAssertTrue(action.contains("guard AppBuild.isNonProduction"))
+    XCTAssertTrue(action.contains("ResourceMonitor.shared.triggerMemoryRemediationForAutomation()"))
+
+    let monitor = try resourceMonitorSource()
+    guard let seamStart = monitor.range(of: "func triggerMemoryRemediationForAutomation()") else {
+      return XCTFail("ResourceMonitor automation seam not found")
+    }
+    let seam = String(monitor[seamStart.lowerBound...].prefix(400))
+    XCTAssertTrue(seam.contains("guard isDevBuild"))
+    XCTAssertTrue(seam.contains("triggerMemoryRemediation()"))
+  }
+
   func testAuthTokenSeamsAreProdGatedAndLeakNoTokenMaterial() throws {
     let bridge = try bridgeSource()
     for action in ["expire_auth_token", "auth_token_status"] {
@@ -126,6 +144,15 @@ final class HardeningSeamActionTests: XCTestCase {
       .deletingLastPathComponent()
       .appendingPathComponent("Sources/DesktopAutomationBridge.swift")
     // omi-test-quality: source-inspection -- static contract: simulate_system_wake must stay registered, non-prod gated, and post the real workspace-center wake signal; it can't be behaviorally unit-run.
+    return try String(contentsOf: url, encoding: .utf8)
+  }
+
+  private func resourceMonitorSource() throws -> String {
+    let url = URL(fileURLWithPath: #filePath)
+      .deletingLastPathComponent()
+      .deletingLastPathComponent()
+      .appendingPathComponent("Sources/ResourceMonitor.swift")
+    // omi-test-quality: source-inspection -- static contract: the S-01 runtime seam stays double non-production gated and invokes the real remediation composition; named-bundle evidence covers behavior.
     return try String(contentsOf: url, encoding: .utf8)
   }
 }

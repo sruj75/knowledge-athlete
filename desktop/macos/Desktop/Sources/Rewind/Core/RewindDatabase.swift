@@ -42,7 +42,7 @@ actor RewindDatabase {
   private var poolEpoch: Int = 0
 
   /// Lock-gated (`OSAllocatedUnfairLock`) so concurrent access from the actor,
-  /// `MainActor` (`AgentVMService`), and nonisolated shutdown is race-free (SCA-8).
+  /// `MainActor` owner-transition callers, and nonisolated shutdown is race-free (SCA-8).
   private static let currentUserIdLock = OSAllocatedUnfairLock<String?>(initialState: nil)
   static var currentUserId: String? {
     get { currentUserIdLock.withLock { $0 } }
