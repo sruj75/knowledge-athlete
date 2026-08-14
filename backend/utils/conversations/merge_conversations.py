@@ -39,6 +39,10 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+LEGACY_PHOTO_MERGE_ERROR = (
+    "Cannot merge conversations with legacy photo data. The historical data is preserved but no longer supported."
+)
+
 
 def _coerce_dt(value):
     return coerce_utc_datetime(value)
@@ -116,6 +120,13 @@ def validate_merge_compatibility(
         if conv.get('deleted'):
             return False, "Cannot merge a deleted conversation.", None
 
+    # S-02 retires photo processing without authorizing historical deletion.
+    # Inline legacy photos are visible in the already-fetched snapshot, so
+    # reject before any source enters the destructive merge lifecycle.
+    for conv in conversations:
+        if conv.get('photos'):
+            return False, LEGACY_PHOTO_MERGE_ERROR, None
+
     # Check none are locked
     for conv in conversations:
         if conv.get('is_locked', False):
@@ -188,6 +199,21 @@ def perform_merge_async(
         # transcript/audio into a new visible conversation. Abort rather than merge.
         if any(conv.get('deleted') for conv in conversations):
             logger.error(f"Merge aborted: a source was deleted after admission uid={uid}")
+            _handle_merge_failure(uid, conversation_ids)
+            return
+
+        # The retired photo model is not copied into a merge target. Refuse to
+        # merge either inline or child-document legacy photos so generic source
+        # cleanup cannot silently purge historical data.
+        if any(
+            conversations_db.conversation_has_legacy_photos(
+                uid,
+                conv['id'],
+                conversation=conv,
+            )
+            for conv in conversations
+        ):
+            logger.error(f"Merge aborted: a source contains preserved legacy photos uid={uid}")
             _handle_merge_failure(uid, conversation_ids)
             return
 

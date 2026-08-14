@@ -189,6 +189,17 @@ def tombstone_and_delete_empty_conversation(
         ):
             return False
 
+        # Photo ingestion is retired, but pre-S-02 conversations can still own
+        # child photo documents. This preservation-only read keeps stale-session
+        # cleanup from deleting their parent metadata; it does not restore a
+        # photo API or make the historical content accessible.
+        legacy_photo = next(
+            iter(conversation_ref.collection('photos').limit(1).stream(transaction=transaction)),
+            None,
+        )
+        if legacy_photo is not None:
+            return False
+
         if session_ref is not None:
             session_snapshot = session_ref.get(transaction=transaction)
             if getattr(session_snapshot, 'exists', False):

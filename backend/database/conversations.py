@@ -258,7 +258,10 @@ def raw_conversation_has_content(uid: str, conversation: Dict[str, Any]) -> bool
     Only the decoded value distinguishes an empty recording from a real one.
     Undecodable segments count as content: never delete data we cannot read.
     """
-    if conversation.get('has_content'):
+    # S-02 removes photo ingestion and presentation, but legacy rows may still
+    # carry inline photo data. Treat it as durable content so empty-session
+    # cleanup can never turn product removal into historical data deletion.
+    if conversation.get('has_content') or conversation.get('photos'):
         return True
     raw_segments = conversation.get('transcript_segments')
     if not raw_segments:
@@ -271,6 +274,27 @@ def raw_conversation_has_content(uid: str, conversation: Dict[str, Any]) -> bool
         logger.error(f'raw_conversation_has_content: undecodable segments, assuming content. {uid} {e}')
         return True
     return bool(segments)
+
+
+def conversation_has_legacy_photos(
+    uid: str,
+    conversation_id: str,
+    *,
+    conversation: Optional[Mapping[str, Any]] = None,
+    firestore_client: Any = None,
+) -> bool:
+    """Protect pre-S-02 photo data from destructive generic operations.
+
+    This is a preservation-only existence check. It intentionally returns no
+    photo content and does not restore the retired photo API or processing path.
+    """
+    if conversation and conversation.get('photos'):
+        return True
+    client = firestore_client if firestore_client is not None else db
+    conversation_ref = (
+        client.collection('users').document(uid).collection(conversations_collection).document(conversation_id)
+    )
+    return next(iter(conversation_ref.collection('photos').limit(1).stream()), None) is not None
 
 
 def _prepare_conversation_for_read(conversation_data: Optional[Dict[str, Any]], uid: str) -> Optional[Dict[str, Any]]:

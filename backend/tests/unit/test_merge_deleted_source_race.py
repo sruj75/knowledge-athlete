@@ -30,6 +30,7 @@ def _warm_merge_imports():
 
 def _install(monkeypatch, sources):
     monkeypatch.setattr(merge.conversations_db, "get_conversation", lambda uid, cid: sources.get(cid))
+    monkeypatch.setattr(merge.conversations_db, "conversation_has_legacy_photos", lambda *_args, **_kwargs: False)
     fail = MagicMock()
     monkeypatch.setattr(merge, "_handle_merge_failure", fail)
     create = MagicMock()
@@ -76,6 +77,26 @@ def test_merge_does_not_abort_when_no_source_is_deleted(monkeypatch):
     create.assert_called_once()  # got past the deleted guard into the build step
 
 
+def test_merge_aborts_before_build_when_a_source_has_legacy_child_photos(monkeypatch):
+    fail, create = _install(
+        monkeypatch,
+        {
+            'c1': {'id': 'c1', 'status': 'completed'},
+            'c2': {'id': 'c2', 'status': 'completed'},
+        },
+    )
+    monkeypatch.setattr(
+        merge.conversations_db,
+        "conversation_has_legacy_photos",
+        lambda _uid, conversation_id, **_kwargs: conversation_id == 'c1',
+    )
+
+    merge.perform_merge_async('u1', ['c1', 'c2'])
+
+    fail.assert_called_once()
+    create.assert_not_called()
+
+
 def test_merge_renews_processing_lease_during_live_processing(monkeypatch):
     """A merged conversation admitted to processing must keep its admission lease
     fresh while process_conversation runs (#10461 ownership fence for every live
@@ -97,6 +118,7 @@ def test_merge_renews_processing_lease_during_live_processing(monkeypatch):
         'c2': {'id': 'c2', 'status': 'completed', 'started_at': None},
     }
     monkeypatch.setattr(merge.conversations_db, "get_conversation", lambda uid, cid: sources.get(cid))
+    monkeypatch.setattr(merge.conversations_db, "conversation_has_legacy_photos", lambda *_args, **_kwargs: False)
     monkeypatch.setattr(merge, "_handle_merge_failure", MagicMock())
     monkeypatch.setattr(merge, "_normalize_conversation_timestamps", lambda convs: convs)
     monkeypatch.setattr(merge, "_merge_transcript_segments", lambda convs: [])

@@ -1322,7 +1322,11 @@ def merge_conversations(
     - Copied audio chunks
     - Regenerated title, summary, action items, memories via process_conversation()
     """
-    from utils.conversations.merge_conversations import validate_merge_compatibility, perform_merge_async
+    from utils.conversations.merge_conversations import (
+        LEGACY_PHOTO_MERGE_ERROR,
+        perform_merge_async,
+        validate_merge_compatibility,
+    )
 
     # Validate minimum number of conversations
     if len(request.conversation_ids) < 2:
@@ -1334,6 +1338,8 @@ def merge_conversations(
         conv = conversations_db.get_conversation(uid, conv_id)
         if conv is None:
             raise HTTPException(status_code=404, detail=f"Conversation {conv_id} not found")
+        if conversations_db.conversation_has_legacy_photos(uid, conv_id, conversation=conv):
+            raise HTTPException(status_code=400, detail=LEGACY_PHOTO_MERGE_ERROR)
         conversations.append(conv)
 
     # Validate merge compatibility (returns warning for large gaps but doesn't reject)
