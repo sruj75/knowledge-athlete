@@ -42,15 +42,6 @@ extension APIClient {
       "v2/desktop/messages/\(messageId)/rating", body: body)
   }
 
-  /// Share chat messages and get a shareable URL
-  func shareChatMessages(messageIds: [String]) async throws -> ShareChatResponse {
-    struct ShareRequest: Encodable {
-      let message_ids: [String]
-    }
-    let body = ShareRequest(message_ids: messageIds)
-    return try await post("v2/messages/share", body: body)
-  }
-
   /// Upload one or more files to be attached to a chat message.
   /// Mirrors the Flutter app's `uploadFilesServer` (lib/backend/http/api/messages.dart) —
   /// same `/v2/files` multipart endpoint, same response shape.
@@ -349,10 +340,4 @@ struct SyncJobFetch: Equatable {
     self.outcome = outcome
     self.status = status
   }
-}
-
-/// Response from sharing chat messages
-struct ShareChatResponse: Codable {
-  let url: String
-  let token: String
 }

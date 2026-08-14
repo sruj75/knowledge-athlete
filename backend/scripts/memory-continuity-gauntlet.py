@@ -484,7 +484,6 @@ class MemoryContinuityGauntlet:
         promoted = item_ref.get().to_dict()
         assert maintenance.promoted_count >= 1, maintenance
         assert promoted["tier"] == "long_term", promoted
-        assert promoted["graph_ready"] is True, promoted
         assert promote_nonce in promoted.get("content", ""), promoted
         state.promote_nonce = promote_nonce
         self.record_step(
@@ -585,7 +584,6 @@ class MemoryContinuityGauntlet:
             search_memory_default_chat_memories_text,
         )
         from utils.memory.default_read_rollout import MemoryReadDecision, read_default_read_rollout
-        from utils.memory.developer_memory_adapter import search_memory_default_developer_memories
         from utils.memory.product_memory_read_service import fetch_default_product_memory_search
         from utils.retrieval.tool_services import memories as tool_memories_service
 
@@ -625,7 +623,7 @@ class MemoryContinuityGauntlet:
         assert rollout.read_decision == MemoryReadDecision.USE_MEMORY
         policy = MemoryAccessPolicy(
             consumer=MemoryConsumer.omi_chat,
-            app_has_default_memory_grant=True,
+            has_default_memory_grant=True,
             archive_capability=False,
         )
 
@@ -636,15 +634,6 @@ class MemoryContinuityGauntlet:
             "chat_list": lambda: list_default_chat_memories_decision_text(
                 uid=state.uid, limit=10, offset=0, db_client=state.db
             ).text,
-            "developer": lambda: search_memory_default_developer_memories(
-                uid=state.uid,
-                query="coffee",
-                limit=10,
-                offset=0,
-                db_client=state.db,
-                rollout_decision=rollout,
-                now=now,
-            ).memories,
             "agent_tools": lambda: tool_memories_service.get_memories_text(uid=state.uid, limit=50),
             "product_search": lambda: fetch_default_product_memory_search(
                 uid=state.uid,
@@ -679,7 +668,6 @@ class MemoryContinuityGauntlet:
                 "id": "legacy-must-not-bleed-gauntlet",
                 "content": "legacy memory must not leak on canonical projection failure",
                 "category": "manual",
-                "visibility": "public",
             },
         )
 

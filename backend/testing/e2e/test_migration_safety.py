@@ -15,27 +15,6 @@ from fakes.firestore import read_conversation, read_memories, seed_conversation,
 class TestLegacyFormatReading:
     """Current code can read old-format Firestore documents."""
 
-    def test_read_legacy_plugins_results(self, client, auth_headers, conversation_fixture):
-        """
-        Conversations with ``plugins_results`` (old format) are readable.
-
-        The Conversation model's __init__ auto-populates plugins_results
-        from apps_results for backward compatibility.
-        """
-
-        legacy_conv = dict(conversation_fixture["legacy_plugins_results_format"])
-        seed_conversation("123", legacy_conv)
-
-        resp = client.get(f"/v1/conversations/{legacy_conv['id']}", headers=auth_headers)
-        assert resp.status_code == 200, f"Failed to read legacy conversation: {resp.text}"
-
-        body = resp.json()
-        # Should have both apps_results (empty list default) and plugins_results
-        assert "plugins_results" in body
-        assert "apps_results" in body
-        # Legacy data had plugins_results populated
-        assert isinstance(body["plugins_results"], list)
-
     def test_read_legacy_memory_format(self, client, auth_headers, memory_fixture):
         """Old-format memories (missing scoring, category mapping) are readable."""
 
@@ -48,26 +27,6 @@ class TestLegacyFormatReading:
         found = [m for m in memories if m["id"] == legacy_mem["id"]]
         assert found, f"Legacy memory {legacy_mem['id']} not returned"
         assert found[0]["content"] == legacy_mem["content"]
-
-    def test_mixed_format_coexistence(self, client, auth_headers, conversation_fixture):
-        """
-        Both old and new format conversations coexist in the same collection.
-
-        Listing returns both without errors.
-        """
-
-        new_conv = dict(conversation_fixture["current_format_conversation"])
-        legacy_conv = dict(conversation_fixture["legacy_plugins_results_format"])
-
-        seed_conversation("123", new_conv)
-        seed_conversation("123", legacy_conv)
-
-        resp = client.get("/v1/conversations?include_discarded=true", headers=auth_headers)
-        assert resp.status_code == 200, resp.text
-        body = resp.json()
-        ids = [c["id"] for c in body]
-        assert new_conv["id"] in ids
-        assert legacy_conv["id"] in ids
 
 
 class TestFakeStoreIdempotency:
@@ -122,7 +81,6 @@ class TestFakeStoreIdempotency:
             "id": "mem-mig-idem-001",
             "content": "Migration test memory",
             "category": "interesting",
-            "visibility": "public",
             "created_at": "2025-01-15T17:00:00Z",
             "updated_at": "2025-01-15T17:00:00Z",
         }
@@ -225,7 +183,6 @@ class TestCategoryEnumMigration:
             "id": "mem-old-cat-001",
             "content": "Memory with legacy category",
             "category": "core",  # Legacy value → maps to 'system'
-            "visibility": "public",
             "created_at": "2025-01-15T20:00:00Z",
             "updated_at": "2025-01-15T20:00:00Z",
         }

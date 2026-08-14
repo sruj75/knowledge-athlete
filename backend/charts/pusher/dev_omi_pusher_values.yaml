@@ -238,11 +238,6 @@ env:
       secretKeyRef:
         name: dev-omi-backend-secrets
         key: STRIPE_WEBHOOK_SECRET
-  - name: MARKETPLACE_APP_REVIEWERS
-    valueFrom:
-      secretKeyRef:
-        name: dev-omi-backend-secrets
-        key: MARKETPLACE_APP_REVIEWERS
   - name: TYPESENSE_HOST
     valueFrom:
       configMapKeyRef:

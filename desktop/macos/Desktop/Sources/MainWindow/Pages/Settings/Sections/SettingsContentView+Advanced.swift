@@ -36,7 +36,7 @@ extension SettingsContentView {
         advancedCategoryHeader(title: "Beta Diagnostics", icon: "waveform.path.ecg")
         betaDiagnosticsSubsection
       }
-      advancedCategoryHeader(title: "Developer API Keys", icon: "key")
+      advancedCategoryHeader(title: "Model API Keys", icon: "key")
       developerKeysSubsection
 
       advancedCategoryHeader(title: "Dev Tools", icon: "hammer")
@@ -264,96 +264,6 @@ extension SettingsContentView {
             Text("No workspace set. Choose a project directory for desktop chat context.")
               .scaledFont(size: OmiType.caption)
               .foregroundColor(OmiColors.textTertiary)
-          }
-        }
-      }
-
-      settingsCard(settingId: "aichat.browserextension") {
-        VStack(alignment: .leading, spacing: OmiSpacing.md) {
-          HStack {
-            Image(systemName: "globe")
-              .scaledFont(size: OmiType.subheading)
-              .foregroundColor(OmiColors.textTertiary)
-
-            Text("Browser Extension")
-              .scaledFont(size: OmiType.subheading, weight: .semibold)
-              .foregroundColor(OmiColors.textPrimary)
-
-            Spacer()
-
-            if !playwrightExtensionToken.isEmpty {
-              HStack(spacing: OmiSpacing.xxs) {
-                Circle()
-                  .fill(Color.green)
-                  .frame(width: 6, height: 6)
-                Text("Connected")
-                  .scaledFont(size: OmiType.caption)
-                  .foregroundColor(OmiColors.textTertiary)
-              }
-            }
-
-            Toggle("", isOn: $playwrightUseExtension)
-              .toggleStyle(OmiToggleStyle())
-              .controlSize(.small)
-              .labelsHidden()
-          }
-
-          Text("Lets the AI use your Chrome browser with all your logged-in sessions.")
-            .scaledFont(size: OmiType.caption)
-            .foregroundColor(OmiColors.textTertiary)
-
-          if playwrightUseExtension {
-            if playwrightExtensionToken.isEmpty {
-              Button(action: {
-                showBrowserSetup = true
-              }) {
-                HStack(spacing: OmiSpacing.xs) {
-                  Image(systemName: "wrench.and.screwdriver")
-                    .scaledFont(size: OmiType.caption)
-                  Text("Set Up")
-                    .scaledFont(size: OmiType.body, weight: .medium)
-                }
-              }
-              .buttonStyle(OmiButtonStyle(.primary, size: .compact))
-            } else {
-              HStack(spacing: OmiSpacing.sm) {
-                Text("Token")
-                  .scaledFont(size: OmiType.caption)
-                  .foregroundColor(OmiColors.textTertiary)
-
-                Text(String(playwrightExtensionToken.prefix(8)) + "...")
-                  .scaledFont(size: OmiType.caption, weight: .medium)
-                  .foregroundColor(OmiColors.textPrimary)
-                  .font(.system(.body, design: .monospaced))
-
-                Spacer()
-
-                Button(action: {
-                  showBrowserSetup = true
-                }) {
-                  HStack(spacing: OmiSpacing.xxs) {
-                    Image(systemName: "arrow.clockwise")
-                      .scaledFont(size: OmiType.caption)
-                    Text("Reconfigure")
-                      .scaledFont(size: OmiType.caption)
-                  }
-                }
-                .buttonStyle(OmiButtonStyle(.primary, size: .compact))
-
-                Button(action: {
-                  playwrightExtensionToken = ""
-                  UserDefaults.standard.set("", forKey: "playwrightExtensionToken")
-                }) {
-                  HStack(spacing: OmiSpacing.xxs) {
-                    Image(systemName: "xmark")
-                      .scaledFont(size: OmiType.caption)
-                    Text("Reset")
-                      .scaledFont(size: OmiType.caption)
-                  }
-                }
-                .buttonStyle(OmiButtonStyle(.primary, size: .compact))
-              }
-            }
           }
         }
       }

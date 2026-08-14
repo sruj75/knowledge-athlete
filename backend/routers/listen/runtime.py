@@ -22,7 +22,6 @@ from models.message_event import (
 )
 from models.users import PlanType
 from utils.analytics import billable_transcription_seconds, record_usage
-from utils.apps import is_audio_bytes_app_enabled
 from utils.async_tasks import WebSocketTaskSupervisor, drain_tasks, wait_for_event
 from utils.byok import extract_byok_from_websocket, get_byok_keys, set_byok_keys
 from utils.client_device import resolve_client_device_from_headers
@@ -60,7 +59,6 @@ from utils.transcribe_decisions import (
     validate_audio_format,
 )
 from utils.transcribe_store import check_credits_invalidation, conversations_db, redis_db, user_db
-from utils.webhooks import get_audio_bytes_webhook_seconds
 from utils.audio import AudioRingBuffer
 from utils.other.storage import get_user_has_speech_profile
 from utils.transcribe_decisions import USER_SELF_PERSON_ID, person_id_for_client
@@ -517,11 +515,7 @@ class ListenSessionRuntime:
     async def _start_pusher(self) -> None:
         if not PUSHER_ENABLED:
             return
-        audio_bytes_enabled = (
-            bool(await self.persistence.call(get_audio_bytes_webhook_seconds, self.request.uid))
-            or await self.persistence.call(is_audio_bytes_app_enabled, self.request.uid)
-            or self.private_cloud_sync_enabled
-        )
+        audio_bytes_enabled = self.private_cloud_sync_enabled
         session = ListenPusherSession(
             ListenPusherSessionConfig(
                 uid=self.request.uid,

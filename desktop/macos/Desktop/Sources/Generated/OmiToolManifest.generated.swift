@@ -59,58 +59,6 @@ enum OmiToolManifest {
       annotations: ["readOnlyHint": true, "destructiveHint": false, "openWorldHint": false]
     ),
     LocalAgentTool(
-      name: "fill_cloud_connector_form",
-      description: "Fill the currently visible ChatGPT or Claude custom MCP connector form using Omi's native macOS Accessibility automation. Use first for one-click cloud connector setup after opening the signed-in browser to the connector page.",
-      properties: [
-        "provider": [
-          "type": "string",
-          "description": "Cloud platform whose connector form is visible.",
-          "enum": ["claude","chatgpt"],
-        ],
-        "name": [
-          "type": "string",
-          "description": "Connector name, usually 'Omi Memory'.",
-        ],
-        "server_url": [
-          "type": "string",
-          "description": "Remote MCP server URL to paste into the connector form.",
-        ],
-        "oauth_client_id": [
-          "type": "string",
-          "description": "OAuth Client ID. Defaults to Omi's public ChatGPT/Claude connector client.",
-        ],
-        "oauth_client_secret": [
-          "type": "string",
-          "description": "OAuth Client Secret, only for confidential clients.",
-        ],
-        "authentication": [
-          "type": "string",
-          "description": "Authentication mode, usually 'OAuth'.",
-        ],
-        "token_auth_method": [
-          "type": "string",
-          "description": "OAuth token auth method. Use 'none' for Omi's public ChatGPT connector client.",
-        ],
-        "auth_url": [
-          "type": "string",
-          "description": "OAuth authorization URL when the form asks for it.",
-        ],
-        "token_url": [
-          "type": "string",
-          "description": "OAuth token URL when the form asks for it.",
-        ],
-        "submit": [
-          "type": "boolean",
-          "description": "Whether to press the visible Add/Connect/Create button after filling required fields.",
-        ]
-      ],
-      required: [
-      "provider",
-      "server_url"
-    ],
-      annotations: ["readOnlyHint": false, "destructiveHint": false, "openWorldHint": true]
-    ),
-    LocalAgentTool(
       name: "search_tasks",
       description: "Vector similarity search on tasks. Find tasks by meaning or topic.",
       properties: [

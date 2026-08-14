@@ -114,6 +114,6 @@ npm run test:listen-lifecycle:emulator
 ```
 
 It intentionally does not test real Parakeet inference, LLM/vector quality,
-GCS, or external integration delivery.  Those require their own environment
+or GCS. Those require their own environment
 and should not turn this deterministic local failure test into a credentialed
 integration suite.

@@ -1009,23 +1009,19 @@ _CHAT_STUB_MODULES = [
     'models.chat',
     'models.conversation',
     'models.notification_message',
-    'models.app',
     'models.transcript_segment',
     'database',
     'database._client',
     'database.chat',
     'database.notifications',
     'database.users',
-    'database.apps',
     'database.redis_db',
     'firebase_admin',
-    'utils.apps',
     'utils.conversation_helpers',
     'utils.conversations',
     'utils.conversations.factory',
     'utils.llm',
     'utils.llm.chat',
-    'utils.llm.persona',
     'utils.other.endpoints',
     'utils.other.storage',
     'utils.notifications',
@@ -1086,12 +1082,9 @@ class TestVoiceMessageRuntimeErrorHandling:
         sys.modules['database.notifications'].get_token_only = MagicMock(return_value=None)
         sys.modules['database.users'].get_user_store_recording_permission = MagicMock(return_value=False)
         sys.modules['database.users'].get_user_transcription_preferences = MagicMock(return_value={})
-        sys.modules['database.apps'].record_app_usage = MagicMock()
-        sys.modules['utils.apps'].get_available_app_by_id = MagicMock(return_value=None)
         sys.modules['utils.conversation_helpers'].extract_memory_ids = MagicMock(return_value=[])
         sys.modules['utils.conversations.factory'].deserialize_conversation = MagicMock(return_value=None)
         sys.modules['utils.llm.chat'].initial_chat_message = MagicMock()
-        sys.modules['utils.llm.persona'].initial_persona_chat_message = MagicMock()
 
         # Model stubs
         sys.modules['models.chat'].ChatSession = MagicMock()
@@ -1100,8 +1093,6 @@ class TestVoiceMessageRuntimeErrorHandling:
         sys.modules['models.chat'].MessageConversation = MagicMock()
         sys.modules['models.conversation'].Conversation = MagicMock()
         sys.modules['models.notification_message'].NotificationMessage = MagicMock()
-        sys.modules['models.app'].App = MagicMock()
-        sys.modules['models.app'].UsageHistoryType = MagicMock()
         sys.modules['models.transcript_segment'].TranscriptSegment = MagicMock()
 
         # STT stubs

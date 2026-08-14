@@ -184,7 +184,7 @@ class TestPusherWs:
 
     FINDING: Pusher closes with code 1006 shortly after connect for non-existent users
     because _websocket_util_trigger queries Firestore for user config (private_cloud_sync,
-    data_protection_level, audio_bytes_webhook) and crashes on missing user.
+    data protection level) and crashes on missing user.
     This is a real flaw — production pusher connections from backend-listen should always
     have valid UIDs, but there's no graceful error handling.
     """
@@ -210,9 +210,6 @@ class TestPusherWs:
         The _websocket_util_trigger function calls:
         - users_db.get_user_private_cloud_sync_enabled(uid)
         - users_db.get_data_protection_level(uid)
-        - get_audio_bytes_webhook_seconds(uid)
-        - is_audio_bytes_app_enabled(uid)
-
         If the user doesn't exist in Firestore, these can raise exceptions
         that crash the connection. This means a rogue/invalid uid in the
         query string causes an unhandled crash rather than a clean rejection.

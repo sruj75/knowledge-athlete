@@ -338,54 +338,6 @@ private actor PermissionCallbackBox<Value: Sendable> {
     XCTAssertFalse(posted)
   }
 
-  func testAutomationSettingsDoesNotOpenAfterOwnerChangesAtFinalEffectBoundary() {
-    var opened = false
-
-    let didOpen = ChatToolExecutor.openAutomationPrivacySettings(
-      expectedOwnerID: "owner-a",
-      ownerIsCurrent: { _ in false },
-      open: { _ in
-        opened = true
-        return true
-      })
-
-    XCTAssertFalse(didOpen)
-    XCTAssertFalse(opened)
-  }
-
-  func testDetachedPermissionEffectsStayRevokedAcrossSameOwnerSessionReplacement() async {
-    await establishStandardOwner("owner-a")
-    guard
-      let authorization = RuntimeOwnerIdentity.captureAuthorizationSnapshot(
-        expectedOwnerID: "owner-a")
-    else {
-      XCTFail("owner-a authorization snapshot was not available")
-      return
-    }
-    await replaceStandardOwner(with: nil)
-    await replaceStandardOwner(with: "owner-a")
-
-    var opened = false
-    let didOpen = ChatToolExecutor.openAutomationPrivacySettings(
-      expectedOwnerID: "owner-a",
-      authorizationSnapshot: authorization,
-      open: { _ in
-        opened = true
-        return true
-      })
-    var pendingCallbacks: [String] = []
-    ChatToolExecutor.publishPermissionPendingIfCurrent(
-      "automation",
-      expectedOwnerID: "owner-a",
-      authorizationSnapshot: authorization,
-      callback: { pendingCallbacks.append($0) })
-
-    XCTAssertFalse(didOpen)
-    XCTAssertFalse(opened)
-    XCTAssertTrue(pendingCallbacks.isEmpty)
-    XCTAssertFalse(RuntimeOwnerIdentity.isAuthorizationCurrent(authorization))
-  }
-
   func testPermissionCallbackCancellationReturnsWithoutWaitingAndIgnoresLateCompletion() async {
     let callbackBox = PermissionCallbackBox<Bool>()
     let operation = Task {

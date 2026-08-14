@@ -29,7 +29,7 @@ describe("omi tool manifest", () => {
       "execute_sql",
       "semantic_search",
       "get_daily_recap",
-      "fill_cloud_connector_form",
+      "search_tasks",
       "list_agent_sessions",
       "get_agent_run",
       "build_desktop_awareness_snapshot",
@@ -48,12 +48,10 @@ describe("omi tool manifest", () => {
       "spawn_agent",
       "run_agent_and_wait",
       "set_desktop_attention_override",
-      "search_tasks",
       "complete_task",
       "delete_task",
       "load_skill",
       "search_skills",
-      "save_knowledge_graph",
       "get_conversations",
       "search_conversations",
       "get_memories",
@@ -68,6 +66,26 @@ describe("omi tool manifest", () => {
       "get_work_context",
     ]);
     expect(toolNamesForAdapter("pi-mono")).not.toContain("resolve_desktop_dispatch");
+  });
+
+  it("does not advertise retired external product surfaces", () => {
+    const retired = [
+      "fill_cloud_connector_form",
+      "save_knowledge_graph",
+      "scan_files",
+      "start_file_scan",
+      "get_file_scan_results",
+      "create_calendar_event",
+    ];
+
+    for (const adapterId of ["pi-mono", "omi-tools-stdio", "local-agent-api"] as const) {
+      const regular = toolNamesForAdapter(adapterId, { screenContext: true });
+      const onboarding = toolNamesForAdapter(adapterId, { onboarding: true, screenContext: true });
+      for (const tool of retired) {
+        expect(regular).not.toContain(tool);
+        expect(onboarding).not.toContain(tool);
+      }
+    }
   });
 
   it("keeps the realtime screenshot executor capability-registered", () => {
@@ -133,7 +151,7 @@ describe("omi tool manifest", () => {
     expect(run?.voice?.realtimeDescription).toContain("do not expose the internal id");
   });
 
-  it("keeps permission tools available to main stdio while onboarding-only tools remain scoped", () => {
+  it("keeps retained permission tools available across stdio modes", () => {
     const regular = new Set(toolNamesForAdapter("omi-tools-stdio"));
     const onboarding = new Set(toolNamesForAdapter("omi-tools-stdio", { onboarding: true }));
     const screenContext = new Set(toolNamesForAdapter("omi-tools-stdio", { screenContext: true }));
@@ -145,7 +163,7 @@ describe("omi tool manifest", () => {
     expect(regular.has("get_work_context")).toBe(false);
     expect(onboarding.has("request_permission")).toBe(true);
     expect(onboarding.has("check_permission_status")).toBe(true);
-    expect(onboarding.has("get_email_insights")).toBe(true);
+    expect(onboarding.has("get_email_insights")).toBe(false);
     expect(onboarding.has("capture_screen")).toBe(false);
     expect(screenContext.has("request_permission")).toBe(true);
     expect(screenContext.has("check_permission_status")).toBe(true);
@@ -172,10 +190,7 @@ describe("omi tool manifest", () => {
     expect(executeSql?.inputSchema.required).toEqual(["query"]);
   });
 
-  it("keeps schemas expressive enough for nested onboarding tools", () => {
-    const saveKnowledgeGraph = toolsForAdapter("omi-tools-stdio", { onboarding: true }).find(
-      (tool) => tool.name === "save_knowledge_graph",
-    );
+  it("keeps schemas expressive enough for retained onboarding tools", () => {
     const askFollowup = toolsForAdapter("omi-tools-stdio", { onboarding: true }).find(
       (tool) => tool.name === "ask_followup",
     );
@@ -183,12 +198,10 @@ describe("omi tool manifest", () => {
       (tool) => tool.name === "request_permission",
     );
 
-    expect(saveKnowledgeGraph?.inputSchema.properties.nodes).toMatchObject({ type: "array" });
-    expect(saveKnowledgeGraph?.inputSchema.properties.edges).toMatchObject({ type: "array" });
     expect(askFollowup?.inputSchema.properties.options).toMatchObject({ type: "array" });
     expect(askFollowup?.inputSchema.required).toEqual(["question", "options"]);
     expect(requestPermission?.inputSchema.properties.type).toMatchObject({
-      enum: ["screen_recording", "microphone", "notifications", "accessibility", "automation", "full_disk_access"],
+      enum: ["screen_recording", "microphone", "notifications", "accessibility"],
     });
   });
 
@@ -237,7 +250,7 @@ describe("omi tool manifest", () => {
     expect(snapshot.advertisedToolCount).toBe(toolNamesForAdapter("pi-mono").length);
     expect(snapshot.advertisedToolNames).toEqual(toolNamesForAdapter("pi-mono"));
     expect(snapshot.aliases["mcp__omi-tools__execute_sql"]).toBe("execute_sql");
-    expect(snapshot.disabled.some((tool) => tool.name === "get_email_insights")).toBe(true);
+    expect(snapshot.disabled.some((tool) => tool.name === "resolve_desktop_dispatch")).toBe(true);
   });
 
   it("requires surfaces and capabilityDoc on every manifest entry", () => {

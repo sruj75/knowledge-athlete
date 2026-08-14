@@ -361,8 +361,8 @@ def test_prod_deploy_invokes_legacy_binding_migration_before_deploy() -> None:
     text = workflow.read_text(encoding='utf-8')
 
     assert 'preflight-cloud-run-deploy.py' in text
-    assert text.count('--migrate-legacy-public-binding') == 4
-    for service in ('backend', 'backend-sync', 'backend-sync-backfill', 'backend-integration'):
+    assert text.count('--migrate-legacy-public-binding') == 3
+    for service in ('backend', 'backend-sync', 'backend-sync-backfill'):
         assert f'--migrate-legacy-public-binding {service}' in text
     assert text.index('migrate-legacy-public-binding') < text.index('Deploy ${{ env.SERVICE }} to Cloud Run')
 
@@ -374,8 +374,8 @@ def test_dev_deploy_invokes_legacy_binding_migration_only_for_dev_services() -> 
 
     assert 'environment: development' in text
     assert 'backend/scripts/preflight-cloud-run-deploy.py' in text
-    assert text.count('--migrate-legacy-public-binding') == 4
-    for service in ('backend', 'backend-sync', 'backend-sync-backfill', 'backend-integration'):
+    assert text.count('--migrate-legacy-public-binding') == 3
+    for service in ('backend', 'backend-sync', 'backend-sync-backfill'):
         assert f'--migrate-legacy-public-binding {service}' in text
     assert text.index('migrate-legacy-public-binding') < text.index('Deploy ${{ env.SERVICE }} to Cloud Run')
     assert '--check-runtime-bindings' in text
@@ -812,8 +812,8 @@ def test_evaluate_rejects_a_listener_rollout_timeout_when_updated_replicas_lag()
 def test_retry_derives_a_new_vector_and_accepts_only_the_converged_attempt() -> None:
     first_attempt = _expectation()
     partial_documents = _documents(first_attempt)
-    partial_documents['cloud_run/backend-integration']['status']['traffic'] = [
-        {'revisionName': 'backend-integration-old', 'percent': 100}
+    partial_documents['cloud_run/backend-sync-backfill']['status']['traffic'] = [
+        {'revisionName': 'backend-sync-backfill-old', 'percent': 100}
     ]
 
     retry = verifier.build_expectation(
@@ -826,9 +826,9 @@ def test_retry_derives_a_new_vector_and_accepts_only_the_converged_attempt() -> 
     )
 
     assert verifier.evaluate(first_attempt, partial_documents) == [
-        'cloud_run/backend-integration: expected revision does not receive 100% traffic'
+        'cloud_run/backend-sync-backfill: expected revision does not receive 100% traffic'
     ]
-    assert retry.revisions['backend-integration'] != first_attempt.revisions['backend-integration']
+    assert retry.revisions['backend-sync-backfill'] != first_attempt.revisions['backend-sync-backfill']
     assert verifier.evaluate(retry, _documents(retry)) == []
 
 
@@ -1137,7 +1137,7 @@ def test_backend_promotions_are_phase_aware_and_restore_the_recorded_traffic_sna
         snapshot_step = text[snapshot : text.index('\n      - name:', snapshot + 1)]
         assert 'cloud_run_traffic_snapshot.py' in snapshot_step
         assert ' capture' in snapshot_step
-        for service in ('backend', 'backend-sync', 'backend-sync-backfill', 'backend-integration'):
+        for service in ('backend', 'backend-sync', 'backend-sync-backfill'):
             assert f'--service {service}' in snapshot_step
 
         restore_step = text[restore : text.index('\n      - name:', restore + 1)]

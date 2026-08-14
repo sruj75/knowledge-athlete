@@ -6,6 +6,14 @@ description: >
   and confirm there is no Bring Your Own Keys step and the 2nd-brain label has no background.
 app: non-prod
 covers:
+  - desktop/macos/Desktop/Sources/MainWindow/Components/AnimatedGIFView.swift
+  - desktop/macos/Desktop/Sources/MainWindow/Components/DismissableSheet.swift
+  - desktop/macos/Desktop/Sources/MainWindow/Components/FlowLayout.swift
+  - desktop/macos/Desktop/Sources/MainWindow/Components/OverlayModalEscapeCatcher.swift
+  - desktop/macos/Desktop/Sources/MainWindow/Pages/ConnectorImportRunner.swift
+  - desktop/macos/Desktop/Sources/MainWindow/Pages/ConnectorImportViews.swift
+  - desktop/macos/Desktop/Sources/Onboarding/OnboardingChatPersistence.swift
+  - desktop/macos/Desktop/Sources/PermissionGuidanceOverlay.swift
   - desktop/macos/Desktop/Sources/Onboarding/OnboardingNotificationStepView.swift
   - desktop/macos/Desktop/Sources/Onboarding/OnboardingFlow.swift
   - desktop/macos/Desktop/Sources/Onboarding/OnboardingStepScaffold.swift

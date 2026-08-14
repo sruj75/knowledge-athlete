@@ -325,7 +325,6 @@ class CoreMemoryPipeline:
                         categories=sorted({redaction.category for redaction in event_redactions}),
                         source_type=input_copy.source.source_type,
                         source_id=input_copy.source.source_id,
-                        app_id=event.source_ref.app_id,
                         timestamp=event.start_at or input_copy.source.captured_at,
                     )
                 )

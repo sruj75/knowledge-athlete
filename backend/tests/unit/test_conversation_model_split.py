@@ -14,20 +14,15 @@ class TestLocallyDefinedModelsImportable:
 
     def test_core_models_importable_from_conversation(self):
         from models.conversation import (
-            AppResult,
             Conversation,
             ConversationPostProcessing,
             CreateConversation,
             CreateConversationResponse,
             CreateMemoryResponse,
-            ExternalIntegrationCreateConversation,
-            PluginResult,
             UpdateConversation,
         )
 
         assert UpdateConversation().title is None
-        assert PluginResult(plugin_id="p1", content="c").content == "c"
-        assert AppResult(app_id="a1", content="c").app_id == "a1"
 
     def test_request_response_models_importable(self):
         from models.conversation import (
@@ -61,9 +56,7 @@ class TestReExportsRemoved:
             'ConversationPhoto',
             'ConversationSource',
             'ConversationStatus',
-            'ConversationVisibility',
             'Event',
-            'ExternalIntegrationConversationSource',
             'Geolocation',
             'MeetingParticipant',
             'Message',
@@ -99,7 +92,6 @@ class TestReExportsRemoved:
         exec('from models.conversation import *', ns)
         assert 'Conversation' in ns
         assert 'CreateConversation' in ns
-        assert 'AppResult' in ns
         # Re-exported symbols no longer in __all__
         assert 'CategoryEnum' not in ns
         assert 'Structured' not in ns
@@ -200,20 +192,6 @@ class TestSerializationRoundTrip:
         assert cc2.geolocation.latitude == 37.7749
         assert cc2.source == ConversationSource.desktop
         assert len(cc2.transcript_segments) == 1
-
-    def test_external_integration_round_trip(self):
-        from models.conversation import ExternalIntegrationCreateConversation
-        from models.conversation_enums import ConversationSource, ExternalIntegrationConversationSource
-
-        eic = ExternalIntegrationCreateConversation(
-            text="test content",
-            text_source=ExternalIntegrationConversationSource.message,
-            source=ConversationSource.workflow,
-        )
-        data = eic.dict()
-        eic2 = ExternalIntegrationCreateConversation(**data)
-        assert eic2.text == "test content"
-        assert eic2.text_source == ExternalIntegrationConversationSource.message
 
 
 class TestHelperMethods:
@@ -400,25 +378,6 @@ class TestPhase3NarrowImports:
 
 class TestConversationInitSideEffects:
     """Conversation.__init__ backward-compat side effects."""
-
-    def test_apps_results_synced_to_plugins_results(self):
-        from models.conversation import AppResult, Conversation
-        from models.conversation_enums import ConversationSource
-        from models.structured import Structured
-
-        now = datetime.now(timezone.utc)
-        conv = Conversation(
-            id="side-effect-1",
-            created_at=now,
-            started_at=now,
-            finished_at=now,
-            source=ConversationSource.omi,
-            structured=Structured(title="Test"),
-            apps_results=[AppResult(app_id="app1", content="result1")],
-        )
-        assert len(conv.plugins_results) == 1
-        assert conv.plugins_results[0].plugin_id == "app1"
-        assert conv.plugins_results[0].content == "result1"
 
     def test_processing_conversation_id_synced_to_processing_memory_id(self):
         from models.conversation import Conversation

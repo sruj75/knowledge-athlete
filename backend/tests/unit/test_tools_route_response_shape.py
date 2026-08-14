@@ -150,14 +150,6 @@ def _install_route_stubs(monkeypatch):
     tools_pkg_mod.__path__ = []
     monkeypatch.setitem(sys.modules, 'utils.retrieval.tools', tools_pkg_mod)
 
-    app_tools_mod = types.ModuleType('utils.retrieval.tools.app_tools')
-    app_tools_mod.load_app_tools = MagicMock(return_value=[])
-    monkeypatch.setitem(sys.modules, 'utils.retrieval.tools.app_tools', app_tools_mod)
-
-    calendar_tools_mod = types.ModuleType('utils.retrieval.tools.calendar_tools')
-    calendar_tools_mod.create_calendar_event_tool = MagicMock()
-    monkeypatch.setitem(sys.modules, 'utils.retrieval.tools.calendar_tools', calendar_tools_mod)
-
     log_sanitizer_mod = types.ModuleType('utils.log_sanitizer')
     log_sanitizer_mod.sanitize = lambda value: value
     monkeypatch.setitem(sys.modules, 'utils.log_sanitizer', log_sanitizer_mod)

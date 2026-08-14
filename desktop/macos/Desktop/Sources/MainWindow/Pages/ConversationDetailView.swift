@@ -37,7 +37,6 @@ struct ConversationDetailView: View {
   @State private var showEditDialog = false
   @State private var editedTitle = ""
   @State private var isUpdatingTitle = false
-  @State private var isCopyingLink = false
   @State private var isDeleting = false
 
   // Speaker naming state
@@ -392,21 +391,6 @@ struct ConversationDetailView: View {
 
   private var inlineActionButtons: some View {
     HStack(spacing: OmiSpacing.sm) {
-      // Copy link button
-      Button(action: { Task { await copyLink() } }) {
-        Image(systemName: isCopyingLink ? "arrow.triangle.2.circlepath" : "link")
-          .scaledFont(size: OmiType.body)
-          .foregroundColor(OmiColors.textSecondary)
-          .frame(width: 28, height: 28)
-          .background(
-            Circle()
-              .fill(OmiColors.backgroundTertiary)
-          )
-      }
-      .buttonStyle(.plain)
-      .disabled(isCopyingLink)
-      .help("Copy link")
-
       // Copy transcript button
       Button(action: copyTranscript) {
         Image(systemName: "doc.on.doc")
@@ -502,22 +486,6 @@ struct ConversationDetailView: View {
 
     NSPasteboard.general.clearContents()
     NSPasteboard.general.setString(transcript, forType: .string)
-  }
-
-  private func copyLink() async {
-    isCopyingLink = true
-    defer { isCopyingLink = false }
-
-    do {
-      let shareableUrl = try await APIClient.shared.getConversationShareLink(id: conversation.id)
-      await MainActor.run {
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(shareableUrl, forType: .string)
-      }
-      AnalyticsManager.shared.shareAction(category: "conversation", properties: ["conversation_id": conversation.id])
-    } catch {
-      logError("Failed to get share link", error: error)
-    }
   }
 
   private func updateTitle() async {

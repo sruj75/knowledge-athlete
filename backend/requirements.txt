@@ -122,7 +122,6 @@ msgpack==1.2.1
 multidict==6.0.5
 mypy-extensions==1.0.0
 narwhals==1.14.2
-neo4j==5.23.1
 networkx==3.3
 numba==0.60.0
 numpy==1.26.4

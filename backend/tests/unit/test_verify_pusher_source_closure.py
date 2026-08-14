@@ -2,7 +2,7 @@
 
 The prod freshness gate must compare the full Dockerfile COPY source closure,
 not a hardcoded two-directory subset, so that a post-qualification change to any
-shared backend module (e.g. ``backend/utils/apps.py``) forces a new dev bake.
+shared backend module (e.g. ``backend/utils/memory/memory_service.py``) forces a new dev bake.
 """
 
 from __future__ import annotations

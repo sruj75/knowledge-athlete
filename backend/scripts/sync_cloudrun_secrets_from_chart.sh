@@ -14,7 +14,7 @@
 #   sync_cloudrun_secrets_from_chart.sh <env> [--project <gcp-project-id>] [<service> …]
 #
 #   env       one of: dev | prod
-#   services  defaults to: backend backend-sync backend-integration
+#   services  defaults to: backend backend-sync backend-sync-backfill
 #
 # Requires: yq (mikefarah), gcloud authed for the target project.
 # Project must be supplied via --project or GCP_PROJECT_ID.
@@ -42,7 +42,7 @@ while [ "$#" -gt 0 ]; do
   esac
 done
 if [ "${#SERVICES[@]}" -eq 0 ]; then
-  SERVICES=(backend backend-sync backend-integration)
+  SERVICES=(backend backend-sync backend-sync-backfill)
 fi
 
 case "$ENV" in

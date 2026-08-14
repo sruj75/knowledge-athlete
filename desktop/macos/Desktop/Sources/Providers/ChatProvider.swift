@@ -161,9 +161,6 @@ extension UserDefaults {
   @objc dynamic var multiChatEnabled: Bool {
     return bool(forKey: "multiChatEnabled")
   }
-  @objc dynamic var playwrightUseExtension: Bool {
-    return bool(forKey: "playwrightUseExtension")
-  }
 }
 
 // MARK: - Chat Session Model
@@ -782,7 +779,6 @@ struct MessageMetadata {
       "get_daily_recap",
       "complete_task",
       "delete_task",
-      "save_knowledge_graph",
     ]
     .filter { prompt.contains("**\($0)**") }
     .count
@@ -1074,8 +1070,7 @@ class ChatProvider: ObservableObject {
   // `errorMessage`; unmappable cases (encoding, quota, agent errors
   // with free-form messages) keep falling back to the legacy banner.
   //
-  // Paywall sheets (`isClaudeAuthRequired`, `needsBrowserExtensionSetup`,
-  // `showOmiThresholdAlert`) are deliberately NOT migrated — they're
+  // Paywall sheets (`isClaudeAuthRequired`, `showOmiThresholdAlert`) are deliberately NOT migrated — they're
   // product flows, not error recovery surfaces.
   @Published var currentError: ChatErrorState?
 
@@ -1132,10 +1127,6 @@ class ChatProvider: ObservableObject {
   /// Pre-computed grouped sessions for sidebar display.
   /// Updated reactively via Combine instead of recomputed on every SwiftUI render pass.
   @Published private(set) var groupedSessions: [(String, [ChatSession])] = []
-
-  /// Triggered when a browser tool is called but the extension token isn't configured.
-  /// The UI should observe this and present BrowserExtensionSetup.
-  @Published var needsBrowserExtensionSetup = false
 
   /// Whether the user is currently viewing the default chat (syncs with Flutter app)
   @Published var isInDefaultChat = true
@@ -1273,7 +1264,6 @@ class ChatProvider: ObservableObject {
   }
 
   private var multiChatObserver: AnyCancellable?
-  private var playwrightExtensionObserver: AnyCancellable?
   private var sessionGroupingObserver: AnyCancellable?
   private var activationObserver: AnyCancellable?
   private var runtimeOwnerObserver: AnyCancellable?
@@ -1462,31 +1452,6 @@ class ChatProvider: ObservableObject {
       .sink { [weak self] _ in
         Task { @MainActor in
           await self?.refreshJournalProjection()
-        }
-      }
-
-    // Observe changes to Playwright extension mode setting — restart bridge to pick up new env vars
-    playwrightExtensionObserver = UserDefaults.standard.publisher(for: \.playwrightUseExtension)
-      .dropFirst()
-      .receive(on: DispatchQueue.main)
-      .sink { [weak self] _ in
-        Task { @MainActor in
-          guard let self = self else { return }
-          guard !self.isSending else {
-            log("ChatProvider: Skipping bridge restart — query in progress")
-            return
-          }
-          guard self.agentBridgeStarted else { return }
-          log("ChatProvider: Playwright extension setting changed, restarting agent bridge")
-          self.agentBridgeStarted = false
-          do {
-            try await self.resolvedAgentClient().restart()
-            if await self.ensureBridgeStarted() {
-              log("ChatProvider: agent bridge restarted with new Playwright settings")
-            }
-          } catch {
-            logError("Failed to restart agent bridge after Playwright setting change", error: error)
-          }
         }
       }
 
@@ -4221,20 +4186,10 @@ class ChatProvider: ObservableObject {
               if token.isEmpty {
                 log(
                   "ChatProvider: Browser tool \(ChatTelemetryDimension.toolName(name)) "
-                    + "called without extension token — aborting query and prompting setup"
+                    + "called without an extension token"
                 )
-                self.needsBrowserExtensionSetup = true
+                self.errorMessage = "Browser access is not configured."
                 self.stopAgent(owner: turnOwner, reason: .browserExtensionMissing)
-                // Keep floating-bar sessions non-intrusive: do not foreground
-                // the main window when the query originated from the floating bar.
-                if systemPromptStyle != .floating {
-                  // Bring the app to the foreground so the setup sheet is visible
-                  // (the failed browser attempt may have opened Chrome, stealing focus)
-                  NSApp.activate()
-                  for window in NSApp.windows where window.title.hasPrefix("Omi") {
-                    window.makeKeyAndOrderFront(nil)
-                  }
-                }
               }
               // Show the floating bar so the user has an always-on-top UI
               // when Chrome takes focus (important on small screens)
@@ -4948,8 +4903,7 @@ class ChatProvider: ObservableObject {
   /// Compose and present the personalized opener the instant the Chat tab
   /// appears after onboarding. Composed synchronously from locally-known
   /// facts (name, listening mode, cached suggestion chips) so it is instant
-  /// and never blank; today's calendar, if connected, enriches it a moment
-  /// later without ever blocking the first paint.
+  /// and never blank.
   func presentOnboardingOpener() {
     let name = Self.firstName(AuthService.shared.givenName)
     let mode: OnboardingOpenerComposer.ListeningMode =
@@ -4961,15 +4915,6 @@ class ChatProvider: ObservableObject {
     onboardingOpener = OnboardingOpenerComposer.compose(
       name: name, mode: mode, meetings: [], now: Date(), baseStarters: baseStarters)
 
-    // Enrich with today's real calendar when available — never blocks the
-    // instant opener above, and bails if the user has already started chatting.
-    Task { [weak self] in
-      let meetings = await Self.todaysMeetings()
-      guard !meetings.isEmpty else { return }
-      guard let self, self.onboardingOpener != nil else { return }
-      self.onboardingOpener = OnboardingOpenerComposer.compose(
-        name: name, mode: mode, meetings: meetings, now: Date(), baseStarters: baseStarters)
-    }
   }
 
   /// Hide the opener once the user sends their first message.
@@ -4980,47 +4925,6 @@ class ChatProvider: ObservableObject {
   private static func firstName(_ full: String) -> String {
     let trimmed = full.trimmingCharacters(in: .whitespaces)
     return trimmed.components(separatedBy: " ").first ?? trimmed
-  }
-
-  /// Today's remaining timed meetings (soonest first), best-effort. Returns an
-  /// empty array when the calendar isn't connected or the read fails — the
-  /// opener simply stays in its name-only form.
-  private static func todaysMeetings() async -> [OnboardingMeetingBrief] {
-    guard
-      let events = try? await CalendarReaderService.shared.readEvents(
-        daysBack: 0, daysForward: 1, maxResults: 50)
-    else { return [] }
-
-    // Compute "today" in the user's local timezone. ISO8601DateFormatter defaults to
-    // UTC, but event start_time date strings carry the calendar's local offset, so a
-    // UTC prefix would drop today's meetings for any user behind/ahead of UTC near the
-    // day boundary.
-    let localDayFormatter = ISO8601DateFormatter()
-    localDayFormatter.timeZone = TimeZone.current
-    let todayPrefix = localDayFormatter.string(from: Date()).prefix(10)
-    let plain = ISO8601DateFormatter()
-    let fractional = ISO8601DateFormatter()
-    fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-
-    let timeFormatter = DateFormatter()
-    timeFormatter.locale = Locale.current
-    timeFormatter.setLocalizedDateFormatFromTemplate("jmm")
-
-    let cutoff = Date().addingTimeInterval(-30 * 60)  // include a meeting that just started
-
-    return
-      events
-      .filter { !$0.isAllDay && $0.startTime.prefix(10) == todayPrefix }
-      .compactMap { event -> (Date, OnboardingMeetingBrief)? in
-        guard let start = plain.date(from: event.startTime) ?? fractional.date(from: event.startTime),
-          start >= cutoff
-        else { return nil }
-        let title = event.summary.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !title.isEmpty else { return nil }
-        return (start, OnboardingMeetingBrief(title: title, time: timeFormatter.string(from: start)))
-      }
-      .sorted { $0.0 < $1.0 }
-      .map(\.1)
   }
 
   /// Sends the active main-chat composer and clears only the exact draft that

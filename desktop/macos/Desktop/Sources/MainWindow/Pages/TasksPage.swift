@@ -4172,9 +4172,6 @@ struct TaskRow: View {
   @State private var rowOpacity: Double = 1.0
   @State private var rowOffset: CGFloat = 0
   @State private var showTaskDetail = false
-  @State private var isCopyingLink = false
-  @State private var showShareCopiedToast = false
-  @State private var shareToastDismissTask: Task<Void, Never>?
 
   // Inline editing state
   @State private var editText = ""
@@ -4255,14 +4252,6 @@ struct TaskRow: View {
       RoundedRectangle(cornerRadius: OmiChrome.elementRadius)
         .stroke(isActiveChatTask ? OmiColors.textPrimary.opacity(0.25) : Color.clear, lineWidth: 1)
     )
-    .overlay(alignment: .topTrailing) {
-      if showShareCopiedToast {
-        shareCopiedToast
-          .padding(.top, -10)
-          .padding(.trailing, OmiSpacing.md)
-          .transition(.move(edge: .top).combined(with: .opacity))
-      }
-    }
     .sheet(isPresented: $showTaskDetail) {
       TaskDetailView(
         task: task,
@@ -4767,19 +4756,6 @@ struct TaskRow: View {
             .help("Increase indent")
           }
 
-          // Share link button
-          Button {
-            Task { await copyShareLink() }
-          } label: {
-            Image(systemName: isCopyingLink ? "arrow.triangle.2.circlepath" : "arrowshape.turn.up.right.fill")
-              .scaledFont(size: OmiType.body)
-              .foregroundColor(OmiColors.textTertiary)
-              .frame(width: 24, height: 24)
-          }
-          .buttonStyle(.plain)
-          .disabled(isCopyingLink)
-          .help("Copy share link")
-
           // Delete button
           Button {
             Task { await onDelete?(task) }
@@ -4869,65 +4845,6 @@ struct TaskRow: View {
     Task {
       await onUpdateDetails?(task, trimmed, nil, nil, nil)
     }
-  }
-
-  // MARK: - Share Link
-
-  private func copyShareLink() async {
-    guard !isCopyingLink else { return }
-    isCopyingLink = true
-    defer { isCopyingLink = false }
-
-    do {
-      let response = try await APIClient.shared.shareTasks(taskIds: [task.id])
-      let pasteboard = NSPasteboard.general
-      pasteboard.clearContents()
-      pasteboard.setString(response.url, forType: .string)
-      showShareCopiedFeedback()
-      AnalyticsManager.shared.shareAction(category: "task", properties: ["task_id": task.id])
-      log("Copied task share link to clipboard: \(response.url)")
-    } catch {
-      log("Failed to get task share link: \(error)")
-    }
-  }
-
-  private func showShareCopiedFeedback() {
-    shareToastDismissTask?.cancel()
-    OmiMotion.withGated(.spring(response: 0.22, dampingFraction: 0.9)) {
-      showShareCopiedToast = true
-    }
-
-    shareToastDismissTask = Task {
-      try? await Task.sleep(nanoseconds: 1_400_000_000)
-      guard !Task.isCancelled else { return }
-      await MainActor.run {
-        OmiMotion.withGated(.easeOut(duration: 0.18)) {
-          showShareCopiedToast = false
-        }
-      }
-    }
-  }
-
-  private var shareCopiedToast: some View {
-    HStack(spacing: OmiSpacing.xs) {
-      Image(systemName: "checkmark")
-        .scaledFont(size: OmiType.micro, weight: .bold)
-      Text("Sharing link copied")
-        .scaledFont(size: OmiType.caption, weight: .semibold)
-    }
-    .foregroundColor(OmiColors.textPrimary)
-    .padding(.horizontal, OmiSpacing.sm)
-    .padding(.vertical, OmiSpacing.xs)
-    .background(
-      Capsule()
-        .fill(OmiColors.backgroundSecondary)
-    )
-    .overlay(
-      Capsule()
-        .stroke(OmiColors.border.opacity(0.8), lineWidth: 1)
-    )
-    .shadow(color: .black.opacity(0.18), radius: 10, x: 0, y: 6)
-    .allowsHitTesting(false)
   }
 
   // MARK: - Due Date Popover

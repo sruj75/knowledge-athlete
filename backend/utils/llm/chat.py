@@ -12,7 +12,6 @@ import database.notifications as notification_db
 import database.goals as goals_db
 from database.redis_db import add_filter_category_item
 from database.auth import get_user_name
-from models.app import App
 from models.chat import Message, MessageSender, PageContext
 from models.conversation_enums import CategoryEnum
 from models.conversation_metadata import ConversationMetadata
@@ -59,25 +58,15 @@ def normalize_filter(value: str) -> str:
 # ****************************************
 
 
-def initial_chat_message(uid: str, plugin: Optional[App] = None, prev_messages_str: str = '') -> str:
+def initial_chat_message(uid: str, prev_messages_str: str = '') -> str:
     user_name, memories_str = get_prompt_memories(uid)
-    if plugin is None:
-        prompt = f"""
+    prompt = f"""
 You are 'Omi', a friendly and helpful assistant who aims to make {user_name}'s life better 10x.
 You know the following about {user_name}: {memories_str}.
 
 {prev_messages_str}
 
 Compose {"an initial" if not prev_messages_str else "a follow-up"} message to {user_name} that fully embodies your friendly and helpful personality. Use warm and cheerful language, and include light humor if appropriate. The message should be short, engaging, and make {user_name} feel welcome. Do not mention that you are an assistant or that this is an initial message; just {"start" if not prev_messages_str else "continue"} the conversation naturally, showcasing your personality.
-"""
-    else:
-        prompt = f"""
-You are '{plugin.name}', {plugin.chat_prompt}.
-You know the following about {user_name}: {memories_str}.
-
-{prev_messages_str}
-
-As {plugin.name}, fully embrace your personality and characteristics in your {"initial" if not prev_messages_str else "follow-up"} message to {user_name}. Use language, tone, and style that reflect your unique personality traits. {"Start" if not prev_messages_str else "Continue"} the conversation naturally with a short, engaging message that showcases your personality and humor, and connects with {user_name}. Do not mention that you are an AI or that this is an initial message.
 """
     prompt = prompt.strip()
     with track_usage(uid, Features.CHAT):
@@ -176,7 +165,9 @@ def retrieve_is_an_omi_question(question: str) -> bool:
     {question}
     
     Is this asking about the Omi/Friend app product itself?
-    '''.replace('    ', '').strip()
+    '''.replace(
+        '    ', ''
+    ).strip()
     with_parser = get_llm('chat_extraction').with_structured_output(IsAnOmiQuestion)
     response = cast(IsAnOmiQuestion, with_parser.invoke(prompt))
     try:
@@ -227,7 +218,9 @@ def retrieve_context_dates_by_question(question: str, tz: str) -> List[datetime]
     {question}
     </question>
 
-    '''.replace('    ', '').strip()
+    '''.replace(
+        '    ', ''
+    ).strip()
 
     # print(prompt)
     # print(get_llm('chat_extraction').invoke(prompt).content)
@@ -264,15 +257,9 @@ def chunk_extraction(
     return response.summary
 
 
-def _get_answer_simple_message_prompt(uid: str, messages: List[Message], app: Optional[App] = None) -> str:
-    conversation_history = Message.get_messages_as_string(
-        messages, use_user_name_if_available=True, use_plugin_name_if_available=True
-    )
+def _get_answer_simple_message_prompt(uid: str, messages: List[Message]) -> str:
+    conversation_history = Message.get_messages_as_string(messages, use_user_name_if_available=True)
     user_name, memories_str = get_prompt_memories(uid)
-
-    plugin_info = ""
-    if app:
-        plugin_info = f"Your name is: {app.name}, and your personality/description is '{app.description}'.\nMake sure to reflect your personality in your response.\n"
 
     return f"""
     You are an assistant for engaging personal conversations.
@@ -281,33 +268,30 @@ def _get_answer_simple_message_prompt(uid: str, messages: List[Message], app: Op
     Use what you know about {user_name}, to continue the conversation, feel free to ask questions, share stories, or just say hi.
 
     If a user asks a question, just answer it. Don't add any extra information. Don't be verbose.
-    {plugin_info}
 
     Conversation History:
     {conversation_history}
 
     Answer:
-    """.replace('    ', '').strip()
+    """.replace(
+        '    ', ''
+    ).strip()
 
 
-def answer_simple_message(uid: str, messages: List[Message], plugin: Optional[App] = None) -> str:
-    prompt = _get_answer_simple_message_prompt(uid, messages, plugin)
+def answer_simple_message(uid: str, messages: List[Message]) -> str:
+    prompt = _get_answer_simple_message_prompt(uid, messages)
     with track_usage(uid, Features.CHAT):
         return _content_str(get_llm('chat_responses').invoke(prompt))
 
 
-def answer_simple_message_stream(
-    uid: str, messages: List[Message], plugin: Optional[App] = None, callbacks: List[Any] = []
-) -> str:
-    prompt = _get_answer_simple_message_prompt(uid, messages, plugin)
+def answer_simple_message_stream(uid: str, messages: List[Message], callbacks: List[Any] = []) -> str:
+    prompt = _get_answer_simple_message_prompt(uid, messages)
     with track_usage(uid, Features.CHAT):
         return _content_str(get_llm('chat_responses', streaming=True).invoke(prompt, {'callbacks': callbacks}))
 
 
 def _get_answer_omi_question_prompt(messages: List[Message], context: str) -> str:
-    conversation_history = Message.get_messages_as_string(
-        messages, use_user_name_if_available=True, use_plugin_name_if_available=True
-    )
+    conversation_history = Message.get_messages_as_string(messages, use_user_name_if_available=True)
 
     return f"""
     You are an assistant for answering questions about the app Omi, also known as Friend.
@@ -322,7 +306,9 @@ def _get_answer_omi_question_prompt(messages: List[Message], context: str) -> st
     {conversation_history}
 
     Answer:
-    """.replace('    ', '').strip()
+    """.replace(
+        '    ', ''
+    ).strip()
 
 
 def answer_omi_question(messages: List[Message], context: str) -> str:
@@ -339,7 +325,6 @@ def _get_qa_rag_prompt(
     uid: str,
     question: str,
     context: str,
-    plugin: Optional[App] = None,
     cited: Optional[bool] = False,
     messages: List[Message] = [],
     tz: Optional[str] = "UTC",
@@ -349,10 +334,6 @@ def _get_qa_rag_prompt(
 
     # Use as template (make sure it varies every time): "If I were you $user_name I would do x, y, z."
     context = context.replace('\n\n', '\n').strip()
-    plugin_info = ""
-    if plugin:
-        plugin_info = f"Your name is: {plugin.name}, and your personality/description is '{plugin.description}'.\nMake sure to reflect your personality in your response.\n"
-
     cited_instruction = """
     - You MUST cite the most relevant <memories> that answer the question. \
       - Only cite in <memories> not <user_facts>, not <previous_messages>.
@@ -361,7 +342,8 @@ def _get_qa_rag_prompt(
       - Avoid citing irrelevant memories.
     """
 
-    return f"""
+    return (
+        f"""
     <assistant_role>
         You are an assistant for question-answering tasks.
     </assistant_role>
@@ -379,12 +361,7 @@ def _get_qa_rag_prompt(
     - If you don't know the answer or the premise is incorrect, explain why. If the <memories> are empty or unhelpful, answer the question as well as you can with existing knowledge.
     - You MUST follow the <reports_instructions> if the user is asking for reporting or summarizing their dates, weeks, months, or years.
     {cited_instruction if cited and len(context) > 0 else ""}
-    {"- Regard the <plugin_instructions>" if len(plugin_info) > 0 else ""}.
     </instructions>
-
-    <plugin_instructions>
-    {plugin_info}
-    </plugin_instructions>
 
     <reports_instructions>
     - Answer with the template:
@@ -420,7 +397,12 @@ def _get_qa_rag_prompt(
     </question_timezone>
 
     <answer>
-    """.replace('    ', '').replace('\n\n\n', '\n\n').strip()
+    """.replace(
+            '    ', ''
+        )
+        .replace('\n\n\n', '\n\n')
+        .strip()
+    )
 
 
 # The agentic system prompt is wrapped in a single Anthropic cache_control breakpoint,
@@ -510,7 +492,6 @@ def get_current_datetime_block(uid: str, tz: Optional[str] = None, location: Opt
 
 def _get_agentic_qa_prompt(  # type: ignore[reportUnusedFunction]  # imported by retrieval/agentic.py
     uid: str,
-    app: Optional[App] = None,
     messages: Optional[List[Message]] = None,
     context: Optional[PageContext] = None,
     tz: Optional[str] = None,
@@ -528,7 +509,6 @@ def _get_agentic_qa_prompt(  # type: ignore[reportUnusedFunction]  # imported by
 
     Args:
         uid: User ID
-        app: Optional app/plugin for personalized behavior
         messages: Optional message history for file context
         context: Optional page context (type, id, title)
         platform: Optional `X-App-Platform` header value; recognized values append a
@@ -549,21 +529,6 @@ def _get_agentic_qa_prompt(  # type: ignore[reportUnusedFunction]  # imported by
     current_datetime_str = CURRENT_DATETIME_PLACEHOLDER
     current_datetime_iso = CURRENT_DATETIME_PLACEHOLDER
     logger.info(f"🌍 _get_agentic_qa_prompt - User timezone: {tz}")
-
-    # Handle persona apps - they override the entire system prompt
-    if app and app.is_a_persona():
-        return app.persona_prompt or app.chat_prompt or ''
-
-    # Plugin-specific instructions for regular apps
-    plugin_info = ""
-    plugin_section = ""
-    if app:
-        plugin_info = f"Your name is: {app.name}, and your personality/description is '{app.description}'.\nMake sure to reflect your personality in your response."
-        plugin_section = f"""<plugin_instructions>
-{plugin_info}
-</plugin_instructions>
-
-"""
 
     # Add file context if messages contain files
     file_context_section = ""
@@ -612,10 +577,6 @@ Keep this context in mind when answering their question.
 
 """
 
-    # Build conditional instruction hints for the template
-    plugin_instruction_hint = "- Regard the <plugin_instructions>" if plugin_info else ""
-    plugin_personality_hint = f"- Reflect {app.name}'s personality" if app else ""
-
     # Build template variables dict for LangSmith prompt
     template_variables = {
         "user_name": user_name,
@@ -625,9 +586,6 @@ Keep this context in mind when answering their question.
         "goal_section": goal_section,
         "file_context_section": file_context_section,
         "context_section": context_section,
-        "plugin_section": plugin_section,
-        "plugin_instruction_hint": plugin_instruction_hint,
-        "plugin_personality_hint": plugin_personality_hint,
     }
 
     # Fetch and render the prompt template from LangSmith (with caching + fallback)
@@ -651,7 +609,7 @@ Keep this context in mind when answering their question.
     # PROMPT CACHE OPTIMIZATION: OpenAI serializes requests as [tools][system][messages].
     # Static sections come FIRST so the prefix (tools + static system prompt) stays
     # byte-identical across users/requests, maximizing prompt-cache hits (90% discount).
-    # All dynamic content ({user_name}, {tz}, datetime, goal, context, plugin) is
+    # All dynamic content ({user_name}, {tz}, datetime, goal, context) is
     # pushed to the end of the system prompt.
 
     base_prompt = f"""<response_style>
@@ -856,12 +814,9 @@ When the user asks about specific dates/times, they are ALWAYS referring to date
 - If you don’t know, say so honestly.
 - Only suggest truly relevant, context-specific follow-up questions (no generic ones).
 - When you learn a new preference, habit, or personal detail about {user_name} during conversation, save it using save_user_preference_tool so you remember it next time. Don't ask — just save silently. Don't save things you already know from existing memories.
-{plugin_instruction_hint}
 - Follow <quality_control> rules.
-{plugin_personality_hint}
 </instructions>
 
-{plugin_section}
 Remember: Use tools strategically to provide the best possible answers. For questions about specific EVENTS or INCIDENTS (e.g., "when did X happen?", "what happened at Y?"), use search_conversations_tool to find relevant conversations. For questions about static FACTS/PREFERENCES (e.g., "what's my favorite X?", "do I like Y?"), use get_memories_tool. Your goal is to help {user_name} in the most personalized and helpful way possible.
 """
 
@@ -880,9 +835,6 @@ def _get_agentic_qa_prompt_fallback(variables: dict[str, Any]) -> str:  # type: 
     goal_section = variables.get("goal_section", "")
     file_context_section = variables.get("file_context_section", "")
     context_section = variables.get("context_section", "")
-    plugin_section = variables.get("plugin_section", "")
-    plugin_instruction_hint = variables.get("plugin_instruction_hint", "")
-    plugin_personality_hint = variables.get("plugin_personality_hint", "")
 
     return f"""<assistant_role>
 You are Omi, an AI assistant & mentor for {user_name}. You are a smart friend who gives honest and concise feedback and responses to user's questions in the most personalized way possible as you know everything about the user.
@@ -929,11 +881,8 @@ Sound human: "I don't have that" not "no data in logs".
 - Be casual, concise, direct—text like a friend
 - Give specific feedback; never generic
 - If you don't know, say so in 1-2 lines max
-{plugin_instruction_hint}
-{plugin_personality_hint}
 </instructions>
 
-{plugin_section}
 Remember: Use tools strategically. Your goal is to help {user_name} in the most personalized way possible.
 """
 
@@ -942,12 +891,11 @@ def qa_rag(
     uid: str,
     question: str,
     context: str,
-    plugin: Optional[App] = None,
     cited: Optional[bool] = False,
     messages: List[Message] = [],
     tz: Optional[str] = "UTC",
 ) -> str:
-    prompt = _get_qa_rag_prompt(uid, question, context, plugin, cited, messages, tz)
+    prompt = _get_qa_rag_prompt(uid, question, context, cited, messages, tz)
     # print('qa_rag prompt', prompt)
     with track_usage(uid, Features.CHAT):
         return _content_str(get_llm('chat_responses').invoke(prompt))
@@ -957,13 +905,12 @@ def qa_rag_stream(
     uid: str,
     question: str,
     context: str,
-    plugin: Optional[App] = None,
     cited: Optional[bool] = False,
     messages: List[Message] = [],
     tz: Optional[str] = "UTC",
     callbacks: List[Any] = [],
 ) -> str:
-    prompt = _get_qa_rag_prompt(uid, question, context, plugin, cited, messages, tz)
+    prompt = _get_qa_rag_prompt(uid, question, context, cited, messages, tz)
     # print('qa_rag prompt', prompt)
     with track_usage(uid, Features.CHAT):
         return _content_str(get_llm('chat_responses', streaming=True).invoke(prompt, {'callbacks': callbacks}))
@@ -997,7 +944,9 @@ def retrieve_memory_context_params(
 
     Conversation:
     {transcript}
-    '''.replace('    ', '').strip()
+    '''.replace(
+        '    ', ''
+    ).strip()
 
     try:
         with track_usage(uid, Features.CHAT):
@@ -1043,7 +992,9 @@ def obtain_emotional_message(
     ```
     {context}
     ```
-    """.replace('    ', '').strip()
+    """.replace(
+        '    ', ''
+    ).strip()
     with track_usage(uid, Features.CHAT):
         return _content_str(get_llm('chat_extraction').invoke(prompt))
 
@@ -1159,7 +1110,9 @@ def extract_question_from_conversation(messages: List[Message]) -> str:
     - this day
     - etc.
     </date_in_term>
-    '''.replace('    ', '').strip()
+    '''.replace(
+        '    ', ''
+    ).strip()
     # print(prompt)
     question = cast(
         OutputQuestion, get_llm('chat_extraction').with_structured_output(OutputQuestion).invoke(prompt)
@@ -1213,7 +1166,9 @@ def retrieve_metadata_fields_from_transcript(
     ```
     {full_context}
     ```
-    '''.replace('    ', '')
+    '''.replace(
+        '    ', ''
+    )
     try:
         with track_usage(uid, Features.CONVERSATION_PROCESSING):
             result = cast(
@@ -1273,7 +1228,9 @@ def retrieve_metadata_from_message(
     ```
     {message_text}
     ```
-    '''.replace('    ', '')
+    '''.replace(
+        '    ', ''
+    )
 
     return _process_extracted_metadata(uid, prompt, today)
 
@@ -1308,7 +1265,9 @@ def retrieve_metadata_from_text(
     ```
     {text}
     ```
-    '''.replace('    ', '')
+    '''.replace(
+        '    ', ''
+    )
 
     return _process_extracted_metadata(uid, prompt, today)
 
@@ -1357,7 +1316,9 @@ def select_structured_filters(question: str, filters_available: dict[str, Any]) 
     ```
 
     Question: {question}
-    '''.replace('    ', '').strip()
+    '''.replace(
+        '    ', ''
+    ).strip()
     # print(prompt)
     with_parser = get_llm('chat_extraction').with_structured_output(FiltersToUse)
     try:
@@ -1405,8 +1366,10 @@ def extract_question_from_transcript(uid: str, segments: List[TranscriptSegment]
     ```
     {TranscriptSegment.segments_as_string(segments, people=people, user_name=user_name)}
     ```
-    '''.replace('    ', '').strip()
-    with track_usage(uid, Features.REALTIME_INTEGRATIONS):
+    '''.replace(
+        '    ', ''
+    ).strip()
+    with track_usage(uid, Features.CHAT):
         return cast(
             OutputQuestion, get_llm('chat_extraction').with_structured_output(OutputQuestion).invoke(prompt)
         ).question
@@ -1457,8 +1420,10 @@ def provide_advice_message(uid: str, segments: List[TranscriptSegment], context:
     ```
     {context}
     ```
-    """.replace('    ', '').strip()
-    with track_usage(uid, Features.REALTIME_INTEGRATIONS):
+    """.replace(
+        '    ', ''
+    ).strip()
+    with track_usage(uid, Features.CHAT):
         return cast(
             OutputMessage, get_llm('chat_extraction').with_structured_output(OutputMessage).invoke(prompt)
         ).message

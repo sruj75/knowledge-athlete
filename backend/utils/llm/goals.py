@@ -73,7 +73,7 @@ def _get_goal_context(uid: str, goal_title: str) -> Dict[str, str]:
     # 3. Recent chat messages
     chat_context = ""
     try:
-        recent_messages = chat_db.get_messages(uid, limit=15, app_id=None)
+        recent_messages = chat_db.get_messages(uid, limit=15)
         if recent_messages:
             chat_lines: List[str] = []
             for msg in reversed(recent_messages):  # Chronological order

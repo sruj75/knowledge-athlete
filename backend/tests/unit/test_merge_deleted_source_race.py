@@ -103,7 +103,6 @@ def test_merge_renews_processing_lease_during_live_processing(monkeypatch):
     monkeypatch.setattr(merge, "_merge_transcript_segments", lambda convs: [])
     monkeypatch.setattr(merge, "_collect_all_photos", lambda uid, convs: [])
     monkeypatch.setattr(merge, "_copy_audio_chunks_for_merge", lambda uid, convs, new_id: [])
-    monkeypatch.setattr(merge, "_determine_visibility", lambda convs: 'private')
     monkeypatch.setattr(merge, "_shared_client_device_provenance", lambda convs: (None, None))
     monkeypatch.setattr(
         merge,

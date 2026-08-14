@@ -111,7 +111,6 @@ final class MemoryReconciliationScopeTests: XCTestCase {
       conversationId: conversationId,
       reviewed: false,
       userReview: nil,
-      visibility: "private",
       manuallyAdded: false,
       scoring: nil,
       source: "desktop",

@@ -420,7 +420,6 @@ class FloatingControlBarWindow: NSPanel, NSWindowDelegate {
   var onHide: (() -> Void)?
   var onSendQuery: ((String) -> Void)?
   var onRate: ((String, Int?) -> Void)?
-  var onShareLink: (() async -> String?)?
 
   override init(
     contentRect: NSRect, styleMask style: NSWindow.StyleMask,
@@ -698,8 +697,7 @@ class FloatingControlBarWindow: NSPanel, NSWindowDelegate {
       onCloseAI: { [weak self] in self?.closeAIConversation() },
       onEscape: { [weak self] in self?.handleEscapeKey() },
       onClearVisibleConversation: { [weak self] in self?.clearVisibleConversationFromUI() },
-      onRate: { [weak self] messageId, rating in self?.onRate?(messageId, rating) },
-      onShareLink: { [weak self] in await self?.onShareLink?() }
+      onRate: { [weak self] messageId, rating in self?.onRate?(messageId, rating) }
     ).environmentObject(state)
 
     hostingView = FloatingBarHostingView(
@@ -2830,22 +2828,6 @@ class FloatingControlBarManager {
       }
     }
 
-    barWindow.onShareLink = { [weak self, weak barWindow] in
-      guard let self, let barWindow = barWindow else { return nil }
-      // Share synced message ids from the viewport cursor over the shared provider.
-      let orderedUniqueMessageIds = barWindow.state.syncedShareMessageIds(
-        from: self.historyChatProvider
-      )
-      guard !orderedUniqueMessageIds.isEmpty else { return nil }
-      do {
-        let response = try await APIClient.shared.shareChatMessages(messageIds: orderedUniqueMessageIds)
-        return response.url
-      } catch {
-        log("Failed to get chat share link: \(error)")
-        return nil
-      }
-    }
-
     // Observe recording state
     recordingCancellable = appState.$isTranscribing
       .combineLatest(appState.$isSavingConversation)
@@ -4338,8 +4320,7 @@ class FloatingControlBarManager {
     // we should bail before doing setup work — especially before
     // `limiter.recordQuery()` (which would consume a local quota slot)
     // and before the screenshot capture. This matches the pattern used
-    // elsewhere in the codebase (OnboardingChatView, FileIndexingView,
-    // DesktopHomeView) and is cheap insurance against future refactors.
+    // elsewhere in the codebase and is cheap insurance against future refactors.
     guard !Task.isCancelled,
       voiceTurnID.map({ VoiceTurnCoordinator.shared.requireCurrentOwner(for: $0) != nil })
         ?? true

@@ -13,9 +13,8 @@ import database.notifications as notification_db
 from database.redis_db import try_acquire_daily_summary_lock
 from models.notification_message import NotificationMessage
 from utils.conversations.factory import deserialize_conversation
-from utils.llm.external_integrations import generate_comprehensive_daily_summary
+from utils.llm.daily_summary import generate_comprehensive_daily_summary
 from utils.notifications import send_bulk_notification, send_notification
-from utils.webhooks import day_summary_webhook
 import database.daily_summaries as daily_summaries_db
 import logging
 
@@ -190,16 +189,10 @@ def _send_summary_notification(user_data: Tuple[Any, ...]) -> None:
 
     ai_message = NotificationMessage(
         text=summary_body,
-        from_integration='false',
         type='day_summary',
         notification_type='daily_summary',
         navigate_to=f"/daily-summary/{summary_id}",
     )
-
-    # Also send webhook with the full summary data (day_summary_webhook is async, so wrap in asyncio.run).
-    # ``summary`` is the legacy str(...) form, kept for backward compatibility; ``summary_json``
-    # carries the same payload as a real JSON object for receivers to migrate to.
-    postprocess_executor.submit(asyncio.run, day_summary_webhook(uid, str(summary_data), summary_data))
 
     tokens = user_data[1] if len(user_data) > 1 else None
     send_notification(

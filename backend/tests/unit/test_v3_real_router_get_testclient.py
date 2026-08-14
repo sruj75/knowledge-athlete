@@ -33,7 +33,6 @@ def test_get_only_routes_execute_and_mutations_stay_blocked(probe):
         "upsert_memory_vectors_batch": False,
         "delete_memory_vector": False,
         "delete_memory_vectors_batch": False,
-        "update_personas_async": False,
         "executor_submit": False,
         "run_blocking": False,
     }

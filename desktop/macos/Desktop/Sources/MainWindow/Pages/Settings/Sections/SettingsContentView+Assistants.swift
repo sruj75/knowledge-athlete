@@ -1116,43 +1116,6 @@ extension SettingsContentView {
         }
       }
 
-      // Rescan Files
-      settingsCard(settingId: "advanced.troubleshooting.rescanfiles") {
-        HStack(spacing: OmiSpacing.lg) {
-          Image(systemName: "folder.badge.gearshape")
-            .scaledFont(size: OmiType.subheading)
-            .foregroundColor(OmiColors.textSecondary)
-            .frame(width: 24, height: 24)
-
-          VStack(alignment: .leading, spacing: OmiSpacing.xxs) {
-            Text("Rescan Files")
-              .scaledFont(size: OmiType.subheading, weight: .semibold)
-              .foregroundColor(OmiColors.textPrimary)
-
-            Text("Re-index your files and update your AI profile")
-              .scaledFont(size: OmiType.body)
-              .foregroundColor(OmiColors.textTertiary)
-          }
-
-          Spacer()
-
-          Button(action: { showRescanFilesAlert = true }) {
-            Text("Rescan")
-          }
-          .buttonStyle(OmiButtonStyle(.primary, size: .compact))
-        }
-      }
-      .alert("Rescan Files?", isPresented: $showRescanFilesAlert) {
-        Button("Cancel", role: .cancel) {}
-        Button("Rescan") {
-          NotificationCenter.default.post(name: .triggerFileIndexing, object: nil)
-        }
-      } message: {
-        Text(
-          "This will re-scan your files and update your AI profile with the latest information about your projects and interests."
-        )
-      }
-
     }
   }
 

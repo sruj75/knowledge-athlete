@@ -191,7 +191,6 @@ class BackfillReport:
     legacy_rows_touched: int = 0
     vector_sync_failures: int = 0
     keyword_sync_failures: int = 0
-    kg_extraction_failures: int = 0
     cohort_gated: bool = False
     errors: List[str] = field(default_factory=_empty_str_list)
     selected_bucket: Optional[str] = None
@@ -210,7 +209,6 @@ class LegacyBackfillRowResult:
     skip_reason: Optional[str]
     vector_sync_failed: bool = False
     keyword_sync_succeeded: bool = True
-    kg_extraction_failed: bool = False
 
 
 @dataclass(frozen=True)
@@ -249,7 +247,6 @@ class LegacyBackfillRemediationApplyReport:
     idempotent_count: int
     vector_sync_failures: int
     keyword_sync_failures: int
-    kg_invalidation_failures: int
     cohort_gated: bool = False
     errors: List[str] = field(default_factory=_empty_str_list)
 
@@ -263,7 +260,6 @@ class LegacyBackfillRemediationArchiveResult:
     idempotent: bool
     vector_sync_failed: bool
     keyword_sync_failed: bool
-    kg_invalidation_failed: bool
 
 
 def legacy_backfill_memory_id(*, uid: str, legacy_memory_id: str) -> str:
@@ -592,7 +588,6 @@ def _archive_legacy_backfill_item_via_apply(
         "result_status": LifecycleState.active.value,
         # archive_explicit: this operator path intentionally changes default visibility.
         "target_tier": MemoryLayer.archive.value,
-        "clear_graph_assertion": True,
     }
     idempotency_key = deterministic_contract_id(
         "legacy-backfill-remediation-archive",
@@ -661,7 +656,6 @@ def _archive_legacy_backfill_item_via_apply(
         idempotent=result.status == ApplyStatus.idempotent_skip,
         vector_sync_failed=False,
         keyword_sync_failed=False,
-        kg_invalidation_failed=False,
     )
 
 
@@ -702,7 +696,6 @@ def apply_legacy_backfill_remediation_archives(
             idempotent_count=0,
             vector_sync_failures=0,
             keyword_sync_failures=0,
-            kg_invalidation_failures=0,
             cohort_gated=True,
             errors=[str(exc)],
         )
@@ -721,7 +714,6 @@ def apply_legacy_backfill_remediation_archives(
             idempotent_count=0,
             vector_sync_failures=0,
             keyword_sync_failures=0,
-            kg_invalidation_failures=0,
             errors=[
                 f"expected_archive_count={expected_archive_count} does not match candidate_count={candidate_count}"
             ],
@@ -736,7 +728,6 @@ def apply_legacy_backfill_remediation_archives(
             idempotent_count=0,
             vector_sync_failures=0,
             keyword_sync_failures=0,
-            kg_invalidation_failures=0,
         )
 
     control = _read_control_state(uid, db_client=client, create_if_missing=False)
@@ -745,7 +736,6 @@ def apply_legacy_backfill_remediation_archives(
     idempotent_count = 0
     vector_sync_failures = 0
     keyword_sync_failures = 0
-    kg_invalidation_failures = 0
     errors: List[str] = []
     for item in candidates:
         try:
@@ -761,7 +751,6 @@ def apply_legacy_backfill_remediation_archives(
             idempotent_count += int(result.idempotent)
             vector_sync_failures += int(result.vector_sync_failed)
             keyword_sync_failures += int(result.keyword_sync_failed)
-            kg_invalidation_failures += int(result.kg_invalidation_failed)
         except Exception as exc:
             errors.append(f"{item.memory_id}: {sanitize(str(exc))}")
             logger.exception("legacy backfill remediation archive failed uid=%s memory_id=%s", uid, item.memory_id)
@@ -774,7 +763,6 @@ def apply_legacy_backfill_remediation_archives(
         idempotent_count=idempotent_count,
         vector_sync_failures=vector_sync_failures,
         keyword_sync_failures=keyword_sync_failures,
-        kg_invalidation_failures=kg_invalidation_failures,
         errors=errors,
     )
 
@@ -1464,7 +1452,6 @@ def backfill_user_bucketed(
     skipped_semantic_duplicate = 0
     vector_sync_failures = 0
     keyword_sync_failures = 0
-    kg_extraction_failures = 0
     errors: List[str] = []
     materialized_semantic_keys: set[str] = set()
 
@@ -1496,8 +1483,6 @@ def backfill_user_bucketed(
                 vector_sync_failures += 1
             if not row_result.keyword_sync_succeeded:
                 keyword_sync_failures += 1
-            if row_result.kg_extraction_failed:
-                kg_extraction_failures += 1
         except Exception as exc:
             safe_uid = sanitize_pii(uid)
             safe_legacy_id = sanitize_pii(_row_str(legacy_row, "id", "unknown"))
@@ -1523,7 +1508,6 @@ def backfill_user_bucketed(
         legacy_rows_touched=len(selected_rows),
         vector_sync_failures=vector_sync_failures,
         keyword_sync_failures=keyword_sync_failures,
-        kg_extraction_failures=kg_extraction_failures,
         errors=errors,
         selected_bucket=selected_bucket_value,
         bucket_counts=bucket_counts,
@@ -1621,7 +1605,6 @@ def backfill_user(
     skipped_semantic_duplicate = 0
     vector_sync_failures = 0
     keyword_sync_failures = 0
-    kg_extraction_failures = 0
     errors: List[str] = []
     materialized_semantic_keys: set[str] = set()
 
@@ -1663,8 +1646,6 @@ def backfill_user(
                 vector_sync_failures += 1
             if not row_result.keyword_sync_succeeded:
                 keyword_sync_failures += 1
-            if row_result.kg_extraction_failed:
-                kg_extraction_failures += 1
         except Exception as exc:
             safe_uid = sanitize_pii(uid)
             safe_legacy_id = sanitize_pii(_row_str(legacy_row, "id", "unknown"))
@@ -1716,7 +1697,6 @@ def backfill_user(
         legacy_rows_touched=0,
         vector_sync_failures=vector_sync_failures,
         keyword_sync_failures=keyword_sync_failures,
-        kg_extraction_failures=kg_extraction_failures,
         errors=errors,
         skipped_non_admissible=skipped_non_admissible,
         admissible_count=len(admissible_rows),

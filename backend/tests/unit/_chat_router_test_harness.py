@@ -85,8 +85,6 @@ def wire_common_stubs(install) -> SimpleNamespace:
     chat_db.add_message = MagicMock(side_effect=lambda uid, message_data: message_data)
     chat_db.add_message_to_chat_session = MagicMock()
     install('database.conversations')
-    apps_db = install('database.apps')
-    apps_db.record_app_usage = MagicMock()
     llm_usage_db = install('database.llm_usage')
     llm_usage_db.record_chat_quota_question = MagicMock(return_value=True)
     users_db = install('database.users')
@@ -109,8 +107,6 @@ def wire_common_stubs(install) -> SimpleNamespace:
 
     executors.run_blocking = AsyncMock(side_effect=run_blocking_side_effect)
 
-    utils_apps = install('utils.apps', ModuleType('utils.apps'))
-    utils_apps.get_available_app_by_id = MagicMock(return_value=None)
     helpers = install('utils.conversation_helpers', ModuleType('utils.conversation_helpers'))
     helpers.extract_memory_ids = MagicMock(return_value=[])
     goals = install('utils.llm.goals', ModuleType('utils.llm.goals'))
@@ -215,7 +211,6 @@ def wire_common_stubs(install) -> SimpleNamespace:
     return SimpleNamespace(
         chat_db=chat_db,
         llm_usage_db=llm_usage_db,
-        apps_db=apps_db,
         usage_tracker=usage_tracker,
         auth=auth,
     )

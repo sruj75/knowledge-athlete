@@ -321,7 +321,7 @@ def _required_payload(memory_id: str, content: str, *, manually_added=True):
             "content": content,
             "manually_added": manually_added,
         },
-        source_surface="mcp",
+        source_surface="omi_chat",
     )
 
 
@@ -388,7 +388,7 @@ def test_required_submission_is_visible_pending_short_term_but_not_default_memor
     assert [memory.id for memory in pending] == [memory_id]
 
 
-def test_required_processing_preserves_integration_attribution():
+def test_required_processing_preserves_chat_attribution():
     payload = _required_payload(
         "integration-required",
         "The account uses a weekly planning ritual.",
@@ -397,7 +397,7 @@ def test_required_processing_preserves_integration_attribution():
     assert payload["manually_added"] is False
     assert payload["user_asserted"] is False
     assert payload["promotion"]["required"] is True
-    assert payload["promotion"]["source_surface"] == "mcp"
+    assert payload["promotion"]["source_surface"] == "omi_chat"
 
 
 def test_required_processor_resolves_unknown_api_subject_and_infers_person_kind(

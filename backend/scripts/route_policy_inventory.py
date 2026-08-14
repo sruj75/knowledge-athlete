@@ -51,9 +51,6 @@ AUTH_MECHANISMS = {
     'beta_promotion_token',
     'desktop_preview_publish_key',
     'admin_key_uid_prefix',
-    'developer_api_key',
-    'mcp_api_key',
-    'mcp_oauth',
     'service_oidc',
     'webhook_signature',
     'websocket_first_message',
@@ -67,7 +64,7 @@ BYOK_POLICIES = {
     'websocket_manual',
     'unknown',
 }
-RATE_LIMIT_KEY_SUBJECTS = {'uid', 'api_key', 'app_key', 'ip', 'custom', 'none', 'unknown'}
+RATE_LIMIT_KEY_SUBJECTS = {'uid', 'ip', 'custom', 'none', 'unknown'}
 RATE_LIMIT_ENFORCEMENTS = {'fail_open', 'fail_closed', 'shadow', 'none', 'unknown'}
 RATE_LIMIT_PLACEMENTS = {'dependency', 'inline', 'wrapper', 'websocket_lock', 'none', 'unknown'}
 TIMEOUT_CLASSES = {
@@ -82,14 +79,11 @@ TIMEOUT_CLASSES = {
 }
 SURFACES = {
     'first_party_app',
-    'developer_api',
-    'mcp',
     'oauth',
     'admin',
     'internal_task',
     'desktop_update',
     'monitoring',
-    'shared_public',
     'webhook',
     'well_known',
     'unknown',
@@ -104,7 +98,6 @@ DATA_DOMAINS = {
     'billing',
     'sync_audio',
     'chat',
-    'apps',
     'credentials',
     'metrics',
     'firmware',

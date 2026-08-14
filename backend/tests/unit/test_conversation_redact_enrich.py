@@ -49,9 +49,7 @@ for _mod in [
 
 from utils.conversations.render import (
     redact_conversation_for_list,
-    redact_conversation_for_integration,
     redact_conversations_for_list,
-    redact_conversations_for_integration,
     serialize_datetimes,
     conversation_to_dict,
 )
@@ -71,9 +69,6 @@ def _make_conv_dict(**overrides):
             action_items=[{"description": "Do thing"}],
             events=[{"title": "Standup", "start": "2026-01-15T10:00:00", "duration": 30}],
         ),
-        apps_results=[{"app_id": "a1", "content": "result"}],
-        plugins_results=[{"plugin_id": "a1", "content": "result"}],
-        suggested_summarization_apps=["app1"],
         transcript_segments=[{"text": "hello", "speaker_id": 0, "is_user": True, "start": 0.0, "end": 1.0}],
     )
     defaults.update(overrides)
@@ -94,9 +89,6 @@ class TestRedactForList:
         assert result['structured']['overview'] == "Test overview"
         assert result['structured']['action_items'] == []
         assert result['structured']['events'] == []
-        assert result['apps_results'] == []
-        assert result['plugins_results'] == []
-        assert result['suggested_summarization_apps'] == []
         assert result['transcript_segments'] == []
 
     def test_locked_no_structured_key(self):
@@ -128,9 +120,6 @@ class TestRedactForList:
             "id": "x",
             "is_locked": True,
             "structured": FakeStructured(),
-            "apps_results": [{"a": 1}],
-            "plugins_results": [{"p": 1}],
-            "suggested_summarization_apps": ["app1"],
             "transcript_segments": [{"text": "hi"}],
         }
         result = redact_conversation_for_list(conv)
@@ -143,67 +132,6 @@ class TestRedactForList:
         results = redact_conversations_for_list(convs)
         assert results[0]['transcript_segments'] == []
         assert len(results[1]['transcript_segments']) == 1
-
-
-class TestRedactForIntegration:
-    def test_unlocked_passthrough(self):
-        conv = _make_conv_dict(is_locked=False)
-        result = redact_conversation_for_integration(conv)
-        assert result['structured']['title'] == "Test Title"
-
-    def test_locked_strips_everything(self):
-        conv = _make_conv_dict(is_locked=True)
-        result = redact_conversation_for_integration(conv)
-        assert result['structured']['title'] == ''
-        assert result['structured']['overview'] == ''
-        assert result['structured']['action_items'] == []
-        assert result['structured']['events'] == []
-        assert result['apps_results'] == []
-        assert result['plugins_results'] == []
-        assert result['suggested_summarization_apps'] == []
-        assert result['transcript_segments'] == []
-
-    def test_locked_non_dict_structured_coerced(self):
-        """Integration redaction also handles non-dict structured (e.g. Pydantic)."""
-
-        class FakeStructured:
-            def __init__(self):
-                self.title = "Title"
-                self.overview = "Overview"
-                self.action_items = [{"desc": "x"}]
-                self.events = [{"title": "y"}]
-
-            def __iter__(self):
-                return iter(
-                    {
-                        "title": self.title,
-                        "overview": self.overview,
-                        "action_items": self.action_items,
-                        "events": self.events,
-                    }.items()
-                )
-
-        conv = {
-            "id": "x",
-            "is_locked": True,
-            "structured": FakeStructured(),
-            "apps_results": [{"a": 1}],
-            "plugins_results": [{"p": 1}],
-            "suggested_summarization_apps": ["app1"],
-            "transcript_segments": [{"text": "hi"}],
-        }
-        result = redact_conversation_for_integration(conv)
-        assert isinstance(result['structured'], dict)
-        assert result['structured']['title'] == ''
-        assert result['structured']['overview'] == ''
-        assert result['structured']['action_items'] == []
-        assert result['structured']['events'] == []
-
-    def test_batch_redact(self):
-        convs = [_make_conv_dict(is_locked=True), _make_conv_dict(is_locked=False)]
-        results = redact_conversations_for_integration(convs)
-        assert results[0]['structured']['title'] == ''
-        assert results[1]['structured']['title'] == "Test Title"
 
 
 class TestSerializeDatetimes:
@@ -278,14 +206,7 @@ class TestCallSitesMigrated:
 
     REDACT_CONSUMERS = [
         'routers/conversations.py',
-        'routers/mcp.py',
-        'routers/mcp_sse.py',
-        'routers/integration.py',
         'routers/folders.py',
-    ]
-
-    ENRICH_CONSUMERS = [
-        'routers/developer.py',
     ]
 
     def test_no_inline_locked_redaction_in_routers(self):
@@ -302,51 +223,12 @@ class TestCallSitesMigrated:
                 "conv['structured']['action_items'] = []" not in content
             ), f"{rel_path} still has inline locked redaction"
 
-    def test_no_duplicate_speaker_enrichment(self):
-        """Routers should not define their own _add_speaker_names_to_segments."""
-        import os
-
-        backend = os.path.join(os.path.dirname(__file__), '../..')
-        for rel_path in ['routers/mcp.py', 'routers/developer.py']:
-            path = os.path.join(backend, rel_path)
-            with open(path, encoding='utf-8') as f:
-                content = f.read()
-            assert (
-                'def _add_speaker_names_to_segments' not in content
-            ), f"{rel_path} still has duplicate speaker enrichment function"
-
-    def test_no_duplicate_folder_enrichment(self):
-        """Routers should not define their own _add_folder_names_to_conversations."""
-        import os
-
-        backend = os.path.join(os.path.dirname(__file__), '../..')
-        for rel_path in ['routers/developer.py']:
-            path = os.path.join(backend, rel_path)
-            with open(path, encoding='utf-8') as f:
-                content = f.read()
-            assert (
-                'def _add_folder_names_to_conversations' not in content
-            ), f"{rel_path} still has duplicate folder enrichment function"
-
-    def test_no_duplicate_json_serialize_datetime(self):
-        """Production files should use render.serialize_datetimes, not local copies."""
-        import os
-
-        backend = os.path.join(os.path.dirname(__file__), '../..')
-        for rel_path in ['utils/webhooks.py', 'utils/app_integrations.py']:
-            path = os.path.join(backend, rel_path)
-            with open(path, encoding='utf-8') as f:
-                content = f.read()
-            assert (
-                'def _json_serialize_datetime' not in content
-            ), f"{rel_path} still has duplicate _json_serialize_datetime"
-
     def test_no_as_dict_cleaned_dates_in_production_callers(self):
         """Production callers should use render.conversation_to_dict."""
         import os
 
         backend = os.path.join(os.path.dirname(__file__), '../..')
-        for rel_path in ['utils/webhooks.py', 'utils/app_integrations.py', 'routers/conversations.py']:
+        for rel_path in ['routers/conversations.py']:
             path = os.path.join(backend, rel_path)
             with open(path, encoding='utf-8') as f:
                 content = f.read()

@@ -511,12 +511,6 @@ sdist = { url = "https://files.pythonhosted.org/packages/98/a4/1ab47638b92648243
 wheels = [{ url = "https://files.pythonhosted.org/packages/2a/e2/5d3f6ada4297caebe1a2add3b126fe800c96f56dbe5d1988a2cbe0b267aa/mypy_extensions-1.0.0-py3-none-any.whl", upload-time = 2023-02-04T12:11:25Z, size = 4695, hashes = { sha256 = "4392f6c0eb8a5668a69e23d168ffa70f0be9ccfd32b5cc2d26a34ae5b844552d" } }]
 
 [[packages]]
-name = "neo4j"
-version = "5.23.1"
-sdist = { url = "https://files.pythonhosted.org/packages/a9/3b/ee71833425a8c031866cdb49bd3ed13cd2d6652112d33a1ffea0b9ffdec7/neo4j-5.23.1.tar.gz", upload-time = 2024-08-05T08:13:27Z, size = 215192, hashes = { sha256 = "e2d3399d1124319489b25d5eda99833ae086e1fffef9946d36241652d26b26a0" } }
-wheels = [{ url = "https://files.pythonhosted.org/packages/87/a8/117f73d350e4dd1a0d07687c777c267a561af4ee44bdcca7f52701f42900/neo4j-5.23.1-py3-none-any.whl", upload-time = 2024-08-05T08:13:22Z, size = 293613, hashes = { sha256 = "97996fbf39421e0677fdcb8afe50b6810cbe8027e055a9dcf81da6070a82a009" } }]
-
-[[packages]]
 name = "numpy"
 version = "1.26.4"
 sdist = { url = "https://files.pythonhosted.org/packages/65/6e/09db70a523a96d25e115e71cc56a6f9031e7b8cd166c1ac8438307c14058/numpy-1.26.4.tar.gz", upload-time = 2024-02-06T00:26:44Z, size = 15786129, hashes = { sha256 = "2a02aba9ed12e4ac4eb3ea9421c420301a0c6460d9830d74a9df87efa4912010" } }

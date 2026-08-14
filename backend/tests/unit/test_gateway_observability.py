@@ -49,10 +49,10 @@ def test_record_gateway_request_result_maps_fallback_mode(monkeypatch):
     monkeypatch.setattr(gateway_observability, '_observability_logs_enabled', lambda: False)
 
     gateway_observability.record_gateway_request_result(
-        feature='knowledge_graph',
+        feature='conv_discard',
         outcome='fallback',
         reason='timeout',
-        route='omi:auto:knowledge-graph',
+        route='omi:auto:conv-discard',
     )
 
     assert counter.calls[0]['mode'] == 'fallback'

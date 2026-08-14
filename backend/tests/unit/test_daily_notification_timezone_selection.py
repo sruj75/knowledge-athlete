@@ -54,10 +54,9 @@ for _pkg, _rel in [
 for _leaf in [
     "utils.executors",
     "utils.conversations.factory",
-    "utils.llm.external_integrations",
+    "utils.llm.daily_summary",
     "utils.notifications",
     "utils.subscription",
-    "utils.webhooks",
     "database.chat",
     "database.conversations",
     "database.notifications",

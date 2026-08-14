@@ -240,11 +240,6 @@ env:
       secretKeyRef:
         name: prod-omi-backend-secrets
         key: STRIPE_WEBHOOK_SECRET
-  - name: MARKETPLACE_APP_REVIEWERS
-    valueFrom:
-      secretKeyRef:
-        name: prod-omi-backend-secrets
-        key: MARKETPLACE_APP_REVIEWERS
   - name: TYPESENSE_HOST
     valueFrom:
       configMapKeyRef:
@@ -270,11 +265,6 @@ env:
     value: "parakeet,modulate-velma-2"
   - name: STT_SERVICE_MODELS
     value: "modulate-velma-2,parakeet"
-  - name: RAPID_API_KEY
-    valueFrom:
-      secretKeyRef:
-        name: prod-omi-backend-secrets
-        key: RAPID_API_KEY
   - name: OPENROUTER_API_KEY
     valueFrom:
       secretKeyRef:

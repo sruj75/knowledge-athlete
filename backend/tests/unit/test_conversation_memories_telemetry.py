@@ -18,7 +18,6 @@ from utils.conversations import memory_extraction_telemetry as met
 from utils.conversations.memory_extraction_telemetry import (
     PATH_CANONICAL,
     PATH_LEGACY,
-    SOURCE_EXTERNAL_INTEGRATION,
     SOURCE_TRANSCRIPTION,
     ConversationMemoryExtractionResult,
     emit_conversation_memories_extracted,
@@ -137,12 +136,8 @@ def test_invalid_source_and_path_fall_back_to_closed_values():
     assert props['path'] == PATH_LEGACY
 
 
-def test_source_for_conversation_distinguishes_transcript_from_external_integration():
+def test_source_for_conversation_uses_retained_transcript_source():
     assert source_for_conversation(SimpleNamespace(source=ConversationSource.omi)) == SOURCE_TRANSCRIPTION
-    assert (
-        source_for_conversation(SimpleNamespace(source=ConversationSource.external_integration))
-        == SOURCE_EXTERNAL_INTEGRATION
-    )
     # Missing source defaults to transcription (the transcript path).
     assert source_for_conversation(SimpleNamespace(source=None)) == SOURCE_TRANSCRIPTION
 
@@ -172,7 +167,7 @@ def test_posthog_failure_is_swallowed_and_records_bounded_fallback(monkeypatch):
 def test_payload_properties_carry_no_content_or_identifiers():
     fake = FakePosthog()
     met.set_posthog_client_for_tests(fake)
-    _emit('uid-secret-uid', 'conv-secret-1', count=2, source=SOURCE_EXTERNAL_INTEGRATION, path=PATH_LEGACY)
+    _emit('uid-secret-uid', 'conv-secret-1', count=2, source=SOURCE_TRANSCRIPTION, path=PATH_LEGACY)
 
     props = fake.calls[0]['properties']
     # The uid is the analytics identity (distinct_id), never a property. The
@@ -185,7 +180,7 @@ def test_payload_properties_carry_no_content_or_identifiers():
         'conv-secret-1',
         'conversation_id',
         'conversation.id',
-        'transcript',
+        'transcript_text',
         'memory_text',
         'content',
         'prompt',

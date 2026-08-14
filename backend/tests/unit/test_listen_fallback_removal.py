@@ -179,7 +179,7 @@ async def test_process_conversation_never_calls_local_fallback():
 
     # The key assertion: request_conversation_processing is the ONLY processing path
     request_fn.assert_awaited_once()
-    # No local process_conversation, no trigger_external_integrations, no get_google_maps_location
+    # No local process_conversation and no retained location lookup fallback.
 
 
 @pytest.mark.asyncio

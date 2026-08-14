@@ -31,8 +31,6 @@ def _make_chat_client():
     # wire_common_stubs.
     harness.wire_common_stubs(harness.install_module)
 
-    harness.install_module('models.app')
-
     # Stub utils.chat entirely -- this suite exercises the real routers.chat only.
     chat_utils = harness.install_module('utils.chat', ModuleType('utils.chat'))
     chat_utils.acquire_chat_session = MagicMock()
@@ -57,7 +55,6 @@ def _make_chat_client():
 
     graph.execute_chat_stream = fake_execute_chat_stream
     graph.execute_graph_chat = MagicMock()
-    graph.execute_persona_chat_stream = MagicMock()
 
     sys.modules.pop('routers.chat', None)
     module = harness.load_real_module('routers.chat', BACKEND_DIR / 'routers' / 'chat.py')

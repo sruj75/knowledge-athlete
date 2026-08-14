@@ -313,7 +313,7 @@ struct SettingsSearchItem: Identifiable {
       icon: "wrench.and.screwdriver", settingId: "advanced.troubleshooting.reportissue"),
     SettingsSearchItem(
       name: "Rescan Files", subtitle: "Re-index your files and update your AI profile",
-      keywords: ["index", "reindex", "rescan", "files", "scan", "file indexing", "profile"],
+      keywords: ["profile"],
       section: .advanced, icon: "wrench.and.screwdriver",
       settingId: "advanced.troubleshooting.rescanfiles"),
   ]

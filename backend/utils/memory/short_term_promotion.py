@@ -3,7 +3,7 @@
 The historical generic promotion pass was intentionally removed. Broad L1
 observations remain Short-term until ``run_canonical_consolidation`` returns one
 validated, item-addressed terminal route. A durable route commits the
-Short-term-to-Long-term transition and its graph assertion in one transaction.
+Short-term-to-Long-term transition in one transaction.
 """
 
 from __future__ import annotations
@@ -12,7 +12,6 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Callable, Dict, Optional
 
-from database import knowledge_graph as kg_db
 from database._client import db as default_db_client
 from database.memory_collections import MemoryCollections
 from database.memory_outbox_worker import (
@@ -83,11 +82,9 @@ class CanonicalShortTermMaintenanceReport:
 
 
 def _delete_atom_projection_and_citations(uid: str, memory_id: str, *, db_client: Any) -> bool:
-    """Delete every keyword/KG/review projection owned by one canonical memory."""
-    kg_db.delete_memory_graph_assertion(uid, memory_id, db_client=db_client)
+    """Delete every keyword/review projection owned by one canonical memory."""
     if not delete_atom_keyword_doc(uid, memory_id, db_client=db_client):
         return False
-    kg_db.prune_memory_citations_from_kg(uid, [memory_id], db_client=db_client)
     item_path = f"{MemoryCollections(uid=uid).memory_items}/{memory_id}"
     snapshot = db_client.document(item_path).get()
     authoritative_item: Optional[MemoryItem] = None

@@ -14,7 +14,6 @@ import redis as redis_pkg
 
 from database.redis_db import check_rate_limit, try_acquire_listen_lock
 from database.users import record_client_device, record_user_platform
-from utils.api_key_families import FIREBASE_FAMILY, wrong_key_family_detail
 from utils.client_device import resolve_client_device
 from utils.byok import extract_byok_from_websocket, set_byok_keys, validate_byok_request, validate_byok_websocket
 from utils.executors import critical_executor, run_blocking
@@ -103,10 +102,6 @@ def get_current_user_uid(
         raise HTTPException(status_code=401, detail="Invalid authorization token")
 
     token = authorization.split(' ')[1]
-    key_family_mismatch = wrong_key_family_detail(token, FIREBASE_FAMILY)
-    if key_family_mismatch:
-        raise HTTPException(status_code=401, detail=key_family_mismatch)
-
     try:
         uid = verify_token(token)
     except InvalidIdTokenError as e:
@@ -160,10 +155,6 @@ def get_current_user_uid_no_byok_validation(
         raise HTTPException(status_code=401, detail="Invalid authorization token")
 
     token = authorization.split(' ')[1]
-    key_family_mismatch = wrong_key_family_detail(token, FIREBASE_FAMILY)
-    if key_family_mismatch:
-        raise HTTPException(status_code=401, detail=key_family_mismatch)
-
     try:
         uid = verify_token(token)
     except InvalidIdTokenError as e:
@@ -423,34 +414,6 @@ def _enforce_rate_limit(key: str, policy_name: str, *, fail_closed: bool = False
         )
 
 
-def rate_limit_key_for_context(auth_context: Any) -> str:
-    """Return the narrowest stable rate-limit subject for an auth context."""
-    app_id = getattr(auth_context, 'app_id', None)
-    key_id = getattr(auth_context, 'key_id', None)
-    uid = getattr(auth_context, 'uid', None)
-    if app_id and key_id:
-        return f"app:{app_id}:key:{key_id}"
-    if app_id or key_id:
-        raise HTTPException(status_code=403, detail="Missing API key identity")
-    if uid:
-        return str(uid)
-    raise HTTPException(status_code=401, detail="Authenticated subject missing")
-
-
-def check_api_key_rate_limit(
-    *,
-    prefix: str,
-    uid: str,
-    app_id: Optional[str],
-    key_id: Optional[str],
-    policy_name: str,
-) -> None:
-    if not key_id:
-        raise HTTPException(status_code=403, detail="Missing API key identity")
-    key = f"{prefix}:{uid}:{app_id or 'unknown_app'}:{key_id}"
-    _enforce_rate_limit(key, policy_name, fail_closed=True)
-
-
 def with_rate_limit(auth_dependency: Callable[..., Any], policy_name: str) -> Callable[..., Any]:
     """Wrap an auth dependency with per-UID rate limiting.
 
@@ -469,42 +432,6 @@ def with_rate_limit(auth_dependency: Callable[..., Any], policy_name: str) -> Ca
         return uid
 
     return dependency
-
-
-def with_rate_limit_context(auth_context_dependency: Callable[..., Any], policy_name: str) -> Callable[..., Any]:
-    """Wrap a context-returning auth dependency with per-subject rate limiting.
-
-    After auth succeeds, checks the rate limit for app/key identity when present,
-    falling back to UID for first-party or legacy auth contexts.
-    One Redis call per request. Fail-closed on Redis errors for API-key paths.
-
-    Args:
-        auth_context_dependency: FastAPI dependency that returns an auth context
-            object with a ``uid`` attribute (e.g. ProductAuthorizationContext).
-        policy_name: Key in RATE_POLICIES (utils/rate_limit_config.py).
-    """
-    if policy_name not in RATE_POLICIES:
-        raise ValueError(f"Unknown rate limit policy: {policy_name}")
-
-    async def dependency(auth_context: Any = Depends(auth_context_dependency)) -> Any:
-        key = rate_limit_key_for_context(auth_context)
-        await run_blocking(critical_executor, _enforce_rate_limit, key, policy_name, fail_closed=True)
-        return auth_context
-
-    return dependency
-
-
-def check_rate_limit_context(auth_context: Any, policy_name: str) -> None:
-    """Check rate limit inline for an already-authenticated context."""
-    _enforce_rate_limit(rate_limit_key_for_context(auth_context), policy_name, fail_closed=True)
-
-
-def check_rate_limit_inline(key: str, policy_name: str) -> None:
-    """Check rate limit inline (for endpoints with custom auth).
-
-    Use when auth is not a standard Depends() pattern (e.g., MCP, integration).
-    """
-    _enforce_rate_limit(key, policy_name)
 
 
 F = TypeVar("F", bound=Callable[..., Any])

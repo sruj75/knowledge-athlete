@@ -62,9 +62,6 @@ langsmith==0.8.5
 pinecone==7.3.0
 qdrant-client==1.11.0
 
-# Knowledge graph
-neo4j==5.23.1
-
 # Speech-to-text (Deepgram SDK for transcript handling)
 deepgram-sdk==4.8.1
 

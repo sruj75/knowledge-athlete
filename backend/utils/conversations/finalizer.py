@@ -13,7 +13,6 @@ from database import conversations as conversations_db
 from database.redis_db import get_cached_user_geolocation
 from models.conversation_enums import ConversationStatus
 from models.geolocation import Geolocation
-from utils.app_integrations import trigger_external_integrations
 from utils.conversations.factory import deserialize_conversation
 from utils.conversations.location import async_resolve_geolocation
 from utils.conversations.process_conversation import extract_memories, process_conversation
@@ -121,8 +120,8 @@ async def finalize_persisted_conversation(
         # transaction re-reads the durable conversation together with the job
         # lease, so a discard or superseding generation cannot slip between a
         # stale pre-read and the derived-effect bundle.  This fence must
-        # precede every derived effect (calendar, usage/app, vector,
-        # action/goal, audio, webhook, memory) so a losing finalizer produces
+        # precede every derived effect (usage, vector, action/goal, audio,
+        # memory) so a losing finalizer produces
         # zero canonical side effects (#10468 r5).
         fanout = await run_blocking(
             db_executor,
@@ -143,9 +142,9 @@ async def finalize_persisted_conversation(
         if fanout['status'] != 'claimed':
             raise ConversationFinalizationError('fanout_lease_conflict')
 
-        # Ownership is now proven.  Emit every derived side effect — calendar,
-        # usage/app, vector, action/goal, audio artifact/enqueue, webhook, and
-        # memory extraction — only behind the winning claim.  A processing
+        # Ownership is now proven. Emit every retained derived side effect —
+        # usage, vector, action/goal, audio artifact/enqueue, and memory
+        # extraction — only behind the winning claim. A processing
         # conversation hands the bundle back from process_conversation; an
         # already-completed replay re-extracts memories behind the proven claim.
         if derived_effects:
@@ -155,12 +154,6 @@ async def finalize_persisted_conversation(
             # extraction inside that lease so a temporary fail-closed gate
             # leaves the job retryable instead of dropping the source.
             await run_blocking(postprocess_executor, extract_memories, uid, conversation)
-        await trigger_external_integrations(
-            uid,
-            conversation,
-            idempotency_key=fanout['fanout_key'],
-            require_delivery=True,
-        )
         fanout_completed = await run_blocking(
             db_executor,
             lifecycle_service.complete_finalization_fanout,

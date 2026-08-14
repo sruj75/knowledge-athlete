@@ -8,13 +8,6 @@ from datetime import datetime, timedelta, timezone
 import redis
 import logging
 
-from database.api_key_metadata import (
-    DEV_API_KEY_AUTH_CONTEXT_VERSION,
-    MCP_API_KEY_AUTH_CONTEXT_VERSION,
-    ApiKeyCacheReadMode,
-    ApiKeyCacheReadResult,
-)
-
 logger = logging.getLogger(__name__)
 
 # redis.Redis is untyped under strict Pyright; treat the client as Any at this
@@ -99,234 +92,6 @@ def delete_generic_cache(path: str) -> None:
     r.delete(f'cache:{key}')
 
 
-# ******************************************************
-# ********************* APP BY ID **********************
-# ******************************************************
-
-
-def set_app_cache_by_id(app_id: str, app: Dict[str, Any]) -> None:
-    r.set(f'apps:{app_id}', json.dumps(app, default=str), ex=60 * 10)  # 10 minutes cached
-
-
-def get_app_cache_by_id(app_id: str) -> Optional[Dict[str, Any]]:
-    raw = r.get(f'apps:{app_id}')
-    if not raw:
-        return None
-    loaded: object = json.loads(raw)
-    return cast(Dict[str, Any], loaded) if isinstance(loaded, dict) else None
-
-
-def delete_app_cache_by_id(app_id: str) -> None:
-    r.delete(f'apps:{app_id}')
-
-
-# ******************************************************
-# ********************** PERSONA ***********************
-# ******************************************************
-
-
-def is_username_taken(username: str) -> bool:
-    """Check if username is taken by checking if it exists in the username:uid mapping"""
-    value = r.exists(f'username:{username}:uid')
-    if value == 0:
-        return False
-    return True
-
-
-def get_uid_by_username(username: str) -> Optional[str]:
-    """Get the UID that owns this username"""
-    uid = r.get(f'username:{username}:uid')
-    return uid.decode() if uid else None
-
-
-def save_username(username: str, uid: str) -> None:
-    """Save username and add to owner's set"""
-    # Save username:uid mapping
-    r.set(f'username:{username}:uid', uid)
-    # Add to owner's set of usernames
-    r.sadd(f'uid:{uid}:usernames', username)
-
-
-# ******************************************************
-# *********************** APPS *************************
-# ******************************************************
-
-
-def set_app_usage_count_cache(app_id: str, count: int) -> None:
-    r.set(f'apps:{app_id}:usage_count', _serialize_cache_value(count), ex=60 * 15)  # 15 minutes
-
-
-def get_app_usage_count_cache(app_id: str) -> Optional[int]:
-    count = r.get(f'apps:{app_id}:usage_count')
-    if not count:
-        return None
-    loaded = _deserialize_cache_value(count)
-    if isinstance(loaded, bool):
-        return None
-    if isinstance(loaded, int):
-        return loaded
-    if isinstance(loaded, float):
-        return int(loaded)
-    return None
-
-
-def set_app_money_made_amount_cache(app_id: str, amount: float) -> None:
-    r.set(f'apps:{app_id}:money_made', _serialize_cache_value(amount), ex=60 * 15)  # 15 minutes
-
-
-def get_app_money_made_amount_cache(app_id: str) -> Optional[float]:
-    amount = r.get(f'apps:{app_id}:money_made')
-    if not amount:
-        return None
-    loaded = _deserialize_cache_value(amount)
-    if isinstance(loaded, bool):
-        return None
-    if isinstance(loaded, (int, float)):
-        return float(loaded)
-    return None
-
-
-def set_app_usage_history_cache(app_id: str, usage: List[Dict[str, Any]]) -> None:
-    r.set(f'apps:{app_id}:usage', json.dumps(usage, default=str), ex=60 * 10)  # 10 minutes
-
-
-def get_app_usage_history_cache(app_id: str) -> List[Dict[str, Any]]:
-    raw = r.get(f'apps:{app_id}:usage')
-    if raw is None:
-        return []
-    loaded: object = json.loads(raw)
-    if not loaded:
-        return []
-    return cast(List[Dict[str, Any]], loaded)
-
-
-def get_app_money_made_cache(app_id: str) -> Dict[str, Any]:
-    raw = r.get(f'apps:{app_id}:money')
-    if raw is None:
-        return {}
-    loaded: object = json.loads(raw)
-    if not loaded:
-        return {}
-    return cast(Dict[str, Any], loaded)
-
-
-def set_app_money_made_cache(app_id: str, money: Dict[str, Any]) -> None:
-    r.set(f'apps:{app_id}:money', json.dumps(money, default=str), ex=60 * 10)  # 10 minutes
-
-
-def set_app_review_cache(app_id: str, uid: str, data: Dict[str, Any]) -> None:
-    raw = r.get(f'plugins:{app_id}:reviews')
-    loaded = _deserialize_cache_value(raw)
-    reviews: Dict[str, Any] = cast(Dict[str, Any], loaded) if isinstance(loaded, dict) else {}
-    reviews[uid] = data
-    r.set(f'plugins:{app_id}:reviews', _serialize_cache_value(reviews))
-
-
-def get_specific_user_review(app_id: str, uid: str) -> Dict[str, Any]:
-    raw = r.get(f'plugins:{app_id}:reviews')
-    if not raw:
-        return {}
-    loaded = _deserialize_cache_value(raw)
-    if not isinstance(loaded, dict):
-        return {}
-    return cast(Dict[str, Any], loaded.get(uid, {}))
-
-
-def set_user_paid_app(app_id: str, uid: str, ttl: int) -> None:
-    r.set(f'users:{uid}:paid_apps:{app_id}', app_id, ex=ttl)
-
-
-def get_user_paid_app(app_id: str, uid: str) -> Optional[str]:
-    val = r.get(f'users:{uid}:paid_apps:{app_id}')
-    if not val:
-        return None
-    return val.decode()
-
-
-def set_user_app_subscription_customer_id(app_id: str, uid: str, customer_id: str) -> None:
-    """Store the Stripe customer ID for a user's app subscription"""
-    r.set(f'users:{uid}:app_subs:{app_id}:customer_id', customer_id)
-
-
-def get_user_app_subscription_customer_id(app_id: str, uid: str) -> Optional[str]:
-    """Get the Stripe customer ID for a user's app subscription"""
-    val = r.get(f'users:{uid}:app_subs:{app_id}:customer_id')
-    if not val:
-        return None
-    return val.decode()
-
-
-def enable_app(uid: str, app_id: str) -> None:
-    r.sadd(f'users:{uid}:enabled_plugins', app_id)
-
-
-def disable_app(uid: str, app_id: str) -> None:
-    r.srem(f'users:{uid}:enabled_plugins', app_id)
-
-
-def is_app_enabled(uid: str, app_id: str) -> bool:
-    return r.sismember(f'users:{uid}:enabled_plugins', app_id)
-
-
-def get_enabled_apps(uid: str) -> List[str]:
-    val = r.smembers(f'users:{uid}:enabled_plugins')
-    if not val:
-        return []
-    return [x.decode() for x in val]
-
-
-def get_app_reviews(app_id: str) -> Dict[str, Any]:
-    raw = r.get(f'plugins:{app_id}:reviews')
-    if not raw:
-        return {}
-    loaded = _deserialize_cache_value(raw)
-    return cast(Dict[str, Any], loaded) if isinstance(loaded, dict) else {}
-
-
-def get_apps_reviews(app_ids: List[str]) -> Dict[str, Any]:
-    if not app_ids:
-        return {}
-
-    keys = [f'plugins:{app_id}:reviews' for app_id in app_ids]
-    reviews = r.mget(keys)
-    if reviews is None:
-        return {}
-    result: Dict[str, Any] = {}
-    for app_id, review in zip(app_ids, reviews):
-        if not review:
-            result[app_id] = {}
-            continue
-        loaded = _deserialize_cache_value(review)
-        result[app_id] = cast(Dict[str, Any], loaded) if isinstance(loaded, dict) else {}
-    return result
-
-
-def set_app_installs_count(app_id: str, count: int) -> None:
-    r.set(f'plugins:{app_id}:installs', count)
-
-
-def increase_app_installs_count(app_id: str) -> None:
-    r.incr(f'plugins:{app_id}:installs')
-
-
-def decrease_app_installs_count(app_id: str) -> None:
-    r.decr(f'plugins:{app_id}:installs')
-
-
-def get_apps_installs_count(app_ids: List[str]) -> Dict[str, int]:
-    if not app_ids:
-        return {}
-
-    keys = [f'plugins:{app_id}:installs' for app_id in app_ids]
-    counts = r.mget(keys)
-    if counts is None:
-        return {}
-    # Clamp to >= 0: the install counter is a plain INCR/DECR with no floor, so drift (a disable with no
-    # matching enable, or a DECR on an evicted key) can leave a negative value. A negative install count
-    # would later hit math.log(1 + installs) in compute_app_score and 500 the whole marketplace sort.
-    return {app_id: max(0, int(count)) if count else 0 for app_id, count in zip(app_ids, counts)}
-
-
 def cache_user_name(uid: str, name: str, ttl: int = 60 * 60 * 24 * 7) -> None:
     r.set(f'users:{uid}:name', name)
     r.expire(f'users:{uid}:name', ttl)
@@ -368,46 +133,6 @@ def delete_cached_user_geolocation(uid: str) -> None:
     r.delete(f'users:{uid}:geolocation')
 
 
-# DAILY SUMMARY UID LOOKUP
-def store_daily_summary_to_uid(summary_id: str, uid: str) -> None:
-    r.set(f'daily-summary:{summary_id}', uid)
-
-
-def get_daily_summary_uid(summary_id: str) -> str:
-    uid = r.get(f'daily-summary:{summary_id}')
-    if not uid:
-        return ''
-    return uid.decode()
-
-
-def remove_daily_summary_to_uid(summary_id: str) -> None:
-    r.delete(f'daily-summary:{summary_id}')
-
-
-# VISIIBILTIY OF CONVERSATIONS
-def store_conversation_to_uid(conversation_id: str, uid: str) -> None:
-    r.set(f'memories-visibility:{conversation_id}', uid)
-
-
-def remove_conversation_to_uid(conversation_id: str) -> None:
-    r.delete(f'memories-visibility:{conversation_id}')
-
-
-def get_conversation_uid(conversation_id: str) -> str:
-    uid = r.get(f'memories-visibility:{conversation_id}')
-    if not uid:
-        return ''
-    return uid.decode()
-
-
-def add_public_conversation(conversation_id: str) -> None:
-    r.sadd('public-memories', conversation_id)
-
-
-def remove_public_conversation(conversation_id: str) -> None:
-    r.srem('public-memories', conversation_id)
-
-
 def set_in_progress_conversation_id(uid: str, conversation_id: str, ttl: int = 300) -> None:
     r.set(f'users:{uid}:in_progress_memory_id', conversation_id)
     r.expire(f'users:{uid}:in_progress_memory_id', ttl)
@@ -438,32 +163,6 @@ def get_conversation_meeting_id(conversation_id: str) -> Optional[str]:
     return meeting_id.decode()
 
 
-def set_user_webhook_db(uid: str, wtype: str, url: str) -> None:
-    r.set(f'users:{uid}:developer:webhook:{wtype}', url)
-
-
-def disable_user_webhook_db(uid: str, wtype: str) -> None:
-    r.set(f'users:{uid}:developer:webhook_status:{wtype}', str(False).lower())
-
-
-def enable_user_webhook_db(uid: str, wtype: str) -> None:
-    r.set(f'users:{uid}:developer:webhook_status:{wtype}', str(True).lower())
-
-
-def user_webhook_status_db(uid: str, wtype: str) -> Optional[bool]:
-    status = r.get(f'users:{uid}:developer:webhook_status:{wtype}')
-    if status is None:
-        return None
-    return status.decode() == str(True).lower()
-
-
-def get_user_webhook_db(uid: str, wtype: str) -> str:
-    url = r.get(f'users:{uid}:developer:webhook:{wtype}')
-    if not url:
-        return ''
-    return url.decode()
-
-
 def get_filter_category_items(uid: str, category: str, limit: Optional[int] = None) -> List[str]:
     key = f'users:{uid}:filters:{category}'
     if limit:
@@ -487,24 +186,9 @@ def save_migrated_retrieval_conversation_id(conversation_id: str) -> None:
     r.expire('migrated_retrieval_memory_ids', 60 * 60 * 24 * 7)
 
 
-def set_proactive_noti_sent_at(uid: str, *, app_id: str, ts: int, ttl: int = 30) -> None:
-    r.set(f'{uid}:{app_id}:proactive_noti_sent_at', ts, ex=ttl)
-
-
-def get_proactive_noti_sent_at(uid: str, app_id: str) -> Optional[int]:
-    val = r.get(f'{uid}:{app_id}:proactive_noti_sent_at')
-    if not val:
-        return None
-    return int(val)
-
-
-def get_proactive_noti_sent_at_ttl(uid: str, app_id: str) -> int:
-    return r.ttl(f'{uid}:{app_id}:proactive_noti_sent_at')
-
-
 @try_catch_decorator
 def incr_daily_notification_count(uid: str) -> int:
-    """Atomically increment the daily proactive-notification count for a user (mentor + third-party apps). Returns new count."""
+    """Atomically increment the daily proactive-notification count for a user."""
     from datetime import datetime, timezone
 
     key = f'{uid}:daily_noti_count:{datetime.now(timezone.utc).strftime("%Y-%m-%d")}'
@@ -515,7 +199,7 @@ def incr_daily_notification_count(uid: str) -> int:
 
 @try_catch_decorator
 def get_daily_notification_count(uid: str) -> int:
-    """Get the current daily proactive-notification count for a user (mentor + third-party apps)."""
+    """Get the current daily proactive-notification count for a user."""
     from datetime import datetime, timezone
 
     key = f'{uid}:daily_noti_count:{datetime.now(timezone.utc).strftime("%Y-%m-%d")}'
@@ -523,19 +207,6 @@ def get_daily_notification_count(uid: str) -> int:
     if not val:
         return 0
     return int(val)
-
-
-def set_user_preferred_app(uid: str, app_id: str) -> None:
-    """Stores the user's preferred app ID."""
-    key = f'user:{uid}:preferred_app'
-    r.set(key, app_id)
-
-
-def get_user_preferred_app(uid: str) -> Optional[str]:
-    """Retrieves the user's preferred app ID, if set."""
-    key = f'user:{uid}:preferred_app'
-    app_id = r.get(key)
-    return app_id.decode() if app_id else None
 
 
 @try_catch_decorator
@@ -551,145 +222,6 @@ def get_user_data_protection_level(uid: str) -> Optional[str]:
     key = f'user:{uid}:data_protection_level'
     level = r.get(key)
     return level.decode() if level else None
-
-
-# ******************************************************
-# ******************* MCP API KEYS *********************
-# ******************************************************
-
-
-@try_catch_decorator
-def cache_mcp_api_key(hashed_key: str, user_id: str, ttl: int = 3600) -> None:
-    """Caches the user_id for a given hashed MCP API key."""
-    r.set(f'mcp_api_key:{hashed_key}', user_id, ex=ttl)
-
-
-@try_catch_decorator
-def cache_mcp_api_key_auth_context(
-    hashed_key: str,
-    user_id: str,
-    scopes: Optional[List[str]] = None,
-    key_id: Optional[str] = None,
-    app_id: Optional[str] = None,
-    memory_grant_seeded: bool = True,
-    auth_context_version: int = MCP_API_KEY_AUTH_CONTEXT_VERSION,
-    ttl: int = 3600,
-) -> bool:
-    """Caches the user_id, key identity, and scopes for a given MCP API key."""
-    cache_data = {
-        "user_id": user_id,
-        "scopes": scopes,
-        "key_id": key_id,
-        "app_id": app_id,
-        "memory_grant_seeded": memory_grant_seeded,
-        "auth_context_version": auth_context_version,
-    }
-    r.set(f'mcp_api_key_auth:{hashed_key}', json.dumps(cache_data), ex=ttl)
-    r.set(f'mcp_api_key:{hashed_key}', user_id, ex=ttl)
-    return True
-
-
-@try_catch_decorator
-def get_cached_mcp_api_key_user_id(hashed_key: str) -> Optional[str]:
-    """Retrieves the user_id for a given hashed MCP API key from cache."""
-    auth_context = get_cached_mcp_api_key_auth_context(hashed_key)
-    return auth_context.get("user_id") if auth_context else None
-
-
-def read_cached_mcp_api_key_auth_context(hashed_key: str) -> ApiKeyCacheReadResult:
-    """Read MCP auth context while distinguishing cache absence from failure."""
-    try:
-        cached = r.get(f'mcp_api_key_auth:{hashed_key}')
-        if cached:
-            decoded = cached.decode() if isinstance(cached, bytes) else cached
-            cache_data: object = json.loads(decoded)
-            if not isinstance(cache_data, dict):
-                return ApiKeyCacheReadResult(mode=ApiKeyCacheReadMode.ERROR)
-            return ApiKeyCacheReadResult(
-                mode=ApiKeyCacheReadMode.HIT,
-                data=cast(Dict[str, Any], cache_data),
-            )
-
-        legacy_cached = r.get(f'mcp_api_key:{hashed_key}')
-        if not legacy_cached:
-            return ApiKeyCacheReadResult(mode=ApiKeyCacheReadMode.MISS)
-        legacy_user_id = legacy_cached.decode() if isinstance(legacy_cached, bytes) else legacy_cached
-        if not isinstance(legacy_user_id, str):
-            return ApiKeyCacheReadResult(mode=ApiKeyCacheReadMode.ERROR)
-        return ApiKeyCacheReadResult(
-            mode=ApiKeyCacheReadMode.HIT,
-            data={"user_id": legacy_user_id, "scopes": None, "key_id": None, "app_id": None},
-        )
-    except Exception as exc:
-        logger.error("Error reading MCP API key auth cache: %s", exc)
-        return ApiKeyCacheReadResult(mode=ApiKeyCacheReadMode.ERROR)
-
-
-def get_cached_mcp_api_key_auth_context(hashed_key: str) -> Optional[Dict[str, Any]]:
-    """Compatibility adapter returning data only for a successful cache hit."""
-    result = read_cached_mcp_api_key_auth_context(hashed_key)
-    return result.data if result.mode == ApiKeyCacheReadMode.HIT else None
-
-
-def delete_cached_mcp_api_key_strict(hashed_key: str) -> bool:
-    """Atomically delete both MCP auth cache keys, raising on Redis failure."""
-    r.delete(f'mcp_api_key:{hashed_key}', f'mcp_api_key_auth:{hashed_key}')
-    return True
-
-
-# ******************************************************
-# ****************** DEV API KEYS **********************
-# ******************************************************
-
-
-@try_catch_decorator
-def cache_dev_api_key(
-    hashed_key: str,
-    user_id: str,
-    scopes: Optional[List[str]] = None,
-    ttl: int = 3600,
-    key_id: Optional[str] = None,
-    app_id: Optional[str] = None,
-    auth_context_version: int = DEV_API_KEY_AUTH_CONTEXT_VERSION,
-) -> bool:
-    """Caches Developer API key auth context for uid-only and memory app/key authorization."""
-    cache_data = {
-        "user_id": user_id,
-        "scopes": scopes,
-        "key_id": key_id,
-        "app_id": app_id,
-        "auth_context_version": auth_context_version,
-    }
-    r.set(f'dev_api_key:{hashed_key}', json.dumps(cache_data), ex=ttl)
-    return True
-
-
-def read_cached_dev_api_key_data(hashed_key: str) -> ApiKeyCacheReadResult:
-    """Read Developer auth context while distinguishing absence from failure."""
-    try:
-        cached = r.get(f'dev_api_key:{hashed_key}')
-        if not cached:
-            return ApiKeyCacheReadResult(mode=ApiKeyCacheReadMode.MISS)
-        decoded = cached.decode() if isinstance(cached, bytes) else cached
-        loaded: object = json.loads(decoded)
-        if not isinstance(loaded, dict):
-            return ApiKeyCacheReadResult(mode=ApiKeyCacheReadMode.ERROR)
-        return ApiKeyCacheReadResult(mode=ApiKeyCacheReadMode.HIT, data=cast(Dict[str, Any], loaded))
-    except Exception as exc:
-        logger.error("Error reading Developer API key auth cache: %s", exc)
-        return ApiKeyCacheReadResult(mode=ApiKeyCacheReadMode.ERROR)
-
-
-def get_cached_dev_api_key_data(hashed_key: str) -> Optional[Dict[str, Any]]:
-    """Compatibility adapter returning data only for a successful cache hit."""
-    result = read_cached_dev_api_key_data(hashed_key)
-    return result.data if result.mode == ApiKeyCacheReadMode.HIT else None
-
-
-def delete_cached_dev_api_key_strict(hashed_key: str) -> bool:
-    """Delete a Developer auth cache key, raising on Redis failure."""
-    r.delete(f'dev_api_key:{hashed_key}')
-    return True
 
 
 # ******************************************************
@@ -807,41 +339,14 @@ def has_important_conversation_notification_been_sent(uid: str, conversation_id:
 
 
 # ******************************************************
-# ******** CONVERSATION SUMMARY APP IDS ****************
-# ******************************************************
-
-CONVERSATION_SUMMARY_APPS_KEY = 'conversation_summary_app_ids'
-
-
-@try_catch_decorator
-def get_conversation_summary_app_ids() -> List[str]:
-    """Get list of conversation summary app IDs from Redis"""
-    app_ids = r.smembers(CONVERSATION_SUMMARY_APPS_KEY)
-    return [app_id.decode('utf-8') if isinstance(app_id, bytes) else app_id for app_id in app_ids] if app_ids else []
-
-
-@try_catch_decorator
-def add_conversation_summary_app_id(app_id: str) -> bool:
-    """Add an app ID to the conversation summary apps set"""
-    result = r.sadd(CONVERSATION_SUMMARY_APPS_KEY, app_id)
-    return result > 0
-
-
-@try_catch_decorator
-def remove_conversation_summary_app_id(app_id: str) -> bool:
-    """Remove an app ID from the conversation summary apps set"""
-    result = r.srem(CONVERSATION_SUMMARY_APPS_KEY, app_id)
-    return result > 0
-
-
-# ******************************************************
 # *************** RATE LIMITING ************************
 # ******************************************************
 
 # Lua script: atomic increment + TTL in a single round-trip.
 # Returns [current_count, ttl_remaining].  Sets TTL on first hit
 # and self-heals any key that lost its TTL (prevents permanent buckets).
-_RATE_LIMIT_LUA = r.register_script("""
+_RATE_LIMIT_LUA = r.register_script(
+    """
 local key = KEYS[1]
 local window = tonumber(ARGV[1])
 local current = redis.call('INCR', key)
@@ -854,14 +359,15 @@ if ttl < 0 then
     ttl = window
 end
 return {current, ttl}
-""")
+"""
+)
 
 
 def check_rate_limit(key: str, policy: str, max_requests: int, window: int) -> tuple[bool, int, int]:
     """Check per-key rate limit using a single atomic Lua call.
 
     Args:
-        key: Rate limit subject (uid, ip, app_id:uid).
+        key: Rate limit subject (for example, a uid or IP address).
         policy: Policy name (used in Redis key namespace).
         max_requests: Maximum requests allowed in the window (after boost).
         window: Window size in seconds.
@@ -883,7 +389,8 @@ def check_rate_limit(key: str, policy: str, max_requests: int, window: int) -> t
 # Burst uses a sorted set keyed by timestamp-ms for sliding-window accuracy,
 # trimmed on every call (O(log n)). Daily char counter auto-expires at midnight
 # UTC (caller passes seconds_until_midnight_utc as the TTL).
-_TTS_RATE_LIMIT_LUA = r.register_script("""
+_TTS_RATE_LIMIT_LUA = r.register_script(
+    """
 local burst_key = KEYS[1]
 local daily_key = KEYS[2]
 local now_ms = tonumber(ARGV[1])
@@ -911,7 +418,8 @@ if new_daily == char_count then
     redis.call('EXPIRE', daily_key, daily_ttl)
 end
 return {0, 0}
-""")
+"""
+)
 
 
 def _seconds_until_midnight_utc() -> int:
@@ -982,19 +490,6 @@ def try_acquire_user_platform_write_lock(uid: str, platform: str, ttl: int = 600
         return True
 
 
-def set_persona_update_timestamp(uid: str) -> None:
-    """Mark that user has updated personas (expires at 00:00 UTC)"""
-    now = datetime.now(timezone.utc)
-    tomorrow = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
-    ttl = int((tomorrow - now).total_seconds())
-    r.set(f'users:{uid}:persona_updated', '1', ex=ttl)
-
-
-def can_update_persona(uid: str) -> bool:
-    """Check if user can update personas (not updated since last 00:00 UTC)"""
-    return not r.exists(f'users:{uid}:persona_updated')
-
-
 # ******************************************************
 # *************** SPEECH PROFILE CACHE *****************
 # ******************************************************
@@ -1009,65 +504,6 @@ def set_speech_profile_duration(uid: str, duration: float) -> None:
 # ******************************************************
 # ************ DAILY SUMMARY NOTIFICATIONS *************
 # ******************************************************
-
-
-# ******************************************************
-# *************** TASK SHARING TOKENS ******************
-# ******************************************************
-
-TASK_SHARE_TTL = 60 * 60 * 24 * 30  # 30 days
-
-
-@try_catch_decorator
-def store_task_share(token: str, uid: str, display_name: str, task_ids: List[str]) -> None:
-    """Store a task share token in Redis with 30-day TTL."""
-    data = json.dumps({"uid": uid, "display_name": display_name, "task_ids": task_ids})
-    return r.set(f'task_share:{token}', data, ex=TASK_SHARE_TTL)
-
-
-@try_catch_decorator
-def get_task_share(token: str) -> Optional[Dict[str, Any]]:
-    """Get task share data by token. Returns None if expired or not found."""
-    data = r.get(f'task_share:{token}')
-    if data:
-        loaded: object = json.loads(data)
-        return cast(Dict[str, Any], loaded) if isinstance(loaded, dict) else None
-    return None
-
-
-@try_catch_decorator
-def try_accept_task_share(token: str, uid: str) -> bool:
-    """Atomically mark a task share as accepted. Returns True on first acceptance, False if already accepted."""
-    key = f'task_share:{token}:accepted'
-    if r.sadd(key, uid) == 1:
-        r.expire(key, TASK_SHARE_TTL)
-        return True
-    return False
-
-
-def undo_accept_task_share(token: str, uid: str) -> None:
-    """Rollback a task share acceptance (best-effort). Used when post-claim validation fails."""
-    key = f'task_share:{token}:accepted'
-    r.srem(key, uid)
-
-
-CHAT_SHARE_TTL = 60 * 60 * 24 * 30  # 30 days
-
-
-def store_chat_share(token: str, uid: str, display_name: str, message_ids: List[str]) -> None:
-    """Store a chat share token in Redis with 30-day TTL."""
-    data = json.dumps({"uid": uid, "display_name": display_name, "message_ids": message_ids})
-    return r.set(f'chat_share:{token}', data, ex=CHAT_SHARE_TTL)
-
-
-@try_catch_decorator
-def get_chat_share(token: str) -> Optional[Dict[str, Any]]:
-    """Get chat share data by token. Returns None if expired or not found."""
-    data = r.get(f'chat_share:{token}')
-    if data:
-        loaded: object = json.loads(data)
-        return cast(Dict[str, Any], loaded) if isinstance(loaded, dict) else None
-    return None
 
 
 def try_acquire_daily_summary_lock(uid: str, date: str, ttl: int = 60 * 60 * 2) -> bool:

@@ -48,9 +48,6 @@ def _make_client():
 
     # Scenario-specific stubs: this suite loads the *real* utils.chat + routers.chat,
     # so every name they import must be wired (heavier than the quota suite).
-    models_app = _install('models.app')
-    models_app.App = MagicMock()
-    models_app.UsageHistoryType = MagicMock()
     nm = _install('models.notification_message')
     nm.NotificationMessage = MagicMock()
     ts = _install('models.transcript_segment')
@@ -64,8 +61,6 @@ def _make_client():
     factory.deserialize_conversation = MagicMock()
     llm_chat = _install('utils.llm.chat')
     llm_chat.initial_chat_message = MagicMock(return_value='hi')
-    llm_persona = _install('utils.llm.persona')
-    llm_persona.initial_persona_chat_message = MagicMock(return_value='hi')
     notifications = _install('utils.notifications')
     notifications.send_notification = MagicMock()
     notifications.send_notification_async = AsyncMock()
@@ -99,7 +94,6 @@ def _make_client():
     graph.execute_graph_chat = MagicMock()
     graph.execute_graph_chat_stream = MagicMock()
     graph.execute_chat_stream = MagicMock()
-    graph.execute_persona_chat_stream = MagicMock()
 
     chat_utils = harness.load_real_module('utils.chat', BACKEND_DIR / 'utils' / 'chat.py')
 
@@ -293,9 +287,7 @@ def test_emit_stream_error_fallback_reports_exhausted_when_persist_fails():
     try:
         chat_db.add_message.side_effect = RuntimeError('firestore down')
 
-        frame = asyncio.run(
-            chat_utils.emit_stream_error_fallback('test-uid', None, None, label='chat', error_recorded=True)
-        )
+        frame = asyncio.run(chat_utils.emit_stream_error_fallback('test-uid', None, label='chat', error_recorded=True))
 
         assert frame.startswith('done: ')
         payload = _decode_done_frame(frame)

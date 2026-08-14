@@ -30,8 +30,6 @@ from pydantic import BaseModel
 import database.chat as chat_db
 import database.conversations as conversations_db
 import database.llm_usage as llm_usage_db
-from database.apps import record_app_usage
-from models.app import App, UsageHistoryType
 from models.chat import (
     ChatSession,
     Message,
@@ -41,9 +39,7 @@ from models.chat import (
     MessageConversation,
     FileChat,
     RateMessageRequest,
-    ShareChatMessagesRequest,
 )
-from utils.apps import get_available_app_by_id
 from utils.conversation_helpers import extract_memory_ids
 from utils.chat import (
     acquire_chat_session,
@@ -64,7 +60,7 @@ from config.stt_provider_policy import STTServingSurface
 from utils.stt.outcomes import TranscriptionFailure, failure_from_exception
 from utils.observability.transcription import TranscriptionAttempt
 from utils.llm.goals import extract_and_update_goal_progress
-from database.redis_db import try_acquire_goal_extraction_lock, check_rate_limit, store_chat_share, get_chat_share
+from database.redis_db import try_acquire_goal_extraction_lock, check_rate_limit
 from database.users import set_chat_message_rating_score
 from utils.rate_limit_config import get_effective_limit, RATE_LIMIT_SHADOW
 from utils.subscription import enforce_chat_quota, is_trial_paywalled
@@ -77,9 +73,8 @@ from utils.multipart import (
     max_part_size,
     parse_multipart_form,
 )
-from utils.retrieval.graph import execute_graph_chat, execute_chat_stream, execute_persona_chat_stream
+from utils.retrieval.graph import execute_chat_stream
 from utils.llm.usage_tracker import set_usage_context, reset_usage_context, Features
-from utils.users import get_user_display_name
 from utils.log_sanitizer import sanitize_pii
 from utils.observability import submit_langsmith_feedback
 from utils.observability.journeys import JourneyAttempt
@@ -152,24 +147,6 @@ class ChatRatingResponse(BaseModel):
     status: str
 
 
-class ShareChatMessagesResponse(BaseModel):
-    url: str
-    token: str
-
-
-class SharedChatMessage(BaseModel):
-    id: str
-    text: str
-    sender: str
-    created_at: Optional[str] = None
-
-
-class SharedChatMessagesResponse(BaseModel):
-    sender_name: str
-    messages: List[SharedChatMessage] = []
-    count: int
-
-
 def _parse_context_keywords(raw: Optional[str]) -> List[str]:
     if not raw:
         return []
@@ -190,20 +167,7 @@ def _parse_context_keywords(raw: Optional[str]) -> List[str]:
     return keywords
 
 
-def filter_messages(messages, app_id):
-    logger.info(f'filter_messages {len(messages)} {app_id}')
-    collected = []
-    for message in messages:
-        if message.sender == MessageSender.ai and message.plugin_id != app_id:
-            break
-        collected.append(message)
-    logger.info(f'filter_messages output: {len(collected)}')
-    return collected
-
-
-def _build_quota_exceeded_reply(
-    uid: str, data: SendMessageRequest, compat_app_id: Optional[str], detail: dict
-) -> ResponseMessage:
+def _build_quota_exceeded_reply(uid: str, data: SendMessageRequest, detail: dict) -> ResponseMessage:
     """Persist the user's question + a canned AI reply and return it.
 
     Mobile clients render the reply as a normal AI message, so users on
@@ -219,7 +183,6 @@ def _build_quota_exceeded_reply(
         created_at=now,
         sender='human',
         type='text',
-        app_id=compat_app_id,
     )
     chat_db.add_message(uid, user_msg.model_dump())
 
@@ -252,7 +215,6 @@ def _build_quota_exceeded_reply(
         created_at=datetime.now(timezone.utc),
         sender='ai',
         type='text',
-        app_id=compat_app_id,
     )
     chat_db.add_message(uid, ai_msg.model_dump())
     return ResponseMessage(**ai_msg.model_dump(), ask_for_nps=False)
@@ -283,8 +245,6 @@ def _record_chat_quota_question_safe(
 @router.post('/v2/messages', tags=['chat'], response_model=ResponseMessage)
 def send_message(
     data: SendMessageRequest,
-    plugin_id: Optional[str] = None,
-    app_id: Optional[str] = None,
     uid: str = Depends(auth.with_rate_limit(auth.get_current_user_uid, "chat:send_message")),
     x_app_platform: Optional[str] = Header(None, alias='X-App-Platform'),
 ):
@@ -302,10 +262,7 @@ def send_message(
             raise
         if exc.detail.get('error') != 'quota_exceeded':
             raise
-        _compat_id = app_id or plugin_id
-        if _compat_id in ['null', '']:
-            _compat_id = None
-        response_msg = _build_quota_exceeded_reply(uid, data, _compat_id, exc.detail)
+        response_msg = _build_quota_exceeded_reply(uid, data, exc.detail)
 
         def _quota_exceeded_stream():
             encoded = base64.b64encode(bytes(response_msg.model_dump_json(), 'utf-8')).decode('utf-8')
@@ -313,14 +270,10 @@ def send_message(
 
         return StreamingResponse(_quota_exceeded_stream(), media_type="text/event-stream")
 
-    compat_app_id = app_id or plugin_id
-    logger.info(f'send_message {sanitize_pii(data.text)} {compat_app_id} {uid}')
-
-    if compat_app_id in ['null', '']:
-        compat_app_id = None
+    logger.info(f'send_message {sanitize_pii(data.text)} {uid}')
 
     # get chat session
-    chat_session = chat_db.get_chat_session(uid, app_id=compat_app_id)
+    chat_session = chat_db.get_chat_session(uid)
     chat_session = ChatSession(**chat_session) if chat_session else None
 
     message = Message(
@@ -329,11 +282,10 @@ def send_message(
         created_at=datetime.now(timezone.utc),
         sender='human',
         type='text',
-        app_id=compat_app_id,
     )
     # Ensure chat session exists when files are attached
     if data.file_ids and not chat_session:
-        chat_session = acquire_chat_session(uid, compat_app_id)
+        chat_session = acquire_chat_session(uid)
         chat_session = ChatSession(**chat_session) if isinstance(chat_session, dict) else chat_session
 
     if data.file_ids is not None and chat_session:
@@ -365,16 +317,11 @@ def send_message(
     if try_acquire_goal_extraction_lock(uid):
         llm_executor.submit(extract_and_update_goal_progress, uid, data.text)
 
-    app = get_available_app_by_id(compat_app_id, uid)
-    app = App(**app) if app else None
-
-    app_id_from_app = app.id if app else None
-
     # Skip a malformed/legacy stored message rather than 500 the whole chat send.
     messages = list(
         reversed(
             Message.deserialize_many_safe(
-                chat_db.get_cache_aligned_messages(uid, app_id=compat_app_id, chat_session_id=message.chat_session_id),
+                chat_db.get_cache_aligned_messages(uid, chat_session_id=message.chat_session_id),
                 on_error=lambda record, exc: logger.warning(
                     'Skipping malformed chat message %s for uid=%s: %s',
                     record.get('id') if isinstance(record, dict) else None,
@@ -406,7 +353,6 @@ def send_message(
             text=response,
             created_at=datetime.now(timezone.utc),
             sender='ai',
-            app_id=app_id_from_app,
             type='text',
             memories_id=memories_id,
             chart_data=chart_data,
@@ -420,9 +366,6 @@ def send_message(
 
         chat_db.add_message(uid, ai_message.model_dump())
         ai_message.memories = [MessageConversation(**m) for m in (memories if len(memories) < 5 else memories[:5])]
-        if app_id:
-            record_app_usage(uid, app_id, UsageHistoryType.chat_message_sent, message_id=ai_message.id)
-
         return ai_message, ask_for_nps
 
     journey_attempt = JourneyAttempt('chat_response')
@@ -437,7 +380,6 @@ def send_message(
             async for chunk in execute_chat_stream(
                 uid,
                 messages,
-                app,
                 cited=True,
                 callback_data=callback_data,
                 chat_session=chat_session,
@@ -465,7 +407,7 @@ def send_message(
 
             if not answered:
                 yield await emit_stream_error_fallback(
-                    uid, app_id_from_app, chat_session, label='chat', error_recorded=bool(callback_data.get('error'))
+                    uid, chat_session, label='chat', error_recorded=bool(callback_data.get('error'))
                 )
             stream_exhausted = True
         except asyncio.CancelledError:
@@ -497,18 +439,12 @@ def report_message(message_id: str, uid: str = Depends(auth.get_current_user_uid
 
 
 @router.delete('/v2/messages', tags=['chat'], response_model=Message)
-def clear_chat_messages(
-    app_id: Optional[str] = None, plugin_id: Optional[str] = None, uid: str = Depends(auth.get_current_user_uid)
-):
-    compat_app_id = app_id or plugin_id
-    if compat_app_id in ['null', '']:
-        compat_app_id = None
-
+def clear_chat_messages(uid: str = Depends(auth.get_current_user_uid)):
     # get current chat session
-    chat_session = chat_db.get_chat_session(uid, app_id=compat_app_id)
+    chat_session = chat_db.get_chat_session(uid)
     chat_session_id = chat_session['id'] if chat_session else None
 
-    err = chat_db.clear_chat(uid, app_id=compat_app_id, chat_session_id=chat_session_id)
+    err = chat_db.clear_chat(uid, chat_session_id=chat_session_id)
     if err:
         raise HTTPException(status_code=500, detail='Failed to clear chat')
 
@@ -525,34 +461,23 @@ def clear_chat_messages(
     if chat_session_id is not None:
         chat_db.delete_chat_session(uid, chat_session_id)
 
-    return initial_message_util(uid, compat_app_id)
+    return initial_message_util(uid)
 
 
 @router.post('/v2/initial-message', tags=['chat'], response_model=Message)
 def create_initial_message(
-    app_id: Optional[str] = None,
-    plugin_id: Optional[str] = None,
     uid: str = Depends(auth.with_rate_limit(auth.get_current_user_uid, "chat:initial")),
 ):
-    compat_app_id = app_id or plugin_id
-    return initial_message_util(uid, compat_app_id)
+    return initial_message_util(uid)
 
 
 @router.get('/v2/messages', response_model=List[Message], tags=['chat'])
-def get_messages(
-    plugin_id: Optional[str] = None, app_id: Optional[str] = None, uid: str = Depends(auth.get_current_user_uid)
-):
-    compat_app_id = app_id or plugin_id
-    if compat_app_id in ['null', '']:
-        compat_app_id = None
-
-    chat_session = chat_db.get_chat_session(uid, app_id=compat_app_id)
+def get_messages(uid: str = Depends(auth.get_current_user_uid)):
+    chat_session = chat_db.get_chat_session(uid)
     chat_session_id = chat_session['id'] if chat_session else None
 
-    messages = chat_db.get_messages(
-        uid, limit=100, include_conversations=True, app_id=compat_app_id, chat_session_id=chat_session_id
-    )
-    logger.info(f'get_messages {len(messages)} {compat_app_id}')
+    messages = chat_db.get_messages(uid, limit=100, include_conversations=True, chat_session_id=chat_session_id)
+    logger.info(f'get_messages {len(messages)}')
 
     # Debug: Check for messages with ratings
     rated_messages = [m for m in messages if m.get('rating') is not None]
@@ -562,7 +487,7 @@ def get_messages(
             logger.info(f"  - Message {m.get('id')}: rating={m.get('rating')}")
 
     if not messages:
-        return [initial_message_util(uid, compat_app_id)]
+        return [initial_message_util(uid)]
     return messages
 
 
@@ -1493,18 +1418,12 @@ def report_message(message_id: str, uid: str = Depends(auth.get_current_user_uid
 
 
 @router.delete('/v1/messages', tags=['chat'], response_model=Message)
-def clear_chat_messages(
-    plugin_id: Optional[str] = None, app_id: Optional[str] = None, uid: str = Depends(auth.get_current_user_uid)
-):
-    compat_app_id = app_id or plugin_id
-    if compat_app_id in ['null', '']:
-        compat_app_id = None
-
+def clear_chat_messages(uid: str = Depends(auth.get_current_user_uid)):
     # get current chat session
-    chat_session = chat_db.get_chat_session(uid, app_id=compat_app_id)
+    chat_session = chat_db.get_chat_session(uid)
     chat_session_id = chat_session['id'] if chat_session else None
 
-    err = chat_db.clear_chat(uid, app_id=compat_app_id, chat_session_id=chat_session_id)
+    err = chat_db.clear_chat(uid, chat_session_id=chat_session_id)
     if err:
         raise HTTPException(status_code=500, detail='Failed to clear chat')
 
@@ -1521,17 +1440,14 @@ def clear_chat_messages(
     if chat_session_id is not None:
         chat_db.delete_chat_session(uid, chat_session_id)
 
-    return initial_message_util(uid, compat_app_id)
+    return initial_message_util(uid)
 
 
 @router.post('/v1/initial-message', tags=['chat'], response_model=Message)
 def create_initial_message(
-    plugin_id: Optional[str] = None,
-    app_id: Optional[str] = None,
     uid: str = Depends(auth.with_rate_limit(auth.get_current_user_uid, "chat:initial")),
 ):
-    compat_app_id = app_id or plugin_id
-    return initial_message_util(uid, compat_app_id)
+    return initial_message_util(uid)
 
 
 # MARK: - Message Rating
@@ -1573,62 +1489,3 @@ def rate_message(
         logger.error(f"LangSmith feedback submission error (non-fatal): {e}")
 
     return {'status': 'ok'}
-
-
-# MARK: - Chat Sharing
-
-
-@router.post('/v2/messages/share', tags=['chat'], response_model=ShareChatMessagesResponse)
-def share_chat_messages(
-    data: ShareChatMessagesRequest,
-    uid: str = Depends(auth.get_current_user_uid),
-):
-    """Create a shareable link for chat messages."""
-    message_ids = data.message_ids
-    if not message_ids:
-        raise HTTPException(status_code=400, detail='No message IDs provided')
-
-    # Validate messages belong to user
-    for mid in message_ids:
-        msg = chat_db.get_message(uid, mid)
-        if not msg:
-            raise HTTPException(status_code=404, detail=f'Message {mid} not found')
-
-    display_name = get_user_display_name(uid)
-    token = uuid.uuid4().hex
-    result = store_chat_share(token, uid, display_name, message_ids)
-    if result is None:
-        raise HTTPException(status_code=500, detail='Failed to create share link')
-
-    return {"url": f"https://h.omi.me/chat/{token}", "token": token}
-
-
-@router.get('/v2/messages/shared/{token}', tags=['chat'], response_model=SharedChatMessagesResponse)
-def get_shared_chat_messages(token: str):
-    """Public endpoint — get shared chat messages (no auth required)."""
-    share_data = get_chat_share(token)
-    if not share_data:
-        raise HTTPException(status_code=404, detail='Share link expired or not found')
-
-    sender_uid = share_data['uid']
-    message_ids = share_data['message_ids']
-
-    messages = []
-    for mid in message_ids:
-        msg_result = chat_db.get_message(sender_uid, mid)
-        if msg_result:
-            message, _ = msg_result
-            messages.append(
-                {
-                    "id": message.id,
-                    "text": message.text,
-                    "sender": message.sender,
-                    "created_at": message.created_at.isoformat() if message.created_at else None,
-                }
-            )
-
-    return {
-        "sender_name": share_data['display_name'],
-        "messages": messages,
-        "count": len(messages),
-    }

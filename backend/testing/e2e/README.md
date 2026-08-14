@@ -27,7 +27,7 @@ python -m pip install -r testing/e2e/requirements.txt
 
 ## Scope of v1
 
-This version proves the backend can boot hermetically and that selected core CRUD, user/account, storage, webhook, task-integration, listen-routing, sync-job, conversation lifecycle, retrieval/search, deterministic processing-seam, and legacy-shape paths can execute without real Firestore, Redis, GCS, Pinecone, Typesense, Google ADC, or production API keys.
+This version proves the backend can boot hermetically and that selected core CRUD, user/account, storage, listen-routing, sync-job, conversation lifecycle, retrieval/search, deterministic processing-seam, and legacy-shape paths can execute without real Firestore, Redis, GCS, Pinecone, Typesense, Google ADC, or production API keys.
 
 | Scenario | Status | Notes |
 |---|---:|---|
@@ -36,8 +36,6 @@ This version proves the backend can boot hermetically and that selected core CRU
 | Listen/STT route seam | ✅ Partial | `/v4/web/listen` websocket auth/query parsing/custom-STT dispatch is covered with a fake stream handler; custom-STT suggested transcript events also run through the real listen websocket loop into client emission, reconnect behavior, decrypted conversation readback, and finalize lifecycle. Full Deepgram-compatible streaming fake remains v2. |
 | Sync v2 job lifecycle | ✅ Partial | `/v2/sync-local-files` fast path, Redis job creation, deterministic background pipeline completion, job polling, and conversation persistence run with decode/VAD/STT/provider-heavy segment work replaced by deterministic seams. Full audio decoding and provider transcription remain lower-level/unit or v2 fake work. |
 | Storage / speech profile | ✅ Green | `google.cloud.storage.Client` is patched to a temp-dir fake; speech-profile presence, signed URL, sample list, and delete paths run through real routes/helpers. |
-| Webhooks | ✅ Partial | Developer webhook config/status routes, disabled no-op behavior, realtime delivery payload, non-2xx failure health recording, timeout/exception health recording, and threshold auto-disable are covered with `httpx.MockTransport`. Marketplace app webhook retry/circuit-breaker behavior remains v2. |
-| Task integrations | ✅ Green | CRUD/default/delete paths plus connected/disconnected/no-token and Todoist success, provider 500, 401 disconnect, and timeout failure paths exercise real task-integration database helpers against fake Firestore. |
 | User/auth/profile/account | ✅ Green | Auth guard, profile, onboarding, language/transcription prefs, people CRUD, notification/assistant settings, AI profile, and BYOK activation/deactivation routes are covered. Account deletion additionally exercises its real admission route, durable marker, opaque Cloud Tasks payload, worker claim, required-purge retry, and idempotent redelivery against local fakes. Firebase deletion, billing lookup, Twilio, and derived-data purge stay controlled test seams. |
 | Retrieval/search | ✅ Partial | Memory, action-item, conversation summary, and transcript-chunk retrieval routes run through real public APIs with Firestore-backed records and a deterministic in-memory replacement for Pinecone/OpenAI embeddings at the `database.vector_db` client seam. Full Pinecone/Typesense service compatibility remains out of scope. |
 | Failure / edge modes | ✅ Partial | Invalid input and edge-case coverage runs. Redis-unavailable, LLM 500, and STT timeout cases are explicitly skipped or deferred until per-test failure fakes are wired. |
@@ -56,7 +54,6 @@ This version proves the backend can boot hermetically and that selected core CRU
 | Typesense | Dummy host/port/API key | Lets import-time Typesense client construction succeed; retrieval/search tests rely on vector results and fail-open keyword search rather than real Typesense compatibility. |
 | Google Translate | Anonymous Google credentials | Allows import-time client construction; v1 tests do not call live translation. |
 | LLM/STT/VAD/embeddings | Fake modules scaffolded; route and custom-STT suggested-transcript seams covered where deterministic patching is practical | Kept as v2 work where scenarios need real outbound HTTP/WS/provider assertions. |
-| Webhook/task external HTTP | `httpx.MockTransport` in targeted tests | Captures outbound payloads without network. |
 
 ## What's real
 
@@ -84,9 +81,6 @@ bash backend/testing/e2e/run.sh -k "listen_stt"
 
 # Storage-backed speech profile routes
 bash backend/testing/e2e/run.sh -k "storage_speech_profile"
-
-# Webhook and task integration seams
-bash backend/testing/e2e/run.sh -k "webhooks or task_integrations"
 
 # Retrieval/search seams
 bash backend/testing/e2e/run.sh -k "search or retrieval or embedding or vector"
@@ -133,7 +127,6 @@ run.sh
         ├── test_migration_safety.py
         ├── test_retrieval_search.py
         ├── test_storage_speech_profile.py
-        ├── test_task_integrations.py
         ├── test_user_auth_profile.py
         └── test_webhooks.py
 ```
@@ -177,8 +170,6 @@ def test_read_seeded_conversation(client, auth_headers, sample_conversation_data
 - [ ] Add per-test HTTP failure injection for LLM 500 / timeout scenarios.
 - [ ] Add real Redis-unavailable fail-open tests; v1 uses fakeredis-backed paths.
 - [ ] Execute production migration scripts against fake fixtures if migration-script coverage is needed.
-- [ ] Add marketplace app webhook retry/circuit-breaker tests beyond the developer realtime transcript failure/auto-disable paths.
-- [x] Improve fake-firestore support for nested task-integration single-doc lookup/delete so the task creation route no longer needs deterministic lookup patching.
 - [ ] Expand retrieval/search beyond the deterministic in-memory vector seam to cover real Typesense keyword behavior and closer Pinecone response compatibility if those service contracts become in-scope.
 - [x] Run under Python 3.11 in CI-like environments; the required `Backend Hermetic E2E` GitHub Action now installs dependencies, prewarms tokenizer cache, and runs the harness.
 

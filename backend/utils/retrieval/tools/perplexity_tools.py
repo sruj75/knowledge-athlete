@@ -7,7 +7,7 @@ from typing import Any, cast
 
 import httpx
 from langchain_core.tools import tool  # type: ignore[reportUnknownVariableType]  # langchain @tool decorator partially typed
-from utils.http_client import get_webhook_client
+from utils.http_client import get_external_client
 from utils.llm.gateway_client import feature_auto_lane_id, get_llm_gateway_base_url, llm_gateway_headers
 from utils.log_sanitizer import sanitize
 
@@ -53,7 +53,7 @@ async def perplexity_web_search_tool(
 
 async def _perplexity_gateway_search(query: str) -> str:
     try:
-        response = await get_webhook_client().post(
+        response = await get_external_client().post(
             f'{get_llm_gateway_base_url()}/v1/chat/completions',
             json={
                 "model": feature_auto_lane_id('web_search'),

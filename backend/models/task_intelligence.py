@@ -31,8 +31,6 @@ class TaskIntelligenceSourceClass(str, Enum):
     conversation = 'conversation'
     screen = 'screen'
     agent = 'agent'
-    integration = 'integration'
-    import_share = 'import_share'
     recurrence = 'recurrence'
 
 

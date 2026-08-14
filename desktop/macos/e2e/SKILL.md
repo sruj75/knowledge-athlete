@@ -436,14 +436,10 @@ Main Window — Top Navigation Bar (use `click` for all nav buttons)
 │   ├── Chat input area (embedded, no separate Chat tab)
 │   ├── Insight cards (screen recording, tasks, observations)
 │   └── Capture/Listening status (top-right)
-├── Memory — 3 sub-tabs
-│   ├── Memories — search, filter (This device / All), memory list
+├── Memory — 2 destinations
+│   ├── Memories — search, lifecycle/category filters, memory list
 │   ├── Conversations — Live section, search, category filters (All/Starred/Work/Personal/Social), conversation list
-│   └── Brain Map — interactive node graph visualization
 ├── Tasks — search, Today/No Deadline sections, keyboard toolbar (Navigate/New/Delete/Indent/Outdent)
-├── Apps — search, Installed filter, Category dropdown, Create App
-│   ├── Imports (Calendar, Email, Local files, Apple Notes, X, ChatGPT, Claude)
-│   └── Exports (Notion, Obsidian, ChatGPT/Codex)
 │
 ├── Capture status button (top-right, red when blocked)
 ├── Listening status button (top-right, green when active)
@@ -477,7 +473,7 @@ System Tray Menu (menu bar icon)
 ### Interaction Patterns
 
 **Top navigation bar (v0.12.119+):**
-- Buttons are `AXButton` type with text labels: `Home`, `Memory`, `Tasks`, `Apps`
+- Buttons are `AXButton` type with text labels: `Home`, `Memory`, `Tasks`
 - Use `agent-swift find text "Home" click` for reliable navigation
 - Use `agent-swift find text "Memory" click` to switch tabs
 - Settings: click the gear icon button (label `gearshape`) in top-right area
@@ -488,8 +484,8 @@ System Tray Menu (menu bar icon)
 - Use `click` for navigation — these are SwiftUI views that respond to CGEvent clicks
 - Section labels: General, Account & Plan, Transcription, Floating Bar, Notifications & Privacy, Rewind, Shortcuts, Advanced, About
 
-**Memory sub-tabs:**
-- Three `AXButton` tabs within the Memory page: Memories, Conversations, Brain Map
+**Memory destinations:**
+- Two `AXButton` destinations within the Memory page: Memories and Conversations
 - Use `click` to switch between sub-tabs
 
 **Rewind access:**
@@ -514,11 +510,10 @@ Reference flows in `desktop/macos/e2e/flows/*.yaml` describe the app's key user 
 
 | Flow | Covers | Steps | Notes |
 |------|--------|-------|-------|
-| `flows/navigation.yaml` | Top nav bar, Home, Memory, Tasks, Apps, Settings | 8 | Core nav smoke — top nav buttons + gear icon + Rewind via View menu |
+| `flows/navigation.yaml` | Top nav bar, Home, Memory, Tasks, Settings | 7 | Core nav smoke — retained top nav buttons + gear icon + Rewind via View menu |
 | `flows/home.yaml` | Home tab, embedded chat, insights, status banners | 5 | Chat input, insight cards, Capture/Listening status |
-| `flows/memories.yaml` | Memory tab — Memories, Conversations, Brain Map sub-tabs | 6 | Sub-tab switching, search, conversation list, brain map render |
+| `flows/memories.yaml` | Memory tab — Memories and Conversations | 6 | Destination switching, search, conversation list |
 | `flows/tasks.yaml` | Tasks tab — search, Today/No Deadline sections | 5 | Task list, keyboard toolbar, task interactions |
-| `flows/apps-marketplace.yaml` | Apps tab — Imports, Exports, search, filters | 5 | Category filter, Installed view, Create App |
 | `flows/settings-basic.yaml` | Settings — all 9 sections | 11 | General through About, verify each loads |
 | `flows/rewind.yaml` | Rewind overlay — View menu access, permission gate | 4 | ⌘⌥R shortcut, search, date picker, Grant Permission |
 | `flows/chat-hermetic.yaml` | Home chat with Rust `OMI_LLM_STUB=1` | 6 | Hermetic chat send/receive in Home tab |

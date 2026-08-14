@@ -24,7 +24,6 @@ DEFAULT_CLOUD_RUN_SERVICES = (
     'backend',
     'backend-sync',
     'backend-sync-backfill',
-    'backend-integration',
     'desktop-backend',
 )
 BAD_WAITING_REASONS = {'CrashLoopBackOff', 'ImagePullBackOff', 'ErrImagePull', 'CreateContainerConfigError'}

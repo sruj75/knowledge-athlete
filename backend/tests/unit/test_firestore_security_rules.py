@@ -9,7 +9,6 @@ MEMORY_PROTECTED_COLLECTIONS = [
     "memory_state",
     "memory_commits",
     "memory_evidence",
-    "memory_graph_assertions",
     "memory_review_queue",
     "short_term_lifecycle_transitions",
 ]

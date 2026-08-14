@@ -77,13 +77,6 @@ final class StartupWarmupPolicyTests: XCTestCase {
     )
   }
 
-  func testInitialFileIndexingWaitsUntilAfterDeferredWarmupStarts() {
-    XCTAssertGreaterThan(
-      StartupWarmupPolicy.initialFileIndexingDelay,
-      StartupWarmupPolicy.deferredWarmupDelay
-    )
-  }
-
   func testTranscriptionRetryRecoveryWaitsUntilAfterDeferredWarmupStarts() {
     XCTAssertGreaterThan(
       StartupWarmupPolicy.transcriptionRetryRecoveryDelay,
@@ -107,17 +100,6 @@ final class StartupWarmupPolicyTests: XCTestCase {
 
   func testFloatingBarPlanFetchRunsImmediatelyForQuotaGate() {
     XCTAssertEqual(StartupWarmupPolicy.floatingBarPlanFetchDelay, 0)
-  }
-
-  func testMCPKeyWarmupRunsAfterInteractiveLoadButBeforeDeferredWarmup() {
-    XCTAssertGreaterThan(
-      StartupWarmupPolicy.mcpKeyWarmupDelay,
-      StartupWarmupPolicy.immediateWarmupDelay
-    )
-    XCTAssertLessThan(
-      StartupWarmupPolicy.mcpKeyWarmupDelay,
-      StartupWarmupPolicy.deferredWarmupDelay
-    )
   }
 
   func testInitialSettingsSyncWaitsUntilAfterDeferredWarmupStarts() {
@@ -222,30 +204,6 @@ final class StartupWarmupPolicyTests: XCTestCase {
     XCTAssertTrue(gate.reserve())
   }
 
-  func testFileIndexingBackfillMarksCompleteOnlyAfterScanCompletes() {
-    var backfill = DelayedFileIndexingBackfillState()
-
-    XCTAssertTrue(backfill.reserveIfNeeded(hasCompletedBackfill: false))
-    XCTAssertFalse(backfill.shouldMarkComplete)
-
-    backfill.markScanCompleted()
-
-    XCTAssertTrue(backfill.shouldMarkComplete)
-    XCTAssertFalse(backfill.reserveIfNeeded(hasCompletedBackfill: true))
-  }
-
-  func testFileIndexingBackfillCanRescheduleAfterReservationRelease() {
-    var backfill = DelayedFileIndexingBackfillState()
-
-    XCTAssertTrue(backfill.reserveIfNeeded(hasCompletedBackfill: false))
-    XCTAssertFalse(backfill.reserveIfNeeded(hasCompletedBackfill: false))
-
-    backfill.releaseReservation()
-
-    XCTAssertFalse(backfill.shouldMarkComplete)
-    XCTAssertTrue(backfill.reserveIfNeeded(hasCompletedBackfill: false))
-  }
-
   func testSessionScopeRejectsSignedOutAndMismatchedUsers() {
     let scope = StartupWarmupSessionScope(userId: "user-a")
 
@@ -264,7 +222,6 @@ final class StartupWarmupPolicyTests: XCTestCase {
     let source = try String(contentsOf: sourceURL, encoding: .utf8)
 
     XCTAssertTrue(source.contains("private var sessionTasks: [StartupWarmupTaskID: Task<Void, Never>]"))
-    XCTAssertTrue(source.contains("scheduleSessionWarmup(id: .mcpKeyWarmup"))
     XCTAssertTrue(source.contains("guard self.isCurrentSession(scope) else"))
     XCTAssertTrue(source.contains("guard isCurrentSession(scope) else { return }"))
     XCTAssertTrue(source.contains("sessionTasks.values.forEach { $0.cancel() }"))
@@ -280,7 +237,6 @@ final class StartupWarmupPolicyTests: XCTestCase {
     let source = try String(contentsOf: sourceURL, encoding: .utf8)
 
     XCTAssertTrue(source.contains("id: .conversationWarmup"))
-    XCTAssertTrue(source.contains("id: .initialFileIndexing"))
     XCTAssertTrue(source.contains("id: .proactiveAssistantsStart"))
     XCTAssertTrue(source.contains("viewModelContainer.resetStartupState()"))
     XCTAssertTrue(source.contains("resetSessionScopedStartupWarmups(preserveCrispReadState: true)"))

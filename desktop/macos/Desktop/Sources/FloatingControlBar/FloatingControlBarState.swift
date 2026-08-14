@@ -571,39 +571,6 @@ class FloatingControlBarState: NSObject, ObservableObject {
     }
   }
 
-  /// Synced message ids for share/rate, in chat order.
-  func syncedShareMessageIds(from provider: ChatProvider?) -> [String] {
-    guard let provider else { return [] }
-    var messageIds: [String] = []
-    for pair in chatViewport.archivedExchanges {
-      if let questionId = pair.questionMessageId,
-        provider.messages.contains(where: { $0.id == questionId && $0.isSynced })
-      {
-        messageIds.append(questionId)
-      }
-      if let answerId = pair.answerMessageId,
-        provider.messages.contains(where: { $0.id == answerId && $0.isSynced })
-      {
-        messageIds.append(answerId)
-      }
-    }
-    if let questionId = chatViewport.questionMessageId,
-      provider.messages.contains(where: { $0.id == questionId && $0.isSynced })
-    {
-      messageIds.append(questionId)
-    }
-    if let answerId = chatViewport.answerMessageId,
-      provider.messages.contains(where: { $0.id == answerId && $0.isSynced })
-    {
-      messageIds.append(answerId)
-    }
-    return messageIds.reduce(into: [String]()) { ids, messageId in
-      if !ids.contains(messageId) {
-        ids.append(messageId)
-      }
-    }
-  }
-
   func beginTurn(clientTurnId: String) {
     localAnswerOverride = nil
     var viewport = chatViewport

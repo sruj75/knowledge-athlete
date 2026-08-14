@@ -123,18 +123,6 @@ final class APIClientMemoryMutationRequestTests: XCTestCase {
     XCTAssertEqual(try requestJSON()["value"] as? String, "Updated content")
   }
 
-  func testUpdateMemoryVisibilitySendsValueInJSONBody() async throws {
-    let client = await makeClient()
-
-    try await client.updateMemoryVisibility(id: "memory-1", visibility: "private")
-
-    let request = try XCTUnwrap(MemoryMutationURLCapture.request)
-    XCTAssertEqual(request.httpMethod, "PATCH")
-    XCTAssertEqual(request.url?.path, "/v3/memories/memory-1/visibility")
-    XCTAssertNil(request.url?.query)
-    XCTAssertEqual(try requestJSON()["value"] as? String, "private")
-  }
-
   func testUpdateTranscriptionPreferencesReadsCanonicalStateAfterStatusResponse() async throws {
     let client = await makeClient()
 

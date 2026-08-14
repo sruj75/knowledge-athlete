@@ -426,17 +426,8 @@ def test_llm_prompt_exposes_candidate_sensitivity_and_promotion_safety_rules():
     assert "adopted user preference or commitment" in prompts[0]
 
 
-def test_promote_decision_requires_structured_graph_and_durable_basis():
+def test_promote_decision_requires_durable_basis():
     item = _item("mem_a", "Enjoys hiking")
-    with pytest.raises(ValueError, match="graph|subject|predicate"):
-        ConsolidationAgentDecision(
-            source_memory_id=item.memory_id,
-            route="promote",
-            memory_text="The user enjoys hiking.",
-            evidence_ids=["ev_mem_a"],
-            relationship_to_user="self",
-            basis_for_memory="explicit",
-        )
     with pytest.raises(ValueError, match="basis"):
         _promote(item, basis_for_memory="weak_or_none")
 

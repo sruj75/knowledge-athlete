@@ -256,7 +256,7 @@ def get_conversations_tool(
             try:
                 conversation = deserialize_conversation(conv_data)
 
-                # Limit transcript segments if needed (mimicking integration.py pattern)
+                # Limit transcript segments to the bounded response budget.
                 if (
                     max_transcript_segments != -1
                     and conversation.transcript_segments

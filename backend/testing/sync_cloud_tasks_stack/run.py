@@ -208,7 +208,6 @@ class Stack:
                 'BUCKET_POSTPROCESSING': 'postprocessing',
                 'BUCKET_PRIVATE_CLOUD_SYNC': 'omi-private-cloud-sync',
                 'BUCKET_MEMORIES_RECORDINGS': 'memories-recordings',
-                'BUCKET_APP_THUMBNAILS': 'app-thumbnails',
                 'BUCKET_CHAT_FILES': 'chat-files',
                 'BUCKET_DESKTOP_UPDATES': 'desktop-updates',
                 'STRIPE_SECRET_KEY': '',

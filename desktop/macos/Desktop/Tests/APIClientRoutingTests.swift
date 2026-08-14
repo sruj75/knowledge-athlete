@@ -609,17 +609,6 @@ final class APIClientRoutingTests: XCTestCase {
       label: "updateGoalProgress")
   }
 
-  // -- Personas (GET → Python) --
-
-  func testGetPersonaRoutesToPython() async {
-    let client = await makeTestClient()
-    _ = try? await client.getPersona() as Persona?
-    assertRoutes(
-      URLCapture.capturedRequests, host: "python-test", port: 9001,
-      pathContains: "v1/personas", method: "GET",
-      label: "getPersona")
-  }
-
   // -- User settings (GET → Python) --
 
   func testGetDailySummarySettingsRoutesToPython() async {
@@ -771,17 +760,6 @@ final class APIClientRoutingTests: XCTestCase {
   }
 
   // MARK: - Python-routed: remaining manual URL builders
-
-  // -- setConversationVisibility: manual URL(string: baseURL + ...) PATCH → Python --
-
-  func testSetConversationVisibilityRoutesToPython() async {
-    let client = await makeTestClient()
-    try? await client.setConversationVisibility(id: "c3")
-    assertRoutes(
-      URLCapture.capturedRequests, host: "python-test", port: 9001,
-      pathContains: "v1/conversations/c3/visibility", method: "PATCH",
-      label: "setConversationVisibility")
-  }
 
   // -- moveConversationToFolder: manual URL PATCH → Python --
 

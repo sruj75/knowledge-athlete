@@ -34,7 +34,6 @@ def _item(memory_id: str, **overrides) -> MemoryItem:
         'evidence': [_evidence()],
         'source_state': SourceState.active,
         'sensitivity_labels': [],
-        'visibility': 'private',
         'user_asserted': False,
         'captured_at': NOW - timedelta(days=1),
         'updated_at': NOW - timedelta(hours=1),
@@ -44,18 +43,6 @@ def _item(memory_id: str, **overrides) -> MemoryItem:
     if base['source_state'] != SourceState.active:
         base['evidence'] = [_evidence(base['source_state'])]
     return MemoryItem(**base)
-
-
-def test_default_product_memory_reads_exclude_unknown_visibility():
-    unknown_visibility = _item('unknown-visibility', visibility='friends')
-
-    report = filter_default_product_memory_items(
-        [unknown_visibility], policy=MemoryAccessPolicy.for_omi_chat(), now=NOW
-    )
-
-    assert report.visible_items == []
-    assert report.decisions['unknown-visibility'].allowed is False
-    assert report.decisions['unknown-visibility'].reason == 'unknown_visibility'
 
 
 def test_default_product_memory_reads_include_fresh_short_term_and_exclude_stale_with_lifecycle_audit():

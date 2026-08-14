@@ -1,7 +1,7 @@
 # `backend/utils/llm`
 
 LLM-backed feature layer for the backend. Every module here turns a product
-feature (chat, memory extraction, notifications, personas, app generation, …)
+feature (chat, memory extraction, notifications, summaries, …)
 into one or more model calls, and routes those calls through a shared
 **gateway-first** transport with a legacy direct-provider fallback.
 
@@ -37,15 +37,13 @@ The shared plumbing every feature call goes through.
   matching, discard detection, summarization).
 - `conversation_folder.py` — conversation → folder assignment.
 - `followup.py` — follow-up question generation.
-- `persona.py` — persona chat, memory condensation for personas.
 - `openglass.py` — vision (image description) model calls.
 
-## Memory & knowledge graph
+## Memory
 
 - `memories.py` — memory extraction (standard + high-recall).
 - `working_observations.py` — working-observation batch synthesis
   (`working_memory.py` is a backward-compatible shim, WS-G11).
-- `knowledge_graph.py` — node/edge extraction from memories.
 - `promotion_proposals.py` / `promotion_routes.py` — durable-memory patch
   proposals and their routing (`durable_memory_patches.py` and
   `l2_memory_routes.py` are backward-compatible shims, WS-G11).
@@ -58,10 +56,9 @@ The shared plumbing every feature call goes through.
 - `trends.py` — trend extraction.
 - `temporal.py` — current-date grounding injected into prompts.
 
-## Apps, integrations & policy
+## Summaries & policy
 
-- `app_generator.py` / `app_generation_prompts.py` — AI app generation.
-- `external_integrations.py` — structured summaries for external integrations.
+- `daily_summary.py` — first-party daily-summary generation.
 - `fair_use_classifier.py` — LLM-based purpose detection for fair-use policy.
 
 ## Conventions

@@ -635,7 +635,6 @@ final class TranscriptionStorageRecoveryTests: XCTestCase {
       transcriptSegmentsIncluded: transcriptSegmentsIncluded,
       geolocation: nil,
       photos: [],
-      appsResults: [],
       source: .desktop,
       language: "en",
       status: .completed,

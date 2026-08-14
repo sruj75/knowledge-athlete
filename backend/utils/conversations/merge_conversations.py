@@ -234,9 +234,6 @@ def perform_merge_async(
         language = sorted_convs[0].get('language', 'en')
         source = sorted_convs[0].get('source', 'omi')
 
-        # Visibility: most restrictive wins
-        visibility = _determine_visibility(sorted_convs)
-
         # Private cloud sync: True if any has it
         private_cloud_sync_enabled = any(c.get('private_cloud_sync_enabled', False) for c in sorted_convs)
 
@@ -278,7 +275,6 @@ def perform_merge_async(
             photos=merged_photos,
             audio_files=merged_audio_files,
             geolocation=geolocation,
-            visibility=visibility,
             private_cloud_sync_enabled=private_cloud_sync_enabled,
             discarded=discarded,
             status=ConversationStatus.processing,
@@ -491,27 +487,6 @@ def _copy_audio_chunks_for_merge(
             logger.error(f"Error creating audio files: {e}")
 
     return []
-
-
-def _determine_visibility(conversations: List[Dict]) -> str:
-    """
-    Determine visibility for merged conversation.
-
-    Strategy: Most restrictive wins (private > shared > public)
-    """
-    visibility_priority = {'private': 0, 'shared': 1, 'public': 2}
-
-    min_priority = 2  # Start with least restrictive (public)
-    min_visibility = 'public'
-
-    for conv in conversations:
-        vis = conv.get('visibility', 'private')
-        priority = visibility_priority.get(vis, 0)
-        if priority < min_priority:
-            min_priority = priority
-            min_visibility = vis
-
-    return min_visibility
 
 
 def _shared_client_device_provenance(conversations: List[Dict]) -> Tuple[Optional[str], Optional[str]]:

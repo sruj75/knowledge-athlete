@@ -164,8 +164,8 @@ def test_normal_l1_archive_search_excludes_sensitive_and_labels_evidence():
         user_id="user_1",
         source_id="raw_chat_1",
         source_type="chat_exchange",
-        text="User is evaluating MCP access instructions for agents.",
-        evidence_quotes=["agents should use the MCP and CLI instructions"],
+        text="User is evaluating local access instructions for agents.",
+        evidence_quotes=["agents should use the local CLI instructions"],
     )
     sensitive = L1MemoryArchiveItem(
         user_id="user_1",
@@ -176,7 +176,7 @@ def test_normal_l1_archive_search_excludes_sensitive_and_labels_evidence():
         evidence_quotes=["the password is ..."],
     )
 
-    results = filter_l1_archive_for_normal_search([general, sensitive], query="MCP agents")
+    results = filter_l1_archive_for_normal_search([general, sensitive], query="local agents")
 
     assert [row.archive_id for row in results] == [general.archive_id]
     assert results[0].normal_search_allowed is True

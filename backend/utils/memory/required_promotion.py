@@ -71,7 +71,6 @@ def required_processing_payload(data: Dict[str, Any], *, source_surface: str) ->
                 "source_type": evidence.get("source_type") or "api",
                 "source_id": evidence.get("source_id"),
                 "client_device_id": evidence.get("client_device_id"),
-                "app_id": payload.get("app_id"),
                 "content_hash": _content_hash(payload),
                 "submitted_at": submitted_at,
             },

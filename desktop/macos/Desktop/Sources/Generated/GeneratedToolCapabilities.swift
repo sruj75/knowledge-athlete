@@ -80,15 +80,16 @@ enum GeneratedToolCapabilities {
     ]
     ),
     Capability(
-      toolName: "fill_cloud_connector_form",
-      title: "Fill Cloud Connector Form",
+      toolName: "search_tasks",
+      title: "Search Tasks",
       latency: .fastLocal,
       surfaces: Set([.desktopChat]),
-      summary: "Fill the visible ChatGPT or Claude custom MCP connector form using Omi's native macOS Accessibility automation.",
+      summary: "Vector similarity search on tasks (action_items + staged_tasks).",
       bullets: [
-      "Call this first for ChatGPT or Claude cloud MCP connector setup when the connector form is visible.",
-      "Do not install browser extensions before trying this tool.",
-      "If it reports missing Accessibility permission, missing form, or missing required fields, wait for the missing condition or use guarded screenshots before any keyboard automation."
+      "Use for finding tasks by meaning, not exact keywords, e.g. \"find tasks about shopping\".",
+      "Examples: \"tasks about shopping\", \"anything related to the presentation\".",
+      "Parameters: query (required), include_completed (default false).",
+      "More reliable than hand-writing MATCH queries for task search."
     ]
     ),
     Capability(
@@ -316,19 +317,6 @@ enum GeneratedToolCapabilities {
     ]
     ),
     Capability(
-      toolName: "search_tasks",
-      title: "Search Tasks",
-      latency: .fastLocal,
-      surfaces: Set([.desktopChat]),
-      summary: "Vector similarity search on tasks (action_items + staged_tasks).",
-      bullets: [
-      "Use for finding tasks by meaning, not exact keywords, e.g. \"find tasks about shopping\".",
-      "Examples: \"tasks about shopping\", \"anything related to the presentation\".",
-      "Parameters: query (required), include_completed (default false).",
-      "More reliable than hand-writing MATCH queries for task search."
-    ]
-    ),
-    Capability(
       toolName: "complete_task",
       title: "Complete Task",
       latency: .fastLocal,
@@ -369,21 +357,6 @@ enum GeneratedToolCapabilities {
       "Load a returned skill only when it is relevant to the user's request.",
       "Use only when the current user request plausibly needs a specialized workflow.",
       "Do not browse skills merely to explore options or because a related term appears in conversation context."
-    ]
-    ),
-    Capability(
-      toolName: "save_knowledge_graph",
-      title: "Save Knowledge Graph",
-      latency: .fastLocal,
-      surfaces: Set([.desktopChat]),
-      summary: "Save a knowledge graph of entities and relationships extracted from the user's data.",
-      bullets: [
-      "Parameters: nodes (array of {id, label, node_type, aliases}), edges (array of {source_id, target_id, label}).",
-      "node_type must be one of: person, organization, place, thing, concept.",
-      "Use when exploring the user's files during onboarding to build their knowledge graph.",
-      "Deduplication is handled automatically; provide all entities you find.",
-      "Use when exploring the user's files during onboarding or knowledge-graph building.",
-      "Deduplication is handled automatically; include all meaningful entities and relationships you found."
     ]
     ),
     Capability(
@@ -505,16 +478,6 @@ enum GeneratedToolCapabilities {
     ]
     ),
     Capability(
-      toolName: "scan_files",
-      title: "Scan Files",
-      latency: .asyncBackground,
-      surfaces: Set([.onboarding]),
-      summary: "Scan selected files/folders during onboarding to build local context.",
-      bullets: [
-      "Onboarding-only."
-    ]
-    ),
-    Capability(
       toolName: "set_user_preferences",
       title: "Set User Preferences",
       latency: .fastLocal,
@@ -545,16 +508,6 @@ enum GeneratedToolCapabilities {
     ]
     ),
     Capability(
-      toolName: "get_email_insights",
-      title: "Get Email Insights",
-      latency: .fastLocal,
-      surfaces: Set([.onboarding]),
-      summary: "Read precomputed email/calendar onboarding insights.",
-      bullets: [
-      "Onboarding-only; requires background insights to be loaded."
-    ]
-    ),
-    Capability(
       toolName: "get_tasks",
       title: "Get Tasks",
       latency: .fastLocal,
@@ -563,18 +516,6 @@ enum GeneratedToolCapabilities {
       bullets: [
       "Use for plain voice questions like what are my tasks, what's due today, or what's on my list.",
       "Prefer get_action_items for completed tasks, date ranges, or the full list."
-    ]
-    ),
-    Capability(
-      toolName: "create_calendar_event",
-      title: "Create Calendar Event",
-      latency: .fastNetwork,
-      surfaces: Set([.realtimeHub]),
-      summary: "Create a new Google Calendar event.",
-      bullets: [
-      "Use when the user asks to add, create, schedule, or put a specific event on their calendar.",
-      "Pass title, start_time, and end_time as ISO-8601 strings with timezone; include location, description, and attendees when provided.",
-      "This capability creates one specified event; it does not find availability, reschedule, delete, or coordinate with people."
     ]
     ),
     Capability(
@@ -664,6 +605,6 @@ enum GeneratedToolCapabilities {
   }
 
   static var realtimeToolNames: [String] {
-    ["ask_higher_model","cancel_agent_run","check_permission_status","create_action_item","create_calendar_event","get_action_items","get_agent_run","get_conversations","get_daily_recap","get_memories","get_tasks","inspect_agent_artifacts","list_agent_sessions","point_click","report_screen_observation","request_permission","screenshot","search_conversations","search_memories","search_screen_history","set_desktop_attention_override","spawn_agent","update_action_item","update_agent_artifact_lifecycle"]
+    ["ask_higher_model","cancel_agent_run","check_permission_status","create_action_item","get_action_items","get_agent_run","get_conversations","get_daily_recap","get_memories","get_tasks","inspect_agent_artifacts","list_agent_sessions","point_click","report_screen_observation","request_permission","screenshot","search_conversations","search_memories","search_screen_history","set_desktop_attention_override","spawn_agent","update_action_item","update_agent_artifact_lifecycle"]
   }
 }

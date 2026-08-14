@@ -48,10 +48,6 @@ class ProcessingState(str, Enum):
 
 class MemoryConsumer(str, Enum):
     omi_chat = "omi_chat"
-    agent = "agent"
-    third_party = "third_party"
-    developer_api = "developer_api"
-    mcp = "mcp"
     admin_debug = "admin_debug"
     eval = "eval"
     unknown = "unknown"
@@ -66,24 +62,14 @@ class AccessDecision:
 @dataclass(frozen=True)
 class MemoryAccessPolicy:
     consumer: MemoryConsumer
-    app_has_default_memory_grant: bool = False
+    has_default_memory_grant: bool = False
     archive_capability: bool = False
     raw_provenance_capability: bool = False
 
     @classmethod
     def for_omi_chat(cls, archive_capability: bool = False) -> "MemoryAccessPolicy":
         return cls(
-            consumer=MemoryConsumer.omi_chat, app_has_default_memory_grant=True, archive_capability=archive_capability
-        )
-
-    @classmethod
-    def for_third_party(
-        cls, app_has_default_memory_grant: bool = False, archive_capability: bool = False
-    ) -> "MemoryAccessPolicy":
-        return cls(
-            consumer=MemoryConsumer.third_party,
-            app_has_default_memory_grant=app_has_default_memory_grant,
-            archive_capability=archive_capability,
+            consumer=MemoryConsumer.omi_chat, has_default_memory_grant=True, archive_capability=archive_capability
         )
 
 
@@ -118,7 +104,6 @@ class MemoryItem(BaseModel):
     evidence: List[MemoryEvidence] = Field(default_factory=list)
     source_state: SourceState
     sensitivity_labels: List[str]
-    visibility: str
     user_asserted: bool
     captured_at: datetime
     updated_at: datetime
@@ -131,8 +116,6 @@ class MemoryItem(BaseModel):
     content_hash: Optional[str] = None
     account_generation: int = 0
     promotion: Optional[Dict[str, Any]] = None
-    capture_device_ids: List[str] = Field(default_factory=list)
-    primary_capture_device: Optional[str] = None
     corroboration_count: int = 0
     last_corroborated_at: Optional[datetime] = None
     confidence: Optional[float] = None
@@ -140,12 +123,8 @@ class MemoryItem(BaseModel):
     subject_entity_id: Optional[str] = None
     predicate: Optional[str] = None
     arguments: Dict[str, Any] = Field(default_factory=dict)
-    kg_extracted: bool = False
-    graph_ready: bool = False
-    graph_assertion_id: Optional[str] = None
-    graph_plan_hash: Optional[str] = None
 
-    @field_validator("memory_id", "uid", "visibility")
+    @field_validator("memory_id", "uid")
     @classmethod
     def validate_nonblank(cls, value: str) -> str:
         if not value or not value.strip():
@@ -202,11 +181,6 @@ class MemoryItem(BaseModel):
                 raise ValueError("active long_term memory requires ledger_sequence")
             if self.processing_state != ProcessingState.processed:
                 raise ValueError("active long_term memory requires processing_state=processed")
-            admission = (self.promotion or {}).get("admission_receipt")
-            if admission is not None and (
-                not self.graph_ready or not self.graph_assertion_id or not self.graph_plan_hash
-            ):
-                raise ValueError("admitted long_term memory requires an atomic graph assertion")
         if self.source_state == SourceState.active and not self.user_asserted:
             if not any(e.source_state == SourceState.active for e in self.evidence):
                 raise ValueError("active source memory requires at least one active evidence record")
@@ -233,8 +207,6 @@ def _base_policy_checks(item: MemoryItem, policy: MemoryAccessPolicy, now: datet
         return AccessDecision(False, "unknown_consumer")
     if _has_restricted_sensitivity(item):
         return AccessDecision(False, "restricted_sensitivity")
-    if item.visibility not in {"private", "public", "shared"}:
-        return AccessDecision(False, "unknown_visibility")
     return None
 
 
@@ -251,9 +223,6 @@ def is_default_access_eligible(
         return base
     if item.tier == MemoryLayer.archive:
         return AccessDecision(False, "archive_requires_explicit_query")
-    if policy.consumer in {MemoryConsumer.third_party, MemoryConsumer.developer_api, MemoryConsumer.mcp}:
-        if not policy.app_has_default_memory_grant:
-            return AccessDecision(False, "missing_default_memory_grant")
     if item.tier in {MemoryLayer.short_term, MemoryLayer.long_term}:
         return AccessDecision(True, "default_memory_allowed")
     return AccessDecision(False, "unsupported_tier")
@@ -275,7 +244,7 @@ def is_archive_access_eligible(
 
 def derived_default_access_allowed(item: MemoryItem, consumer: str) -> bool:
     try:
-        policy = MemoryAccessPolicy(consumer=MemoryConsumer(consumer), app_has_default_memory_grant=True)
+        policy = MemoryAccessPolicy(consumer=MemoryConsumer(consumer), has_default_memory_grant=True)
     except ValueError:
         policy = MemoryAccessPolicy(consumer=MemoryConsumer.unknown)
     return is_default_access_eligible(item, policy).allowed

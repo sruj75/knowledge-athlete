@@ -130,28 +130,6 @@ def redact_conversation_for_list(conv: Dict[str, Any]) -> Dict[str, Any]:
         )
         conv['structured']['action_items'] = []
         conv['structured']['events'] = []
-    conv['apps_results'] = []
-    conv['plugins_results'] = []
-    conv['suggested_summarization_apps'] = []
-    conv['transcript_segments'] = []
-    return conv
-
-
-def redact_conversation_for_integration(conv: Dict[str, Any]) -> Dict[str, Any]:
-    """Integration-view redaction: strip everything including title/overview."""
-    if not conv.get('is_locked', False):
-        return conv
-    if 'structured' in conv:
-        conv['structured'] = (
-            dict(conv['structured']) if not isinstance(conv['structured'], dict) else conv['structured']
-        )
-        conv['structured']['title'] = ''
-        conv['structured']['overview'] = ''
-        conv['structured']['action_items'] = []
-        conv['structured']['events'] = []
-    conv['apps_results'] = []
-    conv['plugins_results'] = []
-    conv['suggested_summarization_apps'] = []
     conv['transcript_segments'] = []
     return conv
 
@@ -159,11 +137,6 @@ def redact_conversation_for_integration(conv: Dict[str, Any]) -> Dict[str, Any]:
 def redact_conversations_for_list(conversations: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Apply standard list redaction to a batch of conversations."""
     return [redact_conversation_for_list(c) for c in conversations]
-
-
-def redact_conversations_for_integration(conversations: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Apply integration redaction to a batch of conversations."""
-    return [redact_conversation_for_integration(c) for c in conversations]
 
 
 # ---------------------------------------------------------------------------
@@ -214,14 +187,7 @@ def conversations_to_string(
 
         conversation_str += f"{str(conversation.structured.title).capitalize()}\n"
 
-        if (
-            conversation.apps_results
-            and len(conversation.apps_results) > 0
-            and conversation.apps_results[0].content.strip()
-        ):
-            conversation_str += f"{conversation.apps_results[0].content}\n"
-        else:
-            conversation_str += f"{str(conversation.structured.overview).capitalize()}\n"
+        conversation_str += f"{str(conversation.structured.overview).capitalize()}\n"
 
         # attendees
         if people_map:

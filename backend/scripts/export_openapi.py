@@ -1,16 +1,9 @@
 #!/usr/bin/env python3
-"""Export and check OpenAPI contracts.
+"""Export and check the Firebase-authenticated first-party OpenAPI contract.
 
-Contract-surface decision for issue #8546:
-- `docs/api-reference/openapi.json` is the public Mintlify Developer API contract.
-- The public contract is generated from the real FastAPI app, but filtered to
-  `/v1/dev/...` routes so internal, admin, task, and app-client routes are not
-  published through Mintlify by accident.
-- The `app-client` surface is generated from the real FastAPI app and filtered
-  to Firebase-authenticated first-party routes. Retained macOS generation uses
-  this live surface directly; callers may still supply an explicit output path.
-- Public-like routes that intentionally stay out of Mintlify must be listed in
-  `UNDOCUMENTED_PUBLIC_ROUTES` with a reason.
+The retained app-client contract is generated from the real FastAPI app and
+filtered to first-party routes. macOS generation uses this live surface
+directly; callers may still supply an explicit output path.
 
 The bootstrap is hermetic: it disables dotenv loading, removes real credential
 env vars, installs fake Firestore/Redis/GCS boundaries, patches Firebase app
@@ -28,7 +21,7 @@ import socket
 import sys
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Iterable, Iterator
+from typing import Any, Iterator
 
 from fastapi.routing import APIRoute
 from fastapi.openapi.utils import get_openapi
@@ -36,39 +29,16 @@ from fastapi.openapi.utils import get_openapi
 ROOT_DIR = Path(__file__).resolve().parents[2]
 BACKEND_DIR = ROOT_DIR / 'backend'
 E2E_DIR = BACKEND_DIR / 'testing' / 'e2e'
-DEFAULT_SPEC_PATH = ROOT_DIR / 'docs' / 'api-reference' / 'openapi.json'
-DEFAULT_APP_CLIENT_SPEC_PATH = ROOT_DIR / 'docs' / 'api-reference' / 'app-client-openapi.json'
-DEFAULT_INTEGRATION_PUBLIC_SPEC_PATH = ROOT_DIR / 'docs' / 'api-reference' / 'integration-public-openapi.json'
+DEFAULT_SPEC_PATH = ROOT_DIR / 'docs' / 'api-reference' / 'app-client-openapi.json'
 
-DOCUMENTED_PUBLIC_PREFIXES = ('/v1/dev/',)
-INTEGRATION_PUBLIC_PATHS = (
-    '/v1/integrations/notification',
-    '/v2/integrations/{app_id}/user/conversations',
-    '/v2/integrations/{app_id}/user/memories',
-    '/v2/integrations/{app_id}/memories',
-    '/v2/integrations/{app_id}/conversations',
-    '/v2/integrations/{app_id}/search/conversations',
-    '/v2/integrations/{app_id}/notification',
-    '/v2/integrations/{app_id}/tasks',
-)
 APP_CLIENT_PREFIXES = (
     '/v1/action-items',
     '/v1/announcements',
-    '/v1/app',
-    '/v1/app-capabilities',
-    '/v1/app-categories',
-    '/v1/apps',
-    '/v1/calendar',
     '/v1/candidates',
     '/v1/conversations',
-    '/v1/dev',
     '/v1/fair-use',
     '/v1/folders',
     '/v1/goals',
-    '/v1/import',
-    '/v1/integrations',
-    '/v1/knowledge-graph',
-    '/v1/mcp',
     '/v1/memories',
     '/v1/payment-methods',
     '/v1/payments',
@@ -77,7 +47,6 @@ APP_CLIENT_PREFIXES = (
     '/v1/phone',
     '/v1/stripe',
     '/v1/sync',
-    '/v1/task-integrations',
     '/v1/task-intelligence',
     '/v1/users',
     '/v1/wrapped',
@@ -85,11 +54,9 @@ APP_CLIENT_PREFIXES = (
     '/v1/workflow-migrations',
     '/v1/workstreams',
     '/v1/what-matters-now',
-    '/v2/apps',
     '/v2/files',
     '/v2/firmware',
     '/v2/initial-message',
-    '/v2/messages',
     '/v2/sync-capture-manifest',
     '/v2/sync-local-files',
     '/v2/tts',
@@ -100,178 +67,13 @@ APP_CLIENT_PREFIXES = (
     '/v3/upload-audio',
     '/v4/speech-profile',
 )
-AUDITED_PUBLIC_PREFIXES = (
-    '/v1/dev/',
-    '/v1/conversations',
-)
-UNDOCUMENTED_PUBLIC_ROUTES: dict[tuple[str, str], str] = {
-    (
-        'POST',
-        '/v1/conversations/shared/chat',
-    ): 'Trusted frontend service OIDC route; it is not a browser or Developer API surface.',
-    (
-        'POST',
-        '/v1/conversations',
-    ): 'Firebase-authenticated first-party app route; public docs expose Developer API key conversation creation.',
-    (
-        'GET',
-        '/v1/conversations',
-    ): 'Firebase-authenticated first-party app route; public docs expose Developer API key conversation listing.',
-    (
-        'GET',
-        '/v1/conversations/count',
-    ): 'Firebase-authenticated first-party app route; not part of the Developer API key contract.',
-    (
-        'GET',
-        '/v1/conversations/{conversation_id}',
-    ): 'Firebase-authenticated first-party app route; public docs expose the Developer API key conversation detail route.',
-    (
-        'PATCH',
-        '/v1/conversations/{conversation_id}/title',
-    ): 'Firebase-authenticated first-party app route; not part of the Developer API key contract.',
-    (
-        'PATCH',
-        '/v1/conversations/{conversation_id}/visibility',
-    ): 'Firebase-authenticated first-party app route; not part of the Developer API key contract.',
-    (
-        'PATCH',
-        '/v1/conversations/{conversation_id}/starred',
-    ): 'Firebase-authenticated first-party app route; not part of the Developer API key contract.',
-    (
-        'PATCH',
-        '/v1/conversations/{conversation_id}/folder',
-    ): 'Firebase-authenticated first-party app route; not part of the Developer API key contract.',
-    (
-        'DELETE',
-        '/v1/conversations/{conversation_id}/calendar-event',
-    ): 'Firebase-authenticated first-party app route; not part of the Developer API key contract.',
-    (
-        'POST',
-        '/v1/conversations/{conversation_id}/calendar-event',
-    ): 'Firebase-authenticated first-party app route; not part of the Developer API key contract.',
-    (
-        'POST',
-        '/v1/conversations/{conversation_id}/calendar-event/auto-link',
-    ): 'Firebase-authenticated first-party app route; not part of the Developer API key contract.',
-    (
-        'PATCH',
-        '/v1/conversations/{conversation_id}/summary',
-    ): 'Firebase-authenticated first-party app route; not part of the Developer API key contract.',
-    (
-        'PATCH',
-        '/v1/conversations/{conversation_id}/segments/text',
-    ): 'Firebase-authenticated first-party app route; not part of the Developer API key contract.',
-    (
-        'PATCH',
-        '/v1/conversations/{conversation_id}/segments/{segment_idx}/assign',
-    ): 'Firebase-authenticated first-party app route; not part of the Developer API key contract.',
-    (
-        'PATCH',
-        '/v1/conversations/{conversation_id}/segments/assign-bulk',
-    ): 'Firebase-authenticated first-party app route; not part of the Developer API key contract.',
-    (
-        'PATCH',
-        '/v1/conversations/{conversation_id}/assign-speaker/{speaker_id}',
-    ): 'Firebase-authenticated first-party app route; not part of the Developer API key contract.',
-    (
-        'DELETE',
-        '/v1/conversations/{conversation_id}',
-    ): 'Firebase-authenticated first-party app route; not part of the Developer API key contract.',
-    (
-        'GET',
-        '/v1/conversations/{conversation_id}/recording',
-    ): 'Firebase-authenticated first-party app route; not part of the Developer API key contract.',
-    (
-        'GET',
-        '/v1/conversations/{conversation_id}/photos',
-    ): 'Firebase-authenticated first-party app route; not part of the Developer API key contract.',
-    (
-        'GET',
-        '/v1/conversations/{conversation_id}/transcripts',
-    ): 'Firebase-authenticated first-party app route; not part of the Developer API key contract.',
-    (
-        'GET',
-        '/v1/conversations/{conversation_id}/analytics',
-    ): 'Firebase-authenticated first-party app route; not part of the Developer API key contract.',
-    (
-        'GET',
-        '/v1/conversations/{conversation_id}/finalization',
-    ): 'Firebase-authenticated first-party app route; not part of the Developer API key contract.',
-    (
-        'PATCH',
-        '/v1/conversations/{conversation_id}/events',
-    ): 'Firebase-authenticated first-party app route; not part of the Developer API key contract.',
-    (
-        'PATCH',
-        '/v1/conversations/{conversation_id}/action-items',
-    ): 'Firebase-authenticated first-party app route; not part of the Developer API key contract.',
-    (
-        'GET',
-        '/v1/conversations/{conversation_id}/action-items',
-    ): 'Firebase-authenticated first-party app route; not part of the Developer API key contract.',
-    (
-        'GET',
-        '/v1/conversations/{conversation_id}/action-items/count',
-    ): 'Firebase-authenticated first-party app route; not part of the Developer API key contract.',
-    (
-        'PATCH',
-        '/v1/conversations/{conversation_id}/action-items/{action_item_idx}',
-    ): 'Firebase-authenticated first-party app route; not part of the Developer API key contract.',
-    (
-        'DELETE',
-        '/v1/conversations/{conversation_id}/action-items',
-    ): 'Firebase-authenticated first-party app route; not part of the Developer API key contract.',
-    (
-        'GET',
-        '/v1/conversations/{conversation_id}/shared',
-    ): 'Unauthenticated shared-conversation route; not part of the Developer API key contract.',
-    (
-        'POST',
-        '/v1/conversations/search',
-    ): 'Firebase-authenticated first-party app route; not part of the Developer API key contract.',
-    (
-        'POST',
-        '/v1/conversations/merge',
-    ): 'Firebase-authenticated first-party app route; not part of the Developer API key contract.',
-    (
-        'GET',
-        '/v1/conversations/{conversation_id}/suggested-apps',
-    ): 'Firebase-authenticated first-party app route; not part of the Developer API key contract.',
-    (
-        'POST',
-        '/v1/conversations/{conversation_id}/test-prompt',
-    ): 'Firebase-authenticated first-party app route; not part of the Developer API key contract.',
-    (
-        'POST',
-        '/v1/conversations/{conversation_id}/finalize',
-    ): 'Firebase-authenticated first-party app route; not part of the Developer API key contract.',
-    (
-        'POST',
-        '/v1/conversations/{conversation_id}/reprocess',
-    ): 'Firebase-authenticated first-party app route; not part of the Developer API key contract.',
-    (
-        'POST',
-        '/v1/conversations/from-segments',
-    ): 'Firebase-authenticated app-client alias; public docs expose the Developer API key route only.',
-}
-
-APP_CLIENT_PUBLIC_PATHS = frozenset(
-    {
-        '/v1/action-items/shared/{token}',
-        '/v1/conversations/{conversation_id}/shared',
-        '/v2/messages/shared/{token}',
-    }
-)
 
 HTTP_METHODS = {'GET', 'POST', 'PUT', 'PATCH', 'DELETE'}
 
-OPENAPI_TITLE = 'Omi Developer API'
-APP_CLIENT_OPENAPI_TITLE = 'Omi App Client API'
-INTEGRATION_PUBLIC_OPENAPI_TITLE = 'Omi Integration API'
+OPENAPI_TITLE = 'Omi App Client API'
 OPENAPI_VERSION = '1.0.0'
 OPENAPI_DESCRIPTION = (
-    'Programmatic access to your Omi data - memories, conversations, action items, goals, folders, and API keys. '
-    'Build custom integrations, analytics dashboards, and automation workflows.'
+    'First-party Omi app access to memories, conversations, action items, goals, folders, and product services.'
 )
 OPENAPI_CONTACT = {'name': 'Omi', 'url': 'https://omi.me'}
 OPENAPI_LICENSE = {'name': 'MIT', 'url': 'https://github.com/BasedHardware/omi/blob/main/LICENSE'}
@@ -288,25 +90,12 @@ OPENAPI_TAGS = [
         'description': 'Manage tasks and to-dos extracted from conversations or created manually.',
     },
     {'name': 'Goals', 'description': 'Manage user goals and progress history.'},
-    {'name': 'API Keys', 'description': 'Create, list, and revoke developer API keys.'},
 ]
 FIREBASE_BEARER_AUTH_SCHEME = {
     'type': 'http',
     'scheme': 'bearer',
     'bearerFormat': 'Firebase ID token',
     'description': 'Send `Authorization: Bearer <firebase_id_token>`.',
-}
-DEVELOPER_API_KEY_AUTH_SCHEME = {
-    'type': 'http',
-    'scheme': 'bearer',
-    'bearerFormat': 'Omi Developer API key',
-    'description': 'Send `Authorization: Bearer <omi_developer_api_key>`.',
-}
-INTEGRATION_API_KEY_AUTH_SCHEME = {
-    'type': 'http',
-    'scheme': 'bearer',
-    'bearerFormat': 'Omi Integration API key',
-    'description': 'Send `Authorization: Bearer <omi_integration_api_key>`.',
 }
 ERROR_RESPONSE_SCHEMA = {
     'type': 'object',
@@ -374,7 +163,6 @@ def configure_hermetic_environment() -> None:
         'BUCKET_PRIVATE_CLOUD_SYNC',
         'BUCKET_TEMPORAL_SYNC_LOCAL',
         'BUCKET_MEMORIES_RECORDINGS',
-        'BUCKET_APP_THUMBNAILS',
         'BUCKET_CHAT_FILES',
         'BUCKET_DESKTOP_UPDATES',
     ):
@@ -609,19 +397,7 @@ def relink_imported_service_singletons(fake_firestore, fake_redis, get_mock_fire
                 continue
 
 
-def generate_public_openapi() -> dict[str, Any]:
-    return generate_openapi('public')
-
-
 def generate_app_client_openapi() -> dict[str, Any]:
-    return generate_openapi('app-client')
-
-
-def generate_integration_public_openapi() -> dict[str, Any]:
-    return generate_openapi('integration-public')
-
-
-def generate_openapi(surface: str) -> dict[str, Any]:
     original_env = dict(os.environ)
     side_effect_snapshot = snapshot_side_effect_paths()
     configure_hermetic_environment()
@@ -635,7 +411,7 @@ def generate_openapi(surface: str) -> dict[str, Any]:
             import main as backend_main
 
             relink_imported_service_singletons(fake_firestore, fake_redis, get_mock_firestore, get_fake_redis)
-            schema = build_openapi(backend_main.app, surface)
+            schema = build_app_client_openapi(backend_main.app)
 
             if network_attempts:
                 raise OpenAPIContractError(
@@ -652,24 +428,6 @@ def generate_openapi(surface: str) -> dict[str, Any]:
         assert_no_side_effect_path_mutations(side_effect_snapshot)
 
 
-def route_key(method: str, path: str) -> tuple[str, str]:
-    return method.upper(), path
-
-
-def iter_route_keys(routes: Iterable[Any]) -> list[tuple[str, str]]:
-    keys: list[tuple[str, str]] = []
-    for route in routes:
-        if not isinstance(route, APIRoute):
-            continue
-        for method in sorted((route.methods or set()) & HTTP_METHODS):
-            keys.append(route_key(method, route.path))
-    return sorted(set(keys))
-
-
-def is_public_contract_path(path: str) -> bool:
-    return any(path.startswith(prefix) for prefix in DOCUMENTED_PUBLIC_PREFIXES)
-
-
 def is_app_client_contract_path(path: str) -> bool:
     for prefix in APP_CLIENT_PREFIXES:
         if prefix.endswith('/'):
@@ -680,85 +438,12 @@ def is_app_client_contract_path(path: str) -> bool:
     return False
 
 
-def is_integration_public_contract_path(path: str) -> bool:
-    return path in INTEGRATION_PUBLIC_PATHS
-
-
-def is_audited_public_path(path: str) -> bool:
-    for prefix in AUDITED_PUBLIC_PREFIXES:
-        if prefix.endswith('/'):
-            if path.startswith(prefix):
-                return True
-        elif path == prefix or path.startswith(f'{prefix}/'):
-            return True
-    return False
-
-
-def public_contract_routes(app) -> list[APIRoute]:
-    return [
-        route
-        for route in app.routes
-        if isinstance(route, APIRoute) and is_public_contract_path(route.path) and route.include_in_schema
-    ]
-
-
 def app_client_contract_routes(app) -> list[APIRoute]:
     return [
         route
         for route in app.routes
         if isinstance(route, APIRoute) and is_app_client_contract_path(route.path) and route.include_in_schema
     ]
-
-
-def integration_public_contract_routes(app) -> list[APIRoute]:
-    return [
-        route
-        for route in app.routes
-        if isinstance(route, APIRoute) and is_integration_public_contract_path(route.path) and route.include_in_schema
-    ]
-
-
-def documented_route_keys(schema: dict[str, Any]) -> list[tuple[str, str]]:
-    documented: list[tuple[str, str]] = []
-    for path, operations in schema.get('paths', {}).items():
-        for method in operations:
-            method_upper = method.upper()
-            if method_upper in HTTP_METHODS:
-                documented.append(route_key(method_upper, path))
-    return sorted(documented)
-
-
-def _normalize_bearer_security(schema: dict[str, Any]) -> None:
-    components = schema.setdefault('components', {})
-    security_schemes = components.setdefault('securitySchemes', {})
-    security_schemes.clear()
-    security_schemes['firebaseBearer'] = FIREBASE_BEARER_AUTH_SCHEME
-    security_schemes['developerApiKey'] = DEVELOPER_API_KEY_AUTH_SCHEME
-    components.setdefault('schemas', {})['ErrorResponse'] = ERROR_RESPONSE_SCHEMA
-    responses = components.setdefault('responses', {})
-    for status_code, response in COMMON_RESPONSES.items():
-        responses[f'Error{status_code}'] = {
-            **response,
-            'content': {
-                'application/json': {
-                    'schema': {'$ref': '#/components/schemas/ErrorResponse'},
-                }
-            },
-        }
-    schema.pop('security', None)
-
-    for path, operations in schema.get('paths', {}).items():
-        for method, operation in operations.items():
-            if method.upper() in HTTP_METHODS:
-                if path.startswith('/v1/dev/keys'):
-                    operation['security'] = [{'firebaseBearer': []}]
-                else:
-                    operation['security'] = [{'developerApiKey': []}]
-                operation.setdefault('responses', {})['401'] = {'$ref': '#/components/responses/Error401'}
-                if operation['security'] == [{'developerApiKey': []}]:
-                    operation['responses'].setdefault('403', {'$ref': '#/components/responses/Error403'})
-                if '{' in path and method.upper() in {'GET', 'PATCH', 'DELETE'}:
-                    operation['responses'].setdefault('404', {'$ref': '#/components/responses/Error404'})
 
 
 def _normalize_app_client_security(schema: dict[str, Any]) -> None:
@@ -782,39 +467,8 @@ def _normalize_app_client_security(schema: dict[str, Any]) -> None:
     for path, operations in schema.get('paths', {}).items():
         for method, operation in operations.items():
             if method.upper() in HTTP_METHODS:
-                if path in APP_CLIENT_PUBLIC_PATHS:
-                    operation['security'] = []
-                else:
-                    operation['security'] = [{'firebaseBearer': []}]
-                    operation.setdefault('responses', {})['401'] = {'$ref': '#/components/responses/Error401'}
-                if '{' in path and method.upper() in {'GET', 'PATCH', 'DELETE'}:
-                    operation['responses'].setdefault('404', {'$ref': '#/components/responses/Error404'})
-
-
-def _normalize_integration_public_security(schema: dict[str, Any]) -> None:
-    components = schema.setdefault('components', {})
-    security_schemes = components.setdefault('securitySchemes', {})
-    security_schemes.clear()
-    security_schemes['integrationApiKey'] = INTEGRATION_API_KEY_AUTH_SCHEME
-    components.setdefault('schemas', {})['ErrorResponse'] = ERROR_RESPONSE_SCHEMA
-    responses = components.setdefault('responses', {})
-    for status_code, response in COMMON_RESPONSES.items():
-        responses[f'Error{status_code}'] = {
-            **response,
-            'content': {
-                'application/json': {
-                    'schema': {'$ref': '#/components/schemas/ErrorResponse'},
-                }
-            },
-        }
-    schema.pop('security', None)
-
-    for path, operations in schema.get('paths', {}).items():
-        for method, operation in operations.items():
-            if method.upper() in HTTP_METHODS:
-                operation['security'] = [{'integrationApiKey': []}]
+                operation['security'] = [{'firebaseBearer': []}]
                 operation.setdefault('responses', {})['401'] = {'$ref': '#/components/responses/Error401'}
-                operation['responses'].setdefault('403', {'$ref': '#/components/responses/Error403'})
                 if '{' in path and method.upper() in {'GET', 'PATCH', 'DELETE'}:
                     operation['responses'].setdefault('404', {'$ref': '#/components/responses/Error404'})
 
@@ -851,42 +505,21 @@ def _normalize_component_names(schema: dict[str, Any]) -> None:
         _rewrite_refs(schema, ref_map)
 
 
-def build_openapi(app, surface: str) -> dict[str, Any]:
-    if surface == 'public':
-        routes = public_contract_routes(app)
-        title = OPENAPI_TITLE
-    elif surface == 'app-client':
-        routes = app_client_contract_routes(app)
-        title = APP_CLIENT_OPENAPI_TITLE
-    elif surface == 'integration-public':
-        routes = integration_public_contract_routes(app)
-        title = INTEGRATION_PUBLIC_OPENAPI_TITLE
-    else:
-        raise OpenAPIContractError(f'unknown OpenAPI surface: {surface}')
-
+def build_app_client_openapi(app) -> dict[str, Any]:
     schema = get_openapi(
-        title=title,
+        title=OPENAPI_TITLE,
         version=OPENAPI_VERSION,
         description=OPENAPI_DESCRIPTION,
-        routes=routes,
+        routes=app_client_contract_routes(app),
         tags=OPENAPI_TAGS,
         servers=OPENAPI_SERVERS,
         contact=OPENAPI_CONTACT,
         license_info=OPENAPI_LICENSE,
     )
-    if surface == 'public':
-        _normalize_bearer_security(schema)
-    elif surface == 'app-client':
-        _normalize_app_client_security(schema)
-    elif surface == 'integration-public':
-        _normalize_integration_public_security(schema)
+    _normalize_app_client_security(schema)
     _normalize_component_names(schema)
-    validate_contract(app, schema, surface)
+    validate_contract(schema)
     return schema
-
-
-def build_public_openapi(app) -> dict[str, Any]:
-    return build_openapi(app, 'public')
 
 
 def assert_unique_operation_ids(schema: dict[str, Any]) -> None:
@@ -914,69 +547,13 @@ def assert_unique_operation_ids(schema: dict[str, Any]) -> None:
         raise OpenAPIContractError('\n'.join(details))
 
 
-def assert_route_inventory(app, schema: dict[str, Any]) -> None:
-    audited_routes = [
-        route for route in app.routes if isinstance(route, APIRoute) and is_audited_public_path(route.path)
-    ]
-    expected = set(iter_route_keys(audited_routes))
-    documented = set(documented_route_keys(schema))
-    allowlisted = set(UNDOCUMENTED_PUBLIC_ROUTES)
-
-    missing = sorted(expected - documented - allowlisted)
-    extra = sorted(documented - expected)
-    stale_allowlist = sorted(route for route in allowlisted if route not in set(iter_route_keys(app.routes)))
-
-    if missing or extra or stale_allowlist:
-        parts = []
-        if missing:
-            parts.append('public routes missing from OpenAPI: ' + ', '.join(f'{m} {p}' for m, p in missing))
-        if extra:
-            parts.append('OpenAPI routes not present in FastAPI app: ' + ', '.join(f'{m} {p}' for m, p in extra))
-        if stale_allowlist:
-            parts.append(
-                'stale undocumented route allowlist entries: ' + ', '.join(f'{m} {p}' for m, p in stale_allowlist)
-            )
-        raise OpenAPIContractError('\n'.join(parts))
-
-
-def validate_contract(app, schema: dict[str, Any], surface: str = 'public') -> None:
+def validate_contract(schema: dict[str, Any]) -> None:
     if schema.get('openapi') != '3.1.0':
         raise OpenAPIContractError(f"expected OpenAPI 3.1.0, got {schema.get('openapi')!r}")
     assert_unique_operation_ids(schema)
-    if surface == 'public':
-        assert_route_inventory(app, schema)
-        for path in schema.get('paths', {}):
-            if not is_public_contract_path(path):
-                raise OpenAPIContractError(f'non-public route leaked into public OpenAPI: {path}')
-    elif surface == 'app-client':
-        for path in schema.get('paths', {}):
-            if not is_app_client_contract_path(path):
-                raise OpenAPIContractError(f'non-app-client route leaked into app-client OpenAPI: {path}')
-    elif surface == 'integration-public':
-        documented = set(documented_route_keys(schema))
-        expected = set(
-            iter_route_keys(
-                route
-                for route in app.routes
-                if isinstance(route, APIRoute) and is_integration_public_contract_path(route.path)
-            )
-        )
-        missing = sorted(expected - documented)
-        extra = sorted(documented - expected)
-        if missing or extra:
-            parts = []
-            if missing:
-                parts.append('integration routes missing from OpenAPI: ' + ', '.join(f'{m} {p}' for m, p in missing))
-            if extra:
-                parts.append(
-                    'OpenAPI routes not present in integration surface: ' + ', '.join(f'{m} {p}' for m, p in extra)
-                )
-            raise OpenAPIContractError('\n'.join(parts))
-        for path in schema.get('paths', {}):
-            if not is_integration_public_contract_path(path):
-                raise OpenAPIContractError(f'non-integration route leaked into integration OpenAPI: {path}')
-    else:
-        raise OpenAPIContractError(f'unknown OpenAPI surface: {surface}')
+    for path in schema.get('paths', {}):
+        if not is_app_client_contract_path(path):
+            raise OpenAPIContractError(f'non-app-client route leaked into app-client OpenAPI: {path}')
 
 
 def stable_json(schema: dict[str, Any]) -> str:
@@ -988,21 +565,13 @@ def write_spec(path: Path, generated: str) -> None:
     path.write_text(generated)
 
 
-def regenerate_hint(path: Path, surface: str) -> str:
-    """The exact command that regenerates `path`.
-
-    `--surface` has to be explicit: it defaults to `public`, so a hint that omits it
-    sends the reader to overwrite a non-public contract with the public surface, which
-    quietly guts the file instead of refreshing it (#10217).
-    """
-    return f'backend/scripts/export_openapi.py --surface {surface} --write {path}'
+def regenerate_hint(path: Path) -> str:
+    """Return the exact command that regenerates the retained contract."""
+    return f'backend/scripts/export_openapi.py --surface app-client --write {path}'
 
 
-def check_spec(path: Path, generated: str, *, surface: str = 'public') -> None:
-    # Default matches the --surface default so existing callers (and the public
-    # contract test) stay valid; the production caller passes surface explicitly
-    # so a non-public surface never silently gets the public regenerate hint.
-    hint = regenerate_hint(path, surface)
+def check_spec(path: Path, generated: str) -> None:
+    hint = regenerate_hint(path)
     if not path.exists():
         raise OpenAPIContractError(f'{path} does not exist; run {hint}')
     current = path.read_text()
@@ -1014,16 +583,9 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description='Export or verify an Omi OpenAPI contract.')
     parser.add_argument(
         '--surface',
-        choices=('public', 'app-client', 'integration-public'),
-        default='public',
-        help='contract surface to export; defaults to public Developer API',
-    )
-    parser.add_argument(
-        '--app-client',
-        action='store_const',
-        const='app-client',
-        dest='surface',
-        help='shortcut for --surface app-client',
+        choices=('app-client',),
+        default='app-client',
+        help='retained first-party contract surface',
     )
     action = parser.add_mutually_exclusive_group(required=True)
     action.add_argument('--write', nargs='?', const='', metavar='PATH', help='write generated spec')
@@ -1032,35 +594,29 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def default_spec_path(surface: str) -> Path:
-    if surface == 'public':
-        return DEFAULT_SPEC_PATH
-    if surface == 'app-client':
-        return DEFAULT_APP_CLIENT_SPEC_PATH
-    if surface == 'integration-public':
-        return DEFAULT_INTEGRATION_PUBLIC_SPEC_PATH
-    raise OpenAPIContractError(f'unknown OpenAPI surface: {surface}')
+def default_spec_path() -> Path:
+    return DEFAULT_SPEC_PATH
 
 
-def resolve_spec_path(surface: str, raw_path: str) -> Path:
+def resolve_spec_path(raw_path: str) -> Path:
     if raw_path:
         return Path(raw_path)
-    return default_spec_path(surface)
+    return default_spec_path()
 
 
 def main() -> int:
     args = parse_args()
     try:
-        generated = stable_json(generate_openapi(args.surface))
+        generated = stable_json(generate_app_client_openapi())
         if args.print:
             sys.stdout.write(generated)
         elif args.write is not None:
-            path = resolve_spec_path(args.surface, args.write)
+            path = resolve_spec_path(args.write)
             write_spec(path, generated)
             print(f'wrote {path}')
         elif args.check is not None:
-            path = resolve_spec_path(args.surface, args.check)
-            check_spec(path, generated, surface=args.surface)
+            path = resolve_spec_path(args.check)
+            check_spec(path, generated)
             print(f'{path} is up to date')
         return 0
     except OpenAPIContractError as e:

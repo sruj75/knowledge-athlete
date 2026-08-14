@@ -48,7 +48,6 @@ class MemoryDoc(TypedDict, total=False):
     arguments: Dict[str, Any]
     structured: Dict[str, Any]
     category: str
-    visibility: str
     created_at: Any  # firestore DATETIME
     updated_at: Any  # firestore DATETIME
     invalid_at: Any  # firestore DATETIME
@@ -57,12 +56,9 @@ class MemoryDoc(TypedDict, total=False):
     reviewed: bool
     edited: bool
     is_locked: bool
-    kg_extracted: bool
-    app_id: Optional[str]
     memory_id: Optional[str]  # origin conversation id (legacy memories: == id)
     topic: str
     subtopics: List[str]
-    plugin_id: Optional[str]
     language: Optional[str]
     subject_attribution: str
     capture_confidence: Optional[float]
@@ -206,7 +202,7 @@ def get_memories(
     if end_date:
         memories_ref = memories_ref.where(filter=FieldFilter('created_at', '<=', end_date))
 
-    # Keep the Firestore query on the existing indexed order. MCP-specific sort
+    # Keep the Firestore query on the existing indexed order. Alternate sort
     # modes are applied after batch collection to avoid requiring extra
     # composite indexes for category-filtered reads.
     memories_ref = memories_ref.order_by('scoring', direction=firestore.Query.DESCENDING).order_by(
@@ -227,30 +223,6 @@ def get_memories(
         if memory.get('user_review') is not False and (include_invalidated or memory.get('invalid_at') is None)
     ]
     return result
-
-
-@prepare_for_read(decrypt_func=cast(_DecryptFunc, _prepare_memory_for_read))
-def get_user_public_memories(
-    uid: str, limit: int = 100, offset: int = 0, *, firestore_client: Any = None
-) -> List[Dict[str, Any]]:
-    logger.info(f'get_public_memories {limit} {offset}')
-
-    database = _get_db(firestore_client)
-    memories_ref = database.collection(users_collection).document(uid).collection(memories_collection)
-    memories_ref = memories_ref.order_by('scoring', direction=firestore.Query.DESCENDING).order_by(
-        'created_at', direction=firestore.Query.DESCENDING
-    )
-
-    memories_ref = memories_ref.limit(limit).offset(offset)
-
-    memories: List[Dict[str, Any]] = [_typed_doc(doc) for doc in memories_ref.stream()]
-
-    # Consider visibility as 'public' if it's missing
-    public_memories: List[Dict[str, Any]] = [
-        memory for memory in memories if memory.get('visibility', 'public') == 'public'
-    ]
-
-    return public_memories
 
 
 @prepare_for_read(decrypt_func=cast(_DecryptFunc, _prepare_memory_for_read))
@@ -466,18 +438,6 @@ def review_memory(uid: str, memory_id: str, value: bool, *, firestore_client: An
     memories_ref = user_ref.collection(memories_collection)
     memory_ref = memories_ref.document(memory_id)
     memory_ref.update({'reviewed': True, 'user_review': value})
-
-
-def set_memory_kg_extracted(uid: str, memory_id: str, *, firestore_client: Any = None) -> None:
-    _update_memory_if_exists(uid, memory_id, {'kg_extracted': True}, 'kg_extracted', firestore_client=firestore_client)
-
-
-def change_memory_visibility(uid: str, memory_id: str, value: str, *, firestore_client: Any = None) -> None:
-    database = _get_db(firestore_client)
-    user_ref = database.collection(users_collection).document(uid)
-    memories_ref = user_ref.collection(memories_collection)
-    memory_ref = memories_ref.document(memory_id)
-    memory_ref.update({'visibility': value})
 
 
 def update_memory_fields(uid: str, memory_id: str, data: Dict[str, Any], *, firestore_client: Any = None) -> None:
@@ -1050,11 +1010,8 @@ def migrate_memories_level_batch(
     batch.commit()
 
 
-def migrate_memories(prev_uid: str, new_uid: str, app_id: Optional[str] = None, *, firestore_client: Any = None) -> int:
-    """
-    Migrate memories from one user to another.
-    If app_id is provided, only migrate memories related to that app.
-    """
+def migrate_memories(prev_uid: str, new_uid: str, *, firestore_client: Any = None) -> int:
+    """Migrate all memories from one user to another."""
     logger.info(f'Migrating memories from {prev_uid} to {new_uid}')
 
     # Get source memories
@@ -1062,14 +1019,8 @@ def migrate_memories(prev_uid: str, new_uid: str, app_id: Optional[str] = None, 
     prev_user_ref = database.collection(users_collection).document(prev_uid)
     prev_memories_ref = prev_user_ref.collection(memories_collection)
 
-    # Apply app_id filter if provided
-    if app_id:
-        query = prev_memories_ref.where(filter=FieldFilter('app_id', '==', app_id))
-    else:
-        query = prev_memories_ref
-
     # Get memories to migrate
-    memories_to_migrate: List[Dict[str, Any]] = [_typed_doc(doc) for doc in query.stream()]
+    memories_to_migrate: List[Dict[str, Any]] = [_typed_doc(doc) for doc in prev_memories_ref.stream()]
 
     if not memories_to_migrate:
         logger.info(f'No memories to migrate for user {prev_uid}')

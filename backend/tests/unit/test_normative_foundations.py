@@ -178,7 +178,6 @@ def test_memory_collections_define_unified_memory_items_and_no_separate_short_te
     assert paths.memory_outbox == "users/u1/memory_outbox"
     assert paths.memory_control_state == "users/u1/memory_control/state"
     assert paths.memory_apply_control_state == "users/u1/memory_state/apply_control"
-    assert paths.memory_graph_assertions == "users/u1/memory_graph_assertions"
     assert paths.legacy_fallback == "users/u1/memory_legacy_fallback"
     assert "memory_short_term" not in paths.all_collection_paths()
     assert "memory_archive" not in paths.all_collection_paths()
@@ -200,12 +199,7 @@ def test_product_memory_item_invariants_short_term_long_term_archive():
         ledger_commit_id="commit1",
         ledger_sequence=7,
     )
-    assert (
-        is_default_access_eligible(
-            long, MemoryAccessPolicy.for_third_party(app_has_default_memory_grant=True), now=now
-        ).allowed
-        is True
-    )
+    assert is_default_access_eligible(long, MemoryAccessPolicy.for_omi_chat(), now=now).allowed is True
 
     with pytest.raises(ValidationError, match="ledger_commit_id"):
         _item(tier=MemoryTier.long_term, processing_state=ProcessingState.processed, expires_at=None)
@@ -228,7 +222,6 @@ def test_persisted_memory_item_metadata_is_required_and_timestamps_are_valid():
         "processing_state",
         "source_state",
         "sensitivity_labels",
-        "visibility",
         "user_asserted",
     ]:
         broken = dict(payload)
@@ -264,12 +257,7 @@ def test_access_policy_fails_closed_for_unknown_consumers_expiry_blocked_and_arc
     assert is_default_access_eligible(blocked, MemoryAccessPolicy.for_omi_chat(), now=now).allowed is False
 
     restricted = _item(sensitivity_labels=["Health"])
-    assert (
-        is_default_access_eligible(
-            restricted, MemoryAccessPolicy.for_third_party(app_has_default_memory_grant=True), now=now
-        ).allowed
-        is False
-    )
+    assert is_default_access_eligible(restricted, MemoryAccessPolicy.for_omi_chat(), now=now).allowed is False
 
 
 def test_archive_transition_preserves_user_asserted_provenance_and_identity():

@@ -590,13 +590,12 @@ class TestKeywordSearchAndHybrid:
         )
         monkeypatch.setattr(
             "utils.memory.memory_service.search_canonical_memories",
-            lambda uid, query, limit=5, db_client=None, device_scope_request=None: [
+            lambda uid, query, limit=5, db_client=None, vector_query=None: [
                 {
                     "memory_id": item.memory_id,
                     "content": item.content,
                     "tier": item.tier.value,
                     "date": item.updated_at.isoformat(),
-                    "visibility": item.visibility,
                 }
             ],
         )
@@ -741,8 +740,6 @@ class TestPurgeAndRebuild:
             "utils.memory.canonical_memory_adapter.read_memory_v3_trusted_account_generation",
             lambda **_: types.SimpleNamespace(account_generation=1, head_commit_id="head0", read_error_reason=None),
         )
-        delete_kg = MagicMock()
-        monkeypatch.setattr("utils.memory.canonical_memory_adapter.kg_db.delete_knowledge_graph", delete_kg)
         monkeypatch.setattr(
             "utils.memory.canonical_memory_adapter.read_account_deletion_projection_fence",
             lambda *args, **kwargs: types.SimpleNamespace(blocks_projection_writes=True),
@@ -754,7 +751,6 @@ class TestPurgeAndRebuild:
         assert result["purged"] is True
         assert result["keyword_docs_deleted"] >= 0
         assert set(docs_store) == {other_doc["id"]}
-        delete_kg.assert_called_once_with(CANONICAL_UID, db_client=db_client)
 
     def test_conversation_cascade_deletes_keyword_doc(self, mock_typesense, monkeypatch):
         _, docs_store = mock_typesense
@@ -798,11 +794,6 @@ class TestPurgeAndRebuild:
                 tombstoned_evidence_ids=[item.evidence[0].evidence_id],
             ),
         )
-        monkeypatch.setattr(
-            "utils.memory.canonical_memory_adapter.kg_db.prune_memory_citations_from_kg",
-            lambda uid, memory_ids, db_client=None: 0,
-        )
-
         retract_conversation_sourced_memories(CANONICAL_UID, "conv-1", db_client=MagicMock())
         assert _provider_id(item) not in docs_store
 

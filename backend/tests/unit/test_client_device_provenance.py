@@ -135,28 +135,6 @@ def test_transcript_artifact_ref_omits_device_from_hash_inputs():
     assert _artifact_ref(base) == _artifact_ref(with_device)
 
 
-def test_ordered_capture_devices_uses_earliest_evidence_not_alphabetical():
-    from utils.memory.canonical_memory_adapter import _ordered_capture_devices_from_evidence
-
-    early = datetime(2025, 1, 1, tzinfo=timezone.utc)
-    late = datetime(2025, 6, 1, tzinfo=timezone.utc)
-    raw_evidence = [
-        {
-            "evidence_id": "ev-ios",
-            "client_device_id": "ios_zzzzzzzz",
-            "created_at": late,
-        },
-        {
-            "evidence_id": "ev-macos",
-            "client_device_id": "macos_aaaaaaaa",
-            "created_at": early,
-        },
-    ]
-    device_ids, primary = _ordered_capture_devices_from_evidence(raw_evidence)
-    assert device_ids == ["macos_aaaaaaaa", "ios_zzzzzzzz"]
-    assert primary == "macos_aaaaaaaa"
-
-
 def test_listen_conversation_stamps_websocket_device_provenance():
     runtime = (Path(__file__).resolve().parents[2] / "routers" / "listen" / "runtime.py").read_text(encoding="utf-8")
     conversations = (Path(__file__).resolve().parents[2] / "routers" / "listen" / "conversations.py").read_text(

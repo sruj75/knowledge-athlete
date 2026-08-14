@@ -186,7 +186,6 @@ def _memory_payload(item: dict[str, Any], memory_id: str, state: V3ProjectionSta
         "uid",
         "content",
         "category",
-        "visibility",
         "tags",
         "created_at",
         "updated_at",

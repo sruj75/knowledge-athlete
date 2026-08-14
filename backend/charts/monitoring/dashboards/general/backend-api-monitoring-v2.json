@@ -738,7 +738,7 @@
       "targets": [
         {
           "projectId": "based-hardware",
-          "queryText": "resource.type=\"cloud_run_revision\"\nresource.labels.service_name=~\"backend|backend-integration|backend-sync|frontend|plugins\"\nhttpRequest.status>=400",
+          "queryText": "resource.type=\"cloud_run_revision\"\nresource.labels.service_name=~\"backend|backend-sync|frontend\"\nhttpRequest.status>=400",
           "refId": "A"
         }
       ],
@@ -750,38 +750,6 @@
         }
       ],
       "type": "table"
-    },
-    {
-      "datasource": {
-        "type": "googlecloud-logging-datasource",
-        "uid": "deuxlwt1d569sb"
-      },
-      "gridPos": {
-        "h": 12,
-        "w": 12,
-        "x": 12,
-        "y": 23
-      },
-      "id": 31,
-      "options": {
-        "dedupStrategy": "signature",
-        "enableLogDetails": true,
-        "prettifyLogMessage": true,
-        "showCommonLabels": false,
-        "showLabels": true,
-        "showTime": true,
-        "sortOrder": "Descending",
-        "wrapLogMessage": true
-      },
-      "targets": [
-        {
-          "projectId": "based-hardware",
-          "queryText": "resource.type=\"cloud_run_revision\"\nresource.labels.service_name=\"backend-integration\"\nhttpRequest.status>=400",
-          "refId": "A"
-        }
-      ],
-      "title": "HTTP Errors - backend-integration (with endpoint URLs)",
-      "type": "logs"
     },
     {
       "datasource": {
@@ -808,7 +776,7 @@
       "targets": [
         {
           "projectId": "based-hardware",
-          "queryText": "resource.type=\"cloud_run_revision\"\nresource.labels.service_name=~\"backend|backend-integration|backend-sync|frontend|plugins\"\nseverity>=ERROR",
+          "queryText": "resource.type=\"cloud_run_revision\"\nresource.labels.service_name=~\"backend|backend-sync|frontend\"\nseverity>=ERROR",
           "refId": "A"
         }
       ],

@@ -10,7 +10,6 @@ REQUIRED_GATE_KEYS = {
     "production_metrics_aggregation_central_telemetry",
     "t20_repair_projection_consistency",
     "t21_v3_compatibility_cursor_pagination",
-    "t22_t23_external_writes_and_caller_coverage",
     "production_cutover_approval",
 }
 
@@ -25,7 +24,6 @@ REQUIRED_SCRIPT_TERMS = [
     "central telemetry",
     "T20 repair/projection-consistency",
     "T21 /v3 compatibility and cursor pagination",
-    "T22/T23 external writes and caller coverage",
     "production cutover approval",
 ]
 

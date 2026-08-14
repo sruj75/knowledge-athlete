@@ -382,7 +382,7 @@ def upsert_conversation_with_lifecycle(uid: str, conversation_data: dict):
             # A null existing value means "never user-set" (stub docs dump None
             # fields), so only non-null values are preserved — otherwise the
             # stub's folder_id: None would revert every AI folder assignment.
-            for field in ('starred', 'folder_id', 'visibility', 'user_title'):
+            for field in ('starred', 'folder_id', 'user_title'):
                 if existing.get(field) is not None:
                     write_data[field] = existing[field]
 
@@ -456,7 +456,7 @@ def persist_processing_result_with_lifecycle(
         # A null existing value means "never user-set" (stub docs dump None
         # fields), so only non-null values are preserved — otherwise the
         # stub's folder_id: None would revert every AI folder assignment.
-        for field in ('starred', 'folder_id', 'visibility', 'user_title'):
+        for field in ('starred', 'folder_id', 'user_title'):
             if existing.get(field) is not None:
                 write_data[field] = existing[field]
 
@@ -512,51 +512,6 @@ def get_conversation(uid, conversation_id):
     conversation_ref = user_ref.collection(conversations_collection).document(conversation_id)
     conversation_data = _document_data_with_revision(conversation_ref.get())
     return conversation_data
-
-
-def get_public_shared_conversation_bounded(
-    uid: str,
-    conversation_id: str,
-    *,
-    firestore_client: Any = None,
-) -> Optional[Dict[str, Any]]:
-    """Read only public-chat fields and decode the transcript within fixed bounds."""
-    client = firestore_client if firestore_client is not None else get_firestore_client()
-    conversation_ref = (
-        client.collection('users').document(uid).collection(conversations_collection).document(conversation_id)
-    )
-    snapshot = conversation_ref.get(
-        field_paths=[
-            'visibility',
-            'is_locked',
-            'transcript_segments_compressed',
-            'transcript_segments',
-        ]
-    )
-    if not snapshot.exists:
-        return None
-    raw = snapshot.to_dict()
-    if not isinstance(raw, dict):
-        return None
-
-    visibility = raw.get('visibility')
-    is_locked = raw.get('is_locked', False)
-    public_conversation: Dict[str, Any] = {
-        'visibility': visibility,
-        'is_locked': is_locked,
-    }
-    if not isinstance(visibility, str) or visibility not in {'shared', 'public'} or is_locked:
-        return public_conversation
-
-    try:
-        public_conversation['transcript_segments'] = _decode_public_transcript_segments_bounded(
-            uid,
-            raw.get('transcript_segments'),
-            compressed=raw.get('transcript_segments_compressed') is True,
-        )
-    except ValueError:
-        return None
-    return public_conversation
 
 
 def get_conversation_audio_stamp(uid: str, conversation_id: str) -> Optional[dict]:
@@ -871,17 +826,8 @@ def update_conversation_title(uid: str, conversation_id: str, title: str):
     conversation_ref.update({'structured.title': title, 'user_title': title})
 
 
-def update_conversation_summary(uid: str, conversation_id: str, app_id: Optional[str], content: str) -> str:
-    """
-    Update the conversation's displayed summary.
-
-    If app_id is None: writes to structured.overview (default backend overview).
-    If app_id is set: rewrites the matching apps_results entry's content.
-
-    Returns:
-        'ok' on success, 'not_found' if conversation missing,
-        'app_result_not_found' if app_id given but no matching apps_results entry.
-    """
+def update_conversation_summary(uid: str, conversation_id: str, content: str) -> str:
+    """Update the conversation's displayed summary."""
     user_ref = db.collection('users').document(uid)
     conversation_ref = user_ref.collection(conversations_collection).document(conversation_id)
 
@@ -889,22 +835,7 @@ def update_conversation_summary(uid: str, conversation_id: str, app_id: Optional
     if not doc_snapshot.exists:
         return 'not_found'
 
-    if app_id is None:
-        conversation_ref.update({'structured.overview': content})
-        return 'ok'
-
-    raw = doc_snapshot.to_dict() or {}
-    apps_results = list(raw.get('apps_results') or [])
-    found = False
-    for entry in apps_results:
-        if isinstance(entry, dict) and entry.get('app_id') == app_id:
-            entry['content'] = content
-            found = True
-            break
-    if not found:
-        return 'app_result_not_found'
-
-    conversation_ref.update({'apps_results': apps_results})
+    conversation_ref.update({'structured.overview': content})
     return 'ok'
 
 
@@ -1063,14 +994,11 @@ def get_conversations_to_migrate(uid: str, target_level: str) -> List[dict]:
     users with a very large number of documents.
     """
     conversations_ref = db.collection('users').document(uid).collection(conversations_collection)
-    all_conversations = conversations_ref.select(['data_protection_level', 'visibility']).stream()
+    all_conversations = conversations_ref.select(['data_protection_level']).stream()
 
     to_migrate = []
     for doc in all_conversations:
         doc_data = doc.to_dict()
-        if doc_data.get('visibility') in ['public', 'shared']:
-            continue
-
         current_level = doc_data.get('data_protection_level', 'standard')
         if target_level != current_level:
             to_migrate.append({'id': doc.id, 'type': 'conversation'})
@@ -1456,12 +1384,6 @@ def update_conversation_segments(
 # ***********************************
 # ********** VISIBILITY *************
 # ***********************************
-
-
-def set_conversation_visibility(uid: str, conversation_id: str, visibility: str):
-    user_ref = db.collection('users').document(uid)
-    conversation_ref = user_ref.collection(conversations_collection).document(conversation_id)
-    conversation_ref.update({'visibility': visibility})
 
 
 def set_conversation_starred(uid: str, conversation_id: str, starred: bool):

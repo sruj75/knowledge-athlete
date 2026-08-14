@@ -318,11 +318,6 @@ struct SettingsContentView: View {
   @AppStorage("devModeEnabled") var devModeEnabled = false
   @AppStorage(BetaEnhancedDiagnosticsConfiguration.defaultsKey) var betaEnhancedDiagnosticsEnabled = true
 
-  // Browser Extension settings
-  @AppStorage("playwrightUseExtension") var playwrightUseExtension = true
-  @State var playwrightExtensionToken: String = ""
-  @State var showBrowserSetup = false
-
   // Launch at login manager
   @ObservedObject var launchAtLoginManager = LaunchAtLoginManager.shared
 
@@ -401,9 +396,7 @@ struct SettingsContentView: View {
     case goals = "Goals"
     case preferences = "Preferences"
     case troubleshooting = "Troubleshooting"
-    case gmailReader = "Gmail Reader"
-    case calendarSync = "Calendar Sync"
-    case developerKeys = "Developer API Keys"
+    case developerKeys = "Model API Keys"
 
     var icon: String {
       switch self {
@@ -418,37 +411,18 @@ struct SettingsContentView: View {
       case .goals: return "target"
       case .preferences: return "slider.horizontal.3"
       case .troubleshooting: return "wrench.and.screwdriver"
-      case .gmailReader: return "envelope.fill"
-      case .calendarSync: return "calendar"
       case .developerKeys: return "key"
       }
     }
   }
 
   @State var showResetOnboardingAlert: Bool = false
-  @State var showRescanFilesAlert: Bool = false
   @State var showDeleteAccountAlert: Bool = false
-
-  // Gmail Reader states
-  @State var gmailEmails: [GmailEmail] = []
-  @State var isReadingGmail: Bool = false
-  @State var isSavingGmailMemories: Bool = false
-  @State var gmailMemoriesSaved: Int = 0
-  @State var gmailReadError: String?
-  @State var gmailLastFetched: Date?
-
-  // Calendar Sync states
-  @State var calendarEvents: [CalendarEvent] = []
-  @State var isReadingCalendar: Bool = false
-  @State var calendarMemoriesCreated: Int = 0
-  @State var calendarTasksCreated: Int = 0
-  @State var calendarSyncError: String?
-  @State var calendarLastSynced: Date?
 
   @State var isDeletingAccount: Bool = false
   @State var deleteAccountError: String?
 
-  // Developer API Key overrides — also double as BYOK free-plan credentials
+  // Model-provider API key overrides used as BYOK free-plan credentials.
   // when all four (Gemini, Anthropic, OpenAI, Deepgram) are provided.
   @AppStorage("dev_gemini_api_key") var devGeminiKey: String = ""
   @AppStorage("dev_anthropic_api_key") var devAnthropicKey: String = ""
@@ -580,8 +554,6 @@ struct SettingsContentView: View {
       isTranscribing = appState.isTranscribing
       // Sync floating bar state with persisted preference (not transient visibility)
       showAskOmiBar = FloatingControlBarManager.shared.isEnabled
-      playwrightExtensionToken =
-        UserDefaults.standard.string(forKey: "playwrightExtensionToken") ?? ""
       chatProvider?.checkClaudeConnectionStatus()
       // Refresh notification permission state
       appState.checkNotificationPermission()
@@ -632,22 +604,6 @@ struct SettingsContentView: View {
         activeBillingWebFlow = nil
         handleBillingFlowCompletion(outcome)
       }
-    }
-    .sheet(isPresented: $showBrowserSetup) {
-      BrowserExtensionSetup(
-        onComplete: {
-          showBrowserSetup = false
-          playwrightExtensionToken =
-            UserDefaults.standard.string(forKey: "playwrightExtensionToken") ?? ""
-        },
-        onDismiss: {
-          showBrowserSetup = false
-          playwrightExtensionToken =
-            UserDefaults.standard.string(forKey: "playwrightExtensionToken") ?? ""
-        },
-        chatProvider: chatProvider
-      )
-      .fixedSize()
     }
   }
 

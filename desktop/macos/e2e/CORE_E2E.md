@@ -70,7 +70,6 @@ Local full T0 (includes backend preflight + pytest desktop contracts):
 | ChatProvider / agent runtime | T0 + T3 |
 | Sidebar / navigation | T1 |
 | Redesigned Home stage (hub/chat/connect) | T2 (`home-stage.yaml`) |
-| Spatial overlay | T1 (`spatial-overlay-harness.sh`) |
 | Memories / tasks CRUD surfaces | T2 |
 | Secondary surfaces (detail, vocabulary, goals, billing, privacy mutations) | T2 + Live P2 for manual-only |
 | Rust chat completions / API client | T0 + T1 |
@@ -85,7 +84,6 @@ healthy enough to boot the hermetic T2 stack. Stable nomination and production p
 | --- | --- | --- | --- | --- |
 | `harness-smoke` | v1 legacy | typed bridge | 1 | Upgrade to v2 over time |
 | `navigation` | v2 | typed bridge | 1 | Sidebar navigation |
-| `claude-guidance-overlay` | v2 | typed bridge + visual | 2 | Overlay dogfood |
 | `capture-lifecycle` | v2 | typed bridge | 2 | STT seam via `capture_test_transcript` |
 | `rewind-artifact-recovery` | v2 | typed bridge | 2 | Synthetic Rewind → HEVC → SQLite → finalized-video readback, privacy admission, and database reopen |
 | `chat-hermetic` | v2 | typed bridge | 2 | Rust `OMI_LLM_STUB=1` |
@@ -98,13 +96,12 @@ healthy enough to boot the hermetic T2 stack. Stable nomination and production p
 | `chat-fault-5xx` | v2 | typed bridge | fault | Backend 5xx via `omi-fault-inject` (`--fault-suite`) |
 | `language` | v2 | typed bridge | 2 | Transcription language set + snapshot |
 | `tasks-crud` | v2 | typed bridge | 2 | Task create/toggle/delete via bridge |
-| `memory-depth` | v2 | typed bridge | 2 | Memory search, tag filter, visibility toggle |
+| `memory-depth` | v2 | typed bridge | 2 | Memory search and tag filter |
 | `quick-note` | v2 | typed bridge | 2 | Quick Note → Rewind notes |
 | `about-settings` | v2 | typed bridge | 2 | About section + version snapshot |
 | `notifications-settings` | v2 | typed bridge | 2 | Notifications snapshot + API update |
 | `rewind-settings` | v2 | typed bridge | 2 | Rewind retention/excluded-apps snapshot |
 | `keyboard-shortcuts` | v2 | typed bridge | 2 | Cmd+1..6 / Cmd+, navigation |
-| `memory-graph` | v2 | typed bridge | 2 | Knowledge graph API counts |
 | `ai-chat-settings` | v2 | typed bridge | 2 | AI Chat section (non-prod) |
 | `conversation-detail` | v2 | typed bridge | 2 | Capture seam + detail/transcript drawer snapshot |
 | `memory-crud` | v2 | typed bridge | 2 | Memory create/edit/delete via bridge actions |
@@ -112,16 +109,11 @@ healthy enough to boot the hermetic T2 stack. Stable nomination and production p
 | `goals-dashboard` | v2 | typed bridge | 2 | Dashboard goal create + snapshot |
 | `plan-usage` | v2 | typed bridge | 2 | Settings billing subscription snapshot |
 | `privacy-settings` | v2 | typed bridge | 2 | Privacy toggle snapshot |
-| `apps-marketplace` | v2 | typed bridge | 2 | Apps catalog snapshot |
-| `connector-import` | v2 | typed bridge | 2 | `memory_log_import_probe` typed wrap |
 | `conversation-folders` | v2 | typed bridge | 2 | Folder create + starred + extended list snapshot |
-| `conversation-sharing` | v2 | typed bridge | 2 | Detail open + share link probe (clipboard manual) |
 | `speaker-naming` | v2 | typed bridge | 2 | Multi-speaker inject + assign fixture |
-| `connector-import-progress` | v2 | manual `do:` | manual | Connector sheet progress persistence |
 | `ask-omi-*-benchmark` | v1 | typed bridge | 3 | Perf benchmarks |
 | `desktop-responsiveness-benchmark` | v1 | typed bridge | 3 | Perf |
 | `subagent-row-benchmark` | v1 | typed bridge | 3 | Perf |
-| `apps` | v2 | manual `do:` | manual | Marketplace walker journey |
 | `audio-recording` | v2 | manual `do:` | manual | Needs mic permission |
 | `refer-external` | v2 | manual `do:` | manual | Profile menu → affiliate URL |
 | `delete-account` | v2 | manual `do:` | manual | Confirmation sheet only; never confirm |
@@ -135,18 +127,14 @@ healthy enough to boot the hermetic T2 stack. Stable nomination and production p
 | Surface | Tier | Lane | Mutation depth | Flow / status |
 | --- | --- | --- | --- | --- |
 | Conversation detail | T2 | bridge | drawer + segments | ✅ `conversation-detail.yaml` |
-| Sharing / export | T2 partial | bridge + manual | share link probe; clipboard native manual | ⚠️ `conversation-sharing.yaml` |
 | Folders / starring | T2 | bridge | folder create + star | ✅ `conversation-folders.yaml` |
 | Speaker naming | T2 | bridge | multi-speaker inject + assign | ✅ `speaker-naming.yaml` |
 | Memory CRUD | T2 | bridge | create / edit / delete | ✅ `memory-crud.yaml` |
-| Memory depth | T2 | bridge | search / tags / visibility | ✅ `memory-depth.yaml` |
-| Memory graph | T2 | bridge | API counts | ✅ `memory-graph.yaml` |
+| Memory depth | T2 | bridge | search / tags | ✅ `memory-depth.yaml` |
 | Vocabulary | T2 | bridge | set terms + snapshot | ✅ `vocabulary.yaml` |
 | Goals | T2 | bridge | create goal | ✅ `goals-dashboard.yaml` |
 | Privacy toggles | T2 | bridge | toggle snapshot | ✅ `privacy-settings.yaml` |
 | Plan / usage | T2 | bridge | read subscription | ✅ `plan-usage.yaml` |
-| Apps catalog | T2 + Live P2 | bridge + manual | catalog snapshot + walker | ✅ `apps-marketplace.yaml` / ⚠️ `apps.yaml` |
-| Connector import | T2 + Live P2 | bridge + manual | API probe + sheet UI | ✅ `connector-import.yaml` / ⚠️ `connector-import-progress.yaml` |
 | Refer external | Live P2 | manual | opens browser | ⚠️ `refer-external.yaml` |
 | Delete account | Live P2 | manual | confirm sheet only | ⚠️ `delete-account.yaml` |
 | Logout | Live P2 | manual bridge | `sign_out` action | ⚠️ `logout.yaml` (local emulator; stays manual — destructive to session) |

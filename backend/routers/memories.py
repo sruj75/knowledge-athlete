@@ -6,12 +6,11 @@ from typing import Any, Callable, Dict, List, Literal, Optional, cast
 import database._client as db_client_module
 from utils.executors import db_executor, postprocess_executor, run_blocking, submit_with_context
 
-from fastapi import APIRouter, Body, Depends, Header, HTTPException, Query, Request, Response
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, Response
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, ValidationError
 
 import database.memories as memories_db
-from database.memory_imports import ingest_memory_import_batch
 from database import review_queue
 from database.vector_db import (
     delete_memory_vector,
@@ -20,8 +19,6 @@ from database.vector_db import (
     upsert_memory_vectors_batch,
 )
 from models.memories import MemoryDB, Memory, MemoryCategory
-from models.memory_imports import MemoryImportBatchRequest, MemoryImportBatchResponse
-from utils.apps import update_personas_async
 from utils.memory.v3.composed_get_service import V3ComposedRequestParams, V3ComposedResponse
 from utils.memory.v3.production_runtime import build_v3_production_runtime
 from utils.memory.canonical_activation import canonical_read_enabled, canonical_write_decision
@@ -34,19 +31,12 @@ from utils.memory.canonical_memory_adapter import (
 )
 from utils.memory.memory_service import MemoryPayload, MemoryService, fetch_memory_dict
 from testing.parity_pack_v0.live_capture import SurfaceParityCapture
-from utils.memory.import_write_guard import (
-    import_write_block_mode,
-    import_write_violation_for_guard,
-    is_per_file_local_import_tags,
-)
 from utils.memory.memory_api_contract import (
     MemoryApiExposure,
     memory_write_payload,
 )
 from utils.memory.memory_api_response import memory_batch_response, memory_item_response, memory_list_response
 from utils.memory.memory_system import MemorySystem, resolve_memory_system
-from utils.client_device import DeviceScopeRequest, DeviceScopeValidationError, resolve_client_device_from_request
-from utils.memory.device_scope_filter import device_scope_validation_error
 from utils.log_sanitizer import sanitize_pii
 from utils.other import endpoints as auth
 
@@ -78,8 +68,7 @@ class ReviewResolutionResponse(BaseModel):
 # Pydantic max_length validator below and with the Swift client chunker.
 MEMORIES_BATCH_MAX = 100
 # The released API contract accepts 100 IDs. Canonical deletion atomically
-# fences each item and journals durable projection deletes; derived graph
-# assertions are removed by the retryable outbox after reads fail closed.
+# fences each item and journals durable projection deletes after reads fail closed.
 MEMORIES_BATCH_DELETE_MAX = 100
 
 V3GetSourceDecision = Literal['disabled', 'legacy_primary', 'memory_read']
@@ -89,7 +78,6 @@ _MEMORY_GET_ALLOWLISTED_RESPONSE_HEADERS = frozenset(
         'X-Omi-Memory-Read-Source',
         'X-Omi-Memory-Read-Decision',
         'X-Omi-Memory-Next-Cursor',
-        'X-Omi-Memory-Device-Scope-Supported',
         'X-Omi-Memory-Canonical-Lifecycle-Exposed',
         'Link',
         'Cache-Control',
@@ -97,7 +85,6 @@ _MEMORY_GET_ALLOWLISTED_RESPONSE_HEADERS = frozenset(
 )
 
 _MEMORY_CANONICAL_LIFECYCLE_EXPOSED_HEADER = 'X-Omi-Memory-Canonical-Lifecycle-Exposed'
-_MEMORY_DEVICE_SCOPE_SUPPORTED_HEADER = 'X-Omi-Memory-Device-Scope-Supported'
 
 
 @dataclass(frozen=True)
@@ -165,7 +152,6 @@ def _parity_memory_payload(memories: List[MemoryDB]) -> list[dict[str, Any]]:
             "id": memory.id,
             "content": (memory.content or "")[:8192],
             "category": memory.category.value,
-            "visibility": memory.visibility,
             "source_type": memory.evidence[0].source_type if memory.evidence else "unknown",
         }
         for memory in memories[:100]
@@ -198,53 +184,6 @@ class ReviewResolutionRequest(BaseModel):
     correction: Optional[Dict[str, Any]] = None
     reason: str = ''
     current_veracity: Optional[float] = None
-
-
-async def _guard_import_memory_write(request: Request, *, endpoint: str, uid: str) -> None:
-    mode = import_write_block_mode()
-    db_client = getattr(db_client_module, 'db', None)
-    # Canonical users must never fall back from evidence ingress into a direct
-    # product-memory write, regardless of the legacy rollout env default.
-    if resolve_memory_system(uid, db_client=db_client) == MemorySystem.CANONICAL:
-        mode = "enforce"
-    if mode == "off":
-        return
-    try:
-        raw: object = await request.json()
-    except Exception:
-        return
-    payloads: List[object]
-    if isinstance(raw, dict):
-        raw_payload = cast(Dict[str, Any], raw).get("memories")
-        payloads = cast(List[object], raw_payload) if isinstance(raw_payload, list) else [raw]
-    else:
-        payloads = [raw]
-    for payload in payloads:
-        if not isinstance(payload, dict):
-            continue
-        # Per-file local-file items are exempt: the endpoints below
-        # acknowledge-and-drop them without persisting, and a 409 here
-        # (enforce mode) would fail an old desktop build's whole batch
-        # before that drop can happen.
-        violation = import_write_violation_for_guard(payload)  # type: ignore[reportUnknownArgumentType]  # payload narrowed from List[object] via isinstance
-        if not violation:
-            continue
-        logger.warning(
-            "memory_import.direct_memory_write_blocked endpoint=%s uid=%s mode=%s violation=%s",
-            endpoint,
-            uid,
-            mode,
-            violation,
-        )
-        if mode == "enforce":
-            raise HTTPException(
-                status_code=409,
-                detail={
-                    "error": "import_must_use_evidence_ingress",
-                    "use_endpoint": "/v3/memory-imports/batch",
-                },
-            )
-        return
 
 
 def _legacy_get_memories(uid: str, limit: int, offset: int) -> List[MemoryDB]:
@@ -283,10 +222,7 @@ def _legacy_memories_response(memories: List[MemoryDB]) -> JSONResponse:
     return memory_list_response(
         memories,
         MemoryApiExposure.LEGACY,
-        headers={
-            _MEMORY_DEVICE_SCOPE_SUPPORTED_HEADER: 'false',
-            _MEMORY_CANONICAL_LIFECYCLE_EXPOSED_HEADER: 'false',
-        },
+        headers={_MEMORY_CANONICAL_LIFECYCLE_EXPOSED_HEADER: 'false'},
     )
 
 
@@ -319,39 +255,6 @@ def _raise_memory_http_exception(memory_response: V3ComposedResponse) -> None:
         detail=memory_response.public_error or 'memory_read_failed',
         headers=_memory_allowlisted_headers(memory_response),
     )
-
-
-def _resolve_get_memories_device_scope(
-    device_scope: str,
-    client_device_id: Optional[str],
-    *,
-    x_app_platform: Optional[str],
-    x_device_id_hash: Optional[str],
-) -> DeviceScopeRequest:
-    try:
-        return DeviceScopeRequest.resolve_from_headers(
-            device_scope=device_scope,
-            client_device_id=client_device_id,
-            x_app_platform=x_app_platform,
-            x_device_id_hash=x_device_id_hash,
-        )
-    except DeviceScopeValidationError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-
-def _validate_device_scope_request(device_scope: str, resolved_device_id: Optional[str]) -> None:
-    """Fail closed at the HTTP boundary when scoped filtering lacks a device id.
-
-    Agents and API clients get an explicit 400 (not silent unfiltered data) so they
-    can supply X-App-Platform / X-Device-Id-Hash or client_device_id as needed.
-    """
-    detail = device_scope_validation_error(device_scope, resolved_device_id)  # type: ignore[arg-type]
-    if detail:
-        raise HTTPException(status_code=400, detail=detail)
-
-
-def _set_device_scope_capability_header(http_response: Response, *, supported: bool) -> None:
-    http_response.headers[_MEMORY_DEVICE_SCOPE_SUPPORTED_HEADER] = 'true' if supported else 'false'
 
 
 def _set_canonical_lifecycle_exposure_header(http_response: Response, *, exposed: bool) -> None:
@@ -458,13 +361,11 @@ def _validate_mutable_memory(uid: str, memory_id: str, *, db_client: Any) -> Mem
 
 @router.post('/v3/memories', tags=['memories'], response_model=MemoryDB)
 async def create_memory(
-    request: Request,
     memory: Memory,
     uid: str = Depends(
         cast(Callable[..., str], _auth_module.with_rate_limit(auth.get_current_user_uid, "memories:create"))
     ),
 ):
-    await _guard_import_memory_write(request, endpoint="/v3/memories", uid=uid)
     # Honor the client-supplied category (the Memory model defaults it to
     # `interesting`). Only memories the user explicitly typed in arrive as
     # `manual`; auto-extracted ones (system/interesting) keep their category so
@@ -472,7 +373,6 @@ async def create_memory(
     # everything into "Manual". manually_added tracks human entry, so derive it
     # from the category rather than forcing it True for every API caller.
     manually_added = memory.category == MemoryCategory.manual
-    device_context = resolve_client_device_from_request(request)
     memory_db = MemoryDB.from_memory(
         memory,
         uid,
@@ -480,17 +380,8 @@ async def create_memory(
         manually_added,
         source_type="manual" if manually_added else "api",
         source_signal="manual" if manually_added else "api",
-        extractor_id="manual_memory_submission" if manually_added else "external_memory_submission",
-        client_device_id=device_context.client_device_id,
+        extractor_id="manual_memory_submission" if manually_added else "app_memory_submission",
     )
-
-    # Old desktop builds fan out one create per indexed local file during
-    # onboarding (up to 2800 path facts). Acknowledge without persisting:
-    # a 4xx would make those clients surface/retry a failure for traffic we
-    # simply do not want stored.
-    if is_per_file_local_import_tags(memory.tags):
-        logger.info("memory_import.per_file_item_dropped endpoint=/v3/memories uid=%s", uid)
-        return _legacy_memory_response(memory_db)
 
     parity_capture = _start_memory_parity_capture(
         uid,
@@ -504,14 +395,13 @@ async def create_memory(
             memory_service = MemoryService(db_client=db_client)
             created = await run_blocking(
                 db_executor,
-                memory_service.create_external_memory,
+                memory_service.create_memory_for_surface,
                 uid,
                 memory_db,
                 memory_system=MemorySystem.CANONICAL,
                 consumer="v3_manual" if manually_added else "v3_api",
                 operation="create_memory",
                 upsert_vector=False,
-                require_canonical_promotion=True,
             )
             _finish_memory_parity_capture(parity_capture, [created])
             return created
@@ -554,13 +444,11 @@ async def create_memory(
     response_model=BatchMemoriesResponse,
 )
 async def create_memories_batch(
-    request_context: Request,
     request: BatchMemoriesRequest,
     uid: str = Depends(
         cast(Callable[..., str], _auth_module.with_rate_limit(auth.get_current_user_uid, "memories:batch"))
     ),
 ):
-    await _guard_import_memory_write(request_context, endpoint="/v3/memories/batch", uid=uid)
     """
     Create many memories in a single request.
 
@@ -575,30 +463,12 @@ async def create_memories_batch(
     if not request.memories:
         return BatchMemoriesResponse(memories=[], created_count=0)
 
-    # Drop per-file local-file import items (one memory per indexed file, up
-    # to 2800 per onboarding scan) regardless of block mode: they buried real
-    # memories for every user who ran the scan and old desktop builds in the
-    # wild still send them. Aggregate local_files facts pass through.
-    accepted_memories = [m for m in request.memories if not is_per_file_local_import_tags(m.tags)]
-    dropped_count = len(request.memories) - len(accepted_memories)
-    if dropped_count:
-        logger.info(
-            "memory_import.per_file_items_dropped endpoint=/v3/memories/batch uid=%s dropped=%d kept=%d",
-            uid,
-            dropped_count,
-            len(accepted_memories),
-        )
-    if not accepted_memories:
-        return BatchMemoriesResponse(memories=[], created_count=0)
-
     # Honor each item's category (defaults to `interesting` per the Memory
     # model). Desktop import/extraction paths send `system`/`interesting` so
     # they land under "About You"/"Insights"; only user-typed memories send
     # `manual`. Derive manually_added from the category instead of forcing it.
     memory_dbs: List[MemoryDB] = []
-    has_public = False
-    device_context = resolve_client_device_from_request(request_context)
-    for memory in accepted_memories:
+    for memory in request.memories:
         manually_added = memory.category == MemoryCategory.manual
         memory_db = MemoryDB.from_memory(
             memory,
@@ -607,12 +477,9 @@ async def create_memories_batch(
             manually_added,
             source_type="manual" if manually_added else "api",
             source_signal="manual" if manually_added else "api",
-            extractor_id="manual_memory_submission" if manually_added else "external_memory_submission",
-            client_device_id=device_context.client_device_id,
+            extractor_id="manual_memory_submission" if manually_added else "app_memory_submission",
         )
         memory_dbs.append(memory_db)
-        if memory.visibility == 'public':
-            has_public = True
 
     parity_capture = _start_memory_parity_capture(
         uid,
@@ -639,18 +506,15 @@ async def create_memories_batch(
         for memory_db in memory_dbs:
             created = await run_blocking(
                 db_executor,
-                memory_service.create_external_memory,
+                memory_service.create_memory_for_surface,
                 uid,
                 memory_db,
                 memory_system=MemorySystem.CANONICAL,
                 consumer="v3_manual" if memory_db.manually_added else "v3_api",
                 operation="batch_create_memory",
                 upsert_vector=False,
-                require_canonical_promotion=True,
             )
             committed_ids.append(created.id)
-        if has_public:
-            submit_with_context(postprocess_executor, update_personas_async, uid)
         server_memories: List[MemoryDB] = []
         for memory_id in committed_ids:
             item = await run_blocking(db_executor, read_canonical_memory_item, uid, memory_id, db_client=db_client)
@@ -706,88 +570,15 @@ async def create_memories_batch(
     return _legacy_batch_memories_response(memory_dbs)
 
 
-@router.post(
-    '/v3/memory-imports/batch',
-    tags=['memories'],
-    response_model=MemoryImportBatchResponse,
-)
-async def create_memory_import_batch(
-    request: MemoryImportBatchRequest,
-    uid: str = Depends(
-        cast(Callable[..., str], _auth_module.with_rate_limit(auth.get_current_user_uid, "memory_imports:batch"))
-    ),
-):
-    """
-    Ingest imported source artifacts without creating product memories.
-
-    Importers produce durable evidence. Candidate extraction, acceptance,
-    promotion, vector sync, keyword sync, and KG extraction are backend-owned
-    later stages.
-    """
-    db_client = getattr(db_client_module, 'db', None)
-    if db_client is None:
-        logger.error("memory import ingest unavailable: firestore client missing uid=%s", uid)
-        raise HTTPException(status_code=503, detail="Service temporarily unavailable")
-
-    write_decision = await run_blocking(db_executor, canonical_write_decision, uid, db_client=db_client)
-    if write_decision.memory_system != MemorySystem.CANONICAL:
-        raise HTTPException(status_code=403, detail="memory_import_requires_canonical")
-    if not write_decision.enabled:
-        logger.warning("memory import ingest disabled uid=%s reason=%s", uid, write_decision.reason)
-        raise HTTPException(status_code=503, detail="memory_import_canonical_not_ready")
-
-    parity_capture = SurfaceParityCapture.from_environ(
-        principal_id=uid,
-        session_id=str(uuid.uuid4()),
-        surface="memory_import",
-        source="v3_memory_import_batch",
-        provider_lane="memory",
-        route_or_model="memory-import",
-        request={"source_type": request.source_type, "item_count": len(request.items)},
-    )
-    parity_capture.observe(
-        "client",
-        {
-            "type": "memory_import_artifacts",
-            "items": [
-                {
-                    "title": (item.title or "")[:2048],
-                    "snippet": (item.snippet or "")[:4096],
-                    "content": (item.content or "")[:8192],
-                }
-                for item in request.items[:100]
-            ],
-        },
-    )
-    try:
-        result = await run_blocking(db_executor, ingest_memory_import_batch, uid, request, db_client=db_client)
-    except Exception:
-        logger.exception("Memory import ingest failed uid=%s source_type=%s", uid, request.source_type)
-        raise HTTPException(status_code=503, detail="Service temporarily unavailable")
-    parity_capture.observe("inbound", {"type": "memory_import_result", **result.response.model_dump(mode="json")})
-    parity_capture.persist()
-    return result.response
-
-
 @router.get('/v3/memories', tags=['memories'], response_model=List[MemoryDB])
 def get_memories(
     response: Response,
     limit: int = 100,
     offset: int = 0,
     cursor: Optional[str] = None,
-    device_scope: str = Query('all'),
-    client_device_id: Optional[str] = Query(None),
     uid: str = Depends(auth.get_current_user_uid),
     memory_runtime: V3GetRuntime = Depends(get_v3_get_runtime),
-    x_app_platform: str = Header(None, alias='X-App-Platform'),
-    x_device_id_hash: str = Header(None, alias='X-Device-Id-Hash'),
 ):
-    scope_request = _resolve_get_memories_device_scope(
-        device_scope,
-        client_device_id,
-        x_app_platform=x_app_platform,
-        x_device_id_hash=x_device_id_hash,
-    )
     db_client = getattr(db_client_module, 'db', None)
     is_canonical = canonical_read_enabled(
         uid,
@@ -796,19 +587,7 @@ def get_memories(
         cursor_memory_read_requested=bool(cursor),
     )
 
-    if scope_request.device_scope != 'all' and not is_canonical:
-        raise HTTPException(
-            status_code=400,
-            detail='device_scope filtering is only supported for canonical memory users',
-            headers={
-                _MEMORY_DEVICE_SCOPE_SUPPORTED_HEADER: 'false',
-                _MEMORY_CANONICAL_LIFECYCLE_EXPOSED_HEADER: 'false',
-            },
-        )
-
     if is_canonical:
-        _validate_device_scope_request(scope_request.device_scope, scope_request.client_device_id)
-        _set_device_scope_capability_header(response, supported=True)
         _set_canonical_lifecycle_exposure_header(response, exposed=True)
         # Clamp pagination parameters so the canonical branch (which bypasses
         # _legacy_get_memories clamping) never receives values that would
@@ -822,14 +601,12 @@ def get_memories(
             uid,
             limit=clamped_limit,
             offset=clamped_offset,
-            device_scope_request=scope_request,
             include_pending_processing=True,
         )
 
     if memory_runtime.source_decision != 'memory_read':
         return _legacy_memories_response(_legacy_get_memories(uid, limit, offset))
 
-    _set_device_scope_capability_header(response, supported=False)
     _set_canonical_lifecycle_exposure_header(response, exposed=False)
 
     if memory_runtime.service is None:
@@ -843,7 +620,6 @@ def get_memories(
         raise HTTPException(status_code=503, detail='infrastructure_failure')
 
     canonical_lifecycle_exposed = _canonical_lifecycle_exposed_for(memory_response)
-    memory_response.headers[_MEMORY_DEVICE_SCOPE_SUPPORTED_HEADER] = 'true' if canonical_lifecycle_exposed else 'false'
     memory_response.headers[_MEMORY_CANONICAL_LIFECYCLE_EXPOSED_HEADER] = (
         'true' if canonical_lifecycle_exposed else 'false'
     )
@@ -1084,35 +860,6 @@ def edit_memory(
     return {'status': 'ok'}
 
 
-@router.patch('/v3/memories/{memory_id}/visibility', tags=['memories'], response_model=MemoryMutationResponse)
-def update_memory_visibility(
-    memory_id: str,
-    request: Optional[MemoryValueRequest] = Body(default=None),
-    value: Optional[str] = Query(
-        default=None,
-        deprecated=True,
-        description="Deprecated; send JSON body {'value': ...} instead",
-    ),
-    uid: str = Depends(
-        cast(Callable[..., str], _auth_module.with_rate_limit(auth.get_current_user_uid, "memories:modify"))
-    ),
-):
-    mutation_value = request.value if request is not None else value
-    if mutation_value is None:
-        raise HTTPException(status_code=422, detail="Missing memory mutation value")
-    if mutation_value not in ['public', 'private']:
-        raise HTTPException(status_code=400, detail='Invalid visibility value')
-    db_client = getattr(db_client_module, 'db', None)
-    if _canonical_write_enabled_or_fail_closed(uid, db_client=db_client):
-        _validate_mutable_memory(uid, memory_id, db_client=db_client)
-        MemoryService(db_client=db_client).update_visibility(uid, memory_id, mutation_value)
-        submit_with_context(postprocess_executor, update_personas_async, uid)
-        return {'status': 'ok'}
-    _validate_mutable_memory(uid, memory_id, db_client=db_client)
-    memories_db.change_memory_visibility(uid, memory_id, mutation_value)
-    return {'status': 'ok'}
-
-
 @router.patch('/v3/memories/{memory_id}/baseline', tags=['memories'], response_model=MemoryMutationResponse)
 def update_memory_baseline(
     memory_id: str,
@@ -1131,5 +878,4 @@ def update_memory_baseline(
         raise HTTPException(status_code=503, detail='Service temporarily unavailable')
     _validate_mutable_memory(uid, memory_id, db_client=db_client)
     memories_db.update_memory_fields(uid, memory_id, {'is_baseline': value})
-    submit_with_context(postprocess_executor, update_personas_async, uid)
     return {'status': 'ok'}

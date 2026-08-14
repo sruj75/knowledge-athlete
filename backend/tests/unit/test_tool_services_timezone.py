@@ -1,6 +1,6 @@
 """Chat/agent tool timestamps render in the user's timezone (issue #6214).
 
-``/v1/tools/*`` (``routers/tools.py``) is the tool surface desktop, web, and MCP agent clients
+``/v1/tools/*`` (``routers/tools.py``) is the tool surface desktop, web, and managed agent clients
 call. Its conversations service already localized timestamps, but two siblings did not:
 
 - ``get_action_items_text`` emitted a bare UTC wall clock (``Due: 2026-06-26 22:00:00``) with no

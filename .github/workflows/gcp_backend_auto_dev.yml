@@ -399,7 +399,7 @@ jobs:
             --network "${{ vars.CLOUD_RUN_VPC_NETWORK }}" \
             --subnet "${{ vars.CLOUD_RUN_VPC_SUBNET }}" \
             --vpc-egress private-ranges-only \
-            --lane omi:auto:public-shared-conversation-chat \
+            --lane omi:auto:chat-structured \
             --name-suffix "${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
 
       - name: Smoke LLM Gateway
@@ -423,8 +423,6 @@ jobs:
           CLOUD_RUN_VPC_SUBNET: ${{ vars.CLOUD_RUN_VPC_SUBNET }}
           GOOGLE_CLIENT_ID: ${{ vars.GOOGLE_CLIENT_ID }}
           OMI_LLM_GATEWAY_URL: ${{ steps.gateway-serving.outputs.gateway_url }}
-          PUBLIC_SHARED_CONVERSATION_CHAT_FRONTEND_AUDIENCE: ${{ vars.PUBLIC_SHARED_CONVERSATION_CHAT_FRONTEND_AUDIENCE }}
-          PUBLIC_SHARED_CONVERSATION_CHAT_FRONTEND_INVOKER_SA: ${{ vars.PUBLIC_SHARED_CONVERSATION_CHAT_FRONTEND_INVOKER_SA }}
           SYNC_LEDGER_FENCE_MODE: ${{ vars.SYNC_LEDGER_FENCE_MODE || 'legacy' }}
         run: |
           python3 backend/scripts/render_backend_runtime_env.py --env dev >> "$GITHUB_OUTPUT"
@@ -438,7 +436,6 @@ jobs:
           --migrate-legacy-public-binding backend
           --migrate-legacy-public-binding backend-sync
           --migrate-legacy-public-binding backend-sync-backfill
-          --migrate-legacy-public-binding backend-integration
 
       - name: Check development Cloud Run runtime bindings
         run: >-
@@ -519,28 +516,6 @@ jobs:
           provision_sync_ledger_ttl: 'true'
           provision_budget_alerts: 'false'
 
-      - name: Deploy ${{ env.SERVICE }}-integration to Cloud Run
-        id: deploy-backend-integration
-        uses: google-github-actions/deploy-cloudrun@v3
-        with:
-          service: ${{ env.SERVICE }}-integration
-          region: ${{ env.REGION }}
-          project_id: ${{ vars.GCP_PROJECT_ID }}
-          image: gcr.io/${{ vars.GCP_PROJECT_ID }}/${{ env.SERVICE }}:${{ steps.image-tag.outputs.short_sha }}
-          no_traffic: true
-          flags: >-
-            --revision-suffix=${{ steps.image-tag.outputs.revision_suffix }}
-            --tag=${{ env.CANDIDATE_TAG }}
-            --remove-env-vars=HOSTED_PUSHER_API_URL,MEMORY_CANONICAL_PROMOTION_CRON_ENABLED,MEMORY_CANONICAL_PROMOTION_CRON_INTERVAL_HOURS,MEMORY_CANONICAL_PROMOTION_FAST_TRACK_ENABLED
-            ${{ steps.runtime-env.outputs.cloud_run_flags }}
-          env_vars: ${{ steps.runtime-env.outputs.backend_integration_env_vars }}
-          secrets: ${{ steps.runtime-env.outputs.backend_integration_secrets }}
-
-      - name: Capture ${{ env.SERVICE }}-integration revision
-        id: capture-backend-integration-revision
-        run: |
-          echo "revision=backend-integration-${{ steps.image-tag.outputs.revision_suffix }}" >> "$GITHUB_OUTPUT"
-
       - name: Wait for Cloud Run revisions to become ready
         run: |
           python3 backend/scripts/preflight-cloud-run-deploy.py \
@@ -549,8 +524,7 @@ jobs:
             --region ${{ env.REGION }} \
             --wait-revision-ready backend=${{ steps.capture-backend-revision.outputs.revision }} \
             --wait-revision-ready backend-sync=${{ steps.capture-backend-sync-revision.outputs.revision }} \
-            --wait-revision-ready backend-sync-backfill=${{ steps.sync-backfill.outputs.revision }} \
-            --wait-revision-ready backend-integration=${{ steps.capture-backend-integration-revision.outputs.revision }}
+            --wait-revision-ready backend-sync-backfill=${{ steps.sync-backfill.outputs.revision }}
 
       - name: Capture exact no-traffic candidate URLs
         id: candidate-urls
@@ -574,31 +548,21 @@ jobs:
             --service=backend-sync-backfill \
             --revision=${{ steps.sync-backfill.outputs.revision }} \
             --tag=${{ env.CANDIDATE_TAG }})"
-          backend_integration_url="$(python3 backend/scripts/resolve_cloud_run_tagged_url.py \
-            --project=${{ vars.GCP_PROJECT_ID }} \
-            --region=${{ env.REGION }} \
-            --service=backend-integration \
-            --revision=${{ steps.capture-backend-integration-revision.outputs.revision }} \
-            --tag=${{ env.CANDIDATE_TAG }})"
           # Cloud Run verifies the service URL as the OIDC audience even when
           # the HTTP request itself uses a tagged candidate URL.
           backend_audience="$(gcloud run services describe backend --project=${{ vars.GCP_PROJECT_ID }} --region=${{ env.REGION }} --format='value(status.url)')"
           backend_sync_audience="$(gcloud run services describe backend-sync --project=${{ vars.GCP_PROJECT_ID }} --region=${{ env.REGION }} --format='value(status.url)')"
           backend_sync_backfill_audience="$(gcloud run services describe backend-sync-backfill --project=${{ vars.GCP_PROJECT_ID }} --region=${{ env.REGION }} --format='value(status.url)')"
-          backend_integration_audience="$(gcloud run services describe backend-integration --project=${{ vars.GCP_PROJECT_ID }} --region=${{ env.REGION }} --format='value(status.url)')"
           test -n "$backend_audience"
           test -n "$backend_sync_audience"
           test -n "$backend_sync_backfill_audience"
-          test -n "$backend_integration_audience"
           {
             echo "backend_url=${backend_url}"
             echo "backend_sync_url=${backend_sync_url}"
             echo "backend_sync_backfill_url=${backend_sync_backfill_url}"
-            echo "backend_integration_url=${backend_integration_url}"
             echo "backend_audience=${backend_audience}"
             echo "backend_sync_audience=${backend_sync_audience}"
             echo "backend_sync_backfill_audience=${backend_sync_backfill_audience}"
-            echo "backend_integration_audience=${backend_integration_audience}"
           } >> "$GITHUB_OUTPUT"
 
       - name: Validate backend runtime env after deploy
@@ -619,11 +583,9 @@ jobs:
             --candidate backend=${{ steps.candidate-urls.outputs.backend_url }} \
             --candidate backend-sync=${{ steps.candidate-urls.outputs.backend_sync_url }} \
             --candidate backend-sync-backfill=${{ steps.candidate-urls.outputs.backend_sync_backfill_url }} \
-            --candidate backend-integration=${{ steps.candidate-urls.outputs.backend_integration_url }} \
             --audience backend=${{ steps.candidate-urls.outputs.backend_audience }} \
             --audience backend-sync=${{ steps.candidate-urls.outputs.backend_sync_audience }} \
             --audience backend-sync-backfill=${{ steps.candidate-urls.outputs.backend_sync_backfill_audience }} \
-            --audience backend-integration=${{ steps.candidate-urls.outputs.backend_integration_audience }} \
             --evidence-path artifacts/dev-backend-candidate-acceptance.json
 
       # This is the Cloud Run-only acceptance boundary. The development
@@ -648,15 +610,7 @@ jobs:
       - name: Apply non-secret backend runtime config
         env:
           ENVIRONMENT: ${{ vars.ENV }}
-          CONVERSATION_SUMMARIZED_APP_IDS: ${{ vars.CONVERSATION_SUMMARIZED_APP_IDS }}
           GOOGLE_CLIENT_ID: ${{ vars.GOOGLE_CLIENT_ID }}
-          MCP_AUTHORIZATION_SERVER_URL: ${{ vars.MCP_AUTHORIZATION_SERVER_URL }}
-          MCP_OAUTH_CHATGPT_CLIENT_ID: ${{ vars.MCP_OAUTH_CHATGPT_CLIENT_ID }}
-          MCP_OAUTH_CHATGPT_REDIRECT_URIS: ${{ vars.MCP_OAUTH_CHATGPT_REDIRECT_URIS }}
-          MCP_OAUTH_PUBLIC_CLIENT_ID: ${{ vars.MCP_OAUTH_PUBLIC_CLIENT_ID }}
-          MCP_OAUTH_PUBLIC_REDIRECT_URIS: ${{ vars.MCP_OAUTH_PUBLIC_REDIRECT_URIS }}
-          MCP_RESOURCE_URL: ${{ vars.MCP_RESOURCE_URL }}
-          RAPID_API_HOST: ${{ vars.RAPID_API_HOST }}
           REDIS_DB_HOST: ${{ vars.REDIS_DB_HOST }}
           STT_PRERECORDED_MODEL: parakeet,modulate-velma-2
           STT_SERVICE_MODELS: modulate-velma-2,parakeet
@@ -664,8 +618,6 @@ jobs:
           TWILIO_ACCOUNT_SID: ${{ vars.TWILIO_ACCOUNT_SID }}
           TWILIO_API_KEY_SID: ${{ vars.TWILIO_API_KEY_SID }}
           TWILIO_TWIML_APP_SID: ${{ vars.TWILIO_TWIML_APP_SID }}
-          X_OAUTH_CLIENT_ID: ${{ vars.X_OAUTH_CLIENT_ID }}
-          X_OAUTH_REDIRECT_URI: ${{ vars.X_OAUTH_REDIRECT_URI }}
         run: backend/scripts/deploy-backend-config.sh
 
       - name: Deploy backend-secrets to GKE
@@ -718,7 +670,6 @@ jobs:
             --service backend \
             --service backend-sync \
             --service backend-sync-backfill \
-            --service backend-integration \
             --output artifacts/dev-backend-cloud-run-pre-promotion-traffic-snapshot.json
 
       - name: Verify validated revisions are still current
@@ -726,7 +677,6 @@ jobs:
           test "$(gcloud run services describe backend --project=${{ vars.GCP_PROJECT_ID }} --region=${{ env.REGION }} --format='value(status.latestCreatedRevisionName)')" = "${{ steps.capture-backend-revision.outputs.revision }}"
           test "$(gcloud run services describe backend-sync --project=${{ vars.GCP_PROJECT_ID }} --region=${{ env.REGION }} --format='value(status.latestCreatedRevisionName)')" = "${{ steps.capture-backend-sync-revision.outputs.revision }}"
           test "$(gcloud run services describe backend-sync-backfill --project=${{ vars.GCP_PROJECT_ID }} --region=${{ env.REGION }} --format='value(status.latestCreatedRevisionName)')" = "${{ steps.sync-backfill.outputs.revision }}"
-          test "$(gcloud run services describe backend-integration --project=${{ vars.GCP_PROJECT_ID }} --region=${{ env.REGION }} --format='value(status.latestCreatedRevisionName)')" = "${{ steps.capture-backend-integration-revision.outputs.revision }}"
 
       - name: Shift Cloud Run traffic to validated revisions
         id: shift-cloud-run-traffic
@@ -734,7 +684,6 @@ jobs:
           gcloud run services update-traffic backend --project=${{ vars.GCP_PROJECT_ID }} --region=${{ env.REGION }} --to-revisions=${{ steps.capture-backend-revision.outputs.revision }}=100 --quiet
           gcloud run services update-traffic backend-sync --project=${{ vars.GCP_PROJECT_ID }} --region=${{ env.REGION }} --to-revisions=${{ steps.capture-backend-sync-revision.outputs.revision }}=100 --quiet
           gcloud run services update-traffic backend-sync-backfill --project=${{ vars.GCP_PROJECT_ID }} --region=${{ env.REGION }} --to-revisions=${{ steps.sync-backfill.outputs.revision }}=100 --quiet
-          gcloud run services update-traffic backend-integration --project=${{ vars.GCP_PROJECT_ID }} --region=${{ env.REGION }} --to-revisions=${{ steps.capture-backend-integration-revision.outputs.revision }}=100 --quiet
 
       # The no-traffic candidate gate proves readiness; this post-promotion
       # read verifies that every serving tier actually converged on the same
@@ -770,11 +719,9 @@ jobs:
             --cloud-run-service backend \
             --cloud-run-service backend-sync \
             --cloud-run-service backend-sync-backfill \
-            --cloud-run-service backend-integration \
             --expect-cloud-run-traffic backend=${{ steps.capture-backend-revision.outputs.revision }} \
             --expect-cloud-run-traffic backend-sync=${{ steps.capture-backend-sync-revision.outputs.revision }} \
             --expect-cloud-run-traffic backend-sync-backfill=${{ steps.sync-backfill.outputs.revision }} \
-            --expect-cloud-run-traffic backend-integration=${{ steps.capture-backend-integration-revision.outputs.revision }} \
             --candidate-acceptance-manifest backend/deploy/dev_candidate_acceptance.json \
             --candidate-acceptance-evidence artifacts/dev-backend-candidate-acceptance.json \
             --candidate-status-output artifacts/dev-backend-candidate-status.json

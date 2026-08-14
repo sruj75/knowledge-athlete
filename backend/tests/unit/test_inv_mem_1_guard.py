@@ -56,7 +56,6 @@ _ALLOWED_MEMORY_COLLECTIONS_PROPERTIES = frozenset(
         "memory_apply_control_state",
         "memory_lineage",
         "memory_evidence",
-        "memory_graph_assertions",
         # Existing review surface, now centralized through MemoryCollections.
         "memory_review_queue",
         "memory_runs",

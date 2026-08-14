@@ -28,7 +28,7 @@ from models.memory_apply import (
 )
 from models.memory_contracts import DurablePatchDecision, LifecycleState
 from models.memory_operations import MemoryOperation, MemoryOperationStatus, MemoryOperationType
-from models.memory_promotion import PromotionGraphPlan, build_promotion_admission_receipt
+from models.memory_promotion import build_promotion_admission_receipt
 from models.product_memory import (
     MemoryAccessPolicy,
     MemoryItemStatus,
@@ -306,8 +306,6 @@ def _assert_privacy_scrubbed_item_semantics(raw):
     assert raw["content"] is None
     assert raw["sensitivity_labels"] == []
     assert raw["promotion"] is None
-    assert raw["capture_device_ids"] == []
-    assert raw["primary_capture_device"] is None
     assert raw["corroboration_count"] == 0
     assert raw["last_corroborated_at"] is None
     assert raw["confidence"] is None
@@ -343,7 +341,6 @@ def _target_item(**overrides):
         evidence=[_evidence()],
         source_state=SourceState.active,
         sensitivity_labels=[],
-        visibility="private",
         user_asserted=False,
         captured_at=now,
         updated_at=now,
@@ -365,10 +362,6 @@ def _short_term_target(**overrides):
         "captured_at": now,
         "updated_at": now,
         "expires_at": now + timedelta(days=30),
-        "graph_ready": False,
-        "graph_assertion_id": None,
-        "graph_plan_hash": None,
-        "kg_extracted": False,
     }
     data.update(overrides)
     return _target_item(**data)
@@ -388,8 +381,6 @@ def _privacy_sensitive_target(*, memory_id: str, evidence: MemoryEvidence, **ove
             "rationale": "Private source-derived rationale.",
             "source_attribution": {"quote": "Private verbatim source text."},
         },
-        capture_device_ids=["device-private-source"],
-        primary_capture_device="device-private-source",
         corroboration_count=3,
         last_corroborated_at=now,
         confidence=0.91,
@@ -409,22 +400,15 @@ def _promotion_audit(
     source_item_revision: int | None = None,
 ):
     superseded_ids = list(supersedes or [])
-    graph_plan = PromotionGraphPlan(
-        subject_entity_id="user",
-        predicate="prefers_update_style",
-        arguments={"style": "concise"},
-    )
     evidence_ids = [item.evidence_id for item in existing.evidence]
     receipt = build_promotion_admission_receipt(
         memory_id=existing.memory_id,
         source_item_revision=source_item_revision or existing.item_revision,
         output_content_hash=memory_content_hash(content=memory_text, evidence_ids=evidence_ids),
         evidence_ids=evidence_ids,
-        graph_plan=graph_plan,
         supersedes=superseded_ids,
     )
     return {
-        "graph_plan": graph_plan.model_dump(mode="json"),
         "admission_receipt": receipt.model_dump(mode="json"),
     }
 
@@ -596,7 +580,6 @@ def test_firestore_privacy_tombstone_advances_ledger_and_journals_delete_events(
     assert all(event["commit_id"] == result.control_state.head_commit_id for event in events)
     assert all(event["parent_commit_id"] == "head0" for event in events)
     assert all(event["commit_sequence"] == 5 for event in events)
-    assert "users/u1/memory_graph_assertions/mem1" not in db.transaction_obj.deletes
 
 
 def test_firestore_privacy_tombstone_accepts_released_hundred_item_batch(store):
@@ -638,7 +621,6 @@ def test_firestore_privacy_tombstone_accepts_released_hundred_item_batch(store):
 
     assert len(result.memory_items) == 100
     assert len(db.transaction_obj.mutations) == 404
-    assert not any(path.startswith("users/u1/memory_graph_assertions/") for path in db.transaction_obj.deletes)
 
 
 def test_firestore_privacy_tombstone_preserves_shared_standalone_evidence_for_editable_sibling(store):
@@ -959,10 +941,6 @@ def test_firestore_source_withdrawal_reactivates_independently_sourced_long_term
             "status": MemoryItemStatus.superseded,
             "superseded_by": source_survivor.memory_id,
             "promotion": _promotion_audit(independent, memory_text=independent_content),
-            "graph_ready": False,
-            "graph_assertion_id": None,
-            "graph_plan_hash": None,
-            "kg_extracted": False,
         }
     )
     db = _db_with(control=control, target_items=[source_survivor, independent])
@@ -996,13 +974,7 @@ def test_firestore_source_withdrawal_reactivates_independently_sourced_long_term
     assert reactivated.canonical_memory_id is None
     assert reactivated.superseded_by is None
     assert reactivated.item_revision == independent.item_revision + 1
-    assert reactivated.graph_ready is True
-    assert reactivated.graph_assertion_id
     assert is_default_access_eligible(reactivated, MemoryAccessPolicy.for_omi_chat()).allowed is True
-    assertion = db.docs[f"users/u1/memory_graph_assertions/{independent.memory_id}"]
-    assert assertion["assertion_id"] == reactivated.graph_assertion_id
-    assert assertion["item_revision"] == reactivated.item_revision
-    assert assertion["content_hash"] == reactivated.content_hash
     reactivation_events = [
         raw
         for path, raw in db.docs.items()
@@ -1010,93 +982,6 @@ def test_firestore_source_withdrawal_reactivates_independently_sourced_long_term
     ]
     assert len(reactivation_events) == 2
     assert {raw["payload"]["action"] for raw in reactivation_events} == {"upsert"}
-
-
-def test_firestore_source_withdrawal_preserves_conflict_semantics_for_malformed_graph_plan(store, caplog):
-    control = MemoryControlState(
-        uid="u1",
-        head_commit_id="head0",
-        account_generation=1,
-        source_generation=2,
-        commit_sequence=3,
-    )
-    source_evidence = _evidence(
-        evidence_id="ev-source-a",
-        source_id="conv1",
-        conversation_id="conv1",
-    )
-    source_survivor = _target_item(
-        memory_id="mem-source-a",
-        content="The user prefers concise written updates.",
-        evidence=[source_evidence],
-        content_hash=memory_content_hash(
-            content="The user prefers concise written updates.",
-            evidence_ids=[source_evidence.evidence_id],
-        ),
-    )
-    secret = "private independent preference must not appear in malformed-document logs"
-    independent_evidence = _evidence(
-        evidence_id="ev-source-b",
-        source_id="conv-independent-b",
-        conversation_id="conv-independent-b",
-    )
-    independent = _target_item(
-        memory_id="mem-independent-b",
-        content=secret,
-        evidence=[independent_evidence],
-        content_hash=memory_content_hash(
-            content=secret,
-            evidence_ids=[independent_evidence.evidence_id],
-        ),
-    )
-    independent = independent.model_copy(
-        update={
-            "canonical_memory_id": source_survivor.memory_id,
-            "status": MemoryItemStatus.superseded,
-            "superseded_by": source_survivor.memory_id,
-            "promotion": _promotion_audit(independent, memory_text=secret),
-            "graph_ready": False,
-            "graph_assertion_id": None,
-            "graph_plan_hash": None,
-            "kg_extracted": False,
-        }
-    )
-    db = _db_with(control=control, target_items=[source_survivor, independent])
-    for evidence in (source_evidence, independent_evidence):
-        db.docs[f"users/u1/memory_evidence/{evidence.evidence_id}"] = _stored_model(evidence)
-    item_path = f"users/u1/memory_items/{independent.memory_id}"
-    db.docs[item_path]["promotion"]["graph_plan"]["subject_entity_id"] = ""
-    original_docs = copy.deepcopy(db.docs)
-    replacement_id, replacement_digest, replacement_operation, _ = _replacement_operation_and_write(
-        store,
-        control,
-        include_new=False,
-    )
-
-    with pytest.raises(
-        store.ConversationSourceReplacementConflict,
-        match=f"superseded lineage item has an invalid graph plan: {independent.memory_id}",
-    ) as error:
-        store.replace_conversation_source_firestore(
-            uid="u1",
-            conversation_id="conv1",
-            replacement_id=replacement_id,
-            replacement_digest=replacement_digest,
-            replacement_operation=replacement_operation,
-            observed_control=control,
-            expected_source_items=[source_survivor],
-            expected_reactivation_items=[independent],
-            writes=[],
-            db_client=db,
-        )
-
-    assert isinstance(error.value.__cause__, MalformedDocError)
-    assert error.value.__cause__.document_path == item_path
-    assert error.value.__cause__.error_fields == ("subject_entity_id",)
-    assert db.docs == original_docs
-    assert db.transaction_obj.mutations == []
-    assert item_path in caplog.text
-    assert secret not in caplog.text
 
 
 def test_firestore_empty_conversation_replacement_is_journaled_and_idempotent(store):
@@ -1331,7 +1216,10 @@ def test_firestore_conversation_replacement_preflights_transaction_limit_before_
     )
     old_items = []
     old_evidence = []
-    for index in range(100):
+    # S-06 removed the knowledge-graph write paired with each retired source
+    # item, so 100 replacements are now safely below the Firestore limit.
+    # 125 still proves that the retained mutation budget fails closed.
+    for index in range(125):
         evidence = _evidence(
             evidence_id=f"ev-old-{index}",
             source_id="conv1",
@@ -1393,10 +1281,6 @@ def test_firestore_apply_reads_authoritative_docs_and_writes_commit_projection_o
     assert any(path.startswith("users/u1/memory_commits/") for path in written_paths)
     assert "users/u1/memory_state/head" in written_paths
     assert result.memory_items[0].tier == MemoryTier.short_term
-    assert result.graph_assertions == []
-    graph_assertion_path = f"users/u1/memory_graph_assertions/{result.memory_items[0].memory_id}"
-    assert graph_assertion_path in db.transaction_obj.deletes
-    assert graph_assertion_path not in db.docs
 
     state_head = db.docs["users/u1/memory_state/head"]
     assert state_head == {
@@ -1446,7 +1330,7 @@ def test_firestore_apply_creates_operation_inside_transaction_and_never_overwrit
     assert db.docs[operation_path]["status"] == MemoryOperationStatus.committed.value
 
 
-def test_firestore_promotion_persists_long_term_item_and_structured_graph_assertion_atomically(store):
+def test_firestore_promotion_persists_long_term_item_and_admission_atomically(store):
     existing = _short_term_target()
     memory_text = "User prefers concise updates."
     operation = _promotion_operation(existing, memory_text=memory_text)
@@ -1460,36 +1344,19 @@ def test_firestore_promotion_persists_long_term_item_and_structured_graph_assert
     )
 
     assert result.status == ApplyStatus.committed
-    assert len(result.graph_assertions) == 1
     promoted_path = f"users/u1/memory_items/{existing.memory_id}"
-    assertion_path = f"users/u1/memory_graph_assertions/{existing.memory_id}"
     promoted = MemoryItem(**db.docs[promoted_path])
-    assertion = db.docs[assertion_path]
     assert promoted.tier == MemoryTier.long_term
-    assert promoted.graph_ready is True
-    assert promoted.graph_assertion_id == assertion["assertion_id"]
-    assert promoted.graph_plan_hash == assertion["graph_plan_hash"]
-    assert assertion["memory_id"] == existing.memory_id
-    assert assertion["item_revision"] == promoted.item_revision
-    assert assertion["commit_id"] == result.control_state.head_commit_id
-    assert assertion_path not in db.transaction_obj.deletes
+    assert promoted.promotion is not None
+    assert promoted.promotion["admission_receipt"]["memory_id"] == existing.memory_id
 
 
-def test_firestore_superseding_promotion_writes_new_assertion_and_deletes_old_assertion_in_one_commit(store):
+def test_firestore_superseding_promotion_updates_both_memory_items_in_one_commit(store):
     existing = _short_term_target()
-    superseded = _target_item(
-        memory_id="mem_old",
-        graph_ready=True,
-        graph_assertion_id="mga_old",
-        graph_plan_hash="plan_old",
-        kg_extracted=True,
-    )
+    superseded = _target_item(memory_id="mem_old")
     memory_text = "User prefers concise updates."
     operation = _promotion_operation(existing, memory_text=memory_text, supersedes=[superseded.memory_id])
     db = _db_with(operation=operation, target_items=[existing, superseded])
-    old_assertion_path = f"users/u1/memory_graph_assertions/{superseded.memory_id}"
-    new_assertion_path = f"users/u1/memory_graph_assertions/{existing.memory_id}"
-    db.docs[old_assertion_path] = {"assertion_id": "mga_old", "memory_id": superseded.memory_id}
 
     result = store.apply_long_term_patch_firestore(
         uid="u1",
@@ -1503,51 +1370,12 @@ def test_firestore_superseding_promotion_writes_new_assertion_and_deletes_old_as
     )
 
     assert result.status == ApplyStatus.committed
-    assert new_assertion_path in db.docs
-    assert old_assertion_path not in db.docs
-    assert old_assertion_path in db.transaction_obj.deletes
     promoted = MemoryItem(**db.docs[f"users/u1/memory_items/{existing.memory_id}"])
     invalidated = MemoryItem(**db.docs[f"users/u1/memory_items/{superseded.memory_id}"])
-    assert promoted.graph_assertion_id == db.docs[new_assertion_path]["assertion_id"]
+    assert promoted.tier == MemoryTier.long_term
     assert invalidated.status == MemoryItemStatus.superseded
     assert invalidated.superseded_by == promoted.memory_id
-    assert invalidated.graph_ready is False
     assert result.operation.committed_memory_item_ids == [existing.memory_id, superseded.memory_id]
-
-
-def test_firestore_graph_delete_failure_rolls_back_promotion_items_assertion_and_head(store):
-    existing = _short_term_target()
-    superseded = _target_item(
-        memory_id="mem_old",
-        graph_ready=True,
-        graph_assertion_id="mga_old",
-        graph_plan_hash="plan_old",
-        kg_extracted=True,
-    )
-    memory_text = "User prefers concise updates."
-    operation = _promotion_operation(existing, memory_text=memory_text, supersedes=[superseded.memory_id])
-    db = _db_with(operation=operation, target_items=[existing, superseded])
-    old_assertion_path = f"users/u1/memory_graph_assertions/{superseded.memory_id}"
-    db.docs[old_assertion_path] = {"assertion_id": "mga_old", "memory_id": superseded.memory_id}
-    original_docs = copy.deepcopy(db.docs)
-    db.transaction_obj.fail_delete_paths.add(old_assertion_path)
-
-    with pytest.raises(RuntimeError, match="injected transaction delete failure"):
-        store.apply_long_term_patch_firestore(
-            uid="u1",
-            operation_id=operation.operation_id,
-            patch_payload=_promotion_patch(
-                existing,
-                memory_text=memory_text,
-                supersedes=[superseded.memory_id],
-            ),
-            db_client=db,
-        )
-
-    assert db.docs == original_docs
-    assert db.transaction_obj.sets == []
-    assert db.transaction_obj.deletes == []
-    assert db.transaction_obj.mutations == []
 
 
 def test_firestore_apply_uses_stored_evidence_not_caller_payload_and_does_not_write_domain_rows_when_source_purged(

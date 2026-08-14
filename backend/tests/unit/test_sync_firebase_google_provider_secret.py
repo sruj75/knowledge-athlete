@@ -111,5 +111,4 @@ def test_secret_sync_tests_are_registered_in_backend_test_sh():
     ).splitlines()
 
     assert "scripts/select_backend_unit_tests.py --all" in test_sh
-    assert "tests/unit/test_mcp_oauth_template.py" in selected_tests
     assert "tests/unit/test_sync_firebase_google_provider_secret.py" in selected_tests

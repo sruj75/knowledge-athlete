@@ -14,7 +14,7 @@ date validation, filename timestamp parsing, chunked-upload envelopes).
 
 from datetime import date, datetime, timezone
 from decimal import Decimal, InvalidOperation
-from typing import Annotated, Any, TypeVar, cast
+from typing import Annotated, Any, TypeVar
 
 from fastapi import HTTPException, Query
 from pydantic import BaseModel, Field, TypeAdapter, ValidationError, model_validator
@@ -42,33 +42,6 @@ def parse_form_json(
         return TypeAdapter(dict[str, Any]).validate_json(raw_value)
     except (ValidationError, ValueError) as e:
         raise HTTPException(status_code=422, detail=f'Invalid {field_name}: {e}')
-
-
-def normalize_required_webhook_url(external_integration: dict[str, Any]) -> None:
-    webhook_url = external_integration.get('webhook_url')
-    if not isinstance(webhook_url, str) or not webhook_url.strip():
-        raise HTTPException(status_code=422, detail='external_integration.webhook_url is required')
-    external_integration['webhook_url'] = webhook_url.strip()
-
-
-def backfill_app_home_url_from_auth_steps(external_integration: dict[str, Any]) -> None:
-    if external_integration.get('app_home_url'):
-        return
-    auth_steps = external_integration.get('auth_steps')
-    if not auth_steps:
-        return
-    if not isinstance(auth_steps, list):
-        raise HTTPException(status_code=422, detail='external_integration.auth_steps must be a list')
-    auth_steps_list: list[Any] = cast(list[Any], auth_steps)
-    if len(auth_steps_list) != 1:
-        return
-    auth_step = auth_steps_list[0]
-    if not isinstance(auth_step, dict):
-        raise HTTPException(status_code=422, detail='external_integration.auth_steps[0].url is required')
-    step_dict: dict[str, Any] = cast(dict[str, Any], auth_step)
-    if not step_dict.get('url'):
-        raise HTTPException(status_code=422, detail='external_integration.auth_steps[0].url is required')
-    external_integration['app_home_url'] = step_dict['url']
 
 
 def validate_calendar_date(value: str | None, field_name: str = 'date') -> str | None:

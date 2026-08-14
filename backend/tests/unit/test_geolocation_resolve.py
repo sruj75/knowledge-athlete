@@ -1,10 +1,10 @@
 """Regression: resolve_geolocation must not drop the user's coordinates on a geocode miss.
 
 get_google_maps_location / async_get_google_maps_location return None when Google reports ZERO_RESULTS,
-OVER_QUERY_LIMIT, REQUEST_DENIED, or no place_id. Callers in routers/developer.py and routers/pusher.py
+OVER_QUERY_LIMIT, REQUEST_DENIED, or no place_id. The retained Pusher caller
 assigned that return directly, so a lookup miss overwrote the real lat/long with None and the conversation
 was stored with no location. resolve_geolocation keeps the original coordinates on a None return (and on an
-error), matching the fix already applied inline in routers/integration.py. Pinned against a fake geocoder,
+error). Pinned against a fake geocoder,
 no live services.
 """
 

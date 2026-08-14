@@ -25,7 +25,7 @@ def test_assistant_settings_model_schema_exposes_known_fields_and_allows_future_
 
 
 def test_app_client_openapi_assistant_settings_response_exposes_known_fields_and_allows_future_sections():
-    spec = export_openapi.generate_openapi('app-client')
+    spec = export_openapi.generate_app_client_openapi()
     schema = spec['components']['schemas']['AssistantSettingsResponse']
 
     assert schema['title'] == 'AssistantSettingsResponse'

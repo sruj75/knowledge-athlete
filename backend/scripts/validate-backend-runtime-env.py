@@ -439,7 +439,7 @@ def _validate_prerecorded_stt_contract(env: str, env_config: ConfigDict) -> list
     cloud_run_services = _as_config_dict(cloud_run.get('services')) or {}
     required_cloud_run_scopes: set[str] = set()
     if env in {'dev', 'prod'}:
-        for service in ('backend', 'backend-sync', 'backend-integration'):
+        for service in ('backend', 'backend-sync'):
             if service not in cloud_run_services:
                 continue
             scope = f'{env}/cloud_run/{service}'

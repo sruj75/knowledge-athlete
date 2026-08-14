@@ -30,29 +30,15 @@ from routers import (
     users,
     trends,
     sync,
-    apps,
     payment,
-    integration,
     conversations,
     memories,
-    api_key_management,
-    mcp,
-    mcp_sse,
-    oauth,
     auth,
     action_items,
     candidates,
-    task_integrations,
-    integrations,
-    x_connector,
     other,
-    developer,
     updates,
     calendar_meetings,
-    google_calendar,
-    calendar_onboarding,
-    imports,
-    knowledge_graph,
     wrapped,
     folders,
     goals,
@@ -78,7 +64,6 @@ from routers import (
     memory_product,
     task_recommendations,
     conversation_finalization,
-    public_shared_conversation_chat,
 )
 
 from utils.other.timeout import TimeoutMiddleware
@@ -141,18 +126,13 @@ app.include_router(transcribe.router)
 app.include_router(omni_relay.router)
 app.include_router(auto_model.router)
 app.include_router(conversations.router)
-app.include_router(public_shared_conversation_chat.router)
 app.include_router(action_items.router)
 app.include_router(candidates.router)
-app.include_router(task_integrations.router)
-app.include_router(integrations.router)
-app.include_router(x_connector.router)
 app.include_router(memories.router)
 app.include_router(chat.router)
 app.include_router(speech_profile.router)
 # app.include_router(screenpipe.router)
 app.include_router(notifications.router)
-app.include_router(integration.router)
 app.include_router(agents.router)
 app.include_router(users.router)
 app.include_router(conversation_finalization.router)
@@ -164,24 +144,13 @@ app.include_router(firmware.router)
 app.include_router(updates.router)
 app.include_router(sync.router)
 
-app.include_router(apps.router)
 app.include_router(calendar_meetings.router)
-app.include_router(google_calendar.router)
-app.include_router(calendar_onboarding.router)
-app.include_router(oauth.router)  # Added oauth router (for Omi Apps)
 app.include_router(auth.router)  # Added auth router (for the main Omi App, this is the core auth router)
 
 
 app.include_router(payment.router)
-app.include_router(api_key_management.mcp_router)
-app.include_router(mcp.router)
-app.include_router(mcp_sse.router)
-app.include_router(api_key_management.developer_router)
-app.include_router(developer.router)
-app.include_router(imports.router)
 app.include_router(wrapped.router)
 app.include_router(folders.router)
-app.include_router(knowledge_graph.router)
 app.include_router(goals.router)
 app.include_router(workstreams.router)
 app.include_router(announcements.router)

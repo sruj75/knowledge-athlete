@@ -167,7 +167,6 @@ enum ConversationReconciliationPolicy {
       transcriptSegmentsIncluded: serverConversation.transcriptSegmentsIncluded,
       geolocation: serverConversation.geolocation,
       photos: serverConversation.photos,
-      appsResults: serverConversation.appsResults,
       source: serverConversation.source,
       language: serverConversation.language,
       status: serverConversation.status,

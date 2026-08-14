@@ -61,25 +61,19 @@ MODEL_QOS_PROFILES: Dict[str, Dict[str, Tuple[str, str]]] = {
         # OpenAI — conversation processing
         'conv_action_items': ('gpt-5.4-mini', 'openai'),
         'conv_structure': ('gpt-5.4-mini', 'openai'),
-        'conv_app_result': ('gpt-5.4-mini', 'openai'),
-        'conv_app_select': ('gpt-4.1-nano', 'openai'),
         'conv_folder': ('gpt-4.1-nano', 'openai'),
         'conv_discard': ('gpt-4.1-nano', 'openai'),
         'daily_summary': ('gpt-5.4-mini', 'openai'),
-        'daily_summary_simple': ('gpt-4.1-nano', 'openai'),
-        'external_structure': ('gpt-4.1-mini', 'openai'),
-        # OpenAI — memories & knowledge
+        # OpenAI — memories
         'memories': ('gpt-4.1-mini', 'openai'),
         'learnings': ('gpt-5.4-mini', 'openai'),
         'memory_conflict': ('gpt-4.1-mini', 'openai'),
         'memory_category': ('gpt-4.1-nano', 'openai'),
-        'knowledge_graph': ('gpt-4.1-mini', 'openai'),
         'memory_l1': ('gpt-4.1-mini', 'openai'),
         'memory_l2': ('gpt-4.1-mini', 'openai'),
         # OpenAI — chat
         'chat_responses': ('gpt-5.4-mini', 'openai'),
         'chat_extraction': ('gpt-4.1-mini', 'openai'),
-        'chat_graph': ('gpt-4.1-mini', 'openai'),
         'session_titles': ('gemini-2.5-flash-lite', 'gemini'),
         # Features
         'goals': ('gpt-4.1-mini', 'openai'),
@@ -91,16 +85,10 @@ MODEL_QOS_PROFILES: Dict[str, Dict[str, Tuple[str, str]]] = {
         'smart_glasses': ('gpt-4.1-nano', 'openai'),
         'openglass': ('gpt-4.1-mini', 'openai'),
         'onboarding': ('gemini-2.5-flash-lite', 'gemini'),
-        'app_generator': ('gpt-5.4-mini', 'openai'),
-        'app_integration': ('gemini-2.5-flash-lite', 'gemini'),
-        'persona_clone': ('gpt-5.4-mini', 'openai'),
         'trends': ('gemini-2.5-flash-lite', 'gemini'),
         'translation': ('gemini-2.5-flash-lite', 'gemini'),
         # Anthropic (used via get_model() + anthropic_client)
         'chat_agent': ('claude-sonnet-4-6', 'anthropic'),
-        # Persona
-        'persona_chat': ('gpt-4.1-nano', 'openai'),
-        'persona_chat_premium': ('gpt-5.4-mini', 'openai'),
         # OpenRouter
         'wrapped_analysis': ('gemini-3-flash-preview', 'openrouter'),
         # Perplexity
@@ -109,31 +97,25 @@ MODEL_QOS_PROFILES: Dict[str, Dict[str, Tuple[str, str]]] = {
     # -----------------------------------------------------------------------
     # max — 100% quality, best models available, no cost optimization.
     # Uses gpt-5.4 for all core features, o4-mini for reasoning (learnings),
-    # gpt-4.1 for chat graph. Pure OpenAI for highest accuracy.
+    # Pure OpenAI for highest accuracy.
     # -----------------------------------------------------------------------
     'max': {
         # OpenAI — conversation processing
         'conv_action_items': ('gpt-5.4', 'openai'),
         'conv_structure': ('gpt-5.4', 'openai'),
-        'conv_app_result': ('gpt-5.4', 'openai'),
-        'conv_app_select': ('gpt-4.1-mini', 'openai'),
         'conv_folder': ('gpt-4.1-mini', 'openai'),
         'conv_discard': ('gpt-4.1-mini', 'openai'),
         'daily_summary': ('gpt-5.4', 'openai'),
-        'daily_summary_simple': ('gpt-4.1-mini', 'openai'),
-        'external_structure': ('gpt-4.1-mini', 'openai'),
-        # OpenAI — memories & knowledge
+        # OpenAI — memories
         'memories': ('gpt-4.1-mini', 'openai'),
         'learnings': ('o4-mini', 'openai'),
         'memory_conflict': ('gpt-4.1-mini', 'openai'),
         'memory_category': ('gpt-4.1-mini', 'openai'),
-        'knowledge_graph': ('gpt-4.1-mini', 'openai'),
         'memory_l1': ('gpt-4.1-mini', 'openai'),
         'memory_l2': ('gpt-4.1-mini', 'openai'),
         # OpenAI — chat
         'chat_responses': ('gpt-5.4', 'openai'),
         'chat_extraction': ('gpt-4.1-mini', 'openai'),
-        'chat_graph': ('gpt-4.1', 'openai'),
         'session_titles': ('gpt-4.1-mini', 'openai'),
         # Features
         'goals': ('gpt-4.1-mini', 'openai'),
@@ -145,16 +127,10 @@ MODEL_QOS_PROFILES: Dict[str, Dict[str, Tuple[str, str]]] = {
         'smart_glasses': ('gpt-4.1-mini', 'openai'),
         'openglass': ('gpt-4.1-mini', 'openai'),
         'onboarding': ('gpt-4.1-mini', 'openai'),
-        'app_generator': ('gpt-5.4', 'openai'),
-        'app_integration': ('gpt-4.1-mini', 'openai'),
-        'persona_clone': ('gpt-5.4', 'openai'),
         'trends': ('gpt-4.1-mini', 'openai'),
         'translation': ('gemini-2.5-flash-lite', 'gemini'),
         # Anthropic
         'chat_agent': ('claude-sonnet-4-6', 'anthropic'),
-        # Persona
-        'persona_chat': ('gpt-4.1-nano', 'openai'),
-        'persona_chat_premium': ('gpt-5.4-mini', 'openai'),
         # OpenRouter
         'wrapped_analysis': ('gemini-3-flash-preview', 'openrouter'),
         # Perplexity
@@ -168,25 +144,19 @@ MODEL_QOS_PROFILES: Dict[str, Dict[str, Tuple[str, str]]] = {
         # OpenAI — conversation processing
         'conv_action_items': ('gpt-5.4', 'openai'),
         'conv_structure': ('gpt-5.4', 'openai'),
-        'conv_app_result': ('gpt-5.4', 'openai'),
-        'conv_app_select': ('gpt-4.1-mini', 'openai'),
         'conv_folder': ('gpt-4.1-mini', 'openai'),
         'conv_discard': ('gpt-4.1-mini', 'openai'),
         'daily_summary': ('gpt-5.4', 'openai'),
-        'daily_summary_simple': ('gpt-4.1-mini', 'openai'),
-        'external_structure': ('gpt-4.1-mini', 'openai'),
-        # OpenAI — memories & knowledge
+        # OpenAI — memories
         'memories': ('gpt-4.1-mini', 'openai'),
         'learnings': ('o4-mini', 'openai'),
         'memory_conflict': ('gpt-4.1-mini', 'openai'),
         'memory_category': ('gpt-4.1-mini', 'openai'),
-        'knowledge_graph': ('gpt-4.1-mini', 'openai'),
         'memory_l1': ('gpt-4.1-mini', 'openai'),
         'memory_l2': ('gpt-4.1-mini', 'openai'),
         # OpenAI — chat
         'chat_responses': ('gpt-5.4', 'openai'),
         'chat_extraction': ('gpt-4.1-mini', 'openai'),
-        'chat_graph': ('gpt-4.1', 'openai'),
         'session_titles': ('gpt-4.1-mini', 'openai'),
         # Features
         'goals': ('gpt-4.1-mini', 'openai'),
@@ -198,16 +168,10 @@ MODEL_QOS_PROFILES: Dict[str, Dict[str, Tuple[str, str]]] = {
         'smart_glasses': ('gpt-4.1-mini', 'openai'),
         'openglass': ('gpt-4.1-mini', 'openai'),
         'onboarding': ('gpt-4.1-mini', 'openai'),
-        'app_generator': ('gpt-5.4', 'openai'),
-        'app_integration': ('gpt-4.1-mini', 'openai'),
-        'persona_clone': ('gpt-5.4', 'openai'),
         'trends': ('gpt-4.1-mini', 'openai'),
         'translation': ('gemini-2.5-flash-lite', 'gemini'),
         # Anthropic
         'chat_agent': ('claude-sonnet-4-6', 'anthropic'),
-        # Persona
-        'persona_chat': ('gpt-4.1-nano', 'openai'),
-        'persona_chat_premium': ('gpt-5.4-mini', 'openai'),
         # OpenRouter
         'wrapped_analysis': ('gemini-3-flash-preview', 'openrouter'),
         # Perplexity
@@ -260,8 +224,6 @@ _CACHE_RETENTION_MODEL_PREFIXES = ('gpt-5', 'o1', 'o3', 'o4')
 _STRUCTURED_OUTPUT_FEATURES = {
     'chat_extraction',
     'proactive_notification',
-    'conv_app_select',
-    'external_structure',
     'trends',
     'what_matters_now',
     'translation',

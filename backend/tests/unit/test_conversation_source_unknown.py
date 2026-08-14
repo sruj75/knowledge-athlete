@@ -36,7 +36,7 @@ class TestConversationSourceMissing:
         assert ConversationSource('desktop') == ConversationSource.desktop
         assert ConversationSource('onboarding') == ConversationSource.onboarding
         assert ConversationSource('workflow') == ConversationSource.workflow
-        assert ConversationSource('external_integration') == ConversationSource.external_integration
+        assert ConversationSource('external_integration') == ConversationSource.unknown
 
     def test_phone_call_is_known_member(self):
         """phone_call was added as a real enum member after issue #5409."""

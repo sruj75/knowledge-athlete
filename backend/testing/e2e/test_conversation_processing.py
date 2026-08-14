@@ -8,15 +8,8 @@ from models.structured import ActionItem, Structured
 from models.transcript_segment import TranscriptSegment
 
 
-class UnexpectedLLMCall(BaseException):
-    pass
-
-
 def _patch_process_conversation_boundaries(monkeypatch):
     import utils.conversations.process_conversation as process_module
-    import utils.llm.knowledge_graph as kg_module
-
-    kg_calls = []
 
     def run_selected_postprocess(_executor, fn, *args, **kwargs):
         if fn.__name__ in {"_extract_memories", "_save_action_items"}:
@@ -27,10 +20,6 @@ def _patch_process_conversation_boundaries(monkeypatch):
                 return None
 
         return DoneFuture()
-
-    def record_kg_extract(*args, **kwargs):
-        kg_calls.append((args, kwargs))
-        return {"nodes": [], "edges": []}
 
     monkeypatch.setattr(process_module, "is_trial_paywalled", lambda *args, **kwargs: False)
     monkeypatch.setattr(process_module, "should_defer_desktop_processing", lambda uid: False)
@@ -53,23 +42,9 @@ def _patch_process_conversation_boundaries(monkeypatch):
     monkeypatch.setattr(process_module, "upsert_action_item_vectors_batch", lambda *args, **kwargs: None)
     monkeypatch.setattr(process_module, "delete_action_item_vectors_batch", lambda *args, **kwargs: None)
     monkeypatch.setattr(process_module, "send_action_item_data_message", lambda *args, **kwargs: None)
-    monkeypatch.setattr(process_module, "auto_sync_action_items_batch", _async_noop)
-    monkeypatch.setattr(process_module, "conversation_created_webhook", _async_noop)
-    monkeypatch.setattr(process_module, "get_overlapping_calendar_event", _async_none)
-    monkeypatch.setattr(process_module, "write_conversation_link_to_calendar_event", _async_noop)
     monkeypatch.setattr(process_module, "precache_conversation_audio", lambda *args, **kwargs: None)
-    monkeypatch.setattr(process_module, "_trigger_apps", lambda *args, **kwargs: None)
     monkeypatch.setattr(process_module, "_update_goal_progress", lambda *args, **kwargs: None)
     monkeypatch.setattr(process_module, "submit_with_context", run_selected_postprocess)
-    monkeypatch.setattr(kg_module, "extract_knowledge_from_memory", record_kg_extract)
-    # process_conversation imported extract_knowledge_from_memory directly,
-    # so patch it on the process_module namespace too
-    monkeypatch.setattr(process_module, "extract_knowledge_from_memory", record_kg_extract)
-    monkeypatch.setattr(
-        kg_module,
-        "get_llm",
-        lambda *args, **kwargs: (_ for _ in ()).throw(UnexpectedLLMCall("unexpected KG LLM call")),
-    )
     monkeypatch.setattr(
         process_module,
         "get_transcript_structure",
@@ -109,7 +84,6 @@ def _patch_process_conversation_boundaries(monkeypatch):
             )
         ],
     )
-    return kg_calls
 
 
 class _NoopContext:
@@ -120,16 +94,8 @@ class _NoopContext:
         return False
 
 
-async def _async_noop(*args, **kwargs):
-    return None
-
-
-async def _async_none(*args, **kwargs):
-    return None
-
-
 def test_conversation_create_process_finalize_lifecycle(client, auth_headers, monkeypatch):
-    kg_calls = _patch_process_conversation_boundaries(monkeypatch)
+    _patch_process_conversation_boundaries(monkeypatch)
 
     import utils.conversations.process_conversation as process_module
     from models.conversation import CreateConversation
@@ -173,13 +139,10 @@ def test_conversation_create_process_finalize_lifecycle(client, auth_headers, mo
     memories = memories_response.json()
     assert [memory["content"] for memory in memories] == ["David wants conversation lifecycle tests to fail hard."]
     assert read_conversation("123", processed.id)["status"] == "completed"
-    assert kg_calls == [
-        (("123", "David wants conversation lifecycle tests to fail hard.", memories[0]["id"], "David"), {})
-    ]
 
 
 def test_reprocess_route_persists_deterministic_processing_result(client, auth_headers, monkeypatch):
-    kg_calls = _patch_process_conversation_boundaries(monkeypatch)
+    _patch_process_conversation_boundaries(monkeypatch)
     conv_id = "deterministic-processing-001"
     seed_conversation(
         "123",
@@ -234,9 +197,6 @@ def test_reprocess_route_persists_deterministic_processing_result(client, auth_h
     memories_response = client.get("/v3/memories", headers=auth_headers)
     assert memories_response.status_code == 200, memories_response.text
     memories = memories_response.json()
-    assert kg_calls == [
-        (("123", "David wants conversation lifecycle tests to fail hard.", memories[0]["id"], "David"), {})
-    ]
 
 
 def test_seed_and_read_conversation(client, auth_headers, conversation_fixture):

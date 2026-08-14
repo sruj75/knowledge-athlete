@@ -108,12 +108,6 @@ enum ViewExporter {
       ),
 
       (
-        "12-onboarding",
-        { AnyView(OnboardingView(appState: AppState(), chatProvider: ChatProvider())) },
-        CGSize(width: 900, height: 600)
-      ),
-
-      (
         "13-daily-score",
         { AnyView(DailyScoreWidget(dailyScore: nil)) },
         CGSize(width: 400, height: 350)
@@ -136,29 +130,6 @@ enum ViewExporter {
         CGSize(width: 900, height: 700)
       ),
 
-      (
-        "16-memory-atlas",
-        { MemoryAtlasExportPreview.surface() },
-        CGSize(width: 1200, height: 820)
-      ),
-
-      (
-        "17-memory-atlas-single-type",
-        { MemoryAtlasExportPreview.singleTypeSurface() },
-        CGSize(width: 1200, height: 820)
-      ),
-
-      (
-        "18-brain-map-inspector",
-        { MemoryAtlasExportPreview.inspectorSurface() },
-        CGSize(width: 1400, height: 820)
-      ),
-
-      (
-        "19-brain-map-connection",
-        { MemoryAtlasExportPreview.connectionInspectorSurface() },
-        CGSize(width: 1400, height: 820)
-      ),
     ]
 
     guard index >= 0 && index < views.count else { return nil }
@@ -166,44 +137,13 @@ enum ViewExporter {
     return (entry.0, entry.1(), entry.2)
   }
 
-  static var standaloneViewCount: Int { 18 }
-
-  private static let onboardingExportSteps: [(String, Int)] = [
-    ("01-name", 0),
-    ("02-language", 1),
-    ("03-howdidyouhear", 2),
-    ("04-trust", 3),
-    ("05-screen-recording", 4),
-    ("06-disk-access", 5),
-    ("07-file-scan", 6),
-    ("08-microphone", 7),
-    ("09-accessibility", 8),
-    ("10-automation", 9),
-    ("11-floating-bar-shortcut", 10),
-    ("12-floating-bar", 11),
-    ("13-voice-shortcut", 12),
-    ("14-voice-demo", 13),
-    ("15-data-sources", 14),
-    ("16-exports", 15),
-    ("17-goal", 16),
-    ("18-tasks", 17),
-  ]
+  static var standaloneViewCount: Int { 12 }
 
   static func onboardingViewAt(_ index: Int) -> (String, AnyView, CGSize)? {
-    guard index >= 0 && index < onboardingExportSteps.count else { return nil }
-    let step = onboardingExportSteps[index]
-    let appState = AppState()
-    appState.hasCompletedOnboarding = false
-    let view = OnboardingView(
-      appState: appState,
-      chatProvider: ChatProvider(),
-      exportStepOverride: step.1,
-      isExportPreview: true
-    )
-    return (step.0, AnyView(view), CGSize(width: 900, height: 600))
+    nil
   }
 
-  static var onboardingViewCount: Int { onboardingExportSteps.count }
+  static var onboardingViewCount: Int { 0 }
 
   // MARK: - Full page registry (sidebar + content)
 
@@ -444,7 +384,6 @@ enum ViewExporter {
         transcriptSegmentsIncluded: true,
         geolocation: nil,
         photos: [],
-        appsResults: [],
         source: .desktop,
         language: "en",
         status: .completed,
@@ -503,7 +442,6 @@ enum ViewExporter {
         conversationId: nil,
         reviewed: true,
         userReview: true,
-        visibility: "private",
         manuallyAdded: true,
         scoring: nil,
         source: "manual",
@@ -529,7 +467,6 @@ enum ViewExporter {
         conversationId: "conversation_preview_dashboard",
         reviewed: false,
         userReview: nil,
-        visibility: "private",
         manuallyAdded: false,
         scoring: nil,
         source: "conversation",
@@ -555,7 +492,6 @@ enum ViewExporter {
         conversationId: "conversation_preview_memories",
         reviewed: false,
         userReview: nil,
-        visibility: "private",
         manuallyAdded: false,
         scoring: nil,
         source: "advice",

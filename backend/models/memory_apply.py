@@ -16,12 +16,7 @@ from models.memory_contracts import (
     deterministic_contract_id,
 )
 from models.memory_operations import MemoryOperation, MemoryOperationStatus, MemoryOperationType, logical_payload_digest
-from models.memory_promotion import (
-    MemoryGraphAssertion,
-    PromotionGraphPlan,
-    build_memory_graph_assertion,
-    valid_promotion_admission,
-)
+from models.memory_promotion import valid_promotion_admission
 from models.memory_domain import (
     MemoryLayer,
     MemoryProcessingState,
@@ -216,7 +211,6 @@ class ApplyResult(BaseModel):
     control_state: MemoryControlState
     operation: MemoryOperation
     memory_items: List[MemoryItem] = Field(default_factory=list)
-    graph_assertions: List[MemoryGraphAssertion] = Field(default_factory=list)
     outbox_events: List[MemoryOutboxEvent] = Field(default_factory=list)
     reason: Optional[str] = None
 
@@ -319,7 +313,6 @@ def _materialize_memory_item(
         evidence=evidence,
         source_state=SourceState.active,
         sensitivity_labels=[],
-        visibility=patch.visibility or "private",
         user_asserted=bool(patch.user_asserted),
         captured_at=now,
         updated_at=now,
@@ -412,24 +405,10 @@ def _apply_update_memory_item(
         updates["predicate"] = patch.predicate
     if patch.arguments:
         updates["arguments"] = dict(patch.arguments)
-    if patch.target_visibility is not None:
-        updates["visibility"] = patch.target_visibility
     if patch.target_user_asserted is not None:
         updates["user_asserted"] = patch.target_user_asserted
     if extra_updates:
         updates.update(extra_updates)
-    if patch.clear_graph_assertion:
-        updates.update(
-            {
-                "subject_entity_id": None,
-                "predicate": None,
-                "arguments": {},
-                "graph_ready": False,
-                "graph_assertion_id": None,
-                "graph_plan_hash": None,
-                "kg_extracted": False,
-            }
-        )
     return existing.model_copy(update=updates)
 
 
@@ -459,12 +438,8 @@ def _operation_digest_for_patch(
         logical_payload["predicate"] = patch.predicate
     if operation.logical_payload.target_tier is not None:
         logical_payload["target_tier"] = patch.target_tier.value if patch.target_tier is not None else None
-    if operation.logical_payload.target_visibility is not None:
-        logical_payload["target_visibility"] = patch.target_visibility
     if operation.logical_payload.target_user_asserted is not None:
         logical_payload["target_user_asserted"] = patch.target_user_asserted
-    if operation.logical_payload.clear_graph_assertion is not None:
-        logical_payload["clear_graph_assertion"] = patch.clear_graph_assertion
     if operation.logical_payload.mutation_metadata is not None:
         logical_payload["mutation_metadata"] = mutation_identity
     return logical_payload_digest(logical_payload)
@@ -529,11 +504,8 @@ def apply_long_term_patch_transaction(
         "updated_at",
         "expires_at",
         "superseded_by",
-        "kg_extracted",
         "confidence",
         "sensitivity_labels",
-        "capture_device_ids",
-        "primary_capture_device",
     ):
         if optional_key in raw:
             extra_item_updates[optional_key] = raw.pop(optional_key)
@@ -690,7 +662,7 @@ def apply_long_term_patch_transaction(
                     (patch.arguments or existing_item.arguments) != existing_item.arguments,
                 )
             )
-            explicit_short_term_demotion = patch.target_tier == MemoryTier.short_term and patch.clear_graph_assertion
+            explicit_short_term_demotion = patch.target_tier == MemoryTier.short_term
             if semantic_change and not explicit_short_term_demotion:
                 return ApplyResult(
                     status=ApplyStatus.invalid_patch,
@@ -727,9 +699,6 @@ def apply_long_term_patch_transaction(
                     source_item_revision=existing_item.item_revision,
                     output_content_hash=proposed_content_hash,
                     evidence_ids=proposed_evidence_ids,
-                    subject_entity_id=patch.subject_entity_id or existing_item.subject_entity_id,
-                    predicate=patch.predicate or existing_item.predicate,
-                    arguments=patch.arguments or existing_item.arguments,
                     supersedes=patch.supersedes,
                     promotion=admission_metadata,
                 )
@@ -739,7 +708,7 @@ def apply_long_term_patch_transaction(
                     status=ApplyStatus.invalid_patch,
                     control_state=control_state,
                     operation=operation,
-                    reason="Short-term to Long-term transition requires a current promotion admission and graph plan",
+                    reason="Short-term to Long-term transition requires a current promotion admission",
                 )
         memory_item = _apply_update_memory_item(
             existing=existing_item,
@@ -764,54 +733,6 @@ def apply_long_term_patch_transaction(
             memory_item = MemoryItem(**{**memory_item.model_dump(), **extra_item_updates})
 
     memory_items = [memory_item]
-    graph_assertions: List[MemoryGraphAssertion] = []
-    refresh_graph_assertion = transitioning_to_long_term or (
-        memory_item.tier == MemoryTier.long_term
-        and memory_item.status == MemoryItemStatus.active
-        and memory_item.graph_ready
-        and not patch.clear_graph_assertion
-    )
-    if refresh_graph_assertion:
-        admission_metadata = memory_item.promotion or {}
-        raw_graph_plan = admission_metadata.get("graph_plan")
-        if not isinstance(raw_graph_plan, dict):
-            return ApplyResult(
-                status=ApplyStatus.invalid_patch,
-                control_state=control_state,
-                operation=operation,
-                reason="active graph-backed Long-term update requires its stored graph plan",
-            )
-        try:
-            graph_plan = PromotionGraphPlan(**raw_graph_plan)
-        except Exception:
-            return ApplyResult(
-                status=ApplyStatus.invalid_patch,
-                control_state=control_state,
-                operation=operation,
-                reason="active graph-backed Long-term update has an invalid stored graph plan",
-            )
-        assertion = build_memory_graph_assertion(
-            uid=operation.uid,
-            memory_id=memory_item.memory_id,
-            item_revision=memory_item.item_revision,
-            content_hash=memory_item.content_hash or "",
-            evidence_ids=[item.evidence_id for item in memory_item.evidence],
-            graph_plan=graph_plan,
-            commit_id=commit_id,
-            commit_sequence=next_control.commit_sequence,
-            created_at=memory_item.updated_at,
-        )
-        memory_item = memory_item.model_copy(
-            update={
-                "graph_ready": True,
-                "graph_assertion_id": assertion.assertion_id,
-                "graph_plan_hash": graph_plan.plan_hash,
-                "kg_extracted": True,
-            }
-        )
-        memory_items = [memory_item]
-        graph_assertions = [assertion]
-
     if patch.supersedes:
         if not isinstance(superseded_items_raw, list):
             return ApplyResult(
@@ -851,10 +772,6 @@ def apply_long_term_patch_transaction(
                     "ledger_sequence": next_control.commit_sequence,
                     "version": existing_superseded.version + 1,
                     "item_revision": existing_superseded.item_revision + 1,
-                    "graph_ready": False,
-                    "graph_assertion_id": None,
-                    "graph_plan_hash": None,
-                    "kg_extracted": False,
                 }
             )
             memory_items.append(superseded_item)
@@ -915,7 +832,6 @@ def apply_long_term_patch_transaction(
         control_state=next_control,
         operation=committed_operation,
         memory_items=memory_items,
-        graph_assertions=graph_assertions,
         outbox_events=outbox_events,
     )
 

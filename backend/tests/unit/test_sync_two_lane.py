@@ -242,8 +242,8 @@ def test_cloud_run_default_service_lists_include_sync_backfill():
     status = (root / 'deploy_status_report.py').read_text()
     manual = (Path(__file__).resolve().parents[3] / '.github/workflows/gcp_backend.yml').read_text()
 
-    assert "DEFAULT_SERVICES = ('backend', 'backend-sync', 'backend-sync-backfill', 'backend-integration')" in preflight
-    assert "DEFAULT_SERVICES = ('backend', 'backend-sync', 'backend-sync-backfill', 'backend-integration')" in repair
+    assert "DEFAULT_SERVICES = ('backend', 'backend-sync', 'backend-sync-backfill')" in preflight
+    assert "DEFAULT_SERVICES = ('backend', 'backend-sync', 'backend-sync-backfill')" in repair
     assert "'backend-sync-backfill'" in status
     assert '--cloud-run-service backend-sync-backfill' in manual
     assert manual.index('repair-traffic:') < manual.index('--cloud-run-service backend-sync-backfill')
