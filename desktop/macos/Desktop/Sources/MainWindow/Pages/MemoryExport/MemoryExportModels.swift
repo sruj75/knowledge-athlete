@@ -68,15 +68,6 @@ struct MemoryExportResult: Sendable {
   let clipboardText: String?
 }
 
-struct AgentConnectionTestResult: Sendable {
-  let hostedMemoryCount: Int
-  let localToolCount: Int
-
-  var summary: String {
-    "Connection looks good: Omi returned \(hostedMemoryCount) hosted memories, and Desktop shared \(localToolCount) local tools."
-  }
-}
-
 enum MemoryExportError: LocalizedError {
   case noMemories
   case invalidNotionConfiguration

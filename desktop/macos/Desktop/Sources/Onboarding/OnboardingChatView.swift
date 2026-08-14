@@ -1318,7 +1318,7 @@ struct OnboardingChatView: View {
   }
 
   /// Build a compact summary of the conversation so far for inclusion in the system prompt.
-  /// This ensures the AI has context even if ACP session/resume fails and a fresh session starts.
+  /// This ensures the AI has context if runtime session continuity fails and a fresh session starts.
   private func buildConversationContext(from messages: [ChatMessage]) -> String {
     guard !messages.isEmpty else { return "" }
 
@@ -1388,7 +1388,6 @@ struct OnboardingChatView: View {
           surface: .onboarding(),
           prompt:
             "Begin exploration. \(fileCount) files have been indexed in the indexed_files table.",
-          model: ModelQoS.Claude.chat,
           systemPrompt: systemPrompt,
           onTextDelta: { @Sendable delta in
             Task { @MainActor in

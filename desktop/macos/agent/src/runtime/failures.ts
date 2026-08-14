@@ -1,4 +1,3 @@
-import { AcpError, isAcpProviderAuthFailure } from "../adapters/acp.js";
 import type { ProductionAdapterId } from "../adapters/interface.js";
 
 export type RuntimeFailureSource = "adapter_process" | "adapter_execution" | "runtime";
@@ -13,7 +12,6 @@ export const RUNTIME_FAILURE_CODES = [
   "adapter_unavailable",
   "adapter_incompatible",
   "bridge_start_failed",
-  "provider_setup_needed",
   "malformed_or_oversized_tool_result",
   "cancelled",
   "stale_owner",
@@ -72,17 +70,6 @@ export function failureFromError(
   if (error instanceof AdapterRuntimeError) {
     return error.failure;
   }
-  if (error instanceof AcpError && isAcpProviderAuthFailure(error)) {
-    return normalizeRuntimeFailure({
-      code: "provider_auth_required",
-      failureCode: "authentication",
-      userMessage: "Claude sign-in is required to continue this chat.",
-      technicalMessage: messageFrom(error),
-      source: fallback.source ?? "adapter_execution",
-      adapterId: fallback.adapterId ?? "acp",
-      retryable: false,
-    });
-  }
   return normalizeRuntimeFailure({
     ...fallback,
     userMessage: fallback.userMessage ?? messageFrom(error),
@@ -112,7 +99,6 @@ export function normalizeRuntimeFailureCode(value: string): RuntimeFailureCode {
   if (code.includes("not_registered") || code.includes("unavailable")) return "adapter_unavailable";
   if (code.includes("config") || code.includes("incompatible") || code.includes("stale_binding")) return "adapter_incompatible";
   if (code.includes("bridge_start")) return "bridge_start_failed";
-  if (code.includes("provider_setup")) return "provider_setup_needed";
   if (code.includes("oversized") || code.includes("tool_result")) return "malformed_or_oversized_tool_result";
   if (code.includes("cancel")) return "cancelled";
   if (code.includes("stale_owner") || code.includes("owner_changed")) return "stale_owner";
@@ -136,16 +122,7 @@ export function failureFromProcessExit(input: {
   recentStderr: string;
 }): RuntimeFailure {
   const diagnostic = sanitizeProcessDiagnostic(input.recentStderr);
-  const technicalMessage = diagnostic || `${input.adapterId} ACP process exited with code ${input.exitCode}`;
-  const classified = classifyAdapterProcessFailure(input.adapterId, diagnostic);
-  if (classified) {
-    return normalizeRuntimeFailure({
-      source: "adapter_process",
-      adapterId: input.adapterId,
-      technicalMessage,
-      ...classified,
-    });
-  }
+  const technicalMessage = diagnostic || `${input.adapterId} process exited with code ${input.exitCode}`;
   const provider = providerFromDiagnostic(diagnostic);
   const label = adapterFailureLabel(input.adapterId, provider);
   return normalizeRuntimeFailure({
@@ -157,35 +134,6 @@ export function failureFromProcessExit(input: {
     userMessage: `${label} failed: ${technicalMessage}`,
     technicalMessage,
   });
-}
-
-function classifyAdapterProcessFailure(
-  adapterId: ProductionAdapterId,
-  diagnostic: string
-): (Pick<RuntimeFailure, "code" | "userMessage"> & Partial<RuntimeFailure>) | undefined {
-  if (adapterId === "openclaw" && isOpenClawInvalidConfig(diagnostic)) {
-    return {
-      code: "adapter_config_invalid",
-      retryable: false,
-      userMessage:
-        "OpenClaw needs a config migration. Run `openclaw doctor --fix`, then retry. Inspect with `openclaw config validate`.",
-    };
-  }
-  return undefined;
-}
-
-// Adapter stderr is unstructured; this is the sanctioned adapter-boundary sniffing site
-// (Phase 6 item 7 exception). Prefer typed RuntimeFailure codes when the adapter can classify.
-function isOpenClawInvalidConfig(diagnostic: string): boolean {
-  const lower = diagnostic.toLowerCase();
-  return (
-    lower.includes("openclaw config is invalid") ||
-    lower.includes("invalid config at") ||
-    lower.includes("legacy config keys detected") ||
-    lower.includes("openclaw doctor --fix") ||
-    lower.includes("openclaw config validate") ||
-    lower.includes("channels.telegram.streaming: invalid config")
-  );
 }
 
 export function failureFromProcessError(input: {
@@ -201,7 +149,7 @@ export function failureFromProcessError(input: {
     adapterId: input.adapterId,
     provider,
     retryable: true,
-    userMessage: `${label} failed: ${diagnostic || `${input.adapterId} ACP process error`}`,
+    userMessage: `${label} failed: ${diagnostic || `${input.adapterId} process error`}`,
     technicalMessage: diagnostic,
   });
 }
@@ -215,19 +163,8 @@ function providerFromDiagnostic(diagnostic: string): string | undefined {
 }
 
 function adapterFailureLabel(adapterId: ProductionAdapterId, provider?: string): string {
-  switch (adapterId) {
-    case "openclaw":
-      return "OpenClaw";
-    case "hermes":
-      return "Hermes";
-    case "pi-mono":
-      return "pi-mono";
-    case "acp":
-      if (provider === "openai") {
-        return "OpenAI";
-      }
-      return "ACP";
-  }
+  if (provider === "openai") return "OpenAI";
+  return adapterId;
 }
 
 function compactWhitespace(text: string): string {

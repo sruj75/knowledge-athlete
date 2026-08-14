@@ -411,7 +411,6 @@ extension RealtimeHubController {
       provider: provider,
       auth: auth,
       instructions: instructions,
-      availableDirectedProviders: registeredDirectedProviderIDs,
       contextPlanID: topLevelContext.planID,
       stableCacheIdentity: topLevelContext.stableCacheIdentity,
       dynamicContextIdentity: topLevelContext.dynamicContextIdentity,
@@ -493,7 +492,6 @@ extension RealtimeHubController {
       } catch {
         return false
       }
-      let registeredProviders = await AgentRuntimeProcess.shared.registeredDirectedProviderIDs()
       guard !Task.isCancelled,
         self.isOwnerScopeCurrent(ownerScope),
         resolvedSnapshot.isResolved
@@ -505,7 +503,6 @@ extension RealtimeHubController {
       self.prefetchedVoiceStableCacheIdentity = resolvedSnapshot.stableCacheIdentity
       self.prefetchedVoiceDynamicContextIdentity = resolvedSnapshot.dynamicContextIdentity
       self.prefetchedVoiceSemanticGuidance = resolvedSnapshot.semanticGuidance
-      self.updateRegisteredDirectedProviders(registeredProviders)
       self.prefetchedVoiceContextTurnIDs = resolvedSnapshot.turnIDs
       self.prefetchedVoiceContextOwnerScope = ownerScope
       self.reconcileWarmSessionForCurrentRequirement()
@@ -526,18 +523,6 @@ extension RealtimeHubController {
   func refreshVoiceContextSnapshot() async -> Bool {
     guard !Task.isCancelled else { return false }
     return await prefetchVoiceContextSnapshotIfNeeded(forceRefresh: true).value
-  }
-
-  func updateRegisteredDirectedProviders(_ providers: [String]) {
-    let normalized = providers.filter { ["hermes", "openclaw"].contains($0) }.sorted()
-    guard registeredDirectedProviderIDs != normalized else { return }
-    registeredDirectedProviderIDs = normalized
-    // Tool schemas are immutable per provider session. This asynchronous
-    // key-down prefetch used to tear down the socket directly, racing a press.
-    // Route it through the same handoff owner and retain any reducer-owned PCM.
-    requestSessionHandoff(
-      reason: .directedProviderSchema,
-      preservingReconnectAudio: reconnectAudioBuffer != nil)
   }
 
   func reconcileWarmSessionForCurrentRequirement() {

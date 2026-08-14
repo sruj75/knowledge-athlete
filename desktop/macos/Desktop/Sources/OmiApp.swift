@@ -306,7 +306,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, @unchecked S
     BundleEnvironment.loadIfNeeded()
 
     DesktopAutomationBridge.shared.startIfNeeded()
-    LocalAgentAPIServer.shared.startIfNeeded()
     publishNamedBundleRuntimeManifest()
 
     runStartupSystemMaintenance()

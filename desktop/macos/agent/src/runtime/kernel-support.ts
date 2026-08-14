@@ -1,10 +1,7 @@
 import { createHash } from "node:crypto";
-import type { RuntimeAdapter } from "../adapters/interface.js";
 import { AdapterRuntimeError } from "./failures.js";
 import { StaleAdapterBindingError } from "./kernel-types.js";
 import type { OutboundMessage, OutboundMessageDraft } from "../protocol.js";
-import { writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
 import type { AgentStore, RunStatus, AttemptStatus, DelegationMode, DelegationStatus, ResumeFidelity, ArtifactRole, RunMode, ArtifactLifecycleState, DesktopCandidateStatus, DesktopAttentionOverride } from "./types.js";
 import type {
   AdapterBinding,
@@ -43,19 +40,6 @@ export function stableHash(value: string | undefined): string {
   return createHash("sha256").update(value ?? "").digest("hex");
 }
 
-const VOLATILE_MCP_ENV_KEYS = new Set([
-  "OMI_BRIDGE_PIPE",
-  "OMI_CONTEXT_FILE",
-  "OMI_REQUEST_ID",
-  "OMI_CLIENT_ID",
-  "OMI_SESSION_ID",
-  "OMI_RUN_ID",
-  "OMI_ATTEMPT_ID",
-  "OMI_ADAPTER_SESSION_ID",
-  "OMI_PROTOCOL_VERSION",
-  "OMI_QUERY_MODE",
-]);
-
 export function stableJsonStringify(value: unknown): string {
   if (value === null || typeof value !== "object") {
     return JSON.stringify(value) ?? "undefined";
@@ -70,44 +54,6 @@ export function stableJsonStringify(value: unknown): string {
     .join(",")}}`;
 }
 
-export function stableMcpServerConfig(value: unknown): unknown {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-  return value.map((server) => {
-    if (!server || typeof server !== "object" || Array.isArray(server)) {
-      return server;
-    }
-    const normalized: Record<string, unknown> = { ...(server as Record<string, unknown>) };
-    if (Array.isArray(normalized.env)) {
-      normalized.env = normalized.env
-        .filter((entry) => {
-          if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
-            return true;
-          }
-          const name = (entry as Record<string, unknown>).name;
-          return typeof name !== "string" || !VOLATILE_MCP_ENV_KEYS.has(name);
-        })
-        .sort((left, right) => {
-          const leftName =
-            left && typeof left === "object" && !Array.isArray(left)
-              ? String((left as Record<string, unknown>).name ?? "")
-              : "";
-          const rightName =
-            right && typeof right === "object" && !Array.isArray(right)
-              ? String((right as Record<string, unknown>).name ?? "")
-              : "";
-          return leftName.localeCompare(rightName);
-        });
-    }
-    return normalized;
-  });
-}
-
-export function stableJsonHash(value: unknown): string {
-  return stableHash(stableJsonStringify(value ?? null));
-}
-
 export function parseJsonObject(value: string | null | undefined): Record<string, unknown> {
   if (!value) return {};
   try {
@@ -118,12 +64,8 @@ export function parseJsonObject(value: string | null | undefined): Record<string
   }
 }
 
-export function bindingMetadata(input: ExecuteAgentRunInput, adapter?: RuntimeAdapter): string {
-  const effectiveMcpServers = adapter?.effectiveMcpServers
-    ? adapter.effectiveMcpServers(input.mcpServers ?? [])
-    : input.mcpServers ?? [];
+export function bindingMetadata(input: ExecuteAgentRunInput): string {
   return JSON.stringify({
-    mcpServersHash: stableJsonHash(stableMcpServerConfig(effectiveMcpServers)),
     systemPromptCacheIdentity: input.systemPromptCacheIdentity ?? null,
     dynamicContextIdentity: input.dynamicContextIdentity ?? null,
     contextPlanId: input.contextPlanId ?? null,
@@ -605,73 +547,6 @@ export function canonicalAdapterEventType(event: OutboundMessageDraft): string |
     default:
       return undefined;
   }
-}
-
-export function refreshMcpAttemptContext(
-  mcpServers: Record<string, unknown>[],
-  context: { capabilityRef: string },
-): void {
-  for (const server of mcpServers) {
-    const env = Array.isArray(server.env) ? server.env : [];
-    const contextFile = env.find((entry) =>
-      entry &&
-      typeof entry === "object" &&
-      !Array.isArray(entry) &&
-      (entry as Record<string, unknown>).name === "OMI_CONTEXT_FILE"
-    );
-    const contextFilePath =
-      contextFile && typeof contextFile === "object" && !Array.isArray(contextFile)
-        ? (contextFile as Record<string, unknown>).value
-        : undefined;
-    if (typeof contextFilePath !== "string" || !contextFilePath.trim()) {
-      continue;
-    }
-    writeFileSync(contextFilePath, JSON.stringify({ capabilityRef: context.capabilityRef }), { encoding: "utf8" });
-  }
-}
-
-export function mcpServersForBinding(
-  mcpServers: Record<string, unknown>[],
-  sessionId: string,
-  adapterId: string,
-  runtimeNodeId: string,
-  workingDirectory?: string,
-): Record<string, unknown>[] {
-  return mcpServers.map((server) => {
-    if (!server || typeof server !== "object" || Array.isArray(server)) {
-      return server;
-    }
-    const normalized: Record<string, unknown> = { ...server };
-    const env = (Array.isArray(normalized.env) ? normalized.env : []).filter((entry) => {
-      if (!entry || typeof entry !== "object" || Array.isArray(entry)) return true;
-      const name = (entry as Record<string, unknown>).name;
-      return typeof name !== "string" || !VOLATILE_MCP_ENV_KEYS.has(name) || name === "OMI_CONTEXT_FILE";
-    });
-    const bindingEnv = upsertEnv(env, "OMI_CONTEXT_FILE", contextFileForBinding(sessionId, adapterId, runtimeNodeId));
-    normalized.env = workingDirectory
-      ? upsertEnv(bindingEnv, "OMI_WORKSPACE", workingDirectory)
-      : bindingEnv;
-    return normalized;
-  });
-}
-
-function upsertEnv(env: unknown[], name: string, value: string): unknown[] {
-  let replaced = false;
-  const next = env.map((entry) => {
-    if (!entry || typeof entry !== "object" || Array.isArray(entry) || (entry as Record<string, unknown>).name !== name) {
-      return entry;
-    }
-    replaced = true;
-    return { ...entry, value };
-  });
-  if (!replaced) {
-    next.push({ name, value });
-  }
-  return next;
-}
-
-function contextFileForBinding(sessionId: string, adapterId: string, runtimeNodeId: string): string {
-  return `${tmpdir()}/omi-tools-context-${process.pid}-${encodeURIComponent(runtimeNodeId)}-${encodeURIComponent(sessionId)}-${encodeURIComponent(adapterId)}.json`;
 }
 
 export const runColumnMap: Record<string, string> = {

@@ -33,9 +33,7 @@ enum DefaultsKey: String {
   /// Legacy/heal backup of the real Firebase uid when an older swap overwrote
   /// `auth_userId` with a synthetic owner.
   case automationOwnerABackup = "automation_swap_owner_a_backup"
-  case chatBridgeMode = "chatBridgeMode"
   case multiChatEnabled = "multiChatEnabled"
-  case aiChatWorkingDirectory = "aiChatWorkingDirectory"
   case hasCompletedOnboarding = "hasCompletedOnboarding"
   case onboardingStep = "onboardingStep"
   case onboardingFurthestStep = "onboardingFurthestStep"

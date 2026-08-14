@@ -108,18 +108,13 @@ actor OnboardingMemoryLogImportService {
       extracted = extractedFixture
     } else {
       do {
-        let result = try await AgentClient.run(
-          surface: .onboarding(),
+        let result = try await ManagedSynthesisClient.run(
           prompt: importPrompt,
-          model: ModelQoS.Claude.synthesis,
           systemPrompt:
-            "You convert memory-log exports into concise durable user memories. Output only valid JSON.",
-          onTextDelta: { @Sendable _ in },
-          onToolCall: { @Sendable _, _, _ in "" },
-          onToolActivity: { @Sendable _, _, _, _ in }
+            "You convert memory-log exports into concise durable user memories. Output only valid JSON."
         )
 
-        let responseText = Self.extractJSONObject(from: result.text)
+        let responseText = Self.extractJSONObject(from: result)
         guard
           let jsonData = responseText.data(using: .utf8),
           let parsed = try JSONSerialization.jsonObject(with: jsonData) as? [String: Any]

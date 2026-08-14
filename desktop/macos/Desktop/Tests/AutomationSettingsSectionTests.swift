@@ -32,9 +32,6 @@ final class AutomationSettingsSectionTests: XCTestCase {
     // Raw-value style
     XCTAssertEqual(Section.automationMatch("plan and usage"), .planUsage)
     XCTAssertEqual(Section.automationMatch("plan-and-usage"), .planUsage)
-    XCTAssertEqual(Section.automationMatch("aichat"), .aiChat)
-    XCTAssertEqual(Section.automationMatch("ai_chat"), .aiChat)
-    XCTAssertEqual(Section.automationMatch("AI Chat"), .aiChat)
     XCTAssertEqual(Section.automationMatch("floating-bar"), .floatingBar)
     XCTAssertEqual(Section.automationMatch("floatingBar"), .floatingBar)
     XCTAssertEqual(Section.automationMatch("FLOATING BAR"), .floatingBar)
@@ -59,9 +56,32 @@ final class AutomationSettingsSectionTests: XCTestCase {
   }
 
   func testUnknownAndEmptyReturnNil() {
+    XCTAssertNil(Section.automationMatch("AI Chat"))
     XCTAssertNil(Section.automationMatch("nonsense-section"))
     XCTAssertNil(Section.automationMatch(""))
     XCTAssertNil(Section.automationMatch("---"))
+  }
+
+  func testAdvancedOwnsTheOnlyAskModeSettingsSurface() throws {
+    let sourceURL = URL(fileURLWithPath: #filePath)
+      .deletingLastPathComponent()
+      .deletingLastPathComponent()
+      .appendingPathComponent(
+        "Sources/MainWindow/Pages/Settings/Sections/SettingsContentView+Advanced.swift")
+    let source = try String(contentsOf: sourceURL, encoding: .utf8)
+    let pageURL = URL(fileURLWithPath: #filePath)
+      .deletingLastPathComponent()
+      .deletingLastPathComponent()
+      .appendingPathComponent("Sources/MainWindow/Pages/SettingsPage.swift")
+    let pageSource = try String(contentsOf: pageURL, encoding: .utf8)
+
+    XCTAssertTrue(source.contains("Advanced AI Setup"))
+    XCTAssertTrue(source.contains("Ask Mode"))
+    XCTAssertTrue(pageSource.contains(#"@AppStorage("askModeEnabled") var askModeEnabled = false"#))
+    XCTAssertFalse(source.contains("AI Provider"))
+    XCTAssertFalse(source.contains("Workspace"))
+    XCTAssertFalse(source.contains("Browser Extension"))
+    XCTAssertFalse(source.contains("Dev Mode"))
   }
 
   func testEveryCaseReachableFromItsCaseName() {

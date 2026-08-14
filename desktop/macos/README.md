@@ -7,7 +7,7 @@ macOS app for OMI — always-on AI companion. Swift/SwiftUI frontend, Python bac
 ```
 Desktop/          Swift/SwiftUI macOS app (SPM package)
 ../../backend/    Python API server (Firestore, Redis, auth, LLM)
-agent/            Agent runtime for multi-provider chat (TypeScript)
+agent/            Managed Pi agent runtime and journal kernel (TypeScript)
 dmg-assets/       DMG installer resources
 ```
 

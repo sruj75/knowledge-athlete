@@ -163,7 +163,7 @@ export class OmiArtifactStorage {
   }
 
   /**
-   * Some ACP providers report a finished local deliverable only in their final
+   * Some model adapters report a finished local deliverable only in their final
    * prose; they do not emit the structured artifact event used by the normal
    * adapter path. Recover that narrow, user-visible case without treating every
    * pathname mentioned in model text as an artifact.
@@ -188,7 +188,7 @@ export class OmiArtifactStorage {
     const lines = finalText.slice(0, MAX_REPORTED_TERMINAL_TEXT_CHARS).split(/\r?\n/);
     for (const [lineIndex, line] of lines.entries()) {
       const desktopCandidates = reportedDesktopFileCandidates(line, this.reportedDesktopRoots);
-      // ACP providers commonly put an explicit "file created" receipt and
+      // Terminal adapters commonly put an explicit "file created" receipt and
       // its absolute path on separate lines (often inside a Markdown code
       // block). Keep the acceptance signal local to that receipt rather than
       // treating an arbitrary managed-workspace pathname as an artifact.

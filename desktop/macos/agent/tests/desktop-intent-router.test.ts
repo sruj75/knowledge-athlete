@@ -10,7 +10,6 @@ import {
 const authority = (overrides: Partial<DesktopIntentRouteAuthority> = {}): DesktopIntentRouteAuthority => ({
   ownerId: "owner-1",
   callerExecutionRole: "coordinator",
-  availableAdapterIds: ["pi-mono", "hermes"],
   nowMs: 10_000,
   ...overrides,
 });
@@ -110,21 +109,6 @@ describe("canonical desktop intent router", () => {
         code: "caller_role_forbidden",
       });
     }
-  });
-
-  it("fails closed when an explicit provider is not registered", () => {
-    const route = new DesktopIntentRouter().route(
-      request({
-        proposal: { intent: "spawn_agent" },
-        syntaxFacts: { explicitProvider: "openclaw" },
-      }),
-      authority({ availableAdapterIds: ["pi-mono"] }),
-    );
-
-    expect(route).toMatchObject({
-      intent: "reject",
-      code: "provider_unavailable",
-    });
   });
 
   it("binds a bounded sibling count into the single spawn decision", () => {

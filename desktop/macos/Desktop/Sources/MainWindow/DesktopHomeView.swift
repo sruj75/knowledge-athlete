@@ -1167,7 +1167,7 @@ struct DesktopHomeView: View {
 
   private var mainContentWithRewindAndMemoryNotifications: some View {
     mainContentWithNavigationNotifications
-      .onReceive(NotificationCenter.default.publisher(for: .navigateToAIChatSettings)) { _ in
+      .onReceive(NotificationCenter.default.publisher(for: .navigateToAdvancedAISettings)) { _ in
         selectedSettingsSection = .advanced
         selectedIndex = SidebarNavItem.settings.rawValue
       }
@@ -1556,8 +1556,7 @@ private struct PageContentView: View {
         SettingsPage(
           appState: appState,
           selectedSection: $selectedSettingsSection,
-          highlightedSettingId: $highlightedSettingId,
-          chatProvider: viewModelContainer.chatProvider
+          highlightedSettingId: $highlightedSettingId
         )
       case 10:
         PermissionsPage(appState: appState)

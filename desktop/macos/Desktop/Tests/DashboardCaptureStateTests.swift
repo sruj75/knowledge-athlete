@@ -235,7 +235,7 @@ final class DashboardCaptureStateTests: XCTestCase {
     let optionHelper = try computedPropertyBody(named: "isConnected", in: groupedSheet)
 
     XCTAssertTrue(rowHelper.contains("status.hasConnection"))
-    XCTAssertTrue(rowHelper.contains("destination.supportsMCP || destination.supportsAgentSetup"))
+    XCTAssertTrue(rowHelper.contains("destination.supportsMCP"))
     XCTAssertTrue(singleSheetHelper.contains("destination.hasLocallyVerifiableLiveSetup"))
     XCTAssertTrue(singleSheetHelper.contains("statuses[destination]?.hasConnection == true"))
     XCTAssertTrue(optionHelper.contains("statuses[destination]?.hasConnection == true"))

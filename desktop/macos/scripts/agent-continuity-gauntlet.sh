@@ -43,7 +43,7 @@
 #   ./scripts/agent-continuity-gauntlet.sh --suite agents        # exact voice-memory authority + agent probes
 #   ./scripts/agent-continuity-gauntlet.sh --suite resilience    # startup/resilience probes (R1-R4)
 #   ./scripts/agent-continuity-gauntlet.sh --suite all           # core + prompt + resilience probes
-#   OMI_AUTOMATION_PORT=47778 ./scripts/agent-continuity-gauntlet.sh --bundle-id com.omi.omi-gauntlet
+#   OMI_AUTOMATION_PORT=48777 ./scripts/agent-continuity-gauntlet.sh --bundle-id com.omi.omi-gauntlet
 #   ./scripts/agent-continuity-gauntlet.sh --turn-timeout-ms 240000
 #
 # Release-candidate manual QA: run --suite resilience first for startup edges,

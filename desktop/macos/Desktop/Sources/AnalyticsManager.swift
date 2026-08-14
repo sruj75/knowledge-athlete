@@ -732,57 +732,6 @@ class AnalyticsManager {
     )
   }
 
-  func providerAuthRequired(
-    sessionAdapterId: String?,
-    harness: String,
-    bridgeMode: String,
-    oauthUrlValid: Bool
-  ) {
-    guard !Self.isDevBuild else { return }
-    var props: [String: Any] = [
-      "harness": boundedAnalyticsIdentifier(harness),
-      "bridge_mode": boundedAnalyticsIdentifier(bridgeMode),
-      "oauth_url_valid": oauthUrlValid,
-    ]
-    if let sessionAdapterId {
-      props["session_adapter_id"] = boundedAnalyticsIdentifier(sessionAdapterId)
-    }
-    PostHogManager.shared.track("provider_auth_required", properties: props)
-  }
-
-  func claudeOAuthBrowserOpened(harness: String, bridgeMode: String) {
-    guard !Self.isDevBuild else { return }
-    PostHogManager.shared.track(
-      "claude_oauth_browser_opened",
-      properties: [
-        "harness": boundedAnalyticsIdentifier(harness),
-        "bridge_mode": boundedAnalyticsIdentifier(bridgeMode),
-      ]
-    )
-  }
-
-  func claudeOAuthCallbackTimeout(harness: String, bridgeMode: String) {
-    guard !Self.isDevBuild else { return }
-    PostHogManager.shared.track(
-      "claude_oauth_callback_timeout",
-      properties: [
-        "harness": boundedAnalyticsIdentifier(harness),
-        "bridge_mode": boundedAnalyticsIdentifier(bridgeMode),
-      ]
-    )
-  }
-
-  func claudeOAuthCallbackReceived(harness: String, bridgeMode: String) {
-    guard !Self.isDevBuild else { return }
-    PostHogManager.shared.track(
-      "claude_oauth_callback_received",
-      properties: [
-        "harness": boundedAnalyticsIdentifier(harness),
-        "bridge_mode": boundedAnalyticsIdentifier(bridgeMode),
-      ]
-    )
-  }
-
   func screenContextToolResult(
     toolName: String,
     context: ScreenContextTelemetryContext,
@@ -845,7 +794,7 @@ class AnalyticsManager {
     String(value.trimmingCharacters(in: .whitespacesAndNewlines).prefix(128))
   }
 
-  /// Track individual tool calls made by the Claude agent.
+  /// Track individual tool calls made by the managed agent.
   ///
   /// Fires for every terminal status, not only success — a failed tool call
   /// previously emitted nothing, so tool reliability was unmeasurable. Filter
@@ -1226,10 +1175,6 @@ class AnalyticsManager {
 
   func tierChanged(tier: Int, reason: String) {
     PostHogManager.shared.tierChanged(tier: tier, reason: reason)
-  }
-
-  func chatBridgeModeChanged(from oldMode: String, to newMode: String) {
-    PostHogManager.shared.chatBridgeModeChanged(from: oldMode, to: newMode)
   }
 
   // MARK: - Floating Bar Events

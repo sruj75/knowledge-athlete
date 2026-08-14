@@ -23,7 +23,7 @@ final class AgentCompletionVoiceDelivery {
   /// completion. Primary conversational surfaces (main_chat, realtime_voice,
   /// task_chat, …) reach a terminal state on every ordinary answer and must
   /// not trigger kernel delta reads.
-  static let triggerSurfaceKinds: Set<String> = ["floating_bar", "service", "workstream"]
+  static let triggerSurfaceKinds: Set<String> = ["floating_bar", "service"]
 
   struct Delta {
     let ids: [String]

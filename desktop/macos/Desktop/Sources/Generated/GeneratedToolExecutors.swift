@@ -20,11 +20,6 @@ enum GeneratedSwiftTool: String, CaseIterable {
   case captureScreen = "capture_screen"
   case checkPermissionStatus = "check_permission_status"
   case requestPermission = "request_permission"
-  case scanFiles = "scan_files"
-  case setUserPreferences = "set_user_preferences"
-  case askFollowup = "ask_followup"
-  case completeOnboarding = "complete_onboarding"
-  case getEmailInsights = "get_email_insights"
   case getTasks = "get_tasks"
   case createCalendarEvent = "create_calendar_event"
   case askHigherModel = "ask_higher_model"
@@ -41,12 +36,10 @@ enum GeneratedSwiftToolExecutor: String {
 
 enum GeneratedToolExecutors {
   static let manifestVersion = 1
-  static let manifestDigest = "sha256:63a4895fd703c99bd01ea56ed74a06c003ffe23d5dd20a18c1499975a7b04e34"
+  static let manifestDigest = "sha256:55fb20fe0c9ed00c4d9f3ce303ca9ee4b976a21c6e5f45f0e1e861ce1f376732"
 
   static let aliasToCanonical: [String: GeneratedSwiftTool] = [
-    "search_screen_history": .semanticSearch,
-    "start_file_scan": .scanFiles,
-    "get_file_scan_results": .scanFiles
+    "search_screen_history": .semanticSearch
   ]
 
   static let executorByTool: [GeneratedSwiftTool: GeneratedSwiftToolExecutor] = [
@@ -68,11 +61,6 @@ enum GeneratedToolExecutors {
     .captureScreen: .chatToolExecutor,
     .checkPermissionStatus: .chatToolExecutor,
     .requestPermission: .chatToolExecutor,
-    .scanFiles: .chatToolExecutor,
-    .setUserPreferences: .chatToolExecutor,
-    .askFollowup: .chatToolExecutor,
-    .completeOnboarding: .chatToolExecutor,
-    .getEmailInsights: .chatToolExecutor,
     .getTasks: .realtimeHub,
     .createCalendarEvent: .chatToolExecutor,
     .askHigherModel: .realtimeHub,
@@ -90,6 +78,7 @@ enum GeneratedToolExecutors {
   }
 
   static func isChatToolExecutorTool(_ name: String) -> Bool {
+    if backendOnboardingToolNames.contains(name) { return true }
     guard let tool = resolve(name) else { return false }
     return executorByTool[tool] == .chatToolExecutor
   }
@@ -102,12 +91,15 @@ enum GeneratedToolExecutors {
       + aliasToCanonical.compactMap { alias, tool in
         executorByTool[tool] == .chatToolExecutor ? alias : nil
       }
+      + Array(backendOnboardingToolNames)
     )
   }
 
   static var realtimeHubToolNames: Set<String> {
     Set(GeneratedToolCapabilities.realtimeToolNames)
   }
+
+  private static let backendOnboardingToolNames: Set<String> = ["scan_files","start_file_scan","get_file_scan_results","set_user_preferences","ask_followup","complete_onboarding","get_email_insights"]
 
   /// Dispatch surface for ChatToolExecutor — chatToolExecutor-bound tools only.
   enum ChatDispatch {
@@ -129,17 +121,27 @@ enum GeneratedToolExecutors {
     case captureScreen
     case checkPermissionStatus
     case requestPermission
+    case createCalendarEvent
+    case getWorkContext
     case scanFiles
     case setUserPreferences
     case askFollowup
     case completeOnboarding
     case getEmailInsights
-    case createCalendarEvent
-    case getWorkContext
     case unhandled
   }
 
   static func chatDispatch(for name: String) -> ChatDispatch {
+    switch name {
+    case "scan_files": return .scanFiles
+    case "start_file_scan": return .scanFiles
+    case "get_file_scan_results": return .scanFiles
+    case "set_user_preferences": return .setUserPreferences
+    case "ask_followup": return .askFollowup
+    case "complete_onboarding": return .completeOnboarding
+    case "get_email_insights": return .getEmailInsights
+    default: break
+    }
     guard let tool = resolve(name), executorByTool[tool] == .chatToolExecutor else {
       return .unhandled
     }
@@ -162,11 +164,6 @@ enum GeneratedToolExecutors {
     case .captureScreen: return .captureScreen
     case .checkPermissionStatus: return .checkPermissionStatus
     case .requestPermission: return .requestPermission
-    case .scanFiles: return .scanFiles
-    case .setUserPreferences: return .setUserPreferences
-    case .askFollowup: return .askFollowup
-    case .completeOnboarding: return .completeOnboarding
-    case .getEmailInsights: return .getEmailInsights
     case .createCalendarEvent: return .createCalendarEvent
     case .getWorkContext: return .getWorkContext
     default: return .unhandled

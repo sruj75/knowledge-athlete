@@ -24,7 +24,7 @@ enum MemoryBankConnector {
     switch destination {
     case .claudeCode, .codex, .openclaw, .hermes:
       return true
-    case .notion, .obsidian, .chatgpt, .claude, .gemini, .agents:
+    case .notion, .obsidian, .chatgpt, .claude, .gemini:
       return false
     }
   }

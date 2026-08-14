@@ -1,75 +1,39 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
-  adapterActivationEnv,
-  adapterActivationError,
   adapterIdForHarnessMode,
-  adapterIsActivated,
-  adapterProfile,
+  managedPiActivationError,
+  managedPiIsActivated,
+  MANAGED_PI_AUTH_ENV,
 } from "../src/runtime/adapter-selection.js";
 
-describe("adapter selection and activation", () => {
-  it("maps harness modes to explicit adapter ids", () => {
-    expect(adapterIdForHarnessMode(undefined)).toBe("acp");
-    expect(adapterIdForHarnessMode("acp")).toBe("acp");
+describe("managed Pi selection and activation", () => {
+  it("accepts only the managed Pi runtime", () => {
+    expect(adapterIdForHarnessMode(undefined)).toBe("pi-mono");
     expect(adapterIdForHarnessMode("piMono")).toBe("pi-mono");
     expect(adapterIdForHarnessMode("pi-mono")).toBe("pi-mono");
-    expect(adapterIdForHarnessMode("hermes")).toBe("hermes");
-    expect(adapterIdForHarnessMode("openclaw")).toBe("openclaw");
-    expect(adapterIdForHarnessMode("openClaw")).toBe("openclaw");
+    for (const retired of ["acp", "hermes", "openclaw", "openClaw"]) {
+      expect(() => adapterIdForHarnessMode(retired)).toThrow(`Unknown harness mode: ${retired}`);
+    }
     expect(() => adapterIdForHarnessMode("unknown")).toThrow("Unknown harness mode: unknown");
   });
 
-  it("keeps activation separate from implementation", () => {
-    expect(adapterActivationEnv("acp")).toBeUndefined();
-    expect(adapterActivationEnv("pi-mono")).toBe("OMI_AUTH_TOKEN");
-    expect(adapterActivationEnv("hermes")).toBe("OMI_HERMES_ADAPTER_COMMAND");
-    expect(adapterActivationEnv("openclaw")).toBe("OMI_OPENCLAW_ADAPTER_COMMAND");
-
-    expect(adapterIsActivated("acp", {})).toBe(true);
-    expect(adapterIsActivated("hermes", {})).toBe(false);
-    expect(adapterIsActivated("hermes", { OMI_HERMES_ADAPTER_COMMAND: "  " })).toBe(false);
-    expect(adapterIsActivated("hermes", { OMI_HERMES_ADAPTER_COMMAND: "hermes-adapter" })).toBe(true);
-    expect(adapterIsActivated("openclaw", { OMI_OPENCLAW_ADAPTER_COMMAND: "openclaw-adapter" })).toBe(true);
+  it("fails explicitly when managed authentication is missing", () => {
+    expect(MANAGED_PI_AUTH_ENV).toBe("OMI_AUTH_TOKEN");
+    expect(managedPiIsActivated("")).toBe(false);
+    expect(managedPiIsActivated("  ")).toBe(false);
+    expect(managedPiIsActivated("managed-token")).toBe(true);
+    expect(managedPiActivationError()).toBe(
+      "Managed Omi authentication is unavailable. Sign in and try again."
+    );
   });
 
-  it("centralizes production adapter profiles and capabilities", () => {
-    expect(adapterProfile("acp")).toMatchObject({
-      adapterId: "acp",
-      activationEnv: undefined,
-      capabilities: { supportsTools: true },
-    });
-    expect(adapterProfile("hermes")).toMatchObject({
-      adapterId: "hermes",
-      activationEnv: "OMI_HERMES_ADAPTER_COMMAND",
-      capabilities: { supportsTools: true },
-    });
-    expect(adapterProfile("openclaw")).toMatchObject({
-      adapterId: "openclaw",
-      activationEnv: "OMI_OPENCLAW_ADAPTER_COMMAND",
-      capabilities: { supportsTools: false, supportsModelSwitching: false },
-    });
-    expect(adapterActivationError("hermes")).toBe(
-      "Hermes is not available. Make sure Hermes is installed first, then try again."
-    );
-    expect(adapterActivationError("hermes")).not.toContain("OMI_HERMES_ADAPTER_COMMAND");
-    expect(adapterActivationError("openclaw")).toBe(
-      "OpenClaw is not available. Make sure OpenClaw is installed first, then try again."
-    );
-    expect(adapterActivationError("openclaw")).not.toContain("OMI_OPENCLAW_ADAPTER_COMMAND");
-  });
-
-  it("source: daemon registers Hermes/OpenClaw explicitly and does not stamp MCP env as ACP", () => {
+  it("source: daemon has no alternate adapter registration or fallback", () => {
     const indexSource = readFileSync(new URL("../src/index.ts", import.meta.url), "utf8");
 
     expect(indexSource).toContain("adapterIdForHarnessMode(defaultHarnessMode)");
-    expect(indexSource).toContain('defaultAdapterId === "acp"');
-    expect(indexSource).toContain("ensureRegisteredAdapter(registry, \"hermes\"");
-    expect(indexSource).toContain("ensureRegisteredAdapter(registry, \"openclaw\"");
-    expect(indexSource).toContain('adapterActivationError("hermes")');
-    expect(indexSource).toContain('adapterActivationError("openclaw")');
-    expect(indexSource).toContain("query.ownerId = queryOwnerId");
-    expect(indexSource).toContain('{ name: "OMI_ADAPTER_ID", value: context?.adapterId ?? "acp" }');
-    expect(indexSource).not.toContain('{ name: "OMI_ADAPTER_ID", value: "acp" }');
+    expect(indexSource).not.toMatch(/register\(["'](?:acp|hermes|openclaw)["']/);
+    expect(indexSource).not.toContain("ensureHermesAdapter");
+    expect(indexSource).not.toContain("ensureOpenClawAdapter");
   });
 });
