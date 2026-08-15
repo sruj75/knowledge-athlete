@@ -334,8 +334,8 @@ Also assert that no Mac thumbs control or cloud rating call is required for oper
 ## Implementation progress — 2026-08-15
 
 Implementation fixed point: `eb73915f96d628670ed854bbe8fe2f8a1cdcc74f`.
-The work is contained in six independently testable local commits and has not
-been pushed or opened as a PR:
+The completed config-independent tracers and their review fixes are recorded in
+the local commit ledger below. Nothing has been pushed or opened as a PR:
 
 | Commit | Completed tracer |
 |---|---|
@@ -345,8 +345,14 @@ been pushed or opened as a PR:
 | `a68cfa7` | Removed normal/floating Chat thumbs, rating mutation/network/analytics, Chat Lab rating aggregates, and the rating-only LangSmith feedback helper while retaining copy/info/timestamp actions and trace callbacks. |
 | `ee8c422` | Removed the complete deployable `backend/charts/monitoring/**` product and its exclusive checks/workflows/scripts/tests/docs while retaining authenticated `/metrics`, useful counters, sanitizer/logging, Cloud Logging, and service-owned charts. |
 | `6c8654d` | Removed the final stale Chat Prompt Lab claim about production ratings, replaced it with the retained local-review boundary, and added the required desktop changelog entry. |
+| `37b925c` | Recorded the first implementation evidence checkpoint and the exact credential/configuration gates that keep S-09 open. |
+| `b5f9ae8` | Removed the deleted Help target from the real `omi-ctl` automation catalog and added coverage through the discovered shell test. |
+| `c9959ba` | Removed stale current operator documentation for the deleted monitoring stack and extended the static deploy/documentation absence contract. |
+| `d1142e4` | Replaced the independently generated agentic Chat UUID with the actual current LangSmith run-tree identity, omitting the correlation field when no trace exists. |
+| `1a145bb` | Scoped retired Sentry metadata filtering to legacy `sentry_feedback` Tasks so arbitrary generic Task metadata remains visible. |
+| `879d554` | Added production-boundary coverage for the one authoritative PTT remote lifecycle event and Git-only Chat Lab history, and removed the last stale ratings comment. |
 
-Observed GREEN evidence before this record:
+Observed GREEN evidence for this config-independent tranche:
 
 - requirements ledger: 714 indexed rows and 714 detailed sections;
 - Cycle 6: 74 focused Swift tests;
@@ -363,6 +369,13 @@ Observed GREEN evidence before this record:
   harness selection passed 534 tests, and a clean external-scratch debug build
   completed successfully in 606.23 seconds;
 - the final Chat Prompt Lab copy change passed its five focused Swift tests;
+- post-review backend verification passed 28 tests covering actual LangSmith
+  run-tree binding/absence and the deleted monitoring operator/deploy surfaces;
+- post-review Swift verification passed 35 tests: all 32
+  `DesktopDiagnosticsManagerTests`, both source-aware generic Task projection
+  tests, and the Git-only Chat Lab history test;
+- `tests/test-omi-ctl-wait-ready.sh` passed the real target-catalog/readiness
+  contract with the deleted Help target absent;
 - desktop test-quality ratchet: 55 source-reading files / 152 sites and 16 waits;
 - `git diff --check` passed after each completed tracer.
 
@@ -421,6 +434,12 @@ Exact open handoffs and gates:
 S-09 therefore remains open. The next implementation resumes at the first
 newly unblocked configuration/identity cycle; it does not repeat the completed
 deletion tranches.
+
+Independent Standards and Spec Compliance review identified stale automation,
+operator-documentation, generic-Task, PTT-remote-boundary, Chat-Lab-history, and
+LangSmith-correlation gaps in the first checkpoint. Each finding above was
+repaired through its production seam and the focused checks were rerun before
+the final review pass.
 
 ## Review and simplify after GREEN
 
