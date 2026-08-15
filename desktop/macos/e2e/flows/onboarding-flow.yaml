@@ -17,6 +17,7 @@ covers:
   - desktop/macos/Desktop/Sources/Onboarding/OnboardingFloatingBarShortcutStepView.swift
   - desktop/macos/Desktop/Sources/Onboarding/OnboardingGoalStepView.swift
   - desktop/macos/Desktop/Sources/Onboarding/OnboardingHowDidYouHearStepView.swift
+  - desktop/macos/Desktop/Sources/Onboarding/OnboardingAcquisitionSourceRecorder.swift
   - desktop/macos/Desktop/Sources/Onboarding/OnboardingLanguageStepView.swift
   - desktop/macos/Desktop/Sources/Onboarding/OnboardingNotificationStepView.swift
   - desktop/macos/Desktop/Sources/Onboarding/OnboardingPermissionStepView.swift

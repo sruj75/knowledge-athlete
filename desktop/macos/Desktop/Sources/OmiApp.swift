@@ -1093,10 +1093,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, @unchecked S
 
   @MainActor @objc private func signOut() {
     AnalyticsManager.shared.menuBarActionClicked(action: "sign_out")
-    ProactiveAssistantsPlugin.shared.stopMonitoring()
-    Task { @MainActor in
-      try? await AuthService.shared.signOut()
-    }
+    ExplicitSignOutAction().perform(from: .menuBar)
   }
 
   @MainActor @objc private func quitApp() {

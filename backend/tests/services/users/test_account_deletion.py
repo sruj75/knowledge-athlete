@@ -73,15 +73,6 @@ def _new_wipe_intent(job_id='job-1'):
     return {'wipe_job_id': job_id, 'dispatch_claimed': True}
 
 
-def test_retained_account_control_allowlist_is_explicit_and_narrow():
-    assert account_deletion.RETAINED_ACCOUNT_CONTROL_DATA_ALLOWLIST == (
-        'account_identity_mapping',
-        'entitlement_and_subscription',
-        'quota_and_usage',
-        'account_deletion_job_state',
-    )
-
-
 def test_start_account_deletion_preserves_order_and_enqueues_background_wipe(monkeypatch):
     calls = []
     monkeypatch.setattr(
@@ -419,6 +410,35 @@ def test_background_wipe_user_data_swallows_failures(monkeypatch):
     # On failure, mark as failed (not completed) so a reconciliation worker can retry.
     account_deletion.users_db.mark_user_deletion_wipe_failed.assert_called_once_with('uid1')
     account_deletion.users_db.mark_user_deletion_wipe_completed.assert_not_called()
+
+
+def test_background_wipe_fails_closed_when_completed_tombstone_cannot_persist(monkeypatch):
+    monkeypatch.setattr(account_deletion.users_db, 'mark_user_deletion_wipe_running', MagicMock())
+    monkeypatch.setattr(account_deletion.users_db, 'get_user_subscription', MagicMock(return_value=None))
+    monkeypatch.setattr(account_deletion.auth, 'delete_account', MagicMock())
+    monkeypatch.setattr(account_deletion, 'delete_user_caller_ids', MagicMock())
+    monkeypatch.setattr(
+        account_deletion,
+        'purge_derived_user_data',
+        MagicMock(return_value={'required_failures': [], 'best_effort_failures': []}),
+    )
+    monkeypatch.setattr(account_deletion.users_db, 'delete_user_data', MagicMock(return_value={'status': 'ok'}))
+    monkeypatch.setattr(
+        account_deletion.users_db,
+        'mark_user_deletion_wipe_completed',
+        MagicMock(side_effect=Exception('completion write unavailable')),
+    )
+    monkeypatch.setattr(account_deletion.users_db, 'mark_user_deletion_wipe_failed', MagicMock())
+    monkeypatch.setattr(account_deletion, '_emit_deletion_telemetry', MagicMock())
+
+    assert account_deletion.background_wipe_user_data('uid1') is False
+
+    account_deletion.users_db.mark_user_deletion_wipe_failed.assert_called_once_with('uid1')
+    account_deletion._emit_deletion_telemetry.assert_called_once_with(
+        'uid1',
+        account_deletion.ACCOUNT_DELETION_WIPE_FAILED,
+        {'failed_operations': ['wipe_completed_marker'], 'retry_count': 0, 'terminal': False},
+    )
 
 
 def test_background_wipe_fails_closed_when_running_marker_persist_fails(monkeypatch):

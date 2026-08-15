@@ -46,16 +46,6 @@ class PurgeResult(TypedDict):
 ACCOUNT_DELETION_WIPE_COMPLETED = 'Account Deletion Wipe Completed'
 ACCOUNT_DELETION_WIPE_FAILED = 'Account Deletion Wipe Failed'
 
-# Downstream Firestore cleanup and server-export work may retain only these
-# account/control categories. Product content, onboarding surveys, credentials,
-# telemetry identifiers, and provider secrets are outside this allowlist.
-RETAINED_ACCOUNT_CONTROL_DATA_ALLOWLIST = (
-    'account_identity_mapping',
-    'entitlement_and_subscription',
-    'quota_and_usage',
-    'account_deletion_job_state',
-)
-
 
 def purge_derived_user_data(uid: str) -> PurgeResult:
     """Purge a user's derived data outside Firestore.
@@ -308,6 +298,20 @@ def background_wipe_user_data(uid: str, retry_count: int = 0, terminal: bool = F
             users_db.mark_user_deletion_wipe_completed(uid)
         except Exception as e:
             logger.error(f'delete_account wipe status persist failed for {uid}: {sanitize(str(e))}')
+            try:
+                users_db.mark_user_deletion_wipe_failed(uid)
+            except Exception as persist_err:
+                logger.error(f'delete_account wipe status persist failed for {uid}: {sanitize(str(persist_err))}')
+            _emit_deletion_telemetry(
+                uid,
+                ACCOUNT_DELETION_WIPE_FAILED,
+                {
+                    'failed_operations': ['wipe_completed_marker'],
+                    'retry_count': max(0, retry_count),
+                    'terminal': terminal,
+                },
+            )
+            return False
         required_failures, best_effort_failures = _purge_failures(purge_result)
         purge_result_dict = purge_result
         _emit_deletion_telemetry(

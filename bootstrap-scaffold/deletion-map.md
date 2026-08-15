@@ -933,10 +933,11 @@ residue with S-05<br>
 **Type:** retained cloud-control adaptation<br>
 **Implementation status:** config-independent Wave 1 repository tranche
 implemented on 2026-08-15; the locked macOS session blocked the final live
-acquisition click, and external/released-contract gates plus later closure remain
+acquisition click, and owned-identity/auth-invariant gates plus later closure remain
 dependency-gated<br>
-**Depends on:** owned Firebase / Apple / Google identity inputs and the applicable
-released-contract decision; S-09 consumes the resulting identity/sign-out seam<br>
+**Depends on:** owned Firebase / Apple / Google identity inputs and restoration or
+deliberate replacement of the missing auth invariant; S-09 consumes the resulting
+identity/sign-out seam<br>
 **Primary decisions:** IR-006, IR-120, IR-124, IR-170 through IR-190, IR-830,
 IR-868, IR-877, IR-878
 
@@ -969,10 +970,19 @@ IR-868, IR-877, IR-878
 - **2026-08-15 repository handoff:** retained auth/session/sign-out suites stayed
   green; acquisition now has one local-plus-analytics owner and no backend write;
   the backend onboarding routes/helpers and deletion survey payload are gone;
-  and the durable deletion worker names its retained cleanup boundary and
-  downstream account/control metadata allowlist. Current provider cleanup,
+  explicit sign-out entry points have a behavioral ordering fence; and the durable
+  deletion worker names its retained cleanup boundary while the downstream
+  account/control metadata allowlist remains a handoff contract for its real
+  consumers. The onboarding transition is a deliberate same-release Mac/backend
+  hard removal (old clients receive 404, no compatibility shell); the bodyless
+  deletion endpoint still accepts and ignores legacy JSON. The regenerated Swift
+  app client is in scope and the Windows client is not. Current provider cleanup,
   queue/service identity, export composition, and identity configuration remain
-  with their named gates rather than being removed or guessed here.
+  with their named gates rather than being removed or guessed here. Focused
+  backend/macOS suites, both route/lifecycle E2E cases, strict desktop flow
+  coverage, generated-contract checks, and the full Swift test-bundle compile
+  passed; broad component runs stopped on unrelated backend timing-ratchet and
+  Memory Atlas suite-timeout debt recorded in the S-08 plan.
 
 ### S-09 — Re-own telemetry, diagnostics, issue reporting, and model tracing
 
