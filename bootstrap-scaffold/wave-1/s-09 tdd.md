@@ -352,6 +352,7 @@ the local commit ledger below. Nothing has been pushed or opened as a PR:
 | `1a145bb` | Scoped retired Sentry metadata filtering to legacy `sentry_feedback` Tasks so arbitrary generic Task metadata remains visible. |
 | `879d554` | Added production-boundary coverage for the one authoritative PTT remote lifecycle event and Git-only Chat Lab history, and removed the last stale ratings comment. |
 | `9e267ef` | Removed the unused callback-level trace-ID input and strengthened the public persona stream test to prove its persisted correlation equals the actual Runnable run ID. |
+| `1abcee6` | Removed the remaining ignored tracer-helper name/metadata inputs; their real values continue through the authoritative Runnable invocation. |
 
 Observed GREEN evidence for this config-independent tranche:
 
