@@ -616,6 +616,42 @@ import XCTest
         contains: ["failure_class": "committed", "turn_disposition": "committed", "telemetry_schema_version": 2])
     }
 
+    @MainActor
+    func testProductionPTTAttemptEmitsOneAuthoritativeRemoteLifecycleEvent() async {
+      var captures: [(name: String, properties: [String: Any])] = []
+      AnalyticsManager.shared.setDesktopHealthTelemetryCaptureForTests { name, properties in
+        captures.append((name, properties))
+      }
+      addTeardownBlock { @MainActor in
+        AnalyticsManager.shared.setDesktopHealthTelemetryCaptureForTests(nil)
+      }
+
+      let recorder = PTTAttemptLifecycleRecorder()
+      recorder.beginAttempt(mode: "hold", hubActive: true, micPermissionGranted: true)
+      recorder.captureStartRequested()
+      recorder.captureStartResolved(outcome: .accepted, statusClass: .ok)
+      recorder.ingestAudioChunk(Data(repeating: 1, count: 640))
+      recorder.terminate(
+        disposition: .committed,
+        source: "hub",
+        peak: 1200,
+        rms: 300,
+        turnAudioSeconds: 2,
+        voicedAudioSeconds: 1.5,
+        isNearZero: false,
+        judgeable: true
+      )
+
+      for _ in 0..<10 where captures.isEmpty {
+        await Task.yield()
+      }
+
+      XCTAssertEqual(captures.map(\.name), ["ptt_audio_capture_lifecycle"])
+      XCTAssertEqual(captures.first?.properties["health_event"] as? String, "ptt_audio_capture_lifecycle")
+      XCTAssertFalse(captures.contains { $0.name == "floating_bar_ptt_started" })
+      XCTAssertFalse(captures.contains { $0.name == "floating_bar_ptt_ended" })
+    }
+
     func testRealtimeMintPhaseBucketedAndCarriesOutcomeAndMintAttemptId() throws {
       DesktopDiagnosticsManager.shared.recordRealtimeTokenMintFailed(
         provider: "openai", reason: "backend_transient", phase: "warm",

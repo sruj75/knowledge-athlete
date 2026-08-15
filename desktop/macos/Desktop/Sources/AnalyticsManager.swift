@@ -20,6 +20,7 @@ class AnalyticsManager {
   /// Swift concurrency.
   private var memoryAssistantTelemetryCaptureForTests: (@MainActor (String, [String: Any]) -> Void)?
   private var devicePairingTelemetryCaptureForTests: (@MainActor (String?, [String: Any], [String: Any]) -> Void)?
+  private var desktopHealthTelemetryCaptureForTests: (@MainActor (String, [String: Any]) -> Void)?
 
   private init() {}
 
@@ -71,6 +72,14 @@ class AnalyticsManager {
     _ capture: (@MainActor (String?, [String: Any], [String: Any]) -> Void)?
   ) {
     devicePairingTelemetryCaptureForTests = capture
+  }
+
+  /// Observe the exact privacy-bounded payload at the shared remote health
+  /// adapter without initializing PostHog in a test bundle.
+  func setDesktopHealthTelemetryCaptureForTests(
+    _ capture: (@MainActor (String, [String: Any]) -> Void)?
+  ) {
+    desktopHealthTelemetryCaptureForTests = capture
   }
 
   // MARK: - Initialization
@@ -891,9 +900,10 @@ class AnalyticsManager {
   }
 
   func desktopHealthEvent(name: String, properties: [String: Any]) {
-    guard !Self.isDevBuild else { return }
     var props = properties
     props["health_event"] = name
+    desktopHealthTelemetryCaptureForTests?(name, props)
+    guard !Self.isDevBuild else { return }
     PostHogManager.shared.track("desktop_health_event", properties: props)
   }
 

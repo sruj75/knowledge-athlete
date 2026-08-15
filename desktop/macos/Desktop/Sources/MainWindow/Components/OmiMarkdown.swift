@@ -68,7 +68,7 @@ struct OmiMarkdown: View {
   }
 }
 
-/// Keeps parent-only UI feedback (copy checkmarks, hover chrome, ratings) from
+/// Keeps parent-only UI feedback (copy checkmarks and hover chrome) from
 /// rebuilding unchanged message content. The selection boundary remains scoped
 /// above this value renderer so those feedback updates do not re-enter it.
 struct OmiMarkdownContent: View, Equatable {

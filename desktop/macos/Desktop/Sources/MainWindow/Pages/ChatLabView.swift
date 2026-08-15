@@ -49,6 +49,8 @@ struct PromptHistoryEntry: Identifiable {
 
 @MainActor
 class ChatLabViewModel: ObservableObject {
+  typealias PromptHistoryLoader = () async -> [PromptHistoryEntry]
+
   @Published var questions: [LabQuestion] = []
   @Published var versions: [LabPromptVersion] = []
   @Published var selectedVersionIndex: Int = 0
@@ -61,6 +63,7 @@ class ChatLabViewModel: ObservableObject {
   @Published var expandedHistoryVersion: Int? = nil
 
   let chatProvider: ChatProvider
+  private let promptHistoryLoader: PromptHistoryLoader?
 
   /// User must provide their own Anthropic API key for ChatLab.
   /// Persisted in UserDefaults so they don't have to re-enter each session.
@@ -72,15 +75,22 @@ class ChatLabViewModel: ObservableObject {
     userApiKey.trimmingCharacters(in: .whitespacesAndNewlines)
   }
 
-  init(chatProvider: ChatProvider) {
+  init(
+    chatProvider: ChatProvider,
+    promptHistoryLoader: PromptHistoryLoader? = nil,
+    automaticallyLoadPromptHistory: Bool = true
+  ) {
     self.chatProvider = chatProvider
+    self.promptHistoryLoader = promptHistoryLoader
     self.userApiKey = UserDefaults.standard.string(forKey: "chatlab_anthropic_api_key") ?? ""
     loadDefaultQuestions()
     loadCurrentPrompt()
     // Load history in background — don't block the UI
-    Task.detached(priority: .background) { [weak self] in
-      guard let self else { return }
-      await self.loadPromptHistory()
+    if automaticallyLoadPromptHistory {
+      Task.detached(priority: .background) { [weak self] in
+        guard let self else { return }
+        await self.loadPromptHistory()
+      }
     }
   }
 
@@ -104,7 +114,11 @@ class ChatLabViewModel: ObservableObject {
   /// Load prompt version history from git without coupling the lab to product ratings.
   func loadPromptHistory() async {
     isLoadingHistory = true
-    promptHistory = await getPromptVersionsFromGit()
+    if let promptHistoryLoader {
+      promptHistory = await promptHistoryLoader()
+    } else {
+      promptHistory = await getPromptVersionsFromGit()
+    }
     isLoadingHistory = false
   }
 
