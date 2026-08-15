@@ -7,7 +7,6 @@ from .fallback import (
 )
 from .langsmith import (
     log_langsmith_status,
-    submit_langsmith_feedback,
     is_langsmith_enabled,
     has_langsmith_api_key,
     get_chat_tracer_callbacks,
@@ -25,7 +24,6 @@ __all__ = [
     "record_fallback",
     "safe_label",
     "log_langsmith_status",
-    "submit_langsmith_feedback",
     "is_langsmith_enabled",
     "has_langsmith_api_key",
     "get_chat_tracer_callbacks",

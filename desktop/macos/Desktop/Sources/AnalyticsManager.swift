@@ -690,11 +690,6 @@ class AnalyticsManager {
     PostHogManager.shared.track("chat_session_deleted", properties: [:])
   }
 
-  func messageRated(rating: Int) {
-    let ratingString = rating == 1 ? "thumbs_up" : "thumbs_down"
-    PostHogManager.shared.track("message_rated", properties: ["rating": ratingString])
-  }
-
   func initialMessageGenerated(hasApp: Bool) {
     PostHogManager.shared.track("initial_message_generated", properties: ["has_app": hasApp])
   }

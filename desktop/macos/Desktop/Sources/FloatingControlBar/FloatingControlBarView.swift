@@ -84,7 +84,6 @@ struct FloatingControlBarView: View {
   var onCloseAI: () -> Void
   var onEscape: () -> Void
   var onClearVisibleConversation: () -> Void
-  var onRate: ((String, Int?) -> Void)?
   var onShareLink: (() async -> String?)?
 
   @State private var isHovering = false
@@ -1542,7 +1541,6 @@ struct FloatingControlBarView: View {
         (window as? FloatingControlBarWindow)?.closeAIConversation()
         AppDelegate.summonWindowTarget()?.openMainAppChat()
       },
-      onRate: onRate,
       onShareLink: onShareLink,
       onOpenAgent: { agentID, completion in
         openAgentInChat(agentID: agentID, completion: completion)

@@ -2,8 +2,7 @@
 LangSmith observability configuration and status logging.
 
 This module provides utilities for checking and logging LangSmith tracing status
-at application startup, creating per-request tracers for scoped tracing,
-and for submitting feedback to LangSmith.
+at application startup and creating per-request tracers for scoped tracing.
 """
 
 import os
@@ -135,50 +134,3 @@ def get_chat_tracer_callbacks(
     except Exception as e:
         logger.error(f"⚠️  Failed to create LangSmith tracer: {e}")
         return []
-
-
-def submit_langsmith_feedback(
-    run_id: str,
-    score: float,
-    key: str = "user_feedback",
-    comment: Optional[str] = None,
-) -> bool:
-    """
-    Submit feedback to LangSmith for a specific run.
-
-    Args:
-        run_id: The LangSmith run ID to attach feedback to
-        score: Feedback score (typically 0.0 for negative, 1.0 for positive)
-        key: Feedback key/category (default: "user_feedback")
-        comment: Optional comment/reason for the feedback
-
-    Returns:
-        True if feedback was successfully submitted, False otherwise
-
-    Note: Feedback submission only requires an API key, not global tracing.
-    The run_id must be from a traced run (e.g., chat requests with per-request tracing).
-    """
-    if not has_langsmith_api_key():
-        logger.warning(f"⚠️  LangSmith feedback skipped: API key not configured")
-        return False
-
-    try:
-        from langsmith import Client
-
-        client = Client()
-
-        # Submit feedback to LangSmith
-        # Note: feedback_source_type defaults to "api" which is valid
-        client.create_feedback(  # type: ignore[reportUnknownMemberType]  # langsmith create_feedback partially typed
-            run_id=run_id,
-            key=key,
-            score=score,
-            comment=comment,
-        )
-
-        logger.info(f"✅ LangSmith feedback submitted: run_id={run_id}, score={score}, key={key}")
-        return True
-
-    except Exception as e:
-        logger.error(f"❌ LangSmith feedback error: {e}")
-        return False

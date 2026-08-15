@@ -59,7 +59,6 @@ struct TaskChatPanel: View {
           isLoadingInitial: false,
           app: nil,
           onLoadMore: {},
-          onRate: { _, _ in },
           localSendToken: taskState.localSendToken,
           welcomeContent: { taskWelcome }
         )

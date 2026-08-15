@@ -34,31 +34,15 @@ struct LabPromptVersion: Identifiable {
   }
 }
 
-/// A historical prompt version with production rating data
+/// A historical prompt version from the repository.
 struct PromptHistoryEntry: Identifiable {
   let id = UUID()
   let version: Int
   let date: String  // "Apr 7"
   let commitMsg: String
   let commitHash: String
-  var thumbsUp: Int = 0
-  var thumbsDown: Int = 0
   var promptSnippet: String = ""  // First ~200 chars of the prompt at that version
   var fullPrompt: String = ""
-
-  /// Satisfaction ratio: likes / (likes + dislikes). 1.0 = perfect, 0.0 = all dislikes.
-  var satisfactionRatio: Double {
-    let total = thumbsUp + thumbsDown
-    guard total > 0 else { return 0 }
-    return Double(thumbsUp) / Double(total)
-  }
-
-  /// Formatted as percentage
-  var satisfactionPct: String {
-    let total = thumbsUp + thumbsDown
-    guard total > 0 else { return "—" }
-    return "\(Int(satisfactionRatio * 100))%"
-  }
 }
 
 // MARK: - View Model
@@ -115,35 +99,12 @@ class ChatLabViewModel: ObservableObject {
     ]
   }
 
-  // MARK: - Production Prompt History
+  // MARK: - Prompt History
 
-  /// Load prompt version history by checking git commits that modified the prompt files,
-  /// then fetch ratings from the Omi backend API and attribute them to each version.
+  /// Load prompt version history from git without coupling the lab to product ratings.
   func loadPromptHistory() async {
     isLoadingHistory = true
-
-    // 1. Get git log of prompt-changing commits
-    let versions = await getPromptVersionsFromGit()
-
-    // 2. Fetch all rated messages from the backend
-    let ratings = await fetchRatingsFromBackend()
-
-    // 3. Attribute ratings to versions by date range
-    var history = versions
-    for i in 0..<history.count {
-      let versionDate = history[i].date
-      let nextDate = i + 1 < history.count ? history[i + 1].date : nil
-
-      for (dateStr, up, down) in ratings {
-        // Check if this rating falls within this version's date range
-        if dateStr >= versionDate && (nextDate == nil || dateStr < nextDate!) {
-          history[i].thumbsUp += up
-          history[i].thumbsDown += down
-        }
-      }
-    }
-
-    promptHistory = history
+    promptHistory = await getPromptVersionsFromGit()
     isLoadingHistory = false
   }
 
@@ -263,44 +224,6 @@ class ChatLabViewModel: ObservableObject {
       return String(data: data, encoding: .utf8) ?? ""
     } catch {
       return ""
-    }
-  }
-
-  /// Fetch rated messages from the Omi backend, return (date, ups, downs) tuples
-  private func fetchRatingsFromBackend() async -> [(String, Int, Int)] {
-    do {
-      let authHeader = try await AuthService.shared.getAuthHeader()
-
-      // Fetch messages with ratings from the last 60 days
-      let baseURL = await APIClient.shared.baseURL
-      let url = URL(string: "\(baseURL)v2/messages?limit=500")!
-      var request = URLRequest(url: url)
-      request.setValue(authHeader, forHTTPHeaderField: "Authorization")
-
-      let (data, _) = try await URLSession.shared.data(for: request)
-      let messages = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] ?? []
-
-      // Group by date
-      var byDate: [String: (up: Int, down: Int)] = [:]
-      let dateFmt = DateFormatter()
-      dateFmt.dateFormat = "yyyy-MM-dd"
-
-      for msg in messages {
-        guard let rating = msg["rating"] as? Int, rating != 0 else { continue }
-        let createdAt = msg["created_at"] as? String ?? ""
-        let dateStr = String(createdAt.prefix(10))
-        guard !dateStr.isEmpty else { continue }
-
-        var entry = byDate[dateStr] ?? (up: 0, down: 0)
-        if rating > 0 { entry.up += 1 } else { entry.down += 1 }
-        byDate[dateStr] = entry
-      }
-
-      return byDate.map { ($0.key, $0.value.up, $0.value.down) }
-        .sorted { $0.0 < $1.0 }
-    } catch {
-      log("ChatLab: Failed to fetch ratings: \(error)")
-      return []
     }
   }
 
@@ -581,7 +504,7 @@ struct ChatLabView: View {
     .background(OmiColors.backgroundPrimary)
   }
 
-  // MARK: - Production Prompt History
+  // MARK: - Prompt History
 
   private var promptHistorySection: some View {
     VStack(alignment: .leading, spacing: OmiSpacing.lg) {
@@ -612,7 +535,7 @@ struct ChatLabView: View {
         HStack {
           Spacer()
           ProgressView()
-          Text("Loading git history & ratings...")
+          Text("Loading git history...")
             .scaledFont(size: OmiType.body)
             .foregroundColor(OmiColors.textTertiary)
           Spacer()
@@ -633,12 +556,6 @@ struct ChatLabView: View {
             .frame(width: 70, alignment: .leading)
           Text("Change")
             .frame(maxWidth: .infinity, alignment: .leading)
-          Text("👍")
-            .frame(width: 40, alignment: .center)
-          Text("👎")
-            .frame(width: 40, alignment: .center)
-          Text("Score")
-            .frame(width: 60, alignment: .center)
         }
         .scaledFont(size: OmiType.caption, weight: .semibold)
         .foregroundColor(OmiColors.textTertiary)
@@ -670,30 +587,6 @@ struct ChatLabView: View {
                   .foregroundColor(OmiColors.textPrimary)
                   .lineLimit(1)
                   .frame(maxWidth: .infinity, alignment: .leading)
-
-                let total = entry.thumbsUp + entry.thumbsDown
-                Text("\(entry.thumbsUp)")
-                  .scaledFont(size: OmiType.body, weight: .medium)
-                  .foregroundColor(.green)
-                  .frame(width: 40, alignment: .center)
-
-                Text("\(entry.thumbsDown)")
-                  .scaledFont(size: OmiType.body, weight: .medium)
-                  .foregroundColor(.red)
-                  .frame(width: 40, alignment: .center)
-
-                // Satisfaction score: single number
-                Group {
-                  if total == 0 {
-                    Text("—")
-                      .foregroundColor(OmiColors.textQuaternary)
-                  } else {
-                    Text(entry.satisfactionPct)
-                      .foregroundColor(satisfactionColor(entry.satisfactionRatio))
-                  }
-                }
-                .scaledFont(size: OmiType.body, weight: .bold)
-                .frame(width: 60, alignment: .center)
 
                 Image(systemName: vm.expandedHistoryVersion == entry.version ? "chevron.up" : "chevron.down")
                   .scaledFont(size: OmiType.micro)
@@ -748,12 +641,6 @@ struct ChatLabView: View {
     let display = DateFormatter()
     display.dateFormat = "MMM d"
     return display.string(from: date)
-  }
-
-  private func satisfactionColor(_ ratio: Double) -> Color {
-    if ratio >= 0.75 { return .green }
-    if ratio >= 0.50 { return .yellow }
-    return .red
   }
 
   // MARK: - Prompt Editor

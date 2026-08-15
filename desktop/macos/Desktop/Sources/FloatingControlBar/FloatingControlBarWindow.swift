@@ -419,7 +419,6 @@ class FloatingControlBarWindow: NSPanel, NSWindowDelegate {
   var onAskAI: (() -> Void)?
   var onHide: (() -> Void)?
   var onSendQuery: ((String) -> Void)?
-  var onRate: ((String, Int?) -> Void)?
   var onShareLink: (() async -> String?)?
 
   override init(
@@ -698,7 +697,6 @@ class FloatingControlBarWindow: NSPanel, NSWindowDelegate {
       onCloseAI: { [weak self] in self?.closeAIConversation() },
       onEscape: { [weak self] in self?.handleEscapeKey() },
       onClearVisibleConversation: { [weak self] in self?.clearVisibleConversationFromUI() },
-      onRate: { [weak self] messageId, rating in self?.onRate?(messageId, rating) },
       onShareLink: { [weak self] in await self?.onShareLink?() }
     ).environmentObject(state)
 
@@ -2820,13 +2818,6 @@ class FloatingControlBarManager {
         await self.withQueryTracer(query: message, fromVoice: false) {
           await self.routeQuery(message, barWindow: barWindow, provider: provider, fromVoice: false)
         }
-      }
-    }
-
-    barWindow.onRate = { [weak chatProvider] messageId, rating in
-      guard let provider = chatProvider else { return }
-      Task { @MainActor in
-        await provider.rateMessage(messageId, rating: rating)
       }
     }
 
