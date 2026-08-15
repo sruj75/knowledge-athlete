@@ -533,16 +533,9 @@ import XCTest
       XCTAssertFalse(prompt.contains("Agent output so far"))
     }
 
-    func testTaskRuntimeKeepsBridgePreferenceSeparateFromAskActRunMode() throws {
-      let routing = try TaskChatRuntime.queryRouting(
-        bridgePreference: "hermes",
-        runMode: "ask",
-        workspacePath: "/tmp/task-runtime"
-      )
+    func testTaskRuntimeQueryRoutingCarriesOnlyAskActRunMode() {
+      let routing = TaskChatRuntime.queryRouting(runMode: "ask")
 
-      XCTAssertEqual(routing.adapterId, AgentRuntimeProcess.adapterId(forHarnessMode: "hermes"))
-      XCTAssertNil(routing.modelProfile)
-      XCTAssertEqual(routing.workingDirectory, "/tmp/task-runtime")
       XCTAssertEqual(routing.runMode, "ask")
     }
 

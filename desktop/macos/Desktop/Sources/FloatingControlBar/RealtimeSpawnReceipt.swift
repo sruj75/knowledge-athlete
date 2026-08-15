@@ -14,7 +14,6 @@ struct RealtimeSpawnJournalReceipt: Equatable {
     let sessionID: String
     let runID: String
     let attemptID: String?
-    let provider: String?
     let title: String
     let objective: String
   }
@@ -80,7 +79,6 @@ struct RealtimeSpawnJournalReceipt: Equatable {
       let attemptID = text(child["attemptId"]),
       text(child["title"]) != nil,
       text(child["objective"]) != nil,
-      let provider = text(child["provider"]),
       let state = text(lifecycle["state"]),
       let attemptState = text(lifecycle["attemptState"]),
       let adapterID = text(lifecycle["adapterId"]),
@@ -93,8 +91,7 @@ struct RealtimeSpawnJournalReceipt: Equatable {
       text(providerChild["attemptState"]) == attemptState,
       text(providerChild["adapterId"]) == adapterID,
       text(providerResult["code"]) != nil,
-      text(providerResult["message"]) != nil,
-      provider == adapterID
+      text(providerResult["message"]) != nil
     else { return nil }
     return child
   }
@@ -115,7 +112,6 @@ struct RealtimeSpawnJournalReceipt: Equatable {
       sessionID: sessionID,
       runID: runID,
       attemptID: text(child["attemptId"]),
-      provider: text(child["provider"]),
       title: text(child["title"]) ?? "Background agent",
       objective: text(child["objective"]) ?? "Background agent")
   }
@@ -128,7 +124,6 @@ struct RealtimeSpawnJournalReceipt: Equatable {
 /// being persisted as successful when no child agent was actually created.
 enum RealtimeSpawnAgentToolOutcome: Equatable {
   case accepted(RealtimeSpawnJournalReceipt)
-  case setupNeeded(AgentPillsManager.DirectedProvider)
   case rejected
 
   static func classify(output: String, expectedContinuityKey: String) -> Self {
@@ -138,17 +133,7 @@ enum RealtimeSpawnAgentToolOutcome: Equatable {
     {
       return .accepted(receipt)
     }
-    guard
-      let data = output.data(using: .utf8),
-      let payload = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-      let error = payload["error"] as? [String: Any],
-      error["code"] as? String == "provider_setup_needed",
-      let rawProvider = error["provider"] as? String,
-      let provider = AgentPillsManager.DirectedProvider(rawValue: rawProvider)
-    else {
-      return .rejected
-    }
-    return .setupNeeded(provider)
+    return .rejected
   }
 }
 
@@ -159,26 +144,15 @@ enum RealtimeSpawnAgentToolOutcome: Equatable {
 /// successful same-turn retry can emit fallback telemetry.
 struct RealtimeSpawnFailureContinuationPolicy {
   private var continuedTurnIDs: Set<UUID> = []
-  private var lastFailedProviderByTurnID: [UUID: String] = [:]
 
   /// Returns true when this turn may stay open after the failure (first spawn
   /// failure of the turn); false when it must terminate (repeat).
-  mutating func beginContinuationIfAllowed(turnID: UUID, failedProvider: String?) -> Bool {
+  mutating func beginContinuationIfAllowed(turnID: UUID) -> Bool {
     if continuedTurnIDs.count > 16 {
       continuedTurnIDs.removeAll()
-      lastFailedProviderByTurnID.removeAll()
     }
     guard !continuedTurnIDs.contains(turnID) else { return false }
     continuedTurnIDs.insert(turnID)
-    if let failedProvider {
-      lastFailedProviderByTurnID[turnID] = failedProvider
-    }
     return true
-  }
-
-  /// Consumes and returns the provider whose spawn failed earlier in this
-  /// turn, if a continuation was granted — the "from" side of a fallback.
-  mutating func takeFailedProvider(turnID: UUID) -> String? {
-    lastFailedProviderByTurnID.removeValue(forKey: turnID)
   }
 }

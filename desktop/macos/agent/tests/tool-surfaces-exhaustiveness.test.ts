@@ -4,11 +4,7 @@ import { existsSync, readFileSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { agentControlCapabilityManifest } from "../src/runtime/control-tool-manifest.js";
-import {
-  mcpToolDefinitionsForAdapter,
-  omiToolManifest,
-  toolsForAdapter,
-} from "../src/runtime/omi-tool-manifest.js";
+import { omiToolManifest, toolsForAdapter } from "../src/runtime/omi-tool-manifest.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const fixturePath = join(__dirname, "fixtures", "tool-manifest.json");
@@ -17,7 +13,6 @@ const generatedOutputPaths = [
   join(__dirname, "../../Desktop/Sources/Generated/GeneratedToolCapabilities.swift"),
   realtimeToolsPath,
   join(__dirname, "../../Desktop/Sources/Generated/GeneratedToolExecutors.swift"),
-  join(__dirname, "../../Desktop/Sources/Generated/OmiToolManifest.generated.swift"),
   fixturePath,
 ];
 const providerTopLevelCompositeSchemaKeys = ["anyOf", "oneOf", "allOf"];
@@ -114,14 +109,6 @@ describe("tool surface exhaustiveness", () => {
     );
   });
 
-  it("registers every nodeTool in the node-tools runtime", () => {
-    const nodeSource = readFileSync(join(__dirname, "../src/omi-tools-stdio.ts"), "utf8");
-    for (const tool of omiToolManifest) {
-      if (tool.executor.kind !== "nodeTool") continue;
-      expect(nodeSource.includes(`"${tool.name}"`)).toBe(true);
-    }
-  });
-
   it("generator check passes on the checked-in manifest snapshot", () => {
     expect(() => runToolSurfaceGenerator(" --check")).not.toThrow();
   });
@@ -144,21 +131,6 @@ describe("tool surface exhaustiveness", () => {
       ...toolsForAdapter("pi-mono").map((tool) => ({
         surface: "pi-mono",
         name: tool.adapters["pi-mono"]?.adapterName ?? tool.name,
-        schema: tool.inputSchema,
-      })),
-      ...mcpToolDefinitionsForAdapter("omi-tools-stdio").map((tool) => ({
-        surface: "mcp",
-        name: tool.name,
-        schema: tool.inputSchema,
-      })),
-      ...mcpToolDefinitionsForAdapter("omi-tools-stdio", { onboarding: true }).map((tool) => ({
-        surface: "mcp:onboarding",
-        name: tool.name,
-        schema: tool.inputSchema,
-      })),
-      ...mcpToolDefinitionsForAdapter("omi-tools-stdio", { screenContext: true }).map((tool) => ({
-        surface: "mcp:screenContext",
-        name: tool.name,
         schema: tool.inputSchema,
       })),
       ...generatedRealtimeToolDefinitions().map((tool) => ({

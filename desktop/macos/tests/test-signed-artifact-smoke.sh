@@ -143,11 +143,9 @@ make_signed_smoke_fixture() {
   mkdir -p \
     "$app/Contents/MacOS" \
     "$app/Contents/Frameworks/Sparkle.framework" \
+    "$app/Contents/Resources/agent/dist" \
+    "$app/Contents/Resources/agent/node_modules/@earendil-works/pi-coding-agent/dist" \
     "$app/Contents/Resources/agent/src/runtime" \
-    "$app/Contents/Resources/agent/node_modules/@img/sharp-darwin-arm64/lib" \
-    "$app/Contents/Resources/agent/node_modules/@img/sharp-darwin-x64/lib" \
-    "$app/Contents/Resources/agent/node_modules/@img/sharp-libvips-darwin-arm64/lib" \
-    "$app/Contents/Resources/agent/node_modules/@img/sharp-libvips-darwin-x64/lib" \
     "$app/Contents/Resources/pi-mono-extension" \
     "$app/Contents/Resources/Omi Computer_Omi Computer.bundle"
   cat > "$app/Contents/Info.plist" <<PLIST
@@ -173,11 +171,10 @@ ENV
   printf '#!/usr/bin/env bash\nexit 0\n' > "$app/Contents/Resources/Omi Computer_Omi Computer.bundle/node"
   chmod +x "$app/Contents/MacOS/Omi Computer" "$app/Contents/Resources/Omi Computer_Omi Computer.bundle/node"
   touch \
-    "$app/Contents/Resources/agent/src/runtime/omi-tool-manifest.ts" \
-    "$app/Contents/Resources/agent/node_modules/@img/sharp-darwin-arm64/lib/sharp-darwin-arm64.node" \
-    "$app/Contents/Resources/agent/node_modules/@img/sharp-darwin-x64/lib/sharp-darwin-x64.node" \
-    "$app/Contents/Resources/agent/node_modules/@img/sharp-libvips-darwin-arm64/lib/libvips-cpp.42.dylib" \
-    "$app/Contents/Resources/agent/node_modules/@img/sharp-libvips-darwin-x64/lib/libvips-cpp.42.dylib"
+    "$app/Contents/Resources/agent/dist/index.js" \
+    "$app/Contents/Resources/agent/node_modules/@earendil-works/pi-coding-agent/dist/cli.js" \
+    "$app/Contents/Resources/pi-mono-extension/index.ts" \
+    "$app/Contents/Resources/agent/src/runtime/omi-tool-manifest.ts"
 }
 
 mock_bin="$tmp_root/mock-bin"
@@ -221,7 +218,7 @@ exit 0
 SH
 cat > "$mock_bin/strings" <<'SH'
 #!/usr/bin/env bash
-printf 'LocalAgentAPIServer\nRewindDatabase\n'
+printf 'RewindDatabase\n'
 SH
 chmod +x "$mock_bin"/*
 
@@ -243,6 +240,18 @@ make_signed_smoke_fixture "$renamed_beta_app" \
   'https://api.omi.me/v2/desktop/appcast.xml?identity=beta'
 dummy_dmg="$tmp_root/fixture.dmg"
 touch "$dummy_dmg"
+
+mkdir -p "$canonical_dmg_app/Contents/Resources/agent/dist/adapters"
+touch "$canonical_dmg_app/Contents/Resources/agent/dist/adapters/acp.js"
+if PATH="$mock_bin:$PATH" \
+  "$SMOKE" --app "$canonical_dmg_app" --tag v0.12.34+12034-macos \
+  >/tmp/omi-smoke-retired-runtime.out 2>/tmp/omi-smoke-retired-runtime.err; then
+  fail "signed smoke must reject retired agent runtime assets"
+fi
+grep -q "retired agent runtime asset present" /tmp/omi-smoke-retired-runtime.err \
+  || fail "retired runtime rejection should identify the package boundary"
+rm "$canonical_dmg_app/Contents/Resources/agent/dist/adapters/acp.js"
+rmdir "$canonical_dmg_app/Contents/Resources/agent/dist/adapters"
 
 PATH="$mock_bin:$PATH" OMI_TEST_DMG_APP_SOURCE="$canonical_dmg_app" \
   "$SMOKE" --app "$canonical_dmg_app" --dmg "$dummy_dmg" \

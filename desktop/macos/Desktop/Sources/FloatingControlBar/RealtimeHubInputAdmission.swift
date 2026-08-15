@@ -109,7 +109,6 @@ enum RealtimePTTAdmissionPolicy {
 /// turn from independently deciding to tear down the physical session.
 enum RealtimeHubSessionHandoffReason: String, Equatable {
   case voiceContextFreshness = "voice_context_freshness"
-  case directedProviderSchema = "directed_provider_schema"
   case persistedVoiceContext = "voice_context_changed"
   case cancelledTurnContinuity = "cancelled_turn_continuity"
   case providerSettings = "provider_settings"

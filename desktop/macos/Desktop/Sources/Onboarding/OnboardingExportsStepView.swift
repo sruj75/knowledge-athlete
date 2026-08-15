@@ -83,7 +83,6 @@ struct OnboardingExportsStepView: View {
       OnboardingExportEntry(destination: .claude),
       OnboardingExportEntry(destination: .codex),
       OnboardingExportEntry(destination: .gemini),
-      OnboardingExportEntry(destination: .agents),
     ]
   }
 
@@ -198,9 +197,6 @@ struct OnboardingExportsStepView: View {
     }
     if destination == .notion {
       return "Copy-ready page"
-    }
-    if destination.supportsAgentSetup {
-      return status.isConfigured ? "Agent prompt ready" : "Connect an agent"
     }
     return "Prompt + memory pack"
   }

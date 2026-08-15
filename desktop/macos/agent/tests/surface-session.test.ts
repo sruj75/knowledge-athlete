@@ -38,7 +38,7 @@ describe("surface_conversations", () => {
           externalRefKind: "chat",
           externalRefId: "default",
         },
-        defaultAdapterId: "acp",
+        defaultAdapterId: "test-adapter",
       },
       () => 1,
     );
@@ -51,7 +51,7 @@ describe("surface_conversations", () => {
           externalRefKind: "chat",
           externalRefId: "default",
         },
-        defaultAdapterId: "acp",
+        defaultAdapterId: "test-adapter",
       },
       () => 2,
     );
@@ -70,7 +70,7 @@ describe("surface_conversations", () => {
     const created = resolveSurfaceSession(store, {
       ownerId: "owner-a",
       surfaceRef,
-      defaultAdapterId: "acp",
+      defaultAdapterId: "test-adapter",
       modelProfile: "created-model",
       defaultCwd: "/tmp/created",
     }, () => 1);
@@ -88,7 +88,7 @@ describe("surface_conversations", () => {
        FROM session_execution_profiles WHERE session_id = ? AND generation = 1`,
       [created.agentSessionId],
     )).toEqual({
-      adapter_id: "acp",
+      adapter_id: "test-adapter",
       model_profile: "created-model",
       working_directory: "/tmp/created",
     });
@@ -127,7 +127,7 @@ describe("surface_conversations", () => {
     const voice = resolveSurfaceSession(store, {
       ownerId: "owner-a",
       surfaceRef: { surfaceKind: "realtime_voice", externalRefKind: "chat", externalRefId: "default" },
-      defaultAdapterId: "acp",
+      defaultAdapterId: "test-adapter",
     }, () => 1);
     const main = resolveSurfaceSession(store, {
       ownerId: "owner-a",
@@ -202,7 +202,7 @@ describe("surface_conversations", () => {
       surfaceKind: "main_chat",
       externalRefKind: "chat",
       externalRefId: "default",
-      defaultAdapterId: "acp",
+      defaultAdapterId: "test-adapter",
     });
 
     const resolved = resolveSurfaceSession(
@@ -229,7 +229,7 @@ describe("surface_conversations", () => {
       surfaceKind: "main_chat",
       externalRefKind: "chat",
       externalRefId: "default",
-      defaultAdapterId: "acp",
+      defaultAdapterId: "test-adapter",
     });
 
     const imported = importLegacyMainChatSessions(
@@ -311,7 +311,7 @@ describe("surface_conversations", () => {
     expect(store.allRows("SELECT * FROM sessions")).toEqual([]);
   });
 
-  it("does not rewrite an imported session profile during surface resolution", () => {
+  it("canonicalizes an imported session onto the managed Pi profile", () => {
     importLegacyMainChatSessions(
       store,
       {
@@ -340,8 +340,8 @@ describe("surface_conversations", () => {
       "SELECT default_adapter_id, provider_boundary FROM sessions WHERE session_id = ?",
       [resolved.agentSessionId],
     );
-    expect(String(session.default_adapter_id)).toBe("acp");
-    expect(String(session.provider_boundary)).toBe("local_user:acp");
+    expect(String(session.default_adapter_id)).toBe("pi-mono");
+    expect(String(session.provider_boundary)).toBe("managed_cloud");
   });
 
   it("does not rewrite a main-chat provider boundary after execution starts", () => {
@@ -354,7 +354,7 @@ describe("surface_conversations", () => {
           externalRefKind: "chat",
           externalRefId: "default",
         },
-        defaultAdapterId: "acp",
+        defaultAdapterId: "test-adapter",
       },
       () => 1,
     );
@@ -385,8 +385,8 @@ describe("surface_conversations", () => {
       "SELECT default_adapter_id, provider_boundary FROM sessions WHERE session_id = ?",
       [resolved.agentSessionId],
     );
-    expect(String(session.default_adapter_id)).toBe("acp");
-    expect(String(session.provider_boundary)).toBe("local_user:acp");
+    expect(String(session.default_adapter_id)).toBe("test-adapter");
+    expect(String(session.provider_boundary)).toBe("local_user:test-adapter");
   });
 
   it("imports legacy sessions with distinct conversationId from agentSessionId", () => {
@@ -430,11 +430,11 @@ describe("surface_conversations", () => {
         externalRefKind: "service",
         externalRefId: "gmail_reader",
       },
-      defaultAdapterId: "acp",
+      defaultAdapterId: "test-adapter",
     });
     store.insertAdapterBinding({
       sessionId: resolved.agentSessionId,
-      adapterId: "acp",
+      adapterId: "test-adapter",
       bindingGeneration: 1,
       resumeFidelity: "native",
       status: "active",

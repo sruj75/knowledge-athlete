@@ -37,30 +37,6 @@ final class RealtimeHubReconnectContractTests: XCTestCase {
         liveSessionID: live))
   }
 
-  func testDirectedProviderSchemaRefreshPreservesCurrentPTTReconnectInput() {
-    XCTAssertEqual(
-      RealtimeHubSchemaRefreshPolicy.plan(
-        currentDirectedProviderIDs: ["hermes"],
-        nextDirectedProviderIDs: ["hermes", "openclaw"],
-        hasLiveSession: true,
-        hasPendingReconnectInput: true),
-      .replaceSession(preservingReconnectInput: true))
-    XCTAssertEqual(
-      RealtimeHubSchemaRefreshPolicy.plan(
-        currentDirectedProviderIDs: ["hermes"],
-        nextDirectedProviderIDs: ["hermes", "openclaw"],
-        hasLiveSession: true,
-        hasPendingReconnectInput: false),
-      .replaceSession(preservingReconnectInput: false))
-    XCTAssertEqual(
-      RealtimeHubSchemaRefreshPolicy.plan(
-        currentDirectedProviderIDs: ["hermes"],
-        nextDirectedProviderIDs: ["hermes"],
-        hasLiveSession: true,
-        hasPendingReconnectInput: true),
-      .keepCurrentSession)
-  }
-
   func testSuccessfulReconnectCompletesOnceAndFencesLateOldSession() {
     let turnID = VoiceTurnID()
     let oldSessionID = VoiceSessionID()

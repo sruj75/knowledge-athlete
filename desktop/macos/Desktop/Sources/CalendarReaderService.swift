@@ -324,18 +324,13 @@ actor CalendarReaderService {
           throw NSError(
             domain: "Synthesis", code: -1, userInfo: [NSLocalizedDescriptionKey: "forced synthesis failure"])
         }
-        let result = try await AgentClient.run(
-          surface: .service("calendar_reader"),
+        let result = try await ManagedSynthesisClient.run(
           prompt: synthesisPrompt,
-          model: ModelQoS.Claude.synthesis,
           systemPrompt:
-            "You are a profile extraction assistant. Analyze calendar events and output structured JSON. Be concise and factual.",
-          onTextDelta: { @Sendable _ in },
-          onToolCall: { @Sendable _, _, _ in return "" },
-          onToolActivity: { @Sendable _, _, _, _ in }
+            "You are a profile extraction assistant. Analyze calendar events and output structured JSON. Be concise and factual."
         )
 
-        var responseText = result.text
+        var responseText = result
         log(
           "CalendarReaderService: Synthesis raw response (\(responseText.count) chars): \(responseText.prefix(300))"
         )

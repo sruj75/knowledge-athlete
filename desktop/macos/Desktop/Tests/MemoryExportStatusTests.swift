@@ -111,7 +111,6 @@ final class MemoryExportStatusTests: XCTestCase {
     XCTAssertTrue(MemoryExportDestination.claudeCode.hasLocallyVerifiableLiveSetup)
     XCTAssertTrue(MemoryExportDestination.openclaw.hasLocallyVerifiableLiveSetup)
     XCTAssertTrue(MemoryExportDestination.hermes.hasLocallyVerifiableLiveSetup)
-    XCTAssertTrue(MemoryExportDestination.agents.hasLocallyVerifiableLiveSetup)
   }
 
   func testExistingCodexMCPConfigMarksCodexConnected() async throws {
@@ -326,18 +325,6 @@ final class MemoryExportStatusTests: XCTestCase {
     XCTAssertTrue(status.hasConnection)
   }
 
-  func testMCPKeyOwnedByDifferentUserDoesNotConfigureAgentPrompt() async {
-    UserDefaults.standard.set("user-a", forKey: "auth_userId")
-    UserDefaults.standard.set("test-key", forKey: "memoryExportMCPApiKey")
-    UserDefaults.standard.set("user-b", forKey: "memoryExportMCPApiKeyOwnerUserId")
-    UserDefaults.standard.set(true, forKey: "localAgentAPIEnabled")
-    UserDefaults.standard.set("local-token", forKey: "localAgentAPIToken")
-
-    let status = await MemoryExportService.shared.status(for: .agents)
-
-    XCTAssertFalse(status.isConfigured)
-  }
-
   func testConfigDetectorReflectsFileChanges() async throws {
     storeOwnedMCPKey()
     let codex = tempHome.appendingPathComponent(".codex", isDirectory: true)
@@ -366,9 +353,6 @@ final class MemoryExportStatusTests: XCTestCase {
     defaults.removeObject(forKey: "memoryExportMCPApiKey")
     defaults.removeObject(forKey: "memoryExportMCPApiKeyOwnerUserId")
     defaults.removeObject(forKey: "memoryExportMCPApiKeyCreatedAt")
-    defaults.removeObject(forKey: "localAgentAPIEnabled")
-    defaults.removeObject(forKey: "localAgentAPIToken")
-
     for destination in MemoryExportDestination.allCases {
       defaults.removeObject(forKey: "memoryExportExportedCount.\(destination.rawValue)")
       defaults.removeObject(forKey: "memoryExportLastExportedAt.\(destination.rawValue)")

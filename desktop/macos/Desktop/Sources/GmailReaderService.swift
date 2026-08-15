@@ -254,18 +254,13 @@ actor GmailReaderService {
           throw NSError(
             domain: "Synthesis", code: -1, userInfo: [NSLocalizedDescriptionKey: "forced synthesis failure"])
         }
-        let result = try await AgentClient.run(
-          surface: .service("gmail_reader"),
+        let result = try await ManagedSynthesisClient.run(
           prompt: synthesisPrompt,
-          model: ModelQoS.Claude.synthesis,
           systemPrompt:
-            "You are a profile extraction assistant. Output ONLY valid JSON. No markdown, no code fences, no explanation.",
-          onTextDelta: { @Sendable _ in },
-          onToolCall: { @Sendable _, _, _ in return "" },
-          onToolActivity: { @Sendable _, _, _, _ in }
+            "You are a profile extraction assistant. Output ONLY valid JSON. No markdown, no code fences, no explanation."
         )
 
-        var responseText = result.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        var responseText = result.trimmingCharacters(in: .whitespacesAndNewlines)
         log("GmailReaderService: Synthesis response length: \(responseText.count) chars")
 
         // Strip markdown code fences if present (```json ... ``` or ``` ... ```)

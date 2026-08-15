@@ -38,13 +38,20 @@ final class DesktopAutomationSecondaryActionTests: XCTestCase {
       "rewind_settings_snapshot",
       "navigate_via_shortcut",
       "advanced_settings_snapshot",
-      "settings_aichat_snapshot",
       "assign_speaker_fixture",
     ] {
       XCTAssertTrue(
         source.contains("name: \"\(action)\""),
         "expected bridge action \(action) to be registered"
       )
+    }
+  }
+
+  func testAdvancedSnapshotIncludesAskModeWithoutRetiredRoutingControls() throws {
+    let body = try actionBody(named: "advanced_settings_snapshot", in: try bridgeSource())
+    XCTAssertTrue(body.contains("ask_mode_enabled"))
+    for retired in ["provider", "model", "workspace", "browser", "dev_mode"] {
+      XCTAssertFalse(body.contains("\"\(retired)\""))
     }
   }
 
@@ -328,16 +335,6 @@ final class DesktopAutomationSecondaryActionTests: XCTestCase {
         "expected MemoriesViewModel to register \(action)"
       )
     }
-  }
-
-  func testAiChatSectionAllowedOnNonProduction() throws {
-    let url = URL(fileURLWithPath: #filePath)
-      .deletingLastPathComponent()
-      .deletingLastPathComponent()
-      .appendingPathComponent("Sources/MainWindow/Pages/SettingsPage.swift")
-    let source = try String(contentsOf: url, encoding: .utf8)
-    XCTAssertTrue(source.contains("AppBuild.isProductionBundle && selectedSection == .aiChat"))
-    XCTAssertTrue(source.contains("AppBuild.isProductionBundle && newValue == .aiChat"))
   }
 
   func testSignOutRequiresLocalAuthProfile() throws {

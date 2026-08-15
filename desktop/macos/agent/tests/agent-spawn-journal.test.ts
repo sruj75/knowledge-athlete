@@ -59,7 +59,7 @@ describe("realtime spawn semantic receipt", () => {
           state: "queued",
           attemptState: "queued",
           revision: 100,
-          adapterId: "hermes",
+          adapterId: "test-adapter",
           updatedAtMs: 100,
         },
       },
@@ -93,7 +93,7 @@ describe("realtime spawn semantic receipt", () => {
         externalRefId: "voice-turn-1",
       },
       continuityKey: "realtime_spawn:voice-turn-1",
-      assistantText: "OpenClaw and the subagent both finished.",
+      assistantText: "primary agent and the subagent both finished.",
     } as const;
 
     for (const lifecycle of [
@@ -117,7 +117,7 @@ describe("realtime spawn semantic receipt", () => {
       attemptState: "failed",
       updatedAtMs: 300,
       errorCode: "adapter_not_registered",
-      errorMessage: "Hermes is not configured for this profile",
+      errorMessage: "test adapter is not configured for this profile",
     }), producerDescriptor("10000000-0000-0000-0000-000000000003")));
 
     expect(compact).toMatchObject({
@@ -130,7 +130,7 @@ describe("realtime spawn semantic receipt", () => {
           state: "failed",
           error: {
             code: "adapter_not_registered",
-            message: "Hermes is not configured for this profile",
+            message: "test adapter is not configured for this profile",
           },
         },
       },
@@ -185,11 +185,11 @@ describe("durable agent-spawn producer journal", () => {
   it("repairs accepted and terminal floating spawns across restart byte-idempotently", async () => {
     const root = newRoot();
     const databasePath = join(root, "agent.sqlite");
-    let { store, kernel } = createKernelHarness(databasePath, "acp");
+    let { store, kernel } = createKernelHarness(databasePath, "test-adapter");
     const parent = resolveSurfaceSession(store, {
       ownerId: "owner",
       surfaceRef: { surfaceKind: "main_chat", externalRefKind: "chat", externalRefId: "default" },
-      defaultAdapterId: "acp",
+      defaultAdapterId: "test-adapter",
     }, () => 1);
     const pillId = "44d4ddf1-df81-4a29-8a2d-16fdb68f9163";
     const descriptor = producerDescriptor(pillId);
@@ -208,7 +208,7 @@ describe("durable agent-spawn producer journal", () => {
     });
     expect(accepted.attempt).toMatchObject({
       runId: accepted.run.runId,
-      adapterId: "acp",
+      adapterId: "test-adapter",
       status: expect.stringMatching(/^(queued|starting|running|succeeded)$/),
     });
     await waitUntil(() => String(store.getRow(
@@ -291,18 +291,18 @@ describe("durable agent-spawn producer journal", () => {
 
   it("does not write an acknowledgement when spawn authorization is rejected", async () => {
     const root = newRoot();
-    const { store, kernel } = createKernelHarness(join(root, "rejected.sqlite"), "acp");
+    const { store, kernel } = createKernelHarness(join(root, "rejected.sqlite"), "test-adapter");
     resolveSurfaceSession(store, {
       ownerId: "owner",
       surfaceRef: { surfaceKind: "main_chat", externalRefKind: "chat", externalRefId: "default" },
-      defaultAdapterId: "acp",
+      defaultAdapterId: "test-adapter",
     }, () => 1);
     const leaf = store.insertSession({
       ownerId: "owner",
       surfaceKind: "delegated_agent",
       externalRefKind: "agent",
       externalRefId: "leaf",
-      defaultAdapterId: "acp",
+      defaultAdapterId: "test-adapter",
       executionRole: "leaf",
     });
     await expect(kernel.spawnBackgroundAgent({
@@ -323,7 +323,7 @@ describe("durable agent-spawn producer journal", () => {
 
   it("persists the canonical realtime admission acknowledgement through terminal repair", async () => {
     const root = newRoot();
-    const { store, kernel } = createKernelHarness(join(root, "realtime-admission.sqlite"), "acp");
+    const { store, kernel } = createKernelHarness(join(root, "realtime-admission.sqlite"), "test-adapter");
     const parent = resolveSurfaceSession(store, {
       ownerId: "owner",
       surfaceRef: {
@@ -331,7 +331,7 @@ describe("durable agent-spawn producer journal", () => {
         externalRefKind: "voice_turn",
         externalRefId: "voice-turn-1",
       },
-      defaultAdapterId: "acp",
+      defaultAdapterId: "test-adapter",
     }, () => 1);
     const pillId = "10000000-0000-0000-0000-00000000000b";
     const descriptor = {
@@ -379,7 +379,7 @@ describe("durable agent-spawn producer journal", () => {
 
   it("promotes an optimistic streaming row to the canonical spawn exchange", async () => {
     const root = newRoot();
-    const { store, kernel } = createKernelHarness(join(root, "streaming-promote.sqlite"), "acp");
+    const { store, kernel } = createKernelHarness(join(root, "streaming-promote.sqlite"), "test-adapter");
     const parent = resolveSurfaceSession(store, {
       ownerId: "owner",
       surfaceRef: {
@@ -387,7 +387,7 @@ describe("durable agent-spawn producer journal", () => {
         externalRefKind: "voice_turn",
         externalRefId: "voice-turn-stream",
       },
-      defaultAdapterId: "acp",
+      defaultAdapterId: "test-adapter",
     }, () => 1);
     const pillId = "10000000-0000-0000-0000-00000000000c";
     const descriptor = {
@@ -466,19 +466,19 @@ describe("durable agent-spawn producer journal", () => {
 
   it("rejects trusted direct producerTurnId metadata before accepting a child run", async () => {
     const root = newRoot();
-    const { store, kernel } = createKernelHarness(join(root, "direct-producer-turn.sqlite"), "acp");
+    const { store, kernel } = createKernelHarness(join(root, "direct-producer-turn.sqlite"), "test-adapter");
     const caller = resolveSurfaceSession(store, {
       ownerId: "owner",
       surfaceRef: { surfaceKind: "main_chat", externalRefKind: "chat", externalRefId: "default" },
-      defaultAdapterId: "acp",
+      defaultAdapterId: "test-adapter",
     }, () => 1);
     const pillId = "897e3ef1-9dbb-41ca-9ac8-8ec52112f387";
     const rejected = JSON.parse(await handleAgentControlToolCall({
       kernel,
       callerSessionId: caller.agentSessionId,
       executionRole: "coordinator",
-      providerBoundary: "local_user:acp",
-      defaultAdapterId: "acp",
+      providerBoundary: "local_user:test-adapter",
+      defaultAdapterId: "test-adapter",
       trustedUserControl: true,
       getOwnerId: () => "owner",
     }, "spawn_agent", {
@@ -503,16 +503,16 @@ describe("durable agent-spawn producer journal", () => {
 
   it("strips model-supplied producer metadata instead of forging another owner-bound chat", async () => {
     const root = newRoot();
-    const { store, adapter, kernel } = createKernelHarness(join(root, "forgery.sqlite"), "acp");
+    const { store, adapter, kernel } = createKernelHarness(join(root, "forgery.sqlite"), "test-adapter");
     const caller = resolveSurfaceSession(store, {
       ownerId: "owner",
       surfaceRef: { surfaceKind: "main_chat", externalRefKind: "chat", externalRefId: "caller" },
-      defaultAdapterId: "acp",
+      defaultAdapterId: "test-adapter",
     }, () => 1);
     const victim = resolveSurfaceSession(store, {
       ownerId: "owner",
       surfaceRef: { surfaceKind: "main_chat", externalRefKind: "chat", externalRefId: "victim" },
-      defaultAdapterId: "acp",
+      defaultAdapterId: "test-adapter",
     }, () => 2);
     const pillId = "a7561e72-9f8c-4130-90a3-884c33f8c967";
     const forged = {
@@ -525,8 +525,8 @@ describe("durable agent-spawn producer journal", () => {
       kernel,
       callerSessionId: caller.agentSessionId,
       executionRole: "coordinator",
-      providerBoundary: "local_user:acp",
-      defaultAdapterId: "acp",
+      providerBoundary: "local_user:test-adapter",
+      defaultAdapterId: "test-adapter",
       getOwnerId: () => "owner",
     }, "spawn_agent", {
       objective: "Legitimate objective",
@@ -550,11 +550,11 @@ describe("durable agent-spawn producer journal", () => {
 
   it("inherits the exact floating producer snapshot for a trusted direct spawn", async () => {
     const root = newRoot();
-    const { store, adapter, kernel } = createKernelHarness(join(root, "direct-floating.sqlite"), "acp");
+    const { store, adapter, kernel } = createKernelHarness(join(root, "direct-floating.sqlite"), "test-adapter");
     const producer = resolveSurfaceSession(store, {
       ownerId: "owner",
       surfaceRef: { surfaceKind: "floating_chat", externalRefKind: "chat", externalRefId: "direct-floating" },
-      defaultAdapterId: "acp",
+      defaultAdapterId: "test-adapter",
     }, () => 1);
     const snapshot = kernel.updateContextSource({
       ownerId: "owner",
@@ -581,8 +581,8 @@ describe("durable agent-spawn producer journal", () => {
       kernel,
       callerSessionId: producer.agentSessionId,
       executionRole: "coordinator",
-      providerBoundary: "local_user:acp",
-      defaultAdapterId: "acp",
+      providerBoundary: "local_user:test-adapter",
+      defaultAdapterId: "test-adapter",
       trustedUserControl: true,
       getOwnerId: () => "owner",
     }, "spawn_agent", {
@@ -688,7 +688,7 @@ function realtimeSpawnResult(input: {
         attemptId: "attempt-child",
         runId: "run-child",
         status: input.attemptState,
-        adapterId: "hermes",
+        adapterId: "test-adapter",
         updatedAtMs: input.updatedAtMs,
         ...error,
       },

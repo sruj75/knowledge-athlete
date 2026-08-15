@@ -83,7 +83,7 @@ enum MemoryExportExecutor {
       return true
     case .openclaw, .hermes:
       return false
-    case .notion, .obsidian, .chatgpt, .claude, .gemini, .agents:
+    case .notion, .obsidian, .chatgpt, .claude, .gemini:
       return false
     }
   }
@@ -173,9 +173,8 @@ enum MemoryExportExecutor {
       """,
       forType: .string)
 
-    // For cloud setup, use the user's system default browser. Do not reuse the
-    // Playwright/extension browser preference: that can point at Chrome even
-    // when the user is signed into Claude in Atlas/Arc/another default browser.
+    // For cloud setup, use the user's system default browser so the signed-in
+    // Claude session remains authoritative.
     log("Claude cloud setup: opening connector page in default browser for native automation")
     NSWorkspace.shared.open(openURL)
 
@@ -373,15 +372,10 @@ enum MemoryExportExecutor {
   private static func spawnSetupAgent(task: (title: String, body: String)) async {
     _ = await TasksStore.shared.createTask(
       description: task.title, dueAt: Date(), priority: "high", tags: ["mcp-setup"])
-    let model =
-      ShortcutSettings.shared.selectedModel.isEmpty
-      ? "claude-sonnet-4-6" : ShortcutSettings.shared.selectedModel
     let query = ProactiveTaskExecute.buildQuery(title: task.title, message: task.body)
     _ = AgentPillsManager.shared.spawn(
       query: query,
-      model: model,
-      originSurface: .mainChat,
-      systemPromptSuffix: ProactiveTaskExecute.systemPromptSuffix)
+      originSurface: .mainChat)
   }
 }
 

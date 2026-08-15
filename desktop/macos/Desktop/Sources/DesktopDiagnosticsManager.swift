@@ -221,21 +221,6 @@ final class DesktopDiagnosticsManager {
       ])
   }
 
-  func recordChatBridgeModeSwitchTimeout(waitSeconds: Int) {
-    recordFallback(
-      area: "chat_bridge",
-      from: "mode_switch",
-      to: "continue_waiting",
-      reason: "mode_switch_timeout",
-      outcome: .degraded,
-      extra: [
-        "wait_seconds": waitSeconds,
-        "failure_class": "mode_switch_timeout",
-        "recovery_action": "clear_waiters",
-        "recovery_result": "degraded",
-      ])
-  }
-
   func recordAutomationBridgeBindFailed(port: Int, reason: String) {
     recordFallback(
       area: "automation_bridge",
@@ -1387,7 +1372,6 @@ final class DesktopDiagnosticsManager {
     "process_exited",
     "http_401",
     "db_lock_contention",
-    "mode_switch_timeout",
     "bind_failed",
     "db_backoff",
     "state_divergence",

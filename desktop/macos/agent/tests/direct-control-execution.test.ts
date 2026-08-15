@@ -14,7 +14,7 @@ afterEach(() => {
 
 describe("direct desktop control execution authority", () => {
   it("aborts owner A before a suspended spawn effect and returns an owner-scoped failed receipt", async () => {
-    const { store, kernel } = createKernelHarness(databasePath(), "acp");
+    const { store, kernel } = createKernelHarness(databasePath(), "pi-mono");
     let activeOwnerId = "owner-a";
     const broker = new DirectControlExecutionBroker({ activeOwnerId: () => activeOwnerId });
     const execution = broker.execute({
@@ -27,7 +27,6 @@ describe("direct desktop control execution authority", () => {
         originSurfaceKind: "agent_control",
         requestedAgentCount: 1,
         visible: true,
-        adapterId: "acp",
       },
     }, { kernel });
 
@@ -46,11 +45,11 @@ describe("direct desktop control execution authority", () => {
   });
 
   it("aborts an in-flight owner A continuation and cannot surface its late adapter success", async () => {
-    const { store, kernel, adapter } = createKernelHarness(databasePath(), "acp");
+    const { store, kernel, adapter } = createKernelHarness(databasePath(), "pi-mono");
     const target = store.insertSession({
       ownerId: "owner-a",
       surfaceKind: "background_agent",
-      defaultAdapterId: "acp",
+      defaultAdapterId: "pi-mono",
       executionRole: "leaf",
     });
     let activeOwnerId = "owner-a";
@@ -109,7 +108,7 @@ describe("direct desktop control execution authority", () => {
   });
 
   it("retains an accepted spawn signal until refresh moves away from its owner", async () => {
-    const { store, kernel, adapter } = createKernelHarness(databasePath(), "acp");
+    const { store, kernel, adapter } = createKernelHarness(databasePath(), "pi-mono");
     let activeOwnerId = "owner-a";
     const broker = new DirectControlExecutionBroker({ activeOwnerId: () => activeOwnerId });
     adapter.deferResult();
@@ -123,7 +122,6 @@ describe("direct desktop control execution authority", () => {
         originSurfaceKind: "agent_control",
         requestedAgentCount: 1,
         visible: true,
-        adapterId: "acp",
       },
     }, { kernel });
     expect(JSON.parse(receipt.result)).toMatchObject({ ok: true });
@@ -144,7 +142,7 @@ describe("direct desktop control execution authority", () => {
   });
 
   it("immediately compensates every admitted sibling when a later sibling spawn fails", async () => {
-    const { store, kernel, adapter } = createKernelHarness(databasePath(), "acp");
+    const { store, kernel, adapter } = createKernelHarness(databasePath(), "pi-mono");
     let activeOwnerId = "owner-a";
     const broker = new DirectControlExecutionBroker({ activeOwnerId: () => activeOwnerId });
     adapter.deferResult();
@@ -169,7 +167,6 @@ describe("direct desktop control execution authority", () => {
         originSurfaceKind: "agent_control",
         requestedAgentCount: 2,
         visible: true,
-        adapterId: "acp",
       },
     }, { kernel });
 
@@ -202,7 +199,7 @@ describe("direct desktop control execution authority", () => {
   });
 
   it("returns admitted run identities when partial-spawn compensation itself fails", async () => {
-    const { store, kernel, adapter } = createKernelHarness(databasePath(), "acp");
+    const { store, kernel, adapter } = createKernelHarness(databasePath(), "pi-mono");
     let activeOwnerId = "owner-a";
     const broker = new DirectControlExecutionBroker({ activeOwnerId: () => activeOwnerId });
     adapter.deferResult();
@@ -228,7 +225,6 @@ describe("direct desktop control execution authority", () => {
         originSurfaceKind: "agent_control",
         requestedAgentCount: 2,
         visible: true,
-        adapterId: "acp",
       },
     }, { kernel });
 
@@ -260,7 +256,7 @@ describe("direct desktop control execution authority", () => {
   });
 
   it("bounds completed request replay history and prunes retained signals at terminal runs", async () => {
-    const { store, kernel } = createKernelHarness(databasePath(), "acp");
+    const { store, kernel } = createKernelHarness(databasePath(), "pi-mono");
     const broker = new DirectControlExecutionBroker({
       activeOwnerId: () => "owner-a",
       recentRequestLimit: 2,
@@ -291,7 +287,6 @@ describe("direct desktop control execution authority", () => {
         originSurfaceKind: "agent_control",
         requestedAgentCount: 1,
         visible: true,
-        adapterId: "acp",
       },
     }, { kernel });
     expect(JSON.parse(spawn.result)).toMatchObject({ ok: true });
@@ -302,7 +297,7 @@ describe("direct desktop control execution authority", () => {
   });
 
   it("aborts a direct run-and-wait child on owner transition and rejects request replay", async () => {
-    const { store, kernel, adapter } = createKernelHarness(databasePath(), "acp");
+    const { store, kernel, adapter } = createKernelHarness(databasePath(), "pi-mono");
     const surface = {
       surfaceKind: "main_chat",
       externalRefKind: "chat",
@@ -311,7 +306,7 @@ describe("direct desktop control execution authority", () => {
     const parentSession = kernel.resolveSurfaceSession({
       ownerId: "owner-a",
       surfaceRef: surface,
-      defaultAdapterId: "acp",
+      defaultAdapterId: "pi-mono",
     });
     const admittedContextSnapshot = kernel.contextSnapshotForExactSurface("owner-a", surface);
     const parentRun = store.insertRun({
@@ -326,7 +321,7 @@ describe("direct desktop control execution authority", () => {
       runId: parentRun.runId,
       attemptNo: 1,
       status: "running",
-      adapterId: "acp",
+      adapterId: "pi-mono",
       adapterInstanceId: "parent-worker",
     });
     let activeOwnerId = "owner-a";

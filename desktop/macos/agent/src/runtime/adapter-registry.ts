@@ -2,7 +2,6 @@ import {
   assertAdapterAttemptResultContract,
   assertAdapterBindingContract,
   isProductionAdapterId,
-  isPlaceholderAdapterId,
 } from "../adapters/interface.js";
 import type { RuntimeAdapter } from "../adapters/interface.js";
 import { AdapterWorkerPool, configuredMaxWorkers } from "./worker-pool.js";
@@ -18,11 +17,6 @@ export class AdapterRegistry {
     factory: RuntimeAdapterFactory,
     maxWorkers = configuredMaxWorkers()
   ): AdapterWorkerPool {
-    if (isPlaceholderAdapterId(adapterId)) {
-      throw new Error(
-        `Adapter ${adapterId} is a placeholder and cannot be registered as a production adapter without an implementation factory`
-      );
-    }
     if (isProductionAdapterId(adapterId)) {
       assertProductionAdapterScopeDeclared(adapterId);
     }
@@ -78,8 +72,5 @@ function contractCheckedAdapter(adapter: RuntimeAdapter): RuntimeAdapter {
     },
     cancelAttempt: (context) => adapter.cancelAttempt(context),
     closeBinding: adapter.closeBinding ? (binding) => adapter.closeBinding!(binding) : undefined,
-    effectiveMcpServers: adapter.effectiveMcpServers
-      ? (mcpServers) => adapter.effectiveMcpServers!(mcpServers)
-      : undefined,
   };
 }

@@ -66,44 +66,14 @@ describe("AgentRuntimeKernel run and attempt lifecycle", () => {
     store.close();
   });
 
-  it("reuses an active binding when only request-scoped MCP env changes", async () => {
+  it("reuses an active binding without ambient MCP identity", async () => {
     const { store, adapter, kernel } = createKernelHarness(newDatabasePath());
 
-    await kernel.executeRun({
-      ...baseRunInput,
-      mcpServers: [
-        {
-          name: "omi-tools",
-          command: "node",
-          args: ["tools.js"],
-          env: [
-            { name: "OMI_REQUEST_ID", value: "request-1" },
-            { name: "OMI_CLIENT_ID", value: "client-a" },
-            { name: "OMI_CONTEXT_FILE", value: "/tmp/stale-request-path-a.json" },
-            { name: "OMI_QUERY_MODE", value: "act" },
-          ],
-        },
-      ],
-    });
+    await kernel.executeRun(baseRunInput);
     await kernel.executeRun({
       ...baseRunInput,
       requestId: "request-2",
       clientId: "client-b",
-      mcpServers: [
-        {
-          command: "node",
-          name: "omi-tools",
-          env: [
-            { value: "request-2", name: "OMI_REQUEST_ID" },
-            { value: "client-b", name: "OMI_CLIENT_ID" },
-            { value: "canonical-session-1", name: "OMI_SESSION_ID" },
-            { value: "/tmp/omi-tools-999.sock", name: "OMI_BRIDGE_PIPE" },
-            { value: "/tmp/stale-request-path-b.json", name: "OMI_CONTEXT_FILE" },
-            { value: "act", name: "OMI_QUERY_MODE" },
-          ],
-          args: ["tools.js"],
-        },
-      ],
     });
 
     expect(adapter.opened).toHaveLength(1);
@@ -111,29 +81,18 @@ describe("AgentRuntimeKernel run and attempt lifecycle", () => {
     const bindings = store.allRows("SELECT binding_generation, status, metadata_json FROM adapter_bindings ORDER BY binding_generation");
     expect(bindings).toHaveLength(1);
     expect(bindings[0]).toMatchObject({ binding_generation: 1, status: "active" });
-    const openedContextFile = mcpEnvValue(adapter.opened[0].mcpServers, "OMI_CONTEXT_FILE");
-    const resumedContextFile = mcpEnvValue(adapter.resumed[0].mcpServers, "OMI_CONTEXT_FILE");
-    expect(openedContextFile).toBeTruthy();
-    expect(resumedContextFile).toBe(openedContextFile);
-    expect(openedContextFile).not.toContain("stale-request-path");
-    expect(JSON.parse(readFileSync(openedContextFile!, "utf8"))).toEqual({
-      capabilityRef: adapter.executed[1].toolCapabilityRef,
-    });
+    expect(JSON.parse(String(bindings[0].metadata_json))).not.toHaveProperty("mcpServersHash");
     store.close();
   });
 
-  it("preserves legacy active bindings without MCP metadata hashes", async () => {
+  it("preserves legacy active bindings with empty metadata", async () => {
     const { store, adapter, kernel } = createKernelHarness(newDatabasePath());
 
-    await kernel.executeRun({
-      ...baseRunInput,
-      mcpServers: [{ name: "omi-tools", command: "node", args: ["tools.js"] }],
-    });
+    await kernel.executeRun(baseRunInput);
     store.execute("UPDATE adapter_bindings SET metadata_json = '{}' WHERE binding_generation = 1", []);
     await kernel.executeRun({
       ...baseRunInput,
       requestId: "request-legacy-binding",
-      mcpServers: [{ name: "omi-tools", command: "node", args: ["tools.js"] }],
     });
 
     expect(adapter.opened).toHaveLength(1);
@@ -141,7 +100,7 @@ describe("AgentRuntimeKernel run and attempt lifecycle", () => {
     const bindings = store.allRows("SELECT binding_generation, status, metadata_json FROM adapter_bindings ORDER BY binding_generation");
     expect(bindings).toHaveLength(1);
     expect(bindings[0]).toMatchObject({ binding_generation: 1, status: "active" });
-    expect(JSON.parse(String(bindings[0].metadata_json)).mcpServersHash).toBeDefined();
+    expect(JSON.parse(String(bindings[0].metadata_json))).not.toHaveProperty("mcpServersHash");
     store.close();
   });
 
@@ -165,56 +124,17 @@ describe("AgentRuntimeKernel run and attempt lifecycle", () => {
     store.close();
   });
 
-  it("replaces an active binding when stable MCP server configuration changes", async () => {
+  it("keeps Ask and Act turns on the same managed Pi binding", async () => {
     const { store, adapter, kernel } = createKernelHarness(newDatabasePath());
 
     await kernel.executeRun({
       ...baseRunInput,
-      mcpServers: [{ name: "omi-tools", command: "node", args: ["tools-a.js"] }],
+      mode: "ask",
     });
     await kernel.executeRun({
       ...baseRunInput,
-      requestId: "request-mcp-b",
-      mcpServers: [{ name: "omi-tools", command: "node", args: ["tools-b.js"] }],
-    });
-
-    expect(adapter.opened).toHaveLength(2);
-    expect(adapter.resumed).toHaveLength(0);
-    const bindings = store.allRows("SELECT binding_generation, status, metadata_json FROM adapter_bindings ORDER BY binding_generation");
-    expect(bindings[0]).toMatchObject({ binding_generation: 1, status: "stale" });
-    expect(bindings[1]).toMatchObject({ binding_generation: 2, status: "active" });
-    expect(JSON.parse(bindings[0].metadata_json).mcpServersHash).not.toBe(JSON.parse(bindings[1].metadata_json).mcpServersHash);
-    store.close();
-  });
-
-  it("preserves binding when adapter strips MCP servers and only query-mode env changes", async () => {
-    // Regression: OpenClaw (sessionMcpServersMode: "empty") always passes []
-    // to its session, so switching Ask/Act must not invalidate the binding.
-    const { store, adapter, kernel } = createKernelHarness(newDatabasePath());
-    adapter.effectiveMcpServersOverride = [];
-
-    await kernel.executeRun({
-      ...baseRunInput,
-      mcpServers: [
-        {
-          name: "omi-tools",
-          command: "node",
-          args: ["tools.js"],
-          env: [{ name: "OMI_QUERY_MODE", value: "ask" }],
-        },
-      ],
-    });
-    await kernel.executeRun({
-      ...baseRunInput,
-      requestId: "request-mode-switch",
-      mcpServers: [
-        {
-          name: "omi-tools",
-          command: "node",
-          args: ["tools.js"],
-          env: [{ name: "OMI_QUERY_MODE", value: "act" }],
-        },
-      ],
+      requestId: "request-act",
+      mode: "act",
     });
 
     expect(adapter.opened).toHaveLength(1);
@@ -351,25 +271,12 @@ describe("AgentRuntimeKernel run and attempt lifecycle", () => {
       executionRole: "leaf",
       cwd: inventedDesktop,
       prompt: "Create omi-artifact-smoke.txt on the Desktop.",
-      mcpServers: [{
-        name: "omi-tools",
-        command: "node",
-        args: ["tools.js"],
-        env: [{ name: "OMI_WORKSPACE", value: inventedDesktop }],
-      }],
     });
     const artifacts = kernel.inspectArtifacts({ runId: result.run.runId });
     const assignedWorkspace = adapter.opened[0]!.cwd;
-    const workspaceFromMcp = adapter.opened[0]!.mcpServers
-      .flatMap((server) => Array.isArray(server.env) ? server.env : [])
-      .find((entry) => entry && typeof entry === "object" && (entry as { name?: unknown }).name === "OMI_WORKSPACE") as
-        | { value?: unknown }
-        | undefined;
-
     expect(assignedWorkspace).toContain(result.run.runId);
     expect(assignedWorkspace).not.toBe(inventedDesktop);
     expect(adapter.opened[0]!.systemPrompt).toContain("Do not default to Desktop");
-    expect(workspaceFromMcp?.value).toBe(assignedWorkspace);
     expect(artifacts).toEqual([
       expect.objectContaining({
         sessionId: result.session.sessionId,
@@ -388,8 +295,8 @@ describe("AgentRuntimeKernel run and attempt lifecycle", () => {
     store.close();
   });
 
-  it("projects verified temporary and managed-root deliverables reported by OpenClaw and Hermes terminal prose", async () => {
-    for (const provider of ["openclaw", "hermes"] as const) {
+  it("projects verified temporary and managed-root deliverables reported in terminal prose", async () => {
+    for (const provider of ["fake-terminal-a", "fake-terminal-b"] as const) {
       const artifactRoot = mkdtempTracked(`omi-${provider}-artifacts-`);
       const externalDirectory = mkdtempTracked(`omi-${provider}-reported-`);
       const desktopDirectory = mkdtempTrackedIn(process.cwd(), `omi-${provider}-desktop-`);
@@ -609,10 +516,10 @@ describe("AgentRuntimeKernel run and attempt lifecycle", () => {
       surfaceKind: "delegated_agent",
       defaultAdapterId: "pi-mono",
     });
-    const acpSession = store.insertSession({
+    const testAdapterSession = store.insertSession({
       ownerId: "owner-a",
       surfaceKind: "main",
-      defaultAdapterId: "acp",
+      defaultAdapterId: "test-adapter",
     });
     const firstPiBinding = store.insertAdapterBinding({
       sessionId: firstSession.sessionId,
@@ -630,11 +537,11 @@ describe("AgentRuntimeKernel run and attempt lifecycle", () => {
       resumeFidelity: "none",
       status: "active",
     });
-    const nativeAcpBinding = store.insertAdapterBinding({
-      sessionId: acpSession.sessionId,
-      adapterId: "acp",
+    const nativeTestAdapterBinding = store.insertAdapterBinding({
+      sessionId: testAdapterSession.sessionId,
+      adapterId: "test-adapter",
       bindingGeneration: 1,
-      adapterNativeSessionId: "acp-native",
+      adapterNativeSessionId: "test-adapter-native",
       resumeFidelity: "native",
       status: "active",
     });
@@ -647,7 +554,7 @@ describe("AgentRuntimeKernel run and attempt lifecycle", () => {
     expect(new Set(result.staleBindingIds)).toEqual(new Set([firstPiBinding.bindingId, secondPiBinding.bindingId]));
     expect(store.getRow("SELECT status FROM adapter_bindings WHERE binding_id = ?", [firstPiBinding.bindingId]).status).toBe("stale");
     expect(store.getRow("SELECT status FROM adapter_bindings WHERE binding_id = ?", [secondPiBinding.bindingId]).status).toBe("stale");
-    expect(store.getRow("SELECT status FROM adapter_bindings WHERE binding_id = ?", [nativeAcpBinding.bindingId]).status).toBe("active");
+    expect(store.getRow("SELECT status FROM adapter_bindings WHERE binding_id = ?", [nativeTestAdapterBinding.bindingId]).status).toBe("active");
     expect(
       store
         .allRows("SELECT type, payload_json FROM events WHERE type = ? ORDER BY event_seq", ["binding.stale"])
@@ -1082,14 +989,14 @@ describe("AgentRuntimeKernel run and attempt lifecycle", () => {
     const session = store.insertSession({
       ownerId: "owner",
       surfaceKind: "task_chat",
-      defaultAdapterId: "acp",
+      defaultAdapterId: "test-adapter",
     });
     const nativeBinding = store.insertAdapterBinding({
       sessionId: session.sessionId,
-      adapterId: "acp",
+      adapterId: "test-adapter",
       bindingGeneration: 1,
       adapterNativeSessionId: "native-session",
-      adapterInstanceId: "worker-acp",
+      adapterInstanceId: "worker-test-adapter",
       resumeFidelity: "native",
       status: "active",
     });
@@ -1113,8 +1020,8 @@ describe("AgentRuntimeKernel run and attempt lifecycle", () => {
       runId: run.runId,
       attemptNo: 1,
       status: "running",
-      adapterId: "acp",
-      adapterInstanceId: "worker-acp",
+      adapterId: "test-adapter",
+      adapterInstanceId: "worker-test-adapter",
       bindingId: nativeBinding.bindingId,
     });
     store.close();
@@ -1153,18 +1060,4 @@ function mkdtempTrackedIn(parent: string, prefix: string): string {
   const dir = mkdtempSync(join(parent, prefix));
   createdDirs.push(dir);
   return dir;
-}
-
-function mcpEnvValue(mcpServers: Record<string, unknown>[] | undefined, name: string): string | undefined {
-  const env = mcpServers?.[0]?.env;
-  if (!Array.isArray(env)) return undefined;
-  const entry = env.find((candidate) =>
-    candidate &&
-    typeof candidate === "object" &&
-    !Array.isArray(candidate) &&
-    (candidate as Record<string, unknown>).name === name
-  );
-  return entry && typeof entry === "object" && !Array.isArray(entry)
-    ? String((entry as Record<string, unknown>).value ?? "")
-    : undefined;
 }

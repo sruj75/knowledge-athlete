@@ -29,7 +29,7 @@ describe("agent runtime v1 shared contract fixtures", () => {
     });
     expect(contract.sessionListingBudget.maxBytes).toBe(8192);
     expect(contract.sessionListingBudget.mustExclude).toEqual(expect.arrayContaining(["input", "surfaceContext"]));
-    expect(contract.failureTaxonomy).toEqual(expect.arrayContaining(["bridge_start_failed", "provider_setup_needed"]));
+    expect(contract.failureTaxonomy).toEqual(expect.arrayContaining(["bridge_start_failed"]));
     expect(contract.toolInvocation).toMatchObject({
       invocationId: contract.toolResultEnvelope.provenance.invocationId,
       runId: contract.toolResultEnvelope.provenance.runId,
@@ -39,9 +39,6 @@ describe("agent runtime v1 shared contract fixtures", () => {
     });
     expect(contract.adapterConformance).toEqual(expect.arrayContaining([
       expect.objectContaining({ adapterId: "pi-mono", transport: "node_runtime" }),
-      expect.objectContaining({ adapterId: "acp", transport: "node_runtime" }),
-      expect.objectContaining({ adapterId: "hermes", transport: "node_runtime" }),
-      expect.objectContaining({ adapterId: "openclaw", transport: "node_runtime" }),
       expect.objectContaining({ adapterId: "gemini-realtime", transport: "swift_realtime" }),
       expect.objectContaining({ adapterId: "openai-realtime", transport: "swift_realtime" }),
     ]));
@@ -81,7 +78,6 @@ describe("agent runtime v1 shared contract fixtures", () => {
       "adapter_terminal_http_failure",
       "adapter_not_registered",
       "stale_binding",
-      "provider_setup_needed",
       "policy_denied",
       "tool_result_exceeded_provider_budget",
       "owner_changed",

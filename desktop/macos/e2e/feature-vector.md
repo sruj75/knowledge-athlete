@@ -81,7 +81,7 @@ Prioritized feature map to guide desktop E2E coverage. Uses the same two-dimensi
 | 32 | Settings — section navigation | — | 5 | 2 | 3 | ✅ flow: `settings-basic.yaml` (General, Transcription, Privacy, Rewind, Notifications, About, Shortcuts, Advanced) |
 | 33 | Rewind settings | capture (5) | 5 | 2 | 2 | ✅ flow: `rewind-settings.yaml` |
 | 34 | Account info | — | 5 | 2 | 2 | ✅ flow: `plan-usage.yaml` (Account section + subscription snapshot) |
-| 35 | AI Chat model settings | intelligence (3) | 3 | 2 | 2 | ✅ flow: `ai-chat-settings.yaml` (non-prod section; prod still redirects to Advanced) |
+| 35 | Advanced AI Setup (Voice Model + Ask Mode) | intelligence (3) | 3 | 2 | 2 | ✅ manual flow: `settings-basic.yaml` |
 | 36 | Advanced / Developer options | — | 3 | 2 | 2 | ✅ flow: `settings-basic.yaml` (`advanced_settings_snapshot`) |
 | 37 | System tray menu | — | 5 | 0 | 3 | ⚠️ partial: covered indirectly by manual logout/onboarding |
 | 38 | Keyboard shortcuts (Cmd+1..6, Cmd+,) | — | 5 | 2 | 3 | ✅ flow: `keyboard-shortcuts.yaml` |
@@ -154,7 +154,7 @@ Waves 4–7 (code landed; Wave 8 live qualification complete):
 - Wave 4: `tasks-crud.yaml`, `memory-depth.yaml`, language save, memory search/filter/visibility actions
 - Wave 5: `quick-note.yaml`, `about-settings.yaml`, `notifications-settings.yaml`, `rewind-settings.yaml`, `keyboard-shortcuts.yaml`, extended `settings-basic.yaml`
 - Wave 6: multi-speaker `inject_multi`, `speaker-naming.yaml` T2, `memory-graph.yaml`
-- Wave 7: `reset_onboarding` corruption fix, non-prod AI Chat section + `ai-chat-settings.yaml`; `onboarding-smoke.yaml` stays manual
+- Wave 7: `reset_onboarding` corruption fix and onboarding coverage; the later managed-Pi simplification retired the non-production AI Chat section
 - Wave 8: 32/32 T2 flows green (manual qualification via `omi-harness`; harness `dev-up` blocked on port 8085 conflict — see CORE_E2E Failure playbook)
 
 ---

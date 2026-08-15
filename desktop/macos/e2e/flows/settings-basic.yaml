@@ -7,6 +7,8 @@ covers:
   - desktop/macos/Desktop/Sources/MainWindow/Pages/Settings/Sections/SettingsContentView+DeveloperKeys.swift
   - desktop/macos/Desktop/Sources/MainWindow/Pages/SettingsPage.swift
   - desktop/macos/Desktop/Sources/MainWindow/Pages/Settings/Components/AppRuleEditorView.swift
+  - desktop/macos/Desktop/Sources/MainWindow/Pages/Settings/Sections/SettingsContentView+Advanced.swift
+  - desktop/macos/Desktop/Sources/MainWindow/Pages/Settings/Sections/SettingsContentView+FloatingBarAndChat.swift
   - desktop/macos/Desktop/Sources/MainWindow/Pages/Settings/Sections/SettingsContentView+General.swift
   - desktop/macos/Desktop/Sources/MainWindow/SettingsSidebar.swift
   - desktop/macos/Desktop/Sources/Services/APIClient/APIClient+Settings.swift
@@ -76,11 +78,11 @@ steps:
 
   - id: S9
     name: Navigate to Advanced section
-    do: "Click 'Advanced' in the Settings section list. Verify Advanced settings show AI Setup section with Voice Model and AI Provider dropdowns, Workspace browser, Browser Extension toggle, and Dev Mode toggle."
+    do: "Click 'Advanced' in the Settings section list. Verify Advanced settings show Advanced AI Setup with Voice Model and Ask Mode controls."
     expect:
       text_visible:
         - Advanced
-        - AI Setup
+        - Advanced AI Setup
 
   - id: S10
     name: Navigate to About section

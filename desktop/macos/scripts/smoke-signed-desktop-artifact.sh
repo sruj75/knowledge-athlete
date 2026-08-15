@@ -532,25 +532,22 @@ assert_helper_runtime_integrity() {
 
   local resources="$APP_BUNDLE/Contents/Resources"
   [[ -d "$resources/agent" ]] || fail "agent runtime missing"
+  [[ -f "$resources/agent/dist/index.js" ]] || fail "compiled agent runtime missing"
   [[ -f "$resources/agent/src/runtime/omi-tool-manifest.ts" ]] || fail "agent tool manifest missing"
+  [[ -f "$resources/agent/node_modules/@earendil-works/pi-coding-agent/dist/cli.js" ]] \
+    || fail "bundled Pi CLI missing"
   [[ -d "$resources/pi-mono-extension" ]] || fail "pi-mono-extension missing"
+  [[ -f "$resources/pi-mono-extension/index.ts" ]] || fail "owned Pi extension missing"
   [[ -x "$resources/Omi Computer_Omi Computer.bundle/node" ]] || fail "bundled node missing"
-  local sharp_arch expected_arch sharp_native libvips_native
-  for sharp_arch in arm64 x64; do
-    expected_arch="$sharp_arch"
-    [[ "$sharp_arch" == "x64" ]] && expected_arch="x86_64"
-    sharp_native="$resources/agent/node_modules/@img/sharp-darwin-$sharp_arch/lib/sharp-darwin-$sharp_arch.node"
-    libvips_native="$resources/agent/node_modules/@img/sharp-libvips-darwin-$sharp_arch/lib/libvips-cpp.42.dylib"
-    [[ -f "$sharp_native" && -f "$libvips_native" ]] \
-      || fail "agent runtime missing Sharp/libvips darwin-$sharp_arch pair"
-    file "$sharp_native" | grep -q "$expected_arch" \
-      || fail "Sharp darwin-$sharp_arch binary has the wrong architecture"
-    file "$libvips_native" | grep -q "$expected_arch" \
-      || fail "libvips darwin-$sharp_arch binary has the wrong architecture"
-  done
-  strings "$APP_BUNDLE/Contents/MacOS/$(plist_read CFBundleExecutable)" 2>/dev/null | grep -q "LocalAgentAPIServer" \
-    || warn "could not find LocalAgentAPIServer marker in executable; release builds may strip Swift symbols"
 
+  local retired_asset
+  retired_asset="$(find "$resources/agent" "$resources/pi-mono-extension" \
+    \( -name 'acp.js' -o -name 'hermes.js' -o -name 'openclaw.js' \
+       -o -name 'local-subprocess.js' -o -name 'one-shot-cli.js' \
+       -o -name 'omi-tools-http.js' -o -name 'omi-tools-stdio.js' \
+       -o -name 'patched-acp-entry.mjs' -o -name 'acp-bridge' \
+       -o -name 'playwright' \) -print -quit)"
+  [[ -z "$retired_asset" ]] || fail "retired agent runtime asset present: $retired_asset"
   pass "Native helper/runtime bundle integrity passed"
 }
 

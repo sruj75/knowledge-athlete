@@ -2352,9 +2352,7 @@ final class DesktopAutomationActionRegistry {
       let inspection = try await DesktopCoordinatorService.shared.continueAgent(
         sessionId: sessionId,
         prompt: prompt,
-        originSurface: DesktopCoordinatorOriginSurface(surfaceKind: params["surfaceKind"]),
-        model: nil,
-        cwd: nil
+        originSurface: DesktopCoordinatorOriginSurface(surfaceKind: params["surfaceKind"])
       )
       return [
         "session_id": inspection.sessionId ?? "",
@@ -2388,7 +2386,7 @@ final class DesktopAutomationActionRegistry {
       summary: "Route a structured proposal through the canonical agent kernel",
       params: [
         "intent", "surfaceKind", "taskId", "proposal", "snapshotVersion",
-        "sessionId", "runId", "parentRunId", "provider", "agentCount",
+        "sessionId", "runId", "parentRunId", "agentCount",
       ]
     ) { params in
       let proposal: DesktopCoordinatorIntentProposal
@@ -2403,7 +2401,6 @@ final class DesktopAutomationActionRegistry {
         explicitSessionId: params["sessionId"],
         explicitRunId: params["runId"],
         parentRunId: params["parentRunId"],
-        explicitProvider: params["provider"],
         requestedAgentCount: params["agentCount"].flatMap(Int.init))
       let decision = try await DesktopCoordinatorService.shared.routeIntentJSON(
         intent: params["intent"] ?? "",
@@ -3383,7 +3380,7 @@ final class DesktopAutomationActionRegistry {
 
     register(
       name: "advanced_settings_snapshot",
-      summary: "Return safe Advanced settings booleans (never raw BYOK keys)",
+      summary: "Return safe Advanced settings booleans",
       params: []
     ) { _ in
       let focus = FocusAssistantSettings.shared
@@ -3400,21 +3397,7 @@ final class DesktopAutomationActionRegistry {
         "screen_analysis_enabled": assistant.screenAnalysisEnabled ? "true" : "false",
         "transcription_enabled": assistant.transcriptionEnabled ? "true" : "false",
         "multi_chat_enabled": UserDefaults.standard.bool(forKey: .multiChatEnabled) ? "true" : "false",
-      ]
-    }
-
-    register(
-      name: "settings_aichat_snapshot",
-      summary: "Return AI Chat settings safe fields (provider mode, working directory presence)",
-      params: []
-    ) { _ in
-      let bridgeMode = UserDefaults.standard.string(forKey: .chatBridgeMode) ?? "piMono"
-      let workingDirectory = UserDefaults.standard.string(forKey: .aiChatWorkingDirectory) ?? ""
-      let multiChat = UserDefaults.standard.bool(forKey: .multiChatEnabled)
-      return [
-        "bridge_mode": bridgeMode,
-        "working_directory_set": workingDirectory.isEmpty ? "false" : "true",
-        "multi_chat_enabled": multiChat ? "true" : "false",
+        "ask_mode_enabled": UserDefaults.standard.bool(forKey: "askModeEnabled") ? "true" : "false",
       ]
     }
 

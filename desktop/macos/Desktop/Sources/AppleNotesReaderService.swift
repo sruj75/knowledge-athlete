@@ -361,18 +361,13 @@ actor AppleNotesReaderService {
           throw NSError(
             domain: "Synthesis", code: -1, userInfo: [NSLocalizedDescriptionKey: "forced synthesis failure"])
         }
-        let result = try await AgentClient.run(
-          surface: .service("apple_notes_reader"),
+        let result = try await ManagedSynthesisClient.run(
           prompt: synthesisPrompt,
-          model: ModelQoS.Claude.synthesis,
           systemPrompt:
-            "You extract high-signal user facts from Apple Notes. Output only valid JSON.",
-          onTextDelta: { @Sendable _ in },
-          onToolCall: { @Sendable _, _, _ in "" },
-          onToolActivity: { @Sendable _, _, _, _ in }
+            "You extract high-signal user facts from Apple Notes. Output only valid JSON."
         )
 
-        let responseText = Self.extractJSONObject(from: result.text)
+        let responseText = Self.extractJSONObject(from: result)
         guard
           let jsonData = responseText.data(using: .utf8),
           let parsed = try JSONSerialization.jsonObject(with: jsonData) as? [String: Any]

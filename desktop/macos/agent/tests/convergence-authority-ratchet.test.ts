@@ -231,10 +231,7 @@ describe("#9515 single-owner authority ratchets", () => {
     expect(surfaceCompatibility).toMatch(/LEGACY_MAIN_CHAT_SESSION_COMPATIBILITY[\s\S]*?owner[\s\S]*?removalCondition[\s\S]*?removeBy/);
     expect(legacyHandler).toContain("LEGACY_MAIN_CHAT_SESSION_COMPATIBILITY");
 
-    for (const path of [
-      join(AGENT_SOURCES, "runtime", "sqlite-store.ts"),
-      join(AGENT_SOURCES, "runtime", "session-execution-profile.ts"),
-    ]) {
+    for (const path of [join(AGENT_SOURCES, "runtime", "sqlite-store.ts")]) {
       const source = readFileSync(path, "utf8");
       const declarations = [...source.matchAll(/legacyProjection\s*[:',]\s*(?:json_object\()?\s*\{?[\s\S]{0,500}?(?=\n\s*\}?\)?[,;])/g)]
         .map((match) => match[0]);

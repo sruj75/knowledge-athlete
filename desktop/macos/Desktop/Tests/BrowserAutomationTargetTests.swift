@@ -3,34 +3,6 @@ import XCTest
 @testable import Omi_Computer
 
 @MainActor final class BrowserAutomationTargetTests: XCTestCase {
-  func testDetectsExtensionInConfiguredProfileRoot() throws {
-    let root = FileManager.default.temporaryDirectory
-      .appendingPathComponent("omi-browser-target-\(UUID().uuidString)")
-    defer { try? FileManager.default.removeItem(at: root) }
-
-    let target = BrowserAutomationTarget(
-      name: "Test Chromium",
-      bundleIdentifier: "test.chromium",
-      appPath: "/Applications/Test Chromium.app",
-      profileDirectoryRelativePath: "Profiles/TestChromium",
-      installURL: nil,
-      supportsChromeWebStore: true
-    )
-    let extensionDirectory =
-      root
-      .appendingPathComponent(
-        "Profiles/TestChromium/Default/Extensions/\(BrowserAutomationTarget.extensionId)")
-    try FileManager.default.createDirectory(
-      at: extensionDirectory, withIntermediateDirectories: true)
-
-    XCTAssertTrue(
-      BrowserAutomationTargetResolver.isExtensionInstalled(
-        in: target,
-        homeDirectory: root
-      )
-    )
-  }
-
   func testDestinationModesSeparateCloudBrowserAndLocalSetup() {
     // ChatGPT uses the approved directory listing. Claude remains assisted-first.
     XCTAssertEqual(MemoryExportDestination.chatgpt.mcpExecuteKind, .directoryApp)
@@ -75,13 +47,6 @@ import XCTest
     XCTAssertEqual(ConnectDestinationSheet.group(for: .codex), [.chatgpt, .codex])
   }
 
-  func testAgentSkillHandlesNullableHostedProfileAndRemoteTransport() {
-    let skill = MemoryExportService.omiAgentSkillText
-    XCTAssertTrue(skill.contains(MemoryExportDestination.mcpServerURL))
-    XCTAssertTrue(skill.contains("profile: null"))
-    XCTAssertTrue(skill.contains("mcp-remote"))
-  }
-
   func testChatGPTAtlasIsSupportedBrowserTarget() throws {
     let atlas = try XCTUnwrap(
       BrowserAutomationTargetResolver.knownTargets.first {
@@ -95,11 +60,6 @@ import XCTest
       atlas.profileDirectoryRelativePath,
       "Library/Application Support/com.openai.atlas/browser-data/host"
     )
-    XCTAssertEqual(
-      atlas.extensionInstallURL()?.absoluteString, BrowserAutomationTarget.chromeWebStoreURL)
-    XCTAssertEqual(
-      atlas.extensionSetupURL()?.absoluteString, BrowserAutomationTarget.chromeWebStoreURL)
-    XCTAssertNotEqual(atlas.extensionSetupURL()?.scheme, "chrome-extension")
   }
 
   func testCommonChromiumBrowserVariantsAreSupported() throws {
@@ -143,48 +103,7 @@ import XCTest
 
       XCTAssertEqual(target.name, values.name)
       XCTAssertEqual(target.profileDirectoryRelativePath, values.profileRoot)
-      XCTAssertEqual(
-        target.extensionInstallURL()?.absoluteString, BrowserAutomationTarget.chromeWebStoreURL)
     }
-  }
-
-  func testOldAutoSelectedBrowserDoesNotOverrideDefaultBrowser() {
-    let defaults = UserDefaults.standard
-    defaults.set("com.google.Chrome", forKey: "playwrightBrowserBundleIdentifier")
-    defaults.removeObject(forKey: "playwrightBrowserBundleIdentifierUserSelected")
-    defer {
-      defaults.removeObject(forKey: "playwrightBrowserBundleIdentifier")
-      defaults.removeObject(forKey: "playwrightBrowserBundleIdentifierUserSelected")
-    }
-
-    XCTAssertNil(BrowserAutomationTargetStore.selectedBundleIdentifier)
-  }
-
-  func testSelectingDifferentBrowserClearsPersistedExtensionToken() {
-    let defaults = UserDefaults.standard
-    defaults.set("com.google.Chrome", forKey: "playwrightBrowserBundleIdentifier")
-    defaults.set(true, forKey: "playwrightBrowserBundleIdentifierUserSelected")
-    defaults.set("old-token", forKey: "playwrightExtensionToken")
-    defer {
-      defaults.removeObject(forKey: "playwrightBrowserBundleIdentifier")
-      defaults.removeObject(forKey: "playwrightBrowserBundleIdentifierUserSelected")
-      defaults.removeObject(forKey: "playwrightExtensionToken")
-    }
-
-    let atlas = BrowserAutomationTarget(
-      name: "ChatGPT Atlas",
-      bundleIdentifier: "com.openai.atlas",
-      appPath: "/Applications/ChatGPT Atlas.app",
-      profileDirectoryRelativePath:
-        "Library/Application Support/com.openai.atlas/browser-data/host",
-      installURL: nil,
-      supportsChromeWebStore: true
-    )
-
-    BrowserAutomationTargetStore.select(atlas)
-
-    XCTAssertEqual(BrowserAutomationTargetStore.selectedBundleIdentifier, "com.openai.atlas")
-    XCTAssertNil(defaults.string(forKey: "playwrightExtensionToken"))
   }
 
   func testClaudeCloudSetupUsesCustomizeConnectorModalURL() throws {
@@ -249,37 +168,6 @@ import XCTest
     XCTAssertTrue(
       task?.body.contains("https://claude.ai/customize/connectors?modal=add-custom-connector")
         == true)
-  }
-
-  func testAgentRuntimeOnlyEnablesPlaywrightWhenBridgeIsConfigured() {
-    XCTAssertTrue(
-      AgentRuntimeProcess.shouldEnablePlaywrightExtension(
-        useExtension: true,
-        token: "token",
-        targetHasExtension: true
-      )
-    )
-    XCTAssertFalse(
-      AgentRuntimeProcess.shouldEnablePlaywrightExtension(
-        useExtension: false,
-        token: "token",
-        targetHasExtension: true
-      )
-    )
-    XCTAssertFalse(
-      AgentRuntimeProcess.shouldEnablePlaywrightExtension(
-        useExtension: true,
-        token: "",
-        targetHasExtension: true
-      )
-    )
-    XCTAssertFalse(
-      AgentRuntimeProcess.shouldEnablePlaywrightExtension(
-        useExtension: true,
-        token: "token",
-        targetHasExtension: false
-      )
-    )
   }
 
   @MainActor
