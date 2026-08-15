@@ -3,7 +3,6 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { DatabaseSync } from "node:sqlite";
 import { afterEach, describe, expect, it } from "vitest";
-import { migrateSessionExecutionProfile } from "../src/runtime/session-execution-profile.js";
 import { probeNodeSqliteRuntime, SqliteAgentStore } from "../src/runtime/sqlite-store.js";
 
 const createdDirs: string[] = [];
@@ -21,7 +20,7 @@ describe("SqliteAgentStore", () => {
     store.migrate();
     store.migrate();
 
-    expect(store.getRow("SELECT COUNT(*) AS count FROM schema_migrations").count).toBe(28);
+    expect(store.getRow("SELECT COUNT(*) AS count FROM schema_migrations").count).toBe(29);
     expect(tableNames(store)).toEqual([
       "adapter_bindings",
       "artifacts",
@@ -63,12 +62,117 @@ describe("SqliteAgentStore", () => {
     store.close();
   });
 
+  it("upgrades legacy execution profiles to managed Pi before startup reconciliation", () => {
+    const databasePath = newDatabasePath();
+    let store = new SqliteAgentStore({ databasePath, reconcileOnOpen: false });
+    const legacyProfiles = [
+      { adapterId: "acp", modelProfile: "claude-sonnet-4-6" },
+      { adapterId: "hermes", modelProfile: "claude-sonnet-4-6" },
+      { adapterId: "openclaw", modelProfile: null },
+      { adapterId: "pi-mono", modelProfile: "omi-opus" },
+    ];
+    const sessions = legacyProfiles.map(({ adapterId, modelProfile }, index) => {
+      const session = store.insertSession({
+        ownerId: "owner",
+        surfaceKind: index === 0 ? "main_chat" : "background_agent",
+        defaultAdapterId: adapterId,
+        providerBoundary: adapterId === "pi-mono" ? "managed_cloud" : `local_user:${adapterId}`,
+        modelProfile,
+        defaultCwd: `/tmp/legacy-${adapterId}`,
+        executionRole: index === 0 ? "coordinator" : "leaf",
+      });
+      store.insertAdapterBinding({
+        sessionId: session.sessionId,
+        adapterId,
+        bindingGeneration: 1,
+        profileGeneration: 1,
+        resumeFidelity: adapterId === "pi-mono" ? "none" : "native",
+        status: "active",
+        adapterNativeSessionId: `native-${adapterId}`,
+      });
+      return session;
+    });
+    const interruptedRun = store.insertRun({
+      sessionId: sessions[0].sessionId,
+      clientId: "upgrade",
+      requestId: "interrupted",
+      status: "running",
+      mode: "act",
+      profileGeneration: 1,
+    });
+    store.insertAttempt({
+      runId: interruptedRun.runId,
+      attemptNo: 1,
+      status: "running",
+      adapterId: "acp",
+      adapterInstanceId: "legacy-worker",
+    });
+    store.execute(
+      `INSERT INTO default_execution_profile_preferences(
+         owner_id, generation, adapter_id, credential_scope, model_profile,
+         working_directory, updated_at_ms
+       ) VALUES ('owner', 1, 'acp', 'local_user', 'claude-sonnet-4-6', '/tmp/legacy', 1)`,
+    );
+    store.execute("DELETE FROM schema_migrations WHERE version = 29");
+    store.close();
+
+    store = new SqliteAgentStore({
+      databasePath,
+      nowMs: () => 500,
+      canonicalExecutionProfile: {
+        adapterId: "pi-mono",
+        modelProfile: "omi-sonnet",
+        workingDirectory: "/private/managed-agent-artifacts",
+      },
+    });
+
+    for (const [index, session] of sessions.entries()) {
+      expect(store.getRow(
+        `SELECT adapter_id, credential_scope, model_profile, working_directory,
+                execution_role, source
+         FROM session_execution_profiles
+         WHERE session_id = ? AND generation = 2`,
+        [session.sessionId],
+      )).toMatchObject({
+        adapter_id: "pi-mono",
+        credential_scope: "managed_cloud",
+        model_profile: "omi-sonnet",
+        working_directory: "/private/managed-agent-artifacts",
+        execution_role: index === 0 ? "coordinator" : "leaf",
+        source: "migration",
+      });
+      expect(store.getRow(
+        "SELECT adapter_id, model_profile, working_directory FROM session_execution_profiles WHERE session_id = ? AND generation = 1",
+        [session.sessionId],
+      )).toMatchObject({
+        adapter_id: legacyProfiles[index].adapterId,
+        model_profile: legacyProfiles[index].modelProfile,
+        working_directory: `/tmp/legacy-${legacyProfiles[index].adapterId}`,
+      });
+      expect(store.getRow(
+        "SELECT current_profile_generation, default_adapter_id, model_profile, default_cwd FROM sessions WHERE session_id = ?",
+        [session.sessionId],
+      )).toMatchObject({
+        current_profile_generation: 2,
+        default_adapter_id: "pi-mono",
+        model_profile: "omi-sonnet",
+        default_cwd: "/private/managed-agent-artifacts",
+      });
+    }
+    expect(store.getRow("SELECT COUNT(*) AS count FROM default_execution_profile_preferences").count).toBe(0);
+    expect(store.getRow("SELECT COUNT(*) AS count FROM adapter_bindings WHERE status = 'active'").count).toBe(0);
+    expect(store.getRow("SELECT COUNT(*) AS count FROM adapter_bindings WHERE status = 'stale'").count).toBe(4);
+    expect(store.getRow("SELECT status FROM runs WHERE run_id = ?", [interruptedRun.runId]).status).toBe("orphaned");
+    expect(store.getRow("SELECT status FROM run_attempts WHERE run_id = ?", [interruptedRun.runId]).status).toBe("orphaned");
+    store.close();
+  });
+
   it("enforces one active execution-authority attempt per run in SQLite", () => {
     const store = newStore({ reconcileOnOpen: false });
     const session = store.insertSession({
       ownerId: "owner",
       surfaceKind: "main",
-      defaultAdapterId: "acp",
+      defaultAdapterId: "test-adapter",
     });
     const run = store.insertRun({
       sessionId: session.sessionId,
@@ -82,14 +186,14 @@ describe("SqliteAgentStore", () => {
       runId: run.runId,
       attemptNo: 1,
       status: "running",
-      adapterId: "acp",
+      adapterId: "test-adapter",
       adapterInstanceId: "worker-1",
     });
     expect(() => store.insertAttempt({
       runId: run.runId,
       attemptNo: 2,
       status: "queued",
-      adapterId: "acp",
+      adapterId: "test-adapter",
       adapterInstanceId: "worker-2",
     })).toThrow();
 
@@ -97,7 +201,7 @@ describe("SqliteAgentStore", () => {
       runId: run.runId,
       attemptNo: 3,
       status: "failed",
-      adapterId: "acp",
+      adapterId: "test-adapter",
       adapterInstanceId: "worker-3",
     })).not.toThrow();
     expect(store.allRows("SELECT attempt_no, status FROM run_attempts ORDER BY attempt_no")).toEqual([
@@ -137,7 +241,7 @@ describe("SqliteAgentStore", () => {
     const session = store.insertSession({
       ownerId: "owner",
       surfaceKind: "main",
-      defaultAdapterId: "acp",
+      defaultAdapterId: "test-adapter",
     });
     const run = store.insertRun({
       sessionId: session.sessionId,
@@ -153,14 +257,14 @@ describe("SqliteAgentStore", () => {
       runId: run.runId,
       attemptNo: 1,
       status: "running",
-      adapterId: "acp",
+      adapterId: "test-adapter",
       adapterInstanceId: "worker-1",
     });
     store.insertAttempt({
       runId: run.runId,
       attemptNo: 2,
       status: "queued",
-      adapterId: "acp",
+      adapterId: "test-adapter",
       adapterInstanceId: "worker-2",
     });
     store.close();
@@ -182,7 +286,7 @@ describe("SqliteAgentStore", () => {
       runId: run.runId,
       attemptNo: 3,
       status: "starting",
-      adapterId: "acp",
+      adapterId: "test-adapter",
       adapterInstanceId: "worker-3",
     })).toThrow();
     store.close();
@@ -213,7 +317,7 @@ describe("SqliteAgentStore", () => {
     const session = store.insertSession({
       ownerId: "owner",
       surfaceKind: "main_chat",
-      defaultAdapterId: "acp",
+      defaultAdapterId: "test-adapter",
     });
     store.insertSurfaceConversation({
       ownerId: "owner",
@@ -273,7 +377,7 @@ describe("SqliteAgentStore", () => {
     const session = store.insertSession({
       ownerId: "owner",
       surfaceKind: "main_chat",
-      defaultAdapterId: "acp",
+      defaultAdapterId: "test-adapter",
     });
     const run = store.insertRun({
       sessionId: session.sessionId,
@@ -286,7 +390,7 @@ describe("SqliteAgentStore", () => {
       runId: run.runId,
       attemptNo: 1,
       status: "succeeded",
-      adapterId: "acp",
+      adapterId: "test-adapter",
       adapterInstanceId: "worker",
     });
     const artifact = store.insertArtifact({
@@ -478,12 +582,12 @@ describe("SqliteAgentStore", () => {
     const ownerSession = store.insertSession({
       ownerId: "owner",
       surfaceKind: "main_chat",
-      defaultAdapterId: "acp",
+      defaultAdapterId: "test-adapter",
     });
     const otherSession = store.insertSession({
       ownerId: "other",
       surfaceKind: "main_chat",
-      defaultAdapterId: "acp",
+      defaultAdapterId: "test-adapter",
     });
     const ownerRun = store.insertRun({
       sessionId: ownerSession.sessionId,
@@ -572,11 +676,11 @@ describe("SqliteAgentStore", () => {
     const session = store.insertSession({
       ownerId: "owner",
       surfaceKind: "task_chat",
-      defaultAdapterId: "acp",
+      defaultAdapterId: "test-adapter",
     });
     const binding = store.insertAdapterBinding({
       sessionId: session.sessionId,
-      adapterId: "acp",
+      adapterId: "test-adapter",
       bindingGeneration: 1,
       adapterNativeSessionId: "native-session",
       adapterInstanceId: "worker-1",
@@ -595,7 +699,7 @@ describe("SqliteAgentStore", () => {
       runId: run.runId,
       attemptNo: 1,
       status: "succeeded",
-      adapterId: "acp",
+      adapterId: "test-adapter",
       adapterInstanceId: "worker-1",
       bindingId: binding.bindingId,
     });
@@ -645,7 +749,7 @@ describe("SqliteAgentStore", () => {
       surfaceKind: "task_chat",
       externalRefKind: "task",
       externalRefId: "task-1",
-      defaultAdapterId: "acp",
+      defaultAdapterId: "test-adapter",
     });
 
     expect(() => store.insertSession({
@@ -653,12 +757,12 @@ describe("SqliteAgentStore", () => {
       surfaceKind: "task_chat",
       externalRefKind: "task",
       externalRefId: "task-1",
-      defaultAdapterId: "acp",
+      defaultAdapterId: "test-adapter",
     })).toThrow();
 
     store.insertAdapterBinding({
       sessionId: session.sessionId,
-      adapterId: "acp",
+      adapterId: "test-adapter",
       bindingGeneration: 1,
       adapterNativeSessionId: "native-1",
       resumeFidelity: "native",
@@ -667,7 +771,7 @@ describe("SqliteAgentStore", () => {
 
     expect(() => store.insertAdapterBinding({
       sessionId: session.sessionId,
-      adapterId: "acp",
+      adapterId: "test-adapter",
       bindingGeneration: 2,
       resumeFidelity: "native",
       status: "active",
@@ -676,11 +780,11 @@ describe("SqliteAgentStore", () => {
     const secondSession = store.insertSession({
       ownerId: "owner",
       surfaceKind: "main",
-      defaultAdapterId: "acp",
+      defaultAdapterId: "test-adapter",
     });
     const replacementBinding = store.insertAdapterBinding({
       sessionId: secondSession.sessionId,
-      adapterId: "acp",
+      adapterId: "test-adapter",
       bindingGeneration: 1,
       adapterNativeSessionId: "native-1",
       resumeFidelity: "native",
@@ -689,7 +793,7 @@ describe("SqliteAgentStore", () => {
     expect(replacementBinding.sessionId).toBe(secondSession.sessionId);
     const nativeRows = store.allRows(
       "SELECT session_id, status FROM adapter_bindings WHERE adapter_id = ? AND adapter_native_session_id = ? ORDER BY created_at_ms ASC",
-      ["acp", "native-1"],
+      ["test-adapter", "native-1"],
     );
     expect(nativeRows.map((row) => row.status)).toEqual(["closed", "stale"]);
 
@@ -701,11 +805,11 @@ describe("SqliteAgentStore", () => {
     const session = store.insertSession({
       ownerId: "owner",
       surfaceKind: "main",
-      defaultAdapterId: "acp",
+      defaultAdapterId: "test-adapter",
     });
     const existingBinding = store.insertAdapterBinding({
       sessionId: session.sessionId,
-      adapterId: "acp",
+      adapterId: "test-adapter",
       bindingGeneration: 1,
       adapterNativeSessionId: "native-1",
       adapterInstanceId: "worker-1",
@@ -715,13 +819,13 @@ describe("SqliteAgentStore", () => {
     const secondSession = store.insertSession({
       ownerId: "owner",
       surfaceKind: "main",
-      defaultAdapterId: "acp",
+      defaultAdapterId: "test-adapter",
     });
 
     expect(() => store.insertAdapterBinding({
       bindingId: existingBinding.bindingId,
       sessionId: secondSession.sessionId,
-      adapterId: "acp",
+      adapterId: "test-adapter",
       bindingGeneration: 1,
       adapterNativeSessionId: "native-1",
       resumeFidelity: "native",
@@ -740,7 +844,7 @@ describe("SqliteAgentStore", () => {
     const session = store.insertSession({
       ownerId: "owner",
       surfaceKind: "main",
-      defaultAdapterId: "acp",
+      defaultAdapterId: "test-adapter",
     });
 
     expect(() => store.withTransaction(() => {
@@ -819,7 +923,7 @@ describe("SqliteAgentStore", () => {
     const session = store.insertSession({
       ownerId: "owner",
       surfaceKind: "main",
-      defaultAdapterId: "acp",
+      defaultAdapterId: "test-adapter",
     });
     const run = store.insertRun({
       sessionId: session.sessionId,
@@ -858,11 +962,11 @@ describe("SqliteAgentStore", () => {
     const session = store.insertSession({
       ownerId: "owner",
       surfaceKind: "main",
-      defaultAdapterId: "acp",
+      defaultAdapterId: "test-adapter",
     });
     const nativeBinding = store.insertAdapterBinding({
       sessionId: session.sessionId,
-      adapterId: "acp",
+      adapterId: "test-adapter",
       bindingGeneration: 1,
       adapterNativeSessionId: "native-session",
       adapterInstanceId: "native-worker",
@@ -888,7 +992,7 @@ describe("SqliteAgentStore", () => {
       runId: activeRun.runId,
       attemptNo: 1,
       status: "running",
-      adapterId: "acp",
+      adapterId: "test-adapter",
       adapterInstanceId: "attempt-worker",
       bindingId: nativeBinding.bindingId,
     });
@@ -903,7 +1007,7 @@ describe("SqliteAgentStore", () => {
       runId: completedRun.runId,
       attemptNo: 1,
       status: "succeeded",
-      adapterId: "acp",
+      adapterId: "test-adapter",
       adapterInstanceId: "completed-worker",
       bindingId: nativeBinding.bindingId,
     });
@@ -944,7 +1048,7 @@ describe("SqliteAgentStore", () => {
     const session = store.insertSession({
       ownerId: "owner",
       surfaceKind: "delegated_agent",
-      defaultAdapterId: "acp",
+      defaultAdapterId: "test-adapter",
     });
     const parentRun = store.insertRun({
       sessionId: session.sessionId,
@@ -1062,7 +1166,7 @@ describe("SqliteAgentStore", () => {
     const session = store.insertSession({
       ownerId: "owner",
       surfaceKind: "delegated_agent",
-      defaultAdapterId: "acp",
+      defaultAdapterId: "test-adapter",
     });
     const parentRun = store.insertRun({
       sessionId: session.sessionId,
@@ -1112,7 +1216,7 @@ describe("SqliteAgentStore", () => {
     const session = store.insertSession({
       ownerId: "owner",
       surfaceKind: "delegated_agent",
-      defaultAdapterId: "acp",
+      defaultAdapterId: "test-adapter",
     });
     const parentRun = store.insertRun({
       sessionId: session.sessionId,
@@ -1176,7 +1280,7 @@ describe("SqliteAgentStore", () => {
     const session = store.insertSession({
       ownerId: "owner",
       surfaceKind: "main_chat",
-      defaultAdapterId: "acp",
+      defaultAdapterId: "test-adapter",
     });
 
     expect(() => store.insertDesktopContextPacket({
@@ -1361,138 +1465,14 @@ describe("SqliteAgentStore", () => {
     store.close();
   });
 
-  it("repairs old-writer profile references by the immutable profile active at each row timestamp", () => {
-    const databasePath = newDatabasePath();
-    let store = new SqliteAgentStore({ databasePath, reconcileOnOpen: false, nowMs: () => 100 });
-    const session = store.insertSession({
-      sessionId: "ses_profile_downgrade",
-      ownerId: "owner",
-      surfaceKind: "main_chat",
-      defaultAdapterId: "acp",
-      providerBoundary: "local_user:acp",
-      createdAtMs: 100,
-      updatedAtMs: 100,
-      lastActivityAtMs: 100,
-    });
-    store.insertRun({
-      runId: "run_genuine_gen1",
-      sessionId: session.sessionId,
-      clientId: "legacy",
-      requestId: "genuine-gen1",
-      status: "succeeded",
-      mode: "ask",
-      profileGeneration: 1,
-      createdAtMs: 150,
-      completedAtMs: 150,
-      updatedAtMs: 150,
-    });
-    store.insertAttempt({
-      attemptId: "att_genuine_gen1",
-      runId: "run_genuine_gen1",
-      attemptNo: 1,
-      status: "succeeded",
-      adapterId: "acp",
-      adapterInstanceId: "",
-      profileGeneration: 1,
-      createdAtMs: 151,
-      completedAtMs: 151,
-      updatedAtMs: 151,
-    });
-    store.insertAdapterBinding({
-      bindingId: "bind_genuine_gen1",
-      sessionId: session.sessionId,
-      adapterId: "acp",
-      bindingGeneration: 1,
-      profileGeneration: 1,
-      resumeFidelity: "none",
-      status: "closed",
-      createdAtMs: 152,
-      updatedAtMs: 152,
-    });
-    migrateSessionExecutionProfile(store, {
-      sessionId: session.sessionId,
-      ownerId: "owner",
-      expectedProfileGeneration: 1,
-      adapterId: "pi-mono",
-      reason: "generation_two",
-    }, 200);
-    store.close();
-
-    insertRowsAsDowngradedWriter(databasePath, {
-      sessionId: session.sessionId,
-      suffix: "gen2",
-      adapterId: "pi-mono",
-      bindingGeneration: 2,
-      createdAtMs: 250,
-    });
-    store = new SqliteAgentStore({ databasePath, reconcileOnOpen: false, nowMs: () => 275 });
-    expect(store.reconcileStartup()).toMatchObject({
-      repairedRunProfileReferenceIds: ["run_gen2"],
-      repairedAttemptProfileReferenceIds: ["att_gen2"],
-      repairedBindingProfileReferenceIds: ["bind_gen2"],
-    });
-    expect(profileReferences(store)).toMatchObject({
-      run_genuine_gen1: 1,
-      att_genuine_gen1: 1,
-      bind_genuine_gen1: 1,
-      run_gen2: 2,
-      att_gen2: 2,
-      bind_gen2: 2,
-    });
-    migrateSessionExecutionProfile(store, {
-      sessionId: session.sessionId,
-      ownerId: "owner",
-      expectedProfileGeneration: 2,
-      adapterId: "acp",
-      reason: "generation_three",
-    }, 300);
-    store.close();
-
-    insertRowsAsDowngradedWriter(databasePath, {
-      sessionId: session.sessionId,
-      suffix: "gen3",
-      adapterId: "acp",
-      bindingGeneration: 3,
-      createdAtMs: 300,
-    });
-    store = new SqliteAgentStore({ databasePath, reconcileOnOpen: false, nowMs: () => 400 });
-    expect(store.reconcileStartup()).toMatchObject({
-      repairedRunProfileReferenceIds: ["run_gen3"],
-      repairedAttemptProfileReferenceIds: ["att_gen3"],
-      repairedBindingProfileReferenceIds: ["bind_gen3"],
-    });
-    const repaired = profileReferences(store);
-    expect(repaired).toEqual({
-      att_gen2: 2,
-      att_gen3: 3,
-      att_genuine_gen1: 1,
-      bind_gen2: 2,
-      bind_gen3: 3,
-      bind_genuine_gen1: 1,
-      run_gen2: 2,
-      run_gen3: 3,
-      run_genuine_gen1: 1,
-    });
-    store.close();
-
-    store = new SqliteAgentStore({ databasePath, reconcileOnOpen: false, nowMs: () => 500 });
-    expect(store.reconcileStartup()).toMatchObject({
-      repairedRunProfileReferenceIds: [],
-      repairedAttemptProfileReferenceIds: [],
-      repairedBindingProfileReferenceIds: [],
-    });
-    expect(profileReferences(store)).toEqual(repaired);
-    store.close();
-  });
-
-  it("terminalizes orphaned nonterminal journal rows once without a backend empty placeholder", () => {
+   it("terminalizes orphaned nonterminal journal rows once without a backend empty placeholder", () => {
     const store = new SqliteAgentStore({ databasePath: newDatabasePath(), reconcileOnOpen: false, nowMs: () => 500 });
     const session = store.insertSession({
       ownerId: "owner",
       surfaceKind: "main_chat",
       externalRefKind: "chat",
       externalRefId: "default",
-      defaultAdapterId: "acp",
+      defaultAdapterId: "test-adapter",
     });
     store.insertSurfaceConversation({
       ownerId: "owner",

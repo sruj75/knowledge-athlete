@@ -501,8 +501,8 @@ None. The kept local runtime is already a separate path.
 ### S-02 — Remove wearable devices, Omi WAL, and device-audio ingestion
 
 **Type:** complete vertical deletion<br>
-**Status:** ready to start; repository Cycles 0-6 are executable and destructive
-live closeout remains separately gated<br>
+**Status:** repository code-complete and independently reviewed on 2026-08-14;
+destructive live closeout remains separately gated, so operational closeout is pending<br>
 **Authorizing decisions:** IR-012, IR-013, IR-014, IR-359, and IR-823
 
 #### Outcome

@@ -49,8 +49,6 @@ import {
   bindingMetadata,
   stableHash,
   stableJsonStringify,
-  stableMcpServerConfig,
-  stableJsonHash,
   parseJsonObject,
   placeholders,
   isStaleBindingError,
@@ -121,15 +119,8 @@ import type {
 import { StaleAdapterBindingError } from "./kernel-types.js";
 
 import { KernelArtifacts } from "./kernel-artifacts.js";
-import {
-  configureDefaultExecutionProfile,
-  migrateSessionExecutionProfile,
-  readDefaultExecutionProfilePreference,
-  readSessionExecutionProfile,
-  type MigrateSessionExecutionProfileInput,
-  type MigrateSessionExecutionProfileResult,
-} from "./session-execution-profile.js";
-import type { DefaultExecutionProfilePreference, SessionExecutionProfile } from "./types.js";
+import { readSessionExecutionProfile } from "./session-execution-profile.js";
+import type { SessionExecutionProfile } from "./types.js";
 import {
   buildContextSnapshot,
   updateContextSource,
@@ -148,20 +139,6 @@ export class KernelSessions extends KernelArtifacts {
     const session = this.readSession(sessionId);
     this.assertSessionOwner(session, ownerId);
     return session;
-  }
-
-  defaultExecutionProfilePreference(ownerId: string): DefaultExecutionProfilePreference | undefined {
-    return readDefaultExecutionProfilePreference(this.store, ownerId);
-  }
-
-  configureDefaultExecutionProfile(input: {
-    ownerId: string;
-    adapterId: string;
-    modelProfile: string | null;
-    workingDirectory: string;
-    expectedPreferenceGeneration?: number;
-  }): DefaultExecutionProfilePreference {
-    return configureDefaultExecutionProfile(this.store, input, Date.now());
   }
 
   contextSnapshot(sessionId: string, ownerId: string, surfaceKind?: string): ContextSnapshotProjection {
@@ -198,27 +175,6 @@ export class KernelSessions extends KernelArtifacts {
     const session = this.readSession(sessionId);
     this.assertSessionOwner(session, ownerId);
     return readSessionExecutionProfile(this.store, sessionId);
-  }
-
-  migrateSessionExecutionProfile(
-    input: MigrateSessionExecutionProfileInput,
-  ): MigrateSessionExecutionProfileResult {
-    return this.withTransaction(() => {
-      const result = migrateSessionExecutionProfile(this.store, input, Date.now());
-      this.appendEvent({
-        sessionId: input.sessionId,
-        type: "session.execution_profile_migrated",
-        payload: {
-          previousGeneration: result.previous.generation,
-          profileGeneration: result.profile.generation,
-          adapterId: result.profile.adapterId,
-          executionRole: result.profile.executionRole,
-          staleBindingIds: result.staleBindingIds,
-          reason: input.reason,
-        },
-      });
-      return result;
-    });
   }
 
   executionPolicyForSession(sessionId: string): Pick<AgentSession, "executionRole" | "providerBoundary" | "defaultAdapterId"> {

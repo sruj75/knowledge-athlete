@@ -119,7 +119,7 @@ describe("workstream continuity", () => {
       delivery_status: "blocked",
       status: "rejected",
     });
-    expect(store.getRow("SELECT COUNT(*) AS count FROM schema_migrations").count).toBe(28);
+    expect(store.getRow("SELECT COUNT(*) AS count FROM schema_migrations").count).toBe(29);
     store.close();
   });
 
@@ -279,7 +279,7 @@ describe("workstream continuity", () => {
 
   it("rejects uncited artifact versions and execution IDs owned by another session", () => {
     const store = newStore();
-    const other = store.insertSession({ ownerId: "owner", surfaceKind: "other", defaultAdapterId: "acp" });
+    const other = store.insertSession({ ownerId: "owner", surfaceKind: "other", defaultAdapterId: "test-adapter" });
     const otherRun = store.insertRun({
       sessionId: other.sessionId,
       clientId: "client",
@@ -313,7 +313,7 @@ describe("workstream continuity", () => {
       runId: workstreamRun.runId,
       attemptNo: 1,
       status: "succeeded",
-      adapterId: "acp",
+      adapterId: "test-adapter",
       adapterInstanceId: "worker",
     });
     const attemptArtifact = persistWorkstreamArtifactVersion(store, {
@@ -547,7 +547,7 @@ describe("workstream continuity", () => {
     });
     const legacyBinding = store.insertAdapterBinding({
       sessionId: task.agentSessionId,
-      adapterId: "acp",
+      adapterId: "test-adapter",
       bindingGeneration: 1,
       adapterNativeSessionId: "native-task-1",
       resumeFidelity: "native",

@@ -75,7 +75,6 @@ final class RealtimeHubSession: NSObject, @unchecked Sendable {
   private let provider: RealtimeHubProvider
   private let auth: HubAuth
   private let instructions: String
-  private let availableDirectedProviders: [String]
   /// Opaque cache-plan fields only; never raw conversation material.
   private let contextPlanID: String
   private let stableCacheIdentity: String
@@ -194,7 +193,6 @@ final class RealtimeHubSession: NSObject, @unchecked Sendable {
     provider: RealtimeHubProvider,
     auth: HubAuth,
     instructions: String,
-    availableDirectedProviders: [String] = [],
     contextPlanID: String = "",
     stableCacheIdentity: String = "",
     dynamicContextIdentity: String = "",
@@ -207,7 +205,6 @@ final class RealtimeHubSession: NSObject, @unchecked Sendable {
     self.provider = provider
     self.auth = auth
     self.instructions = instructions
-    self.availableDirectedProviders = availableDirectedProviders
     self.contextPlanID = contextPlanID
     self.stableCacheIdentity = stableCacheIdentity
     self.dynamicContextIdentity = dynamicContextIdentity
@@ -1019,7 +1016,7 @@ final class RealtimeHubSession: NSObject, @unchecked Sendable {
           ],
           "output": ["format": ["type": "audio/pcm", "rate": 24000], "voice": "marin"],
         ],
-        "tools": RealtimeHubTools.openAITools(availableDirectedProviders: availableDirectedProviders),
+        "tools": RealtimeHubTools.openAITools,
         "tool_choice": "auto",
       ],
     ]
@@ -1053,8 +1050,7 @@ final class RealtimeHubSession: NSObject, @unchecked Sendable {
           "systemInstruction": ["parts": [["text": instructions]]],
           "tools": [
             [
-              "functionDeclarations": RealtimeHubTools.geminiFunctionDeclarations(
-                availableDirectedProviders: availableDirectedProviders)
+              "functionDeclarations": RealtimeHubTools.geminiFunctionDeclarations
             ]
           ],
           "inputAudioTranscription": [:],

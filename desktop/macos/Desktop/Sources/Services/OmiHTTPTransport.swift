@@ -298,15 +298,11 @@ enum APIError: LocalizedError {
   case httpError(statusCode: Int, detail: String? = nil)
   case decodingError(Error)
   case unsupportedTierScopedBulkMutation(String)
-  case syncRateLimited(retryAfterSeconds: Int?)
-  case syncUploadRejected(reason: String)
 
   var detail: String? {
     switch self {
     case .httpError(_, let detail):
       return detail
-    case .syncUploadRejected(let reason):
-      return reason
     default:
       return nil
     }
@@ -325,13 +321,6 @@ enum APIError: LocalizedError {
       return "Failed to decode response: \(error.localizedDescription)"
     case .unsupportedTierScopedBulkMutation(let operation):
       return "Layer-scoped bulk memory \(operation) is not supported yet."
-    case .syncRateLimited(let retryAfterSeconds):
-      if let retryAfterSeconds {
-        return "Sync rate limited (retry after \(retryAfterSeconds)s)"
-      }
-      return "Sync rate limited"
-    case .syncUploadRejected(let reason):
-      return reason
     }
   }
 }

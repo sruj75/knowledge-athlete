@@ -1,5 +1,4 @@
 import Foundation
-import OmiWAL
 
 // MARK: - Conversation Models (matching Flutter app)
 
@@ -71,7 +70,6 @@ struct ServerConversation: Codable, Identifiable, Equatable {
   var transcriptSegments: [TranscriptSegment]
   var transcriptSegmentsIncluded: Bool
   let geolocation: Geolocation?
-  let photos: [ConversationPhoto]
 
   let appsResults: [AppResponse]
   let source: ConversationSource?
@@ -97,7 +95,6 @@ struct ServerConversation: Codable, Identifiable, Equatable {
     case structured
     case transcriptSegments = "transcript_segments"
     case geolocation
-    case photos
     case appsResults = "apps_results"
     case source
     case language
@@ -131,7 +128,6 @@ struct ServerConversation: Codable, Identifiable, Equatable {
     transcriptSegmentsIncluded = container.contains(.transcriptSegments)
     transcriptSegments = (wire.transcriptSegments ?? []).map(TranscriptSegment.init)
     geolocation = wire.geolocation
-    photos = (wire.photos ?? []).map(ConversationPhoto.init)
     appsResults = (wire.appsResults ?? []).map(AppResponse.init)
     source = wire.source.map { ConversationSource(rawValue: $0.rawValue) ?? .unknown }
     language = wire.language
@@ -178,7 +174,6 @@ struct ServerConversation: Codable, Identifiable, Equatable {
     transcriptSegments: [TranscriptSegment],
     transcriptSegmentsIncluded: Bool,
     geolocation: Geolocation?,
-    photos: [ConversationPhoto],
     appsResults: [AppResponse],
     source: ConversationSource?,
     language: String?,
@@ -200,7 +195,6 @@ struct ServerConversation: Codable, Identifiable, Equatable {
     self.transcriptSegments = transcriptSegments
     self.transcriptSegmentsIncluded = transcriptSegmentsIncluded
     self.geolocation = geolocation
-    self.photos = photos
     self.appsResults = appsResults
     self.source = source
     self.language = language
@@ -600,47 +594,6 @@ struct TranscriptSegment: Codable, Identifiable {
 /// the four exposed fields through with no transformation (no Date parsing,
 /// no defaults, no computed properties), so this is a thin alias.
 typealias Geolocation = OmiAPI.Geolocation
-
-struct ConversationPhoto: Codable, Identifiable {
-  let id: String
-  let base64: String
-  let description: String?
-  let createdAt: Date
-  let discarded: Bool
-
-  enum CodingKeys: String, CodingKey {
-    case id, base64, description
-    case createdAt = "created_at"
-    case discarded
-  }
-
-  init(from decoder: Decoder) throws {
-    let container = try decoder.container(keyedBy: CodingKeys.self)
-    id = try container.decodeIfPresent(String.self, forKey: .id) ?? UUID().uuidString
-    base64 = try container.decodeIfPresent(String.self, forKey: .base64) ?? ""
-    description = try container.decodeIfPresent(String.self, forKey: .description)
-    createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
-    discarded = try container.decodeIfPresent(Bool.self, forKey: .discarded) ?? false
-  }
-
-  /// Adapter from the generated wire DTO (OmiAPI.ConversationPhoto). The wire
-  /// exposes `created_at` as a string; this adapter parses it via the shared
-  /// ISO8601 strategy.
-  init(_ wire: OmiAPI.ConversationPhoto) {
-    self.id = wire.id ?? UUID().uuidString
-    self.base64 = wire.base64
-    self.description = wire.description_
-    let f = ISO8601DateFormatter()
-    f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-    let std = ISO8601DateFormatter()
-    if let s = wire.createdAt, let d = f.date(from: s) ?? std.date(from: s) {
-      self.createdAt = d
-    } else {
-      self.createdAt = Date()
-    }
-    self.discarded = wire.discarded ?? false
-  }
-}
 
 struct AppResponse: Codable, Identifiable {
   // `id` is stored, not computed: a nil `app_id` (legacy summary results still

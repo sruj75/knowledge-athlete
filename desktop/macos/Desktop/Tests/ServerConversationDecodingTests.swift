@@ -3,6 +3,25 @@ import XCTest
 @testable import Omi_Computer
 
 final class ServerConversationDecodingTests: XCTestCase {
+  func testHistoricalConversationSourcesRemainDecodable() throws {
+    let historicalSources: [ConversationSource] = [
+      .friend, .omi, .workflow, .openglass, .screenpipe, .sdcard, .fieldy, .bee, .xor,
+      .frame, .friendCom, .appleWatch, .phone, .desktop, .limitless, .plaud,
+    ]
+
+    for source in historicalSources {
+      let decoded = try JSONDecoder().decode(
+        ConversationSource.self,
+        from: Data("\"\(source.rawValue)\"".utf8)
+      )
+      XCTAssertEqual(decoded, source)
+    }
+    XCTAssertEqual(
+      try JSONDecoder().decode(ConversationSource.self, from: Data("\"retired-device\"".utf8)),
+      .unknown
+    )
+  }
+
   private func decodeConversation(_ extraFields: String) throws -> ServerConversation {
     let json = """
       {

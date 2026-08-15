@@ -116,17 +116,13 @@ final class AgentErrorClassifierTests: XCTestCase {
     XCTAssertFalse(classified.userMessage.lowercased().contains("try again"))
   }
 
-  func testProviderOrModeMisconfigIsNotRetryable() {
-    for raw in [
-      "Local Claude is available only when the User Claude mode is selected.",
-      "Managed Omi agents can only use Omi cloud routing.",
-      "Local provider mode is pinned to acp.",
-      "Hermes is not available. Make sure Hermes is installed first, then try again.",
-    ] {
-      let classified = AgentErrorClassifier.classify(raw)
-      XCTAssertEqual(classified.code, .agentModeUnavailable, raw)
-      XCTAssertFalse(classified.retryable, raw)
-    }
+  func testManagedBoundaryMismatchIsNotRetryable() {
+    let raw = "Managed Omi agents can only use Omi cloud routing."
+    let classified = AgentErrorClassifier.classify(raw)
+
+    XCTAssertEqual(classified.code, .agentModeUnavailable)
+    XCTAssertFalse(classified.retryable)
+    XCTAssertFalse(classified.userMessage.lowercased().contains("provider"))
   }
 
   func testAuthRequiredAndByokRouteToAuth() {
@@ -161,14 +157,12 @@ final class AgentErrorClassifierTests: XCTestCase {
         "You've hit your Free plan limit (30 chat questions per month; 32 used). Upgrade in Settings → Plan and Usage, or wait until the next reset.",
         true, false
       ),
-      ("Local Claude is available only when the User Claude mode is selected.", true, false),
       ("Managed Omi agents can only use Omi cloud routing.", true, false),
       ("Authentication required", true, false),
       (
         "400 tool_choice.name 'web_search' cannot be used because this tool only allows calls from ['code_execution_20260120'].",
         true, false
       ),
-      ("Local provider mode is pinned to acp.", true, false),
       ("400 Your credit balance is too low to access the Anthropic API.", true, false),
       ("400 tools: Tool names must be unique.", true, false),
       ("pi-mono process exited (code 1)", true, true),

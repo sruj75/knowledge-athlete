@@ -136,24 +136,6 @@ tests/unit/test_short_audio_embedding.py::TestGetWavDuration::test_different_sam
 tests/unit/test_speaker_id_pipeline.py::TestAudioRingBuffer::test_write_overwrites_oldest_when_capacity_exceeded
 tests/unit/test_speaker_sample.py::test_verify_and_transcribe_sample_transcription_failure
 tests/unit/test_speaker_sample_migration.py::test_get_migration_lock_reuses_same_key
-tests/unit/test_sync_cloud_tasks.py::TestVerifyCloudTasksOidc::test_env_unset_fails_closed
-tests/unit/test_sync_fair_use_gate.py::TestCreateConversationLockPropagation::test_create_conversation_default_unlocked
-tests/unit/test_sync_fair_use_gate.py::TestHardRestrictionRetryAfter::test_returns_none_when_restrict_until_is_missing_or_expired
-tests/unit/test_sync_fair_use_gate.py::TestSpeechDurationComputation::test_duration_from_raw_vad_segments
-tests/unit/test_sync_silent_failure.py::TestProcessSegmentReal::test_success_adds_to_new_memories
-tests/unit/test_sync_transcription_prefs.py::TestProcessSegmentPreferences::test_private_cloud_sync_flag_passed_to_new_conversation
-tests/unit/test_sync_v2.py::TestAsyncCoordinatorBehavioral::test_decode_generic_exception_marks_failed
-tests/unit/test_sync_v2.py::TestAsyncCoordinatorBehavioral::test_decode_http_exception_marks_failed
-tests/unit/test_sync_v2.py::TestAsyncCoordinatorBehavioral::test_managed_stt_budget_exhausted_marks_failed
-tests/unit/test_sync_v2.py::TestAsyncCoordinatorBehavioral::test_managed_stt_budget_not_exhausted_continues
-tests/unit/test_sync_v2.py::TestAsyncCoordinatorBehavioral::test_empty_decode_completes_zero_segments
-tests/unit/test_sync_v2.py::TestAsyncCoordinatorBehavioral::test_partial_segment_failure_completes
-tests/unit/test_sync_v2.py::TestAsyncCoordinatorBehavioral::test_target_conversation_id_forwarded
-tests/unit/test_sync_v2.py::TestAsyncCoordinatorBehavioral::test_vad_errors_mark_failed
-tests/unit/test_sync_v2.py::TestAsyncCoordinatorBehavioral::test_zero_segments_after_vad_completes
-tests/unit/test_sync_v2.py::TestV2EndpointExecution::test_get_poll_404_expired_job
-tests/unit/test_sync_v2.py::TestV2EndpointExecution::test_get_poll_403_wrong_owner
-tests/unit/test_sync_v2.py::TestV2EndpointExecution::test_get_poll_completed_includes_result
 tests/unit/test_tools_rest_memory_runtime_adapter.py::test_tools_rest_get_memories_text_requests_legacy_safe_memory_decision
 tests/unit/test_tools_router.py::TestRouterEnvelope::test_ok_normal
 tests/unit/test_transcript_segment.py::test_forward_merge_on_short_incomplete_last_sentence
@@ -179,9 +161,7 @@ tests/unit/test_ws_i_write_convergence.py::test_canonical_writer_files_do_not_ca
 tests/unit/test_ws_i_write_convergence.py::test_extract_memories_inner_legacy_calls_save_memories
 tests/unit/test_ws_i_write_convergence.py::test_v3_get_routes_canonical_user_to_memory_service
 tests/unit/test_ws_l_surface_routing.py::TestMcpSseLegacySearchParity::test_legacy_sse_search_uses_vector_order_and_full_firestore_docs
-tests/unit/test_sync_cloud_tasks.py::test_sync_post_enqueue_cleanup_does_not_unstage
 # File-isolation amortizes router/STT/VAD imports across different node IDs per run.
-tests/unit/test_sync_cloud_tasks.py
 tests/unit/test_fallback_observability.py
 tests/unit/test_task_recommendations.py::test_no_production_branch_consumes_debug_summary_or_reason_codes
 tests/unit/test_utils_import_boundary.py::test_utils_modules_do_not_import_routers
@@ -193,7 +173,4 @@ tests/unit/test_inv_mem_1_guard.py::TestInvMemSourceRatchet::test_default_read_p
 tests/unit/test_task_intelligence_contract_freeze.py
 tests/unit/test_lock_bypass_fixes.py
 tests/unit/test_byok_security.py::TestCacheRouting::test_cached_openai_chat_no_raw_key_in_cache
-# Behavior test drives the real process_segment target-attach fallback (#10033/#10119 review ask);
-# it is the sole heavy test in its file, so it amortizes the sync pipeline import into its call phase.
-tests/unit/test_sync_merge_target_selection.py::test_sync_target_attach_fallback_to_closest
 tests/unit/test_bounded_firestore_list_reads.py::test_legacy_get_memories_no_first_page_5000_force

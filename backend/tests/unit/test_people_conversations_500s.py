@@ -1,10 +1,7 @@
-"""
-Regression tests for #5423 (Person model validation) and #5424 (conversations response size).
+"""Regression tests for #5423 (Person model validation).
 
 #5423: /v1/users/people returns 500 when legacy Firestore person docs are missing
        the 'id' field or 'created_at'/'updated_at' timestamps.
-#5424: /v1/conversations returns 500 when @with_photos loads full base64 photo content
-       for every conversation, exceeding Cloud Run's 32MB response limit.
 """
 
 from datetime import datetime, timezone
@@ -154,84 +151,3 @@ class TestGetPeopleDocIdInjection:
 
         result = users_mod.get_people_by_ids('uid-123', [])
         assert result == []
-
-
-class TestConversationsListNoPhotos:
-    """#5424: List endpoint should not load photo base64 content."""
-
-    def test_list_endpoint_uses_without_photos(self):
-        """Verify the router calls get_conversations_without_photos, not get_conversations."""
-        import os
-
-        router_path = os.path.join(os.path.dirname(__file__), '..', '..', 'routers', 'conversations.py')
-        with open(router_path, encoding='utf-8') as f:
-            source = f.read()
-        # The list endpoint function should call get_conversations_without_photos
-        assert 'get_conversations_without_photos' in source
-
-    def test_get_conversations_without_photos_has_folder_starred(self):
-        """Verify get_conversations_without_photos supports folder_id and starred params."""
-        import os
-
-        db_path = os.path.join(os.path.dirname(__file__), '..', '..', 'database', 'conversations.py')
-        with open(db_path, encoding='utf-8') as f:
-            source = f.read()
-        # Find the function definition and check its parameters
-        assert 'def get_conversations_without_photos(' in source
-        # Extract the function signature block
-        start = source.index('def get_conversations_without_photos(')
-        sig_block = source[start : source.index('):', start) + 2]
-        assert 'folder_id' in sig_block
-        assert 'starred' in sig_block
-
-    def test_without_photos_function_not_decorated_with_photos(self):
-        """Verify get_conversations_without_photos does NOT have @with_photos decorator.
-
-        This is the core architectural guarantee: the list function must not
-        load full base64 photo content for every conversation.
-        """
-        import os
-        import re
-
-        db_path = os.path.join(os.path.dirname(__file__), '..', '..', 'database', 'conversations.py')
-        with open(db_path, encoding='utf-8') as f:
-            source = f.read()
-
-        # Find the function definition and the lines preceding it (decorators)
-        lines = source.split('\n')
-        func_line_idx = None
-        for i, line in enumerate(lines):
-            if 'def get_conversations_without_photos(' in line:
-                func_line_idx = i
-                break
-        assert func_line_idx is not None
-
-        # Check the 5 lines before the function def for @with_photos
-        decorator_lines = lines[max(0, func_line_idx - 5) : func_line_idx]
-        decorator_text = '\n'.join(decorator_lines)
-        assert (
-            '@with_photos' not in decorator_text
-        ), 'get_conversations_without_photos must NOT have @with_photos decorator'
-
-    def test_with_photos_present_on_get_conversations(self):
-        """Verify the original get_conversations DOES have @with_photos (for individual use)."""
-        import os
-
-        db_path = os.path.join(os.path.dirname(__file__), '..', '..', 'database', 'conversations.py')
-        with open(db_path, encoding='utf-8') as f:
-            source = f.read()
-
-        lines = source.split('\n')
-        func_line_idx = None
-        for i, line in enumerate(lines):
-            if 'def get_conversations(' in line and 'without_photos' not in line:
-                func_line_idx = i
-                break
-        assert func_line_idx is not None
-
-        # Check the 5 lines before for @with_photos
-        decorator_lines = lines[max(0, func_line_idx - 5) : func_line_idx]
-        decorator_text = '\n'.join(decorator_lines)
-        assert (
-            '@with_photos' in decorator_text
-        ), 'get_conversations must have @with_photos for individual conversation use'

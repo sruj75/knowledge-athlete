@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import type { OutboundMessageDraft, QueryMessage } from "../src/protocol.js";
-import { JsonlTransport, type McpServerBuilder } from "../src/runtime/jsonl-transport.js";
+import { JsonlTransport } from "../src/runtime/jsonl-transport.js";
 import { updateContextSource } from "../src/runtime/context-snapshot.js";
 import { recordJournalTurn, terminalizeJournalTurn } from "../src/runtime/conversation-journal.js";
 import { createKernelHarness, waitUntil } from "./kernel-fakes.js";
@@ -16,7 +16,7 @@ afterEach(() => {
   while (roots.length) rmSync(roots.pop()!, { recursive: true, force: true });
 });
 
-function fixture(buildMcpServers?: McpServerBuilder) {
+function fixture() {
   const root = mkdtempSync(join(tmpdir(), "omi-jsonl-"));
   roots.push(root);
   const { store, adapter, kernel } = createKernelHarness(join(root, "agent.sqlite"), "fake");
@@ -37,7 +37,6 @@ function fixture(buildMcpServers?: McpServerBuilder) {
     defaultAdapterId: "fake",
     activeOwnerId: () => activeOwner,
     send: (message) => sent.push(message),
-    buildMcpServers,
   });
   return {
     store,
@@ -599,66 +598,7 @@ describe("JsonlTransport kernel-owned query contract", () => {
     store.close();
   });
 
-  it("pins the validated admission snapshot when MCP construction changes a context source", async () => {
-    let storeForBuilder: ReturnType<typeof fixture>["store"];
-    let sessionForBuilder: ReturnType<typeof fixture>["session"];
-    const buildMcpServers: McpServerBuilder = () => {
-      updateContextSource(storeForBuilder, {
-        ownerId: sessionForBuilder.ownerId,
-        sessionId: sessionForBuilder.sessionId,
-        source: "memories",
-        sourceRevision: "after-validation",
-        outcome: "available",
-        capturedAtMs: 20,
-        payload: { items: [{ id: "m-after", text: "MUTATED_AFTER_VALIDATION" }] },
-      }, 20);
-      return [];
-    };
-    const { store, adapter, kernel, session, transport } = fixture(buildMcpServers);
-    storeForBuilder = store;
-    sessionForBuilder = session;
-    updateContextSource(store, {
-      ownerId: session.ownerId,
-      sessionId: session.sessionId,
-      source: "memories",
-      sourceRevision: "before-validation",
-      outcome: "available",
-      capturedAtMs: 10,
-      payload: { items: [{ id: "m-before", text: "ORIGINAL_ADMITTED_CONTEXT" }] },
-    }, 10);
-    const admitted = kernel.contextSnapshot(session.sessionId, session.ownerId);
-
-    await transport.handleQuery(query(session.sessionId, {
-      requestId: "snapshot-race",
-      expectedContextSnapshotVersion: admitted.version,
-      expectedContextSnapshotGeneration: admitted.snapshotGeneration,
-      expectedContextRendererFingerprint: admitted.rendererFingerprint,
-      expectedCapabilityVersion: admitted.capabilityVersion,
-    }));
-
-    expect(adapter.executed).toHaveLength(1);
-    const prompt = adapter.executed[0].prompt
-      .filter((block) => block.type === "text")
-      .map((block) => block.text)
-      .join("\n");
-    expect(prompt).toContain("ORIGINAL_ADMITTED_CONTEXT");
-    expect(prompt).not.toContain("MUTATED_AFTER_VALIDATION");
-    const runInput = JSON.parse(String(store.getRow(
-      "SELECT input_json FROM runs WHERE request_id = ?",
-      ["snapshot-race"],
-    ).input_json));
-    expect(runInput.contextSnapshotVersion).toBe(admitted.version);
-    expect(runInput.contextSnapshotGeneration).toBe(admitted.snapshotGeneration);
-    expect(runInput.admittedContextSnapshot.sourceOutcomes).toContainEqual(
-      expect.objectContaining({ source: "memories", sourceRevision: "before-validation" }),
-    );
-    expect(kernel.contextSnapshot(session.sessionId, session.ownerId).sourceOutcomes).toContainEqual(
-      expect.objectContaining({ source: "memories", sourceRevision: "after-validation" }),
-    );
-    store.close();
-  });
-
-  it("validates warmup against only the pinned session/profile identity", () => {
+   it("validates warmup against only the pinned session/profile identity", () => {
     const { store, session, transport } = fixture();
     expect(() => transport.handleWarmup({
       type: "warmup",

@@ -141,7 +141,6 @@ import XCTest
       transcriptSegments: segments,
       transcriptSegmentsIncluded: true,
       geolocation: nil,
-      photos: [],
       appsResults: [],
       source: nil,
       language: nil,

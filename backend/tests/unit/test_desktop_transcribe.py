@@ -19,7 +19,7 @@ import pytest
 from starlette.websockets import WebSocketDisconnect
 
 # ---------------------------------------------------------------------------
-# Module-level stubs (same pattern as test_sync_transcription_prefs.py)
+# Module-level dependency stubs for this focused suite
 # ---------------------------------------------------------------------------
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]
@@ -169,7 +169,6 @@ def _desktop_transcribe_isolation():
             'people',
             'processing_memories',
             'plugins',
-            'sync_jobs',
         ]:
             _full = f'database.{_sub}'
             if _full not in sys.modules:
@@ -359,7 +358,6 @@ def _desktop_transcribe_isolation():
             'utils.cloud_tasks',
             'utils.log_sanitizer',
             'models.fair_use',
-            'models.sync',
             'models.processing_memory',
             'models.integrations',
             'models.goal',
@@ -484,13 +482,12 @@ def _stub_router_deps():
     extra_models = [
         'models.fair_use',
         'models.users',
-        'models.sync',
         'models.processing_memory',
         'models.integrations',
         'models.goal',
         'models.screen_pipe',
     ]
-    extra_database = ['database.sync_jobs', 'database.user_usage']
+    extra_database = ['database.user_usage']
     extra_utils = [
         'utils.fair_use',
         'utils.log_sanitizer',
@@ -529,13 +526,6 @@ def _stub_router_deps():
         rdb.check_rate_limit = MagicMock(return_value=(True, 99, 0))
 
 
-def _install_sync_router_stub():
-    sync_router_stub = ModuleType('routers.sync')
-    sync_router_stub.retrieve_file_paths = MagicMock(return_value=[])
-    sync_router_stub.decode_files_to_wav = MagicMock(return_value=[])
-    sys.modules['routers.sync'] = sync_router_stub
-
-
 def _make_chat_client():
     """Build a TestClient for the chat router with mocked auth."""
     import importlib.util
@@ -547,8 +537,6 @@ def _make_chat_client():
     _stub_router_deps()
 
     sys.modules.pop('routers.chat', None)
-    sys.modules.pop('routers.sync', None)
-    _install_sync_router_stub()
     spec = importlib.util.spec_from_file_location(
         'routers_chat_test',
         os.path.join(os.path.dirname(__file__), '..', '..', 'routers', 'chat.py'),

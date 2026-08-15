@@ -26,7 +26,7 @@ describe("desktop tool policy", () => {
 
   it("does not hidden-allow sensitive screenshot image access", () => {
     const result = evaluateDesktopToolPolicy({
-      toolName: "get_screenshot",
+      toolName: "capture_screen",
       selectedBundles: ["desktop.context.screenshot_image"],
       includesScreenshotImageBytes: true,
     });
@@ -184,65 +184,5 @@ describe("desktop tool policy", () => {
 
     expect(granted.decision).toBe("allow");
     expect(otherScreenshot.decision).toBe("dispatch_required");
-  });
-});
-
-describe("ACP permission policy", () => {
-  it("preserves ACP high-trust auto approval preference order", async () => {
-    const { resolveAcpPermission } = await import("../src/runtime/desktop-tool-policy.js");
-    const decision = resolveAcpPermission({
-      requestId: 42,
-      options: [
-        { kind: "allow_once", optionId: "once" },
-        { kind: "allow_always", optionId: "always" },
-      ],
-    });
-
-    expect(decision.acpResult).toEqual({
-      outcome: { outcome: "selected", optionId: "always" },
-    });
-    expect(decision.auditEvent).toMatchObject({
-      type: "approval.resolved",
-      policy: "desktop_high_trust",
-      adapterId: "acp",
-      requestId: 42,
-      optionId: "always",
-      automatic: true,
-    });
-  });
-
-  it("falls back to allow_once, then default allow", async () => {
-    const { resolveAcpPermission } = await import("../src/runtime/desktop-tool-policy.js");
-
-    expect(resolveAcpPermission({
-      options: [{ kind: "allow_once", optionId: "once" }],
-    }).optionId).toBe("once");
-
-    expect(resolveAcpPermission({ options: [] }).optionId).toBe("allow");
-  });
-
-  it("keeps external ACP adapters off permanent auto-approval", async () => {
-    const { resolveExternalAcpPermission } = await import("../src/runtime/desktop-tool-policy.js");
-
-    const once = resolveExternalAcpPermission({
-      adapterId: "hermes",
-      options: [
-        { kind: "allow_always", optionId: "always" },
-        { kind: "allow_once", optionId: "once" },
-      ],
-    });
-    expect("acpResult" in once ? once.acpResult.outcome.optionId : "").toBe("once");
-
-    const rejected = resolveExternalAcpPermission({
-      adapterId: "openclaw",
-      requestId: 9,
-      options: [{ kind: "allow_always", optionId: "always" }],
-    });
-    expect("acpError" in rejected ? rejected.acpError.code : 0).toBe(-32001);
-    expect(rejected.auditEvent).toMatchObject({
-      policy: "external_constrained",
-      adapterId: "openclaw",
-      requestId: 9,
-    });
   });
 });

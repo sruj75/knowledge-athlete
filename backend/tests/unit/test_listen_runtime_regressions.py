@@ -359,7 +359,7 @@ def _transcript_processor_for_delivery(monkeypatch, websocket):
     async def cache_get(_conversation_id):
         return {'transcript_segments': []}
 
-    async def update(_conversation, segments, _photos, _finished_at, _started_at):
+    async def update(_conversation, segments, _finished_at, _started_at):
         return SimpleNamespace(id='conversation-1'), segments, []
 
     async def no_op(*_args, **_kwargs):
@@ -383,7 +383,6 @@ def _transcript_processor_for_delivery(monkeypatch, websocket):
     processor = object.__new__(TranscriptProcessor)
     processor.host = host
     processor.segment_buffer = deque([{'id': 'segment-1', 'text': 'Hello', 'start': 0.0, 'end': 0.5}])
-    processor.photo_buffer = deque()
     processor.cache = SimpleNamespace(get=cache_get)
     processor.current_session_segments = {}
     processor._update_live_conversation = update

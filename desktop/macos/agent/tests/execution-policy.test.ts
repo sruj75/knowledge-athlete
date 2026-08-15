@@ -8,25 +8,26 @@ import {
 describe("agent execution policy", () => {
   it("derives the declared production credential boundary", () => {
     expect(providerBoundaryForAdapter("pi-mono")).toBe("managed_cloud");
-    expect(providerBoundaryForAdapter("acp")).toBe("local_user:acp");
-    expect(providerBoundaryForAdapter("hermes")).toBe("local_user:hermes");
-    expect(providerBoundaryForAdapter("openclaw")).toBe("local_user:openclaw");
   });
 
-  it("pins local-user surfaces to the exact selected adapter", () => {
+  it("keeps behavioral fakes inside their exact test-only boundary", () => {
     expect(resolveAdapterWithinBoundary({
-      providerBoundary: "local_user:acp",
-      defaultAdapterId: "acp",
-      requestedAdapterId: "acp",
-    })).toBe("acp");
+      providerBoundary: "local_user:fake",
+      defaultAdapterId: "fake",
+      requestedAdapterId: "fake",
+    })).toBe("fake");
     expect(() => resolveAdapterWithinBoundary({
-      providerBoundary: "local_user:acp",
-      defaultAdapterId: "acp",
-      requestedAdapterId: "hermes",
-    })).toThrow("Local provider mode is pinned to acp");
+      providerBoundary: "local_user:fake",
+      defaultAdapterId: "fake",
+      requestedAdapterId: "other-fake",
+    })).toThrow("outside the owning execution boundary");
   });
 
-  it("fails closed for local and unknown overrides from managed execution", () => {
+  it("pins managed execution to Pi and fails closed for every override", () => {
+    expect(resolveAdapterWithinBoundary({
+      providerBoundary: "managed_cloud",
+      defaultAdapterId: "pi-mono",
+    })).toBe("pi-mono");
     for (const adapterId of ["acp", "hermes", "openclaw", "unknown-adapter"]) {
       expect(() => resolveAdapterWithinBoundary({
         providerBoundary: "managed_cloud",

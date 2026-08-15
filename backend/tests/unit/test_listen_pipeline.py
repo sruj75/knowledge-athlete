@@ -3,7 +3,7 @@
 Tests the recording transcription pipeline end-to-end:
 - Pure audio functions (resample, mix, channel config)
 - Wire protocol binary packing/unpacking (headers 100-105, 201)
-- Buffer bounds enforcement (segment, audio, photo, pending requests)
+- Buffer bounds enforcement (segment, audio, pending requests)
 - Pusher receive_tasks header demux and queue dispatch
 - Private cloud batch accumulation + flush logic
 - Speaker sample queue age gating
@@ -18,7 +18,7 @@ import asyncio
 import json
 import struct
 import time
-from collections import deque, OrderedDict
+from collections import deque
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -337,7 +337,6 @@ class TestBufferBounds:
 
     From transcribe.py _stream_handler:
     - MAX_SEGMENT_BUFFER_SIZE = 1000
-    - MAX_PHOTO_BUFFER_SIZE = 100
     - MAX_AUDIO_BUFFER_SIZE = 10MB
     - MAX_PENDING_REQUESTS = 100
     """
@@ -351,15 +350,6 @@ class TestBufferBounds:
         assert len(buf) == 1000
         # Oldest should be dropped — first element should be segment_500
         assert buf[0]['id'] == 500
-
-    def test_photo_buffer_bounded_deque(self):
-        """Photo buffer (deque maxlen=100) should drop oldest when full."""
-        MAX_PHOTO_BUFFER_SIZE = 100
-        buf = deque(maxlen=MAX_PHOTO_BUFFER_SIZE)
-        for i in range(150):
-            buf.append({'photo_id': i})
-        assert len(buf) == 100
-        assert buf[0]['photo_id'] == 50
 
     def test_audio_buffer_10mb_limit(self):
         """Audio buffer should not exceed 10MB."""
@@ -394,34 +384,6 @@ class TestBufferBounds:
         assert buf[0] == 1000  # oldest surviving
         assert buf[-1] == 1999  # newest
         assert len(buf) == 1000
-
-    def test_image_chunks_max_50(self):
-        """Image chunk cache should cap at 50 concurrent uploads."""
-        MAX_IMAGE_CHUNKS = 50
-        cache = OrderedDict()
-        for i in range(60):
-            if len(cache) >= MAX_IMAGE_CHUNKS:
-                # Drop oldest (FIFO via OrderedDict)
-                cache.popitem(last=False)
-            cache[f'img-{i}'] = {'created_at': time.time(), 'chunks': {}}
-        assert len(cache) == 50
-
-    def test_image_chunks_ttl_60s(self):
-        """Image chunks older than 60s TTL should be expired."""
-        IMAGE_CHUNK_TTL = 60.0
-        now = time.time()
-        cache = OrderedDict()
-        # Add old chunks (90s ago) and fresh ones
-        for i in range(5):
-            cache[f'old-{i}'] = {'created_at': now - 90}
-        for i in range(5):
-            cache[f'new-{i}'] = {'created_at': now - 10}
-        # Cleanup
-        expired = [tid for tid, data in cache.items() if now - data['created_at'] > IMAGE_CHUNK_TTL]
-        for tid in expired:
-            del cache[tid]
-        assert len(cache) == 5
-        assert all(k.startswith('new-') for k in cache)
 
 
 # ===================================================================

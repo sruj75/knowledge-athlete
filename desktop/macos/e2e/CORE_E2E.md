@@ -105,7 +105,6 @@ healthy enough to boot the hermetic T2 stack. Stable nomination and production p
 | `rewind-settings` | v2 | typed bridge | 2 | Rewind retention/excluded-apps snapshot |
 | `keyboard-shortcuts` | v2 | typed bridge | 2 | Cmd+1..6 / Cmd+, navigation |
 | `memory-graph` | v2 | typed bridge | 2 | Knowledge graph API counts |
-| `ai-chat-settings` | v2 | typed bridge | 2 | AI Chat section (non-prod) |
 | `conversation-detail` | v2 | typed bridge | 2 | Capture seam + detail/transcript drawer snapshot |
 | `memory-crud` | v2 | typed bridge | 2 | Memory create/edit/delete via bridge actions |
 | `vocabulary` | v2 | typed bridge | 2 | Transcription vocabulary set + snapshot |
@@ -152,7 +151,6 @@ healthy enough to boot the hermetic T2 stack. Stable nomination and production p
 | Logout | Live P2 | manual bridge | `sign_out` action | ⚠️ `logout.yaml` (local emulator; stays manual — destructive to session) |
 | Onboarding reset | Live P2 | manual + bridge | reset + restart | ⚠️ `onboarding-smoke.yaml` (fix landed; manual gate) |
 | Settings depth | T2 | bridge | About / Notifications / Rewind / Shortcuts / Advanced | ✅ dedicated flows + `settings-basic.yaml` |
-| AI Chat settings | T2 | bridge | non-prod section snapshot | ✅ `ai-chat-settings.yaml` |
 
 Evidence contract: `.harness/desktop-core/<run-id>/{manifest.json, flows/, summary.md}` plus `latest-green` on pass. T2+ manifests include `provider_mode` (must be `offline` for qualification-eligible runs).
 

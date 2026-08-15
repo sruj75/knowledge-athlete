@@ -102,23 +102,11 @@ final class VoiceTurnUIProjectionCopyTests: XCTestCase {
     XCTAssertEqual(replaced.model.lastTerminal?.reason, .interruptedByBargeIn)
   }
 
-  func testAgentFailureSanitizesTransportGutsAndMapsSetupNeeded() {
+  func testAgentFailureSanitizesTransportGuts() {
     XCTAssertEqual(
       AgentFailureTranscriptFormatter.userFacingFailure(
         "URLSessionTask failed with error: The request timed out. (-1001) https://example.com/v1"),
       AgentFailureTranscriptFormatter.genericSpawnFailure)
-
-    XCTAssertEqual(
-      AgentFailureTranscriptFormatter.userFacingFailure(
-        "openclaw adapter not found",
-        directedProvider: .openclaw),
-      AgentPillsManager.DirectedProvider.openclaw.setupNeededStatus)
-
-    XCTAssertEqual(
-      AgentFailureTranscriptFormatter.userFacingFailure(
-        "OMI_HERMES_ADAPTER_COMMAND missing",
-        directedProvider: .hermes),
-      AgentPillsManager.DirectedProvider.hermes.setupNeededStatus)
 
     XCTAssertEqual(
       AgentFailureTranscriptFormatter.transcriptText(
@@ -145,11 +133,5 @@ final class VoiceTurnUIProjectionCopyTests: XCTestCase {
       "URLSessionTask failed with error: The request timed out. (-1001) https://example.com/v1")
     XCTAssertFalse(neutral.lowercased().contains("openclaw"))
 
-    // Genuine missing-OpenClaw errors still map to OpenClaw setup copy.
-    XCTAssertEqual(
-      AgentFailureTranscriptFormatter.userFacingFailure(
-        "openclaw adapter not found",
-        harnessMode: .openclaw),
-      AgentPillsManager.DirectedProvider.openclaw.setupNeededStatus)
   }
 }

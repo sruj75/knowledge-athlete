@@ -106,25 +106,7 @@ Assert `injected_bytes` equals the clip length, then inspect only the typed diag
 route, pending deadlines, terminal reason). This is the first automated surface for the actual PTT
 manager; use a natural authenticated physical PTT press as the final UX validation.
 
-### 2c. Verify SD-card WAL cloud upload (WiFi / BLE)
-After a device SD-card download (WiFi or BLE), confirm the WAL uploaded — not just
-saved locally. Both `StorageSyncService` and `WifiSyncService` call `syncToCloud()`
-after `updateWalWithDownloadedData`; the WiFi path tears down the device SoftAP
-first so the Mac can regain internet before upload.
-```bash
-# Structured WAL state via automation bridge (named test bundle must be running)
-cd desktop/macos && ./scripts/omi-ctl action wal_snapshot
-# Expect pending_count=0 and status synced|uploaded after SD-card sync completes
-
-# After triggering SD sync in a named test bundle:
-OMI_LOG_PATH="$(./scripts/omi-ctl log-path)"
-rg 'Uploaded WAL|WiFi sync completed|syncToCloud' "$OMI_LOG_PATH" | tail -20
-```
-Expect log lines like `Uploaded WAL <id>: status=synced` (or `status=uploaded` for
-202-queued jobs). Hermetic regression:
-`cd desktop/macos && xcrun swift test --filter 'WifiSync|SdCardSyncParity'`.
-
-### 2d. Inject backend faults (failure-path testing)
+### 2c. Inject backend faults (failure-path testing)
 The hermetic E2E harness is backend-only, so desktop failure paths (backend 5xx →
 structured `ChatErrorState`, task sortOrder sync failure surfaced/retried not silent,
 transcription transport truthfulness) can't be driven end-to-end. `scripts/omi-fault-inject.sh`
@@ -146,7 +128,7 @@ OMI_SKIP_BACKEND=1 OMI_SKIP_TUNNEL=1 \
 `reset` RSTs the connection; `refuse` leaves the port closed (connection refused). Verify a
 mode with `curl` before launching the app: `curl -s -o /dev/null -w '%{http_code}\n' "$(./scripts/omi-fault-inject.sh url)"`.
 
-### 2e. Hardening smoke (runtime regression tripwire)
+### 2d. Hardening smoke (runtime regression tripwire)
 `scripts/omi-hardening-smoke.sh` re-runs the proven runtime probes behind hardened
 acceptance rows so a behavior that regresses upstream is caught on the next run, not the
 next manual audit. One-time setup — build and seed a dedicated named bundle:
@@ -458,7 +440,7 @@ Settings (SettingsPage.swift) — use `click` for section rows
 ├── Notifications & Privacy — notification frequency/types, daily summary
 ├── Rewind — storage info, excluded apps list
 ├── Shortcuts — Open Omi shortcut, Push to Talk key, PTT microphone, locked mode, PTT sounds
-├── Advanced — AI Setup (Voice Model, AI Provider), Workspace, Browser Extension, Dev Mode
+├── Advanced — AI Setup (Voice Model, Ask Mode)
 └── About — version info, links, software updates, update channel
 
 Rewind overlay (View menu → Rewind or ⌘⌥R)

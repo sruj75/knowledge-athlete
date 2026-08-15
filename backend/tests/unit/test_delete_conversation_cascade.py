@@ -1,6 +1,6 @@
 """Regression test: deleting a conversation must purge every subcollection under it.
 
-``delete_conversation`` used to purge only the ``photos`` subcollection before
+``delete_conversation`` used to purge only one known subcollection before
 deleting the document. A conversation owns more children than that — the
 per-provider post-processing transcripts (``soniox_streaming``,
 ``speechmatics_streaming``, ``fal_whisperx``, which store
@@ -107,7 +107,7 @@ class _FakeFirestore:
 
 def _seed_conversation(store: _FakeFirestore) -> _FakeDocumentReference:
     conversation = store.collection('users').document('uid-1').collection('conversations').document('conv-1')
-    conversation.collection('photos').document('photo-1')
+    conversation.collection('legacy_children').document('child-1')
     conversation.collection('soniox_streaming').document('seg-1')
     conversation.collection('soniox_streaming').document('seg-2')
     conversation.collection('fal_whisperx').document('seg-1')
@@ -123,7 +123,7 @@ def store(monkeypatch) -> _FakeFirestore:
 
 
 def test_delete_conversation_purges_every_subcollection(store):
-    """Before the fix only `photos` was purged; the transcript segments and the
+    """Before the fix only one known child collection was purged; transcript segments and the
     analytics marker survived as unreachable documents."""
     conversation = _seed_conversation(store)
 
@@ -140,13 +140,15 @@ def test_delete_conversation_descends_into_nested_subcollections(store):
     """A child document with its own children is purged depth-first, so nothing is
     left dangling under a document that is itself about to be deleted."""
     conversation = _seed_conversation(store)
-    nested = conversation.collection('photos').document('photo-1').collection('ocr').document('line-1')
+    nested = conversation.collection('legacy_children').document('child-1').collection('nested').document('item-1')
 
     conversations_db.delete_conversation('uid-1', 'conv-1')
 
     assert not nested.exists
     # Depth-first: the nested document goes before the parent that owns it.
-    assert store.deleted.index(nested.path) < store.deleted.index('users/uid-1/conversations/conv-1/photos/photo-1')
+    assert store.deleted.index(nested.path) < store.deleted.index(
+        'users/uid-1/conversations/conv-1/legacy_children/child-1'
+    )
 
 
 def test_delete_conversation_without_children_still_deletes_the_document(store):

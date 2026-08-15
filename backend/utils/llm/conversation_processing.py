@@ -17,7 +17,6 @@ from pydantic import BaseModel, Field
 from models.app import App
 from models.calendar_context import CalendarMeetingContext
 from models.conversation import Conversation
-from models.conversation_photo import ConversationPhoto
 from models.structured import ActionItem, Event, Structured
 from models.structured_extraction import ActionItemsExtraction, StructuredExtraction
 from .clients import get_llm, get_llm_gateway_chat_structured, parser
@@ -525,25 +524,17 @@ def _submit_conversation_action_items_shadow(
     )
 
 
-def should_discard_conversation(
-    transcript: str, photos: Optional[List[ConversationPhoto]] = None, duration_seconds: Optional[float] = None
-) -> bool:
+def should_discard_conversation(transcript: str, duration_seconds: Optional[float] = None) -> bool:
     # If there's a long transcript, it's very unlikely we want to discard it.
     # This is a performance optimization to avoid unnecessary LLM calls.
     word_count = _word_count(transcript) if transcript and transcript.strip() else 0
     if word_count > 100:
         return False
-    has_photos = photos and ConversationPhoto.photos_as_string(photos) != 'None'
-
     context_parts: List[str] = []
     if transcript and transcript.strip():
         context_parts.append(f"Transcript: ```{transcript.strip()}```")
 
-    if has_photos:
-        photo_descriptions = ConversationPhoto.photos_as_string(photos) if photos else 'None'
-        context_parts.append(f"Photo Descriptions from a wearable camera:\n{photo_descriptions}")
-
-    # If there is no content to process (e.g., empty transcript and no photo descriptions), discard.
+    # If there is no transcript content to process, discard.
     if not context_parts:
         return True
 
@@ -561,7 +552,7 @@ def should_discard_conversation(
                 "Generic filler words, acknowledgments, or incomplete thoughts in short conversations should be discarded."
             )
 
-    prompt_template = '''You will receive a transcript, a series of photo descriptions from a wearable camera, or both. Your task is to decide if this content is meaningful enough to be saved as a memory.
+    prompt_template = '''You will receive a transcript. Your task is to decide if this content is meaningful enough to be saved as a memory.
 
 Task: Decide if the content should be saved as conversation summary.
 {duration_context}
@@ -573,14 +564,13 @@ KEEP (output: discard = False) if the content contains any of the following:
 • Personal facts, preferences, or details likely useful later (e.g., remembering a person, place, or object).
 • An important event, social interaction, or significant moment with meaningful context or consequences.
 • An insight, summary, or key takeaway that provides value.
-• A visually significant scene (e.g., a whiteboard with notes, a document, a memorable view, a person's face).
 
 DISCARD (output: discard = True) if the content is:
 • Trivial conversation snippets (e.g., brief apologies, casual remarks, single-sentence comments without context).
 • Very brief interactions (5-10 seconds) that lack actionable content or meaningful context.
 • Casual acknowledgments, greetings, or passing comments that don't contain useful information (e.g., "okay", "hmm", "yeah sure", "sorry", "hello", "alright").
 • Incomplete or fragmented speech that doesn't convey a clear meaning.
-• Blurry photos, uninteresting scenery with no context, or content that doesn't meet the KEEP criteria above.
+• Content that doesn't meet the KEEP criteria above.
 • Feels like asking Siri or other AI assistant something in 1-2 sentences or using voice to type something in a chat for 5-10 seconds.
 
 Return exactly one line:
@@ -617,12 +607,11 @@ Content:
 
 def _build_conversation_context(
     transcript: str,
-    photos: Optional[List[ConversationPhoto]] = None,
     calendar_meeting_context: Optional['CalendarMeetingContext'] = None,
 ) -> str:
     """Build the conversation context string shared across LLM prompts.
 
-    Produces a deterministic string from transcript, photos, and calendar context.
+    Produces a deterministic string from transcript and calendar context.
     Used as the second system message (after static instructions) so that the static
     instruction prefix enables cross-conversation OpenAI prompt caching.
 
@@ -653,11 +642,6 @@ CALENDAR MEETING CONTEXT:
     if transcript and transcript.strip():
         context_parts.append(f"Transcript: ```{transcript.strip()}```")
 
-    if photos:
-        photo_descriptions = ConversationPhoto.photos_as_string(photos)
-        if photo_descriptions != 'None':
-            context_parts.append(f"Photo Descriptions from a wearable camera:\n{photo_descriptions}")
-
     return "\n\n".join(context_parts)
 
 
@@ -666,7 +650,6 @@ def extract_action_items(
     started_at: datetime,
     language_code: str,
     tz: str,
-    photos: Optional[List[ConversationPhoto]] = None,
     existing_action_items: Optional[List[Dict[str, Any]]] = None,
     calendar_meeting_context: Optional['CalendarMeetingContext'] = None,
     output_language_code: Optional[str] = None,
@@ -680,7 +663,6 @@ def extract_action_items(
         started_at: When the conversation started
         language_code: Language code for the conversation
         tz: User's timezone
-        photos: Optional conversation photos
         existing_action_items: Open action items semantically related to this
             conversation (top vector matches, recently active). Caller is
             expected to pre-filter to open items only; this function defends
@@ -689,7 +671,7 @@ def extract_action_items(
     Returns:
         List of extracted ActionItem objects
     """
-    conversation_context = _build_conversation_context(transcript, photos, calendar_meeting_context)
+    conversation_context = _build_conversation_context(transcript, calendar_meeting_context)
     if not conversation_context:
         return []
 
@@ -1068,7 +1050,6 @@ def get_transcript_structure(
     language_code: str,
     tz: str,
     uid: str,
-    photos: Optional[List[ConversationPhoto]] = None,
     calendar_meeting_context: Optional['CalendarMeetingContext'] = None,
     output_language_code: Optional[str] = None,
 ) -> Structured:
@@ -1076,7 +1057,7 @@ def get_transcript_structure(
     # this pure processing module in isolation without the full LLM package.
     from utils.llm.usage_tracker import Features, track_usage
 
-    conversation_context = _build_conversation_context(transcript, photos, calendar_meeting_context)
+    conversation_context = _build_conversation_context(transcript, calendar_meeting_context)
     if not conversation_context:
         return Structured()  # Should be caught by discard logic, but as a safeguard.
 
@@ -1084,7 +1065,7 @@ def get_transcript_structure(
 
     # First system message: task-specific instructions (static prefix enables cross-conversation caching)
     # NOTE: language instructions are in context_message (second message) to keep this prefix fully static.
-    instructions_text = '''You are an expert content analyzer. Your task is to analyze the provided content (which could be a transcript, a series of photo descriptions from a wearable camera, or both) and provide structure and clarity.
+    instructions_text = '''You are an expert content analyzer. Your task is to analyze the provided transcript and provide structure and clarity.
 
     CRITICAL: If CALENDAR MEETING CONTEXT is provided with participant names, you MUST use those names:
     - The conversation DEFINITELY happened between the named participants
@@ -1184,17 +1165,11 @@ def get_reprocess_transcript_structure(
     started_at: datetime,
     language_code: str,
     tz: str,
-    photos: Optional[List[ConversationPhoto]] = None,
     output_language_code: Optional[str] = None,
 ) -> Structured:
     context_parts: List[str] = []
     if transcript and transcript.strip():
         context_parts.append(f"Transcript: ```{transcript.strip()}```")
-
-    if photos:
-        photo_descriptions = ConversationPhoto.photos_as_string(photos)
-        if photo_descriptions != 'None':
-            context_parts.append(f"Photo Descriptions from a wearable camera:\n{photo_descriptions}")
 
     if not context_parts:
         return Structured()
@@ -1202,7 +1177,7 @@ def get_reprocess_transcript_structure(
     full_context = "\n\n".join(context_parts)
     response_language = output_language_code or language_code
 
-    prompt_text = '''You are an expert content analyzer. Your task is to analyze the provided content (which could be a transcript, a series of photo descriptions from a wearable camera, or both) and provide structure and clarity.
+    prompt_text = '''You are an expert content analyzer. Your task is to analyze the provided transcript and provide structure and clarity.
     The content language is {language_code}. You MUST respond entirely in {response_language}.
 
     For the title, generate a concise title from the current content. Do not reuse a previous title.
@@ -1270,15 +1245,10 @@ def get_reprocess_transcript_structure(
     return response
 
 
-def get_app_result(transcript: str, photos: List[ConversationPhoto], app: App, language_code: str = 'en') -> str:
+def get_app_result(transcript: str, app: App, language_code: str = 'en') -> str:
     context_parts: List[str] = []
     if transcript and transcript.strip():
         context_parts.append(f"Transcript: ```{transcript.strip()}```")
-
-    if photos:
-        photo_descriptions = ConversationPhoto.photos_as_string(photos)
-        if photo_descriptions != 'None':
-            context_parts.append(f"Photo Descriptions from a wearable camera:\n{photo_descriptions}")
 
     if not context_parts:
         return ""

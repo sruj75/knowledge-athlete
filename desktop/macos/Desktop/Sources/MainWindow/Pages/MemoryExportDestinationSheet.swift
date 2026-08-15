@@ -101,22 +101,19 @@ private struct MemoryExportRow: View {
   @State private var isHovering = false
 
   private var actionTitle: String {
-    if destination.supportsAgentSetup {
-      return showsConnectedState ? "Connected" : "Connect"
-    }
     if destination.supportsMCP {
       return showsConnectedState ? "Connected" : "Connect"
     }
     switch destination {
     case .obsidian:
       return status.isConfigured ? "Sync" : "Connect"
-    case .notion, .chatgpt, .claude, .gemini, .agents, .claudeCode, .codex, .openclaw, .hermes:
+    case .notion, .chatgpt, .claude, .gemini, .claudeCode, .codex, .openclaw, .hermes:
       return "Open"
     }
   }
 
   private var showsConnectedState: Bool {
-    guard destination.supportsMCP || destination.supportsAgentSetup else { return false }
+    guard destination.supportsMCP else { return false }
     return status.hasConnection
   }
 
@@ -211,7 +208,6 @@ final class MemoryExportDestinationSheetModel: ObservableObject {
   @Published var obsidianVaultPath = ""
   @Published var mcpKey: String?
   @Published var isLoadingMCPKey = false
-  @Published var isTestingAgentConnection = false
 
   func loadConfiguration() async {
     obsidianVaultPath = await MemoryExportService.shared.obsidianVaultPath()
@@ -229,70 +225,10 @@ final class MemoryExportDestinationSheetModel: ObservableObject {
     }
   }
 
-  func createNewAgentConnectionKey() async {
-    errorMessage = nil
-    statusMessage = nil
-    isLoadingMCPKey = true
-    defer { isLoadingMCPKey = false }
-
-    do {
-      let key = try await MemoryExportService.shared.createNewMCPKey()
-      _ = try LocalAgentAPISettings.createNewToken()
-      mcpKey = key
-      statusMessage = "New key created. Copy the prompt again when you're ready."
-    } catch {
-      errorMessage = "Couldn't create a new connection key: \(error.localizedDescription)"
-    }
-  }
-
-  func testAgentConnection() async {
-    errorMessage = nil
-    statusMessage = nil
-    isTestingAgentConnection = true
-    defer { isTestingAgentConnection = false }
-
-    do {
-      let key = try await MemoryExportService.shared.ensureMCPKey()
-      let localToken = try LocalAgentAPISettings.enable()
-      mcpKey = key
-      let result = try await MemoryExportService.shared.testAgentConnections(
-        hostedKey: key,
-        localToken: localToken)
-      statusMessage = result.summary
-    } catch {
-      errorMessage = "Omi couldn't test the connection: \(error.localizedDescription)"
-    }
-  }
-
   func copyToPasteboard(_ text: String, label: String) {
     NSPasteboard.general.clearContents()
     NSPasteboard.general.setString(text, forType: .string)
     statusMessage = "\(label) copied."
-  }
-
-  func copyAgentSetupPrompt() async -> MemoryExportStatus? {
-    errorMessage = nil
-    statusMessage = nil
-    isLoadingMCPKey = true
-    defer { isLoadingMCPKey = false }
-
-    do {
-      let key = try await MemoryExportService.shared.ensureMCPKey()
-      let localToken = try LocalAgentAPISettings.enable()
-      mcpKey = key
-      copyToPasteboard(
-        MemoryExportService.omiAgentSetupPrompt(
-          hostedKey: key,
-          localURL: LocalAgentAPISettings.serverURL,
-          localToken: localToken),
-        label: "Agent prompt")
-      statusMessage =
-        "Prompt copied. Only share it with an agent you trust; it includes Omi access keys."
-      return await MemoryExportService.shared.status(for: .agents)
-    } catch {
-      errorMessage = "Couldn't create the prompt: \(error.localizedDescription)"
-      return nil
-    }
   }
 
   func open(_ url: URL) {
@@ -373,7 +309,7 @@ final class MemoryExportDestinationSheetModel: ObservableObject {
         }
         statusMessage = "Memory pack ready for \(destination.title). Prompt and export copied."
 
-      case .agents, .claudeCode, .codex, .openclaw, .hermes:
+      case .claudeCode, .codex, .openclaw, .hermes:
         // MCP-only destinations have no memory-pack run step.
         return nil
       }
@@ -548,9 +484,7 @@ struct MemoryExportDestinationSheet: View {
   @ViewBuilder
   private var content: some View {
     VStack(alignment: .leading, spacing: OmiSpacing.lg) {
-      if destination.supportsAgentSetup {
-        agentSetupSection
-      } else if destination.supportsMCP {
+      if destination.supportsMCP {
         // Lead with the one action — "Do it for me". Everything manual (live
         // MCP fields, memory pack) is tucked behind a collapsed disclosure so
         // the default view stays simple.
@@ -605,92 +539,6 @@ struct MemoryExportDestinationSheet: View {
         }
       }
       .padding(.top, OmiSpacing.sm)
-    }
-  }
-
-  private var agentSetupSection: some View {
-    VStack(alignment: .leading, spacing: OmiSpacing.lg) {
-      agentSetupHeader
-
-      VStack(alignment: .leading, spacing: OmiSpacing.sm) {
-        agentSetupBullet("Omi creates fresh connection keys for this prompt.")
-        agentSetupBullet(
-          "Your agent can read synced memories and conversations, then use this Mac for screen history, screenshots, recaps, files, and tasks."
-        )
-        agentSetupBullet(
-          "The included Omi guide helps your agent choose the right context and ask before changing memories."
-        )
-      }
-
-      HStack(spacing: OmiSpacing.sm) {
-        Button {
-          Task {
-            if let updatedStatus = await model.copyAgentSetupPrompt() {
-              statuses[destination] = updatedStatus
-            }
-          }
-        } label: {
-          Label(model.isLoadingMCPKey ? "Preparing…" : "Copy prompt", systemImage: "sparkles")
-        }
-        .buttonStyle(OmiButtonStyle(.primary, size: .compact))
-        .disabled(model.isLoadingMCPKey)
-
-        Button {
-          Task { await model.testAgentConnection() }
-        } label: {
-          Label(model.isTestingAgentConnection ? "Testing…" : "Test", systemImage: "checkmark.seal")
-        }
-        .buttonStyle(OmiButtonStyle(.secondary, size: .compact))
-        .disabled(model.isLoadingMCPKey || model.isTestingAgentConnection)
-        .help("Test hosted and local Omi access")
-
-        Button {
-          Task {
-            await model.createNewAgentConnectionKey()
-            statuses[destination] = await MemoryExportService.shared.status(for: destination)
-          }
-        } label: {
-          Label("New key", systemImage: "key")
-        }
-        .buttonStyle(OmiButtonStyle(.secondary, size: .compact))
-        .disabled(model.isLoadingMCPKey || model.isTestingAgentConnection)
-        .help("Create fresh hosted and local connection keys")
-      }
-    }
-  }
-
-  private var agentSetupHeader: some View {
-    VStack(alignment: .leading, spacing: OmiSpacing.xs) {
-      HStack(spacing: OmiSpacing.sm) {
-        Text("Let your agent do it")
-          .scaledFont(size: OmiType.subheading, weight: .semibold)
-          .foregroundColor(OmiColors.textPrimary)
-        Text("MCP + CLI")
-          .scaledFont(size: OmiType.micro, weight: .bold)
-          .foregroundColor(OmiColors.success)
-          .padding(.horizontal, OmiSpacing.xs)
-          .padding(.vertical, OmiSpacing.hairline)
-          .background(Capsule().fill(OmiColors.success.opacity(0.15)))
-      }
-      Text(
-        "Copy one setup prompt for your agent. It connects Omi memories through MCP, turns on local Desktop access through the Omi CLI, and includes a short Omi guide the agent can keep."
-      )
-      .scaledFont(size: OmiType.caption)
-      .foregroundColor(OmiColors.textTertiary)
-      .fixedSize(horizontal: false, vertical: true)
-    }
-  }
-
-  private func agentSetupBullet(_ text: String) -> some View {
-    HStack(alignment: .top, spacing: OmiSpacing.sm) {
-      Image(systemName: "checkmark.circle.fill")
-        .scaledFont(size: OmiType.caption)
-        .foregroundColor(OmiColors.success)
-        .padding(.top, 1)
-      Text(text)
-        .scaledFont(size: OmiType.caption)
-        .foregroundColor(OmiColors.textTertiary)
-        .fixedSize(horizontal: false, vertical: true)
     }
   }
 
@@ -1144,7 +992,7 @@ struct MemoryExportDestinationSheet: View {
           )
       }
 
-    case .agents, .claudeCode, .codex, .openclaw, .hermes:
+    case .claudeCode, .codex, .openclaw, .hermes:
       EmptyView()
     }
   }
@@ -1170,7 +1018,7 @@ struct MemoryExportDestinationSheet: View {
       return (model.obsidianVaultPath.isEmpty ? "Choose vault" : "Export", "Exporting…")
     case .chatgpt, .claude, .gemini:
       return ("Copy & open", "Preparing…")
-    case .agents, .claudeCode, .codex, .openclaw, .hermes:
+    case .claudeCode, .codex, .openclaw, .hermes:
       return ("Copy", "…")
     }
   }

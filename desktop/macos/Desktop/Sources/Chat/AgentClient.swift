@@ -147,45 +147,13 @@ enum AgentClient {
       await bridge.setJournalTurnChangedHandler(handler)
     }
 
-    func configureDefaultExecutionProfile(
-      adapterId: String,
-      modelProfile: String?,
-      workingDirectory: String,
-      expectedPreferenceGeneration: Int? = nil
-    ) async throws -> AgentDefaultExecutionProfile {
-      try await bridge.configureDefaultExecutionProfile(
-        adapterId: adapterId,
-        modelProfile: modelProfile,
-        workingDirectory: workingDirectory,
-        expectedPreferenceGeneration: expectedPreferenceGeneration
-      )
-    }
-
     func resolveSurfaceSession(
       _ surface: AgentSurfaceReference,
-      title: String? = nil,
-      creationProfile: AgentSessionCreationProfile? = nil
+      title: String? = nil
     ) async throws -> AgentSurfaceSession {
       try await bridge.resolveSurfaceSession(
         surface,
-        title: title,
-        creationProfile: creationProfile
-      )
-    }
-
-    func migrateSessionExecutionProfile(
-      sessionId: String,
-      expectedProfileGeneration: Int,
-      adapterId: String,
-      modelProfile: String?,
-      workingDirectory: String
-    ) async throws -> AgentSessionProfileMigration {
-      try await bridge.migrateSessionExecutionProfile(
-        sessionId: sessionId,
-        expectedProfileGeneration: expectedProfileGeneration,
-        adapterId: adapterId,
-        modelProfile: modelProfile,
-        workingDirectory: workingDirectory
+        title: title
       )
     }
 
@@ -335,10 +303,6 @@ enum AgentClient {
       )
     }
 
-    func testPlaywrightConnection() async throws -> Bool {
-      try await bridge.testPlaywrightConnection()
-    }
-
     func interrupt() async {
       await bridge.interrupt()
     }
@@ -439,11 +403,8 @@ enum AgentClient {
   static func run(
     surface: AgentSurfaceReference,
     prompt: String,
-    model: String? = nil,
     systemPrompt: String = "You are a helpful assistant.",
-    harnessMode: String = "piMono",
     mode: String? = nil,
-    cwd: String? = nil,
     onTextDelta: @escaping TextDeltaHandler = { _ in },
     onToolCall _: @escaping ToolCallHandler = { _, _, _ in "" },
     onToolActivity: @escaping ToolActivityHandler = { _, _, _, _ in },
@@ -452,23 +413,11 @@ enum AgentClient {
     onAuthRequired: @escaping AuthRequiredHandler = { _, _ in },
     onAuthSuccess: @escaping AuthSuccessHandler = {}
   ) async throws -> QueryResult {
-    let bridge = AgentClient.makeBridge(harnessMode: harnessMode)
+    let bridge = AgentClient.makeBridge(harnessMode: AgentHarnessMode.piMono.rawValue)
     try await bridge.start()
     do {
 
-      guard let requestedAdapter = AgentRuntimeProcess.adapterId(forHarnessMode: harnessMode) else {
-        throw BridgeError.agentError("Unknown AI runtime mode: \(harnessMode)")
-      }
-      let usesNativeModelChoice = ["hermes", "openclaw"].contains(harnessMode)
-      let creationProfile = AgentSessionCreationProfile(
-        adapterId: requestedAdapter,
-        modelProfile: model ?? (usesNativeModelChoice ? nil : ModelQoS.Claude.chat),
-        workingDirectory: cwd?.isEmpty == false ? cwd! : AgentRuntimeProcess.defaultArtifactsDirectory()
-      )
-      let session = try await bridge.resolveSurfaceSession(
-        surface,
-        creationProfile: creationProfile
-      )
+      let session = try await bridge.resolveSurfaceSession(surface)
       var snapshot = try await bridge.getContextSnapshot(
         sessionId: session.sessionId,
         surfaceKind: surface.surfaceKind)
@@ -477,12 +426,7 @@ enum AgentClient {
           .surface,
           systemPrompt.isEmpty ? .empty : .available,
           systemPrompt.isEmpty ? [:] : ["experienceContext": systemPrompt]
-        ),
-        (
-          .workspace,
-          cwd?.isEmpty == false ? .available : .empty,
-          cwd?.isEmpty == false ? ["workingDirectory": cwd!] : [:]
-        ),
+        )
       ]
       for (source, outcome, payload) in contextInputs {
         let revision = try AgentContextRevision.make(source: source, payload: payload, outcome: outcome)

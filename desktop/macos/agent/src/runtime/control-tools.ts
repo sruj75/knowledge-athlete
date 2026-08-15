@@ -4,7 +4,6 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { z } from "zod";
-import { isProductionAdapterId } from "../adapters/interface.js";
 import type {
   AgentArtifact,
   AgentDelegation,
@@ -19,7 +18,6 @@ import { serializeArtifact } from "./artifact-serialization.js";
 import { defaultArtifactRoot } from "./artifact-storage.js";
 import { assertToolResultEnvelope, makeToolResultEnvelope, type ToolResultEnvelope } from "./tool-result-envelope.js";
 import { agentControlCapabilityManifest, agentControlInputSchema } from "./control-tool-manifest.js";
-import type { McpServerBuildContext } from "./jsonl-transport.js";
 import {
   parseAgentSpawnProducerJournalDescriptor,
   type AgentSpawnProducerJournalDescriptor,
@@ -154,7 +152,6 @@ const desktopIntentSyntaxFactsSchema = strictObject({
   explicitSessionId: z.string().min(1).nullable().optional(),
   explicitRunId: z.string().min(1).nullable().optional(),
   parentRunId: z.string().min(1).nullable().optional(),
-  explicitProvider: z.string().min(1).nullable().optional(),
   requestedAgentCount: z.coerce.number().int().positive().nullable().optional(),
 });
 
@@ -290,9 +287,6 @@ const sendAgentMessageSchema = strictObject({
   ownerId: z.string().min(1).optional(),
   prompt: z.string().min(1),
   mode: runModeSchema.default("ask"),
-  adapterId: z.string().min(1).optional(),
-  cwd: z.string().min(1).optional(),
-  model: z.string().min(1).optional(),
   requestId: z.string().min(1).optional(),
   clientId: z.string().min(1).default("omi-control-tools"),
   metadata: z.record(z.string(), z.unknown()).default({}),
@@ -310,10 +304,6 @@ const spawnBackgroundAgentSchema = strictObject({
   externalRefKind: z.string().min(1).optional(),
   externalRefId: z.string().min(1).optional(),
   ownerId: z.string().min(1).optional(),
-  adapterId: z.string().min(1).optional(),
-  defaultAdapterId: z.string().min(1).optional(),
-  cwd: z.string().min(1).optional(),
-  model: z.string().min(1).optional(),
   mode: runModeSchema.default("act"),
   requestId: z.string().min(1).optional(),
   clientId: z.string().min(1).default("omi-control-tools"),
@@ -328,15 +318,11 @@ const spawnAgentPublicShape = {
   // not fail before the child-admission boundary.
   brief: z.string().min(1).optional(),
   requestedAgentCount: z.coerce.number().int().min(1).max(8).default(1),
-  provider: z.enum(["openclaw", "hermes"]).optional(),
   parentRunId: z.string().min(1).optional(),
   visible: z.boolean().default(true),
   title: z.string().min(1).optional(),
   externalRefId: z.string().min(1).optional(),
   ownerId: z.string().min(1).optional(),
-  adapterId: z.string().min(1).optional(),
-  cwd: z.string().min(1).optional(),
-  model: z.string().min(1).optional(),
   requestId: z.string().min(1).optional(),
   clientId: z.string().min(1).default("omi-control-tools"),
   metadata: z.record(z.string(), z.unknown()).default({}),
@@ -356,9 +342,6 @@ const runAgentAndWaitSchema = strictObject({
   originSurfaceKind: originSurfaceKindSchema,
   context: z.string().max(4000).optional(),
   ownerId: z.string().min(1).optional(),
-  adapterId: z.string().min(1).optional(),
-  cwd: z.string().min(1).optional(),
-  model: z.string().min(1).optional(),
   runMode: runModeSchema.default("ask"),
   requestId: z.string().min(1).optional(),
   clientId: z.string().min(1).default("omi-control-tools"),
@@ -546,6 +529,8 @@ export interface AgentControlToolContext {
    * must inherit this route rather than silently selecting a local provider.
    */
   defaultAdapterId?: string;
+  /** Private artifacts directory fixed by the desktop runtime. */
+  workingDirectory?: string;
   /** Kernel-owned provider and role policy for the active control caller. */
   providerBoundary?: ProviderBoundary;
   executionRole?: AgentExecutionRole;
@@ -571,12 +556,6 @@ export interface AgentControlToolContext {
     retainRun?(runId: string): void;
   };
   recoverRunInput?: (adapterId: string) => Pick<ExecuteAgentRunInput, "maxAttempts" | "recoverAfterError">;
-  buildMcpServers?: (
-    mode: "ask" | "act",
-    cwd: string | undefined,
-    sessionKey: string | undefined,
-    context: McpServerBuildContext,
-  ) => Record<string, unknown>[];
 }
 
 interface PartialAgentSpawnCancellation {
@@ -627,7 +606,7 @@ function controlRunRecovery(
 }
 
 function defaultControlAdapterId(context: AgentControlToolContext): string {
-  return context.defaultAdapterId ?? "acp";
+  return context.defaultAdapterId ?? "pi-mono";
 }
 
 function controlSpawnProfile(
@@ -642,20 +621,10 @@ function controlSpawnProfile(
       workingDirectory: profile.workingDirectory || undefined,
     };
   }
-  if (context.trustedUserControl) {
-    const preference = context.kernel.defaultExecutionProfilePreference(ownerId);
-    if (preference) {
-      return {
-        adapterId: preference.adapterId,
-        modelProfile: preference.modelProfile,
-        workingDirectory: preference.workingDirectory,
-      };
-    }
-  }
   return {
     adapterId: defaultControlAdapterId(context),
-    modelProfile: null,
-    workingDirectory: undefined,
+    modelProfile: "omi-sonnet",
+    workingDirectory: context.workingDirectory,
   };
 }
 
@@ -667,58 +636,6 @@ function assertAdapterAllowedForControlRun(context: AgentControlToolContext, ada
   resolveAdapterWithinBoundary({
     providerBoundary: context.providerBoundary ?? providerBoundaryForAdapter(owningAdapterId),
     defaultAdapterId: owningAdapterId,
-    requestedAdapterId: adapterId,
-  });
-}
-
-/**
- * A signed desktop action, or the explicit `provider` selector on the canonical
- * top-level spawn_agent tool, may start a new local-provider session. The
- * active bridge can still be pi-mono because it is only carrying the control
- * RPC; it is not the owner of the new session's credentials.
- *
- * An adapterId alone does not get this exception, and neither does any
- * parent-linked delegation. Those must stay inside the caller's persisted
- * provider boundary.
- */
-function assertAdapterAllowedForTopLevelLocalProviderSpawn(
-  context: AgentControlToolContext,
-  adapterId: string,
-  directedProvider?: "hermes" | "openclaw",
-): void {
-  const hasDirectedLocalProvider = directedProvider === adapterId;
-  if (!context.trustedUserControl && !hasDirectedLocalProvider) {
-    assertAdapterAllowedForControlRun(context, adapterId);
-    return;
-  }
-  if (!isProductionAdapterId(adapterId)) {
-    throw new Error(`Unknown production adapter: ${adapterId}`);
-  }
-  resolveAdapterWithinBoundary({
-    providerBoundary: providerBoundaryForAdapter(adapterId),
-    defaultAdapterId: adapterId,
-    requestedAdapterId: adapterId,
-  });
-}
-
-/**
- * Signed direct control resumes the target session's persisted boundary. This
- * keeps a user-selected Hermes/OpenClaw pill usable while the coordinator
- * bridge itself is using Omi cloud routing, and still prevents adapter changes
- * on either local or managed sessions.
- */
-function assertAdapterAllowedForDirectSessionContinuation(
-  context: AgentControlToolContext,
-  adapterId: string,
-  targetPolicy: Pick<AgentSession, "providerBoundary" | "defaultAdapterId">,
-): void {
-  if (!context.trustedUserControl) {
-    assertAdapterAllowedForControlRun(context, adapterId);
-    return;
-  }
-  resolveAdapterWithinBoundary({
-    providerBoundary: targetPolicy.providerBoundary,
-    defaultAdapterId: targetPolicy.defaultAdapterId,
     requestedAdapterId: adapterId,
   });
 }
@@ -1073,8 +990,8 @@ export async function handleAgentControlToolCall(
         const parsed = agentControlToolSchemas.send_agent_message.parse(input);
         const ownerId = effectiveControlToolOwnerId(context, parsed.ownerId);
         const targetPolicy = context.kernel.executionPolicyForOwnedSession(parsed.sessionId, ownerId);
-        const adapterId = parsed.adapterId ?? targetPolicy.defaultAdapterId;
-        assertAdapterAllowedForDirectSessionContinuation(context, adapterId, targetPolicy);
+        const adapterId = targetPolicy.defaultAdapterId;
+        assertAdapterAllowedForControlRun(context, adapterId);
         rejectSynchronousNestedRun(context, adapterId, parsed.sessionId);
         const requestId = parsed.requestId ?? `send-${Date.now()}-${Math.random().toString(16).slice(2)}`;
         const routed = await executeAuthorizedControlEffect(context, () => context.kernel.applyDesktopIntentEffect(
@@ -1088,7 +1005,6 @@ export async function handleAgentControlToolCall(
             effect: "continue_run",
             syntaxFacts: {
               explicitSessionId: parsed.sessionId,
-              explicitProvider: adapterId,
             },
           },
           () => context.kernel.sendAgentMessage({
@@ -1098,16 +1014,6 @@ export async function handleAgentControlToolCall(
             requestId,
             metadata: { ...(parsed.metadata ?? {}) },
             authoritySignal: context.executionLease?.signal,
-            mcpServers: buildControlRunMcpServers(context, {
-              mode: parsed.mode,
-              cwd: parsed.cwd,
-              ownerId,
-              requestId,
-              clientId: parsed.clientId,
-              adapterId,
-              screenContext: true,
-              executionRole: targetPolicy.executionRole,
-            }),
           }),
         ));
         const result = routed.result;
@@ -1128,10 +1034,10 @@ export async function handleAgentControlToolCall(
         const ownerId = effectiveControlToolOwnerId(context, parsed.ownerId);
         const requestId = parsed.requestId ?? `background-${Date.now()}-${Math.random().toString(16).slice(2)}`;
         const spawnProfile = controlSpawnProfile(context, ownerId);
-        const adapterId = parsed.adapterId ?? parsed.defaultAdapterId ?? spawnProfile.adapterId;
-        const cwd = parsed.cwd ?? spawnProfile.workingDirectory;
-        const model = parsed.model ?? spawnProfile.modelProfile ?? undefined;
-        assertAdapterAllowedForTopLevelLocalProviderSpawn(context, adapterId);
+        const adapterId = spawnProfile.adapterId;
+        const cwd = spawnProfile.workingDirectory;
+        const model = spawnProfile.modelProfile ?? undefined;
+        assertAdapterAllowedForControlRun(context, adapterId);
         const routed = await executeAuthorizedControlEffect(context, () => context.kernel.applyDesktopIntentEffect(
           {
             ownerId,
@@ -1142,7 +1048,6 @@ export async function handleAgentControlToolCall(
             utterance: parsed.prompt,
             effect: "spawn_agent",
             syntaxFacts: {
-              explicitProvider: adapterId,
               requestedAgentCount: 1,
             },
           },
@@ -1159,16 +1064,6 @@ export async function handleAgentControlToolCall(
             surfaceKind: parsed.surfaceKind ?? "floating_bar",
             metadata: { ...(parsed.metadata ?? {}) },
             authoritySignal: context.executionLease?.signal,
-            mcpServers: buildControlRunMcpServers(context, {
-              mode: parsed.mode,
-              cwd,
-              ownerId,
-              requestId,
-              clientId: parsed.clientId,
-              adapterId,
-              screenContext: true,
-              executionRole: "leaf",
-            }),
           }),
         ));
         const result = routed.result;
@@ -1203,60 +1098,16 @@ export async function handleAgentControlToolCall(
         const ownerId = effectiveControlToolOwnerId(context, parsed.ownerId);
         const spawnProfile = controlSpawnProfile(context, ownerId);
         const requestId = parsed.requestId ?? `spawn-agent-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-        if (parsed.provider && parsed.adapterId && parsed.provider !== parsed.adapterId) {
-          throw new Error("provider and adapterId must match when both are supplied");
-        }
-        const adapterId =
-          parsed.adapterId ??
-          (parsed.provider === "openclaw" ? "openclaw" : parsed.provider === "hermes" ? "hermes" : undefined) ??
-          (parentRunId
-            ? context.kernel.defaultAdapterIdForRun(parentRunId)
-            : spawnProfile.adapterId);
-        /**
-         * A kernel-authorized primary model tool carries its producing run so
-         * the journal can attach the child to the exact assistant turn. That
-         * applies to typed main chat as well as realtime, and a typed turn has
-         * a producerTurnId. The journal link is provenance, not delegation:
-         * an explicitly user-selected local provider must start as an
-         * independent local-provider run rather than inherit pi-mono's
-         * managed credential boundary.
-         *
-         * The exception remains narrow: the tool invocation, parent run, and
-         * producer journal must all be kernel-authorized, the caller must be
-         * the primary coordinator, and the provider must be explicit. Leaf
-         * workers never receive this tool and ordinary parent-linked children
-         * still stay inside their parent's provider boundary.
-         */
-        const isAuthorizedIndependentLocalProviderSpawn = Boolean(
-          parentRunId
-          && context.authorizedCallerRunId === parentRunId
-          && context.authorizedProducerJournal
-          && context.authorizedToolInvocation?.toolName === "spawn_agent"
-          && context.executionRole === "coordinator"
-          && parsed.provider
-          && parsed.provider === adapterId
-        );
-        const inheritsParentExecutionProfile = Boolean(parentRunId) && !isAuthorizedIndependentLocalProviderSpawn;
-        const cwd = parsed.cwd ?? (inheritsParentExecutionProfile ? undefined : spawnProfile.workingDirectory);
-        // An explicitly selected local provider is a new credential/model
-        // boundary.  Its adapter owns model selection, so it must not inherit
-        // the managed Omi model profile from the realtime coordinator (for
-        // example `omi-sonnet`, which Hermes/OpenClaw cannot use with a Codex
-        // ChatGPT account).  An explicitly supplied model remains intentional
-        // user/provider input; ordinary parent-linked children still inherit.
-        const model = parsed.model ?? (
-          inheritsParentExecutionProfile || parsed.provider
-            ? undefined
-            : spawnProfile.modelProfile ?? undefined
-        );
-        if (inheritsParentExecutionProfile) {
-          assertAdapterAllowedForControlRun(context, adapterId);
-        } else {
-          assertAdapterAllowedForTopLevelLocalProviderSpawn(context, adapterId, parsed.provider);
-        }
+        const adapterId = parentRunId
+          ? context.kernel.defaultAdapterIdForRun(parentRunId)
+          : spawnProfile.adapterId;
+        const inheritsParentExecutionProfile = Boolean(parentRunId);
+        const cwd = inheritsParentExecutionProfile ? undefined : spawnProfile.workingDirectory;
+        const model = inheritsParentExecutionProfile ? undefined : spawnProfile.modelProfile ?? undefined;
+        assertAdapterAllowedForControlRun(context, adapterId);
         const childSurfaceKind = parsed.visible ? "floating_bar" : "delegated_agent";
         const childExternalRefKind = parsed.visible ? "pill" : undefined;
-        const producerContextSnapshot = (!parentRunId || isAuthorizedIndependentLocalProviderSpawn) && producerJournal
+        const producerContextSnapshot = !parentRunId && producerJournal
           ? context.kernel.contextSnapshotForExactSurface(ownerId, producerJournal.surface)
           : undefined;
         const routed = await context.kernel.applyDesktopIntentEffect(
@@ -1270,7 +1121,6 @@ export async function handleAgentControlToolCall(
             effect: "spawn_agent",
             syntaxFacts: {
               parentRunId,
-              explicitProvider: parsed.provider ?? null,
               requestedAgentCount: parsed.requestedAgentCount,
             },
           },
@@ -1312,19 +1162,6 @@ export async function handleAgentControlToolCall(
                   ...(parsed.visible && siblingExternalRefId ? { pillId: siblingExternalRefId } : {}),
                   ...(siblingProducerJournal ? { producerJournal: siblingProducerJournal } : {}),
                 };
-                const mcpServers = buildControlRunMcpServers(context, {
-                  mode: "act",
-                  cwd,
-                  ownerId,
-                  requestId: siblingRequestId,
-                  clientId: parsed.clientId,
-                  adapterId: adapterId ?? defaultControlAdapterId(context),
-                  surfaceKind: childSurfaceKind,
-                  externalRefKind: childExternalRefKind,
-                  externalRefId: siblingExternalRefId,
-                  screenContext: true,
-                  executionRole: "leaf",
-                });
                 if (inheritsParentExecutionProfile) {
                   if (!parentRunId) {
                     throw new Error("Parent-linked agent spawn is missing its parent run");
@@ -1349,7 +1186,6 @@ export async function handleAgentControlToolCall(
                     metadata: siblingMetadata,
                     toolPolicy: parsed.toolPolicy,
                     authoritySignal: context.executionLease?.signal,
-                    mcpServers,
                   }));
                   siblings.push({
                     kind: "delegated",
@@ -1359,9 +1195,7 @@ export async function handleAgentControlToolCall(
                 } else {
                   const result = await executeAuthorizedControlEffect(context, () => context.kernel.spawnBackgroundAgent({
                     ...controlRunRecovery(context, adapterId ?? defaultControlAdapterId(context)),
-                    ...(isAuthorizedIndependentLocalProviderSpawn
-                      ? { trustedUserSpawn: true }
-                      : backgroundSpawnAuthority(context)),
+                    ...backgroundSpawnAuthority(context),
                     ownerId,
                     clientId: parsed.clientId,
                     requestId: siblingRequestId,
@@ -1375,14 +1209,10 @@ export async function handleAgentControlToolCall(
                     cwd,
                     model,
                     mode: "act",
-                    metadata: {
-                      ...siblingMetadata,
-                      provider: parsed.provider ?? null,
-                    },
+                    metadata: siblingMetadata,
                     toolPolicy: parsed.toolPolicy,
                     admittedContextSnapshot: producerContextSnapshot,
                     authoritySignal: context.executionLease?.signal,
-                    mcpServers,
                   }));
                   siblings.push({
                     kind: "background",
@@ -1452,7 +1282,7 @@ export async function handleAgentControlToolCall(
         assertCanonicalRunId(parsed.parentRunId, "parentRunId");
         const ownerId = effectiveControlToolOwnerId(context, parsed.ownerId);
         const requestId = parsed.requestId ?? `run-and-wait-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-        const adapterId = parsed.adapterId ?? context.kernel.defaultAdapterIdForRun(parsed.parentRunId);
+        const adapterId = context.kernel.defaultAdapterIdForRun(parsed.parentRunId);
         assertAdapterAllowedForControlRun(context, adapterId);
         const routed = await executeAuthorizedControlEffect(context, () => context.kernel.applyDesktopIntentEffect(
           {
@@ -1465,7 +1295,6 @@ export async function handleAgentControlToolCall(
             effect: "spawn_agent",
             syntaxFacts: {
               parentRunId: parsed.parentRunId,
-              explicitProvider: adapterId,
               requestedAgentCount: 1,
             },
           },
@@ -1479,24 +1308,12 @@ export async function handleAgentControlToolCall(
             requestId,
             adapterId,
             defaultAdapterId: adapterId,
-            cwd: parsed.cwd,
-            model: parsed.model,
             runMode: parsed.runMode,
             clientId: parsed.clientId,
             maxDepth: parsed.maxDepth,
             maxBudgetUsd: parsed.maxBudgetUsd,
             metadata: { ...(parsed.metadata ?? {}) },
             authoritySignal: context.executionLease?.signal,
-            mcpServers: buildControlRunMcpServers(context, {
-              mode: parsed.runMode,
-              cwd: parsed.cwd,
-              ownerId,
-              requestId,
-              clientId: parsed.clientId,
-              adapterId,
-              screenContext: true,
-              executionRole: "leaf",
-            }),
           }),
         ));
         const result = routed.result;
@@ -1832,25 +1649,12 @@ export async function handleAgentControlToolCall(
       const rawCode = error && typeof error === "object" && "code" in error
         ? String((error as { code: unknown }).code)
         : "";
-      const routeReasonCode = error && typeof error === "object" && "reasonCode" in error
-        ? String((error as { reasonCode: unknown }).reasonCode)
-        : "";
       const details = error instanceof PartialAgentSpawnError ? error.details : undefined;
-      // A directed local provider is a user-visible capability, not an opaque
-      // routing failure. Keep this translation at the control-tool boundary so
-      // every surface (including PTT) receives the same bounded recovery state.
-      const requestedDirectedProvider = name === "spawn_agent"
-        && (input.provider === "hermes" || input.provider === "openclaw")
-        ? input.provider
-        : undefined;
-      const isProviderSetupNeeded = (rawCode === "provider_unavailable" || routeReasonCode === "provider_unavailable")
-        && requestedDirectedProvider !== undefined;
       const isAuthorizedExternalSpawnAdmission = name === "spawn_agent"
         && context.authorizedCallerRunId !== undefined
         && context.authorizedProducerJournal !== undefined;
       const errorCode = error instanceof z.ZodError
         ? "invalid_tool_input"
-        : isProviderSetupNeeded ? "provider_setup_needed"
         : /^[a-z0-9_]{1,64}$/.test(rawCode) ? rawCode : "control_tool_failed";
       return stringifyToolResult({
         error: {
@@ -1862,51 +1666,13 @@ export async function handleAgentControlToolCall(
             : errorCode,
           message: isAuthorizedExternalSpawnAdmission && errorCode === "control_tool_failed"
             ? "The requested agent could not be started. Try again."
-            : isProviderSetupNeeded
-              ? `${requestedDirectedProvider === "hermes" ? "Hermes" : "OpenClaw"} needs setup before it can run an agent.`
             : error instanceof Error ? error.message : String(error),
-          ...(isProviderSetupNeeded ? { provider: requestedDirectedProvider } : {}),
           ...(isAuthorizedExternalSpawnAdmission ? { retryable: true } : {}),
           ...(details ? { details } : {}),
         },
       }, "failed");
     }
   });
-}
-
-function buildControlRunMcpServers(
-  context: AgentControlToolContext,
-  input: {
-    mode: "ask" | "act";
-    cwd?: string;
-    ownerId: string;
-    requestId: string;
-    clientId: string;
-    adapterId: string;
-    surfaceKind?: string;
-    externalRefKind?: string;
-    externalRefId?: string;
-    screenContext?: boolean;
-    executionRole?: AgentExecutionRole;
-  },
-): Record<string, unknown>[] | undefined {
-  if (!context.buildMcpServers) {
-    return undefined;
-  }
-  const servers = context.buildMcpServers(input.mode, input.cwd, undefined, {
-    ownerId: input.ownerId,
-    requestId: input.requestId,
-    clientId: input.clientId,
-    adapterId: input.adapterId,
-    protocolVersion: 2,
-    surfaceKind: input.surfaceKind,
-    externalRefKind: input.externalRefKind,
-    externalRefId: input.externalRefId,
-    includeSwiftBackedTools: true,
-    screenContext: input.screenContext === true,
-    executionRole: input.executionRole,
-  });
-  return servers;
 }
 
 function assertCanonicalRunId(value: string, fieldName: string): void {
@@ -2696,13 +2462,6 @@ function serializeFloatingPillSnapshot(summary: {
     (typeof metadata.pillId === "string" ? metadata.pillId : null) ||
     runId ||
     sessionId;
-  const adapterId = session.defaultAdapterId;
-  const authoritativeProvider = adapterId === "openclaw" || adapterId === "hermes"
-    ? adapterId
-    : null;
-  const legacyProvider = metadata.provider === "openclaw" || metadata.provider === "hermes"
-    ? metadata.provider
-    : null;
   return {
     id: pillId,
     runId,
@@ -2713,7 +2472,6 @@ function serializeFloatingPillSnapshot(summary: {
     query: boundedControlListText(input.prompt) ?? "",
     createdAtMs: session.createdAtMs ?? null,
     completedAtMs: run?.completedAtMs ?? null,
-    provider: authoritativeProvider ?? legacyProvider,
     errorCode: boundedControlListText(errorCode, 128),
     errorMessage: boundedControlListText(errorMessage),
   };

@@ -27,14 +27,13 @@ python -m pip install -r testing/e2e/requirements.txt
 
 ## Scope of v1
 
-This version proves the backend can boot hermetically and that selected core CRUD, user/account, storage, webhook, task-integration, listen-routing, sync-job, conversation lifecycle, retrieval/search, deterministic processing-seam, and legacy-shape paths can execute without real Firestore, Redis, GCS, Pinecone, Typesense, Google ADC, or production API keys.
+This version proves the backend can boot hermetically and that selected core CRUD, user/account, storage, webhook, task-integration, listen-routing, conversation lifecycle, retrieval/search, deterministic processing-seam, and legacy-shape paths can execute without real Firestore, Redis, GCS, Pinecone, Typesense, Google ADC, or production API keys.
 
 | Scenario | Status | Notes |
 |---|---:|---|
 | CRUD golden path | ✅ Green | Conversations are seeded directly because `POST /v1/conversations` processes an existing in-progress conversation; action items and memories use real create/update/delete routes. |
 | Deterministic conversation-processing seam | ✅ Partial | Reprocess and finalize routes, auth, model serialization, Firestore update, memory readback, and action-item queryability run with the provider-heavy processing function replaced by deterministic output. Full LLM-client wiring remains v2. |
 | Listen/STT route seam | ✅ | `/v4/web/listen` websocket auth/query parsing/custom-STT dispatch is covered; managed-STT scenarios run the real Modulate socket against a loopback peer through client emission, reconnect behavior, terminal failure, decrypted conversation readback, and finalization lifecycle. |
-| Sync v2 job lifecycle | ✅ Partial | `/v2/sync-local-files` fast path, Redis job creation, deterministic background pipeline completion, job polling, and conversation persistence run with decode/VAD/STT/provider-heavy segment work replaced by deterministic seams. Full audio decoding and provider transcription remain lower-level/unit or v2 fake work. |
 | Storage / speech profile | ✅ Green | `google.cloud.storage.Client` is patched to a temp-dir fake; speech-profile presence, signed URL, sample list, and delete paths run through real routes/helpers. |
 | Webhooks | ✅ Partial | Developer webhook config/status routes, disabled no-op behavior, realtime delivery payload, non-2xx failure health recording, timeout/exception health recording, and threshold auto-disable are covered with `httpx.MockTransport`. Marketplace app webhook retry/circuit-breaker behavior remains v2. |
 | Task integrations | ✅ Green | CRUD/default/delete paths plus connected/disconnected/no-token and Todoist success, provider 500, 401 disconnect, and timeout failure paths exercise real task-integration database helpers against fake Firestore. |
@@ -76,7 +75,7 @@ bash backend/testing/e2e/run.sh -k "test_crud"
 # Conversation processing and state seams
 bash backend/testing/e2e/run.sh -k "conversation_processing"
 
-# Core listen/sync/conversation lifecycle seams
+# Core listen/conversation lifecycle seams
 bash backend/testing/e2e/run.sh -k "core_flow_expansion"
 
 # Listen/STT websocket route seam
@@ -171,7 +170,7 @@ def test_read_seeded_conversation(client, auth_headers, sample_conversation_data
 
 ## Current limitations / v2 work
 
-- [x] Add hermetic core-flow coverage for custom-STT listen reconnect/finalize, sync v2 job lifecycle, and conversation finalization.
+- [x] Add hermetic core-flow coverage for custom-STT listen reconnect/finalize and conversation finalization.
 - [ ] Wire deterministic LLM endpoints into all OpenAI/Anthropic/OpenRouter clients used by processing code.
 - [ ] Add per-test HTTP failure injection for LLM 500 / timeout scenarios.
 - [ ] Add real Redis-unavailable fail-open tests; v1 uses fakeredis-backed paths.

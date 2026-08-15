@@ -154,31 +154,6 @@ class TranslationEvent(MessageEvent):
         return j
 
 
-class PhotoProcessingEvent(MessageEvent):
-    event_type: str = "photo_processing"
-    temp_id: str
-    photo_id: str
-
-    def to_json(self):
-        j = self.model_dump(mode="json")
-        j["type"] = self.event_type
-        del j["event_type"]
-        return j
-
-
-class PhotoDescribedEvent(MessageEvent):
-    event_type: str = "photo_described"
-    photo_id: str
-    description: str
-    discarded: bool
-
-    def to_json(self):
-        j = self.model_dump(mode="json")
-        j["type"] = self.event_type
-        del j["event_type"]
-        return j
-
-
 class SpeakerLabelSuggestionEvent(MessageEvent):
     event_type: str = "speaker_label_suggestion"
     speaker_id: int

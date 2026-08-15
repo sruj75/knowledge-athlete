@@ -43,27 +43,6 @@ struct ModelQoS {
     /// Synthesis extraction tasks (calendar, gmail, notes, memory import)
     static var synthesis: String { "claude-haiku-4-5-20251001" }
 
-    /// ChatLab test queries
-    static var chatLabQuery: String { "claude-sonnet-4-20250514" }
-
-    /// ChatLab grading (always cheap)
-    static var chatLabGrade: String { "claude-haiku-4-5-20251001" }
-
-    /// Available models shown in the UI picker
-    static var availableModels: [(id: String, label: String)] {
-      [("claude-sonnet-4-6", "Sonnet")]
-    }
-
-    /// Default model for user selection (floating bar / shortcut picker)
-    static var defaultSelection: String { "claude-sonnet-4-6" }
-
-    /// Sanitize a persisted model ID against the current tier's allowed list.
-    /// Returns the saved model if it's still available, otherwise falls back to defaultSelection.
-    static func sanitizedSelection(_ savedModel: String?) -> String {
-      let model = savedModel ?? defaultSelection
-      let allowedIDs = availableModels.map(\.id)
-      return allowedIDs.contains(model) ? model : defaultSelection
-    }
   }
 
   // MARK: - Gemini Models (tier-dependent, stable GA models)

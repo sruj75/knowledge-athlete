@@ -85,38 +85,6 @@ def get_recent_changelogs(limit: int = 5, max_version: Optional[str] = None) -> 
     return changelogs[:limit]
 
 
-def get_firmware_features(firmware_version: str, device_model: Optional[str] = None) -> List[Announcement]:
-    """
-    Get feature announcements for a specific firmware version.
-    Optionally filter by device model.
-    """
-    announcements_ref = db.collection("announcements")
-    query = (
-        announcements_ref.where(filter=FieldFilter("type", "==", AnnouncementType.FEATURE.value))
-        .where(filter=FieldFilter("active", "==", True))
-        .where(filter=FieldFilter("firmware_version", "==", firmware_version))
-    )
-
-    docs = query.stream()
-    features: List[Announcement] = []
-
-    for doc in docs:
-        raw: object = doc.to_dict()
-        if not isinstance(raw, dict):
-            continue
-        data = cast(Dict[str, Any], raw)
-        announcement = Announcement.from_dict(data)
-
-        # Filter by device model if specified
-        if device_model and announcement.device_models:
-            if device_model not in announcement.device_models:
-                continue
-
-        features.append(announcement)
-
-    return features
-
-
 def get_app_features(app_version: str) -> List[Announcement]:
     """
     Get feature announcements for a specific app version.
@@ -377,8 +345,6 @@ def get_pending_announcements(
     app_version: str,
     platform: str,
     trigger: str,
-    firmware_version: Optional[str] = None,
-    device_model: Optional[str] = None,
 ) -> List[Announcement]:
     """
     Get all announcements that should be shown to a user.
@@ -387,7 +353,7 @@ def get_pending_announcements(
     1. active == True
     2. Not in user's dismissed_announcements (if show_once == True)
     3. Within time window (start_at <= now <= expires_at)
-    4. Matches targeting rules (version range, device, platform)
+    4. Matches targeting rules (version range and platform)
     5. Matches trigger type
     6. Sorted by priority (descending)
 
@@ -395,9 +361,7 @@ def get_pending_announcements(
         uid: User ID for dismissal tracking
         app_version: Current app version (e.g., "1.0.522+240")
         platform: "ios" or "android"
-        trigger: "app_launch", "version_upgrade", or "firmware_upgrade"
-        firmware_version: Current firmware version (optional)
-        device_model: Device model name (optional)
+        trigger: "app_launch" or "version_upgrade"
 
     Returns:
         List of announcements to show, sorted by priority (highest first)
@@ -408,7 +372,6 @@ def get_pending_announcements(
     trigger_map = {
         "app_launch": TriggerType.IMMEDIATE,
         "version_upgrade": TriggerType.VERSION_UPGRADE,
-        "firmware_upgrade": TriggerType.FIRMWARE_UPGRADE,
     }
     requested_trigger = trigger_map.get(trigger, TriggerType.IMMEDIATE)
 
@@ -448,7 +411,7 @@ def get_pending_announcements(
 
         # 3. Check trigger type
         if targeting.trigger != requested_trigger:
-            # Special case: IMMEDIATE trigger announcements should also show on version/firmware upgrades
+            # IMMEDIATE announcements should also show on app-version upgrades.
             if targeting.trigger != TriggerType.IMMEDIATE:
                 continue
 
@@ -464,23 +427,7 @@ def get_pending_announcements(
             if compare_versions(app_version, targeting.app_version_max) > 0:
                 continue
 
-        # 6. Check firmware version range (only if firmware_version provided)
-        if targeting.firmware_version_min or targeting.firmware_version_max:
-            if not firmware_version:
-                continue
-            if targeting.firmware_version_min:
-                if compare_versions(firmware_version, targeting.firmware_version_min) < 0:
-                    continue
-            if targeting.firmware_version_max:
-                if compare_versions(firmware_version, targeting.firmware_version_max) > 0:
-                    continue
-
-        # 7. Check device model targeting
-        if targeting.device_models:
-            if not device_model or device_model not in targeting.device_models:
-                continue
-
-        # 8. Check test_uids (if set, only those users see the announcement)
+        # 6. Check test_uids (if set, only those users see the announcement)
         if targeting.test_uids:
             if uid not in targeting.test_uids:
                 continue

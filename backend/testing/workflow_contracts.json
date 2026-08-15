@@ -206,49 +206,6 @@
       ]
     },
     {
-      "id": "sync_cloud_tasks",
-      "risk": "high",
-      "sources": [
-        "backend/routers/sync.py",
-        "backend/utils/sync/pipeline.py",
-        "backend/database/sync_jobs.py",
-        "backend/utils/sync/*.py",
-        "backend/testing/sync_cloud_tasks_stack/**",
-        ".github/workflows/backend-hermetic-e2e.yml",
-        "package.json",
-        "package-lock.json"
-      ],
-      "tests": [
-        "tests/unit/test_sync_v2.py",
-        "tests/unit/test_sync_cloud_tasks.py",
-        "tests/unit/test_audio_merge_tasks.py",
-        "tests/unit/test_sync_fair_use_gate.py",
-        "tests/unit/test_sync_cloud_tasks_stack_ci_wiring.py"
-      ],
-      "checks": [],
-      "invariants": [
-        "task retries do not double-count usage or completed segments",
-        "segment failures cannot be reported as completed work",
-        "enqueued jobs retain staged blobs until handler completion",
-        "fresh v2 Sync admission runs a credential-free local Firestore, Redis, storage, and separate Cloud Tasks-worker stack gauntlet in blocking PR CI"
-      ]
-    },
-    {
-      "id": "sync_ledger_fence_cutover",
-      "risk": "high",
-      "sources": [
-        "backend/scripts/sync_ledger_fence_cutover.py",
-        ".github/workflows/sync_ledger_fence_cutover.yml"
-      ],
-      "tests": ["tests/unit/test_sync_ledger_fence_cutover.py"],
-      "checks": [],
-      "invariants": [
-        "standby admission traffic reaches every sync surface before Cloud Tasks queues are paused",
-        "the exact immutable candidate digest is proven through the tagged full transcription route before active traffic promotion",
-        "failed stage or activation attempts preserve the first queue-origin artifact and leave queues paused"
-      ]
-    },
-    {
       "id": "vector_repair_outbox",
       "risk": "high",
       "sources": [
@@ -282,7 +239,6 @@
       "tests": [
         "tests/services/users/test_account_deletion.py",
         "tests/routers/test_users.py",
-        "tests/unit/test_sync_cloud_tasks.py",
         "tests/unit/test_backend_runtime_env_validator.py",
         "tests/unit/test_claim_deletion_wipe_txn.py",
         "tests/unit/test_delete_account_purge_storage.py",
@@ -413,7 +369,6 @@
         "backend/routers/conversations.py",
         "backend/routers/sync.py",
         "backend/routers/developer.py",
-        "backend/utils/sync/pipeline.py",
         "backend/utils/conversations/process_conversation.py",
         "backend/utils/app_integrations.py",
         "backend/utils/conversations/postprocess_conversation.py",
@@ -512,13 +467,10 @@
         ".github/workflows/gcp_memory_maintenance_job.yml",
         ".github/workflows/gcp_memory_maintenance_job_auto_dev.yml",
         ".github/workflows/gcp_notifications_job.yml",
-        ".github/workflows/sync_ledger_fence_cutover.yml",
         "backend/deploy/runtime_env.yaml",
         "backend/scripts/preflight-cloud-run-deploy.py",
         "backend/scripts/resolve_cloud_run_tagged_url.py",
-        "backend/scripts/sync_ledger_fence_cutover.py",
         "backend/scripts/verify_backend_release_vector.py",
-        "backend/scripts/verify_sync_ledger_fence_transition.py",
         "backend/scripts/verify-llm-gateway-serving.py",
         "backend/scripts/probe-llm-gateway-from-cloud-run.sh",
         "backend/scripts/render_backend_runtime_env.py",
@@ -541,20 +493,17 @@
         "tests/unit/test_backend_runtime_env_validator.py",
         "tests/unit/test_verify_llm_gateway_serving.py",
         "tests/unit/test_llm_gateway_deploy_contract.py",
-        "tests/unit/test_sync_two_lane.py",
         "tests/unit/test_firebase_release_probe_token.py",
         "tests/unit/test_transcription_capability_probe.py",
-        "tests/unit/test_validate_memory_maintenance_scheduler.py",
-        "tests/unit/test_verify_sync_ledger_fence_transition.py"
+        "tests/unit/test_validate_memory_maintenance_scheduler.py"
       ],
       "checks": [],
       "invariants": [
         "preflight fails before revision creation when Secret Manager bindings are missing",
         "traffic shifts only after candidate revisions are Ready=True",
-        "all four Cloud Run traffic specs are durably captured before promotion and restored automatically after a failed shift, serving-vector check, or production serving smoke",
+        "every Cloud Run traffic spec is durably captured before promotion and restored automatically after a failed shift, serving-vector check, or production serving smoke",
         "GKE runtime config, backend secrets, and backend-listen mutate only after the no-traffic Cloud Run candidate is accepted",
         "spec.traffic mismatches are repaired or block deploy with an explicit command",
-        "normal deploys cannot change the serving sync ledger fence mode",
         "production backend traffic shifts only after the Cloud Run-only candidate vector passes, then rolls back if the post-promotion serving route or known-audio smoke fails",
         "memory-maintenance job deploys fail unless the exact enabled hourly OAuth Scheduler trigger targets that deployed job",
         "gateway-first serving cannot be promoted until the ready workload, EndpointSlice, ingress/ILB attachment, and authenticated Cloud Run VPC route all pass"

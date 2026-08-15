@@ -26,7 +26,6 @@ def _install_merge_conversations_stubs() -> list[str]:
     touched = install_ws_i_heavy_import_stubs()
     conversations_mod = sys.modules["database.conversations"]
     conversations_mod.delete_conversation = MagicMock()
-    conversations_mod.delete_conversation_photos = MagicMock()
     memories_mod = sys.modules["database.memories"]
     memories_mod.delete_memories_for_conversation = MagicMock()
     action_items_mod = sys.modules["database.action_items"]

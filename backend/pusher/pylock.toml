@@ -455,11 +455,6 @@ sdist = { url = "https://files.pythonhosted.org/packages/17/eb/8883d1158c743d0aa
 wheels = [{ url = "https://files.pythonhosted.org/packages/23/85/968c88a63e32a59b3e5c68afd2fe114ce0708a125db0be1a85efc25fb2ea/langsmith-0.8.5-py3-none-any.whl", upload-time = 2026-05-15T21:31:39Z, size = 399564, hashes = { sha256 = "efc779f9d450dcaf9d97bc8894f4926276509d6e730e05289af9a64debce06ae" } }]
 
 [[packages]]
-name = "lc3py"
-version = "1.1.3"
-wheels = [{ url = "https://files.pythonhosted.org/packages/59/c9/f77aa6f2ab9121e52f08683dccc04fe89b25465c7a23f0e5eea61faee23e/lc3py-1.1.3-py3-none-manylinux_2_5_x86_64.manylinux1_x86_64.manylinux_2_17_x86_64.manylinux2014_x86_64.whl", upload-time = 2025-02-12T00:50:30Z, size = 144335, hashes = { sha256 = "601a9a2ea3135547f2d22a10475b5fec8f784f716f4b22a61acc3908c827694e" } }]
-
-[[packages]]
 name = "marshmallow"
 version = "3.26.2"
 sdist = { url = "https://files.pythonhosted.org/packages/55/79/de6c16cc902f4fc372236926b0ce2ab7845268dcc30fb2fbb7f71b418631/marshmallow-3.26.2.tar.gz", upload-time = 2025-12-22T06:53:53Z, size = 222095, hashes = { sha256 = "bbe2adb5a03e6e3571b573f42527c6fe926e17467833660bebd11593ab8dfd57" } }

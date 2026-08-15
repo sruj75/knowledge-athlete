@@ -161,32 +161,13 @@ enum RealtimeHubTools {
 
   /// OpenAI Realtime GA `session.tools` entries.
   static var openAITools: [[String: Any]] {
-    // Standalone callers fail closed. A physical RealtimeHubSession receives
-    // the exact Node registry projection at construction time.
-    openAITools(availableDirectedProviders: [])
-  }
-
-  static func openAITools(availableDirectedProviders: [String]) -> [[String: Any]] {
-    let providerProperty: [String: Any]? =
-      availableDirectedProviders.isEmpty
-      ? nil
-      : [
-        "type": "string",
-        "enum": availableDirectedProviders,
-        "description":
-          "Optional local provider override only when the current user explicitly names it; omit for a regular Omi agent.",
-      ]
-    return GeneratedRealtimeTools.baseOpenAITools(providerProperty: providerProperty)
+    GeneratedRealtimeTools.baseOpenAIToolsTemplate
   }
 
   /// Gemini Live `setup.tools[0].functionDeclarations` entries (same surface). Derived once
   /// from `openAITools`.
   static var geminiFunctionDeclarations: [[String: Any]] {
-    geminiFunctionDeclarations(availableDirectedProviders: [])
-  }
-
-  static func geminiFunctionDeclarations(availableDirectedProviders: [String]) -> [[String: Any]] {
-    openAITools(availableDirectedProviders: availableDirectedProviders).map { tool in
+    openAITools.map { tool in
       // Gemini wants {name, description, parameters} without the OpenAI "type" wrapper.
       var decl: [String: Any] = [
         "name": tool["name"] as? String ?? "",
@@ -294,7 +275,7 @@ enum RealtimeHubTools {
       ["role": "user", "content": userContent],
     ]
     return [
-      "model": ModelQoS.Claude.defaultSelection,
+      "model": ModelQoS.Claude.chat,
       "max_tokens": 1024,
       "messages": messages,
       "stream": false,

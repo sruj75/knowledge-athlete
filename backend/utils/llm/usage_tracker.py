@@ -209,7 +209,6 @@ class Features:
 
     PROACTIVE_NOTIFICATION = "proactive_notification"
     FOLLOWUP = "followup"
-    OPENGLASS = "openglass"
     APP_GENERATOR = "app_generator"
     ONBOARDING = "onboarding"
 

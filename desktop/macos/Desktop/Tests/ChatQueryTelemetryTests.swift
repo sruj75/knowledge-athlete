@@ -54,7 +54,7 @@ final class ChatQueryTelemetryTests: XCTestCase {
     let detail = ChatQueryErrorDetail.from(
       BridgeError.agentError("400 Your credit balance is too low to access the Anthropic API."))
     let event = ChatQueryTelemetryEvent.failed(
-      ChatQueryTelemetryContext(attemptId: "attempt-detail", surface: "main_chat", harness: "acp"),
+      ChatQueryTelemetryContext(attemptId: "attempt-detail", surface: "main_chat", harness: "piMono"),
       durationMs: 1200,
       errorClass: .agentError,
       partialResponse: false,
@@ -75,7 +75,7 @@ final class ChatQueryTelemetryTests: XCTestCase {
       failureCode: .authentication,
       userMessage: "Authentication required",
       source: "adapter_execution",
-      adapterId: "openclaw",
+      adapterId: "pi-mono",
       provider: "anthropic",
       retryable: false
     )
@@ -83,7 +83,7 @@ final class ChatQueryTelemetryTests: XCTestCase {
     XCTAssertEqual(detail?.errorCode, "authentication")
     XCTAssertEqual(detail?.failureCode, "adapter_execution_failed")
     XCTAssertEqual(detail?.failureSource, "adapter_execution")
-    XCTAssertEqual(detail?.adapterId, "openclaw")
+    XCTAssertEqual(detail?.adapterId, "pi-mono")
     XCTAssertEqual(detail?.retryable, false)
   }
 
@@ -580,7 +580,7 @@ final class ChatQueryTelemetryTests: XCTestCase {
     let attempt = ChatQueryTelemetryAttempt(
       attemptId: "attempt-stop",
       surface: "floating_chat",
-      harness: "hermes",
+      harness: "piMono",
       eventSink: { events.append($0) }
     )
 
@@ -612,7 +612,7 @@ final class ChatQueryTelemetryTests: XCTestCase {
     let supersededAttempt = ChatQueryTelemetryAttempt(
       attemptId: "attempt-superseded",
       surface: "floating_chat",
-      harness: "hermes",
+      harness: "piMono",
       eventSink: { supersededEvents.append($0) }
     )
     XCTAssertTrue(supersededAttempt.finish(stopReason: .superseded))
@@ -622,16 +622,14 @@ final class ChatQueryTelemetryTests: XCTestCase {
     XCTAssertEqual(reason, .superseded)
   }
 
-  // T5: auth-blocked turns classify as authentication with session adapter + disposition.
+  // T5: auth-blocked turns classify as authentication without retired provider dimensions.
   @MainActor
-  func testAuthenticationFailureTelemetryIncludesSessionAdapterAndDisposition() {
+  func testAuthenticationFailureTelemetryIncludesDispositionOnly() {
     var events: [ChatQueryTelemetryEvent] = []
     let attempt = ChatQueryTelemetryAttempt(
       attemptId: "attempt-auth-blocked",
       surface: "main_chat",
       harness: "piMono",
-      bridgeModePreference: "piMono",
-      sessionAdapterId: "acp",
       eventSink: { events.append($0) }
     )
 
@@ -646,12 +644,12 @@ final class ChatQueryTelemetryTests: XCTestCase {
 
     let payload = terminal.analyticsPayload
     XCTAssertEqual(payload.properties["error_class"] as? String, "authentication")
-    XCTAssertEqual(payload.properties["session_adapter_id"] as? String, "acp")
     XCTAssertEqual(payload.properties["harness"] as? String, "piMono")
-    XCTAssertEqual(payload.properties["bridge_mode_preference"] as? String, "piMono")
     XCTAssertEqual(payload.properties["turn_disposition"] as? String, "auth_blocked")
-    XCTAssertEqual(payload.properties["root_cause"] as? String, "provider_claude")
-    XCTAssertEqual(payload.properties["adapter_harness_mismatch"] as? Bool, true)
+    XCTAssertNil(payload.properties["session_adapter_id"])
+    XCTAssertNil(payload.properties["bridge_mode_preference"])
+    XCTAssertNil(payload.properties["root_cause"])
+    XCTAssertNil(payload.properties["adapter_harness_mismatch"])
     XCTAssertEqual(payload.properties["watchdog_fired"] as? Bool, false)
   }
 
@@ -660,7 +658,7 @@ final class ChatQueryTelemetryTests: XCTestCase {
     let failure = AgentRuntimeFailure(
       code: "provider_auth_required",
       failureCode: .authentication,
-      userMessage: "Claude sign-in is required to continue this chat."
+      userMessage: "Managed agent authentication is required to continue this chat."
     )
     let disposition = ChatQueryFailureDisposition.classify(
       BridgeError.agentRuntimeFailure(failure)

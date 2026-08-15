@@ -242,7 +242,6 @@ enum OnboardingFlow {
     "hasTriggeredMicrophone",
     "hasTriggeredSystemAudio",
     "hasTriggeredAccessibility",
-    "hasTriggeredBluetooth",
   ]
 
   /// Remove every account-scoped onboarding key. Mounted-@AppStorage values

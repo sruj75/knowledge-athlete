@@ -22,7 +22,6 @@ DEFAULT_GKE_SERVICES = (
 DEFAULT_CLOUD_RUN_SERVICES = (
     'backend',
     'backend-sync',
-    'backend-sync-backfill',
     'backend-integration',
     'desktop-backend',
 )

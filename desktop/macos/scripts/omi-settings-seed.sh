@@ -26,7 +26,7 @@ import tempfile
 src, target = sys.argv[1], sys.argv[2]
 
 KEYS = [
-    # Floating bar, Ask Omi, push-to-talk, voice, and model choices.
+    # Floating bar, Ask Omi, push-to-talk, and voice choices.
     "shortcut_askOmiKey",
     "shortcut_pttKey",
     "shortcut_askOmiEnabled",
@@ -35,7 +35,6 @@ KEYS = [
     "shortcut_solidBackground",
     "shortcut_pttSoundsEnabled",
     "shortcut_pttMuteSystemAudio",
-    "shortcut_selectedModel",
     "shortcut_pttTranscriptionMode",
     "shortcut_draggableBarEnabled",
     "shortcut_floatingBarTypedQuestionVoiceAnswersEnabled",
@@ -47,14 +46,8 @@ KEYS = [
     "multiChatEnabled",
     "conversationsCompactView",
     "useLegacyHomeDesign",
-    "chatBridgeMode",
     "realtimeOmniProvider",
     "askModeEnabled",
-    "claudeMdEnabled",
-    "projectClaudeMdEnabled",
-    "devModeEnabled",
-    "playwrightUseExtension",
-    "disabledSkillsJSON",
     "screenAnalysisEnabled",
     "transcriptionEnabled",
     "dashboardWidgetsCollapsed",

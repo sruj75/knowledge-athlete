@@ -28,7 +28,7 @@ def test_record_fallback_increments_metric_and_logs_same_fields(monkeypatch, cap
 
     with caplog.at_level(logging.WARNING, logger=fallback_mod.logger.name):
         fallback_mod.record_fallback(
-            component='sync_dispatch',
+            component='audio_merge',
             from_mode='cloud_tasks',
             to_mode='inline',
             reason='enqueue_failed',
@@ -38,7 +38,7 @@ def test_record_fallback_increments_metric_and_logs_same_fields(monkeypatch, cap
     assert counter.increments == [
         (
             {
-                'component': 'sync_dispatch',
+                'component': 'audio_merge',
                 'from_mode': 'cloud_tasks',
                 'to_mode': 'inline',
                 'reason': 'enqueue_failed',
@@ -49,7 +49,7 @@ def test_record_fallback_increments_metric_and_logs_same_fields(monkeypatch, cap
     ]
     assert any(
         'omi_fallback_event' in record.message
-        and 'component=sync_dispatch' in record.message
+        and 'component=audio_merge' in record.message
         and 'from=cloud_tasks' in record.message
         and 'to=inline' in record.message
         and 'reason=enqueue_failed' in record.message

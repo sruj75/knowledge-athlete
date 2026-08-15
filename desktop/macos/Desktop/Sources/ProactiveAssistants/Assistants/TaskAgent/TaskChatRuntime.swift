@@ -69,9 +69,6 @@ extension AgentBridge {
 @MainActor
 enum TaskChatRuntime {
   struct QueryRouting: Equatable, Sendable {
-    let adapterId: String
-    let modelProfile: String?
-    let workingDirectory: String
     let runMode: String
   }
 
@@ -251,20 +248,9 @@ enum TaskChatRuntime {
       }
     }
     let surface = AgentSurfaceReference.workstream(workstreamId: workstreamId)
-    let bridgePreference = UserDefaults.standard.string(forKey: .chatBridgeMode)
-    let routing = try queryRouting(
-      bridgePreference: bridgePreference,
-      runMode: mode,
-      workspacePath: workspacePath
-    )
-    let creationProfile = AgentSessionCreationProfile(
-      adapterId: routing.adapterId,
-      modelProfile: routing.modelProfile,
-      workingDirectory: routing.workingDirectory
-    )
+    let routing = queryRouting(runMode: mode)
     let session = try await bridge.resolveSurfaceSession(
       surface,
-      creationProfile: creationProfile,
       authorizationSnapshot: authorizationSnapshot
     )
     try requireCurrent(authorizationSnapshot)
@@ -328,25 +314,8 @@ enum TaskChatRuntime {
     )
   }
 
-  nonisolated static func queryRouting(
-    bridgePreference: String?,
-    runMode: String,
-    workspacePath: String
-  ) throws -> QueryRouting {
-    let preference = ChatProvider.BridgeMode(rawValue: bridgePreference ?? "piMono") ?? .piMono
-    let harness = ChatProvider.harnessMode(for: preference)
-    guard let adapterId = AgentRuntimeProcess.adapterId(forHarnessMode: harness) else {
-      throw BridgeError.agentError("Unknown AI runtime mode: \(harness)")
-    }
-    let usesNativeModelChoice = harness == "hermes" || harness == "openclaw"
-    return QueryRouting(
-      adapterId: adapterId,
-      modelProfile: usesNativeModelChoice ? nil : ModelQoS.Claude.chat,
-      workingDirectory: workspacePath.isEmpty
-        ? AgentRuntimeProcess.defaultArtifactsDirectory()
-        : workspacePath,
-      runMode: runMode
-    )
+  nonisolated static func queryRouting(runMode: String) -> QueryRouting {
+    QueryRouting(runMode: runMode)
   }
 
   static func interrupt(
@@ -430,9 +399,7 @@ enum TaskChatRuntime {
   private static func sharedBridge() async throws -> AgentBridge {
     if let agentBridge { return agentBridge }
 
-    let mode = UserDefaults.standard.string(forKey: .chatBridgeMode) ?? "piMono"
-    let harness = ChatProvider.harnessMode(for: ChatProvider.BridgeMode(rawValue: mode) ?? .piMono)
-    let bridge = AgentClient.makeBridge(harnessMode: harness)
+    let bridge = AgentClient.makeBridge(harnessMode: AgentHarnessMode.piMono.rawValue)
     agentBridge = bridge
     log("TaskChatRuntime: shared task-chat bridge initialized")
     return bridge

@@ -87,11 +87,8 @@ APP_CLIENT_PREFIXES = (
     '/v1/what-matters-now',
     '/v2/apps',
     '/v2/files',
-    '/v2/firmware',
     '/v2/initial-message',
     '/v2/messages',
-    '/v2/sync-capture-manifest',
-    '/v2/sync-local-files',
     '/v2/tts',
     '/v2/voice-message',
     '/v2/voice-messages',
@@ -180,10 +177,6 @@ UNDOCUMENTED_PUBLIC_ROUTES: dict[tuple[str, str], str] = {
     (
         'GET',
         '/v1/conversations/{conversation_id}/recording',
-    ): 'Firebase-authenticated first-party app route; not part of the Developer API key contract.',
-    (
-        'GET',
-        '/v1/conversations/{conversation_id}/photos',
     ): 'Firebase-authenticated first-party app route; not part of the Developer API key contract.',
     (
         'GET',

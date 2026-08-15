@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { adapterProfile } from "../src/runtime/adapter-selection.js";
+import { adapterCapabilitiesFor } from "../src/adapters/interface.js";
 import { recordJournalExchange, listJournalTurns } from "../src/runtime/conversation-journal.js";
 import { evaluateDesktopToolPolicy } from "../src/runtime/desktop-tool-policy.js";
 import { routeExternalSurfaceTool } from "../src/runtime/external-surface-tool-policy.js";
@@ -34,7 +34,7 @@ describe("cross-surface contract smoke", () => {
     const voice = resolveSurfaceSession(store, {
       ownerId: "owner-contract",
       surfaceRef: { surfaceKind: "realtime_voice", externalRefKind: "chat", externalRefId: "contract-chat" },
-      defaultAdapterId: "acp",
+      defaultAdapterId: "pi-mono",
     }, () => 20);
 
     expect(voice).toEqual(main);
@@ -76,7 +76,7 @@ describe("cross-surface contract smoke", () => {
     }).turns.map((turn) => turn.turnId)).toEqual(["turn:typed:1", "turn:voice:1"]);
   });
 
-  it("keeps permission, public-web, and provider capability decisions compatible across coordinator and PTT paths", () => {
+  it("keeps permission, public-web, and managed Pi capability decisions compatible across coordinator and PTT paths", () => {
     const permissionTool = omiToolManifest.find((tool) => tool.name === "request_permission");
     expect(permissionTool?.surfaces).toEqual(expect.arrayContaining(["desktop_chat", "realtime_voice"]));
 
@@ -124,10 +124,6 @@ describe("cross-surface contract smoke", () => {
       "search my calendar for weather in NYC",
     );
 
-    expect(adapterProfile("pi-mono").capabilities.supportsTools).toBe(true);
-    expect(adapterProfile("openclaw").capabilities).toMatchObject({
-      supportsTools: false,
-      supportsModelSwitching: false,
-    });
+    expect(adapterCapabilitiesFor("pi-mono").supportsTools).toBe(true);
   });
 });

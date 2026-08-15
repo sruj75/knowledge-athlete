@@ -8,7 +8,6 @@ enum MemoryExportDestination: String, CaseIterable, Identifiable, Sendable {
   case chatgpt
   case claude
   case gemini
-  case agents
   case claudeCode
   case codex
   case openclaw
@@ -46,7 +45,7 @@ enum MemoryExportDestination: String, CaseIterable, Identifiable, Sendable {
     switch self {
     case .chatgpt: return Self.chatgptOAuthClientID
     case .claude: return "omi-claude-prod"
-    case .notion, .obsidian, .gemini, .agents, .claudeCode, .codex, .openclaw, .hermes:
+    case .notion, .obsidian, .gemini, .claudeCode, .codex, .openclaw, .hermes:
       return nil
     }
   }
@@ -60,7 +59,7 @@ enum MemoryExportDestination: String, CaseIterable, Identifiable, Sendable {
     switch self {
     case .chatgpt: return ["omi-chatgpt-prod", "omi-chatgpt-dev"]
     case .claude: return ["omi-claude-prod"]
-    case .notion, .obsidian, .gemini, .agents, .claudeCode, .codex, .openclaw, .hermes:
+    case .notion, .obsidian, .gemini, .claudeCode, .codex, .openclaw, .hermes:
       return []
     }
   }
@@ -69,7 +68,7 @@ enum MemoryExportDestination: String, CaseIterable, Identifiable, Sendable {
     switch self {
     case .chatgpt, .claude:
       return nil
-    case .notion, .obsidian, .gemini, .agents, .claudeCode, .codex, .openclaw, .hermes:
+    case .notion, .obsidian, .gemini, .claudeCode, .codex, .openclaw, .hermes:
       return nil
     }
   }
@@ -79,7 +78,7 @@ enum MemoryExportDestination: String, CaseIterable, Identifiable, Sendable {
     case .chatgpt: return "none"
     case .claude:
       return nil
-    case .notion, .obsidian, .gemini, .agents, .claudeCode, .codex, .openclaw, .hermes:
+    case .notion, .obsidian, .gemini, .claudeCode, .codex, .openclaw, .hermes:
       return nil
     }
   }
@@ -99,7 +98,6 @@ enum MemoryExportDestination: String, CaseIterable, Identifiable, Sendable {
     case .chatgpt: return "ChatGPT"
     case .claude: return "Claude"
     case .gemini: return "Gemini"
-    case .agents: return "AI Agents"
     case .claudeCode: return "Claude Code"
     case .codex: return "Codex"
     case .openclaw: return "OpenClaw"
@@ -114,7 +112,6 @@ enum MemoryExportDestination: String, CaseIterable, Identifiable, Sendable {
     case .chatgpt: return "Add Omi from the ChatGPT directory"
     case .claude: return "Live MCP or memory pack"
     case .gemini: return "Prompt + memory pack"
-    case .agents: return "One prompt for your agent"
     case .claudeCode: return "Connect via MCP"
     case .codex: return "Connect via MCP"
     case .openclaw: return "Memory bank for OpenClaw"
@@ -131,7 +128,6 @@ enum MemoryExportDestination: String, CaseIterable, Identifiable, Sendable {
     case .claude:
       return "Connect over MCP so Claude reads your memories live, or copy a memory pack."
     case .gemini: return "Copy the prompt and memory pack, then open Gemini."
-    case .agents: return "Give your agent one prompt that connects Omi memories and this Mac."
     case .claudeCode: return "Add Omi as an MCP server so Claude Code always reads your memories."
     case .codex: return "Add Omi as an MCP server so Codex always reads your memories."
     case .openclaw: return "Wire Omi memory into OpenClaw so your agent reads your memories."
@@ -146,7 +142,6 @@ enum MemoryExportDestination: String, CaseIterable, Identifiable, Sendable {
     case .chatgpt: return .chatgpt
     case .claude: return .claude
     case .gemini: return .gemini
-    case .agents: return .agents
     case .claudeCode: return .claudeCode
     case .codex: return .codex
     case .openclaw: return .openclaw
@@ -158,7 +153,7 @@ enum MemoryExportDestination: String, CaseIterable, Identifiable, Sendable {
     switch self {
     case .obsidian:
       return true
-    case .notion, .chatgpt, .claude, .gemini, .agents, .claudeCode, .codex, .openclaw, .hermes:
+    case .notion, .chatgpt, .claude, .gemini, .claudeCode, .codex, .openclaw, .hermes:
       return false
     }
   }
@@ -168,7 +163,7 @@ enum MemoryExportDestination: String, CaseIterable, Identifiable, Sendable {
     switch self {
     case .chatgpt, .claude, .claudeCode, .codex, .openclaw, .hermes:
       return true
-    case .notion, .obsidian, .gemini, .agents:
+    case .notion, .obsidian, .gemini:
       return false
     }
   }
@@ -189,17 +184,13 @@ enum MemoryExportDestination: String, CaseIterable, Identifiable, Sendable {
     switch self {
     case .chatgpt: return .directoryApp
     case .claudeCode, .codex, .openclaw, .hermes: return .localAutonomous
-    case .claude, .notion, .obsidian, .gemini, .agents: return .assisted
+    case .claude, .notion, .obsidian, .gemini: return .assisted
     }
-  }
-
-  var supportsAgentSetup: Bool {
-    self == .agents
   }
 
   var hasLocallyVerifiableLiveSetup: Bool {
     switch self {
-    case .agents, .claudeCode, .codex, .openclaw, .hermes:
+    case .claudeCode, .codex, .openclaw, .hermes:
       return true
     case .notion, .obsidian, .chatgpt, .claude, .gemini:
       return false
@@ -211,7 +202,7 @@ enum MemoryExportDestination: String, CaseIterable, Identifiable, Sendable {
     switch self {
     case .notion, .obsidian, .chatgpt, .claude, .gemini:
       return true
-    case .agents, .claudeCode, .codex, .openclaw, .hermes:
+    case .claudeCode, .codex, .openclaw, .hermes:
       return false
     }
   }
@@ -228,7 +219,7 @@ enum MemoryExportDestination: String, CaseIterable, Identifiable, Sendable {
       return URL(string: "https://claude.ai/new")
     case .gemini:
       return URL(string: "https://gemini.google.com/app")
-    case .agents, .claudeCode, .codex, .openclaw, .hermes:
+    case .claudeCode, .codex, .openclaw, .hermes:
       return nil
     }
   }
@@ -239,7 +230,7 @@ enum MemoryExportDestination: String, CaseIterable, Identifiable, Sendable {
 
   var manualPrompt: String {
     switch self {
-    case .notion, .agents, .claudeCode, .codex, .openclaw, .hermes:
+    case .notion, .claudeCode, .codex, .openclaw, .hermes:
       return ""
     case .chatgpt:
       return """
@@ -260,7 +251,7 @@ enum MemoryExportDestination: String, CaseIterable, Identifiable, Sendable {
 
   func clipboardText(for markdown: String) -> String {
     switch self {
-    case .notion, .obsidian, .agents, .claudeCode, .codex, .openclaw, .hermes:
+    case .notion, .obsidian, .claudeCode, .codex, .openclaw, .hermes:
       return markdown
     case .chatgpt, .claude, .gemini:
       return """
@@ -370,7 +361,7 @@ enum MemoryExportDestination: String, CaseIterable, Identifiable, Sendable {
         openURL: nil,
         openTitle: nil
       )
-    case .notion, .obsidian, .gemini, .agents:
+    case .notion, .obsidian, .gemini:
       return nil
     }
   }
@@ -407,7 +398,7 @@ enum MemoryExportDestination: String, CaseIterable, Identifiable, Sendable {
         title: "Connected",
         subtitle: "\(title) can read Omi Memory."
       )
-    case .notion, .obsidian, .gemini, .agents:
+    case .notion, .obsidian, .gemini:
       return MCPSetupCompletionSummary(
         title: "Setup complete",
         subtitle: "\(title) is ready."
@@ -558,7 +549,7 @@ enum MemoryExportDestination: String, CaseIterable, Identifiable, Sendable {
       "3. If JavaScript execution is unavailable, use screenshots plus Accessibility/System Events: click by visible labels, use Tab/Shift-Tab to move through fields, paste exact values from the setup JSON, and read visible text after each major step."
     )
     lines.append(
-      "4. Keep using the browser that is already open/signed in. Do not launch a clean Playwright profile unless the user is already signed in there."
+      "4. Keep using the browser that is already open and signed in."
     )
     lines.append(
       "5. Do not install browser extensions. If the only blocker is lack of extension-based browser tools, continue with System Events instead."
@@ -747,7 +738,7 @@ actor MemoryExportService {
       // A copied memory pack is not an OAuth authorization. ChatGPT's status
       // is only changed by the provider-backed grant refresh below.
       hasConnection = hasConnectedTimestamp || hasLocalMCPConnection
-    case .notion, .obsidian, .gemini, .agents:
+    case .notion, .obsidian, .gemini:
       hasConnection = exportedCount > 0 || hasConnectedTimestamp || hasLocalMCPConnection
     }
     if let cloudGrantObservation {
@@ -762,10 +753,6 @@ actor MemoryExportService {
     switch destination {
     case .obsidian:
       isConfigured = !(defaults.string(forKey: destination.obsidianVaultPathKey) ?? "").isEmpty
-    case .agents:
-      isConfigured =
-        hasStoredMCPKey && LocalAgentAPISettings.isEnabled
-        && LocalAgentAPISettings.storedToken() != nil
     case .claudeCode, .codex, .openclaw, .hermes:
       isConfigured = hasConnection
     case .chatgpt, .claude:
@@ -843,18 +830,6 @@ actor MemoryExportService {
   }
 
   // MARK: - MCP key
-
-  nonisolated var hasStoredMCPKey: Bool {
-    let defaults = UserDefaults.standard
-    guard
-      let userId = Self.normalizedDefaultsString(defaults.string(forKey: Self.authUserIDDefaultsKey)),
-      let ownerUserId = Self.normalizedDefaultsString(defaults.string(forKey: Self.mcpKeyOwnerDefaultsKey)),
-      ownerUserId == userId
-    else {
-      return false
-    }
-    return Self.normalizedDefaultsString(defaults.string(forKey: Self.mcpKeyDefaultsKey)) != nil
-  }
 
   func storedMCPKey() -> String? {
     guard
@@ -968,195 +943,8 @@ actor MemoryExportService {
     return trimmed.isEmpty ? nil : trimmed
   }
 
-  func testAgentConnections(hostedKey: String, localToken: String) async throws
-    -> AgentConnectionTestResult
-  {
-    async let hostedCount = testHostedMCPMemoryCount(key: hostedKey)
-    async let localCount = testLocalAgentToolCount(token: localToken)
-    let result = try await AgentConnectionTestResult(
-      hostedMemoryCount: hostedCount,
-      localToolCount: localCount
-    )
-    markConnected(.agents)
-    return result
-  }
-
   func markConnected(_ destination: MemoryExportDestination) {
     defaults.set(Date().timeIntervalSince1970, forKey: destination.connectedAtKey)
-  }
-
-  private func testHostedMCPMemoryCount(key: String) async throws -> Int {
-    guard let url = URL(string: MemoryExportDestination.mcpServerURL) else {
-      throw MemoryExportError.requestFailed("Hosted MCP URL is invalid.")
-    }
-
-    let requestBody: [String: Any] = [
-      "jsonrpc": "2.0",
-      "id": 1,
-      "method": "tools/call",
-      "params": [
-        "name": "get_memories",
-        "arguments": ["limit": 5],
-      ],
-    ]
-
-    var request = URLRequest(url: url)
-    request.httpMethod = "POST"
-    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-    request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
-    request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
-
-    let (data, response) = try await URLSession.shared.data(for: request)
-    guard let httpResponse = response as? HTTPURLResponse else {
-      throw MemoryExportError.requestFailed("Hosted MCP returned an invalid response.")
-    }
-    guard (200...299).contains(httpResponse.statusCode) else {
-      throw MemoryExportError.requestFailed("Hosted MCP returned HTTP \(httpResponse.statusCode).")
-    }
-
-    let rpc = try JSONSerialization.jsonObject(with: data) as? [String: Any]
-    if let error = rpc?["error"] as? [String: Any],
-      let message = error["message"] as? String
-    {
-      throw MemoryExportError.requestFailed("Hosted MCP failed: \(message)")
-    }
-    guard
-      let result = rpc?["result"] as? [String: Any],
-      let content = result["content"] as? [[String: Any]],
-      let text = content.first?["text"] as? String,
-      let textData = text.data(using: .utf8),
-      let payload = try JSONSerialization.jsonObject(with: textData) as? [String: Any],
-      let memories = payload["memories"] as? [Any]
-    else {
-      throw MemoryExportError.requestFailed("Hosted MCP did not return memory data.")
-    }
-
-    return memories.count
-  }
-
-  private func testLocalAgentToolCount(token: String) async throws -> Int {
-    guard let url = URL(string: "\(LocalAgentAPISettings.serverURL)/v1/local/tools") else {
-      throw MemoryExportError.requestFailed("Local Omi Desktop URL is invalid.")
-    }
-
-    var request = URLRequest(url: url)
-    request.httpMethod = "GET"
-    request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-
-    let (data, response) = try await URLSession.shared.data(for: request)
-    guard let httpResponse = response as? HTTPURLResponse else {
-      throw MemoryExportError.requestFailed("Local Omi Desktop returned an invalid response.")
-    }
-    guard (200...299).contains(httpResponse.statusCode) else {
-      throw MemoryExportError.requestFailed(
-        "Local Omi Desktop returned HTTP \(httpResponse.statusCode).")
-    }
-
-    guard
-      let payload = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-      let tools = payload["tools"] as? [Any]
-    else {
-      throw MemoryExportError.requestFailed("Local Omi Desktop did not return tools.")
-    }
-
-    return tools.count
-  }
-
-  static var omiAgentSkillText: String {
-    """
-    ---
-    name: omi
-    description: Use Omi memories, conversations, and same-Mac context through hosted MCP and the Omi local CLI.
-    ---
-
-    # Omi Agent Skill
-
-    Use this skill when the user asks about their Omi memories, conversations, screen history, transcriptions, tasks, or wants you to use Omi context while helping.
-
-    ## Discovery
-
-    - Hosted MCP: list available tools before use. If `get_user_profile` exists, use it for a high-level summary. If it is absent or returns `profile: null`, use `get_memories(limit=5)` and `search_memories`.
-    - Local Omi CLI: run `omi --json local status` and `omi --json local tools` before local work. If status fails, Omi Desktop, the local URL, or the local token is not ready.
-
-    ## Routing
-
-    - Hosted MCP: durable memories, synced conversations, preferences, relationships, projects, goals, and profile-like context.
-    - Local CLI: this Mac's screen history, screenshots, app/window activity, local transcriptions, read-only SQL, daily recaps, indexed files, local goals, and tasks.
-    - Use `search_conversations` for synced meetings, calls, and remembered events. Use local transcription tables only for recent same-Mac or unsynced local history.
-    - Use `omi --json local search-screen` for fuzzy Rewind/OCR questions. Use `omi --json local screenshot` only after a result returns a screenshot ID and the screenshot tool is present.
-    - Use `omi --json local sql` for read-only counts, exact filters, local transcriptions, action items, indexed files, goals, and database questions.
-    - Use `omi --json local task search` only if task tools are listed.
-    - Use `omi --json local task complete` or `omi --json local task delete --yes` only when the user clearly asked you to complete or delete that task. If task tools are absent, do not mutate tasks.
-    - Use `omi --json local call <tool> --args-json '{...}'` only when a listed local tool is not covered by a friendly command.
-    - Create, edit, or delete hosted memories only after explicit user intent.
-
-    ## Verification Checklist
-
-    - Hosted MCP tools are listed.
-    - Hosted memory query succeeds with `get_memories(limit=5)` or equivalent.
-    - Local status succeeds with `omi --json local status`.
-    - Local tools are listed with `omi --json local tools`.
-    - Route only to tools that were discovered.
-
-    ## Write Discipline
-
-    - Do not create, edit, complete, or delete Omi memories or local tasks unless the user clearly asked for that change.
-    - Prefer proposing the memory or task change first when intent is ambiguous.
-    - Never treat transient screen activity as a durable memory without explicit user intent or strong evidence.
-
-    ## Setup
-
-    Hosted MCP endpoint: \(MemoryExportDestination.mcpServerURL)
-    Authorization header: Bearer <omi_mcp_key>
-    Config-file MCP clients should prefer `mcp-remote` with the endpoint and Authorization header above.
-
-    Local Omi Desktop CLI:
-    - Install or update `omi-cli`.
-    - Configure local access with `omi local configure --url <local_api_url> --token <omi_local_key>`.
-    """
-  }
-
-  static func omiAgentSetupPrompt(
-    hostedKey: String,
-    localURL: String,
-    localToken: String
-  ) -> String {
-    """
-    Set up Omi access for this agent.
-
-    1. Configure hosted Omi MCP for synced memories, conversations, and profile context.
-
-    Hosted server URL:
-    \(MemoryExportDestination.mcpServerURL)
-
-    Hosted authorization header:
-    Authorization: Bearer \(hostedKey)
-
-    2. Configure the local Omi CLI for this Mac. Local access includes screen history, screenshot retrieval, local transcriptions, read-only SQL, daily recaps, indexed files, goals, app/window activity, and task search/complete/delete while Omi Desktop is running.
-
-    Local Omi Desktop URL:
-    \(localURL)
-
-    Local Omi Desktop token:
-    \(localToken)
-
-    CLI setup:
-    - If `omi` is not installed, install or update it with `pipx install omi-cli` or `pipx upgrade omi-cli`.
-    - Run: `omi local configure --url \(localURL) --token \(localToken)`
-    - Verify: `omi --json local status`
-    - Discover local tools: `omi --json local tools`
-
-    3. Save the Omi guide below. If this agent supports skills, install it as a skill named `omi`; otherwise save it in durable agent or project instructions.
-
-    \(omiAgentSkillText)
-
-    4. Verify setup:
-    - List hosted MCP tools.
-    - If hosted `get_user_profile` exists, call it. If it is absent or returns `profile: null`, call `get_memories` with `limit: 5`.
-    - Run `omi --json local status`.
-    - Run `omi --json local tools`.
-    - Use only hosted and local tools that were discovered.
-    """
   }
 
   func exportToNotion(token: String, parentPageID: String) async throws -> MemoryExportResult {

@@ -1214,7 +1214,6 @@ final class OnboardingPagedIntroCoordinator: ObservableObject {
       let result = try await AgentClient.run(
         surface: .onboarding(),
         prompt: prompt,
-        model: ModelQoS.Claude.chat,
         systemPrompt:
           "You are a structured onboarding research assistant. Output only valid JSON.",
         onTextDelta: { @Sendable _ in },

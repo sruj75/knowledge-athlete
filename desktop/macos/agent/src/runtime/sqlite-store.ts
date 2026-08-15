@@ -76,6 +76,7 @@ const CONTEXT_SOURCE_SURFACE_SCOPE_MIGRATION_VERSION = 25;
 const BACKEND_RECONCILE_CURSOR_MIGRATION_VERSION = 26;
 const JOURNAL_PRODUCING_ATTEMPT_MIGRATION_VERSION = 27;
 const LOCAL_ONLY_JOURNAL_DELIVERY_MIGRATION_VERSION = 28;
+const MANAGED_PI_EXECUTION_PROFILE_MIGRATION_VERSION = 29;
 
 const ACTIVE_ATTEMPT_STATUSES = ["queued", "starting", "running", "waiting_input", "waiting_approval", "cancelling"] as const;
 const TERMINAL_ATTEMPT_STATUSES = ["succeeded", "failed", "cancelled", "timed_out", "orphaned"] as const;
@@ -89,6 +90,11 @@ export interface SqliteAgentStoreOptions {
   reconcileOnOpen?: boolean;
   nowMs?: () => number;
   databaseFactory?: DatabaseFactory;
+  canonicalExecutionProfile?: {
+    adapterId: "pi-mono";
+    modelProfile: "omi-sonnet";
+    workingDirectory: string;
+  };
 }
 
 export interface NodeSqliteProbeOptions {
@@ -394,7 +400,7 @@ export function probeNodeSqliteRuntime(options: NodeSqliteProbeOptions = {}): vo
         "owner_probe",
         "open",
         "probe",
-        "acp",
+        "pi-mono",
         1,
         1,
         1,
@@ -417,6 +423,7 @@ export function probeNodeSqliteRuntime(options: NodeSqliteProbeOptions = {}): vo
 export class SqliteAgentStore implements AgentStore {
   private readonly db: DatabaseSync;
   private readonly nowMs: () => number;
+  private readonly canonicalExecutionProfile: NonNullable<SqliteAgentStoreOptions["canonicalExecutionProfile"]>;
   private transactionDepth = 0;
 
   constructor(options: SqliteAgentStoreOptions = {}) {
@@ -425,6 +432,11 @@ export class SqliteAgentStore implements AgentStore {
     const Database = options.databaseFactory ?? DatabaseSync;
     this.db = new Database(databasePath) as DatabaseSync;
     this.nowMs = options.nowMs ?? Date.now;
+    this.canonicalExecutionProfile = options.canonicalExecutionProfile ?? {
+      adapterId: "pi-mono",
+      modelProfile: "omi-sonnet",
+      workingDirectory: join(dirname(databasePath), "artifacts"),
+    };
 
     applyConnectionPragmas(this.db);
     this.migrate();
@@ -522,6 +534,13 @@ export class SqliteAgentStore implements AgentStore {
     }
     if (!this.hasMigration(LOCAL_ONLY_JOURNAL_DELIVERY_MIGRATION_VERSION)) {
       runLocalOnlyJournalDeliveryMigration(this.db, this.nowMs());
+    }
+    if (!this.hasMigration(MANAGED_PI_EXECUTION_PROFILE_MIGRATION_VERSION)) {
+      runManagedPiExecutionProfileMigration(
+        this.db,
+        this.nowMs(),
+        this.canonicalExecutionProfile,
+      );
     }
   }
 
@@ -3251,6 +3270,87 @@ function runLocalOnlyJournalDeliveryMigration(
     `);
     db.prepare("INSERT INTO schema_migrations (version, applied_at_ms) VALUES (?, ?)").run(
       LOCAL_ONLY_JOURNAL_DELIVERY_MIGRATION_VERSION,
+      appliedAtMs,
+    );
+  });
+}
+
+function runManagedPiExecutionProfileMigration(
+  db: Pick<DatabaseSync, "exec" | "prepare" | "isTransaction">,
+  appliedAtMs: number,
+  canonicalProfile: NonNullable<SqliteAgentStoreOptions["canonicalExecutionProfile"]>,
+): void {
+  runTransaction(db, () => {
+    const legacySessions = db.prepare(
+      `SELECT s.session_id, s.current_profile_generation, p.execution_role
+       FROM sessions s
+       JOIN session_execution_profiles p
+         ON p.session_id = s.session_id
+        AND p.generation = s.current_profile_generation
+       WHERE p.adapter_id != ?
+          OR p.credential_scope != 'managed_cloud'
+          OR COALESCE(p.model_profile, '') != ?
+          OR p.working_directory != ?
+       ORDER BY s.created_at_ms ASC, s.session_id ASC`,
+    ).all(
+      canonicalProfile.adapterId,
+      canonicalProfile.modelProfile,
+      canonicalProfile.workingDirectory,
+    ) as Row[];
+
+    const nextGeneration = db.prepare(
+      "SELECT COALESCE(MAX(generation), 0) + 1 AS generation FROM session_execution_profiles WHERE session_id = ?",
+    );
+    const insertProfile = db.prepare(
+      `INSERT INTO session_execution_profiles(
+         session_id, generation, adapter_id, credential_scope, model_profile,
+         working_directory, execution_role, source, audit_json, created_at_ms
+       ) VALUES (?, ?, ?, 'managed_cloud', ?, ?, ?, 'migration', ?, ?)`,
+    );
+    const updateSession = db.prepare(
+      `UPDATE sessions
+       SET current_profile_generation = ?, default_adapter_id = ?,
+           provider_boundary = 'managed_cloud', model_profile = ?, default_cwd = ?,
+           updated_at_ms = ?
+       WHERE session_id = ?`,
+    );
+    const staleBindings = db.prepare(
+      `UPDATE adapter_bindings
+       SET status = 'stale', adapter_instance_id = NULL,
+           invalidated_at_ms = COALESCE(invalidated_at_ms, ?), updated_at_ms = ?
+       WHERE session_id = ? AND status = 'active'`,
+    );
+
+    for (const session of legacySessions) {
+      const sessionId = text(session.session_id);
+      const generation = Number((nextGeneration.get(sessionId) as Row).generation);
+      insertProfile.run(
+        sessionId,
+        generation,
+        canonicalProfile.adapterId,
+        canonicalProfile.modelProfile,
+        canonicalProfile.workingDirectory,
+        session.execution_role,
+        JSON.stringify({
+          reason: "managed_pi_only_upgrade",
+          previousGeneration: Number(session.current_profile_generation),
+        }),
+        appliedAtMs,
+      );
+      updateSession.run(
+        generation,
+        canonicalProfile.adapterId,
+        canonicalProfile.modelProfile,
+        canonicalProfile.workingDirectory,
+        appliedAtMs,
+        sessionId,
+      );
+      staleBindings.run(appliedAtMs, appliedAtMs, sessionId);
+    }
+
+    db.exec("DELETE FROM default_execution_profile_preferences;");
+    db.prepare("INSERT INTO schema_migrations (version, applied_at_ms) VALUES (?, ?)").run(
+      MANAGED_PI_EXECUTION_PROFILE_MIGRATION_VERSION,
       appliedAtMs,
     );
   });

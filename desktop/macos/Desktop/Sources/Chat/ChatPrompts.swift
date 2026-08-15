@@ -390,7 +390,7 @@ struct ChatPrompts {
   // MARK: - Onboarding Exploration (Parallel Background Session)
 
   /// System prompt for the parallel exploration session that runs after scan_files completes.
-  /// This runs on a separate AgentBridge (Opus) while the main onboarding chat continues (Sonnet).
+  /// This runs in a separate managed Pi session while the main onboarding chat continues.
   /// It queries indexed_files, builds a rich knowledge graph, and writes a user profile summary.
   static let onboardingExploration = """
     You are a background analysis agent for Omi, a macOS AI assistant. You are running silently in the background while the user completes onboarding in a separate chat. Do NOT address the user or ask questions — this is a non-interactive session.
@@ -584,7 +584,6 @@ struct ChatPrompts {
       "actionItemsJson": "JSON array of tasks extracted by backend",
       "eventsJson": "JSON array of calendar events detected",
       "geolocationJson": "Location data if available",
-      "photosJson": "Referenced photo metadata",
       "appsResultsJson": "App integrations results",
       "conversationStatus": "User-set status label for the conversation",
       "discarded": "True if user discarded/deleted this session",

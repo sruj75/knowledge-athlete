@@ -253,14 +253,6 @@ enum GeneratedRealtimeTools {
           "type": "string",
           "description": "Self-contained background-agent objective."
         },
-        "provider": {
-          "type": "string",
-          "enum": [
-            "openclaw",
-            "hermes"
-          ],
-          "description": "Optional local provider override only when the current user explicitly names it; omit for a regular Omi agent."
-        },
         "parent_run_id": {
           "type": "string",
           "description": "Optional parent run to link via delegation."
@@ -691,22 +683,4 @@ enum GeneratedRealtimeTools {
     return tools
   }
 
-  static func baseOpenAITools(providerProperty: [String: Any]?) -> [[String: Any]] {
-    var tools = baseOpenAIToolsTemplate
-    guard let index = tools.firstIndex(where: { ($0["name"] as? String) == "spawn_agent" }) else {
-      return tools
-    }
-    guard var parameters = tools[index]["parameters"] as? [String: Any],
-      var properties = parameters["properties"] as? [String: Any] else {
-      return tools
-    }
-    if let providerProperty {
-      properties["provider"] = providerProperty
-    } else {
-      properties.removeValue(forKey: "provider")
-    }
-    parameters["properties"] = properties
-    tools[index]["parameters"] = parameters
-    return tools
-  }
 }

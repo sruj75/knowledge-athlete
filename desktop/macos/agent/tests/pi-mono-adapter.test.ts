@@ -249,7 +249,7 @@ describe("PiMonoAdapter prompt correlation", () => {
     seedSessions(adapter, "child");
     const renderedChildPrompt = [
       "# Omi Context Snapshot",
-      "Earlier user request: ask OpenClaw what's trending on X right now.",
+      "Earlier user request: ask another agent what's trending on X right now.",
       "# User Message",
       "Sleep for 5 seconds.",
     ].join("\n");
@@ -910,7 +910,7 @@ describe("PiMonoAdapter spawn args (behavioral)", () => {
     vi.mocked(spawn).mockClear();
   });
 
-  it("keeps user extensions enabled while loading the Omi extension", async () => {
+  it("isolates Pi from built-in tools, ambient skills, prompts, context, and extensions", async () => {
     const config: HarnessConfig = {
       authToken: "test-token",
     };
@@ -922,7 +922,13 @@ describe("PiMonoAdapter spawn args (behavioral)", () => {
     expect(cmd).toBe("/fake/pi");
     expect(args).toContain("--mode");
     expect(args).toContain("rpc");
-    expect(args).not.toContain("--no-extensions");
+    expect(args).toEqual(expect.arrayContaining([
+      "--no-builtin-tools",
+      "--no-skills",
+      "--no-context-files",
+      "--no-prompt-templates",
+      "--no-extensions",
+    ]));
     expect(args).toContain("-e");
     expect(args).toContain("/fake/ext.ts");
 
@@ -988,9 +994,8 @@ describe("tool_use event filtering", () => {
   );
 
   it("source: shared runtime registers pi-mono in the same daemon", () => {
-    expect(indexSrc).toMatch(/Default harness mode/);
-    expect(indexSrc).toMatch(/registry\.register\(["']acp["']/);
     expect(indexSrc).toMatch(/registry\.register\(["']pi-mono["']/);
+    expect(indexSrc).not.toMatch(/registry\.register\(["'](?:acp|hermes|openclaw)["']/);
   });
 
   it("source: jsonl transport suppresses tool_use when configured or routed to pi-mono", () => {

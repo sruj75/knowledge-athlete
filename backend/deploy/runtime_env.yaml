@@ -263,10 +263,6 @@ environments:
       services:
         backend:
           env:
-            SYNC_LEDGER_FENCE_MODE:
-              env_var: SYNC_LEDGER_FENCE_MODE
-              default: legacy
-              category: rollout
             DESKTOP_UPDATE_POINTERS_MODE:
               value: primary
               category: rollout
@@ -393,30 +389,6 @@ environments:
               version: latest
         backend-sync: &dev_backend_sync
           env:
-            SYNC_LEDGER_FENCE_MODE:
-              env_var: SYNC_LEDGER_FENCE_MODE
-              default: legacy
-              category: rollout
-            SYNC_FRESH_MAX_AGE_SECONDS:
-              value: '21600'
-              category: rollout
-              provisional: true
-            SYNC_BACKFILL_MAX_AGE_SECONDS:
-              value: '2592000'
-              category: rollout
-              provisional: true
-            SYNC_CAPTURE_MAX_FUTURE_SKEW_SECONDS:
-              value: '300'
-              category: rollout
-              provisional: true
-            SYNC_BACKFILL_USER_DAILY_HOURS:
-              value: '4'
-              category: rollout
-              provisional: true
-            SYNC_BACKFILL_GLOBAL_DAILY_HOURS:
-              value: '555'
-              category: rollout
-              provisional: true
             GOOGLE_CLOUD_PROJECT:
               value: based-hardware
             GCP_LOCATION:
@@ -494,10 +466,6 @@ environments:
             MEMORY_TYPESENSE_COLLECTION:
               value: canonical_memory_atoms
               category: memory_rollout
-            SYNC_BACKFILL_ENABLED:
-              value: 'true'
-              category: rollout
-              provisional: true
             LISTEN_FINALIZATION_ORPHAN_STALE_SECONDS:
               value: '900'
               category: reliability
@@ -522,9 +490,6 @@ environments:
             MODULATE_API_KEY:
               secret: MODULATE_API_KEY
               version: latest
-        backend-sync-backfill:
-          <<: *dev_backend_sync
-          provisional: true
         backend-integration:
           env:
             GOOGLE_CLOUD_PROJECT:
@@ -947,10 +912,6 @@ environments:
             SYNC_TASKS_HANDLER_URL:
               env_var: SYNC_TASKS_HANDLER_URL
               category: reliability
-            SYNC_LEDGER_FENCE_MODE:
-              env_var: SYNC_LEDGER_FENCE_MODE
-              default: legacy
-              category: rollout
             DESKTOP_UPDATE_POINTERS_MODE:
               value: primary
               category: rollout
@@ -1096,30 +1057,6 @@ environments:
             SYNC_TASKS_HANDLER_URL:
               env_var: SYNC_TASKS_HANDLER_URL
               category: reliability
-            SYNC_LEDGER_FENCE_MODE:
-              env_var: SYNC_LEDGER_FENCE_MODE
-              default: legacy
-              category: rollout
-            SYNC_FRESH_MAX_AGE_SECONDS:
-              value: '21600'
-              category: rollout
-              provisional: true
-            SYNC_BACKFILL_MAX_AGE_SECONDS:
-              value: '2592000'
-              category: rollout
-              provisional: true
-            SYNC_CAPTURE_MAX_FUTURE_SKEW_SECONDS:
-              value: '300'
-              category: rollout
-              provisional: true
-            SYNC_BACKFILL_USER_DAILY_HOURS:
-              value: '4'
-              category: rollout
-              provisional: true
-            SYNC_BACKFILL_GLOBAL_DAILY_HOURS:
-              value: '555'
-              category: rollout
-              provisional: true
             GOOGLE_CLOUD_PROJECT:
               value: based-hardware
             GCP_LOCATION:
@@ -1166,10 +1103,6 @@ environments:
             MEMORY_TYPESENSE_COLLECTION:
               value: canonical_memory_atoms
               category: memory_rollout
-            SYNC_BACKFILL_ENABLED:
-              value: 'true'
-              category: rollout
-              provisional: true
             LISTEN_FINALIZATION_ORPHAN_STALE_SECONDS:
               value: '900'
               category: reliability
@@ -1186,9 +1119,6 @@ environments:
             OMI_LLM_GATEWAY_SERVICE_TOKEN:
               secret: OMI_LLM_GATEWAY_SERVICE_TOKEN
               version: latest
-        backend-sync-backfill:
-          <<: *prod_backend_sync
-          provisional: true
         backend-integration:
           env:
             ACCOUNT_DELETION_DISPATCH_MODE:

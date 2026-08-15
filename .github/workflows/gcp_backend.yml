@@ -155,7 +155,6 @@ jobs:
             --include-cloud-run \
             --cloud-run-service backend \
             --cloud-run-service backend-sync \
-            --cloud-run-service backend-sync-backfill \
             --cloud-run-service backend-integration || true
 
   firestore_readiness:
@@ -414,15 +413,6 @@ jobs:
       - name: Set up gcloud
         uses: google-github-actions/setup-gcloud@v3
 
-      - name: Verify serving sync ledger fence mode before deploy
-        env:
-          SYNC_LEDGER_FENCE_MODE: ${{ vars.SYNC_LEDGER_FENCE_MODE || 'legacy' }}
-        run: |
-          python3 "$DEPLOY_CONTROL_SCRIPTS/verify_sync_ledger_fence_transition.py" \
-            --project=${{ vars.GCP_PROJECT_ID }} \
-            --region=${{ env.REGION }} \
-            --desired-mode="$SYNC_LEDGER_FENCE_MODE"
-
       - name: Login to GCR
         run: gcloud auth configure-docker
 
@@ -510,8 +500,6 @@ jobs:
           python3 "$DEPLOY_CONTROL_SCRIPTS/preflight-cloud-run-deploy.py" "${PREFLIGHT_ARGS[@]}"
 
       - name: Validate backend runtime env before deploy
-        env:
-          SYNC_LEDGER_FENCE_MODE: ${{ vars.SYNC_LEDGER_FENCE_MODE || 'legacy' }}
         run: |
           python3 "$DEPLOY_CONTROL_SCRIPTS/validate-backend-runtime-env.py" --env ${{ vars.ENV }} --check-workflows --workflow-root "$DEPLOY_WORKFLOW_ROOT" --check-rendered-cloud-run
 
@@ -625,7 +613,6 @@ jobs:
           OMI_LLM_GATEWAY_URL: ${{ steps.combined-gateway-serving.outputs.gateway_url || steps.gateway-serving.outputs.gateway_url || 'http://127.0.0.1:9' }}
           PUBLIC_SHARED_CONVERSATION_CHAT_FRONTEND_AUDIENCE: ${{ vars.PUBLIC_SHARED_CONVERSATION_CHAT_FRONTEND_AUDIENCE }}
           PUBLIC_SHARED_CONVERSATION_CHAT_FRONTEND_INVOKER_SA: ${{ vars.PUBLIC_SHARED_CONVERSATION_CHAT_FRONTEND_INVOKER_SA }}
-          SYNC_LEDGER_FENCE_MODE: ${{ vars.SYNC_LEDGER_FENCE_MODE || 'legacy' }}
           SYNC_TASKS_HANDLER_URL: ${{ steps.account-deletion-target.outputs.sync_tasks_handler_url }}
           SYNC_TASKS_INVOKER_SA: ${{ steps.account-deletion-target.outputs.sync_tasks_invoker_sa }}
         run: |
@@ -642,7 +629,6 @@ jobs:
           --region="${{ env.REGION }}"
           --migrate-legacy-public-binding backend
           --migrate-legacy-public-binding backend-sync
-          --migrate-legacy-public-binding backend-sync-backfill
           --migrate-legacy-public-binding backend-integration
 
       - name: Deploy ${{ env.SERVICE }} to Cloud Run
@@ -667,20 +653,6 @@ jobs:
         run: |
           echo "revision=backend-${{ steps.image-tag.outputs.revision_suffix }}" >> "$GITHUB_OUTPUT"
 
-      - name: Deploy sync-backfill worker
-        id: sync-backfill
-        uses: ./.github/actions/sync-backfill-lifecycle
-        with:
-          mode: worker
-          project_id: ${{ vars.GCP_PROJECT_ID }}
-          region: ${{ env.REGION }}
-          service: ${{ env.SERVICE }}
-          image: gcr.io/${{ vars.GCP_PROJECT_ID }}/${{ env.SERVICE }}:${{ steps.image-tag.outputs.short_sha }}
-          revision_suffix: ${{ steps.image-tag.outputs.revision_suffix }}
-          cloud_run_flags: ${{ steps.runtime-env.outputs.cloud_run_flags }}
-          backfill_env_vars: ${{ steps.runtime-env.outputs.backend_sync_backfill_env_vars }}
-          backfill_secrets: ${{ steps.runtime-env.outputs.backend_sync_backfill_secrets }}
-
       - name: Deploy ${{ env.SERVICE }}-sync to Cloud Run
         id: deploy-backend-sync
         uses: google-github-actions/deploy-cloudrun@v3
@@ -694,27 +666,13 @@ jobs:
             --revision-suffix=${{ steps.image-tag.outputs.revision_suffix }}
             --remove-env-vars=HOSTED_PUSHER_API_URL,MEMORY_CANONICAL_PROMOTION_CRON_ENABLED,MEMORY_CANONICAL_PROMOTION_CRON_INTERVAL_HOURS,MEMORY_CANONICAL_PROMOTION_FAST_TRACK_ENABLED
             ${{ steps.runtime-env.outputs.cloud_run_flags }}
-          env_vars: |-
-            ${{ steps.runtime-env.outputs.backend_sync_env_vars }}
-            ${{ steps.sync-backfill.outputs.sync_backfill_env_vars }}
+          env_vars: ${{ steps.runtime-env.outputs.backend_sync_env_vars }}
           secrets: ${{ steps.runtime-env.outputs.backend_sync_secrets }}
 
       - name: Capture ${{ env.SERVICE }}-sync revision
         id: capture-backend-sync-revision
         run: |
           echo "revision=backend-sync-${{ steps.image-tag.outputs.revision_suffix }}" >> "$GITHUB_OUTPUT"
-
-      - name: Provision sync-backfill platform
-        if: ${{ github.event.inputs.deploy_targets == 'all' }}
-        uses: ./.github/actions/sync-backfill-lifecycle
-        with:
-          mode: platform
-          project_id: ${{ vars.GCP_PROJECT_ID }}
-          region: ${{ env.REGION }}
-          service: ${{ env.SERVICE }}
-          provision_sync_ledger_ttl: 'true'
-          provision_budget_alerts: ${{ github.event.inputs.environment == 'prod' && 'true' || 'false' }}
-          alert_notification_channels: ${{ vars.SYNC_BACKFILL_ALERT_NOTIFICATION_CHANNELS }}
 
       - name: Configure production conversation-finalization Cloud Tasks queue
         if: ${{ vars.ENV == 'prod' && github.event.inputs.deploy_targets == 'all' }}
@@ -774,12 +732,9 @@ jobs:
             --region ${{ env.REGION }} \
             --wait-revision-ready backend=${{ steps.capture-backend-revision.outputs.revision }} \
             --wait-revision-ready backend-sync=${{ steps.capture-backend-sync-revision.outputs.revision }} \
-            --wait-revision-ready backend-sync-backfill=${{ steps.sync-backfill.outputs.revision }} \
             --wait-revision-ready backend-integration=${{ steps.capture-backend-integration-revision.outputs.revision }}
 
       - name: Validate backend runtime env after deploy
-        env:
-          SYNC_LEDGER_FENCE_MODE: ${{ vars.SYNC_LEDGER_FENCE_MODE || 'legacy' }}
         run: |
           python3 "$DEPLOY_CONTROL_SCRIPTS/validate-backend-runtime-env.py" --env ${{ vars.ENV }} --check-workflows --workflow-root "$DEPLOY_WORKFLOW_ROOT" --check-live-cloud-run
 
@@ -925,7 +880,6 @@ jobs:
             --region "${{ env.REGION }}" \
             --service backend \
             --service backend-sync \
-            --service backend-sync-backfill \
             --service backend-integration \
             --output artifacts/backend-cloud-run-pre-promotion-traffic-snapshot.json
 
@@ -933,7 +887,6 @@ jobs:
         run: |
           test "$(gcloud run services describe backend --region=${{ env.REGION }} --format='value(status.latestCreatedRevisionName)')" = "${{ steps.capture-backend-revision.outputs.revision }}"
           test "$(gcloud run services describe backend-sync --region=${{ env.REGION }} --format='value(status.latestCreatedRevisionName)')" = "${{ steps.capture-backend-sync-revision.outputs.revision }}"
-          test "$(gcloud run services describe backend-sync-backfill --region=${{ env.REGION }} --format='value(status.latestCreatedRevisionName)')" = "${{ steps.sync-backfill.outputs.revision }}"
           test "$(gcloud run services describe backend-integration --region=${{ env.REGION }} --format='value(status.latestCreatedRevisionName)')" = "${{ steps.capture-backend-integration-revision.outputs.revision }}"
 
       - name: Shift Cloud Run traffic to validated revisions
@@ -941,7 +894,6 @@ jobs:
         run: |
           gcloud run services update-traffic backend --project=${{ vars.GCP_PROJECT_ID }} --region=${{ env.REGION }} --to-revisions=${{ steps.capture-backend-revision.outputs.revision }}=100 --quiet
           gcloud run services update-traffic backend-sync --project=${{ vars.GCP_PROJECT_ID }} --region=${{ env.REGION }} --to-revisions=${{ steps.capture-backend-sync-revision.outputs.revision }}=100 --quiet
-          gcloud run services update-traffic backend-sync-backfill --project=${{ vars.GCP_PROJECT_ID }} --region=${{ env.REGION }} --to-revisions=${{ steps.sync-backfill.outputs.revision }}=100 --quiet
           gcloud run services update-traffic backend-integration --project=${{ vars.GCP_PROJECT_ID }} --region=${{ env.REGION }} --to-revisions=${{ steps.capture-backend-integration-revision.outputs.revision }}=100 --quiet
 
       # A traffic command can complete after an earlier target has moved. The
@@ -1021,7 +973,6 @@ jobs:
             expected_traffic=(
               --expect-cloud-run-traffic backend=${{ steps.capture-backend-revision.outputs.revision }}
               --expect-cloud-run-traffic backend-sync=${{ steps.capture-backend-sync-revision.outputs.revision }}
-              --expect-cloud-run-traffic backend-sync-backfill=${{ steps.sync-backfill.outputs.revision }}
               --expect-cloud-run-traffic backend-integration=${{ steps.capture-backend-integration-revision.outputs.revision }}
             )
           fi
@@ -1032,7 +983,6 @@ jobs:
             --include-cloud-run \
             --cloud-run-service backend \
             --cloud-run-service backend-sync \
-            --cloud-run-service backend-sync-backfill \
             --cloud-run-service backend-integration \
             "${expected_traffic[@]}" \
             | tee /tmp/cloud-run-deploy-status.txt

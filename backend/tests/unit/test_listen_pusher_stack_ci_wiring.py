@@ -96,7 +96,7 @@ def test_backend_hermetic_gate_is_always_reported_and_fails_closed() -> None:
     assert 'git diff --name-only "$base_sha"...HEAD' in scope
     assert "^(backend/|package\\.json$|package-lock\\.json$|\\.github/workflows/backend-hermetic-e2e\\.yml$)" in scope
 
-    for job_name in ('hermetic-e2e', 'listen-pusher-stack-gauntlet', 'sync-cloud-tasks-stack-gauntlet'):
+    for job_name in ('hermetic-e2e', 'listen-pusher-stack-gauntlet'):
         job = workflow.split(f'  {job_name}:\n', 1)[1]
         assert 'needs: scope' in job
         assert "if: needs.scope.outputs.applies == 'true'" in job
@@ -104,7 +104,7 @@ def test_backend_hermetic_gate_is_always_reported_and_fails_closed() -> None:
     gate = workflow.split('  merge-gate:\n', 1)[1]
     assert 'name: Backend Hermetic Merge Gate' in gate
     assert 'if: ${{ always() }}' in gate
-    assert 'needs: [scope, hermetic-e2e, listen-pusher-stack-gauntlet, sync-cloud-tasks-stack-gauntlet]' in gate
+    assert 'needs: [scope, hermetic-e2e, listen-pusher-stack-gauntlet]' in gate
     assert "true) required_result='success'" in gate
     assert "false) required_result='skipped'" in gate
     for result_name in (
@@ -112,7 +112,6 @@ def test_backend_hermetic_gate_is_always_reported_and_fails_closed() -> None:
         'SCOPE_APPLIES',
         'HERMETIC_E2E_RESULT',
         'LISTEN_PUSHER_RESULT',
-        'SYNC_CLOUD_TASKS_RESULT',
     ):
         assert result_name in gate
 

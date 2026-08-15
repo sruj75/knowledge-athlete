@@ -107,10 +107,6 @@ import XCTest
       [12:00:02] [error] silent capture detected
       """.write(to: logURL, atomically: true, encoding: .utf8)
       defer { try? FileManager.default.removeItem(at: logURL) }
-      DesktopDiagnosticsManager.shared.recordWalUploadFailed(
-        walId: "private-wal-id",
-        reason: "backend returned customer-specific private detail")
-
       let url = try XCTUnwrap(
         DesktopDiagnosticsManager.shared.writeIncidentDiagnosticsAttachment(
           area: "ptt",
@@ -121,7 +117,6 @@ import XCTest
       defer { try? FileManager.default.removeItem(at: url) }
 
       let data = try Data(contentsOf: url)
-      let json = String(data: data, encoding: .utf8) ?? ""
       let root = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
       let incident = try XCTUnwrap(root["incident"] as? [String: String])
       let tail = try XCTUnwrap(root["redacted_log_tail"] as? String)
@@ -135,8 +130,6 @@ import XCTest
       XCTAssertFalse(tail.contains("confidential meeting notes"))
       XCTAssertFalse(tail.contains("this must not reach cloud"))
       XCTAssertFalse(tail.contains("David's AirPods"))
-      XCTAssertFalse(json.contains("private-wal-id"))
-      XCTAssertFalse(json.contains("customer-specific private detail"))
       XCTAssertTrue(tail.contains("PTT capture started"))
       XCTAssertTrue(tail.contains("silent capture detected"))
     }
@@ -734,19 +727,6 @@ import XCTest
       XCTAssertNil(snapshot["message"])
       // The bounded cousin (a length, not content) survives.
       XCTAssertEqual(snapshot["transcript_length"] as? Int, 42)
-    }
-    func testWalUploadFailureStripsFreeFormDetailReason() throws {
-      // A real caller (WALService.uploadWalToCloud) pipes String(describing: error)
-      // into detail_reason; the emit chokepoint must strip that free-form text while
-      // keeping the bounded failure_class + area.
-      DesktopDiagnosticsManager.shared.recordWalUploadFailed(
-        walId: "wal-1",
-        reason: "backend returned a customer-specific private transcript snippet")
-      let snapshot = try latestSnapshot()
-      XCTAssertEqual(snapshot["event"] as? String, "fallback_triggered")
-      XCTAssertEqual(snapshot["area"] as? String, "wal_upload")
-      XCTAssertEqual(snapshot["failure_class"] as? String, "wal_upload_failed")
-      XCTAssertNil(snapshot["detail_reason"])
     }
     private func assertLatestHealthSnapshot(
       event: DesktopHealthEventName,

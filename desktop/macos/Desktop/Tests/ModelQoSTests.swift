@@ -44,9 +44,6 @@ final class ModelQoSTests: XCTestCase {
       XCTAssertEqual(ModelQoS.Claude.chat, "claude-sonnet-4-6")
       XCTAssertEqual(ModelQoS.Claude.floatingBar, "claude-sonnet-4-6")
       XCTAssertEqual(ModelQoS.Claude.synthesis, "claude-haiku-4-5-20251001")
-      XCTAssertEqual(ModelQoS.Claude.chatLabQuery, "claude-sonnet-4-20250514")
-      XCTAssertEqual(ModelQoS.Claude.chatLabGrade, "claude-haiku-4-5-20251001")
-      XCTAssertEqual(ModelQoS.Claude.defaultSelection, "claude-sonnet-4-6")
     }
   }
 
@@ -56,20 +53,29 @@ final class ModelQoSTests: XCTestCase {
     XCTAssertEqual(ModelQoS.Claude.synthesis, "claude-haiku-4-5-20251001")
   }
 
+  func testManagedSynthesisRequestRetainsHaikuOutsideAgentContract() throws {
+    let body = ManagedSynthesisClient.requestBody(
+      prompt: "extract durable facts",
+      systemPrompt: "output JSON")
+    let messages = try XCTUnwrap(body["messages"] as? [[String: String]])
+
+    XCTAssertEqual(body["model"] as? String, ModelQoS.Claude.synthesis)
+    XCTAssertEqual(body["max_tokens"] as? Int, 4096)
+    XCTAssertEqual(body["stream"] as? Bool, false)
+    XCTAssertEqual(
+      messages,
+      [
+        ["role": "system", "content": "output JSON"],
+        ["role": "user", "content": "extract durable facts"],
+      ])
+    XCTAssertNil(body["tools"])
+    XCTAssertNil(body["omi_web_search"])
+  }
+
   // MARK: - Chat uses Sonnet (user-facing)
 
   func testChatUsesSonnet() {
     XCTAssertEqual(ModelQoS.Claude.chat, "claude-sonnet-4-6")
-  }
-
-  // MARK: - Available models (Sonnet only, both tiers)
-
-  func testAvailableModelsSonnetOnlyBothTiers() {
-    for tier in ModelTier.allCases {
-      ModelQoS.activeTier = tier
-      let ids = ModelQoS.Claude.availableModels.map(\.id)
-      XCTAssertEqual(ids, ["claude-sonnet-4-6"])
-    }
   }
 
   // MARK: - Gemini models are tier-dependent (except embedding)
@@ -105,24 +111,6 @@ final class ModelQoSTests: XCTestCase {
     XCTAssertEqual(ModelQoS.tierDescription, "Max (quality-optimized)")
   }
 
-  // MARK: - Sanitized selection
-
-  func testSanitizedSelectionAllowsValidModel() {
-    XCTAssertEqual(ModelQoS.Claude.sanitizedSelection("claude-sonnet-4-6"), "claude-sonnet-4-6")
-  }
-
-  func testSanitizedSelectionFallsBackForUnknownModel() {
-    XCTAssertEqual(ModelQoS.Claude.sanitizedSelection("claude-opus-4-6"), "claude-sonnet-4-6")
-  }
-
-  func testSanitizedSelectionHandlesNil() {
-    XCTAssertEqual(ModelQoS.Claude.sanitizedSelection(nil), "claude-sonnet-4-6")
-  }
-
-  func testSanitizedSelectionHandlesUnknownModel() {
-    XCTAssertEqual(ModelQoS.Claude.sanitizedSelection("gpt-4o"), "claude-sonnet-4-6")
-  }
-
   // MARK: - Tier change notification
 
   func testTierChangePostsNotification() {
@@ -131,12 +119,11 @@ final class ModelQoSTests: XCTestCase {
     wait(for: [expectation], timeout: 1.0)
   }
 
-  // MARK: - Model count (6 unique model IDs across both tiers)
+  // MARK: - Model count (5 unique model IDs across both tiers)
 
-  func testSixUniqueModelIDs() {
-    // Premium: flash for Gemini → 5 unique
-    // Max: pro for Gemini → 5 unique
-    // Combined across tiers: 6 unique (flash, pro, embedding + 3 Claude)
+  func testFiveUniqueModelIDs() {
+    // Chat and floating use one Sonnet ID. Synthesis retains Haiku, while
+    // Gemini contributes flash, pro, and embedding across the two tiers.
     var allModels: Set<String> = []
     for tier in ModelTier.allCases {
       ModelQoS.activeTier = tier
@@ -144,15 +131,12 @@ final class ModelQoSTests: XCTestCase {
         ModelQoS.Claude.chat,
         ModelQoS.Claude.floatingBar,
         ModelQoS.Claude.synthesis,
-        ModelQoS.Claude.chatLabQuery,
-        ModelQoS.Claude.chatLabGrade,
-        ModelQoS.Claude.defaultSelection,
         ModelQoS.Gemini.proactive,
         ModelQoS.Gemini.taskExtraction,
         ModelQoS.Gemini.insight,
         ModelQoS.Gemini.embedding,
       ])
     }
-    XCTAssertEqual(allModels.count, 6, "Expected 6 unique model IDs across tiers: \(allModels)")
+    XCTAssertEqual(allModels.count, 5, "Expected 5 unique model IDs across tiers: \(allModels)")
   }
 }

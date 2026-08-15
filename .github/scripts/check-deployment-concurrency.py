@@ -302,7 +302,7 @@ def validate_phase_aware_backend_promotion(name: str, text: str) -> list[str]:
         )
     ):
         errors.append(f"{name}: pre-promotion snapshot must use the canonical Cloud Run snapshot helper")
-    for service in ("backend", "backend-sync", "backend-sync-backfill", "backend-integration"):
+    for service in ("backend", "backend-sync", "backend-integration"):
         if f"--service {service}" not in snapshot_step:
             errors.append(f"{name}: pre-promotion snapshot must include {service}")
 
@@ -798,7 +798,6 @@ jobs:
           python3 backend/scripts/cloud_run_traffic_snapshot.py capture \\
             --service backend \\
             --service backend-sync \\
-            --service backend-sync-backfill \\
             --service backend-integration \\
             --output cloud-run-pre-promotion-traffic-snapshot.json
       - name: Shift Cloud Run traffic to validated revisions

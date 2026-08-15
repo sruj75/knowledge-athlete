@@ -182,16 +182,10 @@ function rejectCodeForRevocation(reason: RunToolCapabilityRevocationReason): Run
 }
 
 function relayAdapterId(adapterId: string): OmiToolAdapterId {
-  switch (adapterId) {
-    case "pi-mono":
-      return "pi-mono";
-    case "acp":
-    case "hermes":
-    case "openclaw":
-      return "omi-tools-stdio";
-    default:
-      throw new Error(`Unknown canonical session adapter ${adapterId}`);
+  if (adapterId !== "pi-mono") {
+    throw new Error(`Unknown canonical session adapter ${adapterId}`);
   }
+  return adapterId;
 }
 
 function text(value: unknown): string {
