@@ -75,14 +75,6 @@ routes:
     policy: *desktop_migration_policy
   - route_type: http
     method: POST
-    path: /v1/webhooks/sentry
-    policy: *desktop_migration_policy
-  - route_type: http
-    method: POST
-    path: /v1/webhooks/sentry/poll
-    policy: *desktop_migration_policy
-  - route_type: http
-    method: POST
     path: /v2/chat/completions
     policy: *desktop_migration_policy
   - route_type: http
