@@ -502,7 +502,7 @@ async def process_voice_message_segment_stream(
             app_id=app_id,
             type='text',
             memories_id=memories_id,
-            langsmith_run_id=langsmith_run_id,  # Store run_id for feedback tracking
+            langsmith_run_id=langsmith_run_id,  # Store run_id for operator trace correlation
             prompt_name=prompt_name,  # LangSmith prompt name for versioning
             prompt_commit=prompt_commit,  # LangSmith prompt commit for traceability
         )

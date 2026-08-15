@@ -6,7 +6,7 @@ at application startup and creating per-request tracers for scoped tracing.
 """
 
 import os
-from typing import Optional, List, Any, Dict
+from typing import Optional, List, Any, Callable, Dict
 import logging
 
 logger = logging.getLogger(__name__)
@@ -134,3 +134,34 @@ def get_chat_tracer_callbacks(
     except Exception as e:
         logger.error(f"⚠️  Failed to create LangSmith tracer: {e}")
         return []
+
+
+def bind_current_langsmith_run(
+    callback_data: Optional[Dict[str, Any]],
+    *,
+    run_tree_getter: Optional[Callable[[], Any]] = None,
+) -> Optional[str]:
+    """Bind persisted chat metadata to the traceable wrapper's real run ID.
+
+    A random UUID is not a LangSmith trace identity. When the decorated request
+    has no current run (for example tracing is disabled), omit the field rather
+    than persisting an ID that the operator website can never resolve.
+    """
+    try:
+        if run_tree_getter is None:
+            from langsmith.run_helpers import get_current_run_tree
+
+            run_tree_getter = get_current_run_tree
+        run_tree = run_tree_getter()
+        run_id = getattr(run_tree, "id", None) if run_tree is not None else None
+    except Exception as error:
+        logger.error("Failed to resolve current LangSmith run error_type=%s", type(error).__name__)
+        run_id = None
+
+    resolved = str(run_id) if run_id else None
+    if callback_data is not None:
+        if resolved is None:
+            callback_data.pop("langsmith_run_id", None)
+        else:
+            callback_data["langsmith_run_id"] = resolved
+    return resolved

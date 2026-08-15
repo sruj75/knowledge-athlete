@@ -68,7 +68,7 @@ from database.users import get_user_location_context_consent
 from models.geolocation import Geolocation
 from utils.conversations.location import async_get_google_maps_city
 from utils.other.endpoints import timeit
-from utils.observability.langsmith import is_langsmith_enabled
+from utils.observability.langsmith import bind_current_langsmith_run, is_langsmith_enabled
 import logging
 
 # Import langsmith traceable if available
@@ -890,9 +890,6 @@ You have fetch_url_tool available. When the user shares any URL (starting with h
     # Safety guard
     safety_guard = AgentSafetyGuard(max_tool_calls=25, max_context_tokens=500000)
 
-    # Generate run_id for LangSmith tracing
-    langsmith_run_id = str(uuid.uuid4())
-
     # Config for tools to access via RunnableConfig
     configurable = {
         "user_id": uid,
@@ -906,9 +903,10 @@ You have fetch_url_tool available. When the user shares any URL (starting with h
     # Store config in context variable for tools that use agent_config_context
     agent_config_context.set({"configurable": configurable})
 
-    # Store run_id and prompt metadata in callback_data
+    # Store the traceable wrapper's real run ID and prompt metadata. When tracing
+    # is disabled there is no resolvable provider run, so the run ID stays absent.
     if callback_data is not None:
-        callback_data['langsmith_run_id'] = langsmith_run_id
+        bind_current_langsmith_run(callback_data)
         callback_data['prompt_name'] = prompt_name
         callback_data['prompt_commit'] = prompt_commit
 
