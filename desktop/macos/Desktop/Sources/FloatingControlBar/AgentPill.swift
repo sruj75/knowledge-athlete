@@ -58,10 +58,7 @@ final class AgentPill: ObservableObject, Identifiable {
   let id: UUID
   let query: String
   let createdAt: Date
-  let model: String
   let ownerID: String
-  let bridgeHarnessOverride: AgentHarnessMode?
-  @Published private(set) var providerIdentity: AgentHarnessMode?
   var canonicalSessionId: String?
   var canonicalRunId: String?
   var canonicalAttemptId: String?
@@ -88,31 +85,13 @@ final class AgentPill: ObservableObject, Identifiable {
   init(
     id: UUID = UUID(),
     query: String,
-    model: String,
-    bridgeHarnessOverride: AgentHarnessMode? = nil,
     ownerID: String? = nil
   ) {
     self.id = id
     self.query = query
-    self.model = model
     self.ownerID = ownerID ?? RuntimeOwnerIdentity.currentOwnerId() ?? ""
-    self.bridgeHarnessOverride = bridgeHarnessOverride
-    self.providerIdentity = bridgeHarnessOverride
     self.title = AgentPill.deriveTitle(from: query)
     self.createdAt = Date()
-  }
-
-  /// Provider provenance is kernel-authored and may arrive after the local
-  /// projection is created (snapshot hydration/restart). It is display truth,
-  /// never execution authority; `bridgeHarnessOverride` remains the immutable
-  /// launch request for locally-created pills.
-  func applyCanonicalProviderIdentity(_ rawValue: String?) {
-    guard let rawValue,
-      let provider = AgentRuntimeRouting.harnessMode(from: rawValue),
-      provider == .hermes || provider == .openclaw,
-      providerIdentity != provider
-    else { return }
-    providerIdentity = provider
   }
 
   func markContentChanged() {
@@ -398,43 +377,6 @@ final class AgentPillsManager: ObservableObject {
       ?? producingJournalSurfaceByPill[pillID]
   }
 
-  enum DirectedProvider: String, Equatable {
-    case hermes
-    case openclaw
-
-    var displayName: String {
-      switch self {
-      case .hermes: return "Hermes"
-      case .openclaw: return "OpenClaw"
-      }
-    }
-
-    var harnessMode: AgentHarnessMode {
-      switch self {
-      case .hermes: return .hermes
-      case .openclaw: return .openclaw
-      }
-    }
-
-    var executableName: String {
-      switch self {
-      case .hermes: return "hermes"
-      case .openclaw: return "openclaw"
-      }
-    }
-
-    var commandEnvironmentName: String {
-      switch self {
-      case .hermes: return "OMI_HERMES_ADAPTER_COMMAND"
-      case .openclaw: return "OMI_OPENCLAW_ADAPTER_COMMAND"
-      }
-    }
-
-    var setupNeededStatus: String {
-      "\(displayName) needs setup"
-    }
-  }
-
   struct Snapshot: Encodable {
     let id: String
     let title: String
@@ -450,13 +392,8 @@ final class AgentPillsManager: ObservableObject {
   @discardableResult
   func spawn(
     query: String,
-    model: String,
     originSurface: DesktopCoordinatorOriginSurface,
     fromVoice: Bool = false,
-    preFetchedTitle: String? = nil,
-    preFetchedAck: String? = nil,
-    systemPromptSuffix: String? = nil,
-    bridgeHarnessOverride: AgentHarnessMode? = nil,
     producerJournalIntent: AgentPillProducerJournalIntent? = nil,
     onAccepted: (@MainActor (Result<AgentPill, Error>) -> Void)? = nil
   ) -> AgentPill {
@@ -465,12 +402,7 @@ final class AgentPillsManager: ObservableObject {
     let pill = AgentPill(
       id: pillId,
       query: query,
-      model: model,
-      bridgeHarnessOverride: bridgeHarnessOverride,
       ownerID: spawnOwnerID)
-    if let preFetchedTitle, !preFetchedTitle.isEmpty {
-      pill.title = preFetchedTitle
-    }
 
     trimForNewPillIfNeeded()
     if pills.count >= maxPills {
@@ -490,35 +422,8 @@ final class AgentPillsManager: ObservableObject {
     }
 
     pill.status = .starting
-    if let preFetchedAck, !preFetchedAck.isEmpty {
-      pill.latestActivity = preFetchedAck
-    } else {
-      pill.latestActivity = "Starting…"
-    }
+    pill.latestActivity = "Starting…"
     AgentRuntimeStatusStore.shared.beginRequest(surface: surfaceRef, statusText: pill.latestActivity)
-
-    // If the router already returned a title we don't need a second
-    // Haiku call for title generation. Otherwise kick one off in the
-    // background to upgrade the heuristic title.
-    if preFetchedTitle == nil {
-      Task { [weak pill] in
-        guard let pill else { return }
-        guard let result = await AgentPillsManager.generateTitleAndAck(for: pill.query) else { return }
-        await MainActor.run {
-          guard RuntimeOwnerIdentity.currentOwnerId() == pill.ownerID else { return }
-          pill.title = result.title
-          if pill.latestActivity == "Warming up…" || pill.latestActivity == "Starting…" {
-            pill.latestActivity = result.ack
-          }
-        }
-      }
-    }
-
-    let workingDirectory = FloatingControlBarManager.shared.sharedFloatingProvider?.workingDirectory
-    let modelForSpawn =
-      bridgeHarnessOverride == nil
-      ? (FloatingControlBarManager.shared.sharedFloatingProvider?.modelOverride ?? pill.model)
-      : nil
     let generation = nextRunAttemptGeneration(for: pill.id)
     let runTask = Task { @MainActor [weak self, weak pill, onAccepted] in
       guard !Task.isCancelled else {
@@ -549,12 +454,8 @@ final class AgentPillsManager: ObservableObject {
             title: pill.title,
             pillId: pill.id,
             originSurface: originSurface,
-            provider: bridgeHarnessOverride?.rawValue,
             parentRunId: nil,
             visible: true,
-            model: modelForSpawn,
-            harnessMode: bridgeHarnessOverride,
-            cwd: workingDirectory,
             producerJournal: producerJournal
           )
         }
@@ -575,8 +476,7 @@ final class AgentPillsManager: ObservableObject {
           self.fail(
             pill: pill,
             errorText: AgentFailureTranscriptFormatter.userFacingFailure(
-              for: AuthError.userChangedDuringRequest,
-              harnessMode: bridgeHarnessOverride ?? pill.providerIdentity))
+              for: AuthError.userChangedDuringRequest))
           onAccepted?(.failure(AuthError.userChangedDuringRequest))
           return
         }
@@ -640,14 +540,12 @@ final class AgentPillsManager: ObservableObject {
         AgentRuntimeStatusStore.shared.recordLocalFailure(
           surface: surfaceRef,
           error: AgentFailureTranscriptFormatter.userFacingFailure(
-            for: error,
-            harnessMode: bridgeHarnessOverride ?? pill.providerIdentity)
-        )
+            for: error
+          ))
         self.fail(
           pill: pill,
           errorText: AgentFailureTranscriptFormatter.userFacingFailure(
-            for: error,
-            harnessMode: bridgeHarnessOverride ?? pill.providerIdentity))
+            for: error))
       }
     }
     runTasksByPill[pill.id] = runTask
@@ -688,7 +586,6 @@ final class AgentPillsManager: ObservableObject {
     )
     Self.ensureStreamingAssistantMessage(for: pill)
     pill.markContentChanged()
-    let workingDirectory = FloatingControlBarManager.shared.sharedFloatingProvider?.workingDirectory
     let activeRunId = pill.canonicalRunId
     runTasksByPill[pill.id]?.cancel()
     let generation = nextRunAttemptGeneration(for: pill.id)
@@ -730,9 +627,7 @@ final class AgentPillsManager: ObservableObject {
         let result = try await DesktopCoordinatorService.shared.continueAgent(
           sessionId: sessionId,
           prompt: prompt,
-          originSurface: .floatingBar,
-          model: pill.bridgeHarnessOverride == nil ? pill.model : nil,
-          cwd: workingDirectory
+          originSurface: .floatingBar
         )
         guard !Task.isCancelled, self.isCurrentRunAttempt(pillID: pill.id, generation: generation) else { return }
         guard pill.canonicalSessionId == sessionId else { return }
@@ -1062,7 +957,7 @@ final class AgentPillsManager: ObservableObject {
 
     let count = min(max(requestedCount, 1), maxPills)
     let seeded = (0..<count).map { index -> AgentPill in
-      let pill = AgentPill(query: "Automation subagent \(index + 1)", model: ModelQoS.Claude.defaultSelection)
+      let pill = AgentPill(query: "Automation subagent \(index + 1)")
       pill.title = index == 0 ? "SLEEP FOR 5" : "Sleep Subagent"
       if index == 0 {
         let aiMessage = ChatMessage(text: "Automation output for subagent \(index + 1).", sender: .ai)
@@ -1272,8 +1167,7 @@ final class AgentPillsManager: ObservableObject {
             runId: inspection.runId ?? runId,
             attemptId: inspection.attemptId,
             title: nil,
-            query: nil,
-            provider: inspection.provider
+            query: nil
           ) {
             return true
           }
@@ -1295,8 +1189,7 @@ final class AgentPillsManager: ObservableObject {
               runId: session.runId,
               attemptId: session.attemptId,
               title: session.title,
-              query: nil,
-              provider: session.provider
+              query: nil
             ) {
               return true
             }
@@ -1327,8 +1220,7 @@ final class AgentPillsManager: ObservableObject {
               runId: session.runId,
               attemptId: session.attemptId,
               title: session.title,
-              query: nil,
-              provider: session.provider
+              query: nil
             ) {
               return true
             }
@@ -1348,8 +1240,7 @@ final class AgentPillsManager: ObservableObject {
     runId: String?,
     attemptId: String?,
     title: String?,
-    query: String?,
-    provider: String?
+    query: String?
   ) -> Bool {
     guard let ownerID = RuntimeOwnerIdentity.currentOwnerId() else { return false }
     let trimmedSession = sessionId?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
@@ -1358,9 +1249,6 @@ final class AgentPillsManager: ObservableObject {
       return false
     }
     let id = pillId ?? UUID()
-    let model =
-      ShortcutSettings.shared.selectedModel.isEmpty
-      ? "claude-sonnet-4-6" : ShortcutSettings.shared.selectedModel
     let pill: AgentPill
     if let existing = pills.first(where: { $0.id == id && $0.ownerID == ownerID }) {
       pill = existing
@@ -1375,7 +1263,6 @@ final class AgentPillsManager: ObservableObject {
         id: id,
         query: (query?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false)
           ? query! : "Background agent",
-        model: model,
         ownerID: ownerID
       )
       pills.append(pill)
@@ -1399,7 +1286,6 @@ final class AgentPillsManager: ObservableObject {
     } else if let attemptId, !attemptId.isEmpty {
       pill.canonicalAttemptId = attemptId
     }
-    pill.applyCanonicalProviderIdentity(provider)
     Self.ensureStreamingAssistantMessage(for: pill)
     pill.markContentChanged()
     objectWillChange.send()
@@ -1414,13 +1300,9 @@ final class AgentPillsManager: ObservableObject {
     sessionId: String,
     runId: String,
     attemptId: String?,
-    provider: String? = nil,
     producingJournalSurface: AgentSurfaceReference? = nil
   ) {
     guard let ownerID = RuntimeOwnerIdentity.currentOwnerId() else { return }
-    let model =
-      ShortcutSettings.shared.selectedModel.isEmpty
-      ? "claude-sonnet-4-6" : ShortcutSettings.shared.selectedModel
     let pill: AgentPill
     if let existing = pills.first(where: { $0.id == id && $0.ownerID == ownerID }) {
       pill = existing
@@ -1428,7 +1310,6 @@ final class AgentPillsManager: ObservableObject {
       pill = AgentPill(
         id: id,
         query: query.isEmpty ? "Background agent" : query,
-        model: model,
         ownerID: ownerID)
       pills.append(pill)
     }
@@ -1440,7 +1321,6 @@ final class AgentPillsManager: ObservableObject {
       attemptId: attemptId,
       preservingAttemptForSameRun: false
     )
-    pill.applyCanonicalProviderIdentity(provider)
     if let producingJournalSurface {
       bindProducingJournalSurface(pillID: pill.id, surface: producingJournalSurface)
     }
@@ -1494,9 +1374,6 @@ final class AgentPillsManager: ObservableObject {
       }
       seen.insert(pillId)
       let query = (entry["query"] as? String) ?? (entry["latestActivity"] as? String) ?? ""
-      let model =
-        ShortcutSettings.shared.selectedModel.isEmpty
-        ? "claude-sonnet-4-6" : ShortcutSettings.shared.selectedModel
       let pill: AgentPill
       if let existing = pills.first(where: { $0.id == pillId && $0.ownerID == ownerID }) {
         pill = existing
@@ -1504,7 +1381,6 @@ final class AgentPillsManager: ObservableObject {
         pill = AgentPill(
           id: pillId,
           query: query.isEmpty ? "Background agent" : query,
-          model: model,
           ownerID: ownerID)
         pills.append(pill)
       }
@@ -1519,7 +1395,6 @@ final class AgentPillsManager: ObservableObject {
         attemptId: canonicalString(entry["attemptId"]),
         preservingAttemptForSameRun: false
       )
-      pill.applyCanonicalProviderIdentity(canonicalString(entry["provider"]))
       let projectedStatus = (entry["status"] as? String) ?? "running"
       applyProjectedStatus(projectedStatus, to: pill)
       if let activity = entry["latestActivity"] as? String, !activity.isEmpty {
@@ -1923,8 +1798,7 @@ final class AgentPillsManager: ObservableObject {
 
   private func fail(pill: AgentPill, errorText: String) {
     let sanitized = AgentFailureTranscriptFormatter.userFacingFailure(
-      errorText,
-      harnessMode: pill.bridgeHarnessOverride ?? pill.providerIdentity)
+      errorText)
     pill.status = .failed(sanitized)
     pill.latestActivity = sanitized
     pill.completedAt = Date()
@@ -2097,7 +1971,7 @@ final class AgentPillsManager: ObservableObject {
         if !trimmed.isEmpty {
           return String(trimmed.prefix(110))
         }
-      case .agentSpawn(_, _, _, _, let title, let objective, _):
+      case .agentSpawn(_, _, _, _, let title, let objective):
         let label = objective.isEmpty ? title : objective
         let trimmed = label.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimmed.isEmpty {
@@ -2270,106 +2144,4 @@ final class AgentPillsManager: ObservableObject {
     return ["Run again"]
   }
 
-  /// Ask Claude Haiku for a short title (3–5 words, present participle) and
-  /// a one-sentence acknowledgement we can speak aloud. Returns nil if the
-  /// API key isn't available or the call fails — the caller keeps the
-  /// existing heuristic title in that case.
-  /// Short, instant acknowledgements spoken the moment a voice query spawns
-  /// a pill. Random pick so consecutive PTT queries don't sound identical.
-  private static let instantAcks: [String] = [
-    "On it.",
-    "Got it.",
-    "Sure thing.",
-    "Working on it.",
-    "Alright, doing that now.",
-    "Let me get that started.",
-    "Okay, on it.",
-  ]
-
-  fileprivate static func randomAck() -> String {
-    instantAcks.randomElement() ?? "On it."
-  }
-
-  fileprivate static func generateTitleAndAck(for query: String) async -> (title: String, ack: String)? {
-    // Route through the desktop-backend's OpenAI-compatible proxy at
-    // /v2/chat/completions instead of hitting api.anthropic.com directly.
-    // This way we don't need a BYOK key (no partial-BYOK 403 risk), and
-    // the request goes through the user's existing Firebase auth + plan.
-    let baseURL = await APIClient.shared.rustBackendURL
-    guard !baseURL.isEmpty else {
-      log("AgentPill: title gen skipped — rustBackendURL empty")
-      return nil
-    }
-    let normalized = baseURL.hasSuffix("/") ? baseURL : baseURL + "/"
-    guard let url = URL(string: normalized + "v2/chat/completions") else {
-      log("AgentPill: title gen failed — bad URL")
-      return nil
-    }
-
-    var request = URLRequest(url: url)
-    request.httpMethod = "POST"
-    request.timeoutInterval = 8
-    do {
-      let headers = try await APIClient.shared.buildHeaders(requireAuth: true)
-      for (k, v) in headers { request.setValue(v, forHTTPHeaderField: k) }
-    } catch {
-      log("AgentPill: title gen skipped — auth header unavailable (\(error.localizedDescription))")
-      return nil
-    }
-
-    let prompt = """
-      The user just kicked off a background agent with this request:
-
-      "\(query)"
-
-      Reply with a JSON object on a single line, no prose, no markdown:
-      {"title":"<3-5 word imperative title in Title Case, no trailing punctuation>","ack":"<one short spoken acknowledgement, max 7 words, friendly tone, e.g. 'Got it, building Mario now.'>"}
-      """
-
-    // OpenAI-compatible body. The backend translates to Anthropic upstream.
-    let body: [String: Any] = [
-      "model": "claude-haiku-4-5-20251001",
-      "max_tokens": 120,
-      "messages": [["role": "user", "content": prompt]],
-      "stream": false,
-    ]
-    do {
-      request.httpBody = try JSONSerialization.data(withJSONObject: body)
-      let (data, response) = try await URLSession.shared.data(for: request)
-      guard let http = response as? HTTPURLResponse else {
-        log("AgentPill: title gen failed — no HTTP response")
-        return nil
-      }
-      guard (200..<300).contains(http.statusCode) else {
-        let body = String(data: data.prefix(200), encoding: .utf8) ?? "<binary>"
-        log("AgentPill: title gen HTTP \(http.statusCode) — \(body)")
-        return nil
-      }
-      // OpenAI shape: { choices: [{ message: { content: "..." } }] }
-      guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-        let choices = json["choices"] as? [[String: Any]],
-        let firstChoice = choices.first,
-        let message = firstChoice["message"] as? [String: Any],
-        let text = message["content"] as? String
-      else {
-        log("AgentPill: title gen response shape unexpected")
-        return nil
-      }
-      let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-      guard let payloadData = trimmed.data(using: .utf8),
-        let payload = try? JSONSerialization.jsonObject(with: payloadData) as? [String: Any],
-        let title = (payload["title"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines),
-        let ack = (payload["ack"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines),
-        !title.isEmpty, !ack.isEmpty
-      else {
-        log("AgentPill: title gen JSON parse failed — raw: \(String(trimmed.prefix(200)))")
-        return nil
-      }
-      log("AgentPill: title gen ok — title=\"\(title)\" ack=\"\(ack)\"")
-      return (title: String(title.prefix(40)), ack: String(ack.prefix(120)))
-    } catch {
-      log("AgentPill: title gen threw — \(error.localizedDescription)")
-      return nil
-    }
-  }
 }

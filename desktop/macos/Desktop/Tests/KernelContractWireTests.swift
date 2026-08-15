@@ -211,33 +211,6 @@ final class KernelContractWireTests: XCTestCase {
     XCTAssertNil(message["cwd"])
   }
 
-  func testDefaultPreferenceWireIsExplicitlyFutureSessionsOnly() throws {
-    let request = AgentRuntimeProcess.configureDefaultExecutionProfileWireMessage(
-      clientId: "client",
-      requestId: "request",
-      ownerId: "owner",
-      adapterId: "pi-mono",
-      modelProfile: nil,
-      workingDirectory: "/tmp/workspace",
-      expectedPreferenceGeneration: 6
-    )
-    XCTAssertEqual(request["type"] as? String, "configure_default_execution_profile")
-    XCTAssertTrue(request["modelProfile"] is NSNull)
-    XCTAssertEqual(request["expectedPreferenceGeneration"] as? Int, 6)
-
-    let response: [String: Any] = [
-      "preferenceGeneration": 7,
-      "adapterId": "pi-mono",
-      "credentialScope": "managed_cloud",
-      "modelProfile": NSNull(),
-      "workingDirectory": "/tmp/workspace",
-      "appliesTo": "new_sessions",
-    ]
-    let profile = try XCTUnwrap(AgentDefaultExecutionProfile(dictionary: response))
-    XCTAssertEqual(profile.appliesTo, AgentExecutionProfileLifecycle.defaultPreferenceAppliesTo)
-    XCTAssertFalse(AgentExecutionProfileLifecycle.defaultPreferenceChangeRequiresDaemonRestart)
-  }
-
   func testSurfaceResolutionReturnsImmutableProfileIdentity() throws {
     let response: [String: Any] = [
       "created": true,
@@ -245,42 +218,20 @@ final class KernelContractWireTests: XCTestCase {
       "sessionId": "session-1",
       "profile": [
         "profileGeneration": 2,
-        "adapterId": "openclaw",
-        "credentialScope": "local_user",
-        "modelProfile": NSNull(),
-        "workingDirectory": "/tmp/workspace",
+        "adapterId": "pi-mono",
+        "credentialScope": "managed_cloud",
+        "modelProfile": "omi-sonnet",
+        "workingDirectory": "/tmp/private-artifacts",
         "executionRole": "coordinator",
       ],
     ]
 
     let session = try XCTUnwrap(AgentSurfaceSession(dictionary: response))
     XCTAssertEqual(session.profile.profileGeneration, 2)
-    XCTAssertEqual(session.profile.adapterId, "openclaw")
-    XCTAssertEqual(session.profile.credentialScope, .localUser)
+    XCTAssertEqual(session.profile.adapterId, "pi-mono")
+    XCTAssertEqual(session.profile.credentialScope, .managedCloud)
+    XCTAssertEqual(session.profile.modelProfile, "omi-sonnet")
     XCTAssertEqual(session.profile.executionRole, .coordinator)
-  }
-
-  func testSurfaceResolutionCreationProfileIsTypedAndAtomic() throws {
-    let profile = AgentSessionCreationProfile(
-      adapterId: "openclaw",
-      modelProfile: nil,
-      workingDirectory: "/Users/me/project"
-    )
-    let message = AgentRuntimeProcess.resolveSurfaceSessionWireMessage(
-      clientId: "main-chat",
-      requestId: "request",
-      ownerId: "owner",
-      surface: .mainChat(chatId: "default"),
-      title: nil,
-      creationProfile: profile
-    )
-
-    let encoded = try XCTUnwrap(message["creationProfile"] as? [String: Any])
-    XCTAssertEqual(Set(encoded.keys), Set(["adapterId", "modelProfile", "workingDirectory"]))
-    XCTAssertEqual(encoded["adapterId"] as? String, "openclaw")
-    XCTAssertTrue(encoded["modelProfile"] is NSNull)
-    XCTAssertEqual(encoded["workingDirectory"] as? String, "/Users/me/project")
-    XCTAssertNil(message["profileGeneration"])
   }
 
   func testContextSourceAndSnapshotCarryGenerationAndCapabilityPolicy() throws {
@@ -345,24 +296,6 @@ final class KernelContractWireTests: XCTestCase {
     XCTAssertEqual(snapshot.renderedContext, "[Kernel Context Snapshot]\n{\"sourceOutcomes\":[]}")
     XCTAssertEqual(snapshot.contextPlan.planId, "sha256:plan")
     XCTAssertEqual(snapshot.contextPlan.olderHistoryStrategy, "none")
-  }
-
-  func testExplicitProfileMigrationCarriesGenerationFenceAndReason() {
-    let message = AgentRuntimeProcess.migrateSessionExecutionProfileWireMessage(
-      clientId: "client",
-      requestId: "request",
-      ownerId: "owner",
-      sessionId: "session",
-      expectedProfileGeneration: 3,
-      adapterId: "hermes",
-      modelProfile: nil,
-      workingDirectory: "/tmp/workspace"
-    )
-
-    XCTAssertEqual(message["type"] as? String, "migrate_session_execution_profile")
-    XCTAssertEqual(message["expectedProfileGeneration"] as? Int, 3)
-    XCTAssertEqual(message["reason"] as? String, "user_requested")
-    XCTAssertTrue(message["modelProfile"] is NSNull)
   }
 
   func testVoiceContextUsesExactKernelRenderedMaterialIncludingTypedSourcesAndCapabilities() throws {

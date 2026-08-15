@@ -421,12 +421,6 @@ class FloatingControlBarState: NSObject, ObservableObject {
   /// whether voice responses should play for this particular query.
   @Published var currentQueryFromVoice: Bool = false
 
-  // Model selection
-  @Published var selectedModel: String = ModelQoS.Claude.defaultSelection
-
-  /// Available models for the floating bar picker (driven by QoS tier)
-  static var availableModels: [(id: String, label: String)] { ModelQoS.Claude.availableModels }
-
   var isShowingNotification: Bool {
     currentNotification != nil
   }
@@ -779,7 +773,7 @@ extension ChatContentBlock {
     case .toolCall(let id, let name, let status, _, _, _): return "c:\(id):\(name):\(status)"
     case .thinking(let id, _): return "h:\(id)"
     case .discoveryCard(let id, _, _, _): return "d:\(id)"
-    case .agentSpawn(let id, let pillId, _, _, _, _, _): return "s:\(id):\(pillId?.uuidString ?? "")"
+    case .agentSpawn(let id, let pillId, _, _, _, _): return "s:\(id):\(pillId?.uuidString ?? "")"
     case .agentCompletion(let id, let pillId, _, _, _, _, _, _): return "a:\(id):\(pillId?.uuidString ?? "")"
     }
   }

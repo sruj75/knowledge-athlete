@@ -189,7 +189,7 @@ class AssistantSettings {
   }
 
   /// Whether auto-detect (multi-language) mode is enabled
-  /// When true, DeepGram will auto-detect the language
+  /// When true, managed transcription auto-detects the language.
   /// When false, uses the specific language set in transcriptionLanguage
   var transcriptionAutoDetect: Bool {
     get { UserDefaults.standard.bool(forKey: transcriptionAutoDetectKey) }
@@ -199,7 +199,7 @@ class AssistantSettings {
     }
   }
 
-  /// Returns the effective language to send to DeepGram
+  /// Returns the effective language to send to managed transcription.
   /// If auto-detect is enabled and the language supports multi-language mode, returns "multi"
   /// Otherwise returns the specific language code
   var effectiveTranscriptionLanguage: String {
@@ -210,7 +210,7 @@ class AssistantSettings {
   }
 
   /// Custom vocabulary for improved transcription accuracy
-  /// Array of words/terms that DeepGram should recognize (Nova-3 limit: 500 tokens total)
+  /// Array of words and terms that managed transcription should recognize.
   var transcriptionVocabulary: [String] {
     get {
       let value = UserDefaults.standard.stringArray(forKey: transcriptionVocabularyKey)
@@ -251,7 +251,7 @@ class AssistantSettings {
     }
   }
 
-  /// Whether local VAD gate is enabled to skip silence and reduce Deepgram usage
+  /// Whether local VAD gate is enabled to skip silence and reduce managed cloud transcription usage.
   var vadGateEnabled: Bool {
     get { UserDefaults.standard.bool(forKey: vadGateEnabledKey) }
     set {
@@ -277,7 +277,7 @@ class AssistantSettings {
     }
   }
 
-  /// Returns vocabulary with "Omi" always included (for DeepGram)
+  /// Returns vocabulary with "Omi" always included.
   var effectiveVocabulary: [String] {
     var vocab = Set(transcriptionVocabulary)
     vocab.insert("Omi")
@@ -301,7 +301,7 @@ class AssistantSettings {
 
   // MARK: - Supported Languages
 
-  /// Canonical backend-supported DeepGram Nova-3 language options for single-language transcription.
+  /// Canonical backend-supported language options for single-language transcription.
   nonisolated static let supportedLanguages: [(code: String, name: String)] = [
     ("ar", "Arabic"),
     ("ar-AE", "Arabic (United Arab Emirates)"),
@@ -387,7 +387,7 @@ class AssistantSettings {
     ("vi", "Vietnamese"),
   ]
 
-  /// Languages that support multi-language (auto-detect) mode in DeepGram Nova-3
+  /// Languages that support multi-language auto-detect mode.
   nonisolated static let multiLanguageSupported: Set<String> = [
     "en", "en-US", "en-AU", "en-GB", "en-IN", "en-NZ",
     "es", "es-419",
@@ -425,7 +425,7 @@ class AssistantSettings {
 
     // A typed language NAME ("Russian", "portuguese", "español") — not a code. Without
     // this, onboarding saved the literal word (e.g. language="russian"), which every
-    // ISO-code consumer (Deepgram, backend) rejects.
+    // ISO-code consumers reject.
     if let supported = supportedLanguages.first(where: {
       $0.name.compare(trimmed, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame
     }) {

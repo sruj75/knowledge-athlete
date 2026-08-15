@@ -72,8 +72,6 @@ _ROUTES = {
     "/v1/users/ai-profile": ("GET", "PATCH"),
     "/v1/users/assistant-settings": ("GET", "PATCH"),
     "/v1/users/delete-account": ("DELETE",),
-    "/v1/proxy/deepgram/v1/listen": ("POST",),
-    "/v1/proxy/deepgram/ws/v1/listen": ("GET", "POST"),
 }
 
 

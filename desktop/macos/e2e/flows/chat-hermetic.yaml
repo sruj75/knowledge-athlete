@@ -8,6 +8,7 @@ covers:
   - desktop/macos/Desktop/Sources/APIClient+AuthPolicy.swift
   - desktop/macos/Desktop/Sources/Auth/AuthSessionAttemptFence.swift
   - desktop/macos/Desktop/Sources/Chat/APIClient+KernelJournal.swift
+  - desktop/macos/Desktop/Sources/Chat/AgentControlService.swift
   - desktop/macos/Desktop/Sources/Chat/AgentArtifactProjection.swift
   - desktop/macos/Desktop/Sources/Chat/AgentErrorClassifier.swift
   - desktop/macos/Desktop/Sources/Chat/AgentFailureTranscriptFormatter.swift
@@ -17,6 +18,7 @@ covers:
   - desktop/macos/Desktop/Sources/Chat/ChatPrompts.swift
   - desktop/macos/Desktop/Sources/Chat/DesktopCapabilityRegistry.swift
   - desktop/macos/Desktop/Sources/Chat/ChatOmiMark.swift
+  - desktop/macos/Desktop/Sources/Chat/ChatPrompts.swift
   - desktop/macos/Desktop/Sources/Chat/TypingIndicator.swift
   - desktop/macos/Desktop/Sources/MainWindow/Components/ChatBubble.swift
   - desktop/macos/Desktop/Sources/MainWindow/Components/ChatInputView.swift
@@ -45,7 +47,12 @@ covers:
   - desktop/macos/Desktop/Sources/Chat/AgentRuntimeBridgeLifecycle.swift
   - desktop/macos/Desktop/Sources/Chat/AgentRuntimeJournalContracts.swift
   - desktop/macos/Desktop/Sources/Chat/AgentRuntimeProcess.swift
-  - desktop/macos/Desktop/Sources/Chat/AgentRuntimeBridgeLifecycle.swift
+  - desktop/macos/Desktop/Sources/Chat/AgentRuntimeFailure.swift
+  - desktop/macos/Desktop/Sources/Chat/AgentRuntimeStatusStore.swift
+  - desktop/macos/Desktop/Sources/Chat/DesktopCoordinatorService.swift
+  - desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/TaskAgent/TaskChatRuntime.swift
+  - desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/TaskAgent/TaskChatState.swift
+  - desktop/macos/Desktop/Sources/Providers/AgentRuntimeRouting.swift
 preconditions:
   - automation_bridge_ready
 

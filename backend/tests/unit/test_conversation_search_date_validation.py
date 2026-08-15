@@ -348,7 +348,7 @@ def test_speaker_filter_is_applied_after_hydration(speaker_id, matching_segments
                 'per_page': 10,
             },
         ),
-        patch.object(conv.conversations_db, 'get_conversations_by_id_without_photos', return_value=hydrated),
+        patch.object(conv.conversations_db, 'get_conversations_by_id', return_value=hydrated),
     ):
         client = _client()
         resp = client.post('/v1/conversations/search', json={'query': 'hi', 'speaker_id': speaker_id})
@@ -376,7 +376,7 @@ def test_search_without_speaker_keeps_every_hydrated_conversation():
                 'per_page': 10,
             },
         ),
-        patch.object(conv.conversations_db, 'get_conversations_by_id_without_photos', return_value=hydrated),
+        patch.object(conv.conversations_db, 'get_conversations_by_id', return_value=hydrated),
     ):
         client = _client()
         resp = client.post('/v1/conversations/search', json={'query': 'hi'})

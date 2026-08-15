@@ -51,7 +51,7 @@ extension ChatProvider {
         }
       }
       for block in projected.contentBlocks {
-        guard case .agentSpawn(_, let projectedPillID, _, _, _, _, _) = block,
+        guard case .agentSpawn(_, let projectedPillID, _, _, _, _) = block,
           let pillID = projectedPillID
         else { continue }
         AgentPillsManager.shared.bindProducingJournalSurface(

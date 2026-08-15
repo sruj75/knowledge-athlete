@@ -2,7 +2,7 @@
 
 Run through ``run.sh`` so Firebase supplies a fresh Firestore emulator.  This
 supervisor owns only the Redis, listener/backend, finalization-worker, pusher,
-and Parakeet child processes that it starts; it never probes or stops user
+and Modulate child processes that it starts; it never probes or stops user
 services.
 """
 
@@ -176,7 +176,7 @@ class Stack:
         self.backend_port = _free_port()
         self.finalization_worker_port = _free_port()
         self.pusher_port = _free_port()
-        self.parakeet_port = _free_port()
+        self.modulate_port = _free_port()
         self.children: dict[str, Child] = {}
         self.env = self._environment()
         self.firestore = firestore.Client(project=PROJECT)
@@ -216,8 +216,8 @@ class Stack:
                 'REDIS_DB_HOST': '127.0.0.1',
                 'REDIS_DB_PORT': str(self.redis_port),
                 'HOSTED_PUSHER_API_URL': f'http://127.0.0.1:{self.pusher_port}',
-                'HOSTED_PARAKEET_API_URL': f'http://127.0.0.1:{self.parakeet_port}',
-                'STT_SERVICE_MODELS': 'parakeet',
+                'MODULATE_API_KEY': 'offline-stack-key',
+                'OMI_STACK_MANAGED_STT_URL': f'ws://127.0.0.1:{self.modulate_port}',
                 'TRIAL_PAYWALL_ENABLED': 'false',
                 'LISTEN_FINALIZATION_DISPATCH_MODE': self.finalization_mode,
                 'RECORDING_SESSION_MODE': self.recording_session_mode,
@@ -310,20 +310,20 @@ class Stack:
         )
         _wait_for_port(self.redis_port, label='isolated Redis', child=redis_child)
         redis.Redis(host='127.0.0.1', port=self.redis_port).ping()
-        parakeet_child = self._start(
-            'parakeet',
+        modulate_child = self._start(
+            'modulate',
             [
                 str(PYTHON),
                 '-m',
                 'uvicorn',
-                'testing.listen_pusher_stack.parakeet_stub:app',
+                'testing.listen_pusher_stack.modulate_stub:app',
                 '--host',
                 '127.0.0.1',
                 '--port',
-                str(self.parakeet_port),
+                str(self.modulate_port),
             ],
         )
-        _wait_for_port(self.parakeet_port, label='Parakeet stub', child=parakeet_child)
+        _wait_for_port(self.modulate_port, label='Modulate stub', child=modulate_child)
         pusher_env = (
             {'OMI_STACK_DROP_PUBLISHING_ON_OPCODE': str(pusher_drop_opcode)} if pusher_drop_opcode is not None else None
         )
@@ -341,7 +341,7 @@ class Stack:
             ],
             extra_env=pusher_env,
         )
-        _wait_for_port(self.pusher_port, label='pusher', child=pusher_child)
+        _wait_for_port(self.pusher_port, label='pusher', timeout=45.0, child=pusher_child)
         self._start_backend()
         if self.finalization_mode == 'cloud_tasks':
             worker_child = self._start(
@@ -365,14 +365,11 @@ class Stack:
             )
 
     def _start_backend(self, *, enable_rest_finalization_race: bool = True) -> None:
-        backend_app = (
-            'testing.listen_pusher_stack.listener_app:app'
-            if self.finalization_mode == 'cloud_tasks' or self.recording_lifecycle_fault is not None
-            else 'main:app'
-        )
+        backend_app = 'testing.listen_pusher_stack.listener_app:app'
+        command = [str(PYTHON), '-m', 'uvicorn', backend_app, '--host', '127.0.0.1', '--port', str(self.backend_port)]
         backend_child = self._start(
             'backend',
-            [str(PYTHON), '-m', 'uvicorn', backend_app, '--host', '127.0.0.1', '--port', str(self.backend_port)],
+            command,
             unset_env=() if enable_rest_finalization_race else REST_FINALIZATION_RACE_ENV,
         )
         _wait_for_port(self.backend_port, label='listen backend', timeout=45.0, child=backend_child)
@@ -394,7 +391,7 @@ class Stack:
             ],
             extra_env=pusher_env,
         )
-        _wait_for_port(self.pusher_port, label='restarted pusher', child=pusher_child)
+        _wait_for_port(self.pusher_port, label='restarted pusher', timeout=45.0, child=pusher_child)
 
     def restart_backend(self) -> None:
         """Prove the durable task survives loss of its originating listener."""
@@ -511,7 +508,7 @@ class Stack:
                 'language': 'en',
                 'private_cloud_sync_enabled': True,
                 'data_protection_level': 'standard',
-                # This gauntlet exercises the English-only Parakeet stub. Make
+                # This gauntlet exercises the English-only Modulate stub. Make
                 # the user's single-language choice explicit so selection
                 # requests English rather than multi-language auto-detection.
                 'transcription_preferences': {'uses_custom_stt': False, 'single_language_mode': True},
@@ -579,7 +576,6 @@ class Stack:
                         'person_id': None,
                     }
                 ],
-                'photos': [],
             }
         )
 
@@ -729,7 +725,6 @@ async def _connect(stack: Stack, uid: str, session_id: str | None) -> tuple[Any,
         'sample_rate': 8000,
         'codec': 'pcm8',
         'source': 'desktop',
-        'stt_service': 'parakeet',
     }
     if session_id:
         parameters['client_conversation_id'] = session_id
@@ -759,11 +754,14 @@ async def _connect(stack: Stack, uid: str, session_id: str | None) -> tuple[Any,
 
 async def _record_audio(websocket: Any) -> None:
     # pcm8 converts to real pcm16 in the production receiver.  This exceeds
-    # its STT buffer threshold and makes the real Parakeet socket emit a segment.
+    # its STT buffer threshold and makes the real Modulate socket emit a segment.
     await websocket.send(bytes([128]) * 16_000)
     await _receive_until(
         websocket,
-        lambda payload: isinstance(payload, list) and bool(payload) and payload[0].get('id') == 'stack-segment-1',
+        lambda payload: isinstance(payload, list)
+        and bool(payload)
+        and payload[0].get('speaker') == 'SPEAKER_00'
+        and bool(payload[0].get('text')),
         label='streamed transcript',
     )
 
@@ -774,7 +772,7 @@ async def _assert_live_stt_attempt_metrics(stack: Stack) -> None:
     metrics = await stack.listener_metrics()
     accepted = [line for line in metrics.splitlines() if line.startswith('omi_live_stt_accepted_total{')]
     terminals = [line for line in metrics.splitlines() if line.startswith('omi_live_stt_terminal_total{')]
-    expected_labels = ('client_platform="desktop"', 'deployment_environment="offline"', 'provider="parakeet"')
+    expected_labels = ('client_platform="desktop"', 'deployment_environment="offline"', 'provider="modulate"')
     if (
         len(accepted) != 1
         or not all(label in accepted[0] for label in expected_labels)

@@ -18,7 +18,6 @@ enum OnboardingFlow {
     "hasTriggeredMicrophone",
     "hasTriggeredSystemAudio",
     "hasTriggeredAccessibility",
-    "hasTriggeredBluetooth",
   ]
 
   static func clearPersistedState(in defaults: UserDefaults = .standard) {

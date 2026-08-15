@@ -74,32 +74,28 @@ FAIR_USE_EXEMPT_UIDS = set(filter(None, os.getenv('FAIR_USE_EXEMPT_UIDS', '').sp
 # Check interval — how often the usage loop checks caps (seconds)
 FAIR_USE_CHECK_INTERVAL_SECONDS = int(os.getenv('FAIR_USE_CHECK_INTERVAL_SECONDS', '300'))  # 5 min
 
-# Restrict-stage daily Deepgram budget (milliseconds of audio forwarded to DG per day)
+# Restrict-stage daily managed STT budget (milliseconds of audio sent to managed transcription per day)
 # 0 = no budget cap (disabled). Only enforced when stage == 'restrict'.
-FAIR_USE_RESTRICT_DAILY_DG_MS = int(os.getenv('FAIR_USE_RESTRICT_DAILY_DG_MS', '1800000'))  # 30 min
+FAIR_USE_RESTRICT_DAILY_MANAGED_STT_MS = int(os.getenv('FAIR_USE_RESTRICT_DAILY_MANAGED_STT_MS', '1800000'))  # 30 min
 
 # Hard anti-abuse ceiling: max total audio processed per rolling 24h, ALL plans. Set high
 # enough that no legitimate single human hits it (a real person cannot generate this much
-# audio in a day) — it exists to stop bulk-sync dumps / reselling, not to cap usage.
-# Metered against the live rolling meter (realtime + sync_fresh); sync_backfill is separately
-# paced by reserve_backfill_speech. 0 = disabled.
+# audio in a day) — it exists to stop reselling, not to cap usage. 0 = disabled.
 MAX_DAILY_AUDIO_HOURS = int(os.getenv('MAX_DAILY_AUDIO_HOURS', '30'))
 MAX_DAILY_AUDIO_MS = MAX_DAILY_AUDIO_HOURS * 3600 * 1000
 
 
-LIVE_SPEECH_SOURCES = ('realtime', 'sync_fresh')
+LIVE_SPEECH_SOURCES = ('realtime',)
 # custom_stt is metered but never live-enforced: those users transcribe on
 # their own provider and are exempt from transcription caps, yet their speech
 # drives the same downstream LLM post-processing spend — the lane makes that
 # spend visible without gating anyone (#7690). Any cap is a separate policy
 # decision reading this lane.
-_VALID_SPEECH_SOURCES = frozenset((*LIVE_SPEECH_SOURCES, 'sync_backfill', 'custom_stt'))
+_VALID_SPEECH_SOURCES = frozenset((*LIVE_SPEECH_SOURCES, 'custom_stt'))
 
 
 def _normalize_speech_source(source: str) -> str:
-    # Compatibility for deprecated callers while keeping new Redis keys lane-specific.
-    normalized = 'sync_fresh' if source == 'sync' else source
-    return normalized if normalized in _VALID_SPEECH_SOURCES else 'realtime'
+    return source if source in _VALID_SPEECH_SOURCES else 'realtime'
 
 
 def _redis_key(uid: str, source: str) -> str:
@@ -136,24 +132,10 @@ def _release_lock(key: str, token: str) -> None:
 # ---------------------------------------------------------------------------
 
 
-_RECORD_SPEECH_ONCE_SCRIPT = """
-if redis.call('set', KEYS[1], '1', 'EX', ARGV[4], 'NX') then
-    redis.call('hincrby', KEYS[2], ARGV[1], ARGV[2])
-    redis.call('expire', KEYS[2], ARGV[4])
-    redis.call('zadd', KEYS[3], ARGV[3], ARGV[1])
-    redis.call('expire', KEYS[3], ARGV[4])
-    return 1
-end
-return 0
-"""
-
-
 def record_speech_ms(
     uid: str,
     speech_ms: int,
     source: str = 'realtime',
-    idempotency_key: Optional[str] = None,
-    raise_on_error: bool = False,
 ) -> None:
     """Record speech milliseconds into the current minute bucket.
 
@@ -161,8 +143,8 @@ def record_speech_ms(
       - member = Unix minute timestamp (as string)
       - score = Unix minute timestamp (for range queries)
     The speech_ms is stored in a separate hash keyed by minute.
-    Source is part of the Redis key. Live enforcement reads only realtime and
-    sync_fresh; sync_backfill is deliberately isolated from live hard caps.
+    Source is part of the Redis key. Live enforcement reads only realtime;
+    custom STT remains metered without being live-enforced.
     """
     if not FAIR_USE_ENABLED or speech_ms <= 0:
         return
@@ -177,20 +159,6 @@ def record_speech_ms(
         # Increment speech_ms for this minute bucket
         bucket_key = _bucket_key(uid, normalized_source)
         zset_key = _redis_key(uid, normalized_source)
-        if idempotency_key:
-            once_key = f'fair_use:v2:once:speech:{normalized_source}:{uid}:{idempotency_key}'
-            redis_client.eval(
-                _RECORD_SPEECH_ONCE_SCRIPT,
-                3,
-                once_key,
-                bucket_key,
-                zset_key,
-                str(bucket_minute),
-                speech_ms,
-                bucket_minute * FAIR_USE_BUCKET_SECONDS,
-                FAIR_USE_REDIS_RETENTION_SECONDS,
-            )
-            return
         pipe.hincrby(bucket_key, str(bucket_minute), speech_ms)
         pipe.expire(bucket_key, FAIR_USE_REDIS_RETENTION_SECONDS)
 
@@ -211,8 +179,6 @@ def record_speech_ms(
         pipe.execute()
     except Exception as e:
         logger.error(f'fair_use: Redis error recording speech for {uid}: {e}')
-        if raise_on_error:
-            raise
 
 
 def get_rolling_speech_ms(uid: str, sources: Optional[tuple[str, ...]] = None) -> Dict[str, Any]:
@@ -238,7 +204,6 @@ def get_rolling_speech_ms(uid: str, sources: Optional[tuple[str, ...]] = None) -
         if sources is None:
             # Transitional compatibility: retain the previous combined meter
             # in live enforcement until its seven-day TTL naturally expires.
-            # New backfill is written only to the isolated v2 key.
             source_keys.append((f'fair_use:bucket:{uid}', f'fair_use:speech:{uid}'))
         for bucket_key, zset_key in source_keys:
             members = redis_client.zrangebyscore(zset_key, cutoff_weekly, '+inf')
@@ -263,11 +228,6 @@ def get_rolling_speech_ms(uid: str, sources: Optional[tuple[str, ...]] = None) -
     except Exception as e:
         logger.error(f'fair_use: Redis error reading speech for {uid}: {e}')
         return result
-
-
-def get_rolling_backfill_speech_ms(uid: str) -> Dict[str, Any]:
-    """Return historical recovery usage without including it in live enforcement."""
-    return get_rolling_speech_ms(uid, sources=('sync_backfill',))
 
 
 # ---------------------------------------------------------------------------
@@ -311,7 +271,7 @@ def fair_use_caps_for_plan(plan: Optional[PlanType] = None) -> tuple[int, int, i
 def is_daily_audio_ceiling_exceeded(uid: str, speech_totals: Optional[Dict[str, Any]] = None) -> bool:
     """Hard anti-abuse ceiling on total daily audio, applied to ALL plans.
 
-    Reuses the live rolling daily meter (realtime + sync_fresh). Returns False when the
+    Reuses the live rolling daily meter (realtime). Returns False when the
     feature is disabled (MAX_DAILY_AUDIO_MS <= 0), fair-use is off, or the kill switch is on.
     Exempt UIDs bypass the ceiling.
     """
@@ -641,13 +601,15 @@ def get_hard_restriction_retry_after_seconds(uid: str) -> int | None:
 
 
 # ---------------------------------------------------------------------------
-# Restrict-stage daily Deepgram budget
+# Restrict-stage daily managed STT budget
 # ---------------------------------------------------------------------------
 
 
-def _dg_budget_key(uid: str) -> str:
-    """Redis key for daily DG budget counter. Auto-expires at end of UTC day."""
+def _managed_stt_budget_key(uid: str) -> str:
+    """Redis key for daily managed STT budget counter. Auto-expires at end of UTC day."""
     day = datetime.now(timezone.utc).strftime('%Y%m%d')
+    # Keep the persisted key schema stable while old and new pods overlap. The
+    # identifier is opaque storage history, not a provider-selection surface.
     return f'fair_use:dg_budget:{uid}:{day}'
 
 
@@ -661,12 +623,14 @@ return 0
 """
 
 
-def record_dg_usage_ms(uid: str, ms: int, idempotency_key: Optional[str] = None, raise_on_error: bool = False) -> None:
-    """Atomically increment today's DG usage counter."""
-    if not FAIR_USE_ENABLED or FAIR_USE_RESTRICT_DAILY_DG_MS <= 0 or ms <= 0:
+def record_managed_stt_usage_ms(
+    uid: str, ms: int, idempotency_key: Optional[str] = None, raise_on_error: bool = False
+) -> None:
+    """Atomically increment today's managed STT usage counter."""
+    if not FAIR_USE_ENABLED or FAIR_USE_RESTRICT_DAILY_MANAGED_STT_MS <= 0 or ms <= 0:
         return
     try:
-        key = _dg_budget_key(uid)
+        key = _managed_stt_budget_key(uid)
         pipe = redis_client.pipeline(transaction=False)
         pipe.incrby(key, ms)
         # TTL = seconds until next midnight UTC + 1h buffer
@@ -678,6 +642,8 @@ def record_dg_usage_ms(uid: str, ms: int, idempotency_key: Optional[str] = None,
             redis_client.eval(
                 _RECORD_COUNTER_ONCE_SCRIPT,
                 2,
+                # Share the established once-marker with old pods so a retry
+                # cannot be metered twice during a rolling deployment.
                 f'fair_use:v2:once:dg:{uid}:{idempotency_key}',
                 key,
                 ms,
@@ -687,17 +653,17 @@ def record_dg_usage_ms(uid: str, ms: int, idempotency_key: Optional[str] = None,
         pipe.expire(key, seconds_until_midnight + 3600)
         pipe.execute()
     except Exception as e:
-        logger.error(f'fair_use: Redis error recording DG usage for {uid}: {e}')
+        logger.error(f'fair_use: Redis error recording managed STT usage for {uid}: {e}')
         if raise_on_error:
             raise
 
 
-def get_dg_budget_status(uid: str) -> Dict[str, Any]:
-    """Get the DG budget status for a user.
+def get_managed_stt_budget_status(uid: str) -> Dict[str, Any]:
+    """Get the managed STT budget status for a user.
 
     Returns dict with: daily_limit_ms, used_ms, remaining_ms, exhausted, resets_at.
     """
-    limit = FAIR_USE_RESTRICT_DAILY_DG_MS
+    limit = FAIR_USE_RESTRICT_DAILY_MANAGED_STT_MS
     result: Dict[str, Any] = {
         'daily_limit_ms': limit,
         'used_ms': 0,
@@ -709,7 +675,7 @@ def get_dg_budget_status(uid: str) -> Dict[str, Any]:
         return result
 
     try:
-        key = _dg_budget_key(uid)
+        key = _managed_stt_budget_key(uid)
         used = redis_client.get(key)
         used_ms = int(used) if used else 0
         remaining = max(0, limit - used_ms)
@@ -724,24 +690,24 @@ def get_dg_budget_status(uid: str) -> Dict[str, Any]:
         # invalid "…+00:00Z" that datetime.fromisoformat rejects). Matches models/integrations._serialize_datetime.
         result['resets_at'] = tomorrow.isoformat().replace('+00:00', 'Z')
     except Exception as e:
-        logger.error(f'fair_use: Redis error reading DG budget for {uid}: {e}')
+        logger.error(f'fair_use: Redis error reading managed STT budget for {uid}: {e}')
 
     return result
 
 
-def is_dg_budget_exhausted(uid: str) -> bool:
-    """Fast check: is the user's daily DG budget used up?
+def is_managed_stt_budget_exhausted(uid: str) -> bool:
+    """Fast check: is the user's daily managed STT budget used up?
 
     Returns False on Redis errors (fail-open).
     """
-    if not FAIR_USE_ENABLED or FAIR_USE_RESTRICT_DAILY_DG_MS <= 0:
+    if not FAIR_USE_ENABLED or FAIR_USE_RESTRICT_DAILY_MANAGED_STT_MS <= 0:
         return False
     try:
-        key = _dg_budget_key(uid)
+        key = _managed_stt_budget_key(uid)
         used = redis_client.get(key)
         if used is None:
             return False
-        return int(used) >= FAIR_USE_RESTRICT_DAILY_DG_MS
+        return int(used) >= FAIR_USE_RESTRICT_DAILY_MANAGED_STT_MS
     except Exception:
         return False
 

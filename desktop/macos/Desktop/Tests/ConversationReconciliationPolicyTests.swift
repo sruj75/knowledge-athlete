@@ -237,7 +237,6 @@ final class ConversationReconciliationPolicyTests: XCTestCase {
       transcriptSegments: [],
       transcriptSegmentsIncluded: true,
       geolocation: nil,
-      photos: [],
       source: .desktop,
       language: "en",
       status: status,

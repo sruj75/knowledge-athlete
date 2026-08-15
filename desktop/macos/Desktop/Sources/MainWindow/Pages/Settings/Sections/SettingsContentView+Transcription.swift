@@ -256,7 +256,7 @@ extension SettingsContentView {
                 .foregroundColor(OmiColors.textPrimary)
 
               Text(
-                "Uses on-device voice activity detection to skip silence, reducing Deepgram API usage. May save ~40% on transcription costs."
+                "Uses on-device voice activity detection to skip silence, reducing managed cloud transcription usage. May save ~40% on transcription costs."
               )
               .scaledFont(size: OmiType.body)
               .foregroundColor(OmiColors.textTertiary)

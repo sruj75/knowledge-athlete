@@ -342,80 +342,80 @@ class TestEscalateEnforcement:
 
 
 # ---------------------------------------------------------------------------
-# DG budget tests
+# managed STT budget tests
 # ---------------------------------------------------------------------------
 
 
-class TestDgBudget:
-    """Test is_dg_budget_exhausted uses FAIR_USE_RESTRICT_DAILY_DG_MS only."""
+class TestManagedSTTBudget:
+    """Test is_managed_stt_budget_exhausted uses FAIR_USE_RESTRICT_DAILY_MANAGED_STT_MS only."""
 
     def setup_method(self):
         _mock_redis.reset_mock()
 
     @patch.object(fair_use_mod, 'FAIR_USE_ENABLED', True)
-    @patch.object(fair_use_mod, 'FAIR_USE_RESTRICT_DAILY_DG_MS', 1800000)
+    @patch.object(fair_use_mod, 'FAIR_USE_RESTRICT_DAILY_MANAGED_STT_MS', 1800000)
     def test_under_budget_returns_false(self):
         _mock_redis.get.return_value = b'900000'
-        assert fair_use_mod.is_dg_budget_exhausted('test-uid') is False
+        assert fair_use_mod.is_managed_stt_budget_exhausted('test-uid') is False
 
     @patch.object(fair_use_mod, 'FAIR_USE_ENABLED', True)
-    @patch.object(fair_use_mod, 'FAIR_USE_RESTRICT_DAILY_DG_MS', 1800000)
+    @patch.object(fair_use_mod, 'FAIR_USE_RESTRICT_DAILY_MANAGED_STT_MS', 1800000)
     def test_at_budget_returns_true(self):
         _mock_redis.get.return_value = b'1800000'
-        assert fair_use_mod.is_dg_budget_exhausted('test-uid') is True
+        assert fair_use_mod.is_managed_stt_budget_exhausted('test-uid') is True
 
     @patch.object(fair_use_mod, 'FAIR_USE_ENABLED', True)
-    @patch.object(fair_use_mod, 'FAIR_USE_RESTRICT_DAILY_DG_MS', 1800000)
+    @patch.object(fair_use_mod, 'FAIR_USE_RESTRICT_DAILY_MANAGED_STT_MS', 1800000)
     def test_no_usage_returns_false(self):
         _mock_redis.get.return_value = None
-        assert fair_use_mod.is_dg_budget_exhausted('test-uid') is False
+        assert fair_use_mod.is_managed_stt_budget_exhausted('test-uid') is False
 
     @patch.object(fair_use_mod, 'FAIR_USE_ENABLED', True)
-    @patch.object(fair_use_mod, 'FAIR_USE_RESTRICT_DAILY_DG_MS', 0)
+    @patch.object(fair_use_mod, 'FAIR_USE_RESTRICT_DAILY_MANAGED_STT_MS', 0)
     def test_zero_limit_returns_false(self):
         """When limit is 0 (disabled), always returns False."""
         _mock_redis.get.return_value = b'9999999'
-        assert fair_use_mod.is_dg_budget_exhausted('test-uid') is False
+        assert fair_use_mod.is_managed_stt_budget_exhausted('test-uid') is False
 
     @patch.object(fair_use_mod, 'FAIR_USE_ENABLED', False)
     def test_disabled_returns_false(self):
-        assert fair_use_mod.is_dg_budget_exhausted('test-uid') is False
+        assert fair_use_mod.is_managed_stt_budget_exhausted('test-uid') is False
 
 
-class TestRecordDgUsageMs:
-    """Test record_dg_usage_ms with simplified guard."""
+class TestRecordManagedSTTUsageMs:
+    """Test record_managed_stt_usage_ms with simplified guard."""
 
     def setup_method(self):
         _mock_redis.reset_mock()
         _mock_redis.pipeline.return_value = MagicMock()
 
     @patch.object(fair_use_mod, 'FAIR_USE_ENABLED', True)
-    @patch.object(fair_use_mod, 'FAIR_USE_RESTRICT_DAILY_DG_MS', 1800000)
+    @patch.object(fair_use_mod, 'FAIR_USE_RESTRICT_DAILY_MANAGED_STT_MS', 1800000)
     def test_records_when_budget_configured(self):
-        fair_use_mod.record_dg_usage_ms('test-uid', 5000)
+        fair_use_mod.record_managed_stt_usage_ms('test-uid', 5000)
         _mock_redis.pipeline.assert_called_once()
         pipe = _mock_redis.pipeline.return_value
         pipe.execute.assert_called_once()
 
     @patch.object(fair_use_mod, 'FAIR_USE_ENABLED', True)
-    @patch.object(fair_use_mod, 'FAIR_USE_RESTRICT_DAILY_DG_MS', 0)
+    @patch.object(fair_use_mod, 'FAIR_USE_RESTRICT_DAILY_MANAGED_STT_MS', 0)
     def test_skips_when_budget_zero(self):
-        fair_use_mod.record_dg_usage_ms('test-uid', 5000)
+        fair_use_mod.record_managed_stt_usage_ms('test-uid', 5000)
         _mock_redis.pipeline.assert_not_called()
 
     @patch.object(fair_use_mod, 'FAIR_USE_ENABLED', False)
     def test_skips_when_disabled(self):
-        fair_use_mod.record_dg_usage_ms('test-uid', 5000)
+        fair_use_mod.record_managed_stt_usage_ms('test-uid', 5000)
         _mock_redis.pipeline.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
-# Sync DG budget gate test
+# Sync managed STT budget gate test
 # ---------------------------------------------------------------------------
 
 
 class TestSyncDgBudgetGate:
-    """Test the sync endpoint response structure when DG budget is exhausted."""
+    """Test the sync endpoint response structure when managed STT budget is exhausted."""
 
     def test_sync_budget_exhausted_response_structure(self):
         from starlette.responses import JSONResponse
@@ -428,7 +428,7 @@ class TestSyncDgBudgetGate:
                 'new_memories': [],
                 'updated_memories': [],
                 'credits_exhausted': True,
-                'dg_budget_exhausted': True,
+                'managed_stt_budget_exhausted': True,
                 'skipped_segments': 5,
             },
         )
@@ -436,5 +436,5 @@ class TestSyncDgBudgetGate:
         assert response.status_code == 429
         body = json.loads(response.body)
         assert body['credits_exhausted'] is True
-        assert body['dg_budget_exhausted'] is True
+        assert body['managed_stt_budget_exhausted'] is True
         assert body['skipped_segments'] == 5

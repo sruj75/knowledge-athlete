@@ -7,7 +7,7 @@ from typing import Any, cast
 
 ConfigDict = dict[str, Any]
 
-_ACCOUNT_DELETION_PROD_CLOUD_RUN_SERVICES = ('backend', 'backend-sync', 'backend-sync-backfill')
+_ACCOUNT_DELETION_PROD_CLOUD_RUN_SERVICES = ('backend', 'backend-sync')
 _ACCOUNT_DELETION_LITERAL_ENV = {
     'ACCOUNT_DELETION_DISPATCH_MODE': 'cloud_tasks',
     'ACCOUNT_DELETION_TASKS_QUEUE': 'account-deletion',

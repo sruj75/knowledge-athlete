@@ -55,11 +55,8 @@ APP_CLIENT_PREFIXES = (
     '/v1/workstreams',
     '/v1/what-matters-now',
     '/v2/files',
-    '/v2/firmware',
     '/v2/initial-message',
     '/v2/messages',
-    '/v2/sync-capture-manifest',
-    '/v2/sync-local-files',
     '/v2/tts',
     '/v2/voice-message',
     '/v2/voice-messages',
@@ -146,7 +143,7 @@ def configure_hermetic_environment() -> None:
     os.environ['REDIS_DB_HOST'] = 'localhost'
     os.environ['REDIS_DB_PORT'] = '6379'
     os.environ['REDIS_DB_PASSWORD'] = ''
-    os.environ['DEEPGRAM_API_KEY'] = 'fake-deepgram-key'
+    os.environ['MODULATE_API_KEY'] = 'fake-modulate-key'
     os.environ['OPENAI_API_KEY'] = 'fake-openai-key'
     os.environ['ANTHROPIC_API_KEY'] = 'fake-anthropic-key'
     os.environ['OPENROUTER_API_KEY'] = 'fake-openrouter-key'

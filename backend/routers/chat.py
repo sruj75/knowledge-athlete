@@ -52,11 +52,10 @@ from utils.chat import (
     transcribe_pcm_bytes,
 )
 from utils.sync.files import retrieve_file_paths, decode_files_to_wav
-from utils.stt.streaming import STTService, connect_stt_socket_with_fallback, drain_stt_socket
-from utils.stt.streaming import get_stt_service_for_language, process_audio_modulate, process_audio_parakeet
+from utils.stt.streaming import drain_stt_socket, get_managed_stt_language, process_audio_modulate
 from utils.stt.pre_recorded import get_prerecorded_service
 from config.prerecorded_stt import TranscriptionOutcome
-from config.stt_provider_policy import STTServingSurface
+from config.stt_provider_policy import MODULATE_MODEL, MODULATE_PROVIDER, STTServingSurface
 from utils.stt.outcomes import TranscriptionFailure, failure_from_exception
 from utils.observability.transcription import TranscriptionAttempt
 from utils.llm.goals import extract_and_update_goal_progress
@@ -539,7 +538,7 @@ def create_voice_message_stream(
                 retryable=False,
             )
 
-        # Daily budget check (first file only — matches actual DG usage).
+        # Daily budget check (first file only — matches actual managed STT usage).
         # A quota rejection is not an STT attempt and therefore is not an
         # invalid-input or provider-outcome metric.
         first_wav = wav_paths[0]
@@ -642,7 +641,7 @@ async def transcribe_voice_message(
 
     Returns {"transcript": "...", "language": "..."}.
     """
-    # Trial paywall: reject paywalled desktop PTT before hitting Deepgram.
+    # Trial paywall: reject paywalled desktop PTT before opening managed STT.
     # Narrow to trial-only on purpose — full enforce_chat_quota here would
     # change mobile behavior for users past their existing 30/mo chat cap.
     if await run_blocking(db_executor, is_trial_paywalled, uid, x_app_platform):
@@ -944,8 +943,7 @@ async def transcribe_voice_message_stream(
 ):
     """WebSocket endpoint for PTT live mode transcription-only streaming.
 
-    Receives binary PCM audio chunks, streams them to the selected non-Deepgram
-    provider, and returns
+    Receives binary PCM audio chunks, streams them to managed STT, and returns
     transcript segments in real-time. No conversation lifecycle, no memory
     extraction, no pusher — just audio in, transcript out.
 
@@ -983,8 +981,7 @@ async def transcribe_voice_message_stream(
         await websocket.close(code=1008, reason='channels must be 1 or 2')
         return
 
-    # Deepgram was the only PTT provider that accepted stereo. Parakeet and
-    # Modulate (the retired-DG replacements) wire a mono PCM path: sending
+    # The managed adapter wires a mono PCM path: sending
     # interleaved stereo here would be billed as two channels while being
     # transcribed as mono, corrupting timing and quality. Reject channels > 1
     # explicitly instead of silently downmixing or double-billing.
@@ -1018,7 +1015,7 @@ async def transcribe_voice_message_stream(
         pass  # Fail-open
 
     websocket_active = True
-    dg_socket = None
+    stt_socket = None
     sender_task = None
     stt_audio_buffer = bytearray()
     received_audio_bytes = 0  # Includes buffered bytes for admission/budget enforcement.
@@ -1031,8 +1028,8 @@ async def transcribe_voice_message_stream(
     bytes_per_second = sample_rate * channels * 2
     stt_buffer_flush_size = int(bytes_per_second * 0.03)
 
-    stt_service, stt_language, stt_model = get_stt_service_for_language(language, surface=STTServingSurface.PTT)
-    if stt_service is None or stt_language is None or stt_model is None:
+    stt_language = get_managed_stt_language(language, surface=STTServingSurface.PTT)
+    if stt_language is None:
         await websocket.close(code=1011, reason='Transcription service unavailable')
         return
     context_keywords = _parse_context_keywords(keywords)
@@ -1042,7 +1039,7 @@ async def transcribe_voice_message_stream(
         surface="ptt",
         source="desktop_ptt_stream",
         provider_lane="stt",
-        route_or_model=stt_model,
+        route_or_model=MODULATE_MODEL,
         request={
             "codec": codec,
             "sample_rate": sample_rate,
@@ -1097,7 +1094,7 @@ async def transcribe_voice_message_stream(
         if stt_send_failed:
             return False
         try:
-            accepted = dg_socket is not None and not dg_socket.is_connection_dead and dg_socket.send(audio) is True
+            accepted = stt_socket is not None and not stt_socket.is_connection_dead and stt_socket.send(audio) is True
         except Exception:
             accepted = False
         if accepted:
@@ -1123,10 +1120,10 @@ async def transcribe_voice_message_stream(
         if stt_drained:
             return True
         try:
-            if dg_socket is None:
+            if stt_socket is None:
                 raise RuntimeError('missing STT socket')
-            dg_socket.finalize()
-            await drain_stt_socket(dg_socket)
+            stt_socket.finalize()
+            await drain_stt_socket(stt_socket)
         except Exception:
             await close_stt_failure()
             return False
@@ -1134,28 +1131,11 @@ async def transcribe_voice_message_stream(
         return True
 
     try:
-        if stt_service == STTService.parakeet:
-            dg_socket, stt_service = await connect_stt_socket_with_fallback(
-                primary_service=STTService.parakeet,
-                connect_primary=lambda: process_audio_parakeet(
-                    stream_transcript,
-                    language=stt_language,
-                    sample_rate=sample_rate,
-                    channels=channels,
-                    model=stt_model,
-                    keywords=context_keywords,
-                    is_active=lambda: websocket_active,
-                ),
-                connect_modulate=lambda: process_audio_modulate(stream_transcript, sample_rate, stt_language),
-            )
-        elif stt_service == STTService.modulate:
-            dg_socket = await process_audio_modulate(stream_transcript, sample_rate, stt_language)
-        else:
-            raise RuntimeError(f'Unsupported serving STT provider {stt_service!r}')
+        stt_socket = await process_audio_modulate(stream_transcript, sample_rate, stt_language)
 
-        if dg_socket is None:
+        if stt_socket is None:
             logger.error(
-                'transcribe-stream: failed to connect to STT provider uid=%s provider=%s', uid, stt_service.value
+                'transcribe-stream: failed to connect to managed STT uid=%s provider=%s', uid, MODULATE_PROVIDER
             )
             await websocket.close(code=1011, reason='Transcription service unavailable')
             return
@@ -1193,7 +1173,7 @@ async def transcribe_voice_message_stream(
             # Note: text frames do NOT reset the audio-idle timer.
             text_data = message.get("text")
             if text_data and text_data.strip() == "finalize":
-                if dg_socket and not stt_send_failed:
+                if stt_socket and not stt_send_failed:
                     if len(stt_audio_buffer) > 0:
                         if not await send_stt_audio_or_close(bytes(stt_audio_buffer)):
                             break
@@ -1252,22 +1232,22 @@ async def transcribe_voice_message_stream(
         websocket_active = False
 
         # Flush remaining audio buffer
-        if dg_socket and not stt_send_failed and not stt_drained and len(stt_audio_buffer) > 0:
+        if stt_socket and not stt_send_failed and not stt_drained and len(stt_audio_buffer) > 0:
             if await send_stt_audio_or_close(bytes(stt_audio_buffer)):
                 accepted_audio_bytes += len(stt_audio_buffer)
                 stt_audio_buffer.clear()
 
         # Await a healthy provider's final tail before stopping the segment sender.
         # A rejected send still gets a best-effort close but no final transcript or usage charge.
-        if dg_socket and not stt_send_failed and await drain_stt_or_close():
+        if stt_socket and not stt_send_failed and await drain_stt_or_close():
             record_stt_usage_once()
 
-        if dg_socket and not stt_drained:
+        if stt_socket and not stt_drained:
             try:
-                await drain_stt_socket(dg_socket)
+                await drain_stt_socket(stt_socket)
             except Exception:
                 try:
-                    dg_socket.finish()
+                    stt_socket.finish()
                 except Exception:
                     pass
 

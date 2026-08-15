@@ -136,15 +136,15 @@ struct BatchGateOutput {
   let isComplete: Bool  // True when hangover→silence emits the buffer
 }
 
-// MARK: - DG Wall-Clock Timestamp Mapper
+// MARK: - Managed-STT Wall-Clock Timestamp Mapper
 
-/// Maps Deepgram audio-time timestamps to wall-clock-relative timestamps.
-/// When silence is skipped, DG time compresses vs wall time. This mapper
+/// Maps provider audio-time timestamps to wall-clock-relative timestamps.
+/// When silence is skipped, provider time compresses versus wall time. This mapper
 /// tracks checkpoints at silence-to-speech transitions to remap.
-final class DgWallMapper {
+final class STTWallMapper {
   private let lock = NSLock()
-  private var checkpoints: [(dgSec: Double, wallSec: Double)] = []
-  private var dgCursorSec: Double = 0.0
+  private var checkpoints: [(providerSec: Double, wallSec: Double)] = []
+  private var providerCursorSec: Double = 0.0
   private var sending: Bool = false
 
   private let maxCheckpoints = 500
@@ -156,16 +156,16 @@ final class DgWallMapper {
     if !sending {
       var adjustedWall = wallTime
       if let last = checkpoints.last {
-        let minWall = last.wallSec + (dgCursorSec - last.dgSec)
+        let minWall = last.wallSec + (providerCursorSec - last.providerSec)
         adjustedWall = max(wallTime, minWall)
       }
-      checkpoints.append((dgSec: dgCursorSec, wallSec: adjustedWall))
+      checkpoints.append((providerSec: providerCursorSec, wallSec: adjustedWall))
       if checkpoints.count > maxCheckpoints {
         checkpoints = [checkpoints[0]] + Array(checkpoints.suffix(maxCheckpoints - 1))
       }
       sending = true
     }
-    dgCursorSec += chunkDuration
+    providerCursorSec += chunkDuration
   }
 
   func onSilenceSkipped() {
@@ -174,19 +174,19 @@ final class DgWallMapper {
     sending = false
   }
 
-  func dgToWall(_ dgSec: Double) -> Double {
+  func providerToWall(_ providerSec: Double) -> Double {
     lock.lock()
     let cps = checkpoints
     lock.unlock()
 
-    guard !cps.isEmpty else { return dgSec }
+    guard !cps.isEmpty else { return providerSec }
 
     // Binary search for the right checkpoint
     var lo = 0
     var hi = cps.count - 1
     while lo < hi {
       let mid = (lo + hi + 1) / 2
-      if cps[mid].dgSec <= dgSec {
+      if cps[mid].providerSec <= providerSec {
         lo = mid
       } else {
         hi = mid - 1
@@ -194,13 +194,13 @@ final class DgWallMapper {
     }
 
     let cp = cps[lo]
-    return cp.wallSec + (dgSec - cp.dgSec)
+    return cp.wallSec + (providerSec - cp.providerSec)
   }
 }
 
 // MARK: - VAD Gate Service
 
-/// On-device VAD gate that skips silence to reduce Deepgram API usage.
+/// On-device VAD gate that skips silence to reduce managed cloud transcription usage.
 /// Runs Silero VAD on each channel independently (deinterleaved from stereo).
 /// Audio is gated when BOTH channels are silent.
 final class VADGateService {
@@ -241,7 +241,7 @@ final class VADGateService {
   private var preRollTotalMs: Double = 0.0
 
   // Timestamp mapper
-  let dgWallMapper = DgWallMapper()
+  let sttWallMapper = STTWallMapper()
 
   // Timing
   private var firstAudioWallTime: Double?
@@ -421,7 +421,7 @@ final class VADGateService {
     return output
   }
 
-  /// Check if a keepalive should be sent to prevent Deepgram timeout.
+  /// Check if a keepalive should be sent to prevent a managed-STT timeout.
   func needsKeepalive() -> Bool {
     lock.lock()
     defer { lock.unlock() }
@@ -436,9 +436,9 @@ final class VADGateService {
     return needed
   }
 
-  /// Remap Deepgram timestamps to wall-clock-relative timestamps.
+  /// Remap provider timestamps to wall-clock-relative timestamps.
   func remapTimestamp(start: Double, end: Double) -> (Double, Double) {
-    return (dgWallMapper.dgToWall(start), dgWallMapper.dgToWall(end))
+    return (sttWallMapper.providerToWall(start), sttWallMapper.providerToWall(end))
   }
 
   // MARK: - Private
@@ -480,13 +480,13 @@ final class VADGateService {
     let bytesSkipped = bytesReceived - bytesSent
     let savingsRatio = bytesReceived > 0 ? Double(bytesSkipped) / Double(bytesReceived) * 100.0 : 0.0
     let sessionSec = audioCursorMs / 1000.0
-    let dgCostPerSec = 0.0043 / 60.0  // Nova-3: $0.0043/min
-    let costWithout = sessionSec * dgCostPerSec
-    let costWith = (sessionSec * (1.0 - savingsRatio / 100.0)) * dgCostPerSec
+    let managedSTTCostPerSec = 0.0043 / 60.0  // Existing managed-STT estimate.
+    let costWithout = sessionSec * managedSTTCostPerSec
+    let costWith = (sessionSec * (1.0 - savingsRatio / 100.0)) * managedSTTCostPerSec
     log(
       String(
         format:
-          "VADGate metrics: state=%@ chunks=%d (speech=%d silence=%d) received=%.1fKB sent=%.1fKB skipped=%.1fKB savings=%.1f%% finalizes=%d keepalives=%d session=%.0fs dgCost=$%.4f→$%.4f",
+          "VADGate metrics: state=%@ chunks=%d (speech=%d silence=%d) received=%.1fKB sent=%.1fKB skipped=%.1fKB savings=%.1f%% finalizes=%d keepalives=%d session=%.0fs managedSTTCost=$%.4f→$%.4f",
         String(describing: state), chunksTotal, chunksSpeech, chunksSilence,
         Double(bytesReceived) / 1024.0, Double(bytesSent) / 1024.0, Double(bytesSkipped) / 1024.0,
         savingsRatio, finalizeCount, keepaliveCount, sessionSec, costWithout, costWith))
@@ -521,19 +521,19 @@ final class VADGateService {
         preRollChunks.removeAll()
         preRollTotalMs = 0.0
 
-        dgWallMapper.onAudioSent(chunkDuration: preRollDuration, wallTime: preRollWallRel)
+        sttWallMapper.onAudioSent(chunkDuration: preRollDuration, wallTime: preRollWallRel)
         lastSendWallTime = wallTime
 
         return GateOutput(audioToSend: preRollAudio, shouldFinalize: false)
       } else {
         // Stay in SILENCE
-        dgWallMapper.onSilenceSkipped()
+        sttWallMapper.onSilenceSkipped()
         return GateOutput(audioToSend: Data(), shouldFinalize: false)
       }
 
     case .speech:
       // Send audio
-      dgWallMapper.onAudioSent(chunkDuration: chunkDurationSec, wallTime: wallRel)
+      sttWallMapper.onAudioSent(chunkDuration: chunkDurationSec, wallTime: wallRel)
       lastSendWallTime = wallTime
 
       if !isSpeech {
@@ -549,25 +549,24 @@ final class VADGateService {
       if isSpeech {
         // HANGOVER -> SPEECH
         state = .speech
-        dgWallMapper.onAudioSent(chunkDuration: chunkDurationSec, wallTime: wallRel)
+        sttWallMapper.onAudioSent(chunkDuration: chunkDurationSec, wallTime: wallRel)
         lastSendWallTime = wallTime
         return GateOutput(audioToSend: pcmData, shouldFinalize: false)
       }
 
       if timeSinceSpeechMs > hangoverMs {
-        // HANGOVER -> SILENCE: finalize so Deepgram flushes pending transcript
+        // HANGOVER -> SILENCE: finalize so managed STT flushes the pending transcript.
         state = .silence
         preRollChunks.removeAll()
         preRollTotalMs = 0.0
         preRollChunks.append(pcmData)
         preRollTotalMs = chunkMs
-        dgWallMapper.onSilenceSkipped()
+        sttWallMapper.onSilenceSkipped()
         return GateOutput(audioToSend: Data(), shouldFinalize: true)
       }
 
-      // Still in hangover: send audio, let Deepgram's own endpointing
-      // (endpointing=300 + utterance_end_ms=1000) handle utterance boundaries
-      dgWallMapper.onAudioSent(chunkDuration: chunkDurationSec, wallTime: wallRel)
+      // Still in hangover: send audio and let provider finalization handle boundaries.
+      sttWallMapper.onAudioSent(chunkDuration: chunkDurationSec, wallTime: wallRel)
       lastSendWallTime = wallTime
       return GateOutput(audioToSend: pcmData, shouldFinalize: false)
     }

@@ -243,31 +243,10 @@ final class ChatErrorStateTests: XCTestCase {
     XCTAssertEqual(mapped, .authRequired)
   }
 
-  func testFromBridgeErrorDoesNotMapProviderAuthFailuresToAuthRequired() {
+  func testFromBridgeErrorDoesNotMapManagedServiceAuthFailuresToSessionAuthRequired() {
     XCTAssertNil(ChatErrorState.from(.agentError("AI service authentication failed")))
-    XCTAssertNil(ChatErrorState.from(.agentError("Anthropic provider unauthorized")))
     XCTAssertNil(ChatErrorState.from(.agentError("invalid key")))
-    XCTAssertFalse(BridgeError.agentError("Anthropic provider unauthorized").isSessionAuthenticationFailure)
-  }
-
-  // T4: provider auth_required must not present the Pro upgrade sheet.
-  func testAuthRequiredHandlerDoesNotWireProSheet() throws {
-    let source = try sourceFile("Providers/ChatProvider.swift")
-    guard let range = source.range(of: "func handleClaudeAuthRequired") else {
-      return XCTFail("missing handleClaudeAuthRequired")
-    }
-    let snippet = String(source[range.lowerBound...]).prefix(900)
-    XCTAssertFalse(snippet.contains("isClaudeAuthRequired = true"))
-    XCTAssertFalse(snippet.contains("startClaudeAuth()"))
-  }
-
-  func testStartClaudeAuthKeepsUserClaudeGuard() throws {
-    let source = try sourceFile("Providers/ChatProvider.swift")
-    guard let range = source.range(of: "func startClaudeAuth()") else {
-      return XCTFail("missing startClaudeAuth")
-    }
-    let snippet = String(source[range.lowerBound...]).prefix(300)
-    XCTAssertTrue(snippet.contains("guard isUserClaudeMode else { return }"))
+    XCTAssertFalse(BridgeError.agentError("AI service authentication failed").isSessionAuthenticationFailure)
   }
 
   func testEnsureBridgeStartedMapsAuthMissingToAuthRequired() throws {

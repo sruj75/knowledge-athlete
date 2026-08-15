@@ -8,7 +8,6 @@ from typing import Any, List, Optional
 
 from fastapi import HTTPException, UploadFile
 
-from models.conversation_enums import ConversationSource
 from utils.log_sanitizer import sanitize
 from utils.request_validation import parse_sync_filename_timestamp
 from utils.sync import playback as sync_playback
@@ -215,32 +214,11 @@ def _is_pcm_codec(filename: str) -> bool:
     return '_pcm16_' in filename or '_pcm8_' in filename
 
 
-def detect_source_from_filenames(filenames: List[Optional[str]]) -> ConversationSource:
-    """Detect the conversation source for a /v2/sync-local-files batch from uploaded filenames.
-
-    Keeps the original first-match-wins loop semantics: the first filename that carries a known
-    marker sets the source and stops the scan. limitless is checked before phone so a limitless
-    file never loses to phone. 'omibatchphone' also covers the 'omibatchphoneauto' offline
-    auto-switch variant; 'phonemic' covers the phone-mic WAL fallback uploads. Defaults to omi.
-    """
-    for filename in filenames:
-        if not filename:
-            continue
-        name = filename.lower()
-        if 'limitless' in name:
-            return ConversationSource.limitless
-        if 'omibatchphone' in name or 'phonemic' in name:
-            return ConversationSource.phone
-    return ConversationSource.omi
-
-
 def decode_files_to_wav(files_path: List[str]) -> List[str]:
-    """Decode each uploaded sync file, isolating unreadable files from their batch.
+    """Decode each uploaded voice-message file, isolating unreadable files from its request.
 
-    A batch shares one sync job, so failing the whole batch on a single bad file
-    discards every sibling recording and leaves the client retrying the same
-    doomed set forever. Unreadable files are dropped individually; the request
-    only fails when nothing in the batch decoded.
+    Unreadable files are dropped individually; the request fails only when
+    nothing in the multipart upload decoded.
     """
     wav_files: List[str] = []
     unreadable: List[str] = []
@@ -283,7 +261,7 @@ def decode_files_to_wav(files_path: List[str]) -> List[str]:
         wav_files.append(wav_path)
 
     if unreadable:
-        logger.warning('Sync decode dropped %d of %d unreadable files', len(unreadable), len(files_path))
+        logger.warning('Voice-message decode dropped %d of %d unreadable files', len(unreadable), len(files_path))
 
     if not wav_files:
         raise HTTPException(status_code=400, detail='Audio decode failed')

@@ -184,7 +184,7 @@ final class ChatDiscoverabilityTests: XCTestCase {
       guard let name = entry["name"] as? String,
         let adapters = entry["adapters"] as? [String: Any]
       else { continue }
-      for adapterId in ["pi-mono", "omi-tools-stdio"] {
+      for adapterId in ["pi-mono"] {
         guard let availability = adapters[adapterId] as? [String: Any],
           (availability["advertised"] as? Bool) == true
         else { continue }

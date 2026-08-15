@@ -219,7 +219,6 @@ struct DashboardPage: View {
   @ObservedObject var chatProvider: ChatProvider
   @ObservedObject var memoriesViewModel: MemoriesViewModel
   var taskChatCoordinator: TaskChatCoordinator? = nil
-  @ObservedObject private var deviceProvider = DeviceProvider.shared
   @ObservedObject private var homeSuggestionsStore = HomeSuggestionsStore.shared
   @ObservedObject private var focusStorage = FocusStorage.shared
   @StateObject private var intelligenceStore = DashboardIntelligenceStore()

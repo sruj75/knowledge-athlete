@@ -29,7 +29,6 @@ class ListenRequest:
     codec: str = 'pcm8'
     channels: int = 1
     include_speech_profile: bool = True
-    stt_service: Optional[str] = None
     conversation_timeout: int = 120
     source: Optional[str] = None
     custom_stt_mode: CustomSttMode = CustomSttMode.disabled
@@ -64,10 +63,10 @@ class ListenSessionState:
     remaining_seconds_cache_ts: float = 0.0
     remaining_seconds_cache_initialized: bool = False
     fair_use_last_check_ts: float = 0.0
-    fair_use_dg_budget_exhausted: bool = False
-    fair_use_track_dg_usage: bool = False
+    fair_use_managed_stt_budget_exhausted: bool = False
+    fair_use_track_managed_stt_usage: bool = False
     fair_use_plan: Optional[Any] = None
-    dg_usage_ms_pending: int = 0
+    managed_stt_usage_ms_pending: int = 0
     last_audio_received_time: Optional[float] = None
     last_activity_time: Optional[float] = None
 
@@ -75,14 +74,9 @@ class ListenSessionState:
 @dataclass(frozen=True)
 class ListenLimits:
     max_segment_buffer_size: int = 1000
-    max_photo_buffer_size: int = 100
     max_audio_buffer_size: int = 10 * 1024 * 1024
     max_pending_requests: int = 100
     max_pending_speaker_sample_requests: int = 50
-    max_image_chunks: int = 50
-    image_chunk_ttl: float = 60.0
-    image_chunk_cleanup_interval: float = 2.0
-    image_chunk_cleanup_min_size: int = 5
     ring_buffer_duration: float = 60.0
     speaker_id_min_audio: float = 2.0
     speaker_id_target_audio: float = 4.0

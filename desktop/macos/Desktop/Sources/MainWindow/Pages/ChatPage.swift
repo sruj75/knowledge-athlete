@@ -93,26 +93,6 @@ struct ChatPage: View {
       )
       .frame(minWidth: 500, minHeight: 500)
     }
-    .sheet(isPresented: $chatProvider.isClaudeAuthRequired) {
-      ClaudeAuthSheet(
-        onConnect: {
-          if let url = URL(string: "https://omi.me/pricing") {
-            NSWorkspace.shared.open(url)
-          }
-          chatProvider.isClaudeAuthRequired = false
-          Task {
-            await chatProvider.switchBridgeMode(to: ChatProvider.BridgeMode.piMono)
-          }
-        },
-        onCancel: {
-          chatProvider.isClaudeAuthRequired = false
-          // Switch back to Omi AI (pi-mono) if auth cancelled
-          Task {
-            await chatProvider.switchBridgeMode(to: ChatProvider.BridgeMode.piMono)
-          }
-        }
-      )
-    }
     .alert("Upgrade Required", isPresented: $chatProvider.showOmiThresholdAlert) {
       Button("Upgrade to Omi Pro") {
         chatProvider.showOmiThresholdAlert = false
@@ -282,7 +262,7 @@ struct ChatPage: View {
 
       // Advanced AI settings button
       Button(action: {
-        NotificationCenter.default.post(name: .navigateToAIChatSettings, object: nil)
+        NotificationCenter.default.post(name: .navigateToAdvancedAISettings, object: nil)
       }) {
         Image(systemName: "gear")
           .scaledFont(size: OmiType.body)

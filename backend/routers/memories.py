@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Literal, Optional, cast
 
 import database._client as db_client_module
-from utils.executors import db_executor, postprocess_executor, run_blocking, submit_with_context
+from utils.executors import db_executor, postprocess_executor, run_blocking
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Response
 from fastapi.responses import JSONResponse
@@ -36,7 +36,7 @@ from utils.memory.memory_api_contract import (
     memory_write_payload,
 )
 from utils.memory.memory_api_response import memory_batch_response, memory_item_response, memory_list_response
-from utils.memory.memory_system import MemorySystem, resolve_memory_system
+from utils.memory.memory_system import MemorySystem
 from utils.log_sanitizer import sanitize_pii
 from utils.other import endpoints as auth
 

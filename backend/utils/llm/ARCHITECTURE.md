@@ -37,7 +37,6 @@ The shared plumbing every feature call goes through.
   matching, discard detection, summarization).
 - `conversation_folder.py` — conversation → folder assignment.
 - `followup.py` — follow-up question generation.
-- `openglass.py` — vision (image description) model calls.
 
 ## Memory
 

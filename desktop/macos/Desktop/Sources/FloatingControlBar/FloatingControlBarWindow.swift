@@ -2645,10 +2645,6 @@ class FloatingControlBarManager {
   private var ownerChangeCancellable: AnyCancellable?
   private var pendingNotificationContext: PendingNotificationContext?
   private var activeQueryGeneration: Int = 0
-  private var selectedFloatingModel: String {
-    let selected = ShortcutSettings.shared.selectedModel
-    return selected.isEmpty ? ModelQoS.Claude.defaultSelection : selected
-  }
   private var pendingFollowUpQuery: PendingFollowUpQuery?
 
   /// Whether the user has enabled the Ask Omi bar (persisted across launches).
@@ -4452,7 +4448,6 @@ class FloatingControlBarManager {
         dispatch: {
           await provider.sendMessage(
             message,
-            model: selectedFloatingModel,
             systemPromptSuffix: notificationContextSuffix,
             systemPromptStyle: .floating,
             surfaceRef: provider.mainChatSurfaceReference(),
@@ -4472,7 +4467,6 @@ class FloatingControlBarManager {
     } else {
       providerResponse = await provider.sendMessage(
         message,
-        model: selectedFloatingModel,
         systemPromptSuffix: notificationContextSuffix,
         systemPromptStyle: .floating,
         surfaceRef: provider.mainChatSurfaceReference(),
@@ -4649,7 +4643,6 @@ class FloatingControlBarManager {
       dispatch: {
         await provider.sendMessage(
           message,
-          model: selectedFloatingModel,
           systemPromptSuffix: voiceNotchCardContext,
           systemPromptStyle: .floating,
           surfaceRef: provider.mainChatSurfaceReference(),

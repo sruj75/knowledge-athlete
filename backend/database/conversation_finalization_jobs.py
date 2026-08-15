@@ -213,17 +213,8 @@ def _no_finalization_intent(status: str) -> FinalizationIntent:
     }
 
 
-def _conversation_has_finalization_content(
-    uid: str, conversation: Mapping[str, Any], conversation_ref: Any, transaction: Any
-) -> bool:
-    """Read current and pre-marker photo content within the admission transaction."""
-    if conversations_db.raw_conversation_has_content(uid, dict(conversation)):
-        return True
-    # `has_content` was added after photo-only listen recordings already
-    # existed. Keep their durable child documents admissible until all legacy
-    # rows have naturally finalized, without moving the read outside this
-    # transaction's authoritative snapshot.
-    return next(iter(conversation_ref.collection('photos').limit(1).stream(transaction=transaction)), None) is not None
+def _conversation_has_finalization_content(uid: str, conversation: Mapping[str, Any]) -> bool:
+    return conversations_db.raw_conversation_has_content(uid, dict(conversation))
 
 
 def _create_or_get_finalization_intent_txn(
@@ -248,7 +239,7 @@ def _create_or_get_finalization_intent_txn(
     conversation = conversation_snapshot.to_dict() or {}
     if conversation.get('deferred'):
         return _no_finalization_intent('deferred')
-    if not _conversation_has_finalization_content(uid, conversation, conversation_ref, transaction):
+    if not _conversation_has_finalization_content(uid, conversation):
         return _no_finalization_intent('no_content')
 
     # The lifecycle service owns this pure decision, but it is evaluated while

@@ -856,7 +856,6 @@ final class ConversationRepositoryTests: XCTestCase {
       transcriptSegments: segments,
       transcriptSegmentsIncluded: transcript != nil,
       geolocation: nil,
-      photos: [],
       source: .desktop,
       language: "en",
       status: status,

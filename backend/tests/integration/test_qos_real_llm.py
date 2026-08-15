@@ -117,7 +117,6 @@ class TestPremiumNano:
     NANO_FEATURES = [
         'conv_folder',
         'conv_discard',
-        'smart_glasses',
         'daily_summary_simple',
         'memory_category',
     ]
@@ -130,21 +129,6 @@ class TestPremiumNano:
         response = llm.invoke(SIMPLE_PROMPT)
         assert response.content.strip(), f"{feature} ({model}) returned empty response"
         print(f"  {feature} ({model}): {response.content.strip()[:60]}")
-
-
-# ---------------------------------------------------------------------------
-# Premium profile — gpt-4.1-mini features (vision/openglass)
-# ---------------------------------------------------------------------------
-class TestPremiumVision:
-    """Test gpt-4.1-mini vision-capable features in premium profile."""
-
-    def test_openglass_feature_responds(self):
-        model = get_model('openglass')
-        assert model == 'gpt-4.1-mini', f"openglass should be gpt-4.1-mini, got {model}"
-        llm = get_llm('openglass')
-        response = llm.invoke(SIMPLE_PROMPT)
-        assert response.content.strip(), f"openglass ({model}) returned empty response"
-        print(f"  openglass ({model}): {response.content.strip()[:60]}")
 
 
 # ---------------------------------------------------------------------------

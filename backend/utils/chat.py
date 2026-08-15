@@ -137,15 +137,13 @@ def _transcribe_voice_message_url(
     detect_language: bool = True,
 ) -> Tuple[Optional[str], Optional[str]]:
     """Run the synchronous prerecorded-STT pipeline for one signed URL."""
-    provider, stt_language, stt_model = get_prerecorded_service(language)
+    provider, stt_language, _ = get_prerecorded_service(language)
     is_multi = stt_language == 'multi'
     try:
         if is_multi and detect_language:
-            words, detected_language = prerecorded(
-                url, diarize=False, language=stt_language, return_language=True, model=stt_model
-            )
+            words, detected_language = prerecorded(url, diarize=False, language=stt_language, return_language=True)
         else:
-            words = prerecorded(url, diarize=False, language=stt_language, return_language=False, model=stt_model)
+            words = prerecorded(url, diarize=False, language=stt_language, return_language=False)
             detected_language = stt_language
     except Exception as error:
         failure = failure_from_exception(error, provider=provider)
@@ -202,7 +200,7 @@ def transcribe_pcm_bytes(
     channels: int = 1,
     keywords: Optional[List[str]] = None,
 ) -> Tuple[Optional[str], Optional[str]]:
-    """Transcribe raw PCM audio bytes through the selected pre-recorded STT provider.
+    """Transcribe raw PCM audio bytes through managed pre-recorded STT.
 
     Skips GCS upload and WAV conversion for maximum speed.
     Used by desktop PTT batch mode.
@@ -210,7 +208,7 @@ def transcribe_pcm_bytes(
     if not language:
         language = resolve_voice_message_language(uid, None)
 
-    provider, stt_language, stt_model = get_prerecorded_service(language)
+    provider, stt_language, _ = get_prerecorded_service(language)
     is_multi = stt_language == 'multi'
 
     if encoding == 'linear16':
@@ -235,7 +233,6 @@ def transcribe_pcm_bytes(
                 encoding=encoding,
                 channels=channels,
                 language=stt_language,
-                model=stt_model,
                 return_language=True,
                 keywords=keywords,
             )
@@ -248,7 +245,6 @@ def transcribe_pcm_bytes(
                 encoding=encoding,
                 channels=channels,
                 language=stt_language,
-                model=stt_model,
                 keywords=keywords,
             )
             detected_language = stt_language

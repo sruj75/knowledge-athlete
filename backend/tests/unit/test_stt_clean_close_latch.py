@@ -1,6 +1,6 @@
 """Regression (#10028): a clean upstream close must latch the provider socket dead.
 
-When a Parakeet or Modulate live upstream WebSocket ends *cleanly* — the
+When the Modulate live upstream WebSocket ends *cleanly* — the
 ``async for`` over the socket exhausts without raising ``ConnectionClosed`` — the
 wrapper previously fell through with ``_dead`` still ``False``. ``live_stt_socket_is_dead``
 then read that stale ``False``, so the listen loop kept the mobile socket in a
@@ -14,7 +14,7 @@ finalization, not death, and must NOT latch dead.
 import asyncio
 import json
 
-from utils.stt.streaming import ParakeetWebSocketSocket, SafeModulateSocket
+from utils.stt.streaming import SafeModulateSocket
 
 
 class _FakeUpstreamWS:
@@ -68,36 +68,4 @@ def test_modulate_clean_upstream_close_latches_dead():
 
 def test_modulate_done_frame_is_not_death():
     sock = _run_modulate_recv([json.dumps({'type': 'done', 'duration_ms': 100})])
-    assert sock.is_connection_dead is False
-
-
-# --------------------------------------------------------------------------
-# Parakeet
-# --------------------------------------------------------------------------
-
-
-def _run_parakeet_recv(messages, *, closed=False):
-    loop = asyncio.new_event_loop()
-
-    async def run():
-        sock = ParakeetWebSocketSocket(lambda _segments: None, ws_url='ws://unused', sample_rate=16000)
-        if closed:
-            sock._closed = True
-        await asyncio.wait_for(sock._receive_loop(_FakeUpstreamWS(messages)), timeout=2)
-        return sock
-
-    try:
-        return loop.run_until_complete(run())
-    finally:
-        loop.close()
-
-
-def test_parakeet_clean_upstream_close_latches_dead():
-    sock = _run_parakeet_recv([])  # provider closes cleanly mid-stream
-    assert sock.is_connection_dead is True
-
-
-def test_parakeet_local_drain_close_is_not_death():
-    # A local drain/finalization sets _closed before the loop ends; not a failure.
-    sock = _run_parakeet_recv([], closed=True)
     assert sock.is_connection_dead is False

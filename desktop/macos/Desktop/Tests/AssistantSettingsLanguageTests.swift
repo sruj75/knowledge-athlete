@@ -19,7 +19,7 @@ final class AssistantSettingsLanguageTests: XCTestCase {
     super.tearDown()
   }
 
-  func testNormalizesChineseAliasesToDeepgramCode() {
+  func testNormalizesChineseAliasesToManagedSTTCode() {
     XCTAssertEqual(AssistantSettings.normalizeTranscriptionLanguageCode("chinese"), "zh-CN")
     XCTAssertEqual(AssistantSettings.normalizeTranscriptionLanguageCode("zh"), "zh-CN")
     XCTAssertEqual(AssistantSettings.normalizeTranscriptionLanguageCode("zh_Hans"), "zh-CN")

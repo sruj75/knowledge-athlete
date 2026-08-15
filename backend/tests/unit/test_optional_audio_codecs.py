@@ -107,7 +107,6 @@ def _install_sync_import_stubs(monkeypatch):
         "database.user_usage",
         "database.conversations",
         "database.cache",
-        "database.sync_jobs",
         "firebase_admin",
         "firebase_admin.messaging",
         "models.conversation",

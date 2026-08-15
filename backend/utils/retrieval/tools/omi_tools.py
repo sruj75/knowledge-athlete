@@ -50,12 +50,10 @@ def get_omi_product_info_tool(query: str) -> str:
 
     Use this tool when the user asks about:
     - How Omi/Friend works
-    - What features the app/device has
+    - What features the app has
     - How to set up or use Omi
-    - Where to buy the device or pricing information
-    - Technical specifications (battery life, connectivity, etc.)
+    - Plans and pricing information
     - App capabilities and functionality
-    - Firmware updates or device management
     - Troubleshooting product issues
 
     DO NOT use this tool for:
@@ -65,14 +63,14 @@ def get_omi_product_info_tool(query: str) -> str:
     - Personal data queries
 
     Args:
-        query: The specific question about Omi/Friend product (e.g., "How does the device connect to my phone?", "What is the battery life?")
+        query: The specific question about Omi/Friend (e.g., "How does conversation capture work?", "Which plans are available?")
 
     Returns:
         Product documentation content from GitHub that can help answer the question
 
     Example:
-        query="How do I update the firmware on my Omi device?"
-        Returns documentation about firmware updates and device management
+        query="How do I start a conversation recording?"
+        Returns documentation about app setup and conversation capture
     """
     # Fetch the product docs. A network or GitHub API failure must not break the chat turn, so fail
     # soft with an "Error: ..." string like the other retrieval tools instead of letting the

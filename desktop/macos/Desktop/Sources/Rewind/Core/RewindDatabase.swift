@@ -1549,7 +1549,6 @@ actor RewindDatabase {
       // Add additional conversation data columns
       try db.alter(table: "transcription_sessions") { t in
         t.add(column: "geolocationJson", .text)
-        t.add(column: "photosJson", .text)
         t.add(column: "appsResultsJson", .text)
       }
 

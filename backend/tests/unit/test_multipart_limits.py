@@ -25,10 +25,6 @@ EXPECTED_ROUTE_LIMITS = {
     'routers/speech_profile.py': {
         ('POST', '/v3/upload-audio'): 'SPEECH_PROFILE_MAX_PART_SIZE',
     },
-    'routers/sync.py': {
-        ('POST', '/v1/sync-local-files'): 'SYNC_AUDIO_MAX_PART_SIZE',
-        ('POST', '/v2/sync-local-files'): 'SYNC_AUDIO_MAX_PART_SIZE',
-    },
 }
 
 

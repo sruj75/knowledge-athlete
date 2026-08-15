@@ -8,8 +8,6 @@ from pydantic import ValidationError
 from models.conversation import SetConversationActionItemsStateRequest, SetConversationEventsStateRequest
 from utils.request_validation import (
     HistoryDays,
-    ImageChunkEnvelope,
-    MAX_IMAGE_CHUNK_TOTAL,
     NonNegativeOffset,
     PositiveLimit,
     parse_sync_filename_timestamp,
@@ -59,35 +57,6 @@ def test_parse_sync_filename_timestamp_rejects_future_values():
 
     with pytest.raises(ValueError):
         parse_sync_filename_timestamp(f'audio_{future}.bin')
-
-
-@pytest.mark.parametrize(
-    'payload',
-    [
-        {'id': 'img', 'index': -1, 'total': 2, 'data': 'a'},
-        {'id': 'img', 'index': 2, 'total': 2, 'data': 'a'},
-        {'id': 'img', 'index': 0, 'total': 0, 'data': 'a'},
-        {'id': '', 'index': 0, 'total': 1, 'data': 'a'},
-        {'id': 'img', 'index': 0, 'total': 1, 'data': ''},
-    ],
-)
-def test_image_chunk_envelope_rejects_invalid_boundaries(payload):
-    with pytest.raises(ValidationError):
-        ImageChunkEnvelope.model_validate(payload)
-
-
-def test_image_chunk_envelope_rejects_inconsistent_cached_total():
-    chunk = ImageChunkEnvelope(id='img', index=1, total=2, data='b')
-
-    with pytest.raises(ValueError):
-        chunk.validate_against_cached_total(3)
-
-
-def test_image_chunk_envelope_allows_mobile_photo_chunk_counts_above_legacy_cap():
-    chunk = ImageChunkEnvelope(id='img', index=300, total=512, data='b')
-
-    assert chunk.total == 512
-    assert MAX_IMAGE_CHUNK_TOTAL >= 512
 
 
 def test_parallel_action_item_arrays_must_have_matching_lengths():

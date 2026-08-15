@@ -667,7 +667,7 @@ final class FloatingControlBarStateTests: XCTestCase {
     let coordinator = VoiceTurnCoordinator()
     coordinator.configure(barState: state)
     let turnID = coordinator.begin(intent: .hold)
-    coordinator.publish(.selectRoute(turnID: turnID, route: .deepgramBatch))
+    coordinator.publish(.selectRoute(turnID: turnID, route: .managedBatch))
     coordinator.publish(.finalize(turnID: turnID))
     coordinator.publish(.transcriptionFinal(turnID: turnID, text: "fixture"))
     let identity = coordinator.activeTurn!.providerEffectIdentity!

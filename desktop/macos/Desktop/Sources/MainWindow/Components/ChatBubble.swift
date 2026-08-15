@@ -264,14 +264,11 @@ struct ChatBubble: View {
       return AnyView(EmptyView())
     case .discoveryCard(_, let title, let summary, let fullText):
       return AnyView(DiscoveryCard(title: title, summary: summary, fullText: fullText))
-    case .agentSpawn(
-      _, let pillId, let sessionId, let runId, let title, let objective, let provider
-    ):
+    case .agentSpawn(_, let pillId, let sessionId, let runId, let title, let objective):
       return AnyView(
         AgentSpawnCard(
           title: title,
           objective: objective,
-          provider: provider,
           ref: AgentTimelineRef(pillId: pillId, sessionId: sessionId, runId: runId),
           onOpen: agentOpenClosure
         )
@@ -618,7 +615,6 @@ private struct BackgroundAgentSummaryCard: View {
 struct AgentSpawnCard: View {
   let title: String
   let objective: String
-  let provider: AgentHarnessMode?
   let ref: AgentTimelineRef
   var onOpen: ((AgentTimelineRef, @escaping (Bool) -> Void) -> Void)? = nil
 
@@ -636,17 +632,9 @@ struct AgentSpawnCard: View {
     VStack(alignment: .leading, spacing: 0) {
       HStack(spacing: OmiSpacing.xxs) {
         HStack(spacing: OmiSpacing.sm) {
-          if provider.rendersProviderMark {
-            AgentProviderLogoMark(
-              provider: provider,
-              statusColor: OmiColors.textSecondary,
-              size: 14
-            )
-          } else {
-            Image(systemName: "arrow.triangle.branch")
-              .scaledFont(size: OmiType.caption)
-              .foregroundColor(OmiColors.textSecondary)
-          }
+          Image(systemName: "arrow.triangle.branch")
+            .scaledFont(size: OmiType.caption)
+            .foregroundColor(OmiColors.textSecondary)
           Text(title.isEmpty ? "Background agent" : title)
             .scaledFont(size: OmiType.caption, weight: .semibold)
             .foregroundColor(OmiColors.textSecondary)
@@ -885,8 +873,7 @@ enum ContentBlockGroup: Identifiable {
     sessionId: String,
     runId: String,
     title: String,
-    objective: String,
-    provider: AgentHarnessMode?
+    objective: String
   )
   case agentCompletion(
     id: String,
@@ -905,7 +892,7 @@ enum ContentBlockGroup: Identifiable {
     case .toolCalls(let id, _): return id
     case .thinking(let id, _): return id
     case .discoveryCard(let id, _, _, _): return id
-    case .agentSpawn(let id, _, _, _, _, _, _): return id
+    case .agentSpawn(let id, _, _, _, _, _): return id
     case .agentCompletion(let id, _, _, _, _, _, _, _): return id
     }
   }
@@ -935,9 +922,7 @@ enum ContentBlockGroup: Identifiable {
       case .discoveryCard(let id, let title, let summary, let fullText):
         flushToolCalls()
         groups.append(.discoveryCard(id: id, title: title, summary: summary, fullText: fullText))
-      case .agentSpawn(
-        let id, let pillId, let sessionId, let runId, let title, let objective, let provider
-      ):
+      case .agentSpawn(let id, let pillId, let sessionId, let runId, let title, let objective):
         flushToolCalls()
         groups.append(
           .agentSpawn(
@@ -946,8 +931,7 @@ enum ContentBlockGroup: Identifiable {
             sessionId: sessionId,
             runId: runId,
             title: title,
-            objective: objective,
-            provider: provider
+            objective: objective
           )
         )
       case .agentCompletion(
@@ -984,7 +968,7 @@ enum ContentBlockGroup: Identifiable {
         let pillId: UUID?
         let runId: String?
         switch block {
-        case .agentSpawn(_, let blockPillId, _, let blockRunId, _, _, _):
+        case .agentSpawn(_, let blockPillId, _, let blockRunId, _, _):
           pillId = blockPillId
           runId = blockRunId
         case .agentCompletion(_, let blockPillId, _, let blockRunId, _, _, _, _):
@@ -1492,7 +1476,7 @@ extension ChatContentBlock {
   }
 
   var spawnedAgentID: UUID? {
-    if case .agentSpawn(_, let pillId, _, _, _, _, _) = self {
+    if case .agentSpawn(_, let pillId, _, _, _, _) = self {
       return pillId
     }
     if case .agentCompletion(_, let pillId, _, _, _, _, _, _) = self {
@@ -1509,7 +1493,7 @@ extension ChatContentBlock {
   }
 
   var spawnedAgentSessionID: String? {
-    if case .agentSpawn(_, _, let sessionId, _, _, _, _) = self {
+    if case .agentSpawn(_, _, let sessionId, _, _, _) = self {
       return sessionId
     }
     if case .agentCompletion(_, _, let sessionId, _, _, _, _, _) = self {
@@ -1525,7 +1509,7 @@ extension ChatContentBlock {
   }
 
   var spawnedAgentRunID: String? {
-    if case .agentSpawn(_, _, _, let runId, _, _, _) = self {
+    if case .agentSpawn(_, _, _, let runId, _, _) = self {
       return runId
     }
     if case .agentCompletion(_, _, _, let runId, _, _, _, _) = self {
@@ -1548,18 +1532,6 @@ extension ChatContentBlock {
     else { return nil }
     return Self.canonicalSpawnReceipt(in: output)?.title
       ?? Self.labeledValue(in: output, keys: ["title"])
-  }
-
-  var spawnedAgentProvider: String? {
-    if case .agentSpawn(_, _, _, _, _, _, let provider) = self {
-      return provider?.rawValue
-    }
-    guard case .toolCall(_, let name, let status, _, _, let output) = self,
-      Self.cleanToolName(name) == "spawn_agent",
-      !status.isInFlight,
-      let output
-    else { return nil }
-    return Self.canonicalSpawnReceipt(in: output)?.provider
   }
 
   /// Parse a labeled `key: value` line from a spawn_agent tool block's output.
@@ -1586,7 +1558,7 @@ extension ChatContentBlock {
   /// control tool. The labeled-line parser below remains decode-only rollback
   /// compatibility for responses written by the previous desktop release.
   private static func canonicalSpawnReceipt(in output: String) -> (
-    pillId: UUID?, sessionId: String?, runId: String?, title: String?, provider: String?
+    pillId: UUID?, sessionId: String?, runId: String?, title: String?
   )? {
     guard let data = output.data(using: .utf8),
       let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -1612,21 +1584,11 @@ extension ChatContentBlock {
       string(session?["externalRefId"])
       ?? string(metadata?["pillId"])
       ?? string(root["pillId"])
-    let defaultAdapterId = string(session?["defaultAdapterId"])
-    let authoritativeProvider =
-      ["hermes", "openclaw"].contains(defaultAdapterId ?? "")
-      ? defaultAdapterId
-      : nil
-    let legacyProvider = string(metadata?["provider"])
-    let provider =
-      authoritativeProvider
-      ?? (["hermes", "openclaw"].contains(legacyProvider ?? "") ? legacyProvider : nil)
     return (
       pillId: pillRaw.flatMap(UUID.init(uuidString:)),
       sessionId: string(session?["sessionId"]),
       runId: string(run?["runId"]),
-      title: string(session?["title"]),
-      provider: provider
+      title: string(session?["title"])
     )
   }
 

@@ -112,14 +112,14 @@ export function validateRuntimeContractFixture(
   const taxonomy = Array.isArray(value.failureTaxonomy) ? value.failureTaxonomy : [];
   const expectedTaxonomy = [
     "authentication", "quota_exceeded", "invalid_request", "timeout", "transport_interruption", "adapter_unavailable",
-    "adapter_incompatible", "bridge_start_failed", "provider_setup_needed", "malformed_or_oversized_tool_result",
+    "adapter_incompatible", "bridge_start_failed", "malformed_or_oversized_tool_result",
     "cancelled", "stale_owner", "policy_denied", "unknown",
   ];
   if (taxonomy.join("|") !== expectedTaxonomy.join("|")) {
     errors.push("$.failureTaxonomy: must declare the complete bounded production taxonomy");
   }
   const adapters = Array.isArray(value.adapterConformance) ? value.adapterConformance : [];
-  const expectedAdapters = ["pi-mono", "acp", "hermes", "openclaw", "gemini-realtime", "openai-realtime"];
+  const expectedAdapters = ["pi-mono", "gemini-realtime", "openai-realtime"];
   if (adapters.map((adapter) => isRecord(adapter) ? adapter.adapterId : undefined).join("|") !== expectedAdapters.join("|")) {
     errors.push("$.adapterConformance: must cover every production adapter exactly once");
   }

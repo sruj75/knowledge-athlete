@@ -20,9 +20,7 @@ def test_listen_lifecycle_emulator_harness_exercises_real_content_and_cleanup_pr
     assert 'FIRESTORE_EMULATOR_HOST' in harness
     assert 'ENCRYPTION_SECRET' in harness
     assert 'update_conversation_segments' in harness
-    assert 'store_conversation_photos' in harness
     assert 'tombstone_and_delete_empty_conversation' in harness
-    assert 'request_finalization' in harness
     assert 'retry_fenced_live_content_once' in harness
     assert 'Cleanup-first ordering must move late buffered content to a fresh generation' in harness
     assert 'late content write did not block behind the cleanup parent lock' in harness

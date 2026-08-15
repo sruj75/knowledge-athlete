@@ -141,7 +141,7 @@ class TaskChatState: ObservableObject {
   let workspacePath: String
   var onQueryCompleted: ((AgentBridge.QueryResult, String) async -> Void)?
 
-  /// Auth callbacks for ACP mode
+  /// Managed-runtime auth callbacks
   var onAuthRequired: AgentBridge.AuthRequiredHandler?
   var onAuthSuccess: AgentBridge.AuthSuccessHandler?
 

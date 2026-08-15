@@ -12,7 +12,6 @@ from models.conversation_enums import (
     PostProcessingModel,
     PostProcessingStatus,
 )
-from models.conversation_photo import ConversationPhoto
 from models.geolocation import Geolocation
 from models.other import Person
 from models.structured import Structured
@@ -102,7 +101,6 @@ class Conversation(BaseModel):
     transcript_segments: List[TranscriptSegment] = []
     transcript_segments_compressed: Optional[bool] = False
     geolocation: Optional[Geolocation] = None
-    photos: List[ConversationPhoto] = []
     audio_files: List[AudioFile] = []
     conversation_audio: Optional[ConversationAudio] = None
     private_cloud_sync_enabled: bool = False
@@ -139,9 +137,6 @@ class Conversation(BaseModel):
             self.transcript_segments, include_timestamps=include_timestamps, user_name=user_name, people=people
         )
 
-    def get_photos_descriptions(self, include_timestamps: bool = False) -> str:
-        return ConversationPhoto.photos_as_string(self.photos, include_timestamps=include_timestamps)
-
     def get_person_ids(self) -> List[str]:
         if not self.transcript_segments:
             return []
@@ -177,8 +172,6 @@ class CreateConversation(BaseModel):
     finished_at: datetime
     transcript_segments: List[TranscriptSegment]
     geolocation: Optional[Geolocation] = None
-
-    photos: List[ConversationPhoto] = []
 
     source: ConversationSource = ConversationSource.omi
     language: Optional[str] = None

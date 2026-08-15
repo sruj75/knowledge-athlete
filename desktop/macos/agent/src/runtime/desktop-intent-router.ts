@@ -21,21 +21,19 @@ export type DesktopIntentReasonCode =
   | "continuation_target_unavailable"
   | "parent_run_unavailable"
   | "caller_role_forbidden"
-  | "provider_unavailable"
   | "agent_count_unsupported"
   | "surface_requested_clarification";
 
 /**
  * These are syntax facts, not authorization or semantic-routing outcomes.
  * Surfaces may extract them mechanically from structured UI state or explicit
- * user syntax. The kernel re-resolves every referenced identity and provider.
+ * user syntax. The kernel re-resolves every referenced identity.
  */
 export interface DesktopIntentSyntaxFacts {
   delegationNegated?: boolean;
   explicitSessionId?: string | null;
   explicitRunId?: string | null;
   parentRunId?: string | null;
-  explicitProvider?: string | null;
   requestedAgentCount?: number | null;
 }
 
@@ -80,7 +78,6 @@ export interface DesktopIntentTarget {
 export interface DesktopIntentRouteAuthority {
   ownerId: string;
   callerExecutionRole: AgentExecutionRole;
-  availableAdapterIds: readonly string[];
   continuationTarget?: DesktopIntentTarget | null;
   parentRunAvailable?: boolean;
   nowMs: number;
@@ -103,7 +100,6 @@ export interface DesktopIntentAnswerInlineRoute extends DesktopIntentRouteBase {
 
 export interface DesktopIntentSpawnAgentRoute extends DesktopIntentRouteBase {
   intent: "spawn_agent";
-  requestedProvider: string | null;
   requestedAgentCount: number;
   parentRunId: string | null;
 }
@@ -123,7 +119,6 @@ export interface DesktopIntentRejectRoute extends DesktopIntentRouteBase {
   intent: "reject";
   code:
     | "caller_role_forbidden"
-    | "provider_unavailable"
     | "continuation_target_unavailable"
     | "parent_run_unavailable"
     | "agent_count_unsupported";
@@ -342,17 +337,6 @@ function decideDesktopIntent(
     };
   }
 
-  const requestedProvider = normalizedOptionalId(syntax.explicitProvider);
-  if (requestedProvider && !authority.availableAdapterIds.includes(requestedProvider)) {
-    return {
-      ...base,
-      intent: "reject",
-      reasonCode: "provider_unavailable",
-      code: "provider_unavailable",
-      explanation: "The explicitly requested provider is not registered in this runtime.",
-    };
-  }
-
   if (proposal.intent === "continue_run") {
     const requestedSessionId = normalizedOptionalId(syntax.explicitSessionId);
     const requestedRunId = normalizedOptionalId(syntax.explicitRunId);
@@ -414,8 +398,7 @@ function decideDesktopIntent(
     ...base,
     intent: "spawn_agent",
     reasonCode: "spawn_proposal",
-    explanation: "The spawn proposal passed kernel role, provider, and parent-run checks.",
-    requestedProvider,
+    explanation: "The spawn proposal passed kernel role and parent-run checks.",
     requestedAgentCount,
     parentRunId,
   };

@@ -47,7 +47,7 @@ This README provides a quick setup guide for the Omi backend. For a comprehensiv
 
 11. Add the necessary API keys in the `.env` file:
     - [OpenAI API Key](https://platform.openai.com/settings/organization/api-keys)
-    - [Deepgram API Key](https://console.deepgram.com/api-keys)
+    - Modulate API key for managed transcription
     - Redis credentials from your [Upstash Console](https://console.upstash.com/)
     - Set `ADMIN_KEY` to a temporary value (e.g., `123`) for local development
     - **IMPORTANT:** For Pinecone vector database:

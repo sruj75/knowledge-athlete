@@ -26,7 +26,7 @@ def _snap(doc):
 
 
 def test_transcripts_tolerate_segment_missing_start(monkeypatch):
-    # deepgram has a good doc plus a legacy doc missing 'start'; the sort must not KeyError.
+    # Historical Deepgram data has a good doc plus a legacy doc missing 'start'; the sort must not KeyError.
     docs = [_snap({'start': 2.0, 'text': 'b'}), _snap({'text': 'no-start'}), _snap({'start': 1.0, 'text': 'a'})]
     fake_db = MagicMock()
     fake_db.collection.return_value = fake_db
@@ -38,7 +38,7 @@ def test_transcripts_tolerate_segment_missing_start(monkeypatch):
 
     # Missing 'start' sorts as 0 (first); before the fix x['start'] raised KeyError here.
     assert result['deepgram'] == [{'text': 'no-start'}, {'start': 1.0, 'text': 'a'}, {'start': 2.0, 'text': 'b'}]
-    # All four provider collections use the same fake stream, so each is sorted the same way.
+    # All four persisted provider collections use the same fake stream, so each is sorted the same way.
     assert result['soniox'] == result['deepgram']
     assert result['speechmatics'] == result['deepgram']
     assert result['whisperx'] == result['deepgram']

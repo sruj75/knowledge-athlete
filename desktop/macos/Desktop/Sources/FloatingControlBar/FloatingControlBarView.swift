@@ -1157,19 +1157,13 @@ struct FloatingControlBarView: View {
         // informational — spawning an agent there made no sense.
         if notification.assistantId == "task" {
           Button {
-            let model =
-              ShortcutSettings.shared.selectedModel.isEmpty
-              ? ModelQoS.Claude.defaultSelection
-              : ShortcutSettings.shared.selectedModel
             let query = ProactiveTaskExecute.buildQuery(
               title: notification.title,
               message: notification.message
             )
             _ = AgentPillsManager.shared.spawn(
               query: query,
-              model: model,
-              originSurface: .floatingBar,
-              systemPromptSuffix: ProactiveTaskExecute.systemPromptSuffix
+              originSurface: .floatingBar
             )
             FloatingControlBarManager.shared.dismissCurrentNotification()
           } label: {
@@ -1297,23 +1291,14 @@ struct FloatingControlBarView: View {
   @ViewBuilder
   private func pillRowIdentityMark(_ pill: AgentPill) -> some View {
     let group = NotchAgentStatusGroup(status: pill.status)
-    if pill.providerIdentity.rendersProviderMark {
-      AgentProviderLogoMark(
-        provider: pill.providerIdentity,
-        statusColor: group.color,
-        size: NotchAgentStackMetrics.listOrbSize + 5
+    Circle()
+      .fill(group.color)
+      .frame(width: NotchAgentStackMetrics.listOrbSize, height: NotchAgentStackMetrics.listOrbSize)
+      .overlay(
+        Circle()
+          .strokeBorder(Color.white.opacity(0.42), lineWidth: 0.8)
       )
-      .shadow(color: group.color.opacity(0.55), radius: 5)
-    } else {
-      Circle()
-        .fill(group.color)
-        .frame(width: NotchAgentStackMetrics.listOrbSize, height: NotchAgentStackMetrics.listOrbSize)
-        .overlay(
-          Circle()
-            .strokeBorder(Color.white.opacity(0.42), lineWidth: 0.8)
-        )
-        .shadow(color: group.color.opacity(0.6), radius: 5)
-    }
+      .shadow(color: group.color.opacity(0.6), radius: 5)
   }
 
   /// Minimal thin bar shown when not hovering. The fill is the primary
@@ -2048,13 +2033,10 @@ private struct AgentMainChatView: View {
           case .discoveryCard(_, let title, let summary, let fullText):
             DiscoveryCard(title: title, summary: summary, fullText: fullText)
               .frame(maxWidth: .infinity, alignment: .leading)
-          case .agentSpawn(
-            _, let pillId, let sessionId, let runId, let title, let objective, let provider
-          ):
+          case .agentSpawn(_, let pillId, let sessionId, let runId, let title, let objective):
             AgentSpawnCard(
               title: title,
               objective: objective,
-              provider: provider,
               ref: AgentTimelineRef(pillId: pillId, sessionId: sessionId, runId: runId),
               onOpen: nil
             )
@@ -2378,7 +2360,6 @@ private struct NotchAgentMorphField: View {
           .help(pill.title)
 
           notchAgentIdentityMark(
-            provider: pill.providerIdentity,
             color: group.color,
             isActive: pill.id == activePillID,
             progress: 1
@@ -2408,24 +2389,15 @@ private struct NotchAgentMorphField: View {
 
   @ViewBuilder
   private func notchAgentIdentityMark(
-    provider: AgentHarnessMode?,
     color: Color,
     isActive: Bool,
     progress: CGFloat
   ) -> some View {
-    if provider.rendersProviderMark {
-      let scale = NotchAgentStackMetrics.logoDotScale + (1 - NotchAgentStackMetrics.logoDotScale) * progress
-      AgentProviderLogoMark(provider: provider, statusColor: color, size: NotchAgentStackMetrics.listOrbSize + 5)
-        .shadow(color: color.opacity(0.55), radius: isActive ? 9 : 5)
-        .scaleEffect(scale)
-        .frame(width: 18, height: 22)
-    } else {
-      NotchMorphDot(
-        color: color,
-        isActive: isActive,
-        progress: progress
-      )
-    }
+    NotchMorphDot(
+      color: color,
+      isActive: isActive,
+      progress: progress
+    )
   }
 }
 

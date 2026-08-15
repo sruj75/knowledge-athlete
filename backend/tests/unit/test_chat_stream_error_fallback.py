@@ -77,13 +77,12 @@ def _make_client():
     vad.vad_is_empty_strict = MagicMock(return_value=False)
 
     pre_recorded = _install('utils.stt.pre_recorded')
-    pre_recorded.get_deepgram_model_for_language = MagicMock(return_value=('en', 'nova-2'))
     pre_recorded.postprocess_words = MagicMock(return_value=[SimpleNamespace(text='hello')])
     # Non-empty: utils.chat now treats an empty transcript after detected
     # speech as a TranscriptionFailure instead of continuing silently.
     pre_recorded.prerecorded = MagicMock(return_value=[{'word': 'hello'}])
     pre_recorded.prerecorded_from_bytes = MagicMock(return_value=[{'word': 'hello'}])
-    pre_recorded.get_prerecorded_service = MagicMock(return_value=('parakeet', 'en', 'parakeet'))
+    pre_recorded.get_prerecorded_service = MagicMock(return_value=('modulate', 'en', 'modulate-velma-2'))
     pre_recorded.PrerecordedSTTConfigurationError = type('PrerecordedSTTConfigurationError', (Exception,), {})
 
     common.usage_tracker.track_usage = MagicMock()

@@ -1,10 +1,8 @@
 {
   "files": {
-    "backend/routers/sync.py": 2058,
     "backend/routers/users.py": 1902
   },
   "raise_justifications": {
-    "backend/routers/sync.py": "Fresh Sync's daily ceiling remains beside the existing fresh-admission gates, before staged audio or durable worker work is created. Lifecycle-fenced workers are terminalized at this Cloud Tasks boundary so released WAL clients do not retry an owner they no longer own; +2 for the queued-dispatch-lost stale finalization path (#10033).",
     "backend/routers/users.py": "Account-deletion outcome telemetry at the users router boundary for PostHog ownership repair."
   },
   "threshold": 1500

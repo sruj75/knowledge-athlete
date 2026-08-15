@@ -302,7 +302,7 @@ class TestSpeakerIdE2EPodcast:
     Sequence (matches issue #5623 flow chart):
     ┌─────────────────────────────────────────────────────────────────┐
     │ SESSION 1: Label + Extract                                      │
-    │  Client ──WS──► Backend ──audio──► Deepgram ──transcripts──►    │
+    │  Client ──WS──► Backend ──audio──► Modulate ──transcripts──►    │
     │  Client ◄──────────────────────────────────────── transcripts    │
     │  Client ──speaker_assigned──► Backend ──opcode105──► Pusher     │
     │  ... 120s min age ...                                           │

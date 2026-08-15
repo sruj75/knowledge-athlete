@@ -31,9 +31,6 @@ environments:
           OMI_ENV_STAGE:
             value: dev
             category: runtime_identity
-          STT_PRERECORDED_MODEL:
-            value: parakeet,modulate-velma-2
-            category: stt_policy
           GOOGLE_CLIENT_ID:
             config_map:
               name: dev-omi-backend-config
@@ -42,9 +39,6 @@ environments:
             config_map:
               name: dev-omi-backend-config
               key: REDIS_DB_HOST
-          STT_SERVICE_MODELS:
-            value: modulate-velma-2,parakeet
-            category: stt_policy
           TYPESENSE_HOST:
             config_map:
               name: dev-omi-backend-config
@@ -65,9 +59,6 @@ environments:
             secret:
               name: dev-omi-backend-secrets
               key: MODULATE_API_KEY
-          HOSTED_PARAKEET_API_URL:
-            value: http://parakeet.omiapi.com
-            category: service_discovery
           HOSTED_TRANSLATION_API_URL:
             value: http://nllb.omiapi.com
             category: service_discovery
@@ -118,15 +109,6 @@ environments:
           LISTEN_FINALIZATION_ORPHAN_STALE_SECONDS:
             value: '900'
             category: reliability
-      parakeet:
-        values_file: backend/charts/parakeet/dev_omi_parakeet_values.yaml
-        env:
-          PARAKEET_STREAM_CAPACITY:
-            value: '25'
-            category: reliability
-          PARAKEET_STREAM_ALLOCATION_PERCENT:
-            value: '100'
-            category: rollout
       # Direct pusher bindings are kept here as the dev source contract. The
       # deploy preflight compares this inventory to the rendered chart and
       # queries only live object/key metadata before a Helm upgrade.
@@ -175,15 +157,6 @@ environments:
               name: dev-omi-backend-config
               key: GOOGLE_CLIENT_ID
             clear_historical_secret: true
-          HOSTED_PARAKEET_API_URL:
-            value: http://parakeet.omiapi.com
-            category: service_discovery
-          STT_PRERECORDED_MODEL:
-            value: parakeet,modulate-velma-2
-            category: stt_policy
-          STT_SERVICE_MODELS:
-            value: modulate-velma-2,parakeet
-            category: stt_policy
           GOOGLE_CLOUD_PROJECT:
             value: based-hardware-dev
             category: runtime
@@ -243,10 +216,6 @@ environments:
       services:
         backend:
           env:
-            SYNC_LEDGER_FENCE_MODE:
-              env_var: SYNC_LEDGER_FENCE_MODE
-              default: legacy
-              category: rollout
             DESKTOP_UPDATE_POINTERS_MODE:
               value: primary
               category: rollout
@@ -283,14 +252,6 @@ environments:
             GOOGLE_CLIENT_ID:
               env_var: GOOGLE_CLIENT_ID
               category: oauth_metadata
-            STT_PRERECORDED_MODEL:
-              value: parakeet,modulate-velma-2
-              category: stt_policy
-            # Dev Cloud Run must stay within the dev Parakeet topology; never point this at
-            # the production-only parakeet.omi.me endpoint.
-            HOSTED_PARAKEET_API_URL:
-              value: http://parakeet.omiapi.com
-              category: service_discovery
             # Direct dev Cloud Run /v4/listen traffic remains public while the
             # retired Cloud Run Pusher route drains. It must use the GKE Pusher.
             HOSTED_PUSHER_API_URL:
@@ -370,30 +331,6 @@ environments:
               version: latest
         backend-sync: &dev_backend_sync
           env:
-            SYNC_LEDGER_FENCE_MODE:
-              env_var: SYNC_LEDGER_FENCE_MODE
-              default: legacy
-              category: rollout
-            SYNC_FRESH_MAX_AGE_SECONDS:
-              value: '21600'
-              category: rollout
-              provisional: true
-            SYNC_BACKFILL_MAX_AGE_SECONDS:
-              value: '2592000'
-              category: rollout
-              provisional: true
-            SYNC_CAPTURE_MAX_FUTURE_SKEW_SECONDS:
-              value: '300'
-              category: rollout
-              provisional: true
-            SYNC_BACKFILL_USER_DAILY_HOURS:
-              value: '4'
-              category: rollout
-              provisional: true
-            SYNC_BACKFILL_GLOBAL_DAILY_HOURS:
-              value: '555'
-              category: rollout
-              provisional: true
             GOOGLE_CLOUD_PROJECT:
               value: based-hardware
             GCP_LOCATION:
@@ -421,12 +358,6 @@ environments:
             GOOGLE_CLIENT_ID:
               env_var: GOOGLE_CLIENT_ID
               category: oauth_metadata
-            STT_PRERECORDED_MODEL:
-              value: parakeet,modulate-velma-2
-              category: stt_policy
-            HOSTED_PARAKEET_API_URL:
-              value: http://parakeet.omiapi.com
-              category: service_discovery
             OMI_LLM_GATEWAY_URL:
               env_var: OMI_LLM_GATEWAY_URL
               default: http://127.0.0.1:9
@@ -474,10 +405,6 @@ environments:
             MEMORY_TYPESENSE_COLLECTION:
               value: canonical_memory_atoms
               category: memory_rollout
-            SYNC_BACKFILL_ENABLED:
-              value: 'true'
-              category: rollout
-              provisional: true
             LISTEN_FINALIZATION_ORPHAN_STALE_SECONDS:
               value: '900'
               category: reliability
@@ -502,9 +429,6 @@ environments:
             MODULATE_API_KEY:
               secret: MODULATE_API_KEY
               version: latest
-        backend-sync-backfill:
-          <<: *dev_backend_sync
-          provisional: true
       jobs:
         notifications-job:
           env:
@@ -635,9 +559,6 @@ environments:
           OMI_ENV_STAGE:
             value: prod
             category: runtime_identity
-          STT_PRERECORDED_MODEL:
-            value: parakeet,modulate-velma-2
-            category: stt_policy
           GOOGLE_CLIENT_ID:
             config_map:
               name: prod-omi-backend-config
@@ -646,9 +567,6 @@ environments:
             config_map:
               name: prod-omi-backend-config
               key: REDIS_DB_HOST
-          STT_SERVICE_MODELS:
-            value: modulate-velma-2,parakeet
-            category: stt_policy
           TYPESENSE_HOST:
             config_map:
               name: prod-omi-backend-config
@@ -669,9 +587,6 @@ environments:
             secret:
               name: prod-omi-backend-secrets
               key: MODULATE_API_KEY
-          HOSTED_PARAKEET_API_URL:
-            value: http://parakeet.omi.me
-            category: service_discovery
           HOSTED_TRANSLATION_API_URL:
             value: http://nllb.omi.me
             category: service_discovery
@@ -713,15 +628,6 @@ environments:
           LISTEN_FINALIZATION_ORPHAN_STALE_SECONDS:
             value: '900'
             category: reliability
-      parakeet:
-        values_file: backend/charts/parakeet/prod_omi_parakeet_values.yaml
-        env:
-          PARAKEET_STREAM_CAPACITY:
-            value: '25'
-            category: reliability
-          PARAKEET_STREAM_ALLOCATION_PERCENT:
-            value: '100'
-            category: rollout
     cloud_run:
       workflow_files:
         - .github/workflows/gcp_backend.yml
@@ -776,10 +682,6 @@ environments:
             SYNC_TASKS_HANDLER_URL:
               env_var: SYNC_TASKS_HANDLER_URL
               category: reliability
-            SYNC_LEDGER_FENCE_MODE:
-              env_var: SYNC_LEDGER_FENCE_MODE
-              default: legacy
-              category: rollout
             DESKTOP_UPDATE_POINTERS_MODE:
               value: primary
               category: rollout
@@ -806,12 +708,6 @@ environments:
               value: price_1TuIa81F8wnoWYvw0iX0j5M8
             STRIPE_UNLIMITED_V2_ANNUAL_PRICE_ID:
               value: price_1TuIap1F8wnoWYvwHWq0EvNU
-            STT_PRERECORDED_MODEL:
-              value: parakeet,modulate-velma-2
-              category: stt_policy
-            HOSTED_PARAKEET_API_URL:
-              value: http://parakeet.omi.me
-              category: service_discovery
             OMI_LLM_GATEWAY_URL:
               env_var: OMI_LLM_GATEWAY_URL
               # Never make a reserved ILB IP independently valid runtime
@@ -908,30 +804,6 @@ environments:
             SYNC_TASKS_HANDLER_URL:
               env_var: SYNC_TASKS_HANDLER_URL
               category: reliability
-            SYNC_LEDGER_FENCE_MODE:
-              env_var: SYNC_LEDGER_FENCE_MODE
-              default: legacy
-              category: rollout
-            SYNC_FRESH_MAX_AGE_SECONDS:
-              value: '21600'
-              category: rollout
-              provisional: true
-            SYNC_BACKFILL_MAX_AGE_SECONDS:
-              value: '2592000'
-              category: rollout
-              provisional: true
-            SYNC_CAPTURE_MAX_FUTURE_SKEW_SECONDS:
-              value: '300'
-              category: rollout
-              provisional: true
-            SYNC_BACKFILL_USER_DAILY_HOURS:
-              value: '4'
-              category: rollout
-              provisional: true
-            SYNC_BACKFILL_GLOBAL_DAILY_HOURS:
-              value: '555'
-              category: rollout
-              provisional: true
             GOOGLE_CLOUD_PROJECT:
               value: based-hardware
             GCP_LOCATION:
@@ -944,12 +816,6 @@ environments:
             GOOGLE_CLIENT_ID:
               env_var: GOOGLE_CLIENT_ID
               category: oauth_metadata
-            STT_PRERECORDED_MODEL:
-              value: parakeet,modulate-velma-2
-              category: stt_policy
-            HOSTED_PARAKEET_API_URL:
-              value: http://parakeet.omi.me
-              category: service_discovery
             OMI_LLM_GATEWAY_URL:
               env_var: OMI_LLM_GATEWAY_URL
               default: http://127.0.0.1:9
@@ -981,10 +847,6 @@ environments:
             MEMORY_TYPESENSE_COLLECTION:
               value: canonical_memory_atoms
               category: memory_rollout
-            SYNC_BACKFILL_ENABLED:
-              value: 'true'
-              category: rollout
-              provisional: true
             LISTEN_FINALIZATION_ORPHAN_STALE_SECONDS:
               value: '900'
               category: reliability
@@ -1001,9 +863,6 @@ environments:
             OMI_LLM_GATEWAY_SERVICE_TOKEN:
               secret: OMI_LLM_GATEWAY_SERVICE_TOKEN
               version: latest
-        backend-sync-backfill:
-          <<: *prod_backend_sync
-          provisional: true
       jobs:
         notifications-job:
           env:

@@ -22,7 +22,7 @@ from database import (
     llm_usage as llm_usage_db,
     users as users_db,
 )
-from database.sync_jobs import release_job_run_lock, try_acquire_job_run_lock
+from database.job_run_locks import release_job_run_lock, try_acquire_job_run_lock
 from services.users.data_export import iter_user_data_export
 from services.users.account_deletion import background_wipe_user_data, start_account_deletion
 from database.app_review_config import should_hide_subscription_ui

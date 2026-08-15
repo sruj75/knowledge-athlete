@@ -3975,7 +3975,7 @@ def self_check() -> int:
     if classify_restarted_bundle_state(restart_wrong_bundle, restart_bundle, 47777)[0] != "fail":
         print("self-check failed: replacement bundle mismatch must remain terminal", file=sys.stderr)
         return 1
-    restart_wrong_port = {"ok": True, "result": {**restart_ready["result"], "bridgePort": 47778}}
+    restart_wrong_port = {"ok": True, "result": {**restart_ready["result"], "bridgePort": 48888}}
     if classify_restarted_bundle_state(restart_wrong_port, restart_bundle, 47777)[0] != "fail":
         print("self-check failed: replacement automation port mismatch must remain terminal", file=sys.stderr)
         return 1

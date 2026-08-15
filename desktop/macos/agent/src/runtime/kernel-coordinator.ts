@@ -59,8 +59,6 @@ import {
   bindingMetadata,
   stableHash,
   stableJsonStringify,
-  stableMcpServerConfig,
-  stableJsonHash,
   parseJsonObject,
   placeholders,
   isStaleBindingError,
@@ -455,7 +453,6 @@ export class AgentRuntimeKernel extends KernelSessions {
     return {
       ownerId,
       callerExecutionRole,
-      availableAdapterIds: this.registry.adapterIds(),
       continuationTarget: this.desktopIntentContinuationTarget(ownerId, syntaxFacts),
       parentRunAvailable: this.desktopIntentParentRunAvailable(ownerId, syntaxFacts?.parentRunId),
       nowMs: Date.now(),

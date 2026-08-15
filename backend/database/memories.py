@@ -93,26 +93,6 @@ def _get_db(firestore_client: Any = None) -> Any:
     return firestore_client if firestore_client is not None else get_firestore_client()
 
 
-def _update_memory_if_exists(
-    uid: str,
-    memory_id: str,
-    update_payload: Dict[str, Any],
-    operation: str,
-    *,
-    firestore_client: Any = None,
-) -> bool:
-    database = _get_db(firestore_client)
-    user_ref = database.collection(users_collection).document(uid)
-    memories_ref = user_ref.collection(memories_collection)
-    memory_ref = memories_ref.document(memory_id)
-    try:
-        memory_ref.update(update_payload)
-        return True
-    except FirestoreNotFound:
-        logger.warning('Skipping stale memory %s update: memory document no longer exists uid=%s', operation, uid)
-        return False
-
-
 def get_memory_ids(uid: str, *, firestore_client: Any = None) -> List[str]:
     """Return all memory document IDs for a user without decrypting any fields (IDs-only projection).
 

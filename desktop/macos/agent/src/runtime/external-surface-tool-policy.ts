@@ -72,12 +72,6 @@ const PERMISSION_CAPABILITY_SUBJECTS = new Set([
   "full disk access permission",
 ]);
 
-const DIRECTED_PROVIDER_TARGETS = [
-  { provider: "openclaw" as const, pattern: "(?:open\\s*claw|open\\s*cloud)" },
-  { provider: "hermes" as const, pattern: "hermes" },
-] as const;
-const DIRECTED_PROVIDER_ACTION = "(?:ask|tell|ping|message|use|run|try|start|spawn|delegate(?:\\s+to)?|have|let|send|make)";
-
 /**
  * External surfaces propose tools; this policy owns the semantic safety rewrite
  * before any capability or invocation ledger row is minted.
@@ -149,7 +143,7 @@ export function routeExternalSurfaceTool(
     return { action: "execute", toolName: input.toolName, toolInput: input.toolInput, recoveredFromDelegation: false };
   }
 
-  const toolInput = constrainSpawnProviderToCurrentUserIntent(input.toolInput, input.originatingPrompt);
+  const toolInput = input.toolInput;
   const objective = textField(toolInput, "objective") || textField(toolInput, "brief");
   const permission = permissionRequest(objective);
   if (!permission) {
@@ -188,39 +182,6 @@ export function routeExternalSurfaceTool(
     toolInput: { type: permission.type },
     recoveredFromDelegation: true,
   };
-}
-
-/**
- * A realtime model may propose a local provider, but choosing a user's local
- * Hermes/OpenClaw credential boundary is not model authority. Only the current
- * user utterance may select it. Everything else stays on the regular Omi
- * managed-agent path, including a model-invented or stale provider field.
- */
-function constrainSpawnProviderToCurrentUserIntent(
-  toolInput: Record<string, unknown>,
-  originatingPrompt: string,
-): Record<string, unknown> {
-  const selectedProvider = directedProviderSelectedByUser(originatingPrompt);
-  if (selectedProvider) return { ...toolInput, provider: selectedProvider };
-
-  const suppliedProvider = textField(toolInput, "provider");
-  if (suppliedProvider !== "openclaw" && suppliedProvider !== "hermes") return toolInput;
-
-  const { provider: _, ...defaultOmiInput } = toolInput;
-  return defaultOmiInput;
-}
-
-function directedProviderSelectedByUser(prompt: string): "openclaw" | "hermes" | null {
-  const normalized = prompt.toLowerCase();
-  const selected = DIRECTED_PROVIDER_TARGETS.flatMap(({ provider, pattern }) => {
-    const target = `(?:the\\s+)?${pattern}(?:\\s+agent)?`;
-    const positive = new RegExp(
-      `(?:\\b${DIRECTED_PROVIDER_ACTION}\\s+${target}\\b|\\b(?:with|via|using|in)\\s+${target}\\b|^\\s*${pattern}\\s*(?::|,|—|-))`,
-    );
-    const negated = new RegExp(`\\b(?:don't|do not|never)\\s+${DIRECTED_PROVIDER_ACTION}\\s+${target}\\b`);
-    return positive.test(normalized) && !negated.test(normalized) ? [provider] : [];
-  });
-  return selected.length === 1 ? selected[0]! : null;
 }
 
 function normalizedPermissionType(value: string): string | null {

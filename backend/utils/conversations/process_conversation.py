@@ -194,7 +194,6 @@ def _get_structured(
                     conv_started_at,
                     language_code,
                     tz_str,
-                    photos=main_conv.photos,
                     output_language_code=user_language,
                 )
             with track_usage(uid, Features.CONVERSATION_ACTION_ITEMS):
@@ -203,7 +202,6 @@ def _get_structured(
                     conv_started_at,
                     language_code,
                     tz_str,
-                    photos=main_conv.photos,
                     existing_action_items=_fetch_dedup_candidates(uid, structured, conversation),
                     output_language_code=user_language,
                     task_intelligence_capture=task_intelligence_capture,
@@ -215,13 +213,13 @@ def _get_structured(
         if main_conv.started_at and main_conv.finished_at:
             duration_seconds = max(0, (main_conv.finished_at - main_conv.started_at).total_seconds())
 
-        # Determine whether to discard the conversation based on its content (transcript and/or photos).
+        # Determine whether to discard the conversation based on its transcript.
         with track_usage(uid, Features.CONVERSATION_DISCARD):
-            discarded = should_discard_conversation(transcript_text, main_conv.photos, duration_seconds)
+            discarded = should_discard_conversation(transcript_text, duration_seconds)
         if discarded:
             return Structured(emoji=random.choice(['🧠', '🎉'])), True
 
-        # If not discarded, proceed to generate the structured summary from transcript and/or photos.
+        # If not discarded, proceed to generate the structured summary from the transcript.
         conv_started_at = cast(datetime, main_conv.started_at)
         with track_usage(uid, Features.CONVERSATION_STRUCTURE):
             structured = get_transcript_structure(
@@ -230,7 +228,6 @@ def _get_structured(
                 language_code,
                 tz_str,
                 uid,
-                photos=main_conv.photos,
                 calendar_meeting_context=calendar_context,
                 output_language_code=user_language,
             )
@@ -240,7 +237,6 @@ def _get_structured(
                 conv_started_at,
                 language_code,
                 tz_str,
-                photos=main_conv.photos,
                 existing_action_items=_fetch_dedup_candidates(uid, structured, conversation),
                 calendar_meeting_context=calendar_context,
                 output_language_code=user_language,
@@ -280,8 +276,6 @@ def _get_conversation_obj(
                 result.external_data = {}
             result.external_data['calendar_meeting_context'] = calendar_context
 
-        if result.photos:
-            conversations_db.store_conversation_photos(uid, result.id, result.photos)
         return result
     else:
         main_conv = conversation
@@ -1136,9 +1130,7 @@ def save_structured_vector(uid: str, conversation: Conversation, update_only: bo
     metadata: Dict[str, Any] = {}
 
     segments: List[Dict[str, Any]] = [t.dict() for t in conversation.transcript_segments]
-    metadata = retrieve_metadata_fields_from_transcript(
-        uid, conversation.created_at, segments, tz, photos=conversation.photos
-    )
+    metadata = retrieve_metadata_fields_from_transcript(uid, conversation.created_at, segments, tz)
 
     metadata['created_at'] = int(conversation.created_at.timestamp())
 

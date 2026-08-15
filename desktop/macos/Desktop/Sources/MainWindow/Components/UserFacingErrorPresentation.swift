@@ -20,7 +20,6 @@ enum UserFacingErrorPresentation {
     case goals
     case signIn
     case onboarding
-    case storageSync
     case transcription
     case accountDeletion
 
@@ -38,7 +37,6 @@ enum UserFacingErrorPresentation {
       case .goals: return "load goals"
       case .signIn: return "sign in"
       case .onboarding: return "save that step"
-      case .storageSync: return "sync device storage"
       case .transcription: return "start transcription"
       case .accountDeletion: return "delete your account"
       }
@@ -72,12 +70,8 @@ enum UserFacingErrorPresentation {
         }
       case .invalidResponse, .decodingError:
         return "Omi received an unexpected response. Try again."
-      case .syncRateLimited:
-        return "Omi is busy right now. Try again in a moment."
       case .unsupportedTierScopedBulkMutation:
         return "That option isn't available yet."
-      case .syncUploadRejected:
-        return fallback(for: context)
       case .unauthorized:
         return context.isSignIn
           ? "Couldn't sign in. Try again."

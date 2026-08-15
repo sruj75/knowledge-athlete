@@ -232,7 +232,7 @@ def test_voice_message_multipart_decode_failure_is_typed_and_cleans_staged_input
         assert response.json()['detail'] == {
             'error': 'stt_invalid_input',
             'outcome': 'invalid_input',
-            'provider': 'parakeet',
+            'provider': 'modulate',
             'retryable': False,
             'message': 'The audio input is invalid.',
         }

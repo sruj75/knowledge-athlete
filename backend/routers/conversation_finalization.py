@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
 
 from database import conversation_finalization_jobs as jobs_db
-from database.sync_jobs import release_job_run_lock, try_acquire_job_run_lock
+from database.job_run_locks import release_job_run_lock, try_acquire_job_run_lock
 from services.conversation_finalization import (
     final_attempt_failed,
     get_listen_finalization_tasks_max_attempts_for_worker,

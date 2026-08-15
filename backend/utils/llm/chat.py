@@ -15,7 +15,6 @@ from database.auth import get_user_name
 from models.chat import Message, MessageSender, PageContext
 from models.conversation_enums import CategoryEnum
 from models.conversation_metadata import ConversationMetadata
-from models.conversation_photo import ConversationPhoto
 from models.other import Person
 from models.transcript_segment import TranscriptSegment
 from utils.llms.memory import get_prompt_memories
@@ -130,13 +129,13 @@ def retrieve_is_an_omi_question(question: str) -> bool:
     Examples of Omi/Friend App Questions (return True):
     - "How does Omi work?"
     - "What can Omi do?"
-    - "How can I buy the device?"
+    - "Where can I download the app?"
     - "Where do I get Friend?"
     - "What features does the app have?"
     - "How do I set up Omi?"
     - "Does Omi support multiple languages?"
-    - "What is the battery life?"
-    - "How do I connect my device?"
+    - "How does conversation capture work?"
+    - "How do I choose a microphone?"
 
     Examples of Personal Data Questions (return False):
     - "How many conversations did I have last month?"
@@ -150,7 +149,7 @@ def retrieve_is_an_omi_question(question: str) -> bool:
 
     Examples of Action/Task Requests (return False):
     - "Can you remind me to check the Omi chat discussion on GitHub?"
-    - "Remind me to update the Omi firmware"
+    - "Remind me to update the Omi app"
     - "Create a task to review Friend documentation"
     - "Set an alarm for my Omi meeting"
     - "Add to my list: check Omi updates"
@@ -1126,7 +1125,6 @@ def retrieve_metadata_fields_from_transcript(
     created_at: datetime,
     transcript_segment: List[dict[str, Any]],
     tz: str,
-    photos: Optional[List[ConversationPhoto]] = None,
 ) -> dict[str, Any]:
     context_parts: List[str] = []
     if transcript_segment:
@@ -1136,11 +1134,6 @@ def retrieve_metadata_fields_from_transcript(
         if transcript.strip():
             context_parts.append(f"Conversation Transcript:\n```\n{transcript.strip()}\n```")
 
-    if photos:
-        photo_descriptions = ConversationPhoto.photos_as_string(photos, include_timestamps=True)
-        if photo_descriptions != 'None':
-            context_parts.append(f"Photo Descriptions from a wearable camera:\n{photo_descriptions}")
-
     if not context_parts:
         return {'people': [], 'topics': [], 'entities': [], 'dates': []}
 
@@ -1149,7 +1142,7 @@ def retrieve_metadata_fields_from_transcript(
 
     # TODO: ask it to use max 2 words? to have more standardization possibilities
     prompt = f'''
-    You will be given content which could be a raw transcript of a conversation, a series of photo descriptions from a wearable camera, or both. The transcript has about 20% word error rate, and diarization is also made very poorly.
+    You will be given a raw transcript of a conversation. The transcript has about 20% word error rate, and diarization is also made very poorly.
 
     Your task is to extract the most accurate information from the content in the output object indicated below.
 

@@ -173,19 +173,15 @@ def wire_common_stubs(install) -> SimpleNamespace:
     sync_files.retrieve_file_paths = MagicMock(return_value=[])
     sync_files.decode_files_to_wav = MagicMock(return_value=[])
     stt_streaming = install('utils.stt.streaming', ModuleType('utils.stt.streaming'))
-    stt_streaming.process_audio_dg = MagicMock()
-    stt_streaming.get_stt_service_for_language = MagicMock()
-    stt_streaming.STTService = MagicMock()
-    stt_streaming.connect_stt_socket_with_fallback = MagicMock()
     stt_streaming.drain_stt_socket = AsyncMock()
+    stt_streaming.get_managed_stt_language = MagicMock(return_value='en')
     stt_streaming.process_audio_modulate = MagicMock()
-    stt_streaming.process_audio_parakeet = MagicMock()
     # These chat suites do not exercise prerecorded STT. Loading the real module
     # would import NumPy after a suite restores sys.modules between cases, which
     # native extension modules cannot safely do in one process.
     prerecorded = install('utils.stt.pre_recorded', ModuleType('utils.stt.pre_recorded'))
     prerecorded.PrerecordedSTTConfigurationError = type('PrerecordedSTTConfigurationError', (Exception,), {})
-    prerecorded.get_prerecorded_service = MagicMock(return_value=('parakeet', 'en', 'parakeet'))
+    prerecorded.get_prerecorded_service = MagicMock(return_value=('modulate', 'en', 'modulate-velma-2'))
 
     usage_tracker = install('utils.llm.usage_tracker', ModuleType('utils.llm.usage_tracker'))
     usage_tracker.set_usage_context = MagicMock(return_value='usage-token')

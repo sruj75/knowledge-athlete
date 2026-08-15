@@ -37,24 +37,21 @@ struct STTSessionState: Equatable {
 
   /// Resolve which STT path to use for a new recording.
   func resolveMode(
-    audioSource: AudioSource,
     isAppleSilicon: Bool,
     debugForceCloud: Bool
   ) -> ResolvedMode {
     let forceCloud = !sessionForceLocal && (debugForceCloud || appRunForceCloud)
-    if audioSource == .bleDevice || !isAppleSilicon || forceCloud {
+    if !isAppleSilicon || forceCloud {
       return .cloud
     }
     return .local
   }
 
   mutating func beginRecording(
-    audioSource: AudioSource,
     isAppleSilicon: Bool,
     debugForceCloud: Bool
   ) {
     activeMode = resolveMode(
-      audioSource: audioSource,
       isAppleSilicon: isAppleSilicon,
       debugForceCloud: debugForceCloud
     )
@@ -78,11 +75,9 @@ struct STTSessionState: Equatable {
 
   func canBeginCloudToLocalFallback(
     isTranscribing: Bool,
-    audioSource: AudioSource,
     isAppleSilicon: Bool
   ) -> Bool {
     isTranscribing
-      && audioSource != .bleDevice
       && !useLocalSTT
       && isAppleSilicon
       && !appRunForceCloud

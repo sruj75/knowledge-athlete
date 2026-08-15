@@ -18,9 +18,6 @@ enum GeneratedSwiftTool: String, CaseIterable {
   case captureScreen = "capture_screen"
   case checkPermissionStatus = "check_permission_status"
   case requestPermission = "request_permission"
-  case setUserPreferences = "set_user_preferences"
-  case askFollowup = "ask_followup"
-  case completeOnboarding = "complete_onboarding"
   case getTasks = "get_tasks"
   case askHigherModel = "ask_higher_model"
   case screenshot = "screenshot"
@@ -36,7 +33,7 @@ enum GeneratedSwiftToolExecutor: String {
 
 enum GeneratedToolExecutors {
   static let manifestVersion = 1
-  static let manifestDigest = "sha256:be80c1ee3c269868031fa23ab0cce2c01e152d10cd14e4f9c1c59082110e2489"
+  static let manifestDigest = "sha256:a7e75fc111238101a4b11c9ea08b503ab6e62accc9a562348a04d757a87a236c"
 
   static let aliasToCanonical: [String: GeneratedSwiftTool] = [
     "search_screen_history": .semanticSearch
@@ -59,9 +56,6 @@ enum GeneratedToolExecutors {
     .captureScreen: .chatToolExecutor,
     .checkPermissionStatus: .chatToolExecutor,
     .requestPermission: .chatToolExecutor,
-    .setUserPreferences: .chatToolExecutor,
-    .askFollowup: .chatToolExecutor,
-    .completeOnboarding: .chatToolExecutor,
     .getTasks: .realtimeHub,
     .askHigherModel: .realtimeHub,
     .screenshot: .realtimeHub,
@@ -78,6 +72,7 @@ enum GeneratedToolExecutors {
   }
 
   static func isChatToolExecutorTool(_ name: String) -> Bool {
+    if backendOnboardingToolNames.contains(name) { return true }
     guard let tool = resolve(name) else { return false }
     return executorByTool[tool] == .chatToolExecutor
   }
@@ -90,12 +85,15 @@ enum GeneratedToolExecutors {
       + aliasToCanonical.compactMap { alias, tool in
         executorByTool[tool] == .chatToolExecutor ? alias : nil
       }
+      + Array(backendOnboardingToolNames)
     )
   }
 
   static var realtimeHubToolNames: Set<String> {
     Set(GeneratedToolCapabilities.realtimeToolNames)
   }
+
+  private static let backendOnboardingToolNames: Set<String> = ["scan_files","start_file_scan","get_file_scan_results","set_user_preferences","ask_followup","complete_onboarding","get_email_insights"]
 
   /// Dispatch surface for ChatToolExecutor — chatToolExecutor-bound tools only.
   enum ChatDispatch {
@@ -115,14 +113,26 @@ enum GeneratedToolExecutors {
     case captureScreen
     case checkPermissionStatus
     case requestPermission
+    case getWorkContext
+    case scanFiles
     case setUserPreferences
     case askFollowup
     case completeOnboarding
-    case getWorkContext
+    case getEmailInsights
     case unhandled
   }
 
   static func chatDispatch(for name: String) -> ChatDispatch {
+    switch name {
+    case "scan_files": return .scanFiles
+    case "start_file_scan": return .scanFiles
+    case "get_file_scan_results": return .scanFiles
+    case "set_user_preferences": return .setUserPreferences
+    case "ask_followup": return .askFollowup
+    case "complete_onboarding": return .completeOnboarding
+    case "get_email_insights": return .getEmailInsights
+    default: break
+    }
     guard let tool = resolve(name), executorByTool[tool] == .chatToolExecutor else {
       return .unhandled
     }
@@ -143,9 +153,6 @@ enum GeneratedToolExecutors {
     case .captureScreen: return .captureScreen
     case .checkPermissionStatus: return .checkPermissionStatus
     case .requestPermission: return .requestPermission
-    case .setUserPreferences: return .setUserPreferences
-    case .askFollowup: return .askFollowup
-    case .completeOnboarding: return .completeOnboarding
     case .getWorkContext: return .getWorkContext
     default: return .unhandled
     }

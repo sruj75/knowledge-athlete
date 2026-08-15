@@ -4,6 +4,7 @@ tier: 2
 description: Hermetic capture lifecycle via capture_test_transcript seam (no mic/STT)
 app: non-prod
 covers:
+  - desktop/macos/Desktop/Sources/AppState/AppServicesCoordinator.swift
   - desktop/macos/Desktop/Sources/AppState/AppState+Transcription.swift
   - desktop/macos/Desktop/Sources/AppState/SharedCaptureSilentMicRecoveryPolicy.swift
   - desktop/macos/Desktop/Sources/AppState/AppState+ListenEvents.swift
@@ -28,27 +29,16 @@ covers:
   - desktop/macos/Desktop/Sources/LiveNotes/NoteStorage.swift
   - desktop/macos/Desktop/Sources/ProactiveAssistants/Services/AIUserProfileService.swift
   - desktop/macos/Desktop/Sources/APIClient.swift
-  - desktop/macos/Desktop/Sources/OmiWAL/WALModel.swift
-  - desktop/macos/Desktop/Sources/WAL/StorageSyncService.swift
-  - desktop/macos/Desktop/Sources/WAL/StorageSyncView.swift
-  - desktop/macos/Desktop/Sources/WAL/WifiSyncService.swift
-  - desktop/macos/Desktop/Sources/WAL/WALCloudSyncLogic.swift
-  - desktop/macos/Desktop/Sources/WAL/WALService.swift
-  - desktop/macos/Desktop/Sources/WAL/WALSyncReconciler.swift
   - desktop/macos/Desktop/Sources/TranscriptionService.swift
   - desktop/macos/Desktop/Sources/TranscriptionRetryService.swift
   - desktop/macos/Desktop/Sources/Rewind/Core/RewindDatabase.swift
   - desktop/macos/Desktop/Sources/ViewModelContainer.swift
-  - desktop/macos/Desktop/Sources/Audio/BleAudioProcessor.swift
-  - desktop/macos/Desktop/Sources/Audio/BleAudioService.swift
   - desktop/macos/Desktop/Sources/Rewind/Core/RewindStorage.swift
   - desktop/macos/Desktop/Sources/Services/QueryTracer.swift
   - desktop/macos/Desktop/Sources/Rewind/Core/VideoChunkEncoder.swift
   - desktop/macos/Desktop/Sources/Rewind/Services/RewindIndexer.swift
   - desktop/macos/Desktop/Sources/MeetingDetector.swift
   - desktop/macos/Desktop/Sources/Rewind/Services/PowerMonitor.swift
-  - desktop/macos/Desktop/Sources/Bluetooth/BtDevice.swift
-  - desktop/macos/Desktop/Sources/Bluetooth/DeviceUUIDs.swift
   - desktop/macos/Desktop/Sources/ConcurrencySendable.swift
   - desktop/macos/Desktop/Sources/FloatingControlBar/StreamingPCMPlayer.swift
   - desktop/macos/Desktop/Sources/FloatingControlBar/SystemAudioMuteController.swift

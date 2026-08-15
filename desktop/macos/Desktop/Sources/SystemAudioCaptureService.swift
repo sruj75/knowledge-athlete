@@ -53,7 +53,7 @@ class SystemAudioCaptureService: @unchecked Sendable {
   private var onAudioChunk: AudioChunkHandler?
   private var onAudioLevel: AudioLevelHandler?
 
-  /// Target sample rate for DeepGram
+  /// Target sample rate for managed transcription.
   private let targetSampleRate: Double = 16000
 
   // Resampling
@@ -523,7 +523,7 @@ class SystemAudioCaptureService: @unchecked Sendable {
       return
     }
 
-    // Convert Float32 to Int16 (linear16 PCM for DeepGram)
+    // Convert Float32 to Int16 linear PCM for managed transcription.
     guard let channelData = outputBuffer.floatChannelData?[0] else { return }
 
     let processedFrameLength = Int(outputBuffer.frameLength)

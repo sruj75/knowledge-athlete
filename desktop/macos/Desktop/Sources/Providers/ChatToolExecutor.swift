@@ -577,7 +577,7 @@ class ChatToolExecutor {
     lines.append(
       "Detail tiles (native resolution). The full screenshot above gets downscaled before you see it, "
         + "which can make small text unreadable. Before quoting or relying on small on-screen text "
-        + "(titles, prices, sizes, labels) or choosing between similar-looking items, Read the tile "
+        + "(titles, prices, sizes, labels) or choosing between similar-looking items, inspect the tile "
         + "covering that part of the screen and take the exact text from it:")
     for tile in tiles {
       let r = tile.rect
@@ -1391,7 +1391,7 @@ class ChatToolExecutor {
 
   /// Resolve the action-item id from `update_action_item` args across surfaces.
   /// Realtime-voice advertises the param as `id` (schemaOverride in
-  /// omi-tool-manifest.ts); chat/pi-mono/stdio advertise `action_item_id`.
+  /// omi-tool-manifest.ts); chat and Pi advertise `action_item_id`.
   /// Accept either so a voice update doesn't hard-fail on its own schema.
   /// Returns nil for missing/empty/non-string, which the caller maps to an error.
   nonisolated static func resolveActionItemID(_ args: [String: Any]) -> String? {

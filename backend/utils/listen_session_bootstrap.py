@@ -9,9 +9,9 @@ import database.users as user_db
 from utils.executors import db_executor, run_blocking
 from utils.fair_use import (
     FAIR_USE_ENABLED,
-    FAIR_USE_RESTRICT_DAILY_DG_MS,
+    FAIR_USE_RESTRICT_DAILY_MANAGED_STT_MS,
     get_enforcement_stage,
-    is_dg_budget_exhausted,
+    is_managed_stt_budget_exhausted,
 )
 from utils.subscription import has_transcription_credits
 from utils.transcribe_decisions import (
@@ -28,8 +28,8 @@ class ListenConnectBase:
     user_has_credits: bool
     transcription_prefs: Dict[str, Any]
     fair_use_init_stage: Optional[str]
-    fair_use_track_dg_usage: bool
-    fair_use_dg_budget_exhausted: bool
+    fair_use_track_managed_stt_usage: bool
+    fair_use_managed_stt_budget_exhausted: bool
 
 
 @dataclass(frozen=True)
@@ -43,8 +43,8 @@ class ListenConnectContext:
     language: str
     translation_language: Optional[str]
     fair_use_init_stage: Optional[str]
-    fair_use_track_dg_usage: bool
-    fair_use_dg_budget_exhausted: bool
+    fair_use_track_managed_stt_usage: bool
+    fair_use_managed_stt_budget_exhausted: bool
 
 
 def project_listen_connect_decisions(
@@ -89,21 +89,23 @@ async def load_listen_connect_base(
     transcription_prefs = await run_blocking(db_executor, get_user_transcription_preferences, uid)
 
     fair_use_init_stage: Optional[str] = None
-    fair_use_track_dg_usage = False
-    fair_use_dg_budget_exhausted = False
+    fair_use_track_managed_stt_usage = False
+    fair_use_managed_stt_budget_exhausted = False
     if FAIR_USE_ENABLED:
         fair_use_init_stage = await run_blocking(db_executor, get_enforcement_stage, uid)
-        if fair_use_init_stage == 'restrict' and FAIR_USE_RESTRICT_DAILY_DG_MS > 0:
-            fair_use_track_dg_usage = True
-            fair_use_dg_budget_exhausted = await run_blocking(db_executor, is_dg_budget_exhausted, uid)
+        if fair_use_init_stage == 'restrict' and FAIR_USE_RESTRICT_DAILY_MANAGED_STT_MS > 0:
+            fair_use_track_managed_stt_usage = True
+            fair_use_managed_stt_budget_exhausted = await run_blocking(
+                db_executor, is_managed_stt_budget_exhausted, uid
+            )
 
     return ListenConnectBase(
         user_exists=user_exists,
         user_has_credits=user_has_credits,
         transcription_prefs=transcription_prefs,
         fair_use_init_stage=fair_use_init_stage,
-        fair_use_track_dg_usage=fair_use_track_dg_usage,
-        fair_use_dg_budget_exhausted=fair_use_dg_budget_exhausted,
+        fair_use_track_managed_stt_usage=fair_use_track_managed_stt_usage,
+        fair_use_managed_stt_budget_exhausted=fair_use_managed_stt_budget_exhausted,
     )
 
 
@@ -130,8 +132,8 @@ def finalize_listen_connect_context(
         language=normalized_language,
         translation_language=translation_language,
         fair_use_init_stage=base.fair_use_init_stage,
-        fair_use_track_dg_usage=base.fair_use_track_dg_usage,
-        fair_use_dg_budget_exhausted=base.fair_use_dg_budget_exhausted,
+        fair_use_track_managed_stt_usage=base.fair_use_track_managed_stt_usage,
+        fair_use_managed_stt_budget_exhausted=base.fair_use_managed_stt_budget_exhausted,
     )
 
 

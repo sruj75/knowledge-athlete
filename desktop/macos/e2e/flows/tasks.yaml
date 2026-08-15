@@ -9,6 +9,7 @@ covers:
   - desktop/macos/Desktop/Sources/MainWindow/Tasks/SuggestedTasksSection.swift
   - desktop/macos/Desktop/Sources/MainWindow/Tasks/SuggestedTasksStore.swift
   - desktop/macos/Desktop/Sources/Stores/TasksStore.swift
+  - desktop/macos/Desktop/Sources/Services/APIClient/APIClient+TaskCatalog.swift
 preconditions:
   - auth_ready
   - suggested_task_candidate_ready

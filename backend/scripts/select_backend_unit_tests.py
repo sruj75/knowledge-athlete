@@ -124,7 +124,6 @@ AREA_TESTS = (
         (
             'tests/unit/test_*audio*.py',
             'tests/unit/test_*listen*.py',
-            'tests/unit/test_parakeet_*.py',
             'tests/unit/test_*pusher*.py',
             'tests/unit/test_*speaker*.py',
             'tests/unit/test_*speech*.py',
@@ -135,11 +134,6 @@ AREA_TESTS = (
             'tests/unit/test_*vad*.py',
             'tests/unit/utils/test_listen_pusher_session.py',
         ),
-    ),
-    (
-        ('backend/parakeet/',),
-        (),
-        ('tests/unit/test_parakeet_*.py',),
     ),
     (
         ('backend/services/users/', 'backend/routers/users'),

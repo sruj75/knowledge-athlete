@@ -69,7 +69,6 @@ RATE_LIMIT_ENFORCEMENTS = {'fail_open', 'fail_closed', 'shadow', 'none', 'unknow
 RATE_LIMIT_PLACEMENTS = {'dependency', 'inline', 'wrapper', 'websocket_lock', 'none', 'unknown'}
 TIMEOUT_CLASSES = {
     'default_method',
-    'sync_job',
     'audio_merge',
     'account_deletion_wipe',
     'listen_finalization',
@@ -100,7 +99,6 @@ DATA_DOMAINS = {
     'chat',
     'credentials',
     'metrics',
-    'firmware',
     'desktop_updates',
     'unknown',
 }
@@ -173,8 +171,6 @@ def _normalized_path_shape(path: str) -> str:
 
 
 def _timeout_class_for_path(path: str, paths_timeout: dict[str, Any]) -> str:
-    if path == '/v2/sync-jobs/run':
-        return 'sync_job'
     if path == '/v2/audio-merge-jobs/run':
         return 'audio_merge'
     if path == '/v1/users/account-deletion-wipes/run':
@@ -618,7 +614,7 @@ def validate_inventory(
             continue
         timeout_class = policy.get('timeout_class')
         if (
-            timeout_class in {'sync_job', 'audio_merge', 'account_deletion_wipe', 'listen_finalization'}
+            timeout_class in {'audio_merge', 'account_deletion_wipe', 'listen_finalization'}
             and entry['path'] not in paths_timeout
         ):
             missing_timeout_overrides.append(f"{entry['route_key']} declares {timeout_class} without a path override")

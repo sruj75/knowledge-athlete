@@ -67,17 +67,9 @@ Note: Stackdriver exporter is scraped by Prometheus (job `prometheus-stackdriver
 
 ### Metrics Scraping
 
-Prometheus scrapes metrics through two mechanisms:
+Prometheus scrapes metrics through ServiceMonitor resources and pod annotations plus `additionalScrapeConfigs`.
 
-**1. ServiceMonitor (recommended for new services)**
-
-Used by: parakeet.
-
-The service chart includes a `ServiceMonitor` CRD that Prometheus auto-discovers. This is the preferred approach — no changes to the monitoring chart needed.
-
-**2. Pod annotations + additionalScrapeConfigs**
-
-Used by: backend-listen, pusher, llm-gateway, deepgram engine, GPU metrics, Stackdriver.
+Used by: backend-listen, pusher, llm-gateway, GPU metrics, and Stackdriver.
 
 Pods set annotations (`prometheus.io/scrape: "true"`, `prometheus.io/port`, `prometheus.io/path`) and a matching `additionalScrapeConfigs` entry in `kube-prometheus-stack` values defines the scrape job.
 
@@ -92,10 +84,8 @@ These are the `additionalScrapeConfigs` and ServiceMonitor targets. Built-in kub
 | `backend-listen-metrics` | backend-listen pods `/metrics:8080` | 15s | Bearer token |
 | `pusher-metrics` | pusher pods `/metrics:8080` | 15s | Bearer token |
 | `llm-gateway-metrics` | llm-gateway pods `/metrics:8080` | 15s | Bearer token |
-| `dg_engine_metrics` | DG engine pods in `prod-omi-dg-self-hosted` | 2s | None |
 | `gpu-metrics` | all pods in `gke-managed-system` (includes DCGM exporter) | 1s | None |
 | `prometheus-stackdriver-metrics` | Stackdriver exporter in `prod-omi-monitoring` | 1s | None |
-| ServiceMonitor: `parakeet` | parakeet pods `/metrics:9091` | 15s | None |
 
 For llm-gateway streams, `llm_gateway_requests_total{outcome="success"}` is emitted only after the provider's
 terminal SSE marker (`data: [DONE]` or Anthropic `event: message_stop`) is observed. EOF without that marker,
@@ -124,7 +114,6 @@ DCGM exporter is a GKE-managed addon (not in this repo). It runs in `gke-managed
 - `DCGM_FI_DEV_GPU_TEMP` — GPU temperature
 
 Prometheus scrapes these via the `gpu-metrics` job. GPU node pools:
-- `parakeet-pool` — NVIDIA L4 (parakeet ASR)
 - `diarizer-pool` — NVIDIA T4 (speaker diarization)
 - `vad-pool-v2` — NVIDIA T4 (voice activity detection)
 
@@ -132,7 +121,7 @@ Prometheus scrapes these via the `gpu-metrics` job. GPU node pools:
 
 The adapter translates Prometheus queries into K8s metrics APIs so HPAs can scale on custom metrics. It serves two APIs:
 - `external.metrics.k8s.io` — namespace-scoped metrics (most HPA metrics use this)
-- `custom.metrics.k8s.io` — pod-scoped metrics (parakeet uses this for `parakeet_active_streams` and `parakeet_active_requests_total`)
+- `custom.metrics.k8s.io` — pod-scoped metrics
 
 | Metric | Source | Used by |
 |--------|--------|---------|
@@ -142,20 +131,6 @@ The adapter translates Prometheus queries into K8s metrics APIs so HPAs can scal
 | `diarizer_request_latency_p99` | Stackdriver ILB histogram | diarizer HPA |
 | `backend_listen_response_code_500` | Stackdriver LB counter | backend-listen HPA |
 | `backend_listen_requests_per_pod` | Stackdriver LB counter / replica count | backend-listen HPA |
-| `engine_active_requests_stt_streaming` | DG engine gauge | DG engine HPA |
-| `engine_active_requests_stt_batch` | DG engine gauge | DG engine HPA |
-| `engine_active_requests_tts_batch` | DG engine gauge | DG engine HPA |
-| `engine_estimated_stream_capacity` | DG engine gauge | DG engine HPA |
-| `engine_requests_active_to_max_ratio` | DG engine derived | DG engine HPA |
-| `engine_to_api_pod_ratio` | kube-state-metrics | DG scaling |
-| `engine_avg_gpu_utilization` | DCGM via Prometheus | DG engine HPA |
-| `parakeet_active_streams` | parakeet gauge | parakeet HPA |
-| `parakeet_active_batch_requests` | parakeet gauge | parakeet HPA |
-| `parakeet_active_requests_total` | parakeet derived (streams + batch) | parakeet HPA |
-| `parakeet_gpu_utilization` | DCGM via Prometheus | parakeet HPA |
-| `parakeet_request_latency_p99` | parakeet histogram | parakeet HPA |
-
-Parakeet adapter rules are defined in the parakeet chart's `values.yaml` but must be merged into the cluster-wide adapter (see below).
 
 ### Stackdriver Exporter
 
@@ -218,7 +193,6 @@ Most are bundled with kube-prometheus-stack and auto-provisioned. Custom dashboa
 | Node Exporter / Nodes | `7d57716318ee0dddbac5a7f451fb7753` | `node-exporter-mixin` | Bundled |
 | Node Exporter / USE Method / Cluster | `3e97d1d02672cdd0861f4c97c64f89b2` | `node-exporter-mixin` | Bundled |
 | Node Exporter / USE Method / Node | `fac67cfbe174d3ef53eb473d73d9212f` | `node-exporter-mixin` | Bundled |
-| Parakeet ASR Monitoring | `07e4c65f-ae79-414d-bf05-99468267d199` | `asr, gke, gpu, parakeet` | **Custom** — GPU ASR service metrics |
 | Prometheus / Overview | `9fa0d141-d019-4ad7-8bc5-42196ee308bd` | `prometheus-mixin` | Bundled |
 
 ### Cloud Run (2) — per-service dashboards
@@ -230,14 +204,13 @@ Folder: `Cloud Run` (folder UID: `aev9if48326f4e`)
 | Backend | `0253019b-c68a-4aef-a27d-6bb3408727fb` | Cloud Run backend (main API) |
 | Backend-sync | `8bf7bd3f-8dbc-4f86-a532-557bfac0d7ac` | Cloud Run backend-sync |
 
-### GKE (5) — per-service dashboards
+### GKE (4) — per-service dashboards
 
 Folder: `GKE` (folder UID: `aev9igt5fwgsgc`)
 
 | Dashboard | UID | Notes |
 |-----------|-----|-------|
 | Backend-listen | `855b2e16-c098-407a-85dc-dc9ce87698a9` | GKE WebSocket listener |
-| Deepgram self-hosted | `fedizdcosu1oga` | Self-hosted STT engine |
 | Diarizer | `303b7396-ce6e-48ee-be24-9c157a710adf` | Speaker diarization GPU service |
 | Pusher | `c758b698-01a0-4b5c-b58c-e81e4ff33ccd` | Audio pusher service |
 | VAD | `72cfe240-ae8c-4076-845e-c58e28f12d87` | Voice activity detection GPU service |
@@ -372,7 +345,7 @@ helm -n {env}-omi-monitoring upgrade --install {env}-omi-prometheus-adapter \
 # For External metrics (namespace-scoped, most common):
 kubectl get --raw "/apis/external.metrics.k8s.io/v1beta1/namespaces/{env}-omi-backend/myservice_custom_metric"
 
-# For Pods metrics (pod-scoped, used by parakeet):
+# For Pods metrics (pod-scoped):
 kubectl get --raw "/apis/custom.metrics.k8s.io/v1beta1/namespaces/{env}-omi-backend/pods/*/myservice_pod_metric"
 ```
 
@@ -398,8 +371,6 @@ metrics:
         type: AverageValue
         averageValue: "25"
 ```
-
-**Parakeet adapter rules:** The parakeet chart defines adapter rules in its own `values.yaml` under `prometheus-adapter.rules`, but these are NOT yet present in the cluster-wide adapter config (`prometheus-adapter/` values in this directory). They must be manually merged into `prometheus-adapter/{env}_omi_prometheus_adapter.yaml` before parakeet HPA can use them. The parakeet sub-chart adapter is disabled (`prometheus-adapter.enabled: false`) to avoid deploying a second adapter that would conflict with the cluster-scoped APIService.
 
 ### Grafana Dashboards
 
@@ -427,7 +398,7 @@ curl -s -H "Authorization: Bearer $GRAFANA_TOKEN" \
 
 3. **Add to version control:**
    - Save the JSON to `backend/charts/monitoring/dashboards/<name>.json`
-   - Use a descriptive filename matching the dashboard title (e.g. `parakeet-asr-monitoring.json`)
+   - Use a descriptive filename matching the dashboard title (e.g. `backend-listen.json`)
    - Strip runtime fields: `.id`, `.version` (done by the `jq` command above)
    - Keep the `.uid` field — it links the repo copy to the live dashboard
 
@@ -462,17 +433,17 @@ export GRAFANA_TOKEN="your-token"
 export GRAFANA_HOST="https://monitor.omi.me"  # or monitor.omiapi.com
 
 # 2. Export the updated dashboard
-DASHBOARD_UID="07e4c65f-ae79-414d-bf05-99468267d199"  # example: Parakeet ASR
+DASHBOARD_UID="855b2e16-c098-407a-85dc-dc9ce87698a9"  # example: backend-listen
 curl -s -H "Authorization: Bearer $GRAFANA_TOKEN" \
   "$GRAFANA_HOST/api/dashboards/uid/$DASHBOARD_UID" | \
-  jq '.dashboard | del(.id, .version)' > dashboards/parakeet-asr-monitoring.json
+  jq '.dashboard | del(.id, .version)' > dashboards/backend-listen.json
 
 # 3. Review the diff
-git diff dashboards/parakeet-asr-monitoring.json
+git diff dashboards/backend-listen.json
 
 # 4. Commit and PR
-git add dashboards/parakeet-asr-monitoring.json
-git commit -m "sync(monitoring): export parakeet dashboard from Grafana UI"
+git add dashboards/backend-listen.json
+git commit -m "sync(monitoring): export backend-listen dashboard from Grafana UI"
 ```
 
 **Bulk sync (all 17 custom dashboards):**
@@ -581,20 +552,6 @@ Never place raw provider responses, exception text, stack traces, or dynamic Gra
 Keep the message human-readable and direct the operator to the linked dashboard for bounded verification. Do not change
 Grafana credentials, contact points, or routing configuration while adding a rule.
 
-Parakeet stream-capacity alerts use the existing `parakeet_active_streams` gauge divided by ready Parakeet replicas:
-
-```promql
-sum(parakeet_active_streams{container="parakeet", namespace="prod-omi-backend"})
-  / clamp_min(sum(kube_deployment_status_replicas_ready{
-      deployment="prod-omi-parakeet", namespace="prod-omi-backend"}), 1)
-```
-
-This avoids a cluster-total threshold that would become misleading as HPA replica count changes. The warning threshold is
-15 streams per ready replica for five minutes and the critical threshold is 20 for two minutes, both below the known
-approximately 25–30 stream per-replica capability. No-data is healthy for these capacity rules: absent metrics are not
-evidence of saturation. Operator response is in
-[`parakeet-stream-capacity.md`](../../docs/runbooks/parakeet-stream-capacity.md).
-
 ## Dashboard & Metrics Lifecycle
 
 ### Approach: UI-First, Git-Backed
@@ -624,13 +581,11 @@ backend/charts/monitoring/
 │   ├── general/                         # Matches Grafana "General" folder
 │   │   ├── backend-api-monitoring-v1.json
 │   │   ├── backend-api-monitoring-v2.json
-│   │   └── parakeet-asr-monitoring.json
 │   ├── cloud-run/                       # Matches Grafana "Cloud Run" folder
 │   │   ├── backend.json
 │   │   └── backend-sync.json
 │   ├── gke/                             # Matches Grafana "GKE" folder
 │   │   ├── backend-listen.json
-│   │   ├── deepgram-self-hosted.json
 │   │   ├── diarizer.json
 │   │   ├── pusher.json
 │   │   └── vad.json
@@ -672,20 +627,20 @@ Move alert rules from Grafana UI into version-controlled config. Two options:
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
-  name: parakeet-alerts
+  name: backend-listen-alerts
   labels:
     release: prod-omi-kube-prometheus-stack
 spec:
   groups:
-    - name: parakeet
+    - name: backend-listen
       rules:
-        - alert: ParakeetHighGPUUtil
-          expr: avg(DCGM_FI_DEV_GPU_UTIL{container="parakeet"}) > 90
+        - alert: BackendListenHighConnectionCount
+          expr: sum(backend_listen_active_ws_connections) > 1000
           for: 5m
           labels:
             severity: warning
           annotations:
-            summary: "Parakeet GPU utilization above 90% for 5m"
+            summary: "Backend-listen connection count above 1000 for 5m"
 ```
 
 **Option B: Grafana provisioning YAML (for log-based or multi-datasource alerts)**
@@ -698,11 +653,11 @@ Each service that exposes Prometheus metrics should document them alongside its 
 
 | Field | Example |
 |-------|---------|
-| Metric name | `parakeet_active_streams` |
+| Metric name | `backend_listen_active_ws_connections` |
 | Type | Gauge |
 | Labels | `namespace`, `pod` |
 | Unit | connections |
-| Used by | parakeet HPA, GPU dashboard |
+| Used by | backend-listen HPA and dashboard |
 
 This ensures dashboard authors and HPA configs stay in sync with the application. When a metric is renamed or removed, the contract makes it clear what downstream consumers need updating.
 

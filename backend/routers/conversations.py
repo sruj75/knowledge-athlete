@@ -37,7 +37,6 @@ from models.conversation_enums import ConversationSource, ConversationStatus
 from utils.conversations.factory import deserialize_conversation
 from utils.conversations.analytics import build_conversation_analytics
 from utils.conversations.render import redact_conversations_for_list
-from models.conversation_photo import ConversationPhoto
 from models.geolocation import Geolocation, GeolocationInput, validated_geolocation_or_none
 from models.structured import Structured
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
@@ -593,7 +592,7 @@ def get_conversations(
     status_filter = statuses.split(",") if len(statuses) > 0 else []
     _reject_oversized_filter(status_filter, "statuses")
 
-    conversations = conversations_db.get_conversations_without_photos(
+    conversations = conversations_db.get_conversations(
         uid,
         limit,
         offset,
@@ -702,14 +701,6 @@ def patch_conversation_segment_text(
     if result == 'segment_not_found':
         raise HTTPException(status_code=404, detail="Segment not found")
     return {'status': 'Ok'}
-
-
-@router.get(
-    "/v1/conversations/{conversation_id}/photos", response_model=List[ConversationPhoto], tags=['conversations']
-)
-def get_conversation_photos(conversation_id: str, uid: str = Depends(auth.get_current_user_uid)):
-    _get_valid_conversation_by_id(uid, conversation_id)
-    return conversations_db.get_conversation_photos(uid, conversation_id)
 
 
 @router.get(
@@ -1169,7 +1160,7 @@ def search_conversations_endpoint(
     except ConversationSearchUnavailableError:
         raise HTTPException(status_code=503, detail="Search temporarily unavailable")
     conversation_ids = [item.get('id') for item in search_results.get('items', []) if item.get('id')]
-    conversations = conversations_db.get_conversations_by_id_without_photos(
+    conversations = conversations_db.get_conversations_by_id(
         uid,
         conversation_ids,
         include_discarded=bool(search_request.include_discarded),
@@ -1265,7 +1256,11 @@ def merge_conversations(
     - Copied audio chunks
     - Regenerated title, summary, action items, memories via process_conversation()
     """
-    from utils.conversations.merge_conversations import validate_merge_compatibility, perform_merge_async
+    from utils.conversations.merge_conversations import (
+        LEGACY_PHOTO_MERGE_ERROR,
+        perform_merge_async,
+        validate_merge_compatibility,
+    )
 
     # Validate minimum number of conversations
     if len(request.conversation_ids) < 2:
@@ -1277,6 +1272,8 @@ def merge_conversations(
         conv = conversations_db.get_conversation(uid, conv_id)
         if conv is None:
             raise HTTPException(status_code=404, detail=f"Conversation {conv_id} not found")
+        if conversations_db.conversation_has_legacy_photos(uid, conv_id, conversation=conv):
+            raise HTTPException(status_code=400, detail=LEGACY_PHOTO_MERGE_ERROR)
         conversations.append(conv)
 
     # Validate merge compatibility (returns warning for large gaps but doesn't reject)

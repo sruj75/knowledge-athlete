@@ -13,7 +13,6 @@ from jsonschema import validate as validate_json_schema
 from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, PrivateAttr, ValidationError
 
-from utils.http_client import get_llm_gateway_client, get_llm_gateway_semaphore
 from utils.llm.gateway_observability import record_direct_exception_surface, record_gateway_request_result
 from utils.llm.gateway_resilience import gateway_circuit, gateway_transport_timeout, observe_gateway_first_byte
 from utils.llm.usage_tracker import get_current_context

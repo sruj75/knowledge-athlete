@@ -1,5 +1,4 @@
 import Foundation
-import OmiWAL
 
 extension APIClient {
   // MARK: - Platform Tools (backend RAG)

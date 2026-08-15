@@ -1,5 +1,5 @@
 """Edge-case request validation helpers for calendar dates, sync filenames,
-image chunks, and reusable Query parameter aliases.
+and reusable Query parameter aliases.
 
 Body validation convention: JSON request bodies are validated by FastAPI's
 native mechanism — declare the body param as a Pydantic model
@@ -7,8 +7,8 @@ native mechanism — declare the body param as a Pydantic model
 checking, and 422-on-malformed. Do NOT hand-parse with ``data: dict`` +
 ``data.get()`` + manual HTTPException; that pattern is being phased out (see
 Phase 1.2 of the schema SSOT plan). This module does NOT centralize body
-validation; it owns only the retained date, filename, chunk-envelope, and
-query-parameter boundaries below.
+validation; it owns only the retained date, filename, and query-parameter
+boundaries below.
 """
 
 from datetime import date, datetime, timezone
@@ -16,7 +16,6 @@ from decimal import Decimal, InvalidOperation
 from typing import Annotated
 
 from fastapi import HTTPException, Query
-from pydantic import BaseModel, Field, model_validator
 
 PositiveLimit = Annotated[int, Query(ge=1, le=1000)]
 CalendarMeetingsLimit = Annotated[int, Query(ge=1, le=100)]
@@ -43,9 +42,6 @@ def parse_timezone_aware_datetime(value: str, field_name: str) -> datetime:
     if parsed.tzinfo is None or parsed.utcoffset() is None:
         raise ValueError(f'{field_name} must include a timezone offset')
     return parsed
-
-
-MAX_IMAGE_CHUNK_TOTAL = 4096
 
 
 def parse_sync_filename_timestamp(path: str) -> int | float:
@@ -80,20 +76,3 @@ def parse_sync_filename_timestamp(path: str) -> int | float:
     if timestamp_dt > now or timestamp_dt < datetime(2024, 1, 1, tzinfo=timezone.utc):
         raise ValueError('invalid timestamp')
     return timestamp
-
-
-class ImageChunkEnvelope(BaseModel):
-    id: str = Field(min_length=1)
-    index: int = Field(ge=0)
-    total: int = Field(ge=1, le=MAX_IMAGE_CHUNK_TOTAL)
-    data: str = Field(min_length=1)
-
-    @model_validator(mode='after')
-    def validate_index_within_total(self):
-        if self.index >= self.total:
-            raise ValueError('index must be smaller than total')
-        return self
-
-    def validate_against_cached_total(self, cached_total: int | None) -> None:
-        if cached_total is not None and cached_total != self.total:
-            raise ValueError('total must be consistent for all chunks in an image upload')

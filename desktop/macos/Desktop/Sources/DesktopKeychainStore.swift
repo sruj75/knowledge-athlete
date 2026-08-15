@@ -21,7 +21,6 @@ enum DesktopKeychainStore {
   /// Pre-scoping service names. Kept as constants for dump/seed scripts and docs only —
   /// app runtime must not SecItem-query these (see file header).
   static let legacyAuthTokenService = "com.omi.desktop.firebase-rest-session"
-  static let legacyLocalAgentTokenService = "com.omi.desktop.local-agent-api"
   static let legacyClientDeviceService = "com.omi.client-device-id"
 
   /// Signing Team ID of the running binary (e.g. `9536L8KLMP` for Developer ID,

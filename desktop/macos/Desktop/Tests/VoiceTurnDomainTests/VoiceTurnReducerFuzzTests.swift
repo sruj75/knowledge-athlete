@@ -13,7 +13,6 @@ extension VoiceOutputLease {
     self.init(id: fuzzLeaseID, turnID: turnID, lane: lane, identity: identity)
   }
 }
-
 // MARK: - Seeded PRNG
 
 private struct FuzzRNG: RandomNumberGenerator {
@@ -601,7 +600,7 @@ private struct FuzzFailure: Error, CustomStringConvertible {
       let turnID = harness.pickTurnID(&rng, preferCurrent: true)
       let route: VoiceTurnRoute = rng.pick([
         .undecided, .hubWarmWait, .hub(sessionID: FuzzIDs.sessionID(&rng)),
-        .omniSTT, .deepgramBatch, .deepgramLive,
+        .omniSTT, .managedBatch,
       ])
       return .selectRoute(turnID: turnID, route: route)
     },

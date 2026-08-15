@@ -60,9 +60,7 @@ def _make_db_fakes() -> dict:
     daily_summary.generate_comprehensive_daily_summary = MagicMock()
     fakes["utils.llm.daily_summary"] = daily_summary
 
-    streaming = ModuleType("utils.stt.streaming")
-    streaming.deepgram_nova3_multi_languages = ['en']
-    fakes["utils.stt.streaming"] = streaming
+    fakes["utils.stt.streaming"] = ModuleType("utils.stt.streaming")
 
     return fakes
 

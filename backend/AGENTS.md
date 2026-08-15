@@ -13,7 +13,7 @@ source .venv/bin/activate
 uvicorn main:app --host 0.0.0.0 --port 8080
 ```
 
-**Env stages** (`OMI_ENV_STAGE`): `local` (emulator harness, `.env.local-dev`), `offline` (fake providers, `.env.offline`), `dev` (remote dev GCP, `.env.dev`), `prod` (reference only, `.env.prod`). `load_backend_env()` loads the stage file then `backend/.env` overrides. Templates: `backend/.env.*.template`. Harness: `PROVIDER_MODE=offline make dev-up` or `OMI_ENV_STAGE=offline`. Dev skips the startup-only Stripe price validation; plan catalog and checkout calls still require mode-matched Stripe credentials.
+**Env stages** (`OMI_ENV_STAGE`): `local` (emulator harness, `.env.local-dev`), `offline` (fake-backed providers, `.env.offline`), `dev` (remote dev GCP, `.env.dev`), `prod` (reference only, `.env.prod`). `load_backend_env()` loads the stage file then `backend/.env` overrides. Templates: `backend/.env.*.template`. Harness: `PROVIDER_MODE=offline make dev-up` or `OMI_ENV_STAGE=offline`. Offline harness app factories install the shared hermetic Modulate fake for managed live and prerecorded STT without provider credentials. Dev skips the startup-only Stripe price validation; plan catalog and checkout calls still require mode-matched Stripe credentials.
 
 When intentionally changing backend Python dependencies, edit the relevant `requirements*.txt` input file and refresh the lock:
 
@@ -23,7 +23,7 @@ When intentionally changing backend Python dependencies, edit the relevant `requ
 
 By default, the lock refresh preserves already-locked package versions so unrelated transitive upgrades do not sneak into infrastructure changes. Set `PYLOCK_UPGRADE=1` only when intentionally refreshing dependency versions.
 
-Key env vars: `OPENAI_API_KEY` (LLM calls — not `OPENAI_ADMIN_KEY` which is billing-only), `HOSTED_PARAKEET_API_URL` and `MODULATE_API_KEY` (default serving STT), `DEEPGRAM_API_KEY` with `DEEPGRAM_SELF_HOSTED_ENABLED=true` and a non-cloud `DEEPGRAM_SELF_HOSTED_URL` (explicit self-hosted Deepgram streaming only), `GEMINI_API_KEY` and `ANTHROPIC_API_KEY` (desktop-backend chat/realtime), `ENCRYPTION_SECRET` (required for tests), `REDIS_DB_HOST` (cache/rate-limiting, fail-open without it), and `SERVICE_ACCOUNT_JSON` / `GOOGLE_APPLICATION_CREDENTIALS` (Firebase Admin credentials; prefer the secret value in Cloud Run, never commit files).
+Key env vars: `OPENAI_API_KEY` (LLM calls — not `OPENAI_ADMIN_KEY` which is billing-only), `MODULATE_API_KEY` (managed live and prerecorded STT), `GEMINI_API_KEY` and `ANTHROPIC_API_KEY` (desktop-backend chat/realtime), `ENCRYPTION_SECRET` (required for tests), `REDIS_DB_HOST` (cache/rate-limiting, fail-open without it), and `SERVICE_ACCOUNT_JSON` / `GOOGLE_APPLICATION_CREDENTIALS` (Firebase Admin credentials; prefer the secret value in Cloud Run, never commit files).
 
 Chat SSE deadlines: `AGENT_STREAM_FIRST_EVENT_TIMEOUT_SECONDS` (default `25`), `AGENT_STREAM_PROGRESS_HEARTBEAT_SECONDS` (default `20`), `AGENT_STREAM_MAX_DURATION_SECONDS` (default `150`), and `AGENT_STREAM_CANCEL_GRACE_SECONDS` (default `2`) bound silent setup/producer work and keep valid long tool calls observable. Values must be positive. The agent's provider call is re-issued on transport-class failures up to `AGENT_STREAM_PROVIDER_MAX_ATTEMPTS` (default `3`), spaced by `AGENT_STREAM_PROVIDER_RETRY_BACKOFF_SECONDS` (default `1`), and only while at least `AGENT_STREAM_PROVIDER_MIN_RETRY_HEADROOM_SECONDS` (default `45`) of the turn budget remains. The silent-interval bound on the call itself stays with the transport — in prod that is the gateway client's `OMI_LLM_GATEWAY_FIRST_BYTE_TIMEOUT_SECONDS` (default `15`), since `OMI_LLM_GATEWAY_FEATURE_MODE=gateway` routes chat through it — and must not be overridden with a per-request `timeout=`.
 
@@ -51,7 +51,7 @@ backend/
     chat.py               #   /v2/messages — AI chat with tool use, voice messages, file uploads
     conversations.py      #   /v1/conversations — CRUD, merge, search, action items, photos
     memories.py           #   /v3/memories — CRUD and semantic search
-    sync.py               #   /v1/sync — mobile client data sync (1500 LOC)
+    sync.py               #   Conversation-audio playback plus audio-merge Cloud Tasks handler
     auth.py               #   Google/Apple OAuth callbacks, session management
     users.py              #   Profile, subscription, settings (1200 LOC)
     ...                   #   + action_items, goals, payment, and other retained product routes
@@ -61,7 +61,7 @@ backend/
                           #   fair-use classification, and usage tracking
       clients.py          #     Model instances: OpenAI (gpt-4.1-mini, o4-mini), Anthropic (claude-sonnet-4-6),
                           #     OpenRouter (gemini-flash), with prompt caching and usage callbacks
-    stt/                  #   Speech-to-text (7 files): Parakeet/Modulate and explicit self-hosted Deepgram streaming, VAD gating, speech profiles,
+    stt/                  #   Managed Modulate speech-to-text, provider-neutral VAD gating, speech profiles,
                           #   pre-recorded batch transcription, speaker embeddings
     conversations/        #   Conversation lifecycle (6 files): ingestion, memory extraction, action items,
                           #   merge, post-processing, search
@@ -111,19 +111,15 @@ backend (main.py)
   ├── ws ──► pusher (pusher/)
   ├── ──────► diarizer (diarizer/)
   ├── ──────► vad (modal/)
-  ├── ──────► parakeet (parakeet/)
   ├── ──────► modulate (managed API)
-  ├── ──────► deepgram-self-hosted (explicit streaming policy only)
   ├── ──────► nllb-translation (nllb_translation/)
   └── ──────► llm-gateway (llm_gateway/main.py)
 
 pusher
   ├── ──────► diarizer (diarizer/)
-  └── ──────► parakeet / modulate (STT)
+  └── ──────► modulate (managed STT)
 
 backend-sync (main.py, Cloud Run)
-  ├── ──────► Cloud Tasks queue `sync-jobs` ──► POST /v2/sync-jobs/run (OIDC, same service; fresh lane)
-  ├── ──────► Cloud Tasks queue `sync-backfill` ──► backend-sync-backfill POST /v2/sync-jobs/run (OIDC; historical lane)
   ├── ──────► Cloud Tasks queue `audio-merge` ──► POST /v2/audio-merge-jobs/run (OIDC, same service)
   ├── ──────► Cloud Tasks queue `account-deletion` ──► POST /v1/users/account-deletion-wipes/run (OIDC, same service)
   └── ──────► Cloud Tasks queue `conversation-finalization` ──► POST /v1/conversation-finalization-jobs/run (OIDC, same service)
@@ -132,20 +128,18 @@ notifications-job (modal/job.py)  [cron]
 memory-maintenance-job (modal/memory_maintenance_job.py)  [cron]
 ```
 
-Helm charts: `backend/charts/{backend-listen,backend-secrets,deepgram-self-hosted,diarizer,llm-gateway,monitoring,nllb-translation,parakeet,pusher,vad}/`.
+Helm charts: `backend/charts/{backend-listen,backend-secrets,diarizer,llm-gateway,monitoring,nllb-translation,pusher,vad}/`.
 
-Serving STT provider/surface policy and canonical model order are owned exclusively by `config/stt_provider_policy.py`; deployment values are validated against it.
+Managed STT is fixed to Modulate. `config/stt_provider_policy.py` owns its language/capability policy, and the runtime manifest binds only `MODULATE_API_KEY` on transcription-capable services.
 
-- **backend** (`main.py`) — REST API. Streams audio to pusher via WebSocket (`utils/pusher.py`). Calls diarizer for speaker embeddings (`utils/stt/speaker_embedding.py`). Calls vad for voice activity detection and speaker identification (`utils/stt/vad.py`, `utils/stt/speech_profile.py`). Default STT is Parakeet or Modulate (`HOSTED_PARAKEET_API_URL`, `MODULATE_API_KEY`); self-hosted Deepgram is a separately gated streaming option (`DEEPGRAM_SELF_HOSTED_*`, `utils/stt/streaming.py`). Calls NLLB translation when `HOSTED_TRANSLATION_API_URL` is set and NLLB is selected (`utils/translation.py`).
+- **backend** (`main.py`) — REST API. Streams audio to pusher via WebSocket (`utils/pusher.py`). Calls diarizer for speaker embeddings (`utils/stt/speaker_embedding.py`). Calls vad for voice activity detection and speaker identification (`utils/stt/vad.py`, `utils/stt/speech_profile.py`). Managed live and prerecorded STT uses Modulate (`MODULATE_API_KEY`). Calls NLLB translation when `HOSTED_TRANSLATION_API_URL` is set and NLLB is selected (`utils/translation.py`).
 - **llm-gateway** (`llm_gateway/main.py`) — Internal FastAPI service for Omi-managed LLM auto lanes. Called by backend with service auth for `omi:auto:*` chat-completions routes; not exposed to clients.
-- **pusher** (`pusher/main.py`) — Receives audio via binary WebSocket protocol. Calls diarizer and the configured Parakeet/Modulate STT provider for speaker sample extraction (`utils/speaker_identification.py` → `utils/speaker_sample.py`).
+- **pusher** (`pusher/main.py`) — Receives audio via binary WebSocket protocol. Calls diarizer and managed Modulate STT for speaker sample extraction (`utils/speaker_identification.py` → `utils/speaker_sample.py`).
 - **diarizer** (`diarizer/main.py`) — GPU. Speaker embeddings at `/v2/embedding`. Called by backend and pusher (`HOSTED_SPEAKER_EMBEDDING_API_URL`).
 - **vad** (`modal/main.py`) — GPU. `/v1/vad` and `/v1/speaker-identification`. Called by backend only.
-- **deepgram-self-hosted** — GPU STT deployment behind an explicit non-cloud endpoint. Hosted Deepgram is disabled on every serving surface; do not add a hosted API key or `api.deepgram.com` fallback.
-- **parakeet** (`parakeet/`) — GPU STT service for streaming and pre-recorded transcription. Called by backend when `HOSTED_PARAKEET_API_URL` is set and Parakeet is selected.
-- **modulate** — Managed STT provider for configured languages. Called by backend when `MODULATE_API_KEY` is configured and Modulate is selected.
+- **modulate** — The fixed managed STT adapter for configured languages. Called by transcription-capable services through their `MODULATE_API_KEY` binding.
 - **nllb-translation** (`nllb_translation/`) — GPU translation service. Called by backend when `HOSTED_TRANSLATION_API_URL` is set and NLLB is selected.
-- **backend-sync** (`main.py`, same image as backend) — Cloud Run admission service for `/v2/sync-local-files`. The server classifies whole batches: recordings no more than six hours old enter `sync-jobs` (fresh), while older or untrusted batches enter `sync-backfill` and the scale-to-zero **backend-sync-backfill** worker. Fresh keeps its bounded inline fallback; backfill never falls into fresh/inline capacity. Backfill defaults to one in-flight job per UID, four processed speech hours per UID/day, 555 processed speech hours globally/day, a 30-day lookback, and four queue workers. Live fair-use reads only `realtime + sync_fresh`; `sync_backfill` is separately metered. A 45-day Firestore content ledger protects transcription and usage side effects across job expiry and re-upload. Audio playback merges (`/v1/sync/audio/*`) follow the same pattern via queue `audio-merge` building 30-day MP3 artifacts under `playback/` (`AUDIO_MERGE_DISPATCH_MODE`) — per-part files plus one dense per-conversation `conversation.mp3` whose spans manifest + audio_files fingerprint are stamped on the conversation doc (`conversation_audio`); a fingerprint mismatch after late chunks re-enqueues the build. In production, account deletion requires `ACCOUNT_DELETION_DISPATCH_MODE=cloud_tasks` and complete Cloud Tasks bindings to enqueue opaque job IDs to queue `account-deletion`, which posts `/v1/users/account-deletion-wipes/run`; startup rejects inline or incomplete configuration, reconciliation only re-dispatches tasks so the OIDC handler is the sole wipe executor, and the post-deploy queue-drain window accepts the former sync OIDC audience only for legacy UID payloads. API success is returned only after the deletion marker is persisted and the wipe task is durably enqueued.
+- **backend-sync** (`main.py`, same image as backend) — Shared Cloud Run task worker retained until S-25. Audio playback routes (`/v1/sync/audio/*`) and queue `audio-merge` build 30-day MP3 artifacts under `playback/` (`AUDIO_MERGE_DISPATCH_MODE`) — per-part files plus one dense per-conversation `conversation.mp3` whose spans manifest + audio-files fingerprint are stamped on the conversation doc (`conversation_audio`); a fingerprint mismatch after late chunks re-enqueues the build. In production, account deletion requires `ACCOUNT_DELETION_DISPATCH_MODE=cloud_tasks` and complete Cloud Tasks bindings to enqueue opaque job IDs to queue `account-deletion`, which posts `/v1/users/account-deletion-wipes/run`; startup rejects inline or incomplete configuration, reconciliation only re-dispatches tasks so the OIDC handler is the sole wipe executor, and the post-deploy queue-drain window accepts the former sync OIDC audience only for legacy UID payloads. Conversation finalization is also handled here through its dedicated queue and OIDC route. API success is returned only after the deletion marker is persisted and the wipe task is durably enqueued.
 - **notifications-job** (`modal/job.py`) — Cron job that reads Firestore/Redis and sends first-party push notifications. It has no connector synchronization or canonical-maintenance role.
 - **memory-maintenance-job** (`modal/memory_maintenance_job.py`) — Cloud Run Job and sole host for canonical maintenance (required normalization → TTL audit with canonical rejection of expired processed items → one terminal consolidation route per remaining pending item). Manual deploy via `.github/workflows/gcp_memory_maintenance_job.yml`; auto-dev on push to `main` via `gcp_memory_maintenance_job_auto_dev.yml`. Enablement is a multi-var contract (`MEMORY_MODE`, `MEMORY_ENABLED_USERS`, `MEMORY_CANONICAL_MAINTENANCE_ENABLED`, and consolidation flags) enforced by `backend/scripts/validate-backend-runtime-env.py`; Cloud Scheduler owns cadence, and prod stays `MEMORY_MODE=off` until Gate 3.
 - **monitoring** (`backend/charts/monitoring/`) — Prometheus, Grafana, Loki, Alloy, alerts, and HPA metric adapters for backend services.
@@ -240,7 +234,7 @@ Live suites record `NOT_RUN` when credentials/backend are unavailable — never 
 
 A passing unit test is not the same as exercising the endpoint. Before putting a change in a PR:
 
-1. **Serve locally**: `./scripts/dev-serve.sh` (per-worktree port) or `uvicorn main:app --port 8080`. No GCP credentials? Use the offline harness — `PROVIDER_MODE=offline make dev-up` from the repo root (fake providers, no external services).
+1. **Serve locally**: `./scripts/dev-serve.sh` (per-worktree port) or `uvicorn main:app --port 8080`. No GCP credentials? The offline harness covers fake-backed providers with no external services, including managed live and prerecorded STT through the shared hermetic Modulate fake.
 2. **Authenticate without a client**: set `ADMIN_KEY` in `.env`, then call endpoints as any uid with `Authorization: Bearer <ADMIN_KEY><uid>` (the key concatenated with the uid).
 3. **Hit the changed endpoints** with curl and read the server logs — verify the behavior changed as intended, not just that the route returns 200.
 4. **Record the commands and output** in the PR description (root `AGENTS.md` → Definition of Done).
@@ -309,11 +303,9 @@ WS handlers in `transcribe.py` and `pusher.py` manage 5-11 concurrent tasks per 
 3. **Sync `requests` in async is silent poison** — no error raised, just blocks the entire event loop. All connections freeze, health checks fail, HPA can't scale.
 4. **Semaphores are event-loop-bound** — `http_client.py` handles this via `(loop_id, name)` keying. Don't create raw `asyncio.Semaphore` outside that module.
 5. **Webhook timeout = 30s** — partner integrations depend on this window. Don't change `httpx.Timeout(30.0, connect=2.0)`.
-6. **Sync WAL codec is filename-driven** — `decode_files_to_wav` routes on the filename codec token (`utils/sync/files.py`): `_pcm16_`/`_pcm8_` → PCM decoder, otherwise opus. PCM is fully supported; the real gotcha is a mislabeled/missing codec token silently decodes as the wrong codec (garbage audio, still HTTP 200) — name the codec correctly in the filename
-7. **Firestore collection group queries** need explicit indexes — 500 with no useful error
-8. **Mutable WebSocket state races** — snapshot `nonlocal` variables before spawning async work
-9. **Silent fire-and-forget drops** — functions gating on connection state must log when dropping work
-10. **New fallbacks** — call `utils.observability.fallback.record_fallback`; do not invent a new `*_fallback_total` Counter
-11. **Queue caps for user data** — `private_cloud_queue` uses `deque(maxlen=20)` to prevent OOM kills (sized for 30 conns/pod); dropping oldest chunk is better than killing the pod and losing ALL data for ALL users
-12. **`langdetect` unreliable on short text** — don't use on <20 chars or gate paid API calls on interim streaming text
-13. **DG keepalive vs response timeout** — `keep_alive()` prevents DG's 10s idle timeout but NOT 1011 response timeout after all audio is processed. Post-session 1011 is benign.
+6. **Firestore collection group queries** need explicit indexes — 500 with no useful error
+7. **Mutable WebSocket state races** — snapshot `nonlocal` variables before spawning async work
+8. **Silent fire-and-forget drops** — functions gating on connection state must log when dropping work
+9. **New fallbacks** — call `utils.observability.fallback.record_fallback`; do not invent a new `*_fallback_total` Counter
+10. **Queue caps for user data** — `private_cloud_queue` uses `deque(maxlen=20)` to prevent OOM kills (sized for 30 conns/pod); dropping oldest chunk is better than killing the pod and losing ALL data for ALL users
+11. **`langdetect` unreliable on short text** — don't use on <20 chars or gate paid API calls on interim streaming text

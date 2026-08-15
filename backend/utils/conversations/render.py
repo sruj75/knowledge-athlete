@@ -210,10 +210,6 @@ def conversations_to_string(
 
         if use_transcript:
             conversation_str += f"\nTranscript:\n{conversation.get_transcript(include_timestamps=include_timestamps, people=people, user_name=user_name)}\n"  # type: ignore[reportArgumentType]  # conversation.py reverted to main; people/user_name may be Optional
-            # photos
-            photo_descriptions = conversation.get_photos_descriptions(include_timestamps=include_timestamps)
-            if photo_descriptions != 'None':
-                conversation_str += f"Photo Descriptions from a wearable camera:\n{photo_descriptions}\n"
 
         result.append(conversation_str.strip())
 

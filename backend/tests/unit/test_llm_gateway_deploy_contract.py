@@ -120,7 +120,7 @@ def test_prod_gateway_wiring_promotes_cloud_run_only_after_verified_endpoint_inj
     assert gke_env['GCP_LOCATION']['value'] == 'us-central1'
     assert gke_env['GOOGLE_CLOUD_PROJECT']['value'] == 'based-hardware'
 
-    for service in ('backend', 'backend-sync', 'backend-sync-backfill'):
+    for service in ('backend', 'backend-sync'):
         service_config = prod['cloud_run']['services'][service]
         assert service_config['env']['OMI_LLM_GATEWAY_URL'] == {
             'env_var': 'OMI_LLM_GATEWAY_URL',
@@ -365,7 +365,7 @@ def test_auto_dev_revision_fence_targets_the_deployment_project_static_contract(
     """Static guard: every final revision read uses the same explicit project as promotion."""
     workflow = _load_workflow('gcp_backend_auto_dev.yml')
     fence = _workflow_step(workflow, 'Verify validated revisions are still current')
-    assert str(fence['run']).count('--project=${{ vars.GCP_PROJECT_ID }}') == 3
+    assert str(fence['run']).count('--project=${{ vars.GCP_PROJECT_ID }}') == 2
 
 
 def test_monitoring_scrapes_llm_gateway_with_shared_metrics_secret_contract():

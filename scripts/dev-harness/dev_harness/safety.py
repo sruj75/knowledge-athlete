@@ -114,7 +114,6 @@ _STRIPPED_ENV_PREFIXES = (
 _LOCAL_BACKEND_SECRET_KEYS = {"ENCRYPTION_SECRET", "ADMIN_KEY", "TYPESENSE_API_KEY", "FIREBASE_API_KEY"}
 _OFFLINE_PROVIDER_PLACEHOLDERS = {
     "OPENAI_API_KEY": "sk-omi-local-harness-offline-not-real",
-    "DEEPGRAM_API_KEY": "omi-local-harness-offline-deepgram-not-real",
     "GEMINI_API_KEY": "omi-local-harness-offline-gemini-not-real",
     "ANTHROPIC_API_KEY": "omi-local-harness-offline-anthropic-not-real",
 }

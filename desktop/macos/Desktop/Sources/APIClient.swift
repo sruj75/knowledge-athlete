@@ -1,5 +1,4 @@
 import Foundation
-import OmiWAL
 
 actor APIClient {
   static let shared = APIClient()

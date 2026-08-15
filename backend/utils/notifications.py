@@ -1,6 +1,5 @@
 import asyncio
 import hashlib
-import json
 import math
 import uuid
 from datetime import datetime
@@ -14,7 +13,6 @@ from database.redis_db import (
     set_silent_user_notification_sent,
     has_silent_user_notification_been_sent,
 )
-from database.auth import get_user_from_uid
 from utils.notification_text import to_plain_text
 from .llm.notifications import (
     generate_notification_message,

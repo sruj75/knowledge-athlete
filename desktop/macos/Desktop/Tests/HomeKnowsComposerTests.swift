@@ -8,7 +8,7 @@ final class HomeKnowsComposerTests: XCTestCase {
     HomeKnowsTaskCandidate(id: "t2", text: "Reply to Sarah"),
   ]
   private let insights = [
-    HomeKnowsInsightCandidate(id: "i1", text: "Deepgram spend is pacing 18% over last week"),
+    HomeKnowsInsightCandidate(id: "i1", text: "Infrastructure spend is pacing 18% over last week"),
     HomeKnowsInsightCandidate(id: "i2", text: "Two meetings overlap on Thursday"),
   ]
   private let questions = ["What should I do today?", "What did I spend my time on this week?"]

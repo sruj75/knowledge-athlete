@@ -342,7 +342,7 @@ environments:
             GLOBAL_SECRET:
               secret: inherited-secret
               version: '3'
-        backend-sync-backfill:
+        backend-sync:
           env:
             RETAINED_PUBLIC:
               value: retained
@@ -382,7 +382,7 @@ environments:
     }
 
     drift = preflight.check_runtime_bindings(
-        services=('backend-sync-backfill',),
+        services=('backend-sync',),
         env='dev',
         project='based-hardware-dev',
         region='us-central1',

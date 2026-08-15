@@ -299,18 +299,6 @@ def delete_postprocessing_audio(file_path: str) -> None:
     blob.delete()
 
 
-# ***********************************
-# ************* SDCARD **************
-# ***********************************
-
-
-def upload_sdcard_audio(file_path: str) -> str:
-    bucket = _get_storage_client().bucket(postprocessing_audio_bucket)
-    blob = bucket.blob(file_path)
-    blob.upload_from_filename(file_path)
-    return f'https://storage.googleapis.com/{postprocessing_audio_bucket}/sdcard/{file_path}'
-
-
 def download_postprocessing_audio(file_path: str, destination_file_path: str) -> None:
     bucket = _get_storage_client().bucket(postprocessing_audio_bucket)
     blob = bucket.blob(file_path)
@@ -361,16 +349,6 @@ def delete_all_conversation_recordings(uid: str) -> int:
     return deleted
 
 
-# ********************************************
-# ************* SYNCING FILES **************
-# ********************************************
-def get_syncing_file_temporal_url(file_path: str):
-    bucket = _get_storage_client().bucket(syncing_local_bucket)
-    blob = bucket.blob(file_path)
-    blob.upload_from_filename(file_path)
-    return f'https://storage.googleapis.com/{syncing_local_bucket}/{file_path}'
-
-
 def get_syncing_file_temporal_signed_url(file_path: str):
     bucket = _get_storage_client().bucket(syncing_local_bucket)
     blob = bucket.blob(file_path)
@@ -387,7 +365,7 @@ def delete_syncing_temporal_file(file_path: str):
         pass
 
 
-# Long enough for every signed-URL consumer (Deepgram fetch, speaker-ID
+# Long enough for every signed-URL consumer (managed STT fetch, speaker-ID
 # download) to finish; the URLs themselves expire at 15 minutes.
 SYNCING_TEMPORAL_DELETE_DELAY_SECONDS = 480
 
@@ -403,30 +381,6 @@ def schedule_syncing_temporal_file_deletion(
     time.sleep(480) that parked a storage_executor thread per blob (#7531).
     """
     _syncing_temporal_deleter.schedule(file_path, delay_seconds)
-
-
-def upload_syncing_temporal_file(file_path: str):
-    """Stage a local file in the syncing bucket (blob name = local relative path)."""
-    bucket = _get_storage_client().bucket(syncing_local_bucket)
-    bucket.blob(file_path).upload_from_filename(file_path)
-
-
-def download_syncing_temporal_file(file_path: str) -> bool:
-    """Download a staged blob back to its local relative path.
-
-    Returns False when the blob no longer exists (e.g. deleted by the
-    bucket's 1-day lifecycle rule before a deeply delayed task ran).
-    """
-    bucket = _get_storage_client().bucket(syncing_local_bucket)
-    blob = bucket.blob(file_path)
-    directory = os.path.dirname(file_path)
-    if directory:
-        os.makedirs(directory, exist_ok=True)
-    try:
-        blob.download_to_filename(file_path)
-        return True
-    except BlobNotFound:
-        return False
 
 
 # ************************************************

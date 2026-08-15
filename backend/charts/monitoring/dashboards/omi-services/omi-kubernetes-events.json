@@ -89,16 +89,11 @@
           },
           {
             "selected": false,
-            "text": "prod-omi-dg-self-hosted",
-            "value": "prod-omi-dg-self-hosted"
-          },
-          {
-            "selected": false,
             "text": "prod-omi-monitoring",
             "value": "prod-omi-monitoring"
           }
         ],
-        "query": "prod-omi-backend,prod-omi-dg-self-hosted,prod-omi-monitoring",
+        "query": "prod-omi-backend,prod-omi-monitoring",
         "type": "custom"
       },
       {

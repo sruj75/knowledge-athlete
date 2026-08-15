@@ -19,7 +19,6 @@ class AnalyticsManager {
   /// outside the actor, so tests can observe the real event/payload safely under
   /// Swift concurrency.
   private var memoryAssistantTelemetryCaptureForTests: (@MainActor (String, [String: Any]) -> Void)?
-  private var devicePairingTelemetryCaptureForTests: (@MainActor (String?, [String: Any], [String: Any]) -> Void)?
 
   private init() {}
 
@@ -48,12 +47,6 @@ class AnalyticsManager {
 
   private func captureSuggestionAssistantTelemetryForTests(_ event: String, properties: [String: Any]) {
     suggestionAssistantTelemetryCaptureForTests?(event, properties)
-  }
-
-  func setDevicePairingTelemetryCaptureForTests(
-    _ capture: (@MainActor (String?, [String: Any], [String: Any]) -> Void)?
-  ) {
-    devicePairingTelemetryCaptureForTests = capture
   }
 
   // MARK: - Initialization
@@ -257,55 +250,6 @@ class AnalyticsManager {
   func permissionSkipped(permission: String, extraProperties: [String: Any] = [:]) {
     PostHogManager.shared.permissionSkipped(
       permission: permission, extraProperties: extraProperties)
-  }
-
-  /// Track Bluetooth state changes for debugging
-  func bluetoothStateChanged(
-    oldState: String, newState: String, oldStateRaw: Int, newStateRaw: Int, authorization: String,
-    authorizationRaw: Int
-  ) {
-    let properties: [String: Any] = [
-      "old_state": oldState,
-      "new_state": newState,
-      "old_state_raw": oldStateRaw,
-      "new_state_raw": newStateRaw,
-      "authorization": authorization,
-      "authorization_raw": authorizationRaw,
-    ]
-    PostHogManager.shared.track("Bluetooth State Changed", properties: properties)
-  }
-
-  func devicePairingReady(
-    device: BtDevice,
-    isNewPair: Bool,
-    isFirstPair: Bool,
-    firstPairedAt: Date?
-  ) {
-    let vendor = device.type.analyticsVendorSlug
-    let eventProperties: [String: Any] = [
-      "device_vendor": vendor,
-      "device_type": device.type.rawValue,
-      "model": device.displayModelNumber,
-      "is_first_pair": isFirstPair,
-    ]
-    var userProperties: [String: Any] = [
-      "has_paired_device": true,
-      "paired_device_type": device.type.rawValue,
-      "device_vendor": vendor,
-    ]
-    if let firstPairedAt {
-      userProperties["first_paired_at"] = ISO8601DateFormatter().string(from: firstPairedAt)
-    }
-
-    devicePairingTelemetryCaptureForTests?(
-      isNewPair ? "Device Paired" : nil,
-      eventProperties,
-      userProperties
-    )
-    if isNewPair {
-      PostHogManager.shared.track("Device Paired", properties: eventProperties)
-    }
-    PostHogManager.shared.setUserProperties(userProperties)
   }
 
   /// Report when ScreenCaptureKit broken state is detected (TCC granted but capture failing).
@@ -646,57 +590,6 @@ class AnalyticsManager {
     )
   }
 
-  func providerAuthRequired(
-    sessionAdapterId: String?,
-    harness: String,
-    bridgeMode: String,
-    oauthUrlValid: Bool
-  ) {
-    guard !Self.isDevBuild else { return }
-    var props: [String: Any] = [
-      "harness": boundedAnalyticsIdentifier(harness),
-      "bridge_mode": boundedAnalyticsIdentifier(bridgeMode),
-      "oauth_url_valid": oauthUrlValid,
-    ]
-    if let sessionAdapterId {
-      props["session_adapter_id"] = boundedAnalyticsIdentifier(sessionAdapterId)
-    }
-    PostHogManager.shared.track("provider_auth_required", properties: props)
-  }
-
-  func claudeOAuthBrowserOpened(harness: String, bridgeMode: String) {
-    guard !Self.isDevBuild else { return }
-    PostHogManager.shared.track(
-      "claude_oauth_browser_opened",
-      properties: [
-        "harness": boundedAnalyticsIdentifier(harness),
-        "bridge_mode": boundedAnalyticsIdentifier(bridgeMode),
-      ]
-    )
-  }
-
-  func claudeOAuthCallbackTimeout(harness: String, bridgeMode: String) {
-    guard !Self.isDevBuild else { return }
-    PostHogManager.shared.track(
-      "claude_oauth_callback_timeout",
-      properties: [
-        "harness": boundedAnalyticsIdentifier(harness),
-        "bridge_mode": boundedAnalyticsIdentifier(bridgeMode),
-      ]
-    )
-  }
-
-  func claudeOAuthCallbackReceived(harness: String, bridgeMode: String) {
-    guard !Self.isDevBuild else { return }
-    PostHogManager.shared.track(
-      "claude_oauth_callback_received",
-      properties: [
-        "harness": boundedAnalyticsIdentifier(harness),
-        "bridge_mode": boundedAnalyticsIdentifier(bridgeMode),
-      ]
-    )
-  }
-
   func screenContextToolResult(
     toolName: String,
     context: ScreenContextTelemetryContext,
@@ -759,7 +652,7 @@ class AnalyticsManager {
     String(value.trimmingCharacters(in: .whitespacesAndNewlines).prefix(128))
   }
 
-  /// Track individual tool calls made by the Claude agent.
+  /// Track individual tool calls made by the managed agent.
   ///
   /// Fires for every terminal status, not only success — a failed tool call
   /// previously emitted nothing, so tool reliability was unmeasurable. Filter
@@ -1120,10 +1013,6 @@ class AnalyticsManager {
 
   func tierChanged(tier: Int, reason: String) {
     PostHogManager.shared.tierChanged(tier: tier, reason: reason)
-  }
-
-  func chatBridgeModeChanged(from oldMode: String, to newMode: String) {
-    PostHogManager.shared.chatBridgeModeChanged(from: oldMode, to: newMode)
   }
 
   // MARK: - Floating Bar Events

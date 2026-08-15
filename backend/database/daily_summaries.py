@@ -23,7 +23,6 @@ from typing import Any, Dict, List, Optional, cast
 from google.cloud.firestore_v1.base_query import FieldFilter
 from google.cloud import firestore
 from ._client import db
-from . import redis_db
 
 DAILY_SUMMARIES_COLLECTION = 'daily_summaries'
 

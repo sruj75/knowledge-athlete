@@ -1050,15 +1050,6 @@ extension PostHogManager {
       ])
   }
 
-  func chatBridgeModeChanged(from oldMode: String, to newMode: String) {
-    track(
-      "chat_bridge_mode_changed",
-      properties: [
-        "from": oldMode,
-        "to": newMode,
-      ])
-  }
-
   // MARK: - Settings State
 
   /// Comprehensive all-settings snapshot (fired on app launch, at most once per day)

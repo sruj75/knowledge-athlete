@@ -37,9 +37,7 @@ model_config_features:
       - memory_l1
       - notifications
       - onboarding
-      - openglass
       - session_titles
-      - smart_glasses
       - wrapped_analysis
     structured_output:
       - chat_extraction

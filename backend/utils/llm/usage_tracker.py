@@ -205,7 +205,6 @@ class Features:
 
     PROACTIVE_NOTIFICATION = "proactive_notification"
     FOLLOWUP = "followup"
-    OPENGLASS = "openglass"
     ONBOARDING = "onboarding"
 
     # Conversation processing sub-features (granular cost tracking)
