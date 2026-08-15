@@ -239,22 +239,16 @@ exact digest and reads only Kubernetes metadata. It fails closed unless the next
 tolerations. This is capacity evidence, not a claim that the rollout has product
 traffic or user-success proof.
 
-The dev Pusher dashboard is backed by the isolated dev Prometheus scrape. It
-shows existing connection, readiness/drain, reconnect/recovery and
-backend-listen circuit-breaker aggregates, plus target health, without creating
-traffic. Pod health alone is not product-success evidence.
-
 #### Read-only development evidence boundary
 
-The development Prometheus jobs discover only `dev-omi-backend` pods carrying
-the `env=dev` workload label. They retain the existing bearer-token file
-reference; do not fetch `/metrics` directly, inspect the token, copy headers, or
-weaken authentication. The dashboard contains only low-cardinality aggregates
-and target labels (`job`, `namespace`, and `pod`), never connection IDs, user
-data, or request payloads.
+The repository no longer owns a Pusher dashboard, Prometheus scrape deployment,
+or alert rules. The retained services still emit low-cardinality connection,
+readiness/drain, reconnect/recovery, and circuit-breaker metrics behind their
+authenticated metrics boundary. Do not fetch `/metrics` directly, inspect or
+copy its token, weaken authentication, or install an ad hoc scraper.
 
-For a passive development-bake check in the permitted read-only operator plane,
-use the Pusher dashboard or these equivalent PromQL expressions:
+When an environment owner has configured an authenticated metrics consumer, a
+passive development bake may use these expressions:
 
 - active Pusher WebSockets: `sum(pusher_active_ws_connections{job="pusher-metrics"})`
 - sessions currently reconnecting or degraded:
@@ -265,11 +259,11 @@ use the Pusher dashboard or these equivalent PromQL expressions:
 - authenticated scrape target health:
   `up{job=~"pusher-metrics|backend-listen-metrics"}`
 
-`up == 1` proves only that Prometheus authenticated and scraped a target; it is
+`up == 1` proves only that a consumer authenticated and scraped a target; it is
 not connection, drain, or recovery proof. A recovery aggregate can move only
-when a real client reconnects. If no real connection exists during the passive
-window, record reconnect/recovery as **unproven**—do not generate synthetic
-traffic to turn the signal non-zero.
+when a real client reconnects. If the environment has no owned consumer or no
+real connection exists during the passive window, record reconnect/recovery as
+**unproven**—do not generate synthetic traffic to turn the signal non-zero.
 
 ### 4. Shared ConfigMap/Secret migration guard (required on key changes)
 
@@ -357,10 +351,12 @@ There are two fail-closed layers, and both must hold:
    metric-*definition* contract. It fails if a blocking metric is not even
    defined, because a rollout cannot be judged healthy against telemetry that
    does not exist. It does not scrape live values.
-2. **Live rollout gate** (watched during the deploy) — the blocking signals must
-   be green *and* sufficiently populated. The rule that overrides everything
-   else: **missing telemetry = pause or fail, never green.** A silent or
-   unscrapable dashboard is a failed gate, not a passed one.
+2. **Live rollout evidence** (watched during the deploy through an
+   environment-owned authenticated metrics consumer) — the blocking signals
+   must be green *and* sufficiently populated. The rule that overrides
+   everything else: **missing telemetry = pause or fail, never green.** An
+   unavailable consumer or silent signal is failed evidence, not a passed gate;
+   the repository does not supply a replacement dashboard or scraper.
 
 Blocking signals (real metric names emitted by pusher / backend-listen):
 
@@ -444,9 +440,11 @@ How to qualify on dev (pusher dev: 1-3 pods, `maxUnavailable: 0 / maxSurge: 1`):
 1. **Build once and render the digest** exactly as in the
    [Operator runbook](#operator-runbook). The automatic workflow records its
    digest only after the development rollout succeeds.
-2. **Observe the passive bake.** Use the dev Pusher dashboard's connection,
-   readiness/drain, and reconnect-circuit panels. Do not manufacture traffic or
-   infer product success only from readiness.
+2. **Observe the passive bake.** Confirm rollout status and pod readiness, then
+   inspect connection, readiness/drain, and reconnect-circuit metrics only when
+   an environment-owned authenticated consumer exists. If it does not, record
+   live traffic evidence as unproven and do not promote on readiness alone. Do
+   not manufacture traffic or install an ad hoc scraper.
 3. **Use the resulting attestation for a manual production request.** Supply
    the exact digest and development qualification run ID; the production workflow
    validates the evidence, live ConfigMap references, exact digest render, and

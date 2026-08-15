@@ -139,7 +139,7 @@ notifications-job (modal/job.py)  [cron]
 memory-maintenance-job (modal/memory_maintenance_job.py)  [cron]
 ```
 
-Helm charts: `backend/charts/{backend-listen,backend-secrets,deepgram-self-hosted,diarizer,llm-gateway,monitoring,nllb-translation,parakeet,pusher,vad}/`.
+Helm charts: `backend/charts/{backend-listen,backend-secrets,deepgram-self-hosted,diarizer,llm-gateway,nllb-translation,parakeet,pusher,vad}/`.
 
 Serving STT provider/surface policy and canonical model order are owned exclusively by `config/stt_provider_policy.py`; deployment values are validated against it.
 

@@ -59,6 +59,26 @@ def test_standalone_monitoring_product_is_absent_from_the_deploy_graph():
         assert "backend/charts/monitoring" not in contents, path
         assert "verify_pusher_dev_observability" not in contents, path
 
+    current_operator_docs = (
+        BACKEND_DIR / "AGENTS.md",
+        BACKEND_DIR / "docs/runbooks/llm-gateway-fallback.md",
+        BACKEND_DIR / "docs/runbooks/parakeet-stream-capacity.md",
+        BACKEND_DIR / "docs/runbooks/pusher-degraded.md",
+        BACKEND_DIR / "docs/pusher_rolling_update_operations.md",
+    )
+    deleted_operator_surfaces = (
+        "charts/monitoring",
+        "Grafana → Parakeet ASR Monitoring",
+        "Grafana pusher dashboard",
+        "dev Pusher dashboard",
+        "development Prometheus jobs discover",
+        "deployed LLM Gateway rules",
+    )
+    for path in current_operator_docs:
+        contents = path.read_text(encoding="utf-8")
+        for deleted_surface in deleted_operator_surfaces:
+            assert deleted_surface not in contents, (path, deleted_surface)
+
 
 @pytest.fixture(scope="module")
 def selector_and_all_tests():

@@ -28,11 +28,12 @@ when either is absent or invalid. Changing either setting requires the normal
 Parakeet Helm rollout; it is not a live runtime switch. Keep the HPA target
 strictly below the hard capacity so scaling starts before rejection.
 
-**Dashboard:** Grafana → Parakeet ASR Monitoring → **Streaming capacity per
-ready replica**. Compare it with **HPA Replicas (Ready / Total / Desired)**,
-GPU utilization, queue duration, request latency, and request errors.
+## Evidence boundary
 
-**PromQL:**
+Parakeet retains the `parakeet_active_streams` service metric behind its
+authenticated metrics boundary. The repository no longer owns a dashboard,
+scrape deployment, or alert rule for this signal. When an environment owner has
+configured an authenticated metrics consumer, calculate:
 
 ```promql
 sum(parakeet_active_streams{container="parakeet", namespace="prod-omi-backend"}) / clamp_min(sum(kube_deployment_status_replicas_ready{deployment="prod-omi-parakeet", namespace="prod-omi-backend"}), 1)
@@ -43,30 +44,30 @@ replicas. It deliberately follows the currently serving replica count, so a
 cluster-total stream count cannot hide a per-pod capacity problem while the HPA
 is catching up.
 
-| Alert | Threshold | Duration | Meaning |
-| --- | --- | --- | --- |
-| Warning | 15 active streams per ready replica | 5 minutes | Headroom is reduced; confirm HPA progress and pod readiness. |
-| Critical | 20 active streams per ready replica | 2 minutes | Near the configured 25-stream per-replica hard limit; act after corroborating the dashboard. |
-
-No data is healthy for these capacity alerts. Missing metrics are not proof of
-saturation; investigate scrape, deployment, or readiness separately if the
-dashboard is unexpectedly empty.
+The former repository-owned warning (15 for five minutes) and critical (20 for
+two minutes) alerts were removed with the standalone monitoring product. They
+are reference thresholds, not active alerts. If no owned consumer exposes the
+metric, record stream headroom as **unproven**. Missing metrics are never proof
+of healthy capacity.
 
 ## First checks
 
-1. Confirm the capacity panel remains above the alert threshold for its full
-   duration and that the displayed ready-replica value is current.
+1. If an environment-owned consumer is available, confirm the ratio remains
+   above a reference threshold for the stated duration and that its
+   ready-replica value is current. Otherwise record this signal as unproven.
 2. Compare HPA desired, total, and ready replicas. A desired-versus-ready gap
    points to scheduling, image startup, readiness, or node-capacity delay—not a
    reason to change the capacity threshold.
-3. Inspect Parakeet pod readiness, restarts, GPU utilization, GPU OOM events,
-   queue duration, latency, and request error rate. Correlate with production
-   traffic before declaring user impact.
+3. Inspect Parakeet pod readiness, restarts, GPU OOM events, and bounded service
+   logs. Use GPU utilization, queue duration, latency, and request error metrics
+   only through an environment-owned authenticated consumer. Correlate with
+   production traffic before declaring user impact.
 4. Allow the HPA to add healthy replicas first. If it has reached its configured
    maximum with sustained demand, change the deploy-owned capacity only after
    confirming node and GPU availability, then use the normal Parakeet Helm
    rollout.
 
-Do not force-scale, change alert thresholds, or state that users are affected
-from this metric alone. The alert measures serving headroom; request errors,
-latency, and queueing provide the user-path corroboration.
+Do not force-scale, install an ad hoc scrape, change the reference thresholds,
+or state that users are affected from this metric alone. It measures serving
+headroom; request errors, latency, and queueing provide the user-path
+corroboration when those signals are actually available.
