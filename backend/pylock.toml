@@ -742,12 +742,6 @@ sdist = { url = "https://files.pythonhosted.org/packages/6f/6b/c875b30a1ba490860
 wheels = [{ url = "https://files.pythonhosted.org/packages/83/60/d497a310bde3f01cb805196ac61b7ad6dc5dcf8dce66634dc34364b20b4f/lazy_loader-0.4-py3-none-any.whl", upload-time = 2024-04-05T13:03:10Z, size = 12097, hashes = { sha256 = "342aa8e14d543a154047afb4ba8ef17f5563baad3fc610d7b15b213b0f119efc" } }]
 
 [[packages]]
-name = "lc3py"
-version = "1.1.3"
-marker = "platform_machine == 'x86_64' and sys_platform == 'linux'"
-wheels = [{ url = "https://files.pythonhosted.org/packages/59/c9/f77aa6f2ab9121e52f08683dccc04fe89b25465c7a23f0e5eea61faee23e/lc3py-1.1.3-py3-none-manylinux_2_5_x86_64.manylinux1_x86_64.manylinux_2_17_x86_64.manylinux2014_x86_64.whl", upload-time = 2025-02-12T00:50:30Z, size = 144335, hashes = { sha256 = "601a9a2ea3135547f2d22a10475b5fec8f784f716f4b22a61acc3908c827694e" } }]
-
-[[packages]]
 name = "llvmlite"
 version = "0.43.0"
 sdist = { url = "https://files.pythonhosted.org/packages/9f/3d/f513755f285db51ab363a53e898b85562e950f79a2e6767a364530c2f645/llvmlite-0.43.0.tar.gz", upload-time = 2024-06-13T18:09:32Z, size = 157069, hashes = { sha256 = "ae2b5b5c3ef67354824fb75517c8db5fbe93bc02cd9671f3c62271626bc041d5" } }

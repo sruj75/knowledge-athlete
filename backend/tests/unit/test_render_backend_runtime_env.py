@@ -208,7 +208,8 @@ def test_render_prod_gateway_callers_inject_verified_endpoint(capsys, monkeypatc
     assert _MODULE['main']() == 0
     output = capsys.readouterr().out
 
-    for service in ('backend', 'backend_sync', 'backend_sync_backfill', 'backend_integration'):
+    # IR-013 retires the wearable-only backfill worker while preserving the shared backend-sync worker.
+    for service in ('backend', 'backend_sync', 'backend_integration'):
         service_env = _job_env_block(output, service)
         assert 'OMI_LLM_GATEWAY_FEATURE_MODE=gateway' in service_env
         assert 'OMI_LLM_GATEWAY_URL=http://172.16.160.108' in service_env
@@ -296,8 +297,3 @@ def test_backend_service_deploys_remove_retired_canonical_promotion_env_vars():
         text = (workflow_root / workflow_name).read_text(encoding='utf-8')
         assert text.count(f'--remove-env-vars={retired}') == 1
         assert text.count(f'--remove-env-vars=HOSTED_PUSHER_API_URL,{retired}') == 2
-
-    action = Path(__file__).resolve().parents[3] / '.github/actions/sync-backfill-lifecycle/action.yml'
-    action_text = action.read_text(encoding='utf-8')
-    assert f'REMOVE_ENV_VARS: HOSTED_PUSHER_API_URL,{retired}' in action_text
-    assert f'--remove-env-vars=HOSTED_PUSHER_API_URL,{retired}' in action_text

@@ -5,13 +5,13 @@
 | Field | Decision |
 |---|---|
 | Artifact | `bootstrap-scaffold/wave-1/s-02 tdd.md` |
-| Status | `ready to start` — requirements-backed public TDD seams are recorded; repository Cycles 0-6 are executable and destructive live closeout remains separately gated |
+| Status | `repository code-complete; operational closeout pending` — Cycles 0-6 and both review axes completed on 2026-08-14; destructive live closeout remains separately gated |
 | Wave / owner | Wave 1 / S-02 |
 | Authorizing decisions | IR-012, IR-013, IR-014, IR-359, IR-823 |
 | Protecting decisions | IR-007, IR-017, IR-018, IR-019, IR-021, IR-022, IR-023, IR-069, IR-070, IR-898 |
 | Coordinated owners | S-06 for historical Dashboard Omi content and the separate hosted Limitless ZIP importer; S-25 for final shared worker/service deletion |
 | Dependencies | None |
-| Baseline | `origin/main`; fetch and record the exact merge-base when implementation starts |
+| Baseline | `origin/main` at `eb73915f96d628670ed854bbe8fe2f8a1cdcc74f` |
 | Research evidence | Requirements validator currently passes: 714 indexed rows, 714 detailed sections, all reviewed |
 | Delivery | One slice and eventual PR, with separate vertical commits; no push or PR without a new user request |
 | Postcondition | The Mac records only approved Mac audio sources; no direct Omi or third-party wearable runtime—including the Limitless adapter—Omi raw-audio WAL, wearable upload, conversation-photo protocol, or hardware firmware API remains, while Mac capture, PTT, local persistence, ordinary Bluetooth audio devices, historical source decoding, and shared backend jobs continue working. |
@@ -149,3 +149,14 @@ Live teardown is a separate approval gate after the code/config deployment:
 - Ordinary Bluetooth headphones/microphones, historical source records, Rewind/PTT/Chat images, playback/audio merge and Sparkle remain operational.
 - Every remaining device/WAL/sync/photo/firmware reference is explained by a retained boundary, historical evidence, Windows exclusion or named later-slice owner.
 - `engineering:code-review` completes both review axes against `origin/main`, all valid findings are resolved, and affected checks are rerun.
+
+## Closure results — 2026-08-14
+
+- **Repository result:** S-02 is code-complete at baseline `eb73915f96d628670ed854bbe8fe2f8a1cdcc74f`. Local implementation commits are `26e1adb`, `2449a7c`, `fe7f558`, `87783a0`, `caf7d73`, and `81a9bfa`. No branch push or PR was requested or performed.
+- **Deleted boundary:** direct Mac wearable discovery/providers—including Limitless—device codecs and UI, Omi raw-frame WAL/recovery, wearable backend ingestion/jobs/ledgers, conversation-photo protocol and vision paths, firmware APIs, generated bindings, and exclusive operational residue are gone.
+- **Preserved boundary:** Mac capture, all System Audio modes, meeting behavior, PTT/realtime voice, ordinary CoreAudio Bluetooth devices, local transcription persistence, historical source decoding and legacy photo data, hosted Limitless ZIP import, playback/audio merge, voice multipart decoding, and shared `backend-sync` infrastructure remain.
+- **Automated evidence:** the 769-file backend unit selection completed with all assertions passing; five unrelated 0.12-second CPU-budget flakes passed on immediate strict-harness rerun. The desktop suite had already passed all shell/static checks, 30/30 strict E2E checks, 33/33 companion checks, and 411 Swift suites; the final review-state sentinel rerun passed 4/4 after its generated SwiftPM cache was moved off a full startup disk. Focused route, OpenAPI, generated-client, deployment, runtime-env, pre-deploy, persistence, merge, playback, and requirements checks also passed.
+- **Real-path evidence:** the uniquely named `omi-s02-wearable-removal` development bundle launched as `com.omi.omi-s02-wearable-removal`; it exposed no wearable action and accepted desktop transcription control. A synthetic local production-path session persisted as `.desktop` and reached the expected unauthenticated finalization boundary. No authenticated seed was available, so authenticated Dashboard/PTT and live source switching were not claimed as exercised. Production Omi bundles were untouched.
+- **Review result:** independent Standards and Spec Compliance reviews approved the final boundary after the legacy-photo preservation fix and residue cleanup. The final tree retains only the explicit S-02 keep/defer surfaces.
+- **Known repository gate:** `make preflight` and `scripts/pr-preflight --suggest` reach the pre-existing `origin/main` failure-class registry defect: `FC-agent-vm-stop-retains-disk.json` names absent `backend/tests/unit/test_agent_vm_reaped_record_recovery.py`. S-02 did not change that unrelated registry entry; failure-class guidance for the S-02 fix is `Failure-Class: none`.
+- **Operational status:** no live cloud resources or historical user data were inspected, drained, or deleted. Fresh explicit approval is still required before that destructive closeout, so the slice remains `operational closeout pending` rather than fully closed.

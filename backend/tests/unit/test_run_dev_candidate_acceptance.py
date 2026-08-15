@@ -12,7 +12,6 @@ def test_checked_in_manifest_declares_exactly_the_dev_cloud_run_candidates():
         ('backend', 'what_matters_now'),
         ('backend-integration', 'health'),
         ('backend-sync', 'health'),
-        ('backend-sync-backfill', 'health'),
     ]
     assert all('{base_url}' in check.command for check in checks)
 

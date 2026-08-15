@@ -19,7 +19,6 @@ class AnalyticsManager {
   /// outside the actor, so tests can observe the real event/payload safely under
   /// Swift concurrency.
   private var memoryAssistantTelemetryCaptureForTests: (@MainActor (String, [String: Any]) -> Void)?
-  private var devicePairingTelemetryCaptureForTests: (@MainActor (String?, [String: Any], [String: Any]) -> Void)?
 
   private init() {}
 
@@ -65,12 +64,6 @@ class AnalyticsManager {
 
   private func captureIntegrationConnectTelemetryForTests(_ event: String, properties: [String: Any]) {
     integrationConnectTelemetryCaptureForTests?(event, properties)
-  }
-
-  func setDevicePairingTelemetryCaptureForTests(
-    _ capture: (@MainActor (String?, [String: Any], [String: Any]) -> Void)?
-  ) {
-    devicePairingTelemetryCaptureForTests = capture
   }
 
   // MARK: - Initialization
@@ -334,55 +327,6 @@ class AnalyticsManager {
   func permissionSkipped(permission: String, extraProperties: [String: Any] = [:]) {
     PostHogManager.shared.permissionSkipped(
       permission: permission, extraProperties: extraProperties)
-  }
-
-  /// Track Bluetooth state changes for debugging
-  func bluetoothStateChanged(
-    oldState: String, newState: String, oldStateRaw: Int, newStateRaw: Int, authorization: String,
-    authorizationRaw: Int
-  ) {
-    let properties: [String: Any] = [
-      "old_state": oldState,
-      "new_state": newState,
-      "old_state_raw": oldStateRaw,
-      "new_state_raw": newStateRaw,
-      "authorization": authorization,
-      "authorization_raw": authorizationRaw,
-    ]
-    PostHogManager.shared.track("Bluetooth State Changed", properties: properties)
-  }
-
-  func devicePairingReady(
-    device: BtDevice,
-    isNewPair: Bool,
-    isFirstPair: Bool,
-    firstPairedAt: Date?
-  ) {
-    let vendor = device.type.analyticsVendorSlug
-    let eventProperties: [String: Any] = [
-      "device_vendor": vendor,
-      "device_type": device.type.rawValue,
-      "model": device.displayModelNumber,
-      "is_first_pair": isFirstPair,
-    ]
-    var userProperties: [String: Any] = [
-      "has_paired_device": true,
-      "paired_device_type": device.type.rawValue,
-      "device_vendor": vendor,
-    ]
-    if let firstPairedAt {
-      userProperties["first_paired_at"] = ISO8601DateFormatter().string(from: firstPairedAt)
-    }
-
-    devicePairingTelemetryCaptureForTests?(
-      isNewPair ? "Device Paired" : nil,
-      eventProperties,
-      userProperties
-    )
-    if isNewPair {
-      PostHogManager.shared.track("Device Paired", properties: eventProperties)
-    }
-    PostHogManager.shared.setUserProperties(userProperties)
   }
 
   /// Report when ScreenCaptureKit broken state is detected (TCC granted but capture failing).

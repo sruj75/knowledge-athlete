@@ -857,7 +857,6 @@ final class TranscriptionFinalizationStateMachineTests: XCTestCase {
       transcriptSegments: [],
       transcriptSegmentsIncluded: true,
       geolocation: nil,
-      photos: [],
       appsResults: [],
       source: .desktop,
       language: "en",

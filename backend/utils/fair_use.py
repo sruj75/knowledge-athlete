@@ -80,26 +80,22 @@ FAIR_USE_RESTRICT_DAILY_DG_MS = int(os.getenv('FAIR_USE_RESTRICT_DAILY_DG_MS', '
 
 # Hard anti-abuse ceiling: max total audio processed per rolling 24h, ALL plans. Set high
 # enough that no legitimate single human hits it (a real person cannot generate this much
-# audio in a day) — it exists to stop bulk-sync dumps / reselling, not to cap usage.
-# Metered against the live rolling meter (realtime + sync_fresh); sync_backfill is separately
-# paced by reserve_backfill_speech. 0 = disabled.
+# audio in a day) — it exists to stop reselling, not to cap usage. 0 = disabled.
 MAX_DAILY_AUDIO_HOURS = int(os.getenv('MAX_DAILY_AUDIO_HOURS', '30'))
 MAX_DAILY_AUDIO_MS = MAX_DAILY_AUDIO_HOURS * 3600 * 1000
 
 
-LIVE_SPEECH_SOURCES = ('realtime', 'sync_fresh')
+LIVE_SPEECH_SOURCES = ('realtime',)
 # custom_stt is metered but never live-enforced: those users transcribe on
 # their own provider and are exempt from transcription caps, yet their speech
 # drives the same downstream LLM post-processing spend — the lane makes that
 # spend visible without gating anyone (#7690). Any cap is a separate policy
 # decision reading this lane.
-_VALID_SPEECH_SOURCES = frozenset((*LIVE_SPEECH_SOURCES, 'sync_backfill', 'custom_stt'))
+_VALID_SPEECH_SOURCES = frozenset((*LIVE_SPEECH_SOURCES, 'custom_stt'))
 
 
 def _normalize_speech_source(source: str) -> str:
-    # Compatibility for deprecated callers while keeping new Redis keys lane-specific.
-    normalized = 'sync_fresh' if source == 'sync' else source
-    return normalized if normalized in _VALID_SPEECH_SOURCES else 'realtime'
+    return source if source in _VALID_SPEECH_SOURCES else 'realtime'
 
 
 def _redis_key(uid: str, source: str) -> str:
@@ -136,24 +132,10 @@ def _release_lock(key: str, token: str) -> None:
 # ---------------------------------------------------------------------------
 
 
-_RECORD_SPEECH_ONCE_SCRIPT = """
-if redis.call('set', KEYS[1], '1', 'EX', ARGV[4], 'NX') then
-    redis.call('hincrby', KEYS[2], ARGV[1], ARGV[2])
-    redis.call('expire', KEYS[2], ARGV[4])
-    redis.call('zadd', KEYS[3], ARGV[3], ARGV[1])
-    redis.call('expire', KEYS[3], ARGV[4])
-    return 1
-end
-return 0
-"""
-
-
 def record_speech_ms(
     uid: str,
     speech_ms: int,
     source: str = 'realtime',
-    idempotency_key: Optional[str] = None,
-    raise_on_error: bool = False,
 ) -> None:
     """Record speech milliseconds into the current minute bucket.
 
@@ -161,8 +143,8 @@ def record_speech_ms(
       - member = Unix minute timestamp (as string)
       - score = Unix minute timestamp (for range queries)
     The speech_ms is stored in a separate hash keyed by minute.
-    Source is part of the Redis key. Live enforcement reads only realtime and
-    sync_fresh; sync_backfill is deliberately isolated from live hard caps.
+    Source is part of the Redis key. Live enforcement reads only realtime;
+    custom STT remains metered without being live-enforced.
     """
     if not FAIR_USE_ENABLED or speech_ms <= 0:
         return
@@ -177,20 +159,6 @@ def record_speech_ms(
         # Increment speech_ms for this minute bucket
         bucket_key = _bucket_key(uid, normalized_source)
         zset_key = _redis_key(uid, normalized_source)
-        if idempotency_key:
-            once_key = f'fair_use:v2:once:speech:{normalized_source}:{uid}:{idempotency_key}'
-            redis_client.eval(
-                _RECORD_SPEECH_ONCE_SCRIPT,
-                3,
-                once_key,
-                bucket_key,
-                zset_key,
-                str(bucket_minute),
-                speech_ms,
-                bucket_minute * FAIR_USE_BUCKET_SECONDS,
-                FAIR_USE_REDIS_RETENTION_SECONDS,
-            )
-            return
         pipe.hincrby(bucket_key, str(bucket_minute), speech_ms)
         pipe.expire(bucket_key, FAIR_USE_REDIS_RETENTION_SECONDS)
 
@@ -211,8 +179,6 @@ def record_speech_ms(
         pipe.execute()
     except Exception as e:
         logger.error(f'fair_use: Redis error recording speech for {uid}: {e}')
-        if raise_on_error:
-            raise
 
 
 def get_rolling_speech_ms(uid: str, sources: Optional[tuple[str, ...]] = None) -> Dict[str, Any]:
@@ -238,7 +204,6 @@ def get_rolling_speech_ms(uid: str, sources: Optional[tuple[str, ...]] = None) -
         if sources is None:
             # Transitional compatibility: retain the previous combined meter
             # in live enforcement until its seven-day TTL naturally expires.
-            # New backfill is written only to the isolated v2 key.
             source_keys.append((f'fair_use:bucket:{uid}', f'fair_use:speech:{uid}'))
         for bucket_key, zset_key in source_keys:
             members = redis_client.zrangebyscore(zset_key, cutoff_weekly, '+inf')
@@ -263,11 +228,6 @@ def get_rolling_speech_ms(uid: str, sources: Optional[tuple[str, ...]] = None) -
     except Exception as e:
         logger.error(f'fair_use: Redis error reading speech for {uid}: {e}')
         return result
-
-
-def get_rolling_backfill_speech_ms(uid: str) -> Dict[str, Any]:
-    """Return historical recovery usage without including it in live enforcement."""
-    return get_rolling_speech_ms(uid, sources=('sync_backfill',))
 
 
 # ---------------------------------------------------------------------------
@@ -311,7 +271,7 @@ def fair_use_caps_for_plan(plan: Optional[PlanType] = None) -> tuple[int, int, i
 def is_daily_audio_ceiling_exceeded(uid: str, speech_totals: Optional[Dict[str, Any]] = None) -> bool:
     """Hard anti-abuse ceiling on total daily audio, applied to ALL plans.
 
-    Reuses the live rolling daily meter (realtime + sync_fresh). Returns False when the
+    Reuses the live rolling daily meter (realtime). Returns False when the
     feature is disabled (MAX_DAILY_AUDIO_MS <= 0), fair-use is off, or the kill switch is on.
     Exempt UIDs bypass the ceiling.
     """

@@ -164,7 +164,7 @@ def tombstone_and_delete_empty_conversation(
 ) -> bool:
     """Atomically delete an empty live row and terminalize its bound session.
 
-    Segment/photo writes set the conversation's durable ``has_content`` marker
+    Segment writes set the conversation's durable ``has_content`` marker
     in transactions on this same parent document. Firestore therefore retries
     this transaction when a late content write wins, preventing cleanup from
     deleting user data based on a stale empty read.
@@ -187,6 +187,17 @@ def tombstone_and_delete_empty_conversation(
             or conversation.get('discarded')
             or conversations_db.raw_conversation_has_content(uid, conversation)
         ):
+            return False
+
+        # Photo ingestion is retired, but pre-S-02 conversations can still own
+        # child photo documents. This preservation-only read keeps stale-session
+        # cleanup from deleting their parent metadata; it does not restore a
+        # photo API or make the historical content accessible.
+        legacy_photo = next(
+            iter(conversation_ref.collection('photos').limit(1).stream(transaction=transaction)),
+            None,
+        )
+        if legacy_photo is not None:
             return False
 
         if session_ref is not None:

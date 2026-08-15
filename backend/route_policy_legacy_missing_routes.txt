@@ -107,7 +107,6 @@ backend-main:http:GET:/v1/conversations
 backend-main:http:GET:/v1/conversations/count
 backend-main:http:GET:/v1/conversations/{conversation_id}
 backend-main:http:GET:/v1/conversations/{conversation_id}/action-items
-backend-main:http:GET:/v1/conversations/{conversation_id}/photos
 backend-main:http:GET:/v1/conversations/{conversation_id}/recording
 backend-main:http:GET:/v1/conversations/{conversation_id}/shared
 backend-main:http:GET:/v1/conversations/{conversation_id}/suggested-apps
@@ -239,9 +238,6 @@ backend-main:http:GET:/v2/desktop/download/beta
 backend-main:http:GET:/v2/desktop/download/latest
 backend-main:http:GET:/v2/desktop/messages
 backend-main:http:GET:/v2/desktop/update-policy
-backend-main:http:GET:/v2/firmware/latest
-backend-main:http:GET:/v2/firmware/stable
-backend-main:http:GET:/v2/firmware/version
 backend-main:http:GET:/v2/integrations/asana/callback
 backend-main:http:GET:/v2/integrations/clickup/callback
 backend-main:http:GET:/v2/integrations/google-tasks/callback
@@ -252,7 +248,6 @@ backend-main:http:GET:/v2/integrations/{app_id}/tasks
 backend-main:http:GET:/v2/integrations/{app_key}/callback
 backend-main:http:GET:/v2/messages
 backend-main:http:GET:/v2/messages/shared/{token}
-backend-main:http:GET:/v2/sync-local-files/{job_id}
 backend-main:http:GET:/v3/memories
 backend-main:http:GET:/v3/memories/review-queue
 backend-main:http:GET:/v3/memories/review-queue/{review_id}
@@ -411,7 +406,6 @@ backend-main:http:POST:/v1/stripe/connect/webhook
 backend-main:http:POST:/v1/stripe/refresh/{account_id}
 backend-main:http:POST:/v1/stripe/webhook
 backend-main:http:POST:/v1/summary-app-ids/{app_id}
-backend-main:http:POST:/v1/sync-local-files
 backend-main:http:POST:/v1/sync/audio/{conversation_id}/precache
 backend-main:http:POST:/v1/task-integrations/{app_key}/tasks
 backend-main:http:POST:/v1/tools/action-items
@@ -455,8 +449,6 @@ backend-main:http:POST:/v2/integrations/{app_id}/user/memories
 backend-main:http:POST:/v2/messages
 backend-main:http:POST:/v2/messages/share
 backend-main:http:POST:/v2/messages/{message_id}/report
-backend-main:http:POST:/v2/sync-jobs/run
-backend-main:http:POST:/v2/sync-local-files
 backend-main:http:POST:/v2/tts/synthesize
 backend-main:http:POST:/v2/voice-message/transcribe
 backend-main:http:POST:/v2/voice-messages

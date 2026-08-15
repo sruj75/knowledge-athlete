@@ -65,7 +65,7 @@ async def test_stream():
         # ),
         # uid=uid,
         # data=chat_models.SendMessageRequest(
-        #     text="what did i talk about firmware recently",
+        #     text="what did i talk about software updates recently",
         #     file_ids=[],  # ['x']
         # ),
         # uid=uid,
@@ -112,7 +112,7 @@ async def test_stream():
         # OMI docs
         #
         # data=chat_models.SendMessageRequest(
-        #    text="how to flash the omi consumer cv1 firmware ?",
+        #    text="how do I configure Omi conversation capture?",
         #    file_ids=[],  # ['x']
         # ),
         # uid=uid,

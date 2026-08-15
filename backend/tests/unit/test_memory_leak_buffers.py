@@ -1,18 +1,14 @@
 """
 Tests for memory leak prevention buffers in transcribe.py.
-Covers: audio buffer capping (deque), deque maxlen behavior, image chunk TTL (OrderedDict).
+Covers: audio buffer capping (deque), deque maxlen behavior.
 """
 
 import time
-from collections import OrderedDict, deque
+from collections import deque
 
 # Constants matching transcribe.py
 MAX_AUDIO_BUFFER_SIZE = 1024 * 1024 * 10  # 10MB
 MAX_SEGMENT_BUFFER_SIZE = 1000
-MAX_IMAGE_CHUNKS = 50
-IMAGE_CHUNK_TTL = 60.0
-IMAGE_CHUNK_CLEANUP_INTERVAL = 2.0
-IMAGE_CHUNK_CLEANUP_MIN_SIZE = 5
 
 
 def audio_bytes_send_logic(audio_chunks: deque, audio_total_size: int, audio_bytes: bytes, max_size: int) -> tuple:
@@ -141,105 +137,6 @@ class TestDequeMaxlen:
         assert list(d) == [1, 2, 3]
 
 
-class TestImageChunksTTL:
-    """Test image chunks TTL and max concurrent logic with OrderedDict."""
-
-    def _cleanup_expired_image_chunks_logic(self, image_chunks, now, last_cleanup):
-        if now - last_cleanup < IMAGE_CHUNK_CLEANUP_INTERVAL:
-            return image_chunks, last_cleanup
-        if image_chunks and len(image_chunks) < IMAGE_CHUNK_CLEANUP_MIN_SIZE:
-            oldest_created_at = next(iter(image_chunks.values()))['created_at']
-            if now - oldest_created_at <= IMAGE_CHUNK_TTL:
-                return image_chunks, now
-        last_cleanup = now
-        expired = [tid for tid, data in image_chunks.items() if now - data['created_at'] > IMAGE_CHUNK_TTL]
-        for tid in expired:
-            del image_chunks[tid]
-        return image_chunks, last_cleanup
-
-    def test_cleanup_expired_chunks(self):
-        """Expired chunks are removed."""
-        base_time = 1000.0
-        image_chunks = OrderedDict()
-        image_chunks['old'] = {'chunks': [None], 'created_at': base_time - 120}  # 2 min ago
-        image_chunks['new'] = {'chunks': [None], 'created_at': base_time}
-        _, _ = self._cleanup_expired_image_chunks_logic(image_chunks, base_time, base_time - 10.0)
-
-        assert 'old' not in image_chunks
-        assert 'new' in image_chunks
-
-    def test_max_concurrent_drops_oldest_ordereddict(self):
-        """When max concurrent reached, oldest is dropped using OrderedDict.popitem."""
-        image_chunks = OrderedDict()
-
-        # Fill to max
-        for i in range(MAX_IMAGE_CHUNKS):
-            image_chunks[f'id_{i}'] = {'chunks': [None], 'created_at': time.time()}
-
-        assert len(image_chunks) == MAX_IMAGE_CHUNKS
-
-        # Add one more - should trigger drop of oldest (first inserted)
-        if len(image_chunks) >= MAX_IMAGE_CHUNKS:
-            oldest_id, _ = image_chunks.popitem(last=False)  # O(1) removal
-            assert oldest_id == 'id_0'
-
-        image_chunks['new_id'] = {'chunks': [None], 'created_at': time.time()}
-
-        assert len(image_chunks) == MAX_IMAGE_CHUNKS
-        assert 'id_0' not in image_chunks  # oldest was dropped
-        assert 'new_id' in image_chunks
-
-    def test_chunk_within_limit_not_dropped(self):
-        """Chunks within limit are not dropped."""
-        image_chunks = OrderedDict()
-        for i in range(MAX_IMAGE_CHUNKS - 1):
-            image_chunks[f'id_{i}'] = {'chunks': [None], 'created_at': time.time()}
-
-        # Add one more - should not trigger drop
-        image_chunks['new_id'] = {'chunks': [None], 'created_at': time.time()}
-
-        assert len(image_chunks) == MAX_IMAGE_CHUNKS
-        assert 'id_0' in image_chunks
-        assert 'new_id' in image_chunks
-
-    def test_ordereddict_preserves_insertion_order(self):
-        """OrderedDict maintains insertion order for FIFO eviction."""
-        image_chunks = OrderedDict()
-        image_chunks['first'] = {'chunks': [None], 'created_at': 1}
-        image_chunks['second'] = {'chunks': [None], 'created_at': 2}
-        image_chunks['third'] = {'chunks': [None], 'created_at': 3}
-
-        oldest_id, _ = image_chunks.popitem(last=False)
-        assert oldest_id == 'first'
-
-    def test_cleanup_skipped_within_interval(self):
-        """Cleanup is throttled by the interval."""
-        base_time = 1000.0
-        image_chunks = OrderedDict()
-        image_chunks['old'] = {'chunks': [None], 'created_at': base_time - 120}
-        _, last_cleanup = self._cleanup_expired_image_chunks_logic(image_chunks, base_time, base_time - 1.0)
-        assert 'old' in image_chunks
-        assert last_cleanup == base_time - 1.0
-
-    def test_small_cache_skips_cleanup_when_not_expired(self):
-        """Small caches skip cleanup when oldest is not expired."""
-        base_time = 1000.0
-        image_chunks = OrderedDict()
-        image_chunks['recent'] = {'chunks': [None], 'created_at': base_time - 10}
-        _, last_cleanup = self._cleanup_expired_image_chunks_logic(image_chunks, base_time, base_time - 10.0)
-        assert 'recent' in image_chunks
-        assert last_cleanup == base_time
-
-    def test_small_cache_still_cleans_when_expired(self):
-        """Small caches still clean when oldest is expired."""
-        base_time = 1000.0
-        image_chunks = OrderedDict()
-        image_chunks['old'] = {'chunks': [None], 'created_at': base_time - 120}
-        _, last_cleanup = self._cleanup_expired_image_chunks_logic(image_chunks, base_time, base_time - 10.0)
-        assert 'old' not in image_chunks
-        assert last_cleanup == base_time
-
-
 # Constants for pending requests
 MAX_PENDING_REQUESTS = 100
 
@@ -310,13 +207,6 @@ class TestProductionBufferTypes:
         assert isinstance(realtime_segment_buffers, deque)
         assert realtime_segment_buffers.maxlen == MAX_SEGMENT_BUFFER_SIZE
 
-    def test_photo_buffer_is_bounded_deque(self):
-        """Photo buffer should be a deque with maxlen."""
-        MAX_PHOTO_BUFFER_SIZE = 100
-        realtime_photo_buffers: deque = deque(maxlen=MAX_PHOTO_BUFFER_SIZE)
-        assert isinstance(realtime_photo_buffers, deque)
-        assert realtime_photo_buffers.maxlen == MAX_PHOTO_BUFFER_SIZE
-
     def test_deque_assignment_loses_maxlen(self):
         """Verify that reassigning deque to list loses maxlen - this is the bug we fixed."""
         d = deque(maxlen=5)
@@ -340,8 +230,3 @@ class TestProductionBufferTypes:
         """Audio chunks should be a deque (not bytearray)."""
         audio_chunks: deque = deque()
         assert isinstance(audio_chunks, deque)
-
-    def test_image_chunks_is_ordereddict(self):
-        """Image chunks should be an OrderedDict for O(1) oldest removal."""
-        image_chunks: OrderedDict = OrderedDict()
-        assert isinstance(image_chunks, OrderedDict)

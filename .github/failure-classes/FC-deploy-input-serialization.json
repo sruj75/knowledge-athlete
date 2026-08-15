@@ -8,8 +8,7 @@
     "backend/scripts/render_backend_runtime_env.py",
     "backend/scripts/render_cloud_run_clone_env.py",
     "backend/scripts/pre-deploy-check.sh",
-    "backend/tests/unit/test_render_backend_runtime_env.py",
-    "backend/tests/unit/test_sync_two_lane.py"
+    "backend/tests/unit/test_render_backend_runtime_env.py"
   ],
   "status": "open"
 }

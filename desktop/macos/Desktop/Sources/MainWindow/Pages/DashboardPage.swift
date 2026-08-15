@@ -220,7 +220,6 @@ struct DashboardPage: View {
   @ObservedObject var chatProvider: ChatProvider
   @ObservedObject var memoriesViewModel: MemoriesViewModel
   var taskChatCoordinator: TaskChatCoordinator? = nil
-  @ObservedObject private var deviceProvider = DeviceProvider.shared
   @ObservedObject private var homeSuggestionsStore = HomeSuggestionsStore.shared
   @ObservedObject private var focusStorage = FocusStorage.shared
   @StateObject private var intelligenceStore = DashboardIntelligenceStore()
@@ -336,8 +335,7 @@ struct DashboardPage: View {
   }
 
   private var hasOmiDeviceHistory: Bool {
-    deviceProvider.connectedDevice != nil || deviceProvider.pairedDevice != nil
-      || homeStatusStore.accountHasOmiDeviceConversations
+    homeStatusStore.accountHasOmiDeviceConversations
   }
 
   /// Real persisted import-connector state (UserDefaults-backed via ImportConnectorStatusStore).

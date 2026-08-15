@@ -584,7 +584,6 @@ struct ChatPrompts {
       "actionItemsJson": "JSON array of tasks extracted by backend",
       "eventsJson": "JSON array of calendar events detected",
       "geolocationJson": "Location data if available",
-      "photosJson": "Referenced photo metadata",
       "appsResultsJson": "App integrations results",
       "conversationStatus": "User-set status label for the conversation",
       "discarded": "True if user discarded/deleted this session",

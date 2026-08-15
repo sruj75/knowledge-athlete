@@ -117,7 +117,6 @@ class ListenSessionRuntime:
         self.private_cloud_sync_enabled = False
         self.has_speech_profile = False
         self.conversation_creation_timeout = request.conversation_timeout
-        self.lc3_frame_duration_us: Optional[int] = None
         self.task_supervisor = WebSocketTaskSupervisor(
             uid=request.uid, label='listen', gauge=BACKEND_LISTEN_ACTIVE_WS_CONNECTIONS
         )
@@ -319,9 +318,7 @@ class ListenSessionRuntime:
         self.conversation_creation_timeout = effective_conversation_timeout(
             request.conversation_timeout, self.is_multi_channel
         )
-        decision = normalize_codec_frame(request.codec)
-        self.request = replace(request, codec=decision.codec)
-        self.lc3_frame_duration_us = decision.lc3_frame_duration_us
+        self.request = replace(request, codec=normalize_codec_frame(request.codec))
         self._build_components()
         if not self.user_has_credits:
             try:
@@ -574,8 +571,7 @@ class ListenSessionRuntime:
             self.receiver.initialize_decoders()
         except Exception as error:
             logger.error('Codec decoder initialization failed type=%s', type(error).__name__)
-            reason = 'LC3 codec is not available' if self.request.codec == 'lc3' else 'unsupported_audio_format'
-            await self.request.websocket.close(code=self.state.close_code, reason=reason)
+            await self.request.websocket.close(code=self.state.close_code, reason='unsupported_audio_format')
             return
         self.send_event(
             MessageServiceStatusEvent(event_type='service_status', status='initiating', status_text='Service Starting')
@@ -679,7 +675,7 @@ class ListenSessionRuntime:
                         conversation
                         and self.state.close_code == 1000
                         and getattr(conversation.get('source'), 'value', conversation.get('source')) == 'desktop'
-                        and (conversation.get('transcript_segments') or conversation.get('photos'))
+                        and conversation.get('transcript_segments')
                     ):
                         await self.transcripts.flush_speaker_assignments(conversation_id)
                         if await self.conversations.process_conversation(conversation_id):
@@ -707,7 +703,6 @@ class ListenSessionRuntime:
             self.parity_capture.persist()
         except Exception as error:
             logger.warning('Listen parity capture teardown failed type=%s', type(error).__name__)
-        self.receiver.clear()
         self.transcripts.clear()
         self.speakers.clear()
 

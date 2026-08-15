@@ -452,7 +452,6 @@ enum ViewExporter {
         transcriptSegments: [],
         transcriptSegmentsIncluded: true,
         geolocation: nil,
-        photos: [],
         appsResults: [],
         source: .desktop,
         language: "en",

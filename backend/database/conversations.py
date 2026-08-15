@@ -15,12 +15,11 @@ import utils.other.hume as hume
 from database import users as users_db
 from models.audio_file import AudioFile
 from models.conversation_enums import ConversationStatus, PostProcessingModel, PostProcessingStatus
-from models.conversation_photo import ConversationPhoto
 from models.transcript_segment import TranscriptSegment
 from utils import encryption
 from ._client import db, delete_collection_recursive, get_firestore_client, run_transactional
 from .firestore_index_registry import STALE_IN_PROGRESS_CONVERSATIONS_QUERY
-from .helpers import set_data_protection_level, prepare_for_write, prepare_for_read, with_photos
+from .helpers import set_data_protection_level, prepare_for_write, prepare_for_read
 from utils.other.storage import list_audio_chunks
 
 logger = logging.getLogger(__name__)
@@ -259,6 +258,9 @@ def raw_conversation_has_content(uid: str, conversation: Dict[str, Any]) -> bool
     Only the decoded value distinguishes an empty recording from a real one.
     Undecodable segments count as content: never delete data we cannot read.
     """
+    # S-02 removes photo ingestion and presentation, but legacy rows may still
+    # carry inline photo data. Treat it as durable content so empty-session
+    # cleanup can never turn product removal into historical data deletion.
     if conversation.get('has_content') or conversation.get('photos'):
         return True
     raw_segments = conversation.get('transcript_segments')
@@ -272,6 +274,27 @@ def raw_conversation_has_content(uid: str, conversation: Dict[str, Any]) -> bool
         logger.error(f'raw_conversation_has_content: undecodable segments, assuming content. {uid} {e}')
         return True
     return bool(segments)
+
+
+def conversation_has_legacy_photos(
+    uid: str,
+    conversation_id: str,
+    *,
+    conversation: Optional[Mapping[str, Any]] = None,
+    firestore_client: Any = None,
+) -> bool:
+    """Protect pre-S-02 photo data from destructive generic operations.
+
+    This is a preservation-only existence check. It intentionally returns no
+    photo content and does not restore the retired photo API or processing path.
+    """
+    if conversation and conversation.get('photos'):
+        return True
+    client = firestore_client if firestore_client is not None else db
+    conversation_ref = (
+        client.collection('users').document(uid).collection(conversations_collection).document(conversation_id)
+    )
+    return next(iter(conversation_ref.collection('photos').limit(1).stream()), None) is not None
 
 
 def _prepare_conversation_for_read(conversation_data: Optional[Dict[str, Any]], uid: str) -> Optional[Dict[str, Any]]:
@@ -317,38 +340,6 @@ def _document_data_with_revision(document) -> Optional[Dict[str, Any]]:
     return data
 
 
-def _prepare_photo_for_write(data: Dict[str, Any], uid: str, level: str) -> Dict[str, Any]:
-    data = copy.deepcopy(data)
-    data['data_protection_level'] = level
-    if level == 'enhanced' and 'base64' in data and isinstance(data['base64'], str):
-        data['base64'] = encryption.encrypt(data['base64'], uid)
-    return data
-
-
-def _prepare_photo_for_read(photo_data: Optional[Dict[str, Any]], uid: str) -> Optional[Dict[str, Any]]:
-    if not photo_data:
-        return None
-    data = copy.deepcopy(photo_data)
-    level = data.get('data_protection_level')
-    if level == 'enhanced' and 'base64' in data and isinstance(data['base64'], str):
-        try:
-            data['base64'] = encryption.decrypt(data['base64'], uid)
-        except Exception:
-            # If decryption fails, it might be already decrypted or not encrypted.
-            # We can log this, but for now, we'll just pass.
-            pass
-    return data
-
-
-@prepare_for_read(decrypt_func=_prepare_photo_for_read)
-def get_conversation_photos(uid: str, conversation_id: str):
-    user_ref = db.collection('users').document(uid)
-    conversation_ref = user_ref.collection(conversations_collection).document(conversation_id)
-    photos_ref = conversation_ref.collection('photos')
-    photos = [doc.to_dict() for doc in photos_ref.stream()]
-    return photos
-
-
 # *****************************
 # ********** CRUD *************
 # *****************************
@@ -362,8 +353,6 @@ def upsert_conversation_with_lifecycle(uid: str, conversation_data: dict):
     conversation_data.pop('updated_at', None)
     if 'audio_base64_url' in conversation_data:
         del conversation_data['audio_base64_url']
-    if 'photos' in conversation_data:
-        del conversation_data['photos']
 
     user_ref = db.collection('users').document(uid)
     conversation_ref = user_ref.collection(conversations_collection).document(conversation_data['id'])
@@ -432,8 +421,6 @@ def persist_processing_result_with_lifecycle(
     conversation_data.pop('updated_at', None)
     if 'audio_base64_url' in conversation_data:
         del conversation_data['audio_base64_url']
-    if 'photos' in conversation_data:
-        del conversation_data['photos']
 
     user_ref = db.collection('users').document(uid)
     conversation_ref = user_ref.collection(conversations_collection).document(conversation_data['id'])
@@ -493,8 +480,6 @@ def create_conversation_if_absent_with_lifecycle(uid: str, conversation_data: di
     conversation_data.pop('updated_at', None)
     if 'audio_base64_url' in conversation_data:
         del conversation_data['audio_base64_url']
-    if 'photos' in conversation_data:
-        del conversation_data['photos']
 
     user_ref = db.collection('users').document(uid)
     conversation_ref = user_ref.collection(conversations_collection).document(conversation_data['id'])
@@ -506,7 +491,6 @@ def create_conversation_if_absent_with_lifecycle(uid: str, conversation_data: di
 
 
 @prepare_for_read(decrypt_func=_prepare_conversation_for_read)
-@with_photos(get_conversation_photos)
 def get_conversation(uid, conversation_id):
     user_ref = db.collection('users').document(uid)
     conversation_ref = user_ref.collection(conversations_collection).document(conversation_id)
@@ -570,7 +554,6 @@ def get_conversation_audio_stamp(uid: str, conversation_id: str) -> Optional[dic
 
 
 @prepare_for_read(decrypt_func=_prepare_conversation_for_read)
-@with_photos(get_conversation_photos)
 def get_conversations(
     uid: str,
     limit: int = 100,
@@ -647,55 +630,6 @@ def get_conversations_count(
         conversations_ref = conversations_ref.where(filter=FieldFilter('created_at', '<=', end_date))
     result = conversations_ref.count().get()
     return int(result[0][0].value)
-
-
-@prepare_for_read(decrypt_func=_prepare_conversation_for_read)
-def get_conversations_without_photos(
-    uid: str,
-    limit: int = 100,
-    offset: int = 0,
-    include_discarded: bool = False,
-    statuses: List[str] = [],
-    start_date: Optional[datetime] = None,
-    end_date: Optional[datetime] = None,
-    categories: Optional[List[str]] = None,
-    folder_id: Optional[str] = None,
-    starred: Optional[bool] = None,
-):
-    """
-    Same as get_conversations but without loading photos.
-    Much faster for list endpoints and bulk operations where full photo base64 isn't needed.
-    """
-    conversations_ref = db.collection('users').document(uid).collection(conversations_collection)
-    if not include_discarded:
-        conversations_ref = conversations_ref.where(filter=FieldFilter('discarded', '==', False))
-    if len(statuses) > 0:
-        conversations_ref = conversations_ref.where(filter=FieldFilter('status', 'in', statuses))
-
-    if categories:
-        conversations_ref = conversations_ref.where(filter=FieldFilter('structured.category', 'in', categories))
-
-    if folder_id:
-        conversations_ref = conversations_ref.where(filter=FieldFilter('folder_id', '==', folder_id))
-
-    if starred is not None:
-        conversations_ref = conversations_ref.where(filter=FieldFilter('starred', '==', starred))
-
-    # Apply date range filters if provided
-    if start_date:
-        conversations_ref = conversations_ref.where(filter=FieldFilter('created_at', '>=', start_date))
-    if end_date:
-        conversations_ref = conversations_ref.where(filter=FieldFilter('created_at', '<=', end_date))
-
-    # Sort
-    conversations_ref = conversations_ref.order_by('created_at', direction=firestore.Query.DESCENDING)
-
-    # Limits
-    conversations_ref = conversations_ref.limit(limit).offset(offset)
-
-    conversations = [_document_data_with_revision(doc) for doc in conversations_ref.stream()]
-    conversations = [conversation for conversation in conversations if conversation is not None]
-    return conversations
 
 
 def iter_all_conversations(uid: str, batch_size: int = 400, include_discarded: bool = True):
@@ -958,56 +892,13 @@ def update_conversation_segment_text(uid: str, conversation_id: str, segment_id:
     return _update_segment_text(transaction)
 
 
-def delete_conversation_photos(uid: str, conversation_id: str) -> int:
-    """
-    Delete all photos in a conversation's photos subcollection.
-
-    IMPORTANT: Firestore does NOT cascade delete subcollections when you delete
-    a parent document. This function must be called before deleting a conversation.
-
-    Args:
-        uid: User ID
-        conversation_id: Conversation ID
-
-    Returns:
-        Number of photos deleted
-    """
-    user_ref = db.collection('users').document(uid)
-    conversation_ref = user_ref.collection(conversations_collection).document(conversation_id)
-    photos_ref = conversation_ref.collection('photos')
-
-    # Get all photo documents
-    photos = photos_ref.stream()
-    deleted_count = 0
-
-    # Delete in batches of 500 (Firestore batch limit)
-    batch = db.batch()
-    batch_count = 0
-
-    for photo_doc in photos:
-        batch.delete(photo_doc.reference)
-        batch_count += 1
-        deleted_count += 1
-
-        if batch_count >= 500:
-            batch.commit()
-            batch = db.batch()
-            batch_count = 0
-
-    # Commit remaining
-    if batch_count > 0:
-        batch.commit()
-
-    return deleted_count
-
-
 def delete_conversation(uid, conversation_id):
     """Delete a conversation and every subcollection underneath it.
 
-    Firestore does not cascade, and a conversation owns more than ``photos``: the per-provider
+    Firestore does not cascade, and a conversation owns subcollections such as the per-provider
     post-processing transcripts (verbatim segment text), the Hume emotion predictions, and the
-    analytics marker. Purging only photos left those behind as data no query can reach — not even
-    the account-deletion wipe, which walks *existing* documents and never sees a deleted parent.
+    analytics marker. Purging only one known child leaves others behind as data no query can reach —
+    not even the account-deletion wipe, which walks *existing* documents and never sees a deleted parent.
     Children are enumerated live, so a subcollection added later is purged too.
     """
     user_ref = db.collection('users').document(uid)
@@ -1018,13 +909,7 @@ def delete_conversation(uid, conversation_id):
 
 
 @prepare_for_read(decrypt_func=_prepare_conversation_for_read)
-@with_photos(get_conversation_photos)
 def get_conversations_by_id(uid, conversation_ids, include_discarded: bool = False):
-    return _get_conversations_by_id(uid, conversation_ids, include_discarded=include_discarded)
-
-
-@prepare_for_read(decrypt_func=_prepare_conversation_for_read)
-def get_conversations_by_id_without_photos(uid, conversation_ids, include_discarded: bool = False):
     return _get_conversations_by_id(uid, conversation_ids, include_discarded=include_discarded)
 
 
@@ -1128,33 +1013,6 @@ def migrate_conversations_level_batch(uid: str, conversation_ids: List[str], tar
             batch = db.batch()
             batch_count = 0
 
-        # Now migrate photos for this conversation in the same batch
-        photos_ref = doc_snapshot.reference.collection('photos')
-        photos_stream = photos_ref.select(['data_protection_level', 'base64']).stream()
-        for photo_doc in photos_stream:
-            photo_data = photo_doc.to_dict()
-            current_photo_level = photo_data.get('data_protection_level', 'standard')
-            if current_photo_level == target_level:
-                continue
-
-            # Decrypt first to get a clean state
-            plain_photo_data = _prepare_photo_for_read(photo_data, uid)
-
-            # Prepare the specific fields for update
-            photo_update_payload = {'data_protection_level': target_level}
-            if target_level == 'enhanced':
-                photo_update_payload['base64'] = encryption.encrypt(plain_photo_data['base64'], uid)
-            else:  # Moving from enhanced to standard
-                photo_update_payload['base64'] = plain_photo_data['base64']
-
-            # Add photo update to the batch
-            batch.update(photo_doc.reference, photo_update_payload)
-            batch_count += 1
-            if batch_count >= 100:
-                batch.commit()
-                batch = db.batch()
-                batch_count = 0
-
     if batch_count > 0:
         batch.commit()
 
@@ -1165,7 +1023,6 @@ def migrate_conversations_level_batch(uid: str, conversation_ids: List[str], tar
 
 
 @prepare_for_read(decrypt_func=_prepare_conversation_for_read)
-@with_photos(get_conversation_photos)
 def get_in_progress_conversation(uid: str):
     user_ref = db.collection('users').document(uid)
     conversations_ref = (
@@ -1180,7 +1037,6 @@ def get_in_progress_conversation(uid: str):
 
 
 @prepare_for_read(decrypt_func=_prepare_conversation_for_read)
-@with_photos(get_conversation_photos)
 def get_processing_conversations(uid: str):
     user_ref = db.collection('users').document(uid)
     conversations_ref = user_ref.collection(conversations_collection).where(
@@ -1575,47 +1431,6 @@ def get_conversation_transcripts_by_model(uid: str, conversation_id: str):
     }
 
 
-# ***********************************
-# ********** OPENGLASS **************
-# ***********************************
-
-
-def store_conversation_photos(
-    uid: str,
-    conversation_id: str,
-    photos: List[ConversationPhoto],
-    *,
-    firestore_client: Any = None,
-) -> bool:
-    client = firestore_client if firestore_client is not None else get_firestore_client()
-    user_ref = client.collection('users').document(uid)
-    conversation_ref = user_ref.collection(conversations_collection).document(conversation_id)
-    photos_ref = conversation_ref.collection('photos')
-    transaction = client.transaction()
-
-    @firestore.transactional
-    def _store(transaction) -> bool:
-        conversation_snapshot = conversation_ref.get(transaction=transaction)
-        if not getattr(conversation_snapshot, 'exists', False):
-            return False
-        level = (conversation_snapshot.to_dict() or {}).get('data_protection_level', 'standard')
-        for photo in photos:
-            photo_id = photo.id or str(uuid.uuid4())
-            photo_ref = photos_ref.document(photo_id)
-            data = photo.model_dump()
-            data['id'] = photo_id
-            transaction.set(photo_ref, _prepare_photo_for_write(data, uid, level))
-        transaction.update(conversation_ref, {'has_content': True})
-        return True
-
-    return _store(transaction)
-
-
-# ********************************
-# ********** SYNCING *************
-# ********************************
-
-
 def is_soft_deleted(conversation: Optional[dict]) -> bool:
     """Whether a conversation is a soft-deleted tombstone.
 
@@ -1624,76 +1439,13 @@ def is_soft_deleted(conversation: Optional[dict]) -> bool:
     regenerate structured data, action items, memories and embeddings —
     resurrects data the user deleted. Such operations must reject a tombstone.
 
-    Shared predicate behind that contract (sync #10119 via `eligible_merge_target`,
-    merge #10262, reprocess). Deliberately distinct from `discarded`, which stays
-    revivable: the merge and reprocess paths intentionally revive a discarded row.
+    Shared predicate behind the merge and reprocess contracts. Deliberately
+    distinct from `discarded`, which stays revivable.
     """
     return bool(conversation) and bool(conversation.get('deleted'))
 
 
-def eligible_merge_target(conversation: Optional[dict]) -> bool:
-    """Whether synced audio may merge into this conversation (#10033).
-
-    A soft-deleted tombstone must never absorb new segments: the user cannot
-    see it, so merged audio disappears — recordings that "never create a
-    conversation". Discarded rows stay eligible; the merge path reprocesses
-    and revives them.
-    """
-    return bool(conversation) and not is_soft_deleted(conversation)
-
-
-def select_closest_conversation(conversations, start_timestamp: int, end_timestamp: int) -> Optional[dict]:
-    """Pure closest-by-boundary choice among eligible merge targets (#10033)."""
-    closest_conversation = None
-    min_diff = float('inf')
-    for conversation in conversations:
-        if not eligible_merge_target(conversation):
-            continue
-        conversation_start_timestamp = conversation['started_at'].timestamp()
-        conversation_end_timestamp = conversation['finished_at'].timestamp()
-        diff1 = abs(conversation_start_timestamp - start_timestamp)
-        diff2 = abs(conversation_end_timestamp - end_timestamp)
-        if diff1 < min_diff or diff2 < min_diff:
-            min_diff = min(diff1, diff2)
-            closest_conversation = conversation
-    return closest_conversation
-
-
 @prepare_for_read(decrypt_func=_prepare_conversation_for_read)
-@with_photos(get_conversation_photos)
-def get_closest_conversation_to_timestamps(uid: str, start_timestamp: int, end_timestamp: int) -> Optional[dict]:
-    start_threshold = datetime.fromtimestamp(start_timestamp, tz=timezone.utc) - timedelta(minutes=2)
-    end_threshold = datetime.fromtimestamp(end_timestamp, tz=timezone.utc) + timedelta(minutes=2)
-
-    query = (
-        db.collection('users')
-        .document(uid)
-        .collection(conversations_collection)
-        .where(filter=FieldFilter('finished_at', '>=', start_threshold))
-        .where(filter=FieldFilter('started_at', '<=', end_threshold))
-        .order_by('created_at', direction=firestore.Query.DESCENDING)
-    )
-
-    conversations = [doc.to_dict() for doc in query.stream()]
-    logger.info(f'get_closest_conversation_to_timestamps len(conversations) {len(conversations)}')
-    if not conversations:
-        return None
-
-    logger.info('get_closest_conversation_to_timestamps found:')
-    for conversation in conversations:
-        logger.info(f"- {conversation['id']} {conversation['started_at']} {conversation['finished_at']}")
-
-    closest_conversation = select_closest_conversation(conversations, start_timestamp, end_timestamp)
-    if closest_conversation is None:
-        logger.info('get_closest_conversation_to_timestamps: no eligible merge target (deleted rows excluded)')
-        return None
-
-    logger.info(f"get_closest_conversation_to_timestamps closest_conversation: {closest_conversation['id']}")
-    return closest_conversation
-
-
-@prepare_for_read(decrypt_func=_prepare_conversation_for_read)
-@with_photos(get_conversation_photos)
 def get_last_completed_conversation(uid: str) -> Optional[dict]:
     query = (
         db.collection('users')

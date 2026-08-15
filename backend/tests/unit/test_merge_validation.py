@@ -187,7 +187,7 @@ class TestCoerceDt:
 # ---------------------------------------------------------------------------
 
 
-def _conv(conv_id="c1", started=None, finished=None, status="completed", locked=False, deleted=False):
+def _conv(conv_id="c1", started=None, finished=None, status="completed", locked=False, deleted=False, photos=None):
     return {
         "id": conv_id,
         "started_at": started,
@@ -195,6 +195,7 @@ def _conv(conv_id="c1", started=None, finished=None, status="completed", locked=
         "status": status,
         "is_locked": locked,
         "deleted": deleted,
+        "photos": photos or [],
     }
 
 
@@ -255,6 +256,15 @@ class TestValidateGateChecks:
         ok, err, warn = merge.validate_merge_compatibility([_conv("c1"), _conv("c2")])
         assert ok is True
         assert err is None
+
+    def test_rejects_legacy_inline_photo_conversation(self, merge):
+        convs = [_conv("c1", photos=[{"id": "legacy-photo"}]), _conv("c2")]
+
+        ok, err, warn = merge.validate_merge_compatibility(convs)
+
+        assert ok is False
+        assert "legacy photo" in err.lower()
+        assert warn is None
 
     def test_rejects_non_completed_conversation(self, merge):
         convs = [_conv("c1"), _conv("c2", status="processing")]

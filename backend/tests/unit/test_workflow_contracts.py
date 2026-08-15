@@ -67,8 +67,7 @@ def test_workflow_contract_sources_select_adjacent_tests(selector_and_all_tests)
         "backend/utils/memory/canonical_memory_adapter.py": "testing/e2e/test_canonical_memory_pipeline.py",
         "backend/routers/conversations.py": "tests/unit/test_conversation_lifecycle_contract.py",
         "backend/services/users/account_deletion.py": "tests/services/users/test_account_deletion.py",
-        "backend/routers/sync.py": "tests/unit/test_sync_v2.py",
-        "backend/utils/sync/pipeline.py": "tests/unit/test_sync_v2.py",
+        "backend/routers/sync.py": "tests/unit/test_audio_merge_tasks.py",
         "backend/routers/transcribe.py": "tests/unit/test_listen_pipeline.py",
         "backend/config/prerecorded_stt.py": "tests/unit/test_parakeet_prerecorded.py",
         "backend/scripts/validate-backend-runtime-env.py": "tests/unit/test_backend_runtime_env_validator.py",
@@ -128,7 +127,7 @@ def test_selector_docs_and_flat_utils_do_not_force_full_suite_via_globs(selector
     assert selected == all_tests
 
     selected, reason = selector.tests_for_changed_paths(["backend/routers/sync.py"], all_tests)
-    assert "tests/unit/test_sync_v2.py" in selected
+    assert "tests/unit/test_audio_merge_tasks.py" in selected
     assert selected != all_tests
     assert reason == "selected backend unit tests from changed paths and workflow contracts"
 
@@ -159,12 +158,12 @@ def test_mapped_source_with_direct_test_remains_narrow(selector_and_all_tests):
     selected, reason = selector.tests_for_changed_paths(
         [
             "backend/routers/sync.py",
-            "backend/tests/unit/test_sync_v2.py",
+            "backend/tests/unit/test_audio_merge_tasks.py",
         ],
         all_tests,
     )
 
-    assert "tests/unit/test_sync_v2.py" in selected
+    assert "tests/unit/test_audio_merge_tasks.py" in selected
     assert selected != all_tests
     assert reason == "selected backend unit tests from changed paths and workflow contracts"
 
@@ -408,7 +407,7 @@ def test_workflow_contracts_static_check_skips_workflows_without_tuple_check(tmp
     checker = _load_script("check_workflow_contracts")
     fake_repo = tmp_path / "repo"
     fake_repo.mkdir()
-    fake_source = fake_repo / "backend" / "routers" / "sync.py"
+    fake_source = fake_repo / "backend" / "routers" / "chat.py"
     fake_source.parent.mkdir(parents=True)
     fake_source.write_text("def bad_contract() -> tuple[int, int, int]:\n    return 1, 2, 3\n")
 
@@ -418,8 +417,8 @@ def test_workflow_contracts_static_check_skips_workflows_without_tuple_check(tmp
         "workflows": [
             {
                 "risk": "high",
-                "sources": ["backend/routers/sync.py"],
-                "tests": ["tests/unit/test_sync_v2.py"],
+                "sources": ["backend/routers/chat.py"],
+                "tests": ["tests/unit/test_voice_message_language.py"],
                 "checks": [],
             }
         ],
