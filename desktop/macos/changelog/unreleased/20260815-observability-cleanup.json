@@ -1,0 +1,3 @@
+{
+  "change": "Removed legacy push-to-talk analytics, Crisp support, and in-app message ratings while preserving diagnostics and issue reporting"
+}

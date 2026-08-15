@@ -87,7 +87,7 @@ extension SettingsContentView {
             Text("Chat Prompt Lab")
               .scaledFont(size: OmiType.subheading, weight: .semibold)
               .foregroundColor(OmiColors.textPrimary)
-            Text("Iterate on chat system prompts with real questions, AI grading, and production ratings")
+            Text("Iterate on chat system prompts with real questions, AI grading, and local human review")
               .scaledFont(size: OmiType.caption)
               .foregroundColor(OmiColors.textTertiary)
           }
