@@ -353,6 +353,7 @@ the local commit ledger below. Nothing has been pushed or opened as a PR:
 | `879d554` | Added production-boundary coverage for the one authoritative PTT remote lifecycle event and Git-only Chat Lab history, and removed the last stale ratings comment. |
 | `9e267ef` | Removed the unused callback-level trace-ID input and strengthened the public persona stream test to prove its persisted correlation equals the actual Runnable run ID. |
 | `1abcee6` | Removed the remaining ignored tracer-helper name/metadata inputs; their real values continue through the authoritative Runnable invocation. |
+| `7fff1de` | Exercised the real decorated public agentic async-generator boundary with hermetic LangSmith context and proved one run ID is created, persisted, and patched. |
 
 Observed GREEN evidence for this config-independent tranche:
 
@@ -373,7 +374,7 @@ Observed GREEN evidence for this config-independent tranche:
 - the final Chat Prompt Lab copy change passed its five focused Swift tests;
 - post-review backend verification passed 28 tests covering actual LangSmith
   run-tree binding/absence and the deleted monitoring operator/deploy surfaces;
-- the adjacent retained-persona correlation cleanup passed all 24 tests in
+- the public agentic/persona correlation cleanup passed all 25 tests in
   `test_chat_async_offload.py` and `test_langsmith_tracing_boundary.py`;
 - post-review Swift verification passed 35 tests: all 32
   `DesktopDiagnosticsManagerTests`, both source-aware generic Task projection
