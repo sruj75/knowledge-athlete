@@ -15,7 +15,7 @@ from routers import (
     desktop_deprecated,
     desktop_proxy,
     desktop_realtime,
-    desktop_screen_crisp,
+    desktop_screen_activity,
     desktop_tts_updates,
 )
 from utils.env_loader import load_backend_env
@@ -54,6 +54,6 @@ app.include_router(auth.router)
 app.include_router(desktop_chat.router)
 app.include_router(desktop_proxy.router)
 app.include_router(desktop_realtime.router)
-app.include_router(desktop_screen_crisp.router)
+app.include_router(desktop_screen_activity.router)
 app.include_router(desktop_tts_updates.router)
 app.include_router(desktop_deprecated.router)

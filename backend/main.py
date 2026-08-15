@@ -70,7 +70,7 @@ from routers import (
     desktop_core,
     desktop_proxy,
     desktop_realtime,
-    desktop_screen_crisp,
+    desktop_screen_activity,
     desktop_tts_updates,
     scores,
     tts,
@@ -202,7 +202,7 @@ app.include_router(desktop_core.router)
 app.include_router(desktop_chat.router)
 app.include_router(desktop_proxy.router)
 app.include_router(desktop_realtime.router)
-app.include_router(desktop_screen_crisp.router)
+app.include_router(desktop_screen_activity.router)
 app.include_router(desktop_tts_updates.router)
 
 

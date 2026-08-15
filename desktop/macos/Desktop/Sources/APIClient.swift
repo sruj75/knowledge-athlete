@@ -9,8 +9,8 @@ actor APIClient {
     DesktopBackendEnvironment.pythonBaseURL()
   }
 
-  // Python desktop backend URL — used only for config/api-keys, Crisp, and
-  // local test subscription. All data CRUD,
+  // Python desktop backend URL — used only for config/api-keys and local test
+  // subscription. All data CRUD,
   // chat AI, and title generation are on Python.
   // Set via OMI_DESKTOP_API_URL env var (in .env).
   var rustBackendURL: String {
