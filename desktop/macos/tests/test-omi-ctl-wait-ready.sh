@@ -6,6 +6,16 @@ OMI_CTL="$SCRIPT_DIR/../scripts/omi-ctl"
 TMP_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/omi-ctl-wait-ready.XXXXXX")"
 trap 'rm -rf "$TMP_ROOT"' EXIT
 
+screens="$($OMI_CTL screens)"
+if tr '| ' '\n\n' <<<"$screens" | grep -qx 'help'; then
+  echo "FAIL: omi-ctl still advertises the removed Help destination" >&2
+  exit 1
+fi
+if ! tr '| ' '\n\n' <<<"$screens" | grep -qx 'settings'; then
+  echo "FAIL: omi-ctl omitted the retained Settings destination" >&2
+  exit 1
+fi
+
 mkdir -p "$TMP_ROOT/bin"
 printf 'test-token\n' > "$TMP_ROOT/token"
 
@@ -60,4 +70,4 @@ done
 ready="$TMP_ROOT/ready.json"
 write_state "$ready" true false true false
 run_wait_ready "$ready" >/dev/null
-echo "omi-ctl authenticated semantic readiness tests passed"
+echo "omi-ctl target catalog and authenticated semantic readiness tests passed"
