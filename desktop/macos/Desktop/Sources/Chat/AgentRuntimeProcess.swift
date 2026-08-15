@@ -2588,25 +2588,6 @@ actor AgentRuntimeProcess {
       throw BridgeError.bridgeScriptNotFound
     }
 
-    Self.removeInheritedBYOKEnvironment(from: &env)
-    let byok = await Self.usableBYOKEnvironment()
-    try assertStartupAuthority(
-      authorizationSnapshot,
-      expectedAuthorityEpoch: admissionAuthorityEpoch)
-    for (key, value) in byok.values {
-      env[key] = value
-    }
-    if APIKeyService.isByokActive {
-      if !byok.suppressedProviders.isEmpty {
-        for provider in byok.suppressedProviders {
-          log(
-            "CredentialHealth: context=agent_runtime_env failure_class=byok_invalid_suppressed provider=\(provider.rawValue)"
-          )
-        }
-      }
-      log("AgentRuntimeProcess: pi-mono BYOK active, forwarding \(byok.values.count) usable user keys")
-    }
-
     let requiresPiMonoCredentials =
       preferredAdapterId == .piMono
       && AgentRuntimeCredentialPolicy.requiresManagedCredentials(
@@ -2629,15 +2610,16 @@ actor AgentRuntimeProcess {
     try assertStartupAuthority(
       authorizationSnapshot,
       expectedAuthorityEpoch: admissionAuthorityEpoch)
+    var managedAuthToken: String?
     if let hermeticFaultModelToken {
-      env["OMI_AUTH_TOKEN"] = hermeticFaultModelToken
+      managedAuthToken = hermeticFaultModelToken
       log("AgentRuntimeProcess: starting non-production fault-model runtime without Firebase auth")
     } else if let authHeader,
       let token = Self.bearerToken(from: authHeader)
     {
       startupPermissionGrantedChecked = requiresPiMonoCredentials
       startupPermissionGranted = requiresPiMonoCredentials
-      env["OMI_AUTH_TOKEN"] = token
+      managedAuthToken = token
     } else if requiresPiMonoCredentials {
       startupPermissionGrantedChecked = true
       log("AgentRuntimeProcess: pi-mono start refused, Firebase ID token is missing")
@@ -2645,6 +2627,9 @@ actor AgentRuntimeProcess {
     } else if preferredAdapterId == .piMono {
       log("AgentRuntimeProcess: starting non-production control-only runtime without Firebase auth")
     }
+    env = Self.prepareManagedChildEnvironment(
+      inherited: env,
+      managedAuthToken: managedAuthToken)
 
     let nodeDir = (nodePath as NSString).deletingLastPathComponent
     let existingPath = env["PATH"] ?? "/usr/bin:/bin"
@@ -2783,38 +2768,26 @@ actor AgentRuntimeProcess {
     }
   }
 
-  static func byokEnvironmentKey(for provider: BYOKProvider) -> String {
-    "OMI_BYOK_\(provider.rawValue.uppercased())"
+  /// Prevent retired customer credentials inherited from a developer shell or
+  /// launch environment from crossing into the managed agent subprocess.
+  static func prepareManagedChildEnvironment(
+    inherited: [String: String],
+    managedAuthToken: String?
+  ) -> [String: String] {
+    var env = inherited
+    removeRetiredCustomerCredentialEnvironment(from: &env)
+    env.removeValue(forKey: "OMI_AUTH_TOKEN")
+    if let managedAuthToken, !managedAuthToken.isEmpty {
+      env["OMI_AUTH_TOKEN"] = managedAuthToken
+    }
+    return env
   }
 
-  static func removeInheritedBYOKEnvironment(from env: inout [String: String]) {
-    let inheritedBYOKKeys = env.keys.filter { $0.uppercased().hasPrefix("OMI_BYOK_") }
-    for key in inheritedBYOKKeys {
+  static func removeRetiredCustomerCredentialEnvironment(from env: inout [String: String]) {
+    let retiredCustomerCredentialKeys = env.keys.filter { $0.uppercased().hasPrefix("OMI_BYOK_") }
+    for key in retiredCustomerCredentialKeys {
       env.removeValue(forKey: key)
     }
-  }
-
-  @MainActor
-  static func usableBYOKEnvironment() -> (values: [String: String], suppressedProviders: [BYOKProvider]) {
-    guard APIKeyService.isByokActive else {
-      return ([:], [])
-    }
-
-    var candidateValues: [String: String] = [:]
-    var suppressedProviders: [BYOKProvider] = []
-    for provider in BYOKProvider.allCases {
-      guard let key = APIKeyService.byokKey(provider) else { continue }
-      let fingerprint = APIKeyService.byokFingerprint(key)
-      if CredentialHealthManager.shared.canUseBYOK(provider: provider, fingerprint: fingerprint) {
-        candidateValues[byokEnvironmentKey(for: provider)] = key
-      } else {
-        suppressedProviders.append(provider)
-      }
-    }
-    guard suppressedProviders.isEmpty, candidateValues.count == BYOKProvider.allCases.count else {
-      return ([:], suppressedProviders)
-    }
-    return (candidateValues, [])
   }
 
   static func openClawAdapterCommand(openClawPath: String, fileManager: FileManager = .default) -> String {

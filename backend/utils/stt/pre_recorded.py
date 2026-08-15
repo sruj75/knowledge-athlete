@@ -30,7 +30,6 @@ from config.stt_provider_policy import (
     provider_is_enabled,
 )
 from models.transcript_segment import TranscriptSegment
-from utils.byok import get_byok_key
 from utils.other.endpoints import timeit
 from utils.stt.outcomes import TranscriptionFailure
 from utils.stt.speaker_embedding import SPEAKER_MATCH_THRESHOLD, compare_embeddings, extract_embedding_from_bytes
@@ -144,14 +143,6 @@ def _get_deepgram_client() -> DeepgramClient:
                     raise PrerecordedSTTConfigurationError(PrerecordedSTTService.DEEPGRAM, 'DEEPGRAM_API_KEY')
                 _deepgram_client = DeepgramClient(api_key, _get_deepgram_options())
     return _deepgram_client
-
-
-def _deepgram_client_for_request() -> DeepgramClient:
-    """Route to BYOK Deepgram key when set; otherwise use the process-wide client."""
-    byok = get_byok_key('deepgram')
-    if byok:
-        return DeepgramClient(byok, _get_deepgram_options())
-    return _get_deepgram_client()
 
 
 # Languages supported by nova-3
@@ -322,7 +313,7 @@ def deepgram_prerecorded(
             else:
                 options["keywords"] = list(keywords)
 
-        rest_client: Any = _deepgram_client_for_request().listen.rest.v("1")
+        rest_client: Any = _get_deepgram_client().listen.rest.v("1")
         response = rest_client.transcribe_url({"url": audio_url}, options, timeout=_DG_TIMEOUT)
 
         # Extract words from response
@@ -455,7 +446,7 @@ def deepgram_prerecorded_from_bytes(
         mimetype = "audio/raw" if encoding else "audio/wav"
         source: Dict[str, Any] = {"buffer": audio_buffer, "mimetype": mimetype}
 
-        rest_client: Any = _deepgram_client_for_request().listen.rest.v("1")
+        rest_client: Any = _get_deepgram_client().listen.rest.v("1")
         response = rest_client.transcribe_file(source, options, timeout=_DG_TIMEOUT)
 
         # Extract words from response

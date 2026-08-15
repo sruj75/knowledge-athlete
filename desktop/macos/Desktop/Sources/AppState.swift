@@ -521,9 +521,8 @@ class AppState: ObservableObject {
     }
 
     // Restore paywall flag from prior session so toggles + auto-restart respect
-    // it before any backend call has a chance to refresh state — but never for
-    // a BYOK user (all four keys configured) or a user whose cached plan is
-    // paid. The paid-plan carve-out fixes a popup-on-launch bug for Neo
+    // it before any backend call has a chance to refresh state. A paid cached
+    // plan remains authoritative. The paid-plan carve-out fixes a popup-on-launch bug for Neo
     // subscribers grandfathered onto desktop by #7513: their last session
     // pre-grandfather wrote isPaywalled=true; without this clear, the next
     // launch shows the monthly-limit popup until fetchTrialMetadata returns

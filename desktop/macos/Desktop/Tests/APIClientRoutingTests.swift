@@ -12,6 +12,12 @@ private struct CapturedRequest {
   let body: Data?
 }
 
+private struct ManagedHeaderResponse: Decodable {}
+
+private struct ManagedHeaderBody: Encodable {
+  let value: String
+}
+
 /// Intercepts HTTP requests, records their URL and method, then returns 403
 /// so APIClient throws .httpError (not 401, which triggers AuthService refresh).
 private final class URLCapture: URLProtocol, @unchecked Sendable {
@@ -493,6 +499,43 @@ final class APIClientRoutingTests: XCTestCase {
     unsetenv("OMI_DESKTOP_API_URL")
     URLCapture.reset()
     super.tearDown()
+  }
+
+  func testManagedRequestsNeverEmitLegacyCustomerKeys() async throws {
+    let legacyKeys = [
+      (storage: "dev_openai_api_key", header: "X-BYOK-OpenAI"),
+      (storage: "dev_anthropic_api_key", header: "X-BYOK-Anthropic"),
+      (storage: "dev_gemini_api_key", header: "X-BYOK-Gemini"),
+      (storage: "dev_deepgram_api_key", header: "X-BYOK-Deepgram"),
+    ]
+    for legacyKey in legacyKeys {
+      UserDefaults.standard.set("legacy-customer-secret", forKey: legacyKey.storage)
+    }
+    defer {
+      for legacyKey in legacyKeys {
+        UserDefaults.standard.removeObject(forKey: legacyKey.storage)
+      }
+    }
+
+    let client = await makeTestClient()
+    let baseURL = "http://python-test:9001/"
+    let _: ManagedHeaderResponse? = try? await client.get("managed-get", customBaseURL: baseURL)
+    let _: ManagedHeaderResponse? = try? await client.post(
+      "managed-body", body: ManagedHeaderBody(value: "payload"), customBaseURL: baseURL)
+    let _: ManagedHeaderResponse? = try? await client.post("managed-post", customBaseURL: baseURL)
+    try? await client.delete("managed-delete", customBaseURL: baseURL)
+
+    let requests = URLCapture.capturedRequests
+    XCTAssertEqual(requests.map(\.method), ["GET", "POST", "POST", "DELETE"])
+    XCTAssertEqual(requests.count, 4)
+    for request in requests {
+      XCTAssertEqual(request.headers["Authorization"], "Bearer test-token")
+      XCTAssertEqual(request.headers["X-App-Platform"], "macos")
+      XCTAssertNotNil(request.headers["X-Device-Id-Hash"])
+      for legacyKey in legacyKeys {
+        XCTAssertNil(request.headers[legacyKey.header])
+      }
+    }
   }
 
   // -- Conversations (GET, DELETE → Python) --

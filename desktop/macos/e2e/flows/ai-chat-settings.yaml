@@ -7,11 +7,13 @@ covers:
   - desktop/macos/Desktop/Sources/MainWindow/Pages/Settings/Sections/SettingsContentView+FloatingBarAndChat.swift
   - desktop/macos/Desktop/Sources/MainWindow/Pages/Settings/Sections/SettingsContentView+Advanced.swift
   - desktop/macos/Desktop/Sources/MainWindow/Pages/Settings/Sections/SettingsContentView+Assistants.swift
-  - desktop/macos/Desktop/Sources/MainWindow/Pages/Settings/Sections/SettingsContentView+DeveloperKeys.swift
   - desktop/macos/Desktop/Sources/MainWindow/Pages/ChatLabView.swift
+  - desktop/macos/Desktop/Sources/DesktopAutomationManagedAccessActions.swift
   - desktop/macos/Desktop/Sources/Chat/ChatResource.swift
   - desktop/macos/Desktop/Sources/Chat/ClaudeAuthSheet.swift
   - desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/TaskAgent/TaskAgentViews.swift
+  - desktop/macos/Desktop/Sources/ProactiveAssistants/Core/GeminiClient.swift
+  - desktop/macos/Desktop/Sources/ProactiveAssistants/Services/EmbeddingService.swift
   - desktop/macos/Desktop/Sources/ProactiveAssistants/UI/FocusTestRunnerWindow.swift
   - desktop/macos/Desktop/Sources/ProactiveAssistants/UI/InsightTestRunnerWindow.swift
   - desktop/macos/Desktop/Sources/ProactiveAssistants/UI/TaskTestRunnerWindow.swift
@@ -43,6 +45,25 @@ steps:
       ok: true
 
   - id: S3
+    name: Managed access snapshot
+    bridge.action:
+      name: advanced_settings_snapshot
+    expect:
+      result.detail.access_model: managed
+      result.detail.customer_key_controls_visible: "false"
+      result.detail.free_byok_promo_visible: "false"
+
+  - id: S4
+    name: Managed AI product-gate messages
+    bridge.action:
+      name: managed_ai_error_snapshot
+    expect:
+      result.detail.gemini_message: "AI features require an active plan."
+      result.detail.gemini_expected_product_state: "true"
+      result.detail.embedding_message: "Embedding API unavailable: an active plan is required."
+      result.detail.embedding_reason: product_gate
+
+  - id: S5
     name: Logs clean
     log.expect:
       absent:

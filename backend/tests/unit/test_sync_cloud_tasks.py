@@ -844,9 +844,9 @@ class TestSyncRouterStructure:
         assert 'mark_job_queued_for_retry' in handler
         assert 'status_code=409' in handler
 
-    def test_fast_path_gates_on_env_and_byok(self):
+    def test_fast_path_gates_only_on_managed_dispatch_configuration(self):
         source = self._read(os.path.join('routers', 'sync.py'))
-        assert 'cloud_task_eligible = cloud_tasks_dispatch_enabled and not byok_enabled' in source
+        assert 'cloud_task_eligible = cloud_tasks_dispatch_enabled' in source
 
     def test_pipeline_reraises_in_task_mode(self):
         source = self._read(os.path.join('utils', 'sync', 'pipeline.py'))
@@ -2456,8 +2456,8 @@ async def test_sync_inline_releases_run_lock_when_ledger_bind_loses_lease():
     from starlette.datastructures import UploadFile
 
     module, saved_modules, _, BytesIO, _, _ = _load_sync_router_for_fast_path()
-    module.has_byok_keys = MagicMock(return_value=True)
     module.start_background_task = MagicMock()
+    module.is_cloud_tasks_dispatch_enabled = MagicMock(return_value=False)
     module.get_sync_ledger_fence_mode = MagicMock(return_value=module.SyncLedgerFenceMode.ACTIVE)
     module.try_acquire_sync_job_run_lock = MagicMock(return_value='1:lock-token')
     module.release_job_run_lock = MagicMock()
@@ -2501,7 +2501,7 @@ async def test_sync_inline_releases_run_lock_when_ledger_bind_loses_lease():
 
 
 @pytest.mark.asyncio
-async def test_sync_dispatch_byok_records_recovered_inline(monkeypatch):
+async def test_legacy_customer_headers_cannot_force_sync_inline(monkeypatch):
     from starlette.datastructures import UploadFile
 
     module, saved_modules, _, BytesIO, fallback_calls, attempt_modes = _load_sync_router_for_fast_path()
@@ -2522,18 +2522,10 @@ async def test_sync_dispatch_byok_records_recovered_inline(monkeypatch):
         resp = await module.sync_local_files_v2(files=[upload], uid='test-uid')
 
         assert resp.status_code == 202
-        assert fallback_calls == [
-            {
-                'component': 'sync_dispatch',
-                'from_mode': 'cloud_tasks',
-                'to_mode': 'inline',
-                'reason': 'byok',
-                'outcome': 'recovered',
-            }
-        ]
-        assert attempt_modes == ['inline']
-        module.start_background_task.assert_called_once()
-        module.enqueue_sync_job.assert_not_called()
+        assert fallback_calls == []
+        assert attempt_modes == ['cloud_tasks']
+        module.start_background_task.assert_not_called()
+        module.enqueue_sync_job.assert_called_once()
     finally:
         sys.modules.pop('routers.sync', None)
         sys.modules.pop('utils.sync.pipeline', None)
@@ -2627,14 +2619,12 @@ async def test_backfill_enqueue_failure_never_falls_back_inline(monkeypatch):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize('dispatch_enabled,byok', [(False, False), (True, True)])
-async def test_backfill_requires_isolated_dispatch(dispatch_enabled, byok):
+async def test_backfill_requires_configured_managed_dispatch():
     from starlette.datastructures import UploadFile
 
     module, saved_modules, _, BytesIO, _, _ = _load_sync_router_for_fast_path()
     module.start_background_task = MagicMock()
-    module.is_cloud_tasks_dispatch_enabled = MagicMock(return_value=dispatch_enabled)
-    module.has_byok_keys = MagicMock(return_value=byok)
+    module.is_cloud_tasks_dispatch_enabled = MagicMock(return_value=False)
     module.classify_sync_lane = MagicMock(
         return_value=types.SimpleNamespace(
             lane=module.SyncLane.BACKFILL,

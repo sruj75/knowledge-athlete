@@ -806,8 +806,7 @@ actor MemoryExportService {
     guard !clientIDs.isEmpty else { return status(for: destination) }
     var observation = "authoritative_grant_check"
     do {
-      let response: OAuthGrantsResponse = try await APIClient.shared.get(
-        "v1/mcp/oauth/grants", includeBYOK: false)
+      let response: OAuthGrantsResponse = try await APIClient.shared.get("v1/mcp/oauth/grants")
       let isAuthorized = response.grants.contains { clientIDs.contains($0.clientID) && $0.isActive }
 
       if isAuthorized {

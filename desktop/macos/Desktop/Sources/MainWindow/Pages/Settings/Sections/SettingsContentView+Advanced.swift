@@ -36,9 +36,6 @@ extension SettingsContentView {
         advancedCategoryHeader(title: "Beta Diagnostics", icon: "waveform.path.ecg")
         betaDiagnosticsSubsection
       }
-      advancedCategoryHeader(title: "Developer API Keys", icon: "key")
-      developerKeysSubsection
-
       advancedCategoryHeader(title: "Dev Tools", icon: "hammer")
       devToolsSubsection
     }

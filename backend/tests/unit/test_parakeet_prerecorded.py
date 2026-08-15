@@ -132,26 +132,13 @@ class TestFactoryRouting:
 
     def test_deepgram_process_client_reports_missing_key(self, monkeypatch):
         monkeypatch.setattr(pr, '_deepgram_client', None)
-        monkeypatch.setattr(pr, 'get_byok_key', lambda _provider: None)
         monkeypatch.delenv('DEEPGRAM_API_KEY', raising=False)
 
         with pytest.raises(pr.PrerecordedSTTConfigurationError) as exc_info:
-            pr._deepgram_client_for_request()
+            pr._get_deepgram_client()
 
         assert exc_info.value.provider == pr.PrerecordedSTTService.DEEPGRAM
         assert exc_info.value.missing_env == 'DEEPGRAM_API_KEY'
-
-    def test_deepgram_byok_does_not_require_process_key(self, monkeypatch):
-        client = MagicMock()
-        factory = MagicMock(return_value=client)
-        monkeypatch.setattr(pr, '_deepgram_client', None)
-        monkeypatch.setattr(pr, '_deepgram_options', MagicMock())
-        monkeypatch.setattr(pr, 'get_byok_key', lambda _provider: 'user-byok-key')
-        monkeypatch.setattr(pr, 'DeepgramClient', factory)
-        monkeypatch.delenv('DEEPGRAM_API_KEY', raising=False)
-
-        assert pr._deepgram_client_for_request() is client
-        assert factory.call_args.args[0] == 'user-byok-key'
 
 
 class TestTranscribeBytes:

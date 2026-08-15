@@ -403,7 +403,6 @@ struct SettingsContentView: View {
     case troubleshooting = "Troubleshooting"
     case gmailReader = "Gmail Reader"
     case calendarSync = "Calendar Sync"
-    case developerKeys = "Developer API Keys"
 
     var icon: String {
       switch self {
@@ -420,7 +419,6 @@ struct SettingsContentView: View {
       case .troubleshooting: return "wrench.and.screwdriver"
       case .gmailReader: return "envelope.fill"
       case .calendarSync: return "calendar"
-      case .developerKeys: return "key"
       }
     }
   }
@@ -447,15 +445,6 @@ struct SettingsContentView: View {
 
   @State var isDeletingAccount: Bool = false
   @State var deleteAccountError: String?
-
-  // Developer API Key overrides — also double as BYOK free-plan credentials
-  // when all four (Gemini, Anthropic, OpenAI, Deepgram) are provided.
-  @AppStorage("dev_gemini_api_key") var devGeminiKey: String = ""
-  @AppStorage("dev_anthropic_api_key") var devAnthropicKey: String = ""
-  @AppStorage("dev_openai_api_key") var devOpenAIKey: String = ""
-  @AppStorage("dev_deepgram_api_key") var devDeepgramKey: String = ""
-  @State var byokKeyStatuses: [BYOKProvider: BYOKValidator.Status] = [:]
-  @State var byokActivationError: String?
 
   init(
     appState: AppState,

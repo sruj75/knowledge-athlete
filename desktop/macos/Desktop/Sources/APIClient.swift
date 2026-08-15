@@ -57,13 +57,11 @@ actor APIClient {
   func buildHeaders(
     requireAuth: Bool = true,
     forceRefreshAuth: Bool = false,
-    includeBYOK: Bool = true,
     expectedAuthOwnerId: String? = nil
   ) async throws -> [String: String] {
     try await transport.buildHeaders(
       requireAuth: requireAuth,
       forceRefreshAuth: forceRefreshAuth,
-      includeBYOK: includeBYOK,
       expectedAuthOwnerId: expectedAuthOwnerId
     )
   }
@@ -74,7 +72,6 @@ actor APIClient {
     _ endpoint: String,
     requireAuth: Bool = true,
     customBaseURL: String? = nil,
-    includeBYOK: Bool = true,
     expectedOwnerId: String? = nil,
     authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot? = nil
   ) async throws -> T {
@@ -91,7 +88,6 @@ actor APIClient {
     request.httpMethod = "GET"
     request.allHTTPHeaderFields = try await buildHeaders(
       requireAuth: requireAuth,
-      includeBYOK: includeBYOK,
       expectedAuthOwnerId: authOwnerId)
     try validateExpectedOwner(authPolicy)
 
@@ -105,7 +101,6 @@ actor APIClient {
     body: B,
     requireAuth: Bool = true,
     customBaseURL: String? = nil,
-    includeBYOK: Bool = true,
     expectedOwnerId: String? = nil,
     authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot? = nil
   ) async throws -> T {
@@ -123,7 +118,6 @@ actor APIClient {
     request.httpMethod = "POST"
     request.allHTTPHeaderFields = try await buildHeaders(
       requireAuth: requireAuth,
-      includeBYOK: includeBYOK,
       expectedAuthOwnerId: authOwnerId)
     try validateExpectedOwner(authPolicy)
     request.httpBody = try transport.encoder.encode(body)
@@ -137,7 +131,6 @@ actor APIClient {
     _ endpoint: String,
     requireAuth: Bool = true,
     customBaseURL: String? = nil,
-    includeBYOK: Bool = true,
     expectedOwnerId: String? = nil,
     authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot? = nil
   ) async throws -> T {
@@ -154,7 +147,6 @@ actor APIClient {
     request.httpMethod = "POST"
     request.allHTTPHeaderFields = try await buildHeaders(
       requireAuth: requireAuth,
-      includeBYOK: includeBYOK,
       expectedAuthOwnerId: authOwnerId)
     try validateExpectedOwner(authPolicy)
 
@@ -191,7 +183,6 @@ actor APIClient {
     request.httpMethod = "POST"
     request.allHTTPHeaderFields = try await buildHeaders(
       requireAuth: true,
-      includeBYOK: false,
       expectedAuthOwnerId: expectedOwnerID)
     request.httpBody = try JSONEncoder().encode(["provider": provider])
 
@@ -284,8 +275,7 @@ actor APIClient {
 
   /// Report a managed realtime turn's token usage so the backend can price it and record
   /// it into the llm_usage cost ledger. Fire-and-forget; failures are
-  /// logged and dropped (the backend reconciler is the eventual safety net). Only called
-  /// for managed (ephemeral) sessions — BYOK users pay the provider directly.
+  /// logged and dropped (the backend reconciler is the eventual safety net).
   func reportRealtimeUsage(
     provider: String,
     model: String,
@@ -351,7 +341,6 @@ actor APIClient {
     _ endpoint: String,
     requireAuth: Bool = true,
     customBaseURL: String? = nil,
-    includeBYOK: Bool = true,
     authPolicy: RequestAuthPolicy = .default,
     expectedAuthOwnerId: String? = nil,
     authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot? = nil
@@ -368,7 +357,6 @@ actor APIClient {
     request.httpMethod = "DELETE"
     request.allHTTPHeaderFields = try await buildHeaders(
       requireAuth: requireAuth,
-      includeBYOK: includeBYOK,
       expectedAuthOwnerId: authOwnerId
     )
     try validateExpectedOwner(effectiveAuthPolicy)

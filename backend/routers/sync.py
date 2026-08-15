@@ -50,7 +50,6 @@ from utils.other.storage import (
     upload_conversation_playback_artifact,
     mark_conversation_playback_unavailable,
 )
-from utils.byok import has_byok_keys
 from utils.cloud_tasks import (
     enqueue_sync_job,
     get_sync_tasks_max_attempts,
@@ -987,8 +986,7 @@ async def sync_local_files_v2(
     source = detect_source_from_filenames([f.filename for f in files])
 
     cloud_tasks_dispatch_enabled = is_cloud_tasks_dispatch_enabled()
-    byok_enabled = has_byok_keys()
-    cloud_task_eligible = cloud_tasks_dispatch_enabled and not byok_enabled
+    cloud_task_eligible = cloud_tasks_dispatch_enabled
 
     # Create job_id early so we have it for the directory
     job_id = str(_uuid.uuid4())
@@ -1115,8 +1113,6 @@ async def sync_local_files_v2(
 
         if lane_decision.lane == SyncLane.BACKFILL and not cloud_task_eligible:
             # Fail closed: backfill may run only on the dedicated queue/service.
-            # BYOK cannot be serialized into Cloud Tasks, so it is retained on
-            # device until an isolated BYOK path exists.
             await run_blocking(sync_executor, _cleanup_files, owned_paths)
             await _finalize_sync_job_failure(
                 job_id=job_id,
@@ -1140,8 +1136,6 @@ async def sync_local_files_v2(
             )
 
         dispatched = False
-        # Fresh BYOK requests retain the legacy inline path. Backfill was
-        # rejected above because it may never consume fresh capacity.
         if cloud_task_eligible:
             try:
                 # sync_executor, NOT storage_executor — same reasoning as the
@@ -1271,19 +1265,6 @@ async def sync_local_files_v2(
                     OMI_SYNC_DISPATCH_ATTEMPTS_TOTAL.labels(mode='inline').inc()
                 except Exception:
                     pass
-            elif byok_enabled:
-                record_fallback(
-                    component='sync_dispatch',
-                    from_mode='cloud_tasks',
-                    to_mode='inline',
-                    reason='byok',
-                    outcome='recovered',
-                )
-                try:
-                    OMI_SYNC_DISPATCH_ATTEMPTS_TOTAL.labels(mode='inline').inc()
-                except Exception:
-                    pass
-
             # Inline work needs the same lease as Cloud Tasks. Without it, a
             # long healthy inline worker looks stale to a polling client and its
             # durable retry claim can be released underneath it.

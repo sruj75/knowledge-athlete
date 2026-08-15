@@ -3,9 +3,13 @@ import os
 import re
 import sys
 from pathlib import Path
+from typing import Any
+from unittest.mock import MagicMock
 
+import httpx
 import pytest
-from fastapi import HTTPException
+from fastapi import FastAPI, HTTPException
+from fastapi.testclient import TestClient
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]
 if str(BACKEND_DIR) not in sys.path:
@@ -14,6 +18,61 @@ if str(BACKEND_DIR) not in sys.path:
 os.environ.setdefault("ENCRYPTION_SECRET", "omi_ZwB2ZNqB2HHpMK6wStk7sTpavJiPTFg7gXUHnc4tFABPU6pZ2c2DKgehtfgi4RZv")
 
 from routers import desktop_proxy
+
+
+def test_gemini_proxy_routes_legacy_customer_input_to_managed_external_adapter(monkeypatch):
+    async def immediate(_executor, function, *args, **kwargs):
+        return function(*args, **kwargs)
+
+    outbound: dict[str, Any] = {}
+
+    class FakeAsyncClient:
+        def __init__(self, **_kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, _exc_type, _exc, _traceback):
+            return None
+
+        async def post(self, url, *, params, content, headers):
+            outbound.update(url=url, params=params, content=content, headers=headers)
+            return httpx.Response(200, content=b'{"managed":true}', headers={'content-type': 'application/json'})
+
+    meter = MagicMock(side_effect=[(True, 1, 60), (True, 1, 86_400)])
+    monkeypatch.delenv('GOOGLE_CLOUD_PROJECT', raising=False)
+    monkeypatch.setenv('GEMINI_API_KEY', 'managed-gemini-key')
+    monkeypatch.setattr(desktop_proxy, 'run_blocking', immediate)
+    monkeypatch.setattr(desktop_proxy.redis_db, 'check_rate_limit', meter)
+    monkeypatch.setattr(desktop_proxy, 'llm_stub_enabled', lambda: False)
+    monkeypatch.setattr(desktop_proxy.httpx, 'AsyncClient', FakeAsyncClient)
+
+    app = FastAPI()
+    app.include_router(desktop_proxy.router)
+    app.dependency_overrides[desktop_proxy._authorized_desktop_user] = lambda: 'managed-user'
+    try:
+        with TestClient(app) as client:
+            response = client.post(
+                '/v1/proxy/gemini/models/gemini-2.5-flash:generateContent?key=legacy-customer-key',
+                headers={'X-BYOK-Gemini': 'legacy-customer-key'},
+                json={'contents': [{'role': 'user', 'parts': [{'text': 'hello'}]}]},
+            )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert response.json() == {'managed': True}
+    assert outbound['url'] == (
+        'https://generativelanguage.googleapis.com/v1beta/' 'models/gemini-2.5-flash:generateContent'
+    )
+    assert outbound['params']['key'] == 'managed-gemini-key'
+    assert 'legacy-customer-key' not in outbound['headers'].values()
+    assert json.loads(outbound['content']) == {
+        'contents': [{'role': 'user', 'parts': [{'text': 'hello'}]}],
+        'generationConfig': {'thinkingConfig': {'thinkingBudget': 1024}},
+    }
+    assert meter.call_count == 2
 
 
 def test_sanitize_caps_generation_and_normalizes_system_content():
@@ -110,7 +169,6 @@ async def test_server_gemini_meter_downgrades_pro_after_the_soft_limit(monkeypat
         return 31, 86_400
 
     monkeypatch.setattr(desktop_proxy, "run_blocking", run_blocking)
-    monkeypatch.setattr(desktop_proxy, "get_byok_key", lambda _: None)
     monkeypatch.delenv("OMI_MODEL_TIER", raising=False)
 
     assert (

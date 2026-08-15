@@ -13,7 +13,6 @@ from fastapi.routing import APIRoute
 
 from database import llm_usage as llm_usage_db
 from database import redis_db
-from utils.byok import get_byok_key
 from utils.executors import critical_executor, db_executor, run_blocking
 from utils.llm.clients import anthropic_client
 from utils.llm.desktop_llm_stub import (
@@ -394,8 +393,6 @@ def _sse(value: dict[str, object]) -> str:
 
 
 async def _meter_server_request(uid: str) -> None:
-    if get_byok_key('anthropic'):
-        return
     try:
         allowed, _, retry_after = await run_blocking(
             critical_executor, redis_db.check_rate_limit, uid, 'desktop_chat', _RATE_LIMIT_PER_MINUTE, 60

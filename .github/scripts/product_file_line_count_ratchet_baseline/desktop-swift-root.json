@@ -2,9 +2,9 @@
   "files": {
     "desktop/macos/Desktop/Sources/AuthService.swift": 2812,
     "desktop/macos/Desktop/Sources/CloudConnectorFormAutomation.swift": 1678,
-    "desktop/macos/Desktop/Sources/DesktopAutomationBridge.swift": 4466,
+    "desktop/macos/Desktop/Sources/DesktopAutomationBridge.swift": 4446,
     "desktop/macos/Desktop/Sources/DesktopDiagnosticsManager.swift": 1515,
-    "desktop/macos/Desktop/Sources/MemoryExportService.swift": 1519,
+    "desktop/macos/Desktop/Sources/MemoryExportService.swift": 1518,
     "desktop/macos/Desktop/Sources/OmiApp.swift": 1559
   },
   "raise_justifications": {

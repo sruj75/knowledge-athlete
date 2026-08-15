@@ -318,7 +318,7 @@ enum RealtimeHubCloseClassifier {
     }
     if CredentialHealthManager.classifyProviderClose(
       message: message,
-      provider: provider) == .providerAuthFailed(provider: provider, mode: .byok)
+      provider: provider) == .providerAuthFailed(provider: provider, mode: .managed)
     {
       return .providerAuthFailed
     }
@@ -778,7 +778,7 @@ enum RealtimeHubToolFailureKind: String, Equatable {
       switch credentialError.failureClass {
       case .requiresLogin, .backendUnauthorized:
         return .backendUnauthorized
-      case .paywalled, .byokEnrollmentMismatch, .providerAuthFailed, .providerQuotaExceeded:
+      case .paywalled, .providerAuthFailed, .providerQuotaExceeded:
         return .providerCredential
       case .backendTransient:
         return .backendServerError

@@ -1207,12 +1207,6 @@ def has_transcription_credits(uid: str, source: Optional[str] = None) -> bool:
     if is_trial_paywalled(uid, source):
         return False
 
-    # BYOK users pay Deepgram directly — there's no Omi-side transcription quota to enforce.
-    # Require the Deepgram header on this request so a user can't activate BYOK
-    # with fake fingerprints then omit x-byok-deepgram to ride Omi's key.
-    if users_db.is_byok_active(uid) and get_byok_key('deepgram'):
-        return True
-
     subscription = users_db.get_user_valid_subscription(uid)
     if not subscription:
         return False
@@ -1243,11 +1237,6 @@ def get_remaining_transcription_seconds(uid: str, source: Optional[str] = None) 
     # event fires and the client renders its usage-limit popup.
     if is_trial_paywalled(uid, source):
         return 0
-
-    # BYOK: user brings their own Deepgram — no Omi quota, no freemium threshold.
-    # Require the Deepgram header to prevent fake-fingerprint abuse.
-    if users_db.is_byok_active(uid) and get_byok_key('deepgram'):
-        return None
 
     subscription = users_db.get_user_valid_subscription(uid)
     if not subscription:

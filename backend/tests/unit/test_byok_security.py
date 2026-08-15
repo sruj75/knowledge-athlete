@@ -302,8 +302,9 @@ class TestGeminiKeyNotInUrl:
         assert 'x-goog-api-key' in headers
 
     @patch('utils.llm.clients.httpx.post')
+    @patch.dict(os.environ, {'GEMINI_API_KEY': 'managed-gemini-key'})
     @patch('utils.llm.clients.get_byok_key', return_value='user-gemini-key-secret')
-    def test_byok_gemini_key_not_in_url(self, mock_byok, mock_post):
+    def test_legacy_customer_key_cannot_override_managed_gemini_embedding(self, mock_byok, mock_post):
         mock_response = MagicMock()
         mock_response.json.return_value = {'embedding': {'values': [0.1, 0.2]}}
         mock_response.raise_for_status = MagicMock()
@@ -317,7 +318,7 @@ class TestGeminiKeyNotInUrl:
         url = call_args[0][0] if call_args[0] else call_args[1].get('url', '')
         assert 'user-gemini-key-secret' not in url
         headers = call_args[1].get('headers', {})
-        assert headers.get('x-goog-api-key') == 'user-gemini-key-secret'
+        assert headers.get('x-goog-api-key') == 'managed-gemini-key'
 
 
 # ---------------------------------------------------------------------------
@@ -408,36 +409,42 @@ class TestChatQuotaBYOKBypass:
 
 
 # ---------------------------------------------------------------------------
-# 7. Transcription credit BYOK bypass
+# 7. Managed transcription quota
 # ---------------------------------------------------------------------------
 
 
-class TestTranscriptionCreditBYOKBypass:
-    @patch('utils.byok.get_byok_key', return_value='dg-user-key')
+class TestManagedTranscriptionQuota:
+    @patch('utils.subscription.get_byok_key', return_value='dg-user-key')
     @patch('utils.subscription.users_db')
-    def test_has_transcription_credits_bypasses_for_byok(self, mock_users_db, _mock_get_key):
-        mock_users_db.is_byok_active.return_value = True
-        from utils.subscription import has_transcription_credits
-
-        assert has_transcription_credits('byok-uid') is True
-
-    @patch('utils.byok.get_byok_key', return_value='dg-user-key')
-    @patch('utils.subscription.users_db')
-    def test_remaining_seconds_is_none_for_byok(self, mock_users_db, _mock_get_key):
-        mock_users_db.is_byok_active.return_value = True
-        from utils.subscription import get_remaining_transcription_seconds
-
-        assert get_remaining_transcription_seconds('byok-uid') is None
-
-    @patch('utils.byok.get_byok_key', return_value=None)
-    @patch('utils.subscription.users_db')
-    def test_transcription_not_bypassed_when_no_deepgram_header(self, mock_users_db, _mock_get_key):
-        """BYOK active but no x-byok-deepgram header — should NOT bypass."""
+    def test_legacy_deepgram_key_cannot_bypass_missing_managed_entitlement(self, mock_users_db, _mock_get_key):
         mock_users_db.is_byok_active.return_value = True
         mock_users_db.get_user_valid_subscription.return_value = None
         from utils.subscription import has_transcription_credits
 
-        assert has_transcription_credits('fake-byok-uid') is False
+        assert has_transcription_credits('legacy-key-uid') is False
+
+    @patch('utils.subscription.get_monthly_usage_for_subscription', return_value={'transcription_seconds': 40})
+    @patch('utils.subscription.get_basic_plan_limits')
+    @patch('utils.subscription.get_byok_key', return_value='dg-user-key')
+    @patch('utils.subscription.users_db')
+    def test_legacy_deepgram_key_cannot_make_managed_quota_unlimited(
+        self, mock_users_db, _mock_get_key, mock_basic_limits, _mock_usage
+    ):
+        mock_users_db.is_byok_active.return_value = True
+        mock_users_db.get_user_valid_subscription.return_value = None
+        mock_basic_limits.return_value.transcription_seconds = 100
+        from utils.subscription import get_remaining_transcription_seconds
+
+        assert get_remaining_transcription_seconds('legacy-key-uid') == 60
+
+    @patch('utils.subscription.get_byok_key', return_value=None)
+    @patch('utils.subscription.users_db')
+    def test_missing_managed_entitlement_remains_blocked_without_legacy_header(self, mock_users_db, _mock_get_key):
+        mock_users_db.is_byok_active.return_value = True
+        mock_users_db.get_user_valid_subscription.return_value = None
+        from utils.subscription import has_transcription_credits
+
+        assert has_transcription_credits('managed-uid') is False
 
 
 # ---------------------------------------------------------------------------
@@ -1148,46 +1155,35 @@ class TestAuthDependencyBYOKIntegration:
 
 
 class TestWSAuthDependencyBYOK:
-    """Verify get_current_user_uid_ws_listen extracts BYOK and validates."""
+    """Legacy customer headers cannot affect the managed listen handshake."""
 
     def _make_ws(self, headers: dict):
         ws = MagicMock()
         ws.headers = headers
         return ws
 
-    @patch('utils.other.endpoints.validate_byok_websocket', return_value=None)
+    @patch('utils.byok.validate_byok_websocket', return_value='fingerprint mismatch')
     @patch('utils.other.endpoints._verify_ws_auth', return_value='ws-uid')
-    def test_ws_listen_with_byok_headers_validates(self, _mock_auth, mock_validate):
+    def test_ws_listen_ignores_legacy_customer_headers(self, _mock_auth, mock_validate):
         import asyncio
+        from utils.byok import get_byok_keys, set_byok_keys
         from utils.other.endpoints import get_current_user_uid_ws_listen
 
-        ws = self._make_ws({'x-byok-openai': 'sk-test'})
+        set_byok_keys({})
+        ws = self._make_ws({'x-byok-openai': 'sk-test', 'x-byok-deepgram': 'dg-test'})
         uid = asyncio.run(get_current_user_uid_ws_listen(websocket=ws, authorization='Bearer tok'))
         assert uid == 'ws-uid'
-        mock_validate.assert_called_once_with('ws-uid')
+        assert get_byok_keys() == {}
+        mock_validate.assert_not_called()
 
-    @patch('utils.other.endpoints.validate_byok_websocket', return_value=None)
     @patch('utils.other.endpoints._verify_ws_auth', return_value='ws-uid')
-    def test_ws_listen_no_headers_passes(self, _mock_auth, mock_validate):
+    def test_ws_listen_valid_managed_user_passes(self, _mock_auth):
         import asyncio
         from utils.other.endpoints import get_current_user_uid_ws_listen
 
         ws = self._make_ws({})
         uid = asyncio.run(get_current_user_uid_ws_listen(websocket=ws, authorization='Bearer tok'))
         assert uid == 'ws-uid'
-        mock_validate.assert_called_once()
-
-    @patch('utils.other.endpoints.validate_byok_websocket', return_value='fingerprint mismatch')
-    @patch('utils.other.endpoints._verify_ws_auth', return_value='ws-uid')
-    def test_ws_listen_validation_failure_raises_4003(self, _mock_auth, _mock_validate):
-        import asyncio
-        from fastapi import WebSocketException
-        from utils.other.endpoints import get_current_user_uid_ws_listen
-
-        ws = self._make_ws({'x-byok-openai': 'wrong-key'})
-        with pytest.raises(WebSocketException) as exc_info:
-            asyncio.run(get_current_user_uid_ws_listen(websocket=ws, authorization='Bearer tok'))
-        assert exc_info.value.code == 4003
 
 
 class TestActivationCacheInvalidation:

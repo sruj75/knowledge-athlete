@@ -425,12 +425,6 @@ class TranscriptionService: @unchecked Sendable {
       forHTTPHeaderField: "X-App-Version"
     )
 
-    // BYOK: attach user keys so the transcription backend can use the user's
-    // Deepgram token for this session (and any downstream LLM calls).
-    for (provider, entry) in APIKeyService.byokSnapshot {
-      request.setValue(entry.key, forHTTPHeaderField: provider.headerName)
-    }
-
     // Create URLSession and WebSocket task
     let configuration = URLSessionConfiguration.default
     configuration.timeoutIntervalForRequest = 30
@@ -734,9 +728,6 @@ extension TranscriptionService {
     request.httpMethod = "POST"
     request.setValue(authHeader, forHTTPHeaderField: "Authorization")
     request.setValue("application/octet-stream", forHTTPHeaderField: "Content-Type")
-    for (provider, entry) in APIKeyService.byokSnapshot {
-      request.setValue(entry.key, forHTTPHeaderField: provider.headerName)
-    }
     request.httpBody = audioData
 
     log(

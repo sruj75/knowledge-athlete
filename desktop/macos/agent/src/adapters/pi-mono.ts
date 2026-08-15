@@ -514,13 +514,18 @@ export class PiMonoAdapter implements HarnessAdapter {
       );
     }
 
-    // Scrub any ANTHROPIC_API_KEY from the child env so the extension cannot
-    // accidentally read it as a credential. pi-mono talks to api.omi.me with
-    // OMI_API_KEY only.
+    // Scrub direct Anthropic access and every retired OMI_BYOK_* value so the
+    // extension cannot accidentally read customer credentials. pi-mono talks
+    // to api.omi.me with OMI_API_KEY only.
     const env: Record<string, string> = {
       ...process.env as Record<string, string>,
     };
     delete env.ANTHROPIC_API_KEY;
+    for (const key of Object.keys(env)) {
+      if (key.toUpperCase().startsWith("OMI_BYOK_")) {
+        delete env[key];
+      }
+    }
 
     // SECURITY: OMI_YOLO_MODE bypasses the extension's entire tool denylist.
     // Scrub it from the subprocess env, then only re-inject when explicitly

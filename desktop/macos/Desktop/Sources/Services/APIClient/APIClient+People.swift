@@ -112,24 +112,6 @@ extension APIClient {
     return try await post("v1/payments/customer-portal")
   }
 
-  /// Activate the Bring-Your-Own-Keys free plan on the backend.
-  /// Sends SHA-256 fingerprints (never the keys themselves) so the backend
-  /// can tell when the user rotates keys and re-validate.
-  func activateBYOK(fingerprints: [String: String]) async throws {
-    struct Request: Encodable {
-      let fingerprints: [String: String]
-    }
-    struct Empty: Decodable {}
-    let _: Empty = try await post(
-      "v1/users/me/byok-active", body: Request(fingerprints: fingerprints), includeBYOK: false
-    )
-  }
-
-  /// Deactivate BYOK (user cleared keys) so they return to the paid plan gate.
-  func deactivateBYOK() async throws {
-    try await delete("v1/users/me/byok-active", includeBYOK: false)
-  }
-
   /// Fetches all people for the current user
   func getPeople() async throws -> [Person] {
     return try await get("v1/users/people")
@@ -317,8 +299,8 @@ extension APIClient {
     request.allHTTPHeaderFields = try await buildHeaders()
     request.httpBody = try JSONEncoder().encode(body)
 
-    // This desktop-backend route can surface upstream OpenAI/BYOK credential
-    // failures as HTTP 401. Refresh the Firebase header once in case it is stale,
+    // This desktop-backend route can surface upstream OpenAI credential failures
+    // as HTTP 401. Refresh the Firebase header once in case it is stale,
     // but never let a voice-only provider failure invalidate the Omi session.
     // Only remap to providerAuth when the body is OpenAI-shaped — a bare/Firebase
     // 401 after refresh is a real login failure and must require re-auth.
@@ -330,13 +312,10 @@ extension APIClient {
     if httpResponse.statusCode == 401 {
       let detail = (try? JSONDecoder().decode(APIErrorPayload.self, from: data))?.preferredMessage
       if detail?.hasPrefix("OpenAI TTS request failed:") == true {
-        let mode: CredentialAuthMode = APIKeyService.isByokActive ? .byok : .managed
         throw CredentialHealthError.providerAuth(
           provider: .openai,
-          mode: mode,
-          message: mode == .byok
-            ? "Your OpenAI key was rejected. Update it in Settings."
-            : "OpenAI authentication failed. Voice responses are using fallback."
+          mode: .managed,
+          message: "OpenAI authentication failed. Voice responses are using fallback."
         )
       }
       await invalidateSessionAfterUnauthorized(

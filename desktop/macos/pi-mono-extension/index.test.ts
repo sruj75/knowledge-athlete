@@ -15,7 +15,7 @@ import { mkdir, mkdtemp, readFile, rm, symlink, writeFile, unlink } from "node:f
 import { createServer, type Server } from "node:net";
 import { tmpdir } from "node:os";
 import { basename, join as pathJoin } from "node:path";
-import {
+import omiProvider, {
   classifyBash,
   classifyFileWrite,
   inspectToolCall,
@@ -46,6 +46,40 @@ import {
   toolNamesForAdapter,
   toolsForAdapter,
 } from "../agent/src/runtime/omi-tool-manifest.ts";
+
+test("managed provider registration ignores inherited legacy customer keys", () => {
+  const providers = ["OPENAI", "ANTHROPIC", "GEMINI", "DEEPGRAM"];
+  const saved = new Map(providers.map((name) => [`OMI_BYOK_${name}`, process.env[`OMI_BYOK_${name}`]]));
+  for (const name of providers) process.env[`OMI_BYOK_${name}`] = `legacy-${name.toLowerCase()}`;
+  const priorBase = process.env.OMI_API_BASE_URL;
+  const priorKey = process.env.OMI_API_KEY;
+  process.env.OMI_API_BASE_URL = "https://managed.example/v2";
+  process.env.OMI_API_KEY = "managed-registration-token";
+
+  let registration: Record<string, unknown> | undefined;
+  try {
+    omiProvider({
+      registerProvider(name: string, config: Record<string, unknown>) {
+        assert.equal(name, "omi");
+        registration = config;
+      },
+      on() {},
+    } as never);
+  } finally {
+    for (const [name, value] of saved) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+    if (priorBase === undefined) delete process.env.OMI_API_BASE_URL;
+    else process.env.OMI_API_BASE_URL = priorBase;
+    if (priorKey === undefined) delete process.env.OMI_API_KEY;
+    else process.env.OMI_API_KEY = priorKey;
+  }
+
+  assert.equal(registration?.baseUrl, "https://managed.example/v2");
+  assert.equal(registration?.apiKey, "managed-registration-token");
+  assert.equal(registration?.headers, undefined);
+});
 
 // ---------------------------------------------------------------------------
 // classifyBash — allow-by-default for normal dev commands

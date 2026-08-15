@@ -106,7 +106,6 @@ def make_session(
         "get_current_conversation_id": lambda: current_conversation_id,
         "is_active": lambda: active_ref["active"],
         "shutdown_event": asyncio.Event(),
-        "get_byok_keys": lambda: {"openai": "key"},
         "on_conversation_processed": callbacks.append,
         "wait_for_event": wait_for_event,
         "connect_to_pusher": connect_to_pusher,
@@ -157,7 +156,6 @@ async def test_frame_payloads_and_order():
     assert frame_json(ws.sent[3]) == {
         "conversation_id": "conv-1",
         "language": "en",
-        "byok_keys": {"openai": "key"},
     }
     assert frame_json(ws.sent[4]) == {
         "person_id": "person-1",
@@ -181,14 +179,12 @@ async def test_finalization_job_identity_survives_pusher_reconnect():
         {
             'conversation_id': 'conv-1',
             'language': 'en',
-            'byok_keys': {'openai': 'key'},
             'finalization_job_id': 'job-1',
             'dispatch_generation': 3,
         },
         {
             'conversation_id': 'conv-1',
             'language': 'en',
-            'byok_keys': {'openai': 'key'},
             'finalization_job_id': 'job-1',
             'dispatch_generation': 3,
         },

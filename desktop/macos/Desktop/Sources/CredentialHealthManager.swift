@@ -2,14 +2,12 @@ import Foundation
 
 enum CredentialAuthMode: String, Equatable {
   case managed
-  case byok
 }
 
 enum CredentialFailureClass: Equatable {
   case backendUnauthorized
   case requiresLogin
   case paywalled
-  case byokEnrollmentMismatch(provider: BYOKProvider?)
   case providerAuthFailed(provider: RealtimeHubProvider, mode: CredentialAuthMode)
   case providerQuotaExceeded(provider: RealtimeHubProvider)
   case backendTransient(statusCode: Int?)
@@ -19,7 +17,7 @@ enum CredentialFailureClass: Equatable {
 
   var isAccountWide: Bool {
     switch self {
-    case .backendUnauthorized, .requiresLogin, .paywalled, .byokEnrollmentMismatch:
+    case .backendUnauthorized, .requiresLogin, .paywalled:
       return true
     default:
       return false
@@ -31,7 +29,6 @@ enum CredentialFailureClass: Equatable {
     case .backendUnauthorized: return "backend_unauthorized"
     case .requiresLogin: return "requires_login"
     case .paywalled: return "paywalled"
-    case .byokEnrollmentMismatch: return "byok_enrollment_mismatch"
     case .providerAuthFailed: return "provider_auth_failed"
     case .providerQuotaExceeded: return "provider_quota_exceeded"
     case .backendTransient: return "backend_transient"
@@ -61,7 +58,6 @@ struct CredentialRecoveryIssue: Equatable {
 enum CredentialHealthError: LocalizedError, Equatable {
   case requiresLogin(message: String)
   case paywalled(message: String)
-  case byokMismatch(provider: BYOKProvider?, message: String)
   case providerAuth(provider: RealtimeHubProvider, mode: CredentialAuthMode, message: String)
   case providerQuota(provider: RealtimeHubProvider, message: String)
   case backendTransient(statusCode: Int?, message: String)
@@ -74,8 +70,6 @@ enum CredentialHealthError: LocalizedError, Equatable {
       return .requiresLogin
     case .paywalled:
       return .paywalled
-    case .byokMismatch(let provider, _):
-      return .byokEnrollmentMismatch(provider: provider)
     case .providerAuth(let provider, let mode, _):
       return .providerAuthFailed(provider: provider, mode: mode)
     case .providerQuota(let provider, _):
@@ -111,7 +105,6 @@ enum CredentialHealthError: LocalizedError, Equatable {
     switch self {
     case .requiresLogin(let message),
       .paywalled(let message),
-      .byokMismatch(_, let message),
       .providerAuth(_, _, let message),
       .providerQuota(_, let message),
       .backendTransient(_, let message),
@@ -128,18 +121,10 @@ final class CredentialHealthManager: ObservableObject {
 
   @Published private(set) var visibleRecovery: CredentialRecoveryIssue?
 
-  private var invalidBYOKFingerprints: [BYOKProvider: String] = [:]
-
   private init() {}
 
   func reset() {
     visibleRecovery = nil
-    invalidBYOKFingerprints.removeAll()
-  }
-
-  func canUseBYOK(provider: BYOKProvider, fingerprint: String?) -> Bool {
-    guard let fingerprint, let invalid = invalidBYOKFingerprints[provider] else { return true }
-    return invalid != fingerprint
   }
 
   func record(_ error: CredentialHealthError, context: String) {
@@ -155,12 +140,8 @@ final class CredentialHealthManager: ObservableObject {
     _ failureClass: CredentialFailureClass,
     provider: RealtimeHubProvider,
     authMode: CredentialAuthMode,
-    fingerprint: String?,
     context: String
   ) {
-    if case .providerAuthFailed(_, .byok) = failureClass, let fingerprint {
-      invalidBYOKFingerprints[provider.byokProvider] = fingerprint
-    }
     record(
       failureClass: failureClass,
       provider: provider,
@@ -188,8 +169,6 @@ final class CredentialHealthManager: ObservableObject {
 
   private func recoveryMessage(for failureClass: CredentialFailureClass, provider: RealtimeHubProvider) -> String {
     switch failureClass {
-    case .providerAuthFailed(_, .byok):
-      return "Your \(provider.displayName) key was rejected. Update it in Settings."
     case .providerAuthFailed:
       return "\(provider.displayName) authentication failed. Voice responses are using fallback."
     case .providerQuotaExceeded:
@@ -221,9 +200,10 @@ final class CredentialHealthManager: ObservableObject {
     case 401:
       return .requiresLogin(message: "Please sign in again to use voice responses.")
     case 402:
-      return .paywalled(message: message.isEmpty ? "Upgrade or add BYOK keys to use voice responses." : message)
+      return .paywalled(message: message.isEmpty ? "Upgrade your plan to use voice responses." : message)
     case 403:
-      return .byokMismatch(provider: nil, message: message.isEmpty ? "Revalidate your BYOK keys in Settings." : message)
+      return .requiresLogin(
+        message: message.isEmpty ? "Your account is not authorized to use voice responses." : message)
     case 429:
       if let provider {
         return .providerQuota(provider: provider, message: message)
@@ -250,7 +230,7 @@ final class CredentialHealthManager: ObservableObject {
       return .providerQuotaExceeded(provider: provider)
     }
     if containsProviderAuthSignal(lower) {
-      return .providerAuthFailed(provider: provider, mode: .byok)
+      return .providerAuthFailed(provider: provider, mode: .managed)
     }
     if lower.contains("websocket closed (1008)") || lower.contains("policy") {
       return .providerPolicyClose(provider: provider)

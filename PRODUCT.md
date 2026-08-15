@@ -25,6 +25,12 @@ source and tests.
 5. **Taste floor.** Stay on-brand. Prefer deleting dual paths over
    feature-flagging them forever.
 
+6. **Managed desktop access.** Desktop AI, voice, transcription, and agent
+   surfaces use account entitlement plus product-owned provider credentials.
+   They do not solicit, forward, or select customer-supplied provider keys.
+   The concrete guards live in the desktop managed-access, request-routing,
+   realtime-authentication, and agent-runtime tests and the backend route tests.
+
 ## Proposed canonical memory lifecycle
 
 This direction remains proposed; it is not an enforced contract until the

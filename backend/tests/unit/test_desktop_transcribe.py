@@ -423,7 +423,26 @@ def _desktop_transcribe_isolation():
 
 
 class TestDeepgramPrerecordedFromBytesPCM:
-    """Verify raw PCM options are forwarded correctly to Deepgram."""
+    """Verify managed client selection and raw PCM options for batch STT."""
+
+    @patch('utils.stt.pre_recorded.DeepgramClient')
+    @patch('utils.stt.pre_recorded._deepgram_client')
+    def test_legacy_customer_key_cannot_select_batch_provider_client(self, product_client, customer_factory):
+        from utils.byok import set_byok_keys
+
+        response = MagicMock()
+        response.to_dict.return_value = {'results': {'channels': [{'alternatives': [{'words': []}]}]}}
+        product_client.listen.rest.v.return_value.transcribe_file.return_value = response
+        customer_factory.side_effect = AssertionError('legacy customer key selected a provider client')
+
+        set_byok_keys({'deepgram': 'legacy-customer-key'})
+        try:
+            deepgram_prerecorded_from_bytes(b'\x00' * 100, encoding='linear16')
+        finally:
+            set_byok_keys({})
+
+        product_client.listen.rest.v.return_value.transcribe_file.assert_called_once()
+        customer_factory.assert_not_called()
 
     @patch('utils.stt.pre_recorded._deepgram_client')
     def test_pcm_encoding_passed_to_options(self, mock_client):

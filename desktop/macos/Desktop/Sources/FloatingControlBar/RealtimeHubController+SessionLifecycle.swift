@@ -7,9 +7,8 @@ import VoiceTurnDomain
 extension RealtimeHubController {
   // MARK: - Warm session lifecycle (kept open between turns)
 
-  /// Open the WS now if it isn't already (no-op if already warm). BYOK → connect
-  /// client-direct with the user's key. Otherwise, if signed in → mint a server-side
-  /// ephemeral token and connect with it.
+  /// Open the WS now if it isn't already warm. Signed-in users mint a
+  /// server-side ephemeral token; signed-out users remain on the fallback path.
   func ensureWarm() {
     #if DEBUG
       // The local-profile action owns an already-installed hermetic transport.
@@ -60,37 +59,14 @@ extension RealtimeHubController {
       return
     }
 
-    if let key = APIKeyService.byokKey(provider.byokProvider) {
-      let fingerprint = APIKeyService.byokFingerprint(key)
-      guard
-        CredentialHealthManager.shared.canUseBYOK(
-          provider: provider.byokProvider, fingerprint: fingerprint)
-      else {
-        log("RealtimeHub: skipping known-bad \(provider.displayName) BYOK key fingerprint")
-        if failoverToAlternateProvider(reason: "auth") {
-          return
-        } else if AuthService.shared.isSignedIn {
-          guard case .authenticated = ownerScope else { return }
-          mintAndConnect(provider: provider, ownerScope: ownerScope)
-        } else {
-          CredentialHealthManager.shared.recordProviderFailure(
-            .providerAuthFailed(provider: provider, mode: .byok),
-            provider: provider,
-            authMode: .byok,
-            fingerprint: fingerprint,
-            context: "realtime_byok_blocked")
-        }
-        return
-      }
-      startSession(provider: provider, auth: .byokKey(key), ownerScope: ownerScope)
-    } else if AuthService.shared.isSignedIn {
+    if AuthService.shared.isSignedIn {
       guard case .authenticated = ownerScope else {
         log("RealtimeHub: signed-in state has no stable owner identity — hub unavailable")
         return
       }
       mintAndConnect(provider: provider, ownerScope: ownerScope)
     } else {
-      log("RealtimeHub: no BYOK key and not signed in — hub unavailable (cascade).")
+      log("RealtimeHub: not signed in — hub unavailable (cascade).")
     }
   }
 
@@ -366,7 +342,7 @@ extension RealtimeHubController {
       }
       self.startSession(
         provider: provider,
-        auth: .ephemeral(token),
+        auth: .managedEphemeral(token),
         ownerScope: ownerScope)
     }
   }
@@ -435,7 +411,7 @@ extension RealtimeHubController {
     s.start()
     log(
       "RealtimeHub: warming \(provider.displayName) session "
-        + "(\(auth.isEphemeral ? "ephemeral/managed" : "client-direct/BYOK"), "
+        + "(\(auth.reportsUsage ? "ephemeral/managed" : "hermetic-stub"), "
         + "contextChars=\(topLevelContext.rendered.count) plan=\(topLevelContext.planID.prefix(24)))")
   }
 
@@ -1117,12 +1093,14 @@ extension RealtimeHubController {
             let auth = self.pendingBargeInAuth
           else { return }
           switch auth {
-          case .byokKey:
-            self.startReplacementSessionForBargeIn(
-              provider: provider,
-              auth: auth,
-              ownerScope: replacementOwnerScope)
-          case .ephemeral:
+          #if DEBUG
+            case .hermeticStub:
+              self.startReplacementSessionForBargeIn(
+                provider: provider,
+                auth: auth,
+                ownerScope: replacementOwnerScope)
+          #endif
+          case .managedEphemeral:
             self.remintReplacementSessionForBargeIn(provider: provider)
           }
         }
@@ -1293,7 +1271,7 @@ extension RealtimeHubController {
       guard self.releaseMint(generation: mintGeneration, ownerScope: ownerScope) else { return }
       self.startReplacementSessionForBargeIn(
         provider: provider,
-        auth: .ephemeral(token),
+        auth: .managedEphemeral(token),
         ownerScope: ownerScope)
     }
   }

@@ -37,7 +37,6 @@ extension APIClient {
     return try await post(
       "v2/desktop/messages",
       body: body,
-      includeBYOK: false,
       expectedOwnerId: expectedOwnerId)
   }
 
@@ -51,7 +50,6 @@ extension APIClient {
     if let appId { queryItems.append("app_id=\(appId)") }
     return try await get(
       "v2/desktop/messages?\(queryItems.joined(separator: "&"))",
-      includeBYOK: false,
       expectedOwnerId: expectedOwnerId)
   }
 
@@ -68,7 +66,6 @@ extension APIClient {
     ]
     return try await get(
       "v2/desktop/messages?\(queryItems.joined(separator: "&"))",
-      includeBYOK: false,
       expectedOwnerId: expectedOwnerId)
   }
 
@@ -91,7 +88,6 @@ extension APIClient {
     guard let endpoint = components.string else { throw APIError.invalidResponse }
     return try await get(
       endpoint,
-      includeBYOK: false,
       expectedOwnerId: expectedOwnerId)
   }
 }

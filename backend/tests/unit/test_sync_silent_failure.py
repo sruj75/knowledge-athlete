@@ -321,7 +321,7 @@ class TestDeepgramRetryBehavioral:
         mock_client = MagicMock()
         mock_client.listen.rest.v.return_value.transcribe_url.side_effect = ConnectionError('timeout')
 
-        with patch('utils.stt.pre_recorded._deepgram_client_for_request', return_value=mock_client):
+        with patch('utils.stt.pre_recorded._get_deepgram_client', return_value=mock_client):
             with pytest.raises(RuntimeError, match='Deepgram transcription failed after 2 attempts'):
                 self._deepgram_prerecorded('https://fake-audio.wav', attempts=0, return_language=True)
 
@@ -346,7 +346,7 @@ class TestDeepgramRetryBehavioral:
         mock_client = MagicMock()
         mock_client.listen.rest.v.return_value.transcribe_url.return_value = mock_response
 
-        with patch('utils.stt.pre_recorded._deepgram_client_for_request', return_value=mock_client):
+        with patch('utils.stt.pre_recorded._get_deepgram_client', return_value=mock_client):
             words, lang = self._deepgram_prerecorded('https://fake-audio.wav', return_language=True)
 
         assert words == []

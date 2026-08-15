@@ -671,7 +671,6 @@ extension APIClient {
     return try await post(
       "v3/memory-imports/batch",
       body: batch,
-      includeBYOK: false,
       authorizationSnapshot: authorizationSnapshot)
   }
 

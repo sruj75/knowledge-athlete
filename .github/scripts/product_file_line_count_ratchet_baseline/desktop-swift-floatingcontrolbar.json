@@ -5,7 +5,7 @@
     "desktop/macos/Desktop/Sources/FloatingControlBar/FloatingControlBarWindow.swift": 4918,
     "desktop/macos/Desktop/Sources/FloatingControlBar/PushToTalkManager.swift": 2587,
     "desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeHubController.swift": 1536,
-    "desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeHubSession.swift": 1658
+    "desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeHubSession.swift": 1655
   },
   "raise_justifications": {
     "desktop/macos/Desktop/Sources/FloatingControlBar/AgentPill.swift": "Agent completion presentation now follows the canonical terminal lifecycle used by PTT and chat.",

@@ -19,8 +19,7 @@ import Network
 //   Gemini Live: BidiGenerateContentSetup, realtimeInput{audio}, clientContent,
 //               serverContent.modelTurn.parts.inlineData / inputTranscription.
 //
-// Key resolution (phase 1): BYOK / env. Production should proxy through the omi
-// backend so keys stay server-side and usage is metered — see `resolveKey`.
+// Provider credentials stay behind the authenticated Omi relay.
 
 @MainActor
 protocol RealtimeOmniServiceDelegate: AnyObject {
@@ -85,7 +84,7 @@ final class RealtimeOmniService: NSObject, @unchecked Sendable {
   let outputSampleRate = 24000
 
   /// `provider` must be concrete (resolve `.auto` via RealtimeOmniSettings.effectiveProvider
-  /// first). `apiKey` is resolved by the caller from BYOK / backend token.
+  /// first). The backend relay owns provider authentication.
   init(
     provider: RealtimeOmniProvider, relayBaseURL: String, authHeader: String,
     sttOnly: Bool = true, delegate: RealtimeOmniServiceDelegate
@@ -338,11 +337,6 @@ final class RealtimeOmniService: NSObject, @unchecked Sendable {
     guard let url = comps.url else { return nil }
     var r = URLRequest(url: url)
     r.setValue(authHeader, forHTTPHeaderField: "Authorization")
-    // Forward BYOK keys so BYOK users connect with their own provider key
-    // (the backend validates them and uses them upstream — same as /v4/listen).
-    for (provider, entry) in APIKeyService.byokSnapshot {
-      r.setValue(entry.key, forHTTPHeaderField: provider.headerName)
-    }
     return r
   }
 

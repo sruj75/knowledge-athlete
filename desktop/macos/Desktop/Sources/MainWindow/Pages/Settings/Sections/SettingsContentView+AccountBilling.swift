@@ -371,7 +371,6 @@ extension SettingsContentView {
 
       overageCard
 
-      byokPromoCard
     }
     .sheet(isPresented: $showOverageExplainer) {
       overageExplainerSheet
@@ -502,45 +501,6 @@ extension SettingsContentView {
         .scaledFont(size: OmiType.caption, weight: emphasized ? .semibold : .regular)
         .foregroundColor(emphasized ? OmiColors.warning : OmiColors.textSecondary)
         .monospacedDigit()
-    }
-  }
-
-  @ViewBuilder
-  var byokPromoCard: some View {
-    settingsCard(settingId: "planusage.byok") {
-      VStack(alignment: .leading, spacing: OmiSpacing.md) {
-        HStack(spacing: OmiSpacing.md) {
-          Image(systemName: "key.fill")
-            .scaledFont(size: OmiType.heading)
-            .foregroundColor(OmiColors.textSecondary)
-          VStack(alignment: .leading, spacing: OmiSpacing.hairline) {
-            Text(APIKeyService.isByokActive ? "Free plan active" : "Use Omi free forever")
-              .scaledFont(size: OmiType.subheading, weight: .semibold)
-              .foregroundColor(OmiColors.textPrimary)
-            Text(
-              APIKeyService.isByokActive
-                ? "You're using your own OpenAI, Anthropic, Gemini, and Deepgram keys. No subscription."
-                : "Provide your own OpenAI, Anthropic, Gemini, and Deepgram keys to skip the subscription entirely."
-            )
-            .scaledFont(size: OmiType.caption)
-            .foregroundColor(OmiColors.textTertiary)
-          }
-          Spacer()
-        }
-
-        Button(action: openBYOKSettings) {
-          Text(APIKeyService.isByokActive ? "Manage your keys" : "Switch to your own keys")
-            .scaledFont(size: OmiType.body, weight: .semibold)
-        }
-        .buttonStyle(OmiButtonStyle(.primary, size: .compact))
-      }
-    }
-  }
-
-  func openBYOKSettings() {
-    selectedSection = .advanced
-    DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
-      highlightedSettingId = "advanced.devkeys.info"
     }
   }
 

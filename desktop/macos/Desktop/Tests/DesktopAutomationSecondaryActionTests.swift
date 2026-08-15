@@ -6,7 +6,7 @@ import XCTest
 /// Hermetic source-contract tests for secondary-surface bridge actions added in Waves 1–2.
 final class DesktopAutomationSecondaryActionTests: XCTestCase {
   func testSecondarySnapshotActionsAreRegistered() throws {
-    let source = try bridgeSource()
+    let source = try [bridgeSource(), managedAccessActionsSource()].joined(separator: "\n")
     for action in [
       "conversation_detail_snapshot",
       "create_test_memory",
@@ -216,6 +216,33 @@ final class DesktopAutomationSecondaryActionTests: XCTestCase {
     XCTAssertTrue(body.contains("show_subscription_ui"))
   }
 
+  @MainActor
+  func testAdvancedSettingsSnapshotStaysManagedOnlyWhenLegacyCustomerKeysExist() async throws {
+    let legacyKeys = [
+      "dev_openai_api_key",
+      "dev_anthropic_api_key",
+      "dev_gemini_api_key",
+      "dev_deepgram_api_key",
+    ]
+    for key in legacyKeys {
+      UserDefaults.standard.set("legacy-customer-secret", forKey: key)
+    }
+    defer {
+      for key in legacyKeys {
+        UserDefaults.standard.removeObject(forKey: key)
+      }
+    }
+
+    let registry = DesktopAutomationActionRegistry.shared
+    registry.registerBuiltins()
+    let performed = try await registry.perform("advanced_settings_snapshot", params: [:])
+    let snapshot = try XCTUnwrap(performed)
+
+    XCTAssertEqual(snapshot["access_model"], "managed")
+    XCTAssertEqual(snapshot["customer_key_controls_visible"], "false")
+    XCTAssertEqual(snapshot["free_byok_promo_visible"], "false")
+  }
+
   func testLatestConversationAliasSupported() throws {
     let source = try bridgeSource()
     let starredBody = try actionBody(named: "set_conversation_starred", in: source)
@@ -416,6 +443,14 @@ final class DesktopAutomationSecondaryActionTests: XCTestCase {
       .deletingLastPathComponent()
       .deletingLastPathComponent()
       .appendingPathComponent("Sources/DesktopAutomationBridge.swift")
+    return try String(contentsOf: url, encoding: .utf8)
+  }
+
+  private func managedAccessActionsSource() throws -> String {
+    let url = URL(fileURLWithPath: #filePath)
+      .deletingLastPathComponent()
+      .deletingLastPathComponent()
+      .appendingPathComponent("Sources/DesktopAutomationManagedAccessActions.swift")
     return try String(contentsOf: url, encoding: .utf8)
   }
 

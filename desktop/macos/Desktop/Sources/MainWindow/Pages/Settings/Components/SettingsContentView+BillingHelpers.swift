@@ -16,7 +16,6 @@ enum SubscriptionPlanPresentation {
 extension SettingsContentView {
   var hasPaidSubscription: Bool {
     guard let subscription = userSubscription?.subscription else { return false }
-    if subscription.features.contains("byok") { return false }
     return subscription.plan != .basic && subscription.status == .active
   }
 
@@ -45,12 +44,6 @@ extension SettingsContentView {
   var currentPlanTitle: String {
     guard let subscription = userSubscription?.subscription else {
       return isLoadingSubscription ? "Loading plan..." : "Free"
-    }
-    // BYOK users: the backend returns plan=unlimited to turn off metering
-    // but that's an implementation detail — to the user, they're on the
-    // free plan because they pay the providers directly, not Omi.
-    if subscription.features.contains("byok") {
-      return "Free (BYOK)"
     }
     switch subscription.plan {
     case .basic:

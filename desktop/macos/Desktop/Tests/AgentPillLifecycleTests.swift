@@ -351,7 +351,7 @@ import XCTest
     XCTAssertTrue(voiceServiceSource.contains("cachedOrSynthesizedBackgroundAgentKickoffAudio"))
     XCTAssertTrue(voiceServiceSource.contains("DesktopLocalProfile.applicationSupportURL()"))
     XCTAssertFalse(voiceServiceSource.contains(".appendingPathComponent(\"Omi\", isDirectory: true)"))
-    XCTAssertTrue(voiceServiceSource.contains("CredentialHealthManager.shared.canUseBYOK"))
+    XCTAssertFalse(voiceServiceSource.contains("CredentialHealthManager.shared.canUseBYOK"))
     XCTAssertTrue(voiceServiceSource.contains("CredentialHealthManager.shared.recordProviderFailure"))
     XCTAssertTrue(voiceServiceSource.contains("context: \"openai_tts\""))
   }
@@ -1189,7 +1189,8 @@ import XCTest
     XCTAssertTrue(hubSource.contains("func restartSessionForBargeIn("))
     XCTAssertTrue(hubSource.contains("interruptedTurnTask: Task<InterruptedTurnPayload?, Never>?"))
     XCTAssertTrue(
-      hubSource.contains("case .ephemeral:\n            self.remintReplacementSessionForBargeIn(provider: provider)"))
+      hubSource.contains(
+        "case .managedEphemeral:\n            self.remintReplacementSessionForBargeIn(provider: provider)"))
     XCTAssertTrue(hubSource.contains("expectedOwnerID: ownerID"))
     XCTAssertTrue(hubSource.contains("ownerScope: ownerScope"))
     XCTAssertTrue(hubSource.contains("barge-in replacement queued behind existing token mint"))
