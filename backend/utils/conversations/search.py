@@ -134,7 +134,7 @@ def search_conversations(
     # page/per_page arrive from SearchRequest where both are Optional and unbounded, so None, 0,
     # negative, or a huge value would otherwise TypeError here (len(...) >= per_page / page + 1) or trip
     # Typesense RequestMalformed and 500 the request. Clamp at this shared boundary, mirroring the
-    # clamps in routers/memories.py and routers/mcp.py. Typesense caps a single page at 250 hits.
+    # clamps in routers/memories.py. Typesense caps a single page at 250 hits.
     page = max(1, page or 1)
     per_page = max(1, min(per_page or 10, 250))
     try:

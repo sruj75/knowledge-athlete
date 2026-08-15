@@ -150,7 +150,7 @@ def test_hermetic_runner_denies_dns_resolution() -> None:
 
 
 def test_capture_tap_gates_before_persistence_and_records_wire_events(tmp_path: Path) -> None:
-    identity = CassetteIdentity("anon-capture", "stt", "parakeet", 0, 0, "anon-event")
+    identity = CassetteIdentity("anon-capture", "stt", "modulate", 0, 0, "anon-event")
     denied = CaptureTap(tmp_path, CaptureWhitelist.from_environ({}))
     assert denied.start("u1", identity, {"audio": "not-written"}) is None
     assert not (tmp_path / "cassettes").exists()

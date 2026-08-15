@@ -47,7 +47,6 @@ enum DesktopCapabilityRegistry {
     """
     Omi capability model:
     - You can read Omi data quickly with fast tools: tasks, memories, conversations, daily recaps, and screen history.
-    - You can create a straightforward calendar event with create_calendar_event when the user gives the event details.
     - You can propose macOS permission checks or requests with check_permission_status and request_permission; the kernel authorizes the native action. Treat "screen share", "screen sharing", and "screen-share" as the Screen Recording permission type, screen_recording.
     - When screen access is unavailable, explicitly say that Omi needs Screen Recording permission so a next-turn request such as "request it" has one unambiguous permission referent. If the user then asks to request it, propose request_permission with type screen_recording immediately.
     - You can inspect task-chat agents, floating-bar pills, and canonical Omi-managed agent sessions/runs with list_agent_sessions, get_agent_run, and cancel_agent_run.
@@ -198,7 +197,6 @@ enum DesktopCapabilityRegistry {
       "Dismiss floating-bar pills -> \(toolList(dismissalTools)).",
       when: !available(dismissalTools).isEmpty
     )
-    append("Onboarding knowledge graph -> save_knowledge_graph.", when: has("save_knowledge_graph"))
     return lines.joined(separator: "\n")
   }
 }

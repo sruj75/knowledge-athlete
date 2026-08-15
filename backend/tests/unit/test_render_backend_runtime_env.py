@@ -57,7 +57,7 @@ def test_provisional_env_var_present_is_rendered(monkeypatch):
 @pytest.mark.parametrize(
     ('value', 'expected'),
     [
-        ('modulate-velma-2,parakeet', r'modulate-velma-2\,parakeet'),
+        ('first,second', r'first\,second'),
         (r'C:\models', r'C:\\models'),
         ('first\nsecond', 'first\\\nsecond'),
         ('first\rsecond', 'first\\\rsecond'),
@@ -140,14 +140,13 @@ def test_render_dev_emits_memory_maintenance_job_outputs():
         'TYPESENSE_HOST',
         'TYPESENSE_HOST_PORT',
         'TYPESENSE_API_KEY',
+        'PINECONE_INDEX_NAME',
     }
     assert forbidden_notifications_vars.isdisjoint(notifications_env)
-    assert notifications_env['PINECONE_INDEX_NAME']['value'] == 'memories-backend-dev'
     assert set(notifications_job['secrets']) == {
         'SERVICE_ACCOUNT_JSON',
         'ENCRYPTION_SECRET',
         'OPENAI_API_KEY',
-        'PINECONE_API_KEY',
     }
 
 
@@ -155,10 +154,6 @@ def test_render_prod_keeps_memory_maintenance_job_promotion_off(capsys, monkeypa
     monkeypatch.setenv('CLOUD_RUN_VPC_NETWORK', 'omi-prod-vpc')
     monkeypatch.setenv('CLOUD_RUN_VPC_SUBNET', 'omi-prod-subnet')
     monkeypatch.setenv('GOOGLE_CLIENT_ID', 'fake-google-client-id')
-    monkeypatch.setenv('STT_PRERECORDED_MODEL', 'dg-nova-3')
-    monkeypatch.setenv('MCP_OAUTH_CLAUDE_CLIENT_ID', 'fake-claude-client-id')
-    monkeypatch.setenv('MCP_OAUTH_CLAUDE_CLIENT_NAME', 'Claude')
-    monkeypatch.setenv('MCP_OAUTH_CLAUDE_REDIRECT_URIS', 'https://claude.example/callback')
     monkeypatch.setenv(
         'ACCOUNT_DELETION_HANDLER_URL', 'https://backend-sync.example.com/v1/users/account-deletion-wipes/run'
     )
@@ -188,10 +183,6 @@ def test_render_prod_gateway_callers_inject_verified_endpoint(capsys, monkeypatc
     monkeypatch.setenv('CLOUD_RUN_VPC_NETWORK', 'omi-prod-vpc')
     monkeypatch.setenv('CLOUD_RUN_VPC_SUBNET', 'omi-prod-subnet')
     monkeypatch.setenv('GOOGLE_CLIENT_ID', 'fake-google-client-id')
-    monkeypatch.setenv('STT_PRERECORDED_MODEL', 'dg-nova-3')
-    monkeypatch.setenv('MCP_OAUTH_CLAUDE_CLIENT_ID', 'fake-claude-client-id')
-    monkeypatch.setenv('MCP_OAUTH_CLAUDE_CLIENT_NAME', 'Claude')
-    monkeypatch.setenv('MCP_OAUTH_CLAUDE_REDIRECT_URIS', 'https://claude.example/callback')
     monkeypatch.setenv(
         'ACCOUNT_DELETION_HANDLER_URL', 'https://backend-sync.example.com/v1/users/account-deletion-wipes/run'
     )
@@ -208,7 +199,7 @@ def test_render_prod_gateway_callers_inject_verified_endpoint(capsys, monkeypatc
     assert _MODULE['main']() == 0
     output = capsys.readouterr().out
 
-    for service in ('backend', 'backend_sync', 'backend_sync_backfill', 'backend_integration'):
+    for service in ('backend', 'backend_sync'):
         service_env = _job_env_block(output, service)
         assert 'OMI_LLM_GATEWAY_FEATURE_MODE=gateway' in service_env
         assert 'OMI_LLM_GATEWAY_URL=http://172.16.160.108' in service_env
@@ -295,9 +286,4 @@ def test_backend_service_deploys_remove_retired_canonical_promotion_env_vars():
     for workflow_name in ('gcp_backend.yml', 'gcp_backend_auto_dev.yml'):
         text = (workflow_root / workflow_name).read_text(encoding='utf-8')
         assert text.count(f'--remove-env-vars={retired}') == 1
-        assert text.count(f'--remove-env-vars=HOSTED_PUSHER_API_URL,{retired}') == 2
-
-    action = Path(__file__).resolve().parents[3] / '.github/actions/sync-backfill-lifecycle/action.yml'
-    action_text = action.read_text(encoding='utf-8')
-    assert f'REMOVE_ENV_VARS: HOSTED_PUSHER_API_URL,{retired}' in action_text
-    assert f'--remove-env-vars=HOSTED_PUSHER_API_URL,{retired}' in action_text
+        assert text.count(f'--remove-env-vars=HOSTED_PUSHER_API_URL,{retired}') == 1

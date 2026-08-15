@@ -121,7 +121,7 @@ cd app && bash setup.sh ios    # or: bash setup.sh android
 │  └─────────┘  └──────────┘  └─────────┘  └──────────┘  │
 │                                                         │
 │  ┌─────────┐  ┌──────────┐  ┌─────────┐  ┌──────────┐  │
-│  │ Deepgram│  │ Firestore│  │ Redis   │  │ LLMs     │  │
+│  │ Modulate│  │ Firestore│  │ Redis   │  │ LLMs     │  │
 │  │ (STT)   │  │ (DB)     │  │ (Cache) │  │ (AI)     │  │
 │  └─────────┘  └──────────┘  └─────────┘  └──────────┘  │
 └─────────────────────────────────────────────────────────┘
@@ -135,7 +135,6 @@ cd app && bash setup.sh ios    # or: bash setup.sh android
 | Firmware | [`omi/`](omi/) | nRF, Zephyr, C |
 | Omi Glass | [`omiGlass/`](omiGlass/) | ESP32-S3, C |
 | SDKs | [`sdks/`](sdks/) | React Native, Swift, Python |
-| AI Personas | [`web/personas-open-source/`](web/personas-open-source/) | Next.js |
 
 </details>
 
@@ -149,19 +148,11 @@ cd app && bash setup.sh ios    # or: bash setup.sh android
 - [Backend Setup](https://docs.omi.me/doc/developer/backend/Backend_Setup)
 - [Contributing](https://docs.omi.me/doc/developer/Contribution) — also [`CONTRIBUTING.md`](CONTRIBUTING.md) and [`PRODUCT.md`](PRODUCT.md)
 
-### Building Apps
-- [App Development Guide](https://docs.omi.me/doc/developer/apps/Introduction)
-- [Example Apps](https://docs.omi.me/doc/developer/apps/examples/Github) — GitHub, Slack, OmiMentor
-- [Audio Streaming Apps](https://docs.omi.me/doc/developer/apps/AudioStreaming)
-- [Custom Chat Tools](https://docs.omi.me/doc/developer/apps/ChatTools)
-- [Submit to App Store](https://docs.omi.me/doc/developer/apps/Submitting)
-
 ### API & SDKs
 - [API Reference](https://docs.omi.me/api-reference/introduction) — REST endpoints for memories, conversations, action items
 - [Python SDK](sdks/python/)
 - [Swift SDK](sdks/swift/)
 - [React Native SDK](sdks/react-native/)
-- [MCP Server](mcp/) — Model Context Protocol integration
 
 ### Architecture
 - [Backend Deep Dive](https://docs.omi.me/doc/developer/backend/backend_deepdive)

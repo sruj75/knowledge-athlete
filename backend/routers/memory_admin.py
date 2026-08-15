@@ -83,7 +83,7 @@ def get_memory_read_rollout_decision(uid: str, secret_key: str = Header(...)):
     """Inspect the server-owned memory default read rollout decision for one user.
 
     Reads only `users/{uid}/memory_control/state` through the shared default-read
-    rollout helper used by MCP, developer API, and chat callers. It never queries
+    rollout helper used by retained first-party callers. It never queries
     `users/{uid}/memory_items`, and Archive remains default-invisible.
     """
 

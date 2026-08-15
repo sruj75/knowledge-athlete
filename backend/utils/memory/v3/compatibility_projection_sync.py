@@ -118,7 +118,6 @@ def _memorydb_projection_payload(item: MemoryItem) -> ProjectionPayload:
         "uid": memory.uid,
         "content": memory.content,
         "category": memory.category.value,
-        "visibility": memory.visibility or "private",
         "tags": list(memory.tags),
         "created_at": memory.created_at,
         "updated_at": memory.updated_at,

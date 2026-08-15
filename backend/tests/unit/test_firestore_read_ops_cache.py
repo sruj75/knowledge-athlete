@@ -36,7 +36,6 @@ for mod_name in [
     "google.api_core",
     "google.api_core.exceptions",
     "opuslib",
-    "lc3",
 ]:
     if mod_name not in sys.modules:
         sys.modules[mod_name] = types.ModuleType(mod_name)

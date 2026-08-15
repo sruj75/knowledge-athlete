@@ -30,7 +30,7 @@ DEFAULT_NON_IDEMPOTENT_RETRIES = 0
 _STATEFUL_CAPABILITY_MARKERS = ("vector", "index", "webhook", "callback", "queue")
 _PROVIDER_SECRET_NAMES = (
     "OPENAI_API_KEY",
-    "DEEPGRAM_API_KEY",
+    "MODULATE_API_KEY",
     "ANTHROPIC_API_KEY",
     "OPENROUTER_API_KEY",
     "GROQ_API_KEY",
@@ -147,14 +147,17 @@ def default_provider_specs(repo_root: Path) -> tuple[ProviderSpec, ...]:
             fake_source_path=str(fake_root / "llm.py"),
         ),
         ProviderSpec(
-            name="deepgram",
-            credential_env="DEEPGRAM_API_KEY",
+            name="modulate",
+            credential_env="MODULATE_API_KEY",
             billing_owner="developer-local-qa",
             quota="local-harness $10/day developer budget",
             data_use="synthetic-or-local-QA audio only",
             retention="provider policy; not harness-authoritative state",
             region="provider default",
-            allowed_endpoints=("https://api.deepgram.com/v1/listen", "wss://api.deepgram.com/v1/listen"),
+            allowed_endpoints=(
+                "https://modulate-developer-apis.com/api/velma-2-stt-batch",
+                "wss://modulate-developer-apis.com/api/velma-2-stt-streaming",
+            ),
             allowed_capabilities=("stt.prerecorded", "stt.streaming"),
             budget=ProviderBudget(
                 max_requests_per_session=120,
@@ -347,6 +350,7 @@ def provider_preflight(
         return ProviderPreflight(
             mode=mode,
             enabled_external_providers=(),
+            missing=tuple(missing),
             warnings=tuple(warnings),
             offline_fake_sources=fake_sources,
         )

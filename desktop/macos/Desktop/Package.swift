@@ -51,13 +51,6 @@ let package = Package(
       ]
     ),
     .target(
-      name: "OmiWAL",
-      path: "Sources/OmiWAL",
-      swiftSettings: [
-        .unsafeFlags(["-strict-concurrency=complete", "-warnings-as-errors"])
-      ]
-    ),
-    .target(
       name: "VoiceTurnDomain",
       path: "Sources/VoiceTurnDomain",
       swiftSettings: [
@@ -71,7 +64,6 @@ let package = Package(
         "CWebP",
         "OmiSupport",
         "OmiTheme",
-        "OmiWAL",
         "VoiceTurnDomain",
         .product(name: "FirebaseCore", package: "firebase-ios-sdk"),
         .product(name: "FirebaseAuth", package: "firebase-ios-sdk"),
@@ -88,9 +80,7 @@ let package = Package(
         "GoogleService-Info-Local.plist",
         "Theme",
         "OmiSupport",
-        "OmiWAL",
         "VoiceTurnDomain",
-        "Bluetooth/ARCHITECTURE.md",
         "FloatingControlBar/ARCHITECTURE.md",
       ],
       resources: [
@@ -112,7 +102,6 @@ let package = Package(
         .target(name: "Omi Computer"),
         "OmiSupport",
         "OmiTheme",
-        "OmiWAL",
         "VoiceTurnDomain",
       ],
       path: "Tests",
@@ -120,7 +109,6 @@ let package = Package(
         "fixtures",
         "SemanticFeatureSentinels",
         "OmiSupportTests",
-        "OmiWALTests",
         "VoiceTurnDomainTests",
       ],
       swiftSettings: [
@@ -131,14 +119,6 @@ let package = Package(
       name: "OmiSupportTests",
       dependencies: ["OmiSupport"],
       path: "Tests/OmiSupportTests",
-      swiftSettings: [
-        .unsafeFlags(["-strict-concurrency=complete", "-warnings-as-errors"])
-      ]
-    ),
-    .testTarget(
-      name: "OmiWALTests",
-      dependencies: ["OmiWAL"],
-      path: "Tests/OmiWALTests",
       swiftSettings: [
         .unsafeFlags(["-strict-concurrency=complete", "-warnings-as-errors"])
       ]

@@ -345,7 +345,7 @@
         "schema_version": {"const": 1},
         "event_id": {"$ref": "#/$defs/stableId"},
         "event_type": {"enum": ["candidate_captured", "candidate_resolved", "intervention_presented", "feedback_recorded", "outcome_recorded"]},
-        "source_class": {"enum": ["manual", "conversation", "screen", "agent", "integration", "import_share", "recurrence"]},
+        "source_class": {"enum": ["manual", "conversation", "screen", "agent", "recurrence"]},
         "confidence_band": {"type": ["string", "null"], "enum": ["low", "medium", "high", "explicit", null]},
         "attribution_chain_id": {"$ref": "#/$defs/nullableStableId"},
         "intervention_id": {"$ref": "#/$defs/nullableStableId"},

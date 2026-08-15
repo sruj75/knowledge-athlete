@@ -27,7 +27,7 @@ def get_monthly_chat_usage(uid: str, now: Optional[datetime] = None) -> Dict[str
       - cost_usd:  total desktop_chat* cost_usd (backend GPT/Gemini chat has no cost field)
       - reset_at:  unix seconds of the start of next UTC month (when the bucket resets)
 
-    Proactive, memory-extraction, knowledge-graph, conversation-processing etc. are
+    Proactive, memory-extraction, conversation-processing, and similar work are
     excluded on purpose — those are company-driven, not user-initiated questions.
     """
     now = now or datetime.now(timezone.utc)

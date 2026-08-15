@@ -213,7 +213,6 @@ def _memorydb_payload(uid: str, memory_id: str, data: dict[str, Any]) -> dict[st
         "uid": uid,
         "content": _content(data),
         "category": data.get("category") or "system",
-        "visibility": data.get("visibility") or "private",
         "tags": data.get("tags") if isinstance(data.get("tags"), list) else [],
         "created_at": captured_at,
         "updated_at": updated_at,

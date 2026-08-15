@@ -2,7 +2,7 @@
 
 The prod freshness gate must compare the full Dockerfile COPY source closure,
 not a hardcoded two-directory subset, so that a post-qualification change to any
-shared backend module (e.g. ``backend/utils/apps.py``) forces a new dev bake.
+shared backend module (e.g. ``backend/utils/memory/memory_service.py``) forces a new dev bake.
 """
 
 from __future__ import annotations
@@ -91,13 +91,6 @@ def test_source_closure_excludes_builder_stage_copies() -> None:
     # Builder-stage copies must NOT be included.
     assert "/opt/venv" not in sources
     assert "backend/pusher/pylock.toml" not in sources
-
-
-def test_liblc3_source_is_pinned() -> None:
-    dockerfile = (REPO / "backend/pusher/Dockerfile").read_text(encoding="utf-8")
-    assert "ENV LIBLC3_COMMIT=ce2e41faf8c06d038df9f32504c61109a14130be" in dockerfile
-    assert "ARG LIBLC3_COMMIT" not in dockerfile
-    assert 'git -C liblc3 fetch --depth=1 origin "${LIBLC3_COMMIT}"' in dockerfile
 
 
 def test_runtime_uses_a_non_root_user_with_writable_working_directories() -> None:

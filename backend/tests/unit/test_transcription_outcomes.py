@@ -24,17 +24,17 @@ def test_outcome_vocabulary_is_closed_and_complete():
 
 
 def test_wrapped_configuration_error_preserves_provider_without_env_leak():
-    configuration_error = PrerecordedSTTConfigurationError('parakeet', 'SECRET_PARAKAET_URL')
+    configuration_error = PrerecordedSTTConfigurationError('SECRET_MODULATE_KEY')
     try:
         raise RuntimeError('raw wrapper') from configuration_error
     except RuntimeError as error:
-        failure = failure_from_exception(error, provider='deepgram')
+        failure = failure_from_exception(error, provider='modulate')
 
     assert failure.outcome == TranscriptionOutcome.CONFIG_ERROR
-    assert failure.provider == 'parakeet'
+    assert failure.provider == 'modulate'
     assert failure.status_code == 503
     assert failure.retryable is False
-    assert 'SECRET_PARAKAET_URL' not in str(failure.as_detail())
+    assert 'SECRET_MODULATE_KEY' not in str(failure.as_detail())
     assert 'raw wrapper' not in str(failure.as_detail())
 
 
@@ -43,7 +43,7 @@ def test_wrapped_timeout_is_safe_and_retryable():
     try:
         raise RuntimeError('provider wrapper') from timeout
     except RuntimeError as error:
-        failure = failure_from_exception(error, provider='deepgram')
+        failure = failure_from_exception(error, provider='modulate')
 
     assert failure.outcome == TranscriptionOutcome.TIMEOUT
     assert failure.status_code == 504
@@ -68,7 +68,7 @@ def test_attempt_records_one_accepted_and_exactly_one_terminal(mock_accepted, mo
     mock_completed.labels.return_value = completed_child
     mock_latency.labels.return_value = latency_child
 
-    attempt = TranscriptionAttempt(route='voice_rest_pcm', provider='deepgram', platform='ios')
+    attempt = TranscriptionAttempt(route='voice_rest_pcm', provider='modulate', platform='ios')
     attempt.finish(TranscriptionOutcome.SUCCESS)
     attempt.finish(TranscriptionOutcome.UPSTREAM_ERROR)
 
@@ -89,17 +89,17 @@ def test_live_stt_attempt_records_one_bounded_acceptance_and_terminal(mock_accep
     monkeypatch.setenv('K_REVISION', 'unbounded-revision-value')
     monkeypatch.setenv('OMI_DEPLOYMENT_VERSION', 'another-unbounded-value')
 
-    attempt = LiveSTTAttempt(provider='deepgram', platform='ios')
+    attempt = LiveSTTAttempt(provider='modulate', platform='ios')
     attempt.finish('failure', phase='send')
     attempt.finish('cancelled', phase='teardown')
 
     assert mock_accepted.labels.call_args.kwargs == {
-        'provider': 'deepgram',
+        'provider': 'modulate',
         'client_platform': 'ios',
         'deployment_environment': 'dev',
     }
     assert mock_terminal.labels.call_args.kwargs == {
-        'provider': 'deepgram',
+        'provider': 'modulate',
         'outcome': 'failure',
         'client_platform': 'ios',
         'deployment_environment': 'dev',

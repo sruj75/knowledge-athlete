@@ -2,8 +2,8 @@ import Foundation
 
 // MARK: - Realtime Hub E2E test harness (headless)
 //
-// Drives the REAL RealtimeHubSession client-direct against the provider (with the
-// user's BYOK key), feeding a synthetic PCM16/16kHz-mono buffer instead of the
+// Drives the REAL managed RealtimeHubSession against the provider, feeding a
+// synthetic PCM16/16kHz-mono buffer instead of the
 // mic — so the whole hub voice loop can be exercised with no microphone, no TCC
 // prompt, and no human talking. Mirrors RealtimeOmniTestHarness; driven via the
 // `hub_test_turn` automation action (registered in RealtimeHubController.setup()).
@@ -152,7 +152,6 @@ final class RealtimeHubTestHarness: NSObject, RealtimeHubSessionDelegate {
     case .searchScreenHistory: stub = "Found it: yesterday afternoon you were reading the launch doc in Safari."
     case .createActionItem: stub = "Created task: Example task."
     case .updateActionItem: stub = "Updated the task."
-    case .createCalendarEvent: stub = "Created calendar event: Example event."
     case .spawnAgent: stub = "Started a background agent."
     case .setDesktopAttentionOverride: stub = "Attention override applied."
     case .screenshot: stub = "Screen captured."
@@ -179,9 +178,8 @@ final class RealtimeHubTestHarness: NSObject, RealtimeHubSessionDelegate {
   static func registerAutomationAction() {
     DesktopAutomationActionRegistry.shared.register(
       name: "hub_test_turn",
-      summary: "Drive the realtime hub with a PCM16/16k file; returns the normalized turn. "
-        + "auth=byok (default, uses BYOK key) | ephemeral (mints a server token, Phase 2)",
-      params: ["pcm", "provider", "timeout", "auth"]
+      summary: "Drive the managed realtime hub with a PCM16/16k file; returns the normalized turn.",
+      params: ["pcm", "provider", "timeout"]
     ) { params in
       guard let path = params["pcm"],
         let data = try? Data(contentsOf: URL(fileURLWithPath: path)), !data.isEmpty
@@ -189,35 +187,26 @@ final class RealtimeHubTestHarness: NSObject, RealtimeHubSessionDelegate {
       let provider =
         params["provider"].flatMap(RealtimeHubProvider.init(rawValue:))
         ?? RealtimeHubSettings.shared.provider
-      // Phase 2: if asked for ephemeral, or no BYOK key exists (managed user),
-      // mint a server-side ephemeral token via the backend; else use the BYOK key.
-      let wantEphemeral = params["auth"] == "ephemeral"
-      let byok = APIKeyService.byokKey(provider.byokProvider)
-      let auth: HubAuth
-      if !wantEphemeral, let key = byok {
-        auth = .byokKey(key)
-      } else {
-        let p = provider == .openai ? "openai" : "gemini"
-        guard let ownerID = RuntimeOwnerIdentity.currentOwnerId() else {
-          return ["error": "ephemeral mint requires a stable authenticated owner"]
-        }
-        let token: String
-        do {
-          token = try await APIClient.shared.mintRealtimeToken(
-            provider: p,
-            expectedOwnerID: ownerID)
-        } catch {
-          return [
-            "error": "ephemeral mint failed for \(p)",
-            "detail": error.localizedDescription,
-          ]
-        }
-        auth = .ephemeral(token)
+      let p = provider == .openai ? "openai" : "gemini"
+      guard let ownerID = RuntimeOwnerIdentity.currentOwnerId() else {
+        return ["error": "managed mint requires a stable authenticated owner"]
       }
+      let token: String
+      do {
+        token = try await APIClient.shared.mintRealtimeToken(
+          provider: p,
+          expectedOwnerID: ownerID)
+      } catch {
+        return [
+          "error": "managed mint failed for \(p)",
+          "detail": error.localizedDescription,
+        ]
+      }
+      let auth = HubAuth.managedEphemeral(token)
       let timeout = Double(params["timeout"] ?? "") ?? 25
       let harness = RealtimeHubTestHarness(provider: provider, auth: auth, pcm16k: data)
       var result = await harness.run(timeoutSeconds: timeout)
-      result["auth_mode"] = auth.isEphemeral ? "ephemeral" : "byok"
+      result["auth_mode"] = "managed"
       return result
     }
   }

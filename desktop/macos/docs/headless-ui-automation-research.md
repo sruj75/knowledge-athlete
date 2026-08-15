@@ -75,14 +75,16 @@ but you have to wire each action. **This is the pattern we already use** (see §
   a localhost HTTP server on `127.0.0.1:47777`, auto-enabled on dev/`omi-*` bundles,
   off on the prod bundle, killable with `OMI_DISABLE_LOCAL_AUTOMATION=1`. Endpoints:
   `GET /health`, `GET /state`, `POST /navigate`, `POST /conversation/open`,
-  `POST /gmail-read`. Driven by `scripts/omi-ctl` (`state`, `navigate <screen>`,
-  `wait-ready`, `open-conversation`). **This already moves the cursor zero times.**
+  and `GET /actions`. Driven by `scripts/omi-ctl` (`state`, `screens`, `actions`,
+  `navigate <screen>`, `wait-ready`, `open-conversation`). **This already moves the
+  cursor zero times.**
 - **`agent-swift`** (Accessibility API CLI): `snapshot`, `press @ref` (AX, no cursor),
   `click @ref` (CGEvent — **moves cursor**, the fallback to avoid), `fill`, `find`,
   `wait`. Documented in `desktop/macos/AGENTS.md`.
-- Accessibility identifiers exist but are **sparse** (~5 across 273 files):
-  `SidebarView.swift:1466` (`sidebar_*`), `SettingsPage.swift:5213`
-  (`syncCalendarButton`), `SpeakerBubbleView.swift` (`transcript_speaker_button_*`).
+- Accessibility identifiers exist on retained surfaces including
+  `DesktopTopBar.swift` (`memory-navigation-button`), `MemoriesPage.swift`
+  (`memory_detail_panel`), and `SpeakerBubbleView.swift`
+  (`transcript_speaker_button_*`).
 - E2E flows live as YAML in `desktop/e2e/flows/` with a guide in `desktop/e2e/SKILL.md`.
 
 ### Flutter app — the model to copy conceptually

@@ -12,7 +12,6 @@ enum SidebarNavItem: Int, CaseIterable {
   case focus = 5
   case insight = 6
   case rewind = 7
-  case apps = 8
   case settings = 9
   case permissions = 10
 
@@ -26,7 +25,6 @@ enum SidebarNavItem: Int, CaseIterable {
     case .focus: return "Focus"
     case .insight: return "Insights"
     case .rewind: return "Rewind"
-    case .apps: return "Apps"
     case .settings: return "Settings"
     case .permissions: return "Permissions"
     }
@@ -42,7 +40,6 @@ enum SidebarNavItem: Int, CaseIterable {
     case .focus: return "eye.fill"
     case .insight: return "lightbulb.fill"
     case .rewind: return "clock.arrow.circlepath"
-    case .apps: return "puzzlepiece.fill"
     case .settings: return "gearshape.fill"
     case .permissions: return "exclamationmark.triangle.fill"
     }
@@ -56,14 +53,13 @@ enum SidebarNavItem: Int, CaseIterable {
     case .tasks: return 3
     case .chat: return 4
     case .dashboard: return 5
-    case .apps: return 6
     default: return 0
     }
   }
 
   /// Items shown in the main navigation (top section)
   static var mainItems: [SidebarNavItem] {
-    [.dashboard, .conversations, .memories, .tasks, .focus, .insight, .rewind, .apps]
+    [.dashboard, .conversations, .memories, .tasks, .focus, .insight, .rewind]
   }
 }
 
@@ -95,7 +91,6 @@ struct SidebarView: View {
   @State private var isTasksPageLoading = false
   @State private var isFocusPageLoading = false
   @State private var isInsightPageLoading = false
-  @State private var isAppsPageLoading = false
 
   // Drag state
   @State private var dragOffset: CGFloat = 0
@@ -393,9 +388,6 @@ struct SidebarView: View {
     }
     .onReceive(NotificationCenter.default.publisher(for: .insightPageDidLoad)) { _ in
       isInsightPageLoading = false
-    }
-    .onReceive(NotificationCenter.default.publisher(for: .appsPageDidLoad)) { _ in
-      isAppsPageLoading = false
     }
   }
 
@@ -1025,7 +1017,6 @@ struct SidebarView: View {
     case .tasks: return isTasksPageLoading
     case .focus: return isFocusPageLoading
     case .insight: return isInsightPageLoading
-    case .apps: return isAppsPageLoading
     default: return false
     }
   }
@@ -1035,7 +1026,6 @@ struct SidebarView: View {
     case .tasks: isTasksPageLoading = loading
     case .focus: isFocusPageLoading = loading
     case .insight: isInsightPageLoading = loading
-    case .apps: isAppsPageLoading = loading
     default: break
     }
   }
@@ -1568,7 +1558,7 @@ enum OmiDeviceImage {
 
 /// The thin, always-present left navigation rail for the redesigned app shell.
 /// Lives beside every page (not just Home) so you can move between Home, the
-/// memory/task surfaces, Focus, Insights, Rewind, and Apps without bouncing
+/// memory/task surfaces, Focus, Insights, and Rewind without bouncing
 /// back through Home. Settings sits at the foot. Styled with the SB ink system
 /// so it matches the sign-in / onboarding aesthetic.
 struct AppNavRail: View {
@@ -1594,7 +1584,6 @@ struct AppNavRail: View {
       RailItem(index: SidebarNavItem.dashboard.rawValue, title: "Home", icon: "house.fill"),
       RailItem(index: SidebarNavItem.conversations.rawValue, title: "Memory", icon: "brain"),
       RailItem(index: SidebarNavItem.tasks.rawValue, title: "Tasks", icon: "checklist"),
-      RailItem(index: SidebarNavItem.apps.rawValue, title: "Apps", icon: "puzzlepiece.fill"),
     ]
   }
 

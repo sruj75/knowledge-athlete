@@ -122,7 +122,7 @@ def send_message(text: str) -> None:
     else:
         context_str, memories, topics, _ = cast(Tuple[str, Any, List[str], Any], data)
 
-    response: str = qa_rag(uid, context_str, context_str, None, messages=get_messages())
+    response: str = qa_rag(uid, context_str, context_str, messages=get_messages())
 
     # Generate visualization
     ai_message_id = str(uuid.uuid4())

@@ -9,18 +9,10 @@ from __future__ import annotations
 
 from typing import Final, Optional
 
-from config.stt_provider_policy import (
-    MODULATE_SUPPORTED_LANGUAGES,
-    PARAKEET_MODEL_BY_SURFACE,
-    PARAKEET_SUPPORTED_LANGUAGES_BY_MODEL,
-    STTServingSurface,
-)
+from config.stt_provider_policy import MODULATE_SUPPORTED_LANGUAGES
 
-# A stored value must be serviceable by some provider, so the accepted set is the
-# union of provider capability rather than a second list that can drift from policy.
-ACCEPTED_BASE_LANGUAGES: Final[frozenset[str]] = MODULATE_SUPPORTED_LANGUAGES | frozenset(
-    PARAKEET_SUPPORTED_LANGUAGES_BY_MODEL[PARAKEET_MODEL_BY_SURFACE[STTServingSurface.PRERECORDED]]
-)
+# A stored value must be serviceable by the managed transcription adapter.
+ACCEPTED_BASE_LANGUAGES: Final[frozenset[str]] = MODULATE_SUPPORTED_LANGUAGES
 
 # English names for every accepted code, plus the aliases clients have actually sent.
 LANGUAGE_NAME_TO_BASE: Final[dict[str, str]] = {
@@ -68,7 +60,6 @@ LANGUAGE_NAME_TO_BASE: Final[dict[str, str]] = {
     'macedonian': 'mk',
     'malay': 'ms',
     'malayalam': 'ml',
-    'maltese': 'mt',
     'mandarin': 'zh',
     'marathi': 'mr',
     'norwegian': 'no',

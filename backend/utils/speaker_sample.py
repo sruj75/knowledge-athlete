@@ -11,7 +11,7 @@ from typing import Any, Dict, List, Optional, Tuple, cast
 
 from utils.executors import sync_executor, run_blocking
 from utils.other.storage import delete_speech_profile_blob, download_speech_profile_bytes
-from utils.stt.pre_recorded import prerecorded_from_bytes as deepgram_prerecorded_from_bytes
+from utils.stt.pre_recorded import prerecorded_from_bytes
 from utils.text_utils import compute_text_containment
 
 MIN_WORDS = 5
@@ -43,14 +43,12 @@ async def verify_and_transcribe_sample(
         - other reasons indicate quality issues (sample may be dropped)
     """
     try:
-        raw_words = await run_blocking(
-            sync_executor, cast(Any, deepgram_prerecorded_from_bytes), audio_bytes, sample_rate, True
-        )
+        raw_words = await run_blocking(sync_executor, cast(Any, prerecorded_from_bytes), audio_bytes, sample_rate, True)
     except RuntimeError as e:
         # Transient transcription failure - distinguish from quality issues
         return None, False, f"transcription_failed: {e}"
 
-    # deepgram_prerecorded_from_bytes returns List[dict] or (when return_language=True) Tuple[List[dict], str].
+    # prerecorded_from_bytes returns List[dict] or (when return_language=True) Tuple[List[dict], str].
     # return_language defaults to False, so the runtime value is always the list; narrow for the type system.
     if isinstance(raw_words, tuple):
         raw_words = cast(Any, raw_words[0])

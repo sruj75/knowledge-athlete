@@ -108,105 +108,17 @@ extension AppState {
     checkSystemAudioPermission()
 
     if AppBuild.usesLazyDevPermissions {
-      log("Permissions: lazy dev mode enabled, skipping startup automation/accessibility/FDA probes")
+      log("Permissions: lazy dev mode enabled, skipping startup accessibility probe")
       return
     }
 
-    checkAutomationPermission()
     checkAccessibilityPermission()
-    checkFullDiskAccess()
     // One-time startup diagnostic for accessibility
     let osVersion = ProcessInfo.processInfo.operatingSystemVersion
     let bundleId = Bundle.main.bundleIdentifier ?? "unknown"
     log(
       "ACCESSIBILITY_STARTUP: bundleId=\(bundleId), macOS=\(osVersion.majorVersion).\(osVersion.minorVersion).\(osVersion.patchVersion), TCC=\(hasAccessibilityPermission), broken=\(isAccessibilityBroken), onboarded=\(hasCompletedOnboarding)"
     )
-    // Only check Bluetooth if already initialized (to avoid triggering permission prompt early)
-    if bluetoothStateCancellable != nil {
-      checkBluetoothPermission()
-    }
-  }
-
-  /// Check Bluetooth permission status
-  /// Bluetooth is considered "granted" if state is poweredOn or poweredOff (allowed but BT off)
-  /// IMPORTANT: Only call this after initializeBluetoothIfNeeded() has been called
-  func checkBluetoothPermission() {
-    // Guard: Only check if Bluetooth has been initialized (to avoid triggering permission prompt early)
-    guard bluetoothStateCancellable != nil else {
-      log("BLUETOOTH_CHECK: Skipping - Bluetooth not initialized yet")
-      return
-    }
-    let state = BluetoothManager.shared.bluetoothState
-    let oldValue = hasBluetoothPermission
-    // poweredOn = ready to use, poweredOff = allowed but BT is off
-    // unauthorized = denied
-    let newValue = state == .poweredOn || state == .poweredOff
-    log(
-      "BLUETOOTH_CHECK: state=\(BluetoothManager.shared.bluetoothStateDescription), stateRaw=\(state.rawValue), auth=\(BluetoothManager.shared.authorizationDescription), granted=\(newValue)"
-    )
-    if newValue != oldValue {
-      log(
-        "Bluetooth permission changed: \(oldValue) -> \(newValue), state=\(BluetoothManager.shared.bluetoothStateDescription)"
-      )
-    }
-    hasBluetoothPermission = newValue
-  }
-
-  /// Trigger Bluetooth permission by attempting to scan
-  /// On macOS, the permission dialog only appears when actually using Bluetooth
-  func triggerBluetoothPermission() {
-    // Ensure Bluetooth is initialized first (this is expected to be called from the Bluetooth onboarding step)
-    initializeBluetoothIfNeeded()
-
-    log(
-      "triggerBluetoothPermission: Starting, state=\(BluetoothManager.shared.bluetoothStateDescription), auth=\(BluetoothManager.shared.authorizationDescription)"
-    )
-    // Trigger the permission prompt by attempting to scan
-    // This bypasses state checks because we specifically want the system dialog
-    BluetoothManager.shared.triggerPermissionPrompt()
-    // Check permission state after a delay to allow user to respond
-    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-      log(
-        "triggerBluetoothPermission: After 1s delay, state=\(BluetoothManager.shared.bluetoothStateDescription), auth=\(BluetoothManager.shared.authorizationDescription)"
-      )
-      self.checkBluetoothPermission()
-    }
-    // Also check again after 3 seconds in case state updates slowly
-    DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
-      log(
-        "triggerBluetoothPermission: After 3s delay, state=\(BluetoothManager.shared.bluetoothStateDescription), auth=\(BluetoothManager.shared.authorizationDescription)"
-      )
-      self.checkBluetoothPermission()
-    }
-  }
-
-  /// Check if Bluetooth permission was explicitly denied
-  /// Returns false if Bluetooth hasn't been initialized yet (to avoid triggering permission prompt)
-  func isBluetoothPermissionDenied() -> Bool {
-    // Guard: Only check if Bluetooth has been initialized
-    guard bluetoothStateCancellable != nil else {
-      return false
-    }
-    return BluetoothManager.shared.bluetoothState == .unauthorized
-  }
-
-  /// Check if Bluetooth is reported as unsupported (may be macOS version issue)
-  /// Returns false if Bluetooth hasn't been initialized yet (to avoid triggering permission prompt)
-  func isBluetoothUnsupported() -> Bool {
-    // Guard: Only check if Bluetooth has been initialized
-    guard bluetoothStateCancellable != nil else {
-      return false
-    }
-    return BluetoothManager.shared.bluetoothState == .unsupported
-  }
-
-  /// Open Bluetooth preferences in System Settings
-  func openBluetoothPreferences() {
-    if let url = URL(
-      string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Bluetooth")
-    {
-      NSWorkspace.shared.open(url)
-    }
   }
 
   /// Check notification permission status and alert style
@@ -311,74 +223,6 @@ extension AppState {
     UserDefaults.standard.removeObject(forKey: NotificationService.screenCaptureResetShownKey)
   }
 
-  /// Check automation permission without triggering a prompt
-  /// Uses AEDeterminePermissionToAutomateTarget to query TCC status for System Events
-  func checkAutomationPermission() {
-    guard !isCheckingAutomationPermission else { return }
-    isCheckingAutomationPermission = true
-    Task.detached {
-      defer { Task { @MainActor in self.isCheckingAutomationPermission = false } }
-      let status = Self.queryAutomationPermissionStatus()
-
-      // noErr (0) = granted, errAEEventNotPermitted (-1743) = denied, -1744 = not determined
-      // -600 (procNotFound) = System Events not running — try to launch it and retry
-      if status == -600 {
-        log("AUTOMATION_CHECK: status=-600 (procNotFound), launching System Events and retrying...")
-        // NSAppleScript is main-thread-only — build+execute on the main actor.
-        await MainActor.run {
-          let launchScript = NSAppleScript(source: "launch application \"System Events\"")
-          var launchError: NSDictionary?
-          launchScript?.executeAndReturnError(&launchError)
-        }
-
-        // Wait for System Events to initialize
-        try? await Task.sleep(nanoseconds: 1_000_000_000)
-
-        let retryStatus = Self.queryAutomationPermissionStatus()
-        let hasPermission = retryStatus == noErr
-        log("AUTOMATION_CHECK: retry status=\(retryStatus), hasPermission=\(hasPermission)")
-
-        await MainActor.run {
-          self.hasAutomationPermission = hasPermission
-          self.automationPermissionError = hasPermission ? 0 : retryStatus
-        }
-      } else {
-        let hasPermission = status == noErr
-        let previousValue = await MainActor.run { self.hasAutomationPermission }
-        if hasPermission != previousValue {
-          log("AUTOMATION_CHECK: status=\(status), hasPermission=\(hasPermission)")
-        }
-
-        await MainActor.run {
-          self.hasAutomationPermission = hasPermission
-          // Track unexpected errors (not denied/not-determined, which are normal states)
-          self.automationPermissionError =
-            (status == noErr || status == -1743 || status == -1744) ? 0 : status
-        }
-      }
-    }
-  }
-
-  /// Query the TCC automation permission status for System Events without triggering a prompt
-  nonisolated static func queryAutomationPermissionStatus() -> OSStatus {
-    let bundleIDString = "com.apple.systemevents"
-    var addressDesc = AEAddressDesc()
-
-    let status: OSStatus = bundleIDString.withCString { cString in
-      AECreateDesc(typeApplicationBundleID, cString, strlen(cString), &addressDesc)
-      let result = AEDeterminePermissionToAutomateTarget(
-        &addressDesc,
-        typeWildCard,
-        typeWildCard,
-        false  // askUserIfNeeded = false → never shows dialog
-      )
-      AEDisposeDesc(&addressDesc)
-      return result
-    }
-
-    return status
-  }
-
   /// Check accessibility permission status
   /// AXIsProcessTrusted() can return stale data after macOS updates or app re-signs,
   /// so we also do a functional AX test to detect the "broken" state.
@@ -437,33 +281,6 @@ extension AppState {
         hasAccessibilityPermission = false
         isAccessibilityBroken = false
       }
-    }
-  }
-
-  /// Check Full Disk Access by probing FDA-protected paths.
-  /// The TCC database query is unreliable on macOS 15+ (schema changes, ad-hoc signing),
-  /// so we probe actual protected directories instead.
-  func checkFullDiskAccess() {
-    let home = FileManager.default.homeDirectoryForCurrentUser.path
-    // These paths are protected by Full Disk Access on all macOS versions.
-    // Try to list directory contents — if it succeeds, FDA is granted.
-    let protectedPaths = [
-      "\(home)/Library/Safari",
-      "\(home)/Library/Mail",
-      "\(home)/Library/Messages",
-    ]
-
-    var granted = false
-    for path in protectedPaths {
-      if FileManager.default.fileExists(atPath: path) {
-        granted = (try? FileManager.default.contentsOfDirectory(atPath: path)) != nil
-        break
-      }
-    }
-
-    if granted != hasFullDiskAccess {
-      hasFullDiskAccess = granted
-      log("Full Disk Access: \(granted ? "granted" : "not granted") (file probe)")
     }
   }
 

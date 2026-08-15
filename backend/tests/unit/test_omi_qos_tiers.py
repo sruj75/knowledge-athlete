@@ -252,31 +252,19 @@ class TestModelQosProfiles:
         # Quality-sensitive features use gpt-4.1-mini on openai
         assert premium['memories'] == ('gpt-4.1-mini', 'openai')
         assert premium['chat_extraction'] == ('gpt-4.1-mini', 'openai')
-        assert premium['chat_graph'] == ('gpt-4.1-mini', 'openai')
-        assert premium['external_structure'] == ('gpt-4.1-mini', 'openai')
         assert premium['memory_conflict'] == ('gpt-4.1-mini', 'openai')
-        assert premium['knowledge_graph'] == ('gpt-4.1-mini', 'openai')
         assert premium['goals'] == ('gpt-4.1-mini', 'openai')
         assert premium['proactive_notification'] == ('gpt-4.1-mini', 'openai')
-        # Simple features use gpt-4.1-nano on openai
-        assert premium['conv_app_select'] == ('gpt-4.1-nano', 'openai')
-        # Vision features use gpt-4.1-mini on openai
-        assert premium['openglass'] == ('gpt-4.1-mini', 'openai')
         # Free-text features use Gemini 2.5 Flash-Lite on gemini provider
         assert premium['session_titles'] == ('gemini-2.5-flash-lite', 'gemini')
         assert premium['followup'] == ('gemini-2.5-flash-lite', 'gemini')
         assert premium['onboarding'] == ('gemini-2.5-flash-lite', 'gemini')
         # Simple classification uses gpt-4.1-nano on openai
         assert premium['memory_category'] == ('gpt-4.1-nano', 'openai')
-        assert premium['daily_summary_simple'] == ('gpt-4.1-nano', 'openai')
-        assert premium['app_integration'] == ('gemini-2.5-flash-lite', 'gemini')
         assert premium['trends'] == ('gemini-2.5-flash-lite', 'gemini')
         # Anthropic & Perplexity with explicit provider
         assert premium['chat_agent'] == ('claude-sonnet-4-6', 'anthropic')
         assert premium['web_search'] == ('sonar-pro', 'perplexity')
-        # Persona uses direct OpenAI API
-        assert premium['persona_chat'] == ('gpt-4.1-nano', 'openai')
-        assert premium['persona_chat_premium'] == ('gpt-5.4-mini', 'openai')
 
     def test_max_profile_models(self):
         """Max uses gpt-5.4 flagship, gpt-4.1-mini for cheap tasks, production-grade models."""
@@ -284,20 +272,13 @@ class TestModelQosProfiles:
         # Flagship uses gpt-5.4 on openai
         assert max_prof['chat_responses'] == ('gpt-5.4', 'openai')
         assert max_prof['goals_advice'] == ('gpt-5.4', 'openai')
-        assert max_prof['app_generator'] == ('gpt-5.4', 'openai')
         assert max_prof['conv_action_items'] == ('gpt-5.4', 'openai')
         assert max_prof['conv_structure'] == ('gpt-5.4', 'openai')
         assert max_prof['daily_summary'] == ('gpt-5.4', 'openai')
-        assert max_prof['persona_clone'] == ('gpt-5.4', 'openai')
         assert max_prof['notifications'] == ('gpt-5.4', 'openai')
         # Cheap tasks use gpt-4.1-mini on openai
-        assert max_prof['conv_app_select'] == ('gpt-4.1-mini', 'openai')
         assert max_prof['memories'] == ('gpt-4.1-mini', 'openai')
         assert max_prof['learnings'] == ('o4-mini', 'openai')
-        assert max_prof['chat_graph'] == ('gpt-4.1', 'openai')
-        # Persona uses direct OpenAI API
-        assert max_prof['persona_chat'] == ('gpt-4.1-nano', 'openai')
-        assert max_prof['persona_chat_premium'] == ('gpt-5.4-mini', 'openai')
         # OpenRouter for wrapped_analysis with explicit provider
         assert max_prof['wrapped_analysis'] == ('gemini-3-flash-preview', 'openrouter')
         # Anthropic & Perplexity with explicit provider
@@ -305,16 +286,13 @@ class TestModelQosProfiles:
         assert max_prof['web_search'] == ('sonar-pro', 'perplexity')
 
     def test_max_profile_model_variants(self):
-        """Max profile uses 9 distinct model IDs."""
+        """Max profile uses the retained eight model IDs."""
         max_prof = MODEL_QOS_PROFILES['max']
         distinct_models = {model for model, _provider in max_prof.values()}
         expected = {
             'gpt-5.4',
             'gpt-4.1-mini',
-            'gpt-4.1',
             'o4-mini',
-            'gpt-4.1-nano',
-            'gpt-5.4-mini',
             'claude-sonnet-4-6',
             'gemini-2.5-flash-lite',
             'gemini-3-flash-preview',
@@ -327,10 +305,7 @@ class TestModelQosProfiles:
         new_features = [
             'conv_folder',
             'conv_discard',
-            'daily_summary_simple',
-            'external_structure',
             'learnings',
-            'chat_graph',
             'proactive_notification',
         ]
         for feature in new_features:
@@ -353,10 +328,6 @@ class TestGetModel:
     def test_anthropic_feature_returns_model_string(self):
         model = get_model('chat_agent')
         assert 'claude' in model
-
-    def test_persona_chat_returns_model_string(self):
-        model = get_model('persona_chat')
-        assert len(model) > 0  # May be OpenAI (max) or OpenRouter (premium)
 
     def test_perplexity_feature_returns_model_string(self):
         model = get_model('web_search')
@@ -392,11 +363,6 @@ class TestGetLlm:
         llm_stream = get_llm('conv_action_items', streaming=True)
         assert llm is not llm_stream
 
-    def test_persona_chat_returns_client(self):
-        # persona_chat is gpt-4.1-nano (OpenAI) in both profiles
-        llm = get_llm('persona_chat', streaming=True)
-        assert hasattr(llm, 'invoke')
-
     def test_cache_key_applied_for_cacheable_model(self):
         # conv_structure uses gpt-5.4-mini (premium) or gpt-5.4 (max), both in _CACHE_KEY_MODELS
         llm_with_key = get_llm('conv_structure', cache_key='omi-test-key')
@@ -416,9 +382,7 @@ class TestGetLlm:
             'conv_folder',
             'conv_discard',
             'daily_summary_simple',
-            'external_structure',
             'learnings',
-            'chat_graph',
             'proactive_notification',
         ]:
             llm = get_llm(feature)
@@ -584,8 +548,6 @@ class TestGetQosInfo:
         assert info['chat_agent']['provider'] == 'anthropic'
         assert info['web_search']['provider'] == 'perplexity'
         assert info['conv_action_items']['provider'] == 'openai'
-        # persona_chat uses direct OpenAI API in both profiles
-        assert info['persona_chat']['provider'] == 'openai'
         # wrapped_analysis uses OpenRouter in both profiles
         assert info['wrapped_analysis']['provider'] == 'openrouter'
         # Gemini features use gemini provider
@@ -620,13 +582,6 @@ class TestProviderClassification:
     def test_web_search_is_perplexity_only(self):
         assert 'web_search' in _PERPLEXITY_ONLY_FEATURES
 
-    def test_persona_chat_uses_openai_in_both_profiles(self):
-        """Persona chat features use direct OpenAI API in both profiles."""
-        for profile_name in ['max', 'premium']:
-            prof = MODEL_QOS_PROFILES[profile_name]
-            assert prof['persona_chat'][1] == 'openai', f'{profile_name} persona_chat'
-            assert prof['persona_chat_premium'][1] == 'openai', f'{profile_name} persona_chat_premium'
-
     def test_wrapped_analysis_uses_openrouter_in_both_profiles(self):
         """wrapped_analysis uses OpenRouter (gemini-3-flash-preview) in both profiles."""
         for profile_name in ['max', 'premium']:
@@ -635,7 +590,7 @@ class TestProviderClassification:
 
     def test_conv_features_are_openai(self):
         max_prof = MODEL_QOS_PROFILES['max']
-        for feature in ['conv_action_items', 'conv_structure', 'conv_app_result', 'conv_app_select']:
+        for feature in ['conv_action_items', 'conv_structure']:
             assert max_prof[feature][1] == 'openai'
 
 
@@ -730,13 +685,10 @@ class TestExpandedCallsiteCoverage:
             'conv_discard',
             'conv_action_items',
             'conv_structure',
-            'conv_app_result',
-            'conv_app_select',
             'daily_summary',
         ]:
             assert key in calls, f"Missing get_llm('{key}') in conversation_processing.py"
         assert calls.count('conv_structure') >= 2, "conv_structure should appear at least twice"
-        assert calls.count('conv_app_select') == 2, "conv_app_select should appear exactly twice"
 
     def test_memories_all_keys(self):
         import re
@@ -745,14 +697,7 @@ class TestExpandedCallsiteCoverage:
         calls = re.findall(r"get_llm\('(\w+)'", source)
         for key in ['memories', 'learnings', 'memory_category', 'memory_conflict']:
             assert key in calls, f"Missing get_llm('{key}') in memories.py"
-        assert calls.count('memories') == 2, "memories should appear exactly twice"
-
-    def test_knowledge_graph_all_keys(self):
-        import re
-
-        source = self._read_source("utils/llm/knowledge_graph.py")
-        calls = re.findall(r"get_llm\('(\w+)'", source)
-        assert calls.count('knowledge_graph') == 2, "knowledge_graph should appear exactly twice"
+        assert calls.count('memories') == 1, "the retained memory extraction path should resolve once"
 
     def test_followup_key(self):
         source = self._read_source("utils/llm/followup.py")
@@ -770,16 +715,6 @@ class TestExpandedCallsiteCoverage:
         assert 'chat_responses' in calls
         assert 'chat_extraction' in calls
 
-    def test_persona_py_all_keys(self):
-        import re
-
-        source = self._read_source("utils/llm/persona.py")
-        calls = re.findall(r"get_llm\('(\w+)'", source)
-        assert 'persona_clone' in calls
-        assert calls.count('persona_clone') >= 4, "persona_clone should appear in multiple clone functions"
-        # Dynamic persona_chat/persona_chat_premium routing via feature variable
-        assert "get_llm(feature" in source, "persona.py should pass dynamic feature for chat routing"
-
     def test_goals_py_all_keys(self):
         import re
 
@@ -795,22 +730,6 @@ class TestExpandedCallsiteCoverage:
         calls = re.findall(r"get_llm\('(\w+)'", source)
         assert 'notifications' in calls
 
-    def test_app_generator_py_all_keys(self):
-        import re
-
-        source = self._read_source("utils/llm/app_generator.py")
-        calls = re.findall(r"get_llm\('(\w+)'", source)
-        assert 'app_generator' in calls
-        assert 'app_integration' in calls
-        assert calls.count('app_integration') >= 2, "app_integration should appear in multiple functions"
-
-    def test_graph_py_key(self):
-        import re
-
-        source = self._read_source("utils/retrieval/graph.py")
-        calls = re.findall(r"get_llm\('(\w+)'", source)
-        assert 'chat_graph' in calls
-
     def test_perplexity_tools_key(self):
         import re
 
@@ -822,23 +741,9 @@ class TestExpandedCallsiteCoverage:
         source = self._read_source("routers/chat_sessions.py")
         assert "get_llm('session_titles')" in source
 
-    def test_apps_router_key(self):
-        source = self._read_source("routers/apps.py")
-        assert "get_llm('app_integration')" in source
-
-    def test_app_integrations_key(self):
-        source = self._read_source("utils/app_integrations.py")
-        assert "get_llm('app_integration')" in source
-
-    def test_external_integrations_all_keys(self):
-        import re
-
-        source = self._read_source("utils/llm/external_integrations.py")
-        calls = re.findall(r"get_llm\('(\w+)'", source)
-        assert 'external_structure' in calls
-        assert calls.count('external_structure') >= 2, "external_structure should appear at least twice"
-        assert 'daily_summary_simple' in calls, "Missing get_llm('daily_summary_simple') in external_integrations.py"
-        assert 'daily_summary' in calls, "Missing get_llm('daily_summary') in external_integrations.py"
+    def test_daily_summary_key(self):
+        source = self._read_source("utils/llm/daily_summary.py")
+        assert "get_llm('daily_summary'" in source
 
     def test_proactive_notification_key(self):
         import re
@@ -865,14 +770,11 @@ class TestExpandedCallsiteCoverage:
             "utils/llm/chat.py",
             "utils/llm/conversation_processing.py",
             "utils/llm/memories.py",
-            "utils/llm/knowledge_graph.py",
             "utils/llm/proactive_notification.py",
-            "utils/llm/external_integrations.py",
+            "utils/llm/daily_summary.py",
             "utils/llm/goals.py",
             "utils/llm/notifications.py",
-            "utils/llm/persona.py",
             "utils/llm/followup.py",
-            "utils/llm/app_generator.py",
             "utils/llm/trends.py",
             "utils/onboarding.py",
             "utils/retrieval/graph.py",
@@ -887,12 +789,6 @@ class TestExpandedCallsiteCoverage:
 class TestRuntimeProviderRouting:
     """Verify get_llm() routes to correct client factory based on resolved model."""
 
-    def test_persona_chat_routes_to_openai(self):
-        """persona_chat uses direct OpenAI API — should route to OpenAI, not OpenRouter."""
-        llm = get_llm('persona_chat')
-        base_url = getattr(llm, 'openai_api_base', None) or ''
-        assert 'openrouter' not in base_url
-
     def test_gemini_feature_routes_correctly(self):
         """Free-text features on gemini-2.5-flash-lite should route to Gemini (native SDK or fallback)."""
         llm = get_llm('followup')
@@ -905,14 +801,6 @@ class TestRuntimeProviderRouting:
         else:
             # No key — falls back to ChatOpenAI placeholder pointing at Gemini endpoint
             assert hasattr(llm, 'invoke')
-
-    def test_openglass_routes_to_openai(self):
-        """openglass (vision) should route to OpenAI gpt-4.1-mini."""
-        llm = get_llm('openglass')
-        # get_llm() eagerly resolves; result is a ChatOpenAI routed to OpenAI
-        base_url = getattr(llm, 'openai_api_base', None) or ''
-        assert 'openrouter' not in base_url
-        assert 'generativelanguage.googleapis.com' not in base_url
 
     def test_openrouter_temperature_applied_via_get_llm(self):
         """When get_llm routes to OpenRouter, _OPENROUTER_TEMPERATURES config is applied."""
@@ -970,30 +858,17 @@ class TestBYOKWrapperArchitecture:
             assert not hasattr(mod, name), f'{name} should have been removed from clients.py'
 
 
-class TestBYOKEmbeddingsProxy:
-    def test_model_access_403_falls_back_to_default_embeddings(self, monkeypatch):
-        """BYOK OpenAI projects can reject text-embedding-3-large with model_not_found."""
+class TestManagedEmbeddingsProxy:
+    def test_legacy_customer_key_cannot_select_embeddings_client(self, monkeypatch):
         import utils.llm.clients as mod
-
-        class _FailingBYOKEmbeddings:
-            def embed_documents(self, _texts):
-                raise RuntimeError(
-                    "openai.PermissionDeniedError: Error code: 403 - project does not have access "
-                    "to model text-embedding-3-large; code: model_not_found"
-                )
-
-            def embed_query(self, _text):
-                raise RuntimeError(
-                    "openai.PermissionDeniedError: Error code: 403 - project does not have access "
-                    "to model text-embedding-3-large; code: model_not_found"
-                )
 
         default = MagicMock()
         default.embed_documents.return_value = [[0.1, 0.2]]
         default.embed_query.return_value = [0.1, 0.2]
+        customer_factory = MagicMock(side_effect=AssertionError('legacy key selected an embeddings client'))
 
-        monkeypatch.setattr(mod, 'get_byok_key', lambda provider: 'sk-byok' if provider == 'openai' else None)
-        monkeypatch.setattr(mod, 'OpenAIEmbeddings', lambda **_kwargs: _FailingBYOKEmbeddings())
+        monkeypatch.setattr(mod, 'get_byok_key', lambda provider: 'legacy-key' if provider == 'openai' else None)
+        monkeypatch.setattr(mod, 'OpenAIEmbeddings', customer_factory)
         mod._openai_cache.clear()
 
         proxy = mod._OpenAIEmbeddingsProxy(
@@ -1006,6 +881,7 @@ class TestBYOKEmbeddingsProxy:
         assert proxy.embed_query('hello') == [0.1, 0.2]
         default.embed_documents.assert_called_once_with(['hello'])
         default.embed_query.assert_called_once_with('hello')
+        customer_factory.assert_not_called()
 
 
 class TestBYOKProfile:
@@ -1020,15 +896,12 @@ class TestBYOKProfile:
             assert provider == 'openai', f'byok {feature} should be openai, got {provider}'
 
     def test_byok_model_variants(self):
-        """byok uses same 9 distinct models as max."""
+        """byok uses the same retained seven distinct models as max."""
         bk = MODEL_QOS_PROFILES['byok']
         distinct = {model for model, _p in bk.values()}
         expected = {
             'gpt-5.4',
-            'gpt-5.4-mini',
-            'gpt-4.1',
             'gpt-4.1-mini',
-            'gpt-4.1-nano',
             'o4-mini',
             'claude-sonnet-4-6',
             'gemini-2.5-flash-lite',
@@ -1106,8 +979,6 @@ class TestStructuredOutputFeatureTracking:
             'chat_extraction',
             'proactive_notification',
             'translation',
-            'conv_app_select',
-            'external_structure',
             'trends',
             'what_matters_now',
         }

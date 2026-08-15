@@ -298,21 +298,6 @@ def clear_byok_active(uid: str):
     )
 
 
-def set_user_deletion_feedback(uid: str, reason: Optional[str], reason_details: Optional[str] = None):
-    # Stored in a top-level collection so it survives the user record being deleted.
-    # Use merge=True so a retried delete request does not erase a durable wipe marker
-    # (pending/failed/retrying/deleting_auth) already written to the same document.
-    db.collection('account_deletions').document(uid).set(
-        {
-            'uid': uid,
-            'reason': reason or '',
-            'reason_details': reason_details or '',
-            'timestamp': datetime.now(timezone.utc),
-        },
-        merge=True,
-    )
-
-
 def mark_user_deletion_wipe_running(uid: str):
     """Transition a queued wipe marker to ``running`` once the worker starts.
 
@@ -1173,7 +1158,7 @@ def delete_user_data(uid: str):
     # early "User not found" return would falsely mark the deletion complete.
     # This picks up
     # everything the user has written (conversations, memories, action_items,
-    # folders, goals, integrations, task_integrations, fcm_tokens, fair_use_*,
+    # folders, goals, fcm_tokens, fair_use_*,
     # hourly_usage, meetings, screen_activity, files, people, chat_sessions,
     # messages, and any future additions).
     for sub in user_ref.collections():
@@ -1431,22 +1416,6 @@ def set_user_language_preference(uid: str, language: str) -> None:
     invalidate(_USER_TRANSCRIPTION_PREFS_CACHE, uid)
 
 
-def get_user_onboarding_state(uid: str) -> dict:
-    """Get the user's onboarding state from Firestore."""
-    user_ref = db.collection('users').document(uid)
-    user_doc = user_ref.get()
-    if user_doc.exists:
-        user_data = user_doc.to_dict()
-        return user_data.get('onboarding', {})
-    return {}
-
-
-def set_user_onboarding_state(uid: str, onboarding_data: dict) -> None:
-    """Update the user's onboarding state in Firestore (merge with existing)."""
-    user_ref = db.collection('users').document(uid)
-    user_ref.set({'onboarding': onboarding_data}, merge=True)
-
-
 def get_user_subscription(uid: str) -> Subscription:
     """Gets the user's subscription, creating a default free one if it doesn't exist."""
     user_ref = db.collection('users').document(uid)
@@ -1612,204 +1581,6 @@ def get_user_valid_subscription(uid: str) -> Optional[Subscription]:
 
     # Fallback to default basic subscription
     return get_default_basic_subscription()
-
-
-# **************************************
-# ******** Task Integrations ***********
-# **************************************
-
-
-def get_task_integrations(uid: str) -> dict:
-    """
-    Get all task integration connections for a user.
-
-    Args:
-        uid: User ID
-
-    Returns:
-        Dictionary with app_key as keys and connection details as values
-    """
-    user_ref = db.collection('users').document(uid)
-    integrations_ref = user_ref.collection('task_integrations')
-
-    integrations = {}
-    for doc in integrations_ref.stream():
-        integrations[doc.id] = doc.to_dict()
-
-    return integrations
-
-
-def get_task_integration(uid: str, app_key: str) -> Optional[dict]:
-    """
-    Get a specific task integration connection.
-
-    Args:
-        uid: User ID
-        app_key: Task integration app key (e.g., 'asana', 'todoist')
-
-    Returns:
-        Connection details or None if not found
-    """
-    user_ref = db.collection('users').document(uid)
-    integration_ref = user_ref.collection('task_integrations').document(app_key)
-    doc = integration_ref.get()
-
-    if doc.exists:
-        return doc.to_dict()
-    return None
-
-
-def set_task_integration(uid: str, app_key: str, data: dict) -> None:
-    """
-    Save or update a task integration connection.
-
-    Args:
-        uid: User ID
-        app_key: Task integration app key (e.g., 'asana', 'todoist')
-        data: Connection details to save
-    """
-    user_ref = db.collection('users').document(uid)
-    integration_ref = user_ref.collection('task_integrations').document(app_key)
-
-    # Add timestamp
-    data['updated_at'] = datetime.now(timezone.utc)
-    if not integration_ref.get().exists:
-        data['created_at'] = datetime.now(timezone.utc)
-
-    integration_ref.set(data, merge=True)
-
-
-def delete_task_integration(uid: str, app_key: str) -> bool:
-    """
-    Delete a task integration connection.
-    Also clears default_task_integration if it matches the deleted app.
-
-    Args:
-        uid: User ID
-        app_key: Task integration app key
-
-    Returns:
-        True if deleted, False if not found
-    """
-    user_ref = db.collection('users').document(uid)
-    integration_ref = user_ref.collection('task_integrations').document(app_key)
-
-    if not integration_ref.get().exists:
-        return False
-
-    # Check if this is the default integration
-    user_doc = user_ref.get()
-    is_default = False
-    if user_doc.exists:
-        user_data = user_doc.to_dict()
-        is_default = user_data.get('default_task_integration') == app_key
-
-    # Delete integration
-    integration_ref.delete()
-
-    # Clear default if needed
-    if is_default:
-        user_ref.update({'default_task_integration': firestore.DELETE_FIELD})
-
-    return True
-
-
-def get_default_task_integration(uid: str) -> Optional[str]:
-    """
-    Get the user's default task integration app.
-
-    Args:
-        uid: User ID
-
-    Returns:
-        App key of default integration or None
-    """
-    user_ref = db.collection('users').document(uid)
-    user_doc = user_ref.get()
-
-    if user_doc.exists:
-        user_data = user_doc.to_dict()
-        return user_data.get('default_task_integration')
-
-    return None
-
-
-def set_default_task_integration(uid: str, app_key: str) -> None:
-    """
-    Set the user's default task integration app.
-
-    Args:
-        uid: User ID
-        app_key: Task integration app key to set as default
-    """
-    user_ref = db.collection('users').document(uid)
-    user_ref.set({'default_task_integration': app_key}, merge=True)
-
-
-# **************************************
-# ******** Integrations ********
-# **************************************
-
-
-def get_integration(uid: str, app_key: str) -> Optional[dict]:
-    """
-    Get a specific integration connection.
-
-    Args:
-        uid: User ID
-        app_key: Integration app key (e.g., 'google_calendar', 'whoop')
-
-    Returns:
-        Connection details or None if not found
-    """
-    user_ref = db.collection('users').document(uid)
-    integration_ref = user_ref.collection('integrations').document(app_key)
-    doc = integration_ref.get()
-
-    if doc.exists:
-        return doc.to_dict()
-    return None
-
-
-def set_integration(uid: str, app_key: str, data: dict) -> None:
-    """
-    Save or update an integration connection.
-
-    Args:
-        uid: User ID
-        app_key: Integration app key (e.g., 'google_calendar', 'whoop')
-        data: Connection details to save
-    """
-    user_ref = db.collection('users').document(uid)
-    integration_ref = user_ref.collection('integrations').document(app_key)
-
-    # Add timestamp
-    data['updated_at'] = datetime.now(timezone.utc)
-    if not integration_ref.get().exists:
-        data['created_at'] = datetime.now(timezone.utc)
-
-    integration_ref.set(data, merge=True)
-
-
-def delete_integration(uid: str, app_key: str) -> bool:
-    """
-    Delete an integration connection.
-
-    Args:
-        uid: User ID
-        app_key: Integration app key
-
-    Returns:
-        True if deleted, False if not found
-    """
-    user_ref = db.collection('users').document(uid)
-    integration_ref = user_ref.collection('integrations').document(app_key)
-
-    if not integration_ref.get().exists:
-        return False
-
-    integration_ref.delete()
-    return True
 
 
 # **************************************

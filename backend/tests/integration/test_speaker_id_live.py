@@ -3,7 +3,7 @@
 Tests the FULL flow:
   1. Pre-seed Firestore with person + embedding
   2. Connect /v4/listen with speaker ID enabled
-  3. Send real audio → Deepgram transcribes → segments with speaker_id
+  3. Send real audio → Modulate transcribes → segments with speaker_id
   4. speaker_identification_task loads embeddings from cache
   5. Ring buffer audio extracted → mock embedding API → cosine match
   6. SpeakerLabelSuggestionEvent sent to client
@@ -444,7 +444,7 @@ class TestSpeakerIdEmbeddingMatch:
             assert ws.open
 
             # Send real speech audio — needs to be long enough for:
-            # 1. Deepgram to produce transcript segments with speaker_id
+            # 1. Modulate to produce transcript segments with speaker_id
             # 2. Ring buffer to have ≥2s of audio for extraction
             audio_result = load_test_audio_pcm16(seconds=15)
             if not audio_result:
@@ -518,8 +518,8 @@ class TestTextBasedSpeakerDetection:
     async def test_text_detection_creates_person(self, check_services, mock_embedding_server):
         """When transcript contains 'My name is X', person is created in Firestore.
 
-        This requires Deepgram to transcribe audio containing a name introduction.
-        Since we can't control what Deepgram transcribes from the test WAV,
+        This requires Modulate to transcribe audio containing a name introduction.
+        Since we can't control what Modulate transcribes from the test WAV,
         we verify the mechanism works by checking the text detection function.
         """
         from utils.speaker_identification import detect_speaker_from_text

@@ -63,7 +63,7 @@ class ChatToolExecutor {
 
   // MARK: - Onboarding State
 
-  /// Set by OnboardingChatView before starting the chat
+  /// Set while the active onboarding coordinator owns a permission request.
   static var onboardingAppState: AppState?
   /// Called when AI invokes complete_onboarding
   static var onCompleteOnboarding: (() -> Void)?
@@ -71,26 +71,14 @@ class ChatToolExecutor {
   static var onQuickReplyOptions: ((_ options: [String]) -> Void)?
   /// Called when AI invokes ask_followup — delivers the question text to the UI
   static var onQuickReplyQuestion: ((_ question: String) -> Void)?
-  /// Called when AI invokes save_knowledge_graph — notifies the graph view to update
-  static var onKnowledgeGraphUpdated: (() -> Void)?
-  /// Called when scan_files completes — used to kick off parallel exploration
-  static var onScanFilesCompleted: ((_ fileCount: Int) -> Void)?
   /// Called when request_permission returns "pending" — used to trigger the permission help timer
   static var onPermissionPending: ((_ permissionType: String) -> Void)?
-
-  /// Email/calendar insights from background reading (set by OnboardingChatView)
-  static var emailInsightsText: String?
-  static var calendarInsightsText: String?
-
-  private static var fileScanFileCount = 0
 
   nonisolated static let onboardingPermissionTypes = [
     "screen_recording",
     "microphone",
     "notifications",
     "accessibility",
-    "automation",
-    "full_disk_access",
   ]
 
   nonisolated static var onboardingPermissionTypesDescription: String {
@@ -101,30 +89,14 @@ class ChatToolExecutor {
     screenRecording: Bool,
     microphone: Bool,
     notifications: Bool,
-    accessibility: Bool,
-    automation: Bool,
-    fullDiskAccess: Bool
+    accessibility: Bool
   ) -> [String: String] {
     [
       "screen_recording": screenRecording ? "granted" : "not_granted",
       "microphone": microphone ? "granted" : "not_granted",
       "notifications": notifications ? "granted" : "not_granted",
       "accessibility": accessibility ? "granted" : "not_granted",
-      "automation": automation ? "granted" : "not_granted",
-      "full_disk_access": fullDiskAccess ? "granted" : "not_granted",
     ]
-  }
-
-  struct LocalFileScanOutcome {
-    let hasReadableUserFileTarget: Bool
-    let didCompleteSuccessfully: Bool
-    let indexedFileCount: Int
-    /// User-file folders (e.g. "~/Downloads") the scan could not read because
-    /// access was denied. System targets like /Applications are excluded.
-    let deniedUserFolders: [String]
-    /// Agent-facing markdown scan report for the chat surface. UI surfaces
-    /// must compose their messages from the structured fields instead.
-    let summaryText: String
   }
 
   /// Execute a tool call and return the result as a string
@@ -292,10 +264,6 @@ class ChatToolExecutor {
       AnalyticsManager.shared.onboardingChatToolUsed(tool: "check_permission_status")
       return result
 
-    case .scanFiles:
-      AnalyticsManager.shared.onboardingChatToolUsed(tool: "scan_files")
-      return await executeScanFiles(toolCall.arguments, expectedOwnerID: expectedOwnerID)
-
     case .setUserPreferences:
       let result = await executeSetUserPreferences(
         toolCall.arguments,
@@ -327,33 +295,13 @@ class ChatToolExecutor {
     case .completeOnboarding:
       if !OnboardingChatPersistence.isGoalCompleted {
         return
-          "ERROR: Cannot complete onboarding yet. The user has NOT set their monthly goal. You MUST call ask_followup to ask about their top goal this month BEFORE calling complete_onboarding. Call get_email_insights first for context, then ask the goal question."
+          "ERROR: Cannot complete onboarding yet. The user has NOT set their monthly goal. You MUST call ask_followup to ask about their top goal this month BEFORE calling complete_onboarding."
       }
       let result = await executeCompleteOnboarding(
         toolCall.arguments,
         expectedOwnerID: expectedOwnerID)
       guard isExpectedOwnerCurrent(expectedOwnerID) else { return authorizedOwnerChangedResult() }
       AnalyticsManager.shared.onboardingChatToolUsed(tool: "complete_onboarding")
-      return result
-
-    case .saveKnowledgeGraph:
-      let result = await executeSaveKnowledgeGraph(
-        toolCall.arguments,
-        expectedOwnerID: expectedOwnerID)
-      guard isExpectedOwnerCurrent(expectedOwnerID) else { return authorizedOwnerChangedResult() }
-      let nodeCount = (toolCall.arguments["nodes"] as? [[String: Any]])?.count ?? 0
-      let edgeCount = (toolCall.arguments["edges"] as? [[String: Any]])?.count ?? 0
-      AnalyticsManager.shared.onboardingChatToolUsed(
-        tool: "save_knowledge_graph", properties: ["nodes": nodeCount, "edges": edgeCount])
-      return result
-
-    case .getEmailInsights:
-      let result = executeGetEmailInsights()
-      AnalyticsManager.shared.onboardingChatToolUsed(
-        tool: "get_email_insights",
-        properties: [
-          "has_email": emailInsightsText != nil, "has_calendar": calendarInsightsText != nil,
-        ])
       return result
 
     case .captureScreen:
@@ -367,21 +315,9 @@ class ChatToolExecutor {
         context: telemetryContext,
         expectedOwnerID: expectedOwnerID)
 
-    case .fillCloudConnectorForm:
-      guard
-        let result = await performOwnerBoundAsyncPhysicalEffect(
-          expectedOwnerID: expectedOwnerID,
-          effect: {
-            await CloudConnectorFormAutomation.fill(
-              toolCall.arguments,
-              expectedOwnerID: expectedOwnerID)
-          })
-      else { return authorizedOwnerChangedResult() }
-      return result
-
-    // Backend RAG/calendar tools — call Python backend /v1/tools/* endpoints
+    // Backend RAG/task tools — call Python backend /v1/tools/* endpoints
     case .getConversations, .searchConversations, .getMemories, .searchMemories, .getActionItems,
-      .createActionItem, .updateActionItem, .createCalendarEvent:
+      .createActionItem, .updateActionItem:
       return await executeBackendTool(
         toolCall,
         expectedOwnerID: expectedOwnerID,
@@ -641,7 +577,7 @@ class ChatToolExecutor {
     lines.append(
       "Detail tiles (native resolution). The full screenshot above gets downscaled before you see it, "
         + "which can make small text unreadable. Before quoting or relying on small on-screen text "
-        + "(titles, prices, sizes, labels) or choosing between similar-looking items, Read the tile "
+        + "(titles, prices, sizes, labels) or choosing between similar-looking items, inspect the tile "
         + "covering that part of the screen and take the exact text from it:")
     for tile in tiles {
       let r = tile.rect
@@ -1455,7 +1391,7 @@ class ChatToolExecutor {
 
   /// Resolve the action-item id from `update_action_item` args across surfaces.
   /// Realtime-voice advertises the param as `id` (schemaOverride in
-  /// omi-tool-manifest.ts); chat/pi-mono/stdio advertise `action_item_id`.
+  /// omi-tool-manifest.ts); chat and Pi advertise `action_item_id`.
   /// Accept either so a voice update doesn't hard-fail on its own schema.
   /// Returns nil for missing/empty/non-string, which the caller maps to an error.
   nonisolated static func resolveActionItemID(_ args: [String: Any]) -> String? {
@@ -1724,8 +1660,8 @@ class ChatToolExecutor {
           pane: "Privacy_ScreenCapture",
           expectedOwnerID: expectedOwnerID,
           authorizationSnapshot: authorizationSnapshot)
-        // Same drag-to-grant mechanic as Full Disk Access. macOS pre-registers
-        // the row here, but the card still walks the user to the right toggle —
+        // macOS pre-registers the row here, but the card still walks the user
+        // to the right toggle —
         // and re-adds the app if the row was removed via tccutil or a reset.
         Task { await PermissionDragGuidance.presentDragToGrantHelper() }
         try? await Task.sleep(nanoseconds: 2_000_000_000)
@@ -1740,7 +1676,7 @@ class ChatToolExecutor {
         type: type,
         granted: ScreenCaptureService.checkPermission(),
         pendingMessage:
-          "User needs to toggle Screen Recording for Omi in System Settings. Don't restart yet — the restart is deferred until after Full Disk Access so it happens once.",
+          "User needs to toggle Screen Recording for Omi in System Settings.",
         requiresRestart: false
       )
 
@@ -1818,63 +1754,6 @@ class ChatToolExecutor {
         granted: AXIsProcessTrusted(),
         pendingMessage: "User needs to toggle Accessibility for Omi in System Settings.",
         requiresRestart: false
-      )
-
-    case "automation":
-      guard
-        let status = await triggerAutomationPermissionDirectly(
-          expectedOwnerID: expectedOwnerID,
-          authorizationSnapshot: authorizationSnapshot),
-        isPermissionAuthorizationCurrent(
-          expectedOwnerID,
-          authorizationSnapshot: authorizationSnapshot)
-      else { return authorizedOwnerChangedResult() }
-      let granted = status == noErr
-      appState?.hasAutomationPermission = granted
-      appState?.automationPermissionError = automationPermissionError(for: status)
-      if !granted {
-        _ = openAutomationPrivacySettings(
-          expectedOwnerID: expectedOwnerID,
-          authorizationSnapshot: authorizationSnapshot)
-      }
-      return permissionRequestResult(
-        type: type,
-        granted: granted,
-        pendingMessage: "User needs to toggle Automation for Omi in System Settings.",
-        requiresRestart: false
-      )
-
-    case "full_disk_access":
-      guard
-        isPermissionAuthorizationCurrent(
-          expectedOwnerID,
-          authorizationSnapshot: authorizationSnapshot)
-      else { return authorizedOwnerChangedResult() }
-      // Already granted → skip Settings and the drag card entirely (mirrors
-      // the notifications/automation cases, which only open when denied).
-      if !checkFullDiskAccessDirectly() {
-        _ = openPermissionPrivacySettings(
-          pane: "Privacy_AllFiles",
-          expectedOwnerID: expectedOwnerID,
-          authorizationSnapshot: authorizationSnapshot)
-        // Same drag-to-grant mechanic as Screen Recording: drop the app into the
-        // Full Disk Access list to add and enable it in one gesture.
-        Task { await PermissionDragGuidance.presentDragToGrantHelper() }
-        try? await Task.sleep(nanoseconds: 3_000_000_000)
-        guard
-          isPermissionAuthorizationCurrent(
-            expectedOwnerID,
-            authorizationSnapshot: authorizationSnapshot)
-        else { return authorizedOwnerChangedResult() }
-      }
-      let granted = checkFullDiskAccessDirectly()
-      appState?.hasFullDiskAccess = granted
-      return permissionRequestResult(
-        type: type,
-        granted: granted,
-        pendingMessage:
-          "User needs to toggle Full Disk Access for Omi in System Settings > Privacy & Security > Full Disk Access, then quit and reopen the app. This restart also applies the Screen Recording grant.",
-        requiresRestart: true
       )
 
     default:
@@ -1977,8 +1856,6 @@ class ChatToolExecutor {
     let screenRecordingGranted = ScreenCaptureService.checkPermission()
     let microphoneGranted = AudioCaptureService.checkPermission()
     let accessibilityGranted = AXIsProcessTrusted()
-    let automationStatus = AppState.queryAutomationPermissionStatus()
-    let fullDiskAccessGranted = checkFullDiskAccessDirectly()
     guard
       isPermissionAuthorizationCurrent(
         expectedOwnerID,
@@ -1990,17 +1867,12 @@ class ChatToolExecutor {
     appState?.hasMicrophonePermission = microphoneGranted
     appState?.hasNotificationPermission = notificationsGranted
     appState?.hasAccessibilityPermission = accessibilityGranted
-    appState?.hasAutomationPermission = automationStatus == noErr
-    appState?.automationPermissionError = automationPermissionError(for: automationStatus)
-    appState?.hasFullDiskAccess = fullDiskAccessGranted
 
     return onboardingPermissionStatusPayload(
       screenRecording: screenRecordingGranted,
       microphone: microphoneGranted,
       notifications: notificationsGranted,
-      accessibility: accessibilityGranted,
-      automation: automationStatus == noErr,
-      fullDiskAccess: fullDiskAccessGranted
+      accessibility: accessibilityGranted
     )
   }
 
@@ -2047,62 +1919,6 @@ class ChatToolExecutor {
     }
   }
 
-  private static func triggerAutomationPermissionDirectly(
-    expectedOwnerID: String?,
-    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot?
-  ) async -> OSStatus? {
-    await awaitCancellablePermissionRequest { completion in
-      // The synchronous AppleScript call is the OS permission request and may
-      // outlive cancellation while the TCC prompt is visible. Keep that narrow
-      // request outside the tracked parent, but fence every step and route its
-      // completion through the once-resume cancellation adapter above.
-      Task { @MainActor in
-        guard
-          isPermissionAuthorizationCurrent(
-            expectedOwnerID,
-            authorizationSnapshot: authorizationSnapshot)
-        else {
-          completion(OSStatus(errAEEventNotPermitted))
-          return
-        }
-        let launchScript = NSAppleScript(source: "launch application \"System Events\"")
-        var launchError: NSDictionary?
-        launchScript?.executeAndReturnError(&launchError)
-        try? await Task.sleep(nanoseconds: 500_000_000)
-        guard
-          isPermissionAuthorizationCurrent(
-            expectedOwnerID,
-            authorizationSnapshot: authorizationSnapshot)
-        else {
-          completion(OSStatus(errAEEventNotPermitted))
-          return
-        }
-        let script = NSAppleScript(
-          source: """
-            tell application "System Events"
-              return name of first process whose frontmost is true
-            end tell
-            """)
-        var error: NSDictionary?
-        script?.executeAndReturnError(&error)
-        guard
-          isPermissionAuthorizationCurrent(
-            expectedOwnerID,
-            authorizationSnapshot: authorizationSnapshot)
-        else {
-          completion(OSStatus(errAEEventNotPermitted))
-          return
-        }
-        completion(AppState.queryAutomationPermissionStatus())
-      }
-    }
-  }
-
-  private nonisolated static func automationPermissionError(for status: OSStatus) -> OSStatus {
-    (status == noErr || status == -1743 || status == -1744) ? 0 : status
-  }
-
-  @MainActor
   private static func openPermissionPrivacySettings(
     pane: String,
     expectedOwnerID: String?,
@@ -2139,25 +1955,6 @@ class ChatToolExecutor {
   }
 
   @MainActor
-  static func openAutomationPrivacySettings(
-    expectedOwnerID: String?,
-    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot? = nil,
-    ownerIsCurrent: ((String?) -> Bool)? = nil,
-    open: (URL) -> Bool = { NSWorkspace.shared.open($0) }
-  ) -> Bool {
-    let validateOwner =
-      ownerIsCurrent ?? {
-        isPermissionAuthorizationCurrent($0, authorizationSnapshot: authorizationSnapshot)
-      }
-    guard validateOwner(expectedOwnerID) else { return false }
-    guard
-      let url = URL(
-        string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation")
-    else { return false }
-    return open(url)
-  }
-
-  @MainActor
   static func publishPermissionPendingIfCurrent(
     _ permissionType: String,
     expectedOwnerID: String?,
@@ -2170,329 +1967,6 @@ class ChatToolExecutor {
         authorizationSnapshot: authorizationSnapshot)
     else { return }
     callback?(permissionType)
-  }
-
-  private static func checkFullDiskAccessDirectly() -> Bool {
-    let home = FileManager.default.homeDirectoryForCurrentUser.path
-    let protectedPaths = [
-      "\(home)/Library/Safari",
-      "\(home)/Library/Mail",
-      "\(home)/Library/Messages",
-    ]
-    for path in protectedPaths {
-      if FileManager.default.fileExists(atPath: path) {
-        return (try? FileManager.default.contentsOfDirectory(atPath: path)) != nil
-      }
-    }
-    return false
-  }
-
-  /// Scan files BLOCKING — triggers folder access dialogs, waits for scan, returns results
-  private static func executeScanFiles(
-    _: [String: Any],
-    expectedOwnerID: String?
-  ) async -> String {
-    guard isExpectedOwnerCurrent(expectedOwnerID) else { return authorizedOwnerChangedResult() }
-    let outcome = await scanLocalFiles(expectedOwnerID: expectedOwnerID)
-    guard isExpectedOwnerCurrent(expectedOwnerID) else { return authorizedOwnerChangedResult() }
-    fileScanFileCount = outcome.indexedFileCount
-    onScanFilesCompleted?(outcome.indexedFileCount)
-    return outcome.summaryText
-  }
-
-  static func scanLocalFiles(
-    expectedOwnerID: String? = nil,
-    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot? = nil
-  ) async -> LocalFileScanOutcome {
-    func ownerChangedOutcome() -> LocalFileScanOutcome {
-      LocalFileScanOutcome(
-        hasReadableUserFileTarget: false,
-        didCompleteSuccessfully: false,
-        indexedFileCount: 0,
-        deniedUserFolders: [],
-        summaryText: authorizedOwnerChangedResult())
-    }
-    func isAuthorized() -> Bool {
-      !Task.isCancelled
-        && isExpectedOwnerCurrent(expectedOwnerID, authorizationSnapshot: authorizationSnapshot)
-    }
-
-    guard isAuthorized() else { return ownerChangedOutcome() }
-    let fm = FileManager.default
-    let homeDir = fm.homeDirectoryForCurrentUser
-    let scanTargets: [(label: String, pathForUser: String, url: URL, countsAsUserFileAccess: Bool)] = {
-      var targets: [(String, String, URL, Bool)] = []
-
-      let homeFolders = ["Downloads", "Documents", "Desktop", "Developer", "Projects"]
-      for folder in homeFolders {
-        let url = homeDir.appendingPathComponent(folder)
-        if fm.fileExists(atPath: url.path) {
-          targets.append((folder, "~/\(folder)", url, true))
-        }
-      }
-
-      let applicationsURL = URL(fileURLWithPath: "/Applications")
-      if fm.fileExists(atPath: applicationsURL.path) {
-        targets.append(("Applications", "/Applications", applicationsURL, false))
-      }
-
-      // Apple Notes local stores (container + group container)
-      let notesCandidates: [(String, String, URL, Bool)] = [
-        (
-          "Apple Notes (Container)",
-          "~/Library/Containers/com.apple.Notes/Data/Library/Notes",
-          homeDir.appendingPathComponent("Library/Containers/com.apple.Notes/Data/Library/Notes"),
-          false
-        ),
-        (
-          "Apple Notes (Group)",
-          "~/Library/Group Containers/group.com.apple.notes",
-          homeDir.appendingPathComponent("Library/Group Containers/group.com.apple.notes"),
-          false
-        ),
-      ]
-      for candidate in notesCandidates where fm.fileExists(atPath: candidate.2.path) {
-        targets.append(candidate)
-      }
-
-      return targets
-    }()
-
-    // Pre-check folder access — this triggers macOS TCC dialogs
-    var deniedFolders: [String] = []
-    var deniedUserFolders: [String] = []
-    var accessibleFolders: [URL] = []
-    var readableUserFileTargetCount = 0
-    for target in scanTargets {
-      guard isAuthorized() else { return ownerChangedOutcome() }
-      do {
-        _ = try fm.contentsOfDirectory(
-          at: target.url,
-          includingPropertiesForKeys: [.fileSizeKey],
-          options: [.skipsHiddenFiles]
-        )
-        accessibleFolders.append(target.url)
-        if target.countsAsUserFileAccess {
-          readableUserFileTargetCount += 1
-        }
-      } catch {
-        let nsError = error as NSError
-        if nsError.domain == NSCocoaErrorDomain && nsError.code == 257 {
-          // Permission denied — TCC dialog was shown or already denied
-          deniedFolders.append(target.pathForUser)
-          if target.countsAsUserFileAccess {
-            deniedUserFolders.append(target.pathForUser)
-          }
-        } else {
-          // Other error (e.g. folder doesn't exist) — skip silently
-          log("FileIndexer: Pre-check failed for \(target.label): \(error.localizedDescription)")
-        }
-      }
-    }
-
-    // Actually scan accessible folders (blocking)
-    guard isAuthorized() else { return ownerChangedOutcome() }
-    let shouldContinue: @Sendable () -> Bool = {
-      !Task.isCancelled
-        && ChatToolExecutor.isExpectedOwnerCurrent(
-          expectedOwnerID,
-          authorizationSnapshot: authorizationSnapshot)
-    }
-    let count = await FileIndexerService.shared.scanFolders(
-      accessibleFolders,
-      shouldContinue: shouldContinue)
-    guard isAuthorized() else { return ownerChangedOutcome() }
-    log(
-      "Onboarding file scan completed: \(count) files indexed, \(deniedFolders.count) folders denied"
-    )
-
-    // Build results from database
-    var didCompleteSuccessfully = true
-    var out: String
-    do {
-      out = try await getFileScanResultsFromDB(expectedOwnerID: expectedOwnerID)
-      guard isAuthorized() else { return ownerChangedOutcome() }
-    } catch {
-      didCompleteSuccessfully = false
-      out = "Error: \(error.localizedDescription)"
-    }
-
-    if !deniedFolders.isEmpty {
-      out += "\n\n## FOLDER ACCESS DENIED\n"
-      out += "The following folders were NOT scanned because the user didn't grant access:\n"
-      for folder in deniedFolders {
-        out += "- \(folder)\n"
-      }
-      out +=
-        "\nTell the user to click 'Allow' on the macOS dialogs, then call scan_files again to pick up those folders."
-    }
-
-    return LocalFileScanOutcome(
-      hasReadableUserFileTarget: readableUserFileTargetCount > 0,
-      didCompleteSuccessfully: didCompleteSuccessfully,
-      indexedFileCount: count,
-      deniedUserFolders: deniedUserFolders,
-      summaryText: out)
-  }
-
-  private enum FileScanResultsError: LocalizedError {
-    case databaseNotAvailable
-
-    var errorDescription: String? { "database not available" }
-  }
-
-  /// Get file scan results from the database
-  private static func getFileScanResultsFromDB(expectedOwnerID: String?) async throws -> String {
-    guard isExpectedOwnerCurrent(expectedOwnerID) else { return authorizedOwnerChangedResult() }
-    guard let dbQueue = await RewindDatabase.shared.getDatabaseQueue() else {
-      throw FileScanResultsError.databaseNotAvailable
-    }
-    guard isExpectedOwnerCurrent(expectedOwnerID) else { return authorizedOwnerChangedResult() }
-
-    do {
-      let result = try await dbQueue.read { db in
-        // File type breakdown
-        let typeBreakdown = try Row.fetchAll(
-          db,
-          sql: """
-                SELECT fileType, COUNT(*) as count
-                FROM indexed_files
-                GROUP BY fileType
-                ORDER BY count DESC
-                LIMIT 10
-            """)
-
-        // Project indicators
-        let projectIndicators = try Row.fetchAll(
-          db,
-          sql: """
-                SELECT filename, path FROM indexed_files
-                WHERE filename IN ('package.json', 'Cargo.toml', 'Podfile', 'go.mod',
-                    'requirements.txt', 'Pipfile', 'setup.py', 'pyproject.toml',
-                    'build.gradle', 'pom.xml', 'CMakeLists.txt', 'Makefile',
-                    '.xcodeproj', '.xcworkspace', 'Package.swift', 'Gemfile',
-                    'composer.json', 'mix.exs', 'pubspec.yaml')
-                LIMIT 30
-            """)
-
-        // Recently modified files
-        let recentFiles = try Row.fetchAll(
-          db,
-          sql: """
-                SELECT filename, path, fileType, modifiedAt FROM indexed_files
-                ORDER BY modifiedAt DESC
-                LIMIT 15
-            """)
-
-        // Applications
-        let apps = try Row.fetchAll(
-          db,
-          sql: """
-                SELECT filename, path FROM indexed_files
-                WHERE folder = '/Applications' AND fileExtension = 'app'
-                ORDER BY filename
-                LIMIT 30
-            """)
-
-        let totalCount = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM indexed_files") ?? 0
-
-        var out = "# File Scan Results (\(totalCount) files indexed)\n\n"
-
-        out += "## File Types\n"
-        for row in typeBreakdown {
-          let type = row["fileType"] as? String ?? "unknown"
-          let count = Self.rowInt(row["count"]) ?? 0
-          out += "- \(type): \(count) files\n"
-        }
-
-        out += "\n## Project Indicators (build files found)\n"
-        if projectIndicators.isEmpty {
-          out += "- No project build files found\n"
-        } else {
-          for row in projectIndicators {
-            let filename = row["filename"] as? String ?? ""
-            let path = row["path"] as? String ?? ""
-            // Extract project directory name
-            let dir = (path as NSString).deletingLastPathComponent
-            let projectName = (dir as NSString).lastPathComponent
-            out += "- \(projectName)/\(filename)\n"
-          }
-        }
-
-        out += "\n## Recently Modified Files\n"
-        for row in recentFiles {
-          let filename = row["filename"] as? String ?? ""
-          let fileType = row["fileType"] as? String ?? ""
-          let modifiedAt = row["modifiedAt"] as? String ?? ""
-          out += "- \(filename) (\(fileType)) — modified \(modifiedAt)\n"
-        }
-
-        if !apps.isEmpty {
-          out += "\n## Installed Applications\n"
-          let appNames = apps.compactMap {
-            ($0["filename"] as? String)?.replacingOccurrences(of: ".app", with: "")
-          }
-          out += appNames.joined(separator: ", ")
-          out += "\n"
-        }
-
-        let taskCandidates = try Row.fetchAll(
-          db,
-          sql: """
-                SELECT description, priority, source
-                FROM action_items
-                WHERE deleted = 0 AND completed = 0
-                ORDER BY
-                    CASE priority
-                        WHEN 'high' THEN 0
-                        WHEN 'medium' THEN 1
-                        ELSE 2
-                    END,
-                    COALESCE(relevanceScore, 999) ASC,
-                    createdAt DESC
-                LIMIT 8
-            """)
-
-        if !taskCandidates.isEmpty {
-          out += "\n## Existing Task Candidates\n"
-          for row in taskCandidates {
-            let description = row["description"] as? String ?? ""
-            let priority = row["priority"] as? String ?? "normal"
-            let source = row["source"] as? String ?? "unknown"
-            out += "- [\(priority)] \(description) (source: \(source))\n"
-          }
-        }
-
-        log(
-          "Tool get_file_scan_results: \(totalCount) files, \(projectIndicators.count) projects, \(apps.count) apps"
-        )
-        return out
-      }
-      guard isExpectedOwnerCurrent(expectedOwnerID) else { return authorizedOwnerChangedResult() }
-      return result
-    } catch {
-      logError("Tool get_file_scan_results failed", error: error)
-      throw error
-    }
-  }
-
-  /// Return email/calendar insights from background reading
-  private static func executeGetEmailInsights() -> String {
-    var sections: [String] = []
-
-    if let email = emailInsightsText, !email.isEmpty {
-      sections.append("## Email Insights\n\(email)")
-    }
-    if let calendar = calendarInsightsText, !calendar.isEmpty {
-      sections.append("## Calendar Insights\n\(calendar)")
-    }
-
-    if sections.isEmpty {
-      return
-        "No email insights available yet. The background reading may still be in progress, or no browser with a Gmail session was found."
-    }
-
-    return sections.joined(separator: "\n\n")
   }
 
   /// Set user preferences (language, name)
@@ -2541,111 +2015,6 @@ class ChatToolExecutor {
     return results.joined(separator: ". ") + "."
   }
 
-  // MARK: - Knowledge Graph Tool
-
-  /// Save a knowledge graph extracted by the AI during file exploration
-  private static func executeSaveKnowledgeGraph(
-    _ args: [String: Any],
-    expectedOwnerID: String?
-  ) async -> String {
-    guard isExpectedOwnerCurrent(expectedOwnerID) else { return authorizedOwnerChangedResult() }
-    guard let nodesArray = args["nodes"] as? [[String: Any]] else {
-      return "Error: 'nodes' array is required"
-    }
-    let edgesArray = args["edges"] as? [[String: Any]] ?? []
-
-    let now = Date()
-    var nodeRecords: [LocalKGNodeRecord] = []
-    var edgeRecords: [LocalKGEdgeRecord] = []
-
-    // Deduplicate nodes by label (case-insensitive)
-    var seenLabels: [String: String] = [:]  // lowercase label → nodeId
-    var idRemap: [String: String] = [:]  // original id → canonical id
-
-    for node in nodesArray {
-      guard let id = node["id"] as? String,
-        let label = node["label"] as? String
-      else { continue }
-
-      let nodeType = node["node_type"] as? String ?? "concept"
-      let aliases = node["aliases"] as? [String] ?? []
-      let lowerLabel = label.lowercased()
-
-      if let existingId = seenLabels[lowerLabel] {
-        idRemap[id] = existingId
-        continue
-      }
-
-      seenLabels[lowerLabel] = id
-      idRemap[id] = id
-
-      var aliasesJson: String?
-      if !aliases.isEmpty, let data = try? JSONEncoder().encode(aliases) {
-        aliasesJson = String(data: data, encoding: .utf8)
-      }
-
-      nodeRecords.append(
-        LocalKGNodeRecord(
-          nodeId: id,
-          label: label,
-          nodeType: nodeType,
-          aliasesJson: aliasesJson,
-          sourceFileIds: nil,
-          createdAt: now,
-          updatedAt: now
-        ))
-    }
-
-    for edge in edgesArray {
-      guard let sourceId = edge["source_id"] as? String,
-        let targetId = edge["target_id"] as? String,
-        let label = edge["label"] as? String
-      else { continue }
-
-      let remappedSource = idRemap[sourceId] ?? sourceId
-      let remappedTarget = idRemap[targetId] ?? targetId
-
-      // Skip self-referencing edges
-      guard remappedSource != remappedTarget else { continue }
-
-      let edgeId =
-        "\(remappedSource)_\(remappedTarget)_\(label.lowercased().replacingOccurrences(of: " ", with: "_"))"
-      edgeRecords.append(
-        LocalKGEdgeRecord(
-          edgeId: edgeId,
-          sourceNodeId: remappedSource,
-          targetNodeId: remappedTarget,
-          label: label,
-          createdAt: now
-        ))
-    }
-
-    do {
-      guard isExpectedOwnerCurrent(expectedOwnerID) else {
-        return authorizedOwnerChangedResult()
-      }
-      try await KnowledgeGraphStorage.shared.mergeGraph(
-        nodes: nodeRecords,
-        edges: edgeRecords,
-        authorization: LocalMutationAuthorization {
-          isExpectedOwnerCurrent(expectedOwnerID)
-        })
-      guard isExpectedOwnerCurrent(expectedOwnerID) else {
-        return authorizedOwnerChangedResult()
-      }
-      log("Local graph built with \(nodeRecords.count) nodes, \(edgeRecords.count) edges")
-      onKnowledgeGraphUpdated?()
-      return
-        "OK: saved \(nodeRecords.count) nodes and \(edgeRecords.count) edges to local knowledge graph"
-    } catch LocalMutationAuthorizationError.revoked {
-      return authorizedOwnerChangedResult()
-    } catch {
-      logError("Tool save_knowledge_graph failed", error: error)
-      return "Error: \(error.localizedDescription)"
-    }
-  }
-
-  /// Present a follow-up question with quick-reply options to the user
   private static func executeAskFollowup(
     _ args: [String: Any],
     expectedOwnerID: String?
@@ -2678,7 +2047,6 @@ class ChatToolExecutor {
       ("screen_recording", appState.hasScreenRecordingPermission),
       ("microphone", appState.hasMicrophonePermission),
       ("accessibility", appState.hasAccessibilityPermission),
-      ("automation", appState.hasAutomationPermission),
     ]
     for (name, granted) in permissions {
       if granted {
@@ -2699,10 +2067,7 @@ class ChatToolExecutor {
     onCompleteOnboarding = nil
     onQuickReplyOptions = nil
     onQuickReplyQuestion = nil
-    onKnowledgeGraphUpdated = nil
-    onScanFilesCompleted = nil
     onPermissionPending = nil
-    fileScanFileCount = 0
 
     return "Onboarding completed successfully! The app is now set up."
   }
@@ -2886,36 +2251,6 @@ class ChatToolExecutor {
                 authorizationSnapshot: currentOwnerAuthorizationSnapshot)
             })
         else { return authorizedOwnerChangedResult() }
-        return resp.resultText
-
-      case "create_calendar_event":
-        guard let rawTitle = args["title"] as? String else {
-          return "Error: title is required"
-        }
-        let title = rawTitle.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !title.isEmpty else {
-          return "Error: title is required"
-        }
-        guard let startTime = args["start_time"] as? String, !startTime.isEmpty else {
-          return "Error: start_time is required"
-        }
-        guard let endTime = args["end_time"] as? String, !endTime.isEmpty else {
-          return "Error: end_time is required"
-        }
-        let validatedStart = validateISODate(startTime, paramName: "start_time")
-        if let error = validatedStart.error { return error }
-        let validatedEnd = validateISODate(endTime, paramName: "end_time")
-        if let error = validatedEnd.error { return error }
-        let resp = try await api.toolCreateCalendarEvent(
-          title: title,
-          startTime: validatedStart.valid ?? startTime,
-          endTime: validatedEnd.valid ?? endTime,
-          description: args["description"] as? String,
-          location: args["location"] as? String,
-          attendees: args["attendees"] as? String,
-          expectedOwnerId: expectedOwnerID,
-          authorizationSnapshot: currentOwnerAuthorizationSnapshot
-        )
         return resp.resultText
 
       default:

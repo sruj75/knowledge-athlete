@@ -71,7 +71,6 @@ def main(argv: list[str] | None = None) -> int:
         (
             report.vector_sync_failures,
             report.keyword_sync_failures,
-            report.kg_invalidation_failures,
         )
     )
     return 1 if report.cohort_gated or report.errors or derived_sync_failed else 0

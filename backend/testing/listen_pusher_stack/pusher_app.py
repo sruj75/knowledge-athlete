@@ -1,9 +1,9 @@
 """Instrumented entrypoint for the real pusher ASGI application.
 
 It preserves the production WebSocket router, wire protocol, Firestore jobs,
-leases, fanout claims, and result frames.  The three provider-side finalizer
+leases, derived-effect claims, and result frames. The provider-side finalizer
 leaves are replaced before importing ``pusher.main`` so a local test cannot
-call LLMs, vector stores, or user integrations.
+call LLMs or vector stores.
 """
 
 from __future__ import annotations
@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import time
 from pathlib import Path
 from typing import Any
 
@@ -46,31 +47,26 @@ def _offline_process_conversation(uid: str, _language: str, conversation: Any, *
 
 
 def _offline_extract_memories(_uid: str, _conversation: Any) -> None:
-    _record({'event': 'memory_extraction_skipped'})
-
-
-async def _offline_trigger_integrations(_uid: str, conversation: Any, *, idempotency_key: str, **_kwargs: Any) -> None:
+    conversation_id = str(_conversation.id)
     release_file = os.getenv('OMI_STACK_INLINE_FINALIZATION_RELEASE_FILE')
     if release_file:
         release_path = Path(release_file)
-        _record({'event': 'inline_finalization_hold_entered', 'conversation_id': str(conversation.id)})
+        _record({'event': 'inline_finalization_hold_entered', 'conversation_id': conversation_id})
         while not release_path.exists():
-            await asyncio.sleep(0.01)
-        _record({'event': 'inline_finalization_hold_released', 'conversation_id': str(conversation.id)})
+            time.sleep(0.01)
+        _record({'event': 'inline_finalization_hold_released', 'conversation_id': conversation_id})
     _record(
         {
-            'event': 'integration_fanout_skipped',
-            'conversation_id': str(conversation.id),
-            'fanout_key_present': bool(idempotency_key),
+            'event': 'memory_extraction_skipped',
+            'conversation_id': conversation_id,
         }
     )
 
 
-# Patch imported leaves, not finalizer ownership.  Its real Firestore
-# persistence, fanout claim/completion and fenced disposition continue to run.
+# Patch imported leaves, not finalizer ownership. Its real Firestore
+# persistence, derived-effect claim/completion and fenced disposition continue to run.
 finalizer.process_conversation = _offline_process_conversation
 finalizer.extract_memories = _offline_extract_memories
-finalizer.trigger_external_integrations = _offline_trigger_integrations
 
 from routers import pusher as pusher_router  # noqa: E402  (patch finalizer first)
 

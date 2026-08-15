@@ -36,15 +36,53 @@ def test_child_pythonpath_uses_the_selected_host_separator(tmp_path: Path) -> No
 
 def test_offline_check_skips_provider_credentials(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-    monkeypatch.delenv("DEEPGRAM_API_KEY", raising=False)
+    monkeypatch.delenv("MODULATE_API_KEY", raising=False)
     monkeypatch.setenv("PROVIDER_MODE", "offline")
     monkeypatch.setenv("OMI_LOCAL_STATE_ROOT", str(tmp_path / "state"))
     cfg = config.load_config(REPO_ROOT)
 
     missing, warnings = cli.prerequisite_report(cfg)
 
-    assert not any("OPENAI_API_KEY" in item or "DEEPGRAM_API_KEY" in item for item in missing)
+    assert not any("OPENAI_API_KEY" in item or "MODULATE_API_KEY" in item for item in missing)
     assert any("offline" in item for item in warnings)
+
+
+def test_offline_app_commands_install_stt_fake_factories(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("PROVIDER_MODE", "offline")
+    monkeypatch.setenv("OMI_LOCAL_STATE_ROOT", str(tmp_path / "state"))
+    cfg = config.load_config(REPO_ROOT)
+
+    backend_command = cli._uvicorn_app_command(
+        cfg,
+        app_target="main:app",
+        offline_factory="backend_app",
+        port=cfg.backend_port,
+    )
+    desktop_command = cli._uvicorn_app_command(
+        cfg,
+        app_target="desktop_backend:app",
+        offline_factory="desktop_backend_app",
+        port=cfg.desktop_backend_port,
+    )
+
+    assert backend_command[3:5] == ["--factory", "testing.e2e.offline_app:backend_app"]
+    assert desktop_command[3:5] == ["--factory", "testing.e2e.offline_app:desktop_backend_app"]
+
+
+def test_real_app_commands_keep_production_entry_points(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("PROVIDER_MODE", "real")
+    monkeypatch.setenv("OMI_LOCAL_STATE_ROOT", str(tmp_path / "state"))
+    cfg = config.load_config(REPO_ROOT)
+
+    command = cli._uvicorn_app_command(
+        cfg,
+        app_target="main:app",
+        offline_factory="backend_app",
+        port=cfg.backend_port,
+    )
+
+    assert command[3] == "main:app"
+    assert "--factory" not in command
 
 
 def test_real_check_lists_provider_credentials(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -53,7 +91,7 @@ def test_real_check_lists_provider_credentials(monkeypatch: pytest.MonkeyPatch, 
     (repo / "AGENTS.md").write_text("agents", encoding="utf-8")
     (repo / ".git").mkdir()
     (repo / "backend").mkdir()
-    for key in ("OPENAI_API_KEY", "DEEPGRAM_API_KEY", "GEMINI_API_KEY", "ANTHROPIC_API_KEY"):
+    for key in ("OPENAI_API_KEY", "MODULATE_API_KEY", "GEMINI_API_KEY", "ANTHROPIC_API_KEY"):
         monkeypatch.delenv(key, raising=False)
     monkeypatch.setenv("PROVIDER_MODE", "real")
     monkeypatch.setenv("OMI_LOCAL_STATE_ROOT", str(tmp_path / "state"))
@@ -62,7 +100,7 @@ def test_real_check_lists_provider_credentials(monkeypatch: pytest.MonkeyPatch, 
     missing, _warnings = cli.prerequisite_report(cfg)
 
     assert any("OPENAI_API_KEY" in item for item in missing)
-    assert any("DEEPGRAM_API_KEY" in item for item in missing)
+    assert any("MODULATE_API_KEY" in item for item in missing)
 
 
 def test_firebase_command_writes_the_configured_emulator_ports(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:

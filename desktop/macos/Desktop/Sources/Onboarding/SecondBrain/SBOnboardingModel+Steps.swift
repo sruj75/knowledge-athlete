@@ -34,49 +34,11 @@ extension SBOnboardingModel {
       scrState = .waiting
       ScreenCaptureService.requestScreenRecordingAccessAndOpenSettings()
       pollPermission(key)
-    case "full_disk_access":
-      requestFullDiskAccess()
     case "accessibility":
       accState = .waiting
       appState.triggerAccessibilityPermission()
       pollPermission(key)
-    case "automation":
-      requestAutomation()
     default: break
-    }
-  }
-
-  func requestFullDiskAccess() {
-    fdaState = .waiting
-    if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles") {
-      NSWorkspace.shared.open(url)
-      // Show the drag-to-grant helper card (drag the Omi icon into the FDA list),
-      // matching Screen Recording's flow. Full Disk Access has no in-place toggle,
-      // so the drag card is the fastest grant path (#9742). Both FDA entry points
-      // (the permission step and the Files connector) route through here.
-      Task { await PermissionDragGuidance.presentDragToGrantHelper() }
-    }
-    pollPermission("full_disk_access")
-  }
-
-  /// Fire the Automation (Apple Events) TCC prompt by touching System Events,
-  /// then poll for the grant. Mirrors the legacy request_permission=automation path.
-  func requestAutomation() {
-    autoState = .waiting
-    // NSAppleScript is main-thread-only; running it off-main (the old bug) meant
-    // the TCC prompt never fired. Launch System Events, then send a REAL Apple
-    // Event (that send is what surfaces the Automation prompt), then detect
-    // without re-prompting via checkAutomationPermission().
-    Task { @MainActor [weak self] in
-      guard let self else { return }
-      NSAppleScript(source: "launch application \"System Events\"")?.executeAndReturnError(nil)
-      try? await Task.sleep(nanoseconds: 1_000_000_000)
-      var err: NSDictionary?
-      NSAppleScript(
-        source: "tell application \"System Events\" to return name of first process whose frontmost is true"
-      )?.executeAndReturnError(&err)
-      self.appState.checkAutomationPermission()
-      self.pollPermission("automation")
     }
   }
 
@@ -107,7 +69,7 @@ extension SBOnboardingModel {
           return
         }
       }
-      // Timed out without a grant. FDA/Accessibility routinely exceed 20s (open
+      // Timed out without a grant. Accessibility routinely exceeds 20s (open
       // System Settings → authenticate → toggle), so re-arm the Allow button
       // instead of stranding the row on "macOS…" forever.
       guard let self, !Task.isCancelled else { return }
@@ -163,9 +125,7 @@ extension SBOnboardingModel {
       appState.checkScreenRecordingPermission()
       appState.checkSystemAudioPermission()
     case "screen_recording": appState.checkScreenRecordingPermission()
-    case "full_disk_access": appState.checkFullDiskAccess()
     case "accessibility": appState.checkAccessibilityPermission()
-    case "automation": appState.checkAutomationPermission()
     default: appState.checkAllPermissions()
     }
   }
@@ -205,9 +165,7 @@ extension SBOnboardingModel {
     case "system_audio":
       return appState.hasSystemAudioPermission || appState.systemAudioPermissionStatus == .unsupported
     case "screen_recording": return appState.hasScreenRecordingPermission
-    case "full_disk_access": return appState.hasFullDiskAccess
     case "accessibility": return appState.hasAccessibilityPermission && !appState.isAccessibilityBroken
-    case "automation": return appState.hasAutomationPermission
     default: return false
     }
   }
@@ -223,23 +181,7 @@ extension SBOnboardingModel {
     case "screen_recording":
       scrState = .on
       primeScreenCaptureConsentIfNeeded()
-    case "full_disk_access":
-      fdaState = .on
-      // The Files connector row shares the FDA grant; reflect it here so the row
-      // flips to "on" when FDA is granted from the context step — its poll only
-      // drives fdaState, unlike every other connector that writes back its own state.
-      contextStates["files"] = "on"
-      // Apple Notes reads through the same FDA grant, so re-probe it here too —
-      // otherwise granting FDA leaves Notes showing a pointless "Connect" button.
-      if contextStates["applenotes"] != "on" {
-        Task { [weak self] in
-          if await AppleNotesReaderService.shared.connectionStatus().isConnected {
-            self?.contextStates["applenotes"] = "on"
-          }
-        }
-      }
     case "accessibility": accState = .on
-    case "automation": autoState = .on
     default: break
     }
   }
@@ -251,9 +193,7 @@ extension SBOnboardingModel {
     case "microphone": micState = .ask
     case "system_audio": sysState = .ask
     case "screen_recording": scrState = .ask
-    case "full_disk_access": fdaState = .ask
     case "accessibility": accState = .ask
-    case "automation": autoState = .ask
     default: break
     }
   }
@@ -263,69 +203,15 @@ extension SBOnboardingModel {
     case "microphone": return micState
     case "system_audio": return sysState
     case "screen_recording": return scrState
-    case "full_disk_access": return fdaState
     case "accessibility": return accState
-    case "automation": return autoState
     default: return .ask
     }
   }
 
   func answerMic() { advance(userAnswer: micState == .on ? "Allowed" : "Skip", to: .systemAudio) }
   func answerSystemAudio() { advance(userAnswer: sysState == .on ? "Allowed" : "Skip", to: .screen) }
-  func answerScreen() { advance(userAnswer: scrState == .on ? "Allowed" : "Skip", to: .files) }
-  /// Restores the legacy Files-stage contract: scan what is readable after the
-  /// Full Disk Access choice, then form the aggregate local-file memories
-  /// before moving on. A skipped FDA grant still scans folders macOS permits.
-  func answerFiles() {
-    switch localFileProfileState {
-    case .idle:
-      thread.append(Msg(isOmi: false, text: fdaState == .on ? "Allowed" : "Skip"))
-      startLocalFileScan()
-    case .scanning:
-      break
-    case .complete, .failed:
-      finishFilesStep()
-    }
-  }
-
-  func startLocalFileScan() {
-    guard case .idle = localFileProfileState, localFileScanTask == nil else { return }
-    localFileProfileState = .scanning
-    let taskID = UUID()
-    localFileScanID = taskID
-    localFileScanTask = Task { [weak self] in
-      guard let self else { return }
-      defer {
-        if self.localFileScanID == taskID {
-          self.localFileScanTask = nil
-          self.localFileScanID = nil
-        }
-      }
-      let result = await self.fileScanRunner(self.appState)
-      guard !Task.isCancelled, self.step == .files, self.localFileScanID == taskID else { return }
-      self.localFileProfileState = result
-      if case .complete = result {
-        UserDefaults.standard.set(true, forKey: DefaultsKey.hasCompletedFileIndexing.rawValue)
-        // If the app closes before the user taps Continue, resuming at Files
-        // would otherwise run the scan and import a second time. The scan is
-        // complete, so resume at the next stage instead.
-        UserDefaults.standard.set(Step.accessibility.rawValue, forKey: Self.resumeStepKey)
-      }
-    }
-  }
-
-  func retryLocalFileScan() {
-    guard case .failed = localFileProfileState else { return }
-    localFileProfileState = .idle
-    startLocalFileScan()
-  }
-
-  func finishFilesStep() {
-    guard localFileProfileState.isTerminal else { return }
-    advance(userAnswer: nil, to: .accessibility)
-  }
-  func answerAccessibility() { advance(userAnswer: accState == .on ? "Allowed" : "Skip", to: .automation) }
-  func answerAutomation() { advance(userAnswer: autoState == .on ? "Allowed" : "Skip", to: .shortcutOpen) }
+  func answerScreen() { advance(userAnswer: scrState == .on ? "Allowed" : "Skip", to: .accessibility) }
+  func answerAccessibility() { advance(userAnswer: accState == .on ? "Allowed" : "Skip", to: .shortcutOpen) }
 
   /// Advance past a permission step automatically once its grant lands — but only
   /// when the user is still ON that step, so a late poll never skips a step they've
@@ -336,9 +222,7 @@ extension SBOnboardingModel {
     case .mic: answerMic()
     case .systemAudio: answerSystemAudio()
     case .screen: answerScreen()
-    case .files: answerFiles()
     case .accessibility: answerAccessibility()
-    case .automation: answerAutomation()
     default: break
     }
   }
@@ -349,9 +233,7 @@ extension SBOnboardingModel {
     case .mic: return "microphone"
     case .systemAudio: return "system_audio"
     case .screen: return "screen_recording"
-    case .files: return "full_disk_access"
     case .accessibility: return "accessibility"
-    case .automation: return "automation"
     default: return nil
     }
   }
@@ -365,12 +247,6 @@ extension SBOnboardingModel {
     var step = target
     while let key = permissionKey(for: step) {
       refreshPermCheck(key)
-      // A pre-granted FDA permission must still visit Files once so this flow
-      // performs the required scan and aggregate-memory formation.
-      if step == .files, isGranted(key), !localFileProfileState.isTerminal {
-        setPermOn(key)
-        break
-      }
       guard isGranted(key), let next = Step(rawValue: step.rawValue + 1) else { break }
       setPermOn(key)
       step = next
@@ -623,416 +499,5 @@ extension SBOnboardingModel {
     return tokens.isEmpty ? ["fn"] : tokens
   }
 
-  func answerScreenDemo() { advance(userAnswer: "Continue", to: .agents) }
-}
-
-// MARK: - Agents (do things for you)
-
-extension SBOnboardingModel {
-  var agentRows: [(id: String, name: String, detail: String)] {
-    [
-      ("openclaw", "OpenClaw", "runs tasks on your Mac"),
-      ("hermes", "Hermes", "autonomous background agent"),
-      ("claudeCode", "Claude Code", "codes in your repos"),
-      ("codex", "Codex", "OpenAI's coding agent"),
-    ]
-  }
-
-  private func agentDestination(_ id: String) -> MemoryExportDestination {
-    switch id {
-    case "openclaw": return .openclaw
-    case "hermes": return .hermes
-    case "claudeCode": return .claudeCode
-    case "codex": return .codex
-    default: return .openclaw
-    }
-  }
-
-  /// Brand mark for a connector row (agents + context), so every row shows its
-  /// real logo even when the app isn't installed (#10210). Brands without a
-  /// bundled logo (openclaw/hermes/files) fall back to the icon's default glyph.
-  func connectorBrand(_ id: String) -> ConnectorBrand {
-    switch id {
-    case "openclaw": return .openclaw
-    case "hermes": return .hermes
-    case "claudeCode": return .claudeCode
-    case "codex": return .codex
-    case "calendar": return .calendar
-    case "gmail": return .gmail
-    case "applenotes": return .appleNotes
-    case "files": return .localFiles
-    case "chatgpt": return .chatgpt
-    case "claude": return .claude
-    default: return .agents
-    }
-  }
-
-  func refreshAgentStates() {
-    // Show a "checking" placeholder up front so a not-installed agent never briefly
-    // offers a "Connect" button that only flips to "not installed" after a click
-    // (the async install probe below resolves each row to its real state).
-    for row in agentRows where agentStates[row.id] == nil {
-      agentStates[row.id] = "checking"
-    }
-    Task { [weak self] in
-      guard let self else { return }
-      for row in self.agentRows {
-        // Only offer Connect for agents actually present on this Mac; otherwise
-        // mark "unavailable" so the row shows "not installed" with no button.
-        let installed = await Self.agentInstalled(self.agentDestination(row.id))
-        guard installed else {
-          self.agentStates[row.id] = "unavailable"
-          continue
-        }
-        let connected = await MemoryExportService.shared.status(for: self.agentDestination(row.id)).hasConnection
-        self.agentStates[row.id] = connected ? "on" : "idle"
-      }
-    }
-  }
-
-  /// Local install probe using the SAME evidence the real connect path requires,
-  /// so a row never offers "Connect" and then flips to "not installed" on click
-  /// (e.g. Codex: a stray `~/.codex` dir is not enough — the connector needs the
-  /// `codex` binary on PATH). Delegates to `MemoryBankConnector.isInstalled`.
-  private static func agentInstalled(_ destination: MemoryExportDestination) async -> Bool {
-    await Task.detached { MemoryBankConnector.isInstalled(destination) }.value
-  }
-
-  func connectAgent(_ id: String) {
-    guard agentStates[id] != "connecting", agentStates[id] != "checking", agentStates[id] != "on" else { return }
-    agentStates[id] = "connecting"
-    let dest = agentDestination(id)
-    Task { [weak self] in
-      do {
-        _ = try await MemoryExportExecutor.run(dest)
-      } catch {
-        self?.agentStates[id] = "unavailable"
-        return
-      }
-      guard let self else { return }
-      let connected = await MemoryExportService.shared.status(for: dest).hasConnection
-      self.agentStates[id] = connected ? "on" : "idle"
-    }
-  }
-
-  func answerAgents() { advance(userAnswer: "Continue", to: .context) }
-}
-
-// MARK: - Context (connect what I can see)
-
-extension SBOnboardingModel {
-  enum ContextConnectionRoute: Equatable {
-    case importConnector(String)
-    case direct
-  }
-
-  struct GoogleContextResolution: Equatable {
-    let state: String
-    let detail: String?
-    let shouldOpenSignIn: Bool
-  }
-
-  var contextRows: [(id: String, name: String, detail: String)] {
-    [
-      ("calendar", "Calendar", "meetings + prep"),
-      ("gmail", "Gmail", "email follow-ups"),
-      ("applenotes", "Apple Notes", "your notes"),
-      ("files", "Files", "docs on this Mac"),
-      ("chatgpt", "ChatGPT", "carry memory across"),
-      ("claude", "Claude", "carry memory across"),
-    ]
-  }
-
-  func refreshContextStates() {
-    if appState.hasFullDiskAccess { contextStates["files"] = "on" }
-    Task { [weak self] in
-      guard let self else { return }
-      // Apple Notes rides the same Full Disk Access grant that powers Files, so a
-      // readable NoteStore should show "✓ on" up front — not a "Connect" button
-      // that would only flip to on for nothing (this precheck was missing, which
-      // made the row look fake).
-      if self.contextStates["applenotes"] != "on",
-        await AppleNotesReaderService.shared.connectionStatus().isConnected
-      {
-        self.contextStates["applenotes"] = "on"
-      }
-
-      // Do not probe browser cookies just to decorate a fresh onboarding row.
-      // A functional probe without a completed import used to paint "on" even
-      // though post-onboarding Home/Apps had no persisted connector state and
-      // no imported data. Only re-check a connector that this account already
-      // completed through the canonical import path; a new source stays
-      // explicitly connectable until the user starts that import.
-      guard self.hasPersistedGoogleImport("calendar") || self.hasPersistedGoogleImport("gmail") else {
-        return
-      }
-      if self.hasPersistedGoogleImport("calendar") {
-        let calendar = await CalendarReaderService.shared.verifyConnection()
-        self.projectGoogleVerification("calendar", status: calendar)
-      }
-      if self.hasPersistedGoogleImport("gmail") {
-        let gmail = await GmailReaderService.shared.verifyConnection()
-        self.projectGoogleVerification("gmail", status: gmail)
-      }
-    }
-  }
-
-  private func hasPersistedGoogleImport(_ contextID: String) -> Bool {
-    guard
-      let statusStore = importConnectorStatusStore,
-      let connector = ImportConnector.all.first(where: {
-        $0.id == Self.importConnectorID(forGoogleContextID: contextID)
-      })
-    else { return false }
-    return statusStore.snapshot(for: connector).isConnected
-  }
-
-  private func markGoogleContextImported(_ id: String) {
-    contextStates[id] = "on"
-    contextDetails[id] = nil
-  }
-
-  private func projectGoogleVerification(_ id: String, status: CalendarConnectionStatus) {
-    switch status {
-    case .connected:
-      markGoogleContextImported(id)
-    case .needsSignIn:
-      projectGoogleContext(id, connected: false, needsSignIn: true)
-    case .error:
-      projectGoogleContext(id, connected: false, needsSignIn: false)
-    }
-  }
-
-  private func projectGoogleVerification(_ id: String, status: GmailConnectionStatus) {
-    switch status {
-    case .connected:
-      markGoogleContextImported(id)
-    case .needsSignIn:
-      projectGoogleContext(id, connected: false, needsSignIn: true)
-    case .error:
-      projectGoogleContext(id, connected: false, needsSignIn: false)
-    }
-  }
-
-  /// ChatGPT and Claude on this surface mean importing existing memories into
-  /// Omi. Live MCP exports are a separate Apps > Exports action and must never
-  /// be substituted here.
-  nonisolated static func contextConnectionRoute(for id: String) -> ContextConnectionRoute {
-    switch id {
-    case "chatgpt", "claude":
-      return .importConnector(id)
-    default:
-      return .direct
-    }
-  }
-
-  nonisolated static func importConnectorID(forGoogleContextID id: String) -> String {
-    id == "gmail" ? "email" : "calendar"
-  }
-
-  nonisolated static func googleContextResolution(
-    connectorID: String,
-    connected: Bool,
-    needsSignIn: Bool
-  ) -> GoogleContextResolution {
-    if connected {
-      return GoogleContextResolution(state: "on", detail: nil, shouldOpenSignIn: false)
-    }
-    let name = connectorID == "gmail" ? "Gmail" : "Google Calendar"
-    let detail =
-      needsSignIn
-      ? "Open \(name) in Chrome, Arc, Brave, or Edge, sign in, then retry."
-      : "Couldn't verify \(name). Check your browser session and connection, then retry."
-    return GoogleContextResolution(
-      state: needsSignIn ? "needsSignIn" : "error",
-      detail: detail,
-      shouldOpenSignIn: needsSignIn
-    )
-  }
-
-  /// Projects a cookie-based Google import/probe into bounded onboarding copy.
-  /// Reconnect-required terminal imports open the browser separately; passive
-  /// refreshes must only show an honest retry state, never steal focus.
-  private func projectGoogleContext(_ id: String, connected: Bool, needsSignIn: Bool) {
-    let resolution = Self.googleContextResolution(
-      connectorID: id,
-      connected: connected,
-      needsSignIn: needsSignIn
-    )
-    contextStates[id] = resolution.state
-    contextDetails[id] = resolution.detail
-  }
-
-  func connectContext(_ id: String) {
-    guard contextStates[id] != "connecting", contextStates[id] != "on" else { return }
-    // The view owns import-sheet presentation. Keep this guard so another
-    // caller cannot accidentally route a memory import into the MCP exporter.
-    guard Self.contextConnectionRoute(for: id) == .direct else { return }
-    switch id {
-    case "calendar":
-      startGoogleContextImport("calendar") { progress in
-        await ConnectorImportOperations.importCalendar(progress: progress)
-      }
-    case "gmail":
-      startGoogleContextImport("gmail") { progress in
-        await ConnectorImportOperations.importGmail(progress: progress)
-      }
-    case "applenotes":
-      Task { [weak self] in
-        guard let self else { return }
-        // Full Disk Access covers Notes when it applies; if not, grant a
-        // security-scoped folder bookmark (the real, re-sign-proof connect path).
-        var status = await AppleNotesReaderService.shared.connectionStatus()
-        if status.isConnected {
-          self.contextStates["applenotes"] = "on"
-          return
-        }
-        let pickedPath: String? = await MainActor.run {
-          let panel = NSOpenPanel()
-          panel.canChooseDirectories = true
-          panel.canChooseFiles = false
-          panel.allowsMultipleSelection = false
-          panel.prompt = "Grant access"
-          panel.message = "Pick your Notes data folder so I can read it."
-          panel.directoryURL = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Group Containers/group.com.apple.notes")
-          return panel.runModal() == .OK ? panel.url?.path : nil
-        }
-        guard let path = pickedPath else {
-          self.contextStates["applenotes"] = "needsSignIn"
-          return
-        }
-        do {
-          _ = try await AppleNotesReaderService.shared.validateSelectedFolder(path: path)
-          status = await AppleNotesReaderService.shared.connectionStatus(selectedFolderPath: path)
-          self.contextStates["applenotes"] = status.isConnected ? "on" : "needsSignIn"
-        } catch {
-          self.contextStates["applenotes"] = "needsSignIn"
-        }
-      }
-    case "files":
-      appState.checkFullDiskAccess()
-      if appState.hasFullDiskAccess {
-        contextStates["files"] = "on"
-      } else {
-        requestFullDiskAccess()
-        contextStates["files"] = "idle"
-      }
-    default: break
-    }
-  }
-
-  /// Starts Gmail/Calendar through the exact shared importer that Apps uses.
-  /// Success is deliberately a three-part predicate: the browser auth worked
-  /// for a real data read, that read/import completed, and the account-scoped
-  /// connector status persisted for the surface shown after onboarding.
-  private func startGoogleContextImport(
-    _ contextID: String,
-    operation: @escaping @MainActor (ConnectorImportRunner.ProgressSink) async -> ConnectorImportOperations.Outcome
-  ) {
-    guard
-      let statusStore = importConnectorStatusStore,
-      let connector = ImportConnector.all.first(where: {
-        $0.id == Self.importConnectorID(forGoogleContextID: contextID)
-      })
-    else {
-      projectGoogleContext(contextID, connected: false, needsSignIn: false)
-      return
-    }
-
-    let connectorID = connector.id
-    let wasFirstSync = !statusStore.snapshot(for: connector).isConnected
-    contextStates[contextID] = "connecting"
-    contextDetails[contextID] = nil
-    let task = ConnectorImportRunner.shared.start(
-      connectorID: connectorID,
-      progressTitle: "Connecting to \(connector.title)",
-      progressDetail: "Reading data and saving it to your Omi memory.",
-      surface: .onboarding
-    ) { [self] progress in
-      let outcome = await operation(progress)
-      let terminal = completeGoogleContextImport(
-        contextID: contextID,
-        connectorID: connectorID,
-        outcome: outcome,
-        statusStore: statusStore,
-        wasFirstSync: wasFirstSync
-      )
-      if case .failure(_, let metrics) = terminal,
-        let failureClass = metrics.failureClass,
-        IntegrationConnectTelemetry.failureRequiresReconnect(failureClass),
-        let url = URL(string: contextID == "gmail" ? "https://mail.google.com" : "https://calendar.google.com")
-      {
-        NSWorkspace.shared.open(url)
-      }
-      return terminal
-    }
-    if task == nil {
-      // A shared Apps/onboarding import is already running. Don't leave the
-      // row spinning indefinitely; the persisted status is updated by that
-      // authoritative run and the user can retry once it settles.
-      contextStates[contextID] = "error"
-      contextDetails[contextID] = "This connection is already syncing. Wait a moment, then retry."
-    }
-  }
-
-  /// Applies an import terminal exactly once. Keeping this state transition in
-  /// the onboarding model makes the durable Apps/Home status and the visible
-  /// onboarding status change together, so one cannot report a false success.
-  func completeGoogleContextImport(
-    contextID: String,
-    connectorID: String,
-    outcome: ConnectorImportOperations.Outcome,
-    statusStore: ImportConnectorStatusStore,
-    wasFirstSync: Bool
-  ) -> ConnectorImportRunner.RunOutcome {
-    switch outcome {
-    case .success(let result, let message):
-      statusStore.markSynced(
-        connectorID: connectorID,
-        sourceCount: result.sourceCount,
-        memoryCount: result.memoryCount,
-        lastDeltaCount: result.newItems
-      )
-      markGoogleContextImported(contextID)
-      return .success(
-        message: message,
-        metrics: ConnectorImportRunner.RunMetrics(
-          sourceCount: result.sourceCount,
-          memoryCount: result.memoryCount,
-          wasFirstSync: wasFirstSync
-        )
-      )
-    case .failure(let message, let failureClass):
-      let reconnectRequired = failureClass.map(IntegrationConnectTelemetry.failureRequiresReconnect) ?? false
-      projectGoogleContext(contextID, connected: false, needsSignIn: reconnectRequired)
-      return .failure(
-        message: message,
-        metrics: ConnectorImportRunner.RunMetrics(
-          failureClass: failureClass,
-          wasFirstSync: wasFirstSync
-        )
-      )
-    }
-  }
-
-  func markContextImportConnected(_ connectorID: String) {
-    guard Self.contextConnectionRoute(for: connectorID) == .importConnector(connectorID) else { return }
-    contextStates[connectorID] = "on"
-    contextDetails[connectorID] = nil
-  }
-
-  /// Receives the canonical persisted connector ID from the shared import
-  /// status store. Gmail's context-row ID differs from its Apps ID (`gmail`
-  /// vs `email`), so translate at this one authority boundary rather than
-  /// allowing a completed shared import to leave the onboarding row stale.
-  func markPersistedContextConnectorConnected(_ connectorID: String) {
-    switch connectorID {
-    case "calendar": markGoogleContextImported("calendar")
-    case "email": markGoogleContextImported("gmail")
-    default: markContextImportConnected(connectorID)
-    }
-  }
-
-  func answerContext() { advance(userAnswer: "Continue", to: .capture) }
+  func answerScreenDemo() { advance(userAnswer: "Continue", to: .capture) }
 }

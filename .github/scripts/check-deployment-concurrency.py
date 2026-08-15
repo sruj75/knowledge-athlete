@@ -60,16 +60,9 @@ LOCK_CONTRACTS = {
     "gcp_notifications_job.yml": LockContract(
         "deploy-cloud-run-notifications-job-${{ github.event.inputs.environment }}"
     ),
-    "gcp_parakeet.yml": LockContract("deploy-gke-parakeet-${{ github.event.inputs.environment }}"),
 }
 
-
-# This workflow writes a run-ID-scoped Kubernetes Job and does not mutate the
-# persistent Parakeet release. The required marker makes the exemption fail
-# closed if that isolation is removed.
-RUN_SCOPED_EXEMPTIONS = {
-    "parakeet_gpu_tests.yml": "JOB_NAME: parakeet-gpu-test-${{ github.run_id }}",
-}
+RUN_SCOPED_EXEMPTIONS: dict[str, str] = {}
 
 READ_ONLY_WORKFLOW_EXEMPTIONS: dict[str, str] = {}
 
@@ -309,7 +302,7 @@ def validate_phase_aware_backend_promotion(name: str, text: str) -> list[str]:
         )
     ):
         errors.append(f"{name}: pre-promotion snapshot must use the canonical Cloud Run snapshot helper")
-    for service in ("backend", "backend-sync", "backend-sync-backfill", "backend-integration"):
+    for service in ("backend", "backend-sync"):
         if f"--service {service}" not in snapshot_step:
             errors.append(f"{name}: pre-promotion snapshot must include {service}")
 
@@ -541,7 +534,6 @@ def validate_shared_families(groups: dict[str, str]) -> list[str]:
         "gcp_models.yml",
         "gcp_nllb_translation.yml",
         "gcp_notifications_job.yml",
-        "gcp_parakeet.yml",
     )
     for name in environment_scoped:
         if resolve_environment(groups[name], "development") == resolve_environment(groups[name], "prod"):
@@ -806,8 +798,6 @@ jobs:
           python3 backend/scripts/cloud_run_traffic_snapshot.py capture \\
             --service backend \\
             --service backend-sync \\
-            --service backend-sync-backfill \\
-            --service backend-integration \\
             --output cloud-run-pre-promotion-traffic-snapshot.json
       - name: Shift Cloud Run traffic to validated revisions
         id: shift-cloud-run-traffic

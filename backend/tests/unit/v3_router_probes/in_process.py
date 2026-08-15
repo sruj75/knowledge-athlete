@@ -53,7 +53,6 @@ def probe_real_router_get_testclient_under_stubs() -> dict[str, Any]:
         "upsert_memory_vectors_batch": False,
         "delete_memory_vector": False,
         "delete_memory_vectors_batch": False,
-        "update_personas_async": False,
         "executor_submit": False,
         "run_blocking": False,
     }
@@ -127,7 +126,6 @@ def probe_get_dependency_auth_under_stubs() -> dict[str, Any]:
         "upsert_memory_vectors_batch": False,
         "delete_memory_vector": False,
         "delete_memory_vectors_batch": False,
-        "update_personas_async": False,
         "executor_submit": False,
         "run_blocking": False,
     }

@@ -9,7 +9,7 @@ from models.memory_contracts import L1MemoryArchiveClass
 from models.other import Person
 from models.transcript_segment import TranscriptSegment
 from database.users import get_user_language_preference
-from utils.prompts import extract_memories_prompt, extract_learnings_prompt, extract_memories_text_content_prompt
+from utils.prompts import extract_memories_prompt, extract_learnings_prompt
 from utils.llms.memory import get_prompt_memories
 from utils.llm.temporal import current_date_for_uid
 from utils.llm.usage_tracker import Features, track_usage
@@ -39,7 +39,7 @@ class ExtractedMemory(BaseModel):
         if isinstance(v, MemoryCategory):
             return v
         if isinstance(v, str):
-            if v in {'interesting', 'system', 'manual', 'workflow'}:
+            if v in {'interesting', 'system', 'manual'}:
                 return v
             if v in LEGACY_TO_NEW_CATEGORY:
                 return LEGACY_TO_NEW_CATEGORY[v]
@@ -49,7 +49,6 @@ class ExtractedMemory(BaseModel):
         return Memory(
             content=self.content,
             category=self.category,
-            visibility='private',
             tags=self.tags,
             headline=self.headline,
         )
@@ -94,16 +93,6 @@ class MemoryExtractionError(RuntimeError):
     def __init__(self, extractor: str):
         self.extractor = extractor
         super().__init__(f"{extractor} failed before producing a valid extraction result")
-
-
-class MemoriesByTexts(BaseModel):
-    facts: List[ExtractedMemory] = Field(
-        description="List of **new** facts. If any",
-        default=[],
-    )
-
-    def to_memories(self) -> List[Memory]:
-        return [fact.to_memory() for fact in self.facts]
 
 
 # Map for converting legacy categories to new format
@@ -233,56 +222,6 @@ def new_memories_extractor(
         return []
 
 
-def extract_memories_from_text(
-    uid: str,
-    text: str,
-    text_source: str,
-    user_name: Optional[str] = None,
-    memories_str: Optional[str] = None,
-    language: Optional[str] = None,
-    content_date: Optional[str] = None,
-    *,
-    strict: bool = False,
-) -> List[Memory]:
-    """Extract memories from external integration text sources like email, posts, messages"""
-    if user_name is None or memories_str is None:
-        user_name, memories_str = get_prompt_memories(uid)
-
-    if not text or len(text) == 0:
-        return []
-
-    language_instruction = _get_language_instruction(uid, language)
-
-    try:
-        parser = PydanticOutputParser(pydantic_object=MemoriesByTexts)
-        with track_usage(uid, Features.MEMORIES):
-            chain = extract_memories_text_content_prompt | get_llm('memories') | parser
-            response: MemoriesByTexts = chain.invoke(
-                {
-                    'user_name': user_name,
-                    'text_content': text,
-                    'text_source': text_source,
-                    'memories_str': memories_str,
-                    'language_instruction': language_instruction,
-                    'current_date': content_date or current_date_for_uid(uid),
-                    'format_instructions': parser.get_format_instructions(),
-                }
-            )
-
-        # Ensure all new memories use the new category format
-        memories = response.to_memories()
-        for memory in memories:
-            if memory.category in LEGACY_TO_NEW_CATEGORY:
-                memory.category = LEGACY_TO_NEW_CATEGORY[memory.category]
-
-        return memories
-    except Exception as e:
-        logger.error("Error extracting facts from %s: %s", text_source, type(e).__name__)
-        if strict:
-            raise MemoryExtractionError("external_text_memory_extractor") from e
-        return []
-
-
 class Learnings(BaseModel):
     result: List[str] = Field(
         min_length=0,
@@ -331,8 +270,8 @@ def new_learnings_extractor(
 
 def identify_category_for_memory(memory: str) -> MemoryCategory:
     """
-    Identify the category for an externally-provided memory.
-    Used when memories come from MCP or developer API where we don't know
+    Identify the category for an unclassified memory.
+    Used when a caller provides content where we don't know
     if it's a fact about the user (system) or external insight (interesting).
 
     Args:

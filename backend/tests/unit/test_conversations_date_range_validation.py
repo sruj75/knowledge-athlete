@@ -109,16 +109,12 @@ def conv():
         "utils.conversations.render": AutoMockModule("utils.conversations.render"),
         "utils.conversations.process_conversation": AutoMockModule("utils.conversations.process_conversation"),
         "utils.conversations.search": AutoMockModule("utils.conversations.search"),
-        "utils.conversations.calendar_linking": AutoMockModule("utils.conversations.calendar_linking"),
         "utils.conversations.calendar_utils": AutoMockModule("utils.conversations.calendar_utils"),
         "utils.conversations.location": AutoMockModule("utils.conversations.location"),
         "utils.conversations.analytics": AutoMockModule("utils.conversations.analytics"),
         # utils.llm / speaker / integrations / retrieval
         "utils.llm.conversation_processing": AutoMockModule("utils.llm.conversation_processing"),
         "utils.speaker_identification": AutoMockModule("utils.speaker_identification"),
-        "utils.app_integrations": AutoMockModule("utils.app_integrations"),
-        "utils.retrieval.tools.calendar_tools": AutoMockModule("utils.retrieval.tools.calendar_tools"),
-        "utils.retrieval.tools.google_utils": AutoMockModule("utils.retrieval.tools.google_utils"),
         # utils.memory.*
         "utils.memory": memory_pkg,
         "utils.memory.memory_service": memory_service_stub,

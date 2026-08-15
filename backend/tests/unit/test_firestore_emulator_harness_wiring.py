@@ -32,20 +32,6 @@ def test_memory_firestore_rules_emulator_harness_is_wired_to_all_protected_colle
         assert assertion in harness
 
 
-def test_memory_firestore_rules_emulator_harness_denies_app_key_self_grant_path():
-    harness = (_REPO_ROOT / "backend" / "scripts" / "firestore_rules_emulator_test.mjs").read_text()
-    package_config = json.loads((_REPO_ROOT / "package.json").read_text())
-
-    assert "users/memory-emulator-user/memory_control/app_key_memory_grants" in harness
-    assert "client-self-grant" in harness
-    assert "grants.developer_api.apps.client-app.keys.client-key" in harness
-    assert "test:memory-app-key-grants-rules:emulator" in package_config["scripts"]
-    assert (
-        "backend/scripts/firestore_rules_emulator_test.mjs"
-        in package_config["scripts"]["test:memory-app-key-grants-rules:emulator"]
-    )
-
-
 def test_memory_firestore_transaction_emulator_harness_is_wired() -> None:
     harness_path = _REPO_ROOT / "backend" / "scripts" / "firestore_transaction_emulator_test.mjs"
     script = harness_path.read_text()

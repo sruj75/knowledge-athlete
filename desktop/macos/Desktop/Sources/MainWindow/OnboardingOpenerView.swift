@@ -56,7 +56,7 @@ struct OnboardingOpenerView: View {
 
   private func startFromOpener(_ question: String) {
     AnalyticsManager.shared.chatMessageSent(
-      messageLength: question.count, hasSelectedAppContext: false, source: "onboarding_opener")
+      messageLength: question.count, source: "onboarding_opener")
     chatProvider.dismissOnboardingOpener()
     Task { await chatProvider.sendMainDraft(question) }
   }

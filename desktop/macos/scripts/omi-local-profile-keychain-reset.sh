@@ -38,12 +38,10 @@ fi
 
 BASE_SERVICES=(
   "com.omi.desktop.firebase-rest-session"
-  "com.omi.desktop.local-agent-api"
   "com.omi.client-device-id"
 )
 ACCOUNTS=(
   "firebase-rest-tokens"
-  "local-agent-api-token"
   "install-uuid"
 )
 

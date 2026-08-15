@@ -248,14 +248,6 @@ def _clock() -> DeterministicContext:
             "alice_long_edu": "mem_alice_long_edu_030",
             "alice_archive": "mem_alice_archive_030",
             "bob_long": "mem_bob_long_030",
-            "kg_alice": "kg_alice_030",
-            "kg_jordan": "kg_jordan_030",
-            "kg_mia": "kg_mia_030",
-            "kg_omi": "kg_omi_030",
-            "kg_sf": "kg_sf_030",
-            "kg_portland": "kg_portland_030",
-            "kg_warp": "kg_warp_030",
-            "kg_pixel": "kg_pixel_030",
             "projection_commit": "projection_commit_local_030",
             "source_commit": "source_commit_local_030",
         },
@@ -470,42 +462,6 @@ def _projection_item(
     )
 
 
-def _kg_node(uid: str, node_id: str, label: str, node_type: str, *, memory_ids: Sequence[str] = ()) -> FirestoreSeed:
-    label_lower = label.lower()
-    return FirestoreSeed(
-        path=f"users/{uid}/knowledge_nodes/{node_id}",
-        protected=True,
-        data={
-            "id": node_id,
-            "label": label,
-            "node_type": node_type,
-            "aliases": [],
-            "memory_ids": list(memory_ids),
-            "created_at": "2026-01-10T09:00:00Z",
-            "updated_at": "2026-01-10T09:00:00Z",
-            "label_lower": label_lower,
-            "aliases_lower": [],
-        },
-    )
-
-
-def _kg_edge(
-    uid: str, edge_id: str, source_id: str, target_id: str, label: str, *, memory_ids: Sequence[str] = ()
-) -> FirestoreSeed:
-    return FirestoreSeed(
-        path=f"users/{uid}/knowledge_edges/{edge_id}",
-        protected=True,
-        data={
-            "id": edge_id,
-            "source_id": source_id,
-            "target_id": target_id,
-            "label": label,
-            "memory_ids": list(memory_ids),
-            "created_at": "2026-01-10T09:00:00Z",
-        },
-    )
-
-
 def _alice_default_memory_ids(ctx: DeterministicContext) -> tuple[str, ...]:
     short_keys = (
         "alice_short_active",
@@ -536,52 +492,6 @@ def _alice_default_memory_ids(ctx: DeterministicContext) -> tuple[str, ...]:
         "alice_short_flights",
     )
     return tuple(ctx.ids[key] for key in (*short_keys, *long_keys))
-
-
-def _alice_knowledge_graph_seeds(uid: str, ctx: DeterministicContext) -> list[FirestoreSeed]:
-    ids = ctx.ids
-    long_work = ids["alice_long_work"]
-    long_partner = ids["alice_long_partner"]
-    long_sf = ids["alice_long_pref_sf"]
-    long_warp = ids["alice_long_tool_warp"]
-    long_pet = ids["alice_long_pet"]
-    long_sister = ids["alice_long_family_sister"]
-    long_birthplace = ids["alice_long_birthplace"]
-    return [
-        _kg_node(uid, ids["kg_alice"], "Alice", "person"),
-        _kg_node(uid, ids["kg_jordan"], "Jordan Chen", "person", memory_ids=(long_partner,)),
-        _kg_node(uid, ids["kg_mia"], "Mia", "person", memory_ids=(long_sister,)),
-        _kg_node(uid, ids["kg_omi"], "Omi", "organization", memory_ids=(long_work,)),
-        _kg_node(uid, ids["kg_sf"], "San Francisco", "place", memory_ids=(long_sf,)),
-        _kg_node(uid, ids["kg_portland"], "Portland", "place", memory_ids=(long_birthplace,)),
-        _kg_node(uid, ids["kg_warp"], "Warp", "thing", memory_ids=(long_warp,)),
-        _kg_node(uid, ids["kg_pixel"], "Pixel", "thing", memory_ids=(long_pet,)),
-        _kg_edge(uid, "kg_edge_alice_lives_sf_030", ids["kg_alice"], ids["kg_sf"], "lives_in", memory_ids=(long_sf,)),
-        _kg_edge(
-            uid, "kg_edge_alice_works_omi_030", ids["kg_alice"], ids["kg_omi"], "works_at", memory_ids=(long_work,)
-        ),
-        _kg_edge(
-            uid,
-            "kg_edge_alice_partner_jordan_030",
-            ids["kg_alice"],
-            ids["kg_jordan"],
-            "partner",
-            memory_ids=(long_partner,),
-        ),
-        _kg_edge(
-            uid, "kg_edge_alice_sister_mia_030", ids["kg_alice"], ids["kg_mia"], "sibling", memory_ids=(long_sister,)
-        ),
-        _kg_edge(uid, "kg_edge_alice_uses_warp_030", ids["kg_alice"], ids["kg_warp"], "uses", memory_ids=(long_warp,)),
-        _kg_edge(uid, "kg_edge_alice_pet_pixel_030", ids["kg_alice"], ids["kg_pixel"], "owns", memory_ids=(long_pet,)),
-        _kg_edge(
-            uid,
-            "kg_edge_alice_from_portland_030",
-            ids["kg_alice"],
-            ids["kg_portland"],
-            "grew_up_in",
-            memory_ids=(long_birthplace,),
-        ),
-    ]
 
 
 def _base_firestore(
@@ -623,7 +533,7 @@ def _base_firestore(
         ("alice_short_yoga", "Alice has yoga class Wednesday at 07:00 at Mission Yoga Studio.", "2026-01-13T06:30:00Z"),
         (
             "alice_short_presentation",
-            "Alice is preparing slides for next week's product review on Brain Map UX.",
+            "Alice is preparing slides for next week's product review on memory search UX.",
             "2026-01-12T13:20:00Z",
         ),
         (
@@ -641,7 +551,7 @@ def _base_firestore(
         ),
         (
             "alice_short_presentation",
-            "Alice is preparing slides for next week's product review on Brain Map UX.",
+            "Alice is preparing slides for next week's product review on memory search UX.",
             "2026-01-12T13:20:00Z",
             "work",
         ),
@@ -782,7 +692,6 @@ def _base_firestore(
         memory_id = ctx.ids[key]
         _append_sourced_memory(seeds, uid, key, memory_id, "long_term", content, captured)
         seeds.append(_projection_item(uid, memory_id, content, captured, category=category))
-    seeds.extend(_alice_knowledge_graph_seeds(uid, ctx))
     return seeds
 
 
@@ -807,8 +716,6 @@ def _expected_protected() -> tuple[ExpectedProtectedCollectionChange, ...]:
         ExpectedProtectedCollectionChange(f"users/{ALICE_USER_ID}/memory_items", ()),
         ExpectedProtectedCollectionChange(f"users/{ALICE_USER_ID}/memory_evidence", ()),
         ExpectedProtectedCollectionChange(f"users/{ALICE_USER_ID}/v3_compatibility_projection_items", ()),
-        ExpectedProtectedCollectionChange(f"users/{ALICE_USER_ID}/knowledge_nodes", ()),
-        ExpectedProtectedCollectionChange(f"users/{ALICE_USER_ID}/knowledge_edges", ()),
         ExpectedProtectedCollectionChange(f"users/{BOB_USER_ID}/memory_items", ()),
     )
 

@@ -4,7 +4,7 @@ validate_merge_compatibility rejects a soft-deleted source at admission, but
 perform_merge_async re-fetches the sources later in the background task. If a source
 becomes a soft-deleted tombstone between admission and that fetch (the delete-vs-merge
 race), the worker must abort — otherwise it resurrects the deleted source's
-transcript/photos/audio into a new visible conversation and then re-deletes the sources.
+transcript/audio into a new visible conversation and then re-deletes the sources.
 """
 
 import os
@@ -30,6 +30,7 @@ def _warm_merge_imports():
 
 def _install(monkeypatch, sources):
     monkeypatch.setattr(merge.conversations_db, "get_conversation", lambda uid, cid: sources.get(cid))
+    monkeypatch.setattr(merge.conversations_db, "conversation_has_legacy_photos", lambda *_args, **_kwargs: False)
     fail = MagicMock()
     monkeypatch.setattr(merge, "_handle_merge_failure", fail)
     create = MagicMock()
@@ -67,7 +68,6 @@ def test_merge_does_not_abort_when_no_source_is_deleted(monkeypatch):
     )
     monkeypatch.setattr(merge, "_normalize_conversation_timestamps", lambda convs: convs)
     monkeypatch.setattr(merge, "_merge_transcript_segments", lambda convs: [])
-    monkeypatch.setattr(merge, "_collect_all_photos", lambda uid, convs: [])
     monkeypatch.setattr(merge, "_copy_audio_chunks_for_merge", lambda uid, convs, new_id: [])
     monkeypatch.setattr(merge, "Conversation", lambda **kw: MagicMock(**{'model_dump.return_value': {}}))
     create.side_effect = RuntimeError("stop at build; the guard already let us through")
@@ -75,6 +75,26 @@ def test_merge_does_not_abort_when_no_source_is_deleted(monkeypatch):
     merge.perform_merge_async('u1', ['c1', 'c2'])
 
     create.assert_called_once()  # got past the deleted guard into the build step
+
+
+def test_merge_aborts_before_build_when_a_source_has_legacy_child_photos(monkeypatch):
+    fail, create = _install(
+        monkeypatch,
+        {
+            'c1': {'id': 'c1', 'status': 'completed'},
+            'c2': {'id': 'c2', 'status': 'completed'},
+        },
+    )
+    monkeypatch.setattr(
+        merge.conversations_db,
+        "conversation_has_legacy_photos",
+        lambda _uid, conversation_id, **_kwargs: conversation_id == 'c1',
+    )
+
+    merge.perform_merge_async('u1', ['c1', 'c2'])
+
+    fail.assert_called_once()
+    create.assert_not_called()
 
 
 def test_merge_renews_processing_lease_during_live_processing(monkeypatch):
@@ -98,12 +118,11 @@ def test_merge_renews_processing_lease_during_live_processing(monkeypatch):
         'c2': {'id': 'c2', 'status': 'completed', 'started_at': None},
     }
     monkeypatch.setattr(merge.conversations_db, "get_conversation", lambda uid, cid: sources.get(cid))
+    monkeypatch.setattr(merge.conversations_db, "conversation_has_legacy_photos", lambda *_args, **_kwargs: False)
     monkeypatch.setattr(merge, "_handle_merge_failure", MagicMock())
     monkeypatch.setattr(merge, "_normalize_conversation_timestamps", lambda convs: convs)
     monkeypatch.setattr(merge, "_merge_transcript_segments", lambda convs: [])
-    monkeypatch.setattr(merge, "_collect_all_photos", lambda uid, convs: [])
     monkeypatch.setattr(merge, "_copy_audio_chunks_for_merge", lambda uid, convs, new_id: [])
-    monkeypatch.setattr(merge, "_determine_visibility", lambda convs: 'private')
     monkeypatch.setattr(merge, "_shared_client_device_provenance", lambda convs: (None, None))
     monkeypatch.setattr(
         merge,

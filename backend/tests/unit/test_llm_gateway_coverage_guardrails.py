@@ -108,13 +108,6 @@ def test_generated_gateway_lanes_apply_only_declared_gateway_route_overrides():
         assert route.provider_options == expected_options
 
 
-def test_persona_auth_tiers_resolve_to_fixed_gateway_models():
-    overrides = load_generated_route_overrides()
-
-    assert overrides['persona_chat'].primary.model == 'gpt-5.4-nano'
-    assert overrides['persona_chat_premium'].primary.model == 'gpt-5.6-luna'
-
-
 def test_anthropic_generated_lanes_do_not_advertise_streaming_without_adapter_support():
     config = load_gateway_config(prod_mode=True)
 

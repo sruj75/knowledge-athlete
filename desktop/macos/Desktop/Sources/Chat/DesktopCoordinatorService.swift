@@ -119,7 +119,6 @@ struct DesktopCoordinatorIntentSyntaxFacts: Equatable {
   var explicitSessionId: String?
   var explicitRunId: String?
   var parentRunId: String?
-  var explicitProvider: String?
   var requestedAgentCount: Int?
 
   var payload: [String: Any] {
@@ -128,7 +127,6 @@ struct DesktopCoordinatorIntentSyntaxFacts: Equatable {
     if let explicitSessionId { result["explicitSessionId"] = explicitSessionId }
     if let explicitRunId { result["explicitRunId"] = explicitRunId }
     if let parentRunId { result["parentRunId"] = parentRunId }
-    if let explicitProvider { result["explicitProvider"] = explicitProvider }
     if let requestedAgentCount { result["requestedAgentCount"] = requestedAgentCount }
     return result
   }
@@ -143,7 +141,6 @@ struct DesktopCoordinatorRouteDecision: Equatable {
   let explanation: String
   let sessionId: String?
   let runId: String?
-  let requestedProvider: String?
   let requestedAgentCount: Int?
   let parentRunId: String?
   let missing: [String]
@@ -434,12 +431,8 @@ final class DesktopCoordinatorService {
     title: String?,
     pillId: UUID,
     originSurface: DesktopCoordinatorOriginSurface,
-    provider: String?,
     parentRunId: String?,
     visible: Bool,
-    model: String?,
-    harnessMode: AgentHarnessMode?,
-    cwd: String?,
     producerJournal: DesktopCoordinatorProducerJournalDescriptor? = nil
   ) async throws -> DesktopCoordinatorSpawnedAgent {
     let batch = try await spawnAgents(
@@ -448,12 +441,8 @@ final class DesktopCoordinatorService {
       pillId: pillId,
       requestedAgentCount: 1,
       originSurface: originSurface,
-      provider: provider,
       parentRunId: parentRunId,
       visible: visible,
-      model: model,
-      harnessMode: harnessMode,
-      cwd: cwd,
       producerJournal: producerJournal
     )
     guard let first = batch.agents.first else {
@@ -471,12 +460,8 @@ final class DesktopCoordinatorService {
     pillId: UUID?,
     requestedAgentCount: Int,
     originSurface: DesktopCoordinatorOriginSurface,
-    provider: String?,
     parentRunId: String?,
     visible: Bool,
-    model: String?,
-    harnessMode: AgentHarnessMode?,
-    cwd: String?,
     producerJournal: DesktopCoordinatorProducerJournalDescriptor? = nil
   ) async throws -> DesktopCoordinatorSpawnBatch {
     let boundedCount = max(1, min(requestedAgentCount, 8))
@@ -502,11 +487,7 @@ final class DesktopCoordinatorService {
       input["externalRefId"] = pillId.uuidString
     }
     if let title, !title.isEmpty { input["title"] = title }
-    if let provider, !provider.isEmpty { input["provider"] = provider }
     if let parentRunId, !parentRunId.isEmpty { input["parentRunId"] = parentRunId }
-    if let model, !model.isEmpty { input["model"] = model }
-    if let harnessMode { input["adapterId"] = AgentRuntimeRouting.adapterId(for: harnessMode).rawValue }
-    if let cwd, !cwd.isEmpty { input["cwd"] = cwd }
     let raw = try await callRuntimeControlTool(ToolName.spawnAgent, input: input)
     return try parseSpawnedAgents(from: raw)
   }
@@ -526,11 +507,9 @@ final class DesktopCoordinatorService {
   func continueAgent(
     sessionId: String,
     prompt: String,
-    originSurface: DesktopCoordinatorOriginSurface,
-    model: String?,
-    cwd: String?
+    originSurface: DesktopCoordinatorOriginSurface
   ) async throws -> DesktopCoordinatorAgentRunInspection {
-    var input: [String: Any] = [
+    let input: [String: Any] = [
       "sessionId": sessionId,
       "prompt": prompt,
       "mode": "act",
@@ -538,8 +517,6 @@ final class DesktopCoordinatorService {
       "originSurfaceKind": originSurface.rawValue,
       "metadata": ["uiProjection": "floating_bar"],
     ]
-    if let model, !model.isEmpty { input["model"] = model }
-    if let cwd, !cwd.isEmpty { input["cwd"] = cwd }
     let raw = try await callRuntimeControlTool(ToolName.sendAgentMessage, input: input)
     return parseInspectedRun(from: raw)
   }
@@ -990,7 +967,6 @@ final class DesktopCoordinatorService {
       explanation: explanation,
       sessionId: stringValue(route["sessionId"]),
       runId: stringValue(route["runId"]),
-      requestedProvider: stringValue(route["requestedProvider"]),
       requestedAgentCount: intValue(route["requestedAgentCount"]),
       parentRunId: stringValue(route["parentRunId"]),
       missing: route["missing"] as? [String] ?? [],

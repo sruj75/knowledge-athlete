@@ -14,10 +14,8 @@ from langchain_core.messages import SystemMessage
 from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel, Field
 
-from models.app import App
 from models.calendar_context import CalendarMeetingContext
 from models.conversation import Conversation
-from models.conversation_photo import ConversationPhoto
 from models.structured import ActionItem, Event, Structured
 from models.structured_extraction import ActionItemsExtraction, StructuredExtraction
 from .clients import get_llm, get_llm_gateway_chat_structured, parser
@@ -525,25 +523,17 @@ def _submit_conversation_action_items_shadow(
     )
 
 
-def should_discard_conversation(
-    transcript: str, photos: Optional[List[ConversationPhoto]] = None, duration_seconds: Optional[float] = None
-) -> bool:
+def should_discard_conversation(transcript: str, duration_seconds: Optional[float] = None) -> bool:
     # If there's a long transcript, it's very unlikely we want to discard it.
     # This is a performance optimization to avoid unnecessary LLM calls.
     word_count = _word_count(transcript) if transcript and transcript.strip() else 0
     if word_count > 100:
         return False
-    has_photos = photos and ConversationPhoto.photos_as_string(photos) != 'None'
-
     context_parts: List[str] = []
     if transcript and transcript.strip():
         context_parts.append(f"Transcript: ```{transcript.strip()}```")
 
-    if has_photos:
-        photo_descriptions = ConversationPhoto.photos_as_string(photos) if photos else 'None'
-        context_parts.append(f"Photo Descriptions from a wearable camera:\n{photo_descriptions}")
-
-    # If there is no content to process (e.g., empty transcript and no photo descriptions), discard.
+    # If there is no transcript content to process, discard.
     if not context_parts:
         return True
 
@@ -561,7 +551,7 @@ def should_discard_conversation(
                 "Generic filler words, acknowledgments, or incomplete thoughts in short conversations should be discarded."
             )
 
-    prompt_template = '''You will receive a transcript, a series of photo descriptions from a wearable camera, or both. Your task is to decide if this content is meaningful enough to be saved as a memory.
+    prompt_template = '''You will receive a transcript. Your task is to decide if this content is meaningful enough to be saved as a memory.
 
 Task: Decide if the content should be saved as conversation summary.
 {duration_context}
@@ -573,14 +563,13 @@ KEEP (output: discard = False) if the content contains any of the following:
 • Personal facts, preferences, or details likely useful later (e.g., remembering a person, place, or object).
 • An important event, social interaction, or significant moment with meaningful context or consequences.
 • An insight, summary, or key takeaway that provides value.
-• A visually significant scene (e.g., a whiteboard with notes, a document, a memorable view, a person's face).
 
 DISCARD (output: discard = True) if the content is:
 • Trivial conversation snippets (e.g., brief apologies, casual remarks, single-sentence comments without context).
 • Very brief interactions (5-10 seconds) that lack actionable content or meaningful context.
 • Casual acknowledgments, greetings, or passing comments that don't contain useful information (e.g., "okay", "hmm", "yeah sure", "sorry", "hello", "alright").
 • Incomplete or fragmented speech that doesn't convey a clear meaning.
-• Blurry photos, uninteresting scenery with no context, or content that doesn't meet the KEEP criteria above.
+• Content that doesn't meet the KEEP criteria above.
 • Feels like asking Siri or other AI assistant something in 1-2 sentences or using voice to type something in a chat for 5-10 seconds.
 
 Return exactly one line:
@@ -617,12 +606,11 @@ Content:
 
 def _build_conversation_context(
     transcript: str,
-    photos: Optional[List[ConversationPhoto]] = None,
     calendar_meeting_context: Optional['CalendarMeetingContext'] = None,
 ) -> str:
     """Build the conversation context string shared across LLM prompts.
 
-    Produces a deterministic string from transcript, photos, and calendar context.
+    Produces a deterministic string from transcript and calendar context.
     Used as the second system message (after static instructions) so that the static
     instruction prefix enables cross-conversation OpenAI prompt caching.
 
@@ -653,11 +641,6 @@ CALENDAR MEETING CONTEXT:
     if transcript and transcript.strip():
         context_parts.append(f"Transcript: ```{transcript.strip()}```")
 
-    if photos:
-        photo_descriptions = ConversationPhoto.photos_as_string(photos)
-        if photo_descriptions != 'None':
-            context_parts.append(f"Photo Descriptions from a wearable camera:\n{photo_descriptions}")
-
     return "\n\n".join(context_parts)
 
 
@@ -666,7 +649,6 @@ def extract_action_items(
     started_at: datetime,
     language_code: str,
     tz: str,
-    photos: Optional[List[ConversationPhoto]] = None,
     existing_action_items: Optional[List[Dict[str, Any]]] = None,
     calendar_meeting_context: Optional['CalendarMeetingContext'] = None,
     output_language_code: Optional[str] = None,
@@ -680,7 +662,6 @@ def extract_action_items(
         started_at: When the conversation started
         language_code: Language code for the conversation
         tz: User's timezone
-        photos: Optional conversation photos
         existing_action_items: Open action items semantically related to this
             conversation (top vector matches, recently active). Caller is
             expected to pre-filter to open items only; this function defends
@@ -689,7 +670,7 @@ def extract_action_items(
     Returns:
         List of extracted ActionItem objects
     """
-    conversation_context = _build_conversation_context(transcript, photos, calendar_meeting_context)
+    conversation_context = _build_conversation_context(transcript, calendar_meeting_context)
     if not conversation_context:
         return []
 
@@ -1068,7 +1049,6 @@ def get_transcript_structure(
     language_code: str,
     tz: str,
     uid: str,
-    photos: Optional[List[ConversationPhoto]] = None,
     calendar_meeting_context: Optional['CalendarMeetingContext'] = None,
     output_language_code: Optional[str] = None,
 ) -> Structured:
@@ -1076,7 +1056,7 @@ def get_transcript_structure(
     # this pure processing module in isolation without the full LLM package.
     from utils.llm.usage_tracker import Features, track_usage
 
-    conversation_context = _build_conversation_context(transcript, photos, calendar_meeting_context)
+    conversation_context = _build_conversation_context(transcript, calendar_meeting_context)
     if not conversation_context:
         return Structured()  # Should be caught by discard logic, but as a safeguard.
 
@@ -1084,7 +1064,7 @@ def get_transcript_structure(
 
     # First system message: task-specific instructions (static prefix enables cross-conversation caching)
     # NOTE: language instructions are in context_message (second message) to keep this prefix fully static.
-    instructions_text = '''You are an expert content analyzer. Your task is to analyze the provided content (which could be a transcript, a series of photo descriptions from a wearable camera, or both) and provide structure and clarity.
+    instructions_text = '''You are an expert content analyzer. Your task is to analyze the provided transcript and provide structure and clarity.
 
     CRITICAL: If CALENDAR MEETING CONTEXT is provided with participant names, you MUST use those names:
     - The conversation DEFINITELY happened between the named participants
@@ -1184,17 +1164,11 @@ def get_reprocess_transcript_structure(
     started_at: datetime,
     language_code: str,
     tz: str,
-    photos: Optional[List[ConversationPhoto]] = None,
     output_language_code: Optional[str] = None,
 ) -> Structured:
     context_parts: List[str] = []
     if transcript and transcript.strip():
         context_parts.append(f"Transcript: ```{transcript.strip()}```")
-
-    if photos:
-        photo_descriptions = ConversationPhoto.photos_as_string(photos)
-        if photo_descriptions != 'None':
-            context_parts.append(f"Photo Descriptions from a wearable camera:\n{photo_descriptions}")
 
     if not context_parts:
         return Structured()
@@ -1202,7 +1176,7 @@ def get_reprocess_transcript_structure(
     full_context = "\n\n".join(context_parts)
     response_language = output_language_code or language_code
 
-    prompt_text = '''You are an expert content analyzer. Your task is to analyze the provided content (which could be a transcript, a series of photo descriptions from a wearable camera, or both) and provide structure and clarity.
+    prompt_text = '''You are an expert content analyzer. Your task is to analyze the provided transcript and provide structure and clarity.
     The content language is {language_code}. You MUST respond entirely in {response_language}.
 
     For the title, generate a concise title from the current content. Do not reuse a previous title.
@@ -1268,213 +1242,6 @@ def get_reprocess_transcript_structure(
         event.created = False
 
     return response
-
-
-def get_app_result(transcript: str, photos: List[ConversationPhoto], app: App, language_code: str = 'en') -> str:
-    context_parts: List[str] = []
-    if transcript and transcript.strip():
-        context_parts.append(f"Transcript: ```{transcript.strip()}```")
-
-    if photos:
-        photo_descriptions = ConversationPhoto.photos_as_string(photos)
-        if photo_descriptions != 'None':
-            context_parts.append(f"Photo Descriptions from a wearable camera:\n{photo_descriptions}")
-
-    if not context_parts:
-        return ""
-
-    full_context = "\n\n".join(context_parts)
-
-    prompt = f'''
-    You are an AI with the following characteristics:
-    Name: {app.name},
-    Description: {app.description},
-    Task: ${app.memory_prompt}
-
-    Language: The conversation language is {language_code}. Use the same language {language_code} for your response.
-
-    Conversation:
-    {full_context}
-    '''
-
-    gateway_cache_enabled = should_route_features_through_gateway()
-    # App-specific instructions vary at the start of the prompt. Explicit mode
-    # without a breakpoint keeps this route out of GPT-5.6's billable cache.
-    cache_key = None if gateway_cache_enabled else 'omi-app-result'
-    cache_options = GPT56_EXPLICIT_CACHE_OPTIONS if gateway_cache_enabled else None
-    app_result_llm = get_llm('conv_app_result', cache_key=cache_key, prompt_cache_options=cache_options)
-    response = app_result_llm.invoke(prompt)
-    content = _content_str(response).replace('```json', '').replace('```', '')
-    return content
-
-
-class SuggestedAppsSelection(BaseModel):
-    suggested_apps: List[str] = Field(
-        description='List of up to 3 app IDs that are most suitable for processing this conversation, ordered by relevance. Empty list if none are suitable.'
-    )
-    reasoning: str = Field(
-        description='Brief explanation of why these apps were selected based on the conversation content.'
-    )
-
-
-class BestAppSelection(BaseModel):
-    app_id: str = Field(
-        description='The ID of the best app for processing this conversation, or an empty string if none are suitable.'
-    )
-
-
-def get_suggested_apps_for_conversation(conversation: Conversation, apps: List[App]) -> Tuple[List[str], str]:
-    """
-    Get top 3 suggested apps for the given conversation based on its structured content
-    and the specific task/outcome each app provides.
-    Returns tuple of (suggested_app_ids, reasoning)
-    """
-    if not apps:
-        return [], "No apps available"
-
-    if not conversation.structured:
-        return [], "No structured content available"
-
-    structured_data = conversation.structured
-    conversation_details = f"""
-    Title: {structured_data.title or 'N/A'}
-    Category: {structured_data.category.value if structured_data.category else 'N/A'}
-    Overview: {structured_data.overview or 'N/A'}
-    Action Items: {ActionItem.actions_to_string(structured_data.action_items) if structured_data.action_items else 'None'}
-    Events Mentioned: {Event.events_to_string(structured_data.events) if structured_data.events else 'None'}
-    """
-
-    apps_xml = "<apps>\n"
-    for app in apps:
-        apps_xml += f"""  <app>
-    <id>{app.id}</id>
-    <name>{app.name}</name>
-    <description>{app.description}</description>
-    <memory_prompt>{app.memory_prompt}</memory_prompt>
-  </app>\n"""
-    apps_xml += "</apps>"
-
-    prompt = f"""
-    You are an expert app recommendation system. Your goal is to suggest the top 3 most suitable apps for processing the given conversation based on the conversation's structured content and each app's specific capabilities.
-
-    <conversation_details>
-    {conversation_details.strip()}
-    </conversation_details>
-
-    <available_apps>
-    {apps_xml.strip()}
-    </available_apps>
-
-    Task:
-    1. Analyze the conversation's structured content: title, category, overview, action items, and events.
-    2. For each app, evaluate how well its description and memory_prompt align with the conversation's content and themes.
-    3. Consider the potential value and relevance of each app's output for this specific conversation.
-    4. Select up to 3 apps that would provide the most meaningful and valuable analysis, ordered by relevance (most relevant first).
-
-    Selection Criteria:
-    - **Content Alignment**: App's purpose should directly relate to the conversation's topics, category, or themes
-    - **Value Potential**: App should be able to extract meaningful insights from this specific conversation
-    - **Specificity**: Prefer apps with specific, targeted functionality over generic ones
-    - **Actionability**: Prioritize apps that can provide actionable insights or useful analysis
-
-    Quality Standards:
-    - Only suggest apps that have clear relevance to the conversation content
-    - If fewer than 3 apps are truly suitable, suggest only the relevant ones
-    - If no apps are genuinely suitable, return an empty list
-    - Do not force matches - quality over quantity
-
-    Provide your suggestions with brief reasoning explaining why these apps are most suitable for this conversation.
-    """
-
-    try:
-        with_parser = get_llm('conv_app_select').with_structured_output(SuggestedAppsSelection)
-        response: SuggestedAppsSelection = cast(SuggestedAppsSelection, with_parser.invoke(prompt))
-
-        # Validate that suggested app IDs exist in the available apps
-        valid_app_ids = {app.id for app in apps}
-        suggested_apps = [app_id for app_id in response.suggested_apps if app_id in valid_app_ids]
-
-        return suggested_apps, response.reasoning
-
-    except Exception as e:
-        logger.error(f"Error getting suggested apps: {e}")
-        return [], f"Error in app suggestion: {str(e)}"
-
-
-def select_best_app_for_conversation(conversation: Conversation, apps: List[App]) -> Optional[App]:
-    """
-    Select the best app for the given conversation based on its structured content
-    and the specific task/outcome each app provides.
-    """
-    if not apps:
-        return None
-
-    if not conversation.structured:
-        return None
-
-    structured_data = conversation.structured
-    conversation_details = f"""
-    Title: {structured_data.title or 'N/A'}
-    Category: {structured_data.category.value if structured_data.category else 'N/A'}
-    Overview: {structured_data.overview or 'N/A'}
-    Action Items: {ActionItem.actions_to_string(structured_data.action_items) if structured_data.action_items else 'None'}
-    Events Mentioned: {Event.events_to_string(structured_data.events) if structured_data.events else 'None'}
-    """
-
-    apps_xml = "<apps>\n"
-    for app in apps:
-        apps_xml += f"""  <app>
-    <id>{app.id}</id>
-    <category>{app.category}</category>
-    <description>{app.description}</description>
-  </app>\n"""
-    apps_xml += "</apps>"
-
-    prompt = f"""
-    You are an expert app selector. Your goal is to determine the single best app for processing the given conversation based on the conversation's structured content and each app's specific capabilities.
-
-    <conversation_details>
-    {conversation_details.strip()}
-    </conversation_details>
-
-    <available_apps>
-    {apps_xml.strip()}
-    </available_apps>
-
-    Task:
-    1. Analyze the conversation's structured content: title, category, overview, action items, and events.
-    2. For each app, evaluate how well its description and category align with the conversation's content.
-    3. Determine which single app would provide the most meaningful, relevant, and valuable analysis for this specific conversation.
-    4. Select the app whose capabilities best match the conversation's themes and content.
-
-    Critical Instructions:
-    - Only select an app if its specific capabilities are highly relevant to the conversation's content and themes
-    - Consider the potential value and actionability of the app's output for this conversation
-    - If no app is genuinely suitable for this conversation, return an empty app_id
-    - Do not force a match - it's better to return empty than select an inappropriate app
-    - Focus on quality and relevance over generic applicability
-
-    Provide ONLY the app_id of the best matching app, or an empty string if no app is suitable.
-    """
-
-    try:
-        with_parser = get_llm('conv_app_select').with_structured_output(BestAppSelection)
-        response: BestAppSelection = cast(BestAppSelection, with_parser.invoke(prompt))
-        selected_app_id = response.app_id
-
-        if not selected_app_id or selected_app_id.strip() == "":
-            return None
-
-        # Find the app object with the matching ID
-        selected_app = next((app for app in apps if app.id == selected_app_id), None)
-        if selected_app:
-            return selected_app
-        else:
-            return None
-
-    except Exception as e:
-        logger.error(f"Error selecting best app: {e}")
-        return None
 
 
 def generate_summary_with_prompt(conversation_text: str, prompt: str, language_code: str = 'en') -> str:

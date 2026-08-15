@@ -112,20 +112,16 @@ class TestRatePolicies(unittest.TestCase):
             self.assertGreater(max_req, 0, f"{name}: max_requests must be > 0")
             self.assertGreater(window, 0, f"{name}: window must be > 0")
 
-    def test_policy_count(self):
-        """Ensure we have a reasonable number of policies."""
-        self.assertGreaterEqual(len(RATE_POLICIES), 20)
-
     def test_expensive_endpoints_have_low_limits(self):
         """Expensive endpoints should have lower limits."""
-        expensive = ['knowledge_graph:rebuild', 'wrapped:generate', 'conversations:reprocess']
+        expensive = ['wrapped:generate', 'conversations:reprocess']
         for name in expensive:
             max_req, _ = RATE_POLICIES[name]
             self.assertLessEqual(max_req, 5, f"{name} should have low base limit")
 
     def test_bursty_endpoints_have_high_limits(self):
-        """Agent/MCP endpoints should allow bursts."""
-        bursty = ['agent:execute_tool', 'mcp:sse']
+        """The retained agent endpoint should allow bursts."""
+        bursty = ['agent:execute_tool']
         for name in bursty:
             max_req, _ = RATE_POLICIES[name]
             self.assertGreaterEqual(max_req, 100, f"{name} should allow bursts")
@@ -343,33 +339,6 @@ class TestWithRateLimitWrapper(unittest.TestCase):
         self.assertTrue(callable(result))
 
     @patch('utils.other.endpoints._enforce_rate_limit')
-    def test_check_rate_limit_inline_calls_enforce(self, mock_enforce):
-        self.ep.check_rate_limit_inline("app1:uid1", "integration:memories")
-        mock_enforce.assert_called_once_with("app1:uid1", "integration:memories")
-
-    def test_rate_limit_key_for_context_prefers_app_key_identity(self):
-        context = types.SimpleNamespace(uid="uid1", app_id="app1", key_id="key1")
-
-        self.assertEqual(self.ep.rate_limit_key_for_context(context), "app:app1:key:key1")
-
-    def test_rate_limit_key_for_context_falls_back_to_uid(self):
-        context = types.SimpleNamespace(uid="uid1")
-
-        self.assertEqual(self.ep.rate_limit_key_for_context(context), "uid1")
-
-    def test_rate_limit_key_for_context_falls_back_to_uid_when_api_key_identity_absent(self):
-        context = types.SimpleNamespace(uid="uid1", app_id=None, key_id=None)
-
-        self.assertEqual(self.ep.rate_limit_key_for_context(context), "uid1")
-
-    def test_rate_limit_key_for_context_rejects_partial_api_key_identity(self):
-        context = types.SimpleNamespace(uid="uid1", app_id="app1", key_id=None)
-
-        with self.assertRaises(HTTPException) as ctx:
-            self.ep.rate_limit_key_for_context(context)
-        self.assertEqual(ctx.exception.status_code, 403)
-
-    @patch('utils.other.endpoints._enforce_rate_limit')
     def test_with_rate_limit_dependency_calls_enforce_and_returns_uid(self, mock_enforce):
         """Execute the async dependency closure and verify it enforces + returns uid."""
         import asyncio
@@ -389,16 +358,6 @@ class TestWithRateLimitWrapper(unittest.TestCase):
         with self.assertRaises(HTTPException) as ctx:
             asyncio.run(dep_func(uid="user123"))
         self.assertEqual(ctx.exception.status_code, 429)
-
-    @patch('utils.other.endpoints._enforce_rate_limit')
-    def test_with_rate_limit_context_uses_app_key_identity(self, mock_enforce):
-        dep_func = self.ep.with_rate_limit_context(lambda: "unused", "dev:conversations_read")
-        context = types.SimpleNamespace(uid="uid1", app_id="app1", key_id="key1")
-
-        result = asyncio.run(dep_func(auth_context=context))
-
-        mock_enforce.assert_called_once_with("app:app1:key:key1", "dev:conversations_read", fail_closed=True)
-        self.assertIs(result, context)
 
     def test_rate_limit_dependency_keeps_event_loop_responsive(self):
         async def exercise() -> None:
@@ -422,29 +381,6 @@ class TestWithRateLimitWrapper(unittest.TestCase):
                 self.assertEqual(await dependency_task, "user123")
 
         asyncio.run(exercise())
-
-    @patch('utils.other.endpoints._enforce_rate_limit')
-    def test_check_api_key_rate_limit_uses_key_identity_and_fails_closed(self, mock_enforce):
-        self.ep.check_api_key_rate_limit(
-            prefix="dev",
-            uid="uid1",
-            app_id="app1",
-            key_id="key1",
-            policy_name="dev:conversations_read",
-        )
-
-        mock_enforce.assert_called_once_with("dev:uid1:app1:key1", "dev:conversations_read", fail_closed=True)
-
-    def test_check_api_key_rate_limit_rejects_missing_key_id(self):
-        with self.assertRaises(HTTPException) as ctx:
-            self.ep.check_api_key_rate_limit(
-                prefix="dev",
-                uid="uid1",
-                app_id="app1",
-                key_id=None,
-                policy_name="dev:conversations_read",
-            )
-        self.assertEqual(ctx.exception.status_code, 403)
 
 
 class TestBoostEnvVar(unittest.TestCase):
@@ -473,41 +409,30 @@ class TestRouterPolicyMapping(unittest.TestCase):
             "conversations:reprocess",
             "conversations:search",
             "conversations:merge",
+            "conversations:from-segments",
             "chat:send_message",
             "chat:initial",
             "voice:message",
             "voice:transcribe",
+            "voice:transcribe_stream",
             "file:upload",
             "agent:execute_tool",
-            "mcp:sse",
+            "tools:search",
+            "tools:mutate",
+            "action_items:write",
             "memories:create",
             "memories:modify",
+            "memories:review",
             "memories:delete",
             "memories:delete_all",
+            "memories:delete_batch",
             "memories:batch",
             "goals:suggest",
             "goals:advice",
             "goals:extract",
-            "dev:conversations",
-            "dev:conversations_read",
-            "dev:conversation_detail_read",
-            "dev:conversation_transcript_read",
-            "dev:action_items_read",
-            "dev:action_items_write",
-            "dev:goals_read",
-            "dev:goals_write",
-            "dev:memories",
-            "dev:memories_read",
-            "dev:memories_batch",
-            "mcp:read",
-            "mcp:memories_read",
-            "mcp:memories_write",
-            "knowledge_graph:rebuild",
             "wrapped:generate",
-            "integration:conversations",
-            "integration:memories",
             "test:prompt",
-            "apps:generate_prompts",
+            "tts:synthesize",
         ]
         for policy in used_policies:
             self.assertIn(policy, RATE_POLICIES, f"Policy '{policy}' used in router but missing from config")
@@ -533,8 +458,8 @@ class TestRouterWiring(unittest.TestCase):
 
     def test_conversations_router_has_rate_limits(self):
         matches = self._grep_file("routers/conversations.py", r"with_rate_limit.*conversations:")
-        # create, reprocess, search, merge, and events = 5 endpoints
-        self.assertEqual(len(matches), 5, f"conversations.py expected 5 rate limits, got {len(matches)}")
+        # create/finalize, reprocess, search, merge, and events = 6 endpoints
+        self.assertEqual(len(matches), 6, f"conversations.py expected 6 rate limits, got {len(matches)}")
 
     def test_chat_router_has_rate_limits(self):
         matches = self._grep_file("routers/chat.py", r"with_rate_limit.*(?:chat:|voice:|file:)")
@@ -546,108 +471,10 @@ class TestRouterWiring(unittest.TestCase):
         matches = self._grep_file("routers/chat.py", r"with_rate_limit.*file:upload")
         self.assertEqual(len(matches), 2, f"chat.py expected 2 file:upload limits (v1+v2), got {len(matches)}")
 
-    def test_developer_dependencies_have_rate_limits(self):
-        source = open("dependencies.py", encoding='utf-8').read()
-        matches = [line for line in source.splitlines() if "policy_name=\"dev:" in line]
-        self.assertGreaterEqual(
-            len(matches), 8, f"dependencies.py expected broad dev API rate limits, got {len(matches)}"
-        )
-
-    def test_developer_dependencies_have_read_rate_limits(self):
-        source = open("dependencies.py", encoding='utf-8').read()
-        for policy in [
-            "dev:memories_read",
-            "dev:action_items_read",
-            "dev:conversations_read",
-            "dev:conversation_detail_read",
-            "dev:conversation_transcript_read",
-            "dev:goals_read",
-        ]:
-            self.assertIn(policy, source)
-
-    def test_developer_conversation_reads_split_detail_and_transcript_policies(self):
-        dependencies_source = open("dependencies.py", encoding='utf-8').read()
-        developer_source = open("routers/developer.py", encoding='utf-8').read()
-
-        self.assertIn('policy_name="dev:conversation_detail_read"', dependencies_source)
-        self.assertIn('policy_name="dev:conversation_transcript_read"', dependencies_source)
-        self.assertIn("get_auth_with_conversations_read", developer_source)
-        self.assertIn("get_auth_with_conversation_detail_read", developer_source)
-        self.assertIn("check_conversation_transcript_read_limit(auth, request=request)", developer_source)
-
-    def test_developer_conversation_reads_emit_sanitized_audit_logs(self):
-        developer_source = open("routers/developer.py", encoding='utf-8').read()
-        dependencies_source = open("dependencies.py", encoding='utf-8').read()
-
-        self.assertIn("developer_api_read operation=%s", developer_source)
-        self.assertIn("developer_api_rate_limit_failure policy=%s", dependencies_source)
-        self.assertIn("auth.app_id or 'unknown_app'", developer_source)
-        self.assertIn("auth.key_id or 'unknown_key'", developer_source)
-        self.assertIn("sanitize(request.headers.get('user-agent'))", developer_source)
-        self.assertNotIn("request.headers.get('Authorization'", developer_source)
-        self.assertNotIn('request.headers.get("Authorization"', developer_source)
-        self.assertNotIn("request.headers.get('Authorization'", dependencies_source)
-        self.assertNotIn('request.headers.get("Authorization"', dependencies_source)
-
-    def test_developer_rate_limit_failures_log_without_request(self):
-        dependencies = importlib.import_module("dependencies")
-        auth = dependencies.ApiKeyAuth(
-            uid="uid1",
-            scopes=["conversations:read"],
-            app_id="test-app",
-            key_id="test-key",
-        )
-
-        with patch.object(
-            dependencies,
-            "check_api_key_rate_limit",
-            side_effect=HTTPException(status_code=429, detail="Rate limit exceeded"),
-        ):
-            with self.assertLogs("dependencies", level="WARNING") as logs:
-                with self.assertRaises(HTTPException):
-                    dependencies.check_conversation_transcript_read_limit(auth)
-
-        log_output = "\n".join(logs.output)
-        self.assertIn("developer_api_rate_limit_failure policy=dev:conversation_transcript_read", log_output)
-        self.assertIn("path=unknown_path", log_output)
-        self.assertIn("uid=uid1", log_output)
-        self.assertIn("app_id=test-app", log_output)
-        self.assertIn("key_id=test-key", log_output)
-        self.assertNotIn("Authorization", log_output)
-
     def test_goals_router_has_rate_limits(self):
         matches = self._grep_file("routers/goals.py", r"with_rate_limit.*goals:")
         # suggest, advice(x2), extract = 4
         self.assertEqual(len(matches), 4, f"goals.py expected 4 rate limits, got {len(matches)}")
-
-    def test_mcp_sse_router_has_rate_limit(self):
-        matches = self._grep_file("routers/mcp_sse.py", r"check_rate_limit_inline.*mcp:")
-        self.assertGreaterEqual(len(matches), 1, "mcp_sse.py missing rate limit wiring")
-
-    def test_mcp_router_has_rate_limit(self):
-        source = open("dependencies.py", encoding='utf-8').read()
-        self.assertIn("mcp:read", source, "MCP API-key UID dependency missing read rate limit")
-        self.assertIn("mcp:memories_read", source, "MCP memory auth dependency missing memory read rate limit")
-        self.assertIn("mcp:memories_write", source, "MCP memory auth dependency missing memory write rate limit")
-
-    def test_sensitive_read_page_caps(self):
-        developer_source = open("routers/developer.py", encoding='utf-8').read()
-        mcp_source = open("routers/mcp.py", encoding='utf-8').read()
-        self.assertIn("min(limit, 25 if include_transcript else 100)", developer_source)
-        self.assertIn("min(limit, 200)", mcp_source)
-
-    def test_integration_router_has_rate_limits(self):
-        matches = self._grep_file("routers/integration.py", r"check_rate_limit_inline.*integration:")
-        # conversations + memories = 2
-        self.assertGreaterEqual(len(matches), 2, "integration.py missing rate limit wiring")
-
-    def test_apps_router_has_rate_limit(self):
-        matches = self._grep_file("routers/apps.py", r"with_rate_limit.*apps:")
-        self.assertGreaterEqual(len(matches), 1, "apps.py missing rate limit wiring")
-
-    def test_knowledge_graph_router_has_rate_limit(self):
-        matches = self._grep_file("routers/knowledge_graph.py", r"with_rate_limit.*knowledge_graph:")
-        self.assertGreaterEqual(len(matches), 1, "knowledge_graph.py missing rate limit wiring")
 
     def test_wrapped_router_has_rate_limit(self):
         matches = self._grep_file("routers/wrapped.py", r"with_rate_limit.*wrapped:")
@@ -659,8 +486,8 @@ class TestRouterWiring(unittest.TestCase):
 
     def test_memories_router_has_rate_limits(self):
         matches = self._grep_file("routers/memories.py", r"with_rate_limit.*memories:")
-        # create, batch, 3 review (list/get/resolve), delete, delete_all, delete_batch, 4 modify endpoints = 12
-        self.assertEqual(len(matches), 12, f"memories.py expected 12 rate limits, got {len(matches)}")
+        # create, batch, 3 review (list/get/resolve), delete, delete_all, delete_batch, 3 modify endpoints = 11
+        self.assertEqual(len(matches), 11, f"memories.py expected 11 rate limits, got {len(matches)}")
 
     def test_memories_create_endpoint_rate_limited(self):
         matches = self._grep_file("routers/memories.py", r"with_rate_limit.*memories:create")

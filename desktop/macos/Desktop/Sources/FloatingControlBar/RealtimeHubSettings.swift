@@ -8,10 +8,9 @@ import Foundation
 // endpoints / app code — no new backend routes.
 //
 // The hub is the default voice path — there is no opt-in toggle. Every PTT turn
-// routes through it whenever it can connect: BYOK users connect client-direct with
-// their own key (see APIKeyService); managed users connect with a server-minted
-// ephemeral token. When neither is available (no key, mint fails / not entitled) the
-// turn falls back to the legacy STT cascade. The provider follows the user's "Voice
+// routes through it whenever a signed-in entitled user can obtain a server-minted
+// ephemeral token. When minting fails or the account is not entitled, the turn falls
+// back to the legacy STT cascade. The provider follows the user's "Voice
 // Model" choice in Advanced settings (RealtimeOmniSettings) — no separate picker.
 
 enum RealtimeHubProvider: String, Sendable, Equatable {
@@ -40,14 +39,6 @@ enum RealtimeHubProvider: String, Sendable, Equatable {
     }
   }
 
-  /// The BYOK key this provider authenticates with (client-direct, Phase 1).
-  var byokProvider: BYOKProvider {
-    switch self {
-    case .openai: return .openai
-    case .gemini: return .gemini
-    }
-  }
-
   /// The other realtime provider — used by the hub's failover chain: when the
   /// Auto-selected provider can't connect, the hub tries this one before dropping to
   /// the legacy Claude cascade.
@@ -73,12 +64,5 @@ final class RealtimeHubSettings {
     case .gptRealtime2: return .openai
     case .geminiFlashLive, .auto: return .gemini
     }
-  }
-
-  /// True when the hub can connect client-direct with the user's own provider key
-  /// (BYOK / dev key). Managed users without a key connect via a minted ephemeral
-  /// token instead (see RealtimeHubController.ensureWarm); both reach the hub.
-  var canConnect: Bool {
-    APIKeyService.byokKey(provider.byokProvider) != nil
   }
 }

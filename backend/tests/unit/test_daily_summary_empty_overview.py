@@ -28,7 +28,6 @@ def _drive(monkeypatch, overview):
     )
     monkeypatch.setattr(notif.daily_summaries_db, 'create_daily_summary', lambda *a, **k: 'sid')
     monkeypatch.setattr(notif.postprocess_executor, 'submit', lambda *a, **k: None)
-    monkeypatch.setattr(notif, 'day_summary_webhook', lambda *a, **k: None)
     monkeypatch.setattr(notif, 'send_notification', lambda *a, **k: sent.append(a))
 
     notif._send_summary_notification(('u1', ['tok1']))

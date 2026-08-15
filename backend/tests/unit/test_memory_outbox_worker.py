@@ -611,8 +611,6 @@ def test_projection_sync_converges_compatibility_row_across_create_update_and_de
     db = _db(create, items={"mem-1": _item()})
     paths = MemoryCollections(uid=UID)
     projection_path = f"{paths.v3_compatibility_projection_items}/mem-1"
-    graph_assertion_path = f"{paths.memory_graph_assertions}/mem-1"
-    db.docs[graph_assertion_path] = {"memory_id": "mem-1"}
     db.docs[paths.v3_compatibility_projection_state] = {
         "uid": UID,
         "schema_version": 1,
@@ -639,7 +637,6 @@ def test_projection_sync_converges_compatibility_row_across_create_update_and_de
     with (
         patch("utils.memory.short_term_promotion.sync_atom_keyword_index_for_item", return_value=True),
         patch("utils.memory.short_term_promotion.delete_atom_keyword_doc", return_value=True),
-        patch("utils.memory.short_term_promotion.kg_db.prune_memory_citations_from_kg", return_value=0),
         patch("utils.memory.short_term_promotion.purge_stale_review_conflicts_for_memories", return_value=[]),
     ):
         created = run_canonical_memory_outbox_worker_tick(
@@ -700,7 +697,6 @@ def test_projection_sync_converges_compatibility_row_across_create_update_and_de
 
     assert deleted["delivered_count"] == 1
     assert projection_path not in db.docs
-    assert graph_assertion_path not in db.docs
 
 
 def test_vector_sync_upserts_live_item_and_deletes_nonprojectable_or_missing_items():

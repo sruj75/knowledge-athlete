@@ -50,9 +50,7 @@ class OperationLogicalPayload(BaseModel):
     predicate: Optional[str] = None
     arguments: Dict[str, Any] = Field(default_factory=dict)
     target_tier: Optional[str] = None
-    target_visibility: Optional[str] = None
     target_user_asserted: Optional[bool] = None
-    clear_graph_assertion: Optional[bool] = None
     mutation_metadata: Optional[Dict[str, Any]] = None
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
@@ -75,9 +73,7 @@ def _coerce_logical_payload(value: OperationLogicalPayload | Dict[str, Any]) -> 
             "predicate",
             "arguments",
             "target_tier",
-            "target_visibility",
             "target_user_asserted",
-            "clear_graph_assertion",
             "mutation_metadata",
         ]
         if key in value

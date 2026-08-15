@@ -34,8 +34,6 @@ class FakeWebSocket:
 
 @pytest.fixture
 def runtime(monkeypatch):
-    monkeypatch.setattr(pusher, 'get_audio_bytes_webhook_seconds', lambda uid: None)
-    monkeypatch.setattr(pusher, 'is_audio_bytes_app_enabled', lambda uid: False)
     monkeypatch.setattr(pusher.users_db, 'get_user_private_cloud_sync_enabled', lambda uid: False)
     monkeypatch.setattr(pusher, 'PUSHER_ACTIVE_WS_CONNECTIONS', MagicMock())
     monkeypatch.setattr(pusher_protocol, 'PUSHER_QUEUE_DROPS', MagicMock())
@@ -61,9 +59,6 @@ async def test_invalid_sample_rate_closes_with_policy_violation(sample_rate):
         b'\x01\x00\x00',
         struct.pack('<I', 999),
         struct.pack('<I', 101),
-        struct.pack('<I', 102) + b'{',
-        struct.pack('<I', 102) + b'[]',
-        struct.pack('<I', 102) + json.dumps({'segments': 'invalid'}).encode(),
         struct.pack('<I', 104) + json.dumps({'conversation_id': 1}).encode(),
         struct.pack('<I', 105) + json.dumps({'segment_ids': 'invalid'}).encode(),
     ],
@@ -81,10 +76,10 @@ def test_bounded_append_reports_and_drops_oldest(monkeypatch):
     monkeypatch.setattr(pusher_protocol, 'PUSHER_QUEUE_DROPS', metric)
     queue = deque(['old'], maxlen=1)
 
-    assert pusher_protocol.append_bounded(queue, 'new', 'transcript') is True
+    assert pusher_protocol.append_bounded(queue, 'new', 'speaker_sample') is True
 
     assert list(queue) == ['new']
-    metric.labels.assert_called_once_with(queue='transcript')
+    metric.labels.assert_called_once_with(queue='speaker_sample')
     metric.labels.return_value.inc.assert_called_once_with()
 
 

@@ -158,7 +158,7 @@ final class ChatTimelineContinuityTests: XCTestCase {
     // notch-pill linking.
     XCTAssertEqual(canonical.text, spawnProse)
     guard case .text(_, let canonicalProse) = canonical.contentBlocks[0],
-      case .agentSpawn(_, let canonicalPillID, let canonicalSessionID, let canonicalRunID, _, _, _) =
+      case .agentSpawn(_, let canonicalPillID, let canonicalSessionID, let canonicalRunID, _, _) =
         canonical.contentBlocks[1]
     else {
       return XCTFail("expected canonical spawn prose and structured receipt")
@@ -176,7 +176,7 @@ final class ChatTimelineContinuityTests: XCTestCase {
       isStreaming: false
     )
     XCTAssertEqual(visibleGroups.count, 1)
-    guard case .agentSpawn(_, let renderedPillID, let renderedSessionID, let renderedRunID, _, _, _) = visibleGroups[0]
+    guard case .agentSpawn(_, let renderedPillID, let renderedSessionID, let renderedRunID, _, _) = visibleGroups[0]
     else {
       return XCTFail("only the structured spawn card should remain visible")
     }
@@ -901,8 +901,7 @@ final class ChatTimelineContinuityTests: XCTestCase {
       sessionId: "sess-spawn",
       runId: "run-spawn",
       title: "Sleep Agent",
-      objective: "sleep five seconds",
-      provider: .openclaw
+      objective: "sleep five seconds"
     )
     let completion = ChatContentBlock.agentCompletion(
       id: "completion-1",
@@ -925,7 +924,7 @@ final class ChatTimelineContinuityTests: XCTestCase {
     let restored = ChatContentBlockCodec.decodeFromMessageMetadata(metadata)
     XCTAssertEqual(restored.count, 2)
     guard
-      case .agentSpawn(_, let spawnPill, let spawnSession, let spawnRun, let title, let objective, let provider) =
+      case .agentSpawn(_, let spawnPill, let spawnSession, let spawnRun, let title, let objective) =
         restored[0]
     else {
       return XCTFail("expected agentSpawn in metadata round-trip")
@@ -935,7 +934,6 @@ final class ChatTimelineContinuityTests: XCTestCase {
     XCTAssertEqual(spawnRun, "run-spawn")
     XCTAssertEqual(title, "Sleep Agent")
     XCTAssertEqual(objective, "sleep five seconds")
-    XCTAssertEqual(provider, .openclaw)
 
     guard case .agentCompletion(_, let donePill, _, let doneRun, _, _, let output, _) = restored[1]
     else {
@@ -988,13 +986,12 @@ final class ChatTimelineContinuityTests: XCTestCase {
         sessionID: "sess-abc",
         runID: "run-xyz",
         title: "Sleep Agent",
-        objective: "sleep five seconds",
-        provider: nil
+        objective: "sleep five seconds"
       )
     )
     XCTAssertEqual(blocks.count, 2)
     guard
-      case .agentSpawn(_, let spawnPill, let sessionId, let runId, let title, let objective, let provider) =
+      case .agentSpawn(_, let spawnPill, let sessionId, let runId, let title, let objective) =
         blocks[1]
     else {
       return XCTFail("spawn_agent tool result must emit .agentSpawn")
@@ -1004,7 +1001,6 @@ final class ChatTimelineContinuityTests: XCTestCase {
     XCTAssertEqual(runId, "run-xyz")
     XCTAssertEqual(title, "Sleep Agent")
     XCTAssertEqual(objective, "sleep five seconds")
-    XCTAssertNil(provider)
 
     // Idempotent on repeat apply.
     ChatProvider.materializeAgentSpawnBlockIfNeeded(
@@ -1017,7 +1013,7 @@ final class ChatTimelineContinuityTests: XCTestCase {
     // Structured spawn card is the single visible entrypoint (tool link hidden).
     let groups = ContentBlockGroup.visibleChatGroups(blocks, isStreaming: false)
     XCTAssertEqual(groups.count, 1)
-    guard case .agentSpawn(_, let visiblePill, _, let visibleRun, _, _, _) = groups[0] else {
+    guard case .agentSpawn(_, let visiblePill, _, let visibleRun, _, _) = groups[0] else {
       return XCTFail("expected only agentSpawn card after materialize, got \(groups)")
     }
     XCTAssertEqual(visiblePill, pillId)
@@ -1028,7 +1024,7 @@ final class ChatTimelineContinuityTests: XCTestCase {
     let pillId = UUID(uuidString: "C7CBA329-65C4-4A5C-96A6-1A0A5FEECC48")!
     // Exact compact response shape returned by control-tools.ts stringifyToolResult.
     let output =
-      #"{"ok":true,"routeDecision":{"effect":"spawn_background_agent"},"requestedAgentCount":1,"agents":[{"kind":"background","delegation":null,"session":{"sessionId":"sess-prod","ownerId":"owner-1","title":"Memory Insight","surfaceKind":"floating_agent","externalRefKind":"pill","externalRefId":"C7CBA329-65C4-4A5C-96A6-1A0A5FEECC48","defaultAdapterId":"hermes","metadata":{}},"run":{"runId":"run-prod","sessionId":"sess-prod"},"attempt":null}],"delegation":null,"session":{"sessionId":"sess-prod","ownerId":"owner-1","title":"Memory Insight","surfaceKind":"floating_agent","externalRefKind":"pill","externalRefId":"C7CBA329-65C4-4A5C-96A6-1A0A5FEECC48","defaultAdapterId":"hermes","metadata":{}},"run":{"runId":"run-prod","sessionId":"sess-prod"},"attempt":null}"#
+      #"{"ok":true,"routeDecision":{"effect":"spawn_background_agent"},"requestedAgentCount":1,"agents":[{"kind":"background","delegation":null,"session":{"sessionId":"sess-prod","ownerId":"owner-1","title":"Memory Insight","surfaceKind":"floating_agent","externalRefKind":"pill","externalRefId":"C7CBA329-65C4-4A5C-96A6-1A0A5FEECC48","defaultAdapterId":"pi-mono","metadata":{}},"run":{"runId":"run-prod","sessionId":"sess-prod"},"attempt":null}],"delegation":null,"session":{"sessionId":"sess-prod","ownerId":"owner-1","title":"Memory Insight","surfaceKind":"floating_agent","externalRefKind":"pill","externalRefId":"C7CBA329-65C4-4A5C-96A6-1A0A5FEECC48","defaultAdapterId":"pi-mono","metadata":{}},"run":{"runId":"run-prod","sessionId":"sess-prod"},"attempt":null}"#
     var blocks: [ChatContentBlock] = [
       .toolCall(
         id: "tool-prod",
@@ -1045,12 +1041,11 @@ final class ChatTimelineContinuityTests: XCTestCase {
       toolUseId: "tu-prod",
       toolName: "spawn_agent"
     )
-    XCTAssertEqual(projection?.provider, "hermes")
-    XCTAssertEqual(blocks[0].spawnedAgentProvider, "hermes")
+    XCTAssertEqual(projection?.runID, "run-prod")
 
     XCTAssertEqual(blocks.count, 2)
     guard
-      case .agentSpawn(let blockId, let actualPill, let sessionId, let runId, let title, let objective, let provider) =
+      case .agentSpawn(let blockId, let actualPill, let sessionId, let runId, let title, let objective) =
         blocks[1]
     else { return XCTFail("canonical production result must materialize agentSpawn") }
     XCTAssertEqual(blockId, "agent_spawn_run-prod")
@@ -1059,7 +1054,6 @@ final class ChatTimelineContinuityTests: XCTestCase {
     XCTAssertEqual(runId, "run-prod")
     XCTAssertEqual(title, "Memory Insight")
     XCTAssertEqual(objective, "look through today's memories")
-    XCTAssertEqual(provider, .hermes)
 
     ChatProvider.materializeAgentSpawnBlockIfNeeded(
       in: &blocks,
@@ -1161,18 +1155,15 @@ final class ChatTimelineContinuityTests: XCTestCase {
     defaults.removeObject(forKey: .automationOwnerOverride)
     defaults.set(ownerID, forKey: .authUserId)
 
-    let runPill = AgentPill(
-      id: UUID(), query: "by-run", model: "test", ownerID: ownerID)
+    let runPill = AgentPill(id: UUID(), query: "by-run", ownerID: ownerID)
     runPill.canonicalRunId = "run-match"
     runPill.canonicalSessionId = "sess-other"
 
-    let sessionPill = AgentPill(
-      id: UUID(), query: "by-session", model: "test", ownerID: ownerID)
+    let sessionPill = AgentPill(id: UUID(), query: "by-session", ownerID: ownerID)
     sessionPill.canonicalSessionId = "sess-match"
 
     let pillId = UUID()
-    let idPill = AgentPill(
-      id: pillId, query: "by-id", model: "test", ownerID: ownerID)
+    let idPill = AgentPill(id: pillId, query: "by-id", ownerID: ownerID)
 
     let manager = AgentPillsManager.shared
     let previous = manager.pills

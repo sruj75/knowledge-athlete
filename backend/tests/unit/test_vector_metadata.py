@@ -45,7 +45,6 @@ def _item(
         ],
         source_state=source_state,
         sensitivity_labels=["credential"] if sensitive else [],
-        visibility="private",
         user_asserted=False,
         captured_at=now - timedelta(days=1),
         updated_at=now,
@@ -114,7 +113,6 @@ def test_memory_vector_metadata_carries_required_hydration_and_filter_fields():
     assert metadata["status"] == "active"
     assert metadata["processing_state"] == "processed"
     assert metadata["source_state"] == "active"
-    assert metadata["visibility"] == "private"
     assert metadata["restricted_sensitivity"] is False
     assert metadata["account_generation"] == 11
     assert metadata["item_revision"] == 3

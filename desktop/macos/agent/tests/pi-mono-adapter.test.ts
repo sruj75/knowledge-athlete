@@ -249,7 +249,7 @@ describe("PiMonoAdapter prompt correlation", () => {
     seedSessions(adapter, "child");
     const renderedChildPrompt = [
       "# Omi Context Snapshot",
-      "Earlier user request: ask OpenClaw what's trending on X right now.",
+      "Earlier user request: ask another agent what's trending on X right now.",
       "# User Message",
       "Sleep for 5 seconds.",
     ].join("\n");
@@ -910,7 +910,7 @@ describe("PiMonoAdapter spawn args (behavioral)", () => {
     vi.mocked(spawn).mockClear();
   });
 
-  it("keeps user extensions enabled while loading the Omi extension", async () => {
+  it("isolates Pi from built-in tools, ambient skills, prompts, context, and extensions", async () => {
     const config: HarnessConfig = {
       authToken: "test-token",
     };
@@ -922,7 +922,13 @@ describe("PiMonoAdapter spawn args (behavioral)", () => {
     expect(cmd).toBe("/fake/pi");
     expect(args).toContain("--mode");
     expect(args).toContain("rpc");
-    expect(args).not.toContain("--no-extensions");
+    expect(args).toEqual(expect.arrayContaining([
+      "--no-builtin-tools",
+      "--no-skills",
+      "--no-context-files",
+      "--no-prompt-templates",
+      "--no-extensions",
+    ]));
     expect(args).toContain("-e");
     expect(args).toContain("/fake/ext.ts");
 
@@ -947,20 +953,49 @@ describe("PiMonoAdapter spawn args (behavioral)", () => {
     await adapter.stop();
   });
 
-  it("scrubs OMI_API_KEY into the subprocess env from authToken", async () => {
+  it("builds a managed subprocess environment without retired customer credentials", async () => {
+    const inheritedEnvironment = {
+      OMI_BYOK_OPENAI: process.env.OMI_BYOK_OPENAI,
+      OMI_BYOK_ANTHROPIC: process.env.OMI_BYOK_ANTHROPIC,
+      OMI_BYOK_GEMINI: process.env.OMI_BYOK_GEMINI,
+      OMI_BYOK_DEEPGRAM: process.env.OMI_BYOK_DEEPGRAM,
+      OMI_BRIDGE_PIPE: process.env.OMI_BRIDGE_PIPE,
+      ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
+    };
+    process.env.OMI_BYOK_OPENAI = "legacy-openai";
+    process.env.OMI_BYOK_ANTHROPIC = "legacy-anthropic";
+    process.env.OMI_BYOK_GEMINI = "legacy-gemini";
+    process.env.OMI_BYOK_DEEPGRAM = "legacy-deepgram";
+    process.env.OMI_BRIDGE_PIPE = "/tmp/managed-bridge.sock";
+    process.env.ANTHROPIC_API_KEY = "legacy-direct-anthropic";
+
     const config: HarnessConfig = {
       authToken: "firebase-id-token-xyz",
     };
     const adapter = new PiMonoAdapter(config, "/fake/pi", "/fake/ext.ts");
-    await adapter.start();
+    try {
+      await adapter.start();
 
-    const [, , options] = vi.mocked(spawn).mock.calls[0] as [string, string[], { env: Record<string, string> }];
-    // Raw token, not "Bearer <token>"
-    expect(options.env.OMI_API_KEY).toBe("firebase-id-token-xyz");
-    // Upstream secret must be scrubbed
-    expect(options.env.ANTHROPIC_API_KEY).toBeUndefined();
-
-    await adapter.stop();
+      const [, args, options] = vi.mocked(spawn).mock.calls[0] as [
+        string,
+        string[],
+        { env: Record<string, string> },
+      ];
+      expect(args).toEqual(expect.arrayContaining(["-e", "/fake/ext.ts"]));
+      expect(options.env.OMI_API_KEY).toBe("firebase-id-token-xyz");
+      expect(options.env.ANTHROPIC_API_KEY).toBeUndefined();
+      expect(Object.keys(options.env).some((key) => key.toUpperCase().startsWith("OMI_BYOK_"))).toBe(false);
+      expect(options.env.OMI_BRIDGE_PIPE).toBe("/tmp/managed-bridge.sock");
+    } finally {
+      await adapter.stop();
+      for (const [key, value] of Object.entries(inheritedEnvironment)) {
+        if (value === undefined) {
+          delete process.env[key];
+        } else {
+          process.env[key] = value;
+        }
+      }
+    }
   });
 });
 
@@ -988,9 +1023,8 @@ describe("tool_use event filtering", () => {
   );
 
   it("source: shared runtime registers pi-mono in the same daemon", () => {
-    expect(indexSrc).toMatch(/Default harness mode/);
-    expect(indexSrc).toMatch(/registry\.register\(["']acp["']/);
     expect(indexSrc).toMatch(/registry\.register\(["']pi-mono["']/);
+    expect(indexSrc).not.toMatch(/registry\.register\(["'](?:acp|hermes|openclaw)["']/);
   });
 
   it("source: jsonl transport suppresses tool_use when configured or routed to pi-mono", () => {

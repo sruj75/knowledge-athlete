@@ -14,7 +14,6 @@ LEGACY_MEMORY_DOC_FIELDS = (
     "uid",
     "content",
     "category",
-    "visibility",
     "tags",
     "created_at",
     "updated_at",
@@ -22,7 +21,6 @@ LEGACY_MEMORY_DOC_FIELDS = (
     "manually_added",
     "edited",
     "is_locked",
-    "kg_extracted",
     "evidence",
     "arguments",
     "subject_attribution",
@@ -46,7 +44,6 @@ def legacy_memory_doc(
         "uid": uid,
         "content": content,
         "category": category,
-        "visibility": "private",
         "tags": tags or ["legacy"],
         "created_at": "2026-06-19T12:00:00Z",
         "updated_at": "2026-06-19T12:00:00Z",
@@ -54,7 +51,6 @@ def legacy_memory_doc(
         "manually_added": False,
         "edited": False,
         "is_locked": False,
-        "kg_extracted": False,
         "evidence": [],
         "arguments": {},
         "subject_attribution": "legacy_assumed",
@@ -71,14 +67,14 @@ def legacy_pin_stub_source() -> str:
 
 def legacy_memory_doc_factory_source(*, stubbed_uid: str = "stubbed-test-uid") -> str:
     """Return subprocess-safe legacy_item factory used by router probe scripts."""
-    return textwrap.dedent(f'''
+    return textwrap.dedent(
+        f'''
         def legacy_item(memory_id, content, *, category="system", tags=None, uid=None):
             return {{
                 "id": memory_id,
                 "uid": uid or "{stubbed_uid}",
                 "content": content,
                 "category": category,
-                "visibility": "private",
                 "tags": tags or ["legacy"],
                 "created_at": "2026-06-19T12:00:00Z",
                 "updated_at": "2026-06-19T12:00:00Z",
@@ -86,7 +82,6 @@ def legacy_memory_doc_factory_source(*, stubbed_uid: str = "stubbed-test-uid") -
                 "manually_added": False,
                 "edited": False,
                 "is_locked": False,
-                "kg_extracted": False,
                 "evidence": [],
                 "arguments": {{}},
                 "subject_attribution": "legacy_assumed",
@@ -94,7 +89,8 @@ def legacy_memory_doc_factory_source(*, stubbed_uid: str = "stubbed-test-uid") -
                 "qualifiers": {{}},
                 "uncertainty_reasons": [],
             }}
-        ''').strip()
+        '''
+    ).strip()
 
 
 def _fail(name: str) -> Callable[..., Any]:
@@ -160,7 +156,6 @@ def install_router_import_stubs(
     memories.delete_all_memories = _mark_mutation(flags, "delete_all_memories")
     memories.review_memory = _fail("database.memories.review_memory")
     memories.edit_memory = _fail("database.memories.edit_memory")
-    memories.change_memory_visibility = _fail("database.memories.change_memory_visibility")
     sys.modules["database.memories"] = memories
     setattr(database_pkg, "memories", memories)
 
@@ -195,10 +190,6 @@ def install_router_import_stubs(
     executors.run_blocking = run_blocking
     executors.submit_with_context = _fail("utils.executors.submit_with_context")
     sys.modules["utils.executors"] = executors
-
-    apps = types.ModuleType("utils.apps")
-    apps.update_personas_async = _mark_mutation(flags, "update_personas_async")
-    sys.modules["utils.apps"] = apps
 
     other_pkg = types.ModuleType("utils.other")
     other_pkg.__path__ = []

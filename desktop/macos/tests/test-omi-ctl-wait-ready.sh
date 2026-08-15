@@ -70,4 +70,12 @@ done
 ready="$TMP_ROOT/ready.json"
 write_state "$ready" true false true false
 run_wait_ready "$ready" >/dev/null
+
+screens="$($OMI_CTL screens)"
+expected_screens="dashboard|home  conversations  chat  memories  tasks  focus  insight  rewind  settings  permissions"
+if [ "$screens" != "$expected_screens" ]; then
+  echo "FAIL: omi-ctl screens advertised an unexpected target: $screens" >&2
+  exit 1
+fi
+
 echo "omi-ctl target catalog and authenticated semantic readiness tests passed"

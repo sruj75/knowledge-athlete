@@ -11,7 +11,6 @@ from pydantic import BaseModel, Field
 
 from database import redis_db
 from database._client import get_firestore_client
-from utils.byok import get_byok_key
 from utils.executors import critical_executor, db_executor, run_blocking
 from utils.other.endpoints import get_current_user_uid
 from utils.subscription import is_trial_paywalled
@@ -186,24 +185,23 @@ async def tts_synthesize(request: TtsSynthesizeRequest, uid: str = Depends(get_c
         raise HTTPException(status_code=400, detail="voice_id is not supported")
     if await run_blocking(db_executor, is_trial_paywalled, uid, "desktop"):
         raise HTTPException(status_code=403, detail="A paid subscription is required")
-    api_key = get_byok_key("openai") or os.getenv("OPENAI_API_KEY", "").strip()
+    api_key = os.getenv("OPENAI_API_KEY", "").strip()
     if not api_key:
         raise HTTPException(status_code=503, detail="OpenAI TTS is not configured")
-    if not get_byok_key("openai"):
-        status, _ = await run_blocking(
-            critical_executor,
-            redis_db.check_tts_rate_limit,
-            uid,
-            char_count=len(text),
-            burst_limit=_TTS_BURST_PER_MINUTE,
-            daily_char_limit=_TTS_DAILY_CHARS,
-        )
-        if status == -1:
-            raise HTTPException(status_code=503, detail="TTS rate limiting is unavailable")
-        if status == 1:
-            raise HTTPException(status_code=429, detail="TTS burst rate limit exceeded")
-        if status == 2:
-            raise HTTPException(status_code=429, detail="TTS daily character limit exceeded")
+    status, _ = await run_blocking(
+        critical_executor,
+        redis_db.check_tts_rate_limit,
+        uid,
+        char_count=len(text),
+        burst_limit=_TTS_BURST_PER_MINUTE,
+        daily_char_limit=_TTS_DAILY_CHARS,
+    )
+    if status == -1:
+        raise HTTPException(status_code=503, detail="TTS rate limiting is unavailable")
+    if status == 1:
+        raise HTTPException(status_code=429, detail="TTS burst rate limit exceeded")
+    if status == 2:
+        raise HTTPException(status_code=429, detail="TTS daily character limit exceeded")
     payload = {"model": _OPENAI_TTS_MODEL, "input": text, "voice": voice_id, "response_format": "mp3"}
     if request.instructions and request.instructions.strip():
         payload["instructions"] = request.instructions.strip()

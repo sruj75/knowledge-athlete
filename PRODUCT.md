@@ -25,6 +25,12 @@ source and tests.
 5. **Taste floor.** Stay on-brand. Prefer deleting dual paths over
    feature-flagging them forever.
 
+6. **Managed desktop access.** Desktop AI, voice, transcription, and agent
+   surfaces use account entitlement plus product-owned provider credentials.
+   They do not solicit, forward, or select customer-supplied provider keys.
+   The concrete guards live in the desktop managed-access, request-routing,
+   realtime-authentication, and agent-runtime tests and the backend route tests.
+
 ## Proposed canonical memory lifecycle
 
 This direction remains proposed; it is not an enforced contract until the
@@ -34,8 +40,8 @@ All new memory intake starts as broad Short-term capture. Maintenance gives
 each pending item exactly one consolidation route: promote, archive, review, or
 reject. Promotion is the only route into Long-term, and it is admitted only
 when one atomic ledger transaction records the server-authored promotion
-receipt and the memory's structured graph assertion. There is no direct,
-generic, or fast-track promotion path.
+receipt binding the source revision, output content, evidence, and superseded
+memories. There is no direct, generic, or fast-track promotion path.
 
 Default retrieval includes eligible Short-term and Long-term memory, collapsed
 by canonical lineage so one logical memory appears once. Search/vector and

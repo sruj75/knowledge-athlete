@@ -1,4 +1,4 @@
-"""Inbound listen WebSocket frames, audio decoding, and image assembly."""
+"""Inbound listen WebSocket frames and retained audio decoding."""
 
 from __future__ import annotations
 
@@ -7,18 +7,7 @@ import audioop
 import json
 import logging
 import time
-import uuid
-from collections import OrderedDict
 from typing import Any, Dict, List, Optional, cast
-
-lc3: Any = None
-lc3_import_error: Optional[BaseException] = None
-try:
-    import lc3 as lc3_module  # type: ignore[reportMissingImports]
-except Exception as error:
-    lc3_import_error = error
-else:
-    lc3 = lc3_module
 
 opuslib: Any = None
 opuslib_import_error: Optional[BaseException] = None
@@ -31,11 +20,7 @@ else:
 
 from fastapi.websockets import WebSocketDisconnect
 
-from models.conversation_photo import ConversationPhoto
-from models.message_event import PhotoDescribedEvent, PhotoProcessingEvent
 from utils.aac import AACDecoder
-from utils.llm.openglass import describe_image
-from utils.request_validation import ImageChunkEnvelope
 from utils.speaker_assignment import update_speaker_assignment_maps
 from utils.stt.live_failure import (
     flush_live_stt_buffer,
@@ -46,13 +31,10 @@ from utils.stt.live_failure import (
     terminate_live_stt_session,
 )
 from utils.stt.streaming import (
-    STTService,
-    connect_stt_socket_with_fallback,
     make_stream_callback,
-    process_audio_dg,
     process_audio_modulate,
-    process_audio_parakeet,
 )
+from config.stt_provider_policy import MODULATE_PROVIDER
 from utils.stt.vad_gate import GatedSTTSocket, VADStreamingGate, VAD_GATE_MODE, is_gate_enabled
 from utils.transcribe_decisions import (
     TARGET_SAMPLE_RATE,
@@ -95,12 +77,6 @@ def _get_opuslib() -> Any:
     return opuslib
 
 
-def _get_lc3() -> Any:
-    if lc3 is None:
-        raise RuntimeError('LC3 streaming requires lc3py and its native codec library.') from lc3_import_error
-    return lc3
-
-
 class ListenReceiver:
     def __init__(self, host: Any, channel_configs: List[ChannelConfig], channel_id_to_index: Dict[int, int]):
         self.host = host
@@ -112,10 +88,7 @@ class ListenReceiver:
         self.channel_mix_buffers: List[bytearray] = [bytearray() for _ in channel_configs]
         self.opus_decoder: Any = None
         self.aac_decoder: Any = None
-        self.lc3_decoder: Any = None
         self.vad_gate: Any = None
-        self.image_chunks: OrderedDict[str, Dict[str, Any]] = OrderedDict()
-        self.last_image_chunk_cleanup = 0.0
 
     def _capture(self, method: str, *args: Any) -> None:
         """Keep optional dev capture out of the production audio failure domain."""
@@ -144,46 +117,9 @@ class ListenReceiver:
                 sample_rate=request.sample_rate,
                 channels=request.channels,
             )
-        elif request.codec == 'lc3':
-            self.lc3_decoder = _get_lc3().Decoder(self.host.lc3_frame_duration_us, request.sample_rate)
 
-    async def _create_stt_socket(self, callback: Any, sample_rate: int, modulate_callback: Any = None) -> Any:
-        keywords = self.host.vocabulary[:100] if self.host.vocabulary else []
-        if self.host.stt_service == STTService.parakeet:
-            socket, actual_service = await connect_stt_socket_with_fallback(
-                primary_service=STTService.parakeet,
-                connect_primary=lambda: process_audio_parakeet(
-                    callback,
-                    self.host.stt_language,
-                    sample_rate,
-                    1,
-                    model=self.host.stt_model,
-                    keywords=keywords,
-                    is_active=lambda: self.host.state.active,
-                ),
-                connect_modulate=lambda: process_audio_modulate(
-                    modulate_callback or callback,
-                    sample_rate,
-                    self.host.stt_language,
-                ),
-            )
-            self.host.stt_service = actual_service
-            if actual_service == STTService.modulate:
-                self.host.stt_model = 'velma-2'
-            return socket
-        if self.host.stt_service == STTService.modulate:
-            return await process_audio_modulate(modulate_callback or callback, sample_rate, self.host.stt_language)
-        if self.host.stt_service == STTService.deepgram:
-            return await process_audio_dg(
-                callback,
-                self.host.stt_language,
-                sample_rate,
-                1,
-                model=self.host.stt_model,
-                keywords=keywords,
-                is_active=lambda: self.host.state.active,
-            )
-        raise RuntimeError(f'Unsupported serving STT provider {self.host.stt_service!r}')
+    async def _create_stt_socket(self, callback: Any, sample_rate: int) -> Any:
+        return await process_audio_modulate(callback, sample_rate, self.host.stt_language)
 
     async def _drain_stt_sockets(self) -> None:
         sockets = self.stt_sockets_multi if self.host.is_multi_channel else [self.stt_socket]
@@ -208,7 +144,7 @@ class ListenReceiver:
 
     async def initialize_stt(self) -> bool:
         request = self.host.request
-        provider = getattr(self.host.stt_service, 'value', self.host.stt_service)
+        provider = MODULATE_PROVIDER
         if self.host.use_custom_stt:
             return True
         try:
@@ -251,13 +187,8 @@ class ListenReceiver:
                 self._capture('capture_inbound_stt', segments)
                 self.host.transcripts.enqueue(segments)
 
-            parakeet_callback = make_stream_callback(capture_and_enqueue, self.vad_gate, False)
-            modulate_callback = make_stream_callback(capture_and_enqueue, self.vad_gate, True)
-            raw = await self._create_stt_socket(
-                parakeet_callback,
-                request.sample_rate,
-                modulate_callback=modulate_callback,
-            )
+            managed_callback = make_stream_callback(capture_and_enqueue, self.vad_gate, True)
+            raw = await self._create_stt_socket(managed_callback, request.sample_rate)
             if raw is None:
                 await self._drain_stt_sockets()
                 await terminate_live_stt_session(
@@ -268,10 +199,7 @@ class ListenReceiver:
                     platform=self.host.client_device_context.platform,
                 )
                 return False
-            passthrough = self.host.stt_service == STTService.modulate
-            self.stt_socket = (
-                GatedSTTSocket(raw, gate=self.vad_gate, passthrough_audio=passthrough) if self.vad_gate else raw
-            )
+            self.stt_socket = GatedSTTSocket(raw, gate=self.vad_gate, passthrough_audio=True) if self.vad_gate else raw
             self.host.spawn(self._monitor_stt_death(provider), name='stt_death_monitor')
             return True
         except Exception as error:
@@ -311,51 +239,6 @@ class ListenReceiver:
             if await self.host.wait(STT_DEATH_POLL_INTERVAL_SECONDS):
                 return
 
-    def _cleanup_expired_image_chunks(self) -> None:
-        now = time.time()
-        if now - self.last_image_chunk_cleanup < self.host.limits.image_chunk_cleanup_interval:
-            return
-        self.last_image_chunk_cleanup = now
-        expired = [
-            temporary_id
-            for temporary_id, data in self.image_chunks.items()
-            if now - data['created_at'] > self.host.limits.image_chunk_ttl
-        ]
-        for temporary_id in expired:
-            del self.image_chunks[temporary_id]
-
-    async def _process_photo(self, image_b64: str, temporary_id: str) -> None:
-        photo_id = str(uuid.uuid4())
-        await self.host.asend_event(PhotoProcessingEvent(temp_id=temporary_id, photo_id=photo_id))
-        try:
-            description = await describe_image(self.host.request.uid, image_b64)
-            discarded = not description or not description.strip()
-        except Exception as error:
-            logger.error('Image description failed type=%s', type(error).__name__)
-            description, discarded = 'Could not generate description.', True
-        self.host.transcripts.photo_buffer.append(
-            ConversationPhoto(id=photo_id, base64=image_b64, description=description, discarded=discarded)
-        )
-        await self.host.asend_event(
-            PhotoDescribedEvent(photo_id=photo_id, description=description, discarded=discarded)
-        )
-
-    async def _handle_image_chunk(self, payload: Dict[str, Any]) -> None:
-        chunk = ImageChunkEnvelope.model_validate(payload)
-        self._cleanup_expired_image_chunks()
-        if chunk.id not in self.image_chunks:
-            if len(self.image_chunks) >= self.host.limits.max_image_chunks:
-                self.image_chunks.popitem(last=False)
-            self.image_chunks[chunk.id] = {'chunks': [None] * chunk.total, 'created_at': time.time()}
-        chunks = self.image_chunks[chunk.id]['chunks']
-        chunk.validate_against_cached_total(len(chunks))
-        if chunks[chunk.index] is None:
-            chunks[chunk.index] = chunk.data
-        if all(value is not None for value in chunks):
-            image = ''.join(chunks)
-            del self.image_chunks[chunk.id]
-            self.host.spawn(self._process_photo(image, chunk.id), name='photo_process')
-
     async def _flush_stt_buffer(self, buffer: bytearray, *, force: bool = False) -> None:
         request = self.host.request
         socket_dead = self.stt_socket is not None and live_stt_socket_is_dead(self.stt_socket)
@@ -365,13 +248,13 @@ class ListenReceiver:
             force=force,
             socket_dead=socket_dead,
             socket_available=self.stt_socket is not None,
-            fair_use_dg_budget_exhausted=self.host.state.fair_use_dg_budget_exhausted,
-            fair_use_track_dg_usage=self.host.state.fair_use_track_dg_usage,
+            fair_use_managed_stt_budget_exhausted=self.host.state.fair_use_managed_stt_budget_exhausted,
+            fair_use_track_managed_stt_usage=self.host.state.fair_use_track_managed_stt_usage,
             sample_rate=request.sample_rate,
         )
         if not decision.should_flush:
             return
-        if self.host.state.fair_use_dg_budget_exhausted:
+        if self.host.state.fair_use_managed_stt_budget_exhausted:
             buffer.clear()
             return
         outbound_audio = bytes(buffer)
@@ -380,12 +263,12 @@ class ListenReceiver:
             self.host.state,
             stt_socket=self.stt_socket,
             buffer=buffer,
-            provider=getattr(self.host.stt_service, 'value', self.host.stt_service),
+            provider=MODULATE_PROVIDER,
             platform=self.host.client_device_context.platform,
         )
         if sent:
             self._capture('capture_outbound_stt', outbound_audio)
-            self.host.state.dg_usage_ms_pending += decision.dg_usage_ms
+            self.host.state.managed_stt_usage_ms_pending += decision.managed_stt_usage_ms
 
     async def _handle_multi_channel_audio(self, data: bytes) -> None:
         request = self.host.request
@@ -412,11 +295,11 @@ class ListenReceiver:
         # Custom-STT clients own transcript production.  Their channel sockets are intentionally
         # absent, but captured audio still proceeds to the pusher mix path.
         if not self.host.use_custom_stt:
-            should_send, dg_usage_ms = decide_multi_channel_stt_send(
+            should_send, managed_stt_usage_ms = decide_multi_channel_stt_send(
                 socket_available=bool(self.stt_sockets_multi[channel_index]),
-                fair_use_dg_budget_exhausted=self.host.state.fair_use_dg_budget_exhausted,
+                fair_use_managed_stt_budget_exhausted=self.host.state.fair_use_managed_stt_budget_exhausted,
                 pcm_len=len(pcm),
-                fair_use_track_dg_usage=self.host.state.fair_use_track_dg_usage,
+                fair_use_track_managed_stt_usage=self.host.state.fair_use_track_managed_stt_usage,
             )
             if should_send:
                 sent = await send_live_stt_audio(
@@ -424,12 +307,12 @@ class ListenReceiver:
                     self.host.state,
                     stt_socket=self.stt_sockets_multi[channel_index],
                     audio=pcm,
-                    provider=getattr(self.host.stt_service, 'value', self.host.stt_service),
+                    provider=MODULATE_PROVIDER,
                     platform=self.host.client_device_context.platform,
                 )
                 if sent:
                     self._capture('capture_outbound_stt', pcm)
-                    self.host.state.dg_usage_ms_pending += dg_usage_ms
+                    self.host.state.managed_stt_usage_ms_pending += managed_stt_usage_ms
         # Only accumulate channel audio for the pusher mix when an audio-bytes consumer is attached.
         # decide_multi_channel_mix and the teardown flush both gate on this same condition, so
         # without a consumer nothing ever drains these per-channel buffers. Appending regardless (the
@@ -459,11 +342,11 @@ class ListenReceiver:
         payload = cast(Dict[str, Any], loaded) if isinstance(loaded, dict) else {}
         kind = payload.get('type')
         if kind == 'image_chunk':
-            try:
-                await self._handle_image_chunk(payload)
-            except ValueError:
-                self.host.state.close_code = 1008
-                self.host.state.active = False
+            # The wearable photo protocol was retired by S-02. Fail closed so
+            # stale clients cannot silently stream image data into an ignored
+            # compatibility path or trigger any storage/provider side effect.
+            self.host.state.close_code = 1008
+            self.host.state.active = False
         elif kind == 'skip_question' and self.host.onboarding_handler and not self.host.onboarding_handler.completed:
             await self.host.onboarding_handler.skip_current_question()
         elif kind == 'suggested_transcript' and self.host.use_custom_stt:
@@ -544,8 +427,6 @@ class ListenReceiver:
                             )
                         elif request.codec == 'aac':
                             decoded = self.aac_decoder.decode(bytes(data))
-                        elif request.codec == 'lc3':
-                            decoded = self.lc3_decoder.decode(bytes(data), bit_depth=16)
                         elif request.codec == 'pcm8':
                             decoded = audioop.lin2lin(audioop.bias(data, 1, -128), 1, 2)
                     except Exception as error:
@@ -595,6 +476,3 @@ class ListenReceiver:
         for socket in self.stt_sockets_multi if self.host.is_multi_channel else [self.stt_socket]:
             if socket:
                 socket.finish()
-
-    def clear(self) -> None:
-        self.image_chunks.clear()

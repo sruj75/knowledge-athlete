@@ -58,8 +58,7 @@ contract unchanged for existing players:
 | `ptt` | `desktop_ptt_http`, `desktop_ptt_stream` | Desktop PCM PTT and live PTT STT (bounded audio + transcript events) |
 | `screen` | `desktop_screen_activity_sync` | Text-only screen activity/context sync; no video or embedding vectors |
 | `conversation_finalization` | `conversation_<source>` | Transcript input, memory extraction result, and accepted memories |
-| `memory_write` | `v3_memory_create`, `v3_memory_batch_create`, `integration_<app>`, `twitter_<persona>` | Manual/API, integration, and social memory writers |
-| `memory_import` | `v3_memory_import_batch` | Bounded import artifacts and ingestion result (not raw media) |
+| `memory_write` | `v3_memory_create`, `v3_memory_batch_create` | Retained manual/API memory writers |
 
 The development listen deployment mounts `/var/omi-parity-pack` as an `emptyDir`
 for explicitly allowlisted dogfood principals and best-effort exports cassette

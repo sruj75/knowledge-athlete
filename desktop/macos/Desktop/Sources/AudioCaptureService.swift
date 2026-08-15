@@ -134,7 +134,7 @@ class AudioCaptureService: @unchecked Sendable {
   private let silentMicRecoveryCooldown: CFAbsoluteTime = 3.0  // seconds to let recovery take effect
   private let maxSilentMicFiresPerSession: Int = 3
 
-  /// Target sample rate for DeepGram
+  /// Target sample rate for managed transcription.
   private let targetSampleRate: Double = 16000
 
   // Resampling
@@ -656,7 +656,7 @@ class AudioCaptureService: @unchecked Sendable {
       return
     }
 
-    // Convert Float32 samples to Int16 (linear16 PCM for DeepGram)
+    // Convert Float32 samples to Int16 linear PCM for managed transcription.
     guard let channelData = outputBuffer.floatChannelData?[0] else { return }
 
     let processedFrameLength = Int(outputBuffer.frameLength)

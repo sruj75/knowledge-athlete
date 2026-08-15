@@ -11,7 +11,6 @@ from models.conversation import Conversation
 from models.conversation_enums import ConversationSource, ConversationStatus
 from models.message_event import ConversationEvent, ConversationSessionEvent, LastConversationEvent
 from models.structured import Structured  # type: ignore[reportAttributeAccessIssue]
-from utils.byok import get_byok_keys
 from utils.cloud_tasks import is_listen_finalization_dispatch_enabled
 from utils.conversations import lifecycle as lifecycle_service
 from utils.conversations.factory import deserialize_conversation
@@ -123,7 +122,7 @@ class LiveConversationController:
             lifecycle_service.request_finalization,
             self.host.request.uid,
             conversation_id,
-            has_byok_keys=bool(get_byok_keys()),
+            has_byok_keys=False,
         )
         route = finalization['route']
         if route == 'pusher':
@@ -145,7 +144,7 @@ class LiveConversationController:
         )
         if not data:
             return False
-        if data.get('transcript_segments') or data.get('photos'):
+        if data.get('transcript_segments'):
             return await self.schedule_finalization(conversation_id)
         recording_session_id = recording_session_id_for_lifecycle_event(
             self.host.recording_session_ids_by_conversation, conversation_id
@@ -162,7 +161,7 @@ class LiveConversationController:
             conversations_db.get_conversation, self.host.request.uid, conversation_id
         )
         return bool(
-            latest and (latest.get('transcript_segments') or latest.get('has_content') or latest.get('photos'))
+            latest and (latest.get('transcript_segments') or latest.get('has_content'))
         ) and await self.schedule_finalization(conversation_id)
 
     async def create_new_in_progress_conversation(self, *, rollover: bool = False) -> None:
@@ -222,7 +221,6 @@ class LiveConversationController:
             structured=Structured(),
             language=self.host.language,
             transcript_segments=[],
-            photos=[],
             status=ConversationStatus.in_progress,
             source=source,
             private_cloud_sync_enabled=self.host.private_cloud_sync_enabled,

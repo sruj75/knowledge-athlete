@@ -1,30 +1,4 @@
-/**
- * ACP Bridge — translates between OMI's JSON-lines protocol and the
- * Agent Client Protocol (ACP) used by claude-code-acp.
- *
- * THIS IS THE DESKTOP APP FLOW. It is unrelated to the VM agent flow, which
- * runs the Claude Agent SDK on a remote VM for
- * the Omi Agent feature. This bridge runs locally on the user's Mac.
- *
- * Session lifecycle:
- * 1. resolve_surface_session pins an immutable kernel-owned execution profile.
- * 2. warmup validates that session/profile generation without configuring it.
- * 3. query names only the session and user input; the kernel supplies provider,
- *    model, working directory, system policy, and the admitted context snapshot.
- *
- * Token counts:
- * session/prompt drives one or more internal Anthropic API calls (initial
- * response + one per tool-use round). The usage returned in the result is
- * the AGGREGATE across all those rounds. There are no separate sub-agents.
- *
- * Implementation flow:
- * 1. Create Unix socket server for omi-tools relay
- * 2. Spawn claude-code-acp as subprocess (JSON-RPC over stdio)
- * 3. Initialize ACP connection
- * 4. Handle auth if required (forward to Swift; never await OAuth inside a query/run)
- * 5. On query: reuse or create session, send prompt, translate notifications → JSON-lines
- * 6. On interrupt: cancel the session
- */
+/** Managed Pi desktop runtime and private Swift tool relay. */
 
 import { createInterface } from "readline";
 import packageMetadata from "../package.json" with { type: "json" };
@@ -45,9 +19,7 @@ import type {
   QueryMessage,
   WarmupMessage,
   AuthorizedToolExecutionResultMessage,
-  ConfigureDefaultExecutionProfileMessage,
   ResolveSurfaceSessionMessage,
-  MigrateSessionExecutionProfileMessage,
   ContextSourceUpdateMessage,
   ImportLegacyMainChatSessionsMessage,
   InvalidateSessionMessage,
@@ -66,7 +38,6 @@ import type {
   RefreshOwnerMessage,
   RevokeOwnerRuntimeMessage,
   RefreshTokenMessage,
-  AuthMethod,
 } from "./protocol.js";
 import {
   PROTOCOL_VERSION,
@@ -78,23 +49,16 @@ import {
   isInboundResponseMessage,
   journalTerminalizationDisposition,
 } from "./protocol.js";
-import { startOAuthFlow, type OAuthFlowHandle } from "./oauth-flow.js";
-import { isProductionAdapterId, type PromptBlock, type RuntimeAdapter } from "./adapters/interface.js";
+import type { PromptBlock } from "./adapters/interface.js";
 import { detectImageMimeType } from "./mime-detect.js";
-import {
-  AcpError,
-  AcpRuntimeAdapter,
-  beginProviderAuthWithoutBlocking,
-  isAcpProviderAuthFailure,
-} from "./adapters/acp.js";
 import { AdapterRegistry } from "./runtime/adapter-registry.js";
 import { nextJournalPumpDelayMs } from "./runtime/journal-pump-backoff.js";
-import { JsonlTransport, type McpServerBuildContext } from "./runtime/jsonl-transport.js";
+import { JsonlTransport } from "./runtime/jsonl-transport.js";
 import { AgentRuntimeKernel } from "./runtime/kernel.js";
 import {
-  adapterActivationError,
   adapterIdForHarnessMode,
-  ensureRegisteredAdapter,
+  managedPiActivationError,
+  managedPiIsActivated,
 } from "./runtime/adapter-selection.js";
 import {
   SWIFT_ADVERTISED_AGENT_CONTROL_TOOL_NAMES,
@@ -167,18 +131,6 @@ import type {
 import { createStdoutLineSender } from "./stdout-line-sender.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-
-// Resolve paths to bundled tools
-const playwrightCli = join(
-  __dirname,
-  "..",
-  "node_modules",
-  "@playwright",
-  "mcp",
-  "cli.js"
-);
-
-const omiToolsStdioScript = join(__dirname, "omi-tools-stdio.js");
 
 // --- Helpers ---
 
@@ -643,7 +595,7 @@ function writeFinalizedRelayToolResult(client: Socket, callId: string, result: s
   }
 }
 
-/** Start Unix socket server for omi-tools stdio processes to connect to */
+/** Start the private Unix socket server used by the owned Pi extension. */
 function startOmiToolsRelay(): Promise<string> {
   const pipePath = join(tmpdir(), `omi-tools-${process.pid}.sock`);
 
@@ -907,247 +859,6 @@ function startOmiToolsRelay(): Promise<string> {
   });
 }
 
-// --- ACP subprocess management ---
-
-const acpAdapter = new AcpRuntimeAdapter({ log: logErr });
-
-/** Send a JSON-RPC request to the ACP subprocess and wait for the response */
-async function acpRequest(
-  method: string,
-  params: Record<string, unknown> = {}
-): Promise<unknown> {
-  return acpAdapter.request(method, params);
-}
-
-/** Send a JSON-RPC notification (no response expected) to ACP */
-function acpNotify(
-  method: string,
-  params: Record<string, unknown> = {}
-): void {
-  acpAdapter.notify(method, params);
-}
-
-/** Start the ACP subprocess */
-async function startAcpProcess(): Promise<void> {
-  await acpAdapter.start();
-}
-
-acpAdapter.onProcessExit = () => {
-  isInitialized = false;
-};
-
-// --- State ---
-
-let isInitialized = false;
-let authMethods: AuthMethod[] = [];
-let activeAuthPromise: Promise<void> | null = null;
-let activeOAuthFlow: OAuthFlowHandle | null = null;
-
-// --- Auth flow (OAuth) ---
-
-/** Restart the ACP subprocess so it picks up freshly-stored credentials */
-async function restartAcpProcess(): Promise<void> {
-  logErr("Restarting ACP subprocess to pick up new credentials...");
-  // State is cleaned up by the exit handler (sessions, handlers, etc.)
-  await acpAdapter.restart();
-}
-
-/**
- * Start the OAuth flow: spin up a local callback server, send the auth URL
- * to Swift (so it can open the browser), wait for the user to complete auth,
- * store credentials in Keychain, and restart the ACP subprocess.
- *
- * Idempotent: if a flow is already running, returns the same promise.
- */
-/** Notify Swift that provider auth is required without blocking the active turn. */
-function signalProviderAuthRequired(): void {
-  logErr("ACP provider auth required; signaling Swift without in-band OAuth");
-  send({ type: "auth_required", methods: authMethods });
-}
-
-async function startAuthFlow(): Promise<void> {
-  if (activeAuthPromise) {
-    logErr("Auth flow already in progress, waiting for it...");
-    return activeAuthPromise;
-  }
-
-  activeAuthPromise = (async () => {
-    try {
-      logErr("Starting OAuth flow...");
-      const flow = await startOAuthFlow(logErr);
-      activeOAuthFlow = flow;
-
-      // Send auth URL to Swift so it can open the browser
-      send({ type: "auth_required", methods: authMethods, authUrl: flow.authUrl });
-
-      // Wait for OAuth callback + token exchange + credential storage
-      await flow.complete;
-      logErr("OAuth flow completed successfully");
-
-      // Restart ACP subprocess so it picks up new credentials from Keychain
-      await restartAcpProcess();
-
-      // Notify Swift
-      send({ type: "auth_success" });
-    } catch (err) {
-      logErr(`OAuth flow failed: ${err}`);
-      throw err;
-    } finally {
-      activeOAuthFlow = null;
-      activeAuthPromise = null;
-    }
-  })();
-
-  return activeAuthPromise;
-}
-
-// --- ACP initialization ---
-
-async function initializeAcp(): Promise<void> {
-  if (isInitialized) return;
-
-  try {
-    const result = (await acpRequest("initialize", {
-      protocolVersion: 1,
-    })) as {
-      protocolVersion: number;
-      agentCapabilities?: Record<string, unknown>;
-      agentInfo?: { name: string; version: string };
-      authMethods?: Array<{
-        id: string;
-        name: string;
-        description?: string;
-        type?: string;
-        args?: string[];
-        env?: Record<string, string>;
-      }>;
-    };
-
-    logErr(
-      `ACP initialized: protocol=${result.protocolVersion}, capabilities=${JSON.stringify(result.agentCapabilities)}`
-    );
-
-    // Store auth methods for potential later use
-    if (result.authMethods && result.authMethods.length > 0) {
-      authMethods = result.authMethods.map((m) => ({
-        id: m.id,
-        type: (m.type ?? "agent_auth") as AuthMethod["type"],
-        displayName: m.name || m.description || m.id,
-        args: m.args,
-        env: m.env,
-      }));
-      logErr(
-        `Auth methods: ${authMethods.map((m) => `${m.id}(${m.displayName})`).join(", ")}`
-      );
-    }
-
-    isInitialized = true;
-  } catch (err) {
-    if (err instanceof AcpError && err.code === -32000) {
-      // AUTH_REQUIRED
-      const data = err.data as {
-        authMethods?: Array<{
-          id: string;
-          name: string;
-          description?: string;
-          type?: string;
-        }>;
-      };
-      if (data?.authMethods) {
-        authMethods = data.authMethods.map((m) => ({
-          id: m.id,
-          type: (m.type ?? "agent_auth") as AuthMethod["type"],
-          displayName: m.name || m.description || m.id,
-        }));
-      }
-      logErr(`ACP requires authentication: ${JSON.stringify(authMethods)}`);
-      // Terminalize-first, same contract the active turn already follows: signal
-      // Swift and return instead of awaiting OAuth in-band. `isInitialized` stays
-      // false, so the pending send reaches the ACP request, hits the same -32000,
-      // and terminalizes as `authentication` via the kernel's recoverable-error
-      // path rather than hanging behind this init (#10407).
-      beginProviderAuthWithoutBlocking({
-        signalAuthRequired: signalProviderAuthRequired,
-        startAuthFlow,
-        logErr,
-      });
-      return;
-    }
-    throw err;
-  }
-}
-
-// --- MCP server config builder ---
-
-type McpServerConfig = {
-  name: string;
-  command: string;
-  args: string[];
-  env: Array<{ name: string; value: string }>;
-};
-
-function buildMcpServers(
-  mode: string,
-  cwd?: string,
-  sessionKey?: string,
-  context?: McpServerBuildContext
-): McpServerConfig[] {
-  const servers: McpServerConfig[] = [];
-
-  if (context?.includeSwiftBackedTools !== false) {
-    // omi-tools (stdio, connects back via Unix socket)
-    const omiToolsEnv: Array<{ name: string; value: string }> = [
-      { name: "OMI_BRIDGE_PIPE", value: omiToolsPipePath },
-      { name: "OMI_QUERY_MODE", value: mode },
-      { name: "OMI_ADAPTER_ID", value: context?.adapterId ?? "acp" },
-    ];
-    if (cwd) {
-      omiToolsEnv.push({ name: "OMI_WORKSPACE", value: cwd });
-    }
-    if (sessionKey === "onboarding") {
-      omiToolsEnv.push({ name: "OMI_ONBOARDING", value: "true" });
-    }
-    if (context?.screenContext === true) {
-      omiToolsEnv.push({ name: "OMI_SCREEN_CONTEXT", value: "true" });
-    }
-    omiToolsEnv.push({
-      name: "OMI_EXECUTION_ROLE",
-      value: context?.executionRole === "leaf" ? "leaf" : "coordinator",
-    });
-    servers.push({
-      name: "omi-tools",
-      command: process.execPath,
-      args: [omiToolsStdioScript],
-      env: omiToolsEnv,
-    });
-  }
-
-  // Playwright MCP server. Only expose it when the desktop app has verified
-  // the user already configured the Playwright bridge; otherwise the agent
-  // must use app-native tools instead of opening a fresh Playwright browser.
-  if (process.env.PLAYWRIGHT_MCP_ENABLED === "true") {
-    const playwrightArgs = [playwrightCli];
-    if (process.env.PLAYWRIGHT_USE_EXTENSION === "true") {
-      playwrightArgs.push("--extension");
-    }
-    const playwrightEnv: Array<{ name: string; value: string }> = [];
-    if (process.env.PLAYWRIGHT_MCP_EXTENSION_TOKEN) {
-      playwrightEnv.push({
-        name: "PLAYWRIGHT_MCP_EXTENSION_TOKEN",
-        value: process.env.PLAYWRIGHT_MCP_EXTENSION_TOKEN,
-      });
-    }
-    servers.push({
-      name: "playwright",
-      command: process.execPath,
-      args: playwrightArgs,
-      env: playwrightEnv,
-    });
-  }
-
-  return servers;
-}
-
 function requireControlSessionPolicy(sessionId: string | undefined, ownerId: string | undefined) {
   if (!sessionId || !ownerId || !agentControlToolContext) {
     throw new Error("missing active control session policy");
@@ -1246,7 +957,7 @@ process.stderr.on("error", (err) => {
 async function main(): Promise<void> {
   logErr(`Bridge main() starting (pid=${process.pid}, node=${process.version}, execPath=${process.execPath})`);
 
-  const defaultHarnessMode = process.env.HARNESS_MODE || "acp";
+  const defaultHarnessMode = process.env.HARNESS_MODE || "piMono";
   const defaultAdapterId = adapterIdForHarnessMode(defaultHarnessMode);
   logErr(`Default harness mode: ${defaultHarnessMode}`);
 
@@ -1255,34 +966,21 @@ async function main(): Promise<void> {
   logErr("omi-tools relay started");
   process.env.OMI_BRIDGE_PIPE = omiToolsPipePath;
 
-  // 2. Start ACP only when selected or lazily needed by an ACP query.
-  if (defaultAdapterId === "acp") {
-    await startAcpProcess();
-    logErr("ACP subprocess spawned");
-  }
-
-  const store = new SqliteAgentStore({ stateDir: agentStateDir() });
+  const store = new SqliteAgentStore({
+    stateDir: agentStateDir(),
+    canonicalExecutionProfile: {
+      adapterId: "pi-mono",
+      modelProfile: "omi-sonnet",
+      workingDirectory: agentArtifactsDir(),
+    },
+  });
   const registry = new AdapterRegistry();
-  // Adapter registration is availability, not execution authority. Immutable
-  // session profiles decide which registered adapter a run may use.
-  registry.register("acp", () => acpAdapter, 1);
   const artifactStorage = new OmiArtifactStorage({ rootDir: agentArtifactsDir() });
   logErr(`Omi artifact root: ${artifactStorage.rootDir}`);
-  const recoverRunInput = (adapterId: string) => {
-    if (adapterId !== "acp") return {};
-    return {
-      recoverAfterError: async (error: unknown) => {
-        if (!isAcpProviderAuthFailure(error)) return false;
-        signalProviderAuthRequired();
-        return false;
-      },
-    };
-  };
   const kernel = new AgentRuntimeKernel({
     store,
     registry,
     artifactStorage,
-    recoverRunInput,
     onToolCapabilityRejected: (code) => {
       const count = (capabilityRejectionCounts.get(code) ?? 0) + 1;
       capabilityRejectionCounts.set(code, count);
@@ -1294,12 +992,8 @@ async function main(): Promise<void> {
   let piMonoClasses: typeof import("./adapters/pi-mono.js") | undefined;
   let piMonoAuthToken = process.env.OMI_AUTH_TOKEN;
   const piMonoAdapters = new Set<import("./adapters/pi-mono.js").PiMonoAdapter>();
-  const localAcpAdapters = new Set<RuntimeAdapter>();
-  const stopLocalAcpAdapters = async (): Promise<void> => {
-    await Promise.all([...localAcpAdapters].map((adapter) => adapter.stop()));
-  };
   const ensurePiMonoAdapter = async (authToken: string | undefined): Promise<boolean> => {
-    if (!authToken) return false;
+    if (!managedPiIsActivated(authToken)) return false;
     piMonoAuthToken = authToken;
     piMonoClasses ??= await import("./adapters/pi-mono.js");
     if (!registry.has("pi-mono")) {
@@ -1317,63 +1011,27 @@ async function main(): Promise<void> {
   };
 
   const piMonoAvailable = await ensurePiMonoAdapter(process.env.OMI_AUTH_TOKEN);
-  const ensureHermesAdapter = async (): Promise<boolean> => {
-    return ensureRegisteredAdapter(registry, "hermes", {
-      log: logErr,
-      maxWorkers: 1,
-      onCreate: (adapter) => localAcpAdapters.add(adapter),
-    });
-  };
-  const ensureOpenClawAdapter = async (): Promise<boolean> => {
-    return ensureRegisteredAdapter(registry, "openclaw", {
-      log: logErr,
-      maxWorkers: configuredPiMonoMaxWorkers(),
-      onCreate: (adapter) => localAcpAdapters.add(adapter),
-    });
-  };
-  const hermesAvailable = await ensureHermesAdapter();
-  const openClawAvailable = await ensureOpenClawAdapter();
-  if (!piMonoAvailable && defaultAdapterId === "pi-mono" && process.env.OMI_AGENT_ALLOW_CONTROL_ONLY !== "1") {
-    const msg = "pi-mono mode requires OMI_AUTH_TOKEN (Firebase ID token); refusing to start";
+  if (!piMonoAvailable && process.env.OMI_AGENT_ALLOW_CONTROL_ONLY !== "1") {
+    const msg = managedPiActivationError();
     logErr(msg);
     send({ type: "error", message: msg });
     process.exit(1);
-  } else if (!piMonoAvailable && defaultAdapterId === "pi-mono") {
-    logErr("Pi-mono adapter unavailable; starting the non-production control-only runtime");
-  }
-  if (!hermesAvailable && defaultAdapterId === "hermes") {
-    const msg = adapterActivationError("hermes") ?? "Hermes adapter is unavailable.";
-    logErr(msg);
-    send({ type: "error", message: msg });
-    process.exit(1);
-  }
-  if (!openClawAvailable && defaultAdapterId === "openclaw") {
-    const msg = adapterActivationError("openclaw") ?? "OpenClaw adapter is unavailable.";
-    logErr(msg);
-    send({ type: "error", message: msg });
-    process.exit(1);
+  } else if (!piMonoAvailable) {
+    logErr("Managed Pi unavailable; starting the test-only control runtime");
   }
   agentControlToolContext = {
     kernel,
     defaultAdapterId,
+    workingDirectory: agentArtifactsDir(),
     providerBoundary: providerBoundaryForAdapter(defaultAdapterId),
     executionRole: "coordinator",
     getOwnerId: establishedOwnerId,
-    buildMcpServers,
-    recoverRunInput,
   };
   const transport = new JsonlTransport({
     kernel,
     send,
     log: logErr,
     defaultAdapterId,
-    buildMcpServers,
-    isRecoverableError: (error, adapterId) => adapterId === "acp" && isAcpProviderAuthFailure(error),
-    onRecoverableError: async (_error, adapterId) => {
-      if (adapterId !== "acp") return;
-      signalProviderAuthRequired();
-    },
-    maxRecoverableRetries: 2,
     activeOwnerId: establishedOwnerId,
   });
   const revokeOwnerRuntimeWork = (
@@ -1432,22 +1090,12 @@ async function main(): Promise<void> {
     lastOwnerRuntimeRevocation = receipt;
     return receipt;
   };
-  const preferenceForOwner = (ownerId: string) => kernel.defaultExecutionProfilePreference(ownerId)
-    ?? kernel.configureDefaultExecutionProfile({
-      ownerId,
-      adapterId: defaultAdapterId,
-      modelProfile: defaultAdapterId === "pi-mono"
-        ? "omi-sonnet"
-        : defaultAdapterId === "acp" ? "claude-sonnet-4-6" : null,
-      workingDirectory: agentArtifactsDir(),
-    });
   const resolveJournalSurface = (input: {
     ownerId: string;
     surfaceKind: string;
     externalRefKind: string;
     externalRefId: string;
   }) => {
-    const preference = preferenceForOwner(input.ownerId);
     return kernel.resolveSurfaceSession({
       ownerId: input.ownerId,
       surfaceRef: {
@@ -1455,10 +1103,10 @@ async function main(): Promise<void> {
         externalRefKind: input.externalRefKind,
         externalRefId: input.externalRefId,
       },
-      defaultAdapterId: preference.adapterId,
-      providerBoundary: providerBoundaryForAdapter(preference.adapterId),
-      modelProfile: preference.modelProfile,
-      defaultCwd: preference.workingDirectory,
+      defaultAdapterId,
+      providerBoundary: "managed_cloud",
+      modelProfile: "omi-sonnet",
+      defaultCwd: agentArtifactsDir(),
       executionRole: executionRoleForSurface(input),
     });
   };
@@ -1597,20 +1245,8 @@ async function main(): Promise<void> {
           const queryOwnerId = resolveActiveOwner(query.ownerId);
           query.ownerId = queryOwnerId;
           query.requestId = query.requestId.trim();
-          const adapterId = kernel.sessionExecutionProfile(query.sessionId, queryOwnerId).adapterId;
-          if (adapterId === "acp") {
-            await startAcpProcess();
-            await initializeAcp();
-          } else if (adapterId === "pi-mono") {
-            await ensurePiMonoAdapter(process.env.OMI_AUTH_TOKEN);
-          } else if (adapterId === "hermes") {
-            if (!(await ensureHermesAdapter())) {
-              throw new Error(adapterActivationError("hermes"));
-            }
-          } else if (adapterId === "openclaw") {
-            if (!(await ensureOpenClawAdapter())) {
-              throw new Error(adapterActivationError("openclaw"));
-            }
+          if (!(await ensurePiMonoAdapter(process.env.OMI_AUTH_TOKEN))) {
+            throw new Error(managedPiActivationError());
           }
           await transport.handleQuery(query);
         })().catch((err) => {
@@ -1636,31 +1272,6 @@ async function main(): Promise<void> {
         break;
       }
 
-      case "configure_default_execution_profile": {
-        const config = msg as ConfigureDefaultExecutionProfileMessage;
-        const ownerId = resolveActiveOwner(config.ownerId);
-        const preference = kernel.configureDefaultExecutionProfile({
-          ownerId,
-          adapterId: config.adapterId,
-          modelProfile: config.modelProfile,
-          workingDirectory: config.workingDirectory,
-          expectedPreferenceGeneration: config.expectedPreferenceGeneration,
-        });
-        send({
-          type: "default_execution_profile_configured",
-          protocolVersion: config.protocolVersion,
-          requestId: config.requestId,
-          clientId: config.clientId,
-          preferenceGeneration: preference.generation,
-          adapterId: preference.adapterId,
-          credentialScope: preference.credentialScope,
-          modelProfile: preference.modelProfile,
-          workingDirectory: preference.workingDirectory,
-          appliesTo: "new_sessions",
-        });
-        break;
-      }
-
       case "resolve_surface_session": {
         const resolve = msg as ResolveSurfaceSessionMessage;
         const ownerId = resolveActiveOwner(resolve.ownerId);
@@ -1669,28 +1280,6 @@ async function main(): Promise<void> {
            WHERE owner_id = ? AND surface_kind = ? AND external_ref_kind = ? AND external_ref_id = ?`,
           [ownerId, resolve.surfaceKind, resolve.externalRefKind, resolve.externalRefId],
         );
-        const preference = kernel.defaultExecutionProfilePreference(ownerId)
-          ?? kernel.configureDefaultExecutionProfile({
-            ownerId,
-            adapterId: defaultAdapterId,
-            modelProfile: defaultAdapterId === "pi-mono"
-              ? "omi-sonnet"
-              : defaultAdapterId === "acp" ? "claude-sonnet-4-6" : null,
-            workingDirectory: agentArtifactsDir(),
-          });
-        const creationProfile = existing ? undefined : resolve.creationProfile;
-        if (creationProfile) {
-          if (!isProductionAdapterId(creationProfile.adapterId)) {
-            throw new Error(`Unknown production adapter ${creationProfile.adapterId}`);
-          }
-          if (!kernel.isAdapterRegistered(creationProfile.adapterId)) {
-            throw new Error(`Requested creation adapter is unavailable: ${creationProfile.adapterId}`);
-          }
-          if (!creationProfile.workingDirectory.trim()) {
-            throw new Error("Session creation profile requires workingDirectory");
-          }
-        }
-        const selectedProfile = creationProfile ?? preference;
         const resolved = kernel.resolveSurfaceSession({
           ownerId,
           surfaceRef: {
@@ -1698,10 +1287,10 @@ async function main(): Promise<void> {
             externalRefKind: resolve.externalRefKind,
             externalRefId: resolve.externalRefId,
           },
-          defaultAdapterId: selectedProfile.adapterId,
-          providerBoundary: providerBoundaryForAdapter(selectedProfile.adapterId),
-          modelProfile: selectedProfile.modelProfile,
-          defaultCwd: selectedProfile.workingDirectory,
+          defaultAdapterId,
+          providerBoundary: "managed_cloud",
+          modelProfile: "omi-sonnet",
+          defaultCwd: agentArtifactsDir(),
           executionRole: executionRoleForSurface(resolve),
           title: resolve.title ?? null,
         });
@@ -1726,38 +1315,6 @@ async function main(): Promise<void> {
         if (resolve.surfaceKind === "main_chat") {
           triggerBackendReconcile({ ownerId, conversationId: resolved.conversationId });
         }
-        break;
-      }
-
-      case "migrate_session_execution_profile": {
-        const migrate = msg as MigrateSessionExecutionProfileMessage;
-        const ownerId = resolveActiveOwner(migrate.ownerId);
-        const result = kernel.migrateSessionExecutionProfile({
-          sessionId: migrate.sessionId,
-          ownerId,
-          expectedProfileGeneration: migrate.expectedProfileGeneration,
-          adapterId: migrate.adapterId,
-          modelProfile: migrate.modelProfile,
-          workingDirectory: migrate.workingDirectory,
-          reason: migrate.reason,
-        });
-        send({
-          type: "session_execution_profile_migrated",
-          protocolVersion: migrate.protocolVersion,
-          requestId: migrate.requestId,
-          clientId: migrate.clientId,
-          sessionId: migrate.sessionId,
-          previousProfileGeneration: result.previous.generation,
-          profile: {
-            profileGeneration: result.profile.generation,
-            adapterId: result.profile.adapterId,
-            credentialScope: result.profile.credentialScope,
-            modelProfile: result.profile.modelProfile,
-            workingDirectory: result.profile.workingDirectory,
-            executionRole: result.profile.executionRole,
-          },
-          staleBindingIds: result.staleBindingIds,
-        });
         break;
       }
 
@@ -3046,9 +2603,7 @@ async function main(): Promise<void> {
         );
         if (journalPumpTimer) clearTimeout(journalPumpTimer);
         store.close();
-        await acpAdapter.stop();
         await Promise.all([...piMonoAdapters].map((adapter) => adapter.stop()));
-        await stopLocalAcpAdapters();
         process.exit(0);
         break;
 
@@ -3090,9 +2645,7 @@ async function main(): Promise<void> {
       "Agent runtime stopped during tool execution",
     );
     store.close();
-    void acpAdapter.stop();
     void Promise.all([...piMonoAdapters].map((adapter) => adapter.stop()));
-    void stopLocalAcpAdapters();
     process.exit(0);
   });
 }

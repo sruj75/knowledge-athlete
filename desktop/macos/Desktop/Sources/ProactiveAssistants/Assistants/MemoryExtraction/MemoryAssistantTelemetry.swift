@@ -298,7 +298,6 @@ actor MemoryAssistantLiveDurabilityOperations: MemoryAssistantDurabilityOperatin
       let category: MemoryCategory = request.category == "interesting" ? .interesting : .system
       let backendMemory = try await APIClient.shared.createMemory(
         content: request.content,
-        visibility: "private",
         category: category,
         confidence: request.confidence,
         sourceApp: request.sourceApp,

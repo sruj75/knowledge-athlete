@@ -34,7 +34,7 @@ class _FirestoreLikeDB:
         self.last_statuses = None
         self.last_sources = None
 
-    def get_conversations_without_photos(self, uid, limit, offset, *, statuses=(), **kwargs):
+    def get_conversations(self, uid, limit, offset, *, statuses=(), **kwargs):
         self.last_statuses = list(statuses)
         if len(statuses) > _FIRESTORE_IN_LIMIT:
             raise Exception("'in' filters support a maximum of 30 elements.")

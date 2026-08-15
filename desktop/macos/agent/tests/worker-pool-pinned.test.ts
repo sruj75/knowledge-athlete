@@ -14,7 +14,6 @@ function pinnedAdapter(): RuntimeAdapter {
       supportsCancellation: true,
       acknowledgesCancellation: false,
       requiresPinnedWorker: true,
-      supportsModelSwitching: true,
       supportsArtifactEmission: false,
       supportsTools: true,
       restartBehavior: "process_local_bindings_stale",

@@ -3,46 +3,16 @@ from datetime import datetime, timezone
 import pytest
 from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import ValidationError
 
 from models.conversation import SetConversationActionItemsStateRequest, SetConversationEventsStateRequest
 from utils.request_validation import (
     HistoryDays,
-    ImageChunkEnvelope,
-    MAX_IMAGE_CHUNK_TOTAL,
     NonNegativeOffset,
     PositiveLimit,
-    parse_form_json,
     parse_sync_filename_timestamp,
     validate_calendar_date,
 )
-
-
-class _FormPayload(BaseModel):
-    name: str = Field(min_length=1)
-    count: int = Field(ge=1)
-
-
-def test_parse_form_json_validates_model_json():
-    payload = parse_form_json(_FormPayload, '{"name":"omi","count":2}', 'app_data')
-
-    assert payload == _FormPayload(name='omi', count=2)
-
-
-@pytest.mark.parametrize('raw_value', ['not-json', '[]', '{"name":"omi","count":0}'])
-def test_parse_form_json_rejects_invalid_form_json(raw_value):
-    with pytest.raises(HTTPException) as exc_info:
-        parse_form_json(_FormPayload, raw_value, 'app_data')
-
-    assert exc_info.value.status_code == 422
-    assert 'app_data' in exc_info.value.detail
-
-
-def test_parse_form_json_dict_rejects_non_object_json():
-    with pytest.raises(HTTPException) as exc_info:
-        parse_form_json(dict, '[1, 2, 3]', 'persona_data')
-
-    assert exc_info.value.status_code == 422
 
 
 @pytest.mark.parametrize('value', ['2024-01-01', '2024-02-29'])
@@ -87,35 +57,6 @@ def test_parse_sync_filename_timestamp_rejects_future_values():
 
     with pytest.raises(ValueError):
         parse_sync_filename_timestamp(f'audio_{future}.bin')
-
-
-@pytest.mark.parametrize(
-    'payload',
-    [
-        {'id': 'img', 'index': -1, 'total': 2, 'data': 'a'},
-        {'id': 'img', 'index': 2, 'total': 2, 'data': 'a'},
-        {'id': 'img', 'index': 0, 'total': 0, 'data': 'a'},
-        {'id': '', 'index': 0, 'total': 1, 'data': 'a'},
-        {'id': 'img', 'index': 0, 'total': 1, 'data': ''},
-    ],
-)
-def test_image_chunk_envelope_rejects_invalid_boundaries(payload):
-    with pytest.raises(ValidationError):
-        ImageChunkEnvelope.model_validate(payload)
-
-
-def test_image_chunk_envelope_rejects_inconsistent_cached_total():
-    chunk = ImageChunkEnvelope(id='img', index=1, total=2, data='b')
-
-    with pytest.raises(ValueError):
-        chunk.validate_against_cached_total(3)
-
-
-def test_image_chunk_envelope_allows_mobile_photo_chunk_counts_above_legacy_cap():
-    chunk = ImageChunkEnvelope(id='img', index=300, total=512, data='b')
-
-    assert chunk.total == 512
-    assert MAX_IMAGE_CHUNK_TOTAL >= 512
 
 
 def test_parallel_action_item_arrays_must_have_matching_lengths():

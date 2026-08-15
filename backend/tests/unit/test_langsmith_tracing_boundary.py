@@ -1,6 +1,7 @@
-import utils.observability as observability
 from types import SimpleNamespace
 from uuid import UUID
+
+import utils.observability as observability
 
 
 def test_tracing_survives_without_product_feedback_export(monkeypatch):

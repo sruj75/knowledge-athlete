@@ -63,7 +63,6 @@ private actor OwnerBoundaryExternalRunProbe {
     (closed, observedOwnerID, observedStatus)
   }
 }
-
 final class PushToTalkStateMachineTests: XCTestCase {
   func testRecordingProjectionComesDirectlyFromAuthoritativePhase() {
     XCTAssertTrue(VoiceTurnPhase.recording.isRecording)
@@ -167,7 +166,7 @@ final class PushToTalkStateMachineTests: XCTestCase {
       manager.installOwnerBoundaryEffectHandlerFixture()
       let turnID = VoiceTurnCoordinator.shared.begin(intent: .hold, ownerID: "owner-a")
       VoiceTurnCoordinator.shared.publish(
-        .selectRoute(turnID: turnID, route: .deepgramLive))
+        .selectRoute(turnID: turnID, route: .managedBatch))
       let captureID = VoiceCaptureID(manager.ownerBoundarySnapshot.captureGeneration)
       VoiceTurnCoordinator.shared.publish(
         .captureStarted(turnID: turnID, captureID: captureID))

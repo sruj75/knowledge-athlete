@@ -139,8 +139,6 @@ env:
     value: "3600"
   - name: OMI_LLM_GATEWAY_FEATURE_MODE
     value: "gateway"
-  - name: PUBLIC_SHARED_CONVERSATION_CHAT_MODE
-    value: "off"
   - name: OMI_LLM_GATEWAY_ALLOW_DIRECT_MODEL_EXCEPTION
     value: "false"
   - name: OMI_LLM_GATEWAY_CONVERSATION_STRUCTURE_SHADOW_ENABLED
@@ -219,12 +217,6 @@ env:
       secretKeyRef:
         name: dev-omi-backend-secrets
         key: ADMIN_KEY
-  - name: HOSTED_PARAKEET_API_URL
-    value: "http://parakeet.omiapi.com"
-  - name: STT_PRERECORDED_MODEL
-    value: "parakeet,modulate-velma-2"
-  - name: STT_SERVICE_MODELS
-    value: "modulate-velma-2,parakeet"
   - name: NO_SOCKET_TIMEOUT
     value: "true"
   - name: HOSTED_PUSHER_API_URL
@@ -278,11 +270,6 @@ env:
       secretKeyRef:
         name: dev-omi-backend-secrets
         key: STRIPE_WEBHOOK_SECRET
-  - name: MARKETPLACE_APP_REVIEWERS
-    valueFrom:
-      secretKeyRef:
-        name: dev-omi-backend-secrets
-        key: MARKETPLACE_APP_REVIEWERS
   - name: TYPESENSE_HOST_PORT
     value: "443"
   - name: TYPESENSE_API_KEY
@@ -367,7 +354,7 @@ env:
     value: "300"
   - name: FAIR_USE_EXEMPT_UIDS
     value: ""
-  - name: FAIR_USE_RESTRICT_DAILY_DG_MS
+  - name: FAIR_USE_RESTRICT_DAILY_MANAGED_STT_MS
     value: "1800000"
   - name: METRICS_SECRET
     valueFrom:
@@ -384,22 +371,6 @@ env:
       secretKeyRef:
         name: dev-omi-backend-secrets
         key: OPENROUTER_API_KEY
-  - name: RAPID_API_KEY
-    valueFrom:
-      secretKeyRef:
-        name: dev-omi-backend-secrets
-        key: RAPID_API_KEY
-  - name: X_OAUTH_CLIENT_SECRET
-    valueFrom:
-      secretKeyRef:
-        name: dev-omi-backend-secrets
-        key: X_OAUTH_CLIENT_SECRET
-  - name: MCP_OAUTH_CHATGPT_CLIENT_SECRET
-    valueFrom:
-      secretKeyRef:
-        name: dev-omi-backend-secrets
-        key: MCP_OAUTH_CHATGPT_CLIENT_SECRET
-
 resources:
   # We usually recommend not to specify default resources and to leave this as a conscious
   # choice for the user. This also increases chances charts run on environments with little

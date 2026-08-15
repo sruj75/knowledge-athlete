@@ -69,7 +69,6 @@ STORAGE_NETWORK_CALL_MARKERS = (
 # while omitting these imports lets async coordinators look clean even though the
 # imported implementation performs synchronous I/O.
 SYNC_DB_UTILITY_IMPORTS = {
-    "utils.apps": frozenset({"get_available_apps"}),
     "utils.subscription": frozenset({"is_trial_paywalled"}),
 }
 SYNC_NETWORK_UTILITY_IMPORTS = {

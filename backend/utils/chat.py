@@ -8,17 +8,13 @@ from fastapi import HTTPException
 import database.chat as chat_db
 import database.notifications as notification_db
 import database.users as user_db
-from database.apps import record_app_usage
-from models.app import App, UsageHistoryType
 from models.chat import ChatSession, Message, ResponseMessage, MessageConversation
 from models.notification_message import NotificationMessage
 from models.transcript_segment import TranscriptSegment
-from utils.apps import get_available_app_by_id
 from utils.executors import db_executor, run_blocking, storage_executor, sync_executor
 from utils.conversation_helpers import extract_memory_ids
 from utils.conversations.factory import deserialize_conversation
 from utils.llm.chat import initial_chat_message
-from utils.llm.persona import initial_persona_chat_message
 from utils.notifications import send_notification, send_notification_async
 from utils.observability.fallback import record_fallback
 from utils.other.storage import get_syncing_file_temporal_signed_url, schedule_syncing_temporal_file_deletion
@@ -42,53 +38,41 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-def acquire_chat_session(uid: str, app_id: Optional[str] = None):
-    chat_session = chat_db.get_chat_session(uid, app_id=app_id)
+def acquire_chat_session(uid: str):
+    chat_session = chat_db.get_chat_session(uid)
     if chat_session is None:
-        cs = ChatSession(id=str(uuid.uuid4()), created_at=datetime.now(timezone.utc), plugin_id=app_id)
+        cs = ChatSession(id=str(uuid.uuid4()), created_at=datetime.now(timezone.utc))
         chat_session = chat_db.add_chat_session(uid, cs.model_dump())
     return chat_session
 
 
-def initial_message_util(uid: str, app_id: Optional[str] = None, chat_session_id: Optional[str] = None):
-    logger.info(f'initial_message_util {app_id}')
-
-    # init chat session — use provided session_id if available, otherwise acquire by app_id
+def initial_message_util(uid: str, chat_session_id: Optional[str] = None):
+    # Initialize a single assistant session, or reuse the explicitly addressed session.
     if chat_session_id:
         chat_session = chat_db.get_chat_session_by_id(uid, chat_session_id)
         if chat_session is None:
             raise HTTPException(status_code=404, detail='Chat session not found')
     else:
-        chat_session = acquire_chat_session(uid, app_id=app_id)
+        chat_session = acquire_chat_session(uid)
 
-    # Load previous messages — session-scoped when session_id is provided, app-scoped otherwise
+    # Load previous messages — session-scoped when session_id is provided.
     if chat_session_id:
         prev_messages = list(reversed(chat_db.get_messages(uid, limit=5, chat_session_id=chat_session_id)))
     else:
-        prev_messages = list(reversed(chat_db.get_messages(uid, limit=5, app_id=app_id)))
-    logger.info(f'initial_message_util returned {len(prev_messages)} prev messages for {app_id}')
+        prev_messages = list(reversed(chat_db.get_messages(uid, limit=5)))
+    logger.info(f'initial_message_util returned {len(prev_messages)} previous messages')
 
-    app = get_available_app_by_id(app_id, uid)
-    app = App(**app) if app else None
-
-    text: str
-    if app and app.is_a_persona():
-        text = initial_persona_chat_message(uid, app, [Message(**msg) for msg in prev_messages])
-    else:
-        prev_messages_str = ''
-        if prev_messages:
-            prev_messages_str = 'Previous conversation history:\n'
-            prev_messages_str += Message.get_messages_as_string([Message(**msg) for msg in prev_messages])
-        logger.info(f'initial_message_util {len(prev_messages_str)} {app_id}')
-        text = initial_chat_message(uid, app, prev_messages_str)
+    prev_messages_str = ''
+    if prev_messages:
+        prev_messages_str = 'Previous conversation history:\n'
+        prev_messages_str += Message.get_messages_as_string([Message(**msg) for msg in prev_messages])
+    text = initial_chat_message(uid, prev_messages_str)
 
     ai_message = Message(
         id=str(uuid.uuid4()),
         text=text,
         created_at=datetime.now(timezone.utc),
         sender='ai',
-        app_id=app_id,
-        from_external_integration=False,
         type='text',
         memories_id=[],
         chat_session_id=chat_session['id'],
@@ -153,15 +137,13 @@ def _transcribe_voice_message_url(
     detect_language: bool = True,
 ) -> Tuple[Optional[str], Optional[str]]:
     """Run the synchronous prerecorded-STT pipeline for one signed URL."""
-    provider, stt_language, stt_model = get_prerecorded_service(language)
+    provider, stt_language, _ = get_prerecorded_service(language)
     is_multi = stt_language == 'multi'
     try:
         if is_multi and detect_language:
-            words, detected_language = prerecorded(
-                url, diarize=False, language=stt_language, return_language=True, model=stt_model
-            )
+            words, detected_language = prerecorded(url, diarize=False, language=stt_language, return_language=True)
         else:
-            words = prerecorded(url, diarize=False, language=stt_language, return_language=False, model=stt_model)
+            words = prerecorded(url, diarize=False, language=stt_language, return_language=False)
             detected_language = stt_language
     except Exception as error:
         failure = failure_from_exception(error, provider=provider)
@@ -218,7 +200,7 @@ def transcribe_pcm_bytes(
     channels: int = 1,
     keywords: Optional[List[str]] = None,
 ) -> Tuple[Optional[str], Optional[str]]:
-    """Transcribe raw PCM audio bytes through the selected pre-recorded STT provider.
+    """Transcribe raw PCM audio bytes through managed pre-recorded STT.
 
     Skips GCS upload and WAV conversion for maximum speed.
     Used by desktop PTT batch mode.
@@ -226,7 +208,7 @@ def transcribe_pcm_bytes(
     if not language:
         language = resolve_voice_message_language(uid, None)
 
-    provider, stt_language, stt_model = get_prerecorded_service(language)
+    provider, stt_language, _ = get_prerecorded_service(language)
     is_multi = stt_language == 'multi'
 
     if encoding == 'linear16':
@@ -251,7 +233,6 @@ def transcribe_pcm_bytes(
                 encoding=encoding,
                 channels=channels,
                 language=stt_language,
-                model=stt_model,
                 return_language=True,
                 keywords=keywords,
             )
@@ -264,7 +245,6 @@ def transcribe_pcm_bytes(
                 encoding=encoding,
                 channels=channels,
                 language=stt_language,
-                model=stt_model,
                 keywords=keywords,
             )
             detected_language = stt_language
@@ -307,34 +287,26 @@ def process_voice_message_segment(
     )
     chat_db.add_message(uid, message.model_dump())
 
-    # not support plugin
-    app = None
-    app_id = None
-
     messages = list(reversed([Message(**msg) for msg in chat_db.get_messages(uid, limit=10)]))
     with track_usage(uid, Features.CHAT):
-        response, ask_for_nps, memories = execute_graph_chat(uid, messages, app)  # app
+        response, ask_for_nps, memories = execute_graph_chat(uid, messages)
     memories_id = extract_memory_ids(memories) if memories else []
     ai_message = Message(
         id=str(uuid.uuid4()),
         text=response,
         created_at=datetime.now(timezone.utc),
         sender='ai',
-        app_id=app_id,
         type='text',
         memories_id=memories_id,
     )
     chat_db.add_message(uid, ai_message.model_dump())
     ai_message.memories = memories if len(memories) < 5 else memories[:5]
-    if app_id:
-        record_app_usage(uid, app_id, UsageHistoryType.chat_message_sent, message_id=ai_message.id)
-
     ai_message_resp = ai_message.model_dump()
 
     ai_message_resp['ask_for_nps'] = ask_for_nps
 
     # send notification
-    send_chat_message_notification(uid, "omi", "omi", ai_message.text, ai_message.id)
+    send_chat_message_notification(uid, ai_message.text, ai_message.id)
 
     return [message.model_dump(), ai_message_resp]
 
@@ -342,14 +314,13 @@ def process_voice_message_segment(
 CHAT_STREAM_ERROR_TEXT = "Sorry, something went wrong while generating a response. Please try again."
 
 
-def _new_stream_error_message(app_id: Optional[str], chat_session: Optional[ChatSession]) -> Message:
+def _new_stream_error_message(chat_session: Optional[ChatSession]) -> Message:
     """Construct (but do not persist) the canned fallback AI message."""
     ai_message = Message(
         id=str(uuid.uuid4()),
         text=CHAT_STREAM_ERROR_TEXT,
         created_at=datetime.now(timezone.utc),
         sender='ai',
-        app_id=app_id,
         type='text',
     )
     if chat_session:
@@ -359,7 +330,6 @@ def _new_stream_error_message(app_id: Optional[str], chat_session: Optional[Chat
 
 def build_stream_error_reply(
     uid: str,
-    app_id: Optional[str] = None,
     chat_session: Optional[ChatSession] = None,
 ) -> ResponseMessage:
     """Persist and return a graceful fallback AI reply for a chat turn that
@@ -374,7 +344,7 @@ def build_stream_error_reply(
     exception is logged upstream in ``execute_*_chat_stream`` and is never
     surfaced to the client.
     """
-    ai_message = _new_stream_error_message(app_id, chat_session)
+    ai_message = _new_stream_error_message(chat_session)
     if chat_session:
         chat_db.add_message_to_chat_session(uid, chat_session.id, ai_message.id)
     chat_db.add_message(uid, ai_message.model_dump())
@@ -383,7 +353,6 @@ def build_stream_error_reply(
 
 async def emit_stream_error_fallback(
     uid: str,
-    app_id: Optional[str],
     chat_session: Optional[ChatSession],
     *,
     label: str,
@@ -405,11 +374,11 @@ async def emit_stream_error_fallback(
     """
     logger.error('%s stream ended without an answer for uid=%s (error=%s)', label, uid, error_recorded)
     try:
-        fallback = await run_blocking(db_executor, build_stream_error_reply, uid, app_id, chat_session)
+        fallback = await run_blocking(db_executor, build_stream_error_reply, uid, chat_session)
         outcome = 'degraded'
     except Exception as persist_exc:
         logger.error('%s stream fallback persistence failed for uid=%s: %s', label, uid, type(persist_exc).__name__)
-        ai_message = _new_stream_error_message(app_id, chat_session)
+        ai_message = _new_stream_error_message(chat_session)
         fallback = ResponseMessage(**ai_message.model_dump(), ask_for_nps=False)
         outcome = 'exhausted'
     record_fallback(
@@ -474,10 +443,6 @@ async def process_voice_message_segment_stream(
     mdata = base64.b64encode(bytes(message.model_dump_json(), 'utf-8')).decode('utf-8')
     yield f"message: {mdata}\n\n"
 
-    # not support plugin
-    app = None
-    app_id = None
-
     async def process_message(response: str, callback_data: dict):
         memories = callback_data.get('memories_found', [])
         ask_for_nps = callback_data.get('ask_for_nps', False)
@@ -499,7 +464,6 @@ async def process_voice_message_segment_stream(
             text=response,
             created_at=datetime.now(timezone.utc),
             sender='ai',
-            app_id=app_id,
             type='text',
             memories_id=memories_id,
             langsmith_run_id=langsmith_run_id,  # Store run_id for operator trace correlation
@@ -517,11 +481,6 @@ async def process_voice_message_segment_stream(
         await run_blocking(db_executor, chat_db.add_message, uid, ai_message.model_dump())
         ai_message.memories = [MessageConversation(**m) for m in (memories if len(memories) < 5 else memories[:5])]
 
-        if app_id:
-            await run_blocking(
-                db_executor, record_app_usage, uid, app_id, UsageHistoryType.chat_message_sent, message_id=ai_message.id
-            )
-
         return ai_message, ask_for_nps
 
     messages = list(
@@ -533,7 +492,7 @@ async def process_voice_message_segment_stream(
     usage_token = set_usage_context(uid, Features.CHAT)
     try:
         async for chunk in execute_graph_chat_stream(
-            uid, messages, app, cited=False, callback_data=callback_data, platform=platform
+            uid, messages, cited=False, callback_data=callback_data, platform=platform
         ):
             if chunk:
                 data = chunk.replace("\n", "__CRLF__")
@@ -551,11 +510,11 @@ async def process_voice_message_segment_stream(
                     answered = True
 
                     # send notification
-                    await send_chat_message_notification_async(uid, "omi", "omi", ai_message.text, ai_message.id)
+                    await send_chat_message_notification_async(uid, ai_message.text, ai_message.id)
 
         if not answered:
             yield await emit_stream_error_fallback(
-                uid, app_id, chat_session, label='voice_chat', error_recorded=bool(callback_data.get('error'))
+                uid, chat_session, label='voice_chat', error_recorded=bool(callback_data.get('error'))
             )
     finally:
         reset_usage_context(usage_token)
@@ -563,39 +522,31 @@ async def process_voice_message_segment_stream(
     return
 
 
-def _chat_message_notification(
-    app_id: str,
-    message: str,
-    message_id: str,
-) -> NotificationMessage:
+def _chat_message_notification(message: str, message_id: str) -> NotificationMessage:
     return NotificationMessage(
         id=message_id,
         text=message,
-        plugin_id=app_id,
-        from_integration='true',
         type='text',
-        notification_type='plugin',
-        navigate_to=f'/chat/{app_id}',
+        notification_type='chat',
+        navigate_to='/chat',
     )
 
 
-def send_chat_message_notification(user_id: str, app_name: str, app_id: str, message: str, message_id: str):
-    ai_message = _chat_message_notification(app_id, message, message_id)
-    send_notification(user_id, app_name + ' says', message, NotificationMessage.get_message_as_dict(ai_message))
+def send_chat_message_notification(user_id: str, message: str, message_id: str):
+    ai_message = _chat_message_notification(message, message_id)
+    send_notification(user_id, 'Omi says', message, NotificationMessage.get_message_as_dict(ai_message))
 
 
 async def send_chat_message_notification_async(
     user_id: str,
-    app_name: str,
-    app_id: str,
     message: str,
     message_id: str,
 ) -> None:
     """Async notification boundary for streaming chat responses."""
-    ai_message = _chat_message_notification(app_id, message, message_id)
+    ai_message = _chat_message_notification(message, message_id)
     await send_notification_async(
         user_id,
-        app_name + ' says',
+        'Omi says',
         message,
         NotificationMessage.get_message_as_dict(ai_message),
     )

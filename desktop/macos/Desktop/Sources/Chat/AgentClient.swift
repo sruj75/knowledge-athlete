@@ -47,6 +47,57 @@ enum AgentClient {
   typealias AuthRequiredHandler = AgentBridge.AuthRequiredHandler
   typealias AuthSuccessHandler = AgentBridge.AuthSuccessHandler
 
+  struct QueryTransportRequest: Sendable {
+    let prompt: String
+    let session: AgentSurfaceSession
+    let surface: AgentSurfaceReference
+    let mode: String?
+    let imageData: Data?
+    let attachments: [AgentQueryAttachment]
+    let producingTurnId: String?
+    let expectedContext: AgentContextFreshness?
+    let reasoningEffort: String?
+  }
+
+  struct QueryTransportCallbacks: Sendable {
+    let onTextDelta: TextDeltaHandler
+    let onToolActivity: ToolActivityHandler
+    let onThinkingDelta: ThinkingDeltaHandler
+    let onToolResultDisplay: ToolResultDisplayHandler
+    let onAuthRequired: AuthRequiredHandler
+    let onAuthSuccess: AuthSuccessHandler
+  }
+
+  typealias SessionQueryTransport =
+    @Sendable (
+      AgentBridge,
+      QueryTransportRequest,
+      QueryTransportCallbacks
+    ) async throws -> AgentBridge.QueryResult
+
+  private static let liveSessionQueryTransport: SessionQueryTransport = {
+    bridge,
+    request,
+    callbacks in
+    try await bridge.query(
+      prompt: request.prompt,
+      session: request.session,
+      surface: request.surface,
+      mode: request.mode,
+      imageData: request.imageData,
+      attachments: request.attachments,
+      producingTurnId: request.producingTurnId,
+      expectedContext: request.expectedContext,
+      reasoningEffort: request.reasoningEffort,
+      onTextDelta: callbacks.onTextDelta,
+      onToolActivity: callbacks.onToolActivity,
+      onThinkingDelta: callbacks.onThinkingDelta,
+      onToolResultDisplay: callbacks.onToolResultDisplay,
+      onAuthRequired: callbacks.onAuthRequired,
+      onAuthSuccess: callbacks.onAuthSuccess
+    )
+  }
+
   struct QueryResult: Sendable {
     let text: String
     let costUsd: Double
@@ -99,11 +150,16 @@ enum AgentClient {
   /// Long-lived bridge session for main chat and other streaming surfaces.
   actor Session {
     private var bridge: AgentBridge
+    private let queryTransport: SessionQueryTransport
     private(set) var harnessMode: String
 
-    init(harnessMode: String) {
+    init(
+      harnessMode: String,
+      queryTransport: @escaping SessionQueryTransport = AgentClient.liveSessionQueryTransport
+    ) {
       self.harnessMode = harnessMode
       self.bridge = AgentBridge(harnessMode: harnessMode)
+      self.queryTransport = queryTransport
     }
 
     var isAlive: Bool {
@@ -147,45 +203,13 @@ enum AgentClient {
       await bridge.setJournalTurnChangedHandler(handler)
     }
 
-    func configureDefaultExecutionProfile(
-      adapterId: String,
-      modelProfile: String?,
-      workingDirectory: String,
-      expectedPreferenceGeneration: Int? = nil
-    ) async throws -> AgentDefaultExecutionProfile {
-      try await bridge.configureDefaultExecutionProfile(
-        adapterId: adapterId,
-        modelProfile: modelProfile,
-        workingDirectory: workingDirectory,
-        expectedPreferenceGeneration: expectedPreferenceGeneration
-      )
-    }
-
     func resolveSurfaceSession(
       _ surface: AgentSurfaceReference,
-      title: String? = nil,
-      creationProfile: AgentSessionCreationProfile? = nil
+      title: String? = nil
     ) async throws -> AgentSurfaceSession {
       try await bridge.resolveSurfaceSession(
         surface,
-        title: title,
-        creationProfile: creationProfile
-      )
-    }
-
-    func migrateSessionExecutionProfile(
-      sessionId: String,
-      expectedProfileGeneration: Int,
-      adapterId: String,
-      modelProfile: String?,
-      workingDirectory: String
-    ) async throws -> AgentSessionProfileMigration {
-      try await bridge.migrateSessionExecutionProfile(
-        sessionId: sessionId,
-        expectedProfileGeneration: expectedProfileGeneration,
-        adapterId: adapterId,
-        modelProfile: modelProfile,
-        workingDirectory: workingDirectory
+        title: title
       )
     }
 
@@ -335,10 +359,6 @@ enum AgentClient {
       )
     }
 
-    func testPlaywrightConnection() async throws -> Bool {
-      try await bridge.testPlaywrightConnection()
-    }
-
     func interrupt() async {
       await bridge.interrupt()
     }
@@ -396,6 +416,7 @@ enum AgentClient {
       onAuthSuccess: @escaping AuthSuccessHandler = {}
     ) async throws -> QueryResult {
       let bridge = bridge
+      let queryTransport = queryTransport
       return QueryResult(
         try await AgentContextAdmissionRetry.run(
           expectedContext: expectedContext,
@@ -406,22 +427,27 @@ enum AgentClient {
             ).freshness
           },
           attempt: { admittedContext in
-            try await bridge.query(
-              prompt: prompt,
-              session: session,
-              surface: surface,
-              mode: mode,
-              imageData: imageData,
-              attachments: attachments,
-              producingTurnId: producingTurnId,
-              expectedContext: admittedContext,
-              reasoningEffort: reasoningEffort,
-              onTextDelta: onTextDelta,
-              onToolActivity: onToolActivity,
-              onThinkingDelta: onThinkingDelta,
-              onToolResultDisplay: onToolResultDisplay,
-              onAuthRequired: onAuthRequired,
-              onAuthSuccess: onAuthSuccess
+            try await queryTransport(
+              bridge,
+              QueryTransportRequest(
+                prompt: prompt,
+                session: session,
+                surface: surface,
+                mode: mode,
+                imageData: imageData,
+                attachments: attachments,
+                producingTurnId: producingTurnId,
+                expectedContext: admittedContext,
+                reasoningEffort: reasoningEffort
+              ),
+              QueryTransportCallbacks(
+                onTextDelta: onTextDelta,
+                onToolActivity: onToolActivity,
+                onThinkingDelta: onThinkingDelta,
+                onToolResultDisplay: onToolResultDisplay,
+                onAuthRequired: onAuthRequired,
+                onAuthSuccess: onAuthSuccess
+              )
             )
           }
         ))
@@ -439,11 +465,8 @@ enum AgentClient {
   static func run(
     surface: AgentSurfaceReference,
     prompt: String,
-    model: String? = nil,
     systemPrompt: String = "You are a helpful assistant.",
-    harnessMode: String = "piMono",
     mode: String? = nil,
-    cwd: String? = nil,
     onTextDelta: @escaping TextDeltaHandler = { _ in },
     onToolCall _: @escaping ToolCallHandler = { _, _, _ in "" },
     onToolActivity: @escaping ToolActivityHandler = { _, _, _, _ in },
@@ -452,23 +475,11 @@ enum AgentClient {
     onAuthRequired: @escaping AuthRequiredHandler = { _, _ in },
     onAuthSuccess: @escaping AuthSuccessHandler = {}
   ) async throws -> QueryResult {
-    let bridge = AgentClient.makeBridge(harnessMode: harnessMode)
+    let bridge = AgentClient.makeBridge(harnessMode: AgentHarnessMode.piMono.rawValue)
     try await bridge.start()
     do {
 
-      guard let requestedAdapter = AgentRuntimeProcess.adapterId(forHarnessMode: harnessMode) else {
-        throw BridgeError.agentError("Unknown AI runtime mode: \(harnessMode)")
-      }
-      let usesNativeModelChoice = ["hermes", "openclaw"].contains(harnessMode)
-      let creationProfile = AgentSessionCreationProfile(
-        adapterId: requestedAdapter,
-        modelProfile: model ?? (usesNativeModelChoice ? nil : ModelQoS.Claude.chat),
-        workingDirectory: cwd?.isEmpty == false ? cwd! : AgentRuntimeProcess.defaultArtifactsDirectory()
-      )
-      let session = try await bridge.resolveSurfaceSession(
-        surface,
-        creationProfile: creationProfile
-      )
+      let session = try await bridge.resolveSurfaceSession(surface)
       var snapshot = try await bridge.getContextSnapshot(
         sessionId: session.sessionId,
         surfaceKind: surface.surfaceKind)
@@ -477,12 +488,7 @@ enum AgentClient {
           .surface,
           systemPrompt.isEmpty ? .empty : .available,
           systemPrompt.isEmpty ? [:] : ["experienceContext": systemPrompt]
-        ),
-        (
-          .workspace,
-          cwd?.isEmpty == false ? .available : .empty,
-          cwd?.isEmpty == false ? ["workingDirectory": cwd!] : [:]
-        ),
+        )
       ]
       for (source, outcome, payload) in contextInputs {
         let revision = try AgentContextRevision.make(source: source, payload: payload, outcome: outcome)

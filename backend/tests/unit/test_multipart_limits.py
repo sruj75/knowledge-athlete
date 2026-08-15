@@ -13,31 +13,17 @@ from utils.multipart import FileSizeLimitedMultiPartParser, parse_multipart_form
 BACKEND_DIR = Path(__file__).resolve().parents[2]
 
 EXPECTED_ROUTE_LIMITS = {
-    'routers/apps.py': {
-        ('POST', '/v1/apps'): 'APP_IMAGE_MAX_PART_SIZE',
-        ('POST', '/v1/personas'): 'APP_IMAGE_MAX_PART_SIZE',
-        ('PATCH', '/v1/personas/{persona_id}'): 'APP_IMAGE_MAX_PART_SIZE',
-        ('PATCH', '/v1/apps/{app_id}'): 'APP_IMAGE_MAX_PART_SIZE',
-        ('POST', '/v1/app/thumbnails'): 'APP_IMAGE_MAX_PART_SIZE',
-    },
     'routers/chat.py': {
         ('POST', '/v2/voice-messages'): 'VOICE_MESSAGE_MAX_PART_SIZE',
         ('POST', '/v2/voice-message/transcribe'): 'VOICE_MESSAGE_MAX_PART_SIZE',
         ('POST', '/v2/files'): 'CHAT_FILE_MAX_PART_SIZE',
         ('POST', '/v1/files'): 'CHAT_FILE_MAX_PART_SIZE',
     },
-    'routers/imports.py': {
-        ('POST', '/v1/import/limitless'): 'IMPORT_MAX_PART_SIZE',
-    },
     'routers/phone_calls.py': {
         ('POST', '/v1/phone/twiml'): 'PHONE_CALL_MAX_PART_SIZE',
     },
     'routers/speech_profile.py': {
         ('POST', '/v3/upload-audio'): 'SPEECH_PROFILE_MAX_PART_SIZE',
-    },
-    'routers/sync.py': {
-        ('POST', '/v1/sync-local-files'): 'SYNC_AUDIO_MAX_PART_SIZE',
-        ('POST', '/v2/sync-local-files'): 'SYNC_AUDIO_MAX_PART_SIZE',
     },
 }
 

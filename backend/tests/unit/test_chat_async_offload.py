@@ -6,9 +6,9 @@ OFF the event-loop thread.
 the event loop by ``StreamingResponse``. Before this fix several synchronous setup helpers
 were called directly on the loop, blocking every concurrent request during chat setup:
 
-- ``execute_agentic_chat_stream`` (the default chat path) ran ``get_user_timezone``,
-  ``_get_agentic_qa_prompt`` (Firestore reads + a LangSmith prompt fetch), and
-  ``load_app_tools`` inline before its first ``await``.
+- ``execute_agentic_chat_stream`` (the default chat path) ran ``get_user_timezone`` and
+  ``_get_agentic_qa_prompt`` (Firestore reads + a LangSmith prompt fetch) inline before its first
+  ``await``.
 - ``_has_file_context`` ran ``retrieve_is_file_question`` — a ~1-2s synchronous LLM
   inference — inline on the file-chat path.
 
@@ -21,7 +21,7 @@ observed via the thread each helper actually runs on.)
 import asyncio
 import os
 import threading
-from contextlib import ExitStack, nullcontext
+from contextlib import ExitStack
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
@@ -58,11 +58,10 @@ async def _collect_agentic_chunks(producer, callback_data=None, *, langsmith_ext
     with ExitStack() as stack:
         stack.enter_context(patch.object(agentic, 'get_user_timezone', lambda _uid: 'UTC'))
         stack.enter_context(patch.object(agentic, '_get_agentic_qa_prompt', lambda *_args, **_kwargs: 'SYSTEM'))
-        stack.enter_context(patch.object(agentic, 'load_app_tools', lambda _uid: []))
         stack.enter_context(
             patch.object(agentic, 'get_current_datetime_block', lambda _uid, tz=None, location=None: '')
         )
-        stack.enter_context(patch.object(agentic, '_convert_tools', lambda _core, _app: ([], {})))
+        stack.enter_context(patch.object(agentic, '_convert_tools', lambda _core: ([], {})))
         stack.enter_context(patch.object(agentic, '_messages_to_anthropic', lambda _messages: []))
         stack.enter_context(patch.object(agentic, '_inject_current_datetime', lambda messages, _block: messages))
         stack.enter_context(patch.object(agentic, '_run_anthropic_agent_stream', producer))
@@ -70,7 +69,7 @@ async def _collect_agentic_chunks(producer, callback_data=None, *, langsmith_ext
         return [
             chunk
             async for chunk in agentic.execute_agentic_chat_stream(
-                'uid1', [], app=None, callback_data=callback_data, chat_session=None, **trace_kwargs
+                'uid1', [], callback_data=callback_data, chat_session=None, **trace_kwargs
             )
         ]
 
@@ -215,9 +214,6 @@ async def test_chat_router_passes_metadata_to_every_interactive_path():
         yield None
 
     with patch.object(graph, '_current_prompt_metadata', AsyncMock(return_value=(metadata, 'UTC'))):
-        persona = SimpleNamespace(id='persona1', is_a_persona=lambda: True)
-        with patch.object(graph, 'execute_persona_chat_stream', stream):
-            assert [chunk async for chunk in graph.execute_chat_stream('uid1', [message], app=persona)] == [None]
         with patch.object(graph, '_has_file_context', AsyncMock(return_value=True)), patch.object(
             graph, '_execute_file_chat_stream', stream
         ):
@@ -227,7 +223,7 @@ async def test_chat_router_passes_metadata_to_every_interactive_path():
         with patch.object(graph, 'execute_agentic_chat_stream', stream):
             assert [chunk async for chunk in graph.execute_chat_stream('uid1', [message])] == [None]
 
-    assert seen == [metadata, metadata, metadata]
+    assert seen == [metadata, metadata]
 
 
 def test_prompt_metadata_is_prepended_to_the_live_user_turn():
@@ -358,8 +354,8 @@ async def test_file_stream_deadline_fires_while_sync_assistants_stream_is_off_lo
 
 async def test_agentic_setup_reads_run_off_loop():
     """execute_agentic_chat_stream must offload its blocking Firestore setup reads
-    (get_user_timezone, _get_agentic_qa_prompt, load_app_tools) so they don't block the
-    event loop before the first await."""
+    (get_user_timezone and _get_agentic_qa_prompt) so they don't block the event loop before the
+    first await."""
     loop_thread = threading.current_thread()
     threads = {}
 
@@ -385,10 +381,8 @@ async def test_agentic_setup_reads_run_off_loop():
 
     with patch.object(agentic, 'get_user_timezone', rec('tz', 'UTC')), patch.object(
         agentic, '_get_agentic_qa_prompt', rec('prompt', 'SYSTEM')
-    ), patch.object(agentic, 'load_app_tools', rec('app_tools', [])), patch.object(
-        agentic, 'get_current_datetime_block', lambda uid, tz=None, location=None: ''
-    ), patch.object(
-        agentic, '_convert_tools', lambda core, app: ([], {})
+    ), patch.object(agentic, 'get_current_datetime_block', lambda uid, tz=None, location=None: ''), patch.object(
+        agentic, '_convert_tools', lambda core: ([], {})
     ), patch.object(
         agentic, '_messages_to_anthropic', lambda messages: []
     ), patch.object(
@@ -397,12 +391,10 @@ async def test_agentic_setup_reads_run_off_loop():
         agentic, '_run_anthropic_agent_stream', fake_agent_stream
     ):
         chunks = []
-        async for chunk in agentic.execute_agentic_chat_stream(
-            'uid1', [], app=None, callback_data={}, chat_session=None
-        ):
+        async for chunk in agentic.execute_agentic_chat_stream('uid1', [], callback_data={}, chat_session=None):
             chunks.append(chunk)
 
-    for name in ('tz', 'prompt', 'app_tools'):
+    for name in ('tz', 'prompt'):
         assert name in threads, f"{name} setup helper was not called"
         assert threads[name] is not loop_thread, f"{name} setup read must run off the event-loop thread"
 
@@ -452,8 +444,8 @@ async def test_public_agentic_stream_persists_the_decorated_langsmith_run_id():
     assert [entry['run_id'] for entry in client.updated] == [expected_run_id]
 
 
-async def test_callback_preserves_langchain_persona_stream_contract():
-    """The shared callback must still bridge LangChain token/end events for persona chat."""
+async def test_callback_preserves_langchain_stream_contract():
+    """The shared callback bridges LangChain token/end events."""
     callback = agentic.AsyncStreamingCallback()
 
     await callback.on_llm_new_token('hello')
@@ -463,36 +455,8 @@ async def test_callback_preserves_langchain_persona_stream_contract():
     assert await callback.queue.get() is None
 
 
-async def test_persona_stream_forwards_langchain_callbacks_and_terminates():
-    """Persona chat must yield tokens and its terminal sentinel through the real stream path."""
-
-    captured_run_metadata = {}
-
-    class FakeLLM:
-        async def agenerate(self, *, callbacks, **kwargs):
-            captured_run_metadata.update(kwargs)
-            await callbacks[0].on_llm_new_token('hello')
-            await callbacks[0].on_llm_end(None)
-
-    callback_data = {}
-    app = SimpleNamespace(id='persona-1', name='Persona', persona_prompt='SYSTEM')
-    with patch.object(graph, 'get_llm', lambda *_args, **_kwargs: FakeLLM()), patch.object(
-        graph, 'get_chat_tracer_callbacks', lambda **_kwargs: []
-    ), patch.object(graph, 'track_usage', lambda *_args, **_kwargs: nullcontext()):
-        chunks = [
-            chunk
-            async for chunk in graph.execute_persona_chat_stream(
-                'uid1', [], app, callback_data=callback_data, chat_session=None
-            )
-        ]
-
-    assert chunks == ['data: hello', None]
-    assert callback_data['answer'] == 'hello'
-    assert callback_data['langsmith_run_id'] == str(captured_run_metadata['run_id'])
-
-
-async def test_persona_callback_drain_cancels_a_silent_producer():
-    """Persona/file queue consumers use the same bounded lifecycle as default chat."""
+async def test_callback_drain_cancels_a_silent_producer():
+    """Queue consumers use the same bounded lifecycle as default chat."""
     callback = agentic.AsyncStreamingCallback()
     cancelled = asyncio.Event()
 
@@ -507,7 +471,7 @@ async def test_persona_callback_drain_cancels_a_silent_producer():
     with patch.object(graph, 'AGENT_STREAM_FIRST_EVENT_TIMEOUT_SECONDS', 0.01), patch.object(
         agentic, 'AGENT_STREAM_CANCEL_GRACE_SECONDS', 0.05
     ):
-        chunks = [chunk async for chunk in graph._drain_chat_callback(callback, task, route='persona')]
+        chunks = [chunk async for chunk in graph._drain_chat_callback(callback, task, route='default')]
 
     assert chunks == [f'error: {agentic.AGENT_STREAM_TIMEOUT_MESSAGE}']
     assert cancelled.is_set()

@@ -93,7 +93,6 @@ def _item(memory_id: str, created_at: datetime, **overrides: Any) -> dict[str, A
             "uid": UID,
             "content": f"projection {memory_id}",
             "category": "system",
-            "visibility": "private",
             "tags": [],
             "created_at": created_at,
             "updated_at": created_at,

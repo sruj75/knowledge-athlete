@@ -89,10 +89,7 @@ class SourceRef(StrictBaseModel):
     conversation_id: str | None = None
     transcript_segment_id: str | None = None
     memory_id: str | None = None
-    integration_id: str | None = None
-    app_id: str | None = None
     document_id: str | None = None
-    external_id: str | None = None
     fixture_id: str | None = None
 
 
@@ -245,30 +242,6 @@ def _build_source_type_registry() -> dict[str, SourceTypeConfig]:
             default_empty_on_noise=True,
             guidance_notes="Always-on ambient recording. High noise floor. Very conservative.",
         ),
-        "integration": SourceTypeConfig(
-            strength=SourceStrength.MEDIUM,
-            label="INTEGRATION FEED",
-            confidence_cap=0.8,
-            requires_corroboration=False,
-            default_empty_on_noise=False,
-            guidance_notes="Third-party integration data. Structure varies by provider.",
-        ),
-        "import": SourceTypeConfig(
-            strength=SourceStrength.MEDIUM,
-            label="IMPORTED DATA",
-            confidence_cap=0.75,
-            requires_corroboration=False,
-            default_empty_on_noise=False,
-            guidance_notes="Bulk-imported data. May have varying quality.",
-        ),
-        "developer_api": SourceTypeConfig(
-            strength=SourceStrength.HIGH,
-            label="DEVELOPER API",
-            confidence_cap=1.0,
-            requires_corroboration=False,
-            default_empty_on_noise=False,
-            guidance_notes="Developer-submitted via API. Trust caller's intent.",
-        ),
         "benchmark_fixture": SourceTypeConfig(
             strength=SourceStrength.UNKNOWN,
             label="BENCHMARK FIXTURE",
@@ -293,9 +266,6 @@ class SourceDescriptor(StrictBaseModel):
         "transcript",
         "desktop_rewind",
         "manual_note",
-        "integration",
-        "import",
-        "developer_api",
         "benchmark_fixture",
         # --- NEW: granular source types ---
         "chat_exchange",  # HIGH: intentional user statements in chat UI
@@ -325,7 +295,7 @@ class SpeakerRef(StrictBaseModel):
     is_actor_user: bool | None = None
     person_id: str | None = None
     confidence: float | None = None
-    source: Literal["diarization", "user_labeled", "integration", "inferred", "unknown"] = "unknown"
+    source: Literal["diarization", "user_labeled", "inferred", "unknown"] = "unknown"
 
 
 class EventQuality(StrictBaseModel):
@@ -370,10 +340,7 @@ class RawContextEvent(StrictBaseModel):
         "conversation_summary",
         "conversation_metadata",
         "screen_ocr",
-        "app_event",
         "manual_text",
-        "calendar_event",
-        "email_snippet",
         "document_snippet",
         "chat_message",
         "task_event",
@@ -387,7 +354,6 @@ class RawContextEvent(StrictBaseModel):
     speaker: SpeakerRef | None = None
     source_ref: SourceRef
     quality: EventQuality = Field(default_factory=EventQuality)
-    visibility: Literal["private", "shared", "public", "unknown"] = "unknown"
 
 
 class EntityRef(StrictBaseModel):
@@ -441,7 +407,7 @@ class ExistingMemorySnapshot(StrictBaseModel):
     locked: bool = False
     reviewed: bool = False
     rejected: bool = False
-    origin: Literal["manual", "auto", "import", "developer_api", "unknown"] = "unknown"
+    origin: Literal["manual", "auto", "unknown"] = "unknown"
     created_at: datetime | None = None
     updated_at: datetime | None = None
     invalid_at: datetime | None = None
@@ -588,7 +554,6 @@ WorkingMemorySourceType = Literal[
     "chat_exchange",
     "screenshot_ocr",
     "assistant_session",
-    "integration_event",
     "text",
     "conversation",
     "transcript",
@@ -596,16 +561,13 @@ WorkingMemorySourceType = Literal[
     "ocr_screenshot_text",
     "ambient_voice",
     "manual_note",
-    "developer_api",
     "benchmark_fixture",
 ]
 WorkingMemorySourceSignal = Literal[
     "direct_user",
     "assistant_observed",
     "ocr_observed",
-    "app_event",
     "transcript",
-    "integration_event",
     "manual_text",
 ]
 WorkingMemorySubjectScope = Literal[
@@ -1078,7 +1040,6 @@ class DroppedArtifactRecord(StrictBaseModel):
     artifact_dropped: bool = True
     source_type: str | None = None
     source_id: str | None = None
-    app_id: str | None = None
     timestamp: datetime | None = None
 
 

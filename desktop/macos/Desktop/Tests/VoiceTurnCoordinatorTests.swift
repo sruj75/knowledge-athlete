@@ -154,7 +154,7 @@ import XCTest
         timelineLimit: 4)
       let turnID = coordinator.begin(intent: .hold)
       coordinator.publish(.captureStarted(turnID: turnID, captureID: VoiceCaptureID(1)))
-      coordinator.publish(.selectRoute(turnID: turnID, route: .deepgramBatch))
+      coordinator.publish(.selectRoute(turnID: turnID, route: .managedBatch))
       coordinator.publish(.finalize(turnID: turnID))
       coordinator.publish(.transcriptionStarted(turnID: turnID))
 
@@ -162,7 +162,7 @@ import XCTest
       XCTAssertEqual(timeline.count, 4)
       XCTAssertEqual(timeline.last?.turnID, turnID)
       XCTAssertEqual(timeline.last?.phaseAfter, .finalizing)
-      XCTAssertEqual(timeline.last?.route, .deepgramBatch)
+      XCTAssertEqual(timeline.last?.route, .managedBatch)
     }
 
     func testPresenterDerivesConsistentListeningThinkingAndTerminalUI() {
@@ -191,7 +191,7 @@ import XCTest
         [true],
         "PTT must expand its surface even while the onboarding demo is active")
 
-      coordinator.publish(.selectRoute(turnID: turnID, route: .deepgramBatch))
+      coordinator.publish(.selectRoute(turnID: turnID, route: .managedBatch))
       coordinator.publish(.finalize(turnID: turnID))
       coordinator.publish(.transcriptionStarted(turnID: turnID))
       XCTAssertFalse(barState.isVoiceListening)
@@ -214,7 +214,7 @@ import XCTest
       let barState = FloatingControlBarState()
       coordinator.configure(barState: barState)
       let turnID = coordinator.begin(intent: .hold)
-      coordinator.publish(.selectRoute(turnID: turnID, route: .deepgramBatch))
+      coordinator.publish(.selectRoute(turnID: turnID, route: .managedBatch))
       coordinator.publish(.finalize(turnID: turnID))
       coordinator.publish(.transcriptionFinal(turnID: turnID, text: "find today's memories"))
 
@@ -265,7 +265,7 @@ import XCTest
       XCTAssertFalse(barState.isVoiceResponseActive)
 
       let turnID = coordinator.begin(intent: .hold)
-      coordinator.publish(.selectRoute(turnID: turnID, route: .deepgramBatch))
+      coordinator.publish(.selectRoute(turnID: turnID, route: .managedBatch))
       coordinator.publish(.finalize(turnID: turnID))
       coordinator.publish(.transcriptionStarted(turnID: turnID))
       coordinator.publish(.transcriptionFinal(turnID: turnID, text: "hello"))
@@ -376,7 +376,7 @@ import XCTest
           return
         }
         queuedRouteSelection = true
-        coordinator.publish(.selectRoute(turnID: turn.id, route: .deepgramBatch))
+        coordinator.publish(.selectRoute(turnID: turn.id, route: .managedBatch))
 
         XCTAssertEqual(
           coordinator.model.turn?.route,
@@ -388,7 +388,7 @@ import XCTest
       let turnID = coordinator.begin(intent: .hold)
 
       XCTAssertEqual(maximumCallbackDepth, 1)
-      XCTAssertEqual(coordinator.model.turn?.route, .deepgramBatch)
+      XCTAssertEqual(coordinator.model.turn?.route, .managedBatch)
       XCTAssertEqual(
         coordinator.timelineSnapshot().suffix(2).map(\.event),
         ["start", "select_route"]
@@ -505,8 +505,7 @@ import XCTest
         (.hubWarmWait, "hub_warm_wait"),
         (.hub(sessionID: VoiceSessionID()), "hub"),
         (.omniSTT, "omni_stt"),
-        (.deepgramBatch, "deepgram_batch"),
-        (.deepgramLive, "deepgram_live"),
+        (.managedBatch, "managed_batch"),
       ]
       for (route, expected) in routes {
         XCTAssertEqual(VoiceTurnCoordinator.routeLabel(route), expected, "turn=\(turnID)")
@@ -537,7 +536,7 @@ import XCTest
       defer { DesktopDiagnosticsManager.shared.resetForTests() }
       let coordinator = VoiceTurnCoordinator(scheduler: ManualVoiceTurnScheduler())
       let turnID = coordinator.begin(intent: .hold)
-      coordinator.publish(.selectRoute(turnID: turnID, route: .deepgramBatch))
+      coordinator.publish(.selectRoute(turnID: turnID, route: .managedBatch))
       coordinator.publish(.finalize(turnID: turnID))
       coordinator.publish(.transcriptionStarted(turnID: turnID))
       coordinator.publish(.transcriptionFinal(turnID: turnID, text: "hello"))
@@ -580,7 +579,7 @@ import XCTest
       defer { DesktopDiagnosticsManager.shared.resetForTests() }
       let coordinator = VoiceTurnCoordinator(scheduler: ManualVoiceTurnScheduler())
       let turnID = coordinator.begin(intent: .hold)
-      coordinator.publish(.selectRoute(turnID: turnID, route: .deepgramBatch))
+      coordinator.publish(.selectRoute(turnID: turnID, route: .managedBatch))
       coordinator.publish(.finalize(turnID: turnID))
       coordinator.publish(.transcriptionStarted(turnID: turnID))
       coordinator.publish(.transcriptionFinal(turnID: turnID, text: "hello"))
@@ -616,7 +615,7 @@ import XCTest
       defer { DesktopDiagnosticsManager.shared.resetForTests() }
       let coordinator = VoiceTurnCoordinator(scheduler: ManualVoiceTurnScheduler())
       let turnID = coordinator.begin(intent: .hold)
-      coordinator.publish(.selectRoute(turnID: turnID, route: .deepgramBatch))
+      coordinator.publish(.selectRoute(turnID: turnID, route: .managedBatch))
       coordinator.publish(.finalize(turnID: turnID))
       coordinator.publish(.transcriptionStarted(turnID: turnID))
       coordinator.publish(.transcriptionFinal(turnID: turnID, text: "hello"))
@@ -658,7 +657,7 @@ import XCTest
     func testNonHubCompletionTokenCannotCloseReplacementTurn() throws {
       let coordinator = VoiceTurnCoordinator(scheduler: ManualVoiceTurnScheduler())
       let oldTurnID = coordinator.begin(intent: .hold)
-      coordinator.publish(.selectRoute(turnID: oldTurnID, route: .deepgramBatch))
+      coordinator.publish(.selectRoute(turnID: oldTurnID, route: .managedBatch))
       coordinator.publish(.finalize(turnID: oldTurnID))
       coordinator.publish(.transcriptionStarted(turnID: oldTurnID))
       coordinator.publish(.transcriptionFinal(turnID: oldTurnID, text: "old"))
@@ -677,7 +676,7 @@ import XCTest
       let oldTurnID = coordinator.begin(intent: .hold)
 
       let replacementTurnID = coordinator.begin(intent: .hold)
-      coordinator.publish(.selectRoute(turnID: replacementTurnID, route: .deepgramBatch))
+      coordinator.publish(.selectRoute(turnID: replacementTurnID, route: .managedBatch))
       coordinator.publish(.finalize(turnID: replacementTurnID))
       coordinator.publish(.transcriptionStarted(turnID: replacementTurnID))
       coordinator.publish(.transcriptionFinal(turnID: replacementTurnID, text: "replacement"))

@@ -72,7 +72,6 @@ export interface ExecuteAgentRunInput extends KernelSessionResolutionInput {
   adapterId?: string;
   cwd?: string;
   model?: string;
-  mcpServers?: Record<string, unknown>[];
   maxAttempts?: number;
   tools?: ToolDef[];
   metadata?: Record<string, unknown>;
@@ -341,7 +340,6 @@ export interface SendAgentMessageInput {
   adapterId?: string;
   cwd?: string;
   model?: string;
-  mcpServers?: Record<string, unknown>[];
   maxAttempts?: number;
   recoverAfterError?: (error: unknown) => Promise<boolean>;
   metadata?: Record<string, unknown>;
@@ -368,7 +366,6 @@ export interface SpawnBackgroundAgentInput {
   trustedUserSpawn?: boolean;
   cwd?: string;
   model?: string;
-  mcpServers?: Record<string, unknown>[];
   mode?: RunMode;
   maxAttempts?: number;
   recoverAfterError?: (error: unknown) => Promise<boolean>;
@@ -406,7 +403,6 @@ export interface DelegateAgentInput {
   defaultAdapterId?: string;
   cwd?: string;
   model?: string;
-  mcpServers?: Record<string, unknown>[];
   runMode?: RunMode;
   context?: string;
   maxDepth?: number;

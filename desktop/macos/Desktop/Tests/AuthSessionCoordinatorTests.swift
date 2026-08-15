@@ -145,7 +145,6 @@ final class AuthSessionCoordinatorTests: XCTestCase {
     XCTAssertTrue(ownerSource.contains("RewindIndexer.shared.suspendForOwnerTransition()"))
     XCTAssertTrue(ownerSource.contains("RewindStorage.shared.resetForOwnerTransition()"))
     XCTAssertTrue(ownerSource.contains("RewindIndexer.shared.resumeAfterOwnerTransition()"))
-    XCTAssertTrue(ownerSource.contains("FileIndexerService.shared.invalidateCache()"))
   }
 
   func testOnlyAuthenticatedPhaseReportsSignedIn() {

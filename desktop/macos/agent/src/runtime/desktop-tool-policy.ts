@@ -63,13 +63,12 @@ export interface DesktopToolPolicyResult {
   reason: string;
 }
 
-const EXTERNAL_SEND_TOOLS = new Set(["fill_cloud_connector_form"]);
+const EXTERNAL_SEND_TOOLS = new Set<string>();
 const TASK_WRITE_TOOLS = new Set([
   "complete_task",
   "delete_task",
   "create_action_item",
   "update_action_item",
-  "save_knowledge_graph",
   "set_user_preferences",
   "complete_onboarding",
 ]);
@@ -83,14 +82,11 @@ const LOCAL_READ_TOOLS = new Set([
   "execute_sql",
   "get_daily_recap",
   "search_tasks",
-  "load_skill",
-  "search_skills",
   "get_conversations",
   "search_conversations",
   "get_memories",
   "search_memories",
   "get_action_items",
-  "get_email_insights",
   "get_local_status",
 ]);
 
@@ -260,122 +256,3 @@ export const desktopToolPolicyInternals = {
   isSqlWrite,
   descriptorFromToolName,
 };
-
-export interface AcpPermissionOption {
-  kind: string;
-  optionId: string;
-}
-
-export interface AcpPermissionDecision {
-  optionId: string;
-  optionKind: string;
-  acpResult: {
-    outcome: {
-      outcome: "selected";
-      optionId: string;
-    };
-  };
-  auditEvent: {
-    type: "approval.resolved";
-    policy: "desktop_high_trust" | "external_constrained";
-    adapterId: string;
-    requestId?: number | string;
-    optionId: string;
-    optionKind: string;
-    automatic: true;
-  };
-}
-
-export interface AcpPermissionRejection {
-  acpError: {
-    code: number;
-    message: string;
-  };
-  auditEvent: {
-    type: "approval.rejected";
-    policy: "external_constrained";
-    adapterId: string;
-    requestId?: number | string;
-    automatic: true;
-    reason: string;
-  };
-}
-
-export function resolveAcpPermission(input: {
-  requestId?: number | string;
-  options: AcpPermissionOption[];
-}): AcpPermissionDecision {
-  const selected =
-    input.options.find((option) => option.kind === "allow_always") ??
-    input.options.find((option) => option.kind === "allow_once") ??
-    input.options[0] ??
-    { kind: "fallback", optionId: "allow" };
-
-  return {
-    optionId: selected.optionId,
-    optionKind: selected.kind,
-    acpResult: {
-      outcome: {
-        outcome: "selected",
-        optionId: selected.optionId,
-      },
-    },
-    auditEvent: {
-      type: "approval.resolved",
-      policy: "desktop_high_trust",
-      adapterId: "acp",
-      requestId: input.requestId,
-      optionId: selected.optionId,
-      optionKind: selected.kind,
-      automatic: true,
-    },
-  };
-}
-
-export function resolveExternalAcpPermission(input: {
-  adapterId: string;
-  requestId?: number | string;
-  options: AcpPermissionOption[];
-}): AcpPermissionDecision | AcpPermissionRejection {
-  const selected =
-    input.options.find((option) => option.kind === "allow_once") ??
-    input.options.find((option) => /deny|reject|disallow/i.test(option.kind)) ??
-    input.options.find((option) => option.kind !== "allow_always");
-
-  if (!selected) {
-    return {
-      acpError: {
-        code: -32001,
-        message: "External adapter permission requires explicit user approval",
-      },
-      auditEvent: {
-        type: "approval.rejected",
-        policy: "external_constrained",
-        adapterId: input.adapterId,
-        requestId: input.requestId,
-        automatic: true,
-        reason: "no_non_permanent_option",
-      },
-    };
-  }
-
-  return {
-    optionId: selected.optionId,
-    optionKind: selected.kind,
-    acpResult: {
-      outcome: {
-        outcome: "selected",
-        optionId: selected.optionId,
-      },
-    },
-    auditEvent: {
-      type: "approval.resolved",
-      policy: "external_constrained",
-      adapterId: input.adapterId,
-      requestId: input.requestId,
-      optionId: selected.optionId,
-      optionKind: selected.kind,
-      automatic: true,
-    },
-  };
-}

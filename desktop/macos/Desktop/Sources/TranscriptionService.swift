@@ -4,7 +4,7 @@ import Foundation
 /// Conversation capture: Python backend `/v4/listen` WebSocket (speech profiles, speaker assignment, memory events).
 /// PTT live streaming: Python backend `/v2/voice-message/transcribe-stream` WebSocket (transcription only).
 /// PTT batch: Python backend `/v2/voice-message/transcribe` REST API.
-/// Full stereo batch: removed (formerly Rust proxy Deepgram, now dead code).
+/// Full stereo batch: removed with the retired Rust proxy.
 class TranscriptionService: @unchecked Sendable {
 
   // MARK: - Types
@@ -91,7 +91,6 @@ class TranscriptionService: @unchecked Sendable {
 
   // MARK: - Properties
 
-  private let apiKey: String
   private var webSocketTask: URLSessionWebSocketTask?
   private var urlSession: URLSession?
   private var webSocketDelegate: WebSocketConnectionDelegate?
@@ -185,7 +184,6 @@ class TranscriptionService: @unchecked Sendable {
     contextKeywords: [String] = [],
     clientConversationId: String? = nil
   ) throws {
-    self.apiKey = ""  // Not needed — Python backend uses Firebase auth
     self.language = language
     self.streamingMode = mode
     self.contextKeywords = Self.sanitizedContextKeywords(contextKeywords)
@@ -195,36 +193,10 @@ class TranscriptionService: @unchecked Sendable {
     )
   }
 
-  /// Initialize for batch (PTT) mode only — uses Python backend `/v2/voice-message/transcribe`
-  /// - Parameters:
-  ///   - apiKey: Ignored (kept for API compatibility with callers)
-  ///   - language: Language code
-  ///   - forBatchOnly: Must be true
-  init(apiKey: String? = nil, language: String = "en", forBatchOnly: Bool) throws {
-    guard forBatchOnly else {
-      throw TranscriptionError.webSocketError("Use init(language:) for streaming mode")
-    }
-    // Batch mode uses Firebase auth + Python backend — no DG key needed
-    self.apiKey = ""
-    self.language = language
-    self.streamingMode = .ptt  // Batch doesn't stream, but PTT is the correct context
-    self.contextKeywords = []
-    self.clientConversationId = nil
-    log("TranscriptionService: Initialized for batch (PTT) mode via Python backend")
-  }
-
-  // MARK: - Legacy Streaming API (PTT backward compatibility)
-
-  /// Legacy init with channels parameter — used by PushToTalkManager for PTT live mode.
-  /// Routes to `/v2/voice-message/transcribe-stream` (PTT-only transcription).
-  convenience init(language: String = "en", channels: Int, contextKeywords: [String] = []) throws {
-    try self.init(language: language, mode: .ptt, contextKeywords: contextKeywords)
-  }
-
   /// Flush remaining audio and (for PTT mode) tell the backend to finalize transcription.
   /// PTT live mode calls this to get the final transcript segment before closing.
   /// In PTT mode, sends a "finalize" text message so the backend flushes any sub-threshold
-  /// audio to Deepgram and triggers its endpointing/finalization.
+  /// audio to managed STT and triggers provider finalization.
   /// In conversation mode, just flushes the local audio buffer (no "finalize" — `/v4/listen`
   /// manages its own endpointing via the pusher pipeline).
   func finishStream() {
@@ -424,12 +396,6 @@ class TranscriptionService: @unchecked Sendable {
       Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown",
       forHTTPHeaderField: "X-App-Version"
     )
-
-    // BYOK: attach user keys so the transcription backend can use the user's
-    // Deepgram token for this session (and any downstream LLM calls).
-    for (provider, entry) in APIKeyService.byokSnapshot {
-      request.setValue(entry.key, forHTTPHeaderField: provider.headerName)
-    }
 
     // Create URLSession and WebSocket task
     let configuration = URLSessionConfiguration.default
@@ -703,7 +669,6 @@ extension TranscriptionService {
   static func batchTranscribe(
     audioData: Data,
     language: String = "en",
-    apiKey: String? = nil,
     contextKeywords: [String] = []
   ) async throws -> BatchTranscriptionResult {
     // Always use Firebase auth + Python backend
@@ -734,9 +699,6 @@ extension TranscriptionService {
     request.httpMethod = "POST"
     request.setValue(authHeader, forHTTPHeaderField: "Authorization")
     request.setValue("application/octet-stream", forHTTPHeaderField: "Content-Type")
-    for (provider, entry) in APIKeyService.byokSnapshot {
-      request.setValue(entry.key, forHTTPHeaderField: provider.headerName)
-    }
     request.httpBody = audioData
 
     log(

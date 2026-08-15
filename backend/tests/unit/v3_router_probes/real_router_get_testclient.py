@@ -61,7 +61,8 @@ def _repo_backend_root() -> Path:
 def _probe_code() -> str:
     legacy_item_block = legacy_memory_doc_factory_source(stubbed_uid="stubbed-test-uid")
     pin_stub_block = legacy_pin_stub_source()
-    template = textwrap.dedent(r'''
+    template = textwrap.dedent(
+        r'''
         import hashlib
         import importlib
         import json
@@ -80,7 +81,6 @@ def _probe_code() -> str:
             "upsert_memory_vectors_batch": False,
             "delete_memory_vector": False,
             "delete_memory_vectors_batch": False,
-            "update_personas_async": False,
             "executor_submit": False,
             "run_blocking": False,
         }
@@ -132,7 +132,6 @@ __LEGACY_ITEM_BLOCK__
         memories.delete_all_memories = mark_mutation("delete_all_memories")
         memories.review_memory = fail("database.memories.review_memory")
         memories.edit_memory = fail("database.memories.edit_memory")
-        memories.change_memory_visibility = fail("database.memories.change_memory_visibility")
         sys.modules["database.memories"] = memories
         setattr(database_pkg, "memories", memories)
 
@@ -243,11 +242,6 @@ __PIN_STUB_BLOCK__        surface_routing.pin_memory_system = pin_memory_system
         sys.modules["utils.executors"] = executors
         setattr(utils_pkg, "executors", executors)
 
-        apps = types.ModuleType("utils.apps")
-        apps.update_personas_async = mark_mutation("update_personas_async")
-        sys.modules["utils.apps"] = apps
-        setattr(utils_pkg, "apps", apps)
-
         other_pkg = types.ModuleType("utils.other")
         other_pkg.__path__ = []
         sys.modules["utils.other"] = other_pkg
@@ -316,7 +310,8 @@ __PIN_STUB_BLOCK__        surface_routing.pin_memory_system = pin_memory_system
             "memory_adapter_modules_loaded": loaded_adapters,
             "runtime_cutover_claimed": False,
         }, sort_keys=True))
-        ''')
+        '''
+    )
     return template.replace("__LEGACY_ITEM_BLOCK__", legacy_item_block).replace("__PIN_STUB_BLOCK__", pin_stub_block)
 
 

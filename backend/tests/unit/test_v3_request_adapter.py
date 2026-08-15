@@ -61,7 +61,6 @@ def test_category_and_supported_filters_are_normalized_into_stable_filter_hash_a
             'limit': '50',
             'cursor': 'opaque',
             'category': ' Work ',
-            'visibility': 'visible',
             'reviewed': 'false',
         },
         enrolled=True,
@@ -69,7 +68,6 @@ def test_category_and_supported_filters_are_normalized_into_stable_filter_hash_a
     same = adapt_v3_request_parameters(
         {
             'reviewed': 'false',
-            'visibility': 'visible',
             'category': 'work',
             'limit': '50',
             'cursor': 'opaque',
@@ -77,13 +75,13 @@ def test_category_and_supported_filters_are_normalized_into_stable_filter_hash_a
         enrolled=True,
     )
     different = adapt_v3_request_parameters(
-        {'limit': '50', 'cursor': 'opaque', 'category': 'personal', 'visibility': 'visible', 'reviewed': 'false'},
+        {'limit': '50', 'cursor': 'opaque', 'category': 'personal', 'reviewed': 'false'},
         enrolled=True,
     )
 
     assert adapted.valid is True
     assert adapted.category == 'work'
-    assert adapted.filters == {'category': 'work', 'reviewed': False, 'visibility': 'visible'}
+    assert adapted.filters == {'category': 'work', 'reviewed': False}
     assert adapted.filter_hash == same.filter_hash
     assert adapted.cursor_binding['filter_hash'] == adapted.filter_hash
     assert adapted.cursor_binding['source'] == 'memory_compatibility_projection'
@@ -94,7 +92,7 @@ def test_category_and_supported_filters_are_normalized_into_stable_filter_hash_a
 def test_unsupported_filters_fail_closed_instead_of_silent_fallback():
     for params, reason in [
         ({'limit': '25', 'foo': 'bar'}, 'unsupported_filter'),
-        ({'limit': '25', 'visibility': 'private'}, 'unsupported_filter_value'),
+        ({'limit': '25', 'visibility': 'visible'}, 'unsupported_filter'),
         ({'limit': '25', 'reviewed': 'maybe'}, 'unsupported_filter_value'),
         ({'limit': '25', 'source': 'legacy_primary'}, 'unsupported_filter'),
     ]:

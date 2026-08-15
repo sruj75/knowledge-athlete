@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
-# Focused, self-driving harness for spatial overlay anchoring and Claude guidance.
+# Focused, self-driving harness for retained spatial overlay anchoring.
 #
 # Usage:
 #   cd desktop/macos && ./scripts/spatial-overlay-harness.sh
-#   ./scripts/spatial-overlay-harness.sh --visual --port 47919
 #   ./scripts/spatial-overlay-harness.sh --swift-only
 #   ./scripts/spatial-overlay-harness.sh --verbose
 set -euo pipefail
@@ -13,10 +12,8 @@ DESKTOP_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 REPO_ROOT="$(cd "$DESKTOP_DIR/../.." && pwd)"
 
 RUN_SWIFT=1
-RUN_VISUAL=0
 VERBOSE=0
 INTERNAL_FAILURE_PROBE=0
-PORT="${OMI_AUTOMATION_PORT:-47777}"
 RUN_ID="$(date -u +%Y%m%dT%H%M%SZ)"
 RUN_DIR="$DESKTOP_DIR/.harness/spatial-overlay/$RUN_ID"
 
@@ -25,14 +22,10 @@ usage() {
 Focused harness for spatial overlay anchoring.
 
 Runs:
-  1. Swift dogfood/unit tests:
-     SpatialOverlayDogfoodHarnessTests, SpatialOverlay*, BrowserAutomationTargetTests
-  2. Optional visual dogfood flow through the local automation bridge:
-     e2e/flows/claude-guidance-overlay.yaml
+  1. Swift unit tests for the retained permission/proactive overlay geometry:
+     SpatialOverlay*
 
 Options:
-  --visual       Also run the app-side visual flow against the automation bridge
-  --port PORT    Automation bridge port for --visual (default: OMI_AUTOMATION_PORT or 47777)
   --swift-only   Run only Swift focused tests
   --verbose      Stream command output instead of saving it quietly
   --help         Show this help
@@ -41,16 +34,8 @@ USAGE
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --visual)
-      RUN_VISUAL=1
-      ;;
-    --port)
-      PORT="${2:?--port requires a value}"
-      shift
-      ;;
     --swift-only)
       RUN_SWIFT=1
-      RUN_VISUAL=0
       ;;
     --verbose)
       VERBOSE=1
@@ -156,45 +141,7 @@ run_swift_focus() {
   (
     cd "$DESKTOP_DIR"
     xcrun swift test --package-path Desktop \
-      --filter 'SpatialOverlayDogfoodHarnessTests|SpatialOverlay|BrowserAutomationTargetTests'
-  )
-}
-
-ensure_bridge_ready() {
-  python3 - "$PORT" "$SCRIPT_DIR" <<'PY'
-import json
-import sys
-import urllib.request
-
-port = sys.argv[1]
-sys.path.insert(0, sys.argv[2])
-from automation_token_lib import automation_token
-
-token = automation_token(int(port))
-try:
-    # Health is intentionally unauthenticated so callers see launch diagnostics.
-    request = urllib.request.Request(f"http://127.0.0.1:{port}/health")
-    with urllib.request.urlopen(request, timeout=5) as response:
-        payload = json.loads(response.read().decode("utf-8"))
-except Exception as exc:
-    raise SystemExit(f"automation bridge unavailable on port {port}: {exc}")
-
-if not payload.get("ok"):
-    raise SystemExit(f"automation bridge unhealthy on port {port}: {payload}")
-
-if not token:
-    raise SystemExit(
-        f"automation bridge token missing on port {port}; "
-        "app writes NSTemporaryDirectory()/omi-automation-{port}.token"
-    )
-PY
-}
-
-run_visual_flow() {
-  ensure_bridge_ready
-  (
-    cd "$DESKTOP_DIR"
-    python3 scripts/omi-harness run e2e/flows/claude-guidance-overlay.yaml --lane visual --port "$PORT"
+      --filter 'SpatialOverlay'
   )
 }
 
@@ -215,11 +162,7 @@ fi
 run_failure_propagation_self_check
 
 if [[ "$RUN_SWIFT" -eq 1 ]]; then
-  run_step "swift spatial overlay dogfood tests" run_swift_focus
-fi
-
-if [[ "$RUN_VISUAL" -eq 1 ]]; then
-  run_step "visual claude guidance overlay flow" run_visual_flow
+  run_step "swift spatial overlay tests" run_swift_focus
 fi
 
 total_elapsed="$(elapsed_seconds "$total_start")"

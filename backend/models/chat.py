@@ -1,8 +1,8 @@
 from datetime import datetime
 from enum import Enum
-from typing import Any, List, Literal, Optional, Union
+from typing import List, Literal, Optional, Union
 
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel
 
 
 class MessageSender(str, Enum):
@@ -67,10 +67,6 @@ class Message(BaseModel):
     text: str
     created_at: datetime
     sender: MessageSender
-    app_id: Optional[str] = None
-    # TODO: remove plugin_id after migration
-    plugin_id: Optional[str] = None
-    from_external_integration: bool = False
     type: MessageType
     memories_id: List[str] = []  # used in db
     memories: List[MessageConversation] = []  # used front facing
@@ -94,19 +90,6 @@ class Message(BaseModel):
     journal_revision: Optional[int] = None
     chart_data: Optional[Union[ChartData, dict]] = None  # Inline chart visualization data
 
-    @model_validator(mode='before')
-    @classmethod
-    def _sync_app_and_plugin_ids(cls, data: Any) -> Any:
-        if isinstance(data, dict):
-            app_id_val = data.get('app_id')
-            plugin_id_val = data.get('plugin_id')
-
-            if app_id_val is not None:
-                data['plugin_id'] = app_id_val
-            elif plugin_id_val is not None:
-                data['app_id'] = plugin_id_val
-        return data
-
     @classmethod
     def deserialize_many_safe(cls, records, on_error=None) -> List['Message']:
         """Build Message objects from raw stored records, skipping any that fail
@@ -125,7 +108,6 @@ class Message(BaseModel):
     def get_messages_as_string(
         messages: List['Message'],
         use_user_name_if_available: bool = False,
-        use_plugin_name_if_available: bool = False,
         include_file_info: bool = False,
     ) -> str:
         sorted_messages = sorted(messages, key=lambda m: m.created_at)
@@ -133,11 +115,7 @@ class Message(BaseModel):
         def get_sender_name(message: Message) -> str:
             if message.sender == 'human':
                 return 'User'
-            # elif use_plugin_name_if_available and message.app_id is not None:
-            #     plugin = next((p for p in plugins if p.id == message.app_id), None)
-            #     if plugin:
-            #         return plugin.name RESTORE ME
-            return message.sender.upper()  # TODO: use app id
+            return message.sender.upper()
 
         formatted_messages = []
         for message in sorted_messages:
@@ -158,7 +136,6 @@ class Message(BaseModel):
     def get_messages_as_xml(
         messages: List['Message'],
         use_user_name_if_available: bool = False,
-        use_plugin_name_if_available: bool = False,
         include_file_info: bool = False,
     ) -> str:
         sorted_messages = sorted(messages, key=lambda m: m.created_at)
@@ -166,11 +143,7 @@ class Message(BaseModel):
         def get_sender_name(message: Message) -> str:
             if message.sender == 'human':
                 return 'User'
-            # elif use_plugin_name_if_available and message.app_id is not None:
-            #     plugin = next((p for p in plugins if p.id == message.app_id), None)
-            #     if plugin:
-            #         return plugin.name RESTORE ME
-            return message.sender.upper()  # TODO: use app id
+            return message.sender.upper()
 
         formatted_messages = []
         for message in sorted_messages:
@@ -230,32 +203,13 @@ class RateMessageRequest(BaseModel):
     rating: Optional[int] = None
 
 
-class ShareChatMessagesRequest(BaseModel):
-    message_ids: list[str] = []
-
-
 class ChatSession(BaseModel):
     id: str
     message_ids: Optional[List[str]] = []
     file_ids: Optional[List[str]] = []
-    app_id: Optional[str] = None
-    plugin_id: Optional[str] = None
     created_at: datetime
     openai_thread_id: Optional[str] = None
     openai_assistant_id: Optional[str] = None
-
-    @model_validator(mode='before')
-    @classmethod
-    def _sync_chat_session_app_and_plugin_ids(cls, data: Any) -> Any:
-        if isinstance(data, dict):
-            app_id_val = data.get('app_id')
-            plugin_id_val = data.get('plugin_id')
-
-            if app_id_val is not None:
-                data['plugin_id'] = app_id_val
-            elif plugin_id_val is not None:
-                data['app_id'] = plugin_id_val
-        return data
 
     def add_file_ids(self, new_file_ids: List[str]):
         if self.file_ids is None:

@@ -26,7 +26,6 @@ from scripts.check_unit_test_discovery import (
 FAKE_WORKFLOWS = {
     'backend-hermetic-e2e.yml': 'run: bash backend/testing/e2e/run.sh',
     'desktop-backend-contracts.yml': 'run: python -m pytest backend/testing/contracts -v',
-    'parakeet_gpu_tests.yml': ('python -m pytest tests/container/test_parakeet_smoke.py -v\n'),
 }
 
 
@@ -34,14 +33,6 @@ def test_orphan_outside_all_runners_is_reported():
     all_files = {'tests/unit/test_known.py', 'tests/newarea/test_orphan.py'}
     selected = {'tests/unit/test_known.py'}
     assert find_orphans(all_files, selected, set(), FAKE_WORKFLOWS) == ['tests/newarea/test_orphan.py']
-
-
-def test_explicit_mode_requires_each_file_to_be_named_in_the_workflow():
-    all_files = {
-        'tests/container/test_parakeet_smoke.py',  # named in the workflow
-        'tests/container/test_parakeet_unwired.py',  # not named -> orphan
-    }
-    assert find_orphans(all_files, set(), set(), FAKE_WORKFLOWS) == ['tests/container/test_parakeet_unwired.py']
 
 
 def test_directory_mode_covers_whole_tree():
@@ -63,38 +54,31 @@ def test_policy_excluded_and_allowlisted_files_are_not_orphans():
 
 def test_commented_out_or_deselected_references_are_not_coverage():
     text = (
-        '# python -m pytest tests/container/test_parakeet_smoke.py -v\n'
-        'python -m pytest tests/container --deselect tests/container/test_parakeet_der_gate.py\n'
-        'echo tests/container/test_parakeet_wer_gate.py\n'
+        '# python -m pytest tests/unit/test_alpha.py -v\n'
+        'python -m pytest tests/unit --deselect tests/unit/test_beta.py\n'
+        'echo tests/unit/test_gamma.py\n'
     )
     for path in (
-        'tests/container/test_parakeet_smoke.py',  # commented out
-        'tests/container/test_parakeet_der_gate.py',  # deselected
-        'tests/container/test_parakeet_wer_gate.py',  # prose/echo mention
+        'tests/unit/test_alpha.py',  # commented out
+        'tests/unit/test_beta.py',  # deselected
+        'tests/unit/test_gamma.py',  # prose/echo mention
     ):
         assert not _runs_reference(text, path), path
-    assert _runs_reference(
-        'python -m pytest tests/container/test_parakeet_smoke.py -v', 'tests/container/test_parakeet_smoke.py'
-    )
+    assert _runs_reference('python -m pytest tests/unit/test_alpha.py -v', 'tests/unit/test_alpha.py')
 
 
 def test_deselecting_one_test_does_not_orphan_a_file_that_still_runs():
-    line = (
-        'python -m pytest tests/container/test_parakeet_smoke.py -v '
-        '--deselect tests/container/test_parakeet_smoke.py::test_flaky'
-    )
-    assert _runs_reference(line, 'tests/container/test_parakeet_smoke.py')
+    line = 'python -m pytest tests/unit/test_alpha.py -v ' '--deselect tests/unit/test_alpha.py::test_flaky'
+    assert _runs_reference(line, 'tests/unit/test_alpha.py')
 
 
 def test_backslash_continuation_keeps_path_attached_to_its_invocation():
-    text = 'python -m pytest \\\n  tests/container/test_parakeet_smoke.py -v \\\n  --tb=short'
-    assert _runs_reference(text, 'tests/container/test_parakeet_smoke.py')
+    text = 'python -m pytest \\\n  tests/unit/test_alpha.py -v \\\n  --tb=short'
+    assert _runs_reference(text, 'tests/unit/test_alpha.py')
 
 
 def test_missing_workflow_file_is_an_error():
-    errors = workflow_map_errors(
-        {'backend-hermetic-e2e.yml': '', 'desktop-backend-contracts.yml': 'x', 'parakeet_gpu_tests.yml': 'x'}
-    )
+    errors = workflow_map_errors({'backend-hermetic-e2e.yml': '', 'desktop-backend-contracts.yml': 'x'})
     assert any('backend-hermetic-e2e.yml' in e and 'does not exist' in e for e in errors)
 
 

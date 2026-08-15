@@ -66,7 +66,6 @@ class ListenPusherSessionDeps:
     get_current_conversation_id: Callable[[], Optional[str]]
     is_active: Callable[[], bool]
     shutdown_event: asyncio.Event
-    get_byok_keys: Callable[[], Dict[str, Any]]
     on_conversation_processed: Callable[[str], None]
     wait_for_event: Callable[[asyncio.Event, float], Awaitable[bool]]
     connect_to_pusher: Callable[..., Awaitable[Optional[WebSocketClientProtocol]]] = _connect_to_trigger_pusher
@@ -166,7 +165,6 @@ class ListenPusherSession:
             payload: Dict[str, Any] = {
                 "conversation_id": conversation_id,
                 "language": self.config.language,
-                "byok_keys": self.deps.get_byok_keys(),
             }
             if pending.get('finalization_job_id'):
                 payload['finalization_job_id'] = pending['finalization_job_id']

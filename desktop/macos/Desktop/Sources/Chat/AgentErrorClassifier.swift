@@ -58,17 +58,12 @@ enum AgentErrorClassifier {
           "You've reached your plan's chat limit. Upgrade in Settings → Plan and Usage, or wait until the next reset.",
         retryable: false)
     }
-    // Provider/mode configuration mismatch — retrying the same query cannot
-    // help; the user must change the agent mode/provider in Settings.
-    if lower.contains("only when the user claude mode")
-      || lower.contains("can only use omi cloud routing")
-      || lower.contains("provider mode is pinned")
-      || (lower.contains("is not available") && lower.contains("make sure"))
-    {
+    // A managed-cloud boundary mismatch cannot be repaired by retrying the
+    // same query. Public settings no longer expose a provider or mode choice.
+    if lower.contains("can only use omi cloud routing") {
       return ClassifiedAgentError(
         code: .agentModeUnavailable,
-        userMessage:
-          "This agent isn't available in your current setup. Open Settings → check your agent mode/provider, then try again.",
+        userMessage: "Managed chat is unavailable. Sign in again, then try once more.",
         retryable: false)
     }
 

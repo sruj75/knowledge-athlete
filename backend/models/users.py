@@ -5,14 +5,6 @@ from typing import Optional, List
 from pydantic import BaseModel, Field, field_validator
 
 
-class WebhookType(str, Enum):
-    audio_bytes = 'audio_bytes'
-    audio_bytes_websocket = 'audio_bytes_websocket'
-    realtime_transcript = 'realtime_transcript'
-    memory_created = ('memory_created',)
-    day_summary = 'day_summary'
-
-
 LOCATION_CONTEXT_PURPOSE = 'chat_city_context'
 LOCATION_CONTEXT_DISCLOSED_PROVIDERS = ('Google Maps', 'the configured AI chat provider')
 

@@ -235,22 +235,6 @@ def get_candidate_workflow_control(uid: str = Depends(auth.get_current_user_uid)
     return task_control_db.get_task_workflow_control(uid)
 
 
-@router.post('/v1/candidates/integrations/drain', tags=['candidates'])
-def drain_candidate_integrations(
-    account_generation: AccountGenerationHeader,
-    limit: int = Query(default=100, ge=1, le=500),
-    uid: str = Depends(auth.get_current_user_uid),
-) -> dict[str, int]:
-    _require_candidate_write_control(uid, account_generation)
-    return {
-        'scheduled': candidate_service.drain_candidate_integrations(
-            uid,
-            account_generation=account_generation,
-            limit=limit,
-        )
-    }
-
-
 @router.get('/v1/candidates/{candidate_id}', response_model=CandidateRecord, tags=['candidates'])
 def get_candidate(candidate_id: str, uid: str = Depends(auth.get_current_user_uid)):
     candidate = candidates_db.get_candidate(uid, candidate_id)

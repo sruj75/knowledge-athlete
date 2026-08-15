@@ -827,28 +827,12 @@ final class FloatingBarVoicePlaybackService: NSObject, AVAudioPlayerDelegate, AV
   }
 
   /// Synthesize speech through the desktop backend's OpenAI TTS proxy.
-  /// APIClient attaches a user BYOK key when one is configured; otherwise the
-  /// backend uses its server-side key.
+  /// The backend owns the provider credential and normal usage metering.
   private nonisolated static func synthesizeOpenAISpeech(
     text: String,
     voiceID: String,
     instructions: String
   ) async throws -> Data {
-    let byokKey = APIKeyService.isByokActive ? APIKeyService.byokKey(.openai) : nil
-    let fingerprint = byokKey.map(APIKeyService.byokFingerprint)
-    if let fingerprint {
-      let canUseKey = await MainActor.run {
-        CredentialHealthManager.shared.canUseBYOK(provider: .openai, fingerprint: fingerprint)
-      }
-      guard canUseKey else {
-        throw CredentialHealthError.providerAuth(
-          provider: .openai,
-          mode: .byok,
-          message: "Your OpenAI key was rejected. Update it in Settings."
-        )
-      }
-    }
-
     do {
       return try await APIClient.shared.synthesizeSpeech(
         request: APIClient.TtsSynthesizeRequest(
@@ -864,7 +848,6 @@ final class FloatingBarVoicePlaybackService: NSObject, AVAudioPlayerDelegate, AV
             error.failureClass,
             provider: provider,
             authMode: mode,
-            fingerprint: fingerprint,
             context: "openai_tts"
           )
         } else {
@@ -906,7 +889,7 @@ final class FloatingBarVoicePlaybackService: NSObject, AVAudioPlayerDelegate, AV
           return text
         case .discoveryCard(_, let title, let summary, _):
           return "\(title). \(summary)"
-        case .agentSpawn(_, _, _, _, let title, let objective, _):
+        case .agentSpawn(_, _, _, _, let title, let objective):
           return "\(title). \(objective)"
         case .agentCompletion(_, _, _, _, let title, _, let output, _):
           return "\(title). \(output)"

@@ -44,10 +44,8 @@ enum StartupWarmupTaskID: Hashable {
   case databaseWarmup
   case dashboardNetworkRefresh
   case chatPromptContextWarmup
-  case mcpKeyWarmup
   case databaseRetry
   case conversationWarmup
-  case initialFileIndexing
   case proactiveAssistantsStart
 }
 
@@ -56,28 +54,6 @@ struct StartupWarmupSessionScope: Equatable {
 
   func matches(currentUserId: String?, isSignedIn: Bool) -> Bool {
     isSignedIn && userId != nil && currentUserId == userId
-  }
-}
-
-struct DelayedFileIndexingBackfillState {
-  private var isScheduled = false
-  private(set) var shouldMarkComplete = false
-
-  mutating func reserveIfNeeded(hasCompletedBackfill: Bool) -> Bool {
-    guard !hasCompletedBackfill, !isScheduled else { return false }
-    isScheduled = true
-    shouldMarkComplete = false
-    return true
-  }
-
-  mutating func markScanCompleted() {
-    isScheduled = false
-    shouldMarkComplete = true
-  }
-
-  mutating func releaseReservation() {
-    isScheduled = false
-    shouldMarkComplete = false
   }
 }
 
@@ -92,7 +68,6 @@ enum StartupWarmupPolicy {
   static let deferredWarmupDelay: TimeInterval = 2.0
   static let databaseRetryInitialDelay: TimeInterval = 1.0
   static let databaseRetryMaxDelay: TimeInterval = 30.0
-  static let mcpKeyWarmupDelay: TimeInterval = 0.5
   static let dashboardNetworkRefreshDelay: TimeInterval = 4.0
   static let initialSettingsSyncDelay: TimeInterval = 5.0
   static let apiKeyFetchDelay: TimeInterval = 9.0
@@ -102,8 +77,6 @@ enum StartupWarmupPolicy {
   static let conversationWarmupDelay: TimeInterval = 6.0
   static let transcriptionRetryRecoveryDelay: TimeInterval = 8.0
   static let recurringTaskSchedulerInitialDelay: TimeInterval = 12.0
-  static let initialFileIndexingDelay: TimeInterval = 45.0
-
   /// Remaining warmup delay, measured from a launch anchor rather than from
   /// the triggering event. Warmup delays exist to keep heavy work out of the
   /// busy launch window, so late triggers must not re-pay the full delay:

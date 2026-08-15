@@ -57,7 +57,7 @@ describe("spawn-receipt fixtures v1", () => {
           attemptId: "attempt-child",
           runId: "run-child",
           status: "running",
-          adapterId: "hermes",
+          adapterId: "pi-mono",
           updatedAtMs: 1_720_000_000_000,
         },
       }],

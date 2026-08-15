@@ -4,7 +4,7 @@ import XCTest
 
 /// Close-semantics alignment for the redesigned Home stage (home-stage S6
 /// regression): the automation bridge's `home_close_panel` must follow the same
-/// path as Esc / click-outside / the connect × button (collapse to the resting
+/// path as Esc / click-outside (collapse to the resting
 /// surface), and the deferred ask-field focus must be fenced so a stale focus
 /// cannot reopen chat.
 ///
@@ -23,6 +23,8 @@ final class HomeStageCloseSemanticsTests: XCTestCase {
     registry.registerBuiltins()
     let names = Set(registry.descriptors().map(\.name))
     XCTAssertTrue(names.contains("home_close_panel"))
+    XCTAssertFalse(names.contains("home_connect_toggle"))
+    XCTAssertTrue(names.contains("home_attach"))
   }
 
   func testHomeClosePanelSummaryAlignsWithUserCollapse() throws {
@@ -50,8 +52,8 @@ final class HomeStageCloseSemanticsTests: XCTestCase {
 
   // MARK: Flow (static contract over DashboardPage wiring)
 
-  /// hub → chat → connect → close must collapse to the resting surface, and a
-  /// later `home_ask` must rest in chat — never force-jump to the hub.
+  /// hub → chat → close must collapse to the resting surface, and a later
+  /// `home_ask` must rest in chat — never force-jump to the hub.
   func testAutomationCloseRoutesToUserCollapseNotHubJump() throws {
     let source = try dashboardSource()
 
@@ -67,8 +69,7 @@ final class HomeStageCloseSemanticsTests: XCTestCase {
   }
 
   /// The deferred focus must fence itself: capture a generation token, drop on
-  /// invalidate, and never land off the chat stage. Collapse and connect must
-  /// both invalidate it.
+  /// invalidate, and never land off the chat stage. Collapse invalidates it.
   func testDeferredFocusFenceIsWired() throws {
     let source = try dashboardSource()
 
@@ -77,9 +78,7 @@ final class HomeStageCloseSemanticsTests: XCTestCase {
       "A deferred focus must drop itself if invalidated and never land on a non-chat stage")
 
     let invalidateCount = source.components(separatedBy: "homeAskFocusPolicy.invalidate()").count - 1
-    XCTAssertEqual(
-      invalidateCount, 2,
-      "Both collapseHomeStagePanel and toggleHomeConnectPanel must invalidate deferred focus")
+    XCTAssertEqual(invalidateCount, 1, "collapseHomeStagePanel must invalidate deferred focus")
   }
 
   /// Asking (via the ask bar) opens chat. After history restoration, the

@@ -18,7 +18,6 @@ import { agentControlCapabilityManifest, agentControlInputSchema } from "../src/
 import { AdapterRegistry } from "../src/runtime/adapter-registry.js";
 import { AgentRuntimeKernel } from "../src/runtime/kernel.js";
 import { SqliteAgentStore } from "../src/runtime/sqlite-store.js";
-import { toolNamesForAdapter } from "../src/runtime/omi-tool-manifest.js";
 import {
   RunToolCapabilityBroker,
   type AuthorizedRunToolInvocation,
@@ -74,9 +73,8 @@ function createCapabilityBroker(store: SqliteAgentStore): RunToolCapabilityBroke
       const profile = readSessionExecutionProfile(store, sessionId);
       return {
         generation: profile.generation,
-        // These control-tool tests use the kernel's synthetic `fake` adapter;
-        // the canonical capability projection they exercise is the stdio lane.
-        adapterId: profile.adapterId === "fake" ? "acp" : profile.adapterId,
+        // Behavioral fakes exercise the same owned Pi typed-tool projection.
+        adapterId: profile.adapterId === "fake" ? "pi-mono" : profile.adapterId,
         executionRole: profile.executionRole,
       };
     },
@@ -431,31 +429,16 @@ describe("agent control tools", () => {
         },
       }),
     );
-    const unavailable = parseToolResult(
-      await handleAgentControlToolCall(ownerContext(kernel), "route_desktop_intent", {
-        utterance: "use an unavailable provider",
-        surfaceKind: "realtime",
-        snapshotVersion: "snapshot:control-2",
-        proposal: { intent: "spawn_agent" },
-        syntaxFacts: { explicitProvider: "openclaw" },
-      }),
-    );
-
     expect(continued.route).toMatchObject({
       intent: "continue_run",
       sessionId: existing.session.sessionId,
       runId: existing.run.runId,
       snapshotVersion: "snapshot:control-1",
     });
-    expect(unavailable.route).toMatchObject({
-      intent: "reject",
-      code: "provider_unavailable",
-      snapshotVersion: "snapshot:control-2",
-    });
     store.close();
   });
 
-  it("generates ACP/MCP tool definitions from the canonical manifest", () => {
+  it("generates Pi typed-tool definitions from the canonical manifest", () => {
     expect(agentControlToolDefinitions).toEqual(
       agentControlCapabilityManifest.map((tool) => ({
         name: tool.name,
@@ -482,8 +465,6 @@ describe("agent control tools", () => {
       externalRefId: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE",
       clientId: "desktop-floating-pill",
       mode: "act",
-      adapterId: "pi-mono",
-      cwd: "/tmp/omi-test",
       metadata: {
         uiProjection: "floating_pill",
         pillId: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE",
@@ -1970,65 +1951,7 @@ describe("agent control tools", () => {
     store.close();
   });
 
-  it("rejects synchronous nested ACP control runs while the single ACP worker is busy", async () => {
-    const { store, adapter, kernel } = createKernelHarness(newDatabasePath(), "acp", 1);
-    adapter.deferResult();
-    const running = kernel.executeRun({
-      ...baseRunInput,
-      adapterId: "acp",
-      defaultAdapterId: "acp",
-    });
-    await waitUntil(() => adapter.executed.length === 1);
 
-    const blocked = parseToolResult(
-      await handleAgentControlToolCall(ownerContext(kernel), "send_agent_message", {
-        ownerId: "owner",
-        sessionId: adapter.executed[0].sessionId,
-        prompt: "nested follow up",
-        requestId: "nested-send",
-      }),
-    );
-
-    expect(blocked).toMatchObject({
-      ok: false,
-      error: {
-        code: "control_tool_failed",
-      },
-    });
-    expect(blocked.error.message).toContain("Synchronous acp control-tool runs are unavailable");
-
-    adapter.resolveDeferred({
-      text: "done",
-      adapterSessionId: adapter.executed[0].binding.adapterNativeSessionId,
-      terminalStatus: "succeeded",
-    });
-    await running;
-    store.close();
-  });
-
-  it("fails closed for an unknown adapter before starting a control run", async () => {
-    const { store, kernel } = createKernelHarness(newDatabasePath(), "fake", 1);
-    const first = await kernel.executeRun(baseRunInput);
-
-    const failed = parseToolResult(
-      await handleAgentControlToolCall(ownerContext(kernel), "send_agent_message", {
-        ownerId: "owner",
-        sessionId: first.session.sessionId,
-        prompt: "use missing adapter",
-        adapterId: "missing-adapter",
-        requestId: "missing-adapter-request",
-      }),
-    );
-
-    expect(failed).toMatchObject({
-      ok: false,
-      error: {
-        code: "control_tool_failed",
-        message: "Desktop intent effect rejected by canonical route policy (provider_unavailable).",
-      },
-    });
-    store.close();
-  });
 
   it("rejects synchronous nested pi-mono control runs while pi-mono is busy", async () => {
     const { store, adapter, kernel } = createKernelHarness(newDatabasePath(), "pi-mono", 1);
@@ -2136,7 +2059,6 @@ describe("agent control tools", () => {
       await handleAgentControlToolCall(ownerContext(kernel), "spawn_background_agent", {
         prompt: "draft a story idea",
         title: "Story Idea",
-        adapterId: "fake",
         externalRefKind: "pill",
         externalRefId: "pill-1",
         requestId: "background-1",
@@ -2148,7 +2070,6 @@ describe("agent control tools", () => {
     expect(spawned.ok).toBe(true);
     expect(spawned.routeDecision).toMatchObject({
       intent: "spawn_agent",
-      requestedProvider: "fake",
       requestedAgentCount: 1,
     });
     expect(spawned.session).toMatchObject({
@@ -2180,7 +2101,6 @@ describe("agent control tools", () => {
         await handleAgentControlToolCall(ownerContext(kernel), "spawn_background_agent", {
           prompt: `origin ${originSurfaceKind}`,
           originSurfaceKind,
-          adapterId: "fake",
           externalRefKind: "pill",
           externalRefId: `origin-${index}`,
           requestId: `origin-${index}`,
@@ -2205,7 +2125,6 @@ describe("agent control tools", () => {
       requestedAgentCount: 3,
       visible: true,
       externalRefId: "sibling-set",
-      adapterId: "fake",
       requestId: "sibling-set",
     }));
 
@@ -2292,7 +2211,6 @@ describe("agent control tools", () => {
       objective: "must not start",
       requestedAgentCount: 1,
       visible: true,
-      adapterId: "fake",
       requestId: "lease-before-first-effect",
     });
     await enteredEffectBoundary;
@@ -2379,7 +2297,6 @@ describe("agent control tools", () => {
       objective: "start one only",
       requestedAgentCount: 2,
       visible: true,
-      adapterId: "fake",
       requestId: "lease-between-siblings",
     });
     await enteredSecondSibling;
@@ -2502,7 +2419,6 @@ describe("agent control tools", () => {
         {
           prompt: "try to promote me",
           originSurfaceKind: "main_chat",
-          adapterId: "fake",
           externalRefKind: "pill",
           externalRefId: "must-not-exist",
           requestId: "leaf-origin-promotion",
@@ -2519,76 +2435,8 @@ describe("agent control tools", () => {
     store.close();
   });
 
-  it("uses the owner default only for new direct sessions and preserves caller inheritance", async () => {
-    const store = new SqliteAgentStore({ databasePath: newDatabasePath(), reconcileOnOpen: false });
-    const registry = new AdapterRegistry();
-    registry.register("acp", () => new FakeRuntimeAdapter("acp"), 2);
-    registry.register("pi-mono", () => new FakeRuntimeAdapter("pi-mono"), 2);
-    const kernel = new AgentRuntimeKernel({ store, registry });
-    const existing = store.insertSession({
-      ownerId: "owner",
-      surfaceKind: "main_chat",
-      externalRefKind: "chat",
-      externalRefId: "existing-old-profile",
-      defaultAdapterId: "acp",
-      modelProfile: "old-model",
-      defaultCwd: "/tmp/old-profile",
-      executionRole: "coordinator",
-    });
-    kernel.configureDefaultExecutionProfile({
-      ownerId: "owner",
-      adapterId: "pi-mono",
-      modelProfile: "new-model",
-      workingDirectory: "/tmp/new-profile",
-      expectedPreferenceGeneration: 0,
-    });
 
-    const direct = parseToolResult(await handleAgentControlToolCall(
-      trustedOwnerContext(kernel),
-      "spawn_agent",
-      {
-        objective: "new direct pill",
-        originSurfaceKind: "main_chat",
-        visible: true,
-        externalRefId: "new-direct-pill",
-        requestId: "new-direct-pill",
-      },
-    ));
-    const inherited = parseToolResult(await handleAgentControlToolCall(
-      { ...ownerContext(kernel), callerSessionId: existing.sessionId },
-      "spawn_background_agent",
-      {
-        prompt: "child of old session",
-        originSurfaceKind: "main_chat",
-        externalRefKind: "pill",
-        externalRefId: "old-session-child",
-        requestId: "old-session-child",
-      },
-    ));
-
-    expect(direct.session).toMatchObject({
-      defaultAdapterId: "pi-mono",
-      modelProfile: "new-model",
-      defaultCwd: "/tmp/new-profile",
-    });
-    expect(inherited.session).toMatchObject({
-      defaultAdapterId: "acp",
-      modelProfile: "old-model",
-      defaultCwd: "/tmp/old-profile",
-    });
-    expect(kernel.sessionExecutionProfile(existing.sessionId, "owner")).toMatchObject({
-      adapterId: "acp",
-      modelProfile: "old-model",
-      workingDirectory: "/tmp/old-profile",
-    });
-    await waitUntil(() => store.allRows(
-      "SELECT status FROM runs WHERE run_id IN (?, ?)",
-      [direct.run.runId, inherited.run.runId],
-    ).every((row) => row.status === "succeeded"));
-    store.close();
-  });
-
-  it("inherits the managed adapter for background agents instead of local ACP", async () => {
+  it("inherits the managed adapter for background agents instead of a local alternate adapter", async () => {
     const { store, adapter, kernel } = createKernelHarness(newDatabasePath(), "pi-mono");
     const spawned = parseToolResult(
       await handleAgentControlToolCall({ ...ownerContext(kernel), defaultAdapterId: "pi-mono" }, "spawn_agent", {
@@ -2609,399 +2457,14 @@ describe("agent control tools", () => {
     store.close();
   });
 
-  it("rejects an explicit local ACP override from a managed agent", async () => {
-    const { store, kernel } = createKernelHarness(newDatabasePath(), "pi-mono");
-    const result = parseToolResult(
-      await handleAgentControlToolCall({ ...ownerContext(kernel), defaultAdapterId: "pi-mono" }, "spawn_agent", {
-        objective: "do not use local credentials",
-        visible: true,
-        adapterId: "acp",
-        requestId: "spawn-managed-local-acp-1",
-        clientId: "spawn-client",
-        ownerId: "owner",
-      }),
-    );
 
-    expect(result).toMatchObject({
-      ok: false,
-      error: {
-        code: "control_tool_failed",
-        message: "Local Claude is available only when the User Claude mode is selected.",
-      },
-    });
-    expect(store.allRows("SELECT * FROM runs")).toHaveLength(0);
-    store.close();
-  });
 
-  it("lets signed desktop control start Hermes and OpenClaw as top-level local sessions", async () => {
-    for (const provider of ["hermes", "openclaw"] as const) {
-      const { store, adapter, kernel } = createKernelHarness(newDatabasePath(), provider);
-      const spawned = parseToolResult(
-        await handleAgentControlToolCall(
-          {
-            ...ownerContext(kernel),
-            defaultAdapterId: "pi-mono",
-            providerBoundary: "managed_cloud",
-            trustedUserControl: true,
-          },
-          "spawn_agent",
-          {
-            objective: `run this with ${provider}`,
-            provider,
-            visible: true,
-            requestId: `direct-${provider}-spawn`,
-            clientId: "desktop-floating-pill",
-            ownerId: "owner",
-          },
-        ),
-      );
 
-      await waitUntil(() => {
-        const row = store.getRow("SELECT status FROM runs WHERE run_id = ?", [spawned.run.runId]);
-        return row.status === "succeeded";
-      });
-      expect(spawned.session).toMatchObject({
-        defaultAdapterId: provider,
-        providerBoundary: `local_user:${provider}`,
-      });
-      const listed = parseToolResult(
-        await handleAgentControlToolCall(ownerContext(kernel), "list_agent_sessions", { ownerId: "owner" }),
-      );
-      expect(listed.floating_agent_pills).toContainEqual(
-        expect.objectContaining({
-          sessionId: spawned.session.sessionId,
-          runId: spawned.run.runId,
-          provider,
-        }),
-      );
-      expect(adapter.executed).toHaveLength(1);
-      store.close();
-    }
-  });
 
-  it("lets the canonical directed-provider tool start Hermes and OpenClaw from an Omi coordinator", async () => {
-    for (const provider of ["hermes", "openclaw"] as const) {
-      const { store, adapter, kernel } = createKernelHarness(newDatabasePath(), provider);
-      const spawned = parseToolResult(
-        await handleAgentControlToolCall(
-          {
-            ...ownerContext(kernel),
-            defaultAdapterId: "pi-mono",
-            providerBoundary: "managed_cloud",
-          },
-          "spawn_agent",
-          {
-            objective: `run this with ${provider}`,
-            provider,
-            visible: true,
-            requestId: `managed-directed-${provider}-spawn`,
-            clientId: "main-chat",
-            ownerId: "owner",
-          },
-        ),
-      );
 
-      await waitUntil(() => {
-        const row = store.getRow("SELECT status FROM runs WHERE run_id = ?", [spawned.run.runId]);
-        return row.status === "succeeded";
-      });
-      expect(spawned.session).toMatchObject({
-        defaultAdapterId: provider,
-        providerBoundary: `local_user:${provider}`,
-      });
-      expect(adapter.executed).toHaveLength(1);
-      store.close();
-    }
-  });
 
-  it("rejects a mismatched directed provider and adapter override", async () => {
-    const { store, kernel } = createKernelHarness(newDatabasePath(), "pi-mono");
-    const result = parseToolResult(
-      await handleAgentControlToolCall({ ...ownerContext(kernel), defaultAdapterId: "pi-mono" }, "spawn_agent", {
-        objective: "do not create an ambiguous provider session",
-        provider: "openclaw",
-        adapterId: "pi-mono",
-        requestId: "managed-mismatched-provider-spawn",
-        clientId: "main-chat",
-        ownerId: "owner",
-      }),
-    );
 
-    expect(result).toMatchObject({
-      ok: false,
-      error: {
-        code: "control_tool_failed",
-        message: "provider and adapterId must match when both are supplied",
-      },
-    });
-    expect(store.allRows("SELECT * FROM runs")).toHaveLength(0);
-    store.close();
-  });
 
-  it("lets signed desktop control continue a local provider session through the Omi cloud bridge", async () => {
-    for (const provider of ["hermes", "openclaw"] as const) {
-      const { store, adapter, kernel } = createKernelHarness(newDatabasePath(), provider);
-      const initial = await kernel.executeRun({
-        ...baseRunInput,
-        adapterId: provider,
-        defaultAdapterId: provider,
-      });
-
-      const continued = parseToolResult(
-        await handleAgentControlToolCall(
-          {
-            ...ownerContext(kernel),
-            defaultAdapterId: "pi-mono",
-            providerBoundary: "managed_cloud",
-            trustedUserControl: true,
-          },
-          "send_agent_message",
-          {
-            sessionId: initial.session.sessionId,
-            prompt: "Say how it's going.",
-            requestId: `direct-${provider}-continue`,
-            clientId: "desktop-floating-pill",
-            ownerId: "owner",
-          },
-        ),
-      );
-
-      expect(continued).toMatchObject({
-        ok: true,
-        session: {
-          sessionId: initial.session.sessionId,
-          defaultAdapterId: provider,
-          providerBoundary: `local_user:${provider}`,
-        },
-      });
-      expect(adapter.executed).toHaveLength(2);
-      store.close();
-    }
-  });
-
-  it("returns a typed setup-needed result when an authorized realtime spawn selects an unavailable provider", async () => {
-    const { store, kernel } = createKernelHarness(newDatabasePath(), "pi-mono");
-    const surface = {
-      surfaceKind: "realtime_voice",
-      externalRefKind: "chat",
-      externalRefId: "voice-unavailable-provider",
-    };
-    const coordinator = kernel.resolveSurfaceSession({
-      ownerId: "owner",
-      surfaceRef: surface,
-      defaultAdapterId: "pi-mono",
-      modelProfile: "omi-sonnet",
-      providerBoundary: "managed_cloud",
-      executionRole: "coordinator",
-    });
-    const parentRun = store.insertRun({
-      sessionId: coordinator.agentSessionId,
-      clientId: "realtime",
-      requestId: "voice-parent-unavailable-provider",
-      status: "running",
-      mode: "act",
-    });
-
-    const result = parseToolResult(
-      await handleAgentControlToolCall(
-        {
-          ...ownerContext(kernel),
-          defaultAdapterId: "pi-mono",
-          providerBoundary: "managed_cloud",
-          callerSessionId: coordinator.agentSessionId,
-          executionRole: "coordinator",
-          authorizedCallerRunId: parentRun.runId,
-          authorizedProducerJournal: {
-            schemaVersion: 1,
-            surface,
-            continuityKey: "voice-provider-setup-needed",
-            pillId: "pill-provider-setup-needed",
-            userText: "Ask OpenClaw for a summary",
-            assistantText: "Starting OpenClaw",
-            objective: "Run this with OpenClaw",
-            title: "Ask OpenClaw",
-          },
-          authorizedToolInvocation: {
-            invocationId: "voice-openclaw-unavailable-invocation",
-            runId: parentRun.runId,
-            attemptId: "attempt-openclaw-unavailable",
-            toolName: "spawn_agent",
-          },
-        },
-        "spawn_agent",
-        {
-          objective: "Run this with OpenClaw",
-          provider: "openclaw",
-          visible: true,
-          externalRefId: "pill-provider-setup-needed",
-          requestId: "voice-openclaw-unavailable",
-          clientId: "realtime",
-          ownerId: "owner",
-        },
-      ),
-    );
-
-    expect(result).toMatchObject({
-      ok: false,
-      error: {
-        code: "provider_setup_needed",
-        provider: "openclaw",
-        retryable: true,
-      },
-    });
-    expect(store.allRows("SELECT * FROM runs")).toHaveLength(1);
-    store.close();
-  });
-
-  it("does not let signed desktop control cross a managed parent run into a local provider", async () => {
-    const { store, kernel } = createKernelHarness(newDatabasePath(), "pi-mono");
-    const parent = await kernel.executeRun({
-      ...baseRunInput,
-      adapterId: "pi-mono",
-      defaultAdapterId: "pi-mono",
-    });
-
-    const result = parseToolResult(
-      await handleAgentControlToolCall(
-        {
-          ...ownerContext(kernel),
-          defaultAdapterId: "pi-mono",
-          providerBoundary: "managed_cloud",
-          trustedUserControl: true,
-        },
-        "spawn_agent",
-        {
-          objective: "do not cross into OpenClaw",
-          provider: "openclaw",
-          parentRunId: parent.run.runId,
-          requestId: "direct-managed-parent-openclaw",
-          clientId: "desktop-floating-pill",
-          ownerId: "owner",
-        },
-      ),
-    );
-
-    expect(result).toMatchObject({
-      ok: false,
-      error: {
-        code: "control_tool_failed",
-        message: "Managed Omi agents can only use Omi cloud routing.",
-      },
-    });
-    expect(store.allRows("SELECT * FROM runs")).toHaveLength(1);
-    store.close();
-  });
-
-  it("fails closed for an unknown adapter even from signed desktop control", async () => {
-    const { store, kernel } = createKernelHarness(newDatabasePath(), "pi-mono");
-    const result = parseToolResult(
-      await handleAgentControlToolCall(
-        {
-          ...ownerContext(kernel),
-          defaultAdapterId: "pi-mono",
-          providerBoundary: "managed_cloud",
-          trustedUserControl: true,
-        },
-        "spawn_agent",
-        {
-          objective: "do not create an unknown provider session",
-          adapterId: "unknown-adapter",
-          requestId: "direct-unknown-provider",
-          clientId: "desktop-floating-pill",
-          ownerId: "owner",
-        },
-      ),
-    );
-
-    expect(result).toMatchObject({
-      ok: false,
-      error: {
-        code: "control_tool_failed",
-        message: "Unknown production adapter: unknown-adapter",
-      },
-    });
-    expect(store.allRows("SELECT * FROM runs")).toHaveLength(0);
-    store.close();
-  });
-
-  it("keeps every managed control entry point on Omi cloud routing", async () => {
-    const { store, kernel } = createKernelHarness(newDatabasePath(), "pi-mono");
-    const context = { ...ownerContext(kernel), defaultAdapterId: "pi-mono" };
-    const parent = await kernel.executeRun({
-      ...baseRunInput,
-      adapterId: "pi-mono",
-      defaultAdapterId: "pi-mono",
-    });
-
-    for (const provider of ["acp", "hermes", "openclaw", "unknown-adapter"] as const) {
-      const expectedMessage =
-        provider === "acp"
-          ? "Local Claude is available only when the User Claude mode is selected."
-          : provider === "unknown-adapter"
-            ? "Unknown production adapter: unknown-adapter"
-            : "Managed Omi agents can only use Omi cloud routing.";
-      const spawned = parseToolResult(
-        await handleAgentControlToolCall(context, "spawn_agent", {
-          objective: `do not route to ${provider}`,
-          adapterId: provider,
-          requestId: `managed-provider-${provider}`,
-          clientId: "managed-routing",
-          ownerId: "owner",
-        }),
-      );
-      expect(spawned).toMatchObject({
-        ok: false,
-        error: { code: "control_tool_failed", message: expectedMessage },
-      });
-
-      const background = parseToolResult(
-        await handleAgentControlToolCall(context, "spawn_background_agent", {
-          prompt: `do not route to ${provider}`,
-          adapterId: provider,
-          requestId: `managed-background-${provider}`,
-          clientId: "managed-routing",
-          ownerId: "owner",
-        }),
-      );
-      expect(background).toMatchObject({
-        ok: false,
-        error: { code: "control_tool_failed", message: expectedMessage },
-      });
-
-      const continued = parseToolResult(
-        await handleAgentControlToolCall(context, "send_agent_message", {
-          sessionId: parent.session.sessionId,
-          prompt: `do not route to ${provider}`,
-          adapterId: provider,
-          requestId: `managed-continue-${provider}`,
-          clientId: "managed-routing",
-          ownerId: "owner",
-        }),
-      );
-      expect(continued).toMatchObject({
-        ok: false,
-        error: { code: "control_tool_failed", message: expectedMessage },
-      });
-
-      const delegated = parseToolResult(
-        await handleAgentControlToolCall(context, "run_agent_and_wait", {
-          parentRunId: parent.run.runId,
-          objective: `do not route to ${provider}`,
-          adapterId: provider,
-          requestId: `managed-delegate-${provider}`,
-          clientId: "managed-routing",
-          ownerId: "owner",
-        }),
-      );
-      expect(delegated).toMatchObject({
-        ok: false,
-        error: { code: "control_tool_failed", message: expectedMessage },
-      });
-    }
-
-    expect(store.allRows("SELECT * FROM runs")).toHaveLength(1);
-    store.close();
-  });
 
   it("prevents leaf background workers from spawning more agents", async () => {
     const { store, kernel } = createKernelHarness(newDatabasePath(), "pi-mono");
@@ -3198,117 +2661,7 @@ describe("agent control tools", () => {
     store.close();
   });
 
-  it("keeps Swift-backed MCP tools available in delegated child bindings", async () => {
-    const { store, adapter, kernel } = createKernelHarness(newDatabasePath());
-    const parent = await kernel.executeRun(baseRunInput);
-    const buildMcpServers = vi.fn(() => [
-      {
-        name: "omi-tools",
-        command: "node",
-        args: ["omi-tools.js"],
-        env: [
-          {
-            name: "OMI_CONTEXT_FILE",
-            value: expect.stringContaining("omi-tools-context"),
-          },
-        ],
-      },
-      { name: "playwright", command: "node", args: ["playwright.js"], env: [] },
-    ]);
 
-    const delegated = parseToolResult(
-      await handleAgentControlToolCall({ ...ownerContext(kernel), buildMcpServers }, "run_agent_and_wait", {
-        parentRunId: parent.run.runId,
-        objective: "use browser tools if needed",
-        requestId: "delegate-tools-1",
-        clientId: "delegate-client",
-        ownerId: "owner",
-        cwd: "/tmp/delegate-cwd",
-        runMode: "act",
-      }),
-    );
-    expect(delegated.ok).toBe(true);
-    expect(buildMcpServers).toHaveBeenCalledWith("act", "/tmp/delegate-cwd", undefined, {
-      ownerId: "owner",
-      requestId: "delegate-tools-1",
-      clientId: "delegate-client",
-      adapterId: "fake",
-      protocolVersion: 2,
-      includeSwiftBackedTools: true,
-      screenContext: true,
-      executionRole: "leaf",
-      surfaceKind: undefined,
-      externalRefKind: undefined,
-      externalRefId: undefined,
-    });
-    expect(toolNamesForAdapter("omi-tools-stdio", { screenContext: true })).toEqual(
-      expect.arrayContaining(["get_work_context", "request_permission", "check_permission_status", "capture_screen"]),
-    );
-    expect(adapter.opened.at(-1)?.mcpServers).toEqual([
-      {
-        name: "omi-tools",
-        command: "node",
-        args: ["omi-tools.js"],
-        env: [
-          {
-            name: "OMI_CONTEXT_FILE",
-            value: expect.stringContaining("omi-tools-context"),
-          },
-          {
-            name: "OMI_WORKSPACE",
-            value: "/tmp/work",
-          },
-        ],
-      },
-      {
-        name: "playwright",
-        command: "node",
-        args: ["playwright.js"],
-        env: [
-          {
-            name: "OMI_CONTEXT_FILE",
-            value: expect.stringContaining("omi-tools-context"),
-          },
-          {
-            name: "OMI_WORKSPACE",
-            value: "/tmp/work",
-          },
-        ],
-      },
-    ]);
-    expect(adapter.executed.at(-1)?.metadata).not.toMatchObject({
-      disableSwiftBackedTools: true,
-    });
-    store.close();
-  });
-
-  it("rejects delegated child runs when the requested adapter is unavailable", async () => {
-    const { store, kernel } = createKernelHarness(newDatabasePath());
-    const parent = await kernel.executeRun(baseRunInput);
-    const buildMcpServers = vi.fn(() => []);
-
-    const delegated = parseToolResult(
-      await handleAgentControlToolCall({ ...ownerContext(kernel), buildMcpServers }, "run_agent_and_wait", {
-        parentRunId: parent.run.runId,
-        objective: "use OpenClaw for this child",
-        adapterId: "openclaw",
-        requestId: "delegate-openclaw-1",
-        clientId: "delegate-client",
-        ownerId: "owner",
-      }),
-    );
-
-    expect(delegated).toMatchObject({
-      ok: false,
-      error: {
-        code: "control_tool_failed",
-        message: "Desktop intent effect rejected by canonical route policy (provider_unavailable).",
-      },
-    });
-    expect(buildMcpServers).not.toHaveBeenCalled();
-    expect(store.allRows("SELECT * FROM runs")).toHaveLength(1);
-    store.close();
-  });
 
   it("rejects non-run parent ids before creating delegated child work", async () => {
     const { store, kernel } = createKernelHarness(newDatabasePath());
@@ -3335,7 +2688,6 @@ describe("agent control tools", () => {
     const spawnedRaw = await handleAgentControlToolCall(ownerContext(kernel), "spawn_agent", {
       objective: "summarize inbox",
       visible: true,
-      adapterId: "fake",
       requestId: "spawn-visible-pill-1",
       clientId: "spawn-client",
       ownerId: "owner",
@@ -3375,7 +2727,7 @@ describe("agent control tools", () => {
   });
 
   it("projects typed failure details for accepted visible spawned agents", async () => {
-    const { store, adapter, kernel } = createKernelHarness(newDatabasePath(), "acp");
+    const { store, adapter, kernel } = createKernelHarness(newDatabasePath(), "pi-mono");
     adapter.failNextExecutionError = new Error("spawn bridge failed after acceptance");
 
     const spawned = parseToolResult(
@@ -3413,64 +2765,13 @@ describe("agent control tools", () => {
     store.close();
   });
 
-  it("retries an accepted ACP spawn after control-tool credential recovery", async () => {
-    const authError = new Error("Invalid authentication credentials");
-    let recoveries = 0;
-    const { store, adapter, kernel } = createKernelHarness(newDatabasePath(), "acp", 4, undefined, (adapterId) =>
-      adapterId === "acp"
-        ? {
-            maxAttempts: 2,
-            recoverAfterError: async (error) => {
-              recoveries += 1;
-              return error === authError;
-            },
-          }
-        : {},
-    );
-    adapter.failNextExecutionError = authError;
-
-    const spawned = parseToolResult(
-      await handleAgentControlToolCall(ownerContext(kernel), "spawn_agent", {
-        objective: "research PXMX",
-        visible: true,
-        requestId: "spawn-auth-recovery-1",
-        clientId: "spawn-client",
-        ownerId: "owner",
-      }),
-    );
-
-    await waitUntil(() => {
-      const row = store.getRow("SELECT status FROM runs WHERE run_id = ?", [spawned.run.runId]);
-      return row.status === "succeeded";
-    });
-    expect(recoveries).toBe(1);
-    expect(
-      store.allRows("SELECT attempt_no, retry_reason, status FROM run_attempts WHERE run_id = ? ORDER BY attempt_no", [
-        spawned.run.runId,
-      ]),
-    ).toEqual([
-      expect.objectContaining({
-        attempt_no: 1,
-        retry_reason: null,
-        status: "failed",
-      }),
-      expect.objectContaining({
-        attempt_no: 2,
-        retry_reason: "recoverable_error",
-        status: "succeeded",
-      }),
-    ]);
-    store.close();
-  });
 
   it("spawn_agent with parentRunId returns child handles before the child finishes", async () => {
     const { store, adapter, kernel } = createKernelHarness(newDatabasePath());
     const parent = await kernel.executeRun(baseRunInput);
     adapter.deferResult();
-    const buildMcpServers = vi.fn(() => []);
-
     const spawned = parseToolResult(
-      await handleAgentControlToolCall({ ...ownerContext(kernel), buildMcpServers }, "spawn_agent", {
+      await handleAgentControlToolCall(ownerContext(kernel), "spawn_agent", {
         parentRunId: parent.run.runId,
         objective: "run in the background",
         visible: false,
@@ -3484,19 +2785,6 @@ describe("agent control tools", () => {
     expect(spawned.result).toBeUndefined();
     expect(spawned.session.sessionId).not.toBe(parent.session.sessionId);
     expect(spawned.run.status).toBe("starting");
-    expect(buildMcpServers).toHaveBeenCalledWith("act", undefined, undefined, {
-      ownerId: "owner",
-      requestId: "delegate-spawn-1",
-      clientId: "delegate-client",
-      adapterId: "fake",
-      protocolVersion: 2,
-      surfaceKind: "delegated_agent",
-      externalRefKind: undefined,
-      externalRefId: undefined,
-      includeSwiftBackedTools: true,
-      screenContext: true,
-      executionRole: "leaf",
-    });
     await waitUntil(() => adapter.executed.length === 2);
 
     const running = parseToolResult(
@@ -3742,11 +3030,12 @@ function newDatabasePath(): string {
 }
 
 function ownerContext(kernel: AgentControlToolContext["kernel"]): AgentControlToolContext {
-  return { kernel, getOwnerId: () => "owner" };
+  const defaultAdapterId = kernel.buildDesktopAwarenessSnapshot({ ownerId: "owner" }).runtime.registeredAdapters[0];
+  return { kernel, defaultAdapterId, getOwnerId: () => "owner" };
 }
 
 function trustedOwnerContext(kernel: AgentControlToolContext["kernel"]): AgentControlToolContext {
-  return { kernel, trustedUserControl: true, getOwnerId: () => "owner" };
+  return { ...ownerContext(kernel), trustedUserControl: true };
 }
 
 function startControlRelay(context: AgentControlToolContext): Promise<string> {

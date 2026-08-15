@@ -238,11 +238,6 @@ env:
       secretKeyRef:
         name: dev-omi-backend-secrets
         key: STRIPE_WEBHOOK_SECRET
-  - name: MARKETPLACE_APP_REVIEWERS
-    valueFrom:
-      secretKeyRef:
-        name: dev-omi-backend-secrets
-        key: MARKETPLACE_APP_REVIEWERS
   - name: TYPESENSE_HOST
     valueFrom:
       configMapKeyRef:
@@ -258,12 +253,6 @@ env:
       secretKeyRef:
         name: dev-omi-backend-secrets
         key: TYPESENSE_API_KEY
-  - name: HOSTED_PARAKEET_API_URL
-    value: "http://parakeet.omiapi.com"
-  - name: STT_PRERECORDED_MODEL
-    value: "parakeet,modulate-velma-2"
-  - name: STT_SERVICE_MODELS
-    value: "modulate-velma-2,parakeet"
   - name: BASIC_TIER_MINUTES_LIMIT_PER_MONTH
     value: "1000000"
   - name: BASIC_TIER_WORDS_TRANSCRIBED_LIMIT_PER_MONTH

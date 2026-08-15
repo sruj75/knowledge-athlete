@@ -20,8 +20,8 @@ extension SettingsContentView {
 
   var advancedSection: some View {
     VStack(spacing: OmiSpacing.xxl) {
-      advancedCategoryHeader(title: "AI Setup", icon: "cpu")
-      aiSetupSubsection
+      advancedCategoryHeader(title: "Advanced AI Setup", icon: "cpu")
+      advancedAISetupSubsection
       advancedCategoryHeader(title: "Profile & Stats", icon: "brain")
       profileAndStatsSubsection
       advancedCategoryHeader(title: "Reset Onboarding", icon: "arrow.counterclockwise")
@@ -36,11 +36,6 @@ extension SettingsContentView {
         advancedCategoryHeader(title: "Beta Diagnostics", icon: "waveform.path.ecg")
         betaDiagnosticsSubsection
       }
-      advancedCategoryHeader(title: "Developer API Keys", icon: "key")
-      developerKeysSubsection
-
-      advancedCategoryHeader(title: "Dev Tools", icon: "hammer")
-      devToolsSubsection
     }
   }
 
@@ -74,38 +69,11 @@ extension SettingsContentView {
     }
   }
 
-  // MARK: - Dev Tools Subsection
-
-  var devToolsSubsection: some View {
-    VStack(spacing: OmiSpacing.xl) {
-      settingsCard(settingId: "advanced.devtools.chatlab") {
-        HStack(spacing: OmiSpacing.md) {
-          Image(systemName: "flask.fill")
-            .scaledFont(size: OmiType.subheading)
-            .foregroundColor(OmiColors.textSecondary)
-          VStack(alignment: .leading, spacing: OmiSpacing.xxs) {
-            Text("Chat Prompt Lab")
-              .scaledFont(size: OmiType.subheading, weight: .semibold)
-              .foregroundColor(OmiColors.textPrimary)
-            Text("Iterate on chat system prompts with real questions, AI grading, and local human review")
-              .scaledFont(size: OmiType.caption)
-              .foregroundColor(OmiColors.textTertiary)
-          }
-          Spacer()
-          Button("Open") {
-            ChatLabWindowManager.shared.openWindow(chatProvider: chatProvider)
-          }
-          .buttonStyle(OmiButtonStyle(.primary, size: .compact))
-        }
-      }
-    }
-  }
-
   // MARK: - Advanced Subsections
 
-  var aiSetupSubsection: some View {
+  var advancedAISetupSubsection: some View {
     VStack(spacing: OmiSpacing.xl) {
-      settingsCard(settingId: "aichat.realtimevoice") {
+      settingsCard(settingId: "advanced.ai.voice") {
         VStack(alignment: .leading, spacing: OmiSpacing.md) {
           HStack {
             Image(systemName: "waveform")
@@ -119,270 +87,56 @@ extension SettingsContentView {
             Spacer()
 
             SettingsMenuPicker(selection: $realtimeOmniProvider) {
-              ForEach(RealtimeOmniProvider.allCases, id: \.rawValue) { p in
-                Text(p.displayName).tag(p.rawValue)
+              ForEach(RealtimeOmniProvider.allCases, id: \.rawValue) { provider in
+                Text(provider.displayName).tag(provider.rawValue)
               }
             }
             .onChange(of: realtimeOmniProvider) { _, newValue in
               if newValue == RealtimeOmniProvider.auto.rawValue {
                 AutoModelSelector.shared.refreshIfStale()
               }
-              // The picker writes @AppStorage directly (bypassing the RealtimeOmniSettings
-              // setter), so post the change ourselves — this is what re-warms the realtime
-              // hub on the newly selected provider (and is a no-op for unchanged providers).
               NotificationCenter.default.post(name: .realtimeOmniSettingsDidChange, object: nil)
             }
           }
 
-          if let p = RealtimeOmniProvider(rawValue: realtimeOmniProvider), p == .auto {
-            Text("\(p.subtitle) · currently \(RealtimeOmniSettings.shared.effectiveProvider.displayName)")
-              .scaledFont(size: OmiType.caption)
-              .foregroundColor(OmiColors.textTertiary)
-          } else if let p = RealtimeOmniProvider(rawValue: realtimeOmniProvider) {
-            Text(p.subtitle)
-              .scaledFont(size: OmiType.caption)
-              .foregroundColor(OmiColors.textTertiary)
-          }
-        }
-      }
-
-      settingsCard(settingId: "aichat.provider") {
-        VStack(alignment: .leading, spacing: OmiSpacing.md) {
-          HStack {
-            Image(systemName: "cpu")
-              .scaledFont(size: OmiType.subheading)
-              .foregroundColor(OmiColors.textTertiary)
-
-            Text("AI Provider")
-              .scaledFont(size: OmiType.subheading, weight: .semibold)
-              .foregroundColor(OmiColors.textPrimary)
-
-            Spacer()
-
-            SettingsMenuPicker(selection: $chatBridgeMode) {
-              ForEach(AIProvider.all) { provider in
-                Text(provider.displayName).tag(provider.bridgeModeRawValue)
-              }
-            }
-            .onChange(of: chatBridgeMode) { _, newMode in
-              if let mode = ChatProvider.BridgeMode(rawValue: newMode) {
-                Task {
-                  await chatProvider?.switchBridgeMode(to: mode)
-                }
-              }
-            }
-          }
-
-          if let provider = AIProvider.from(bridgeMode: chatBridgeMode) {
-            if let url = provider.attributionURL {
-              Link(destination: url) {
-                Text("\(provider.tagline) · \(url.host ?? "")")
-                  .scaledFont(size: OmiType.caption)
-                  .foregroundColor(OmiColors.textTertiary)
-              }
-            } else {
-              Text(provider.tagline)
-                .scaledFont(size: OmiType.caption)
-                .foregroundColor(OmiColors.textTertiary)
-            }
-          }
-
-          if chatBridgeMode == "claudeCode" && chatProvider?.isClaudeConnected == true {
-            Divider()
-
-            HStack {
-              Image(systemName: "checkmark.circle.fill")
-                .foregroundColor(.green)
-                .scaledFont(size: OmiType.caption)
-              Text("Connected to Claude")
-                .scaledFont(size: OmiType.caption)
-                .foregroundColor(OmiColors.textSecondary)
-
-              Spacer()
-
-              Button("Disconnect") {
-                Task {
-                  await chatProvider?.disconnectClaude()
-                }
-              }
-              .buttonStyle(.plain)
-              .scaledFont(size: OmiType.caption, weight: .medium)
-              .foregroundColor(.red)
-            }
-          }
-        }
-      }
-
-      settingsCard(settingId: "aichat.workspace") {
-        VStack(alignment: .leading, spacing: OmiSpacing.md) {
-          HStack {
-            Image(systemName: "folder")
-              .scaledFont(size: OmiType.subheading)
-              .foregroundColor(OmiColors.textTertiary)
-
-            Text("Workspace")
-              .scaledFont(size: OmiType.subheading, weight: .semibold)
-              .foregroundColor(OmiColors.textPrimary)
-
-            Spacer()
-
-            Button("Browse...") {
-              let panel = NSOpenPanel()
-              panel.canChooseFiles = false
-              panel.canChooseDirectories = true
-              panel.allowsMultipleSelection = false
-              panel.message = "Select a project directory"
-              if panel.runModal() == .OK, let url = panel.url {
-                aiChatWorkingDirectory = url.path
-                chatProvider?.aiChatWorkingDirectory = url.path
-                Task { await chatProvider?.discoverClaudeConfig() }
-                if chatProvider?.workingDirectory == nil {
-                  chatProvider?.workingDirectory = url.path
-                }
-              }
-            }
-            .buttonStyle(OmiButtonStyle(.primary, size: .compact))
-
-            if !aiChatWorkingDirectory.isEmpty {
-              Button("Clear") {
-                aiChatWorkingDirectory = ""
-                chatProvider?.aiChatWorkingDirectory = ""
-                Task { await chatProvider?.discoverClaudeConfig() }
-                chatProvider?.workingDirectory = nil
-              }
-              .buttonStyle(OmiButtonStyle(.primary, size: .compact))
-            }
-          }
-
-          if !aiChatWorkingDirectory.isEmpty {
-            Text(aiChatWorkingDirectory)
-              .scaledFont(size: OmiType.caption)
-              .foregroundColor(OmiColors.textTertiary)
-              .lineLimit(1)
-              .truncationMode(.middle)
-          } else {
-            Text("No workspace set. Choose a project directory for desktop chat context.")
+          if let provider = RealtimeOmniProvider(rawValue: realtimeOmniProvider), provider == .auto {
+            Text(
+              "\(provider.subtitle) · currently \(RealtimeOmniSettings.shared.effectiveProvider.displayName)"
+            )
+            .scaledFont(size: OmiType.caption)
+            .foregroundColor(OmiColors.textTertiary)
+          } else if let provider = RealtimeOmniProvider(rawValue: realtimeOmniProvider) {
+            Text(provider.subtitle)
               .scaledFont(size: OmiType.caption)
               .foregroundColor(OmiColors.textTertiary)
           }
         }
       }
 
-      settingsCard(settingId: "aichat.browserextension") {
+      settingsCard(settingId: "advanced.ai.askmode") {
         VStack(alignment: .leading, spacing: OmiSpacing.md) {
           HStack {
-            Image(systemName: "globe")
+            Image(systemName: "bubble.left.and.bubble.right")
               .scaledFont(size: OmiType.subheading)
               .foregroundColor(OmiColors.textTertiary)
 
-            Text("Browser Extension")
+            Text("Ask Mode")
               .scaledFont(size: OmiType.subheading, weight: .semibold)
               .foregroundColor(OmiColors.textPrimary)
 
             Spacer()
 
-            if !playwrightExtensionToken.isEmpty {
-              HStack(spacing: OmiSpacing.xxs) {
-                Circle()
-                  .fill(Color.green)
-                  .frame(width: 6, height: 6)
-                Text("Connected")
-                  .scaledFont(size: OmiType.caption)
-                  .foregroundColor(OmiColors.textTertiary)
-              }
-            }
-
-            Toggle("", isOn: $playwrightUseExtension)
+            Toggle("", isOn: $askModeEnabled)
               .toggleStyle(OmiToggleStyle())
               .controlSize(.small)
               .labelsHidden()
           }
 
-          Text("Lets the AI use your Chrome browser with all your logged-in sessions.")
-            .scaledFont(size: OmiType.caption)
-            .foregroundColor(OmiColors.textTertiary)
-
-          if playwrightUseExtension {
-            if playwrightExtensionToken.isEmpty {
-              Button(action: {
-                showBrowserSetup = true
-              }) {
-                HStack(spacing: OmiSpacing.xs) {
-                  Image(systemName: "wrench.and.screwdriver")
-                    .scaledFont(size: OmiType.caption)
-                  Text("Set Up")
-                    .scaledFont(size: OmiType.body, weight: .medium)
-                }
-              }
-              .buttonStyle(OmiButtonStyle(.primary, size: .compact))
-            } else {
-              HStack(spacing: OmiSpacing.sm) {
-                Text("Token")
-                  .scaledFont(size: OmiType.caption)
-                  .foregroundColor(OmiColors.textTertiary)
-
-                Text(String(playwrightExtensionToken.prefix(8)) + "...")
-                  .scaledFont(size: OmiType.caption, weight: .medium)
-                  .foregroundColor(OmiColors.textPrimary)
-                  .font(.system(.body, design: .monospaced))
-
-                Spacer()
-
-                Button(action: {
-                  showBrowserSetup = true
-                }) {
-                  HStack(spacing: OmiSpacing.xxs) {
-                    Image(systemName: "arrow.clockwise")
-                      .scaledFont(size: OmiType.caption)
-                    Text("Reconfigure")
-                      .scaledFont(size: OmiType.caption)
-                  }
-                }
-                .buttonStyle(OmiButtonStyle(.primary, size: .compact))
-
-                Button(action: {
-                  playwrightExtensionToken = ""
-                  UserDefaults.standard.set("", forKey: "playwrightExtensionToken")
-                }) {
-                  HStack(spacing: OmiSpacing.xxs) {
-                    Image(systemName: "xmark")
-                      .scaledFont(size: OmiType.caption)
-                    Text("Reset")
-                      .scaledFont(size: OmiType.caption)
-                  }
-                }
-                .buttonStyle(OmiButtonStyle(.primary, size: .compact))
-              }
-            }
-          }
-        }
-      }
-
-      settingsCard(settingId: "aichat.devmode") {
-        VStack(alignment: .leading, spacing: OmiSpacing.md) {
-          HStack {
-            Image(systemName: "hammer")
-              .scaledFont(size: OmiType.subheading)
-              .foregroundColor(OmiColors.textTertiary)
-
-            Text("Dev Mode")
-              .scaledFont(size: OmiType.subheading, weight: .semibold)
-              .foregroundColor(OmiColors.textPrimary)
-
-            Spacer()
-
-            Toggle("", isOn: $devModeEnabled)
-              .toggleStyle(OmiToggleStyle())
-              .controlSize(.small)
-              .labelsHidden()
-              .onChange(of: devModeEnabled) { _, newValue in
-                AnalyticsManager.shared.settingToggled(setting: "dev_mode", enabled: newValue)
-              }
-          }
-
-          Text("Let the AI modify the app's source code, rebuild it, and add custom features.")
-            .scaledFont(size: OmiType.caption)
-            .foregroundColor(OmiColors.textTertiary)
+          Text(
+            "When enabled, shows an Ask/Act toggle in chat. Ask mode keeps each selected turn read-only; when disabled, chat stays in Act mode."
+          )
+          .scaledFont(size: OmiType.caption)
+          .foregroundColor(OmiColors.textTertiary)
         }
       }
     }
@@ -601,7 +355,6 @@ extension SettingsContentView {
 
           if let stats = advancedStats {
             statRow(label: "Conversations", value: stats.conversations)
-            statRow(label: "Apps Installed", value: stats.appsInstalled)
             if isLoadingChatMessages {
               HStack {
                 Text("AI Chat Messages")

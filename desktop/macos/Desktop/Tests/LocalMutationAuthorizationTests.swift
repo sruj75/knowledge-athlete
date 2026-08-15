@@ -90,11 +90,9 @@ final class LocalMutationAuthorizationTests: XCTestCase {
     try await super.setUp()
     fixture = try await RewindStorageTestIsolation.setUp(
       userIdPrefix: "owner-bound-local-mutation")
-    await KnowledgeGraphStorage.shared.invalidateCache()
   }
 
   override func tearDown() async throws {
-    await KnowledgeGraphStorage.shared.invalidateCache()
     await RewindStorageTestIsolation.tearDown(userDir: fixture?.userDir)
     fixture = nil
     try await super.tearDown()
@@ -170,67 +168,6 @@ final class LocalMutationAuthorizationTests: XCTestCase {
     }
     let afterRejectedDelete = try await ActionItemStorage.shared.getActionItem(id: localID)
     XCTAssertNotNil(afterRejectedDelete)
-  }
-
-  func testPostDMLRevocationRollsBackKnowledgeGraphUpsert() async throws {
-    let node = LocalKGNodeRecord(
-      nodeId: "owner-a-node",
-      label: "Owner A private node",
-      nodeType: "concept",
-      aliasesJson: nil,
-      sourceFileIds: nil,
-      createdAt: Date(),
-      updatedAt: Date())
-
-    let observer = LocalMutationTransactionObserver()
-    let maybePool = await RewindDatabase.shared.getDatabaseQueue()
-    let pool = try XCTUnwrap(maybePool)
-    pool.add(transactionObserver: observer, extent: .nextTransaction)
-
-    await assertRevoked {
-      try await KnowledgeGraphStorage.shared.mergeGraph(
-        nodes: [node],
-        edges: [],
-        authorization: MutationAuthorizationGate().authorization())
-    }
-
-    let graph = await KnowledgeGraphStorage.shared.loadGraph()
-    XCTAssertTrue(graph.nodes.isEmpty)
-    XCTAssertTrue(graph.edges.isEmpty)
-    let transaction = observer.snapshot()
-    XCTAssertTrue(transaction.observedDML)
-    XCTAssertTrue(transaction.rolledBack)
-  }
-
-  func testPostDMLRevocationRollsBackKnowledgeGraphClear() async throws {
-    let node = LocalKGNodeRecord(
-      nodeId: "owner-a-node",
-      label: "Owner A private node",
-      nodeType: "concept",
-      aliasesJson: nil,
-      sourceFileIds: nil,
-      createdAt: Date(),
-      updatedAt: Date())
-    try await KnowledgeGraphStorage.shared.mergeGraph(
-      nodes: [node],
-      edges: [],
-      authorization: .unrestricted)
-
-    let observer = LocalMutationTransactionObserver()
-    let maybePool = await RewindDatabase.shared.getDatabaseQueue()
-    let pool = try XCTUnwrap(maybePool)
-    pool.add(transactionObserver: observer, extent: .nextTransaction)
-
-    await assertRevoked {
-      try await KnowledgeGraphStorage.shared.clearAll(
-        authorization: MutationAuthorizationGate().authorization())
-    }
-
-    let graph = await KnowledgeGraphStorage.shared.loadGraph()
-    XCTAssertEqual(graph.nodes.map(\.id), ["owner-a-node"])
-    let transaction = observer.snapshot()
-    XCTAssertTrue(transaction.observedDML)
-    XCTAssertTrue(transaction.rolledBack)
   }
 
   func testOwnerQuiescenceCompletesBeforeOwnerMutationAndOwnerBAdmission() async throws {

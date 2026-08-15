@@ -159,7 +159,7 @@ struct OMIApp: App {
         }
       }
 
-      // Sidebar navigation shortcuts: Cmd+1..6 for main pages, Cmd+, for Settings
+      // Sidebar navigation shortcuts: Cmd+1..5 for main pages, Cmd+, for Settings
       CommandGroup(after: .sidebar) {
         Button("Home") {
           NotificationCenter.default.post(
@@ -195,13 +195,6 @@ struct OMIApp: App {
             userInfo: ["rawValue": SidebarNavItem.rewind.rawValue])
         }
         .keyboardShortcut("5", modifiers: .command)
-
-        Button("Apps") {
-          NotificationCenter.default.post(
-            name: .navigateToSidebarItem, object: nil,
-            userInfo: ["rawValue": SidebarNavItem.apps.rawValue])
-        }
-        .keyboardShortcut("6", modifiers: .command)
 
         Divider()
 
@@ -306,7 +299,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, @unchecked S
     BundleEnvironment.loadIfNeeded()
 
     DesktopAutomationBridge.shared.startIfNeeded()
-    LocalAgentAPIServer.shared.startIfNeeded()
     publishNamedBundleRuntimeManifest()
 
     runStartupSystemMaintenance()
@@ -1093,10 +1085,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, @unchecked S
 
   @MainActor @objc private func signOut() {
     AnalyticsManager.shared.menuBarActionClicked(action: "sign_out")
-    ProactiveAssistantsPlugin.shared.stopMonitoring()
-    Task { @MainActor in
-      try? await AuthService.shared.signOut()
-    }
+    ExplicitSignOutAction().perform(from: .menuBar)
   }
 
   @MainActor @objc private func quitApp() {

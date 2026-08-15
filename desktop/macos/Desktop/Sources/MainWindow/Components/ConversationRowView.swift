@@ -27,7 +27,6 @@ struct ConversationRowView: View {
   @State private var editedTitle: String = ""
   @State private var isDeleting = false
   @State private var isUpdatingTitle = false
-  @State private var isCopyingLink = false
 
   /// The timestamp to display (prefer startedAt, fall back to createdAt)
   private var displayDate: Date {
@@ -122,34 +121,6 @@ struct ConversationRowView: View {
     log("Copied transcript to clipboard")
   }
 
-  private func copyLink() async {
-    guard !isCopyingLink else { return }
-    isCopyingLink = true
-
-    do {
-      // First, make the conversation public/shared so the link works
-      try await APIClient.shared.setConversationVisibility(
-        id: conversation.id, visibility: "shared")
-
-      // Then copy the link
-      let link = "https://h.omi.me/conversations/\(conversation.id)"
-      let pasteboard = NSPasteboard.general
-      pasteboard.clearContents()
-      pasteboard.setString(link, forType: .string)
-      log("Copied conversation link to clipboard (visibility set to shared)")
-    } catch {
-      log("Failed to set conversation visibility: \(error)")
-      // Still copy the link even if visibility fails - user might have shared it before
-      let link = "https://h.omi.me/conversations/\(conversation.id)"
-      let pasteboard = NSPasteboard.general
-      pasteboard.clearContents()
-      pasteboard.setString(link, forType: .string)
-      log("Copied conversation link to clipboard (visibility API failed)")
-    }
-
-    isCopyingLink = false
-  }
-
   private func deleteConversation() async {
     guard !isDeleting else { return }
     isDeleting = true
@@ -188,18 +159,6 @@ struct ConversationRowView: View {
       }
       .buttonStyle(.plain)
       .help("Edit title")
-
-      // Copy link
-      Button(action: { Task { await copyLink() } }) {
-        Image(systemName: isCopyingLink ? "arrow.triangle.2.circlepath" : "link")
-          .scaledFont(size: OmiType.caption)
-          .foregroundColor(OmiColors.textTertiary)
-          .frame(width: 22, height: 22)
-          .background(Circle().fill(OmiColors.backgroundRaised))
-      }
-      .buttonStyle(.plain)
-      .disabled(isCopyingLink)
-      .help("Copy link")
 
       // Move to folder (if folders exist)
       if !folders.isEmpty {
@@ -449,15 +408,6 @@ struct ConversationRowView: View {
       Button(action: copyTranscript) {
         Label("Copy Transcript", systemImage: "doc.on.doc")
       }
-
-      Button(action: { Task { await copyLink() } }) {
-        Label(
-          isCopyingLink ? "Generating Link..." : "Copy Link",
-          systemImage: isCopyingLink ? "arrow.triangle.2.circlepath" : "link")
-      }
-      .disabled(isCopyingLink)
-
-      Divider()
 
       Button(action: {
         editedTitle = conversation.title

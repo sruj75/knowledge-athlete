@@ -168,7 +168,7 @@ async def send_live_stt_audio(
 
     # Observed on every provider, not just Velma: whether production emits frames that
     # are not whole 16-bit samples is otherwise unmeasurable without exposing users to
-    # Velma, which rejects them outright. Deepgram tolerates them silently.
+    # Velma rejects them outright, so reject them at the shared boundary.
     if len(audio) % 2:
         OMI_LIVE_STT_MISALIGNED_FRAMES_TOTAL.labels(provider=bounded_provider(provider), stage='buffer').inc()
 

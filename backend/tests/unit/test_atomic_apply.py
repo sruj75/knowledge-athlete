@@ -13,7 +13,7 @@ from models.memory_apply import (
 )
 from models.memory_contracts import DurablePatchDecision, LifecycleState
 from models.memory_operations import MemoryOperation, MemoryOperationStatus, MemoryOperationType
-from models.memory_promotion import PromotionGraphPlan, build_promotion_admission_receipt
+from models.memory_promotion import build_promotion_admission_receipt
 from models.product_memory import MemoryItemStatus, MemoryTier, ProcessingState, MemoryItem
 
 
@@ -89,22 +89,15 @@ def _promotion_audit(
     source_item_revision: int | None = None,
 ):
     superseded_ids = list(supersedes or [])
-    graph_plan = PromotionGraphPlan(
-        subject_entity_id="user",
-        predicate="prefers_update_style",
-        arguments={"style": "concise"},
-    )
     evidence_ids = [item.evidence_id for item in existing.evidence]
     receipt = build_promotion_admission_receipt(
         memory_id=existing.memory_id,
         source_item_revision=source_item_revision or existing.item_revision,
         output_content_hash=memory_content_hash(content=memory_text, evidence_ids=evidence_ids),
         evidence_ids=evidence_ids,
-        graph_plan=graph_plan,
         supersedes=superseded_ids,
     )
     return {
-        "graph_plan": graph_plan.model_dump(mode="json"),
         "admission_receipt": receipt.model_dump(mode="json"),
     }
 
@@ -166,7 +159,6 @@ def test_atomic_apply_commits_memory_operation_control_head_and_outbox_together(
     assert result.control_state.head_commit_id == result.operation.committed_head_commit_id
     assert len(result.memory_items) == 1
     assert result.memory_items[0].tier == MemoryTier.short_term
-    assert result.graph_assertions == []
     assert result.outbox_events[0].event_type == MemoryOutboxEventType.projection_sync
     assert result.outbox_events[1].event_type == MemoryOutboxEventType.vector_sync
     assert [event.payload["action"] for event in result.outbox_events] == ["upsert", "upsert"]
@@ -220,7 +212,6 @@ def test_apply_rejects_explicit_direct_long_term_add():
     assert result.status == ApplyStatus.invalid_patch
     assert result.control_state == control
     assert result.memory_items == []
-    assert result.graph_assertions == []
     assert result.outbox_events == []
 
 
@@ -382,7 +373,6 @@ def _short_term_existing(**overrides):
         evidence=[_evidence()],
         source_state=SourceState.active,
         sensitivity_labels=[],
-        visibility="private",
         user_asserted=False,
         captured_at=now,
         updated_at=now,
@@ -398,7 +388,7 @@ def _short_term_existing(**overrides):
     return MemoryItem(**data)
 
 
-def test_short_term_to_long_term_requires_synthesis_and_commits_structured_graph_assertion():
+def test_short_term_to_long_term_requires_synthesis_and_commits_admission_receipt():
     control = MemoryControlState(uid="u1", head_commit_id="head0", account_generation=1, source_generation=2)
     existing = _short_term_existing()
     memory_text = "User prefers concise updates."
@@ -418,78 +408,8 @@ def test_short_term_to_long_term_requires_synthesis_and_commits_structured_graph
     assert len(result.memory_items) == 1
     promoted = result.memory_items[0]
     assert promoted.tier == MemoryTier.long_term
-    assert promoted.graph_ready is True
-    assert promoted.kg_extracted is True
-    assert len(result.graph_assertions) == 1
-    assertion = result.graph_assertions[0]
-    assert assertion.assertion_id == promoted.graph_assertion_id
-    assert assertion.memory_id == promoted.memory_id
-    assert assertion.item_revision == promoted.item_revision
-    assert assertion.content_hash == promoted.content_hash
-    assert assertion.subject_entity_id == "user"
-    assert assertion.predicate == "prefers_update_style"
-    assert assertion.arguments == {"style": "concise"}
-    assert assertion.graph_plan_hash == promoted.graph_plan_hash
-    assert assertion.commit_id == result.control_state.head_commit_id
-    graph_records = assertion.graph_records()
-    assert graph_records["nodes"]
-    assert graph_records["edges"]
-
-
-def test_long_term_metadata_update_refreshes_graph_assertion_fences():
-    first_control = MemoryControlState(uid="u1", head_commit_id="head0", account_generation=1, source_generation=2)
-    existing = _short_term_existing()
-    memory_text = "User prefers concise updates."
-    promoted_result = apply_long_term_patch_transaction(
-        control_state=first_control,
-        operation=_promotion_operation(existing, memory_text=memory_text),
-        patch_payload=_promotion_patch(
-            existing,
-            memory_text=memory_text,
-            promotion_audit=_promotion_audit(existing, memory_text=memory_text),
-        ),
-    )
-    promoted = promoted_result.memory_items[0]
-    prior_assertion = promoted_result.graph_assertions[0]
-    patch_payload = _patch(
-        decision=DurablePatchDecision.update,
-        target_memory_id=promoted.memory_id,
-        memory_text=None,
-        target_visibility="public",
-        expected_item_revision=promoted.item_revision,
-        expected_content_hash=promoted.content_hash,
-        existing_item=promoted.model_dump(mode="python"),
-    )
-    operation = _operation(
-        operation_type=MemoryOperationType.user_mutation,
-        target_memory_id=promoted.memory_id,
-        observed_head_commit_id=promoted_result.control_state.head_commit_id,
-        logical_payload={
-            "decision": DurablePatchDecision.update.value,
-            "memory_text": None,
-            "target_memory_id": promoted.memory_id,
-            "result_status": LifecycleState.active.value,
-            "subject_entity_id": "user",
-            "target_visibility": "public",
-        },
-    )
-
-    result = apply_long_term_patch_transaction(
-        control_state=promoted_result.control_state,
-        operation=operation,
-        patch_payload=patch_payload,
-    )
-
-    assert result.status == ApplyStatus.committed
-    updated = result.memory_items[0]
-    refreshed = result.graph_assertions[0]
-    assert updated.visibility == "public"
-    assert updated.item_revision == promoted.item_revision + 1
-    assert refreshed.assertion_id != prior_assertion.assertion_id
-    assert refreshed.item_revision == updated.item_revision
-    assert refreshed.commit_id == updated.ledger_commit_id
-    assert refreshed.commit_sequence == updated.ledger_sequence
-    assert updated.graph_assertion_id == refreshed.assertion_id
+    assert promoted.promotion == promotion_audit
+    assert promoted.promotion["admission_receipt"]["memory_id"] == promoted.memory_id
 
 
 def test_short_term_to_long_term_rejects_non_synthesis_operation_even_with_valid_admission():
@@ -514,7 +434,6 @@ def test_short_term_to_long_term_rejects_non_synthesis_operation_even_with_valid
 
     assert result.status == ApplyStatus.invalid_patch
     assert result.memory_items == []
-    assert result.graph_assertions == []
 
 
 @pytest.mark.parametrize("admission_state", ["missing", "stale"])
@@ -543,7 +462,6 @@ def test_short_term_to_long_term_rejects_missing_or_stale_admission(admission_st
     assert result.status == ApplyStatus.invalid_patch
     assert result.control_state == control
     assert result.memory_items == []
-    assert result.graph_assertions == []
     assert result.outbox_events == []
 
 
@@ -554,10 +472,6 @@ def test_promoting_with_supersedes_returns_survivor_and_invalidations_in_one_com
         memory_id="mem_old",
         tier=MemoryTier.long_term,
         expires_at=None,
-        graph_ready=True,
-        graph_assertion_id="mga_old",
-        graph_plan_hash="plan_old",
-        kg_extracted=True,
     )
     memory_text = "User prefers concise updates."
     promotion_audit = _promotion_audit(
@@ -592,8 +506,6 @@ def test_promoting_with_supersedes_returns_survivor_and_invalidations_in_one_com
     assert promoted.status == MemoryItemStatus.active
     assert invalidated.status == MemoryItemStatus.superseded
     assert invalidated.superseded_by == promoted.memory_id
-    assert invalidated.graph_ready is False
-    assert invalidated.graph_assertion_id is None
     assert {event.payload["action"] for event in result.outbox_events} == {"upsert", "delete"}
 
 
@@ -624,7 +536,7 @@ def test_update_without_target_tier_preserves_existing_short_term_tier():
     assert result.memory_items[0].expires_at is not None
 
 
-def test_user_content_edit_demotes_and_clears_graph_assertion_in_same_apply():
+def test_user_content_edit_demotes_long_term_memory_in_same_apply():
     control = MemoryControlState(uid="u1", head_commit_id="head0", account_generation=1, source_generation=2)
     existing = _short_term_existing(
         tier=MemoryTier.long_term,
@@ -632,10 +544,6 @@ def test_user_content_edit_demotes_and_clears_graph_assertion_in_same_apply():
         subject_entity_id="user",
         predicate="prefers",
         arguments={"style": "concise"},
-        graph_ready=True,
-        graph_assertion_id="mga_existing",
-        graph_plan_hash="plan_existing",
-        kg_extracted=True,
     )
     expires_at = existing.updated_at + timedelta(days=30)
     promotion_audit = {
@@ -652,7 +560,6 @@ def test_user_content_edit_demotes_and_clears_graph_assertion_in_same_apply():
         arguments={},
         target_tier=MemoryTier.short_term,
         target_user_asserted=True,
-        clear_graph_assertion=True,
     )
     patch_payload.update(
         {
@@ -661,7 +568,6 @@ def test_user_content_edit_demotes_and_clears_graph_assertion_in_same_apply():
             "expected_content_hash": existing.content_hash,
             "promotion_audit": promotion_audit,
             "expires_at": expires_at,
-            "kg_extracted": False,
         }
     )
     mutation_identity = build_patch_mutation_identity(patch_payload)
@@ -679,7 +585,6 @@ def test_user_content_edit_demotes_and_clears_graph_assertion_in_same_apply():
             "arguments": {},
             "target_tier": MemoryTier.short_term.value,
             "target_user_asserted": True,
-            "clear_graph_assertion": True,
             "mutation_metadata": mutation_identity,
         },
     )
@@ -696,13 +601,6 @@ def test_user_content_edit_demotes_and_clears_graph_assertion_in_same_apply():
     assert updated.processing_state == ProcessingState.pending
     assert updated.expires_at == expires_at
     assert updated.user_asserted is True
-    assert updated.subject_entity_id is None
-    assert updated.predicate is None
-    assert updated.arguments == {}
-    assert updated.graph_ready is False
-    assert updated.graph_assertion_id is None
-    assert updated.graph_plan_hash is None
-    assert updated.kg_extracted is False
     assert [event.payload["action"] for event in result.outbox_events] == ["delete", "delete"]
     assert all(event.payload["item_revision"] == updated.item_revision for event in result.outbox_events)
     assert all(event.payload["content_hash"] == updated.content_hash for event in result.outbox_events)

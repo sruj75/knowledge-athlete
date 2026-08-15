@@ -553,7 +553,6 @@ def _projection_item(uid: str, account_generation: int, memory_id: str) -> dict[
             'uid': uid,
             'content': f'synthetic dev-cloud memory for {uid}',
             'category': 'system',
-            'visibility': 'private',
             'tags': [],
             'created_at': timestamp,
             'updated_at': timestamp,

@@ -1,6 +1,6 @@
 # S-08 TDD Plan — Re-own account identity without weakening lifecycle, deletion, or export
 
-Status: **ready to start the config-independent Wave 1 tranche; external and released-contract gates apply only to their named cycles, and later cycles remain dependency-gated**
+Status: **config-independent Wave 1 repository tranche implemented on 2026-08-15; the released-client transition for Cycles 2-3 is recorded, the locked macOS session blocked the final live acquisition click, and owned-identity/auth-invariant gates plus later cycles remain dependency-gated**
 Slice: **S-08**
 Wave: **1**
 Authorizing and protecting decisions: **IR-006, IR-120, IR-124, IR-170 through IR-190, IR-830, IR-868, IR-877, IR-878**
@@ -32,7 +32,7 @@ explicitly; complete S-08 closure still waits for those named dependencies.
 | **G3 — safe deletion-worker narrowing** | `account_deletion.py` still purges Twilio, Pinecone, cloud recordings, canonical memory derivatives, and Stripe because those systems can still hold live user data. Removing those cleanup steps before their writers/data are retired would make Delete Account incomplete. | S-18 has installed the retained Dodo cancellation seam and S-23/S-24 have removed the rejected hosted products, object data, and vector data, with migration/deletion evidence. |
 | **G4 — queue/service topology** | The account-deletion task currently targets `backend-sync`, shares stale `SYNC_TASKS_*` identity, assumes the queue already exists, and deploys in the current `us-central1` stack. IR-120/868/877 require the canonical backend, a dedicated signer, explicit queue shape, and the future `us-west1` owned platform. | S-25 has established the canonical service target and S-27 has established the owned development/production Cloud Run, IAM, region, and queue foundation. |
 | **G5 — delivery boundary** | One atomic S-08 PR cannot safely land in Wave 1 while G2-G4 remain open. Making S-08 depend on S-23 would create a roadmap cycle because S-23 already depends on S-08. | **Resolved:** deliver the narrow tranche below; retain Cycles 6-9 as dependency-gated acceptance contracts with their named owners. Do not create S-08A/S-08B slices or extra TDD plans. |
-| **G6 — invariant and released-API authority** | The live desktop tests refer to `INV-AUTH-1`, but the authoritative `docs/product/invariants/auth-session.md` is absent in this checkout. Removing `/v1/users/onboarding` may also change a released OpenAPI surface, while the repo forbids in-tree compatibility shells. | Restore or deliberately replace the authoritative auth invariant, and select an explicit released-client/API transition for the onboarding-route deletion. Run `scripts/pr-preflight --suggest` against the intended diff before RED. |
+| **G6 — invariant and released-API authority** | The live desktop tests refer to `INV-AUTH-1`, but the authoritative `docs/product/invariants/auth-session.md` is absent in this checkout. The released-client half is resolved for Cycles 2-3: `/v1/users/onboarding` is deliberately removed with its retained Mac caller in the same release, so an old client receives 404 rather than a compatibility shell; account deletion is bodyless, while arbitrary legacy JSON remains accepted and ignored by the retained endpoint. | Restore or deliberately replace the authoritative auth invariant before Cycle 4. The released-client/API transition no longer gates Cycles 2-3. Run `scripts/pr-preflight --suggest` against the intended diff before RED. |
 
 ## Adopted roadmap repair
 
@@ -43,7 +43,7 @@ wave on later infrastructure and local-authority slices. S-08 owns:
 2. owned Firebase/Apple/Google/backend configuration once G1 is supplied;
 3. removal of the backend acquisition-source mirror while keeping local + bounded analytics behavior;
 4. removal of unused account-deletion reason fields without changing durable execution; and
-5. an explicit retained deletion-orchestration boundary and account-metadata allowlist for downstream owners.
+5. an explicit retained deletion-orchestration boundary and documented account-metadata allowlist for downstream owners.
 
 The remaining closure work stays with its actual owner: S-10 through S-14 expose
 complete export readers; S-18 installs Dodo cancellation; S-23/S-24 remove
@@ -496,3 +496,56 @@ When implementation and all authorized live proof are complete:
 6. A closed S-08 records commit(s), exact verification evidence, queue/project readback, export fixture counts, residue explanations, and any remaining downstream owner in `deletion-map.md`; rerun the requirements validator.
 
 S-08 is not closed by compiling, by repointing a Firebase plist alone, by deleting the Settings row's sibling API, by returning a smaller server export before the local export exists, or by removing deletion cleanup while rejected systems can still hold user data.
+
+## 2026-08-15 implementation record
+
+The configuration-independent repository tranche is implemented without
+crossing G1-G4 or Cycles 6-9:
+
+- the retained Apple/Google auth, restore, refresh, and sign-out suite remains
+  unchanged and green;
+- the surviving Second Brain acquisition path uses one local-persistence plus
+  analytics owner, while S-06's earlier deletion of the legacy paged onboarding
+  screen remains intact; the behavioral test installs a fail-on-any-request URL
+  protocol;
+- the backend onboarding GET/PATCH routes and Firestore helpers are removed,
+  with the unrelated `/v4/listen` onboarding handler retained;
+- delete-account admission is bodyless, arbitrary legacy JSON cannot create
+  survey state, and reason/feedback storage is removed; and
+- account-deletion cleanup composition is separated from its durable claim/job
+  state machine, while the downstream account/control metadata allowlist remains
+  a documented contract until its real cleanup/export consumers land.
+
+The released-client transition is an intentional same-release hard removal for
+the Mac and backend `/v1/users/onboarding` surface: old clients receive 404 and
+no in-repo compatibility route is retained. `DELETE /v1/users/delete-account`
+now emits a bodyless request, but its server admission remains tolerant of and
+ignores arbitrary legacy JSON while joining the same durable deletion intent.
+The retained app-client Swift contract was regenerated. The Windows client is
+outside this slice, and the missing auth invariant still gates Cycle 4.
+
+Focused evidence:
+
+- `swift test --filter OnboardingAcquisitionSourceTests`: 1 passed;
+- retained auth/onboarding/sign-out Swift filter: 32 passed;
+- account-deletion service file: 39 passed;
+- onboarding-route E2E and Cloud Tasks deletion lifecycle E2E: 1 passed each;
+- strict desktop E2E flow coverage: 8 changed Swift files covered, 0 uncovered;
+- Swift OpenAPI generation check, route-policy baseline, requirements validator,
+  formatters, full Swift test-bundle compile, and `git diff --check`: passed.
+
+The full component runners were also attempted. The backend runner passed the
+S-08 service file before an unrelated `test_audio_merge_tasks.py` 0.12-second
+timing ratchet failed. The desktop runner passed launcher contracts, 33 desktop
+backend tests, and the full Swift compile before the unrelated Memory Atlas
+performance suite exceeded its 120-second process-isolation budget. Those broad
+runs were stopped rather than expanding this slice into unrelated test debt.
+
+A disposable `com.omi.omi-s08-calgary` bundle built, launched against the
+hermetic local Auth emulator, and reached signed-in onboarding as synthetic
+`alice`. The final acquisition control could not be clicked because the Mac was
+at its lock screen and macOS exposed no application windows to Accessibility.
+The bundle was stopped and moved to Trash; the local harness and Colima were
+stopped. Provider cleanup, queue/service retargeting, export composition, and
+owned identity configuration remain intentionally assigned to their existing
+gates.

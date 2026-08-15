@@ -43,9 +43,6 @@ export function resolveAdapterWithinBoundary(input: {
   if (!isProductionAdapterId(requestedAdapterId)) {
     throw new Error(`Unknown production adapter: ${requestedAdapterId}`);
   }
-  if (requestedAdapterId === "acp" && input.providerBoundary !== "local_user:acp") {
-    throw new Error("Local Claude is available only when the User Claude mode is selected.");
-  }
   if (input.providerBoundary === "managed_cloud") {
     if (adapterCredentialScopeFor(requestedAdapterId) !== "managed_cloud") {
       throw new Error("Managed Omi agents can only use Omi cloud routing.");
@@ -54,10 +51,7 @@ export function resolveAdapterWithinBoundary(input: {
   }
   const pinnedAdapterId = input.providerBoundary.slice("local_user:".length);
   if (requestedAdapterId !== pinnedAdapterId) {
-    if (requestedAdapterId === "acp") {
-      throw new Error("Local Claude is available only when the User Claude mode is selected.");
-    }
-    throw new Error(`Local provider mode is pinned to ${pinnedAdapterId}.`);
+    throw new Error(`Adapter ${requestedAdapterId} is outside the owning execution boundary.`);
   }
   return requestedAdapterId;
 }

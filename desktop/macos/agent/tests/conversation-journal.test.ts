@@ -122,7 +122,7 @@ describe("kernel conversation journal", () => {
     const realtimeSession = fixture.store.insertSession({
       ownerId: fixture.ownerId,
       surfaceKind: "realtime_voice",
-      defaultAdapterId: "acp",
+      defaultAdapterId: "test-adapter",
     });
     fixture.store.insertSurfaceConversation({
       ownerId: fixture.ownerId,
@@ -307,7 +307,7 @@ describe("kernel conversation journal", () => {
     const localSession = fixture.store.insertSession({
       ownerId: fixture.ownerId,
       surfaceKind: "task_chat",
-      defaultAdapterId: "acp",
+      defaultAdapterId: "test-adapter",
     });
     fixture.store.insertSurfaceConversation({
       ownerId: fixture.ownerId,
@@ -1422,7 +1422,7 @@ describe("kernel conversation journal", () => {
     const floatingSession = fixture.store.insertSession({
       ownerId: fixture.ownerId,
       surfaceKind: "floating_chat",
-      defaultAdapterId: "acp",
+      defaultAdapterId: "test-adapter",
     });
     fixture.store.insertSurfaceConversation({
       ownerId: fixture.ownerId,
@@ -1895,7 +1895,7 @@ describe("kernel conversation journal", () => {
       runId: run.runId,
       attemptNo: 1,
       status: "succeeded",
-      adapterId: "acp",
+      adapterId: "test-adapter",
       adapterInstanceId: "",
       completedAtMs: 11,
     });
@@ -2923,7 +2923,7 @@ function insertSurface(
   externalRefId: string,
   ownerId = "owner",
 ): SurfaceFixture {
-  const session = store.insertSession({ ownerId, surfaceKind, defaultAdapterId: "acp" });
+  const session = store.insertSession({ ownerId, surfaceKind, defaultAdapterId: "test-adapter" });
   const conversationId = `conv-${surfaceKind}-${externalRefId}`;
   store.insertSurfaceConversation({
     ownerId,

@@ -24,7 +24,7 @@ spec:
     {{- if .Values.autoscaling.requestsPerPod }}
     # Scale on concurrent translation requests — the primary signal for a GPU-bound
     # inference service (CPU stays low during inference, so a CPU-only HPA never
-    # scales). Mirrors the parakeet active-requests pattern. Requires the
+    # scales). Mirrors the request-activity pattern used by managed services. Requires the
     # nllb_active_requests_total adapter rule in the cluster-wide prometheus-adapter.
     - type: External
       external:

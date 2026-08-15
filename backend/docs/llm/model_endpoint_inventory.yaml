@@ -23,16 +23,13 @@ model_config_features:
   request_shapes:
     plain_chat:
       - conv_action_items
-      - conv_app_result
       - conv_discard
       - conv_folder
       - conv_structure
       - daily_summary
-      - daily_summary_simple
       - followup
       - goals
       - goals_advice
-      - knowledge_graph
       - learnings
       - memories
       - memory_category
@@ -40,28 +37,16 @@ model_config_features:
       - memory_l1
       - notifications
       - onboarding
-      - openglass
-      - persona_chat
-      - persona_chat_premium
-      - persona_clone
       - session_titles
-      - smart_glasses
       - wrapped_analysis
-      - app_generator
-      - app_integration
     structured_output:
       - chat_extraction
-      - conv_app_select
-      - external_structure
       - proactive_notification
       - translation
       - trends
       - what_matters_now
     streaming:
       - chat_responses
-      - chat_graph
-      - persona_chat
-      - persona_chat_premium
     tool_calling:
       - chat_agent
       - memory_l2
@@ -75,13 +60,6 @@ model_config_features:
     - backend/tests/unit/test_llm_gateway_coverage_guardrails.py::test_every_model_config_feature_has_inventory_and_gateway_lane
     - backend/tests/unit/test_llm_gateway_client_config.py::test_get_llm_feature_gateway_mode_uses_generated_auto_lane
 surfaces:
-  - surface: public_shared_conversation_chat
-    code_path: backend/routers/public_shared_conversation_chat.py:public_shared_conversation_chat
-    current_provider_model: gateway-only openai/gpt-5-nano
-    request_shape: non-streaming plain chat with server-resolved shared transcript, at most eight user/assistant history entries, and no tools or retrieval
-    gateway_lane_capability_needed: dedicated non-streaming no-tools omi:auto:public-shared-conversation-chat lane
-    migration_status: gateway_only_trusted_frontend_bff
-    test_guardrail_coverage: backend/tests/unit/test_public_shared_conversation_chat.py and web/frontend/src/__tests__/shared-conversation-chat-contract.test.mjs
   - surface: langchain_feature_routing
     code_path: backend/utils/llm/clients.py:get_llm
     current_provider_model: utils.llm.model_config feature profile
@@ -103,13 +81,6 @@ surfaces:
     gateway_lane_capability_needed: perplexity OpenAI-compatible provider adapter on omi:auto:web-search
     migration_status: gateway_only_fail_closed
     test_guardrail_coverage: backend/tests/unit/test_llm_gateway_client_config.py::test_perplexity_tool_always_uses_gateway
-  - surface: app_icon_generation
-    code_path: backend/utils/llm/app_generator.py:generate_app_icon
-    current_provider_model: openai/dall-e-3
-    request_shape: image generation
-    gateway_lane_capability_needed: gateway-owned /v1/images/generations proxy
-    migration_status: gateway_only_fail_closed
-    test_guardrail_coverage: backend/tests/unit/test_llm_gateway_client_config.py::test_app_icon_generation_always_uses_gateway
   - surface: file_chat_vision
     code_path: backend/utils/other/chat_file.py:_ask_vision_stream
     current_provider_model: openai/gpt-4.1

@@ -66,14 +66,12 @@ def _ensure_process_conversation_importable():
         "database.user_usage",
         "database.vector_db",
         "database.chat",
-        "database.apps",
         "database.goals",
         "database.notifications",
         "database.tasks",
         "database.trends",
         "database.calendar_meetings",
         "database.auth",
-        "deepgram",
         "firebase_admin",
         "firebase_admin.messaging",
         "firebase_admin.auth",
@@ -95,13 +93,11 @@ def _ensure_process_conversation_importable():
         "modal",
         "utils.other.storage",
         "utils.other.hume",
-        "utils.webhooks",
-        "utils.task_sync",
         "utils.analytics",
         "utils.retrieval.rag",
         "utils.llm.memories",
         "utils.llm.conversation_processing",
-        "utils.llm.external_integrations",
+        "utils.llm.daily_summary",
         "utils.llm.trends",
         "utils.llm.goals",
         "utils.llm.chat",
@@ -110,9 +106,7 @@ def _ensure_process_conversation_importable():
         "utils.conversations.factory",
         "utils.conversations.subjects",
         "utils.conversations.transcript_chunks",
-        "utils.conversations.calendar_linking",
         "utils.notifications",
-        "utils.apps",
         "utils.executors",
         "utils.subscription",
         "utils.task_intelligence.workstream_association",
@@ -229,7 +223,6 @@ class TestExtractionSeamFanOut:
             patch.object(pc.redis_db, "get_conversation_meeting_id", return_value=None),
             patch.object(pc, "_get_structured", return_value=(structured, False)),
             patch.object(pc, "_get_conversation_obj", return_value=conversation),
-            patch.object(pc, "_trigger_apps"),
             patch.object(pc.conversations_db, "upsert_conversation"),
             patch.object(pc, "submit_with_context", side_effect=_capture_submit),
             patch.object(pc, "TRANSCRIPT_CHUNK_INDEXING_ENABLED", False),
@@ -316,64 +309,3 @@ class TestNoConversationAsMemory:
         assert "transcript_segments" not in row
         assert "structured" not in row
         assert row.get("id") != conversation.id
-
-    def test_extract_memories_inner_external_integration_uses_text_not_conversation(self):
-        pc = _ensure_process_conversation_importable()
-
-        from models.conversation import Conversation
-        from models.conversation_enums import CategoryEnum, ConversationSource
-        from models.memories import Memory, MemoryCategory
-        from models.structured import Structured
-
-        integration_text = "Imported email: user prefers morning meetings on Tuesdays."
-        conversation = Conversation(
-            id="conv-ext-1",
-            created_at=datetime(2026, 6, 1, tzinfo=timezone.utc),
-            started_at=datetime(2026, 6, 1, tzinfo=timezone.utc),
-            finished_at=datetime(2026, 6, 1, 1, tzinfo=timezone.utc),
-            source=ConversationSource.external_integration,
-            external_data={"text": integration_text, "text_source": "email"},
-            structured=Structured(
-                title="Imported email",
-                overview="External integration import.",
-                category=CategoryEnum.personal,
-            ),
-        )
-        extracted = Memory(content="User prefers morning meetings on Tuesdays.", category=MemoryCategory.interesting)
-
-        saved_payloads = []
-
-        with (
-            patch.object(pc.memories_db, "delete_memories_for_conversation") as mock_delete,
-            patch.object(pc, "delete_memory_vector"),
-            patch.object(pc.users_db, "get_user_language_preference", return_value="en"),
-            patch.object(pc, "extract_memories_from_text", return_value=[extracted]) as mock_text_extractor,
-            patch.object(pc, "new_memories_extractor") as mock_segment_extractor,
-            patch.object(pc, "find_similar_memories", return_value=[]),
-            patch.object(pc, "infer_subject_from_segments", return_value=(None, "unknown")),
-            patch.object(
-                pc.memories_db,
-                "save_memories",
-                side_effect=lambda _uid, rows: saved_payloads.extend(rows),
-            ),
-            patch.object(pc, "record_usage"),
-        ):
-            mock_delete.return_value = {"vector_delete_ids": []}
-            pc._extract_memories_inner("uid-ext", conversation)
-
-        mock_text_extractor.assert_called_once_with(
-            "uid-ext", integration_text, "email", language="en", content_date=ANY
-        )
-        mock_segment_extractor.assert_not_called()
-
-        text_arg = mock_text_extractor.call_args[0][1]
-        assert text_arg == integration_text
-        assert text_arg is not conversation
-        assert not isinstance(text_arg, dict)
-
-        assert len(saved_payloads) == 1
-        row = saved_payloads[0]
-        assert row["content"] == extracted.content
-        assert row["conversation_id"] == conversation.id
-        assert "transcript_segments" not in row
-        assert "structured" not in row

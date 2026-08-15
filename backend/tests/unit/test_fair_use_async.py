@@ -282,7 +282,7 @@ class TestFairUseStatusRestrictionExpiry:
         _fair_use_db.update_fair_use_state.reset_mock()
 
     @staticmethod
-    def _dg_budget():
+    def _managed_stt_budget():
         return {
             'daily_limit_ms': 0,
             'used_ms': 0,
@@ -302,7 +302,7 @@ class TestFairUseStatusRestrictionExpiry:
             fair_use_admin_mod,
             'get_rolling_speech_ms',
             return_value={'daily_ms': 0, 'three_day_ms': 0, 'weekly_ms': 0},
-        ), patch.object(fair_use_admin_mod, 'get_dg_budget_status', return_value=self._dg_budget()):
+        ), patch.object(fair_use_admin_mod, 'get_managed_stt_budget_status', return_value=self._managed_stt_budget()):
             result = fair_use_admin_mod.get_my_fair_use_status('user1')
 
         assert result['stage'] == 'throttle'
@@ -323,7 +323,7 @@ class TestFairUseStatusRestrictionExpiry:
             fair_use_admin_mod,
             'get_rolling_speech_ms',
             return_value={'daily_ms': 0, 'three_day_ms': 0, 'weekly_ms': 0},
-        ), patch.object(fair_use_admin_mod, 'get_dg_budget_status', return_value=self._dg_budget()):
+        ), patch.object(fair_use_admin_mod, 'get_managed_stt_budget_status', return_value=self._managed_stt_budget()):
             result = fair_use_admin_mod.get_my_fair_use_status('user1')
 
         assert result['stage'] == 'restrict'

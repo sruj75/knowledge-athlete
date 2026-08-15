@@ -155,8 +155,6 @@ def _enabled_rollout_doc(uid="u1"):
             MemoryRolloutStageGate.read.value: PASSED,
         },
         "grants": {
-            "mcp": {"default_memory": True, "archive": True},
-            "developer_api": {"default_memory": True, "archive": True},
             "omi_chat": {"default_memory": True, "archive": True},
         },
     }
@@ -185,40 +183,12 @@ def test_admin_read_rollout_decision_endpoint_reports_all_enabled_consumers_with
     assert response["archive_default_visible"] is False
     assert response["archive_capability"] is False
     assert response["decision_counters"] == {
-        "total": {"enabled": 3, "fallback": 0},
+        "total": {"enabled": 1, "fallback": 0},
         "by_consumer": {
-            "mcp": {"enabled": 1, "fallback": 0, "fallback_reasons": {}},
-            "developer_api": {"enabled": 1, "fallback": 0, "fallback_reasons": {}},
             "omi_chat": {"enabled": 1, "fallback": 0, "fallback_reasons": {}},
         },
     }
     assert response["decision_audit_events"] == [
-        {
-            "uid": "u1",
-            "source_path": "users/u1/memory_control/state",
-            "consumer": "mcp",
-            "enabled": True,
-            "outcome": "enabled",
-            "read_decision": "USE_MEMORY",
-            "fallback_reason": None,
-            "default_memory_grant": True,
-            "memory_reads_enabled": True,
-            "archive_default_visible": False,
-            "archive_capability": False,
-        },
-        {
-            "uid": "u1",
-            "source_path": "users/u1/memory_control/state",
-            "consumer": "developer_api",
-            "enabled": True,
-            "outcome": "enabled",
-            "read_decision": "USE_MEMORY",
-            "fallback_reason": None,
-            "default_memory_grant": True,
-            "memory_reads_enabled": True,
-            "archive_default_visible": False,
-            "archive_capability": False,
-        },
         {
             "uid": "u1",
             "source_path": "users/u1/memory_control/state",
@@ -233,8 +203,8 @@ def test_admin_read_rollout_decision_endpoint_reports_all_enabled_consumers_with
             "archive_capability": False,
         },
     ]
-    assert sorted(response["consumers"]) == ["developer_api", "mcp", "omi_chat"]
-    for consumer in ("mcp", "developer_api", "omi_chat"):
+    assert list(response["consumers"]) == ["omi_chat"]
+    for consumer in ("omi_chat",):
         decision = response["consumers"][consumer]
         assert decision == {
             "consumer": consumer,
@@ -265,34 +235,19 @@ def test_admin_read_rollout_decision_endpoint_reports_disabled_consumers_for_mis
     cases = [
         (
             {},
-            {
-                "mcp": "missing_rollout_state",
-                "developer_api": "missing_rollout_state",
-                "omi_chat": "missing_rollout_state",
-            },
+            {"omi_chat": "missing_rollout_state"},
         ),
         (
             {"users/u1/memory_control/state": {"schema_version": 1, "uid": "u1", "mode": "read", "stage_gates": "bad"}},
-            {
-                "mcp": "malformed_rollout_state",
-                "developer_api": "malformed_rollout_state",
-                "omi_chat": "malformed_rollout_state",
-            },
+            {"omi_chat": "malformed_rollout_state"},
         ),
         (
             {"users/u1/memory_control/state": _enabled_rollout_doc(uid="other")},
-            {"mcp": "uid_mismatch", "developer_api": "uid_mismatch", "omi_chat": "uid_mismatch"},
+            {"omi_chat": "uid_mismatch"},
         ),
         (
-            {
-                "users/u1/memory_control/state": _enabled_rollout_doc()
-                | {"grants": {"mcp": {}, "developer_api": {}, "omi_chat": {}}}
-            },
-            {
-                "mcp": "missing_mcp_default_memory_grant",
-                "developer_api": "missing_developer_default_memory_grant",
-                "omi_chat": "missing_chat_default_memory_grant",
-            },
+            {"users/u1/memory_control/state": _enabled_rollout_doc() | {"grants": {"omi_chat": {}}}},
+            {"omi_chat": "missing_chat_default_memory_grant"},
         ),
     ]
 

@@ -58,12 +58,6 @@ UNSAFE_IMPORT_DEPENDENCIES = [
         "external_or_mutation_risk": True,
     },
     {
-        "module": "utils.apps",
-        "reason": "Persona/app post-processing helper imported by public-memory write path.",
-        "stub_required_before_import": True,
-        "external_or_mutation_risk": True,
-    },
-    {
         "module": "utils.other.endpoints",
         "reason": "Authentication/rate-limit dependencies must be overridden before TestClient route execution.",
         "stub_required_before_import": True,
@@ -83,7 +77,6 @@ REQUIRED_IMPORT_STUBS = [
             "delete_all_memories",
             "review_memory",
             "edit_memory",
-            "change_memory_visibility",
         ],
     },
     {"module": "database.review_queue", "stubbed_attributes": ["list_review_conflicts", "resolve_review_conflict"]},
@@ -101,7 +94,6 @@ REQUIRED_IMPORT_STUBS = [
         "module": "utils.executors",
         "stubbed_attributes": ["db_executor", "postprocess_executor", "run_blocking", "submit_with_context"],
     },
-    {"module": "utils.apps", "stubbed_attributes": ["update_personas_async"]},
     {"module": "utils.other.endpoints", "stubbed_attributes": ["get_current_user_uid", "with_rate_limit"]},
 ]
 
@@ -111,7 +103,6 @@ IMPORT_SIDE_EFFECTS_BLOCKED = [
     "Pinecone/vector provider import and mutation functions blocked by database.vector_db stub",
     "Thread-pool/executor submission side effects blocked by utils.executors stub",
     "Authentication/rate-limit dependency execution blocked by utils.other.endpoints stub",
-    "Persona post-processing side effects blocked by utils.apps stub",
 ]
 
 FUTURE_GET_WIRING_SEAM = [
@@ -218,7 +209,8 @@ def inspect_static_routes(router_source_path: Path | None = None) -> list[dict[s
 
 def _probe_code() -> str:
     pin_stub_block = legacy_pin_stub_source()
-    template = textwrap.dedent(r'''
+    template = textwrap.dedent(
+        r'''
         import hashlib
         import importlib
         import json
@@ -247,7 +239,7 @@ def _probe_code() -> str:
         setattr(database_pkg, "_client", client)
 
         memories = types.ModuleType("database.memories")
-        for name in ["get_memory", "get_memories", "create_memory", "save_memories", "delete_memory", "delete_all_memories", "review_memory", "edit_memory", "change_memory_visibility"]:
+        for name in ["get_memory", "get_memories", "create_memory", "save_memories", "delete_memory", "delete_all_memories", "review_memory", "edit_memory"]:
             setattr(memories, name, fail(f"database.memories.{name}"))
         sys.modules["database.memories"] = memories
         setattr(database_pkg, "memories", memories)
@@ -340,11 +332,6 @@ __PIN_STUB_BLOCK__        surface_routing.pin_memory_system = pin_memory_system
         sys.modules["utils.executors"] = executors
         setattr(utils_pkg, "executors", executors)
 
-        apps = types.ModuleType("utils.apps")
-        apps.update_personas_async = fail("utils.apps.update_personas_async")
-        sys.modules["utils.apps"] = apps
-        setattr(utils_pkg, "apps", apps)
-
         other_pkg = types.ModuleType("utils.other")
         other_pkg.__path__ = []
         sys.modules["utils.other"] = other_pkg
@@ -380,7 +367,8 @@ __PIN_STUB_BLOCK__        surface_routing.pin_memory_system = pin_memory_system
                         "response_model": str(response_model).replace("typing.", "") if response_model is not None else None,
                     })
         print(json.dumps({"import_ok": True, "pinned_routes": sorted(pinned, key=lambda item: item["route"])}))
-        ''')
+        '''
+    )
     return template.replace("__PIN_STUB_BLOCK__", pin_stub_block)
 
 

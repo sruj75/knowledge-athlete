@@ -6,7 +6,6 @@ import SwiftUI
 
 struct ChatBubble: View {
   let message: ChatMessage
-  let app: OmiApp?
   let showsOmiMark: Bool
   var onCitationTap: ((Citation) -> Void)? = nil
   var isDuplicate: Bool = false
@@ -28,14 +27,13 @@ struct ChatBubble: View {
   @FocusState private var isMetadataControlFocused: Bool
 
   init(
-    message: ChatMessage, app: OmiApp?, showsOmiMark: Bool,
+    message: ChatMessage, showsOmiMark: Bool,
     onCitationTap: ((Citation) -> Void)? = nil, isDuplicate: Bool = false,
     onCancelTurn: (() -> Void)? = nil,
     onOpenAgent: ((UUID, @escaping (Bool) -> Void) -> Void)? = nil,
     onOpenAgentRef: ((AgentTimelineRef, @escaping (Bool) -> Void) -> Void)? = nil
   ) {
     self.message = message
-    self.app = app
     self.showsOmiMark = showsOmiMark
     self.onCitationTap = onCitationTap
     self.isDuplicate = isDuplicate
@@ -90,26 +88,6 @@ struct ChatBubble: View {
     )
 
     HStack(alignment: .top, spacing: OmiSpacing.md) {
-      // App personas keep their own image. The Omi mark is mounted below as an
-      // overlay in the leading gutter so it never changes the reply's x origin.
-      if message.sender == .ai {
-        if let app = app {
-          AsyncImage(url: URL(string: app.image)) { phase in
-            switch phase {
-            case .success(let image):
-              image
-                .resizable()
-                .aspectRatio(contentMode: .fill)
-            default:
-              Circle()
-                .fill(OmiColors.backgroundTertiary)
-            }
-          }
-          .frame(width: 32, height: 32)
-          .clipShape(Circle())
-        }
-      }
-
       // Bubbles hug their content up to a readable cap — omi replies sit
       // left, user messages sit right, neither spans the full column.
       VStack(alignment: message.sender == .user ? .trailing : .leading, spacing: OmiSpacing.xxs) {
@@ -123,11 +101,11 @@ struct ChatBubble: View {
     .frame(
       maxWidth: .infinity,
       minHeight: ChatOmiMarkPlacement.rowHeight(
-        showsMark: message.sender == .ai && app == nil && showsOmiMark),
+        showsMark: message.sender == .ai && showsOmiMark),
       alignment: message.sender == .user ? .trailing : .leading
     )
     .overlay(alignment: .topLeading) {
-      if message.sender == .ai, app == nil, showsOmiMark {
+      if message.sender == .ai, showsOmiMark {
         ChatOmiMark(
           motion: message.isStreaming ? ChatWorkingStatus.motion(for: message) : nil,
           size: 24
@@ -143,26 +121,10 @@ struct ChatBubble: View {
   @ViewBuilder
   private func messageContentView(_ groupedBlocks: [ContentBlockGroup]) -> some View {
     if message.isStreaming && message.text.isEmpty && message.contentBlocks.isEmpty {
-      // Omi's own reply shows the spinning Omi-mark avatar while thinking, so no
-      // extra typing dots are needed; only app personas (no spinning mark) do.
-      if app != nil {
-        TypingIndicator()
-      }
+      // The canonical assistant reply shows the spinning Omi mark while thinking.
     } else if message.sender == .ai && !message.contentBlocks.isEmpty {
       ForEach(groupedBlocks) { group in
         groupView(group)
-      }
-      if message.isStreaming, app != nil {
-        if case .toolCalls(_, let calls) = groupedBlocks.last,
-          calls.contains(where: { block in
-            if case .toolCall(_, _, let status, _, _, _) = block { return status.isInFlight }
-            return false
-          })
-        {
-          // Tool group has a running tool — its card already shows a spinner
-        } else {
-          TypingIndicator()
-        }
       }
       if !message.displayResources.isEmpty {
         ChatResourceStrip(resources: message.displayResources, density: .full, alignment: .leading)
@@ -303,14 +265,11 @@ struct ChatBubble: View {
       return AnyView(EmptyView())
     case .discoveryCard(_, let title, let summary, let fullText):
       return AnyView(DiscoveryCard(title: title, summary: summary, fullText: fullText))
-    case .agentSpawn(
-      _, let pillId, let sessionId, let runId, let title, let objective, let provider
-    ):
+    case .agentSpawn(_, let pillId, let sessionId, let runId, let title, let objective):
       return AnyView(
         AgentSpawnCard(
           title: title,
           objective: objective,
-          provider: provider,
           ref: AgentTimelineRef(pillId: pillId, sessionId: sessionId, runId: runId),
           onOpen: agentOpenClosure
         )
@@ -595,7 +554,6 @@ private struct BackgroundAgentSummaryCard: View {
 struct AgentSpawnCard: View {
   let title: String
   let objective: String
-  let provider: AgentHarnessMode?
   let ref: AgentTimelineRef
   var onOpen: ((AgentTimelineRef, @escaping (Bool) -> Void) -> Void)? = nil
 
@@ -613,17 +571,9 @@ struct AgentSpawnCard: View {
     VStack(alignment: .leading, spacing: 0) {
       HStack(spacing: OmiSpacing.xxs) {
         HStack(spacing: OmiSpacing.sm) {
-          if provider.rendersProviderMark {
-            AgentProviderLogoMark(
-              provider: provider,
-              statusColor: OmiColors.textSecondary,
-              size: 14
-            )
-          } else {
-            Image(systemName: "arrow.triangle.branch")
-              .scaledFont(size: OmiType.caption)
-              .foregroundColor(OmiColors.textSecondary)
-          }
+          Image(systemName: "arrow.triangle.branch")
+            .scaledFont(size: OmiType.caption)
+            .foregroundColor(OmiColors.textSecondary)
           Text(title.isEmpty ? "Background agent" : title)
             .scaledFont(size: OmiType.caption, weight: .semibold)
             .foregroundColor(OmiColors.textSecondary)
@@ -842,7 +792,6 @@ extension ChatBubble: @preconcurrency Equatable {
     // Completed messages are equal when visible content hasn't changed
     return lhs.message.id == rhs.message.id
       && lhs.message.text == rhs.message.text
-      && lhs.app?.id == rhs.app?.id
       && lhs.showsOmiMark == rhs.showsOmiMark
       && lhs.isDuplicate == rhs.isDuplicate
   }
@@ -862,8 +811,7 @@ enum ContentBlockGroup: Identifiable {
     sessionId: String,
     runId: String,
     title: String,
-    objective: String,
-    provider: AgentHarnessMode?
+    objective: String
   )
   case agentCompletion(
     id: String,
@@ -882,7 +830,7 @@ enum ContentBlockGroup: Identifiable {
     case .toolCalls(let id, _): return id
     case .thinking(let id, _): return id
     case .discoveryCard(let id, _, _, _): return id
-    case .agentSpawn(let id, _, _, _, _, _, _): return id
+    case .agentSpawn(let id, _, _, _, _, _): return id
     case .agentCompletion(let id, _, _, _, _, _, _, _): return id
     }
   }
@@ -912,9 +860,7 @@ enum ContentBlockGroup: Identifiable {
       case .discoveryCard(let id, let title, let summary, let fullText):
         flushToolCalls()
         groups.append(.discoveryCard(id: id, title: title, summary: summary, fullText: fullText))
-      case .agentSpawn(
-        let id, let pillId, let sessionId, let runId, let title, let objective, let provider
-      ):
+      case .agentSpawn(let id, let pillId, let sessionId, let runId, let title, let objective):
         flushToolCalls()
         groups.append(
           .agentSpawn(
@@ -923,8 +869,7 @@ enum ContentBlockGroup: Identifiable {
             sessionId: sessionId,
             runId: runId,
             title: title,
-            objective: objective,
-            provider: provider
+            objective: objective
           )
         )
       case .agentCompletion(
@@ -961,7 +906,7 @@ enum ContentBlockGroup: Identifiable {
         let pillId: UUID?
         let runId: String?
         switch block {
-        case .agentSpawn(_, let blockPillId, _, let blockRunId, _, _, _):
+        case .agentSpawn(_, let blockPillId, _, let blockRunId, _, _):
           pillId = blockPillId
           runId = blockRunId
         case .agentCompletion(_, let blockPillId, _, let blockRunId, _, _, _, _):
@@ -1469,7 +1414,7 @@ extension ChatContentBlock {
   }
 
   var spawnedAgentID: UUID? {
-    if case .agentSpawn(_, let pillId, _, _, _, _, _) = self {
+    if case .agentSpawn(_, let pillId, _, _, _, _) = self {
       return pillId
     }
     if case .agentCompletion(_, let pillId, _, _, _, _, _, _) = self {
@@ -1486,7 +1431,7 @@ extension ChatContentBlock {
   }
 
   var spawnedAgentSessionID: String? {
-    if case .agentSpawn(_, _, let sessionId, _, _, _, _) = self {
+    if case .agentSpawn(_, _, let sessionId, _, _, _) = self {
       return sessionId
     }
     if case .agentCompletion(_, _, let sessionId, _, _, _, _, _) = self {
@@ -1502,7 +1447,7 @@ extension ChatContentBlock {
   }
 
   var spawnedAgentRunID: String? {
-    if case .agentSpawn(_, _, _, let runId, _, _, _) = self {
+    if case .agentSpawn(_, _, _, let runId, _, _) = self {
       return runId
     }
     if case .agentCompletion(_, _, _, let runId, _, _, _, _) = self {
@@ -1525,18 +1470,6 @@ extension ChatContentBlock {
     else { return nil }
     return Self.canonicalSpawnReceipt(in: output)?.title
       ?? Self.labeledValue(in: output, keys: ["title"])
-  }
-
-  var spawnedAgentProvider: String? {
-    if case .agentSpawn(_, _, _, _, _, _, let provider) = self {
-      return provider?.rawValue
-    }
-    guard case .toolCall(_, let name, let status, _, _, let output) = self,
-      Self.cleanToolName(name) == "spawn_agent",
-      !status.isInFlight,
-      let output
-    else { return nil }
-    return Self.canonicalSpawnReceipt(in: output)?.provider
   }
 
   /// Parse a labeled `key: value` line from a spawn_agent tool block's output.
@@ -1563,7 +1496,7 @@ extension ChatContentBlock {
   /// control tool. The labeled-line parser below remains decode-only rollback
   /// compatibility for responses written by the previous desktop release.
   private static func canonicalSpawnReceipt(in output: String) -> (
-    pillId: UUID?, sessionId: String?, runId: String?, title: String?, provider: String?
+    pillId: UUID?, sessionId: String?, runId: String?, title: String?
   )? {
     guard let data = output.data(using: .utf8),
       let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -1589,21 +1522,11 @@ extension ChatContentBlock {
       string(session?["externalRefId"])
       ?? string(metadata?["pillId"])
       ?? string(root["pillId"])
-    let defaultAdapterId = string(session?["defaultAdapterId"])
-    let authoritativeProvider =
-      ["hermes", "openclaw"].contains(defaultAdapterId ?? "")
-      ? defaultAdapterId
-      : nil
-    let legacyProvider = string(metadata?["provider"])
-    let provider =
-      authoritativeProvider
-      ?? (["hermes", "openclaw"].contains(legacyProvider ?? "") ? legacyProvider : nil)
     return (
       pillId: pillRaw.flatMap(UUID.init(uuidString:)),
       sessionId: string(session?["sessionId"]),
       runId: string(run?["runId"]),
-      title: string(session?["title"]),
-      provider: provider
+      title: string(session?["title"])
     )
   }
 

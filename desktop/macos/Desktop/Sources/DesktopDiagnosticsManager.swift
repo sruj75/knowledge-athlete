@@ -36,7 +36,6 @@ enum DesktopFallbackOutcome: String {
 enum DesktopStateAuthoritySeam: String {
   case chatTranscriptProjection = "chat_transcript_projection"
   case onboardingSetupState = "onboarding_setup_state"
-  case connectorStatus = "connector_status"
 }
 
 /// The immediate customer-turn/recovery decision made after a realtime transport
@@ -158,52 +157,6 @@ final class DesktopDiagnosticsManager {
       ])
   }
 
-  func recordWalPersistenceDegraded(reason: String, recoveryAction: String, recoveryResult: String) {
-    recordFallback(
-      area: "wal_persistence",
-      from: "disk",
-      to: "memory",
-      reason: reason,
-      outcome: .degraded,
-      extra: [
-        "failure_class": "wal_persistence_degraded",
-        "recovery_action": recoveryAction,
-        "recovery_result": recoveryResult,
-      ])
-  }
-
-  func recordWalWriteFailed(walId: String, reason: String) {
-    recordFallback(
-      area: "wal_persistence",
-      from: "disk",
-      to: "memory",
-      reason: "wal_write_failed",
-      outcome: .degraded,
-      extra: [
-        "wal_id": walId,
-        "detail_reason": reason,
-        "failure_class": "wal_write_failed",
-        "recovery_action": "retain_frames",
-        "recovery_result": "degraded",
-      ])
-  }
-
-  func recordWalUploadFailed(walId: String, reason: String) {
-    recordFallback(
-      area: "wal_upload",
-      from: "disk",
-      to: "pending",
-      reason: "upload_failed",
-      outcome: .degraded,
-      extra: [
-        "wal_id": walId,
-        "detail_reason": reason,
-        "failure_class": "wal_upload_failed",
-        "recovery_action": "leave_pending",
-        "recovery_result": "degraded",
-      ])
-  }
-
   func recordAgentRuntimeStaleAliveCheck() {
     recordFallback(
       area: "agent_runtime",
@@ -263,37 +216,6 @@ final class DesktopDiagnosticsManager {
         "source": source,
         "failure_class": "db_lock_contention",
         "recovery_action": "backoff",
-        "recovery_result": "degraded",
-      ])
-  }
-
-  func recordChatBridgeModeSwitchTimeout(waitSeconds: Int) {
-    recordFallback(
-      area: "chat_bridge",
-      from: "mode_switch",
-      to: "continue_waiting",
-      reason: "mode_switch_timeout",
-      outcome: .degraded,
-      extra: [
-        "wait_seconds": waitSeconds,
-        "failure_class": "mode_switch_timeout",
-        "recovery_action": "clear_waiters",
-        "recovery_result": "degraded",
-      ])
-  }
-
-  func recordBleDecodeDegraded(codec: String, failures: Int) {
-    recordFallback(
-      area: "ble_audio",
-      from: "decode",
-      to: "raw_capture",
-      reason: "ble_decode_failed",
-      outcome: .degraded,
-      extra: [
-        "codec": codec,
-        "consecutive_failures": failures,
-        "failure_class": "ble_decode_degraded",
-        "recovery_action": "continue_raw_capture",
         "recovery_result": "degraded",
       ])
   }
@@ -650,21 +572,17 @@ final class DesktopDiagnosticsManager {
   }
 
   /// Detects silent ownership disagreement without changing which state wins.
-  /// `subject` must be a closed product enum (for example a connector kind), not
-  /// a user, message, turn, file, or session identifier.
   @discardableResult
   func recordStateAuthoritySignal(
     seam: DesktopStateAuthoritySeam,
     from: String,
     to: String,
-    direction: String,
-    subject: String? = nil
+    direction: String
   ) -> Bool {
     let safeFrom = safeFallbackLabel(from, default: "none")
     let safeTo = safeFallbackLabel(to, default: "none")
     let safeDirection = safeFallbackLabel(direction, default: "other")
-    let safeSubject = subject.map { safeFallbackLabel($0, default: "other") }
-    let dedupeKey = [seam.rawValue, safeFrom, safeTo, safeDirection, safeSubject ?? "none"]
+    let dedupeKey = [seam.rawValue, safeFrom, safeTo, safeDirection]
       .joined(separator: "|")
 
     lock.lock()
@@ -672,20 +590,17 @@ final class DesktopDiagnosticsManager {
     lock.unlock()
     guard inserted else { return false }
 
-    var extra: [String: Any] = [
+    let extra: [String: Any] = [
       "seam": seam.rawValue,
       "direction": safeDirection,
       "signal_scope": "process",
       "failure_class": "FC-split-mutation-authority",
     ]
-    if let safeSubject {
-      extra["subject"] = safeSubject
-    }
     recordFallback(
       area: "state_authority",
       from: from,
       to: to,
-      reason: seam == .connectorStatus ? "status_inferred" : "state_divergence",
+      reason: "state_divergence",
       outcome: .degraded,
       extra: extra)
     return true
@@ -1391,7 +1306,6 @@ final class DesktopDiagnosticsManager {
   ]
 
   private static let allowedFallbackAreas: Set<String> = [
-    "sync_dispatch",
     "pusher",
     "stt_selection",
     "vad",
@@ -1404,13 +1318,10 @@ final class DesktopDiagnosticsManager {
     "gemini_stream_proxy",
     "redis_ratelimit",
     "silent_mic",
-    "wal_persistence",
-    "wal_upload",
     "agent_runtime",
     "api_auth",
     "db_lock",
     "chat_bridge",
-    "ble_audio",
     "automation_bridge",
     "transcription_retry",
     "task_reconcile",
@@ -1446,16 +1357,11 @@ final class DesktopDiagnosticsManager {
     "byok",
     "other",
     "none",
-    "wal_directory_unavailable",
-    "wal_write_failed",
-    "upload_failed",
     "stale_alive_latch",
     "out_of_memory",
     "process_exited",
     "http_401",
     "db_lock_contention",
-    "mode_switch_timeout",
-    "ble_decode_failed",
     "bind_failed",
     "db_backoff",
     "state_divergence",

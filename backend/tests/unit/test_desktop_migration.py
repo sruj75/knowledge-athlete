@@ -172,7 +172,6 @@ utils_enc_stub.decrypt = MagicMock(return_value="decrypted")
 endpoints_stub = _stub_module("utils.other.endpoints")
 endpoints_stub.get_current_user_uid = MagicMock()
 endpoints_stub.with_rate_limit = lambda dep, policy: dep
-endpoints_stub.with_rate_limit_context = lambda dep, policy: dep
 endpoints_stub.timeit = lambda f: f
 _stub_module("utils.observability")
 fallback_stub = _stub_module("utils.observability.fallback")
@@ -494,7 +493,7 @@ class TestDesktopMessagesWireCompat:
     """Verify message field names match cross-platform expectations."""
 
     def test_save_message_writes_expected_fields(self):
-        """save_message writes plugin_id, chat_session_id, type='text', from_external_integration=False."""
+        """save_message writes the retained session and text fields."""
         mock_doc_ref = MagicMock()
         mock_session_ref = MagicMock()
         mock_session_ref.get.return_value.exists = True
@@ -513,15 +512,12 @@ class TestDesktopMessagesWireCompat:
                 patched_db.collection.return_value.document.return_value.collection.return_value.document.return_value = (
                     mock_doc_ref
                 )
-                result = chat_db.save_message('test-uid', text='hello', sender='human', app_id='my-app')
+                result = chat_db.save_message('test-uid', text='hello', sender='human')
 
         # Verify the doc written to Firestore
         set_call = mock_doc_ref.set.call_args[0][0]
-        assert set_call['plugin_id'] == 'my-app'
-        assert set_call['app_id'] == 'my-app'
         assert set_call['chat_session_id'] == 'session-123'
         assert set_call['type'] == 'text'
-        assert set_call['from_external_integration'] is False
         assert set_call['text'] == 'hello'
         assert set_call['sender'] == 'human'
 
@@ -536,8 +532,8 @@ class TestSessionScopedQueries:
     def setup_method(self):
         field_filter_stub.FieldFilter.reset_mock()
 
-    def test_get_messages_session_scoped_filters_by_session_not_plugin(self):
-        """get_messages with chat_session_id should filter by chat_session_id, NOT plugin_id."""
+    def test_get_messages_session_scoped_filters_by_session(self):
+        """get_messages with chat_session_id filters by that session."""
         mock_query = MagicMock()
         mock_query.where.return_value = mock_query
         mock_query.order_by.return_value = mock_query
@@ -547,31 +543,13 @@ class TestSessionScopedQueries:
 
         with patch.object(chat_db, 'db') as patched_db:
             patched_db.collection.return_value.document.return_value.collection.return_value = mock_query
-            chat_db.get_messages('uid', chat_session_id='sess-1', app_id='some-app')
+            chat_db.get_messages('uid', chat_session_id='sess-1')
 
         fields = self._get_field_filter_fields()
         assert 'chat_session_id' in fields, f"Expected chat_session_id filter, got: {fields}"
-        assert 'plugin_id' not in fields, f"plugin_id should NOT be filtered when session_id is given: {fields}"
 
-    def test_get_messages_app_scoped_filters_by_plugin_id(self):
-        """get_messages without chat_session_id should filter by plugin_id."""
-        mock_query = MagicMock()
-        mock_query.where.return_value = mock_query
-        mock_query.order_by.return_value = mock_query
-        mock_query.limit.return_value = mock_query
-        mock_query.offset.return_value = mock_query
-        mock_query.stream.return_value = []
-
-        with patch.object(chat_db, 'db') as patched_db:
-            patched_db.collection.return_value.document.return_value.collection.return_value = mock_query
-            chat_db.get_messages('uid', app_id='my-app')
-
-        fields = self._get_field_filter_fields()
-        assert 'plugin_id' in fields, f"Expected plugin_id filter, got: {fields}"
-        assert 'chat_session_id' not in fields, f"chat_session_id should NOT be filtered in app-scoped mode: {fields}"
-
-    def test_delete_messages_session_scoped_filters_by_session_not_plugin(self):
-        """delete_messages with session_id should filter by chat_session_id, NOT plugin_id."""
+    def test_delete_messages_session_scoped_filters_by_session(self):
+        """delete_messages with session_id filters by that session."""
         mock_col = MagicMock()
         mock_query = MagicMock()
         mock_col.where.return_value = mock_query
@@ -584,23 +562,6 @@ class TestSessionScopedQueries:
 
         fields = self._get_field_filter_fields()
         assert 'chat_session_id' in fields, f"Expected chat_session_id filter, got: {fields}"
-        assert 'plugin_id' not in fields, f"plugin_id should NOT be filtered when session_id is given: {fields}"
-
-    def test_delete_messages_app_scoped_filters_by_plugin_id(self):
-        """delete_messages without session_id should filter by plugin_id."""
-        mock_col = MagicMock()
-        mock_query = MagicMock()
-        mock_col.where.return_value = mock_query
-        mock_query.limit.return_value = mock_query
-        mock_query.stream.return_value = []
-
-        with patch.object(chat_db, 'db') as patched_db:
-            patched_db.collection.return_value.document.return_value.collection.return_value = mock_col
-            chat_db.delete_messages('uid', app_id='my-app')
-
-        fields = self._get_field_filter_fields()
-        assert 'plugin_id' in fields, f"Expected plugin_id filter, got: {fields}"
-        assert 'chat_session_id' not in fields, f"chat_session_id should NOT be filtered in app-scoped mode: {fields}"
 
 
 class TestMessageReconcileKeyset:
@@ -649,6 +610,9 @@ class TestMessageReconcileKeyset:
         def where(self, **_kwargs):
             return TestMessageReconcileKeyset.FakeQuery(self)
 
+        def order_by(self, *_args, **_kwargs):
+            return TestMessageReconcileKeyset.FakeQuery(self)
+
         def document(self, document_id):
             return next(
                 (row for row in self.rows if row.id == document_id),
@@ -656,7 +620,7 @@ class TestMessageReconcileKeyset:
             )
 
     @staticmethod
-    def message(document_id, created_at, *, reported=False, plugin_id=None):
+    def message(document_id, created_at, *, reported=False):
         return TestMessageReconcileKeyset.FakeDocument(
             document_id,
             {
@@ -665,8 +629,6 @@ class TestMessageReconcileKeyset:
                 'sender': 'human',
                 'type': 'text',
                 'created_at': created_at,
-                'plugin_id': plugin_id,
-                'app_id': plugin_id,
                 'reported': reported,
             },
         )
@@ -724,12 +686,12 @@ class TestMessageReconcileKeyset:
         now = datetime.now(timezone.utc)
         collection = self.FakeCollection(
             [
-                self.message('other-app', now, plugin_id='other'),
+                self.message('present', now),
             ]
         )
         with self.patched_db(collection):
             with pytest.raises(chat_db.MessageReconcileCursorError):
-                chat_db.get_messages_reconcile_page('uid', limit=2, cursor_message_id='other-app', app_id='requested')
+                chat_db.get_messages_reconcile_page('uid', limit=2, cursor_message_id='missing')
 
 
 class TestGetChatSessionsQuery:
@@ -754,24 +716,6 @@ class TestGetChatSessionsQuery:
 
         mock_col.order_by.assert_called_once_with('updated_at', direction='DESCENDING')
 
-    def test_filters_by_plugin_id_field(self):
-        """get_chat_sessions should filter by plugin_id == app_id."""
-        mock_col = MagicMock()
-        mock_query = MagicMock()
-        mock_col.order_by.return_value = mock_query
-        mock_query.where.return_value = mock_query
-        mock_query.offset.return_value = mock_query
-        mock_query.limit.return_value = mock_query
-        mock_query.stream.return_value = []
-
-        with patch.object(chat_db, 'db') as patched_db:
-            patched_db.collection.return_value.document.return_value.collection.return_value = mock_col
-            chat_db.get_chat_sessions('uid', app_id='test-app')
-
-        fields = [call.args[0] for call in field_filter_stub.FieldFilter.call_args_list if call.args]
-        assert 'plugin_id' in fields, f"Expected plugin_id filter, got: {fields}"
-        assert 'app_id' not in fields, f"Should use plugin_id, not app_id as filter field: {fields}"
-
 
 class TestCreateChatSession:
     """Verify create_chat_session writes correct fields."""
@@ -791,19 +735,6 @@ class TestCreateChatSession:
         assert result['starred'] is False
         assert result['preview'] is None
         mock_doc_ref.set.assert_called_once()
-
-    def test_plugin_id_matches_app_id(self):
-        """create_chat_session sets both plugin_id and app_id to the given app_id."""
-        mock_doc_ref = MagicMock()
-
-        with patch.object(chat_db, 'db') as patched_db:
-            patched_db.collection.return_value.document.return_value.collection.return_value.document.return_value = (
-                mock_doc_ref
-            )
-            result = chat_db.create_chat_session('uid', app_id='my-plugin')
-
-        assert result['plugin_id'] == 'my-plugin'
-        assert result['app_id'] == 'my-plugin'
 
     def test_custom_title(self):
         """create_chat_session uses the provided title."""
@@ -830,10 +761,8 @@ class TestAcquireChatSession:
         mock_query.stream.return_value = [mock_doc]
 
         with patch.object(chat_db, 'db') as patched_db:
-            patched_db.collection.return_value.document.return_value.collection.return_value.where.return_value = (
-                mock_query
-            )
-            result = chat_db.acquire_chat_session('uid', app_id='my-app')
+            patched_db.collection.return_value.document.return_value.collection.return_value = mock_query
+            result = chat_db.acquire_chat_session('uid')
 
         assert result == 'existing-session-id'
 
@@ -846,13 +775,11 @@ class TestAcquireChatSession:
         with patch.object(chat_db, 'db') as patched_db, patch.object(
             chat_db, 'create_chat_session', return_value={'id': 'new-session-id'}
         ) as mock_create:
-            patched_db.collection.return_value.document.return_value.collection.return_value.where.return_value = (
-                mock_query
-            )
-            result = chat_db.acquire_chat_session('uid', app_id='my-app')
+            patched_db.collection.return_value.document.return_value.collection.return_value = mock_query
+            result = chat_db.acquire_chat_session('uid')
 
         assert result == 'new-session-id'
-        mock_create.assert_called_once_with('uid', app_id='my-app')
+        mock_create.assert_called_once_with('uid')
 
 
 class TestUpdateChatSession:
@@ -963,7 +890,6 @@ class TestSaveMessageSessionBehavior:
         payload_hash = chat_db._message_idempotency_payload_hash(
             text='hello',
             sender='human',
-            app_id=None,
             session_id=None,
             metadata='{"origin":"typed_chat"}',
             message_source='desktop_chat',
@@ -1006,8 +932,6 @@ class TestSaveMessageSessionBehavior:
             'id': 'turn-1',
             'text': 'Agent started.',
             'sender': 'ai',
-            'app_id': None,
-            'plugin_id': None,
             'metadata': '{"content_blocks":[{"type":"agent_spawn"}]}',
             'message_source': 'desktop_chat',
             'chat_session_id': 'session-1',
@@ -1051,8 +975,6 @@ class TestSaveMessageSessionBehavior:
             'id': 'turn-1',
             'text': 'original',
             'sender': 'ai',
-            'app_id': None,
-            'plugin_id': None,
             'metadata': None,
             'message_source': 'desktop_chat',
             'chat_session_id': 'session-1',
@@ -1086,8 +1008,6 @@ class TestSaveMessageSessionBehavior:
             'id': 'turn-1',
             'text': 'newest',
             'sender': 'ai',
-            'app_id': None,
-            'plugin_id': None,
             'metadata': '{"resources":[{"id":"new"}]}',
             'message_source': 'desktop_chat',
             'chat_session_id': 'session-1',
@@ -1123,8 +1043,6 @@ class TestSaveMessageSessionBehavior:
             'id': 'turn-1',
             'text': 'original',
             'sender': 'ai',
-            'app_id': None,
-            'plugin_id': None,
             'metadata': None,
             'message_source': 'desktop_chat',
             'chat_session_id': 'session-1',
@@ -1157,7 +1075,6 @@ class TestSaveMessageSessionBehavior:
         payload_hash = chat_db._message_idempotency_payload_hash(
             text='hello',
             sender='human',
-            app_id=None,
             session_id=None,
             metadata=None,
             message_source='desktop_chat',
@@ -1220,36 +1137,6 @@ class TestSaveMessageSessionBehavior:
 
         message_ref.create.assert_not_called()
 
-    def test_legacy_client_message_id_rejects_different_app_when_retry_omits_app(self):
-        existing = MagicMock()
-        existing.exists = True
-        existing.to_dict.return_value = {
-            'id': 'turn-1',
-            'text': 'hello',
-            'sender': 'human',
-            'app_id': 'different-app',
-            'plugin_id': 'different-app',
-            'metadata': None,
-            'message_source': 'desktop_chat',
-            'chat_session_id': 'session-1',
-        }
-        message_ref = MagicMock()
-        message_ref.get.return_value = existing
-
-        with patch.object(chat_db, 'db') as patched_db:
-            patched_db.collection.return_value.document.return_value.collection.return_value.document.return_value = (
-                message_ref
-            )
-            with pytest.raises(chat_db.ClientMessageIdPayloadConflict):
-                chat_db.save_message(
-                    'uid',
-                    text='hello',
-                    sender='human',
-                    client_message_id='turn-1',
-                )
-
-        message_ref.create.assert_not_called()
-
     def test_legacy_race_validates_the_requested_session_not_the_locally_acquired_session(self):
         missing = MagicMock()
         missing.exists = False
@@ -1258,8 +1145,6 @@ class TestSaveMessageSessionBehavior:
             'id': 'turn-1',
             'text': 'hello',
             'sender': 'human',
-            'app_id': None,
-            'plugin_id': None,
             'metadata': None,
             'message_source': 'desktop_chat',
             'chat_session_id': 'winner-session',
@@ -1334,13 +1219,13 @@ class TestDeleteMessagesCount:
         """delete_messages returns 0 when no matching messages found."""
         mock_col = MagicMock()
         mock_query = MagicMock()
-        mock_col.where.return_value = mock_query
+        mock_col.limit.return_value = mock_query
         mock_query.limit.return_value = mock_query
         mock_query.stream.return_value = []
 
         with patch.object(chat_db, 'db') as patched_db:
             patched_db.collection.return_value.document.return_value.collection.return_value = mock_col
-            result = chat_db.delete_messages('uid', app_id='my-app')
+            result = chat_db.delete_messages('uid')
 
         assert result == 0
 
@@ -1348,7 +1233,7 @@ class TestDeleteMessagesCount:
         """delete_messages returns total count of deleted messages."""
         mock_col = MagicMock()
         mock_query = MagicMock()
-        mock_col.where.return_value = mock_query
+        mock_col.limit.return_value = mock_query
         mock_query.limit.return_value = mock_query
 
         doc1 = MagicMock()
@@ -1363,7 +1248,7 @@ class TestDeleteMessagesCount:
         with patch.object(chat_db, 'db') as patched_db:
             patched_db.collection.return_value.document.return_value.collection.return_value = mock_col
             patched_db.batch.return_value = mock_batch
-            result = chat_db.delete_messages('uid', app_id='my-app')
+            result = chat_db.delete_messages('uid')
 
         assert result == 3
         mock_batch.commit.assert_called_once()
@@ -1372,7 +1257,7 @@ class TestDeleteMessagesCount:
         """Source deletion and inverse count/ID/preview updates commit together."""
         mock_msg_col = MagicMock()
         mock_delete_query = MagicMock()
-        mock_msg_col.where.return_value = mock_delete_query
+        mock_msg_col.limit.return_value = mock_delete_query
         mock_delete_query.limit.return_value = mock_delete_query
 
         doc1 = MagicMock()
@@ -1408,10 +1293,10 @@ class TestDeleteMessagesCount:
             patched_db.collection.return_value.document.return_value = mock_user_ref
             patched_db.batch.return_value = mock_batch
             patched_db.write_option.side_effect = lambda **kwargs: ('last_update', kwargs['last_update_time'])
-            result = chat_db.delete_messages('uid', app_id=None)
+            result = chat_db.delete_messages('uid')
 
         assert result == 2
-        mock_delete_query.limit.assert_called_with(chat_db.DELETE_MESSAGES_BATCH_LIMIT)
+        mock_msg_col.limit.assert_called_with(chat_db.DELETE_MESSAGES_BATCH_LIMIT)
         mock_batch.update.assert_called_once_with(
             mock_session_ref,
             {
@@ -1428,7 +1313,7 @@ class TestDeleteMessagesCount:
         """A losing clear never applies a second decrement to already-deleted docs."""
         mock_msg_col = MagicMock()
         mock_delete_query = MagicMock()
-        mock_msg_col.where.return_value = mock_delete_query
+        mock_msg_col.limit.return_value = mock_delete_query
         mock_delete_query.limit.return_value = mock_delete_query
 
         message = MagicMock()
@@ -1457,7 +1342,7 @@ class TestDeleteMessagesCount:
             patched_db.collection.return_value.document.return_value = mock_user_ref
             patched_db.batch.return_value = mock_batch
             patched_db.write_option.return_value = object()
-            result = chat_db.delete_messages('uid', app_id=None)
+            result = chat_db.delete_messages('uid')
 
         assert result == 0
         mock_batch.commit.assert_called_once()
@@ -1466,7 +1351,7 @@ class TestDeleteMessagesCount:
         """A hot session cannot hold a sync worker in an unbounded retry loop."""
         mock_msg_col = MagicMock()
         mock_delete_query = MagicMock()
-        mock_msg_col.where.return_value = mock_delete_query
+        mock_msg_col.limit.return_value = mock_delete_query
         mock_delete_query.limit.return_value = mock_delete_query
 
         message = MagicMock()
@@ -1496,7 +1381,7 @@ class TestDeleteMessagesCount:
             patched_db.batch.return_value = mock_batch
             patched_db.write_option.return_value = object()
             with pytest.raises(chat_db.FailedPrecondition, match='persistent conflict'):
-                chat_db.delete_messages('uid', app_id=None)
+                chat_db.delete_messages('uid')
 
         assert mock_batch.commit.call_count == chat_db.DELETE_MESSAGES_CONFLICT_RETRIES
 
@@ -2211,68 +2096,6 @@ class TestBatchScoresOverflow:
 
 
 # ============================================================================
-# TESTER-REQUESTED: Session-scoped query precedence
-# ============================================================================
-
-
-class TestSessionScopedPrecedence:
-    """Verify session_id takes precedence over app_id in get_messages/delete_messages."""
-
-    @staticmethod
-    def _get_field_filter_fields():
-        """Extract field names from all FieldFilter() calls."""
-        from google.cloud.firestore_v1.base_query import FieldFilter
-
-        fields = []
-        for call in FieldFilter.call_args_list:
-            if call.args:
-                fields.append(call.args[0])
-        return fields
-
-    def test_get_messages_session_id_ignores_app_id(self):
-        """When both app_id and chat_session_id are provided, only session filter is applied."""
-        from google.cloud.firestore_v1.base_query import FieldFilter
-
-        FieldFilter.reset_mock()
-
-        mock_col = MagicMock()
-        mock_query = MagicMock()
-        mock_col.where.return_value = mock_query
-        mock_query.order_by.return_value = mock_query
-        mock_query.limit.return_value = mock_query
-        mock_query.offset.return_value = mock_query
-        mock_query.stream.return_value = []
-
-        with patch.object(chat_db, 'db') as patched_db:
-            patched_db.collection.return_value.document.return_value.collection.return_value = mock_col
-            chat_db.get_messages('uid', app_id='some-app', chat_session_id='sess-123')
-
-        fields = self._get_field_filter_fields()
-        assert 'chat_session_id' in fields, f"Expected chat_session_id filter, got: {fields}"
-        assert 'plugin_id' not in fields, f"plugin_id should NOT be filtered when session_id present: {fields}"
-
-    def test_delete_messages_session_id_ignores_app_id(self):
-        """When both app_id and session_id are provided, only session filter is applied."""
-        from google.cloud.firestore_v1.base_query import FieldFilter
-
-        FieldFilter.reset_mock()
-
-        mock_col = MagicMock()
-        mock_query = MagicMock()
-        mock_col.where.return_value = mock_query
-        mock_query.limit.return_value = mock_query
-        mock_query.stream.return_value = []
-
-        with patch.object(chat_db, 'db') as patched_db:
-            patched_db.collection.return_value.document.return_value.collection.return_value = mock_col
-            chat_db.delete_messages('uid', app_id='some-app', session_id='sess-123')
-
-        fields = self._get_field_filter_fields()
-        assert 'chat_session_id' in fields, f"Expected chat_session_id filter, got: {fields}"
-        assert 'plugin_id' not in fields, f"plugin_id should NOT be filtered when session_id present: {fields}"
-
-
-# ============================================================================
 # TESTER-REQUESTED: LLM dual-write full payload parity
 # ============================================================================
 
@@ -2338,21 +2161,9 @@ class TestInitialMessageEndpoint:
         mock_msg.id = 'msg-123'
 
         with patch('routers.chat_sessions.initial_message_util', return_value=mock_msg):
-            result = create_initial_message(InitialMessageRequest(session_id='s1', app_id='app1'), uid='u1')
+            result = create_initial_message(InitialMessageRequest(session_id='s1'), uid='u1')
 
         assert result == {'message': 'Hello! How can I help?', 'message_id': 'msg-123'}
-
-    def test_app_id_defaults_to_none(self):
-        from routers.chat_sessions import create_initial_message, InitialMessageRequest
-
-        mock_msg = MagicMock()
-        mock_msg.text = 'Hi'
-        mock_msg.id = 'msg-456'
-        mock_util = MagicMock(return_value=mock_msg)
-
-        with patch('routers.chat_sessions.initial_message_util', mock_util):
-            create_initial_message(InitialMessageRequest(session_id='s1'), uid='u1')
-            mock_util.assert_called_once_with('u1', None, chat_session_id='s1')
 
     def test_session_id_passed_to_util(self):
         from routers.chat_sessions import create_initial_message, InitialMessageRequest
@@ -2363,8 +2174,8 @@ class TestInitialMessageEndpoint:
         mock_util = MagicMock(return_value=mock_msg)
 
         with patch('routers.chat_sessions.initial_message_util', mock_util):
-            create_initial_message(InitialMessageRequest(session_id='sess-42', app_id='myapp'), uid='u1')
-            mock_util.assert_called_once_with('u1', 'myapp', chat_session_id='sess-42')
+            create_initial_message(InitialMessageRequest(session_id='sess-42'), uid='u1')
+            mock_util.assert_called_once_with('u1', chat_session_id='sess-42')
 
 
 class TestGenerateTitleEndpoint:

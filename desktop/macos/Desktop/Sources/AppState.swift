@@ -210,9 +210,8 @@ class AppState: ObservableObject {
 
   // Transcription state
   @Published var isTranscribing = false
-  /// A terminal live-STT failure reported by `/v4/listen`. Audio capture can
-  /// continue into the WAL while the transport reconnects, so this stays
-  /// visible until the backend is ready or the active session is reset.
+  /// A terminal live-STT failure reported by `/v4/listen`. This stays visible
+  /// until the backend is ready or the active session is reset.
   @Published var transcriptionServiceError: String?
   /// Monotonically increasing counter — incremented each time a new recording starts.
   /// Used to detect if a new recording began during the post-stop force-process delay.
@@ -224,11 +223,6 @@ class AppState: ObservableObject {
   @Published var hasSystemAudioPermission = false
   @Published var systemAudioPermissionStatus: SystemAudioPermissionStatus = .unknown
   @Published var isSystemAudioSupported = false
-
-  // Audio source (microphone or BLE device)
-  @Published var audioSource: AudioSource = .microphone
-  /// Tracks the source for the current recording (for API tagging)
-  var currentConversationSource: ConversationSource = .desktop
 
   /// Guards against re-entering the silent-mic fallback path multiple times in a single session.
   /// The user-visible banner lives in `SilentMicNoticeMonitor.shared`.
@@ -286,8 +280,6 @@ class AppState: ObservableObject {
   /// app is running doesn't apply to this process until relaunch
   /// (see ScreenRecordingPermissionPolicy.needsRelaunchToApply).
   let screenRecordingGrantedAtLaunch = ScreenCaptureService.checkPermission()
-  @Published var hasBluetoothPermission = false
-
   // Track last notification settings for change detection (avoid duplicate analytics)
   var lastNotificationAuthStatus: String?
   var lastNotificationAlertStyle: String?
@@ -296,12 +288,8 @@ class AppState: ObservableObject {
   @Published var isScreenCaptureKitBroken = false  // Capture engine issue; not the source of permission truth
   @Published var isScreenRecordingStale = false  // Deprecated: no longer inferred from capture failures
   var screenRecordingGrantAttempts = 0  // Track how many times user clicked Grant without success
-  @Published var hasAutomationPermission = false
-  @Published var automationPermissionError: OSStatus = 0  // Non-zero when check fails unexpectedly (e.g. -600 procNotFound)
-  var isCheckingAutomationPermission = false  // Prevent concurrent checks (retry path has a 1s sleep)
   @Published var hasAccessibilityPermission = false
   @Published var isAccessibilityBroken = false  // TCC says yes but AX calls actually fail (common after macOS updates/app re-signs)
-  @Published var hasFullDiskAccess = false
 
   /// Usage-limit popup state. Set by `triggerUsageLimitPopup(reason:)` when the
   /// user hits a free-tier cap (transcription minutes, monthly chat messages, etc).
@@ -461,15 +449,6 @@ class AppState: ObservableObject {
   var wasTranscribingBeforeSleep = false
   var lastScreenLockTime: Date?
   var lastScreenUnlockTime: Date?
-  var buttonStreamTask: Task<Void, Never>? {
-    get { servicesCoordinator.buttonStreamTask }
-    set { servicesCoordinator.buttonStreamTask = newValue }
-  }
-  var bluetoothStateCancellable: AnyCancellable? {
-    get { servicesCoordinator.bluetoothStateCancellable }
-    set { servicesCoordinator.bluetoothStateCancellable = newValue }
-  }
-
   nonisolated(unsafe) private var ownerChangeObserver: NSObjectProtocol?
 
   /// Bumped on every in-place account switch. Owner-scoped loads capture it
@@ -521,9 +500,8 @@ class AppState: ObservableObject {
     }
 
     // Restore paywall flag from prior session so toggles + auto-restart respect
-    // it before any backend call has a chance to refresh state — but never for
-    // a BYOK user (all four keys configured) or a user whose cached plan is
-    // paid. The paid-plan carve-out fixes a popup-on-launch bug for Neo
+    // it before any backend call has a chance to refresh state. A paid cached
+    // plan remains authoritative. The paid-plan carve-out fixes a popup-on-launch bug for Neo
     // subscribers grandfathered onto desktop by #7513: their last session
     // pre-grandfather wrote isPaywalled=true; without this clear, the next
     // launch shows the monthly-limit popup until fetchTrialMetadata returns
@@ -599,9 +577,6 @@ class AppState: ObservableObject {
       isSystemAudioSupported = true
     }
 
-    // Note: Bluetooth subscription is initialized lazily via initializeBluetoothIfNeeded()
-    // to avoid triggering the permission dialog before the user reaches the Bluetooth step
-
     // Start periodic notification health check (every 30 min)
     // Detects when macOS silently revokes notification authorization and auto-repairs
     notificationHealthTimer = Timer.scheduledTimer(withTimeInterval: 30 * 60, repeats: true) {
@@ -610,39 +585,6 @@ class AppState: ObservableObject {
         self?.checkNotificationPermission()
       }
     }
-  }
-
-  /// Initialize Bluetooth manager and subscribe to state changes
-  /// Call this only when the user reaches the Bluetooth onboarding step
-  func initializeBluetoothIfNeeded() {
-    guard bluetoothStateCancellable == nil else {
-      log("Bluetooth already initialized, skipping")
-      return
-    }
-
-    log("Initializing Bluetooth manager...")
-
-    // Also initialize DeviceProvider's Bluetooth bindings
-    DeviceProvider.shared.initializeBluetoothBindingsIfNeeded()
-
-    // Subscribe to Bluetooth state changes for reactive permission updates
-    bluetoothStateCancellable = BluetoothManager.shared.$bluetoothState
-      .receive(on: DispatchQueue.main)
-      .sink { [weak self] state in
-        guard let self = self else { return }
-        let oldValue = self.hasBluetoothPermission
-        // poweredOn = ready to use, poweredOff = allowed but BT is off
-        let newValue = state == .poweredOn || state == .poweredOff
-        log(
-          "BLUETOOTH_SUBSCRIPTION: state=\(BluetoothManager.shared.bluetoothStateDescription), stateRaw=\(state.rawValue), auth=\(BluetoothManager.shared.authorizationDescription), granted=\(newValue)"
-        )
-        if newValue != oldValue {
-          log(
-            "Bluetooth permission changed via subscription: \(oldValue) -> \(newValue), state=\(BluetoothManager.shared.bluetoothStateDescription)"
-          )
-          self.hasBluetoothPermission = newValue
-        }
-      }
   }
 
   /// Setup observers for app quit and system sleep to finalize conversations
@@ -809,8 +751,6 @@ extension Notification.Name {
   static let showTryAskingPopup = Notification.Name("showTryAskingPopup")
   /// Posted (automation bridge) to open the inline chat on the redesigned Home
   static let homeStageOpenChat = Notification.Name("homeStageOpenChat")
-  /// Posted (automation bridge) to toggle the Connect tray on the redesigned Home
-  static let homeStageToggleConnect = Notification.Name("homeStageToggleConnect")
   /// Posted (automation bridge) to collapse the redesigned Home back to the hub
   static let homeStageClose = Notification.Name("homeStageClose")
   /// Posted (automation bridge) to send a query through the Home ask bar. userInfo["query"] = text.
@@ -827,14 +767,12 @@ extension Notification.Name {
   static let navigateToRewindNotes = Notification.Name("navigateToRewindNotes")
   /// Posted to expand the transcript/notes panel on the Rewind page
   static let expandRewindTranscript = Notification.Name("expandRewindTranscript")
-  /// Posted to navigate to Device settings
-  static let navigateToDeviceSettings = Notification.Name("navigateToDeviceSettings")
   /// Posted to navigate to Task Assistant settings (Developer Settings)
   static let navigateToTaskSettings = Notification.Name("navigateToTaskSettings")
   /// Posted to navigate to Ask Omi Floating Bar settings
   static let navigateToFloatingBarSettings = Notification.Name("navigateToFloatingBarSettings")
-  /// Posted to navigate to AI Chat settings
-  static let navigateToAIChatSettings = Notification.Name("navigateToAIChatSettings")
+  /// Posted to navigate to the retained advanced AI settings.
+  static let navigateToAdvancedAISettings = Notification.Name("navigateToAdvancedAISettings")
   /// Posted when a new Rewind frame is captured (for live frame count updates)
   static let rewindFrameCaptured = Notification.Name("rewindFrameCaptured")
   /// Posted when Rewind page finishes loading initial data
@@ -847,8 +785,6 @@ extension Notification.Name {
   static let focusPageDidLoad = Notification.Name("focusPageDidLoad")
   /// Posted when Advice page finishes loading initial data
   static let insightPageDidLoad = Notification.Name("insightPageDidLoad")
-  /// Posted when Apps page finishes loading initial data
-  static let appsPageDidLoad = Notification.Name("appsPageDidLoad")
   /// Posted when a goal is auto-created by GoalGenerationService
   static let goalAutoCreated = Notification.Name("goalAutoCreated")
   /// Posted when a goal is completed (current_value >= target_value)
@@ -873,10 +809,6 @@ extension Notification.Name {
   /// Posted by the local desktop automation bridge to expand the transcript drawer.
   static let desktopAutomationShowConversationTranscriptRequested = Notification.Name(
     "desktopAutomationShowConversationTranscriptRequested")
-  /// Posted when file indexing completes (userInfo: ["totalFiles": Int])
-  static let fileIndexingComplete = Notification.Name("fileIndexingComplete")
-  /// Posted from Settings to trigger the file indexing sheet
-  static let triggerFileIndexing = Notification.Name("triggerFileIndexing")
   /// Posted from menu bar to toggle transcription (userInfo: ["enabled": Bool])
   static let toggleTranscriptionRequested = Notification.Name("toggleTranscriptionRequested")
 }

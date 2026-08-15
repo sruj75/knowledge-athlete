@@ -78,7 +78,6 @@ struct ChatMessagesView<WelcomeContent: View>: View {
   let hasMoreMessages: Bool
   let isLoadingMoreMessages: Bool
   let isLoadingInitial: Bool
-  let app: OmiApp?
   let onLoadMore: () async -> Void
   var onCitationTap: ((Citation) -> Void)? = nil
   var sessionsLoadError: String? = nil
@@ -543,7 +542,6 @@ struct ChatMessagesView<WelcomeContent: View>: View {
       ForEach(Array(displayMessages.enumerated()), id: \.element.id) { index, message in
         ChatBubble(
           message: message,
-          app: app,
           showsOmiMark: message.id == finalAssistantMessageID,
           onCitationTap: { citation in
             onCitationTap?(citation)

@@ -60,6 +60,17 @@ class _CollectionRef:
     def document(self, document_id: str) -> _DocumentRef:
         return _DocumentRef(self.firestore, self.path + (document_id,))
 
+    def limit(self, count: int) -> '_CollectionRef':
+        assert count == 1
+        return self
+
+    def stream(self, transaction: object = None):
+        del transaction
+        for path, data in self.firestore.documents.items():
+            if path[:-1] == self.path:
+                yield _Snapshot(data)
+                return
+
 
 @dataclass
 class _Transaction:
@@ -250,6 +261,56 @@ def test_empty_cleanup_keeps_a_conversation_whose_segments_cannot_be_decoded(rec
 
     assert deleted is False
     assert conversation_path in recording_store.documents
+
+
+def test_empty_cleanup_keeps_a_legacy_inline_photo_only_conversation(recording_store):
+    conversation_path = ('users', 'uid', 'conversations', 'conversation')
+    conversation = _stored_conversation([])
+    conversation['photos'] = [{'id': 'legacy-photo'}]
+    recording_store.documents[conversation_path] = conversation
+
+    deleted = recording_sessions.tombstone_and_delete_empty_conversation(
+        'uid', 'conversation', None, firestore_client=recording_store
+    )
+
+    assert deleted is False
+    assert conversation_path in recording_store.documents
+
+
+def test_empty_cleanup_keeps_a_legacy_child_photo_only_conversation(recording_store):
+    conversation_path = ('users', 'uid', 'conversations', 'conversation')
+    photo_path = conversation_path + ('photos', 'legacy-photo')
+    recording_store.documents[conversation_path] = _stored_conversation([])
+    recording_store.documents[photo_path] = {'id': 'legacy-photo'}
+
+    deleted = recording_sessions.tombstone_and_delete_empty_conversation(
+        'uid', 'conversation', None, firestore_client=recording_store
+    )
+
+    assert deleted is False
+    assert conversation_path in recording_store.documents
+
+
+def test_legacy_photo_probe_checks_inline_and_child_storage(recording_store):
+    conversation_path = ('users', 'uid', 'conversations', 'conversation')
+    photo_path = conversation_path + ('photos', 'legacy-photo')
+
+    assert conversations_db.conversation_has_legacy_photos(
+        'uid',
+        'conversation',
+        conversation={'photos': [{'id': 'inline-photo'}]},
+        firestore_client=recording_store,
+    )
+
+    recording_store.documents[photo_path] = {'id': 'legacy-photo'}
+    assert conversations_db.conversation_has_legacy_photos(
+        'uid', 'conversation', conversation={}, firestore_client=recording_store
+    )
+
+    recording_store.documents.pop(photo_path)
+    assert not conversations_db.conversation_has_legacy_photos(
+        'uid', 'conversation', conversation={}, firestore_client=recording_store
+    )
 
 
 def test_conflicting_retry_returns_the_original_conversation(recording_store):

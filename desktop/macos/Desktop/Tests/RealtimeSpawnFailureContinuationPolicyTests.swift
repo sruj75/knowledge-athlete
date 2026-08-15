@@ -7,43 +7,24 @@ final class RealtimeSpawnFailureContinuationPolicyTests: XCTestCase {
     var policy = RealtimeSpawnFailureContinuationPolicy()
     let turn = UUID()
 
-    XCTAssertTrue(policy.beginContinuationIfAllowed(turnID: turn, failedProvider: "codex"))
+    XCTAssertTrue(policy.beginContinuationIfAllowed(turnID: turn))
     XCTAssertFalse(
-      policy.beginContinuationIfAllowed(turnID: turn, failedProvider: "hermes"),
+      policy.beginContinuationIfAllowed(turnID: turn),
       "the second spawn failure in the same turn must terminate it — no retry loops")
   }
 
   func testDistinctTurnsEachGetOneContinuation() {
     var policy = RealtimeSpawnFailureContinuationPolicy()
 
-    XCTAssertTrue(policy.beginContinuationIfAllowed(turnID: UUID(), failedProvider: nil))
-    XCTAssertTrue(policy.beginContinuationIfAllowed(turnID: UUID(), failedProvider: "openclaw"))
+    XCTAssertTrue(policy.beginContinuationIfAllowed(turnID: UUID()))
+    XCTAssertTrue(policy.beginContinuationIfAllowed(turnID: UUID()))
   }
 
   func testDefaultAgentFailureStillGetsOneContinuation() {
     var policy = RealtimeSpawnFailureContinuationPolicy()
     let turn = UUID()
 
-    XCTAssertTrue(policy.beginContinuationIfAllowed(turnID: turn, failedProvider: nil))
-    XCTAssertFalse(policy.beginContinuationIfAllowed(turnID: turn, failedProvider: nil))
-  }
-
-  func testTakeFailedProviderConsumesTheFallbackFromLabelOnce() {
-    var policy = RealtimeSpawnFailureContinuationPolicy()
-    let turn = UUID()
-    _ = policy.beginContinuationIfAllowed(turnID: turn, failedProvider: "codex")
-
-    XCTAssertEqual(policy.takeFailedProvider(turnID: turn), "codex")
-    XCTAssertNil(
-      policy.takeFailedProvider(turnID: turn),
-      "consuming twice would double-report the same fallback")
-  }
-
-  func testNoFailedProviderIsRecordedForDefaultAgentFailures() {
-    var policy = RealtimeSpawnFailureContinuationPolicy()
-    let turn = UUID()
-    _ = policy.beginContinuationIfAllowed(turnID: turn, failedProvider: nil)
-
-    XCTAssertNil(policy.takeFailedProvider(turnID: turn))
+    XCTAssertTrue(policy.beginContinuationIfAllowed(turnID: turn))
+    XCTAssertFalse(policy.beginContinuationIfAllowed(turnID: turn))
   }
 }

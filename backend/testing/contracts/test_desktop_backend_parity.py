@@ -228,20 +228,3 @@ def test_python_memory_query_and_filter_semantics():
     fake_db = FakeQuery([active, rejected, invalidated])
     result = memories_db.get_memories("contract-user-8547", include_invalidated=True, firestore_client=fake_db)
     assert [memory["id"] for memory in result] == ["active", "invalidated"]
-
-
-def test_python_public_memories_treat_missing_visibility_as_public():
-    fake_db = FakeQuery(
-        [
-            {"id": "missing-visibility", "content": "legacy public"},
-            {"id": "public", "content": "public", "visibility": "public"},
-            {"id": "private", "content": "private", "visibility": "private"},
-        ]
-    )
-
-    result = memories_db.get_user_public_memories("contract-user-8547", limit=5, offset=2, firestore_client=fake_db)
-
-    assert [memory["id"] for memory in result] == ["missing-visibility", "public"]
-    assert fake_db.orders == [("scoring", "DESCENDING"), ("created_at", "DESCENDING")]
-    assert fake_db.limit_value == 5
-    assert fake_db.offset_value == 2
