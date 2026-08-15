@@ -53,16 +53,7 @@ struct OnboardingHowDidYouHearStepView: View {
               isSelected: selectedSource == source.name
             ) {
               selectedSource = source.name
-              AnalyticsManager.shared.onboardingHowDidYouHear(source: source.name)
-              // Persist to the backend user record, not just local @AppStorage +
-              // analytics — otherwise the answer is lost on reinstall / other devices.
-              Task {
-                do {
-                  try await APIClient.shared.updateOnboardingAcquisitionSource(source.name)
-                } catch {
-                  NSLog("Onboarding: failed to persist how-did-you-hear source: \(error)")
-                }
-              }
+              OnboardingAcquisitionSourceRecorder().record(source.name)
               // First-ever answer auto-advances; on a revisit the user changes
               // the saved selection and moves on with the Continue button.
               if !hadSelectionOnAppear {

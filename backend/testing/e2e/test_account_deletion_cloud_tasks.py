@@ -235,12 +235,18 @@ def test_account_deletion_cloud_task_completes_once_and_redelivery_is_acked(
     cloud_tasks_client.expect_pending_marker(fake_firestore, test_uid)
     claimed_markers = _observe_claim_transitions(monkeypatch, fake_firestore, test_uid)
 
-    admitted = client.delete("/v1/users/delete-account", headers=auth_headers)
+    admitted = client.request(
+        "DELETE",
+        "/v1/users/delete-account",
+        json={"reason": "unused", "reason_details": "must not persist", "survey": {"answer": "anything"}},
+        headers=auth_headers,
+    )
     assert admitted.status_code == 200, admitted.text
     assert admitted.json() == {"status": "ok", "message": "Account deletion started"}
 
     pending_marker = _read_marker(fake_firestore, test_uid)
     assert pending_marker["wipe_status"] == "pending"
+    assert {"reason", "reason_details", "survey"}.isdisjoint(pending_marker)
     wipe_job_id = pending_marker["wipe_job_id"]
     assert re.fullmatch(r"[0-9a-f]{32}", wipe_job_id)
     payload = _assert_enqueued_task_schema(cloud_tasks_client, wipe_job_id)

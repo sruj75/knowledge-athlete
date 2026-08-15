@@ -298,21 +298,6 @@ def clear_byok_active(uid: str):
     )
 
 
-def set_user_deletion_feedback(uid: str, reason: Optional[str], reason_details: Optional[str] = None):
-    # Stored in a top-level collection so it survives the user record being deleted.
-    # Use merge=True so a retried delete request does not erase a durable wipe marker
-    # (pending/failed/retrying/deleting_auth) already written to the same document.
-    db.collection('account_deletions').document(uid).set(
-        {
-            'uid': uid,
-            'reason': reason or '',
-            'reason_details': reason_details or '',
-            'timestamp': datetime.now(timezone.utc),
-        },
-        merge=True,
-    )
-
-
 def mark_user_deletion_wipe_running(uid: str):
     """Transition a queued wipe marker to ``running`` once the worker starts.
 
@@ -1429,22 +1414,6 @@ def set_user_language_preference(uid: str, language: str) -> None:
     user_ref.set({'language': language}, merge=True)
     invalidate(_USER_LANGUAGE_CACHE, uid)
     invalidate(_USER_TRANSCRIPTION_PREFS_CACHE, uid)
-
-
-def get_user_onboarding_state(uid: str) -> dict:
-    """Get the user's onboarding state from Firestore."""
-    user_ref = db.collection('users').document(uid)
-    user_doc = user_ref.get()
-    if user_doc.exists:
-        user_data = user_doc.to_dict()
-        return user_data.get('onboarding', {})
-    return {}
-
-
-def set_user_onboarding_state(uid: str, onboarding_data: dict) -> None:
-    """Update the user's onboarding state in Firestore (merge with existing)."""
-    user_ref = db.collection('users').document(uid)
-    user_ref.set({'onboarding': onboarding_data}, merge=True)
 
 
 def get_user_subscription(uid: str) -> Subscription:

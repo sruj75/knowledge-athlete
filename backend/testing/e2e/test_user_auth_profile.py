@@ -15,31 +15,16 @@ def _seed_user(uid="123", **fields):
     return data
 
 
-def test_auth_guard_and_onboarding_roundtrip(client, auth_headers):
-    unauth = client.get("/v1/users/onboarding")
-    assert unauth.status_code == 401
+def test_backend_onboarding_state_is_not_exposed(client, auth_headers):
+    read = client.get("/v1/users/onboarding", headers=auth_headers)
+    assert read.status_code == 404
 
-    malformed = client.get("/v1/users/onboarding", headers={"Authorization": "dev-token"})
-    assert malformed.status_code == 401
-
-    default = client.get("/v1/users/onboarding", headers=auth_headers)
-    assert default.status_code == 200, default.text
-    assert default.json() == {"completed": False, "acquisition_source": "", "device_onboarding_completed": False}
-
-    patch = client.patch(
+    write = client.patch(
         "/v1/users/onboarding",
         json={"completed": True, "acquisition_source": "friend", "device_onboarding_completed": True},
         headers=auth_headers,
     )
-    assert patch.status_code == 200, patch.text
-
-    persisted = client.get("/v1/users/onboarding", headers=auth_headers)
-    assert persisted.status_code == 200, persisted.text
-    assert persisted.json() == {
-        "completed": True,
-        "acquisition_source": "friend",
-        "device_onboarding_completed": True,
-    }
+    assert write.status_code == 404
 
 
 def test_profile_410_then_seeded_profile(client, auth_headers):

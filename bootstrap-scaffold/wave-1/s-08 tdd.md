@@ -1,6 +1,6 @@
 # S-08 TDD Plan — Re-own account identity without weakening lifecycle, deletion, or export
 
-Status: **ready to start the config-independent Wave 1 tranche; external and released-contract gates apply only to their named cycles, and later cycles remain dependency-gated**
+Status: **config-independent Wave 1 repository tranche implemented on 2026-08-15; the locked macOS session blocked the final live acquisition click, and external/released-contract gates plus later cycles remain dependency-gated**
 Slice: **S-08**
 Wave: **1**
 Authorizing and protecting decisions: **IR-006, IR-120, IR-124, IR-170 through IR-190, IR-830, IR-868, IR-877, IR-878**
@@ -496,3 +496,37 @@ When implementation and all authorized live proof are complete:
 6. A closed S-08 records commit(s), exact verification evidence, queue/project readback, export fixture counts, residue explanations, and any remaining downstream owner in `deletion-map.md`; rerun the requirements validator.
 
 S-08 is not closed by compiling, by repointing a Firebase plist alone, by deleting the Settings row's sibling API, by returning a smaller server export before the local export exists, or by removing deletion cleanup while rejected systems can still hold user data.
+
+## 2026-08-15 implementation record
+
+The configuration-independent repository tranche is implemented without
+crossing G1-G4 or Cycles 6-9:
+
+- the retained Apple/Google auth, restore, refresh, and sign-out suite remains
+  unchanged and green;
+- both Mac acquisition call sites now use one local-persistence plus analytics
+  owner, and the behavioral test installs a fail-on-any-request URL protocol;
+- the backend onboarding GET/PATCH routes and Firestore helpers are removed,
+  with the unrelated `/v4/listen` onboarding handler retained;
+- delete-account admission is bodyless, arbitrary legacy JSON cannot create
+  survey state, and reason/feedback storage is removed; and
+- account-deletion cleanup composition is separated from its durable claim/job
+  state machine, with an explicit downstream account/control metadata allowlist.
+
+Focused evidence:
+
+- `swift test --filter OnboardingAcquisitionSourceTests`: 1 passed;
+- retained auth/onboarding Swift filter: 30 passed;
+- account-deletion service selection: 20 passed, 19 deselected;
+- onboarding-route E2E and Cloud Tasks deletion lifecycle E2E: 1 passed each;
+- Swift OpenAPI generation check, route-policy baseline, requirements validator,
+  formatters, and `git diff --check`: passed.
+
+A disposable `com.omi.omi-s08-calgary` bundle built, launched against the
+hermetic local Auth emulator, and reached signed-in onboarding as synthetic
+`alice`. The final acquisition control could not be clicked because the Mac was
+at its lock screen and macOS exposed no application windows to Accessibility.
+The bundle was stopped and moved to Trash; the local harness and Colima were
+stopped. Provider cleanup, queue/service retargeting, export composition, and
+owned identity configuration remain intentionally assigned to their existing
+gates.

@@ -46,6 +46,16 @@ class PurgeResult(TypedDict):
 ACCOUNT_DELETION_WIPE_COMPLETED = 'Account Deletion Wipe Completed'
 ACCOUNT_DELETION_WIPE_FAILED = 'Account Deletion Wipe Failed'
 
+# Downstream Firestore cleanup and server-export work may retain only these
+# account/control categories. Product content, onboarding surveys, credentials,
+# telemetry identifiers, and provider secrets are outside this allowlist.
+RETAINED_ACCOUNT_CONTROL_DATA_ALLOWLIST = (
+    'account_identity_mapping',
+    'entitlement_and_subscription',
+    'quota_and_usage',
+    'account_deletion_job_state',
+)
+
 
 def purge_derived_user_data(uid: str) -> PurgeResult:
     """Purge a user's derived data outside Firestore.
@@ -209,6 +219,49 @@ def _emit_deletion_telemetry(uid: str, event: str, properties: dict[str, object]
     emit_posthog_event(_ACCOUNT_DELETION_TELEMETRY_DISTINCT_ID, event, safe_properties)
 
 
+class AccountCleanupFailure(RuntimeError):
+    """A provider or retained Firestore cleanup failed before completion."""
+
+    def __init__(self, operation: str, purge_result: object, cause: Exception):
+        super().__init__(str(cause))
+        self.operation = operation
+        self.purge_result = purge_result
+
+
+def _perform_account_cleanup(uid: str) -> object:
+    """Compose every required external cleanup behind the durable worker."""
+    current_operation = 'billing_subscription'
+    purge_result: object = {}
+    try:
+        _cancel_subscription_for_account_deletion(uid)
+        current_operation = 'firebase_auth'
+        try:
+            auth.delete_account(uid)
+        except Exception as e:
+            err = str(e).upper()
+            if 'USER_NOT_FOUND' in err or 'NO USER RECORD' in err:
+                logger.info('delete_account worker observed Firebase Auth user already absent')
+            else:
+                raise
+        # Twilio caller IDs first, while the phone_numbers subcollection still
+        # carries twilio_sid metadata.
+        current_operation = 'twilio_caller_ids'
+        delete_user_caller_ids(uid)
+        current_operation = 'derived_data'
+        purge_result = purge_derived_user_data(uid)
+        required_failures = _required_failures_from_purge_result(purge_result)
+        if required_failures:
+            failed_operations = ', '.join(failure['operation'] for failure in required_failures)
+            raise RuntimeError(f'required derived purge failed: {failed_operations}')
+        current_operation = 'firestore_user_data'
+        wipe_result = users_db.delete_user_data(uid)
+        if wipe_result.get('status') != 'ok':
+            raise RuntimeError('authoritative Firestore user-data wipe did not complete')
+    except Exception as e:
+        raise AccountCleanupFailure(current_operation, purge_result, e) from e
+    return purge_result
+
+
 def background_wipe_user_data(uid: str, retry_count: int = 0, terminal: bool = False) -> bool:
     started_at = time.monotonic()
     current_operation = 'wipe_running_marker'
@@ -223,32 +276,12 @@ def background_wipe_user_data(uid: str, retry_count: int = 0, terminal: bool = F
         # irreversible step below. In particular, do not cancel billing or
         # remove Firebase Auth from the request thread: a queue NotFound must
         # leave an account usable and recoverable.
-        current_operation = 'billing_subscription'
-        _cancel_subscription_for_account_deletion(uid)
-        current_operation = 'firebase_auth'
-        try:
-            auth.delete_account(uid)
-        except Exception as e:
-            err = str(e).upper()
-            if 'USER_NOT_FOUND' in err or 'NO USER RECORD' in err:
-                logger.info('delete_account worker observed Firebase Auth user already absent')
-            else:
-                raise
-        # Twilio caller IDs first, while the phone_numbers subcollection still carries twilio_sid metadata.
-        current_operation = 'twilio_caller_ids'
-        delete_user_caller_ids(uid)
-        current_operation = 'derived_data'
-        purge_result = purge_derived_user_data(uid)
-        required_failures = _required_failures_from_purge_result(purge_result)
-        if required_failures:
-            failed_operations = ', '.join(failure['operation'] for failure in required_failures)
-            raise RuntimeError(f'required derived purge failed: {failed_operations}')
-        current_operation = 'firestore_user_data'
-        wipe_result = users_db.delete_user_data(uid)
-        if wipe_result.get('status') != 'ok':
-            raise RuntimeError('authoritative Firestore user-data wipe did not complete')
+        purge_result = _perform_account_cleanup(uid)
         logger.info('delete_account background wipe complete')
     except Exception as e:
+        if isinstance(e, AccountCleanupFailure):
+            current_operation = e.operation
+            purge_result = e.purge_result
         logger.error(f'delete_account background wipe failed for {uid}: {sanitize(str(e))}')
         # Mark the wipe as failed so a reconciliation worker can retry. Do NOT mark
         # completed — that would hide a partial wipe from the recovery path.
@@ -364,13 +397,7 @@ def _cancel_subscription_for_account_deletion(uid: str) -> None:
         raise
 
 
-def start_account_deletion(uid: str, reason: str | None = None, reason_details: str | None = None) -> dict[str, str]:
-    if reason or reason_details:
-        try:
-            users_db.set_user_deletion_feedback(uid, reason, reason_details)
-        except Exception as e:
-            logger.info(f'delete_account feedback store failed: {sanitize(str(e))}')
-
+def start_account_deletion(uid: str) -> dict[str, str]:
     # Persist the authoritative, actionable intent before dispatch. This state
     # is enough for reconciliation to recover a failed queue handoff, while the
     # Cloud Tasks handler claim fences all destructive work. If either write or

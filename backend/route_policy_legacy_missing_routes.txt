@@ -215,7 +215,6 @@ backend-main:http:GET:/v1/users/me/usage-quota
 backend-main:http:GET:/v1/users/mentor-notification-settings
 backend-main:http:GET:/v1/users/migration/requests
 backend-main:http:GET:/v1/users/notification-settings
-backend-main:http:GET:/v1/users/onboarding
 backend-main:http:GET:/v1/users/people
 backend-main:http:GET:/v1/users/people/{person_id}
 backend-main:http:GET:/v1/users/private-cloud-sync
@@ -307,7 +306,6 @@ backend-main:http:PATCH:/v1/users/geolocation
 backend-main:http:PATCH:/v1/users/language
 backend-main:http:PATCH:/v1/users/mentor-notification-settings
 backend-main:http:PATCH:/v1/users/notification-settings
-backend-main:http:PATCH:/v1/users/onboarding
 backend-main:http:PATCH:/v1/users/people/{person_id}/name
 backend-main:http:PATCH:/v1/users/transcription-preferences
 backend-main:http:PATCH:/v2/chat-sessions/{session_id}

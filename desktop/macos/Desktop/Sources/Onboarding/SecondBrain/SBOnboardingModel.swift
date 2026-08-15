@@ -160,6 +160,7 @@ final class SBOnboardingModel: ObservableObject {
   /// surfaces read. A context row is not connected until this store records a
   /// completed import, never merely because a browser session passed a probe.
   let importConnectorStatusStore: ImportConnectorStatusStore?
+  private let acquisitionSourceRecorder: OnboardingAcquisitionSourceRecorder
   /// Backend writes for editable answers are per-field serialized. Revisiting a
   /// question never lets an earlier request finish after the user's revision.
   private let answerWriteGate = OnboardingAnswerWriteGate()
@@ -184,6 +185,7 @@ final class SBOnboardingModel: ObservableObject {
     appState: AppState,
     chatProvider: ChatProvider,
     importConnectorStatusStore: ImportConnectorStatusStore? = nil,
+    acquisitionSourceRecorder: OnboardingAcquisitionSourceRecorder = OnboardingAcquisitionSourceRecorder(),
     fileScanRunner: @escaping FileScanRunner = { appState in
       ChatToolExecutor.onboardingAppState = appState
       guard let authorization = RuntimeOwnerIdentity.captureAuthorizationSnapshot() else {
@@ -223,6 +225,7 @@ final class SBOnboardingModel: ObservableObject {
     self.appState = appState
     self.chatProvider = chatProvider
     self.importConnectorStatusStore = importConnectorStatusStore
+    self.acquisitionSourceRecorder = acquisitionSourceRecorder
     self.fileScanRunner = fileScanRunner
     self.onComplete = onComplete
     // Isolate any onboarding chat/voice turns to the throwaway `.onboarding()`
@@ -508,15 +511,10 @@ final class SBOnboardingModel: ObservableObject {
     advance(userAnswer: trimmed, to: .howHeard)
   }
 
-  /// Record the acquisition source (analytics + backend, like the legacy step),
-  /// then move on.
+  /// Record the acquisition source locally and in analytics, then move on.
   func pickHowHeard(_ source: String) {
     howHeard = source
-    UserDefaults.standard.set(source, forKey: DefaultsKey.onboardingHowDidYouHearSource)
-    AnalyticsManager.shared.onboardingHowDidYouHear(source: source)
-    answerWriteGate.enqueue(.acquisitionSource) { [source] in
-      _ = try? await APIClient.shared.updateOnboardingAcquisitionSource(source)
-    }
+    acquisitionSourceRecorder.record(source)
     advance(userAnswer: source, to: .language)
   }
 

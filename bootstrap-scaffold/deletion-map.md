@@ -931,9 +931,10 @@ residue with S-05<br>
 ### S-08 — Re-own Firebase identity and narrow account lifecycle/data export
 
 **Type:** retained cloud-control adaptation<br>
-**Research status:** ready to start the config-independent Wave 1 tranche;
-external and released-contract gates apply only to their named cycles, and later
-closure remains dependency-gated<br>
+**Implementation status:** config-independent Wave 1 repository tranche
+implemented on 2026-08-15; the locked macOS session blocked the final live
+acquisition click, and external/released-contract gates plus later closure remain
+dependency-gated<br>
 **Depends on:** owned Firebase / Apple / Google identity inputs and the applicable
 released-contract decision; S-09 consumes the resulting identity/sign-out seam<br>
 **Primary decisions:** IR-006, IR-120, IR-124, IR-170 through IR-190, IR-830,
@@ -965,6 +966,13 @@ IR-868, IR-877, IR-878
   an explicit identity seam, and every deferred export/deletion/queue obligation
   has a named acceptance handoff. Full IR closure waits for the named downstream
   dependencies and final acceptance.
+- **2026-08-15 repository handoff:** retained auth/session/sign-out suites stayed
+  green; acquisition now has one local-plus-analytics owner and no backend write;
+  the backend onboarding routes/helpers and deletion survey payload are gone;
+  and the durable deletion worker names its retained cleanup boundary and
+  downstream account/control metadata allowlist. Current provider cleanup,
+  queue/service identity, export composition, and identity configuration remain
+  with their named gates rather than being removed or guessed here.
 
 ### S-09 — Re-own telemetry, diagnostics, issue reporting, and model tracing
 

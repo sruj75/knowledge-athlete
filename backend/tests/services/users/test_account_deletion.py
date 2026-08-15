@@ -73,13 +73,17 @@ def _new_wipe_intent(job_id='job-1'):
     return {'wipe_job_id': job_id, 'dispatch_claimed': True}
 
 
+def test_retained_account_control_allowlist_is_explicit_and_narrow():
+    assert account_deletion.RETAINED_ACCOUNT_CONTROL_DATA_ALLOWLIST == (
+        'account_identity_mapping',
+        'entitlement_and_subscription',
+        'quota_and_usage',
+        'account_deletion_job_state',
+    )
+
+
 def test_start_account_deletion_preserves_order_and_enqueues_background_wipe(monkeypatch):
     calls = []
-    monkeypatch.setattr(
-        account_deletion.users_db,
-        'set_user_deletion_feedback',
-        lambda uid, reason, details: calls.append(('feedback', uid, reason, details)),
-    )
     monkeypatch.setattr(
         account_deletion.users_db,
         'mark_user_deletion_wipe_intent',
@@ -96,11 +100,10 @@ def test_start_account_deletion_preserves_order_and_enqueues_background_wipe(mon
         lambda executor, target, uid: calls.append(('enqueue', executor, target, uid)),
     )
 
-    result = account_deletion.start_account_deletion('uid1', reason='unused', reason_details='details')
+    result = account_deletion.start_account_deletion('uid1')
 
     assert result == {'status': 'ok', 'message': 'Account deletion started'}
     assert calls == [
-        ('feedback', 'uid1', 'unused', 'details'),
         ('wipe_intent', 'uid1'),
         ('wipe_started', 'uid1', 'job-1'),
         ('enqueue', account_deletion.cleanup_executor, account_deletion.background_wipe_user_data, 'uid1'),
@@ -157,11 +160,7 @@ def test_start_account_deletion_accepts_durable_intent_when_cloud_task_enqueue_f
     submit.assert_not_called()
 
 
-def test_start_account_deletion_tolerates_feedback_failure_and_missing_firebase_user(monkeypatch):
-    """Feedback failures are tolerated, but marker and billing checks must succeed."""
-    monkeypatch.setattr(
-        account_deletion.users_db, 'set_user_deletion_feedback', MagicMock(side_effect=Exception('db down'))
-    )
+def test_start_account_deletion_schedules_background_wipe(monkeypatch):
     monkeypatch.setattr(
         account_deletion.users_db,
         'mark_user_deletion_wipe_intent',
@@ -179,7 +178,7 @@ def test_start_account_deletion_tolerates_feedback_failure_and_missing_firebase_
     monkeypatch.setattr(account_deletion, 'submit_with_context', submit)
     monkeypatch.setattr(account_deletion.time, 'sleep', lambda *_: None)
 
-    result = account_deletion.start_account_deletion('uid1', reason='reason')
+    result = account_deletion.start_account_deletion('uid1')
 
     assert result['status'] == 'ok'
     account_deletion.stripe_utils.cancel_subscription.assert_not_called()
