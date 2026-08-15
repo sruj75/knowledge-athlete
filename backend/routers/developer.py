@@ -1942,8 +1942,6 @@ def delete_conversation_endpoint(
     """
     Delete a conversation by ID.
 
-    This also deletes any associated photos in the conversation's subcollection.
-
     - **conversation_id**: The ID of the conversation to delete
     """
     conversation = conversations_db.get_conversation(uid, conversation_id)

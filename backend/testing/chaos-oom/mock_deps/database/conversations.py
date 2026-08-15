@@ -12,7 +12,6 @@ def get_conversation(uid, conversation_id):
         'finished_at': '2025-01-01T00:01:00Z',
         'status': 'processing',
         'transcript_segments': [],
-        'photos': [],
     }
 
 

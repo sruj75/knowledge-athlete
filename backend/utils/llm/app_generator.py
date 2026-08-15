@@ -52,7 +52,7 @@ class GeneratedAppData(BaseModel):
     memory_prompt: Optional[str] = None
 
 
-SYSTEM_PROMPT = """You are an expert app designer for Omi, an AI-powered wearable device that records conversations and provides intelligent insights.
+SYSTEM_PROMPT = """You are an expert app designer for Omi, a personal AI app that records conversations and provides intelligent insights.
 
 Your task is to design an app based on the user's description. Apps in Omi can have two main capabilities:
 

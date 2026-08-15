@@ -11,7 +11,6 @@
 tests/unit/test_goals_sort_missing_created_at.py
 tests/unit/test_goals_id_fallback.py
 tests/unit/test_review_queue_cascade_purge.py
-tests/unit/test_firmware_pagination.py
 tests/unit/test_folder_name_enrichment.py
 tests/unit/test_staged_tasks_dedup.py
 tests/unit/test_delete_account_stripe_cancel.py
@@ -57,7 +56,6 @@ tests/unit/test_memory_evidence_persistence.py
 tests/unit/test_memory_ledger.py
 tests/unit/test_memory_entities.py
 tests/unit/test_short_term_memory.py
-tests/unit/test_sync_transcription_prefs.py
 tests/unit/test_desktop_updates.py
 tests/unit/test_review_queue_non_active_routes.py
 tests/unit/test_kg_user_type_mismatch.py
@@ -90,7 +88,6 @@ tests/unit/test_fair_use_async.py
 tests/unit/test_fair_use_classifier.py
 tests/unit/test_fair_use_engine.py
 tests/unit/test_fair_use_free_tier.py
-tests/unit/test_sync_fair_use_gate.py
 tests/unit/test_vad_onnx.py
 tests/unit/test_modulate_stt.py
 tests/unit/test_short_audio_embedding.py

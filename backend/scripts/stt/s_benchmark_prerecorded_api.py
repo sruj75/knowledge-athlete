@@ -1,5 +1,5 @@
 """
-Benchmark: Pre-recorded STT via API endpoints (sync-local-files + voice-message/transcribe).
+Benchmark: Pre-recorded STT via the voice-message/transcribe API endpoint.
 
 Tests the full HTTP path that production uses — not just the STT function.
 Exercises STT_PRERECORDED_MODEL routing end-to-end.
@@ -194,29 +194,6 @@ def run_api_voice_transcribe(wav_bytes: bytes, host: str, port: int, token: str)
         'provider': 'api:voice-transcribe',
         'text': data.get('transcript', ''),
         'language': data.get('language', ''),
-        'latency': elapsed,
-    }
-
-
-def run_api_sync_local_files(wav_bytes: bytes, host: str, port: int, token: str) -> Dict[str, Any]:
-    import httpx
-
-    url = f'http://{host}:{port}/v1/sync-local-files'
-    headers = {'Authorization': f'Bearer {token}'}
-    files = [('files', ('segment.wav', BytesIO(wav_bytes), 'audio/wav'))]
-
-    start = time.monotonic()
-    with httpx.Client(timeout=120) as client:
-        resp = client.post(url, headers=headers, files=files)
-    elapsed = time.monotonic() - start
-
-    if resp.status_code != 200:
-        return {'error': f'HTTP {resp.status_code}: {resp.text[:200]}', 'latency': elapsed}
-
-    data = resp.json()
-    return {
-        'provider': 'api:sync-local-files',
-        'response': data,
         'latency': elapsed,
     }
 

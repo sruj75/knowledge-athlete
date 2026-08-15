@@ -11,24 +11,10 @@ from database import conversation_finalization_jobs as jobs
 from database import firestore_transaction_retry
 
 
-class _PhotoCollection:
-    def __init__(self, has_photo: bool):
-        self.has_photo = has_photo
-
-    def limit(self, count: int):
-        assert count == 1
-        return self
-
-    def stream(self, transaction=None):
-        del transaction
-        return iter([SimpleNamespace()] if self.has_photo else [])
-
-
 class _Ref:
-    def __init__(self, doc_id: str, data: dict | None, *, has_legacy_photo: bool = False):
+    def __init__(self, doc_id: str, data: dict | None):
         self.id = doc_id
         self.data = data
-        self.has_legacy_photo = has_legacy_photo
 
     def get(self, transaction=None):
         del transaction
@@ -36,10 +22,6 @@ class _Ref:
 
     def to_dict(self):
         return self.data
-
-    def collection(self, name: str):
-        assert name == 'photos'
-        return _PhotoCollection(self.has_legacy_photo)
 
 
 class _Collection:
@@ -66,7 +48,7 @@ def _now() -> datetime:
     return datetime(2026, 7, 13, tzinfo=timezone.utc)
 
 
-def _conversation(data: dict | None = None, *, has_legacy_photo: bool = False) -> _Ref:
+def _conversation(data: dict | None = None) -> _Ref:
     return _Ref(
         'conversation-1',
         {
@@ -74,7 +56,6 @@ def _conversation(data: dict | None = None, *, has_legacy_photo: bool = False) -
             'transcript_segments': [{'text': 'persisted'}],
             **(data or {}),
         },
-        has_legacy_photo=has_legacy_photo,
     )
 
 
@@ -231,7 +212,7 @@ def test_create_or_get_intent_retries_read_contention_with_a_fresh_transaction(m
     )
 
 
-def test_photo_only_conversation_with_durable_content_marker_is_admitted():
+def test_conversation_with_durable_content_marker_is_admitted():
     transaction = _Transaction()
     conversation_ref = _conversation({'transcript_segments': [], 'has_content': True})
     collection = _Collection({})
@@ -249,26 +230,6 @@ def test_photo_only_conversation_with_durable_content_marker_is_admitted():
 
     assert intent['status'] == 'queued'
     assert len(transaction.sets) == 1
-    assert transaction.updates[0][1]['status'] == 'processing'
-
-
-def test_legacy_photo_only_conversation_is_admitted_from_its_child_document():
-    transaction = _Transaction()
-    conversation_ref = _conversation({'transcript_segments': [], 'has_content': False}, has_legacy_photo=True)
-    collection = _Collection({})
-
-    intent = jobs._create_or_get_finalization_intent_txn(
-        transaction,
-        conversation_ref,
-        collection,
-        'uid-1',
-        'conversation-1',
-        False,
-        _admit_finalization,
-        _now(),
-    )
-
-    assert intent['status'] == 'queued'
     assert transaction.updates[0][1]['status'] == 'processing'
 
 

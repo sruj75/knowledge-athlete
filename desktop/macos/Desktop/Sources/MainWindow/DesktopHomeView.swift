@@ -1149,11 +1149,6 @@ struct DesktopHomeView: View {
         selectedSettingsSection = .rewind
         selectedIndex = SidebarNavItem.settings.rawValue
       }
-      .onReceive(NotificationCenter.default.publisher(for: .navigateToDeviceSettings)) { _ in
-        if let url = URL(string: "https://www.omi.me") {
-          NSWorkspace.shared.open(url)
-        }
-      }
       .onReceive(NotificationCenter.default.publisher(for: .navigateToTaskSettings)) { _ in
         // Navigate to settings > advanced > task assistant subsection
         selectedSettingsSection = .advanced

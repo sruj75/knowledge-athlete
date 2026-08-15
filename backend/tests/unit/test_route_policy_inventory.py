@@ -394,18 +394,18 @@ def test_check_reports_equivalent_path_template_duplicates():
 def test_timeout_override_validation_runs_both_directions():
     app = FastAPI()
 
-    @app.post('/v2/sync-jobs/run')
-    def sync_job():
+    @app.post('/v2/audio-merge-jobs/run')
+    def audio_merge_job():
         return {'ok': True}
 
     @app.post('/v2/no-override')
     def no_override():
         return {'ok': True}
 
-    entries = inventory.iter_inventory_entries(app, paths_timeout={'/v2/sync-jobs/run': 1500, '/missing': 10})
+    entries = inventory.iter_inventory_entries(app, paths_timeout={'/v2/audio-merge-jobs/run': 1500, '/missing': 10})
     manifest = _manifest(
         [
-            _route('POST', '/v2/sync-jobs/run', policy=_policy(timeout_class='sync_job')),
+            _route('POST', '/v2/audio-merge-jobs/run', policy=_policy(timeout_class='audio_merge')),
             _route('POST', '/v2/no-override', policy=_policy(timeout_class='audio_merge')),
         ]
     )
@@ -413,7 +413,7 @@ def test_timeout_override_validation_runs_both_directions():
     problems, summary = inventory.validate_inventory(
         entries=entries,
         manifest=manifest,
-        paths_timeout={'/v2/sync-jobs/run': 1500, '/missing': 10},
+        paths_timeout={'/v2/audio-merge-jobs/run': 1500, '/missing': 10},
     )
 
     joined = '\n'.join(problems)
@@ -427,20 +427,20 @@ def test_timeout_override_validation_runs_both_directions():
 def test_timeout_override_conflicts_with_default_manifest_class():
     app = FastAPI()
 
-    @app.post('/v2/sync-jobs/run')
-    def sync_job():
+    @app.post('/v2/audio-merge-jobs/run')
+    def audio_merge_job():
         return {'ok': True}
 
-    entries = inventory.iter_inventory_entries(app, paths_timeout={'/v2/sync-jobs/run': 1500})
-    manifest = _manifest([_route('POST', '/v2/sync-jobs/run', policy=_policy(timeout_class='default_method'))])
+    entries = inventory.iter_inventory_entries(app, paths_timeout={'/v2/audio-merge-jobs/run': 1500})
+    manifest = _manifest([_route('POST', '/v2/audio-merge-jobs/run', policy=_policy(timeout_class='default_method'))])
 
     problems, summary = inventory.validate_inventory(
         entries=entries,
         manifest=manifest,
-        paths_timeout={'/v2/sync-jobs/run': 1500},
+        paths_timeout={'/v2/audio-merge-jobs/run': 1500},
     )
 
-    assert 'has sync_job timeout override but manifest says default_method' in '\n'.join(problems)
+    assert 'has audio_merge timeout override but manifest says default_method' in '\n'.join(problems)
     assert summary['missing_timeout_overrides'] == 1
 
 
@@ -494,12 +494,14 @@ def test_system_routes_are_reported_as_excluded_not_application_routes():
 
 
 def test_problem_detail_limiter_keeps_header_and_reports_hidden_count():
-    problem = textwrap.dedent("""\
+    problem = textwrap.dedent(
+        """\
         missing manifest entries:
           - one
           - two
           - three
-        """).strip()
+        """
+    ).strip()
 
     assert inventory.limit_problem_details(problem, max_lines=3).endswith('  ... 1 more not shown')
 

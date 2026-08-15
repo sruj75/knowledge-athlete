@@ -47,18 +47,8 @@ def test_startup_decisions_pin_current_overrides():
 
 
 def test_codec_frame_normalization_pins_special_codecs():
-    opus = normalize_codec_frame('opus_fs320')
-    assert opus.codec == 'opus'
-    assert opus.lc3_chunk_size is None
-    assert opus.lc3_frame_duration_us is None
-
-    lc3 = normalize_codec_frame('lc3_fs1030')
-    assert lc3.codec == 'lc3'
-    assert lc3.lc3_chunk_size == 30
-    assert lc3.lc3_frame_duration_us == 10000
-
-    pcm = normalize_codec_frame('pcm8')
-    assert pcm.codec == 'pcm8'
+    assert normalize_codec_frame('opus_fs320') == 'opus'
+    assert normalize_codec_frame('pcm8') == 'pcm8'
 
 
 def test_translation_language_gating():
@@ -286,7 +276,6 @@ def test_disconnect_processing_only_targets_single_channel_in_progress_with_cont
         'status': 'in_progress',
         'source': 'desktop',
         'transcript_segments': [{'text': 'synthetic transcript'}],
-        'photos': [],
     }
 
     assert (
@@ -338,7 +327,7 @@ def test_disconnect_processing_only_targets_single_channel_in_progress_with_cont
             is_multi_channel=False,
             close_code=1000,
             conversation_id='conversation-1',
-            conversation={'status': 'in_progress', 'transcript_segments': [], 'photos': []},
+            conversation={'status': 'in_progress', 'transcript_segments': []},
             in_progress_status='in_progress',
         )
         is False
@@ -350,7 +339,6 @@ def test_disconnect_processing_rejects_non_desktop_clean_close_with_content():
         'status': 'in_progress',
         'source': 'phone',
         'transcript_segments': [{'text': 'synthetic transcript'}],
-        'photos': [],
     }
 
     assert (
@@ -373,7 +361,6 @@ def test_disconnect_processing_accepts_enum_like_desktop_source():
         'status': 'in_progress',
         'source': Source(),
         'transcript_segments': [{'text': 'synthetic transcript'}],
-        'photos': [],
     }
 
     assert (

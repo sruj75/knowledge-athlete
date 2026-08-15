@@ -16,7 +16,6 @@ from models.app import App
 from models.chat import Message, MessageSender, PageContext
 from models.conversation_enums import CategoryEnum
 from models.conversation_metadata import ConversationMetadata
-from models.conversation_photo import ConversationPhoto
 from models.other import Person
 from models.transcript_segment import TranscriptSegment
 from utils.llms.memory import get_prompt_memories
@@ -141,13 +140,13 @@ def retrieve_is_an_omi_question(question: str) -> bool:
     Examples of Omi/Friend App Questions (return True):
     - "How does Omi work?"
     - "What can Omi do?"
-    - "How can I buy the device?"
+    - "Where can I download the app?"
     - "Where do I get Friend?"
     - "What features does the app have?"
     - "How do I set up Omi?"
     - "Does Omi support multiple languages?"
-    - "What is the battery life?"
-    - "How do I connect my device?"
+    - "How does conversation capture work?"
+    - "How do I choose a microphone?"
 
     Examples of Personal Data Questions (return False):
     - "How many conversations did I have last month?"
@@ -161,7 +160,7 @@ def retrieve_is_an_omi_question(question: str) -> bool:
 
     Examples of Action/Task Requests (return False):
     - "Can you remind me to check the Omi chat discussion on GitHub?"
-    - "Remind me to update the Omi firmware"
+    - "Remind me to update the Omi app"
     - "Create a task to review Friend documentation"
     - "Set an alarm for my Omi meeting"
     - "Add to my list: check Omi updates"
@@ -176,7 +175,9 @@ def retrieve_is_an_omi_question(question: str) -> bool:
     {question}
     
     Is this asking about the Omi/Friend app product itself?
-    '''.replace('    ', '').strip()
+    '''.replace(
+        '    ', ''
+    ).strip()
     with_parser = get_llm('chat_extraction').with_structured_output(IsAnOmiQuestion)
     response = cast(IsAnOmiQuestion, with_parser.invoke(prompt))
     try:
@@ -227,7 +228,9 @@ def retrieve_context_dates_by_question(question: str, tz: str) -> List[datetime]
     {question}
     </question>
 
-    '''.replace('    ', '').strip()
+    '''.replace(
+        '    ', ''
+    ).strip()
 
     # print(prompt)
     # print(get_llm('chat_extraction').invoke(prompt).content)
@@ -287,7 +290,9 @@ def _get_answer_simple_message_prompt(uid: str, messages: List[Message], app: Op
     {conversation_history}
 
     Answer:
-    """.replace('    ', '').strip()
+    """.replace(
+        '    ', ''
+    ).strip()
 
 
 def answer_simple_message(uid: str, messages: List[Message], plugin: Optional[App] = None) -> str:
@@ -322,7 +327,9 @@ def _get_answer_omi_question_prompt(messages: List[Message], context: str) -> st
     {conversation_history}
 
     Answer:
-    """.replace('    ', '').strip()
+    """.replace(
+        '    ', ''
+    ).strip()
 
 
 def answer_omi_question(messages: List[Message], context: str) -> str:
@@ -361,7 +368,8 @@ def _get_qa_rag_prompt(
       - Avoid citing irrelevant memories.
     """
 
-    return f"""
+    return (
+        f"""
     <assistant_role>
         You are an assistant for question-answering tasks.
     </assistant_role>
@@ -420,7 +428,12 @@ def _get_qa_rag_prompt(
     </question_timezone>
 
     <answer>
-    """.replace('    ', '').replace('\n\n\n', '\n\n').strip()
+    """.replace(
+            '    ', ''
+        )
+        .replace('\n\n\n', '\n\n')
+        .strip()
+    )
 
 
 # The agentic system prompt is wrapped in a single Anthropic cache_control breakpoint,
@@ -997,7 +1010,9 @@ def retrieve_memory_context_params(
 
     Conversation:
     {transcript}
-    '''.replace('    ', '').strip()
+    '''.replace(
+        '    ', ''
+    ).strip()
 
     try:
         with track_usage(uid, Features.CHAT):
@@ -1043,7 +1058,9 @@ def obtain_emotional_message(
     ```
     {context}
     ```
-    """.replace('    ', '').strip()
+    """.replace(
+        '    ', ''
+    ).strip()
     with track_usage(uid, Features.CHAT):
         return _content_str(get_llm('chat_extraction').invoke(prompt))
 
@@ -1159,7 +1176,9 @@ def extract_question_from_conversation(messages: List[Message]) -> str:
     - this day
     - etc.
     </date_in_term>
-    '''.replace('    ', '').strip()
+    '''.replace(
+        '    ', ''
+    ).strip()
     # print(prompt)
     question = cast(
         OutputQuestion, get_llm('chat_extraction').with_structured_output(OutputQuestion).invoke(prompt)
@@ -1173,7 +1192,6 @@ def retrieve_metadata_fields_from_transcript(
     created_at: datetime,
     transcript_segment: List[dict[str, Any]],
     tz: str,
-    photos: Optional[List[ConversationPhoto]] = None,
 ) -> dict[str, Any]:
     context_parts: List[str] = []
     if transcript_segment:
@@ -1183,11 +1201,6 @@ def retrieve_metadata_fields_from_transcript(
         if transcript.strip():
             context_parts.append(f"Conversation Transcript:\n```\n{transcript.strip()}\n```")
 
-    if photos:
-        photo_descriptions = ConversationPhoto.photos_as_string(photos, include_timestamps=True)
-        if photo_descriptions != 'None':
-            context_parts.append(f"Photo Descriptions from a wearable camera:\n{photo_descriptions}")
-
     if not context_parts:
         return {'people': [], 'topics': [], 'entities': [], 'dates': []}
 
@@ -1196,7 +1209,7 @@ def retrieve_metadata_fields_from_transcript(
 
     # TODO: ask it to use max 2 words? to have more standardization possibilities
     prompt = f'''
-    You will be given content which could be a raw transcript of a conversation, a series of photo descriptions from a wearable camera, or both. The transcript has about 20% word error rate, and diarization is also made very poorly.
+    You will be given a raw transcript of a conversation. The transcript has about 20% word error rate, and diarization is also made very poorly.
 
     Your task is to extract the most accurate information from the content in the output object indicated below.
 
@@ -1213,7 +1226,9 @@ def retrieve_metadata_fields_from_transcript(
     ```
     {full_context}
     ```
-    '''.replace('    ', '')
+    '''.replace(
+        '    ', ''
+    )
     try:
         with track_usage(uid, Features.CONVERSATION_PROCESSING):
             result = cast(
@@ -1273,7 +1288,9 @@ def retrieve_metadata_from_message(
     ```
     {message_text}
     ```
-    '''.replace('    ', '')
+    '''.replace(
+        '    ', ''
+    )
 
     return _process_extracted_metadata(uid, prompt, today)
 
@@ -1308,7 +1325,9 @@ def retrieve_metadata_from_text(
     ```
     {text}
     ```
-    '''.replace('    ', '')
+    '''.replace(
+        '    ', ''
+    )
 
     return _process_extracted_metadata(uid, prompt, today)
 
@@ -1357,7 +1376,9 @@ def select_structured_filters(question: str, filters_available: dict[str, Any]) 
     ```
 
     Question: {question}
-    '''.replace('    ', '').strip()
+    '''.replace(
+        '    ', ''
+    ).strip()
     # print(prompt)
     with_parser = get_llm('chat_extraction').with_structured_output(FiltersToUse)
     try:
@@ -1405,7 +1426,9 @@ def extract_question_from_transcript(uid: str, segments: List[TranscriptSegment]
     ```
     {TranscriptSegment.segments_as_string(segments, people=people, user_name=user_name)}
     ```
-    '''.replace('    ', '').strip()
+    '''.replace(
+        '    ', ''
+    ).strip()
     with track_usage(uid, Features.REALTIME_INTEGRATIONS):
         return cast(
             OutputQuestion, get_llm('chat_extraction').with_structured_output(OutputQuestion).invoke(prompt)
@@ -1457,7 +1480,9 @@ def provide_advice_message(uid: str, segments: List[TranscriptSegment], context:
     ```
     {context}
     ```
-    """.replace('    ', '').strip()
+    """.replace(
+        '    ', ''
+    ).strip()
     with track_usage(uid, Features.REALTIME_INTEGRATIONS):
         return cast(
             OutputMessage, get_llm('chat_extraction').with_structured_output(OutputMessage).invoke(prompt)

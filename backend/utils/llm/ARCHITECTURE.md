@@ -38,7 +38,6 @@ The shared plumbing every feature call goes through.
 - `conversation_folder.py` — conversation → folder assignment.
 - `followup.py` — follow-up question generation.
 - `persona.py` — persona chat, memory condensation for personas.
-- `openglass.py` — vision (image description) model calls.
 
 ## Memory & knowledge graph
 

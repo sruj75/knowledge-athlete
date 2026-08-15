@@ -20,7 +20,6 @@ prepare_google_credentials()
 
 from routers import (
     chat,
-    firmware,
     transcribe,
     omni_relay,
     auto_model,
@@ -160,7 +159,6 @@ app.include_router(trends.router)
 
 app.include_router(other.router)
 
-app.include_router(firmware.router)
 app.include_router(updates.router)
 app.include_router(sync.router)
 
@@ -214,11 +212,7 @@ methods_timeout = {
     "DELETE": os.environ.get('HTTP_DELETE_TIMEOUT'),
 }
 
-# The Cloud Tasks sync-job handler runs the whole pipeline inside the request,
-# so it needs a much higher cap than the default. Must stay below the job run
-# lock TTL (1800s) so a lock can never expire under a live run.
 paths_timeout = {
-    "/v2/sync-jobs/run": os.environ.get('HTTP_SYNC_JOBS_RUN_TIMEOUT', 1500),
     "/v2/audio-merge-jobs/run": os.environ.get('HTTP_AUDIO_MERGE_RUN_TIMEOUT', 600),
     "/v1/users/account-deletion-wipes/run": os.environ.get('HTTP_ACCOUNT_DELETION_WIPE_RUN_TIMEOUT', 1500),
     "/v1/conversation-finalization-jobs/run": os.environ.get('HTTP_LISTEN_FINALIZATION_RUN_TIMEOUT', 1500),

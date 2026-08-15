@@ -77,14 +77,12 @@ LEGIT_NON_JSON: dict[tuple[str, str], str] = {
     ("mcp_sse.py", "oauth_authorization_server_metadata_head"): "RFC 8414 OAuth discovery JSON (spec-defined)",
     ("mcp_sse.py", "openai_apps_challenge"): "OpenAI apps verification challenge (static asset)",
     # --- Cloud Tasks job runners (OIDC-verified internal, return JSONResponse acks directly) ---
-    ("sync.py", "run_sync_job"): "Cloud Tasks job runner (OIDC-verified internal, JSONResponse acks)",
     ("sync.py", "run_audio_merge_job"): "Cloud Tasks job runner (OIDC-verified internal, JSONResponse acks)",
     ("users.py", "run_account_deletion_wipe"): "Cloud Tasks job runner (OIDC-verified internal, JSONResponse acks)",
     (
         "conversation_finalization.py",
         "run_listen_finalization_job",
     ): "Cloud Tasks job runner (OIDC-verified internal, JSONResponse acks)",
-    ("sync.py", "sync_local_files"): "sync dispatch (JSONResponse, multi-mode dispatch)",
     ("omni_relay.py", "omni_relay"): "relay proxy (forwards to upstream, JSONResponse passthrough)",
 }
 

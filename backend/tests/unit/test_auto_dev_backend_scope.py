@@ -154,7 +154,7 @@ def test_unrelated_desktop_change_exits_as_a_green_no_op(git_repo: Path) -> None
 
 @pytest.mark.parametrize(
     'relative_path',
-    ('backend/main.py', '.github/actions/sync-backfill-lifecycle/action.yml'),
+    ('backend/main.py', '.github/actions/release-eligibility/action.yml'),
 )
 def test_backend_source_or_deploy_input_change_proceeds(git_repo: Path, relative_path: str) -> None:
     relevant_sha = _commit(git_repo, relative_path)

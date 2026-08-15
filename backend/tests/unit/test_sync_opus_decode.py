@@ -1,7 +1,7 @@
-"""Tests for Opus WAL file decoding in sync.py.
+"""Tests for the retained multipart voice-message Opus decoder.
 
 Covers the decode_opus_file_to_wav and decode_files_to_wav functions,
-focusing on failure modes that cause WALs to become permanently stuck:
+focusing on malformed uploads and partial writer failures:
 
   - Corrupt frames (opuslib raises) → reject the whole file, never partial-success
   - Corrupt length prefix → reject the whole file without reading garbage data
@@ -9,7 +9,8 @@ focusing on failure modes that cause WALs to become permanently stuck:
   - All-corrupt payload → must return False (no partial WAV created)
   - Short decoded audio (< 1 s) → decode_files_to_wav preserves it for VAD
 
-Each scenario corresponds to a real-world sticky-pending failure mode.
+The decoder remains shared by chat voice-message upload paths after wearable
+sync ingestion was retired.
 """
 
 import importlib.util
@@ -38,7 +39,6 @@ _stub_modules = [
     'database.user_usage',
     'database.conversations',
     'database.cache',
-    'database.sync_jobs',
     'firebase_admin',
     'firebase_admin.messaging',
     'opuslib',
@@ -81,22 +81,6 @@ def _ensure_attrs(module_name, attrs):
     return module
 
 
-class _ConversationSource:
-    omi = 'omi'
-    limitless = 'limitless'
-    unknown = 'unknown'
-
-
-def _ensure_conversation_source_stub():
-    source = getattr(sys.modules.setdefault('models.conversation_enums', MagicMock()), 'ConversationSource', None)
-    if source is None or not all(hasattr(source, attr) for attr in ('omi', 'limitless')):
-        sys.modules['models.conversation_enums'].ConversationSource = _ConversationSource
-
-    conversation_mod = sys.modules.setdefault('models.conversation', MagicMock())
-    if not hasattr(getattr(conversation_mod, 'ConversationSource', None), 'omi'):
-        conversation_mod.ConversationSource = sys.modules['models.conversation_enums'].ConversationSource
-
-
 def _install_python_multipart_stub():
     if 'python_multipart' in sys.modules:
         return False
@@ -113,27 +97,7 @@ sys.modules['database.redis_db'].r = MagicMock()
 sys.modules['database._client'].db = MagicMock()
 _ensure_attrs('opuslib', ['Decoder'])
 _ensure_attrs('database.conversations', ['get_closest_conversation_to_timestamps', 'update_conversation_segments'])
-_ensure_attrs(
-    'database.sync_jobs',
-    [
-        'TERMINAL_STATUSES',
-        'create_sync_job',
-        'get_sync_job',
-        'update_sync_job',
-        'mark_job_processing',
-        'finalize_sync_job',
-        'mark_job_completed',
-        'mark_job_failed',
-        'mark_job_queued_for_retry',
-        'try_acquire_job_run_lock',
-        'release_job_run_lock',
-        'add_processed_segment',
-        'get_processed_segments',
-        'try_mark_once',
-    ],
-)
 _ensure_attrs('models.conversation', ['Conversation', 'CreateConversation'])
-_ensure_conversation_source_stub()
 _ensure_attrs('models.transcript_segment', ['TranscriptSegment'])
 _ensure_attrs('utils.conversations.factory', ['deserialize_conversation'])
 _ensure_attrs('utils.conversations.process_conversation', ['process_conversation'])
@@ -145,8 +109,6 @@ _ensure_attrs(
         'get_syncing_file_temporal_signed_url',
         'delete_syncing_temporal_file',
         'schedule_syncing_temporal_file_deletion',
-        'upload_syncing_temporal_file',
-        'download_syncing_temporal_file',
         'download_audio_chunks_and_merge',
         'get_or_create_merged_audio',
         'get_merged_audio_signed_url',
@@ -164,11 +126,7 @@ _ensure_attrs('utils.byok', ['get_byok_keys', 'set_byok_keys', 'has_byok_keys'])
 _ensure_attrs(
     'utils.cloud_tasks',
     [
-        'enqueue_sync_job',
-        'get_sync_tasks_max_attempts',
         'is_audio_merge_dispatch_enabled',
-        'is_cloud_tasks_dispatch_enabled',
-        'verify_cloud_tasks_oidc',
     ],
 )
 _ensure_attrs('utils.http_client', ['_get_semaphore'])
@@ -219,7 +177,6 @@ sys.modules['utils.log_sanitizer'].sanitize_pii = lambda x: x
 
 _remove_python_multipart_stub = _install_python_multipart_stub()
 try:
-    from utils.sync.pipeline import _merge_and_cap_vad_segments, MAX_VAD_SEGMENT_SECONDS  # noqa: E402
     from utils.sync.files import (  # noqa: E402
         MAX_SYNC_FRAME_BYTES,
         decode_files_to_wav,
@@ -244,7 +201,7 @@ FAKE_PCM_FRAME = b'\x00' * 320
 
 
 def _write_opus_bin(path: str, frames: list[bytes]) -> None:
-    """Write a length-prefixed Omi WAL file (the on-device Opus format)."""
+    """Write a length-prefixed Opus file accepted by retained voice-message decoding."""
     with open(path, 'wb') as f:
         for frame in frames:
             f.write(struct.pack('<I', len(frame)))
@@ -708,49 +665,3 @@ class TestDecodeFilesToWavOpus:
 
             assert wav_files == [bin_path.replace('.bin', '.wav')]
             assert get_wav_duration(wav_files[0]) > 0
-
-
-class TestMergeAndCapVadSegments:
-    """VAD merge + per-segment length cap that guards the STT worker from GPU OOM."""
-
-    def _assert_within_cap(self, segments):
-        for s in segments:
-            assert s['end'] - s['start'] <= MAX_VAD_SEGMENT_SECONDS
-
-    def test_close_spans_merge(self):
-        out = _merge_and_cap_vad_segments([{'start': 0, 'end': 2}, {'start': 3, 'end': 5}])
-        assert out == [{'start': 0, 'end': 5}]
-
-    def test_far_apart_spans_not_merged(self):
-        spans = [{'start': 0, 'end': 2}, {'start': 300, 'end': 320}]
-        assert _merge_and_cap_vad_segments(spans) == [{'start': 0, 'end': 2}, {'start': 300, 'end': 320}]
-
-    def test_continuous_audio_is_capped(self):
-        # 50s spans 1s apart spanning ~900s would merge into one giant segment without the cap.
-        spans = [{'start': i, 'end': i + 50} for i in range(0, 900, 51)]
-        out = _merge_and_cap_vad_segments(spans)
-        assert len(out) > 1
-        self._assert_within_cap(out)
-        for a, b in zip(out, out[1:]):
-            assert b['start'] >= a['end']
-
-    def test_single_long_span_is_split(self):
-        out = _merge_and_cap_vad_segments([{'start': 0, 'end': 800}])
-        self._assert_within_cap(out)
-        assert out[0]['start'] == 0
-        assert out[-1]['end'] == 800
-        for a, b in zip(out, out[1:]):
-            assert b['start'] == a['end']
-
-    def test_exact_multiple_of_cap(self):
-        cap = MAX_VAD_SEGMENT_SECONDS
-        out = _merge_and_cap_vad_segments([{'start': 0, 'end': 2 * cap}])
-        assert out == [{'start': 0, 'end': cap}, {'start': cap, 'end': 2 * cap}]
-
-    def test_empty(self):
-        assert _merge_and_cap_vad_segments([]) == []
-
-    def test_input_not_mutated(self):
-        spans = [{'start': 0, 'end': 2}, {'start': 3, 'end': 5}]
-        _merge_and_cap_vad_segments(spans)
-        assert spans == [{'start': 0, 'end': 2}, {'start': 3, 'end': 5}]

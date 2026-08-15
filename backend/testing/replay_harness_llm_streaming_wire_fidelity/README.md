@@ -29,9 +29,9 @@ The oracle proves only that:
 ## Residual boundary
 
 This is not provider conformance, production endpoint behavior, client
-compatibility, traffic capture/replay, a release gate, LC3 or timing
+compatibility, traffic capture/replay, a release gate, audio-codec or timing
 qualification, or Phase 0B. It neither changes nor replaces the Listen Pusher
-or Sync Cloud Tasks gauntlets, and it makes no real provider calls.
+gauntlets, and it makes no real provider calls.
 
 ## Data safety
 

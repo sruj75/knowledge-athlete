@@ -43,7 +43,7 @@ def _conversation() -> dict:
 
 def _host(conversation: dict, *, fail_update: bool) -> SimpleNamespace:
     return SimpleNamespace(
-        limits=SimpleNamespace(max_segment_buffer_size=100, max_photo_buffer_size=100),
+        limits=SimpleNamespace(max_segment_buffer_size=100),
         # A different current conversation forces the persistence load path.
         state=SimpleNamespace(active=True, current_conversation_id='other-conversation'),
         persistence=_Persistence(conversation, fail_update),

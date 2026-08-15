@@ -88,15 +88,6 @@ def with_backend_public_shared_chat_auth_env(payload: str) -> str:
     )
 
 
-def with_sync_ledger_fence_mode(payload: str) -> str:
-    """Keep offline Cloud Run state fixtures aligned with the protected rollout default."""
-    return payload.replace(
-        '        {"name": "GOOGLE_CLOUD_PROJECT", "value": "based-hardware"},',
-        '        {"name": "GOOGLE_CLOUD_PROJECT", "value": "based-hardware"},\n'
-        '        {"name": "SYNC_LEDGER_FENCE_MODE", "value": "legacy"},',
-    )
-
-
 def with_listen_finalization_orphan_env(payload: str) -> str:
     """Keep offline Cloud Run state fixtures aligned with the reliability recovery setting."""
     return payload.replace(
@@ -126,11 +117,7 @@ GOOGLE_OAUTH_SECRETS = '''\
 
 def with_cloud_run_oauth_secrets(payload: str) -> str:
     payload = with_backend_public_shared_chat_auth_env(
-        with_backend_pusher_env(
-            with_parity_pack_env(
-                with_listen_finalization_orphan_env(with_memory_env(with_sync_ledger_fence_mode(payload)))
-            )
-        )
+        with_backend_pusher_env(with_parity_pack_env(with_listen_finalization_orphan_env(with_memory_env(payload))))
     )
     return re.sub(
         r'^(\s*\{"name": "OMI_LLM_GATEWAY_SERVICE_TOKEN".*\}\s*\})\s*,?\s*$',
@@ -654,13 +641,6 @@ def test_dev_cloud_run_pusher_contract_rejects_legacy_and_non_listener_bindings(
             'value': 'http://internal-alb.pusher-ep-dev.il7.us-central1.lb.based-hardware-dev.internal',
         }
     )
-    rendered_state['services']['backend-sync-backfill']['env'].append(
-        {
-            'name': 'HOSTED_PUSHER_API_URL',
-            'value': 'http://internal-alb.pusher-ep-dev.il7.us-central1.lb.based-hardware-dev.internal',
-        }
-    )
-
     errors = validator._validate_cloud_run(env_config, rendered_state, strict_provisional=False)
 
     assert errors == [
@@ -669,7 +649,6 @@ def test_dev_cloud_run_pusher_contract_rejects_legacy_and_non_listener_bindings(
             "env HOSTED_PUSHER_API_URL value mismatch: expected 'http://pusher.omiapi.com'",
         ),
         validator.ValidationError('cloud_run/backend-sync', 'forbidden env HOSTED_PUSHER_API_URL is present'),
-        validator.ValidationError('cloud_run/backend-sync-backfill', 'forbidden env HOSTED_PUSHER_API_URL is present'),
     ]
 
 
@@ -1615,14 +1594,12 @@ _MAIN_APP_SCHEDULER_SURFACES: dict[str, list[tuple[str, str]]] = {
         ('gke', 'backend-listen'),
         ('cloud_run', 'backend'),
         ('cloud_run', 'backend-sync'),
-        ('cloud_run', 'backend-sync-backfill'),
         ('cloud_run', 'backend-integration'),
     ],
     'prod': [
         ('gke', 'backend-listen'),
         ('cloud_run', 'backend'),
         ('cloud_run', 'backend-sync'),
-        ('cloud_run', 'backend-sync-backfill'),
         ('cloud_run', 'backend-integration'),
     ],
 }
@@ -1859,97 +1836,6 @@ def test_memory_maintenance_auto_dev_workflow_is_listed_and_targets_job():
     assert (
         '.github/workflows/gcp_memory_maintenance_job_auto_dev.yml'
         in manifest['environments']['dev']['cloud_run']['workflow_files']
-    )
-
-
-def test_sync_backfill_co_deploy_is_required_per_workflow(tmp_path):
-    validator = load_validator()
-    values_file = tmp_path / 'backend_listen.yaml'
-    write_yaml(values_file, {'env': [{'name': 'OMI_LLM_GATEWAY_URL', 'value': 'http://gateway.local'}]})
-    incomplete = tmp_path / 'incomplete.yml'
-    write_yaml(
-        incomplete,
-        {
-            'env': {'SERVICE': 'backend'},
-            'jobs': {
-                'deploy': {
-                    'steps': [
-                        {
-                            'uses': 'google-github-actions/deploy-cloudrun@v2',
-                            'with': {
-                                'service': '${{ env.SERVICE }}-sync',
-                                'env_vars': 'SYNC_BACKFILL_ENABLED=true\n',
-                            },
-                        }
-                    ]
-                }
-            },
-        },
-    )
-    complete = tmp_path / 'complete.yml'
-    write_yaml(
-        complete,
-        {
-            'env': {'SERVICE': 'backend'},
-            'jobs': {
-                'deploy': {
-                    'steps': [
-                        {
-                            'uses': 'google-github-actions/deploy-cloudrun@v2',
-                            'with': {
-                                'service': '${{ env.SERVICE }}-sync',
-                                'env_vars': 'SYNC_BACKFILL_ENABLED=true\n',
-                            },
-                        },
-                        {
-                            'uses': 'google-github-actions/deploy-cloudrun@v2',
-                            'with': {
-                                'service': '${{ env.SERVICE }}-sync-backfill',
-                                'env_vars': 'SYNC_BACKFILL_ENABLED=true\n',
-                            },
-                        },
-                    ]
-                }
-            },
-        },
-    )
-    manifest_path = tmp_path / 'runtime_env.yaml'
-    write_yaml(
-        manifest_path,
-        {
-            'schema_version': 1,
-            'environments': {
-                'dev': {
-                    'gcp_project': 'based-hardware-dev',
-                    'runtime_gcp_project': 'based-hardware',
-                    'region': 'us-central1',
-                    'gke': {
-                        'backend-listen': {
-                            'values_file': str(values_file),
-                            'env': {'OMI_LLM_GATEWAY_URL': {'value': 'http://gateway.local'}},
-                        }
-                    },
-                    'cloud_run': {
-                        'workflow_files': [str(incomplete), str(complete)],
-                        'services': {
-                            'backend-sync': {'env': {}, 'secrets': {}},
-                            'backend-sync-backfill': {'env': {}, 'secrets': {}},
-                        },
-                        'jobs': {},
-                    },
-                }
-            },
-        },
-    )
-
-    errors = validate_cloud_run_workflows_only(validator, env='dev', manifest_path=manifest_path)
-
-    assert any(
-        error.message == 'deploys backend-sync without backend-sync-backfill' and str(incomplete) in error.scope
-        for error in errors
-    )
-    assert not any(
-        str(complete) in error.scope and 'without backend-sync-backfill' in error.message for error in errors
     )
 
 

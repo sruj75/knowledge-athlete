@@ -564,7 +564,6 @@ def test_discard_call_uses_discard_feature_tracking():
     conversation = MagicMock()
     conversation.source = "phone"
     conversation.get_transcript.return_value = "short transcript"
-    conversation.photos = []
     conversation.get_person_ids.return_value = []
     conversation.external_data = None  # Prevent CalendarMeetingContext parsing
     conversation.started_at = None
@@ -633,7 +632,6 @@ def test_no_umbrella_conversation_processing_tracking():
     conversation = MagicMock()
     conversation.source = "phone"
     conversation.get_transcript.return_value = "short transcript"
-    conversation.photos = []
     conversation.get_person_ids.return_value = []
     conversation.external_data = None
     conversation.started_at = None
@@ -680,7 +678,6 @@ def test_action_items_tracked_separately_from_structure():
     conversation = MagicMock()
     conversation.source = "phone"
     conversation.get_transcript.return_value = "short transcript"
-    conversation.photos = []
     conversation.get_person_ids.return_value = []
     conversation.external_data = None
     conversation.started_at = None
@@ -726,7 +723,6 @@ def test_structure_and_apps_tracked_at_runtime():
     conversation = MagicMock()
     conversation.source = "phone"
     conversation.get_transcript.return_value = "a transcript with enough words to not be discarded easily"
-    conversation.photos = []
     conversation.get_person_ids.return_value = []
     conversation.external_data = None
     conversation.started_at = None
@@ -782,7 +778,6 @@ def test_action_items_skipped_on_discard():
     conversation = MagicMock()
     conversation.source = "phone"
     conversation.get_transcript.return_value = "short"
-    conversation.photos = []
     conversation.get_person_ids.return_value = []
     conversation.external_data = None
     conversation.started_at = None
@@ -1018,7 +1013,6 @@ def _make_trigger_conversation(suggested_apps=None):
     conv = MagicMock()
     conv.id = "conv-trigger-test"
     conv.get_transcript.return_value = "Speaker 0: Hello"
-    conv.photos = []
     conv.apps_results = []
     conv.suggested_summarization_apps = suggested_apps
     return conv

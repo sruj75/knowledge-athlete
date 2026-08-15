@@ -6,27 +6,15 @@ final class STTSessionStateTests: XCTestCase {
   func testResolveMode_defaultAppleSiliconMic_isLocal() {
     let session = STTSessionState()
     let mode = session.resolveMode(
-      audioSource: .microphone,
       isAppleSilicon: true,
       debugForceCloud: false
     )
     XCTAssertEqual(mode, .local)
   }
 
-  func testResolveMode_bleDevice_isCloud() {
-    let session = STTSessionState()
-    let mode = session.resolveMode(
-      audioSource: .bleDevice,
-      isAppleSilicon: true,
-      debugForceCloud: false
-    )
-    XCTAssertEqual(mode, .cloud)
-  }
-
   func testResolveMode_intelMac_isCloud() {
     let session = STTSessionState()
     let mode = session.resolveMode(
-      audioSource: .microphone,
       isAppleSilicon: false,
       debugForceCloud: false
     )
@@ -36,7 +24,6 @@ final class STTSessionStateTests: XCTestCase {
   func testResolveMode_debugForceCloud_isCloud() {
     let session = STTSessionState()
     let mode = session.resolveMode(
-      audioSource: .microphone,
       isAppleSilicon: true,
       debugForceCloud: true
     )
@@ -46,7 +33,6 @@ final class STTSessionStateTests: XCTestCase {
   func testLocalModelFailure_setsAppRunCloudSticky_blocksCloudToLocalRetry() {
     var session = STTSessionState()
     session.beginRecording(
-      audioSource: .microphone,
       isAppleSilicon: true,
       debugForceCloud: false
     )
@@ -58,7 +44,6 @@ final class STTSessionStateTests: XCTestCase {
     session.completeFallback()
     session.endRecording()
     session.beginRecording(
-      audioSource: .microphone,
       isAppleSilicon: true,
       debugForceCloud: false
     )
@@ -66,7 +51,6 @@ final class STTSessionStateTests: XCTestCase {
     XCTAssertFalse(
       session.canBeginCloudToLocalFallback(
         isTranscribing: true,
-        audioSource: .microphone,
         isAppleSilicon: true
       )
     )
@@ -75,7 +59,6 @@ final class STTSessionStateTests: XCTestCase {
   func testCloudReconnectFailure_setsSessionLocalSticky_once() {
     var session = STTSessionState()
     session.beginRecording(
-      audioSource: .microphone,
       isAppleSilicon: true,
       debugForceCloud: true
     )
@@ -83,7 +66,6 @@ final class STTSessionStateTests: XCTestCase {
     XCTAssertTrue(
       session.canBeginCloudToLocalFallback(
         isTranscribing: true,
-        audioSource: .microphone,
         isAppleSilicon: true
       )
     )
@@ -94,7 +76,6 @@ final class STTSessionStateTests: XCTestCase {
     XCTAssertFalse(
       session.canBeginCloudToLocalFallback(
         isTranscribing: true,
-        audioSource: .microphone,
         isAppleSilicon: true
       )
     )
@@ -102,7 +83,6 @@ final class STTSessionStateTests: XCTestCase {
     // Restart while fallback mutex is held — session sticky must survive.
     session.endRecording()
     session.beginRecording(
-      audioSource: .microphone,
       isAppleSilicon: true,
       debugForceCloud: true
     )
@@ -113,7 +93,6 @@ final class STTSessionStateTests: XCTestCase {
     session.endRecording()
     session.prepareForStart()
     session.beginRecording(
-      audioSource: .microphone,
       isAppleSilicon: true,
       debugForceCloud: true
     )
@@ -123,7 +102,6 @@ final class STTSessionStateTests: XCTestCase {
   func testStartWhileNotFallingBack_resetsSessionFlags_notAppRunSticky() {
     var session = STTSessionState()
     session.beginRecording(
-      audioSource: .microphone,
       isAppleSilicon: true,
       debugForceCloud: false
     )
@@ -132,7 +110,6 @@ final class STTSessionStateTests: XCTestCase {
     session.endRecording()
 
     session.beginRecording(
-      audioSource: .microphone,
       isAppleSilicon: true,
       debugForceCloud: true
     )
@@ -153,7 +130,6 @@ final class STTSessionStateTests: XCTestCase {
   func testBeginFallback_setsInProgress_blocksReentry() {
     var session = STTSessionState()
     session.beginRecording(
-      audioSource: .microphone,
       isAppleSilicon: true,
       debugForceCloud: false
     )
@@ -162,7 +138,6 @@ final class STTSessionStateTests: XCTestCase {
     XCTAssertFalse(
       session.canBeginCloudToLocalFallback(
         isTranscribing: true,
-        audioSource: .microphone,
         isAppleSilicon: true
       )
     )

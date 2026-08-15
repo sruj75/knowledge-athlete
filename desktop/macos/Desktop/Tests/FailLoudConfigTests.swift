@@ -90,20 +90,6 @@ final class FailLoudConfigTests: XCTestCase {
       "failed system-audio tap starts must record the CLASSIFIED outcome (denial only for permission-class errors)")
   }
 
-  func testAudioSourceManagerSystemAudioOutcomesUpdatePermissionState() throws {
-    let src = try source(relativePath: "Sources/Audio/AudioSourceManager.swift")
-
-    XCTAssertTrue(
-      src.contains("AppState.current?.recordSystemAudioCaptureOutcome(.granted)"),
-      "desktop audio-source system audio starts should mark the state granted")
-    XCTAssertTrue(
-      src.contains("SystemAudioPermissionStatus.classify(captureError: error)"),
-      "desktop audio-source system audio failures should record the CLASSIFIED outcome")
-    XCTAssertFalse(
-      src.contains("throw error"),
-      "a system-audio tap failure must not abort the already-running mic/mixer stream")
-  }
-
   func testPermissionsPageSurfacesSystemAudioRow() throws {
     let src = try source(relativePath: "Sources/MainWindow/Pages/PermissionsPage.swift")
 

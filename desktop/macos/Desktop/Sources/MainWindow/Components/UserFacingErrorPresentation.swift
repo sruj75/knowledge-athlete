@@ -25,7 +25,6 @@ enum UserFacingErrorPresentation {
     case integration(String)
     case browserExtension
     case memoryExport
-    case storageSync
     case transcription
     case accountDeletion
 
@@ -48,7 +47,6 @@ enum UserFacingErrorPresentation {
       case .integration(let name): return "connect to \(name)"
       case .browserExtension: return "connect the browser extension"
       case .memoryExport: return "prepare that export"
-      case .storageSync: return "sync device storage"
       case .transcription: return "start transcription"
       case .accountDeletion: return "delete your account"
       }
@@ -82,12 +80,8 @@ enum UserFacingErrorPresentation {
         }
       case .invalidResponse, .decodingError:
         return "Omi received an unexpected response. Try again."
-      case .syncRateLimited:
-        return "Omi is busy right now. Try again in a moment."
       case .unsupportedTierScopedBulkMutation:
         return "That option isn't available yet."
-      case .syncUploadRejected:
-        return fallback(for: context)
       case .unauthorized:
         return context.isSignIn
           ? "Couldn't sign in. Try again."

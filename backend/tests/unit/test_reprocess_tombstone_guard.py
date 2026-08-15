@@ -7,8 +7,7 @@ helper only 404s on a missing doc). Reprocessing runs `process_conversation` wit
 embeddings — so reprocessing a tombstone resurrects content the user deleted.
 
 The guard rejects a *deleted* conversation while still allowing a *discarded* one,
-which reprocess intentionally revives — the same tombstone-eligibility contract as
-sync (#10119) and merge (#10262), via the shared `is_soft_deleted` predicate.
+which reprocess intentionally revives, via the shared `is_soft_deleted` predicate.
 """
 
 from types import SimpleNamespace
@@ -18,7 +17,7 @@ import pytest
 from fastapi import HTTPException
 
 import routers.conversations as conv_router
-from database.conversations import eligible_merge_target, is_soft_deleted
+from database.conversations import is_soft_deleted
 
 
 class TestIsSoftDeleted:
@@ -34,12 +33,6 @@ class TestIsSoftDeleted:
 
     def test_none_is_not_tombstoned(self):
         assert is_soft_deleted(None) is False
-
-    def test_eligible_merge_target_still_excludes_only_deleted(self):
-        # The refactor onto is_soft_deleted must be behaviour-preserving.
-        assert eligible_merge_target({'id': 'c1', 'deleted': True}) is False
-        assert eligible_merge_target({'id': 'c1', 'discarded': True}) is True
-        assert eligible_merge_target(None) is False
 
 
 class TestReprocessTombstoneGuard:

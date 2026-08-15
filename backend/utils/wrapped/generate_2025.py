@@ -763,7 +763,7 @@ def generate_wrapped_2025(uid: str, year: int = 2025):
         _update_progress(uid, year, "Fetching conversations...", 0.1)
         logger.info(f"[Wrapped] Step 1: Fetching conversations...")
 
-        conversations_data = conversations_db.get_conversations_without_photos(
+        conversations_data = conversations_db.get_conversations(
             uid=uid,
             limit=10000,  # Get all conversations for the year
             offset=0,

@@ -260,8 +260,6 @@ class TestModelQosProfiles:
         assert premium['proactive_notification'] == ('gpt-4.1-mini', 'openai')
         # Simple features use gpt-4.1-nano on openai
         assert premium['conv_app_select'] == ('gpt-4.1-nano', 'openai')
-        # Vision features use gpt-4.1-mini on openai
-        assert premium['openglass'] == ('gpt-4.1-mini', 'openai')
         # Free-text features use Gemini 2.5 Flash-Lite on gemini provider
         assert premium['session_titles'] == ('gemini-2.5-flash-lite', 'gemini')
         assert premium['followup'] == ('gemini-2.5-flash-lite', 'gemini')
@@ -905,14 +903,6 @@ class TestRuntimeProviderRouting:
         else:
             # No key — falls back to ChatOpenAI placeholder pointing at Gemini endpoint
             assert hasattr(llm, 'invoke')
-
-    def test_openglass_routes_to_openai(self):
-        """openglass (vision) should route to OpenAI gpt-4.1-mini."""
-        llm = get_llm('openglass')
-        # get_llm() eagerly resolves; result is a ChatOpenAI routed to OpenAI
-        base_url = getattr(llm, 'openai_api_base', None) or ''
-        assert 'openrouter' not in base_url
-        assert 'generativelanguage.googleapis.com' not in base_url
 
     def test_openrouter_temperature_applied_via_get_llm(self):
         """When get_llm routes to OpenRouter, _OPENROUTER_TEMPERATURES config is applied."""

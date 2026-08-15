@@ -67,7 +67,6 @@ DESKTOP_NOTIFICATION_REGRESSION_INPUTS = {
     "desktop/macos/Desktop/Sources/AppState/AppState+Permissions.swift",
     "desktop/macos/Desktop/Sources/OmiApp.swift",
     "desktop/macos/Desktop/Sources/Providers/ChatToolExecutor.swift",
-    "desktop/macos/Desktop/Sources/Providers/DeviceProvider.swift",
 }
 
 DESKTOP_AGENT_RUNTIME_INPUTS = {

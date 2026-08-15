@@ -9,6 +9,7 @@ covers:
   - desktop/macos/Desktop/Sources/MainWindow/Components/LiveNameSpeakerSheet.swift
   - desktop/macos/Desktop/Sources/MainWindow/Components/NameSpeakerSheet.swift
   - desktop/macos/Desktop/Sources/MainWindow/Components/SpeakerBubbleView.swift
+  - desktop/macos/Desktop/Sources/Services/APIClient/APIClient+People.swift
 preconditions:
   - automation_bridge_ready
 

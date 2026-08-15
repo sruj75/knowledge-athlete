@@ -13,8 +13,6 @@ from typing import Any, Dict, List, Optional, Sequence, cast
 from fastapi.websockets import WebSocketDisconnect
 
 from models.conversation import Conversation
-from models.conversation_enums import ConversationSource
-from models.conversation_photo import ConversationPhoto
 from models.message_event import (
     SegmentsDeletedEvent,
     SpeakerLabelSuggestionEvent,
@@ -30,7 +28,6 @@ from utils.stt.streaming import sort_segments_by_start, sort_transcript_segments
 from utils.transcribe_decisions import (
     is_user_self_match,
     person_id_for_client,
-    resolve_photo_conversation_source,
     should_queue_speaker_embedding,
     should_skip_speaker_detection,
 )
@@ -81,7 +78,6 @@ class TranscriptProcessor:
     def __init__(self, host: Any):
         self.host = host
         self.segment_buffer: deque[Dict[str, Any]] = deque(maxlen=host.limits.max_segment_buffer_size)
-        self.photo_buffer: deque[ConversationPhoto] = deque(maxlen=host.limits.max_photo_buffer_size)
         self.cache = ConversationCache(self._load_conversation)
         self.current_session_segments: Dict[str, bool] = {}
         self.suggested_segments: set[str] = set()
@@ -172,7 +168,6 @@ class TranscriptProcessor:
         self,
         conversation: Conversation,
         segments: List[TranscriptSegment],
-        photos: List[ConversationPhoto],
         finished_at: datetime,
         started_at: Optional[datetime],
     ) -> Optional[tuple[Conversation, List[TranscriptSegment], List[str]]]:
@@ -199,21 +194,6 @@ class TranscriptProcessor:
             if not written:
                 return None
             self.cache.update_segments(serialised)
-        if photos:
-            stored = await self.host.persistence.call(
-                conversations_db.store_conversation_photos, self.host.request.uid, conversation.id, photos
-            )
-            if not stored:
-                return None
-            source = resolve_photo_conversation_source(conversation.source.value if conversation.source else None)
-            if source is not None and conversation.source != ConversationSource(source):
-                conversation.source = ConversationSource(source)
-                await self.host.persistence.call(
-                    conversations_db.update_conversation,
-                    self.host.request.uid,
-                    conversation.id,
-                    {'source': conversation.source},
-                )
         await self.host.persistence.call(
             conversations_db.update_conversation_finished_at, self.host.request.uid, conversation.id, finished_at
         )
@@ -263,15 +243,13 @@ class TranscriptProcessor:
         return False
 
     async def process_loop(self) -> None:
-        while self.host.state.active or self.segment_buffer or self.photo_buffer:
-            if await self.host.wait(0.6) and not (self.segment_buffer or self.photo_buffer):
+        while self.host.state.active or self.segment_buffer:
+            if await self.host.wait(0.6) and not self.segment_buffer:
                 break
-            if not self.segment_buffer and not self.photo_buffer:
+            if not self.segment_buffer:
                 continue
             raw_segments = sort_segments_by_start(list(self.segment_buffer))
             self.segment_buffer.clear()
-            photos = list(self.photo_buffer)
-            self.photo_buffer.clear()
             if not self.host.state.first_audio_byte_timestamp:
                 continue
             data = await self.cache.get(self.host.state.current_conversation_id)
@@ -308,11 +286,11 @@ class TranscriptProcessor:
                 )
             transcript_segments, _, _ = TranscriptSegment.combine_segments([], new_segments)
             current = deserialize_conversation(data)
-            result = await self._update_live_conversation(current, transcript_segments, photos, finished_at, started_at)
+            result = await self._update_live_conversation(current, transcript_segments, finished_at, started_at)
             rolled_over = False
             if result is None:
                 await self.host.conversations.create_new_in_progress_conversation(rollover=True)
-                result = await self._write_fresh(transcript_segments, photos, finished_at, started_at)
+                result = await self._write_fresh(transcript_segments, finished_at, started_at)
                 rolled_over = True
             if rolled_over:
                 record_fallback(
@@ -362,15 +340,12 @@ class TranscriptProcessor:
     async def _write_fresh(
         self,
         segments: List[TranscriptSegment],
-        photos: List[ConversationPhoto],
         finished_at: datetime,
         started_at: Optional[datetime],
     ) -> Optional[tuple[Conversation, List[TranscriptSegment], List[str]]]:
         data = await self.cache.get(self.host.state.current_conversation_id, force_refresh=True)
         return (
-            await self._update_live_conversation(
-                deserialize_conversation(data), segments, photos, finished_at, started_at
-            )
+            await self._update_live_conversation(deserialize_conversation(data), segments, finished_at, started_at)
             if data
             else None
         )
@@ -450,7 +425,6 @@ class TranscriptProcessor:
 
     def clear(self) -> None:
         self.segment_buffer.clear()
-        self.photo_buffer.clear()
         self.current_session_segments.clear()
         self.suggested_segments.clear()
         self.cache.clear()

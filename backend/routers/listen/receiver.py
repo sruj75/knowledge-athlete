@@ -1,4 +1,4 @@
-"""Inbound listen WebSocket frames, audio decoding, and image assembly."""
+"""Inbound listen WebSocket frames and retained audio decoding."""
 
 from __future__ import annotations
 
@@ -7,18 +7,7 @@ import audioop
 import json
 import logging
 import time
-import uuid
-from collections import OrderedDict
 from typing import Any, Dict, List, Optional, cast
-
-lc3: Any = None
-lc3_import_error: Optional[BaseException] = None
-try:
-    import lc3 as lc3_module  # type: ignore[reportMissingImports]
-except Exception as error:
-    lc3_import_error = error
-else:
-    lc3 = lc3_module
 
 opuslib: Any = None
 opuslib_import_error: Optional[BaseException] = None
@@ -31,11 +20,7 @@ else:
 
 from fastapi.websockets import WebSocketDisconnect
 
-from models.conversation_photo import ConversationPhoto
-from models.message_event import PhotoDescribedEvent, PhotoProcessingEvent
 from utils.aac import AACDecoder
-from utils.llm.openglass import describe_image
-from utils.request_validation import ImageChunkEnvelope
 from utils.speaker_assignment import update_speaker_assignment_maps
 from utils.stt.live_failure import (
     flush_live_stt_buffer,
@@ -95,12 +80,6 @@ def _get_opuslib() -> Any:
     return opuslib
 
 
-def _get_lc3() -> Any:
-    if lc3 is None:
-        raise RuntimeError('LC3 streaming requires lc3py and its native codec library.') from lc3_import_error
-    return lc3
-
-
 class ListenReceiver:
     def __init__(self, host: Any, channel_configs: List[ChannelConfig], channel_id_to_index: Dict[int, int]):
         self.host = host
@@ -112,10 +91,7 @@ class ListenReceiver:
         self.channel_mix_buffers: List[bytearray] = [bytearray() for _ in channel_configs]
         self.opus_decoder: Any = None
         self.aac_decoder: Any = None
-        self.lc3_decoder: Any = None
         self.vad_gate: Any = None
-        self.image_chunks: OrderedDict[str, Dict[str, Any]] = OrderedDict()
-        self.last_image_chunk_cleanup = 0.0
 
     def _capture(self, method: str, *args: Any) -> None:
         """Keep optional dev capture out of the production audio failure domain."""
@@ -144,8 +120,6 @@ class ListenReceiver:
                 sample_rate=request.sample_rate,
                 channels=request.channels,
             )
-        elif request.codec == 'lc3':
-            self.lc3_decoder = _get_lc3().Decoder(self.host.lc3_frame_duration_us, request.sample_rate)
 
     async def _create_stt_socket(self, callback: Any, sample_rate: int, modulate_callback: Any = None) -> Any:
         keywords = self.host.vocabulary[:100] if self.host.vocabulary else []
@@ -311,51 +285,6 @@ class ListenReceiver:
             if await self.host.wait(STT_DEATH_POLL_INTERVAL_SECONDS):
                 return
 
-    def _cleanup_expired_image_chunks(self) -> None:
-        now = time.time()
-        if now - self.last_image_chunk_cleanup < self.host.limits.image_chunk_cleanup_interval:
-            return
-        self.last_image_chunk_cleanup = now
-        expired = [
-            temporary_id
-            for temporary_id, data in self.image_chunks.items()
-            if now - data['created_at'] > self.host.limits.image_chunk_ttl
-        ]
-        for temporary_id in expired:
-            del self.image_chunks[temporary_id]
-
-    async def _process_photo(self, image_b64: str, temporary_id: str) -> None:
-        photo_id = str(uuid.uuid4())
-        await self.host.asend_event(PhotoProcessingEvent(temp_id=temporary_id, photo_id=photo_id))
-        try:
-            description = await describe_image(self.host.request.uid, image_b64)
-            discarded = not description or not description.strip()
-        except Exception as error:
-            logger.error('Image description failed type=%s', type(error).__name__)
-            description, discarded = 'Could not generate description.', True
-        self.host.transcripts.photo_buffer.append(
-            ConversationPhoto(id=photo_id, base64=image_b64, description=description, discarded=discarded)
-        )
-        await self.host.asend_event(
-            PhotoDescribedEvent(photo_id=photo_id, description=description, discarded=discarded)
-        )
-
-    async def _handle_image_chunk(self, payload: Dict[str, Any]) -> None:
-        chunk = ImageChunkEnvelope.model_validate(payload)
-        self._cleanup_expired_image_chunks()
-        if chunk.id not in self.image_chunks:
-            if len(self.image_chunks) >= self.host.limits.max_image_chunks:
-                self.image_chunks.popitem(last=False)
-            self.image_chunks[chunk.id] = {'chunks': [None] * chunk.total, 'created_at': time.time()}
-        chunks = self.image_chunks[chunk.id]['chunks']
-        chunk.validate_against_cached_total(len(chunks))
-        if chunks[chunk.index] is None:
-            chunks[chunk.index] = chunk.data
-        if all(value is not None for value in chunks):
-            image = ''.join(chunks)
-            del self.image_chunks[chunk.id]
-            self.host.spawn(self._process_photo(image, chunk.id), name='photo_process')
-
     async def _flush_stt_buffer(self, buffer: bytearray, *, force: bool = False) -> None:
         request = self.host.request
         socket_dead = self.stt_socket is not None and live_stt_socket_is_dead(self.stt_socket)
@@ -459,11 +388,11 @@ class ListenReceiver:
         payload = cast(Dict[str, Any], loaded) if isinstance(loaded, dict) else {}
         kind = payload.get('type')
         if kind == 'image_chunk':
-            try:
-                await self._handle_image_chunk(payload)
-            except ValueError:
-                self.host.state.close_code = 1008
-                self.host.state.active = False
+            # The wearable photo protocol was retired by S-02. Fail closed so
+            # stale clients cannot silently stream image data into an ignored
+            # compatibility path or trigger any storage/provider side effect.
+            self.host.state.close_code = 1008
+            self.host.state.active = False
         elif kind == 'skip_question' and self.host.onboarding_handler and not self.host.onboarding_handler.completed:
             await self.host.onboarding_handler.skip_current_question()
         elif kind == 'suggested_transcript' and self.host.use_custom_stt:
@@ -544,8 +473,6 @@ class ListenReceiver:
                             )
                         elif request.codec == 'aac':
                             decoded = self.aac_decoder.decode(bytes(data))
-                        elif request.codec == 'lc3':
-                            decoded = self.lc3_decoder.decode(bytes(data), bit_depth=16)
                         elif request.codec == 'pcm8':
                             decoded = audioop.lin2lin(audioop.bias(data, 1, -128), 1, 2)
                     except Exception as error:
@@ -595,6 +522,3 @@ class ListenReceiver:
         for socket in self.stt_sockets_multi if self.host.is_multi_channel else [self.stt_socket]:
             if socket:
                 socket.finish()
-
-    def clear(self) -> None:
-        self.image_chunks.clear()

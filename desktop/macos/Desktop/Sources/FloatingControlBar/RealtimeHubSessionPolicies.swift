@@ -753,8 +753,6 @@ enum RealtimeHubToolFailureKind: String, Equatable {
       switch apiError {
       case .unauthorized:
         return .backendUnauthorized
-      case .syncRateLimited:
-        return .backendRateLimited
       case .invalidResponse, .decodingError:
         return .responseDecode
       case .httpError(let statusCode, _):
@@ -770,7 +768,7 @@ enum RealtimeHubToolFailureKind: String, Equatable {
         default:
           return .backendTransport
         }
-      case .unsupportedTierScopedBulkMutation, .syncUploadRejected:
+      case .unsupportedTierScopedBulkMutation:
         return .backendClientRejected
       }
     }
