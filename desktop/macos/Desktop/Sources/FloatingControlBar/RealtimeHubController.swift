@@ -71,7 +71,6 @@ final class RealtimeHubController: NSObject, RealtimeHubSessionDelegate {
   var prefetchedVoiceSemanticGuidance = ""
   /// Exact Node registry projection from the bridge init handshake. Empty is a
   /// fail-closed value until the runtime has declared available adapters.
-  var registeredDirectedProviderIDs: [String] = []
   var prefetchedVoiceContextTurnIDs: Set<String> = []
   var prefetchedVoiceContextOwnerScope: RealtimeHubOwnerScope?
   /// Typed snapshot identity baked into the current warm session's instructions.
@@ -514,13 +513,13 @@ final class RealtimeHubController: NSObject, RealtimeHubSessionDelegate {
       let ownerScope = RealtimeHubOwnerScope.authenticated(ownerID)
       let fixtureSession = RealtimeHubSession(
         provider: .openai,
-        auth: .byokKey("owner-boundary-fixture"),
+        auth: .hermeticStub,
         instructions: "owner-boundary-fixture",
         delegate: self)
       session = fixtureSession
       voiceSessionID = VoiceSessionID()
       sessionProvider = .openai
-      sessionAuth = .byokKey("owner-boundary-fixture")
+      sessionAuth = .hermeticStub
       sessionOwnerBinding = PhysicalSessionOwnerBinding(
         sourceID: ObjectIdentifier(fixtureSession),
         ownerScope: ownerScope)
@@ -706,7 +705,7 @@ final class RealtimeHubController: NSObject, RealtimeHubSessionDelegate {
       return "auth"
     case .providerQuotaExceeded:
       return "quota"
-    case .backendUnauthorized, .requiresLogin, .paywalled, .byokEnrollmentMismatch,
+    case .backendUnauthorized, .requiresLogin, .paywalled,
       .backendTransient, .providerTransient, .providerPolicyClose, .unknown, .none:
       return "other"
     }
@@ -746,22 +745,23 @@ final class RealtimeHubController: NSObject, RealtimeHubSessionDelegate {
     log(
       "RealtimeHub: preserving barge-in turn while failing over "
         + "\(provider.displayName) → \(alternate.displayName)")
-
-    if let key = APIKeyService.byokKey(alternate.byokProvider) {
-      pendingBargeInProvider = alternate
-      pendingBargeInAuth = .byokKey(key)
-      replacementAudioBuffer = pendingTurn
-      voiceResponseID = responseID
-      pendingBargeInOwnerScope = replacementOwnerScope
-      replaceSessionAfterDrain(
-        preservingBargeInReplacement: true,
-        rewarmAfterDrain: false)
-      startReplacementSessionForBargeIn(
-        provider: alternate,
-        auth: .byokKey(key),
-        ownerScope: replacementOwnerScope)
-      return true
-    }
+    #if DEBUG
+      if sessionAuth?.reportsUsage == false {
+        pendingBargeInProvider = alternate
+        pendingBargeInAuth = .hermeticStub
+        replacementAudioBuffer = pendingTurn
+        voiceResponseID = responseID
+        pendingBargeInOwnerScope = replacementOwnerScope
+        replaceSessionAfterDrain(
+          preservingBargeInReplacement: true,
+          rewarmAfterDrain: false)
+        startReplacementSessionForBargeIn(
+          provider: alternate,
+          auth: .hermeticStub,
+          ownerScope: replacementOwnerScope)
+        return true
+      }
+    #endif
     guard AuthService.shared.isSignedIn else {
       recordBargeInReplacementFailoverExhausted(
         from: alternate,
@@ -770,9 +770,8 @@ final class RealtimeHubController: NSObject, RealtimeHubSessionDelegate {
       return false
     }
     pendingBargeInProvider = alternate
-    // Marker only: a newer PTT can rotate continuity while the real alternate
-    // one-use token is still minting. The start path always remints this case.
-    pendingBargeInAuth = .ephemeral("")
+    // A newer PTT can rotate continuity while the real alternate token is minting; the start path remints it.
+    pendingBargeInAuth = .managedEphemeral("")
     replacementAudioBuffer = pendingTurn
     voiceResponseID = responseID
     pendingBargeInOwnerScope = replacementOwnerScope
@@ -803,7 +802,7 @@ final class RealtimeHubController: NSObject, RealtimeHubSessionDelegate {
     switch failureClass {
     case .providerAuthFailed, .providerQuotaExceeded:
       return true
-    case .backendUnauthorized, .requiresLogin, .paywalled, .byokEnrollmentMismatch,
+    case .backendUnauthorized, .requiresLogin, .paywalled,
       .backendTransient, .providerTransient, .providerPolicyClose, .unknown, .none:
       return false
     }
@@ -1155,7 +1154,7 @@ final class RealtimeHubController: NSObject, RealtimeHubSessionDelegate {
       sessionVoiceContextFreshnessIdentity = context.snapshotFreshnessIdentity
       let localSession = RealtimeHubSession(
         provider: .openai,
-        auth: .byokKey("omi-local-profile-stub"),
+        auth: .hermeticStub,
         instructions: "Hermetic local-profile realtime transport.",
         delegate: self)
       lastWarmAt = nil
@@ -1163,7 +1162,7 @@ final class RealtimeHubController: NSObject, RealtimeHubSessionDelegate {
       session = localSession
       voiceSessionID = VoiceSessionID()
       sessionProvider = .openai
-      sessionAuth = .byokKey("omi-local-profile-stub")
+      sessionAuth = .hermeticStub
       sessionOwnerBinding = PhysicalSessionOwnerBinding(
         sourceID: ObjectIdentifier(localSession),
         ownerScope: localOwnerScope)

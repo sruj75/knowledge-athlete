@@ -98,10 +98,7 @@ final class EffectiveOwnerDatabaseBoundaryTests: XCTestCase {
     let ownerAPool = try XCTUnwrap(maybeOwnerAPool)
     try await ownerAPool.write { db in
       try db.execute(sql: "CREATE TABLE owner_probe (value TEXT NOT NULL)")
-      try Self.insertIndexedFile(path: "~/owner-a.txt", in: db)
     }
-    let ownerAIndexedFileCount = await FileIndexerService.shared.getIndexedFileCount()
-    XCTAssertEqual(ownerAIndexedFileCount, 1)
 
     let observer = OwnerDatabaseCommitObserver()
     ownerAPool.add(transactionObserver: observer, extent: .nextTransaction)
@@ -143,15 +140,8 @@ final class EffectiveOwnerDatabaseBoundaryTests: XCTestCase {
       try await ownerBPool.write { db in
         try db.execute(sql: "CREATE TABLE owner_probe (value TEXT NOT NULL)")
         try db.execute(sql: "INSERT INTO owner_probe(value) VALUES ('owner-b')")
-        try Self.insertIndexedFile(path: "~/owner-b-1.txt", in: db)
-        try Self.insertIndexedFile(path: "~/owner-b-2.txt", in: db)
       }
     }
-    let ownerBIndexedFileCount = await FileIndexerService.shared.getIndexedFileCount()
-    XCTAssertEqual(
-      ownerBIndexedFileCount,
-      2,
-      "the shared file indexer must drop its owner-A pool before serving owner B")
 
     await RewindDatabase.shared.close()
     let ownerAValues = try readProbeValues(ownerID: ownerA)
@@ -205,13 +195,4 @@ final class EffectiveOwnerDatabaseBoundaryTests: XCTestCase {
     }
   }
 
-  nonisolated private static func insertIndexedFile(path: String, in db: Database) throws {
-    try db.execute(
-      sql: """
-        INSERT INTO indexed_files
-          (path, filename, fileType, sizeBytes, folder, depth, indexedAt)
-        VALUES (?, ?, 'document', 1, 'Documents', 0, ?)
-        """,
-      arguments: [path, URL(fileURLWithPath: path).lastPathComponent, Date()])
-  }
 }

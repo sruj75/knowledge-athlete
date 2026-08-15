@@ -256,7 +256,7 @@ def get_conversations_tool(
             try:
                 conversation = deserialize_conversation(conv_data)
 
-                # Limit transcript segments if needed (mimicking integration.py pattern)
+                # Limit transcript segments to the bounded response budget.
                 if (
                     max_transcript_segments != -1
                     and conversation.transcript_segments
@@ -277,7 +277,6 @@ def get_conversations_tool(
             conv_dict = conv.model_dump()
             # Remove heavy fields to reduce memory usage
             conv_dict.pop('transcript_segments', None)
-            conv_dict.pop('photos', None)
             conv_dict.pop('audio_files', None)
             conversations_collected.append(conv_dict)
         logger.info(
@@ -508,7 +507,6 @@ def search_conversations_tool(
             conv_dict = conv.model_dump()
             # Remove heavy fields to reduce memory usage
             conv_dict.pop('transcript_segments', None)
-            conv_dict.pop('photos', None)
             conv_dict.pop('audio_files', None)
             conversations_collected.append(conv_dict)
         logger.info(

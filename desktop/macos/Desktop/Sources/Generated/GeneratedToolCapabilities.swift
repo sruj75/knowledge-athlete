@@ -80,15 +80,16 @@ enum GeneratedToolCapabilities {
     ]
     ),
     Capability(
-      toolName: "fill_cloud_connector_form",
-      title: "Fill Cloud Connector Form",
+      toolName: "search_tasks",
+      title: "Search Tasks",
       latency: .fastLocal,
       surfaces: Set([.desktopChat]),
-      summary: "Fill the visible ChatGPT or Claude custom MCP connector form using Omi's native macOS Accessibility automation.",
+      summary: "Vector similarity search on tasks (action_items + staged_tasks).",
       bullets: [
-      "Call this first for ChatGPT or Claude cloud MCP connector setup when the connector form is visible.",
-      "Do not install browser extensions before trying this tool.",
-      "If it reports missing Accessibility permission, missing form, or missing required fields, wait for the missing condition or use guarded screenshots before any keyboard automation."
+      "Use for finding tasks by meaning, not exact keywords, e.g. \"find tasks about shopping\".",
+      "Examples: \"tasks about shopping\", \"anything related to the presentation\".",
+      "Parameters: query (required), include_completed (default false).",
+      "More reliable than hand-writing MATCH queries for task search."
     ]
     ),
     Capability(
@@ -287,8 +288,7 @@ enum GeneratedToolCapabilities {
       "Creates a canonical kernel session/run; visible runs project into floating-bar pills.",
       "Calling spawn_agent is the only way to start a visible floating-bar background agent; saying you will start one does not start it.",
       "Use visible=false for parent-linked background work that should not appear as a pill.",
-      "The primary coordinator decides in its model loop whether to call spawn_agent. When the current user explicitly asks OpenClaw or Hermes to do work, call spawn_agent in that same turn with that provider; do not delegate that instruction to another agent, use a text-pattern handoff, or narrate that only another chat surface can do it.",
-      "Pass provider='openclaw' or provider='hermes' only when the current user explicitly names that provider; otherwise omit provider so Omi starts its regular managed agent.",
+      "The primary coordinator decides in its model loop whether to call spawn_agent.",
       "Pass toolPolicy.allowedToolNames to restrict which Omi tools the child agent may call; it can only narrow, never widen, the child's tool set.",
       "Inspect progress with list_agent_sessions or get_agent_run."
     ]
@@ -316,19 +316,6 @@ enum GeneratedToolCapabilities {
     ]
     ),
     Capability(
-      toolName: "search_tasks",
-      title: "Search Tasks",
-      latency: .fastLocal,
-      surfaces: Set([.desktopChat]),
-      summary: "Vector similarity search on tasks (action_items + staged_tasks).",
-      bullets: [
-      "Use for finding tasks by meaning, not exact keywords, e.g. \"find tasks about shopping\".",
-      "Examples: \"tasks about shopping\", \"anything related to the presentation\".",
-      "Parameters: query (required), include_completed (default false).",
-      "More reliable than hand-writing MATCH queries for task search."
-    ]
-    ),
-    Capability(
       toolName: "complete_task",
       title: "Complete Task",
       latency: .fastLocal,
@@ -346,44 +333,6 @@ enum GeneratedToolCapabilities {
       summary: "Delete a task permanently by backendId.",
       bullets: [
       "Use after finding the task with execute_sql or search_tasks."
-    ]
-    ),
-    Capability(
-      toolName: "load_skill",
-      title: "Load Skill",
-      latency: .fastLocal,
-      surfaces: Set([.desktopChat]),
-      summary: "Load the full instructions for a named skill listed in available_skills.",
-      bullets: [
-      "Use the exact skill name from available_skills."
-    ]
-    ),
-    Capability(
-      toolName: "search_skills",
-      title: "Search Skills",
-      latency: .fastLocal,
-      surfaces: Set([.desktopChat]),
-      summary: "Search installed skill names and compact descriptions before loading a specialized workflow.",
-      bullets: [
-      "Use only when the user's request may benefit from a specialized workflow.",
-      "Load a returned skill only when it is relevant to the user's request.",
-      "Use only when the current user request plausibly needs a specialized workflow.",
-      "Do not browse skills merely to explore options or because a related term appears in conversation context."
-    ]
-    ),
-    Capability(
-      toolName: "save_knowledge_graph",
-      title: "Save Knowledge Graph",
-      latency: .fastLocal,
-      surfaces: Set([.desktopChat]),
-      summary: "Save a knowledge graph of entities and relationships extracted from the user's data.",
-      bullets: [
-      "Parameters: nodes (array of {id, label, node_type, aliases}), edges (array of {source_id, target_id, label}).",
-      "node_type must be one of: person, organization, place, thing, concept.",
-      "Use when exploring the user's files during onboarding to build their knowledge graph.",
-      "Deduplication is handled automatically; provide all entities you find.",
-      "Use when exploring the user's files during onboarding or knowledge-graph building.",
-      "Deduplication is handled automatically; include all meaningful entities and relationships you found."
     ]
     ),
     Capability(
@@ -468,10 +417,10 @@ enum GeneratedToolCapabilities {
       bullets: [
       "For a direct current-screen question, use this live capture instead of treating screen history as current evidence.",
       "Use capture_screen only when raw pixels are necessary; it requires explicit approval before image bytes are shared.",
-      "The result lists the full-screen image path plus native-resolution detail tiles on large screens; use Read to view them.",
+      "The owned Pi extension returns the full-screen image and native-resolution detail tiles directly as image content.",
       "For a direct current-screen question, capture a live image instead of using get_work_context as current visual evidence.",
-      "After capture_screen returns, use Read to view the full-screen image.",
-      "The full screenshot is downscaled before you see it — before quoting small on-screen text (titles, prices, sizes, labels) or choosing between similar-looking items, Read the detail tile covering that item and take the exact text from the tile.",
+      "The owned Pi extension attaches the full-screen image and native-resolution detail tiles directly to the tool result.",
+      "Before quoting small on-screen text (titles, prices, sizes, labels) or choosing between similar-looking items, inspect the detail tile covering that item and use its exact text.",
       "Keep every detail you cite (title, price, badge, position) bound to one on-screen item; if text is not legible even in a tile, say so instead of inferring.",
       "Do NOT use bash screencapture - always use this tool instead."
     ]
@@ -505,56 +454,6 @@ enum GeneratedToolCapabilities {
     ]
     ),
     Capability(
-      toolName: "scan_files",
-      title: "Scan Files",
-      latency: .asyncBackground,
-      surfaces: Set([.onboarding]),
-      summary: "Scan selected files/folders during onboarding to build local context.",
-      bullets: [
-      "Onboarding-only."
-    ]
-    ),
-    Capability(
-      toolName: "set_user_preferences",
-      title: "Set User Preferences",
-      latency: .fastLocal,
-      surfaces: Set([.onboarding]),
-      summary: "Persist onboarding preferences such as name and language.",
-      bullets: [
-      "Onboarding-only."
-    ]
-    ),
-    Capability(
-      toolName: "ask_followup",
-      title: "Ask Followup",
-      latency: .asyncBackground,
-      surfaces: Set([.onboarding]),
-      summary: "Ask the user a follow-up onboarding question with optional quick replies.",
-      bullets: [
-      "Onboarding-only."
-    ]
-    ),
-    Capability(
-      toolName: "complete_onboarding",
-      title: "Complete Onboarding",
-      latency: .fastLocal,
-      surfaces: Set([.onboarding]),
-      summary: "Complete onboarding after required goals and context are collected.",
-      bullets: [
-      "Onboarding-only."
-    ]
-    ),
-    Capability(
-      toolName: "get_email_insights",
-      title: "Get Email Insights",
-      latency: .fastLocal,
-      surfaces: Set([.onboarding]),
-      summary: "Read precomputed email/calendar onboarding insights.",
-      bullets: [
-      "Onboarding-only; requires background insights to be loaded."
-    ]
-    ),
-    Capability(
       toolName: "get_tasks",
       title: "Get Tasks",
       latency: .fastLocal,
@@ -563,18 +462,6 @@ enum GeneratedToolCapabilities {
       bullets: [
       "Use for plain voice questions like what are my tasks, what's due today, or what's on my list.",
       "Prefer get_action_items for completed tasks, date ranges, or the full list."
-    ]
-    ),
-    Capability(
-      toolName: "create_calendar_event",
-      title: "Create Calendar Event",
-      latency: .fastNetwork,
-      surfaces: Set([.realtimeHub]),
-      summary: "Create a new Google Calendar event.",
-      bullets: [
-      "Use when the user asks to add, create, schedule, or put a specific event on their calendar.",
-      "Pass title, start_time, and end_time as ISO-8601 strings with timezone; include location, description, and attendees when provided.",
-      "This capability creates one specified event; it does not find availability, reschedule, delete, or coordinate with people."
     ]
     ),
     Capability(
@@ -619,26 +506,6 @@ enum GeneratedToolCapabilities {
     ]
     ),
     Capability(
-      toolName: "get_local_status",
-      title: "Get Local Status",
-      latency: .fastLocal,
-      surfaces: Set([.desktopChat]),
-      summary: "Report whether local Omi Desktop context is available.",
-      bullets: [
-      "Local API only."
-    ]
-    ),
-    Capability(
-      toolName: "get_screenshot",
-      title: "Get Screenshot",
-      latency: .fastLocal,
-      surfaces: Set([.desktopChat]),
-      summary: "Fetch a local Rewind screenshot image by screenshot_id.",
-      bullets: [
-      "Local API only."
-    ]
-    ),
-    Capability(
       toolName: "get_work_context",
       title: "Get Work Context",
       latency: .fastLocal,
@@ -664,6 +531,6 @@ enum GeneratedToolCapabilities {
   }
 
   static var realtimeToolNames: [String] {
-    ["ask_higher_model","cancel_agent_run","check_permission_status","create_action_item","create_calendar_event","get_action_items","get_agent_run","get_conversations","get_daily_recap","get_memories","get_tasks","inspect_agent_artifacts","list_agent_sessions","point_click","report_screen_observation","request_permission","screenshot","search_conversations","search_memories","search_screen_history","set_desktop_attention_override","spawn_agent","update_action_item","update_agent_artifact_lifecycle"]
+    ["ask_higher_model","cancel_agent_run","check_permission_status","create_action_item","get_action_items","get_agent_run","get_conversations","get_daily_recap","get_memories","get_tasks","inspect_agent_artifacts","list_agent_sessions","point_click","report_screen_observation","request_permission","screenshot","search_conversations","search_memories","search_screen_history","set_desktop_attention_override","spawn_agent","update_action_item","update_agent_artifact_lifecycle"]
   }
 }

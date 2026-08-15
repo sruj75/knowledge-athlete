@@ -202,6 +202,3 @@ class TestProactivePromptsGrounded:
 class TestMemoryPromptsRequireDate:
     def test_conversation_memory_prompt_requires_current_date(self):
         assert "current_date" in prompts.extract_memories_prompt.input_variables
-
-    def test_text_memory_prompt_requires_current_date(self):
-        assert "current_date" in prompts.extract_memories_text_content_prompt.input_variables

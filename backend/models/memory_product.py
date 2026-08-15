@@ -17,7 +17,7 @@ class MemorySearchPolicyPayload(BaseModel):
     """Access-policy snapshot attached to product memory search responses."""
 
     consumer: str = Field(description='Memory consumer value (e.g. omi_chat).')
-    app_has_default_memory_grant: bool = Field(description='Whether the caller holds the default-memory grant.')
+    has_default_memory_grant: bool = Field(description='Whether the caller holds the default-memory grant.')
     archive_capability: bool = Field(description='Whether the policy grants Archive access.')
     raw_provenance_capability: bool = Field(description='Whether raw provenance access is granted.')
 
@@ -42,7 +42,6 @@ class ProductRolloutObservability(ReadRolloutConsumerObservability):
     archive_capability_required: bool = Field(description='Whether the route requires Archive capability.')
     archive_capability_granted: bool = Field(description='Whether Archive capability was granted for this request.')
     explicit_archive_request: bool = Field(description='Whether the caller explicitly requested Archive access.')
-    app_context: Dict[str, Any] = Field(description='Caller app/key/scope context payload.')
     vector_repair_outbox_enabled: Optional[bool] = Field(
         default=None, description='Present only on the vector search route.'
     )

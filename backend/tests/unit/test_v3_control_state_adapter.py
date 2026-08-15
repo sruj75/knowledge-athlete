@@ -143,8 +143,6 @@ def test_global_ceiling_never_elevates_lower_persisted_mode_and_caps_higher_pers
 def test_omi_chat_grants_only_enable_default_memory_and_archive_is_strict_boolean():
     control_doc = _doc(
         grants={
-            'developer_api': {'default_memory': True, 'archive': True},
-            'mcp': {'default_memory': True, 'archive': True},
             'default_memory': True,
             'omi_chat': {'default_memory': False, 'archive': 'yes'},
         }

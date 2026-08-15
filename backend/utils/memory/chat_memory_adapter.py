@@ -41,7 +41,7 @@ def chat_legacy_read_authorized(result: ChatMemorySearchResult) -> bool:
     `memory_control/state` doc was never created (#10736): callers reach this only on
     the non-canonical branch after `pin_memory_system`, where the absent doc is the
     expected un-enrolled state and legacy reads are authoritative. Mirrors
-    `mcp_legacy_read_authorized` (#10095) and the Developer API guard (#10094); every
+    the former external-surface guards; every
     other deny reason stays fail-closed.
     """
     if result.read_decision == MemoryReadDecision.USE_LEGACY_SAFE:
@@ -82,13 +82,13 @@ def search_memory_default_chat_memories_text(
     decision = read_default_read_rollout(uid=uid, db_client=db_client, consumer='omi_chat')
     if not decision.rollout_capabilities.memory_reads_enabled:
         return None
-    if not decision.app_has_default_memory_grant:
+    if not decision.has_default_memory_grant:
         return None
 
     bounded_limit = max(1, min(limit, 20))
     policy = MemoryAccessPolicy(
         consumer=MemoryConsumer.omi_chat,
-        app_has_default_memory_grant=True,
+        has_default_memory_grant=True,
         archive_capability=False,
         raw_provenance_capability=False,
     )

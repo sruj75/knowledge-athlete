@@ -67,15 +67,11 @@ class TestPremiumFlagship:
     FLAGSHIP_FEATURES = [
         'conv_action_items',
         'conv_structure',
-        'conv_app_result',
         'daily_summary',
         'learnings',
         'chat_responses',
         'goals_advice',
         'notifications',
-        'app_generator',
-        'persona_clone',
-        'persona_chat_premium',
     ]
 
     @pytest.mark.parametrize("feature", FLAGSHIP_FEATURES)
@@ -95,12 +91,9 @@ class TestPremiumMini:
     """Test gpt-4.1-mini features in premium profile respond to real prompts."""
 
     MINI_FEATURES = [
-        'external_structure',
         'memories',
         'memory_conflict',
-        'knowledge_graph',
         'chat_extraction',
-        'chat_graph',
         'goals',
         'proactive_notification',
     ]
@@ -122,11 +115,8 @@ class TestPremiumNano:
     """Test gpt-4.1-nano features in premium profile respond to real prompts."""
 
     NANO_FEATURES = [
-        'conv_app_select',
         'conv_folder',
         'conv_discard',
-        'smart_glasses',
-        'persona_chat',
         'daily_summary_simple',
         'memory_category',
     ]
@@ -142,21 +132,6 @@ class TestPremiumNano:
 
 
 # ---------------------------------------------------------------------------
-# Premium profile — gpt-4.1-mini features (vision/openglass)
-# ---------------------------------------------------------------------------
-class TestPremiumVision:
-    """Test gpt-4.1-mini vision-capable features in premium profile."""
-
-    def test_openglass_feature_responds(self):
-        model = get_model('openglass')
-        assert model == 'gpt-4.1-mini', f"openglass should be gpt-4.1-mini, got {model}"
-        llm = get_llm('openglass')
-        response = llm.invoke(SIMPLE_PROMPT)
-        assert response.content.strip(), f"openglass ({model}) returned empty response"
-        print(f"  openglass ({model}): {response.content.strip()[:60]}")
-
-
-# ---------------------------------------------------------------------------
 # Premium profile — gemini-2.5-flash-lite features (free-text cost optimization)
 # ---------------------------------------------------------------------------
 class TestPremiumGemini:
@@ -166,7 +141,6 @@ class TestPremiumGemini:
         'session_titles',
         'followup',
         'onboarding',
-        'app_integration',
         'trends',
     ]
 

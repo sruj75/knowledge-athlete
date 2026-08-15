@@ -1,15 +1,4 @@
-"""Cloud Tasks dispatch + OIDC verification for the v2 sync pipeline.
-
-The /v2/sync-local-files fast path enqueues one named task per sync job;
-Cloud Tasks POSTs it back to /v2/sync-jobs/run on the backend-sync service
-with an OIDC token minted for SYNC_TASKS_INVOKER_SA.
-
-All functions fail closed when the SYNC_TASKS_* env vars are unset: enqueue
-raises and verification returns 403 — the handler ships in the shared image
-to services that must never accept task traffic. A caller that has already
-staged audio must not start an inline worker after an enqueue exception: a
-lost create-task acknowledgement can mean the deterministic named task exists.
-"""
+"""Shared Cloud Tasks dispatch and OIDC verification primitives."""
 
 import json
 import logging
@@ -27,8 +16,7 @@ from google.protobuf import duration_pb2
 
 logger = logging.getLogger(__name__)
 
-# Must match the queue's dispatchDeadline and the handler's request timeout
-# (HTTP_SYNC_JOBS_RUN_TIMEOUT); see the run-lock TTL invariant in sync_jobs.py.
+# Must remain below the shared run-lock TTL so a lock cannot expire under a live task.
 DISPATCH_DEADLINE_SECONDS = 1500
 
 _tasks_client: Optional[tasks_v2.CloudTasksClient] = None
@@ -75,10 +63,6 @@ def _invoker_sa() -> str:
 def get_sync_tasks_max_attempts() -> int:
     # Must mirror the queue's maxAttempts (documented invariant).
     return int(os.getenv('SYNC_TASKS_MAX_ATTEMPTS', '5'))
-
-
-def is_cloud_tasks_dispatch_enabled() -> bool:
-    return os.getenv('SYNC_DISPATCH_MODE', 'inline') == 'cloud_tasks'
 
 
 def is_audio_merge_dispatch_enabled() -> bool:
@@ -180,25 +164,6 @@ def _enqueue_named_task(
         client.create_task(parent=parent, task=task)  # type: ignore[reportUnknownMemberType]  # google.cloud.tasks_v2 partially untyped
     except AlreadyExists:
         logger.info('task %s already enqueued, skipping duplicate', task_id)
-
-
-def enqueue_sync_job(payload: Dict[str, Any]) -> None:
-    """Enqueue one named HTTP task (task id = job_id) for a sync job.
-
-    Duplicate names are success. Callers retry the same name a bounded number
-    of times, then retain staged retry material if acknowledgement remains
-    uncertain; they never fall back inline after submitting this task.
-
-    Every sync job goes to the main queue. Offline recordings can never carry
-    server capture proof — the server was not in the loop when they were
-    captured — so they all classify as backfill, which sent the entire offline
-    workload to a lane provisioned for occasional historical recovery. That
-    lane's worker admitted only a few jobs at once, so Cloud Tasks retried the
-    surplus with exponential backoff until recordings sat unprocessed for many
-    hours. The lane label is still carried on the payload for metering and
-    reporting; it no longer selects the queue.
-    """
-    _enqueue_named_task(os.getenv('SYNC_TASKS_QUEUE', ''), _handler_url(), str(payload['job_id']), payload)
 
 
 def enqueue_audio_merge_job(payload: Dict[str, Any]) -> None:
@@ -308,7 +273,7 @@ def _verify_cloud_tasks_oidc(request: Request, *, audience: str, invoker_sa: str
 
 
 def verify_cloud_tasks_oidc(request: Request) -> int:
-    """FastAPI dependency for sync and merge task routes."""
+    """FastAPI dependency for shared task routes such as audio merge."""
     return _verify_cloud_tasks_oidc(request, audience=_oidc_audience(), invoker_sa=_invoker_sa())
 
 

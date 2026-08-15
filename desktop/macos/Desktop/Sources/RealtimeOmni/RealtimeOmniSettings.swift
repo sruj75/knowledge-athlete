@@ -3,7 +3,7 @@ import Foundation
 // MARK: - Realtime Omni Provider
 //
 // A single realtime "omni" model handles voice I/O for the floating bar:
-//   - speech-to-text (replaces Deepgram)
+//   - speech-to-text (replaces managed STT)
 //   - text-to-speech (replaces OpenAI TTS)
 // Reasoning + every agent/tool still runs through ChatProvider (pi-mono/Claude),
 // so the omni model is only the voice shell — nothing about tools changes.
@@ -54,7 +54,7 @@ final class RealtimeOmniSettings {
 
   private let providerKey = "realtimeOmniProvider"
   /// Master switch: when off, the floating bar keeps using the legacy
-  /// Deepgram STT + OpenAI/system TTS cascade. Lets us ship behind a flag.
+  /// Managed-STT + OpenAI/system-TTS cascade. Lets us ship behind a flag.
   private let enabledKey = "realtimeOmniEnabled"
 
   private init() {

@@ -9,7 +9,6 @@ enum AgentRuntimeFailureCode: String, CaseIterable, Equatable, Sendable {
   case adapterUnavailable = "adapter_unavailable"
   case adapterIncompatible = "adapter_incompatible"
   case bridgeStartFailed = "bridge_start_failed"
-  case providerSetupNeeded = "provider_setup_needed"
   case malformedOrOversizedToolResult = "malformed_or_oversized_tool_result"
   case cancelled
   case staleOwner = "stale_owner"

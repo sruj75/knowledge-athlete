@@ -21,8 +21,6 @@ from typing import List
 debug_metrics = {
     'queue_max_len': {
         'speaker_sample': 0,
-        'transcript': 0,
-        'audio_bytes': 0,
         'private_cloud': 0,
     },
 }
@@ -45,19 +43,8 @@ from database.redis_db import get_cached_user_geolocation
 from models.conversation import Conversation
 from models.conversation_enums import ConversationStatus
 from models.geolocation import Geolocation
-from utils.apps import is_audio_bytes_app_enabled
-from utils.app_integrations import (
-    trigger_realtime_integrations,
-    trigger_realtime_audio_bytes,
-    trigger_external_integrations,
-)
 from utils.conversations.location import get_google_maps_location
 from utils.conversations.process_conversation import process_conversation
-from utils.webhooks import (
-    send_audio_bytes_developer_webhook,
-    realtime_transcript_webhook,
-    get_audio_bytes_webhook_seconds,
-)
 from utils.other.storage import upload_audio_chunk
 from utils.other.task import safe_create_task
 from utils.speaker_identification import extract_speaker_samples
@@ -76,13 +63,6 @@ PRIVATE_CLOUD_SYNC_MAX_RETRIES = 3
 # Queue warning thresholds
 PRIVATE_CLOUD_QUEUE_WARN_SIZE = 50
 SPEAKER_SAMPLE_QUEUE_WARN_SIZE = 100
-
-# Constants for transcript queue batching
-TRANSCRIPT_QUEUE_FLUSH_INTERVAL = 1.0  # seconds
-TRANSCRIPT_QUEUE_WARN_SIZE = 50
-
-# Constants for audio bytes queue
-AUDIO_BYTES_QUEUE_WARN_SIZE = 20
 
 
 async def _process_conversation_task(uid: str, conversation_id: str, language: str, websocket: WebSocket):
@@ -110,12 +90,10 @@ async def _process_conversation_task(uid: str, conversation_id: str, language: s
                 conversation.geolocation = get_google_maps_location(geolocation.latitude, geolocation.longitude)
 
             conversation = await asyncio.to_thread(process_conversation, uid, language, conversation)
-            messages = await asyncio.to_thread(trigger_external_integrations, uid, conversation)
         except Exception as e:
             print(f"Error processing conversation: {e}", uid, conversation_id)
             conversations_db.set_conversation_as_discarded(uid, conversation.id)
             conversation.discarded = True
-            messages = []
 
         response = {"conversation_id": conversation_id, "success": True}
         data = bytearray()
@@ -152,17 +130,11 @@ async def _websocket_util_trigger(
     websocket_active = True
     websocket_close_code = 1000
 
-    audio_bytes_webhook_delay_seconds = get_audio_bytes_webhook_seconds(uid)
-    audio_bytes_trigger_delay_seconds = 4
-    has_audio_apps_enabled = is_audio_bytes_app_enabled(uid)
     private_cloud_sync_enabled = users_db.get_user_private_cloud_sync_enabled(uid)
 
     # LEAK 2: Unbounded lists — no size cap
     speaker_sample_queue: List[dict] = []
     private_cloud_queue: List[dict] = []
-    transcript_queue: List[dict] = []
-    audio_bytes_queue: List[dict] = []
-    audio_bytes_event = asyncio.Event()
 
     async def process_private_cloud_queue():
         nonlocal websocket_active, private_cloud_queue
@@ -250,62 +222,11 @@ async def _websocket_util_trigger(
                 except Exception as e:
                     print(f"Error extracting speaker samples: {e}", uid, conv_id)
 
-    async def process_transcript_queue():
-        nonlocal websocket_active, transcript_queue
-
-        while websocket_active or len(transcript_queue) > 0:
-            await asyncio.sleep(TRANSCRIPT_QUEUE_FLUSH_INTERVAL)
-
-            if not transcript_queue:
-                continue
-
-            batch = transcript_queue.copy()
-            transcript_queue = []
-
-            for item in batch:
-                segments = item['segments']
-                memory_id = item['memory_id']
-                try:
-                    await trigger_realtime_integrations(uid, segments, memory_id)
-                    await realtime_transcript_webhook(uid, segments)
-                except Exception as e:
-                    print(f"Error processing transcript batch: {e}", uid)
-
-    async def process_audio_bytes_queue():
-        nonlocal websocket_active, audio_bytes_queue
-
-        while websocket_active or len(audio_bytes_queue) > 0:
-            try:
-                await asyncio.wait_for(audio_bytes_event.wait(), timeout=1.0)
-            except asyncio.TimeoutError:
-                continue
-
-            audio_bytes_event.clear()
-
-            if not audio_bytes_queue:
-                continue
-
-            batch = audio_bytes_queue.copy()
-            audio_bytes_queue = []
-
-            for item in batch:
-                try:
-                    if item['type'] == 'app':
-                        await trigger_realtime_audio_bytes(uid, item['sample_rate'], item['data'])
-                    elif item['type'] == 'webhook':
-                        await send_audio_bytes_developer_webhook(uid, item['sample_rate'], item['data'])
-                except Exception as e:
-                    print(f"Error processing audio bytes: {e}", uid)
-
     async def receive_tasks():
         nonlocal websocket_active
         nonlocal websocket_close_code
         nonlocal speaker_sample_queue
-        nonlocal transcript_queue
-        nonlocal audio_bytes_queue
 
-        audiobuffer = bytearray()
-        trigger_audiobuffer = bytearray()
         private_cloud_sync_buffer = bytearray()
         private_cloud_chunk_start_time = None
         current_conversation_id = None
@@ -317,17 +238,6 @@ async def _websocket_util_trigger(
 
                 if header_type == 103:
                     current_conversation_id = bytes(data[4:]).decode("utf-8")
-                    continue
-
-                if header_type == 102:
-                    res = json.loads(bytes(data[4:]).decode("utf-8"))
-                    segments = res.get('segments')
-                    memory_id = res.get('memory_id')
-                    if memory_id:
-                        current_conversation_id = memory_id
-                    conversation_or_memory_id = memory_id or current_conversation_id
-                    transcript_queue.append({'segments': segments, 'memory_id': conversation_or_memory_id})
-                    _track_queue_len(transcript_queue, 'transcript')
                     continue
 
                 # LEAK 1: safe_create_task — fire-and-forget, never cancelled
@@ -360,9 +270,6 @@ async def _websocket_util_trigger(
                     buffer_start_timestamp = struct.unpack("d", data[4:12])[0]
                     audio_data = data[12:]
 
-                    audiobuffer.extend(audio_data)
-                    trigger_audiobuffer.extend(audio_data)
-
                     if private_cloud_sync_enabled and current_conversation_id:
                         if private_cloud_chunk_start_time is None:
                             private_cloud_chunk_start_time = buffer_start_timestamp
@@ -380,35 +287,6 @@ async def _websocket_util_trigger(
                             _track_queue_len(private_cloud_queue, 'private_cloud')
                             private_cloud_sync_buffer = bytearray()
                             private_cloud_chunk_start_time = None
-
-                    if (
-                        has_audio_apps_enabled
-                        and len(trigger_audiobuffer) > sample_rate * audio_bytes_trigger_delay_seconds * 2
-                    ):
-                        audio_bytes_queue.append(
-                            {
-                                'type': 'app',
-                                'sample_rate': sample_rate,
-                                'data': trigger_audiobuffer.copy(),
-                            }
-                        )
-                        _track_queue_len(audio_bytes_queue, 'audio_bytes')
-                        audio_bytes_event.set()
-                        trigger_audiobuffer = bytearray()
-                    if (
-                        audio_bytes_webhook_delay_seconds
-                        and len(audiobuffer) > sample_rate * audio_bytes_webhook_delay_seconds * 2
-                    ):
-                        audio_bytes_queue.append(
-                            {
-                                'type': 'webhook',
-                                'sample_rate': sample_rate,
-                                'data': audiobuffer.copy(),
-                            }
-                        )
-                        _track_queue_len(audio_bytes_queue, 'audio_bytes')
-                        audio_bytes_event.set()
-                        audiobuffer = bytearray()
                     continue
 
         except WebSocketDisconnect:
@@ -432,15 +310,7 @@ async def _websocket_util_trigger(
         receive_task = asyncio.create_task(receive_tasks())
         speaker_sample_task = asyncio.create_task(process_speaker_sample_queue())
         private_cloud_task = asyncio.create_task(process_private_cloud_queue())
-        transcript_task = asyncio.create_task(process_transcript_queue())
-        audio_bytes_task = asyncio.create_task(process_audio_bytes_queue())
-        await asyncio.gather(
-            receive_task,
-            speaker_sample_task,
-            private_cloud_task,
-            transcript_task,
-            audio_bytes_task,
-        )
+        await asyncio.gather(receive_task, speaker_sample_task, private_cloud_task)
 
     except Exception as e:
         print(f"Error during WebSocket operation: {e}")

@@ -80,26 +80,19 @@ final class MemoryDetailPanelTests: XCTestCase {
       "The detail panel must be identified by memory, or edit state leaks between selections")
   }
 
-  /// Public is not cosmetic: it is the only gate that feeds a memory into the
-  /// user's shareable persona. It must not sit under the cursor as a switch.
-  func testStaticCheckerPublishingIsADeliberateConfirmedAction() throws {
-    // STATIC CHECKER. Menu and confirmation presentation is SwiftUI chrome
-    // that needs a window to exercise.
+  func testStaticCheckerPublicVisibilityActionsAreAbsent() throws {
+    // STATIC CHECKER. The absence of SwiftUI menu actions needs a rendered
+    // window or a supplemental source contract.
     let source = try memoriesPageSource()
     guard let start = source.range(of: "struct MemoryDetailPanel: View {") else {
       return XCTFail("The Memories detail surface must be a panel")
     }
     let panel = String(source[start.lowerBound...].prefix(12000))
 
-    XCTAssertFalse(
-      panel.contains("isOn: Binding(\n            get: { memory.isPublic }"),
-      "Publishing must not be a one-tap switch in the panel header")
-    XCTAssertTrue(
-      panel.contains("isPresented: $isConfirmingPublic"),
-      "Making a memory public must be confirmed")
-    XCTAssertTrue(
-      panel.contains("Button(\"Make public…\")"),
-      "Publishing belongs in the secondary actions menu")
+    XCTAssertFalse(panel.contains("memory.isPublic"))
+    XCTAssertFalse(panel.contains("isConfirmingPublic"))
+    XCTAssertFalse(panel.contains("Make public"))
+    XCTAssertFalse(panel.contains("Make private"))
   }
 
   private func memoriesPageSource() throws -> String {
@@ -123,7 +116,6 @@ final class MemoryDetailPanelTests: XCTestCase {
       conversationId: nil,
       reviewed: false,
       userReview: nil,
-      visibility: "private",
       manuallyAdded: false,
       scoring: nil,
       source: "desktop",

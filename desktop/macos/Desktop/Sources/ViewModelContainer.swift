@@ -15,17 +15,14 @@ class ViewModelContainer: ObservableObject {
   let dashboardViewModel = DashboardViewModel()
   let homeStatusStore = HomeStatusStore()
   let tasksViewModel = TasksViewModel()
-  let appProvider = AppProvider()
   let memoriesViewModel = MemoriesViewModel()
   /// Brain-map graph — persistent so the SceneKit scene, force layout, and
   /// camera survive page navigation instead of rebuilding every visit.
-  let memoryGraphViewModel = MemoryGraphViewModel()
   let chatProvider: ChatProvider
   let taskChatCoordinator: TaskChatCoordinator
   private lazy var warmupCoordinator = StartupWarmupCoordinator(
     tasksStore: tasksStore,
     dashboardViewModel: dashboardViewModel,
-    appProvider: appProvider,
     chatProvider: chatProvider,
     retryDatabaseInit: { [weak self] in
       await self?.retryDatabaseInit() ?? false
@@ -147,8 +144,6 @@ class ViewModelContainer: ObservableObject {
     dashboardViewModel.resetSessionState()
     homeStatusStore.resetSessionState()
     memoriesViewModel.resetSessionState()
-    appProvider.resetSessionState()
-    memoryGraphViewModel.resetSessionState()
     isInitialLoadComplete = false
     isLoading = false
     databaseInitFailed = false

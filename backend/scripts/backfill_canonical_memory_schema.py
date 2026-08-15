@@ -14,7 +14,6 @@ logger = logging.getLogger(__name__)
 
 DEFAULTS: Dict[str, Any] = {
     "corroboration_count": 0,
-    "kg_extracted": False,
     "arguments": {},
 }
 

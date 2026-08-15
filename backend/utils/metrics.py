@@ -182,43 +182,6 @@ DESKTOP_UPDATE_FEED_VALID = Gauge(
     ['platform', 'channel'],
 )
 
-OMI_SYNC_DISPATCH_ATTEMPTS_TOTAL = Counter(
-    'omi_sync_dispatch_attempts_total',
-    'Sync v2 dispatch attempts by selected mode (denominator for fallback rates)',
-    ['mode'],
-)
-
-OMI_SYNC_LANE_JOBS_TOTAL = Counter(
-    'omi_sync_lane_jobs_total',
-    'Sync jobs admitted by lane, capture-time trust, and outcome',
-    ['lane', 'trust', 'outcome'],
-)
-
-OMI_SYNC_LANE_SPEECH_MS_TOTAL = Counter(
-    'omi_sync_lane_speech_ms_total',
-    'Successfully reserved sync speech milliseconds by lane',
-    ['lane'],
-)
-
-OMI_SYNC_RECORDING_AGE_SECONDS = Histogram(
-    'omi_sync_recording_age_seconds',
-    'Oldest recording age at sync admission by lane',
-    ['lane'],
-    buckets=(300, 1800, 3600, 21600, 86400, 259200, 604800, 1209600, 2592000),
-)
-
-OMI_SYNC_QUEUE_WAIT_SECONDS = Histogram(
-    'omi_sync_queue_wait_seconds',
-    'Cloud Tasks queue wait before sync processing by lane',
-    ['lane'],
-    buckets=(1, 5, 15, 30, 60, 300, 900, 3600, 21600, 86400),
-)
-
-OMI_SYNC_BACKFILL_DAILY_USED_MS = Gauge(
-    'omi_sync_backfill_daily_used_ms',
-    'Current UTC-day processed speech milliseconds reserved by historical sync',
-)
-
 OMI_TRANSCRIPTION_ACCEPTED_TOTAL = Counter(
     'omi_voice_transcription_accepted_total',
     'Accepted prerecorded transcription journeys by bounded route and runtime identity',
@@ -236,18 +199,6 @@ OMI_TRANSCRIPTION_LATENCY_SECONDS = Histogram(
     'End-to-end latency for accepted prerecorded transcription journeys',
     ['route', 'provider', 'outcome', 'client_platform', 'deployment_version'],
     buckets=(0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 120, 300),
-)
-
-OMI_SYNC_TRANSCRIPTION_SEGMENTS_TOTAL = Counter(
-    'omi_sync_transcription_segments_total',
-    'Terminal semantic outcomes for sync transcription segments',
-    ['provider', 'model', 'lane', 'outcome', 'deployment_version'],
-)
-
-OMI_SYNC_TRANSCRIPTION_JOBS_TOTAL = Counter(
-    'omi_sync_transcription_job_total',
-    'Terminal semantic outcomes for sync transcription jobs',
-    ['provider', 'model', 'lane', 'outcome', 'deployment_version'],
 )
 
 OMI_LIVE_STT_TERMINAL_FAILURES_TOTAL = Counter(

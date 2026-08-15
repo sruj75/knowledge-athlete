@@ -789,19 +789,6 @@ class TestStructuralUsage:
             for match in re.finditer(r'label=f"[^"]*\{session_id\}', source):
                 pytest.fail(f"{filename}: dynamic session_id in metric label: {match.group()}")
 
-    def test_app_integrations_uses_gather_safe(self):
-        import ast
-
-        with open(self.BACKEND_DIR / 'utils/app_integrations.py', encoding='utf-8') as f:
-            tree = ast.parse(f.read())
-
-        imports = []
-        for node in ast.walk(tree):
-            if isinstance(node, ast.ImportFrom) and node.module == 'utils.async_tasks':
-                imports.extend(alias.name for alias in node.names)
-
-        assert 'gather_safe' in imports
-
 
 # ---------------------------------------------------------------------------
 # Tests for wait_for_event

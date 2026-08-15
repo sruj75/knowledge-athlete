@@ -265,7 +265,7 @@ final class ScreenCaptureService: Sendable {
   /// list that already contains Omi. Opening Settings first backgrounded the app
   /// before the registering call, so a screen-capture request from the
   /// backgrounded app never created the `kTCCServiceScreenCapture` row and Omi
-  /// never appeared in the list. Mirrors MemoryExportExecutor.requestScreenRecordingApprovalForCloudSetup, the existing register-while-frontmost path.
+  /// never appeared in the list. Uses the existing register-while-frontmost path.
   @MainActor
   static func requestScreenRecordingAccessAndOpenSettings() {
     switch screenRecordingRequestDestination(hasPermissionNow: checkPermission()) {

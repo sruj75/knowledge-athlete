@@ -56,7 +56,7 @@ async def _process_conversation(
     """
     conversation = conversations_db.get_conversation(uid, conversation_id)
     if conversation:
-        has_content = conversation.get('transcript_segments') or conversation.get('photos')
+        has_content = conversation.get('transcript_segments')
         if has_content:
             if not request_conversation_processing:
                 return  # Warning logged — pusher not enabled, skip (stays in_progress)
@@ -179,7 +179,7 @@ async def test_process_conversation_never_calls_local_fallback():
 
     # The key assertion: request_conversation_processing is the ONLY processing path
     request_fn.assert_awaited_once()
-    # No local process_conversation, no trigger_external_integrations, no get_google_maps_location
+    # No local process_conversation and no retained location lookup fallback.
 
 
 @pytest.mark.asyncio
@@ -201,7 +201,7 @@ async def test_process_conversation_null_guard_skips_processing():
 async def test_process_conversation_no_content_deletes():
     """Conversation with no content is deleted, not processed."""
     db = MagicMock()
-    db.get_conversation.return_value = {'transcript_segments': [], 'photos': []}
+    db.get_conversation.return_value = {'transcript_segments': []}
     request_fn = AsyncMock()
     on_started = MagicMock()
 

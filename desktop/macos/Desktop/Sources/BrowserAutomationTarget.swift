@@ -2,10 +2,6 @@ import AppKit
 import Foundation
 
 struct BrowserAutomationTarget: Equatable, Hashable, Identifiable, Sendable {
-  static let extensionId = "mmlmfjhmonkocbjadbfplnigmagldckm"
-  static let chromeWebStoreURL =
-    "https://chromewebstore.google.com/detail/playwright-mcp-bridge/\(extensionId)"
-
   let name: String
   let bundleIdentifier: String
   let appPath: String
@@ -18,43 +14,6 @@ struct BrowserAutomationTarget: Equatable, Hashable, Identifiable, Sendable {
 
   func profileRoot(homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser) -> URL {
     homeDirectory.appendingPathComponent(profileDirectoryRelativePath)
-  }
-
-  func extensionStatusURL() -> URL? {
-    URL(string: "chrome-extension://\(Self.extensionId)/status.html")
-  }
-
-  func extensionInstallURL() -> URL? {
-    supportsChromeWebStore ? URL(string: Self.chromeWebStoreURL) : installURL
-  }
-
-  func extensionSetupURL() -> URL? {
-    extensionInstallURL()
-  }
-}
-
-enum BrowserAutomationTargetStore {
-  private static let selectedBundleIdentifierKey = "playwrightBrowserBundleIdentifier"
-  private static let userSelectedBundleIdentifierKey = "playwrightBrowserBundleIdentifierUserSelected"
-  private static let extensionTokenKey = "playwrightExtensionToken"
-
-  static var selectedBundleIdentifier: String? {
-    get {
-      guard UserDefaults.standard.bool(forKey: userSelectedBundleIdentifierKey) else { return nil }
-      let value = UserDefaults.standard.string(forKey: selectedBundleIdentifierKey) ?? ""
-      return value.isEmpty ? nil : value
-    }
-    set {
-      UserDefaults.standard.set(newValue ?? "", forKey: selectedBundleIdentifierKey)
-      UserDefaults.standard.set(newValue != nil, forKey: userSelectedBundleIdentifierKey)
-    }
-  }
-
-  static func select(_ target: BrowserAutomationTarget) {
-    if selectedBundleIdentifier != target.bundleIdentifier {
-      UserDefaults.standard.removeObject(forKey: extensionTokenKey)
-    }
-    selectedBundleIdentifier = target.bundleIdentifier
   }
 }
 
@@ -224,28 +183,6 @@ enum BrowserAutomationTargetResolver {
       }
   }
 
-  static func preferredTarget(
-    for url: URL = URL(string: "https://chatgpt.com/")!,
-    fileManager: FileManager = .default,
-    workspace: NSWorkspace = .shared
-  ) -> BrowserAutomationTarget? {
-    if let selected = target(
-      for: BrowserAutomationTargetStore.selectedBundleIdentifier,
-      fileManager: fileManager,
-      workspace: workspace)
-    {
-      return selected
-    }
-    if let target = defaultTarget(for: url, fileManager: fileManager, workspace: workspace) {
-      return target
-    }
-    let installed = installedTargets(fileManager: fileManager, workspace: workspace)
-    if let target = installed.first {
-      return target
-    }
-    return knownTargets.first
-  }
-
   static func isInstalled(
     _ target: BrowserAutomationTarget,
     fileManager: FileManager = .default,
@@ -253,26 +190,6 @@ enum BrowserAutomationTargetResolver {
   ) -> Bool {
     fileManager.fileExists(atPath: target.appPath)
       || workspace.urlForApplication(withBundleIdentifier: target.bundleIdentifier) != nil
-  }
-
-  static func isExtensionInstalled(
-    in target: BrowserAutomationTarget,
-    homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser,
-    fileManager: FileManager = .default
-  ) -> Bool {
-    let root = target.profileRoot(homeDirectory: homeDirectory)
-    guard
-      let profiles = try? fileManager.contentsOfDirectory(
-        at: root, includingPropertiesForKeys: nil)
-    else { return false }
-
-    for profile in profiles {
-      let extDir = profile.appendingPathComponent("Extensions/\(BrowserAutomationTarget.extensionId)")
-      if fileManager.fileExists(atPath: extDir.path) {
-        return true
-      }
-    }
-    return false
   }
 
   static func open(_ url: URL, in target: BrowserAutomationTarget, workspace: NSWorkspace = .shared) {

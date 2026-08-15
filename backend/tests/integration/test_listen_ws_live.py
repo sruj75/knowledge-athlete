@@ -39,7 +39,7 @@ PUSHER_URL = f"ws://{BACKEND_HOST}:{PUSHER_PORT}/v1/trigger/listen"
 # Auth header for LOCAL_DEVELOPMENT=true mode (bypasses Firebase, returns uid='123')
 DEV_AUTH_HEADER = {"authorization": "Bearer dev-token"}
 
-# Test audio file (60s mono 16kHz PCM16 — real speech for Deepgram)
+# Test audio file (60s mono 16kHz PCM16 — real speech for Modulate)
 TEST_WAV = os.path.join(
     os.path.dirname(__file__),
     '../../pretrained_models/snakers4_silero-vad_master/tests/data/test.wav',
@@ -184,7 +184,7 @@ class TestPusherWs:
 
     FINDING: Pusher closes with code 1006 shortly after connect for non-existent users
     because _websocket_util_trigger queries Firestore for user config (private_cloud_sync,
-    data_protection_level, audio_bytes_webhook) and crashes on missing user.
+    data protection level) and crashes on missing user.
     This is a real flaw — production pusher connections from backend-listen should always
     have valid UIDs, but there's no graceful error handling.
     """
@@ -210,9 +210,6 @@ class TestPusherWs:
         The _websocket_util_trigger function calls:
         - users_db.get_user_private_cloud_sync_enabled(uid)
         - users_db.get_data_protection_level(uid)
-        - get_audio_bytes_webhook_seconds(uid)
-        - is_audio_bytes_app_enabled(uid)
-
         If the user doesn't exist in Firestore, these can raise exceptions
         that crash the connection. This means a rogue/invalid uid in the
         query string causes an unhandled crash rather than a clean rejection.
@@ -479,7 +476,7 @@ class TestListenHappyPath:
 class TestTranscriptionPipeline:
     """End-to-end transcription: send real speech audio → get transcript segments back.
 
-    Requires LOCAL_DEVELOPMENT=true, Deepgram credentials, and test WAV file.
+    Requires LOCAL_DEVELOPMENT=true, Modulate credentials, and a test WAV file.
     """
 
     @pytest.mark.asyncio
@@ -487,7 +484,7 @@ class TestTranscriptionPipeline:
         """Send real speech audio and verify transcript segments are returned.
 
         This is the primary happy-path test proving the full pipeline works:
-        Client → /v4/listen → Deepgram STT → transcript segments → Client
+        Client → /v4/listen → Modulate STT → transcript segments → Client
         """
         audio = load_test_audio_pcm16(seconds=10)
         if audio is None:

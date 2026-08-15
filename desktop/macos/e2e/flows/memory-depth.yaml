@@ -1,7 +1,7 @@
 version: 2
 name: memory-depth
 tier: 2
-description: Memory search, tag filter, and visibility toggle after an immediate post-navigation create
+description: Memory search and tag filtering after an immediate post-navigation create
 app: non-prod
 covers:
   - desktop/macos/Desktop/Sources/MainWindow/Pages/MemoriesPage.swift
@@ -48,15 +48,6 @@ steps:
       result.detail.tag_filter_active: "true"
 
   - id: S5
-    name: Toggle memory visibility
-    bridge.action:
-      name: toggle_memory_visibility
-      params:
-        marker: "[[MARKER:memory-depth]]"
-    expect:
-      result.detail.toggled: "true"
-
-  - id: S6
     name: Delete harness memory
     bridge.action:
       name: delete_test_memory
@@ -65,7 +56,7 @@ steps:
     expect:
       ok: true
 
-  - id: S7
+  - id: S6
     name: Logs clean
     log.expect:
       absent:

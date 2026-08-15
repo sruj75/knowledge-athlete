@@ -26,7 +26,7 @@ from utils.other import endpoints as auth
 from utils.memory.canonical_memory_adapter import purge_canonical_derived_user_data
 from utils.other.storage import delete_all_conversation_recordings
 from utils.twilio_service import delete_user_caller_ids_strict as delete_user_caller_ids
-from utils.integration_telemetry import emit_posthog_event
+from utils.posthog_telemetry import emit_posthog_event
 
 logger = logging.getLogger(__name__)
 
@@ -212,16 +212,25 @@ def _emit_deletion_telemetry(uid: str, event: str, properties: dict[str, object]
 class AccountCleanupFailure(RuntimeError):
     """A provider or retained Firestore cleanup failed before completion."""
 
-    def __init__(self, operation: str, purge_result: object, cause: Exception):
+    def __init__(self, operation: str, purge_result: PurgeResult, cause: Exception):
         super().__init__(str(cause))
         self.operation = operation
         self.purge_result = purge_result
 
 
-def _perform_account_cleanup(uid: str) -> object:
+def _empty_purge_result() -> PurgeResult:
+    return {
+        'required_failures': [],
+        'best_effort_failures': [],
+        'vectors_deleted': 0,
+        'recordings_deleted': 0,
+    }
+
+
+def _perform_account_cleanup(uid: str) -> PurgeResult:
     """Compose every required external cleanup behind the durable worker."""
     current_operation = 'billing_subscription'
-    purge_result: object = {}
+    purge_result = _empty_purge_result()
     try:
         _cancel_subscription_for_account_deletion(uid)
         current_operation = 'firebase_auth'
@@ -255,7 +264,7 @@ def _perform_account_cleanup(uid: str) -> object:
 def background_wipe_user_data(uid: str, retry_count: int = 0, terminal: bool = False) -> bool:
     started_at = time.monotonic()
     current_operation = 'wipe_running_marker'
-    purge_result: object = {}
+    purge_result = _empty_purge_result()
     try:
         # Transition to ``running`` so the reconciler can distinguish a
         # genuinely orphaned ``pending`` marker (queued but never started)
@@ -313,14 +322,13 @@ def background_wipe_user_data(uid: str, retry_count: int = 0, terminal: bool = F
             )
             return False
         required_failures, best_effort_failures = _purge_failures(purge_result)
-        purge_result_dict = purge_result
         _emit_deletion_telemetry(
             uid,
             ACCOUNT_DELETION_WIPE_COMPLETED,
             {
                 'duration_seconds': round(time.monotonic() - started_at, 3),
-                'vectors_deleted': purge_result_dict.get('vectors_deleted', 0),
-                'recordings_deleted': purge_result_dict.get('recordings_deleted', 0),
+                'vectors_deleted': purge_result.get('vectors_deleted', 0),
+                'recordings_deleted': purge_result.get('recordings_deleted', 0),
                 'required_failure_count': len(required_failures),
                 'best_effort_failure_count': len(best_effort_failures),
                 'failed_operations': [failure['operation'] for failure in required_failures + best_effort_failures],

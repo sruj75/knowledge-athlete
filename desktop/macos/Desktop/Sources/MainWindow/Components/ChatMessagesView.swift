@@ -78,7 +78,6 @@ struct ChatMessagesView<WelcomeContent: View>: View {
   let hasMoreMessages: Bool
   let isLoadingMoreMessages: Bool
   let isLoadingInitial: Bool
-  let app: OmiApp?
   let onLoadMore: () async -> Void
   let onRate: (String, Int?) -> Void
   var onCitationTap: ((Citation) -> Void)? = nil
@@ -544,7 +543,6 @@ struct ChatMessagesView<WelcomeContent: View>: View {
       ForEach(Array(displayMessages.enumerated()), id: \.element.id) { index, message in
         ChatBubble(
           message: message,
-          app: app,
           showsOmiMark: message.id == finalAssistantMessageID,
           onRate: { rating in
             onRate(message.id, rating)

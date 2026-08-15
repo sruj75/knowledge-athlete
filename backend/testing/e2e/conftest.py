@@ -71,7 +71,6 @@ def _set_e2e_env():
     os.environ["REDIS_DB_HOST"] = "localhost"
     os.environ["REDIS_DB_PORT"] = "6379"
     os.environ["REDIS_DB_PASSWORD"] = ""
-    os.environ["DEEPGRAM_API_KEY"] = "fake-deepgram-key"
     os.environ["OPENAI_API_KEY"] = "fake-openai-key"
     os.environ["ANTHROPIC_API_KEY"] = "fake-anthropic-key"
     os.environ["OPENROUTER_API_KEY"] = "fake-openrouter-key"
@@ -87,11 +86,9 @@ def _set_e2e_env():
     os.environ["BUCKET_PRIVATE_CLOUD_SYNC"] = "omi-private-cloud-sync"
     os.environ["BUCKET_TEMPORAL_SYNC_LOCAL"] = "sync-temporal"
     os.environ["BUCKET_MEMORIES_RECORDINGS"] = "memories-recordings"
-    os.environ["BUCKET_APP_THUMBNAILS"] = "app-thumbnails"
     os.environ["BUCKET_CHAT_FILES"] = "chat-files"
     os.environ["BUCKET_DESKTOP_UPDATES"] = "desktop-updates"
     os.environ["DEV_WEBHOOK_RETRY_DELAYS"] = "0,0,0"
-    os.environ["SYNC_DISPATCH_MODE"] = "inline"
     os.environ["AUDIO_MERGE_DISPATCH_MODE"] = "inline"
     # Disable Stripe validation so startup doesn't fail.
     os.environ["STRIPE_SECRET_KEY"] = ""
@@ -334,15 +331,6 @@ def isolate_e2e_state(fake_firestore, fake_redis, fake_storage):
             import utils.http_client as http_client
 
             http_client._webhook_circuit_breakers.clear()
-        except Exception:
-            pass
-        try:
-            import database.webhook_health as webhook_health
-
-            webhook_health.r = fake_redis
-            webhook_health._dev_failure_script = None
-            webhook_health._record_failure_script = None
-            webhook_health._record_success_script = None
         except Exception:
             pass
         try:

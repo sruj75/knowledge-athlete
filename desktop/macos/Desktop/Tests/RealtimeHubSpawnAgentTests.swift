@@ -123,7 +123,6 @@ import XCTest
           sessionID: "session-child",
           runID: "run-child",
           attemptID: "attempt-child",
-          provider: "hermes",
           title: "Research models",
           objective: "Research the latest models"))
     }
@@ -172,18 +171,6 @@ import XCTest
           output: rejected,
           expectedContinuityKey: continuityKey),
         .rejected)
-    }
-
-    func testDirectedProviderSetupNeededIsTypedAndCannotCreateAPill() {
-      let continuityKey = "voice:00000000-0000-0000-0000-000000009519"
-      let setupNeeded =
-        #"{"ok":false,"error":{"code":"provider_setup_needed","provider":"openclaw","message":"OpenClaw needs setup"}}"#
-
-      XCTAssertEqual(
-        RealtimeSpawnAgentToolOutcome.classify(
-          output: setupNeeded,
-          expectedContinuityKey: continuityKey),
-        .setupNeeded(.openclaw))
     }
 
     func testSharedSpawnReceiptFixturesAcceptValidAndRejectMalformed() throws {
@@ -235,7 +222,7 @@ import XCTest
         "state": "running",
         "attemptState": "running",
         "revision": 2,
-        "adapterId": "hermes",
+        "adapterId": "pi-mono",
         "updatedAtMs": 1_720_000_000_000 as NSNumber,
       ]
       var child: [String: Any] = [
@@ -244,7 +231,6 @@ import XCTest
         "attemptId": "attempt-child",
         "title": title,
         "objective": objective,
-        "provider": "hermes",
         "lifecycle": childLifecycle,
       ]
       if let pillID { child["pillId"] = pillID.uuidString }
@@ -275,7 +261,7 @@ import XCTest
             "state": "running",
             "attemptState": "running",
             "revision": 2,
-            "adapterId": "hermes",
+            "adapterId": "pi-mono",
             "updatedAtMs": 1_720_000_000_000 as NSNumber,
           ],
           "semanticDigest": semanticDigest,
@@ -359,7 +345,7 @@ import XCTest
     func testRealtimeHubAudibleOutputIsLeaseGated() throws {
       let coordinator = VoiceTurnCoordinator()
       let turnID = coordinator.begin(intent: .hold)
-      coordinator.publish(.selectRoute(turnID: turnID, route: .deepgramBatch))
+      coordinator.publish(.selectRoute(turnID: turnID, route: .managedBatch))
       coordinator.publish(.finalize(turnID: turnID))
       coordinator.publish(.transcriptionStarted(turnID: turnID))
       coordinator.publish(.transcriptionFinal(turnID: turnID, text: "fixture"))
@@ -459,7 +445,7 @@ import XCTest
       XCTAssertFalse(source.contains("replaceVoiceContinuityTurn("))
     }
 
-    func testSpawnAgentDelegatesDirectedProviderAvailabilityToKernel() throws {
+    func testSpawnAgentDelegatesExecutionAuthorityToKernel() throws {
       let source = try realtimeHubControllerSource()
 
       XCTAssertFalse(source.contains("LocalAgentProviderDetector.availability"))

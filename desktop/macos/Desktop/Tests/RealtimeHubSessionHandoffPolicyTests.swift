@@ -161,18 +161,6 @@ import XCTest
 
     @MainActor
     func testBargeInFailoverWaitsForTransportAcknowledgementBeforeSpecializedStart() async throws {
-      let defaults = UserDefaults.standard
-      let keyName = BYOKProvider.openai.storageKey
-      let previousKey = defaults.object(forKey: keyName)
-      defaults.set("barge-in-fixture", forKey: keyName)
-      defer {
-        if let previousKey {
-          defaults.set(previousKey, forKey: keyName)
-        } else {
-          defaults.removeObject(forKey: keyName)
-        }
-      }
-
       let controller = RealtimeHubController()
       let fixture = try await installDelayedTransport(on: controller, ownerScope: .signedOut)
       controller.prefetchedVoiceContextOwnerScope = .signedOut
@@ -192,7 +180,7 @@ import XCTest
         specializedStartCount += 1
         XCTAssertEqual(provider, .openai)
         XCTAssertEqual(ownerScope, .signedOut)
-        XCTAssertFalse(auth.isEphemeral)
+        XCTAssertFalse(auth.reportsUsage)
         specializedStart.fulfill()
         return true
       }
@@ -413,7 +401,7 @@ import XCTest
       let opened = expectation(description: "fixture transport opened")
       let session = RealtimeHubSession(
         provider: .gemini,
-        auth: .byokKey("fixture"),
+        auth: .hermeticStub,
         instructions: "fixture",
         rawWebSocketFactory: { _, queue in
           let transport = DelayedAckRealtimeTransport(queue: queue, tracker: tracker)
@@ -425,7 +413,7 @@ import XCTest
       controller.session = session
       controller.voiceSessionID = VoiceSessionID()
       controller.sessionProvider = .gemini
-      controller.sessionAuth = .byokKey("fixture")
+      controller.sessionAuth = .hermeticStub
       controller.sessionOwnerBinding = RealtimeHubController.PhysicalSessionOwnerBinding(
         sourceID: ObjectIdentifier(session),
         ownerScope: ownerScope)

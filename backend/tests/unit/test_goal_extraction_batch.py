@@ -42,14 +42,11 @@ _DATABASE_SUBMODULES = (
     "folders",
     "calendar_meetings",
     "vector_db",
-    "apps",
     "llm_usage",
     "_client",
     "chat",
     "goals",
-    "knowledge_graph",
     "daily_summaries",
-    "mem_db",
     "notifications",
 )
 _RESTORED_MODULES = tuple(

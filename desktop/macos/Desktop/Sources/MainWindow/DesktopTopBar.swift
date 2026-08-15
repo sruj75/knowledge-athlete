@@ -2,7 +2,7 @@ import OmiTheme
 import SwiftUI
 
 /// The constant floating top bar that replaces the left nav rail: primary
-/// navigation (Home / Memory / Tasks / Apps), a "new since you were last here"
+/// navigation (Home / Memory / Tasks), a "new since you were last here"
 /// counter (conversations · memories · tasks created while Omi wasn't in front),
 /// and the Capture/Listening controls on the right.
 struct DesktopTopBar: View {
@@ -256,7 +256,7 @@ struct DesktopTopBar: View {
 
   /// New-item count to badge on a nav button (since Omi was last in front).
   /// The Memory hub holds both memories and conversations, so its badge sums
-  /// them; Tasks badges new tasks. Home/Apps have no counter.
+  /// them; Tasks badges new tasks. Home has no counter.
   private func newCount(for item: TopNavigationItem) -> Int {
     switch item.index {
     case SidebarNavItem.conversations.rawValue: return newMemories + newConversations
@@ -393,7 +393,6 @@ enum TopNavigationRoutes {
     TopNavigationItem(index: SidebarNavItem.dashboard.rawValue, title: "Home", icon: "house.fill"),
     TopNavigationItem(index: SidebarNavItem.conversations.rawValue, title: "Memory", icon: "brain"),
     TopNavigationItem(index: SidebarNavItem.tasks.rawValue, title: "Tasks", icon: "checklist"),
-    TopNavigationItem(index: SidebarNavItem.apps.rawValue, title: "Apps", icon: "puzzlepiece.fill"),
   ]
 
   static let memoryDestinations = MemoryHubDestination.allCases
@@ -415,8 +414,6 @@ enum TopNavigationPillMetrics {
       baseWidth = 128
     case SidebarNavItem.tasks.rawValue:
       baseWidth = 84
-    case SidebarNavItem.apps.rawValue:
-      baseWidth = 80
     default:
       baseWidth = 88
     }

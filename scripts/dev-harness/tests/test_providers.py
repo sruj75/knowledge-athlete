@@ -12,13 +12,14 @@ from dev_harness import config, providers, safety
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 OPENAI_FAKE_RELATIVE_PATH = Path("backend") / "testing" / "e2e" / "fakes" / "llm.py"
+MODULATE_FAKE_RELATIVE_PATH = Path("backend") / "testing" / "e2e" / "fakes" / "stt.py"
 
 
 def _real_env(api_key: str = "sk-local-dev-test-key") -> dict[str, str]:
     return {
         "PROVIDER_MODE": "real",
         "OPENAI_API_KEY": api_key,
-        "DEEPGRAM_API_KEY": "dg-local-dev-test-key",
+        "MODULATE_API_KEY": "modulate-local-dev-test-key",
         "GEMINI_API_KEY": "gemini-local-dev-test-key",
         "ANTHROPIC_API_KEY": "sk-ant-local-dev-test-key",
     }
@@ -34,6 +35,7 @@ def test_credential_checker_real_and_offline_modes(monkeypatch: pytest.MonkeyPat
 
     assert not real_missing.ok
     assert any("OPENAI_API_KEY" in item for item in real_missing.missing)
+    assert any("MODULATE_API_KEY" in item for item in real_missing.missing)
     assert not any("OMI_LOCAL_" in item for item in real_missing.missing)
 
     monkeypatch.setenv("PROVIDER_MODE", "offline")
@@ -43,6 +45,7 @@ def test_credential_checker_real_and_offline_modes(monkeypatch: pytest.MonkeyPat
     assert offline.enabled_external_providers == ()
     assert "openai" in offline.offline_fake_sources
     assert Path(offline.offline_fake_sources["openai"]).relative_to(REPO_ROOT) == OPENAI_FAKE_RELATIVE_PATH
+    assert Path(offline.offline_fake_sources["modulate"]).relative_to(REPO_ROOT) == MODULATE_FAKE_RELATIVE_PATH
 
 
 def test_real_mode_reports_fingerprints_without_leaking_secrets() -> None:
@@ -52,15 +55,16 @@ def test_real_mode_reports_fingerprints_without_leaking_secrets() -> None:
     assert report.ok
     assert set(report.enabled_external_providers) == {
         "openai",
-        "deepgram",
+        "modulate",
         "gemini",
         "anthropic",
         "hosted-ml-local-http",
     }
     assert report.fingerprints["openai"] == providers.secret_fingerprint(env["OPENAI_API_KEY"])
+    assert report.fingerprints["modulate"] == providers.secret_fingerprint(env["MODULATE_API_KEY"])
     rendered = "\n".join(providers.status_lines(report))
     assert env["OPENAI_API_KEY"] not in rendered
-    assert env["DEEPGRAM_API_KEY"] not in rendered
+    assert env["MODULATE_API_KEY"] not in rendered
     assert env["GEMINI_API_KEY"] not in rendered
     assert env["ANTHROPIC_API_KEY"] not in rendered
     assert "sha256:" in rendered
@@ -74,6 +78,14 @@ def test_endpoint_and_capability_allowlists() -> None:
             provider="openai",
             capability="llm.chat",
             endpoint="https://api.openai.com/v1/chat/completions",
+            estimated_cost_usd=0.01,
+        )
+    )
+    broker.check_request(
+        providers.ProviderRequest(
+            provider="modulate",
+            capability="stt.streaming",
+            endpoint="wss://modulate-developer-apis.com/api/velma-2-stt-streaming",
             estimated_cost_usd=0.01,
         )
     )
@@ -146,16 +158,35 @@ def test_offline_mode_uses_hermetic_shared_fake_provider_wrapper() -> None:
     fake_paths = registry.fake_source_paths()
 
     assert Path(fake_paths["openai"]).relative_to(REPO_ROOT) == OPENAI_FAKE_RELATIVE_PATH
+    assert Path(fake_paths["modulate"]).relative_to(REPO_ROOT) == MODULATE_FAKE_RELATIVE_PATH
     llm_fake = registry.load_fake("openai")
     response = llm_fake.make_openai_chat_response()
     assert response["id"] == "chatcmpl-fake-e2e-test"
-
     offline_broker = providers.ProviderBroker(REPO_ROOT, env={"PROVIDER_MODE": "offline"})
     offline_broker.check_request(
         providers.ProviderRequest(
             provider="openai",
             capability="llm.chat",
             endpoint="https://api.openai.com/v1/chat/completions",
+            estimated_cost_usd=0.0,
+        )
+    )
+    stt_fake = registry.load_fake("modulate")
+    provider = stt_fake.make_fake_prerecorded_provider("en-US")
+    words, language = provider.transcribe_bytes(b"synthetic-audio", return_language=True)
+    assert language == "en"
+    assert words == [
+        {
+            "timestamp": [0.0, 1.25],
+            "speaker": "SPEAKER_00",
+            "text": "Hermetic prerecorded STT transcript from the fake provider.",
+        }
+    ]
+    offline_broker.check_request(
+        providers.ProviderRequest(
+            provider="modulate",
+            capability="stt.prerecorded",
+            endpoint="https://modulate-developer-apis.com/api/velma-2-stt-batch",
             estimated_cost_usd=0.0,
         )
     )
@@ -173,7 +204,7 @@ def test_provider_secrets_injected_into_child_env(tmp_path: Path) -> None:
             [
                 "PROVIDER_MODE=real",
                 f"OPENAI_API_KEY={secret}",
-                "DEEPGRAM_API_KEY=dg-local-dev-test-key",
+                "MODULATE_API_KEY=modulate-local-dev-test-key",
                 "GEMINI_API_KEY=gemini-local-dev-test-key",
                 "ANTHROPIC_API_KEY=sk-ant-local-dev-test-key",
             ]
@@ -187,13 +218,13 @@ def test_provider_secrets_injected_into_child_env(tmp_path: Path) -> None:
     if existing := env.get("PYTHONPATH"):
         pythonpath.append(existing)
     env["PYTHONPATH"] = os.pathsep.join(pythonpath)
-    for key in ("OPENAI_API_KEY", "DEEPGRAM_API_KEY", "GEMINI_API_KEY", "ANTHROPIC_API_KEY"):
+    for key in ("OPENAI_API_KEY", "MODULATE_API_KEY", "GEMINI_API_KEY", "ANTHROPIC_API_KEY"):
         env.pop(key, None)
 
     cfg = config.load_config(repo, env=env, create_layout=True)
     child = config.child_env_for(cfg)
     desktop_child = config.desktop_backend_child_env_for(cfg)
-    for key in ("OPENAI_API_KEY", "DEEPGRAM_API_KEY", "GEMINI_API_KEY", "ANTHROPIC_API_KEY"):
+    for key in ("OPENAI_API_KEY", "MODULATE_API_KEY", "GEMINI_API_KEY", "ANTHROPIC_API_KEY"):
         expected = config.parse_secrets_file(cfg).secrets[key]
         assert child.get(key) == expected
         assert desktop_child.get(key) == expected
@@ -230,9 +261,16 @@ def test_parse_secrets_file_ignores_non_secret_keys(tmp_path: Path, monkeypatch:
 
 
 def test_offline_child_env_rejects_provider_credentials() -> None:
-    parent = {"PATH": "/usr/bin", "OPENAI_API_KEY": "sk-secret", "PROVIDER_MODE": "offline"}
+    parent = {
+        "PATH": "/usr/bin",
+        "OPENAI_API_KEY": "sk-secret",
+        "MODULATE_API_KEY": "modulate-secret",
+        "PROVIDER_MODE": "offline",
+    }
     env = safety.build_child_env(parent, provider_mode="offline")
     assert "OPENAI_API_KEY" not in env
+    assert "MODULATE_API_KEY" not in env
+    assert "MODULATE_API_KEY" not in safety.offline_provider_placeholders()
 
     with pytest.raises(safety.SafetyError, match="provider credential"):
-        safety.build_child_env(parent, provider_mode="offline", extra={"OPENAI_API_KEY": "sk-secret"})
+        safety.build_child_env(parent, provider_mode="offline", extra={"MODULATE_API_KEY": "modulate-secret"})

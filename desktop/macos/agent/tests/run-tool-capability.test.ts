@@ -28,7 +28,9 @@ function fixture(role: "coordinator" | "leaf" = "coordinator") {
   const session = store.insertSession({
     ownerId: "owner-1",
     surfaceKind: role === "leaf" ? "background_agent" : "main_chat",
-    defaultAdapterId: "acp",
+    defaultAdapterId: "pi-mono",
+    providerBoundary: "managed_cloud",
+    modelProfile: "omi-sonnet",
     executionRole: role,
   });
   const run = store.insertRun({
@@ -42,7 +44,7 @@ function fixture(role: "coordinator" | "leaf" = "coordinator") {
     runId: run.runId,
     attemptNo: 1,
     status: "running",
-    adapterId: "acp",
+    adapterId: "pi-mono",
     adapterInstanceId: "worker",
   });
   return { databasePath, store, session, run, attempt };
@@ -123,7 +125,7 @@ describe("RunToolCapabilityBroker", () => {
   it("uses the immutable canonical profile instead of conflicting legacy session columns", () => {
     const { store, session, run, attempt } = fixture("leaf");
     store.execute(
-      "UPDATE sessions SET default_adapter_id = 'pi-mono', execution_role = 'coordinator' WHERE session_id = ?",
+      "UPDATE sessions SET default_adapter_id = 'test-adapter', provider_boundary = 'local_user:test-adapter', execution_role = 'coordinator' WHERE session_id = ?",
       [session.sessionId],
     );
     const capability = createBroker(store).register({
@@ -132,7 +134,7 @@ describe("RunToolCapabilityBroker", () => {
       runId: run.runId,
       attemptId: attempt.attemptId,
     });
-    expect(capability).toMatchObject({ adapterId: "acp", executionRole: "leaf", profileGeneration: 1 });
+    expect(capability).toMatchObject({ adapterId: "pi-mono", executionRole: "leaf", profileGeneration: 1 });
     expect(capability.allowedToolNames).not.toContain("spawn_agent");
     store.close();
   });
@@ -546,11 +548,8 @@ describe("RunToolCapabilityBroker", () => {
     store.close();
   });
 
-  it("derives screen-image availability from the immutable admitted context", () => {
-    for (const [screenOutcome, expected] of [
-      ["unavailable", false],
-      ["available", true],
-    ] as const) {
+  it("keeps the scoped capture tool available while execution policy owns image approval", () => {
+    for (const screenOutcome of ["unavailable", "available"] as const) {
       const { store, session, run, attempt } = fixture();
       store.execute("UPDATE runs SET input_json = ? WHERE run_id = ?", [
         JSON.stringify({
@@ -568,7 +567,7 @@ describe("RunToolCapabilityBroker", () => {
         runId: run.runId,
         attemptId: attempt.attemptId,
       });
-      expect(capability.allowedToolNames.includes("capture_screen")).toBe(expected);
+      expect(capability.allowedToolNames.includes("capture_screen")).toBe(true);
       store.close();
     }
   });

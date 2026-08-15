@@ -14,8 +14,7 @@ extension AppState {
   }
 
   /// Start real-time transcription
-  /// - Parameter source: Audio source to use (defaults to current audioSource setting)
-  func startTranscription(source: AudioSource? = nil) {
+  func startTranscription() {
     guard !isTranscribing else { return }
     sttSession.prepareForStart()
     silentMicRecoveryAttempts = 0
@@ -26,22 +25,9 @@ extension AppState {
     // shortcuts. Refuse to start and surface the upgrade popup.
     if blockIfPaywalled() { return }
 
-    // Use provided source or fall back to current setting
-    let effectiveSource = source ?? audioSource
-    var recordingConversationSource = currentConversationSource
-
-    // For BLE device, check if device is connected
-    if effectiveSource == .bleDevice {
-      guard DeviceProvider.shared.isConnected else {
-        showAlert(title: "Device Not Connected", message: "Please connect a wearable device first.")
-        return
-      }
-    } else {
-      // For microphone, check permission
-      guard AudioCaptureService.checkPermission() else {
-        requestMicrophonePermission()
-        return
-      }
+    guard AudioCaptureService.checkPermission() else {
+      requestMicrophonePermission()
+      return
     }
 
     do {
@@ -59,7 +45,6 @@ extension AppState {
         userDefaultsForceCloud: UserDefaults.standard.bool(forKey: "forceCloudSTT")
       )
       sttSession.beginRecording(
-        audioSource: effectiveSource,
         isAppleSilicon: Self.isAppleSilicon,
         debugForceCloud: debugForceCloud
       )
@@ -92,51 +77,32 @@ extension AppState {
         )
       }
 
-      // Set conversation source based on audio source
-      if effectiveSource == .bleDevice, let device = DeviceProvider.shared.connectedDevice {
-        currentConversationSource = ConversationSource.from(deviceType: device.type)
-        recordingInputDeviceName = device.displayName
+      recordingInputDeviceName = AudioCaptureService.getCurrentMicrophoneName()
+      audioCaptureService = AudioCaptureService()
+      audioMixer = AudioMixer()
+      vadGateService = nil
+
+      // Initialize system audio capture if supported (macOS 14.4+) and not in "Never" mode.
+      // The actual start/stop is driven by reconcileCapture() based on the user's System Audio
+      // mode (Always / Only during meetings / Never) and meeting state. `.never` is also forced
+      // by the hidden `disableSystemAudioCapture` debug flag — see effectiveSystemAudioMode.
+      let systemAudioMode = effectiveSystemAudioMode
+      if systemAudioMode == .never {
+        log("Transcription: System audio capture mode = never — not initializing")
+      } else if #available(macOS 14.4, *) {
+        systemAudioCaptureService = SystemAudioCaptureService()
+        log(
+          "Transcription: System audio capture initialized (mode=\(systemAudioMode.rawValue), macOS 14.4+)"
+        )
       } else {
-        currentConversationSource = .desktop
-        recordingInputDeviceName = AudioCaptureService.getCurrentMicrophoneName()
+        log("Transcription: System audio capture not available (requires macOS 14.4+)")
       }
-      recordingConversationSource = currentConversationSource
-
-      // Initialize audio services based on source
-      if effectiveSource == .microphone {
-        // Initialize audio capture service
-        audioCaptureService = AudioCaptureService()
-
-        // Initialize audio mixer for combining mic and system audio
-        audioMixer = AudioMixer()
-
-        // VAD gate not used for Python backend streaming (backend handles its own VAD)
-        vadGateService = nil
-
-        // Initialize system audio capture if supported (macOS 14.4+) and not in "Never" mode.
-        // The actual start/stop is driven by reconcileCapture() based on the user's System Audio
-        // mode (Always / Only during meetings / Never) and meeting state. `.never` is also forced
-        // by the hidden `disableSystemAudioCapture` debug flag — see effectiveSystemAudioMode.
-        // Toggle the debug flag with: defaults write <bundle> disableSystemAudioCapture -bool true
-        let systemAudioMode = effectiveSystemAudioMode
-        if systemAudioMode == .never {
-          log("Transcription: System audio capture mode = never — not initializing")
-        } else if #available(macOS 14.4, *) {
-          systemAudioCaptureService = SystemAudioCaptureService()
-          log(
-            "Transcription: System audio capture initialized (mode=\(systemAudioMode.rawValue), macOS 14.4+)"
-          )
-        } else {
-          log("Transcription: System audio capture not available (requires macOS 14.4+)")
-        }
-      }
-      // For BLE device, BleAudioService will be used in startAudioCapture
 
       // Streaming mode: start transcription service first, then audio on connect.
       // Local (Parakeet) mode has no WebSocket — start capture immediately instead.
       if sttSession.useLocalSTT {
         Task { [weak self] in
-          await self?.startAudioCapture(source: effectiveSource)
+          await self?.startAudioCapture()
         }
       } else {
         transcriptionService?.start(
@@ -156,7 +122,7 @@ extension AppState {
               AnalyticsManager.shared.recordingError(
                 error: error.localizedDescription,
                 reason: "cloud_stt_error",
-                source: self?.currentConversationSource.rawValue,
+                source: ConversationSource.desktop.rawValue,
                 stage: "streaming"
               )
               // Cloud WS gave up (reconnects exhausted) → try to keep recording on-device
@@ -168,7 +134,7 @@ extension AppState {
             Task { @MainActor in
               log("Transcription: Connected to Python backend")
               // Start audio capture once connected
-              await self?.startAudioCapture(source: effectiveSource)
+              await self?.startAudioCapture()
             }
           },
           onDisconnected: {
@@ -180,7 +146,6 @@ extension AppState {
       isTranscribing = true
       recordingGeneration &+= 1
       AssistantSettings.shared.transcriptionEnabled = true
-      audioSource = effectiveSource
       currentTranscript = ""
       speakerSegments = []
       totalSegmentCount = 0
@@ -195,14 +160,14 @@ extension AppState {
       RecordingTimer.shared.start()
 
       log(
-        "Transcription: Using source: \(effectiveSource.rawValue), device: \(recordingInputDeviceName ?? "Unknown")"
+        "Transcription: Using source: desktop, device: \(recordingInputDeviceName ?? "Unknown")"
       )
 
       // Create crash-safe DB session for persistence
       Task {
         do {
           let sessionId = try await TranscriptionStorage.shared.startSession(
-            source: currentConversationSource.rawValue,
+            source: ConversationSource.desktop.rawValue,
             language: effectiveLanguage,
             timezone: TimeZone.current.identifier,
             inputDeviceName: recordingInputDeviceName,
@@ -290,7 +255,7 @@ extension AppState {
       AnalyticsManager.shared.recordingError(
         error: error.localizedDescription,
         reason: "start_transcription_failed",
-        source: recordingConversationSource.rawValue,
+        source: ConversationSource.desktop.rawValue,
         stage: "startup"
       )
       showAlert(
@@ -300,16 +265,9 @@ extension AppState {
     }
   }
 
-  /// Start audio capture and pipe to transcription service
-  /// - Parameter source: Audio source to capture from
-  func startAudioCapture(source: AudioSource = .microphone) async {
-    if source == .bleDevice {
-      // Use BLE device audio
-      await startBleAudioCapture()
-    } else {
-      // Use microphone (+ optional system audio)
-      await startMicrophoneAudioCapture()
-    }
+  /// Start microphone and optional system-audio capture.
+  func startAudioCapture() async {
+    await startMicrophoneAudioCapture()
   }
 
   /// Arm microphone + system audio capture for the session. Actual capture is managed by
@@ -692,88 +650,6 @@ extension AppState {
     }
   }
 
-  /// Start BLE device audio capture
-  func startBleAudioCapture() async {
-    guard let connection = DeviceProvider.shared.activeConnection,
-      let transcriptionService = transcriptionService
-    else {
-      logError("Transcription: No device connection or transcription service", error: nil)
-      stopTranscription()
-      return
-    }
-
-    // Start BLE audio processing and pipe directly to transcription
-    await BleAudioService.shared.startProcessing(
-      from: connection,
-      transcriptionService: transcriptionService,
-      audioDataHandler: { _ in
-        // Audio level is updated by BleAudioService
-        Task { @MainActor in
-          AudioLevelMonitor.shared.updateMicrophoneLevel(BleAudioService.shared.audioLevel)
-        }
-      }
-    )
-
-    // Start listening for button events
-    startButtonEventListener()
-
-    log("Transcription: BLE audio capture started (device: \(connection.device.displayName))")
-  }
-
-  /// Start listening for button events from BLE device
-  func startButtonEventListener() {
-    guard let buttonStream = DeviceProvider.shared.getButtonStream() else {
-      log("Transcription: Device does not support button events")
-      return
-    }
-
-    buttonStreamTask?.cancel()
-    buttonStreamTask = Task { [weak self] in
-      do {
-        for try await buttonState in buttonStream {
-          self?.handleButtonEvent(buttonState)
-        }
-      } catch {
-        log("Transcription: Button stream ended: \(error.localizedDescription)")
-      }
-    }
-  }
-
-  /// Handle button events from BLE device
-  func handleButtonEvent(_ buttonState: [UInt8]) {
-    guard !buttonState.isEmpty else { return }
-
-    let state = buttonState[0]
-    log("Transcription: Device button event: \(state)")
-
-    switch state {
-    case 1:
-      // Single tap - could be used for voice command mode (future feature)
-      log("Transcription: Single tap - no action configured")
-
-    case 2:
-      // Double tap - finish conversation and continue recording
-      log("Transcription: Double tap - finishing conversation")
-      Task {
-        _ = await finishConversation()
-      }
-
-    case 3:
-      // Long press - stop transcription completely
-      log("Transcription: Long press - stopping transcription")
-      stopTranscription()
-
-    default:
-      log("Transcription: Unknown button state: \(state)")
-    }
-  }
-
-  /// Stop button event listener
-  func stopButtonEventListener() {
-    buttonStreamTask?.cancel()
-    buttonStreamTask = nil
-  }
-
   /// Stop real-time transcription.
   /// The Python backend handles conversation lifecycle automatically when the WebSocket closes.
   /// When `/v4/listen` has announced the backend conversation id, finalize that exact conversation
@@ -858,10 +734,9 @@ extension AppState {
     AnalyticsManager.shared.recordingError(
       error: "parakeet_model_load_failed_fallback_cloud",
       reason: "local_stt_model_load_failed",
-      source: currentConversationSource.rawValue,
+      source: ConversationSource.desktop.rawValue,
       stage: "fallback"
     )
-    let source = audioSource
     stopTranscription()
     // Restart in cloud mode once stop has settled (isTranscribing flips false inside the stop's
     // async teardown). Bounded wait avoids racing the `!isTranscribing` guard in startTranscription.
@@ -871,7 +746,7 @@ extension AppState {
         if !self.isTranscribing { break }
         try? await Task.sleep(nanoseconds: 100_000_000)
       }
-      self.startTranscription(source: source)
+      self.startTranscription()
       self.sttSession.completeFallback()
     }
   }
@@ -885,7 +760,6 @@ extension AppState {
     guard
       sttSession.canBeginCloudToLocalFallback(
         isTranscribing: isTranscribing,
-        audioSource: audioSource,
         isAppleSilicon: Self.isAppleSilicon
       )
     else {
@@ -896,7 +770,7 @@ extension AppState {
         to: "stopped",
         reason: "cloud_stt_reconnect_failed",
         outcome: .exhausted,
-        extra: ["source": currentConversationSource.rawValue])
+        extra: ["source": ConversationSource.desktop.rawValue])
       stopTranscription()
       return
     }
@@ -909,14 +783,13 @@ extension AppState {
       to: "local",
       reason: "cloud_stt_reconnect_failed",
       outcome: .recovered,
-      extra: ["source": currentConversationSource.rawValue])
+      extra: ["source": ConversationSource.desktop.rawValue])
     AnalyticsManager.shared.recordingError(
       error: "cloud_stt_reconnect_failed_fallback_local",
       reason: "cloud_stt_reconnect_failed",
-      source: currentConversationSource.rawValue,
+      source: ConversationSource.desktop.rawValue,
       stage: "fallback"
     )
-    let source = audioSource
     stopTranscription()
     Task { @MainActor [weak self] in
       guard let self else { return }
@@ -924,7 +797,7 @@ extension AppState {
         if !self.isTranscribing { break }
         try? await Task.sleep(nanoseconds: 100_000_000)
       }
-      self.startTranscription(source: source)
+      self.startTranscription()
       self.sttSession.completeFallback()
     }
   }
@@ -1123,7 +996,7 @@ extension AppState {
     Task {
       do {
         let sessionId = try await TranscriptionStorage.shared.startSession(
-          source: currentConversationSource.rawValue,
+          source: ConversationSource.desktop.rawValue,
           language: lang,
           timezone: TimeZone.current.identifier,
           inputDeviceName: recordingInputDeviceName,
@@ -1173,12 +1046,6 @@ extension AppState {
 
     // Reset audio levels
     AudioLevelMonitor.shared.reset()
-
-    // Stop BLE audio if active
-    if audioSource == .bleDevice {
-      BleAudioService.shared.stopProcessing()
-      stopButtonEventListener()
-    }
 
     // Stop the meeting detector (only active in "Only during meetings" mode)
     meetingDetector?.stop()
@@ -1313,7 +1180,7 @@ extension AppState {
     }
     do {
       let sessionId = try await TranscriptionStorage.shared.startSession(
-        source: currentConversationSource.rawValue,
+        source: ConversationSource.desktop.rawValue,
         language: AssistantSettings.shared.effectiveTranscriptionLanguage,
         timezone: TimeZone.current.identifier,
         inputDeviceName: "harness-capture",

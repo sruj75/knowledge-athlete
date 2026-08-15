@@ -54,7 +54,6 @@ class ConversationSource(str, Enum):
     screenpipe = 'screenpipe'
     workflow = 'workflow'
     sdcard = 'sdcard'
-    external_integration = 'external_integration'
     limitless = 'limitless'
     rayban_meta = 'rayban_meta'
     onboarding = 'onboarding'
@@ -65,12 +64,6 @@ class ConversationSource(str, Enum):
         if isinstance(value, str):
             return cls.unknown
         return None
-
-
-class ConversationVisibility(str, Enum):
-    private = 'private'
-    shared = 'shared'
-    public = 'public'
 
 
 class PostProcessingStatus(str, Enum):
@@ -91,9 +84,3 @@ class ConversationStatus(str, Enum):
 
 class PostProcessingModel(str, Enum):
     fal_whisperx = 'fal_whisperx'
-
-
-class ExternalIntegrationConversationSource(str, Enum):
-    audio = 'audio_transcript'
-    message = 'message'
-    other = 'other_text'

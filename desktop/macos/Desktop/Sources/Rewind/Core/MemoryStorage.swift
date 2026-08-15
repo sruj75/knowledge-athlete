@@ -908,40 +908,6 @@ actor MemoryStorage {
     }
   }
 
-  /// Update visibility by backend ID
-  func updateVisibilityByBackendId(_ backendId: String, visibility: String) async throws {
-    let db = try await ensureInitialized()
-
-    try await db.write { database in
-      try database.execute(
-        sql: "UPDATE memories SET visibility = ?, updatedAt = ? WHERE backendId = ?",
-        arguments: [visibility, Date(), backendId]
-      )
-    }
-  }
-
-  /// Update visibility for memories within a tier scope.
-  func updateVisibility(scope: MemoryLayerScope, visibility: String) async throws {
-    let db = try await ensureInitialized()
-
-    try await db.write { database in
-      var conditions = ["deleted = 0"]
-      var arguments: [DatabaseValue] = []
-      guard
-        let visibilityValue = DatabaseValue(value: visibility),
-        let updatedAt = DatabaseValue(value: Date())
-      else { return }
-      arguments.append(visibilityValue)
-      arguments.append(updatedAt)
-      Self.appendTierCondition(&conditions, &arguments, tiers: scope.tiers)
-
-      try database.execute(
-        sql: "UPDATE memories SET visibility = ?, updatedAt = ? WHERE \(conditions.joined(separator: " AND "))",
-        arguments: StatementArguments(arguments)
-      )
-    }
-  }
-
   /// Update read status by backend ID
   func updateReadStatusByBackendId(_ backendId: String, isRead: Bool) async throws {
     let db = try await ensureInitialized()

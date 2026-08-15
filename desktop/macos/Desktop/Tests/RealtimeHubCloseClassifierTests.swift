@@ -174,7 +174,7 @@ final class RealtimeHubCloseClassifierTests: XCTestCase {
       message: "Request had invalid authentication credentials",
       provider: .openai)
 
-    XCTAssertEqual(failure, .providerAuthFailed(provider: .openai, mode: .byok))
+    XCTAssertEqual(failure, .providerAuthFailed(provider: .openai, mode: .managed))
   }
 
   func testCredentialClassifierDetectsQuotaFailures() {

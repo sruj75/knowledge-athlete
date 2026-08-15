@@ -97,7 +97,7 @@ final class ScreenCaptureDetailTileTests: XCTestCase {
     XCTAssertTrue(result.contains("- top-left (x 0-1512, y 0-982): /tmp/shot-top-left.webp"))
     XCTAssertTrue(result.contains("- top-right (x 1512-3024, y 0-982): /tmp/shot-top-right.webp"))
     // The guidance that makes the model re-read small text from a tile instead of guessing.
-    XCTAssertTrue(result.contains("Read the tile"))
+    XCTAssertTrue(result.contains("inspect the tile"))
     XCTAssertTrue(result.contains("titles, prices, sizes, labels"))
   }
 }

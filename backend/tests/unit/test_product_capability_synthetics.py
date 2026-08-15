@@ -52,14 +52,10 @@ def test_missing_backend_url_skips_network_only_checks_without_credentials():
     config = _config(module, backend_url=None)
 
     health_status, health_summary, health_details = module.backend_health_check(config)
-    mcp_status, mcp_summary, mcp_details = module.mcp_oauth_metadata_check(config)
 
     assert health_status == "NOT_RUN"
     assert "/v1/health" in health_details["traced_route"]
     assert "backend" in health_summary.lower()
-    assert mcp_status == "NOT_RUN"
-    assert "backend" in mcp_summary.lower()
-    assert "/.well-known/oauth-authorization-server" in mcp_details["routes"]
 
 
 def test_redaction_masks_tokens_and_secret_fields():
@@ -98,11 +94,6 @@ def test_failing_check_sets_overall_failure(monkeypatch):
     monkeypatch.setattr(
         module,
         "conversation_processing_fixture_check",
-        lambda _config: ("NOT_RUN", "disabled", {}),
-    )
-    monkeypatch.setattr(
-        module,
-        "mcp_oauth_metadata_check",
         lambda _config: ("NOT_RUN", "disabled", {}),
     )
     monkeypatch.setattr(

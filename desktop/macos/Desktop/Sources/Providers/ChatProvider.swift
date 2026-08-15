@@ -77,16 +77,6 @@ enum ChatLegacyImportChronology {
   }
 }
 
-struct ChatRunAccountingPolicy: Equatable {
-  let usesOmiAccountQuota: Bool
-  let recordsPersonalProviderUsage: Bool
-
-  init(pinnedAdapterID: String) {
-    usesOmiAccountQuota = pinnedAdapterID == AgentAdapterId.piMono.rawValue
-    recordsPersonalProviderUsage = pinnedAdapterID == AgentAdapterId.acp.rawValue
-  }
-}
-
 struct OwnerIsolationKernelProbeReceipt: Equatable {
   let ownerID: String
   let conversationID: String
@@ -161,9 +151,6 @@ extension UserDefaults {
   @objc dynamic var multiChatEnabled: Bool {
     return bool(forKey: "multiChatEnabled")
   }
-  @objc dynamic var playwrightUseExtension: Bool {
-    return bool(forKey: "playwrightUseExtension")
-  }
 }
 
 // MARK: - Chat Session Model
@@ -175,7 +162,6 @@ struct ChatSession: Identifiable, Codable, Equatable {
   var preview: String?
   let createdAt: Date
   var updatedAt: Date
-  let appId: String?
   var messageCount: Int
   var starred: Bool
 
@@ -183,13 +169,12 @@ struct ChatSession: Identifiable, Codable, Equatable {
     case id, title, preview, starred
     case createdAt = "created_at"
     case updatedAt = "updated_at"
-    case appId = "app_id"
     case messageCount = "message_count"
   }
 
   init(
     id: String = UUID().uuidString, title: String = "New Chat", preview: String? = nil,
-    createdAt: Date = Date(), updatedAt: Date = Date(), appId: String? = nil,
+    createdAt: Date = Date(), updatedAt: Date = Date(),
     messageCount: Int = 0, starred: Bool = false
   ) {
     self.id = id
@@ -197,7 +182,6 @@ struct ChatSession: Identifiable, Codable, Equatable {
     self.preview = preview
     self.createdAt = createdAt
     self.updatedAt = updatedAt
-    self.appId = appId
     self.messageCount = messageCount
     self.starred = starred
   }
@@ -209,7 +193,6 @@ struct ChatSession: Identifiable, Codable, Equatable {
     preview = try container.decodeIfPresent(String.self, forKey: .preview)
     createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
     updatedAt = try container.decodeIfPresent(Date.self, forKey: .updatedAt) ?? Date()
-    appId = try container.decodeIfPresent(String.self, forKey: .appId)
     messageCount = try container.decodeIfPresent(Int.self, forKey: .messageCount) ?? 0
     starred = try container.decodeIfPresent(Bool.self, forKey: .starred) ?? false
   }
@@ -330,8 +313,7 @@ enum ChatContentBlock: Identifiable {
     sessionId: String,
     runId: String,
     title: String,
-    objective: String,
-    provider: AgentHarnessMode? = nil
+    objective: String
   )
   case agentCompletion(
     id: String,
@@ -350,14 +332,14 @@ enum ChatContentBlock: Identifiable {
     case .toolCall(let id, _, _, _, _, _): return id
     case .thinking(let id, _): return id
     case .discoveryCard(let id, _, _, _): return id
-    case .agentSpawn(let id, _, _, _, _, _, _): return id
+    case .agentSpawn(let id, _, _, _, _, _): return id
     case .agentCompletion(let id, _, _, _, _, _, _, _): return id
     }
   }
 
   var agentTimelineRef: AgentTimelineRef? {
     switch self {
-    case .agentSpawn(_, let pillId, let sessionId, let runId, _, _, _):
+    case .agentSpawn(_, let pillId, let sessionId, let runId, _, _):
       return AgentTimelineRef(pillId: pillId, sessionId: sessionId, runId: runId)
     case .agentCompletion(_, let pillId, let sessionId, let runId, _, _, _, _):
       return AgentTimelineRef(pillId: pillId, sessionId: sessionId, runId: runId)
@@ -786,7 +768,6 @@ struct MessageMetadata {
       "get_daily_recap",
       "complete_task",
       "delete_task",
-      "save_knowledge_graph",
     ]
     .filter { prompt.contains("**\($0)**") }
     .count
@@ -1003,7 +984,22 @@ enum ChatSystemPromptStyle {
   case floating
 }
 
-/// State management for chat functionality with Claude Agent SDK
+/// Complete local-agent request assembled by the one-assistant chat path.
+/// Keeping attachment identity inside this value prevents the UI state and
+/// agent transport calls from drifting into separate request shapes.
+struct ChatProviderAgentQueryInvocation {
+  let prompt: String
+  let session: AgentSurfaceSession
+  let surface: AgentSurfaceReference
+  let mode: String?
+  let imageData: Data?
+  let attachments: [AgentQueryAttachment]
+  let producingTurnId: String?
+  let expectedContext: AgentContextFreshness?
+  let reasoningEffort: String?
+}
+
+/// State management for managed Omi chat.
 /// Uses hybrid architecture: Swift → Claude Agent (via Node.js bridge) for AI, Backend for persistence + context
 @MainActor
 class ChatProvider: ObservableObject {
@@ -1030,7 +1026,6 @@ class ChatProvider: ObservableObject {
     If the screenshot already clearly shows the relevant options, do not ignore it just because the query is short or ambiguous.
     Respond concisely in 1-2 sentences. No lists. No headers.
     A screenshot may be attached — use it silently only if relevant. Never mention or acknowledge it.
-    BROWSER TABS: when you use the browser (Playwright), on your FIRST browser action open ONE dedicated tab with the browser_tabs tool (action: "new"), then do ALL browser work in that single tab and reuse it for every step. NEVER navigate, reload, switch, or close the user's other tabs, and never hijack their active tab — work only in the tab you opened so you don't interfere with what the user is doing.
     ================================================================================
     """
 
@@ -1078,9 +1073,8 @@ class ChatProvider: ObservableObject {
   // `errorMessage`; unmappable cases (encoding, quota, agent errors
   // with free-form messages) keep falling back to the legacy banner.
   //
-  // Paywall sheets (`isClaudeAuthRequired`, `needsBrowserExtensionSetup`,
-  // `showOmiThresholdAlert`) are deliberately NOT migrated — they're
-  // product flows, not error recovery surfaces.
+  // The upgrade sheet is deliberately not migrated; it is a product flow,
+  // not an error recovery surface.
   @Published var currentError: ChatErrorState?
 
   /// Preferred user-visible error string for compact surfaces (floating bar).
@@ -1125,13 +1119,10 @@ class ChatProvider: ObservableObject {
   private static let genericWatchdogInactivityMs = 60_000
   private static let genericWatchdogPollMs = 5_000
 
-  /// Set to true during onboarding so the ACP session ID is persisted for restart recovery.
+  /// Set during onboarding so the managed session is persisted for restart recovery.
   var isOnboarding = false
   var preOnboardingMainMessages: [ChatMessage]?
   @Published var sessionsLoadError: String?
-  @Published var selectedAppId: String? {
-    didSet { restoreDraftForCurrentContextIfNeeded() }
-  }
   @Published var hasMoreMessages = false
   @Published var isLoadingMoreMessages = false
   @Published var showStarredOnly = false
@@ -1140,51 +1131,42 @@ class ChatProvider: ObservableObject {
   /// Updated reactively via Combine instead of recomputed on every SwiftUI render pass.
   @Published private(set) var groupedSessions: [(String, [ChatSession])] = []
 
-  /// Triggered when a browser tool is called but the extension token isn't configured.
-  /// The UI should observe this and present BrowserExtensionSetup.
-  @Published var needsBrowserExtensionSetup = false
-
   /// Whether the user is currently viewing the default chat (syncs with Flutter app)
   @Published var isInDefaultChat = true
 
-  /// Working directory for Claude Agent SDK file-system tools (Read, Write, Bash, etc.)
-  /// Set by TaskChatCoordinator to point at the user's project directory.
-  var workingDirectory: String?
-
-  /// Override app ID for message routing (e.g. "task-chat" to isolate task messages).
-  /// When set, messages are saved with this app_id so the backend routes them
-  /// to the correct session instead of the default chat.
-  var overrideAppId: String?
-
-  /// Override the Claude model for this provider's queries.
-  /// When set, the bridge uses this model instead of the default (Opus).
-  /// e.g. "claude-sonnet-4-6" for faster floating bar responses.
-  var modelOverride: String?
-  /// Optional per-provider bridge override for spawned/background agents.
-  /// This lets a single pill run Hermes/OpenClaw without changing the user's
-  /// global chat provider preference stored in `chatBridgeMode`.
-  private let bridgeHarnessOverride: AgentHarnessMode?
-  private var activeDraftKey = ChatDraftKey.mainChat(contextID: "omi:default")
+  private var activeDraftKey = ChatDraftKey.mainChat(contextID: "default")
   private var isRestoringDraft = false
   private var draftRevision: UInt64 = 0
-
-  var hasBridgeHarnessOverride: Bool {
-    bridgeHarnessOverride != nil
-  }
 
   /// Multi-chat mode setting - when false, only default chat is shown (syncs with Flutter)
   /// When true, user can create multiple chat sessions
   @AppStorage("multiChatEnabled") var multiChatEnabled = false
 
   // MARK: - Agent client
-  // NOTE: initialized lazily so it reads the persisted bridgeMode from UserDefaults,
-  // not always defaulting to Omi mode on cold start.
   private var agentClient: AgentClient.Session?
+
+  #if DEBUG
+    var createChatSessionForTests: ((String?) async throws -> ChatSession)?
+    var runtimeOwnerIdForTests: (() -> String?)?
+    var ensureBridgeStartedForTests: ((Int?) async -> Bool)?
+    var resolveKernelQuerySessionForTests: ((AgentSurfaceReference, String?) async throws -> AgentSurfaceSession)?
+    var prepareKernelQueryContextForTests:
+      ((AgentSurfaceReference, AgentSurfaceSession?) async throws -> (AgentSurfaceSession, AgentContextSnapshot))?
+    var warmupKernelQuerySessionForTests: ((AgentSurfaceSession) async -> Void)?
+    var refreshMemoriesForPromptForTests: (() async -> Void)?
+    var recordStreamingJournalExchangeForTests: ((ChatMessage, ChatMessage) -> [ChatMessage]?)?
+    var initialMessageForTests: ((String, String) async throws -> InitialMessageResponse)?
+    var importInitialGreetingForTests: ((AgentSurfaceReference, KernelJournalRemoteTurn, String) async -> Bool)?
+    var refreshInitialGreetingForTests: ((AgentSurfaceReference) async -> Void)?
+    var agentClientForTests: AgentClient.Session?
+  #endif
+
   private func resolvedAgentClient() -> AgentClient.Session {
+    #if DEBUG
+      if let agentClientForTests { return agentClientForTests }
+    #endif
     if let agentClient { return agentClient }
-    let harness = resolvedHarnessMode()
-    activeBridgeHarness = harness
-    let session = AgentClient.makeSession(harnessMode: harness)
+    let session = AgentClient.makeSession(harnessMode: AgentHarnessMode.piMono.rawValue)
     agentClient = session
     return session
   }
@@ -1206,62 +1188,21 @@ class ChatProvider: ObservableObject {
   private var agentBridgeStarted = false
   private let bridgeReadinessSingleFlight =
     AgentRuntimeStartupSingleFlight<RuntimeOwnerAuthorizationSnapshot, Bool>()
-  /// Tracks the harness mode the bridge is actually running (NOT the @AppStorage preference).
-  /// @AppStorage("chatBridgeMode") can be updated by other views sharing the same key,
-  /// so comparing against it in switchBridgeMode() would always match → no-op.
-  private var activeBridgeHarness: String = "piMono"
-  /// Orders rapid preference changes without treating them as runtime lifecycle.
-  /// The kernel applies each preference only when creating future sessions.
-  private var profilePreferenceChangeGeneration: UInt64 = 0
-
-  enum BridgeMode: String {
-    case omiAI = "agentSDK"  // Legacy, auto-migrated to piMono
-    case userClaude = "claudeCode"
-    case piMono = "piMono"
-    case hermes = "hermes"
-    case openClaw = "openclaw"
-  }
-  @AppStorage("chatBridgeMode") var bridgeMode: String = BridgeMode.piMono.rawValue
-
-  /// Future-session preference hint for startup/UI only. A live send must use
-  /// `ChatRunAccountingPolicy` from its resolved immutable session profile.
   var isUsingOmiAccountProvider: Bool {
-    resolvedHarnessMode() == "piMono"
-  }
-
-  nonisolated static func harnessMode(for mode: BridgeMode) -> String {
-    AgentRuntimeRouting.harnessMode(for: mode).rawValue
-  }
-
-  private func resolvedHarnessMode() -> String {
-    if let override = bridgeHarnessOverride {
-      return override.rawValue
-    }
-    let mode = UserDefaults.standard.string(forKey: "chatBridgeMode") ?? BridgeMode.piMono.rawValue
-    return Self.harnessMode(for: BridgeMode(rawValue: mode) ?? .piMono)
+    true
   }
 
   /// The legacy "$50 lifetime Omi AI spend" upgrade nudge (`showOmiThresholdAlert`)
-  /// must never fire for users who already pay — paid subscribers and BYOK users
-  /// aren't capped by the free Omi quota. `omiAICumulativeCostUsd` is seeded from the
+  /// must never fire for users who already pay because they aren't capped by
+  /// the free Omi quota. `omiAICumulativeCostUsd` is seeded from the
   /// backend *lifetime* total, so without this guard any heavy paying user (e.g. on
   /// Operator/Architect) trips $50 and gets a bogus "Upgrade Required" alert even
   /// while well within their plan. The authoritative free-tier block is the
   /// server-side quota in `FloatingBarUsageLimiter`; this is just a soft nudge.
   var isExemptFromOmiUpgradeNudge: Bool {
-    FloatingBarUsageLimiter.shared.hasPaidPlan || APIKeyService.isByokActive
+    FloatingBarUsageLimiter.shared.hasPaidPlan
   }
 
-  /// Whether the agent bridge requires authentication (shown as sheet in UI)
-  @Published var isClaudeAuthRequired = false
-  /// Auth methods returned by agent bridge
-  @Published var claudeAuthMethods: [[String: Any]] = []
-  /// OAuth URL to open in browser (sent by bridge when auth is needed)
-  @Published var claudeAuthUrl: String?
-  /// Prevent duplicate browser launches for the same explicit User Claude flow.
-  private var claudeAuthLaunchRequested = false
-  /// Whether the user has a cached Claude OAuth token
-  @Published var isClaudeConnected = false
   /// Cumulative tokens used in the current session via Omi account
   @Published var sessionTokensUsed: Int = 0
   /// Cumulative USD cost spent using the Omi account, persisted across sessions.
@@ -1285,7 +1226,6 @@ class ChatProvider: ObservableObject {
   }
 
   private var multiChatObserver: AnyCancellable?
-  private var playwrightExtensionObserver: AnyCancellable?
   private var sessionGroupingObserver: AnyCancellable?
   private var activationObserver: AnyCancellable?
   private var runtimeOwnerObserver: AnyCancellable?
@@ -1331,49 +1271,6 @@ class ChatProvider: ObservableObject {
   private var cachedDatabaseSchema: String = ""
   private var schemaLoaded = false
 
-  // MARK: - CLAUDE.md (reference only) & Skills (Global)
-  @Published var claudeMdContent: String?
-  @Published var claudeMdPath: String?
-  @Published var discoveredSkills: [(name: String, description: String, path: String)] = []
-  @AppStorage("disabledSkillsJSON") private var disabledSkillsJSON: String = ""
-
-  // MARK: - Project-level CLAUDE.md & Skills
-  @AppStorage("aiChatWorkingDirectory") var aiChatWorkingDirectory: String = "" {
-    didSet {
-      guard aiChatWorkingDirectory != oldValue, agentBridgeStarted else { return }
-      profilePreferenceChangeGeneration &+= 1
-      let changeGeneration = profilePreferenceChangeGeneration
-      let requestedDirectory = aiChatWorkingDirectory
-      Task { @MainActor [weak self] in
-        guard let self,
-          let adapterId = AgentRuntimeProcess.adapterId(forHarnessMode: self.activeBridgeHarness)
-        else { return }
-        let directory =
-          requestedDirectory.isEmpty
-          ? AgentRuntimeProcess.defaultArtifactsDirectory()
-          : requestedDirectory
-        do {
-          _ = try await self.resolvedAgentClient().configureDefaultExecutionProfile(
-            adapterId: adapterId,
-            modelProfile: self.activeBridgeHarness == "hermes" || self.activeBridgeHarness == "openclaw"
-              ? nil : ModelQoS.Claude.chat,
-            workingDirectory: directory
-          )
-        } catch {
-          guard changeGeneration == self.profilePreferenceChangeGeneration else { return }
-          logError("Failed to configure future-session working directory", error: error)
-        }
-      }
-    }
-  }
-  @Published var projectClaudeMdContent: String?
-  @Published var projectClaudeMdPath: String?
-  @Published var projectDiscoveredSkills: [(name: String, description: String, path: String)] = []
-
-  // MARK: - Dev Mode
-  @AppStorage("devModeEnabled") var devModeEnabled = false
-  private var devModeContext: String?
-
   // MARK: - Current Session ID
   var currentSessionId: String? {
     currentSession?.id
@@ -1381,28 +1278,17 @@ class ChatProvider: ObservableObject {
 
   // MARK: - Current Model
   var currentModel: String {
-    "Claude"
+    "Omi"
   }
 
   // MARK: - System Prompt
   // Prompts are defined in ChatPrompts.swift (converted from Python backend)
 
-  init(bridgeHarnessOverride: AgentHarnessMode? = nil) {
-    self.bridgeHarnessOverride = bridgeHarnessOverride
+  init() {
     isRestoringDraft = true
     draftText = ChatDraftStore.shared.text(for: activeDraftKey)
     isRestoringDraft = false
-    log("ChatProvider initialized, will start Claude bridge on first use")
-
-    // Migrate legacy "agentSDK" persisted mode to the new default "piMono".
-    // Pre-6594 installs may have the old agentSDK tag saved; the settings
-    // picker no longer offers it, so leaving it stored would leave the UI
-    // in an inconsistent state.
-    let stored = UserDefaults.standard.string(forKey: "chatBridgeMode")
-    if stored == BridgeMode.omiAI.rawValue {
-      UserDefaults.standard.set(BridgeMode.piMono.rawValue, forKey: "chatBridgeMode")
-      log("ChatProvider: migrated legacy agentSDK bridgeMode -> piMono")
-    }
+    log("ChatProvider initialized, will start managed Pi on first use")
 
     // Observe changes to multiChatEnabled setting
     multiChatObserver = UserDefaults.standard.publisher(for: \.multiChatEnabled)
@@ -1477,31 +1363,6 @@ class ChatProvider: ObservableObject {
         }
       }
 
-    // Observe changes to Playwright extension mode setting — restart bridge to pick up new env vars
-    playwrightExtensionObserver = UserDefaults.standard.publisher(for: \.playwrightUseExtension)
-      .dropFirst()
-      .receive(on: DispatchQueue.main)
-      .sink { [weak self] _ in
-        Task { @MainActor in
-          guard let self = self else { return }
-          guard !self.isSending else {
-            log("ChatProvider: Skipping bridge restart — query in progress")
-            return
-          }
-          guard self.agentBridgeStarted else { return }
-          log("ChatProvider: Playwright extension setting changed, restarting agent bridge")
-          self.agentBridgeStarted = false
-          do {
-            try await self.resolvedAgentClient().restart()
-            if await self.ensureBridgeStarted() {
-              log("ChatProvider: agent bridge restarted with new Playwright settings")
-            }
-          } catch {
-            logError("Failed to restart agent bridge after Playwright setting change", error: error)
-          }
-        }
-      }
-
     // Keep groupedSessions in sync — runs off the hot path so SwiftUI body never recomputes it
     sessionGroupingObserver = Publishers.CombineLatest3($sessions, $searchQuery, $currentSession)
       .receive(on: RunLoop.main)
@@ -1531,9 +1392,7 @@ class ChatProvider: ObservableObject {
   private var terminationObserver: NSObjectProtocol?
 
   private var currentDraftKey: ChatDraftKey {
-    let appContext = selectedAppId?.isEmpty == false ? selectedAppId! : "omi"
-    let chatContext = currentSession?.id ?? "default"
-    return .mainChat(contextID: "\(appContext):\(chatContext)")
+    .mainChat(contextID: currentSession?.id ?? "default")
   }
 
   private func restoreDraftForCurrentContextIfNeeded() {
@@ -1546,7 +1405,7 @@ class ChatProvider: ObservableObject {
   }
 
   private func resetDraftAfterSignOut() {
-    activeDraftKey = .mainChat(contextID: "omi:default")
+    activeDraftKey = .mainChat(contextID: "default")
     isRestoringDraft = true
     draftText = ""
     isRestoringDraft = false
@@ -1564,26 +1423,6 @@ class ChatProvider: ObservableObject {
     await resolvedAgentClient().invalidateSurface(surface)
   }
 
-  /// Test that the Playwright Chrome extension is connected and working.
-  /// Ensures the bridge is started (restarting if needed to pick up new token),
-  /// then sends a lightweight test query that triggers a browser_snapshot tool call.
-  func testPlaywrightConnection() async throws -> Bool {
-    // Restart bridge to pick up new extension token
-    agentBridgeStarted = false
-    do {
-      try await resolvedAgentClient().restart()
-    } catch {
-      try await resolvedAgentClient().start()
-    }
-    guard await ensureBridgeStarted() else { throw BridgeError.stopped }
-    return try await resolvedAgentClient().testPlaywrightConnection()
-  }
-
-  /// Whether we're currently in user's Claude account mode
-  private var isUserClaudeMode: Bool {
-    bridgeMode == BridgeMode.userClaude.rawValue
-  }
-
   /// Ensure the shared agent daemon is started (restarts only after process death).
   func ensureBridgeStartedForKernel() async -> Bool {
     await ensureBridgeStarted()
@@ -1592,6 +1431,11 @@ class ChatProvider: ObservableObject {
   private func ensureBridgeStarted(
     authoritativeGeneration: Int? = nil
   ) async -> Bool {
+    #if DEBUG
+      if let ensureBridgeStartedForTests {
+        return await ensureBridgeStartedForTests(authoritativeGeneration)
+      }
+    #endif
     guard let authorization = RuntimeOwnerIdentity.captureAuthorizationSnapshot() else {
       await presentBridgeStartupFailure(
         BridgeError.authMissing, authoritativeGeneration: authoritativeGeneration)
@@ -1623,33 +1467,20 @@ class ChatProvider: ObservableObject {
     await APIKeyService.shared.waitForKeys()
     await preparePromptContextIfNeeded()
     try await resolvedAgentClient().start()
-    // Set up global auth handlers so auth_required during warmup is handled
+    // Managed Pi never falls back when its Omi credential is unavailable.
     await resolvedAgentClient().setGlobalAuthHandlers(
-      onAuthRequired: { [weak self] methods, authUrl in
-        let methodsBox = ChatProviderSendableBox(value: methods)
+      onAuthRequired: { [weak self] _, _ in
         Task { @MainActor [weak self] in
-          self?.handleClaudeAuthRequired(methods: methodsBox.value, authUrl: authUrl)
+          self?.errorMessage = "Omi authentication is required for managed AI. Sign in, then try again."
         }
       },
       onAuthSuccess: { [weak self] in
         Task { @MainActor [weak self] in
-          self?.handleClaudeAuthSuccess()
+          self?.errorMessage = nil
         }
       }
     )
     await kernelTurnProjection.attachClient(resolvedAgentClient())
-    // Preferences are kernel-owned defaults for future sessions. Existing
-    // sessions keep their immutable execution profile and the shared
-    // daemon stays alive when this preference changes.
-    let usesNativeModelChoice = activeBridgeHarness == "hermes" || activeBridgeHarness == "openclaw"
-    guard let adapterId = AgentRuntimeProcess.adapterId(forHarnessMode: activeBridgeHarness) else {
-      throw BridgeError.agentError("Unknown AI runtime mode: \(activeBridgeHarness)")
-    }
-    _ = try await resolvedAgentClient().configureDefaultExecutionProfile(
-      adapterId: adapterId,
-      modelProfile: usesNativeModelChoice ? nil : ModelQoS.Claude.chat,
-      workingDirectory: effectiveAgentWorkingDirectory()
-    )
     let warmSurfaces: [AgentSurfaceReference] = [.mainChat(chatId: nil), .floatingChat()]
     for surface in warmSurfaces {
       let session = try await resolvedAgentClient().resolveSurfaceSession(surface)
@@ -1676,7 +1507,7 @@ class ChatProvider: ObservableObject {
     }
   }
 
-  /// Ensures all prompt-backed local context is loaded before we build and cache the ACP session prompt.
+  /// Ensures prompt-backed local context is loaded before managed Pi starts.
   private func preparePromptContextIfNeeded() async {
     await warmupPromptContext()
   }
@@ -1710,16 +1541,16 @@ class ChatProvider: ObservableObject {
   }
 
   private var runtimeOwnerId: String? {
-    RuntimeOwnerIdentity.currentOwnerId()
+    #if DEBUG
+      if let runtimeOwnerIdForTests {
+        return runtimeOwnerIdForTests()
+      }
+    #endif
+    return RuntimeOwnerIdentity.currentOwnerId()
   }
 
   func mainChatRuntimeChatId(sessionId: String?) -> String {
-    guard let sessionId, !sessionId.isEmpty else {
-      if let appId = selectedAppId, !appId.isEmpty {
-        return "default|\(appId)"
-      }
-      return "default"
-    }
+    guard let sessionId, !sessionId.isEmpty else { return "default" }
     return sessionId
   }
 
@@ -1756,22 +1587,14 @@ class ChatProvider: ObservableObject {
 
   private func resolveKernelQuerySession(
     surface: AgentSurfaceReference,
-    requestedModelProfile: String?
+    requestedModelProfile _: String?
   ) async throws -> AgentSurfaceSession {
-    let requestedHarness = bridgeHarnessOverride?.rawValue ?? activeBridgeHarness
-    guard let requestedAdapter = AgentRuntimeProcess.adapterId(forHarnessMode: requestedHarness) else {
-      throw BridgeError.agentError("Unknown AI runtime mode: \(requestedHarness)")
-    }
-    let usesNativeModelChoice = requestedHarness == "hermes" || requestedHarness == "openclaw"
-    return try await resolvedAgentClient().resolveSurfaceSession(
-      surface,
-      creationProfile: AgentSessionCreationProfile(
-        adapterId: requestedAdapter,
-        modelProfile: requestedModelProfile ?? modelOverride
-          ?? (usesNativeModelChoice ? nil : ModelQoS.Claude.chat),
-        workingDirectory: effectiveAgentWorkingDirectory()
-      )
-    )
+    #if DEBUG
+      if let resolveKernelQuerySessionForTests {
+        return try await resolveKernelQuerySessionForTests(surface, nil)
+      }
+    #endif
+    return try await resolvedAgentClient().resolveSurfaceSession(surface)
   }
 
   private func prepareKernelQueryContext(
@@ -1785,6 +1608,12 @@ class ChatProvider: ObservableObject {
     requestedModelProfile: String? = nil,
     pinnedSession: AgentSurfaceSession? = nil
   ) async throws -> KernelQueryContext {
+    #if DEBUG
+      if let prepareKernelQueryContextForTests {
+        let context = try await prepareKernelQueryContextForTests(surface, pinnedSession)
+        return KernelQueryContext(session: context.0, snapshot: context.1)
+      }
+    #endif
     let client = resolvedAgentClient()
     let session: AgentSurfaceSession
     if let pinnedSession {
@@ -1850,7 +1679,6 @@ class ChatProvider: ObservableObject {
         [
           "workingDirectory": workspacePath,
           "databaseSchema": cachedDatabaseSchema,
-          "skillCatalog": skillContextProjection(),
         ],
         nil
       ),
@@ -1930,222 +1758,42 @@ class ChatProvider: ObservableObject {
     }
   }
 
-  /// Switch between bridge modes (Omi AI via piMono, or user's Claude OAuth)
-  func switchBridgeMode(to mode: BridgeMode) async {
-    let resolvedMode: BridgeMode = (mode == .omiAI) ? .piMono : mode
-    let newHarness = Self.harnessMode(for: resolvedMode)
-    let previousHarness = activeBridgeHarness
-    guard newHarness != previousHarness else { return }
-    log("ChatProvider: Updating future-session profile from \(previousHarness) to \(resolvedMode.rawValue)")
-    profilePreferenceChangeGeneration &+= 1
-    let preferenceChange = profilePreferenceChangeGeneration
-    activeBridgeHarness = newHarness
-    bridgeMode = resolvedMode.rawValue
-    AnalyticsManager.shared.chatBridgeModeChanged(from: previousHarness, to: resolvedMode.rawValue)
-
-    if mode == .userClaude {
-      checkClaudeConnectionStatus()
-    }
-    guard agentBridgeStarted else { return }
-    do {
-      guard let adapterId = AgentRuntimeProcess.adapterId(forHarnessMode: newHarness) else {
-        throw BridgeError.agentError("Unknown AI runtime mode: \(newHarness)")
+  private func warmupKernelQuerySession(_ session: AgentSurfaceSession) async {
+    #if DEBUG
+      if let warmupKernelQuerySessionForTests {
+        await warmupKernelQuerySessionForTests(session)
+        return
       }
-      let usesNativeModelChoice = newHarness == "hermes" || newHarness == "openclaw"
-      let configured = try await resolvedAgentClient().configureDefaultExecutionProfile(
-        adapterId: adapterId,
-        modelProfile: usesNativeModelChoice ? nil : ModelQoS.Claude.chat,
-        workingDirectory: effectiveAgentWorkingDirectory()
-      )
-      guard preferenceChange == profilePreferenceChangeGeneration else { return }
-      log(
-        "ChatProvider: Future-session profile configured "
-          + "generation=\(configured.preferenceGeneration) adapter=\(configured.adapterId)"
-      )
-    } catch {
-      guard preferenceChange == profilePreferenceChangeGeneration else { return }
-      logError("Failed to configure future-session profile", error: error)
-      errorMessage = "Could not update AI provider preference. Try again."
-    }
+    #endif
+    await resolvedAgentClient().warmupSession(session)
   }
 
-  /// Start Claude OAuth authentication (Mode B)
-  /// Opens the OAuth URL (provided by the bridge) in the default browser.
-  /// The bridge handles the full OAuth flow: local callback server, token exchange,
-  /// credential storage, and ACP subprocess restart.
-  func startClaudeAuth() {
-    guard isUserClaudeMode else { return }
-    guard !claudeAuthLaunchRequested else { return }
-
-    guard let url = Self.validatedClaudeOAuthURL(claudeAuthUrl) else {
-      logError("ChatProvider: Bridge supplied an invalid Claude OAuth URL")
-      isClaudeAuthRequired = false
-      claudeAuthLaunchRequested = false
-      errorMessage = "Unable to start Claude sign-in. Try again."
-      return
-    }
-
-    claudeAuthLaunchRequested = true
-    log("ChatProvider: Opening validated Claude OAuth URL in browser")
-    AnalyticsManager.shared.claudeOAuthBrowserOpened(
-      harness: activeBridgeHarness,
-      bridgeMode: bridgeMode
+  private func performAgentQuery(
+    _ invocation: ChatProviderAgentQueryInvocation,
+    onTextDelta: @escaping AgentClient.TextDeltaHandler,
+    onToolActivity: @escaping AgentClient.ToolActivityHandler,
+    onThinkingDelta: @escaping AgentClient.ThinkingDeltaHandler,
+    onToolResultDisplay: @escaping AgentClient.ToolResultDisplayHandler,
+    onAuthRequired: @escaping AgentClient.AuthRequiredHandler,
+    onAuthSuccess: @escaping AgentClient.AuthSuccessHandler
+  ) async throws -> AgentClient.QueryResult {
+    return try await resolvedAgentClient().query(
+      prompt: invocation.prompt,
+      session: invocation.session,
+      surface: invocation.surface,
+      mode: invocation.mode,
+      imageData: invocation.imageData,
+      attachments: invocation.attachments,
+      producingTurnId: invocation.producingTurnId,
+      expectedContext: invocation.expectedContext,
+      reasoningEffort: invocation.reasoningEffort,
+      onTextDelta: onTextDelta,
+      onToolActivity: onToolActivity,
+      onThinkingDelta: onThinkingDelta,
+      onToolResultDisplay: onToolResultDisplay,
+      onAuthRequired: onAuthRequired,
+      onAuthSuccess: onAuthSuccess
     )
-    NSWorkspace.shared.open(url)
-  }
-
-  private static func providerAuthRequiredUserMessage(isUserClaudeMode: Bool) -> String {
-    if isUserClaudeMode {
-      return "Claude sign-in is required. Reconnect Claude, then try again."
-    }
-    return "This chat uses Claude and needs sign-in. Start a new chat with Omi AI or reconnect Claude in Settings."
-  }
-
-  private func handleClaudeAuthRequired(methods: [[String: Any]], authUrl: String?) {
-    // A fresh bridge-issued authorization URL represents a new OAuth
-    // attempt (for example after the bounded callback timeout). Reset the
-    // launch latch so a retry can open the new URL, while duplicate events
-    // for the same in-flight flow still open at most one browser tab.
-    if Self.isNewClaudeOAuthAttempt(previousAuthURL: claudeAuthUrl, nextAuthURL: authUrl) {
-      claudeAuthLaunchRequested = false
-    }
-    claudeAuthMethods = methods
-    claudeAuthUrl = authUrl
-    // Provider auth is distinct from the Pro upgrade sheet.
-    isClaudeAuthRequired = false
-
-    let sessionAdapterId = activeChatTelemetryAttempt?.attempt.resolvedSessionAdapterId
-    AnalyticsManager.shared.providerAuthRequired(
-      sessionAdapterId: sessionAdapterId,
-      harness: activeBridgeHarness,
-      bridgeMode: bridgeMode,
-      oauthUrlValid: Self.validatedClaudeOAuthURL(authUrl) != nil
-    )
-  }
-
-  private func handleClaudeAuthSuccess() {
-    isClaudeAuthRequired = false
-    claudeAuthLaunchRequested = false
-    claudeAuthUrl = nil
-    AnalyticsManager.shared.claudeOAuthCallbackReceived(
-      harness: activeBridgeHarness,
-      bridgeMode: bridgeMode
-    )
-    checkClaudeConnectionStatus()
-  }
-
-  nonisolated static func validatedClaudeOAuthURL(_ urlString: String?) -> URL? {
-    guard
-      let urlString,
-      let components = URLComponents(string: urlString),
-      components.scheme?.lowercased() == "https",
-      components.host?.lowercased() == "claude.ai",
-      components.port == nil,
-      components.path == "/oauth/authorize",
-      components.user == nil,
-      components.password == nil,
-      components.fragment == nil
-    else {
-      return nil
-    }
-
-    let queryItems = components.queryItems ?? []
-    func queryValue(_ name: String) -> String? {
-      let values = queryItems.compactMap { $0.name == name ? $0.value : nil }
-      guard values.count == 1, let value = values.first, !value.isEmpty else { return nil }
-      return value
-    }
-    guard
-      queryValue("response_type") == "code",
-      queryValue("client_id") != nil,
-      queryValue("state") != nil,
-      queryValue("code_challenge") != nil,
-      queryValue("code_challenge_method") == "S256",
-      let redirectURLString = queryValue("redirect_uri"),
-      let redirectURL = URLComponents(string: redirectURLString),
-      redirectURL.scheme?.lowercased() == "http",
-      redirectURL.host?.lowercased() == "localhost",
-      redirectURL.port != nil,
-      redirectURL.path == "/callback"
-    else {
-      return nil
-    }
-    return components.url
-  }
-
-  nonisolated static func isNewClaudeOAuthAttempt(previousAuthURL: String?, nextAuthURL: String?) -> Bool {
-    previousAuthURL != nextAuthURL
-  }
-
-  /// Check whether a cached Claude OAuth token exists (config file or Keychain)
-  func checkClaudeConnectionStatus() {
-    // Check config file
-    let configPath = NSString(string: "~/Library/Application Support/Claude/config.json").expandingTildeInPath
-    if FileManager.default.fileExists(atPath: configPath),
-      let data = FileManager.default.contents(atPath: configPath),
-      let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-      let tokenCache = json["oauth:tokenCache"] as? String, !tokenCache.isEmpty
-    {
-      isClaudeConnected = true
-      return
-    }
-
-    // Check Keychain via security CLI (Keychain item owned by Claude Desktop)
-    let secProcess = Process()
-    secProcess.executableURL = URL(fileURLWithPath: "/usr/bin/security")
-    secProcess.arguments = ["find-generic-password", "-s", "Claude Code-credentials"]
-    secProcess.standardOutput = FileHandle.nullDevice
-    secProcess.standardError = FileHandle.nullDevice
-    do {
-      try secProcess.run()
-      secProcess.waitUntilExit()
-      isClaudeConnected = (secProcess.terminationStatus == 0)
-    } catch {
-      isClaudeConnected = false
-    }
-  }
-
-  /// Disconnect from Claude: clear OAuth token, switch back to free mode via serialized path
-  func disconnectClaude() async {
-    log("ChatProvider: Disconnecting Claude account")
-
-    // 1. Clear the OAuth token from config file
-    let configPath = NSString(string: "~/Library/Application Support/Claude/config.json").expandingTildeInPath
-    if let data = FileManager.default.contents(atPath: configPath),
-      var json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-    {
-      json.removeValue(forKey: "oauth:tokenCache")
-      if let updatedData = try? JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted, .sortedKeys]) {
-        try? updatedData.write(to: URL(fileURLWithPath: configPath))
-      }
-    }
-
-    // 2. Clear OAuth credentials from macOS Keychain
-    //    The Keychain item is owned by Claude Desktop/CLI, so SecItemDelete fails
-    //    with errSecInvalidOwnerEdit. Use the `security` CLI which runs as the user.
-    let secProcess = Process()
-    secProcess.executableURL = URL(fileURLWithPath: "/usr/bin/security")
-    secProcess.arguments = ["delete-generic-password", "-s", "Claude Code-credentials"]
-    secProcess.standardOutput = FileHandle.nullDevice
-    secProcess.standardError = FileHandle.nullDevice
-    do {
-      try secProcess.run()
-      secProcess.waitUntilExit()
-      if secProcess.terminationStatus == 0 {
-        log("ChatProvider: Cleared Claude Code credentials from Keychain")
-      } else {
-        log("ChatProvider: No Claude Code credentials found in Keychain (status=\(secProcess.terminationStatus))")
-      }
-    } catch {
-      log("ChatProvider: Failed to run security command: \(error.localizedDescription)")
-    }
-
-    // 3. Update state
-    isClaudeConnected = false
-
-    // 4. Make piMono the default for future sessions without migrating or
-    //    restarting sessions that are already running.
-    await switchBridgeMode(to: .piMono)
   }
 
   // MARK: - Session Management
@@ -2161,10 +1809,7 @@ class ChatProvider: ObservableObject {
 
     for attempt in 1...maxAttempts {
       do {
-        sessions = try await APIClient.shared.getChatSessions(
-          appId: selectedAppId,
-          starred: showStarredOnly ? true : nil
-        )
+        sessions = try await APIClient.shared.getChatSessions(starred: showStarredOnly ? true : nil)
         log("ChatProvider loaded \(sessions.count) sessions (starred filter: \(showStarredOnly))")
         sessionsLoadError = nil
 
@@ -2198,15 +1843,22 @@ class ChatProvider: ObservableObject {
   /// - Parameters:
   ///   - title: Optional session title
   ///   - skipGreeting: Skip the initial AI greeting message
-  ///   - appId: Override app ID (e.g. "task-chat" to isolate task sessions from default chat)
   func createNewSession(
     title: String? = nil,
     skipGreeting: Bool = false,
-    appId: String? = nil,
     authoritativeSendGeneration: Int? = nil
   ) async -> ChatSession? {
     do {
-      let session = try await APIClient.shared.createChatSession(title: title, appId: appId ?? selectedAppId)
+      let session: ChatSession
+      #if DEBUG
+        if let createChatSessionForTests {
+          session = try await createChatSessionForTests(title)
+        } else {
+          session = try await APIClient.shared.createChatSession(title: title)
+        }
+      #else
+        session = try await APIClient.shared.createChatSession(title: title)
+      #endif
       guard authoritativeSendGeneration.map({ sendGeneration == $0 }) ?? true else { return nil }
       sessions.insert(session, at: 0)
       currentSession = session
@@ -2242,35 +1894,68 @@ class ChatProvider: ObservableObject {
         log("ChatProvider: initial greeting skipped because owner is unavailable")
         return
       }
-      let response = try await APIClient.shared.getInitialMessage(
-        sessionId: session.id,
-        appId: selectedAppId,
-        expectedOwnerId: ownerId
-      )
+      let response: InitialMessageResponse
+      #if DEBUG
+        if let initialMessageForTests {
+          response = try await initialMessageForTests(session.id, ownerId)
+        } else {
+          response = try await APIClient.shared.getInitialMessage(
+            sessionId: session.id,
+            expectedOwnerId: ownerId
+          )
+        }
+      #else
+        response = try await APIClient.shared.getInitialMessage(
+          sessionId: session.id,
+          expectedOwnerId: ownerId
+        )
+      #endif
       guard authoritativeSendGeneration.map({ sendGeneration == $0 }) ?? true else { return }
 
       let surface = AgentSurfaceReference.mainChat(
         chatId: mainChatRuntimeChatId(sessionId: session.id)
       )
-      let accepted = await kernelTurnProjection.importRemoteTurn(
-        surface: surface,
-        turn: KernelJournalRemoteTurn(
-          remoteId: response.messageId,
-          canonicalTurnId: response.messageId,
-          role: "assistant",
-          content: response.message,
-          contentBlocksJSON: "[]",
-          resourcesJSON: "[]",
-          metadataJSON: "{}",
-          createdAtMs: Int(Date().timeIntervalSince1970 * 1_000)
-        ),
-        ownerID: ownerId
+      let remoteTurn = KernelJournalRemoteTurn(
+        remoteId: response.messageId,
+        canonicalTurnId: response.messageId,
+        role: "assistant",
+        content: response.message,
+        contentBlocksJSON: "[]",
+        resourcesJSON: "[]",
+        metadataJSON: "{}",
+        createdAtMs: Int(Date().timeIntervalSince1970 * 1_000)
       )
+      let accepted: Bool
+      #if DEBUG
+        if let importInitialGreetingForTests {
+          accepted = await importInitialGreetingForTests(surface, remoteTurn, ownerId)
+        } else {
+          accepted = await kernelTurnProjection.importRemoteTurn(
+            surface: surface,
+            turn: remoteTurn,
+            ownerID: ownerId
+          )
+        }
+      #else
+        accepted = await kernelTurnProjection.importRemoteTurn(
+          surface: surface,
+          turn: remoteTurn,
+          ownerID: ownerId
+        )
+      #endif
       guard accepted else {
         log("ChatProvider: initial greeting journal admission failed")
         return
       }
-      await kernelTurnProjection.refresh(surface: surface)
+      #if DEBUG
+        if let refreshInitialGreetingForTests {
+          await refreshInitialGreetingForTests(surface)
+        } else {
+          await kernelTurnProjection.refresh(surface: surface)
+        }
+      #else
+        await kernelTurnProjection.refresh(surface: surface)
+      #endif
 
       // Preview is also downstream of canonical journal acceptance.
       if let index = sessions.firstIndex(where: { $0.id == session.id }) {
@@ -2278,7 +1963,7 @@ class ChatProvider: ObservableObject {
       }
 
       // Track analytics
-      AnalyticsManager.shared.initialMessageGenerated(hasApp: selectedAppId != nil)
+      AnalyticsManager.shared.initialMessageGenerated()
 
       log("Added initial greeting message for session \(session.id)")
     } catch {
@@ -2409,6 +2094,12 @@ class ChatProvider: ObservableObject {
 
   /// Loads user memories from local SQLite for use in prompts (refreshed each turn).
   private func refreshMemoriesForPrompt() async {
+    #if DEBUG
+      if let refreshMemoriesForPromptForTests {
+        await refreshMemoriesForPromptForTests()
+        return
+      }
+    #endif
     do {
       cachedMemories = try await MemoryStorage.shared.getLocalMemories(limit: 50)
       memoriesLoaded = true
@@ -2660,72 +2351,6 @@ class ChatProvider: ObservableObject {
     }
   }
 
-  // MARK: - Chat Lab Helpers
-
-  /// Build a system prompt for the Chat Lab using a custom template but real user context.
-  func labBuildSystemPrompt(floatingPrefix: String, mainTemplate: String) -> String {
-    let userName = AuthService.shared.displayName.isEmpty ? "User" : AuthService.shared.givenName
-
-    var prompt = floatingPrefix + "\n\n" + mainTemplate
-    prompt = prompt.replacingOccurrences(of: "{user_name}", with: userName)
-    prompt = prompt.replacingOccurrences(of: "{tz}", with: TimeZone.current.identifier)
-
-    prompt = prompt.replacingOccurrences(
-      of: "{current_datetime_str}", with: ChatPromptBuilder.currentDatetimeString())
-
-    let isoFormatter = ISO8601DateFormatter()
-    isoFormatter.timeZone = TimeZone.current
-    prompt = prompt.replacingOccurrences(of: "{current_datetime_iso}", with: isoFormatter.string(from: Date()))
-
-    let utcFormatter = DateFormatter()
-    utcFormatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
-    utcFormatter.timeZone = TimeZone(identifier: "UTC")
-    prompt = prompt.replacingOccurrences(of: "{current_datetime_utc}", with: utcFormatter.string(from: Date()))
-
-    prompt = prompt.replacingOccurrences(of: "{memories_section}", with: formatMemoriesSection())
-    prompt = prompt.replacingOccurrences(of: "{goal_section}", with: formatGoalSection())
-    prompt = prompt.replacingOccurrences(of: "{tasks_section}", with: formatTasksSection())
-    prompt = prompt.replacingOccurrences(of: "{ai_profile_section}", with: formatAIProfileSection())
-    prompt = prompt.replacingOccurrences(of: "{database_schema}", with: cachedDatabaseSchema)
-
-    return prompt
-  }
-
-  /// Run a single question through the agent bridge for Chat Lab evaluation.
-  /// Uses a unique session key so it doesn't interfere with the real chat.
-  func labRunQuestion(question: String, systemPrompt: String, labSessionId: String) async -> String {
-    // Ensure bridge is running
-    guard await ensureBridgeStarted() else {
-      return "[Bridge not available]"
-    }
-
-    do {
-      let surface = AgentSurfaceReference.chatLab(labSessionId: labSessionId)
-      let kernelContext = try await prepareKernelQueryContext(
-        surface: surface,
-        systemPromptStyle: .main,
-        systemPromptPrefix: systemPrompt,
-        systemPromptSuffix: nil,
-        notificationContext: nil,
-        screenPayload: nil,
-        requestedModelProfile: ModelQoS.Claude.chatLabQuery
-      )
-      let result = try await resolvedAgentClient().query(
-        prompt: question,
-        session: kernelContext.session,
-        surface: surface,
-        expectedContext: kernelContext.snapshot.freshness,
-        onTextDelta: { _ in },
-        onToolActivity: { _, _, _, _ in },
-        onThinkingDelta: { _ in }
-      )
-      return try Self.requireSuccessfulQueryResult(result).text
-    } catch {
-      log("ChatLab: query error: \(error)")
-      return "[Error: \(error.localizedDescription)]"
-    }
-  }
-
   /// Initialize chat: fetch sessions and load messages
   func initialize() async {
     await initializeVisibleMessages()
@@ -2746,7 +2371,7 @@ class ChatProvider: ObservableObject {
         self.omiAICumulativeCostUsd = serverCost
         log("ChatProvider: Seeded Omi AI cumulative cost from backend: $\(String(format: "%.4f", serverCost))")
         // Show upgrade prompt if over threshold but don't block chat. Never for
-        // paid/BYOK users — they aren't subject to the free Omi spend cap.
+        // paid users — they aren't subject to the free Omi spend cap.
         if self.isUsingOmiAccountProvider && serverCost >= 50.0
           && !self.isExemptFromOmiUpgradeNudge
         {
@@ -2775,24 +2400,6 @@ class ChatProvider: ObservableObject {
     await loadTasksIfNeeded()
     await loadAIProfileIfNeeded()
     await loadSchemaIfNeeded()
-    await discoverClaudeConfig()
-
-    // Set working directory for Claude Agent SDK if workspace is configured
-    if workingDirectory == nil, !aiChatWorkingDirectory.isEmpty {
-      workingDirectory = aiChatWorkingDirectory
-    }
-  }
-
-  private func effectiveAgentWorkingDirectory() -> String {
-    if let workingDirectory, !workingDirectory.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-      return workingDirectory
-    }
-    let artifactsDirectory = AgentRuntimeProcess.defaultArtifactsDirectory()
-    try? FileManager.default.createDirectory(
-      at: URL(fileURLWithPath: artifactsDirectory),
-      withIntermediateDirectories: true
-    )
-    return artifactsDirectory
   }
 
   /// Reinitialize after settings change
@@ -2809,187 +2416,6 @@ class ChatProvider: ObservableObject {
   func retryLoad() async {
     sessionsLoadError = nil
     await initialize()
-  }
-
-  // MARK: - CLAUDE.md & Skills Discovery
-
-  /// Results from background Claude config discovery
-  private struct ClaudeConfigResult: Sendable {
-    let claudeMdContent: String?
-    let claudeMdPath: String?
-    let skills: [(name: String, description: String, path: String)]
-    let projectClaudeMdContent: String?
-    let projectClaudeMdPath: String?
-    let projectSkills: [(name: String, description: String, path: String)]
-    let devModeContext: String?
-  }
-
-  /// Perform all file I/O for Claude config discovery off the main thread
-  private nonisolated static func loadClaudeConfigFromDisk(workspace: String) -> ClaudeConfigResult {
-    let home = FileManager.default.homeDirectoryForCurrentUser.path
-    let claudeDir = "\(home)/.claude"
-    let fm = FileManager.default
-
-    // Discover global CLAUDE.md
-    let mdPath = "\(claudeDir)/CLAUDE.md"
-    var globalMdContent: String?
-    var globalMdPath: String?
-    if fm.fileExists(atPath: mdPath),
-      let content = try? String(contentsOfFile: mdPath, encoding: .utf8)
-    {
-      globalMdContent = content
-      globalMdPath = mdPath
-    }
-
-    // Discover global skills
-    var skills: [(name: String, description: String, path: String)] = []
-    let skillsDir = "\(claudeDir)/skills"
-    if let skillDirs = try? fm.contentsOfDirectory(atPath: skillsDir) {
-      for dir in skillDirs.sorted() {
-        let skillPath = "\(skillsDir)/\(dir)/SKILL.md"
-        if fm.fileExists(atPath: skillPath),
-          let content = try? String(contentsOfFile: skillPath, encoding: .utf8)
-        {
-          let desc = extractSkillDescription(from: content)
-          skills.append((name: dir, description: desc, path: skillPath))
-        }
-      }
-    }
-
-    // Discover project-level config from workspace directory
-    var projMdContent: String?
-    var projMdPath: String?
-    var projectSkills: [(name: String, description: String, path: String)] = []
-
-    if !workspace.isEmpty, fm.fileExists(atPath: workspace) {
-      let projectMdPath = "\(workspace)/CLAUDE.md"
-      if fm.fileExists(atPath: projectMdPath),
-        let content = try? String(contentsOfFile: projectMdPath, encoding: .utf8)
-      {
-        projMdContent = content
-        projMdPath = projectMdPath
-      }
-
-      let projectSkillsDir = "\(workspace)/.claude/skills"
-      if let skillDirs = try? fm.contentsOfDirectory(atPath: projectSkillsDir) {
-        for dir in skillDirs.sorted() {
-          let skillPath = "\(projectSkillsDir)/\(dir)/SKILL.md"
-          if fm.fileExists(atPath: skillPath),
-            let content = try? String(contentsOfFile: skillPath, encoding: .utf8)
-          {
-            let desc = extractSkillDescription(from: content)
-            projectSkills.append((name: dir, description: desc, path: skillPath))
-          }
-        }
-      }
-    }
-
-    // Load dev-mode skill content (full SKILL.md, not just description)
-    var devMode: String?
-    let devModeSkillPath = "\(skillsDir)/dev-mode/SKILL.md"
-    if fm.fileExists(atPath: devModeSkillPath),
-      let content = try? String(contentsOfFile: devModeSkillPath, encoding: .utf8)
-    {
-      var body = content
-      if body.hasPrefix("---") {
-        let lines = body.components(separatedBy: "\n")
-        if let endIdx = lines.dropFirst().firstIndex(where: { $0.trimmingCharacters(in: .whitespaces).hasPrefix("---") }
-        ) {
-          body = lines[(endIdx + 1)...].joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
-        }
-      }
-      devMode = body
-    } else {
-      let projectDevModePath = "\(workspace)/.claude/skills/dev-mode/SKILL.md"
-      if !workspace.isEmpty, fm.fileExists(atPath: projectDevModePath),
-        let content = try? String(contentsOfFile: projectDevModePath, encoding: .utf8)
-      {
-        var body = content
-        if body.hasPrefix("---") {
-          let lines = body.components(separatedBy: "\n")
-          if let endIdx = lines.dropFirst().firstIndex(where: {
-            $0.trimmingCharacters(in: .whitespaces).hasPrefix("---")
-          }) {
-            body = lines[(endIdx + 1)...].joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
-          }
-        }
-        devMode = body
-      }
-    }
-
-    return ClaudeConfigResult(
-      claudeMdContent: globalMdContent,
-      claudeMdPath: globalMdPath,
-      skills: skills,
-      projectClaudeMdContent: projMdContent,
-      projectClaudeMdPath: projMdPath,
-      projectSkills: projectSkills,
-      devModeContext: devMode
-    )
-  }
-
-  /// Discover CLAUDE.md for Settings reference only, plus skills for the compact agent catalog.
-  func discoverClaudeConfig() async {
-    let workspace = aiChatWorkingDirectory
-    let result = await Task.detached(priority: .utility) {
-      Self.loadClaudeConfigFromDisk(workspace: workspace)
-    }.value
-
-    // Assign results back on main actor
-    claudeMdContent = result.claudeMdContent
-    claudeMdPath = result.claudeMdPath
-    discoveredSkills = result.skills
-    projectClaudeMdContent = result.projectClaudeMdContent
-    projectClaudeMdPath = result.projectClaudeMdPath
-    projectDiscoveredSkills = result.projectSkills
-    devModeContext = result.devModeContext
-
-    log(
-      "ChatProvider: discovered global CLAUDE.md=\(claudeMdContent != nil), global skills=\(discoveredSkills.count), project CLAUDE.md=\(projectClaudeMdContent != nil), project skills=\(projectDiscoveredSkills.count), dev_mode_skill=\(devModeContext != nil)"
-    )
-  }
-
-  /// Extract description from YAML frontmatter in SKILL.md
-  nonisolated static func extractSkillDescription(from content: String) -> String {
-    guard content.hasPrefix("---") else {
-      // No frontmatter — use first non-empty line as description
-      let lines = content.components(separatedBy: "\n")
-      return lines.first(where: { !$0.trimmingCharacters(in: .whitespaces).isEmpty })?.trimmingCharacters(
-        in: .whitespaces) ?? ""
-    }
-    let lines = content.components(separatedBy: "\n")
-    for line in lines.dropFirst() {
-      if line.trimmingCharacters(in: .whitespaces).hasPrefix("---") { break }
-      if line.trimmingCharacters(in: .whitespaces).hasPrefix("description:") {
-        var value = String(line.trimmingCharacters(in: .whitespaces).dropFirst("description:".count))
-        value = value.trimmingCharacters(in: .whitespaces)
-        // Remove surrounding quotes if present
-        if (value.hasPrefix("\"") && value.hasSuffix("\"")) || (value.hasPrefix("'") && value.hasSuffix("'")) {
-          value = String(value.dropFirst().dropLast())
-        }
-        return value
-      }
-    }
-    return ""
-  }
-
-  /// Get the set of explicitly disabled skill names from UserDefaults
-  func getDisabledSkillNames() -> Set<String> {
-    guard let data = disabledSkillsJSON.data(using: .utf8),
-      let names = try? JSONDecoder().decode([String].self, from: data)
-    else {
-      return []  // Default: nothing disabled = all enabled
-    }
-    return Set(names)
-  }
-
-  /// Save the set of disabled skill names to UserDefaults
-  func setDisabledSkillNames(_ names: Set<String>) {
-    if let data = try? JSONEncoder().encode(Array(names)),
-      let json = String(data: data, encoding: .utf8)
-    {
-      disabledSkillsJSON = json
-    }
   }
 
   /// Switch to the default chat (messages without session_id, syncs with Flutter app)
@@ -3047,9 +2473,8 @@ class ChatProvider: ObservableObject {
           )
         }
       } else {
-        legacy = try await ChatLegacyPageCollector.all { [selectedAppId] limit, offset in
+        legacy = try await ChatLegacyPageCollector.all { limit, offset in
           try await APIClient.shared.getMessages(
-            appId: selectedAppId,
             limit: limit,
             offset: offset,
             expectedOwnerId: ownerId
@@ -3225,11 +2650,18 @@ class ChatProvider: ObservableObject {
     userMessage: ChatMessage,
     assistantMessage: ChatMessage,
     origin: String,
-    appId: String?,
     sessionId: String?,
     messageSource: String
   ) async -> Bool {
-    await admitStreamingJournalExchange(
+    #if DEBUG
+      if let recordStreamingJournalExchangeForTests {
+        guard let projected = recordStreamingJournalExchangeForTests(userMessage, assistantMessage)
+        else { return false }
+        messages = projected
+        return true
+      }
+    #endif
+    return await admitStreamingJournalExchange(
       userMessage: userMessage,
       assistantMessage: assistantMessage
     ) { [weak self] turns in
@@ -3239,7 +2671,6 @@ class ChatProvider: ObservableObject {
         turns: turns,
         origin: origin,
         continuityKey: continuityKey,
-        appId: appId,
         sessionId: sessionId,
         messageSource: messageSource,
         ownerID: ownerID
@@ -3307,7 +2738,7 @@ class ChatProvider: ObservableObject {
 
   /// PTT is a realtime projection of the selected main chat, never a second
   /// chat. Retain the exact external reference so the runtime resolves the
-  /// canonical main-chat conversation for non-default chats and app scopes.
+  /// canonical main-chat conversation for non-default chats.
   func realtimeVoiceSurfaceReference() -> AgentSurfaceReference {
     mainChatSurfaceReference().realtimeVoiceCompanion()
   }
@@ -3467,9 +2898,8 @@ class ChatProvider: ObservableObject {
     }
     let toAdd = Array(attachments.prefix(room))
     pendingAttachments.append(contentsOf: toAdd)
-    let capturedAppId = overrideAppId ?? selectedAppId
     for attachment in toAdd {
-      uploadAttachment(id: attachment.id, appId: capturedAppId)
+      uploadAttachment(id: attachment.id)
     }
   }
 
@@ -3479,7 +2909,7 @@ class ChatProvider: ObservableObject {
 
   /// Upload a single staged attachment in the background. The user can send
   /// the message before this completes — `sendMessage` will await the upload.
-  private func uploadAttachment(id: String, appId: String?) {
+  private func uploadAttachment(id: String) {
     Task { [weak self] in
       guard let self = self,
         let attachment = await MainActor.run(body: {
@@ -3504,8 +2934,7 @@ class ChatProvider: ObservableObject {
       }
       do {
         let resp = try await APIClient.shared.uploadChatFiles(
-          [(data: bytes, fileName: attachment.fileName, mimeType: attachment.mimeType)],
-          appId: appId
+          [(data: bytes, fileName: attachment.fileName, mimeType: attachment.mimeType)]
         )
         guard let server = resp.first else {
           throw APIError.invalidResponse
@@ -3613,15 +3042,13 @@ class ChatProvider: ObservableObject {
 
   // MARK: - Send Message
 
-  /// Send a message and get AI response via Claude Agent SDK bridge
+  /// Send a message and get a response through managed Pi.
   /// Persists both user and AI messages to backend
   /// - Parameters:
   ///   - text: The message text
-  ///   - model: Optional model override for this query (e.g. "claude-sonnet-4-6" for floating bar)
   @discardableResult
   func sendMessage(
     _ text: String,
-    model: String? = nil,
     systemPromptSuffix: String? = nil,
     systemPromptPrefix: String? = nil,
     systemPromptStyle: ChatSystemPromptStyle = .main,
@@ -3633,6 +3060,7 @@ class ChatProvider: ObservableObject {
     onJournalFinalized: (@MainActor (_ accepted: Bool) -> Void)? = nil
   ) async -> String? {
     let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
+    let managedModel = ModelQoS.Claude.chat
     guard !trimmedText.isEmpty else { return nil }
     guard let capturedRuntimeOwnerID = runtimeOwnerId else {
       errorMessage = "Sign in again to continue."
@@ -3672,7 +3100,7 @@ class ChatProvider: ObservableObject {
     let telemetryAttempt = ChatQueryTelemetryAttempt(
       attemptId: clientTurnId,
       surface: telemetrySurface,
-      harness: activeBridgeHarness,
+      harness: AgentHarnessMode.piMono.rawValue,
       runtimeSurface: surfaceRef?.surfaceKind,
       inputLength: trimmedText.count,
       attachmentCount: pendingAttachments.count,
@@ -3692,7 +3120,7 @@ class ChatProvider: ObservableObject {
     let bridgeStarted = await ensureBridgeStarted(authoritativeGeneration: sendGen)
     guard sendGeneration == sendGen, turnLifecycle.acceptsResult else {
       tracer?.end("bridge_ensure", metadata: ["status": "cancelled"])
-      tracer?.finalize(tokenCount: 0, model: model ?? modelOverride)
+      tracer?.finalize(tokenCount: 0, model: managedModel)
       telemetryAttempt.finish(stopReason: turnLifecycle.stopReason ?? stopReason(for: sendGen))
       clearChatTelemetryState(for: sendGen)
       releaseSendLock(sendGeneration: sendGen)
@@ -3700,7 +3128,7 @@ class ChatProvider: ObservableObject {
     }
     guard bridgeStarted else {
       tracer?.end("bridge_ensure", metadata: ["error": "bridge_failed"])
-      tracer?.finalize(tokenCount: 0, model: model ?? modelOverride)
+      tracer?.finalize(tokenCount: 0, model: managedModel)
       if currentError == nil, errorMessage?.isEmpty ?? true {
         errorMessage = "AI not available"
       }
@@ -3721,7 +3149,7 @@ class ChatProvider: ObservableObject {
         _ = await createNewSession(authoritativeSendGeneration: sendGen)
       }
       guard sendGeneration == sendGen, turnLifecycle.acceptsResult else {
-        tracer?.finalize(tokenCount: 0, model: model ?? modelOverride)
+        tracer?.finalize(tokenCount: 0, model: managedModel)
         telemetryAttempt.finish(stopReason: turnLifecycle.stopReason ?? stopReason(for: sendGen))
         clearChatTelemetryState(for: sendGen)
         releaseSendLock(sendGeneration: sendGen)
@@ -3729,7 +3157,7 @@ class ChatProvider: ObservableObject {
       }
       guard let sid = currentSessionId else {
         errorMessage = "Failed to create chat session"
-        tracer?.finalize(tokenCount: 0, model: model ?? modelOverride)
+        tracer?.finalize(tokenCount: 0, model: managedModel)
         telemetryAttempt.fail(errorClass: .sessionSetup)
         clearChatTelemetryState(for: sendGen)
         releaseSendLock(sendGeneration: sendGen)
@@ -3738,7 +3166,7 @@ class ChatProvider: ObservableObject {
       sessionId = sid
     }
     guard sendGeneration == sendGen else {
-      tracer?.finalize(tokenCount: 0, model: model ?? modelOverride)
+      tracer?.finalize(tokenCount: 0, model: managedModel)
       telemetryAttempt.finish(stopReason: stopReason(for: sendGen))
       clearChatTelemetryState(for: sendGen)
       releaseSendLock(sendGeneration: sendGen)
@@ -3754,10 +3182,10 @@ class ChatProvider: ObservableObject {
     do {
       pinnedSession = try await resolveKernelQuerySession(
         surface: resolvedSurface,
-        requestedModelProfile: model
+        requestedModelProfile: managedModel
       )
     } catch {
-      tracer?.finalize(tokenCount: 0, model: model ?? modelOverride)
+      tracer?.finalize(tokenCount: 0, model: managedModel)
       if ChatQueryResultAuthority.acceptsContinuation(
         currentGeneration: sendGeneration,
         turnGeneration: sendGen,
@@ -3774,13 +3202,7 @@ class ChatProvider: ObservableObject {
       releaseSendLock(sendGeneration: sendGen)
       return nil
     }
-    let accountingPolicy = ChatRunAccountingPolicy(
-      pinnedAdapterID: pinnedSession.profile.adapterId
-    )
-    telemetryAttempt.bindSessionAdapter(pinnedSession.profile.adapterId)
-    telemetryAttempt.bindBridgeModePreference(bridgeMode)
-    let turnUsesOmiAccount = accountingPolicy.usesOmiAccountQuota
-    if turnUsesOmiAccount, usageLimiter.serverQuota == nil {
+    if usageLimiter.serverQuota == nil {
       await usageLimiter.syncQuota()
     }
     guard
@@ -3790,7 +3212,7 @@ class ChatProvider: ObservableObject {
         turnAcceptsResult: turnLifecycle.acceptsResult
       )
     else {
-      tracer?.finalize(tokenCount: 0, model: model ?? modelOverride)
+      tracer?.finalize(tokenCount: 0, model: managedModel)
       telemetryAttempt.finish(
         stopReason: turnLifecycle.stopReason ?? stopReason(for: sendGen)
       )
@@ -3798,7 +3220,7 @@ class ChatProvider: ObservableObject {
       releaseSendLock(sendGeneration: sendGen)
       return nil
     }
-    if turnUsesOmiAccount, usageLimiter.isLimitReached {
+    if usageLimiter.isLimitReached {
       log("ChatProvider: pinned Omi session blocked by free-tier monthly limit")
       errorMessage = "You've reached \(usageLimiter.limitDescription). Upgrade to keep chatting."
       NotificationCenter.default.post(
@@ -3806,13 +3228,13 @@ class ChatProvider: ObservableObject {
         object: nil,
         userInfo: ["reason": "chat"]
       )
-      tracer?.finalize(tokenCount: 0, model: model ?? modelOverride)
+      tracer?.finalize(tokenCount: 0, model: managedModel)
       telemetryAttempt.fail(errorClass: .quota)
       clearChatTelemetryState(for: sendGen)
       releaseSendLock(sendGeneration: sendGen)
       return nil
     }
-    if turnUsesOmiAccount, omiAICumulativeCostUsd >= 50.0,
+    if omiAICumulativeCostUsd >= 50.0,
       !isExemptFromOmiUpgradeNudge
     {
       showOmiThresholdAlert = true
@@ -3903,7 +3325,7 @@ class ChatProvider: ObservableObject {
           tracer?.end("ttft")
           tracer?.end("generation")
           tracer?.end("llm_request")
-          tracer?.finalize(tokenCount: 0, model: model ?? self.modelOverride)
+          tracer?.finalize(tokenCount: 0, model: managedModel)
 
           if let terminalMessage = ChatProvider.stoppedTurnErrorMessage(
             watchdogFired: watchdogFired,
@@ -3954,7 +3376,7 @@ class ChatProvider: ObservableObject {
           turnAcceptsResult: turnLifecycle.acceptsResult
         )
       else {
-        tracer?.finalize(tokenCount: 0, model: model ?? modelOverride)
+        tracer?.finalize(tokenCount: 0, model: managedModel)
         telemetryAttempt.finish(stopReason: turnLifecycle.stopReason ?? stopReason(for: sendGen))
         clearChatTelemetryState(for: sendGen)
         releaseSendLock(sendGeneration: sendGen)
@@ -3962,7 +3384,7 @@ class ChatProvider: ObservableObject {
       }
       if !ok {
         errorMessage = "Some attachments failed to upload. Remove them and try again."
-        tracer?.finalize(tokenCount: 0, model: model ?? modelOverride)
+        tracer?.finalize(tokenCount: 0, model: managedModel)
         telemetryAttempt.fail(errorClass: .attachmentUpload)
         clearChatTelemetryState(for: sendGen)
         releaseSendLock(sendGeneration: sendGen)
@@ -3971,9 +3393,7 @@ class ChatProvider: ObservableObject {
       attachmentsForMessage = pendingAttachments
       pendingAttachments.removeAll()
     }
-    if turnUsesOmiAccount {
-      usageLimiter.recordQuery()
-    }
+    usageLimiter.recordQuery()
 
     // Attempt-derived IDs are the canonical journal identities. Backend
     // delivery preserves them through the outbox instead of minting a
@@ -3982,7 +3402,6 @@ class ChatProvider: ObservableObject {
     let userMessageId = turnMessageIds.user
     let isFirstMessage = messages.isEmpty
     let capturedSessionId = sessionId
-    let capturedAppId = overrideAppId ?? selectedAppId
     let journalOrigin = journalOrigin(for: resolvedSurface)
     let userMessage = ChatMessage(
       id: userMessageId,
@@ -4010,11 +3429,16 @@ class ChatProvider: ObservableObject {
       userMessage: userMessage,
       assistantMessage: aiMessage,
       origin: journalOrigin,
-      appId: capturedAppId,
       sessionId: capturedSessionId,
       messageSource: journalOrigin
     )
-    if recordedExchange {
+    let shouldRegisterJournalTerminalTarget: Bool
+    #if DEBUG
+      shouldRegisterJournalTerminalTarget = recordStreamingJournalExchangeForTests == nil
+    #else
+      shouldRegisterJournalTerminalTarget = true
+    #endif
+    if recordedExchange, shouldRegisterJournalTerminalTarget {
       journalOwnerByMessageID[aiMessageId] = capturedRuntimeOwnerID
       journalTerminalTargets.register(
         ChatJournalTerminalTarget(
@@ -4159,10 +3583,10 @@ class ChatProvider: ObservableObject {
         systemPromptSuffix: systemPromptSuffix,
         notificationContext: notificationContext,
         screenPayload: screenPayload,
-        requestedModelProfile: model,
+        requestedModelProfile: managedModel,
         pinnedSession: pinnedSession
       )
-      await resolvedAgentClient().warmupSession(kernelContext.session)
+      await warmupKernelQuerySession(kernelContext.session)
       let effectiveRequestModel = kernelContext.session.profile.modelProfile
 
       // Callbacks for agent bridge
@@ -4248,33 +3672,6 @@ class ChatProvider: ObservableObject {
             toolTiming.toolNames.append(name)
             responseMetrics.recordToolRequested(name: name)
             toolTiming.toolStartTimes[trackedId] = Date()
-            if name.contains("browser") || name.contains("playwright") {
-              let token = UserDefaults.standard.string(forKey: "playwrightExtensionToken") ?? ""
-              if token.isEmpty {
-                log(
-                  "ChatProvider: Browser tool \(ChatTelemetryDimension.toolName(name)) "
-                    + "called without extension token — aborting query and prompting setup"
-                )
-                self.needsBrowserExtensionSetup = true
-                self.stopAgent(owner: turnOwner, reason: .browserExtensionMissing)
-                // Keep floating-bar sessions non-intrusive: do not foreground
-                // the main window when the query originated from the floating bar.
-                if systemPromptStyle != .floating {
-                  // Bring the app to the foreground so the setup sheet is visible
-                  // (the failed browser attempt may have opened Chrome, stealing focus)
-                  NSApp.activate()
-                  for window in NSApp.windows where window.title.hasPrefix("Omi") {
-                    window.makeKeyAndOrderFront(nil)
-                  }
-                }
-              }
-              // Show the floating bar so the user has an always-on-top UI
-              // when Chrome takes focus (important on small screens)
-              if !FloatingControlBarManager.shared.isVisible {
-                log("ChatProvider: Browser tool active — showing floating bar so it stays above Chrome")
-                FloatingControlBarManager.shared.showTemporarily()
-              }
-            }
           } else if toolStatus != .running,
             let startTime = toolTiming.toolStartTimes.removeValue(forKey: trackedId)
           {
@@ -4391,7 +3788,7 @@ class ChatProvider: ObservableObject {
       else {
         tracer?.end("ttft")
         tracer?.end("llm_request")
-        tracer?.finalize(tokenCount: 0, model: model ?? modelOverride)
+        tracer?.finalize(tokenCount: 0, model: managedModel)
         if let index = messages.firstIndex(where: { $0.id == aiMessageId }),
           messages[index].text.isEmpty,
           messages[index].contentBlocks.isEmpty
@@ -4410,7 +3807,7 @@ class ChatProvider: ObservableObject {
       agentQueryStarted = true
       let queryResult: AgentClient.QueryResult
       do {
-        queryResult = try await resolvedAgentClient().query(
+        let invocation = ChatProviderAgentQueryInvocation(
           prompt: trimmedText,
           session: kernelContext.session,
           surface: resolvedSurface,
@@ -4419,23 +3816,24 @@ class ChatProvider: ObservableObject {
           attachments: Self.queryAttachments(attachmentsForMessage),
           producingTurnId: aiMessageId,
           expectedContext: kernelContext.snapshot.freshness,
-          reasoningEffort: turnOwner.reasoningEffort,
+          reasoningEffort: turnOwner.reasoningEffort
+        )
+        queryResult = try await performAgentQuery(
+          invocation,
           onTextDelta: textDeltaHandler,
           onToolActivity: toolActivityHandler,
           onThinkingDelta: thinkingDeltaHandler,
           onToolResultDisplay: toolResultDisplayHandler,
-          onAuthRequired: { [weak self] methods, authUrl in
-            let methodsBox = ChatProviderSendableBox(value: methods)
+          onAuthRequired: { [weak self] _, _ in
             callbackQueue.submit { @MainActor [weak self] in
               guard let self else { return }
-              let methods = methodsBox.value
-              self.handleClaudeAuthRequired(methods: methods, authUrl: authUrl)
+              self.errorMessage = "Omi authentication is required for managed AI. Sign in, then try again."
             }
           },
           onAuthSuccess: { [weak self] in
             callbackQueue.submit { @MainActor [weak self] in
               guard let self else { return }
-              self.handleClaudeAuthSuccess()
+              self.errorMessage = nil
             }
           }
         )
@@ -4671,37 +4069,15 @@ class ChatProvider: ObservableObject {
         )
       }
 
-      // Skip client-side cost telemetry for piMono because /v2/chat/completions
+      // Skip client-side cost telemetry because /v2/chat/completions
       // already logs Omi-account token/cost usage server-side. Question
       // quota is recorded by the backend when the accepted human message
-      // is persisted, so model calls and helper calls cannot double-count. Local harnesses
-      // (Hermes/OpenClaw) skip telemetry entirely; use the actual harness, not
-      // @AppStorage bridgeMode, because directed Hermes/OpenClaw pills can
-      // override the harness without changing the user's global preference.
-      let isPiMonoHarness = accountingPolicy.usesOmiAccountQuota
-      let isUserClaudeHarness = accountingPolicy.recordsPersonalProviderUsage
-      if isUserClaudeHarness {
-        let r = queryResult
-        Task.detached(priority: .background) {
-          await APIClient.shared.recordLlmUsage(
-            inputTokens: r.inputTokens,
-            outputTokens: r.outputTokens,
-            cacheReadTokens: r.cacheReadTokens,
-            cacheWriteTokens: r.cacheWriteTokens,
-            totalTokens: r.inputTokens + r.outputTokens + r.cacheReadTokens + r.cacheWriteTokens,
-            costUsd: r.costUsd,
-            account: "personal"
-          )
-        }
-      }
-      if isPiMonoHarness {
-        sessionTokensUsed += queryResult.inputTokens + queryResult.outputTokens
-        omiAICumulativeCostUsd += queryResult.costUsd
-        // Show the upgrade flow when the free Omi usage threshold is reached.
-        // Never for paid/BYOK users — they aren't subject to the free Omi spend cap.
-        if omiAICumulativeCostUsd >= 50.0 && !isExemptFromOmiUpgradeNudge {
-          showOmiThresholdAlert = true
-        }
+      // is persisted, so model calls and helper calls cannot double-count.
+      sessionTokensUsed += queryResult.inputTokens + queryResult.outputTokens
+      omiAICumulativeCostUsd += queryResult.costUsd
+      // Show the upgrade flow when the free managed-AI threshold is reached.
+      if omiAICumulativeCostUsd >= 50.0 && !isExemptFromOmiUpgradeNudge {
+        showOmiThresholdAlert = true
       }
 
       // Fire-and-forget: check if user's message mentions goal progress
@@ -4719,7 +4095,7 @@ class ChatProvider: ObservableObject {
       tracer?.end("ttft")
       tracer?.end("generation")
       tracer?.end("llm_request")
-      tracer?.finalize(tokenCount: 0, model: model ?? modelOverride)
+      tracer?.finalize(tokenCount: 0, model: managedModel)
 
       // A stop, timeout, or superseding send revokes product authority even
       // if its telemetry fallback has not fired yet. Handle that before
@@ -4791,7 +4167,7 @@ class ChatProvider: ObservableObject {
 
       // Kernel context readiness happens before the model query. Never
       // interrupt a session that has not been queried yet: doing so turns
-      // a recoverable setup timeout into a misleading ACP-query failure.
+      // a recoverable setup timeout into a misleading query failure.
       if let bridgeError = error as? BridgeError, case .timeout = bridgeError {
         if Self.shouldInterruptTimedOutAgentQuery(queryStarted: agentQueryStarted) {
           log("ChatProvider: agent query timed out, sending interrupt to cancel stuck session")
@@ -4956,7 +4332,7 @@ class ChatProvider: ObservableObject {
         failure.failureCode == .authentication
       {
         currentError = nil
-        errorMessage = Self.providerAuthRequiredUserMessage(isUserClaudeMode: isUserClaudeMode)
+        errorMessage = "Omi authentication is required for managed AI. Sign in, then try again."
         lastFailedPrompt = trimmedText
       } else if let bridgeError = error as? BridgeError,
         let card = ChatErrorState.from(bridgeError)
@@ -4980,8 +4356,7 @@ class ChatProvider: ObservableObject {
   /// Compose and present the personalized opener the instant the Chat tab
   /// appears after onboarding. Composed synchronously from locally-known
   /// facts (name, listening mode, cached suggestion chips) so it is instant
-  /// and never blank; today's calendar, if connected, enriches it a moment
-  /// later without ever blocking the first paint.
+  /// and never blank.
   func presentOnboardingOpener() {
     let name = Self.firstName(AuthService.shared.givenName)
     let mode: OnboardingOpenerComposer.ListeningMode =
@@ -4993,15 +4368,6 @@ class ChatProvider: ObservableObject {
     onboardingOpener = OnboardingOpenerComposer.compose(
       name: name, mode: mode, meetings: [], now: Date(), baseStarters: baseStarters)
 
-    // Enrich with today's real calendar when available — never blocks the
-    // instant opener above, and bails if the user has already started chatting.
-    Task { [weak self] in
-      let meetings = await Self.todaysMeetings()
-      guard !meetings.isEmpty else { return }
-      guard let self, self.onboardingOpener != nil else { return }
-      self.onboardingOpener = OnboardingOpenerComposer.compose(
-        name: name, mode: mode, meetings: meetings, now: Date(), baseStarters: baseStarters)
-    }
   }
 
   /// Hide the opener once the user sends their first message.
@@ -5012,47 +4378,6 @@ class ChatProvider: ObservableObject {
   private static func firstName(_ full: String) -> String {
     let trimmed = full.trimmingCharacters(in: .whitespaces)
     return trimmed.components(separatedBy: " ").first ?? trimmed
-  }
-
-  /// Today's remaining timed meetings (soonest first), best-effort. Returns an
-  /// empty array when the calendar isn't connected or the read fails — the
-  /// opener simply stays in its name-only form.
-  private static func todaysMeetings() async -> [OnboardingMeetingBrief] {
-    guard
-      let events = try? await CalendarReaderService.shared.readEvents(
-        daysBack: 0, daysForward: 1, maxResults: 50)
-    else { return [] }
-
-    // Compute "today" in the user's local timezone. ISO8601DateFormatter defaults to
-    // UTC, but event start_time date strings carry the calendar's local offset, so a
-    // UTC prefix would drop today's meetings for any user behind/ahead of UTC near the
-    // day boundary.
-    let localDayFormatter = ISO8601DateFormatter()
-    localDayFormatter.timeZone = TimeZone.current
-    let todayPrefix = localDayFormatter.string(from: Date()).prefix(10)
-    let plain = ISO8601DateFormatter()
-    let fractional = ISO8601DateFormatter()
-    fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-
-    let timeFormatter = DateFormatter()
-    timeFormatter.locale = Locale.current
-    timeFormatter.setLocalizedDateFormatFromTemplate("jmm")
-
-    let cutoff = Date().addingTimeInterval(-30 * 60)  // include a meeting that just started
-
-    return
-      events
-      .filter { !$0.isAllDay && $0.startTime.prefix(10) == todayPrefix }
-      .compactMap { event -> (Date, OnboardingMeetingBrief)? in
-        guard let start = plain.date(from: event.startTime) ?? fractional.date(from: event.startTime),
-          start >= cutoff
-        else { return nil }
-        let title = event.summary.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !title.isEmpty else { return nil }
-        return (start, OnboardingMeetingBrief(title: title, time: timeFormatter.string(from: start)))
-      }
-      .sorted { $0.0 < $1.0 }
-      .map(\.1)
   }
 
   /// Sends the active main-chat composer and clears only the exact draft that
@@ -5395,7 +4720,6 @@ class ChatProvider: ObservableObject {
         sessionId: spawnedAgent.sessionID,
         runId: spawnedAgent.runID,
         attemptId: nil,
-        provider: spawnedAgent.provider,
         producingJournalSurface: mainChatSurfaceReference()
       )
     }
@@ -5408,7 +4732,6 @@ class ChatProvider: ObservableObject {
     let runID: String
     let title: String
     let objective: String
-    let provider: String?
   }
 
   /// When `spawn_agent` completes, append a structured `.agentSpawn` block so
@@ -5456,7 +4779,7 @@ class ChatProvider: ObservableObject {
 
     // Idempotent: do not append a second spawn card for the same pill/run.
     let alreadyPresent = blocks.contains { block in
-      if case .agentSpawn(_, let existingPill, _, let existingRun, _, _, _) = block {
+      if case .agentSpawn(_, let existingPill, _, let existingRun, _, _) = block {
         if let existingPill, existingPill == pillId { return true }
         if !runId.isEmpty, existingRun == runId { return true }
       }
@@ -5476,8 +4799,7 @@ class ChatProvider: ObservableObject {
       sessionID: sessionId,
       runID: runId,
       title: title,
-      objective: objective,
-      provider: spawnSource.spawnedAgentProvider
+      objective: objective
     )
 
     // A repeat display event must still restore the matching notch pill if
@@ -5492,10 +4814,7 @@ class ChatProvider: ObservableObject {
       sessionId: sessionId,
       runId: runId,
       title: title,
-      objective: objective,
-      provider: spawnSource.spawnedAgentProvider
-        .flatMap(AgentRuntimeRouting.harnessMode(from:))
-        .flatMap { $0 == .hermes || $0 == .openclaw ? $0 : nil }
+      objective: objective
     )
     // Keep the tool block for in-session progress; insert structured spawn
     // immediately after it so reload/metadata durability has a first-class card.
@@ -5972,29 +5291,6 @@ class ChatProvider: ObservableObject {
     AnalyticsManager.shared.chatCleared()
   }
 
-  // MARK: - App Selection
-
-  /// Select a chat app and load its sessions
-  func selectApp(_ appId: String?) async {
-    guard selectedAppId != appId else { return }
-    selectedAppId = appId
-    currentSession = nil
-    messages = []
-    resetMessagesPagination()
-    sessions = []
-    errorMessage = nil
-    isInDefaultChat = true
-
-    if multiChatEnabled {
-      // Multi-chat mode: load sessions, then switch to default chat
-      await fetchSessions()
-      await switchToDefaultChat()
-    } else {
-      // Single chat mode: just load default chat messages
-      await loadDefaultChatMessages()
-    }
-  }
-
   // MARK: - Session Grouping Helpers
 
   /// Group sessions by date — called by the Combine observer, not on every SwiftUI render pass.
@@ -6096,7 +5392,6 @@ class ChatProvider: ObservableObject {
             clientId: probeClientID,
             surface: surface,
             title: nil,
-            creationProfile: nil,
             authorizationSnapshot: authorization)
           return (resolved.conversationId, resolved.sessionId)
         },

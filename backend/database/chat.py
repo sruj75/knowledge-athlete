@@ -101,60 +101,12 @@ def add_message(uid: str, message_data: Dict[str, Any]) -> Dict[str, Any]:
     return message_data
 
 
-def add_app_message(text: str, app_id: str, uid: str, conversation_id: Optional[str] = None) -> Message:
-    """Add a chat message an app posted for the user, linking it to that app's chat session so it
-    appears in the chat feed. get_messages filters by chat_session_id whenever a session exists, so
-    a message stored without one is never returned on that path."""
-    chat_session = get_chat_session(uid, app_id=app_id)
-    chat_session_id = chat_session['id'] if chat_session else None
-
-    ai_message = Message(
-        id=str(uuid.uuid4()),
-        text=text,
-        created_at=datetime.now(timezone.utc),
-        sender='ai',  # type: ignore[reportArgumentType]  # pydantic accepts str for MessageSender enum
-        app_id=app_id,
-        from_external_integration=False,
-        type='text',  # type: ignore[reportArgumentType]  # pydantic accepts str for MessageType enum
-        memories_id=[conversation_id] if conversation_id else [],
-        chat_session_id=chat_session_id,
-    )
-    add_message(uid, ai_message.model_dump())
-    if chat_session_id:
-        add_message_to_chat_session(uid, chat_session_id, ai_message.id)
-    return ai_message
-
-
-def add_integration_chat_message(text: str, app_id: Optional[str], uid: str) -> Message:
-    """Add a chat message from an external integration (e.g. notification API),
-    linking it to the user's existing chat session so it appears in the chat feed."""
-    chat_session = get_chat_session(uid, app_id=app_id)
-    chat_session_id = chat_session['id'] if chat_session else None
-
-    ai_message = Message(
-        id=str(uuid.uuid4()),
-        text=text,
-        created_at=datetime.now(timezone.utc),
-        sender='ai',  # type: ignore[reportArgumentType]  # pydantic accepts str for MessageSender enum
-        app_id=app_id,
-        from_external_integration=True,
-        type='text',  # type: ignore[reportArgumentType]  # pydantic accepts str for MessageType enum
-        chat_session_id=chat_session_id,
-    )
-    add_message(uid, ai_message.model_dump())
-    if chat_session_id:
-        add_message_to_chat_session(uid, chat_session_id, ai_message.id)
-    return ai_message
-
-
 def add_summary_message(text: str, uid: str) -> Message:
     ai_message = Message(
         id=str(uuid.uuid4()),
         text=text,
         created_at=datetime.now(timezone.utc),
         sender='ai',  # type: ignore[reportArgumentType]  # pydantic accepts str for MessageSender enum
-        app_id=None,
-        from_external_integration=False,
         type='day_summary',  # type: ignore[reportArgumentType]  # pydantic accepts str for MessageType enum
         memories_id=[],
     )
@@ -163,71 +115,18 @@ def add_summary_message(text: str, uid: str) -> Message:
 
 
 @prepare_for_read(decrypt_func=_prepare_message_for_read)
-def get_app_messages(
-    uid: str, app_id: str, limit: int = 20, offset: int = 0, include_conversations: bool = False
-) -> List[Dict[str, Any]]:
-    user_ref = db.collection('users').document(uid)
-    messages_ref = (
-        user_ref.collection('messages')
-        .where(filter=FieldFilter('plugin_id', '==', app_id))
-        .order_by('created_at', direction=firestore.Query.DESCENDING)
-        .limit(limit)
-        .offset(offset)
-    )
-    messages: List[Dict[str, Any]] = []
-    conversations_id: set[str] = set()
-
-    # Fetch messages and collect conversation IDs
-    for doc in messages_ref.stream():
-        message: Dict[str, Any] = _typed_doc(doc)
-        if message.get('reported') is True:
-            continue
-        messages.append(message)
-        conversations_id.update(message.get('memories_id', []))
-
-    if not include_conversations:
-        return messages
-
-    # Fetch all conversations at once
-    conversations: Dict[str, Any] = {}
-    conversations_ref = user_ref.collection('conversations')
-    doc_refs = [conversations_ref.document(str(conversation_id)) for conversation_id in conversations_id]
-    docs = db.get_all(doc_refs)
-    for doc in docs:
-        if doc.exists:
-            conversation: Dict[str, Any] = _typed_doc(doc)
-            conversations[conversation['id']] = conversation
-
-    # Attach conversations to messages
-    for message in messages:
-        message['memories'] = [
-            conversations[conversation_id]
-            for conversation_id in message.get('memories_id', [])
-            if conversation_id in conversations
-        ]
-
-    return messages
-
-
-@prepare_for_read(decrypt_func=_prepare_message_for_read)
 def get_messages(
     uid: str,
     limit: int = 20,
     offset: int = 0,
     include_conversations: bool = False,
-    app_id: Optional[str] = None,
     chat_session_id: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
-    logger.info(f'get_messages {uid} {limit} {offset} {app_id} {include_conversations}')
+    logger.info(f'get_messages {uid} {limit} {offset} {include_conversations}')
     user_ref = db.collection('users').document(uid)
     messages_ref = user_ref.collection('messages')
     if chat_session_id:
-        # Session-scoped query: filter by session only, skip plugin_id filter
-        # because the session already determines which app the messages belong to.
         messages_ref = messages_ref.where(filter=FieldFilter('chat_session_id', '==', chat_session_id))
-    else:
-        # App-scoped query: filter by plugin_id (None = main chat)
-        messages_ref = messages_ref.where(filter=FieldFilter('plugin_id', '==', app_id))
 
     messages_ref = messages_ref.order_by('created_at', direction=firestore.Query.DESCENDING).limit(limit).offset(offset)
 
@@ -303,7 +202,6 @@ def cache_aligned_history_limit(total_visible_messages: int) -> int:
 def get_cache_aligned_messages(
     uid: str,
     *,
-    app_id: Optional[str] = None,
     chat_session_id: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     """Read a cache-aligned, scope-safe chat history in newest-first order.
@@ -316,8 +214,6 @@ def get_cache_aligned_messages(
     scoped_ref = user_ref.collection('messages')
     if chat_session_id:
         scoped_ref = scoped_ref.where(filter=FieldFilter('chat_session_id', '==', chat_session_id))
-    else:
-        scoped_ref = scoped_ref.where(filter=FieldFilter('plugin_id', '==', app_id))
 
     total_result = scoped_ref.count().get()
     total = int(total_result[0][0].value) if total_result and total_result[0] else 0
@@ -337,7 +233,6 @@ def get_cache_aligned_messages(
     return get_messages(
         uid,
         limit=raw_limit,
-        app_id=app_id,
         chat_session_id=chat_session_id,
     )[:visible_limit]
 
@@ -348,7 +243,6 @@ def get_messages_reconcile_page(
     *,
     limit: int,
     cursor_message_id: Optional[str] = None,
-    app_id: Optional[str] = None,
     chat_session_id: Optional[str] = None,
 ) -> tuple[List[Dict[str, Any]], Optional[str], bool]:
     """Return a stable, owner-scoped keyset page for the desktop journal.
@@ -367,8 +261,6 @@ def get_messages_reconcile_page(
     query: Any = messages_collection
     if chat_session_id:
         query = query.where(filter=FieldFilter('chat_session_id', '==', chat_session_id))
-    else:
-        query = query.where(filter=FieldFilter('plugin_id', '==', app_id))
     query = query.order_by('created_at', direction=firestore.Query.DESCENDING)
 
     cursor_snapshot: Any = None
@@ -377,11 +269,7 @@ def get_messages_reconcile_page(
         if not cursor_snapshot.exists:
             raise MessageReconcileCursorError('message cursor does not exist')
         cursor_payload = _typed_doc(cursor_snapshot)
-        cursor_in_scope = (
-            cursor_payload.get('chat_session_id') == chat_session_id
-            if chat_session_id
-            else cursor_payload.get('plugin_id') == app_id
-        )
+        cursor_in_scope = not chat_session_id or cursor_payload.get('chat_session_id') == chat_session_id
         if not cursor_in_scope or cursor_payload.get('created_at') is None:
             raise MessageReconcileCursorError('message cursor is outside the requested scope')
 
@@ -520,44 +408,31 @@ def update_message_rating(uid: str, message_id: str, rating: Optional[int]) -> b
         return False
 
 
-def batch_delete_messages(
-    parent_doc_ref: Any, batch_size: int = 450, app_id: Optional[str] = None, chat_session_id: Optional[str] = None
-) -> None:
+def batch_delete_messages(parent_doc_ref: Any, batch_size: int = 450, chat_session_id: Optional[str] = None) -> None:
     messages_ref = parent_doc_ref.collection('messages')
-    messages_ref = messages_ref.where(filter=FieldFilter('plugin_id', '==', app_id))
     if chat_session_id:
         messages_ref = messages_ref.where(filter=FieldFilter('chat_session_id', '==', chat_session_id))
-    logger.info(f'batch_delete_messages {app_id}')
 
     while True:
-        docs_stream = messages_ref.limit(batch_size).stream()
-        docs_list: List[Any] = list(docs_stream)
-
+        docs_list: List[Any] = list(messages_ref.limit(batch_size).stream())
         if not docs_list:
-            logger.info("No more messages to delete")
             break
-
         batch = db.batch()
         for doc in docs_list:
             batch.delete(doc.reference)
         batch.commit()
-
-        logger.info(f'Deleted {len(docs_list)} messages')
-
+        logger.info('Deleted %d messages', len(docs_list))
         if len(docs_list) < batch_size:
-            logger.info("Processed all messages")
             break
 
 
-def clear_chat(
-    uid: str, app_id: Optional[str] = None, chat_session_id: Optional[str] = None
-) -> Optional[Dict[str, str]]:
+def clear_chat(uid: str, chat_session_id: Optional[str] = None) -> Optional[Dict[str, str]]:
     try:
         user_ref = db.collection('users').document(uid)
         logger.info(f"Deleting messages for user: {uid}")
         if not user_ref.get().exists:
             return {"message": "User not found"}
-        batch_delete_messages(user_ref, app_id=app_id, chat_session_id=chat_session_id)
+        batch_delete_messages(user_ref, chat_session_id=chat_session_id)
         return None
     except Exception as e:
         return {"message": str(e)}
@@ -652,19 +527,10 @@ def add_chat_session(uid: str, chat_session_data: Dict[str, Any]) -> Dict[str, A
     return chat_session_data
 
 
-def get_chat_session(uid: str, app_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
-    session_ref = (
-        db.collection('users')
-        .document(uid)
-        .collection('chat_sessions')
-        .where(filter=FieldFilter('plugin_id', '==', app_id))
-        .limit(1)
-    )
-
-    sessions = session_ref.stream()
-    for session in sessions:
+def get_chat_session(uid: str) -> Optional[Dict[str, Any]]:
+    session_ref = db.collection('users').document(uid).collection('chat_sessions').limit(1)
+    for session in session_ref.stream():
         return _typed_doc(session)
-
     return None
 
 
@@ -798,7 +664,6 @@ def migrate_chats_level_batch(uid: str, message_doc_ids: List[str], target_level
 # v2 sessions support: title, preview, message_count, starred, updated_at.
 # v1 sessions store: message_ids, file_ids, openai_thread_id.
 # Both schemas coexist in the same Firestore collection.
-# Both MUST write plugin_id alongside app_id for cross-platform query compat.
 # ============================================================================
 
 
@@ -826,7 +691,7 @@ def _normalize_chat_session(data: Optional[dict]) -> Optional[dict]:
     return data
 
 
-def create_chat_session(uid: str, title: Optional[str] = None, app_id: Optional[str] = None) -> Dict[str, Any]:
+def create_chat_session(uid: str, title: Optional[str] = None) -> Dict[str, Any]:
     session_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc)
     doc: Dict[str, Any] = {
@@ -835,8 +700,6 @@ def create_chat_session(uid: str, title: Optional[str] = None, app_id: Optional[
         'preview': None,
         'created_at': now,
         'updated_at': now,
-        'app_id': app_id,
-        'plugin_id': app_id,  # Python chat.py queries chat_sessions by plugin_id
         'message_count': 0,
         'starred': False,
     }
@@ -844,24 +707,17 @@ def create_chat_session(uid: str, title: Optional[str] = None, app_id: Optional[
     return doc
 
 
-def acquire_chat_session(uid: str, app_id: Optional[str] = None) -> str:
-    """Get or create a chat session for the given app_id (None = main chat).
-
-    Queries by plugin_id to match both Python chat.py and Rust backend behavior.
-    For main chat (app_id=None), matches sessions where plugin_id is None.
-    """
+def acquire_chat_session(uid: str) -> str:
     col = db.collection('users').document(uid).collection('chat_sessions')
-    query = col.where(filter=FieldFilter('plugin_id', '==', app_id)).limit(1)
-    docs = list(query.stream())
+    docs = list(col.limit(1).stream())
     if docs:
         return docs[0].id
-    session = create_chat_session(uid, app_id=app_id)
+    session = create_chat_session(uid)
     return session['id']
 
 
 def get_chat_sessions(
     uid: str,
-    app_id: Optional[str] = None,
     limit: int = 50,
     offset: int = 0,
     starred: Optional[bool] = None,
@@ -872,8 +728,6 @@ def get_chat_sessions(
     # which is correct since this endpoint serves v2 clients only.
     query = col.order_by('updated_at', direction=firestore.Query.DESCENDING)
 
-    # Always filter — when app_id is None this returns only default-chat sessions
-    query = query.where(filter=FieldFilter('plugin_id', '==', app_id))
     if starred is not None:
         query = query.where(filter=FieldFilter('starred', '==', starred))
 
@@ -911,9 +765,7 @@ def update_chat_session(
 # ============================================================================
 # MESSAGES (v2)
 #
-# Persistence-only message writes (no LLM streaming).  They write the same
-# field set as the Message model for cross-platform compatibility:
-#   plugin_id, app_id, type='text', chat_session_id, from_external_integration
+# Persistence-only message writes (no LLM streaming).
 #
 # When session_id is not provided, acquire_chat_session() auto-creates one.
 # ============================================================================
@@ -923,7 +775,6 @@ def save_message(
     uid: str,
     text: str,
     sender: str,
-    app_id: Optional[str] = None,
     session_id: Optional[str] = None,
     metadata: Optional[str] = None,
     client_message_id: Optional[str] = None,
@@ -941,7 +792,6 @@ def save_message(
     idempotency_payload_hash = _message_idempotency_payload_hash(
         text=text,
         sender=sender,
-        app_id=app_id,
         session_id=requested_session_id,
         metadata=metadata,
         message_source=message_source,
@@ -955,7 +805,6 @@ def save_message(
                 message_ref,
                 text=text,
                 sender=sender,
-                app_id=app_id,
                 session_id=requested_session_id,
                 metadata=metadata,
                 message_source=message_source,
@@ -967,7 +816,7 @@ def save_message(
 
     # Auto-acquire session (matches Rust backend behavior)
     if not session_id:
-        session_id = acquire_chat_session(uid, app_id=app_id)
+        session_id = acquire_chat_session(uid)
 
     doc: Dict[str, Any] = {
         'id': msg_id,
@@ -975,11 +824,8 @@ def save_message(
         'created_at': now,
         'sender': sender,
         'type': 'text',  # Desktop messages are always type 'text'
-        'app_id': app_id,
-        'plugin_id': app_id,  # chat.py queries messages by plugin_id
         'session_id': session_id,
         'chat_session_id': session_id,  # chat.py uses this field name
-        'from_external_integration': False,
         'rating': None,
         'reported': False,
         'memories_id': [],
@@ -1000,7 +846,6 @@ def save_message(
                 message_ref,
                 text=text,
                 sender=sender,
-                app_id=app_id,
                 session_id=requested_session_id,
                 metadata=metadata,
                 message_source=message_source,
@@ -1041,7 +886,6 @@ def _apply_existing_message_revision(
     *,
     text: str,
     sender: str,
-    app_id: Optional[str],
     session_id: Optional[str],
     metadata: Optional[str],
     message_source: str,
@@ -1060,7 +904,6 @@ def _apply_existing_message_revision(
         _assert_message_identity(
             existing,
             sender=sender,
-            app_id=app_id,
             session_id=session_id,
             message_source=message_source,
         )
@@ -1070,7 +913,6 @@ def _apply_existing_message_revision(
                 existing,
                 text=text,
                 sender=sender,
-                app_id=app_id,
                 session_id=session_id,
                 metadata=metadata,
                 message_source=message_source,
@@ -1087,7 +929,6 @@ def _apply_existing_message_revision(
                 existing,
                 text=text,
                 sender=sender,
-                app_id=app_id,
                 session_id=session_id,
                 metadata=metadata,
                 message_source=message_source,
@@ -1113,14 +954,11 @@ def _assert_message_identity(
     existing: Dict[str, Any],
     *,
     sender: str,
-    app_id: Optional[str],
     session_id: Optional[str],
     message_source: str,
 ) -> None:
     mismatched = existing.get('sender') != sender
     mismatched = mismatched or existing.get('message_source', 'desktop_chat') != message_source
-    existing_app_ids = [existing[field] for field in ('app_id', 'plugin_id') if field in existing] or [None]
-    mismatched = mismatched or any(existing_app_id != app_id for existing_app_id in existing_app_ids)
     if session_id is not None:
         existing_session_ids = [
             existing[field] for field in ('chat_session_id', 'session_id') if field in existing
@@ -1151,7 +989,6 @@ def _assert_idempotent_message_payload(
     *,
     text: str,
     sender: str,
-    app_id: Optional[str],
     session_id: Optional[str],
     metadata: Optional[str],
     message_source: str,
@@ -1170,8 +1007,6 @@ def _assert_idempotent_message_payload(
     mismatched = existing.get('text') != text or existing.get('sender') != sender
     mismatched = mismatched or existing.get('metadata') != metadata
     mismatched = mismatched or existing.get('message_source', 'desktop_chat') != message_source
-    existing_app_ids = [existing[field] for field in ('app_id', 'plugin_id') if field in existing] or [None]
-    mismatched = mismatched or any(existing_app_id != app_id for existing_app_id in existing_app_ids)
     if session_id is not None:
         existing_session_ids = [
             existing[field] for field in ('chat_session_id', 'session_id') if field in existing
@@ -1187,14 +1022,12 @@ def _message_idempotency_payload_hash(
     *,
     text: str,
     sender: str,
-    app_id: Optional[str],
     session_id: Optional[str],
     metadata: Optional[str],
     message_source: str,
 ) -> str:
     """Return a stable digest of the caller-controlled immutable payload."""
     payload = {
-        'app_id': app_id,
         'message_source': message_source,
         'metadata': metadata,
         'sender': sender,
@@ -1205,16 +1038,13 @@ def _message_idempotency_payload_hash(
     return f'sha256:{hashlib.sha256(canonical.encode("utf-8")).hexdigest()}'
 
 
-def delete_messages(uid: str, app_id: Optional[str] = None, session_id: Optional[str] = None) -> int:
+def delete_messages(uid: str, session_id: Optional[str] = None) -> int:
     """Delete messages and apply inverse session metadata updates atomically."""
     user_ref = db.collection('users').document(uid)
     col = user_ref.collection('messages')
+    query = col
     if session_id:
-        # Session-scoped delete: filter by session only (same logic as get_messages)
-        query = col.where(filter=FieldFilter('chat_session_id', '==', session_id))
-    else:
-        # App-scoped delete: filter by plugin_id (None = main chat)
-        query = col.where(filter=FieldFilter('plugin_id', '==', app_id))
+        query = query.where(filter=FieldFilter('chat_session_id', '==', session_id))
 
     deleted = 0
     consecutive_conflicts = 0

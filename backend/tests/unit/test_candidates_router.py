@@ -47,7 +47,6 @@ def test_candidate_router_publishes_complete_lifecycle_openapi():
     assert set(paths['/v1/candidates/{candidate_id}/expire']) == {'post'}
     assert set(paths['/v1/candidates/migrate-staged']) == {'post'}
     assert set(paths['/v1/candidates/control']) == {'get'}
-    assert set(paths['/v1/candidates/integrations/drain']) == {'post'}
     create_parameters = paths['/v1/candidates']['post']['parameters']
     required_contract_headers = {
         (parameter['name'], parameter['in'], parameter.get('required'))

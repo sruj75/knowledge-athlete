@@ -1,9 +1,5 @@
-import asyncio
 import hashlib
 import logging
-import uuid
-
-from utils.executors import postprocess_executor, submit_with_context
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from typing import Optional, List
@@ -11,7 +7,6 @@ from datetime import datetime, timezone
 
 import database.action_items as action_items_db
 import database.conversations as conversations_db
-import database.redis_db as redis_db
 from database.firestore_transaction_retry import FirestoreContentionExhausted
 from database.vector_db import (
     upsert_action_item_vector,
@@ -20,17 +15,14 @@ from database.vector_db import (
     delete_action_item_vectors_batch,
     search_action_items_by_vector,
 )
-from utils.users import get_user_display_name
 from utils.other import endpoints as auth
 from utils.notifications import (
-    send_notification,
     send_action_item_data_message,
     send_action_item_update_message,
     send_action_item_deletion_message,
     send_action_items_batch_deletion_message,
     sync_action_item_reminder,
 )
-from utils.task_sync import auto_sync_action_item
 from pydantic import BaseModel, Field, ValidationError
 from models.shared import StatusResponse
 from models.action_item import (
@@ -40,7 +32,6 @@ from models.action_item import (
     ActionItemsResponse,
     ActionItemsSearchResponse,
     ConversationActionItemsResponse,
-    PendingSyncResponse,
 )
 from utils.task_intelligence import task_links
 
@@ -93,27 +84,6 @@ class BatchCreateActionItemsResponse(BaseModel):
     created_count: int
 
 
-class ShareActionItemsResponse(BaseModel):
-    url: str
-    token: str
-
-
-class SharedActionItemPreview(BaseModel):
-    description: str
-    due_at: Optional[datetime] = None
-
-
-class SharedActionItemsResponse(BaseModel):
-    sender_name: str
-    tasks: List[SharedActionItemPreview]
-    count: int
-
-
-class AcceptSharedActionItemsResponse(BaseModel):
-    created: List[str]
-    count: int
-
-
 def _safe_action_item_responses(items, *, uid: str = '', context: str = '') -> List[ActionItemResponse]:
     """Build ActionItemResponse objects from raw records, skipping any that fail
     validation so one malformed or legacy item cannot 500 a whole list endpoint."""
@@ -164,95 +134,6 @@ def batch_update_action_items(request: BatchUpdateActionItemsRequest, uid: str =
     """Batch update sort_order and indent_level for multiple action items."""
     result = action_items_db.batch_update_action_items(uid, request.items)
     return _batch_mutation_response(result)
-
-
-# *****************************
-# ****** REMINDERS SYNC *******
-# *****************************
-
-
-class SyncBatchItem(BaseModel):
-    id: str
-    description: Optional[str] = None
-    completed: Optional[bool] = None
-    due_at: Optional[datetime] = None
-    exported: Optional[bool] = None
-    export_platform: Optional[str] = None
-    apple_reminder_id: Optional[str] = None
-
-
-class SyncBatchRequest(BaseModel):
-    items: List[SyncBatchItem] = Field(..., max_length=100)
-
-
-@router.get("/v1/action-items/pending-sync", response_model=PendingSyncResponse, tags=['action-items'])
-def get_pending_sync_items(
-    platform: str = Query('apple_reminders', description="Sync platform"),
-    uid: str = Depends(auth.get_current_user_uid),
-):
-    """Get action items that need sync: pending export + already synced items for bidirectional sync."""
-    result = action_items_db.get_pending_apple_reminders_sync(uid)
-    pending_export = [item for item in result["pending_export"] if not item.get('is_locked', False)]
-    synced_items = [item for item in result["synced_items"] if not item.get('is_locked', False)]
-    return {
-        "pending_export": _safe_action_item_responses(pending_export, uid=uid, context='pending_export'),
-        "synced_items": _safe_action_item_responses(synced_items, uid=uid, context='synced_items'),
-    }
-
-
-@router.patch(
-    "/v1/action-items/sync-batch",
-    response_model=BatchMutationResponse,
-    response_model_exclude_none=True,
-    tags=['action-items'],
-)
-def sync_batch_update(request: SyncBatchRequest, uid: str = Depends(auth.get_current_user_uid)):
-    """Batch update action items during reminders sync. Single Firestore batch commit."""
-    if not request.items:
-        return {"status": "ok", "updated_count": 0}
-
-    # Pre-fetch items to skip locked ones
-    locked_ids = set()
-    for item in request.items:
-        existing = action_items_db.get_action_item(uid, item.id)
-        if existing and existing.get('is_locked', False):
-            locked_ids.add(item.id)
-
-    updates = []
-    for item in request.items:
-        if item.id in locked_ids:
-            continue
-        update_data = {}
-        if item.description is not None:
-            update_data['description'] = item.description
-        if item.completed is not None:
-            update_data['completed'] = item.completed
-            if item.completed:
-                update_data['completed_at'] = datetime.now(timezone.utc)
-            else:
-                update_data['completed_at'] = None
-        if 'due_at' in item.model_fields_set:
-            update_data['due_at'] = item.due_at
-        if item.exported is not None:
-            update_data['exported'] = item.exported
-        if item.export_platform is not None:
-            update_data['export_platform'] = item.export_platform
-        if item.apple_reminder_id is not None:
-            update_data['apple_reminder_id'] = item.apple_reminder_id
-        if update_data:
-            updates.append({'id': item.id, 'data': update_data})
-
-    result = action_items_db.batch_sync_update_action_items(uid, updates)
-
-    updated_ids = set(result.updated_ids)
-    desc_updates = [u for u in updates if u['id'] in updated_ids and 'description' in u['data']]
-    if desc_updates:
-        upsert_action_item_vectors_batch(
-            uid,
-            [{'action_item_id': u['id'], 'description': u['data']['description']} for u in desc_updates],
-        )
-
-    return _batch_mutation_response(result, locked_ids=locked_ids)
 
 
 # *****************************
@@ -314,11 +195,6 @@ def create_action_item(request: ActionItemCreateRequest, uid: str = Depends(auth
         )
 
     upsert_action_item_vector(uid, action_item_id, request.description)
-
-    def _run_auto_sync():
-        asyncio.run(auto_sync_action_item(uid, {"id": action_item_id, **action_item_data}, skip_apple_reminders=True))
-
-    submit_with_context(postprocess_executor, _run_auto_sync)
 
     return ActionItemResponse(**action_item)
 
@@ -457,9 +333,6 @@ def update_action_item(
     if updated_item is None:
         raise HTTPException(status_code=500, detail="Updated action item could not be loaded")
 
-    # Reconcile the client-scheduled reminder when completion or due date changed, using the final
-    # state: cancel if completed or no due date, (re)schedule only for an open task with a due date
-    # (#5085). Previously this re-armed the reminder whenever due_at was present, even on completion.
     if 'completed' in update_data or 'due_at' in update_data:
         sync_action_item_reminder(
             user_id=uid,
@@ -494,8 +367,6 @@ def toggle_action_item_completion(
     if updated_item is None:
         raise HTTPException(status_code=500, detail="Updated action item could not be loaded")
 
-    # Cancel the scheduled client reminder on completion, or re-schedule it when un-completing an
-    # item that still has a future due date (#5085).
     sync_action_item_reminder(
         user_id=uid,
         action_item_id=action_item_id,
@@ -503,20 +374,6 @@ def toggle_action_item_completion(
         completed=completed,
         due_at=updated_item.get('due_at'),
     )
-
-    # Notify sender if this was a shared task that just got completed
-    if completed and existing_item.get('shared_from'):
-        shared_from = existing_item['shared_from']
-        sender_uid = shared_from.get('sender_uid')
-        if sender_uid:
-            recipient_name = get_user_display_name(uid)
-            desc = existing_item.get('description', '')
-            description = (desc[:57] + '...') if len(desc) > 60 else desc
-            send_notification(
-                sender_uid,
-                "Task completed",
-                f"{recipient_name} completed: {description}",
-            )
 
     return ActionItemResponse(**updated_item)
 
@@ -677,129 +534,3 @@ def create_action_items_batch(
     )
 
     return {"action_items": created_items, "created_count": len(created_items)}
-
-
-# *****************************
-# ******* TASK SHARING ********
-# *****************************
-
-
-class ShareTasksRequest(BaseModel):
-    task_ids: List[str] = Field(description="IDs of action items to share", min_length=1, max_length=20)
-
-
-class AcceptSharedTasksRequest(BaseModel):
-    token: str = Field(description="Share token from the shared URL")
-
-
-@router.post("/v1/action-items/share", response_model=ShareActionItemsResponse, tags=['action-items'])
-def share_action_items(request: ShareTasksRequest, uid: str = Depends(auth.get_current_user_uid)):
-    """Create a shareable link for selected action items."""
-    # Validate all task_ids belong to user and are not locked
-    for task_id in request.task_ids:
-        item = action_items_db.get_action_item(uid, task_id)
-        if not item:
-            raise HTTPException(status_code=404, detail=f"Action item {task_id} not found")
-        if item.get('is_locked', False):
-            raise HTTPException(status_code=402, detail="Cannot share locked action items.")
-
-    # Get sender display name
-    display_name = get_user_display_name(uid)
-
-    # Generate token and store in Redis
-    token = uuid.uuid4().hex
-    result = redis_db.store_task_share(token, uid, display_name, request.task_ids)
-    if result is None:
-        raise HTTPException(status_code=500, detail="Failed to create share link")
-
-    return {"url": f"https://h.omi.me/tasks/{token}", "token": token}
-
-
-@router.get("/v1/action-items/shared/{token}", response_model=SharedActionItemsResponse, tags=['action-items'])
-def get_shared_action_items(token: str):
-    """Public endpoint — get shared task preview (no auth required)."""
-    share_data = redis_db.get_task_share(token)
-    if not share_data:
-        raise HTTPException(status_code=404, detail="Share link expired or not found")
-
-    sender_uid = share_data['uid']
-    task_ids = share_data['task_ids']
-
-    # Fetch tasks — only expose description + due_at, skip locked items
-    tasks = []
-    for task_id in task_ids:
-        item = action_items_db.get_action_item(sender_uid, task_id)
-        if item and not item.get('is_locked', False):
-            tasks.append(
-                {
-                    "description": item.get('description', ''),
-                    "due_at": item.get('due_at'),
-                }
-            )
-
-    return {
-        "sender_name": share_data['display_name'],
-        "tasks": tasks,
-        "count": len(tasks),
-    }
-
-
-@router.post("/v1/action-items/accept", response_model=AcceptSharedActionItemsResponse, tags=['action-items'])
-def accept_shared_action_items(request: AcceptSharedTasksRequest, uid: str = Depends(auth.get_current_user_uid)):
-    """Save shared tasks to the recipient's task list."""
-    share_data = redis_db.get_task_share(request.token)
-    if not share_data:
-        raise HTTPException(status_code=404, detail="Share link expired or not found")
-
-    # Prevent self-accept
-    if share_data['uid'] == uid:
-        raise HTTPException(status_code=400, detail="Cannot accept your own shared tasks")
-
-    sender_uid = share_data['uid']
-    task_ids = share_data['task_ids']
-
-    # Pre-validate: check which items are eligible (exist and not locked)
-    eligible_ids = []
-    for task_id in task_ids:
-        item = action_items_db.get_action_item(sender_uid, task_id)
-        if item and not item.get('is_locked', False):
-            eligible_ids.append(task_id)
-
-    if not eligible_ids:
-        raise HTTPException(status_code=402, detail="All shared tasks are locked. A paid plan is required.")
-
-    # Atomically check and mark acceptance to prevent duplicates
-    accepted = redis_db.try_accept_task_share(request.token, uid)
-    if accepted is None:
-        raise HTTPException(status_code=503, detail="Service temporarily unavailable")
-    if not accepted:
-        raise HTTPException(status_code=409, detail="You have already accepted this share")
-
-    # Copy each eligible task to recipient's list
-    created_ids = []
-    for task_id in eligible_ids:
-        original = action_items_db.get_action_item(sender_uid, task_id)
-        if not original or original.get('is_locked', False):
-            continue
-
-        new_item = {
-            'description': original.get('description', ''),
-            'completed': False,
-            'due_at': original.get('due_at'),
-            'shared_from': {
-                'token': request.token,
-                'sender_uid': sender_uid,
-                'sender_name': share_data['display_name'],
-                'original_task_id': task_id,
-            },
-        }
-        new_id = action_items_db.create_action_item(uid, new_item)
-        created_ids.append(new_id)
-        upsert_action_item_vector(uid, new_id, new_item['description'])
-
-    # If race condition caused all items to become locked after pre-check, rollback token
-    if not created_ids:
-        redis_db.undo_accept_task_share(request.token, uid)
-        raise HTTPException(status_code=402, detail="Shared tasks are no longer available.")
-
-    return {"created": created_ids, "count": len(created_ids)}

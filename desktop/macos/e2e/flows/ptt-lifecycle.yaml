@@ -8,6 +8,7 @@ covers:
   - desktop/macos/Desktop/Sources/FloatingControlBar/NotchVoiceMorphMark.swift
   - desktop/macos/Desktop/Sources/Chat/APIClient+HigherModel.swift
   - desktop/macos/Desktop/Sources/Chat/ExternalSurfaceRunAuthority.swift
+  - desktop/macos/Desktop/Sources/CredentialHealthManager.swift
   - desktop/macos/Desktop/Sources/DefaultsKey.swift
   - desktop/macos/Desktop/Sources/DesktopAutomationBridge.swift
   - desktop/macos/Desktop/Sources/FloatingControlBar/LegacyVoiceJournalImporter.swift

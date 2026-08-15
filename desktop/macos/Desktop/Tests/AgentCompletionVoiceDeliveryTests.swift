@@ -149,6 +149,30 @@ final class AgentCompletionVoiceDeliveryTests: XCTestCase {
     XCTAssertEqual(harness.peekCount, 0, "ordinary chat/voice answers must not trigger delta reads")
   }
 
+  func testWorkstreamTerminalDoesNotInjectOrAdvanceCheckpoint() async {
+    let harness = Harness()
+    let surface = AgentSurfaceReference.workstream(workstreamId: "workstream-1")
+
+    harness.sut.observe([surface.key: projection(surface: surface, status: .running)])
+    harness.sut.observe([surface.key: projection(surface: surface, status: .succeeded)])
+    await harness.drainScheduledWork()
+
+    XCTAssertEqual(harness.peekCount, 0)
+    XCTAssertTrue(harness.injectedPrompts.isEmpty)
+    XCTAssertTrue(harness.acknowledged.isEmpty)
+  }
+
+  func testServiceTerminalStillDelivers() async {
+    let harness = Harness()
+    let surface = AgentSurfaceReference.service("completion-service")
+
+    harness.sut.observe([surface.key: projection(surface: surface, status: .succeeded)])
+    await harness.drainScheduledWork()
+
+    XCTAssertEqual(harness.injectedPrompts, ["agent finished"])
+    XCTAssertEqual(harness.acknowledged, [["run-1"]])
+  }
+
   func testRepeatedTerminalProjectionFiresOnce() async {
     let harness = Harness()
     let surface = AgentSurfaceReference.floatingBarRun(runId: "run-1")

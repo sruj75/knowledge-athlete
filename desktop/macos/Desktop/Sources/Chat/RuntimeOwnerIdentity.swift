@@ -357,9 +357,6 @@ enum RuntimeOwnerIdentity {
     // These actors retain pools, directories, encoders, or owner-derived
     // values. Purge them while the transition reservation is still held so
     // automation swaps and every auth path share the same hard boundary.
-    // Wait for an active file scan to leave its actor before closing the pool
-    // it captured. New-owner mutations remain parked by the fence.
-    await FileIndexerService.shared.invalidateCache()
     await OCREmbeddingService.shared.reset()
     await RewindDatabase.shared.retargetEffectiveOwner(to: nextOwner)
     await TranscriptionStorage.shared.invalidateCache()
@@ -371,7 +368,6 @@ enum RuntimeOwnerIdentity {
     await StagedTaskStorage.shared.invalidateCache()
     await GoalStorage.shared.invalidateCache()
     await TaskChatMessageStorage.shared.invalidateCache()
-    await KnowledgeGraphStorage.shared.invalidateCache()
     await MainActor.run {
       FloatingBarUsageLimiter.shared.reset()
     }

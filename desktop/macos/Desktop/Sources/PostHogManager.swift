@@ -537,14 +537,6 @@ extension PostHogManager {
       ])
   }
 
-  func memoryShareButtonClicked(conversationId: String) {
-    track(
-      "Memory Share Button Clicked",
-      properties: [
-        "conversation_id": conversationId
-      ])
-  }
-
   func memoryListItemClicked(conversationId: String) {
     track(
       "Memory List Item Clicked",
@@ -555,12 +547,11 @@ extension PostHogManager {
 
   // MARK: - Chat Events
 
-  func chatMessageSent(messageLength: Int, hasSelectedAppContext: Bool = false, source: String) {
+  func chatMessageSent(messageLength: Int, source: String) {
     track(
       "Chat Message Sent",
       properties: [
         "message_length": messageLength,
-        "has_selected_app_context": hasSelectedAppContext,
         "source": source,
       ])
   }
@@ -619,26 +610,8 @@ extension PostHogManager {
 
   // MARK: - Chat Events (Additional)
 
-  func chatAppSelected(appId: String?, appName: String?) {
-    var properties: [String: Any] = [:]
-    if let id = appId { properties["app_id"] = id }
-    if let name = appName { properties["app_name"] = name }
-    track("Chat App Selected", properties: properties.isEmpty ? nil : properties)
-  }
-
   func chatCleared() {
     track("Chat Cleared")
-  }
-
-  // MARK: - Conversation Events (Additional)
-
-  func conversationReprocessed(conversationId: String, appId: String) {
-    track(
-      "Conversation Reprocessed",
-      properties: [
-        "conversation_id": conversationId,
-        "app_id": appId,
-      ])
   }
 
   // MARK: - Settings Events (Additional)
@@ -902,35 +875,6 @@ extension PostHogManager {
     track("Advice Generated", properties: properties.isEmpty ? nil : properties)
   }
 
-  // MARK: - Apps Events
-
-  func appEnabled(appId: String, appName: String) {
-    track(
-      "App Enabled",
-      properties: [
-        "app_id": appId,
-        "app_name": appName,
-      ])
-  }
-
-  func appDisabled(appId: String, appName: String) {
-    track(
-      "App Disabled",
-      properties: [
-        "app_id": appId,
-        "app_name": appName,
-      ])
-  }
-
-  func appDetailViewed(appId: String, appName: String) {
-    track(
-      "App Detail Viewed",
-      properties: [
-        "app_id": appId,
-        "app_name": appName,
-      ])
-  }
-
   // MARK: - Update Events
 
   func updateAvailable(version: String, context: UpdateAnalyticsContext, item: UpdateItemAnalytics) {
@@ -1103,15 +1047,6 @@ extension PostHogManager {
       properties: [
         "tier": tier,
         "reason": reason,
-      ])
-  }
-
-  func chatBridgeModeChanged(from oldMode: String, to newMode: String) {
-    track(
-      "chat_bridge_mode_changed",
-      properties: [
-        "from": oldMode,
-        "to": newMode,
       ])
   }
 

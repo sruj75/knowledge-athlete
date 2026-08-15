@@ -331,7 +331,7 @@ extension AppState {
         let durationSeconds = Int(Date().timeIntervalSince(startTime))
         AnalyticsManager.shared.conversationCreated(
           conversationId: memoryId,
-          source: currentConversationSource.rawValue,
+          source: ConversationSource.desktop.rawValue,
           durationSeconds: durationSeconds
         )
       }
@@ -390,14 +390,6 @@ extension AppState {
     case "freemium_threshold_reached":
       let remaining = event.raw["remaining_seconds"] as? Int ?? 0
       log("Transcription: Freemium threshold reached, \(remaining)s remaining")
-      // BYOK users must never be paywalled. The backend exempts them, but a
-      // heartbeat/Firestore lag can briefly let this event slip through right
-      // after activation — ignore it so we don't kill a BYOK user's capture.
-      if APIKeyService.isByokActive {
-        log("Paywall: ignoring freemium threshold — BYOK active locally")
-        if isPaywalled { isPaywalled = false }
-        break
-      }
       triggerUsageLimitPopup(reason: "transcription")
       // Hard-stop client-side capture so the mic LED and screen-recording
       // indicator actually turn off. Without this, popup shows but the user
@@ -465,12 +457,6 @@ extension AppState {
     case "last_memory":
       let memoryId = event.raw["memory_id"] as? String ?? "?"
       log("Transcription: Last conversation event: \(memoryId)")
-
-    case "photo_processing":
-      log("Transcription: Photo processing event (not used on desktop)")
-
-    case "photo_described":
-      log("Transcription: Photo described event (not used on desktop)")
 
     default:
       log("Transcription: Unhandled event type: \(event.type)")

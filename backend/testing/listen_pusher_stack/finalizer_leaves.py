@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import os
-from hashlib import sha256
 from pathlib import Path
 from typing import Any
 
@@ -30,11 +29,11 @@ def _parse_failure_budget() -> dict[str, int]:
         payload = json.loads(raw)
     except json.JSONDecodeError as error:
         raise RuntimeError('OMI_STACK_FINALIZATION_FAILURES must be JSON') from error
-    if not isinstance(payload, dict) or set(payload) - {'process', 'integration'}:
-        raise RuntimeError('OMI_STACK_FINALIZATION_FAILURES supports only process and integration budgets')
+    if not isinstance(payload, dict) or set(payload) - {'process'}:
+        raise RuntimeError('OMI_STACK_FINALIZATION_FAILURES supports only the process budget')
     if any(not isinstance(value, int) or isinstance(value, bool) or value < 0 for value in payload.values()):
         raise RuntimeError('OMI_STACK_FINALIZATION_FAILURES values must be non-negative integers')
-    return {stage: int(payload.get(stage, 0)) for stage in ('process', 'integration')}
+    return {'process': int(payload.get('process', 0))}
 
 
 def _consume_failure(stage: str, conversation_id: str, **metadata: Any) -> bool:
@@ -80,26 +79,9 @@ def _offline_extract_memories(_uid: str, conversation: Any) -> None:
     )
 
 
-async def _offline_trigger_integrations(_uid: str, conversation: Any, *, idempotency_key: str, **_kwargs: Any) -> None:
-    conversation_id = str(conversation.id)
-    fanout_key_sha256 = sha256(idempotency_key.encode()).hexdigest()
-    if _consume_failure('integration', conversation_id, fanout_key_sha256=fanout_key_sha256):
-        raise RuntimeError('controlled finalization integration failure')
-    _record(
-        {
-            'event': 'provider_leaf',
-            'stage': 'integration',
-            'outcome': 'completed',
-            'conversation_id': conversation_id,
-            'fanout_key_sha256': fanout_key_sha256,
-        }
-    )
-
-
 def install_finalizer_leaves() -> None:
     """Install only controlled provider leaves before the real ASGI app imports."""
     global _failure_budget
     _failure_budget = _parse_failure_budget()
     finalizer.process_conversation = _offline_process_conversation
     finalizer.extract_memories = _offline_extract_memories
-    finalizer.trigger_external_integrations = _offline_trigger_integrations

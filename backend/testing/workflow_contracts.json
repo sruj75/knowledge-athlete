@@ -15,11 +15,6 @@
           "reason": "Legacy contract from issue 8786; covered by backfill contract tests until migrated."
         },
         {
-          "path": "backend/utils/memory/product_authorization.py",
-          "function": "_lookup_app_key_grant",
-          "reason": "Existing app-key grant lookup tuple; covered by memory authorization tests until the response contract is migrated."
-        },
-        {
           "path": "backend/utils/memory_ingestion/pipeline.py",
           "function": "_redact_input",
           "reason": "Existing pipeline stage contract; covered by memory ingestion contract tests until migrated."
@@ -56,8 +51,7 @@
       "invariants": [
         "candidate retries and concurrent acceptance create exactly one canonical task",
         "account generation mismatches fail closed without product mutation",
-        "legacy terminal rows cannot reappear as pending candidates",
-        "accepted-task integration dispatch is durably outboxed, leased once, and retryable after failure"
+        "legacy terminal rows cannot reappear as pending candidates"
       ]
     },
     {
@@ -136,13 +130,12 @@
       "sources": ["backend/utils/memory/canonical_memory_adapter.py"],
       "tests": [
         "tests/unit/test_ws_i_write_convergence.py",
-        "tests/unit/test_ws_j_delete_privacy.py",
-        "tests/unit/test_canonical_kg_promotion.py"
+        "tests/unit/test_ws_j_delete_privacy.py"
       ],
       "checks": ["no_large_tuple_results"],
       "invariants": [
         "domain writes use injected stores",
-        "derived keyword/vector/KG fanout is either durable or explicitly recoverable"
+        "derived keyword/vector fanout is either durable or explicitly recoverable"
       ]
     },
     {
@@ -159,15 +152,12 @@
       "tests": [
         "tests/unit/test_ws_b_short_term_lifecycle.py",
         "tests/unit/test_memory_read_api.py",
-        "tests/unit/test_developer_memory_adapter.py",
-        "tests/unit/test_mcp_memory_adapter.py",
-        "tests/unit/test_ws_m_atom_keyword_index.py",
-        "tests/unit/test_ws_n_graph_traversal.py"
+        "tests/unit/test_ws_m_atom_keyword_index.py"
       ],
       "checks": ["no_large_tuple_results"],
       "invariants": [
         "explicit submissions remain pending short-term until a content-bound processing receipt exists",
-        "pending text is visible only to the first-party memory list and never to agent, developer, MCP, search, vector, or KG reads",
+        "pending text is visible only to the first-party memory list and never to agent, search, or vector reads",
         "processing, review, and promotion use revision/content CAS and rebase after unrelated head advances",
         "negative user review remains authoritative across all derived projection rebuilds"
       ]
@@ -206,49 +196,6 @@
       ]
     },
     {
-      "id": "sync_cloud_tasks",
-      "risk": "high",
-      "sources": [
-        "backend/routers/sync.py",
-        "backend/utils/sync/pipeline.py",
-        "backend/database/sync_jobs.py",
-        "backend/utils/sync/*.py",
-        "backend/testing/sync_cloud_tasks_stack/**",
-        ".github/workflows/backend-hermetic-e2e.yml",
-        "package.json",
-        "package-lock.json"
-      ],
-      "tests": [
-        "tests/unit/test_sync_v2.py",
-        "tests/unit/test_sync_cloud_tasks.py",
-        "tests/unit/test_audio_merge_tasks.py",
-        "tests/unit/test_sync_fair_use_gate.py",
-        "tests/unit/test_sync_cloud_tasks_stack_ci_wiring.py"
-      ],
-      "checks": [],
-      "invariants": [
-        "task retries do not double-count usage or completed segments",
-        "segment failures cannot be reported as completed work",
-        "enqueued jobs retain staged blobs until handler completion",
-        "fresh v2 Sync admission runs a credential-free local Firestore, Redis, storage, and separate Cloud Tasks-worker stack gauntlet in blocking PR CI"
-      ]
-    },
-    {
-      "id": "sync_ledger_fence_cutover",
-      "risk": "high",
-      "sources": [
-        "backend/scripts/sync_ledger_fence_cutover.py",
-        ".github/workflows/sync_ledger_fence_cutover.yml"
-      ],
-      "tests": ["tests/unit/test_sync_ledger_fence_cutover.py"],
-      "checks": [],
-      "invariants": [
-        "standby admission traffic reaches every sync surface before Cloud Tasks queues are paused",
-        "the exact immutable candidate digest is proven through the tagged full transcription route before active traffic promotion",
-        "failed stage or activation attempts preserve the first queue-origin artifact and leave queues paused"
-      ]
-    },
-    {
       "id": "vector_repair_outbox",
       "risk": "high",
       "sources": [
@@ -282,7 +229,6 @@
       "tests": [
         "tests/services/users/test_account_deletion.py",
         "tests/routers/test_users.py",
-        "tests/unit/test_sync_cloud_tasks.py",
         "tests/unit/test_backend_runtime_env_validator.py",
         "tests/unit/test_claim_deletion_wipe_txn.py",
         "tests/unit/test_delete_account_purge_storage.py",
@@ -332,20 +278,9 @@
       "checks": ["no_large_tuple_results"],
       "invariants": [
         "every eligible short-term item receives exactly one terminal L2 route",
-        "long-term admission and its graph assertion commit atomically against one exact short-term revision",
+        "long-term admission commits atomically against one exact short-term revision",
         "maintenance reruns are idempotent and never invoke a generic promotion pass",
         "projection delivery is leased, generation and revision fenced, retryable, and dead-letter bounded"
-      ]
-    },
-    {
-      "id": "webhook_delivery_health",
-      "risk": "high",
-      "sources": ["backend/utils/webhooks.py", "backend/database/webhook_health.py"],
-      "tests": ["tests/unit/test_async_webhooks.py", "tests/unit/test_webhook_auto_disable.py"],
-      "checks": [],
-      "invariants": [
-        "delivery failures are counted durably",
-        "auto-disable state is endpoint-aware and race-safe"
       ]
     },
     {
@@ -412,13 +347,9 @@
         "backend/routers/pusher.py",
         "backend/routers/conversations.py",
         "backend/routers/sync.py",
-        "backend/routers/developer.py",
-        "backend/utils/sync/pipeline.py",
         "backend/utils/conversations/process_conversation.py",
-        "backend/utils/app_integrations.py",
         "backend/utils/conversations/postprocess_conversation.py",
-        "backend/utils/conversations/merge_conversations.py",
-        "backend/utils/imports/limitless.py"
+        "backend/utils/conversations/merge_conversations.py"
       ],
       "tests": [
         "tests/unit/test_conversation_lifecycle_contract.py",
@@ -450,7 +381,6 @@
         "backend/utils/stt/live_failure.py",
         "backend/utils/stt/streaming.py",
         "backend/config/stt_provider_policy.py",
-        "backend/charts/parakeet/**",
         "backend/utils/transcribe_decisions.py",
         "backend/pusher/main.py",
         "backend/utils/conversations/finalizer.py",
@@ -468,7 +398,6 @@
         "tests/unit/test_listen_runtime_regressions.py",
         "tests/unit/test_transcribe_decisions.py",
         "tests/unit/test_stt_provider_policy.py",
-        "tests/unit/test_streaming_deepgram_backoff.py",
         "tests/unit/utils/test_listen_pusher_session.py",
         "tests/unit/test_transcribe_teardown_flush.py",
         "tests/unit/test_listen_pusher_stack_ci_wiring.py",
@@ -480,8 +409,8 @@
         "teardown flushes tail audio before pusher close",
         "pending conversation requests retry until ack or give-up limit",
         "pusher heartbeat prevents idle connection drops",
-        "a client Parakeet preference cannot route a live session to an incompatible model",
-        "listen-to-pusher boundary changes run the credential-free local Firestore, Redis, and Parakeet-stub stack gauntlet in PR CI"
+        "the fixed managed adapter cannot be changed by a client provider hint",
+        "listen-to-pusher boundary changes run the credential-free local Firestore, Redis, and Modulate-stub stack gauntlet in PR CI"
       ]
     },
     {
@@ -514,13 +443,10 @@
         ".github/workflows/gcp_memory_maintenance_job.yml",
         ".github/workflows/gcp_memory_maintenance_job_auto_dev.yml",
         ".github/workflows/gcp_notifications_job.yml",
-        ".github/workflows/sync_ledger_fence_cutover.yml",
         "backend/deploy/runtime_env.yaml",
         "backend/scripts/preflight-cloud-run-deploy.py",
         "backend/scripts/resolve_cloud_run_tagged_url.py",
-        "backend/scripts/sync_ledger_fence_cutover.py",
         "backend/scripts/verify_backend_release_vector.py",
-        "backend/scripts/verify_sync_ledger_fence_transition.py",
         "backend/scripts/verify-llm-gateway-serving.py",
         "backend/scripts/probe-llm-gateway-from-cloud-run.sh",
         "backend/scripts/render_backend_runtime_env.py",
@@ -543,20 +469,17 @@
         "tests/unit/test_backend_runtime_env_validator.py",
         "tests/unit/test_verify_llm_gateway_serving.py",
         "tests/unit/test_llm_gateway_deploy_contract.py",
-        "tests/unit/test_sync_two_lane.py",
         "tests/unit/test_firebase_release_probe_token.py",
         "tests/unit/test_transcription_capability_probe.py",
-        "tests/unit/test_validate_memory_maintenance_scheduler.py",
-        "tests/unit/test_verify_sync_ledger_fence_transition.py"
+        "tests/unit/test_validate_memory_maintenance_scheduler.py"
       ],
       "checks": [],
       "invariants": [
         "preflight fails before revision creation when Secret Manager bindings are missing",
         "traffic shifts only after candidate revisions are Ready=True",
-        "all four Cloud Run traffic specs are durably captured before promotion and restored automatically after a failed shift, serving-vector check, or production serving smoke",
+        "every Cloud Run traffic spec is durably captured before promotion and restored automatically after a failed shift, serving-vector check, or production serving smoke",
         "GKE runtime config, backend secrets, and backend-listen mutate only after the no-traffic Cloud Run candidate is accepted",
         "spec.traffic mismatches are repaired or block deploy with an explicit command",
-        "normal deploys cannot change the serving sync ledger fence mode",
         "production backend traffic shifts only after the Cloud Run-only candidate vector passes, then rolls back if the post-promotion serving route or known-audio smoke fails",
         "memory-maintenance job deploys fail unless the exact enabled hourly OAuth Scheduler trigger targets that deployed job",
         "gateway-first serving cannot be promoted until the ready workload, EndpointSlice, ingress/ILB attachment, and authenticated Cloud Run VPC route all pass"
@@ -600,7 +523,6 @@
         "backend/charts/pusher/**",
         "backend/charts/llm-gateway/**",
         "backend/charts/diarizer/**",
-        "backend/charts/parakeet/**",
         "backend/charts/nllb-translation/**",
         "backend/charts/vad/**",
         "backend/scripts/validate_rendered_deployment_contract.py"

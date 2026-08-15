@@ -18,11 +18,12 @@ final class HomeStageCollapseCatcherTests: XCTestCase {
     XCTAssertFalse(HomeStageMode.collapseCatcherActive(mode: .hub, resting: .hub))
   }
 
-  func testNonRestingPanelsStillCollapse() {
-    // Empty-history chat and the connect tray remain escapable overlays.
+  func testEmptyHistoryChatStillCollapses() {
     XCTAssertTrue(HomeStageMode.collapseCatcherActive(mode: .chat, resting: .hub))
-    XCTAssertTrue(HomeStageMode.collapseCatcherActive(mode: .connect, resting: .hub))
-    XCTAssertTrue(HomeStageMode.collapseCatcherActive(mode: .connect, resting: .chat))
+  }
+
+  func testOnlyHubAndChatRemainAddressable() {
+    XCTAssertEqual([HomeStageMode.hub.automationLabel, HomeStageMode.chat.automationLabel], ["hub", "chat"])
   }
 }
 

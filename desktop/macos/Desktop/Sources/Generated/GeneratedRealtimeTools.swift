@@ -21,7 +21,6 @@ enum HubTool: String {
   case checkPermissionStatus = "check_permission_status"
   case requestPermission = "request_permission"
   case getTasks = "get_tasks"
-  case createCalendarEvent = "create_calendar_event"
   case askHigherModel = "ask_higher_model"
   case screenshot = "screenshot"
   case reportScreenObservation = "report_screen_observation"
@@ -252,14 +251,6 @@ enum GeneratedRealtimeTools {
         "objective": {
           "type": "string",
           "description": "Self-contained background-agent objective."
-        },
-        "provider": {
-          "type": "string",
-          "enum": [
-            "openclaw",
-            "hermes"
-          ],
-          "description": "Optional local provider override only when the current user explicitly names it; omit for a regular Omi agent."
         },
         "parent_run_id": {
           "type": "string",
@@ -525,9 +516,7 @@ enum GeneratedRealtimeTools {
             "screen_recording",
             "microphone",
             "notifications",
-            "accessibility",
-            "automation",
-            "full_disk_access"
+            "accessibility"
           ],
           "description": "Optional permission type. Omit to return all supported permissions."
         }
@@ -538,7 +527,7 @@ enum GeneratedRealtimeTools {
   {
     "type": "function",
     "name": "request_permission",
-    "description": "Request Omi's macOS permission through the kernel-authorized native executor by opening the native prompt or relevant System Settings pane. Screen share, screen sharing, and screen-share mean Screen Recording. Supports Screen Recording, microphone, notifications, Accessibility, Automation, and Full Disk Access.",
+    "description": "Request Omi's macOS permission through the kernel-authorized native executor by opening the native prompt or relevant System Settings pane. Screen share, screen sharing, and screen-share mean Screen Recording. Supports Screen Recording, microphone, notifications, and Accessibility.",
     "parameters": {
       "type": "object",
       "properties": {
@@ -548,11 +537,9 @@ enum GeneratedRealtimeTools {
             "screen_recording",
             "microphone",
             "notifications",
-            "accessibility",
-            "automation",
-            "full_disk_access"
+            "accessibility"
           ],
-          "description": "Permission type: screen_recording, microphone, notifications, accessibility, automation, or full_disk_access"
+          "description": "Permission type: screen_recording, microphone, notifications, or accessibility"
         }
       },
       "required": [
@@ -568,45 +555,6 @@ enum GeneratedRealtimeTools {
       "type": "object",
       "properties": {},
       "required": []
-    }
-  },
-  {
-    "type": "function",
-    "name": "create_calendar_event",
-    "description": "Create one specified Google Calendar event. Requires start_time and end_time as ISO-8601 strings with timezone. This capability does not find availability, reschedule, delete, or coordinate with people.",
-    "parameters": {
-      "type": "object",
-      "properties": {
-        "title": {
-          "type": "string",
-          "description": "Event title."
-        },
-        "start_time": {
-          "type": "string",
-          "description": "Event start time in ISO-8601 with timezone, e.g. 2026-06-28T14:00:00-04:00."
-        },
-        "end_time": {
-          "type": "string",
-          "description": "Event end time in ISO-8601 with timezone, e.g. 2026-06-28T15:00:00-04:00."
-        },
-        "description": {
-          "type": "string",
-          "description": "Optional event description."
-        },
-        "location": {
-          "type": "string",
-          "description": "Optional event location."
-        },
-        "attendees": {
-          "type": "string",
-          "description": "Optional comma-separated attendee names or email addresses."
-        }
-      },
-      "required": [
-        "title",
-        "start_time",
-        "end_time"
-      ]
     }
   },
   {
@@ -691,22 +639,4 @@ enum GeneratedRealtimeTools {
     return tools
   }
 
-  static func baseOpenAITools(providerProperty: [String: Any]?) -> [[String: Any]] {
-    var tools = baseOpenAIToolsTemplate
-    guard let index = tools.firstIndex(where: { ($0["name"] as? String) == "spawn_agent" }) else {
-      return tools
-    }
-    guard var parameters = tools[index]["parameters"] as? [String: Any],
-      var properties = parameters["properties"] as? [String: Any] else {
-      return tools
-    }
-    if let providerProperty {
-      properties["provider"] = providerProperty
-    } else {
-      properties.removeValue(forKey: "provider")
-    }
-    parameters["properties"] = properties
-    tools[index]["parameters"] = parameters
-    return tools
-  }
 }

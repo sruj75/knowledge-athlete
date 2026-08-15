@@ -13,10 +13,34 @@ import os
 from pathlib import Path
 from threading import Barrier, BrokenBarrierError, Lock
 from typing import Any
+from urllib.parse import urlsplit
 
 from testing.listen_pusher_stack.cloud_tasks import install_loopback_tasks_client
 
 install_loopback_tasks_client()
+
+from utils.stt import streaming  # noqa: E402
+
+
+def _install_loopback_managed_stt() -> None:
+    """Route the production Modulate client to the harness-owned loopback peer."""
+
+    loopback_base = os.environ['OMI_STACK_MANAGED_STT_URL']
+    original_connect = streaming.websockets.connect
+
+    async def connect_loopback(uri: str, *args: Any, **kwargs: Any) -> Any:
+        parsed = urlsplit(uri)
+        if parsed.hostname == 'modulate-developer-apis.com' and parsed.path == '/api/velma-2-stt-streaming':
+            target = f'{loopback_base}{parsed.path}'
+            if parsed.query:
+                target = f'{target}?{parsed.query}'
+            return await original_connect(target, *args, **kwargs)
+        return await original_connect(uri, *args, **kwargs)
+
+    streaming.websockets.connect = connect_loopback
+
+
+_install_loopback_managed_stt()
 
 from database import recording_sessions  # noqa: E402
 from main import app  # noqa: E402

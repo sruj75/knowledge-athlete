@@ -1,7 +1,7 @@
 import Foundation
 
 /// Low-level HTTP transport for the desktop Python/Rust backends.
-/// Owns URLSession, JSON decoding, auth/BYOK header assembly, and standard verb helpers.
+/// Owns URLSession, JSON decoding, managed auth header assembly, and standard verb helpers.
 struct OmiHTTPTransport {
   let session: URLSession
   let decoder: JSONDecoder
@@ -72,7 +72,6 @@ struct OmiHTTPTransport {
   func buildHeaders(
     requireAuth: Bool = true,
     forceRefreshAuth: Bool = false,
-    includeBYOK: Bool = false,
     expectedAuthOwnerId: String? = nil
   ) async throws -> [String: String] {
     var headers: [String: String] = [
@@ -103,25 +102,6 @@ struct OmiHTTPTransport {
       }
     }
 
-    // BYOK: attach user-provided keys so the backend uses them for LLM/STT
-    // calls this request triggers. Sent per-request; never stored server-side.
-    if includeBYOK, APIKeyService.isByokActive {
-      let health = await MainActor.run { CredentialHealthManager.shared }
-      let snapshot = APIKeyService.byokSnapshot
-      for (provider, entry) in snapshot {
-        let canAttach = await MainActor.run {
-          health.canUseBYOK(provider: provider, fingerprint: entry.fingerprint)
-        }
-        if canAttach {
-          headers[provider.headerName] = entry.key
-        } else {
-          log(
-            "CredentialHealth: context=build_headers failure_class=byok_invalid_suppressed"
-              + " provider=\(provider.rawValue)")
-        }
-      }
-    }
-
     return headers
   }
 
@@ -130,15 +110,14 @@ struct OmiHTTPTransport {
   func get<T: Decodable>(
     _ endpoint: String,
     baseURL: String,
-    requireAuth: Bool = true,
-    includeBYOK: Bool = false
+    requireAuth: Bool = true
   ) async throws -> T {
     guard let url = URL(string: baseURL + endpoint) else {
       throw APIError.invalidResponse
     }
     var request = URLRequest(url: url)
     request.httpMethod = "GET"
-    request.allHTTPHeaderFields = try await buildHeaders(requireAuth: requireAuth, includeBYOK: includeBYOK)
+    request.allHTTPHeaderFields = try await buildHeaders(requireAuth: requireAuth)
 
     return try await performRequest(request)
   }
@@ -147,8 +126,7 @@ struct OmiHTTPTransport {
     _ endpoint: String,
     baseURL: String,
     body: B,
-    requireAuth: Bool = true,
-    includeBYOK: Bool = false
+    requireAuth: Bool = true
   ) async throws -> T {
     guard let url = URL(string: baseURL + endpoint) else {
       throw APIError.invalidResponse
@@ -156,7 +134,7 @@ struct OmiHTTPTransport {
     log("APIClient: POST \(url.absoluteString)")
     var request = URLRequest(url: url)
     request.httpMethod = "POST"
-    request.allHTTPHeaderFields = try await buildHeaders(requireAuth: requireAuth, includeBYOK: includeBYOK)
+    request.allHTTPHeaderFields = try await buildHeaders(requireAuth: requireAuth)
     request.httpBody = try encoder.encode(body)
 
     return try await performRequest(request)
@@ -165,15 +143,14 @@ struct OmiHTTPTransport {
   func post<T: Decodable>(
     _ endpoint: String,
     baseURL: String,
-    requireAuth: Bool = true,
-    includeBYOK: Bool = false
+    requireAuth: Bool = true
   ) async throws -> T {
     guard let url = URL(string: baseURL + endpoint) else {
       throw APIError.invalidResponse
     }
     var request = URLRequest(url: url)
     request.httpMethod = "POST"
-    request.allHTTPHeaderFields = try await buildHeaders(requireAuth: requireAuth, includeBYOK: includeBYOK)
+    request.allHTTPHeaderFields = try await buildHeaders(requireAuth: requireAuth)
 
     return try await performRequest(request)
   }
@@ -181,15 +158,14 @@ struct OmiHTTPTransport {
   func delete(
     _ endpoint: String,
     baseURL: String,
-    requireAuth: Bool = true,
-    includeBYOK: Bool = false
+    requireAuth: Bool = true
   ) async throws {
     guard let url = URL(string: baseURL + endpoint) else {
       throw APIError.invalidResponse
     }
     var request = URLRequest(url: url)
     request.httpMethod = "DELETE"
-    request.allHTTPHeaderFields = try await buildHeaders(requireAuth: requireAuth, includeBYOK: includeBYOK)
+    request.allHTTPHeaderFields = try await buildHeaders(requireAuth: requireAuth)
 
     let (_, response) = try await session.data(for: request)
 
@@ -298,15 +274,11 @@ enum APIError: LocalizedError {
   case httpError(statusCode: Int, detail: String? = nil)
   case decodingError(Error)
   case unsupportedTierScopedBulkMutation(String)
-  case syncRateLimited(retryAfterSeconds: Int?)
-  case syncUploadRejected(reason: String)
 
   var detail: String? {
     switch self {
     case .httpError(_, let detail):
       return detail
-    case .syncUploadRejected(let reason):
-      return reason
     default:
       return nil
     }
@@ -325,13 +297,6 @@ enum APIError: LocalizedError {
       return "Failed to decode response: \(error.localizedDescription)"
     case .unsupportedTierScopedBulkMutation(let operation):
       return "Layer-scoped bulk memory \(operation) is not supported yet."
-    case .syncRateLimited(let retryAfterSeconds):
-      if let retryAfterSeconds {
-        return "Sync rate limited (retry after \(retryAfterSeconds)s)"
-      }
-      return "Sync rate limited"
-    case .syncUploadRejected(let reason):
-      return reason
     }
   }
 }

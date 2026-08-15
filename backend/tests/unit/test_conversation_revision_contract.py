@@ -119,7 +119,6 @@ def test_processing_upsert_preserves_every_user_owned_field(monkeypatch):
         'user_title': 'My title',
         'starred': True,
         'folder_id': 'important',
-        'visibility': 'shared',
         'data_protection_level': 'standard',
     }
     ref = _ConversationRef(_Snapshot(existing))
@@ -130,7 +129,6 @@ def test_processing_upsert_preserves_every_user_owned_field(monkeypatch):
         'structured': {'title': 'Generated replacement', 'overview': 'Fresh summary'},
         'starred': False,
         'folder_id': None,
-        'visibility': 'private',
         'status': 'completed',
         'data_protection_level': 'standard',
     }
@@ -144,7 +142,6 @@ def test_processing_upsert_preserves_every_user_owned_field(monkeypatch):
     assert written['user_title'] == 'My title'
     assert written['starred'] is True
     assert written['folder_id'] == 'important'
-    assert written['visibility'] == 'shared'
     assert written['status'] == 'completed'
 
 
@@ -157,7 +154,6 @@ def test_processing_upsert_fills_user_fields_the_stub_left_null(monkeypatch):
         'structured': {'title': 'In progress'},
         'starred': False,
         'folder_id': None,
-        'visibility': 'private',
         'user_title': None,
         'data_protection_level': 'standard',
     }
@@ -179,7 +175,6 @@ def test_processing_upsert_fills_user_fields_the_stub_left_null(monkeypatch):
     assert written['folder_id'] == 'ai-assigned-folder'
     # Non-null user-owned values are still preserved.
     assert written['starred'] is False
-    assert written['visibility'] == 'private'
     assert written['structured']['title'] == 'Generated title'
 
 
@@ -376,7 +371,6 @@ def test_processing_upsert_preserves_explicit_user_unfile_on_completed_conversat
         'starred': False,
         'folder_id': None,
         'folder_user_set': True,
-        'visibility': 'private',
         'status': 'completed',
         'data_protection_level': 'standard',
     }
@@ -408,7 +402,6 @@ def test_processing_upsert_preserves_unfile_raced_against_in_flight_processing(m
         'structured': {'title': 'In progress'},
         'folder_id': None,
         'folder_user_set': True,
-        'visibility': 'private',
         'status': 'in_progress',
         'data_protection_level': 'standard',
     }
@@ -437,7 +430,6 @@ def test_processing_upsert_still_fills_stub_null_when_user_never_touched_folder(
         'id': 'conversation-1',
         'structured': {'title': 'In progress'},
         'folder_id': None,
-        'visibility': 'private',
         'status': 'in_progress',
         'data_protection_level': 'standard',
     }

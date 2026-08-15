@@ -12,7 +12,6 @@ import re
 from datetime import datetime, timezone
 
 from models.calendar_context import CalendarMeetingContext, MeetingParticipant
-from models.conversation_photo import ConversationPhoto
 from utils.llm.conversation_processing import (
     _build_conversation_context,
     _gpt56_cacheable_system_message,
@@ -25,26 +24,26 @@ class TestBuildConversationContext:
     """Tests for the shared context builder helper."""
 
     def test_empty_inputs_returns_empty(self):
-        result = _build_conversation_context("", None, None)
+        result = _build_conversation_context("", None)
         assert result == ""
 
     def test_none_transcript_returns_empty(self):
-        result = _build_conversation_context(None, None, None)
+        result = _build_conversation_context(None, None)
         assert result == ""
 
     def test_whitespace_only_transcript_returns_empty(self):
-        result = _build_conversation_context("   ", None, None)
+        result = _build_conversation_context("   ", None)
         assert result == ""
 
     def test_transcript_only(self):
-        result = _build_conversation_context("Speaker 0: Hello\n\nSpeaker 1: Hi", None, None)
+        result = _build_conversation_context("Speaker 0: Hello\n\nSpeaker 1: Hi", None)
         assert result == "Transcript: ```Speaker 0: Hello\n\nSpeaker 1: Hi```"
 
     def test_deterministic_output(self):
         """Same inputs must produce byte-identical output for cache hits."""
         transcript = "Speaker 0: Let's discuss the budget.\n\nSpeaker 1: Sure, I have the numbers."
-        result1 = _build_conversation_context(transcript, None, None)
-        result2 = _build_conversation_context(transcript, None, None)
+        result1 = _build_conversation_context(transcript, None)
+        result2 = _build_conversation_context(transcript, None)
         assert result1 == result2
 
     def test_calendar_context_includes_meeting_link(self):
@@ -60,7 +59,7 @@ class TestBuildConversationContext:
                 MeetingParticipant(name="Alice", email="alice@example.com"),
             ],
         )
-        result = _build_conversation_context("Speaker 0: Hello", None, calendar)
+        result = _build_conversation_context("Speaker 0: Hello", calendar)
         assert "Meeting Link: https://meet.google.com/abc-def-ghi" in result
 
     def test_calendar_context_includes_all_fields(self):
@@ -77,7 +76,7 @@ class TestBuildConversationContext:
                 MeetingParticipant(name="Carol", email="carol@co.com"),
             ],
         )
-        result = _build_conversation_context("Speaker 0: Hi", None, calendar)
+        result = _build_conversation_context("Speaker 0: Hi", calendar)
         assert "Meeting Title: Sprint Planning" in result
         assert "Duration: 30 minutes" in result
         assert "Platform: Zoom" in result
@@ -95,7 +94,7 @@ class TestBuildConversationContext:
             duration_minutes=15,
             participants=[],
         )
-        result = _build_conversation_context("Speaker 0: Good morning", None, calendar)
+        result = _build_conversation_context("Speaker 0: Good morning", calendar)
         calendar_pos = result.index("CALENDAR MEETING CONTEXT")
         transcript_pos = result.index("Transcript:")
         assert calendar_pos < transcript_pos
@@ -109,7 +108,7 @@ class TestBuildConversationContext:
             duration_minutes=15,
             participants=[],
         )
-        result = _build_conversation_context("Speaker 0: Hi", None, calendar)
+        result = _build_conversation_context("Speaker 0: Hi", calendar)
         assert "Meeting Link" not in result
 
     def test_no_notes_omitted(self):
@@ -121,7 +120,7 @@ class TestBuildConversationContext:
             duration_minutes=15,
             participants=[],
         )
-        result = _build_conversation_context("Speaker 0: Hi", None, calendar)
+        result = _build_conversation_context("Speaker 0: Hi", calendar)
         assert "Meeting Notes" not in result
 
     def test_deterministic_with_calendar(self):
@@ -139,8 +138,8 @@ class TestBuildConversationContext:
             ],
         )
         transcript = "Speaker 0: Let's review the PR.\n\nSpeaker 1: Sure."
-        result1 = _build_conversation_context(transcript, None, calendar)
-        result2 = _build_conversation_context(transcript, None, calendar)
+        result1 = _build_conversation_context(transcript, calendar)
+        result2 = _build_conversation_context(transcript, calendar)
         assert result1 == result2
 
     def test_participant_without_email(self):
@@ -154,7 +153,7 @@ class TestBuildConversationContext:
                 MeetingParticipant(name="Eve", email=None),
             ],
         )
-        result = _build_conversation_context("test", None, calendar)
+        result = _build_conversation_context("test", calendar)
         assert "Eve" in result
         assert "<None>" not in result
 
@@ -169,7 +168,7 @@ class TestBuildConversationContext:
                 MeetingParticipant(name=None, email="unknown@co.com"),
             ],
         )
-        result = _build_conversation_context("test", None, calendar)
+        result = _build_conversation_context("test", calendar)
         assert "unknown@co.com" in result
 
 

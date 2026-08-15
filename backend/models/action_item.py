@@ -86,10 +86,6 @@ class CanonicalTaskCreate(BaseModel):
     recurrence_parent_id: Optional[StableId] = None
     conversation_id: Optional[StableId] = None
     is_locked: bool = False
-    exported: bool = False
-    export_date: Optional[AwareDatetime] = None
-    export_platform: Optional[str] = Field(default=None, max_length=64)
-    apple_reminder_id: Optional[str] = Field(default=None, max_length=512)
 
     @model_validator(mode='after')
     def reconcile_legacy_completed(self):
@@ -124,10 +120,6 @@ class CanonicalTaskUpdate(BaseModel):
     recurrence_rule: Optional[str] = Field(default=None, max_length=128)
     recurrence_parent_id: Optional[StableId] = None
     superseded_by: Optional[StableId] = None
-    exported: Optional[bool] = None
-    export_date: Optional[AwareDatetime] = None
-    export_platform: Optional[str] = Field(default=None, max_length=64)
-    apple_reminder_id: Optional[str] = Field(default=None, max_length=512)
 
     @model_validator(mode='after')
     def reconcile_legacy_completed(self):
@@ -200,10 +192,6 @@ class ActionItemResponse(BaseModel):
     superseded_by: Optional[StableId] = None
     conversation_id: Optional[str] = None
     is_locked: bool = False
-    exported: bool = False
-    export_date: Optional[datetime] = None
-    export_platform: Optional[str] = None
-    apple_reminder_id: Optional[str] = None
 
     @model_validator(mode='before')
     @classmethod

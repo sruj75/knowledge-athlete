@@ -265,7 +265,6 @@ def clear_user_data(uid: str):
         "memories",
         "action_items",
         "people",
-        "task_integrations",
         "chat_sessions",
         "folders",
         "hourly_usage",

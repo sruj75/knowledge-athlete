@@ -59,7 +59,7 @@ def get_speech_profile(uid: str = Depends(auth.get_current_user_uid)):
 # ************* UPLOAD SAMPLE **************
 # ******************************************
 
-# Consist of bytes (for initiating deepgram)
+# Consists of bytes used to initialize managed transcription.
 # and audio itself, which we use on post-processing to use speechbrain model
 
 

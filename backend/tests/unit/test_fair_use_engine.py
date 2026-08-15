@@ -54,30 +54,6 @@ class TestRecordSpeechMs:
         assert pipe.execute.called
 
     @patch.object(fair_use_mod, 'FAIR_USE_ENABLED', True)
-    def test_content_id_uses_atomic_once_increment(self):
-        fair_use_mod.record_speech_ms('user1', 5000, source='sync_backfill', idempotency_key='content-1')
-
-        _mock_redis.eval.assert_called_once()
-        args = _mock_redis.eval.call_args.args
-        assert args[1] == 3
-        assert args[2].endswith(':sync_backfill:user1:content-1')
-        assert args[3].startswith('fair_use:v2:bucket:sync_backfill:user1')
-        assert not _mock_redis.pipeline.return_value.execute.called
-
-    @patch.object(fair_use_mod, 'FAIR_USE_ENABLED', True)
-    def test_durable_content_metering_propagates_redis_failure(self):
-        _mock_redis.eval.side_effect = RuntimeError('redis unavailable')
-
-        with pytest.raises(RuntimeError, match='redis unavailable'):
-            fair_use_mod.record_speech_ms(
-                'user1',
-                5000,
-                source='sync_backfill',
-                idempotency_key='content-1',
-                raise_on_error=True,
-            )
-
-    @patch.object(fair_use_mod, 'FAIR_USE_ENABLED', True)
     def test_custom_stt_lane_records_under_its_own_keys(self):
         """#7690: custom-STT speech is metered in an isolated lane, never
         coerced into the live-enforced realtime lane."""
@@ -230,7 +206,7 @@ class TestGetRollingSpeechMs:
     @patch.object(fair_use_mod, 'FAIR_USE_ENABLED', True)
     def test_live_totals_include_legacy_meter_during_ttl_transition(self):
         now_bucket = str(int(__import__('time').time()) // fair_use_mod.FAIR_USE_BUCKET_SECONDS)
-        _mock_redis.zrangebyscore.side_effect = [[], [], [now_bucket.encode()]]
+        _mock_redis.zrangebyscore.side_effect = [[], [now_bucket.encode()]]
         _mock_redis.hmget.return_value = [b'4000']
 
         result = fair_use_mod.get_rolling_speech_ms('user1')
@@ -569,8 +545,8 @@ class TestDatetimeNormalization:
         assert result is True
 
 
-class TestDgBudget:
-    """Test daily Deepgram budget tracking for restricted users."""
+class TestManagedSTTBudget:
+    """Test daily managed STT budget tracking for restricted users."""
 
     def setup_method(self):
         _mock_redis.reset_mock()
@@ -578,61 +554,61 @@ class TestDgBudget:
         _mock_redis.pipeline.return_value = MagicMock()
 
     @patch.object(fair_use_mod, 'FAIR_USE_ENABLED', True)
-    @patch.object(fair_use_mod, 'FAIR_USE_RESTRICT_DAILY_DG_MS', 1800000)
-    def test_record_dg_usage_increments_counter(self):
+    @patch.object(fair_use_mod, 'FAIR_USE_RESTRICT_DAILY_MANAGED_STT_MS', 1800000)
+    def test_record_managed_stt_usage_increments_counter(self):
         pipe = MagicMock()
         _mock_redis.pipeline.return_value = pipe
-        fair_use_mod.record_dg_usage_ms('user1', 5000)
+        fair_use_mod.record_managed_stt_usage_ms('user1', 5000)
         assert pipe.incrby.called
         assert pipe.expire.called
         assert pipe.execute.called
 
     @patch.object(fair_use_mod, 'FAIR_USE_ENABLED', True)
-    @patch.object(fair_use_mod, 'FAIR_USE_RESTRICT_DAILY_DG_MS', 1800000)
-    def test_record_dg_usage_ignores_zero(self):
+    @patch.object(fair_use_mod, 'FAIR_USE_RESTRICT_DAILY_MANAGED_STT_MS', 1800000)
+    def test_record_managed_stt_usage_ignores_zero(self):
         pipe = MagicMock()
         _mock_redis.pipeline.return_value = pipe
-        fair_use_mod.record_dg_usage_ms('user1', 0)
+        fair_use_mod.record_managed_stt_usage_ms('user1', 0)
         assert not pipe.execute.called
 
     @patch.object(fair_use_mod, 'FAIR_USE_ENABLED', True)
-    @patch.object(fair_use_mod, 'FAIR_USE_RESTRICT_DAILY_DG_MS', 0)
-    def test_record_dg_usage_noop_when_budget_disabled(self):
+    @patch.object(fair_use_mod, 'FAIR_USE_RESTRICT_DAILY_MANAGED_STT_MS', 0)
+    def test_record_managed_stt_usage_noop_when_budget_disabled(self):
         pipe = MagicMock()
         _mock_redis.pipeline.return_value = pipe
-        fair_use_mod.record_dg_usage_ms('user1', 5000)
+        fair_use_mod.record_managed_stt_usage_ms('user1', 5000)
         assert not pipe.execute.called
 
     @patch.object(fair_use_mod, 'FAIR_USE_ENABLED', True)
-    @patch.object(fair_use_mod, 'FAIR_USE_RESTRICT_DAILY_DG_MS', 1800000)
-    def test_is_dg_budget_exhausted_true(self):
+    @patch.object(fair_use_mod, 'FAIR_USE_RESTRICT_DAILY_MANAGED_STT_MS', 1800000)
+    def test_is_managed_stt_budget_exhausted_true(self):
         _mock_redis.get.return_value = b'1800000'
-        assert fair_use_mod.is_dg_budget_exhausted('user1') is True
+        assert fair_use_mod.is_managed_stt_budget_exhausted('user1') is True
 
     @patch.object(fair_use_mod, 'FAIR_USE_ENABLED', True)
-    @patch.object(fair_use_mod, 'FAIR_USE_RESTRICT_DAILY_DG_MS', 1800000)
-    def test_is_dg_budget_exhausted_false_under_limit(self):
+    @patch.object(fair_use_mod, 'FAIR_USE_RESTRICT_DAILY_MANAGED_STT_MS', 1800000)
+    def test_is_managed_stt_budget_exhausted_false_under_limit(self):
         _mock_redis.get.return_value = b'900000'
-        assert fair_use_mod.is_dg_budget_exhausted('user1') is False
+        assert fair_use_mod.is_managed_stt_budget_exhausted('user1') is False
 
     @patch.object(fair_use_mod, 'FAIR_USE_ENABLED', True)
-    @patch.object(fair_use_mod, 'FAIR_USE_RESTRICT_DAILY_DG_MS', 1800000)
-    def test_is_dg_budget_exhausted_false_no_data(self):
+    @patch.object(fair_use_mod, 'FAIR_USE_RESTRICT_DAILY_MANAGED_STT_MS', 1800000)
+    def test_is_managed_stt_budget_exhausted_false_no_data(self):
         _mock_redis.get.return_value = None
-        assert fair_use_mod.is_dg_budget_exhausted('user1') is False
+        assert fair_use_mod.is_managed_stt_budget_exhausted('user1') is False
 
     @patch.object(fair_use_mod, 'FAIR_USE_ENABLED', True)
-    @patch.object(fair_use_mod, 'FAIR_USE_RESTRICT_DAILY_DG_MS', 1800000)
-    def test_is_dg_budget_exhausted_false_on_redis_error(self):
+    @patch.object(fair_use_mod, 'FAIR_USE_RESTRICT_DAILY_MANAGED_STT_MS', 1800000)
+    def test_is_managed_stt_budget_exhausted_false_on_redis_error(self):
         _mock_redis.get.side_effect = Exception('Redis down')
-        assert fair_use_mod.is_dg_budget_exhausted('user1') is False
+        assert fair_use_mod.is_managed_stt_budget_exhausted('user1') is False
         _mock_redis.get.side_effect = None
 
     @patch.object(fair_use_mod, 'FAIR_USE_ENABLED', True)
-    @patch.object(fair_use_mod, 'FAIR_USE_RESTRICT_DAILY_DG_MS', 1800000)
-    def test_get_dg_budget_status_returns_correct_fields(self):
+    @patch.object(fair_use_mod, 'FAIR_USE_RESTRICT_DAILY_MANAGED_STT_MS', 1800000)
+    def test_get_managed_stt_budget_status_returns_correct_fields(self):
         _mock_redis.get.return_value = b'600000'
-        result = fair_use_mod.get_dg_budget_status('user1')
+        result = fair_use_mod.get_managed_stt_budget_status('user1')
         assert result['daily_limit_ms'] == 1800000
         assert result['used_ms'] == 600000
         assert result['remaining_ms'] == 1200000
@@ -641,13 +617,13 @@ class TestDgBudget:
         assert result['resets_at'].endswith('Z')
 
     @patch.object(fair_use_mod, 'FAIR_USE_ENABLED', True)
-    @patch.object(fair_use_mod, 'FAIR_USE_RESTRICT_DAILY_DG_MS', 1800000)
-    def test_get_dg_budget_status_resets_at_is_valid_iso8601(self):
+    @patch.object(fair_use_mod, 'FAIR_USE_RESTRICT_DAILY_MANAGED_STT_MS', 1800000)
+    def test_get_managed_stt_budget_status_resets_at_is_valid_iso8601(self):
         # resets_at is emitted to API clients (routers/fair_use_admin). tomorrow is tz-aware,
         # so a naive `isoformat() + 'Z'` produced an invalid "…+00:00Z" that both carries an
         # offset and a Zulu suffix — datetime.fromisoformat rejects it.
         _mock_redis.get.return_value = b'600000'
-        result = fair_use_mod.get_dg_budget_status('user1')
+        result = fair_use_mod.get_managed_stt_budget_status('user1')
         resets_at = result['resets_at']
         assert '+00:00Z' not in resets_at, f'malformed offset+Z timestamp: {resets_at!r}'
         # Must be parseable as ISO-8601 (the reason a client would consume this field).
@@ -657,53 +633,63 @@ class TestDgBudget:
         assert (parsed.hour, parsed.minute, parsed.second, parsed.microsecond) == (0, 0, 0, 0)
 
     @patch.object(fair_use_mod, 'FAIR_USE_ENABLED', True)
-    @patch.object(fair_use_mod, 'FAIR_USE_RESTRICT_DAILY_DG_MS', 1800000)
-    def test_get_dg_budget_status_exhausted(self):
+    @patch.object(fair_use_mod, 'FAIR_USE_RESTRICT_DAILY_MANAGED_STT_MS', 1800000)
+    def test_get_managed_stt_budget_status_exhausted(self):
         _mock_redis.get.return_value = b'2000000'
-        result = fair_use_mod.get_dg_budget_status('user1')
+        result = fair_use_mod.get_managed_stt_budget_status('user1')
         assert result['used_ms'] == 2000000
         assert result['remaining_ms'] == 0
         assert result['exhausted'] is True
 
     @patch.object(fair_use_mod, 'FAIR_USE_ENABLED', True)
-    @patch.object(fair_use_mod, 'FAIR_USE_RESTRICT_DAILY_DG_MS', 1800000)
-    def test_dg_budget_key_includes_date(self):
-        """Budget key includes date for daily reset."""
-        key = fair_use_mod._dg_budget_key('user1')
+    @patch.object(fair_use_mod, 'FAIR_USE_RESTRICT_DAILY_MANAGED_STT_MS', 1800000)
+    def test_managed_stt_budget_keeps_persisted_schema_during_rollout(self):
+        """New and old pods must share the same daily counter during rollout."""
+        key = fair_use_mod._managed_stt_budget_key('user1')
         today = datetime.utcnow().strftime('%Y%m%d')
-        assert today in key
-        assert 'user1' in key
+        assert key == f'fair_use:dg_budget:user1:{today}'
 
     @patch.object(fair_use_mod, 'FAIR_USE_ENABLED', True)
-    @patch.object(fair_use_mod, 'FAIR_USE_RESTRICT_DAILY_DG_MS', 1800000)
-    def test_record_dg_usage_ignores_negative(self):
+    @patch.object(fair_use_mod, 'FAIR_USE_RESTRICT_DAILY_MANAGED_STT_MS', 1800000)
+    def test_idempotent_usage_keeps_shared_once_marker_during_rollout(self):
+        fair_use_mod.record_managed_stt_usage_ms('user1', 5000, idempotency_key='content-1')
+
+        _mock_redis.eval.assert_called_once()
+        args = _mock_redis.eval.call_args.args
+        assert args[1] == 2
+        assert args[2] == 'fair_use:v2:once:dg:user1:content-1'
+        assert args[3].startswith('fair_use:dg_budget:user1:')
+
+    @patch.object(fair_use_mod, 'FAIR_USE_ENABLED', True)
+    @patch.object(fair_use_mod, 'FAIR_USE_RESTRICT_DAILY_MANAGED_STT_MS', 1800000)
+    def test_record_managed_stt_usage_ignores_negative(self):
         """Negative ms values should be ignored (no Redis call)."""
         pipe = MagicMock()
         _mock_redis.pipeline.return_value = pipe
-        fair_use_mod.record_dg_usage_ms('user1', -100)
+        fair_use_mod.record_managed_stt_usage_ms('user1', -100)
         assert not pipe.execute.called
 
     @patch.object(fair_use_mod, 'FAIR_USE_ENABLED', False)
-    @patch.object(fair_use_mod, 'FAIR_USE_RESTRICT_DAILY_DG_MS', 1800000)
-    def test_record_dg_usage_noop_when_fair_use_disabled(self):
-        """record_dg_usage_ms is a no-op when FAIR_USE_ENABLED=False."""
+    @patch.object(fair_use_mod, 'FAIR_USE_RESTRICT_DAILY_MANAGED_STT_MS', 1800000)
+    def test_record_managed_stt_usage_noop_when_fair_use_disabled(self):
+        """record_managed_stt_usage_ms is a no-op when FAIR_USE_ENABLED=False."""
         pipe = MagicMock()
         _mock_redis.pipeline.return_value = pipe
-        fair_use_mod.record_dg_usage_ms('user1', 5000)
+        fair_use_mod.record_managed_stt_usage_ms('user1', 5000)
         assert not pipe.execute.called
 
     @patch.object(fair_use_mod, 'FAIR_USE_ENABLED', False)
-    @patch.object(fair_use_mod, 'FAIR_USE_RESTRICT_DAILY_DG_MS', 1800000)
-    def test_is_dg_budget_exhausted_false_when_disabled(self):
-        """is_dg_budget_exhausted returns False when FAIR_USE_ENABLED=False."""
-        assert fair_use_mod.is_dg_budget_exhausted('user1') is False
+    @patch.object(fair_use_mod, 'FAIR_USE_RESTRICT_DAILY_MANAGED_STT_MS', 1800000)
+    def test_is_managed_stt_budget_exhausted_false_when_disabled(self):
+        """is_managed_stt_budget_exhausted returns False when FAIR_USE_ENABLED=False."""
+        assert fair_use_mod.is_managed_stt_budget_exhausted('user1') is False
         assert not _mock_redis.get.called
 
     @patch.object(fair_use_mod, 'FAIR_USE_ENABLED', False)
-    @patch.object(fair_use_mod, 'FAIR_USE_RESTRICT_DAILY_DG_MS', 1800000)
-    def test_get_dg_budget_status_defaults_when_disabled(self):
-        """get_dg_budget_status returns defaults when FAIR_USE_ENABLED=False."""
-        result = fair_use_mod.get_dg_budget_status('user1')
+    @patch.object(fair_use_mod, 'FAIR_USE_RESTRICT_DAILY_MANAGED_STT_MS', 1800000)
+    def test_get_managed_stt_budget_status_defaults_when_disabled(self):
+        """get_managed_stt_budget_status returns defaults when FAIR_USE_ENABLED=False."""
+        result = fair_use_mod.get_managed_stt_budget_status('user1')
         assert result['daily_limit_ms'] == 1800000
         assert result['used_ms'] == 0
         assert result['remaining_ms'] == 1800000
@@ -711,41 +697,41 @@ class TestDgBudget:
         assert not _mock_redis.get.called
 
     @patch.object(fair_use_mod, 'FAIR_USE_ENABLED', True)
-    @patch.object(fair_use_mod, 'FAIR_USE_RESTRICT_DAILY_DG_MS', 1800000)
-    def test_is_dg_budget_exhausted_fail_open_on_invalid_data(self):
+    @patch.object(fair_use_mod, 'FAIR_USE_RESTRICT_DAILY_MANAGED_STT_MS', 1800000)
+    def test_is_managed_stt_budget_exhausted_fail_open_on_invalid_data(self):
         """Non-integer Redis payload should fail open (return False)."""
         _mock_redis.get.return_value = b'not-a-number'
         # ValueError from int() is caught by the except Exception block
-        assert fair_use_mod.is_dg_budget_exhausted('user1') is False
+        assert fair_use_mod.is_managed_stt_budget_exhausted('user1') is False
 
     @patch.object(fair_use_mod, 'FAIR_USE_ENABLED', True)
-    @patch.object(fair_use_mod, 'FAIR_USE_RESTRICT_DAILY_DG_MS', 1800000)
-    def test_get_dg_budget_status_exact_limit(self):
+    @patch.object(fair_use_mod, 'FAIR_USE_RESTRICT_DAILY_MANAGED_STT_MS', 1800000)
+    def test_get_managed_stt_budget_status_exact_limit(self):
         """At exactly the limit, remaining_ms == 0 and exhausted == True."""
         _mock_redis.get.return_value = b'1800000'
-        result = fair_use_mod.get_dg_budget_status('user1')
+        result = fair_use_mod.get_managed_stt_budget_status('user1')
         assert result['used_ms'] == 1800000
         assert result['remaining_ms'] == 0
         assert result['exhausted'] is True
 
     @patch.object(fair_use_mod, 'FAIR_USE_ENABLED', True)
-    @patch.object(fair_use_mod, 'FAIR_USE_RESTRICT_DAILY_DG_MS', 1800000)
-    def test_record_dg_usage_ttl_in_expected_range(self):
+    @patch.object(fair_use_mod, 'FAIR_USE_RESTRICT_DAILY_MANAGED_STT_MS', 1800000)
+    def test_record_managed_stt_usage_ttl_in_expected_range(self):
         """TTL should be between 3600 (at midnight) and 90000 (just after midnight + 1h buffer)."""
         pipe = MagicMock()
         _mock_redis.pipeline.return_value = pipe
-        fair_use_mod.record_dg_usage_ms('user1', 1000)
+        fair_use_mod.record_managed_stt_usage_ms('user1', 1000)
         expire_args = pipe.expire.call_args[0]
         ttl = expire_args[1]
         # TTL = seconds_until_midnight + 3600; range: 3600 (at 23:59:59) to 90000 (at 00:00:01)
         assert 3600 <= ttl <= 90000, f'TTL {ttl} outside expected range [3600, 90000]'
 
     @patch.object(fair_use_mod, 'FAIR_USE_ENABLED', True)
-    @patch.object(fair_use_mod, 'FAIR_USE_RESTRICT_DAILY_DG_MS', 1800000)
-    def test_get_dg_budget_status_fail_open_on_redis_error(self):
+    @patch.object(fair_use_mod, 'FAIR_USE_RESTRICT_DAILY_MANAGED_STT_MS', 1800000)
+    def test_get_managed_stt_budget_status_fail_open_on_redis_error(self):
         """Redis error should return safe defaults (not exhausted)."""
         _mock_redis.get.side_effect = Exception('Redis down')
-        result = fair_use_mod.get_dg_budget_status('user1')
+        result = fair_use_mod.get_managed_stt_budget_status('user1')
         assert result['exhausted'] is False
         assert result['used_ms'] == 0
         assert result['remaining_ms'] == 1800000

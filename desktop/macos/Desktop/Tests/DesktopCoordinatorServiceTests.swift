@@ -49,7 +49,6 @@ final class DesktopCoordinatorServiceTests: XCTestCase {
         explicitSessionId: "session-1",
         explicitRunId: "run-1",
         parentRunId: nil,
-        explicitProvider: nil,
         requestedAgentCount: nil))
 
     XCTAssertEqual(decision.decisionId, "decision-1")
@@ -101,12 +100,8 @@ final class DesktopCoordinatorServiceTests: XCTestCase {
       title: "Create Memory Story",
       pillId: pillId,
       originSurface: .mainChat,
-      provider: nil,
       parentRunId: nil,
-      visible: true,
-      model: "gpt-test",
-      harnessMode: .piMono,
-      cwd: "/tmp/omi-test"
+      visible: true
     )
 
     XCTAssertEqual(accepted.sessionId, "ses_pill")
@@ -125,9 +120,9 @@ final class DesktopCoordinatorServiceTests: XCTestCase {
     XCTAssertEqual(call.input["externalRefId"] as? String, pillId.uuidString)
     XCTAssertEqual(call.input["originSurfaceKind"] as? String, "main_chat")
     XCTAssertEqual(call.input["clientId"] as? String, "desktop-floating-pill")
-    XCTAssertEqual(call.input["model"] as? String, "gpt-test")
-    XCTAssertEqual(call.input["adapterId"] as? String, "pi-mono")
-    XCTAssertEqual(call.input["cwd"] as? String, "/tmp/omi-test")
+    XCTAssertNil(call.input["model"])
+    XCTAssertNil(call.input["adapterId"])
+    XCTAssertNil(call.input["cwd"])
 
     let metadata = try XCTUnwrap(call.input["metadata"] as? [String: String])
     XCTAssertEqual(metadata["uiProjection"], "floating_bar")
@@ -179,12 +174,8 @@ final class DesktopCoordinatorServiceTests: XCTestCase {
       pillId: groupID,
       requestedAgentCount: 3,
       originSurface: .floatingBar,
-      provider: nil,
       parentRunId: nil,
-      visible: true,
-      model: nil,
-      harnessMode: .piMono,
-      cwd: nil)
+      visible: true)
 
     XCTAssertEqual(runtime.calls.count, 1)
     XCTAssertEqual(runtime.calls[0].name, "spawn_agent")
@@ -199,45 +190,6 @@ final class DesktopCoordinatorServiceTests: XCTestCase {
         "22222222-2222-2222-2222-222222222222",
         "33333333-3333-3333-3333-333333333333",
       ])
-  }
-
-  @MainActor
-  func testSpawnAgentOmitsModelWhenCallerLeavesModelNil() async throws {
-    let runtime = RecordingCoordinatorRuntime(
-      response: """
-        {
-          "ok": true,
-          "session": {"sessionId": "ses_pill", "title": "Hermes Task"},
-          "run": {"runId": "run_pill"},
-          "attempt": {"attemptId": "att_pill"}
-        }
-        """
-    )
-    let service = DesktopCoordinatorService(
-      runtime: runtime,
-      clientId: "test-desktop-coordinator",
-      harnessModeProvider: { AgentHarnessMode.hermes.rawValue },
-      checkpointDefaults: UserDefaults(suiteName: "DesktopCoordinatorServiceTests.spawn.nilModel")!
-    )
-
-    _ = try await service.spawnAgent(
-      objective: "Use Hermes to work on this.",
-      title: "Hermes Task",
-      pillId: UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE")!,
-      originSurface: .floatingBar,
-      provider: "hermes",
-      parentRunId: nil,
-      visible: true,
-      model: nil,
-      harnessMode: .hermes,
-      cwd: nil
-    )
-
-    let call = try XCTUnwrap(runtime.calls.first)
-    XCTAssertEqual(call.name, "spawn_agent")
-    XCTAssertEqual(call.input["adapterId"] as? String, "hermes")
-    XCTAssertEqual(call.input["originSurfaceKind"] as? String, "floating_bar")
-    XCTAssertNil(call.input["model"])
   }
 
   @MainActor
@@ -264,20 +216,14 @@ final class DesktopCoordinatorServiceTests: XCTestCase {
         title: "Task",
         pillId: pillID,
         originSurface: origin,
-        provider: nil,
         parentRunId: nil,
-        visible: true,
-        model: nil,
-        harnessMode: .piMono,
-        cwd: nil
+        visible: true
       )
     }
     _ = try await service.continueAgent(
       sessionId: "ses",
       prompt: "Continue.",
-      originSurface: .taskChat,
-      model: nil,
-      cwd: nil
+      originSurface: .taskChat
     )
 
     XCTAssertEqual(
@@ -491,28 +437,17 @@ final class DesktopCoordinatorServiceTests: XCTestCase {
     XCTAssertTrue(source.contains("Do not read raw ids aloud."))
   }
 
-  func testOrdinaryQueryPathsPinProfilesOnlyDuringAtomicSessionCreation() throws {
-    let providerSource = try sourceFile("Providers/ChatProvider.swift")
-    let providerStart = try XCTUnwrap(
-      providerSource.range(of: "private func resolveKernelQuerySession("))
-    let providerTail = providerSource[providerStart.lowerBound...]
-    let providerEnd = try XCTUnwrap(
-      providerTail.range(of: "private func prepareKernelQueryContext("))
-    let providerSetup = providerTail[..<providerEnd.lowerBound]
+  func testOrdinaryQueryPathsCannotOverrideTheManagedProfile() throws {
+    let sources = [
+      try sourceFile("Providers/ChatProvider.swift"),
+      try sourceFile("Chat/AgentClient.swift"),
+      try sourceFile("ProactiveAssistants/Assistants/TaskAgent/TaskChatRuntime.swift"),
+    ].joined(separator: "\n")
 
-    let clientSource = try sourceFile("Chat/AgentClient.swift")
-    let runStart = try XCTUnwrap(clientSource.range(of: "static func run("))
-    let runSource = clientSource[runStart.lowerBound...]
-    let taskSource = try sourceFile(
-      "ProactiveAssistants/Assistants/TaskAgent/TaskChatRuntime.swift")
-
-    XCTAssertTrue(providerSetup.contains("creationProfile: AgentSessionCreationProfile("))
-    XCTAssertFalse(providerSetup.contains("migrateSessionExecutionProfile"))
-    XCTAssertTrue(providerSource.contains("pinnedSession: pinnedSession"))
-    XCTAssertTrue(runSource.contains("creationProfile: creationProfile"))
-    XCTAssertFalse(runSource.contains("migrateSessionExecutionProfile"))
-    XCTAssertTrue(taskSource.contains("creationProfile: creationProfile"))
-    XCTAssertFalse(taskSource.contains("migrateSessionExecutionProfile"))
+    XCTAssertFalse(sources.contains("AgentSessionCreationProfile"))
+    XCTAssertFalse(sources.contains("creationProfile:"))
+    XCTAssertFalse(sources.contains("migrateSessionExecutionProfile"))
+    XCTAssertFalse(sources.contains("configureDefaultExecutionProfile"))
   }
 
   func testPTTVoiceSpawnUsesCanonicalBackgroundAgentProjection() throws {
@@ -650,16 +585,6 @@ final class DesktopCoordinatorServiceTests: XCTestCase {
     XCTAssertTrue(source.contains("input[\"taskId\"] = taskId"))
     XCTAssertFalse(source.contains("$0.externalRefKind == \"task\" && $0.externalRefId == taskId"))
     XCTAssertFalse(source.contains("sessionId?.contains(taskId)"))
-  }
-
-  func testLocalAgentAPIRejectsUnexpectedHostAndOrigin() throws {
-    let source = try sourceFile("LocalAgentAPIServer.swift")
-
-    XCTAssertTrue(source.contains("acceptsLoopbackHostAndOrigin"))
-    XCTAssertTrue(source.contains("invalid_host_or_origin"))
-    XCTAssertTrue(source.contains("\"127.0.0.1:\\(LocalAgentAPISettings.port)\""))
-    XCTAssertTrue(source.contains("\"localhost:\\(LocalAgentAPISettings.port)\""))
-    XCTAssertTrue(source.contains("\"[::1]:\\(LocalAgentAPISettings.port)\""))
   }
 
   @MainActor

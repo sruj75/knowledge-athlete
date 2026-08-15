@@ -640,16 +640,15 @@ import XCTest
       )
     }
 
-    func testFaultHarnessResetClearsAppScopedDefaultOnlyOnce() async {
+    func testFaultHarnessResetClearsCanonicalDefaultOnlyOnce() async {
       let provider = ChatProvider()
-      let expectedChatID = "default|research"
+      let expectedChatID = "default"
       var modelReadinessRequests = 0
       var clearedSurfaceIDs: [String] = []
 
       let error: String? = await RuntimeOwnerIdentity.withAutomationOwnerIfMissing(
         "fault-harness-owner"
       ) {
-        provider.selectedAppId = "research"
         provider.isInDefaultChat = true
         provider.kernelTurnProjection = KernelTurnProjection(
           host: provider,
@@ -663,7 +662,7 @@ import XCTest
             XCTAssertEqual(afterTurnSeq, 0)
             XCTAssertEqual(limit, 1)
             return self.journalPage(
-              conversationId: "fault-app-scoped-default-conversation",
+              conversationId: "fault-default-conversation",
               turns: [],
               generation: 9
             )

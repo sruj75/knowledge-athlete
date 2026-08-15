@@ -91,18 +91,8 @@
           },
           {
             "selected": false,
-            "text": "backend-integration",
-            "value": "backend-integration"
-          },
-          {
-            "selected": false,
             "text": "backend-sync",
             "value": "backend-sync"
-          },
-          {
-            "selected": false,
-            "text": "plugins",
-            "value": "plugins"
           },
           {
             "selected": false,
@@ -110,7 +100,7 @@
             "value": "pusher"
           }
         ],
-        "query": "backend,backend-integration,backend-sync,plugins,pusher",
+        "query": "backend,backend-sync,pusher",
         "type": "custom"
       },
       {

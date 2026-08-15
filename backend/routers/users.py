@@ -22,27 +22,17 @@ from database import (
     llm_usage as llm_usage_db,
     users as users_db,
 )
-from database.sync_jobs import release_job_run_lock, try_acquire_job_run_lock
+from database.job_run_locks import release_job_run_lock, try_acquire_job_run_lock
 from services.users.data_export import iter_user_data_export
 from services.users.account_deletion import background_wipe_user_data, start_account_deletion
 from database.app_review_config import should_hide_subscription_ui
-from database.webhook_health import record_dev_webhook_success
 from database.conversations import get_in_progress_conversation, get_conversation
 from database.redis_db import (
     cache_user_geolocation,
     get_cached_user_geolocation,
-    set_user_webhook_db,
-    get_user_webhook_db,
-    disable_user_webhook_db,
-    enable_user_webhook_db,
-    user_webhook_status_db,
-    set_user_preferred_app,
     set_user_data_protection_level,
     get_generic_cache,
     set_generic_cache,
-    get_daily_summary_uid,
-    store_daily_summary_to_uid,
-    remove_daily_summary_to_uid,
 )
 
 from database.users import (
@@ -67,7 +57,6 @@ from datetime import datetime, time, timedelta
 from models.users import (
     ChatUsageQuota,
     ChatQuotaUnit,
-    WebhookType,
     UserSubscriptionResponse,
     Subscription,
     SubscriptionPlan,
@@ -80,7 +69,6 @@ from models.users import (
     LocationContextConsentUpdate,
 )
 from utils.phone_calls import get_quota_snapshot as get_phone_call_quota_snapshot
-from utils.apps import get_available_app_by_id
 from utils.subscription import (
     get_chat_quota_snapshot,
     get_paid_plan_definitions,
@@ -111,7 +99,7 @@ from utils.executors import cleanup_executor, db_executor, run_blocking
 from utils.log_sanitizer import sanitize
 from utils.llm.followup import followup_question_prompt
 from utils.notifications import send_notification, send_training_data_submitted_notification
-from utils.llm.external_integrations import generate_comprehensive_daily_summary
+from utils.llm.daily_summary import generate_comprehensive_daily_summary
 from models.notification_message import NotificationMessage
 from utils.other import endpoints as auth
 from utils.other.storage import (
@@ -120,7 +108,6 @@ from utils.other.storage import (
     delete_user_person_speech_samples,
     delete_user_person_speech_sample,
 )
-from utils.webhooks import webhook_first_time_setup
 from utils.byok import has_byok_keys, invalidate_byok_state_cache, peppered_fingerprint
 import logging
 
@@ -171,17 +158,6 @@ class UserProfileResponse(BaseModel):
     company: Optional[str] = None
     data_protection_level: Optional[str] = None
     migration_status: Optional[Dict[str, Any]] = None
-
-
-class UserWebhooksStatusResponse(BaseModel):
-    audio_bytes: bool
-    memory_created: bool
-    realtime_transcript: bool
-    day_summary: bool
-
-
-class UserWebhookUrlResponse(BaseModel):
-    url: Optional[str] = None
 
 
 class UserDataExportResponse(BaseModel):
@@ -450,67 +426,6 @@ def set_user_geolocation(geolocation: GeolocationInput, uid: str = Depends(auth.
         cache_user_geolocation(uid, validated_geolocation.model_dump())
 
     return {'status': 'ok'}
-
-
-# ***********************************************
-# ************* DEVELOPER WEBHOOKS **************
-# ***********************************************
-
-
-class SetUserWebhookUrlRequest(BaseModel):
-    url: str
-
-
-@router.post('/v1/users/developer/webhook/{wtype}', tags=['v1'], response_model=UserStatusResponse)
-def set_user_webhook_endpoint(
-    wtype: WebhookType, data: SetUserWebhookUrlRequest, uid: str = Depends(auth.get_current_user_uid)
-):
-    url = data.url
-    if url == '' or url == ',':
-        disable_user_webhook_db(uid, wtype)
-    set_user_webhook_db(uid, wtype, url)
-    return {'status': 'ok'}
-
-
-@router.get('/v1/users/developer/webhook/{wtype}', tags=['v1'], response_model=UserWebhookUrlResponse)
-def get_user_webhook_endpoint(wtype: WebhookType, uid: str = Depends(auth.get_current_user_uid)):
-    return {'url': get_user_webhook_db(uid, wtype)}
-
-
-@router.post('/v1/users/developer/webhook/{wtype}/disable', tags=['v1'], response_model=UserStatusResponse)
-def disable_user_webhook_endpoint(wtype: WebhookType, uid: str = Depends(auth.get_current_user_uid)):
-    disable_user_webhook_db(uid, wtype)
-    return {'status': 'ok'}
-
-
-@router.post('/v1/users/developer/webhook/{wtype}/enable', tags=['v1'], response_model=UserStatusResponse)
-def enable_user_webhook_endpoint(wtype: WebhookType, uid: str = Depends(auth.get_current_user_uid)):
-    enable_user_webhook_db(uid, wtype)
-    record_dev_webhook_success(uid, wtype.value)
-    return {'status': 'ok'}
-
-
-@router.get('/v1/users/developer/webhooks/status', tags=['v1'], response_model=UserWebhooksStatusResponse)
-def get_user_webhooks_status(uid: str = Depends(auth.get_current_user_uid)):
-    # This only happens the first time because the user_webhook_status_db function will return None for existing users
-    audio_bytes = user_webhook_status_db(uid, WebhookType.audio_bytes)
-    if audio_bytes is None:
-        audio_bytes = webhook_first_time_setup(uid, WebhookType.audio_bytes)
-    memory_created = user_webhook_status_db(uid, WebhookType.memory_created)
-    if memory_created is None:
-        memory_created = webhook_first_time_setup(uid, WebhookType.memory_created)
-    realtime_transcript = user_webhook_status_db(uid, WebhookType.realtime_transcript)
-    if realtime_transcript is None:
-        realtime_transcript = webhook_first_time_setup(uid, WebhookType.realtime_transcript)
-    day_summary = user_webhook_status_db(uid, WebhookType.day_summary)
-    if day_summary is None:
-        day_summary = webhook_first_time_setup(uid, WebhookType.day_summary)
-    return {
-        'audio_bytes': audio_bytes,
-        'memory_created': memory_created,
-        'realtime_transcript': realtime_transcript,
-        'day_summary': day_summary,
-    }
 
 
 # *************************************************
@@ -951,28 +866,6 @@ def finalize_migration_request(request: MigrationTargetRequest, uid: str = Depen
     return {'status': 'ok'}
 
 
-@router.put('/v1/users/preferences/app', tags=['v1'], response_model=UserStatusResponse)
-def set_preferred_app_for_user(
-    app_id: str = Query(..., description="The ID of the app to set as preferred"),
-    uid: str = Depends(auth.get_current_user_uid),
-):
-    """Sets the user's preferred app for future processing."""
-
-    app_id_to_set = app_id
-
-    selected_app = get_available_app_by_id(app_id_to_set, uid)
-    if not selected_app:
-        raise HTTPException(status_code=410, detail=f"App with ID '{app_id_to_set}' not found or not accessible.")
-
-    try:
-        set_user_preferred_app(uid, app_id_to_set)
-    except Exception as e:
-        logger.error(f"Failed to set preferred app in Redis for user {uid}: {e}")
-        raise HTTPException(status_code=500, detail="Failed to store app preference.")
-
-    return {"status": "ok", "message": f"App {app_id_to_set} set as preferred app for user {uid}."}
-
-
 # **************************************
 # *********** Training Data ************
 # **************************************
@@ -1106,8 +999,8 @@ def get_user_subscription_endpoint(
     # BYOK free plan: user supplies their own OpenAI/Anthropic/Gemini/Deepgram keys.
     # Only return unlimited when the request actually carries BYOK headers (desktop).
     # Mobile (no BYOK headers) should see the real subscription even if BYOK is active.
-    # Synthetic paid-tier quota for BYOK / marketplace-reviewer overrides so
-    # these users aren't surprised by a disabled phone-call feature.
+    # Synthetic paid-tier quota for BYOK so these users aren't surprised by a
+    # disabled phone-call feature.
     unlimited_phone_quota = PhoneCallQuota(has_access=True, is_paid=True)
 
     if users_db.is_byok_active(uid) and has_byok_keys():
@@ -1124,29 +1017,6 @@ def get_user_subscription_endpoint(
             phone_call_quota=unlimited_phone_quota,
         )
 
-    marketplace_reviewers = os.getenv('MARKETPLACE_APP_REVIEWERS', '').split(',')
-    if uid in marketplace_reviewers:
-        unlimited_sub = Subscription(
-            plan=PlanType.unlimited,
-            status=SubscriptionStatus.active,
-            limits=PlanLimits(
-                transcription_seconds=None,
-                words_transcribed=None,
-                insights_gained=None,
-            ),
-        )
-        return UserSubscriptionResponse(
-            subscription=unlimited_sub,
-            transcription_seconds_used=0,
-            transcription_seconds_limit=0,
-            words_transcribed_used=0,
-            words_transcribed_limit=0,
-            insights_gained_used=0,
-            insights_gained_limit=0,
-            available_plans=[],
-            show_subscription_ui=False,
-            phone_call_quota=unlimited_phone_quota,
-        )
     # First, reconcile any "basic but actually unlimited" inconsistencies against Stripe once.
     raw_subscription = get_user_subscription(uid)
     reconcile_basic_plan_with_stripe(uid, raw_subscription)
@@ -1546,7 +1416,6 @@ def test_daily_summary(request: TestDailySummaryRequest = None, uid: str = Depen
 
     ai_message = NotificationMessage(
         text=summary_body,
-        from_integration='false',
         type='day_summary',
         notification_type='daily_summary',
         navigate_to=f"/daily-summary/{summary_id}",
@@ -1588,24 +1457,6 @@ def get_daily_summary(summary_id: str, uid: str = Depends(auth.get_current_user_
     if not summary:
         raise HTTPException(status_code=404, detail='Daily summary not found')
     return summary
-
-
-@router.patch('/v1/users/daily-summaries/{summary_id}/visibility', tags=['v1'], response_model=UserStatusResponse)
-def set_daily_summary_visibility(summary_id: str, value: str, uid: str = Depends(auth.get_current_user_uid)):
-    """
-    Set the visibility of a daily summary. Use value='shared' to make it shareable.
-    """
-    if value not in ('shared', 'private'):
-        raise HTTPException(status_code=400, detail="Invalid visibility value. Must be 'shared' or 'private'")
-    summary = daily_summaries_db.get_daily_summary(uid, summary_id)
-    if not summary:
-        raise HTTPException(status_code=404, detail='Daily summary not found')
-    daily_summaries_db.set_daily_summary_visibility(uid, summary_id, value)
-    if value == 'private':
-        remove_daily_summary_to_uid(summary_id)
-    else:
-        store_daily_summary_to_uid(summary_id, uid)
-    return {'status': 'Ok'}
 
 
 @router.delete('/v1/users/daily-summaries/{summary_id}', tags=['v1'], response_model=UserStatusResponse)
@@ -1684,12 +1535,8 @@ def regenerate_daily_summary(summary_id: str, uid: str = Depends(auth.get_curren
     conversations = deserialize_conversations(conversations_data)
 
     summary_data = generate_comprehensive_daily_summary(uid, conversations, date_str, start_date_utc, end_date_utc)
-    # Preserve fields readers care about that the generator silently resets:
-    # - visibility: sharing state shouldn't toggle off on regenerate
-    # - created_at: generator stamps a fresh utcnow(), but UI sorts/displays
+    # Preserve created_at: the generator stamps a fresh utcnow(), but UI sorts/displays
     #   summaries by when they were first created, not last regenerated
-    if 'visibility' in summary:
-        summary_data['visibility'] = summary['visibility']
     if 'created_at' in summary:
         summary_data['created_at'] = summary['created_at']
     summary_data['regenerated_at'] = datetime.utcnow().isoformat()
@@ -1698,34 +1545,6 @@ def regenerate_daily_summary(summary_id: str, uid: str = Depends(auth.get_curren
 
     refreshed = daily_summaries_db.get_daily_summary(uid, summary_id)
     return refreshed or {**summary_data, 'id': summary_id}
-
-
-@router.get('/v1/daily-summaries/{summary_id}/shared', tags=['v1'], response_model=DailySummaryResponse)
-def get_shared_daily_summary(summary_id: str):
-    """
-    Public endpoint to retrieve a daily summary for sharing. No auth required.
-    """
-    uid = get_daily_summary_uid(summary_id)
-    if not uid:
-        raise HTTPException(status_code=404, detail='Daily summary not found')
-
-    summary = daily_summaries_db.get_daily_summary(uid, summary_id)
-    if not summary or summary.get('visibility') != 'shared':
-        raise HTTPException(status_code=404, detail='Daily summary not found')
-
-    _PUBLIC_FIELDS = {
-        'id',
-        'date',
-        'headline',
-        'overview',
-        'day_emoji',
-        'stats',
-        'highlights',
-        'action_items',
-        'decisions_made',
-        'knowledge_nuggets',
-    }
-    return {k: v for k, v in summary.items() if k in _PUBLIC_FIELDS}
 
 
 # ***********************************

@@ -14,7 +14,7 @@ and background processing.
 - `finalizer.py` is the durable handoff boundary for a persisted conversation.
   A caller must have already acquired a finalization-job lease before invoking
   it; it loads the conversation, performs enrichment through the postprocess
-  bulkhead, and runs external integrations.
+  bulkhead, and records retained derived effects.
 - Route- or worker-specific ownership, retries, queues, and leases belong
   outside this package: `database/conversation_finalization_jobs.py`,
   `services/conversation_finalization.py`, and their callers own those states.

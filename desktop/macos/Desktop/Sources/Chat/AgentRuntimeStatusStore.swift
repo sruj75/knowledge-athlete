@@ -75,9 +75,6 @@ struct AgentSurfaceReference: Hashable, Sendable {
     AgentSurfaceReference(surfaceKind: "service", externalRefKind: "service", externalRefId: name)
   }
 
-  static func chatLab(labSessionId: String) -> AgentSurfaceReference {
-    AgentSurfaceReference(surfaceKind: "chat_lab", externalRefKind: "session", externalRefId: labSessionId)
-  }
 }
 
 enum AgentClientScope {
@@ -332,9 +329,8 @@ final class AgentRuntimeStatusStore: ObservableObject {
     case .initMessage, .toolUse, .authorizedToolExecution,
       .authRequired, .authSuccess, .controlToolResult,
       .journalOperationResult, .journalTurnChanged, .journalBackendSync, .journalBackendDelete,
-      .journalBackendReconcile,
-      .defaultExecutionProfileConfigured, .surfaceSessionResolved,
-      .sessionExecutionProfileMigrated, .contextSourceUpdated, .contextSnapshot,
+      .journalBackendReconcile, .surfaceSessionResolved,
+      .contextSourceUpdated, .contextSnapshot,
       .legacyMainChatSessionsImported,
       .externalSurfaceRunBeginResult, .externalSurfaceToolResult,
       .externalSurfaceRunCompleteResult, .ownerRuntimeRevoked,

@@ -10,7 +10,6 @@ from fastapi.responses import Response, StreamingResponse
 
 from llm_gateway.gateway.providers import VertexAccessTokenSupplier
 from database import redis_db
-from utils.byok import get_byok_key
 from utils.executors import critical_executor, db_executor, run_blocking
 from utils.llm.desktop_llm_stub import (
     llm_stub_enabled,
@@ -118,7 +117,7 @@ def _vertex_url(model: str, action: str) -> str | None:
 
 
 def _studio_url(path: str) -> str:
-    key = get_byok_key("gemini") or os.getenv("GEMINI_API_KEY")
+    key = os.getenv("GEMINI_API_KEY")
     if not key:
         raise HTTPException(status_code=503, detail="Gemini is not configured")
     return f"https://generativelanguage.googleapis.com/v1beta/{path}"
@@ -127,8 +126,6 @@ def _studio_url(path: str) -> str:
 async def _upstream(
     path: str, model: str, action: str, query: dict[str, str]
 ) -> tuple[str, dict[str, str], dict[str, str], bool]:
-    if get_byok_key("gemini"):
-        return _studio_url(path), {}, {"key": get_byok_key("gemini") or "", **query}, False
     vertex_url = _vertex_url(model, action)
     if vertex_url:
         try:
@@ -141,12 +138,10 @@ async def _upstream(
             )
         except Exception:
             pass
-    return _studio_url(path), {}, {"key": os.getenv("GEMINI_API_KEY", ""), **query}, False
+    return _studio_url(path), {}, {**query, "key": os.getenv("GEMINI_API_KEY", "")}, False
 
 
 async def _meter_server_request(uid: str, path: str, model: str, action: str) -> str:
-    if get_byok_key("gemini"):
-        return path
     try:
         burst_allowed, _, _ = await run_blocking(
             critical_executor, redis_db.check_rate_limit, uid, "desktop_gemini_burst", _BURST_LIMIT, 60

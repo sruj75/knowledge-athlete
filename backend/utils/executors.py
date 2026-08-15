@@ -4,13 +4,13 @@ Provides shared executors with strict separation (bulkhead pattern):
 - critical_executor: auth verification, rate limiting, hard restriction checks,
   small session/code cache reads. Must never starve — gates every request.
 - db_executor: Firestore CRUD and Redis data mutations. High volume, moderate latency.
-- llm_executor: persona generation, onboarding LLM, slow model-backed work. Bulkhead
+- llm_executor: onboarding and other slow first-party model-backed work. Bulkhead
   to prevent slow LLM retries from blocking DB or auth operations.
 - stripe_executor: Stripe API calls (Subscription.retrieve, etc.). External network I/O
   with unpredictable latency, isolated from everything else.
 - sync_executor: sync pipeline VAD/STT/segment processing.
 - postprocess_executor: best-effort post-processing (memories, trends, vectors,
-  action items, goals, conversation processing, webhook delivery).
+  action items, goals, and conversation processing).
 - cleanup_executor: long-running account-deletion wipes (vectors, recordings,
   Firestore subcollections). Bulkheaded so bursts of account deletions cannot
   starve normal post-processing.

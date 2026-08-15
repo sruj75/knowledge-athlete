@@ -14,7 +14,7 @@ preconditions:
 steps:
   - id: S1
     name: Verify Home tab is active
-    do: "Verify the app shows the Home tab. Top nav bar should have Home, Memory, Tasks, Apps buttons. Home should be the active/selected tab."
+    do: "Verify the app shows the Home tab. Top nav bar should have Home, Memory, and Tasks buttons, with no Apps destination. Home should be the active/selected tab."
     expect:
       interactive_count: { min: 6 }
       text_visible:
@@ -22,7 +22,7 @@ steps:
 
   - id: S2
     name: Verify chat input area
-    do: "Verify the chat input area is present on the Home tab. There should be a text field for typing messages and an Attachments button. Look for the send/connect button."
+    do: "Verify the chat input area is present on the Home tab. There should be a text field for typing messages and an Attachments button. Look for the send/stop button."
     expect:
       interactive_count: { min: 3 }
 

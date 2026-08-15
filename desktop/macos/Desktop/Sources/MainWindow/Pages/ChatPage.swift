@@ -3,33 +3,24 @@ import OmiTheme
 import SwiftUI
 
 struct ChatPage: View {
-  @ObservedObject var appProvider: AppProvider
   @ObservedObject var chatProvider: ChatProvider
   let onHome: () -> Void
-  @State private var showAppPicker = false
   @State private var selectedCitation: Citation?
   @State private var citedConversation: ServerConversation?
   @State private var isLoadingCitation = false
   @State private var copied = false
 
   init(
-    appProvider: AppProvider,
     chatProvider: ChatProvider,
     onHome: @escaping () -> Void = {}
   ) {
-    self.appProvider = appProvider
     self.chatProvider = chatProvider
     self.onHome = onHome
   }
 
-  var selectedApp: OmiApp? {
-    guard let appId = chatProvider.selectedAppId else { return nil }
-    return appProvider.chatApps.first { $0.id == appId }
-  }
-
   var body: some View {
     VStack(spacing: 0) {
-      // Header with app picker
+      // Header
       chatHeader
         .padding(.horizontal, OmiSpacing.lg)
         .padding(.vertical, OmiSpacing.sm)
@@ -101,38 +92,6 @@ struct ChatPage: View {
         }
       )
       .frame(minWidth: 500, minHeight: 500)
-    }
-    .sheet(isPresented: $chatProvider.needsBrowserExtensionSetup) {
-      BrowserExtensionSetup(
-        onComplete: {
-          chatProvider.needsBrowserExtensionSetup = false
-        },
-        onDismiss: {
-          chatProvider.needsBrowserExtensionSetup = false
-        },
-        chatProvider: chatProvider
-      )
-      .fixedSize()
-    }
-    .sheet(isPresented: $chatProvider.isClaudeAuthRequired) {
-      ClaudeAuthSheet(
-        onConnect: {
-          if let url = URL(string: "https://omi.me/pricing") {
-            NSWorkspace.shared.open(url)
-          }
-          chatProvider.isClaudeAuthRequired = false
-          Task {
-            await chatProvider.switchBridgeMode(to: ChatProvider.BridgeMode.piMono)
-          }
-        },
-        onCancel: {
-          chatProvider.isClaudeAuthRequired = false
-          // Switch back to Omi AI (pi-mono) if auth cancelled
-          Task {
-            await chatProvider.switchBridgeMode(to: ChatProvider.BridgeMode.piMono)
-          }
-        }
-      )
     }
     .alert("Upgrade Required", isPresented: $chatProvider.showOmiThresholdAlert) {
       Button("Upgrade to Omi Pro") {
@@ -247,67 +206,12 @@ struct ChatPage: View {
         .help("New chat session")
       }
 
-      // App selector
-      Button(action: { showAppPicker.toggle() }) {
-        HStack(spacing: OmiSpacing.sm) {
-          if let app = selectedApp {
-            // Show selected app
-            AsyncImage(url: URL(string: app.image)) { phase in
-              switch phase {
-              case .success(let image):
-                image
-                  .resizable()
-                  .aspectRatio(contentMode: .fill)
-              default:
-                Circle()
-                  .fill(OmiColors.backgroundTertiary)
-              }
-            }
-            .frame(width: 32, height: 32)
-            .clipShape(Circle())
-
-            VStack(alignment: .leading, spacing: OmiSpacing.hairline) {
-              Text(app.name)
-                .scaledFont(size: OmiType.body, weight: .medium)
-                .foregroundColor(OmiColors.textPrimary)
-
-              Text("Chat App")
-                .scaledFont(size: OmiType.caption)
-                .foregroundColor(OmiColors.textTertiary)
-            }
-          } else {
-            // Default OMI assistant
-            Text("omi")
-              .scaledFont(size: OmiType.body, weight: .medium)
-              .foregroundColor(OmiColors.textPrimary)
-          }
-
-          if !appProvider.chatApps.isEmpty {
-            Image(systemName: "chevron.down")
-              .scaledFont(size: OmiType.micro)
-              .foregroundColor(OmiColors.textTertiary)
-          }
-        }
+      Text("omi")
+        .scaledFont(size: OmiType.body, weight: .medium)
+        .foregroundColor(OmiColors.textPrimary)
         .padding(.horizontal, OmiSpacing.md)
         .padding(.vertical, OmiSpacing.sm)
         .omiControlSurface(fill: OmiColors.backgroundTertiary, radius: 18)
-      }
-      .buttonStyle(.plain)
-      .disabled(appProvider.chatApps.isEmpty)
-      .popover(isPresented: $showAppPicker, arrowEdge: .bottom) {
-        AppPickerPopover(
-          apps: appProvider.chatApps,
-          selectedAppId: Binding(
-            get: { chatProvider.selectedAppId },
-            set: { newAppId in
-              Task {
-                await chatProvider.selectApp(newAppId)
-              }
-            }
-          ),
-          onSelect: { showAppPicker = false }
-        )
-      }
 
       Spacer()
 
@@ -358,7 +262,7 @@ struct ChatPage: View {
 
       // Advanced AI settings button
       Button(action: {
-        NotificationCenter.default.post(name: .navigateToAIChatSettings, object: nil)
+        NotificationCenter.default.post(name: .navigateToAdvancedAISettings, object: nil)
       }) {
         Image(systemName: "gear")
           .scaledFont(size: OmiType.body)
@@ -378,7 +282,6 @@ struct ChatPage: View {
       hasMoreMessages: chatProvider.hasMoreMessages,
       isLoadingMoreMessages: chatProvider.isLoadingMoreMessages,
       isLoadingInitial: chatProvider.isLoading && !chatProvider.isClearing,
-      app: selectedApp,
       onLoadMore: { await chatProvider.loadMoreMessages() },
       onRate: { messageId, rating in
         Task { await chatProvider.rateMessage(messageId, rating: rating) }
@@ -414,52 +317,24 @@ struct ChatPage: View {
 
   private var welcomeMessage: some View {
     VStack(spacing: OmiSpacing.lg) {
-      if let app = selectedApp {
-        AsyncImage(url: URL(string: app.image)) { phase in
-          switch phase {
-          case .success(let image):
-            image
-              .resizable()
-              .aspectRatio(contentMode: .fill)
-          default:
-            Circle()
-              .fill(OmiColors.backgroundTertiary)
-          }
-        }
-        .frame(width: 64, height: 64)
-        .clipShape(Circle())
-
-        Text("Chat with \(app.name)")
-          .scaledFont(size: OmiType.heading, weight: .semibold)
-          .foregroundColor(OmiColors.textPrimary)
-
-        Text(app.description)
-          .scaledFont(size: OmiType.body)
-          .foregroundColor(OmiColors.textSecondary)
-          .multilineTextAlignment(.center)
-          .lineLimit(3)
-          .padding(.horizontal, OmiSpacing.page)
-      } else {
-        // Default OMI assistant
-        if let logoURL = Bundle.resourceBundle.url(forResource: "herologo", withExtension: "png"),
-          let logoImage = NSImage(contentsOf: logoURL)
-        {
-          Image(nsImage: logoImage)
-            .resizable()
-            .scaledToFit()
-            .frame(width: 48, height: 48)
-        }
-
-        Text("Chat with omi")
-          .scaledFont(size: OmiType.heading, weight: .semibold)
-          .foregroundColor(OmiColors.textPrimary)
-
-        Text("Your personal AI assistant that knows you through your memories and conversations")
-          .scaledFont(size: OmiType.body)
-          .foregroundColor(OmiColors.textSecondary)
-          .multilineTextAlignment(.center)
-          .padding(.horizontal, OmiSpacing.page)
+      if let logoURL = Bundle.resourceBundle.url(forResource: "herologo", withExtension: "png"),
+        let logoImage = NSImage(contentsOf: logoURL)
+      {
+        Image(nsImage: logoImage)
+          .resizable()
+          .scaledToFit()
+          .frame(width: 48, height: 48)
       }
+
+      Text("Chat with omi")
+        .scaledFont(size: OmiType.heading, weight: .semibold)
+        .foregroundColor(OmiColors.textPrimary)
+
+      Text("Your personal AI assistant that knows you through your memories and conversations")
+        .scaledFont(size: OmiType.body)
+        .foregroundColor(OmiColors.textSecondary)
+        .multilineTextAlignment(.center)
+        .padding(.horizontal, OmiSpacing.page)
     }
     .frame(maxWidth: .infinity)
     .padding(.horizontal, OmiSpacing.xxl)
@@ -476,7 +351,7 @@ struct ChatPage: View {
     ChatInputView(
       onSend: { text in
         AnalyticsManager.shared.chatMessageSent(
-          messageLength: text.count, hasSelectedAppContext: selectedApp != nil, source: "main_chat")
+          messageLength: text.count, source: "main_chat")
         chatProvider.dismissOnboardingOpener()
         Task { await chatProvider.sendMainDraft(text) }
       },
@@ -503,7 +378,7 @@ struct ChatPage: View {
   /// Copy the entire conversation to clipboard
   private func copyConversation() {
     let text: String = chatProvider.messages.map { message in
-      let sender = message.sender == .user ? "You" : (selectedApp?.name ?? "omi")
+      let sender = message.sender == .user ? "You" : "omi"
       return "\(sender): \(message.text)"
     }.joined(separator: "\n\n")
 
@@ -543,149 +418,6 @@ struct ChatPage: View {
         }
       }
     }
-  }
-}
-
-// MARK: - App Picker Popover
-
-struct AppPickerPopover: View {
-  let apps: [OmiApp]
-  @Binding var selectedAppId: String?
-  let onSelect: () -> Void
-
-  var body: some View {
-    VStack(alignment: .leading, spacing: 0) {
-      Text("Select Assistant")
-        .scaledFont(size: OmiType.caption, weight: .medium)
-        .foregroundColor(OmiColors.textTertiary)
-        .padding(.horizontal, OmiSpacing.md)
-        .padding(.top, OmiSpacing.md)
-        .padding(.bottom, OmiSpacing.sm)
-
-      ScrollView {
-        VStack(spacing: OmiSpacing.hairline) {
-          // Default OMI option
-          DefaultOmiRow(isSelected: selectedAppId == nil) {
-            selectedAppId = nil
-            AnalyticsManager.shared.chatAppSelected(appId: nil, appName: "OMI")
-            onSelect()
-          }
-
-          if !apps.isEmpty {
-            Divider()
-              .padding(.vertical, OmiSpacing.xxs)
-              .padding(.horizontal, OmiSpacing.md)
-
-            ForEach(apps) { app in
-              AppPickerRow(
-                app: app,
-                isSelected: selectedAppId == app.id
-              ) {
-                selectedAppId = app.id
-                AnalyticsManager.shared.chatAppSelected(appId: app.id, appName: app.name)
-                onSelect()
-              }
-            }
-          }
-        }
-      }
-      .frame(maxHeight: 300)
-    }
-    .frame(width: 250)
-    .background(OmiColors.backgroundPrimary)
-  }
-}
-
-struct DefaultOmiRow: View {
-  let isSelected: Bool
-  let onSelect: () -> Void
-
-  @State private var isHovering = false
-
-  var body: some View {
-    Button(action: onSelect) {
-      HStack(spacing: OmiSpacing.sm) {
-        if let logoURL = Bundle.resourceBundle.url(forResource: "herologo", withExtension: "png"),
-          let logoImage = NSImage(contentsOf: logoURL)
-        {
-          Image(nsImage: logoImage)
-            .resizable()
-            .scaledToFit()
-            .frame(width: 22, height: 22)
-            .frame(width: 36, height: 36)
-            .background(OmiColors.backgroundTertiary)
-            .clipShape(RoundedRectangle(cornerRadius: OmiChrome.elementRadius))
-        }
-
-        Text("omi")
-          .scaledFont(size: OmiType.body, weight: .medium)
-          .foregroundColor(OmiColors.textPrimary)
-
-        Spacer()
-
-        if isSelected {
-          Image(systemName: "checkmark")
-            .scaledFont(size: OmiType.caption, weight: .semibold)
-            .foregroundColor(OmiColors.accent)
-        }
-      }
-      .padding(.horizontal, OmiSpacing.md)
-      .padding(.vertical, OmiSpacing.sm)
-      .background(isSelected || isHovering ? OmiColors.backgroundSecondary : Color.clear)
-    }
-    .buttonStyle(.plain)
-    .onHover { isHovering = $0 }
-  }
-}
-
-struct AppPickerRow: View {
-  let app: OmiApp
-  let isSelected: Bool
-  let onSelect: () -> Void
-
-  @State private var isHovering = false
-
-  var body: some View {
-    Button(action: onSelect) {
-      HStack(spacing: OmiSpacing.sm) {
-        AsyncImage(url: URL(string: app.image)) { phase in
-          switch phase {
-          case .success(let image):
-            image
-              .resizable()
-              .aspectRatio(contentMode: .fill)
-          default:
-            Circle()
-              .fill(OmiColors.backgroundTertiary)
-          }
-        }
-        .frame(width: 36, height: 36)
-        .clipShape(RoundedRectangle(cornerRadius: OmiChrome.elementRadius))
-
-        VStack(alignment: .leading, spacing: OmiSpacing.hairline) {
-          Text(app.name)
-            .scaledFont(size: OmiType.body, weight: .medium)
-            .foregroundColor(OmiColors.textPrimary)
-
-          Text(app.author)
-            .scaledFont(size: OmiType.caption)
-            .foregroundColor(OmiColors.textTertiary)
-        }
-
-        Spacer()
-
-        if isSelected {
-          Image(systemName: "checkmark")
-            .scaledFont(size: OmiType.caption, weight: .semibold)
-            .foregroundColor(OmiColors.accent)
-        }
-      }
-      .padding(.horizontal, OmiSpacing.md)
-      .padding(.vertical, OmiSpacing.sm)
-      .background(isSelected || isHovering ? OmiColors.backgroundSecondary : Color.clear)
-    }
-    .buttonStyle(.plain)
-    .onHover { isHovering = $0 }
   }
 }
 
@@ -1032,7 +764,7 @@ struct HistorySessionRow: View {
 
 #if canImport(PreviewsMacros)
   #Preview {
-    ChatPage(appProvider: AppProvider(), chatProvider: ChatProvider())
+    ChatPage(chatProvider: ChatProvider())
       .frame(width: 600, height: 700)
   }
 #endif

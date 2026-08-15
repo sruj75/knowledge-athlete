@@ -29,7 +29,6 @@ with Python 3.11 on Linux in strict mode, and treats warnings as failures.
 | `jobs/` | Background job definitions |
 | `llm_gateway/` | Internal LLM gateway service |
 | `pusher/` | Audio push WebSocket service |
-| `parakeet/` | GPU STT service |
 | `diarizer/` | Speaker embedding service |
 | `modal/` | VAD + speech profile service |
 | `main.py` | FastAPI app entry point |

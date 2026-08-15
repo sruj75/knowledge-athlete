@@ -28,7 +28,7 @@ def _safe_file_chats(files_data: List[Dict[str, Any]]) -> List[FileChat]:
 
     A legacy or partial file document (missing openai_file_id, mime_type, created_at, ...) must not
     500 the whole chat-file flow. Skip such a record, logging the file id and offending field names,
-    mirroring utils.apps._safe_build_app.
+    preserving the valid file records around it.
     """
     files: List[FileChat] = []
     for f in files_data:

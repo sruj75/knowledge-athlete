@@ -38,8 +38,6 @@ struct DesktopHomeView: View {
   @ObservedObject private var authState = AuthState.shared
   @ObservedObject private var apiKeyService = APIKeyService.shared
   @ObservedObject private var updatePolicyManager = DesktopUpdatePolicyManager.shared
-  @ObservedObject private var automationPresentationCoordinator =
-    DesktopAutomationPresentationCoordinator.shared
   @State private var selectedIndex: Int = {
     if OMIApp.launchMode == .rewind { return SidebarNavItem.rewind.rawValue }
     return SidebarNavItem.dashboard.rawValue
@@ -60,7 +58,6 @@ struct DesktopHomeView: View {
   @State private var selectedSettingsSection: SettingsContentView.SettingsSection = .general
   @State private var highlightedSettingId: String? = nil
   @State private var showTryAskingPopup = false
-  @State private var isShowingMemoryAtlasPage = false
   @State private var previousIndexBeforeSettings: Int = 0
   @State private var logoPulse = false
   @State private var lastActivationRefresh = Date.distantPast
@@ -71,9 +68,6 @@ struct DesktopHomeView: View {
   // trigger — see StartupWarmupPolicy.remainingProactiveAssistantsStartDelay.
   @State private var proactiveMonitoringWarmupAnchor = Date()
   @State private var didScheduleConversationWarmup = false
-  @State private var initialFileIndexingBackfill = DelayedFileIndexingBackfillState()
-  @State private var automationPresentationReadinessGate =
-    DesktopAutomationPresentationReadinessGate()
 
   // Pre-loaded hero logo to avoid NSImage init crashes during SwiftUI body evaluation
   private static let heroLogoImage: NSImage? = {
@@ -129,7 +123,6 @@ struct DesktopHomeView: View {
           SBOnboardingView(
             appState: appState,
             chatProvider: viewModelContainer.chatProvider,
-            importConnectorStatusStore: viewModelContainer.homeStatusStore.connectorStatusStore,
             onComplete: nil
           )
           .onAppear {
@@ -201,13 +194,6 @@ struct DesktopHomeView: View {
               updatePolicyManager.refresh(force: true)
               // Check all permissions on launch
               appState.checkAllPermissions()
-
-              // For existing users who haven't indexed files yet, run a background scan
-              if !AppBuild.usesLazyDevPermissions
-                && !UserDefaults.standard.bool(forKey: "hasCompletedFileIndexing")
-              {
-                scheduleInitialFileIndexing()
-              }
 
               // Migration: one-time reset for users whose screenAnalysisEnabled
               // was incorrectly set to false by a bug in syncMonitoringState() that
@@ -341,29 +327,6 @@ struct DesktopHomeView: View {
                 }
               }
             }
-            // Periodic file re-scan (every 3 hours)
-            .task {
-              while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(3 * 60 * 60))
-                guard !Task.isCancelled else { break }
-                guard !AppBuild.usesLazyDevPermissions else { continue }
-                guard UserDefaults.standard.bool(forKey: "hasCompletedFileIndexing") else {
-                  continue
-                }
-                log("DesktopHomeView: Triggering background file rescan")
-                await FileIndexerService.shared.backgroundRescan()
-              }
-            }
-            .onReceive(NotificationCenter.default.publisher(for: .triggerFileIndexing)) { _ in
-              // Background rescan — no loading screen needed
-              Task {
-                log(
-                  "DesktopHomeView: File indexing triggered from settings, running background rescan"
-                )
-                await FileIndexerService.shared.backgroundRescan()
-              }
-            }
-
           if !viewModelContainer.isInitialLoadComplete {
             VStack(spacing: OmiSpacing.xxl) {
               if let nsImage = Self.heroLogoImage {
@@ -433,7 +396,6 @@ struct DesktopHomeView: View {
       // Redirect if current page isn't visible at current tier
       redirectIfPageHidden()
       reportAutomationState()
-      handleAutomationPresentationReadinessChange(viewModelContainer.isInitialLoadComplete)
     }
     .onChange(of: currentTierLevel) { _, _ in
       redirectIfPageHidden()
@@ -444,16 +406,6 @@ struct DesktopHomeView: View {
       // resets the window min — re-pin + re-disable to hold the minimum.
       enforceMainWindowMinimumSize()
       reportAutomationState()
-    }
-    .onChange(of: automationPresentationCoordinator.activeCommand?.generation) { _, _ in
-      guard
-        let command = automationPresentationReadinessGate.commandForConsumption(
-          automationPresentationCoordinator.activeCommand)
-      else { return }
-      handleAutomationPresentationCommand(command)
-    }
-    .onChange(of: viewModelContainer.isInitialLoadComplete) { _, isReady in
-      handleAutomationPresentationReadinessChange(isReady)
     }
     .onChange(of: selectedSettingsSection) { _, _ in reportAutomationState() }
     .onChange(of: highlightedSettingId) { _, _ in reportAutomationState() }
@@ -615,11 +567,9 @@ struct DesktopHomeView: View {
   /// replaces the old left nav rail. It shows on every main content page —
   /// including Settings, whose page has no back button, so the bar's nav pills
   /// are the way out. Permissions/help are full-screen utility flows with their
-  /// own chrome and stay bar-less — the Memory atlas is the same: it has its
-  /// own back affordance and header, so the redundant top bar hides while it's open.
+  /// own chrome and stay bar-less.
   private var showsTopBar: Bool {
     guard !useLegacyHomeDesign, let item = SidebarNavItem(rawValue: selectedIndex) else { return false }
-    if isShowingMemoryAtlasPage { return false }
     return ![.permissions, .help].contains(item)
   }
 
@@ -735,26 +685,6 @@ struct DesktopHomeView: View {
     reportAutomationState()
   }
 
-  private func handleAutomationPresentationCommand(
-    _ command: DesktopAutomationPresentationCommand
-  ) {
-    NSApp.activate()
-    if let window = NSApp.windows.first(where: { $0.title.lowercased().hasPrefix("omi") }) {
-      window.makeKeyAndOrderFront(nil)
-    }
-    selectedIndex = SidebarNavItem.apps.rawValue
-    reportAutomationState()
-  }
-
-  private func handleAutomationPresentationReadinessChange(_ isReady: Bool) {
-    guard
-      let command = automationPresentationReadinessGate.transition(
-        to: isReady,
-        activeCommand: automationPresentationCoordinator.activeCommand)
-    else { return }
-    handleAutomationPresentationCommand(command)
-  }
-
   private func resolvedAutomationTarget(_ target: String) -> SidebarNavItem? {
     let normalized = target.lowercased().replacingOccurrences(of: "-", with: "_")
     switch normalized {
@@ -774,8 +704,6 @@ struct DesktopHomeView: View {
       return .insight
     case "rewind":
       return .rewind
-    case "apps", "integrations":
-      return .apps
     case "settings":
       return .settings
     case "permissions":
@@ -811,7 +739,6 @@ struct DesktopHomeView: View {
     viewModelContainer.resetStartupState()
     didScheduleConversationWarmup = false
     proactiveMonitoringStartGate.finishAttempt()
-    initialFileIndexingBackfill.releaseReservation()
     CrispManager.shared.stop(preserveReadState: preserveCrispReadState)
   }
 
@@ -843,40 +770,6 @@ struct DesktopHomeView: View {
   private func loadFoldersIfNeeded() async {
     guard appState.folders.isEmpty else { return }
     await appState.loadFolders()
-  }
-
-  private func scheduleInitialFileIndexing() {
-    guard
-      initialFileIndexingBackfill.reserveIfNeeded(
-        hasCompletedBackfill: UserDefaults.standard.bool(forKey: "hasCompletedFileIndexing"))
-    else { return }
-
-    let sessionScope = StartupWarmupSessionScope(
-      userId: UserDefaults.standard.string(forKey: "auth_userId"))
-    let scheduled = viewModelContainer.scheduleSessionWarmup(
-      id: .initialFileIndexing,
-      delay: StartupWarmupPolicy.initialFileIndexingDelay,
-      onCancel: { initialFileIndexingBackfill.releaseReservation() }
-    ) {
-      log("DesktopHomeView: Running delayed background file scan for existing user")
-      await FileIndexerService.shared.backgroundRescan()
-      guard !Task.isCancelled,
-        sessionScope.matches(
-          currentUserId: UserDefaults.standard.string(forKey: "auth_userId"),
-          isSignedIn: AuthState.shared.isSignedIn)
-      else {
-        initialFileIndexingBackfill.releaseReservation()
-        return
-      }
-      initialFileIndexingBackfill.markScanCompleted()
-      if initialFileIndexingBackfill.shouldMarkComplete {
-        UserDefaults.standard.set(true, forKey: "hasCompletedFileIndexing")
-        log(
-          "DesktopHomeView: Marked existing-user file indexing backfill complete after background scan returned"
-        )
-      }
-    }
-    if !scheduled { initialFileIndexingBackfill.releaseReservation() }
   }
 
   private func scheduleProactiveMonitoringStart(reason: String) {
@@ -1083,8 +976,7 @@ struct DesktopHomeView: View {
           memoryDestinationRawValue: $memoryDestinationRawValue,
           selectedSettingsSection: $selectedSettingsSection,
           highlightedSettingId: $highlightedSettingId,
-          selectedTabIndex: $selectedIndex,
-          isShowingMemoryAtlasPage: $isShowingMemoryAtlasPage
+          selectedTabIndex: $selectedIndex
         )
       }
       .onExitCommand {
@@ -1149,11 +1041,6 @@ struct DesktopHomeView: View {
         selectedSettingsSection = .rewind
         selectedIndex = SidebarNavItem.settings.rawValue
       }
-      .onReceive(NotificationCenter.default.publisher(for: .navigateToDeviceSettings)) { _ in
-        if let url = URL(string: "https://www.omi.me") {
-          NSWorkspace.shared.open(url)
-        }
-      }
       .onReceive(NotificationCenter.default.publisher(for: .navigateToTaskSettings)) { _ in
         // Navigate to settings > advanced > task assistant subsection
         selectedSettingsSection = .advanced
@@ -1167,7 +1054,7 @@ struct DesktopHomeView: View {
 
   private var mainContentWithRewindAndMemoryNotifications: some View {
     mainContentWithNavigationNotifications
-      .onReceive(NotificationCenter.default.publisher(for: .navigateToAIChatSettings)) { _ in
+      .onReceive(NotificationCenter.default.publisher(for: .navigateToAdvancedAISettings)) { _ in
         selectedSettingsSection = .advanced
         selectedIndex = SidebarNavItem.settings.rawValue
       }
@@ -1190,10 +1077,6 @@ struct DesktopHomeView: View {
       }
       .onReceive(NotificationCenter.default.publisher(for: .navigateToTasks)) { _ in
         selectedIndex = SidebarNavItem.tasks.rawValue
-      }
-      .onReceive(NotificationCenter.default.publisher(for: .desktopAutomationOpenMemoryAtlasRequested)) { _ in
-        selectedIndex = SidebarNavItem.memories.rawValue
-        isShowingMemoryAtlasPage = true
       }
   }
 
@@ -1221,9 +1104,6 @@ struct DesktopHomeView: View {
   private var mainContent: some View {
     mainContentWithSidebarItemNotifications
       .onChange(of: selectedIndex) { oldValue, newValue in
-        if newValue != SidebarNavItem.memories.rawValue {
-          isShowingMemoryAtlasPage = false
-        }
         // Track the previous index when navigating to settings
         if newValue == SidebarNavItem.settings.rawValue
           && oldValue != SidebarNavItem.settings.rawValue
@@ -1249,10 +1129,6 @@ struct DesktopHomeView: View {
   }
 
   private func navigateHomeOnEscapeIfNeeded() {
-    if isShowingMemoryAtlasPage {
-      isShowingMemoryAtlasPage = false
-      return
-    }
     guard !useLegacyHomeDesign else { return }
     guard let item = SidebarNavItem(rawValue: selectedIndex) else { return }
     guard [.conversations, .memories, .tasks, .rewind].contains(item) else { return }
@@ -1302,25 +1178,12 @@ private struct HubSegmentedControl: View {
 private struct MemoryHubPage: View {
   let appState: AppState
   let viewModelContainer: ViewModelContainer
-  /// Observed, not just read through the container: the canonical lifecycle
-  /// capability arrives with the first authoritative memory response, and the
-  /// Brain Map destination must re-resolve its presentation when it flips.
   @ObservedObject var memoriesViewModel: MemoriesViewModel
   @ObservedObject private var conversationDetailState = ConversationDetailAutomationState.shared
   @Binding var destinationRawValue: Int
 
   private var destination: MemoryHubDestination {
     MemoryHubDestination(rawValue: destinationRawValue) ?? .memories
-  }
-
-  /// Canonical-cohort users get the atlas on the Brain Map destination; users
-  /// who have not entered the canonical lifecycle keep the legacy graph.
-  private var brainMapPresentationMode: MemoryGraphPresentationMode {
-    MemoryGraphPresentationMode.resolve(
-      canonicalLifecycleExposed: memoriesViewModel.canonicalLifecycleExposed,
-      forceCanonicalAtlasForLocalQA: MemoryGraphPresentationMode.localQAOverrideEnabled,
-      capabilityEstablished: memoriesViewModel.canonicalLifecycleCapabilityEstablished
-    )
   }
 
   var body: some View {
@@ -1333,77 +1196,6 @@ private struct MemoryHubPage: View {
     case .conversations:
       ConversationsPageHost(appState: appState)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-    case .brainMap:
-      brainMapDestination
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        // The lifecycle capability is established by the first authoritative
-        // memory response. Without this, opening straight into a persisted
-        // Brain Map destination would resolve the legacy graph for a canonical
-        // user purely because the Memories destination was never visited.
-        .task { await memoriesViewModel.loadMemoriesIfNeeded() }
-    }
-  }
-
-  @ViewBuilder
-  private var brainMapDestination: some View {
-    switch brainMapPresentationMode {
-    case .canonicalAtlas:
-      // The Memory view model publishes for list/sync changes that do not
-      // alter the Brain Map. Keep the expensive Canvas subtree out of those
-      // parent transactions; it independently observes the graph view model
-      // and still updates immediately for a graph revision or rebuild.
-      CanonicalBrainMapDestination(
-        graphViewModel: viewModelContainer.memoryGraphViewModel,
-        memoriesViewModel: memoriesViewModel,
-        onLeave: { destinationRawValue = MemoryHubDestination.memories.rawValue }
-      )
-      .equatable()
-    case .legacyBrainMap:
-      MemoryGraphPage(viewModel: viewModelContainer.memoryGraphViewModel)
-    case .undetermined:
-      // Neither surface may mount before the cohort is known. The legacy graph
-      // in particular latches the shared view model's in-flight guard and runs
-      // an empty-graph rebuild bootstrap, so a one-frame appearance left the
-      // atlas permanently blank and fired a destructive rebuild.
-      ZStack {
-        OmiColors.backgroundPrimary
-        ProgressView().tint(OmiColors.textTertiary)
-      }
-      .accessibilityIdentifier("brain_map_resolving_cohort")
-    }
-  }
-
-  /// An update island around the Canvas-heavy Brain Map.
-  ///
-  /// `MemoryHubPage` has to observe `MemoriesViewModel` long enough to resolve
-  /// the canonical cohort, but its normal list refreshes must not rebuild the
-  /// map's SwiftUI graph. Reference identity is intentional: evidence reads
-  /// and open actions use the current model at invocation time, while the map
-  /// itself observes `MemoryGraphViewModel` for the only state that changes its
-  /// projection.
-  private struct CanonicalBrainMapDestination: View, Equatable {
-    let graphViewModel: MemoryGraphViewModel
-    let memoriesViewModel: MemoriesViewModel
-    let onLeave: () -> Void
-
-    nonisolated static func == (lhs: Self, rhs: Self) -> Bool {
-      lhs.graphViewModel === rhs.graphViewModel && lhs.memoriesViewModel === rhs.memoriesViewModel
-    }
-
-    var body: some View {
-      CanonicalMemoryAtlasTabView(
-        viewModel: graphViewModel,
-        evidenceProvider: { memoryIDs in
-          MemoryAtlasEvidence.resolve(memoryIDs, in: await memoriesViewModel.memories(withIDs: memoryIDs))
-        },
-        onOpenMemory: { memoryID in
-          Task { @MainActor in
-            guard await memoriesViewModel.openMemory(id: memoryID) else { return }
-            onLeave()
-          }
-        },
-        onLeave: onLeave
-      )
     }
   }
 
@@ -1457,9 +1249,8 @@ private struct PageContentView: View {
   @Binding var selectedSettingsSection: SettingsContentView.SettingsSection
   @Binding var highlightedSettingId: String?
   @Binding var selectedTabIndex: Int
-  @Binding var isShowingMemoryAtlasPage: Bool
 
-  /// The list/detail pages (Conversations, Memories, Tasks, Apps) render their
+  /// The list/detail pages (Conversations, Memories, Tasks) render their
   /// content in a centered, width-capped column so wide monitors get calm
   /// gutters instead of a full-bleed stretch — matching the Focus/Insights
   /// pages, which already self-constrain. Pages paint a clear background, so the
@@ -1484,7 +1275,6 @@ private struct PageContentView: View {
           viewModel: viewModelContainer.dashboardViewModel,
           homeStatusStore: viewModelContainer.homeStatusStore,
           appState: appState,
-          appProvider: viewModelContainer.appProvider,
           chatProvider: viewModelContainer.chatProvider,
           memoriesViewModel: viewModelContainer.memoriesViewModel,
           taskChatCoordinator: viewModelContainer.taskChatCoordinator,
@@ -1498,41 +1288,17 @@ private struct PageContentView: View {
         )
       case 2:
         ChatPage(
-          appProvider: viewModelContainer.appProvider,
           chatProvider: viewModelContainer.chatProvider,
           onHome: { selectedTabIndex = SidebarNavItem.dashboard.rawValue }
         )
       case 3:
-        if isShowingMemoryAtlasPage {
-          CanonicalMemoryAtlasPage(
-            viewModel: viewModelContainer.memoryGraphViewModel,
-            onBack: { isShowingMemoryAtlasPage = false },
-            evidenceProvider: { memoryIds in
-              MemoryAtlasEvidence.resolve(
-                memoryIds,
-                in: await viewModelContainer.memoriesViewModel.memories(withIDs: memoryIds))
-            },
-            onOpenMemory: { memoryId in
-              Task { @MainActor in
-                guard await viewModelContainer.memoriesViewModel.openMemory(id: memoryId) else {
-                  return
-                }
-                isShowingMemoryAtlasPage = false
-              }
-            }
+        MemoriesPage(viewModel: viewModelContainer.memoriesViewModel)
+          .frame(
+            maxWidth: viewModelContainer.memoriesViewModel.selectedMemory == nil
+              ? MemoryHubLayoutPolicy.readableContentWidth : .infinity,
+            maxHeight: .infinity
           )
-        } else {
-          // Same rule as the hub's Memories destination: the readable-width
-          // cap yields while the detail panel is open so the panel takes new
-          // space instead of eating the list's column.
-          MemoriesPage(viewModel: viewModelContainer.memoriesViewModel)
-            .frame(
-              maxWidth: viewModelContainer.memoriesViewModel.selectedMemory == nil
-                ? MemoryHubLayoutPolicy.readableContentWidth : .infinity,
-              maxHeight: .infinity
-            )
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-        }
+          .frame(maxWidth: .infinity, maxHeight: .infinity)
       case 4:
         constrainedListPage(
           TasksPage(
@@ -1545,19 +1311,11 @@ private struct PageContentView: View {
         InsightPage()
       case 7:
         RewindPage(appState: appState)
-      case 8:
-        constrainedListPage(
-          AppsPage(
-            appProvider: viewModelContainer.appProvider,
-            appState: appState,
-            connectorStatusStore: viewModelContainer.homeStatusStore.connectorStatusStore,
-            handlesAutomationPresentations: viewModelContainer.isInitialLoadComplete))
       case 9:
         SettingsPage(
           appState: appState,
           selectedSection: $selectedSettingsSection,
-          highlightedSettingId: $highlightedSettingId,
-          chatProvider: viewModelContainer.chatProvider
+          highlightedSettingId: $highlightedSettingId
         )
       case 10:
         PermissionsPage(appState: appState)
@@ -1568,7 +1326,6 @@ private struct PageContentView: View {
           viewModel: viewModelContainer.dashboardViewModel,
           homeStatusStore: viewModelContainer.homeStatusStore,
           appState: appState,
-          appProvider: viewModelContainer.appProvider,
           chatProvider: viewModelContainer.chatProvider,
           memoriesViewModel: viewModelContainer.memoriesViewModel,
           taskChatCoordinator: viewModelContainer.taskChatCoordinator,

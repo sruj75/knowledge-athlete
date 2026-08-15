@@ -6,15 +6,11 @@ import {
   type AgentControlManifestTool,
 } from "./control-tool-manifest.js";
 
-export type OmiToolAdapterId = "pi-mono" | "omi-tools-stdio" | "local-agent-api";
+export type OmiToolAdapterId = "pi-mono";
 export type OmiToolCondition =
   | "always"
-  | "onboardingOnly"
-  | "nonOnboarding"
-  | "coordinatorOnly"
-  | "screenContext"
-  | "screenContextOrOnboarding";
-export type OmiToolExecutorKind = "swiftTool" | "runtimeControl" | "nodeTool" | "localApiOnly";
+  | "coordinatorOnly";
+export type OmiToolExecutorKind = "swiftTool" | "runtimeControl";
 export type OmiToolTimeoutClass = "normal" | "long";
 export type OmiToolSurface = "desktop_chat" | "realtime_voice" | "onboarding" | "task_chat";
 
@@ -49,8 +45,6 @@ export interface OmiToolInputSchema {
   additionalProperties?: boolean;
 }
 
-export type OmiMcpToolInputSchema = OmiToolInputSchema;
-
 export interface OmiToolAdapterAvailability {
   advertised: boolean;
   condition?: OmiToolCondition;
@@ -66,7 +60,6 @@ export interface OmiToolManifestEntry {
   promptGuidelines?: string[];
   latency: "fast local" | "fast network" | "async background";
   inputSchema: OmiToolInputSchema;
-  mcpInputSchema?: OmiMcpToolInputSchema;
   annotations: OmiToolAnnotations;
   timeoutClass: OmiToolTimeoutClass;
   executor: {
@@ -129,12 +122,6 @@ const localWrite: OmiToolAnnotations = {
   openWorldHint: false,
 };
 
-const openWorldWrite: OmiToolAnnotations = {
-  readOnlyHint: false,
-  destructiveHint: false,
-  openWorldHint: true,
-};
-
 const destructiveLocal: OmiToolAnnotations = {
   readOnlyHint: false,
   destructiveHint: true,
@@ -150,30 +137,9 @@ function schema(properties: Record<string, unknown>, required: string[] = []): O
   };
 }
 
-function piAndStdio(condition: OmiToolCondition = "always"): Partial<Record<OmiToolAdapterId, OmiToolAdapterAvailability>> {
+function piOnly(condition: OmiToolCondition = "always"): Partial<Record<OmiToolAdapterId, OmiToolAdapterAvailability>> {
   return {
-    "pi-mono": { advertised: condition !== "onboardingOnly", condition: condition === "always" ? undefined : condition },
-    "omi-tools-stdio": { advertised: true, condition: condition === "always" ? undefined : condition },
-  };
-}
-
-function stdioOnly(condition: OmiToolCondition = "always"): Partial<Record<OmiToolAdapterId, OmiToolAdapterAvailability>> {
-  return {
-    "omi-tools-stdio": { advertised: true, condition: condition === "always" ? undefined : condition },
-  };
-}
-
-function localApiOnly(): Partial<Record<OmiToolAdapterId, OmiToolAdapterAvailability>> {
-  return {
-    "local-agent-api": { advertised: true },
-  };
-}
-
-function piLocalApiAndScreenContextStdio(): Partial<Record<OmiToolAdapterId, OmiToolAdapterAvailability>> {
-  return {
-    "pi-mono": { advertised: true },
-    "omi-tools-stdio": { advertised: true, condition: "screenContext" },
-    "local-agent-api": { advertised: true },
+    "pi-mono": condition === "always" ? { advertised: true } : { advertised: true, condition },
   };
 }
 
@@ -267,17 +233,6 @@ const swiftToolSurfacePatches: Record<string, OmiToolSurfacePatch> = {
         "Get a recap of what the user actually DID on their Mac — apps used (with minutes), conversations, tasks, focus sessions, and screen activity — for a day. First choice for 'what did I do yesterday', 'what did I do today', 'which apps did I use the most', 'how did I spend my time': one fast synchronous read, where searching conversations or spawning an agent would be slower and less complete. Speak a short summary of what it returns.",
     },
   },
-  fill_cloud_connector_form: {
-    surfaces: ["desktop_chat"],
-    capabilityDoc: doc(
-      "Fill Cloud Connector Form",
-      "Fill the visible ChatGPT or Claude custom MCP connector form using Omi's native macOS Accessibility automation.",
-      [
-        "Call this first for ChatGPT or Claude cloud MCP connector setup when the connector form is visible.",
-        "Do not install browser extensions before trying this tool.",
-      ],
-    ),
-  },
   search_tasks: {
     surfaces: ["desktop_chat"],
     capabilityDoc: doc(
@@ -335,19 +290,6 @@ const swiftToolSurfacePatches: Record<string, OmiToolSurfacePatch> = {
       "Use only when the user's request may benefit from a specialized workflow.",
       "Load a returned skill only when it is relevant to the user's request.",
     ]),
-  },
-  save_knowledge_graph: {
-    surfaces: ["desktop_chat"],
-    capabilityDoc: doc(
-      "Save Knowledge Graph",
-      "Save a knowledge graph of entities and relationships extracted from the user's data.",
-      [
-        "Parameters: nodes (array of {id, label, node_type, aliases}), edges (array of {source_id, target_id, label}).",
-        "node_type must be one of: person, organization, place, thing, concept.",
-        "Use when exploring the user's files during onboarding to build their knowledge graph.",
-        "Deduplication is handled automatically; provide all entities you find.",
-      ],
-    ),
   },
   get_conversations: {
     surfaces: ["desktop_chat", "realtime_voice"],
@@ -451,43 +393,6 @@ const swiftToolSurfacePatches: Record<string, OmiToolSurfacePatch> = {
       ),
     },
   },
-  create_calendar_event: {
-    surfaces: ["realtime_voice"],
-    capabilityDoc: doc(
-      "Create Calendar Event",
-      "Create a new Google Calendar event.",
-      [
-        "Use when the user asks to add, create, schedule, or put a specific event on their calendar.",
-        "Pass title, start_time, and end_time as ISO-8601 strings with timezone; include location, description, and attendees when provided.",
-        "This capability creates one specified event; it does not find availability, reschedule, delete, or coordinate with people.",
-      ],
-    ),
-    executor: { kind: "swiftTool" },
-    voice: {
-      realtimeDescription:
-        "Create one specified Google Calendar event. Requires start_time and end_time as ISO-8601 strings with timezone. This capability does not find availability, reschedule, delete, or coordinate with people.",
-      schemaOverride: schema(
-        {
-          title: { type: "string", description: "Event title." },
-          start_time: {
-            type: "string",
-            description: "Event start time in ISO-8601 with timezone, e.g. 2026-06-28T14:00:00-04:00.",
-          },
-          end_time: {
-            type: "string",
-            description: "Event end time in ISO-8601 with timezone, e.g. 2026-06-28T15:00:00-04:00.",
-          },
-          description: { type: "string", description: "Optional event description." },
-          location: { type: "string", description: "Optional event location." },
-          attendees: {
-            type: "string",
-            description: "Optional comma-separated attendee names or email addresses.",
-          },
-        },
-        ["title", "start_time", "end_time"],
-      ),
-    },
-  },
   capture_screen: {
     surfaces: ["desktop_chat"],
     capabilityDoc: doc(
@@ -496,7 +401,7 @@ const swiftToolSurfacePatches: Record<string, OmiToolSurfacePatch> = {
       [
         "For a direct current-screen question, use this live capture instead of treating screen history as current evidence.",
         "Use capture_screen only when raw pixels are necessary; it requires explicit approval before image bytes are shared.",
-        "The result lists the full-screen image path plus native-resolution detail tiles on large screens; use Read to view them.",
+        "The owned Pi extension returns the full-screen image and native-resolution detail tiles directly as image content.",
       ],
     ),
   },
@@ -521,14 +426,8 @@ const swiftToolSurfacePatches: Record<string, OmiToolSurfacePatch> = {
     ]),
     voice: {
       realtimeDescription:
-        "Request Omi's macOS permission through the kernel-authorized native executor by opening the native prompt or relevant System Settings pane. Screen share, screen sharing, and screen-share mean Screen Recording. Supports Screen Recording, microphone, notifications, Accessibility, Automation, and Full Disk Access.",
+        "Request Omi's macOS permission through the kernel-authorized native executor by opening the native prompt or relevant System Settings pane. Screen share, screen sharing, and screen-share mean Screen Recording. Supports Screen Recording, microphone, notifications, and Accessibility.",
     },
-  },
-  scan_files: {
-    surfaces: ["onboarding"],
-    capabilityDoc: doc("Scan Files", "Scan selected files/folders during onboarding to build local context.", [
-      "Onboarding-only.",
-    ]),
   },
   set_user_preferences: {
     surfaces: ["onboarding"],
@@ -547,14 +446,6 @@ const swiftToolSurfacePatches: Record<string, OmiToolSurfacePatch> = {
     capabilityDoc: doc("Complete Onboarding", "Complete onboarding after required goals and context are collected.", [
       "Onboarding-only.",
     ]),
-  },
-  get_email_insights: {
-    surfaces: ["onboarding"],
-    capabilityDoc: doc(
-      "Get Email Insights",
-      "Read precomputed email/calendar onboarding insights.",
-      ["Onboarding-only; requires background insights to be loaded."],
-    ),
   },
   get_local_status: {
     surfaces: ["desktop_chat"],
@@ -673,11 +564,8 @@ const swiftToolManifestDrafts: OmiToolManifestEntryDraft[] = [
     timeoutClass: "normal",
     executor: { kind: "swiftTool" },
     intendedForAgents: true,
-    runtimePreconditions: ["SELECT-only in ask-mode and local-agent API projections."],
-    adapters: {
-      ...piAndStdio(),
-      "local-agent-api": { advertised: true },
-    },
+    runtimePreconditions: ["SELECT-only in Ask Mode."],
+    adapters: piOnly(),
   },
   {
     name: "semantic_search",
@@ -701,10 +589,7 @@ const swiftToolManifestDrafts: OmiToolManifestEntryDraft[] = [
     aliases: ["search_screen_history"],
     intendedForAgents: true,
     runtimePreconditions: ["Requires local Rewind screen-history data."],
-    adapters: {
-      ...piAndStdio(),
-      "local-agent-api": { advertised: true, adapterName: "search_screen_history", aliases: ["semantic_search"] },
-    },
+    adapters: piOnly(),
   },
   {
     name: "get_daily_recap",
@@ -718,63 +603,7 @@ const swiftToolManifestDrafts: OmiToolManifestEntryDraft[] = [
     executor: { kind: "swiftTool" },
     intendedForAgents: true,
     runtimePreconditions: ["Requires local Omi activity data."],
-    adapters: {
-      ...piAndStdio(),
-      "local-agent-api": { advertised: true },
-    },
-  },
-  {
-    name: "fill_cloud_connector_form",
-    label: "Fill Cloud Connector Form",
-    description:
-      "Fill the currently visible ChatGPT or Claude custom MCP connector form using Omi's native macOS Accessibility automation. Use first for one-click cloud connector setup after opening the signed-in browser to the connector page.",
-    promptSnippet: "fill_cloud_connector_form - Fill and optionally submit the visible ChatGPT/Claude MCP connector form",
-    promptGuidelines: [
-      "Call this first for ChatGPT or Claude cloud MCP connector setup when the connector form is visible.",
-      "Do not install browser extensions before trying this tool.",
-      "If it reports missing Accessibility permission, missing form, or missing required fields, wait for the missing condition or use guarded screenshots before any keyboard automation.",
-    ],
-    latency: "fast local",
-    inputSchema: schema(
-      {
-        provider: {
-          type: "string",
-          enum: ["claude", "chatgpt"],
-          description: "Cloud platform whose connector form is visible.",
-        },
-        name: { type: "string", description: "Connector name, usually 'Omi Memory'." },
-        server_url: { type: "string", description: "Remote MCP server URL to paste into the connector form." },
-        oauth_client_id: {
-          type: "string",
-          description: "OAuth Client ID. Defaults to Omi's public ChatGPT/Claude connector client.",
-        },
-        oauth_client_secret: { type: "string", description: "OAuth Client Secret, only for confidential clients." },
-        authentication: { type: "string", description: "Authentication mode, usually 'OAuth'." },
-        token_auth_method: {
-          type: "string",
-          description: "OAuth token auth method. Use 'none' for Omi's public ChatGPT connector client.",
-        },
-        auth_url: { type: "string", description: "OAuth authorization URL when the form asks for it." },
-        token_url: { type: "string", description: "OAuth token URL when the form asks for it." },
-        submit: {
-          type: "boolean",
-          description: "Whether to press the visible Add/Connect/Create button after filling required fields.",
-        },
-      },
-      ["provider", "server_url"],
-    ),
-    annotations: openWorldWrite,
-    timeoutClass: "normal",
-    executor: { kind: "swiftTool" },
-    intendedForAgents: true,
-    runtimePreconditions: [
-      "Requires a signed-in supported browser on the connector page.",
-      "Requires macOS Accessibility permission for Omi and the target browser.",
-    ],
-    adapters: {
-      ...piAndStdio(),
-      "local-agent-api": { advertised: true },
-    },
+    adapters: piOnly(),
   },
   {
     name: "search_tasks",
@@ -794,10 +623,7 @@ const swiftToolManifestDrafts: OmiToolManifestEntryDraft[] = [
     executor: { kind: "swiftTool" },
     intendedForAgents: true,
     runtimePreconditions: ["Requires local task index."],
-    adapters: {
-      ...piAndStdio(),
-      "local-agent-api": { advertised: true },
-    },
+    adapters: piOnly(),
   },
   {
     name: "complete_task",
@@ -811,10 +637,7 @@ const swiftToolManifestDrafts: OmiToolManifestEntryDraft[] = [
     executor: { kind: "swiftTool" },
     intendedForAgents: true,
     runtimePreconditions: ["Requires a backendId found via execute_sql or search_tasks."],
-    adapters: {
-      ...piAndStdio(),
-      "local-agent-api": { advertised: true },
-    },
+    adapters: piOnly(),
   },
   {
     name: "delete_task",
@@ -828,91 +651,7 @@ const swiftToolManifestDrafts: OmiToolManifestEntryDraft[] = [
     executor: { kind: "swiftTool" },
     intendedForAgents: true,
     runtimePreconditions: ["Requires a backendId found via execute_sql or search_tasks."],
-    adapters: {
-      ...piAndStdio(),
-      "local-agent-api": { advertised: true },
-    },
-  },
-  {
-    name: "load_skill",
-    label: "Load Skill",
-    description: "Load the full instructions for a relevant skill returned by the compact catalog or search_skills.",
-    promptSnippet: "load_skill - Load a relevant skill returned by the catalog or search_skills",
-    latency: "fast local",
-    inputSchema: schema({ name: { type: "string", description: "Skill name returned by the compact catalog or search_skills" } }, ["name"]),
-    annotations: readOnlyLocal,
-    timeoutClass: "normal",
-    executor: { kind: "nodeTool" },
-    intendedForAgents: true,
-    runtimePreconditions: ["Requires a local SKILL.md under the configured skill roots."],
-    adapters: piAndStdio(),
-  },
-  {
-    name: "search_skills",
-    label: "Search Skills",
-    description: "Search installed skill names and compact descriptions for a workflow relevant to the user's request.",
-    promptSnippet: "search_skills - Find a relevant specialized workflow before loading it",
-    promptGuidelines: [
-      "Use only when the current user request plausibly needs a specialized workflow.",
-      "Do not browse skills merely to explore options or because a related term appears in conversation context.",
-    ],
-    latency: "fast local",
-    inputSchema: schema({ query: { type: "string", description: "Short description of the user's request" } }, ["query"]),
-    annotations: readOnlyLocal,
-    timeoutClass: "normal",
-    executor: { kind: "nodeTool" },
-    intendedForAgents: true,
-    runtimePreconditions: ["Requires a local SKILL.md under the configured skill roots."],
-    adapters: piAndStdio(),
-  },
-  {
-    name: "save_knowledge_graph",
-    label: "Save Knowledge Graph",
-    description: "Save a knowledge graph of entities and relationships discovered about the user.",
-    promptSnippet: "save_knowledge_graph - Save entities and relationships to the user's knowledge graph",
-    promptGuidelines: [
-      "Use when exploring the user's files during onboarding or knowledge-graph building.",
-      "Deduplication is handled automatically; include all meaningful entities and relationships you found.",
-    ],
-    latency: "fast local",
-    inputSchema: schema(
-      {
-        nodes: {
-          type: "array",
-          items: {
-            type: "object",
-            properties: {
-              id: { type: "string", description: "Stable node id, referenced by edges." },
-              label: { type: "string", description: "Human-readable entity label." },
-              node_type: { type: "string", enum: ["person", "organization", "place", "thing", "concept"] },
-              aliases: { type: "array", items: { type: "string" } },
-            },
-            required: ["id", "label", "node_type"],
-            additionalProperties: false,
-          },
-        },
-        edges: {
-          type: "array",
-          items: {
-            type: "object",
-            properties: {
-              source_id: { type: "string" },
-              target_id: { type: "string" },
-              label: { type: "string" },
-            },
-            required: ["source_id", "target_id", "label"],
-            additionalProperties: false,
-          },
-        },
-      },
-      ["nodes", "edges"],
-    ),
-    annotations: localWrite,
-    timeoutClass: "normal",
-    executor: { kind: "swiftTool" },
-    intendedForAgents: true,
-    runtimePreconditions: ["Used by onboarding/knowledge graph flows."],
-    adapters: piAndStdio(),
+    adapters: piOnly(),
   },
   {
     name: "get_conversations",
@@ -932,7 +671,7 @@ const swiftToolManifestDrafts: OmiToolManifestEntryDraft[] = [
     executor: { kind: "swiftTool" },
     intendedForAgents: true,
     runtimePreconditions: ["Requires authenticated backend access."],
-    adapters: piAndStdio(),
+    adapters: piOnly(),
   },
   {
     name: "search_conversations",
@@ -955,7 +694,7 @@ const swiftToolManifestDrafts: OmiToolManifestEntryDraft[] = [
     executor: { kind: "swiftTool" },
     intendedForAgents: true,
     runtimePreconditions: ["Requires authenticated backend access."],
-    adapters: piAndStdio(),
+    adapters: piOnly(),
   },
   {
     name: "get_memories",
@@ -974,7 +713,7 @@ const swiftToolManifestDrafts: OmiToolManifestEntryDraft[] = [
     executor: { kind: "swiftTool" },
     intendedForAgents: true,
     runtimePreconditions: ["Requires authenticated backend access."],
-    adapters: piAndStdio(),
+    adapters: piOnly(),
   },
   {
     name: "search_memories",
@@ -994,7 +733,7 @@ const swiftToolManifestDrafts: OmiToolManifestEntryDraft[] = [
     executor: { kind: "swiftTool" },
     intendedForAgents: true,
     runtimePreconditions: ["Requires authenticated backend access."],
-    adapters: piAndStdio(),
+    adapters: piOnly(),
   },
   {
     name: "get_action_items",
@@ -1016,7 +755,7 @@ const swiftToolManifestDrafts: OmiToolManifestEntryDraft[] = [
     executor: { kind: "swiftTool" },
     intendedForAgents: true,
     runtimePreconditions: ["Requires authenticated backend access."],
-    adapters: piAndStdio(),
+    adapters: piOnly(),
   },
   {
     name: "create_action_item",
@@ -1037,7 +776,7 @@ const swiftToolManifestDrafts: OmiToolManifestEntryDraft[] = [
     executor: { kind: "swiftTool" },
     intendedForAgents: true,
     runtimePreconditions: ["Requires authenticated backend access."],
-    adapters: piAndStdio(),
+    adapters: piOnly(),
   },
   {
     name: "update_action_item",
@@ -1059,15 +798,8 @@ const swiftToolManifestDrafts: OmiToolManifestEntryDraft[] = [
     executor: { kind: "swiftTool" },
     intendedForAgents: true,
     runtimePreconditions: ["Requires authenticated backend access."],
-    adapters: piAndStdio(),
+    adapters: piOnly(),
   },
-  // capture_screen returns file PATHS, not image bytes. The model only sees the
-  // pixels by calling the built-in `Read` tool on those paths — supplied by the
-  // ACP `claude_code` tool preset and auto-approved under the desktop_high_trust
-  // policy. There is no omi-owned image-injection fallback: if the kernel ever
-  // passes `_meta.disableBuiltInTools: true` (which strips Read — see
-  // node_modules/@zed-industries/claude-agent-acp acp-agent.js), this tool and
-  // its detail-tile design silently degrade to unreadable paths. Keep Read enabled.
   {
     name: "capture_screen",
     label: "Capture Screen",
@@ -1077,8 +809,8 @@ const swiftToolManifestDrafts: OmiToolManifestEntryDraft[] = [
     promptGuidelines: [
       "For a direct current-screen question, capture a live image instead of using get_work_context as current visual evidence.",
       "Use capture_screen only when raw pixels are necessary; it requires explicit approval before image bytes are shared.",
-      "After capture_screen returns, use Read to view the full-screen image.",
-      "The full screenshot is downscaled before you see it — before quoting small on-screen text (titles, prices, sizes, labels) or choosing between similar-looking items, Read the detail tile covering that item and take the exact text from the tile.",
+      "The owned Pi extension attaches the full-screen image and native-resolution detail tiles directly to the tool result.",
+      "Before quoting small on-screen text (titles, prices, sizes, labels) or choosing between similar-looking items, inspect the detail tile covering that item and use its exact text.",
       "Keep every detail you cite (title, price, badge, position) bound to one on-screen item; if text is not legible even in a tile, say so instead of inferring.",
       "Do NOT use bash screencapture - always use this tool instead.",
     ],
@@ -1089,7 +821,7 @@ const swiftToolManifestDrafts: OmiToolManifestEntryDraft[] = [
     executor: { kind: "swiftTool" },
     intendedForAgents: true,
     runtimePreconditions: ["Requires macOS Screen Recording permission."],
-    adapters: { "pi-mono": { advertised: true }, "omi-tools-stdio": { advertised: true, condition: "screenContext" } },
+    adapters: piOnly(),
   },
   {
     name: "check_permission_status",
@@ -1100,7 +832,7 @@ const swiftToolManifestDrafts: OmiToolManifestEntryDraft[] = [
     inputSchema: schema({
       type: {
         type: "string",
-        enum: ["screen_recording", "microphone", "notifications", "accessibility", "automation", "full_disk_access"],
+        enum: ["screen_recording", "microphone", "notifications", "accessibility"],
         description: "Optional permission type. Omit to return all supported permissions.",
       },
     }),
@@ -1109,7 +841,7 @@ const swiftToolManifestDrafts: OmiToolManifestEntryDraft[] = [
     executor: { kind: "swiftTool" },
     intendedForAgents: true,
     runtimePreconditions: ["Requires local desktop app."],
-    adapters: piAndStdio(),
+    adapters: piOnly(),
   },
   {
     name: "request_permission",
@@ -1129,9 +861,8 @@ const swiftToolManifestDrafts: OmiToolManifestEntryDraft[] = [
       {
         type: {
           type: "string",
-          enum: ["screen_recording", "microphone", "notifications", "accessibility", "automation", "full_disk_access"],
-          description:
-            "Permission type: screen_recording, microphone, notifications, accessibility, automation, or full_disk_access",
+          enum: ["screen_recording", "microphone", "notifications", "accessibility"],
+          description: "Permission type: screen_recording, microphone, notifications, or accessibility",
         },
       },
       ["type"],
@@ -1141,91 +872,7 @@ const swiftToolManifestDrafts: OmiToolManifestEntryDraft[] = [
     executor: { kind: "swiftTool" },
     intendedForAgents: true,
     runtimePreconditions: ["Requires explicit current-turn user consent; some macOS permissions require the user to toggle Settings manually."],
-    adapters: piAndStdio(),
-  },
-  {
-    name: "scan_files",
-    label: "Scan Files",
-    description: "Scan selected files/folders during onboarding to build local context.",
-    promptSnippet: "scan_files - Scan files for onboarding context",
-    latency: "async background",
-    inputSchema: schema({ paths: { type: "array", items: { type: "string" } } }),
-    annotations: readOnlyLocal,
-    timeoutClass: "long",
-    executor: { kind: "swiftTool" },
-    aliases: ["start_file_scan", "get_file_scan_results"],
-    intendedForAgents: true,
-    runtimePreconditions: ["Onboarding-only."],
-    adapters: stdioOnly("onboardingOnly"),
-  },
-  {
-    name: "set_user_preferences",
-    label: "Set User Preferences",
-    description: "Persist onboarding preferences such as name and language.",
-    promptSnippet: "set_user_preferences - Save onboarding preferences",
-    latency: "fast local",
-    inputSchema: schema({
-      name: { type: "string" },
-      language: { type: "string" },
-    }),
-    annotations: localWrite,
-    timeoutClass: "normal",
-    executor: { kind: "swiftTool" },
-    intendedForAgents: true,
-    runtimePreconditions: ["Onboarding-only."],
-    adapters: stdioOnly("onboardingOnly"),
-  },
-  {
-    name: "ask_followup",
-    label: "Ask Followup",
-    description: "Ask the user a follow-up onboarding question with optional quick replies.",
-    promptSnippet: "ask_followup - Ask an onboarding follow-up question",
-    latency: "async background",
-    inputSchema: schema(
-      {
-        question: { type: "string", description: "The question to present to the user" },
-        options: {
-          type: "array",
-          items: { type: "string" },
-          description: "2-3 quick-reply button labels. For permissions, include 'Grant [Permission]' and 'Skip'.",
-        },
-      },
-      ["question", "options"],
-    ),
-    annotations: localWrite,
-    timeoutClass: "long",
-    executor: { kind: "swiftTool" },
-    intendedForAgents: true,
-    runtimePreconditions: ["Onboarding-only."],
-    adapters: stdioOnly("onboardingOnly"),
-  },
-  {
-    name: "complete_onboarding",
-    label: "Complete Onboarding",
-    description: "Complete onboarding after required goals and context are collected.",
-    promptSnippet: "complete_onboarding - Complete onboarding",
-    latency: "fast local",
-    inputSchema: schema({}),
-    annotations: localWrite,
-    timeoutClass: "normal",
-    executor: { kind: "swiftTool" },
-    intendedForAgents: true,
-    runtimePreconditions: ["Onboarding-only."],
-    adapters: stdioOnly("onboardingOnly"),
-  },
-  {
-    name: "get_email_insights",
-    label: "Get Email Insights",
-    description: "Read precomputed email/calendar onboarding insights.",
-    promptSnippet: "get_email_insights - Read onboarding email/calendar insights",
-    latency: "fast local",
-    inputSchema: schema({}),
-    annotations: readOnlyLocal,
-    timeoutClass: "normal",
-    executor: { kind: "swiftTool" },
-    intendedForAgents: true,
-    runtimePreconditions: ["Onboarding-only; requires background insights to be loaded."],
-    adapters: stdioOnly("onboardingOnly"),
+    adapters: piOnly(),
   },
   {
     name: "get_tasks",
@@ -1239,30 +886,6 @@ const swiftToolManifestDrafts: OmiToolManifestEntryDraft[] = [
     executor: { kind: "swiftTool", executorName: "realtimeHub" },
     intendedForAgents: true,
     runtimePreconditions: ["Realtime voice only; requires local TasksStore."],
-    adapters: {},
-  },
-  {
-    name: "create_calendar_event",
-    label: "Create Calendar Event",
-    description: "Create a Google Calendar event through the backend calendar tool.",
-    promptSnippet: "create_calendar_event - Create a Google Calendar event",
-    latency: "fast network",
-    inputSchema: schema(
-      {
-        title: { type: "string", description: "Event title." },
-        start_time: { type: "string", description: "Event start time in ISO-8601 with timezone." },
-        end_time: { type: "string", description: "Event end time in ISO-8601 with timezone." },
-        description: { type: "string", description: "Optional event description." },
-        location: { type: "string", description: "Optional event location." },
-        attendees: { type: "string", description: "Optional comma-separated attendee names or email addresses." },
-      },
-      ["title", "start_time", "end_time"],
-    ),
-    annotations: localWrite,
-    timeoutClass: "normal",
-    executor: { kind: "swiftTool" },
-    intendedForAgents: true,
-    runtimePreconditions: ["Requires authenticated backend calendar access."],
     adapters: {},
   },
   {
@@ -1349,35 +972,6 @@ const swiftToolManifestDrafts: OmiToolManifestEntryDraft[] = [
     adapters: {},
   },
   {
-    name: "get_local_status",
-    label: "Get Local Status",
-    description:
-      "Report whether local Omi Desktop context is available, including screen-history counts, indexed screenshot counts, and latest capture time.",
-    promptSnippet: "get_local_status - Check local desktop context status",
-    latency: "fast local",
-    inputSchema: schema({}),
-    annotations: readOnlyLocal,
-    timeoutClass: "normal",
-    executor: { kind: "localApiOnly" },
-    intendedForAgents: true,
-    runtimePreconditions: ["Local API only."],
-    adapters: localApiOnly(),
-  },
-  {
-    name: "get_screenshot",
-    label: "Get Screenshot",
-    description: "Fetch a local Rewind screenshot image by screenshot_id.",
-    promptSnippet: "get_screenshot - Fetch a local screenshot image",
-    latency: "fast local",
-    inputSchema: schema({ screenshot_id: { type: "number", description: "Screenshot ID from search_screen_history or screenshots table" } }, ["screenshot_id"]),
-    annotations: readOnlyLocal,
-    timeoutClass: "normal",
-    executor: { kind: "localApiOnly" },
-    intendedForAgents: true,
-    runtimePreconditions: ["Local API only."],
-    adapters: localApiOnly(),
-  },
-  {
     name: "get_work_context",
     label: "Get Work Context",
     description:
@@ -1395,7 +989,7 @@ const swiftToolManifestDrafts: OmiToolManifestEntryDraft[] = [
     executor: { kind: "swiftTool" },
     intendedForAgents: true,
     runtimePreconditions: ["Requires local Rewind database; raw screenshot pixels still require separate approval."],
-    adapters: piLocalApiAndScreenContextStdio(),
+    adapters: piOnly(),
   },
 ];
 
@@ -1411,7 +1005,6 @@ const controlVoicePatches: Partial<Record<AgentControlManifestTool["name"], OmiT
     schemaOverride: schema(
       {
         objective: { type: "string", description: "Self-contained background-agent objective." },
-        provider: { type: "string", enum: ["openclaw", "hermes"], description: "Optional local provider override only when the current user explicitly names it; omit for a regular Omi agent." },
         parent_run_id: { type: "string", description: "Optional parent run to link via delegation." },
         visible: { type: "boolean", description: "Whether to project into floating-bar pill UI. Default true." },
         title: { type: "string", description: "Optional visible session title." },
@@ -1534,7 +1127,8 @@ function controlEntry(tool: AgentControlManifestTool): OmiToolManifestEntry {
   const adapters =
     tool.name === "resolve_desktop_dispatch" || tool.name === "spawn_background_agent"
       ? trustedDirectControlOnly()
-      : piAndStdio(coordinatorOnly.has(tool.name) ? "coordinatorOnly" : "always");
+      : piOnly(coordinatorOnly.has(tool.name) ? "coordinatorOnly" : "always");
+  const voice = controlVoicePatches[tool.name];
   return {
     name: tool.name,
     label: tool.label,
@@ -1546,16 +1140,12 @@ function controlEntry(tool: AgentControlManifestTool): OmiToolManifestEntry {
       ...agentControlInputSchema(tool),
       additionalProperties: false,
     } as OmiToolInputSchema,
-    mcpInputSchema: {
-      ...agentControlInputSchema(tool),
-      additionalProperties: false,
-    } as OmiMcpToolInputSchema,
     annotations: readOnlyLocal,
     timeoutClass: tool.timeoutClass,
     executor: { kind: "runtimeControl" },
     surfaces: tool.name === "spawn_background_agent" ? [] : mapControlSurfaces(tool.surfaces),
     capabilityDoc: tool.capabilityDoc,
-    voice: controlVoicePatches[tool.name],
+    ...(voice ? { voice } : {}),
     intendedForAgents: tool.name !== "spawn_background_agent",
     runtimePreconditions: tool.runtimePreconditions,
     adapters,
@@ -1589,11 +1179,7 @@ export function isToolAvailableForContext(
   context: OmiToolProjectionContext = {},
 ): boolean {
   if (!availability?.advertised) return false;
-  if (availability.condition === "onboardingOnly") return context.onboarding === true;
-  if (availability.condition === "nonOnboarding") return context.onboarding !== true;
   if (availability.condition === "coordinatorOnly") return context.executionRole !== "leaf";
-  if (availability.condition === "screenContext") return context.screenContext === true;
-  if (availability.condition === "screenContextOrOnboarding") return context.screenContext === true || context.onboarding === true;
   return true;
 }
 
@@ -1620,17 +1206,6 @@ export function toolsForSurface(surface: OmiToolSurface): OmiToolManifestEntry[]
   return omiToolManifest.filter((tool) => tool.surfaces.includes(surface));
 }
 
-export function mcpToolDefinitionsForAdapter(
-  adapterId: "omi-tools-stdio",
-  context: OmiToolProjectionContext = {},
-): Array<{ name: string; description: string; inputSchema: OmiMcpToolInputSchema }> {
-  return toolsForAdapter(adapterId, context).map((tool) => ({
-    name: tool.adapters[adapterId]?.adapterName ?? tool.name,
-    description: tool.description,
-    inputSchema: tool.mcpInputSchema ?? tool.inputSchema,
-  }));
-}
-
 export function toolManifestEntry(name: string): OmiToolManifestEntry | undefined {
   return omiToolManifest.find((tool) => tool.name === name || tool.aliases?.includes(name));
 }
@@ -1639,22 +1214,18 @@ export function normalizeOmiToolName(
   adapterId: OmiToolAdapterId,
   name: string,
 ): { canonicalName: string; wasAlias: boolean } {
-  const mcpMatch = /^mcp__(?:omi-tools|omi_tools)__(.+)$/.exec(name);
-  const dotMatch = /^omi-tools\.(.+)$/.exec(name);
-  const unprefixed = mcpMatch?.[1] ?? dotMatch?.[1] ?? name;
-
   for (const tool of omiToolManifest) {
     const availability = tool.adapters[adapterId];
     const adapterName = availability?.adapterName ?? tool.name;
     const aliases = new Set([...(tool.aliases ?? []), ...(availability?.aliases ?? [])]);
-    if (adapterName === unprefixed || tool.name === unprefixed) {
-      return { canonicalName: tool.name, wasAlias: unprefixed !== tool.name || name !== unprefixed };
+    if (adapterName === name || tool.name === name) {
+      return { canonicalName: tool.name, wasAlias: name !== tool.name };
     }
-    if (aliases.has(unprefixed)) {
+    if (aliases.has(name)) {
       return { canonicalName: tool.name, wasAlias: true };
     }
   }
-  return { canonicalName: unprefixed, wasAlias: name !== unprefixed };
+  return { canonicalName: name, wasAlias: false };
 }
 
 export function buildToolAvailabilitySnapshot(
@@ -1671,9 +1242,6 @@ export function buildToolAvailabilitySnapshot(
       for (const alias of [...(tool.aliases ?? []), ...(availability?.aliases ?? [])]) {
         aliases[alias] = tool.name;
       }
-      aliases[`mcp__omi-tools__${tool.name}`] = tool.name;
-      aliases[`mcp__omi_tools__${tool.name}`] = tool.name;
-      aliases[`omi-tools.${tool.name}`] = tool.name;
     } else {
       disabled.push({
         name: availability?.adapterName ?? tool.name,

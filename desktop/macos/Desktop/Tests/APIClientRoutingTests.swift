@@ -12,6 +12,12 @@ private struct CapturedRequest {
   let body: Data?
 }
 
+private struct ManagedHeaderResponse: Decodable {}
+
+private struct ManagedHeaderBody: Encodable {
+  let value: String
+}
+
 /// Intercepts HTTP requests, records their URL and method, then returns 403
 /// so APIClient throws .httpError (not 401, which triggers AuthService refresh).
 private final class URLCapture: URLProtocol, @unchecked Sendable {
@@ -495,6 +501,43 @@ final class APIClientRoutingTests: XCTestCase {
     super.tearDown()
   }
 
+  func testManagedRequestsNeverEmitLegacyCustomerKeys() async throws {
+    let legacyKeys = [
+      (storage: "dev_openai_api_key", header: "X-BYOK-OpenAI"),
+      (storage: "dev_anthropic_api_key", header: "X-BYOK-Anthropic"),
+      (storage: "dev_gemini_api_key", header: "X-BYOK-Gemini"),
+      (storage: "dev_deepgram_api_key", header: "X-BYOK-Deepgram"),
+    ]
+    for legacyKey in legacyKeys {
+      UserDefaults.standard.set("legacy-customer-secret", forKey: legacyKey.storage)
+    }
+    defer {
+      for legacyKey in legacyKeys {
+        UserDefaults.standard.removeObject(forKey: legacyKey.storage)
+      }
+    }
+
+    let client = await makeTestClient()
+    let baseURL = "http://python-test:9001/"
+    let _: ManagedHeaderResponse? = try? await client.get("managed-get", customBaseURL: baseURL)
+    let _: ManagedHeaderResponse? = try? await client.post(
+      "managed-body", body: ManagedHeaderBody(value: "payload"), customBaseURL: baseURL)
+    let _: ManagedHeaderResponse? = try? await client.post("managed-post", customBaseURL: baseURL)
+    try? await client.delete("managed-delete", customBaseURL: baseURL)
+
+    let requests = URLCapture.capturedRequests
+    XCTAssertEqual(requests.map(\.method), ["GET", "POST", "POST", "DELETE"])
+    XCTAssertEqual(requests.count, 4)
+    for request in requests {
+      XCTAssertEqual(request.headers["Authorization"], "Bearer test-token")
+      XCTAssertEqual(request.headers["X-App-Platform"], "macos")
+      XCTAssertNotNil(request.headers["X-Device-Id-Hash"])
+      for legacyKey in legacyKeys {
+        XCTAssertNil(request.headers[legacyKey.header])
+      }
+    }
+  }
+
   // -- Conversations (GET, DELETE → Python) --
 
   func testGetConversationRoutesToPython() async {
@@ -607,52 +650,6 @@ final class APIClientRoutingTests: XCTestCase {
       URLCapture.capturedRequests, host: "python-test", port: 9001,
       pathContains: "v1/goals/g1/progress", method: "PATCH",
       label: "updateGoalProgress")
-  }
-
-  // -- Apps (GET → Python) --
-
-  func testGetAppsRoutesToPython() async {
-    let client = await makeTestClient()
-    _ = try? await client.getApps() as [OmiApp]
-    assertRoutes(
-      URLCapture.capturedRequests, host: "python-test", port: 9001,
-      pathContains: "v1/apps", method: "GET",
-      label: "getApps")
-  }
-
-  func testSearchAppsUsesBackendFilterParameters() async {
-    let client = await makeTestClient()
-    _ =
-      try? await client.searchApps(
-        query: "R&D calendar",
-        category: "productivity",
-        capability: "external_integration",
-        installedOnly: true
-      ) as [OmiApp]
-
-    let requests = URLCapture.capturedRequests
-    assertRoutes(
-      requests, host: "python-test", port: 9001,
-      pathContains: "v2/apps/search", method: "GET",
-      label: "searchApps")
-
-    let queryItems = URLComponents(url: requests.first!.url, resolvingAgainstBaseURL: false)?.queryItems ?? []
-    XCTAssertEqual(queryItems.first(where: { $0.name == "q" })?.value, "R&D calendar")
-    XCTAssertNil(queryItems.first(where: { $0.name == "query" })?.value)
-    XCTAssertEqual(queryItems.first(where: { $0.name == "category" })?.value, "productivity")
-    XCTAssertEqual(queryItems.first(where: { $0.name == "capability" })?.value, "external_integration")
-    XCTAssertEqual(queryItems.first(where: { $0.name == "installed_apps" })?.value, "true")
-  }
-
-  // -- Personas (GET → Python) --
-
-  func testGetPersonaRoutesToPython() async {
-    let client = await makeTestClient()
-    _ = try? await client.getPersona() as Persona?
-    assertRoutes(
-      URLCapture.capturedRequests, host: "python-test", port: 9001,
-      pathContains: "v1/personas", method: "GET",
-      label: "getPersona")
   }
 
   // -- User settings (GET → Python) --
@@ -806,17 +803,6 @@ final class APIClientRoutingTests: XCTestCase {
   }
 
   // MARK: - Python-routed: remaining manual URL builders
-
-  // -- setConversationVisibility: manual URL(string: baseURL + ...) PATCH → Python --
-
-  func testSetConversationVisibilityRoutesToPython() async {
-    let client = await makeTestClient()
-    try? await client.setConversationVisibility(id: "c3")
-    assertRoutes(
-      URLCapture.capturedRequests, host: "python-test", port: 9001,
-      pathContains: "v1/conversations/c3/visibility", method: "PATCH",
-      label: "setConversationVisibility")
-  }
 
   // -- moveConversationToFolder: manual URL PATCH → Python --
 

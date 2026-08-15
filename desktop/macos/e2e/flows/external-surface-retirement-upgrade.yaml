@@ -1,0 +1,36 @@
+version: 2
+name: external-surface-retirement-upgrade
+tier: manual
+description: Upgrade a named bundle from the legacy S-06 schema and prove retained local data survives
+app: non-prod
+covers:
+  - desktop/macos/Desktop/Sources/Rewind/Core/RewindDatabase+ExternalSurfaceRetirement.swift
+  - desktop/macos/Desktop/Sources/Rewind/Core/RewindDatabase.swift
+preconditions:
+  - named_test_bundle_only
+  - legacy_s06_database_fixture_seeded
+
+steps:
+  - id: S1
+    name: Seed legacy and retained rows
+    do: "For a disposable named bundle, seed indexed_files, local_kg_nodes, local_kg_edges, a memory visibility value, and a transcription appsResultsJson value together with retained Memory, Task, and Conversation rows."
+    expect:
+      interactive_count: { min: 1 }
+
+  - id: S2
+    name: Launch through the real migrator
+    do: "Launch the named bundle normally and wait for RewindDatabase migrations to finish without an error or repeated startup loop."
+    expect:
+      interactive_count: { min: 1 }
+
+  - id: S3
+    name: Inspect the upgraded schema
+    do: "Inspect the disposable database. Verify indexed_files, local_kg_nodes, and local_kg_edges are absent; memories.visibility and transcription_sessions.appsResultsJson are absent; retained Memory, Task, and Conversation rows are unchanged."
+    expect:
+      interactive_count: { min: 1 }
+
+  - id: S4
+    name: Prove idempotent relaunch
+    do: "Quit and relaunch the same named bundle once. Verify the migration remains successful and the retained rows remain navigable."
+    expect:
+      interactive_count: { min: 1 }

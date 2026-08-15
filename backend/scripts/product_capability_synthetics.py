@@ -139,50 +139,6 @@ def backend_health_check(config: SyntheticConfig) -> tuple[str, str, dict[str, A
     )
 
 
-def mcp_oauth_metadata_check(config: SyntheticConfig) -> tuple[str, str, dict[str, Any]]:
-    if not config.backend_url:
-        return (
-            STATUS_NOT_RUN,
-            "Set OMI_SYNTHETIC_BACKEND_URL or pass --backend-url to check MCP/OAuth metadata.",
-            {
-                "required": ["backend_url"],
-                "routes": ["/.well-known/oauth-protected-resource", "/.well-known/oauth-authorization-server"],
-            },
-        )
-
-    base_url = config.backend_url.rstrip("/")
-    resource_url = f"{base_url}/.well-known/oauth-protected-resource"
-    authz_url = f"{base_url}/.well-known/oauth-authorization-server"
-    resource_status, resource_body, resource_raw = _http_get_json(resource_url, config.timeout_seconds)
-    authz_status, authz_body, authz_raw = _http_get_json(authz_url, config.timeout_seconds)
-
-    problems: list[str] = []
-    if resource_status != 200 or not resource_body:
-        problems.append("protected resource metadata unavailable")
-    elif not resource_body.get("authorization_servers") or "memories.read" not in resource_body.get(
-        "scopes_supported", []
-    ):
-        problems.append("protected resource metadata missing OAuth server or memories.read scope")
-    if authz_status != 200 or not authz_body:
-        problems.append("authorization server metadata unavailable")
-    elif "authorization_code" not in authz_body.get("grant_types_supported", []) or "S256" not in authz_body.get(
-        "code_challenge_methods_supported", []
-    ):
-        problems.append("authorization metadata missing authorization_code or S256 support")
-
-    details = {
-        "resource_url": resource_url,
-        "resource_status_code": resource_status,
-        "authorization_server_url": authz_url,
-        "authorization_server_status_code": authz_status,
-        "resource_body": resource_body or resource_raw[:500],
-        "authorization_server_body": authz_body or authz_raw[:500],
-    }
-    if problems:
-        return STATUS_FAIL, "; ".join(problems), details
-    return STATUS_PASS, "MCP/OAuth discovery metadata is reachable and advertises required capabilities.", details
-
-
 def llm_gateway_fake_provider_check(config: SyntheticConfig) -> tuple[str, str, dict[str, Any]]:
     sentinel_token = "product-synthetic-sentinel-token"
     service_token_env_vars = (PRIMARY_SERVICE_TOKEN_ENV_VAR, LEGACY_SERVICE_TOKEN_ENV_VAR)
@@ -323,7 +279,6 @@ def build_report(config: SyntheticConfig) -> dict[str, Any]:
         timed_check("backend_health", lambda: backend_health_check(config)),
         timed_check("llm_gateway_chat_fake_provider", lambda: llm_gateway_fake_provider_check(config)),
         timed_check("conversation_processing_local_fixture", lambda: conversation_processing_fixture_check(config)),
-        timed_check("mcp_oauth_metadata", lambda: mcp_oauth_metadata_check(config)),
         timed_check("listen_protocol_local_fixture", lambda: listen_protocol_fixture_check(config)),
     ]
     counts = {status: sum(1 for check in checks if check.status == status) for status in sorted(VALID_STATUSES)}

@@ -26,8 +26,8 @@ enum GoalPrompts {
 
     STEP 1: Understand the user at a high level. What is their role? What are their ambitions? What life direction are they heading in?
 
-    USER'S PERSONA:
-    {persona_context}
+    USER'S AI PROFILE:
+    {profile_context}
 
     USER'S MEMORIES (facts about them):
     {memory_context}

@@ -142,19 +142,8 @@ final class HubSystemInstructionTests: XCTestCase {
     XCTAssertEqual(toolNames, Set(DesktopCapabilityRegistry.realtimeToolNames))
   }
 
-  func testRealtimeSpawnAgentProviderEnumOnlyAdvertisesAvailableProviders() {
-    let tools = RealtimeHubTools.openAITools(availableDirectedProviders: ["openclaw"])
-    let spawnAgent = tools.first { ($0["name"] as? String) == HubTool.spawnAgent.rawValue }
-    let parameters = spawnAgent?["parameters"] as? [String: Any]
-    let properties = parameters?["properties"] as? [String: Any]
-    let provider = properties?["provider"] as? [String: Any]
-
-    XCTAssertEqual(provider?["enum"] as? [String], ["openclaw"])
-    XCTAssertTrue((provider?["description"] as? String ?? "").contains("current user explicitly names it"))
-  }
-
-  func testRealtimeSpawnAgentOmitsProviderWhenNoLocalProvidersAreAvailable() {
-    let tools = RealtimeHubTools.openAITools(availableDirectedProviders: [])
+  func testRealtimeSpawnAgentCannotRepresentAProviderOverride() {
+    let tools = RealtimeHubTools.openAITools
     let spawnAgent = tools.first { ($0["name"] as? String) == HubTool.spawnAgent.rawValue }
     let parameters = spawnAgent?["parameters"] as? [String: Any]
     let properties = parameters?["properties"] as? [String: Any]
@@ -178,19 +167,11 @@ final class HubSystemInstructionTests: XCTestCase {
     XCTAssertTrue((overrideTool?["description"] as? String ?? "").contains("dismiss"))
   }
 
-  func testRealtimeCreateCalendarEventToolIsExposedWithRequiredArguments() {
+  func testRealtimeCalendarCreationToolIsRetiredWhileTaskCreationRemains() {
     let tools = RealtimeHubTools.openAITools
-    let calendarTool = tools.first { ($0["name"] as? String) == HubTool.createCalendarEvent.rawValue }
-    XCTAssertNotNil(calendarTool)
-    XCTAssertTrue((calendarTool?["description"] as? String ?? "").contains("Google Calendar"))
-
-    let parameters = calendarTool?["parameters"] as? [String: Any]
-    let properties = parameters?["properties"] as? [String: Any]
-    XCTAssertNotNil(properties?["title"])
-    XCTAssertNotNil(properties?["start_time"])
-    XCTAssertNotNil(properties?["end_time"])
-    XCTAssertNotNil(properties?["attendees"])
-    XCTAssertEqual(parameters?["required"] as? [String], ["title", "start_time", "end_time"])
+    let names = Set(tools.compactMap { $0["name"] as? String })
+    XCTAssertFalse(names.contains("create_calendar_event"))
+    XCTAssertTrue(names.contains(HubTool.createActionItem.rawValue))
   }
 
   func testRealtimePermissionToolsAreExposedForDirectHandling() {

@@ -34,6 +34,10 @@ final class SuggestedTasksStoreTests: XCTestCase {
     XCTAssertEqual(store.candidates.map(\.id), ["pending", "proposal"])
     XCTAssertEqual(
       store.candidates.first(where: { $0.id == "proposal" })?.title, "Prepare launch brief")
+    XCTAssertEqual(
+      store.candidates.first(where: { $0.id == "proposal" })?.provenanceLabel,
+      "Suggested by Omi"
+    )
     XCTAssertFalse(
       store.candidates.contains { $0.title.localizedCaseInsensitiveContains("workstream") })
     XCTAssertTrue(api.registeredInterventionCandidateIDs.isEmpty)
@@ -670,7 +674,7 @@ final class SuggestedTasksStoreTests: XCTestCase {
       resolvedAt: nil,
       resultTaskId: nil,
       resultWorkstreamId: nil,
-      sourceSurface: "integration",
+      sourceSurface: "agent",
       status: .pending,
       subjectKind: .workstream,
       taskChange: nil,

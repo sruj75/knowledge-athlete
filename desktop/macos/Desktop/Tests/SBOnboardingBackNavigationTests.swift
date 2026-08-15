@@ -69,7 +69,7 @@ final class SBOnboardingBackNavigationTests: XCTestCase {
     model.step = .screenDemo
     await model.activateScreenDemoPTTAfterBridgeWarmup(
       warmup: {
-        model.step = .agents
+        model.step = .capture
         return true
       },
       activate: { activated = true }

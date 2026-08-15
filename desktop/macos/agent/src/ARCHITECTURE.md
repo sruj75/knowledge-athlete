@@ -19,8 +19,8 @@ Swift desktop client
           -> conversation-journal.ts
           -> run-tool-capability.ts -> tool-invocation-ledger.ts
           -> sqlite-store.ts (durable state)
-       -> adapters/* (model-provider execution only)
-       -> omi-tools-{stdio,http}.ts (generated physical-tool surfaces)
+       -> adapters/pi-mono.ts (managed model execution only)
+       -> ../pi-mono-extension -> OMI_BRIDGE_PIPE (owned typed-tool transport)
 ```
 
 ## Ownership rules
@@ -58,14 +58,13 @@ Swift desktop client
   record physical effects. Request IDs are tracing keys, never authorization.
 - `sqlite-store.ts` owns schema creation, migrations, startup reconciliation,
   and transactions. Other modules do not issue lifecycle-altering schema DDL.
-- `adapters/*` translate a pinned run into provider calls. They cannot choose a
-  different provider, mutate a session profile, or directly execute desktop
-  effects.
+- `adapters/pi-mono.ts` translates a pinned run into managed Pi calls. It cannot
+  mutate a session profile or directly execute desktop effects. The internal
+  adapter protocol remains only as a test seam for kernel behavior.
 - `artifact-storage.ts` owns per-run managed artifact directories. Every leaf
-  attempt receives that directory as both its adapter cwd and MCP workspace;
-  delegated objectives and raw control-tool cwd values cannot default a
-  deliverable to Desktop. Explicit external-delivery reports remain a narrow
-  compatibility import path and are copied into the managed directory.
+  attempt receives that directory as its adapter cwd; delegated objectives and
+  raw control-tool cwd values cannot default a deliverable to Desktop. Explicit
+  external-delivery reports are copied into the managed directory.
 - Pi's public-web prompt routing is a rollout compatibility projection, not a
   second policy owner. Its positive decisions must match the Python gateway cases
   in `../../../../backend/desktop_fixtures/public-web-routing-contract.fixture.json`;
@@ -74,6 +73,20 @@ Swift desktop client
 - Generated tool manifests and Swift executors are updated together through
   `../scripts/generate-tool-surfaces.mjs`; hand-edited capability mirrors are
   prohibited.
+
+## Adjacent ownership
+
+- Memory Export and onboarding connector names are not agent-runtime entrances;
+  their removal or redesign belongs to S-06 and S-17.
+- Workstream persistence remains a kernel surface, but terminal workstream runs
+  never enter completion-to-voice delivery.
+- The four live non-agent extraction callers retain their fixed Haiku request
+  through the existing managed completion transport. Their model alias and any
+  later migration belong to S-22. Retired agent/provider names may appear only
+  in durable upgrade migrations and their regression fixtures.
+- `@vitest/browser-playwright` in `package-lock.json` is optional peer metadata
+  from Vitest, not an installed or packaged Playwright runtime. The packaged
+  runtime contract test rejects that module and all retired adapter assets.
 
 ## Change checklist
 

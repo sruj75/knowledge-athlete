@@ -12,6 +12,6 @@ def _allowed_callers(environment: str) -> list[str]:
     return next(entry['value'].split(',') for entry in values['env'] if entry['name'] == 'LLM_GATEWAY_ALLOWED_CALLERS')
 
 
-def test_llm_gateway_allows_personas_from_dev_and_prod_charts():
+def test_llm_gateway_allows_declared_first_party_callers_from_dev_and_prod_charts():
     for environment in ('dev', 'prod'):
         assert _allowed_callers(environment) == EXPECTED_CALLERS

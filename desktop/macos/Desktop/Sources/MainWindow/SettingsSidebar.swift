@@ -97,7 +97,7 @@ struct SettingsSearchItem: Identifiable {
       icon: "waveform", settingId: "transcription.vocabulary"),
     SettingsSearchItem(
       name: "Local VAD Gate", subtitle: "Skip silence to reduce transcription cost",
-      keywords: ["vad", "silence", "gate", "cost", "deepgram"], section: .transcription,
+      keywords: ["vad", "silence", "gate", "cost", "transcription"], section: .transcription,
       icon: "waveform", settingId: "transcription.vadgate"),
 
     // Notifications
@@ -224,23 +224,13 @@ struct SettingsSearchItem: Identifiable {
       keywords: ["statistics", "conversations", "usage"], section: .advanced, icon: "chart.bar",
       settingId: "advanced.stats"),
     SettingsSearchItem(
-      name: "AI Provider", subtitle: "Choose between your omi account and Claude for desktop chat",
-      keywords: ["provider", "agent sdk", "claude code", "acp", "bridge mode"], section: .advanced,
-      icon: "cpu", settingId: "aichat.provider"),
+      name: "Voice Model", subtitle: "Choose the realtime voice service",
+      keywords: ["voice", "realtime", "openai", "gemini"], section: .advanced,
+      icon: "cpu", settingId: "advanced.ai.voice"),
     SettingsSearchItem(
-      name: "Workspace", subtitle: "Set a project directory for desktop chat context",
-      keywords: ["workspace", "project", "directory", "folder", "working directory"],
-      section: .advanced, icon: "cpu", settingId: "aichat.workspace"),
-    SettingsSearchItem(
-      name: "Browser Extension",
-      subtitle: "Lets the AI use your Chrome browser with all your logged-in sessions",
-      keywords: [
-        "playwright", "chrome", "browser extension", "browser", "set up", "reconfigure", "token",
-      ], section: .advanced, icon: "cpu", settingId: "aichat.browserextension"),
-    SettingsSearchItem(
-      name: "Dev Mode", subtitle: "Developer tools and debugging options",
-      keywords: ["developer", "debug", "dev mode", "development"], section: .advanced, icon: "cpu",
-      settingId: "aichat.devmode"),
+      name: "Ask Mode", subtitle: "Show the per-turn Ask and Act choice in chat",
+      keywords: ["ask", "act", "read only", "chat"], section: .advanced,
+      icon: "cpu", settingId: "advanced.ai.askmode"),
     SettingsSearchItem(
       name: "Goals", subtitle: "Track personal goals with AI-powered progress detection",
       keywords: ["goal", "target", "objective", "tracking"], section: .advanced, icon: "target",
@@ -311,11 +301,6 @@ struct SettingsSearchItem: Identifiable {
       name: "Report Issue", subtitle: "Send app logs and report a problem",
       keywords: ["bug", "feedback", "logs", "report"], section: .advanced,
       icon: "wrench.and.screwdriver", settingId: "advanced.troubleshooting.reportissue"),
-    SettingsSearchItem(
-      name: "Rescan Files", subtitle: "Re-index your files and update your AI profile",
-      keywords: ["index", "reindex", "rescan", "files", "scan", "file indexing", "profile"],
-      section: .advanced, icon: "wrench.and.screwdriver",
-      settingId: "advanced.troubleshooting.rescanfiles"),
   ]
 }
 
@@ -530,7 +515,6 @@ struct SettingsSidebarItem: View {
     case .privacy: return "lock.shield"
     case .account: return "person.circle"
     case .planUsage: return "creditcard"
-    case .aiChat: return "cpu"
     case .floatingBar: return "sparkles"
     case .shortcuts: return "keyboard"
     case .advanced: return "chart.bar"
@@ -539,42 +523,36 @@ struct SettingsSidebarItem: View {
   }
 
   var body: some View {
-    Group {
-      if section == .aiChat {
-        EmptyView()
-      } else {
-        Button(action: onTap) {
-          HStack(spacing: OmiSpacing.md) {
-            Image(systemName: icon)
-              .scaledFont(size: OmiType.subheading)
-              .foregroundColor(isSelected ? OmiColors.textPrimary : OmiColors.textTertiary)
-              .frame(width: iconWidth)
+    Button(action: onTap) {
+      HStack(spacing: OmiSpacing.md) {
+        Image(systemName: icon)
+          .scaledFont(size: OmiType.subheading)
+          .foregroundColor(isSelected ? OmiColors.textPrimary : OmiColors.textTertiary)
+          .frame(width: iconWidth)
 
-            Text(section.displayTitle)
-              .scaledFont(size: OmiType.body, weight: isSelected ? .medium : .regular)
-              .foregroundColor(isSelected ? OmiColors.textPrimary : OmiColors.textSecondary)
-              .lineLimit(1)
-              .truncationMode(.tail)
-              .layoutPriority(1)
+        Text(section.displayTitle)
+          .scaledFont(size: OmiType.body, weight: isSelected ? .medium : .regular)
+          .foregroundColor(isSelected ? OmiColors.textPrimary : OmiColors.textSecondary)
+          .lineLimit(1)
+          .truncationMode(.tail)
+          .layoutPriority(1)
 
-            Spacer()
-          }
-          .padding(.horizontal, OmiSpacing.md)
-          .padding(.vertical, OmiSpacing.md)
-          .contentShape(Rectangle())
-          .background(
-            RoundedRectangle(cornerRadius: OmiChrome.smallControlRadius)
-              .fill(
-                isSelected
-                  ? OmiColors.backgroundTertiary.opacity(0.8)
-                  : (isHovered ? OmiColors.backgroundTertiary.opacity(0.5) : Color.clear))
-          )
-        }
-        .buttonStyle(.plain)
-        .onHover { hovering in
-          isHovered = hovering
-        }
+        Spacer()
       }
+      .padding(.horizontal, OmiSpacing.md)
+      .padding(.vertical, OmiSpacing.md)
+      .contentShape(Rectangle())
+      .background(
+        RoundedRectangle(cornerRadius: OmiChrome.smallControlRadius)
+          .fill(
+            isSelected
+              ? OmiColors.backgroundTertiary.opacity(0.8)
+              : (isHovered ? OmiColors.backgroundTertiary.opacity(0.5) : Color.clear))
+      )
+    }
+    .buttonStyle(.plain)
+    .onHover { hovering in
+      isHovered = hovering
     }
   }
 }

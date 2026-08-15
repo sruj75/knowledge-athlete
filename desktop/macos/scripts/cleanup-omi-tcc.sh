@@ -552,7 +552,7 @@ tcc = inventory["tcc"]
 if not tcc["readable"]:
     print(f"  <not readable> {tcc['database']}")
     print(f"  Reason: {tcc['error']}")
-    print("  Grant Full Disk Access to the terminal/Hermes host process, then rerun for TCC row details.")
+    print("  Grant Full Disk Access to the terminal host process, then rerun for TCC row details.")
 elif tcc["rows"]:
     for item in tcc["rows"]:
         service = item.get("service", "")

@@ -18,12 +18,10 @@ extension AppState {
   ///
   /// Use at the entry point of every toggle/start function that drives a
   /// $-cost path (transcription, screen analysis, proactive monitoring, etc).
-  /// Single source of truth for "should the UI block $-cost features". A BYOK
-  /// user (all four keys configured locally) is never paywalled, regardless of
-  /// the persisted `desktop_isPaywalled` flag, which can lag behind BYOK
-  /// activation. Use this anywhere that only has UserDefaults access.
+  /// Single source of truth for "should the UI block $-cost features" when
+  /// only the persisted managed-access decision is available.
   nonisolated static var isPaywalledEffective: Bool {
-    !APIKeyService.isByokActive && UserDefaults.standard.bool(forKey: "desktop_isPaywalled")
+    UserDefaults.standard.bool(forKey: "desktop_isPaywalled")
   }
 
   /// Decision for the resume-on-paywall-clear hook in `fetchTrialMetadata()`.
@@ -44,15 +42,6 @@ extension AppState {
 
   @discardableResult
   func blockIfPaywalled(reason: String = "trial_expired") -> Bool {
-    // BYOK users are never paywalled. If the user has all four BYOK keys
-    // configured locally, every backend request carries them and the server
-    // exempts the user — so the client must not block capture either, even if
-    // a stale `isPaywalled` flag is still set (e.g. trial expired *before*
-    // they added keys, and the backend heartbeat hasn't refreshed yet).
-    if APIKeyService.isByokActive {
-      if isPaywalled { isPaywalled = false }
-      return false
-    }
     guard isPaywalled else { return false }
     NotificationCenter.default.post(
       name: .showUsageLimitPopup,
@@ -79,12 +68,7 @@ extension AppState {
         // resolves first clears the flag, so the second sees false here and
         // the resume hook below fires exactly once instead of double-starting.
         let wasPaywalled = self.isPaywalled
-        // Local BYOK always wins — never re-block a user who has all four keys
-        // configured, regardless of what the (possibly heartbeat-lagged)
-        // backend trial state says.
-        if APIKeyService.isByokActive {
-          if self.isPaywalled { self.isPaywalled = false }
-        } else if metadata.trialExpired && !self.isPaywalled {
+        if metadata.trialExpired && !self.isPaywalled {
           self.isPaywalled = true
         } else if !metadata.trialExpired && self.isPaywalled {
           self.isPaywalled = false

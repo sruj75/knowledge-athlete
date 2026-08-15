@@ -53,7 +53,7 @@ CUTOVER_EVIDENCE_GATES: Dict[str, Dict[str, Any]] = {
         "summary": "Real Firestore/cloud IAM and deployed Security Rules validation for memory paths is absent.",
         "required_proof_commands_or_artifacts": [
             "python3 backend/scripts/firestore_rules_iam_proof.py --execute --project <approved-project>",
-            "Cloud IAM/service-account binding evidence for memory_items, vector repair outbox, MCP keys, and app/key grants",
+            "Cloud IAM/service-account binding evidence for memory_items, vector repair outbox, and memory control state",
             "Deployed Firestore Security Rules denial/allowance evidence for server-owned memory control documents",
         ],
         "blockers": ["no deployed Firestore/IAM proof output", "local emulator evidence is not cloud validation"],
@@ -110,31 +110,13 @@ CUTOVER_EVIDENCE_GATES: Dict[str, Dict[str, Any]] = {
         "required_proof_commands_or_artifacts": [
             "python3 backend/scripts/t21_v3_compatibility_cursor_readiness.py",
             "T21 `/v3` compatibility and cursor pagination matrix for legacy/memory readers covering /v3 endpoint compatibility, stable cursor pagination, category filters, and stable ordering",
-            "Compatibility evidence for disabled/malformed/no-grant, enabled-but-empty, deleted/non-active records, Archive default-unavailable, external response shape compatibility, developer category filtering, and MCP REST/SSE shape consistency",
-            "Regression output for affected `/v3` endpoints and product/developer/MCP/chat caller regression coverage",
+            "Compatibility evidence for disabled/malformed, enabled-but-empty, deleted/non-active records, Archive default-unavailable, and first-party response-shape compatibility",
+            "Regression output for affected `/v3` endpoints and retained product/chat caller coverage",
         ],
         "blockers": [
             "no T21 /v3 compatibility proof",
             "stable cursor pagination behavior not cutover-proven",
-            "product/developer/MCP/chat caller regression evidence remains NOT_RUN",
-        ],
-        "evidence": [],
-        "approval_claimed": False,
-    },
-    "t22_t23_external_writes_and_caller_coverage": {
-        "status": CUTOVER_GATE_STATUS_BLOCKED,
-        "summary": "T22/T23 external writes and caller coverage remain incomplete for Developer API, MCP, chat/tools, and agent surfaces.",
-        "required_proof_commands_or_artifacts": [
-            "python3 backend/scripts/t22_t23_external_writes_caller_coverage_readiness.py",
-            "T22/T23 external writes and caller coverage matrix for external create/edit/delete/list/search write/read convergence across /v3, Developer API, MCP REST/SSE, chat, tools, and agent paths",
-            "Durable memory write convergence or tested dual-write/outbox evidence before authoritative external reads, including no legacy unsafe fallback after memory writes",
-            "Caller coverage regression proving Developer API write/read paths, MCP REST/SSE write/read/list/search paths, chat/tool/agent caller coverage, app/key/scope grant enforcement, Archive default-unavailable, response-shape compatibility, delete/review/import compatibility, and rollback/disable behavior",
-        ],
-        "blockers": [
-            "no T22/T23 external writes and caller coverage proof",
-            "external create/edit/delete/list/search write/read convergence remains NOT_RUN",
-            "durable memory-write convergence or dual-write/outbox evidence remains NOT_RUN",
-            "caller coverage incomplete across Developer API, MCP REST/SSE, chat, tools, and agent paths",
+            "retained product/chat caller regression evidence remains NOT_RUN",
         ],
         "evidence": [],
         "approval_claimed": False,

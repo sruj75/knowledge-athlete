@@ -17,48 +17,44 @@ import XCTest
       super.tearDown()
     }
 
-    func testStateAuthorityDedupePreservesObservationAndResultDistinctions() {
+    func testStateAuthorityDedupePreservesOnboardingObservationAndResultDistinctions() {
       let diagnostics = DesktopDiagnosticsManager.shared
 
       XCTAssertTrue(
         diagnostics.recordStateAuthoritySignal(
-          seam: .connectorStatus,
-          from: "cached_or_derived",
-          to: "connected",
-          direction: "cloud_grant_status_inferred",
-          subject: "chatgpt"))
+          seam: .onboardingSetupState,
+          from: "completed_flag",
+          to: "persisted_resume",
+          direction: "completed_flag_with_resume_state"))
       XCTAssertFalse(
         diagnostics.recordStateAuthoritySignal(
-          seam: .connectorStatus,
-          from: "cached_or_derived",
-          to: "connected",
-          direction: "cloud_grant_status_inferred",
-          subject: "chatgpt"))
+          seam: .onboardingSetupState,
+          from: "completed_flag",
+          to: "persisted_resume",
+          direction: "completed_flag_with_resume_state"))
       XCTAssertTrue(
         diagnostics.recordStateAuthoritySignal(
-          seam: .connectorStatus,
-          from: "cached_after_check_failed",
-          to: "connected",
-          direction: "cloud_grant_status_inferred",
-          subject: "chatgpt"))
+          seam: .onboardingSetupState,
+          from: "completed_flag",
+          to: "setup_journal",
+          direction: "completed_flag_with_active_journal"))
       XCTAssertTrue(
         diagnostics.recordStateAuthoritySignal(
-          seam: .connectorStatus,
-          from: "cached_or_derived",
-          to: "not_connected",
-          direction: "cloud_grant_status_inferred",
-          subject: "chatgpt"))
+          seam: .onboardingSetupState,
+          from: "setup_journal",
+          to: "completed_flag",
+          direction: "active_journal_with_completed_flag"))
 
       let signals = diagnostics.currentSnapshotsForSentry().filter {
-        $0["seam"] as? String == DesktopStateAuthoritySeam.connectorStatus.rawValue
+        $0["seam"] as? String == DesktopStateAuthoritySeam.onboardingSetupState.rawValue
       }
       XCTAssertEqual(signals.count, 3)
       XCTAssertEqual(
         Set(signals.compactMap { $0["from"] as? String }),
-        ["cached_or_derived", "cached_after_check_failed"])
+        ["completed_flag", "setup_journal"])
       XCTAssertEqual(
         Set(signals.compactMap { $0["to"] as? String }),
-        ["connected", "not_connected"])
+        ["persisted_resume", "setup_journal", "completed_flag"])
     }
 
     func testDiagnosticsAttachmentUsesSafeOperationalFields() throws {
@@ -107,10 +103,6 @@ import XCTest
       [12:00:02] [error] silent capture detected
       """.write(to: logURL, atomically: true, encoding: .utf8)
       defer { try? FileManager.default.removeItem(at: logURL) }
-      DesktopDiagnosticsManager.shared.recordWalUploadFailed(
-        walId: "private-wal-id",
-        reason: "backend returned customer-specific private detail")
-
       let url = try XCTUnwrap(
         DesktopDiagnosticsManager.shared.writeIncidentDiagnosticsAttachment(
           area: "ptt",
@@ -121,7 +113,6 @@ import XCTest
       defer { try? FileManager.default.removeItem(at: url) }
 
       let data = try Data(contentsOf: url)
-      let json = String(data: data, encoding: .utf8) ?? ""
       let root = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
       let incident = try XCTUnwrap(root["incident"] as? [String: String])
       let tail = try XCTUnwrap(root["redacted_log_tail"] as? String)
@@ -135,8 +126,6 @@ import XCTest
       XCTAssertFalse(tail.contains("confidential meeting notes"))
       XCTAssertFalse(tail.contains("this must not reach cloud"))
       XCTAssertFalse(tail.contains("David's AirPods"))
-      XCTAssertFalse(json.contains("private-wal-id"))
-      XCTAssertFalse(json.contains("customer-specific private detail"))
       XCTAssertTrue(tail.contains("PTT capture started"))
       XCTAssertTrue(tail.contains("silent capture detected"))
     }
@@ -394,7 +383,7 @@ import XCTest
         category: nil,
         aliveFor: 7,
         activeTurn: true,
-        authMode: .byok,
+        authMode: .managed,
         failureClass: .providerTransient(provider: .openai))
 
       let snapshot = try latestSnapshot()
@@ -402,7 +391,7 @@ import XCTest
       XCTAssertEqual(snapshot["event"] as? String, "realtime_provider_session_error")
       XCTAssertEqual(snapshot["category"] as? String, "provider_transient")
       XCTAssertEqual(snapshot["failure_class"] as? String, "provider_transient")
-      XCTAssertEqual(snapshot["auth_mode"] as? String, "byok")
+      XCTAssertEqual(snapshot["auth_mode"] as? String, "managed")
     }
 
     func testTokenMintFailureIncludesHttpStatusWhenKnown() throws {
@@ -734,19 +723,6 @@ import XCTest
       XCTAssertNil(snapshot["message"])
       // The bounded cousin (a length, not content) survives.
       XCTAssertEqual(snapshot["transcript_length"] as? Int, 42)
-    }
-    func testWalUploadFailureStripsFreeFormDetailReason() throws {
-      // A real caller (WALService.uploadWalToCloud) pipes String(describing: error)
-      // into detail_reason; the emit chokepoint must strip that free-form text while
-      // keeping the bounded failure_class + area.
-      DesktopDiagnosticsManager.shared.recordWalUploadFailed(
-        walId: "wal-1",
-        reason: "backend returned a customer-specific private transcript snippet")
-      let snapshot = try latestSnapshot()
-      XCTAssertEqual(snapshot["event"] as? String, "fallback_triggered")
-      XCTAssertEqual(snapshot["area"] as? String, "wal_upload")
-      XCTAssertEqual(snapshot["failure_class"] as? String, "wal_upload_failed")
-      XCTAssertNil(snapshot["detail_reason"])
     }
     private func assertLatestHealthSnapshot(
       event: DesktopHealthEventName,

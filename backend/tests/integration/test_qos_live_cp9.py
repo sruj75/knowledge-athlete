@@ -223,20 +223,6 @@ class TestP6_StructuredOutput:
         assert isinstance(result, self.SimpleOutput)
         print(f"  P6 structured proactive_notification: {result.word}")
 
-    def test_structured_output_conv_app_select(self):
-        llm = get_llm('conv_app_select')
-        structured = llm.with_structured_output(self.SimpleOutput)
-        result = structured.invoke("Reply with a JSON object containing a single word: hello")
-        assert isinstance(result, self.SimpleOutput)
-        print(f"  P6 structured conv_app_select: {result.word}")
-
-    def test_structured_output_external_structure(self):
-        llm = get_llm('external_structure')
-        structured = llm.with_structured_output(self.SimpleOutput)
-        result = structured.invoke("Reply with a JSON object containing a single word: hello")
-        assert isinstance(result, self.SimpleOutput)
-        print(f"  P6 structured external_structure: {result.word}")
-
     @pytest.mark.skipif(not HAS_GEMINI_KEY, reason="GEMINI_API_KEY not set — trends is on Gemini in premium")
     def test_structured_output_trends_gemini(self):
         """trends is on gemini-2.5-flash-lite in premium — test SO on Gemini."""
@@ -250,9 +236,9 @@ class TestP6_StructuredOutput:
         assert _STRUCTURED_OUTPUT_FEATURES == {
             'chat_extraction',
             'proactive_notification',
-            'conv_app_select',
-            'external_structure',
             'trends',
+            'translation',
+            'what_matters_now',
         }
 
 

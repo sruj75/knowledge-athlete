@@ -79,7 +79,6 @@ final class MemoryProvenanceTests: XCTestCase {
       conversationId: nil,
       reviewed: false,
       userReview: nil,
-      visibility: "private",
       manuallyAdded: manuallyAdded,
       scoring: nil,
       source: source,

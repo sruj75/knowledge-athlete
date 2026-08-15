@@ -72,8 +72,6 @@ import {
   bindingMetadata,
   stableHash,
   stableJsonStringify,
-  stableMcpServerConfig,
-  stableJsonHash,
   parseJsonObject,
   placeholders,
   isStaleBindingError,
@@ -108,8 +106,6 @@ import {
   nullableNumber,
   nullableText,
   text,
-  refreshMcpAttemptContext,
-  mcpServersForBinding,
   canonicalAdapterEventType,
   runColumnMap,
   attemptColumnMap,
@@ -229,8 +225,7 @@ export class KernelCore {
     activeOwnerId: string;
   }): { toolName: string; toolInput: Record<string, unknown>; recoveredFromDelegation: boolean } {
     const capability = this.toolCapabilities.activeCapabilityForProposal(input.capabilityRef, input.activeOwnerId);
-    const adapter = capability.adapterId === "pi-mono" ? "pi-mono" : "omi-tools-stdio";
-    const canonicalToolName = normalizeOmiToolName(adapter, requiredExternalIdentity(input.toolName, "toolName"))
+    const canonicalToolName = normalizeOmiToolName("pi-mono", requiredExternalIdentity(input.toolName, "toolName"))
       .canonicalName;
     const decision = routeExternalSurfaceTool({
       toolName: canonicalToolName,
@@ -412,8 +407,7 @@ export class KernelCore {
     toolInput: Record<string, unknown>;
   }): { toolName: string; toolInput: Record<string, unknown>; recoveredFromDelegation: boolean } {
     const { session, run } = this.assertExternalRunTuple(input);
-    const adapter = session.defaultAdapterId === "pi-mono" ? "pi-mono" : "omi-tools-stdio";
-    const canonicalToolName = normalizeOmiToolName(adapter, requiredExternalIdentity(input.toolName, "toolName"))
+    const canonicalToolName = normalizeOmiToolName("pi-mono", requiredExternalIdentity(input.toolName, "toolName"))
       .canonicalName;
     const runInput = parseJsonObject(run.inputJson);
     const decision = routeExternalSurfaceTool({
@@ -1039,16 +1033,6 @@ export class KernelCore {
             attemptId: attempt.attemptId,
             sessionId: accepted.session.sessionId,
           });
-          refreshMcpAttemptContext(
-            mcpServersForBinding(
-              attemptInput.mcpServers ?? [],
-              accepted.session.sessionId,
-              adapterId,
-              this.runtimeNodeId,
-              attemptInput.cwd,
-            ),
-            { capabilityRef: toolCapability.capabilityRef },
-          );
           this.markAttemptRunning(attempt, binding);
           return worker.adapter.executeAttempt(
             {
@@ -1453,10 +1437,10 @@ export class KernelCore {
       externalRefKind: input.externalRefKind ?? null,
       externalRefId: input.externalRefId ?? null,
       title: input.title ?? null,
-      defaultAdapterId: input.defaultAdapterId ?? "acp",
+      defaultAdapterId: input.defaultAdapterId ?? "pi-mono",
       executionRole: input.executionRole ?? "coordinator",
       providerBoundary:
-        input.providerBoundary ?? providerBoundaryForAdapter(input.defaultAdapterId ?? "acp"),
+        input.providerBoundary ?? providerBoundaryForAdapter(input.defaultAdapterId ?? "pi-mono"),
       modelProfile: input.modelProfile ?? null,
       defaultCwd: "cwd" in input ? (input as ExecuteAgentRunInput).cwd ?? null : null,
       executionProfileSource: input.executionProfileSource,
@@ -1626,15 +1610,7 @@ export class KernelCore {
     if (binding.systemPromptHash !== null && binding.systemPromptHash !== requestedSystemPromptHash) {
       return false;
     }
-    const metadata = parseJsonObject(binding.metadataJson);
-    const effectiveMcpServers = input.adapter?.effectiveMcpServers
-      ? input.adapter.effectiveMcpServers(input.input.mcpServers ?? [])
-      : input.input.mcpServers ?? [];
-    const expectedMcpServersHash = stableJsonHash(stableMcpServerConfig(effectiveMcpServers));
-    if (metadata.mcpServersHash === undefined) {
-      return true;
-    }
-    return metadata.mcpServersHash === expectedMcpServersHash;
+    return true;
   }
 
   protected async resumeOrReplaceBinding(
@@ -1668,13 +1644,6 @@ export class KernelCore {
         cwd: input.input.cwd ?? binding.cwd ?? input.session.defaultCwd ?? process.cwd(),
         model: input.input.model ?? binding.modelId ?? undefined,
         systemPrompt: input.input.systemPrompt,
-        mcpServers: mcpServersForBinding(
-          input.input.mcpServers ?? [],
-          input.session.sessionId,
-          input.adapterId,
-          this.runtimeNodeId,
-          input.input.cwd,
-        ),
         metadata: {
           ...(input.input.metadata ?? {}),
           executionRole: input.session.executionRole,
@@ -1687,7 +1656,7 @@ export class KernelCore {
           cwd: input.input.cwd ?? binding.cwd ?? input.session.defaultCwd ?? null,
           modelId: input.input.model ?? binding.modelId ?? null,
           systemPromptHash: stableHash(input.input.systemPromptCacheIdentity ?? input.input.systemPrompt),
-          metadataJson: bindingMetadata(input.input, input.adapter),
+          metadataJson: bindingMetadata(input.input),
           lastUsedAtMs: Date.now(),
           updatedAtMs: Date.now(),
         });
@@ -1734,13 +1703,6 @@ export class KernelCore {
       cwd: input.input.cwd ?? input.session.defaultCwd ?? process.cwd(),
       model: input.input.model,
       systemPrompt: input.input.systemPrompt,
-      mcpServers: mcpServersForBinding(
-        input.input.mcpServers ?? [],
-        input.session.sessionId,
-        input.adapterId,
-        this.runtimeNodeId,
-        input.input.cwd,
-      ),
       metadata: {
         ...(input.input.metadata ?? {}),
         executionRole: input.session.executionRole,
@@ -1766,7 +1728,7 @@ export class KernelCore {
         cwd: opened.cwd,
         modelId: opened.model ?? input.input.model ?? null,
         systemPromptHash: stableHash(input.input.systemPromptCacheIdentity ?? input.input.systemPrompt),
-        metadataJson: bindingMetadata(input.input, input.adapter),
+        metadataJson: bindingMetadata(input.input),
         lastUsedAtMs: Date.now(),
       });
       this.appendEvent({

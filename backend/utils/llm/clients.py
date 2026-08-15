@@ -184,7 +184,7 @@ def _with_llm_callbacks(kwargs: Dict[str, Any], provider: str, model: str = '', 
 
 
 class _AnthropicClientProxy:
-    """Forwards every attribute to the appropriate anthropic.AsyncAnthropic for the request."""
+    """Lazily forwards attributes to the managed Anthropic client."""
 
     __slots__ = ('_default',)
 
@@ -199,11 +199,8 @@ class _AnthropicClientProxy:
         return default
 
     def _resolve(self) -> anthropic.AsyncAnthropic:
-        byok = get_byok_key('anthropic')
         if should_route_features_through_gateway():
-            return get_gateway_anthropic_client(byok_api_key=byok)
-        if byok:
-            return _cached_anthropic(byok)
+            return get_gateway_anthropic_client(byok_api_key=None)
         return self._default_client()
 
     def __getattr__(self, name: str):
@@ -211,10 +208,9 @@ class _AnthropicClientProxy:
 
 
 class _OpenAIEmbeddingsProxy:
-    """Transparent proxy for OpenAIEmbeddings that uses BYOK OpenAI when set."""
+    """Lazily forwards embedding calls to the managed OpenAI client."""
 
     __slots__ = ('_model', '_default', '_ctor_kwargs')
-    _METHODS_TO_WRAP = {'embed_documents', 'aembed_documents', 'embed_query', 'aembed_query'}
 
     def __init__(self, model: str, default: Optional[OpenAIEmbeddings], ctor_kwargs: Dict[str, Any]):
         object.__setattr__(self, '_model', model)
@@ -228,102 +224,14 @@ class _OpenAIEmbeddingsProxy:
             object.__setattr__(self, '_default', default)
         return default
 
-    def _resolve(self) -> OpenAIEmbeddings:
-        byok = get_byok_key('openai')
-        if byok:
-            cache_key = f"emb:{self._model}:{_hash_key(byok)}"
-            inst = _openai_cache.get(cache_key)
-            if inst is None:
-                inst = OpenAIEmbeddings(model=self._model, api_key=byok, **self._ctor_kwargs)
-                _openai_cache[cache_key] = inst
-            return inst
-        return self._default_client()
-
-    @staticmethod
-    def _is_key_failure(e: Exception) -> bool:
-        # A user's BYOK OpenAI key being out of quota / invalid / rate-limited must not
-        # silently break memory search (it would return empty). Detect those and fall
-        # back to Omi's key instead. Heuristic on the error text — embeddings have no
-        # typed error here, and a false positive only means one extra default-key call.
-        s = str(e).lower()
-        return any(
-            k in s
-            for k in (
-                'insufficient_quota',
-                'exceeded your current quota',
-                'invalid_api_key',
-                'incorrect api key',
-                'invalid api key',
-                'model_not_found',
-                'does not have access to model',
-                'permissiondeniederror',
-                'permission denied',
-                '403 forbidden',
-                'error code: 403',
-                'rate_limit',
-                ' 429',
-                ' 401',
-            )
-        )
-
     def embed_query(self, text: str) -> List[float]:
-        inst = self._resolve()
-        try:
-            return inst.embed_query(text)
-        except Exception as e:
-            if inst is not self._default:
-                handle_llm_error(e, 'openai', feature='embeddings', model=self._model, operation='embed_query')
-                if self._is_key_failure(e):
-                    logger.warning("BYOK OpenAI embeddings failed (%s); falling back to Omi key", type(e).__name__)
-                    return self._default_client().embed_query(text)
-            raise
+        return self._default_client().embed_query(text)
 
     def embed_documents(self, texts: List[str]) -> List[List[float]]:
-        inst = self._resolve()
-        try:
-            return inst.embed_documents(texts)
-        except Exception as e:
-            if inst is not self._default:
-                handle_llm_error(e, 'openai', feature='embeddings', model=self._model, operation='embed_documents')
-                if self._is_key_failure(e):
-                    logger.warning("BYOK OpenAI embeddings failed (%s); falling back to Omi key", type(e).__name__)
-                    return self._default_client().embed_documents(texts)
-            raise
+        return self._default_client().embed_documents(texts)
 
     def __getattr__(self, name: str):
-        inst = self._resolve()
-        attr = getattr(inst, name)
-        if name not in self._METHODS_TO_WRAP or not callable(attr):
-            return attr
-        if name.startswith('a'):
-
-            async def _wrapped_async(*args, **kwargs):
-                try:
-                    return await attr(*args, **kwargs)
-                except Exception as e:
-                    if inst is not self._default:
-                        handle_llm_error(e, 'openai', feature='embeddings', model=self._model, operation=name)
-                        if self._is_key_failure(e):
-                            logger.warning(
-                                "BYOK OpenAI embeddings failed (%s); falling back to Omi key", type(e).__name__
-                            )
-                            return await getattr(self._default_client(), name)(*args, **kwargs)
-                    raise
-
-            return _wrapped_async
-
-        def _wrapped(*args, **kwargs):
-            try:
-                return attr(*args, **kwargs)
-            except Exception as e:
-                if inst is not self._default:
-                    handle_llm_error(e, 'openai', feature='embeddings', model=self._model, operation=name)
-                    if self._is_key_failure(e):
-                        logger.warning("BYOK OpenAI embeddings failed (%s); falling back to Omi key", type(e).__name__)
-                        return getattr(self._default_client(), name)(*args, **kwargs)
-                raise
-
-        return _wrapped
+        return getattr(self._default_client(), name)
 
 
 _BYOK_CACHE_MAX_SIZE = 256
@@ -667,14 +575,11 @@ def gemini_embed_query(text: str) -> List[float]:
     """Embed a query using Gemini embedding-001 (3072-dim) for screen activity search.
 
     Uses RETRIEVAL_QUERY task type to match the RETRIEVAL_DOCUMENT embeddings
-    generated by the desktop app.
-
-    Prefers the per-request BYOK Gemini key; falls back to the process-wide
-    env key so non-BYOK callers behave exactly as before.
+    generated by the desktop app and the product-managed Gemini credential.
     """
     if should_route_features_through_gateway():
         record_direct_exception_surface(surface='gemini_screen_activity_query_embedding', reason='out_of_scope')
-    api_key = get_byok_key('gemini') or os.environ.get('GEMINI_API_KEY', '')
+    api_key = os.environ.get('GEMINI_API_KEY', '')
     url = 'https://generativelanguage.googleapis.com/v1beta/models/embedding-001:embedContent'
     payload = {
         'model': 'models/embedding-001',

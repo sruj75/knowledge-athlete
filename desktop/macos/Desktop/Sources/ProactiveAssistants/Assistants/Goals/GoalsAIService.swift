@@ -142,7 +142,7 @@ actor GoalsAIService {
 
   /// Fetch rich user context for goal generation/suggestion
   private func fetchRichContext() async -> (
-    memories: String, conversations: String, actionItems: String, persona: String,
+    memories: String, conversations: String, actionItems: String, profile: String,
     existingGoals: String, completedGoals: String, abandonedGoals: String,
     rawTasks: [TaskActionItem]
   ) {
@@ -167,12 +167,7 @@ actor GoalsAIService {
         return nil
       }
     }()
-    async let personaFetch = { () async -> Persona? in
-      do { return try await APIClient.shared.getPersona() } catch {
-        log("GoalsAI: Failed to fetch persona: \(error.localizedDescription)")
-        return nil
-      }
-    }()
+    async let profileFetch = AIUserProfileService.shared.getLatestProfile()
     async let goalsFetch = { () async -> [Goal] in
       do { return try await APIClient.shared.getGoals() } catch {
         log("GoalsAI: Failed to fetch goals: \(error.localizedDescription)")
@@ -186,8 +181,8 @@ actor GoalsAIService {
       }
     }()
 
-    let (memories, conversations, actionItems, persona, goals, goalHistory) = await (
-      memoriesFetch, conversationsFetch, actionItemsFetch, personaFetch, goalsFetch, historyFetch
+    let (memories, conversations, actionItems, profile, goals, goalHistory) = await (
+      memoriesFetch, conversationsFetch, actionItemsFetch, profileFetch, goalsFetch, historyFetch
     )
 
     // Split goal history into completed vs abandoned
@@ -196,7 +191,7 @@ actor GoalsAIService {
 
     let tasks = actionItems?.items ?? []
     log(
-      "GoalsAI: Fetched context — \(memories.count) memories, \(conversations.count) conversations, \(tasks.count) tasks, persona: \(persona != nil ? "yes" : "no"), \(goals.count) existing goals, \(completed.count) completed, \(abandoned.count) abandoned"
+      "GoalsAI: Fetched context — \(memories.count) memories, \(conversations.count) conversations, \(tasks.count) tasks, profile: \(profile != nil ? "yes" : "no"), \(goals.count) existing goals, \(completed.count) completed, \(abandoned.count) abandoned"
     )
 
     // Build context strings — full content, no truncation
@@ -207,12 +202,7 @@ actor GoalsAIService {
       .joined(separator: "\n")
     // Include task IDs so the AI can reference them for linking
     let actionItemsContext = tasks.map { "[\($0.id)] \($0.description)" }.joined(separator: "\n")
-    let personaContext: String
-    if let p = persona {
-      personaContext = "\(p.name): \(p.description)"
-    } else {
-      personaContext = "No persona set"
-    }
+    let profileContext = profile?.profileText ?? "No AI Profile yet"
     let existingGoalsContext =
       goals.isEmpty
       ? "None"
@@ -231,7 +221,7 @@ actor GoalsAIService {
       }.joined(separator: "\n")
 
     return (
-      memoryContext, conversationContext, actionItemsContext, personaContext, existingGoalsContext,
+      memoryContext, conversationContext, actionItemsContext, profileContext, existingGoalsContext,
       completedGoalsContext, abandonedGoalsContext, tasks
     )
   }
@@ -254,7 +244,7 @@ actor GoalsAIService {
 
     // Build prompt
     let prompt = GoalPrompts.generateGoal
-      .replacingOccurrences(of: "{persona_context}", with: ctx.persona)
+      .replacingOccurrences(of: "{profile_context}", with: ctx.profile)
       .replacingOccurrences(
         of: "{memory_context}", with: ctx.memories.isEmpty ? "No memories yet" : ctx.memories
       )
@@ -272,7 +262,7 @@ actor GoalsAIService {
 
     log("GoalsAI: Model: default (Flash)")
     log(
-      "GoalsAI: Context sizes — memories: \(ctx.memories.count) chars, conversations: \(ctx.conversations.count) chars, tasks: \(ctx.actionItems.count) chars, persona: \(ctx.persona.count) chars, existing goals: \(ctx.existingGoals), completed: \(ctx.completedGoals.count) chars, abandoned: \(ctx.abandonedGoals.count) chars"
+      "GoalsAI: Context sizes — memories: \(ctx.memories.count) chars, conversations: \(ctx.conversations.count) chars, tasks: \(ctx.actionItems.count) chars, profile: \(ctx.profile.count) chars, existing goals: \(ctx.existingGoals), completed: \(ctx.completedGoals.count) chars, abandoned: \(ctx.abandonedGoals.count) chars"
     )
     log("GoalsAI: Full prompt:\n\(prompt)")
 

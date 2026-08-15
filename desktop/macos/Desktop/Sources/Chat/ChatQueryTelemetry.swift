@@ -94,8 +94,6 @@ struct ChatQueryTelemetryContext: Equatable, Sendable {
   let attemptId: String
   let surface: String
   let harness: String
-  let bridgeModePreference: String?
-  let sessionAdapterId: String?
   let runtimeSurface: String?
   let inputLengthBucket: String
   let attachmentCount: Int
@@ -105,8 +103,6 @@ struct ChatQueryTelemetryContext: Equatable, Sendable {
     attemptId: String,
     surface: String,
     harness: String,
-    bridgeModePreference: String? = nil,
-    sessionAdapterId: String? = nil,
     runtimeSurface: String? = nil,
     inputLengthBucket: String = "unknown",
     attachmentCount: Int = 0,
@@ -115,8 +111,6 @@ struct ChatQueryTelemetryContext: Equatable, Sendable {
     self.attemptId = attemptId
     self.surface = surface
     self.harness = harness
-    self.bridgeModePreference = bridgeModePreference.map { String($0.prefix(64)) }
-    self.sessionAdapterId = sessionAdapterId.map { String($0.prefix(64)) }
     self.runtimeSurface = runtimeSurface
     self.inputLengthBucket = inputLengthBucket
     self.attachmentCount = attachmentCount
@@ -129,7 +123,7 @@ enum ChatTelemetryDimension {
     let generated = GeneratedToolCapabilities.capabilities.map { $0.toolName.lowercased() }
     let runtimeBuiltins = [
       "bash", "browser", "computer", "edit", "glob", "grep", "image", "multiedit",
-      "notebookedit", "playwright", "read", "shell", "skill", "task", "todowrite",
+      "notebookedit", "read", "shell", "skill", "task", "todowrite",
       "webfetch", "websearch", "write",
     ]
     return Set(generated + runtimeBuiltins)
@@ -346,20 +340,6 @@ extension ChatQueryTelemetryEvent {
     properties["attempt_id"] = context.attemptId
     properties["surface"] = context.surface
     properties["harness"] = context.harness
-    if let bridgeModePreference = context.bridgeModePreference {
-      properties["bridge_mode_preference"] = bridgeModePreference
-    }
-    if let sessionAdapterId = context.sessionAdapterId {
-      properties["session_adapter_id"] = sessionAdapterId
-      let harnessNorm = context.harness.lowercased()
-      let adapterNorm = sessionAdapterId.lowercased()
-      let harnessMatchesAdapter =
-        harnessNorm == adapterNorm
-        || (harnessNorm == "pimono" && adapterNorm == "pi-mono")
-      if !harnessMatchesAdapter {
-        properties["adapter_harness_mismatch"] = true
-      }
-    }
     properties["input_length_bucket"] = context.inputLengthBucket
     properties["attachment_count"] = context.attachmentCount
     properties["has_image"] = context.hasImage
@@ -368,13 +348,9 @@ extension ChatQueryTelemetryEvent {
     }
     properties["telemetry_schema_version"] = 2
     if case .failed(_, _, let errorClass, _, _, _) = self {
-      // One-release compatibility alias for existing PostHog breakdowns.
-      // It is bounded and contains the same value as `error_class`, never the
-      // raw exception. Remove after LXEMscAj and Hermes exports migrate to v2.
       properties["error"] = errorClass.rawValue
       if errorClass == .authentication {
         properties["turn_disposition"] = "auth_blocked"
-        properties["root_cause"] = "provider_claude"
       }
     }
     return ChatQueryAnalyticsPayload(eventName: eventName, properties: properties)
@@ -396,16 +372,12 @@ final class ChatQueryTelemetryAttempt {
 
   private let elapsedMilliseconds: () -> Int
   private let eventSink: EventSink
-  private var boundSessionAdapterId: String?
-  private var boundBridgeModePreference: String?
   private(set) var isTerminal = false
 
   init(
     attemptId: String = UUID().uuidString,
     surface: String,
     harness: String,
-    bridgeModePreference: String? = nil,
-    sessionAdapterId: String? = nil,
     runtimeSurface: String? = nil,
     inputLength: Int = 0,
     attachmentCount: Int = 0,
@@ -417,8 +389,6 @@ final class ChatQueryTelemetryAttempt {
       attemptId: attemptId,
       surface: String(surface.prefix(64)),
       harness: String(harness.prefix(64)),
-      bridgeModePreference: bridgeModePreference.map { String($0.prefix(64)) },
-      sessionAdapterId: sessionAdapterId,
       runtimeSurface: runtimeSurface.map { String($0.prefix(64)) },
       inputLengthBucket: Self.inputLengthBucket(inputLength),
       attachmentCount: min(max(0, attachmentCount), 20),
@@ -440,37 +410,8 @@ final class ChatQueryTelemetryAttempt {
     self.eventSink(.started(eventContext()))
   }
 
-  func bindSessionAdapter(_ adapterId: String) {
-    boundSessionAdapterId = String(adapterId.prefix(64))
-  }
-
-  func bindBridgeModePreference(_ bridgeMode: String) {
-    boundBridgeModePreference = String(bridgeMode.prefix(64))
-  }
-
-  var resolvedSessionAdapterId: String? {
-    boundSessionAdapterId ?? context.sessionAdapterId
-  }
-
   private func eventContext() -> ChatQueryTelemetryContext {
-    let sessionAdapterId = boundSessionAdapterId ?? context.sessionAdapterId
-    let bridgeModePreference = boundBridgeModePreference ?? context.bridgeModePreference
-    if sessionAdapterId == context.sessionAdapterId
-      && bridgeModePreference == context.bridgeModePreference
-    {
-      return context
-    }
-    return ChatQueryTelemetryContext(
-      attemptId: context.attemptId,
-      surface: context.surface,
-      harness: context.harness,
-      bridgeModePreference: bridgeModePreference,
-      sessionAdapterId: sessionAdapterId,
-      runtimeSurface: context.runtimeSurface,
-      inputLengthBucket: context.inputLengthBucket,
-      attachmentCount: context.attachmentCount,
-      hasImage: context.hasImage
-    )
+    context
   }
 
   @discardableResult

@@ -1,0 +1,31 @@
+version: 2
+name: retained-pi-tool-bridge
+tier: manual
+description: Live P2 — retained scoped tool crosses managed Pi and OMI_BRIDGE_PIPE into Swift
+app: non-prod
+covers:
+  - desktop/macos/Desktop/Sources/Providers/ChatToolExecutor.swift
+  - desktop/macos/Desktop/Sources/Chat/AgentRuntimeProcess.swift
+preconditions:
+  - auth_ready
+  - named_test_bundle_only
+  - managed_pi_ready
+
+steps:
+  - id: S1
+    name: Start the named managed-Pi chat
+    do: "Launch a named Omi bundle with its packaged Pi extension and OMI_BRIDGE_PIPE enabled. Open Home chat and confirm the runtime is using the managed Pi adapter."
+    expect:
+      interactive_count: { min: 2 }
+
+  - id: S2
+    name: Invoke a retained scoped tool
+    do: "Ask the assistant to read retained local status using get_local_status. Verify the completed tool activity names get_local_status and returns its typed local-status payload."
+    expect:
+      interactive_count: { min: 2 }
+
+  - id: S3
+    name: Verify the private bridge receipt
+    do: "Inspect the named-bundle logs and verify the call crossed the packaged Pi extension through OMI_BRIDGE_PIPE into ChatToolExecutor, with no hosted MCP, Calendar creation, file scan, knowledge-graph write, or omi-tools-stdio fallback."
+    expect:
+      interactive_count: { min: 1 }

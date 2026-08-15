@@ -207,38 +207,17 @@ class TestMemoryLifecycle:
         assert evidence.independence_group == 'conv1'
         assert evidence.redaction_status == 'active'
 
-    def test_from_memory_seeds_manual_api_evidence(self):
+    def test_from_memory_seeds_manual_note_evidence(self):
         mem = Memory(content='Prefers aisle seats', category=MemoryCategory.manual)
         db = MemoryDB.from_memory(mem, uid='u', conversation_id=None, manually_added=True)
 
         assert len(db.evidence) == 1
         evidence = db.evidence[0]
-        assert evidence.source_id == f'external:{db.id}'
-        assert evidence.independence_group == f'external:{db.id}'
-        assert evidence.source_type == 'developer_api'
+        assert evidence.source_id == f'manual:{db.id}'
+        assert evidence.independence_group == f'manual:{db.id}'
+        assert evidence.source_type == 'manual_note'
         assert evidence.source_signal == 'manual'
         assert evidence.capture_confidence == 0.95
-
-    def test_from_memory_accepts_integration_evidence_context(self):
-        mem = Memory(content='Uses Linear for issue tracking', category=MemoryCategory.system)
-        db = MemoryDB.from_memory(
-            mem,
-            uid='u',
-            conversation_id=None,
-            manually_added=False,
-            source_id='linear',
-            source_type='integration:linear',
-            source_signal='integration',
-            artifact_ref={'kind': 'integration_text', 'external_id': 'issue-1'},
-            extractor_id='extract_memories_from_text',
-        )
-
-        evidence = db.evidence[0]
-        assert evidence.source_id == 'linear'
-        assert evidence.source_type == 'integration:linear'
-        assert evidence.source_signal == 'integration'
-        assert evidence.artifact_ref == {'kind': 'integration_text', 'external_id': 'issue-1'}
-        assert evidence.extractor_id == 'extract_memories_from_text'
 
     def test_invalidated_memory_is_not_active(self):
         m = self._bare(invalid_at=datetime.now(timezone.utc), superseded_by='y')
@@ -269,10 +248,10 @@ class TestMemoryLifecycle:
     def test_merge_evidence_sets_appends_without_duplicates(self):
         existing = [
             {'evidence_id': 'ev1', 'source_id': 'conv1'},
-            {'evidence_id': 'ev2', 'source_id': 'gmail:msg1'},
+            {'evidence_id': 'ev2', 'source_id': 'conv-2'},
         ]
         incoming = [
-            {'evidence_id': 'ev2', 'source_id': 'gmail:msg1'},
+            {'evidence_id': 'ev2', 'source_id': 'conv-2'},
             {'evidence_id': 'ev3', 'source_id': 'linear:issue1'},
         ]
 

@@ -24,8 +24,6 @@ enum SBOnboardingPanelLayout {
 struct SBOnboardingView: View {
   @Environment(\.sbTheme) private var sb
   @StateObject private var model: SBOnboardingModel
-  @ObservedObject private var importConnectorStatusStore: ImportConnectorStatusStore
-  @State private var selectedImportConnector: ImportConnector?
   /// Language step: false shows the detected default + Continue; true reveals the picker.
   @State private var languageChanging = false
 
@@ -38,17 +36,14 @@ struct SBOnboardingView: View {
   init(
     appState: AppState,
     chatProvider: ChatProvider,
-    importConnectorStatusStore: ImportConnectorStatusStore,
     onComplete: (() -> Void)?
   ) {
     _model = StateObject(
       wrappedValue: SBOnboardingModel(
         appState: appState,
         chatProvider: chatProvider,
-        importConnectorStatusStore: importConnectorStatusStore,
         onComplete: onComplete
       ))
-    _importConnectorStatusStore = ObservedObject(wrappedValue: importConnectorStatusStore)
   }
 
   var body: some View {
@@ -89,24 +84,6 @@ struct SBOnboardingView: View {
       .padding(.top, 20).padding(.trailing, 24)
     }
     .onAppear { model.begin() }
-    .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
-      if model.step == .context { refreshContextStates() }
-    }
-    .onChange(of: model.step) { _, step in
-      if step == .context { refreshContextStates() }
-    }
-    .onReceive(importConnectorStatusStore.connectorDidSync) { connectorID in
-      model.markPersistedContextConnectorConnected(connectorID)
-    }
-    .dismissableSheet(item: $selectedImportConnector) { connector in
-      ImportConnectorSheet(
-        connector: connector,
-        appState: nil,
-        statusStore: importConnectorStatusStore,
-        onDismiss: { selectedImportConnector = nil }
-      )
-      .frame(width: 520, height: 620)
-    }
     // Safety net: the `.shortcut` step suspends global hotkeys and nulls the main
     // menu (restored only via the advance/skip/complete buttons). If the view is
     // removed by any other path (e.g. auth flips to signed-out), restore them here
@@ -232,20 +209,13 @@ struct SBOnboardingView: View {
       permStepWidget("screen_recording", "Screen Recording", "so I can see what you're looking at") {
         model.answerScreen()
       }
-    case .files: filesWidget
     case .accessibility:
       permStepWidget("accessibility", "Accessibility", "catch your shortcut + click/type for you") {
         model.answerAccessibility()
       }
-    case .automation:
-      permStepWidget("automation", "Automation", "help with tasks in the apps you choose") {
-        model.answerAutomation()
-      }
     case .shortcutOpen: shortcutWidget(isTalk: false)
     case .shortcutTalk: shortcutWidget(isTalk: true)
     case .screenDemo: screenDemoWidget
-    case .agents: agentsWidget
-    case .context: contextWidget
     case .capture: captureWidget
     }
   }
@@ -440,58 +410,6 @@ struct SBOnboardingView: View {
     .frame(maxWidth: 380, alignment: .leading)
   }
 
-  @ViewBuilder private var filesWidget: some View {
-    switch model.localFileProfileState {
-    case .idle:
-      permStepWidget("full_disk_access", "Full Disk Access", "cite your files · read-only, stays on this Mac") {
-        model.answerFiles()
-      }
-    case .scanning:
-      VStack(alignment: .leading, spacing: 10) {
-        Text("Building your local profile").geist(size: 14, weight: .medium).foregroundStyle(sb.ink)
-        HStack(spacing: 8) {
-          ProgressView().controlSize(.small)
-          Text("Scanning your projects and recent files…").geist(size: 13).foregroundStyle(sb.ink(.w45))
-        }
-      }
-      .frame(maxWidth: 380, alignment: .leading)
-    case .complete(let fileCount, let memoryCount, let deniedFolders):
-      VStack(alignment: .leading, spacing: 10) {
-        Text("Your local profile is ready").geist(size: 14, weight: .medium).foregroundStyle(sb.ink)
-        Text("\(fileCount.formatted()) files indexed · \(memoryCount) profile memories saved")
-          .geist(size: 13).foregroundStyle(sb.ink(.w45))
-        if !deniedFolders.isEmpty {
-          Text("Some folders need access later: \(deniedFolders.joined(separator: ", "))")
-            .geist(size: 12.5).foregroundStyle(sb.ink(.w45))
-        }
-        if model.fdaState != .on {
-          Button(model.fdaState == .waiting ? "Waiting for Full Disk Access…" : "Allow Full Disk Access") {
-            if model.fdaState == .ask { model.requestPerm("full_disk_access") }
-          }
-          .buttonStyle(.plain)
-          .disabled(model.fdaState == .waiting)
-          .geist(size: 13, weight: .medium)
-          .foregroundStyle(sb.ink(.w6))
-        }
-        SBInkButton(title: "Continue", isDefaultAction: true) { model.finishFilesStep() }
-      }
-      .frame(maxWidth: 380, alignment: .leading)
-    case .failed(let message):
-      VStack(alignment: .leading, spacing: 10) {
-        Text("I couldn't finish scanning your files").geist(size: 14, weight: .medium).foregroundStyle(sb.ink)
-        Text(message).geist(size: 13).foregroundStyle(sb.ink(.w45))
-        HStack(spacing: 10) {
-          SBInkButton(title: "Retry") { model.retryLocalFileScan() }
-          Button("Continue without a scan") { model.finishFilesStep() }
-            .buttonStyle(.plain)
-            .geist(size: 13, weight: .medium)
-            .foregroundStyle(sb.ink(.w6))
-        }
-      }
-      .frame(maxWidth: 380, alignment: .leading)
-    }
-  }
-
   /// A physical-looking keycap (symbol + key name for modifiers, centered glyph
   /// otherwise), mirroring the legacy OnboardingKeyCapView. Lights up when `active`.
   private static let keyNames: [String: String] = [
@@ -642,116 +560,6 @@ struct SBOnboardingView: View {
       .padding(.top, 6)
     }
     .frame(maxWidth: 380, alignment: .leading)
-  }
-
-  // MARK: agents + context connectors
-
-  private var agentsWidget: some View {
-    VStack(alignment: .leading, spacing: 12) {
-      VStack(spacing: 0) {
-        ForEach(Array(model.agentRows.enumerated()), id: \.element.id) { i, row in
-          connectRow(id: row.id, row.name, row.detail, state: model.agentStates[row.id] ?? "idle") {
-            model.connectAgent(row.id)
-          }
-          if i < model.agentRows.count - 1 { Divider().overlay(sb.ink(.w08)) }
-        }
-      }
-      .padding(.horizontal, 14)
-      .overlay(RoundedRectangle(cornerRadius: 13).stroke(sb.ink(.w1), lineWidth: 1))
-      SBInkButton(title: "Continue", isDefaultAction: true) { model.answerAgents() }
-    }
-    .frame(maxWidth: 380, alignment: .leading)
-  }
-
-  private var contextWidget: some View {
-    VStack(alignment: .leading, spacing: 12) {
-      VStack(spacing: 0) {
-        ForEach(Array(model.contextRows.enumerated()), id: \.element.id) { i, row in
-          connectRow(
-            id: row.id,
-            row.name,
-            model.contextDetails[row.id] ?? row.detail,
-            state: model.contextStates[row.id] ?? "idle"
-          ) {
-            connectContext(row.id)
-          }
-          if i < model.contextRows.count - 1 { Divider().overlay(sb.ink(.w08)) }
-        }
-      }
-      .padding(.horizontal, 14)
-      .overlay(RoundedRectangle(cornerRadius: 13).stroke(sb.ink(.w1), lineWidth: 1))
-      SBInkButton(title: "Continue", isDefaultAction: true) { model.answerContext() }
-    }
-    .frame(maxWidth: 380, alignment: .leading)
-  }
-
-  private func connectContext(_ id: String) {
-    switch SBOnboardingModel.contextConnectionRoute(for: id) {
-    case .importConnector(let connectorID):
-      selectedImportConnector = ImportConnector.all.first { $0.id == connectorID }
-    case .direct:
-      model.connectContext(id)
-    }
-  }
-
-  private func refreshContextStates() {
-    model.refreshContextStates()
-    importConnectorStatusStore.refreshPersistedManualImportMetrics()
-    for connectorID in ["chatgpt", "claude"] {
-      guard
-        let connector = ImportConnector.all.first(where: { $0.id == connectorID }),
-        importConnectorStatusStore.snapshot(for: connector).isConnected
-      else { continue }
-      model.markContextImportConnected(connectorID)
-    }
-  }
-
-  private func connectRow(id: String, _ name: String, _ detail: String, state: String, action: @escaping () -> Void)
-    -> some View
-  {
-    VStack(alignment: .leading, spacing: 8) {
-      HStack(spacing: 12) {
-        ConnectorBrandIcon(brand: model.connectorBrand(id), size: 26, cornerRadius: 7)
-        VStack(alignment: .leading, spacing: 1) {
-          Text(name).geist(size: 14, weight: .medium).foregroundStyle(sb.ink)
-          Text(detail).geist(size: 12).foregroundStyle(sb.ink(.w4))
-        }
-        Spacer(minLength: 8)
-        connectTrailing(state, action: action)
-      }
-      // Once Claude Code is connected, surface the restart prompt/button so its
-      // running sessions actually reload the new MCP config (#10205).
-      if id == "claudeCode", state == "on" {
-        ClaudeCodeRestartSubtitle()
-      }
-    }
-    .padding(.vertical, 10)
-  }
-
-  @ViewBuilder
-  private func connectTrailing(_ state: String, action: @escaping () -> Void) -> some View {
-    switch state {
-    case "on": Text("✓ on").geistMono(size: 12).foregroundStyle(sb.ink(.w6))
-    case "connecting": Text("…").geistMono(size: 13).foregroundStyle(sb.ink(.w4))
-    case "checking": Text("checking…").geist(size: 12).foregroundStyle(sb.ink(.w35))
-    case "unavailable": Text("not installed").geist(size: 12).foregroundStyle(sb.ink(.w35))
-    case "error":
-      Button(action: action) {
-        Text("Retry").geist(size: 13, weight: .semibold).foregroundStyle(sb.inkInverted)
-          .padding(.horizontal, 12).padding(.vertical, 4)
-          .background(RoundedRectangle(cornerRadius: 7).fill(sb.ink))
-      }
-      .buttonStyle(.plain)
-    default:
-      Button(action: action) {
-        Text(state == "needsSignIn" ? "Retry" : "Connect").geist(size: 13, weight: .semibold).foregroundStyle(
-          sb.inkInverted
-        )
-        .padding(.horizontal, 12).padding(.vertical, 4)
-        .background(RoundedRectangle(cornerRadius: 7).fill(sb.ink))
-      }
-      .buttonStyle(.plain)
-    }
   }
 
   // MARK: capture

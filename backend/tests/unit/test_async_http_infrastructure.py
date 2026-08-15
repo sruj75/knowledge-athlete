@@ -1,16 +1,12 @@
 """Tests for async HTTP infrastructure (issue #6369).
 
 Covers:
-- WebhookCircuitBreaker state machine (CLOSED -> OPEN -> HALF_OPEN -> CLOSED)
-- Per-target circuit breaker registry
-- Latest-wins dropping pattern for audio byte webhooks
 - Semaphore bounded concurrency getters
 - Shared executors from utils/executors.py
 """
 
 import asyncio
 import sys
-import time
 import types
 from pathlib import Path
 from unittest.mock import patch
@@ -53,206 +49,17 @@ def _drop_stale_module(name, required_attrs):
 
 
 _ensure_package("utils", BACKEND_DIR / "utils")
-_drop_stale_module("utils.http_client", ["WebhookCircuitBreaker", "get_webhook_circuit_breaker"])
+_drop_stale_module("utils.http_client", ["get_external_client", "get_maps_client"])
 _drop_stale_module("utils.executors", ["critical_executor", "storage_executor", "shutdown_executors"])
 
 from utils.http_client import (
-    WebhookCircuitBreaker,
-    get_webhook_circuit_breaker,
-    latest_wins_start,
-    latest_wins_check,
-    get_webhook_semaphore,
     get_maps_semaphore,
     get_auth_semaphore,
     get_stt_semaphore,
-    _webhook_circuit_breakers,
-    _latest_wins_versions,
     _semaphores,
     _SEMAPHORE_CACHE_MAX,
-    _CIRCUIT_BREAKER_FAILURE_THRESHOLD,
-    _CIRCUIT_BREAKER_RECOVERY_TIMEOUT,
 )
 from utils.executors import critical_executor, storage_executor
-
-# ============================================================================
-# WebhookCircuitBreaker
-# ============================================================================
-
-
-class TestWebhookCircuitBreaker:
-    """Circuit breaker state machine tests."""
-
-    def test_initial_state_is_closed(self):
-        cb = WebhookCircuitBreaker("test-host")
-        assert cb.state == 'closed'
-        assert cb.allow_request() is True
-
-    def test_stays_closed_below_threshold(self):
-        cb = WebhookCircuitBreaker("test-host")
-        for _ in range(_CIRCUIT_BREAKER_FAILURE_THRESHOLD - 1):
-            cb.record_failure()
-        assert cb.state == 'closed'
-        assert cb.allow_request() is True
-
-    def test_opens_at_threshold(self):
-        cb = WebhookCircuitBreaker("test-host")
-        for _ in range(_CIRCUIT_BREAKER_FAILURE_THRESHOLD):
-            cb.record_failure()
-        assert cb.state == 'open'
-        assert cb.allow_request() is False
-
-    def test_success_resets_failure_count(self):
-        cb = WebhookCircuitBreaker("test-host")
-        for _ in range(_CIRCUIT_BREAKER_FAILURE_THRESHOLD - 1):
-            cb.record_failure()
-        cb.record_success()
-        # Now failures are reset, need full threshold again
-        for _ in range(_CIRCUIT_BREAKER_FAILURE_THRESHOLD - 1):
-            cb.record_failure()
-        assert cb.state == 'closed'
-
-    def test_open_to_half_open_after_timeout(self):
-        cb = WebhookCircuitBreaker("test-host")
-        for _ in range(_CIRCUIT_BREAKER_FAILURE_THRESHOLD):
-            cb.record_failure()
-        assert cb.state == 'open'
-
-        # Simulate time passing beyond recovery timeout
-        cb._last_failure_time = time.monotonic() - _CIRCUIT_BREAKER_RECOVERY_TIMEOUT - 1
-        assert cb.state == 'half_open'
-
-    def test_half_open_allows_one_probe(self):
-        cb = WebhookCircuitBreaker("test-host")
-        for _ in range(_CIRCUIT_BREAKER_FAILURE_THRESHOLD):
-            cb.record_failure()
-        cb._last_failure_time = time.monotonic() - _CIRCUIT_BREAKER_RECOVERY_TIMEOUT - 1
-
-        assert cb.state == 'half_open'
-        assert cb.allow_request() is True  # first probe
-        assert cb.allow_request() is False  # second blocked
-
-    def test_half_open_success_closes(self):
-        cb = WebhookCircuitBreaker("test-host")
-        for _ in range(_CIRCUIT_BREAKER_FAILURE_THRESHOLD):
-            cb.record_failure()
-        cb._last_failure_time = time.monotonic() - _CIRCUIT_BREAKER_RECOVERY_TIMEOUT - 1
-
-        assert cb.allow_request() is True
-        cb.record_success()
-        assert cb.state == 'closed'
-        assert cb.allow_request() is True
-
-    def test_half_open_failure_reopens(self):
-        cb = WebhookCircuitBreaker("test-host")
-        for _ in range(_CIRCUIT_BREAKER_FAILURE_THRESHOLD):
-            cb.record_failure()
-        cb._last_failure_time = time.monotonic() - _CIRCUIT_BREAKER_RECOVERY_TIMEOUT - 1
-
-        assert cb.allow_request() is True
-        # Fail again — should go back to open
-        for _ in range(_CIRCUIT_BREAKER_FAILURE_THRESHOLD):
-            cb.record_failure()
-        assert cb.state == 'open'
-
-    def test_half_open_single_failed_probe_reopens_immediately(self):
-        """A single failure during HALF_OPEN must reopen the breaker immediately.
-
-        This tests the strict probe semantics: the breaker grants exactly one
-        request in HALF_OPEN; if that probe fails, it must reopen without
-        requiring the full failure threshold to be reached again.
-        """
-        cb = WebhookCircuitBreaker("test-host")
-        # Drive to OPEN
-        for _ in range(_CIRCUIT_BREAKER_FAILURE_THRESHOLD):
-            cb.record_failure()
-        assert cb.state == 'open'
-
-        # Age the breaker past recovery timeout → HALF_OPEN
-        cb._last_failure_time = time.monotonic() - _CIRCUIT_BREAKER_RECOVERY_TIMEOUT - 1
-        assert cb.state == 'half_open'
-
-        # Allow the single probe
-        assert cb.allow_request() is True
-
-        # One failure — must reopen without needing additional failures
-        cb.record_failure()
-        assert cb.state == 'open', (
-            "A single probe failure in HALF_OPEN must immediately reopen the breaker, "
-            "not wait for the full failure threshold"
-        )
-        assert cb.allow_request() is False, "Breaker must block requests after single probe failure"
-
-
-# ============================================================================
-# Circuit breaker registry
-# ============================================================================
-
-
-class TestCircuitBreakerRegistry:
-    """Per-target circuit breaker lookup tests."""
-
-    def setup_method(self):
-        _webhook_circuit_breakers.clear()
-
-    def test_same_url_returns_same_instance(self):
-        cb1 = get_webhook_circuit_breaker("https://example.com/path1")
-        cb2 = get_webhook_circuit_breaker("https://example.com/path1")
-        assert cb1 is cb2
-
-    def test_same_url_ignores_query_params(self):
-        cb1 = get_webhook_circuit_breaker("https://example.com/hook?key=1")
-        cb2 = get_webhook_circuit_breaker("https://example.com/hook?key=2")
-        assert cb1 is cb2
-
-    def test_different_paths_return_different_instances(self):
-        cb1 = get_webhook_circuit_breaker("https://example.com/path1")
-        cb2 = get_webhook_circuit_breaker("https://example.com/path2")
-        assert cb1 is not cb2
-
-    def test_different_hosts_return_different_instances(self):
-        cb1 = get_webhook_circuit_breaker("https://foo.com/hook")
-        cb2 = get_webhook_circuit_breaker("https://bar.com/hook")
-        assert cb1 is not cb2
-
-    def test_invalid_url_fallback(self):
-        cb = get_webhook_circuit_breaker("not-a-url")
-        assert cb is not None
-        assert cb.state == 'closed'
-
-
-# ============================================================================
-# Latest-wins dropping
-# ============================================================================
-
-
-class TestLatestWins:
-    """Latest-wins version tracking for audio byte webhooks."""
-
-    def setup_method(self):
-        _latest_wins_versions.clear()
-
-    def test_start_increments_version(self):
-        v1 = latest_wins_start("uid-1")
-        v2 = latest_wins_start("uid-1")
-        assert v2 == v1 + 1
-
-    def test_check_passes_for_latest(self):
-        v = latest_wins_start("uid-1")
-        assert latest_wins_check("uid-1", v) is True
-
-    def test_check_fails_for_stale(self):
-        v1 = latest_wins_start("uid-1")
-        latest_wins_start("uid-1")  # v2 supersedes v1
-        assert latest_wins_check("uid-1", v1) is False
-
-    def test_independent_uid_tracking(self):
-        v_a = latest_wins_start("uid-a")
-        v_b = latest_wins_start("uid-b")
-        assert latest_wins_check("uid-a", v_a) is True
-        assert latest_wins_check("uid-b", v_b) is True
-
-    def test_check_unknown_uid_returns_false(self):
-        assert latest_wins_check("nonexistent", 1) is False
 
 
 # ============================================================================
@@ -262,10 +69,6 @@ class TestLatestWins:
 
 class TestSemaphoreGetters:
     """Verify semaphore creation and per-loop isolation."""
-
-    def test_webhook_semaphore_returns_semaphore(self):
-        sem = get_webhook_semaphore()
-        assert isinstance(sem, asyncio.Semaphore)
 
     def test_maps_semaphore_returns_semaphore(self):
         sem = get_maps_semaphore()
@@ -282,8 +85,8 @@ class TestSemaphoreGetters:
     @pytest.mark.asyncio
     async def test_same_loop_returns_same_instance(self):
         """Within the same event loop, getter returns the same semaphore."""
-        sem1 = get_webhook_semaphore()
-        sem2 = get_webhook_semaphore()
+        sem1 = get_auth_semaphore()
+        sem2 = get_auth_semaphore()
         assert sem1 is sem2
 
     @pytest.mark.asyncio
@@ -298,38 +101,38 @@ class TestSemaphoreGetters:
         are pruned.
         """
         _semaphores.clear()
-        webhook_before = get_webhook_semaphore()
+        auth_before = get_auth_semaphore()
         live_loop_id = id(asyncio.get_running_loop())
 
         # Fill the cache past the cap with entries from other (destroyed) loops.
         for i in range(_SEMAPHORE_CACHE_MAX + 5):
-            _semaphores[(live_loop_id + 1 + i, 'webhook')] = asyncio.Semaphore(1)
+            _semaphores[(live_loop_id + 1 + i, 'auth')] = asyncio.Semaphore(1)
 
         # A new name for this loop is what triggers the prune.
         get_maps_semaphore()
 
-        assert get_webhook_semaphore() is webhook_before, 'the running loop lost its semaphore to the prune'
+        assert get_auth_semaphore() is auth_before, 'the running loop lost its semaphore to the prune'
 
     @pytest.mark.asyncio
     async def test_pruning_still_bounds_the_cache(self):
         """The prune must drop the foreign-loop entries it was added for."""
         _semaphores.clear()
-        get_webhook_semaphore()
+        get_auth_semaphore()
         live_loop_id = id(asyncio.get_running_loop())
         for i in range(_SEMAPHORE_CACHE_MAX + 5):
-            _semaphores[(live_loop_id + 1 + i, 'webhook')] = asyncio.Semaphore(1)
+            _semaphores[(live_loop_id + 1 + i, 'auth')] = asyncio.Semaphore(1)
 
         get_maps_semaphore()  # crosses the cap, triggering the prune
 
         assert all(key[0] == live_loop_id for key in _semaphores), 'foreign-loop entries survived'
-        assert len(_semaphores) == 2  # webhook + maps, both for this loop
+        assert len(_semaphores) == 2  # auth + maps, both for this loop
 
     def test_different_loops_return_different_instances(self):
         """Different asyncio.run() calls get isolated semaphores."""
         sems = []
 
         async def _get():
-            return get_webhook_semaphore()
+            return get_auth_semaphore()
 
         sems.append(asyncio.run(_get()))
         _semaphores.clear()  # Ensure no stale entries from the destroyed loop
@@ -405,7 +208,7 @@ class TestShutdownLifecycle:
     def test_close_all_clients_resets_semaphores(self):
         """close_all_clients must clear the semaphore cache."""
         # Populate semaphore cache
-        sem = get_webhook_semaphore()
+        sem = get_maps_semaphore()
         assert isinstance(sem, asyncio.Semaphore)
 
         async def _close():
@@ -424,30 +227,28 @@ class TestShutdownLifecycle:
 # ============================================================================
 
 
-class TestWebhookClientConfig:
-    """Verify webhook client is configured with correct timeout and limits."""
+class TestExternalClientConfig:
+    """Verify the retained external client timeout contract."""
 
-    def test_webhook_client_read_timeout_is_30s(self):
-        """Webhook client must use 30s read timeout to match previous per-call behavior."""
+    def test_external_client_read_timeout_is_30s(self):
 
         async def _read_timeout():
-            from utils.http_client import close_all_clients, get_webhook_client
+            from utils.http_client import close_all_clients, get_external_client
 
             try:
-                return get_webhook_client().timeout.read
+                return get_external_client().timeout.read
             finally:
                 await close_all_clients()
 
         assert asyncio.run(_read_timeout()) == 30.0
 
-    def test_webhook_client_connect_timeout_is_2s(self):
-        """Webhook client must use aggressive 2s connect timeout."""
+    def test_external_client_connect_timeout_is_2s(self):
 
         async def _connect_timeout():
-            from utils.http_client import close_all_clients, get_webhook_client
+            from utils.http_client import close_all_clients, get_external_client
 
             try:
-                return get_webhook_client().timeout.connect
+                return get_external_client().timeout.connect
             finally:
                 await close_all_clients()
 
@@ -461,8 +262,7 @@ class TestClientEventLoopOwnership:
     `asyncio.run()` loop that pooled its keep-alive connections: the next live
     loop made the pool discard one, uvloop raised `RuntimeError: ... the
     handler is closed` from `write_eof()` on the freed handle, and httpcore
-    re-raised it at the caller — intermittent HTTP 500s on `/v1/apps/enable`
-    and dropped app-integration webhook deliveries.
+    re-raised it at the caller as intermittent external-request failures.
     """
 
     def test_each_event_loop_gets_its_own_client(self):
@@ -470,7 +270,7 @@ class TestClientEventLoopOwnership:
         import utils.http_client as hc
 
         async def _client_id():
-            return id(hc.get_webhook_client())
+            return id(hc.get_external_client())
 
         # No close in between: this is the prod shape, where the process-wide
         # client outlived the asyncio.run() loop that pooled its connections.
@@ -486,7 +286,7 @@ class TestClientEventLoopOwnership:
 
         async def _same_client():
             try:
-                return hc.get_webhook_client() is hc.get_webhook_client()
+                return hc.get_external_client() is hc.get_external_client()
             finally:
                 await hc.close_all_clients()
 
@@ -496,7 +296,7 @@ class TestClientEventLoopOwnership:
         import utils.http_client as hc
 
         async def _touch():
-            hc.get_webhook_client()
+            hc.get_external_client()
 
         for _ in range(5):
             asyncio.run(_touch())
@@ -514,26 +314,6 @@ class TestExecutorConfiguration:
     def test_storage_executor_has_128_workers(self):
         """storage_executor sized for 128 workers to handle concurrent private cloud uploads (#7376)."""
         assert storage_executor._max_workers == 128
-
-
-class TestNotificationWebhookWiring:
-    """Verify async webhook is correctly wired through storage_executor."""
-
-    def test_send_summary_calls_storage_executor_with_asyncio_run(self):
-        """_send_summary_notification must submit asyncio.run(day_summary_webhook(...)) to storage_executor."""
-        import os
-        import sys
-        from unittest.mock import MagicMock, patch
-
-        # Read source to verify pattern without triggering Firestore imports
-        backend_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        with open(os.path.join(backend_dir, 'utils', 'other', 'notifications.py'), encoding='utf-8') as f:
-            src = f.read()
-
-        # Verify the exact wiring pattern (postprocess_executor, not storage_executor, #7387)
-        assert 'postprocess_executor.submit(asyncio.run, day_summary_webhook(' in src
-        assert 'critical_executor' not in src
-        assert 'storage_executor' not in src
 
 
 class TestPrivateCloudQueueCap:
@@ -595,58 +375,3 @@ class TestPrivateCloudQueueCap:
         assert len(q) == 3
         assert q[0]['id'] == 2
         assert q[-1]['id'] == 4
-
-
-class TestCircuitBreakerAccessTracking:
-    """Verify circuit breaker eviction uses last-access time."""
-
-    def test_active_breaker_not_evicted(self):
-        """Actively used breaker should not be evicted even with 0 failures."""
-        import time
-        from utils.http_client import (
-            _webhook_circuit_breakers,
-            get_webhook_circuit_breaker,
-            _evict_stale_circuit_breakers,
-            _CIRCUIT_BREAKER_IDLE_TTL,
-        )
-
-        _webhook_circuit_breakers.clear()
-        cb = get_webhook_circuit_breaker('https://active.test/hook')
-        cb.allow_request()  # Updates _last_access_time to now
-        assert cb._last_failure_time == 0.0  # Never failed
-
-        _evict_stale_circuit_breakers()
-        assert 'https://active.test/hook' in _webhook_circuit_breakers
-        _webhook_circuit_breakers.clear()
-
-    def test_stale_breaker_evicted(self):
-        """Breaker not accessed for > TTL should be evicted."""
-        import time
-        from utils.http_client import (
-            _webhook_circuit_breakers,
-            get_webhook_circuit_breaker,
-            _evict_stale_circuit_breakers,
-            _CIRCUIT_BREAKER_IDLE_TTL,
-        )
-
-        _webhook_circuit_breakers.clear()
-        cb = get_webhook_circuit_breaker('https://stale.test/hook')
-        # Backdate access time to exceed TTL
-        cb._last_access_time = time.monotonic() - _CIRCUIT_BREAKER_IDLE_TTL - 1
-
-        _evict_stale_circuit_breakers()
-        assert 'https://stale.test/hook' not in _webhook_circuit_breakers
-        _webhook_circuit_breakers.clear()
-
-    def test_allow_request_updates_access_time(self):
-        """allow_request() must update _last_access_time."""
-        import time
-        from utils.http_client import _webhook_circuit_breakers, get_webhook_circuit_breaker
-
-        _webhook_circuit_breakers.clear()
-        cb = get_webhook_circuit_breaker('https://test.test/hook')
-        old_access = cb._last_access_time
-        time.sleep(0.01)
-        cb.allow_request()
-        assert cb._last_access_time > old_access
-        _webhook_circuit_breakers.clear()

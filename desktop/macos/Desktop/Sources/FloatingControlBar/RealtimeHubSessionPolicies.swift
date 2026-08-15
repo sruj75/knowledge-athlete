@@ -226,29 +226,6 @@ final class RealtimeHubTransportReplacementGate {
   }
 }
 
-/// Realtime provider tool schemas are immutable per physical session. A
-/// directed-agent capability change therefore needs a fresh socket, but a PTT
-/// turn already buffered behind its canonical context refresh remains owned by
-/// the reducer and must be replayed on that fresh socket.
-enum RealtimeHubSchemaRefreshPlan: Equatable {
-  case keepCurrentSession
-  case replaceSession(preservingReconnectInput: Bool)
-}
-
-enum RealtimeHubSchemaRefreshPolicy {
-  static func plan(
-    currentDirectedProviderIDs: [String],
-    nextDirectedProviderIDs: [String],
-    hasLiveSession: Bool,
-    hasPendingReconnectInput: Bool
-  ) -> RealtimeHubSchemaRefreshPlan {
-    guard currentDirectedProviderIDs != nextDirectedProviderIDs, hasLiveSession else {
-      return .keepCurrentSession
-    }
-    return .replaceSession(preservingReconnectInput: hasPendingReconnectInput)
-  }
-}
-
 enum RealtimeHubCloseClassifier {
   static let idleTeardownThreshold: TimeInterval = 60
 
@@ -318,7 +295,7 @@ enum RealtimeHubCloseClassifier {
     }
     if CredentialHealthManager.classifyProviderClose(
       message: message,
-      provider: provider) == .providerAuthFailed(provider: provider, mode: .byok)
+      provider: provider) == .providerAuthFailed(provider: provider, mode: .managed)
     {
       return .providerAuthFailed
     }
@@ -753,8 +730,6 @@ enum RealtimeHubToolFailureKind: String, Equatable {
       switch apiError {
       case .unauthorized:
         return .backendUnauthorized
-      case .syncRateLimited:
-        return .backendRateLimited
       case .invalidResponse, .decodingError:
         return .responseDecode
       case .httpError(let statusCode, _):
@@ -770,7 +745,7 @@ enum RealtimeHubToolFailureKind: String, Equatable {
         default:
           return .backendTransport
         }
-      case .unsupportedTierScopedBulkMutation, .syncUploadRejected:
+      case .unsupportedTierScopedBulkMutation:
         return .backendClientRejected
       }
     }
@@ -778,7 +753,7 @@ enum RealtimeHubToolFailureKind: String, Equatable {
       switch credentialError.failureClass {
       case .requiresLogin, .backendUnauthorized:
         return .backendUnauthorized
-      case .paywalled, .byokEnrollmentMismatch, .providerAuthFailed, .providerQuotaExceeded:
+      case .paywalled, .providerAuthFailed, .providerQuotaExceeded:
         return .providerCredential
       case .backendTransient:
         return .backendServerError

@@ -9,14 +9,12 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from utils.stt.safe_socket import KeepaliveConfig, SafeDeepgramSocket
 from utils.stt.vad_gate import (
-    DgWallMapper,
     GateState,
-    GatedDeepgramSocket,
     GatedSTTSocket,
     VAD_GATE_KEEPALIVE_SEC,
     VADStreamingGate,
+    WallTimeMapper,
     is_gate_enabled,
 )
 
@@ -433,23 +431,23 @@ class TestVADStreamingGate:
         assert metrics['mode'] == 'active'
 
 
-class TestDgWallMapper:
+class TestManagedSTTWallMapper:
     def test_no_checkpoints_passthrough(self):
-        """With no checkpoints, DG time equals wall time."""
-        mapper = DgWallMapper()
-        assert mapper.dg_to_wall_rel(5.0) == 5.0
+        """With no checkpoints, provider time equals wall time."""
+        mapper = WallTimeMapper()
+        assert mapper.provider_to_wall_rel(5.0) == 5.0
 
     def test_single_checkpoint_offset(self):
-        """Single checkpoint maps DG time with correct offset."""
-        mapper = DgWallMapper()
+        """Single checkpoint maps provider time with correct offset."""
+        mapper = WallTimeMapper()
 
-        # First speech at wall=0.0, DG=0.0
+        # First speech at wall=0.0, provider=0.0
         mapper.on_audio_sent(5.0, 0.0)  # 5s of speech
-        assert mapper.dg_to_wall_rel(2.5) == 2.5  # Within first segment, no offset
+        assert mapper.provider_to_wall_rel(2.5) == 2.5  # Within first segment, no offset
 
     def test_gap_creates_offset(self):
-        """After a silence gap, DG timestamps should be offset to wall time."""
-        mapper = DgWallMapper()
+        """After a silence gap, provider timestamps should be offset to wall time."""
+        mapper = WallTimeMapper()
 
         # Speech 1: 5s of audio starting at wall=0.0
         mapper.on_audio_sent(5.0, 0.0)
@@ -457,21 +455,21 @@ class TestDgWallMapper:
         # Silence gap: 10s of real time (wall=5.0 to wall=15.0)
         mapper.on_silence_skipped()
 
-        # Speech 2: resumes at wall=15.0, DG continues at 5.0
+        # Speech 2: resumes at wall=15.0, provider continues at 5.0
         mapper.on_audio_sent(3.0, 15.0)
 
-        # DG time 2.0 → should map to wall 2.0 (first segment)
-        assert mapper.dg_to_wall_rel(2.0) == 2.0
+        # provider time 2.0 → should map to wall 2.0 (first segment)
+        assert mapper.provider_to_wall_rel(2.0) == 2.0
 
-        # DG time 6.0 → should map to wall 16.0 (second segment, 1s in)
-        assert mapper.dg_to_wall_rel(6.0) == 16.0
+        # provider time 6.0 → should map to wall 16.0 (second segment, 1s in)
+        assert mapper.provider_to_wall_rel(6.0) == 16.0
 
-        # DG time 7.5 → should map to wall 17.5
-        assert mapper.dg_to_wall_rel(7.5) == 17.5
+        # provider time 7.5 → should map to wall 17.5
+        assert mapper.provider_to_wall_rel(7.5) == 17.5
 
     def test_multiple_gaps(self):
         """Multiple silence gaps should accumulate offsets correctly."""
-        mapper = DgWallMapper()
+        mapper = WallTimeMapper()
 
         # Speech 1: 3s at wall=0
         mapper.on_audio_sent(3.0, 0.0)
@@ -486,23 +484,23 @@ class TestDgWallMapper:
         # Speech 3: 4s at wall=17
         mapper.on_audio_sent(4.0, 17.0)
 
-        # DG=1.0 → wall=1.0 (segment 1)
-        assert mapper.dg_to_wall_rel(1.0) == 1.0
-        # DG=4.0 → wall=9.0 (segment 2, 1s in: 8.0 + (4.0-3.0))
-        assert mapper.dg_to_wall_rel(4.0) == 9.0
-        # DG=6.0 → wall=18.0 (segment 3, 1s in: 17.0 + (6.0-5.0))
-        assert mapper.dg_to_wall_rel(6.0) == 18.0
+        # provider=1.0 → wall=1.0 (segment 1)
+        assert mapper.provider_to_wall_rel(1.0) == 1.0
+        # provider=4.0 → wall=9.0 (segment 2, 1s in: 8.0 + (4.0-3.0))
+        assert mapper.provider_to_wall_rel(4.0) == 9.0
+        # provider=6.0 → wall=18.0 (segment 3, 1s in: 17.0 + (6.0-5.0))
+        assert mapper.provider_to_wall_rel(6.0) == 18.0
 
     def test_boundary_values(self):
         """Test exact checkpoint boundaries."""
-        mapper = DgWallMapper()
+        mapper = WallTimeMapper()
 
         mapper.on_audio_sent(5.0, 0.0)
         mapper.on_silence_skipped()
         mapper.on_audio_sent(5.0, 10.0)
 
         # Exactly at second checkpoint start
-        assert mapper.dg_to_wall_rel(5.0) == 10.0
+        assert mapper.provider_to_wall_rel(5.0) == 10.0
 
     def test_monotonicity_enforced(self):
         """Pre-roll subtraction can cause non-monotonic wall times.
@@ -510,37 +508,37 @@ class TestDgWallMapper:
         When a brief silence gap has a larger pre-roll buffer than the preceding
         transition, pre_roll_wall_rel = wall_rel - pre_roll_duration can go below
         the previous checkpoint's wall time. The mapper must clamp the new
-        checkpoint's wall time to at least prev_wall + dg_elapsed, ensuring
+        checkpoint's wall time to at least prev_wall + provider_elapsed, ensuring
         remapped timestamps are always monotonically increasing.
         """
-        mapper = DgWallMapper()
+        mapper = WallTimeMapper()
 
-        # Speech 1: 3s at wall=2.0 → dg [0, 3), wall [2, 5)
+        # Speech 1: 3s at wall=2.0 → provider [0, 3), wall [2, 5)
         mapper.on_audio_sent(3.0, 2.0)
         mapper.on_silence_skipped()
 
-        # Speech 2: 1.5s at wall=34.77 → dg [3, 4.5)
+        # Speech 2: 1.5s at wall=34.77 → provider [3, 4.5)
         mapper.on_audio_sent(1.5, 34.77)
         mapper.on_silence_skipped()
 
         # Speech 3: pre-roll gives wall=34.67 (< 34.77!)
-        # Clamped to prev_wall + dg_elapsed = 34.77 + (4.5-3.0) = 36.27
+        # Clamped to prev_wall + provider_elapsed = 34.77 + (4.5-3.0) = 36.27
         mapper.on_audio_sent(2.0, 34.67)
 
-        # dg=4.0 in segment 2 (CP2: dg=3.0, wall=34.77) → 34.77 + 1.0 = 35.77
-        result_seg2 = mapper.dg_to_wall_rel(4.0)
+        # provider=4.0 in segment 2 (CP2: provider=3.0, wall=34.77) → 34.77 + 1.0 = 35.77
+        result_seg2 = mapper.provider_to_wall_rel(4.0)
         assert result_seg2 == pytest.approx(35.77, abs=0.01)
 
-        # dg=5.0 in segment 3 (CP3: dg=4.5, wall=36.27) → 36.27 + 0.5 = 36.77
-        result_seg3 = mapper.dg_to_wall_rel(5.0)
+        # provider=5.0 in segment 3 (CP3: provider=4.5, wall=36.27) → 36.27 + 0.5 = 36.77
+        result_seg3 = mapper.provider_to_wall_rel(5.0)
         assert result_seg3 == pytest.approx(36.77, abs=0.01)
 
-        # Monotonicity: earlier DG time maps to earlier wall time
+        # Monotonicity: earlier provider time maps to earlier wall time
         assert result_seg2 < result_seg3, "Timestamps must be monotonically increasing"
 
     def test_checkpoint_compaction(self):
         """Compaction should keep first checkpoint as anchor + recent checkpoints."""
-        mapper = DgWallMapper()
+        mapper = WallTimeMapper()
         # Override cap to small value for testing
         mapper._MAX_CHECKPOINTS = 5
 
@@ -552,10 +550,10 @@ class TestDgWallMapper:
         assert len(mapper._checkpoints) <= 5
         # First checkpoint must remain as anchor for early timestamp remaps
         assert mapper._checkpoints[0] == (0.0, 0.0)
-        assert mapper.dg_to_wall_rel(0.5) == 0.5
+        assert mapper.provider_to_wall_rel(0.5) == 0.5
         # Most recent checkpoint should still work for remap
-        last_dg = mapper._checkpoints[-1][0]
-        result = mapper.dg_to_wall_rel(last_dg + 0.5)
+        last_provider_timestamp = mapper._checkpoints[-1][0]
+        result = mapper.provider_to_wall_rel(last_provider_timestamp + 0.5)
         assert result == mapper._checkpoints[-1][1] + 0.5
 
 
@@ -574,8 +572,8 @@ class TestGateConfig:
             assert is_gate_enabled()
 
 
-class TestGatedDeepgramSocket:
-    """Tests for the GatedDeepgramSocket wrapper."""
+class TestGatedSTTSocket:
+    """Tests for the GatedSTTSocket wrapper."""
 
     def _make_gate(self, mode='active'):
         return VADStreamingGate(
@@ -589,7 +587,7 @@ class TestGatedDeepgramSocket:
     def test_passthrough_without_gate(self):
         """Without gate, send() passes audio directly to connection."""
         mock_conn = MagicMock()
-        socket = GatedDeepgramSocket(mock_conn, gate=None)
+        socket = GatedSTTSocket(mock_conn, gate=None)
         socket.send(b'\x00' * 960)
         mock_conn.send.assert_called_once_with(b'\x00' * 960)
 
@@ -597,7 +595,7 @@ class TestGatedDeepgramSocket:
         """With active gate, silence should not be forwarded to connection."""
         mock_conn = MagicMock()
         gate = self._make_gate()
-        socket = GatedDeepgramSocket(mock_conn, gate=gate)
+        socket = GatedSTTSocket(mock_conn, gate=gate)
 
         _set_vad_speech(False)
         # Feed enough silence to fill VAD buffer
@@ -610,7 +608,7 @@ class TestGatedDeepgramSocket:
         """With active gate, speech should be forwarded to connection."""
         mock_conn = MagicMock()
         gate = self._make_gate()
-        socket = GatedDeepgramSocket(mock_conn, gate=gate)
+        socket = GatedSTTSocket(mock_conn, gate=gate)
 
         _set_vad_speech(True)
         t = time.time()
@@ -623,7 +621,7 @@ class TestGatedDeepgramSocket:
         """Wrapper should call finalize on speech→silence transition."""
         mock_conn = MagicMock()
         gate = self._make_gate()
-        socket = GatedDeepgramSocket(mock_conn, gate=gate)
+        socket = GatedSTTSocket(mock_conn, gate=gate)
 
         t = time.time()
         # Speech
@@ -643,7 +641,7 @@ class TestGatedDeepgramSocket:
         mock_conn = MagicMock()
         mock_conn.finalize.side_effect = RuntimeError("connection closed")
         gate = self._make_gate()
-        socket = GatedDeepgramSocket(mock_conn, gate=gate)
+        socket = GatedSTTSocket(mock_conn, gate=gate)
 
         t = time.time()
         # Speech
@@ -667,7 +665,7 @@ class TestGatedDeepgramSocket:
         """finish() in shadow mode should NOT call finalize before finish."""
         mock_conn = MagicMock()
         gate = self._make_gate(mode='shadow')
-        socket = GatedDeepgramSocket(mock_conn, gate=gate)
+        socket = GatedSTTSocket(mock_conn, gate=gate)
         socket.finish()
 
         mock_conn.finalize.assert_not_called()
@@ -676,7 +674,7 @@ class TestGatedDeepgramSocket:
     def test_remap_segments_noop_without_gate(self):
         """remap_segments() should be a no-op when gate is None."""
         mock_conn = MagicMock()
-        socket = GatedDeepgramSocket(mock_conn, gate=None)
+        socket = GatedSTTSocket(mock_conn, gate=None)
         segments = [{'start': 1.0, 'end': 2.0, 'text': 'hello'}]
         socket.remap_segments(segments)
         assert segments[0]['start'] == 1.0
@@ -686,7 +684,7 @@ class TestGatedDeepgramSocket:
         """remap_segments() should be a no-op in shadow mode."""
         mock_conn = MagicMock()
         gate = self._make_gate(mode='shadow')
-        socket = GatedDeepgramSocket(mock_conn, gate=gate)
+        socket = GatedSTTSocket(mock_conn, gate=gate)
         segments = [{'start': 1.0, 'end': 2.0, 'text': 'hello'}]
         socket.remap_segments(segments)
         assert segments[0]['start'] == 1.0
@@ -696,22 +694,22 @@ class TestGatedDeepgramSocket:
         """finish() should call finalize before finish when gate is active."""
         mock_conn = MagicMock()
         gate = self._make_gate(mode='active')
-        socket = GatedDeepgramSocket(mock_conn, gate=gate)
+        socket = GatedSTTSocket(mock_conn, gate=gate)
         socket.finish()
 
         mock_conn.finalize.assert_called_once()
         mock_conn.finish.assert_called_once()
 
     def test_remap_segments(self):
-        """remap_segments should adjust DG timestamps to wall-clock."""
+        """remap_segments should adjust provider timestamps to wall-clock."""
         mock_conn = MagicMock()
         gate = self._make_gate()
-        socket = GatedDeepgramSocket(mock_conn, gate=gate)
+        socket = GatedSTTSocket(mock_conn, gate=gate)
 
         # Simulate a silence gap via mapper directly
-        gate.dg_wall_mapper.on_audio_sent(5.0, 0.0)
-        gate.dg_wall_mapper.on_silence_skipped()
-        gate.dg_wall_mapper.on_audio_sent(3.0, 15.0)
+        gate.wall_mapper.on_audio_sent(5.0, 0.0)
+        gate.wall_mapper.on_silence_skipped()
+        gate.wall_mapper.on_audio_sent(3.0, 15.0)
 
         segments = [{'start': 6.0, 'end': 7.0, 'text': 'hello'}]
         socket.remap_segments(segments)
@@ -721,13 +719,13 @@ class TestGatedDeepgramSocket:
     def test_is_gated_property(self):
         """is_gated should reflect whether gate is present."""
         mock_conn = MagicMock()
-        assert not GatedDeepgramSocket(mock_conn, gate=None).is_gated
-        assert GatedDeepgramSocket(mock_conn, gate=self._make_gate()).is_gated
+        assert not GatedSTTSocket(mock_conn, gate=None).is_gated
+        assert GatedSTTSocket(mock_conn, gate=self._make_gate()).is_gated
 
     def test_finalize_passthrough(self):
         """finalize() should call the underlying connection's finalize."""
         mock_conn = MagicMock()
-        socket = GatedDeepgramSocket(mock_conn, gate=self._make_gate())
+        socket = GatedSTTSocket(mock_conn, gate=self._make_gate())
         socket.finalize()
         mock_conn.finalize.assert_called_once()
 
@@ -736,7 +734,7 @@ class TestGatedDeepgramSocket:
         mock_conn = MagicMock()
         mock_conn.finalize.side_effect = RuntimeError("connection closed")
         gate = self._make_gate(mode='active')
-        socket = GatedDeepgramSocket(mock_conn, gate=gate)
+        socket = GatedSTTSocket(mock_conn, gate=gate)
         # Should not raise despite finalize error
         socket.finish()
         mock_conn.finalize.assert_called_once()
@@ -746,7 +744,7 @@ class TestGatedDeepgramSocket:
         """get_metrics() should return gate metrics when gate is present."""
         mock_conn = MagicMock()
         gate = self._make_gate()
-        socket = GatedDeepgramSocket(mock_conn, gate=gate)
+        socket = GatedSTTSocket(mock_conn, gate=gate)
         metrics = socket.get_metrics()
         assert metrics is not None
         assert 'chunks_total' in metrics
@@ -756,7 +754,7 @@ class TestGatedDeepgramSocket:
     def test_get_metrics_returns_none_without_gate(self):
         """get_metrics() should return None when no gate is present."""
         mock_conn = MagicMock()
-        socket = GatedDeepgramSocket(mock_conn, gate=None)
+        socket = GatedSTTSocket(mock_conn, gate=None)
         assert socket.get_metrics() is None
 
     def test_finalize_error_tracked_in_metrics(self):
@@ -764,7 +762,7 @@ class TestGatedDeepgramSocket:
         mock_conn = MagicMock()
         mock_conn.finalize.side_effect = RuntimeError("connection closed")
         gate = self._make_gate()
-        socket = GatedDeepgramSocket(mock_conn, gate=gate)
+        socket = GatedSTTSocket(mock_conn, gate=gate)
 
         t = 1000.0
         _set_vad_speech(True)
@@ -783,231 +781,12 @@ class TestGatedDeepgramSocket:
         mock_conn = MagicMock()
         mock_conn.finalize.side_effect = RuntimeError("connection closed")
         gate = self._make_gate(mode='active')
-        socket = GatedDeepgramSocket(mock_conn, gate=gate)
+        socket = GatedSTTSocket(mock_conn, gate=gate)
 
         assert gate._finalize_errors == 0
         socket.finish()
         assert gate._finalize_errors == 1
         mock_conn.finish.assert_called_once()
-
-
-class TestDgDeadDetection:
-    """Tests for dead-connection detection via SafeDeepgramSocket + GatedDeepgramSocket (#5870)."""
-
-    def _make_gate(self, mode='active'):
-        return VADStreamingGate(
-            sample_rate=16000,
-            channels=1,
-            mode=mode,
-            uid='test',
-            session_id='test',
-        )
-
-    # Use a long check period so the background thread never fires during tests
-    _test_cfg = KeepaliveConfig(keepalive_interval_sec=5.0, check_period_sec=999.0)
-
-    def _wrap(self, mock_conn):
-        """Wrap mock connection with SafeDeepgramSocket (matches production flow)."""
-        return SafeDeepgramSocket(mock_conn, cfg=self._test_cfg)
-
-    def test_safe_socket_dead_initially_false(self):
-        """SafeDeepgramSocket should not be dead initially."""
-        mock_conn = MagicMock()
-        safe = self._wrap(mock_conn)
-        assert safe.is_connection_dead is False
-        safe.finish()
-
-    def test_safe_socket_send_false_sets_dead(self):
-        """SafeDeepgramSocket marks dead when send() returns False."""
-        mock_conn = MagicMock()
-        mock_conn.send.return_value = False
-        safe = self._wrap(mock_conn)
-        safe.send(b'\x00' * 960)
-        assert safe.is_connection_dead is True
-        safe.finish()
-
-    def test_safe_socket_send_exception_sets_dead(self):
-        """SafeDeepgramSocket marks dead when send() raises."""
-        mock_conn = MagicMock()
-        mock_conn.send.side_effect = RuntimeError("connection reset")
-        safe = self._wrap(mock_conn)
-        safe.send(b'\x00' * 960)
-        assert safe.is_connection_dead is True
-        safe.finish()
-
-    def test_safe_socket_finalize_exception_sets_dead(self):
-        """A failed transcript flush is also a terminal provider failure."""
-        mock_conn = MagicMock()
-        mock_conn.finalize.side_effect = RuntimeError('connection reset')
-        safe = self._wrap(mock_conn)
-
-        with pytest.raises(RuntimeError, match='connection reset'):
-            safe.finalize()
-
-        assert safe.is_connection_dead is True
-        assert safe.death_reason == 'finalize RuntimeError: connection reset'
-        safe.finish()
-
-    def test_safe_socket_dead_stops_sending(self):
-        """After SafeDeepgramSocket is dead, send() silently drops audio."""
-        mock_conn = MagicMock()
-        mock_conn.send.return_value = False
-        safe = self._wrap(mock_conn)
-        safe.send(b'\x00' * 960)
-        assert safe.is_connection_dead is True
-        count_at_death = mock_conn.send.call_count
-        safe.send(b'\x00' * 960)
-        assert mock_conn.send.call_count == count_at_death
-        safe.finish()
-
-    def test_gated_delegates_dead_to_safe(self):
-        """GatedDeepgramSocket.is_connection_dead delegates to SafeDeepgramSocket."""
-        mock_conn = MagicMock()
-        mock_conn.send.return_value = False
-        safe = self._wrap(mock_conn)
-        gate = self._make_gate()
-        socket = GatedDeepgramSocket(safe, gate=gate)
-        assert socket.is_connection_dead is False
-
-        _set_vad_speech(True)
-        t = 1000.0
-        for i in range(5):
-            socket.send(_make_pcm(30), wall_time=t + i * 0.03)
-
-        assert socket.is_connection_dead is True
-        assert safe.is_connection_dead is True
-        safe.finish()
-
-    def test_gated_dead_stops_sending(self):
-        """After connection dies through SafeDeepgramSocket, GatedDeepgramSocket stops sending."""
-        mock_conn = MagicMock()
-        mock_conn.send.return_value = False
-        safe = self._wrap(mock_conn)
-        gate = self._make_gate()
-        socket = GatedDeepgramSocket(safe, gate=gate)
-
-        _set_vad_speech(True)
-        t = 1000.0
-        for i in range(5):
-            socket.send(_make_pcm(30), wall_time=t + i * 0.03)
-
-        assert socket.is_connection_dead is True
-        call_count_at_death = mock_conn.send.call_count
-
-        for i in range(5):
-            socket.send(_make_pcm(30), wall_time=t + 0.15 + i * 0.03)
-
-        assert mock_conn.send.call_count == call_count_at_death
-        safe.finish()
-
-    def test_passthrough_dead_on_send_false(self):
-        """Without gate, SafeDeepgramSocket still detects dead connection."""
-        mock_conn = MagicMock()
-        mock_conn.send.return_value = False
-        safe = self._wrap(mock_conn)
-        socket = GatedDeepgramSocket(safe, gate=None)
-        socket.send(b'\x00' * 960)
-        assert socket.is_connection_dead is True
-        mock_conn.send.assert_called_once()
-        safe.finish()
-
-    def test_dead_socket_nulled_by_caller_gated(self):
-        """Simulates flush_stt_buffer pattern with GatedDeepgramSocket (VAD gate enabled)."""
-        mock_conn = MagicMock()
-        mock_conn.send.return_value = False
-        safe = self._wrap(mock_conn)
-        gate = self._make_gate()
-        dg_socket = GatedDeepgramSocket(safe, gate=gate)
-
-        _set_vad_speech(True)
-        t = 1000.0
-        for i in range(5):
-            dg_socket.send(_make_pcm(30), wall_time=t + i * 0.03)
-
-        assert dg_socket.is_connection_dead is True
-
-        # Simulate the flush_stt_buffer dead-socket detection pattern
-        # (mirrors backend/routers/transcribe.py:2307-2310)
-        if dg_socket.is_connection_dead:
-            dg_socket = None
-        assert dg_socket is None
-        safe.finish()
-
-    def test_dead_socket_nulled_by_caller_no_gate(self):
-        """Simulates flush_stt_buffer pattern with SafeDeepgramSocket only (no VAD gate)."""
-        mock_conn = MagicMock()
-        mock_conn.send.return_value = False
-        safe = self._wrap(mock_conn)
-
-        safe.send(b'\x00' * 960)
-        assert safe.is_connection_dead is True
-
-        safe.finish()
-
-        # Verify send was called before death
-        assert mock_conn.send.call_count > 0
-
-
-@pytest.mark.slow
-class TestSafeSocketDelegation:
-    """Tests for SafeDeepgramSocket finalize/finish delegation (#5870)."""
-
-    _test_cfg = KeepaliveConfig(keepalive_interval_sec=5.0, check_period_sec=999.0)
-
-    def test_finalize_delegates(self):
-        """SafeDeepgramSocket.finalize() delegates to underlying connection."""
-        mock_conn = MagicMock()
-        safe = SafeDeepgramSocket(mock_conn, cfg=self._test_cfg)
-        safe.finalize()
-        mock_conn.finalize.assert_called_once()
-        safe.finish()
-
-    def test_finish_delegates(self):
-        """SafeDeepgramSocket.finish() delegates to underlying connection."""
-        mock_conn = MagicMock()
-        safe = SafeDeepgramSocket(mock_conn, cfg=self._test_cfg)
-        safe.finish()
-        mock_conn.finish.assert_called_once()
-
-    def test_finish_stops_keepalive_thread(self):
-        """SafeDeepgramSocket.finish() stops the background keepalive thread."""
-        mock_conn = MagicMock()
-        safe = SafeDeepgramSocket(mock_conn, cfg=self._test_cfg)
-        assert safe._thread.is_alive()
-        safe.finish()
-        assert not safe._thread.is_alive()
-        mock_conn.finish.assert_called_once()
-
-    def test_finish_idempotent(self):
-        """SafeDeepgramSocket.finish() is idempotent — second call is a no-op."""
-        mock_conn = MagicMock()
-        safe = SafeDeepgramSocket(mock_conn, cfg=self._test_cfg)
-        safe.finish()
-        mock_conn.finish.assert_called_once()
-        # Second call should not call _conn.finish() again
-        safe.finish()
-        mock_conn.finish.assert_called_once()
-
-    def test_auto_keepalive_exception_marks_dead(self):
-        """Background keepalive thread marks dead when keep_alive() raises."""
-        mock_conn = MagicMock()
-        mock_conn.keep_alive.side_effect = RuntimeError("connection reset")
-
-        fake_time = [0.0]
-
-        def clock():
-            return fake_time[0]
-
-        cfg = KeepaliveConfig(keepalive_interval_sec=5.0, check_period_sec=0.01)
-        safe = SafeDeepgramSocket(mock_conn, cfg=cfg, clock=clock)
-
-        try:
-            # Advance past keepalive interval to trigger exception path
-            fake_time[0] = 6.0
-            time.sleep(0.1)
-            assert safe.is_connection_dead is True
-        finally:
-            safe.finish()
 
 
 class TestActivateMode:
@@ -1091,7 +870,7 @@ class TestActivateMode:
         gate.activate()
 
         # Mapper provider cursor should be 0.3s (not 0.0)
-        assert gate.dg_wall_mapper._provider_cursor_sec == pytest.approx(0.3, abs=0.01)
+        assert gate.wall_mapper._provider_cursor_sec == pytest.approx(0.3, abs=0.01)
 
     def test_shadow_active_remap_continuous(self):
         """After shadow→active, remapped timestamps should be continuous, not over-shifted."""
@@ -1116,10 +895,10 @@ class TestActivateMode:
         for i in range(5):
             gate.process_audio(_make_pcm(30), wall_at_activation + 5.0 + i * 0.03)
 
-        # Simulate DG returning a timestamp during the active speech phase
-        # DG time should be ~35.3s (35s shadow + 0.3s pre-roll of active speech)
-        dg_time = 35.3
-        remapped = gate.dg_wall_mapper.dg_to_wall_rel(dg_time)
+        # Simulate provider returning a timestamp during the active speech phase
+        # provider time should be ~35.3s (35s shadow + 0.3s pre-roll of active speech)
+        provider_time = 35.3
+        remapped = gate.wall_mapper.provider_to_wall_rel(provider_time)
 
         # Wall-relative time should be around 40s (activation + 5s silence + 0.3s into speech)
         # NOT 75s (which would happen if mapper cursor wasn't synced)
@@ -1151,7 +930,7 @@ class TestCostMetrics:
         assert metrics['bytes_sent'] > 0
 
     def test_bytes_skipped_tracked_on_silence(self):
-        """bytes_skipped should accumulate for silence not forwarded to DG."""
+        """bytes_skipped should accumulate for silence not forwarded to provider."""
         gate = self._make_gate()
         _set_vad_speech(False)
         t = 1000.0
@@ -1338,7 +1117,7 @@ class TestLongSessionStress:
         assert abs(metrics['bytes_saved_ratio'] - metrics['bytes_skipped'] / metrics['bytes_received']) < 1e-9
 
     def test_mapper_checkpoint_cap_with_many_transitions(self):
-        """DgWallMapper should cap checkpoints at _MAX_CHECKPOINTS even with 1000+ transitions."""
+        """WallTimeMapper should cap checkpoints at _MAX_CHECKPOINTS even with 1000+ transitions."""
         gate = VADStreamingGate(sample_rate=16000, channels=1, mode='active', uid='stress', session_id='stress')
         chunk = _make_pcm(30)
         t = 1000.0
@@ -1357,20 +1136,20 @@ class TestLongSessionStress:
                 t += 0.03
 
         # Mapper checkpoints should be capped
-        cps = gate.dg_wall_mapper._checkpoints
+        cps = gate.wall_mapper._checkpoints
         assert (
-            len(cps) <= DgWallMapper._MAX_CHECKPOINTS
-        ), f'Checkpoints {len(cps)} exceeds cap {DgWallMapper._MAX_CHECKPOINTS}'
+            len(cps) <= WallTimeMapper._MAX_CHECKPOINTS
+        ), f'Checkpoints {len(cps)} exceeds cap {WallTimeMapper._MAX_CHECKPOINTS}'
         assert len(cps) > 0, 'Should have at least some checkpoints'
 
         # Remap should still work (no crash) and produce monotonic results
         if len(cps) >= 2:
-            dg_times = [0.5, 1.0, 5.0, 10.0]
-            wall_times = [gate.dg_wall_mapper.dg_to_wall_rel(t) for t in dg_times]
+            provider_times = [0.5, 1.0, 5.0, 10.0]
+            wall_times = [gate.wall_mapper.provider_to_wall_rel(t) for t in provider_times]
             for i in range(1, len(wall_times)):
                 assert (
                     wall_times[i] >= wall_times[i - 1]
-                ), f'Non-monotonic remap: dg={dg_times[i]} -> wall={wall_times[i]} < {wall_times[i-1]}'
+                ), f'Non-monotonic remap: provider={provider_times[i]} -> wall={wall_times[i]} < {wall_times[i-1]}'
 
     def test_json_log_after_long_session(self):
         """to_json_log should produce valid output after extended session."""
@@ -1489,11 +1268,11 @@ class TestTimeBasedPreRoll:
 
 
 class TestMapperMonotonicity:
-    """Property-style invariant tests for DgWallMapper."""
+    """Property-style invariant tests for WallTimeMapper."""
 
     def test_monotonicity_across_many_transitions(self):
         """Varied speech/silence transitions must produce monotonic wall times."""
-        mapper = DgWallMapper()
+        mapper = WallTimeMapper()
         wall = 0.0
         # Simulate 20 speech/silence transitions with varying durations
         for i in range(20):
@@ -1504,23 +1283,23 @@ class TestMapperMonotonicity:
             mapper.on_silence_skipped()
             wall += silence_dur
 
-        # Sample 100 DG timestamps and verify monotonicity
+        # Sample 100 provider timestamps and verify monotonicity
         prev_wall = -1.0
         for j in range(100):
-            dg_t = j * 0.5  # 0 to 49.5s DG time
-            wall_t = mapper.dg_to_wall_rel(dg_t)
-            assert wall_t >= prev_wall, f"Non-monotonic at dg={dg_t}: {wall_t} < {prev_wall}"
+            provider_t = j * 0.5  # 0 to 49.5s provider time
+            wall_t = mapper.provider_to_wall_rel(provider_t)
+            assert wall_t >= prev_wall, f"Non-monotonic at provider={provider_t}: {wall_t} < {prev_wall}"
             prev_wall = wall_t
 
     def test_large_time_precision(self):
-        """Mapper should handle large wall/DG times without precision loss."""
-        mapper = DgWallMapper()
+        """Mapper should handle large wall/provider times without precision loss."""
+        mapper = WallTimeMapper()
         # Start at t=1_000_000 (like a real epoch)
         mapper.on_audio_sent(5.0, 1_000_000.0)
         mapper.on_silence_skipped()
         mapper.on_audio_sent(3.0, 1_000_010.0)
-        # DG=6.0 → wall=1_000_011.0
-        assert mapper.dg_to_wall_rel(6.0) == pytest.approx(1_000_011.0, abs=0.001)
+        # provider=6.0 → wall=1_000_011.0
+        assert mapper.provider_to_wall_rel(6.0) == pytest.approx(1_000_011.0, abs=0.001)
 
 
 class TestKeepaliveBoundary:
@@ -1589,7 +1368,7 @@ class TestFinishErrorPublicAPI:
             uid='test',
             session_id='test',
         )
-        socket = GatedDeepgramSocket(mock_conn, gate=gate)
+        socket = GatedSTTSocket(mock_conn, gate=gate)
         socket.finish()
         metrics = socket.get_metrics()
         assert metrics['finalize_errors'] == 1
@@ -1644,7 +1423,7 @@ class TestGateCreationIntegration:
             assert vad_gate is None
 
     def test_gated_socket_wraps_main_not_profile(self):
-        """GatedDeepgramSocket wraps main DG socket; profile socket has no gate."""
+        """GatedSTTSocket wraps main provider socket; profile socket has no gate."""
         main_conn = MagicMock()
         profile_conn = MagicMock()
         gate = VADStreamingGate(
@@ -1655,8 +1434,8 @@ class TestGateCreationIntegration:
             session_id='sess',
         )
         # Mirror transcribe.py: main socket gets gated, profile doesn't
-        main_socket = GatedDeepgramSocket(main_conn, gate=gate)
-        profile_socket = GatedDeepgramSocket(profile_conn, gate=None)
+        main_socket = GatedSTTSocket(main_conn, gate=gate)
+        profile_socket = GatedSTTSocket(profile_conn, gate=None)
 
         assert main_socket.is_gated
         assert not profile_socket.is_gated
@@ -1675,14 +1454,14 @@ class TestFailOpen:
             uid='test',
             session_id='sess',
         )
-        gated = GatedDeepgramSocket(mock_conn, gate=gate)
+        gated = GatedSTTSocket(mock_conn, gate=gate)
         assert gated.is_gated
 
         # Make process_audio raise
         with patch.object(gate, 'process_audio', side_effect=RuntimeError('model crash')):
             gated.send(b'\x00' * 640, wall_time=1.0)
 
-        # Data should have been sent directly to DG
+        # Data should have been sent directly to provider
         mock_conn.send.assert_called_once_with(b'\x00' * 640)
         # Gate should be disabled for rest of session
         assert gated._gate is None
@@ -1691,7 +1470,7 @@ class TestFailOpen:
         assert gate.mode == 'off'
 
     def test_gated_socket_sends_normally_after_fallback(self):
-        """After fallback, subsequent sends go directly to DG (no gate)."""
+        """After fallback, subsequent sends go directly to provider (no gate)."""
         mock_conn = MagicMock()
         gate = VADStreamingGate(
             sample_rate=16000,
@@ -1700,7 +1479,7 @@ class TestFailOpen:
             uid='test',
             session_id='sess',
         )
-        gated = GatedDeepgramSocket(mock_conn, gate=gate)
+        gated = GatedSTTSocket(mock_conn, gate=gate)
 
         # Trigger fallback
         with patch.object(gate, 'process_audio', side_effect=RuntimeError('crash')):
@@ -1728,9 +1507,9 @@ class TestRemapSegments:
         """In active mode, segments should be remapped with mapper offsets."""
         gate = self._make_gate(mode='active')
         # Simulate a silence gap via mapper
-        gate.dg_wall_mapper.on_audio_sent(5.0, 0.0)
-        gate.dg_wall_mapper.on_silence_skipped()
-        gate.dg_wall_mapper.on_audio_sent(3.0, 15.0)
+        gate.wall_mapper.on_audio_sent(5.0, 0.0)
+        gate.wall_mapper.on_silence_skipped()
+        gate.wall_mapper.on_audio_sent(3.0, 15.0)
 
         segments = [{'start': 6.0, 'end': 7.0, 'text': 'hello'}]
         gate.remap_segments(segments)
@@ -1740,9 +1519,9 @@ class TestRemapSegments:
     def test_remap_shadow_mode_noop(self):
         """In shadow mode, segments should remain unchanged."""
         gate = self._make_gate(mode='shadow')
-        gate.dg_wall_mapper.on_audio_sent(5.0, 0.0)
-        gate.dg_wall_mapper.on_silence_skipped()
-        gate.dg_wall_mapper.on_audio_sent(3.0, 15.0)
+        gate.wall_mapper.on_audio_sent(5.0, 0.0)
+        gate.wall_mapper.on_silence_skipped()
+        gate.wall_mapper.on_audio_sent(3.0, 15.0)
 
         segments = [{'start': 6.0, 'end': 7.0, 'text': 'hello'}]
         gate.remap_segments(segments)
@@ -1753,9 +1532,9 @@ class TestRemapSegments:
         """In off mode (fail-open case), segments should remain unchanged."""
         gate = self._make_gate(mode='active')
         gate.mode = 'off'  # Simulate fail-open
-        gate.dg_wall_mapper.on_audio_sent(5.0, 0.0)
-        gate.dg_wall_mapper.on_silence_skipped()
-        gate.dg_wall_mapper.on_audio_sent(3.0, 15.0)
+        gate.wall_mapper.on_audio_sent(5.0, 0.0)
+        gate.wall_mapper.on_silence_skipped()
+        gate.wall_mapper.on_audio_sent(3.0, 15.0)
 
         segments = [{'start': 6.0, 'end': 7.0, 'text': 'hello'}]
         gate.remap_segments(segments)
@@ -1772,9 +1551,9 @@ class TestRemapSegments:
     def test_remap_zero_duration_segment(self):
         """Segment with start == end should be remapped correctly."""
         gate = self._make_gate(mode='active')
-        gate.dg_wall_mapper.on_audio_sent(5.0, 0.0)
-        gate.dg_wall_mapper.on_silence_skipped()
-        gate.dg_wall_mapper.on_audio_sent(3.0, 15.0)
+        gate.wall_mapper.on_audio_sent(5.0, 0.0)
+        gate.wall_mapper.on_silence_skipped()
+        gate.wall_mapper.on_audio_sent(3.0, 15.0)
 
         segments = [{'start': 6.0, 'end': 6.0, 'text': ''}]
         gate.remap_segments(segments)
@@ -1784,9 +1563,9 @@ class TestRemapSegments:
     def test_remap_preserves_other_fields(self):
         """Remap should only modify start/end, leaving text, speaker, etc. untouched."""
         gate = self._make_gate(mode='active')
-        gate.dg_wall_mapper.on_audio_sent(5.0, 0.0)
-        gate.dg_wall_mapper.on_silence_skipped()
-        gate.dg_wall_mapper.on_audio_sent(3.0, 15.0)
+        gate.wall_mapper.on_audio_sent(5.0, 0.0)
+        gate.wall_mapper.on_silence_skipped()
+        gate.wall_mapper.on_audio_sent(3.0, 15.0)
 
         segments = [
             {
@@ -1808,9 +1587,9 @@ class TestRemapSegments:
         """Multiple segments should all be remapped correctly."""
         gate = self._make_gate(mode='active')
         # Build a mapper with one silence gap: 5s audio, gap, 3s audio at wall=15s
-        gate.dg_wall_mapper.on_audio_sent(5.0, 0.0)
-        gate.dg_wall_mapper.on_silence_skipped()
-        gate.dg_wall_mapper.on_audio_sent(3.0, 15.0)
+        gate.wall_mapper.on_audio_sent(5.0, 0.0)
+        gate.wall_mapper.on_silence_skipped()
+        gate.wall_mapper.on_audio_sent(3.0, 15.0)
 
         segments = [
             {'start': 1.0, 'end': 2.0, 'text': 'first'},
@@ -1834,14 +1613,14 @@ class TestRemapSegments:
         # No on_audio_sent calls — mapper has no checkpoints
         segments = [{'start': 3.0, 'end': 4.0, 'text': 'test'}]
         gate.remap_segments(segments)
-        # With no checkpoints, dg_to_wall_rel returns the input unchanged
+        # With no checkpoints, provider_to_wall_rel returns the input unchanged
         assert segments[0]['start'] == 3.0
         assert segments[0]['end'] == 4.0
 
     def test_remap_malformed_segments_missing_keys(self):
         """Segments missing start/end keys should raise KeyError (not silently pass)."""
         gate = self._make_gate(mode='active')
-        gate.dg_wall_mapper.on_audio_sent(5.0, 0.0)
+        gate.wall_mapper.on_audio_sent(5.0, 0.0)
 
         with pytest.raises(KeyError):
             gate.remap_segments([{'text': 'no timestamps'}])
@@ -1849,14 +1628,14 @@ class TestRemapSegments:
     def test_remap_malformed_segments_none_values(self):
         """Segments with None start/end should raise TypeError during remap."""
         gate = self._make_gate(mode='active')
-        gate.dg_wall_mapper.on_audio_sent(5.0, 0.0)
+        gate.wall_mapper.on_audio_sent(5.0, 0.0)
 
         with pytest.raises(TypeError):
             gate.remap_segments([{'start': None, 'end': None}])
 
 
 class TestGatedSocketRemapDelegation:
-    """Tests for GatedDeepgramSocket.remap_segments() delegation to gate."""
+    """Tests for GatedSTTSocket.remap_segments() delegation to gate."""
 
     def _make_gate(self, mode='active'):
         return VADStreamingGate(
@@ -1868,11 +1647,11 @@ class TestGatedSocketRemapDelegation:
         )
 
     def test_gated_socket_remap_delegates_to_gate(self):
-        """GatedDeepgramSocket.remap_segments() should delegate to gate.remap_segments()."""
+        """GatedSTTSocket.remap_segments() should delegate to gate.remap_segments()."""
         mock_conn = MagicMock()
         gate = self._make_gate(mode='active')
         gate.remap_segments = MagicMock(wraps=gate.remap_segments)
-        socket = GatedDeepgramSocket(mock_conn, gate=gate)
+        socket = GatedSTTSocket(mock_conn, gate=gate)
 
         segments = [{'start': 1.0, 'end': 2.0, 'text': 'test'}]
         socket.remap_segments(segments)
@@ -1881,7 +1660,7 @@ class TestGatedSocketRemapDelegation:
     def test_gated_socket_remap_noop_without_gate(self):
         """Without gate, remap_segments() should leave segments unchanged."""
         mock_conn = MagicMock()
-        socket = GatedDeepgramSocket(mock_conn, gate=None)
+        socket = GatedSTTSocket(mock_conn, gate=None)
 
         segments = [{'start': 1.0, 'end': 2.0, 'text': 'test'}]
         socket.remap_segments(segments)
@@ -1890,7 +1669,7 @@ class TestGatedSocketRemapDelegation:
 
 
 class TestAudioCapture:
-    """Tests for audio capture in GatedDeepgramSocket (transcript quality validation)."""
+    """Tests for audio capture in GatedSTTSocket (transcript quality validation)."""
 
     def _make_gate(self, mode='active', session_id='test-session'):
         return VADStreamingGate(
@@ -1907,7 +1686,7 @@ class TestAudioCapture:
             with patch.dict(os.environ, {'VAD_GATE_AUDIO_CAPTURE_DIR': tmpdir}):
                 mock_conn = MagicMock()
                 gate = self._make_gate()
-                socket = GatedDeepgramSocket(mock_conn, gate=gate)
+                socket = GatedSTTSocket(mock_conn, gate=gate)
 
                 t = 1000.0
                 speech_chunk = _make_pcm_with_amplitude(30, 0.5)
@@ -1945,7 +1724,7 @@ class TestAudioCapture:
         with patch.dict(os.environ, {'VAD_GATE_AUDIO_CAPTURE_DIR': ''}):
             mock_conn = MagicMock()
             gate = self._make_gate()
-            socket = GatedDeepgramSocket(mock_conn, gate=gate)
+            socket = GatedSTTSocket(mock_conn, gate=gate)
 
             assert socket._raw_file is None
             assert socket._gated_file is None
@@ -1961,7 +1740,7 @@ class TestAudioCapture:
             with patch.dict(os.environ, {'VAD_GATE_AUDIO_CAPTURE_DIR': tmpdir}):
                 mock_conn = MagicMock()
                 gate = self._make_gate()
-                socket = GatedDeepgramSocket(mock_conn, gate=gate)
+                socket = GatedSTTSocket(mock_conn, gate=gate)
 
                 assert socket._raw_file is not None
                 assert socket._gated_file is not None
@@ -1974,21 +1753,21 @@ class TestAudioCapture:
                 assert socket._gated_file.closed
 
 
-class TestProcessAudioDgRemapWiring:
-    """Tests for the remap callback wiring in process_audio_dg (streaming.py)."""
+class TestProcessAudioRemapWiring:
+    """Tests for the provider-neutral streaming remap callback wiring."""
 
     def test_remap_callback_wraps_stream_transcript(self):
         """When vad_gate is provided, stream_transcript should receive remapped segments."""
         gate = VADStreamingGate(sample_rate=16000, channels=1, mode='active', uid='test', session_id='test')
         # Build mapper state: 5s of audio sent, then silence gap, then 3s at wall=15s
-        gate.dg_wall_mapper.on_audio_sent(5.0, 0.0)
-        gate.dg_wall_mapper.on_silence_skipped()
-        gate.dg_wall_mapper.on_audio_sent(3.0, 15.0)
+        gate.wall_mapper.on_audio_sent(5.0, 0.0)
+        gate.wall_mapper.on_silence_skipped()
+        gate.wall_mapper.on_audio_sent(3.0, 15.0)
 
         received_segments = []
         original_transcript = lambda segs: received_segments.extend(segs)
 
-        # Simulate the wiring from process_audio_dg lines 330-335
+        # Simulate the streaming callback wiring.
         _original = original_transcript
 
         def wrapped_transcript(segments):
@@ -1998,7 +1777,7 @@ class TestProcessAudioDgRemapWiring:
         segments = [{'start': 6.0, 'end': 7.0, 'text': 'hello', 'speaker': 'SPEAKER_0'}]
         wrapped_transcript(segments)
 
-        # After remap: dg=6.0 is in second checkpoint range (dg=5.0 -> wall=15.0)
+        # After remap: provider=6.0 is in second checkpoint range (provider=5.0 -> wall=15.0)
         # So wall = 15.0 + (6.0 - 5.0) = 16.0
         assert len(received_segments) == 1
         assert abs(received_segments[0]['start'] - 16.0) < 0.01
@@ -2020,86 +1799,6 @@ class TestProcessAudioDgRemapWiring:
 
 
 @pytest.mark.slow
-class TestDG1011KeepaliveGap:
-    """Verify DG 1011 protection via SafeDeepgramSocket auto-keepalive.
-
-    Deepgram disconnects with 1011 (NET-0001) if no audio or KeepAlive is
-    received within 10 seconds. SafeDeepgramSocket's background thread sends
-    keepalive automatically when idle > 5s, preventing the timeout.
-
-    Architecture: SafeDeepgramSocket is the SOLE keepalive owner (#5870).
-    """
-
-    DG_IDLE_TIMEOUT_SEC = 10  # Deepgram's documented idle timeout
-
-    def test_auto_keepalive_prevents_1011_during_initial_silence(self):
-        """SafeDeepgramSocket auto-keepalive fires during idle, preventing DG 1011.
-
-        Uses injectable clock to simulate time. Background thread detects
-        idle > 5s and sends keepalive automatically — no external caller needed.
-        """
-        mock_conn = MagicMock()
-        mock_conn.keep_alive.return_value = True
-        mock_conn.send.return_value = True
-
-        fake_time = [0.0]
-
-        def clock():
-            return fake_time[0]
-
-        cfg = KeepaliveConfig(keepalive_interval_sec=5.0, check_period_sec=0.01)
-        safe = SafeDeepgramSocket(mock_conn, cfg=cfg, clock=clock)
-
-        try:
-            # Advance past keepalive interval (simulates initial silence)
-            fake_time[0] = 6.0
-            time.sleep(0.1)
-
-            # Background thread should have sent keepalive automatically
-            assert mock_conn.keep_alive.call_count >= 1, (
-                f"SafeDeepgramSocket auto-keepalive did not fire within {self.DG_IDLE_TIMEOUT_SEC}s. "
-                f"DG would disconnect with 1011 (NET-0001)."
-            )
-        finally:
-            safe.finish()
-
-    def test_auto_keepalive_prevents_1011_after_speech_ends(self):
-        """After speech ends, auto-keepalive fires within DG timeout.
-
-        Simulates send() activity followed by idle period. Background thread
-        sends keepalive when idle > 5s.
-        """
-        mock_conn = MagicMock()
-        mock_conn.keep_alive.return_value = True
-        mock_conn.send.return_value = True
-
-        fake_time = [0.0]
-
-        def clock():
-            return fake_time[0]
-
-        cfg = KeepaliveConfig(keepalive_interval_sec=5.0, check_period_sec=0.01)
-        safe = SafeDeepgramSocket(mock_conn, cfg=cfg, clock=clock)
-
-        try:
-            # Simulate active audio sending
-            for i in range(10):
-                fake_time[0] = i * 0.03
-                safe.send(b'\x00' * 960)
-
-            # Speech ends, no more sends. Advance past keepalive interval.
-            fake_time[0] = fake_time[0] + 6.0
-            mock_conn.keep_alive.reset_mock()
-            time.sleep(0.1)
-
-            assert mock_conn.keep_alive.call_count >= 1, (
-                f"Auto-keepalive not sent within {self.DG_IDLE_TIMEOUT_SEC}s after last audio. "
-                f"DG would disconnect with 1011."
-            )
-        finally:
-            safe.finish()
-
-
 class TestGatedSTTSocketPassthroughMode:
     """Verify passthrough_audio=True forwards raw audio regardless of VAD gate decision."""
 
@@ -2184,7 +1883,7 @@ class TestMisalignedChunks:
         mock_conn = MagicMock()
         mock_conn.is_connection_dead = False
         gate = self._make_gate()
-        gated = GatedDeepgramSocket(mock_conn, gate=gate)
+        gated = GatedSTTSocket(mock_conn, gate=gate)
 
         gated.send(_make_pcm(30) + b'\x00', wall_time=1.0)
 

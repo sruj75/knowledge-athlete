@@ -36,7 +36,7 @@ def test_firestore_config_does_not_declare_single_field_composite_indexes():
         assert len(indexed_fields) > 1, index
 
 
-def test_firestore_config_declares_mcp_conversation_category_filter_index():
+def test_firestore_config_declares_conversation_category_filter_index():
     required_fields = [
         ('discarded', 'ASCENDING'),
         ('status', 'ASCENDING'),
@@ -54,7 +54,7 @@ def test_firestore_config_declares_mcp_conversation_category_filter_index():
 
 
 def test_firestore_config_declares_screen_activity_app_filter_index():
-    # Regression for #9189: the MCP get_screen_activity tool filters by appName
+    # Regression for #9189: the retained screen-activity tool filters by appName
     # and orders/ranges on timestamp, which needs this composite index — without
     # it Firestore raises FailedPrecondition and the tool returned an opaque 500.
     required_fields = [

@@ -16,7 +16,6 @@ from utils.stt.live_failure import (
     terminate_live_stt_session,
 )
 from utils.stt.outcomes import TranscriptionFailure, TranscriptionOutcome
-from utils.stt.safe_socket import KeepaliveConfig, SafeDeepgramSocket
 from utils.stt.vad_gate import GatedSTTSocket, VADStreamingGate
 
 
@@ -91,7 +90,7 @@ async def test_terminal_live_failure_sends_bounded_status_before_safe_close(
 ) -> None:
     websocket = FakeClientSocket()
     session = FakeSession()
-    failure = TranscriptionFailure(TranscriptionOutcome.TIMEOUT, provider='deepgram')
+    failure = TranscriptionFailure(TranscriptionOutcome.TIMEOUT, provider='modulate')
     recorded: list[dict[str, Any]] = []
     monkeypatch.setattr(live_failure, 'record_live_stt_failure', lambda **labels: recorded.append(labels))
 
@@ -111,7 +110,7 @@ async def test_terminal_live_failure_sends_bounded_status_before_safe_close(
                 'status': 'stt_failed',
                 'status_text': 'The transcription provider timed out.',
                 'outcome': 'timeout',
-                'provider': 'deepgram',
+                'provider': 'modulate',
                 'retryable': True,
                 'reason': 'initialization_failed',
                 'type': 'service_status',
@@ -124,7 +123,7 @@ async def test_terminal_live_failure_sends_bounded_status_before_safe_close(
     assert session.stt_terminal_failure is True
     assert recorded == [
         {
-            'provider': 'deepgram',
+            'provider': 'modulate',
             'platform': 'ios',
             'outcome': TranscriptionOutcome.TIMEOUT,
             'phase': 'initialization',
@@ -162,14 +161,14 @@ async def test_accepted_live_attempt_terminals_once_with_the_same_failure_phase(
     await terminate_live_stt_session(
         websocket,
         session,
-        failure=TranscriptionFailure(TranscriptionOutcome.UPSTREAM_ERROR, provider='parakeet'),
+        failure=TranscriptionFailure(TranscriptionOutcome.UPSTREAM_ERROR, provider='modulate'),
         reason='send_failed',
         platform='ios',
     )
     await terminate_live_stt_session(
         websocket,
         session,
-        failure=TranscriptionFailure(TranscriptionOutcome.UPSTREAM_ERROR, provider='parakeet'),
+        failure=TranscriptionFailure(TranscriptionOutcome.UPSTREAM_ERROR, provider='modulate'),
         reason='connection_lost',
         platform='ios',
     )
@@ -185,7 +184,7 @@ async def test_terminal_live_failure_still_closes_when_status_delivery_fails() -
     sent = await terminate_live_stt_session(
         websocket,
         session,
-        failure=TranscriptionFailure(TranscriptionOutcome.UPSTREAM_ERROR, provider='parakeet'),
+        failure=TranscriptionFailure(TranscriptionOutcome.UPSTREAM_ERROR, provider='modulate'),
         reason='send_failed',
         platform='android',
     )
@@ -215,7 +214,7 @@ async def test_single_channel_dead_socket_preserves_unsent_buffer_and_terminates
         session,
         stt_socket=provider_socket,
         buffer=audio,
-        provider='deepgram',
+        provider='modulate',
         platform='ios',
     )
 
@@ -237,42 +236,13 @@ async def test_unreadable_provider_death_latch_is_terminal() -> None:
         session,
         stt_socket=BrokenDeathLatchSocket(),
         audio=b'synthetic-pcm',
-        provider='deepgram',
+        provider='modulate',
         platform='web',
     )
 
     assert sent is False
     assert session.active is False
     assert websocket.actions[0][1]['reason'] == 'connection_lost'
-
-
-@pytest.mark.asyncio
-async def test_deepgram_callback_death_latch_terminates_before_late_audio_send() -> None:
-    websocket = FakeClientSocket()
-    session = FakeSession()
-    raw_connection = MagicMock()
-    safe_socket = SafeDeepgramSocket(
-        raw_connection,
-        cfg=KeepaliveConfig(keepalive_interval_sec=5.0, check_period_sec=999.0),
-    )
-    try:
-        safe_socket.set_close_reason('DG close event: synthetic peer close')
-
-        sent = await send_live_stt_audio(
-            websocket,
-            session,
-            stt_socket=safe_socket,
-            audio=b'late-audio',
-            provider='deepgram',
-            platform='ios',
-        )
-
-        assert sent is False
-        assert session.active is False
-        assert raw_connection.send.call_count == 0
-        assert websocket.actions[0][1]['reason'] == 'connection_lost'
-    finally:
-        safe_socket.finish()
 
 
 @pytest.mark.asyncio
@@ -287,7 +257,7 @@ async def test_single_channel_send_latch_failure_preserves_unsent_buffer() -> No
         session,
         stt_socket=provider_socket,
         buffer=audio,
-        provider='parakeet',
+        provider='modulate',
         platform='macos',
     )
 
@@ -331,7 +301,7 @@ async def test_successful_single_channel_send_clears_buffer() -> None:
         session,
         stt_socket=provider_socket,
         buffer=audio,
-        provider='deepgram',
+        provider='modulate',
         platform='ios',
     )
 
@@ -353,7 +323,7 @@ async def test_multi_channel_send_exception_is_terminal_and_machine_readable() -
         session,
         stt_socket=provider_socket,
         audio=b'synthetic-channel-pcm',
-        provider='deepgram',
+        provider='modulate',
         platform='ios',
     )
 
@@ -363,7 +333,7 @@ async def test_multi_channel_send_exception_is_terminal_and_machine_readable() -
         'status': 'stt_failed',
         'status_text': 'The transcription provider could not complete the request.',
         'outcome': 'upstream_error',
-        'provider': 'deepgram',
+        'provider': 'modulate',
         'retryable': True,
         'reason': 'send_failed',
         'type': 'service_status',
@@ -391,7 +361,7 @@ async def test_vad_boundary_finalize_failure_is_customer_visible() -> None:
         session,
         stt_socket=gated_socket,
         audio=b'synthetic-silence-boundary',
-        provider='deepgram',
+        provider='modulate',
         platform='macos',
     )
 

@@ -12,7 +12,6 @@ const MEMORY_PROTECTED_COLLECTIONS = [
   'memory_state',
   'memory_commits',
   'memory_evidence',
-  'memory_graph_assertions',
   'memory_review_queue',
   'v3_compatibility_projection',
   'v3_compatibility_projection_items',
@@ -85,38 +84,6 @@ async function assertClientDeniedForV3MemoryApplyControl(db) {
   await assertFails(deleteDoc(applyControlDoc));
 }
 
-async function assertClientCannotSelfGrantAppKeyMemoryAccess(db) {
-  const grantDoc = doc(db, 'users/memory-emulator-user/memory_control/app_key_memory_grants');
-  const selfGrant = {
-    grants: {
-      developer_api: {
-        apps: {
-          'client-app': {
-            keys: {
-              'client-key': {
-                enabled: true,
-                scopes: ['memories.read', 'memories.archive.read', 'memories.write'],
-                default_read: true,
-                archive_read: true,
-                write: true,
-                probe: 'client-self-grant',
-              },
-            },
-          },
-        },
-      },
-    },
-  };
-
-  // Contract path: grants.developer_api.apps.client-app.keys.client-key.
-  // Firestore client rules must deny creating/updating this server-owned grant
-  // document even when a signed-in client tries to grant itself all scopes.
-  await assertFails(getDoc(grantDoc));
-  await assertFails(setDoc(grantDoc, selfGrant));
-  await assertFails(updateDoc(grantDoc, selfGrant));
-  await assertFails(deleteDoc(grantDoc));
-}
-
 async function assertClientDeniedForV3CanaryApprovalSource(db) {
   const approvalDoc = doc(db, 'system/v3_canary_approvals/routes/get_v3_memories');
   const approvalArtifact = {
@@ -161,13 +128,12 @@ try {
   await assertClientDeniedForV3ControlReaderState(db);
   await assertClientDeniedForV3MemoryStateHead(db);
   await assertClientDeniedForV3MemoryApplyControl(db);
-  await assertClientCannotSelfGrantAppKeyMemoryAccess(db);
   await assertClientDeniedForV3CanaryApprovalSource(db);
   await assertAdminCanReadV3CanaryApprovalSource(testEnv);
 
-  assert.equal(MEMORY_PROTECTED_COLLECTIONS.length, 13);
+  assert.equal(MEMORY_PROTECTED_COLLECTIONS.length, 12);
   console.log(
-    `PASS: signed-in client read/write denial asserted for ${MEMORY_PROTECTED_COLLECTIONS.length} memory collections, users/{uid}/memory_control/state, users/{uid}/memory_state/head, users/{uid}/memory_state/apply_control, memory app/key memory grant self-grant path, and system/v3_canary_approvals/routes/get_v3_memories; Admin-context read fixture proved for canary approval source`,
+    `PASS: signed-in client read/write denial asserted for ${MEMORY_PROTECTED_COLLECTIONS.length} memory collections, users/{uid}/memory_control/state, users/{uid}/memory_state/head, users/{uid}/memory_state/apply_control, and system/v3_canary_approvals/routes/get_v3_memories; Admin-context read fixture proved for canary approval source`,
   );
 } finally {
   await testEnv.cleanup();

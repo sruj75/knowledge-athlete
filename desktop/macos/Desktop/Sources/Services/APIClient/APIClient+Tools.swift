@@ -1,5 +1,4 @@
 import Foundation
-import OmiWAL
 
 extension APIClient {
   // MARK: - Platform Tools (backend RAG)
@@ -58,24 +57,6 @@ extension APIClient {
       case completed
       case description
       case dueAt = "due_at"
-    }
-  }
-
-  struct CreateCalendarEventRequest: Encodable {
-    let title: String
-    let startTime: String
-    let endTime: String
-    let description: String?
-    let location: String?
-    let attendees: String?
-
-    enum CodingKeys: String, CodingKey {
-      case title
-      case startTime = "start_time"
-      case endTime = "end_time"
-      case description
-      case location
-      case attendees
     }
   }
 
@@ -213,32 +194,6 @@ extension APIClient {
     let body = UpdateActionItemRequest(completed: completed, description: description, dueAt: dueAt)
     return try await patch(
       "v1/tools/action-items/\(id)",
-      body: body,
-      customBaseURL: nil,
-      expectedOwnerId: expectedOwnerId,
-      authorizationSnapshot: authorizationSnapshot)
-  }
-
-  func toolCreateCalendarEvent(
-    title: String,
-    startTime: String,
-    endTime: String,
-    description: String? = nil,
-    location: String? = nil,
-    attendees: String? = nil,
-    expectedOwnerId: String? = nil,
-    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot? = nil
-  ) async throws -> ToolResponse {
-    let body = CreateCalendarEventRequest(
-      title: title,
-      startTime: startTime,
-      endTime: endTime,
-      description: description,
-      location: location,
-      attendees: attendees
-    )
-    return try await post(
-      "v1/tools/calendar-events",
       body: body,
       customBaseURL: nil,
       expectedOwnerId: expectedOwnerId,

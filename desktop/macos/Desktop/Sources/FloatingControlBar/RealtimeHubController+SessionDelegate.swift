@@ -312,12 +312,6 @@ extension RealtimeHubController {
           self.authorizedRealtimeInvocations.removeValue(forKey: invocationID)
           self.authorizedRealtimeScreenshotImages.removeValue(forKey: invocationID)
         }
-        // Read provider intent before `arguments` crosses the runtime actor
-        // boundary. Accessing the mutable dictionary again after the send
-        // would create two concurrent owners under Swift's strict isolation.
-        let requestedProvider = (arguments["provider"] as? String)?
-          .trimmingCharacters(in: .whitespacesAndNewlines)
-          .lowercased()
         let output = try await AgentRuntimeProcess.shared.invokeExternalSurfaceTool(
           clientId: Self.externalRunClientID,
           harnessMode: Self.externalRunHarnessMode,
@@ -368,16 +362,6 @@ extension RealtimeHubController {
             // pre-tool speculation keeps it out of the visible reply without
             // interrupting native provider audio or changing voices.
             self.assistantText = ""
-            if let failedProvider = self.spawnFailureContinuationPolicy.takeFailedProvider(
-              turnID: turnID.rawValue)
-            {
-              DesktopDiagnosticsManager.shared.recordFallback(
-                area: "realtime_hub",
-                from: failedProvider,
-                to: receipt.pillProjection?.provider ?? requestedProvider ?? "default",
-                reason: "spawn_failed",
-                outcome: .recovered)
-            }
             log(
               "RealtimeHub[\(self.providerTag)]: accepted spawn receipt; preserving native provider continuation"
             )
@@ -389,36 +373,12 @@ extension RealtimeHubController {
                 sessionId: pill.sessionID,
                 runId: pill.runID,
                 attemptId: pill.attemptID,
-                provider: pill.provider,
                 producingJournalSurface: FloatingControlBarManager.shared.realtimeVoiceSurfaceReference())
             }
-          case .setupNeeded(let provider):
-            self.lastExternalToolErrorCode = "provider_setup_needed"
-            let continueTurn = self.spawnFailureContinuationPolicy.beginContinuationIfAllowed(
-              turnID: turnID.rawValue,
-              failedProvider: provider.rawValue)
-            self.sendToolResultIfCurrent(
-              source: source,
-              callId: callId,
-              name: name,
-              output: RealtimeProviderToolResultPolicy.rejectedOutput(
-                code: "provider_setup_needed",
-                message: provider.setupNeededStatus,
-                preservingCanonicalEnvelopeFrom: output),
-              expectedTurnEpoch: expectedTurnEpoch)
-            if !continueTurn {
-              VoiceTurnCoordinator.shared.publish(.finish(turnID: turnID, reason: .providerFailed))
-            }
-            return
           case .accepted, .rejected:
             log("RealtimeHub[\(self.providerTag)]: spawn_agent rejected without a canonical child receipt")
             let continueTurn = self.spawnFailureContinuationPolicy.beginContinuationIfAllowed(
-              turnID: turnID.rawValue,
-              failedProvider: requestedProvider)
-            let continuationMessage =
-              requestedProvider.map {
-                "The \($0) agent could not start. You may retry once with a different installed agent, or without a provider for Omi's default agent — or tell the user it failed."
-              } ?? "The default background agent could not start. You may retry once or tell the user it failed."
+              turnID: turnID.rawValue)
             self.sendToolResultIfCurrent(
               source: source,
               callId: callId,
@@ -426,7 +386,7 @@ extension RealtimeHubController {
               output: RealtimeProviderToolResultPolicy.rejectedOutput(
                 code: "realtime_spawn_rejected",
                 message: continueTurn
-                  ? continuationMessage
+                  ? "The background agent could not start. You may retry once or tell the user it failed."
                   : "The background agent could not start. Please try again.",
                 preservingCanonicalEnvelopeFrom: output),
               expectedTurnEpoch: expectedTurnEpoch)
@@ -1295,9 +1255,7 @@ extension RealtimeHubController {
       hasActiveTurn: hasActiveTurn,
       provider: sessionProvider ?? .openai)
     let provider = sessionProvider
-    let authMode: CredentialAuthMode = sessionAuth?.isEphemeral == true ? .managed : .byok
-    let fingerprint = provider.flatMap { APIKeyService.byokKey($0.byokProvider) }.map(
-      APIKeyService.byokFingerprint)
+    let authMode: CredentialAuthMode = .managed
     var credentialFailureClass: CredentialFailureClass?
     if let provider, !RealtimeHubCloseClassifier.isExpectedLifecycleClose(closeCategory) {
       var failureClass = CredentialHealthManager.classifyProviderClose(
@@ -1310,7 +1268,6 @@ extension RealtimeHubController {
         failureClass,
         provider: provider,
         authMode: authMode,
-        fingerprint: fingerprint,
         context: "realtime_socket")
     }
     let reportingPlan = RealtimeHubFailureReportingPlan.make(
@@ -1427,9 +1384,9 @@ extension RealtimeHubController {
       return
     }
     // Re-warm so the NEXT PTT uses the hub, not the STT cascade. Gemini idle-closes
-    // the socket (~2.5 min, close 1008) even before the first turn; managed users have
-    // no BYOK key, so once `session` is nil `isActive` is false and PTT silently falls
-    // back to omni STT. So always try to re-warm (the hub is the default voice path).
+    // the socket (~2.5 min, close 1008) even before the first turn. Once `session`
+    // is nil, `isActive` is false and PTT silently falls back to omni STT, so always
+    // try to re-warm (the hub is the default voice path).
     // A socket that survived past the idle window was a normal idle-close → reset the
     // strike budget (and the failover, returning to the Auto pick) and keep re-warming.
     if aliveFor > 60 {
@@ -1469,7 +1426,7 @@ extension RealtimeHubController {
     replaceSessionAfterDrain()
   }
 
-  /// A warm background socket must never terminate a Deepgram/Omni fallback
+  /// A warm background socket must never terminate a managed-STT/Omni fallback
   /// turn. The reducer deduplicates repeated terminal events, keeping the UI in
   /// a single actionable terminal projection when transport callbacks race.
   func terminateActiveHubTurn(_ activeTurn: VoiceTurn?) {

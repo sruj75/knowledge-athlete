@@ -79,8 +79,6 @@ struct TranscriptionSessionRecord: Codable, FetchableRecord, PersistableRecord, 
 
   // MARK: - Additional Conversation Data
   var geolocationJson: String?  // JSON-encoded Geolocation
-  var photosJson: String?  // JSON-encoded [ConversationPhoto]
-  var appsResultsJson: String?  // JSON-encoded [AppResponse]
 
   // MARK: - Conversation Status & Flags
   var conversationStatus: LocalConversationStatus  // Backend processing status
@@ -125,8 +123,6 @@ struct TranscriptionSessionRecord: Codable, FetchableRecord, PersistableRecord, 
     eventsJson: String? = nil,
     // Additional data
     geolocationJson: String? = nil,
-    photosJson: String? = nil,
-    appsResultsJson: String? = nil,
     // Status & flags
     conversationStatus: LocalConversationStatus = .inProgress,
     discarded: Bool = false,
@@ -165,8 +161,6 @@ struct TranscriptionSessionRecord: Codable, FetchableRecord, PersistableRecord, 
     self.eventsJson = eventsJson
     // Additional data
     self.geolocationJson = geolocationJson
-    self.photosJson = photosJson
-    self.appsResultsJson = appsResultsJson
     // Status & flags
     self.conversationStatus = conversationStatus
     self.discarded = discarded
@@ -363,8 +357,6 @@ extension TranscriptionSessionRecord {
     let actionItemsJson = try? String(data: encoder.encode(conversation.structured.actionItems), encoding: .utf8)
     let eventsJson = try? String(data: encoder.encode(conversation.structured.events), encoding: .utf8)
     let geolocationJson = try? String(data: encoder.encode(conversation.geolocation), encoding: .utf8)
-    let photosJson = try? String(data: encoder.encode(conversation.photos), encoding: .utf8)
-    let appsResultsJson = try? String(data: encoder.encode(conversation.appsResults), encoding: .utf8)
 
     // Convert ConversationStatus to LocalConversationStatus
     let localStatus: LocalConversationStatus
@@ -403,8 +395,6 @@ extension TranscriptionSessionRecord {
       actionItemsJson: actionItemsJson,
       eventsJson: eventsJson,
       geolocationJson: geolocationJson,
-      photosJson: photosJson,
-      appsResultsJson: appsResultsJson,
       conversationStatus: localStatus,
       discarded: conversation.discarded,
       deleted: conversation.deleted,
@@ -443,8 +433,6 @@ extension TranscriptionSessionRecord {
 
     // Update additional data
     self.geolocationJson = try? String(data: encoder.encode(conversation.geolocation), encoding: .utf8)
-    self.photosJson = try? String(data: encoder.encode(conversation.photos), encoding: .utf8)
-    self.appsResultsJson = try? String(data: encoder.encode(conversation.appsResults), encoding: .utf8)
 
     // Update status & flags
     switch conversation.status {
@@ -491,12 +479,6 @@ extension TranscriptionSessionRecord {
     if Self.isEmptyJsonCollection(eventsJson), !conversation.structured.events.isEmpty {
       eventsJson = try? String(data: encoder.encode(conversation.structured.events), encoding: .utf8)
     }
-    if Self.isEmptyJsonCollection(photosJson), !conversation.photos.isEmpty {
-      photosJson = try? String(data: encoder.encode(conversation.photos), encoding: .utf8)
-    }
-    if Self.isEmptyJsonCollection(appsResultsJson), !conversation.appsResults.isEmpty {
-      appsResultsJson = try? String(data: encoder.encode(conversation.appsResults), encoding: .utf8)
-    }
     if conversation.transcriptSegmentsIncluded {
       cacheCompleteness = .detail
     }
@@ -514,8 +496,6 @@ extension TranscriptionSessionRecord {
       || Self.isDefaultCategory(category) && !Self.isDefaultCategory(conversation.structured.category)
       || Self.isEmptyJsonCollection(actionItemsJson) && !conversation.structured.actionItems.isEmpty
       || Self.isEmptyJsonCollection(eventsJson) && !conversation.structured.events.isEmpty
-      || Self.isEmptyJsonCollection(photosJson) && !conversation.photos.isEmpty
-      || Self.isEmptyJsonCollection(appsResultsJson) && !conversation.appsResults.isEmpty
   }
 
   private static func isEmpty(_ value: String?) -> Bool {
@@ -610,12 +590,6 @@ extension TranscriptionSessionRecord {
       .flatMap { try? decoder.decode([Event].self, from: $0) } ?? []
     let geolocation: Geolocation? = (geolocationJson?.data(using: .utf8))
       .flatMap { try? decoder.decode(Geolocation.self, from: $0) }
-    let photos: [ConversationPhoto] =
-      (photosJson?.data(using: .utf8))
-      .flatMap { try? decoder.decode([ConversationPhoto].self, from: $0) } ?? []
-    let appsResults: [AppResponse] =
-      (appsResultsJson?.data(using: .utf8))
-      .flatMap { try? decoder.decode([AppResponse].self, from: $0) } ?? []
 
     // Convert conversation status
     let status: ConversationStatus
@@ -647,8 +621,6 @@ extension TranscriptionSessionRecord {
       transcriptSegments: transcriptSegments,
       transcriptSegmentsIncluded: transcriptIncluded ?? (cacheCompleteness == .detail || !segments.isEmpty),
       geolocation: geolocation,
-      photos: photos,
-      appsResults: appsResults,
       source: ConversationSource(rawValue: source),
       language: language,
       status: status,

@@ -68,17 +68,13 @@ def chat():
         "stripe": MagicMock(),
         "database.chat": MagicMock(),
         "database.notifications": MagicMock(),
-        "database.apps": MagicMock(),
         "database.auth": MagicMock(),
         "database.users": MagicMock(),
-        "utils.apps": MagicMock(),
         "utils.llm.chat": MagicMock(),
-        "utils.llm.persona": MagicMock(),
         "database.redis_db": redis_db,
         "models.chat": MagicMock(),
         "models.conversation": MagicMock(),
         "models.notification_message": MagicMock(),
-        "models.app": MagicMock(),
         "models.transcript_segment": MagicMock(),
         "utils.subscription": subscription,
         "utils.llm.usage_tracker": usage_tracker,
@@ -174,7 +170,7 @@ def test_silent_voice_message_still_schedules_temporary_audio_cleanup(chat, monk
     schedule_cleanup = MagicMock()
     monkeypatch.setattr(chat, "get_syncing_file_temporal_signed_url", sign)
     monkeypatch.setattr(chat, "schedule_syncing_temporal_file_deletion", schedule_cleanup)
-    monkeypatch.setattr(chat, "get_prerecorded_service", lambda language: ("deepgram", "en", "nova-3"))
+    monkeypatch.setattr(chat, "get_prerecorded_service", lambda language: ("modulate", "en", "modulate-velma-2"))
     monkeypatch.setattr(chat, "_validated_wav_is_silent", lambda path, provider: True)
 
     assert chat.transcribe_voice_message_segment("audio.wav", "uid", "en") == (None, "en")
@@ -185,7 +181,7 @@ def test_silent_voice_message_still_schedules_temporary_audio_cleanup(chat, monk
 @pytest.mark.asyncio
 async def test_stream_routes_storage_and_transcription_to_owned_executors(chat, monkeypatch):
     calls = []
-    monkeypatch.setattr(chat, "get_prerecorded_service", lambda language: ("deepgram", language, "nova-3"))
+    monkeypatch.setattr(chat, "get_prerecorded_service", lambda language: ("modulate", language, "modulate-velma-2"))
 
     async def fake_run_blocking(executor, func, *args, **kwargs):
         calls.append((executor, func, args, kwargs))
@@ -209,7 +205,7 @@ async def test_stream_routes_storage_and_transcription_to_owned_executors(chat, 
     ]
     assert calls[0][2] == ("audio.wav",)
     assert calls[1][2] == ("audio.wav",)
-    assert calls[1][3] == {"provider": "deepgram"}
+    assert calls[1][3] == {"provider": "modulate"}
     assert calls[2][2] == ("https://signed.test/audio", "audio.wav", "en", False)
 
 
@@ -220,7 +216,7 @@ async def test_silent_stream_still_schedules_temporary_audio_cleanup(chat, monke
     schedule_cleanup = MagicMock()
     monkeypatch.setattr(chat, "get_syncing_file_temporal_signed_url", sign)
     monkeypatch.setattr(chat, "schedule_syncing_temporal_file_deletion", schedule_cleanup)
-    monkeypatch.setattr(chat, "get_prerecorded_service", lambda language: ("deepgram", "en", "nova-3"))
+    monkeypatch.setattr(chat, "get_prerecorded_service", lambda language: ("modulate", "en", "modulate-velma-2"))
 
     async def fake_run_blocking(executor, func, *args, **kwargs):
         if func is chat._prepare_voice_message_url:

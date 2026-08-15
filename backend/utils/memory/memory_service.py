@@ -23,32 +23,24 @@ from utils.memory.canonical_memory_adapter import (
     search_canonical_memories,
     search_result_to_memorydb,
     update_canonical_memory_content,
-    update_canonical_memory_visibility,
     update_canonical_memory_product_fields,
     update_canonical_memory_review,
-    write_canonical_external_memory,
+    write_canonical_surface_memory,
 )
 from utils.memory.required_promotion import required_processing_payload
-from utils.client_device import DeviceScopeRequest
 from utils.memory.canonical_activation import canonical_read_enabled, canonical_write_decision
 from utils.memory.memory_system import MemorySystem
 from utils.memory.default_read_rollout import guard_legacy_memory_write
 from utils.memory.memory_api_contract import MemoryApiExposure, memory_api_payload, memory_write_payload
-from utils.retrieval.hybrid import rrf_rerank
 
 logger = logging.getLogger(__name__)
 
 MemoryPayload = Dict[str, Any]
-McpSearchPayload = Dict[str, Any]
-
-
-class DeviceScopeNotSupportedError(ValueError):
-    """device_scope filtering is only supported on the canonical memory backend."""
 
 
 @dataclass(frozen=True)
-class ExternalMemoryWriteContext:
-    """Resolved cohort + legacy-write guard context for external memory mutations."""
+class SurfaceMemoryWriteContext:
+    """Resolved cohort and legacy-write guard context for a retained memory surface."""
 
     memory_system: MemorySystem
     legacy_write_allowed: bool = True
@@ -62,7 +54,7 @@ def _require_legacy_write_guard(uid: str, db_client: Any, *, consumer: str, oper
         raise HTTPException(status_code=write_guard.status_code, detail=write_guard.detail)
 
 
-def _canonical_external_write_enabled_or_fail_closed(uid: str, db_client: Any) -> bool:
+def _canonical_surface_write_enabled_or_fail_closed(uid: str, db_client: Any) -> bool:
     decision = canonical_write_decision(uid, db_client=db_client)
     if decision.enabled:
         return True
@@ -71,18 +63,18 @@ def _canonical_external_write_enabled_or_fail_closed(uid: str, db_client: Any) -
     return False
 
 
-def resolve_external_memory_write_context(
+def resolve_surface_memory_write_context(
     uid: str,
     *,
     db_client: Any,
     memory_system: MemorySystem,
     consumer: str,
     operation: str,
-) -> ExternalMemoryWriteContext:
-    if memory_system == MemorySystem.CANONICAL and _canonical_external_write_enabled_or_fail_closed(uid, db_client):
-        return ExternalMemoryWriteContext(memory_system=memory_system)
+) -> SurfaceMemoryWriteContext:
+    if memory_system == MemorySystem.CANONICAL and _canonical_surface_write_enabled_or_fail_closed(uid, db_client):
+        return SurfaceMemoryWriteContext(memory_system=memory_system)
     write_guard = guard_legacy_memory_write(uid, db_client, consumer=consumer, operation=operation)
-    return ExternalMemoryWriteContext(
+    return SurfaceMemoryWriteContext(
         memory_system=MemorySystem.LEGACY,
         legacy_write_allowed=write_guard.allowed,
         legacy_write_status_code=write_guard.status_code,
@@ -90,7 +82,7 @@ def resolve_external_memory_write_context(
     )
 
 
-def raise_if_legacy_write_blocked(context: ExternalMemoryWriteContext) -> None:
+def raise_if_legacy_write_blocked(context: SurfaceMemoryWriteContext) -> None:
     if not context.legacy_write_allowed:
         raise HTTPException(status_code=context.legacy_write_status_code, detail=context.legacy_write_detail)
 
@@ -136,12 +128,6 @@ def fetch_memory_dict(uid: str, memory_id: str, *, db_client: Any) -> MemoryPayl
         raise HTTPException(status_code=402, detail="A paid plan is required to access this memory.")
 
     return memory_api_payload(memory, MemoryApiExposure.LEGACY)
-
-
-def _reject_legacy_device_scope(device_scope_request: Optional[DeviceScopeRequest]) -> None:
-    scope = device_scope_request.device_scope if device_scope_request else "all"
-    if scope and scope != "all":
-        raise DeviceScopeNotSupportedError("device_scope filtering is only supported for canonical memory users")
 
 
 @dataclass(frozen=True)
@@ -219,71 +205,6 @@ def _legacy_search_memories(uid: str, query: str, *, limit: int = 5) -> List[Mem
     return results
 
 
-def _legacy_search_memories_mcp(uid: str, query: str, *, limit: int = 5) -> List[McpSearchPayload]:
-    """Legacy MCP search path: over-fetch, filter, RRF rerank (Wave 2 cf#1 parity)."""
-    capped_limit = max(1, min(limit, 20))
-    fetch_limit = min(capped_limit * 3, 60)
-    matches = vector_db.find_similar_memories(uid, query, threshold=0.0, limit=fetch_limit)
-    if not matches:
-        return []
-
-    memory_ids, scores = _memory_ids_and_scores(matches)
-    if not memory_ids:
-        return []
-
-    docs: Dict[str, MemoryPayload] = {}
-    for memory in memories_db.get_memories_by_ids(uid, memory_ids):
-        memory_id = memory.get("id")
-        if isinstance(memory_id, str) and memory_id:
-            docs[memory_id] = memory
-
-    candidates: List[McpSearchPayload] = []
-    for memory_id in memory_ids:
-        memory = docs.get(memory_id)
-        if not memory:
-            continue
-        if memory.get("user_review") is False or memory.get("is_locked", False) or memory.get("invalid_at") is not None:
-            continue
-        candidates.append(
-            {
-                "id": memory.get("id", ""),
-                "content": memory.get("content", ""),
-                "category": memory.get("category", "other"),
-                "vector_score": scores.get(memory_id, 0),
-            }
-        )
-
-    candidates.sort(key=lambda candidate: candidate.get("vector_score", 0), reverse=True)
-    reranked = rrf_rerank(query, candidates, capped_limit)
-    return [
-        {
-            "id": candidate["id"],
-            "content": candidate["content"],
-            "category": candidate["category"],
-            "relevance_score": round(candidate.get("vector_score", 0), 4),
-        }
-        for candidate in reranked
-    ]
-
-
-def _canonical_search_memories_mcp(
-    uid: str, query: str, *, limit: int = 5, db_client: Any = None
-) -> List[McpSearchPayload]:
-    capped_limit = max(1, min(limit, 20))
-    items = search_canonical_memories(uid, query, limit=capped_limit, db_client=db_client)
-    formatted: List[McpSearchPayload] = []
-    for rank, item in enumerate(items):
-        formatted.append(
-            {
-                "id": item["memory_id"],
-                "content": item.get("content") or "",
-                "category": "other",
-                "relevance_score": round(1.0 - (rank * 0.0001), 4),
-            }
-        )
-    return formatted
-
-
 class LegacyMemoryBackend:
     def read(
         self,
@@ -291,11 +212,9 @@ class LegacyMemoryBackend:
         *,
         limit: int = 100,
         offset: int = 0,
-        device_scope_request: Optional[DeviceScopeRequest] = None,
         include_pending_processing: bool = False,
         now: Optional[datetime] = None,
     ) -> List[MemoryDB]:
-        _reject_legacy_device_scope(device_scope_request)
         return _legacy_read_memories(uid, limit=limit, offset=offset)
 
     def search(
@@ -304,9 +223,7 @@ class LegacyMemoryBackend:
         query: str,
         *,
         limit: int = 5,
-        device_scope_request: Optional[DeviceScopeRequest] = None,
     ) -> List[MemorySearchMatch]:
-        _reject_legacy_device_scope(device_scope_request)
         return _legacy_search_memories(uid, query, limit=limit)
 
     def write(self, uid: str, data: Dict[str, Any]) -> str:
@@ -341,9 +258,6 @@ class LegacyMemoryBackend:
         memories_db.edit_memory(uid, memory_id, content)
         return _legacy_memorydb(cast(MemoryPayload, memories_db.get_memory(uid, memory_id)))
 
-    def update_visibility(self, uid: str, memory_id: str, visibility: str) -> None:
-        memories_db.change_memory_visibility(uid, memory_id, visibility)
-
     def delete(self, uid: str, memory_id: str) -> None:
         memories_db.delete_memory(uid, memory_id)
 
@@ -361,7 +275,6 @@ class CanonicalMemoryBackend:
         *,
         limit: int = 100,
         offset: int = 0,
-        device_scope_request: Optional[DeviceScopeRequest] = None,
         include_pending_processing: bool = False,
         now: Optional[datetime] = None,
     ) -> List[MemoryDB]:
@@ -370,20 +283,16 @@ class CanonicalMemoryBackend:
             limit=limit,
             offset=offset,
             db_client=self._db_client,
-            device_scope_request=device_scope_request,
             include_pending_processing=include_pending_processing,
             now=now,
         )
 
-    def search(
-        self, uid: str, query: str, *, limit: int = 5, device_scope_request: Optional[DeviceScopeRequest] = None
-    ) -> List[MemorySearchMatch]:
+    def search(self, uid: str, query: str, *, limit: int = 5) -> List[MemorySearchMatch]:
         items = search_canonical_memories(
             uid,
             query,
             limit=limit,
             db_client=self._db_client,
-            device_scope_request=device_scope_request,
         )
         results: List[MemorySearchMatch] = []
         for item in items:
@@ -394,7 +303,7 @@ class CanonicalMemoryBackend:
         return results
 
     def write(self, uid: str, data: Dict[str, Any]) -> str:
-        return write_canonical_external_memory(uid, data, db_client=self._db_client)
+        return write_canonical_surface_memory(uid, data, db_client=self._db_client)
 
     def review(self, uid: str, memory_id: str, value: bool) -> None:
         update_canonical_memory_review(uid, memory_id, value, db_client=self._db_client)
@@ -422,9 +331,6 @@ class CanonicalMemoryBackend:
     def update_content(self, uid: str, memory_id: str, content: str) -> MemoryDB:
         item = update_canonical_memory_content(uid, memory_id, content, db_client=self._db_client)
         return memory_item_to_memorydb(item)
-
-    def update_visibility(self, uid: str, memory_id: str, visibility: str) -> None:
-        update_canonical_memory_visibility(uid, memory_id, visibility, db_client=self._db_client)
 
     def delete(self, uid: str, memory_id: str) -> None:
         delete_canonical_memory(uid, memory_id, db_client=self._db_client)
@@ -470,7 +376,6 @@ class MemoryService:
         *,
         limit: int = 100,
         offset: int = 0,
-        device_scope_request: Optional[DeviceScopeRequest] = None,
         include_pending_processing: bool = False,
         now: Optional[datetime] = None,
     ) -> List[MemoryDB]:
@@ -479,7 +384,6 @@ class MemoryService:
             uid,
             limit=limit,
             offset=offset,
-            device_scope_request=device_scope_request,
             include_pending_processing=include_pending_processing,
             now=now,
         )
@@ -491,13 +395,12 @@ class MemoryService:
         limit: int = 100,
         offset: int = 0,
         *,
-        device_scope_request: Optional[DeviceScopeRequest] = None,
         include_pending_processing: bool = False,
         now: Optional[datetime] = None,
     ) -> List[MemoryDB]:
         """Read from the backend already selected and authorized by a request route.
 
-        External list routes resolve their request-scoped memory-system pin only
+        Retained list routes resolve their request-scoped memory-system pin only
         after checking the caller's default-read grant. Re-running the rollout
         control reader inside ``read`` can disagree with that pin and silently
         serve the legacy store for a canonical account. This seam keeps the
@@ -510,7 +413,6 @@ class MemoryService:
             uid,
             limit=limit,
             offset=offset,
-            device_scope_request=device_scope_request,
             include_pending_processing=include_pending_processing,
             now=now,
         )
@@ -521,21 +423,13 @@ class MemoryService:
         query: str,
         *,
         limit: int = 5,
-        device_scope_request: Optional[DeviceScopeRequest] = None,
     ) -> List[MemorySearchMatch]:
         backend = self._canonical if canonical_read_enabled(uid, db_client=self._db_client) else self._legacy
         return backend.search(
             uid,
             query,
             limit=limit,
-            device_scope_request=device_scope_request,
         )
-
-    def search_mcp(self, uid: str, query: str, *, limit: int = 5) -> List[McpSearchPayload]:
-        """MCP-shaped search results (legacy parity filters + RRF, or canonical keyword)."""
-        if canonical_read_enabled(uid, db_client=self._db_client):
-            return _canonical_search_memories_mcp(uid, query, limit=limit, db_client=self._db_client)
-        return _legacy_search_memories_mcp(uid, query, limit=limit)
 
     def write(self, uid: str, data: Dict[str, Any]) -> str:
         return self._resolve_mutation_backend(uid).write(uid, data)
@@ -545,9 +439,6 @@ class MemoryService:
 
     def update_content(self, uid: str, memory_id: str, content: str) -> MemoryDB:
         return self._resolve_mutation_backend(uid).update_content(uid, memory_id, content)
-
-    def update_visibility(self, uid: str, memory_id: str, visibility: str) -> None:
-        self._resolve_mutation_backend(uid).update_visibility(uid, memory_id, visibility)
 
     def review(self, uid: str, memory_id: str, value: bool) -> None:
         self._resolve_mutation_backend(uid).review(uid, memory_id, value)
@@ -595,7 +486,7 @@ class MemoryService:
             db_client=self._db_client,
         )
 
-    def create_external_memory(
+    def create_memory_for_surface(
         self,
         uid: str,
         memory_db: MemoryDB,
@@ -604,14 +495,9 @@ class MemoryService:
         consumer: str,
         operation: str,
         upsert_vector: bool = True,
-        require_canonical_promotion: bool = True,
     ) -> MemoryDB:
-        """Create one external memory without changing the caller-facing API.
-
-        ``require_canonical_promotion`` remains accepted for compatibility, but
-        canonical external writes are always processed before durable admission.
-        """
-        if memory_system == MemorySystem.CANONICAL and _canonical_external_write_enabled_or_fail_closed(
+        """Create one memory for a retained first-party or local-agent surface."""
+        if memory_system == MemorySystem.CANONICAL and _canonical_surface_write_enabled_or_fail_closed(
             uid, self._db_client
         ):
             payload = required_processing_payload(memory_db.model_dump(mode="python"), source_surface=consumer)
@@ -620,7 +506,7 @@ class MemoryService:
             if item is not None:
                 return memory_item_to_memorydb(item)
             logger.error(
-                "canonical external memory readback missing uid=%s memory_id=%s",
+                "canonical surface memory readback missing uid=%s memory_id=%s",
                 uid,
                 committed_id or memory_db.id,
             )
@@ -645,7 +531,7 @@ class MemoryService:
                 )
         return _legacy_memorydb(memory_db)
 
-    def create_external_memory_batch(
+    def create_memories_for_surface(
         self,
         uid: str,
         memory_dbs: List[MemoryDB],
@@ -654,10 +540,9 @@ class MemoryService:
         consumer: str,
         operation: str,
         upsert_vectors: bool = True,
-        require_canonical_promotion: bool = True,
     ) -> List[MemoryDB]:
-        """Batch-create external memories with legacy vector upsert when applicable."""
-        if memory_system == MemorySystem.CANONICAL and _canonical_external_write_enabled_or_fail_closed(
+        """Batch-create memories for a retained surface with legacy vector upsert when applicable."""
+        if memory_system == MemorySystem.CANONICAL and _canonical_surface_write_enabled_or_fail_closed(
             uid, self._db_client
         ):
             payloads = [
@@ -671,7 +556,7 @@ class MemoryService:
                 if item is not None:
                     results.append(memory_item_to_memorydb(item))
                 else:
-                    logger.error("canonical external batch readback missing uid=%s memory_id=%s", uid, memory_id)
+                    logger.error("canonical surface batch readback missing uid=%s memory_id=%s", uid, memory_id)
                     raise HTTPException(status_code=503, detail="Service temporarily unavailable")
             return results
 
@@ -698,7 +583,7 @@ class MemoryService:
                 logger.exception("Vector batch upsert failed uid=%s (memories saved, vectors missing)", uid)
         return [_legacy_memorydb(memory) for memory in memory_dbs]
 
-    def delete_external_memory(
+    def delete_memory_for_surface(
         self,
         uid: str,
         memory_id: str,
@@ -708,8 +593,8 @@ class MemoryService:
         operation: str,
         delete_vector: bool = True,
     ) -> None:
-        """Delete external memory with legacy vector cleanup when applicable."""
-        if memory_system == MemorySystem.CANONICAL and _canonical_external_write_enabled_or_fail_closed(
+        """Delete memory for a retained surface with legacy vector cleanup when applicable."""
+        if memory_system == MemorySystem.CANONICAL and _canonical_surface_write_enabled_or_fail_closed(
             uid, self._db_client
         ):
             try:
@@ -731,7 +616,7 @@ class MemoryService:
             except Exception:
                 logger.exception("Vector delete failed uid=%s memory_id=%s (Firestore deleted)", uid, memory_id)
 
-    def update_external_memory_content(
+    def update_memory_content_for_surface(
         self,
         uid: str,
         memory_id: str,
@@ -742,8 +627,8 @@ class MemoryService:
         operation: str,
         upsert_vector: bool = True,
     ) -> MemoryDB:
-        """Update external memory content with legacy vector upsert when applicable."""
-        if memory_system == MemorySystem.CANONICAL and _canonical_external_write_enabled_or_fail_closed(
+        """Update memory content for a retained surface with legacy vector upsert when applicable."""
+        if memory_system == MemorySystem.CANONICAL and _canonical_surface_write_enabled_or_fail_closed(
             uid, self._db_client
         ):
             try:

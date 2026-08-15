@@ -496,7 +496,7 @@ async def extract_speaker_samples(
             # Get expected text from segment for comparison
             expected_text = seg.get('text', '')
 
-            # Convert PCM to WAV for Deepgram
+            # Convert PCM to WAV for managed transcription.
             wav_bytes = _pcm_to_wav_bytes(sample_audio, sample_rate)
 
             # Verify sample quality and get transcript using centralized function

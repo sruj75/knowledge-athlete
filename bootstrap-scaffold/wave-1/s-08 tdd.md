@@ -504,8 +504,10 @@ crossing G1-G4 or Cycles 6-9:
 
 - the retained Apple/Google auth, restore, refresh, and sign-out suite remains
   unchanged and green;
-- both Mac acquisition call sites now use one local-persistence plus analytics
-  owner, and the behavioral test installs a fail-on-any-request URL protocol;
+- the surviving Second Brain acquisition path uses one local-persistence plus
+  analytics owner, while S-06's earlier deletion of the legacy paged onboarding
+  screen remains intact; the behavioral test installs a fail-on-any-request URL
+  protocol;
 - the backend onboarding GET/PATCH routes and Firestore helpers are removed,
   with the unrelated `/v4/listen` onboarding handler retained;
 - delete-account admission is bodyless, arbitrary legacy JSON cannot create

@@ -1,5 +1,4 @@
 import Foundation
-import OmiWAL
 
 actor APIClient {
   static let shared = APIClient()
@@ -57,13 +56,11 @@ actor APIClient {
   func buildHeaders(
     requireAuth: Bool = true,
     forceRefreshAuth: Bool = false,
-    includeBYOK: Bool = true,
     expectedAuthOwnerId: String? = nil
   ) async throws -> [String: String] {
     try await transport.buildHeaders(
       requireAuth: requireAuth,
       forceRefreshAuth: forceRefreshAuth,
-      includeBYOK: includeBYOK,
       expectedAuthOwnerId: expectedAuthOwnerId
     )
   }
@@ -74,7 +71,6 @@ actor APIClient {
     _ endpoint: String,
     requireAuth: Bool = true,
     customBaseURL: String? = nil,
-    includeBYOK: Bool = true,
     expectedOwnerId: String? = nil,
     authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot? = nil
   ) async throws -> T {
@@ -91,7 +87,6 @@ actor APIClient {
     request.httpMethod = "GET"
     request.allHTTPHeaderFields = try await buildHeaders(
       requireAuth: requireAuth,
-      includeBYOK: includeBYOK,
       expectedAuthOwnerId: authOwnerId)
     try validateExpectedOwner(authPolicy)
 
@@ -105,7 +100,6 @@ actor APIClient {
     body: B,
     requireAuth: Bool = true,
     customBaseURL: String? = nil,
-    includeBYOK: Bool = true,
     expectedOwnerId: String? = nil,
     authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot? = nil
   ) async throws -> T {
@@ -123,7 +117,6 @@ actor APIClient {
     request.httpMethod = "POST"
     request.allHTTPHeaderFields = try await buildHeaders(
       requireAuth: requireAuth,
-      includeBYOK: includeBYOK,
       expectedAuthOwnerId: authOwnerId)
     try validateExpectedOwner(authPolicy)
     request.httpBody = try transport.encoder.encode(body)
@@ -137,7 +130,6 @@ actor APIClient {
     _ endpoint: String,
     requireAuth: Bool = true,
     customBaseURL: String? = nil,
-    includeBYOK: Bool = true,
     expectedOwnerId: String? = nil,
     authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot? = nil
   ) async throws -> T {
@@ -154,7 +146,6 @@ actor APIClient {
     request.httpMethod = "POST"
     request.allHTTPHeaderFields = try await buildHeaders(
       requireAuth: requireAuth,
-      includeBYOK: includeBYOK,
       expectedAuthOwnerId: authOwnerId)
     try validateExpectedOwner(authPolicy)
 
@@ -191,7 +182,6 @@ actor APIClient {
     request.httpMethod = "POST"
     request.allHTTPHeaderFields = try await buildHeaders(
       requireAuth: true,
-      includeBYOK: false,
       expectedAuthOwnerId: expectedOwnerID)
     request.httpBody = try JSONEncoder().encode(["provider": provider])
 
@@ -284,8 +274,7 @@ actor APIClient {
 
   /// Report a managed realtime turn's token usage so the backend can price it and record
   /// it into the llm_usage cost ledger. Fire-and-forget; failures are
-  /// logged and dropped (the backend reconciler is the eventual safety net). Only called
-  /// for managed (ephemeral) sessions — BYOK users pay the provider directly.
+  /// logged and dropped (the backend reconciler is the eventual safety net).
   func reportRealtimeUsage(
     provider: String,
     model: String,
@@ -351,7 +340,6 @@ actor APIClient {
     _ endpoint: String,
     requireAuth: Bool = true,
     customBaseURL: String? = nil,
-    includeBYOK: Bool = true,
     authPolicy: RequestAuthPolicy = .default,
     expectedAuthOwnerId: String? = nil,
     authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot? = nil
@@ -368,7 +356,6 @@ actor APIClient {
     request.httpMethod = "DELETE"
     request.allHTTPHeaderFields = try await buildHeaders(
       requireAuth: requireAuth,
-      includeBYOK: includeBYOK,
       expectedAuthOwnerId: authOwnerId
     )
     try validateExpectedOwner(effectiveAuthPolicy)
@@ -567,24 +554,6 @@ struct RealtimeTokenMintError: LocalizedError {
   }
 }
 
-// MARK: - MCP API
-
-struct MCPKeyCreatedResponse: Codable {
-  let id: String
-  let name: String
-  let key: String
-}
-
-extension APIClient {
-  /// Creates a new MCP API key and returns the raw secret (shown only once by the server).
-  /// Used to wire Omi memory into external MCP clients (Claude, ChatGPT, Claude Code, Codex).
-  func createMCPKey(name: String = "Desktop") async throws -> String {
-    struct Body: Encodable { let name: String }
-    let response: MCPKeyCreatedResponse = try await post("v1/mcp/keys", body: Body(name: name))
-    return response.key
-  }
-}
-
 // MARK: - Conversation API
 
 extension APIClient {
@@ -677,31 +646,6 @@ extension APIClient {
     let response: ConversationMutationResponse = try await performRequest(request)
     invalidateConversationsCountCache()
     return response.conversation
-  }
-
-  /// Sets the visibility of a conversation for sharing
-  /// - Parameters:
-  ///   - id: The conversation ID
-  ///   - visibility: The visibility level ("shared", "public", or "private")
-  func setConversationVisibility(id: String, visibility: String = "shared") async throws {
-    let url = URL(
-      string: baseURL
-        + "v1/conversations/\(id)/visibility?value=\(visibility)&visibility=\(visibility)")!
-    var request = URLRequest(url: url)
-    request.httpMethod = "PATCH"
-    request.allHTTPHeaderFields = try await buildHeaders(requireAuth: true)
-
-    try await performVoidRequest(request)
-  }
-
-  /// Gets a shareable link for a conversation by setting it to shared visibility
-  /// - Parameter id: The conversation ID
-  /// - Returns: The shareable URL for the conversation
-  func getConversationShareLink(id: String) async throws -> String {
-    // Set visibility to shared
-    try await setConversationVisibility(id: id, visibility: "shared")
-    // Return the web URL for the shared conversation
-    return "https://h.omi.me/conversations/\(id)"
   }
 
   /// Updates the title of a conversation

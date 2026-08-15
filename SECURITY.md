@@ -39,7 +39,7 @@ In scope examples:
 - Cross-account data access or modification
 - Exposure of conversations, memories, transcripts, recordings, screenshots, credentials, API keys, or integration secrets
 - Remote code execution, command injection, SSRF, path traversal, or unsafe file handling
-- Vulnerabilities in OAuth, Firebase auth handling, webhook delivery, MCP/tool integrations, or app marketplace flows
+- Vulnerabilities in account OAuth, Firebase auth handling, retained tool execution, or payment webhooks
 - Mobile, desktop, backend, firmware, web, and self-hosting security issues
 
 Out of scope examples:

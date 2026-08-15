@@ -33,10 +33,7 @@ from models.memory_apply import (
 )
 from models.memory_contracts import DurablePatchDecision, LifecycleState, deterministic_contract_id
 from models.memory_operations import MemoryOperation, MemoryOperationType
-from models.memory_promotion import (
-    PromotionGraphPlan,
-    build_promotion_admission_receipt,
-)
+from models.memory_promotion import build_promotion_admission_receipt
 from models.memory_search_gateway import SearchMode
 from models.memory_recurrence import CanonicalRecurrenceSignal
 from models.product_memory import (
@@ -845,11 +842,6 @@ class ConsolidationAgentDecision(BaseModel):
                 raise ValueError("promote requires memory_text")
             if not self.evidence_ids:
                 raise ValueError("promote requires exact evidence_ids")
-            PromotionGraphPlan(
-                subject_entity_id=self.subject_entity_id or "",
-                predicate=self.predicate or "",
-                arguments=self.arguments,
-            )
             if self.basis_for_memory == "weak_or_none":
                 raise ValueError("promote requires a defensible relationship-to-user basis")
             if self.reconciliation == "duplicate":
@@ -892,8 +884,8 @@ Rules:
 - Merely encountered or ambient media dialogue, quoted characters, and topics
   discussed are not user facts. Route archive/reject unless evidence establishes
   an adopted user preference or commitment.
-- For promote, emit concise memory_text plus a structured assertion:
-  subject_entity_id, snake_case predicate, and at least one named argument.
+- For promote, emit concise memory_text plus its structured fact fields:
+  subject_entity_id, snake_case predicate, and named arguments when available.
 - Use supersedes only when older active facts are outdated/false or when this
   synthesized item intentionally replaces/merges them.
 - Duplicate candidates route archive or reject; do not promote another copy.
@@ -1222,11 +1214,6 @@ def _promotion_audit(
     if decision.route != "promote":
         return audit
 
-    graph_plan = PromotionGraphPlan(
-        subject_entity_id=decision.subject_entity_id or "",
-        predicate=decision.predicate or "",
-        arguments=decision.arguments,
-    )
     output_hash = memory_content_hash(
         content=decision.memory_text,
         evidence_ids=evidence_ids,
@@ -1236,7 +1223,6 @@ def _promotion_audit(
         source_item_revision=source.item_revision,
         output_content_hash=output_hash,
         evidence_ids=evidence_ids,
-        graph_plan=graph_plan,
         supersedes=decision.supersedes,
     )
     audit.update(
@@ -1244,7 +1230,6 @@ def _promotion_audit(
             "from_tier": MemoryLayer.short_term.value,
             "to_tier": MemoryLayer.long_term.value,
             "promoted_at": now,
-            "graph_plan": graph_plan.model_dump(mode="json"),
             "admission_receipt": receipt.model_dump(mode="json"),
         }
     )
@@ -1262,7 +1247,7 @@ def apply_consolidation_decision(
     db_client: Any,
     quarantine: bool = False,
 ) -> List[str]:
-    """Atomically settle one source item, including LT graph assertion/supersedes."""
+    """Atomically settle one source item, including long-term admission and supersedes."""
     if resolve_memory_system(uid, db_client=db_client) != MemorySystem.CANONICAL:
         raise ConsolidationApplySkipped("not_canonical_cohort")
     source = pending_by_id.get(decision.source_memory_id)

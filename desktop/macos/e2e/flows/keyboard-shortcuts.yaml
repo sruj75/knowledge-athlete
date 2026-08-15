@@ -1,7 +1,7 @@
 version: 2
 name: keyboard-shortcuts
 tier: 2
-description: Sidebar navigation via Cmd+1..6 and Cmd+, shortcut bridge actions
+description: Sidebar navigation via Cmd+1..5 and Cmd+, shortcut bridge actions
 app: non-prod
 covers:
   - desktop/macos/Desktop/Sources/OmiApp.swift
