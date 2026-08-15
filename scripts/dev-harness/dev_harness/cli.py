@@ -301,7 +301,7 @@ def prerequisite_report(cfg: config.HarnessConfig) -> tuple[list[str], list[str]
     warnings.extend(provider_report.warnings)
     if cfg.provider_mode == "offline":
         warnings.append(
-            "PROVIDER_MODE=offline: external-provider credentials are stripped from child processes; local stack shape is preserved."
+            "PROVIDER_MODE=offline: external-provider credentials are stripped from child processes; only fake-backed provider paths are available."
         )
     return missing, warnings
 
@@ -684,12 +684,33 @@ def _start_infrastructure(cfg: config.HarnessConfig) -> None:
     )
 
 
+def _uvicorn_app_command(
+    cfg: config.HarnessConfig,
+    *,
+    app_target: str,
+    offline_factory: str,
+    port: int,
+) -> list[str]:
+    target = app_target
+    command = [sys.executable, "-m", "uvicorn"]
+    if cfg.provider_mode == "offline":
+        target = f"testing.e2e.offline_app:{offline_factory}"
+        command.append("--factory")
+    command.extend([target, "--host", "127.0.0.1", "--port", str(port)])
+    return command
+
+
 def _start_app_services(cfg: config.HarnessConfig) -> None:
     """Start backend and desktop-backend after infrastructure is settling."""
     _start_process(
         cfg,
         "backend",
-        [sys.executable, "-m", "uvicorn", "main:app", "--host", "127.0.0.1", "--port", str(cfg.backend_port)],
+        _uvicorn_app_command(
+            cfg,
+            app_target="main:app",
+            offline_factory="backend_app",
+            port=cfg.backend_port,
+        ),
         cwd=cfg.repo_root / "backend",
         log_name="backend.log",
         port=cfg.backend_port,
@@ -697,16 +718,12 @@ def _start_app_services(cfg: config.HarnessConfig) -> None:
     _start_process(
         cfg,
         "desktop-backend",
-        [
-            sys.executable,
-            "-m",
-            "uvicorn",
-            "desktop_backend:app",
-            "--host",
-            "127.0.0.1",
-            "--port",
-            str(cfg.desktop_backend_port),
-        ],
+        _uvicorn_app_command(
+            cfg,
+            app_target="desktop_backend:app",
+            offline_factory="desktop_backend_app",
+            port=cfg.desktop_backend_port,
+        ),
         cwd=cfg.repo_root / "backend",
         log_name="desktop-backend.log",
         port=cfg.desktop_backend_port,

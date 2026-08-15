@@ -97,7 +97,7 @@ struct SettingsSearchItem: Identifiable {
       icon: "waveform", settingId: "transcription.vocabulary"),
     SettingsSearchItem(
       name: "Local VAD Gate", subtitle: "Skip silence to reduce transcription cost",
-      keywords: ["vad", "silence", "gate", "cost", "deepgram"], section: .transcription,
+      keywords: ["vad", "silence", "gate", "cost", "transcription"], section: .transcription,
       icon: "waveform", settingId: "transcription.vadgate"),
 
     // Notifications

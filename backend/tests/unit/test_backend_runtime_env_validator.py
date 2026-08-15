@@ -38,7 +38,6 @@ def with_memory_env(payload: str) -> str:
         {"name": "DESKTOP_UPDATE_POINTERS_MODE", "value": "primary"},
         {"name": "DESKTOP_UPDATE_RECONCILE_SAMPLE_RATE", "value": "0.01"},
         {"name": "OMI_ENV_STAGE", "value": "dev"},
-        {"name": "HOSTED_PARAKEET_API_URL", "value": "http://parakeet.omiapi.com"},
         {"name": "OMI_LLM_GATEWAY_FEATURE_MODE", "value": "gateway"},
         {"name": "PUBLIC_SHARED_CONVERSATION_CHAT_MODE", "value": "off"},
         {"name": "OMI_LLM_GATEWAY_ALLOW_DIRECT_MODEL_EXCEPTION", "value": "false"},
@@ -47,8 +46,6 @@ def with_memory_env(payload: str) -> str:
         {"name": "OMI_LLM_GATEWAY_DEV_SHADOW_ALL_ENABLED", "value": "false"},
         {"name": "OMI_LLM_GATEWAY_DEV_SHADOW_ALL_SAMPLE_RATE", "value": "1.0"},
         {"name": "POSTHOG_HOST", "value": "https://app.posthog.com"},
-        {"name": "STT_PRERECORDED_MODEL", "value": "parakeet,modulate-velma-2"},
-        {"name": "HOSTED_PARAKEET_API_URL", "value": "http://parakeet.omiapi.com"},
         {"name": "MODULATE_API_KEY", "valueFrom": {"secretKeyRef": {"name": "MODULATE_API_KEY", "key": "latest"}}},
         {"name": "GOOGLE_CLIENT_ID", "value": "fake-public-client-id"},
         {"name": "GOOGLE_CLIENT_SECRET", "valueFrom": {"secretKeyRef": {"name": "GOOGLE_CLIENT_SECRET", "key": "latest"}}},
@@ -760,275 +757,98 @@ def test_cloud_run_workflow_forbidden_env_requires_remove_env_vars(tmp_path):
     assert not any('HOSTED_PUSHER_API_URL must be listed' in error.message for error in errors)
 
 
-def test_parakeet_cloud_run_surface_requires_hosted_endpoint():
+def test_managed_stt_surfaces_require_modulate_binding():
     validator = load_validator()
     env_config = {
-        'gke': {},
-        'cloud_run': {
-            'services': {
-                service: {
-                    'env': {'HOSTED_PARAKEET_API_URL': {'value': 'http://parakeet.omiapi.com'}},
-                    'secrets': {
-                        'STT_PRERECORDED_MODEL': {
-                            'secret': 'STT_PRERECORDED_MODEL',
-                            'version': 'latest',
-                        },
-                        'DEEPGRAM_API_KEY': {'secret': 'DEEPGRAM_API_KEY', 'version': 'latest'},
-                        'MODULATE_API_KEY': {'secret': 'MODULATE_API_KEY', 'version': 'latest'},
-                    },
-                }
-                for service in ('backend', 'backend-sync', 'backend-integration')
-            }
+        'gke': {
+            'backend-listen': {'env': {}},
+            'pusher': {'env': {}},
         },
-    }
-    del env_config['cloud_run']['services']['backend']['env']['HOSTED_PARAKEET_API_URL']
-
-    for environment in ('dev', 'prod'):
-        errors = validator._validate_prerecorded_stt_contract(environment, env_config)
-
-        assert errors == [
-            validator.ValidationError(
-                f'{environment}/cloud_run/backend',
-                'required Cloud Run service is missing non-empty HOSTED_PARAKEET_API_URL',
-            )
-        ]
-
-
-def test_dev_cloud_run_prerecorded_stt_services_require_both_bindings():
-    validator = load_validator()
-    env_config = {
         'cloud_run': {
             'services': {
                 'backend': {'env': {}, 'secrets': {}},
                 'backend-sync': {'env': {}, 'secrets': {}},
                 'backend-integration': {'env': {}, 'secrets': {}},
             }
-        }
+        },
     }
 
-    errors = validator._validate_prerecorded_stt_contract('dev', env_config)
+    errors = validator._validate_managed_stt_contract('dev', env_config)
 
-    assert len(errors) == 9
-    assert {error.scope for error in errors} == {
-        'dev/cloud_run/backend',
-        'dev/cloud_run/backend-sync',
-        'dev/cloud_run/backend-integration',
-    }
-    assert {error.message for error in errors} == {
-        'required Cloud Run service is missing STT_PRERECORDED_MODEL',
-        'required Cloud Run service is missing non-empty MODULATE_API_KEY',
-        'required Cloud Run service is missing non-empty HOSTED_PARAKEET_API_URL',
-    }
+    assert errors == [
+        validator.ValidationError(
+            scope,
+            'managed transcription surface is missing non-empty MODULATE_API_KEY',
+        )
+        for scope in (
+            'dev/gke/backend-listen',
+            'dev/gke/pusher',
+            'dev/cloud_run/backend',
+            'dev/cloud_run/backend-sync',
+            'dev/cloud_run/backend-integration',
+        )
+    ]
 
 
-def test_retired_deepgram_model_requires_non_deepgram_defaults():
+def test_managed_stt_contract_accepts_fixed_modulate_bindings():
     validator = load_validator()
+    gke_secret = {'secret': {'name': 'secret', 'key': 'MODULATE_API_KEY'}}
+    cloud_secret = {'secret': 'MODULATE_API_KEY', 'version': 'latest'}
     env_config = {
         'gke': {
-            'backend-listen': {
-                'env': {
-                    'STT_PRERECORDED_MODEL': {'value': 'dg-nova-3'},
-                    'DEEPGRAM_API_KEY': {'secret': {'name': 'secret', 'key': 'DEEPGRAM_API_KEY'}},
-                },
-            }
+            'backend-listen': {'env': {'MODULATE_API_KEY': gke_secret}},
+            'pusher': {'env': {'MODULATE_API_KEY': gke_secret}},
         },
-        'cloud_run': {'services': {}},
-    }
-
-    assert validator._validate_prerecorded_stt_contract('prod', env_config) == [
-        validator.ValidationError(
-            'prod/gke/backend-listen',
-            'STT_PRERECORDED_MODEL requires non-empty HOSTED_PARAKEET_API_URL',
-        ),
-        validator.ValidationError(
-            'prod/gke/backend-listen',
-            'STT_PRERECORDED_MODEL requires non-empty MODULATE_API_KEY',
-        ),
-    ]
-
-
-def test_deployment_stt_models_must_match_the_central_serving_policy():
-    validator = load_validator()
-    env_config = {
-        'gke': {
-            'backend-listen': {
-                'env': {
-                    'STT_PRERECORDED_MODEL': {'value': 'dg-nova-3'},
-                    'STT_SERVICE_MODELS': {'value': 'modulate-velma-2'},
-                },
-            }
-        },
-        'cloud_run': {'services': {}},
-    }
-
-    assert validator._validate_stt_serving_model_policy('prod', env_config) == [
-        validator.ValidationError(
-            'prod/gke/backend-listen',
-            "STT_PRERECORDED_MODEL must match stt_provider_policy: expected 'parakeet,modulate-velma-2', got 'dg-nova-3'",
-        ),
-        validator.ValidationError(
-            'prod/gke/backend-listen',
-            "STT_SERVICE_MODELS must match stt_provider_policy: expected 'modulate-velma-2,parakeet', got 'modulate-velma-2'",
-        ),
-    ]
-
-
-def test_repo_prod_manifest_rejects_noncanonical_model_order_for_every_surface(tmp_path):
-    validator = load_validator()
-    manifest = copy.deepcopy(validator._load_yaml(ROOT / 'deploy/runtime_env.yaml'))
-    prod = manifest['environments']['prod']
-    changed_scopes = []
-    for platform in ('gke', 'cloud_run'):
-        services = (prod.get(platform) or {}).get('services', {}) if platform == 'cloud_run' else prod.get(platform, {})
-        for service_name, service in services.items():
-            for key in ('STT_SERVICE_MODELS', 'STT_PRERECORDED_MODEL'):
-                entry = (service.get('env') or {}).get(key)
-                if isinstance(entry, dict) and 'value' in entry:
-                    entry['value'] = (
-                        'parakeet,modulate-velma-2' if key == 'STT_SERVICE_MODELS' else 'modulate-velma-2,parakeet'
-                    )
-                    changed_scopes.append((f'prod/{platform}/{service_name}', key))
-
-    path = tmp_path / 'runtime_env.yaml'
-    write_yaml(path, manifest)
-
-    errors = validator.validate_runtime_env(env='prod', manifest_path=path)
-
-    assert {
-        (error.scope, error.message.split(' must match stt_provider_policy', 1)[0])
-        for error in errors
-        if 'must match stt_provider_policy' in error.message
-    } == set(changed_scopes)
-
-
-def test_repo_parakeet_admission_deploy_contract_is_explicit():
-    validator = load_validator()
-    for environment in ('dev', 'prod'):
-        manifest = validator._load_yaml(ROOT / 'deploy/runtime_env.yaml')
-        env_config = manifest['environments'][environment]
-        assert validator.validate_parakeet_admission_contract(environment, env_config) == []
-
-
-@pytest.mark.parametrize(
-    ('key', 'value', 'message'),
-    [
-        ('PARAKEET_STREAM_CAPACITY', None, 'missing PARAKEET_STREAM_CAPACITY'),
-        ('PARAKEET_STREAM_CAPACITY', '0', 'PARAKEET_STREAM_CAPACITY must be an integer >= 1'),
-        (
-            'PARAKEET_STREAM_ALLOCATION_PERCENT',
-            '101',
-            'PARAKEET_STREAM_ALLOCATION_PERCENT must be an integer from 0 through 100',
-        ),
-    ],
-)
-def test_parakeet_admission_deploy_contract_rejects_missing_or_invalid_values(key, value, message):
-    validator = load_validator()
-    manifest = validator._load_yaml(ROOT / 'deploy/runtime_env.yaml')
-    env_config = copy.deepcopy(manifest['environments']['prod'])
-    env = env_config['gke']['parakeet']['env']
-    if value is None:
-        env.pop(key)
-    else:
-        env[key]['value'] = value
-
-    assert validator.validate_parakeet_admission_contract('prod', env_config) == [
-        validator.ValidationError('prod/gke/parakeet', message)
-    ]
-
-
-def test_literal_modulate_model_requires_all_non_deepgram_fallback_bindings():
-    validator = load_validator()
-    env_config = {
-        'gke': {
-            'backend-listen': {
-                'env': {
-                    'STT_PRERECORDED_MODEL': {'value': 'modulate-velma-2'},
-                    'DEEPGRAM_API_KEY': {'secret': {'name': 'secret', 'key': 'DEEPGRAM_API_KEY'}},
-                },
-            }
-        },
-        'cloud_run': {'services': {}},
-    }
-
-    assert validator._validate_prerecorded_stt_contract('prod', env_config) == [
-        validator.ValidationError(
-            'prod/gke/backend-listen',
-            'STT_PRERECORDED_MODEL requires non-empty MODULATE_API_KEY',
-        ),
-        validator.ValidationError(
-            'prod/gke/backend-listen',
-            'STT_PRERECORDED_MODEL requires non-empty HOSTED_PARAKEET_API_URL',
-        ),
-    ]
-
-
-def test_literal_model_configs_require_non_deepgram_fallback_bindings():
-    validator = load_validator()
-    cases = (
-        ('parakeet', {'HOSTED_PARAKEET_API_URL': {'value': 'http://parakeet.local'}}),
-        ('modulate-velma-2', {'MODULATE_API_KEY': {'secret': {'name': 'secret', 'key': 'MODULATE_API_KEY'}}}),
-        ('unknown-model', {}),
-    )
-
-    for models, provider_env in cases:
-        env_config = {
-            'gke': {
-                'backend-listen': {
-                    'env': {
-                        'STT_PRERECORDED_MODEL': {'value': models},
-                        **provider_env,
-                    },
-                }
-            },
-            'cloud_run': {'services': {}},
-        }
-
-        errors = validator._validate_prerecorded_stt_contract('prod', env_config)
-        assert all('DEEPGRAM_API_KEY' not in error.message for error in errors)
-        assert errors
-
-
-def test_full_validation_reports_missing_provider_binding_once():
-    """Missing HOSTED_PARAKEET_API_URL must surface once per service, not fan out.
-
-    Uses the pure STT contract helper with a tiny synthetic env so this stays under
-    the fast-unit CPU budget (full-manifest validate_runtime_env is covered elsewhere).
-    """
-    validator = load_validator()
-    env_config = {
-        'gke': {},
         'cloud_run': {
             'services': {
-                service: {
-                    'env': {'HOSTED_PARAKEET_API_URL': {'value': 'http://parakeet.local'}},
-                    'secrets': {
-                        'STT_PRERECORDED_MODEL': {
-                            'secret': 'STT_PRERECORDED_MODEL',
-                            'version': 'latest',
-                        },
-                        'MODULATE_API_KEY': {'secret': 'MODULATE_API_KEY', 'version': 'latest'},
-                    },
-                }
+                service: {'env': {}, 'secrets': {'MODULATE_API_KEY': cloud_secret}}
                 for service in ('backend', 'backend-sync', 'backend-integration')
             }
         },
     }
-    del env_config['cloud_run']['services']['backend']['env']['HOSTED_PARAKEET_API_URL']
 
-    errors = validator._validate_prerecorded_stt_contract('dev', env_config)
-    matching = [
-        error
-        for error in errors
-        if error.scope == 'dev/cloud_run/backend' and 'HOSTED_PARAKEET_API_URL' in error.message
-    ]
+    assert validator._validate_managed_stt_contract('prod', env_config) == []
 
-    assert matching == [
+
+@pytest.mark.parametrize(
+    'retired_name',
+    [
+        'DEEPGRAM_API_KEY',
+        'DEEPGRAM_SELF_HOSTED_ENABLED',
+        'DEEPGRAM_SELF_HOSTED_URL',
+        'HOSTED_PARAKEET_API_URL',
+        'STT_PRERECORDED_MODEL',
+        'STT_SERVICE_MODELS',
+    ],
+)
+def test_managed_stt_contract_rejects_retired_provider_controls(retired_name):
+    validator = load_validator()
+    env_config = {
+        'gke': {
+            'backend-listen': {
+                'env': {
+                    'MODULATE_API_KEY': {'secret': {'name': 'secret', 'key': 'MODULATE_API_KEY'}},
+                    retired_name: {'value': 'retired'},
+                }
+            }
+        },
+        'cloud_run': {'services': {}},
+    }
+
+    assert validator._validate_managed_stt_contract('prod', env_config) == [
         validator.ValidationError(
-            'dev/cloud_run/backend',
-            'required Cloud Run service is missing non-empty HOSTED_PARAKEET_API_URL',
+            'prod/gke/backend-listen',
+            f'retired managed STT setting is forbidden: {retired_name}',
         )
     ]
-    assert len(errors) == 1
+
+
+def test_repo_manifests_use_only_fixed_modulate_managed_stt_contract():
+    validator = load_validator()
+    for environment in ('dev', 'prod'):
+        manifest = validator._load_yaml(ROOT / 'deploy/runtime_env.yaml')
+        env_config = manifest['environments'][environment]
+        assert validator._validate_managed_stt_contract(environment, env_config) == []
 
 
 def test_cloud_run_state_reports_missing_gateway_url(tmp_path):
@@ -1272,8 +1092,6 @@ def test_cloud_run_workflow_validation_uses_custom_manifest_for_runtime_env_outp
                                     'OMI_LLM_GATEWAY_ALLOW_DIRECT_MODEL_EXCEPTION': {'value': 'true'},
                                     'OMI_LLM_GATEWAY_DEV_SHADOW_ALL_ENABLED': {'value': 'false'},
                                     'OMI_LLM_GATEWAY_DEV_SHADOW_ALL_SAMPLE_RATE': {'value': '1.0'},
-                                    'HOSTED_PARAKEET_API_URL': {'value': 'http://parakeet.omiapi.com'},
-                                    'STT_PRERECORDED_MODEL': {'value': 'parakeet,modulate-velma-2'},
                                     'CUSTOM_MANIFEST_ONLY_MARKER': {'value': 'present'},
                                 },
                                 'secrets': {
@@ -1472,18 +1290,12 @@ def test_provisional_prod_endpoint_requires_presence_but_not_exact_value(tmp_pat
                                         'value': 'TBD_STABLE_PRIVATE_ENDPOINT',
                                         'provisional': True,
                                     },
-                                    'HOSTED_PARAKEET_API_URL': {'value': 'http://parakeet.omi.me'},
                                 },
                                 'secrets': {
                                     'OMI_LLM_GATEWAY_SERVICE_TOKEN': {
                                         'secret': 'OMI_LLM_GATEWAY_SERVICE_TOKEN',
                                         'version': 'latest',
                                     },
-                                    'STT_PRERECORDED_MODEL': {
-                                        'secret': 'STT_PRERECORDED_MODEL',
-                                        'version': 'latest',
-                                    },
-                                    'DEEPGRAM_API_KEY': {'secret': 'DEEPGRAM_API_KEY', 'version': 'latest'},
                                     'MODULATE_API_KEY': {'secret': 'MODULATE_API_KEY', 'version': 'latest'},
                                 },
                             }
@@ -1504,10 +1316,7 @@ def test_provisional_prod_endpoint_requires_presence_but_not_exact_value(tmp_pat
     "backend": {
         "env": [
           {"name": "OMI_LLM_GATEWAY_URL", "value": "http://stable-private-endpoint"},
-          {"name": "HOSTED_PARAKEET_API_URL", "value": "http://parakeet.omi.me"},
           {"name": "OMI_LLM_GATEWAY_SERVICE_TOKEN", "valueFrom": {"secretKeyRef": {"name": "OMI_LLM_GATEWAY_SERVICE_TOKEN"}}},
-          {"name": "STT_PRERECORDED_MODEL", "valueFrom": {"secretKeyRef": {"name": "STT_PRERECORDED_MODEL"}}},
-          {"name": "DEEPGRAM_API_KEY", "valueFrom": {"secretKeyRef": {"name": "DEEPGRAM_API_KEY"}}},
           {"name": "MODULATE_API_KEY", "valueFrom": {"secretKeyRef": {"name": "MODULATE_API_KEY"}}}
       ]
     }
@@ -1629,42 +1438,29 @@ def test_scheduler_runtime_surfaces_declare_orphan_stale_setting(env):
         ), f'{env}/{section}/{service} must classify the recovery setting as reliability'
 
 
-def test_parakeet_selected_without_endpoint_is_rejected_for_all_cloud_run_validation_modes(tmp_path):
+def test_missing_modulate_binding_is_rejected_for_rendered_cloud_run(tmp_path):
     validator = load_validator()
     manifest = copy.deepcopy(validator._load_yaml(ROOT / 'deploy/runtime_env.yaml'))
     services = manifest['environments']['dev']['cloud_run']['services']
-    required_dev_services = {'backend', 'backend-sync', 'backend-integration'}
-    affected_services: list[str] = []
-    for service_name, service in services.items():
-        env = service.setdefault('env', {})
-        secrets = service.get('secrets') or {}
-        has_prerecorded_binding = (
-            'HOSTED_PARAKEET_API_URL' in env or 'STT_PRERECORDED_MODEL' in env or 'STT_PRERECORDED_MODEL' in secrets
-        )
-        if not has_prerecorded_binding:
-            continue
-        affected_services.append(service_name)
-        env.pop('HOSTED_PARAKEET_API_URL', None)
+    required_services = {'backend', 'backend-sync', 'backend-integration'}
+    for service_name in required_services:
+        services[service_name]['secrets'].pop('MODULATE_API_KEY')
 
     manifest_path = tmp_path / 'runtime_env.yaml'
     write_yaml(manifest_path, manifest)
 
     errors = validator.validate_runtime_env(env='dev', manifest_path=manifest_path, check_rendered_cloud_run=True)
 
-    missing_endpoint_messages = {
-        'required Cloud Run service is missing non-empty HOSTED_PARAKEET_API_URL',
-        'STT_PRERECORDED_MODEL requires non-empty HOSTED_PARAKEET_API_URL',
-    }
-    assert {(error.scope, error.message) for error in errors if error.message in missing_endpoint_messages} == {
+    assert {
+        (error.scope, error.message)
+        for error in errors
+        if error.message == 'managed transcription surface is missing non-empty MODULATE_API_KEY'
+    } == {
         (
             f'dev/cloud_run/{service_name}',
-            (
-                'required Cloud Run service is missing non-empty HOSTED_PARAKEET_API_URL'
-                if service_name in required_dev_services
-                else 'STT_PRERECORDED_MODEL requires non-empty HOSTED_PARAKEET_API_URL'
-            ),
+            'managed transcription surface is missing non-empty MODULATE_API_KEY',
         )
-        for service_name in affected_services
+        for service_name in required_services
     }
 
 
@@ -1839,7 +1635,7 @@ def test_memory_maintenance_auto_dev_workflow_is_listed_and_targets_job():
     )
 
 
-_ILB_ENV_VARS = ['HOSTED_PARAKEET_API_URL', 'HOSTED_TRANSLATION_API_URL']
+_ILB_ENV_VARS = ['HOSTED_TRANSLATION_API_URL']
 
 
 @pytest.mark.parametrize('env_name', ['dev', 'prod'])

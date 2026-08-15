@@ -74,27 +74,6 @@ prometheus:
             requests:
               storage: 50Gi
     additionalScrapeConfigs:
-      # Additional scrape configs for Deepgram Engine metrics
-      - job_name: "dg_engine_metrics"
-        scrape_interval: "2s"
-        kubernetes_sd_configs:
-          - role: endpoints
-            namespaces:
-              names:
-                - "prod-omi-dg-self-hosted"
-        relabel_configs:
-          - source_labels: [__meta_kubernetes_service_name]
-            regex: "(.*)-metrics"
-            action: keep
-          - source_labels: [__meta_kubernetes_endpoint_port_name]
-            regex: "metrics"
-            action: keep
-          - source_labels: [__meta_kubernetes_namespace]
-            target_label: namespace
-          - source_labels: [__meta_kubernetes_service_name]
-            target_label: service
-          - source_labels: [__meta_kubernetes_pod_name]
-            target_label: pod
       - job_name: gpu-metrics
         scrape_interval: 1s
         metrics_path: /metrics

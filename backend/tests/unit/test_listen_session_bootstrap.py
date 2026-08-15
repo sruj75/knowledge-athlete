@@ -28,7 +28,7 @@ def test_bootstrap_offloads_firestore_reads():
         "has_transcription_credits",
         "get_user_transcription_preferences",
         "get_enforcement_stage",
-        "is_dg_budget_exhausted",
+        "is_managed_stt_budget_exhausted",
     ):
         assert required in awaited_targets
 

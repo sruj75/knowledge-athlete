@@ -27,7 +27,6 @@ from google.cloud import firestore
 
 from database import conversations as conversations_db
 from database import recording_sessions as recording_sessions_db
-from utils.conversations import lifecycle as lifecycle_service
 from utils.conversations.live_content import retry_fenced_live_content_once
 
 

@@ -1,7 +1,7 @@
 {
   "files": {
     "backend/routers/apps.py": 2386,
-    "backend/routers/chat.py": 1634,
+    "backend/routers/chat.py": 1614,
     "backend/routers/developer.py": 2274,
     "backend/routers/mcp_sse.py": 1873,
     "backend/routers/users.py": 2083

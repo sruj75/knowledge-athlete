@@ -11,7 +11,6 @@ package struct VoiceTurnID: Hashable, Equatable, Sendable, CustomStringConvertib
 
   package var description: String { rawValue.uuidString }
 }
-
 package struct VoiceCaptureID: Hashable, Equatable, Sendable, CustomStringConvertible {
   package let rawValue: UInt64
 
@@ -128,8 +127,7 @@ package enum VoiceTurnRoute: Equatable, Sendable {
   case hubWarmWait
   case hub(sessionID: VoiceSessionID?)
   case omniSTT
-  case deepgramBatch
-  case deepgramLive
+  case managedBatch
 }
 
 package enum VoiceContextOutcome: Equatable, Sendable {
@@ -1281,7 +1279,7 @@ struct VoiceTurnReducer {
       // multi-minute PTT spinner).
       cancel(.hubWarm, in: &model, effects: &effects)
       effects.append(.fallbackToTranscription(turnID: turn.id, reason: .hubWarmTimeout))
-      model.turn?.route = .deepgramBatch
+      model.turn?.route = .managedBatch
       if turn.phase == .finalizing {
         schedule(.transcription, after: deadlines.transcription, in: &model, effects: &effects)
       }
@@ -1409,7 +1407,7 @@ struct VoiceTurnReducer {
         model.turn?.projection.isResponseWaiting = false
         model.turn?.projection.isThinking = true
       }
-      model.turn?.route = .deepgramBatch
+      model.turn?.route = .managedBatch
       effects.append(.fallbackToTranscription(turnID: turn.id, reason: .providerFailed))
       if model.turn?.phase == .finalizing {
         schedule(.transcription, after: deadlines.transcription, in: &model, effects: &effects)
@@ -1920,7 +1918,7 @@ struct VoiceTurnReducer {
           model.turn?.projection.isThinking = true
         }
         effects.append(.fallbackToTranscription(turnID: turn.id, reason: .hubWarmTimeout))
-        model.turn?.route = .deepgramBatch
+        model.turn?.route = .managedBatch
         if model.turn?.phase == .finalizing {
           schedule(.transcription, after: deadlines.transcription, in: &model, effects: &effects)
         }
@@ -1961,7 +1959,7 @@ struct VoiceTurnReducer {
           model.turn?.projection.isResponseWaiting = false
           model.turn?.projection.isThinking = true
         }
-        model.turn?.route = .deepgramBatch
+        model.turn?.route = .managedBatch
         effects.append(.fallbackToTranscription(turnID: turn.id, reason: .providerFailed))
         if model.turn?.phase == .finalizing {
           schedule(.transcription, after: deadlines.transcription, in: &model, effects: &effects)
@@ -2187,7 +2185,7 @@ struct VoiceTurnReducer {
     model.turn?.hubCommitPending = false
     model.turn?.projection.isResponseWaiting = false
     model.turn?.projection.isThinking = !wasRecording
-    model.turn?.route = .deepgramBatch
+    model.turn?.route = .managedBatch
     effects.append(.fallbackToTranscription(turnID: turnID, reason: reason))
     if model.turn?.phase == .finalizing {
       schedule(.transcription, after: deadlines.transcription, in: &model, effects: &effects)

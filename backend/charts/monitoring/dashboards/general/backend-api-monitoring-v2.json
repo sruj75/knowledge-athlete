@@ -1111,18 +1111,6 @@
                     "value": "diarizer"
                   }
                 ]
-              },
-              {
-                "matcher": {
-                  "id": "byFrameRefID",
-                  "options": "C"
-                },
-                "properties": [
-                  {
-                    "id": "displayName",
-                    "value": "deepgram"
-                  }
-                ]
               }
             ]
           },
@@ -1160,14 +1148,6 @@
               },
               "queryText": "resource.type=\"k8s_container\"\nresource.labels.container_name=\"diarizer\"\nseverity>=ERROR",
               "refId": "B"
-            },
-            {
-              "datasource": {
-                "type": "googlecloud-logging-datasource",
-                "uid": "deuxlwt1d569sb"
-              },
-              "queryText": "resource.type=\"k8s_container\"\nresource.labels.container_name=\"deepgram-engine\"\nseverity>=ERROR",
-              "refId": "C"
             }
           ],
           "title": "Errors by GKE Service",
@@ -1208,7 +1188,7 @@
           "type": "logs"
         }
       ],
-      "title": "GKE Services (backend-listen, diarizer, deepgram)",
+      "title": "GKE Services (backend-listen, diarizer)",
       "type": "row"
     }
   ],

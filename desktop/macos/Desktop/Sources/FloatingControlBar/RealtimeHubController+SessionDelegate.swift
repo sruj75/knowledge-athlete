@@ -1429,7 +1429,7 @@ extension RealtimeHubController {
     replaceSessionAfterDrain()
   }
 
-  /// A warm background socket must never terminate a Deepgram/Omni fallback
+  /// A warm background socket must never terminate a managed-STT/Omni fallback
   /// turn. The reducer deduplicates repeated terminal events, keeping the UI in
   /// a single actionable terminal projection when transport callbacks race.
   func terminateActiveHubTurn(_ activeTurn: VoiceTurn?) {

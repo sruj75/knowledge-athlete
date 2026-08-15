@@ -153,11 +153,11 @@ _ensure_attrs(
         'check_soft_caps',
         'is_hard_restricted',
         'trigger_classifier_if_needed',
-        'is_dg_budget_exhausted',
+        'is_managed_stt_budget_exhausted',
         'get_enforcement_stage',
-        'record_dg_usage_ms',
+        'record_managed_stt_usage_ms',
         'FAIR_USE_ENABLED',
-        'FAIR_USE_RESTRICT_DAILY_DG_MS',
+        'FAIR_USE_RESTRICT_DAILY_MANAGED_STT_MS',
     ],
 )
 _ensure_attrs('utils.speaker_assignment', ['process_speaker_assigned_segments'])

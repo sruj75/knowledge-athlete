@@ -223,12 +223,12 @@ class TestTranslationE2E:
     """Verify that connecting with language=multi produces TranslationEvent messages.
 
     The pipeline:
-      Client → /v4/listen?language=multi → Deepgram (multi-lang) → transcripts
+      Client → /v4/listen?language=multi → Modulate (multi-lang) → transcripts
         → translation service → TranslationEvent sent back to client
 
     Translation requires:
     1. language='multi' (triggers multi-lang STT + translation pipeline)
-    2. Real speech audio that Deepgram can transcribe
+    2. Real speech audio that Modulate can transcribe
     3. Backend must have Google Cloud Translation API credentials
     """
 
@@ -501,7 +501,7 @@ class TestMultiChannelE2E:
                         all_segments.extend(segs)
 
             if not all_segments:
-                pytest.skip("No transcript segments received (Deepgram may be unavailable)")
+                pytest.skip("No transcript segments received (Modulate may be unavailable)")
 
             # Check that segments have speaker labels
             speakers_seen = set()

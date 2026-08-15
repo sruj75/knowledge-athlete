@@ -407,8 +407,8 @@ def test_stt_buffer_flush_waits_for_budget_and_force_flushes():
         force=False,
         socket_dead=False,
         socket_available=True,
-        fair_use_dg_budget_exhausted=False,
-        fair_use_track_dg_usage=True,
+        fair_use_managed_stt_budget_exhausted=False,
+        fair_use_track_managed_stt_usage=True,
         sample_rate=16000,
     )
     assert small.should_flush is False
@@ -419,13 +419,13 @@ def test_stt_buffer_flush_waits_for_budget_and_force_flushes():
         force=True,
         socket_dead=False,
         socket_available=True,
-        fair_use_dg_budget_exhausted=False,
-        fair_use_track_dg_usage=True,
+        fair_use_managed_stt_budget_exhausted=False,
+        fair_use_track_managed_stt_usage=True,
         sample_rate=16000,
     )
     assert forced.should_flush is True
     assert forced.send_to_stt is True
-    assert forced.dg_usage_ms == 100 * 1000 // (16000 * 2)
+    assert forced.managed_stt_usage_ms == 100 * 1000 // (16000 * 2)
 
 
 def test_stt_buffer_flush_empty_buffer_is_noop():
@@ -435,8 +435,8 @@ def test_stt_buffer_flush_empty_buffer_is_noop():
         force=False,
         socket_dead=False,
         socket_available=True,
-        fair_use_dg_budget_exhausted=False,
-        fair_use_track_dg_usage=True,
+        fair_use_managed_stt_budget_exhausted=False,
+        fair_use_track_managed_stt_usage=True,
         sample_rate=16000,
     )
     assert empty.should_flush is False
@@ -449,14 +449,14 @@ def test_stt_buffer_flush_dead_socket_and_budget_do_not_send_or_bill():
         force=False,
         socket_dead=True,
         socket_available=True,
-        fair_use_dg_budget_exhausted=False,
-        fair_use_track_dg_usage=True,
+        fair_use_managed_stt_budget_exhausted=False,
+        fair_use_track_managed_stt_usage=True,
         sample_rate=16000,
     )
     assert dead.should_flush is True
     assert dead.socket_dead is True
     assert dead.send_to_stt is False
-    assert dead.dg_usage_ms == 0
+    assert dead.managed_stt_usage_ms == 0
 
     exhausted = decide_stt_buffer_flush(
         buffer_len=960,
@@ -464,30 +464,30 @@ def test_stt_buffer_flush_dead_socket_and_budget_do_not_send_or_bill():
         force=False,
         socket_dead=False,
         socket_available=True,
-        fair_use_dg_budget_exhausted=True,
-        fair_use_track_dg_usage=True,
+        fair_use_managed_stt_budget_exhausted=True,
+        fair_use_track_managed_stt_usage=True,
         sample_rate=16000,
     )
     assert exhausted.should_flush is True
     assert exhausted.send_to_stt is False
-    assert exhausted.dg_usage_ms == 0
+    assert exhausted.managed_stt_usage_ms == 0
 
 
 def test_multi_channel_send_and_mix_plans():
-    should_send, dg_ms = decide_multi_channel_stt_send(
+    should_send, managed_stt_ms = decide_multi_channel_stt_send(
         socket_available=True,
-        fair_use_dg_budget_exhausted=False,
+        fair_use_managed_stt_budget_exhausted=False,
         pcm_len=TARGET_SAMPLE_RATE * 2,
-        fair_use_track_dg_usage=True,
+        fair_use_track_managed_stt_usage=True,
     )
     assert should_send is True
-    assert dg_ms == 1000
+    assert managed_stt_ms == 1000
 
     blocked, blocked_ms = decide_multi_channel_stt_send(
         socket_available=True,
-        fair_use_dg_budget_exhausted=True,
+        fair_use_managed_stt_budget_exhausted=True,
         pcm_len=TARGET_SAMPLE_RATE * 2,
-        fair_use_track_dg_usage=True,
+        fair_use_track_managed_stt_usage=True,
     )
     assert blocked is False
     assert blocked_ms == 0

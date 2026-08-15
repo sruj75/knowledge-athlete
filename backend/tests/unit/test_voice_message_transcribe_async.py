@@ -2,7 +2,7 @@
 
 ``POST /v2/voice-message/transcribe`` (``routers/chat.py::transcribe_voice_message``) is an
 ``async def`` handler, so any synchronous call it makes runs directly on the event loop.
-The two Deepgram pre-recorded transcription helpers it uses, ``transcribe_pcm_bytes`` and
+The two managed pre-recorded transcription helpers it uses, ``transcribe_pcm_bytes`` and
 ``transcribe_voice_message_segment``, are synchronous and perform a blocking multi-second
 HTTP round-trip (``httpx.Client().post`` in ``utils/stt/pre_recorded.py``). Calling them
 directly froze the loop for the whole transcription, stalling every other connection and

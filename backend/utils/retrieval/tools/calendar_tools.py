@@ -187,9 +187,7 @@ async def search_google_contacts(access_token: str, query: str) -> Optional[str]
             return None
         else:
             error_body = response.text[:200] if response.text else "No error body"
-            logger.error(
-                f"⚠️ Google Contacts API (Other Contacts) error {response.status_code}: {sanitize(error_body)}"
-            )
+            logger.error(f"⚠️ Google Contacts API (Other Contacts) error {response.status_code}: {sanitize(error_body)}")
     except httpx.HTTPError as e:
         logger.error(f"⚠️ Network error searching Other Contacts: {e}")
     except Exception as e:
@@ -507,7 +505,7 @@ async def get_calendar_events_tool(
 
     Search query:
     - Use search_query when user asks about a specific person, company, or topic
-    - Examples: "Andy", "Deepgram", "project review", "team meeting"
+    - Examples: "Andy", "Acme", "project review", "team meeting"
     - Searches in event title, description, and attendees
     - For person names, use just the first name or full name (e.g., "Andy" or "Andy Smith")
 
@@ -515,7 +513,7 @@ async def get_calendar_events_tool(
         start_date: Start date/time for events in ISO format with timezone (YYYY-MM-DDTHH:MM:SS+HH:MM, e.g. "2024-01-20T00:00:00-08:00"). Defaults to now if not provided.
         end_date: End date/time for events in ISO format with timezone (YYYY-MM-DDTHH:MM:SS+HH:MM, e.g. "2024-01-27T23:59:59-08:00"). Defaults to 7 days from start_date if not provided.
         max_results: Maximum number of events to return (default: 10, max: 50)
-        search_query: Optional search term to filter events (e.g., person name like "Andy", company name like "Deepgram", or topic). Searches in event title, description, and attendees.
+        search_query: Optional search term to filter events (e.g., person name like "Andy", company name like "Acme", or topic). Searches in event title, description, and attendees.
 
     Returns:
         Formatted list of calendar events with their details.

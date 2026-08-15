@@ -74,9 +74,9 @@ FAIR_USE_EXEMPT_UIDS = set(filter(None, os.getenv('FAIR_USE_EXEMPT_UIDS', '').sp
 # Check interval — how often the usage loop checks caps (seconds)
 FAIR_USE_CHECK_INTERVAL_SECONDS = int(os.getenv('FAIR_USE_CHECK_INTERVAL_SECONDS', '300'))  # 5 min
 
-# Restrict-stage daily Deepgram budget (milliseconds of audio forwarded to DG per day)
+# Restrict-stage daily managed STT budget (milliseconds of audio sent to managed transcription per day)
 # 0 = no budget cap (disabled). Only enforced when stage == 'restrict'.
-FAIR_USE_RESTRICT_DAILY_DG_MS = int(os.getenv('FAIR_USE_RESTRICT_DAILY_DG_MS', '1800000'))  # 30 min
+FAIR_USE_RESTRICT_DAILY_MANAGED_STT_MS = int(os.getenv('FAIR_USE_RESTRICT_DAILY_MANAGED_STT_MS', '1800000'))  # 30 min
 
 # Hard anti-abuse ceiling: max total audio processed per rolling 24h, ALL plans. Set high
 # enough that no legitimate single human hits it (a real person cannot generate this much
@@ -601,13 +601,15 @@ def get_hard_restriction_retry_after_seconds(uid: str) -> int | None:
 
 
 # ---------------------------------------------------------------------------
-# Restrict-stage daily Deepgram budget
+# Restrict-stage daily managed STT budget
 # ---------------------------------------------------------------------------
 
 
-def _dg_budget_key(uid: str) -> str:
-    """Redis key for daily DG budget counter. Auto-expires at end of UTC day."""
+def _managed_stt_budget_key(uid: str) -> str:
+    """Redis key for daily managed STT budget counter. Auto-expires at end of UTC day."""
     day = datetime.now(timezone.utc).strftime('%Y%m%d')
+    # Keep the persisted key schema stable while old and new pods overlap. The
+    # identifier is opaque storage history, not a provider-selection surface.
     return f'fair_use:dg_budget:{uid}:{day}'
 
 
@@ -621,12 +623,14 @@ return 0
 """
 
 
-def record_dg_usage_ms(uid: str, ms: int, idempotency_key: Optional[str] = None, raise_on_error: bool = False) -> None:
-    """Atomically increment today's DG usage counter."""
-    if not FAIR_USE_ENABLED or FAIR_USE_RESTRICT_DAILY_DG_MS <= 0 or ms <= 0:
+def record_managed_stt_usage_ms(
+    uid: str, ms: int, idempotency_key: Optional[str] = None, raise_on_error: bool = False
+) -> None:
+    """Atomically increment today's managed STT usage counter."""
+    if not FAIR_USE_ENABLED or FAIR_USE_RESTRICT_DAILY_MANAGED_STT_MS <= 0 or ms <= 0:
         return
     try:
-        key = _dg_budget_key(uid)
+        key = _managed_stt_budget_key(uid)
         pipe = redis_client.pipeline(transaction=False)
         pipe.incrby(key, ms)
         # TTL = seconds until next midnight UTC + 1h buffer
@@ -638,6 +642,8 @@ def record_dg_usage_ms(uid: str, ms: int, idempotency_key: Optional[str] = None,
             redis_client.eval(
                 _RECORD_COUNTER_ONCE_SCRIPT,
                 2,
+                # Share the established once-marker with old pods so a retry
+                # cannot be metered twice during a rolling deployment.
                 f'fair_use:v2:once:dg:{uid}:{idempotency_key}',
                 key,
                 ms,
@@ -647,17 +653,17 @@ def record_dg_usage_ms(uid: str, ms: int, idempotency_key: Optional[str] = None,
         pipe.expire(key, seconds_until_midnight + 3600)
         pipe.execute()
     except Exception as e:
-        logger.error(f'fair_use: Redis error recording DG usage for {uid}: {e}')
+        logger.error(f'fair_use: Redis error recording managed STT usage for {uid}: {e}')
         if raise_on_error:
             raise
 
 
-def get_dg_budget_status(uid: str) -> Dict[str, Any]:
-    """Get the DG budget status for a user.
+def get_managed_stt_budget_status(uid: str) -> Dict[str, Any]:
+    """Get the managed STT budget status for a user.
 
     Returns dict with: daily_limit_ms, used_ms, remaining_ms, exhausted, resets_at.
     """
-    limit = FAIR_USE_RESTRICT_DAILY_DG_MS
+    limit = FAIR_USE_RESTRICT_DAILY_MANAGED_STT_MS
     result: Dict[str, Any] = {
         'daily_limit_ms': limit,
         'used_ms': 0,
@@ -669,7 +675,7 @@ def get_dg_budget_status(uid: str) -> Dict[str, Any]:
         return result
 
     try:
-        key = _dg_budget_key(uid)
+        key = _managed_stt_budget_key(uid)
         used = redis_client.get(key)
         used_ms = int(used) if used else 0
         remaining = max(0, limit - used_ms)
@@ -684,24 +690,24 @@ def get_dg_budget_status(uid: str) -> Dict[str, Any]:
         # invalid "…+00:00Z" that datetime.fromisoformat rejects). Matches models/integrations._serialize_datetime.
         result['resets_at'] = tomorrow.isoformat().replace('+00:00', 'Z')
     except Exception as e:
-        logger.error(f'fair_use: Redis error reading DG budget for {uid}: {e}')
+        logger.error(f'fair_use: Redis error reading managed STT budget for {uid}: {e}')
 
     return result
 
 
-def is_dg_budget_exhausted(uid: str) -> bool:
-    """Fast check: is the user's daily DG budget used up?
+def is_managed_stt_budget_exhausted(uid: str) -> bool:
+    """Fast check: is the user's daily managed STT budget used up?
 
     Returns False on Redis errors (fail-open).
     """
-    if not FAIR_USE_ENABLED or FAIR_USE_RESTRICT_DAILY_DG_MS <= 0:
+    if not FAIR_USE_ENABLED or FAIR_USE_RESTRICT_DAILY_MANAGED_STT_MS <= 0:
         return False
     try:
-        key = _dg_budget_key(uid)
+        key = _managed_stt_budget_key(uid)
         used = redis_client.get(key)
         if used is None:
             return False
-        return int(used) >= FAIR_USE_RESTRICT_DAILY_DG_MS
+        return int(used) >= FAIR_USE_RESTRICT_DAILY_MANAGED_STT_MS
     except Exception:
         return False
 

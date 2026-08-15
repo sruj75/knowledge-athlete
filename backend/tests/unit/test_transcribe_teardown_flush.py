@@ -7,7 +7,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from routers.listen.receiver import ListenReceiver
-from utils.stt.streaming import STTService
 from utils.listen_audio import build_channel_config
 
 from tests.unit.utils.test_listen_pusher_session import FakePusherWebSocket, frame_type, make_session
@@ -63,7 +62,6 @@ async def test_partial_multichannel_stt_construction_drains_every_open_socket():
     host = SimpleNamespace(
         is_multi_channel=True,
         use_custom_stt=False,
-        stt_service=STTService.parakeet,
         request=SimpleNamespace(websocket=MagicMock()),
         state=SimpleNamespace(),
         client_device_context=SimpleNamespace(platform='desktop'),

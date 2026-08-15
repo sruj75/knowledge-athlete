@@ -40,13 +40,13 @@ RATE_POLICIES: dict[str, tuple[int, int]] = {
     "conversations:reprocess": (3, 3600),
     "conversations:merge": (5, 3600),
     # From-segments: on-device-STT upload path (segments already transcribed, so
-    # cheaper than :create — no Deepgram, just LLM structuring). Used per finished
+    # cheaper than :create — no managed STT, just LLM structuring). Used per finished
     # conversation by Parakeet/local-STT users, so a bit more headroom than :create.
     "conversations:from-segments": (30, 3600),
     # Chat — 2-6 LLM calls per message
     "chat:send_message": (120, 3600),
     "chat:initial": (60, 3600),
-    # Voice — Deepgram + LLM
+    # Voice — managed STT + LLM
     "voice:transcribe": (60, 3600),
     "voice:transcribe_stream": (60, 3600),
     "voice:message": (60, 3600),

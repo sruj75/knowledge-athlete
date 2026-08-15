@@ -7,7 +7,7 @@
 
 ## Context
 
-Real-time translation during speech-to-text (STT) produces evolving text. As Deepgram streams transcript segments, each segment's text grows incrementally:
+Real-time translation during speech-to-text (STT) produces evolving text. As managed STT streams transcript segments, each segment's text grows incrementally:
 
 ```
 "Hola" → "Hola como" → "Hola como estas" → "Hola como estas bien"

@@ -57,7 +57,7 @@ def test_provisional_env_var_present_is_rendered(monkeypatch):
 @pytest.mark.parametrize(
     ('value', 'expected'),
     [
-        ('modulate-velma-2,parakeet', r'modulate-velma-2\,parakeet'),
+        ('first,second', r'first\,second'),
         (r'C:\models', r'C:\\models'),
         ('first\nsecond', 'first\\\nsecond'),
         ('first\rsecond', 'first\\\rsecond'),
@@ -155,7 +155,6 @@ def test_render_prod_keeps_memory_maintenance_job_promotion_off(capsys, monkeypa
     monkeypatch.setenv('CLOUD_RUN_VPC_NETWORK', 'omi-prod-vpc')
     monkeypatch.setenv('CLOUD_RUN_VPC_SUBNET', 'omi-prod-subnet')
     monkeypatch.setenv('GOOGLE_CLIENT_ID', 'fake-google-client-id')
-    monkeypatch.setenv('STT_PRERECORDED_MODEL', 'dg-nova-3')
     monkeypatch.setenv('MCP_OAUTH_CLAUDE_CLIENT_ID', 'fake-claude-client-id')
     monkeypatch.setenv('MCP_OAUTH_CLAUDE_CLIENT_NAME', 'Claude')
     monkeypatch.setenv('MCP_OAUTH_CLAUDE_REDIRECT_URIS', 'https://claude.example/callback')
@@ -188,7 +187,6 @@ def test_render_prod_gateway_callers_inject_verified_endpoint(capsys, monkeypatc
     monkeypatch.setenv('CLOUD_RUN_VPC_NETWORK', 'omi-prod-vpc')
     monkeypatch.setenv('CLOUD_RUN_VPC_SUBNET', 'omi-prod-subnet')
     monkeypatch.setenv('GOOGLE_CLIENT_ID', 'fake-google-client-id')
-    monkeypatch.setenv('STT_PRERECORDED_MODEL', 'dg-nova-3')
     monkeypatch.setenv('MCP_OAUTH_CLAUDE_CLIENT_ID', 'fake-claude-client-id')
     monkeypatch.setenv('MCP_OAUTH_CLAUDE_CLIENT_NAME', 'Claude')
     monkeypatch.setenv('MCP_OAUTH_CLAUDE_REDIRECT_URIS', 'https://claude.example/callback')

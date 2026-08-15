@@ -1,20 +1,80 @@
 import asyncio
 import json
+import os
 import struct
+import subprocess
+import sys
 import unittest
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from config.stt_provider_policy import MODULATE_MODEL, MODULATE_PROVIDER, STTServingSurface
 from utils.stt.streaming import (
-    STTService,
     SafeModulateSocket,
     _build_wav_header,
-    get_stt_service_for_language,
+    get_managed_stt_language,
     make_stream_callback,
     sort_segments_by_start,
     sort_transcript_segments_in_place,
 )
+
+BACKEND_DIR = Path(__file__).resolve().parents[2]
+
+
+def test_offline_backend_factory_streaming_socket_finalize_contract_runs_in_child_process():
+    """The harness factory installs the full PTT socket contract in its isolated process."""
+
+    code = r'''
+import asyncio
+import sys
+from types import ModuleType
+
+sentinel_app = object()
+main_stub = ModuleType("main")
+main_stub.app = sentinel_app
+sys.modules["main"] = main_stub
+
+from testing.e2e.offline_app import backend_app
+
+assert backend_app() is sentinel_app
+
+from utils.stt import streaming
+
+segments = []
+
+async def exercise_socket():
+    socket = await streaming.process_audio_modulate(segments.extend, 16_000, "en")
+    assert socket.send(b"synthetic-pcm") is True
+    socket.finalize()
+    await streaming.drain_stt_socket(socket)
+    return socket
+
+socket = asyncio.run(exercise_socket())
+assert segments[0]["text"] == "Hermetic streaming STT transcript from the fake socket."
+assert socket.finalize_calls == 1
+assert socket.drain_calls == 1
+assert socket.finish_calls == 1
+'''
+    env = {
+        key: value
+        for key, value in os.environ.items()
+        if not any(secret_marker in key.upper() for secret_marker in ("API_KEY", "ACCESS_TOKEN", "AUTH_TOKEN"))
+    }
+    env["PROVIDER_MODE"] = "offline"
+
+    result = subprocess.run(
+        [sys.executable, "-c", code],
+        cwd=BACKEND_DIR,
+        env=env,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        timeout=30,
+    )
+
+    assert result.returncode == 0, result.stdout
 
 
 def _exercise_abrupt_modulate_close():
@@ -68,64 +128,6 @@ def _warm_async_socket_runtime():
     """Charge asyncio/unittest.mock one-time task generation to fixture setup."""
     for _ in range(5):
         _exercise_abrupt_modulate_close()
-
-
-class TestSTTServiceEnum(unittest.TestCase):
-    def test_modulate_enum_exists(self):
-        self.assertEqual(STTService.modulate.value, 'modulate')
-
-    def test_get_model_name_modulate(self):
-        self.assertEqual(STTService.get_model_name(STTService.modulate), 'modulate_streaming')
-
-    def test_get_model_name_deepgram(self):
-        self.assertEqual(STTService.get_model_name(STTService.deepgram), 'deepgram_streaming')
-
-
-class TestLanguageRouting(unittest.TestCase):
-    @patch('utils.stt.streaming.stt_service_models', ['modulate-velma-2'])
-    def test_modulate_routing_english(self):
-        service, lang, model = get_stt_service_for_language('en', multi_lang_enabled=False)
-        self.assertEqual(service, STTService.modulate)
-        self.assertEqual(lang, 'en')
-        self.assertEqual(model, 'velma-2')
-
-    @patch('utils.stt.streaming.stt_service_models', ['modulate-velma-2'])
-    def test_modulate_routing_multi(self):
-        service, lang, model = get_stt_service_for_language('multi')
-        self.assertEqual(service, STTService.modulate)
-        self.assertEqual(lang, 'multi')
-
-    @patch('utils.stt.streaming.stt_service_models', ['modulate-velma-2'])
-    def test_modulate_unsupported_language_fails_closed(self):
-        service, lang, model = get_stt_service_for_language('xx-unsupported')
-        self.assertIsNone(service)
-        self.assertIsNone(lang)
-        self.assertIsNone(model)
-
-    @patch.dict('os.environ', {'HOSTED_PARAKEET_API_URL': 'https://parakeet.test'})
-    @patch('utils.stt.streaming.stt_service_models', ['dg-nova-3'])
-    def test_retired_deepgram_config_uses_non_deepgram_default(self):
-        service, lang, model = get_stt_service_for_language('en', multi_lang_enabled=False)
-        self.assertEqual(service, STTService.modulate)
-        self.assertEqual(model, 'velma-2')
-
-    @patch('utils.stt.streaming.stt_service_models', ['dg-nova-3', 'modulate-velma-2'])
-    def test_retired_deepgram_token_is_ignored_before_modulate(self):
-        service, lang, model = get_stt_service_for_language('en', multi_lang_enabled=False)
-        self.assertEqual(service, STTService.modulate)
-        self.assertEqual(model, 'velma-2')
-
-    @patch('utils.stt.streaming.stt_service_models', ['modulate-velma-2', 'dg-nova-3'])
-    def test_modulate_first_wins(self):
-        service, lang, model = get_stt_service_for_language('en', multi_lang_enabled=False)
-        self.assertEqual(service, STTService.modulate)
-
-    @patch('utils.stt.streaming.stt_service_models', ['dg-nova-3', 'modulate-velma-2'])
-    def test_dg_unsupported_falls_through_to_modulate(self):
-        service, lang, model = get_stt_service_for_language('af', multi_lang_enabled=False)
-        self.assertEqual(service, STTService.modulate)
-        self.assertEqual(lang, 'af')
-        self.assertEqual(model, 'velma-2')
 
 
 class TestWAVHeader(unittest.TestCase):
@@ -741,159 +743,6 @@ class TestProcessAudioModulate(unittest.TestCase):
             loop.close()
 
 
-class _FakeParakeetConnect:
-    def __init__(self, ws, enter_started: asyncio.Event, allow_enter: asyncio.Event):
-        self._ws = ws
-        self._enter_started = enter_started
-        self._allow_enter = allow_enter
-
-    async def __aenter__(self):
-        self._enter_started.set()
-        await self._allow_enter.wait()
-        await self._ws._messages.put(json.dumps({'type': 'ready'}))
-        return self._ws
-
-    async def __aexit__(self, exc_type, exc, tb):
-        await self._ws.close()
-        return False
-
-
-class _FakeParakeetWebSocket:
-    def __init__(self):
-        self.sent = []
-        self._messages = asyncio.Queue()
-
-    async def send(self, data):
-        self.sent.append(data)
-        if data == 'finalize':
-            await self._messages.put(json.dumps({'text': 'hello', 'speaker': 'SPEAKER_00', 'start': 0, 'end': 1}))
-            await self._messages.put(None)
-            await self._messages.put(None)
-
-    async def recv(self):
-        return await self._messages.get()
-
-    async def close(self):
-        await self._messages.put(None)
-
-    def __aiter__(self):
-        return self
-
-    async def __anext__(self):
-        msg = await self._messages.get()
-        if msg is None:
-            raise StopAsyncIteration
-        return msg
-
-
-class _RejectedParakeetWebSocket:
-    def __init__(self, reason):
-        self.reason = reason
-        self.closed = False
-
-    async def recv(self):
-        error = RuntimeError(f'Parakeet rejected stream: {self.reason}')
-        error.reason = self.reason
-        raise error
-
-    async def close(self):
-        self.closed = True
-
-
-class _ImmediateParakeetConnect:
-    def __init__(self, ws):
-        self._ws = ws
-
-    async def __aenter__(self):
-        return self._ws
-
-    async def __aexit__(self, exc_type, exc, tb):
-        await self._ws.close()
-        return False
-
-
-class TestProcessAudioParakeet(unittest.TestCase):
-    def test_websocket_queue_full_reports_rejection(self):
-        from utils.stt.streaming import ParakeetWebSocketSocket
-
-        loop = asyncio.new_event_loop()
-        try:
-
-            async def run():
-                socket = ParakeetWebSocketSocket(lambda _segments: None, 'ws://parakeet.local/v3/stream', 16000)
-                socket._send_queue = asyncio.Queue(maxsize=1)
-                socket._send_queue.put_nowait(b'occupied')
-                assert socket.send(b'overflow') is False
-                assert socket.is_connection_dead is True
-                assert socket.death_reason == 'parakeet ws send queue full'
-
-            loop.run_until_complete(run())
-        finally:
-            loop.close()
-
-    @patch('utils.stt.streaming.websockets')
-    def test_capacity_rejection_is_exposed_before_socket_construction_completes(self, mock_ws_module):
-        from utils.stt.streaming import ParakeetConnectionError, ParakeetWebSocketSocket
-
-        loop = asyncio.new_event_loop()
-        try:
-
-            async def run():
-                ws = _RejectedParakeetWebSocket('capacity_full')
-                mock_ws_module.connect.return_value = _ImmediateParakeetConnect(ws)
-                socket = ParakeetWebSocketSocket(lambda _segments: None, 'ws://parakeet.local/v3/stream', 16000)
-
-                with pytest.raises(ParakeetConnectionError) as error:
-                    await socket.start()
-
-                assert error.value.reason == 'capacity_full'
-                assert ws.closed is True
-
-            loop.run_until_complete(run())
-        finally:
-            loop.close()
-
-    @patch.dict('os.environ', {'HOSTED_PARAKEET_API_URL': 'http://parakeet.local', 'ENCRYPTION_SECRET': 'secret'})
-    @patch('utils.stt.streaming.websockets')
-    def test_process_audio_parakeet_waits_for_websocket_connection(self, mock_ws_module):
-        from utils.stt.streaming import process_audio_parakeet
-
-        loop = asyncio.new_event_loop()
-        try:
-
-            async def run():
-                ws = _FakeParakeetWebSocket()
-                enter_started = asyncio.Event()
-                allow_enter = asyncio.Event()
-                segments = []
-                mock_ws_module.__version__ = '12.0'
-                mock_ws_module.connect.side_effect = lambda *args, **kwargs: _FakeParakeetConnect(
-                    ws, enter_started, allow_enter
-                )
-
-                with patch('utils.stt.streaming.asyncio.sleep', AsyncMock()):
-                    socket_task = asyncio.create_task(process_audio_parakeet(segments.extend, 'en', 16000, 1))
-                    await asyncio.wait_for(enter_started.wait(), timeout=1)
-                    await asyncio.sleep(0)
-                    self.assertFalse(socket_task.done())
-
-                    allow_enter.set()
-                    sock = await asyncio.wait_for(socket_task, timeout=1)
-                    self.assertTrue(sock.send(b'pcm0'))
-                    await sock.drain_and_close()
-
-                self.assertEqual(ws.sent, [b'pcm0', 'finalize'])
-                self.assertEqual(segments, [{'text': 'hello', 'speaker': 'SPEAKER_00', 'start': 0, 'end': 1}])
-                return mock_ws_module.connect.call_args
-
-            call_args = loop.run_until_complete(run())
-            uri = call_args[0][0]
-            self.assertEqual(uri, 'ws://parakeet.local/v3/stream?sample_rate=16000')
-            self.assertNotIn('extra_headers', call_args.kwargs)
-        finally:
-            loop.close()
-
-
 class TestPrerecordedRequestShape(unittest.TestCase):
     @patch.dict('os.environ', {'MODULATE_API_KEY': 'test-key'})
     @patch('utils.stt.pre_recorded.httpx.Client')
@@ -1308,151 +1157,53 @@ class TestPassthroughSkipsRemap(unittest.TestCase):
         self.assertIs(callback, stream_transcript)
 
 
-class TestLanguageRoutingExtended(unittest.TestCase):
-    @patch.dict('os.environ', {'HOSTED_PARAKEET_API_URL': 'https://parakeet.test'})
-    @patch('utils.stt.streaming.stt_service_models', ['dg-nova-3'])
-    def test_retired_config_falls_back_to_the_capable_single_language_provider(self):
-        service, lang, model = get_stt_service_for_language('fr', multi_lang_enabled=False)
-        self.assertEqual(service, STTService.modulate)
-        self.assertEqual(lang, 'fr')
-        self.assertEqual(model, 'velma-2')
+class TestManagedLanguageRouting(unittest.TestCase):
+    def test_explicit_english(self):
+        self.assertEqual(get_managed_stt_language('en', multi_lang_enabled=False), 'en')
 
-    @patch.dict('os.environ', {'HOSTED_PARAKEET_API_URL': 'https://parakeet.test'})
-    @patch('utils.stt.streaming.stt_service_models', ['dg-nova-3'])
-    def test_retired_config_falls_back_to_the_capable_multilingual_provider(self):
-        service, lang, model = get_stt_service_for_language('fr', multi_lang_enabled=True)
-        self.assertEqual(service, STTService.modulate)
-        self.assertEqual(lang, 'multi')
-        self.assertEqual(model, 'velma-2')
+    def test_live_multilingual_mode(self):
+        self.assertEqual(get_managed_stt_language('fr', multi_lang_enabled=True), 'multi')
 
-    @patch.dict('os.environ', {'HOSTED_PARAKEET_API_URL': 'https://parakeet.test'})
-    @patch('utils.stt.streaming.stt_service_models', ['dg-nova-3'])
-    def test_empty_language_defaults_to_english_without_deepgram(self):
-        service, lang, model = get_stt_service_for_language('')
-        self.assertEqual(service, STTService.modulate)
-        self.assertEqual(lang, 'en')
+    def test_ptt_retains_explicit_language(self):
+        self.assertEqual(
+            get_managed_stt_language('fr', multi_lang_enabled=True, surface=STTServingSurface.PTT),
+            'fr',
+        )
 
-    @patch('utils.stt.streaming.stt_service_models', ['modulate-velma-2'])
-    def test_locale_code_en_us_routes_to_modulate(self):
-        service, lang, model = get_stt_service_for_language('en-US', multi_lang_enabled=False)
-        self.assertEqual(service, STTService.modulate)
-        self.assertEqual(lang, 'en')
-        self.assertEqual(model, 'velma-2')
+    def test_unknown_language_fails_closed(self):
+        self.assertIsNone(get_managed_stt_language('xx-unsupported'))
 
-    @patch('utils.stt.streaming.stt_service_models', ['modulate-velma-2'])
-    def test_locale_code_fr_ca_routes_to_modulate(self):
-        service, lang, model = get_stt_service_for_language('fr-CA', multi_lang_enabled=False)
-        self.assertEqual(service, STTService.modulate)
-        self.assertEqual(lang, 'fr')
+    def test_empty_language_defaults_to_english(self):
+        self.assertEqual(get_managed_stt_language(''), 'en')
 
-    @patch('utils.stt.streaming.stt_service_models', ['modulate-velma-2'])
-    def test_locale_code_pt_br_routes_to_modulate(self):
-        service, lang, model = get_stt_service_for_language('pt-BR', multi_lang_enabled=False)
-        self.assertEqual(service, STTService.modulate)
-        self.assertEqual(lang, 'pt')
-
-    @patch('utils.stt.streaming.stt_service_models', ['modulate-velma-2'])
-    def test_locale_code_zh_cn_routes_to_modulate(self):
-        service, lang, model = get_stt_service_for_language('zh-CN', multi_lang_enabled=False)
-        self.assertEqual(service, STTService.modulate)
-        self.assertEqual(lang, 'zh')
-
-    @patch('utils.stt.streaming.stt_service_models', ['modulate-velma-2'])
-    def test_locale_underscore_en_us(self):
-        service, lang, model = get_stt_service_for_language('en_US', multi_lang_enabled=False)
-        self.assertEqual(service, STTService.modulate)
-        self.assertEqual(lang, 'en')
-
-
-class TestPrerecordedServiceRouting(unittest.TestCase):
-    @patch('utils.stt.pre_recorded.get_prerecorded_models', new=lambda: ('dg-nova-3',))
-    def test_retired_model_routes_to_policy_default(self):
-        from utils.stt.pre_recorded import PrerecordedSTTService, get_prerecorded_service
-
-        svc, lang, model = get_prerecorded_service('en')
-        self.assertEqual(svc, PrerecordedSTTService.PARAKEET)
-        self.assertEqual(model, 'parakeet')
-
-    @patch('utils.stt.pre_recorded.get_prerecorded_models', new=lambda: ('modulate-velma-2',))
-    def test_modulate_routes_correctly(self):
-        from utils.stt.pre_recorded import PrerecordedSTTService, get_prerecorded_service
-
-        svc, lang, model = get_prerecorded_service('en')
-        self.assertEqual(svc, PrerecordedSTTService.MODULATE)
-        self.assertEqual(lang, 'en')
-        self.assertEqual(model, 'velma-2')
-
-    @patch('utils.stt.pre_recorded.get_prerecorded_models', new=lambda: ('modulate-velma-2',))
-    def test_modulate_normalizes_locale(self):
-        from utils.stt.pre_recorded import PrerecordedSTTService, get_prerecorded_service
-
-        svc, lang, model = get_prerecorded_service('pt-BR')
-        self.assertEqual(svc, PrerecordedSTTService.MODULATE)
-        self.assertEqual(lang, 'pt')
-
-    @patch('utils.stt.pre_recorded.get_prerecorded_models', new=lambda: ('dg-nova-2',))
-    def test_custom_retired_model_routes_to_policy_default(self):
-        from utils.stt.pre_recorded import PrerecordedSTTService, get_prerecorded_service
-
-        svc, lang, model = get_prerecorded_service('en')
-        self.assertEqual(svc, PrerecordedSTTService.PARAKEET)
-        self.assertEqual(model, 'parakeet')
-
-    @patch('utils.stt.pre_recorded.get_prerecorded_models', new=lambda: ('dg-nova-3',))
-    def test_multi_language_falls_through_to_parakeet_capability(self):
-        from utils.stt.pre_recorded import PrerecordedSTTService, get_prerecorded_service
-
-        svc, lang, model = get_prerecorded_service('multi')
-        self.assertEqual(svc, PrerecordedSTTService.PARAKEET)
-        self.assertEqual(lang, 'multi')
+    def test_locale_codes_are_normalized(self):
+        for locale, expected in (
+            ('en-US', 'en'),
+            ('fr-CA', 'fr'),
+            ('pt-BR', 'pt'),
+            ('zh-CN', 'zh'),
+            ('en_US', 'en'),
+        ):
+            self.assertEqual(get_managed_stt_language(locale, multi_lang_enabled=False), expected)
 
 
 class TestPrerecordedProviderFactory(unittest.TestCase):
-    @patch('utils.stt.pre_recorded.get_prerecorded_models', new=lambda: ('dg-nova-3',))
-    def test_factory_returns_policy_default_for_retired_model(self):
-        from utils.stt.pre_recorded import ParakeetPrerecordedProvider, get_prerecorded_provider
+    def test_service_is_fixed_to_modulate(self):
+        from utils.stt.pre_recorded import get_prerecorded_service
 
-        provider = get_prerecorded_provider()
-        self.assertIsInstance(provider, ParakeetPrerecordedProvider)
+        service, language, model = get_prerecorded_service('pt-BR')
+        self.assertEqual(service, MODULATE_PROVIDER)
+        self.assertEqual(language, 'pt')
+        self.assertEqual(model, MODULATE_MODEL)
 
-    @patch('utils.stt.pre_recorded.get_prerecorded_models', new=lambda: ('dg-nova-2',))
-    def test_factory_ignores_custom_retired_model(self):
-        from utils.stt.pre_recorded import ParakeetPrerecordedProvider, get_prerecorded_provider
-
-        provider = get_prerecorded_provider()
-        self.assertIsInstance(provider, ParakeetPrerecordedProvider)
-
-    @patch('utils.stt.pre_recorded.get_prerecorded_models', new=lambda: ('modulate-velma-2',))
     def test_factory_returns_modulate(self):
         from utils.stt.pre_recorded import ModulatePrerecordedProvider, get_prerecorded_provider
 
-        provider = get_prerecorded_provider()
-        self.assertIsInstance(provider, ModulatePrerecordedProvider)
+        self.assertIsInstance(get_prerecorded_provider(), ModulatePrerecordedProvider)
 
-    @patch('utils.stt.pre_recorded.get_prerecorded_models', new=lambda: ('modulate-velma-2', 'dg-nova-3'))
-    def test_uncovered_language_reaches_velma_instead_of_failing_closed(self):
-        """Hindi is in neither the literal Velma set nor Parakeet's batch model."""
-        from utils.stt.pre_recorded import (
-            ModulatePrerecordedProvider,
-            PrerecordedSTTService,
-            get_prerecorded_provider,
-            get_prerecorded_service,
-        )
+    def test_modulate_provider_implements_public_boundary(self):
+        from utils.stt.pre_recorded import ModulatePrerecordedProvider, PrerecordedSTTProvider
 
-        svc, lang, model = get_prerecorded_service('hi')
-        self.assertEqual(svc, PrerecordedSTTService.MODULATE)
-        self.assertEqual(lang, 'multi')
-        self.assertEqual(model, 'velma-2')
-        self.assertIsInstance(get_prerecorded_provider('hi'), ModulatePrerecordedProvider)
-
-    def test_providers_implement_abc(self):
-        from utils.stt.pre_recorded import (
-            DeepgramPrerecordedProvider,
-            ModulatePrerecordedProvider,
-            PrerecordedSTTProvider,
-        )
-
-        self.assertTrue(issubclass(DeepgramPrerecordedProvider, PrerecordedSTTProvider))
         self.assertTrue(issubclass(ModulatePrerecordedProvider, PrerecordedSTTProvider))
 
     def test_modulate_provider_normalizes_locale(self):

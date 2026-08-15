@@ -6,7 +6,6 @@
     "test:listen-lifecycle:emulator": "firebase emulators:exec --only firestore --project demo-listen \"backend/.venv/bin/python backend/scripts/listen_lifecycle_emulator_test.py\"",
     "test:desktop-beta-admission:emulator": "bash backend/testing/desktop_beta_admission/run.sh",
     "test:listen-pusher-stack:emulator": "backend/testing/listen_pusher_stack/run.sh",
-    "test:replay-stt-wire-fidelity": "backend/testing/replay_harness_stt_wire_fidelity/run.sh",
     "test:replay-llm-fake-upstream": "backend/testing/replay_harness_llm_gateway_fake_upstream/run.sh",
     "test:replay-llm-streaming-wire-fidelity": "backend/testing/replay_harness_llm_streaming_wire_fidelity/run.sh",
     "test:parity-pack-v0": "backend/testing/parity_pack_v0/run.sh",

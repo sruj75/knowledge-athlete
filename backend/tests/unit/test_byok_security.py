@@ -65,9 +65,7 @@ def _make_db_fakes() -> dict:
     external_integrations.generate_comprehensive_daily_summary = MagicMock()
     fakes["utils.llm.external_integrations"] = external_integrations
 
-    streaming = ModuleType("utils.stt.streaming")
-    streaming.deepgram_nova3_multi_languages = ['en']
-    fakes["utils.stt.streaming"] = streaming
+    fakes["utils.stt.streaming"] = ModuleType("utils.stt.streaming")
 
     return fakes
 

@@ -32,7 +32,6 @@ private actor SuspendedTurnPersistenceGate {
     return true
   }
 }
-
 @MainActor
 final class RealtimeHubBargeInContinuityTests: XCTestCase {
   func testProviderFailureRegistersContinuityFenceBeforeTranscriptResolution() async {
@@ -943,7 +942,7 @@ final class RealtimeHubBargeInContinuityTests: XCTestCase {
         route: .hub(sessionID: VoiceSessionID()), activeSessionID: sessionID))
     XCTAssertFalse(
       RealtimeHubErrorOwnership.owns(
-        route: .deepgramBatch, activeSessionID: sessionID))
+        route: .managedBatch, activeSessionID: sessionID))
     XCTAssertFalse(
       RealtimeHubErrorOwnership.owns(
         route: .omniSTT, activeSessionID: sessionID))
@@ -1522,7 +1521,7 @@ final class RealtimeHubBargeInContinuityTests: XCTestCase {
 
     let coordinator = VoiceTurnCoordinator()
     let turnID = coordinator.begin(intent: .hold)
-    coordinator.publish(.selectRoute(turnID: turnID, route: .deepgramBatch))
+    coordinator.publish(.selectRoute(turnID: turnID, route: .managedBatch))
     coordinator.publish(.finalize(turnID: turnID))
     coordinator.publish(.transcriptionStarted(turnID: turnID))
     coordinator.publish(.transcriptionFinal(turnID: turnID, text: "fixture"))

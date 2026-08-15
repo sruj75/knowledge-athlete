@@ -345,7 +345,7 @@ import XCTest
     func testRealtimeHubAudibleOutputIsLeaseGated() throws {
       let coordinator = VoiceTurnCoordinator()
       let turnID = coordinator.begin(intent: .hold)
-      coordinator.publish(.selectRoute(turnID: turnID, route: .deepgramBatch))
+      coordinator.publish(.selectRoute(turnID: turnID, route: .managedBatch))
       coordinator.publish(.finalize(turnID: turnID))
       coordinator.publish(.transcriptionStarted(turnID: turnID))
       coordinator.publish(.transcriptionFinal(turnID: turnID, text: "fixture"))

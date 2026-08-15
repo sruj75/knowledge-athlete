@@ -46,7 +46,6 @@ PROVIDER_REFERENCE_RATES = {
     'gemini_flash_output_per_mtok': 2.50,
     'gpt_4_1_mini_input_per_mtok': 0.40,
     'gpt_4_1_mini_output_per_mtok': 1.60,
-    'deepgram_nova_per_min': 0.0043,
 }
 
 OVERAGE_EXPLAINER_TITLE = "What happens past your monthly limit?"
@@ -56,7 +55,7 @@ OVERAGE_EXPLAINER_BODY = (
     "doesn't cut you off — you stay fully functional and we charge only for "
     "the extra usage, billed to the card on file at the end of your cycle.\n\n"
     "How the charge is computed:\n"
-    "  • We sum the real provider cost (Claude, Gemini, Deepgram, etc.) of the "
+    "  • We sum the real model-provider cost (Claude, Gemini, etc.) of the "
     "usage past your included allowance.\n"
     "  • We add a {markup_pct:.0f}% buffer on top to cover infra and pricing variance.\n"
     "  • That's it — no surge pricing, no hidden fees.\n\n"

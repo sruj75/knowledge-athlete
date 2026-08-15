@@ -10,7 +10,6 @@ from routers.listen.contracts import ListenRequest
 from routers.listen.runtime import ListenSessionRuntime
 from routers.listen.transcripts import TranscriptProcessor
 from utils.listen_session_bootstrap import ListenConnectBase
-from utils.stt.streaming import STTService
 
 
 @pytest.fixture
@@ -32,8 +31,8 @@ def _runtime_for_periodic_usage(*, tracking, exhausted):
     runtime.state = SimpleNamespace(
         active=True,
         fair_use_last_check_ts=0.0,
-        fair_use_track_dg_usage=tracking,
-        fair_use_dg_budget_exhausted=exhausted,
+        fair_use_track_managed_stt_usage=tracking,
+        fair_use_managed_stt_budget_exhausted=exhausted,
         fair_use_plan=None,
     )
 
@@ -78,7 +77,7 @@ async def test_periodic_fair_use_check_preserves_proactive_tracking_and_clears_s
         coro.close()
 
     monkeypatch.setattr(runtime_module, 'FAIR_USE_ENABLED', True)
-    monkeypatch.setattr(runtime_module, 'FAIR_USE_RESTRICT_DAILY_DG_MS', 60_000)
+    monkeypatch.setattr(runtime_module, 'FAIR_USE_RESTRICT_DAILY_MANAGED_STT_MS', 60_000)
     monkeypatch.setattr(runtime_module, 'get_rolling_speech_ms', lambda _uid: {'daily_ms': 1})
     monkeypatch.setattr(runtime_module, 'check_soft_caps', lambda _uid, *, speech_totals, plan: caps)
     monkeypatch.setattr(runtime_module, 'is_daily_audio_ceiling_exceeded', lambda _uid, *, speech_totals: False)
@@ -91,8 +90,8 @@ async def test_periodic_fair_use_check_preserves_proactive_tracking_and_clears_s
 
     await runtime._record_usage_periodically()
 
-    assert runtime.state.fair_use_track_dg_usage is expected_tracking
-    assert runtime.state.fair_use_dg_budget_exhausted is expected_exhausted
+    assert runtime.state.fair_use_track_managed_stt_usage is expected_tracking
+    assert runtime.state.fair_use_managed_stt_budget_exhausted is expected_exhausted
     assert started_classifier_tasks == (['fair_use_classifier:fair-use-user:fair-use-session'] if caps else [])
 
 
@@ -117,6 +116,7 @@ async def test_bootstrap_forces_single_language_before_selecting_stt_for_onboard
     runtime.persistence = SimpleNamespace(call=bootstrap_persistence_call)
     runtime.is_multi_channel = False
     runtime.has_speech_profile = False
+    runtime.stt_model = 'modulate-velma-2'
     runtime.transcripts = SimpleNamespace(enqueue=lambda _segments: None)
     runtime._build_components = lambda: None
 
@@ -125,35 +125,34 @@ async def test_bootstrap_forces_single_language_before_selecting_stt_for_onboard
         user_has_credits=True,
         transcription_prefs={'single_language_mode': False, 'uses_custom_stt': False},
         fair_use_init_stage=None,
-        fair_use_track_dg_usage=False,
-        fair_use_dg_budget_exhausted=False,
+        fair_use_track_managed_stt_usage=False,
+        fair_use_managed_stt_budget_exhausted=False,
     )
     selected_multi_language_options = []
 
-    def select_stt(language, *, multi_lang_enabled, preferred_service=None):
-        selected_multi_language_options.append((language, multi_lang_enabled, preferred_service))
-        return 'test-stt', 'es', 'test-model'
+    def select_stt(language, *, multi_lang_enabled):
+        selected_multi_language_options.append((language, multi_lang_enabled))
+        return 'es'
 
     monkeypatch.setattr(runtime_module, 'load_listen_connect_base', lambda *_args, **_kwargs: _async_result(base))
-    monkeypatch.setattr(runtime_module, 'get_stt_service_for_language', select_stt)
+    monkeypatch.setattr(runtime_module, 'get_managed_stt_language', select_stt)
     monkeypatch.setattr(runtime_module, 'FAIR_USE_ENABLED', False)
     monkeypatch.setattr(runtime_module, 'should_load_speech_profile', lambda **_kwargs: False)
     monkeypatch.setattr(runtime_module, 'should_enable_speaker_identification', lambda **_kwargs: False)
     monkeypatch.setattr(runtime_module, 'OnboardingHandler', lambda *_args: SimpleNamespace())
 
     assert await runtime._bootstrap() is True
-    assert selected_multi_language_options == [('es', False, None)]
+    assert selected_multi_language_options == [('es', False)]
 
 
 @pytest.mark.anyio
-async def test_bootstrap_passes_explicit_parakeet_through_capability_aware_selection(monkeypatch):
+async def test_bootstrap_has_no_provider_preference_and_uses_managed_language_selection(monkeypatch):
     import routers.listen.runtime as runtime_module
 
     request = ListenRequest(
         websocket=SimpleNamespace(),
         uid='language-routing-user',
         language='es',
-        stt_service='parakeet',
     )
     runtime = object.__new__(ListenSessionRuntime)
     runtime.request = request
@@ -166,6 +165,7 @@ async def test_bootstrap_passes_explicit_parakeet_through_capability_aware_selec
     runtime.persistence = SimpleNamespace(call=bootstrap_persistence_call)
     runtime.is_multi_channel = False
     runtime.has_speech_profile = False
+    runtime.stt_model = 'modulate-velma-2'
     runtime._build_components = lambda: None
 
     base = ListenConnectBase(
@@ -173,27 +173,24 @@ async def test_bootstrap_passes_explicit_parakeet_through_capability_aware_selec
         user_has_credits=True,
         transcription_prefs={'single_language_mode': False, 'uses_custom_stt': False},
         fair_use_init_stage=None,
-        fair_use_track_dg_usage=False,
-        fair_use_dg_budget_exhausted=False,
+        fair_use_track_managed_stt_usage=False,
+        fair_use_managed_stt_budget_exhausted=False,
     )
 
-    def select_stt(language, *, multi_lang_enabled, preferred_service=None):
-        assert (language, multi_lang_enabled, preferred_service) == ('es', True, 'parakeet')
-        return STTService.modulate, 'multi', 'velma-2'
+    def select_stt(language, *, multi_lang_enabled):
+        assert (language, multi_lang_enabled) == ('es', True)
+        return 'multi'
 
-    monkeypatch.setenv('HOSTED_PARAKEET_API_URL', 'http://parakeet.test')
     monkeypatch.setattr(runtime_module, 'load_listen_connect_base', lambda *_args, **_kwargs: _async_result(base))
-    monkeypatch.setattr(runtime_module, 'get_stt_service_for_language', select_stt)
+    monkeypatch.setattr(runtime_module, 'get_managed_stt_language', select_stt)
     monkeypatch.setattr(runtime_module, 'FAIR_USE_ENABLED', False)
     monkeypatch.setattr(runtime_module, 'should_load_speech_profile', lambda **_kwargs: False)
     monkeypatch.setattr(runtime_module, 'should_enable_speaker_identification', lambda **_kwargs: False)
 
     assert await runtime._bootstrap() is True
-    assert (runtime.stt_service, runtime.stt_language, runtime.stt_model) == (
-        STTService.modulate,
-        'multi',
-        'velma-2',
-    )
+    assert runtime.stt_language == 'multi'
+    assert runtime.stt_model == 'modulate-velma-2'
+    assert 'stt_service' not in ListenRequest.__dataclass_fields__
 
 
 def test_runtime_emits_speaker_suggestion_event():
@@ -235,7 +232,6 @@ def _live_transcription_runtime(*, close_code=1001, stt_terminal_failure=False, 
         live_transcription_failed=live_transcription_failed,
         live_transcription_attempt=None,
     )
-    runtime.stt_service = STTService.deepgram
     runtime.client_device_context = SimpleNamespace(platform='ios')
     return runtime
 
@@ -253,7 +249,7 @@ def test_live_transcription_journey_starts_once_and_success_wins_over_teardown(m
     runtime._finish_live_transcription()
 
     assert len(_LiveSTTAttempt.instances) == 1
-    assert _LiveSTTAttempt.instances[0].provider == 'deepgram'
+    assert _LiveSTTAttempt.instances[0].provider == 'modulate'
     assert _LiveSTTAttempt.instances[0].platform == 'ios'
     assert _LiveSTTAttempt.instances[0].terminals == [('success', 'transcript_delivery')]
 
@@ -476,8 +472,8 @@ async def test_custom_stt_flush_meters_speech_in_isolated_lane(monkeypatch):
     runtime.use_custom_stt = True
     runtime.persistence = _Persistence()
     runtime.state = SimpleNamespace(
-        fair_use_track_dg_usage=False,
-        dg_usage_ms_pending=0,
+        fair_use_track_managed_stt_usage=False,
+        managed_stt_usage_ms_pending=0,
         last_usage_record_timestamp=123.0,
         words_transcribed_since_last_record=7,
         last_audio_received_time=124.0,

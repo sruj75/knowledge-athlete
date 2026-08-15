@@ -206,7 +206,7 @@ final class VoiceTurnOutputOwnershipTests: XCTestCase {
     let staleLease = try XCTUnwrap(
       tryLease(coordinator.acquireOutput(.nativeRealtime, turnID: firstTurnID)))
     let secondTurnID = coordinator.begin(intent: .hold)
-    coordinator.publish(.selectRoute(turnID: secondTurnID, route: .deepgramBatch))
+    coordinator.publish(.selectRoute(turnID: secondTurnID, route: .managedBatch))
     coordinator.publish(.finalize(turnID: secondTurnID))
     coordinator.publish(.transcriptionStarted(turnID: secondTurnID))
     coordinator.publish(.transcriptionFinal(turnID: secondTurnID, text: "second"))
@@ -250,7 +250,7 @@ final class VoiceTurnOutputOwnershipTests: XCTestCase {
   private func awaitingCoordinator() -> (VoiceTurnCoordinator, VoiceTurnID) {
     let coordinator = VoiceTurnCoordinator()
     let turnID = coordinator.begin(intent: .hold)
-    coordinator.publish(.selectRoute(turnID: turnID, route: .deepgramBatch))
+    coordinator.publish(.selectRoute(turnID: turnID, route: .managedBatch))
     coordinator.publish(.finalize(turnID: turnID))
     coordinator.publish(.transcriptionStarted(turnID: turnID))
     coordinator.publish(.transcriptionFinal(turnID: turnID, text: "fixture"))

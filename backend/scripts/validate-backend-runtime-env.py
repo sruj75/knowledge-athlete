@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import subprocess
 import sys
 from pathlib import Path
@@ -16,8 +15,6 @@ BACKEND_ROOT = ROOT / 'backend'
 if str(BACKEND_ROOT) not in sys.path:
     sys.path.insert(0, str(BACKEND_ROOT))
 
-from config.prerecorded_stt import required_env_for_model_config  # noqa: E402
-from config.stt_provider_policy import STTServingSurface, canonical_model_config  # noqa: E402
 from scripts.firestore_workflow_policy import (  # noqa: E402
     has_direct_firestore_mutation,
     reconciliation_invocations,
@@ -27,7 +24,6 @@ from scripts.runtime_env_durable_dispatch_contracts import (  # noqa: E402
     validate_account_deletion_dispatch_contract as _validate_account_deletion_dispatch_contract,
     validate_listen_finalization_dispatch_contract as _validate_listen_finalization_dispatch_contract,
 )
-from scripts.runtime_env_parakeet_contract import validate_parakeet_admission_contract  # noqa: E402
 
 DEFAULT_MANIFEST = ROOT / 'backend/deploy/runtime_env.yaml'
 ConfigDict = dict[str, Any]
@@ -54,6 +50,18 @@ _MEMORY_MAINTENANCE_DEV_REQUIRED_FLAGS = {
     '--cpu': '2',
     '--memory': '2Gi',
 }
+_MANAGED_STT_GKE_SERVICES = ('backend-listen', 'pusher')
+_MANAGED_STT_CLOUD_RUN_SERVICES = ('backend', 'backend-sync', 'backend-integration')
+_RETIRED_STT_RUNTIME_ENV = frozenset(
+    {
+        'DEEPGRAM_API_KEY',
+        'DEEPGRAM_SELF_HOSTED_ENABLED',
+        'DEEPGRAM_SELF_HOSTED_URL',
+        'HOSTED_PARAKEET_API_URL',
+        'STT_PRERECORDED_MODEL',
+        'STT_SERVICE_MODELS',
+    }
+)
 
 
 def _as_config_dict(value: object) -> ConfigDict | None:
@@ -136,9 +144,7 @@ def validate_runtime_env(
         return errors
 
     errors.extend(_validate_gke(env_config, strict_provisional=strict_provisional))
-    errors.extend(_validate_stt_serving_model_policy(env, env_config))
-    errors.extend(validate_parakeet_admission_contract(env, env_config))
-    errors.extend(_validate_prerecorded_stt_contract(env, env_config))
+    errors.extend(_validate_managed_stt_contract(env, env_config))
     errors.extend(_validate_memory_maintenance_job_contract(env, env_config))
     errors.extend(_validate_account_deletion_dispatch_contract(env, env_config))
     errors.extend(_validate_listen_finalization_dispatch_contract(env, env_config))
@@ -314,47 +320,8 @@ def _manifest_env_binding_is_configured(env_map: ConfigDict, secrets_map: Config
     return secret_entry is not None and bool(str(secret_entry.get('secret', '')).strip())
 
 
-def _validate_stt_serving_model_policy(env: str, env_config: ConfigDict) -> list[ValidationError]:
-    """Require deployable model values to match the code-owned serving policy."""
-    errors: list[ValidationError] = []
-    model_policy = {
-        'STT_PRERECORDED_MODEL': canonical_model_config(STTServingSurface.PRERECORDED),
-        'STT_SERVICE_MODELS': canonical_model_config(STTServingSurface.STREAMING),
-    }
-    surfaces: list[tuple[str, ConfigDict]] = []
-
-    gke = _as_config_dict(env_config.get('gke')) or {}
-    for service, raw_service in gke.items():
-        service_config = _as_config_dict(raw_service) or {}
-        surfaces.append((f'{env}/gke/{service}', _as_config_dict(service_config.get('env')) or {}))
-
-    cloud_run = _as_config_dict(env_config.get('cloud_run')) or {}
-    cloud_run_services = _as_config_dict(cloud_run.get('services')) or {}
-    for service, raw_service in cloud_run_services.items():
-        service_config = _as_config_dict(raw_service) or {}
-        surfaces.append((f'{env}/cloud_run/{service}', _as_config_dict(service_config.get('env')) or {}))
-
-    for scope, env_map in surfaces:
-        for env_name, expected_value in model_policy.items():
-            if env_name not in env_map:
-                continue
-            actual_value = _manifest_literal_env_value(env_map, env_name)
-            if actual_value is None:
-                errors.append(
-                    ValidationError(scope, f'{env_name} must be a literal value owned by stt_provider_policy')
-                )
-            elif actual_value != expected_value:
-                errors.append(
-                    ValidationError(
-                        scope,
-                        f'{env_name} must match stt_provider_policy: expected {expected_value!r}, got {actual_value!r}',
-                    )
-                )
-    return errors
-
-
-def _validate_prerecorded_stt_contract(env: str, env_config: ConfigDict) -> list[ValidationError]:
-    """Keep selected providers and their required runtime bindings deployable together."""
+def _validate_managed_stt_contract(env: str, env_config: ConfigDict) -> list[ValidationError]:
+    """Require the fixed Modulate adapter and reject retired provider controls."""
     errors: list[ValidationError] = []
     surfaces: list[tuple[str, ConfigDict, ConfigDict]] = []
 
@@ -365,25 +332,12 @@ def _validate_prerecorded_stt_contract(env: str, env_config: ConfigDict) -> list
             (
                 f'{env}/gke/{service}',
                 _as_config_dict(service_config.get('env')) or {},
-                {},
+                _as_config_dict(service_config.get('secrets')) or {},
             )
         )
 
     cloud_run = _as_config_dict(env_config.get('cloud_run')) or {}
     cloud_run_services = _as_config_dict(cloud_run.get('services')) or {}
-    required_cloud_run_scopes: set[str] = set()
-    if env in {'dev', 'prod'}:
-        for service in ('backend', 'backend-sync', 'backend-integration'):
-            if service not in cloud_run_services:
-                continue
-            scope = f'{env}/cloud_run/{service}'
-            required_cloud_run_scopes.add(scope)
-            service_config = _as_config_dict(cloud_run_services.get(service)) or {}
-            env_map = _as_config_dict(service_config.get('env')) or {}
-            secrets_map = _as_config_dict(service_config.get('secrets')) or {}
-            if 'STT_PRERECORDED_MODEL' not in env_map and 'STT_PRERECORDED_MODEL' not in secrets_map:
-                errors.append(ValidationError(scope, 'required Cloud Run service is missing STT_PRERECORDED_MODEL'))
-
     for service, raw_service in cloud_run_services.items():
         service_config = _as_config_dict(raw_service) or {}
         surfaces.append(
@@ -394,31 +348,20 @@ def _validate_prerecorded_stt_contract(env: str, env_config: ConfigDict) -> list
             )
         )
 
+    required_scopes = {
+        *(f'{env}/gke/{service}' for service in _MANAGED_STT_GKE_SERVICES if service in gke),
+        *(f'{env}/cloud_run/{service}' for service in _MANAGED_STT_CLOUD_RUN_SERVICES if service in cloud_run_services),
+    }
     for scope, env_map, secrets_map in surfaces:
-        model_is_bound = 'STT_PRERECORDED_MODEL' in env_map or 'STT_PRERECORDED_MODEL' in secrets_map
-        is_required_cloud_run = scope in required_cloud_run_scopes
-        if not model_is_bound and not is_required_cloud_run:
-            continue
-
-        literal_models = _manifest_literal_env_value(env_map, 'STT_PRERECORDED_MODEL')
-        source_is_opaque = literal_models is None
-        for required_env in required_env_for_model_config(
-            literal_models,
-            source_is_opaque=source_is_opaque,
+        retired = sorted(
+            _RETIRED_STT_RUNTIME_ENV.intersection(env_map) | _RETIRED_STT_RUNTIME_ENV.intersection(secrets_map)
+        )
+        for env_name in retired:
+            errors.append(ValidationError(scope, f'retired managed STT setting is forbidden: {env_name}'))
+        if scope in required_scopes and not _manifest_env_binding_is_configured(
+            env_map, secrets_map, 'MODULATE_API_KEY'
         ):
-            if _manifest_env_binding_is_configured(env_map, secrets_map, required_env):
-                continue
-            message = (
-                f'required Cloud Run service is missing non-empty {required_env}'
-                if is_required_cloud_run
-                else f'STT_PRERECORDED_MODEL requires non-empty {required_env}'
-            )
-            errors.append(
-                ValidationError(
-                    scope,
-                    message,
-                )
-            )
+            errors.append(ValidationError(scope, 'managed transcription surface is missing non-empty MODULATE_API_KEY'))
     return errors
 
 

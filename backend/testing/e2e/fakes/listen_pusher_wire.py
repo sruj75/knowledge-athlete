@@ -117,13 +117,18 @@ class _LoopbackWebSocketServer:
         raise NotImplementedError
 
 
-class ScriptedParakeetPeer(_LoopbackWebSocketServer):
-    """Minimal /v3/stream peer that emits one deterministic segment per audio send."""
+class ScriptedModulatePeer(_LoopbackWebSocketServer):
+    """Minimal Velma-2 peer that returns one final utterance per audio frame.
+
+    The production client sends raw PCM binary frames and signals teardown with
+    an empty text frame.  The peer deliberately implements only that wire
+    contract, retaining the real client URL construction and socket lifecycle.
+    """
 
     def __init__(
         self,
         *,
-        segment_text: str = 'Parakeet wire-contract transcript.',
+        segment_text: str = 'Modulate wire-contract transcript.',
         close_after_audio: Optional[int] = None,
     ) -> None:
         super().__init__()
@@ -137,7 +142,7 @@ class ScriptedParakeetPeer(_LoopbackWebSocketServer):
 
     @property
     def api_url(self) -> str:
-        return f'http://127.0.0.1:{self.port}'
+        return f'ws://127.0.0.1:{self.port}'
 
     def wait_for_audio(self, count: int, *, timeout: float = 3.0) -> list[bytes]:
         deadline = time.monotonic() + timeout
@@ -145,7 +150,7 @@ class ScriptedParakeetPeer(_LoopbackWebSocketServer):
             while len(self.audio_chunks) < count:
                 remaining = deadline - time.monotonic()
                 if remaining <= 0:
-                    raise TimeoutError(f'expected {count} Parakeet audio chunk(s), saw {len(self.audio_chunks)}')
+                    raise TimeoutError(f'expected {count} Modulate audio chunk(s), saw {len(self.audio_chunks)}')
                 self._condition.wait(remaining)
             return list(self.audio_chunks)
 
@@ -155,7 +160,7 @@ class ScriptedParakeetPeer(_LoopbackWebSocketServer):
             while self.forced_close_count < 1:
                 remaining = deadline - time.monotonic()
                 if remaining <= 0:
-                    raise TimeoutError('Parakeet peer did not close after the scripted audio frame')
+                    raise TimeoutError('Modulate peer did not close after the scripted audio frame')
                 self._condition.wait(remaining)
 
     async def _handle(self, websocket: Any, path: Optional[str] = None) -> None:
@@ -163,54 +168,48 @@ class ScriptedParakeetPeer(_LoopbackWebSocketServer):
             self.connection_count += 1
             self.paths.append(_peer_path(websocket, path))
             self._condition.notify_all()
-        # The production Parakeet service confirms stream admission by sending a
-        # readiness frame before accepting audio. Mirror that contract so the
-        # real ParakeetWebSocketSocket completes its startup handshake.
-        await websocket.send(json.dumps({'type': 'ready'}))
-        segment_index = 0
         async for message in websocket:
             if isinstance(message, bytes):
                 with self._condition:
                     self.audio_chunks.append(message)
                     self._condition.notify_all()
                 if self.close_after_audio is not None and len(self.audio_chunks) >= self.close_after_audio:
-                    await websocket.close(code=1011, reason='scripted Parakeet send failure')
+                    await websocket.close(code=1011, reason='scripted Modulate send failure')
                     with self._condition:
                         self.forced_close_count += 1
                         self._condition.notify_all()
                     break
-                segment_index += 1
                 await websocket.send(
                     json.dumps(
                         {
-                            'id': f'parakeet-wire-{segment_index}',
-                            'text': self.segment_text,
-                            'speaker': 'SPEAKER_00',
-                            'speaker_id': 0,
-                            'is_user': True,
-                            'person_id': None,
-                            'start': float(segment_index - 1) * 0.25,
-                            'end': float(segment_index) * 0.25,
-                            'stt_provider': 'parakeet-wire-peer',
+                            'type': 'utterance',
+                            'utterance': {
+                                'text': self.segment_text,
+                                'start_ms': 0,
+                                'duration_ms': 250,
+                                'speaker': 1,
+                            },
                         },
                         separators=(',', ':'),
                     )
                 )
+            elif message == '':
+                await websocket.send(json.dumps({'type': 'done', 'duration_ms': 250}, separators=(',', ':')))
 
 
-class RejectingParakeetPeer(_LoopbackWebSocketServer):
+class RejectingModulatePeer(_LoopbackWebSocketServer):
     """A deterministic loopback provider that rejects the WebSocket handshake."""
 
     @property
     def api_url(self) -> str:
-        return f'http://127.0.0.1:{self.port}'
+        return f'ws://127.0.0.1:{self.port}'
 
     async def _serve(self) -> None:
         self._loop = asyncio.get_running_loop()
         self._async_stop = asyncio.Event()
 
         async def reject(_path: str, _headers: Any):
-            return HTTPStatus.SERVICE_UNAVAILABLE, [], b'Parakeet test peer unavailable'
+            return HTTPStatus.SERVICE_UNAVAILABLE, [], b'Modulate test peer unavailable'
 
         try:
             server = await websockets.serve(
@@ -238,65 +237,7 @@ class RejectingParakeetPeer(_LoopbackWebSocketServer):
             self._stopped.set()
 
     async def _handle(self, websocket: Any, path: Optional[str] = None) -> None:
-        raise AssertionError('rejected Parakeet peer must never complete a WebSocket session')
-
-
-class ScriptedModulatePeer(_LoopbackWebSocketServer):
-    """Minimal Velma-2 peer that returns one final utterance per audio frame.
-
-    The production client sends raw PCM binary frames and signals teardown with
-    an empty text frame.  The peer deliberately implements only that wire
-    contract, retaining the real client URL construction and socket lifecycle.
-    """
-
-    def __init__(self, *, segment_text: str = 'Modulate wire-contract transcript.') -> None:
-        super().__init__()
-        self.segment_text = segment_text
-        self._condition = threading.Condition()
-        self.paths: list[str] = []
-        self.audio_chunks: list[bytes] = []
-        self.connection_count = 0
-
-    @property
-    def api_url(self) -> str:
-        return f'ws://127.0.0.1:{self.port}'
-
-    def wait_for_audio(self, count: int, *, timeout: float = 3.0) -> list[bytes]:
-        deadline = time.monotonic() + timeout
-        with self._condition:
-            while len(self.audio_chunks) < count:
-                remaining = deadline - time.monotonic()
-                if remaining <= 0:
-                    raise TimeoutError(f'expected {count} Modulate audio chunk(s), saw {len(self.audio_chunks)}')
-                self._condition.wait(remaining)
-            return list(self.audio_chunks)
-
-    async def _handle(self, websocket: Any, path: Optional[str] = None) -> None:
-        with self._condition:
-            self.connection_count += 1
-            self.paths.append(_peer_path(websocket, path))
-            self._condition.notify_all()
-        async for message in websocket:
-            if isinstance(message, bytes):
-                with self._condition:
-                    self.audio_chunks.append(message)
-                    self._condition.notify_all()
-                await websocket.send(
-                    json.dumps(
-                        {
-                            'type': 'utterance',
-                            'utterance': {
-                                'text': self.segment_text,
-                                'start_ms': 0,
-                                'duration_ms': 250,
-                                'speaker': 1,
-                            },
-                        },
-                        separators=(',', ':'),
-                    )
-                )
-            elif message == '':
-                await websocket.send(json.dumps({'type': 'done', 'duration_ms': 250}, separators=(',', ':')))
+        raise AssertionError('rejected Modulate peer must never complete a WebSocket session')
 
 
 class ScriptedPusherPeer(_LoopbackWebSocketServer):
