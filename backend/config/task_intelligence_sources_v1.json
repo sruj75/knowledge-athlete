@@ -57,17 +57,10 @@
         "desktop/macos/Desktop/Sources/MainWindow/Pages/DashboardPage.swift",
         "desktop/macos/Desktop/Sources/MainWindow/Pages/TasksPage.swift",
         "desktop/macos/Desktop/Sources/Onboarding/SecondBrain/SBOnboardingModel.swift",
-        "desktop/macos/Desktop/Sources/FloatingControlBar/NotchMomentsCoordinator.swift",
-        "backend/routers/desktop_core.py"
+        "desktop/macos/Desktop/Sources/FloatingControlBar/NotchMomentsCoordinator.swift"
       ],
       "test_adapter": "direct_command_contract",
-      "writer_anchors": [
-        {
-          "path": "backend/routers/desktop_core.py",
-          "symbol": "action_items_db.create_action_item",
-          "discover": true
-        }
-      ]
+      "writer_anchors": []
     },
     {
       "id": "chat_voice_tools",

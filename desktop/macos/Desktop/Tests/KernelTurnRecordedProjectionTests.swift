@@ -1355,7 +1355,7 @@ import XCTest
       XCTAssertLessThan(admission.lowerBound, preview.lowerBound)
       XCTAssertLessThan(preview.lowerBound, analytics.lowerBound)
       XCTAssertEqual(provider.components(separatedBy: "APIClient.shared.getMessages(").count - 1, 2)
-      XCTAssertEqual(provider.components(separatedBy: "expectedOwnerId: ownerId").count - 1, 3)
+      XCTAssertEqual(provider.components(separatedBy: "expectedOwnerId: ownerId").count - 1, 4)
       XCTAssertFalse(taskState.contains("persistMessage("))
       XCTAssertFalse(taskStorage.contains("PersistableRecord"))
       XCTAssertFalse(taskStorage.contains("func insert("))
