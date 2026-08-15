@@ -25,6 +25,9 @@ from contextlib import ExitStack, nullcontext
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
+from uuid import UUID
+
+from langsmith import tracing_context
 
 # Hermetic config so importing the chat modules (which construct Typesense / OpenAI clients
 # and require the encryption key) succeeds without network. Matches conftest defaults.
@@ -48,7 +51,7 @@ from models.users import (  # noqa: E402
 )
 
 
-async def _collect_agentic_chunks(producer, callback_data=None):
+async def _collect_agentic_chunks(producer, callback_data=None, *, langsmith_extra=None):
     """Drive the real public stream with deterministic setup dependencies."""
     if callback_data is None:
         callback_data = {}
@@ -63,10 +66,11 @@ async def _collect_agentic_chunks(producer, callback_data=None):
         stack.enter_context(patch.object(agentic, '_messages_to_anthropic', lambda _messages: []))
         stack.enter_context(patch.object(agentic, '_inject_current_datetime', lambda messages, _block: messages))
         stack.enter_context(patch.object(agentic, '_run_anthropic_agent_stream', producer))
+        trace_kwargs = {"langsmith_extra": langsmith_extra} if langsmith_extra is not None else {}
         return [
             chunk
             async for chunk in agentic.execute_agentic_chat_stream(
-                'uid1', [], app=None, callback_data=callback_data, chat_session=None
+                'uid1', [], app=None, callback_data=callback_data, chat_session=None, **trace_kwargs
             )
         ]
 
@@ -401,6 +405,51 @@ async def test_agentic_setup_reads_run_off_loop():
     for name in ('tz', 'prompt', 'app_tools'):
         assert name in threads, f"{name} setup helper was not called"
         assert threads[name] is not loop_thread, f"{name} setup read must run off the event-loop thread"
+
+
+async def test_public_agentic_stream_persists_the_decorated_langsmith_run_id():
+    """The public async-generator boundary stores the exact provider trace identity."""
+
+    expected_run_id = UUID('12345678-1234-5678-1234-567812345678')
+
+    class RecordingTraceClient:
+        otel_exporter = None
+
+        def __init__(self):
+            self.created = []
+            self.updated = []
+
+        def create_run(self, **kwargs):
+            self.created.append(kwargs)
+
+        def update_run(self, **kwargs):
+            self.updated.append(kwargs)
+
+    async def complete_without_tokens(
+        system_prompt,
+        anthropic_messages,
+        tool_schemas,
+        tool_registry,
+        callback,
+        full_response,
+        safety_guard,
+        configurable,
+    ):
+        await callback.queue.put(None)
+
+    callback_data = {}
+    client = RecordingTraceClient()
+    with tracing_context(enabled=True, client=client, project_name='s09-hermetic'):
+        chunks = await _collect_agentic_chunks(
+            complete_without_tokens,
+            callback_data,
+            langsmith_extra={'run_id': expected_run_id},
+        )
+
+    assert chunks == [None]
+    assert callback_data['langsmith_run_id'] == str(expected_run_id)
+    assert [entry['id'] for entry in client.created] == [expected_run_id]
+    assert [entry['run_id'] for entry in client.updated] == [expected_run_id]
 
 
 async def test_callback_preserves_langchain_persona_stream_contract():
