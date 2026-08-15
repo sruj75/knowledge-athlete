@@ -31,6 +31,18 @@ def test_promotion_admission_receipt_normalizes_identity_inputs_and_is_stable():
     assert first.evidence_ids == ["evidence-1", "evidence-2"]
     assert first.supersedes == ["old-1", "old-2"]
     assert first.receipt_id == second.receipt_id
+    assert set(first.model_dump()) == {
+        "receipt_version",
+        "receipt_id",
+        "planner_id",
+        "planner_version",
+        "decision",
+        "memory_id",
+        "source_item_revision",
+        "output_content_hash",
+        "evidence_ids",
+        "supersedes",
+    }
 
 
 @pytest.mark.parametrize(

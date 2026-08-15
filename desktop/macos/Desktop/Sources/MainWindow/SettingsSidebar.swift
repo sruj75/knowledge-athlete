@@ -232,12 +232,6 @@ struct SettingsSearchItem: Identifiable {
       keywords: ["workspace", "project", "directory", "folder", "working directory"],
       section: .advanced, icon: "cpu", settingId: "aichat.workspace"),
     SettingsSearchItem(
-      name: "Browser Extension",
-      subtitle: "Lets the AI use your Chrome browser with all your logged-in sessions",
-      keywords: [
-        "playwright", "chrome", "browser extension", "browser", "set up", "reconfigure", "token",
-      ], section: .advanced, icon: "cpu", settingId: "aichat.browserextension"),
-    SettingsSearchItem(
       name: "Dev Mode", subtitle: "Developer tools and debugging options",
       keywords: ["developer", "debug", "dev mode", "development"], section: .advanced, icon: "cpu",
       settingId: "aichat.devmode"),
@@ -311,11 +305,6 @@ struct SettingsSearchItem: Identifiable {
       name: "Report Issue", subtitle: "Send app logs and report a problem",
       keywords: ["bug", "feedback", "logs", "report"], section: .advanced,
       icon: "wrench.and.screwdriver", settingId: "advanced.troubleshooting.reportissue"),
-    SettingsSearchItem(
-      name: "Rescan Files", subtitle: "Re-index your files and update your AI profile",
-      keywords: ["profile"],
-      section: .advanced, icon: "wrench.and.screwdriver",
-      settingId: "advanced.troubleshooting.rescanfiles"),
   ]
 }
 

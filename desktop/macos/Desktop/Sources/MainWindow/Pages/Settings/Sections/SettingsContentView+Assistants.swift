@@ -1160,7 +1160,4 @@ extension SettingsContentView {
       }
     }
   }
-
-  // MARK: - Gmail Reader Subsection
-
 }

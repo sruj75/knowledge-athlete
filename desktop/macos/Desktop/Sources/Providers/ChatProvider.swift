@@ -995,6 +995,21 @@ enum ChatSystemPromptStyle {
   case floating
 }
 
+/// Complete local-agent request assembled by the one-assistant chat path.
+/// Keeping attachment identity inside this value prevents the UI state and
+/// agent transport calls from drifting into separate request shapes.
+struct ChatProviderAgentQueryInvocation {
+  let prompt: String
+  let session: AgentSurfaceSession
+  let surface: AgentSurfaceReference
+  let mode: String?
+  let imageData: Data?
+  let attachments: [AgentQueryAttachment]
+  let producingTurnId: String?
+  let expectedContext: AgentContextFreshness?
+  let reasoningEffort: String?
+}
+
 /// State management for chat functionality with Claude Agent SDK
 /// Uses hybrid architecture: Swift → Claude Agent (via Node.js bridge) for AI, Backend for persistence + context
 @MainActor
@@ -1159,7 +1174,27 @@ class ChatProvider: ObservableObject {
   // NOTE: initialized lazily so it reads the persisted bridgeMode from UserDefaults,
   // not always defaulting to Omi mode on cold start.
   private var agentClient: AgentClient.Session?
+
+  #if DEBUG
+    var createChatSessionForTests: ((String?) async throws -> ChatSession)?
+    var runtimeOwnerIdForTests: (() -> String?)?
+    var ensureBridgeStartedForTests: ((Int?) async -> Bool)?
+    var resolveKernelQuerySessionForTests: ((AgentSurfaceReference, String?) async throws -> AgentSurfaceSession)?
+    var prepareKernelQueryContextForTests:
+      ((AgentSurfaceReference, AgentSurfaceSession?) async throws -> (AgentSurfaceSession, AgentContextSnapshot))?
+    var warmupKernelQuerySessionForTests: ((AgentSurfaceSession) async -> Void)?
+    var refreshMemoriesForPromptForTests: (() async -> Void)?
+    var recordStreamingJournalExchangeForTests: ((ChatMessage, ChatMessage) -> [ChatMessage]?)?
+    var initialMessageForTests: ((String, String) async throws -> InitialMessageResponse)?
+    var importInitialGreetingForTests: ((AgentSurfaceReference, KernelJournalRemoteTurn, String) async -> Bool)?
+    var refreshInitialGreetingForTests: ((AgentSurfaceReference) async -> Void)?
+    var agentClientForTests: AgentClient.Session?
+  #endif
+
   private func resolvedAgentClient() -> AgentClient.Session {
+    #if DEBUG
+      if let agentClientForTests { return agentClientForTests }
+    #endif
     if let agentClient { return agentClient }
     let harness = resolvedHarnessMode()
     activeBridgeHarness = harness
@@ -1543,6 +1578,11 @@ class ChatProvider: ObservableObject {
   private func ensureBridgeStarted(
     authoritativeGeneration: Int? = nil
   ) async -> Bool {
+    #if DEBUG
+      if let ensureBridgeStartedForTests {
+        return await ensureBridgeStartedForTests(authoritativeGeneration)
+      }
+    #endif
     guard let authorization = RuntimeOwnerIdentity.captureAuthorizationSnapshot() else {
       await presentBridgeStartupFailure(
         BridgeError.authMissing, authoritativeGeneration: authoritativeGeneration)
@@ -1661,7 +1701,12 @@ class ChatProvider: ObservableObject {
   }
 
   private var runtimeOwnerId: String? {
-    RuntimeOwnerIdentity.currentOwnerId()
+    #if DEBUG
+      if let runtimeOwnerIdForTests {
+        return runtimeOwnerIdForTests()
+      }
+    #endif
+    return RuntimeOwnerIdentity.currentOwnerId()
   }
 
   func mainChatRuntimeChatId(sessionId: String?) -> String {
@@ -1704,6 +1749,11 @@ class ChatProvider: ObservableObject {
     surface: AgentSurfaceReference,
     requestedModelProfile: String?
   ) async throws -> AgentSurfaceSession {
+    #if DEBUG
+      if let resolveKernelQuerySessionForTests {
+        return try await resolveKernelQuerySessionForTests(surface, requestedModelProfile)
+      }
+    #endif
     let requestedHarness = bridgeHarnessOverride?.rawValue ?? activeBridgeHarness
     guard let requestedAdapter = AgentRuntimeProcess.adapterId(forHarnessMode: requestedHarness) else {
       throw BridgeError.agentError("Unknown AI runtime mode: \(requestedHarness)")
@@ -1731,6 +1781,12 @@ class ChatProvider: ObservableObject {
     requestedModelProfile: String? = nil,
     pinnedSession: AgentSurfaceSession? = nil
   ) async throws -> KernelQueryContext {
+    #if DEBUG
+      if let prepareKernelQueryContextForTests {
+        let context = try await prepareKernelQueryContextForTests(surface, pinnedSession)
+        return KernelQueryContext(session: context.0, snapshot: context.1)
+      }
+    #endif
     let client = resolvedAgentClient()
     let session: AgentSurfaceSession
     if let pinnedSession {
@@ -1874,6 +1930,44 @@ class ChatProvider: ObservableObject {
           ?? attachment.serverId.map { "omi-file:\($0)" }
       )
     }
+  }
+
+  private func warmupKernelQuerySession(_ session: AgentSurfaceSession) async {
+    #if DEBUG
+      if let warmupKernelQuerySessionForTests {
+        await warmupKernelQuerySessionForTests(session)
+        return
+      }
+    #endif
+    await resolvedAgentClient().warmupSession(session)
+  }
+
+  private func performAgentQuery(
+    _ invocation: ChatProviderAgentQueryInvocation,
+    onTextDelta: @escaping AgentClient.TextDeltaHandler,
+    onToolActivity: @escaping AgentClient.ToolActivityHandler,
+    onThinkingDelta: @escaping AgentClient.ThinkingDeltaHandler,
+    onToolResultDisplay: @escaping AgentClient.ToolResultDisplayHandler,
+    onAuthRequired: @escaping AgentClient.AuthRequiredHandler,
+    onAuthSuccess: @escaping AgentClient.AuthSuccessHandler
+  ) async throws -> AgentClient.QueryResult {
+    return try await resolvedAgentClient().query(
+      prompt: invocation.prompt,
+      session: invocation.session,
+      surface: invocation.surface,
+      mode: invocation.mode,
+      imageData: invocation.imageData,
+      attachments: invocation.attachments,
+      producingTurnId: invocation.producingTurnId,
+      expectedContext: invocation.expectedContext,
+      reasoningEffort: invocation.reasoningEffort,
+      onTextDelta: onTextDelta,
+      onToolActivity: onToolActivity,
+      onThinkingDelta: onThinkingDelta,
+      onToolResultDisplay: onToolResultDisplay,
+      onAuthRequired: onAuthRequired,
+      onAuthSuccess: onAuthSuccess
+    )
   }
 
   /// Switch between bridge modes (Omi AI via piMono, or user's Claude OAuth)
@@ -2147,7 +2241,16 @@ class ChatProvider: ObservableObject {
     authoritativeSendGeneration: Int? = nil
   ) async -> ChatSession? {
     do {
-      let session = try await APIClient.shared.createChatSession(title: title)
+      let session: ChatSession
+      #if DEBUG
+        if let createChatSessionForTests {
+          session = try await createChatSessionForTests(title)
+        } else {
+          session = try await APIClient.shared.createChatSession(title: title)
+        }
+      #else
+        session = try await APIClient.shared.createChatSession(title: title)
+      #endif
       guard authoritativeSendGeneration.map({ sendGeneration == $0 }) ?? true else { return nil }
       sessions.insert(session, at: 0)
       currentSession = session
@@ -2183,34 +2286,68 @@ class ChatProvider: ObservableObject {
         log("ChatProvider: initial greeting skipped because owner is unavailable")
         return
       }
-      let response = try await APIClient.shared.getInitialMessage(
-        sessionId: session.id,
-        expectedOwnerId: ownerId
-      )
+      let response: InitialMessageResponse
+      #if DEBUG
+        if let initialMessageForTests {
+          response = try await initialMessageForTests(session.id, ownerId)
+        } else {
+          response = try await APIClient.shared.getInitialMessage(
+            sessionId: session.id,
+            expectedOwnerId: ownerId
+          )
+        }
+      #else
+        response = try await APIClient.shared.getInitialMessage(
+          sessionId: session.id,
+          expectedOwnerId: ownerId
+        )
+      #endif
       guard authoritativeSendGeneration.map({ sendGeneration == $0 }) ?? true else { return }
 
       let surface = AgentSurfaceReference.mainChat(
         chatId: mainChatRuntimeChatId(sessionId: session.id)
       )
-      let accepted = await kernelTurnProjection.importRemoteTurn(
-        surface: surface,
-        turn: KernelJournalRemoteTurn(
-          remoteId: response.messageId,
-          canonicalTurnId: response.messageId,
-          role: "assistant",
-          content: response.message,
-          contentBlocksJSON: "[]",
-          resourcesJSON: "[]",
-          metadataJSON: "{}",
-          createdAtMs: Int(Date().timeIntervalSince1970 * 1_000)
-        ),
-        ownerID: ownerId
+      let remoteTurn = KernelJournalRemoteTurn(
+        remoteId: response.messageId,
+        canonicalTurnId: response.messageId,
+        role: "assistant",
+        content: response.message,
+        contentBlocksJSON: "[]",
+        resourcesJSON: "[]",
+        metadataJSON: "{}",
+        createdAtMs: Int(Date().timeIntervalSince1970 * 1_000)
       )
+      let accepted: Bool
+      #if DEBUG
+        if let importInitialGreetingForTests {
+          accepted = await importInitialGreetingForTests(surface, remoteTurn, ownerId)
+        } else {
+          accepted = await kernelTurnProjection.importRemoteTurn(
+            surface: surface,
+            turn: remoteTurn,
+            ownerID: ownerId
+          )
+        }
+      #else
+        accepted = await kernelTurnProjection.importRemoteTurn(
+          surface: surface,
+          turn: remoteTurn,
+          ownerID: ownerId
+        )
+      #endif
       guard accepted else {
         log("ChatProvider: initial greeting journal admission failed")
         return
       }
-      await kernelTurnProjection.refresh(surface: surface)
+      #if DEBUG
+        if let refreshInitialGreetingForTests {
+          await refreshInitialGreetingForTests(surface)
+        } else {
+          await kernelTurnProjection.refresh(surface: surface)
+        }
+      #else
+        await kernelTurnProjection.refresh(surface: surface)
+      #endif
 
       // Preview is also downstream of canonical journal acceptance.
       if let index = sessions.firstIndex(where: { $0.id == session.id }) {
@@ -2349,6 +2486,12 @@ class ChatProvider: ObservableObject {
 
   /// Loads user memories from local SQLite for use in prompts (refreshed each turn).
   private func refreshMemoriesForPrompt() async {
+    #if DEBUG
+      if let refreshMemoriesForPromptForTests {
+        await refreshMemoriesForPromptForTests()
+        return
+      }
+    #endif
     do {
       cachedMemories = try await MemoryStorage.shared.getLocalMemories(limit: 50)
       memoriesLoaded = true
@@ -3167,7 +3310,15 @@ class ChatProvider: ObservableObject {
     sessionId: String?,
     messageSource: String
   ) async -> Bool {
-    await admitStreamingJournalExchange(
+    #if DEBUG
+      if let recordStreamingJournalExchangeForTests {
+        guard let projected = recordStreamingJournalExchangeForTests(userMessage, assistantMessage)
+        else { return false }
+        messages = projected
+        return true
+      }
+    #endif
+    return await admitStreamingJournalExchange(
       userMessage: userMessage,
       assistantMessage: assistantMessage
     ) { [weak self] turns in
@@ -3244,7 +3395,7 @@ class ChatProvider: ObservableObject {
 
   /// PTT is a realtime projection of the selected main chat, never a second
   /// chat. Retain the exact external reference so the runtime resolves the
-  /// canonical main-chat conversation for non-default chats and app scopes.
+  /// canonical main-chat conversation for non-default chats.
   func realtimeVoiceSurfaceReference() -> AgentSurfaceReference {
     mainChatSurfaceReference().realtimeVoiceCompanion()
   }
@@ -3947,7 +4098,13 @@ class ChatProvider: ObservableObject {
       sessionId: capturedSessionId,
       messageSource: journalOrigin
     )
-    if recordedExchange {
+    let shouldRegisterJournalTerminalTarget: Bool
+    #if DEBUG
+      shouldRegisterJournalTerminalTarget = recordStreamingJournalExchangeForTests == nil
+    #else
+      shouldRegisterJournalTerminalTarget = true
+    #endif
+    if recordedExchange, shouldRegisterJournalTerminalTarget {
       journalOwnerByMessageID[aiMessageId] = capturedRuntimeOwnerID
       journalTerminalTargets.register(
         ChatJournalTerminalTarget(
@@ -4095,7 +4252,7 @@ class ChatProvider: ObservableObject {
         requestedModelProfile: model,
         pinnedSession: pinnedSession
       )
-      await resolvedAgentClient().warmupSession(kernelContext.session)
+      await warmupKernelQuerySession(kernelContext.session)
       let effectiveRequestModel = kernelContext.session.profile.modelProfile
 
       // Callbacks for agent bridge
@@ -4333,7 +4490,7 @@ class ChatProvider: ObservableObject {
       agentQueryStarted = true
       let queryResult: AgentClient.QueryResult
       do {
-        queryResult = try await resolvedAgentClient().query(
+        let invocation = ChatProviderAgentQueryInvocation(
           prompt: trimmedText,
           session: kernelContext.session,
           surface: resolvedSurface,
@@ -4342,7 +4499,10 @@ class ChatProvider: ObservableObject {
           attachments: Self.queryAttachments(attachmentsForMessage),
           producingTurnId: aiMessageId,
           expectedContext: kernelContext.snapshot.freshness,
-          reasoningEffort: turnOwner.reasoningEffort,
+          reasoningEffort: turnOwner.reasoningEffort
+        )
+        queryResult = try await performAgentQuery(
+          invocation,
           onTextDelta: textDeltaHandler,
           onToolActivity: toolActivityHandler,
           onThinkingDelta: thinkingDeltaHandler,

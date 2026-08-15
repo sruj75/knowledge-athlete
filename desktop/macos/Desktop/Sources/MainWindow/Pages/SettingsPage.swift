@@ -116,7 +116,7 @@ struct SettingsContentView: View {
   // AppState for transcription control
   @ObservedObject var appState: AppState
 
-  // ChatProvider for browser extension setup
+  // ChatProvider for retained AI-chat settings
   var chatProvider: ChatProvider? = nil
   @StateObject var viewModel = SettingsViewModel()
 

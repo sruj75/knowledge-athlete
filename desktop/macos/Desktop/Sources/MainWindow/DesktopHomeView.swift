@@ -1255,7 +1255,7 @@ private struct PageContentView: View {
   @Binding var highlightedSettingId: String?
   @Binding var selectedTabIndex: Int
 
-  /// The list/detail pages (Conversations, Memories, Tasks, Apps) render their
+  /// The list/detail pages (Conversations, Memories, Tasks) render their
   /// content in a centered, width-capped column so wide monitors get calm
   /// gutters instead of a full-bleed stretch — matching the Focus/Insights
   /// pages, which already self-constrain. Pages paint a clear background, so the

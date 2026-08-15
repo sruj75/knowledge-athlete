@@ -454,7 +454,7 @@ Settings (SettingsPage.swift) — use `click` for section rows
 ├── Notifications & Privacy — notification frequency/types, daily summary
 ├── Rewind — storage info, excluded apps list
 ├── Shortcuts — Open Omi shortcut, Push to Talk key, PTT microphone, locked mode, PTT sounds
-├── Advanced — AI Setup (Voice Model, AI Provider), Workspace, Browser Extension, Dev Mode
+├── Advanced — AI Setup (AI Provider), Workspace, Dev Mode
 └── About — version info, links, software updates, update channel
 
 Rewind overlay (View menu → Rewind or ⌘⌥R)

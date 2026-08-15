@@ -6,7 +6,11 @@ cannot survive as mounted compatibility handlers while retained product routes
 remain registered.
 """
 
+from contextlib import nullcontext
+from types import SimpleNamespace
+
 import main
+from utils.llm import chat as llm_chat
 
 
 _RETIRED_ROUTES = (
@@ -50,3 +54,24 @@ def test_neighboring_retained_product_routes_remain_registered() -> None:
         ("GET", "/v1/auth/authorize"),
     ):
         assert route_key in route_keys, f"retained route {route_key} was unmounted"
+
+
+def test_initial_chat_message_uses_only_retained_personal_context(monkeypatch) -> None:
+    captured: dict[str, str] = {}
+
+    class GreetingModel:
+        def invoke(self, prompt: str) -> SimpleNamespace:
+            captured['prompt'] = prompt
+            return SimpleNamespace(content='Welcome back, Srujan.')
+
+    monkeypatch.setattr(llm_chat, 'get_prompt_memories', lambda uid: ('Srujan', 'Prefers concise answers.'))
+    monkeypatch.setattr(llm_chat, 'get_llm', lambda profile: GreetingModel())
+    monkeypatch.setattr(llm_chat, 'track_usage', lambda uid, feature: nullcontext())
+
+    result = llm_chat.initial_chat_message('user-1')
+
+    assert result == 'Welcome back, Srujan.'
+    assert "make Srujan's life better" in captured['prompt']
+    assert 'Prefers concise answers.' in captured['prompt']
+    for retired_identity in ('app_id', 'persona_id', 'marketplace'):
+        assert retired_identity not in captured['prompt'].lower()

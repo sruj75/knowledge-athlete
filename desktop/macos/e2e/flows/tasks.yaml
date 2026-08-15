@@ -6,12 +6,12 @@ app: com.omi.computer-macos
 covers:
   - desktop/macos/Desktop/Sources/MainWindow/Pages/TasksPage.swift
   - desktop/macos/Desktop/Sources/MainWindow/Components/TaskChatPanel.swift
-  - desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/Goals/GoalPrompts.swift
-  - desktop/macos/Desktop/Sources/Services/APIClient/APIClient+TaskCatalog.swift
   - desktop/macos/Desktop/Sources/MainWindow/Tasks/SuggestedTasksSection.swift
+  - desktop/macos/Desktop/Sources/MainWindow/Tasks/SuggestedTasksStore.swift
   - desktop/macos/Desktop/Sources/Stores/TasksStore.swift
 preconditions:
   - auth_ready
+  - suggested_task_candidate_ready
 
 steps:
   - id: S1
@@ -44,5 +44,18 @@ steps:
   - id: S5
     name: Verify search and filter controls
     do: "Verify the search bar is present at the top. Check for filter/settings icons next to the search bar and the add (+) button."
+    expect:
+      interactive_count: { min: 2 }
+
+  - id: S6
+    name: Verify retained Omi suggestion provenance
+    do: "Find the seeded pending suggestion in the Suggested section. Verify its provenance reads 'Suggested by Omi', then leave it pending so this read-only flow does not mutate the task list."
+    expect:
+      text_visible:
+        - Suggested by Omi
+
+  - id: S7
+    name: Open the retained task chat panel
+    do: "Select a task row, then click the control whose help text is 'Open task chat'. Verify the right-side task chat panel appears with its close control and message composer; close it before leaving the page."
     expect:
       interactive_count: { min: 2 }

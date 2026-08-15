@@ -44,7 +44,6 @@ The pusher entrypoint (for inline scenarios) and the Cloud Tasks entrypoint
 
 - conversation LLM processing;
 - memory extraction;
-- external-integration delivery.
 - private-cloud audio storage (the queue and 101/103 frame handling remain real).
 
 The real finalizer still persists through the lifecycle owner and claims and
@@ -57,10 +56,9 @@ dispatch deadline. The harness replaces only OIDC signature verification with
 a local bearer token, while the production FastAPI dependency and retry-count
 header remain in the request path.
 
-It does not prove LLM/vector output quality, GCS delivery, downstream
-integration delivery, Cloud Tasks IAM provisioning, or Google OIDC signature
-verification. Trace files record durable IDs, frame metadata, and byte counts,
-never audio or transcript text.
+It does not prove LLM/vector output quality, GCS delivery, Cloud Tasks IAM
+provisioning, or Google OIDC signature verification. Trace files record durable
+IDs, frame metadata, and byte counts, never audio or transcript text.
 
 Scenarios:
 
@@ -84,8 +82,9 @@ Scenarios:
 8. a worker exhausting its two-attempt test budget atomically dead-letters the
    job with `terminal_outcome=failure` and marks the still-current conversation
    `failed`/`discarded`, while a later duplicate delivery is fenced;
-9. an integration failure after processing retries only durable fanout, never
-   re-runs completed conversation processing.
+9. a controlled conversation-processing failure leaves the same durable job
+   queued; the next delivery completes processing exactly once without creating
+   a second task;
 10. in `RECORDING_SESSION_MODE=enforce`, one operation-scoped `completed`
     envelope write fails before Firestore, emits no matching client event, and
     leaves the durable phase/sequence at `processing`/`1`; a fault-free

@@ -36,7 +36,6 @@ enum DesktopFallbackOutcome: String {
 enum DesktopStateAuthoritySeam: String {
   case chatTranscriptProjection = "chat_transcript_projection"
   case onboardingSetupState = "onboarding_setup_state"
-  case connectorStatus = "connector_status"
 }
 
 /// The immediate customer-turn/recovery decision made after a realtime transport
@@ -652,21 +651,17 @@ final class DesktopDiagnosticsManager {
   }
 
   /// Detects silent ownership disagreement without changing which state wins.
-  /// `subject` must be a closed product enum (for example a connector kind), not
-  /// a user, message, turn, file, or session identifier.
   @discardableResult
   func recordStateAuthoritySignal(
     seam: DesktopStateAuthoritySeam,
     from: String,
     to: String,
-    direction: String,
-    subject: String? = nil
+    direction: String
   ) -> Bool {
     let safeFrom = safeFallbackLabel(from, default: "none")
     let safeTo = safeFallbackLabel(to, default: "none")
     let safeDirection = safeFallbackLabel(direction, default: "other")
-    let safeSubject = subject.map { safeFallbackLabel($0, default: "other") }
-    let dedupeKey = [seam.rawValue, safeFrom, safeTo, safeDirection, safeSubject ?? "none"]
+    let dedupeKey = [seam.rawValue, safeFrom, safeTo, safeDirection]
       .joined(separator: "|")
 
     lock.lock()
@@ -674,20 +669,17 @@ final class DesktopDiagnosticsManager {
     lock.unlock()
     guard inserted else { return false }
 
-    var extra: [String: Any] = [
+    let extra: [String: Any] = [
       "seam": seam.rawValue,
       "direction": safeDirection,
       "signal_scope": "process",
       "failure_class": "FC-split-mutation-authority",
     ]
-    if let safeSubject {
-      extra["subject"] = safeSubject
-    }
     recordFallback(
       area: "state_authority",
       from: from,
       to: to,
-      reason: seam == .connectorStatus ? "status_inferred" : "state_divergence",
+      reason: "state_divergence",
       outcome: .degraded,
       extra: extra)
     return true

@@ -159,7 +159,7 @@ struct OMIApp: App {
         }
       }
 
-      // Sidebar navigation shortcuts: Cmd+1..6 for main pages, Cmd+, for Settings
+      // Sidebar navigation shortcuts: Cmd+1..5 for main pages, Cmd+, for Settings
       CommandGroup(after: .sidebar) {
         Button("Home") {
           NotificationCenter.default.post(

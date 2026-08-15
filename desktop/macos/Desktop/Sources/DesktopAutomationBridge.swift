@@ -122,7 +122,7 @@ struct DesktopAutomationSnapshot: Codable, Sendable {
   var selectedSettingsSection: String?
   var highlightedSettingId: String?
   var usesLegacyHomeDesign: Bool
-  /// Redesigned Home stage mode: `hub`, `chat`, or `connect`. Nil when legacy home or not on Dashboard.
+  /// Redesigned Home stage mode: `hub` or `chat`. Nil when legacy home or not on Dashboard.
   var homeMode: String?
   var showsPrimarySidebar: Bool
   var isSidebarCollapsed: Bool
@@ -2823,7 +2823,7 @@ final class DesktopAutomationActionRegistry {
     registerRewindArtifactRecoveryGauntlet()
     register(
       name: "navigate_via_shortcut",
-      summary: "Post the same sidebar navigation notification as Cmd+1..6 / Cmd+, shortcuts",
+      summary: "Post the same sidebar navigation notification as Cmd+1..5 / Cmd+, shortcuts",
       params: ["shortcut"]
     ) { params in
       let shortcut = (params["shortcut"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)

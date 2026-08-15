@@ -72,9 +72,9 @@ from utils.llm.memories import (
 from utils.conversations.memory_extraction_telemetry import (
     PATH_CANONICAL,
     PATH_LEGACY,
+    SOURCE_TRANSCRIPTION,
     ConversationMemoryExtractionResult,
     emit_conversation_memories_extracted,
-    source_for_conversation,
 )
 from utils.llm.temporal import date_in_tz
 from utils.llm.goals import extract_and_update_goal_progress
@@ -345,16 +345,15 @@ def extract_memories(uid: str, conversation: Conversation) -> None:
     Finalization workers use this public boundary while holding their durable
     lease. Keep the private helper below for existing in-module async callers.
     """
-    source = source_for_conversation(conversation)
     parity_capture = SurfaceParityCapture.from_environ(
         principal_id=uid,
         session_id=conversation.id,
         surface="conversation_finalization",
-        source=f"conversation_{source}",
+        source=f"conversation_{SOURCE_TRANSCRIPTION}",
         provider_lane="memory",
         route_or_model="memory-extraction",
         request={
-            "conversation_source": str(source),
+            "conversation_source": SOURCE_TRANSCRIPTION,
             "segment_count": len(getattr(conversation, "transcript_segments", None) or []),
             "locked": bool(getattr(conversation, "is_locked", False)),
         },
@@ -662,7 +661,6 @@ def _extract_memories_canonical(
     uid: str, conversation: Conversation, *, db_client: Any, parity_capture: SurfaceParityCapture | None = None
 ) -> ConversationMemoryExtractionResult:
     """Canonical-cohort extraction with one atomic source replacement."""
-    source = source_for_conversation(conversation)
     memory_service = MemoryService(db_client=db_client)
 
     language = users_db.get_user_language_preference(uid)
@@ -784,7 +782,7 @@ def _extract_memories_canonical(
     )
     if len(parsed_memories) == 0:
         logger.info(f"No canonical memories extracted for conversation {conversation.id}")
-        return ConversationMemoryExtractionResult(count=0, source=source, path=PATH_CANONICAL)
+        return ConversationMemoryExtractionResult(count=0, path=PATH_CANONICAL)
 
     logger.info(f"Saving {len(parsed_memories)} canonical memories for conversation {conversation.id}")
     if parity_capture is not None:
@@ -835,7 +833,7 @@ def _extract_memories_canonical(
             )
 
     record_usage(uid, memories_created=len(parsed_memories))
-    return ConversationMemoryExtractionResult(count=len(parsed_memories), source=source, path=PATH_CANONICAL)
+    return ConversationMemoryExtractionResult(count=len(parsed_memories), path=PATH_CANONICAL)
 
 
 def _extract_memories_inner(
@@ -857,7 +855,6 @@ def _extract_memories_inner(
 def _extract_memories_legacy(
     uid: str, conversation: Conversation, *, parity_capture: SurfaceParityCapture | None = None
 ) -> ConversationMemoryExtractionResult:
-    source = source_for_conversation(conversation)
     language = users_db.get_user_language_preference(uid)
     new_memories: List[Memory] = []
 
@@ -967,7 +964,7 @@ def _extract_memories_legacy(
 
     if len(parsed_memories) == 0:
         logger.info(f"No memories extracted for conversation {conversation.id}")
-        return ConversationMemoryExtractionResult(count=0, source=source, path=PATH_LEGACY)
+        return ConversationMemoryExtractionResult(count=0, path=PATH_LEGACY)
 
     # Replace conversation-scoped memories only after extraction succeeds.
     deletion_result = memories_db.delete_memories_for_conversation(uid, conversation.id)
@@ -1003,7 +1000,7 @@ def _extract_memories_legacy(
 
     if len(parsed_memories) > 0:
         record_usage(uid, memories_created=len(parsed_memories))
-    return ConversationMemoryExtractionResult(count=len(parsed_memories), source=source, path=PATH_LEGACY)
+    return ConversationMemoryExtractionResult(count=len(parsed_memories), path=PATH_LEGACY)
 
 
 def _transcript_artifact_ref(conversation: Conversation) -> Dict[str, Any]:

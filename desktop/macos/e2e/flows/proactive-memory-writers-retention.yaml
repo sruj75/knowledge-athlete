@@ -1,0 +1,46 @@
+version: 2
+name: proactive-memory-writers-retention
+tier: manual
+description: Live P2 — drive retained Focus, Insight, and Memory assistants through memory persistence without removed visibility state
+app: non-prod
+covers:
+  - desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/Focus/FocusAssistant.swift
+  - desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/Insight/InsightAssistant.swift
+  - desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/MemoryExtraction/MemoryAssistantTelemetry.swift
+preconditions:
+  - auth_ready
+  - screen_recording_ready
+  - named_bundle_with_disposable_profile
+  - proactive_provider_fixture_ready
+  - backend_request_capture_ready
+
+steps:
+  - id: S1
+    name: Prepare deterministic retained assistant inputs
+    do: "Enable Focus, Insight, and Memory assistants in the disposable named-bundle profile, select their shortest test intervals, disable notifications, and remove the three fixture apps from exclusion lists. Configure the external provider fixture to return one high-confidence focus event, one insight, and one new memory for three distinct seeded app contexts. Configure the hermetic backend boundary to capture memory-create requests and return valid retained memory responses."
+    expect:
+      interactive_count: { min: 1 }
+
+  - id: S2
+    name: Drive the production capture path
+    do: "Present the three seeded app contexts in order and let the named bundle capture them through the normal ScreenCaptureService and ProactiveAssistantsPlugin path. Include the context switch required by Focus and wait only for the configured bounded assistant intervals."
+    expect:
+      interactive_count: { min: 1 }
+
+  - id: S3
+    name: Verify all retained assistant receipts
+    do: "Inspect the named-bundle log. Verify Focus reports a saved/synced memory, Insight reports a saved/synced memory, and Memory reports a successful durability terminal for the expected fixture contents. Verify there is no connector, persona, public-share, marketplace, or broad-file-scan fallback."
+    expect:
+      interactive_count: { min: 1 }
+
+  - id: S4
+    name: Verify the retained memory wire contract
+    do: "Inspect the three captured memory-create requests. Verify the Focus request carries system/focus fields, the Insight request carries interesting/screenshot fields, and the Memory request carries its extracted category/context fields. Verify the visibility field is absent from every request."
+    expect:
+      interactive_count: { min: 1 }
+
+  - id: S5
+    name: Verify persisted memories remain usable
+    do: "Open Memory > Memories and confirm all three retained assistant results are readable in the disposable profile."
+    expect:
+      interactive_count: { min: 1 }

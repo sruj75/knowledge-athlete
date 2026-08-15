@@ -374,8 +374,8 @@ private actor PermissionCallbackBox<Value: Sendable> {
       "the narrow signed-out permission path must close as soon as an owner signs in")
   }
 
-  func testPermissionAndConnectorEffectsAreNotInvokedAfterOwnerSwap() async {
-    for effectName in ["permission", "connector_form"] {
+  func testRetainedPhysicalEffectsAreNotInvokedAfterOwnerSwap() async {
+    for effectName in ["permission", "task_update"] {
       var currentOwner = "owner-a"
       var invoked = false
       let result = await ChatToolExecutor.performOwnerBoundAsyncPhysicalEffect(

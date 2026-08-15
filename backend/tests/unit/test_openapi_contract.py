@@ -24,13 +24,17 @@ def _make_app() -> FastAPI:
     def post_internal_example():
         return {'ok': True}
 
+    @app.post('/v2/messages', operation_id='postMessage', tags=['Chat'])
+    def post_message():
+        return {'ok': True}
+
     return app
 
 
 def test_app_client_openapi_filters_to_first_party_contract():
     schema = export_openapi.build_app_client_openapi(_make_app())
 
-    assert list(schema['paths']) == ['/v1/conversations/from-segments']
+    assert list(schema['paths']) == ['/v1/conversations/from-segments', '/v2/messages']
     operation = schema['paths']['/v1/conversations/from-segments']['post']
     assert operation['operationId'] == 'postFromSegments'
     assert schema['components']['securitySchemes'] == {
@@ -38,6 +42,10 @@ def test_app_client_openapi_filters_to_first_party_contract():
     }
     assert operation['security'] == [{'firebaseBearer': []}]
     assert operation['responses']['401'] == {'$ref': '#/components/responses/Error401'}
+
+    chat_operation = schema['paths']['/v2/messages']['post']
+    assert chat_operation['operationId'] == 'postMessage'
+    assert chat_operation['security'] == [{'firebaseBearer': []}]
 
 
 def test_similar_prefix_without_path_boundary_is_not_included():

@@ -4,8 +4,8 @@ import XCTest
 
 @MainActor
 final class HomeStatusStoreTests: XCTestCase {
-  func testRefreshLoadsRetainedKnowledgeCounts() async {
-    let defaults = isolatedDefaults()
+  func testRefreshLoadsRetainedKnowledgeCounts() async throws {
+    let defaults = try isolatedDefaults()
     defaults.set("user-a", forKey: DefaultsKey.authUserId.rawValue)
     let store = HomeStatusStore(
       defaults: defaults,
@@ -33,10 +33,10 @@ final class HomeStatusStoreTests: XCTestCase {
     XCTAssertTrue(store.accountHasOmiDeviceConversations)
   }
 
-  func testScreenshotCountWaitsUntilDatabaseIsReady() async {
+  func testScreenshotCountWaitsUntilDatabaseIsReady() async throws {
     var screenshotLoads = 0
     let store = HomeStatusStore(
-      defaults: isolatedDefaults(),
+      defaults: try isolatedDefaults(),
       loader: HomeStatusLoader(
         loadScreenshotCount: {
           screenshotLoads += 1
@@ -62,9 +62,9 @@ final class HomeStatusStoreTests: XCTestCase {
     XCTAssertEqual(store.screenshotCount, 4)
   }
 
-  func testResetClearsCachedValues() async {
+  func testResetClearsCachedValues() async throws {
     let store = HomeStatusStore(
-      defaults: isolatedDefaults(),
+      defaults: try isolatedDefaults(),
       loader: HomeStatusLoader(
         loadScreenshotCount: { 1 },
         loadKnowledgeCounts: { _ in
@@ -89,9 +89,9 @@ final class HomeStatusStoreTests: XCTestCase {
     XCTAssertFalse(store.accountHasOmiDeviceConversations)
   }
 
-  private func isolatedDefaults() -> UserDefaults {
+  private func isolatedDefaults() throws -> UserDefaults {
     let suite = "HomeStatusStoreTests.\(UUID().uuidString)"
-    let defaults = UserDefaults(suiteName: suite)!
+    let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
     defaults.removePersistentDomain(forName: suite)
     return defaults
   }

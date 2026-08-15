@@ -20,9 +20,6 @@ enum UserFacingErrorPresentation {
     case goals
     case signIn
     case onboarding
-    case integration(String)
-    case browserExtension
-    case memoryExport
     case storageSync
     case transcription
     case accountDeletion
@@ -41,9 +38,6 @@ enum UserFacingErrorPresentation {
       case .goals: return "load goals"
       case .signIn: return "sign in"
       case .onboarding: return "save that step"
-      case .integration(let name): return "connect to \(name)"
-      case .browserExtension: return "connect the browser extension"
-      case .memoryExport: return "prepare that export"
       case .storageSync: return "sync device storage"
       case .transcription: return "start transcription"
       case .accountDeletion: return "delete your account"

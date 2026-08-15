@@ -213,6 +213,8 @@ npm run test:listen-lifecycle:emulator  # Real Firestore transaction contention 
 
 **Desktop app-client generation** — `backend/scripts/generate_swift_openapi_types.py` derives its default schema directly from the live `app-client` FastAPI surface. The pinned `backend/scripts/openapi_runner.sh` environment must validate the committed macOS DTO output; explicit `--spec` remains fixture-only.
 
+The app-client snapshot begins at the S-06 retained-product boundary. The pinned pre-S-06 base had neither this snapshot nor its compatibility checker, so the retired developer, integration, MCP, and app routes were never released through this workflow. Future retained-surface changes keep freshness strict.
+
 **Test isolation / import purity** — never mutate `sys.modules` at module scope in tests; production modules must not construct clients or do IO at import time. Sanctioned seams: `monkeypatch.setattr` on a lazy-held singleton, FastAPI `app.dependency_overrides`. Enforced by `python scripts/check_module_stub_pollution.py` and `python scripts/scan_import_time_side_effects.py`. Full prescription: `backend/docs/test_isolation.md`.
 
 **Firestore transaction fakes** — a fake at this service boundary must enforce its ordering and constraint semantics. Use `tests.unit.fixtures.strict_firestore_transaction.StrictFirestore` for transaction tests that need document-reference reads plus `set`/`update`: it rejects reads after the first write, the production rule that #9739's lenient fake missed. If an incident requires queries, deletes, retry, or contention behavior, first cover it with the Firestore emulator; extend the fixture only for a proven hermetic guard.

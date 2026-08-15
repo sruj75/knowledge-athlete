@@ -37,13 +37,16 @@ private final class BulkURLCapture: URLProtocol, @unchecked Sendable {
   override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
 
   override func startLoading() {
-    if let url = request.url {
-      Self.lock.withLock {
-        Self.requests.append(BulkCapturedRequest(url: url, method: request.httpMethod ?? "GET"))
-      }
+    guard let url = request.url,
+      let response = HTTPURLResponse(
+        url: url, statusCode: 500, httpVersion: nil, headerFields: nil)
+    else {
+      client?.urlProtocol(self, didFailWithError: URLError(.badURL))
+      return
     }
-    let response = HTTPURLResponse(
-      url: request.url!, statusCode: 500, httpVersion: nil, headerFields: nil)!
+    Self.lock.withLock {
+      Self.requests.append(BulkCapturedRequest(url: url, method: request.httpMethod ?? "GET"))
+    }
     client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
     client?.urlProtocol(self, didLoad: Data("{}".utf8))
     client?.urlProtocolDidFinishLoading(self)

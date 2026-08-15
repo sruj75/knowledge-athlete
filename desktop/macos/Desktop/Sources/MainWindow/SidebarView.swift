@@ -1563,7 +1563,7 @@ enum OmiDeviceImage {
 
 /// The thin, always-present left navigation rail for the redesigned app shell.
 /// Lives beside every page (not just Home) so you can move between Home, the
-/// memory/task surfaces, Focus, Insights, Rewind, and Apps without bouncing
+/// memory/task surfaces, Focus, Insights, and Rewind without bouncing
 /// back through Home. Settings sits at the foot. Styled with the SB ink system
 /// so it matches the sign-in / onboarding aesthetic.
 struct AppNavRail: View {

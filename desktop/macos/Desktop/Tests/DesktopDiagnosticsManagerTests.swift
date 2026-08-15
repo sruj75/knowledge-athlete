@@ -17,48 +17,44 @@ import XCTest
       super.tearDown()
     }
 
-    func testStateAuthorityDedupePreservesObservationAndResultDistinctions() {
+    func testStateAuthorityDedupePreservesOnboardingObservationAndResultDistinctions() {
       let diagnostics = DesktopDiagnosticsManager.shared
 
       XCTAssertTrue(
         diagnostics.recordStateAuthoritySignal(
-          seam: .connectorStatus,
-          from: "cached_or_derived",
-          to: "connected",
-          direction: "cloud_grant_status_inferred",
-          subject: "chatgpt"))
+          seam: .onboardingSetupState,
+          from: "completed_flag",
+          to: "persisted_resume",
+          direction: "completed_flag_with_resume_state"))
       XCTAssertFalse(
         diagnostics.recordStateAuthoritySignal(
-          seam: .connectorStatus,
-          from: "cached_or_derived",
-          to: "connected",
-          direction: "cloud_grant_status_inferred",
-          subject: "chatgpt"))
+          seam: .onboardingSetupState,
+          from: "completed_flag",
+          to: "persisted_resume",
+          direction: "completed_flag_with_resume_state"))
       XCTAssertTrue(
         diagnostics.recordStateAuthoritySignal(
-          seam: .connectorStatus,
-          from: "cached_after_check_failed",
-          to: "connected",
-          direction: "cloud_grant_status_inferred",
-          subject: "chatgpt"))
+          seam: .onboardingSetupState,
+          from: "completed_flag",
+          to: "setup_journal",
+          direction: "completed_flag_with_active_journal"))
       XCTAssertTrue(
         diagnostics.recordStateAuthoritySignal(
-          seam: .connectorStatus,
-          from: "cached_or_derived",
-          to: "not_connected",
-          direction: "cloud_grant_status_inferred",
-          subject: "chatgpt"))
+          seam: .onboardingSetupState,
+          from: "setup_journal",
+          to: "completed_flag",
+          direction: "active_journal_with_completed_flag"))
 
       let signals = diagnostics.currentSnapshotsForSentry().filter {
-        $0["seam"] as? String == DesktopStateAuthoritySeam.connectorStatus.rawValue
+        $0["seam"] as? String == DesktopStateAuthoritySeam.onboardingSetupState.rawValue
       }
       XCTAssertEqual(signals.count, 3)
       XCTAssertEqual(
         Set(signals.compactMap { $0["from"] as? String }),
-        ["cached_or_derived", "cached_after_check_failed"])
+        ["completed_flag", "setup_journal"])
       XCTAssertEqual(
         Set(signals.compactMap { $0["to"] as? String }),
-        ["connected", "not_connected"])
+        ["persisted_resume", "setup_journal", "completed_flag"])
     }
 
     func testDiagnosticsAttachmentUsesSafeOperationalFields() throws {

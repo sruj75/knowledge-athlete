@@ -5,6 +5,8 @@ import logging
 import os
 from typing import Any, Dict, Optional
 
+from utils.observability.fallback import record_fallback
+
 logger = logging.getLogger(__name__)
 
 _posthog_client: Optional[Any] = None
@@ -19,6 +21,14 @@ def emit_posthog_event(distinct_id: Optional[str], event: str, properties: Dict[
         if client is not None:
             client.capture(distinct_id=distinct_id, event=event, properties=properties)
     except Exception as exc:
+        record_fallback(
+            component='other',
+            from_mode='posthog_capture',
+            to_mode='telemetry_skipped',
+            reason='other',
+            outcome='degraded',
+            log=logger,
+        )
         logger.warning('posthog_emit_failed event=%s error=%s', event, type(exc).__name__)
 
 
@@ -38,10 +48,18 @@ def _get_posthog_client() -> Optional[Any]:
     try:
         posthog_module = importlib.import_module('posthog')
         posthog_client_cls = getattr(posthog_module, 'Posthog')
+        _posthog_client = posthog_client_cls(project_api_key=api_key, host=host)
     except Exception as exc:
+        record_fallback(
+            component='other',
+            from_mode='posthog_client',
+            to_mode='telemetry_skipped',
+            reason='config_incomplete',
+            outcome='degraded',
+            log=logger,
+        )
         logger.warning('posthog_import_failed error=%s', type(exc).__name__)
         _posthog_disabled = True
         return None
 
-    _posthog_client = posthog_client_cls(project_api_key=api_key, host=host)
     return _posthog_client

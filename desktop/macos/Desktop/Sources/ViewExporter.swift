@@ -160,7 +160,6 @@ enum ViewExporter {
       ("Focus", "eye.fill", 5),
       ("Advice", "lightbulb.fill", 6),
       ("Rewind", "clock.arrow.circlepath", 7),
-      ("Apps", "puzzlepiece.fill", 8),
     ]
 
     private let bottomItems: [(String, String, Int)] = [

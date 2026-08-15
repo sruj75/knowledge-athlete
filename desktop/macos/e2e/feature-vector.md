@@ -40,7 +40,7 @@ Prioritized feature map to guide desktop E2E coverage. Uses the same two-dimensi
 | 1 | Dashboard — conversations list, refresh | intelligence (3) | 9 | 2 | 2 | ✅ flow: `dashboard.yaml` (nav + `conversation_list_snapshot`) |
 | 2 | Chat — send message, AI response | intelligence (3) | 9 | 2 | 2 | ✅ flow: `chat-hermetic.yaml` |
 | 3 | Sidebar navigation — all sections | retrieval-action (3) | 9 | 2 | 3 | ✅ flow: `navigation.yaml` |
-| 4 | Home stage (hub / chat / connect) | intelligence (3) | 9 | 2 | 2 | ✅ flow: `home-stage.yaml` |
+| 4 | Home stage (hub / chat) | intelligence (3) | 9 | 2 | 2 | ✅ flow: `home-stage.yaml` |
 | 5 | Capture lifecycle (hermetic transcript seam) | capture (5) | 15 | 2 | 1 | ✅ flow: `capture-lifecycle.yaml` |
 | 6 | Screen capture (Rewind) | capture (5) | 15 | 0 | 2 | ⚠️ manual: `rewind.yaml`, `screen-recording-permission.yaml` (TCC) |
 | 7 | Audio recording (desktop mic) | capture (5) | 15 | 0 | 1 | ⚠️ manual: `audio-recording.yaml` (mic permission); added `recording-finalization.yaml` |
@@ -79,7 +79,7 @@ Prioritized feature map to guide desktop E2E coverage. Uses the same two-dimensi
 | 35 | AI Chat model settings | intelligence (3) | 3 | 2 | 2 | ✅ flow: `ai-chat-settings.yaml` (non-prod section; prod still redirects to Advanced) |
 | 36 | Advanced / Developer options | — | 3 | 2 | 2 | ✅ flow: `settings-basic.yaml` (`advanced_settings_snapshot`) |
 | 37 | System tray menu | — | 5 | 0 | 3 | ⚠️ partial: covered indirectly by manual logout/onboarding |
-| 38 | Keyboard shortcuts (Cmd+1..6, Cmd+,) | — | 5 | 2 | 3 | ✅ flow: `keyboard-shortcuts.yaml` |
+| 38 | Keyboard shortcuts (Cmd+1..5, Cmd+,) | — | 5 | 2 | 3 | ✅ flow: `keyboard-shortcuts.yaml` |
 | 39 | Notifications settings | — | 3 | 2 | 2 | ✅ flow: `notifications-settings.yaml` |
 | 40 | About page (version info) | — | 3 | 2 | 3 | ✅ flow: `about-settings.yaml` |
 | 41 | Auth (Sign In — Google/Apple) | — | 5 | 0 | 0 | blocked: external OAuth |
@@ -99,6 +99,11 @@ Agent-local flows with `tier: manual` — **not** qualification-tier (T2). Run i
 | `audio-recording.yaml` | Microphone TCC | No |
 | `rewind.yaml` | Rewind page + permission state | No |
 | `screen-recording-permission.yaml` | Screen Recording TCC + System Settings | No |
+| `external-surface-retirement-upgrade.yaml` | Named-bundle upgrade from a disposable profile with retired external-surface state | No |
+| `goal-ai-profile-generation.yaml` | Signed-in retained goal/profile generation through the configured provider fixture | No |
+| `proactive-memory-writers-retention.yaml` | Screen Recording plus deterministic provider and backend-capture fixtures | No |
+| `retained-pi-tool-bridge.yaml` | Managed Pi harness and `OMI_BRIDGE_PIPE` tool receipt | No |
+| `view-export-retained-surfaces.yaml` | Named-bundle CLI export of the retained standalone/full-page registries | No |
 
 Do **not** promote destructive flows (`delete-account`, `onboarding-smoke`) to the T2 qualification tier.
 
@@ -126,7 +131,7 @@ Do **not** promote destructive flows (`delete-account`, `onboarding-smoke`) to t
 | tasks | 4/5 | PASS (1 skipped) | flow-walker.beastoin.workers.dev/runs/ealB_-UdqS.html |
 | settings-basic | 9/9 | PASS | flow-walker.beastoin.workers.dev/runs/RoTW8GeljN.html |
 | rewind | 4/4 | PASS | flow-walker.beastoin.workers.dev/runs/1HE5OsPOOy.html |
-| apps | 6/6 | PASS | flow-walker.beastoin.workers.dev/runs/VDGw-wbHqa.html |
+| apps (retired by S-06) | 6/6 | HISTORICAL PASS | flow-walker.beastoin.workers.dev/runs/VDGw-wbHqa.html |
 | refer-external | — | — | superseded old `refer.yaml` (profile menu, not sidebar page) |
 | screen-recording-permission | 7/7 | PASS | flow-walker.beastoin.workers.dev/runs/3WoXUG6xkT.html |
 | audio-recording | 7/7 | PASS | flow-walker.beastoin.workers.dev/runs/UdkzB-dYG_.html |
@@ -167,8 +172,8 @@ T2 qualification matrix: **32/32 flows green** (2026-07-09 manual qualification 
 
 - **Bridge first:** `scripts/omi-ctl` + `e2e/flows/*.yaml` with `bridge.navigate` / `bridge.action`.
 - **Walker second:** `agent-swift` for manual Live P2 lane and TCC-dependent flows.
-- Sidebar AX identifiers: `sidebar_dashboard`, `sidebar_chat`, `sidebar_memories`, `sidebar_tasks`, `sidebar_rewind`, `sidebar_apps`, `sidebar_settings`. Refer a Friend lives in the **profile menu popover**, not a sidebar item.
+- Sidebar AX identifiers: `sidebar_dashboard`, `sidebar_chat`, `sidebar_memories`, `sidebar_tasks`, `sidebar_rewind`, `sidebar_settings`. Refer a Friend lives in the **profile menu popover**, not a sidebar item.
 - System tray menu items: `openOmiFromMenu`, `checkForUpdates`, `resetOnboarding`, `reportIssue`, `signOut`, `quitApp`
-- Keyboard shortcuts via View menu: Cmd+1 (Dashboard), Cmd+2 (Conversations), Cmd+3 (Memories), Cmd+4 (Tasks), Cmd+5 (Rewind), Cmd+6 (Apps), Cmd+, (Settings)
+- Keyboard shortcuts via View menu: Cmd+1 (Dashboard), Cmd+2 (Conversations), Cmd+3 (Memories), Cmd+4 (Tasks), Cmd+5 (Rewind), Cmd+, (Settings)
 - Beta app bundle ID: `com.omi.computer-macos` (flow-walker default)
 - Dev / hermetic bundle: `com.omi.omi-core-e2e` with `make desktop-run-local` (Auth emulator)

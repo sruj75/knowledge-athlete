@@ -64,13 +64,7 @@ class ConversationMemoryExtractionResult:
     """
 
     count: int
-    source: str
     path: str
-
-
-def source_for_conversation(conversation: Any) -> str:
-    """Return the sole retained transcript extraction source."""
-    return SOURCE_TRANSCRIPTION
 
 
 def emit_conversation_memories_extracted(

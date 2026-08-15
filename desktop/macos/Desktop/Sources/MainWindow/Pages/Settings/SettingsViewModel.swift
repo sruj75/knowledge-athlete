@@ -7,7 +7,6 @@ final class SettingsViewModel: ObservableObject {
   @Published var subscriptionError: String?
   @Published var lastBackendSettingsLoadAt: Date?
   @Published var lastBillingRefreshAt: Date?
-  @Published var lastIntegrationSyncAt: Date?
 
   func markBackendSettingsLoaded() {
     lastBackendSettingsLoadAt = Date()
@@ -15,9 +14,5 @@ final class SettingsViewModel: ObservableObject {
 
   func markBillingRefreshed() {
     lastBillingRefreshAt = Date()
-  }
-
-  func markIntegrationSynced() {
-    lastIntegrationSyncAt = Date()
   }
 }

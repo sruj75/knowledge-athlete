@@ -537,14 +537,6 @@ extension PostHogManager {
       ])
   }
 
-  func memoryShareButtonClicked(conversationId: String) {
-    track(
-      "Memory Share Button Clicked",
-      properties: [
-        "conversation_id": conversationId
-      ])
-  }
-
   func memoryListItemClicked(conversationId: String) {
     track(
       "Memory List Item Clicked",
@@ -620,17 +612,6 @@ extension PostHogManager {
 
   func chatCleared() {
     track("Chat Cleared")
-  }
-
-  // MARK: - Conversation Events (Additional)
-
-  func conversationReprocessed(conversationId: String, appId: String) {
-    track(
-      "Conversation Reprocessed",
-      properties: [
-        "conversation_id": conversationId,
-        "app_id": appId,
-      ])
   }
 
   // MARK: - Settings Events (Additional)
@@ -892,35 +873,6 @@ extension PostHogManager {
     var properties: [String: Any] = [:]
     if let cat = category { properties["category"] = cat }
     track("Advice Generated", properties: properties.isEmpty ? nil : properties)
-  }
-
-  // MARK: - Apps Events
-
-  func appEnabled(appId: String, appName: String) {
-    track(
-      "App Enabled",
-      properties: [
-        "app_id": appId,
-        "app_name": appName,
-      ])
-  }
-
-  func appDisabled(appId: String, appName: String) {
-    track(
-      "App Disabled",
-      properties: [
-        "app_id": appId,
-        "app_name": appName,
-      ])
-  }
-
-  func appDetailViewed(appId: String, appName: String) {
-    track(
-      "App Detail Viewed",
-      properties: [
-        "app_id": appId,
-        "app_name": appName,
-      ])
   }
 
   // MARK: - Update Events

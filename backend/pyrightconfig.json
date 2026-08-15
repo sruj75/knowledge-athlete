@@ -107,7 +107,6 @@
         "scripts/vector_search_provider_readiness.py",
         "scripts/verify_k8s_secret_keys.py",
         "scripts/wait_external_secret_refresh.py",
-        "scripts/web.py",
         "services",
         "utils"
     ],

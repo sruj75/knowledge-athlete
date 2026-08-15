@@ -1,0 +1,32 @@
+version: 2
+name: goal-ai-profile-generation
+tier: manual
+description: Live P2 — generate a goal through the retained AI Profile prompt path
+app: non-prod
+covers:
+  - desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/Goals/GoalPrompts.swift
+  - desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/Goals/GoalsAIService.swift
+preconditions:
+  - auth_ready
+  - no_existing_goals
+  - retained_profile_or_memory_context_available
+  - gemini_key_ready
+
+steps:
+  - id: S1
+    name: Open the Goals widget
+    do: "Open the Dashboard and locate the Goals widget. Record the current goal titles so a newly generated goal is distinguishable."
+    expect:
+      interactive_count: { min: 1 }
+
+  - id: S2
+    name: Generate from retained personal context
+    do: "Click the Goals widget's AI generation control. Wait for generation to finish and verify one new meaningful goal appears without persona, public-profile, or marketplace language."
+    expect:
+      interactive_count: { min: 1 }
+
+  - id: S3
+    name: Verify retained profile terminology
+    do: "Inspect the named-bundle log for 'GoalsAI: Context sizes'. Verify it reports the retained profile field and contains no '{persona_context}' placeholder."
+    expect:
+      interactive_count: { min: 1 }

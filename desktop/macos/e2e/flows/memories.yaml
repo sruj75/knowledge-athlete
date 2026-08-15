@@ -10,7 +10,6 @@ covers:
   - desktop/macos/Desktop/Sources/MainWindow/Pages/MemoryProvenance.swift
   - desktop/macos/Desktop/Sources/DesktopAutomationBridge.swift
   - desktop/macos/Desktop/Sources/Services/APIClient/APIClient+Memories.swift
-  - desktop/macos/Desktop/Sources/Rewind/Core/RewindDatabase+ExternalSurfaceRetirement.swift
 preconditions:
   - auth_ready
 

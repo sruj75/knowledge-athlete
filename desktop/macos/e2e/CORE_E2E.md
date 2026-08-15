@@ -69,7 +69,7 @@ Local full T0 (includes backend preflight + pytest desktop contracts):
 | Rewind artifact persistence / recovery / privacy admission | T2 |
 | ChatProvider / agent runtime | T0 + T3 |
 | Sidebar / navigation | T1 |
-| Redesigned Home stage (hub/chat/connect) | T2 (`home-stage.yaml`) |
+| Redesigned Home stage (hub/chat) | T2 (`home-stage.yaml`) |
 | Memories / tasks CRUD surfaces | T2 |
 | Secondary surfaces (detail, vocabulary, goals, billing, privacy mutations) | T2 + Live P2 for manual-only |
 | Rust chat completions / API client | T0 + T1 |
@@ -92,7 +92,7 @@ healthy enough to boot the hermetic T2 stack. Stable nomination and production p
 | `tasks` | v2 | typed bridge | 2 | Navigate + snapshot |
 | `settings-basic` | v2 | typed bridge | 2 | Settings sections + Advanced snapshot |
 | `dashboard` | v2 | typed bridge | 2 | Dashboard load + conversation list snapshot |
-| `home-stage` | v2 | typed bridge | 2 | Redesigned Home hub/chat/connect via `homeMode` assertions |
+| `home-stage` | v2 | typed bridge | 2 | Redesigned Home hub/chat via `homeMode` assertions |
 | `chat-fault-5xx` | v2 | typed bridge | fault | Backend 5xx via `omi-fault-inject` (`--fault-suite`) |
 | `language` | v2 | typed bridge | 2 | Transcription language set + snapshot |
 | `tasks-crud` | v2 | typed bridge | 2 | Task create/toggle/delete via bridge |
@@ -101,7 +101,7 @@ healthy enough to boot the hermetic T2 stack. Stable nomination and production p
 | `about-settings` | v2 | typed bridge | 2 | About section + version snapshot |
 | `notifications-settings` | v2 | typed bridge | 2 | Notifications snapshot + API update |
 | `rewind-settings` | v2 | typed bridge | 2 | Rewind retention/excluded-apps snapshot |
-| `keyboard-shortcuts` | v2 | typed bridge | 2 | Cmd+1..6 / Cmd+, navigation |
+| `keyboard-shortcuts` | v2 | typed bridge | 2 | Cmd+1..5 / Cmd+, navigation |
 | `ai-chat-settings` | v2 | typed bridge | 2 | AI Chat section (non-prod) |
 | `conversation-detail` | v2 | typed bridge | 2 | Capture seam + detail/transcript drawer snapshot |
 | `memory-crud` | v2 | typed bridge | 2 | Memory create/edit/delete via bridge actions |
@@ -121,6 +121,11 @@ healthy enough to boot the hermetic T2 stack. Stable nomination and production p
 | `onboarding-smoke` | v2 | manual `do:` + bridge | manual | `reset_onboarding`; Wave 7 fix — manual until 2× local green |
 | `rewind` | v2 | manual `do:` | manual | |
 | `screen-recording-permission` | v2 | manual `do:` | manual | TCC-dependent |
+| `external-surface-retirement-upgrade` | v2 | manual `do:` | manual | Named bundle + disposable migrated profile |
+| `goal-ai-profile-generation` | v2 | manual `do:` | manual | Signed-in named bundle + provider fixture |
+| `proactive-memory-writers-retention` | v2 | manual `do:` | manual | Screen Recording + provider/backend capture fixtures |
+| `retained-pi-tool-bridge` | v2 | manual `do:` | manual | Managed Pi + `OMI_BRIDGE_PIPE` receipt |
+| `view-export-retained-surfaces` | v2 | manual `do:` | manual | Named-bundle CLI exporter |
 
 ## Secondary surfaces audit
 

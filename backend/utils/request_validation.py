@@ -1,5 +1,5 @@
-"""Edge-case request validation helpers (multipart form-JSON, calendar dates,
-sync filenames, image chunks, and reusable Query parameter aliases).
+"""Edge-case request validation helpers for calendar dates, sync filenames,
+image chunks, and reusable Query parameter aliases.
 
 Body validation convention: JSON request bodies are validated by FastAPI's
 native mechanism — declare the body param as a Pydantic model
@@ -7,41 +7,21 @@ native mechanism — declare the body param as a Pydantic model
 checking, and 422-on-malformed. Do NOT hand-parse with ``data: dict`` +
 ``data.get()`` + manual HTTPException; that pattern is being phased out (see
 Phase 1.2 of the schema SSOT plan). This module does NOT centralize body
-validation — it only holds helpers for the cases FastAPI's native mechanism
-does not cover (multipart/form-data JSON-string fields, multi-field calendar
-date validation, filename timestamp parsing, chunked-upload envelopes).
+validation; it owns only the retained date, filename, chunk-envelope, and
+query-parameter boundaries below.
 """
 
 from datetime import date, datetime, timezone
 from decimal import Decimal, InvalidOperation
-from typing import Annotated, Any, TypeVar
+from typing import Annotated
 
 from fastapi import HTTPException, Query
-from pydantic import BaseModel, Field, TypeAdapter, ValidationError, model_validator
+from pydantic import BaseModel, Field, model_validator
 
 PositiveLimit = Annotated[int, Query(ge=1, le=1000)]
 CalendarMeetingsLimit = Annotated[int, Query(ge=1, le=100)]
 NonNegativeOffset = Annotated[int, Query(ge=0)]
 HistoryDays = Annotated[int, Query(ge=1, le=365)]
-
-ModelT = TypeVar('ModelT', bound=BaseModel)
-
-
-def parse_form_json(
-    model_type: type[ModelT] | type[dict[str, Any]], raw_value: str, field_name: str
-) -> ModelT | dict[str, Any]:
-    """Validate a JSON string submitted in a multipart/form-data field.
-
-    FastAPI cannot apply normal JSON body validation to string form fields. Keep
-    this helper as the single boundary for those endpoints so malformed JSON and
-    non-object payloads consistently fail with 422 before any I/O work.
-    """
-    try:
-        if issubclass(model_type, BaseModel):
-            return model_type.model_validate_json(raw_value)
-        return TypeAdapter(dict[str, Any]).validate_json(raw_value)
-    except (ValidationError, ValueError) as e:
-        raise HTTPException(status_code=422, detail=f'Invalid {field_name}: {e}')
 
 
 def validate_calendar_date(value: str | None, field_name: str = 'date') -> str | None:

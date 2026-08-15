@@ -564,7 +564,7 @@ struct DashboardPage: View {
       ZStack(alignment: .topTrailing) {
         HomeCanvasBackground()
 
-        // Clicking anywhere outside the chat / connect panel collapses
+        // Clicking anywhere outside the chat panel collapses
         // back to the resting surface (panels and the ask bar consume their
         // own clicks above this catcher). When chat history exists, chat IS
         // the resting Home surface, so no catcher is mounted over it — and
@@ -597,8 +597,8 @@ struct DashboardPage: View {
     }
   }
 
-  /// Vertical stage: mode content on top (hub metrics, inline chat, or the
-  /// connect tray), the persistent ask bar anchored beneath it, and the
+  /// Vertical stage: mode content on top (hub metrics or inline chat), the
+  /// persistent ask bar anchored beneath it, and the
   /// suggested questions under the bar while the hub is showing.
   private func homeStage(stageWidth: CGFloat, stageHeight: CGFloat) -> some View {
     let askBarWidth = homeAskBarWidth(for: stageWidth)
@@ -658,7 +658,7 @@ struct DashboardPage: View {
     !intelligenceStore.focusedGoals.isEmpty || intelligenceStore.accountGeneration != nil
   }
 
-  /// Panel layout (chat / connect): the surface fills the height with the ask
+  /// Chat panel layout: the surface fills the height with the ask
   /// bar anchored directly beneath it.
   private func homePanelStage(stageWidth: CGFloat, askBarWidth: CGFloat) -> some View {
     VStack(spacing: 0) {
@@ -1133,7 +1133,7 @@ struct DashboardPage: View {
     )
   }
 
-  /// User-facing collapse (click outside, Esc, connect ×) and the automation
+  /// User-facing collapse (click outside or Esc) and the automation
   /// bridge's `home_close_panel`: returns to the resting surface. There is a
   /// single close path now — the bridge no longer force-jumps to the hub.
   private func collapseHomeStagePanel() {
@@ -1663,12 +1663,6 @@ enum HomePalette {
   // Neutral cool-grey key light (INV-UI-1 brand accent rules).
   static let stageGlow = Color(red: 0.72, green: 0.74, blue: 0.78)
   static let glow = stageGlow
-}
-
-private enum HomeRowStatus {
-  case connect
-  case connected
-  case open
 }
 
 private enum HomeDestinationProminence {

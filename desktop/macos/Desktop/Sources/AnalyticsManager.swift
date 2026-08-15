@@ -528,10 +528,6 @@ class AnalyticsManager {
     PostHogManager.shared.memoryDeleted(conversationId: conversationId)
   }
 
-  func memoryShareButtonClicked(conversationId: String) {
-    PostHogManager.shared.memoryShareButtonClicked(conversationId: conversationId)
-  }
-
   func shareAction(category: String, properties: [String: Any] = [:]) {
     var props = properties
     props["category"] = category
@@ -777,12 +773,6 @@ class AnalyticsManager {
     PostHogManager.shared.track("chat_tool_call_completed", properties: props)
   }
 
-  // MARK: - Conversation Events (Additional)
-
-  func conversationReprocessed(conversationId: String, appId: String) {
-    PostHogManager.shared.conversationReprocessed(conversationId: conversationId, appId: appId)
-  }
-
   // MARK: - Settings Events (Additional)
 
   func settingToggled(setting: String, enabled: Bool) {
@@ -994,20 +984,6 @@ class AnalyticsManager {
 
   func insightGenerated(category: String?) {
     PostHogManager.shared.insightGenerated(category: category)
-  }
-
-  // MARK: - Apps Events
-
-  func appEnabled(appId: String, appName: String) {
-    PostHogManager.shared.appEnabled(appId: appId, appName: appName)
-  }
-
-  func appDisabled(appId: String, appName: String) {
-    PostHogManager.shared.appDisabled(appId: appId, appName: appName)
-  }
-
-  func appDetailViewed(appId: String, appName: String) {
-    PostHogManager.shared.appDetailViewed(appId: appId, appName: appName)
   }
 
   // MARK: - Update Events
