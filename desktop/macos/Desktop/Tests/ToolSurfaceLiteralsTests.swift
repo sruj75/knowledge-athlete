@@ -17,7 +17,7 @@ final class ToolSurfaceLiteralsTests: XCTestCase {
     let manifestNames = Set(GeneratedSwiftTool.allCases.map(\.rawValue))
       .union(GeneratedToolExecutors.aliasToCanonical.keys)
       .union(GeneratedToolCapabilities.realtimeToolNames)
-      .union(["get_local_status", "get_file_scan_results", "start_file_scan"])
+      .union(["get_local_status"])
 
     let swiftFiles = try FileManager.default.subpathsOfDirectory(atPath: sourcesRoot.path)
       .filter { $0.hasSuffix(".swift") }

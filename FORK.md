@@ -11,6 +11,10 @@ Snapshot (no history) of a subset of [BasedHardware/omi](https://github.com/Base
 | Snapshot date | 2026-07-30 |
 | Upstream license | MIT |
 
+This fork has not shipped an application build or public API contract and has
+no existing product users. The upstream tag records code provenance only; it
+does not create a released-client compatibility population for this product.
+
 Upstream paths were preserved verbatim, so a future `git diff` against upstream at
 this SHA is meaningful and cherry-picking upstream commits still applies cleanly.
 

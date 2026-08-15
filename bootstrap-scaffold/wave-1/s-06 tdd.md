@@ -4,7 +4,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `ready to start` — the public seam table is the adopted requirements trace; Cycles 0-2 are immediately executable and the released-OpenAPI evidence gate applies only before Cycle 3 and later route-removal cycles |
+| Status | `repository implementation complete; closeout repaired` — all product-deletion cycles landed in `ff528f8`; the fork's never-released evidence satisfies the route-removal gate, and the closeout removes generated file-scan/email dispatch that survived the product deletion |
 | Wave | 1 |
 | Slice | S-06 |
 | Authorizing decisions | IR-015, IR-045 through IR-047, IR-050, IR-051, IR-106, IR-135, IR-141, IR-142, IR-212, IR-213, IR-256, IR-258 through IR-261, IR-310, IR-375, IR-512, IR-637, IR-816 through IR-818, IR-824, IR-938 |
@@ -25,17 +25,25 @@
 - No tracked `web/**` or `plugins/**` source exists in this checkout, but workflows, public-build contracts, runtime-image manifests, deploy checks, and monitoring still name the old app/persona/plugins products. Treat those as live operational residue; do not recreate missing source merely to delete it.
 - No product implementation or component suite was run while researching this plan. `engineering:implement` must establish the clean baseline before the first RED.
 
-### Cycle-local released-contract gate
+### Cycle-local released-contract gate — satisfied
 
-S-06 deliberately removes released app-client endpoints, but the current compatibility policy in `backend/AGENTS.md` and `backend/scripts/check_app_client_openapi_compatibility.py` rejects every removed released path or operation and forbids a breaking-change allowlist. The app-client snapshot is absent from this reduced checkout, but CI compares against the merge-base copy, so absence here does not remove the conflict.
+S-06 removes app-client endpoints inherited from the upstream snapshot. This
+fork has never shipped an application build or public API contract and has no
+existing product users, as recorded in `FORK.md`. The upstream source tag is
+provenance, not a released-client population for this product. Therefore the
+removed S-06 operations were never released by this product and need no
+version sunset, client migration, compatibility handler, or inherited baseline.
 
-Before Cycle 3 or any later route-removal cycle starts, the released-API contract must document a
-product-sunset boundary that satisfies both requirements:
+The satisfied boundary still enforces both requirements:
 
 1. the rejected route and remote schema actually disappear — no dead 200/410 handler, deprecated compatibility shell, or stale generated client remains; and
 2. the ordinary compatibility gate remains strict for retained APIs — no one-off S-06 allowlist or globally weakened comparison.
 
-The adopted direction is an explicit, release-level endpoint-version retirement that changes the released baseline under the existing OpenAPI workflow. Cycle 0 inventories the merge-base contract and the in-tree released clients. If the operations were never released, record that evidence and proceed. If they were released, add the version/sunset contract change and client migration as a predecessor commit inside S-06 before Cycle 3. The ordinary compatibility checker remains strict for every retained operation. This gate does not block Cycles 0-2 or other repository-local research that cannot remove a public route.
+The retained contract starts at the post-S-06 app-client snapshot. Current
+OpenAPI generation, generated Swift freshness, route-policy checks, compile
+checks, and behavior tests remain strict for every retained operation. After
+this product's first release, removing a released retained operation again
+requires the normal explicit version/sunset transition.
 
 ## How this plan is executed
 

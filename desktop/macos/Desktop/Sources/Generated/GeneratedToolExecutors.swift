@@ -93,7 +93,7 @@ enum GeneratedToolExecutors {
     Set(GeneratedToolCapabilities.realtimeToolNames)
   }
 
-  private static let backendOnboardingToolNames: Set<String> = ["scan_files","start_file_scan","get_file_scan_results","set_user_preferences","ask_followup","complete_onboarding","get_email_insights"]
+  private static let backendOnboardingToolNames: Set<String> = ["set_user_preferences","ask_followup","complete_onboarding"]
 
   /// Dispatch surface for ChatToolExecutor — chatToolExecutor-bound tools only.
   enum ChatDispatch {
@@ -114,23 +114,17 @@ enum GeneratedToolExecutors {
     case checkPermissionStatus
     case requestPermission
     case getWorkContext
-    case scanFiles
     case setUserPreferences
     case askFollowup
     case completeOnboarding
-    case getEmailInsights
     case unhandled
   }
 
   static func chatDispatch(for name: String) -> ChatDispatch {
     switch name {
-    case "scan_files": return .scanFiles
-    case "start_file_scan": return .scanFiles
-    case "get_file_scan_results": return .scanFiles
     case "set_user_preferences": return .setUserPreferences
     case "ask_followup": return .askFollowup
     case "complete_onboarding": return .completeOnboarding
-    case "get_email_insights": return .getEmailInsights
     default: break
     }
     guard let tool = resolve(name), executorByTool[tool] == .chatToolExecutor else {

@@ -879,8 +879,9 @@ through IR-606, IR-800 through IR-802, IR-922 through IR-924, IR-936, IR-937
 ### S-06 — Delete Apps, marketplace, connectors, remote MCP, and broad indexing
 
 **Type:** complete multi-entry product deletion<br>
-**Research status:** ready to start; Cycles 0-2 are executable and the released
-contract gates only Cycle 3 and later route-removal work<br>
+**Implementation status:** repository deletion landed in `ff528f8`; the
+never-released product record satisfies the route-removal gate, and Wave 1
+closeout removed generated dispatch residue from retired file-scan/email tools<br>
 **Depends on:** none; coordinate the private Pi tool-bridge keep boundary with S-05<br>
 **Primary decisions:** IR-015, IR-045 through IR-047, IR-050 through IR-051,
 IR-106, IR-135, IR-141 through IR-142, IR-212 through IR-213, IR-256, IR-258
