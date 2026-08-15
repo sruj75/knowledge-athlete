@@ -38,7 +38,6 @@ def _memory_item(memory_id="legacy-id", content="legacy content", uid="secret-ui
         "uid": uid,
         "content": content,
         "category": "system",
-        "visibility": "private",
         "tags": ["compat"],
         "created_at": datetime(2026, 6, 20, tzinfo=timezone.utc).isoformat(),
         "updated_at": datetime(2026, 6, 20, tzinfo=timezone.utc).isoformat(),
@@ -46,7 +45,6 @@ def _memory_item(memory_id="legacy-id", content="legacy content", uid="secret-ui
         "manually_added": False,
         "edited": False,
         "is_locked": False,
-        "kg_extracted": False,
         "evidence": [],
         "arguments": {},
         "subject_attribution": "legacy_assumed",
@@ -106,7 +104,6 @@ def _install_router_stubs(monkeypatch, counters):
     memories.delete_all_memories = mark_mutation("delete_all_memories")
     memories.review_memory = mark_mutation("review_memory")
     memories.edit_memory = mark_mutation("edit_memory")
-    memories.change_memory_visibility = mark_mutation("change_memory_visibility")
     monkeypatch.setitem(sys.modules, "database.memories", memories)
     setattr(database_pkg, "memories", memories)
 
@@ -138,10 +135,6 @@ def _install_router_stubs(monkeypatch, counters):
     projection.read_v3_compatibility_projection_page = read_v3_compatibility_projection_page
     monkeypatch.setitem(sys.modules, "database.memory_compatibility_projection", projection)
     setattr(database_pkg, "memory_compatibility_projection", projection)
-
-    apps = types.ModuleType("utils.apps")
-    apps.update_personas_async = mark_mutation("update_personas_async")
-    monkeypatch.setitem(sys.modules, "utils.apps", apps)
 
     executors = types.ModuleType("utils.executors")
     executors.db_executor = object()

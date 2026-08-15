@@ -11,11 +11,6 @@ from routers import memories
 def client(monkeypatch):
     app = FastAPI()
     app.add_api_route('/v3/memories/{memory_id}', memories.edit_memory, methods=['PATCH'])
-    app.add_api_route(
-        '/v3/memories/{memory_id}/visibility',
-        memories.update_memory_visibility,
-        methods=['PATCH'],
-    )
     for route in app.routes:
         if getattr(route, 'path', '').startswith('/v3/memories/{memory_id}'):
             for dependency in route.dependant.dependencies:
@@ -71,40 +66,3 @@ def test_edit_memory_rejects_missing_or_malformed_value(client, json_body):
     response = client.patch('/v3/memories/memory-1', json=json_body)
 
     assert response.status_code == 422
-
-
-def test_visibility_accepts_canonical_json_body(client, monkeypatch):
-    calls = []
-    monkeypatch.setattr(memories.memories_db, 'change_memory_visibility', lambda *args: calls.append(args))
-
-    response = client.patch('/v3/memories/memory-1/visibility', json={'value': 'public'})
-
-    assert response.status_code == 200
-    assert response.json() == {'status': 'ok'}
-    assert calls == [('test-user', 'memory-1', 'public')]
-
-
-def test_visibility_retains_legacy_query_parameter(client, monkeypatch):
-    calls = []
-    monkeypatch.setattr(memories.memories_db, 'change_memory_visibility', lambda *args: calls.append(args))
-
-    response = client.patch('/v3/memories/memory-1/visibility', params={'value': 'private'})
-
-    assert response.status_code == 200
-    assert calls == [('test-user', 'memory-1', 'private')]
-
-
-@pytest.mark.parametrize(
-    ('json_body', 'expected_status'),
-    [
-        (None, 422),
-        ({}, 422),
-        ({'visibility': 'public'}, 422),
-        ({'value': {'nested': 'object'}}, 422),
-        ({'value': 'shared'}, 400),
-    ],
-)
-def test_visibility_rejects_missing_malformed_or_unknown_value(client, json_body, expected_status):
-    response = client.patch('/v3/memories/memory-1/visibility', json=json_body)
-
-    assert response.status_code == expected_status

@@ -1,4 +1,4 @@
-"""E2E tests for /v4/listen pipeline features: Translation, Photo Upload, Multi-Channel.
+"""E2E tests for /v4/listen pipeline features: Translation and Multi-Channel.
 
 These tests exercise real backend + pusher services with no mocking.
 Each test connects via WebSocket, sends real audio/data, and verifies
@@ -17,7 +17,6 @@ Usage:
 """
 
 import asyncio
-import base64
 import json
 import math
 import os
@@ -84,28 +83,6 @@ def generate_tone_pcm16(seconds: float, freq: int = 440, sample_rate: int = 1600
 def generate_silence_pcm16(seconds: float, sample_rate: int = 16000) -> bytes:
     """Generate PCM16LE silence."""
     return b'\x00\x00' * int(sample_rate * seconds)
-
-
-def make_tiny_png_b64() -> str:
-    """Create a minimal valid 1x1 red PNG as base64 string.
-
-    This avoids needing external image files for the photo upload test.
-    """
-    # 1x1 red pixel PNG (67 bytes)
-    import zlib
-
-    def _chunk(chunk_type, data):
-        c = chunk_type + data
-        crc = struct.pack('>I', zlib.crc32(c) & 0xFFFFFFFF)
-        return struct.pack('>I', len(data)) + c + crc
-
-    header = b'\x89PNG\r\n\x1a\n'
-    ihdr = _chunk(b'IHDR', struct.pack('>IIBBBBB', 1, 1, 8, 2, 0, 0, 0))
-    raw = zlib.compress(b'\x00\xff\x00\x00')  # filter=None, R=255, G=0, B=0
-    idat = _chunk(b'IDAT', raw)
-    iend = _chunk(b'IEND', b'')
-    png_bytes = header + ihdr + idat + iend
-    return base64.b64encode(png_bytes).decode('ascii')
 
 
 async def connect_listen(
@@ -246,12 +223,12 @@ class TestTranslationE2E:
     """Verify that connecting with language=multi produces TranslationEvent messages.
 
     The pipeline:
-      Client → /v4/listen?language=multi → Deepgram (multi-lang) → transcripts
+      Client → /v4/listen?language=multi → Modulate (multi-lang) → transcripts
         → translation service → TranslationEvent sent back to client
 
     Translation requires:
     1. language='multi' (triggers multi-lang STT + translation pipeline)
-    2. Real speech audio that Deepgram can transcribe
+    2. Real speech audio that Modulate can transcribe
     3. Backend must have Google Cloud Translation API credentials
     """
 
@@ -402,225 +379,6 @@ class TestTranslationE2E:
 
 
 # ===================================================================
-# TEST 5: Photo Upload E2E
-# ===================================================================
-
-
-@skip_no_backend
-class TestPhotoUploadE2E:
-    """Verify that sending image_chunk messages during a listen session
-    produces PhotoProcessingEvent + PhotoDescribedEvent.
-
-    Protocol:
-      Client sends JSON: {"type": "image_chunk", "id": "<temp_id>",
-                           "index": <int>, "total": <int>, "data": "<base64>"}
-      Server responds with:
-        1. PhotoProcessingEvent: {"type": "photo_processing", "temp_id": ..., "photo_id": ...}
-        2. PhotoDescribedEvent: {"type": "photo_described", "photo_id": ...,
-                                  "description": ..., "discarded": bool}
-    """
-
-    @pytest.mark.asyncio
-    async def test_single_chunk_photo_produces_events(self):
-        """Send a complete image in a single chunk and verify both events arrive."""
-        b64_image = make_tiny_png_b64()
-        temp_id = f"test-photo-{uuid.uuid4().hex[:8]}"
-
-        ws = await connect_listen(conversation_timeout=120)
-        try:
-            assert await wait_for_ready(ws), "Backend did not send 'ready' status"
-
-            # Send a small amount of audio first so the session is "alive"
-            silence = generate_silence_pcm16(0.5)
-            await send_audio_chunks(ws, silence, delay=0.01)
-
-            # Send image as a single chunk (index=0, total=1)
-            image_msg = json.dumps(
-                {
-                    "type": "image_chunk",
-                    "id": temp_id,
-                    "index": 0,
-                    "total": 1,
-                    "data": b64_image,
-                }
-            )
-            await ws.send(image_msg)
-
-            # Collect events — expect PhotoProcessingEvent then PhotoDescribedEvent
-            processing_events = []
-            described_events = []
-
-            def got_both_photo_events(events):
-                for e in events:
-                    if e.get('type') == 'photo_processing':
-                        processing_events.append(e)
-                    elif e.get('type') == 'photo_described':
-                        described_events.append(e)
-                return len(processing_events) > 0 and len(described_events) > 0
-
-            await collect_events_until(ws, got_both_photo_events, timeout=30)
-
-            # Verify PhotoProcessingEvent
-            assert len(processing_events) > 0, "Expected PhotoProcessingEvent but got none"
-            pe = processing_events[0]
-            assert pe['temp_id'] == temp_id, f"temp_id mismatch: {pe['temp_id']} != {temp_id}"
-            assert 'photo_id' in pe, "PhotoProcessingEvent missing photo_id"
-            photo_id = pe['photo_id']
-
-            # Verify PhotoDescribedEvent
-            assert len(described_events) > 0, "Expected PhotoDescribedEvent but got none"
-            de = described_events[0]
-            assert de['photo_id'] == photo_id, f"photo_id mismatch: {de['photo_id']} != {photo_id}"
-            assert 'description' in de, "PhotoDescribedEvent missing description"
-            assert 'discarded' in de, "PhotoDescribedEvent missing discarded flag"
-
-        finally:
-            await ws.close()
-
-    @pytest.mark.asyncio
-    async def test_multi_chunk_photo_reassembly(self):
-        """Send image split across multiple chunks — verify reassembly works."""
-        b64_image = make_tiny_png_b64()
-        temp_id = f"test-photo-multi-{uuid.uuid4().hex[:8]}"
-
-        # Split base64 data into 3 chunks
-        chunk_size = max(1, len(b64_image) // 3)
-        chunks = []
-        for i in range(3):
-            start = i * chunk_size
-            end = start + chunk_size if i < 2 else len(b64_image)
-            chunks.append(b64_image[start:end])
-
-        ws = await connect_listen(conversation_timeout=120)
-        try:
-            assert await wait_for_ready(ws), "Backend did not send 'ready' status"
-
-            # Send some audio to keep session alive
-            silence = generate_silence_pcm16(0.5)
-            await send_audio_chunks(ws, silence, delay=0.01)
-
-            # Send chunks in order
-            for i, chunk_data in enumerate(chunks):
-                msg = json.dumps(
-                    {
-                        "type": "image_chunk",
-                        "id": temp_id,
-                        "index": i,
-                        "total": 3,
-                        "data": chunk_data,
-                    }
-                )
-                await ws.send(msg)
-                await asyncio.sleep(0.05)  # Small delay between chunks
-
-            # Wait for processing + described events
-            processing_events = []
-            described_events = []
-
-            def got_photo_events(events):
-                for e in events:
-                    if e.get('type') == 'photo_processing':
-                        processing_events.append(e)
-                    elif e.get('type') == 'photo_described':
-                        described_events.append(e)
-                return len(processing_events) > 0 and len(described_events) > 0
-
-            await collect_events_until(ws, got_photo_events, timeout=30)
-
-            assert len(processing_events) > 0, "No PhotoProcessingEvent after multi-chunk upload"
-            assert processing_events[0]['temp_id'] == temp_id
-            assert len(described_events) > 0, "No PhotoDescribedEvent after multi-chunk upload"
-
-        finally:
-            await ws.close()
-
-    @pytest.mark.asyncio
-    async def test_incomplete_chunks_no_event(self):
-        """Sending only partial chunks (not all indices) should NOT trigger processing."""
-        b64_image = make_tiny_png_b64()
-        temp_id = f"test-photo-incomplete-{uuid.uuid4().hex[:8]}"
-
-        ws = await connect_listen(conversation_timeout=120)
-        try:
-            assert await wait_for_ready(ws), "Backend did not send 'ready' status"
-
-            silence = generate_silence_pcm16(0.5)
-            await send_audio_chunks(ws, silence, delay=0.01)
-
-            # Send only chunk 0 of 3 — missing chunks 1 and 2
-            msg = json.dumps(
-                {
-                    "type": "image_chunk",
-                    "id": temp_id,
-                    "index": 0,
-                    "total": 3,
-                    "data": b64_image[:20],
-                }
-            )
-            await ws.send(msg)
-
-            # Wait a bit — should NOT see any photo events for this temp_id
-            events = await collect_events(ws, duration=5)
-            photo_events = [
-                e
-                for e in events
-                if e.get('type') in ('photo_processing', 'photo_described') and e.get('temp_id') == temp_id
-            ]
-
-            assert len(photo_events) == 0, f"Got photo events for incomplete upload: {photo_events}"
-
-        finally:
-            await ws.close()
-
-    @pytest.mark.asyncio
-    async def test_multiple_concurrent_photos(self):
-        """Send two different images concurrently — both should produce events."""
-        b64_image = make_tiny_png_b64()
-        temp_id_1 = f"test-photo-a-{uuid.uuid4().hex[:8]}"
-        temp_id_2 = f"test-photo-b-{uuid.uuid4().hex[:8]}"
-
-        ws = await connect_listen(conversation_timeout=120)
-        try:
-            assert await wait_for_ready(ws), "Backend did not send 'ready' status"
-
-            silence = generate_silence_pcm16(0.5)
-            await send_audio_chunks(ws, silence, delay=0.01)
-
-            # Send both images as single chunks
-            for tid in (temp_id_1, temp_id_2):
-                msg = json.dumps(
-                    {
-                        "type": "image_chunk",
-                        "id": tid,
-                        "index": 0,
-                        "total": 1,
-                        "data": b64_image,
-                    }
-                )
-                await ws.send(msg)
-
-            # Collect events — expect processing + described for BOTH
-            processing_ids = set()
-            described_ids = set()
-
-            def got_both(events):
-                for e in events:
-                    if e.get('type') == 'photo_processing':
-                        processing_ids.add(e.get('temp_id'))
-                    elif e.get('type') == 'photo_described':
-                        described_ids.add(e.get('photo_id'))
-                return temp_id_1 in processing_ids and temp_id_2 in processing_ids
-
-            await collect_events_until(ws, got_both, timeout=30)
-
-            assert temp_id_1 in processing_ids, f"Missing processing event for {temp_id_1}"
-            assert temp_id_2 in processing_ids, f"Missing processing event for {temp_id_2}"
-
-        finally:
-            await ws.close()
-
-
-# ===================================================================
 # TEST 6: Multi-Channel E2E
 # ===================================================================
 
@@ -743,7 +501,7 @@ class TestMultiChannelE2E:
                         all_segments.extend(segs)
 
             if not all_segments:
-                pytest.skip("No transcript segments received (Deepgram may be unavailable)")
+                pytest.skip("No transcript segments received (Modulate may be unavailable)")
 
             # Check that segments have speaker labels
             speakers_seen = set()

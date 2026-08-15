@@ -62,7 +62,7 @@ def _validate_vector_limit(limit: int) -> None:
 def _policy_payload(policy: MemoryAccessPolicy) -> dict:
     return {
         'consumer': policy.consumer.value,
-        'app_has_default_memory_grant': policy.app_has_default_memory_grant,
+        'has_default_memory_grant': policy.has_default_memory_grant,
         'archive_capability': policy.archive_capability,
         'raw_provenance_capability': policy.raw_provenance_capability,
     }

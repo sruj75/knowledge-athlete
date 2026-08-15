@@ -5,12 +5,9 @@ daily summary already respected it). The generator and critic prompts now carry 
 instruction derived from get_user_language_preference(uid), threaded in by the orchestrator.
 """
 
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from utils.llm import proactive_notification as pn
-
-BACKEND_DIR = Path(__file__).resolve().parent.parent.parent
 
 
 def _prompt_from(fn, **kwargs):
@@ -115,12 +112,3 @@ def test_critic_prompt_includes_language_as_reject_condition():
 def test_critic_prompt_clean_for_english():
     prompt = _critic("en")
     assert "language other than the user's" not in prompt
-
-
-# ---------------------------------------------------------------------------
-# orchestrator wiring (source guard — app_integrations import is heavy)
-# ---------------------------------------------------------------------------
-def test_orchestrator_fetches_and_threads_language():
-    src = (BACKEND_DIR / "utils" / "app_integrations.py").read_text(encoding="utf-8")
-    assert "get_user_language_preference" in src  # language is fetched
-    assert src.count("output_language=output_language") >= 2  # passed to BOTH generate and critic

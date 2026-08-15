@@ -1,4 +1,4 @@
-"""Shared Firestore + memory-item fakes for chat/developer/MCP adapter unit tests."""
+"""Shared Firestore + memory-item fakes for retained memory adapter unit tests."""
 
 from __future__ import annotations
 

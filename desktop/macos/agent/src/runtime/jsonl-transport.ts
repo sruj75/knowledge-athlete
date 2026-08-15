@@ -23,30 +23,6 @@ import { kernelSystemPolicy } from "./context-snapshot.js";
 export type JsonlTransportSend = (message: OutboundMessageDraft) => void;
 export type JsonlTransportLog = (message: string) => void;
 
-export interface McpServerBuildContext {
-  ownerId: string;
-  requestId: string;
-  clientId: string;
-  protocolVersion: ProtocolVersion;
-  sessionId?: string;
-  runId?: string;
-  attemptId?: string;
-  surfaceKind?: string;
-  externalRefKind?: string;
-  externalRefId?: string;
-  adapterId?: string;
-  includeSwiftBackedTools?: boolean;
-  screenContext?: boolean;
-  executionRole?: "coordinator" | "leaf";
-}
-
-export type McpServerBuilder = (
-  mode: RunMode,
-  cwd: string,
-  sessionKey: string | undefined,
-  context: McpServerBuildContext
-) => Record<string, unknown>[];
-
 export type RecoverableErrorPredicate = (error: unknown, adapterId: string) => boolean;
 export type RecoverableErrorHandler = (error: unknown, adapterId: string) => Promise<void>;
 
@@ -57,7 +33,6 @@ export interface JsonlTransportOptions {
   ownerId?: string;
   defaultAdapterId?: string;
   defaultCwd?: () => string;
-  buildMcpServers?: McpServerBuilder;
   suppressToolUseEvents?: boolean;
   isRecoverableError?: RecoverableErrorPredicate;
   onRecoverableError?: RecoverableErrorHandler;
@@ -113,7 +88,6 @@ export class JsonlTransport {
   private readonly ownerId: string;
   private readonly defaultAdapterId: string;
   private readonly defaultCwd: () => string;
-  private readonly buildMcpServers?: McpServerBuilder;
   private readonly suppressToolUseEvents: boolean;
   private readonly isRecoverableError?: RecoverableErrorPredicate;
   private readonly onRecoverableError?: RecoverableErrorHandler;
@@ -129,9 +103,8 @@ export class JsonlTransport {
     this.send = options.send;
     this.log = options.log ?? (() => {});
     this.ownerId = options.ownerId ?? "desktop-local-user";
-    this.defaultAdapterId = options.defaultAdapterId ?? "acp";
+    this.defaultAdapterId = options.defaultAdapterId ?? "pi-mono";
     this.defaultCwd = options.defaultCwd ?? (() => process.env.HOME ?? "/");
-    this.buildMcpServers = options.buildMcpServers;
     this.suppressToolUseEvents = options.suppressToolUseEvents ?? false;
     this.isRecoverableError = options.isRecoverableError;
     this.onRecoverableError = options.onRecoverableError;
@@ -458,15 +431,6 @@ export class JsonlTransport {
       mode,
       cwd,
       model: profile.modelProfile ?? undefined,
-      mcpServers: this.buildMcpServers?.(mode, cwd, sessionId, {
-        ownerId,
-        requestId,
-        clientId,
-        protocolVersion: PROTOCOL_VERSION,
-        sessionId,
-        adapterId: profile.adapterId,
-        executionRole,
-      }),
       maxAttempts: this.maxRecoverableRetries > 0 ? this.maxRecoverableRetries + 1 : undefined,
       recoverAfterError: this.recoverAfterError(profile.adapterId),
       imagePresent: Boolean(message.imageBase64),

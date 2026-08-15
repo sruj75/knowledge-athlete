@@ -123,7 +123,7 @@ def persist_processed_conversation(uid: str, conversation_data: dict[str, Any]) 
     """Persist a processing result and report whether the conversation still exists.
 
     ``False`` means its owner deleted it.  Callers must stop before emitting
-    derived side effects such as webhooks or integration fanout.
+    derived side effects such as vectors, memories, or action-item extraction.
     """
     _require_status(
         conversation_data,
@@ -550,10 +550,6 @@ def delete_empty_recording_conversation(
         conversation_id,
         recording_session_id,
     )
-    if deleted:
-        # Parent deletion is transactionally fenced with content writes; photos
-        # are a subcollection and need their physical cleanup afterwards.
-        conversations_db.delete_conversation_photos(uid, conversation_id)
     return deleted
 
 
@@ -640,12 +636,12 @@ def _finalization_admission(
 def claim_finalization_fanout(
     job_id: str, dispatch_generation: int, lease_epoch: int
 ) -> jobs_db.FinalizationFanoutClaim:
-    """Claim the durable external-integration fanout through the lifecycle owner."""
+    """Claim the durable derived-effect bundle through the lifecycle owner."""
     return jobs_db.claim_finalization_fanout(job_id, dispatch_generation, lease_epoch)
 
 
 def complete_finalization_fanout(job_id: str, dispatch_generation: int, lease_epoch: int) -> bool:
-    """Persist completion only after the idempotency-keyed fanout succeeds."""
+    """Persist completion only after the idempotency-keyed effect bundle succeeds."""
     return jobs_db.mark_finalization_fanout_completed(job_id, dispatch_generation, lease_epoch)
 
 

@@ -144,7 +144,7 @@ class LiveConversationController:
         )
         if not data:
             return False
-        if data.get('transcript_segments') or data.get('photos'):
+        if data.get('transcript_segments'):
             return await self.schedule_finalization(conversation_id)
         recording_session_id = recording_session_id_for_lifecycle_event(
             self.host.recording_session_ids_by_conversation, conversation_id
@@ -161,7 +161,7 @@ class LiveConversationController:
             conversations_db.get_conversation, self.host.request.uid, conversation_id
         )
         return bool(
-            latest and (latest.get('transcript_segments') or latest.get('has_content') or latest.get('photos'))
+            latest and (latest.get('transcript_segments') or latest.get('has_content'))
         ) and await self.schedule_finalization(conversation_id)
 
     async def create_new_in_progress_conversation(self, *, rollover: bool = False) -> None:
@@ -221,7 +221,6 @@ class LiveConversationController:
             structured=Structured(),
             language=self.host.language,
             transcript_segments=[],
-            photos=[],
             status=ConversationStatus.in_progress,
             source=source,
             private_cloud_sync_enabled=self.host.private_cloud_sync_enabled,

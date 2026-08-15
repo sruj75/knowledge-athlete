@@ -245,24 +245,6 @@
       ]
     },
     {
-      "collectionGroup": "candidate_integration_outbox",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "account_generation",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "status",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "__name__",
-          "order": "ASCENDING"
-        }
-      ]
-    },
-    {
       "collectionGroup": "memory_outbox",
       "queryScope": "COLLECTION",
       "fields": [

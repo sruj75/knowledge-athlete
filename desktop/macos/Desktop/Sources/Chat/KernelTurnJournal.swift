@@ -317,7 +317,6 @@ extension ChatMessage {
     origin: String,
     status: KernelJournalTurnStatus,
     continuityKey: String? = nil,
-    appId: String? = nil,
     sessionId: String? = nil,
     messageSource: String? = nil
   ) -> KernelJournalTurnWrite {
@@ -326,7 +325,6 @@ extension ChatMessage {
     if let notificationContext { metadata["notificationContext"] = notificationContext }
     // These rollback-compatible fields are consumed only by the kernel outbox
     // renderer for the existing /v2/desktop/messages POST shape.
-    if let appId { metadata["appId"] = appId }
     if let sessionId { metadata["sessionId"] = sessionId }
     if let messageSource { metadata["messageSource"] = messageSource }
     let metadataJSON: String

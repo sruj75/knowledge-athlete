@@ -24,7 +24,7 @@ def test_merge_memory_for_write_accumulates_standard_evidence():
     incoming = _memory(
         [
             {'evidence_id': 'ev1', 'source_id': 'conv1'},
-            {'evidence_id': 'ev2', 'source_id': 'gmail:msg1'},
+            {'evidence_id': 'ev2', 'source_id': 'conv-2'},
         ],
         content='new',
     )
@@ -43,7 +43,7 @@ def test_merge_memory_for_write_round_trips_enhanced_evidence():
         'enhanced',
     )
     incoming = memories_db._prepare_data_for_write(
-        _memory([{'evidence_id': 'ev2', 'source_id': 'gmail:msg1'}], content='new', level='enhanced'),
+        _memory([{'evidence_id': 'ev2', 'source_id': 'conv-2'}], content='new', level='enhanced'),
         'uid-1',
         'enhanced',
     )
@@ -61,7 +61,7 @@ def test_merge_memory_for_write_round_trips_enhanced_evidence():
 
 def test_coalesce_memory_writes_preserves_same_batch_evidence():
     first = _memory([{'evidence_id': 'ev1', 'source_id': 'conv1'}], content='old')
-    second = _memory([{'evidence_id': 'ev2', 'source_id': 'gmail:msg1'}], content='new')
+    second = _memory([{'evidence_id': 'ev2', 'source_id': 'conv-2'}], content='new')
 
     coalesced = memories_db._coalesce_memory_writes('uid-1', [first, second])
 

@@ -132,7 +132,6 @@ _SYS_MODULE_NAMES = [
     "langchain_core.messages",
     "models",
     "models.conversation",
-    "models.app",
 ]
 _SYS_MODULES_SNAPSHOT = snapshot_sys_modules(_SYS_MODULE_NAMES)
 
@@ -299,7 +298,6 @@ conv_folder_stub.build_folders_context = MagicMock(return_value="")
 _stub_package("models")
 sys.modules["models"].__path__ = [str(BACKEND_DIR / "models")]
 _load_module_from_file("models.conversation", BACKEND_DIR / "models" / "conversation.py")
-_load_module_from_file("models.app", BACKEND_DIR / "models" / "app.py")
 
 # Load action_item_tools
 action_item_tools = _load_module_from_file(

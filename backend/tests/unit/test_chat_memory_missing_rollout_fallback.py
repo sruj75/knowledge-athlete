@@ -2,8 +2,8 @@
 
 An account with no `users/{uid}/memory_control/state` doc resolves to
 DENY_MEMORY / `missing_rollout_state`, which is the expected state for the legacy
-cohort. The Developer API (#10094) and MCP (#10095) already read the legacy
-`memories` collection for that signal; the chat retrieval tools used to return
+cohort. First-party memory reads already use the legacy `memories` collection for
+that signal; the chat retrieval tools used to return
 "No memories available for this request." instead, so chat answered as though the
 user had no memories while the memories screen showed them normally.
 

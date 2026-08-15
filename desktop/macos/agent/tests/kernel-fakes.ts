@@ -34,7 +34,6 @@ export class FakeRuntimeAdapter implements RuntimeAdapter {
     supportsCancellation: true,
     acknowledgesCancellation: false,
     requiresPinnedWorker: false,
-    supportsModelSwitching: true,
     supportsArtifactEmission: true,
     supportsTools: true,
     restartBehavior: "native_bindings_survive",
@@ -57,7 +56,6 @@ export class FakeRuntimeAdapter implements RuntimeAdapter {
   nextText: string | undefined;
   writeFileOnExecute: { name: string; contents: string } | undefined;
   /** When set, FakeRuntimeAdapter reports this as the adapter-effective MCP set. */
-  effectiveMcpServersOverride: Record<string, unknown>[] | null = null;
   pendingResult:
     | {
         promise: Promise<AdapterAttemptResult>;
@@ -171,9 +169,6 @@ export class FakeRuntimeAdapter implements RuntimeAdapter {
     };
   }
 
-  effectiveMcpServers(_mcpServers: Record<string, unknown>[]): Record<string, unknown>[] {
-    return this.effectiveMcpServersOverride ?? _mcpServers;
-  }
 
   deferResult(): void {
     this.pendingResult = {} as typeof this.pendingResult;
@@ -225,10 +220,7 @@ export function createKernelHarness(
     recoverRunInput,
     toolCapabilityProfileForSession: (sessionId) => {
       const profile = readSessionExecutionProfile(store, sessionId);
-      const adapterId = ["pi-mono", "acp", "hermes", "openclaw"].includes(profile.adapterId)
-        ? profile.adapterId
-        : "acp";
-      return { ...profile, adapterId };
+      return { ...profile, adapterId: "pi-mono" };
     },
   });
   return { store, adapter, kernel };

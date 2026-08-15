@@ -7,8 +7,7 @@ directly from the live backend application. This test:
 
 - Extracts every backend REST route string hardcoded in the APIClient sources.
 - Excludes out-of-scope protocols (Rust desktop backend `/v2/realtime/*`,
-  `/v1/config/api-keys`, integration OAuth `/v1/x/*`, local
-  VM, WebSocket/SSE/binary).
+  `/v1/config/api-keys`, local VM, WebSocket/SSE/binary).
 - Asserts each in-scope route exists in the app-client OpenAPI spec.
 
 When this test passes, the desktop's REST surface is proven to map to
@@ -40,14 +39,11 @@ CONVERSATIONS_DB = ROOT_DIR / 'backend' / 'database' / 'conversations.py'
 OUT_OF_SCOPE_PREFIXES = (
     '/v2/realtime',  # Rust desktop backend
     '/v1/config/api-keys',  # Rust desktop backend
-    '/v1/x/',  # integration OAuth (desktop-mediated)
     '/v1/tts/synthesize',  # Rust desktop backend
     '/v2/chat/',  # streaming chat / Rust
     '/v2/chat-sessions',  # Rust desktop backend
     '/v2/desktop/',  # Rust desktop backend
-    '/v2/messages/',  # SSE streaming
     '/v2/files',  # multipart upload
-    '/v2/apps',  # Rust-proxied app routes (desktop uses v1/apps)
 )
 
 # Swift string-interpolation route literals look like "v1/conversations/\(id)".
@@ -100,7 +96,7 @@ def _load_spec_paths() -> Set[str]:
 
 
 def _load_spec() -> dict[str, Any]:
-    return export_openapi.generate_openapi('app-client')
+    return export_openapi.generate_app_client_openapi()
 
 
 def _normalize_for_match(path: str) -> str:
@@ -172,17 +168,12 @@ KNOWN_MISSING_ROUTES: Set[str] = {
     # endpoints or naming drift to be resolved in a follow-up slice.
     '/v1/action-items/batch-scores',
     '/v1/goals/completed',
-    '/v1/personas/check-username',
-    '/v1/personas/generate-prompt',
     '/v3/memories/mark-all-read',
-    '/v3/memories/visibility',  # backend has /v3/memories/{memory_id}/visibility
     '/v3/memories/{param}/read',
-    '/v3/memory-imports/batch',  # backend route exists but lacks response_model export
     # These backend routes exist but return unmodeled (loose) responses, so
     # adding them to the app-client surface would regress the strict
     # `unmodeled_success_response_count == 0` gate. They are tracked for a
     # follow-up that adds Pydantic response_models first, then exports them.
-    '/v1/personas',
     '/v1/scores',
     '/v1/staged-tasks',
     '/v1/staged-tasks/{param}',
@@ -192,7 +183,6 @@ KNOWN_MISSING_ROUTES: Set[str] = {
     '/v1/staged-tasks/promote',
     '/v1/tools/action-items',
     '/v1/tools/action-items/{param}',
-    '/v1/tools/calendar-events',
     '/v1/tools/conversations',
     '/v1/tools/conversations/search',
     '/v1/tools/memories',
@@ -278,13 +268,11 @@ def test_desktop_named_model_response_items_are_not_free_form_objects():
 def test_conversations_search_hydrates_index_hits_before_returning_app_client_rows():
     source = CONVERSATIONS_ROUTER.read_text()
     endpoint_start = source.index('def search_conversations_endpoint(')
-    endpoint_end = source.index(
-        '@router.get(\n    "/v1/conversations/{conversation_id}/suggested-apps"', endpoint_start
-    )
+    endpoint_end = source.index('@router.get(\n    "/v1/conversations/{conversation_id}/analytics"', endpoint_start)
     endpoint_source = source[endpoint_start:endpoint_end]
 
     assert 'search_results = search_conversations(' in endpoint_source
-    assert 'get_conversations_by_id_without_photos(' in endpoint_source
+    assert 'get_conversations_by_id(' in endpoint_source
     assert "if not conversation.get('is_locked')" in endpoint_source
     assert "search_results['items'] = conversations" in endpoint_source
     assert "search_results['total_pages'] =" in endpoint_source

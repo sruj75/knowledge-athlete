@@ -26,7 +26,7 @@ from utils.other import endpoints as auth
 from utils.memory.canonical_memory_adapter import purge_canonical_derived_user_data
 from utils.other.storage import delete_all_conversation_recordings
 from utils.twilio_service import delete_user_caller_ids_strict as delete_user_caller_ids
-from utils.integration_telemetry import emit_posthog_event
+from utils.posthog_telemetry import emit_posthog_event
 
 logger = logging.getLogger(__name__)
 

@@ -169,60 +169,6 @@ class TestPrecacheSyncImport:
         assert '_run_parallel_precache(' in func_body
 
 
-class TestKGRebuildExecutorAndSemaphore:
-    """rebuild_knowledge_graph must use llm_executor with bounded concurrency."""
-
-    def test_kg_uses_llm_executor(self):
-        """KG rebuild must submit to llm_executor, not storage_executor."""
-        src = _read_source('utils/llm/knowledge_graph.py')
-        func_start = src.index('def rebuild_knowledge_graph')
-        func_body = src[func_start:]
-        assert 'llm_executor.submit' in func_body
-        assert 'storage_executor' not in func_body
-
-    def test_kg_rebuild_semaphore_defined(self):
-        """KG module must define _KG_REBUILD_SEM as BoundedSemaphore(4)."""
-        src = _read_source('utils/llm/knowledge_graph.py')
-        assert '_KG_REBUILD_SEM' in src
-        assert 'BoundedSemaphore(4)' in src
-
-    def test_kg_rebuild_acquires_semaphore(self):
-        """rebuild_knowledge_graph must acquire _KG_REBUILD_SEM before each submit."""
-        src = _read_source('utils/llm/knowledge_graph.py')
-        func_start = src.index('def rebuild_knowledge_graph')
-        func_body = src[func_start:]
-        assert '_KG_REBUILD_SEM.acquire()' in func_body
-
-    def test_kg_rebuild_releases_semaphore_in_callback(self):
-        """_KG_REBUILD_SEM must be released via done callback."""
-        src = _read_source('utils/llm/knowledge_graph.py')
-        func_start = src.index('def rebuild_knowledge_graph')
-        func_body = src[func_start:]
-        assert '_KG_REBUILD_SEM.release()' in func_body
-        assert 'add_done_callback' in func_body
-
-    def test_kg_rebuild_releases_on_submit_failure(self):
-        """Semaphore must be released in except block if submit() raises."""
-        src = _read_source('utils/llm/knowledge_graph.py')
-        func_start = src.index('def rebuild_knowledge_graph')
-        func_body = src[func_start:]
-        acquire_idx = func_body.index('_KG_REBUILD_SEM.acquire()')
-        except_block = func_body[acquire_idx:]
-        assert 'except' in except_block
-        release_after_except = except_block.index('except')
-        assert '_KG_REBUILD_SEM.release()' in except_block[release_after_except:]
-
-    def test_kg_imports_llm_executor(self):
-        """knowledge_graph.py must import llm_executor, not storage_executor."""
-        src = _read_source('utils/llm/knowledge_graph.py')
-        assert 'from utils.executors import' in src
-        import_line_start = src.index('from utils.executors import')
-        import_line_end = src.index('\n', import_line_start)
-        import_line = src[import_line_start:import_line_end]
-        assert 'llm_executor' in import_line
-        assert 'storage_executor' not in import_line
-
-
 class TestSpeakerIdentificationPool:
     """speaker_identification must not use storage_executor as parent for download_audio_chunks_and_merge."""
 

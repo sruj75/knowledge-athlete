@@ -9,137 +9,76 @@ from pydantic import BaseModel, ConfigDict
 from scripts import export_openapi
 
 
-@pytest.fixture(autouse=True)
-def narrow_undocumented_route_allowlist(monkeypatch):
-    monkeypatch.setattr(
-        export_openapi,
-        'UNDOCUMENTED_PUBLIC_ROUTES',
-        {
-            (
-                'POST',
-                '/v1/conversations/from-segments',
-            ): 'Synthetic Firebase-authenticated app-client alias.',
-        },
-    )
-
-
 def _make_app() -> FastAPI:
     app = FastAPI()
 
-    @app.get('/v1/dev/example', operation_id='getExample', tags=['Examples'])
-    def get_example():
+    @app.post(
+        '/v1/conversations/from-segments',
+        operation_id='postFromSegments',
+        tags=['Conversations'],
+    )
+    def post_from_segments():
         return {'ok': True}
 
     @app.post('/v1/internal/example', operation_id='postInternalExample', tags=['Internal'])
     def post_internal_example():
         return {'ok': True}
 
-    @app.post('/v1/conversations/from-segments', operation_id='postFromSegmentsAlias', tags=['Conversations'])
-    def post_from_segments_alias():
+    @app.post('/v2/messages', operation_id='postMessage', tags=['Chat'])
+    def post_message():
         return {'ok': True}
 
     return app
 
 
-def test_public_openapi_filters_to_developer_contract():
-    schema = export_openapi.build_public_openapi(_make_app())
+def test_app_client_openapi_filters_to_first_party_contract():
+    schema = export_openapi.build_app_client_openapi(_make_app())
 
-    assert list(schema['paths']) == ['/v1/dev/example']
-    assert schema['paths']['/v1/dev/example']['get']['operationId'] == 'getExample'
+    assert list(schema['paths']) == ['/v1/conversations/from-segments', '/v2/messages']
+    operation = schema['paths']['/v1/conversations/from-segments']['post']
+    assert operation['operationId'] == 'postFromSegments'
     assert schema['components']['securitySchemes'] == {
-        'developerApiKey': export_openapi.DEVELOPER_API_KEY_AUTH_SCHEME,
         'firebaseBearer': export_openapi.FIREBASE_BEARER_AUTH_SCHEME,
     }
-    assert schema['paths']['/v1/dev/example']['get']['security'] == [{'developerApiKey': []}]
-    assert schema['paths']['/v1/dev/example']['get']['responses']['401'] == {'$ref': '#/components/responses/Error401'}
+    assert operation['security'] == [{'firebaseBearer': []}]
+    assert operation['responses']['401'] == {'$ref': '#/components/responses/Error401'}
+
+    chat_operation = schema['paths']['/v2/messages']['post']
+    assert chat_operation['operationId'] == 'postMessage'
+    assert chat_operation['security'] == [{'firebaseBearer': []}]
 
 
-def test_route_inventory_fails_when_public_route_missing_from_spec():
-    app = _make_app()
-    schema = {
-        'openapi': '3.1.0',
-        'paths': {},
-        'components': {'securitySchemes': {'developerApiKey': export_openapi.DEVELOPER_API_KEY_AUTH_SCHEME}},
-    }
-
-    with pytest.raises(export_openapi.OpenAPIContractError, match='public routes missing from OpenAPI'):
-        export_openapi.assert_route_inventory(app, schema)
-
-
-def test_public_like_route_must_be_documented_or_allowlisted():
-    app = _make_app()
-
-    @app.get('/v1/conversations/new-public-route', operation_id='newPublicRoute')
-    def new_public_route():
-        return {'ok': True}
-
-    with pytest.raises(export_openapi.OpenAPIContractError, match='public routes missing from OpenAPI'):
-        export_openapi.build_public_openapi(app)
-
-
-def test_exact_v1_conversations_route_is_audited_when_not_allowlisted(monkeypatch):
-    monkeypatch.setattr(export_openapi, 'UNDOCUMENTED_PUBLIC_ROUTES', {})
-    app = _make_app()
-
-    @app.post('/v1/conversations', operation_id='createFirstPartyConversation')
-    def create_first_party_conversation():
-        return {'ok': True}
-
-    with pytest.raises(export_openapi.OpenAPIContractError, match='POST /v1/conversations'):
-        export_openapi.build_public_openapi(app)
-
-
-def test_similar_prefix_without_path_boundary_is_not_audited():
+def test_similar_prefix_without_path_boundary_is_not_included():
     app = _make_app()
 
     @app.get('/v1/conversations-v2/preview', operation_id='conversationV2Preview')
     def conversation_v2_preview():
         return {'ok': True}
 
-    schema = export_openapi.build_public_openapi(app)
+    schema = export_openapi.build_app_client_openapi(app)
 
     assert '/v1/conversations-v2/preview' not in schema['paths']
 
 
-def test_firebase_key_routes_get_firebase_auth_scheme():
-    app = FastAPI()
-
-    @app.get('/v1/dev/keys', operation_id='listApiKeys')
-    def list_api_keys():
-        return []
-
-    @app.post('/v1/conversations/from-segments', operation_id='postFromSegmentsAlias', tags=['Conversations'])
-    def post_from_segments_alias():
-        return {'ok': True}
-
-    schema = export_openapi.build_public_openapi(app)
-
-    assert schema['paths']['/v1/dev/keys']['get']['security'] == [{'firebaseBearer': []}]
-
-
 def test_component_names_follow_explicit_schema_titles():
     class InternalRuntimeName(BaseModel):
-        model_config = ConfigDict(title='PublicContractName')
+        model_config = ConfigDict(title='AppClientContractName')
 
         value: str
 
     app = FastAPI()
 
-    @app.get('/v1/dev/titled', response_model=InternalRuntimeName, operation_id='getTitled')
+    @app.get('/v1/memories/titled', response_model=InternalRuntimeName, operation_id='getTitled')
     def get_titled():
         return {'value': 'ok'}
 
-    @app.post('/v1/conversations/from-segments', operation_id='postFromSegmentsAlias', tags=['Conversations'])
-    def post_from_segments_alias():
-        return {'ok': True}
+    schema = export_openapi.build_app_client_openapi(app)
 
-    schema = export_openapi.build_public_openapi(app)
-
-    assert 'PublicContractName' in schema['components']['schemas']
+    assert 'AppClientContractName' in schema['components']['schemas']
     assert 'InternalRuntimeName' not in schema['components']['schemas']
-    assert schema['paths']['/v1/dev/titled']['get']['responses']['200']['content']['application/json']['schema'] == {
-        '$ref': '#/components/schemas/PublicContractName'
-    }
+    assert schema['paths']['/v1/memories/titled']['get']['responses']['200']['content']['application/json'][
+        'schema'
+    ] == {'$ref': '#/components/schemas/AppClientContractName'}
 
 
 def test_operation_id_uniqueness_check_reports_duplicates():

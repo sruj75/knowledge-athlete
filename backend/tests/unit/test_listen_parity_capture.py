@@ -20,8 +20,8 @@ def _request():
         'sample_rate': 8000,
         'channels': 1,
         'language': 'en',
-        'provider': 'parakeet',
-        'model': 'parakeet_streaming',
+        'provider': 'modulate',
+        'model': 'modulate-velma-2',
     }
 
 
@@ -29,8 +29,8 @@ def test_listen_capture_persists_client_provider_and_inbound_events_for_allowed_
     capture = ListenParityCapture.from_environ(
         principal_id='allowed-firebase-uid',
         session_id='runtime-session',
-        provider='parakeet',
-        model='parakeet_streaming',
+        provider='modulate',
+        model='modulate-velma-2',
         request=_request(),
         environ=_capture_env(tmp_path),
     )
@@ -53,8 +53,8 @@ def test_listen_capture_whitelist_miss_writes_no_cassette_bytes(tmp_path):
     capture = ListenParityCapture.from_environ(
         principal_id='not-allowlisted',
         session_id='runtime-session',
-        provider='parakeet',
-        model='parakeet_streaming',
+        provider='modulate',
+        model='modulate-velma-2',
         request=_request(),
         environ=_capture_env(tmp_path),
     )
@@ -73,8 +73,8 @@ def test_listen_capture_requires_a_restricted_absolute_root(tmp_path):
     relative = ListenParityCapture.from_environ(
         principal_id='allowed-firebase-uid',
         session_id='runtime-session',
-        provider='parakeet',
-        model='parakeet_streaming',
+        provider='modulate',
+        model='modulate-velma-2',
         request=_request(),
         environ=relative_env,
     )
@@ -85,8 +85,8 @@ def test_listen_capture_requires_a_restricted_absolute_root(tmp_path):
     not_dev = ListenParityCapture.from_environ(
         principal_id='allowed-firebase-uid',
         session_id='runtime-session',
-        provider='parakeet',
-        model='parakeet_streaming',
+        provider='modulate',
+        model='modulate-velma-2',
         request=_request(),
         environ=not_dev_env,
     )
@@ -97,8 +97,8 @@ def test_listen_capture_bounds_audio_and_snapshots_transcript_segments(tmp_path)
     capture = ListenParityCapture.from_environ(
         principal_id='allowed-firebase-uid',
         session_id='runtime-session',
-        provider='parakeet',
-        model='parakeet_streaming',
+        provider='modulate',
+        model='modulate-velma-2',
         request=_request(),
         environ=_capture_env(tmp_path),
     )
@@ -130,8 +130,8 @@ def test_listen_capture_export_fail_open_when_gcs_upload_raises(tmp_path, monkey
     capture = ListenParityCapture.from_environ(
         principal_id='allowed-firebase-uid',
         session_id='runtime-session',
-        provider='parakeet',
-        model='parakeet_streaming',
+        provider='modulate',
+        model='modulate-velma-2',
         request=_request(),
         environ=env,
     )

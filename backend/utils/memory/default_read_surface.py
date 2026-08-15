@@ -60,7 +60,7 @@ def rollout_decision_from_legacy_args(
     consumer: str,
     rollout_decision: Optional[DefaultReadRolloutDecision],
     rollout_capabilities: Optional[MemoryRolloutCapabilities],
-    app_has_default_memory_grant: bool,
+    has_default_memory_grant: bool,
 ) -> DefaultReadRolloutDecision:
     if rollout_decision is not None:
         return rollout_decision
@@ -76,7 +76,7 @@ def rollout_decision_from_legacy_args(
         source_path=f'users/{uid}/memory_control/state',
         consumer=consumer,
         rollout_capabilities=rollout_capabilities,
-        app_has_default_memory_grant=app_has_default_memory_grant,
+        has_default_memory_grant=has_default_memory_grant,
         archive_capability=False,
     )
 
@@ -112,7 +112,7 @@ def fetch_default_read_list(
     bounded_offset = max(0, offset)
     policy = MemoryAccessPolicy(
         consumer=consumer,
-        app_has_default_memory_grant=True,
+        has_default_memory_grant=True,
         archive_capability=False,
         raw_provenance_capability=False,
     )
@@ -151,7 +151,7 @@ def fetch_default_read_vector(
     if decision.read_decision != MemoryReadDecision.USE_MEMORY:
         return deny_default_read_search(decision)
 
-    bounded_limit = max(1, min(limit, 100 if consumer == MemoryConsumer.developer_api else 20))
+    bounded_limit = max(1, min(limit, 20))
     projection_commit_id = required_projection_commit_id or decision.vector_projection_commit_id
     if not projection_commit_id:
         return DefaultReadSearchResult(
@@ -162,7 +162,7 @@ def fetch_default_read_vector(
 
     policy = MemoryAccessPolicy(
         consumer=consumer,
-        app_has_default_memory_grant=True,
+        has_default_memory_grant=True,
         archive_capability=False,
         raw_provenance_capability=False,
     )
@@ -173,11 +173,7 @@ def fetch_default_read_vector(
         policy=policy,
         vector_query=vector_query,
         limit=bounded_limit,
-        # The candidate budget must cover the requested limit — fetch_default_vector_memory_search
-        # rejects max_candidates < limit. Its default is 50 while the developer_api branch above
-        # admits up to 100, so limits of 51..100 raised ValueError (HTTP 500) instead of returning
-        # results. Only widen the budget when the caller actually asked for more than the default;
-        # bounded_limit never exceeds MAX_MEMORY_VECTOR_SEARCH_LIMIT, so this stays in range.
+        # The candidate budget must cover the requested limit.
         max_candidates=max(DEFAULT_MEMORY_VECTOR_MAX_CANDIDATES, bounded_limit),
         required_projection_commit_id=projection_commit_id,
         required_account_generation=decision.rollout_capabilities.account_generation,

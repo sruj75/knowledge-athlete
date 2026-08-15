@@ -555,8 +555,6 @@ def test_workstream_candidate_acceptance_is_atomic_and_idempotent(fake_db):
     assert first.newly_resolved is True and second.newly_resolved is False
     assert len([path for path in fake_db.rows if len(path) == 4 and path[-2] == 'workstreams']) == 1
     assert fake_db.rows[('users', 'u1', 'candidates', 'cand-1')]['status'] == CandidateStatus.accepted.value
-    outbox = fake_db.rows[('users', 'u1', 'candidate_integration_outbox', 'cand-1')]
-    assert outbox['task_id'] == first.task_id and outbox['status'] == 'pending'
     anchor_task = fake_db.rows[('users', 'u1', 'action_items', first.task_id)]
     assert anchor_task['due_at'] == datetime(2026, 7, 20, tzinfo=timezone.utc)
     assert anchor_task['due_confidence'] == 0.9

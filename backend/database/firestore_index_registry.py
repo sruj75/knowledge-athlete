@@ -189,12 +189,6 @@ INDEX_ONLY_REQUIREMENTS = (
         'COLLECTION',
         (_asc('completed'), _asc('conversation_id'), _asc('due_at'), _asc('__name__')),
     ),
-    FirestoreIndexRequirement(
-        'candidate_integration_outbox_generation_status',
-        'candidate_integration_outbox',
-        'COLLECTION',
-        (_asc('account_generation'), _asc('status'), _asc('__name__')),
-    ),
 )
 
 

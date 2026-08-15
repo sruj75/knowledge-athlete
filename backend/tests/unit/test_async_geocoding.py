@@ -119,8 +119,6 @@ if _http_mod is None:
     _http_mod = types.ModuleType("utils.http_client")
 if not hasattr(_http_mod, "get_maps_client"):
     _http_mod.get_maps_client = MagicMock()
-if not hasattr(_http_mod, "get_webhook_client"):
-    _http_mod.get_webhook_client = MagicMock()
 if not hasattr(_http_mod, "get_maps_semaphore"):
     _http_mod.get_maps_semaphore = MagicMock(return_value=asyncio.Semaphore(8))
 _install_module("utils.http_client", _http_mod)

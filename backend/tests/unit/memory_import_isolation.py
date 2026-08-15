@@ -174,7 +174,6 @@ def install_ws_i_heavy_import_stubs() -> list[str]:
         "utils.other.hume",
         "utils.other.storage",
         "utils.analytics",
-        "utils.conversations.calendar_linking",
     ):
         _set(name, AutoMockModule(name))
 
@@ -240,7 +239,6 @@ def install_ws_i_heavy_import_stubs() -> list[str]:
     memories_mod.get_memories = MagicMock(return_value=[])
     memories_mod.get_memory = MagicMock(return_value=None)
     memories_mod.invalidate_memory = MagicMock()
-    memories_mod.set_memory_kg_extracted = MagicMock()
     _set("database.memories", memories_mod)
 
     import database
@@ -257,16 +255,14 @@ def install_ws_i_heavy_import_stubs() -> list[str]:
         "database.action_items",
         "database.folders",
         "database.calendar_meetings",
-        "database.apps",
         "database.short_term_memories",
         "database.review_queue",
         "utils.executors",
         "utils.other.endpoints",
-        "utils.apps",
         "utils.llm.memories",
         "utils.llm.trends",
         "utils.llm.goals",
-        "utils.llm.external_integrations",
+        "utils.llm.daily_summary",
         "utils.llm.conversations",
         "utils.llm.processing",
         "utils.llm.speaker_assignment",
@@ -274,11 +270,8 @@ def install_ws_i_heavy_import_stubs() -> list[str]:
         "utils.llm.speaker_id",
         "utils.llm.speaker_embedding",
         "utils.llm.speech_profile",
-        "utils.llm.knowledge_graph",
         "utils.billing",
-        "utils.webhooks",
         "utils.notifications",
-        "utils.conversations.memories",
         "utils.conversations.factory",
         "utils.conversations.subjects",
         "utils.conversations.transcript_chunks",
@@ -306,7 +299,6 @@ WS_I_HEAVY_STUB_MODULE_NAMES = (
     "utils.other.hume",
     "utils.other.storage",
     "utils.analytics",
-    "utils.conversations.calendar_linking",
     "langchain",
     "langchain.prompts",
     "stripe",
@@ -326,16 +318,14 @@ WS_I_HEAVY_STUB_MODULE_NAMES = (
     "database.action_items",
     "database.folders",
     "database.calendar_meetings",
-    "database.apps",
     "database.short_term_memories",
     "database.review_queue",
     "utils.executors",
     "utils.other.endpoints",
-    "utils.apps",
     "utils.llm.memories",
     "utils.llm.trends",
     "utils.llm.goals",
-    "utils.llm.external_integrations",
+    "utils.llm.daily_summary",
     "utils.llm.conversations",
     "utils.llm.processing",
     "utils.llm.speaker_assignment",
@@ -343,11 +333,8 @@ WS_I_HEAVY_STUB_MODULE_NAMES = (
     "utils.llm.speaker_id",
     "utils.llm.speaker_embedding",
     "utils.llm.speech_profile",
-    "utils.llm.knowledge_graph",
     "utils.billing",
-    "utils.webhooks",
     "utils.notifications",
-    "utils.conversations.memories",
     "utils.conversations.factory",
     "utils.conversations.transcript_chunks",
     "utils.retrieval.tools.memory_tools",
@@ -416,16 +403,12 @@ def install_ws_j_heavy_import_stubs() -> list[str]:
         "utils.executors",
         "utils.other.endpoints",
         "utils.other.storage",
-        "utils.llm.knowledge_graph",
         "utils.conversations.factory",
         "utils.conversations.process_conversation",
         "utils.conversations.search",
-        "utils.conversations.calendar_linking",
         "utils.speaker_identification",
-        "utils.app_integrations",
         "utils.analytics",
         "utils.subscription",
-        "utils.webhooks",
         "utils.billing",
         "utils.llm.conversation_processing",
         "utils.llm.conversations",
@@ -437,7 +420,6 @@ def install_ws_j_heavy_import_stubs() -> list[str]:
         "database.daily_summaries",
         "database.llm_usage",
         "database.app_review_config",
-        "database.webhook_health",
         "stripe",
         "pytz",
         "twilio",
@@ -498,49 +480,6 @@ def install_ws_m_heavy_import_stubs() -> list[str]:
         "database.memories",
         "utils.subscription",
         "utils.executors",
-        "utils.llm.knowledge_graph",
-        "stripe",
-        "pytz",
-        "google.cloud",
-        "google.api_core",
-        "modal",
-        "ulid",
-        "typesense",
-    ):
-        if name not in sys.modules:
-            sys.modules[name] = AutoMockModule(name)
-            touched.append(name)
-
-    return touched
-
-
-def install_ws_n_heavy_import_stubs() -> list[str]:
-    touched: list[str] = []
-
-    firebase_admin = types.ModuleType("firebase_admin")
-    firebase_admin.auth = MagicMock()
-    sys.modules["firebase_admin"] = firebase_admin
-    touched.append("firebase_admin")
-
-    kg_mod = types.ModuleType("database.knowledge_graph")
-    kg_mod.get_knowledge_graph = MagicMock(return_value={"nodes": [], "edges": []})
-    kg_mod.get_knowledge_nodes = MagicMock(return_value=[])
-    kg_mod.get_knowledge_edges = MagicMock(return_value=[])
-    kg_mod.upsert_knowledge_node = MagicMock()
-    kg_mod.upsert_knowledge_edge = MagicMock()
-    kg_mod.delete_knowledge_graph = MagicMock()
-    sys.modules["database.knowledge_graph"] = kg_mod
-    touched.append("database.knowledge_graph")
-
-    for name in (
-        "database.redis_db",
-        "database.conversations",
-        "database.memories",
-        "database.vector_db",
-        "database.users",
-        "utils.subscription",
-        "utils.executors",
-        "utils.llm.knowledge_graph",
         "stripe",
         "pytz",
         "google.cloud",
@@ -668,94 +607,6 @@ def ensure_package_path(name: str, path: str) -> ModuleType:
         parent = sys.modules.setdefault(parent_name, ModuleType(parent_name))
         setattr(parent, child_name, module)
     return module
-
-
-def install_mcp_search_memories_stubs(backend_dir: str) -> list[str]:
-    touched: list[str] = []
-
-    ensure_package_path("utils", os.path.join(backend_dir, "utils"))
-    ensure_package_path("utils.retrieval", os.path.join(backend_dir, "utils", "retrieval"))
-    ensure_package_path("models", os.path.join(backend_dir, "models"))
-
-    drop_stale_module("utils.retrieval.hybrid", os.path.join(backend_dir, "utils", "retrieval", "hybrid.py"))
-    drop_stale_module("models.memories", os.path.join(backend_dir, "models", "memories.py"))
-    drop_stale_module("models.conversation_enums", os.path.join(backend_dir, "models", "conversation_enums.py"))
-    drop_stale_module("models.mcp_api_key", os.path.join(backend_dir, "models", "mcp_api_key.py"))
-
-    stub_names = [
-        "database._client",
-        "database.redis_db",
-        "database.conversations",
-        "database.memories",
-        "database.action_items",
-        "database.folders",
-        "database.users",
-        "database.user_usage",
-        "database.vector_db",
-        "database.chat",
-        "database.apps",
-        "database.goals",
-        "database.notifications",
-        "database.mem_db",
-        "database.mcp_api_key",
-        "database.daily_summaries",
-        "database.fair_use",
-        "database.auth",
-        "database.dev_api_key",
-        "firebase_admin",
-        "firebase_admin.messaging",
-        "firebase_admin.auth",
-        "google.cloud.firestore",
-        "google.cloud.firestore_v1",
-        "google.cloud.firestore_v1.FieldFilter",
-        "google",
-        "google.cloud",
-        "pinecone",
-        "typesense",
-        "opuslib",
-        "pydub",
-        "pusher",
-        "modal",
-        "utils.other.storage",
-        "utils.other.endpoints",
-        "utils.stt.pre_recorded",
-        "utils.stt.vad",
-        "utils.fair_use",
-        "utils.subscription",
-        "utils.conversations.process_conversation",
-        "utils.conversations.render",
-        "utils.notifications",
-        "utils.apps",
-        "utils.llm.memories",
-        "utils.llm.chat",
-        "utils.log_sanitizer",
-        "utils.executors",
-        "dependencies",
-    ]
-    for mod_name in stub_names:
-        if mod_name not in sys.modules:
-            sys.modules[mod_name] = AutoMockModule(mod_name)
-            touched.append(mod_name)
-
-    client = sys.modules["database._client"]
-    if not isinstance(getattr(client, "document_id_from_seed", None), types.FunctionType):
-        client.document_id_from_seed = lambda seed: "id-" + str(abs(hash(seed)) % (10**12))
-
-    sys.modules["dependencies"].get_uid_from_mcp_api_key = MagicMock(return_value="user-1")
-    sys.modules["dependencies"].get_current_user_id = MagicMock(return_value="user-1")
-    sys.modules["utils.other.endpoints"].with_rate_limit = MagicMock(side_effect=lambda dependency, _policy: dependency)
-    sys.modules["utils.other.endpoints"].check_rate_limit_inline = MagicMock()
-    sys.modules["utils.apps"].update_personas_async = MagicMock()
-    sys.modules["utils.executors"].db_executor = MagicMock()
-    sys.modules["utils.executors"].postprocess_executor = MagicMock()
-    sys.modules["utils.llm.memories"].identify_category_for_memory = MagicMock(return_value="other")
-    sys.modules["firebase_admin.auth"].InvalidIdTokenError = type("InvalidIdTokenError", (Exception,), {})
-    sys.modules["firebase_admin.auth"].ExpiredIdTokenError = type("ExpiredIdTokenError", (Exception,), {})
-    sys.modules["firebase_admin.auth"].RevokedIdTokenError = type("RevokedIdTokenError", (Exception,), {})
-    sys.modules["firebase_admin.auth"].CertificateFetchError = type("CertificateFetchError", (Exception,), {})
-    sys.modules["firebase_admin.auth"].UserNotFoundError = type("UserNotFoundError", (Exception,), {})
-
-    return touched
 
 
 def ensure_test_import_packages_importable(backend_dir: str | None = None) -> None:

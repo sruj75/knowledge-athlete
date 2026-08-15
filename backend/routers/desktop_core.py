@@ -11,7 +11,7 @@ from fastapi.responses import JSONResponse, PlainTextResponse
 import database.action_items as action_items_db
 from database import redis_db
 from utils.executors import critical_executor, db_executor, run_blocking
-from utils.http_client import get_webhook_client
+from utils.http_client import get_external_client
 from utils.other.endpoints import get_current_user_uid
 
 router = APIRouter()
@@ -140,7 +140,7 @@ async def _sentry_event_details(issue_id: str) -> tuple[str, str, str, dict[str,
     if not token:
         return "", "", "", {}
     try:
-        response = await get_webhook_client().get(
+        response = await get_external_client().get(
             f"https://sentry.io/api/0/issues/{issue_id}/events/latest/", headers={"Authorization": f"Bearer {token}"}
         )
         response.raise_for_status()
@@ -251,7 +251,7 @@ async def sentry_poll() -> dict[str, object]:
     if not uid or not token:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
     try:
-        response = await get_webhook_client().get(
+        response = await get_external_client().get(
             "https://sentry.io/api/0/organizations/mediar-n5/issues/?query=issue.category:feedback&limit=25&sort=date",
             headers={"Authorization": f"Bearer {token}"},
         )

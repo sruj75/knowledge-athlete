@@ -5,9 +5,9 @@ Unlike the source-level tests in test_prompt_cache_optimization.py, these tests
 actually import and call the real production functions to verify:
 
 1. _get_agentic_qa_prompt() produces byte-identical static prefixes for different users
-2. CORE_TOOLS is the right length/type and list() creates independent copies
+2. CORE_TOOLS matches the retained tool surface and list() creates independent copies
 3. llm_agent clients carry the correct model_kwargs at runtime
-4. Tool list construction: core tools first, app tools appended after
+4. Tool list construction preserves retained tool order
 5. Static prefix exceeds OpenAI's 1,024-token minimum for cache eligibility
 6. Dynamic sections actually vary per user (otherwise the split is pointless)
 """
@@ -57,14 +57,11 @@ for submodule in [
     "folders",
     "calendar_meetings",
     "vector_db",
-    "apps",
     "llm_usage",
     "_client",
     "chat",
     "goals",
-    "knowledge_graph",
     "daily_summaries",
-    "mem_db",
     "notifications",
     "auth",
 ]:
@@ -77,7 +74,6 @@ sys.modules["database.notifications"].get_user_time_zone = MagicMock(return_valu
 sys.modules["database.auth"].get_user_name = MagicMock(return_value="Alice")
 sys.modules["database.goals"].get_user_goal = MagicMock(return_value=None)
 sys.modules["database.goals"].get_user_goals = MagicMock(return_value=[])
-sys.modules["database.redis_db"].get_enabled_apps = MagicMock(return_value=[])
 sys.modules["database.redis_db"].get_filter_category_items = MagicMock(return_value=[])
 sys.modules["database.redis_db"].add_filter_category_item = MagicMock()
 sys.modules["database.redis_db"].get_cached_user_geolocation = MagicMock(return_value=None)
@@ -205,11 +201,6 @@ setattr(
     MagicMock(side_effect=lambda _tool_name, result: result),
 )
 
-# --- MCP client stub ---
-mcp_mod = _stub_module("utils.mcp_client")
-mcp_mod.call_mcp_tool = MagicMock()
-
-
 # ---------------------------------------------------------------------------
 # Import real production modules (with stubs in place)
 # ---------------------------------------------------------------------------
@@ -234,7 +225,6 @@ def _load_module_from_file(module_name: str, file_path: Path):
 _stub_module("models")
 sys.modules["models"].__path__ = [str(BACKEND_DIR / "models")]
 # Load real model modules
-_load_module_from_file("models.app", BACKEND_DIR / "models" / "app.py")
 _load_module_from_file("models.other", BACKEND_DIR / "models" / "other.py")
 
 # Real (import-light) safety module: exports AgentSafetyGuard, SafetyGuardError, fit_within_budget,
@@ -329,16 +319,6 @@ def _get_agentic_module():
         "create_action_item_tool",
         "update_action_item_tool",
         "get_omi_product_info_tool",
-        "get_calendar_events_tool",
-        "create_calendar_event_tool",
-        "update_calendar_event_tool",
-        "delete_calendar_event_tool",
-        "get_gmail_messages_tool",
-        "get_apple_health_steps_tool",
-        "get_apple_health_sleep_tool",
-        "get_apple_health_heart_rate_tool",
-        "get_apple_health_workouts_tool",
-        "get_apple_health_summary_tool",
         "search_files_tool",
         "manage_daily_summary_tool",
         "create_chart_tool",
@@ -346,7 +326,6 @@ def _get_agentic_module():
         "search_screen_activity_tool",
         "save_user_preference_tool",
         "fetch_url_tool",
-        "traverse_knowledge_graph_tool",
     ]
     for name in tool_names:
         mock_tool = MagicMock()
@@ -360,11 +339,6 @@ def _get_agentic_module():
 
     # Stub sub-modules
     _stub_module("utils.retrieval.tools.preference_tools")
-
-    # Stub app_tools
-    app_tools_mod = _stub_module("utils.retrieval.tools.app_tools")
-    app_tools_mod.load_app_tools = MagicMock(return_value=[])
-    app_tools_mod.get_tool_status_message = MagicMock(return_value=None)
 
     # Stub Anthropic client
     anthropic_mod = _stub_module("anthropic")
@@ -580,16 +554,16 @@ def test_static_prefix_exceeds_minimum_cache_tokens():
 # ---------------------------------------------------------------------------
 
 
-def test_core_tools_has_26_tools():
-    """CORE_TOOLS must contain exactly 26 tools (web search is now a built-in server tool)."""
+def test_core_tools_has_15_retained_tools():
+    """CORE_TOOLS contains only the retained first-party tools."""
     agentic_mod = _get_agentic_module()
-    assert len(agentic_mod.CORE_TOOLS) == 26, f"CORE_TOOLS has {len(agentic_mod.CORE_TOOLS)} tools, expected 26"
+    assert len(agentic_mod.CORE_TOOLS) == 15, f"CORE_TOOLS has {len(agentic_mod.CORE_TOOLS)} tools, expected 15"
 
 
 def test_core_tools_list_creates_independent_copy():
     """
-    list(CORE_TOOLS) must create an independent copy so that appending
-    app tools to one request's list doesn't mutate the shared constant.
+    list(CORE_TOOLS) must create an independent copy so that request-local
+    additions do not mutate the shared constant.
     """
     agentic_mod = _get_agentic_module()
 
@@ -602,13 +576,13 @@ def test_core_tools_list_creates_independent_copy():
     assert tools_a is not agentic_mod.CORE_TOOLS
 
     # Mutating one should not affect the other
-    mock_app_tool = MagicMock()
-    mock_app_tool.name = "custom_app_tool"
-    tools_a.append(mock_app_tool)
+    request_local_tool = MagicMock()
+    request_local_tool.name = "request_local_tool"
+    tools_a.append(request_local_tool)
 
-    assert len(tools_a) == 27
-    assert len(tools_b) == 26
-    assert len(agentic_mod.CORE_TOOLS) == 26, "CORE_TOOLS was mutated!"
+    assert len(tools_a) == 16
+    assert len(tools_b) == 15
+    assert len(agentic_mod.CORE_TOOLS) == 15, "CORE_TOOLS was mutated!"
 
 
 def test_core_tools_order_matches_exports():
@@ -627,16 +601,6 @@ def test_core_tools_order_matches_exports():
         "create_action_item_tool",
         "update_action_item_tool",
         "get_omi_product_info_tool",
-        "get_calendar_events_tool",
-        "create_calendar_event_tool",
-        "update_calendar_event_tool",
-        "delete_calendar_event_tool",
-        "get_gmail_messages_tool",
-        "get_apple_health_steps_tool",
-        "get_apple_health_sleep_tool",
-        "get_apple_health_heart_rate_tool",
-        "get_apple_health_workouts_tool",
-        "get_apple_health_summary_tool",
         "search_files_tool",
         "manage_daily_summary_tool",
         "create_chart_tool",
@@ -644,7 +608,6 @@ def test_core_tools_order_matches_exports():
         "search_screen_activity_tool",
         "save_user_preference_tool",
         "fetch_url_tool",
-        "traverse_knowledge_graph_tool",
     ]
 
     actual_names = [t.name for t in agentic_mod.CORE_TOOLS]
@@ -692,38 +655,6 @@ def test_convert_tools_produces_valid_anthropic_schemas():
         assert "defer_loading" not in schema, f"Core tool {schema['name']} should not have defer_loading"
 
 
-def test_convert_tools_defers_app_tools():
-    """
-    App tools should be marked with defer_loading=True and tool_search_tool
-    should be added when app tools are present.
-    """
-    agentic_mod = _get_agentic_module()
-
-    mock_app_tool = MagicMock()
-    mock_app_tool.name = "custom_weather_app"
-    mock_schema = MagicMock()
-    mock_schema.schema.return_value = {"properties": {"query": {"type": "string"}}, "required": ["query"]}
-    mock_app_tool.args_schema = mock_schema
-    mock_app_tool.description = "Mock app tool"
-
-    tool_schemas, tool_registry = agentic_mod._convert_tools(agentic_mod.CORE_TOOLS, [mock_app_tool])
-
-    # Should have web_search + tool_search_tool + core tools + 1 app tool
-    assert len(tool_schemas) == len(agentic_mod.CORE_TOOLS) + 3  # +1 web_search, +1 search tool, +1 app tool
-
-    # First should be web_search server tool
-    assert tool_schemas[0]["type"] == "web_search_20260209"
-    # Second should be tool_search_tool
-    assert tool_schemas[1]["type"] == "tool_search_tool_regex_20251119"
-
-    # Last should be the deferred app tool
-    assert tool_schemas[-1]["name"] == "custom_weather_app"
-    assert tool_schemas[-1]["defer_loading"] is True
-
-    # Registry should include all tools
-    assert "custom_weather_app" in tool_registry
-
-
 def test_convert_tools_preserves_core_tool_order():
     """
     Tool schemas should be in the same order as CORE_TOOLS to ensure
@@ -737,66 +668,6 @@ def test_convert_tools_preserves_core_tool_order():
     schema_names = [s["name"] for s in tool_schemas[1:]]
     core_names = [t.name for t in agentic_mod.CORE_TOOLS]
     assert schema_names == core_names, "Tool schema order must match CORE_TOOLS order"
-
-
-# ---------------------------------------------------------------------------
-# Tests: Persona app bypasses cache optimization (expected)
-# ---------------------------------------------------------------------------
-
-
-def test_persona_app_overrides_system_prompt():
-    """
-    When app.is_a_persona() is True, the entire system prompt is replaced,
-    bypassing the cache-optimized structure. This is expected behavior.
-    """
-    chat_mod = _get_chat_module()
-    fn = chat_mod._get_agentic_qa_prompt
-
-    _set_user(chat_mod, "TestUser", "UTC")
-
-    mock_app = MagicMock()
-    mock_app.is_a_persona.return_value = True
-    mock_app.persona_prompt = "You are a pirate captain. Talk like a pirate."
-    mock_app.chat_prompt = "fallback"
-
-    prompt = fn("uid_test", app=mock_app)
-
-    assert prompt == "You are a pirate captain. Talk like a pirate."
-    assert "<response_style>" not in prompt, "Persona prompt should not contain cache-optimized structure"
-
-
-# ---------------------------------------------------------------------------
-# Tests: Plugin app preserves static prefix
-# ---------------------------------------------------------------------------
-
-
-def test_plugin_app_does_not_break_static_prefix():
-    """
-    Regular (non-persona) apps add a <plugin_instructions> section but
-    should NOT affect the static prefix before <assistant_role>.
-    """
-    chat_mod = _get_chat_module()
-    fn = chat_mod._get_agentic_qa_prompt
-
-    _set_user(chat_mod, "TestUser", "UTC")
-
-    # No app
-    prompt_no_app = fn("uid_test")
-
-    # Regular app (not persona)
-    mock_app = MagicMock()
-    mock_app.is_a_persona.return_value = False
-    mock_app.name = "WeatherBot"
-    mock_app.description = "A weather assistant"
-
-    prompt_with_app = fn("uid_test", app=mock_app)
-
-    marker = "<assistant_role>"
-    prefix_no_app = prompt_no_app[: prompt_no_app.index(marker)]
-    prefix_with_app = prompt_with_app[: prompt_with_app.index(marker)]
-
-    assert prefix_no_app == prefix_with_app, "Plugin app should not alter the static prefix"
-    assert "<plugin_instructions>" in prompt_with_app, "Plugin section should be in the full prompt"
 
 
 # ---------------------------------------------------------------------------

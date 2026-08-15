@@ -417,14 +417,12 @@ extension SettingsContentView {
 
     do {
       async let conversationsCount = APIClient.shared.getConversationsCount()
-      async let installedApps = APIClient.shared.searchApps(installedOnly: true)
       async let focusCount = ProactiveStorage.shared.getTotalFocusSessionCount()
       async let filterCounts = ActionItemStorage.shared.getFilterCounts()
       async let goals = APIClient.shared.getGoals()
       async let memoryStats = MemoryStorage.shared.getStats()
 
       let cc = try await conversationsCount
-      let ia = try await installedApps
       let fc = try await focusCount
       let filters = try await filterCounts
       let g = try await goals
@@ -439,7 +437,6 @@ extension SettingsContentView {
 
       advancedStats = UserStats(
         conversations: cc,
-        appsInstalled: ia.count,
         screenshotsTotal: screenshotCount,
         focusSessions: fc,
         tasksTodo: filters.todo,

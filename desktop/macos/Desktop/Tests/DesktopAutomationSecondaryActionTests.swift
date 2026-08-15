@@ -17,7 +17,6 @@ final class DesktopAutomationSecondaryActionTests: XCTestCase {
       "vocabulary_set_terms",
       "goals_snapshot",
       "create_test_goal",
-      "apps_catalog_snapshot",
       "subscription_snapshot",
       "settings_privacy_snapshot",
       "open_conversation",
@@ -25,12 +24,8 @@ final class DesktopAutomationSecondaryActionTests: XCTestCase {
       "create_test_folder",
       "set_conversation_starred",
       "set_conversation_folder",
-      "conversation_share_probe",
       "set_transcription_language",
       "transcription_language_snapshot",
-      "memory_graph_snapshot",
-      "open_memory_atlas",
-      "memory_atlas_set_viewport",
       "open_quick_note",
       "about_snapshot",
       "settings_notifications_snapshot",
@@ -38,13 +33,20 @@ final class DesktopAutomationSecondaryActionTests: XCTestCase {
       "rewind_settings_snapshot",
       "navigate_via_shortcut",
       "advanced_settings_snapshot",
-      "settings_aichat_snapshot",
       "assign_speaker_fixture",
     ] {
       XCTAssertTrue(
         source.contains("name: \"\(action)\""),
         "expected bridge action \(action) to be registered"
       )
+    }
+  }
+
+  func testAdvancedSnapshotIncludesAskModeWithoutRetiredRoutingControls() throws {
+    let body = try actionBody(named: "advanced_settings_snapshot", in: try bridgeSource())
+    XCTAssertTrue(body.contains("ask_mode_enabled"))
+    for retired in ["provider", "model", "workspace", "browser", "dev_mode"] {
+      XCTAssertFalse(body.contains("\"\(retired)\""))
     }
   }
 
@@ -87,23 +89,9 @@ final class DesktopAutomationSecondaryActionTests: XCTestCase {
 
   func testQualificationActionsRespectBackendContracts() throws {
     let source = try bridgeSource()
-    let appsBody = try actionBody(named: "apps_catalog_snapshot", in: source)
-    XCTAssertTrue(appsBody.contains("installedOnly: true, limit: 100"))
-    XCTAssertFalse(appsBody.contains("installedOnly: true, limit: 200"))
-
     let goalBody = try actionBody(named: "create_test_goal", in: source)
     XCTAssertTrue(goalBody.contains("source: \"user\""))
     XCTAssertFalse(goalBody.contains("source: \"harness\""))
-  }
-
-  func testMemoryLogFixtureUsesRealConnectorOperationWithInjectedExtractionOnly() throws {
-    let body = try actionBody(named: "memory_log_import_probe", in: try bridgeSource())
-    XCTAssertTrue(body.contains("params[\"fixture\"] == \"structured\""))
-    XCTAssertTrue(body.contains("AppBuild.isNonProduction"))
-    XCTAssertTrue(body.contains("ConnectorImportOperations.importMemoryLog"))
-    XCTAssertTrue(body.contains("extractedFixture: OnboardingMemoryLogImportService.ExtractedMemoryLog"))
-    XCTAssertFalse(body.contains("OnboardingImportEvidenceService.save"))
-    XCTAssertFalse(body.contains("ConnectorImportOperations.memoryLogOutcome"))
   }
 
   func testFloatingIdleWaitRequiresObservedSubmission() throws {
@@ -166,7 +154,6 @@ final class DesktopAutomationSecondaryActionTests: XCTestCase {
     let source = try String(contentsOf: url, encoding: .utf8)
     XCTAssertTrue(source.contains("while !self.isSearching"))
     XCTAssertTrue(source.contains("while !self.isLoadingFiltered"))
-    XCTAssertTrue(source.contains("filteredFromDatabase.first(where:"))
   }
 
   func testMemorySearchRefreshesTheVisibleMemoriesProjection() throws {
@@ -247,8 +234,6 @@ final class DesktopAutomationSecondaryActionTests: XCTestCase {
     let source = try bridgeSource()
     let starredBody = try actionBody(named: "set_conversation_starred", in: source)
     XCTAssertTrue(starredBody.contains("conversationId == \"latest\""))
-    let shareBody = try actionBody(named: "conversation_share_probe", in: source)
-    XCTAssertTrue(shareBody.contains("rawConversationId == \"latest\""))
     let assignBody = try actionBody(named: "assign_speaker_fixture", in: source)
     XCTAssertTrue(assignBody.contains("conversationId == \"latest\""))
   }
@@ -274,28 +259,6 @@ final class DesktopAutomationSecondaryActionTests: XCTestCase {
     XCTAssertTrue(setBody.contains("transcriptionLanguage"))
     let snapshotBody = try actionBody(named: "transcription_language_snapshot", in: source)
     XCTAssertTrue(snapshotBody.contains("effectiveTranscriptionLanguage"))
-  }
-
-  func testMemoryGraphSnapshotUsesKnowledgeGraphAPI() throws {
-    let source = try bridgeSource()
-    let body = try actionBody(named: "memory_graph_snapshot", in: source)
-    for key in ["node_count", "edge_count", "is_empty"] {
-      XCTAssertTrue(body.contains("\"\(key)\""), "memory_graph_snapshot should return \(key)")
-    }
-    XCTAssertTrue(body.contains("getKnowledgeGraph"))
-  }
-
-  func testMemoryAtlasHarnessActionsPostBoundedViewportNotifications() throws {
-    let openBody = try actionBody(named: "open_memory_atlas", in: try bridgeSource())
-    XCTAssertTrue(openBody.contains("desktopAutomationOpenMemoryAtlasRequested"))
-    XCTAssertTrue(openBody.contains("\"target\": \"page\""))
-
-    let viewportBody = try actionBody(named: "memory_atlas_set_viewport", in: try bridgeSource())
-    XCTAssertTrue(viewportBody.contains("desktopAutomationMemoryAtlasViewportRequested"))
-    XCTAssertTrue(viewportBody.contains("\"page\""))
-    for parameter in ["target", "zoom", "pan_x", "pan_y", "reset"] {
-      XCTAssertTrue(viewportBody.contains("\"\(parameter)\""))
-    }
   }
 
   func testNavigateViaShortcutPostsSidebarNotification() throws {
@@ -349,22 +312,12 @@ final class DesktopAutomationSecondaryActionTests: XCTestCase {
       .deletingLastPathComponent()
       .appendingPathComponent("Sources/MainWindow/Pages/MemoriesPage.swift")
     let source = try String(contentsOf: url, encoding: .utf8)
-    for action in ["memories_search", "toggle_memory_visibility", "memories_set_tag_filter"] {
+    for action in ["memories_search", "memories_set_tag_filter"] {
       XCTAssertTrue(
         source.contains("name: \"\(action)\""),
         "expected MemoriesViewModel to register \(action)"
       )
     }
-  }
-
-  func testAiChatSectionAllowedOnNonProduction() throws {
-    let url = URL(fileURLWithPath: #filePath)
-      .deletingLastPathComponent()
-      .deletingLastPathComponent()
-      .appendingPathComponent("Sources/MainWindow/Pages/SettingsPage.swift")
-    let source = try String(contentsOf: url, encoding: .utf8)
-    XCTAssertTrue(source.contains("AppBuild.isProductionBundle && selectedSection == .aiChat"))
-    XCTAssertTrue(source.contains("AppBuild.isProductionBundle && newValue == .aiChat"))
   }
 
   func testSignOutRequiresLocalAuthProfile() throws {

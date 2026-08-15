@@ -331,7 +331,7 @@ extension AppState {
         let durationSeconds = Int(Date().timeIntervalSince(startTime))
         AnalyticsManager.shared.conversationCreated(
           conversationId: memoryId,
-          source: currentConversationSource.rawValue,
+          source: ConversationSource.desktop.rawValue,
           durationSeconds: durationSeconds
         )
       }
@@ -457,12 +457,6 @@ extension AppState {
     case "last_memory":
       let memoryId = event.raw["memory_id"] as? String ?? "?"
       log("Transcription: Last conversation event: \(memoryId)")
-
-    case "photo_processing":
-      log("Transcription: Photo processing event (not used on desktop)")
-
-    case "photo_described":
-      log("Transcription: Photo described event (not used on desktop)")
 
     default:
       log("Transcription: Unhandled event type: \(event.type)")

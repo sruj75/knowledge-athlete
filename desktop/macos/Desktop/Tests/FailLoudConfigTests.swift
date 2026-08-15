@@ -90,20 +90,6 @@ final class FailLoudConfigTests: XCTestCase {
       "failed system-audio tap starts must record the CLASSIFIED outcome (denial only for permission-class errors)")
   }
 
-  func testAudioSourceManagerSystemAudioOutcomesUpdatePermissionState() throws {
-    let src = try source(relativePath: "Sources/Audio/AudioSourceManager.swift")
-
-    XCTAssertTrue(
-      src.contains("AppState.current?.recordSystemAudioCaptureOutcome(.granted)"),
-      "desktop audio-source system audio starts should mark the state granted")
-    XCTAssertTrue(
-      src.contains("SystemAudioPermissionStatus.classify(captureError: error)"),
-      "desktop audio-source system audio failures should record the CLASSIFIED outcome")
-    XCTAssertFalse(
-      src.contains("throw error"),
-      "a system-audio tap failure must not abort the already-running mic/mixer stream")
-  }
-
   func testPermissionsPageSurfacesSystemAudioRow() throws {
     let src = try source(relativePath: "Sources/MainWindow/Pages/PermissionsPage.swift")
 
@@ -205,21 +191,6 @@ final class FailLoudConfigTests: XCTestCase {
     XCTAssertTrue(src.contains("Keychain migration deferred; retaining legacy auth tokens"))
     XCTAssertTrue(src.contains("DesktopDiagnosticsManager.shared.recordFallback"))
     XCTAssertTrue(src.contains("cachedStoredTokens"))
-  }
-
-  func testLocalAgentTokenUsesKeychainStorage() throws {
-    let src = try source(relativePath: "Sources/LocalAgentAPIServer.swift")
-
-    XCTAssertTrue(src.contains("tokenKeychainService"))
-    XCTAssertTrue(src.contains("DesktopKeychainStore.scopedService(DesktopKeychainStore.legacyLocalAgentTokenService)"))
-    XCTAssertTrue(src.contains("DesktopKeychainStore.string("))
-    XCTAssertTrue(src.contains("DesktopKeychainStore.setString(token, service: tokenKeychainService"))
-    XCTAssertTrue(src.contains("enum LocalAgentAPIError"))
-    XCTAssertTrue(src.contains("throw LocalAgentAPIError.tokenStorageUnavailable"))
-    XCTAssertFalse(src.contains("UserDefaults.standard.set(token, forKey: tokenKey)"))
-    XCTAssertFalse(
-      src.contains("private static let tokenKeychainService = \"com.omi.desktop.local-agent-api\""),
-      "Local agent token service must be team-scoped, not a shared unscoped constant")
   }
 
   // The data-protection keychain assertion was inverted by the file-based-keychain fix:

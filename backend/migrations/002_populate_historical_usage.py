@@ -189,11 +189,6 @@ def migrate_user_usage(uid: str):
                     insights += len(conv.structured.action_items)
                     insights += len(conv.structured.events)
 
-                for result in conv.apps_results:
-                    if result.content:
-                        sentences = re.split(r'[.!?]+', result.content)
-                        insights += sum(1 for s in sentences if len(s.split()) > 5)
-
                 hourly_updates[hour_key]['insights_gained'] += insights
 
         # Process Memories

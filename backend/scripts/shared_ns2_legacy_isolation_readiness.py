@@ -26,7 +26,7 @@ LEGACY_SEARCH_INVENTORY = [
     {
         "function": "database.vector_db.find_similar_memories",
         "namespace": SHARED_NAMESPACE,
-        "caller_examples": ["MCP legacy fallback", "chat legacy fallback", "duplicate checks"],
+        "caller_examples": ["chat legacy fallback", "duplicate checks"],
         "required_filter_barrier": {"memory_schema_version": {"$exists": False}},
         "legacy_id_shape": "{uid}-{memory_id}",
     },
@@ -60,7 +60,7 @@ REQUIRED_BARRIERS = {
         "legacy result slots."
     ),
     "memory_queries_include_schema_and_tier_filters": (
-        "memory ns2 searches must include memory_schema_version, uid, tier, status, source_state, visibility, and "
+        "memory ns2 searches must include memory_schema_version, uid, tier, status, source_state, and "
         "restricted_sensitivity filters before hydration."
     ),
     "stale_or_deleted_physical_ids": (

@@ -27,7 +27,7 @@ class ReadRolloutConsumerObservability(BaseModel):
     ``rollout`` field (extended by ``ProductRolloutObservability``).
     """
 
-    consumer: str = Field(description='Memory consumer (mcp, developer_api, omi_chat).')
+    consumer: str = Field(description='Memory consumer (omi_chat).')
     enabled: bool = Field(description='Whether default memory reads are enabled for this consumer.')
     reason: str = Field(description='Effective reason (fallback_reason when present, else the decision reason).')
     read_decision: str = Field(

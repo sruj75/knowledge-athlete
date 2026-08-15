@@ -1,6 +1,5 @@
 import asyncio
 import hashlib
-import json
 import math
 import uuid
 from datetime import datetime
@@ -14,7 +13,6 @@ from database.redis_db import (
     set_silent_user_notification_sent,
     has_silent_user_notification_been_sent,
 )
-from database.auth import get_user_from_uid
 from utils.notification_text import to_plain_text
 from .llm.notifications import (
     generate_notification_message,
@@ -52,7 +50,7 @@ def _generate_notification_tag(user_id: str, title: str, body: str, data: Option
     """Generate a tag for notification deduplication based on content."""
     content = f"{user_id}:{title}:{body}"
     if data:
-        unique_id: str = str(data.get('action_item_id') or data.get('app_id') or data.get('type', ''))
+        unique_id: str = str(data.get('action_item_id') or data.get('type', ''))
         content += f":{unique_id}"
     return _generate_tag(content)
 
@@ -405,30 +403,6 @@ async def send_bulk_notification(user_tokens: List[str], title: str, body: str) 
         logger.error(f"Error sending bulk notification: {e}")
 
 
-def send_app_review_reply_notification(
-    reviewer_uid: str, app_owner_uid: str, reply_body: str, app_id: str, app_name: str
-):
-    """Sends a notification to a user when their app review receives a reply."""
-    app_owner = get_user_from_uid(app_owner_uid)
-    owner_name = (app_owner or {}).get('display_name') or 'The developer'
-    title = f'{owner_name} ({app_name})'
-    body = reply_body
-    data = {'app_id': app_id, 'type': 'app_review_reply', 'navigate_to': f'/apps/{app_id}'}
-    send_notification(reviewer_uid, title, body, data)
-
-
-def send_new_app_review_notification(
-    app_owner_uid: str, reviewer_uid: str, app_id: str, app_name: str, review_body: str
-):
-    """Sends a notification to the app owner when a new review is submitted."""
-    reviewer = get_user_from_uid(reviewer_uid)
-    reviewer_name = (reviewer or {}).get('display_name') or 'A user'
-    title = f'{reviewer_name} reviewed {app_name}'
-    body = review_body
-    data = {'app_id': app_id, 'type': 'new_app_review', 'navigate_to': f'/apps/{app_id}'}
-    send_notification(app_owner_uid, title, body, data)
-
-
 def send_action_item_data_message(user_id: str, action_item_id: str, description: str, due_at: str):
     """
     Sends a data-only FCM message for action item reminder scheduling.
@@ -443,84 +417,6 @@ def send_action_item_data_message(user_id: str, action_item_id: str, description
     }
     tag = _generate_tag(f"{user_id}:action_item_reminder:{action_item_id}")
     _send_to_user(user_id, tag, data=data, is_background=True, priority='high')
-
-
-def _build_apple_reminders_sync_message(
-    user_id: str, action_items: List[Dict[str, Any]]
-) -> Optional[Tuple[str, Dict[str, str]]]:
-    """Build the shared Apple Reminders payload and collapse tag."""
-    if not action_items:
-        return None
-
-    items_payload: List[Dict[str, Any]] = []
-    for item in action_items:
-        due_at = item.get('due_at')
-        due_at_str: str = ''
-        if due_at:
-            if hasattr(due_at, 'isoformat'):
-                due_at_str = due_at.isoformat()
-            else:
-                due_at_str = str(due_at)
-
-        items_payload.append(
-            {
-                'id': item['id'],
-                'description': item['description'],
-                'due_at': due_at_str,
-            }
-        )
-
-    # FCM data values must be strings, so JSON-encode the items list
-    # Include first item's fields at top level for backwards compatibility with old app versions
-    # that expect action_item_id/description as top-level keys (single-item format).
-    # Old apps will create only the first item; new apps read the full 'items' JSON array.
-    first = items_payload[0]
-    data = {
-        'type': 'apple_reminders_sync',
-        'items': json.dumps(items_payload),
-        'action_item_id': first['id'],
-        'description': first['description'],
-        'due_at': first['due_at'],
-    }
-
-    # Use a unique tag per batch based on all item IDs to avoid collapsing different batches
-    item_ids = ':'.join(item['id'] for item in action_items)
-    tag = _generate_tag(f"{user_id}:apple_reminders_sync:{item_ids}")
-    return tag, data
-
-
-def send_apple_reminders_sync_push(user_id: str, action_items: List[Dict[str, Any]]) -> bool:
-    """
-    Sends a single silent push notification with a batch of action items to sync to Apple Reminders.
-    This avoids iOS throttling that occurs when sending multiple rapid silent pushes.
-
-    Args:
-        user_id: The user's Firebase UID
-        action_items: List of dicts, each with 'id', 'description', and optional 'due_at'
-
-    Returns:
-        bool: True if notification was sent successfully
-    """
-    message = _build_apple_reminders_sync_message(user_id, action_items)
-    if message is None:
-        return False
-
-    logger.info(f'send_apple_reminders_sync_push to user {user_id}, {len(action_items)} items')
-    tag, data = message
-    success_count = _send_to_user(user_id, tag, data=data, is_background=True, priority='high')
-    return success_count > 0
-
-
-async def send_apple_reminders_sync_push_async(user_id: str, action_items: List[Dict[str, Any]]) -> bool:
-    """Async Apple Reminders push boundary for event-loop callers."""
-    message = _build_apple_reminders_sync_message(user_id, action_items)
-    if message is None:
-        return False
-
-    logger.info(f'send_apple_reminders_sync_push to user {user_id}, {len(action_items)} items')
-    tag, data = message
-    success_count = await _send_to_user_async(user_id, tag, data=data, is_background=True, priority='high')
-    return success_count > 0
 
 
 def send_merge_completed_message(

@@ -61,15 +61,15 @@
       }
     },
     "failureTaxonomy": {
-      "type": "array", "minItems": 14,
-      "items": {"enum": ["authentication", "quota_exceeded", "invalid_request", "timeout", "transport_interruption", "adapter_unavailable", "adapter_incompatible", "bridge_start_failed", "provider_setup_needed", "malformed_or_oversized_tool_result", "cancelled", "stale_owner", "policy_denied", "unknown"]}
+      "type": "array", "minItems": 13,
+      "items": {"enum": ["authentication", "quota_exceeded", "invalid_request", "timeout", "transport_interruption", "adapter_unavailable", "adapter_incompatible", "bridge_start_failed", "malformed_or_oversized_tool_result", "cancelled", "stale_owner", "policy_denied", "unknown"]}
     },
     "sessionListingBudget": {
       "type": "object", "additionalProperties": false, "required": ["maxBytes", "mustExclude"],
       "properties": {"maxBytes": {"const": 8192}, "mustExclude": {"type": "array", "items": {"type": "string"}}}
     },
     "adapterConformance": {
-      "type": "array", "minItems": 6,
+      "type": "array", "minItems": 3,
       "items": {
         "type": "object", "additionalProperties": false,
         "required": ["adapterId", "surface", "transport", "expectsToolEnvelope", "scenarios"],

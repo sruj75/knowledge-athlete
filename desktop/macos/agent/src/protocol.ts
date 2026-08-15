@@ -150,36 +150,12 @@ export interface WarmupMessage extends ProtocolEnvelope {
   profileGeneration: number;
 }
 
-export interface ConfigureDefaultExecutionProfileMessage extends ProtocolEnvelope {
-  type: "configure_default_execution_profile";
-  adapterId: string;
-  modelProfile: string | null;
-  workingDirectory: string;
-  expectedPreferenceGeneration?: number;
-}
-
 export interface ResolveSurfaceSessionMessage extends ProtocolEnvelope {
   type: "resolve_surface_session";
   surfaceKind: string;
   externalRefKind: string;
   externalRefId: string;
   title?: string;
-  /** Applied atomically only when this resolve creates the surface session. */
-  creationProfile?: {
-    adapterId: string;
-    modelProfile: string | null;
-    workingDirectory: string;
-  };
-}
-
-export interface MigrateSessionExecutionProfileMessage extends ProtocolEnvelope {
-  type: "migrate_session_execution_profile";
-  sessionId: string;
-  expectedProfileGeneration: number;
-  adapterId: string;
-  modelProfile: string | null;
-  workingDirectory: string;
-  reason: "user_requested";
 }
 
 export type ContextSourceKind =
@@ -450,9 +426,7 @@ export type InboundMessage =
   | RevokeOwnerRuntimeMessage
   | ImportLegacyMainChatSessionsMessage
   | WarmupMessage
-  | ConfigureDefaultExecutionProfileMessage
   | ResolveSurfaceSessionMessage
-  | MigrateSessionExecutionProfileMessage
   | ContextSourceUpdateMessage
   | GetContextSnapshotMessage
   | JournalRecordTurnMessage
@@ -638,7 +612,7 @@ export interface SerializedArtifact {
 export interface RuntimeFailurePayload {
   code: string;
   /** Closed failure taxonomy; `code` remains the detailed diagnostic key. */
-  failureCode?: "authentication" | "quota_exceeded" | "invalid_request" | "timeout" | "transport_interruption" | "adapter_unavailable" | "adapter_incompatible" | "bridge_start_failed" | "provider_setup_needed" | "malformed_or_oversized_tool_result" | "cancelled" | "stale_owner" | "policy_denied" | "unknown";
+  failureCode?: "authentication" | "quota_exceeded" | "invalid_request" | "timeout" | "transport_interruption" | "adapter_unavailable" | "adapter_incompatible" | "bridge_start_failed" | "malformed_or_oversized_tool_result" | "cancelled" | "stale_owner" | "policy_denied" | "unknown";
   userMessage: string;
   technicalMessage?: string;
   source?: string;
@@ -673,7 +647,7 @@ export interface ErrorMessage extends QueryScopedOutbound {
   failure?: RuntimeFailurePayload;
 }
 
-/** Sent when ACP requires user authentication (OAuth) */
+/** Sent when managed Pi authentication is required. */
 export interface AuthRequiredMessage {
   type: "auth_required";
   methods: AuthMethod[];
@@ -717,30 +691,12 @@ export interface ExecutionProfileProjection {
   executionRole: "coordinator" | "leaf";
 }
 
-export interface DefaultExecutionProfileConfiguredMessage extends OutboundEnvelope {
-  type: "default_execution_profile_configured";
-  preferenceGeneration: number;
-  adapterId: string;
-  credentialScope: "managed_cloud" | "local_user";
-  modelProfile: string | null;
-  workingDirectory: string;
-  appliesTo: "new_sessions";
-}
-
 export interface SurfaceSessionResolvedMessage extends OutboundEnvelope {
   type: "surface_session_resolved";
   created: boolean;
   conversationId: string;
   sessionId: string;
   profile: ExecutionProfileProjection;
-}
-
-export interface SessionExecutionProfileMigratedMessage extends OutboundEnvelope {
-  type: "session_execution_profile_migrated";
-  sessionId: string;
-  previousProfileGeneration: number;
-  profile: ExecutionProfileProjection;
-  staleBindingIds: string[];
 }
 
 export interface ContextSourceOutcomeProjection {
@@ -976,9 +932,7 @@ export type OutboundMessage =
   | ExternalSurfaceRunCompleteResultMessage
   | OwnerRuntimeRevokedMessage
   | ControlToolResultMessage
-  | DefaultExecutionProfileConfiguredMessage
   | SurfaceSessionResolvedMessage
-  | SessionExecutionProfileMigratedMessage
   | ContextSourceUpdatedMessage
   | ContextSnapshotMessage
   | LegacyMainChatSessionsImportedMessage
@@ -1012,9 +966,7 @@ export type OutboundMessageDraft =
   | DraftEnvelope<ExternalSurfaceRunCompleteResultMessage>
   | DraftEnvelope<OwnerRuntimeRevokedMessage>
   | DraftEnvelope<ControlToolResultMessage>
-  | DraftEnvelope<DefaultExecutionProfileConfiguredMessage>
   | DraftEnvelope<SurfaceSessionResolvedMessage>
-  | DraftEnvelope<SessionExecutionProfileMigratedMessage>
   | DraftEnvelope<ContextSourceUpdatedMessage>
   | DraftEnvelope<ContextSnapshotMessage>
   | DraftEnvelope<LegacyMainChatSessionsImportedMessage>

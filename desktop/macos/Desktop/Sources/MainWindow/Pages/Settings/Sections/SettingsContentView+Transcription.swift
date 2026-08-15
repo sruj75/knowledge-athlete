@@ -256,7 +256,7 @@ extension SettingsContentView {
                 .foregroundColor(OmiColors.textPrimary)
 
               Text(
-                "Uses on-device voice activity detection to skip silence, reducing Deepgram API usage. May save ~40% on transcription costs."
+                "Uses on-device voice activity detection to skip silence, reducing managed cloud transcription usage. May save ~40% on transcription costs."
               )
               .scaledFont(size: OmiType.body)
               .foregroundColor(OmiColors.textTertiary)
@@ -335,8 +335,14 @@ extension SettingsContentView {
 private struct VoiceAssistantLanguagesCard: View {
   @State private var selection: [String] = []
 
+  private static let commonLanguages: [(code: String, name: String)] = [
+    ("en", "English"), ("es", "Spanish"), ("fr", "French"), ("de", "German"),
+    ("pt", "Portuguese"), ("ru", "Russian"), ("hi", "Hindi"), ("ja", "Japanese"),
+    ("it", "Italian"), ("nl", "Dutch"),
+  ]
+
   private var chipOptions: [(code: String, name: String)] {
-    let common = OnboardingPagedIntroCoordinator.commonLanguages
+    let common = Self.commonLanguages
     let extra =
       selection
       .filter { code in !common.contains(where: { $0.code == code }) }

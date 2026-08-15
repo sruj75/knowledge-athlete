@@ -14,7 +14,6 @@ extension VoiceOutputLease {
       identity: VoiceEffectIdentity(turnID: turnID, effectID: UInt64.max))
   }
 }
-
 final class VoiceTurnReducerTests: XCTestCase {
   private enum DriverFact {
     case providerResponseStarted(
@@ -233,7 +232,7 @@ final class VoiceTurnReducerTests: XCTestCase {
 
     let timedOut = reduce(model, .deadlineFired(turnID: turnID, deadline: .hubWarm))
 
-    XCTAssertEqual(timedOut.model.turn?.route, .deepgramBatch)
+    XCTAssertEqual(timedOut.model.turn?.route, .managedBatch)
     XCTAssertEqual(timedOut.model.turn?.phase, .finalizing)
     XCTAssertNil(timedOut.model.turn?.terminalReason)
     XCTAssertTrue(
@@ -265,7 +264,7 @@ final class VoiceTurnReducerTests: XCTestCase {
 
     let fallback = reduce(model, .deadlineFired(turnID: turnID, deadline: .hubWarm))
 
-    XCTAssertEqual(fallback.model.turn?.route, .deepgramBatch)
+    XCTAssertEqual(fallback.model.turn?.route, .managedBatch)
     XCTAssertEqual(fallback.model.turn?.phase, .finalizing)
     XCTAssertEqual(fallback.model.turn?.providerConnection, .ready)
     XCTAssertNil(fallback.model.turn?.sessionID)
@@ -287,7 +286,7 @@ final class VoiceTurnReducerTests: XCTestCase {
         responseID: replacementResponseID)
     )
 
-    XCTAssertEqual(lateReady.model.turn?.route, .deepgramBatch)
+    XCTAssertEqual(lateReady.model.turn?.route, .managedBatch)
     XCTAssertEqual(lateReady.model.turn?.phase, .finalizing)
     XCTAssertEqual(lateReady.model.turn?.providerConnection, .ready)
     XCTAssertEqual(lateReady.model.staleEventCount, 1)
@@ -431,7 +430,7 @@ final class VoiceTurnReducerTests: XCTestCase {
     let timedOut = reduce(model, .deadlineFired(turnID: turnID, deadline: .hubWarm))
 
     XCTAssertEqual(timedOut.model.staleEventCount, 0)
-    XCTAssertEqual(timedOut.model.turn?.route, .deepgramBatch)
+    XCTAssertEqual(timedOut.model.turn?.route, .managedBatch)
     XCTAssertEqual(timedOut.model.turn?.phase, .finalizing)
     XCTAssertTrue(timedOut.model.turn?.deadlines.contains(.transcription) == true)
     XCTAssertTrue(
@@ -555,7 +554,7 @@ final class VoiceTurnReducerTests: XCTestCase {
     let rejected = reduce(model, .hubAdmissionRejected(turnID: turnID))
 
     XCTAssertEqual(rejected.model.turn?.phase, .finalizing)
-    XCTAssertEqual(rejected.model.turn?.route, .deepgramBatch)
+    XCTAssertEqual(rejected.model.turn?.route, .managedBatch)
     XCTAssertFalse(rejected.model.turn?.deadlines.contains(.hubWarm) == true)
     XCTAssertTrue(rejected.model.turn?.deadlines.contains(.transcription) == true)
     XCTAssertTrue(
@@ -690,7 +689,7 @@ final class VoiceTurnReducerTests: XCTestCase {
       .deadlineFired(turnID: turnID, deadline: .bargeInReplacement))
 
     XCTAssertEqual(result.model.turn?.phase, .finalizing)
-    XCTAssertEqual(result.model.turn?.route, .deepgramBatch)
+    XCTAssertEqual(result.model.turn?.route, .managedBatch)
     XCTAssertEqual(result.model.turn?.providerConnection, .ready)
     XCTAssertNil(result.model.turn?.sessionID)
     XCTAssertNil(result.model.turn?.providerEffectIdentity)
@@ -711,7 +710,7 @@ final class VoiceTurnReducerTests: XCTestCase {
         responseID: replacementResponseID)
     )
     XCTAssertEqual(lateReady.model.turn?.phase, .finalizing)
-    XCTAssertEqual(lateReady.model.turn?.route, .deepgramBatch)
+    XCTAssertEqual(lateReady.model.turn?.route, .managedBatch)
     XCTAssertEqual(lateReady.model.staleEventCount, result.model.staleEventCount + 1)
     XCTAssertEqual(
       lateReady.effects,
@@ -744,7 +743,7 @@ final class VoiceTurnReducerTests: XCTestCase {
         message: "1007 provider transient"))
 
     XCTAssertEqual(failed.model.turn?.phase, .finalizing)
-    XCTAssertEqual(failed.model.turn?.route, .deepgramBatch)
+    XCTAssertEqual(failed.model.turn?.route, .managedBatch)
     XCTAssertEqual(failed.model.turn?.providerConnection, .ready)
     XCTAssertNil(failed.model.turn?.sessionID)
     XCTAssertNil(failed.model.turn?.providerEffectIdentity)
@@ -763,7 +762,7 @@ final class VoiceTurnReducerTests: XCTestCase {
         identity: reservation.identity,
         sessionID: VoiceSessionID(),
         responseID: replacementResponseID))
-    XCTAssertEqual(lateReady.model.turn?.route, .deepgramBatch)
+    XCTAssertEqual(lateReady.model.turn?.route, .managedBatch)
     XCTAssertEqual(lateReady.model.turn?.phase, .finalizing)
     XCTAssertEqual(lateReady.model.staleEventCount, failed.model.staleEventCount + 1)
     XCTAssertEqual(
@@ -776,7 +775,7 @@ final class VoiceTurnReducerTests: XCTestCase {
         turnID: turnID,
         identity: reservation.identity,
         message: "late 1007"))
-    XCTAssertEqual(lateFailure.model.turn?.route, .deepgramBatch)
+    XCTAssertEqual(lateFailure.model.turn?.route, .managedBatch)
     XCTAssertEqual(lateFailure.model.turn?.phase, .finalizing)
     XCTAssertEqual(lateFailure.model.staleEventCount, lateReady.model.staleEventCount + 1)
   }
@@ -807,7 +806,7 @@ final class VoiceTurnReducerTests: XCTestCase {
         message: "1007 provider transient"))
 
     XCTAssertEqual(failed.model.turn?.phase, .recording)
-    XCTAssertEqual(failed.model.turn?.route, .deepgramBatch)
+    XCTAssertEqual(failed.model.turn?.route, .managedBatch)
     XCTAssertTrue(failed.model.turn?.projection.isListening == true)
     XCTAssertFalse(failed.model.turn?.projection.isThinking == true)
     XCTAssertFalse(failed.model.turn?.deadlines.contains(.transcription) == true)
@@ -1490,7 +1489,7 @@ final class VoiceTurnReducerTests: XCTestCase {
     transcribing =
       reduce(
         transcribing,
-        .selectRoute(turnID: transcriptionTurnID, route: .deepgramBatch)
+        .selectRoute(turnID: transcriptionTurnID, route: .managedBatch)
       ).model
     transcribing = reduce(transcribing, .finalize(turnID: transcriptionTurnID)).model
     transcribing = reduce(transcribing, .transcriptionStarted(turnID: transcriptionTurnID)).model
@@ -1688,7 +1687,7 @@ final class VoiceTurnReducerTests: XCTestCase {
 
     XCTAssertTrue(cancelled.effects.contains(.cancelHub(turnID: turnID, route: route)))
     XCTAssertTrue(PushToTalkManager.isHubRoute(route))
-    XCTAssertFalse(PushToTalkManager.isHubRoute(.deepgramBatch))
+    XCTAssertFalse(PushToTalkManager.isHubRoute(.managedBatch))
   }
 
   func testHintDeadlineOnlyClearsTheCurrentTurnHint() {
@@ -1851,7 +1850,7 @@ final class VoiceTurnReducerTests: XCTestCase {
   func testNonHubPlaybackDrainCannotClaimProviderOrJournalCompletion() throws {
     let turnID = VoiceTurnID()
     var model = reduce(.idle, .start(turnID: turnID, ownerID: nil, intent: .hold)).model
-    model = reduce(model, .selectRoute(turnID: turnID, route: .deepgramBatch)).model
+    model = reduce(model, .selectRoute(turnID: turnID, route: .managedBatch)).model
     model = reduce(model, .finalize(turnID: turnID)).model
     model = reduce(model, .transcriptionStarted(turnID: turnID)).model
     model = reduce(model, .transcriptionFinal(turnID: turnID, text: "hello")).model
@@ -2019,9 +2018,9 @@ final class VoiceTurnReducerTests: XCTestCase {
 
     let batchFallback = reduce(
       reconnected.model,
-      .selectRoute(turnID: turnID, route: .deepgramBatch))
+      .selectRoute(turnID: turnID, route: .managedBatch))
     XCTAssertEqual(batchFallback.model.turn?.phase, .finalizing)
-    XCTAssertEqual(batchFallback.model.turn?.route, .deepgramBatch)
+    XCTAssertEqual(batchFallback.model.turn?.route, .managedBatch)
     XCTAssertEqual(batchFallback.model.invalidTransitionCount, 0)
 
     let transcriptionStarted = reduce(
@@ -2136,7 +2135,7 @@ final class VoiceTurnReducerTests: XCTestCase {
         identity: reservation.identity,
         message: "Voice context is temporarily unavailable"))
     XCTAssertEqual(failed.model.turn?.phase, .finalizing)
-    XCTAssertEqual(failed.model.turn?.route, .deepgramBatch)
+    XCTAssertEqual(failed.model.turn?.route, .managedBatch)
     XCTAssertFalse(failed.model.turn?.hubCommitPending == true)
     XCTAssertTrue(
       failed.effects.contains(

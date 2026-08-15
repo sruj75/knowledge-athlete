@@ -43,14 +43,9 @@ def _make_db_fakes() -> dict:
         "database.notifications": AutoMockModule("database.notifications"),
         "database.daily_summaries": AutoMockModule("database.daily_summaries"),
         "database.app_review_config": AutoMockModule("database.app_review_config"),
-        "database.webhook_health": AutoMockModule("database.webhook_health"),
         "database.action_items": AutoMockModule("database.action_items"),
         "utils.other.storage": AutoMockModule("utils.other.storage"),
     }
-
-    apps = ModuleType("utils.apps")
-    apps.get_available_app_by_id = MagicMock(return_value=None)
-    fakes["utils.apps"] = apps
 
     stripe_utils = ModuleType("utils.stripe")
     stripe_utils.cancel_subscription = MagicMock(return_value=True)
@@ -61,13 +56,11 @@ def _make_db_fakes() -> dict:
     twilio_service.delete_user_caller_ids_strict = MagicMock()
     fakes["utils.twilio_service"] = twilio_service
 
-    external_integrations = ModuleType("utils.llm.external_integrations")
-    external_integrations.generate_comprehensive_daily_summary = MagicMock()
-    fakes["utils.llm.external_integrations"] = external_integrations
+    daily_summary = ModuleType("utils.llm.daily_summary")
+    daily_summary.generate_comprehensive_daily_summary = MagicMock()
+    fakes["utils.llm.daily_summary"] = daily_summary
 
-    streaming = ModuleType("utils.stt.streaming")
-    streaming.deepgram_nova3_multi_languages = ['en']
-    fakes["utils.stt.streaming"] = streaming
+    fakes["utils.stt.streaming"] = ModuleType("utils.stt.streaming")
 
     return fakes
 

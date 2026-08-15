@@ -18,7 +18,6 @@ enum MemoryTag: String, CaseIterable, Identifiable {
   case manual
   case system
   case interesting
-  case workflow
 
   var id: String { rawValue }
 
@@ -27,7 +26,6 @@ enum MemoryTag: String, CaseIterable, Identifiable {
     case .manual: return "Manual"
     case .system: return "About You"
     case .interesting: return "Insights"
-    case .workflow: return "Workflow"
     }
   }
 
@@ -36,7 +34,6 @@ enum MemoryTag: String, CaseIterable, Identifiable {
     case .manual: return "square.and.pencil"
     case .system: return "person"
     case .interesting: return "lightbulb"
-    case .workflow: return "arrow.triangle.branch"
     }
   }
 
@@ -48,7 +45,6 @@ enum MemoryTag: String, CaseIterable, Identifiable {
     case .manual: return .manual
     case .system: return .system
     case .interesting: return .interesting
-    case .workflow: return .workflow
     }
   }
 
@@ -161,21 +157,6 @@ class MemoriesViewModel: ObservableObject {
     }
   }
 
-  @Published var filterThisDeviceOnly = false {
-    didSet {
-      guard oldValue != filterThisDeviceOnly else { return }
-      bumpScopeGeneration()
-      displayLimit = pageSize
-      Task { await loadMemories() }
-    }
-  }
-
-  /// Whether the backend supports device_scope filtering for this user.
-  /// Canonical memory users support it; legacy users get a 400. Legacy rows
-  /// have no capture provenance, so after that fallback we preserve the
-  /// unscoped list rather than falsely filtering every row out locally.
-  private var deviceScopeSupported = true
-
   @Published var selectedTags: Set<MemoryTag> = [] {
     didSet {
       // Reset display limit when filters change
@@ -260,9 +241,6 @@ class MemoriesViewModel: ObservableObject {
   @Published var linkedConversation: ServerConversation? = nil
   @Published var isLoadingConversation = false
 
-  // Visibility toggle state
-  @Published var isTogglingVisibility = false
-
   // MARK: - Cached Properties (avoid recomputation on every render)
 
   /// Cached filtered and sorted memories - only recomputed when inputs change
@@ -337,11 +315,6 @@ class MemoriesViewModel: ObservableObject {
     values.filter { $0.tierIsExplicit == lifecycleExposed }
   }
 
-  private struct MemoryPageFetchResult {
-    let page: APIClient.MemoryListPage
-    let deviceScopeSupportedOverride: Bool?
-  }
-
   private var lifecycleExposureCapabilityKey: String {
     let userId = UserDefaults.standard.string(forKey: "auth_userId") ?? "unknown"
     return "memoriesCanonicalLifecycleExposure_v1_\(userId)"
@@ -371,17 +344,13 @@ class MemoriesViewModel: ObservableObject {
   private func commitMemoryPageCapabilities(
     _ page: APIClient.MemoryListPage,
     for token: MemoryScopeToken,
-    expectedOffset: Int? = nil,
-    deviceScopeSupportedOverride: Bool? = nil
+    expectedOffset: Int? = nil
   ) -> Bool {
     guard isCurrentScope(token) else { return false }
     if let expectedOffset, currentOffset != expectedOffset { return false }
     canonicalLifecycleExposed = page.canonicalLifecycleExposed
     canonicalLifecycleCapabilityEstablished = true
     persistCanonicalLifecycleExposure(page.canonicalLifecycleExposed)
-    if let deviceScopeCapability = deviceScopeSupportedOverride ?? page.deviceScopeSupported {
-      deviceScopeSupported = deviceScopeCapability
-    }
     return isCurrentScope(token)
   }
 
@@ -581,7 +550,6 @@ class MemoriesViewModel: ObservableObject {
     isBulkOperationInProgress = false
     linkedConversation = nil
     isLoadingConversation = false
-    isTogglingVisibility = false
     totalMemoriesCount = 0
     hasMoreFilteredResults = false
     allFilteredResults = []
@@ -679,8 +647,7 @@ class MemoriesViewModel: ObservableObject {
     }
   }
 
-  /// Resolve specific memories by id for surfaces that cite them — today the
-  /// Brain Map inspector, which asks for the memories behind an entity.
+  /// Resolve specific memories by id for retained surfaces that cite them.
   ///
   /// Reads the local cache rather than `memories`. The visible array is one
   /// page of a tier-filtered, device-scoped browse, so a cited memory is
@@ -812,14 +779,6 @@ class MemoriesViewModel: ObservableObject {
       result = result.filter { allowedTiers.contains($0.tier) }
     }
 
-    // A canonical response has already been filtered server-side and its
-    // provenance is authoritative. Legacy rows cannot identify their capture
-    // device, so keeping them visible is the only honest fallback; filtering
-    // them client-side would turn the list into a misleading empty state.
-    if filterThisDeviceOnly && deviceScopeSupported {
-      result = result.filter { ClientDeviceService.shared.memoryMatchesThisDevice($0) }
-    }
-
     // Sort by date (newest first)
     result.sort { $0.createdAt > $1.createdAt }
 
@@ -883,33 +842,6 @@ class MemoriesViewModel: ObservableObject {
   }
 
   // MARK: - API Actions
-
-  /// Fetch memories from the API, honoring the device-scope filter only when
-  /// the backend supports it for this user. Legacy (non-canonical) memory users
-  /// get a 400 from device_scope=current; on that we retry without the scope
-  /// and return the capability update to the guarded page commit. Legacy rows
-  /// lack capture provenance, so recomputeFilteredMemories keeps that fallback
-  /// list visible.
-  private func fetchMemoriesPageDeviceScopeAware(limit: Int, offset: Int) async throws -> MemoryPageFetchResult {
-    let scope = (filterThisDeviceOnly && deviceScopeSupported) ? "current" : nil
-    do {
-      let page = try await APIClient.shared.getMemoriesPage(limit: limit, offset: offset, deviceScope: scope)
-      return MemoryPageFetchResult(page: page, deviceScopeSupportedOverride: nil)
-    } catch APIError.httpError(let statusCode, _) where statusCode == 400 && scope != nil {
-      // Backend rejected device_scope for a non-canonical user — retry unscoped.
-      log("MemoriesViewModel: device_scope unsupported by backend, retrying unscoped")
-      DesktopDiagnosticsManager.shared.recordFallback(
-        area: "memory_scope",
-        from: "device_scoped",
-        to: "unscoped",
-        reason: "capability_mismatch",
-        outcome: .degraded,
-        extra: ["user_visible": false]
-      )
-      let page = try await APIClient.shared.getMemoriesPage(limit: limit, offset: offset, deviceScope: nil)
-      return MemoryPageFetchResult(page: page, deviceScopeSupportedOverride: false)
-    }
-  }
 
   /// Load memories using local-first pattern:
   /// 1. Load from local cache first (instant display)
@@ -975,11 +907,7 @@ class MemoriesViewModel: ObservableObject {
 
     // Step 2: Fetch from API in background and sync to local cache
     do {
-      let fetchResult = try await fetchMemoriesPageDeviceScopeAware(
-        limit: pageSize,
-        offset: 0
-      )
-      let page = fetchResult.page
+      let page = try await APIClient.shared.getMemoriesPage(limit: pageSize, offset: 0)
       let fetchedMemories = page.memories
       guard isCurrentScope(token) else {
         // Scope changed mid-load; reset loading state so the replacement load
@@ -987,13 +915,7 @@ class MemoriesViewModel: ObservableObject {
         isLoading = false
         return
       }
-      guard
-        commitMemoryPageCapabilities(
-          page,
-          for: token,
-          deviceScopeSupportedOverride: fetchResult.deviceScopeSupportedOverride
-        )
-      else {
+      guard commitMemoryPageCapabilities(page, for: token) else {
         isLoading = false
         return
       }
@@ -1007,26 +929,12 @@ class MemoriesViewModel: ObservableObject {
         try await MemoryStorage.shared.syncServerMemories(fetchedMemories)
         log("MemoriesViewModel: Synced \(fetchedMemories.count) memories to local cache")
 
-        // For device-scoped loads the server already filtered to this device.
-        // Reloading from the unscoped SQLite cache can surface other devices'
-        // newer memories that recomputeFilteredMemories() then strips, leaving
-        // an empty/short initial page that cannot paginate. Display the fetched
-        // page directly instead. (If device_scope 400'd, the committed
-        // capability override is false so we take the merged-cache path with
-        // client-side filtering.)
-        let wasDeviceScoped = filterThisDeviceOnly && deviceScopeSupported
-        let displayMemories: [ServerMemory]
-        if wasDeviceScoped {
-          displayMemories = fetchedMemories.filter { layerAllowed($0, for: token) }
-        } else {
-          // Reload from local cache to get merged data
-          displayMemories = try await MemoryStorage.shared.getLocalMemories(
-            limit: pageSize,
-            offset: 0,
-            tiers: layers(for: token),
-            scope: recordReadScope(for: token)
-          )
-        }
+        let displayMemories = try await MemoryStorage.shared.getLocalMemories(
+          limit: pageSize,
+          offset: 0,
+          tiers: layers(for: token),
+          scope: recordReadScope(for: token)
+        )
         guard isCurrentScope(token) else {
           // Scope changed mid-merge; reset loading state so the replacement
           // load is not permanently blocked.
@@ -1046,9 +954,7 @@ class MemoriesViewModel: ObservableObject {
         // permanently hide those memories. This matches the error-fallback path
         // below and the loadMore() API path.
         hasMoreMemories = fetchedMemories.count >= pageSize
-        log(
-          "MemoriesViewModel: Showing \(visibleMemories.count) memories from \(wasDeviceScoped ? "device-scoped API" : "merged local cache")"
-        )
+        log("MemoriesViewModel: Showing \(visibleMemories.count) memories from merged local cache")
       } catch {
         logError("MemoriesViewModel: Failed to sync/reload from local cache", error: error)
         // Fall back to API data if sync fails, preserving the desktop default-access guardrail.
@@ -1259,25 +1165,14 @@ class MemoriesViewModel: ObservableObject {
       log("MemoriesViewModel: Local cache pagination failed, trying API")
     }
 
-    // Step 2: If local cache is exhausted, fetch from API
-    // Pass deviceScope so the server filters for device-scoped views, keeping
-    // pagination server-side rather than limited to the first in-memory page.
+    // Step 2: If local cache is exhausted, fetch from API.
     // Use the raw backend offset (not the visible/SQLite offset) so that layer
     // filtering does not cause overlapping pages or duplicate appends.
     do {
-      let fetchResult = try await fetchMemoriesPageDeviceScopeAware(
-        limit: pageSize,
-        offset: requestedRawOffset
-      )
-      let page = fetchResult.page
+      let page = try await APIClient.shared.getMemoriesPage(limit: pageSize, offset: requestedRawOffset)
       let newMemories = page.memories
       guard
-        commitMemoryPageCapabilities(
-          page,
-          for: token,
-          expectedOffset: requestedOffset,
-          deviceScopeSupportedOverride: fetchResult.deviceScopeSupportedOverride
-        )
+        commitMemoryPageCapabilities(page, for: token, expectedOffset: requestedOffset)
       else { return }
 
       // Sync to local cache first
@@ -1474,9 +1369,8 @@ class MemoriesViewModel: ObservableObject {
 
   /// Opens one memory in the detail panel by id, from anywhere in the app.
   ///
-  /// Resolves through the cache rather than the visible page: the Brain Map
-  /// cites memories from the whole graph, and the page on screen is a
-  /// tier-filtered, device-scoped slice of it. Returns whether the memory was
+  /// Resolves through the cache rather than the visible page because the page
+  /// on screen may be a tier-filtered slice. Returns whether the memory was
   /// found, so a caller that also switches surfaces does not navigate away to
   /// an empty panel.
   @discardableResult
@@ -1490,69 +1384,9 @@ class MemoriesViewModel: ObservableObject {
     return true
   }
 
-  func toggleVisibility(_ memory: ServerMemory) async {
-    isTogglingVisibility = true
-    let newVisibility = memory.isPublic ? "private" : "public"
-    do {
-      try await APIClient.shared.updateMemoryVisibility(id: memory.id, visibility: newVisibility)
-
-      // Sync to local SQLite cache so auto-refresh doesn't revert the change
-      try await MemoryStorage.shared.updateVisibilityByBackendId(
-        memory.id, visibility: newVisibility)
-
-      // Update memory in place
-      if let index = memories.firstIndex(where: { $0.id == memory.id }) {
-        memories[index].visibility = newVisibility
-      }
-      if let index = searchResults.firstIndex(where: { $0.id == memory.id }) {
-        searchResults[index].visibility = newVisibility
-      }
-      if let index = filteredFromDatabase.firstIndex(where: { $0.id == memory.id }) {
-        filteredFromDatabase[index].visibility = newVisibility
-      }
-      recomputeFilteredMemories()
-      // Update selectedMemory if it's the same memory (reassign to trigger SwiftUI update)
-      if var selected = selectedMemory, selected.id == memory.id {
-        selected.visibility = newVisibility
-        selectedMemory = selected
-      }
-    } catch {
-      logError("Failed to update memory visibility", error: error)
-    }
-    isTogglingVisibility = false
-  }
-
   // MARK: - Bulk Operations
 
   private var currentBulkScope: MemoryLayerScope { activeLayerScope }
-
-  func makeMemoriesPrivate(scope: MemoryLayerScope? = nil) async {
-    let scope = scope ?? currentBulkScope
-    isBulkOperationInProgress = true
-    defer { isBulkOperationInProgress = false }
-    do {
-      try await APIClient.shared.updateAllMemoriesVisibility(scope: scope, visibility: "private")
-      try await MemoryStorage.shared.updateVisibility(scope: scope, visibility: "private")
-      await reloadForCurrentLayerFilter()
-    } catch {
-      errorMessage = UserFacingErrorPresentation.message(for: error, while: .memoryVisibility)
-      logError("Bulk make private disabled or failed", error: error)
-    }
-  }
-
-  func makeMemoriesPublic(scope: MemoryLayerScope? = nil) async {
-    let scope = scope ?? currentBulkScope
-    isBulkOperationInProgress = true
-    defer { isBulkOperationInProgress = false }
-    do {
-      try await APIClient.shared.updateAllMemoriesVisibility(scope: scope, visibility: "public")
-      try await MemoryStorage.shared.updateVisibility(scope: scope, visibility: "public")
-      await reloadForCurrentLayerFilter()
-    } catch {
-      errorMessage = UserFacingErrorPresentation.message(for: error, while: .memoryVisibility)
-      logError("Bulk make public disabled or failed", error: error)
-    }
-  }
 
   func deleteMemories(scope: MemoryLayerScope? = nil, archiveAcknowledged: Bool = false) async {
     let scope = scope ?? currentBulkScope
@@ -1578,7 +1412,7 @@ class MemoriesViewModel: ObservableObject {
     }
   }
 
-  // MARK: - Automation (headless memory search/filter/visibility for desktop bridge)
+  // MARK: - Automation (headless memory search/filter for desktop bridge)
 
   private var didRegisterAutomationActions = false
 
@@ -1649,48 +1483,6 @@ class MemoriesViewModel: ObservableObject {
       ]
     }
 
-    registry.register(
-      name: "toggle_memory_visibility",
-      summary: "Toggle a memory's public/private visibility via the real API path",
-      params: ["id", "marker"]
-    ) { [weak self] params in
-      guard let self else { return ["error": "memories view model deallocated"] }
-      if self.memories.isEmpty {
-        await self.loadMemories()
-      }
-      let memory: ServerMemory?
-      if let id = params["id"]?.trimmingCharacters(in: .whitespacesAndNewlines), !id.isEmpty {
-        memory =
-          self.memories.first(where: { $0.id == id })
-          ?? self.searchResults.first(where: { $0.id == id })
-          ?? self.filteredFromDatabase.first(where: { $0.id == id })
-      } else if let marker = params["marker"]?.trimmingCharacters(in: .whitespacesAndNewlines),
-        !marker.isEmpty
-      {
-        memory =
-          self.memories.first(where: { $0.content.contains(marker) })
-          ?? self.searchResults.first(where: { $0.content.contains(marker) })
-          ?? self.filteredFromDatabase.first(where: { $0.content.contains(marker) })
-      } else {
-        memory = nil
-      }
-      guard let memory else {
-        return ["error": "missing id or marker match"]
-      }
-      let priorVisibility = memory.visibility
-      await self.toggleVisibility(memory)
-      let updated =
-        self.memories.first(where: { $0.id == memory.id })
-        ?? self.searchResults.first(where: { $0.id == memory.id })
-        ?? self.filteredFromDatabase.first(where: { $0.id == memory.id })
-      let newVisibility = updated?.visibility ?? (priorVisibility == "public" ? "private" : "public")
-      return [
-        "memory_id": memory.id,
-        "prior_visibility": priorVisibility,
-        "visibility": newVisibility,
-        "toggled": priorVisibility == newVisibility ? "false" : "true",
-      ]
-    }
   }
 
   // MARK: - Conversation Linking
@@ -1781,9 +1573,8 @@ struct MemoriesPage: View {
   }
 
   private var mainMemoriesView: some View {
-    // A memory opens into a side panel, not a modal. The Brain Map's inspector
-    // works the same way, so reading one thing never covers the list you were
-    // reading it from, and the two Memory surfaces behave identically.
+    // A memory opens into a side panel, not a modal, so reading one thing never
+    // covers the list it came from.
     HStack(spacing: 0) {
       memoriesColumn
 
@@ -2006,34 +1797,6 @@ struct MemoriesPage: View {
       .buttonStyle(.plain)
       .help("Default shows Short-term + Long-term. Archive is explicit.")
     }
-
-    Button {
-      viewModel.filterThisDeviceOnly.toggle()
-    } label: {
-      HStack(spacing: OmiSpacing.xs) {
-        Image(systemName: "desktopcomputer")
-          .scaledFont(size: OmiType.caption)
-        Text("This device")
-          .scaledFont(
-            size: OmiType.body, weight: viewModel.filterThisDeviceOnly ? .medium : .regular
-          )
-          .lineLimit(1)
-          .fixedSize(horizontal: true, vertical: false)
-      }
-      .foregroundColor(
-        viewModel.filterThisDeviceOnly ? OmiColors.textPrimary : OmiColors.textSecondary
-      )
-      .padding(.horizontal, OmiSpacing.md)
-      .frame(minHeight: 44)
-      .omiControlSurface(
-        fill: viewModel.filterThisDeviceOnly
-          ? OmiColors.backgroundRaised : OmiColors.backgroundSecondary,
-        radius: 16,
-        stroke: OmiColors.border.opacity(viewModel.filterThisDeviceOnly ? 0.6 : 0.18)
-      )
-    }
-    .buttonStyle(.plain)
-    .help("Show memories captured on this Mac")
 
     // Category filter dropdown
     Button {
@@ -2296,72 +2059,6 @@ struct MemoriesPage: View {
 
   private var managementMenuPopover: some View {
     VStack(alignment: .leading, spacing: 0) {
-      // Visibility section
-      Text("Visibility")
-        .scaledFont(size: OmiType.caption, weight: .medium)
-        .foregroundColor(OmiColors.textTertiary)
-        .padding(.horizontal, OmiSpacing.md)
-        .padding(.top, OmiSpacing.md)
-        .padding(.bottom, OmiSpacing.xs)
-
-      Button {
-        showManagementMenu = false
-        Task { await viewModel.makeMemoriesPrivate(scope: .defaultAccess) }
-      } label: {
-        HStack(spacing: OmiSpacing.sm) {
-          Image(systemName: "lock")
-            .scaledFont(size: OmiType.body)
-            .frame(width: 20)
-          Text("Make Default Memories Private")
-            .scaledFont(size: OmiType.body)
-          Spacer()
-        }
-        .foregroundColor(OmiColors.textPrimary)
-        .padding(.horizontal, OmiSpacing.md)
-        .padding(.vertical, OmiSpacing.sm)
-        .contentShape(Rectangle())
-      }
-      .buttonStyle(.plain)
-      .disabled(
-        !viewModel.areBulkServerMutationsAvailable || viewModel.memories.isEmpty || viewModel.isBulkOperationInProgress
-      )
-      .opacity(
-        !viewModel.areBulkServerMutationsAvailable || viewModel.memories.isEmpty || viewModel.isBulkOperationInProgress
-          ? 0.5 : 1
-      )
-      .help("Bulk memory mutations are disabled until the backend supports layer-scoped operations.")
-
-      Button {
-        showManagementMenu = false
-        Task { await viewModel.makeMemoriesPublic(scope: .defaultAccess) }
-      } label: {
-        HStack(spacing: OmiSpacing.sm) {
-          Image(systemName: "globe")
-            .scaledFont(size: OmiType.body)
-            .frame(width: 20)
-          Text("Make Default Memories Public")
-            .scaledFont(size: OmiType.body)
-          Spacer()
-        }
-        .foregroundColor(OmiColors.textPrimary)
-        .padding(.horizontal, OmiSpacing.md)
-        .padding(.vertical, OmiSpacing.sm)
-        .contentShape(Rectangle())
-      }
-      .buttonStyle(.plain)
-      .disabled(
-        !viewModel.areBulkServerMutationsAvailable || viewModel.memories.isEmpty || viewModel.isBulkOperationInProgress
-      )
-      .opacity(
-        !viewModel.areBulkServerMutationsAvailable || viewModel.memories.isEmpty || viewModel.isBulkOperationInProgress
-          ? 0.5 : 1
-      )
-      .help("Bulk memory mutations are disabled until the backend supports layer-scoped operations.")
-
-      Divider()
-        .padding(.vertical, OmiSpacing.sm)
-        .padding(.horizontal, OmiSpacing.md)
-
       // Danger section
       Button {
         showManagementMenu = false
@@ -2400,11 +2097,6 @@ struct MemoriesPage: View {
   private var memoryList: some View {
     ScrollView {
       LazyVStack(alignment: .leading, spacing: OmiSpacing.md) {
-        // Brain Map lives in its own hub tab (beside Memories/Conversations)
-        // and nowhere else. Both the legacy graph and the canonical atlas were
-        // previously embedded at the top of the memory list too; a second entry
-        // point to the same surface only competed with the memories the page
-        // exists to show.
         LazyVStack(spacing: OmiSpacing.sm) {
           ForEach(viewModel.filteredMemories) { memory in
             MemoryCardView(
@@ -2953,9 +2645,6 @@ private struct MemoryDetailTooltip: View {
 /// a panel meant its content laid out at 450pt inside a 360pt column and was
 /// clipped mid-word, while its 600pt background stopped short of the window.
 ///
-/// Structurally a sibling of the Brain Map's inspector — same header, same
-/// uppercase section rhythm — because they are two views of the same thing and
-/// switching between them should not feel like switching apps.
 struct MemoryDetailPanel: View {
   let memory: ServerMemory
   @ObservedObject var viewModel: MemoriesViewModel
@@ -2968,7 +2657,6 @@ struct MemoryDetailPanel: View {
   @Environment(\.dismiss) private var environmentDismiss
   @State private var isEditingContent = false
   @State private var editContentText = ""
-  @State private var isConfirmingPublic = false
 
   private func dismissSheet() {
     if let onDismiss = onDismiss {
@@ -3074,30 +2762,12 @@ struct MemoryDetailPanel: View {
         )
       }
 
-      if memory.isPublic {
-        chip("Public", icon: "person.2.fill", tint: OmiColors.textSecondary)
-      }
-
       Spacer(minLength: OmiSpacing.xs)
 
-      if viewModel.isTogglingVisibility {
-        ProgressView().scaleEffect(0.6)
-      }
-
-      // Publishing and deleting are both one-way-feeling acts, so neither gets
-      // a control sitting under the cursor. A public memory feeds the user's
-      // shareable persona; a switch beside a trash can made that a slip.
       Menu {
         Button("Edit text") {
           editContentText = memory.content
           isEditingContent = true
-        }
-        if memory.isPublic {
-          Button("Make private") {
-            Task { await viewModel.toggleVisibility(memory) }
-          }
-        } else {
-          Button("Make public…") { isConfirmingPublic = true }
         }
         Divider()
         Button("Delete memory", role: .destructive) {
@@ -3125,20 +2795,6 @@ struct MemoryDetailPanel: View {
     }
     .padding(.horizontal, OmiSpacing.lg)
     .padding(.vertical, OmiSpacing.md)
-    .confirmationDialog(
-      "Make this memory public?",
-      isPresented: $isConfirmingPublic,
-      titleVisibility: .visible
-    ) {
-      Button("Make public") {
-        Task { await viewModel.toggleVisibility(memory) }
-      }
-      Button("Cancel", role: .cancel) {}
-    } message: {
-      Text(
-        "Public memories are used to build your shareable persona, so anyone you share it with can see what this memory says. Everything else stays private to you."
-      )
-    }
   }
 
   // MARK: Content

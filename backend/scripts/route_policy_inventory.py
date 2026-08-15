@@ -51,9 +51,6 @@ AUTH_MECHANISMS = {
     'beta_promotion_token',
     'desktop_preview_publish_key',
     'admin_key_uid_prefix',
-    'developer_api_key',
-    'mcp_api_key',
-    'mcp_oauth',
     'service_oidc',
     'webhook_signature',
     'websocket_first_message',
@@ -67,12 +64,11 @@ BYOK_POLICIES = {
     'websocket_manual',
     'unknown',
 }
-RATE_LIMIT_KEY_SUBJECTS = {'uid', 'api_key', 'app_key', 'ip', 'custom', 'none', 'unknown'}
+RATE_LIMIT_KEY_SUBJECTS = {'uid', 'ip', 'custom', 'none', 'unknown'}
 RATE_LIMIT_ENFORCEMENTS = {'fail_open', 'fail_closed', 'shadow', 'none', 'unknown'}
 RATE_LIMIT_PLACEMENTS = {'dependency', 'inline', 'wrapper', 'websocket_lock', 'none', 'unknown'}
 TIMEOUT_CLASSES = {
     'default_method',
-    'sync_job',
     'audio_merge',
     'account_deletion_wipe',
     'listen_finalization',
@@ -82,14 +78,11 @@ TIMEOUT_CLASSES = {
 }
 SURFACES = {
     'first_party_app',
-    'developer_api',
-    'mcp',
     'oauth',
     'admin',
     'internal_task',
     'desktop_update',
     'monitoring',
-    'shared_public',
     'webhook',
     'well_known',
     'unknown',
@@ -104,10 +97,8 @@ DATA_DOMAINS = {
     'billing',
     'sync_audio',
     'chat',
-    'apps',
     'credentials',
     'metrics',
-    'firmware',
     'desktop_updates',
     'unknown',
 }
@@ -180,8 +171,6 @@ def _normalized_path_shape(path: str) -> str:
 
 
 def _timeout_class_for_path(path: str, paths_timeout: dict[str, Any]) -> str:
-    if path == '/v2/sync-jobs/run':
-        return 'sync_job'
     if path == '/v2/audio-merge-jobs/run':
         return 'audio_merge'
     if path == '/v1/users/account-deletion-wipes/run':
@@ -625,7 +614,7 @@ def validate_inventory(
             continue
         timeout_class = policy.get('timeout_class')
         if (
-            timeout_class in {'sync_job', 'audio_merge', 'account_deletion_wipe', 'listen_finalization'}
+            timeout_class in {'audio_merge', 'account_deletion_wipe', 'listen_finalization'}
             and entry['path'] not in paths_timeout
         ):
             missing_timeout_overrides.append(f"{entry['route_key']} declares {timeout_class} without a path override")

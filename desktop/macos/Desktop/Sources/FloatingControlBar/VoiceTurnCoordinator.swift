@@ -17,7 +17,6 @@ final class VoiceTurnSnapshotObservation {
   }
 
 }
-
 @MainActor
 protocol VoiceTurnDeadlineScheduling {
   func schedule(
@@ -615,8 +614,7 @@ final class VoiceTurnCoordinator {
     case .hubWarmWait: return "hub_warm_wait"
     case .hub: return "hub"
     case .omniSTT: return "omni_stt"
-    case .deepgramBatch: return "deepgram_batch"
-    case .deepgramLive: return "deepgram_live"
+    case .managedBatch: return "managed_batch"
     }
   }
 

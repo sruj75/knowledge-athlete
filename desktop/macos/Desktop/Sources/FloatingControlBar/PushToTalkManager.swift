@@ -250,7 +250,7 @@ class PushToTalkManager: ObservableObject {
 
   // Transcription
   private var transcriptionService: TranscriptionService?
-  // Realtime omni STT (replaces Deepgram). Connects through the omi backend relay.
+  // Realtime omni STT. Connects through the Omi backend relay.
   private var realtimeOmniService: RealtimeOmniService?
   private var omniDelegateProxy: VoiceTurnOmniDelegateProxy?
   // Realtime-as-hub (Phase 1): when active, the realtime model is THE hub — it does
@@ -457,7 +457,7 @@ class PushToTalkManager: ObservableObject {
     switch route {
     case .hub, .hubWarmWait:
       return true
-    case .undecided, .omniSTT, .deepgramBatch, .deepgramLive:
+    case .undecided, .omniSTT, .managedBatch:
       return false
     }
   }
@@ -919,7 +919,7 @@ class PushToTalkManager: ObservableObject {
 
   private func startActiveTracer() {
     // The floating bar's STT is always the realtime omni model (startOmniTranscription
-    // is unconditional; Deepgram batch/live is only an on-failure fallback), so label
+    // is unconditional; managed batch/live STT is only an on-failure fallback), so label
     // the turn accordingly rather than by the legacy pttTranscriptionMode preference.
     let tracer = QueryTracer(query: "(ptt recording)", inputMode: .voicePTTOmni)
     activeTracer = tracer
@@ -1207,7 +1207,7 @@ class PushToTalkManager: ObservableObject {
         batchAudioLock.lock()
         batchAudioBuffer = turnAudio
         batchAudioLock.unlock()
-        voiceTurnCoordinator.publish(.selectRoute(turnID: turnID, route: .deepgramBatch))
+        voiceTurnCoordinator.publish(.selectRoute(turnID: turnID, route: .managedBatch))
         transcribeBufferedWarmWaitAudio()
         return
       }
@@ -1237,7 +1237,7 @@ class PushToTalkManager: ObservableObject {
     // Silence gate — an accidental tap (or a hold with nothing said) records
     // near-silence. Drop the turn here instead of letting STT hallucinate a
     // phrase from it. Applies to the omni and batch paths, which retain the
-    // raw turn audio; live-Deepgram streams without buffering and already
+    // raw turn audio; managed live STT streams without buffering and already
     // returns empty on silence.
     let isBatch = ShortcutSettings.shared.effectivePTTTranscriptionMode == .batch
     if isOmniSTT || isBatch {
@@ -1401,7 +1401,7 @@ class PushToTalkManager: ObservableObject {
         self.sendTranscript(turnID: turnID)
       }
     } else {
-      // Live mode: flush remaining audio and wait for final transcript from Deepgram
+      // Live mode: flush remaining audio and wait for the final managed transcript.
       transcriptionService?.finishStream()
       log("PushToTalkManager: finalizing (live) — mic stopped, waiting for final transcript")
       voiceTurnCoordinator.publish(
@@ -1535,7 +1535,7 @@ class PushToTalkManager: ObservableObject {
         isNearZero: false,
         judgeable: true)
     } else {
-      // Empty transcript after the turn reached finalization (e.g. a live-Deepgram
+      // Empty transcript after the turn reached finalization (e.g. a managed-live
       // turn that returned nothing). The recorder's tracked capture state
       // (first-audio / first-usable-frame) classifies it; this resolves any pending
       // recovery exactly once instead of skipping the lifecycle emit.
@@ -1965,7 +1965,7 @@ class PushToTalkManager: ObservableObject {
     }
     recordSilentMicRecoveryOutcome(silentMicRecoveryPolicy.recordSuccessfulTurn())
     guard let turnID = currentVoiceTurnID else { return }
-    voiceTurnCoordinator.publish(.selectRoute(turnID: turnID, route: .deepgramBatch))
+    voiceTurnCoordinator.publish(.selectRoute(turnID: turnID, route: .managedBatch))
     voiceTurnCoordinator.publish(.transcriptionStarted(turnID: turnID))
     Task { @MainActor [weak self] in
       guard let self, self.voiceTurnCoordinator.activeTurnID == turnID else { return }
@@ -2316,7 +2316,7 @@ class PushToTalkManager: ObservableObject {
 // MARK: - Realtime Omni STT integration
 //
 // When "Realtime Voice" is enabled, one omni model (Gemini 3.1 Flash Live or
-// GPT Realtime 2) transcribes the PTT turn instead of Deepgram. The final
+// GPT Realtime 2) transcribes the PTT turn instead of the managed fallback. The final
 // transcript flows through the unchanged sendTranscript() → ChatProvider path,
 // so agents, tools, memory, vision, and the text input all keep working.
 extension PushToTalkManager {
@@ -2348,7 +2348,7 @@ extension PushToTalkManager {
           + "\(String(format: "%.2f", Double(bufferedAudio.count / 2) / 16000.0))s buffered audio")
     } else {
       omniPreconnectBuffer.removeAll()
-      // Keep a copy of the whole turn so we can fall back to Deepgram if the relay
+      // Keep a copy of the whole turn so we can fall back to managed STT if the relay
       // is unreachable (e.g. backend not yet on prod) — PTT must never break.
       batchAudioLock.lock()
       batchAudioBuffer = Data()
@@ -2529,7 +2529,7 @@ extension PushToTalkManager {
       return
     }
     voiceTurnCoordinator.publish(.transcriptChanged(turnID: turnID, text: VoiceTurnUICopy.transcribingProgress))
-    voiceTurnCoordinator.publish(.selectRoute(turnID: turnID, route: .deepgramBatch))
+    voiceTurnCoordinator.publish(.selectRoute(turnID: turnID, route: .managedBatch))
     let capturedReason = reason
     Task { @MainActor [weak self] in
       guard let self, self.voiceTurnCoordinator.activeTurnID == turnID else { return }

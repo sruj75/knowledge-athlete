@@ -129,8 +129,6 @@ env:
     value: "prod"
   - name: OMI_LLM_GATEWAY_FEATURE_MODE
     value: "gateway"
-  - name: PUBLIC_SHARED_CONVERSATION_CHAT_MODE
-    value: "off"
   - name: OMI_LLM_GATEWAY_ALLOW_PROD_FEATURE_MODE
     value: "true"
   - name: OMI_LLM_GATEWAY_ALLOW_DIRECT_MODEL_EXCEPTION
@@ -258,11 +256,6 @@ env:
       secretKeyRef:
         name: prod-omi-backend-secrets
         key: STRIPE_WEBHOOK_SECRET
-  - name: MARKETPLACE_APP_REVIEWERS
-    valueFrom:
-      secretKeyRef:
-        name: prod-omi-backend-secrets
-        key: MARKETPLACE_APP_REVIEWERS
   - name: TYPESENSE_HOST_PORT
     value: "443"
   - name: TYPESENSE_API_KEY
@@ -272,11 +265,6 @@ env:
         key: TYPESENSE_API_KEY
   - name: MEMORY_TYPESENSE_COLLECTION
     value: "canonical_memory_atoms"
-  - name: RAPID_API_KEY
-    valueFrom:
-      secretKeyRef:
-        name: prod-omi-backend-secrets
-        key: RAPID_API_KEY
   - name: OPENROUTER_API_KEY
     valueFrom:
       secretKeyRef:
@@ -286,12 +274,6 @@ env:
     value: "based-hardware"
   - name: GCP_LOCATION
     value: "us-central1"
-  - name: HOSTED_PARAKEET_API_URL
-    value: "http://parakeet.omi.me"
-  - name: STT_PRERECORDED_MODEL
-    value: "parakeet,modulate-velma-2"
-  - name: STT_SERVICE_MODELS
-    value: "modulate-velma-2,parakeet"
   - name: HOSTED_TRANSLATION_API_URL
     value: "http://nllb.omi.me"
   - name: TRANSLATION_SERVICE_MODELS
@@ -362,28 +344,13 @@ env:
     value: "300"
   - name: FAIR_USE_EXEMPT_UIDS
     value: ""
-  - name: FAIR_USE_RESTRICT_DAILY_DG_MS
+  - name: FAIR_USE_RESTRICT_DAILY_MANAGED_STT_MS
     value: "1800000"
   - name: METRICS_SECRET
     valueFrom:
       secretKeyRef:
         name: prod-omi-backend-secrets
         key: METRICS_SECRET
-  - name: X_OAUTH_CLIENT_SECRET
-    valueFrom:
-      secretKeyRef:
-        name: prod-omi-backend-secrets
-        key: X_OAUTH_CLIENT_SECRET
-  - name: MCP_OAUTH_CHATGPT_CLIENT_SECRET
-    valueFrom:
-      secretKeyRef:
-        name: prod-omi-backend-secrets
-        key: MCP_OAUTH_CHATGPT_CLIENT_SECRET
-  - name: MCP_OAUTH_CLIENTS_JSON
-    valueFrom:
-      secretKeyRef:
-        name: prod-omi-backend-secrets
-        key: MCP_OAUTH_CLIENTS_JSON
   - name: LISTEN_FINALIZATION_ORPHAN_STALE_SECONDS
     value: "900"
 

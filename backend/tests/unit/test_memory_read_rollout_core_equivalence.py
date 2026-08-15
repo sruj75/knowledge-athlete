@@ -52,18 +52,18 @@ def _enabled_rollout_doc(*, uid='u1', consumer='omi_chat', grant=True, archive=F
 
 
 def test_extract_consumer_grants_matches_default_read_rollout_normalization():
-    doc = _enabled_rollout_doc(consumer='mcp', grant=True, archive=True)
-    snapshot = extract_consumer_grants(doc, 'mcp')
+    doc = _enabled_rollout_doc(consumer='omi_chat', grant=True, archive=True)
+    snapshot = extract_consumer_grants(doc, 'omi_chat')
     rollout = normalize_default_read_rollout_decision(
         uid='u1',
         source_path='users/u1/memory_control/state',
-        consumer='mcp',
+        consumer='omi_chat',
         data=doc,
     )
 
     assert snapshot.default_memory is True
     assert snapshot.archive_capability is True
-    assert rollout.app_has_default_memory_grant is True
+    assert rollout.has_default_memory_grant is True
 
 
 def test_surface_and_v3_shared_gates_agree_when_convergence_ready():
@@ -78,12 +78,12 @@ def test_surface_and_v3_shared_gates_agree_when_convergence_ready():
 
     surface = surface_rollout_allows_memory_read(
         global_read_gate_open=global_gate.read_decision == MemoryReadDecision.USE_MEMORY,
-        default_memory_grant=rollout.app_has_default_memory_grant,
+        default_memory_grant=rollout.has_default_memory_grant,
         memory_reads_enabled=rollout.rollout_capabilities.memory_reads_enabled,
     )
     v3 = v3_rollout_allows_memory_read(
         global_read_gate_open=True,
-        default_memory_grant=rollout.app_has_default_memory_grant,
+        default_memory_grant=rollout.has_default_memory_grant,
         memory_reads_enabled=rollout.rollout_capabilities.memory_reads_enabled,
         write_convergence_ready=True,
         rollout_write_ready=rollout.rollout_capabilities.memory_writes_enabled,
@@ -106,12 +106,12 @@ def test_surface_allows_memory_read_without_write_convergence_but_v3_blocks():
 
     surface = surface_rollout_allows_memory_read(
         global_read_gate_open=global_gate.read_decision == MemoryReadDecision.USE_MEMORY,
-        default_memory_grant=rollout.app_has_default_memory_grant,
+        default_memory_grant=rollout.has_default_memory_grant,
         memory_reads_enabled=rollout.rollout_capabilities.memory_reads_enabled,
     )
     v3 = v3_rollout_allows_memory_read(
         global_read_gate_open=True,
-        default_memory_grant=rollout.app_has_default_memory_grant,
+        default_memory_grant=rollout.has_default_memory_grant,
         memory_reads_enabled=rollout.rollout_capabilities.memory_reads_enabled,
         write_convergence_ready=False,
         rollout_write_ready=rollout.rollout_capabilities.memory_writes_enabled,

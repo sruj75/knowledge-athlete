@@ -15,7 +15,7 @@ extension FloatingControlBarManager {
       surface: projection.admissionSurface, ownerID: projection.ownerID,
       continuityKey: projection.continuityKey, userMessage: projection.userMessage(text: userText),
       assistantMessage: projection.assistantMessage(text: "", isStreaming: true),
-      origin: "realtime_voice", appId: nil, sessionId: nil, messageSource: "realtime_voice")
+      origin: "realtime_voice", sessionId: nil, messageSource: "realtime_voice")
   }
 
   /// Persists a coalesced realtime delta through the admitted assistant row.

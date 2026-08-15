@@ -19,7 +19,6 @@ class AnalyticsManager {
   /// outside the actor, so tests can observe the real event/payload safely under
   /// Swift concurrency.
   private var memoryAssistantTelemetryCaptureForTests: (@MainActor (String, [String: Any]) -> Void)?
-  private var devicePairingTelemetryCaptureForTests: (@MainActor (String?, [String: Any], [String: Any]) -> Void)?
 
   private init() {}
 
@@ -48,29 +47,6 @@ class AnalyticsManager {
 
   private func captureSuggestionAssistantTelemetryForTests(_ event: String, properties: [String: Any]) {
     suggestionAssistantTelemetryCaptureForTests?(event, properties)
-  }
-
-  /// Test observer for integration-connect telemetry. Mirrors the
-  /// MemoryAssistant seam: nil in production; tests install a scoped capture
-  /// to observe the real event/payload without a mutable unsafe global.
-  private var integrationConnectTelemetryCaptureForTests: (@MainActor (String, [String: Any]) -> Void)?
-
-  /// Install a scoped test observer for integration-connect telemetry. Tests
-  /// must clear it in teardown; production behavior remains the PostHog call.
-  func setIntegrationConnectTelemetryCaptureForTests(
-    _ capture: (@MainActor (String, [String: Any]) -> Void)?
-  ) {
-    integrationConnectTelemetryCaptureForTests = capture
-  }
-
-  private func captureIntegrationConnectTelemetryForTests(_ event: String, properties: [String: Any]) {
-    integrationConnectTelemetryCaptureForTests?(event, properties)
-  }
-
-  func setDevicePairingTelemetryCaptureForTests(
-    _ capture: (@MainActor (String?, [String: Any], [String: Any]) -> Void)?
-  ) {
-    devicePairingTelemetryCaptureForTests = capture
   }
 
   // MARK: - Initialization
@@ -182,66 +158,6 @@ class AnalyticsManager {
     PostHogManager.shared.signedOut()
   }
 
-  // MARK: - Integration Connect Events
-
-  /// Privacy-safe macOS integration-connect funnel. Mirrors the Flutter
-  /// `Integration Connect Attempted/Succeeded/Failed` event names for
-  /// cross-platform PostHog aggregation; dimensions are bounded by
-  /// ``IntegrationConnectTelemetry``. See that type for the full contract.
-  func integrationConnectAttempted(
-    integrationName: String,
-    connectorID: String,
-    surface: IntegrationConnectTelemetry.Surface,
-    stage: String
-  ) {
-    let payload = IntegrationConnectTelemetry.attemptedPayload(
-      integrationName: integrationName, connectorID: connectorID,
-      surface: surface, stage: stage)
-    captureIntegrationConnectTelemetryForTests(
-      IntegrationConnectTelemetry.attemptedEventName, properties: payload)
-    PostHogManager.shared.track(
-      IntegrationConnectTelemetry.attemptedEventName, properties: payload)
-  }
-
-  func integrationConnectSucceeded(
-    integrationName: String,
-    connectorID: String,
-    surface: IntegrationConnectTelemetry.Surface,
-    stage: String,
-    durationMs: Int? = nil,
-    sourceCount: Int? = nil,
-    memoryCount: Int? = nil,
-    wasFirstSync: Bool = false
-  ) {
-    let payload = IntegrationConnectTelemetry.succeededPayload(
-      integrationName: integrationName, connectorID: connectorID,
-      surface: surface, stage: stage, durationMs: durationMs,
-      sourceCount: sourceCount, memoryCount: memoryCount, wasFirstSync: wasFirstSync)
-    captureIntegrationConnectTelemetryForTests(
-      IntegrationConnectTelemetry.succeededEventName, properties: payload)
-    PostHogManager.shared.track(
-      IntegrationConnectTelemetry.succeededEventName, properties: payload)
-  }
-
-  func integrationConnectFailed(
-    integrationName: String,
-    connectorID: String,
-    surface: IntegrationConnectTelemetry.Surface,
-    stage: String,
-    errorClass: IntegrationConnectTelemetry.ErrorClass,
-    durationMs: Int? = nil,
-    wasFirstSync: Bool = false
-  ) {
-    let payload = IntegrationConnectTelemetry.failedPayload(
-      integrationName: integrationName, connectorID: connectorID,
-      surface: surface, stage: stage, errorClass: errorClass,
-      durationMs: durationMs, wasFirstSync: wasFirstSync)
-    captureIntegrationConnectTelemetryForTests(
-      IntegrationConnectTelemetry.failedEventName, properties: payload)
-    PostHogManager.shared.track(
-      IntegrationConnectTelemetry.failedEventName, properties: payload)
-  }
-
   // MARK: - Monitoring Events
 
   func monitoringStarted() {
@@ -334,55 +250,6 @@ class AnalyticsManager {
   func permissionSkipped(permission: String, extraProperties: [String: Any] = [:]) {
     PostHogManager.shared.permissionSkipped(
       permission: permission, extraProperties: extraProperties)
-  }
-
-  /// Track Bluetooth state changes for debugging
-  func bluetoothStateChanged(
-    oldState: String, newState: String, oldStateRaw: Int, newStateRaw: Int, authorization: String,
-    authorizationRaw: Int
-  ) {
-    let properties: [String: Any] = [
-      "old_state": oldState,
-      "new_state": newState,
-      "old_state_raw": oldStateRaw,
-      "new_state_raw": newStateRaw,
-      "authorization": authorization,
-      "authorization_raw": authorizationRaw,
-    ]
-    PostHogManager.shared.track("Bluetooth State Changed", properties: properties)
-  }
-
-  func devicePairingReady(
-    device: BtDevice,
-    isNewPair: Bool,
-    isFirstPair: Bool,
-    firstPairedAt: Date?
-  ) {
-    let vendor = device.type.analyticsVendorSlug
-    let eventProperties: [String: Any] = [
-      "device_vendor": vendor,
-      "device_type": device.type.rawValue,
-      "model": device.displayModelNumber,
-      "is_first_pair": isFirstPair,
-    ]
-    var userProperties: [String: Any] = [
-      "has_paired_device": true,
-      "paired_device_type": device.type.rawValue,
-      "device_vendor": vendor,
-    ]
-    if let firstPairedAt {
-      userProperties["first_paired_at"] = ISO8601DateFormatter().string(from: firstPairedAt)
-    }
-
-    devicePairingTelemetryCaptureForTests?(
-      isNewPair ? "Device Paired" : nil,
-      eventProperties,
-      userProperties
-    )
-    if isNewPair {
-      PostHogManager.shared.track("Device Paired", properties: eventProperties)
-    }
-    PostHogManager.shared.setUserProperties(userProperties)
   }
 
   /// Report when ScreenCaptureKit broken state is detected (TCC granted but capture failing).
@@ -605,10 +472,6 @@ class AnalyticsManager {
     PostHogManager.shared.memoryDeleted(conversationId: conversationId)
   }
 
-  func memoryShareButtonClicked(conversationId: String) {
-    PostHogManager.shared.memoryShareButtonClicked(conversationId: conversationId)
-  }
-
   func shareAction(category: String, properties: [String: Any] = [:]) {
     var props = properties
     props["category"] = category
@@ -621,9 +484,8 @@ class AnalyticsManager {
 
   // MARK: - Chat Events
 
-  func chatMessageSent(messageLength: Int, hasSelectedAppContext: Bool = false, source: String) {
-    PostHogManager.shared.chatMessageSent(
-      messageLength: messageLength, hasSelectedAppContext: hasSelectedAppContext, source: source)
+  func chatMessageSent(messageLength: Int, source: String) {
+    PostHogManager.shared.chatMessageSent(messageLength: messageLength, source: source)
   }
 
   // MARK: - Search Events
@@ -674,10 +536,6 @@ class AnalyticsManager {
 
   // MARK: - Chat Events (Additional)
 
-  func chatAppSelected(appId: String?, appName: String?) {
-    PostHogManager.shared.chatAppSelected(appId: appId, appName: appName)
-  }
-
   func chatCleared() {
     PostHogManager.shared.chatCleared()
   }
@@ -695,8 +553,8 @@ class AnalyticsManager {
     PostHogManager.shared.track("message_rated", properties: ["rating": ratingString])
   }
 
-  func initialMessageGenerated(hasApp: Bool) {
-    PostHogManager.shared.track("initial_message_generated", properties: ["has_app": hasApp])
+  func initialMessageGenerated() {
+    PostHogManager.shared.track("initial_message_generated", properties: [:])
   }
 
   func sessionTitleGenerated() {
@@ -729,57 +587,6 @@ class AnalyticsManager {
     }.joined(separator: " ")
     log(
       "Chat telemetry event=\(payload.eventName) attempt_id=\(payload.properties["attempt_id"] ?? "missing") \(diagnostics)"
-    )
-  }
-
-  func providerAuthRequired(
-    sessionAdapterId: String?,
-    harness: String,
-    bridgeMode: String,
-    oauthUrlValid: Bool
-  ) {
-    guard !Self.isDevBuild else { return }
-    var props: [String: Any] = [
-      "harness": boundedAnalyticsIdentifier(harness),
-      "bridge_mode": boundedAnalyticsIdentifier(bridgeMode),
-      "oauth_url_valid": oauthUrlValid,
-    ]
-    if let sessionAdapterId {
-      props["session_adapter_id"] = boundedAnalyticsIdentifier(sessionAdapterId)
-    }
-    PostHogManager.shared.track("provider_auth_required", properties: props)
-  }
-
-  func claudeOAuthBrowserOpened(harness: String, bridgeMode: String) {
-    guard !Self.isDevBuild else { return }
-    PostHogManager.shared.track(
-      "claude_oauth_browser_opened",
-      properties: [
-        "harness": boundedAnalyticsIdentifier(harness),
-        "bridge_mode": boundedAnalyticsIdentifier(bridgeMode),
-      ]
-    )
-  }
-
-  func claudeOAuthCallbackTimeout(harness: String, bridgeMode: String) {
-    guard !Self.isDevBuild else { return }
-    PostHogManager.shared.track(
-      "claude_oauth_callback_timeout",
-      properties: [
-        "harness": boundedAnalyticsIdentifier(harness),
-        "bridge_mode": boundedAnalyticsIdentifier(bridgeMode),
-      ]
-    )
-  }
-
-  func claudeOAuthCallbackReceived(harness: String, bridgeMode: String) {
-    guard !Self.isDevBuild else { return }
-    PostHogManager.shared.track(
-      "claude_oauth_callback_received",
-      properties: [
-        "harness": boundedAnalyticsIdentifier(harness),
-        "bridge_mode": boundedAnalyticsIdentifier(bridgeMode),
-      ]
     )
   }
 
@@ -845,7 +652,7 @@ class AnalyticsManager {
     String(value.trimmingCharacters(in: .whitespacesAndNewlines).prefix(128))
   }
 
-  /// Track individual tool calls made by the Claude agent.
+  /// Track individual tool calls made by the managed agent.
   ///
   /// Fires for every terminal status, not only success — a failed tool call
   /// previously emitted nothing, so tool reliability was unmeasurable. Filter
@@ -857,12 +664,6 @@ class AnalyticsManager {
       "outcome": ChatTelemetryDimension.toolOutcome(outcome),
     ]
     PostHogManager.shared.track("chat_tool_call_completed", properties: props)
-  }
-
-  // MARK: - Conversation Events (Additional)
-
-  func conversationReprocessed(conversationId: String, appId: String) {
-    PostHogManager.shared.conversationReprocessed(conversationId: conversationId, appId: appId)
   }
 
   // MARK: - Settings Events (Additional)
@@ -1078,20 +879,6 @@ class AnalyticsManager {
     PostHogManager.shared.insightGenerated(category: category)
   }
 
-  // MARK: - Apps Events
-
-  func appEnabled(appId: String, appName: String) {
-    PostHogManager.shared.appEnabled(appId: appId, appName: appName)
-  }
-
-  func appDisabled(appId: String, appName: String) {
-    PostHogManager.shared.appDisabled(appId: appId, appName: appName)
-  }
-
-  func appDetailViewed(appId: String, appName: String) {
-    PostHogManager.shared.appDetailViewed(appId: appId, appName: appName)
-  }
-
   // MARK: - Update Events
 
   func updateAvailable(
@@ -1228,10 +1015,6 @@ class AnalyticsManager {
     PostHogManager.shared.tierChanged(tier: tier, reason: reason)
   }
 
-  func chatBridgeModeChanged(from oldMode: String, to newMode: String) {
-    PostHogManager.shared.chatBridgeModeChanged(from: oldMode, to: newMode)
-  }
-
   // MARK: - Floating Bar Events
 
   /// Track when the floating bar is toggled visible/hidden
@@ -1277,40 +1060,6 @@ class AnalyticsManager {
       "transcript_length": transcriptLength,
     ]
     PostHogManager.shared.track("floating_bar_ptt_ended", properties: props)
-  }
-
-  // MARK: - Knowledge Graph Events
-
-  /// Track when knowledge graph generation starts during onboarding
-  func knowledgeGraphBuildStarted(filesIndexed: Int, hadExistingGraph: Bool) {
-    let props: [String: Any] = [
-      "files_indexed": filesIndexed,
-      "had_existing_graph": hadExistingGraph,
-    ]
-    PostHogManager.shared.track("knowledge_graph_build_started", properties: props)
-  }
-
-  /// Track when knowledge graph generation completes (successfully loaded with data)
-  func knowledgeGraphBuildCompleted(
-    nodeCount: Int, edgeCount: Int, pollAttempts: Int, hadExistingGraph: Bool
-  ) {
-    let props: [String: Any] = [
-      "node_count": nodeCount,
-      "edge_count": edgeCount,
-      "poll_attempts": pollAttempts,
-      "had_existing_graph": hadExistingGraph,
-    ]
-    PostHogManager.shared.track("knowledge_graph_build_completed", properties: props)
-  }
-
-  /// Track when knowledge graph generation fails or times out empty
-  func knowledgeGraphBuildFailed(reason: String, pollAttempts: Int, filesIndexed: Int) {
-    let props: [String: Any] = [
-      "reason": reason,
-      "poll_attempts": pollAttempts,
-      "files_indexed": filesIndexed,
-    ]
-    PostHogManager.shared.track("knowledge_graph_build_failed", properties: props)
   }
 
 }

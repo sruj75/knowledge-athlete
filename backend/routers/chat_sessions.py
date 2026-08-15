@@ -46,7 +46,6 @@ _auth_module = cast(Any, auth)
 
 class CreateChatSessionRequest(BaseModel):
     title: str | None = Field(None, max_length=500)
-    app_id: str | None = Field(None, max_length=200)
 
 
 class UpdateChatSessionRequest(BaseModel):
@@ -57,7 +56,6 @@ class UpdateChatSessionRequest(BaseModel):
 class SaveMessageRequest(BaseModel):
     text: str = Field(..., min_length=1, max_length=100000)
     sender: str = Field(..., pattern=r'^(human|ai)$')
-    app_id: str | None = Field(None, max_length=200)
     session_id: str | None = Field(None, max_length=200)
     metadata: str | None = None
     client_message_id: str | None = Field(None, pattern=r'^[A-Za-z0-9_-]{1,128}$')
@@ -72,7 +70,6 @@ class RateMessageRequest(BaseModel):
 
 class InitialMessageRequest(BaseModel):
     session_id: str = Field(..., min_length=1)
-    app_id: str | None = None
 
 
 class TitleMessageInput(BaseModel):
@@ -105,18 +102,17 @@ def create_chat_session(
     request: CreateChatSessionRequest,
     uid: str = Depends(auth.get_current_user_uid),
 ):
-    return chat_db.create_chat_session(uid, title=request.title, app_id=request.app_id)
+    return chat_db.create_chat_session(uid, title=request.title)
 
 
 @router.get('/v2/chat-sessions', tags=['chat-sessions'], response_model=list[ChatSessionResponse])
 def get_chat_sessions(
-    app_id: str | None = Query(None),
     limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
     starred: bool | None = Query(None),
     uid: str = Depends(auth.get_current_user_uid),
 ):
-    return chat_db.get_chat_sessions(uid, app_id=app_id, limit=limit, offset=offset, starred=starred)
+    return chat_db.get_chat_sessions(uid, limit=limit, offset=offset, starred=starred)
 
 
 @router.get('/v2/chat-sessions/{session_id}', tags=['chat-sessions'], response_model=ChatSessionResponse)
@@ -169,7 +165,6 @@ def save_message(
             uid,
             text=request.text,
             sender=request.sender,
-            app_id=request.app_id,
             session_id=request.session_id,
             metadata=request.metadata,
             client_message_id=request.client_message_id,
@@ -195,13 +190,12 @@ def save_message(
 
 @router.get('/v2/desktop/messages', tags=['chat-sessions'], response_model=list[Message])
 def get_messages(
-    app_id: str | None = Query(None),
     session_id: str | None = Query(None),
     limit: int = Query(100, ge=1, le=1000),
     offset: int = Query(0, ge=0),
     uid: str = Depends(auth.get_current_user_uid),
 ):
-    return chat_db.get_messages(uid, app_id=app_id, chat_session_id=session_id, limit=limit, offset=offset)
+    return chat_db.get_messages(uid, chat_session_id=session_id, limit=limit, offset=offset)
 
 
 @router.get(
@@ -210,7 +204,6 @@ def get_messages(
     response_model=DesktopMessageReconcilePageResponse,
 )
 def reconcile_messages(
-    app_id: str | None = Query(None),
     session_id: str | None = Query(None),
     limit: int = Query(100, ge=1, le=100),
     cursor: str | None = Query(None, min_length=1, max_length=200),
@@ -219,7 +212,6 @@ def reconcile_messages(
     try:
         messages, next_cursor, has_more = chat_db.get_messages_reconcile_page(
             uid,
-            app_id=app_id,
             chat_session_id=session_id,
             limit=limit,
             cursor_message_id=cursor,
@@ -235,11 +227,10 @@ def reconcile_messages(
 
 @router.delete('/v2/desktop/messages', tags=['chat-sessions'], response_model=DeleteMessagesResponse)
 def delete_messages(
-    app_id: str | None = Query(None),
     session_id: str | None = Query(None),
     uid: str = Depends(auth.get_current_user_uid),
 ):
-    count = chat_db.delete_messages(uid, app_id=app_id, session_id=session_id)
+    count = chat_db.delete_messages(uid, session_id=session_id)
     return {'status': 'ok', 'deleted_count': count}
 
 
@@ -274,10 +265,9 @@ def create_initial_message(
 ):
     """Generate an initial greeting message for a chat session.
 
-    Delegates to the shared chat helper which
-    handles persona detection, previous message context, and LLM generation.
+    Delegates to the shared one-assistant helper with previous-message context.
     """
-    ai_message = initial_message_util(uid, request.app_id, chat_session_id=request.session_id)
+    ai_message = initial_message_util(uid, chat_session_id=request.session_id)
     return {'message': ai_message.text, 'message_id': ai_message.id}
 
 

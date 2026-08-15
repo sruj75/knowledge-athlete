@@ -112,13 +112,11 @@ final class ChatWorkingIndicatorTests: XCTestCase {
     let message = ChatMessage(id: "assistant", text: "Answer", sender: .ai)
     let marked = ChatBubble(
       message: message,
-      app: nil,
       showsOmiMark: true,
       onRate: { _ in }
     )
     let unmarked = ChatBubble(
       message: message,
-      app: nil,
       showsOmiMark: false,
       onRate: { _ in }
     )

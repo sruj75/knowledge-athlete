@@ -1,8 +1,8 @@
 """Unit tests for ghost connection prevention in the pusher WebSocket handler.
 
-The root cause of the memory leak: when a background task (GCS upload, webhook,
+The root cause of the memory leak: when a background task (GCS upload,
 diarizer call) hangs after the WebSocket disconnects, asyncio.gather() for all
-5 main tasks blocks forever, preventing cleanup.  The gauge is never decremented
+3 main tasks blocks forever, preventing cleanup.  The gauge is never decremented
 and ~15 MB per ghost connection is leaked.
 
 These tests verify:
@@ -799,8 +799,8 @@ class TestProductionFlowStructure:
 
         assert found_drain_in_finally, "finally block must use drain_tasks for cleanup"
 
-    def test_bg_main_tasks_has_four_tasks(self):
-        """bg_main_tasks list literal should have exactly 4 tasks (not 5 — receive is separate)."""
+    def test_bg_main_tasks_has_two_tasks(self):
+        """bg_main_tasks keeps the two retained consumers; receive is separate."""
         src = _read_source(PUSHER_SRC)
         lines = src.split('\n')
 
@@ -817,7 +817,7 @@ class TestProductionFlowStructure:
                 if ']' in stripped:
                     break
 
-        assert task_count == 4, f"bg_main_tasks should have 4 tasks (receive separate), found {task_count}"
+        assert task_count == 2, f"bg_main_tasks should have 2 tasks (receive separate), found {task_count}"
 
     def test_is_shutdown_guards_speaker_sample_age_check(self):
         """In process_speaker_sample_queue, is_shutdown must be checked

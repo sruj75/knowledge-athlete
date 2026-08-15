@@ -118,7 +118,9 @@ def main():
     print()
 
     # Per-bucket stats
-    print(f"  {'Bucket':<22} {'Users':<10} {'% Users':<10} {'Total Transcription':<22} {'% of Total':<12} {'Avg/User':<14}")
+    print(
+        f"  {'Bucket':<22} {'Users':<10} {'% Users':<10} {'Total Transcription':<22} {'% of Total':<12} {'Avg/User':<14}"
+    )
     print(f"  {'-'*22} {'-'*10} {'-'*10} {'-'*22} {'-'*12} {'-'*14}")
 
     for label in ['0 conversations', '1 conversation', '2-4 conversations', '<5 total', '5+ conversations']:
@@ -164,23 +166,6 @@ def main():
         total_sec = sum(s for _, s, _ in in_bucket)
         avg_convs = sum(c for _, _, c in in_bucket) / count
         print(f"  {label:<22} {count:<10,} {fmt(total_sec):<22} {avg_convs:<12.1f}")
-
-    # Cost estimate (Deepgram Nova-2 pay-as-you-go: ~$0.0043/sec = $0.258/min)
-    low_conv_seconds = sum(s for _, s, _ in low_conv)
-    cost_per_second = 0.0043  # approximate Deepgram Nova cost
-    wasted_cost = low_conv_seconds * cost_per_second
-
-    print(f"\n  {'='*60}")
-    print(f"  ESTIMATED COST IMPACT")
-    print(f"  {'='*60}")
-    print(f"  (Using ~$0.0043/sec Deepgram Nova estimate)")
-    print()
-    print(f"  Transcription by <5 conv users: {fmt(low_conv_seconds)}")
-    print(f"  Estimated cost of that transcription: ${wasted_cost:,.0f}")
-    total_cost = total_seconds_all * cost_per_second
-    print(f"  Total estimated transcription cost: ${total_cost:,.0f}")
-    print(f"  % attributable to <5 conv users: {(wasted_cost / total_cost * 100):.1f}%")
-    print()
 
 
 if __name__ == '__main__':

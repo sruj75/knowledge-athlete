@@ -14,7 +14,6 @@ class AnnouncementType(str, Enum):
 class TriggerType(str, Enum):
     IMMEDIATE = "immediate"  # Check every app launch
     VERSION_UPGRADE = "version_upgrade"  # Check only when app version changes
-    FIRMWARE_UPGRADE = "firmware_upgrade"  # Check only when firmware version changes
 
 
 class Targeting(BaseModel):
@@ -22,9 +21,6 @@ class Targeting(BaseModel):
 
     app_version_min: Optional[str] = None  # Show to users >= this version
     app_version_max: Optional[str] = None  # Show to users <= this version
-    firmware_version_min: Optional[str] = None
-    firmware_version_max: Optional[str] = None
-    device_models: Optional[List[str]] = None  # ["Omi DevKit 2", "Omi Pro"]
     platforms: Optional[List[str]] = None  # ["ios", "android"]
     trigger: TriggerType = TriggerType.VERSION_UPGRADE
     test_uids: Optional[List[str]] = None  # If set, only these users see the announcement (for testing)
@@ -33,9 +29,6 @@ class Targeting(BaseModel):
         return {
             "app_version_min": self.app_version_min,
             "app_version_max": self.app_version_max,
-            "firmware_version_min": self.firmware_version_min,
-            "firmware_version_max": self.firmware_version_max,
-            "device_models": self.device_models,
             "platforms": self.platforms,
             "trigger": self.trigger.value,
             "test_uids": self.test_uids,
@@ -130,8 +123,6 @@ class Announcement(BaseModel):
 
     # Legacy version triggers (for backward compatibility with existing announcements)
     app_version: Optional[str] = None
-    firmware_version: Optional[str] = None
-    device_models: Optional[List[str]] = None
 
     # Legacy expiration (for backward compatibility)
     expires_at: Optional[datetime] = None
@@ -160,9 +151,6 @@ class Announcement(BaseModel):
         return Targeting(
             app_version_min=self.app_version,
             app_version_max=self.app_version,
-            firmware_version_min=self.firmware_version,
-            firmware_version_max=self.firmware_version,
-            device_models=self.device_models,
             trigger=TriggerType.VERSION_UPGRADE,
         )
 
@@ -199,8 +187,6 @@ class Announcement(BaseModel):
             created_at=created_at,
             active=data.get("active", True),
             app_version=data.get("app_version"),
-            firmware_version=data.get("firmware_version"),
-            device_models=data.get("device_models"),
             expires_at=data.get("expires_at"),
             targeting=_optional_submodel(Targeting, targeting_data),
             display=_optional_submodel(Display, display_data),
@@ -214,8 +200,6 @@ class Announcement(BaseModel):
             "created_at": self.created_at,
             "active": self.active,
             "app_version": self.app_version,
-            "firmware_version": self.firmware_version,
-            "device_models": self.device_models,
             "expires_at": self.expires_at,
             "content": self.content,
         }

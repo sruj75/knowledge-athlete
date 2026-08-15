@@ -50,7 +50,7 @@ for _mod in [
     if _existing is not None and not getattr(_existing, "__file__", None):
         del sys.modules[_mod]
 
-from models.conversation import AppResult, Conversation
+from models.conversation import Conversation
 from models.conversation_enums import CategoryEnum
 from models.other import Person
 from models.structured import ActionItem, Event, Structured
@@ -89,21 +89,16 @@ class TestFactory:
         result = deserialize_conversation(conv)
         assert result is conv  # same object, no re-construction
 
-    def test_deserialize_preserves_init_side_effects(self):
+    def test_deserialize_preserves_processing_memory_compatibility(self):
         data = {
             "id": "abc",
             "created_at": datetime(2026, 1, 1, tzinfo=timezone.utc),
             "started_at": None,
             "finished_at": None,
             "structured": {"title": "t", "overview": "o"},
-            "apps_results": [{"app_id": "app1", "content": "result"}],
             "processing_conversation_id": "proc-123",
         }
         conv = deserialize_conversation(data)
-        # __init__ syncs plugins_results from apps_results
-        assert len(conv.plugins_results) == 1
-        assert conv.plugins_results[0].plugin_id == "app1"
-        # __init__ syncs processing_memory_id from processing_conversation_id
         assert conv.processing_memory_id == "proc-123"
 
     def test_deserialize_conversations_batch(self):
@@ -143,12 +138,6 @@ class TestRender:
         assert "Test title" in result  # .capitalize() lowercases after first char
         assert "Test overview" in result
         assert "15 Jan 2026" in result
-
-    def test_apps_results_override_overview(self):
-        conv = _make_conversation(apps_results=[AppResult(app_id="a", content="App output")])
-        result = conversations_to_string([conv])
-        assert "App output" in result
-        assert "Test overview" not in result
 
     def test_action_items_rendered(self):
         conv = _make_conversation(
@@ -241,9 +230,7 @@ class TestProductionCallSitesMigrated:
     """Verify production files use render/factory instead of Conversation.conversations_to_string."""
 
     RENDER_CONSUMERS = [
-        'utils/llm/external_integrations.py',
-        'utils/apps.py',
-        'utils/app_integrations.py',
+        'utils/llm/daily_summary.py',
         'utils/retrieval/rag.py',
         'utils/retrieval/tool_services/conversations.py',
         'utils/retrieval/tools/conversation_tools.py',

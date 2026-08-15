@@ -824,7 +824,6 @@ final class SuggestedTasksStore: ObservableObject {
     if source.contains("conversation") || source.contains("transcript") {
       return "From a conversation"
     }
-    if source.contains("integration") || source.contains("email") { return "From a connected app" }
     return "Suggested by Omi"
   }
 

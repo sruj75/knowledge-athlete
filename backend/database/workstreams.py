@@ -46,7 +46,6 @@ WORK_INTENT_RECEIPTS_COLLECTION = 'work_intent_receipts'
 MUTATION_RECEIPTS_COLLECTION = 'workflow_mutation_receipts'
 CANDIDATES_COLLECTION = 'candidates'
 ACTION_ITEMS_COLLECTION = 'action_items'
-CANDIDATE_INTEGRATION_OUTBOX_COLLECTION = 'candidate_integration_outbox'
 TASK_INTELLIGENCE_CONTROL_COLLECTION = 'task_intelligence_control'
 TASK_INTELLIGENCE_CONTROL_DOCUMENT = 'state'
 
@@ -101,14 +100,6 @@ def _task_ref(uid: str, task_id: str, *, firestore_client: Any = None):
 
 def _candidate_ref(uid: str, candidate_id: str, *, firestore_client: Any = None):
     return _user_ref(uid, firestore_client=firestore_client).collection(CANDIDATES_COLLECTION).document(candidate_id)
-
-
-def _candidate_outbox_ref(uid: str, candidate_id: str, *, firestore_client: Any = None):
-    return (
-        _user_ref(uid, firestore_client=firestore_client)
-        .collection(CANDIDATE_INTEGRATION_OUTBOX_COLLECTION)
-        .document(candidate_id)
-    )
 
 
 def _control_ref(uid: str, *, firestore_client: Any = None):
@@ -942,19 +933,6 @@ def resolve_workstream_candidate(
                 'result_task_id': task_id,
                 'result_workstream_id': workstream_id,
                 'resolved_at': now,
-            },
-        )
-        write_transaction.create(
-            _candidate_outbox_ref(uid, stored_candidate.candidate_id, firestore_client=client),
-            {
-                'outbox_id': stored_candidate.candidate_id,
-                'candidate_id': stored_candidate.candidate_id,
-                'task_id': task_id,
-                'account_generation': account_generation,
-                'status': 'pending',
-                'attempt_count': 0,
-                'created_at': now,
-                'updated_at': now,
             },
         )
         return CandidateResolutionReceipt(

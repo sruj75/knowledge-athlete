@@ -227,13 +227,11 @@ def test_noncanonical_user_is_a_noop():
     outbox.assert_not_called()
 
 
-def test_projection_delete_callback_invalidates_keyword_kg_and_review_citations():
+def test_projection_delete_callback_invalidates_keyword_and_review_citations():
     uid = "uid-canonical"
     client = MagicMock()
     client.document.return_value.get.return_value.exists = False
     keyword_delete = MagicMock(return_value=True)
-    assertion_delete = MagicMock()
-    kg_prune = MagicMock(return_value=2)
     review_purge = MagicMock(return_value=["review-1"])
     compatibility_delete = MagicMock(return_value=True)
 
@@ -270,14 +268,9 @@ def test_projection_delete_callback_invalidates_keyword_kg_and_review_citations(
         ),
         patch("utils.memory.short_term_promotion.delete_atom_keyword_doc", keyword_delete),
         patch(
-            "utils.memory.short_term_promotion.kg_db.delete_memory_graph_assertion",
-            assertion_delete,
-        ),
-        patch(
             "utils.memory.short_term_promotion.delete_v3_compatibility_projection_item",
             compatibility_delete,
         ),
-        patch("utils.memory.short_term_promotion.kg_db.prune_memory_citations_from_kg", kg_prune),
         patch(
             "utils.memory.short_term_promotion.purge_stale_review_conflicts_for_memories",
             review_purge,
@@ -300,8 +293,6 @@ def test_projection_delete_callback_invalidates_keyword_kg_and_review_citations(
         db_client=client,
     )
     keyword_delete.assert_called_once_with(uid, "mem-retired", db_client=client)
-    assertion_delete.assert_called_once_with(uid, "mem-retired", db_client=client)
-    kg_prune.assert_called_once_with(uid, ["mem-retired"], db_client=client)
     review_purge.assert_called_once_with(
         uid,
         ["mem-retired"],
@@ -333,7 +324,6 @@ def test_projection_delete_preserves_pending_review_for_active_review_archive():
         ],
         source_state=SourceState.active,
         sensitivity_labels=[],
-        visibility="private",
         user_asserted=False,
         captured_at=NOW,
         updated_at=NOW,
@@ -346,8 +336,6 @@ def test_projection_delete_preserves_pending_review_for_active_review_archive():
     snapshot.exists = True
     snapshot.to_dict.return_value = review_item.model_dump(mode="python")
     keyword_delete = MagicMock(return_value=True)
-    assertion_delete = MagicMock()
-    kg_prune = MagicMock(return_value=1)
     review_purge = MagicMock()
     compatibility_delete = MagicMock(return_value=True)
 
@@ -384,14 +372,9 @@ def test_projection_delete_preserves_pending_review_for_active_review_archive():
         ),
         patch("utils.memory.short_term_promotion.delete_atom_keyword_doc", keyword_delete),
         patch(
-            "utils.memory.short_term_promotion.kg_db.delete_memory_graph_assertion",
-            assertion_delete,
-        ),
-        patch(
             "utils.memory.short_term_promotion.delete_v3_compatibility_projection_item",
             compatibility_delete,
         ),
-        patch("utils.memory.short_term_promotion.kg_db.prune_memory_citations_from_kg", kg_prune),
         patch(
             "utils.memory.short_term_promotion.purge_stale_review_conflicts_for_memories",
             review_purge,
@@ -414,15 +397,12 @@ def test_projection_delete_preserves_pending_review_for_active_review_archive():
         db_client=client,
     )
     keyword_delete.assert_called_once_with(uid, review_item.memory_id, db_client=client)
-    assertion_delete.assert_called_once_with(uid, review_item.memory_id, db_client=client)
-    kg_prune.assert_called_once_with(uid, [review_item.memory_id], db_client=client)
     review_purge.assert_not_called()
 
 
-def test_projection_delete_failure_stays_retryable_and_does_not_partially_invalidate_citations():
+def test_projection_delete_failure_stays_retryable_and_does_not_purge_review_citations():
     uid = "uid-canonical"
-    keyword_delete = MagicMock(return_value=True)
-    kg_prune = MagicMock()
+    keyword_delete = MagicMock(side_effect=RuntimeError("injected keyword delete failure"))
     review_purge = MagicMock()
     compatibility_delete = MagicMock(return_value=True)
 
@@ -462,14 +442,9 @@ def test_projection_delete_failure_stays_retryable_and_does_not_partially_invali
         ),
         patch("utils.memory.short_term_promotion.delete_atom_keyword_doc", keyword_delete),
         patch(
-            "utils.memory.short_term_promotion.kg_db.delete_memory_graph_assertion",
-            side_effect=RuntimeError("injected assertion delete failure"),
-        ),
-        patch(
             "utils.memory.short_term_promotion.delete_v3_compatibility_projection_item",
             compatibility_delete,
         ),
-        patch("utils.memory.short_term_promotion.kg_db.prune_memory_citations_from_kg", kg_prune),
         patch(
             "utils.memory.short_term_promotion.purge_stale_review_conflicts_for_memories",
             review_purge,
@@ -491,6 +466,5 @@ def test_projection_delete_failure_stays_retryable_and_does_not_partially_invali
         expected_account_generation=1,
         db_client=ANY,
     )
-    keyword_delete.assert_not_called()
-    kg_prune.assert_not_called()
+    keyword_delete.assert_called_once_with(uid, "mem-retry", db_client=ANY)
     review_purge.assert_not_called()

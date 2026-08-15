@@ -170,11 +170,10 @@ def test_router_wires_helper_and_no_longer_blindly_rearms():
     assert "not request.completed" in ai
 
 
-def test_agentic_and_developer_paths_wired():
+def test_agentic_paths_wired():
     for rel in [
         "utils/retrieval/tools/action_item_tools.py",
         "utils/retrieval/tool_services/action_items.py",
-        "routers/developer.py",
     ]:
         assert _is_imported(rel), f"{rel} does not import {_HELPER}"
         assert _live_call_lines(rel), f"{rel} has no live (non-comment) {_HELPER} call"

@@ -48,10 +48,6 @@ class MemoryCollections:
         return f"{self.user_root}/memory_evidence"
 
     @property
-    def memory_graph_assertions(self) -> str:
-        return f"{self.user_root}/memory_graph_assertions"
-
-    @property
     def memory_review_queue(self) -> str:
         return f"{self.user_root}/memory_review_queue"
 
@@ -111,7 +107,6 @@ class MemoryCollections:
             self.memory_outbox,
             self.memory_lineage,
             self.memory_evidence,
-            self.memory_graph_assertions,
             self.memory_review_queue,
             self.memory_runs,
             self.memory_import_runs,

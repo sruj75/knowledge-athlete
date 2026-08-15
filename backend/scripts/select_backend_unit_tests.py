@@ -100,7 +100,6 @@ AREA_TESTS = (
             'backend/database/users.py',
             'backend/models/geolocation.py',
             'backend/models/users.py',
-            'backend/routers/developer.py',
             'backend/routers/users.py',
             'backend/utils/retrieval/agentic.py',
             'backend/utils/retrieval/graph.py',
@@ -114,11 +113,6 @@ AREA_TESTS = (
         ('tests/unit/test_llm_gateway_*.py',),
     ),
     (
-        ('backend/mcp/', 'backend/routers/mcp'),
-        (),
-        ('tests/unit/test_mcp_*.py', 'tests/unit/test_oauth_callback_uid_guard.py'),
-    ),
-    (
         (
             'backend/utils/stt/',
             'backend/config/prerecorded_stt',
@@ -130,7 +124,6 @@ AREA_TESTS = (
         (
             'tests/unit/test_*audio*.py',
             'tests/unit/test_*listen*.py',
-            'tests/unit/test_parakeet_*.py',
             'tests/unit/test_*pusher*.py',
             'tests/unit/test_*speaker*.py',
             'tests/unit/test_*speech*.py',
@@ -141,11 +134,6 @@ AREA_TESTS = (
             'tests/unit/test_*vad*.py',
             'tests/unit/utils/test_listen_pusher_session.py',
         ),
-    ),
-    (
-        ('backend/parakeet/',),
-        (),
-        ('tests/unit/test_parakeet_*.py',),
     ),
     (
         ('backend/services/users/', 'backend/routers/users'),
@@ -176,7 +164,7 @@ AREA_TESTS = (
     (
         ('backend/routers/action_items', 'backend/services/action_items/', 'backend/utils/action_items'),
         (),
-        ('tests/unit/test_action_item*.py', 'tests/unit/test_dev_api_action_items_poison.py'),
+        ('tests/unit/test_action_item*.py',),
     ),
     (
         ('backend/routers/payment', 'backend/services/payment/', 'backend/utils/payments'),
@@ -192,19 +180,9 @@ AREA_TESTS = (
         ),
     ),
     (
-        ('backend/routers/apps', 'backend/services/apps/', 'backend/utils/apps'),
-        (),
-        ('tests/unit/test_apps_*.py', 'tests/unit/test_app_*.py', 'tests/unit/test_create_persona_user_none.py'),
-    ),
-    (
         ('backend/routers/folders', 'backend/services/folders/', 'backend/utils/folders'),
         (),
         ('tests/unit/test_folder_*.py',),
-    ),
-    (
-        ('backend/routers/developer', 'backend/services/developer/', 'backend/utils/developer'),
-        (),
-        ('tests/unit/test_dev_api_*.py', 'tests/unit/test_developer_*.py'),
     ),
     (
         ('backend/routers/sync', 'backend/services/sync/', 'backend/utils/sync'),

@@ -305,7 +305,7 @@ class TestConversationLifecycleE2E:
     """Stream audio → get transcripts → silence timeout → memory_created → verify in Firestore.
 
     Flow (from issue #5623):
-      Client ──audio──► Backend ──► Deepgram ──transcripts──► Client
+      Client ──audio──► Backend ──► Modulate ──transcripts──► Client
       Client stops audio → 120s silence → conversation_lifecycle_manager triggers
       Backend ──► Pusher: process_conversation (LLM title/summary/actions)
       Pusher ──► Backend: conversation processed callback
@@ -356,7 +356,7 @@ class TestConversationLifecycleE2E:
                         conversation_ids_to_cleanup.append(stale_id)
                         print(f"  (Stale memory from previous session: {stale_id[:12]}...)")
 
-            assert len(transcripts) > 0, "No transcripts received — Deepgram STT may not be working"
+            assert len(transcripts) > 0, "No transcripts received — Modulate STT may not be working"
 
             segment_texts = [seg.get('text', '') for seg in transcripts]
             total_words = sum(len(t.split()) for t in segment_texts)
@@ -625,7 +625,7 @@ class TestSpeakerDetectionFromTextE2E:
     """Stream audio containing name introduction → person auto-created in Firestore.
 
     This tests the text-based speaker detection path (not embedding-based).
-    When Deepgram transcribes "I am John" or "My name is Sarah", the backend
+    When Modulate transcribes "I am John" or "My name is Sarah", the backend
     calls detect_speaker_from_text() which matches against 33 language patterns
     and auto-creates a person in Firestore.
 

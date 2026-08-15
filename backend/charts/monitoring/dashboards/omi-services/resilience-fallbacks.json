@@ -34,7 +34,7 @@
           "showLineNumbers": false,
           "showMiniMap": false
         },
-        "content": "**Paging SLOs (Phase 1):** page only on `outcome=exhausted`, pusher degraded-session ratio. `outcome=recovered` heals are dashboard-only — do not page.\n\n**Noise budget:** ≤2 new PAGE alerts in the first 2 weeks after deploy (pusher degraded ratio). Sync enqueue uncertainty is observable in Cloud Logging until Cloud Run custom metrics reach Prometheus — see the sync-dispatch runbook. LLM gateway fallback is ticket-tier.\n\nRunbooks: `backend/docs/runbooks/resilience-dashboards.md`.",
+        "content": "**Paging SLOs (Phase 1):** page only on `outcome=exhausted`, pusher degraded-session ratio. `outcome=recovered` heals are dashboard-only — do not page.\n\n**Noise budget:** ≤2 new PAGE alerts in the first 2 weeks after deploy (pusher degraded ratio). LLM gateway fallback is ticket-tier.\n\nRunbooks: `backend/docs/runbooks/resilience-dashboards.md`.",
         "mode": "markdown"
       },
       "pluginVersion": "12.1.0",
@@ -135,109 +135,6 @@
         }
       ],
       "title": "Fallback rate by component & outcome",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 2,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "never",
-            "spanNulls": true,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "line+area"
-            }
-          },
-          "mappings": [],
-          "max": 1,
-          "min": 0,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": 0
-              },
-              {
-                "color": "red",
-                "value": 0.2
-              }
-            ]
-          },
-          "unit": "percentunit"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 4
-      },
-      "id": 3,
-      "options": {
-        "legend": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "pluginVersion": "12.1.0",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "editorMode": "code",
-          "expr": "sum(rate(omi_sync_dispatch_attempts_total{mode=\"enqueue_uncertain\"}[10m])) / clamp_min(sum(rate(omi_sync_dispatch_attempts_total[10m])), 1e-9)",
-          "legendFormat": "enqueue uncertainty share",
-          "range": true,
-          "refId": "A"
-        }
-      ],
-      "title": "Sync dispatch — enqueue uncertainty share (PAGE SLO)",
-      "description": "**Scrape gap:** Metric definitions and emit sites live in-repo (`utils/metrics.py` + `routers/sync.py` on Cloud Run `backend-sync`), but GKE Prometheus only scrapes backend-listen and pusher — so this panel may be empty until Cloud Run custom metrics are exported. Until then, use Cloud Logging for `event=sync_dispatch outcome=enqueue_uncertain`.",
       "type": "timeseries"
     },
     {

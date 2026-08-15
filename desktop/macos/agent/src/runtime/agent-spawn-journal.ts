@@ -66,7 +66,6 @@ export interface RealtimeSpawnChildReceipt {
   pillId?: string;
   title: string;
   objective: string;
-  provider: string;
   lifecycle: {
     state: RealtimeSpawnLifecycleState;
     attemptState: RealtimeSpawnLifecycleState;
@@ -267,7 +266,6 @@ function compactRealtimeSpawnChild(result: Record<string, unknown>): RealtimeSpa
     ...(pillId ? { pillId } : {}),
     title: compactDisplayText(session.title, "Background agent", 160),
     objective: compactDisplayText(runInput?.prompt, "Background agent", 384),
-    provider: adapterId,
     lifecycle: {
       state,
       attemptState,

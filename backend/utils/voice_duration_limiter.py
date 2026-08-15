@@ -3,13 +3,13 @@ Voice-message audio-duration budget enforcement.
 
 Shared rolling 24h budget across all three voice-message STT endpoints
 (/v2/voice-message/transcribe, /v2/voice-message/transcribe-stream,
-/v2/voice-messages) to prevent unbounded Deepgram cost.
+/v2/voice-messages) to prevent unbounded managed transcription cost.
 
 Design:
 - Single Redis sorted set per UID with minute-granularity buckets.
 - Atomic Lua script: prune stale entries → sum consumed → reject or record.
 - Fail-open on Redis errors (consistent with existing rate limiting).
-- Separate namespace from fair_use.py DG budget (different purpose/scope).
+- Separate namespace from fair_use.py managed STT budget (different purpose/scope).
 
 Constants:
 - MAX_SESSION_DURATION_S: 120 seconds per request/session.

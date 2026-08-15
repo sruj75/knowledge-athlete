@@ -11,8 +11,6 @@ ERROR_COUNT_RULES = {
     "cew4jcnpa68sga",  # Backend 5XX
     "cew97rzyegdtsa",  # Backend-sync 4XX
     "cew97uqu791q8a",  # Backend-sync 5XX
-    "eew96lge97gg0e",  # Backend-integration 4XX
-    "eew96o25qztvkf",  # Backend-integration 5XX
 }
 REQUIRED_HUMAN_ANNOTATIONS = {
     "summary",
@@ -24,32 +22,8 @@ REQUIRED_HUMAN_ANNOTATIONS = {
 REQUIRED_IDENTITY_LABELS = {"alert_identity", "component", "impact"}
 IMPACT_TIERS = {"infrastructure", "product", "user-experience"}
 UNSAFE_ANNOTATION_MARKERS = ("{{", "}}", "$values", "traceback", "stack trace")
-PARAKEET_STREAM_CAPACITY_RULES = {
-    "omi-parakeet-stream-capacity-warning": ("warning", 15),
-    "omi-parakeet-stream-capacity-critical": ("critical", 20),
-}
-PARAKEET_STREAMS_PER_READY_REPLICA = (
-    'sum(parakeet_active_streams{container="parakeet", namespace="prod-omi-backend"}) '
-    '/ clamp_min(sum(kube_deployment_status_replicas_ready{deployment="prod-omi-parakeet", '
-    'namespace="prod-omi-backend"}), 1)'
-)
-PARAKEET_STREAM_CAPACITY_RUNBOOK = "backend/docs/runbooks/parakeet-stream-capacity.md"
-PARAKEET_CAPACITY_DASHBOARD = MONITORING / "dashboards/gke/parakeet-asr-monitoring.json"
 LIVE_TRANSCRIPTION_FAILURE_RULE = "omi-journey-live-transcription-fail"
 LIVE_TRANSCRIPTION_FAILURE_EXPR = 'sum(increase(omi_live_stt_accepted_total[30m]))'
-PARAKEET_READY_POD_NO_SUCCESS_RULE = "omi-parakeet-ready-pod-no-success"
-PARAKEET_READY_POD_NO_SUCCESS_EXPR = (
-    '((sum by (pod) (increase(parakeet_requests_total{container="parakeet",namespace="prod-omi-backend",'
-    'status="error"}[5m])) >= 10) unless on (pod) (sum by (pod) '
-    '(increase(parakeet_requests_total{container="parakeet",namespace="prod-omi-backend",'
-    'status="success"}[5m])) > 0)) and on (pod) (max by (pod) '
-    '(kube_pod_status_ready{namespace="prod-omi-backend",condition="true",'
-    'pod=~"prod-omi-parakeet-.*"}) == 1)'
-)
-PARAKEET_FATAL_CUDA_RULE = "omi-parakeet-fatal-cuda"
-PARAKEET_FATAL_CUDA_EXPR = (
-    'sum by (pod) (increase(parakeet_gpu_fatal_errors_total{container="parakeet",' 'namespace="prod-omi-backend"}[5m]))'
-)
 
 
 def _rules(path: Path) -> dict[str, dict]:
@@ -128,72 +102,6 @@ def test_grafana_alert_rules_have_safe_human_impact_metadata():
                 ), f"{export_name}:{uid}:{key} exposes raw alert output"
 
             assert isinstance(labels["component"], str) and labels["component"].strip(), f"{export_name}:{uid}"
-
-
-def test_parakeet_stream_capacity_alerts_preserve_per_ready_replica_headroom():
-    """Capacity alerts use the active-stream gauge, normalized by ready replicas."""
-    rules = _rules(ALERT_SOURCES / "parakeet.json")
-
-    assert PARAKEET_STREAM_CAPACITY_RULES.keys() <= rules.keys()
-    for uid, (severity, threshold) in PARAKEET_STREAM_CAPACITY_RULES.items():
-        rule = rules[uid]
-        assert rule["labels"]["severity"] == severity
-        assert rule["noDataState"] == "OK"
-        assert rule["data"][0]["model"]["expr"] == PARAKEET_STREAMS_PER_READY_REPLICA
-        assert rule["data"][2]["model"]["conditions"][0]["evaluator"]["params"] == [threshold]
-
-
-def test_parakeet_stream_capacity_alerts_link_the_matching_dashboard_and_runbook():
-    """The alert, dashboard, and operator response use the same per-replica signal."""
-    rules = _rules(ALERT_SOURCES / "parakeet.json")
-    dashboard = json.loads(PARAKEET_CAPACITY_DASHBOARD.read_text(encoding="utf-8"))
-    panel = next(panel for panel in dashboard["panels"] if panel["id"] == 3)
-    runbook = (REPO / PARAKEET_STREAM_CAPACITY_RUNBOOK).read_text(encoding="utf-8")
-
-    assert panel["title"] == "Streaming capacity per ready replica"
-    assert panel["targets"][0]["expr"] == PARAKEET_STREAMS_PER_READY_REPLICA
-    assert panel["fieldConfig"]["defaults"]["thresholds"]["steps"] == [
-        {"color": "green", "value": 0},
-        {"color": "yellow", "value": 15},
-        {"color": "red", "value": 20},
-    ]
-
-    for uid, (severity, threshold) in PARAKEET_STREAM_CAPACITY_RULES.items():
-        rule = rules[uid]
-        assert rule["labels"]["severity"] == severity
-        assert rule["annotations"]["__dashboardUid__"] == dashboard["uid"]
-        assert rule["annotations"]["__panelId__"] == str(panel["id"])
-        assert rule["annotations"]["runbook"] == PARAKEET_STREAM_CAPACITY_RUNBOOK
-        assert f"{threshold} active streams per ready replica" in runbook
-
-    assert PARAKEET_STREAMS_PER_READY_REPLICA in runbook
-
-
-def test_parakeet_alerts_detect_fatal_cuda_and_ready_pod_black_holes():
-    for rules in _all_rule_exports().values():
-        no_success = rules[PARAKEET_READY_POD_NO_SUCCESS_RULE]
-        assert no_success["data"][0]["model"]["expr"] == PARAKEET_READY_POD_NO_SUCCESS_EXPR
-        assert no_success["noDataState"] == "OK"
-        assert no_success["for"] == "2m"
-        assert no_success["labels"]["severity"] == "critical"
-        assert no_success["labels"]["impact"] == "user-experience"
-
-        fatal_cuda = rules[PARAKEET_FATAL_CUDA_RULE]
-        assert fatal_cuda["data"][0]["model"]["expr"] == PARAKEET_FATAL_CUDA_EXPR
-        assert fatal_cuda["noDataState"] == "OK"
-        assert fatal_cuda["for"] == "0s"
-        assert fatal_cuda["labels"]["severity"] == "critical"
-        assert fatal_cuda["labels"]["impact"] == "infrastructure"
-
-
-def test_parakeet_dashboard_uses_application_request_status_labels():
-    dashboard = json.loads(PARAKEET_CAPACITY_DASHBOARD.read_text(encoding="utf-8"))
-
-    for panel_id in (1, 7):
-        panel = next(panel for panel in dashboard["panels"] if panel["id"] == panel_id)
-        expression = panel["targets"][0]["expr"]
-        assert 'status="error"' in expression
-        assert 'status=~"[45].."' not in expression
 
 
 def test_pusher_degradation_uses_listener_emitter_metrics():

@@ -32,7 +32,6 @@ class _BrokenDecoder:
     [
         ('opus', 'opus_decoder'),
         ('aac', 'aac_decoder'),
-        ('lc3', 'lc3_decoder'),
     ],
 )
 async def test_receiver_drops_malformed_codec_frame_and_continues_to_custom_transcript(codec, decoder_attribute):

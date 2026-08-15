@@ -104,7 +104,10 @@ def test_a_language_name_resolves_to_its_code(name, expected):
     assert normalize_user_language(name) == expected
 
 
-@pytest.mark.parametrize('value', ['', '   ', None, 'not-a-language', 'klingon', 'xx', 'zz-ZZ', 'en_US_extra_junk'])
+@pytest.mark.parametrize(
+    'value',
+    ['', '   ', None, 'not-a-language', 'klingon', 'maltese', 'mt', 'xx', 'zz-ZZ', 'en_US_extra_junk'],
+)
 def test_an_unresolvable_value_is_rejected(value):
     assert normalize_user_language(value) is None
 
@@ -119,7 +122,7 @@ def test_multi_is_accepted_as_the_auto_detect_preference():
 
 
 def test_accepted_set_is_derived_from_provider_capability():
-    for code in ('multi', 'en', 'ja', 'hi', 'tr', 'mt'):
+    for code in ('multi', 'en', 'ja', 'hi', 'tr'):
         assert code in ACCEPTED_BASE_LANGUAGES
     assert 'klingon' not in ACCEPTED_BASE_LANGUAGES
 

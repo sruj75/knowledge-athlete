@@ -158,14 +158,12 @@ final class ChatDiscoverabilityTests: XCTestCase {
     XCTAssertTrue(prompt.contains("Start background work"))
   }
 
-  func testDesktopPromptPreservesLegacyToolBehaviorGuidance() {
+  func testDesktopPromptPreservesRetainedToolBehaviorGuidance() {
     let prompt = ChatPrompts.desktopChat
     XCTAssertTrue(prompt.contains("Do not guess when you can look it up"))
     XCTAssertTrue(prompt.contains("Supports SELECT, INSERT, UPDATE, DELETE"))
     XCTAssertTrue(prompt.contains("Supports FTS5 MATCH queries"))
     XCTAssertTrue(prompt.contains("More reliable than hand-writing MATCH queries for task search"))
-    XCTAssertTrue(prompt.contains("**save_knowledge_graph**"))
-    XCTAssertTrue(prompt.contains("Deduplication is handled automatically"))
   }
 
   func testDesktopPromptPreservesPersonalDataLookupContract() {
@@ -186,7 +184,7 @@ final class ChatDiscoverabilityTests: XCTestCase {
       guard let name = entry["name"] as? String,
         let adapters = entry["adapters"] as? [String: Any]
       else { continue }
-      for adapterId in ["pi-mono", "omi-tools-stdio"] {
+      for adapterId in ["pi-mono"] {
         guard let availability = adapters[adapterId] as? [String: Any],
           (availability["advertised"] as? Bool) == true
         else { continue }
@@ -368,9 +366,8 @@ final class ChatDiscoverabilityTests: XCTestCase {
   func testTableAnnotationsIncludeAllExpectedTables() {
     let expected = [
       "screenshots", "action_items", "transcription_sessions", "transcription_segments",
-      "focus_sessions", "live_notes", "memories", "ai_user_profiles", "indexed_files",
+      "focus_sessions", "live_notes", "memories", "ai_user_profiles",
       "goals", "staged_tasks", "observations", "task_chat_messages",
-      "local_kg_nodes", "local_kg_edges",
     ]
     for table in expected {
       XCTAssertNotNil(

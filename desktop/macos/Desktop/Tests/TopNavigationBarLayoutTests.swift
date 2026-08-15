@@ -107,10 +107,10 @@ final class TopNavigationBarLayoutTests: XCTestCase {
         SidebarNavItem.dashboard.rawValue,
         SidebarNavItem.conversations.rawValue,
         SidebarNavItem.tasks.rawValue,
-        SidebarNavItem.apps.rawValue,
       ]
     )
-    XCTAssertEqual(TopNavigationRoutes.memoryDestinations, [.memories, .conversations, .brainMap])
+    XCTAssertEqual(TopNavigationRoutes.memoryDestinations, [.memories, .conversations])
+    XCTAssertNil(SidebarNavItem(rawValue: 8), "the retired Apps route must fail closed")
   }
 }
 

@@ -80,7 +80,7 @@ echo ""
 echo "Python packages:"
 
 missing_pkgs=()
-for pkg in pydantic fastapi firebase_admin google.cloud.firestore redis deepgram_sdk openpipe pytest_asyncio fake_firestore fakeredis; do
+for pkg in pydantic fastapi firebase_admin google.cloud.firestore redis openpipe pytest_asyncio fake_firestore fakeredis; do
   if [[ -n "$PYTHON_BIN" ]] && "$PYTHON_BIN" -c "import $pkg" &>/dev/null 2>&1; then
     ok "$pkg"
   else
@@ -119,7 +119,7 @@ check_env() {
 }
 
 check_env OPENAI_API_KEY "LLM calls — some integration tests skip without it"
-check_env DEEPGRAM_API_KEY "STT streaming and pre-recorded transcription"
+check_env MODULATE_API_KEY "managed STT streaming and pre-recorded transcription"
 check_env ADMIN_KEY "admin endpoint tests"
 check_env REDIS_DB_HOST "Redis connection (default: localhost)"
 check_env REDIS_DB_PASSWORD "Redis auth"

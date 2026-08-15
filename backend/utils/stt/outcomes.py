@@ -6,13 +6,9 @@ from typing import Any, Iterator
 
 import httpx
 
-from config.prerecorded_stt import PrerecordedSTTConfigurationError, PrerecordedSTTService, TranscriptionOutcome
+from config.prerecorded_stt import MODULATE_PROVIDER, PrerecordedSTTConfigurationError, TranscriptionOutcome
 
-_KNOWN_PROVIDERS = {
-    PrerecordedSTTService.DEEPGRAM,
-    PrerecordedSTTService.MODULATE,
-    PrerecordedSTTService.PARAKEET,
-}
+_KNOWN_PROVIDERS = {MODULATE_PROVIDER}
 
 _PUBLIC_FAILURES: dict[TranscriptionOutcome, tuple[int, str, str]] = {
     TranscriptionOutcome.EMPTY_UNEXPECTED: (

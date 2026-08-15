@@ -11,6 +11,8 @@ import socket
 import dotenv
 import pytest
 
+from testing.hermetic_network import BlockedNetworkError
+
 
 def test_dotenv_loading_is_disabled(tmp_path):
     """Local .env files must not rehydrate real credentials during e2e runs."""
@@ -24,13 +26,13 @@ def test_dotenv_loading_is_disabled(tmp_path):
 
 def test_network_guard_blocks_external_dns_lookup():
     """External DNS resolution should fail before a client can connect."""
-    with pytest.raises(AssertionError, match="blocked DNS lookup"):
+    with pytest.raises(BlockedNetworkError, match="Blocked DNS resolution"):
         socket.getaddrinfo("example.com", 443)
 
 
 def test_network_guard_blocks_external_create_connection():
     """External TCP connections should fail closed."""
-    with pytest.raises(AssertionError, match="blocked outbound network connection"):
+    with pytest.raises(BlockedNetworkError, match="Blocked outbound network connection"):
         socket.create_connection(("93.184.216.34", 80), timeout=0.1)
 
 
@@ -67,10 +69,8 @@ def test_backend_database_globals_are_fake_after_app_import(client, fake_firesto
 
     import database._client as db_client
     import database.redis_db as redis_db
-    import database.webhook_health as webhook_health
     import utils.fair_use as fair_use
 
     assert db_client.db is fake_firestore
     assert redis_db.r is fake_redis
-    assert webhook_health.r is fake_redis
     assert fair_use.redis_client is fake_redis

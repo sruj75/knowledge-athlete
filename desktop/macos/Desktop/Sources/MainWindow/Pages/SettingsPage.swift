@@ -9,7 +9,6 @@ struct SettingsPage: View {
   @ObservedObject var appState: AppState
   @Binding var selectedSection: SettingsContentView.SettingsSection
   @Binding var highlightedSettingId: String?
-  var chatProvider: ChatProvider? = nil
 
   var body: some View {
     ScrollViewReader { proxy in
@@ -34,8 +33,7 @@ struct SettingsPage: View {
           SettingsContentView(
             appState: appState,
             selectedSection: $selectedSection,
-            highlightedSettingId: $highlightedSettingId,
-            chatProvider: chatProvider
+            highlightedSettingId: $highlightedSettingId
           )
           .padding(.horizontal, OmiSpacing.section)
 
@@ -116,8 +114,6 @@ struct SettingsContentView: View {
   // AppState for transcription control
   @ObservedObject var appState: AppState
 
-  // ChatProvider for browser extension setup
-  var chatProvider: ChatProvider? = nil
   @StateObject var viewModel = SettingsViewModel()
 
   // Updater view model
@@ -296,32 +292,10 @@ struct SettingsContentView: View {
   @AppStorage("conversationsCompactView") var conversationsCompactView = true
   @AppStorage("useLegacyHomeDesign") var useLegacyHomeDesign = false
 
-  // AI Chat settings
-  @AppStorage("chatBridgeMode") var chatBridgeMode: String = "piMono"
+  // Advanced AI settings
   @AppStorage("realtimeOmniProvider") var realtimeOmniProvider: String = RealtimeOmniProvider.auto.rawValue
   @AppStorage("askModeEnabled") var askModeEnabled = false
-  @AppStorage("aiChatWorkingDirectory") var aiChatWorkingDirectory: String = ""
-  @State var aiChatClaudeMdContent: String?
-  @State var aiChatClaudeMdPath: String?
-  @State var aiChatProjectClaudeMdContent: String?
-  @State var aiChatProjectClaudeMdPath: String?
-  @State var aiChatDiscoveredSkills: [(name: String, description: String, path: String)] =
-    []
-  @State var aiChatProjectDiscoveredSkills: [(name: String, description: String, path: String)] = []
-  @State var aiChatDisabledSkills: Set<String> = []
-  @State var showFileViewer = false
-  @State var fileViewerContent = ""
-  @State var fileViewerTitle = ""
-  @State var skillSearchQuery = ""
-
-  // Dev Mode setting
-  @AppStorage("devModeEnabled") var devModeEnabled = false
   @AppStorage(BetaEnhancedDiagnosticsConfiguration.defaultsKey) var betaEnhancedDiagnosticsEnabled = true
-
-  // Browser Extension settings
-  @AppStorage("playwrightUseExtension") var playwrightUseExtension = true
-  @State var playwrightExtensionToken: String = ""
-  @State var showBrowserSetup = false
 
   // Launch at login manager
   @ObservedObject var launchAtLoginManager = LaunchAtLoginManager.shared
@@ -334,7 +308,6 @@ struct SettingsContentView: View {
     case privacy = "Privacy"
     case account = "Account"
     case planUsage = "Plan and Usage"
-    case aiChat = "AI Chat"
     case floatingBar = "Floating Bar"
     case shortcuts = "Shortcuts"
     case advanced = "Advanced"
@@ -401,8 +374,6 @@ struct SettingsContentView: View {
     case goals = "Goals"
     case preferences = "Preferences"
     case troubleshooting = "Troubleshooting"
-    case gmailReader = "Gmail Reader"
-    case calendarSync = "Calendar Sync"
 
     var icon: String {
       switch self {
@@ -417,31 +388,12 @@ struct SettingsContentView: View {
       case .goals: return "target"
       case .preferences: return "slider.horizontal.3"
       case .troubleshooting: return "wrench.and.screwdriver"
-      case .gmailReader: return "envelope.fill"
-      case .calendarSync: return "calendar"
       }
     }
   }
 
   @State var showResetOnboardingAlert: Bool = false
-  @State var showRescanFilesAlert: Bool = false
   @State var showDeleteAccountAlert: Bool = false
-
-  // Gmail Reader states
-  @State var gmailEmails: [GmailEmail] = []
-  @State var isReadingGmail: Bool = false
-  @State var isSavingGmailMemories: Bool = false
-  @State var gmailMemoriesSaved: Int = 0
-  @State var gmailReadError: String?
-  @State var gmailLastFetched: Date?
-
-  // Calendar Sync states
-  @State var calendarEvents: [CalendarEvent] = []
-  @State var isReadingCalendar: Bool = false
-  @State var calendarMemoriesCreated: Int = 0
-  @State var calendarTasksCreated: Int = 0
-  @State var calendarSyncError: String?
-  @State var calendarLastSynced: Date?
 
   @State var isDeletingAccount: Bool = false
   @State var deleteAccountError: String?
@@ -449,13 +401,11 @@ struct SettingsContentView: View {
   init(
     appState: AppState,
     selectedSection: Binding<SettingsSection>,
-    highlightedSettingId: Binding<String?> = .constant(nil),
-    chatProvider: ChatProvider? = nil
+    highlightedSettingId: Binding<String?> = .constant(nil)
   ) {
     self.appState = appState
     self._selectedSection = selectedSection
     self._highlightedSettingId = highlightedSettingId
-    self.chatProvider = chatProvider
     let settings = AssistantSettings.shared
     _isMonitoring = State(initialValue: ProactiveAssistantsPlugin.shared.isMonitoring)
     _screenCaptureHealth = State(initialValue: ProactiveAssistantsPlugin.shared.screenCaptureHealth)
@@ -543,8 +493,6 @@ struct SettingsContentView: View {
           accountSection
           mergedSectionHeader(title: "Plan and Usage", icon: "creditcard")
           planUsageSection
-        case .aiChat:
-          aiChatSection
         case .floatingBar:
           floatingBarSection
         case .shortcuts:
@@ -560,18 +508,12 @@ struct SettingsContentView: View {
       .omiAnimation(.easeInOut(duration: 0.15), value: selectedSection)
     }
     .onAppear {
-      if AppBuild.isProductionBundle && selectedSection == .aiChat {
-        selectedSection = .advanced
-      }
       loadBackendSettings()
       loadSubscriptionInfo()
       // Sync transcription state with appState
       isTranscribing = appState.isTranscribing
       // Sync floating bar state with persisted preference (not transient visibility)
       showAskOmiBar = FloatingControlBarManager.shared.isEnabled
-      playwrightExtensionToken =
-        UserDefaults.standard.string(forKey: "playwrightExtensionToken") ?? ""
-      chatProvider?.checkClaudeConnectionStatus()
       // Refresh notification permission state
       appState.checkNotificationPermission()
       screenCaptureHealth = ProactiveAssistantsPlugin.shared.screenCaptureHealth
@@ -587,10 +529,6 @@ struct SettingsContentView: View {
       isTranscribing = newValue
     }
     .onChange(of: selectedSection) { _, newValue in
-      if AppBuild.isProductionBundle && newValue == .aiChat {
-        selectedSection = .advanced
-        return
-      }
       if newValue == .planUsage || newValue == .account {
         // Plan and Usage now renders on the merged "Account & Plan" page, so
         // entering via either section id must refresh billing state.
@@ -621,22 +559,6 @@ struct SettingsContentView: View {
         activeBillingWebFlow = nil
         handleBillingFlowCompletion(outcome)
       }
-    }
-    .sheet(isPresented: $showBrowserSetup) {
-      BrowserExtensionSetup(
-        onComplete: {
-          showBrowserSetup = false
-          playwrightExtensionToken =
-            UserDefaults.standard.string(forKey: "playwrightExtensionToken") ?? ""
-        },
-        onDismiss: {
-          showBrowserSetup = false
-          playwrightExtensionToken =
-            UserDefaults.standard.string(forKey: "playwrightExtensionToken") ?? ""
-        },
-        chatProvider: chatProvider
-      )
-      .fixedSize()
     }
   }
 

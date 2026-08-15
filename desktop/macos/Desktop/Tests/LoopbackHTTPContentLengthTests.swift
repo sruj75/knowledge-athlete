@@ -2,7 +2,7 @@ import XCTest
 
 @testable import Omi_Computer
 
-/// Regression coverage for the loopback HTTP servers' Content-Length parsing.
+/// Regression coverage for the retained automation bridge's Content-Length parsing.
 /// A negative or absurd length reaching the body-slice math traps the whole app
 /// on an unauthenticated request; the shared parser must fail closed instead.
 final class LoopbackHTTPContentLengthTests: XCTestCase {

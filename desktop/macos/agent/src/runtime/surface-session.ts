@@ -204,7 +204,7 @@ export function resolveSurfaceSession(
         externalRefKind: input.surfaceRef.externalRefKind,
         externalRefId: input.surfaceRef.externalRefId,
         title: input.title ?? null,
-        defaultAdapterId: input.defaultAdapterId ?? "acp",
+        defaultAdapterId: input.defaultAdapterId ?? "pi-mono",
         executionRole: input.executionRole,
         providerBoundary: input.providerBoundary,
         modelProfile: input.modelProfile,
@@ -241,7 +241,7 @@ function resolveLegacyAgentSessionId(
       surfaceKind: input.surfaceRef.surfaceKind,
       externalRefKind: input.surfaceRef.externalRefKind,
       externalRefId: input.surfaceRef.externalRefId,
-      defaultAdapterId: input.defaultAdapterId ?? "acp",
+      defaultAdapterId: input.defaultAdapterId ?? "pi-mono",
     }).sessionId;
   } catch (error) {
     if (!isSqliteUniqueConstraintError(error)) throw error;
@@ -293,7 +293,7 @@ export function importLegacyMainChatSessions(
       ownerId: input.ownerId,
       surfaceRef,
       legacySessionId: entry.agentSessionId,
-      defaultAdapterId: "acp",
+      defaultAdapterId: "pi-mono",
     });
 
     const conversationId = generateAgentId("conversation");

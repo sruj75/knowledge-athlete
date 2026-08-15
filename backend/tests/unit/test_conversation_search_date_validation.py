@@ -11,7 +11,7 @@ import sys
 from datetime import datetime, timezone
 from enum import Enum
 from types import ModuleType
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 os.environ.setdefault('OPENAI_API_KEY', 'sk-test-not-real')
 os.environ.setdefault(
@@ -54,6 +54,7 @@ _stubs = [
     'google.cloud.firestore',
     'google.cloud.firestore_v1',
     'utils.request_validation',
+    'utils.client_device',
     'utils.other.endpoints',
     'utils.other.storage',
     'utils.conversations.factory',
@@ -61,15 +62,11 @@ _stubs = [
     'utils.conversations.render',
     'utils.conversations.process_conversation',
     'utils.conversations.search',
-    'utils.conversations.calendar_linking',
     'utils.conversations.calendar_utils',
     'utils.conversations.location',
     'utils.executors',
     'utils.llm.conversation_processing',
     'utils.speaker_identification',
-    'utils.app_integrations',
-    'utils.retrieval.tools.calendar_tools',
-    'utils.retrieval.tools.google_utils',
 ]
 
 _MISSING = object()
@@ -183,11 +180,6 @@ _register_module('utils.memory.canonical_activation', _canonical_activation_stub
 _surface_routing_stub = ModuleType('utils.memory.surface_routing')
 setattr(_surface_routing_stub, 'pin_memory_system', MagicMock())
 _register_module('utils.memory.surface_routing', _surface_routing_stub)
-
-_apps_stub = ModuleType('utils.apps')
-setattr(_apps_stub, 'get_available_app_by_id_with_reviews', MagicMock())
-setattr(_apps_stub, 'get_is_user_paid_app', MagicMock(return_value=False))
-_register_module('utils.apps', _apps_stub)
 
 from fastapi import FastAPI, HTTPException  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
@@ -356,7 +348,7 @@ def test_speaker_filter_is_applied_after_hydration(speaker_id, matching_segments
                 'per_page': 10,
             },
         ),
-        patch.object(conv.conversations_db, 'get_conversations_by_id_without_photos', return_value=hydrated),
+        patch.object(conv.conversations_db, 'get_conversations_by_id', return_value=hydrated),
     ):
         client = _client()
         resp = client.post('/v1/conversations/search', json={'query': 'hi', 'speaker_id': speaker_id})
@@ -384,7 +376,7 @@ def test_search_without_speaker_keeps_every_hydrated_conversation():
                 'per_page': 10,
             },
         ),
-        patch.object(conv.conversations_db, 'get_conversations_by_id_without_photos', return_value=hydrated),
+        patch.object(conv.conversations_db, 'get_conversations_by_id', return_value=hydrated),
     ):
         client = _client()
         resp = client.post('/v1/conversations/search', json={'query': 'hi'})
@@ -420,7 +412,6 @@ def test_finalize_conversation_persists_durable_work_and_returns_without_process
             'process_conversation',
             side_effect=AssertionError('expensive processor must not run'),
         ) as process,
-        patch.object(conv, 'trigger_external_integrations', AsyncMock()) as integrations,
     ):
         response = conv.finalize_conversation('conv-1', uid='test-uid')
 
@@ -434,7 +425,6 @@ def test_finalize_conversation_persists_durable_work_and_returns_without_process
     )
     remove_pointer.assert_called_once_with('test-uid')
     process.assert_not_called()
-    integrations.assert_not_called()
     assert response.conversation.id == 'conv-1'
     assert response.conversation.status == ConversationStatus.processing
 
@@ -494,13 +484,11 @@ def test_finalize_conversation_does_not_clear_different_redis_pointer():
         patch.object(conv.redis_db, 'get_in_progress_conversation_id', return_value='newer-conv'),
         patch.object(conv.redis_db, 'remove_in_progress_conversation_id') as remove_pointer,
         patch.object(conv, 'process_conversation') as process,
-        patch.object(conv, 'trigger_external_integrations', AsyncMock()) as integrations,
     ):
         conv.finalize_conversation('conv-1', uid='test-uid')
 
     remove_pointer.assert_not_called()
     process.assert_not_called()
-    integrations.assert_not_called()
 
 
 def test_finalize_conversation_noop_returns_latest_without_side_effects():
@@ -518,7 +506,6 @@ def test_finalize_conversation_noop_returns_latest_without_side_effects():
         patch.object(conv.redis_db, 'get_in_progress_conversation_id') as get_pointer,
         patch.object(conv.redis_db, 'remove_in_progress_conversation_id') as remove_pointer,
         patch.object(conv, 'process_conversation') as process,
-        patch.object(conv, 'trigger_external_integrations', AsyncMock(return_value=[])) as integrations,
     ):
         response = conv.finalize_conversation('conv-1', uid='test-uid')
 
@@ -526,7 +513,6 @@ def test_finalize_conversation_noop_returns_latest_without_side_effects():
     get_pointer.assert_not_called()
     remove_pointer.assert_not_called()
     process.assert_not_called()
-    integrations.assert_not_called()
     assert response.conversation.status == ConversationStatus.processing
 
 
@@ -558,7 +544,7 @@ def test_legacy_customer_context_cannot_change_managed_finalization_dispatch():
     process.assert_not_called()
 
 
-def test_legacy_finalize_claim_loser_returns_latest_without_processing_or_integrations():
+def test_legacy_finalize_claim_loser_returns_latest_without_processing():
     target = _conversation(status=ConversationStatus.in_progress)
     latest = _conversation(status=ConversationStatus.failed)
 
@@ -570,7 +556,6 @@ def test_legacy_finalize_claim_loser_returns_latest_without_processing_or_integr
         patch.object(conv.redis_db, 'get_in_progress_conversation_id') as get_pointer,
         patch.object(conv.redis_db, 'remove_in_progress_conversation_id') as remove_pointer,
         patch.object(conv, 'process_conversation') as process,
-        patch.object(conv, 'trigger_external_integrations', AsyncMock(return_value=[])) as integrations,
         patch.object(conv, '_get_valid_conversation_by_id', return_value={'id': 'conv-1'}),
     ):
         response = conv.process_in_progress_conversation(uid='test-uid')
@@ -579,7 +564,6 @@ def test_legacy_finalize_claim_loser_returns_latest_without_processing_or_integr
     get_pointer.assert_not_called()
     remove_pointer.assert_not_called()
     process.assert_not_called()
-    integrations.assert_not_called()
     assert response.conversation.status == ConversationStatus.failed
 
 
@@ -597,13 +581,11 @@ def test_finalize_conversation_returns_queued_outbox_after_uncertain_task_acknow
         patch.object(conv.redis_db, 'get_in_progress_conversation_id', return_value='conv-1'),
         patch.object(conv.redis_db, 'remove_in_progress_conversation_id') as remove_pointer,
         patch.object(conv, 'process_conversation') as process,
-        patch.object(conv, 'trigger_external_integrations', AsyncMock(return_value=[])) as integrations,
     ):
         response = conv.finalize_conversation('conv-1', uid='test-uid')
 
     remove_pointer.assert_called_once_with('test-uid')
     process.assert_not_called()
-    integrations.assert_not_called()
     assert response.conversation.status == ConversationStatus.processing
 
 
@@ -652,7 +634,7 @@ def test_finalization_status_endpoint_exposes_retryable_durable_state():
     assert response.json() == status
 
 
-def test_legacy_finalize_persistence_loser_returns_latest_without_integrations():
+def test_legacy_finalize_persistence_loser_returns_latest_without_derived_effects():
     target = _conversation(status=ConversationStatus.in_progress)
     processed = _conversation(status=ConversationStatus.completed)
     latest = _conversation(status=ConversationStatus.failed)
@@ -665,12 +647,10 @@ def test_legacy_finalize_persistence_loser_returns_latest_without_integrations()
         patch.object(conv.redis_db, 'get_in_progress_conversation_id', return_value='conv-1'),
         patch.object(conv.redis_db, 'remove_in_progress_conversation_id'),
         patch.object(conv, 'process_conversation', side_effect=_process_result(processed, persisted=False)),
-        patch.object(conv, 'trigger_external_integrations', AsyncMock(return_value=[])) as integrations,
         patch.object(conv, '_get_valid_conversation_by_id', return_value={'id': 'conv-1'}),
     ):
         response = conv.process_in_progress_conversation(uid='test-uid')
 
-    integrations.assert_not_called()
     assert response.conversation.status == ConversationStatus.failed
 
 

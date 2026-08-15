@@ -13,16 +13,13 @@ from types import SimpleNamespace
 
 import pytest
 
-from models.conversation import ConversationSource
 from utils.conversations import memory_extraction_telemetry as met
 from utils.conversations.memory_extraction_telemetry import (
     PATH_CANONICAL,
     PATH_LEGACY,
-    SOURCE_EXTERNAL_INTEGRATION,
     SOURCE_TRANSCRIPTION,
     ConversationMemoryExtractionResult,
     emit_conversation_memories_extracted,
-    source_for_conversation,
 )
 from utils.conversations import process_conversation
 
@@ -66,9 +63,9 @@ def _fake_durable_claim(monkeypatch):
     return claim
 
 
-def _emit(uid, conversation_id, *, count, source=SOURCE_TRANSCRIPTION, path=PATH_CANONICAL):
+def _emit(uid, conversation_id, *, count, path=PATH_CANONICAL):
     emit_conversation_memories_extracted(
-        uid, conversation_id, ConversationMemoryExtractionResult(count=count, source=source, path=path)
+        uid, conversation_id, ConversationMemoryExtractionResult(count=count, path=path)
     )
 
 
@@ -76,7 +73,7 @@ def test_emits_one_bounded_event_after_successful_persistence():
     fake = FakePosthog()
     met.set_posthog_client_for_tests(fake)
 
-    _emit('uid-1', 'conv-1', count=2, source=SOURCE_TRANSCRIPTION, path=PATH_CANONICAL)
+    _emit('uid-1', 'conv-1', count=2, path=PATH_CANONICAL)
 
     assert len(fake.calls) == 1
     call = fake.calls[0]
@@ -123,28 +120,18 @@ def test_memory_count_is_bucketed_not_raw(count, expected):
     assert fake.calls[0]['properties']['memory_count_bucket'] == expected
 
 
-def test_invalid_source_and_path_fall_back_to_closed_values():
+def test_invalid_path_falls_back_to_closed_value():
     fake = FakePosthog()
     met.set_posthog_client_for_tests(fake)
     # Unknown enum values collapse to a closed default, never an open string.
     emit_conversation_memories_extracted(
         'uid-1',
         'conv-1',
-        ConversationMemoryExtractionResult(count=1, source='prompt-injection', path='exotic'),
+        ConversationMemoryExtractionResult(count=1, path='exotic'),
     )
     props = fake.calls[0]['properties']
     assert props['source'] == SOURCE_TRANSCRIPTION
     assert props['path'] == PATH_LEGACY
-
-
-def test_source_for_conversation_distinguishes_transcript_from_external_integration():
-    assert source_for_conversation(SimpleNamespace(source=ConversationSource.omi)) == SOURCE_TRANSCRIPTION
-    assert (
-        source_for_conversation(SimpleNamespace(source=ConversationSource.external_integration))
-        == SOURCE_EXTERNAL_INTEGRATION
-    )
-    # Missing source defaults to transcription (the transcript path).
-    assert source_for_conversation(SimpleNamespace(source=None)) == SOURCE_TRANSCRIPTION
 
 
 def test_posthog_failure_is_swallowed_and_records_bounded_fallback(monkeypatch):
@@ -172,7 +159,7 @@ def test_posthog_failure_is_swallowed_and_records_bounded_fallback(monkeypatch):
 def test_payload_properties_carry_no_content_or_identifiers():
     fake = FakePosthog()
     met.set_posthog_client_for_tests(fake)
-    _emit('uid-secret-uid', 'conv-secret-1', count=2, source=SOURCE_EXTERNAL_INTEGRATION, path=PATH_LEGACY)
+    _emit('uid-secret-uid', 'conv-secret-1', count=2, path=PATH_LEGACY)
 
     props = fake.calls[0]['properties']
     # The uid is the analytics identity (distinct_id), never a property. The
@@ -185,7 +172,7 @@ def test_payload_properties_carry_no_content_or_identifiers():
         'conv-secret-1',
         'conversation_id',
         'conversation.id',
-        'transcript',
+        'transcript_text',
         'memory_text',
         'content',
         'prompt',
@@ -264,7 +251,7 @@ def test_posthog_constructor_failure_is_fail_open_at_public_extraction_boundary(
     finalization worker retry. This exercises the public extraction boundary,
     rather than calling the telemetry helper in isolation."""
 
-    result = ConversationMemoryExtractionResult(count=1, source=SOURCE_TRANSCRIPTION, path=PATH_CANONICAL)
+    result = ConversationMemoryExtractionResult(count=1, path=PATH_CANONICAL)
     monkeypatch.setattr(process_conversation, "_extract_memories_inner", lambda _uid, _conversation: result)
     monkeypatch.setattr(process_conversation, "track_usage", lambda *_args: nullcontext())
     monkeypatch.setattr(met, "try_claim_conversation_memory_analytics", lambda *_args: True)

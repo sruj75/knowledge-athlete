@@ -40,8 +40,8 @@ All new memory intake starts as broad Short-term capture. Maintenance gives
 each pending item exactly one consolidation route: promote, archive, review, or
 reject. Promotion is the only route into Long-term, and it is admitted only
 when one atomic ledger transaction records the server-authored promotion
-receipt and the memory's structured graph assertion. There is no direct,
-generic, or fast-track promotion path.
+receipt binding the source revision, output content, evidence, and superseded
+memories. There is no direct, generic, or fast-track promotion path.
 
 Default retrieval includes eligible Short-term and Long-term memory, collapsed
 by canonical lineage so one logical memory appears once. Search/vector and

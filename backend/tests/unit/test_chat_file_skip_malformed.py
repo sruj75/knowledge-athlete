@@ -4,8 +4,7 @@ get_chat_files / get_chat_files_desc results were turned into FileChat objects w
 [FileChat(**f) for f in ...] comprehensions at three sites. FileChat requires id/name/mime_type/
 openai_file_id/created_at, so one legacy or partial file document raised ValidationError and 500'd
 the whole attach / answer / cleanup flow. All three sites now route through _safe_file_chats, which
-skips a malformed record (mirroring utils.apps._safe_build_app). The helper is pure, so the test
-imports and calls it directly.
+skips a malformed record. The helper is pure, so the test imports and calls it directly.
 """
 
 import os

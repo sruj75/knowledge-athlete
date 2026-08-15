@@ -37,7 +37,7 @@ extension RealtimeHubController {
         expectedOwnerID: ownerID)
       let ms = Int(Date().timeIntervalSince(t0) * 1000)
       log(
-        "RealtimeHub: ask_higher_model ← \(ModelQoS.Claude.defaultSelection) OK in \(ms)ms (\(answer.count) chars)"
+        "RealtimeHub: ask_higher_model ← \(ModelQoS.Claude.chat) OK in \(ms)ms (\(answer.count) chars)"
       )
       return .succeeded(answer)
     } catch AuthError.userChangedDuringRequest {

@@ -256,14 +256,6 @@ actor AgentRuntimeProcess {
     }
   }
 
-  nonisolated static func shouldEnablePlaywrightExtension(
-    useExtension: Bool,
-    token: String,
-    targetHasExtension: Bool
-  ) -> Bool {
-    useExtension && !token.isEmpty && targetHasExtension
-  }
-
   nonisolated static func startupAuthHeader(
     requiresCredentials: Bool,
     fetchAuthHeader: () async throws -> String?
@@ -330,9 +322,7 @@ actor AgentRuntimeProcess {
       case journalBackendSync
       case journalBackendDelete
       case journalBackendReconcile
-      case defaultExecutionProfileConfigured
       case surfaceSessionResolved
-      case sessionExecutionProfileMigrated
       case contextSourceUpdated
       case contextSnapshot
       case legacyMainChatSessionsImported
@@ -390,9 +380,7 @@ actor AgentRuntimeProcess {
       case "journal_backend_sync": return .journalBackendSync
       case "journal_backend_delete": return .journalBackendDelete
       case "journal_backend_reconcile": return .journalBackendReconcile
-      case "default_execution_profile_configured": return .defaultExecutionProfileConfigured
       case "surface_session_resolved": return .surfaceSessionResolved
-      case "session_execution_profile_migrated": return .sessionExecutionProfileMigrated
       case "context_source_updated": return .contextSourceUpdated
       case "context_snapshot": return .contextSnapshot
       case "legacy_main_chat_sessions_imported": return .legacyMainChatSessionsImported
@@ -605,12 +593,6 @@ actor AgentRuntimeProcess {
       credentialOwnerID: synchronizedRuntimeCredentialOwnerID,
       processRunning: process?.isRunning ?? false
     )
-  }
-
-  /// The Node registry is the authority for adapter activation. Swift must not
-  /// re-run local executable detection before advertising a realtime provider.
-  func registeredDirectedProviderIDs() -> [String] {
-    runtimeAdapterIDs.intersection(["hermes", "openclaw"]).sorted()
   }
 
   static func adapterId(forHarnessMode harnessMode: String) -> String? {
@@ -857,40 +839,10 @@ actor AgentRuntimeProcess {
       ))
   }
 
-  func configureDefaultExecutionProfile(
-    clientId: String,
-    adapterId: String,
-    modelProfile: String?,
-    workingDirectory: String,
-    expectedPreferenceGeneration: Int?,
-    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
-  ) async throws -> AgentDefaultExecutionProfile {
-    try assertAuthorization(authorizationSnapshot)
-    let payload = Self.configureDefaultExecutionProfileWireMessage(
-      clientId: clientId,
-      requestId: UUID().uuidString,
-      ownerId: authorizationSnapshot.ownerID,
-      adapterId: adapterId,
-      modelProfile: modelProfile,
-      workingDirectory: workingDirectory,
-      expectedPreferenceGeneration: expectedPreferenceGeneration
-    )
-    let result = try await kernelContractRequest(
-      payload: payload,
-      expectedKind: .defaultExecutionProfileConfigured,
-      authorizationSnapshot: authorizationSnapshot
-    )
-    guard let profile = AgentDefaultExecutionProfile(dictionary: result) else {
-      throw BridgeError.agentError("Kernel returned an invalid default execution profile")
-    }
-    return profile
-  }
-
   func resolveSurfaceSession(
     clientId: String,
     surface: AgentSurfaceReference,
     title: String?,
-    creationProfile: AgentSessionCreationProfile?,
     authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
   ) async throws -> AgentSurfaceSession {
     try assertAuthorization(authorizationSnapshot)
@@ -899,8 +851,7 @@ actor AgentRuntimeProcess {
       requestId: UUID().uuidString,
       ownerId: authorizationSnapshot.ownerID,
       surface: surface,
-      title: title,
-      creationProfile: creationProfile
+      title: title
     )
     let result = try await kernelContractRequest(
       payload: payload,
@@ -910,37 +861,6 @@ actor AgentRuntimeProcess {
       throw BridgeError.agentError("Kernel returned an invalid surface session")
     }
     return session
-  }
-
-  func migrateSessionExecutionProfile(
-    clientId: String,
-    sessionId: String,
-    expectedProfileGeneration: Int,
-    adapterId: String,
-    modelProfile: String?,
-    workingDirectory: String,
-    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
-  ) async throws -> AgentSessionProfileMigration {
-    try assertAuthorization(authorizationSnapshot)
-    let payload = Self.migrateSessionExecutionProfileWireMessage(
-      clientId: clientId,
-      requestId: UUID().uuidString,
-      ownerId: authorizationSnapshot.ownerID,
-      sessionId: sessionId,
-      expectedProfileGeneration: expectedProfileGeneration,
-      adapterId: adapterId,
-      modelProfile: modelProfile,
-      workingDirectory: workingDirectory
-    )
-    let result = try await kernelContractRequest(
-      payload: payload,
-      expectedKind: .sessionExecutionProfileMigrated,
-      authorizationSnapshot: authorizationSnapshot
-    )
-    guard let migration = AgentSessionProfileMigration(dictionary: result) else {
-      throw BridgeError.agentError("Kernel returned an invalid session execution profile migration")
-    }
-    return migration
   }
 
   func updateContextSource(
@@ -1370,37 +1290,12 @@ actor AgentRuntimeProcess {
     return message
   }
 
-  static func configureDefaultExecutionProfileWireMessage(
-    clientId: String,
-    requestId: String,
-    ownerId: String?,
-    adapterId: String,
-    modelProfile: String?,
-    workingDirectory: String,
-    expectedPreferenceGeneration: Int?
-  ) -> [String: Any] {
-    var message = protocolEnvelope(
-      type: "configure_default_execution_profile",
-      clientId: clientId,
-      requestId: requestId,
-      ownerId: ownerId
-    )
-    message["adapterId"] = adapterId
-    message["modelProfile"] = modelProfile ?? NSNull()
-    message["workingDirectory"] = workingDirectory
-    if let expectedPreferenceGeneration {
-      message["expectedPreferenceGeneration"] = expectedPreferenceGeneration
-    }
-    return message
-  }
-
   static func resolveSurfaceSessionWireMessage(
     clientId: String,
     requestId: String,
     ownerId: String?,
     surface: AgentSurfaceReference,
-    title: String?,
-    creationProfile: AgentSessionCreationProfile? = nil
+    title: String?
   ) -> [String: Any] {
     var message = protocolEnvelope(
       type: "resolve_surface_session",
@@ -1412,32 +1307,6 @@ actor AgentRuntimeProcess {
     message["externalRefKind"] = surface.externalRefKind
     message["externalRefId"] = surface.externalRefId
     if let title { message["title"] = title }
-    if let creationProfile { message["creationProfile"] = creationProfile.dictionary }
-    return message
-  }
-
-  static func migrateSessionExecutionProfileWireMessage(
-    clientId: String,
-    requestId: String,
-    ownerId: String?,
-    sessionId: String,
-    expectedProfileGeneration: Int,
-    adapterId: String,
-    modelProfile: String?,
-    workingDirectory: String
-  ) -> [String: Any] {
-    var message = protocolEnvelope(
-      type: "migrate_session_execution_profile",
-      clientId: clientId,
-      requestId: requestId,
-      ownerId: ownerId
-    )
-    message["sessionId"] = sessionId
-    message["expectedProfileGeneration"] = expectedProfileGeneration
-    message["adapterId"] = adapterId
-    message["modelProfile"] = modelProfile ?? NSNull()
-    message["workingDirectory"] = workingDirectory
-    message["reason"] = "user_requested"
     return message
   }
 
@@ -2289,7 +2158,7 @@ actor AgentRuntimeProcess {
 
   /// Freeze the agent's stdio stream by sending SIGSTOP to the node bridge
   /// process. With the process paused it emits no further events, so an in-flight
-  /// chat send stalls exactly like a hung ACP subprocess — driving the
+  /// chat send stalls exactly like a hung agent subprocess — driving the
   /// StallDetector to `.stalled` (20s) and, if held long enough, ChatProvider's
   /// 180s send watchdog (CHAT-02). A safety auto-resume fires after `durationMs`
   /// (hard-capped) so the process can never stay frozen if `debugResumeStream`
@@ -2565,7 +2434,7 @@ actor AgentRuntimeProcess {
       environment: env)
     env.removeValue(forKey: AgentRuntimeCredentialPolicy.hermeticFaultModelTokenEnvironmentKey)
     env["NODE_NO_WARNINGS"] = "1"
-    env["HARNESS_MODE"] = preferredHarnessMode
+    env["HARNESS_MODE"] = AgentHarnessMode.piMono.rawValue
     env["OMI_AGENT_STATE_DIR"] = Self.defaultStateDirectory()
     env["OMI_AGENT_ARTIFACTS_DIR"] = Self.defaultArtifactsDirectory()
     #if DEBUG
@@ -2575,7 +2444,6 @@ actor AgentRuntimeProcess {
     #endif
     env.removeValue(forKey: "ANTHROPIC_API_KEY")
     env.removeValue(forKey: "CLAUDE_CODE_USE_VERTEX")
-    applyLocalAgentEnvironment(to: &env)
 
     let rustBase = await APIClient.shared.rustBackendURL
     try assertStartupAuthority(
@@ -2587,6 +2455,8 @@ actor AgentRuntimeProcess {
       log("AgentRuntimeProcess: pi-mono start refused, OMI_DESKTOP_API_URL is not configured")
       throw BridgeError.bridgeScriptNotFound
     }
+
+    Self.removeInheritedBYOKEnvironment(from: &env)
 
     let requiresPiMonoCredentials =
       preferredAdapterId == .piMono
@@ -2610,16 +2480,15 @@ actor AgentRuntimeProcess {
     try assertStartupAuthority(
       authorizationSnapshot,
       expectedAuthorityEpoch: admissionAuthorityEpoch)
-    var managedAuthToken: String?
     if let hermeticFaultModelToken {
-      managedAuthToken = hermeticFaultModelToken
+      env["OMI_AUTH_TOKEN"] = hermeticFaultModelToken
       log("AgentRuntimeProcess: starting non-production fault-model runtime without Firebase auth")
     } else if let authHeader,
       let token = Self.bearerToken(from: authHeader)
     {
       startupPermissionGrantedChecked = requiresPiMonoCredentials
       startupPermissionGranted = requiresPiMonoCredentials
-      managedAuthToken = token
+      env["OMI_AUTH_TOKEN"] = token
     } else if requiresPiMonoCredentials {
       startupPermissionGrantedChecked = true
       log("AgentRuntimeProcess: pi-mono start refused, Firebase ID token is missing")
@@ -2627,36 +2496,11 @@ actor AgentRuntimeProcess {
     } else if preferredAdapterId == .piMono {
       log("AgentRuntimeProcess: starting non-production control-only runtime without Firebase auth")
     }
-    env = Self.prepareManagedChildEnvironment(
-      inherited: env,
-      managedAuthToken: managedAuthToken)
 
     let nodeDir = (nodePath as NSString).deletingLastPathComponent
     let existingPath = env["PATH"] ?? "/usr/bin:/bin"
     if !existingPath.contains(nodeDir) {
       env["PATH"] = "\(nodeDir):\(existingPath)"
-    }
-
-    let defaults = UserDefaults.standard
-    let useExtension =
-      defaults.object(forKey: "playwrightUseExtension") == nil
-      || defaults.bool(forKey: "playwrightUseExtension")
-    let playwrightToken = defaults.string(forKey: "playwrightExtensionToken") ?? ""
-    let playwrightTarget = BrowserAutomationTargetResolver.preferredTarget()
-    let hasInstalledPlaywrightBridge =
-      playwrightTarget.map { BrowserAutomationTargetResolver.isExtensionInstalled(in: $0) } ?? false
-    if Self.shouldEnablePlaywrightExtension(
-      useExtension: useExtension,
-      token: playwrightToken,
-      targetHasExtension: hasInstalledPlaywrightBridge)
-    {
-      env["PLAYWRIGHT_MCP_ENABLED"] = "true"
-      env["PLAYWRIGHT_USE_EXTENSION"] = "true"
-      env["PLAYWRIGHT_MCP_EXTENSION_TOKEN"] = playwrightToken
-    } else {
-      env.removeValue(forKey: "PLAYWRIGHT_MCP_ENABLED")
-      env.removeValue(forKey: "PLAYWRIGHT_USE_EXTENSION")
-      env.removeValue(forKey: "PLAYWRIGHT_MCP_EXTENSION_TOKEN")
     }
 
     try assertStartupAuthority(
@@ -2721,131 +2565,10 @@ actor AgentRuntimeProcess {
     }
   }
 
-  private func applyLocalAgentEnvironment(to env: inout [String: String]) {
-    // Seed auto-discovered commands for every local adapter so the shared Node
-    // process can route to Hermes or OpenClaw even when it was launched for a
-    // different adapter. registerClient returns early once the reducer is
-    // startup adapter's env would otherwise be the only one the process sees.
-    let home = NSHomeDirectory()
-    if env["HOME"]?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true {
-      env["HOME"] = home
-    }
-    if env["HERMES_HOME"]?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true {
-      env["HERMES_HOME"] = "\(home)/.hermes"
-    }
-
-    let adapterPathDirs = Self.localAdapterSearchDirectories(home: home)
-    let existingPath = env["PATH"] ?? "/usr/bin:/bin"
-    var pathElements: [String] = []
-    for path in existingPath.split(separator: ":").map(String.init) + adapterPathDirs {
-      if !pathElements.contains(path) {
-        pathElements.append(path)
-      }
-    }
-    env["PATH"] = pathElements.joined(separator: ":")
-
-    // The same injected PATH/home contract used by the testable detector feeds
-    // the Node registry. PTT receives only the registry projection later; it
-    // never performs a competing executable lookup of its own.
-    if env["OMI_HERMES_ADAPTER_COMMAND"]?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true,
-      case .available(command: let hermes) = LocalAgentProviderDetector.availability(
-        for: .hermes,
-        environment: env,
-        homeDirectory: home
-      ).status
-    {
-      env["OMI_HERMES_ADAPTER_COMMAND"] = "\(Self.shellQuote(hermes)) acp"
-    }
-
-    if env["OMI_OPENCLAW_ADAPTER_COMMAND"]?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true,
-      case .available(command: let openClaw) = LocalAgentProviderDetector.availability(
-        for: .openclaw,
-        environment: env,
-        homeDirectory: home
-      ).status
-    {
-      env["OMI_OPENCLAW_ADAPTER_COMMAND"] = Self.openClawAdapterCommand(openClawPath: openClaw)
-    }
-  }
-
-  /// Prevent retired customer credentials inherited from a developer shell or
-  /// launch environment from crossing into the managed agent subprocess.
-  static func prepareManagedChildEnvironment(
-    inherited: [String: String],
-    managedAuthToken: String?
-  ) -> [String: String] {
-    var env = inherited
-    removeRetiredCustomerCredentialEnvironment(from: &env)
-    env.removeValue(forKey: "OMI_AUTH_TOKEN")
-    if let managedAuthToken, !managedAuthToken.isEmpty {
-      env["OMI_AUTH_TOKEN"] = managedAuthToken
-    }
-    return env
-  }
-
-  static func removeRetiredCustomerCredentialEnvironment(from env: inout [String: String]) {
-    let retiredCustomerCredentialKeys = env.keys.filter { $0.uppercased().hasPrefix("OMI_BYOK_") }
-    for key in retiredCustomerCredentialKeys {
+  static func removeInheritedBYOKEnvironment(from env: inout [String: String]) {
+    let inheritedBYOKKeys = env.keys.filter { $0.uppercased().hasPrefix("OMI_BYOK_") }
+    for key in inheritedBYOKKeys {
       env.removeValue(forKey: key)
-    }
-  }
-
-  static func openClawAdapterCommand(openClawPath: String, fileManager: FileManager = .default) -> String {
-    let nodePath = ((openClawPath as NSString).deletingLastPathComponent as NSString).appendingPathComponent("node")
-    if fileManager.isExecutableFile(atPath: nodePath) {
-      return "\(shellQuote(nodePath)) \(shellQuote(openClawPath)) acp"
-    }
-    return "\(shellQuote(openClawPath)) acp"
-  }
-
-  /// Directly launched app bundles do not inherit the shell's FNM multishell
-  /// PATH entry. Search the stable Node-install roots as well, so a globally
-  /// installed OpenClaw CLI remains available to the shared agent bridge.
-  static func localAdapterSearchDirectories(
-    home: String,
-    fileManager: FileManager = .default
-  ) -> [String] {
-    let adapterPathDirs = [
-      "\(home)/.hermes/hermes-agent/venv/bin",
-      "\(home)/.hermes/node/bin",
-      "\(home)/.hermes/hermes-agent",
-      "\(home)/.local/bin",
-    ]
-    let managedNodeRoots = [
-      "\(home)/.nvm/versions/node",
-      "\(home)/.fnm/node-versions",
-      "\(home)/.local/share/fnm/node-versions",
-      "\(home)/.nodenv/versions",
-      "\(home)/.asdf/installs/nodejs",
-    ]
-    // User-managed Node installations take precedence over machine-wide fallbacks.
-    return Self.uniquePaths(
-      adapterPathDirs
-        + managedNodeRoots.flatMap {
-          Self.nodeInstallBinDirectories(root: $0, fileManager: fileManager)
-        }
-        + [
-          "/opt/homebrew/bin",
-          "/usr/local/bin",
-        ])
-  }
-
-  private static func nodeInstallBinDirectories(root: String, fileManager: FileManager) -> [String] {
-    guard let versions = try? fileManager.contentsOfDirectory(atPath: root) else { return [] }
-    return versions.compactMap { version in
-      let versionDirectory = (root as NSString).appendingPathComponent(version)
-      let directBin = (versionDirectory as NSString).appendingPathComponent("bin")
-      if fileManager.fileExists(atPath: directBin) { return directBin }
-      let installationBin = (versionDirectory as NSString).appendingPathComponent("installation/bin")
-      if fileManager.fileExists(atPath: installationBin) { return installationBin }
-      return nil
-    }
-  }
-
-  private static func uniquePaths(_ paths: [String]) -> [String] {
-    paths.reduce(into: [String]()) { result, path in
-      guard !path.isEmpty, !result.contains(path) else { return }
-      result.append(path)
     }
   }
 
@@ -2855,24 +2578,6 @@ actor AgentRuntimeProcess {
     let token = String(header.dropFirst(prefix.count))
       .trimmingCharacters(in: .whitespacesAndNewlines)
     return token.isEmpty ? nil : token
-  }
-
-  private static func shellQuote(_ value: String) -> String {
-    "'\(value.replacingOccurrences(of: "'", with: "'\\''"))'"
-  }
-
-  static func firstExecutable(
-    named name: String,
-    in directories: [String],
-    fileManager: FileManager = .default
-  ) -> String? {
-    for dir in directories {
-      let path = (dir as NSString).appendingPathComponent(name)
-      if fileManager.isExecutableFile(atPath: path) {
-        return path
-      }
-    }
-    return nil
   }
 
   static func startFailure(for error: Error) -> AgentRuntimeBridgeLifecycle.StartFailure {
@@ -3253,8 +2958,7 @@ actor AgentRuntimeProcess {
     case .journalBackendReconcile:
       if messageOwnerIsCurrentlyAuthorized(message) { handleJournalBackendReconcile(message) }
 
-    case .defaultExecutionProfileConfigured, .surfaceSessionResolved,
-      .sessionExecutionProfileMigrated, .contextSourceUpdated, .contextSnapshot,
+    case .surfaceSessionResolved, .contextSourceUpdated, .contextSnapshot,
       .legacyMainChatSessionsImported,
       .externalSurfaceRunBeginResult, .externalSurfaceToolResult,
       .externalSurfaceRunCompleteResult, .ownerRuntimeRevoked:

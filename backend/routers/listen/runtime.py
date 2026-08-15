@@ -13,6 +13,7 @@ from typing import Any, Awaitable, Callable, Dict, List, Optional, cast
 from fastapi.websockets import WebSocketDisconnect
 from starlette.websockets import WebSocketState
 
+from config.stt_provider_policy import MODULATE_MODEL, MODULATE_PROVIDER
 from models.message_event import (
     FREEMIUM_ACTION_SETUP_ON_DEVICE_STT,
     FreemiumThresholdReachedEvent,
@@ -22,20 +23,19 @@ from models.message_event import (
 )
 from models.users import PlanType
 from utils.analytics import billable_transcription_seconds, record_usage
-from utils.apps import is_audio_bytes_app_enabled
 from utils.async_tasks import WebSocketTaskSupervisor, drain_tasks, wait_for_event
 from utils.client_device import resolve_client_device_from_headers
 from utils.executors import db_executor, run_blocking, start_background_task
 from utils.fair_use import (
     FAIR_USE_CHECK_INTERVAL_SECONDS,
     FAIR_USE_ENABLED,
-    FAIR_USE_RESTRICT_DAILY_DG_MS,
+    FAIR_USE_RESTRICT_DAILY_MANAGED_STT_MS,
     check_soft_caps,
     get_enforcement_stage,
     get_rolling_speech_ms,
     is_daily_audio_ceiling_exceeded,
-    is_dg_budget_exhausted,
-    record_dg_usage_ms,
+    is_managed_stt_budget_exhausted,
+    record_managed_stt_usage_ms,
     record_speech_ms,
     trigger_classifier_if_needed,
 )
@@ -46,7 +46,7 @@ from utils.notifications import send_credit_limit_notification, send_silent_user
 from utils.onboarding import OnboardingHandler
 from utils.observability.transcription import LiveSTTAttempt
 from utils.pusher import PusherCircuitBreakerOpen
-from utils.stt.streaming import get_stt_service_for_language
+from utils.stt.streaming import get_managed_stt_language
 from utils.subscription import get_remaining_transcription_seconds, is_trial_paywalled
 from utils.transcribe_decisions import (
     effective_conversation_timeout,
@@ -59,7 +59,6 @@ from utils.transcribe_decisions import (
     validate_audio_format,
 )
 from utils.transcribe_store import check_credits_invalidation, conversations_db, redis_db, user_db
-from utils.webhooks import get_audio_bytes_webhook_seconds
 from utils.audio import AudioRingBuffer
 from utils.other.storage import get_user_has_speech_profile
 from utils.transcribe_decisions import USER_SELF_PERSON_ID, person_id_for_client
@@ -107,16 +106,14 @@ class ListenSessionRuntime:
         self.pusher_enabled = PUSHER_ENABLED
         self.is_multi_channel = request.channels >= 2
         self.language = request.language
-        self.stt_service: Any = None
         self.stt_language = ''
-        self.stt_model = ''
+        self.stt_model = MODULATE_MODEL
         self.vocabulary: List[str] = []
         self.translation_language: Optional[str] = None
         self.user_has_credits = True
         self.private_cloud_sync_enabled = False
         self.has_speech_profile = False
         self.conversation_creation_timeout = request.conversation_timeout
-        self.lc3_frame_duration_us: Optional[int] = None
         self.task_supervisor = WebSocketTaskSupervisor(
             uid=request.uid, label='listen', gauge=BACKEND_LISTEN_ACTIVE_WS_CONNECTIONS
         )
@@ -194,7 +191,7 @@ class ListenSessionRuntime:
             return
         if self.state.live_transcription_attempt is None:
             self.state.live_transcription_attempt = LiveSTTAttempt(
-                provider=getattr(self.stt_service, 'value', self.stt_service),
+                provider=MODULATE_PROVIDER,
                 platform=self.client_device_context.platform,
             )
 
@@ -262,26 +259,25 @@ class ListenSessionRuntime:
             request.onboarding_mode,
             base.transcription_prefs.get('single_language_mode', False),
         )
-        self.stt_service, self.stt_language, self.stt_model = get_stt_service_for_language(
+        self.stt_language = get_managed_stt_language(
             self.language,
             multi_lang_enabled=not single_language_mode,
-            preferred_service=request.stt_service,
         )
         self.parity_capture = ListenParityCapture.from_environ(
             principal_id=request.uid,
             session_id=getattr(self, 'session_id', ''),
-            provider=getattr(self.stt_service, 'value', self.stt_service),
+            provider=MODULATE_PROVIDER,
             model=self.stt_model or '',
             request={
                 'codec': request.codec,
                 'sample_rate': request.sample_rate,
                 'channels': request.channels,
                 'language': self.stt_language,
-                'provider': getattr(self.stt_service, 'value', self.stt_service),
+                'provider': MODULATE_PROVIDER,
                 'model': self.stt_model,
             },
         )
-        if not self.stt_service or not self.stt_language:
+        if not self.stt_language:
             await request.websocket.close(code=1008, reason=f'The language is not supported, {self.language}')
             return False
         context = finalize_listen_connect_context(
@@ -317,9 +313,7 @@ class ListenSessionRuntime:
         self.conversation_creation_timeout = effective_conversation_timeout(
             request.conversation_timeout, self.is_multi_channel
         )
-        decision = normalize_codec_frame(request.codec)
-        self.request = replace(request, codec=decision.codec)
-        self.lc3_frame_duration_us = decision.lc3_frame_duration_us
+        self.request = replace(request, codec=normalize_codec_frame(request.codec))
         self._build_components()
         if not self.user_has_credits:
             try:
@@ -333,8 +327,8 @@ class ListenSessionRuntime:
             except Exception as error:
                 logger.error('Credit-limit notification failed type=%s', type(error).__name__)
         if FAIR_USE_ENABLED:
-            self.state.fair_use_track_dg_usage = context.fair_use_track_dg_usage
-            self.state.fair_use_dg_budget_exhausted = context.fair_use_dg_budget_exhausted
+            self.state.fair_use_track_managed_stt_usage = context.fair_use_track_managed_stt_usage
+            self.state.fair_use_managed_stt_budget_exhausted = context.fair_use_managed_stt_budget_exhausted
         if request.onboarding_mode:
 
             async def send_onboarding(event: Dict[str, Any]) -> None:
@@ -398,30 +392,30 @@ class ListenSessionRuntime:
                             trigger_classifier_if_needed(self.request.uid, caps, self.session_id),
                             name=f'fair_use_classifier:{self.request.uid}:{self.session_id}',
                         )
-                        if FAIR_USE_RESTRICT_DAILY_DG_MS > 0:
-                            self.state.fair_use_track_dg_usage = True
+                        if FAIR_USE_RESTRICT_DAILY_MANAGED_STT_MS > 0:
+                            self.state.fair_use_track_managed_stt_usage = True
                     stage = await self.persistence.call(get_enforcement_stage, self.request.uid)
-                    if stage == 'restrict' and FAIR_USE_RESTRICT_DAILY_DG_MS > 0:
-                        self.state.fair_use_track_dg_usage = True
-                        was_exhausted = self.state.fair_use_dg_budget_exhausted
-                        self.state.fair_use_dg_budget_exhausted = await self.persistence.call(
-                            is_dg_budget_exhausted, self.request.uid
+                    if stage == 'restrict' and FAIR_USE_RESTRICT_DAILY_MANAGED_STT_MS > 0:
+                        self.state.fair_use_track_managed_stt_usage = True
+                        was_exhausted = self.state.fair_use_managed_stt_budget_exhausted
+                        self.state.fair_use_managed_stt_budget_exhausted = await self.persistence.call(
+                            is_managed_stt_budget_exhausted, self.request.uid
                         )
-                        if self.state.fair_use_dg_budget_exhausted and not was_exhausted:
-                            logger.info('Fair-use DG budget exhausted')
-                    elif caps and FAIR_USE_RESTRICT_DAILY_DG_MS > 0:
+                        if self.state.fair_use_managed_stt_budget_exhausted and not was_exhausted:
+                            logger.info('Fair-use managed STT budget exhausted')
+                    elif caps and FAIR_USE_RESTRICT_DAILY_MANAGED_STT_MS > 0:
                         # Meter while the classifier decides whether this cap hit should escalate.
-                        self.state.fair_use_dg_budget_exhausted = False
+                        self.state.fair_use_managed_stt_budget_exhausted = False
                     else:
-                        self.state.fair_use_track_dg_usage = False
-                        self.state.fair_use_dg_budget_exhausted = False
+                        self.state.fair_use_track_managed_stt_usage = False
+                        self.state.fair_use_managed_stt_budget_exhausted = False
                     # Hard anti-abuse daily audio ceiling (all plans): once over the ceiling,
                     # stop forwarding audio to STT for the rest of the day. Reuses the same
                     # gate the restrict stage uses, so no socket close / reconnect loop.
                     if is_daily_audio_ceiling_exceeded(self.request.uid, speech_totals=totals):
-                        if not self.state.fair_use_dg_budget_exhausted:
+                        if not self.state.fair_use_managed_stt_budget_exhausted:
                             logger.info('Fair-use daily audio ceiling reached uid=%s', self.request.uid)
-                        self.state.fair_use_dg_budget_exhausted = True
+                        self.state.fair_use_managed_stt_budget_exhausted = True
                 except Exception as error:
                     logger.error('Fair-use listen check failed type=%s', type(error).__name__)
             await self._refresh_credits(transcription_seconds=transcription_seconds)
@@ -474,9 +468,11 @@ class ListenSessionRuntime:
                     logger.error('Silent-user notification refresh failed type=%s', type(error).__name__)
 
     async def _flush_usage(self, *, final: bool) -> int:
-        if self.state.fair_use_track_dg_usage and self.state.dg_usage_ms_pending:
-            await self.persistence.call(record_dg_usage_ms, self.request.uid, self.state.dg_usage_ms_pending)
-            self.state.dg_usage_ms_pending = 0
+        if self.state.fair_use_track_managed_stt_usage and self.state.managed_stt_usage_ms_pending:
+            await self.persistence.call(
+                record_managed_stt_usage_ms, self.request.uid, self.state.managed_stt_usage_ms_pending
+            )
+            self.state.managed_stt_usage_ms_pending = 0
         if self.use_custom_stt:
             # Exempt from transcription billing and live caps, but the speech
             # still drives Omi-paid LLM post-processing — meter it in its own
@@ -515,11 +511,7 @@ class ListenSessionRuntime:
     async def _start_pusher(self) -> None:
         if not PUSHER_ENABLED:
             return
-        audio_bytes_enabled = (
-            bool(await self.persistence.call(get_audio_bytes_webhook_seconds, self.request.uid))
-            or await self.persistence.call(is_audio_bytes_app_enabled, self.request.uid)
-            or self.private_cloud_sync_enabled
-        )
+        audio_bytes_enabled = self.private_cloud_sync_enabled
         session = ListenPusherSession(
             ListenPusherSessionConfig(
                 uid=self.request.uid,
@@ -571,8 +563,7 @@ class ListenSessionRuntime:
             self.receiver.initialize_decoders()
         except Exception as error:
             logger.error('Codec decoder initialization failed type=%s', type(error).__name__)
-            reason = 'LC3 codec is not available' if self.request.codec == 'lc3' else 'unsupported_audio_format'
-            await self.request.websocket.close(code=self.state.close_code, reason=reason)
+            await self.request.websocket.close(code=self.state.close_code, reason='unsupported_audio_format')
             return
         self.send_event(
             MessageServiceStatusEvent(event_type='service_status', status='initiating', status_text='Service Starting')
@@ -676,7 +667,7 @@ class ListenSessionRuntime:
                         conversation
                         and self.state.close_code == 1000
                         and getattr(conversation.get('source'), 'value', conversation.get('source')) == 'desktop'
-                        and (conversation.get('transcript_segments') or conversation.get('photos'))
+                        and conversation.get('transcript_segments')
                     ):
                         await self.transcripts.flush_speaker_assignments(conversation_id)
                         if await self.conversations.process_conversation(conversation_id):
@@ -704,7 +695,6 @@ class ListenSessionRuntime:
             self.parity_capture.persist()
         except Exception as error:
             logger.warning('Listen parity capture teardown failed type=%s', type(error).__name__)
-        self.receiver.clear()
         self.transcripts.clear()
         self.speakers.clear()
 

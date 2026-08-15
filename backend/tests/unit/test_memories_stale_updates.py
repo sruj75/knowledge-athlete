@@ -57,18 +57,6 @@ def patch_memories(monkeypatch):
     return _configure
 
 
-def test_set_memory_kg_extracted_missing_doc_is_idempotent(caplog, patch_memories):
-    memory_ref = MagicMock()
-    memory_ref.update.side_effect = NotFound('No document to update: users/u/memories/m')
-    memories = patch_memories(memory_ref)
-
-    assert memories.set_memory_kg_extracted('uid-abc', 'memory-1') is None
-
-    memory_ref.update.assert_called_once_with({'kg_extracted': True})
-    assert 'memory-1' not in caplog.text
-    assert 'No document to update' not in caplog.text
-
-
 def test_invalidate_memory_missing_doc_is_idempotent(caplog, patch_memories):
     memory_ref = MagicMock()
     memory_ref.update.side_effect = NotFound('No document to update: users/u/memories/m')

@@ -31,14 +31,13 @@ PATH="$TMP/bin:$PATH" "$RESET" "$BUNDLE_ID" "$APP" >/dev/null
 EXPECTED="$TMP/expected.log"
 cat >"$EXPECTED" <<EOF
 delete-generic-password -s com.omi.desktop.firebase-rest-session.v2.team.TESTTEAM123.bundle.$BUNDLE_ID -a firebase-rest-tokens
-delete-generic-password -s com.omi.desktop.local-agent-api.v2.team.TESTTEAM123.bundle.$BUNDLE_ID -a local-agent-api-token
 delete-generic-password -s com.omi.client-device-id.v2.team.TESTTEAM123.bundle.$BUNDLE_ID -a install-uuid
 EOF
 diff -u "$EXPECTED" "$SECURITY_LOG"
 
 : >"$SECURITY_LOG"
 SECURITY_EXIT_STATUS=44 PATH="$TMP/bin:$PATH" "$RESET" "$BUNDLE_ID" "$APP" >/dev/null
-test "$(wc -l <"$SECURITY_LOG" | tr -d ' ')" = "3"
+test "$(wc -l <"$SECURITY_LOG" | tr -d ' ')" = "2"
 
 if PATH="$TMP/bin:$PATH" "$RESET" com.omi.computer-macos "$APP" >/dev/null 2>&1; then
   echo "reset helper must reject the production bundle" >&2

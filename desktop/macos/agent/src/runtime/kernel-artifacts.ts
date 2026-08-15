@@ -49,8 +49,6 @@ import {
   bindingMetadata,
   stableHash,
   stableJsonStringify,
-  stableMcpServerConfig,
-  stableJsonHash,
   parseJsonObject,
   placeholders,
   isStaleBindingError,

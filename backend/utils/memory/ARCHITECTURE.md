@@ -27,8 +27,7 @@ backend/routers/memories.py:get_memories
   memory_service.py:CanonicalMemoryBackend.read          canonical backend boundary
   canonical_memory_adapter.py:read_canonical_memories    assemble the product response
   product_memory_read_service.py                         read authoritative memory_items
-  canonical_visibility_filter.py                         apply default lifecycle visibility
-  device_scope_filter.py                                 apply all/current/specific-device scope
+  canonical_visibility_filter.py                         apply default lifecycle eligibility
   canonical_memory_adapter.py:memory_item_to_memorydb    restore the released MemoryDB shape
 ```
 
@@ -58,11 +57,8 @@ Every page is bound to the subject, account and projection generations, projecti
 ## Capture, terminal routing, and Long-term admission
 
 Canonical writes enter through `MemoryService` (HTTP writes start in
-`backend/routers/memories.py`). Every new conversation, explicit-user, import,
-API, plugin, and integration intake is staged as Short-term.
-`memory_service.py:create_external_memory` adds required-processing metadata,
-then `canonical_memory_adapter.py:write_canonical_external_memory` /
-`write_canonical_extraction_memory` persists evidence and submits an operation
+`backend/routers/memories.py`). Every new conversation or explicit-user intake
+is staged as Short-term. The canonical adapter persists evidence and submits an operation
 to `backend/database/memory_apply_store.py:apply_long_term_patch_firestore`.
 Conversation capture accepts a candidate only when every quote reference is
 grounded in one transcript segment. Extraction completes before source
@@ -74,8 +70,7 @@ successful empty reprocess fully retracts the prior conversation-sourced state.
 Firestore transaction advances the apply control and state head, writes the
 commit and authoritative `memory_items`, and journals the operation. A
 Short-term → Long-term transition additionally validates the server-authored
-promotion admission receipt and writes
-`memory_graph_assertions/{memory_id}` in that same transaction. Processed,
+promotion admission receipt in that same transaction. Processed,
 projection-eligible transitions also persist deterministic `projection_sync` /
 `vector_sync` outbox events. This apply-store commit chain is the canonical
 memory ledger.
@@ -92,9 +87,9 @@ backend/modal/memory_maintenance_job.py
     canonical_required_processing.py     process required user/import submissions
     short_term_promotion.py               audit TTL and reject expired indexed items
     canonical_consolidation.py            give every pending item one terminal route
-      promote                             atomically admit Long-term + graph assertion
+      promote                             atomically admit Long-term
       archive / review / reject           settle outside default access
-      memory_apply_store.py               commit item, ledger, operation, assertion, outbox
+      memory_apply_store.py               commit item, ledger, operation, outbox
     memory_outbox_worker.py              drain events committed by this pass
 ```
 
@@ -117,16 +112,6 @@ still-blocked query page and resets after reaching later work, so even
 store-level terminal failures cannot pin the oldest query window forever.
 Either condition is reported as a cohort error, so the maintenance job cannot
 claim success while work is blocked, and later selected items continue routing.
-
-The shared knowledge-graph read overlays current version-fenced assertions on
-retained legacy records with bounded Firestore scans (2,000 assertions/nodes
-and 5,000 edges). Its edge page is referentially closed over the returned node
-page, and any edge removed to preserve that closure sets `truncated=true`.
-Because canonical assertions are graph authority, public delete and rebuild
-routes (`DELETE /v1/knowledge-graph` and
-`POST /v1/knowledge-graph/rebuild`) return HTTP 409 for canonical or
-retained-assertion accounts; internal memory tombstones still remove their
-assertion and derived graph state.
 
 Automatic intake is cost-bounded by deterministic datastore query and per-LLM
 batch caps. Every item selected for a pass receives a terminal route; overflow
@@ -156,10 +141,10 @@ vector projections; route/apply paths do not perform a regular synchronous
 projection fast path. Privacy tombstones enqueue the same normal delete events
 atomically with the item/evidence tombstone; immediate provider deletion is
 only an exposure-reduction acceleration. The authoritative tombstone fences
-graph reads immediately; its durable projection-delete event then removes the
-derived per-memory graph assertion before pruning shared KG citations. This
-keeps the released 100-item privacy request inside Firestore's transaction
-limit without weakening read-time deletion. TTL expiry settles processed
+reads immediately; its durable projection-delete event then removes derived
+compatibility, keyword, vector, and review projections. This keeps the released
+100-item privacy request inside Firestore's transaction limit without weakening
+read-time deletion. TTL expiry settles processed
 Short-term items through the canonical reject/apply route so their stale
 projections cannot accumulate.
 
@@ -187,7 +172,7 @@ writes fail the request instead of returning a partial success.
 Conversation source replacement uses the denormalized `source_ids` projection
 through a cursor-bounded indexed query. Withdrawing a source-owned canonical
 survivor reactivates independently sourced superseded Long-term rows in that
-same transaction, including a rebuilt graph assertion and projection upserts.
+same transaction, including projection upserts.
 An emitted-but-invalid extraction batch fails before replacement; only a
 genuinely empty provider result is allowed to retract the prior source cohort.
 
@@ -205,16 +190,9 @@ Deletes remove the compatibility row before retryable external cleanup so a
 provider outage cannot keep retired or restricted content visible, while a
 stale delete cannot remove a newly re-created account's row.
 
-The authoritative per-memory graph is
-`memory_graph_assertions/{memory_id}`. Shared KG nodes/edges are a read-side
-merge/projection of current assertions and legacy graph data, never an
-independent Long-term admission step.
-
 The reviewed legacy-backfill remediation executor follows the same ledger and
 normal-outbox path: it can only archive deterministic legacy artifacts and
-retains evidence. Backfill never invokes keyword, vector, or legacy KG writers
-directly; historical graph repair must use an explicit assertion migration or
-normal promotion admission.
+retains evidence. Backfill never invokes keyword or vector writers directly.
 
 ## Rollout and legacy sunset
 
@@ -236,7 +214,7 @@ Legacy has no date-based removal. `docs/memory/domain_model.md` requires all use
 ## Where changes belong
 
 - Add a public read/write/search surface through `MemoryService`; use `surface_routing.py` to pin one cohort decision per request. Do not call both stores defensively.
-- Add a canonical list filter in `canonical_visibility_filter.py` for lifecycle semantics or `device_scope_filter.py` for capture-device semantics, then invoke it from `canonical_memory_adapter.py`.
+- Add a canonical list filter in `canonical_visibility_filter.py` for lifecycle semantics, then invoke it from `canonical_memory_adapter.py`.
 - Add a composed filter end-to-end: request fields in `v3_composed_get_service.py`, cursor-bound `_filter_hash` in `v3_production_runtime.py`, typed fields in `v3_projection_reader_contract.py`, and the query in `database/memory_compatibility_projection.py`.
 - Add a read mode in the runtime/control decision and bind it into `V3ComposedExecutionContext` plus `v3_cursor.py`; a mode must not reuse another mode's cursor.
 - Add a projection by implementing the `ProjectionReader` (`V3ProjectionReadRequest` → `V3ProjectionPage`) contract and binding it in `v3_production_runtime.py`. Keep storage validation in `backend/database/`.
@@ -244,4 +222,4 @@ Legacy has no date-based removal. `docs/memory/domain_model.md` requires all use
 - Add or change a Short-term terminal route in
   `canonical_consolidation.py`; do not add a second promotion loop or
   call-site bypass. Every new Long-term admission must carry the current
-  receipt and graph plan through the atomic apply boundary.
+  receipt through the atomic apply boundary.

@@ -1,5 +1,4 @@
 import Foundation
-import OmiWAL
 
 // MARK: - Action Items API
 
@@ -164,15 +163,11 @@ extension APIClient {
     }
 
     let wire = OmiAPI.ActionItemCreateRequest(
-      appleReminderId: nil,
       completed: nil,
       conversationId: nil,
       description_: description,
       dueAt: dueAt.map { formatter.string(from: $0) },
       dueConfidence: dueConfidence,
-      exportDate: nil,
-      exportPlatform: nil,
-      exported: nil,
       goalId: goalId,
       indentLevel: indentLevel,
       isLocked: nil,
@@ -220,19 +215,6 @@ extension APIClient {
 
   private func taskPatchField<Value: Codable>(_ value: Value?) -> OmiAPI.OmiPatchField<Value> {
     value.map(OmiAPI.OmiPatchField.value) ?? .omitted
-  }
-
-  // MARK: - Task Sharing
-
-  /// Shares tasks and returns a shareable URL
-  func shareTasks(taskIds: [String]) async throws -> ShareTasksResponse {
-    struct ShareRequest: Encodable {
-      let taskIds: [String]
-      enum CodingKeys: String, CodingKey {
-        case taskIds = "task_ids"
-      }
-    }
-    return try await post("v1/action-items/share", body: ShareRequest(taskIds: taskIds))
   }
 
 }
@@ -530,11 +512,6 @@ extension APIClient {
   }
 }
 
-/// Response types for task sharing
-struct ShareTasksResponse: Codable {
-  let url: String
-  let token: String
-}
 // MARK: - Staged Tasks API
 
 extension APIClient {

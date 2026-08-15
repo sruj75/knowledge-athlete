@@ -236,12 +236,6 @@ sdist = { url = "https://files.pythonhosted.org/packages/66/0c/8d907af351aa16b42
 wheels = [{ url = "https://files.pythonhosted.org/packages/d5/50/83c593b07763e1161326b3b8c6686f0f4b0f24d5526546bee538c89837d6/decorator-5.1.1-py3-none-any.whl", upload-time = 2022-01-07T08:20:03Z, size = 9073, hashes = { sha256 = "b8c3f85900b9dc423225913c5aace94729fe1fa9763b38939a95226f02d37186" } }]
 
 [[packages]]
-name = "deepgram-sdk"
-version = "4.8.1"
-sdist = { url = "https://files.pythonhosted.org/packages/e1/7a/420a885ddfc16b6142353414e8e529882a1e261fd4cfbae449ce84d59590/deepgram_sdk-4.8.1.tar.gz", upload-time = 2025-08-02T01:00:33Z, size = 100105, hashes = { sha256 = "aada4c34532096bb8c438ed23c6d182920e8cba9609bf1b1e40a7f30820cfa32" } }
-wheels = [{ url = "https://files.pythonhosted.org/packages/7d/85/70151387088f110623ff066d6e27d1169f5dd130eaf8b2044f4de9d41034/deepgram_sdk-4.8.1-py3-none-any.whl", upload-time = 2025-08-02T01:00:32Z, size = 157925, hashes = { sha256 = "1af2a9fab57c858f2201bebd8f553fdfe9ef3d1b036e0ac588104b11ae3bc727" } }]
-
-[[packages]]
 name = "deprecation"
 version = "2.1.0"
 sdist = { url = "https://files.pythonhosted.org/packages/5a/d3/8ae2869247df154b64c1884d7346d412fed0c49df84db635aab2d1c40e62/deprecation-2.1.0.tar.gz", upload-time = 2020-04-20T14:23:38Z, size = 173788, hashes = { sha256 = "72b3bde64e5d778694b0cf68178aed03d15e15477116add3fb773e581f9518ff" } }
@@ -850,12 +844,6 @@ name = "narwhals"
 version = "1.14.2"
 sdist = { url = "https://files.pythonhosted.org/packages/1d/f0/26c7fde4db697e166582e526627e6824252b6c462a2cd2e97ae117f5a69e/narwhals-1.14.2.tar.gz", upload-time = 2024-11-23T15:02:54Z, size = 191364, hashes = { sha256 = "287406a3777d102f981d27c5827a6b5a9d8bd8c89c79cd9fbe46e2956425f078" } }
 wheels = [{ url = "https://files.pythonhosted.org/packages/ba/eb/988fdc5380e263f3f4ce40dd544720edc2ae5bd8f85c019ccdc6668399e5/narwhals-1.14.2-py3-none-any.whl", upload-time = 2024-11-23T15:02:52Z, size = 225143, hashes = { sha256 = "2e784800b87c9e1ff47984da0046d957320f39b64c08f0e5b1b1a1208694935c" } }]
-
-[[packages]]
-name = "neo4j"
-version = "5.23.1"
-sdist = { url = "https://files.pythonhosted.org/packages/a9/3b/ee71833425a8c031866cdb49bd3ed13cd2d6652112d33a1ffea0b9ffdec7/neo4j-5.23.1.tar.gz", upload-time = 2024-08-05T08:13:27Z, size = 215192, hashes = { sha256 = "e2d3399d1124319489b25d5eda99833ae086e1fffef9946d36241652d26b26a0" } }
-wheels = [{ url = "https://files.pythonhosted.org/packages/87/a8/117f73d350e4dd1a0d07687c777c267a561af4ee44bdcca7f52701f42900/neo4j-5.23.1-py3-none-any.whl", upload-time = 2024-08-05T08:13:22Z, size = 293613, hashes = { sha256 = "97996fbf39421e0677fdcb8afe50b6810cbe8027e055a9dcf81da6070a82a009" } }]
 
 [[packages]]
 name = "networkx"

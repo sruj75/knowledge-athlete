@@ -149,33 +149,6 @@ function requiredControlOperationKey(toolName: string, input: Record<string, unk
   return `${toolName}:${JSON.stringify(normalized)}`;
 }
 
-/**
- * PiMonoAdapter spawns pi-mono in RPC mode and translates its events
- * into the normalized bridge protocol.
- *
- * Tool execution flows:
- * 1. Pi-mono executes its built-in tools internally (bash, read, write, edit)
- * 2. Custom Omi tools are registered via the extension, which routes them
- *    through the Omi API backend
- *
- * For desktop chat, we disable pi-mono's built-in tools and rely on
- * the omi-provider extension to handle all tool calls server-side.
- */
-// Map desktop model IDs (claude-*) to omi provider model IDs.
-// Covers short aliases and dated versions used by ChatProvider/ChatLab.
-const MODEL_MAP: Record<string, string> = {
-  "claude-opus-4-6": "omi-opus",
-  "claude-sonnet-4-6": "omi-sonnet",
-  "claude-sonnet-4": "omi-sonnet",
-  "claude-opus-4": "omi-opus",
-  "claude-sonnet-4-20250514": "omi-sonnet",
-  "claude-opus-4-20250514": "omi-opus",
-};
-
-function mapModel(model: string): string {
-  return MODEL_MAP[model] ?? model;
-}
-
 /** Resolve the pi binary bundled inside the Mac app.
  *
  *  Resolution order:
@@ -427,10 +400,7 @@ export class PiMonoAdapter implements HarnessAdapter {
   private config: PiMonoConfig;
   private process: ChildProcess | null = null;
   private readline: ReadlineInterface | null = null;
-  private sessions: Map<
-    string,
-    { cwd: string; model?: string; systemPrompt?: string }
-  > = new Map();
+  private sessions: Map<string, { cwd: string; systemPrompt?: string }> = new Map();
   private nextSessionId = 1;
   /** Per-prompt state — keyed by monotonic prompt generation ID, not session ID.
    *  Pi-mono RPC only processes one prompt at a time, so a generation counter
@@ -492,6 +462,11 @@ export class PiMonoAdapter implements HarnessAdapter {
     const args = [
       "--mode",
       "rpc",
+      "--no-builtin-tools",
+      "--no-skills",
+      "--no-context-files",
+      "--no-prompt-templates",
+      "--no-extensions",
       "-e",
       this.extensionPath,
       "--provider",
@@ -527,16 +502,6 @@ export class PiMonoAdapter implements HarnessAdapter {
       }
     }
 
-    // SECURITY: OMI_YOLO_MODE bypasses the extension's entire tool denylist.
-    // Scrub it from the subprocess env, then only re-inject when explicitly
-    // set in the parent. Production (Omi Beta via Codemagic) launches from
-    // Finder without custom env vars so this is a safety net against
-    // ambient shell leakage. Log when active so usage is auditable.
-    delete env.OMI_YOLO_MODE;
-    if (process.env.OMI_YOLO_MODE === "1") {
-      env.OMI_YOLO_MODE = "1";
-      process.stderr.write("[pi-mono] WARNING: OMI_YOLO_MODE=1 — denylist bypass active\n");
-    }
 
     // Pass the raw Firebase ID token. pi's openai-completions client already
     // prepends `Authorization: Bearer ${apiKey}` — adding our own "Bearer "
@@ -622,7 +587,6 @@ export class PiMonoAdapter implements HarnessAdapter {
   }
 
   async createSession(opts: SessionOpts): Promise<string> {
-    const mapped = opts.model ? mapModel(opts.model) : undefined;
     await this.setExecutionRole(opts.executionRole ?? "coordinator");
 
     // Pi bakes the system prompt at spawn time via --system-prompt. If the
@@ -637,20 +601,18 @@ export class PiMonoAdapter implements HarnessAdapter {
     const sessionId = `${this.sessionPrefix}-session-${this.nextSessionId++}`;
     this.sessions.set(sessionId, {
       cwd: opts.cwd,
-      model: mapped,
       systemPrompt: opts.systemPrompt,
     });
 
     await this.start();
 
-    // Set model if specified (map claude-* → omi-*)
-    if (mapped) {
-      this.sendCommand({
-        type: "set_model",
-        provider: "omi",
-        modelId: mapped,
-      });
-    }
+    // Pin every session to the one managed gateway model. There is no public
+    // model-selection seam in the adapter contract.
+    this.sendCommand({
+      type: "set_model",
+      provider: "omi",
+      modelId: "omi-sonnet",
+    });
 
     return sessionId;
   }
@@ -803,25 +765,11 @@ export class PiMonoAdapter implements HarnessAdapter {
     this.clearRelayContext(capabilityRef);
   }
 
-  async setModel(sessionId: string, model: string): Promise<void> {
-    const mapped = mapModel(model);
-    const session = this.sessions.get(sessionId);
-    if (session) {
-      session.model = mapped;
-    }
-    this.sendCommand({
-      type: "set_model",
-      provider: "omi",
-      modelId: mapped,
-    });
-  }
-
   async warmup(cwd: string, sessions: WarmupSessionConfig[]): Promise<void> {
     // Pre-create sessions
     for (const config of sessions) {
       await this.createSession({
         cwd,
-        model: config.model,
         systemPrompt: config.systemPrompt,
       });
     }
@@ -922,16 +870,10 @@ export class PiMonoAdapter implements HarnessAdapter {
     switch (feature) {
       case HarnessFeature.BIDIRECTIONAL_RPC:
         return true;
-      case HarnessFeature.MODEL_SWITCH:
-        return true;
       case HarnessFeature.COST_TRACKING:
         return true; // Server-side via Omi API
-      case HarnessFeature.MCP_CLIENT:
-        return false; // Pi-mono doesn't use MCP
       case HarnessFeature.SESSION_RESUME:
         return false;
-      case HarnessFeature.OAUTH:
-        return false; // Uses Firebase token, not OAuth
       default:
         return false;
     }
@@ -1417,9 +1359,7 @@ export class PiMonoRuntimeAdapter implements RuntimeAdapter {
   async openBinding(input: OpenBindingInput): Promise<OpenedBinding> {
     const adapterNativeSessionId = await this.harness.createSession({
       cwd: input.cwd,
-      model: input.model,
       systemPrompt: input.systemPrompt,
-      mcpServers: input.mcpServers,
       executionRole: input.metadata?.executionRole === "leaf" ? "leaf" : "coordinator",
     });
     return this.binding(input, adapterNativeSessionId);

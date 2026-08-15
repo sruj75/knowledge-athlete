@@ -41,7 +41,6 @@ from utils.memory.chat_memory_adapter import (
     search_memory_default_chat_memories_text,
 )
 from utils.memory.default_read_rollout import GLOBAL_READ_GATE_PATH, MemoryReadDecision
-from utils.memory.developer_memory_adapter import search_memory_default_developer_memories
 from utils.memory.memory_service import MemoryService
 from utils.memory.product_memory_read_service import fetch_default_product_memory_search
 from utils.memory.short_term_promotion import _drain_canonical_outbox, run_canonical_short_term_maintenance
@@ -324,8 +323,6 @@ class TestCanonicalMemoryPipelineE2E:
         promoted = _read_memory_item(db, PIPELINE_UID, memory_id)
         assert promoted["memory_id"] == memory_id
         assert promoted["tier"] == MemoryTier.long_term.value
-        assert promoted["graph_ready"] is True
-        assert promoted["graph_assertion_id"]
 
         vectors = _vector_store(fake_index)
         assert provider_id not in vectors, "canonical apply must not bypass the durable outbox"
@@ -390,7 +387,7 @@ class TestCanonicalMemoryPipelineE2E:
 
         product_policy = MemoryAccessPolicy(
             consumer=MemoryConsumer.omi_chat,
-            app_has_default_memory_grant=True,
+            has_default_memory_grant=True,
             archive_capability=False,
         )
         product = fetch_default_product_memory_search(
@@ -473,20 +470,8 @@ def _invoke_surface_reader(surface_name, *, uid, db, rollout, policy, now):
         return search_memory_default_chat_memories_text(uid=uid, query="coffee", limit=10, db_client=db, now=now)
     if surface_name == "chat_list":
         return list_default_chat_memories_decision_text(uid=uid, limit=10, offset=0, db_client=db).text
-    if surface_name == "developer":
-        return search_memory_default_developer_memories(
-            uid=uid,
-            query="coffee",
-            limit=10,
-            offset=0,
-            db_client=db,
-            rollout_decision=rollout,
-            now=now,
-        ).memories
     if surface_name == "agent_tools":
         return tool_memories_service.get_memories_text(uid=uid, limit=50, now=now)
-    if surface_name == "mcp":
-        return MemoryService(db_client=db).search_mcp(uid, "coffee", limit=10)
     if surface_name == "product_search":
         return fetch_default_product_memory_search(
             uid=uid,
@@ -501,9 +486,7 @@ def _invoke_surface_reader(surface_name, *, uid, db, rollout, policy, now):
 SURFACE_MATRIX_CASES = [
     pytest.param("chat_text", "omi_chat", id="chat_text"),
     pytest.param("chat_list", "omi_chat", id="chat_list"),
-    pytest.param("developer", "developer_api", id="developer"),
     pytest.param("agent_tools", "omi_chat", id="agent_tools"),
-    pytest.param("mcp", "mcp", id="mcp"),
     pytest.param("product_search", "omi_chat", id="product_search"),
 ]
 
@@ -522,7 +505,7 @@ class TestSurfaceDefaultAccessMatrix:
             "utils.memory.memory_service.canonical_read_enabled",
             lambda uid, **kwargs: True,
         )
-        if surface_name in {"mcp", "agent_tools"}:
+        if surface_name == "agent_tools":
             import database.vector_db as vector_db
 
             install_vector_search_fakes(monkeypatch, vector_db)
@@ -563,18 +546,12 @@ class TestSurfaceDefaultAccessMatrix:
         for item in (archive, fresh_short, long_term):
             _seed_memory_item_doc(db, item)
 
-        if surface_name == "mcp":
-            from database.vector_db import upsert_canonical_memory_vector
-
-            for item in (fresh_short, long_term):
-                upsert_canonical_memory_vector(item, projection_commit_id="projection-1")
-
         rollout = read_default_read_rollout(uid=uid, db_client=db, consumer=grant_consumer)
         assert rollout.read_decision == MemoryReadDecision.USE_MEMORY
 
         policy = MemoryAccessPolicy(
             consumer=MemoryConsumer(grant_consumer),
-            app_has_default_memory_grant=True,
+            has_default_memory_grant=True,
             archive_capability=False,
         )
         result = _invoke_surface_reader(
@@ -590,14 +567,6 @@ class TestSurfaceDefaultAccessMatrix:
             ids = [row["memory_id"] for row in result]
             assert "archive-item" not in ids
             assert set(ids) == {"fresh-short", "long-term"}
-        elif surface_name == "developer":
-            ids = [row["id"] for row in result]
-            assert "archive-item" not in ids
-            assert set(ids) == {"fresh-short", "long-term"}
-        elif surface_name == "mcp":
-            ids = {row["id"] for row in result}
-            assert "archive-item" not in ids
-            assert "long-term" in ids
         elif surface_name == "agent_tools":
             assert "archive-item" not in (result or "")
             assert "coffee archive memory" not in (result or "")

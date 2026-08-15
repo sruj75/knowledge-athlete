@@ -1,8 +1,8 @@
-import asyncio
+import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks, Request
 from typing import Any, Dict, List, Optional
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import database.conversations as conversations_db
 import database._client as db_client_module
@@ -15,11 +15,12 @@ from utils.other.storage import delete_conversation_audio_files
 from models.calendar_context import CalendarMeetingContext
 from models.conversation import (
     BulkAssignSegmentsRequest,
-    CalendarEventLink,
     Conversation,
+    Conversation as OmiConversation,
     ConversationAnalytics,
     ConversationFinalizationStatusResponse,
     ConversationMutationResponse,
+    CreateConversation,
     CreateConversationResponse,
     DeleteActionItemRequest,
     MergeConversationsRequest,
@@ -32,17 +33,14 @@ from models.conversation import (
     UpdateSegmentTextRequest,
     UpdateSummaryRequest,
 )
+from models.conversation_enums import ConversationSource, ConversationStatus
 from utils.conversations.factory import deserialize_conversation
 from utils.conversations.analytics import build_conversation_analytics
 from utils.conversations.render import redact_conversations_for_list
-from utils.conversations.render import conversation_to_dict
-from models.conversation_enums import ConversationStatus, ConversationVisibility
-from models.conversation_photo import ConversationPhoto
-from models.geolocation import Geolocation
-from models.app import App
-from pydantic import BaseModel
+from models.geolocation import Geolocation, GeolocationInput, validated_geolocation_or_none
+from models.structured import Structured
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
 from models.transcript_segment import TranscriptSegment
-from models.other import Person
 from models.shared import StatusResponse
 
 from utils.conversations.process_conversation import process_conversation, retrieve_in_progress_conversation
@@ -60,21 +58,18 @@ from utils.llm.conversation_processing import generate_summary_with_prompt
 from utils.speaker_identification import extract_speaker_samples
 from utils.other import endpoints as auth
 from utils.other.storage import get_conversation_recording_if_exists
-from utils.app_integrations import trigger_external_integrations
 from utils.request_validation import NonNegativeOffset, PositiveLimit
-from utils.conversations.calendar_linking import (
-    get_overlapping_calendar_event,
-    write_conversation_link_to_calendar_event,
-)
-from utils.conversations.calendar_utils import extract_attendees, parse_event_times
-from utils.retrieval.tools.calendar_tools import get_google_calendar_event
-from utils.retrieval.tools.google_utils import refresh_google_token
 from utils.conversations.location import get_google_maps_location
+from utils.conversations.location import resolve_geolocation
+from utils.client_device import resolve_client_device_from_request
 import logging
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+FROM_SEGMENTS_CLAIM_STALE_AFTER = timedelta(minutes=15)
+_FROM_SEGMENTS_CONVERSATION_NAMESPACE = uuid.UUID('fb2f1f36-3c84-47a4-9c62-b3f6fdb3fd13')
 
 
 def _get_valid_conversation_by_id(uid: str, conversation_id: str) -> dict:
@@ -90,7 +85,7 @@ def _get_valid_conversation_by_id(uid: str, conversation_id: str) -> dict:
 
 def _enrich_deferred_conversation(uid: str, conversation: dict) -> dict:
     """First open of a lazily-deferred desktop conversation. The LLM enrichment (summary, action
-    items, memories, embeddings, app results) takes ~10s, so we run it in the BACKGROUND and return
+    items, memories, and embeddings) takes ~10s, so we run it in the BACKGROUND and return
     the conversation immediately: the client gets an instant open (transcript already present) and
     polls until `status` flips to `completed`. The `deferred` flag is cleared atomically with the
     admission-lease renewal so the stale-processing sweep cannot terminalize the row between clear
@@ -152,19 +147,222 @@ class ConversationRecordingResponse(BaseModel):
     has_recording: bool
 
 
-class SharedConversationResponse(Conversation):
-    model_config = {"extra": "allow"}
-
-    people: List[Person] = []
-
-
-class ConversationSuggestedAppsResponse(BaseModel):
-    suggested_apps: List[App]
-    conversation_id: str
-
-
 class ConversationTestPromptResponse(BaseModel):
     summary: str
+
+
+class ConversationCreateResponse(BaseModel):
+    model_config = ConfigDict(title='ConversationCreateResponse')
+
+    id: str
+    status: str
+    discarded: bool
+
+
+class CreateConversationTranscriptSegment(BaseModel):
+    model_config = ConfigDict(title='CreateConversationTranscriptSegment')
+
+    text: str = Field(description='The text spoken in this segment')
+    speaker: Optional[str] = Field(default='SPEAKER_00', description='Speaker identifier')
+    speaker_id: Optional[int] = Field(default=None, description='Numeric speaker ID')
+    is_user: bool = Field(default=False, description='Whether this segment is from the user')
+    person_id: Optional[str] = Field(default=None, description='ID of the person speaking')
+    start: float = Field(description='Start time in seconds')
+    end: float = Field(description='End time in seconds')
+
+
+class CreateConversationFromTranscriptRequest(BaseModel):
+    model_config = ConfigDict(title='CreateConversationFromTranscriptRequest')
+
+    transcript_segments: List[CreateConversationTranscriptSegment] = Field(min_length=1, max_length=500)
+    client_session_id: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices('client_session_id', 'client_conversation_id'),
+        min_length=1,
+        max_length=200,
+        description='Stable client-generated session ID used to make retries idempotent.',
+    )
+    source: Optional[ConversationSource] = Field(default=ConversationSource.phone)
+    started_at: Optional[datetime] = None
+    finished_at: Optional[datetime] = None
+    language: Optional[str] = Field(default='en')
+    geolocation: Optional[GeolocationInput] = None
+
+    @field_validator('client_session_id')
+    @classmethod
+    def normalize_client_session_id(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError('client_session_id cannot be empty')
+        return normalized
+
+
+def _from_segments_conversation_id(uid: str, client_session_id: str) -> str:
+    return str(uuid.uuid5(_FROM_SEGMENTS_CONVERSATION_NAMESPACE, f'{uid}\0{client_session_id}'))
+
+
+def _is_stale_from_segments_claim(conversation: dict, client_session_id: str, now: datetime) -> bool:
+    external_data = conversation.get('external_data') or {}
+    if external_data.get('from_segments_client_session_id') != client_session_id:
+        return False
+    if conversation.get('status') != ConversationStatus.processing.value:
+        return False
+    claimed_at = external_data.get('from_segments_claimed_at')
+    if not isinstance(claimed_at, datetime):
+        return False
+    if claimed_at.tzinfo is None:
+        claimed_at = claimed_at.replace(tzinfo=timezone.utc)
+    return now - claimed_at > FROM_SEGMENTS_CLAIM_STALE_AFTER
+
+
+def _conversation_response_from_data(conversation: dict) -> ConversationCreateResponse:
+    status = conversation.get('status') or ConversationStatus.completed.value
+    if hasattr(status, 'value'):
+        status = status.value
+    return ConversationCreateResponse(
+        id=conversation['id'],
+        status=status,
+        discarded=bool(conversation.get('discarded', False)),
+    )
+
+
+def _create_conversation_from_segments(
+    uid: str,
+    request: CreateConversationFromTranscriptRequest,
+    *,
+    client_device_id: Optional[str] = None,
+    client_platform: Optional[str] = None,
+) -> ConversationCreateResponse:
+    """Persist on-device transcript segments through the ordinary conversation pipeline."""
+    for index, segment in enumerate(request.transcript_segments):
+        if segment.end <= segment.start:
+            raise HTTPException(status_code=422, detail=f'Segment {index}: end time must be after start time')
+        if segment.start < 0:
+            raise HTTPException(status_code=422, detail=f'Segment {index}: start time cannot be negative')
+        if not segment.text.strip():
+            raise HTTPException(status_code=422, detail=f'Segment {index}: text cannot be empty')
+
+    transcript_segments = [
+        TranscriptSegment(
+            text=segment.text.strip(),
+            speaker=segment.speaker or 'SPEAKER_00',
+            speaker_id=segment.speaker_id,
+            is_user=segment.is_user,
+            person_id=segment.person_id,
+            start=segment.start,
+            end=segment.end,
+        )
+        for segment in request.transcript_segments
+    ]
+    started_at = request.started_at or datetime.now(timezone.utc)
+    finished_at = request.finished_at or started_at + timedelta(seconds=request.transcript_segments[-1].end)
+    if finished_at <= started_at:
+        raise HTTPException(status_code=422, detail='finished_at must be after started_at')
+
+    language_code = request.language or 'en'
+    source = request.source or ConversationSource.phone
+    geolocation = resolve_geolocation(validated_geolocation_or_none(request.geolocation))
+    conversation_id = None
+    if request.client_session_id:
+        conversation_id = _from_segments_conversation_id(uid, request.client_session_id)
+        existing_conversation = conversations_db.get_conversation(uid, conversation_id)
+        if existing_conversation:
+            if _is_stale_from_segments_claim(
+                existing_conversation,
+                request.client_session_id,
+                datetime.now(timezone.utc),
+            ):
+                logger.warning(
+                    'from-segments idempotency stale claim for uid=%s client_session_id=%s conversation_id=%s; retrying',
+                    uid,
+                    request.client_session_id,
+                    conversation_id,
+                )
+                conversations_db.delete_conversation(uid, conversation_id)
+            else:
+                return _conversation_response_from_data(existing_conversation)
+
+    if conversation_id:
+        create_conversation_obj: OmiConversation | CreateConversation = OmiConversation(
+            id=conversation_id,
+            created_at=started_at,
+            transcript_segments=transcript_segments,
+            started_at=started_at,
+            finished_at=finished_at,
+            language=language_code,
+            geolocation=geolocation,
+            source=source,
+            client_device_id=client_device_id,
+            client_platform=client_platform,
+            structured=Structured(),
+            external_data={
+                'from_segments_client_session_id': request.client_session_id,
+                'from_segments_claimed_at': datetime.now(timezone.utc),
+            },
+            status=ConversationStatus.processing,
+        )
+        if not lifecycle_service.create_processing_conversation(
+            uid,
+            create_conversation_obj.model_dump(),
+            idempotent=True,
+        ):
+            existing_conversation = conversations_db.get_conversation(uid, conversation_id)
+            if existing_conversation:
+                return _conversation_response_from_data(existing_conversation)
+            raise HTTPException(status_code=409, detail='Conversation creation already in progress')
+    else:
+        create_conversation_obj = CreateConversation(
+            transcript_segments=transcript_segments,
+            started_at=started_at,
+            finished_at=finished_at,
+            language=language_code,
+            geolocation=geolocation,
+            source=source,
+            client_device_id=client_device_id,
+            client_platform=client_platform,
+        )
+
+    try:
+        if conversation_id:
+            with lifecycle_service.processing_admission_guard(uid, conversation_id, rollback_on_failure=False):
+                conversation = process_conversation(uid, language_code, create_conversation_obj)
+        else:
+            conversation = process_conversation(uid, language_code, create_conversation_obj)
+    except Exception:
+        if request.client_session_id and conversation_id:
+            conversations_db.delete_conversation(uid, conversation_id)
+        raise
+
+    if request.client_session_id:
+        lifecycle_service.persist_processed_conversation(uid, conversation.model_dump())
+
+    return ConversationCreateResponse(
+        id=conversation.id,
+        status=conversation.status.value if conversation.status else ConversationStatus.completed.value,
+        discarded=conversation.discarded,
+    )
+
+
+@router.post(
+    '/v1/conversations/from-segments',
+    response_model=ConversationCreateResponse,
+    tags=['conversations'],
+)
+def create_conversation_from_segments_user(
+    request: CreateConversationFromTranscriptRequest,
+    http_request: Request,
+    uid: str = Depends(auth.with_rate_limit(auth.get_current_user_uid, 'conversations:from-segments')),
+):
+    """Persist and process a Firebase-authenticated on-device transcript upload."""
+    device_context = resolve_client_device_from_request(http_request)
+    return _create_conversation_from_segments(
+        uid,
+        request,
+        client_device_id=device_context.client_device_id,
+        client_platform=device_context.platform,
+    )
 
 
 @router.post("/v1/conversations", response_model=CreateConversationResponse, tags=['conversations'])
@@ -220,9 +418,7 @@ def process_in_progress_conversation(
     if not persisted:
         latest = _get_valid_conversation_by_id(uid, conversation.id)
         return CreateConversationResponse(conversation=deserialize_conversation(latest), messages=[])
-    messages = asyncio.run(trigger_external_integrations(uid, conversation))
-
-    return CreateConversationResponse(conversation=conversation, messages=messages)
+    return CreateConversationResponse(conversation=conversation, messages=[])
 
 
 @router.post(
@@ -281,7 +477,7 @@ def finalize_conversation(
         redis_db.remove_in_progress_conversation_id(uid)
 
     # The Cloud Tasks worker owns expensive processing, memory extraction, and
-    # integration fanout under the persisted job lease. Returning this snapshot
+    # derived effects under the persisted job lease. Returning this snapshot
     # is intentionally prompt; clients may poll the status projection below.
     return CreateConversationResponse(conversation=conversation, messages=[])
 
@@ -306,14 +502,12 @@ def get_conversation_finalization_status(
 def reprocess_conversation(
     conversation_id: str,
     language_code: Optional[str] = None,
-    app_id: Optional[str] = None,
     uid: str = Depends(auth.with_rate_limit(auth.get_current_user_uid, "conversations:reprocess")),
 ):
     """
     Whenever a user wants to reprocess a conversation, or wants to force process a discarded one
     :param conversation_id: The ID of the conversation to reprocess
     :param language_code: Optional language code to use for processing
-    :param app_id: Optional app ID to use for processing (if provided, only this app will be triggered)
     :return: The updated conversation after reprocessing.
     """
     conversation = _get_valid_conversation_by_id(uid, conversation_id)
@@ -330,7 +524,7 @@ def reprocess_conversation(
         language_code = conversation.language or 'en'
 
     processed_conversation = process_conversation(
-        uid, language_code, conversation, force_process=True, is_reprocess=True, app_id=app_id
+        uid, language_code, conversation, force_process=True, is_reprocess=True
     )
 
     return processed_conversation
@@ -343,7 +537,7 @@ def _ensure_aware(value: datetime) -> datetime:
     return value if value.tzinfo is not None else value.replace(tzinfo=timezone.utc)
 
 
-# Firestore 'in' filters accept at most 30 values (see database/apps.py, database/chat.py). Reject
+# Firestore 'in' filters accept at most 30 values. Reject
 # an oversized status/source filter before it reaches the query so a caller cannot turn a
 # comma-separated filter into an unhandled 500. ConversationStatus and the source set are both
 # tiny, so a cap of 20 can never reject a request a real client would send.
@@ -385,7 +579,7 @@ def get_conversations(
     status_filter = statuses.split(",") if len(statuses) > 0 else []
     _reject_oversized_filter(status_filter, "statuses")
 
-    conversations = conversations_db.get_conversations_without_photos(
+    conversations = conversations_db.get_conversations(
         uid,
         limit,
         offset,
@@ -466,180 +660,15 @@ def patch_conversation_title(conversation_id: str, title: str, uid: str = Depend
     return {'status': 'Ok', 'conversation': _get_valid_conversation_by_id(uid, conversation_id)}
 
 
-@router.delete(
-    "/v1/conversations/{conversation_id}/calendar-event",
-    tags=['conversations'],
-    response_model=ConversationStatusResponse,
-)
-def unlink_calendar_event(conversation_id: str, uid: str = Depends(auth.get_current_user_uid)):
-    """
-    Unlink a calendar event from a conversation.
-    This removes the calendar_event field from the conversation.
-    """
-    _get_valid_conversation_by_id(uid, conversation_id)
-    conversations_db.update_conversation(uid, conversation_id, {'calendar_event': None})
-    return {'status': 'Ok'}
-
-
-class LinkCalendarEventRequest(BaseModel):
-    event_id: str
-
-
-def _event_to_calendar_event_link(event: dict) -> Optional[CalendarEventLink]:
-    """Convert a raw Google Calendar event to CalendarEventLink model."""
-    start_time, end_time = parse_event_times(event)
-    if start_time is None or end_time is None:
-        return None
-
-    attendee_names, attendee_emails = extract_attendees(event)
-
-    return CalendarEventLink(
-        event_id=event.get('id', ''),
-        title=event.get('summary', 'Untitled Event'),
-        attendees=attendee_names,
-        attendee_emails=attendee_emails,
-        start_time=start_time,
-        end_time=end_time,
-        html_link=event.get('htmlLink'),
-    )
-
-
-@router.post(
-    "/v1/conversations/{conversation_id}/calendar-event", response_model=CalendarEventLink, tags=['conversations']
-)
-async def link_calendar_event(
-    conversation_id: str,
-    request: LinkCalendarEventRequest,
-    uid: str = Depends(auth.get_current_user_uid),
-):
-    """
-    Link a specific Google Calendar event to an existing conversation.
-    Fetches the event details and stores the calendar_event on the conversation.
-    """
-    await run_blocking(db_executor, _get_valid_conversation_by_id, uid, conversation_id)
-
-    # Get Google Calendar access token
-    integration = await run_blocking(db_executor, users_db.get_integration, uid, 'google_calendar')
-    if not integration or not integration.get('connected'):
-        raise HTTPException(status_code=400, detail="Google Calendar not connected")
-
-    access_token = integration.get('access_token')
-    if not access_token:
-        raise HTTPException(status_code=400, detail="No access token found")
-
-    # Fetch the event from Google Calendar
-    try:
-        event = await get_google_calendar_event(access_token, request.event_id)
-    except Exception as e:
-        error_msg = str(e)
-        # Try to refresh token if authentication failed
-        if "error 401" in error_msg.lower() or "authentication failed" in error_msg.lower():
-            new_token = await refresh_google_token(uid, integration)
-            if new_token:
-                try:
-                    event = await get_google_calendar_event(new_token, request.event_id)
-                except Exception as retry_error:
-                    raise HTTPException(status_code=500, detail=f"Failed after token refresh: {str(retry_error)}")
-            else:
-                raise HTTPException(status_code=401, detail="Google Calendar authentication expired. Please reconnect.")
-        else:
-            raise HTTPException(status_code=500, detail=f"Failed to fetch calendar event: {error_msg}")
-
-    # Convert to CalendarEventLink
-    calendar_event = _event_to_calendar_event_link(event)
-    if calendar_event is None:
-        raise HTTPException(status_code=400, detail="Could not parse calendar event times")
-
-    # Persist to Firestore
-    await run_blocking(
-        db_executor,
-        conversations_db.update_conversation,
-        uid,
-        conversation_id,
-        {'calendar_event': calendar_event.model_dump(mode='json')},
-    )
-
-    # Automatically write the conversation link into the calendar event description
-    await write_conversation_link_to_calendar_event(uid, calendar_event.event_id, conversation_id)
-
-    return calendar_event
-
-
-@router.post(
-    "/v1/conversations/{conversation_id}/calendar-event/auto-link",
-    response_model=CalendarEventLink,
-    tags=['conversations'],
-)
-async def auto_link_calendar_event(conversation_id: str, uid: str = Depends(auth.get_current_user_uid)):
-    """
-    Auto-link a conversation to the best overlapping Google Calendar event.
-    Uses the conversation's started_at/finished_at to find a matching event.
-    Returns 404 if no overlapping event is found.
-    """
-    conversation = await run_blocking(db_executor, _get_valid_conversation_by_id, uid, conversation_id)
-
-    # Get conversation times
-    started_at = conversation.get('started_at')
-    finished_at = conversation.get('finished_at')
-
-    # Fall back to created_at if times are not available
-    if not started_at:
-        started_at = conversation.get('created_at')
-    if not finished_at:
-        finished_at = started_at
-
-    if not started_at:
-        raise HTTPException(status_code=400, detail="Conversation has no timestamp information")
-
-    # Parse datetimes if they're strings. A stored timestamp that is not valid ISO (legacy or imported
-    # data) would otherwise raise ValueError and surface as a 500; return a clear 400 instead, matching the
-    # missing-timestamp case handled just above.
-    try:
-        if isinstance(started_at, str):
-            started_at = datetime.fromisoformat(started_at.replace('Z', '+00:00'))
-        if isinstance(finished_at, str):
-            finished_at = datetime.fromisoformat(finished_at.replace('Z', '+00:00'))
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Conversation has invalid timestamp information")
-
-    # Ensure timezone-aware
-    if started_at.tzinfo is None:
-        started_at = started_at.replace(tzinfo=timezone.utc)
-    if finished_at.tzinfo is None:
-        finished_at = finished_at.replace(tzinfo=timezone.utc)
-
-    # Find overlapping calendar event
-    calendar_event = await get_overlapping_calendar_event(uid, started_at, finished_at)
-
-    if calendar_event is None:
-        raise HTTPException(status_code=404, detail="No overlapping calendar event found")
-
-    # Persist to Firestore
-    await run_blocking(
-        db_executor,
-        conversations_db.update_conversation,
-        uid,
-        conversation_id,
-        {'calendar_event': calendar_event.model_dump(mode='json')},
-    )
-
-    # Automatically write the conversation link into the calendar event description
-    await write_conversation_link_to_calendar_event(uid, calendar_event.event_id, conversation_id)
-
-    return calendar_event
-
-
 @router.patch(
     "/v1/conversations/{conversation_id}/summary", tags=['conversations'], response_model=ConversationStatusResponse
 )
 def patch_conversation_summary(
     conversation_id: str, data: UpdateSummaryRequest, uid: str = Depends(auth.get_current_user_uid)
 ):
-    result = conversations_db.update_conversation_summary(uid, conversation_id, data.app_id, data.content)
+    result = conversations_db.update_conversation_summary(uid, conversation_id, data.content)
     if result == 'not_found':
         raise HTTPException(status_code=404, detail="Conversation not found")
-    if result == 'app_result_not_found':
-        raise HTTPException(status_code=404, detail="App summary not found for this conversation")
     return {'status': 'Ok'}
 
 
@@ -659,14 +688,6 @@ def patch_conversation_segment_text(
     if result == 'segment_not_found':
         raise HTTPException(status_code=404, detail="Segment not found")
     return {'status': 'Ok'}
-
-
-@router.get(
-    "/v1/conversations/{conversation_id}/photos", response_model=List[ConversationPhoto], tags=['conversations']
-)
-def get_conversation_photos(conversation_id: str, uid: str = Depends(auth.get_current_user_uid)):
-    _get_valid_conversation_by_id(uid, conversation_id)
-    return conversations_db.get_conversation_photos(uid, conversation_id)
 
 
 @router.get(
@@ -1076,32 +1097,6 @@ def assign_segments_bulk(
     return conversation
 
 
-# *********************************************
-# *********** SHARING conversations ***********
-# *********************************************
-
-
-@router.patch(
-    '/v1/conversations/{conversation_id}/visibility',
-    tags=['conversations'],
-    response_model=ConversationStatusResponse,
-)
-def set_conversation_visibility(
-    conversation_id: str, value: ConversationVisibility, uid: str = Depends(auth.get_current_user_uid)
-):
-    logger.info(f'update_conversation_visibility {conversation_id} {value} {uid}')
-    _get_valid_conversation_by_id(uid, conversation_id)
-    conversations_db.set_conversation_visibility(uid, conversation_id, value)
-    if value == ConversationVisibility.private:
-        redis_db.remove_conversation_to_uid(conversation_id)
-        redis_db.remove_public_conversation(conversation_id)
-    else:
-        redis_db.store_conversation_to_uid(conversation_id, uid)
-        redis_db.add_public_conversation(conversation_id)
-
-    return {"status": "Ok"}
-
-
 @router.patch(
     '/v1/conversations/{conversation_id}/starred', tags=['conversations'], response_model=ConversationMutationResponse
 )
@@ -1110,41 +1105,6 @@ def set_conversation_starred(conversation_id: str, starred: bool, uid: str = Dep
     _get_valid_conversation_by_id(uid, conversation_id)
     conversations_db.set_conversation_starred(uid, conversation_id, starred)
     return {"status": "Ok", "conversation": _get_valid_conversation_by_id(uid, conversation_id)}
-
-
-@router.get(
-    "/v1/conversations/{conversation_id}/shared", tags=['conversations'], response_model=SharedConversationResponse
-)
-def get_shared_conversation_by_id(conversation_id: str):
-    uid = redis_db.get_conversation_uid(conversation_id)
-    if not uid:
-        raise HTTPException(status_code=404, detail="Conversation is private")
-
-    conversation = _get_valid_conversation_by_id(uid, conversation_id)
-    visibility = conversation.get('visibility', ConversationVisibility.private)
-    if not visibility or visibility == ConversationVisibility.private:
-        raise HTTPException(status_code=404, detail="Conversation is private")
-    conversation = deserialize_conversation(conversation)
-    # This endpoint is public and unauthenticated. Strip fields that are internal
-    # to the owner and never part of the shared transcript/summary the user chose
-    # to publish: precise geolocation, the server-side encryption tier, and
-    # external_data (which carries merge provenance — other conversation ids — and
-    # integration metadata).
-    conversation.geolocation = None
-    conversation.data_protection_level = None
-    conversation.external_data = None
-
-    # Fetch people data for speaker names
-    person_ids = conversation.get_person_ids()
-    people = []
-    if person_ids:
-        people_data = users_db.get_people_by_ids(uid, person_ids)
-        people = [Person(**p) for p in people_data]
-
-    # Return conversation with people data
-    response_dict = conversation_to_dict(conversation)
-    response_dict['people'] = [p.model_dump() for p in people]
-    return response_dict
 
 
 @router.post("/v1/conversations/search", response_model=SearchConversationsResponse, tags=['conversations'])
@@ -1187,7 +1147,7 @@ def search_conversations_endpoint(
     except ConversationSearchUnavailableError:
         raise HTTPException(status_code=503, detail="Search temporarily unavailable")
     conversation_ids = [item.get('id') for item in search_results.get('items', []) if item.get('id')]
-    conversations = conversations_db.get_conversations_by_id_without_photos(
+    conversations = conversations_db.get_conversations_by_id(
         uid,
         conversation_ids,
         include_discarded=bool(search_request.include_discarded),
@@ -1212,41 +1172,6 @@ def search_conversations_endpoint(
     effective_per_page = search_results.get('per_page', 10)
     search_results['total_pages'] = effective_page + 1 if len(conversations) >= effective_per_page else effective_page
     return search_results
-
-
-@router.get(
-    "/v1/conversations/{conversation_id}/suggested-apps",
-    response_model=ConversationSuggestedAppsResponse,
-    tags=['conversations'],
-)
-def get_conversation_suggested_apps(conversation_id: str, uid: str = Depends(auth.get_current_user_uid)):
-    from utils.apps import get_available_app_by_id_with_reviews, get_is_user_paid_app
-
-    conversation_data = _get_valid_conversation_by_id(uid, conversation_id)
-    conversation = deserialize_conversation(conversation_data)
-
-    # Get suggested app models with full data (similar to /v1/apps endpoint)
-    suggested_apps = []
-    for app_id in conversation.suggested_summarization_apps:
-        app_data = get_available_app_by_id_with_reviews(app_id, uid)
-        if app_data:
-            app = App(**app_data)
-            # Add user-specific data
-            app.is_user_paid = get_is_user_paid_app(app.id, uid)
-
-            # Add payment link with user reference
-            if app.payment_link:
-                app.payment_link = f'{app.payment_link}?client_reference_id=uid_{uid}'
-
-            # Generate thumbnail URLs if thumbnails exist
-            if app.thumbnails:
-                from utils.other.storage import get_app_thumbnail_url
-
-                app.thumbnail_urls = [get_app_thumbnail_url(thumbnail_id) for thumbnail_id in app.thumbnails]
-
-            suggested_apps.append(app)
-
-    return {"suggested_apps": [app.model_dump() for app in suggested_apps], "conversation_id": conversation_id}
 
 
 @router.get(
@@ -1318,7 +1243,11 @@ def merge_conversations(
     - Copied audio chunks
     - Regenerated title, summary, action items, memories via process_conversation()
     """
-    from utils.conversations.merge_conversations import validate_merge_compatibility, perform_merge_async
+    from utils.conversations.merge_conversations import (
+        LEGACY_PHOTO_MERGE_ERROR,
+        perform_merge_async,
+        validate_merge_compatibility,
+    )
 
     # Validate minimum number of conversations
     if len(request.conversation_ids) < 2:
@@ -1330,6 +1259,8 @@ def merge_conversations(
         conv = conversations_db.get_conversation(uid, conv_id)
         if conv is None:
             raise HTTPException(status_code=404, detail=f"Conversation {conv_id} not found")
+        if conversations_db.conversation_has_legacy_photos(uid, conv_id, conversation=conv):
+            raise HTTPException(status_code=400, detail=LEGACY_PHOTO_MERGE_ERROR)
         conversations.append(conv)
 
     # Validate merge compatibility (returns warning for large gaps but doesn't reject)

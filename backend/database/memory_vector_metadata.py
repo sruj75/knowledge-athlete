@@ -74,7 +74,6 @@ def _shared_memory_vector_metadata_fields(
         "status": item.status.value,
         "processing_state": item.processing_state.value,
         "source_state": item.source_state.value,
-        "visibility": item.visibility,
         "sensitivity_labels": labels,
         "restricted_sensitivity": bool(set(labels).intersection(RESTRICTED_SENSITIVITY_LABELS)),
         "account_generation": item.account_generation,
@@ -84,11 +83,6 @@ def _shared_memory_vector_metadata_fields(
         "projection_commit_id": projection_commit_id,
         "vector_updated_at": vector_updated_at.isoformat(),
     }
-    device_ids = sorted({d for d in (item.capture_device_ids or []) if d})
-    if not device_ids and item.primary_capture_device:
-        device_ids = [item.primary_capture_device]
-    if device_ids:
-        shared["capture_device_ids"] = device_ids
     return strip_null_metadata_values(shared)
 
 
@@ -186,7 +180,6 @@ def _active_memory_vector_filter_clauses() -> list[Dict[str, Any]]:
     return [
         {"status": {"$eq": "active"}},
         {"source_state": {"$eq": "active"}},
-        {"visibility": {"$in": ["private", "public", "shared"]}},
         {"restricted_sensitivity": {"$eq": False}},
     ]
 

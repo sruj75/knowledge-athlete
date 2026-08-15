@@ -363,14 +363,6 @@ class ShortcutSettings: ObservableObject {
     didSet { UserDefaults.standard.set(pttInputDeviceUID, forKey: .shortcutPTTInputDeviceUID) }
   }
 
-  /// Selected AI model for Ask Omi.
-  @Published var selectedModel: String {
-    didSet { UserDefaults.standard.set(selectedModel, forKey: "shortcut_selectedModel") }
-  }
-
-  /// Available models for Ask Omi (driven by QoS tier).
-  static var availableModels: [(id: String, label: String)] { ModelQoS.Claude.availableModels }
-
   /// Push-to-talk transcription mode.
   enum PTTTranscriptionMode: String, CaseIterable {
     case live = "Live"
@@ -594,9 +586,6 @@ class ShortcutSettings: ObservableObject {
     self.pttSoundsEnabled = UserDefaults.standard.object(forKey: "shortcut_pttSoundsEnabled") as? Bool ?? true
     self.pttMuteSystemAudio = UserDefaults.standard.object(forKey: "shortcut_pttMuteSystemAudio") as? Bool ?? true
     self.pttInputDeviceUID = UserDefaults.standard.string(forKey: .shortcutPTTInputDeviceUID) ?? ""
-    self.selectedModel = ModelQoS.Claude.sanitizedSelection(
-      UserDefaults.standard.string(forKey: "shortcut_selectedModel")
-    )
     if let saved = UserDefaults.standard.string(forKey: "shortcut_pttTranscriptionMode"),
       let mode = PTTTranscriptionMode(rawValue: saved)
     {
@@ -614,13 +603,6 @@ class ShortcutSettings: ObservableObject {
       ? storedVoiceID
       : Self.defaultVoiceID
     self.selectedVoiceID = validVoiceID
-
-    NotificationCenter.default.addObserver(forName: .modelTierDidChange, object: nil, queue: .main) { [weak self] _ in
-      Task { @MainActor [weak self] in
-        guard let self else { return }
-        self.selectedModel = ModelQoS.Claude.sanitizedSelection(self.selectedModel)
-      }
-    }
 
     Task { @MainActor in
       FloatingBarVoicePlaybackService.shared.prewarmBackgroundAgentKickoffPhrases()

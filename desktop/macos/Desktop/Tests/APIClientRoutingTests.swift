@@ -652,52 +652,6 @@ final class APIClientRoutingTests: XCTestCase {
       label: "updateGoalProgress")
   }
 
-  // -- Apps (GET → Python) --
-
-  func testGetAppsRoutesToPython() async {
-    let client = await makeTestClient()
-    _ = try? await client.getApps() as [OmiApp]
-    assertRoutes(
-      URLCapture.capturedRequests, host: "python-test", port: 9001,
-      pathContains: "v1/apps", method: "GET",
-      label: "getApps")
-  }
-
-  func testSearchAppsUsesBackendFilterParameters() async {
-    let client = await makeTestClient()
-    _ =
-      try? await client.searchApps(
-        query: "R&D calendar",
-        category: "productivity",
-        capability: "external_integration",
-        installedOnly: true
-      ) as [OmiApp]
-
-    let requests = URLCapture.capturedRequests
-    assertRoutes(
-      requests, host: "python-test", port: 9001,
-      pathContains: "v2/apps/search", method: "GET",
-      label: "searchApps")
-
-    let queryItems = URLComponents(url: requests.first!.url, resolvingAgainstBaseURL: false)?.queryItems ?? []
-    XCTAssertEqual(queryItems.first(where: { $0.name == "q" })?.value, "R&D calendar")
-    XCTAssertNil(queryItems.first(where: { $0.name == "query" })?.value)
-    XCTAssertEqual(queryItems.first(where: { $0.name == "category" })?.value, "productivity")
-    XCTAssertEqual(queryItems.first(where: { $0.name == "capability" })?.value, "external_integration")
-    XCTAssertEqual(queryItems.first(where: { $0.name == "installed_apps" })?.value, "true")
-  }
-
-  // -- Personas (GET → Python) --
-
-  func testGetPersonaRoutesToPython() async {
-    let client = await makeTestClient()
-    _ = try? await client.getPersona() as Persona?
-    assertRoutes(
-      URLCapture.capturedRequests, host: "python-test", port: 9001,
-      pathContains: "v1/personas", method: "GET",
-      label: "getPersona")
-  }
-
   // -- User settings (GET → Python) --
 
   func testGetDailySummarySettingsRoutesToPython() async {
@@ -849,17 +803,6 @@ final class APIClientRoutingTests: XCTestCase {
   }
 
   // MARK: - Python-routed: remaining manual URL builders
-
-  // -- setConversationVisibility: manual URL(string: baseURL + ...) PATCH → Python --
-
-  func testSetConversationVisibilityRoutesToPython() async {
-    let client = await makeTestClient()
-    try? await client.setConversationVisibility(id: "c3")
-    assertRoutes(
-      URLCapture.capturedRequests, host: "python-test", port: 9001,
-      pathContains: "v1/conversations/c3/visibility", method: "PATCH",
-      label: "setConversationVisibility")
-  }
 
   // -- moveConversationToFolder: manual URL PATCH → Python --
 

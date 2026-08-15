@@ -71,7 +71,6 @@ final class RealtimeHubController: NSObject, RealtimeHubSessionDelegate {
   var prefetchedVoiceSemanticGuidance = ""
   /// Exact Node registry projection from the bridge init handshake. Empty is a
   /// fail-closed value until the runtime has declared available adapters.
-  var registeredDirectedProviderIDs: [String] = []
   var prefetchedVoiceContextTurnIDs: Set<String> = []
   var prefetchedVoiceContextOwnerScope: RealtimeHubOwnerScope?
   /// Typed snapshot identity baked into the current warm session's instructions.

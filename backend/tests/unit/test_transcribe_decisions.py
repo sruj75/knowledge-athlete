@@ -47,18 +47,8 @@ def test_startup_decisions_pin_current_overrides():
 
 
 def test_codec_frame_normalization_pins_special_codecs():
-    opus = normalize_codec_frame('opus_fs320')
-    assert opus.codec == 'opus'
-    assert opus.lc3_chunk_size is None
-    assert opus.lc3_frame_duration_us is None
-
-    lc3 = normalize_codec_frame('lc3_fs1030')
-    assert lc3.codec == 'lc3'
-    assert lc3.lc3_chunk_size == 30
-    assert lc3.lc3_frame_duration_us == 10000
-
-    pcm = normalize_codec_frame('pcm8')
-    assert pcm.codec == 'pcm8'
+    assert normalize_codec_frame('opus_fs320') == 'opus'
+    assert normalize_codec_frame('pcm8') == 'pcm8'
 
 
 def test_translation_language_gating():
@@ -286,7 +276,6 @@ def test_disconnect_processing_only_targets_single_channel_in_progress_with_cont
         'status': 'in_progress',
         'source': 'desktop',
         'transcript_segments': [{'text': 'synthetic transcript'}],
-        'photos': [],
     }
 
     assert (
@@ -338,7 +327,7 @@ def test_disconnect_processing_only_targets_single_channel_in_progress_with_cont
             is_multi_channel=False,
             close_code=1000,
             conversation_id='conversation-1',
-            conversation={'status': 'in_progress', 'transcript_segments': [], 'photos': []},
+            conversation={'status': 'in_progress', 'transcript_segments': []},
             in_progress_status='in_progress',
         )
         is False
@@ -350,7 +339,6 @@ def test_disconnect_processing_rejects_non_desktop_clean_close_with_content():
         'status': 'in_progress',
         'source': 'phone',
         'transcript_segments': [{'text': 'synthetic transcript'}],
-        'photos': [],
     }
 
     assert (
@@ -373,7 +361,6 @@ def test_disconnect_processing_accepts_enum_like_desktop_source():
         'status': 'in_progress',
         'source': Source(),
         'transcript_segments': [{'text': 'synthetic transcript'}],
-        'photos': [],
     }
 
     assert (
@@ -420,8 +407,8 @@ def test_stt_buffer_flush_waits_for_budget_and_force_flushes():
         force=False,
         socket_dead=False,
         socket_available=True,
-        fair_use_dg_budget_exhausted=False,
-        fair_use_track_dg_usage=True,
+        fair_use_managed_stt_budget_exhausted=False,
+        fair_use_track_managed_stt_usage=True,
         sample_rate=16000,
     )
     assert small.should_flush is False
@@ -432,13 +419,13 @@ def test_stt_buffer_flush_waits_for_budget_and_force_flushes():
         force=True,
         socket_dead=False,
         socket_available=True,
-        fair_use_dg_budget_exhausted=False,
-        fair_use_track_dg_usage=True,
+        fair_use_managed_stt_budget_exhausted=False,
+        fair_use_track_managed_stt_usage=True,
         sample_rate=16000,
     )
     assert forced.should_flush is True
     assert forced.send_to_stt is True
-    assert forced.dg_usage_ms == 100 * 1000 // (16000 * 2)
+    assert forced.managed_stt_usage_ms == 100 * 1000 // (16000 * 2)
 
 
 def test_stt_buffer_flush_empty_buffer_is_noop():
@@ -448,8 +435,8 @@ def test_stt_buffer_flush_empty_buffer_is_noop():
         force=False,
         socket_dead=False,
         socket_available=True,
-        fair_use_dg_budget_exhausted=False,
-        fair_use_track_dg_usage=True,
+        fair_use_managed_stt_budget_exhausted=False,
+        fair_use_track_managed_stt_usage=True,
         sample_rate=16000,
     )
     assert empty.should_flush is False
@@ -462,14 +449,14 @@ def test_stt_buffer_flush_dead_socket_and_budget_do_not_send_or_bill():
         force=False,
         socket_dead=True,
         socket_available=True,
-        fair_use_dg_budget_exhausted=False,
-        fair_use_track_dg_usage=True,
+        fair_use_managed_stt_budget_exhausted=False,
+        fair_use_track_managed_stt_usage=True,
         sample_rate=16000,
     )
     assert dead.should_flush is True
     assert dead.socket_dead is True
     assert dead.send_to_stt is False
-    assert dead.dg_usage_ms == 0
+    assert dead.managed_stt_usage_ms == 0
 
     exhausted = decide_stt_buffer_flush(
         buffer_len=960,
@@ -477,30 +464,30 @@ def test_stt_buffer_flush_dead_socket_and_budget_do_not_send_or_bill():
         force=False,
         socket_dead=False,
         socket_available=True,
-        fair_use_dg_budget_exhausted=True,
-        fair_use_track_dg_usage=True,
+        fair_use_managed_stt_budget_exhausted=True,
+        fair_use_track_managed_stt_usage=True,
         sample_rate=16000,
     )
     assert exhausted.should_flush is True
     assert exhausted.send_to_stt is False
-    assert exhausted.dg_usage_ms == 0
+    assert exhausted.managed_stt_usage_ms == 0
 
 
 def test_multi_channel_send_and_mix_plans():
-    should_send, dg_ms = decide_multi_channel_stt_send(
+    should_send, managed_stt_ms = decide_multi_channel_stt_send(
         socket_available=True,
-        fair_use_dg_budget_exhausted=False,
+        fair_use_managed_stt_budget_exhausted=False,
         pcm_len=TARGET_SAMPLE_RATE * 2,
-        fair_use_track_dg_usage=True,
+        fair_use_track_managed_stt_usage=True,
     )
     assert should_send is True
-    assert dg_ms == 1000
+    assert managed_stt_ms == 1000
 
     blocked, blocked_ms = decide_multi_channel_stt_send(
         socket_available=True,
-        fair_use_dg_budget_exhausted=True,
+        fair_use_managed_stt_budget_exhausted=True,
         pcm_len=TARGET_SAMPLE_RATE * 2,
-        fair_use_track_dg_usage=True,
+        fair_use_track_managed_stt_usage=True,
     )
     assert blocked is False
     assert blocked_ms == 0

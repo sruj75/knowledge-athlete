@@ -114,13 +114,6 @@ def ai_mod(monkeypatch):
     return ai, recorded, metrics
 
 
-@pytest.fixture
-def kg_module():
-    import database.knowledge_graph as kg
-
-    return kg
-
-
 def test_get_action_items_active_first_without_full_scan(ai_mod, monkeypatch):
     ai, recorded, metrics = ai_mod
     # Many completed docs first in storage order; actives must still lead the page.
@@ -183,58 +176,6 @@ def test_get_action_items_skips_deleted_in_active_bucket(ai_mod, monkeypatch):
     assert ids[0] == 'a1'
 
 
-def test_knowledge_graph_get_is_bounded(monkeypatch, kg_module):
-    kg = kg_module
-    monkeypatch.setattr(kg, 'MAX_KNOWLEDGE_GRAPH_NODES', 2)
-    monkeypatch.setattr(kg, 'MAX_KNOWLEDGE_GRAPH_EDGES', 3)
-    monkeypatch.setattr(kg, 'MAX_KNOWLEDGE_GRAPH_ASSERTIONS', 4)
-
-    class _StreamColl:
-        def __init__(self, n, *, edge=False):
-            self.n = n
-            self.edge = edge
-            self.limit_n = None
-
-        def limit(self, n):
-            self.limit_n = n
-            return self
-
-        def stream(self):
-            count = min(self.n, self.limit_n) if self.limit_n is not None else self.n
-            for i in range(count):
-                payload = (
-                    {
-                        'id': f'e{i}',
-                        'source_id': 'n0',
-                        'target_id': 'n1',
-                        'label': f'L{i}',
-                    }
-                    if self.edge
-                    else {'id': f'n{i}', 'label': f'L{i}'}
-                )
-                yield SimpleNamespace(to_dict=lambda payload=payload: payload)
-
-    nodes = _StreamColl(10)
-    edges = _StreamColl(10, edge=True)
-    assertions = _StreamColl(0)
-
-    collections = {
-        kg.knowledge_nodes_collection: nodes,
-        kg.knowledge_edges_collection: edges,
-        kg.memory_graph_assertions_collection: assertions,
-    }
-    user_ref = SimpleNamespace(collection=lambda name: collections[name])
-    client = SimpleNamespace(collection=lambda name: SimpleNamespace(document=lambda uid: user_ref))
-
-    graph = kg.get_knowledge_graph('uid', db_client=client)
-    assert len(graph['nodes']) == kg.MAX_KNOWLEDGE_GRAPH_NODES
-    assert len(graph['edges']) == kg.MAX_KNOWLEDGE_GRAPH_EDGES
-    assert graph['truncated'] is True
-    assert nodes.limit_n == kg.MAX_KNOWLEDGE_GRAPH_NODES + 1
-    assert edges.limit_n == kg.MAX_KNOWLEDGE_GRAPH_EDGES + 1
-    assert assertions.limit_n == kg.MAX_KNOWLEDGE_GRAPH_ASSERTIONS + 1
-
-
 def test_legacy_get_memories_no_first_page_5000_force():
     import routers.memories as mem
 
@@ -251,21 +192,3 @@ def test_legacy_get_memories_no_first_page_5000_force():
     with patch.object(mem.memories_db, 'get_memories', side_effect=fake_get):
         mem._legacy_get_memories('u', limit=9999, offset=0)
     assert calls[-1] == ('u', 500, 0)
-
-
-def test_knowledge_graph_route_exposes_truncation(monkeypatch):
-    import routers.knowledge_graph as kg_router
-
-    payload = {
-        'nodes': [{'id': 'n1'}],
-        'edges': [],
-        'truncated': True,
-        'node_limit': 2000,
-        'edge_limit': 5000,
-    }
-    monkeypatch.setattr(kg_router, 'get_knowledge_graph_payload', lambda uid: payload)
-    resp = kg_router.get_knowledge_graph(uid='u')
-    assert resp.truncated is True
-    assert resp.node_limit == 2000
-    assert resp.edge_limit == 5000
-    assert resp.nodes == payload['nodes']

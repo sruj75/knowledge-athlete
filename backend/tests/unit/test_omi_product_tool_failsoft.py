@@ -5,11 +5,9 @@ helper makes synchronous httpx calls that raise on network errors) or an empty r
 the chat turn: the tool now fails soft with an "Error: ..." / "no docs" string like the other
 retrieval tools, instead of letting the exception escape into the agent loop and aborting the answer.
 
-``utils.retrieval.tools.omi_tools`` binds ``get_github_docs_content`` at import
-(``from utils.app_integrations import get_github_docs_content``), and the real
-``utils.app_integrations`` plus ``utils.retrieval.tools/__init__.py`` pull in heavy httpx + database
-chains. The fake parent packages and ``utils.app_integrations`` must therefore be active before the
-module is exec'd. This is the sanctioned Tier-2 "fake must precede import" case: see
+``utils.retrieval.tools.omi_tools`` uses the retained Redis cache directly. Fake parent packages and
+the Redis module must therefore be active before the module is exec'd. This is the sanctioned
+Tier-2 "fake must precede import" case: see
 backend/docs/test_isolation.md and testing/import_isolation.load_module_fresh.
 """
 
@@ -33,22 +31,22 @@ def _empty_pkg(name):
 
 @pytest.fixture(scope="module")
 def omi():
-    """Load a fresh utils.retrieval.tools.omi_tools against stubbed parent packages + app_integrations.
+    """Load a fresh utils.retrieval.tools.omi_tools against stubbed parent packages and Redis.
 
-    The real ``utils.retrieval.tools/__init__.py`` imports every sibling tool module (gmail,
-    calendar, apple_health, ...) which each pull heavy database/httpx chains. Empty package stubs
-    for the parents short-circuit that cascade; the ``utils.app_integrations`` fake stands in for
-    the docs fetcher that the module binds at import. ``langchain_core`` is used for real so the
-    ``@tool`` decorator runs.
+    Empty package stubs short-circuit the retrieval package import cascade; the Redis fake stands in
+    for the cache used by the module. ``langchain_core`` is used for real so the ``@tool`` decorator
+    runs.
     """
-    app_integrations_stub = ModuleType("utils.app_integrations")
-    app_integrations_stub.get_github_docs_content = MagicMock(return_value={})
+    redis_stub = ModuleType("database.redis_db")
+    redis_stub.get_generic_cache = MagicMock(return_value=None)
+    redis_stub.set_generic_cache = MagicMock()
 
     fakes = {
         "utils": _empty_pkg("utils"),
         "utils.retrieval": _empty_pkg("utils.retrieval"),
         "utils.retrieval.tools": _empty_pkg("utils.retrieval.tools"),
-        "utils.app_integrations": app_integrations_stub,
+        "database": _empty_pkg("database"),
+        "database.redis_db": redis_stub,
     }
     with stub_modules(fakes):
         module = load_module_fresh(
@@ -58,7 +56,7 @@ def omi():
         yield module
 
 
-def _call(omi, query="How does the device connect to my phone?"):
+def _call(omi, query="How does conversation capture work?"):
     return omi.get_omi_product_info_tool.invoke({"query": query})
 
 

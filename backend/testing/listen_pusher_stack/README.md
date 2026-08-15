@@ -15,12 +15,12 @@ developer services.
 
 It starts an isolated Redis and local ASGI processes while Firebase's command
 owns a fresh Firestore emulator. The inline scenarios use the real backend,
-pusher, and Parakeet stub; durable scenarios start separate real listener and
+pusher, and Modulate stub; durable scenarios start separate real listener and
 finalization-worker processes with a strict loopback Cloud Tasks client:
 
 ```text
 native /v4/listen client → real backend → real pusher
-                               ↘ real Parakeet WS client → local protocol stub
+                               ↘ real Modulate WS client → local protocol stub
 
 real listener admission → real tasks_v2.Task → strict loopback task record
                                                    ↘ separate real finalization worker route
@@ -44,7 +44,6 @@ The pusher entrypoint (for inline scenarios) and the Cloud Tasks entrypoint
 
 - conversation LLM processing;
 - memory extraction;
-- external-integration delivery.
 - private-cloud audio storage (the queue and 101/103 frame handling remain real).
 
 The real finalizer still persists through the lifecycle owner and claims and
@@ -57,10 +56,9 @@ dispatch deadline. The harness replaces only OIDC signature verification with
 a local bearer token, while the production FastAPI dependency and retry-count
 header remain in the request path.
 
-It does not prove LLM/vector output quality, GCS delivery, downstream
-integration delivery, Cloud Tasks IAM provisioning, or Google OIDC signature
-verification. Trace files record durable IDs, frame metadata, and byte counts,
-never audio or transcript text.
+It does not prove LLM/vector output quality, GCS delivery, Cloud Tasks IAM
+provisioning, or Google OIDC signature verification. Trace files record durable
+IDs, frame metadata, and byte counts, never audio or transcript text.
 
 Scenarios:
 
@@ -84,8 +82,9 @@ Scenarios:
 8. a worker exhausting its two-attempt test budget atomically dead-letters the
    job with `terminal_outcome=failure` and marks the still-current conversation
    `failed`/`discarded`, while a later duplicate delivery is fenced;
-9. an integration failure after processing retries only durable fanout, never
-   re-runs completed conversation processing.
+9. a controlled conversation-processing failure leaves the same durable job
+   queued; the next delivery completes processing exactly once without creating
+   a second task;
 10. in `RECORDING_SESSION_MODE=enforce`, one operation-scoped `completed`
     envelope write fails before Firestore, emits no matching client event, and
     leaves the durable phase/sequence at `processing`/`1`; a fault-free
@@ -113,7 +112,7 @@ This complements, rather than replaces, the storage race test:
 npm run test:listen-lifecycle:emulator
 ```
 
-It intentionally does not test real Parakeet inference, LLM/vector quality,
-GCS, or external integration delivery.  Those require their own environment
+It intentionally does not test real Modulate inference, LLM/vector quality,
+or GCS. Those require their own environment
 and should not turn this deterministic local failure test into a credentialed
 integration suite.

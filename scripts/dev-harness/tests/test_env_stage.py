@@ -22,6 +22,7 @@ def test_child_env_for_offline_mode() -> None:
     assert child["PROVIDER_MODE"] == "offline"
     assert child["OMI_HARNESS_INSTANCE"] == "default"
     assert child["FIREBASE_API_KEY"] == config.LOCAL_FIREBASE_API_KEY
+    assert "MODULATE_API_KEY" not in child
 
 
 def test_child_env_for_real_mode() -> None:

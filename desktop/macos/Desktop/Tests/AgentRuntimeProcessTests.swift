@@ -372,7 +372,7 @@ final class AgentRuntimeProcessTests: XCTestCase {
 
   func testV2ResultParsingPreservesCanonicalAndAdapterIds() {
     let line = """
-      {"type":"result","protocolVersion":2,"requestId":"req-1","clientId":"client-1","sessionId":"omi-1","runId":"run-1","attemptId":"attempt-1","adapterSessionId":"acp-1","terminalStatus":"succeeded","text":"done","costUsd":1.25,"inputTokens":3,"outputTokens":4,"cacheReadTokens":5,"cacheWriteTokens":6}
+      {"type":"result","protocolVersion":2,"requestId":"req-1","clientId":"client-1","sessionId":"omi-1","runId":"run-1","attemptId":"attempt-1","adapterSessionId":"adapter-native-1","terminalStatus":"succeeded","text":"done","costUsd":1.25,"inputTokens":3,"outputTokens":4,"cacheReadTokens":5,"cacheWriteTokens":6}
       """
 
     let message = AgentRuntimeProcess.RuntimeMessage.parse(line)
@@ -383,7 +383,7 @@ final class AgentRuntimeProcessTests: XCTestCase {
     XCTAssertEqual(
       message?.requestKey, AgentRuntimeProcess.RuntimeMessage.RequestKey(clientId: "client-1", requestId: "req-1"))
     XCTAssertEqual(message?.payload["sessionId"] as? String, "omi-1")
-    XCTAssertEqual(message?.payload["adapterSessionId"] as? String, "acp-1")
+    XCTAssertEqual(message?.payload["adapterSessionId"] as? String, "adapter-native-1")
     XCTAssertEqual(message?.payload["terminalStatus"] as? String, "succeeded")
   }
 
@@ -730,45 +730,10 @@ final class AgentRuntimeProcessTests: XCTestCase {
     XCTAssertNil(message?.requestKey)
   }
 
-  func testHarnessModeMapsNamedAdapters() {
+  func testHarnessModeMapsOnlyManagedPi() {
     XCTAssertEqual(AgentRuntimeProcess.adapterId(forHarnessMode: "piMono"), "pi-mono")
     XCTAssertEqual(AgentRuntimeProcess.adapterId(forHarnessMode: "pi-mono"), "pi-mono")
-    XCTAssertEqual(AgentRuntimeProcess.adapterId(forHarnessMode: "hermes"), "hermes")
-    XCTAssertEqual(AgentRuntimeProcess.adapterId(forHarnessMode: "openclaw"), "openclaw")
-    XCTAssertEqual(AgentRuntimeProcess.adapterId(forHarnessMode: "openClaw"), "openclaw")
     XCTAssertNil(AgentRuntimeProcess.adapterId(forHarnessMode: "unknown"))
-  }
-
-  func testPiMonoAliasUsesCanonicalAdapterForAuthGuards() throws {
-    let processSourceURL = URL(fileURLWithPath: #filePath)
-      .deletingLastPathComponent()
-      .deletingLastPathComponent()
-      .appendingPathComponent("Sources/Chat/AgentRuntimeProcess.swift")
-    let processSource = try String(contentsOf: processSourceURL, encoding: .utf8)
-
-    XCTAssertTrue(
-      processSource.contains("let preferredAdapterId = AgentRuntimeRouting.adapterId(for: preferredHarness)"))
-    XCTAssertTrue(processSource.contains("preferredAdapterId == .piMono"))
-    XCTAssertFalse(processSource.contains(#"preferredHarnessMode == "piMono""#))
-
-    let bridgeSourceURL = URL(fileURLWithPath: #filePath)
-      .deletingLastPathComponent()
-      .deletingLastPathComponent()
-      .appendingPathComponent("Sources/Chat/AgentBridge.swift")
-    let bridgeSource = try String(contentsOf: bridgeSourceURL, encoding: .utf8)
-
-    XCTAssertTrue(
-      bridgeSource.contains(
-        "AgentRuntimeProcess.adapterId(forHarnessMode: harnessMode) == AgentAdapterId.piMono.rawValue"))
-    XCTAssertTrue(
-      bridgeSource.contains(
-        "isPiMonoHarness\n      && AgentRuntimeCredentialPolicy.requiresManagedCredentials"))
-    XCTAssertTrue(bridgeSource.contains("if adapterId == AgentAdapterId.piMono.rawValue"))
-    XCTAssertTrue(
-      bridgeSource.contains(
-        "if requiresCredentials {\n      ensureTokenRefreshTask(authorizationSnapshot: authorizationSnapshot)"))
-    XCTAssertFalse(bridgeSource.contains("guard isPiMonoHarness else { return false }"))
-    XCTAssertFalse(bridgeSource.contains(#"harnessMode == "piMono""#))
   }
 
   func testPiMonoInvalidTokenRetriesAfterForcedAuthRefresh() throws {
@@ -917,63 +882,6 @@ final class AgentRuntimeProcessTests: XCTestCase {
     XCTAssertFalse(source.contains(#""adapterId": harnessMode == "piMono" ? "pi-mono" : "acp""#))
   }
 
-  func testLocalAdapterDiscoveryRunsForSharedRuntimeStartup() throws {
-    let sourceURL = URL(fileURLWithPath: #filePath)
-      .deletingLastPathComponent()
-      .deletingLastPathComponent()
-      .appendingPathComponent("Sources/Chat/AgentRuntimeProcess.swift")
-    let source = try String(contentsOf: sourceURL, encoding: .utf8)
-
-    XCTAssertTrue(source.contains("applyLocalAgentEnvironment(to: &env)"))
-    XCTAssertFalse(source.contains("applyLocalAgentEnvironment(to: &env, adapterId: preferredAdapterId)"))
-    XCTAssertFalse(source.contains("guard adapterId == .hermes || adapterId == .openclaw else"))
-    XCTAssertTrue(source.contains(#"env["HOME"] = home"#))
-    XCTAssertTrue(source.contains(#"env["HERMES_HOME"] = "\(home)/.hermes""#))
-    XCTAssertTrue(source.contains(#""\(home)/.hermes/hermes-agent/venv/bin""#))
-    XCTAssertTrue(source.contains("existingPath.split(separator: \":\").map(String.init) + adapterPathDirs"))
-    XCTAssertFalse(source.contains("+ trustedPathDirs + adapterPathDirs"))
-    XCTAssertFalse(source.contains("adapterPathPrefixDirs + existingPath.split"))
-    XCTAssertTrue(source.contains(#"env["PATH"] = pathElements.joined(separator: ":")"#))
-    XCTAssertTrue(source.contains(#"env["OMI_OPENCLAW_ADAPTER_COMMAND"]"#))
-    XCTAssertTrue(source.contains(#"env["OMI_HERMES_ADAPTER_COMMAND"]"#))
-  }
-
-  @MainActor
-  func testManagedChildEnvironmentDropsInheritedAndPersistedCustomerKeys() {
-    let savedKeys = Dictionary(
-      uniqueKeysWithValues: BYOKProvider.allCases.map { provider in
-        (provider, UserDefaults.standard.string(forKey: provider.storageKey))
-      })
-    defer {
-      for provider in BYOKProvider.allCases {
-        if let saved = savedKeys[provider] ?? nil {
-          UserDefaults.standard.set(saved, forKey: provider.storageKey)
-        } else {
-          UserDefaults.standard.removeObject(forKey: provider.storageKey)
-        }
-      }
-    }
-
-    for provider in BYOKProvider.allCases {
-      UserDefaults.standard.set("sk-agent-\(provider.rawValue)", forKey: provider.storageKey)
-    }
-    let inheritedEnvironment = Dictionary(
-      uniqueKeysWithValues: BYOKProvider.allCases.map { provider in
-        ("OMI_BYOK_\(provider.rawValue.uppercased())", "inherited-\(provider.rawValue)")
-      }
-    )
-    .merging(["OMI_AUTH_TOKEN": "stale-inherited-token", "PATH": "/usr/bin"]) { current, _ in current }
-
-    let env = AgentRuntimeProcess.prepareManagedChildEnvironment(
-      inherited: inheritedEnvironment,
-      managedAuthToken: "managed-token"
-    )
-
-    XCTAssertFalse(env.keys.contains { $0.hasPrefix("OMI_BYOK_") })
-    XCTAssertEqual(env["OMI_AUTH_TOKEN"], "managed-token")
-    XCTAssertEqual(env["PATH"], "/usr/bin")
-  }
-
   func testRetiredCustomerCredentialSanitizerScrubsPrefixCaseInsensitively() {
     var env = [
       "OMI_BYOK_OPENAI": "stale-openai",
@@ -983,7 +891,7 @@ final class AgentRuntimeProcessTests: XCTestCase {
       "PATH": "/usr/bin",
     ]
 
-    AgentRuntimeProcess.removeRetiredCustomerCredentialEnvironment(from: &env)
+    AgentRuntimeProcess.removeInheritedBYOKEnvironment(from: &env)
 
     XCTAssertNil(env["OMI_BYOK_OPENAI"])
     XCTAssertNil(env["omi_byok_experimental"])
@@ -1000,7 +908,7 @@ final class AgentRuntimeProcessTests: XCTestCase {
     let source = try String(contentsOf: sourceURL, encoding: .utf8)
     let whitespaceNormalizedSource = source.split(whereSeparator: \.isWhitespace).joined(separator: " ")
 
-    XCTAssertTrue(source.contains("Self.prepareManagedChildEnvironment("))
+    XCTAssertTrue(source.contains("Self.removeInheritedBYOKEnvironment(from: &env)"))
     XCTAssertFalse(source.contains("usableBYOKEnvironment"))
     XCTAssertTrue(
       whitespaceNormalizedSource.contains(
@@ -1012,63 +920,6 @@ final class AgentRuntimeProcessTests: XCTestCase {
     XCTAssertTrue(source.contains("forceRefresh: forceRefreshToken"))
     XCTAssertTrue(source.contains("expectedUserId: authorizationSnapshot.ownerID"))
     XCTAssertFalse(source.contains("pi-mono BYOK active"))
-  }
-
-  func testOpenClawAdapterCommandUsesSiblingNodeWhenAvailable() throws {
-    let tempDir = FileManager.default.temporaryDirectory
-      .appendingPathComponent("openclaw-command-\(UUID().uuidString)", isDirectory: true)
-    try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-    defer { try? FileManager.default.removeItem(at: tempDir) }
-
-    let nodePath = tempDir.appendingPathComponent("node").path
-    let openClawPath = tempDir.appendingPathComponent("openclaw").path
-    FileManager.default.createFile(atPath: nodePath, contents: Data("#!/bin/sh\n".utf8))
-    FileManager.default.createFile(atPath: openClawPath, contents: Data("#!/usr/bin/env node\n".utf8))
-    try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: nodePath)
-    try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: openClawPath)
-
-    let command = AgentRuntimeProcess.openClawAdapterCommand(openClawPath: openClawPath)
-
-    XCTAssertEqual(command, "'\(nodePath)' '\(openClawPath)' acp")
-  }
-
-  func testOpenClawAdapterCommandFallsBackToLauncherWithoutSiblingNode() throws {
-    let tempDir = FileManager.default.temporaryDirectory
-      .appendingPathComponent("openclaw-command-\(UUID().uuidString)", isDirectory: true)
-    try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-    defer { try? FileManager.default.removeItem(at: tempDir) }
-
-    let openClawPath = tempDir.appendingPathComponent("openclaw").path
-    FileManager.default.createFile(atPath: openClawPath, contents: Data("#!/usr/bin/env node\n".utf8))
-    try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: openClawPath)
-
-    let command = AgentRuntimeProcess.openClawAdapterCommand(openClawPath: openClawPath)
-
-    XCTAssertEqual(command, "'\(openClawPath)' acp")
-  }
-
-  func testOpenClawDiscoveryFindsXDGFnmInstall() throws {
-    let home = FileManager.default.temporaryDirectory
-      .appendingPathComponent("openclaw-fnm-home-\(UUID().uuidString)", isDirectory: true)
-    defer { try? FileManager.default.removeItem(at: home) }
-
-    let bin =
-      home
-      .appendingPathComponent(".local/share/fnm/node-versions/v24.12.0/installation/bin", isDirectory: true)
-    try FileManager.default.createDirectory(at: bin, withIntermediateDirectories: true)
-    let openClaw = bin.appendingPathComponent("openclaw")
-    FileManager.default.createFile(atPath: openClaw.path, contents: Data("#!/bin/sh\n".utf8))
-    try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: openClaw.path)
-
-    let directories = AgentRuntimeProcess.localAdapterSearchDirectories(home: home.path)
-    let discovered = AgentRuntimeProcess.firstExecutable(named: "openclaw", in: directories)
-
-    XCTAssertEqual(discovered, openClaw.path)
-    XCTAssertLessThan(
-      try XCTUnwrap(directories.firstIndex(of: openClaw.deletingLastPathComponent().path)),
-      try XCTUnwrap(directories.firstIndex(of: "/opt/homebrew/bin")),
-      "A home-scoped FNM installation must take precedence over machine-wide Homebrew."
-    )
   }
 
   func testStdoutReaderIsEventDrivenInsteadOfDetachedAvailableDataLoop() throws {

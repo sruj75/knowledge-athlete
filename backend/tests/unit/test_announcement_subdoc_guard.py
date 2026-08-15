@@ -25,13 +25,13 @@ def test_valid_targeting_and_display_are_kept():
     ann = Announcement.from_dict(
         {
             "id": "a3",
-            "targeting": {"trigger": TriggerType.VERSION_UPGRADE.value, "device_models": ["Omi"]},
+            "targeting": {"trigger": TriggerType.VERSION_UPGRADE.value, "platforms": ["macos"]},
             "display": {"priority": 3, "dismissible": False},
         }
     )
     assert ann.targeting is not None
     assert ann.targeting.trigger == TriggerType.VERSION_UPGRADE
-    assert ann.targeting.device_models == ["Omi"]
+    assert ann.targeting.platforms == ["macos"]
     assert ann.display is not None
     assert ann.display.priority == 3
     assert ann.display.dismissible is False

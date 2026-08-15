@@ -24,20 +24,13 @@ from readiness_gate_common import (
 from utils.memory.default_read_rollout import DEFAULT_READ_ROLLOUT_SCHEMA_VERSION
 
 ROLLLOUT_READINESS_STATUS_NOT_RUN = "NOT_RUN"
-CANONICAL_CONSUMERS = ["mcp", "developer_api", "omi_chat"]
+CANONICAL_CONSUMERS = ["omi_chat"]
 CANONICAL_REQUIRED_FIELDS = ["uid", "schema_version", "grants"]
 CANONICAL_GRANT_PATHS = [
-    "grants.mcp.default_memory",
-    "grants.developer_api.default_memory",
     "grants.omi_chat.default_memory",
-    "grants.mcp.archive",
-    "grants.developer_api.archive",
     "grants.omi_chat.archive",
 ]
 REJECTED_LEGACY_ALIAS_FIELDS = [
-    "mcp_default_memory_grant",
-    "developer_default_memory_grant",
-    "developer_api_default_memory_grant",
     "chat_default_memory_grant",
     "omi_chat_default_memory_grant",
 ]
@@ -72,8 +65,6 @@ def _base_schema_v1_doc(uid: str = "memory-schema-readiness-user") -> Dict[str, 
             MemoryRolloutStageGate.read.value: PASSED,
         },
         "grants": {
-            "mcp": {"default_memory": True},
-            "developer_api": {"default_memory": True},
             "omi_chat": {"default_memory": True, "archive": True},
         },
         "vector_projection_commit_id": "projection-commit-1",
@@ -101,12 +92,6 @@ def _rejected_legacy_shapes() -> list[Dict[str, Any]]:
     missing_schema = _base_schema_v1_doc(uid)
     missing_schema.pop("schema_version")
     mismatched_uid = _base_schema_v1_doc("other-user")
-    top_level_mcp_alias_only = _base_schema_v1_doc(uid)
-    top_level_mcp_alias_only["grants"] = {"mcp": {}}
-    top_level_mcp_alias_only["mcp_default_memory_grant"] = True
-    top_level_developer_alias_only = _base_schema_v1_doc(uid)
-    top_level_developer_alias_only["grants"] = {"developer_api": {}}
-    top_level_developer_alias_only["developer_default_memory_grant"] = True
     top_level_chat_alias_only = _base_schema_v1_doc(uid)
     top_level_chat_alias_only["grants"] = {"omi_chat": {}}
     top_level_chat_alias_only["chat_default_memory_grant"] = True
@@ -116,30 +101,16 @@ def _rejected_legacy_shapes() -> list[Dict[str, Any]]:
         {
             "name": "missing_schema_version",
             "uid": uid,
-            "consumer": "mcp",
+            "consumer": "omi_chat",
             "document": missing_schema,
             "reason": "unsupported_rollout_schema",
         },
         {
             "name": "mismatched_uid",
             "uid": uid,
-            "consumer": "mcp",
+            "consumer": "omi_chat",
             "document": mismatched_uid,
             "reason": "uid_mismatch",
-        },
-        {
-            "name": "top_level_mcp_default_memory_grant_alias_only",
-            "uid": uid,
-            "consumer": "mcp",
-            "document": top_level_mcp_alias_only,
-            "reason": "missing_mcp_default_memory_grant",
-        },
-        {
-            "name": "top_level_developer_default_memory_grant_alias_only",
-            "uid": uid,
-            "consumer": "developer_api",
-            "document": top_level_developer_alias_only,
-            "reason": "missing_developer_default_memory_grant",
         },
         {
             "name": "top_level_chat_default_memory_grant_alias_only",
@@ -195,7 +166,7 @@ def build_readiness_artifact(config: RolloutSchemaReadinessConfig) -> Dict[str, 
             "compatibility_notes": [
                 "uid must exactly match the path/authenticated uid; missing uid fails closed with uid_mismatch.",
                 "schema_version must equal DEFAULT_READ_ROLLOUT_SCHEMA_VERSION / schema_version=1.",
-                "default grants are recognized only at grants.<consumer>.default_memory for mcp, developer_api, and omi_chat.",
+                "default grants are recognized only at grants.omi_chat.default_memory.",
                 "Archive capability is optional and recognized only at grants.<consumer>.archive for explicit Archive reads; it is never default-visible.",
             ],
         },

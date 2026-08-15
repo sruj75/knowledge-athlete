@@ -4,7 +4,6 @@ import SwiftUI
 enum HomeStageMode: Equatable {
   case hub
   case chat
-  case connect
 
   /// Whether the user-facing collapse catchers (click-outside + Esc) mount.
   /// Only a panel that can collapse to a *different* resting surface gets a
@@ -19,7 +18,6 @@ enum HomeStageMode: Equatable {
     switch self {
     case .hub: return hub
     case .chat: return 0
-    case .connect: return OmiSpacing.lg
     }
   }
 
@@ -27,7 +25,6 @@ enum HomeStageMode: Equatable {
     switch self {
     case .hub: return "hub"
     case .chat: return "chat"
-    case .connect: return "connect"
     }
   }
 }

@@ -57,8 +57,8 @@ final class HomeAskFocusPolicyTests: XCTestCase {
     // openHomeChat(focusInput: true) captures the generation it scheduled against.
     let scheduledToken = policy.currentToken()
 
-    // Before the yielded focus resumes, the user collapses (Esc / click-outside
-    // / connect ×) or the automation bridge closes — every one of these
+    // Before the yielded focus resumes, the user collapses (Esc / click-outside)
+    // or the automation bridge closes — every one of these
     // invalidates outstanding deferred focus.
     policy.invalidate()
 

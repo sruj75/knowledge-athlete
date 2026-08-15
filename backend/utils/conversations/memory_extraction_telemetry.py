@@ -4,10 +4,10 @@ Attempts the ``Conversation Memories Extracted`` PostHog event at most once afte
 a durable successful persistence result on the server-side transcript-memory path
 (the path that previously wrote memories to the database but fired no analytics
 event). Bounded dimensions only: a closed memory-count bucket and closed
-``source``/``path`` enums. It never carries the conversation id, memory text,
+``path`` enum. It never carries the conversation id, memory text,
 transcript content, prompts, provider payloads, exception strings, or user
 identifiers in the event properties — the analytics identity is the ``uid``,
-passed as the PostHog ``distinct_id`` (mirrors ``utils/integration_telemetry``).
+passed as the PostHog ``distinct_id``.
 
 Emission contract (see ``process_conversation.extract_memories``):
 
@@ -37,17 +37,13 @@ from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
 from database.conversations import try_claim_conversation_memory_analytics
-from models.conversation import ConversationSource
 from utils.observability.fallback import record_fallback
 
 logger = logging.getLogger(__name__)
 
 CONVERSATION_MEMORIES_EXTRACTED = "Conversation Memories Extracted"
 
-# Closed enums — source-faithful to the extraction paths in process_conversation.
 SOURCE_TRANSCRIPTION = "transcription"
-SOURCE_EXTERNAL_INTEGRATION = "external_integration"
-_VALID_SOURCES = frozenset({SOURCE_TRANSCRIPTION, SOURCE_EXTERNAL_INTEGRATION})
 
 PATH_CANONICAL = "canonical"
 PATH_LEGACY = "legacy"
@@ -68,17 +64,7 @@ class ConversationMemoryExtractionResult:
     """
 
     count: int
-    source: str
     path: str
-
-
-def source_for_conversation(conversation: Any) -> str:
-    """Closed ``source`` dimension for an extraction, derived from the
-    conversation's source. External-integration text extraction is a distinct
-    input from transcript-segment extraction."""
-    if getattr(conversation, "source", None) == ConversationSource.external_integration:
-        return SOURCE_EXTERNAL_INTEGRATION
-    return SOURCE_TRANSCRIPTION
 
 
 def emit_conversation_memories_extracted(
@@ -109,11 +95,10 @@ def emit_conversation_memories_extracted(
         return
     if not acquired:
         return
-    source = result.source if result.source in _VALID_SOURCES else SOURCE_TRANSCRIPTION
     path = result.path if result.path in _VALID_PATHS else PATH_LEGACY
     properties: Dict[str, Any] = {
         "memory_count_bucket": _bucket_memory_count(result.count),
-        "source": source,
+        "source": SOURCE_TRANSCRIPTION,
         "path": path,
     }
     try:
@@ -156,7 +141,7 @@ def _bucket_memory_count(count: int) -> str:
 
 def _get_posthog_client() -> Optional[Any]:
     """Lazy PostHog client. Disabled (and remembered) when no API key is set so
-    the extraction hot path skips cheaply. Mirrors integration_telemetry."""
+    the extraction hot path skips cheaply."""
     global _posthog_client, _posthog_disabled
     if _posthog_disabled:
         return None

@@ -1,12 +1,13 @@
 version: 2
 name: home-stage
 tier: 2
-description: Redesigned Home stage transitions (hub/chat/connect) via automation bridge
+description: Redesigned Home stage transitions (hub/chat) via automation bridge
 app: non-prod
 covers:
   - desktop/macos/Desktop/Sources/MainWindow/Components/ChatMessagesView.swift
   - desktop/macos/Desktop/Sources/MainWindow/Pages/DashboardPage.swift
   - desktop/macos/Desktop/Sources/MainWindow/Pages/HomeStagePresentation.swift
+  - desktop/macos/Desktop/Sources/MainWindow/Pages/HomeStatusStore.swift
   - desktop/macos/Desktop/Sources/MainWindow/Dashboard/HomeSuggestionsStore.swift
   - desktop/macos/Desktop/Sources/MainWindow/Dashboard/HomeKnowsComposer.swift
   - desktop/macos/Desktop/Sources/MainWindow/MainChatNavigationRequest.swift
@@ -57,20 +58,13 @@ steps:
       state.homeMode: chat
 
   - id: S5
-    name: Toggle connect tray
-    bridge.action:
-      name: home_connect_toggle
-    wait:
-      state.homeMode: connect
-
-  - id: S6
     name: Collapse back to loaded-history chat
     bridge.action:
       name: home_close_panel
     wait:
       state.homeMode: chat
 
-  - id: S7
+  - id: S6
     name: Logs clean
     log.expect:
       absent:

@@ -101,27 +101,6 @@ class TestRedisFakePaths:
         # Should return 200 with empty list or existing conversations
         assert resp.status_code == 200, f"List should work: {resp.text}"
 
-
-class TestSTTFailureHandling:
-    """Test STT failure/timeout scenarios."""
-
-    @pytest.mark.skip(
-        reason="STT WebSocket fake not yet implemented — " "requires async WS handler simulating Deepgram protocol"
-    )
-    def test_stt_timeout_handled_gracefully(self, client, auth_headers):
-        """
-        When Deepgram STT times out, the backend should handle the error
-        without crashing the connection.
-        """
-        pass
-
-    @pytest.mark.skip(reason="STT WebSocket fake not yet implemented")
-    def test_stt_error_returns_useful_message(self, client, auth_headers):
-        """STT errors return a meaningful error to the client."""
-        pass
-
-
-class TestInvalidInputHandling:
     """Verify the API rejects malformed input gracefully."""
 
     def test_missing_auth_returns_401(self, client):

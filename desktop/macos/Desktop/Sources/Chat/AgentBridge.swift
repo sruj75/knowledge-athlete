@@ -37,38 +37,6 @@ struct AgentExecutionProfile: Equatable, Sendable {
   }
 }
 
-enum AgentExecutionProfileLifecycle {
-  static let defaultPreferenceAppliesTo = "new_sessions"
-  static let defaultPreferenceChangeRequiresDaemonRestart = false
-}
-
-struct AgentDefaultExecutionProfile: Equatable, Sendable {
-  let preferenceGeneration: Int
-  let adapterId: String
-  let credentialScope: AgentExecutionProfile.CredentialScope
-  let modelProfile: String?
-  let workingDirectory: String
-  let appliesTo: String
-
-  init?(dictionary: [String: Any]) {
-    guard
-      let preferenceGeneration = dictionary["preferenceGeneration"] as? Int,
-      let adapterId = dictionary["adapterId"] as? String,
-      let credentialScopeValue = dictionary["credentialScope"] as? String,
-      let credentialScope = AgentExecutionProfile.CredentialScope(rawValue: credentialScopeValue),
-      let workingDirectory = dictionary["workingDirectory"] as? String,
-      let appliesTo = dictionary["appliesTo"] as? String,
-      appliesTo == AgentExecutionProfileLifecycle.defaultPreferenceAppliesTo
-    else { return nil }
-    self.preferenceGeneration = preferenceGeneration
-    self.adapterId = adapterId
-    self.credentialScope = credentialScope
-    self.modelProfile = dictionary["modelProfile"] as? String
-    self.workingDirectory = workingDirectory
-    self.appliesTo = appliesTo
-  }
-}
-
 struct AgentSurfaceSession: Equatable, Sendable {
   let created: Bool
   let conversationId: String
@@ -258,41 +226,6 @@ enum LegacyMainChatSessionAliasMigration {
     } catch {
       return .retained(reason: "defaults_commit_failed")
     }
-  }
-}
-
-struct AgentSessionCreationProfile: Equatable, Sendable {
-  let adapterId: String
-  let modelProfile: String?
-  let workingDirectory: String
-
-  var dictionary: [String: Any] {
-    [
-      "adapterId": adapterId,
-      "modelProfile": modelProfile ?? NSNull(),
-      "workingDirectory": workingDirectory,
-    ]
-  }
-}
-
-struct AgentSessionProfileMigration: Equatable, Sendable {
-  let sessionId: String
-  let previousProfileGeneration: Int
-  let profile: AgentExecutionProfile
-  let staleBindingIds: [String]
-
-  init?(dictionary: [String: Any]) {
-    guard
-      let sessionId = dictionary["sessionId"] as? String,
-      let previousProfileGeneration = dictionary["previousProfileGeneration"] as? Int,
-      let profileDictionary = dictionary["profile"] as? [String: Any],
-      let profile = AgentExecutionProfile(dictionary: profileDictionary),
-      let staleBindingIds = dictionary["staleBindingIds"] as? [String]
-    else { return nil }
-    self.sessionId = sessionId
-    self.previousProfileGeneration = previousProfileGeneration
-    self.profile = profile
-    self.staleBindingIds = staleBindingIds
   }
 }
 
@@ -1149,35 +1082,9 @@ actor AgentBridge {
     stopTask = nil
   }
 
-  func configureDefaultExecutionProfile(
-    adapterId: String,
-    modelProfile: String?,
-    workingDirectory: String,
-    expectedPreferenceGeneration: Int? = nil
-  ) async throws -> AgentDefaultExecutionProfile {
-    let authorization = try captureAuthorization()
-    try await start(authorizationSnapshot: authorization)
-    if adapterId == AgentAdapterId.piMono.rawValue {
-      ensureTokenRefreshTask(authorizationSnapshot: authorization)
-      _ = try? await refreshAuthToken(authorizationSnapshot: authorization)
-    }
-    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorization) else {
-      throw BridgeError.authMissing
-    }
-    return try await runtime.configureDefaultExecutionProfile(
-      clientId: clientId,
-      adapterId: adapterId,
-      modelProfile: modelProfile,
-      workingDirectory: workingDirectory,
-      expectedPreferenceGeneration: expectedPreferenceGeneration,
-      authorizationSnapshot: authorization
-    )
-  }
-
   func resolveSurfaceSession(
     _ surface: AgentSurfaceReference,
     title: String? = nil,
-    creationProfile: AgentSessionCreationProfile? = nil,
     authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot? = nil
   ) async throws -> AgentSurfaceSession {
     let authorization = try resolveAuthorization(authorizationSnapshot)
@@ -1189,30 +1096,6 @@ actor AgentBridge {
       clientId: clientId,
       surface: surface,
       title: title,
-      creationProfile: creationProfile,
-      authorizationSnapshot: authorization
-    )
-  }
-
-  func migrateSessionExecutionProfile(
-    sessionId: String,
-    expectedProfileGeneration: Int,
-    adapterId: String,
-    modelProfile: String?,
-    workingDirectory: String
-  ) async throws -> AgentSessionProfileMigration {
-    let authorization = try captureAuthorization()
-    try await start(authorizationSnapshot: authorization)
-    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorization) else {
-      throw BridgeError.authMissing
-    }
-    return try await runtime.migrateSessionExecutionProfile(
-      clientId: clientId,
-      sessionId: sessionId,
-      expectedProfileGeneration: expectedProfileGeneration,
-      adapterId: adapterId,
-      modelProfile: modelProfile,
-      workingDirectory: workingDirectory,
       authorizationSnapshot: authorization
     )
   }
@@ -1604,7 +1487,6 @@ actor AgentBridge {
       clientId: clientId,
       surface: surface,
       title: nil,
-      creationProfile: nil,
       authorizationSnapshot: authorization)
     guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorization) else {
       throw BridgeError.authMissing
@@ -1960,26 +1842,6 @@ actor AgentBridge {
           expectedOwnerId: authorizationSnapshot.ownerID,
           authorizationSnapshot: authorizationSnapshot)
       })
-  }
-
-  func testPlaywrightConnection() async throws -> Bool {
-    let result = try await query(
-      prompt:
-        "Call browser_snapshot to verify the extension is connected. Only call that one tool, then report success or failure.",
-      surface: .service("playwright_connection_test"),
-      mode: "ask",
-      onTextDelta: { _ in },
-      onToolActivity: { name, status, _, _ in
-        log("AgentBridge: test tool activity: \(name) \(status)")
-      },
-      onThinkingDelta: { _ in },
-      onToolResultDisplay: { _, name, output in
-        log("AgentBridge: test tool result: \(name) -> \(output.prefix(200))")
-      }
-    )
-    let connected = try result.requireSucceeded().text.contains("CONNECTED")
-    log("AgentBridge: Playwright test response: \(result.text.prefix(300)), connected=\(connected)")
-    return connected
   }
 
   private func currentQuota(

@@ -6,16 +6,11 @@ import XCTest
 @testable import Omi_Computer
 
 @MainActor final class AgentPillLifecycleTests: XCTestCase {
-  @MainActor
-  func testHydratedPillUsesKernelProviderIdentityForRendering() {
-    let pill = AgentPill(query: "fixture", model: "fixture", ownerID: "owner")
-    XCTAssertNil(pill.providerIdentity)
-
-    pill.applyCanonicalProviderIdentity("openclaw")
-    XCTAssertEqual(pill.providerIdentity, .openclaw)
-
-    pill.applyCanonicalProviderIdentity("unknown")
-    XCTAssertEqual(pill.providerIdentity, .openclaw)
+  func testPillTitleIsLocalDeterministicThreeWordUppercase() {
+    XCTAssertEqual(
+      AgentPill(query: "open google and find ramen", ownerID: "owner").title,
+      "OPEN GOOGLE AND")
+    XCTAssertEqual(AgentPill(query: "   ", ownerID: "owner").title, "AGENT")
   }
 
   @MainActor
@@ -27,7 +22,7 @@ import XCTest
     XCTAssertFalse(state.isVoiceResponseGlowActive)
 
     let turnID = coordinator.begin(intent: .hold)
-    coordinator.publish(.selectRoute(turnID: turnID, route: .deepgramBatch))
+    coordinator.publish(.selectRoute(turnID: turnID, route: .managedBatch))
     coordinator.publish(.finalize(turnID: turnID))
     coordinator.publish(.transcriptionFinal(turnID: turnID, text: "fixture"))
     XCTAssertTrue(state.isVoiceResponseWaiting)
@@ -567,19 +562,7 @@ import XCTest
     )
     XCTAssertTrue(source.contains("isSelected: pill.id == activePillID"))
     XCTAssertTrue(source.contains("progress: rowRevealProgress"))
-    // The provider logo must be drawn exactly once per row. The row itself must
-    // NOT draw its own `AgentProviderLogoMark`, or it would double up under the
-    // separate static header mark.
-    XCTAssertFalse(source.contains("AgentProviderLogoMark(provider: provider, statusColor: statusColor, size: 16)"))
-    XCTAssertTrue(
-      source.contains("      Color.clear\n        .frame(width: NotchAgentStackMetrics.listOrbSlotWidth, height: 18)")
-    )
-    XCTAssertEqual(
-      source.components(separatedBy: "AgentProviderLogoMark(provider: provider").count - 1,
-      1,
-      "Notch row path must construct the provider logo mark exactly once (only in notchAgentIdentityMark)"
-    )
-    XCTAssertTrue(source.contains("notchAgentIdentityMark(\n            provider: pill.providerIdentity,"))
+    XCTAssertFalse(source.contains("AgentProviderLogoMark"))
     XCTAssertTrue(
       source.contains(
         "let rowWidth = max(\n        0,\n        min(\n          width - NotchAgentStackMetrics.listHorizontalInset * 2,\n          FloatingControlBarWindow.notchExpandedWidth - NotchAgentStackMetrics.listHorizontalInset * 2))"
@@ -1497,33 +1480,6 @@ import XCTest
     XCTAssertTrue(source.contains("switch projection.status"))
   }
 
-  func testDirectedProviderPillsDoNotForwardClaudeModelOverrides() throws {
-    let source = try agentPillSource()
-    let logoMarkSource = try agentProviderLogoMarkSource()
-    let viewSource = try floatingControlBarViewSource()
-
-    XCTAssertTrue(source.contains("let modelForSpawn =\n      bridgeHarnessOverride == nil"))
-    XCTAssertTrue(source.contains("model: modelForSpawn"))
-    XCTAssertTrue(source.contains("model: pill.bridgeHarnessOverride == nil ? pill.model : nil"))
-    XCTAssertTrue(source.contains("harnessMode: bridgeHarnessOverride"))
-    XCTAssertTrue(viewSource.contains("AgentProviderLogoMark("))
-    XCTAssertTrue(viewSource.contains("provider: pill.providerIdentity"))
-    XCTAssertTrue(logoMarkSource.contains("private static let hermesLogo = load(\"hermes_logo_flat\")"))
-    XCTAssertTrue(logoMarkSource.contains("private static let openClawLogo = load(\"openclaw_logo_flat\")"))
-    XCTAssertTrue(logoMarkSource.contains("return hermesLogo"))
-    XCTAssertTrue(logoMarkSource.contains("return openClawLogo"))
-    XCTAssertTrue(logoMarkSource.contains(".renderingMode(.template)"))
-    XCTAssertTrue(logoMarkSource.contains(".foregroundStyle(statusColor)"))
-    XCTAssertFalse(logoMarkSource.contains("return load(\"hermes_logo\")"))
-    XCTAssertFalse(logoMarkSource.contains("return load(\"openclaw_logo\")"))
-    // Provider agents without a dedicated logo fall back to a flat, status-tinted
-    // robot mark — not the Omi round dot. Omi-native agents (nil override) keep
-    // the dot via the `provider != nil` guard.
-    XCTAssertTrue(logoMarkSource.contains("} else if provider != nil {"))
-    XCTAssertTrue(logoMarkSource.contains("Text(\"🤖\")"))
-    XCTAssertTrue(logoMarkSource.contains("        statusColor\n          .mask("))
-  }
-
   func testCanonicalPillLifecycleQueuesFollowUpsAndCancelsActiveDismissals() throws {
     let source = try agentPillSource()
 
@@ -1554,38 +1510,6 @@ import XCTest
     XCTAssertTrue(source.contains("pendingFollowUpsByPill[pillID] = nil"))
     XCTAssertTrue(source.contains("DesktopCoordinatorService.shared.cancelAgentRun(runId: runId)"))
     XCTAssertTrue(source.contains("AgentRuntimeStatusStore.shared.recordLocalFailure("))
-  }
-
-  func testProviderMarkRoutingIsCentralized() throws {
-    let routingSource = try agentRuntimeRoutingSource()
-    XCTAssertTrue(routingSource.contains("var rendersProviderMark: Bool { self != nil }"))
-
-    let viewSource = try floatingControlBarViewSource()
-    XCTAssertTrue(viewSource.contains("pill.providerIdentity.rendersProviderMark"))
-    XCTAssertTrue(viewSource.contains("if provider.rendersProviderMark {"))
-  }
-
-  func testDirectedProviderLogoAssetsUseSingleTemplateMasks() throws {
-    let hermes = try logoMaskStats("hermes_logo_flat")
-    XCTAssertEqual(hermes.width, 256)
-    XCTAssertEqual(hermes.height, 256)
-    XCTAssertEqual(hermes.transparentCorners, 4)
-    XCTAssertGreaterThan(
-      hermes.boundsWidth, 180, "Hermes must keep the winged caduceus, not a narrow replacement glyph.")
-    XCTAssertGreaterThan(hermes.boundsHeight, 170)
-    XCTAssertEqual(hermes.coloredPixels, 0, "Hermes row mark must be a template mask so status color owns identity.")
-
-    let openClaw = try logoMaskStats("openclaw_logo_flat")
-    XCTAssertEqual(openClaw.width, 180)
-    XCTAssertEqual(openClaw.height, 180)
-    XCTAssertEqual(openClaw.transparentCorners, 4)
-    XCTAssertGreaterThan(
-      openClaw.boundsWidth, 150, "OpenClaw must keep the round mascot silhouette, not an arrow glyph.")
-    XCTAssertGreaterThan(openClaw.boundsHeight, 130)
-    XCTAssertGreaterThan(
-      openClaw.transparentPixelsInsideBounds, 500, "Eye holes must remain transparent in the provider mark.")
-    XCTAssertEqual(
-      openClaw.coloredPixels, 0, "OpenClaw row mark must be a template mask so status color owns identity.")
   }
 
   func testFloatingAgentToolCallsUseCompactOneLinePresentation() throws {
@@ -1925,106 +1849,6 @@ import XCTest
     return try String(contentsOf: sourceURL, encoding: .utf8)
   }
 
-  private func agentProviderLogoMarkSource() throws -> String {
-    let sourceURL = URL(fileURLWithPath: #filePath)
-      .deletingLastPathComponent()
-      .deletingLastPathComponent()
-      .appendingPathComponent("Sources/FloatingControlBar/AgentProviderLogoMark.swift")
-    return try String(contentsOf: sourceURL, encoding: .utf8)
-  }
-
-  private func agentRuntimeRoutingSource() throws -> String {
-    let sourceURL = URL(fileURLWithPath: #filePath)
-      .deletingLastPathComponent()
-      .deletingLastPathComponent()
-      .appendingPathComponent("Sources/Providers/AgentRuntimeRouting.swift")
-    return try String(contentsOf: sourceURL, encoding: .utf8)
-  }
-
-  private struct LogoMaskStats {
-    let width: Int
-    let height: Int
-    let boundsWidth: Int
-    let boundsHeight: Int
-    let nonTransparentPixels: Int
-    let coloredPixels: Int
-    let transparentPixelsInsideBounds: Int
-    let transparentCorners: Int
-  }
-
-  private func logoMaskStats(_ name: String) throws -> LogoMaskStats {
-    let url = URL(fileURLWithPath: #filePath)
-      .deletingLastPathComponent()
-      .deletingLastPathComponent()
-      .appendingPathComponent("Sources/Resources/\(name).png")
-    let data = try Data(contentsOf: url)
-    guard let rep = NSBitmapImageRep(data: data) else {
-      throw NSError(
-        domain: "AgentPillLifecycleTests",
-        code: 1,
-        userInfo: [NSLocalizedDescriptionKey: "Could not load \(name).png"])
-    }
-
-    var minX = rep.pixelsWide
-    var minY = rep.pixelsHigh
-    var maxX = -1
-    var maxY = -1
-    var nonTransparentPixels = 0
-    var coloredPixels = 0
-
-    for y in 0..<rep.pixelsHigh {
-      for x in 0..<rep.pixelsWide {
-        let color = rep.colorAt(x: x, y: y)?.usingColorSpace(.deviceRGB)
-        let alpha = color?.alphaComponent ?? 0
-        if alpha > 0.01 {
-          nonTransparentPixels += 1
-          minX = min(minX, x)
-          minY = min(minY, y)
-          maxX = max(maxX, x)
-          maxY = max(maxY, y)
-          if let color,
-            max(color.redComponent, color.greenComponent, color.blueComponent)
-              - min(color.redComponent, color.greenComponent, color.blueComponent) > 0.08
-          {
-            coloredPixels += 1
-          }
-        }
-      }
-    }
-
-    var transparentPixelsInsideBounds = 0
-    if maxX >= minX, maxY >= minY {
-      for y in minY...maxY {
-        for x in minX...maxX {
-          let alpha = rep.colorAt(x: x, y: y)?.alphaComponent ?? 0
-          if alpha <= 0.01 {
-            transparentPixelsInsideBounds += 1
-          }
-        }
-      }
-    }
-
-    let cornerPoints = [
-      (0, 0),
-      (rep.pixelsWide - 1, 0),
-      (0, rep.pixelsHigh - 1),
-      (rep.pixelsWide - 1, rep.pixelsHigh - 1),
-    ]
-    let transparentCorners = cornerPoints.filter { point in
-      (rep.colorAt(x: point.0, y: point.1)?.alphaComponent ?? 0) <= 0.01
-    }.count
-
-    return LogoMaskStats(
-      width: rep.pixelsWide,
-      height: rep.pixelsHigh,
-      boundsWidth: maxX >= minX ? maxX - minX + 1 : 0,
-      boundsHeight: maxY >= minY ? maxY - minY + 1 : 0,
-      nonTransparentPixels: nonTransparentPixels,
-      coloredPixels: coloredPixels,
-      transparentPixelsInsideBounds: transparentPixelsInsideBounds,
-      transparentCorners: transparentCorners)
-  }
-
   private func resizeHandleSource() throws -> String {
     let sourceURL = URL(fileURLWithPath: #filePath)
       .deletingLastPathComponent()
@@ -2126,7 +1950,6 @@ import XCTest
     return try String(contentsOf: sourceURL, encoding: .utf8)
   }
 }
-
 private struct OmiMarkdownStreamingLayoutHarness: View {
   let table: String
   let streamed: String

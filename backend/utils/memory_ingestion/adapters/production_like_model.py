@@ -77,7 +77,6 @@ class ProductionLikeMemory(BaseModel):
     quote_anchor: str | None = None
     category: str = "system"
     tags: list[str] = Field(default_factory=list)
-    visibility: str = "private"
     headline: str | None = None
     predicate: str | None = None
     arguments: dict[str, object] = Field(default_factory=dict)
