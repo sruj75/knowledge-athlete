@@ -417,8 +417,11 @@ async def test_callback_preserves_langchain_persona_stream_contract():
 async def test_persona_stream_forwards_langchain_callbacks_and_terminates():
     """Persona chat must yield tokens and its terminal sentinel through the real stream path."""
 
+    captured_run_metadata = {}
+
     class FakeLLM:
-        async def agenerate(self, *, callbacks, **_kwargs):
+        async def agenerate(self, *, callbacks, **kwargs):
+            captured_run_metadata.update(kwargs)
             await callbacks[0].on_llm_new_token('hello')
             await callbacks[0].on_llm_end(None)
 
@@ -436,6 +439,7 @@ async def test_persona_stream_forwards_langchain_callbacks_and_terminates():
 
     assert chunks == ['data: hello', None]
     assert callback_data['answer'] == 'hello'
+    assert callback_data['langsmith_run_id'] == str(captured_run_metadata['run_id'])
 
 
 async def test_persona_callback_drain_cancels_a_silent_producer():

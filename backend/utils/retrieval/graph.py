@@ -217,7 +217,6 @@ async def execute_persona_chat_stream(
     langsmith_run_id = str(uuid.uuid4())
 
     tracer_callbacks = get_chat_tracer_callbacks(
-        run_id=langsmith_run_id,
         run_name="chat.persona.stream",
         tags=["chat", "persona", "streaming"],
         metadata={

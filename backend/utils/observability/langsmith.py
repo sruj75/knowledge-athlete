@@ -96,7 +96,6 @@ def log_langsmith_status() -> None:
 
 
 def get_chat_tracer_callbacks(
-    run_id: Optional[str] = None,
     run_name: Optional[str] = None,
     tags: Optional[List[str]] = None,
     metadata: Optional[Dict[str, Any]] = None,
@@ -108,7 +107,6 @@ def get_chat_tracer_callbacks(
     global tracing. Returns an empty list if API key is not configured.
 
     Args:
-        run_id: Optional explicit run ID for the trace (for feedback attachment)
         run_name: Optional name for the run (e.g., "chat.agentic.stream")
         tags: Optional tags for the run (e.g., ["chat", "agentic"])
         metadata: Optional metadata dict for the run
