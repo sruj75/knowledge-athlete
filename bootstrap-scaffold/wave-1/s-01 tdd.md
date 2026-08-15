@@ -4,7 +4,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `ready to start` — repository Cycles 0-4 are executable; released-client compatibility is checked at its named boundary and live-cloud Cycle 5 remains separately gated |
+| Status | `repository implementation complete; inherited failure-class residue removed` — Cycles 0-4 landed in `eb73915`; this product never shipped or owned an Agent VM user population, and any separately claimed live-cloud cleanup remains explicitly gated |
 | Wave | 1 |
 | Slice | S-01 |
 | Authorizing decisions | IR-001, the VM half of IR-002, and IR-934 |
@@ -33,7 +33,14 @@
 ### Two repository-contract gates
 
 1. **Released app-client compatibility.** The backend guide normally forbids removing a released app-client endpoint. S-01 deliberately retires the complete rejected Agent VM product and the root guide forbids an in-repo no-op compatibility shell. Remove the seven endpoints from the current route/export/generated-client surfaces. If the restored released OpenAPI contract proves a shipped client still depends on them, do not add fake-success or dead forwarding handlers and do not bypass the check: stop the merge, attach the exact compatibility diff, and obtain an explicit contract-sunset decision under the repository release policy.
-2. **Failure-class lifecycle.** The deletion map asks for exclusive failure-class residue to disappear, but the repository requires registry lifecycle transitions in separate PRs and preserves incident history. Keep `FC-agent-vm-stop-retains-disk` unchanged in the implementation PR. After code is deployed and live resources are retired, a separate lifecycle PR marks it dormant with `dormant_since`; it is never silently deleted.
+2. **Failure-class ownership.** `FC-agent-vm-stop-retains-disk` guarded an
+   upstream Agent VM product this fork deleted wholesale. This product never
+   shipped or owned an Agent VM user population, and the record's canonical
+   prevention artifact was deleted with that product. Delete the exclusive
+   registry definition instead of recreating its test, weakening validation,
+   or claiming an active/dormant incident contract for a product that does not
+   exist here. Git history and `FORK.md` retain the upstream provenance; the
+   generic failure-class machinery remains unchanged for surviving products.
 
 ## How this plan is executed
 
@@ -314,7 +321,10 @@ This is an operator cycle after the repository change has landed and the produce
 6. Delete Firestore `agentVm` fields from the captured exact document set; do not broad-delete user documents or unrelated fields.
 7. Verify zero fleet, zero proxy/reaper workload, zero VM artifacts/state, zero provisioning traffic, no unexpected billing, and healthy retained desktop behavior.
 
-**After live GREEN:** open the separate failure-class lifecycle PR that marks `FC-agent-vm-stop-retains-disk` dormant with `dormant_since` and cites the completed decommission evidence. Do not delete the historical failure record.
+No Agent-VM failure-class transition follows Cycle 5: the inherited definition
+is not part of this product's incident registry. Any separately authorized live
+inventory/decommission evidence is recorded with that operation, not by
+restoring a deleted product guard.
 
 ## Review and simplification — only after GREEN
 
@@ -408,7 +418,6 @@ rg -n -i \
 Allowed final categories are only:
 
 - this S-01 plan, requirements/deletion research, or an accurate historical record;
-- the still-active failure-class record pending its separate post-decommission dormant transition;
 - an exact S-05/S-11/S-15/later-owner handoff named in this plan;
 - a similarly named retained local-agent or `/v1/agents/hume/callback` surface with evidence;
 - live-decommission evidence retained outside product source according to operator policy.
@@ -445,4 +454,4 @@ Before a local commit is handed off:
 - [ ] No compatibility shell, fake success, dormant provider switch, new orphaned deferral, or unowned screen/cloud-data deletion landed.
 - [ ] Released-client compatibility is either green or explicitly stopped for a contract-sunset decision; it is never bypassed.
 - [ ] Live resources remain untouched until explicit destructive approval; after approval, fleet/proxy/reaper/storage/IAM/state are removed in the safe order and zero-state evidence is captured.
-- [ ] The Agent-VM failure class is marked dormant only in its separate post-decommission lifecycle PR.
+- [ ] The Agent-VM-exclusive failure-class definition is deleted while generic failure-class validation remains green.

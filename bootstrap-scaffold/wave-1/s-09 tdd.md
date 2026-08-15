@@ -407,9 +407,12 @@ Broader checks attempted but not claimed GREEN:
   `tests/unit/test_app_client_swift_generator.py`; focused S-09 backend tests
   remained green, and the generated-client surface is shared with later deletion
   owners rather than changed to force this slice through;
-- `scripts/pr-preflight --suggest` failed before S-09 checks because the fixed
-  point's `FC-agent-vm-stop-retains-disk` registry entry names the already-deleted
-  S-07 artifact `backend/tests/unit/test_agent_vm_reaped_record_recovery.py`;
+- `scripts/pr-preflight --suggest` originally failed before S-09 checks because
+  the fixed point's `FC-agent-vm-stop-retains-disk` registry entry named the
+  already-deleted S-01 artifact
+  `backend/tests/unit/test_agent_vm_reaped_record_recovery.py`; Wave 1 closeout
+  deletes that product-exclusive registry definition without weakening the
+  generic validator;
 - `make preflight` then passed its first seven selected checks (including 74
   dev-harness tests) and failed the unrelated setup fixture because macOS
   canonicalized `/private/var/...` to `/var/...`. These inherited repository and

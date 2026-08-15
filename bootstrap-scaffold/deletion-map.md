@@ -385,8 +385,9 @@ contract.
 ### S-01 — Remove cloud Agent VM and local-database mirroring
 
 **Type:** complete vertical deletion<br>
-**Status:** ready to start; repository Cycles 0-4 are executable and live-cloud
-decommission remains separately gated<br>
+**Status:** repository Cycles 0-4 landed in `eb73915`; Wave 1 closeout removes
+the inherited Agent-VM failure-class definition, while any separately claimed
+live-cloud decommission remains explicitly gated<br>
 **Authorizing decisions:** IR-001, the VM half of IR-002, and IR-934<br>
 **Scope-partition decisions:** IR-003 belongs to S-11 and IR-011 belongs to
 S-15; S-01 removes only their VM-mirroring overlap
@@ -881,7 +882,8 @@ through IR-606, IR-800 through IR-802, IR-922 through IR-924, IR-936, IR-937
 **Type:** complete multi-entry product deletion<br>
 **Implementation status:** repository deletion landed in `ff528f8`; the
 never-released product record satisfies the route-removal gate, and Wave 1
-closeout removed generated dispatch residue from retired file-scan/email tools<br>
+closeout removed generated dispatch residue from retired file-scan/email tools
+plus the hosted-MCP-exclusive failure-class record<br>
 **Depends on:** none; coordinate the private Pi tool-bridge keep boundary with S-05<br>
 **Primary decisions:** IR-015, IR-045 through IR-047, IR-050 through IR-051,
 IR-106, IR-135, IR-141 through IR-142, IR-212 through IR-213, IR-256, IR-258

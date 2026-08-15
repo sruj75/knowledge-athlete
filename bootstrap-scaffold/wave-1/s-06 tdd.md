@@ -4,7 +4,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `repository implementation complete; closeout repaired` — all product-deletion cycles landed in `ff528f8`; the fork's never-released evidence satisfies the route-removal gate, and the closeout removes generated file-scan/email dispatch that survived the product deletion |
+| Status | `repository implementation complete; closeout repaired` — all product-deletion cycles landed in `ff528f8`; the fork's never-released evidence satisfies the route-removal gate, and the closeout removes generated file-scan/email dispatch plus the hosted-MCP-exclusive failure-class record that survived the product deletion |
 | Wave | 1 |
 | Slice | S-06 |
 | Authorizing decisions | IR-015, IR-045 through IR-047, IR-050, IR-051, IR-106, IR-135, IR-141, IR-142, IR-212, IR-213, IR-256, IR-258 through IR-261, IR-310, IR-375, IR-512, IR-637, IR-816 through IR-818, IR-824, IR-938 |
@@ -44,6 +44,13 @@ OpenAPI generation, generated Swift freshness, route-policy checks, compile
 checks, and behavior tests remain strict for every retained operation. After
 this product's first release, removing a released retained operation again
 requires the normal explicit version/sunset transition.
+
+`FC-denial-rendered-as-empty-success` guarded the deleted hosted MCP read
+surface. Its canonical prevention module, behavioral test, and every scope
+hint disappeared with that rejected product, so the closeout deletes the
+exclusive registry definition instead of recreating a hosted MCP seam or
+weakening generic failure-class validation. Git history retains the upstream
+incident provenance.
 
 ## How this plan is executed
 
@@ -494,7 +501,7 @@ There may be no unexplained live S-06 UI, route, collection, OAuth grant, webhoo
 - [ ] Exact merge-base and complete caller/resource inventory recorded.
 - [ ] Each cycle showed an intended behavioral RED before its minimum GREEN.
 - [ ] Kept one-assistant, attachment, Pi/tool, local-data, permission, backend, billing, and hardware paths pass.
-- [ ] All S-06 product owners and every exclusive downstream artifact are removed.
+- [x] All S-06 product owners and every exclusive downstream artifact are removed, including stale generated file-scan/email dispatch and the hosted-MCP-only failure-class record.
 - [ ] Historical DB migrations remain and forward migration tests prove retained data survives rejected-table drops.
 - [ ] No compatibility shell, ignored field, empty destination, disabled route, or speculative replacement framework remains.
 - [ ] Focused and full Desktop/backend/repository checks pass, or exact baseline blockers are disclosed.
