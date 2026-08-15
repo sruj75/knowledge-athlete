@@ -26,21 +26,6 @@ extension APIClient {
     )
   }
 
-  /// Rate a message (thumbs up/down)
-  /// - Parameters:
-  ///   - messageId: The message ID to rate
-  ///   - rating: 1 for thumbs up, -1 for thumbs down, nil to clear rating
-  func rateMessage(messageId: String, rating: Int?) async throws {
-    struct RateRequest: Encodable {
-      let rating: Int?
-      let app_version: String?
-    }
-    let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String
-    let body = RateRequest(rating: rating, app_version: version)
-    let _: MessageStatusResponse = try await patch(
-      "v2/desktop/messages/\(messageId)/rating", body: body)
-  }
-
   /// Upload one or more files to be attached to a chat message.
   /// Mirrors the Flutter app's `uploadFilesServer` (lib/backend/http/api/messages.dart) —
   /// same `/v2/files` multipart endpoint, same response shape.
@@ -94,9 +79,4 @@ struct ChatFileResponse: Codable {
     case thumbName = "thumb_name"
     case openaiFileId = "openai_file_id"
   }
-}
-
-/// Response from rating a message
-struct MessageStatusResponse: Codable {
-  let status: String
 }

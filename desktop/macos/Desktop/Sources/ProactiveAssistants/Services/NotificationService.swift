@@ -320,8 +320,8 @@ class NotificationService: NSObject, UNUserNotificationCenterDelegate {
   /// `deliverSystemBanner` defaults to `false` because proactive AI notifications are
   /// floating-bar only — users who disabled the floating bar reported clicking the
   /// top-right system banner and getting no conversation context, which was confusing.
-  /// Functional notifications (Crisp support replies, screen-recording permission
-  /// prompts with a repair action) must pass `deliverSystemBanner: true` so they
+  /// Functional notifications (such as screen-recording permission prompts with
+  /// a repair action) must pass `deliverSystemBanner: true` so they
   /// still surface as a system banner — they either have no floating-bar equivalent
   /// or must reach the user even when the floating bar is hidden/snoozed.
   func sendNotification(
@@ -376,8 +376,8 @@ class NotificationService: NSObject, UNUserNotificationCenterDelegate {
 
     // Proactive notifications honor the master Notifications toggle. When the user
     // turns Notifications off in Settings, suppress the floating-bar popup and the
-    // native banner entirely (#6778). Functional notifications (Crisp support replies,
-    // screen-recording permission prompts, onboarding test) pass `respectFrequency: false`
+    // native banner entirely (#6778). Functional notifications (screen-recording
+    // permission prompts and onboarding tests) pass `respectFrequency: false`
     // to bypass this, matching the frequency gate below.
     if respectFrequency && !Self.areNotificationsEnabled() {
       log("NotificationService: suppressing \(assistantId) notification because notifications are disabled")
@@ -385,8 +385,8 @@ class NotificationService: NSObject, UNUserNotificationCenterDelegate {
     }
 
     // Proactive notifications honor the user's frequency setting. Functional
-    // notifications (Crisp support replies, screen-recording permission prompts,
-    // onboarding test) pass `respectFrequency: false` to bypass the gate.
+    // notifications (screen-recording permission prompts and onboarding tests)
+    // pass `respectFrequency: false` to bypass the gate.
     if respectFrequency
       && !shouldAllowProactiveNotification(
         assistantId: assistantId,

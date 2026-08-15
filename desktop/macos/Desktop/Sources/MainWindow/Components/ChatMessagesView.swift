@@ -79,7 +79,6 @@ struct ChatMessagesView<WelcomeContent: View>: View {
   let isLoadingMoreMessages: Bool
   let isLoadingInitial: Bool
   let onLoadMore: () async -> Void
-  let onRate: (String, Int?) -> Void
   var onCitationTap: ((Citation) -> Void)? = nil
   var sessionsLoadError: String? = nil
   var onRetry: (() -> Void)? = nil
@@ -544,9 +543,6 @@ struct ChatMessagesView<WelcomeContent: View>: View {
         ChatBubble(
           message: message,
           showsOmiMark: message.id == finalAssistantMessageID,
-          onRate: { rating in
-            onRate(message.id, rating)
-          },
           onCitationTap: { citation in
             onCitationTap?(citation)
           },

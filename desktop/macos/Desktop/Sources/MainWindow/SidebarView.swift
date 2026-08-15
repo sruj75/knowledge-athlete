@@ -14,7 +14,6 @@ enum SidebarNavItem: Int, CaseIterable {
   case rewind = 7
   case settings = 9
   case permissions = 10
-  case help = 12
 
   var title: String {
     switch self {
@@ -28,7 +27,6 @@ enum SidebarNavItem: Int, CaseIterable {
     case .rewind: return "Rewind"
     case .settings: return "Settings"
     case .permissions: return "Permissions"
-    case .help: return "Help from Founder"
     }
   }
 
@@ -44,7 +42,6 @@ enum SidebarNavItem: Int, CaseIterable {
     case .rewind: return "clock.arrow.circlepath"
     case .settings: return "gearshape.fill"
     case .permissions: return "exclamationmark.triangle.fill"
-    case .help: return "bubble.left.fill"
     }
   }
 
@@ -75,7 +72,6 @@ struct SidebarView: View {
   @ObservedObject private var insightStorage = InsightStorage.shared
   @ObservedObject private var focusStorage = FocusStorage.shared
   @ObservedObject private var updaterViewModel = UpdaterViewModel.shared
-  @ObservedObject private var crispManager = CrispManager.shared
 
   // Tier gating (0 = show all, 1-6 = sequential tiers)
   @AppStorage("currentTierLevel") private var currentTierLevel = 0
@@ -328,7 +324,6 @@ struct SidebarView: View {
         newTier != 0 && newTier < currentItem.requiredTier,
         selectedIndex != SidebarNavItem.settings.rawValue
           && selectedIndex != SidebarNavItem.permissions.rawValue
-          && selectedIndex != SidebarNavItem.help.rawValue
       {
         selectedIndex = SidebarNavItem.dashboard.rawValue
       }

@@ -10,13 +10,6 @@ final class StartupWarmupPolicyTests: XCTestCase {
     )
   }
 
-  func testCrispInitialPollWaitsUntilAfterDeferredWarmupStarts() {
-    XCTAssertGreaterThan(
-      StartupWarmupPolicy.crispInitialPollDelay,
-      StartupWarmupPolicy.deferredWarmupDelay
-    )
-  }
-
   func testProactiveAssistantsWaitUntilAfterDeferredWarmupStarts() {
     XCTAssertGreaterThan(
       StartupWarmupPolicy.proactiveAssistantsStartDelay,
@@ -228,7 +221,7 @@ final class StartupWarmupPolicyTests: XCTestCase {
     XCTAssertTrue(source.contains("sessionTasks.removeAll()"))
   }
 
-  func testDelayedDesktopHomeWarmupsUseSessionScopedCoordinator() throws {
+  func testDelayedDesktopHomeWarmupsUseSessionScopedCoordinatorWithoutSupportPolling() throws {
     let testsURL = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
     let sourceURL =
       testsURL
@@ -239,10 +232,15 @@ final class StartupWarmupPolicyTests: XCTestCase {
     XCTAssertTrue(source.contains("id: .conversationWarmup"))
     XCTAssertTrue(source.contains("id: .proactiveAssistantsStart"))
     XCTAssertTrue(source.contains("viewModelContainer.resetStartupState()"))
-    XCTAssertTrue(source.contains("resetSessionScopedStartupWarmups(preserveCrispReadState: true)"))
-    XCTAssertTrue(source.contains("resetSessionScopedStartupWarmups(preserveCrispReadState: false)"))
-    XCTAssertTrue(source.contains("CrispManager.shared.stop(preserveReadState: preserveCrispReadState)"))
+    XCTAssertFalse(source.contains("CrispManager"))
+    XCTAssertFalse(source.contains("crispInitialPoll"))
     XCTAssertTrue(source.contains("NSApplication.willTerminateNotification"))
+  }
+
+  func testSidebarRejectsRemovedHelpDestinationAndKeepsLocalRewind() {
+    XCTAssertFalse(SidebarNavItem.allCases.contains { $0.title == "Help from Founder" })
+    XCTAssertTrue(SidebarNavItem.allCases.contains(.rewind))
+    XCTAssertTrue(SidebarNavItem.allCases.contains(.settings))
   }
 
   @MainActor

@@ -17,7 +17,6 @@ struct AIResponseView: View {
   var onEscape: (() -> Void)?
   /// Typing lives in the main app now — the bar only offers a jump there.
   var onOpenMainApp: (() -> Void)?
-  var onRate: ((String, Int?) -> Void)?
   var onOpenAgent: ((UUID, @escaping (Bool) -> Void) -> Void)?
   var onOpenAgentRef: ((AgentTimelineRef, @escaping (Bool) -> Void) -> Void)? = nil
 
@@ -258,12 +257,7 @@ struct AIResponseView: View {
   /// messages in the same structural slot, which caused clicking Copy on an
   /// older message to read the current message's text.
   private func messageWithHoverActions(message: ChatMessage) -> some View {
-    MessageHoverOverlay(
-      message: message,
-      onRate: { [id = message.id] rating in
-        onRate?(id, rating)
-      }
-    ) {
+    MessageHoverOverlay(message: message) {
       contentBlocksView(for: message)
     }
     .id(message.id)
@@ -434,10 +428,9 @@ struct AIResponseView: View {
 
 // MARK: - Message Hover Overlay
 
-/// Overlay that shows action buttons (thumbs up/down, copy, info) on hover over an AI message
+/// Overlay that shows copy, context, and timestamp actions on hover over an AI message.
 struct MessageHoverOverlay<Content: View>: View {
   let message: ChatMessage
-  let onRate: (Int?) -> Void
   @ViewBuilder let content: () -> Content
 
   @State private var isHovered = false
@@ -445,8 +438,6 @@ struct MessageHoverOverlay<Content: View>: View {
   @State private var showCopied = false
   @State private var showInfoPopover = false
   @State private var hideWorkItem: DispatchWorkItem?
-  @State private var showRatingFeedback = false
-  @State private var lastSubmittedRating: Int?
 
   private var shouldShowBar: Bool {
     (isHovered || isBarHovered || showInfoPopover) && !message.isStreaming
@@ -492,50 +483,17 @@ struct MessageHoverOverlay<Content: View>: View {
     // button action operates on the exact message the user sees — not whatever
     // `self.message` happens to point to when the click is dispatched.
     let finalOutput = message.copyableText
-    let currentRating = message.rating
+    let actions = ChatMessageActionPresentation.actions(
+      for: .floatingChat,
+      isStreaming: message.isStreaming,
+      copyableText: finalOutput,
+      hasMetadata: message.metadata != nil
+    )
     return HStack(alignment: .top, spacing: OmiSpacing.xs) {
       Spacer(minLength: 0)
 
-      VStack(alignment: .trailing, spacing: OmiSpacing.hairline) {
-        HStack(spacing: OmiSpacing.xs) {
-          // Thumbs up
-          Button(action: { [currentRating] in
-            let newRating = currentRating == 1 ? nil : 1
-            guard newRating != lastSubmittedRating else { return }
-            lastSubmittedRating = newRating
-            onRate(newRating)
-            if newRating != nil { showRatingFeedbackBriefly() }
-          }) {
-            Image(systemName: currentRating == 1 ? "hand.thumbsup.fill" : "hand.thumbsup")
-              .scaledFont(size: OmiType.caption)
-              .foregroundColor(currentRating == 1 ? .green : .secondary)
-          }
-          .buttonStyle(.plain)
-          .help("Helpful response")
-
-          // Thumbs down
-          Button(action: { [currentRating] in
-            let newRating = currentRating == -1 ? nil : -1
-            guard newRating != lastSubmittedRating else { return }
-            lastSubmittedRating = newRating
-            onRate(newRating)
-            if newRating != nil { showRatingFeedbackBriefly() }
-          }) {
-            Image(systemName: currentRating == -1 ? "hand.thumbsdown.fill" : "hand.thumbsdown")
-              .scaledFont(size: OmiType.caption)
-              .foregroundColor(currentRating == -1 ? .red : .secondary)
-          }
-          .buttonStyle(.plain)
-          .help("Not helpful")
-          // Sync the dedupe shadow to the live rating. The overlay is keyed
-          // `.id(message.id)` so it re-mounts with lastSubmittedRating == nil,
-          // while a restored/history message already carries a rating — without
-          // this, clicking to clear it computes newRating == nil ==
-          // lastSubmittedRating and the guard swallows the tap (rating stuck).
-          .onChange(of: message.rating, initial: true) { _, newValue in
-            lastSubmittedRating = newValue
-          }
-
+      HStack(spacing: OmiSpacing.xs) {
+        if actions.contains(.copy) {
           // Copy — captures `finalOutput` explicitly so we always copy the
           // message this button was drawn for, even if SwiftUI reuses the
           // overlay view across re-renders.
@@ -546,31 +504,28 @@ struct MessageHoverOverlay<Content: View>: View {
           }
           .buttonStyle(.plain)
           .help("Copy response")
+        }
 
-          // Info (developer context)
-          if message.metadata != nil {
-            Button(action: { showInfoPopover.toggle() }) {
-              Image(systemName: "info.circle")
-                .scaledFont(size: OmiType.caption)
-                .foregroundColor(showInfoPopover ? .white : .secondary)
-            }
-            .buttonStyle(.plain)
-            .help("View response context")
-            .popover(isPresented: $showInfoPopover, arrowEdge: .bottom) {
-              MessageMetadataPopover(metadata: message.metadata!)
-            }
+        if actions.contains(.info), let metadata = message.metadata {
+          Button(action: { showInfoPopover.toggle() }) {
+            Image(systemName: "info.circle")
+              .scaledFont(size: OmiType.caption)
+              .foregroundColor(showInfoPopover ? .white : .secondary)
+          }
+          .buttonStyle(.plain)
+          .help("View response context")
+          .popover(isPresented: $showInfoPopover, arrowEdge: .bottom) {
+            MessageMetadataPopover(metadata: metadata)
           }
         }
 
-        if showRatingFeedback {
-          Text("Thank you")
+        if actions.contains(.timestamp) {
+          Text(message.createdAt, format: .dateTime.hour().minute())
             .scaledFont(size: OmiType.micro)
             .foregroundColor(.secondary)
-            .transition(.opacity)
         }
       }
     }
-    .omiAnimation(.easeInOut(duration: 0.2), value: showRatingFeedback)
     .frame(maxWidth: .infinity, alignment: .trailing)
     .onHover { hovering in
       isBarHovered = hovering
@@ -579,13 +534,6 @@ struct MessageHoverOverlay<Content: View>: View {
         hideWorkItem?.cancel()
         hideWorkItem = nil
       }
-    }
-  }
-
-  private func showRatingFeedbackBriefly() {
-    showRatingFeedback = true
-    DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-      showRatingFeedback = false
     }
   }
 

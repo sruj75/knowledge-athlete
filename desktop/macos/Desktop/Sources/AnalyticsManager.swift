@@ -19,6 +19,7 @@ class AnalyticsManager {
   /// outside the actor, so tests can observe the real event/payload safely under
   /// Swift concurrency.
   private var memoryAssistantTelemetryCaptureForTests: (@MainActor (String, [String: Any]) -> Void)?
+  private var desktopHealthTelemetryCaptureForTests: (@MainActor (String, [String: Any]) -> Void)?
 
   private init() {}
 
@@ -47,6 +48,14 @@ class AnalyticsManager {
 
   private func captureSuggestionAssistantTelemetryForTests(_ event: String, properties: [String: Any]) {
     suggestionAssistantTelemetryCaptureForTests?(event, properties)
+  }
+
+  /// Observe the exact privacy-bounded payload at the shared remote health
+  /// adapter without initializing PostHog in a test bundle.
+  func setDesktopHealthTelemetryCaptureForTests(
+    _ capture: (@MainActor (String, [String: Any]) -> Void)?
+  ) {
+    desktopHealthTelemetryCaptureForTests = capture
   }
 
   // MARK: - Initialization
@@ -548,11 +557,6 @@ class AnalyticsManager {
     PostHogManager.shared.track("chat_session_deleted", properties: [:])
   }
 
-  func messageRated(rating: Int) {
-    let ratingString = rating == 1 ? "thumbs_up" : "thumbs_down"
-    PostHogManager.shared.track("message_rated", properties: ["rating": ratingString])
-  }
-
   func initialMessageGenerated() {
     PostHogManager.shared.track("initial_message_generated", properties: [:])
   }
@@ -697,9 +701,10 @@ class AnalyticsManager {
   }
 
   func desktopHealthEvent(name: String, properties: [String: Any]) {
-    guard !Self.isDevBuild else { return }
     var props = properties
     props["health_event"] = name
+    desktopHealthTelemetryCaptureForTests?(name, props)
+    guard !Self.isDevBuild else { return }
     PostHogManager.shared.track("desktop_health_event", properties: props)
   }
 
@@ -1044,22 +1049,6 @@ class AnalyticsManager {
       "has_screenshot": hasScreenshot,
     ]
     PostHogManager.shared.track("floating_bar_query_sent", properties: props)
-  }
-
-  /// Track when push-to-talk starts listening
-  func floatingBarPTTStarted(mode: String) {
-    let props: [String: Any] = ["mode": mode]
-    PostHogManager.shared.track("floating_bar_ptt_started", properties: props)
-  }
-
-  /// Track when push-to-talk ends and sends (or discards) transcript
-  func floatingBarPTTEnded(mode: String, hadTranscript: Bool, transcriptLength: Int) {
-    let props: [String: Any] = [
-      "mode": mode,
-      "had_transcript": hadTranscript,
-      "transcript_length": transcriptLength,
-    ]
-    PostHogManager.shared.track("floating_bar_ptt_ended", properties: props)
   }
 
 }

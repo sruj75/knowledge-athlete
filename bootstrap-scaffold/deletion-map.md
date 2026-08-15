@@ -987,9 +987,9 @@ IR-868, IR-877, IR-878
 ### S-09 — Re-own telemetry, diagnostics, issue reporting, and model tracing
 
 **Type:** retained observability adaptation<br>
-**Research status:** ready to start the configuration-independent deletion
-phase; identity, owned-project configuration, and live proof remain cycle-local
-gates<br>
+**Implementation status:** configuration-independent deletion is complete in
+local commits; identity, owned-project configuration, and S-27 live proof keep
+the slice open at their cycle-local gates<br>
 **Depends on:** the canonical S-08 account identity/sign-out seam, not unimplemented
 later export or queue cleanup<br>
 **Primary decisions:** IR-114 through IR-117, IR-183, IR-204 through IR-211,

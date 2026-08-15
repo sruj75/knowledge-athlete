@@ -116,7 +116,6 @@ def wire_common_stubs(install) -> SimpleNamespace:
     sanitizer = install('utils.log_sanitizer', ModuleType('utils.log_sanitizer'))
     sanitizer.sanitize_pii = lambda value: value
     observability = install('utils.observability', ModuleType('utils.observability'))
-    observability.submit_langsmith_feedback = MagicMock()
 
     journey_observability = install('utils.observability.journeys', ModuleType('utils.observability.journeys'))
 

@@ -75,7 +75,6 @@ from utils.multipart import (
 from utils.retrieval.graph import execute_chat_stream
 from utils.llm.usage_tracker import set_usage_context, reset_usage_context, Features
 from utils.log_sanitizer import sanitize_pii
-from utils.observability import submit_langsmith_feedback
 from utils.observability.journeys import JourneyAttempt
 from utils.voice_duration_limiter import (
     compute_pcm_duration_ms,
@@ -355,7 +354,7 @@ def send_message(
             type='text',
             memories_id=memories_id,
             chart_data=chart_data,
-            langsmith_run_id=langsmith_run_id,  # Store run_id for feedback tracking
+            langsmith_run_id=langsmith_run_id,  # Store run_id for operator trace correlation
             prompt_name=prompt_name,  # LangSmith prompt name for versioning
             prompt_commit=prompt_commit,  # LangSmith prompt commit for traceability
         )
@@ -1448,24 +1447,5 @@ def rate_message(
     # Also store in analytics collection
     value = rating if rating is not None else 0
     set_chat_message_rating_score(uid, message_id, value, platform='mobile')
-
-    # Try to submit feedback to LangSmith
-    try:
-        message_result = chat_db.get_message(uid, message_id)
-        if message_result:
-            message, _ = message_result
-            langsmith_run_id = getattr(message, 'langsmith_run_id', None)
-            if not langsmith_run_id and isinstance(message, dict):
-                langsmith_run_id = message.get('langsmith_run_id')
-
-            if langsmith_run_id:
-                score = 1.0 if rating == 1 else (0.0 if rating == -1 else 0.5)
-                submit_langsmith_feedback(
-                    run_id=langsmith_run_id,
-                    score=score,
-                    key="chat_message_rating",
-                )
-    except Exception as e:
-        logger.error(f"LangSmith feedback submission error (non-fatal): {e}")
 
     return {'status': 'ok'}

@@ -58,10 +58,6 @@ routes:
     path: /v1/config/api-keys
     policy: *desktop_migration_policy
   - route_type: http
-    method: GET
-    path: /v1/crisp/unread
-    policy: *desktop_migration_policy
-  - route_type: http
     method: POST
     path: /v1/proxy/gemini-stream/{path:path}
     policy: *desktop_migration_policy
@@ -76,14 +72,6 @@ routes:
   - route_type: http
     method: POST
     path: /v1/tts/synthesize
-    policy: *desktop_migration_policy
-  - route_type: http
-    method: POST
-    path: /v1/webhooks/sentry
-    policy: *desktop_migration_policy
-  - route_type: http
-    method: POST
-    path: /v1/webhooks/sentry/poll
     policy: *desktop_migration_policy
   - route_type: http
     method: POST

@@ -7,7 +7,6 @@ import SwiftUI
 struct ChatBubble: View {
   let message: ChatMessage
   let showsOmiMark: Bool
-  let onRate: (Int?) -> Void
   var onCitationTap: ((Citation) -> Void)? = nil
   var isDuplicate: Bool = false
   /// Optional cancel action for stalled tool-call banners, threaded
@@ -21,16 +20,14 @@ struct ChatBubble: View {
   @State private var isRowHovering = false
   @State private var isExpanded = false
   @State private var showCopied = false
-  @State private var showRatingFeedback = false
   @State private var showInfoPopover = false
-  @State private var lastSubmittedRating: Int?
   // Shared across every metadata control: true while any of them holds
   // keyboard focus, so Tab / Full Keyboard Access never lands on an
   // invisible button.
   @FocusState private var isMetadataControlFocused: Bool
 
   init(
-    message: ChatMessage, showsOmiMark: Bool, onRate: @escaping (Int?) -> Void,
+    message: ChatMessage, showsOmiMark: Bool,
     onCitationTap: ((Citation) -> Void)? = nil, isDuplicate: Bool = false,
     onCancelTurn: (() -> Void)? = nil,
     onOpenAgent: ((UUID, @escaping (Bool) -> Void) -> Void)? = nil,
@@ -38,13 +35,11 @@ struct ChatBubble: View {
   ) {
     self.message = message
     self.showsOmiMark = showsOmiMark
-    self.onRate = onRate
     self.onCitationTap = onCitationTap
     self.isDuplicate = isDuplicate
     self.onCancelTurn = onCancelTurn
     self.onOpenAgent = onOpenAgent
     self.onOpenAgentRef = onOpenAgentRef
-    _lastSubmittedRating = State(initialValue: message.rating)
   }
 
   /// Messages longer than this are truncated with a "Show more" button
@@ -215,12 +210,18 @@ struct ChatBubble: View {
         .foregroundColor(.orange.opacity(0.9))
     }
 
-    if message.sender == .ai && !message.isStreaming && message.isSynced {
-      messageMetadataRow(includeRatingButtons: true, includeCopyButton: true)
-    } else if message.sender == .ai && !message.isStreaming && !message.copyableText.isEmpty {
-      messageMetadataRow(includeRatingButtons: false, includeCopyButton: true)
+    if message.sender == .ai {
+      let actions = ChatMessageActionPresentation.actions(
+        for: .normalChat,
+        isStreaming: message.isStreaming,
+        copyableText: message.copyableText,
+        hasMetadata: message.metadata != nil
+      )
+      if !actions.isEmpty {
+        messageMetadataRow(actions: actions)
+      }
     } else if !message.isStreaming || !message.text.isEmpty {
-      messageMetadataRow(includeRatingButtons: false, includeCopyButton: false)
+      messageMetadataRow(actions: [.timestamp])
     }
   }
 
@@ -290,30 +291,28 @@ struct ChatBubble: View {
   }
 
   @ViewBuilder
-  private func messageMetadataRow(includeRatingButtons: Bool, includeCopyButton: Bool) -> some View {
+  private func messageMetadataRow(actions: [ChatMessageAction]) -> some View {
     HStack(spacing: OmiSpacing.sm) {
-      if includeRatingButtons {
-        ratingButtons
-      }
-
-      if includeCopyButton {
+      if actions.contains(.copy) {
         copyButton
       }
 
-      if includeCopyButton, message.metadata != nil {
+      if actions.contains(.info) {
         infoButton
       }
 
-      Text(message.createdAt, format: .dateTime.hour().minute())
-        .scaledFont(size: OmiType.micro, weight: .medium)
-        .foregroundColor(OmiColors.textTertiary)
-        .onHover { isTimestampHovering = $0 }
-
-      if isTimestampHovering {
-        Text(message.createdAt, format: .dateTime.month(.abbreviated).day())
+      if actions.contains(.timestamp) {
+        Text(message.createdAt, format: .dateTime.hour().minute())
           .scaledFont(size: OmiType.micro, weight: .medium)
-          .foregroundColor(OmiColors.textSecondary)
-          .transition(.opacity)
+          .foregroundColor(OmiColors.textTertiary)
+          .onHover { isTimestampHovering = $0 }
+
+        if isTimestampHovering {
+          Text(message.createdAt, format: .dateTime.month(.abbreviated).day())
+            .scaledFont(size: OmiType.micro, weight: .medium)
+            .foregroundColor(OmiColors.textSecondary)
+            .transition(.opacity)
+        }
       }
     }
     // Quiet timeline: actions and timestamps only surface while the reader
@@ -323,72 +322,12 @@ struct ChatBubble: View {
       ChatBubbleMetadataReveal.isVisible(
         hovering: isRowHovering,
         controlFocused: isMetadataControlFocused,
-        transientFeedback: showRatingFeedback || showCopied || showInfoPopover
+        transientFeedback: showCopied || showInfoPopover
       ) ? 1 : 0
     )
     .omiAnimation(.easeInOut(duration: 0.12), value: isTimestampHovering)
     .omiAnimation(.easeInOut(duration: 0.15), value: isRowHovering)
     .omiAnimation(.easeInOut(duration: 0.15), value: isMetadataControlFocused)
-  }
-
-  @ViewBuilder
-  private var ratingButtons: some View {
-    HStack(spacing: OmiSpacing.xxs) {
-      // Thumbs up
-      Button(action: {
-        let newRating = message.rating == 1 ? nil : 1
-        guard newRating != lastSubmittedRating else { return }
-        lastSubmittedRating = newRating
-        onRate(newRating)
-        if newRating != nil { showRatingFeedbackBriefly() }
-      }) {
-        Image(systemName: message.rating == 1 ? "hand.thumbsup.fill" : "hand.thumbsup")
-          .scaledFont(size: OmiType.caption)
-          .foregroundColor(message.rating == 1 ? OmiColors.accent : OmiColors.textTertiary)
-      }
-      .buttonStyle(.plain)
-      .focused($isMetadataControlFocused)
-      .help("Helpful response")
-
-      // Thumbs down
-      Button(action: {
-        let newRating = message.rating == -1 ? nil : -1
-        guard newRating != lastSubmittedRating else { return }
-        lastSubmittedRating = newRating
-        onRate(newRating)
-        if newRating != nil { showRatingFeedbackBriefly() }
-      }) {
-        Image(systemName: message.rating == -1 ? "hand.thumbsdown.fill" : "hand.thumbsdown")
-          .scaledFont(size: OmiType.caption)
-          .foregroundColor(message.rating == -1 ? .red : OmiColors.textTertiary)
-      }
-      .buttonStyle(.plain)
-      .focused($isMetadataControlFocused)
-      .help("Not helpful")
-
-      if showRatingFeedback {
-        Text("Thank you")
-          .scaledFont(size: OmiType.micro)
-          .foregroundColor(OmiColors.textTertiary)
-          .transition(.opacity)
-      }
-    }
-    .omiAnimation(.easeInOut(duration: 0.2), value: showRatingFeedback)
-    // Keep the dedupe shadow in sync with the live rating. Without this, an
-    // external rating change (background sync/poll updates message.rating on a
-    // stable .id(message.id) view) leaves lastSubmittedRating stale, so a later
-    // un-rate tap computes newRating == nil == lastSubmittedRating and the guard
-    // swallows it — the rating can never be cleared.
-    .onChange(of: message.rating, initial: true) { _, newValue in
-      lastSubmittedRating = newValue
-    }
-  }
-
-  private func showRatingFeedbackBriefly() {
-    showRatingFeedback = true
-    DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-      showRatingFeedback = false
-    }
   }
 
   @ViewBuilder
@@ -432,7 +371,7 @@ struct ChatBubble: View {
 }
 
 /// Visibility rule for the quiet timeline's per-message metadata row
-/// (rating / copy / info / timestamp). Keyboard parity is part of the
+/// (copy / info / timestamp). Keyboard parity is part of the
 /// contract: focus on any metadata control must reveal the row, otherwise
 /// Tab / Full Keyboard Access ends up on an invisible button.
 enum ChatBubbleMetadataReveal {
@@ -853,7 +792,6 @@ extension ChatBubble: @preconcurrency Equatable {
     // Completed messages are equal when visible content hasn't changed
     return lhs.message.id == rhs.message.id
       && lhs.message.text == rhs.message.text
-      && lhs.message.rating == rhs.message.rating
       && lhs.showsOmiMark == rhs.showsOmiMark
       && lhs.isDuplicate == rhs.isDuplicate
   }

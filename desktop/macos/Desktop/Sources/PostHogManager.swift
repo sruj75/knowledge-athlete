@@ -35,10 +35,8 @@ class PostHogManager {
     PostHogSDK.shared.setup(config)
 
     // Release-identity super-properties (#10425): every captured event carries the
-    // app version + build + release channel, so PostHog (including
-    // `floating_bar_ptt_ended` and other per-event tracks that previously carried no
-    // identity) can be sliced by release cohort without per-event plumbing. These
-    // persist across sessions.
+    // app version + build + release channel so it can be sliced by release cohort
+    // without per-event plumbing. These persist across sessions.
     PostHogSDK.shared.register([
       "platform": "macos",
       "app_version": Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown",

@@ -4,7 +4,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Ready to start the configuration-independent deletion phase; **S-08 identity and owned development-project inputs gate only the identity/configuration phase and final live closure** |
+| Status | Configuration-independent Cycles 0, 6, 8, 9, 10, and the repository-deletion portion of 12 are complete in local commits; **S-08 identity, owned development-project inputs, and S-27 live logging proof still gate Cycles 1–5, 7, 11, and final closure** |
 | Wave | 1 |
 | Owner | S-09 |
 | Authorizing and protecting decisions | IR-114, IR-115, IR-116, IR-117, IR-183, IR-204, IR-205, IR-206, IR-207, IR-208, IR-209, IR-210, IR-211, IR-254, IR-805, IR-827, IR-828, IR-832, IR-836, IR-837, IR-879, IR-886 |
@@ -330,6 +330,121 @@ Also assert that no Mac thumbs control or cloud rating call is required for oper
 **GREEN:** Delete all standalone monitoring files and exclusive workflow/check/script/test/runbook/env/secret references. Adapt mixed workflow and deployment contracts to managed observability without removing unrelated service checks. Preserve the `/metrics` router, secret, useful counters, sanitizer, ordinary logs, Cloud Logging, and service-owned chart fragments assigned to later slices. Add no replacement collector, dashboard stack, log agent, sink, or archive.
 
 **Verify before review:** focused metrics/auth/sanitizer tests; monitoring alert/workflow/deploy contract tests after removing obsolete cases; runtime-env render/validator; backend test discovery; owned-dev Cloud Run request/log inspection when the S-27 foundation is available; an explicit S-27 handoff for live 30-day/no-archive proof; and a deployment residue inventory distinguishing later-owner chart fragments from forbidden standalone monitoring.
+
+## Implementation progress — 2026-08-15
+
+Implementation fixed point: `eb73915f96d628670ed854bbe8fe2f8a1cdcc74f`.
+The completed config-independent tracers and their review fixes are recorded in
+the local commit ledger below. Nothing has been pushed or opened as a PR:
+
+| Commit | Completed tracer |
+|---|---|
+| `f119aad` | Removed the two legacy floating-bar PTT PostHog helpers and every caller while retaining `PTTAttemptLifecycleRecorder`, local diagnostics, and `QueryTracer`. |
+| `e80fbdc` | Removed the complete Crisp route/client/startup/navigation/notification flow. The non-Crisp screen-history remainder is now explicitly isolated in `backend/routers/desktop_screen_activity.py` for S-15. |
+| `a5c59be` | Removed the Sentry webhook/poll-to-cloud-Task bridge and Sentry-specific Task projection while retaining generic Task metadata, desktop health/config, and direct Mac Report Issue. |
+| `a68cfa7` | Removed normal/floating Chat thumbs, rating mutation/network/analytics, Chat Lab rating aggregates, and the rating-only LangSmith feedback helper while retaining copy/info/timestamp actions and trace callbacks. |
+| `ee8c422` | Removed the complete deployable `backend/charts/monitoring/**` product and its exclusive checks/workflows/scripts/tests/docs while retaining authenticated `/metrics`, useful counters, sanitizer/logging, Cloud Logging, and service-owned charts. |
+| `6c8654d` | Removed the final stale Chat Prompt Lab claim about production ratings, replaced it with the retained local-review boundary, and added the required desktop changelog entry. |
+| `37b925c` | Recorded the first implementation evidence checkpoint and the exact credential/configuration gates that keep S-09 open. |
+| `b5f9ae8` | Removed the deleted Help target from the real `omi-ctl` automation catalog and added coverage through the discovered shell test. |
+| `c9959ba` | Removed stale current operator documentation for the deleted monitoring stack and extended the static deploy/documentation absence contract. |
+| `d1142e4` | Replaced the independently generated agentic Chat UUID with the actual current LangSmith run-tree identity, omitting the correlation field when no trace exists. |
+| `1a145bb` | Scoped retired Sentry metadata filtering to legacy `sentry_feedback` Tasks so arbitrary generic Task metadata remains visible. |
+| `879d554` | Added production-boundary coverage for the one authoritative PTT remote lifecycle event and Git-only Chat Lab history, and removed the last stale ratings comment. |
+| `9e267ef` | Removed the unused callback-level trace-ID input and strengthened the public persona stream test to prove its persisted correlation equals the actual Runnable run ID. |
+| `1abcee6` | Removed the remaining ignored tracer-helper name/metadata inputs; their real values continue through the authoritative Runnable invocation. |
+| `7fff1de` | Exercised the real decorated public agentic async-generator boundary with hermetic LangSmith context and proved one run ID is created, persisted, and patched. |
+
+Observed GREEN evidence for this config-independent tranche:
+
+- requirements ledger: 714 indexed rows and 714 detailed sections;
+- Cycle 6: 74 focused Swift tests;
+- Cycle 8: 31 focused backend tests and 62 focused Swift tests;
+- Cycle 9: 33 focused backend tests and 13 focused Swift tests;
+- Cycle 10: 58 focused backend tests and 54 focused Swift tests;
+- Cycle 12: 71 focused backend tests, including real FastAPI `/metrics`
+  missing/wrong/correct-secret behavior; backend discovery reports 790 selected,
+  51 covered by other runners/policy/allowlists, and zero orphan tests;
+- the broader current S-09 backend selection passed 130 tests and
+  `backend/test-preflight.sh` passed 17 required checks with nine optional
+  dependency warnings and no failures;
+- the broader current Swift selection passed 298 tests, the Swift-only agent
+  harness selection passed 534 tests, and a clean external-scratch debug build
+  completed successfully in 606.23 seconds;
+- the final Chat Prompt Lab copy change passed its five focused Swift tests;
+- post-review backend verification passed 28 tests covering actual LangSmith
+  run-tree binding/absence and the deleted monitoring operator/deploy surfaces;
+- the public agentic/persona correlation cleanup passed all 25 tests in
+  `test_chat_async_offload.py` and `test_langsmith_tracing_boundary.py`;
+- post-review Swift verification passed 35 tests: all 32
+  `DesktopDiagnosticsManagerTests`, both source-aware generic Task projection
+  tests, and the Git-only Chat Lab history test;
+- `tests/test-omi-ctl-wait-ready.sh` passed the real target-catalog/readiness
+  contract with the deleted Help target absent;
+- desktop test-quality ratchet: 55 source-reading files / 152 sites and 16 waits;
+- `git diff --check` passed after each completed tracer.
+
+Real-path evidence from the isolated `omi-s09-observability` named bundle:
+
+- the full named bundle built, packaged, passed the 18-Mach-O dependency audit,
+  installed as `com.omi.omi-s09-observability`, launched with its automation
+  bridge on port 47909, and rendered the real signed-out window;
+- the source `Omi Dev` bundle had no reusable auth token, so authenticated
+  settings/Chat and owned-project traffic checks were not fabricated and remain
+  part of the S-08/configuration gate;
+- the live `dump_feedback_payload_dryrun` action assembled a 3,095-byte redacted
+  `desktop_diagnostics.json` and reported
+  `sentry_capture_invoked=false`/`would_submit_to_sentry=false`;
+- the exact launch log contained no `Crisp`, Crisp unread route, legacy Sentry
+  feedback, message-rating event/API, or thumbs marker;
+- the test bundle was stopped by its exact bundle identity after inspection;
+  neither production Omi bundle was stopped or modified.
+
+Broader checks attempted but not claimed GREEN:
+
+- `backend/test.sh` selected 790 files but stopped making progress in the
+  unrelated shared generated-client test
+  `tests/unit/test_app_client_swift_generator.py`; focused S-09 backend tests
+  remained green, and the generated-client surface is shared with later deletion
+  owners rather than changed to force this slice through;
+- `scripts/pr-preflight --suggest` failed before S-09 checks because the fixed
+  point's `FC-agent-vm-stop-retains-disk` registry entry names the already-deleted
+  S-07 artifact `backend/tests/unit/test_agent_vm_reaped_record_recovery.py`;
+- `make preflight` then passed its first seven selected checks (including 74
+  dev-harness tests) and failed the unrelated setup fixture because macOS
+  canonicalized `/private/var/...` to `/var/...`. These inherited repository and
+  machine-path failures are recorded, not hidden or repaired inside S-09.
+
+Exact open handoffs and gates:
+
+- S-11/S-23 own the surviving shared rating shape in
+  `desktop/macos/Desktop/Sources/Providers/ChatProvider.swift`, generated
+  `desktop/macos/Desktop/Sources/Generated/OmiApi.generated.swift`, backend
+  Chat/session/user rating routes, `backend/database/chat.py`,
+  `backend/database/users.py`, and `backend/models/chat.py`. No Mac action or
+  network caller remains.
+- S-15 owns the non-Crisp shared cloud screen-history behavior isolated in
+  `backend/routers/desktop_screen_activity.py`; this tranche did not treat it as
+  retained product behavior.
+- Service-owning slices retain their own metrics and chart fragments under
+  paths such as `backend/charts/backend-listen/**`, `backend/charts/pusher/**`,
+  and `backend/charts/parakeet/**`; none restores the deleted all-in-one stack.
+- S-08 and owned PostHog/Sentry/LangSmith development identifiers/access are
+  still required before Cycles 1–5, 7, and 11 can install or verify production
+  configuration and identity behavior. No identifier or secret was guessed.
+- S-27 still owns live Cloud Run/Cloud Logging evidence for `_Default` 30-day
+  retention and absence of archive/sink behavior. Repository tests do not
+  substitute for that operator proof.
+
+S-09 therefore remains open. The next implementation resumes at the first
+newly unblocked configuration/identity cycle; it does not repeat the completed
+deletion tranches.
+
+Independent Standards and Spec Compliance review identified stale automation,
+operator-documentation, generic-Task, PTT-remote-boundary, Chat-Lab-history, and
+LangSmith-correlation gaps in the first checkpoint. Each finding above was
+repaired through its production seam and the focused checks were rerun before
+the final review pass.
 
 ## Review and simplify after GREEN
 

@@ -1,6 +1,52 @@
 import OmiTheme
 import SwiftUI
 
+struct TaskDetailMetadataEntry: Identifiable, Equatable {
+  let key: String
+  let label: String
+  let value: String
+
+  var id: String { key }
+}
+
+enum TaskDetailMetadataProjection {
+  private static let legacySentryMetadataKeys: Set<String> = [
+    "sentry_issue_id", "sentry_issue_url", "sentry_short_id", "sentry_url",
+    "reporter_name", "reporter_email", "feedback_type",
+    "app_version", "app_build", "os", "device_model", "contexts",
+  ]
+
+  static func entries(
+    from metadata: [String: Any],
+    excluding excludedKeys: Set<String>,
+    source: String?,
+    arraySeparator: String = ", "
+  ) -> [TaskDetailMetadataEntry] {
+    let hiddenKeys = source == "sentry_feedback" ? legacySentryMetadataKeys : []
+    return
+      metadata
+      .filter { !hiddenKeys.contains($0.key) && !excludedKeys.contains($0.key) }
+      .compactMap { entry in
+        let display: String
+        if let string = entry.value as? String, !string.isEmpty {
+          display = string
+        } else if let number = entry.value as? NSNumber {
+          display = number.stringValue
+        } else if let array = entry.value as? [String] {
+          display = array.joined(separator: arraySeparator)
+        } else {
+          return nil
+        }
+        return TaskDetailMetadataEntry(
+          key: entry.key,
+          label: entry.key.replacingOccurrences(of: "_", with: " ").capitalized,
+          value: display
+        )
+      }
+      .sorted { $0.key < $1.key }
+  }
+}
+
 // MARK: - Task Detail Button
 
 /// Small inline info button with hover preview and click-to-open detail modal.
@@ -138,41 +184,15 @@ private struct TaskDetailTooltip: View {
     .frame(maxWidth: 350, maxHeight: 400)
   }
 
-  private struct MetadataEntry: Identifiable {
-    let key: String
-    let label: String
-    let value: String
-    var id: String { key }
-  }
-
   /// All metadata entries, skipping keys already shown as direct fields
-  private var allMetadataEntries: [MetadataEntry] {
+  private var allMetadataEntries: [TaskDetailMetadataEntry] {
     let skip: Set<String> = [
       "tags", "source_app", "window_title", "confidence",
       "source_category", "source_subcategory",
       "context_summary", "current_activity",
     ]
     guard let meta = task.parsedMetadata else { return [] }
-    return
-      meta
-      .filter { !skip.contains($0.key) }
-      .compactMap { entry in
-        let display: String
-        if let str = entry.value as? String, !str.isEmpty {
-          display = str
-        } else if let num = entry.value as? NSNumber {
-          display = num.stringValue
-        } else if let arr = entry.value as? [String] {
-          display = arr.joined(separator: ", ")
-        } else {
-          return nil
-        }
-        let label = entry.key
-          .replacingOccurrences(of: "_", with: " ")
-          .capitalized
-        return MetadataEntry(key: entry.key, label: label, value: display)
-      }
-      .sorted { $0.key < $1.key }
+    return TaskDetailMetadataProjection.entries(from: meta, excluding: skip, source: task.source)
   }
 
   private func tooltipRow(_ label: String, _ value: String) -> some View {
@@ -205,7 +225,7 @@ private struct TaskDetailTooltip: View {
 
 // MARK: - Task Detail View
 
-/// Modal showing rich metadata for tasks from sentry_feedback, omi-analytics, screenshot sources
+/// Modal showing rich metadata for generic tasks, analytics tasks, and screenshot sources.
 struct TaskDetailView: View {
   let task: TaskActionItem
   var onDismiss: (() -> Void)? = nil
@@ -252,26 +272,11 @@ struct TaskDetailView: View {
             agentSection
           }
 
-          // Sentry section
-          if metadata["sentry_issue_url"] != nil || metadata["sentry_issue_id"] != nil {
-            sentrySection
-          }
-
-          // Reporter section
-          if metadata["reporter_name"] != nil || metadata["reporter_email"] != nil || metadata["feedback_type"] != nil {
-            reporterSection
-          }
-
           // Analysis section (omi-analytics)
           if metadata["original_message"] != nil || metadata["creation_reason"] != nil
             || metadata["key_findings"] != nil || metadata["search_summary"] != nil
           {
             analysisSection
-          }
-
-          // App Info section (sentry)
-          if metadata["app_version"] != nil || metadata["os"] != nil || metadata["device_model"] != nil {
-            appInfoSection
           }
 
           // Source section (screenshot metadata)
@@ -437,76 +442,6 @@ struct TaskDetailView: View {
     }
   }
 
-  // MARK: - Sentry
-
-  private var sentrySection: some View {
-    VStack(alignment: .leading, spacing: OmiSpacing.sm) {
-      sectionHeader("Sentry")
-
-      VStack(alignment: .leading, spacing: OmiSpacing.xs) {
-        if let issueId = metadata["sentry_issue_id"] as? String {
-          detailRow("Issue ID", issueId)
-        }
-
-        if let urlString = metadata["sentry_issue_url"] as? String,
-          let url = URL(string: urlString)
-        {
-          HStack {
-            Text("Link")
-              .scaledFont(size: OmiType.caption, weight: .medium)
-              .foregroundColor(OmiColors.textSecondary)
-              .frame(width: 100, alignment: .leading)
-
-            Button {
-              NSWorkspace.shared.open(url)
-            } label: {
-              HStack(spacing: OmiSpacing.xxs) {
-                Text("Open in Sentry")
-                  .scaledFont(size: OmiType.caption)
-                Image(systemName: "arrow.up.right.square")
-                  .scaledFont(size: OmiType.micro)
-              }
-              .foregroundColor(.blue)
-            }
-            .buttonStyle(.plain)
-          }
-        }
-      }
-      .padding(OmiSpacing.md)
-      .frame(maxWidth: .infinity, alignment: .leading)
-      .background(
-        RoundedRectangle(cornerRadius: OmiChrome.elementRadius)
-          .fill(OmiColors.backgroundSecondary)
-      )
-    }
-  }
-
-  // MARK: - Reporter
-
-  private var reporterSection: some View {
-    VStack(alignment: .leading, spacing: OmiSpacing.sm) {
-      sectionHeader("Reporter")
-
-      VStack(alignment: .leading, spacing: OmiSpacing.xs) {
-        if let name = metadata["reporter_name"] as? String {
-          detailRow("Name", name)
-        }
-        if let email = metadata["reporter_email"] as? String {
-          detailRow("Email", email)
-        }
-        if let type = metadata["feedback_type"] as? String {
-          detailRow("Type", type.capitalized)
-        }
-      }
-      .padding(OmiSpacing.md)
-      .frame(maxWidth: .infinity, alignment: .leading)
-      .background(
-        RoundedRectangle(cornerRadius: OmiChrome.elementRadius)
-          .fill(OmiColors.backgroundSecondary)
-      )
-    }
-  }
-
   // MARK: - Analysis (omi-analytics)
 
   private var analysisSection: some View {
@@ -570,35 +505,6 @@ struct TaskDetailView: View {
     }
   }
 
-  // MARK: - App Info (sentry)
-
-  private var appInfoSection: some View {
-    VStack(alignment: .leading, spacing: OmiSpacing.sm) {
-      sectionHeader("App Info")
-
-      VStack(alignment: .leading, spacing: OmiSpacing.xs) {
-        if let version = metadata["app_version"] as? String {
-          detailRow("Version", version)
-        }
-        if let build = metadata["app_build"] as? String {
-          detailRow("Build", build)
-        }
-        if let os = metadata["os"] as? String {
-          detailRow("OS", os)
-        }
-        if let device = metadata["device_model"] as? String {
-          detailRow("Device", device)
-        }
-      }
-      .padding(OmiSpacing.md)
-      .frame(maxWidth: .infinity, alignment: .leading)
-      .background(
-        RoundedRectangle(cornerRadius: OmiChrome.elementRadius)
-          .fill(OmiColors.backgroundSecondary)
-      )
-    }
-  }
-
   // MARK: - Source (screenshot)
 
   private var sourceSection: some View {
@@ -637,39 +543,22 @@ struct TaskDetailView: View {
     "source_category", "source_subcategory",
     // Context section
     "context_summary", "current_activity", "reasoning",
-    // Sentry section
-    "sentry_issue_url", "sentry_issue_id",
-    // Reporter section
-    "reporter_name", "reporter_email", "feedback_type",
     // Analysis section
     "original_message", "creation_reason", "key_findings",
     "search_summary", "relevant_files",
-    // App Info section
-    "app_version", "app_build", "os", "device_model",
     // Source section
     "inferred_deadline",
   ]
 
   /// Metadata entries not handled by any dedicated section
-  private var remainingMetadata: [(key: String, value: String)] {
+  private var remainingMetadata: [TaskDetailMetadataEntry] {
     guard let meta = task.parsedMetadata else { return [] }
-    return
-      meta
-      .filter { !Self.handledMetadataKeys.contains($0.key) }
-      .compactMap { entry in
-        let display: String
-        if let str = entry.value as? String, !str.isEmpty {
-          display = str
-        } else if let num = entry.value as? NSNumber {
-          display = num.stringValue
-        } else if let arr = entry.value as? [String] {
-          display = arr.joined(separator: "\n")
-        } else {
-          return nil
-        }
-        return (key: entry.key, value: display)
-      }
-      .sorted { $0.key < $1.key }
+    return TaskDetailMetadataProjection.entries(
+      from: meta,
+      excluding: Self.handledMetadataKeys,
+      source: task.source,
+      arraySeparator: "\n"
+    )
   }
 
   private var remainingMetadataSection: some View {
@@ -678,13 +567,10 @@ struct TaskDetailView: View {
 
       VStack(alignment: .leading, spacing: OmiSpacing.sm) {
         ForEach(remainingMetadata, id: \.key) { entry in
-          let label = entry.key
-            .replacingOccurrences(of: "_", with: " ")
-            .capitalized
           if entry.value.count > 80 || entry.value.contains("\n") {
-            detailBlock(label, entry.value)
+            detailBlock(entry.label, entry.value)
           } else {
-            detailRow(label, entry.value)
+            detailRow(entry.label, entry.value)
           }
         }
       }

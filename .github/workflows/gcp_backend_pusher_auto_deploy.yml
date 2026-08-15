@@ -19,7 +19,6 @@ on:
       - '.dockerignore'
       - 'backend/scripts/verify_pusher_source_closure.py'
       - 'backend/scripts/verify_pusher_live_deployment_gate.py'
-      - 'backend/scripts/verify_pusher_dev_observability.py'
       - 'backend/scripts/verify_pusher_promotion_evidence.py'
       - '.github/workflows/gcp_backend_pusher_auto_deploy.yml'
 
@@ -86,7 +85,6 @@ jobs:
         run: |
           python3 backend/scripts/verify_pusher_rollout_budget.py
           python3 backend/scripts/verify_pusher_rollout_gate.py preflight
-          python3 backend/scripts/verify_pusher_dev_observability.py
 
       - name: Get GKE credentials
         uses: google-github-actions/get-gke-credentials@v3

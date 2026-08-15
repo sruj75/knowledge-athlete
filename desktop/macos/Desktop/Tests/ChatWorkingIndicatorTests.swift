@@ -112,13 +112,11 @@ final class ChatWorkingIndicatorTests: XCTestCase {
     let message = ChatMessage(id: "assistant", text: "Answer", sender: .ai)
     let marked = ChatBubble(
       message: message,
-      showsOmiMark: true,
-      onRate: { _ in }
+      showsOmiMark: true
     )
     let unmarked = ChatBubble(
       message: message,
-      showsOmiMark: false,
-      onRate: { _ in }
+      showsOmiMark: false
     )
 
     XCTAssertNotEqual(marked, unmarked)

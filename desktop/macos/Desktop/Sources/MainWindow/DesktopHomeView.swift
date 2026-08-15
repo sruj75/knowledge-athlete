@@ -228,12 +228,6 @@ struct DesktopHomeView: View {
 
               restorePersistedCaptureServices(reason: "launch")
 
-              // Start Crisp chat in background for notifications, scoped to the signed-in user
-              CrispManager.shared.start(
-                initialPollDelay: StartupWarmupPolicy.crispInitialPollDelay,
-                sessionUserId: UserDefaults.standard.string(forKey: "auth_userId")
-              )
-
               // Set up floating control bar. Product invariant: normal signed-in
               // launches must show the enabled bar immediately; hide-until-PTT is
               // only for explicit onboarding/demo/minimal-mode contexts.
@@ -287,7 +281,7 @@ struct DesktopHomeView: View {
               log(
                 "DesktopHomeView: userDidSignOut — resetting hasCompletedOnboarding and stopping transcription"
               )
-              resetSessionScopedStartupWarmups(preserveCrispReadState: false)
+              resetSessionScopedStartupWarmups()
               appState.conversationRepository.reset()
               appState.folders = []
               appState.selectedFolderId = nil
@@ -304,7 +298,7 @@ struct DesktopHomeView: View {
               log(
                 "DesktopHomeView: resetOnboardingRequested — clearing live onboarding state for current app"
               )
-              resetSessionScopedStartupWarmups(preserveCrispReadState: false)
+              resetSessionScopedStartupWarmups()
               appState.hasCompletedOnboarding = false
               onboardingStep = 0
               onboardingFurthestStep = 0
@@ -313,7 +307,7 @@ struct DesktopHomeView: View {
             }
             .onReceive(NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)) { _ in
               log("DesktopHomeView: app terminating — cancelling startup warmups")
-              resetSessionScopedStartupWarmups(preserveCrispReadState: true)
+              resetSessionScopedStartupWarmups()
             }
             // Handle transcription toggle from menu bar
             .onReceive(NotificationCenter.default.publisher(for: .toggleTranscriptionRequested)) {
@@ -534,10 +528,9 @@ struct DesktopHomeView: View {
   private func redirectIfPageHidden() {
     // Tier 0 or tier 6+ shows everything — no redirect needed
     guard currentTierLevel > 0 && currentTierLevel < 6 else { return }
-    // Don't redirect from settings/permissions/help pages
+    // Don't redirect from settings/permissions pages
     let nonMainPages: Set<Int> = [
       SidebarNavItem.settings.rawValue, SidebarNavItem.permissions.rawValue,
-      SidebarNavItem.help.rawValue,
     ]
     guard !nonMainPages.contains(selectedIndex) else { return }
 
@@ -566,11 +559,11 @@ struct DesktopHomeView: View {
   /// The constant floating top bar (nav + new-item counts + Capture/Listening)
   /// replaces the old left nav rail. It shows on every main content page —
   /// including Settings, whose page has no back button, so the bar's nav pills
-  /// are the way out. Permissions/help are full-screen utility flows with their
-  /// own chrome and stay bar-less.
+  /// are the way out. Permissions is a full-screen utility flow with its own
+  /// chrome and stays bar-less.
   private var showsTopBar: Bool {
     guard !useLegacyHomeDesign, let item = SidebarNavItem(rawValue: selectedIndex) else { return false }
-    return ![.permissions, .help].contains(item)
+    return item != .permissions
   }
 
   /// Reference instant for the top bar's "new since you were last here" counts.
@@ -708,8 +701,6 @@ struct DesktopHomeView: View {
       return .settings
     case "permissions":
       return .permissions
-    case "help":
-      return .help
     default:
       return nil
     }
@@ -735,11 +726,10 @@ struct DesktopHomeView: View {
     }
   }
 
-  private func resetSessionScopedStartupWarmups(preserveCrispReadState: Bool) {
+  private func resetSessionScopedStartupWarmups() {
     viewModelContainer.resetStartupState()
     didScheduleConversationWarmup = false
     proactiveMonitoringStartGate.finishAttempt()
-    CrispManager.shared.stop(preserveReadState: preserveCrispReadState)
   }
 
   private func scheduleConversationWarmup() {
@@ -1319,8 +1309,6 @@ private struct PageContentView: View {
         )
       case 10:
         PermissionsPage(appState: appState)
-      case 12:
-        HelpPage()
       default:
         DashboardPage(
           viewModel: viewModelContainer.dashboardViewModel,

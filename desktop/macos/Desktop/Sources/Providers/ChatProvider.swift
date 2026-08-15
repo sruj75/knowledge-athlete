@@ -5134,36 +5134,6 @@ class ChatProvider: ObservableObject {
     }
   }
 
-  // MARK: - Message Rating
-
-  /// Rate a message (thumbs up/down)
-  /// - Parameters:
-  ///   - messageId: The message ID to rate
-  ///   - rating: 1 for thumbs up, -1 for thumbs down, nil to clear rating
-  func rateMessage(_ messageId: String, rating: Int?) async {
-    // Update local state immediately for responsive UI
-    if let index = messages.firstIndex(where: { $0.id == messageId }) {
-      messages[index].rating = rating
-    }
-
-    // Persist to backend
-    do {
-      try await APIClient.shared.rateMessage(messageId: messageId, rating: rating)
-      log("Rated message \(messageId) with rating: \(String(describing: rating))")
-
-      // Track analytics
-      if let rating = rating {
-        AnalyticsManager.shared.messageRated(rating: rating)
-      }
-    } catch {
-      logError("Failed to rate message", error: error)
-      // Revert local state on failure
-      if let index = messages.firstIndex(where: { $0.id == messageId }) {
-        messages[index].rating = nil
-      }
-    }
-  }
-
   // MARK: - ChatErrorState recovery dispatch
 
   /// User tapped the primary CTA on a `ChatErrorCard`. Dispatches to

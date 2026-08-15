@@ -653,7 +653,6 @@ class PushToTalkManager: ObservableObject {
     }
 
     let mode = currentPTTMode()
-    AnalyticsManager.shared.floatingBarPTTStarted(mode: mode)
     DesktopDiagnosticsManager.shared.recordPTTStarted(
       mode: mode,
       hubActive: RealtimeHubController.shared.isTransportReady,
@@ -694,7 +693,6 @@ class PushToTalkManager: ObservableObject {
     }
 
     let mode = currentPTTMode()
-    AnalyticsManager.shared.floatingBarPTTStarted(mode: mode)
     DesktopDiagnosticsManager.shared.recordPTTStarted(
       mode: mode,
       hubActive: RealtimeHubController.shared.isTransportReady,
@@ -1187,8 +1185,6 @@ class PushToTalkManager: ObservableObject {
             reason: "repeated dead-mic PTT turns", restartPTT: false, batchMode: false, recoveryAlreadyTriggered: true)
         }
         _ = RealtimeHubController.shared.cancelTurn(turnID: turnID)
-        AnalyticsManager.shared.floatingBarPTTEnded(
-          mode: finalizedMode, hadTranscript: false, transcriptLength: 0)
         // Too short to have captured anything (fast tap / capture not ready) — hint
         // the user to hold longer instead of clearing silently. A longer hub turn
         // that simply had no speech keeps the quiet reset.
@@ -1226,8 +1222,6 @@ class PushToTalkManager: ObservableObject {
         voicedAudioSeconds: nil,
         isNearZero: false,
         judgeable: true)
-      AnalyticsManager.shared.floatingBarPTTEnded(
-        mode: finalizedMode, hadTranscript: true, transcriptLength: 0)
       log(
         "PushToTalkManager: hub turn "
           + "\(commitResult == .accepted ? "committed" : "deferred until its realtime session is ready")")
@@ -1276,8 +1270,6 @@ class PushToTalkManager: ObservableObject {
         log(
           "PushToTalkManager: discarding silent turn (audio \(String(format: "%.2f", totalSec))s, voiced \(String(format: "%.2f", voicedSec))s) — not transcribing"
         )
-        AnalyticsManager.shared.floatingBarPTTEnded(
-          mode: finalizedMode, hadTranscript: false, transcriptLength: 0)
         if recoveryDecision.shouldRebuildCapture {
           requestCoreAudioCaptureRecovery(reason: "repeated dead-mic PTT turns", restartPTT: false, batchMode: isBatch)
         }
@@ -1518,11 +1510,6 @@ class PushToTalkManager: ObservableObject {
     let hasQuery = !query.isEmpty
     let wasFollowUp = isCurrentSessionFollowUp
 
-    AnalyticsManager.shared.floatingBarPTTEnded(
-      mode: finalizedMode,
-      hadTranscript: hasQuery,
-      transcriptLength: query.count
-    )
     if hasQuery {
       DesktopDiagnosticsManager.shared.recordPTTCommitted(mode: finalizedMode, hubActive: false)
       pttLifecycle.terminate(
@@ -1873,8 +1860,6 @@ class PushToTalkManager: ObservableObject {
       if recoveryDecision.shouldRebuildCapture {
         requestCoreAudioCaptureRecovery(reason: "repeated dead-mic PTT turns", restartPTT: false, batchMode: false)
       }
-      AnalyticsManager.shared.floatingBarPTTEnded(
-        mode: finalizedMode, hadTranscript: false, transcriptLength: 0)
       if let turnID = currentVoiceTurnID {
         voiceTurnCoordinator.publish(
           .finish(
@@ -1908,8 +1893,6 @@ class PushToTalkManager: ObservableObject {
       voicedAudioSeconds: nil,
       isNearZero: false,
       judgeable: true)
-    AnalyticsManager.shared.floatingBarPTTEnded(
-      mode: finalizedMode, hadTranscript: true, transcriptLength: 0)
     log(
       "PushToTalkManager: buffered hub turn "
         + "\(commitResult == .accepted ? "committed" : "deferred until its realtime session is ready") after warm wait")
@@ -1950,8 +1933,6 @@ class PushToTalkManager: ObservableObject {
       log(
         "PushToTalkManager: discarding warm-wait fallback turn (audio \(String(format: "%.2f", totalSec))s, voiced \(String(format: "%.2f", voicedSec))s)"
       )
-      AnalyticsManager.shared.floatingBarPTTEnded(
-        mode: finalizedMode, hadTranscript: false, transcriptLength: 0)
       if recoveryDecision.shouldRebuildCapture {
         requestCoreAudioCaptureRecovery(reason: "repeated dead-mic PTT turns", restartPTT: false, batchMode: true)
       }

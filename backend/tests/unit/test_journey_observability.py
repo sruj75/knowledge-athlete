@@ -1,6 +1,4 @@
-import json
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
@@ -8,8 +6,6 @@ import pytest
 from services import conversation_finalization
 from utils import metrics
 from utils.observability import journeys
-
-REPO = Path(__file__).resolve().parents[3]
 
 
 def _install_journey_metrics(monkeypatch):
@@ -117,7 +113,7 @@ def test_listener_projects_the_closed_durable_finalization_states(monkeypatch):
     }
 
 
-def test_idle_metrics_and_monitoring_contract_distinguish_traffic_from_a_missing_scrape_source():
+def test_idle_metrics_export_zero_valued_children_without_user_traffic():
     exported = metrics.generate_latest().decode()
     assert 'omi_journey_accepted_total{journey="chat_response"}' in exported
     assert 'omi_live_stt_accepted_total' in exported
@@ -127,73 +123,3 @@ def test_idle_metrics_and_monitoring_contract_distinguish_traffic_from_a_missing
     assert 'listen_finalization_stale_processing_reconciliations_total{outcome="completed"}' in exported
     assert 'listen_finalization_stale_processing_reconciliations_total{outcome="error"}' in exported
     assert 'listen_finalization_stale_processing_reconciliations_total{outcome="migrated"}' in exported
-
-    monitoring = REPO / 'backend/charts/monitoring'
-    split_alerts = json.loads((monitoring / 'alerts/resilience.json').read_text(encoding='utf-8'))
-    combined_alerts = json.loads((monitoring / 'alert-rules.json').read_text(encoding='utf-8'))
-    expected_ids = {
-        'omi-journey-chat-fail',
-        'omi-journey-pusher-fail',
-        'omi-journey-live-transcription-fail',
-        'omi-journey-capture-fail',
-        'omi-capture-finalization-dead-emission',
-        'omi-journey-scrape-missing',
-    }
-    assert expected_ids <= {rule['uid'] for rule in split_alerts}
-    assert expected_ids <= {rule['uid'] for rule in combined_alerts}
-
-    product_rule_ids = expected_ids - {'omi-journey-scrape-missing', 'omi-capture-finalization-dead-emission'}
-    product_rules = [rule for rule in split_alerts if rule['uid'] in product_rule_ids]
-    for rule in product_rules:
-        if rule['uid'] == 'omi-journey-capture-fail':
-            assert 'listen_finalization_durable_jobs' in rule['data'][0]['model']['expr']
-        elif rule['uid'] == 'omi-journey-live-transcription-fail':
-            assert rule['data'][0]['model']['expr'] == 'sum(increase(omi_live_stt_accepted_total[30m]))'
-            assert 'omi_live_stt_terminal_total{outcome="failure"}' in rule['data'][1]['model']['expr']
-        else:
-            assert 'outcome=~"success|failure"' in rule['data'][0]['model']['expr']
-        assert '$A >= 20 && $B > 0.10' in rule['data'][2]['model']['expression']
-    live_transcription_rule = next(
-        rule for rule in product_rules if rule['uid'] == 'omi-journey-live-transcription-fail'
-    )
-    assert live_transcription_rule['noDataState'] == 'OK'
-    assert live_transcription_rule['annotations']['__panelId__'] == '10'
-    assert all(
-        rule['noDataState'] == 'NoData'
-        for rule in product_rules
-        if rule['uid'] != 'omi-journey-live-transcription-fail'
-    )
-    scrape_rule = next(rule for rule in split_alerts if rule['uid'] == 'omi-journey-scrape-missing')
-    assert scrape_rule['noDataState'] == 'Alerting'
-    assert 'count by (job)' in scrape_rule['data'][0]['model']['expr']
-    assert 'backend-listen-metrics|pusher-metrics' in scrape_rule['data'][0]['model']['expr']
-
-    dashboard = json.loads(
-        (monitoring / 'dashboards/omi-services/resilience-fallbacks.json').read_text(encoding='utf-8')
-    )
-    panel_titles = {panel['title'] for panel in dashboard['panels']}
-    assert 'Journey terminal success rate (success / success + failure)' in panel_titles
-    assert 'Live STT attempt failure rate (failure / accepted)' in panel_titles
-    assert 'Journey acceptance-to-terminal latency (p95)' in panel_titles
-    assert 'Capture finalization durable projection and nonterminal work' in panel_titles
-    live_stt_panel = next(
-        panel for panel in dashboard['panels'] if panel['title'].startswith('Live STT attempt failure')
-    )
-    generic_terminal_panel = next(panel for panel in dashboard['panels'] if panel['id'] == 7)
-    assert generic_terminal_panel['title'] == 'Journey terminal success rate (success / success + failure)'
-    assert 'omi_journey_terminal_total{outcome=~"success|failure"}' in generic_terminal_panel['targets'][0]['expr']
-    assert 'and on (journey)' in generic_terminal_panel['targets'][0]['expr']
-    assert live_stt_panel['id'] == 10
-    assert live_stt_panel['gridPos'] == {'h': 8, 'w': 24, 'x': 0, 'y': 40}
-    assert 'omi_live_stt_terminal_total{outcome="failure"}' in live_stt_panel['targets'][0]['expr']
-    assert 'omi_live_stt_accepted_total' in live_stt_panel['targets'][0]['expr']
-    capture_rule = next(rule for rule in split_alerts if rule['uid'] == 'omi-journey-capture-fail')
-    assert 'listen_finalization_durable_jobs' in capture_rule['data'][0]['model']['expr']
-    assert 'max by (state)' in capture_rule['data'][0]['model']['expr']
-    assert 'clamp_min(delta' in capture_rule['data'][1]['model']['expr']
-    projection_panel = next(panel for panel in dashboard['panels'] if panel['id'] == 9)
-    assert projection_panel['targets'][0]['expr'] == 'max by (state) (listen_finalization_durable_jobs)'
-    dead_emission_rule = next(rule for rule in split_alerts if rule['uid'] == 'omi-capture-finalization-dead-emission')
-    assert 'max(listen_finalization_durable_jobs{state="accepted"})' in dead_emission_rule['data'][0]['model']['expr']
-    assert 'max by (state)' in dead_emission_rule['data'][1]['model']['expr']
-    assert dead_emission_rule['data'][2]['model']['expression'] == '$A >= 5 && $B == 0'

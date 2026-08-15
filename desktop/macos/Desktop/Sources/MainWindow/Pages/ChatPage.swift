@@ -283,9 +283,6 @@ struct ChatPage: View {
       isLoadingMoreMessages: chatProvider.isLoadingMoreMessages,
       isLoadingInitial: chatProvider.isLoading && !chatProvider.isClearing,
       onLoadMore: { await chatProvider.loadMoreMessages() },
-      onRate: { messageId, rating in
-        Task { await chatProvider.rateMessage(messageId, rating: rating) }
-      },
       onCitationTap: { citation in
         handleCitationTap(citation)
       },
