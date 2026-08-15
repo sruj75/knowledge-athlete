@@ -17,6 +17,24 @@ import XCTest
 /// The invariant: every `recordPTTSilentTurn` discard site reports a recovery
 /// decision and every discard is counted by the recovery policy.
 final class PTTSilentTurnRecoveryWiringTests: XCTestCase {
+  func testDeprecatedProductAnalyticsEventsAreAbsentFromPTTFlow() throws {
+    let desktopRoot = URL(fileURLWithPath: #filePath)
+      .deletingLastPathComponent()
+      .deletingLastPathComponent()
+    // omi-test-quality: source-inspection -- static contract: the behavioral recorder tests prove the retained bounded lifecycle; this deletion ratchet prevents the rejected PostHog helpers or their PTT call sites from returning.
+    let analytics = try String(
+      contentsOf: desktopRoot.appendingPathComponent("Sources/AnalyticsManager.swift"),
+      encoding: .utf8)
+    let source = analytics + (try managerSource())
+
+    for forbidden in [
+      "floatingBarPTTStarted", "floatingBarPTTEnded",
+      "floating_bar_ptt_started", "floating_bar_ptt_ended",
+    ] {
+      XCTAssertFalse(source.contains(forbidden), "deprecated PTT analytics surface returned: \(forbidden)")
+    }
+  }
+
   func testEverySilentTurnSiteWiresRecovery() throws {
     let source = try managerSource()
 

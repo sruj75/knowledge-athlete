@@ -7,9 +7,8 @@ import Foundation
 /// peak/RMS/seconds at finalization but cannot answer *why* a turn was silent:
 /// did capture ever start? did it deliver frames? was the key released before the
 /// first usable audio arrived? did a capture rebuild restore the next turn? Those
-/// questions are unanswerable from product telemetry alone, so a repeatable
-/// "floating_bar_ptt_ended had_transcript=false, zero audio" incident cannot be
-/// classified into one of the four causally distinct boundaries.
+/// questions are unanswerable from generic product telemetry alone, so a failed
+/// attempt can be classified into one of the causally distinct boundaries.
 ///
 /// This recorder accumulates the *boundaries that already exist* in the capture
 /// lifecycle (press, capture-start requested/accepted/failed, first audio

@@ -1263,22 +1263,6 @@ class AnalyticsManager {
     PostHogManager.shared.track("floating_bar_query_sent", properties: props)
   }
 
-  /// Track when push-to-talk starts listening
-  func floatingBarPTTStarted(mode: String) {
-    let props: [String: Any] = ["mode": mode]
-    PostHogManager.shared.track("floating_bar_ptt_started", properties: props)
-  }
-
-  /// Track when push-to-talk ends and sends (or discards) transcript
-  func floatingBarPTTEnded(mode: String, hadTranscript: Bool, transcriptLength: Int) {
-    let props: [String: Any] = [
-      "mode": mode,
-      "had_transcript": hadTranscript,
-      "transcript_length": transcriptLength,
-    ]
-    PostHogManager.shared.track("floating_bar_ptt_ended", properties: props)
-  }
-
   // MARK: - Knowledge Graph Events
 
   /// Track when knowledge graph generation starts during onboarding

@@ -19,8 +19,8 @@ Release identity is uniform across surfaces (Sentry + PostHog):
 | Bundle id | — | `bundle_id` tag | `AppBuild.bundleIdentifier` |
 
 PostHog `app_version`/`app_build`/`update_channel` are registered as super-properties
-(`PostHogManager.register`) so **every** event — including `floating_bar_ptt_ended` —
-carries release identity. Sentry native crash/app-hang/watchdog events are
+(`PostHogManager.register`) so every product event carries release identity. Sentry
+native crash/app-hang/watchdog events are
 build-attributable via `options.releaseName`/`options.dist` set at `SentrySDK.start`.
 
 ## Cross-cutting rules
@@ -65,9 +65,6 @@ the release-evidence layer (`#9523`) will consume.
   `zero_or_near_zero_samples` with `turn_disposition = silent_rejected` (quiet
   discard / no speech). `first_chunks_energy_bucket` + `turn_disposition` separate a
   true zero-sample capture failure from a deliberate quiet discard.
-- **Deprecated event:** `floating_bar_ptt_ended` (`had_transcript`) collapses all
-  four outcomes above into one boolean and MUST NOT be read as a PTT
-  success/failure denominator. It is retained only for backward compatibility.
 - **Window:** PT24H rolling. **Minimum cohort:** 50 judgeable attempts per build.
   **Missing data:** if no `ptt_audio_capture_lifecycle` events for a build → `unknown`.
 

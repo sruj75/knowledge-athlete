@@ -461,9 +461,7 @@ final class DesktopDiagnosticsManager {
   /// classes), not only classified failures. Short tap / quiet discard / user
   /// cancel are bounded `failure_class` values distinct from `capture_never_operational`,
   /// so they cannot inflate a capture-failure rate. This is the authoritative,
-  /// privacy-bounded PTT terminal-outcome funnel (#10425); the ambiguous
-  /// `floating_bar_ptt_ended` `had_transcript` event is retained only for backward
-  /// compatibility and must not be read as a success/failure denominator.
+  /// privacy-bounded PTT terminal-outcome funnel (#10425).
   func recordPTTAttemptLifecycle(_ snapshot: PTTAttemptLifecycleRecorder.Snapshot) {
     record(
       .pttAudioCaptureLifecycle,
