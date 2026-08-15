@@ -23,7 +23,6 @@ from llm_gateway.gateway.accounting import (
     openai_usage_from_response,
     vertex_usage_from_response,
 )
-from llm_gateway.gateway.credentials import CredentialContext
 from llm_gateway.gateway.schemas import FailureClass, ProviderRef, ProviderRejection
 from llm_gateway.gateway.sse import SSEEventDecoder
 from utils.executors import critical_executor, run_blocking
@@ -50,7 +49,6 @@ class ChatCompletionProvider(Protocol):
         request: Mapping[str, Any],
         *,
         provider_ref: ProviderRef,
-        credentials: CredentialContext,
         timeout_ms: int,
     ) -> 'ProviderResponse': ...
 
@@ -102,7 +100,6 @@ class OpenAICompatibleChatCompletionProvider:
         request: Mapping[str, Any],
         *,
         provider_ref: ProviderRef,
-        credentials: CredentialContext,
         timeout_ms: int,
     ) -> ProviderResponse:
         api_key = _resolve_provider_api_key(self._api_key_env)
@@ -146,7 +143,6 @@ class OpenAICompatibleChatCompletionProvider:
         request: Mapping[str, Any],
         *,
         provider_ref: ProviderRef,
-        credentials: CredentialContext,
         timeout_ms: int,
     ):
         api_key = _resolve_provider_api_key(self._api_key_env)
@@ -248,7 +244,6 @@ class VertexGeminiProvider:
         request: Mapping[str, Any],
         *,
         provider_ref: ProviderRef,
-        credentials: CredentialContext,
         timeout_ms: int,
     ) -> ProviderResponse:
         endpoint = self._endpoint(provider_ref.model, method='generateContent')
@@ -289,7 +284,6 @@ class VertexGeminiProvider:
         request: Mapping[str, Any],
         *,
         provider_ref: ProviderRef,
-        credentials: CredentialContext,
         timeout_ms: int,
     ):
         endpoint = self._endpoint(provider_ref.model, method='streamGenerateContent')
@@ -587,7 +581,6 @@ class AnthropicMessagesProvider:
         request: Mapping[str, Any],
         *,
         provider_ref: ProviderRef,
-        credentials: CredentialContext,
         timeout_ms: int,
     ) -> ProviderResponse:
         api_key = os.getenv(self._api_key_env, '').strip()
@@ -765,7 +758,6 @@ class FakeChatCompletionProvider:
         request: Mapping[str, Any],
         *,
         provider_ref: ProviderRef,
-        credentials: CredentialContext,
         timeout_ms: int,
     ) -> ProviderResponse:
         self.calls.append(

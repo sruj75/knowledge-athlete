@@ -58,7 +58,6 @@ FULL_RUN_PREFIXES = (
 # every flat utils module before AREA_TESTS can narrow.
 FULL_RUN_GLOBS = (
     'backend/main.py',
-    'backend/dependencies.py',
     'backend/scripts/update-python-lock.sh',
     'backend/scripts/sync-python-deps.sh',
     'backend/utils/executors.py',

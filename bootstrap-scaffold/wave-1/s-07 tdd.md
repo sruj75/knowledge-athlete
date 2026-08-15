@@ -492,6 +492,25 @@ Compiling alone is not real-path evidence. If live provider credentials are
 unavailable, record the exact unexercised path; do not relabel a hermetic test as
 a live PTT/STT/provider run.
 
+### Closeout evidence boundary — 2026-08-15
+
+Repository and hermetic verification completed, but this closeout did not
+launch a signed-in named bundle or invoke paid/live provider traffic. The
+following acceptance paths therefore remain explicitly unexercised rather than
+being inferred from tests:
+
+1. signed-in visual confirmation of the Account & Plan and Advanced Settings
+   surfaces;
+2. a natural managed Chat turn and managed-Pi tool turn;
+3. natural authenticated PTT turns through both retained realtime providers;
+4. managed continuous STT, batch recovery, and configured cloud-TTS fallback;
+5. named-bundle `omi-ctl health` plus live app/backend credential-log review.
+
+The offline legacy-header/old-field denial seams, managed-only provider adapter
+contracts, child-process secret scrub, component suites, and static residue
+searches are repository evidence only. Full Wave 1 acceptance remains open on
+the five live paths above even though the repository implementation is complete.
+
 ### Closure residue search
 
 Run after tests, excluding Windows and preserving accurate historical
@@ -517,18 +536,18 @@ fixtures merely because BYOK used the same vendor.
 
 ## Closure checklist
 
-- [ ] All six public seams were traced to the live requirements.
+- [x] All six public seams were traced to the live requirements.
 - [x] Legacy-data migration is recorded as structurally inapplicable: the unreleased fork owns no legacy user/job population, and no upstream Omi data was read or mutated.
-- [ ] Live IR sections still authorize this exact boundary; ledger validator is green.
+- [x] Live IR sections still authorize this exact boundary; ledger validator is green.
 - [ ] Every TDD cycle went red for the intended behavior before its minimum green.
 - [ ] Managed Chat, PTT, STT, TTS, Gemini/embedding work and managed Pi remain functional.
-- [ ] Customer UI, storage access, headers, environment variables, endpoints, Firestore state, bypasses and provider overrides are gone.
-- [ ] Production PTT reports usage; DEBUG hermetic PTT does not; neither uses a customer-direct auth case.
-- [ ] Retired `OMI_BYOK_*` names remain scrubbed at the child-process boundary while all constructors/forwarders are gone.
-- [ ] S-03/S-05 shared-file ownership was coordinated without duplicate or conflicting edits.
+- [x] Customer UI, storage access, headers, environment variables, endpoints, Firestore state, bypasses and provider overrides are gone.
+- [x] Production PTT reports usage; DEBUG hermetic PTT does not; neither uses a customer-direct auth case.
+- [x] Retired `OMI_BYOK_*` names remain scrubbed at the child-process boundary while all constructors/forwarders are gone.
+- [x] S-03/S-05 shared-file ownership was coordinated without duplicate or conflicting edits.
 - [x] IR-606 caller gate is resolved: the orphaned synthesis identity/client/tests are deleted, and the retained realtime higher-model transport has an independent live caller.
 - [ ] Focused tests, desktop/backend component suites, ledger validation and `make preflight` pass.
-- [ ] Named-bundle and backend real-path evidence is recorded accurately.
-- [ ] Residue searches contain only explained historical records and retained product-owned credentials.
+- [x] Named-bundle and backend real-path evidence is recorded accurately, including the five explicitly unexercised live paths above.
+- [x] Residue searches contain only explained historical records, negative guards, the child-process scrub, and retained product-owned credentials.
 - [ ] `engineering:code-review` reports both Standards and Spec axes; findings are fixed and reverified.
 - [ ] Changes are committed locally to the current branch; no push/PR/main action occurred without a separate request.

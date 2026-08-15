@@ -162,19 +162,6 @@ class Evidence(StrictBaseModel):
         }
 
 
-class CredentialPolicy(StrictBaseModel):
-    fallback_eligible_failure_classes: list[FailureClass] = Field(default_factory=_empty_failure_classes)
-    never_fallback_failure_classes: list[FailureClass] = Field(default_factory=_empty_failure_classes)
-
-    @model_validator(mode='after')
-    def validate_failure_class_sets(self):
-        overlap = set(self.fallback_eligible_failure_classes) & set(self.never_fallback_failure_classes)
-        if overlap:
-            names = ', '.join(sorted(overlap))
-            raise ValueError(f'credential fallback class sets overlap: {names}')
-        return self
-
-
 class FallbackPolicy(StrictBaseModel):
     fallback_on: list[FailureClass] = Field(default_factory=_empty_failure_classes)
     never_fallback_on: list[FailureClass] = Field(default_factory=_empty_failure_classes)
@@ -200,7 +187,6 @@ class LaneConfig(StrictBaseModel):
     surface: Surface
     capabilities: Capabilities
     objective: Objective
-    credential_policy: CredentialPolicy
     active_route: str = Field(min_length=1)
     last_known_good: str = Field(min_length=1)
 
@@ -218,7 +204,6 @@ class RouteArtifact(StrictBaseModel):
     capabilities: Capabilities
     evidence: Evidence
     rollout: RolloutPolicy
-    credential_policy: CredentialPolicy
     fallback_policy: FallbackPolicy
     artifact_digest: str | None = None
 

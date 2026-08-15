@@ -11,7 +11,6 @@ from dataclasses import dataclass
 from typing import Any, cast
 
 from llm_gateway.gateway.accounting import AttemptTrace, ProviderResponseMetadata, UsageStatus
-from llm_gateway.gateway.credentials import CredentialContext
 from llm_gateway.gateway.errors import (
     GatewayCapabilityMismatchError,
     GatewayError,
@@ -79,7 +78,6 @@ async def _close_provider(provider_name: str, provider: ChatCompletionProvider) 
 
 async def execute_chat_completion(
     resolved_route: ResolvedRoute,
-    credential_context: CredentialContext,
     provider_registry: ProviderRegistry,
     *,
     attempt_trace: AttemptTrace | None = None,
@@ -94,7 +92,6 @@ async def execute_chat_completion(
         return await _execute_route(
             resolved_route,
             serving_route,
-            credential_context,
             provider_registry,
             is_lkg=serving_is_lkg,
             fallback_reason=None,
@@ -115,7 +112,6 @@ async def execute_chat_completion(
             return await _execute_route(
                 resolved_route,
                 resolved_route.last_known_good_route,
-                credential_context,
                 provider_registry,
                 is_lkg=True,
                 fallback_reason=first_failure,
@@ -206,7 +202,6 @@ RETRYABLE_PROVIDER_FAILURE_CLASSES = frozenset(
 async def _execute_route(
     resolved_route: ResolvedRoute,
     route: RouteArtifact,
-    credential_context: CredentialContext,
     provider_registry: ProviderRegistry,
     *,
     is_lkg: bool,
@@ -228,7 +223,6 @@ async def _execute_route(
                 route,
                 provider,
                 provider_ref,
-                credential_context,
                 attempt_trace=attempt_trace,
                 fallback_reason=current_fallback_reason,
                 deadline_monotonic=deadline_monotonic,
@@ -264,7 +258,6 @@ async def _attempt_provider(
     route: RouteArtifact,
     provider: ChatCompletionProvider,
     provider_ref: ProviderRef,
-    credential_context: CredentialContext,
     *,
     attempt_trace: AttemptTrace | None,
     fallback_reason: FailureClass | None,
@@ -288,7 +281,6 @@ async def _attempt_provider(
             response = await provider.create_chat_completion(
                 _provider_request(resolved_route, provider_ref, route=route),
                 provider_ref=provider_ref,
-                credentials=credential_context,
                 timeout_ms=timeout_ms,
             )
             if attempt_trace is not None:

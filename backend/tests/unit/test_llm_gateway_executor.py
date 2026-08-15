@@ -5,9 +5,7 @@ from functools import cache
 import pytest
 
 import llm_gateway.gateway.executor as executor
-from llm_gateway.gateway.auth import ServiceCaller
 from llm_gateway.gateway.config_loader import GatewayConfig, load_gateway_config
-from llm_gateway.gateway.credentials import build_omi_managed_credential_context
 from llm_gateway.gateway.errors import (
     GatewayCapabilityMismatchError,
     GatewayInvalidRouteConfigError,
@@ -34,7 +32,6 @@ async def test_executor_success_uses_active_primary_and_exposes_lane_model():
 
     result = await execute_chat_completion(
         resolved,
-        omi_credentials(),
         ProviderRegistry({'openai': provider}),
     )
 
@@ -60,7 +57,6 @@ async def test_executor_forwards_prompt_parser_request_without_response_format()
 
     await execute_chat_completion(
         resolved,
-        omi_credentials(),
         ProviderRegistry({'openai': provider}),
     )
 
@@ -85,7 +81,6 @@ async def test_executor_uses_lkg_route_provider_options_when_active_is_shadow():
 
     await execute_chat_completion(
         resolved,
-        omi_credentials(),
         ProviderRegistry({'openai': provider}),
     )
 
@@ -101,7 +96,6 @@ async def test_executor_maps_gemini_thinking_budget_before_provider_call():
 
     await execute_chat_completion(
         resolved,
-        omi_credentials(),
         ProviderRegistry({'openai': provider}),
     )
 
@@ -131,7 +125,6 @@ async def test_executor_retries_provider_up_to_max_attempts_before_fallback():
 
     result = await execute_chat_completion(
         resolved,
-        omi_credentials(),
         ProviderRegistry({'openai': provider}),
     )
 
@@ -159,7 +152,7 @@ async def test_executor_retries_with_only_the_remaining_request_deadline(monkeyp
         ]
     )
 
-    await execute_chat_completion(resolved, omi_credentials(), ProviderRegistry({'openai': provider}))
+    await execute_chat_completion(resolved, ProviderRegistry({'openai': provider}))
 
     assert [call.timeout_ms for call in provider.calls] == [100, 25]
 
@@ -179,9 +172,7 @@ async def test_executor_attempt_trace_retains_each_retry_and_fallback() -> None:
     )
     trace = AttemptTrace()
 
-    await execute_chat_completion(
-        resolved, omi_credentials(), ProviderRegistry({'openai': provider}), attempt_trace=trace
-    )
+    await execute_chat_completion(resolved, ProviderRegistry({'openai': provider}), attempt_trace=trace)
 
     assert [attempt.outcome for attempt in trace.attempts] == ['error', 'error', 'success']
     assert [attempt.retry_ordinal for attempt in trace.attempts] == [1, 2, 1]
@@ -210,7 +201,6 @@ async def test_executor_does_not_retry_terminal_provider_failures(failure_class,
     with pytest.raises(error_type):
         await execute_chat_completion(
             resolved,
-            omi_credentials(),
             ProviderRegistry({'openai': provider}),
         )
 
@@ -239,7 +229,6 @@ async def test_executor_uses_active_route_fallback_for_policy_allowed_failures(f
 
     result = await execute_chat_completion(
         resolved,
-        omi_credentials(),
         ProviderRegistry({'openai': provider}),
     )
 
@@ -271,7 +260,6 @@ async def test_executor_does_not_fallback_for_non_eligible_failures(failure_clas
     with pytest.raises(error_type) as exc_info:
         await execute_chat_completion(
             resolved,
-            omi_credentials(),
             ProviderRegistry({'openai': provider}),
         )
 
@@ -292,7 +280,6 @@ async def test_executor_uses_lkg_only_when_active_route_policy_allows():
 
     result = await execute_chat_completion(
         resolved,
-        omi_credentials(),
         ProviderRegistry({'openai': provider}),
     )
 
@@ -323,7 +310,6 @@ async def test_executor_does_not_use_lkg_when_active_route_policy_rejects_failur
     with pytest.raises(GatewayProviderFailureError) as exc_info:
         await execute_chat_completion(
             resolved,
-            omi_credentials(),
             ProviderRegistry({'openai': provider}),
         )
 
@@ -343,7 +329,6 @@ async def test_unsupported_omi_paid_provider_is_visible_and_does_not_fallback():
     with pytest.raises(GatewayInvalidRouteConfigError) as exc_info:
         await execute_chat_completion(
             resolved,
-            omi_credentials(),
             ProviderRegistry({'openai': provider}),
         )
 
@@ -370,7 +355,6 @@ async def test_shadow_active_route_serves_lkg_not_active():
 
     result = await execute_chat_completion(
         resolved,
-        omi_credentials(),
         ProviderRegistry({'openai': provider}),
     )
 
@@ -397,7 +381,6 @@ async def test_disabled_active_route_serves_lkg_not_active():
 
     result = await execute_chat_completion(
         resolved,
-        omi_credentials(),
         ProviderRegistry({'openai': provider}),
     )
 
@@ -421,7 +404,6 @@ async def test_canary_active_route_with_percent_zero_serves_lkg():
 
     result = await execute_chat_completion(
         resolved,
-        omi_credentials(),
         ProviderRegistry({'openai': provider}),
     )
 
@@ -484,7 +466,6 @@ async def test_canary_route_at_100_percent_serves_active():
 
     result = await execute_chat_completion(
         resolved,
-        omi_credentials(),
         ProviderRegistry({'openai': provider}),
     )
 
@@ -513,10 +494,6 @@ def valid_request(**overrides):
     return request
 
 
-def omi_credentials():
-    return build_omi_managed_credential_context(ServiceCaller(name='backend'))
-
-
 @cache
 def gateway_config() -> GatewayConfig:
     """Load the immutable checked-in gateway config once per test module."""
@@ -543,10 +520,8 @@ def config_with_routes(active_route, lkg_route):
     route_artifacts = dict(base.route_artifacts)
     route_artifacts[ACTIVE_ROUTE] = active_route
     route_artifacts[LKG_ROUTE] = lkg_route
-    lanes = dict(base.lanes)
-    lanes[LANE_ID] = lanes[LANE_ID].model_copy(update={'credential_policy': active_route.credential_policy})
     return GatewayConfig(
-        lanes=lanes,
+        lanes=base.lanes,
         route_artifacts=route_artifacts,
         feature_bundles=base.feature_bundles,
     )

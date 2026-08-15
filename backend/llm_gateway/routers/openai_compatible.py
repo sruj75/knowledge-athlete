@@ -23,10 +23,6 @@ from llm_gateway.gateway.accounting import (
 from llm_gateway.gateway.accounting_sink import schedule_attempt_trace
 from llm_gateway.gateway.auth import ServiceAuthDependency
 from llm_gateway.gateway.config_loader import GatewayConfig
-from llm_gateway.gateway.credentials import (
-    CredentialContext,
-    build_omi_managed_credential_context,
-)
 from llm_gateway.gateway.errors import (
     GatewayError,
     GatewayErrorCode,
@@ -81,7 +77,6 @@ async def create_chat_completion(
     try:
         request_body = await _request_json(request)
         resolved_route = resolve_chat_completion_route(config, request_body)
-        credentials = _resolve_credentials(caller)
         credential_source = 'omi_managed'
         accounting_context = _accounting_context(
             request_id=request_id,
@@ -94,7 +89,6 @@ async def create_chat_completion(
         if is_streaming:
             return await _streaming_response(
                 resolved_route,
-                credentials,
                 provider_registry,
                 started_at=started_at,
                 request_id=request_id,
@@ -103,7 +97,6 @@ async def create_chat_completion(
             )
         result = await execute_chat_completion(
             resolved_route,
-            credentials,
             provider_registry,
             attempt_trace=attempt_trace,
         )
@@ -231,10 +224,6 @@ async def _request_json(request: Request) -> dict[str, Any]:
     if not isinstance(body, dict):
         raise GatewayInvalidRequestError('request body must be an object')
     return cast(dict[str, Any], body)
-
-
-def _resolve_credentials(caller: ServiceAuthDependency) -> CredentialContext:
-    return build_omi_managed_credential_context(caller)
 
 
 def _error_response(exc: GatewayError) -> JSONResponse:
@@ -396,7 +385,6 @@ async def close_image_generation_client() -> None:
 
 async def _streaming_response(
     resolved_route: ResolvedRoute,
-    credentials: CredentialContext,
     provider_registry: ProviderRegistry,
     *,
     started_at: float,
@@ -409,7 +397,6 @@ async def _streaming_response(
 
     prepared = await _prepared_streaming_iterator(
         resolved_route,
-        credentials,
         provider_registry,
         route,
         attempt_trace=attempt_trace,
@@ -417,7 +404,6 @@ async def _streaming_response(
     async_iterator = _stream_with_terminal_metrics(
         prepared,
         resolved_route=resolved_route,
-        credentials=credentials,
         route=route,
         started_at=started_at,
         request_id=request_id,
@@ -442,7 +428,6 @@ class _PreparedStream:
 
 async def _prepared_streaming_iterator(
     resolved_route: ResolvedRoute,
-    credentials: CredentialContext,
     provider_registry: ProviderRegistry,
     route: RouteArtifact,
     *,
@@ -462,7 +447,6 @@ async def _prepared_streaming_iterator(
         stream = stream_chat_completion(
             provider_request,
             provider_ref=provider_ref,
-            credentials=credentials,
             timeout_ms=route.timeouts.request_ms,
         )
         try:
@@ -514,7 +498,6 @@ async def _stream_with_terminal_metrics(
     prepared: _PreparedStream,
     *,
     resolved_route: ResolvedRoute,
-    credentials: CredentialContext,
     route: RouteArtifact,
     started_at: float,
     request_id: str,

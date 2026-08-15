@@ -3,8 +3,6 @@ from __future__ import annotations
 import httpx
 import pytest
 
-from llm_gateway.gateway.auth import ServiceCaller
-from llm_gateway.gateway.credentials import build_omi_managed_credential_context
 from llm_gateway.gateway.providers import (
     AnthropicMessagesProvider,
     MAX_RESPONSE_BYTES_ENV_VAR,
@@ -39,7 +37,6 @@ async def test_openai_compatible_provider_posts_chat_completion(monkeypatch):
     response = await provider.create_chat_completion(
         {'model': 'gpt-4.1-mini', 'messages': [], 'stream': False},
         provider_ref=ProviderRef(provider='openai', model='gpt-4.1-mini'),
-        credentials=build_omi_managed_credential_context(ServiceCaller(name='backend')),
         timeout_ms=8000,
     )
 
@@ -70,7 +67,6 @@ async def test_openai_compatible_provider_streams_chat_completion_bytes(monkeypa
         async for chunk in provider.stream_chat_completion(
             {'model': 'gpt-4.1-mini', 'messages': [], 'stream': True},
             provider_ref=ProviderRef(provider='openai', model='gpt-4.1-mini'),
-            credentials=build_omi_managed_credential_context(ServiceCaller(name='backend')),
             timeout_ms=8000,
         )
     ]
@@ -109,7 +105,6 @@ async def test_anthropic_provider_flattens_system_text_parts_and_normalizes_fini
             ],
         },
         provider_ref=ProviderRef(provider='anthropic', model='claude-sonnet-4-6'),
-        credentials=build_omi_managed_credential_context(ServiceCaller(name='backend')),
         timeout_ms=8000,
     )
 
@@ -137,7 +132,6 @@ async def test_openai_compatible_provider_fails_closed_without_api_key(monkeypat
         await provider.create_chat_completion(
             {'model': 'gpt-4.1-mini', 'messages': [], 'stream': False},
             provider_ref=ProviderRef(provider='openai', model='gpt-4.1-mini'),
-            credentials=build_omi_managed_credential_context(ServiceCaller(name='backend')),
             timeout_ms=8000,
         )
 
@@ -159,7 +153,6 @@ async def test_openai_compatible_provider_maps_timeout(monkeypatch):
         await provider.create_chat_completion(
             {'model': 'gpt-4.1-mini', 'messages': [], 'stream': False},
             provider_ref=ProviderRef(provider='openai', model='gpt-4.1-mini'),
-            credentials=build_omi_managed_credential_context(ServiceCaller(name='backend')),
             timeout_ms=8000,
         )
 
@@ -181,7 +174,6 @@ async def test_openai_compatible_provider_maps_transport_error(monkeypatch):
         await provider.create_chat_completion(
             {'model': 'gpt-4.1-mini', 'messages': [], 'stream': False},
             provider_ref=ProviderRef(provider='openai', model='gpt-4.1-mini'),
-            credentials=build_omi_managed_credential_context(ServiceCaller(name='backend')),
             timeout_ms=8000,
         )
 
@@ -213,7 +205,6 @@ async def test_openai_compatible_provider_maps_status_without_leaking_body(monke
         await provider.create_chat_completion(
             {'model': 'gpt-4.1-mini', 'messages': [{'role': 'user', 'content': 'secret'}], 'stream': False},
             provider_ref=ProviderRef(provider='openai', model='gpt-4.1-mini'),
-            credentials=build_omi_managed_credential_context(ServiceCaller(name='backend')),
             timeout_ms=8000,
         )
 
@@ -273,7 +264,6 @@ async def test_openai_provider_classifies_bounded_rejection_without_leaking_body
         await provider.create_chat_completion(
             {'model': 'gpt-5.4-nano', 'messages': [{'role': 'user', 'content': 'secret'}], 'stream': False},
             provider_ref=ProviderRef(provider='openai', model='gpt-5.4-nano'),
-            credentials=build_omi_managed_credential_context(ServiceCaller(name='backend')),
             timeout_ms=8000,
         )
 
@@ -304,7 +294,6 @@ async def test_openai_compatible_provider_rejects_malformed_success_response(mon
         await provider.create_chat_completion(
             {'model': 'gpt-4.1-mini', 'messages': [], 'stream': False},
             provider_ref=ProviderRef(provider='openai', model='gpt-4.1-mini'),
-            credentials=build_omi_managed_credential_context(ServiceCaller(name='backend')),
             timeout_ms=8000,
         )
 
@@ -325,7 +314,6 @@ async def test_openai_compatible_provider_rejects_oversized_response(monkeypatch
         await provider.create_chat_completion(
             {'model': 'gpt-4.1-mini', 'messages': [], 'stream': False},
             provider_ref=ProviderRef(provider='openai', model='gpt-4.1-mini'),
-            credentials=build_omi_managed_credential_context(ServiceCaller(name='backend')),
             timeout_ms=8000,
         )
 
@@ -353,7 +341,6 @@ async def _normalize_anthropic(monkeypatch, payload=None):
     return await provider.create_chat_completion(
         {'model': 'claude-sonnet-4-6', 'messages': [{'role': 'user', 'content': 'hello'}]},
         provider_ref=ProviderRef(provider='anthropic', model='claude-sonnet-4-6'),
-        credentials=build_omi_managed_credential_context(ServiceCaller(name='backend')),
         timeout_ms=8000,
     )
 

@@ -186,7 +186,6 @@ def write_config(
         'surface': 'openai.chat_completions',
         'capabilities': capabilities(),
         'objective': {'quality': 0.6, 'latency': 0.2, 'cost': 0.2},
-        'credential_policy': credential_policy(),
         'active_route': ACTIVE_ROUTE,
         'last_known_good': LKG_ROUTE,
     }
@@ -229,21 +228,6 @@ def capabilities(structured_output: str = 'json_schema') -> dict:
     }
 
 
-def credential_policy() -> dict:
-    return {
-        'fallback_eligible_failure_classes': [
-            'timeout_before_output',
-            'provider_429_omi_paid',
-            'provider_5xx_omi_paid',
-        ],
-        'never_fallback_failure_classes': [
-            'capability_mismatch',
-            'provider_invalid_request',
-            'invalid_config',
-        ],
-    }
-
-
 def route_artifact(route_artifact_id: str, *, model: str = 'gpt-4.1-mini') -> dict:
     return {
         'route_artifact_id': route_artifact_id,
@@ -261,7 +245,6 @@ def route_artifact(route_artifact_id: str, *, model: str = 'gpt-4.1-mini') -> di
             'dev_only': False,
         },
         'rollout': {'stage': 'shadow', 'percent': 0},
-        'credential_policy': credential_policy(),
         'fallback_policy': {
             'fallback_on': ['timeout_before_output', 'provider_429_omi_paid', 'provider_5xx_omi_paid'],
             'never_fallback_on': [

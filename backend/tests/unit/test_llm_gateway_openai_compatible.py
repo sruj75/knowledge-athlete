@@ -10,7 +10,6 @@ from starlette.requests import Request
 
 from llm_gateway.gateway.auth import ServiceCaller
 from llm_gateway.gateway.config_loader import load_gateway_config
-from llm_gateway.gateway.credentials import build_omi_managed_credential_context
 from llm_gateway.gateway.executor import ProviderRegistry, provider_request_for
 from llm_gateway.gateway.providers import FakeChatCompletionProvider, ProviderFailure
 from llm_gateway.gateway.resolver import resolve_chat_completion_route
@@ -626,7 +625,6 @@ async def test_streaming_midstream_provider_failure_records_error_exactly_once(m
     stream = openai_compatible._stream_with_terminal_metrics(
         prepared,
         resolved_route=resolved,
-        credentials=build_omi_managed_credential_context(ServiceCaller(name='backend')),
         route=route,
         started_at=openai_compatible.time_request(),
         request_id='2cb4c714-f0f1-4d37-a1d4-fb28cb22c359',
@@ -662,7 +660,6 @@ async def test_streaming_consumer_abandonment_records_cancelled_exactly_once(mon
             fallback_reason=None,
         ),
         resolved_route=resolved,
-        credentials=build_omi_managed_credential_context(ServiceCaller(name='backend')),
         route=route,
         started_at=openai_compatible.time_request(),
         request_id='69fec0ac-5e33-44a3-a881-407989aa02ac',

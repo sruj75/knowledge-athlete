@@ -171,7 +171,7 @@ def test_selector_docs_and_flat_utils_do_not_force_full_suite_via_globs(selector
     assert selected != all_tests
     assert reason == "selected backend unit tests from changed paths and workflow contracts"
 
-    for path in ("backend/main.py", "backend/dependencies.py", "backend/utils/executors.py"):
+    for path in ("backend/main.py", "backend/utils/executors.py"):
         selected, reason = selector.tests_for_changed_paths([path], all_tests)
         assert selected == all_tests, path
         assert reason == f"{path} requires the full backend unit suite"
@@ -363,7 +363,7 @@ def test_shared_change_detection_and_backend_isolation_are_ci_wired():
     assert "check_module_stub_pollution.py" in manifest
     assert '"--check-allowlist-monotonic", "{base}"' in manifest
     assert "backend/agent-proxy" not in manifest
-    assert "backend/dependencies.py" in manifest
+    assert "backend/dependencies.py" not in manifest
     assert "unmanaged_thread_offload" in manifest
     assert "scan_import_time_side_effects.py" not in backend_checks
     assert "check_module_stub_pollution.py" not in backend_checks

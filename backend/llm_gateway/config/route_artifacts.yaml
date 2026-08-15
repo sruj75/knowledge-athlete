@@ -1,6 +1,6 @@
 route_artifacts:
   - route_artifact_id: route.chat_structured.2026_06_27.001
-    artifact_digest: sha256:f7344e06e783e27ecdf0dbd593eea71f47e246325a531079189cdce46e114f0e
+    artifact_digest: sha256:667faeaf961a3dbbe357e0671d36ee171dd1c7bdee643d04583a2b46ee687b1b
     lane_id: omi:auto:chat-structured
     surface: openai.chat_completions
     primary:
@@ -28,15 +28,6 @@ route_artifacts:
     rollout:
       stage: shadow
       percent: 0
-    credential_policy:
-      fallback_eligible_failure_classes:
-        - timeout_before_output
-        - provider_429_omi_paid
-        - provider_5xx_omi_paid
-      never_fallback_failure_classes:
-        - capability_mismatch
-        - provider_invalid_request
-        - invalid_config
     fallback_policy:
       fallback_on:
         - timeout_before_output
@@ -48,7 +39,7 @@ route_artifacts:
         - invalid_config
 
   - route_artifact_id: route.chat_structured.2026_06_20.001
-    artifact_digest: sha256:292b075551d77500b4ab577800dffaceea473c24a4a728fc461f792b6e471c84
+    artifact_digest: sha256:93bc996bc789ae0da103462f969708fa034aa3d6d552373a4ff58b1b4872f743
     lane_id: omi:auto:chat-structured
     surface: openai.chat_completions
     # The gateway LKG mirrors the active model so shadow serving and fallback use
@@ -76,15 +67,6 @@ route_artifacts:
     rollout:
       stage: active
       percent: 100
-    credential_policy:
-      fallback_eligible_failure_classes:
-        - timeout_before_output
-        - provider_429_omi_paid
-        - provider_5xx_omi_paid
-      never_fallback_failure_classes:
-        - capability_mismatch
-        - provider_invalid_request
-        - invalid_config
     fallback_policy:
       fallback_on:
         - timeout_before_output
