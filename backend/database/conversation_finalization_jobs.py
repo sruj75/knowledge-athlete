@@ -58,7 +58,7 @@ class FinalizationAdmission(TypedDict):
 
 
 class FinalizationFanoutClaim(TypedDict):
-    """Ownership result for the durable external-integration fanout."""
+    """Ownership result for the durable post-processing fanout."""
 
     status: str
     fanout_key: str | None
@@ -567,7 +567,7 @@ def _mark_finalization_fenced_txn(
     A discard or newer lifecycle generation can win after the job lease was
     acquired. That is a successful no-fanout terminal outcome, not a retryable
     processing failure. It must remain distinct from normal completion so a
-    replay cannot mistake it for a delivered external integration.
+    replay cannot mistake it for delivered derived effects.
     """
     snapshot = job_ref.get(transaction=transaction)
     if not getattr(snapshot, 'exists', False):

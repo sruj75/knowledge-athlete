@@ -16,8 +16,8 @@ from config.memory_rollout import (
 from database.memory_collections import MemoryCollections
 from utils.memory.memory_read_rollout_core import extract_consumer_grants
 
-SUPPORTED_DEFAULT_READ_CONSUMERS = {'mcp', 'developer_api', 'omi_chat'}
-DEFAULT_READ_OBSERVABILITY_CONSUMERS = ('mcp', 'developer_api', 'omi_chat')
+SUPPORTED_DEFAULT_READ_CONSUMERS = {'omi_chat'}
+DEFAULT_READ_OBSERVABILITY_CONSUMERS = ('omi_chat',)
 DEFAULT_READ_ROLLOUT_SCHEMA_VERSION = 1
 DEFAULT_READ_ROLLOUT_TIMEOUT_SECONDS = 2.0
 DEFAULT_READ_ROLLOUT_METRIC_NAME = 'default_read_rollout_decisions_total'
@@ -26,8 +26,6 @@ WRITE_CONVERGENCE_GATE_PATH = 'memory_control/write_convergence_gate'
 _LOW_CARDINALITY_FALLBACK_REASON_BUCKETS = {
     'malformed_rollout_state',
     'missing_chat_default_memory_grant',
-    'missing_developer_default_memory_grant',
-    'missing_mcp_default_memory_grant',
     'missing_rollout_state',
     'rollout_read_failed',
     'uid_mismatch',
@@ -70,7 +68,7 @@ class DefaultReadRolloutDecision:
     source_path: str
     consumer: str
     rollout_capabilities: MemoryRolloutCapabilities
-    app_has_default_memory_grant: bool
+    has_default_memory_grant: bool
     archive_capability: bool = False
     vector_projection_commit_id: Optional[str] = None
     vector_repair_outbox_enabled: bool = False
@@ -86,22 +84,14 @@ class DefaultReadRolloutDecision:
         if (
             self.rollout_capabilities.shadow_artifacts_enabled
             and not self.rollout_capabilities.memory_reads_enabled
-            and self.app_has_default_memory_grant
+            and self.has_default_memory_grant
         ):
             return MemoryReadDecision.SHADOW_ONLY
         return MemoryReadDecision.DENY_MEMORY
 
     @property
     def memory_default_enabled(self) -> bool:
-        return self.rollout_capabilities.memory_reads_enabled and self.app_has_default_memory_grant
-
-    @property
-    def memory_default_mcp_enabled(self) -> bool:
-        return self.consumer == 'mcp' and self.memory_default_enabled
-
-    @property
-    def memory_default_developer_enabled(self) -> bool:
-        return self.consumer == 'developer_api' and self.memory_default_enabled
+        return self.rollout_capabilities.memory_reads_enabled and self.has_default_memory_grant
 
     @property
     def memory_default_chat_enabled(self) -> bool:
@@ -109,11 +99,7 @@ class DefaultReadRolloutDecision:
 
     @property
     def grant_reason_key(self) -> str:
-        if self.consumer == 'developer_api':
-            return 'developer'
-        if self.consumer == 'omi_chat':
-            return 'chat'
-        return self.consumer
+        return 'chat'
 
     @property
     def fallback_reason(self) -> Optional[str]:
@@ -129,7 +115,7 @@ class DefaultReadRolloutDecision:
             return self.reason
         if not self.rollout_capabilities.memory_reads_enabled:
             return 'memory_reads_disabled'
-        if not self.app_has_default_memory_grant:
+        if not self.has_default_memory_grant:
             return f'missing_{self.grant_reason_key}_default_memory_grant'
         return f'memory_default_{self.grant_reason_key}_disabled'
 
@@ -292,7 +278,7 @@ def disabled_default_read_rollout_decision(
             memory_reads_enabled=False,
             legacy_reads_authoritative=True,
         ),
-        app_has_default_memory_grant=False,
+        has_default_memory_grant=False,
         archive_capability=False,
         reason=reason,
         explicit_read_decision=MemoryReadDecision.DENY_MEMORY,
@@ -321,7 +307,7 @@ def legacy_safe_default_read_rollout_decision(
             memory_reads_enabled=False,
             legacy_reads_authoritative=True,
         ),
-        app_has_default_memory_grant=False,
+        has_default_memory_grant=False,
         archive_capability=False,
         reason=reason,
         explicit_read_decision=MemoryReadDecision.USE_LEGACY_SAFE,
@@ -343,7 +329,7 @@ def assert_legacy_memory_write_allowed_for_default_read_decision(
 ) -> LegacyMemoryWriteGuardDecision:
     """Guard legacy external memory writes while default memory reads are enabled.
 
-    Developer/MCP create/edit/delete currently mutate legacy `memories` state while
+    Legacy create/edit/delete paths currently mutate legacy `memories` state while
     memory reads hydrate from `memory_items`. Until a server-owned convergence/dual-write
     policy is explicitly passed, block those legacy mutations for consumers whose
     persisted rollout says memory reads are authoritative or shadowed. Missing or
@@ -475,7 +461,7 @@ def normalize_default_read_rollout_decision(
             source_path=source_path,
             consumer=consumer,
             rollout_capabilities=decide_memory_rollout_capabilities(uid, state.mode, state),
-            app_has_default_memory_grant=_consumer_default_memory_grant_enabled(payload, consumer),
+            has_default_memory_grant=_consumer_default_memory_grant_enabled(payload, consumer),
             archive_capability=False,
             vector_projection_commit_id=vector_projection_commit_id,
             vector_repair_outbox_enabled=vector_repair_outbox_enabled,
@@ -511,7 +497,7 @@ def normalize_archive_read_rollout_decision(
             source_path=source_path,
             consumer=consumer,
             rollout_capabilities=default_decision.rollout_capabilities,
-            app_has_default_memory_grant=default_decision.app_has_default_memory_grant,
+            has_default_memory_grant=default_decision.has_default_memory_grant,
             archive_capability=False,
             vector_projection_commit_id=default_decision.vector_projection_commit_id,
             vector_repair_outbox_enabled=default_decision.vector_repair_outbox_enabled,
@@ -524,7 +510,7 @@ def normalize_archive_read_rollout_decision(
             source_path=source_path,
             consumer=consumer,
             rollout_capabilities=default_decision.rollout_capabilities,
-            app_has_default_memory_grant=default_decision.app_has_default_memory_grant,
+            has_default_memory_grant=default_decision.has_default_memory_grant,
             archive_capability=False,
             vector_projection_commit_id=default_decision.vector_projection_commit_id,
             vector_repair_outbox_enabled=default_decision.vector_repair_outbox_enabled,
@@ -536,7 +522,7 @@ def normalize_archive_read_rollout_decision(
         source_path=source_path,
         consumer=consumer,
         rollout_capabilities=default_decision.rollout_capabilities,
-        app_has_default_memory_grant=default_decision.app_has_default_memory_grant,
+        has_default_memory_grant=default_decision.has_default_memory_grant,
         archive_capability=True,
         vector_projection_commit_id=default_decision.vector_projection_commit_id,
         vector_repair_outbox_enabled=default_decision.vector_repair_outbox_enabled,
@@ -633,7 +619,7 @@ def build_default_read_rollout_observability(decision: DefaultReadRolloutDecisio
         'mode': capabilities.mode.value,
         'memory_reads_enabled': capabilities.memory_reads_enabled,
         'legacy_reads_authoritative': capabilities.legacy_reads_authoritative,
-        'default_memory_grant': decision.app_has_default_memory_grant,
+        'default_memory_grant': decision.has_default_memory_grant,
         'archive_default_visible': False,
         'archive_capability': decision.archive_capability,
         'fallback_reason': fallback_reason,
@@ -657,7 +643,7 @@ def build_default_read_rollout_audit_event(decision: DefaultReadRolloutDecision)
         'outcome': 'enabled' if enabled else 'fallback',
         'read_decision': decision.read_decision.value,
         'fallback_reason': decision.fallback_reason,
-        'default_memory_grant': decision.app_has_default_memory_grant,
+        'default_memory_grant': decision.has_default_memory_grant,
         'memory_reads_enabled': decision.rollout_capabilities.memory_reads_enabled,
         'archive_default_visible': False,
         'archive_capability': decision.archive_capability,

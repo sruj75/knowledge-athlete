@@ -126,7 +126,6 @@ def test_update_daily_summary_preserves_other_fields():
                 "day_emoji": "🎉",
                 "stats": {"total_conversations": 7},
                 "regenerated_at": "2026-06-02T12:00:00",
-                "visibility": "shared",
             },
         )
     finally:
@@ -135,7 +134,6 @@ def test_update_daily_summary_preserves_other_fields():
     payload = captured["payload"]
     assert payload["stats"] == {"total_conversations": 7}
     assert payload["regenerated_at"] == "2026-06-02T12:00:00"
-    assert payload["visibility"] == "shared"
     assert payload["day_emoji"] == "🎉"
 
 

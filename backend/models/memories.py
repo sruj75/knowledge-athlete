@@ -37,7 +37,6 @@ class MemoryCategory(str, Enum):
     interesting = "interesting"
     system = "system"
     manual = "manual"
-    workflow = "workflow"
 
     # Legacy categories for backward compatibility
     core = "core"
@@ -72,7 +71,6 @@ CATEGORY_BOOSTS = {
     MemoryCategory.interesting.value: 1,
     MemoryCategory.system.value: 0,
     MemoryCategory.manual.value: 1,
-    MemoryCategory.workflow.value: 1,
     # Map legacy categories to appropriate new categories
     MemoryCategory.core.value: 1,
     MemoryCategory.hobbies.value: 1,
@@ -90,7 +88,6 @@ CATEGORY_BOOSTS = {
 class Memory(BaseModel):
     content: str = Field(description="The content of the memory")
     category: MemoryCategory = Field(description="The category of the memory", default=MemoryCategory.interesting)
-    visibility: Optional[str] = Field(description="The visibility of the memory", default='private')
     tags: List[str] = Field(description="The tags of the memory and learning", default_factory=list)
     headline: Optional[str] = Field(description="Short headline for notification preview (max 5 words)", default=None)
     predicate: Optional[str] = Field(
@@ -144,7 +141,7 @@ class Memory(BaseModel):
 
         if isinstance(v, str):
             # If it's already one of our main categories, use it directly
-            if v in ['interesting', 'system', 'manual', 'workflow']:
+            if v in ['interesting', 'system', 'manual']:
                 return v
 
             # For legacy categories, map them to new ones
@@ -183,7 +180,7 @@ def _clean_argument(value: str) -> str:
 def _default_subject(category: Optional[MemoryCategory | str]) -> Optional[str]:
     if isinstance(category, str):
         category = MemoryCategory(category) if category in MemoryCategory._value2member_map_ else None
-    if category in [MemoryCategory.system, MemoryCategory.manual, MemoryCategory.workflow]:
+    if category in [MemoryCategory.system, MemoryCategory.manual]:
         return 'user'
     return None
 
@@ -560,15 +557,12 @@ class MemoryDB(Memory):
 
     reviewed: bool = False
     user_review: Optional[bool] = None
-    visibility: Optional[str] = 'public'
 
     manually_added: bool = False
     edited: bool = False
     scoring: Optional[str] = None
-    app_id: Optional[str] = None
     data_protection_level: Optional[str] = None
     is_locked: bool = False
-    kg_extracted: bool = False
     is_baseline: bool = False
     evidence: List[Evidence] = Field(default_factory=list)
 
@@ -594,9 +588,6 @@ class MemoryDB(Memory):
     valid_at: Optional[datetime] = None
     invalid_at: Optional[datetime] = None
     superseded_by: Optional[str] = None
-
-    primary_capture_device: Optional[str] = None
-    capture_device_ids: List[str] = Field(default_factory=list)
 
     def __init__(self, **data: Any) -> None:
         super().__init__(**data)
@@ -651,8 +642,8 @@ class MemoryDB(Memory):
         memory_id = document_id_from_seed(memory.content)
         evidence_source_id = source_id if source_id is not None else conversation_id
         if not evidence_source_id:
-            evidence_source_id = f"external:{memory_id}"
-        evidence_source_type = source_type or ("conversation" if conversation_id else "developer_api")
+            evidence_source_id = f"manual:{memory_id}"
+        evidence_source_type = source_type or ("conversation" if conversation_id else "manual_note")
         evidence_source_signal = source_signal or ("manual" if manually_added else "transcription")
         evidence = Evidence.from_source(
             source_id=evidence_source_id,
@@ -680,7 +671,6 @@ class MemoryDB(Memory):
             manually_added=manually_added,
             user_review=True if manually_added else None,
             reviewed=True,
-            visibility=memory.visibility,
             predicate=proposition.get('predicate'),
             arguments=proposition.get('arguments') or {},
             subject_entity_id=resolved_subject,
@@ -753,7 +743,6 @@ class ShortTermMemory(Memory):
             uid=uid,
             content=memory.content,
             category=memory.category,
-            visibility=memory.visibility,
             tags=memory.tags,
             headline=memory.headline,
             predicate=proposition.get('predicate'),

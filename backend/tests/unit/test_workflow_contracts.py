@@ -175,7 +175,6 @@ def test_location_context_paths_select_their_focused_privacy_regressions(selecto
         "backend/models/geolocation.py",
         "backend/models/users.py",
         "backend/database/users.py",
-        "backend/routers/developer.py",
         "backend/utils/retrieval/agentic.py",
         "backend/routers/users.py",
     ):

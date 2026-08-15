@@ -1,8 +1,13 @@
 from typing import List, Optional, Set, Tuple
 
-from database.entities import USER_ENTITY_ID, person_entity_id
 from models.memories import SubjectAttribution
 from models.transcript_segment import TranscriptSegment
+
+USER_ENTITY_ID = 'user'
+
+
+def person_entity_id(person_id: str) -> str:
+    return f"person:{person_id}"
 
 
 def infer_subject_from_segments(

@@ -50,8 +50,8 @@ def _loaded_other_notifications() -> Iterator[tuple[ModuleType, ModuleType]]:
             'utils.conversations.factory',
             deserialize_conversation=lambda value: value,
         ),
-        'utils.llm.external_integrations': _module(
-            'utils.llm.external_integrations',
+        'utils.llm.daily_summary': _module(
+            'utils.llm.daily_summary',
             generate_comprehensive_daily_summary=lambda *_args: {},
         ),
         'utils.notifications': _module(
@@ -59,7 +59,6 @@ def _loaded_other_notifications() -> Iterator[tuple[ModuleType, ModuleType]]:
             send_bulk_notification=no_async_work,
             send_notification=lambda *_args, **_kwargs: None,
         ),
-        'utils.webhooks': _module('utils.webhooks', day_summary_webhook=no_async_work),
         'database.daily_summaries': _module(
             'database.daily_summaries',
             get_daily_summary_by_date=lambda *_args: None,

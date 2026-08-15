@@ -65,39 +65,31 @@ final class APIClientMemoryLifecycleHeaderTests: XCTestCase {
 
   func testExplicitLifecycleHeaderTrueExposesCanonicalLifecycle() async throws {
     MemoryLifecycleURLStub.headers = [
-      "X-Omi-Memory-Canonical-Lifecycle-Exposed": "true",
-      "X-Omi-Memory-Device-Scope-Supported": "false",
+      "X-Omi-Memory-Canonical-Lifecycle-Exposed": "true"
     ]
     let client = await makeClient()
 
     let page = try await client.getMemoriesPage()
 
     XCTAssertTrue(page.canonicalLifecycleExposed)
-    XCTAssertEqual(page.deviceScopeSupported, false)
   }
 
-  func testDeviceScopeHeaderAloneDoesNotExposeCanonicalLifecycle() async throws {
-    MemoryLifecycleURLStub.headers = [
-      "X-Omi-Memory-Device-Scope-Supported": "true"
-    ]
+  func testMissingLifecycleHeaderDoesNotExposeCanonicalLifecycle() async throws {
     let client = await makeClient()
 
     let page = try await client.getMemoriesPage()
 
     XCTAssertFalse(page.canonicalLifecycleExposed)
-    XCTAssertEqual(page.deviceScopeSupported, true)
   }
 
   func testLifecycleHeaderMustBeLiteralLowercaseTrue() async throws {
     MemoryLifecycleURLStub.headers = [
-      "X-Omi-Memory-Canonical-Lifecycle-Exposed": "True",
-      "X-Omi-Memory-Device-Scope-Supported": "true",
+      "X-Omi-Memory-Canonical-Lifecycle-Exposed": "True"
     ]
     let client = await makeClient()
 
     let page = try await client.getMemoriesPage()
 
     XCTAssertFalse(page.canonicalLifecycleExposed)
-    XCTAssertEqual(page.deviceScopeSupported, true)
   }
 }

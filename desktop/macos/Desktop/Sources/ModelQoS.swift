@@ -40,7 +40,7 @@ struct ModelQoS {
     /// Floating bar responses
     static var floatingBar: String { "claude-sonnet-4-6" }
 
-    /// Synthesis extraction tasks (calendar, gmail, notes, memory import)
+    /// Synthesis and extraction tasks.
     static var synthesis: String { "claude-haiku-4-5-20251001" }
 
   }

@@ -18,7 +18,6 @@ struct AIResponseView: View {
   /// Typing lives in the main app now — the bar only offers a jump there.
   var onOpenMainApp: (() -> Void)?
   var onRate: ((String, Int?) -> Void)?
-  var onShareLink: (() async -> String?)?
   var onOpenAgent: ((UUID, @escaping (Bool) -> Void) -> Void)?
   var onOpenAgentRef: ((AgentTimelineRef, @escaping (Bool) -> Void) -> Void)? = nil
 
@@ -54,12 +53,6 @@ struct AIResponseView: View {
         ChatComposerFade()
       }
 
-      if let shareFeedbackMessage, showShareFeedback {
-        shareFeedbackBanner
-          .transition(.move(edge: .bottom).combined(with: .opacity))
-          .accessibilityLabel(shareFeedbackMessage)
-      }
-
       if !isLoading {
         followUpInputView
       }
@@ -68,7 +61,6 @@ struct AIResponseView: View {
     .padding(.top, 0)
     .padding(.bottom, OmiSpacing.lg)
     .frame(maxWidth: .infinity, maxHeight: .infinity)
-    .omiAnimation(.spring(response: 0.28, dampingFraction: 0.85), value: showShareFeedback)
     .onExitCommand {
       onEscape?()
     }
@@ -412,23 +404,9 @@ struct AIResponseView: View {
 
   // MARK: - Follow-Up Input
 
-  @State private var showShareFeedback = false
-  @State private var shareFeedbackMessage: String?
-  @State private var shareFeedbackHideWorkItem: DispatchWorkItem?
-  @State private var isSharingLink = false
-
   private var followUpInputView: some View {
     VStack(spacing: 0) {
       HStack(spacing: OmiSpacing.xs) {
-        Button(action: { shareLink() }) {
-          Image(systemName: showShareFeedback ? "checkmark" : "arrowshape.turn.up.right")
-            .scaledFont(size: OmiType.body)
-            .foregroundColor(showShareFeedback ? .green : .secondary)
-        }
-        .buttonStyle(.plain)
-        .help("Copy share link")
-        .disabled(isSharingLink)
-
         Button(action: { onOpenMainApp?() }) {
           HStack(spacing: OmiSpacing.xs) {
             Text("Continue in Omi")
@@ -450,59 +428,6 @@ struct AIResponseView: View {
       }
       .chatComposerShell(fill: OmiColors.backgroundSecondary.opacity(0.82))
     }
-  }
-
-  private var shareFeedbackBanner: some View {
-    HStack(spacing: OmiSpacing.sm) {
-      Image(systemName: "checkmark.circle.fill")
-        .scaledFont(size: OmiType.caption, weight: .semibold)
-        .foregroundColor(.green)
-
-      Text("Share link copied to your clipboard")
-        .scaledFont(size: OmiType.caption, weight: .medium)
-        .foregroundColor(.white)
-
-      Spacer(minLength: 0)
-    }
-    .padding(.horizontal, OmiSpacing.sm)
-    .padding(.vertical, OmiSpacing.sm)
-    .background(Color.green.opacity(0.18))
-    .overlay(
-      RoundedRectangle(cornerRadius: OmiChrome.elementRadius)
-        .strokeBorder(Color.green.opacity(0.35), lineWidth: 1)
-    )
-    .cornerRadius(OmiChrome.elementRadius)
-  }
-
-  private func shareLink() {
-    guard !isSharingLink else { return }
-    isSharingLink = true
-    Task {
-      if let url = await onShareLink?() {
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(url, forType: .string)
-        AnalyticsManager.shared.shareAction(category: "floating_bar_share_link")
-        showShareSuccessFeedback()
-      }
-      isSharingLink = false
-    }
-  }
-
-  private func showShareSuccessFeedback() {
-    shareFeedbackHideWorkItem?.cancel()
-    shareFeedbackMessage = "Share link copied to your clipboard"
-    OmiMotion.withGated {
-      showShareFeedback = true
-    }
-
-    let workItem = DispatchWorkItem {
-      OmiMotion.withGated {
-        showShareFeedback = false
-        shareFeedbackMessage = nil
-      }
-    }
-    shareFeedbackHideWorkItem = workItem
-    DispatchQueue.main.asyncAfter(deadline: .now() + 1.8, execute: workItem)
   }
 
 }

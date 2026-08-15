@@ -11,7 +11,7 @@ const expectedPiTools = [
   "execute_sql",
   "semantic_search",
   "get_daily_recap",
-  "fill_cloud_connector_form",
+  "search_tasks",
   "list_agent_sessions",
   "get_agent_run",
   "build_desktop_awareness_snapshot",
@@ -30,10 +30,8 @@ const expectedPiTools = [
   "spawn_agent",
   "run_agent_and_wait",
   "set_desktop_attention_override",
-  "search_tasks",
   "complete_task",
   "delete_task",
-  "save_knowledge_graph",
   "get_conversations",
   "search_conversations",
   "get_memories",
@@ -75,6 +73,22 @@ describe("omi tool manifest", () => {
     expect(spawn?.inputSchema.properties).not.toHaveProperty("model");
     expect(spawn?.inputSchema.properties).not.toHaveProperty("cwd");
     expect(toolNamesForAdapter("pi-mono")).not.toContain("spawn_background_agent");
+  });
+
+  it("does not advertise retired external product surfaces", () => {
+    const retired = [
+      "fill_cloud_connector_form",
+      "save_knowledge_graph",
+      "scan_files",
+      "start_file_scan",
+      "get_file_scan_results",
+      "create_calendar_event",
+    ];
+
+    const advertised = toolNamesForAdapter("pi-mono", { screenContext: true });
+    for (const tool of retired) {
+      expect(advertised).not.toContain(tool);
+    }
   });
 
   it("keeps current-screen evidence separate from historical work context", () => {

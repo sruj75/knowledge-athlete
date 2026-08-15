@@ -236,23 +236,15 @@ def test_processed_short_term_is_compatibility_visible_without_becoming_a_keywor
 
 def test_normal_projection_delete_hides_v3_content_before_retryable_external_cleanup():
     paths = MemoryCollections(uid=UID)
-    graph_assertion_path = f"users/{UID}/memory_graph_assertions/{MEMORY_ID}"
-    db = _Db(
-        {
-            paths.v3_compatibility_projection_state: _projection_state(),
-            graph_assertion_path: {"memory_id": MEMORY_ID},
-        }
-    )
+    db = _Db({paths.v3_compatibility_projection_state: _projection_state()})
     side_effects = _canonical_outbox_side_effects(db_client=db)
     with patch("utils.memory.short_term_promotion.sync_atom_keyword_index_for_item", return_value=True):
         assert side_effects.projection_upsert(_item(), 7) is True
     assert len(_read(db)) == 1
 
-    kg_prune = MagicMock()
     review_purge = MagicMock()
     with (
         patch("utils.memory.short_term_promotion.delete_atom_keyword_doc", return_value=False),
-        patch("utils.memory.short_term_promotion.kg_db.prune_memory_citations_from_kg", kg_prune),
         patch(
             "utils.memory.short_term_promotion.purge_stale_review_conflicts_for_memories",
             review_purge,
@@ -262,8 +254,6 @@ def test_normal_projection_delete_hides_v3_content_before_retryable_external_cle
 
     assert _read(db) == []
     assert f"{paths.v3_compatibility_projection_items}/{MEMORY_ID}" not in db.docs
-    assert graph_assertion_path not in db.docs
-    kg_prune.assert_not_called()
     review_purge.assert_not_called()
 
 

@@ -85,7 +85,6 @@ struct FloatingControlBarView: View {
   var onEscape: () -> Void
   var onClearVisibleConversation: () -> Void
   var onRate: ((String, Int?) -> Void)?
-  var onShareLink: (() async -> String?)?
 
   @State private var isHovering = false
   @State private var onboardingGlowOn = false
@@ -1528,7 +1527,6 @@ struct FloatingControlBarView: View {
         AppDelegate.summonWindowTarget()?.openMainAppChat()
       },
       onRate: onRate,
-      onShareLink: onShareLink,
       onOpenAgent: { agentID, completion in
         openAgentInChat(agentID: agentID, completion: completion)
       },

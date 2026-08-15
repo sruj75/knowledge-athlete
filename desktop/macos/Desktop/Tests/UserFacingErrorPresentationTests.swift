@@ -43,7 +43,7 @@ final class UserFacingErrorPresentationTests: XCTestCase {
     XCTAssertEqual(
       UserFacingErrorPresentation.message(
         from: "Didn't hear back from X. If you approved access, try again.",
-        while: .integration("X")
+        while: .tasks
       ),
       "Didn't hear back from X. If you approved access, try again."
     )
@@ -53,7 +53,7 @@ final class UserFacingErrorPresentationTests: XCTestCase {
     XCTAssertEqual(
       UserFacingErrorPresentation.message(
         for: URLError(.notConnectedToInternet),
-        while: .integration("Gmail")
+        while: .conversations
       ),
       "Check your connection and try again."
     )

@@ -374,9 +374,7 @@ struct SettingsContentView: View {
     case goals = "Goals"
     case preferences = "Preferences"
     case troubleshooting = "Troubleshooting"
-    case gmailReader = "Gmail Reader"
-    case calendarSync = "Calendar Sync"
-    case developerKeys = "Developer API Keys"
+    case developerKeys = "Model API Keys"
 
     var icon: String {
       switch self {
@@ -391,37 +389,18 @@ struct SettingsContentView: View {
       case .goals: return "target"
       case .preferences: return "slider.horizontal.3"
       case .troubleshooting: return "wrench.and.screwdriver"
-      case .gmailReader: return "envelope.fill"
-      case .calendarSync: return "calendar"
       case .developerKeys: return "key"
       }
     }
   }
 
   @State var showResetOnboardingAlert: Bool = false
-  @State var showRescanFilesAlert: Bool = false
   @State var showDeleteAccountAlert: Bool = false
-
-  // Gmail Reader states
-  @State var gmailEmails: [GmailEmail] = []
-  @State var isReadingGmail: Bool = false
-  @State var isSavingGmailMemories: Bool = false
-  @State var gmailMemoriesSaved: Int = 0
-  @State var gmailReadError: String?
-  @State var gmailLastFetched: Date?
-
-  // Calendar Sync states
-  @State var calendarEvents: [CalendarEvent] = []
-  @State var isReadingCalendar: Bool = false
-  @State var calendarMemoriesCreated: Int = 0
-  @State var calendarTasksCreated: Int = 0
-  @State var calendarSyncError: String?
-  @State var calendarLastSynced: Date?
 
   @State var isDeletingAccount: Bool = false
   @State var deleteAccountError: String?
 
-  // Developer API Key overrides — also double as BYOK free-plan credentials
+  // Model-provider API key overrides used as BYOK free-plan credentials.
   // when all four (Gemini, Anthropic, OpenAI, Deepgram) are provided.
   @AppStorage("dev_gemini_api_key") var devGeminiKey: String = ""
   @AppStorage("dev_anthropic_api_key") var devAnthropicKey: String = ""

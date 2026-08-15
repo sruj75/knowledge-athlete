@@ -22,7 +22,6 @@ import routers.pusher as pusher_router
 import utils.pusher_finalization as pusher_finalization
 import utils.pusher_protocol as pusher_protocol
 from utils.conversations import lifecycle as lifecycle_service
-from utils import app_integrations
 from utils import cloud_tasks
 from utils.conversations.finalizer import ConversationFinalizationDisposition, ConversationFinalizationError
 import utils.conversations.finalizer as persisted_finalizer
@@ -463,8 +462,6 @@ class _PusherJourneyAttempt:
 
 
 def _patch_pusher_session_dependencies(monkeypatch) -> None:
-    monkeypatch.setattr(pusher_router, 'get_audio_bytes_webhook_seconds', lambda _uid: None)
-    monkeypatch.setattr(pusher_router, 'is_audio_bytes_app_enabled', lambda _uid: False)
     monkeypatch.setattr(pusher_router.users_db, 'get_user_private_cloud_sync_enabled', lambda _uid: False)
     monkeypatch.setattr(pusher_router, 'run_blocking', _inline_run_blocking)
     monkeypatch.setattr(pusher_router, 'PUSHER_ACTIVE_WS_CONNECTIONS', MagicMock())
@@ -486,7 +483,6 @@ async def _inline_run_blocking(_executor, func, *args, **kwargs):
     return func(*args, **kwargs)
 
 
-@pytest.mark.anyio
 async def test_worker_retries_processing_failure_before_final_attempt(monkeypatch):
     monkeypatch.setattr(finalization_router, 'run_blocking', _inline_run_blocking)
     monkeypatch.setattr(finalization_router, 'try_acquire_job_run_lock', lambda key: 'lock-token')
@@ -714,7 +710,6 @@ async def test_pusher_setup_cancellation_terminalizes_an_accepted_session(monkey
         raise asyncio.CancelledError
 
     websocket = _PusherLifecycleWebSocket(receive_bytes=AsyncMock())
-    monkeypatch.setattr(pusher_router, 'get_audio_bytes_webhook_seconds', lambda _uid: None)
     monkeypatch.setattr(pusher_router, 'run_blocking', cancel_during_setup)
     monkeypatch.setattr(pusher_router, 'JourneyAttempt', _PusherJourneyAttempt)
 
@@ -1026,7 +1021,6 @@ async def test_completed_conversation_replays_only_the_durable_fanout_boundary(m
         return func(*args, **kwargs)
 
     conversation = SimpleNamespace(id='conversation-1', status=ConversationStatus.completed, language='en')
-    integrations = AsyncMock(return_value=[])
     monkeypatch.setattr(persisted_finalizer, 'run_blocking', inline_run_blocking)
     monkeypatch.setattr(
         persisted_finalizer.conversations_db,
@@ -1044,7 +1038,6 @@ async def test_completed_conversation_replays_only_the_durable_fanout_boundary(m
     )
     completed = MagicMock(return_value=True)
     monkeypatch.setattr(persisted_finalizer.lifecycle_service, 'complete_finalization_fanout', completed)
-    monkeypatch.setattr(persisted_finalizer, 'trigger_external_integrations', integrations)
 
     disposition = await persisted_finalizer.finalize_persisted_conversation(
         'uid-1',
@@ -1054,12 +1047,6 @@ async def test_completed_conversation_replays_only_the_durable_fanout_boundary(m
         lease_epoch=3,
     )
 
-    integrations.assert_awaited_once_with(
-        'uid-1',
-        conversation,
-        idempotency_key='conversation:conversation-1:finalization',
-        require_delivery=True,
-    )
     extracted.assert_called_once_with('uid-1', conversation)
     assert disposition == ConversationFinalizationDisposition.completed
     completed.assert_called_once_with('job-1', 2, 3)
@@ -1107,10 +1094,8 @@ async def test_deleted_conversation_after_delivered_fanout_replay_completes_job(
     )
     monkeypatch.setattr(persisted_finalizer.conversations_db, 'get_conversation', lambda *args: None)
     fanout = MagicMock(return_value={'status': 'completed', 'fanout_key': 'conversation:conversation-1:finalization'})
-    integrations = AsyncMock()
     completed = MagicMock(return_value=True)
     monkeypatch.setattr(persisted_finalizer.lifecycle_service, 'claim_finalization_fanout', fanout)
-    monkeypatch.setattr(persisted_finalizer, 'trigger_external_integrations', integrations)
     monkeypatch.setattr(jobs_db, 'mark_finalization_completed', completed)
 
     response = await finalization_router.run_listen_finalization_job(
@@ -1120,7 +1105,6 @@ async def test_deleted_conversation_after_delivered_fanout_replay_completes_job(
     assert response.status_code == 200
     assert json.loads(response.body) == {'status': 'done'}
     fanout.assert_called_once_with('job-1', 2, 3)
-    integrations.assert_not_awaited()
     completed.assert_called_once_with('job-1', 2, 3)
 
 
@@ -1130,7 +1114,6 @@ async def test_finalizer_skips_fanout_when_atomic_claim_is_fenced(monkeypatch):
         return func(*args, **kwargs)
 
     conversation = SimpleNamespace(id='conversation-1', status=ConversationStatus.processing, language='en')
-    integrations = AsyncMock()
     monkeypatch.setattr(persisted_finalizer, 'run_blocking', inline_run_blocking)
     monkeypatch.setattr(
         persisted_finalizer.conversations_db,
@@ -1145,7 +1128,6 @@ async def test_finalizer_skips_fanout_when_atomic_claim_is_fenced(monkeypatch):
         return_value={'status': 'fenced', 'fanout_key': 'conversation:conversation-1:finalization'}
     )
     monkeypatch.setattr(persisted_finalizer.lifecycle_service, 'claim_finalization_fanout', claim_fanout)
-    monkeypatch.setattr(persisted_finalizer, 'trigger_external_integrations', integrations)
 
     disposition = await persisted_finalizer.finalize_persisted_conversation(
         'uid-1',
@@ -1157,7 +1139,6 @@ async def test_finalizer_skips_fanout_when_atomic_claim_is_fenced(monkeypatch):
 
     assert disposition == ConversationFinalizationDisposition.fenced
     claim_fanout.assert_called_once_with('job-1', 2, 3)
-    integrations.assert_not_awaited()
 
 
 @pytest.mark.anyio
@@ -1292,7 +1273,7 @@ async def test_finalizer_fences_before_memory_extraction_on_persistence_loss(mon
 @pytest.mark.anyio
 async def test_finalizer_emits_zero_derived_effects_when_claim_loses_after_persistence(monkeypatch):
     """#10468 r5: the durable finalizer must defer the WHOLE derived-effect
-    bundle (calendar, usage/app, vector, action/goal, audio, webhook, memory)
+    bundle (usage, vector, action/goal, audio, and memory)
     until after a transactionally validated lifecycle/finalization claim.
     Forcing a claim loss AFTER persistence succeeded must leave every
     dispatcher/callback with zero calls — a no-side-effect outcome."""
@@ -1304,7 +1285,6 @@ async def test_finalizer_emits_zero_derived_effects_when_claim_loses_after_persi
         id='conversation-1', status=ConversationStatus.processing, language='en', discarded=False
     )
     derived_runner = MagicMock()
-    integrations = AsyncMock()
 
     def contract_faithful_process(_uid, _lang, conv, **kwargs):
         # Simulate the real defer_derived_effects contract: persistence wins,
@@ -1331,7 +1311,6 @@ async def test_finalizer_emits_zero_derived_effects_when_claim_loses_after_persi
         return_value={'status': 'fenced', 'fanout_key': 'conversation:conversation-1:finalization'}
     )
     monkeypatch.setattr(persisted_finalizer.lifecycle_service, 'claim_finalization_fanout', claim_fanout)
-    monkeypatch.setattr(persisted_finalizer, 'trigger_external_integrations', integrations)
 
     disposition = await persisted_finalizer.finalize_persisted_conversation(
         'uid-1',
@@ -1345,13 +1324,12 @@ async def test_finalizer_emits_zero_derived_effects_when_claim_loses_after_persi
     claim_fanout.assert_called_once_with('job-1', 2, 3)
     # The derived-effect runner must never fire when the claim loses.
     derived_runner.assert_not_called()
-    integrations.assert_not_awaited()
 
 
 @pytest.mark.anyio
 async def test_finalizer_runs_derived_effects_only_after_winning_claim(monkeypatch):
     """#10468 r5: when the claim WINS, the deferred derived-effect runner fires
-    exactly once (after the claim, before integration fanout)."""
+    exactly once after the claim."""
 
     async def inline_run_blocking(_executor, func, *args, **kwargs):
         return func(*args, **kwargs)
@@ -1360,7 +1338,6 @@ async def test_finalizer_runs_derived_effects_only_after_winning_claim(monkeypat
         id='conversation-1', status=ConversationStatus.processing, language='en', discarded=False
     )
     derived_runner = MagicMock()
-    integrations = AsyncMock(return_value=[])
     complete = MagicMock(return_value=True)
 
     def contract_faithful_process(_uid, _lang, conv, **kwargs):
@@ -1388,7 +1365,6 @@ async def test_finalizer_runs_derived_effects_only_after_winning_claim(monkeypat
         lambda *args: {'status': 'claimed', 'fanout_key': 'conversation:conversation-1:finalization'},
     )
     monkeypatch.setattr(persisted_finalizer.lifecycle_service, 'complete_finalization_fanout', complete)
-    monkeypatch.setattr(persisted_finalizer, 'trigger_external_integrations', integrations)
 
     disposition = await persisted_finalizer.finalize_persisted_conversation(
         'uid-1',
@@ -1400,95 +1376,4 @@ async def test_finalizer_runs_derived_effects_only_after_winning_claim(monkeypat
 
     assert disposition == ConversationFinalizationDisposition.completed
     derived_runner.assert_called_once()
-    integrations.assert_awaited_once()
     complete.assert_called_once_with('job-1', 2, 3)
-
-
-@pytest.mark.anyio
-async def test_finalizer_completes_when_an_app_permanently_rejects_the_delivery(monkeypatch):
-    """A user's broken app webhook (expired token, deleted target) answers every
-    retry identically, so it must not strand the conversation in `processing`
-    until the finalization job dead-letters. The real fanout runs here."""
-
-    async def inline_run_blocking(_executor, func, *args, **kwargs):
-        return func(*args, **kwargs)
-
-    conversation = SimpleNamespace(
-        id='conversation-1',
-        status=ConversationStatus.processing,
-        language='en',
-        discarded=False,
-        is_locked=False,
-        source=None,
-    )
-    complete = MagicMock(return_value=True)
-
-    def contract_faithful_process(_uid, _lang, conv, **kwargs):
-        if observer := kwargs.get('persistence_observer'):
-            observer(True)
-        if effects_observer := kwargs.get('derived_effects_observer'):
-            effects_observer(MagicMock())
-        return conv
-
-    monkeypatch.setattr(persisted_finalizer, 'run_blocking', inline_run_blocking)
-    monkeypatch.setattr(
-        persisted_finalizer.conversations_db,
-        'get_conversation',
-        lambda *args: {'id': 'conversation-1', 'status': ConversationStatus.processing.value, 'discarded': False},
-    )
-    monkeypatch.setattr(persisted_finalizer, 'deserialize_conversation', lambda value: conversation)
-    monkeypatch.setattr(persisted_finalizer, 'get_cached_user_geolocation', lambda uid: None)
-    monkeypatch.setattr(persisted_finalizer, 'process_conversation', contract_faithful_process)
-    monkeypatch.setattr(persisted_finalizer, 'extract_memories', MagicMock())
-    monkeypatch.setattr(
-        persisted_finalizer.lifecycle_service,
-        'claim_finalization_fanout',
-        lambda *args: {'status': 'claimed', 'fanout_key': 'conversation:conversation-1:finalization'},
-    )
-    monkeypatch.setattr(persisted_finalizer.lifecycle_service, 'complete_finalization_fanout', complete)
-
-    app = MagicMock()
-    app.id = 'omi-google-drive-integration'
-    app.enabled = True
-    app.uid = None
-    app.external_integration.webhook_url = 'https://app.test/hook'
-    app.triggers_on_conversation_creation.return_value = True
-    webhook_client = AsyncMock()
-    webhook_client.post = AsyncMock(return_value=MagicMock(status_code=401, text='re-authenticate'))
-    pinned_url = 'https://8.8.8.8/hook?uid=uid-1'
-    safe_target = MagicMock(
-        return_value=(
-            pinned_url,
-            {'headers': {'Host': 'app.test'}, 'extensions': {'sni_hostname': 'app.test'}},
-        )
-    )
-    monkeypatch.setattr(app_integrations, 'run_blocking', inline_run_blocking)
-    monkeypatch.setattr(app_integrations, 'get_available_apps', lambda uid: [app])
-    monkeypatch.setattr(app_integrations, 'conversation_to_dict', lambda conv: {'id': conv.id})
-    monkeypatch.setattr(app_integrations, 'get_webhook_client', lambda: webhook_client)
-    monkeypatch.setattr(app_integrations, 'is_app_webhook_disabled', lambda app_id: False)
-    monkeypatch.setattr(app_integrations, 'safe_request_target', safe_target)
-    record_failure = MagicMock(return_value=0)
-    monkeypatch.setattr(app_integrations, 'record_app_webhook_failure', record_failure)
-    monkeypatch.setattr(app_integrations, '_handle_webhook_health_action', MagicMock())
-
-    disposition = await persisted_finalizer.finalize_persisted_conversation(
-        'uid-1',
-        'conversation-1',
-        finalization_job_id='job-1',
-        dispatch_generation=2,
-        lease_epoch=3,
-    )
-
-    assert disposition == ConversationFinalizationDisposition.completed
-    complete.assert_called_once_with('job-1', 2, 3)
-    safe_target.assert_called_once_with('https://app.test/hook?uid=uid-1')
-    webhook_client.post.assert_awaited_once_with(
-        pinned_url,
-        json={'id': 'conversation-1'},
-        headers={'Host': 'app.test', 'X-Omi-Idempotency-Key': 'conversation:conversation-1:finalization'},
-        extensions={'sni_hostname': 'app.test'},
-        follow_redirects=False,
-    )
-    # The failure is still owned by webhook health, which disables the app after 72h.
-    record_failure.assert_called_once_with('omi-google-drive-integration', 401, 'HTTP 401')

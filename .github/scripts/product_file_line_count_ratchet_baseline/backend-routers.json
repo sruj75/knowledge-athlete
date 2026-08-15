@@ -1,16 +1,8 @@
 {
   "files": {
-    "backend/routers/apps.py": 2386,
-    "backend/routers/chat.py": 1614,
-    "backend/routers/developer.py": 2274,
-    "backend/routers/mcp_sse.py": 1873,
-    "backend/routers/users.py": 2083
+    "backend/routers/users.py": 1902
   },
   "raise_justifications": {
-    "backend/routers/apps.py": "POST /v1/apps/enable reads is_setup_completed through _setup_completed_from_response so a developer-controlled body that is non-JSON or not an object returns the intended 400 instead of a 500 (46 prod occurrences Jul 21-28); the guard stays in the route that owns the enable response contract.",
-    "backend/routers/chat.py": "The HTTP and streaming PTT routes own the raw-audio and final-transcript boundaries; dev-only allowlisted capture therefore starts and persists at those two route seams while serialization, bounds, redaction, and export stay in testing.parity_pack_v0.live_capture.",
-    "backend/routers/developer.py": "Developer memory create and batch routes must record their accepted write result at the authoritative API boundary; the shared dev-only allowlisted serializer/exporter lives in testing.parity_pack_v0.live_capture.",
-    "backend/routers/mcp_sse.py": "The MCP SSE tool handler owns the successful memory-write response boundary; its one shared dev-only allowlisted capture call records accepted memory without duplicating serialization or export logic.",
     "backend/routers/users.py": "Account-deletion outcome telemetry at the users router boundary for PostHog ownership repair."
   },
   "threshold": 1500

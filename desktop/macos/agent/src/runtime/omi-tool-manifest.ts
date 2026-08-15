@@ -122,12 +122,6 @@ const localWrite: OmiToolAnnotations = {
   openWorldHint: false,
 };
 
-const openWorldWrite: OmiToolAnnotations = {
-  readOnlyHint: false,
-  destructiveHint: false,
-  openWorldHint: true,
-};
-
 const destructiveLocal: OmiToolAnnotations = {
   readOnlyHint: false,
   destructiveHint: true,
@@ -239,17 +233,6 @@ const swiftToolSurfacePatches: Record<string, OmiToolSurfacePatch> = {
         "Get a recap of what the user actually DID on their Mac — apps used (with minutes), conversations, tasks, focus sessions, and screen activity — for a day. First choice for 'what did I do yesterday', 'what did I do today', 'which apps did I use the most', 'how did I spend my time': one fast synchronous read, where searching conversations or spawning an agent would be slower and less complete. Speak a short summary of what it returns.",
     },
   },
-  fill_cloud_connector_form: {
-    surfaces: ["desktop_chat"],
-    capabilityDoc: doc(
-      "Fill Cloud Connector Form",
-      "Fill the visible ChatGPT or Claude custom MCP connector form using Omi's native macOS Accessibility automation.",
-      [
-        "Call this first for ChatGPT or Claude cloud MCP connector setup when the connector form is visible.",
-        "Do not install browser extensions before trying this tool.",
-      ],
-    ),
-  },
   search_tasks: {
     surfaces: ["desktop_chat"],
     capabilityDoc: doc(
@@ -295,18 +278,18 @@ const swiftToolSurfacePatches: Record<string, OmiToolSurfacePatch> = {
       ["Use after finding the task with execute_sql or search_tasks."],
     ),
   },
-  save_knowledge_graph: {
+  load_skill: {
     surfaces: ["desktop_chat"],
-    capabilityDoc: doc(
-      "Save Knowledge Graph",
-      "Save a knowledge graph of entities and relationships extracted from the user's data.",
-      [
-        "Parameters: nodes (array of {id, label, node_type, aliases}), edges (array of {source_id, target_id, label}).",
-        "node_type must be one of: person, organization, place, thing, concept.",
-        "Use when exploring the user's files during onboarding to build their knowledge graph.",
-        "Deduplication is handled automatically; provide all entities you find.",
-      ],
-    ),
+    capabilityDoc: doc("Load Skill", "Load the full instructions for a named skill listed in available_skills.", [
+      "Use the exact skill name from available_skills.",
+    ]),
+  },
+  search_skills: {
+    surfaces: ["desktop_chat"],
+    capabilityDoc: doc("Search Skills", "Search installed skill names and compact descriptions before loading a specialized workflow.", [
+      "Use only when the user's request may benefit from a specialized workflow.",
+      "Load a returned skill only when it is relevant to the user's request.",
+    ]),
   },
   get_conversations: {
     surfaces: ["desktop_chat", "realtime_voice"],
@@ -410,43 +393,6 @@ const swiftToolSurfacePatches: Record<string, OmiToolSurfacePatch> = {
       ),
     },
   },
-  create_calendar_event: {
-    surfaces: ["realtime_voice"],
-    capabilityDoc: doc(
-      "Create Calendar Event",
-      "Create a new Google Calendar event.",
-      [
-        "Use when the user asks to add, create, schedule, or put a specific event on their calendar.",
-        "Pass title, start_time, and end_time as ISO-8601 strings with timezone; include location, description, and attendees when provided.",
-        "This capability creates one specified event; it does not find availability, reschedule, delete, or coordinate with people.",
-      ],
-    ),
-    executor: { kind: "swiftTool" },
-    voice: {
-      realtimeDescription:
-        "Create one specified Google Calendar event. Requires start_time and end_time as ISO-8601 strings with timezone. This capability does not find availability, reschedule, delete, or coordinate with people.",
-      schemaOverride: schema(
-        {
-          title: { type: "string", description: "Event title." },
-          start_time: {
-            type: "string",
-            description: "Event start time in ISO-8601 with timezone, e.g. 2026-06-28T14:00:00-04:00.",
-          },
-          end_time: {
-            type: "string",
-            description: "Event end time in ISO-8601 with timezone, e.g. 2026-06-28T15:00:00-04:00.",
-          },
-          description: { type: "string", description: "Optional event description." },
-          location: { type: "string", description: "Optional event location." },
-          attendees: {
-            type: "string",
-            description: "Optional comma-separated attendee names or email addresses.",
-          },
-        },
-        ["title", "start_time", "end_time"],
-      ),
-    },
-  },
   capture_screen: {
     surfaces: ["desktop_chat"],
     capabilityDoc: doc(
@@ -480,14 +426,8 @@ const swiftToolSurfacePatches: Record<string, OmiToolSurfacePatch> = {
     ]),
     voice: {
       realtimeDescription:
-        "Request Omi's macOS permission through the kernel-authorized native executor by opening the native prompt or relevant System Settings pane. Screen share, screen sharing, and screen-share mean Screen Recording. Supports Screen Recording, microphone, notifications, Accessibility, Automation, and Full Disk Access.",
+        "Request Omi's macOS permission through the kernel-authorized native executor by opening the native prompt or relevant System Settings pane. Screen share, screen sharing, and screen-share mean Screen Recording. Supports Screen Recording, microphone, notifications, and Accessibility.",
     },
-  },
-  scan_files: {
-    surfaces: ["onboarding"],
-    capabilityDoc: doc("Scan Files", "Scan selected files/folders during onboarding to build local context.", [
-      "Onboarding-only.",
-    ]),
   },
   set_user_preferences: {
     surfaces: ["onboarding"],
@@ -506,14 +446,6 @@ const swiftToolSurfacePatches: Record<string, OmiToolSurfacePatch> = {
     capabilityDoc: doc("Complete Onboarding", "Complete onboarding after required goals and context are collected.", [
       "Onboarding-only.",
     ]),
-  },
-  get_email_insights: {
-    surfaces: ["onboarding"],
-    capabilityDoc: doc(
-      "Get Email Insights",
-      "Read precomputed email/calendar onboarding insights.",
-      ["Onboarding-only; requires background insights to be loaded."],
-    ),
   },
   get_local_status: {
     surfaces: ["desktop_chat"],
@@ -674,56 +606,6 @@ const swiftToolManifestDrafts: OmiToolManifestEntryDraft[] = [
     adapters: piOnly(),
   },
   {
-    name: "fill_cloud_connector_form",
-    label: "Fill Cloud Connector Form",
-    description:
-      "Fill the currently visible ChatGPT or Claude custom MCP connector form using Omi's native macOS Accessibility automation. Use first for one-click cloud connector setup after opening the signed-in browser to the connector page.",
-    promptSnippet: "fill_cloud_connector_form - Fill and optionally submit the visible ChatGPT/Claude MCP connector form",
-    promptGuidelines: [
-      "Call this first for ChatGPT or Claude cloud MCP connector setup when the connector form is visible.",
-      "Do not install browser extensions before trying this tool.",
-      "If it reports missing Accessibility permission, missing form, or missing required fields, wait for the missing condition or use guarded screenshots before any keyboard automation.",
-    ],
-    latency: "fast local",
-    inputSchema: schema(
-      {
-        provider: {
-          type: "string",
-          enum: ["claude", "chatgpt"],
-          description: "Cloud platform whose connector form is visible.",
-        },
-        name: { type: "string", description: "Connector name, usually 'Omi Memory'." },
-        server_url: { type: "string", description: "Remote MCP server URL to paste into the connector form." },
-        oauth_client_id: {
-          type: "string",
-          description: "OAuth Client ID. Defaults to Omi's public ChatGPT/Claude connector client.",
-        },
-        oauth_client_secret: { type: "string", description: "OAuth Client Secret, only for confidential clients." },
-        authentication: { type: "string", description: "Authentication mode, usually 'OAuth'." },
-        token_auth_method: {
-          type: "string",
-          description: "OAuth token auth method. Use 'none' for Omi's public ChatGPT connector client.",
-        },
-        auth_url: { type: "string", description: "OAuth authorization URL when the form asks for it." },
-        token_url: { type: "string", description: "OAuth token URL when the form asks for it." },
-        submit: {
-          type: "boolean",
-          description: "Whether to press the visible Add/Connect/Create button after filling required fields.",
-        },
-      },
-      ["provider", "server_url"],
-    ),
-    annotations: openWorldWrite,
-    timeoutClass: "normal",
-    executor: { kind: "swiftTool" },
-    intendedForAgents: true,
-    runtimePreconditions: [
-      "Requires a signed-in supported browser on the connector page.",
-      "Requires macOS Accessibility permission for Omi and the target browser.",
-    ],
-    adapters: piOnly(),
-  },
-  {
     name: "search_tasks",
     label: "Search Tasks",
     description: "Vector similarity search on tasks. Find tasks by meaning or topic.",
@@ -769,55 +651,6 @@ const swiftToolManifestDrafts: OmiToolManifestEntryDraft[] = [
     executor: { kind: "swiftTool" },
     intendedForAgents: true,
     runtimePreconditions: ["Requires a backendId found via execute_sql or search_tasks."],
-    adapters: piOnly(),
-  },
-  {
-    name: "save_knowledge_graph",
-    label: "Save Knowledge Graph",
-    description: "Save a knowledge graph of entities and relationships discovered about the user.",
-    promptSnippet: "save_knowledge_graph - Save entities and relationships to the user's knowledge graph",
-    promptGuidelines: [
-      "Use when exploring the user's files during onboarding or knowledge-graph building.",
-      "Deduplication is handled automatically; include all meaningful entities and relationships you found.",
-    ],
-    latency: "fast local",
-    inputSchema: schema(
-      {
-        nodes: {
-          type: "array",
-          items: {
-            type: "object",
-            properties: {
-              id: { type: "string", description: "Stable node id, referenced by edges." },
-              label: { type: "string", description: "Human-readable entity label." },
-              node_type: { type: "string", enum: ["person", "organization", "place", "thing", "concept"] },
-              aliases: { type: "array", items: { type: "string" } },
-            },
-            required: ["id", "label", "node_type"],
-            additionalProperties: false,
-          },
-        },
-        edges: {
-          type: "array",
-          items: {
-            type: "object",
-            properties: {
-              source_id: { type: "string" },
-              target_id: { type: "string" },
-              label: { type: "string" },
-            },
-            required: ["source_id", "target_id", "label"],
-            additionalProperties: false,
-          },
-        },
-      },
-      ["nodes", "edges"],
-    ),
-    annotations: localWrite,
-    timeoutClass: "normal",
-    executor: { kind: "swiftTool" },
-    intendedForAgents: true,
-    runtimePreconditions: ["Used by onboarding/knowledge graph flows."],
     adapters: piOnly(),
   },
   {
@@ -999,7 +832,7 @@ const swiftToolManifestDrafts: OmiToolManifestEntryDraft[] = [
     inputSchema: schema({
       type: {
         type: "string",
-        enum: ["screen_recording", "microphone", "notifications", "accessibility", "automation", "full_disk_access"],
+        enum: ["screen_recording", "microphone", "notifications", "accessibility"],
         description: "Optional permission type. Omit to return all supported permissions.",
       },
     }),
@@ -1028,9 +861,8 @@ const swiftToolManifestDrafts: OmiToolManifestEntryDraft[] = [
       {
         type: {
           type: "string",
-          enum: ["screen_recording", "microphone", "notifications", "accessibility", "automation", "full_disk_access"],
-          description:
-            "Permission type: screen_recording, microphone, notifications, accessibility, automation, or full_disk_access",
+          enum: ["screen_recording", "microphone", "notifications", "accessibility"],
+          description: "Permission type: screen_recording, microphone, notifications, or accessibility",
         },
       },
       ["type"],
@@ -1054,30 +886,6 @@ const swiftToolManifestDrafts: OmiToolManifestEntryDraft[] = [
     executor: { kind: "swiftTool", executorName: "realtimeHub" },
     intendedForAgents: true,
     runtimePreconditions: ["Realtime voice only; requires local TasksStore."],
-    adapters: {},
-  },
-  {
-    name: "create_calendar_event",
-    label: "Create Calendar Event",
-    description: "Create a Google Calendar event through the backend calendar tool.",
-    promptSnippet: "create_calendar_event - Create a Google Calendar event",
-    latency: "fast network",
-    inputSchema: schema(
-      {
-        title: { type: "string", description: "Event title." },
-        start_time: { type: "string", description: "Event start time in ISO-8601 with timezone." },
-        end_time: { type: "string", description: "Event end time in ISO-8601 with timezone." },
-        description: { type: "string", description: "Optional event description." },
-        location: { type: "string", description: "Optional event location." },
-        attendees: { type: "string", description: "Optional comma-separated attendee names or email addresses." },
-      },
-      ["title", "start_time", "end_time"],
-    ),
-    annotations: localWrite,
-    timeoutClass: "normal",
-    executor: { kind: "swiftTool" },
-    intendedForAgents: true,
-    runtimePreconditions: ["Requires authenticated backend calendar access."],
     adapters: {},
   },
   {

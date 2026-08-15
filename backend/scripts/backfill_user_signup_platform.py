@@ -16,7 +16,7 @@ for `signup_platform`):
         fieldy, bee, plaud, frame,
         friend_com                  → mobile (paired devices go via mobile)
         screenpipe, workflow,
-        sdcard, external_integration → skipped (programmatic / not user-platform)
+        sdcard                       → skipped (programmatic / not user-platform)
      Timestamp is the conversation's `created_at`.
 
 After this runs, live traffic takes over via the `get_current_user_uid`

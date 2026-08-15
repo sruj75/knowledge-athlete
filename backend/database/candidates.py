@@ -25,7 +25,6 @@ from models.task_intelligence import TaskWorkflowControl, TaskWorkflowMode
 
 CANDIDATES_COLLECTION = 'candidates'
 ACTION_ITEMS_COLLECTION = 'action_items'
-CANDIDATE_INTEGRATION_OUTBOX_COLLECTION = 'candidate_integration_outbox'
 CANDIDATE_IDEMPOTENCY_ALIASES_COLLECTION = 'candidate_idempotency_aliases'
 CANDIDATE_PENDING_CLAIMS_COLLECTION = 'candidate_pending_claims'
 CANDIDATE_RESOLUTION_CLAIMS_COLLECTION = 'candidate_resolution_claims'
@@ -100,12 +99,6 @@ def _candidate_ref(uid: str, candidate_id: str):
 
 def _task_ref(uid: str, task_id: str):
     return db.collection('users').document(uid).collection(ACTION_ITEMS_COLLECTION).document(task_id)
-
-
-def _integration_outbox_ref(uid: str, candidate_id: str):
-    return (
-        db.collection('users').document(uid).collection(CANDIDATE_INTEGRATION_OUTBOX_COLLECTION).document(candidate_id)
-    )
 
 
 def _candidate_idempotency_alias_ref(uid: str, key_hash: str):
@@ -722,20 +715,6 @@ def resolve_task_candidate(
             'resolved_at': resolved_at,
         }
         write_transaction.update(candidate_ref, candidate_patch)
-        if candidate.proposed_action == CandidateAction.create:
-            write_transaction.set(
-                _integration_outbox_ref(uid, candidate_id),
-                {
-                    'outbox_id': candidate_id,
-                    'candidate_id': candidate_id,
-                    'task_id': task_id,
-                    'account_generation': account_generation,
-                    'status': 'pending',
-                    'attempt_count': 0,
-                    'created_at': resolved_at,
-                    'updated_at': resolved_at,
-                },
-            )
         return CandidateResolutionReceipt(
             candidate_id=candidate_id,
             status=CandidateStatus.accepted,
@@ -746,148 +725,6 @@ def resolve_task_candidate(
         )
 
     return apply(transaction)
-
-
-def claim_candidate_integration_dispatch(
-    uid: str,
-    candidate_id: str,
-    *,
-    account_generation: int,
-    now: Optional[datetime] = None,
-    lease_seconds: int = 300,
-) -> Optional[str]:
-    """Claim a durable accepted-task integration side effect for delivery."""
-
-    outbox_ref = _integration_outbox_ref(uid, candidate_id)
-    claim_time = now or datetime.now(timezone.utc)
-    transaction = db.transaction()
-
-    @firestore.transactional
-    def apply(write_transaction):
-        snapshot = outbox_ref.get(transaction=write_transaction)
-        if not snapshot.exists:
-            return None
-        payload = _snapshot_dict(snapshot)
-        control_snapshot = _task_control_ref(uid).get(transaction=write_transaction)
-        control = TaskWorkflowControl()
-        if control_snapshot.exists:
-            control = parse_snapshot_strict(TaskWorkflowControl, control_snapshot)
-        if payload.get('account_generation') != account_generation or control.account_generation != account_generation:
-            write_transaction.update(
-                outbox_ref,
-                {
-                    'status': 'suppressed',
-                    'resolution_reason': 'account_generation_mismatch',
-                    'updated_at': claim_time,
-                },
-            )
-            return None
-        if control.workflow_mode not in {TaskWorkflowMode.write, TaskWorkflowMode.read}:
-            write_transaction.update(
-                outbox_ref,
-                {
-                    'status': 'suppressed',
-                    'resolution_reason': 'candidate_writes_disabled',
-                    'updated_at': claim_time,
-                },
-            )
-            return None
-        if payload.get('status') in {'completed', 'suppressed'}:
-            return None
-        if payload.get('status') == 'processing':
-            claimed_at = payload.get('claimed_at')
-            if isinstance(claimed_at, datetime) and claimed_at + timedelta(seconds=lease_seconds) > claim_time:
-                return None
-        lease_token = uuid4().hex
-        write_transaction.update(
-            outbox_ref,
-            {
-                'status': 'processing',
-                'attempt_count': int(payload.get('attempt_count', 0)) + 1,
-                'lease_token': lease_token,
-                'claimed_at': claim_time,
-                'updated_at': claim_time,
-            },
-        )
-        return lease_token
-
-    return apply(transaction)
-
-
-def complete_candidate_integration_dispatch(
-    uid: str,
-    candidate_id: str,
-    *,
-    account_generation: int,
-    lease_token: str,
-    succeeded: bool,
-    now: Optional[datetime] = None,
-) -> bool:
-    completion_time = now or datetime.now(timezone.utc)
-    outbox_ref = _integration_outbox_ref(uid, candidate_id)
-    transaction = db.transaction()
-
-    @firestore.transactional
-    def apply(write_transaction):
-        snapshot = outbox_ref.get(transaction=write_transaction)
-        if not snapshot.exists:
-            return False
-        payload = _snapshot_dict(snapshot)
-        control_snapshot = _task_control_ref(uid).get(transaction=write_transaction)
-        control = TaskWorkflowControl()
-        if control_snapshot.exists:
-            control = parse_snapshot_strict(TaskWorkflowControl, control_snapshot)
-        if payload.get('account_generation') != account_generation or control.account_generation != account_generation:
-            write_transaction.update(
-                outbox_ref,
-                {
-                    'status': 'suppressed',
-                    'resolution_reason': 'account_generation_mismatch',
-                    'updated_at': completion_time,
-                },
-            )
-            return False
-        if control.workflow_mode not in {TaskWorkflowMode.write, TaskWorkflowMode.read}:
-            write_transaction.update(
-                outbox_ref,
-                {
-                    'status': 'suppressed',
-                    'resolution_reason': 'candidate_writes_disabled',
-                    'updated_at': completion_time,
-                },
-            )
-            return False
-        if payload.get('status') != 'processing' or payload.get('lease_token') != lease_token:
-            return False
-        write_transaction.update(
-            outbox_ref,
-            {
-                'status': 'completed' if succeeded else 'failed',
-                'completed_at': completion_time if succeeded else None,
-                'lease_token': None,
-                'updated_at': completion_time,
-            },
-        )
-        return True
-
-    return apply(transaction)
-
-
-def list_candidate_integration_dispatches(
-    uid: str,
-    *,
-    account_generation: int,
-    limit: int = 100,
-) -> list[dict[str, Any]]:
-    query = (
-        db.collection('users')
-        .document(uid)
-        .collection(CANDIDATE_INTEGRATION_OUTBOX_COLLECTION)
-        .where(filter=FieldFilter('account_generation', '==', account_generation))
-        .where(filter=FieldFilter('status', 'in', ['pending', 'failed', 'processing']))
-        .limit(limit)
-    )
-    return [_snapshot_dict(snapshot) for snapshot in query.stream()]
 
 
 def resolve_candidate_without_mutation(
@@ -1178,12 +1015,9 @@ __all__ = [
     'WorkstreamCandidateResolverUnavailableError',
     'candidate_id_for_idempotency',
     'begin_candidate_legacy_promotion',
-    'claim_candidate_integration_dispatch',
     'claim_candidate_for_legacy_promotion',
-    'complete_candidate_integration_dispatch',
     'create_candidate',
     'get_candidate',
-    'list_candidate_integration_dispatches',
     'list_candidates',
     'pending_candidate_semantic_identity',
     'reconcile_migrated_candidate',

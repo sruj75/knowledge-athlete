@@ -67,10 +67,10 @@ def test_transcribe_reconnect_then_finalize_conversation_lifecycle(client, auth_
         lifecycle.complete(uid, conversation.id)
         return deserialize_conversation(conversations_db.get_conversation(uid, conversation.id))
 
-    async def fake_trigger_external_integrations(uid, conversation, **kwargs):
-        return []
-
-    # The exact-ID finalize route hands off to the durable Cloud Tasks worker.
+    # The exact-ID finalize route now hands off to the durable Cloud Tasks
+    # worker instead of processing inline. Configure dispatch, stub the enqueue
+    # (the hermetic harness cannot reach Cloud Tasks), and patch the expensive
+    # processing surfaces the worker calls through the shared finalizer.
     monkeypatch.setenv("LISTEN_FINALIZATION_DISPATCH_MODE", "cloud_tasks")
     monkeypatch.setenv("SYNC_TASKS_PROJECT", "test-e2e-project")
     monkeypatch.setenv("SYNC_TASKS_LOCATION", "us-central1")
@@ -81,15 +81,10 @@ def test_transcribe_reconnect_then_finalize_conversation_lifecycle(client, auth_
     cloud_tasks_module = sys.modules["utils.cloud_tasks"]
     monkeypatch.setattr(cloud_tasks_module, "enqueue_listen_finalization_job", lambda *a, **k: None)
 
-    conversations_router = sys.modules["routers.conversations"]
-    monkeypatch.setattr(conversations_router, "process_conversation", fake_process_conversation)
-    monkeypatch.setattr(conversations_router, "trigger_external_integrations", fake_trigger_external_integrations)
-
     finalization_router = sys.modules["routers.conversation_finalization"]
     finalizer_module = sys.modules["utils.conversations.finalizer"]
     monkeypatch.setattr(finalizer_module, "process_conversation", fake_process_conversation)
     monkeypatch.setattr(finalizer_module, "extract_memories", lambda *a, **k: None)
-    monkeypatch.setattr(finalizer_module, "trigger_external_integrations", fake_trigger_external_integrations)
 
     finalized = client.post(f"/v1/conversations/{conversation_id}/finalize", headers=auth_headers)
     assert finalized.status_code == 200, finalized.text

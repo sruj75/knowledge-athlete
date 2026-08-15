@@ -50,8 +50,6 @@ TARGET_SCHEMAS = (
     'Event',
     'TranscriptSegment',
     'Geolocation',
-    'AppResult',
-    'PluginResult',
     'AudioFile',
     'MemoryDB',
     'MemoryCategory',
@@ -919,7 +917,7 @@ def parse_args() -> argparse.Namespace:
 
 def load_spec(path: Path | None) -> tuple[dict[str, Any], str]:
     if path is None:
-        return export_openapi.generate_openapi('app-client'), LIVE_SPEC_SOURCE_LABEL
+        return export_openapi.generate_app_client_openapi(), LIVE_SPEC_SOURCE_LABEL
     return json.loads(path.read_text(encoding='utf-8')), source_label_for_path(path)
 
 

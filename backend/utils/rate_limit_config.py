@@ -51,29 +51,19 @@ RATE_POLICIES: dict[str, tuple[int, int]] = {
     "voice:transcribe_stream": (60, 3600),
     "voice:message": (60, 3600),
     "file:upload": (40, 3600),
-    # Agent/MCP — bursty tool calls
+    # Agent — bursty retained tool calls
     "agent:execute_tool": (120, 3600),
     # Platform tools — backend RAG endpoints
     "tools:search": (60, 3600),
     "tools:mutate": (60, 3600),
-    # MCP transport POSTs (initialize/tools-list/tool-calls) are cheap reads, but
-    # one user often runs many concurrent MCP clients (multiple IDE/agent sessions)
-    # under a single account, and clients reconnect in bursts. A tight cap here turns
-    # a reconnect storm into a 429 death-spiral, so this is sized for heavy multi-session
-    # use rather than a single client. Tune via RATE_LIMIT_BOOST for events.
-    "mcp:sse": (2000, 3600),
-    # Action items — lightweight Firestore writes from MCP clients (no LLM), but
-    # an agent can loop, so cap creation per hour. Complete/update/delete operate
-    # on existing tasks and ride the shared mcp:sse / per-request auth limits.
+    # Action items — lightweight Firestore writes; an automated caller can loop,
+    # so cap creation per hour.
     "action_items:write": (120, 3600),
     # Memories — single LLM call each
     "memories:create": (60, 3600),
     # Memory batch writes — each request can create up to 100 memories, so the
     # per-request cap is intentionally tighter than memories:create.
     "memories:batch": (30, 3600),
-    # Memory import ingest writes source artifacts only; candidate extraction is
-    # server-owned and rate-limited separately by worker scheduling.
-    "memory_imports:batch": (60, 3600),
     # Memory mutations — lightweight Firestore writes
     "memories:modify": (120, 3600),
     # Memory review queue — lightweight read/resolve workflow over review artifacts
@@ -92,35 +82,11 @@ RATE_POLICIES: dict[str, tuple[int, int]] = {
     # Search
     "conversations:search": (60, 3600),
     # Expensive background ops
-    "knowledge_graph:rebuild": (2, 3600),
     "wrapped:generate": (2, 86400),
-    # Integration (key = app_id:uid)
-    "integration:conversations": (10, 3600),
-    "integration:memories": (60, 3600),
     # Phone verification uses IP-based rate_limit_dependency (pre-auth, no UID).
     # Not migrated to per-UID Lua limiter intentionally.
-    # Dev API. Read limits are intentionally separate from write limits so a
-    # polling client cannot consume the processing/write budget. Developer and
-    # MCP API-key contexts are keyed by app/key identity when available.
-    "dev:memories_read": (120, 3600),
-    "dev:action_items_read": (120, 3600),
-    "dev:conversations_read": (60, 3600),
-    "dev:conversation_detail_read": (60, 3600),
-    "dev:conversation_transcript_read": (25, 3600),
-    "dev:goals_read": (120, 3600),
-    "dev:conversations": (25, 3600),
-    "dev:memories": (120, 3600),
-    "dev:memories_batch": (15, 3600),
-    "dev:action_items_write": (120, 3600),
-    "dev:goals_write": (120, 3600),
-    # MCP REST data API
-    "mcp:read": (300, 3600),
-    "mcp:memories_read": (120, 3600),
-    "mcp:memories_write": (120, 3600),
     # Test
     "test:prompt": (30, 3600),
-    # Apps
-    "apps:generate_prompts": (30, 3600),
     # TTS — ElevenLabs proxy. Coarse outer ring; fine-grained burst + daily
     # char caps are enforced in database.redis_db.check_tts_rate_limit.
     "tts:synthesize": (300, 3600),

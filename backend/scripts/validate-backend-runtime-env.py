@@ -51,7 +51,7 @@ _MEMORY_MAINTENANCE_DEV_REQUIRED_FLAGS = {
     '--memory': '2Gi',
 }
 _MANAGED_STT_GKE_SERVICES = ('backend-listen', 'pusher')
-_MANAGED_STT_CLOUD_RUN_SERVICES = ('backend', 'backend-sync', 'backend-integration')
+_MANAGED_STT_CLOUD_RUN_SERVICES = ('backend', 'backend-sync')
 _RETIRED_STT_RUNTIME_ENV = frozenset(
     {
         'DEEPGRAM_API_KEY',

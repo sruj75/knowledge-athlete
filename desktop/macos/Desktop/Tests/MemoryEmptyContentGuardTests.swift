@@ -93,7 +93,6 @@ final class MemoryEmptyContentGuardTests: XCTestCase {
       conversationId: nil,
       reviewed: false,
       userReview: nil,
-      visibility: "private",
       manuallyAdded: manuallyAdded,
       scoring: nil,
       source: "desktop",

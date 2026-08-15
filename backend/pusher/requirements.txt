@@ -61,9 +61,6 @@ langsmith==0.8.5
 pinecone==7.3.0
 qdrant-client==1.11.0
 
-# Knowledge graph
-neo4j==5.23.1
-
 
 # Security & encryption
 cryptography==48.0.1

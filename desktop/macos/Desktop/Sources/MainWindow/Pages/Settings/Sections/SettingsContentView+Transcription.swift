@@ -335,8 +335,14 @@ extension SettingsContentView {
 private struct VoiceAssistantLanguagesCard: View {
   @State private var selection: [String] = []
 
+  private static let commonLanguages: [(code: String, name: String)] = [
+    ("en", "English"), ("es", "Spanish"), ("fr", "French"), ("de", "German"),
+    ("pt", "Portuguese"), ("ru", "Russian"), ("hi", "Hindi"), ("ja", "Japanese"),
+    ("it", "Italian"), ("nl", "Dutch"),
+  ]
+
   private var chipOptions: [(code: String, name: String)] {
-    let common = OnboardingPagedIntroCoordinator.commonLanguages
+    let common = Self.commonLanguages
     let extra =
       selection
       .filter { code in !common.contains(where: { $0.code == code }) }

@@ -164,7 +164,6 @@ def _item(
         evidence=evidence,
         source_state=SourceState.active,
         sensitivity_labels=[],
-        visibility="private",
         user_asserted=False,
         captured_at=NOW - timedelta(hours=2),
         updated_at=NOW - timedelta(hours=1),
@@ -245,14 +244,13 @@ def _apply(source: MemoryItem, decision, db: _FakeDb, *, quarantine: bool = Fals
     )
 
 
-def test_promote_route_atomically_commits_long_term_item_and_graph_assertion():
+def test_promote_route_atomically_commits_long_term_item_and_admission_receipt():
     source = _item("mem_source", "I enjoy hiking in Seattle.")
     db = _db_for_items(source)
 
     applied_ids = _apply(source, _promote_decision(source), db)
 
     stored = MemoryItem(**db.docs[f"users/{UID}/memory_items/{source.memory_id}"])
-    assertion = db.docs[f"users/{UID}/memory_graph_assertions/{source.memory_id}"]
     operations = [
         MemoryOperation(**payload)
         for path, payload in db.docs.items()
@@ -260,31 +258,17 @@ def test_promote_route_atomically_commits_long_term_item_and_graph_assertion():
     ]
     assert applied_ids == [source.memory_id]
     assert stored.tier == MemoryTier.long_term
-    assert stored.graph_ready is True
-    assert stored.graph_assertion_id == assertion["assertion_id"]
-    assert assertion["item_revision"] == stored.item_revision
-    assert assertion["content_hash"] == stored.content_hash
-    assert assertion["predicate"] == "enjoys_activity"
+    assert stored.promotion is not None
+    assert stored.promotion["admission_receipt"]["memory_id"] == source.memory_id
     assert len(operations) == 1
     assert operations[0].operation_type == MemoryOperationType.synthesis
     assert operations[0].status == MemoryOperationStatus.committed
 
 
-def test_promotion_and_supersession_share_one_commit_and_remove_old_assertion():
+def test_promotion_and_supersession_share_one_commit():
     source = _item("mem_new", "I now live in Seattle.")
     old = _item("mem_old", "The user lives in Portland.", tier=MemoryTier.long_term)
-    old = old.model_copy(
-        update={
-            "graph_ready": True,
-            "graph_assertion_id": "mga_old",
-            "graph_plan_hash": "old-plan",
-            "kg_extracted": True,
-        }
-    )
     db = _db_for_items(source, old)
-    db.docs[f"users/{UID}/memory_graph_assertions/{old.memory_id}"] = {
-        "assertion_id": "mga_old",
-    }
     decision = _promote_decision(
         source,
         supersedes=[old.memory_id],
@@ -304,7 +288,6 @@ def test_promotion_and_supersession_share_one_commit_and_remove_old_assertion():
     assert canonical_lineage_root(promoted, items_by_id=items_by_id) == source.memory_id
     assert canonical_lineage_root(superseded, items_by_id=items_by_id) == source.memory_id
     assert promoted.ledger_commit_id == superseded.ledger_commit_id
-    assert f"users/{UID}/memory_graph_assertions/{old.memory_id}" not in db.docs
 
 
 @pytest.mark.parametrize(
@@ -339,8 +322,6 @@ def test_nonpromote_routes_are_terminal_archive_outcomes(route: str, expected_st
         assert db.docs[review_path]["authority"] == "canonical_memory"
     else:
         assert review_path not in db.docs
-    assert stored.graph_ready is False
-    assert f"users/{UID}/memory_graph_assertions/{source.memory_id}" not in db.docs
 
 
 def test_quarantine_review_is_a_canonical_blocked_commit_with_projection_deletes():

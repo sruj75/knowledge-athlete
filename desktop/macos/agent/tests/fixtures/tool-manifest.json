@@ -196,74 +196,32 @@
     }
   },
   {
-    "name": "fill_cloud_connector_form",
-    "label": "Fill Cloud Connector Form",
-    "description": "Fill the currently visible ChatGPT or Claude custom MCP connector form using Omi's native macOS Accessibility automation. Use first for one-click cloud connector setup after opening the signed-in browser to the connector page.",
-    "promptSnippet": "fill_cloud_connector_form - Fill and optionally submit the visible ChatGPT/Claude MCP connector form",
-    "promptGuidelines": [
-      "Call this first for ChatGPT or Claude cloud MCP connector setup when the connector form is visible.",
-      "Do not install browser extensions before trying this tool.",
-      "If it reports missing Accessibility permission, missing form, or missing required fields, wait for the missing condition or use guarded screenshots before any keyboard automation."
-    ],
+    "name": "search_tasks",
+    "label": "Search Tasks",
+    "description": "Vector similarity search on tasks. Find tasks by meaning or topic.",
+    "promptSnippet": "search_tasks - Find tasks by meaning",
     "latency": "fast local",
     "inputSchema": {
       "type": "object",
       "properties": {
-        "provider": {
+        "query": {
           "type": "string",
-          "enum": [
-            "claude",
-            "chatgpt"
-          ],
-          "description": "Cloud platform whose connector form is visible."
+          "description": "Natural language task description"
         },
-        "name": {
-          "type": "string",
-          "description": "Connector name, usually 'Omi Memory'."
-        },
-        "server_url": {
-          "type": "string",
-          "description": "Remote MCP server URL to paste into the connector form."
-        },
-        "oauth_client_id": {
-          "type": "string",
-          "description": "OAuth Client ID. Defaults to Omi's public ChatGPT/Claude connector client."
-        },
-        "oauth_client_secret": {
-          "type": "string",
-          "description": "OAuth Client Secret, only for confidential clients."
-        },
-        "authentication": {
-          "type": "string",
-          "description": "Authentication mode, usually 'OAuth'."
-        },
-        "token_auth_method": {
-          "type": "string",
-          "description": "OAuth token auth method. Use 'none' for Omi's public ChatGPT connector client."
-        },
-        "auth_url": {
-          "type": "string",
-          "description": "OAuth authorization URL when the form asks for it."
-        },
-        "token_url": {
-          "type": "string",
-          "description": "OAuth token URL when the form asks for it."
-        },
-        "submit": {
+        "include_completed": {
           "type": "boolean",
-          "description": "Whether to press the visible Add/Connect/Create button after filling required fields."
+          "description": "Include completed tasks"
         }
       },
       "required": [
-        "provider",
-        "server_url"
+        "query"
       ],
       "additionalProperties": false
     },
     "annotations": {
-      "readOnlyHint": false,
+      "readOnlyHint": true,
       "destructiveHint": false,
-      "openWorldHint": true
+      "openWorldHint": false
     },
     "timeoutClass": "normal",
     "executor": {
@@ -272,8 +230,7 @@
     },
     "intendedForAgents": true,
     "runtimePreconditions": [
-      "Requires a signed-in supported browser on the connector page.",
-      "Requires macOS Accessibility permission for Omi and the target browser."
+      "Requires local task index."
     ],
     "adapters": {
       "pi-mono": {
@@ -284,11 +241,13 @@
       "desktop_chat"
     ],
     "capabilityDoc": {
-      "title": "Fill Cloud Connector Form",
-      "summary": "Fill the visible ChatGPT or Claude custom MCP connector form using Omi's native macOS Accessibility automation.",
+      "title": "Search Tasks",
+      "summary": "Vector similarity search on tasks (action_items + staged_tasks).",
       "bullets": [
-        "Call this first for ChatGPT or Claude cloud MCP connector setup when the connector form is visible.",
-        "Do not install browser extensions before trying this tool."
+        "Use for finding tasks by meaning, not exact keywords, e.g. \"find tasks about shopping\".",
+        "Examples: \"tasks about shopping\", \"anything related to the presentation\".",
+        "Parameters: query (required), include_completed (default false).",
+        "More reliable than hand-writing MATCH queries for task search."
       ]
     }
   },
@@ -2157,62 +2116,6 @@
     }
   },
   {
-    "name": "search_tasks",
-    "label": "Search Tasks",
-    "description": "Vector similarity search on tasks. Find tasks by meaning or topic.",
-    "promptSnippet": "search_tasks - Find tasks by meaning",
-    "latency": "fast local",
-    "inputSchema": {
-      "type": "object",
-      "properties": {
-        "query": {
-          "type": "string",
-          "description": "Natural language task description"
-        },
-        "include_completed": {
-          "type": "boolean",
-          "description": "Include completed tasks"
-        }
-      },
-      "required": [
-        "query"
-      ],
-      "additionalProperties": false
-    },
-    "annotations": {
-      "readOnlyHint": true,
-      "destructiveHint": false,
-      "openWorldHint": false
-    },
-    "timeoutClass": "normal",
-    "executor": {
-      "kind": "swiftTool",
-      "executorName": "chatToolExecutor"
-    },
-    "intendedForAgents": true,
-    "runtimePreconditions": [
-      "Requires local task index."
-    ],
-    "adapters": {
-      "pi-mono": {
-        "advertised": true
-      }
-    },
-    "surfaces": [
-      "desktop_chat"
-    ],
-    "capabilityDoc": {
-      "title": "Search Tasks",
-      "summary": "Vector similarity search on tasks (action_items + staged_tasks).",
-      "bullets": [
-        "Use for finding tasks by meaning, not exact keywords, e.g. \"find tasks about shopping\".",
-        "Examples: \"tasks about shopping\", \"anything related to the presentation\".",
-        "Parameters: query (required), include_completed (default false).",
-        "More reliable than hand-writing MATCH queries for task search."
-      ]
-    }
-  },
-  {
     "name": "complete_task",
     "label": "Complete Task",
     "description": "Toggle a task's completion status. Syncs to backend.",
@@ -2307,120 +2210,6 @@
       "summary": "Delete a task permanently by backendId.",
       "bullets": [
         "Use after finding the task with execute_sql or search_tasks."
-      ]
-    }
-  },
-  {
-    "name": "save_knowledge_graph",
-    "label": "Save Knowledge Graph",
-    "description": "Save a knowledge graph of entities and relationships discovered about the user.",
-    "promptSnippet": "save_knowledge_graph - Save entities and relationships to the user's knowledge graph",
-    "promptGuidelines": [
-      "Use when exploring the user's files during onboarding or knowledge-graph building.",
-      "Deduplication is handled automatically; include all meaningful entities and relationships you found."
-    ],
-    "latency": "fast local",
-    "inputSchema": {
-      "type": "object",
-      "properties": {
-        "nodes": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "properties": {
-              "id": {
-                "type": "string",
-                "description": "Stable node id, referenced by edges."
-              },
-              "label": {
-                "type": "string",
-                "description": "Human-readable entity label."
-              },
-              "node_type": {
-                "type": "string",
-                "enum": [
-                  "person",
-                  "organization",
-                  "place",
-                  "thing",
-                  "concept"
-                ]
-              },
-              "aliases": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                }
-              }
-            },
-            "required": [
-              "id",
-              "label",
-              "node_type"
-            ],
-            "additionalProperties": false
-          }
-        },
-        "edges": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "properties": {
-              "source_id": {
-                "type": "string"
-              },
-              "target_id": {
-                "type": "string"
-              },
-              "label": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "source_id",
-              "target_id",
-              "label"
-            ],
-            "additionalProperties": false
-          }
-        }
-      },
-      "required": [
-        "nodes",
-        "edges"
-      ],
-      "additionalProperties": false
-    },
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": false,
-      "openWorldHint": false
-    },
-    "timeoutClass": "normal",
-    "executor": {
-      "kind": "swiftTool",
-      "executorName": "chatToolExecutor"
-    },
-    "intendedForAgents": true,
-    "runtimePreconditions": [
-      "Used by onboarding/knowledge graph flows."
-    ],
-    "adapters": {
-      "pi-mono": {
-        "advertised": true
-      }
-    },
-    "surfaces": [
-      "desktop_chat"
-    ],
-    "capabilityDoc": {
-      "title": "Save Knowledge Graph",
-      "summary": "Save a knowledge graph of entities and relationships extracted from the user's data.",
-      "bullets": [
-        "Parameters: nodes (array of {id, label, node_type, aliases}), edges (array of {source_id, target_id, label}).",
-        "node_type must be one of: person, organization, place, thing, concept.",
-        "Use when exploring the user's files during onboarding to build their knowledge graph.",
-        "Deduplication is handled automatically; provide all entities you find."
       ]
     }
   },
@@ -2959,9 +2748,7 @@
             "screen_recording",
             "microphone",
             "notifications",
-            "accessibility",
-            "automation",
-            "full_disk_access"
+            "accessibility"
           ],
           "description": "Optional permission type. Omit to return all supported permissions."
         }
@@ -3027,11 +2814,9 @@
             "screen_recording",
             "microphone",
             "notifications",
-            "accessibility",
-            "automation",
-            "full_disk_access"
+            "accessibility"
           ],
-          "description": "Permission type: screen_recording, microphone, notifications, accessibility, automation, or full_disk_access"
+          "description": "Permission type: screen_recording, microphone, notifications, or accessibility"
         }
       },
       "required": [
@@ -3074,7 +2859,7 @@
       ]
     },
     "voice": {
-      "realtimeDescription": "Request Omi's macOS permission through the kernel-authorized native executor by opening the native prompt or relevant System Settings pane. Screen share, screen sharing, and screen-share mean Screen Recording. Supports Screen Recording, microphone, notifications, Accessibility, Automation, and Full Disk Access."
+      "realtimeDescription": "Request Omi's macOS permission through the kernel-authorized native executor by opening the native prompt or relevant System Settings pane. Screen share, screen sharing, and screen-share mean Screen Recording. Supports Screen Recording, microphone, notifications, and Accessibility."
     }
   },
   {
@@ -3117,113 +2902,6 @@
     },
     "voice": {
       "realtimeDescription": "Read the user's tasks (overdue + due today) locally and get them back as text to speak. Fast synchronous read — use this for 'what are my tasks', 'what's due today', 'what's on my list'. Reading tasks is always a direct call, never background work."
-    }
-  },
-  {
-    "name": "create_calendar_event",
-    "label": "Create Calendar Event",
-    "description": "Create a Google Calendar event through the backend calendar tool.",
-    "promptSnippet": "create_calendar_event - Create a Google Calendar event",
-    "latency": "fast network",
-    "inputSchema": {
-      "type": "object",
-      "properties": {
-        "title": {
-          "type": "string",
-          "description": "Event title."
-        },
-        "start_time": {
-          "type": "string",
-          "description": "Event start time in ISO-8601 with timezone."
-        },
-        "end_time": {
-          "type": "string",
-          "description": "Event end time in ISO-8601 with timezone."
-        },
-        "description": {
-          "type": "string",
-          "description": "Optional event description."
-        },
-        "location": {
-          "type": "string",
-          "description": "Optional event location."
-        },
-        "attendees": {
-          "type": "string",
-          "description": "Optional comma-separated attendee names or email addresses."
-        }
-      },
-      "required": [
-        "title",
-        "start_time",
-        "end_time"
-      ],
-      "additionalProperties": false
-    },
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": false,
-      "openWorldHint": false
-    },
-    "timeoutClass": "normal",
-    "executor": {
-      "kind": "swiftTool",
-      "executorName": "chatToolExecutor"
-    },
-    "intendedForAgents": true,
-    "runtimePreconditions": [
-      "Requires authenticated backend calendar access."
-    ],
-    "adapters": {},
-    "surfaces": [
-      "realtime_voice"
-    ],
-    "capabilityDoc": {
-      "title": "Create Calendar Event",
-      "summary": "Create a new Google Calendar event.",
-      "bullets": [
-        "Use when the user asks to add, create, schedule, or put a specific event on their calendar.",
-        "Pass title, start_time, and end_time as ISO-8601 strings with timezone; include location, description, and attendees when provided.",
-        "This capability creates one specified event; it does not find availability, reschedule, delete, or coordinate with people."
-      ]
-    },
-    "voice": {
-      "realtimeDescription": "Create one specified Google Calendar event. Requires start_time and end_time as ISO-8601 strings with timezone. This capability does not find availability, reschedule, delete, or coordinate with people.",
-      "schemaOverride": {
-        "type": "object",
-        "properties": {
-          "title": {
-            "type": "string",
-            "description": "Event title."
-          },
-          "start_time": {
-            "type": "string",
-            "description": "Event start time in ISO-8601 with timezone, e.g. 2026-06-28T14:00:00-04:00."
-          },
-          "end_time": {
-            "type": "string",
-            "description": "Event end time in ISO-8601 with timezone, e.g. 2026-06-28T15:00:00-04:00."
-          },
-          "description": {
-            "type": "string",
-            "description": "Optional event description."
-          },
-          "location": {
-            "type": "string",
-            "description": "Optional event location."
-          },
-          "attendees": {
-            "type": "string",
-            "description": "Optional comma-separated attendee names or email addresses."
-          }
-        },
-        "required": [
-          "title",
-          "start_time",
-          "end_time"
-        ],
-        "additionalProperties": false
-      }
     }
   },
   {

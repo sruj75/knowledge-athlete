@@ -15,37 +15,6 @@ from listen_test_helpers import is_ready_event, receive_until, seed_listen_user
 from routers.listen import receiver as listen_receiver
 
 
-def _fake_png_file():
-    return {"file": ("logo.png", b"not-a-real-png-but-validation-runs-first", "image/png")}
-
-
-def test_malformed_app_form_json_is_rejected_before_storage_write(client, auth_headers):
-    response = client.post(
-        "/v1/apps",
-        data={"app_data": "not-json"},
-        files=_fake_png_file(),
-        headers=auth_headers,
-    )
-
-    assert response.status_code == 422, response.text
-    assert "app_data" in response.json()["detail"]
-    assert list_storage_files("plugins-logos") == []
-    assert list_storage_files("app-thumbnails") == []
-
-
-def test_persona_form_json_must_be_an_object(client, auth_headers):
-    response = client.post(
-        "/v1/personas",
-        data={"persona_data": "[]"},
-        files=_fake_png_file(),
-        headers=auth_headers,
-    )
-
-    assert response.status_code == 422, response.text
-    assert "persona_data" in response.json()["detail"]
-    assert list_storage_files("plugins-logos") == []
-
-
 def test_real_routes_reject_invalid_boundary_query_values_without_500(client, auth_headers):
     cases = [
         ("/v1/conversations?limit=0", 422),

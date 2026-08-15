@@ -216,7 +216,6 @@ struct DashboardPage: View {
   @ObservedObject var viewModel: DashboardViewModel
   @ObservedObject var homeStatusStore: HomeStatusStore = HomeStatusStore()
   @ObservedObject var appState: AppState
-  @ObservedObject var appProvider: AppProvider
   @ObservedObject var chatProvider: ChatProvider
   @ObservedObject var memoriesViewModel: MemoriesViewModel
   var taskChatCoordinator: TaskChatCoordinator? = nil
@@ -230,14 +229,6 @@ struct DashboardPage: View {
   @State private var homeAskFocusPolicy = HomeAskFocusPolicy()
   @Binding var selectedIndex: Int
   @State private var citedConversation: ServerConversation? = nil
-  @State private var selectedCatalogApp: OmiApp?
-  @State private var selectedImportConnector: ImportConnector?
-  @State private var selectedExportDestination: MemoryExportDestination?
-  @State private var isShowingAppsPopup = false
-  @State private var appsPopupAcceptsInput = false
-  @State private var homeConnectSheetAcceptsInput = false
-  @State private var appsPopupInitialSection: AppsCatalogInitialSection = .imports
-  @State private var appsPopupPresentationID = UUID()
   @State private var isLoadingCitation = false
   @State private var isCaptureMonitoring = false
   @State private var isTogglingCapture = false
@@ -257,11 +248,6 @@ struct DashboardPage: View {
   /// cycles through fresh suggestions while you're looking at it.
   @State private var knowsRotation = 0
   private let knowsRotationTimer = Timer.publish(every: 7, on: .main, in: .common).autoconnect()
-
-  private var selectedApp: OmiApp? {
-    guard let appId = chatProvider.selectedAppId else { return nil }
-    return appProvider.chatApps.first { $0.id == appId }
-  }
 
   private var captureStatus: HomeStatusState {
     CaptureListeningLogic.captureStatus(appState: appState, isCaptureMonitoring: isCaptureMonitoring)
@@ -284,77 +270,10 @@ struct DashboardPage: View {
   private static let homeStageMaxSideInset: CGFloat = 96
   private static let homeAskBarMinWidth: CGFloat = 560
   private static let homeAskBarMaxWidth: CGFloat = 980
-  private static let homeStagePanelMaxWidth: CGFloat = 1280
   private static let homeChatColumnMaxWidth: CGFloat = 900
   private static let homeStageTopPadding: CGFloat = 74
   private static let homeStageBottomPadding: CGFloat = 26
   private static let homeStageAnimation = Animation.spring(response: 0.46, dampingFraction: 0.86)
-  private static let appsPopupMaxWidth: CGFloat = 1040
-  private static let appsPopupMaxHeight: CGFloat = 600
-  private static let appsPopupMinWidth: CGFloat = 360
-  private static let appsPopupMinHeight: CGFloat = 360
-  private static let appsPopupHorizontalMargin: CGFloat = 48
-  private static let appsPopupVerticalMargin: CGFloat = 32
-  private static let appsPopupCornerRadius: CGFloat = 22
-  private static let homeConnectSheetHorizontalMargin: CGFloat = 56
-  private static let homeConnectSheetVerticalMargin: CGFloat = 44
-  private static let homeConnectSheetMinWidth: CGFloat = 360
-  private static let homeConnectSheetMinHeight: CGFloat = 360
-  private static let homeConnectSheetCornerRadius: CGFloat = 24
-  private static let appDetailSheetPreferredSize = CGSize(width: 500, height: 600)
-  private static let importConnectorSheetPreferredSize = CGSize(width: 520, height: 500)
-  private static let exportDestinationSheetPreferredSize = CGSize(width: 520, height: 560)
-
-  private var homeConnectSheetIsPresented: Bool {
-    selectedCatalogApp != nil || selectedImportConnector != nil || selectedExportDestination != nil
-  }
-
-  private var isHomeModalPresented: Bool {
-    isShowingAppsPopup || homeConnectSheetIsPresented
-  }
-
-  private var legacySelectedCatalogApp: Binding<OmiApp?> {
-    Binding(
-      get: { useLegacyHomeDesign ? selectedCatalogApp : nil },
-      set: { selectedCatalogApp = $0 }
-    )
-  }
-
-  private var legacySelectedImportConnector: Binding<ImportConnector?> {
-    Binding(
-      get: { useLegacyHomeDesign ? selectedImportConnector : nil },
-      set: { selectedImportConnector = $0 }
-    )
-  }
-
-  private var legacySelectedExportDestination: Binding<MemoryExportDestination?> {
-    Binding(
-      get: { useLegacyHomeDesign ? selectedExportDestination : nil },
-      set: { selectedExportDestination = $0 }
-    )
-  }
-
-  private var hasOmiDeviceHistory: Bool {
-    homeStatusStore.accountHasOmiDeviceConversations
-  }
-
-  /// Real persisted import-connector state (UserDefaults-backed via ImportConnectorStatusStore).
-  private func isImportConnectorConnected(_ connectorID: String) -> Bool {
-    guard let connector = ImportConnector.all.first(where: { $0.id == connectorID }) else { return false }
-    return homeStatusStore.connectorStatusStore.snapshot(for: connector).isConnected
-  }
-
-  private func isMCPDestinationConnected(_ destination: MemoryExportDestination) -> Bool {
-    switch destination {
-    case .claude, .claudeCode:
-      return [.claude, .claudeCode].contains { homeStatusStore.memoryExportStatuses[$0]?.hasConnection == true }
-    case .chatgpt, .codex:
-      return [.chatgpt, .codex].contains { homeStatusStore.memoryExportStatuses[$0]?.hasConnection == true }
-    default:
-      return homeStatusStore.memoryExportStatuses[destination]?.hasConnection == true
-    }
-  }
-
   var body: some View {
     applyChatNavigation(to: applyHomeLifecycle(to: applyHomeSheets(to: homeSurface)))
   }
@@ -417,34 +336,6 @@ struct DashboardPage: View {
         } else {
           ProgressView().frame(width: 300, height: 180)
         }
-      }
-      .dismissableSheet(item: legacySelectedCatalogApp) { app in
-        AppDetailSheet(app: app, appProvider: appProvider, onDismiss: { selectedCatalogApp = nil })
-          .frame(width: 500, height: 650)
-          .onAppear {
-            AnalyticsManager.shared.appDetailViewed(appId: app.id, appName: app.name)
-          }
-      }
-      .dismissableSheet(item: legacySelectedImportConnector) { connector in
-        ImportConnectorSheet(
-          connector: connector,
-          appState: appState,
-          statusStore: homeStatusStore.connectorStatusStore,
-          onDismiss: {
-            selectedImportConnector = nil
-          }
-        )
-        .frame(width: 520, height: 620)
-      }
-      .dismissableSheet(item: legacySelectedExportDestination) { destination in
-        ConnectDestinationSheet(
-          destination: destination,
-          statuses: $homeStatusStore.memoryExportStatuses,
-          onDismiss: {
-            selectedExportDestination = nil
-          }
-        )
-        .frame(width: 520, height: 620)
       }
       .overlay {
         if isLoadingCitation {
@@ -557,16 +448,12 @@ struct DashboardPage: View {
           openHomeChat()
         }
       }
-      // Automation-bridge entry points (home_open_chat / home_connect_toggle /
-      // home_close_panel / home_ask) — they call the exact functions the
+      // Automation-bridge entry points (home_open_chat / home_close_panel /
+      // home_ask) — they call the exact functions the
       // on-screen controls call.
       .onReceive(NotificationCenter.default.publisher(for: .homeStageOpenChat)) { _ in
         guard !useLegacyHomeDesign else { return }
         openHomeChat()
-      }
-      .onReceive(NotificationCenter.default.publisher(for: .homeStageToggleConnect)) { _ in
-        guard !useLegacyHomeDesign else { return }
-        toggleHomeConnectPanel()
       }
       .onReceive(NotificationCenter.default.publisher(for: .homeStageClose)) { _ in
         guard !useLegacyHomeDesign else { return }
@@ -600,7 +487,6 @@ struct DashboardPage: View {
         hasMoreMessages: chatProvider.hasMoreMessages,
         isLoadingMoreMessages: chatProvider.isLoadingMoreMessages,
         isLoadingInitial: chatProvider.isLoading && !chatProvider.isClearing,
-        app: selectedApp,
         onLoadMore: { await chatProvider.loadMoreMessages() },
         onRate: { messageId, rating in
           Task { await chatProvider.rateMessage(messageId, rating: rating) }
@@ -641,7 +527,6 @@ struct DashboardPage: View {
         onSend: { text in
           AnalyticsManager.shared.chatMessageSent(
             messageLength: text.count,
-            hasSelectedAppContext: selectedApp != nil,
             source: "dashboard_chat"
           )
           Task { await chatProvider.sendMainDraft(text) }
@@ -675,14 +560,10 @@ struct DashboardPage: View {
 
   private var redesignedHome: some View {
     GeometryReader { proxy in
-      let panelHeight = min(max(proxy.size.height - 132, CGFloat(440)), CGFloat(640))
-      let panelTop = max(CGFloat(82), (proxy.size.height - panelHeight) / 2)
-      let panelWidth = homeStageContentWidth(for: proxy.size.width)
-
       ZStack(alignment: .topTrailing) {
         HomeCanvasBackground()
 
-        // Clicking anywhere outside the chat / connect panel collapses
+        // Clicking anywhere outside the chat panel collapses
         // back to the resting surface (panels and the ask bar consume their
         // own clicks above this catcher). When chat history exists, chat IS
         // the resting Home surface, so no catcher is mounted over it — and
@@ -699,48 +580,24 @@ struct DashboardPage: View {
 
         homeStage(stageWidth: proxy.size.width, stageHeight: proxy.size.height)
           .frame(width: proxy.size.width, height: proxy.size.height)
-          // The popup/sheet overlays are modal: while one is up, the
-          // stage underneath must not be reachable by VoiceOver /
-          // Full Keyboard Access.
-          .accessibilityHidden(isHomeModalPresented)
 
         // Capture/Listening now live in the shell's constant top bar (see
         // DesktopTopBar), so the home no longer renders its own header copy.
 
-        appsPopupOverlay(
-          contentWidth: proxy.size.width,
-          panelWidth: panelWidth,
-          panelHeight: panelHeight,
-          panelTop: panelTop
-        )
-
-        homeConnectSheetOverlay(
-          contentWidth: proxy.size.width,
-          panelWidth: panelWidth,
-          panelHeight: panelHeight,
-          panelTop: panelTop
-        )
-
-        // Esc collapses the connect tray (and, with no chat history, the
-        // inline chat) back to the resting surface — but only while no modal
-        // overlay owns the key. Chat with history is Home itself and cannot
-        // be escaped; the hub is likewise never escaped *into* a panel.
-        if HomeStageMode.collapseCatcherActive(mode: homeMode, resting: homeRestingMode)
-          && !isHomeModalPresented
-        {
+        // Esc collapses an empty inline chat back to the resting hub. Chat with
+        // history is Home itself and cannot be escaped.
+        if HomeStageMode.collapseCatcherActive(mode: homeMode, resting: homeRestingMode) {
           OverlayModalEscapeCatcher {
             collapseHomeStagePanel()
           }
         }
       }
-      .omiAnimation(.easeOut(duration: 0.2), value: isShowingAppsPopup)
-      .omiAnimation(.easeOut(duration: 0.2), value: homeConnectSheetIsPresented)
       .omiAnimation(Self.homeStageAnimation, value: homeMode)
     }
   }
 
-  /// Vertical stage: mode content on top (hub metrics, inline chat, or the
-  /// connect tray), the persistent ask bar anchored beneath it, and the
+  /// Vertical stage: mode content on top (hub metrics or inline chat), the
+  /// persistent ask bar anchored beneath it, and the
   /// suggested questions under the bar while the hub is showing.
   private func homeStage(stageWidth: CGFloat, stageHeight: CGFloat) -> some View {
     let askBarWidth = homeAskBarWidth(for: stageWidth)
@@ -800,7 +657,7 @@ struct DashboardPage: View {
     !intelligenceStore.focusedGoals.isEmpty || intelligenceStore.accountGeneration != nil
   }
 
-  /// Panel layout (chat / connect): the surface fills the height with the ask
+  /// Chat panel layout: the surface fills the height with the ask
   /// bar anchored directly beneath it.
   private func homePanelStage(stageWidth: CGFloat, askBarWidth: CGFloat) -> some View {
     VStack(spacing: 0) {
@@ -809,9 +666,6 @@ struct DashboardPage: View {
         case .chat:
           homeChatPanel(width: askBarWidth)
             .transition(.homeChatRise)
-        case .connect:
-          homeConnectPanel(stageWidth: stageWidth)
-            .transition(.homeDropFromTop)
         case .hub:
           EmptyView()
         }
@@ -1095,7 +949,6 @@ struct DashboardPage: View {
         hasMoreMessages: chatProvider.hasMoreMessages,
         isLoadingMoreMessages: chatProvider.isLoadingMoreMessages,
         isLoadingInitial: chatProvider.isLoading && !chatProvider.isClearing,
-        app: selectedApp,
         onLoadMore: { await chatProvider.loadMoreMessages() },
         onRate: { messageId, rating in
           Task { await chatProvider.rateMessage(messageId, rating: rating) }
@@ -1134,65 +987,6 @@ struct DashboardPage: View {
     .frame(width: width)
   }
 
-  // MARK: Connect tray
-
-  private func homeConnectPanel(stageWidth: CGFloat) -> some View {
-    // Sources feed omi; omi's memory flows out to the AI destinations —
-    // the chevron between the two cards reads that direction. The tray
-    // hugs its content: no scroll filler below the columns.
-    HStack(alignment: .center, spacing: OmiSpacing.md) {
-      homeConnectColumnCard {
-        VStack(alignment: .leading, spacing: OmiSpacing.md) {
-          sourceColumnHeader
-          sourceConstellation
-        }
-      }
-
-      Image(systemName: "chevron.right")
-        .scaledFont(size: OmiType.body, weight: .bold)
-        .foregroundStyle(HomePalette.secondary)
-        .frame(width: 30, height: 30)
-        .background(Circle().fill(HomePalette.tile))
-        .overlay(Circle().stroke(HomePalette.hairline, lineWidth: 1))
-        .accessibilityHidden(true)
-
-      homeConnectColumnCard {
-        destinationStack
-      }
-    }
-    .padding(OmiSpacing.lg)
-    .background(
-      RoundedRectangle(cornerRadius: 28, style: .continuous)
-        .fill(HomePalette.panel.opacity(0.94))
-    )
-    .overlay(
-      RoundedRectangle(cornerRadius: 28, style: .continuous)
-        .stroke(HomePalette.hairline.opacity(0.9), lineWidth: 1)
-    )
-    .overlay(alignment: .topTrailing) {
-      HomeIconActionButton(title: "Close connect", systemImage: "xmark") {
-        collapseHomeStagePanel()
-      }
-      .padding(OmiSpacing.md)
-    }
-    .shadow(color: .black.opacity(0.4), radius: 30, y: 16)
-    .frame(width: homeStagePanelWidth(for: stageWidth))
-  }
-
-  private func homeConnectColumnCard<Content: View>(@ViewBuilder content: () -> Content) -> some View {
-    content()
-      .padding(OmiSpacing.lg)
-      .frame(maxWidth: .infinity, alignment: .topLeading)
-      .background(
-        RoundedRectangle(cornerRadius: 22, style: .continuous)
-          .fill(Color.white.opacity(0.025))
-      )
-      .overlay(
-        RoundedRectangle(cornerRadius: 22, style: .continuous)
-          .stroke(HomePalette.hairline.opacity(0.55), lineWidth: 1)
-      )
-  }
-
   // MARK: Ask bar + suggestions
 
   @ViewBuilder
@@ -1215,7 +1009,6 @@ struct DashboardPage: View {
       text: $chatProvider.draftText,
       isSending: chatProvider.isSending,
       isStopping: chatProvider.isStopping,
-      isConnectActive: homeMode == .connect,
       focus: $homeAskFieldFocused,
       attachments: $chatProvider.pendingAttachments,
       onAttachmentsAdded: { urls in
@@ -1227,7 +1020,6 @@ struct DashboardPage: View {
       },
       onSend: sendFromHomeAskBar,
       onStop: { chatProvider.stopAgent(owner: .mainChat) },
-      onConnect: toggleHomeConnectPanel,
       // Tapping the bar begins a fresh chat and focuses it to type, staying on
       // the hero; only sending enters the chat surface (see sendFromHomeAskBar).
       onActivate: { focusHomeAskBar() }
@@ -1248,10 +1040,6 @@ struct DashboardPage: View {
   private func homeStageContentWidth(for stageWidth: CGFloat) -> CGFloat {
     let sideInset = homeStageSideInset(for: stageWidth)
     return min(Self.homeStageMaxWidth, max(CGFloat(0), stageWidth - (sideInset * 2)))
-  }
-
-  private func homeStagePanelWidth(for stageWidth: CGFloat) -> CGFloat {
-    min(Self.homeStagePanelMaxWidth, homeStageContentWidth(for: stageWidth))
   }
 
   private func homeAskBarWidth(for stageWidth: CGFloat) -> CGFloat {
@@ -1344,7 +1132,7 @@ struct DashboardPage: View {
     )
   }
 
-  /// User-facing collapse (click outside, Esc, connect ×) and the automation
+  /// User-facing collapse (click outside or Esc) and the automation
   /// bridge's `home_close_panel`: returns to the resting surface. There is a
   /// single close path now — the bridge no longer force-jumps to the hub.
   private func collapseHomeStagePanel() {
@@ -1352,18 +1140,6 @@ struct DashboardPage: View {
     homeAskFocusPolicy.invalidate()
     OmiMotion.withGated(Self.homeStageAnimation) {
       homeMode = homeRestingMode
-    }
-    reportHomeAutomationMode()
-  }
-
-  private func toggleHomeConnectPanel() {
-    homeAskFocusPolicy.invalidate()
-    let target: HomeStageMode = homeMode == .connect ? homeRestingMode : .connect
-    if target == .connect {
-      homeAskFieldFocused = false
-    }
-    OmiMotion.withGated(Self.homeStageAnimation) {
-      homeMode = target
     }
     reportHomeAutomationMode()
   }
@@ -1383,7 +1159,6 @@ struct DashboardPage: View {
     openHomeChat(focusInput: false)
     AnalyticsManager.shared.chatMessageSent(
       messageLength: text.count,
-      hasSelectedAppContext: selectedApp != nil,
       source: "home_ask_bar"
     )
     if chatProvider.isSending {
@@ -1397,186 +1172,9 @@ struct DashboardPage: View {
     openHomeChat(focusInput: false)
     AnalyticsManager.shared.chatMessageSent(
       messageLength: suggestion.count,
-      hasSelectedAppContext: selectedApp != nil,
       source: "home_suggested_question"
     )
     Task { await chatProvider.sendMessage(suggestion) }
-  }
-
-  @ViewBuilder
-  private func appsPopupOverlay(
-    contentWidth: CGFloat,
-    panelWidth: CGFloat,
-    panelHeight: CGFloat,
-    panelTop: CGFloat
-  ) -> some View {
-    ZStack {
-      if isShowingAppsPopup {
-        Color.black.opacity(0.16)
-          .ignoresSafeArea()
-          .contentShape(Rectangle())
-          .onTapGesture {
-            dismissAppsPopup()
-          }
-          .transition(.opacity)
-          .zIndex(2)
-
-        let popupSize = appsPopupSize(panelWidth: panelWidth, panelHeight: panelHeight)
-
-        AppsPage(
-          appProvider: appProvider,
-          appState: appState,
-          connectorStatusStore: homeStatusStore.connectorStatusStore,
-          initialSection: appsPopupInitialSection,
-          onDismiss: {
-            dismissAppsPopup()
-          },
-          onSelectApp: { app in
-            openAppFromAppsPopup(app)
-          },
-          onSelectConnector: { connector in
-            openImportConnectorFromAppsPopup(connector)
-          },
-          onSelectDestination: { destination in
-            openExportDestinationFromAppsPopup(destination)
-          }
-        )
-        .id(appsPopupPresentationID)
-        .frame(width: popupSize.width, height: popupSize.height)
-        .background(OmiColors.backgroundPrimary)
-        .clipShape(RoundedRectangle(cornerRadius: Self.appsPopupCornerRadius, style: .continuous))
-        .overlay(
-          RoundedRectangle(cornerRadius: Self.appsPopupCornerRadius, style: .continuous)
-            .stroke(HomePalette.hairline.opacity(0.9), lineWidth: 1)
-        )
-        .shadow(color: .black.opacity(0.38), radius: 26, y: 14)
-        .position(x: contentWidth / 2, y: panelTop + panelHeight / 2)
-        .transition(.scale(scale: 0.95).combined(with: .opacity))
-        .accessibilityAddTraits(.isModal)
-        .zIndex(3)
-
-        // Only the topmost modal owns Esc; the connect sheet takes over
-        // while it is presented (including the brief crossfade overlap).
-        if appsPopupAcceptsInput && !homeConnectSheetIsPresented {
-          OverlayModalEscapeCatcher {
-            dismissAppsPopup()
-          }
-          .zIndex(3)
-        }
-      }
-    }
-    .allowsHitTesting(appsPopupAcceptsInput && !homeConnectSheetIsPresented)
-    .zIndex(2)
-  }
-
-  @ViewBuilder
-  private func homeConnectSheetOverlay(
-    contentWidth: CGFloat,
-    panelWidth: CGFloat,
-    panelHeight: CGFloat,
-    panelTop: CGFloat
-  ) -> some View {
-    ZStack {
-      if homeConnectSheetIsPresented {
-        Color.black.opacity(0.22)
-          .ignoresSafeArea()
-          .contentShape(Rectangle())
-          .onTapGesture {
-            dismissHomeConnectSheet()
-          }
-          .transition(.opacity)
-          .zIndex(4)
-
-        let sheetSize = homeConnectSheetSize(panelWidth: panelWidth, panelHeight: panelHeight)
-
-        homeConnectSheetContent()
-          .frame(width: sheetSize.width, height: sheetSize.height)
-          .background(OmiColors.backgroundPrimary)
-          .clipShape(RoundedRectangle(cornerRadius: Self.homeConnectSheetCornerRadius, style: .continuous))
-          .overlay(
-            RoundedRectangle(cornerRadius: Self.homeConnectSheetCornerRadius, style: .continuous)
-              .stroke(HomePalette.hairline.opacity(0.92), lineWidth: 1)
-          )
-          .shadow(color: .black.opacity(0.42), radius: 30, y: 16)
-          .position(x: contentWidth / 2, y: panelTop + panelHeight / 2)
-          .transition(.scale(scale: 0.96).combined(with: .opacity))
-          .accessibilityAddTraits(.isModal)
-          .zIndex(5)
-
-        if homeConnectSheetAcceptsInput {
-          OverlayModalEscapeCatcher {
-            dismissHomeConnectSheet()
-          }
-          .zIndex(5)
-        }
-      }
-    }
-    .allowsHitTesting(homeConnectSheetAcceptsInput)
-    .zIndex(4)
-  }
-
-  private func homeConnectSheetSize(panelWidth: CGFloat, panelHeight: CGFloat) -> CGSize {
-    let preferred = homeConnectSheetPreferredSize
-    return CGSize(
-      width: min(
-        preferred.width,
-        max(Self.homeConnectSheetMinWidth, panelWidth - (Self.homeConnectSheetHorizontalMargin * 2))
-      ),
-      height: min(
-        preferred.height,
-        max(Self.homeConnectSheetMinHeight, panelHeight - (Self.homeConnectSheetVerticalMargin * 2))
-      )
-    )
-  }
-
-  private var homeConnectSheetPreferredSize: CGSize {
-    if selectedCatalogApp != nil {
-      return Self.appDetailSheetPreferredSize
-    }
-    if selectedImportConnector != nil {
-      return Self.importConnectorSheetPreferredSize
-    }
-    return Self.exportDestinationSheetPreferredSize
-  }
-
-  @ViewBuilder
-  private func homeConnectSheetContent() -> some View {
-    if let app = selectedCatalogApp {
-      AppDetailSheet(app: app, appProvider: appProvider, onDismiss: { dismissHomeConnectSheet() })
-        .onAppear {
-          AnalyticsManager.shared.appDetailViewed(appId: app.id, appName: app.name)
-        }
-    } else if let connector = selectedImportConnector {
-      ImportConnectorSheet(
-        connector: connector,
-        appState: appState,
-        statusStore: homeStatusStore.connectorStatusStore,
-        onDismiss: {
-          dismissHomeConnectSheet()
-        }
-      )
-    } else if let destination = selectedExportDestination {
-      ConnectDestinationSheet(
-        destination: destination,
-        statuses: $homeStatusStore.memoryExportStatuses,
-        onDismiss: {
-          dismissHomeConnectSheet()
-        }
-      )
-    }
-  }
-
-  private func appsPopupSize(panelWidth: CGFloat, panelHeight: CGFloat) -> CGSize {
-    CGSize(
-      width: min(
-        Self.appsPopupMaxWidth,
-        max(Self.appsPopupMinWidth, panelWidth - (Self.appsPopupHorizontalMargin * 2))
-      ),
-      height: min(
-        Self.appsPopupMaxHeight,
-        max(Self.appsPopupMinHeight, panelHeight - (Self.appsPopupVerticalMargin * 2))
-      )
-    )
   }
 
   private var homeHeader: some View {
@@ -1619,155 +1217,9 @@ struct DashboardPage: View {
     .frame(height: 36)
   }
 
-  private var sourceColumnHeader: some View {
-    VStack(alignment: .leading, spacing: OmiSpacing.xxs) {
-      Text("Connect data")
-        .font(.system(size: 20, weight: .medium, design: .serif))
-        .foregroundStyle(HomePalette.ink)
-
-      Text("Sources Omi learns from.")
-        .scaledFont(size: OmiType.caption, weight: .medium)
-        .foregroundStyle(HomePalette.muted)
-        .lineLimit(1)
-    }
-  }
-
-  private var sourceConstellation: some View {
-    VStack(alignment: .leading, spacing: OmiSpacing.md) {
-      HomeAIChoiceButton(title: "Gmail", brand: .gmail, isConnected: isImportConnectorConnected("email")) {
-        openImportConnector("email")
-      }
-      HomeAIChoiceButton(title: "Calendar", brand: .calendar, isConnected: isImportConnectorConnected("calendar")) {
-        openImportConnector("calendar")
-      }
-      HomeAIChoiceButton(title: "Files", brand: .localFiles, isConnected: isImportConnectorConnected("local-files")) {
-        openImportConnector("local-files")
-      }
-      HomeAIChoiceButton(title: "Notes", brand: .appleNotes, isConnected: isImportConnectorConnected("apple-notes")) {
-        openImportConnector("apple-notes")
-      }
-      HomeAIChoiceButton(title: "Omi Device", usesOmiMark: true, isConnected: hasOmiDeviceHistory) {
-        openOmiDeviceWebsite()
-      }
-      HomeAIChoiceButton(title: "More", systemImage: "plus") {
-        openAppsPopup(initialSection: .imports)
-      }
-    }
-  }
-
-  private var destinationStack: some View {
-    VStack(alignment: .leading, spacing: OmiSpacing.md) {
-      VStack(alignment: .leading, spacing: OmiSpacing.xxs) {
-        Text("Use omi memory anywhere")
-          .font(.system(size: 20, weight: .medium, design: .serif))
-          .foregroundStyle(HomePalette.ink)
-
-        Text("Bring your memories to the apps you use")
-          .scaledFont(size: OmiType.caption, weight: .medium)
-          .foregroundStyle(HomePalette.muted)
-          .fixedSize(horizontal: false, vertical: true)
-      }
-
-      HomeAIChoiceButton(title: "Ask Omi", usesOmiMark: true) {
-        openHomeChat()
-      }
-      HomeAIChoiceButton(title: "Claude / Claude Code", brand: .claude, isConnected: isMCPDestinationConnected(.claude))
-      {
-        openExportDestination(.claudeCode)
-      }
-      HomeAIChoiceButton(title: "ChatGPT / Codex", brand: .chatgpt, isConnected: isMCPDestinationConnected(.chatgpt)) {
-        openExportDestination(.chatgpt)
-      }
-      HomeAIChoiceButton(title: "OpenClaw", brand: .openclaw, isConnected: isMCPDestinationConnected(.openclaw)) {
-        openExportDestination(.openclaw)
-      }
-      HomeAIChoiceButton(title: "Hermes", brand: .hermes, isConnected: isMCPDestinationConnected(.hermes)) {
-        openExportDestination(.hermes)
-      }
-      HomeAIChoiceButton(title: "More", systemImage: "plus") {
-        openAppsPopup(initialSection: .exports)
-      }
-    }
-  }
-
   private func navigate(to item: SidebarNavItem) {
     selectedIndex = item.rawValue
     AnalyticsManager.shared.tabChanged(tabName: item.title)
-  }
-
-  private func openAppsPopup(initialSection: AppsCatalogInitialSection) {
-    // Filters left behind by earlier catalog visits (a category, a search,
-    // "Installed") would otherwise replace the Imports/Exports sections
-    // this popup exists to show.
-    appProvider.clearFilters()
-    appsPopupInitialSection = initialSection
-    appsPopupPresentationID = UUID()
-    appsPopupAcceptsInput = true
-    isShowingAppsPopup = true
-  }
-
-  private func dismissAppsPopup() {
-    appsPopupAcceptsInput = false
-    isShowingAppsPopup = false
-  }
-
-  private func openAppFromAppsPopup(_ app: OmiApp) {
-    dismissAppsPopup()
-    presentCatalogApp(app)
-  }
-
-  private func openImportConnectorFromAppsPopup(_ connector: ImportConnector) {
-    dismissAppsPopup()
-    presentImportConnector(connector)
-  }
-
-  private func openExportDestinationFromAppsPopup(_ destination: MemoryExportDestination) {
-    dismissAppsPopup()
-    presentExportDestination(destination)
-  }
-
-  private func openImportConnector(_ connectorID: String) {
-    if let connector = ImportConnector.all.first(where: { $0.id == connectorID }) {
-      presentImportConnector(connector)
-    }
-  }
-
-  private func openExportDestination(_ destination: MemoryExportDestination) {
-    presentExportDestination(destination)
-  }
-
-  private func presentCatalogApp(_ app: OmiApp) {
-    homeConnectSheetAcceptsInput = true
-    selectedImportConnector = nil
-    selectedExportDestination = nil
-    selectedCatalogApp = app
-  }
-
-  private func presentImportConnector(_ connector: ImportConnector) {
-    homeConnectSheetAcceptsInput = true
-    selectedCatalogApp = nil
-    selectedExportDestination = nil
-    selectedImportConnector = connector
-  }
-
-  private func presentExportDestination(_ destination: MemoryExportDestination) {
-    homeConnectSheetAcceptsInput = true
-    selectedCatalogApp = nil
-    selectedImportConnector = nil
-    selectedExportDestination = destination
-  }
-
-  private func dismissHomeConnectSheet() {
-    homeConnectSheetAcceptsInput = false
-    selectedCatalogApp = nil
-    selectedImportConnector = nil
-    selectedExportDestination = nil
-  }
-
-  private func openOmiDeviceWebsite() {
-    if let url = URL(string: "https://www.omi.me") {
-      NSWorkspace.shared.open(url)
-    }
   }
 
   private func toggleListening() {
@@ -2212,32 +1664,23 @@ enum HomePalette {
   static let glow = stageGlow
 }
 
-private enum HomeRowStatus {
-  case connect
-  case connected
-  case open
-}
-
 private enum HomeDestinationProminence {
   case primary
   case quiet
 }
 
 /// The persistent home ask bar: a pill-shaped chat input with attachments
-/// (paperclip + drag-drop, same limits as the chat page), a send/stop action,
-/// and the Connect toggle living inside the pill.
+/// (paperclip + drag-drop, same limits as the chat page) and a send/stop action.
 struct HomeAskBar: View {
   @Binding var text: String
   let isSending: Bool
   let isStopping: Bool
-  let isConnectActive: Bool
   var focus: FocusState<Bool>.Binding
   @Binding var attachments: [ChatAttachment]
   let onAttachmentsAdded: ([URL]) -> Void
   let onAttachmentRemoved: (String) -> Void
   let onSend: () -> Void
   let onStop: () -> Void
-  let onConnect: () -> Void
   let onActivate: () -> Void
 
   @State private var isHovering = false
@@ -2384,8 +1827,6 @@ struct HomeAskBar: View {
       stopButton
     case .send:
       sendButton
-    case .connect:
-      connectButton
     case .none:
       EmptyView()
     }
@@ -2394,8 +1835,7 @@ struct HomeAskBar: View {
   private var actionMode: HomeAskBarActionMode {
     if isSending { return .stop }
     if canSend { return .send }
-    if isFocused { return .none }
-    return .connect
+    return .none
   }
 
   private var sendButton: some View {
@@ -2441,51 +1881,12 @@ struct HomeAskBar: View {
     .accessibilityLabel("Stop response")
   }
 
-  private var connectButton: some View {
-    HomeAskBarConnectButton(isActive: isConnectActive, action: onConnect)
-  }
 }
 
 private enum HomeAskBarActionMode: Equatable {
-  case connect
   case send
   case stop
   case none
-}
-
-struct HomeAskBarConnectButton: View {
-  let isActive: Bool
-  let action: () -> Void
-
-  @State private var isHovering = false
-
-  var body: some View {
-    Button(action: action) {
-      HStack(spacing: OmiSpacing.xs) {
-        Image(systemName: "link")
-          .scaledFont(size: OmiType.caption, weight: .semibold)
-
-        Text("Connect")
-          .scaledFont(size: OmiType.caption, weight: .semibold)
-      }
-      .foregroundStyle(isActive ? Color.black : HomePalette.ink)
-      .padding(.horizontal, OmiSpacing.md)
-      .frame(height: 34)
-      .background(
-        Capsule(style: .continuous)
-          .fill(isActive ? Color.white : Color.white.opacity(isHovering ? 0.14 : 0.07))
-      )
-      .overlay(
-        Capsule(style: .continuous)
-          .stroke(isActive ? Color.clear : HomePalette.hairline, lineWidth: 1)
-      )
-      .contentShape(Capsule())
-    }
-    .buttonStyle(.plain)
-    .onHover { isHovering = $0 }
-    .help("Connect data & use omi anywhere")
-    .accessibilityLabel(isActive ? "Close connect" : "Connect")
-  }
 }
 
 /// One knows-list row: leading kind icon, single-line text, and either a
@@ -2624,1287 +2025,6 @@ private struct HomeCanvasBackground: View {
       endPoint: .bottom
     )
     .ignoresSafeArea()
-  }
-}
-
-private struct HomePrimaryRouteButton: View {
-  let title: String
-  let brand: ConnectorBrand
-  let action: () -> Void
-
-  @State private var isHovering = false
-
-  var body: some View {
-    Button(action: action) {
-      HStack(spacing: OmiSpacing.sm) {
-        ConnectorBrandIcon(brand: brand, size: 20, cornerRadius: OmiChrome.badgeRadius)
-
-        Text(title)
-          .scaledFont(size: OmiType.body, weight: .semibold)
-          .lineLimit(1)
-      }
-      .foregroundStyle(.white)
-      .padding(.horizontal, OmiSpacing.md)
-      .padding(.vertical, OmiSpacing.sm)
-      .frame(minWidth: 118)
-      .background(
-        RoundedRectangle(cornerRadius: OmiChrome.smallControlRadius, style: .continuous)
-          .fill(HomePalette.green.opacity(isHovering ? 0.92 : 1))
-      )
-      .shadow(color: HomePalette.green.opacity(isHovering ? 0.22 : 0.12), radius: 12, y: 5)
-      .contentShape(.rect(cornerRadius: OmiChrome.smallControlRadius))
-    }
-    .buttonStyle(.plain)
-    .onHover { isHovering = $0 }
-    .accessibilityLabel("Connect \(title)")
-  }
-}
-
-private struct HomeInlineAction: View {
-  let title: String
-  let brand: ConnectorBrand?
-  let systemImage: String?
-  let action: () -> Void
-
-  @State private var isHovering = false
-
-  init(title: String, brand: ConnectorBrand, action: @escaping () -> Void) {
-    self.title = title
-    self.brand = brand
-    self.systemImage = nil
-    self.action = action
-  }
-
-  init(title: String, systemImage: String, action: @escaping () -> Void) {
-    self.title = title
-    self.brand = nil
-    self.systemImage = systemImage
-    self.action = action
-  }
-
-  var body: some View {
-    Button(action: action) {
-      HStack(spacing: OmiSpacing.xs) {
-        icon
-
-        Text(title)
-          .scaledFont(size: OmiType.caption, weight: .semibold)
-          .foregroundStyle(HomePalette.secondary)
-          .lineLimit(1)
-
-        Image(systemName: "chevron.right")
-          .scaledFont(size: OmiType.micro, weight: .bold)
-          .foregroundStyle(HomePalette.faint)
-      }
-      .padding(.horizontal, OmiSpacing.md)
-      .padding(.vertical, OmiSpacing.sm)
-      .background(
-        Capsule(style: .continuous)
-          .fill(isHovering ? HomePalette.tileHover : HomePalette.tile.opacity(0.72))
-      )
-      .overlay(
-        Capsule(style: .continuous)
-          .stroke(isHovering ? HomePalette.green.opacity(0.3) : HomePalette.hairline.opacity(0.42), lineWidth: 1)
-      )
-      .contentShape(Capsule())
-    }
-    .buttonStyle(.plain)
-    .onHover { isHovering = $0 }
-  }
-
-  @ViewBuilder
-  private var icon: some View {
-    if let brand {
-      ConnectorBrandIcon(brand: brand, size: 18, cornerRadius: OmiChrome.badgeRadius)
-    } else if let systemImage {
-      Image(systemName: systemImage)
-        .scaledFont(size: OmiType.caption, weight: .semibold)
-        .foregroundStyle(HomePalette.secondary)
-        .frame(width: 18, height: 18)
-    }
-  }
-}
-
-private struct HomeSourceIconTile: View {
-  let title: String
-  let brand: ConnectorBrand?
-  let systemImage: String?
-  let usesOmiDeviceImage: Bool
-  let isConnected: Bool
-  let isBrowse: Bool
-  let action: () -> Void
-
-  @State private var isHovering = false
-
-  init(
-    title: String,
-    brand: ConnectorBrand,
-    isConnected: Bool = false,
-    action: @escaping () -> Void
-  ) {
-    self.title = title
-    self.brand = brand
-    self.systemImage = nil
-    self.usesOmiDeviceImage = false
-    self.isConnected = isConnected
-    self.isBrowse = false
-    self.action = action
-  }
-
-  init(
-    title: String,
-    systemImage: String,
-    isBrowse: Bool = false,
-    action: @escaping () -> Void
-  ) {
-    self.title = title
-    self.brand = nil
-    self.systemImage = systemImage
-    self.usesOmiDeviceImage = false
-    self.isConnected = false
-    self.isBrowse = isBrowse
-    self.action = action
-  }
-
-  init(
-    title: String,
-    usesOmiDeviceImage: Bool,
-    isConnected: Bool = false,
-    action: @escaping () -> Void
-  ) {
-    self.title = title
-    self.brand = nil
-    self.systemImage = nil
-    self.usesOmiDeviceImage = usesOmiDeviceImage
-    self.isConnected = isConnected
-    self.isBrowse = false
-    self.action = action
-  }
-
-  var body: some View {
-    Button(action: action) {
-      VStack(spacing: OmiSpacing.sm) {
-        ZStack(alignment: .topTrailing) {
-          icon
-
-          if isConnected {
-            Circle()
-              .fill(HomePalette.green)
-              .frame(width: 9, height: 9)
-              .overlay(Circle().stroke(HomePalette.tile, lineWidth: 2))
-              .offset(x: 2, y: -2)
-          }
-        }
-
-        HStack(spacing: OmiSpacing.xxs) {
-          Text(title)
-            .scaledFont(size: OmiType.caption, weight: .semibold)
-            .foregroundStyle(HomePalette.ink)
-            .lineLimit(1)
-            .minimumScaleFactor(0.72)
-
-          if isBrowse {
-            Image(systemName: "chevron.right")
-              .scaledFont(size: 8, weight: .bold)
-              .foregroundStyle(HomePalette.faint)
-          }
-        }
-      }
-      .frame(maxWidth: .infinity)
-      .frame(height: 92)
-      .background(
-        RoundedRectangle(cornerRadius: 17, style: .continuous)
-          .fill(isHovering ? HomePalette.tileHover : HomePalette.tile)
-      )
-      .overlay(
-        RoundedRectangle(cornerRadius: 17, style: .continuous)
-          .stroke(isHovering ? HomePalette.glow.opacity(0.58) : HomePalette.hairline.opacity(0.9), lineWidth: 1)
-      )
-      .shadow(color: isHovering ? HomePalette.glow.opacity(0.16) : .clear, radius: 14)
-      .contentShape(.rect(cornerRadius: 17))
-    }
-    .buttonStyle(.plain)
-    .onHover { isHovering = $0 }
-    .accessibilityLabel(title)
-  }
-
-  @ViewBuilder
-  private var icon: some View {
-    if usesOmiDeviceImage {
-      HomeOmiDeviceIcon(size: 42, cornerRadius: OmiChrome.smallControlRadius)
-    } else if let brand {
-      ConnectorBrandIcon(brand: brand, size: 42, cornerRadius: OmiChrome.smallControlRadius)
-    } else if let systemImage {
-      ZStack {
-        RoundedRectangle(cornerRadius: OmiChrome.smallControlRadius, style: .continuous)
-          .fill(Color.white.opacity(0.05))
-        Image(systemName: systemImage)
-          .scaledFont(size: 19, weight: .semibold)
-          .foregroundStyle(HomePalette.secondary)
-      }
-      .frame(width: 42, height: 42)
-    }
-  }
-}
-
-private struct HomeOmiDeviceIcon: View {
-  let size: CGFloat
-  let cornerRadius: CGFloat
-
-  var body: some View {
-    ZStack {
-      RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-        .fill(Color.white.opacity(0.05))
-        .overlay(
-          RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-            .stroke(Color.white.opacity(0.06), lineWidth: 1)
-        )
-
-      if let deviceImage = OmiDeviceImage.shared {
-        Image(nsImage: deviceImage)
-          .resizable()
-          .interpolation(.high)
-          .aspectRatio(contentMode: .fit)
-          .padding(size * 0.16)
-      } else {
-        Image(systemName: "wave.3.right.circle.fill")
-          .scaledFont(size: size * 0.45, weight: .semibold)
-          .foregroundStyle(HomePalette.secondary)
-      }
-    }
-    .frame(width: size, height: size)
-  }
-}
-
-private struct HomeDataSourceCard: View {
-  let title: String
-  let subtitle: String
-  let brand: ConnectorBrand?
-  let systemImage: String?
-  let actionTitle: String
-  let isConnected: Bool
-  let action: () -> Void
-
-  @State private var isHovering = false
-
-  init(
-    title: String,
-    subtitle: String,
-    brand: ConnectorBrand,
-    actionTitle: String,
-    isConnected: Bool = false,
-    action: @escaping () -> Void
-  ) {
-    self.title = title
-    self.subtitle = subtitle
-    self.brand = brand
-    self.systemImage = nil
-    self.actionTitle = actionTitle
-    self.isConnected = isConnected
-    self.action = action
-  }
-
-  init(
-    title: String,
-    subtitle: String,
-    systemImage: String,
-    actionTitle: String,
-    isConnected: Bool = false,
-    action: @escaping () -> Void
-  ) {
-    self.title = title
-    self.subtitle = subtitle
-    self.brand = nil
-    self.systemImage = systemImage
-    self.actionTitle = actionTitle
-    self.isConnected = isConnected
-    self.action = action
-  }
-
-  var body: some View {
-    Button(action: action) {
-      HStack(spacing: OmiSpacing.md) {
-        icon
-
-        VStack(alignment: .leading, spacing: OmiSpacing.hairline) {
-          Text(title)
-            .scaledFont(size: OmiType.body, weight: .semibold)
-            .foregroundStyle(HomePalette.ink)
-            .lineLimit(1)
-
-          Text(subtitle)
-            .scaledFont(size: OmiType.caption, weight: .medium)
-            .foregroundStyle(HomePalette.muted)
-            .lineLimit(1)
-        }
-
-        Spacer(minLength: 10)
-
-        HStack(spacing: OmiSpacing.xxs) {
-          if isConnected {
-            Circle()
-              .fill(HomePalette.green)
-              .frame(width: 5, height: 5)
-          }
-
-          Text(actionTitle)
-            .scaledFont(size: OmiType.caption, weight: .semibold)
-            .foregroundStyle(isConnected ? HomePalette.green : HomePalette.secondary)
-            .lineLimit(1)
-
-          if !isConnected && actionTitle == "Browse" {
-            Image(systemName: "chevron.right")
-              .scaledFont(size: OmiType.micro, weight: .bold)
-              .foregroundStyle(HomePalette.faint)
-          }
-        }
-        .fixedSize(horizontal: true, vertical: false)
-      }
-      .padding(.horizontal, OmiSpacing.md)
-      .padding(.vertical, OmiSpacing.md)
-      .frame(height: 64)
-      .frame(maxWidth: .infinity)
-      .background(
-        RoundedRectangle(cornerRadius: 15, style: .continuous)
-          .fill(isHovering ? HomePalette.tileHover : HomePalette.tile)
-      )
-      .overlay(
-        RoundedRectangle(cornerRadius: 15, style: .continuous)
-          .stroke(isHovering ? HomePalette.glow.opacity(0.5) : HomePalette.hairline.opacity(0.9), lineWidth: 1)
-      )
-      .shadow(color: isHovering ? HomePalette.glow.opacity(0.12) : .clear, radius: 12)
-      .contentShape(.rect(cornerRadius: 15))
-    }
-    .buttonStyle(.plain)
-    .onHover { isHovering = $0 }
-    .accessibilityLabel("\(title), \(subtitle), \(actionTitle)")
-  }
-
-  @ViewBuilder
-  private var icon: some View {
-    if let brand {
-      ConnectorBrandIcon(brand: brand, size: 36, cornerRadius: OmiChrome.smallControlRadius)
-    } else if let systemImage {
-      ZStack {
-        RoundedRectangle(cornerRadius: OmiChrome.smallControlRadius, style: .continuous)
-          .fill(Color.white.opacity(0.04))
-        Image(systemName: systemImage)
-          .scaledFont(size: OmiType.subheading, weight: .semibold)
-          .foregroundStyle(HomePalette.secondary)
-      }
-      .frame(width: 36, height: 36)
-    }
-  }
-}
-
-private struct HomeAIChoiceButton: View {
-  let title: String
-  let brand: ConnectorBrand?
-  let systemImage: String?
-  let usesOmiMark: Bool
-  let isPrimary: Bool
-  let isConnected: Bool
-  let action: () -> Void
-
-  @State private var isHovering = false
-
-  init(
-    title: String, brand: ConnectorBrand, isPrimary: Bool = false, isConnected: Bool = false,
-    action: @escaping () -> Void
-  ) {
-    self.title = title
-    self.brand = brand
-    self.systemImage = nil
-    self.usesOmiMark = false
-    self.isPrimary = isPrimary
-    self.isConnected = isConnected
-    self.action = action
-  }
-
-  init(
-    title: String, systemImage: String, isPrimary: Bool = false, isConnected: Bool = false, action: @escaping () -> Void
-  ) {
-    self.title = title
-    self.brand = nil
-    self.systemImage = systemImage
-    self.usesOmiMark = false
-    self.isPrimary = isPrimary
-    self.isConnected = isConnected
-    self.action = action
-  }
-
-  init(
-    title: String, usesOmiMark: Bool, isPrimary: Bool = false, isConnected: Bool = false, action: @escaping () -> Void
-  ) {
-    self.title = title
-    self.brand = nil
-    self.systemImage = nil
-    self.usesOmiMark = usesOmiMark
-    self.isPrimary = isPrimary
-    self.isConnected = isConnected
-    self.action = action
-  }
-
-  var body: some View {
-    Button(action: action) {
-      HStack(spacing: OmiSpacing.sm) {
-        icon
-
-        Text(title)
-          .scaledFont(size: OmiType.body, weight: .semibold)
-          .foregroundStyle(HomePalette.ink)
-          .lineLimit(1)
-
-        Spacer(minLength: 8)
-
-        if isConnected {
-          Text("Connected")
-            .scaledFont(size: OmiType.caption, weight: .medium)
-            .foregroundStyle(HomePalette.faint)
-        }
-
-        Image(systemName: "chevron.right")
-          .scaledFont(size: OmiType.micro, weight: .bold)
-          .foregroundStyle(HomePalette.faint)
-      }
-      .padding(.horizontal, OmiSpacing.md)
-      .padding(.vertical, OmiSpacing.md)
-      .frame(height: 48)
-      .frame(maxWidth: .infinity)
-      .background(buttonBackground)
-      .overlay(buttonStroke)
-      .contentShape(.rect(cornerRadius: 15))
-    }
-    .buttonStyle(.plain)
-    .onHover { isHovering = $0 }
-    .accessibilityLabel(title)
-  }
-
-  @ViewBuilder
-  private var icon: some View {
-    if usesOmiMark {
-      HomeOmiMarkIcon(size: 24, cornerRadius: 7)
-    } else if let brand {
-      ConnectorBrandIcon(brand: brand, size: 24, cornerRadius: 7)
-    } else if let systemImage {
-      Image(systemName: systemImage)
-        .scaledFont(size: OmiType.body, weight: .bold)
-        .foregroundStyle(HomePalette.ink)
-        .frame(width: 24, height: 24)
-    }
-  }
-
-  private var buttonBackground: some View {
-    RoundedRectangle(cornerRadius: 15, style: .continuous)
-      .fill(isHovering ? HomePalette.tileHover : HomePalette.tile)
-  }
-
-  private var buttonStroke: some View {
-    RoundedRectangle(cornerRadius: 15, style: .continuous)
-      .stroke(
-        HomePalette.hairline.opacity(isHovering ? 1 : 0.9),
-        lineWidth: 1
-      )
-  }
-}
-
-private struct HomeOmiMarkIcon: View {
-  let size: CGFloat
-  let cornerRadius: CGFloat
-
-  private static let markImage: NSImage? = {
-    guard let url = Bundle.resourceBundle.url(forResource: "herologo", withExtension: "png") else {
-      return nil
-    }
-    return NSImage(contentsOf: url)
-  }()
-
-  var body: some View {
-    ZStack {
-      RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-        .fill(Color.white.opacity(0.08))
-        .overlay(
-          RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-            .stroke(Color.white.opacity(0.06), lineWidth: 1)
-        )
-
-      if let image = Self.markImage {
-        Image(nsImage: image)
-          .resizable()
-          .interpolation(.high)
-          .aspectRatio(contentMode: .fit)
-          .padding(size * 0.18)
-      } else {
-        OmiDotRing()
-          .frame(width: size * 0.58, height: size * 0.58)
-      }
-    }
-    .frame(width: size, height: size)
-  }
-}
-
-private struct OmiDotRing: View {
-  var body: some View {
-    ZStack {
-      ForEach(0..<8, id: \.self) { index in
-        Circle()
-          .fill(HomePalette.ink)
-          .frame(width: 3.5, height: 3.5)
-          .offset(y: -6)
-          .rotationEffect(.degrees(Double(index) * 45))
-      }
-    }
-  }
-}
-
-private struct HomeOrbitButton: View {
-  let title: String
-  let brand: ConnectorBrand
-  let badge: String?
-  let action: () -> Void
-
-  @State private var isHovering = false
-
-  init(title: String, brand: ConnectorBrand, badge: String? = nil, action: @escaping () -> Void) {
-    self.title = title
-    self.brand = brand
-    self.badge = badge
-    self.action = action
-  }
-
-  var body: some View {
-    Button(action: action) {
-      VStack(spacing: OmiSpacing.xs) {
-        ZStack(alignment: .topTrailing) {
-          ConnectorBrandIcon(brand: brand, size: 44, cornerRadius: 13)
-            .shadow(color: .black.opacity(isHovering ? 0.16 : 0.08), radius: 9, y: 4)
-
-          if let badge {
-            Text(badge)
-              .scaledFont(size: 8, weight: .bold)
-              .foregroundStyle(.white)
-              .padding(.horizontal, OmiSpacing.xxs)
-              .padding(.vertical, OmiSpacing.hairline)
-              .background(Capsule(style: .continuous).fill(HomePalette.green))
-              .offset(x: 8, y: -6)
-          }
-        }
-
-        Text(title)
-          .scaledFont(size: OmiType.caption, weight: .semibold)
-          .foregroundStyle(HomePalette.secondary)
-          .lineLimit(1)
-      }
-      .padding(OmiSpacing.sm)
-      .background(
-        RoundedRectangle(cornerRadius: OmiChrome.controlRadius, style: .continuous)
-          .fill(isHovering ? HomePalette.panel : Color.clear)
-      )
-      .contentShape(.rect(cornerRadius: OmiChrome.controlRadius))
-    }
-    .buttonStyle(.plain)
-    .onHover { isHovering = $0 }
-    .accessibilityLabel(title)
-  }
-}
-
-private struct HomeDestinationCapsule: View {
-  let title: String
-  let subtitle: String
-  let brand: ConnectorBrand
-  let action: () -> Void
-
-  @State private var isHovering = false
-
-  var body: some View {
-    Button(action: action) {
-      HStack(spacing: OmiSpacing.sm) {
-        ConnectorBrandIcon(brand: brand, size: 34, cornerRadius: 9)
-
-        VStack(alignment: .leading, spacing: OmiSpacing.hairline) {
-          Text(title)
-            .scaledFont(size: OmiType.body, weight: .semibold)
-            .foregroundStyle(HomePalette.ink)
-            .lineLimit(1)
-
-          Text(subtitle)
-            .scaledFont(size: OmiType.caption, weight: .medium)
-            .foregroundStyle(HomePalette.muted)
-            .lineLimit(1)
-        }
-
-        Spacer(minLength: 8)
-
-        Image(systemName: "arrow.up.right")
-          .scaledFont(size: OmiType.caption, weight: .bold)
-          .foregroundStyle(isHovering ? HomePalette.green : HomePalette.faint)
-      }
-      .padding(OmiSpacing.md)
-      .background(
-        RoundedRectangle(cornerRadius: 15, style: .continuous)
-          .fill(isHovering ? HomePalette.tileHover : HomePalette.tile.opacity(0.82))
-      )
-      .overlay(
-        RoundedRectangle(cornerRadius: 15, style: .continuous)
-          .stroke(isHovering ? HomePalette.green.opacity(0.32) : HomePalette.hairline.opacity(0.45), lineWidth: 1)
-      )
-      .contentShape(.rect(cornerRadius: 15))
-    }
-    .buttonStyle(.plain)
-    .onHover { isHovering = $0 }
-    .accessibilityLabel("\(title), \(subtitle)")
-  }
-}
-
-private struct HomeCommandCard: View {
-  let onChatGPT: () -> Void
-  let onClaude: () -> Void
-  let onAskOmi: () -> Void
-
-  var body: some View {
-    VStack(spacing: 0) {
-      HStack(alignment: .top, spacing: OmiSpacing.md) {
-        Text("Connect Omi to ChatGPT, Claude, or ask Omi directly...")
-          .scaledFont(size: OmiType.subheading, weight: .regular)
-          .foregroundStyle(HomePalette.faint)
-          .frame(maxWidth: .infinity, alignment: .leading)
-          .padding(.top, OmiSpacing.hairline)
-
-        Button(action: onAskOmi) {
-          Image(systemName: "arrow.up.circle")
-            .scaledFont(size: 24, weight: .regular)
-            .foregroundStyle(HomePalette.faint)
-        }
-        .buttonStyle(.plain)
-        .help("Ask Omi")
-      }
-      .padding(.horizontal, OmiSpacing.lg)
-      .padding(.top, OmiSpacing.lg)
-      .padding(.bottom, OmiSpacing.xxl)
-
-      HStack(spacing: OmiSpacing.sm) {
-        Button(action: onChatGPT) {
-          HStack(spacing: OmiSpacing.sm) {
-            ConnectorBrandIcon(brand: .chatgpt, size: 22, cornerRadius: OmiChrome.badgeRadius)
-            Text("Connect ChatGPT")
-              .scaledFont(size: OmiType.body, weight: .semibold)
-          }
-          .frame(maxWidth: .infinity)
-          .padding(.vertical, OmiSpacing.sm)
-          .foregroundStyle(.white)
-          .background(
-            RoundedRectangle(cornerRadius: OmiChrome.smallControlRadius, style: .continuous)
-              .fill(HomePalette.green)
-          )
-        }
-        .buttonStyle(.plain)
-
-        Button(action: onClaude) {
-          HStack(spacing: OmiSpacing.sm) {
-            ConnectorBrandIcon(brand: .claude, size: 22, cornerRadius: OmiChrome.badgeRadius)
-            Text("Claude")
-              .scaledFont(size: OmiType.body, weight: .semibold)
-          }
-          .frame(maxWidth: .infinity)
-          .padding(.vertical, OmiSpacing.sm)
-          .foregroundStyle(HomePalette.secondary)
-          .background(
-            RoundedRectangle(cornerRadius: OmiChrome.smallControlRadius, style: .continuous)
-              .fill(HomePalette.tile)
-          )
-        }
-        .buttonStyle(.plain)
-      }
-      .padding(.horizontal, OmiSpacing.md)
-      .padding(.bottom, OmiSpacing.md)
-    }
-    .background(
-      RoundedRectangle(cornerRadius: 13, style: .continuous)
-        .fill(HomePalette.panel)
-        .shadow(color: .black.opacity(0.10), radius: 16, y: 8)
-    )
-    .overlay(
-      RoundedRectangle(cornerRadius: 13, style: .continuous)
-        .stroke(HomePalette.hairline.opacity(0.72), lineWidth: 1)
-    )
-    .frame(maxWidth: 720)
-  }
-}
-
-private struct HomeSourceTile: View {
-  let title: String
-  let subtitle: String
-  let brand: ConnectorBrand?
-  let systemImage: String?
-  let status: HomeRowStatus
-  let action: () -> Void
-
-  @State private var isHovering = false
-
-  init(
-    title: String,
-    subtitle: String,
-    brand: ConnectorBrand,
-    status: HomeRowStatus = .connect,
-    action: @escaping () -> Void
-  ) {
-    self.title = title
-    self.subtitle = subtitle
-    self.brand = brand
-    self.systemImage = nil
-    self.status = status
-    self.action = action
-  }
-
-  init(
-    title: String,
-    subtitle: String,
-    systemImage: String,
-    status: HomeRowStatus = .connect,
-    action: @escaping () -> Void
-  ) {
-    self.title = title
-    self.subtitle = subtitle
-    self.brand = nil
-    self.systemImage = systemImage
-    self.status = status
-    self.action = action
-  }
-
-  var body: some View {
-    Button(action: action) {
-      VStack(alignment: .leading, spacing: OmiSpacing.sm) {
-        HStack(alignment: .top) {
-          iconView
-          Spacer()
-          statusView
-        }
-
-        VStack(alignment: .leading, spacing: OmiSpacing.hairline) {
-          Text(title)
-            .scaledFont(size: OmiType.body, weight: .semibold)
-            .foregroundStyle(HomePalette.ink)
-            .lineLimit(1)
-
-          Text(subtitle)
-            .scaledFont(size: OmiType.caption)
-            .foregroundStyle(HomePalette.muted)
-            .lineLimit(1)
-        }
-      }
-      .padding(OmiSpacing.sm)
-      .frame(minHeight: 78, alignment: .topLeading)
-      .background(
-        RoundedRectangle(cornerRadius: 9, style: .continuous)
-          .fill(isHovering ? HomePalette.tileHover : HomePalette.tile)
-      )
-      .overlay(
-        RoundedRectangle(cornerRadius: 9, style: .continuous)
-          .stroke(isHovering ? HomePalette.green.opacity(0.4) : HomePalette.hairline.opacity(0.3), lineWidth: 1)
-      )
-      .contentShape(.rect(cornerRadius: 9))
-    }
-    .buttonStyle(.plain)
-    .onHover { isHovering = $0 }
-    .accessibilityLabel("\(title), \(subtitle)")
-  }
-
-  @ViewBuilder
-  private var iconView: some View {
-    if let brand {
-      ConnectorBrandIcon(brand: brand, size: 28, cornerRadius: 7)
-    } else if let systemImage {
-      ZStack {
-        RoundedRectangle(cornerRadius: 7, style: .continuous)
-          .fill(HomePalette.panel)
-        Image(systemName: systemImage)
-          .scaledFont(size: OmiType.body, weight: .semibold)
-          .foregroundStyle(HomePalette.secondary)
-      }
-      .frame(width: 28, height: 28)
-    }
-  }
-
-  @ViewBuilder
-  private var statusView: some View {
-    switch status {
-    case .connect:
-      Image(systemName: "plus")
-        .scaledFont(size: OmiType.caption, weight: .bold)
-        .foregroundStyle(HomePalette.secondary)
-    case .connected:
-      Image(systemName: "checkmark")
-        .scaledFont(size: OmiType.caption, weight: .bold)
-        .foregroundStyle(HomePalette.green)
-    case .open:
-      Image(systemName: "chevron.right")
-        .scaledFont(size: OmiType.caption, weight: .bold)
-        .foregroundStyle(HomePalette.secondary)
-    }
-  }
-}
-
-private struct HomeMemoryMetricCard: View {
-  let title: String
-  let value: String
-  let systemImage: String
-  let action: () -> Void
-
-  @State private var isHovering = false
-
-  var body: some View {
-    Button(action: action) {
-      HStack(spacing: OmiSpacing.md) {
-        ZStack {
-          RoundedRectangle(cornerRadius: OmiChrome.smallControlRadius, style: .continuous)
-            .fill(Color.white.opacity(0.055))
-
-          Image(systemName: systemImage)
-            .scaledFont(size: OmiType.subheading, weight: .semibold)
-            .foregroundStyle(HomePalette.ink)
-        }
-        .frame(width: 42, height: 42)
-
-        VStack(alignment: .leading, spacing: OmiSpacing.hairline) {
-          Text(value)
-            .font(.system(size: 21, weight: .medium, design: .serif))
-            .foregroundStyle(HomePalette.ink)
-            .lineLimit(1)
-            .minimumScaleFactor(0.72)
-
-          Text(title)
-            .scaledFont(size: OmiType.caption, weight: .medium)
-            .foregroundStyle(HomePalette.muted)
-            .lineLimit(1)
-        }
-
-        Spacer(minLength: 8)
-
-        Image(systemName: "arrow.up.right")
-          .scaledFont(size: OmiType.micro, weight: .bold)
-          .foregroundStyle(isHovering ? HomePalette.glow : HomePalette.faint)
-      }
-      .padding(.horizontal, OmiSpacing.md)
-      .frame(height: 76)
-      .frame(maxWidth: .infinity)
-      .background(
-        RoundedRectangle(cornerRadius: 17, style: .continuous)
-          .fill(isHovering ? HomePalette.tileHover : HomePalette.tile)
-      )
-      .overlay(
-        RoundedRectangle(cornerRadius: 17, style: .continuous)
-          .stroke(isHovering ? HomePalette.glow.opacity(0.56) : HomePalette.hairline.opacity(0.86), lineWidth: 1)
-      )
-      .contentShape(.rect(cornerRadius: 17))
-    }
-    .buttonStyle(.plain)
-    .onHover { isHovering = $0 }
-    .accessibilityLabel("\(title), \(value)")
-  }
-}
-
-private struct HomeMetricPill: View {
-  let title: String
-  let value: String
-  let systemImage: String
-  let action: () -> Void
-
-  @State private var isHovering = false
-
-  var body: some View {
-    Button(action: action) {
-      HStack(spacing: OmiSpacing.xs) {
-        Image(systemName: systemImage)
-          .scaledFont(size: OmiType.caption, weight: .semibold)
-          .foregroundStyle(HomePalette.secondary)
-
-        Text(value)
-          .scaledFont(size: OmiType.body, weight: .semibold)
-          .foregroundStyle(HomePalette.ink)
-
-        Text(title)
-          .scaledFont(size: OmiType.caption, weight: .medium)
-          .foregroundStyle(HomePalette.muted)
-          .lineLimit(1)
-      }
-      .padding(.horizontal, OmiSpacing.md)
-      .padding(.vertical, OmiSpacing.sm)
-      .frame(maxWidth: .infinity)
-      .background(
-        Capsule(style: .continuous)
-          .fill(isHovering ? HomePalette.tileHover : HomePalette.panel)
-      )
-      .overlay(
-        Capsule(style: .continuous)
-          .stroke(isHovering ? HomePalette.green.opacity(0.34) : HomePalette.hairline.opacity(0.64), lineWidth: 1)
-      )
-      .contentShape(Capsule())
-    }
-    .buttonStyle(.plain)
-    .onHover { isHovering = $0 }
-    .accessibilityLabel("\(title), \(value)")
-  }
-}
-
-private struct HomeGlassPanel<Content: View>: View {
-  let content: Content
-
-  init(@ViewBuilder content: () -> Content) {
-    self.content = content()
-  }
-
-  var body: some View {
-    content
-      .padding(OmiSpacing.lg)
-      .frame(maxWidth: .infinity, alignment: .topLeading)
-      .background(
-        RoundedRectangle(cornerRadius: 22, style: .continuous)
-          .fill(HomePalette.panel)
-      )
-      .overlay(
-        RoundedRectangle(cornerRadius: 22, style: .continuous)
-          .stroke(HomePalette.hairline.opacity(0.8), lineWidth: 1)
-      )
-      .shadow(color: .black.opacity(0.08), radius: 14, y: 6)
-  }
-}
-
-private struct HomeStageHeader: View {
-  let eyebrow: String
-  let title: String
-  let subtitle: String
-
-  var body: some View {
-    VStack(alignment: .leading, spacing: OmiSpacing.xxs) {
-      Text(eyebrow.uppercased())
-        .scaledFont(size: OmiType.micro, weight: .bold)
-        .foregroundStyle(HomePalette.green)
-
-      Text(title)
-        .scaledFont(size: OmiType.heading, weight: .semibold)
-        .foregroundStyle(HomePalette.ink)
-        .lineLimit(1)
-
-      Text(subtitle)
-        .scaledFont(size: OmiType.caption)
-        .foregroundStyle(HomePalette.muted)
-        .fixedSize(horizontal: false, vertical: true)
-        .lineLimit(2)
-    }
-  }
-}
-
-private struct HomeBridgeChevron: View {
-  var body: some View {
-    VStack(spacing: OmiSpacing.sm) {
-      Rectangle()
-        .fill(
-          LinearGradient(
-            colors: [.clear, OmiColors.border.opacity(0.65), .clear],
-            startPoint: .top,
-            endPoint: .bottom
-          )
-        )
-        .frame(width: 1, height: 150)
-
-      Image(systemName: "chevron.right")
-        .scaledFont(size: OmiType.subheading, weight: .bold)
-        .foregroundStyle(OmiColors.textTertiary)
-    }
-    .frame(width: 22)
-    .accessibilityHidden(true)
-  }
-}
-
-private struct HomeSourceRow: View {
-  let title: String
-  let subtitle: String
-  let brand: ConnectorBrand?
-  let systemImage: String?
-  let status: HomeRowStatus
-  let action: () -> Void
-
-  @State private var isHovering = false
-
-  init(
-    title: String,
-    subtitle: String,
-    brand: ConnectorBrand,
-    status: HomeRowStatus = .connect,
-    action: @escaping () -> Void
-  ) {
-    self.title = title
-    self.subtitle = subtitle
-    self.brand = brand
-    self.systemImage = nil
-    self.status = status
-    self.action = action
-  }
-
-  init(
-    title: String,
-    subtitle: String,
-    systemImage: String,
-    status: HomeRowStatus = .connect,
-    action: @escaping () -> Void
-  ) {
-    self.title = title
-    self.subtitle = subtitle
-    self.brand = nil
-    self.systemImage = systemImage
-    self.status = status
-    self.action = action
-  }
-
-  var body: some View {
-    Button(action: action) {
-      HStack(spacing: OmiSpacing.sm) {
-        rowIcon
-
-        VStack(alignment: .leading, spacing: OmiSpacing.hairline) {
-          Text(title)
-            .scaledFont(size: OmiType.body, weight: .semibold)
-            .foregroundStyle(OmiColors.textPrimary)
-            .lineLimit(1)
-
-          Text(subtitle)
-            .scaledFont(size: OmiType.caption)
-            .foregroundStyle(OmiColors.textTertiary)
-            .lineLimit(1)
-        }
-
-        Spacer(minLength: 8)
-
-        statusView
-      }
-      .padding(.horizontal, OmiSpacing.sm)
-      .padding(.vertical, OmiSpacing.sm)
-      .background(
-        RoundedRectangle(cornerRadius: 13, style: .continuous)
-          .fill(isHovering ? Color.white.opacity(0.08) : Color.white.opacity(0.035))
-      )
-      .overlay(
-        RoundedRectangle(cornerRadius: 13, style: .continuous)
-          .stroke(isHovering ? OmiColors.success.opacity(0.28) : Color.white.opacity(0.06), lineWidth: 1)
-      )
-      .contentShape(.rect(cornerRadius: 13))
-    }
-    .buttonStyle(.plain)
-    .onHover { isHovering = $0 }
-    .accessibilityLabel("\(title), \(subtitle)")
-  }
-
-  @ViewBuilder
-  private var rowIcon: some View {
-    if let brand {
-      ConnectorBrandIcon(brand: brand, size: 32, cornerRadius: OmiChrome.elementRadius)
-    } else if let systemImage {
-      ZStack {
-        RoundedRectangle(cornerRadius: OmiChrome.elementRadius, style: .continuous)
-          .fill(OmiColors.backgroundPrimary.opacity(0.78))
-        Image(systemName: systemImage)
-          .scaledFont(size: OmiType.body, weight: .semibold)
-          .foregroundStyle(OmiColors.textSecondary)
-      }
-      .frame(width: 32, height: 32)
-    }
-  }
-
-  @ViewBuilder
-  private var statusView: some View {
-    switch status {
-    case .connect:
-      Image(systemName: "plus")
-        .scaledFont(size: OmiType.caption, weight: .bold)
-        .foregroundStyle(OmiColors.success)
-    case .connected:
-      Image(systemName: "checkmark")
-        .scaledFont(size: OmiType.caption, weight: .bold)
-        .foregroundStyle(OmiColors.success)
-    case .open:
-      Image(systemName: "chevron.right")
-        .scaledFont(size: OmiType.caption, weight: .bold)
-        .foregroundStyle(OmiColors.success)
-    }
-  }
-}
-
-private struct HomeDestinationRow: View {
-  let title: String
-  let subtitle: String
-  let brand: ConnectorBrand?
-  let systemImage: String?
-  let prominence: HomeDestinationProminence
-  let action: () -> Void
-
-  @State private var isHovering = false
-
-  init(
-    title: String,
-    subtitle: String,
-    brand: ConnectorBrand,
-    prominence: HomeDestinationProminence = .primary,
-    action: @escaping () -> Void
-  ) {
-    self.title = title
-    self.subtitle = subtitle
-    self.brand = brand
-    self.systemImage = nil
-    self.prominence = prominence
-    self.action = action
-  }
-
-  init(
-    title: String,
-    subtitle: String,
-    systemImage: String,
-    prominence: HomeDestinationProminence = .primary,
-    action: @escaping () -> Void
-  ) {
-    self.title = title
-    self.subtitle = subtitle
-    self.brand = nil
-    self.systemImage = systemImage
-    self.prominence = prominence
-    self.action = action
-  }
-
-  var body: some View {
-    Button(action: action) {
-      HStack(spacing: OmiSpacing.sm) {
-        rowIcon
-
-        VStack(alignment: .leading, spacing: OmiSpacing.hairline) {
-          Text(title)
-            .scaledFont(size: OmiType.body, weight: .semibold)
-            .foregroundStyle(prominence == .primary ? HomePalette.ink : HomePalette.secondary)
-            .lineLimit(1)
-
-          Text(subtitle)
-            .scaledFont(size: OmiType.caption)
-            .foregroundStyle(HomePalette.muted)
-            .lineLimit(1)
-        }
-
-        Spacer(minLength: 8)
-
-        Image(systemName: "arrow.up.right")
-          .scaledFont(size: OmiType.caption, weight: .bold)
-          .foregroundStyle(isHovering ? HomePalette.green : HomePalette.faint)
-      }
-      .padding(.horizontal, OmiSpacing.sm)
-      .padding(.vertical, OmiSpacing.sm)
-      .background(rowBackground)
-      .overlay(rowStroke)
-      .contentShape(.rect(cornerRadius: OmiChrome.chipRadius))
-    }
-    .buttonStyle(.plain)
-    .onHover { isHovering = $0 }
-    .accessibilityLabel("\(title), \(subtitle)")
-  }
-
-  @ViewBuilder
-  private var rowIcon: some View {
-    if let brand {
-      ConnectorBrandIcon(brand: brand, size: 34, cornerRadius: 9)
-    } else if let systemImage {
-      ZStack {
-        RoundedRectangle(cornerRadius: 9, style: .continuous)
-          .fill(HomePalette.tile)
-        Image(systemName: systemImage)
-          .scaledFont(size: OmiType.body, weight: .semibold)
-          .foregroundStyle(HomePalette.secondary)
-      }
-      .frame(width: 34, height: 34)
-    }
-  }
-
-  private var rowBackground: some View {
-    RoundedRectangle(cornerRadius: OmiChrome.chipRadius, style: .continuous)
-      .fill(
-        prominence == .primary
-          ? HomePalette.green.opacity(isHovering ? 0.20 : 0.12)
-          : (isHovering ? HomePalette.tileHover : HomePalette.tile)
-      )
-  }
-
-  private var rowStroke: some View {
-    RoundedRectangle(cornerRadius: OmiChrome.chipRadius, style: .continuous)
-      .stroke(
-        prominence == .primary
-          ? HomePalette.green.opacity(isHovering ? 0.42 : 0.24)
-          : HomePalette.hairline.opacity(isHovering ? 0.7 : 0.4),
-        lineWidth: 1
-      )
-  }
-}
-
-private struct HomeMetricTile: View {
-  let title: String
-  let value: String
-  let systemImage: String
-  let accent: Color
-  let action: () -> Void
-
-  @State private var isHovering = false
-
-  var body: some View {
-    Button(action: action) {
-      VStack(alignment: .leading, spacing: OmiSpacing.xs) {
-        HStack {
-          Image(systemName: systemImage)
-            .scaledFont(size: OmiType.body, weight: .semibold)
-            .foregroundStyle(accent)
-
-          Spacer()
-
-          Image(systemName: "arrow.up.right")
-            .scaledFont(size: OmiType.micro, weight: .bold)
-            .foregroundStyle(isHovering ? accent : OmiColors.textQuaternary)
-        }
-
-        Text(value)
-          .scaledFont(size: OmiType.heading, weight: .semibold)
-          .foregroundStyle(OmiColors.textPrimary)
-          .lineLimit(1)
-
-        Text(title)
-          .scaledFont(size: OmiType.caption, weight: .medium)
-          .foregroundStyle(OmiColors.textTertiary)
-          .lineLimit(1)
-      }
-      .padding(OmiSpacing.md)
-      .frame(minHeight: 86, alignment: .topLeading)
-      .background(
-        RoundedRectangle(cornerRadius: OmiChrome.controlRadius, style: .continuous)
-          .fill(Color.white.opacity(isHovering ? 0.08 : 0.04))
-      )
-      .overlay(
-        RoundedRectangle(cornerRadius: OmiChrome.controlRadius, style: .continuous)
-          .stroke(isHovering ? accent.opacity(0.34) : Color.white.opacity(0.07), lineWidth: 1)
-      )
-      .contentShape(.rect(cornerRadius: OmiChrome.controlRadius))
-    }
-    .buttonStyle(.plain)
-    .onHover { isHovering = $0 }
-    .accessibilityLabel("\(title), \(value)")
-  }
-}
-
-private struct HomeSectionHeader: View {
-  let title: String
-  let subtitle: String
-
-  var body: some View {
-    VStack(alignment: .leading, spacing: OmiSpacing.xxs) {
-      Text(title)
-        .scaledFont(size: OmiType.heading, weight: .semibold)
-        .foregroundStyle(OmiColors.textPrimary)
-
-      Text(subtitle)
-        .scaledFont(size: OmiType.caption)
-        .foregroundStyle(OmiColors.textTertiary)
-    }
   }
 }
 
@@ -4133,320 +2253,11 @@ struct HomeListeningStatusButton: View {
   }
 }
 
-private struct HomeIconActionButton: View {
-  let title: String
-  let systemImage: String
-  let action: () -> Void
-
-  @State private var isHovering = false
-
-  var body: some View {
-    Button(action: action) {
-      Image(systemName: systemImage)
-        .scaledFont(size: OmiType.body, weight: .semibold)
-        .foregroundStyle(isHovering ? HomePalette.ink : HomePalette.muted)
-        .frame(width: 34, height: 34)
-        .background(
-          Circle()
-            .fill(isHovering ? HomePalette.tileHover : HomePalette.panel)
-        )
-        .overlay(
-          Circle()
-            .stroke(HomePalette.hairline.opacity(isHovering ? 0.8 : 0.58), lineWidth: 1)
-        )
-        .contentShape(Circle())
-    }
-    .buttonStyle(.plain)
-    .onHover { isHovering = $0 }
-    .help(title)
-    .accessibilityLabel(title)
-  }
-}
-
-private struct HomeConnectorCard: View {
-  let title: String
-  let subtitle: String
-  let brand: ConnectorBrand
-  let actionTitle: String
-  let status: String?
-  let action: () -> Void
-
-  @State private var isHovering = false
-
-  var body: some View {
-    Button(action: action) {
-      HStack(spacing: OmiSpacing.md) {
-        ConnectorBrandIcon(brand: brand, size: 36, cornerRadius: 9)
-
-        VStack(alignment: .leading, spacing: OmiSpacing.hairline) {
-          Text(title)
-            .scaledFont(size: OmiType.body, weight: .semibold)
-            .foregroundStyle(OmiColors.textPrimary)
-            .lineLimit(1)
-
-          Text(subtitle)
-            .scaledFont(size: OmiType.caption)
-            .foregroundStyle(OmiColors.textTertiary)
-            .lineLimit(1)
-        }
-
-        Spacer(minLength: 10)
-
-        if let status {
-          HStack(spacing: OmiSpacing.xxs) {
-            Image(systemName: "checkmark")
-              .scaledFont(size: OmiType.micro, weight: .bold)
-            Text(status)
-              .scaledFont(size: OmiType.caption, weight: .semibold)
-          }
-          .foregroundStyle(OmiColors.success)
-          .lineLimit(1)
-        } else {
-          HStack(spacing: OmiSpacing.xxs) {
-            Image(systemName: "plus")
-              .scaledFont(size: OmiType.micro, weight: .bold)
-            Text(actionTitle)
-              .scaledFont(size: OmiType.caption, weight: .semibold)
-          }
-          .foregroundStyle(OmiColors.success)
-          .lineLimit(1)
-        }
-      }
-      .padding(.horizontal, OmiSpacing.md)
-      .padding(.vertical, OmiSpacing.sm)
-      .frame(minHeight: 56)
-      .background(cardBackground)
-      .overlay(cardStroke)
-      .contentShape(.rect(cornerRadius: OmiChrome.smallControlRadius))
-    }
-    .buttonStyle(.plain)
-    .onHover { isHovering = $0 }
-    .accessibilityLabel("\(title), \(status ?? actionTitle)")
-  }
-
-  private var cardBackground: some View {
-    RoundedRectangle(cornerRadius: OmiChrome.smallControlRadius, style: .continuous)
-      .fill(OmiColors.backgroundSecondary.opacity(isHovering ? 0.94 : 0.72))
-  }
-
-  private var cardStroke: some View {
-    RoundedRectangle(cornerRadius: OmiChrome.smallControlRadius, style: .continuous)
-      .stroke(
-        isHovering ? OmiColors.success.opacity(0.32) : OmiColors.border.opacity(0.42),
-        lineWidth: 1
-      )
-  }
-}
-
-private struct HomeMoreAppsCard: View {
-  let action: () -> Void
-  @State private var isHovering = false
-
-  var body: some View {
-    Button(action: action) {
-      HStack(spacing: OmiSpacing.md) {
-        ZStack {
-          RoundedRectangle(cornerRadius: OmiChrome.smallControlRadius, style: .continuous)
-            .fill(OmiColors.backgroundPrimary)
-            .overlay(
-              RoundedRectangle(cornerRadius: OmiChrome.smallControlRadius, style: .continuous)
-                .stroke(OmiColors.border.opacity(0.55), lineWidth: 1)
-            )
-
-          Image(systemName: "square.grid.2x2.fill")
-            .scaledFont(size: OmiType.subheading, weight: .semibold)
-            .foregroundStyle(OmiColors.textSecondary)
-        }
-        .frame(width: 36, height: 36)
-
-        VStack(alignment: .leading, spacing: OmiSpacing.hairline) {
-          Text("Connect more")
-            .scaledFont(size: OmiType.body, weight: .semibold)
-            .foregroundStyle(OmiColors.textPrimary)
-
-          Text("Browse all apps")
-            .scaledFont(size: OmiType.caption)
-            .foregroundStyle(OmiColors.textTertiary)
-        }
-
-        Spacer()
-
-        Image(systemName: "chevron.right")
-          .scaledFont(size: OmiType.caption, weight: .semibold)
-          .foregroundStyle(OmiColors.success)
-      }
-      .padding(.horizontal, OmiSpacing.md)
-      .padding(.vertical, OmiSpacing.sm)
-      .frame(minHeight: 56)
-      .background(
-        RoundedRectangle(cornerRadius: OmiChrome.smallControlRadius, style: .continuous)
-          .fill(OmiColors.backgroundSecondary.opacity(isHovering ? 0.94 : 0.72))
-      )
-      .overlay(
-        RoundedRectangle(cornerRadius: OmiChrome.smallControlRadius, style: .continuous)
-          .stroke(
-            isHovering ? OmiColors.success.opacity(0.32) : OmiColors.border.opacity(0.42),
-            lineWidth: 1
-          )
-      )
-      .contentShape(.rect(cornerRadius: OmiChrome.smallControlRadius))
-    }
-    .buttonStyle(.plain)
-    .onHover { isHovering = $0 }
-  }
-}
-
-private struct HomeFlowArrow: View {
-  var body: some View {
-    VStack(spacing: OmiSpacing.xxs) {
-      Rectangle()
-        .fill(OmiColors.border.opacity(0.75))
-        .frame(width: 1, height: 14)
-
-      Image(systemName: "chevron.down")
-        .scaledFont(size: OmiType.caption, weight: .semibold)
-        .foregroundStyle(OmiColors.textSecondary)
-    }
-    .frame(maxWidth: .infinity)
-    .accessibilityHidden(true)
-  }
-}
-
-private struct HomeMetricCard: View {
-  let title: String
-  let value: String
-  let subtitle: String
-  let systemImage: String
-  let accent: Color
-  let action: () -> Void
-
-  @State private var isHovering = false
-
-  var body: some View {
-    Button(action: action) {
-      HStack(spacing: OmiSpacing.md) {
-        ZStack {
-          RoundedRectangle(cornerRadius: OmiChrome.smallControlRadius, style: .continuous)
-            .fill(accent.opacity(0.16))
-            .overlay(
-              RoundedRectangle(cornerRadius: OmiChrome.smallControlRadius, style: .continuous)
-                .stroke(accent.opacity(0.28), lineWidth: 1)
-            )
-
-          Image(systemName: systemImage)
-            .scaledFont(size: OmiType.subheading, weight: .semibold)
-            .foregroundStyle(accent)
-        }
-        .frame(width: 38, height: 38)
-
-        VStack(alignment: .leading, spacing: OmiSpacing.hairline) {
-          Text(value)
-            .scaledFont(size: OmiType.heading, weight: .semibold)
-            .foregroundStyle(OmiColors.textPrimary)
-            .lineLimit(1)
-
-          Text(title)
-            .scaledFont(size: OmiType.body, weight: .medium)
-            .foregroundStyle(OmiColors.textTertiary)
-            .lineLimit(1)
-        }
-
-        Spacer(minLength: 8)
-
-        Image(systemName: "arrow.up.right")
-          .scaledFont(size: OmiType.caption, weight: .semibold)
-          .foregroundStyle(isHovering ? accent : OmiColors.textQuaternary)
-      }
-      .padding(OmiSpacing.md)
-      .frame(minHeight: 64)
-      .background(
-        RoundedRectangle(cornerRadius: OmiChrome.chipRadius, style: .continuous)
-          .fill(OmiColors.backgroundSecondary.opacity(isHovering ? 0.96 : 0.78))
-      )
-      .overlay(
-        RoundedRectangle(cornerRadius: OmiChrome.chipRadius, style: .continuous)
-          .stroke(isHovering ? accent.opacity(0.34) : OmiColors.border.opacity(0.44), lineWidth: 1)
-      )
-      .contentShape(.rect(cornerRadius: OmiChrome.chipRadius))
-    }
-    .buttonStyle(.plain)
-    .onHover { isHovering = $0 }
-    .accessibilityLabel("\(title), \(value), \(subtitle)")
-  }
-}
-
-private struct HomeAIButton: View {
-  let title: String
-  let brand: ConnectorBrand?
-  let systemImage: String?
-  let action: () -> Void
-
-  @State private var isHovering = false
-
-  init(title: String, brand: ConnectorBrand, action: @escaping () -> Void) {
-    self.title = title
-    self.brand = brand
-    self.systemImage = nil
-    self.action = action
-  }
-
-  init(title: String, systemImage: String, action: @escaping () -> Void) {
-    self.title = title
-    self.brand = nil
-    self.systemImage = systemImage
-    self.action = action
-  }
-
-  var body: some View {
-    Button(action: action) {
-      HStack(spacing: OmiSpacing.sm) {
-        if let brand {
-          ConnectorBrandIcon(brand: brand, size: 26, cornerRadius: 7)
-        } else if let systemImage {
-          ZStack {
-            RoundedRectangle(cornerRadius: 7, style: .continuous)
-              .fill(OmiColors.backgroundTertiary)
-            Image(systemName: systemImage)
-              .scaledFont(size: OmiType.caption, weight: .semibold)
-              .foregroundStyle(OmiColors.textSecondary)
-          }
-          .frame(width: 26, height: 26)
-        }
-
-        Text(title)
-          .scaledFont(size: OmiType.body, weight: .semibold)
-          .foregroundStyle(OmiColors.textSecondary)
-          .lineLimit(1)
-
-        Image(systemName: "chevron.right")
-          .scaledFont(size: OmiType.micro, weight: .bold)
-          .foregroundStyle(isHovering ? OmiColors.success : OmiColors.textQuaternary)
-      }
-      .padding(.leading, OmiSpacing.sm)
-      .padding(.trailing, OmiSpacing.md)
-      .padding(.vertical, OmiSpacing.xs)
-      .background(
-        Capsule(style: .continuous)
-          .fill(OmiColors.backgroundSecondary.opacity(isHovering ? 0.96 : 0.76))
-      )
-      .overlay(
-        Capsule(style: .continuous)
-          .stroke(isHovering ? OmiColors.success.opacity(0.32) : OmiColors.border.opacity(0.42), lineWidth: 1)
-      )
-      .contentShape(Capsule())
-    }
-    .buttonStyle(.plain)
-    .onHover { isHovering = $0 }
-    .accessibilityLabel(title)
-  }
-}
-
 #if canImport(PreviewsMacros)
   #Preview {
     DashboardPage(
       viewModel: DashboardViewModel(),
       appState: AppState(),
-      appProvider: AppProvider(),
       chatProvider: ChatProvider(),
       memoriesViewModel: MemoriesViewModel(),
       selectedIndex: .constant(0)

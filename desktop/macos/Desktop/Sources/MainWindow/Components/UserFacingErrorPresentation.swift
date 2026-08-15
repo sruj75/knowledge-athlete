@@ -15,16 +15,11 @@ enum UserFacingErrorPresentation {
     case conversationMerge
     case tasks
     case memories
-    case memoryVisibility
     case memoryDeletion
     case screenshots
     case goals
-    case persona
     case signIn
     case onboarding
-    case integration(String)
-    case browserExtension
-    case memoryExport
     case transcription
     case accountDeletion
 
@@ -37,16 +32,11 @@ enum UserFacingErrorPresentation {
       case .conversationMerge: return "merge conversations"
       case .tasks: return "update tasks"
       case .memories: return "load memories"
-      case .memoryVisibility: return "update memory visibility"
       case .memoryDeletion: return "delete memories"
       case .screenshots: return "load screenshots"
       case .goals: return "load goals"
-      case .persona: return "load your persona"
       case .signIn: return "sign in"
       case .onboarding: return "save that step"
-      case .integration(let name): return "connect to \(name)"
-      case .browserExtension: return "connect the browser extension"
-      case .memoryExport: return "prepare that export"
       case .transcription: return "start transcription"
       case .accountDeletion: return "delete your account"
       }

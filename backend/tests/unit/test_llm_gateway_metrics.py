@@ -144,8 +144,8 @@ def test_provider_rejection_terminal_identifies_route_target_and_bounds_rejectio
     with caplog.at_level(logging.WARNING, logger=metrics.logger.name):
         metrics.observe_error(
             metrics.time_request(),
-            lane_id='omi:auto:knowledge-graph',
-            route_artifact_id='route.knowledge_graph.model_config.001',
+            lane_id='omi:auto:conv-discard',
+            route_artifact_id='route.conv_discard.model_config.001',
             error=error,
             credential_source='omi_managed',
             request_id='936c2c10-c509-41f1-95cf-2162710d5ac8',
@@ -161,8 +161,8 @@ def test_provider_rejection_terminal_identifies_route_target_and_bounds_rejectio
     error.provider_rejection = 'private-customer-value'  # type: ignore[assignment]
     metrics.observe_error(
         metrics.time_request(),
-        lane_id='omi:auto:knowledge-graph',
-        route_artifact_id='route.knowledge_graph.model_config.001',
+        lane_id='omi:auto:conv-discard',
+        route_artifact_id='route.conv_discard.model_config.001',
         error=error,
         credential_source='omi_managed',
         request_id='936c2c10-c509-41f1-95cf-2162710d5ac8',

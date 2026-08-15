@@ -99,21 +99,19 @@ def save_user_preference_tool(preference: str, config: RunnableConfig = None) ->
         'created_at': now,
         'updated_at': now,
         'reviewed': False,
-        'visibility': 'private',
         'tags': ['agent-learned'],
     }
     memory_data['scoring'] = MemoryDB.calculate_score(MemoryDB.model_validate(memory_data))
 
     try:
         if resolve_memory_system(uid, db_client=db) == MemorySystem.CANONICAL:
-            MemoryService(db_client=db).create_external_memory(
+            MemoryService(db_client=db).create_memory_for_surface(
                 uid,
                 MemoryDB.model_validate(memory_data),
                 memory_system=MemorySystem.CANONICAL,
                 consumer="agent_preference",
                 operation="save_user_preference",
                 upsert_vector=False,
-                require_canonical_promotion=True,
             )
         else:
             memory_db.create_memory(uid, memory_data)

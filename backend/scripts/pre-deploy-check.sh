@@ -39,7 +39,6 @@ run_hermetic() {
   python3 scripts/validate-backend-runtime-env.py --env prod --check-workflows --check-rendered-cloud-run
   python3 ../.github/scripts/check_backend_deploy_source_admission.py
   python3 ../.github/scripts/test_check_backend_deploy_source_admission.py
-  python3 scripts/check_mcp_oauth_deploy_contract.py
   python3 -m pytest \
     tests/unit/test_backend_runtime_env_validator.py \
     tests/unit/test_render_backend_runtime_env.py \
@@ -47,8 +46,7 @@ run_hermetic() {
     tests/unit/test_cloud_run_traffic_snapshot.py \
     tests/unit/test_preflight_cloud_run_deploy.py \
     tests/unit/test_deploy_status_report.py \
-    tests/unit/test_verify_backend_release_vector.py \
-    tests/unit/test_mcp_oauth_deploy_contract.py -q
+    tests/unit/test_verify_backend_release_vector.py -q
 }
 
 run_live() {

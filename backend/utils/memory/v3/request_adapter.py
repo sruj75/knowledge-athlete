@@ -19,9 +19,8 @@ LEGACY_FIRST_PAGE_LIMIT_OVERRIDE = 5000
 V3_DEFAULT_LIMIT = 100
 V3_MAX_LIMIT = 500
 LEGACY_V3_MAX_LIMIT = 5000
-_SUPPORTED_FILTER_KEYS = {'category', 'visibility', 'reviewed'}
+_SUPPORTED_FILTER_KEYS = {'category', 'reviewed'}
 _SUPPORTED_QUERY_KEYS = {'limit', 'offset', 'cursor', 'include_archive'} | _SUPPORTED_FILTER_KEYS
-_ALLOWED_VISIBILITY_FILTERS = {'visible'}
 _TRUE_VALUES = {'true', '1', 'yes'}
 _FALSE_VALUES = {'false', '0', 'no'}
 
@@ -120,13 +119,6 @@ def _normalize_filters(query_params: Mapping[str, Any]) -> tuple[dict[str, Any],
     category = _first_value(query_params.get('category'))
     if category is not None and str(category).strip():
         filters['category'] = str(category).strip().lower()
-
-    visibility = _first_value(query_params.get('visibility'))
-    if visibility is not None and str(visibility).strip():
-        normalized_visibility = str(visibility).strip().lower()
-        if normalized_visibility not in _ALLOWED_VISIBILITY_FILTERS:
-            raise V3RequestAdapterError('unsupported_filter_value')
-        filters['visibility'] = normalized_visibility
 
     reviewed = _first_value(query_params.get('reviewed'))
     if reviewed is not None and str(reviewed).strip():

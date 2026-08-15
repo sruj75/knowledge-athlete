@@ -15,11 +15,6 @@
           "reason": "Legacy contract from issue 8786; covered by backfill contract tests until migrated."
         },
         {
-          "path": "backend/utils/memory/product_authorization.py",
-          "function": "_lookup_app_key_grant",
-          "reason": "Existing app-key grant lookup tuple; covered by memory authorization tests until the response contract is migrated."
-        },
-        {
           "path": "backend/utils/memory_ingestion/pipeline.py",
           "function": "_redact_input",
           "reason": "Existing pipeline stage contract; covered by memory ingestion contract tests until migrated."
@@ -56,8 +51,7 @@
       "invariants": [
         "candidate retries and concurrent acceptance create exactly one canonical task",
         "account generation mismatches fail closed without product mutation",
-        "legacy terminal rows cannot reappear as pending candidates",
-        "accepted-task integration dispatch is durably outboxed, leased once, and retryable after failure"
+        "legacy terminal rows cannot reappear as pending candidates"
       ]
     },
     {
@@ -136,13 +130,12 @@
       "sources": ["backend/utils/memory/canonical_memory_adapter.py"],
       "tests": [
         "tests/unit/test_ws_i_write_convergence.py",
-        "tests/unit/test_ws_j_delete_privacy.py",
-        "tests/unit/test_canonical_kg_promotion.py"
+        "tests/unit/test_ws_j_delete_privacy.py"
       ],
       "checks": ["no_large_tuple_results"],
       "invariants": [
         "domain writes use injected stores",
-        "derived keyword/vector/KG fanout is either durable or explicitly recoverable"
+        "derived keyword/vector fanout is either durable or explicitly recoverable"
       ]
     },
     {
@@ -159,15 +152,12 @@
       "tests": [
         "tests/unit/test_ws_b_short_term_lifecycle.py",
         "tests/unit/test_memory_read_api.py",
-        "tests/unit/test_developer_memory_adapter.py",
-        "tests/unit/test_mcp_memory_adapter.py",
-        "tests/unit/test_ws_m_atom_keyword_index.py",
-        "tests/unit/test_ws_n_graph_traversal.py"
+        "tests/unit/test_ws_m_atom_keyword_index.py"
       ],
       "checks": ["no_large_tuple_results"],
       "invariants": [
         "explicit submissions remain pending short-term until a content-bound processing receipt exists",
-        "pending text is visible only to the first-party memory list and never to agent, developer, MCP, search, vector, or KG reads",
+        "pending text is visible only to the first-party memory list and never to agent, search, or vector reads",
         "processing, review, and promotion use revision/content CAS and rebase after unrelated head advances",
         "negative user review remains authoritative across all derived projection rebuilds"
       ]
@@ -288,20 +278,9 @@
       "checks": ["no_large_tuple_results"],
       "invariants": [
         "every eligible short-term item receives exactly one terminal L2 route",
-        "long-term admission and its graph assertion commit atomically against one exact short-term revision",
+        "long-term admission commits atomically against one exact short-term revision",
         "maintenance reruns are idempotent and never invoke a generic promotion pass",
         "projection delivery is leased, generation and revision fenced, retryable, and dead-letter bounded"
-      ]
-    },
-    {
-      "id": "webhook_delivery_health",
-      "risk": "high",
-      "sources": ["backend/utils/webhooks.py", "backend/database/webhook_health.py"],
-      "tests": ["tests/unit/test_async_webhooks.py", "tests/unit/test_webhook_auto_disable.py"],
-      "checks": [],
-      "invariants": [
-        "delivery failures are counted durably",
-        "auto-disable state is endpoint-aware and race-safe"
       ]
     },
     {
@@ -368,12 +347,9 @@
         "backend/routers/pusher.py",
         "backend/routers/conversations.py",
         "backend/routers/sync.py",
-        "backend/routers/developer.py",
         "backend/utils/conversations/process_conversation.py",
-        "backend/utils/app_integrations.py",
         "backend/utils/conversations/postprocess_conversation.py",
-        "backend/utils/conversations/merge_conversations.py",
-        "backend/utils/imports/limitless.py"
+        "backend/utils/conversations/merge_conversations.py"
       ],
       "tests": [
         "tests/unit/test_conversation_lifecycle_contract.py",

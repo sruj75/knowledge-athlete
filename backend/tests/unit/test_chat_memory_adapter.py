@@ -61,7 +61,7 @@ def test_chat_rollout_reader_supports_omi_chat_grant_without_reading_memory_item
     assert db_client.document_get_paths == ['users/u1/memory_control/state']
     assert db_client.collection_paths == []
     assert decision.rollout_capabilities.memory_reads_enabled is True
-    assert decision.app_has_default_memory_grant is True
+    assert decision.has_default_memory_grant is True
     assert decision.archive_capability is False
     assert decision.memory_default_enabled is True
     assert decision.consumer == 'omi_chat'
@@ -76,12 +76,12 @@ def test_chat_rollout_reader_fails_closed_without_memory_item_reads_for_missing_
     )
     malformed_decision = read_default_read_rollout(uid='u1', db_client=malformed, consumer='omi_chat')
     assert malformed_decision.memory_default_enabled is False
-    assert malformed_decision.app_has_default_memory_grant is False
+    assert malformed_decision.has_default_memory_grant is False
     assert malformed.collection_paths == []
     no_grant = _FirestoreFake({'users/u1/memory_control/state': _enabled_rollout_doc() | {'grants': {'omi_chat': {}}}})
     no_grant_decision = read_default_read_rollout(uid='u1', db_client=no_grant, consumer='omi_chat')
     assert no_grant_decision.rollout_capabilities.memory_reads_enabled is True
-    assert no_grant_decision.app_has_default_memory_grant is False
+    assert no_grant_decision.has_default_memory_grant is False
     assert no_grant_decision.memory_default_enabled is False
     assert no_grant.collection_paths == []
 

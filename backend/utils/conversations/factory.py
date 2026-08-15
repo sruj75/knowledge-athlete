@@ -7,8 +7,7 @@ def deserialize_conversation(data: Union[Conversation, Mapping[str, Any]]) -> Co
     """Convert a raw dict (e.g. from Firestore) into a Conversation object.
 
     If already a Conversation instance, returns it unchanged.
-    Construction goes through Conversation(**data) so __init__ side-effects
-    (plugins_results sync, processing_memory_id sync) are preserved.
+    Construction goes through Conversation(**data) so model normalization is preserved.
     """
     if not isinstance(data, Mapping):
         return data

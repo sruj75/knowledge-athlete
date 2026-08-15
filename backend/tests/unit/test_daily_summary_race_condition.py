@@ -135,8 +135,8 @@ def notification_harness() -> Iterator[SimpleNamespace]:
         deserialize_conversation=MagicMock(return_value=mock_conversation),
     )
     generate_summary = MagicMock()
-    external_integrations = _module(
-        'utils.llm.external_integrations',
+    daily_summary = _module(
+        'utils.llm.daily_summary',
         generate_comprehensive_daily_summary=generate_summary,
     )
     send_notification = MagicMock()
@@ -165,9 +165,8 @@ def notification_harness() -> Iterator[SimpleNamespace]:
             NotificationMessage=notification_message,
         ),
         'utils.conversations.factory': conversation_factory,
-        'utils.llm.external_integrations': external_integrations,
+        'utils.llm.daily_summary': daily_summary,
         'utils.notifications': notifications,
-        'utils.webhooks': _module('utils.webhooks', day_summary_webhook=MagicMock()),
         'utils.executors': executors,
     }
 

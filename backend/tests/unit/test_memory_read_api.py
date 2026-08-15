@@ -184,9 +184,9 @@ def test_query_default_product_memory_items_applies_product_filter_before_matchi
 
 
 def test_query_default_product_memory_items_excludes_pending_raw_text():
-    pending = _product_item("pending-short", "Unprocessed plugin text must not reach chat.")
+    pending = _product_item("pending-short", "Unprocessed raw text must not reach chat.")
 
-    results = query_default_product_memory_items("plugin", [pending], policy=MemoryAccessPolicy.for_omi_chat(), now=NOW)
+    results = query_default_product_memory_items("raw", [pending], policy=MemoryAccessPolicy.for_omi_chat(), now=NOW)
 
     assert results == []
 

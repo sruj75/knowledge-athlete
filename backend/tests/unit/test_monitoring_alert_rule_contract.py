@@ -11,8 +11,6 @@ ERROR_COUNT_RULES = {
     "cew4jcnpa68sga",  # Backend 5XX
     "cew97rzyegdtsa",  # Backend-sync 4XX
     "cew97uqu791q8a",  # Backend-sync 5XX
-    "eew96lge97gg0e",  # Backend-integration 4XX
-    "eew96o25qztvkf",  # Backend-integration 5XX
 }
 REQUIRED_HUMAN_ANNOTATIONS = {
     "summary",

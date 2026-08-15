@@ -108,13 +108,11 @@ extension AppState {
     checkSystemAudioPermission()
 
     if AppBuild.usesLazyDevPermissions {
-      log("Permissions: lazy dev mode enabled, skipping startup automation/accessibility/FDA probes")
+      log("Permissions: lazy dev mode enabled, skipping startup accessibility probe")
       return
     }
 
-    checkAutomationPermission()
     checkAccessibilityPermission()
-    checkFullDiskAccess()
     // One-time startup diagnostic for accessibility
     let osVersion = ProcessInfo.processInfo.operatingSystemVersion
     let bundleId = Bundle.main.bundleIdentifier ?? "unknown"
@@ -225,74 +223,6 @@ extension AppState {
     UserDefaults.standard.removeObject(forKey: NotificationService.screenCaptureResetShownKey)
   }
 
-  /// Check automation permission without triggering a prompt
-  /// Uses AEDeterminePermissionToAutomateTarget to query TCC status for System Events
-  func checkAutomationPermission() {
-    guard !isCheckingAutomationPermission else { return }
-    isCheckingAutomationPermission = true
-    Task.detached {
-      defer { Task { @MainActor in self.isCheckingAutomationPermission = false } }
-      let status = Self.queryAutomationPermissionStatus()
-
-      // noErr (0) = granted, errAEEventNotPermitted (-1743) = denied, -1744 = not determined
-      // -600 (procNotFound) = System Events not running — try to launch it and retry
-      if status == -600 {
-        log("AUTOMATION_CHECK: status=-600 (procNotFound), launching System Events and retrying...")
-        // NSAppleScript is main-thread-only — build+execute on the main actor.
-        await MainActor.run {
-          let launchScript = NSAppleScript(source: "launch application \"System Events\"")
-          var launchError: NSDictionary?
-          launchScript?.executeAndReturnError(&launchError)
-        }
-
-        // Wait for System Events to initialize
-        try? await Task.sleep(nanoseconds: 1_000_000_000)
-
-        let retryStatus = Self.queryAutomationPermissionStatus()
-        let hasPermission = retryStatus == noErr
-        log("AUTOMATION_CHECK: retry status=\(retryStatus), hasPermission=\(hasPermission)")
-
-        await MainActor.run {
-          self.hasAutomationPermission = hasPermission
-          self.automationPermissionError = hasPermission ? 0 : retryStatus
-        }
-      } else {
-        let hasPermission = status == noErr
-        let previousValue = await MainActor.run { self.hasAutomationPermission }
-        if hasPermission != previousValue {
-          log("AUTOMATION_CHECK: status=\(status), hasPermission=\(hasPermission)")
-        }
-
-        await MainActor.run {
-          self.hasAutomationPermission = hasPermission
-          // Track unexpected errors (not denied/not-determined, which are normal states)
-          self.automationPermissionError =
-            (status == noErr || status == -1743 || status == -1744) ? 0 : status
-        }
-      }
-    }
-  }
-
-  /// Query the TCC automation permission status for System Events without triggering a prompt
-  nonisolated static func queryAutomationPermissionStatus() -> OSStatus {
-    let bundleIDString = "com.apple.systemevents"
-    var addressDesc = AEAddressDesc()
-
-    let status: OSStatus = bundleIDString.withCString { cString in
-      AECreateDesc(typeApplicationBundleID, cString, strlen(cString), &addressDesc)
-      let result = AEDeterminePermissionToAutomateTarget(
-        &addressDesc,
-        typeWildCard,
-        typeWildCard,
-        false  // askUserIfNeeded = false → never shows dialog
-      )
-      AEDisposeDesc(&addressDesc)
-      return result
-    }
-
-    return status
-  }
-
   /// Check accessibility permission status
   /// AXIsProcessTrusted() can return stale data after macOS updates or app re-signs,
   /// so we also do a functional AX test to detect the "broken" state.
@@ -351,33 +281,6 @@ extension AppState {
         hasAccessibilityPermission = false
         isAccessibilityBroken = false
       }
-    }
-  }
-
-  /// Check Full Disk Access by probing FDA-protected paths.
-  /// The TCC database query is unreliable on macOS 15+ (schema changes, ad-hoc signing),
-  /// so we probe actual protected directories instead.
-  func checkFullDiskAccess() {
-    let home = FileManager.default.homeDirectoryForCurrentUser.path
-    // These paths are protected by Full Disk Access on all macOS versions.
-    // Try to list directory contents — if it succeeds, FDA is granted.
-    let protectedPaths = [
-      "\(home)/Library/Safari",
-      "\(home)/Library/Mail",
-      "\(home)/Library/Messages",
-    ]
-
-    var granted = false
-    for path in protectedPaths {
-      if FileManager.default.fileExists(atPath: path) {
-        granted = (try? FileManager.default.contentsOfDirectory(atPath: path)) != nil
-        break
-      }
-    }
-
-    if granted != hasFullDiskAccess {
-      hasFullDiskAccess = granted
-      log("Full Disk Access: \(granted ? "granted" : "not granted") (file probe)")
     }
   }
 

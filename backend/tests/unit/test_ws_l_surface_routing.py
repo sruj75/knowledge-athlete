@@ -3,12 +3,8 @@
 from __future__ import annotations
 
 import os
-import sys
-import types
 import importlib
 from datetime import datetime, timedelta, timezone
-from types import ModuleType, SimpleNamespace
-from unittest.mock import MagicMock
 
 import pytest
 
@@ -40,62 +36,6 @@ def _refresh_memory_system_bindings():
 
 
 _refresh_memory_system_bindings()
-
-
-class _AutoMockModule(ModuleType):
-    def __getattr__(self, name):
-        if name.startswith("__") and name.endswith("__"):
-            raise AttributeError(name)
-        mock = MagicMock()
-        setattr(self, name, mock)
-        return mock
-
-
-def _load_mcp_sse_module():
-    """Import MCP SSE router with the same heavy-dep stubs used by other MCP unit tests."""
-    for mod_name in [
-        "database._client",
-        "database.redis_db",
-        "database.conversations",
-        "database.memories",
-        "database.vector_db",
-        "database.mcp_api_key",
-        "database.users",
-        "database.action_items",
-        "database.goals",
-        "database.chat",
-        "database.screen_activity",
-        "database.daily_summaries",
-        "database.x_posts",
-        "firebase_admin",
-        "firebase_admin.auth",
-        "google.cloud.firestore",
-        "pinecone",
-        "utils.other.endpoints",
-        "utils.other.storage",
-        "utils.executors",
-        "utils.apps",
-        "utils.llm.memories",
-        "utils.conversations.render",
-        "utils.subscription",
-    ]:
-        existing = sys.modules.get(mod_name)
-        if not isinstance(existing, _AutoMockModule):
-            sys.modules[mod_name] = _AutoMockModule(mod_name)
-
-    sys.modules["utils.other.endpoints"].check_rate_limit_inline = MagicMock()
-    sys.modules["utils.other.endpoints"].with_rate_limit = MagicMock(side_effect=lambda dependency, _policy: dependency)
-    sys.modules["utils.executors"].db_executor = MagicMock()
-    sys.modules["utils.executors"].postprocess_executor = MagicMock()
-    sys.modules["utils.apps"].update_personas_async = MagicMock()
-    sys.modules["utils.llm.memories"].identify_category_for_memory = MagicMock(return_value="other")
-
-    if "routers.mcp_sse" in sys.modules:
-        return sys.modules["routers.mcp_sse"]
-
-    from routers import mcp_sse
-
-    return mcp_sse
 
 
 class _Snapshot:
@@ -159,7 +99,6 @@ def _processed_short_term_item(*, memory_id: str = "mem-st") -> MemoryItem:
         evidence=[evidence],
         source_state=SourceState.active,
         sensitivity_labels=[],
-        visibility="private",
         user_asserted=False,
         captured_at=now,
         updated_at=now,
@@ -204,100 +143,6 @@ class TestResolveMemorySystemIgnoresMemoryFlags:
         set_canonical_cohort(monkeypatch, "uid-canonical")
         assert resolve_memory_system("uid-canonical", db_client=_FirestoreFake()) == MemorySystem.CANONICAL
         assert resolve_memory_system("uid-legacy", db_client=_FirestoreFake()) == MemorySystem.LEGACY
-
-
-LEGACY_SSE_UID = "uid-sse-legacy-ws-l"
-
-
-def _sse_full_memory_doc(*, memory_id: str, content: str) -> dict:
-    now = datetime(2026, 6, 1, tzinfo=timezone.utc)
-    return {
-        "id": memory_id,
-        "uid": LEGACY_SSE_UID,
-        "content": content,
-        "category": "interesting",
-        "created_at": now,
-        "updated_at": now,
-        "scoring": "01_00_1736899200",
-        "visibility": "private",
-        "manually_added": False,
-        "is_locked": False,
-        "user_review": None,
-    }
-
-
-class TestMcpSseLegacySearchParity:
-    def test_legacy_sse_search_uses_vector_order_and_full_firestore_docs(self, monkeypatch):
-        """SSE legacy search must NOT use REST MCP search_mcp (RRF + slim dict)."""
-        from utils.memory import default_read_rollout as rollout
-
-        mcp_sse = _load_mcp_sse_module()
-        firestore_fake = _FirestoreFake()
-
-        assert resolve_memory_system(LEGACY_SSE_UID, db_client=firestore_fake) == MemorySystem.LEGACY
-
-        legacy_rollout = rollout.legacy_safe_default_read_rollout_decision(
-            uid=LEGACY_SSE_UID,
-            source_path="test/ws-l",
-            consumer="mcp",
-            reason="ws_l_sse_legacy_parity",
-        )
-        legacy_vector = SimpleNamespace(
-            read_decision=rollout.MemoryReadDecision.USE_LEGACY_SAFE,
-            memories=[],
-            fallback_reason="ws_l_sse_legacy_parity",
-        )
-        allowed_auth = SimpleNamespace(allowed=True, observability={})
-
-        monkeypatch.setattr(mcp_sse, "db", firestore_fake)
-        monkeypatch.setattr(mcp_sse, "read_default_read_rollout", lambda **_: legacy_rollout)
-        monkeypatch.setattr(mcp_sse, "search_default_mcp_memories_vector", lambda **_: legacy_vector)
-        monkeypatch.setattr(mcp_sse, "authorize_memory_external_default_memory_read", lambda *_, **__: allowed_auth)
-
-        rrf_mock = MagicMock(side_effect=lambda _query, candidates, _limit, k=60: list(reversed(candidates)))
-        monkeypatch.setattr("utils.retrieval.hybrid.rrf_rerank", rrf_mock)
-
-        vector_matches = [
-            {"memory_id": "mem-low", "score": 0.55},
-            {"memory_id": "mem-high", "score": 0.95},
-        ]
-        find_similar = MagicMock(return_value=vector_matches)
-        monkeypatch.setattr(mcp_sse.vector_db, "find_similar_memories", find_similar)
-        monkeypatch.setattr(
-            mcp_sse.memories_db,
-            "get_memories_by_ids",
-            MagicMock(
-                return_value=[
-                    _sse_full_memory_doc(memory_id="mem-low", content="lower vector score"),
-                    _sse_full_memory_doc(memory_id="mem-high", content="higher vector score"),
-                ]
-            ),
-        )
-
-        auth_context = mcp_sse.ProductAuthorizationContext(
-            uid=LEGACY_SSE_UID,
-            consumer="mcp",
-            surface="mcp_sse",
-            app_id="test-app",
-            key_id="test-key",
-            scopes=("memories.read",),
-        )
-        result = mcp_sse.execute_tool(
-            LEGACY_SSE_UID,
-            "search_memories",
-            {"query": "vector match", "limit": 10},
-            auth_context=auth_context,
-        )
-
-        memories = result["memories"]
-        assert [memory["id"] for memory in memories] == ["mem-high", "mem-low"]
-        assert memories[0]["relevance_score"] == 0.95
-        assert "created_at" in memories[0]
-        assert "scoring" in memories[0]
-        assert "visibility" in memories[0]
-        assert set(memories[0].keys()) != {"id", "content", "category", "relevance_score"}
-        find_similar.assert_called_once_with(LEGACY_SSE_UID, "vector match", threshold=0.0, limit=30)
-        rrf_mock.assert_not_called()
 
 
 class TestMemorySystemRequestPinning:

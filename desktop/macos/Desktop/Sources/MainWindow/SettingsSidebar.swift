@@ -301,11 +301,6 @@ struct SettingsSearchItem: Identifiable {
       name: "Report Issue", subtitle: "Send app logs and report a problem",
       keywords: ["bug", "feedback", "logs", "report"], section: .advanced,
       icon: "wrench.and.screwdriver", settingId: "advanced.troubleshooting.reportissue"),
-    SettingsSearchItem(
-      name: "Rescan Files", subtitle: "Re-index your files and update your AI profile",
-      keywords: ["index", "reindex", "rescan", "files", "scan", "file indexing", "profile"],
-      section: .advanced, icon: "wrench.and.screwdriver",
-      settingId: "advanced.troubleshooting.rescanfiles"),
   ]
 }
 

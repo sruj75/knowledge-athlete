@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence, cast
 
 DEFAULT_REGION = 'us-central1'
-DEFAULT_SERVICES = ('backend', 'backend-sync', 'backend-integration')
+DEFAULT_SERVICES = ('backend', 'backend-sync')
 SNAPSHOT_SCHEMA_VERSION = 1
 
 RunCommand = Callable[[Sequence[str]], None]

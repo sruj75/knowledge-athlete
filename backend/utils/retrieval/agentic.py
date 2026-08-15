@@ -18,7 +18,6 @@ from langchain_core.callbacks import BaseCallbackHandler
 # Context variable to store config for tools
 agent_config_context: contextvars.ContextVar[dict] = contextvars.ContextVar('agent_config', default=None)
 
-from models.app import App
 from models.chat import Message, ChatSession, PageContext
 from utils.retrieval.tools import (
     get_conversations_tool,
@@ -29,16 +28,6 @@ from utils.retrieval.tools import (
     create_action_item_tool,
     update_action_item_tool,
     get_omi_product_info_tool,
-    get_calendar_events_tool,
-    create_calendar_event_tool,
-    update_calendar_event_tool,
-    delete_calendar_event_tool,
-    get_gmail_messages_tool,
-    get_apple_health_steps_tool,
-    get_apple_health_sleep_tool,
-    get_apple_health_heart_rate_tool,
-    get_apple_health_workouts_tool,
-    get_apple_health_summary_tool,
     search_files_tool,
     manage_daily_summary_tool,
     create_chart_tool,
@@ -46,9 +35,7 @@ from utils.retrieval.tools import (
     search_screen_activity_tool,
     save_user_preference_tool,
     fetch_url_tool,
-    traverse_knowledge_graph_tool,
 )
-from utils.retrieval.tools.app_tools import load_app_tools, get_tool_status_message
 from utils.retrieval.tool_result_boundaries import preserve_chat_memory_tool_result_boundary
 from utils.retrieval.safety import (
     AgentSafetyGuard,
@@ -135,7 +122,6 @@ AGENT_STREAM_FAILURE_MESSAGE = 'Unable to complete the response. Please try agai
 # PROMPT CACHE OPTIMIZATION: This list MUST stay fixed and in this exact order.
 # Anthropic caches the tools array as part of the request prefix.  If the tool
 # definitions are identical across requests they are cached automatically.
-# Dynamic per-user app tools are appended AFTER this list so the prefix stays stable.
 CORE_TOOLS = [
     get_conversations_tool,
     search_conversations_tool,
@@ -145,16 +131,6 @@ CORE_TOOLS = [
     create_action_item_tool,
     update_action_item_tool,
     get_omi_product_info_tool,
-    get_calendar_events_tool,
-    create_calendar_event_tool,
-    update_calendar_event_tool,
-    delete_calendar_event_tool,
-    get_gmail_messages_tool,
-    get_apple_health_steps_tool,
-    get_apple_health_sleep_tool,
-    get_apple_health_heart_rate_tool,
-    get_apple_health_workouts_tool,
-    get_apple_health_summary_tool,
     search_files_tool,
     manage_daily_summary_tool,
     create_chart_tool,
@@ -162,36 +138,21 @@ CORE_TOOLS = [
     search_screen_activity_tool,
     save_user_preference_tool,
     fetch_url_tool,
-    traverse_knowledge_graph_tool,
 ]
-
-# Standard tool names (used to detect app tools by exclusion)
-STANDARD_TOOL_NAMES = {t.name for t in CORE_TOOLS}
 
 
 def get_tool_display_name(tool_name: str, tool_obj: Optional[Any] = None) -> str:
     """Convert tool name to user-friendly display name."""
-    # Check global mapping from app_tools first
-    status_msg = get_tool_status_message(tool_name)
-    if status_msg:
-        return status_msg
-
     # Check tool object for custom status_message
     if tool_obj and hasattr(tool_obj, 'status_message') and tool_obj.status_message:
         return tool_obj.status_message
 
     tool_display_map = {
-        'get_calendar_events_tool': 'Checking calendar',
-        'create_calendar_event_tool': 'Creating calendar event',
-        'update_calendar_event_tool': 'Updating calendar event',
-        'delete_calendar_event_tool': 'Deleting calendar event',
-        'get_gmail_messages_tool': 'Checking Gmail',
         'web_search': 'Searching the web',
         'get_conversations_tool': 'Searching conversations',
         'search_conversations_tool': 'Searching conversations',
         'get_memories_tool': 'Searching memories',
         'search_memories_tool': 'Searching memories',
-        'traverse_knowledge_graph_tool': 'Traversing knowledge graph',
         'get_action_items_tool': 'Checking action items',
         'create_action_item_tool': 'Creating action item',
         'update_action_item_tool': 'Updating action item',
@@ -245,17 +206,11 @@ class AsyncStreamingCallback(BaseCallbackHandler):
     async def put_data(self, text):
         await self.queue.put(f"data: {text}")
 
-    async def put_thought(self, text, app_id: Optional[str] = None):
-        if app_id:
-            await self.queue.put(f"think: {text}|app_id:{app_id}")
-        else:
-            await self.queue.put(f"think: {text}")
+    async def put_thought(self, text):
+        await self.queue.put(f"think: {text}")
 
-    def put_thought_nowait(self, text, app_id: Optional[str] = None):
-        if app_id:
-            self._put_nowait_threadsafe(f"think: {text}|app_id:{app_id}")
-        else:
-            self._put_nowait_threadsafe(f"think: {text}")
+    def put_thought_nowait(self, text):
+        self._put_nowait_threadsafe(f"think: {text}")
 
     def put_data_nowait(self, text):
         self._put_nowait_threadsafe(f"data: {text}")
@@ -267,15 +222,15 @@ class AsyncStreamingCallback(BaseCallbackHandler):
         self._put_nowait_threadsafe(None)
 
     async def on_llm_new_token(self, token: str, **_kwargs) -> None:
-        """Bridge LangChain streaming callbacks for persona chat."""
+        """Bridge LangChain streaming callbacks for assistant chat."""
         await self.put_data(token)
 
     async def on_llm_end(self, _response, **_kwargs) -> None:
-        """Always terminate the persona callback queue on normal completion."""
+        """Always terminate the assistant callback queue on normal completion."""
         await self.end()
 
     async def on_llm_error(self, _error: Exception, **_kwargs) -> None:
-        """Terminate the persona callback queue without exposing provider details."""
+        """Terminate the assistant callback queue without exposing provider details."""
         await self.end()
 
 
@@ -310,12 +265,6 @@ def _langchain_tool_to_anthropic(lc_tool, defer_loading: bool = False) -> dict:
     return tool_def
 
 
-# Tool search tool definition — Anthropic's built-in tool discovery
-TOOL_SEARCH_TOOL = {
-    "type": "tool_search_tool_regex_20251119",
-    "name": "tool_search_tool_regex",
-}
-
 # Web search tool — Anthropic's built-in server-side web search (replaces Perplexity)
 WEB_SEARCH_TOOL = {
     "type": "web_search_20260209",
@@ -324,12 +273,8 @@ WEB_SEARCH_TOOL = {
 }
 
 
-def _convert_tools(core_tools: list, app_tools: list = None) -> tuple:
-    """Convert all tools and build name->object registry.
-
-    Core tools are always visible to Claude. App tools are marked with
-    defer_loading=True so Claude discovers them on-demand via tool search,
-    keeping the context window small.
+def _convert_tools(core_tools: list) -> tuple:
+    """Convert retained tools and build the name-to-object registry.
 
     Returns:
         (tool_schemas, tool_registry) where tool_schemas is a list of Anthropic
@@ -340,21 +285,11 @@ def _convert_tools(core_tools: list, app_tools: list = None) -> tuple:
     # Add built-in server tools
     schemas.append(WEB_SEARCH_TOOL)
 
-    # Add tool search tool if there are app tools to discover
-    if app_tools:
-        schemas.append(TOOL_SEARCH_TOOL)
-
     # Core tools — always visible
     for t in core_tools:
         schemas.append(_langchain_tool_to_anthropic(t, defer_loading=False))
 
-    # App tools — deferred, discovered on-demand
-    for t in app_tools or []:
-        schemas.append(_langchain_tool_to_anthropic(t, defer_loading=True))
-
-    # Registry includes ALL tools (core + app) for execution
-    all_tools = list(core_tools) + list(app_tools or [])
-    registry = {t.name: t for t in all_tools}
+    registry = {t.name: t for t in core_tools}
     return schemas, registry
 
 
@@ -366,58 +301,6 @@ async def _execute_tool(tool_name: str, tool_input: dict, registry: dict, config
     result = await tool_obj.ainvoke(tool_input, config=config)
     result = preserve_chat_memory_tool_result_boundary(tool_name, str(result))
     return result
-
-
-# ---------------------------------------------------------------------------
-# App ID extraction for non-standard tools
-# ---------------------------------------------------------------------------
-
-
-def _extract_app_id(tool_name: str) -> Optional[str]:
-    """Extract app_id from an app tool name (format: appid_toolname)."""
-    if tool_name not in STANDARD_TOOL_NAMES and '_' in tool_name:
-        parts = tool_name.split('_', 1)
-        if len(parts) == 2:
-            return parts[0]
-    return None
-
-
-# ---------------------------------------------------------------------------
-# Calendar tool status messages
-# ---------------------------------------------------------------------------
-
-
-async def _emit_calendar_status(callback: AsyncStreamingCallback, tool_name: str, output: str):
-    """Emit calendar-specific completion status messages."""
-    if 'calendar' not in tool_name.lower():
-        return
-
-    if 'create' in tool_name.lower():
-        if output and ('Successfully created' in output or '✅' in output):
-            await callback.put_thought('Event created successfully')
-        elif output and ('Error' in output or 'error' in output.lower()):
-            await callback.put_thought('Failed to create event')
-        else:
-            await callback.put_thought('Creating event...')
-    elif 'update' in tool_name.lower():
-        if output and ('Successfully updated' in output or '✅' in output):
-            await callback.put_thought('Event updated successfully')
-        elif output and ('Error' in output or 'error' in output.lower()):
-            await callback.put_thought('Failed to update event')
-        else:
-            await callback.put_thought('Updating event...')
-    elif 'delete' in tool_name.lower():
-        if output and ('Successfully deleted' in output or '✅' in output):
-            await callback.put_thought('Event deleted successfully')
-        elif output and ('Error' in output or 'error' in output.lower()):
-            await callback.put_thought('Failed to delete event')
-        else:
-            await callback.put_thought('Deleting event...')
-    elif 'get' in tool_name.lower() or 'search' in tool_name.lower():
-        if output and len(output) > 0:
-            await callback.put_thought('Found calendar events')
-        else:
-            await callback.put_thought('No events found')
 
 
 # ---------------------------------------------------------------------------
@@ -581,10 +464,9 @@ async def _run_anthropic_agent_stream(
                                 if 'tool_search' in tool_name:
                                     logger.info(f"Tool search invoked (server-side)")
                                     continue
-                                app_id = _extract_app_id(tool_name)
                                 tool_obj = tool_registry.get(tool_name)
                                 display_name = get_tool_display_name(tool_name, tool_obj)
-                                await callback.put_thought(display_name, app_id=app_id)
+                                await callback.put_thought(display_name)
                                 logger.info(f"Tool started: {tool_name}")
 
                     # Get final message while stream is still open
@@ -654,9 +536,6 @@ async def _run_anthropic_agent_stream(
                 result = f"Error executing tool: {str(e)}"
 
             logger.info(f"Tool ended: {block.name}")
-
-            # Calendar status messages
-            await _emit_calendar_status(callback, block.name, result)
 
             # Safety guard: check context size after execution
             try:
@@ -771,7 +650,6 @@ def _consume_agent_task_exception(task: asyncio.Task) -> None:
 async def execute_agentic_chat_stream(
     uid: str,
     messages: List[Message],
-    app: Optional[App] = None,
     callback_data: dict = None,
     chat_session: Optional[ChatSession] = None,
     context: Optional[PageContext] = None,
@@ -809,7 +687,7 @@ async def execute_agentic_chat_stream(
             tz = tz or await run_blocking(db_executor, get_user_timezone, uid)
             city = await get_mobile_city(uid, platform) if current_datetime_block is None else None
             system_prompt = await run_blocking(
-                db_executor, _get_agentic_qa_prompt, uid, app, messages, context=context, tz=tz, platform=platform
+                db_executor, _get_agentic_qa_prompt, uid, messages=messages, context=context, tz=tz, platform=platform
             )
 
             # Get prompt metadata for tracing/versioning
@@ -824,14 +702,6 @@ async def execute_agentic_chat_stream(
             # Core tools (fixed order) — always visible to Claude
             core_tools = list(CORE_TOOLS)
 
-            # Dynamic app tools — deferred, discovered on-demand via tool search
-            app_tools = []
-            try:
-                app_tools = await run_blocking(db_executor, load_app_tools, uid)
-                if app_tools:
-                    logger.info(f"Loaded {len(app_tools)} app tools (deferred via tool search)")
-            except Exception as error:
-                logger.error('Error loading app tools error_type=%s', type(error).__name__)
     except asyncio.TimeoutError:
         logger.warning('Agent stream timed out before the producer started uid=%s', uid)
         if callback_data is not None:
@@ -847,23 +717,6 @@ async def execute_agentic_chat_stream(
         yield f'error: {AGENT_STREAM_FAILURE_MESSAGE}'
         return
 
-    # Append app tool awareness to system prompt so Claude knows to search for them
-    if app_tools:
-        app_names = set()
-        for t in app_tools:
-            # Tool names are prefixed with app_id; extract the human-readable app name from description
-            app_names.add(t.name)
-        app_tool_names = ", ".join(sorted(app_names))
-        system_prompt += f"""
-
-<available_app_tools>
-You have access to additional tools from the user's connected apps. These tools are discoverable via the tool_search_tool_regex tool. When the user asks you to do something related to an external service (e.g. GitHub, Twitter, Slack, Google Calendar, Notion, Shopify, WhatsApp, Splitwise, etc.), search for the relevant tool using tool_search_tool_regex with a keyword like "github", "issue", "tweet", etc.
-
-Available app tool names: {app_tool_names}
-
-IMPORTANT: Always search for and use these tools when relevant. Never tell the user you don't have access to an integration if a matching tool exists above.
-</available_app_tools>"""
-
     # Instruct Claude to use fetch_url_tool for any direct URL in the conversation.
     # Without this, Claude's built-in "I can't browse links" behavior takes over.
     system_prompt += """
@@ -872,8 +725,7 @@ IMPORTANT: Always search for and use these tools when relevant. Never tell the u
 You have fetch_url_tool available. When the user shares any URL (starting with http:// or https://), you MUST call fetch_url_tool to read its content before responding. Never say you cannot browse, visit, or read a URL. Always attempt to fetch it first.
 </url_fetching_instructions>"""
 
-    # Convert tools to Anthropic format (core = visible, app = defer_loading)
-    tool_schemas, tool_registry = _convert_tools(core_tools, app_tools)
+    tool_schemas, tool_registry = _convert_tools(core_tools)
 
     # Convert messages to Anthropic format. The current datetime is injected into the user
     # turn (not the system prompt) so the cache_control system prefix stays byte-stable.
@@ -900,7 +752,7 @@ You have fetch_url_tool available. When the user shares any URL (starting with h
         "conversations_collected": conversations_collected,
         "safety_guard": safety_guard,
         "chat_session_id": chat_session.id if chat_session else None,
-        "tools": core_tools + app_tools,
+        "tools": core_tools,
     }
 
     # Store config in context variable for tools that use agent_config_context

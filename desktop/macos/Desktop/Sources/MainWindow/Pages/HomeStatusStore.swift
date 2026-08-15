@@ -27,16 +27,11 @@ struct HomeKnowledgeCounts: Equatable, Sendable {
 
 @MainActor
 struct HomeStatusLoader {
-  let refreshConnectorStatuses: @MainActor @Sendable () async -> Void
   let loadScreenshotCount: @MainActor @Sendable () async -> Int?
   let loadKnowledgeCounts: @MainActor @Sendable (_ includeOmiDeviceHistory: Bool) async -> HomeKnowledgeCounts
-  let loadMemoryExportStatuses: @MainActor @Sendable () async -> [MemoryExportDestination: MemoryExportStatus]
 
-  static func live(connectorStatusStore: ImportConnectorStatusStore) -> HomeStatusLoader {
+  static func live() -> HomeStatusLoader {
     HomeStatusLoader(
-      refreshConnectorStatuses: {
-        await connectorStatusStore.refresh()
-      },
       loadScreenshotCount: {
         do {
           return try await RewindDatabase.shared.getScreenshotCount()
@@ -60,9 +55,6 @@ struct HomeStatusLoader {
           tasks: tasks,
           hasOmiDeviceConversations: deviceHistory
         )
-      },
-      loadMemoryExportStatuses: {
-        await MemoryExportService.shared.allStatuses()
       }
     )
   }
@@ -75,15 +67,11 @@ struct HomeStatusLoader {
 final class HomeStatusStore: ObservableObject {
   static let omiDeviceHistoryDefaultsKey = DefaultsKey.homeOmiDeviceAccountHistory.rawValue
 
-  let connectorStatusStore: ImportConnectorStatusStore
-
   @Published private(set) var screenshotCount: Int?
   @Published private(set) var conversationCount: Int?
   @Published private(set) var memoryCount: Int?
   @Published private(set) var taskCount: Int?
   @Published private(set) var accountHasOmiDeviceConversations: Bool
-  @Published var memoryExportStatuses: [MemoryExportDestination: MemoryExportStatus] = [:]
-
   private let defaults: UserDefaults
   private let loader: HomeStatusLoader
   private let currentUserIDProvider: () -> String?
@@ -99,7 +87,6 @@ final class HomeStatusStore: ObservableObject {
   private var cancellables = Set<AnyCancellable>()
 
   init(
-    connectorStatusStore: ImportConnectorStatusStore? = nil,
     defaults: UserDefaults = .standard,
     loader: HomeStatusLoader? = nil,
     currentUserIDProvider: (() -> String?)? = nil,
@@ -110,12 +97,8 @@ final class HomeStatusStore: ObservableObject {
         defaults.string(forKey: .authUserId)
       }
     let sessionUserID = Self.normalizedUserID(currentUserIDProvider())
-    let connectorStatusStore =
-      connectorStatusStore
-      ?? ImportConnectorStatusStore(defaults: defaults, sessionUserID: sessionUserID)
-    self.connectorStatusStore = connectorStatusStore
     self.defaults = defaults
-    self.loader = loader ?? .live(connectorStatusStore: connectorStatusStore)
+    self.loader = loader ?? .live()
     self.currentUserIDProvider = currentUserIDProvider
     self.sessionUserID = sessionUserID
     self.localDatabaseReady = localDatabaseReady
@@ -123,20 +106,6 @@ final class HomeStatusStore: ObservableObject {
       defaults: defaults,
       userID: sessionUserID
     )
-    connectorStatusStore.setSessionUserID(sessionUserID)
-
-    connectorStatusStore.objectWillChange
-      .sink { [weak self] _ in
-        self?.objectWillChange.send()
-      }
-      .store(in: &cancellables)
-
-    connectorStatusStore.connectorDidSync
-      .sink { [weak self] _ in
-        self?.refreshKnowledgeCountsAfterImport()
-      }
-      .store(in: &cancellables)
-
     NotificationCenter.default.publisher(for: .homeKnowledgeCountsDidChange)
       .receive(on: DispatchQueue.main)
       .sink { [weak self] _ in
@@ -176,7 +145,6 @@ final class HomeStatusStore: ObservableObject {
   func resetSessionState() {
     resetTransientState()
     sessionUserID = nil
-    connectorStatusStore.setSessionUserID(nil)
     accountHasOmiDeviceConversations = false
   }
 
@@ -211,7 +179,6 @@ final class HomeStatusStore: ObservableObject {
     conversationCount = nil
     memoryCount = nil
     taskCount = nil
-    memoryExportStatuses = [:]
   }
 
   private func ensureCurrentSessionScope() {
@@ -220,7 +187,6 @@ final class HomeStatusStore: ObservableObject {
 
     resetTransientState()
     sessionUserID = currentUserID
-    connectorStatusStore.setSessionUserID(currentUserID)
     accountHasOmiDeviceConversations = Self.loadPersistedDeviceHistory(
       defaults: defaults,
       userID: currentUserID
@@ -231,23 +197,15 @@ final class HomeStatusStore: ObservableObject {
     let includeDeviceHistory = !accountHasOmiDeviceConversations
     let shouldLoadScreenshotCount = localDatabaseReady
     let knowledgeRefreshID = beginKnowledgeRefresh()
-    async let connectorStatuses: Void = loader.refreshConnectorStatuses()
     async let screenshots: Int? = shouldLoadScreenshotCount ? loader.loadScreenshotCount() : nil
     async let knowledgeCounts = loader.loadKnowledgeCounts(includeDeviceHistory)
-    async let exportStatuses = loader.loadMemoryExportStatuses()
-    let (_, loadedScreenshots, loadedKnowledgeCounts, loadedExportStatuses) = await (
-      connectorStatuses,
-      screenshots,
-      knowledgeCounts,
-      exportStatuses
-    )
+    let (loadedScreenshots, loadedKnowledgeCounts) = await (screenshots, knowledgeCounts)
 
     guard !Task.isCancelled, generation == refreshGeneration else { return }
     apply(screenshotCount: loadedScreenshots)
     if knowledgeRefreshID == latestKnowledgeRefreshID {
       apply(knowledgeCounts: loadedKnowledgeCounts)
     }
-    memoryExportStatuses = loadedExportStatuses
   }
 
   private func refreshKnowledgeCountsAfterImport() {

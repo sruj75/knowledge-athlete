@@ -342,13 +342,13 @@ environments:
             GLOBAL_SECRET:
               secret: inherited-secret
               version: '3'
-        backend-integration:
+        backend-sync:
           env:
-            INTEGRATION_PUBLIC:
-              value: integration
+            RETAINED_PUBLIC:
+              value: retained
           secrets:
-            INTEGRATION_SECRET:
-              secret: integration-secret
+            RETAINED_SECRET:
+              secret: retained-secret
               version: latest
 ''',
         encoding='utf-8',
@@ -368,10 +368,10 @@ environments:
                                     'name': 'GLOBAL_SECRET',
                                     'valueFrom': {'secretKeyRef': {'name': 'retained-live-secret', 'key': '9'}},
                                 },
-                                {'name': 'INTEGRATION_PUBLIC', 'value': 'integration'},
+                                {'name': 'RETAINED_PUBLIC', 'value': 'retained'},
                                 {
-                                    'name': 'INTEGRATION_SECRET',
-                                    'valueFrom': {'secretKeyRef': {'name': 'integration-secret', 'key': 'latest'}},
+                                    'name': 'RETAINED_SECRET',
+                                    'valueFrom': {'secretKeyRef': {'name': 'retained-secret', 'key': 'latest'}},
                                 },
                             ]
                         }
@@ -382,7 +382,7 @@ environments:
     }
 
     drift = preflight.check_runtime_bindings(
-        services=('backend-integration',),
+        services=('backend-sync',),
         env='dev',
         project='based-hardware-dev',
         region='us-central1',

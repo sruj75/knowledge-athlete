@@ -33,7 +33,6 @@ def test_unsafe_imports_require_stubs_before_router_import():
         "database.vector_db",
         "database._client",
         "utils.executors",
-        "utils.apps",
         "utils.other.endpoints",
     ]:
         assert module_name in unsafe

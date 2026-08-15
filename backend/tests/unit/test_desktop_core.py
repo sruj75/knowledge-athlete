@@ -153,7 +153,7 @@ def test_sentry_poll_classifies_auth_failure(monkeypatch):
 
     monkeypatch.setenv("SENTRY_ADMIN_UID", "admin")
     monkeypatch.setenv("SENTRY_AUTH_TOKEN", "token")
-    monkeypatch.setattr(desktop_core, "get_webhook_client", Client)
+    monkeypatch.setattr(desktop_core, "get_external_client", Client)
 
     response = make_client().post("/v1/webhooks/sentry/poll")
 

@@ -23,7 +23,6 @@ from typing import Any, Dict, List, Optional, cast
 from google.cloud.firestore_v1.base_query import FieldFilter
 from google.cloud import firestore
 from ._client import db
-from . import redis_db
 
 DAILY_SUMMARIES_COLLECTION = 'daily_summaries'
 
@@ -157,14 +156,7 @@ def delete_daily_summary(uid: str, summary_id: str) -> bool:
     user_ref = db.collection('users').document(uid)
     summary_ref = user_ref.collection(DAILY_SUMMARIES_COLLECTION).document(summary_id)
     summary_ref.delete()
-    redis_db.remove_daily_summary_to_uid(summary_id)
     return True
-
-
-def set_daily_summary_visibility(uid: str, summary_id: str, visibility: str) -> None:
-    user_ref = db.collection('users').document(uid)
-    summary_ref = user_ref.collection(DAILY_SUMMARIES_COLLECTION).document(summary_id)
-    summary_ref.update({'visibility': visibility})
 
 
 def get_summaries_count(uid: str) -> int:

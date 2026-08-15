@@ -121,7 +121,6 @@ def _setup_payment_module(include_client: bool = True) -> Any:
         "utils.notifications",
         "utils.subscription",
         "utils.stripe",
-        "utils.apps",
         "utils.other.endpoints",
         "utils.other",
         "utils.overage",
@@ -168,12 +167,6 @@ def _setup_payment_module(include_client: bool = True) -> Any:
     stripe_utils_mod.create_connect_account = MagicMock()
     stripe_utils_mod.refresh_connect_account_link = MagicMock()
     stripe_utils_mod.is_onboarding_complete = MagicMock()
-
-    apps_mod = sys.modules["utils.apps"]
-    apps_mod.find_app_subscription = MagicMock()
-    apps_mod.get_is_user_paid_app = MagicMock()
-    apps_mod.paid_app = MagicMock()
-    apps_mod.set_user_app_sub_customer_id = MagicMock()
 
     endpoints_mod = sys.modules["utils.other.endpoints"]
     endpoints_mod.get_current_user_uid = lambda: "test-uid"

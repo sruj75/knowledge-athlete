@@ -6,14 +6,12 @@ enum MemoryCategory: String, Codable, CaseIterable {
   case system
   case interesting
   case manual
-  case workflow
 
   var displayName: String {
     switch self {
     case .system: return "About You"
     case .interesting: return "Insights"
     case .manual: return "Manual"
-    case .workflow: return "Workflow"
     }
   }
 
@@ -22,7 +20,6 @@ enum MemoryCategory: String, Codable, CaseIterable {
     case .system: return "person"
     case .interesting: return "lightbulb"
     case .manual: return "square.and.pencil"
-    case .workflow: return "arrow.triangle.branch"
     }
   }
 
@@ -31,6 +28,22 @@ enum MemoryCategory: String, Codable, CaseIterable {
   /// `.system` so the row still decodes.
   init(_ wire: OmiAPI.MemoryCategory) {
     self = MemoryCategory(rawValue: wire.rawValue) ?? .system
+  }
+}
+
+extension Array {
+  func chunked(maxSize: Int) -> [[Element]] {
+    precondition(maxSize > 0, "chunk size must be positive")
+    guard !isEmpty else { return [] }
+
+    var chunks: [[Element]] = []
+    var chunkStart = startIndex
+    while chunkStart < endIndex {
+      let chunkEnd = index(chunkStart, offsetBy: maxSize, limitedBy: endIndex) ?? endIndex
+      chunks.append(Array(self[chunkStart..<chunkEnd]))
+      chunkStart = chunkEnd
+    }
+    return chunks
   }
 }
 
@@ -150,7 +163,6 @@ struct ServerMemory: Decodable, Identifiable {
   let conversationId: String?
   let reviewed: Bool
   let userReview: Bool?
-  var visibility: String
   let manuallyAdded: Bool
   let scoring: String?
   let source: String?
@@ -177,7 +189,7 @@ struct ServerMemory: Decodable, Identifiable {
   let headline: String?
 
   enum CodingKeys: String, CodingKey {
-    case id, content, category, reviewed, visibility, scoring, source, confidence, tags, reasoning,
+    case id, content, category, reviewed, scoring, source, confidence, tags, reasoning,
       headline, tier, layer
     case memoryId = "memory_id"
     case memoryTier = "memory_tier"
@@ -282,12 +294,11 @@ struct ServerMemory: Decodable, Identifiable {
     conversationId = wire?.conversationId
     reviewed = wire?.reviewed ?? false
     userReview = wire?.userReview
-    visibility = wire?.visibility ?? "private"
     manuallyAdded = wire?.manuallyAdded ?? false
     scoring = wire?.scoring
     source = try container.decodeIfPresent(String.self, forKey: .source)
     confidence = wire?.captureConfidence
-    sourceApp = wire?.appId
+    sourceApp = try container.decodeIfPresent(String.self, forKey: .sourceApp)
     contextSummary = try container.decodeIfPresent(String.self, forKey: .contextSummary)
     isRead = try container.decodeIfPresent(Bool.self, forKey: .isRead) ?? false
     isDismissed = try container.decodeIfPresent(Bool.self, forKey: .isDismissed) ?? false
@@ -296,13 +307,9 @@ struct ServerMemory: Decodable, Identifiable {
     currentActivity = try container.decodeIfPresent(String.self, forKey: .currentActivity)
     inputDeviceName = try container.decodeIfPresent(String.self, forKey: .inputDeviceName)
     windowTitle = try container.decodeIfPresent(String.self, forKey: .windowTitle)
-    primaryCaptureDevice = wire?.primaryCaptureDevice
-    captureDeviceIds = wire?.captureDeviceIds ?? []
+    primaryCaptureDevice = try container.decodeIfPresent(String.self, forKey: .primaryCaptureDevice)
+    captureDeviceIds = try container.decodeIfPresent([String].self, forKey: .captureDeviceIds) ?? []
     headline = wire?.headline
-  }
-
-  var isPublic: Bool {
-    visibility == "public"
   }
 
   /// Confidence as percentage string
@@ -326,7 +333,6 @@ struct ServerMemory: Decodable, Identifiable {
     case "plaud": return "Plaud"
     case "limitless": return "Limitless"
     case "screenpipe": return "Screenpipe"
-    case "workflow": return "Integration"
     case "openglass": return "OpenGlass"
     default: return source.capitalized
     }
@@ -490,12 +496,9 @@ extension APIClient {
 
 extension APIClient {
   private static let canonicalLifecycleExposedHeader = "X-Omi-Memory-Canonical-Lifecycle-Exposed"
-  private static let deviceScopeSupportedHeader = "X-Omi-Memory-Device-Scope-Supported"
-
   struct MemoryListPage {
     let memories: [ServerMemory]
     let canonicalLifecycleExposed: Bool
-    let deviceScopeSupported: Bool?
   }
 
   /// Fetches memories from the API with optional filtering
@@ -505,7 +508,6 @@ extension APIClient {
     category: String? = nil,
     tags: [String]? = nil,
     includeDismissed: Bool = false,
-    deviceScope: String? = nil,
     authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot? = nil
   ) async throws -> [ServerMemory] {
     var endpoint = "v3/memories?limit=\(limit)&offset=\(offset)"
@@ -518,9 +520,6 @@ extension APIClient {
     if includeDismissed {
       endpoint += "&include_dismissed=true"
     }
-    if let deviceScope = deviceScope {
-      endpoint += "&device_scope=\(deviceScope)"
-    }
     return try await get(endpoint, authorizationSnapshot: authorizationSnapshot)
   }
 
@@ -530,8 +529,7 @@ extension APIClient {
     offset: Int = 0,
     category: String? = nil,
     tags: [String]? = nil,
-    includeDismissed: Bool = false,
-    deviceScope: String? = nil
+    includeDismissed: Bool = false
   ) async throws -> MemoryListPage {
     var endpoint = "v3/memories?limit=\(limit)&offset=\(offset)"
     if let category = category {
@@ -542,9 +540,6 @@ extension APIClient {
     }
     if includeDismissed {
       endpoint += "&include_dismissed=true"
-    }
-    if let deviceScope = deviceScope {
-      endpoint += "&device_scope=\(deviceScope)"
     }
 
     guard let url = URL(string: baseURL + endpoint) else {
@@ -563,19 +558,15 @@ extension APIClient {
     let memories = try decoder.decode([ServerMemory].self, from: data)
     let lifecycleHeader = httpResponse.value(forHTTPHeaderField: Self.canonicalLifecycleExposedHeader)
     let canonicalLifecycleExposed = lifecycleHeader == "true"
-    let deviceScopeHeader = httpResponse.value(forHTTPHeaderField: Self.deviceScopeSupportedHeader)
-    let deviceScopeSupported = deviceScopeHeader.map { $0.caseInsensitiveCompare("true") == .orderedSame }
     return MemoryListPage(
       memories: memories,
-      canonicalLifecycleExposed: canonicalLifecycleExposed,
-      deviceScopeSupported: deviceScopeSupported
+      canonicalLifecycleExposed: canonicalLifecycleExposed
     )
   }
 
   /// Creates a new memory (manual or extracted)
   func createMemory(
     content: String,
-    visibility: String = "private",
     category: MemoryCategory? = nil,
     confidence: Double? = nil,
     sourceApp: String? = nil,
@@ -590,7 +581,6 @@ extension APIClient {
   ) async throws -> CreateMemoryResponse {
     struct CreateRequest: Encodable {
       let content: String
-      let visibility: String
       let category: String?
       let confidence: Double?
       let sourceApp: String?
@@ -603,7 +593,7 @@ extension APIClient {
       let headline: String?
 
       enum CodingKeys: String, CodingKey {
-        case content, visibility, category, confidence, tags, reasoning, source, headline
+        case content, category, confidence, tags, reasoning, source, headline
         case sourceApp = "source_app"
         case contextSummary = "context_summary"
         case currentActivity = "current_activity"
@@ -612,7 +602,6 @@ extension APIClient {
     }
     let body = CreateRequest(
       content: content,
-      visibility: visibility,
       category: category?.rawValue,
       confidence: confidence,
       sourceApp: sourceApp,
@@ -630,7 +619,6 @@ extension APIClient {
   /// Max memories per POST /v3/memories/batch call. Must match the
   /// `MEMORIES_BATCH_MAX` constant in backend/routers/memories.py.
   static let memoriesBatchMaxSize = 100
-  static let memoryImportBatchMaxSize = 100
 
   /// Creates many product memories in a single HTTP call.
   ///
@@ -655,25 +643,6 @@ extension APIClient {
     return try await post("v3/memories/batch", body: body, authorizationSnapshot: authorizationSnapshot)
   }
 
-  func createMemoryImportBatch(_ batch: ImportEvidenceBatch) async throws -> ImportEvidenceBatchResponse {
-    try await createMemoryImportBatch(batch, authorizationSnapshot: nil)
-  }
-
-  func createMemoryImportBatch(
-    _ batch: ImportEvidenceBatch,
-    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot?
-  ) async throws -> ImportEvidenceBatchResponse {
-    precondition(
-      batch.items.count <= Self.memoryImportBatchMaxSize,
-      "createMemoryImportBatch received \(batch.items.count) artifacts, max is \(Self.memoryImportBatchMaxSize)"
-    )
-    return try await post(
-      "v3/memory-imports/batch",
-      body: batch,
-      includeBYOK: false,
-      authorizationSnapshot: authorizationSnapshot)
-  }
-
   /// Deletes a memory by ID
   func deleteMemory(id: String) async throws {
     try await delete("v3/memories/\(id)")
@@ -686,15 +655,6 @@ extension APIClient {
     }
     let body = EditRequest(value: content)
     let _: MemoryStatusResponse = try await patch("v3/memories/\(id)", body: body)
-  }
-
-  /// Updates a memory's visibility
-  func updateMemoryVisibility(id: String, visibility: String) async throws {
-    struct VisibilityRequest: Encodable {
-      let value: String
-    }
-    let body = VisibilityRequest(value: visibility)
-    let _: MemoryStatusResponse = try await patch("v3/memories/\(id)/visibility", body: body)
   }
 
   /// Updates memory read/dismissed status
@@ -724,25 +684,6 @@ extension APIClient {
     throw APIError.unsupportedTierScopedBulkMutation("read-state updates")
   }
 
-  /// Updates visibility of all memories
-  func updateAllMemoriesVisibility(visibility: String) async throws {
-    struct VisibilityRequest: Encodable {
-      let value: String
-    }
-    let body = VisibilityRequest(value: visibility)
-    let _: MemoryStatusResponse = try await patch("v3/memories/visibility", body: body)
-  }
-
-  /// Updates visibility of all default-scope memories.
-  /// Layer/archive scoped bulk mutations remain disabled until backend semantics exist.
-  func updateAllMemoriesVisibility(scope: MemoryLayerScope, visibility: String) async throws {
-    if scope == .defaultAccess {
-      try await updateAllMemoriesVisibility(visibility: visibility)
-      return
-    }
-    throw APIError.unsupportedTierScopedBulkMutation("visibility updates")
-  }
-
   /// Deletes all memories
   func deleteAllMemories() async throws {
     try await delete("v3/memories")
@@ -770,7 +711,6 @@ typealias CreateMemoryResponse = ServerMemory
 /// imports default to `.system` ("About You") rather than landing in "Manual".
 struct MemoryBatchItem: Encodable {
   let content: String
-  let visibility: String
   let category: String
   let tags: [String]
   let headline: String?
@@ -779,7 +719,6 @@ struct MemoryBatchItem: Encodable {
 
   init(
     content: String,
-    visibility: String = "private",
     category: MemoryCategory = .system,
     tags: [String] = [],
     headline: String? = nil,
@@ -787,7 +726,6 @@ struct MemoryBatchItem: Encodable {
     windowTitle: String? = nil
   ) {
     self.content = content
-    self.visibility = visibility
     self.category = category.rawValue
     self.tags = tags
     self.headline = headline
@@ -796,7 +734,7 @@ struct MemoryBatchItem: Encodable {
   }
 
   enum CodingKeys: String, CodingKey {
-    case content, visibility, category, tags, headline, source
+    case content, category, tags, headline, source
     case windowTitle = "window_title"
   }
 }
@@ -816,116 +754,6 @@ struct BatchMemoriesResponse: Decodable {
   struct BatchMemory: Decodable {
     let id: String
     let content: String
-  }
-}
-
-struct ImportEvidenceBatch: Encodable {
-  let sourceType: String
-  let importRunId: String?
-  let sourceAccountHash: String?
-  let importerVersion: String
-  let extractorVersion: String?
-  let items: [ImportEvidenceBatchItem]
-
-  init(
-    sourceType: String,
-    importRunId: String? = nil,
-    sourceAccountHash: String? = nil,
-    importerVersion: String = "desktop-import-v1",
-    extractorVersion: String? = nil,
-    items: [ImportEvidenceBatchItem]
-  ) {
-    self.sourceType = sourceType
-    self.importRunId = importRunId
-    self.sourceAccountHash = sourceAccountHash
-    self.importerVersion = importerVersion
-    self.extractorVersion = extractorVersion
-    self.items = items
-  }
-
-  enum CodingKeys: String, CodingKey {
-    case sourceType = "source_type"
-    case importRunId = "import_run_id"
-    case sourceAccountHash = "source_account_hash"
-    case importerVersion = "importer_version"
-    case extractorVersion = "extractor_version"
-    case items
-  }
-}
-
-struct ImportEvidenceBatchItem: Encodable, Hashable {
-  let externalId: String?
-  let occurredAt: Date?
-  let title: String?
-  let snippet: String?
-  let content: String?
-  let contentHash: String?
-  let metadata: [String: String]
-  let clientDeviceId: String?
-
-  init(
-    externalId: String? = nil,
-    occurredAt: Date? = nil,
-    title: String? = nil,
-    snippet: String? = nil,
-    content: String? = nil,
-    contentHash: String? = nil,
-    metadata: [String: String] = [:],
-    clientDeviceId: String? = nil
-  ) {
-    self.externalId = externalId
-    self.occurredAt = occurredAt
-    self.title = title
-    self.snippet = snippet
-    self.content = content
-    self.contentHash = contentHash
-    self.metadata = metadata
-    self.clientDeviceId = clientDeviceId
-  }
-
-  enum CodingKeys: String, CodingKey {
-    case externalId = "external_id"
-    case occurredAt = "occurred_at"
-    case title
-    case snippet
-    case content
-    case contentHash = "content_hash"
-    case metadata
-    case clientDeviceId = "client_device_id"
-  }
-
-  func encode(to encoder: Encoder) throws {
-    var container = encoder.container(keyedBy: CodingKeys.self)
-    try container.encodeIfPresent(externalId, forKey: .externalId)
-    if let occurredAt {
-      let formatter = ISO8601DateFormatter()
-      formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-      try container.encode(formatter.string(from: occurredAt), forKey: .occurredAt)
-    }
-    try container.encodeIfPresent(title, forKey: .title)
-    try container.encodeIfPresent(snippet, forKey: .snippet)
-    try container.encodeIfPresent(content, forKey: .content)
-    try container.encodeIfPresent(contentHash, forKey: .contentHash)
-    try container.encode(metadata, forKey: .metadata)
-    try container.encodeIfPresent(clientDeviceId, forKey: .clientDeviceId)
-  }
-}
-
-struct ImportEvidenceBatchResponse: Decodable {
-  let runId: String
-  let artifactsReceived: Int
-  let artifactsCreated: Int
-  let artifactsDeduped: Int
-  let candidatesCreated: Int
-  let status: String
-
-  enum CodingKeys: String, CodingKey {
-    case runId = "run_id"
-    case artifactsReceived = "artifacts_received"
-    case artifactsCreated = "artifacts_created"
-    case artifactsDeduped = "artifacts_deduped"
-    case candidatesCreated = "candidates_created"
-    case status
   }
 }
 

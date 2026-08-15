@@ -80,7 +80,7 @@ from utils.memory.canonical_memory_adapter import (
     replace_conversation_sourced_memories,
     retract_conversation_sourced_memories,
     write_canonical_extraction_memory,
-    write_canonical_external_memory,
+    write_canonical_surface_memory,
 )
 from utils.memory.memory_system import MemorySystem, resolve_memory_system
 
@@ -627,9 +627,6 @@ def test_extract_memories_inner_legacy_calls_save_memories(monkeypatch):
     monkeypatch.setattr(pc, "record_usage", lambda *args, **kwargs: None)
     monkeypatch.setattr(pc.users_db, "get_user_language_preference", lambda uid: "en")
     monkeypatch.setattr(pc.notification_db, "get_user_time_zone", lambda uid: "UTC")
-    kg_module = ModuleType("utils.llm.knowledge_graph")
-    kg_module.extract_knowledge_from_memory = lambda *args, **kwargs: None
-    monkeypatch.setitem(sys.modules, "utils.llm.knowledge_graph", kg_module)
 
     conversation = SimpleNamespace(
         id="conv-legacy",
@@ -960,22 +957,15 @@ def test_v3_get_routes_canonical_user_to_memory_service(monkeypatch):
         limit=10,
         offset=0,
         cursor=None,
-        device_scope="all",
-        client_device_id=None,
         uid="uid-canonical",
         memory_runtime=runtime,
-        x_app_platform=None,
-        x_device_id_hash=None,
     )
 
     assert result == canonical_memories
-    from utils.client_device import DeviceScopeRequest
-
     service_read.assert_called_once_with(
         "uid-canonical",
         limit=10,
         offset=0,
-        device_scope_request=DeviceScopeRequest(device_scope="all", client_device_id=None),
         include_pending_processing=True,
     )
     legacy_get.assert_not_called()
@@ -1007,12 +997,8 @@ def test_v3_get_keeps_legacy_path_for_non_canonical(monkeypatch):
         limit=10,
         offset=0,
         cursor=None,
-        device_scope="all",
-        client_device_id=None,
         uid="uid-legacy",
         memory_runtime=runtime,
-        x_app_platform=None,
-        x_device_id_hash=None,
     )
 
     body = json.loads(result.body)
@@ -1021,43 +1007,8 @@ def test_v3_get_keeps_legacy_path_for_non_canonical(monkeypatch):
     assert "memory_tier" not in body[0]
     assert "layer" not in body[0]
     assert "tier" not in body[0]
-    assert result.headers["x-omi-memory-device-scope-supported"] == "false"
     legacy_get.assert_called_once_with("uid-legacy", 10, 0)
     service_read.assert_not_called()
-
-
-def test_v3_memory_creates_forward_request_device_provenance(monkeypatch):
-    memories_router = _load_memories_router(monkeypatch)
-    device_context = SimpleNamespace(client_device_id="macos_a1b2c3d4")
-    forwarded_device_ids = []
-
-    class ProvenanceCaptured(Exception):
-        pass
-
-    async def skip_import_guard(*args, **kwargs):
-        return None
-
-    def capture_from_memory(*args, **kwargs):
-        forwarded_device_ids.append(kwargs["client_device_id"])
-        raise ProvenanceCaptured
-
-    monkeypatch.setattr(memories_router, "resolve_client_device_from_request", lambda request: device_context)
-    monkeypatch.setattr(memories_router, "_guard_import_memory_write", skip_import_guard)
-    monkeypatch.setattr(memories_router.MemoryDB, "from_memory", staticmethod(capture_from_memory))
-
-    memory = SimpleNamespace(category=MemoryCategory.manual, visibility="private", tags=[])
-    with pytest.raises(ProvenanceCaptured):
-        asyncio.run(memories_router.create_memory(MagicMock(), memory, "uid-device-provenance"))
-    with pytest.raises(ProvenanceCaptured):
-        asyncio.run(
-            memories_router.create_memories_batch(
-                MagicMock(),
-                SimpleNamespace(memories=[memory]),
-                "uid-device-provenance",
-            )
-        )
-
-    assert forwarded_device_ids == ["macos_a1b2c3d4", "macos_a1b2c3d4"]
 
 
 def test_legal_state_short_term_active_processed():
@@ -1078,15 +1029,14 @@ def _clear_canonical_env_ws_i2(monkeypatch):
     clear_memory_system_pin()
 
 
-def test_canonical_external_write_preserves_public_visibility_and_manual_flag(monkeypatch, _clear_canonical_env_ws_i2):
+def test_canonical_surface_write_preserves_manual_flag_and_provenance(monkeypatch, _clear_canonical_env_ws_i2):
     uid = "uid-canonical-meta"
     now = datetime(2026, 6, 25, tzinfo=timezone.utc)
     payload = {
-        "id": "mem_public_manual",
+        "id": "mem_manual",
         "uid": uid,
         "content": "I prefer tea over coffee",
         "category": MemoryCategory.manual.value,
-        "visibility": "public",
         "manually_added": True,
         "tags": ["user-note"],
         "created_at": now,
@@ -1094,9 +1044,9 @@ def test_canonical_external_write_preserves_public_visibility_and_manual_flag(mo
     }
     payload["evidence"] = [
         {
-            "evidence_id": "ev-public-manual",
-            "source_id": "manual-public",
-            "source_type": "api",
+            "evidence_id": "ev-manual",
+            "source_id": "manual-entry",
+            "source_type": "manual_note",
             "client_device_id": "macos_manual",
             "created_at": now,
         }
@@ -1124,36 +1074,32 @@ def test_canonical_external_write_preserves_public_visibility_and_manual_flag(mo
         "_persist_memory_item",
         side_effect=AssertionError("ordinary create must not directly persist MemoryItem"),
     ):
-        memory_id = write_canonical_external_memory(uid, payload, db_client=db)
+        memory_id = write_canonical_surface_memory(uid, payload, db_client=db)
 
-    assert memory_id == "mem_public_manual"
+    assert memory_id == "mem_manual"
     apply_mock.assert_called_once()
     patch_payload = apply_mock.call_args.kwargs["patch_payload"]
-    assert patch_payload["visibility"] == "public"
+    assert "visibility" not in patch_payload
     assert patch_payload["user_asserted"] is True
     assert patch_payload["initial_tier"] == MemoryTier.short_term.value
-    assert patch_payload["capture_device_ids"] == ["macos_manual"]
-    assert patch_payload["primary_capture_device"] == "macos_manual"
     assert patch_payload["sensitivity_labels"] == ["personal"]
     mutation_identity = patch_payload["mutation_metadata"]
     assert mutation_identity["new_memory_id"] == memory_id
-    assert mutation_identity["visibility"] == "public"
+    assert "visibility" not in mutation_identity
     assert mutation_identity["user_asserted"] is True
     assert mutation_identity["promotion"]["category"] == MemoryCategory.manual.value
     assert mutation_identity["promotion"]["tags"] == ["user-note"]
-    assert mutation_identity["capture_device_ids"] == ["macos_manual"]
     operations = [doc for path, doc in db.docs.items() if path.startswith(f"users/{uid}/memory_operations/")]
     assert len(operations) == 1
     assert operations[0]["logical_payload"]["mutation_metadata"] == mutation_identity
 
     stored = db.docs[f"users/{uid}/memory_items/{memory_id}"]
-    assert stored["visibility"] == "public"
+    assert "visibility" not in stored
     assert stored["user_asserted"] is True
     assert stored["tier"] == MemoryTier.short_term.value
     assert stored["promotion"]["category"] == MemoryCategory.manual.value
     assert stored["promotion"]["tags"] == ["user-note"]
-    assert stored["capture_device_ids"] == ["macos_manual"]
-    assert stored["primary_capture_device"] == "macos_manual"
+    assert stored["evidence"][0]["client_device_id"] == "macos_manual"
     assert stored["sensitivity_labels"] == ["personal"]
     outbox = [doc for path, doc in db.docs.items() if path.startswith(f"users/{uid}/memory_outbox/")]
     assert {doc["event_type"]: doc["payload"]["action"] for doc in outbox} == {
@@ -1165,15 +1111,14 @@ def test_canonical_external_write_preserves_public_visibility_and_manual_flag(mo
 
     item = MemoryItem(**stored)
     mapped = memory_item_to_memorydb(item)
-    assert mapped.visibility == "public"
     assert mapped.manually_added is True
     assert mapped.category == MemoryCategory.manual
     assert mapped.tags == ["user-note"]
+    assert mapped.evidence[0].client_device_id == "macos_manual"
     assert mapped.memory_tier == MemoryTier.short_term
 
     memories = read_canonical_memories(uid, db_client=db)
     assert len(memories) == 1
-    assert memories[0].visibility == "public"
     assert memories[0].manually_added is True
 
 
@@ -1211,22 +1156,8 @@ def test_canonical_generated_evidence_uses_model_dump(monkeypatch, _clear_canoni
     assert f"users/{uid}/memory_evidence/{evidence_id}" in db.docs
 
 
-def test_mcp_validate_memory_uses_canonical_store_for_canonical_cohort():
-    source = (BACKEND_DIR / "routers" / "mcp.py").read_text(encoding="utf-8")
-    section = source.split("def _validate_mcp_memory", 1)[1].split("@router.delete", 1)[0]
-    assert "fetch_memory_dict" in section
-    memory_service_source = (BACKEND_DIR / "utils" / "memory" / "memory_service.py").read_text(encoding="utf-8")
-    assert "MemorySystem.CANONICAL" in memory_service_source
-    assert "read_canonical_memory_item" in memory_service_source
-
-
 _WRITER_FILES = [
     BACKEND_DIR / "routers" / "memories.py",
-    BACKEND_DIR / "routers" / "mcp.py",
-    BACKEND_DIR / "routers" / "mcp_sse.py",
-    BACKEND_DIR / "routers" / "developer.py",
-    BACKEND_DIR / "utils" / "conversations" / "memories.py",
-    BACKEND_DIR / "utils" / "x_connector.py",
     BACKEND_DIR / "utils" / "retrieval" / "tools" / "preference_tools.py",
 ]
 
@@ -1316,8 +1247,7 @@ def test_offline_rag_script_excluded_from_live_writer_guard():
 def test_memories_router_routes_canonical_create_through_memory_service():
     source = (BACKEND_DIR / "routers" / "memories.py").read_text(encoding="utf-8")
     assert "_canonical_write_enabled_or_fail_closed(uid, db_client=db_client)" in source
-    assert "memory_service.create_external_memory" in source
-    assert "require_canonical_promotion=True" in source
+    assert "memory_service.create_memory_for_surface" in source
     create_section = source.split("async def create_memory", 1)[1].split("@router.post", 1)[0]
     canonical_pos = create_section.find("_canonical_write_enabled_or_fail_closed")
     legacy_pos = create_section.find("memories_db.create_memory")
@@ -1339,8 +1269,7 @@ def test_review_memory_routes_canonical_cohort_through_memory_service():
 def test_preference_tools_routes_canonical_cohort_through_memory_service():
     source = (BACKEND_DIR / "utils" / "retrieval" / "tools" / "preference_tools.py").read_text(encoding="utf-8")
     assert "resolve_memory_system(uid, db_client=db) == MemorySystem.CANONICAL" in source
-    assert "MemoryService(db_client=db).create_external_memory(" in source
-    assert "require_canonical_promotion=True" in source
+    assert "MemoryService(db_client=db).create_memory_for_surface(" in source
     canonical_pos = source.find("MemorySystem.CANONICAL")
     legacy_pos = source.find("memory_db.create_memory")
     assert canonical_pos != -1 and legacy_pos != -1

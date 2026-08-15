@@ -8,7 +8,7 @@ rename call sites.
 Terminology
 -----------
 **Conversation** — Persisted session record at ``users/{uid}/conversations``: processed
-``transcript_segments``, session metadata (``structured``, ``apps_results``), audio
+``transcript_segments``, session metadata (``structured``), and audio
 linkage. Upstream of memory; never a memory layer.
 
 **Capture session** — Ephemeral listen/recording window (WebSocket lifetime). For voice

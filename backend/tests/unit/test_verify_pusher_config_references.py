@@ -131,28 +131,15 @@ def test_standalone_pusher_reconciles_non_secret_config_before_preflight():
     """Static workflow contract: reconciliation makes rendered references live before Helm."""
     workflow = (SCRIPT.parents[2] / ".github/workflows/gcp_backend_pusher.yml").read_text(encoding="utf-8")
     required_config = {
-        "CONVERSATION_SUMMARIZED_APP_IDS",
         "GOOGLE_CLIENT_ID",
-        "MCP_AUTHORIZATION_SERVER_URL",
-        "MCP_OAUTH_CHATGPT_CLIENT_ID",
-        "MCP_OAUTH_CHATGPT_REDIRECT_URIS",
-        "MCP_OAUTH_PUBLIC_CLIENT_ID",
-        "MCP_OAUTH_PUBLIC_REDIRECT_URIS",
-        "MCP_RESOURCE_URL",
-        "RAPID_API_HOST",
         "REDIS_DB_HOST",
         "TYPESENSE_HOST",
         "TWILIO_ACCOUNT_SID",
         "TWILIO_API_KEY_SID",
         "TWILIO_TWIML_APP_SID",
-        "X_OAUTH_CLIENT_ID",
-        "X_OAUTH_REDIRECT_URI",
     }
     prod_only_config = {
         "ACCOUNT_DELETION_HANDLER_URL",
-        "MCP_OAUTH_CLAUDE_CLIENT_ID",
-        "MCP_OAUTH_CLAUDE_CLIENT_NAME",
-        "MCP_OAUTH_CLAUDE_REDIRECT_URIS",
         "SYNC_TASKS_HANDLER_URL",
         "SYNC_TASKS_INVOKER_SA",
     }

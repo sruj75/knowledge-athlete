@@ -2,11 +2,45 @@
 Tools for answering questions about the Omi/Friend product.
 """
 
+import os
+
+import httpx
 from langchain_core.tools import tool  # type: ignore[reportUnknownVariableType]  # langchain @tool decorator partially typed
-from utils.app_integrations import get_github_docs_content
+from database.redis_db import get_generic_cache, set_generic_cache
 import logging
 
 logger = logging.getLogger(__name__)
+
+
+def get_github_docs_content(repo: str = "BasedHardware/omi", path: str = "docs/doc") -> dict[str, str]:
+    """Read product documentation without depending on the retired app runtime."""
+    cache_key = f'get_github_docs_content_{repo}_{path}'
+    if cached := get_generic_cache(cache_key):
+        return cached
+    docs_content: dict[str, str] = {}
+    headers = {"Authorization": f"token {os.getenv('GITHUB_TOKEN')}"}
+
+    def get_contents(current_path: str) -> None:
+        response = httpx.get(
+            f"https://api.github.com/repos/{repo}/contents/{current_path}", headers=headers, timeout=30.0
+        )
+        if response.status_code != 200:
+            logger.error("Failed to fetch product docs path=%s status=%s", current_path, response.status_code)
+            return
+        contents = response.json()
+        if not isinstance(contents, list):
+            return
+        for item in contents:
+            if item["type"] == "file" and item["name"].endswith((".md", ".mdx")):
+                raw_response = httpx.get(item["download_url"], headers=headers, timeout=30.0)
+                if raw_response.status_code == 200:
+                    docs_content[item["path"]] = raw_response.text
+            elif item["type"] == "dir":
+                get_contents(item["path"])
+
+    get_contents(path)
+    set_generic_cache(cache_key, docs_content, 60 * 24 * 7)
+    return docs_content
 
 
 @tool

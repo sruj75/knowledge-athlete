@@ -71,7 +71,6 @@ struct ServerConversation: Codable, Identifiable, Equatable {
   var transcriptSegmentsIncluded: Bool
   let geolocation: Geolocation?
 
-  let appsResults: [AppResponse]
   let source: ConversationSource?
   let language: String?
 
@@ -95,7 +94,6 @@ struct ServerConversation: Codable, Identifiable, Equatable {
     case structured
     case transcriptSegments = "transcript_segments"
     case geolocation
-    case appsResults = "apps_results"
     case source
     case language
     case status
@@ -128,7 +126,6 @@ struct ServerConversation: Codable, Identifiable, Equatable {
     transcriptSegmentsIncluded = container.contains(.transcriptSegments)
     transcriptSegments = (wire.transcriptSegments ?? []).map(TranscriptSegment.init)
     geolocation = wire.geolocation
-    appsResults = (wire.appsResults ?? []).map(AppResponse.init)
     source = wire.source.map { ConversationSource(rawValue: $0.rawValue) ?? .unknown }
     language = wire.language
     status = wire.status.map { ConversationStatus(rawValue: $0.rawValue) ?? .completed } ?? .completed
@@ -174,7 +171,6 @@ struct ServerConversation: Codable, Identifiable, Equatable {
     transcriptSegments: [TranscriptSegment],
     transcriptSegmentsIncluded: Bool,
     geolocation: Geolocation?,
-    appsResults: [AppResponse],
     source: ConversationSource?,
     language: String?,
     status: ConversationStatus,
@@ -195,7 +191,6 @@ struct ServerConversation: Codable, Identifiable, Equatable {
     self.transcriptSegments = transcriptSegments
     self.transcriptSegmentsIncluded = transcriptSegmentsIncluded
     self.geolocation = geolocation
-    self.appsResults = appsResults
     self.source = source
     self.language = language
     self.status = status
@@ -594,37 +589,6 @@ struct TranscriptSegment: Codable, Identifiable {
 /// the four exposed fields through with no transformation (no Date parsing,
 /// no defaults, no computed properties), so this is a thin alias.
 typealias Geolocation = OmiAPI.Geolocation
-
-struct AppResponse: Codable, Identifiable {
-  // `id` is stored, not computed: a nil `app_id` (legacy summary results still
-  // carry it as null) must keep one stable identity for its lifetime. A
-  // computed `appId ?? UUID().uuidString` minted a fresh id on every read, so
-  // SwiftUI's Identifiable ForEach tore down and recreated the row on every
-  // diff — losing per-row @State (expansion, hover) and flashing transitions.
-  let id: String
-  let appId: String?
-  let content: String
-
-  enum CodingKeys: String, CodingKey {
-    case appId = "app_id"
-    case content
-  }
-
-  /// Adapter from the generated wire DTO (OmiAPI.AppResult).
-  init(_ wire: OmiAPI.AppResult) {
-    self.appId = wire.appId
-    self.id = wire.appId ?? UUID().uuidString
-    self.content = wire.content
-  }
-
-  init(from decoder: Decoder) throws {
-    let container = try decoder.container(keyedBy: CodingKeys.self)
-    let decodedAppId = try container.decodeIfPresent(String.self, forKey: .appId)
-    appId = decodedAppId
-    id = decodedAppId ?? UUID().uuidString
-    content = try container.decodeIfPresent(String.self, forKey: .content) ?? ""
-  }
-}
 
 struct ConversationSearchResult: Codable {
   let items: [ServerConversation]

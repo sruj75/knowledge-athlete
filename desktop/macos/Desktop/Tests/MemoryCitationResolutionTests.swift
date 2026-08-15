@@ -2,8 +2,8 @@ import XCTest
 
 @testable import Omi_Computer
 
-/// The Brain Map inspector cites memories by id. Resolving those citations is
-/// a cache lookup, not a scan of whatever the Memories list happens to be
+/// Retained source relationships cite memories by id. Resolving those citations
+/// is a cache lookup, not a scan of whatever the Memories list happens to be
 /// showing: the visible array is one page of a tier-filtered, device-scoped
 /// browse, so citations routinely fall outside it and the inspector reported
 /// them as "not loaded yet" while they sat on disk.
@@ -95,7 +95,6 @@ final class MemoryCitationResolutionTests: XCTestCase {
       conversationId: nil,
       reviewed: false,
       userReview: nil,
-      visibility: "private",
       manuallyAdded: false,
       scoring: nil,
       source: "desktop",

@@ -288,12 +288,8 @@ class AppState: ObservableObject {
   @Published var isScreenCaptureKitBroken = false  // Capture engine issue; not the source of permission truth
   @Published var isScreenRecordingStale = false  // Deprecated: no longer inferred from capture failures
   var screenRecordingGrantAttempts = 0  // Track how many times user clicked Grant without success
-  @Published var hasAutomationPermission = false
-  @Published var automationPermissionError: OSStatus = 0  // Non-zero when check fails unexpectedly (e.g. -600 procNotFound)
-  var isCheckingAutomationPermission = false  // Prevent concurrent checks (retry path has a 1s sleep)
   @Published var hasAccessibilityPermission = false
   @Published var isAccessibilityBroken = false  // TCC says yes but AX calls actually fail (common after macOS updates/app re-signs)
-  @Published var hasFullDiskAccess = false
 
   /// Usage-limit popup state. Set by `triggerUsageLimitPopup(reason:)` when the
   /// user hits a free-tier cap (transcription minutes, monthly chat messages, etc).
@@ -756,8 +752,6 @@ extension Notification.Name {
   static let showTryAskingPopup = Notification.Name("showTryAskingPopup")
   /// Posted (automation bridge) to open the inline chat on the redesigned Home
   static let homeStageOpenChat = Notification.Name("homeStageOpenChat")
-  /// Posted (automation bridge) to toggle the Connect tray on the redesigned Home
-  static let homeStageToggleConnect = Notification.Name("homeStageToggleConnect")
   /// Posted (automation bridge) to collapse the redesigned Home back to the hub
   static let homeStageClose = Notification.Name("homeStageClose")
   /// Posted (automation bridge) to send a query through the Home ask bar. userInfo["query"] = text.
@@ -792,8 +786,6 @@ extension Notification.Name {
   static let focusPageDidLoad = Notification.Name("focusPageDidLoad")
   /// Posted when Advice page finishes loading initial data
   static let insightPageDidLoad = Notification.Name("insightPageDidLoad")
-  /// Posted when Apps page finishes loading initial data
-  static let appsPageDidLoad = Notification.Name("appsPageDidLoad")
   /// Posted when a goal is auto-created by GoalGenerationService
   static let goalAutoCreated = Notification.Name("goalAutoCreated")
   /// Posted when a goal is completed (current_value >= target_value)
@@ -818,10 +810,6 @@ extension Notification.Name {
   /// Posted by the local desktop automation bridge to expand the transcript drawer.
   static let desktopAutomationShowConversationTranscriptRequested = Notification.Name(
     "desktopAutomationShowConversationTranscriptRequested")
-  /// Posted when file indexing completes (userInfo: ["totalFiles": Int])
-  static let fileIndexingComplete = Notification.Name("fileIndexingComplete")
-  /// Posted from Settings to trigger the file indexing sheet
-  static let triggerFileIndexing = Notification.Name("triggerFileIndexing")
   /// Posted from menu bar to toggle transcription (userInfo: ["enabled": Bool])
   static let toggleTranscriptionRequested = Notification.Name("toggleTranscriptionRequested")
 }

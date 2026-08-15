@@ -195,21 +195,16 @@ class Features:
     CONVERSATION_PROCESSING = "conversation_processing"
     RAG = "rag"
     NOTIFICATIONS = "notifications"
-    APP_INTEGRATIONS = "app_integrations"
     GOALS = "goals"
     TRENDS = "trends"
-    PERSONA = "persona"
     MEMORIES = "memories"
     TRANSCRIBE = "transcribe"
-    REALTIME_INTEGRATIONS = "realtime_integrations"
     DAILY_SUMMARY = "daily_summary"
     SUBSCRIPTION_NOTIFICATION = "subscription_notification"
-    KNOWLEDGE_GRAPH = "knowledge_graph"
     OTHER = "other"
 
     PROACTIVE_NOTIFICATION = "proactive_notification"
     FOLLOWUP = "followup"
-    APP_GENERATOR = "app_generator"
     ONBOARDING = "onboarding"
 
     # Conversation processing sub-features (granular cost tracking)
@@ -217,4 +212,3 @@ class Features:
     CONVERSATION_STRUCTURE = "conv_structure"
     CONVERSATION_ACTION_ITEMS = "conv_action_items"
     CONVERSATION_FOLDER = "conv_folder"
-    CONVERSATION_APPS = "conv_apps"

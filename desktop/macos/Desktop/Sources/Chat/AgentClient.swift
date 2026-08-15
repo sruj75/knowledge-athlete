@@ -47,6 +47,57 @@ enum AgentClient {
   typealias AuthRequiredHandler = AgentBridge.AuthRequiredHandler
   typealias AuthSuccessHandler = AgentBridge.AuthSuccessHandler
 
+  struct QueryTransportRequest: Sendable {
+    let prompt: String
+    let session: AgentSurfaceSession
+    let surface: AgentSurfaceReference
+    let mode: String?
+    let imageData: Data?
+    let attachments: [AgentQueryAttachment]
+    let producingTurnId: String?
+    let expectedContext: AgentContextFreshness?
+    let reasoningEffort: String?
+  }
+
+  struct QueryTransportCallbacks: Sendable {
+    let onTextDelta: TextDeltaHandler
+    let onToolActivity: ToolActivityHandler
+    let onThinkingDelta: ThinkingDeltaHandler
+    let onToolResultDisplay: ToolResultDisplayHandler
+    let onAuthRequired: AuthRequiredHandler
+    let onAuthSuccess: AuthSuccessHandler
+  }
+
+  typealias SessionQueryTransport =
+    @Sendable (
+      AgentBridge,
+      QueryTransportRequest,
+      QueryTransportCallbacks
+    ) async throws -> AgentBridge.QueryResult
+
+  private static let liveSessionQueryTransport: SessionQueryTransport = {
+    bridge,
+    request,
+    callbacks in
+    try await bridge.query(
+      prompt: request.prompt,
+      session: request.session,
+      surface: request.surface,
+      mode: request.mode,
+      imageData: request.imageData,
+      attachments: request.attachments,
+      producingTurnId: request.producingTurnId,
+      expectedContext: request.expectedContext,
+      reasoningEffort: request.reasoningEffort,
+      onTextDelta: callbacks.onTextDelta,
+      onToolActivity: callbacks.onToolActivity,
+      onThinkingDelta: callbacks.onThinkingDelta,
+      onToolResultDisplay: callbacks.onToolResultDisplay,
+      onAuthRequired: callbacks.onAuthRequired,
+      onAuthSuccess: callbacks.onAuthSuccess
+    )
+  }
+
   struct QueryResult: Sendable {
     let text: String
     let costUsd: Double
@@ -99,11 +150,16 @@ enum AgentClient {
   /// Long-lived bridge session for main chat and other streaming surfaces.
   actor Session {
     private var bridge: AgentBridge
+    private let queryTransport: SessionQueryTransport
     private(set) var harnessMode: String
 
-    init(harnessMode: String) {
+    init(
+      harnessMode: String,
+      queryTransport: @escaping SessionQueryTransport = AgentClient.liveSessionQueryTransport
+    ) {
       self.harnessMode = harnessMode
       self.bridge = AgentBridge(harnessMode: harnessMode)
+      self.queryTransport = queryTransport
     }
 
     var isAlive: Bool {
@@ -360,6 +416,7 @@ enum AgentClient {
       onAuthSuccess: @escaping AuthSuccessHandler = {}
     ) async throws -> QueryResult {
       let bridge = bridge
+      let queryTransport = queryTransport
       return QueryResult(
         try await AgentContextAdmissionRetry.run(
           expectedContext: expectedContext,
@@ -370,22 +427,27 @@ enum AgentClient {
             ).freshness
           },
           attempt: { admittedContext in
-            try await bridge.query(
-              prompt: prompt,
-              session: session,
-              surface: surface,
-              mode: mode,
-              imageData: imageData,
-              attachments: attachments,
-              producingTurnId: producingTurnId,
-              expectedContext: admittedContext,
-              reasoningEffort: reasoningEffort,
-              onTextDelta: onTextDelta,
-              onToolActivity: onToolActivity,
-              onThinkingDelta: onThinkingDelta,
-              onToolResultDisplay: onToolResultDisplay,
-              onAuthRequired: onAuthRequired,
-              onAuthSuccess: onAuthSuccess
+            try await queryTransport(
+              bridge,
+              QueryTransportRequest(
+                prompt: prompt,
+                session: session,
+                surface: surface,
+                mode: mode,
+                imageData: imageData,
+                attachments: attachments,
+                producingTurnId: producingTurnId,
+                expectedContext: admittedContext,
+                reasoningEffort: reasoningEffort
+              ),
+              QueryTransportCallbacks(
+                onTextDelta: onTextDelta,
+                onToolActivity: onToolActivity,
+                onThinkingDelta: onThinkingDelta,
+                onToolResultDisplay: onToolResultDisplay,
+                onAuthRequired: onAuthRequired,
+                onAuthSuccess: onAuthSuccess
+              )
             )
           }
         ))

@@ -107,14 +107,14 @@ class TestMemoriesRateLimitWiring:
 
     def test_modify_endpoints_have_rate_limit(self):
         matches = _grep_router(r"with_rate_limit.*memories:modify")
-        assert len(matches) == 4, f"Edit/visibility/review/baseline must have memories:modify, found: {matches}"
+        assert len(matches) == 3, f"Edit/review/baseline must have memories:modify, found: {matches}"
 
     def test_all_write_endpoints_rate_limited(self):
         """Every write endpoint in memories.py must use with_rate_limit."""
         matches = _grep_router(r"with_rate_limit.*memories:")
         # create, batch, review queue list/get/resolve, delete, delete_all, delete_batch,
-        # modify(review), modify(edit), modify(visibility), modify(baseline) = 12
-        assert len(matches) == 12, f"Expected 12 rate-limited endpoints, got {len(matches)}: {matches}"
+        # modify(review), modify(edit), modify(baseline) = 11
+        assert len(matches) == 11, f"Expected 11 rate-limited endpoints, got {len(matches)}: {matches}"
 
 
 # ---------------------------------------------------------------------------
@@ -125,15 +125,15 @@ class TestMemoriesRateLimitWiring:
 class TestCreateMemoryErrorHandling:
     """Verify error handling structure in create_memory source code."""
 
-    def test_single_and_batch_create_stamp_request_device_provenance(self):
+    def test_single_and_batch_create_do_not_restore_retired_device_scope(self):
         source = _read_router()
         create_body = source.split("async def create_memory(", 1)[1].split("\n@router.", 1)[0]
         batch_body = source.split("async def create_memories_batch(", 1)[1].split("\n@router.", 1)[0]
 
-        assert "resolve_client_device_from_request(request)" in create_body
-        assert "client_device_id=device_context.client_device_id" in create_body
-        assert "resolve_client_device_from_request(request_context)" in batch_body
-        assert "client_device_id=device_context.client_device_id" in batch_body
+        assert "resolve_client_device_from_request" not in create_body
+        assert "client_device_id=" not in create_body
+        assert "resolve_client_device_from_request" not in batch_body
+        assert "client_device_id=" not in batch_body
 
     def test_create_memory_is_async(self):
         """create_memory must be async def (prevents threadpool exhaustion)."""

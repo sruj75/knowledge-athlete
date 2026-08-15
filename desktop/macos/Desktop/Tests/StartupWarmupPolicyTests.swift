@@ -77,13 +77,6 @@ final class StartupWarmupPolicyTests: XCTestCase {
     )
   }
 
-  func testInitialFileIndexingWaitsUntilAfterDeferredWarmupStarts() {
-    XCTAssertGreaterThan(
-      StartupWarmupPolicy.initialFileIndexingDelay,
-      StartupWarmupPolicy.deferredWarmupDelay
-    )
-  }
-
   func testTranscriptionRetryRecoveryWaitsUntilAfterDeferredWarmupStarts() {
     XCTAssertGreaterThan(
       StartupWarmupPolicy.transcriptionRetryRecoveryDelay,
@@ -107,17 +100,6 @@ final class StartupWarmupPolicyTests: XCTestCase {
 
   func testFloatingBarPlanFetchRunsImmediatelyForQuotaGate() {
     XCTAssertEqual(StartupWarmupPolicy.floatingBarPlanFetchDelay, 0)
-  }
-
-  func testMCPKeyWarmupRunsAfterInteractiveLoadButBeforeDeferredWarmup() {
-    XCTAssertGreaterThan(
-      StartupWarmupPolicy.mcpKeyWarmupDelay,
-      StartupWarmupPolicy.immediateWarmupDelay
-    )
-    XCTAssertLessThan(
-      StartupWarmupPolicy.mcpKeyWarmupDelay,
-      StartupWarmupPolicy.deferredWarmupDelay
-    )
   }
 
   func testInitialSettingsSyncWaitsUntilAfterDeferredWarmupStarts() {
@@ -222,30 +204,6 @@ final class StartupWarmupPolicyTests: XCTestCase {
     XCTAssertTrue(gate.reserve())
   }
 
-  func testFileIndexingBackfillMarksCompleteOnlyAfterScanCompletes() {
-    var backfill = DelayedFileIndexingBackfillState()
-
-    XCTAssertTrue(backfill.reserveIfNeeded(hasCompletedBackfill: false))
-    XCTAssertFalse(backfill.shouldMarkComplete)
-
-    backfill.markScanCompleted()
-
-    XCTAssertTrue(backfill.shouldMarkComplete)
-    XCTAssertFalse(backfill.reserveIfNeeded(hasCompletedBackfill: true))
-  }
-
-  func testFileIndexingBackfillCanRescheduleAfterReservationRelease() {
-    var backfill = DelayedFileIndexingBackfillState()
-
-    XCTAssertTrue(backfill.reserveIfNeeded(hasCompletedBackfill: false))
-    XCTAssertFalse(backfill.reserveIfNeeded(hasCompletedBackfill: false))
-
-    backfill.releaseReservation()
-
-    XCTAssertFalse(backfill.shouldMarkComplete)
-    XCTAssertTrue(backfill.reserveIfNeeded(hasCompletedBackfill: false))
-  }
-
   func testSessionScopeRejectsSignedOutAndMismatchedUsers() {
     let scope = StartupWarmupSessionScope(userId: "user-a")
 
@@ -264,7 +222,6 @@ final class StartupWarmupPolicyTests: XCTestCase {
     let source = try String(contentsOf: sourceURL, encoding: .utf8)
 
     XCTAssertTrue(source.contains("private var sessionTasks: [StartupWarmupTaskID: Task<Void, Never>]"))
-    XCTAssertTrue(source.contains("scheduleSessionWarmup(id: .mcpKeyWarmup"))
     XCTAssertTrue(source.contains("guard self.isCurrentSession(scope) else"))
     XCTAssertTrue(source.contains("guard isCurrentSession(scope) else { return }"))
     XCTAssertTrue(source.contains("sessionTasks.values.forEach { $0.cancel() }"))
@@ -280,7 +237,6 @@ final class StartupWarmupPolicyTests: XCTestCase {
     let source = try String(contentsOf: sourceURL, encoding: .utf8)
 
     XCTAssertTrue(source.contains("id: .conversationWarmup"))
-    XCTAssertTrue(source.contains("id: .initialFileIndexing"))
     XCTAssertTrue(source.contains("id: .proactiveAssistantsStart"))
     XCTAssertTrue(source.contains("viewModelContainer.resetStartupState()"))
     XCTAssertTrue(source.contains("resetSessionScopedStartupWarmups(preserveCrispReadState: true)"))
@@ -420,57 +376,6 @@ final class StartupWarmupPolicyTests: XCTestCase {
       dashboardSource.contains("goals = []"),
       "Dashboard reset must clear the previous user's goals"
     )
-  }
-
-  func testStartupResetClearsPerUserAppProviderState() throws {
-    let testsURL = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
-    let containerURL =
-      testsURL
-      .deletingLastPathComponent()
-      .appendingPathComponent("Sources/ViewModelContainer.swift")
-    let appProviderURL =
-      testsURL
-      .deletingLastPathComponent()
-      .appendingPathComponent("Sources/Providers/AppProvider.swift")
-    let containerSource = try String(contentsOf: containerURL, encoding: .utf8)
-    let appProviderSource = try String(contentsOf: appProviderURL, encoding: .utf8)
-
-    XCTAssertTrue(
-      containerSource.contains("appProvider.resetSessionState()"),
-      "Startup reset must clear AppProvider so account switches cannot show the previous user's app state"
-    )
-    XCTAssertTrue(
-      appProviderSource.contains("func resetSessionState()"),
-      "AppProvider must expose an explicit session reset hook"
-    )
-    for requiredReset in [
-      "apps = []",
-      "popularApps = []",
-      "integrationApps = []",
-      "chatApps = []",
-      "summaryApps = []",
-      "notificationApps = []",
-      "enabledApps = []",
-      "categories = []",
-      "capabilities = []",
-      "marketplaceApps = []",
-      "filteredAppsCache = [:]",
-      "filteredAppsCacheOrder = []",
-      "appLoadingStates = [:]",
-      "filteredApps = nil",
-      "hasMoreFilteredApps = false",
-      "filteredAppsOffset = 0",
-      "searchQuery = \"\"",
-      "selectedCategory = nil",
-      "selectedCapability = nil",
-      "showInstalledOnly = false",
-      "errorMessage = nil",
-    ] {
-      XCTAssertTrue(
-        appProviderSource.contains(requiredReset),
-        "AppProvider reset must include \(requiredReset)"
-      )
-    }
   }
 
   func testAuthSignInFetchesFloatingBarPlanImmediately() throws {

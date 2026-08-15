@@ -9,16 +9,8 @@ struct EmptyBody: Encodable {}
 extension APIClient {
 
   /// Clear chat message history
-  func deleteMessages(
-    appId: String? = nil,
-    expectedOwnerId: String? = nil
-  ) async throws -> MessageDeleteResponse {
-    var endpoint = "v2/desktop/messages"
-    if let appId = appId {
-      endpoint += "?app_id=\(appId)"
-    }
-
-    guard let url = URL(string: baseURL + endpoint) else {
+  func deleteMessages(expectedOwnerId: String? = nil) async throws -> MessageDeleteResponse {
+    guard let url = URL(string: baseURL + "v2/desktop/messages") else {
       throw APIError.invalidResponse
     }
     var request = URLRequest(url: url)
@@ -49,27 +41,13 @@ extension APIClient {
       "v2/desktop/messages/\(messageId)/rating", body: body)
   }
 
-  /// Share chat messages and get a shareable URL
-  func shareChatMessages(messageIds: [String]) async throws -> ShareChatResponse {
-    struct ShareRequest: Encodable {
-      let message_ids: [String]
-    }
-    let body = ShareRequest(message_ids: messageIds)
-    return try await post("v2/messages/share", body: body)
-  }
-
   /// Upload one or more files to be attached to a chat message.
   /// Mirrors the Flutter app's `uploadFilesServer` (lib/backend/http/api/messages.dart) —
   /// same `/v2/files` multipart endpoint, same response shape.
   func uploadChatFiles(
-    _ uploads: [(data: Data, fileName: String, mimeType: String)],
-    appId: String? = nil
+    _ uploads: [(data: Data, fileName: String, mimeType: String)]
   ) async throws -> [ChatFileResponse] {
-    var endpoint = "v2/files"
-    if let appId = appId, !appId.isEmpty, appId != "no_selected" {
-      endpoint += "?app_id=\(appId)"
-    }
-    guard let url = URL(string: baseURL + endpoint) else {
+    guard let url = URL(string: baseURL + "v2/files") else {
       throw APIError.invalidResponse
     }
 
@@ -98,6 +76,7 @@ extension APIClient {
   }
 
 }
+
 /// Response shape for `POST /v2/files` — mirrors backend `FileChat` model.
 struct ChatFileResponse: Codable {
   let id: String
@@ -120,10 +99,4 @@ struct ChatFileResponse: Codable {
 /// Response from rating a message
 struct MessageStatusResponse: Codable {
   let status: String
-}
-
-/// Response from sharing chat messages
-struct ShareChatResponse: Codable {
-  let url: String
-  let token: String
 }

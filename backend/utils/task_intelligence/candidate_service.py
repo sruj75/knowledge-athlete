@@ -1,6 +1,5 @@
-"""Candidate lifecycle orchestration and post-commit integration policy."""
+"""Candidate lifecycle orchestration."""
 
-import asyncio
 from typing import Optional, Protocol
 
 import database.action_items as action_items_db
@@ -14,9 +13,6 @@ from models.candidate import (
     CandidateStatus,
     CandidateSubjectKind,
 )
-from utils.executors import postprocess_executor, submit_with_context
-from utils.observability.fallback import record_fallback
-from utils.task_sync import auto_sync_action_item
 from utils.task_intelligence import task_links
 from utils.task_intelligence.workstream_index import refresh_workstream_association_index
 
@@ -53,99 +49,6 @@ def create_candidate(
     )
 
 
-def _dispatch_task_integration(uid: str, candidate_id: str, task_id: str, *, account_generation: int) -> bool:
-    lease_token = candidates_db.claim_candidate_integration_dispatch(
-        uid,
-        candidate_id,
-        account_generation=account_generation,
-    )
-    if lease_token is None:
-        return False
-    task = action_items_db.get_action_item(uid, task_id)
-    if not task:
-        candidates_db.complete_candidate_integration_dispatch(
-            uid,
-            candidate_id,
-            account_generation=account_generation,
-            lease_token=lease_token,
-            succeeded=False,
-        )
-        record_fallback(
-            component='other',
-            from_mode='candidate_integration',
-            to_mode='retry_queue',
-            reason='other',
-            outcome='degraded',
-        )
-        return True
-
-    def run_sync() -> None:
-        try:
-            result = asyncio.run(auto_sync_action_item(uid, task, skip_apple_reminders=False))
-        except Exception:
-            candidates_db.complete_candidate_integration_dispatch(
-                uid,
-                candidate_id,
-                account_generation=account_generation,
-                lease_token=lease_token,
-                succeeded=False,
-            )
-            record_fallback(
-                component='other',
-                from_mode='candidate_integration',
-                to_mode='retry_queue',
-                reason='other',
-                outcome='degraded',
-            )
-            raise
-        terminal_noop = result.get('reason') in {
-            'no_default_integration',
-            'integration_not_found',
-            'integration_not_connected',
-            'client_handles_sync',
-        }
-        succeeded = bool(result.get('synced')) or terminal_noop
-        candidates_db.complete_candidate_integration_dispatch(
-            uid,
-            candidate_id,
-            account_generation=account_generation,
-            lease_token=lease_token,
-            succeeded=succeeded,
-        )
-        if not succeeded:
-            record_fallback(
-                component='other',
-                from_mode='candidate_integration',
-                to_mode='retry_queue',
-                reason='other',
-                outcome='degraded',
-            )
-
-    submit_with_context(postprocess_executor, run_sync)
-    return True
-
-
-def drain_candidate_integrations(uid: str, *, account_generation: int, limit: int = 100) -> int:
-    scheduled = 0
-    for item in candidates_db.list_candidate_integration_dispatches(
-        uid,
-        account_generation=account_generation,
-        limit=limit,
-    ):
-        candidate_id = item.get('candidate_id')
-        task_id = item.get('task_id')
-        if isinstance(candidate_id, str) and isinstance(task_id, str):
-            scheduled += int(
-                _dispatch_task_integration(
-                    uid,
-                    candidate_id,
-                    task_id,
-                    account_generation=account_generation,
-                )
-            )
-    return scheduled
-
-
 def accept_candidate(uid: str, candidate_id: str, *, account_generation: int) -> CandidateResolutionReceipt:
     candidate = candidates_db.get_candidate(uid, candidate_id)
     if candidate is None:
@@ -165,13 +68,6 @@ def accept_candidate(uid: str, candidate_id: str, *, account_generation: int) ->
             raise candidates_db.CandidateConflictError(str(exc)) from exc
         if receipt.workstream_id:
             refresh_workstream_association_index(uid, receipt.workstream_id)
-        if receipt.task_id:
-            _dispatch_task_integration(
-                uid,
-                candidate_id,
-                receipt.task_id,
-                account_generation=account_generation,
-            )
         return receipt
 
     expected_task_links = None
@@ -196,13 +92,6 @@ def accept_candidate(uid: str, candidate_id: str, *, account_generation: int) ->
         account_generation=account_generation,
         expected_task_links=expected_task_links,
     )
-    if candidate.proposed_action == CandidateAction.create and receipt.task_id:
-        _dispatch_task_integration(
-            uid,
-            candidate_id,
-            receipt.task_id,
-            account_generation=account_generation,
-        )
     return receipt
 
 
@@ -243,7 +132,6 @@ __all__ = [
     'accept_candidate',
     'clear_workstream_candidate_resolver',
     'create_candidate',
-    'drain_candidate_integrations',
     'expire_candidate',
     'register_workstream_candidate_resolver',
     'reject_candidate',

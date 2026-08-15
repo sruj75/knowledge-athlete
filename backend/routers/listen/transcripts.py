@@ -19,7 +19,6 @@ from models.message_event import (
     TranslationEvent,
 )
 from models.transcript_segment import TranscriptSegment, Translation
-from utils.app_integrations import trigger_realtime_integrations
 from utils.conversations.factory import deserialize_conversation
 from utils.observability.fallback import record_fallback
 from utils.speaker_assignment import process_speaker_assigned_segments, should_update_speaker_to_person_map
@@ -314,16 +313,6 @@ class TranscriptProcessor:
                 self.host.complete_live_transcription()
             if self.host.transcript_send is not None and self.host.user_has_credits:
                 self.host.transcript_send([segment.model_dump() for segment in transcript_segments])
-            elif not self.host.pusher_enabled and self.host.user_has_credits:
-                try:
-                    await trigger_realtime_integrations(
-                        self.host.request.uid,
-                        [segment.model_dump() for segment in transcript_segments],
-                        self.host.state.current_conversation_id,
-                        source=self.host.request.source,
-                    )
-                except Exception as error:
-                    logger.error('Realtime integration trigger failed type=%s', type(error).__name__)
             if self.host.onboarding_handler and not self.host.onboarding_handler.completed:
                 self.host.onboarding_handler.on_segments_received(
                     [segment.model_dump() for segment in transcript_segments]

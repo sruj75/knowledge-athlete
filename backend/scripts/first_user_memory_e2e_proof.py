@@ -262,7 +262,7 @@ def build_not_checked_surfaces() -> dict[str, dict[str, str]]:
         },
         "default_read_surfaces": {
             "status": "not_checked",
-            "reason": "Only `/v3/memories` has a stable generic API proof path here; MCP/developer/default-read surfaces require route-specific harnesses.",
+            "reason": "Only `/v3/memories` has a stable generic API proof path here; other default-read surfaces require route-specific harnesses.",
         },
     }
 

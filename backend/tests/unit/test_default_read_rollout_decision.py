@@ -76,11 +76,8 @@ def _enabled_rollout_doc(uid='u1'):
             MemoryRolloutStageGate.read.value: PASSED,
         },
         'grants': {
-            'mcp': {'default_memory': True, 'archive': True},
-            'developer_api': {'default_memory': True, 'archive': True},
+            'omi_chat': {'default_memory': True, 'archive': True},
         },
-        'mcp_default_memory_grant': False,
-        'developer_default_memory_grant': False,
     }
 
 
@@ -217,7 +214,9 @@ def test_write_convergence_gate_fails_closed_for_missing_or_malformed_readiness_
 
 def test_legacy_write_guard_allows_memory_enabled_write_only_with_ready_convergence_policy():
     enabled_decision = read_default_read_rollout(
-        uid='u1', db_client=_FirestoreFake({'users/u1/memory_control/state': _enabled_rollout_doc()}), consumer='mcp'
+        uid='u1',
+        db_client=_FirestoreFake({'users/u1/memory_control/state': _enabled_rollout_doc()}),
+        consumer='omi_chat',
     )
     ready_policy = read_write_convergence_gate(
         db_client=_FirestoreFake(
@@ -250,30 +249,24 @@ def test_legacy_write_guard_allows_memory_enabled_write_only_with_ready_converge
     assert allowed_with_ready_policy.detail['reason'] == 'legacy_memory_write_allowed_with_memory_convergence'
 
 
-def test_shared_rollout_helper_reads_memory_control_state_for_mcp_and_developer_grants_without_archive_default():
+def test_shared_rollout_helper_reads_omi_chat_grant_without_archive_default():
     db_client = _FirestoreFake({'users/u1/memory_control/state': _enabled_rollout_doc()})
 
-    mcp_decision = read_default_read_rollout(uid='u1', db_client=db_client, consumer='mcp')
-    developer_decision = read_default_read_rollout(uid='u1', db_client=db_client, consumer='developer_api')
+    decision = read_default_read_rollout(uid='u1', db_client=db_client, consumer='omi_chat')
 
-    assert db_client.document_get_paths == ['users/u1/memory_control/state', 'users/u1/memory_control/state']
+    assert db_client.document_get_paths == ['users/u1/memory_control/state']
     assert db_client.collection_paths == []
-    assert mcp_decision.rollout_capabilities.memory_reads_enabled is True
-    assert developer_decision.rollout_capabilities.memory_reads_enabled is True
-    assert mcp_decision.app_has_default_memory_grant is True
-    assert developer_decision.app_has_default_memory_grant is True
-    assert mcp_decision.archive_capability is False
-    assert developer_decision.archive_capability is False
-    assert mcp_decision.read_decision == MemoryReadDecision.USE_MEMORY
-    assert developer_decision.read_decision == MemoryReadDecision.USE_MEMORY
-    assert mcp_decision.memory_default_mcp_enabled is True
-    assert developer_decision.memory_default_developer_enabled is True
+    assert decision.rollout_capabilities.memory_reads_enabled is True
+    assert decision.has_default_memory_grant is True
+    assert decision.archive_capability is False
+    assert decision.read_decision == MemoryReadDecision.USE_MEMORY
+    assert decision.memory_default_chat_enabled is True
 
 
-def test_shared_rollout_helper_fails_closed_for_missing_malformed_uid_mismatch_and_missing_consumer_grant():
+def test_shared_rollout_helper_fails_closed_for_missing_malformed_uid_mismatch_and_missing_chat_grant():
     missing = _FirestoreFake()
-    missing_decision = read_default_read_rollout(uid='u1', db_client=missing, consumer='mcp')
-    assert missing_decision.memory_default_mcp_enabled is False
+    missing_decision = read_default_read_rollout(uid='u1', db_client=missing, consumer='omi_chat')
+    assert missing_decision.memory_default_chat_enabled is False
     assert missing_decision.read_decision == MemoryReadDecision.DENY_MEMORY
     assert missing_decision.fallback_reason == 'missing_rollout_state'
     assert missing.collection_paths == []
@@ -288,36 +281,34 @@ def test_shared_rollout_helper_fails_closed_for_missing_malformed_uid_mismatch_a
             }
         }
     )
-    malformed_decision = read_default_read_rollout(uid='u1', db_client=malformed, consumer='developer_api')
-    assert malformed_decision.memory_default_developer_enabled is False
+    malformed_decision = read_default_read_rollout(uid='u1', db_client=malformed, consumer='omi_chat')
+    assert malformed_decision.memory_default_chat_enabled is False
     assert malformed_decision.read_decision == MemoryReadDecision.DENY_MEMORY
     assert malformed_decision.fallback_reason == 'malformed_rollout_state'
     assert malformed.collection_paths == []
 
     uid_mismatch = _FirestoreFake({'users/u1/memory_control/state': _enabled_rollout_doc(uid='other')})
-    uid_mismatch_decision = read_default_read_rollout(uid='u1', db_client=uid_mismatch, consumer='mcp')
-    assert uid_mismatch_decision.memory_default_mcp_enabled is False
+    uid_mismatch_decision = read_default_read_rollout(uid='u1', db_client=uid_mismatch, consumer='omi_chat')
+    assert uid_mismatch_decision.memory_default_chat_enabled is False
     assert uid_mismatch_decision.read_decision == MemoryReadDecision.DENY_MEMORY
     assert uid_mismatch_decision.fallback_reason == 'uid_mismatch'
     assert uid_mismatch.collection_paths == []
 
-    no_grant = _FirestoreFake(
-        {'users/u1/memory_control/state': _enabled_rollout_doc() | {'grants': {'developer_api': {}}}}
-    )
-    no_grant_decision = read_default_read_rollout(uid='u1', db_client=no_grant, consumer='developer_api')
+    no_grant = _FirestoreFake({'users/u1/memory_control/state': _enabled_rollout_doc() | {'grants': {'omi_chat': {}}}})
+    no_grant_decision = read_default_read_rollout(uid='u1', db_client=no_grant, consumer='omi_chat')
     assert no_grant_decision.rollout_capabilities.memory_reads_enabled is True
-    assert no_grant_decision.app_has_default_memory_grant is False
-    assert no_grant_decision.memory_default_developer_enabled is False
+    assert no_grant_decision.has_default_memory_grant is False
+    assert no_grant_decision.memory_default_chat_enabled is False
     assert no_grant_decision.read_decision == MemoryReadDecision.DENY_MEMORY
-    assert no_grant_decision.fallback_reason == 'missing_developer_default_memory_grant'
+    assert no_grant_decision.fallback_reason == 'missing_chat_default_memory_grant'
     assert no_grant.collection_paths == []
 
 
-def test_rollout_doc_requires_exact_uid_schema_and_canonical_nested_grant_precedence():
+def test_rollout_doc_requires_exact_uid_schema_and_canonical_nested_chat_grant_precedence():
     missing_uid = _enabled_rollout_doc()
     missing_uid.pop('uid')
     missing_uid_decision = read_default_read_rollout(
-        uid='u1', db_client=_FirestoreFake({'users/u1/memory_control/state': missing_uid}), consumer='mcp'
+        uid='u1', db_client=_FirestoreFake({'users/u1/memory_control/state': missing_uid}), consumer='omi_chat'
     )
     assert missing_uid_decision.read_decision == MemoryReadDecision.DENY_MEMORY
     assert missing_uid_decision.fallback_reason == 'uid_mismatch'
@@ -325,43 +316,30 @@ def test_rollout_doc_requires_exact_uid_schema_and_canonical_nested_grant_preced
     missing_schema = _enabled_rollout_doc()
     missing_schema.pop('schema_version')
     missing_schema_decision = read_default_read_rollout(
-        uid='u1', db_client=_FirestoreFake({'users/u1/memory_control/state': missing_schema}), consumer='mcp'
+        uid='u1', db_client=_FirestoreFake({'users/u1/memory_control/state': missing_schema}), consumer='omi_chat'
     )
     assert missing_schema_decision.read_decision == MemoryReadDecision.DENY_MEMORY
     assert missing_schema_decision.fallback_reason == 'unsupported_rollout_schema'
 
     unsupported_schema = _enabled_rollout_doc() | {'schema_version': 0}
     unsupported_schema_decision = read_default_read_rollout(
-        uid='u1', db_client=_FirestoreFake({'users/u1/memory_control/state': unsupported_schema}), consumer='mcp'
+        uid='u1', db_client=_FirestoreFake({'users/u1/memory_control/state': unsupported_schema}), consumer='omi_chat'
     )
     assert unsupported_schema_decision.read_decision == MemoryReadDecision.DENY_MEMORY
     assert unsupported_schema_decision.fallback_reason == 'unsupported_rollout_schema'
 
     nested_false_with_stale_top_level_true = _enabled_rollout_doc() | {
-        'grants': {'mcp': {'default_memory': False}},
-        'mcp_default_memory_grant': True,
+        'grants': {'omi_chat': {'default_memory': False}},
+        'chat_default_memory_grant': True,
     }
     nested_false_decision = read_default_read_rollout(
         uid='u1',
         db_client=_FirestoreFake({'users/u1/memory_control/state': nested_false_with_stale_top_level_true}),
-        consumer='mcp',
+        consumer='omi_chat',
     )
-    assert nested_false_decision.app_has_default_memory_grant is False
+    assert nested_false_decision.has_default_memory_grant is False
     assert nested_false_decision.read_decision == MemoryReadDecision.DENY_MEMORY
-    assert nested_false_decision.fallback_reason == 'missing_mcp_default_memory_grant'
-
-    nested_absent_with_stale_top_level_true = _enabled_rollout_doc() | {
-        'grants': {'mcp': {}},
-        'mcp_default_memory_grant': True,
-    }
-    nested_absent_decision = read_default_read_rollout(
-        uid='u1',
-        db_client=_FirestoreFake({'users/u1/memory_control/state': nested_absent_with_stale_top_level_true}),
-        consumer='mcp',
-    )
-    assert nested_absent_decision.app_has_default_memory_grant is False
-    assert nested_absent_decision.read_decision == MemoryReadDecision.DENY_MEMORY
-    assert nested_absent_decision.fallback_reason == 'missing_mcp_default_memory_grant'
+    assert nested_false_decision.fallback_reason == 'missing_chat_default_memory_grant'
 
 
 def test_rollout_reads_use_bounded_timeout_and_fail_closed_for_firestore_transport_exceptions():
@@ -369,20 +347,18 @@ def test_rollout_reads_use_bounded_timeout_and_fail_closed_for_firestore_transpo
         pass
 
     db_client = _FirestoreFake({'users/u1/memory_control/state': _enabled_rollout_doc()})
-    decision = read_default_read_rollout(uid='u1', db_client=db_client, consumer='mcp')
+    decision = read_default_read_rollout(uid='u1', db_client=db_client, consumer='omi_chat')
     assert decision.read_decision == MemoryReadDecision.USE_MEMORY
     assert db_client.document_get_timeouts == [DEFAULT_READ_ROLLOUT_TIMEOUT_SECONDS]
 
     failing_db_client = _FirestoreFake(get_exception=PermissionDenied('permission denied'))
-    failing_decision = read_default_read_rollout(uid='u1', db_client=failing_db_client, consumer='mcp')
+    failing_decision = read_default_read_rollout(uid='u1', db_client=failing_db_client, consumer='omi_chat')
     assert failing_decision.read_decision == MemoryReadDecision.DENY_MEMORY
     assert failing_decision.fallback_reason == 'rollout_read_failed'
     assert failing_db_client.document_get_timeouts == [DEFAULT_READ_ROLLOUT_TIMEOUT_SECONDS]
 
     failing_shared_decisions = read_default_read_rollout_decisions(uid='u1', db_client=failing_db_client)
     assert {consumer: decision.fallback_reason for consumer, decision in failing_shared_decisions.items()} == {
-        'mcp': 'rollout_read_failed',
-        'developer_api': 'rollout_read_failed',
         'omi_chat': 'rollout_read_failed',
     }
 
@@ -392,13 +368,13 @@ def test_shared_rollout_helper_distinguishes_shadow_only_and_explicit_legacy_saf
         'mode': MemoryRolloutMode.shadow.value,
         'fallback_projection_ready': False,
         'stage_gates': {MemoryRolloutStageGate.shadow.value: PASSED},
-        'grants': {'mcp': {'default_memory': True}},
+        'grants': {'omi_chat': {'default_memory': True}},
     }
     db_client = _FirestoreFake({'users/u1/memory_control/state': shadow_doc})
 
-    shadow_decision = read_default_read_rollout(uid='u1', db_client=db_client, consumer='mcp')
+    shadow_decision = read_default_read_rollout(uid='u1', db_client=db_client, consumer='omi_chat')
     legacy_safe_decision = legacy_safe_default_read_rollout_decision(
-        uid='u1', source_path='legacy/users/u1/memories', consumer='mcp', reason='explicit_legacy_endpoint'
+        uid='u1', source_path='legacy/users/u1/memories', consumer='omi_chat', reason='explicit_legacy_endpoint'
     )
 
     assert shadow_decision.read_decision == MemoryReadDecision.SHADOW_ONLY
@@ -425,7 +401,7 @@ def test_shared_rollout_helper_computes_persisted_archive_capability_distinct_fr
     assert default_decision.archive_capability is False
     assert archive_decision.read_decision == MemoryReadDecision.USE_MEMORY
     assert archive_decision.archive_capability is True
-    assert archive_decision.app_has_default_memory_grant is True
+    assert archive_decision.has_default_memory_grant is True
 
 
 def test_shared_rollout_helper_fails_closed_for_missing_malformed_disabled_and_no_archive_grant():
@@ -466,14 +442,7 @@ def test_shared_rollout_helper_fails_closed_for_missing_malformed_disabled_and_n
 
 
 def test_shared_rollout_helper_builds_local_audit_events_and_counters_without_memory_item_reads():
-    rollout_doc = _enabled_rollout_doc() | {
-        'grants': {
-            'mcp': {'default_memory': True, 'archive': True},
-            'developer_api': {},
-            'omi_chat': {'default_memory': True, 'archive': True},
-        }
-    }
-    db_client = _FirestoreFake({'users/u1/memory_control/state': rollout_doc})
+    db_client = _FirestoreFake({'users/u1/memory_control/state': _enabled_rollout_doc()})
 
     decisions = read_default_read_rollout_decisions(uid='u1', db_client=db_client)
     audit = build_default_read_rollout_audit_events(decisions)
@@ -482,32 +451,6 @@ def test_shared_rollout_helper_builds_local_audit_events_and_counters_without_me
     assert db_client.collection_paths == []
     assert audit == {
         'events': [
-            {
-                'uid': 'u1',
-                'source_path': 'users/u1/memory_control/state',
-                'consumer': 'mcp',
-                'enabled': True,
-                'outcome': 'enabled',
-                'read_decision': 'USE_MEMORY',
-                'fallback_reason': None,
-                'default_memory_grant': True,
-                'memory_reads_enabled': True,
-                'archive_default_visible': False,
-                'archive_capability': False,
-            },
-            {
-                'uid': 'u1',
-                'source_path': 'users/u1/memory_control/state',
-                'consumer': 'developer_api',
-                'enabled': False,
-                'outcome': 'fallback',
-                'read_decision': 'DENY_MEMORY',
-                'fallback_reason': 'missing_developer_default_memory_grant',
-                'default_memory_grant': False,
-                'memory_reads_enabled': True,
-                'archive_default_visible': False,
-                'archive_capability': False,
-            },
             {
                 'uid': 'u1',
                 'source_path': 'users/u1/memory_control/state',
@@ -523,14 +466,8 @@ def test_shared_rollout_helper_builds_local_audit_events_and_counters_without_me
             },
         ],
         'counters': {
-            'total': {'enabled': 2, 'fallback': 1},
+            'total': {'enabled': 1, 'fallback': 0},
             'by_consumer': {
-                'mcp': {'enabled': 1, 'fallback': 0, 'fallback_reasons': {}},
-                'developer_api': {
-                    'enabled': 0,
-                    'fallback': 1,
-                    'fallback_reasons': {'missing_developer_default_memory_grant': 1},
-                },
                 'omi_chat': {'enabled': 1, 'fallback': 0, 'fallback_reasons': {}},
             },
         },
@@ -538,14 +475,7 @@ def test_shared_rollout_helper_builds_local_audit_events_and_counters_without_me
 
 
 def test_shared_rollout_helper_renders_low_cardinality_prometheus_metrics_without_uid_or_source_labels():
-    rollout_doc = _enabled_rollout_doc() | {
-        'grants': {
-            'mcp': {'default_memory': True, 'archive': True},
-            'developer_api': {},
-            'omi_chat': {'default_memory': True, 'archive': True},
-        }
-    }
-    db_client = _FirestoreFake({'users/u1/memory_control/state': rollout_doc})
+    db_client = _FirestoreFake({'users/u1/memory_control/state': _enabled_rollout_doc()})
 
     decisions = read_default_read_rollout_decisions(uid='u1', db_client=db_client)
     audit = build_default_read_rollout_audit_events(decisions)
@@ -557,11 +487,6 @@ def test_shared_rollout_helper_renders_low_cardinality_prometheus_metrics_withou
     assert 'u1' not in metrics
     assert 'source_path' not in metrics
     assert 'users/u1/memory_control/state' not in metrics
-    assert 'default_read_rollout_decisions_total{consumer="mcp",outcome="enabled",fallback_reason="none"} 1' in metrics
-    assert (
-        'default_read_rollout_decisions_total{consumer="developer_api",outcome="fallback",'
-        'fallback_reason="missing_developer_default_memory_grant"} 1' in metrics
-    )
     assert (
         'default_read_rollout_decisions_total{consumer="omi_chat",outcome="enabled",fallback_reason="none"} 1'
         in metrics
@@ -573,7 +498,7 @@ def test_shared_rollout_metrics_buckets_unknown_dynamic_fallback_reasons():
     counters = {
         'total': {'enabled': 0, 'fallback': 1},
         'by_consumer': {
-            'mcp': {
+            'omi_chat': {
                 'enabled': 0,
                 'fallback': 1,
                 'fallback_reasons': {'customer-specific uid u1 path users/u1/memory_control/state': 1},
@@ -586,5 +511,6 @@ def test_shared_rollout_metrics_buckets_unknown_dynamic_fallback_reasons():
     assert 'customer-specific' not in metrics
     assert 'users/u1' not in metrics
     assert (
-        'default_read_rollout_decisions_total{consumer="mcp",outcome="fallback",fallback_reason="other"} 1' in metrics
+        'default_read_rollout_decisions_total{consumer="omi_chat",outcome="fallback",fallback_reason="other"} 1'
+        in metrics
     )

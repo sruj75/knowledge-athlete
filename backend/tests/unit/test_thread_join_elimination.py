@@ -53,11 +53,6 @@ def _count_thread_join_patterns(filepath: str) -> list:
 class TestNoThreadJoinInMigratedFiles:
     """Phase 3 target files should not use Thread+join patterns."""
 
-    def test_app_integrations_no_thread_join(self):
-        filepath = os.path.join(BACKEND_DIR, 'utils', 'app_integrations.py')
-        patterns = _count_thread_join_patterns(filepath)
-        assert patterns == [], f"Thread+join still in app_integrations.py: {patterns}"
-
     def test_process_conversation_no_thread_join(self):
         filepath = os.path.join(BACKEND_DIR, 'utils', 'conversations', 'process_conversation.py')
         patterns = _count_thread_join_patterns(filepath)
@@ -67,11 +62,6 @@ class TestNoThreadJoinInMigratedFiles:
         filepath = os.path.join(BACKEND_DIR, 'utils', 'retrieval', 'rag.py')
         patterns = _count_thread_join_patterns(filepath)
         assert patterns == [], f"Thread+join still in rag.py: {patterns}"
-
-    def test_apps_utils_no_thread_join(self):
-        filepath = os.path.join(BACKEND_DIR, 'utils', 'apps.py')
-        patterns = _count_thread_join_patterns(filepath)
-        assert patterns == [], f"Thread+join still in apps.py: {patterns}"
 
     def test_sync_no_thread_join(self):
         filepath = os.path.join(BACKEND_DIR, 'routers', 'sync.py')
@@ -91,76 +81,6 @@ class TestThreadPoolExecutorUsed:
         filepath = os.path.join(BACKEND_DIR, 'routers', 'sync.py')
         source = _read_source(filepath)
         assert 'critical_executor' in source or 'storage_executor' in source or 'asyncio.gather' in source
-
-    def test_app_integrations_uses_threadpool_or_gather(self):
-        filepath = os.path.join(BACKEND_DIR, 'utils', 'app_integrations.py')
-        source = _read_source(filepath)
-        assert 'ThreadPoolExecutor' in source or 'asyncio.gather' in source
-
-    def test_apps_utils_no_sync_update_antipattern(self):
-        """sync_update_persona_prompt antipattern (per-thread event loop) should be gone."""
-        filepath = os.path.join(BACKEND_DIR, 'utils', 'apps.py')
-        source = _read_source(filepath)
-        assert 'sync_update_persona_prompt' not in source, (
-            "sync_update_persona_prompt antipattern still present — "
-            "use asyncio.gather with update_persona_prompt directly"
-        )
-
-
-class TestAsyncGatherInBackgroundThread:
-    """Verify asyncio.gather _batch() wrapper pattern works in background threads."""
-
-    def test_apps_update_personas_async_uses_batch_wrapper(self):
-        """apps.py update_personas_async must use async _batch() wrapper for gather."""
-        filepath = os.path.join(BACKEND_DIR, 'utils', 'apps.py')
-        source = _read_source(filepath)
-        assert 'async def _batch()' in source, "update_personas_async must wrap asyncio.gather in async _batch() helper"
-        assert (
-            'set_event_loop' in source
-        ), "update_personas_async must call asyncio.set_event_loop(loop) before run_until_complete"
-
-    def test_process_conversation_uses_batch_wrapper(self):
-        """process_conversation.py _update_personas_async must use async _batch() wrapper."""
-        filepath = os.path.join(BACKEND_DIR, 'utils', 'conversations', 'process_conversation.py')
-        source = _read_source(filepath)
-        assert (
-            'async def _batch()' in source
-        ), "_update_personas_async must wrap asyncio.gather in async _batch() helper"
-        assert (
-            'set_event_loop' in source
-        ), "_update_personas_async must call asyncio.set_event_loop(loop) before run_until_complete"
-
-    def test_gather_batch_pattern_works_in_thread(self):
-        """Runtime test: asyncio.gather inside _batch() wrapper works from a background thread."""
-        import asyncio
-        import threading
-
-        results = []
-        errors = []
-
-        async def fake_coro(x):
-            await asyncio.sleep(0.001)
-            return x * 2
-
-        def worker():
-            async def _batch():
-                return await asyncio.gather(*[fake_coro(i) for i in range(5)])
-
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            try:
-                results.extend(loop.run_until_complete(_batch()))
-            except Exception as e:
-                errors.append(e)
-            finally:
-                loop.close()
-
-        thread = threading.Thread(target=worker)
-        thread.start()
-        thread.join(timeout=5)
-
-        assert not errors, f"_batch() pattern raised in thread: {errors}"
-        assert results == [0, 2, 4, 6, 8], f"Unexpected results: {results}"
 
 
 class TestAsyncSTTVariants:

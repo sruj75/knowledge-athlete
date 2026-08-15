@@ -23,7 +23,6 @@ import uuid
 from contextlib import suppress
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from hashlib import sha256
 from pathlib import Path
 from typing import Any, Callable
 from urllib.parse import urlencode
@@ -825,12 +824,12 @@ def _wait_for_job(
 
 
 def _assert_local_provider_admission(stack: Stack, conversation_id: str) -> None:
-    """Assert local seams were reached once, without claiming external delivery."""
+    """Assert retained local provider seams were reached once."""
 
     def provider_leaves_flushed() -> bool:
         events = stack.pusher_events
         return any(
-            event.get('event') == 'integration_fanout_skipped' and event.get('conversation_id') == conversation_id
+            event.get('event') == 'memory_extraction_skipped' and event.get('conversation_id') == conversation_id
             for event in events
         ) and any(
             event.get('event') == 'audio_storage_skipped' and event.get('conversation_id') == conversation_id
@@ -841,13 +840,13 @@ def _assert_local_provider_admission(stack: Stack, conversation_id: str) -> None
     # Wait for that observable completion rather than racing the process cleanup.
     _wait_until(provider_leaves_flushed, label='local provider admission')
     events = stack.pusher_events
-    fanouts = [
+    memory_extractions = [
         event
         for event in events
-        if event.get('event') == 'integration_fanout_skipped' and event.get('conversation_id') == conversation_id
+        if event.get('event') == 'memory_extraction_skipped' and event.get('conversation_id') == conversation_id
     ]
-    if len(fanouts) != 1:
-        raise StackFailure(f'expected one durable finalization fanout admission, observed {len(fanouts)}')
+    if len(memory_extractions) != 1:
+        raise StackFailure(f'expected one durable memory-extraction admission, observed {len(memory_extractions)}')
     audio_flushes = [
         event
         for event in events
@@ -1278,9 +1277,6 @@ async def _rest_finalization_survives_listener_restart(stack: Stack) -> None:
         or not process_events[0].get('defer_derived_effects')
     ):
         raise StackFailure('REST finalization lost its persisted processing and extraction policy')
-    if len(_provider_events(stack, conversation_id, 'integration', 'completed')) != 1:
-        raise StackFailure('REST finalization did not complete durable integration fanout exactly once')
-
     provider_event_count = len(stack.finalizer_events)
     duplicate = await stack.deliver_finalization_task(restarted_task, retry_count=1)
     if duplicate != (200, {'status': 'acked', 'job_status': 'completed'}):
@@ -1403,48 +1399,6 @@ async def _terminal_cloud_tasks_failure_dead_letters(stack: Stack) -> None:
         raise StackFailure('dead-letter path created a new finalization generation')
 
 
-async def _integration_retry_preserves_processed_conversation(stack: Stack) -> None:
-    uid = 'stack-cloud-integration-retry'
-    conversation_id = str(uuid.uuid4())
-    task = await _cloud_task_for_clean_desktop_close(stack, uid, conversation_id)
-    first = await stack.deliver_finalization_task(task, retry_count=0)
-    if first != (500, {'status': 'retry'}):
-        raise StackFailure(f'integration failure delivery did not request a retry: {first}')
-    after_failure = _one_job(stack, uid, conversation_id)
-    conversation = stack.conversation(uid, conversation_id)
-    if after_failure.get('status') != 'queued' or not conversation or conversation.get('status') != 'completed':
-        raise StackFailure('integration failure did not retain completed processing work for fanout retry')
-    fanout_key = after_failure.get('fanout_key')
-    if not isinstance(fanout_key, str) or not fanout_key:
-        raise StackFailure('integration failure did not retain a durable fanout idempotency key')
-
-    final = await stack.deliver_finalization_task(task, retry_count=1)
-    if final != (200, {'status': 'done'}):
-        raise StackFailure(f'integration retry did not complete finalization: {final}')
-    completed = _one_job(stack, uid, conversation_id)
-    if completed.get('status') != 'completed' or completed.get('fanout_status') != 'completed':
-        raise StackFailure('integration retry did not complete the durable fanout boundary')
-    if completed.get('fanout_key') != fanout_key:
-        raise StackFailure('integration retry changed the durable fanout idempotency key')
-    if len(_provider_events(stack, conversation_id, 'process', 'completed')) != 1:
-        raise StackFailure('fanout retry re-ran completed conversation processing')
-    if len(_provider_events(stack, conversation_id, 'integration', 'controlled_failure')) != 1:
-        raise StackFailure('controlled integration failure was not observed exactly once')
-    if len(_provider_events(stack, conversation_id, 'integration', 'completed')) != 1:
-        raise StackFailure('integration retry did not deliver the durable fanout exactly once')
-    integration_attempts = [
-        event
-        for event in stack.finalizer_events
-        if event.get('event') == 'provider_leaf'
-        and event.get('conversation_id') == conversation_id
-        and event.get('stage') == 'integration'
-    ]
-    fanout_key_hashes = {event.get('fanout_key_sha256') for event in integration_attempts}
-    expected_fanout_key_hash = sha256(fanout_key.encode('utf-8')).hexdigest()
-    if len(integration_attempts) != 2 or fanout_key_hashes != {expected_fanout_key_hash}:
-        raise StackFailure('integration retry did not preserve one idempotency key across both delivery attempts')
-
-
 async def _stale_processing_orphan_reconciled(stack: Stack) -> None:
     """#10461: a bare-`processing` row orphaned by a sync-route crash reaches one terminal.
 
@@ -1452,7 +1406,7 @@ async def _stale_processing_orphan_reconciled(stack: Stack) -> None:
     the server-owned admission fence (never caller-controlled created_at), legacy
     rows migrate before they complete, deferred rows are excluded, a backlog of
     excluded rows cannot starve a later eligible orphan, and every outcome is
-    reached through the lifecycle CAS alone — no durable job, worker, or fanout.
+    reached through the lifecycle CAS alone — no durable job or worker.
     """
     if stack.finalization_mode != 'cloud_tasks':
         raise StackFailure('stale-processing orphan recovery requires the Cloud Tasks stack')
@@ -1520,8 +1474,6 @@ async def _stale_processing_orphan_reconciled(stack: Stack) -> None:
         raise StackFailure('stale processing reconciler created a durable job for the orphan')
     if _provider_events(stack, aged_id, 'process', 'completed'):
         raise StackFailure('stale processing reconciler invoked the durable finalization worker')
-    if _provider_events(stack, aged_id, 'integration', 'completed'):
-        raise StackFailure('stale processing reconciler duplicated an integration fanout')
 
     # The conservative threshold is respected: a too-recent admission is left on `processing`.
     fresh = stack.conversation(uid, fresh_id)
@@ -1561,10 +1513,8 @@ async def _stale_processing_orphan_reconciled(stack: Stack) -> None:
     )
     stack.restart_backend()
     _wait_until(completed(uid, legacy_id), label='legacy row recovered after its fence aged', timeout=30.0)
-    if _provider_events(stack, legacy_id, 'process', 'completed') or _provider_events(
-        stack, legacy_id, 'integration', 'completed'
-    ):
-        raise StackFailure('legacy row recovery produced a worker or integration fanout')
+    if _provider_events(stack, legacy_id, 'process', 'completed'):
+        raise StackFailure('legacy row recovery produced a worker finalization')
 
     # Re-running the sweep is a no-op: completed orphans stay on their single terminal.
     stack.restart_backend()
@@ -1755,12 +1705,6 @@ def main() -> int:
             finalization_mode='cloud_tasks',
             finalizer_failures={'process': 2},
             scenario=_terminal_cloud_tasks_failure_dead_letters,
-        )
-        _run_stack_scenario(
-            state_dir / 'cloud-integration-retry',
-            finalization_mode='cloud_tasks',
-            finalizer_failures={'integration': 1},
-            scenario=_integration_retry_preserves_processed_conversation,
         )
         _run_stack_scenario(
             state_dir / 'cloud-stale-orphan',

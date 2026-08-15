@@ -63,13 +63,12 @@ export interface DesktopToolPolicyResult {
   reason: string;
 }
 
-const EXTERNAL_SEND_TOOLS = new Set(["fill_cloud_connector_form"]);
+const EXTERNAL_SEND_TOOLS = new Set<string>();
 const TASK_WRITE_TOOLS = new Set([
   "complete_task",
   "delete_task",
   "create_action_item",
   "update_action_item",
-  "save_knowledge_graph",
   "set_user_preferences",
   "complete_onboarding",
 ]);
@@ -88,7 +87,6 @@ const LOCAL_READ_TOOLS = new Set([
   "get_memories",
   "search_memories",
   "get_action_items",
-  "get_email_insights",
   "get_local_status",
 ]);
 

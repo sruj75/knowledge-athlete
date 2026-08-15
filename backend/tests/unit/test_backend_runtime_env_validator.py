@@ -39,7 +39,6 @@ def with_memory_env(payload: str) -> str:
         {"name": "DESKTOP_UPDATE_RECONCILE_SAMPLE_RATE", "value": "0.01"},
         {"name": "OMI_ENV_STAGE", "value": "dev"},
         {"name": "OMI_LLM_GATEWAY_FEATURE_MODE", "value": "gateway"},
-        {"name": "PUBLIC_SHARED_CONVERSATION_CHAT_MODE", "value": "off"},
         {"name": "OMI_LLM_GATEWAY_ALLOW_DIRECT_MODEL_EXCEPTION", "value": "false"},
         {"name": "OMI_LLM_GATEWAY_CONVERSATION_ACTION_ITEMS_SHADOW_ENABLED", "value": "false"},
         {"name": "OMI_LLM_GATEWAY_CONVERSATION_ACTION_ITEMS_SHADOW_SAMPLE_RATE", "value": "1.0"},
@@ -67,18 +66,6 @@ def with_backend_pusher_env(payload: str) -> str:
     return re.sub(
         r'("backend":\s*\{.*?"env":\s*\[\s*\{"name": "GOOGLE_CLOUD_PROJECT", "value": "based-hardware"\},)',
         r'\1\n        {"name": "HOSTED_PUSHER_API_URL", "value": "http://pusher.omiapi.com"},',
-        payload,
-        count=1,
-        flags=re.DOTALL,
-    )
-
-
-def with_backend_public_shared_chat_auth_env(payload: str) -> str:
-    return re.sub(
-        r'("backend":\s*\{.*?"env":\s*\[\s*\{"name": "GOOGLE_CLOUD_PROJECT", "value": "based-hardware"\},)',
-        r'\1\n'
-        r'        {"name": "PUBLIC_SHARED_CONVERSATION_CHAT_FRONTEND_AUDIENCE", "value": "https://backend.example/chat"},\n'
-        r'        {"name": "PUBLIC_SHARED_CONVERSATION_CHAT_FRONTEND_INVOKER_SA", "value": "frontend@example.iam.gserviceaccount.com"},',
         payload,
         count=1,
         flags=re.DOTALL,
@@ -113,8 +100,8 @@ GOOGLE_OAUTH_SECRETS = '''\
 
 
 def with_cloud_run_oauth_secrets(payload: str) -> str:
-    payload = with_backend_public_shared_chat_auth_env(
-        with_backend_pusher_env(with_parity_pack_env(with_listen_finalization_orphan_env(with_memory_env(payload))))
+    payload = with_backend_pusher_env(
+        with_parity_pack_env(with_listen_finalization_orphan_env(with_memory_env(payload)))
     )
     return re.sub(
         r'^(\s*\{"name": "OMI_LLM_GATEWAY_SERVICE_TOKEN".*\}\s*\})\s*,?\s*$',
@@ -768,7 +755,6 @@ def test_managed_stt_surfaces_require_modulate_binding():
             'services': {
                 'backend': {'env': {}, 'secrets': {}},
                 'backend-sync': {'env': {}, 'secrets': {}},
-                'backend-integration': {'env': {}, 'secrets': {}},
             }
         },
     }
@@ -785,7 +771,6 @@ def test_managed_stt_surfaces_require_modulate_binding():
             'dev/gke/pusher',
             'dev/cloud_run/backend',
             'dev/cloud_run/backend-sync',
-            'dev/cloud_run/backend-integration',
         )
     ]
 
@@ -802,7 +787,7 @@ def test_managed_stt_contract_accepts_fixed_modulate_bindings():
         'cloud_run': {
             'services': {
                 service: {'env': {}, 'secrets': {'MODULATE_API_KEY': cloud_secret}}
-                for service in ('backend', 'backend-sync', 'backend-integration')
+                for service in ('backend', 'backend-sync')
             }
         },
     }
@@ -872,19 +857,6 @@ def test_cloud_run_state_reports_missing_gateway_url(tmp_path):
       ]
     },
     "backend-sync": {
-      "flags": {"--network": "omi-dev-vpc-1", "--subnet": "omi-us-central1-dev-vpc-1-subnet-1", "--vpc-egress": "private-ranges-only"},
-      "env": [
-        {"name": "GOOGLE_CLOUD_PROJECT", "value": "based-hardware"},
-        {"name": "OMI_LLM_GATEWAY_URL", "value": "http://172.16.63.232"},
-        {"name": "OMI_LLM_GATEWAY_CONVERSATION_STRUCTURE_SHADOW_ENABLED", "value": "false"},
-        {"name": "OMI_LLM_GATEWAY_CONVERSATION_STRUCTURE_SHADOW_SAMPLE_RATE", "value": "1.0"},
-        {"name": "MEMORY_TYPESENSE_COLLECTION", "value": "canonical_memory_atoms"},
-        {"name": "SERVICE_ACCOUNT_JSON", "valueFrom": {"secretKeyRef": {"name": "SERVICE_ACCOUNT_JSON"}}},
-        {"name": "ENCRYPTION_SECRET", "valueFrom": {"secretKeyRef": {"name": "ENCRYPTION_SECRET"}}},
-        {"name": "OMI_LLM_GATEWAY_SERVICE_TOKEN", "valueFrom": {"secretKeyRef": {"name": "OMI_LLM_GATEWAY_SERVICE_TOKEN"}}}
-      ]
-    },
-    "backend-integration": {
       "flags": {"--network": "omi-dev-vpc-1", "--subnet": "omi-us-central1-dev-vpc-1-subnet-1", "--vpc-egress": "private-ranges-only"},
       "env": [
         {"name": "GOOGLE_CLOUD_PROJECT", "value": "based-hardware"},
@@ -1144,19 +1116,6 @@ def test_cloud_run_workflow_validation_uses_custom_manifest_for_runtime_env_outp
         {"name": "ENCRYPTION_SECRET", "valueFrom": {"secretKeyRef": {"name": "ENCRYPTION_SECRET"}}},
         {"name": "OMI_LLM_GATEWAY_SERVICE_TOKEN", "valueFrom": {"secretKeyRef": {"name": "OMI_LLM_GATEWAY_SERVICE_TOKEN"}}}
       ]
-    },
-    "backend-integration": {
-      "flags": {"--network": "omi-dev-vpc-1", "--subnet": "omi-us-central1-dev-vpc-1-subnet-1", "--vpc-egress": "private-ranges-only"},
-      "env": [
-        {"name": "GOOGLE_CLOUD_PROJECT", "value": "based-hardware"},
-        {"name": "OMI_LLM_GATEWAY_URL", "value": "http://172.16.63.232"},
-        {"name": "OMI_LLM_GATEWAY_CONVERSATION_STRUCTURE_SHADOW_ENABLED", "value": "false"},
-        {"name": "OMI_LLM_GATEWAY_CONVERSATION_STRUCTURE_SHADOW_SAMPLE_RATE", "value": "1.0"},
-        {"name": "MEMORY_TYPESENSE_COLLECTION", "value": "canonical_memory_atoms"},
-        {"name": "SERVICE_ACCOUNT_JSON", "valueFrom": {"secretKeyRef": {"name": "SERVICE_ACCOUNT_JSON"}}},
-        {"name": "ENCRYPTION_SECRET", "valueFrom": {"secretKeyRef": {"name": "ENCRYPTION_SECRET"}}},
-        {"name": "OMI_LLM_GATEWAY_SERVICE_TOKEN", "valueFrom": {"secretKeyRef": {"name": "OMI_LLM_GATEWAY_SERVICE_TOKEN"}}}
-      ]
     }
   }
 }
@@ -1192,19 +1151,6 @@ def test_cloud_run_state_rejects_old_secret_versions(tmp_path):
       ]
     },
     "backend-sync": {
-      "flags": {"--network": "omi-dev-vpc-1", "--subnet": "omi-us-central1-dev-vpc-1-subnet-1", "--vpc-egress": "private-ranges-only"},
-      "env": [
-        {"name": "GOOGLE_CLOUD_PROJECT", "value": "based-hardware"},
-        {"name": "OMI_LLM_GATEWAY_URL", "value": "http://172.16.63.232"},
-        {"name": "OMI_LLM_GATEWAY_CONVERSATION_STRUCTURE_SHADOW_ENABLED", "value": "false"},
-        {"name": "OMI_LLM_GATEWAY_CONVERSATION_STRUCTURE_SHADOW_SAMPLE_RATE", "value": "1.0"},
-        {"name": "MEMORY_TYPESENSE_COLLECTION", "value": "canonical_memory_atoms"},
-        {"name": "SERVICE_ACCOUNT_JSON", "valueFrom": {"secretKeyRef": {"name": "SERVICE_ACCOUNT_JSON", "key": "latest"}}},
-        {"name": "ENCRYPTION_SECRET", "valueFrom": {"secretKeyRef": {"name": "ENCRYPTION_SECRET", "key": "latest"}}},
-        {"name": "OMI_LLM_GATEWAY_SERVICE_TOKEN", "valueFrom": {"secretKeyRef": {"name": "OMI_LLM_GATEWAY_SERVICE_TOKEN", "key": "latest"}}}
-      ]
-    },
-    "backend-integration": {
       "flags": {"--network": "omi-dev-vpc-1", "--subnet": "omi-us-central1-dev-vpc-1-subnet-1", "--vpc-egress": "private-ranges-only"},
       "env": [
         {"name": "GOOGLE_CLOUD_PROJECT", "value": "based-hardware"},
@@ -1403,13 +1349,11 @@ _MAIN_APP_SCHEDULER_SURFACES: dict[str, list[tuple[str, str]]] = {
         ('gke', 'backend-listen'),
         ('cloud_run', 'backend'),
         ('cloud_run', 'backend-sync'),
-        ('cloud_run', 'backend-integration'),
     ],
     'prod': [
         ('gke', 'backend-listen'),
         ('cloud_run', 'backend'),
         ('cloud_run', 'backend-sync'),
-        ('cloud_run', 'backend-integration'),
     ],
 }
 
@@ -1442,7 +1386,7 @@ def test_missing_modulate_binding_is_rejected_for_rendered_cloud_run(tmp_path):
     validator = load_validator()
     manifest = copy.deepcopy(validator._load_yaml(ROOT / 'deploy/runtime_env.yaml'))
     services = manifest['environments']['dev']['cloud_run']['services']
-    required_services = {'backend', 'backend-sync', 'backend-integration'}
+    required_services = {'backend', 'backend-sync'}
     for service_name in required_services:
         services[service_name]['secrets'].pop('MODULATE_API_KEY')
 

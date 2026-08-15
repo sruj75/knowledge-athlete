@@ -36,7 +36,7 @@ extension SettingsContentView {
         advancedCategoryHeader(title: "Beta Diagnostics", icon: "waveform.path.ecg")
         betaDiagnosticsSubsection
       }
-      advancedCategoryHeader(title: "Developer API Keys", icon: "key")
+      advancedCategoryHeader(title: "Model API Keys", icon: "key")
       developerKeysSubsection
 
     }
@@ -358,7 +358,6 @@ extension SettingsContentView {
 
           if let stats = advancedStats {
             statRow(label: "Conversations", value: stats.conversations)
-            statRow(label: "Apps Installed", value: stats.appsInstalled)
             if isLoadingChatMessages {
               HStack {
                 Text("AI Chat Messages")

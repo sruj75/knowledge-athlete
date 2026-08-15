@@ -50,7 +50,7 @@ def test_prod_pusher_requires_successful_dev_attestation_and_never_rebuilds() ->
 def test_prod_pusher_compares_full_dockerfile_source_closure_not_subset() -> None:
     """The prod freshness check must derive comparison paths from the Dockerfile's
     COPY instructions, not a hardcoded two-directory subset.  Otherwise a change
-    to a shared backend module (e.g. backend/utils/apps.py) would silently ship
+    to a shared backend module (e.g. backend/utils/memory/memory_service.py) would silently ship
     a stale digest."""
     assert "verify_pusher_source_closure.py" in MANUAL
     assert "PUSHER_SOURCE_PATHS" in MANUAL

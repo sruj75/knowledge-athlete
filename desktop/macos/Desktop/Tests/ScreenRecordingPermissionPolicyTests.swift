@@ -138,8 +138,8 @@ final class ScreenRecordingPermissionPolicyTests: XCTestCase {
 
   @MainActor
   func testDragHelperSkipsFadeForReducedMotion() {
-    XCTAssertEqual(CloudConnectorGuidanceOverlay.dragCardInitialAlpha(reduceMotion: false), 0)
-    XCTAssertEqual(CloudConnectorGuidanceOverlay.dragCardInitialAlpha(reduceMotion: true), 1)
+    XCTAssertEqual(PermissionGuidanceOverlay.dragCardInitialAlpha(reduceMotion: false), 0)
+    XCTAssertEqual(PermissionGuidanceOverlay.dragCardInitialAlpha(reduceMotion: true), 1)
   }
 
   /// Regression for the reported detached icon: the draggable source must begin
@@ -149,17 +149,17 @@ final class ScreenRecordingPermissionPolicyTests: XCTestCase {
   func testDragCardStartsAdjacentToHighlightedPermissionList() {
     let visible = CGRect(x: 0, y: 0, width: 1_600, height: 1_000)
     let settings = CGRect(x: 600, y: 160, width: 800, height: 640)
-    let card = CloudConnectorGuidanceOverlay.dragCardSize(appName: "Omi Dev")
-    let target = CloudConnectorGuidanceOverlay.permissionListTargetFrame(in: settings)
+    let card = PermissionGuidanceOverlay.dragCardSize(appName: "Omi Dev")
+    let target = PermissionGuidanceOverlay.permissionListTargetFrame(in: settings)
 
-    let frame = CloudConnectorGuidanceOverlay.dragCardFrame(
+    let frame = PermissionGuidanceOverlay.dragCardFrame(
       target: target, cardSize: card, visibleFrame: visible)
     XCTAssertGreaterThan(target.midX, settings.midX, "target belongs in the Settings content pane")
     XCTAssertEqual(frame.maxX, target.minX - 16, accuracy: 0.001)
     XCTAssertEqual(frame.midY, target.midY, accuracy: 0.001)
     XCTAssertTrue(frame.intersection(target).isEmpty, "source must never cover the drop list")
     XCTAssertEqual(
-      CloudConnectorGuidanceOverlay.dragCardDirection(cardFrame: frame, targetFrame: target),
+      PermissionGuidanceOverlay.dragCardDirection(cardFrame: frame, targetFrame: target),
       .right)
   }
 
@@ -170,10 +170,10 @@ final class ScreenRecordingPermissionPolicyTests: XCTestCase {
     let visible = CGRect(x: 0, y: 0, width: 1_800, height: 1_100)
     let initialSettings = CGRect(x: 200, y: 140, width: 760, height: 620)
     let movedSettings = CGRect(x: 680, y: 280, width: 920, height: 700)
-    let card = CloudConnectorGuidanceOverlay.dragCardSize(appName: "Omi Dev")
-    let initialTarget = CloudConnectorGuidanceOverlay.permissionListTargetFrame(in: initialSettings)
-    let movedTarget = CloudConnectorGuidanceOverlay.permissionListTargetFrame(in: movedSettings)
-    let movedCard = CloudConnectorGuidanceOverlay.dragCardFrame(
+    let card = PermissionGuidanceOverlay.dragCardSize(appName: "Omi Dev")
+    let initialTarget = PermissionGuidanceOverlay.permissionListTargetFrame(in: initialSettings)
+    let movedTarget = PermissionGuidanceOverlay.permissionListTargetFrame(in: movedSettings)
+    let movedCard = PermissionGuidanceOverlay.dragCardFrame(
       target: movedTarget, cardSize: card, visibleFrame: visible)
 
     XCTAssertGreaterThan(movedTarget.width, initialTarget.width)
@@ -207,7 +207,7 @@ final class ScreenRecordingPermissionPolicyTests: XCTestCase {
       ],
     ]
 
-    let frame = CloudConnectorFormAutomation.appKitWindowFrame(pid: settingsPID, windows: windows)
+    let frame = PermissionSystemSettingsWindow.frame(pid: settingsPID, windows: windows)
     XCTAssertEqual(frame?.minX, 200)
     XCTAssertEqual(frame?.width, 700)
     XCTAssertEqual(frame?.height, 600)
@@ -216,10 +216,10 @@ final class ScreenRecordingPermissionPolicyTests: XCTestCase {
   @MainActor
   func testDragCardExpandsForLongBundleDisplayNames() {
     XCTAssertEqual(
-      CloudConnectorGuidanceOverlay.dragCardSize(appName: "Omi Dev"),
+      PermissionGuidanceOverlay.dragCardSize(appName: "Omi Dev"),
       CGSize(width: 220, height: 190))
     XCTAssertEqual(
-      CloudConnectorGuidanceOverlay.dragCardSize(appName: "omi-tool-stall-reliability"),
+      PermissionGuidanceOverlay.dragCardSize(appName: "omi-tool-stall-reliability"),
       CGSize(width: 260, height: 200))
   }
 
@@ -234,28 +234,23 @@ final class ScreenRecordingPermissionPolicyTests: XCTestCase {
     XCTAssertFalse(ScreenRecordingPermissionPolicy.shouldMarkCaptureKitBroken(tccGranted: false))
   }
 
-  /// Regression: the onboarding request tool reopened System Settings (and the
-  /// FDA drag card) even when the permission was already granted. Opening must
-  /// stay behind a granted check, like the notifications/automation cases.
+  /// Regression: the onboarding request tool reopened System Settings even
+  /// when Screen Recording was already granted. Opening must stay behind the
+  /// granted check.
   func testRequestToolOpensSettingsOnlyWhenDenied() throws {
     // omi-test-quality: source-inspection -- static contract: the tool's
     // NSWorkspace/System Settings side effects cannot be exercised hermetically.
     let src = try sourceFile("Sources/Providers/ChatToolExecutor.swift")
-    for (caseStart, caseEnd, grantedGuard, pane) in [
-      ("case \"screen_recording\":", "case \"microphone\":", "if !screenRecordingGranted {", "Privacy_ScreenCapture"),
-      ("case \"full_disk_access\":", "default:", "if !checkFullDiskAccessDirectly() {", "Privacy_AllFiles"),
-    ] {
-      guard let start = src.range(of: caseStart)?.upperBound,
-        let end = src.range(of: caseEnd, range: start..<src.endIndex)?.lowerBound
-      else { return XCTFail("request tool must handle \(caseStart)") }
-      let body = String(src[start..<end])
-      guard let guardPos = body.range(of: grantedGuard)?.lowerBound,
-        let openPos = body.range(of: pane)?.lowerBound
-      else { return XCTFail("\(caseStart) must guard its \(pane) open behind \(grantedGuard)") }
-      XCTAssertLessThan(
-        guardPos, openPos,
-        "\(caseStart): opening \(pane) must sit inside the not-granted branch")
-    }
+    guard let start = src.range(of: "case \"screen_recording\":")?.upperBound,
+      let end = src.range(of: "case \"microphone\":", range: start..<src.endIndex)?.lowerBound
+    else { return XCTFail("request tool must handle Screen Recording") }
+    let body = String(src[start..<end])
+    guard let guardPos = body.range(of: "if !screenRecordingGranted {")?.lowerBound,
+      let openPos = body.range(of: "Privacy_ScreenCapture")?.lowerBound
+    else { return XCTFail("Screen Recording settings must open behind the denied check") }
+    XCTAssertLessThan(
+      guardPos, openPos,
+      "opening Screen Recording settings must sit inside the not-granted branch")
   }
 
   /// Regression: the onboarding "Reopen Omi" prompt looped forever because the

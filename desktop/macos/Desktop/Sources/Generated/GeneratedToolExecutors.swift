@@ -5,11 +5,9 @@ enum GeneratedSwiftTool: String, CaseIterable {
   case executeSql = "execute_sql"
   case semanticSearch = "semantic_search"
   case getDailyRecap = "get_daily_recap"
-  case fillCloudConnectorForm = "fill_cloud_connector_form"
   case searchTasks = "search_tasks"
   case completeTask = "complete_task"
   case deleteTask = "delete_task"
-  case saveKnowledgeGraph = "save_knowledge_graph"
   case getConversations = "get_conversations"
   case searchConversations = "search_conversations"
   case getMemories = "get_memories"
@@ -21,7 +19,6 @@ enum GeneratedSwiftTool: String, CaseIterable {
   case checkPermissionStatus = "check_permission_status"
   case requestPermission = "request_permission"
   case getTasks = "get_tasks"
-  case createCalendarEvent = "create_calendar_event"
   case askHigherModel = "ask_higher_model"
   case screenshot = "screenshot"
   case reportScreenObservation = "report_screen_observation"
@@ -36,7 +33,7 @@ enum GeneratedSwiftToolExecutor: String {
 
 enum GeneratedToolExecutors {
   static let manifestVersion = 1
-  static let manifestDigest = "sha256:55fb20fe0c9ed00c4d9f3ce303ca9ee4b976a21c6e5f45f0e1e861ce1f376732"
+  static let manifestDigest = "sha256:a7e75fc111238101a4b11c9ea08b503ab6e62accc9a562348a04d757a87a236c"
 
   static let aliasToCanonical: [String: GeneratedSwiftTool] = [
     "search_screen_history": .semanticSearch
@@ -46,11 +43,9 @@ enum GeneratedToolExecutors {
     .executeSql: .chatToolExecutor,
     .semanticSearch: .chatToolExecutor,
     .getDailyRecap: .chatToolExecutor,
-    .fillCloudConnectorForm: .chatToolExecutor,
     .searchTasks: .chatToolExecutor,
     .completeTask: .chatToolExecutor,
     .deleteTask: .chatToolExecutor,
-    .saveKnowledgeGraph: .chatToolExecutor,
     .getConversations: .chatToolExecutor,
     .searchConversations: .chatToolExecutor,
     .getMemories: .chatToolExecutor,
@@ -62,7 +57,6 @@ enum GeneratedToolExecutors {
     .checkPermissionStatus: .chatToolExecutor,
     .requestPermission: .chatToolExecutor,
     .getTasks: .realtimeHub,
-    .createCalendarEvent: .chatToolExecutor,
     .askHigherModel: .realtimeHub,
     .screenshot: .realtimeHub,
     .reportScreenObservation: .realtimeHub,
@@ -106,11 +100,9 @@ enum GeneratedToolExecutors {
     case executeSql
     case semanticSearch
     case getDailyRecap
-    case fillCloudConnectorForm
     case searchTasks
     case completeTask
     case deleteTask
-    case saveKnowledgeGraph
     case getConversations
     case searchConversations
     case getMemories
@@ -121,7 +113,6 @@ enum GeneratedToolExecutors {
     case captureScreen
     case checkPermissionStatus
     case requestPermission
-    case createCalendarEvent
     case getWorkContext
     case scanFiles
     case setUserPreferences
@@ -149,11 +140,9 @@ enum GeneratedToolExecutors {
     case .executeSql: return .executeSql
     case .semanticSearch: return .semanticSearch
     case .getDailyRecap: return .getDailyRecap
-    case .fillCloudConnectorForm: return .fillCloudConnectorForm
     case .searchTasks: return .searchTasks
     case .completeTask: return .completeTask
     case .deleteTask: return .deleteTask
-    case .saveKnowledgeGraph: return .saveKnowledgeGraph
     case .getConversations: return .getConversations
     case .searchConversations: return .searchConversations
     case .getMemories: return .getMemories
@@ -164,7 +153,6 @@ enum GeneratedToolExecutors {
     case .captureScreen: return .captureScreen
     case .checkPermissionStatus: return .checkPermissionStatus
     case .requestPermission: return .requestPermission
-    case .createCalendarEvent: return .createCalendarEvent
     case .getWorkContext: return .getWorkContext
     default: return .unhandled
     }

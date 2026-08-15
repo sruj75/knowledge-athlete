@@ -10,14 +10,7 @@ from utils.memory.default_read_rollout import (
     normalize_default_read_rollout_decision,
 )
 
-CANONICAL_CONSUMERS = {"mcp", "developer_api", "omi_chat"}
-FORBIDDEN_LEGACY_ALIASES = {
-    "mcp_default_memory_grant",
-    "developer_default_memory_grant",
-    "developer_api_default_memory_grant",
-    "chat_default_memory_grant",
-    "omi_chat_default_memory_grant",
-}
+CANONICAL_CONSUMERS = {"omi_chat"}
 
 
 def _load_module(script_path: Path):
@@ -47,8 +40,6 @@ def _valid_schema_v1_rollout_doc(uid="u1"):
             MemoryRolloutStageGate.read.value: PASSED,
         },
         "grants": {
-            "mcp": {"default_memory": True},
-            "developer_api": {"default_memory": True},
             "omi_chat": {"default_memory": True, "archive": True},
         },
         "vector_projection_commit_id": "projection-commit-1",
@@ -65,8 +56,6 @@ def test_rollout_schema_readiness_runner_exists_and_is_safe_by_default():
     for term in [
         "schema_version",
         "DEFAULT_READ_ROLLOUT_SCHEMA_VERSION",
-        "grants.mcp.default_memory",
-        "grants.developer_api.default_memory",
         "grants.omi_chat.default_memory",
         "rejected_legacy_shapes",
     ]:
@@ -88,8 +77,6 @@ def test_rollout_schema_readiness_runner_exists_and_is_safe_by_default():
     assert {shape["reason"] for shape in artifact["rejected_legacy_shapes"]} >= {
         "unsupported_rollout_schema",
         "uid_mismatch",
-        "missing_mcp_default_memory_grant",
-        "missing_developer_default_memory_grant",
         "missing_chat_default_memory_grant",
     }
 
@@ -107,7 +94,7 @@ def test_rollout_schema_readiness_examples_parse_with_shared_rollout_normalizer(
             data=example["document"],
         )
         assert decision.read_decision == MemoryReadDecision.USE_MEMORY
-        assert decision.app_has_default_memory_grant is True
+        assert decision.has_default_memory_grant is True
         assert decision.archive_capability is False
         assert decision.vector_projection_commit_id == "projection-commit-1"
 

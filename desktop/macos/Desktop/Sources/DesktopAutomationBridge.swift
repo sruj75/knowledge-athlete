@@ -122,7 +122,7 @@ struct DesktopAutomationSnapshot: Codable, Sendable {
   var selectedSettingsSection: String?
   var highlightedSettingId: String?
   var usesLegacyHomeDesign: Bool
-  /// Redesigned Home stage mode: `hub`, `chat`, or `connect`. Nil when legacy home or not on Dashboard.
+  /// Redesigned Home stage mode: `hub` or `chat`. Nil when legacy home or not on Dashboard.
   var homeMode: String?
   var showsPrimarySidebar: Bool
   var isSidebarCollapsed: Bool
@@ -170,14 +170,6 @@ struct DesktopAutomationVisualExportResult: Codable {
   let path: String
   let width: Int
   let height: Int
-}
-
-struct DesktopAutomationExecuteExportRequest: Codable {
-  let destination: String
-}
-
-struct DesktopAutomationOpenImportRequest: Codable {
-  let connector: String
 }
 
 /// Describes a semantic action exposed over `GET /actions` so an agent can discover
@@ -262,17 +254,8 @@ struct DesktopAutomationActionDescriptor: Codable {
     if name.contains("coordinator") {
       return ["coordinator"]
     }
-    if name.contains("spatial_overlay") || name.contains("cloud_connector") {
-      return ["cloud_connector_guidance"]
-    }
-    if name.contains("calendar") {
-      return ["calendar_connector"]
-    }
-    if name.contains("gmail") {
-      return ["gmail_connector"]
-    }
-    if name.contains("apple_notes") || name.contains("local_file") {
-      return ["import_connectors"]
+    if name.contains("spatial_overlay") {
+      return ["permission_guidance"]
     }
     return ["app"]
   }
@@ -304,9 +287,6 @@ struct DesktopAutomationActionDescriptor: Codable {
     }
     if name.contains("ask") || name.contains("omni") {
       return ["may call model/backend services"]
-    }
-    if name.contains("import") {
-      return ["may read local connector data", "may save imported memory data"]
     }
     if name.contains("toggle") || name.contains("debug") || name.contains("open") || name.contains("close")
       || name.contains("seed") || name.contains("swap") || name.contains("clear")
@@ -1101,52 +1081,6 @@ final class DesktopAutomationActionRegistry {
       ]
     }
 
-    // Runs the exact service + outcome mapping the ChatGPT/Claude import
-    // sheets use, so harnesses can assert outcome copy without driving the
-    // TextEditor. Writes real memories on success, like the sheet would.
-    register(
-      name: "memory_log_import_probe",
-      summary:
-        "Import a ChatGPT/Claude memory-log text through the real connector pipeline and return the outcome message",
-      params: ["source", "text", "fixture"]
-    ) { params in
-      guard let raw = params["source"], let source = OnboardingMemoryLogSource(rawValue: raw) else {
-        throw DesktopAutomationActionError.invalidParams("source must be chatgpt or claude")
-      }
-      guard let text = params["text"], !text.isEmpty else {
-        throw DesktopAutomationActionError.invalidParams("text must be non-empty")
-      }
-      let outcome: ConnectorImportOperations.Outcome
-      if params["fixture"] == "structured" {
-        guard AppBuild.isNonProduction else {
-          return ["error": "structured memory-log fixture is disabled on production bundles"]
-        }
-        // Offline providers intentionally return a marker echo rather than JSON.
-        // Inject only the extracted provider result; the real connector operation
-        // still owns validation, durable save, and user-facing outcome mapping.
-        outcome = await ConnectorImportOperations.importMemoryLog(
-          text: text,
-          source: source,
-          extractedFixture: OnboardingMemoryLogImportService.ExtractedMemoryLog(
-            memories: [text],
-            profileSummary: "desktop qualification fixture"
-          )
-        )
-      } else {
-        outcome = await ConnectorImportOperations.importMemoryLog(text: text, source: source)
-      }
-      switch outcome {
-      case .success(let result, let message):
-        return [
-          "outcome": "success",
-          "message": message,
-          "memories": "\(result.memoryCount ?? 0)",
-        ]
-      case .failure(let message, failureClass: _):
-        return ["outcome": "failure", "message": message]
-      }
-    }
-
     register(
       name: "toggle_transcription",
       summary: "Enable or disable live transcription (mirrors the menu-bar toggle)",
@@ -1428,47 +1362,6 @@ final class DesktopAutomationActionRegistry {
       return await harness.run(timeoutSeconds: timeout)
     }
 
-    // Run the post-scan local-file memory import exactly as onboarding does
-    // (indexed-files snapshot → aggregate drafts → import evidence service
-    // with legacy batch fallback). Lets agents verify the import pipeline
-    // without driving the onboarding UI or the cursor.
-    register(
-      name: "onboarding_local_file_import",
-      summary: "Run the post-scan local-file memory import from the indexed snapshot; returns saved count"
-    ) { _ in
-      let coordinator = OnboardingPagedIntroCoordinator()
-      await coordinator.refreshSnapshotIfAvailable()
-      return [
-        "saved": String(coordinator.localFileMemoriesSaved),
-        "file_count": String(coordinator.scanSnapshot?.fileCount ?? 0),
-      ]
-    }
-
-    // Drive the live onboarding language step exactly as its Continue button
-    // does: set the selection on the on-screen coordinator, run
-    // confirmLanguages() (the real backend save), and advance to the next step
-    // only when the save succeeded — mirroring OnboardingLanguageStepView.
-    register(
-      name: "onboarding_confirm_languages",
-      summary: "Select languages on the live onboarding coordinator and run the real Continue save",
-      params: ["languages"]
-    ) { params in
-      let codes = (params["languages"] ?? "en")
-        .split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
-      guard let coordinator = await MainActor.run(body: { OnboardingPagedIntroCoordinator.current })
-      else {
-        return ["error": "no live onboarding coordinator (is onboarding on screen?)"]
-      }
-      await MainActor.run { coordinator.selectedLanguageCodes = codes }
-      await coordinator.confirmLanguages()
-      let error = await MainActor.run { coordinator.lastActionError }
-      if error == nil {
-        await MainActor.run { UserDefaults.standard.set(2, forKey: DefaultsKey.onboardingStep) }
-        return ["status": "saved", "advanced_to_step": "2", "languages": codes.joined(separator: ",")]
-      }
-      return ["status": "failed", "error": error ?? "unknown"]
-    }
-
     // Same code path as the status-menu "Reset Onboarding..." item and the
     // Settings "Reset & Restart" button — clears onboarding state and restarts
     // the app. Lets agents exercise the reset→restart→onboarding flow without
@@ -1524,7 +1417,7 @@ final class DesktopAutomationActionRegistry {
       return await FloatingControlBarManager.shared.closeAskOmiForAutomation(wait: wait)
     }
 
-    // Drive the redesigned Home stage (inline chat / connect tray) without the
+    // Drive the redesigned Home stage (inline chat) without the
     // cursor. Each posts the notification DashboardPage observes, which calls
     // the exact functions the on-screen controls call.
     register(
@@ -1532,14 +1425,6 @@ final class DesktopAutomationActionRegistry {
       summary: "Open the inline chat on Home (same path as clicking the ask bar)"
     ) { _ in
       NotificationCenter.default.post(name: .homeStageOpenChat, object: nil)
-      return nil
-    }
-
-    register(
-      name: "home_connect_toggle",
-      summary: "Toggle the Connect tray on Home (same path as the ask-bar Connect button)"
-    ) { _ in
-      NotificationCenter.default.post(name: .homeStageToggleConnect, object: nil)
       return nil
     }
 
@@ -2049,69 +1934,6 @@ final class DesktopAutomationActionRegistry {
     }
 
     register(
-      name: "apple_notes_read_probe",
-      summary: "Probe Apple Notes access without importing or saving memories",
-      params: ["folderPath", "maxResults", "remember"]
-    ) { params in
-      let maxResults = min(max(intParam(params["maxResults"], default: 20), 1), 250)
-      let remember = boolParam(params["remember"], default: false)
-
-      do {
-        let selectedFolderPath: String?
-        if let requestedFolder = try AppleNotesReadProbe.resolveRequestedFolder(path: params["folderPath"]) {
-          let resolved = try await AppleNotesReaderService.shared.validateSelectedFolder(
-            path: requestedFolder.path,
-            remember: remember
-          )
-          selectedFolderPath = resolved.path
-        } else {
-          selectedFolderPath = nil
-        }
-
-        let status = await AppleNotesReaderService.shared.connectionStatus(
-          maxResults: maxResults,
-          selectedFolderPath: selectedFolderPath
-        )
-        switch status {
-        case .connected(let noteCount, _):
-          return [
-            "ok": "true",
-            "classification": "readable",
-            "noteCount": "\(noteCount)",
-            "folderSelected": selectedFolderPath == nil ? "false" : "true",
-          ]
-        case .needsAccess(let message, let reasonCode):
-          return [
-            "ok": "false",
-            "classification": reasonCode,
-            "message": message,
-            "needsFolderSelection": "true",
-          ]
-        case .error(let message, let reasonCode):
-          return [
-            "ok": "false",
-            "classification": reasonCode,
-            "message": message,
-            "needsFolderSelection": "false",
-          ]
-        }
-      } catch let error as AppleNotesReaderError {
-        return [
-          "ok": "false",
-          "classification": error.reasonCode,
-          "message": error.localizedDescription,
-          "needsFolderSelection": "\(error.shouldPromptForFolderSelection)",
-        ]
-      } catch {
-        return [
-          "ok": "false",
-          "classification": "unknown_error",
-          "message": error.localizedDescription,
-        ]
-      }
-    }
-
-    register(
       name: "delete_conversation",
       summary: "Delete conversation with cascade (API + conversationDeleted notification)",
       params: ["id"]
@@ -2254,42 +2076,6 @@ final class DesktopAutomationActionRegistry {
     ) { params in
       let wait = boolParam(params["wait"], default: true)
       return await FloatingControlBarManager.shared.backFromSubagentForAutomation(wait: wait)
-    }
-
-    register(
-      name: "spatial_overlay_present_fixture",
-      summary: "Present a deterministic spatial-overlay fixture for dogfood harnesses",
-      params: ["fixture", "settleMs"]
-    ) { params in
-      guard let fixture = SpatialOverlayDogfoodFixture(rawValue: params["fixture"] ?? "") else {
-        throw DesktopAutomationActionError.invalidParams(
-          "unknown fixture; expected one of \(SpatialOverlayDogfoodFixture.allCases.map(\.rawValue).joined(separator: ","))"
-        )
-      }
-      let state = CloudConnectorGuidanceOverlay.shared.presentAutomationFixture(fixture)
-      return state
-    }
-
-    register(
-      name: "spatial_overlay_state",
-      summary: "Return the current spatial-overlay dogfood state"
-    ) { _ in
-      CloudConnectorGuidanceOverlay.shared.automationState()
-    }
-
-    register(
-      name: "spatial_overlay_dismiss",
-      summary: "Dismiss the current spatial-overlay dogfood overlay"
-    ) { _ in
-      CloudConnectorGuidanceOverlay.shared.dismiss()
-      return ["dismissed": "true", "visible": "false"]
-    }
-
-    register(
-      name: "cloud_connector_guidance_probe",
-      summary: "Read-only diagnostic of the live Claude Add detection (no overlay, no clicks)"
-    ) { _ in
-      await MainActor.run { CloudConnectorFormAutomation.claudeAddGuidanceDiagnostics() }
     }
 
     register(
@@ -2445,130 +2231,17 @@ final class DesktopAutomationActionRegistry {
     }
 
     register(
-      name: "calendar_read_probe",
-      summary: "Read Google Calendar through the real connector path and return classified status",
-      params: ["daysBack", "daysForward", "maxResults"]
-    ) { params in
-      let requestedDaysBack = intParam(params["daysBack"], default: 1)
-      let requestedDaysForward = intParam(params["daysForward"], default: 1)
-      let requestedMaxResults = intParam(params["maxResults"], default: 1)
-      let normalized = CalendarFetchParameters.normalized(
-        daysBack: requestedDaysBack,
-        daysForward: requestedDaysForward,
-        maxResults: requestedMaxResults
-      )
-
-      do {
-        let events = try await CalendarReaderService.shared.readEvents(
-          daysBack: normalized.daysBack,
-          daysForward: normalized.daysForward,
-          maxResults: normalized.maxResults
-        )
-        return [
-          "status": "connected",
-          "classification": "readable",
-          "eventCount": "\(events.count)",
-          "daysBack": "\(normalized.daysBack)",
-          "daysForward": "\(normalized.daysForward)",
-          "maxResults": "\(normalized.maxResults)",
-        ]
-      } catch let error as CalendarReaderError {
-        let classification: String
-        switch error {
-        case .noBrowserFound:
-          classification = "no_browser"
-        case .notSignedIn:
-          classification = "not_signed_in"
-        case .sessionExpired:
-          classification = "session_expired"
-        case .cookieDecryptionFailed:
-          classification = "decrypt_failed"
-        case .configurationError:
-          classification = "configuration"
-        case .networkError:
-          classification = "network"
-        case .pythonNotFound:
-          classification = "python_not_found"
-        }
-        return [
-          "status": "error",
-          "classification": classification,
-          "message": error.errorDescription ?? "\(error)",
-          "daysBack": "\(normalized.daysBack)",
-          "daysForward": "\(normalized.daysForward)",
-          "maxResults": "\(normalized.maxResults)",
-        ]
-      }
-    }
-
-    register(
-      name: "gmail_read_probe",
-      summary: "Read Gmail through the real connector path and return classified status",
-      params: ["maxResults", "query"]
-    ) { params in
-      let requestedMaxResults = intParam(params["maxResults"], default: 1)
-      let maxResults = min(max(requestedMaxResults, 1), 500)
-      let rawQuery = params["query"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-      let query = rawQuery.isEmpty ? "newer_than:1d" : rawQuery
-
-      do {
-        let emails = try await GmailReaderService.shared.readRecentEmails(
-          maxResults: maxResults,
-          query: query
-        )
-        return [
-          "status": "connected",
-          "classification": "readable",
-          "emailCount": "\(emails.count)",
-          "maxResults": "\(maxResults)",
-          "query": query,
-        ]
-      } catch let error as GmailReaderError {
-        let classification: String
-        switch error {
-        case .noBrowserFound:
-          classification = "no_browser"
-        case .noGmailCookies, .notSignedIn:
-          classification = "not_signed_in"
-        case .sessionExpired, .authFailed:
-          classification = "session_expired"
-        case .cookieDecryptionFailed:
-          classification = "decrypt_failed"
-        case .networkError:
-          classification = "network"
-        case .pythonNotFound:
-          classification = "python_not_found"
-        }
-        return [
-          "status": "error",
-          "classification": classification,
-          "message": error.errorDescription ?? "\(error)",
-          "maxResults": "\(maxResults)",
-          "query": query,
-        ]
-      } catch {
-        return [
-          "status": "error",
-          "classification": "unknown",
-          "message": error.localizedDescription,
-          "maxResults": "\(maxResults)",
-          "query": query,
-        ]
-      }
-    }
-
-    register(
       name: "spatial_overlay_present_instruction",
       summary: "Present the Screen Recording fallback instruction card (dogfood/visual)"
     ) { params in
       let title = params["title"] ?? "Allow Screen Recording for Omi"
       let subtitle =
         params["subtitle"]
-        ?? "Turn on Omi under Screen & System Audio Recording, then return to Claude and click Add."
-      let anchor = CloudConnectorGuidanceOverlay.anchorRect(fromParam: params["anchor"])
-      CloudConnectorGuidanceOverlay.shared.presentInstructionCard(
+        ?? "Turn on Omi under Screen & System Audio Recording, then return to Omi."
+      let anchor = PermissionGuidanceOverlay.anchorRect(fromParam: params["anchor"])
+      PermissionGuidanceOverlay.shared.presentInstructionCard(
         title: title, subtitle: subtitle, near: anchor)
-      return CloudConnectorGuidanceOverlay.shared.automationState()
+      return PermissionGuidanceOverlay.shared.automationState()
     }
 
     register(
@@ -2576,7 +2249,7 @@ final class DesktopAutomationActionRegistry {
       summary: "Open Screen Recording settings and show the drag-to-enable helper"
     ) { _ in
       await MainActor.run { ScreenCaptureService.openScreenRecordingPreferences() }
-      return CloudConnectorGuidanceOverlay.shared.automationState()
+      return PermissionGuidanceOverlay.shared.automationState()
     }
 
     register(
@@ -2892,21 +2565,6 @@ final class DesktopAutomationActionRegistry {
     }
 
     register(
-      name: "apps_catalog_snapshot",
-      summary: "Return apps marketplace catalog counts for harness assertions"
-    ) { _ in
-      let v2 = try await APIClient.shared.getAppsV2()
-      let marketplaceCount = v2.groups.reduce(0) { $0 + $1.data.count }
-      let installed = try await APIClient.shared.searchApps(installedOnly: true, limit: 100)
-      return [
-        "marketplace_count": "\(marketplaceCount)",
-        "group_count": "\(v2.meta.groupCount)",
-        "capability_count": "\(v2.meta.capabilities.count)",
-        "installed_count": "\(installed.count)",
-      ]
-    }
-
-    register(
       name: "subscription_snapshot",
       summary: "Return cached subscription/plan info from the billing API"
     ) { _ in
@@ -3069,101 +2727,6 @@ final class DesktopAutomationActionRegistry {
     }
 
     register(
-      name: "memory_graph_rebuild",
-      summary:
-        "Regenerate the server-side knowledge graph from the signed-in account's memories",
-      params: []
-    ) { _ in
-      // Mutating and not undoable: the backend deletes the stored graph before
-      // the background rebuild runs, so a caller that loses the race sees an
-      // empty graph. Exposed for cursor-free QA of the Brain Map's own rebuild
-      // control, which is otherwise only reachable by clicking.
-      do {
-        let response = try await APIClient.shared.rebuildKnowledgeGraph()
-        return [
-          "status": response.status,
-          "nodes_count": "\(response.nodesCount ?? 0)",
-          "edges_count": "\(response.edgesCount ?? 0)",
-        ]
-      } catch {
-        return [
-          "has_error": "true",
-          "error_message": error.localizedDescription,
-        ]
-      }
-    }
-
-    register(
-      name: "memory_graph_snapshot",
-      summary: "Return knowledge graph node/edge counts (no SceneKit rendering)",
-      params: ["label"]
-    ) { params in
-      do {
-        let graph = try await APIClient.shared.getKnowledgeGraph()
-        var detail = [
-          "node_count": "\(graph.nodes.count)",
-          "edge_count": "\(graph.edges.count)",
-          "is_empty": graph.nodes.isEmpty ? "true" : "false",
-        ]
-        // `label` resolves a human-typed name to the ids the inspector needs,
-        // so a cursor-free check can both drive a selection and state what it
-        // expects the panel to show.
-        if let query = params["label"]?.lowercased(), !query.isEmpty {
-          if let match = graph.nodes.first(where: { $0.label.lowercased().contains(query) }) {
-            let edges = graph.edges.filter { $0.sourceId == match.id || $0.targetId == match.id }
-            detail["match_id"] = match.id
-            detail["match_label"] = match.label
-            detail["match_edge_count"] = "\(edges.count)"
-            detail["match_cited_memory_count"] = "\(Set(edges.flatMap(\.memoryIds)).count)"
-            if let first = edges.first {
-              detail["match_first_edge_id"] = first.id
-              detail["match_first_edge_memory_count"] = "\(first.memoryIds.count)"
-            }
-          } else {
-            detail["match_id"] = ""
-          }
-        }
-        return detail
-      } catch {
-        return [
-          "node_count": "0",
-          "edge_count": "0",
-          "is_empty": "true",
-          "has_error": "true",
-          "error_message": error.localizedDescription,
-        ]
-      }
-    }
-
-    register(
-      name: "memory_atlas_select",
-      summary: "Select a Brain Map entity or connection so the inspector can be checked cursor-free",
-      params: ["target", "node_id", "label", "edge_id", "clear"]
-    ) { params in
-      let target = params["target"] == "inline" ? "inline" : "page"
-      var userInfo: [String: Any] = ["target": target]
-      if let nodeID = params["node_id"], !nodeID.isEmpty { userInfo["node_id"] = nodeID }
-      if let label = params["label"], !label.isEmpty { userInfo["label"] = label }
-      if let edgeID = params["edge_id"], !edgeID.isEmpty { userInfo["edge_id"] = edgeID }
-      if params["clear"] == "true" { userInfo["clear"] = true }
-      await MainActor.run {
-        NotificationCenter.default.post(
-          name: .desktopAutomationMemoryAtlasSelectRequested,
-          object: nil,
-          userInfo: userInfo
-        )
-      }
-      return [
-        "posted": "true",
-        "target": target,
-        "node_id": params["node_id"] ?? "",
-        "label": params["label"] ?? "",
-        "edge_id": params["edge_id"] ?? "",
-        "clear": params["clear"] ?? "false",
-      ]
-    }
-
-    register(
       name: "memories_open_detail",
       summary: "Open a memory's detail panel by backend id (omit the id to close it)",
       params: ["memory_id"]
@@ -3177,94 +2740,6 @@ final class DesktopAutomationActionRegistry {
         )
       }
       return ["posted": "true", "memory_id": memoryId]
-    }
-
-    register(
-      name: "open_memory_atlas",
-      summary: "Open the canonical memory atlas page for non-production UI and performance harnesses"
-    ) { _ in
-      await MainActor.run {
-        NotificationCenter.default.post(
-          name: .desktopAutomationOpenMemoryAtlasRequested,
-          object: nil
-        )
-      }
-      return ["opened": "true", "target": "page"]
-    }
-
-    register(
-      name: "memory_atlas_set_viewport",
-      summary: "Set memory atlas zoom and pan for deterministic non-production performance sweeps",
-      params: ["target", "zoom", "pan_x", "pan_y", "reset"]
-    ) { params in
-      let target = params["target"] == "inline" ? "inline" : "page"
-      var userInfo: [String: Any] = ["target": target]
-      if let zoom = params["zoom"].flatMap(Double.init) { userInfo["zoom"] = zoom }
-      if let panX = params["pan_x"].flatMap(Double.init) { userInfo["pan_x"] = panX }
-      if let panY = params["pan_y"].flatMap(Double.init) { userInfo["pan_y"] = panY }
-      if let reset = params["reset"] { userInfo["reset"] = reset == "true" }
-      await MainActor.run {
-        NotificationCenter.default.post(
-          name: .desktopAutomationMemoryAtlasViewportRequested,
-          object: nil,
-          userInfo: userInfo
-        )
-      }
-      return [
-        "posted": "true",
-        "target": target,
-        "zoom": params["zoom"] ?? "unchanged",
-        "pan_x": params["pan_x"] ?? "unchanged",
-        "pan_y": params["pan_y"] ?? "unchanged",
-      ]
-    }
-
-    register(
-      name: "memory_atlas_enter_region",
-      summary: "Go into a Brain Map neighbourhood by caption, or leave the one you are in",
-      params: ["target", "caption", "leave"]
-    ) { params in
-      let target = params["target"] == "inline" ? "inline" : "page"
-      var userInfo: [String: Any] = ["target": target]
-      if let caption = params["caption"] { userInfo["caption"] = caption }
-      if let leave = params["leave"] { userInfo["leave"] = leave == "true" }
-      await MainActor.run {
-        NotificationCenter.default.post(
-          name: .desktopAutomationMemoryAtlasRegionRequested,
-          object: nil,
-          userInfo: userInfo
-        )
-      }
-      return [
-        "posted": "true", "target": target,
-        "caption": params["caption"] ?? "", "leave": params["leave"] ?? "false",
-      ]
-    }
-
-    register(
-      name: "memory_atlas_set_time",
-      summary: "Scrub or play the memory atlas time axis for deterministic non-production checks",
-      params: ["target", "fraction", "play", "reset_to_start", "reset"]
-    ) { params in
-      let target = params["target"] == "inline" ? "inline" : "page"
-      var userInfo: [String: Any] = ["target": target]
-      if let fraction = params["fraction"].flatMap(Double.init) { userInfo["fraction"] = fraction }
-      if let play = params["play"] { userInfo["play"] = play == "true" }
-      if let resetToStart = params["reset_to_start"] { userInfo["reset_to_start"] = resetToStart == "true" }
-      if let reset = params["reset"] { userInfo["reset"] = reset == "true" }
-      await MainActor.run {
-        NotificationCenter.default.post(
-          name: .desktopAutomationMemoryAtlasTimeRequested,
-          object: nil,
-          userInfo: userInfo
-        )
-      }
-      return [
-        "posted": "true",
-        "target": target,
-        "fraction": params["fraction"] ?? "unchanged",
-        "play": params["play"] ?? "unchanged",
-      ]
     }
 
     register(
@@ -3345,7 +2820,7 @@ final class DesktopAutomationActionRegistry {
     registerRewindArtifactRecoveryGauntlet()
     register(
       name: "navigate_via_shortcut",
-      summary: "Post the same sidebar navigation notification as Cmd+1..6 / Cmd+, shortcuts",
+      summary: "Post the same sidebar navigation notification as Cmd+1..5 / Cmd+, shortcuts",
       params: ["shortcut"]
     ) { params in
       let shortcut = (params["shortcut"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
@@ -3360,7 +2835,6 @@ final class DesktopAutomationActionRegistry {
       case "3", "memories": item = .memories
       case "4", "tasks": item = .tasks
       case "5", "rewind": item = .rewind
-      case "6", "apps": item = .apps
       case ",", "comma", "settings": item = .settings
       default: item = nil
       }
@@ -3459,39 +2933,6 @@ final class DesktopAutomationActionRegistry {
         "person_name": person.name,
         "speaker_label": assignedSegment?.speaker ?? segment.speaker ?? "",
         "segment_count": "\(refreshed.transcriptSegments.count)",
-      ]
-    }
-
-    register(
-      name: "conversation_share_probe",
-      summary: "Hermetic share affordance probe — fetches share link without clipboard",
-      params: ["conversationId"]
-    ) { params in
-      let rawConversationId = params["conversationId"]?.trimmingCharacters(in: .whitespacesAndNewlines)
-      guard let rawConversationId, !rawConversationId.isEmpty else {
-        return ["error": "missing conversationId"]
-      }
-      let conversationId: String
-      if rawConversationId == "latest" {
-        guard let appState = AppState.current else {
-          return ["error": "app state unavailable"]
-        }
-        if appState.conversations.isEmpty {
-          await appState.refreshConversations()
-        }
-        guard let latestId = appState.conversations.first?.id else {
-          return ["error": "no conversations available"]
-        }
-        conversationId = latestId
-      } else {
-        conversationId = rawConversationId
-      }
-      let shareURL = try await APIClient.shared.getConversationShareLink(id: conversationId)
-      let shareAvailable = !shareURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-      return [
-        "conversation_id": conversationId,
-        "share_available": shareAvailable ? "true" : "false",
-        "share_url_present": shareAvailable ? "true" : "false",
       ]
     }
 
@@ -3992,27 +3433,6 @@ final class DesktopAutomationBridge: @unchecked Sendable {
           statusCode: 400
         )
       }
-    case ("POST", "/execute-export"):
-      struct ExecResult: Codable { let taskTitle: String }
-      do {
-        let payload = try JSONDecoder().decode(
-          DesktopAutomationExecuteExportRequest.self, from: request.body)
-        guard let destination = MemoryExportDestination(rawValue: payload.destination) else {
-          return jsonResponse(
-            DesktopAutomationResponse<ExecResult>(
-              ok: false, result: nil, error: "unknown destination: \(payload.destination)"),
-            statusCode: 400)
-        }
-        let outcome = try await MemoryExportExecutor.run(destination)
-        return jsonResponse(
-          DesktopAutomationResponse(
-            ok: true, result: ExecResult(taskTitle: outcome.taskTitle), error: nil))
-      } catch {
-        return jsonResponse(
-          DesktopAutomationResponse<ExecResult>(
-            ok: false, result: nil, error: error.localizedDescription),
-          statusCode: 500)
-      }
     case ("GET", "/actions"):
       let descriptors = await DesktopAutomationActionRegistry.shared.descriptors()
       return jsonResponse(DesktopAutomationResponse(ok: true, result: descriptors, error: nil))
@@ -4031,7 +3451,7 @@ final class DesktopAutomationBridge: @unchecked Sendable {
           "POST /conversation/open",
           "POST /action",
           "POST /visual/export",
-        ] + DesktopAutomationPresentationRoute.allCases.map(\.capability),
+        ],
         lanes: ["bridge", "visual", "ui"],
         waits: ["state", "log", "trace"],
         assertions: ["state", "log", "trace", "ax"],
@@ -4075,94 +3495,6 @@ final class DesktopAutomationBridge: @unchecked Sendable {
           statusCode: 500
         )
       }
-    case ("POST", let path) where path == DesktopAutomationPresentationRoute.openExport.rawValue:
-      struct OpenResult: Codable {
-        let destination: String
-        let generation: UInt64
-      }
-      guard
-        let payload = try? JSONDecoder().decode(
-          DesktopAutomationExecuteExportRequest.self, from: request.body)
-      else {
-        return jsonResponse(
-          DesktopAutomationResponse<OpenResult>(
-            ok: false, result: nil, error: "invalid_request"),
-          statusCode: 400)
-      }
-      let gate = await currentAutomationPresentationGate()
-      let outcome = await DesktopAutomationPresentationRequestHandler.shared.openExport(
-        identifier: payload.destination,
-        knownIdentifiers: Set(MemoryExportDestination.allCases.map(\.rawValue)),
-        gate: gate
-      )
-      guard let command = outcome.command else {
-        return jsonResponse(
-          DesktopAutomationResponse<OpenResult>(
-            ok: false, result: nil, error: outcome.errorCode),
-          statusCode: outcome.statusCode)
-      }
-      return jsonResponse(
-        DesktopAutomationResponse(
-          ok: true,
-          result: OpenResult(
-            destination: payload.destination,
-            generation: command.generation
-          ),
-          error: nil
-        ))
-    case ("POST", let path) where path == DesktopAutomationPresentationRoute.openImport.rawValue:
-      struct OpenResult: Codable {
-        let connector: String
-        let generation: UInt64
-      }
-      guard
-        let payload = try? JSONDecoder().decode(
-          DesktopAutomationOpenImportRequest.self, from: request.body)
-      else {
-        return jsonResponse(
-          DesktopAutomationResponse<OpenResult>(
-            ok: false, result: nil, error: "invalid_request"),
-          statusCode: 400)
-      }
-      let knownIDs = await MainActor.run { ImportConnector.all.map(\.id) }
-      let gate = await currentAutomationPresentationGate()
-      let outcome = await DesktopAutomationPresentationRequestHandler.shared.openImport(
-        identifier: payload.connector,
-        knownIdentifiers: Set(knownIDs),
-        gate: gate
-      )
-      guard let command = outcome.command else {
-        return jsonResponse(
-          DesktopAutomationResponse<OpenResult>(
-            ok: false, result: nil, error: outcome.errorCode),
-          statusCode: outcome.statusCode)
-      }
-      return jsonResponse(
-        DesktopAutomationResponse(
-          ok: true,
-          result: OpenResult(
-            connector: payload.connector,
-            generation: command.generation
-          ),
-          error: nil
-        ))
-    case ("POST", "/gmail-read"):
-      struct RemovedRoute: Codable {
-        let message: String
-        let replacement: String
-      }
-      return jsonResponse(
-        DesktopAutomationResponse(
-          ok: false,
-          result: RemovedRoute(
-            message:
-              "The legacy Gmail import route was removed because automation responses must not expose email contents or trigger memory writes.",
-            replacement: "Use POST /action with gmail_read_probe for privacy-safe Gmail status checks."
-          ),
-          error: "gmail_read_removed"
-        ),
-        statusCode: 410
-      )
     default:
       return jsonResponse(
         DesktopAutomationResponse<DesktopAutomationSnapshot>(
@@ -4188,21 +3520,6 @@ final class DesktopAutomationBridge: @unchecked Sendable {
         ]
       )
     }
-  }
-
-  @MainActor
-  private func currentAutomationPresentationGate() -> DesktopAutomationPresentationGate {
-    let authState = AuthState.shared
-    if authState.isRestoringAuth {
-      return .presentationUnavailable
-    }
-    guard authState.isSignedIn else {
-      return .signedOut
-    }
-    guard let appState = AppState.current else {
-      return .presentationUnavailable
-    }
-    return appState.hasCompletedOnboarding ? .ready : .onboardingIncomplete
   }
 
   private func dispatchOpenConversation(_ payload: DesktopAutomationOpenConversationRequest) async throws {
@@ -4263,7 +3580,7 @@ final class DesktopAutomationBridge: @unchecked Sendable {
       if payload.target == "floating" {
         window = NSApp.windows.first(where: { $0 is FloatingControlBarWindow && $0.isVisible })
       } else if payload.target == "overlay" {
-        window = CloudConnectorGuidanceOverlay.shared.automationWindow
+        window = PermissionGuidanceOverlay.shared.automationWindow
       } else if payload.target == "task_thread" {
         window = NSApp.windows.first(where: { $0.title == "Omi — Task thread scenario" && $0.isVisible })
       } else {

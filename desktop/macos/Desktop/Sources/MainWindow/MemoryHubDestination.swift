@@ -3,11 +3,10 @@ import CoreGraphics
 /// Destinations available from the Memory navigation menu.
 enum MemoryHubDestination: Int, CaseIterable, Identifiable {
   static let storageKey = "memoryHubDestination"
-  static let dropdownDestinations: [MemoryHubDestination] = [.conversations, .brainMap]
+  static let dropdownDestinations: [MemoryHubDestination] = [.conversations]
 
   case memories
   case conversations
-  case brainMap
 
   var id: Int { rawValue }
 
@@ -15,7 +14,6 @@ enum MemoryHubDestination: Int, CaseIterable, Identifiable {
     switch self {
     case .memories: return "Memories"
     case .conversations: return "Conversations"
-    case .brainMap: return "Brain Map"
     }
   }
 
@@ -23,7 +21,6 @@ enum MemoryHubDestination: Int, CaseIterable, Identifiable {
     switch self {
     case .memories: return "brain.head.profile"
     case .conversations: return "text.bubble"
-    case .brainMap: return "point.3.connected.trianglepath.dotted"
     }
   }
 

@@ -67,15 +67,11 @@ class TestPremiumFlagship:
     FLAGSHIP_FEATURES = [
         'conv_action_items',
         'conv_structure',
-        'conv_app_result',
         'daily_summary',
         'learnings',
         'chat_responses',
         'goals_advice',
         'notifications',
-        'app_generator',
-        'persona_clone',
-        'persona_chat_premium',
     ]
 
     @pytest.mark.parametrize("feature", FLAGSHIP_FEATURES)
@@ -95,12 +91,9 @@ class TestPremiumMini:
     """Test gpt-4.1-mini features in premium profile respond to real prompts."""
 
     MINI_FEATURES = [
-        'external_structure',
         'memories',
         'memory_conflict',
-        'knowledge_graph',
         'chat_extraction',
-        'chat_graph',
         'goals',
         'proactive_notification',
     ]
@@ -122,10 +115,8 @@ class TestPremiumNano:
     """Test gpt-4.1-nano features in premium profile respond to real prompts."""
 
     NANO_FEATURES = [
-        'conv_app_select',
         'conv_folder',
         'conv_discard',
-        'persona_chat',
         'daily_summary_simple',
         'memory_category',
     ]
@@ -150,7 +141,6 @@ class TestPremiumGemini:
         'session_titles',
         'followup',
         'onboarding',
-        'app_integration',
         'trends',
     ]
 

@@ -37,7 +37,6 @@ from models.memory_apply import (
     memory_content_hash,
 )
 from models.memory_operations import MemoryOperation, MemoryOperationType
-from models.memory_promotion import MemoryGraphAssertion, PromotionGraphPlan, build_memory_graph_assertion
 from models.memory_review import build_memory_review_conflict
 from models.memory_source_replacement import ConversationSourceReplacementReceipt
 from models.product_memory import RESTRICTED_SENSITIVITY_LABELS, MemoryItemStatus, MemoryItem
@@ -193,7 +192,6 @@ class MemoryApplyDoc(TypedDict, total=False):
     evidence: List[Dict[str, Any]]
     source_ids: List[str]
     sensitivity_labels: List[str]
-    visibility: str
     user_asserted: bool
     captured_at: datetime
     expires_at: Optional[datetime]
@@ -203,8 +201,6 @@ class MemoryApplyDoc(TypedDict, total=False):
     source_commit_id: Optional[str]
     source_commit_sequence: Optional[int]
     promotion: Optional[Dict[str, Any]]
-    capture_device_ids: List[str]
-    primary_capture_device: Optional[str]
     corroboration_count: int
     last_corroborated_at: Optional[datetime]
     confidence: Optional[float]
@@ -212,10 +208,6 @@ class MemoryApplyDoc(TypedDict, total=False):
     subject_entity_id: Optional[str]
     predicate: Optional[str]
     arguments: Dict[str, Any]
-    kg_extracted: bool
-    graph_ready: bool
-    graph_assertion_id: Optional[str]
-    graph_plan_hash: Optional[str]
     # commit projection (write-only)
     memory_item_ids: List[str]
     outbox_event_ids: List[str]
@@ -670,8 +662,6 @@ def _tombstone_memory_items_firestore_transaction(
                 "evidence": embedded_evidence,
                 "sensitivity_labels": [],
                 "promotion": None,
-                "capture_device_ids": [],
-                "primary_capture_device": None,
                 "corroboration_count": 0,
                 "last_corroborated_at": None,
                 "confidence": None,
@@ -690,10 +680,6 @@ def _tombstone_memory_items_firestore_transaction(
                     evidence_ids=[evidence.evidence_id for evidence in embedded_evidence],
                 ),
                 "account_generation": committed_control.account_generation,
-                "kg_extracted": False,
-                "graph_ready": False,
-                "graph_assertion_id": None,
-                "graph_plan_hash": None,
             }
         )
         tombstoned_items.append(tombstoned)
@@ -710,8 +696,7 @@ def _tombstone_memory_items_firestore_transaction(
         )
 
     # Each item writes its authoritative tombstone plus two durable projection
-    # delete events. The graph assertion is derived and is deleted by that
-    # outbox path after reads have already been fenced by this tombstone.
+    # delete events after reads have already been fenced by the tombstone.
     mutation_count = (
         len(tombstoned_evidence) + 4 + (3 * len(tombstoned_items)) + (1 if review_resolution is not None else 0)
     )
@@ -880,39 +865,13 @@ def _reactivate_replacement_lineage_item(
     item_snapshot: Any,
     replacement_control: MemoryControlState,
     now: datetime,
-) -> tuple[MemoryItem, MemoryGraphAssertion]:
-    raw_graph_plan = (item.promotion or {}).get("graph_plan")
-    if not isinstance(raw_graph_plan, dict):
-        raise ConversationSourceReplacementConflict(
-            f"superseded lineage item has no restorable graph plan: {item.memory_id}"
-        )
-    try:
-        graph_plan = parse_snapshot_strict(
-            PromotionGraphPlan,
-            item_snapshot,
-            payload_from_snapshot=lambda _snapshot: raw_graph_plan,
-        )
-    except Exception as exc:
-        raise ConversationSourceReplacementConflict(
-            f"superseded lineage item has an invalid graph plan: {item.memory_id}"
-        ) from exc
+) -> MemoryItem:
     if not item.content_hash:
         raise ConversationSourceReplacementConflict(
             f"superseded lineage item has no restorable content hash: {item.memory_id}"
         )
 
     item_revision = item.item_revision + 1
-    assertion = build_memory_graph_assertion(
-        uid=item.uid,
-        memory_id=item.memory_id,
-        item_revision=item_revision,
-        content_hash=item.content_hash,
-        evidence_ids=[evidence.evidence_id for evidence in item.evidence],
-        graph_plan=graph_plan,
-        commit_id=replacement_control.head_commit_id,
-        commit_sequence=replacement_control.commit_sequence,
-        created_at=now,
-    )
     payload = item.model_dump(mode="python")
     payload.update(
         {
@@ -925,13 +884,6 @@ def _reactivate_replacement_lineage_item(
             "version": item.version + 1,
             "item_revision": item_revision,
             "account_generation": replacement_control.account_generation,
-            "subject_entity_id": graph_plan.subject_entity_id,
-            "predicate": graph_plan.predicate,
-            "arguments": graph_plan.arguments,
-            "graph_ready": True,
-            "graph_assertion_id": assertion.assertion_id,
-            "graph_plan_hash": graph_plan.plan_hash,
-            "kg_extracted": True,
         }
     )
     reactivated = parse_snapshot_strict(
@@ -939,7 +891,7 @@ def _reactivate_replacement_lineage_item(
         item_snapshot,
         payload_from_snapshot=lambda _snapshot: payload,
     )
-    return reactivated, assertion
+    return reactivated
 
 
 def _replacement_barrier_events(
@@ -1027,13 +979,13 @@ def _replacement_mutation_count(
 ) -> int:
     old_only_count = old_item_count - overlapping_item_count
     count = tombstoned_evidence_count
-    count += old_only_count * 2  # item set + graph assertion delete
+    count += old_only_count  # authoritative tombstone item set
     count += new_evidence_count
     if not results:
         return count + 1  # source-generation control update
     for result in results:
         count += 4  # operation + control + state head + commit
-        count += len(result.memory_items) * 2  # item + graph assertion set/delete
+        count += len(result.memory_items)
         count += len(result.outbox_events)
         count += sum(
             1
@@ -1357,8 +1309,6 @@ def _replace_conversation_source_firestore_transaction(
                 "evidence": next_evidence,
                 "sensitivity_labels": [],
                 "promotion": None,
-                "capture_device_ids": [],
-                "primary_capture_device": None,
                 "corroboration_count": 0,
                 "last_corroborated_at": None,
                 "confidence": None,
@@ -1377,10 +1327,6 @@ def _replace_conversation_source_firestore_transaction(
                     evidence_ids=[evidence.evidence_id for evidence in next_evidence],
                 ),
                 "account_generation": replacement_control.account_generation,
-                "kg_extracted": False,
-                "graph_ready": False,
-                "graph_assertion_id": None,
-                "graph_plan_hash": None,
             }
         )
         tombstoned_items[memory_id] = tombstoned
@@ -1396,21 +1342,19 @@ def _replace_conversation_source_firestore_transaction(
         )
 
     reactivated_items: List[MemoryItem] = []
-    reactivated_assertions: List[MemoryGraphAssertion] = []
     reactivation_events: List[MemoryOutboxEvent] = []
     new_memory_id_set = set(new_memory_ids)
     for item, item_snapshot in authoritative_reactivation_by_id.values():
         canonical_target = (item.canonical_memory_id or item.superseded_by or "").strip()
         if canonical_target in new_memory_id_set:
             continue
-        reactivated, assertion = _reactivate_replacement_lineage_item(
+        reactivated = _reactivate_replacement_lineage_item(
             item=item,
             item_snapshot=item_snapshot,
             replacement_control=replacement_control,
             now=now,
         )
         reactivated_items.append(reactivated)
-        reactivated_assertions.append(assertion)
         reactivation_events.extend(
             _replacement_reactivation_events(
                 uid=uid,
@@ -1443,7 +1387,6 @@ def _replace_conversation_source_firestore_transaction(
         control_state=replacement_control,
         operation=committed_replacement_operation,
         memory_items=reactivated_items,
-        graph_assertions=reactivated_assertions,
         outbox_events=replacement_outbox_events,
     )
 
@@ -1473,8 +1416,6 @@ def _replace_conversation_source_firestore_transaction(
         if memory_id not in new_memory_ids:
             item_ref = db_client.document(f"{collections.memory_items}/{memory_id}")
             transaction.set(item_ref, _firestore_data(item))
-            assertion_ref = db_client.document(f"{collections.memory_graph_assertions}/{memory_id}")
-            transaction.delete(assertion_ref)
     for result in [replacement_apply_result, *results]:
         operation_ref = db_client.document(f"{collections.memory_operations}/{result.operation.operation_id}")
         _write_apply_result(
@@ -1821,17 +1762,6 @@ def _write_apply_result(
     for item in result.memory_items:
         item_ref = db_client.document(f"{collections.memory_items}/{item.memory_id}")
         transaction.set(item_ref, _firestore_data(item))
-        assertion_ref = db_client.document(f"{collections.memory_graph_assertions}/{item.memory_id}")
-        matching_assertion = next(
-            (assertion for assertion in result.graph_assertions if assertion.memory_id == item.memory_id),
-            None,
-        )
-        if matching_assertion is not None:
-            transaction.set(assertion_ref, _firestore_data(matching_assertion))
-        elif item.status != MemoryItemStatus.tombstoned and (
-            item.status != MemoryItemStatus.active or not item.graph_ready
-        ):
-            transaction.delete(assertion_ref)
         promotion = item.promotion or {}
         if item.status == MemoryItemStatus.active and promotion.get("route") == "review":
             conflict_id = promotion.get("target_memory_id")

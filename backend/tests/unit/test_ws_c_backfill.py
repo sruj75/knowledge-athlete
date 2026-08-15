@@ -921,7 +921,6 @@ def test_bucketed_reviewed_apply_stages_processing_with_legacy_timestamp(_truste
 
     assert report.completed is True
     assert report.verified is True
-    assert report.kg_extraction_failures == 0
     canonical_id = legacy_backfill_memory_id(uid=LEGACY_UID, legacy_memory_id=row["id"])
     stored = db.docs[f"users/{LEGACY_UID}/memory_items/{canonical_id}"]
     assert stored["tier"] == MemoryTier.short_term.value
@@ -929,7 +928,6 @@ def test_bucketed_reviewed_apply_stages_processing_with_legacy_timestamp(_truste
     assert stored["captured_at"] == created_at
     assert stored["updated_at"] == created_at
     assert stored["expires_at"] > datetime.now(timezone.utc)
-    assert stored["kg_extracted"] is False
     assert stored["promotion"]["processing_status"] == "pending_processing"
     assert stored["promotion"]["submission"]["content_hash"]
     assert stored["promotion"]["bucket"] == LegacyBackfillBucket.reviewed_long_term.value
@@ -1005,7 +1003,7 @@ def test_bucketed_backfill_preserves_known_third_party_subject(
     }
 
 
-def test_bucketed_reviewed_rerun_keeps_pending_item_out_of_kg(_trusted_account):
+def test_bucketed_reviewed_rerun_keeps_pending_item_stable(_trusted_account):
     row = _legacy_row(
         legacy_id="leg-reviewed-repair",
         content="User prefers memory bucket repairs",
@@ -1028,7 +1026,6 @@ def test_bucketed_reviewed_rerun_keeps_pending_item_out_of_kg(_trusted_account):
     canonical_id = legacy_backfill_memory_id(uid=LEGACY_UID, legacy_memory_id=row["id"])
     item_path = f"users/{LEGACY_UID}/memory_items/{canonical_id}"
     assert first.written_count == 1
-    assert db.docs[item_path]["kg_extracted"] is False
 
     repaired = backfill_user_bucketed(
         LEGACY_UID,
@@ -1040,8 +1037,6 @@ def test_bucketed_reviewed_rerun_keeps_pending_item_out_of_kg(_trusted_account):
 
     assert repaired.written_count == 0
     assert repaired.skipped_already_present == 1
-    assert repaired.kg_extraction_failures == 0
-    assert db.docs[item_path]["kg_extracted"] is False
 
 
 def test_stage_all_candidate_can_be_reviewed_processed_and_routed_by_l2(_trusted_account):
@@ -1124,11 +1119,10 @@ def test_stage_all_candidate_can_be_reviewed_processed_and_routed_by_l2(_trusted
 
     assert promoted.promoted_memory_ids == [memory_id]
     assert db.docs[item_path]["tier"] == MemoryTier.long_term.value
-    assert db.docs[item_path]["graph_ready"] is True
 
 
-def test_resume_completed_checkpoint_keeps_pending_item_out_of_kg(_trusted_account):
-    row = _legacy_row(legacy_id="leg-resume-kg", content="User prefers local rollout harnesses")
+def test_resume_completed_checkpoint_keeps_pending_item_stable(_trusted_account):
+    row = _legacy_row(legacy_id="leg-resume", content="User prefers local rollout harnesses")
     rows = [row]
     get_non_filtered_fn, _ = _make_non_filtered_store(rows)
     db = _canonical_db_with_control(LEGACY_UID)
@@ -1145,7 +1139,6 @@ def test_resume_completed_checkpoint_keeps_pending_item_out_of_kg(_trusted_accou
     canonical_id = legacy_backfill_memory_id(uid=LEGACY_UID, legacy_memory_id=row["id"])
     item_path = f"users/{LEGACY_UID}/memory_items/{canonical_id}"
     assert first.completed is True
-    assert db.docs[item_path]["kg_extracted"] is False
 
     repaired = backfill_user(
         LEGACY_UID,
@@ -1157,8 +1150,6 @@ def test_resume_completed_checkpoint_keeps_pending_item_out_of_kg(_trusted_accou
 
     assert repaired.resumed_from_index == 1
     assert repaired.written_count == 0
-    assert repaired.kg_extraction_failures == 0
-    assert db.docs[item_path]["kg_extracted"] is False
 
 
 def test_bucketed_hold_bucket_never_writes(_trusted_account):

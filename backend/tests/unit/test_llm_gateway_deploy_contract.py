@@ -120,8 +120,7 @@ def test_prod_gateway_wiring_promotes_cloud_run_only_after_verified_endpoint_inj
     assert gke_env['GCP_LOCATION']['value'] == 'us-central1'
     assert gke_env['GOOGLE_CLOUD_PROJECT']['value'] == 'based-hardware'
 
-    # IR-013 removes the wearable-only backfill caller.
-    for service in ('backend', 'backend-sync', 'backend-integration'):
+    for service in ('backend', 'backend-sync'):
         service_config = prod['cloud_run']['services'][service]
         assert service_config['env']['OMI_LLM_GATEWAY_URL'] == {
             'env_var': 'OMI_LLM_GATEWAY_URL',
@@ -227,7 +226,7 @@ def test_gateway_auto_deploy_is_folded_into_the_admitted_backend_lifecycle():
     assert 'runtime_image_contracts.py smoke' in workflow
     assert 'IMAGE_TAG="${{ steps.image-tag.outputs.short_sha }}" backend/scripts/deploy-llm-gateway.sh' in workflow
     assert 'OMI_LLM_GATEWAY_URL: ${{ steps.gateway-serving.outputs.gateway_url }}' in workflow
-    assert '--lane omi:auto:public-shared-conversation-chat' in workflow
+    assert '--lane omi:auto:chat-structured' in workflow
     assert '--check-metrics' in workflow
 
 
@@ -260,8 +259,8 @@ def test_backend_deploy_requires_serving_and_cloud_run_vpc_gates_before_gateway_
     assert 'Probe LLM Gateway from the Cloud Run VPC' in auto_dev
     assert 'Smoke LLM Gateway' in auto_dev
     assert 'OMI_LLM_GATEWAY_URL: ${{ steps.gateway-serving.outputs.gateway_url }}' in auto_dev
-    assert '--lane omi:auto:public-shared-conversation-chat' in workflow
-    assert '--lane omi:auto:public-shared-conversation-chat' in auto_dev
+    assert '--lane omi:auto:chat-structured' in workflow
+    assert '--lane omi:auto:chat-structured' in auto_dev
 
 
 def test_backend_can_compose_dev_gateway_with_immutable_backend_image_but_prod_stays_separate():
@@ -366,7 +365,7 @@ def test_auto_dev_revision_fence_targets_the_deployment_project_static_contract(
     """Static guard: every final revision read uses the same explicit project as promotion."""
     workflow = _load_workflow('gcp_backend_auto_dev.yml')
     fence = _workflow_step(workflow, 'Verify validated revisions are still current')
-    assert str(fence['run']).count('--project=${{ vars.GCP_PROJECT_ID }}') == 3
+    assert str(fence['run']).count('--project=${{ vars.GCP_PROJECT_ID }}') == 2
 
 
 def test_monitoring_scrapes_llm_gateway_with_shared_metrics_secret_contract():

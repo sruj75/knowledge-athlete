@@ -1,15 +1,9 @@
 # Gateway-only model and reasoning policy. These overrides are applied after
 # model_config.py generates a lane, so legacy product routing remains unchanged.
 generated_route_overrides:
-  - feature: app_generator
-    primary: {provider: openai, model: gpt-5.6-luna}
-    provider_options: {reasoning_effort: medium}
   - feature: chat_agent
     primary: {provider: anthropic, model: claude-sonnet-5}
   - feature: chat_extraction
-    primary: {provider: openai, model: gpt-5.4-nano}
-    provider_options: {reasoning_effort: low}
-  - feature: chat_graph
     primary: {provider: openai, model: gpt-5.4-nano}
     provider_options: {reasoning_effort: low}
   - feature: chat_responses
@@ -17,12 +11,6 @@ generated_route_overrides:
     provider_options: {reasoning_effort: medium}
   - feature: conv_action_items
     primary: {provider: openai, model: gpt-5.6-luna}
-    provider_options: {reasoning_effort: low}
-  - feature: conv_app_result
-    primary: {provider: openai, model: gpt-5.6-luna}
-    provider_options: {reasoning_effort: low}
-  - feature: conv_app_select
-    primary: {provider: openai, model: gpt-5-nano}
     provider_options: {reasoning_effort: low}
   - feature: conv_discard
     primary: {provider: openai, model: gpt-5-nano}
@@ -36,12 +24,6 @@ generated_route_overrides:
   - feature: daily_summary
     primary: {provider: openai, model: gpt-5.6-luna}
     provider_options: {reasoning_effort: low}
-  - feature: daily_summary_simple
-    primary: {provider: openai, model: gpt-5-nano}
-    provider_options: {reasoning_effort: minimal}
-  - feature: external_structure
-    primary: {provider: openai, model: gpt-5.4-nano}
-    provider_options: {reasoning_effort: low}
   - feature: fair_use
     primary: {provider: openai, model: gpt-5.6-luna}
     provider_options: {reasoning_effort: medium}
@@ -51,9 +33,6 @@ generated_route_overrides:
   - feature: goals_advice
     primary: {provider: openai, model: gpt-5.6-luna}
     provider_options: {reasoning_effort: medium}
-  - feature: knowledge_graph
-    primary: {provider: openai, model: gpt-5.4-nano}
-    provider_options: {reasoning_effort: low}
   - feature: learnings
     primary: {provider: openai, model: gpt-5.6-luna}
     provider_options: {reasoning_effort: medium}
@@ -75,15 +54,6 @@ generated_route_overrides:
   - feature: notifications
     primary: {provider: openai, model: gpt-5.6-luna}
     provider_options: {reasoning_effort: low}
-  - feature: persona_chat
-    primary: {provider: openai, model: gpt-5.4-nano}
-    provider_options: {reasoning_effort: low}
-  - feature: persona_chat_premium
-    primary: {provider: openai, model: gpt-5.6-luna}
-    provider_options: {reasoning_effort: medium}
-  - feature: persona_clone
-    primary: {provider: openai, model: gpt-5.6-luna}
-    provider_options: {reasoning_effort: medium}
   - feature: proactive_notification
     primary: {provider: openai, model: gpt-5.4-nano}
     provider_options: {reasoning_effort: low}

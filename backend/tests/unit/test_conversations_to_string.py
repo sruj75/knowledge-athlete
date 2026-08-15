@@ -48,13 +48,13 @@ for _mod in [
     if _existing is not None and not getattr(_existing, "__file__", None):
         del sys.modules[_mod]
 
-from models.conversation import AppResult, Conversation
+from models.conversation import Conversation
 from models.conversation_enums import CategoryEnum
 from models.structured import Structured
 from utils.conversations.render import conversations_to_string
 
 
-def _make_conversation(overview="Test overview", apps_results=None, title="Test Title"):
+def _make_conversation(overview="Test overview", title="Test Title"):
     """Create a minimal Conversation for testing."""
     return Conversation(
         id="test-id",
@@ -66,61 +66,16 @@ def _make_conversation(overview="Test overview", apps_results=None, title="Test 
             overview=overview,
             category=CategoryEnum.personal,
         ),
-        apps_results=apps_results or [],
     )
 
 
-class TestConversationsToStringDedup:
-    """Test that conversations_to_string avoids double-summarization."""
+class TestConversationsToStringRendering:
+    """Test ordinary conversation rendering."""
 
-    def test_no_apps_results_uses_overview(self):
+    def test_uses_overview(self):
         conv = _make_conversation(overview="My overview")
         result = conversations_to_string([conv])
         assert "My overview" in result
-
-    def test_apps_results_uses_app_content(self):
-        conv = _make_conversation(
-            overview="My overview",
-            apps_results=[AppResult(app_id="summarizer", content="App summary here")],
-        )
-        result = conversations_to_string([conv])
-        assert "App summary here" in result
-
-    def test_apps_results_excludes_overview(self):
-        conv = _make_conversation(
-            overview="My overview",
-            apps_results=[AppResult(app_id="summarizer", content="App summary here")],
-        )
-        result = conversations_to_string([conv])
-        assert "My overview" not in result
-
-    def test_empty_apps_results_uses_overview(self):
-        conv = _make_conversation(overview="Fallback overview", apps_results=[])
-        result = conversations_to_string([conv])
-        assert "Fallback overview" in result
-
-    def test_empty_app_content_falls_back_to_overview(self):
-        conv = _make_conversation(
-            overview="Fallback overview",
-            apps_results=[AppResult(app_id="summarizer", content="")],
-        )
-        result = conversations_to_string([conv])
-        assert "Fallback overview" in result
-
-    def test_whitespace_app_content_falls_back_to_overview(self):
-        conv = _make_conversation(
-            overview="Fallback overview",
-            apps_results=[AppResult(app_id="summarizer", content="   ")],
-        )
-        result = conversations_to_string([conv])
-        assert "Fallback overview" in result
-
-    def test_no_duplicate_summarization_label(self):
-        conv = _make_conversation(
-            apps_results=[AppResult(app_id="summarizer", content="App summary")],
-        )
-        result = conversations_to_string([conv])
-        assert "Summarization:" not in result
 
 
 class TestConversationsToStringTimezone:
@@ -163,7 +118,6 @@ def _make_naive_conversation(created, started, finished):
         started_at=started,
         finished_at=finished,
         structured=Structured(title="T", overview="O", category=CategoryEnum.personal),
-        apps_results=[],
     )
 
 

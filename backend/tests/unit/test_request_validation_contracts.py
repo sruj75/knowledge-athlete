@@ -3,44 +3,16 @@ from datetime import datetime, timezone
 import pytest
 from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import ValidationError
 
 from models.conversation import SetConversationActionItemsStateRequest, SetConversationEventsStateRequest
 from utils.request_validation import (
     HistoryDays,
     NonNegativeOffset,
     PositiveLimit,
-    parse_form_json,
     parse_sync_filename_timestamp,
     validate_calendar_date,
 )
-
-
-class _FormPayload(BaseModel):
-    name: str = Field(min_length=1)
-    count: int = Field(ge=1)
-
-
-def test_parse_form_json_validates_model_json():
-    payload = parse_form_json(_FormPayload, '{"name":"omi","count":2}', 'app_data')
-
-    assert payload == _FormPayload(name='omi', count=2)
-
-
-@pytest.mark.parametrize('raw_value', ['not-json', '[]', '{"name":"omi","count":0}'])
-def test_parse_form_json_rejects_invalid_form_json(raw_value):
-    with pytest.raises(HTTPException) as exc_info:
-        parse_form_json(_FormPayload, raw_value, 'app_data')
-
-    assert exc_info.value.status_code == 422
-    assert 'app_data' in exc_info.value.detail
-
-
-def test_parse_form_json_dict_rejects_non_object_json():
-    with pytest.raises(HTTPException) as exc_info:
-        parse_form_json(dict, '[1, 2, 3]', 'persona_data')
-
-    assert exc_info.value.status_code == 422
 
 
 @pytest.mark.parametrize('value', ['2024-01-01', '2024-02-29'])

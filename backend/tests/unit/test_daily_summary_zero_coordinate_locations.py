@@ -12,8 +12,8 @@ leaf modules it imports (keeping the parent packages on their real paths so the
 module itself still resolves from disk) and force the LLM to return non-JSON so
 the function returns via _basic_daily_summary, which carries `locations`.
 
-utils.llm.external_integrations binds its heavy dependencies at import time
-(``from utils.llm.clients import get_llm, parser``, ``import database.users as
+utils.llm.daily_summary binds its heavy dependencies at import time
+(``from utils.llm.clients import get_llm``, ``import database.users as
 users_db``, …), so the fakes must be active before the module is exec'd. This is
 the sanctioned Tier-2 "fake must precede import" case: see
 backend/docs/test_isolation.md and testing/import_isolation.load_module_fresh.
@@ -49,7 +49,7 @@ def _real_pkg(name, *relpath):
 
 @pytest.fixture(scope="module")
 def ext():
-    """Load utils.llm.external_integrations fresh against stubbed heavy deps.
+    """Load utils.llm.daily_summary fresh against stubbed heavy deps.
 
     Parent packages are given real ``__path__``s so the module under test resolves
     from disk; leaf modules are stubbed so their heavy internals never run.
@@ -79,8 +79,8 @@ def ext():
     }
     with stub_modules(fakes):
         module = load_module_fresh(
-            "utils.llm.external_integrations",
-            os.path.join(str(_BACKEND), "utils", "llm", "external_integrations.py"),
+            "utils.llm.daily_summary",
+            os.path.join(str(_BACKEND), "utils", "llm", "daily_summary.py"),
         )
         yield module
 

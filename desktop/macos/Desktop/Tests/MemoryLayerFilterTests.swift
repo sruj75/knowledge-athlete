@@ -23,7 +23,6 @@ final class MemoryLayerFilterTests: XCTestCase {
       conversationId: nil,
       reviewed: false,
       userReview: nil,
-      visibility: "private",
       manuallyAdded: true,
       scoring: nil,
       source: "desktop",
@@ -81,7 +80,6 @@ final class MemoryLayerFilterTests: XCTestCase {
       conversationId: nil,
       reviewed: false,
       userReview: nil,
-      visibility: "private",
       manuallyAdded: false,
       scoring: nil,
       source: nil,
@@ -116,31 +114,20 @@ final class MemoryLayerFilterTests: XCTestCase {
     let source = try memoriesPageSource()
 
     XCTAssertTrue(source.contains("private func commitMemoryPageCapabilities("))
-    XCTAssertTrue(source.contains("private struct MemoryPageFetchResult"))
     XCTAssertEqual(
       source.components(separatedBy: "canonicalLifecycleExposed = page.canonicalLifecycleExposed").count - 1,
       1,
       "Page capability metadata should only be assigned inside commitMemoryPageCapabilities()."
     )
-    XCTAssertEqual(
-      source.components(separatedBy: "deviceScopeSupported = false").count - 1,
-      0,
-      "Device-scope fallback metadata should be returned to commitMemoryPageCapabilities(), not assigned in fetch retry code."
-    )
     XCTAssertTrue(source.contains("guard commitMemoryPageCapabilities(page, for: token) else"))
-    XCTAssertTrue(source.contains("let fetchResult = try await fetchMemoriesPageDeviceScopeAware("))
-    XCTAssertTrue(source.contains("let page = fetchResult.page"))
-    XCTAssertTrue(source.contains("deviceScopeSupportedOverride: fetchResult.deviceScopeSupportedOverride"))
-    XCTAssertTrue(source.contains("reason: \"capability_mismatch\""))
   }
 
-  func testLegacyDeviceScopeFallbackDoesNotLocallyHideUnprovenancedMemories() throws {
+  func testMemoriesPageHasNoDeviceScopeProjection() throws {
     let source = try memoriesPageSource()
 
-    XCTAssertTrue(
-      source.contains("if filterThisDeviceOnly && deviceScopeSupported {"),
-      "The local device matcher must run only when the backend can provide device provenance."
-    )
+    XCTAssertFalse(source.contains("filterThisDeviceOnly"))
+    XCTAssertFalse(source.contains("deviceScopeSupported"))
+    XCTAssertFalse(source.contains("device_scope"))
   }
 
   func testMemoriesPageProjectsCacheReadsBeforeDisplay() throws {

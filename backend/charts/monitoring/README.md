@@ -195,16 +195,14 @@ Most are bundled with kube-prometheus-stack and auto-provisioned. Custom dashboa
 | Node Exporter / USE Method / Node | `fac67cfbe174d3ef53eb473d73d9212f` | `node-exporter-mixin` | Bundled |
 | Prometheus / Overview | `9fa0d141-d019-4ad7-8bc5-42196ee308bd` | `prometheus-mixin` | Bundled |
 
-### Cloud Run (4) — per-service dashboards
+### Cloud Run (2) — per-service dashboards
 
 Folder: `Cloud Run` (folder UID: `aev9if48326f4e`)
 
 | Dashboard | UID | Notes |
 |-----------|-----|-------|
 | Backend | `0253019b-c68a-4aef-a27d-6bb3408727fb` | Cloud Run backend (main API) |
-| Backend-integration | `5be48038-a72b-4938-99ed-7a8747655294` | Cloud Run backend-integration |
 | Backend-sync | `8bf7bd3f-8dbc-4f86-a532-557bfac0d7ac` | Cloud Run backend-sync |
-| Plugins | `e736ab7d-d3e8-444f-a743-369b054def9e` | Cloud Run plugins service |
 
 ### GKE (4) — per-service dashboards
 
@@ -585,9 +583,7 @@ backend/charts/monitoring/
 │   │   ├── backend-api-monitoring-v2.json
 │   ├── cloud-run/                       # Matches Grafana "Cloud Run" folder
 │   │   ├── backend.json
-│   │   ├── backend-integration.json
-│   │   ├── backend-sync.json
-│   │   └── plugins.json
+│   │   └── backend-sync.json
 │   ├── gke/                             # Matches Grafana "GKE" folder
 │   │   ├── backend-listen.json
 │   │   ├── diarizer.json

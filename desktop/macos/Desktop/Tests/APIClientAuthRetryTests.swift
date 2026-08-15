@@ -188,10 +188,6 @@ import XCTest
       setenv("FIREBASE_API_KEY", "test-key", 1)
       defer { unsetenv("FIREBASE_API_KEY") }
 
-      try await client.setConversationVisibility(id: "conversation-1")
-      XCTAssertEqual(AuthRetryURLStub.attempts, 2)
-
-      AuthRetryURLStub.reset()
       try await client.assignSegmentsBulk(
         conversationId: "conversation-1",
         segmentIds: ["segment-1"],

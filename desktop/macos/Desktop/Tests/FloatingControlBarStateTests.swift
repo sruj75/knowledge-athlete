@@ -318,9 +318,6 @@ final class FloatingControlBarStateTests: XCTestCase {
     XCTAssertEqual(history[0].aiMessage.id, "a1")
     XCTAssertEqual(history[0].question, "Hello?")
 
-    let shareIds = state.syncedShareMessageIds(from: provider)
-    XCTAssertEqual(shareIds, ["q1", "a1", "q2", "a2"])
-
     // Mutating provider message text is reflected without copying into state.
     provider.messages[3].text = "Sure — updated."
     XCTAssertEqual(state.currentAIMessage(from: provider)?.text, "Sure — updated.")

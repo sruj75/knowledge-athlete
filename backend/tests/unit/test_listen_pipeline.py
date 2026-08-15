@@ -417,22 +417,6 @@ class TestPusherHeaderDemux:
         assert header_type == 103
         assert parsed_id == conv_id
 
-    def test_header_102_queues_transcript(self):
-        """Header 102 should parse JSON and append to transcript_queue."""
-        transcript_queue = deque(maxlen=50)
-        payload = {'segments': [{'text': 'test'}], 'memory_id': 'mem-1'}
-        msg = self._make_msg(102, json.dumps(payload).encode('utf-8'))
-        # Simulate receive_tasks logic
-        data = msg
-        header_type = struct.unpack('<I', data[:4])[0]
-        res = json.loads(bytes(data[4:]).decode('utf-8'))
-        segments = res.get('segments')
-        memory_id = res.get('memory_id')
-        conversation_or_memory_id = memory_id or 'fallback-conv'
-        transcript_queue.append({'segments': segments, 'memory_id': conversation_or_memory_id})
-        assert len(transcript_queue) == 1
-        assert transcript_queue[0]['memory_id'] == 'mem-1'
-
     def test_header_105_queues_speaker_sample(self):
         """Header 105 should append to speaker_sample_queue with queued_at timestamp."""
         speaker_sample_queue = deque(maxlen=100)
@@ -468,38 +452,6 @@ class TestPusherHeaderDemux:
             speaker_sample_queue.append({})
         assert len(speaker_sample_queue) == 0  # not queued
 
-    def test_header_101_audio_with_consumer_guard(self):
-        """Header 101 should only accumulate audio when consumer exists."""
-        trigger_audiobuffer = bytearray()
-        audiobuffer = bytearray()
-        has_audio_apps_enabled = False
-        audio_bytes_webhook_delay_seconds = None
-
-        audio_data = b'\x00\x01' * 100
-        timestamp = time.time()
-        msg = self._make_msg(101, struct.pack('d', timestamp) + audio_data)
-        data = msg
-        parsed_audio = data[12:]
-
-        if has_audio_apps_enabled:
-            trigger_audiobuffer.extend(parsed_audio)
-        if audio_bytes_webhook_delay_seconds is not None:
-            audiobuffer.extend(parsed_audio)
-
-        # Neither consumer exists → buffers stay empty
-        assert len(trigger_audiobuffer) == 0
-        assert len(audiobuffer) == 0
-
-    def test_header_101_audio_with_app_enabled(self):
-        """Header 101 with audio apps enabled should accumulate in trigger_audiobuffer."""
-        trigger_audiobuffer = bytearray()
-        has_audio_apps_enabled = True
-
-        audio_data = b'\x00\x01' * 100
-        if has_audio_apps_enabled:
-            trigger_audiobuffer.extend(audio_data)
-        assert len(trigger_audiobuffer) == 200
-
     def test_flaw_header_103_conversation_switch_flushes_private_cloud(self):
         """FLAW TEST: Switching conversation_id should flush private cloud buffer for old conv."""
         private_cloud_queue = []
@@ -531,36 +483,6 @@ class TestPusherHeaderDemux:
         assert private_cloud_queue[0]['conversation_id'] == 'old-conv'
         assert len(private_cloud_queue[0]['data']) == 500
         assert len(private_cloud_sync_buffer) == 0
-
-    def test_header_102_memory_id_does_not_overwrite_session_conversation_id(self):
-        """A transcript's memory_id must not mutate the authoritative current_conversation_id
-        (set only by header 103). It is only used to route the queued transcript. This prevents a
-        stale lifecycle event from rebinding a newer recording session (issue #6952)."""
-        current_conversation_id = 'active-conv'  # set earlier by header 103
-        transcript_queue = []
-        payload = {'segments': [], 'memory_id': 'stale-conv-from-memory'}
-        res = payload
-        memory_id = res.get('memory_id')
-        # Header 102 handling: route by memory_id, never overwrite session state.
-        conversation_or_memory_id = memory_id or current_conversation_id
-        transcript_queue.append({'segments': res.get('segments'), 'memory_id': conversation_or_memory_id})
-
-        # Authoritative session id is unchanged...
-        assert current_conversation_id == 'active-conv'
-        # ...while this transcript is still routed under its own memory_id.
-        assert transcript_queue[0]['memory_id'] == 'stale-conv-from-memory'
-
-    def test_header_102_without_memory_id_falls_back_to_session_conversation_id(self):
-        """When a transcript carries no memory_id, it routes under the session conversation id."""
-        current_conversation_id = 'active-conv'
-        transcript_queue = []
-        res = {'segments': [], 'memory_id': None}
-        memory_id = res.get('memory_id')
-        conversation_or_memory_id = memory_id or current_conversation_id
-        transcript_queue.append({'segments': res.get('segments'), 'memory_id': conversation_or_memory_id})
-
-        assert current_conversation_id == 'active-conv'
-        assert transcript_queue[0]['memory_id'] == 'active-conv'
 
 
 # ===================================================================
@@ -820,68 +742,6 @@ class TestConversationLifecycle:
 
 
 # ===================================================================
-# SECTION 9: Audio Buffer Guard (Consumer-Gated Accumulation)
-# ===================================================================
-
-
-class TestAudioBufferGuard:
-    """Test that audio buffers only grow when there's an active consumer.
-
-    Without this guard, buffers grow ~16KB/s indefinitely for users
-    without audio apps — a memory leak.
-    """
-
-    def _guard(
-        self, audio_data, has_audio_apps_enabled, audio_bytes_webhook_delay_seconds, trigger_audiobuffer, audiobuffer
-    ):
-        """Extracted guard logic from pusher.py receive_tasks (header 101)."""
-        if has_audio_apps_enabled:
-            trigger_audiobuffer.extend(audio_data)
-        if audio_bytes_webhook_delay_seconds is not None:
-            audiobuffer.extend(audio_data)
-        return trigger_audiobuffer, audiobuffer
-
-    def test_no_consumers_no_growth(self):
-        """No apps and no webhook → buffers stay empty."""
-        t, a = self._guard(b'\x00' * 1000, False, None, bytearray(), bytearray())
-        assert len(t) == 0
-        assert len(a) == 0
-
-    def test_app_consumer_accumulates(self):
-        """Audio apps enabled → trigger_audiobuffer grows."""
-        t, a = self._guard(b'\x00' * 1000, True, None, bytearray(), bytearray())
-        assert len(t) == 1000
-        assert len(a) == 0
-
-    def test_webhook_consumer_accumulates(self):
-        """Webhook delay set → audiobuffer grows."""
-        t, a = self._guard(b'\x00' * 1000, False, 5.0, bytearray(), bytearray())
-        assert len(t) == 0
-        assert len(a) == 1000
-
-    def test_both_consumers_accumulate(self):
-        """Both consumers → both buffers grow."""
-        t, a = self._guard(b'\x00' * 1000, True, 5.0, bytearray(), bytearray())
-        assert len(t) == 1000
-        assert len(a) == 1000
-
-    def test_flaw_unbounded_growth_without_guard(self):
-        """FLAW TEST: Without guard, 60s of 16KB/s audio = ~960KB buffer growth."""
-        # This tests the scenario the guard prevents
-        t = bytearray()
-        for _ in range(3600):  # 60s at ~60 frames/s
-            t.extend(b'\x00' * 16000)  # ~16KB per frame
-        # Without guard, this would be ~57.6MB
-        assert len(t) == 57_600_000
-        # With guard (no consumers), it would be 0
-        t2 = bytearray()
-        for _ in range(3600):
-            # Guard: has_audio_apps_enabled=False, webhook=None → no accumulation
-            pass
-        assert len(t2) == 0
-
-
-# ===================================================================
 # SECTION 10: STT Buffer Accumulation (30ms Flush)
 # ===================================================================
 
@@ -1018,18 +878,8 @@ class TestPusherQueueBounds:
 
     From pusher.py constants:
     - speaker_sample_queue: maxlen=100
-    - transcript_queue: maxlen=50
-    - audio_bytes_queue: maxlen=20
     - private_cloud_queue: unbounded (list)
     """
-
-    def test_transcript_queue_bounded_at_50(self):
-        """Transcript queue should drop oldest when exceeding maxlen=50."""
-        queue = deque(maxlen=50)
-        for i in range(100):
-            queue.append({'segments': [], 'memory_id': f'conv-{i}'})
-        assert len(queue) == 50
-        assert queue[0]['memory_id'] == 'conv-50'  # oldest dropped
 
     def test_speaker_sample_queue_bounded_at_100(self):
         """Speaker sample queue maxlen=100."""
@@ -1037,13 +887,6 @@ class TestPusherQueueBounds:
         for i in range(150):
             queue.append({'person_id': f'p{i}'})
         assert len(queue) == 100
-
-    def test_audio_bytes_queue_bounded_at_20(self):
-        """Audio bytes queue maxlen=20."""
-        queue = deque(maxlen=20)
-        for i in range(30):
-            queue.append({'type': 'app', 'data': b'\x00'})
-        assert len(queue) == 20
 
     def test_private_cloud_queue_unbounded(self):
         """FLAW TEST: Private cloud queue is a list (unbounded) — could grow indefinitely."""

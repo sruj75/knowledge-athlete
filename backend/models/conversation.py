@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
-from typing import Dict, List, Literal, Optional
+from typing import Dict, List, Optional
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, model_validator
 
 from models.audio_file import AudioFile
 from models.calendar_context import CalendarMeetingContext
@@ -9,8 +9,6 @@ from models.chat import Message
 from models.conversation_enums import (
     ConversationSource,
     ConversationStatus,
-    ConversationVisibility,
-    ExternalIntegrationConversationSource,
     PostProcessingModel,
     PostProcessingStatus,
 )
@@ -22,9 +20,7 @@ from models.transcript_segment import TranscriptSegment
 # Only locally-defined symbols are exported. Use canonical modules for moved types:
 #   models.conversation_enums, models.structured, models.audio_file, etc.
 __all__ = [
-    'AppResult',
     'BulkAssignSegmentsRequest',
-    'CalendarEventLink',
     'Conversation',
     'ConversationFinalizationStatusResponse',
     'ConversationMutationResponse',
@@ -33,14 +29,9 @@ __all__ = [
     'CreateConversationResponse',
     'CreateMemoryResponse',
     'DeleteActionItemRequest',
-    'ExternalIntegrationCreateConversation',
     'MergeConversationsRequest',
     'MergeConversationsResponse',
-    'PluginResult',
     'SearchRequest',
-    'SharedConversationChatHistoryMessage',
-    'SharedConversationChatRequest',
-    'SharedConversationChatResponse',
     'SetConversationActionItemsStateRequest',
     'SetConversationEventsStateRequest',
     'TestPromptRequest',
@@ -54,66 +45,6 @@ __all__ = [
 class UpdateConversation(BaseModel):
     title: Optional[str] = None
     overview: Optional[str] = None
-
-
-class SharedConversationChatHistoryMessage(BaseModel):
-    model_config = {'extra': 'forbid'}
-
-    role: Literal['user', 'assistant']
-    content: str = Field(min_length=1, max_length=2000, strict=True)
-
-    @field_validator('content')
-    @classmethod
-    def validate_content(cls, value: str) -> str:
-        stripped = value.strip()
-        if not stripped:
-            raise ValueError('content must not be blank')
-        return stripped
-
-
-class SharedConversationChatRequest(BaseModel):
-    model_config = {'extra': 'forbid'}
-
-    conversation_id: str = Field(min_length=1, max_length=128, strict=True)
-    question: str = Field(min_length=1, max_length=2000, strict=True)
-    history: List[SharedConversationChatHistoryMessage] = Field(max_length=8)
-
-    @field_validator('conversation_id', 'question')
-    @classmethod
-    def validate_non_blank_text(cls, value: str) -> str:
-        stripped = value.strip()
-        if not stripped:
-            raise ValueError('value must not be blank')
-        return stripped
-
-
-class SharedConversationChatResponse(BaseModel):
-    model_config = {'extra': 'forbid'}
-
-    message: str = Field(min_length=1, strict=True)
-
-
-# TODO: remove this class when the app is updated to use apps_results
-class PluginResult(BaseModel):
-    plugin_id: Optional[str]
-    content: str
-
-
-class AppResult(BaseModel):
-    app_id: Optional[str]
-    content: str
-
-
-class CalendarEventLink(BaseModel):
-    """Links a conversation to a Google Calendar event."""
-
-    event_id: str = Field(description="Google Calendar event ID")
-    title: str = Field(description="Calendar event title")
-    attendees: List[str] = Field(default=[], description="List of attendee display names for UI")
-    attendee_emails: List[str] = Field(default=[], description="List of attendee email addresses")
-    start_time: datetime = Field(description="Event start time")
-    end_time: datetime = Field(description="Event end time")
-    html_link: Optional[str] = Field(default=None, description="Direct link to open event in Google Calendar")
 
 
 class ConversationPostProcessing(BaseModel):
@@ -174,17 +105,8 @@ class Conversation(BaseModel):
     conversation_audio: Optional[ConversationAudio] = None
     private_cloud_sync_enabled: bool = False
 
-    apps_results: List[AppResult] = []
-    suggested_summarization_apps: List[str] = []
-
-    # TODO: plugins_results for backward compatibility with the old memories routes and app
-    plugins_results: List[PluginResult] = []
-
     external_data: Optional[Dict] = None
-    app_id: Optional[str] = None
-
     discarded: bool = False
-    visibility: ConversationVisibility = ConversationVisibility.private
     starred: bool = False
 
     # TODO: processing_memory_id for backward compatibility with the old memories routes and app
@@ -202,21 +124,15 @@ class Conversation(BaseModel):
     folder_id: Optional[str] = Field(default=None, description="ID of the folder this conversation belongs to")
     call_id: Optional[str] = Field(default=None, description="Twilio call SID for phone call conversations")
 
-    # Calendar event link - set when conversation overlaps with a Google Calendar event
-    calendar_event: Optional[CalendarEventLink] = None
-
     # Capture-device provenance (optional; absent on legacy conversations).
     client_device_id: Optional[str] = None
     client_platform: Optional[str] = None
 
     def __init__(self, **data):
         super().__init__(**data)
-        # Update plugins_results based on apps_results
-        self.plugins_results = [PluginResult(plugin_id=app.app_id, content=app.content) for app in self.apps_results]
         self.processing_memory_id = self.processing_conversation_id
 
     def get_transcript(self, include_timestamps: bool, people: List[Person] = None, user_name: str = None) -> str:
-        # Warn: missing transcript for workflow source, external integration source
         return TranscriptSegment.segments_as_string(
             self.transcript_segments, include_timestamps=include_timestamps, user_name=user_name, people=people
         )
@@ -279,29 +195,6 @@ class CreateConversation(BaseModel):
         return list(set(segment.person_id for segment in self.transcript_segments if segment.person_id))
 
 
-class ExternalIntegrationCreateConversation(BaseModel):
-    started_at: Optional[datetime] = None
-    finished_at: Optional[datetime] = None
-    text: str
-    text_source: ExternalIntegrationConversationSource = ExternalIntegrationConversationSource.audio
-    text_source_spec: Optional[str] = None
-    geolocation: Optional[Geolocation] = None
-
-    source: ConversationSource = ConversationSource.workflow
-    language: Optional[str] = None
-
-    app_id: Optional[str] = None
-
-    client_device_id: Optional[str] = None
-    client_platform: Optional[str] = None
-
-    def get_transcript(self, include_timestamps: bool) -> str:
-        return self.text
-
-    def get_person_ids(self) -> List[str]:
-        return []
-
-
 class CreateConversationResponse(BaseModel):
     conversation: Conversation
     messages: List[Message] = []
@@ -358,7 +251,6 @@ class UpdateSegmentTextRequest(BaseModel):
 
 
 class UpdateSummaryRequest(BaseModel):
-    app_id: Optional[str] = None
     content: str = Field(min_length=1, max_length=10000)
 
 

@@ -162,7 +162,6 @@ struct ChatSession: Identifiable, Codable, Equatable {
   var preview: String?
   let createdAt: Date
   var updatedAt: Date
-  let appId: String?
   var messageCount: Int
   var starred: Bool
 
@@ -170,13 +169,12 @@ struct ChatSession: Identifiable, Codable, Equatable {
     case id, title, preview, starred
     case createdAt = "created_at"
     case updatedAt = "updated_at"
-    case appId = "app_id"
     case messageCount = "message_count"
   }
 
   init(
     id: String = UUID().uuidString, title: String = "New Chat", preview: String? = nil,
-    createdAt: Date = Date(), updatedAt: Date = Date(), appId: String? = nil,
+    createdAt: Date = Date(), updatedAt: Date = Date(),
     messageCount: Int = 0, starred: Bool = false
   ) {
     self.id = id
@@ -184,7 +182,6 @@ struct ChatSession: Identifiable, Codable, Equatable {
     self.preview = preview
     self.createdAt = createdAt
     self.updatedAt = updatedAt
-    self.appId = appId
     self.messageCount = messageCount
     self.starred = starred
   }
@@ -196,7 +193,6 @@ struct ChatSession: Identifiable, Codable, Equatable {
     preview = try container.decodeIfPresent(String.self, forKey: .preview)
     createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
     updatedAt = try container.decodeIfPresent(Date.self, forKey: .updatedAt) ?? Date()
-    appId = try container.decodeIfPresent(String.self, forKey: .appId)
     messageCount = try container.decodeIfPresent(Int.self, forKey: .messageCount) ?? 0
     starred = try container.decodeIfPresent(Bool.self, forKey: .starred) ?? false
   }
@@ -772,7 +768,6 @@ struct MessageMetadata {
       "get_daily_recap",
       "complete_task",
       "delete_task",
-      "save_knowledge_graph",
     ]
     .filter { prompt.contains("**\($0)**") }
     .count
@@ -989,6 +984,21 @@ enum ChatSystemPromptStyle {
   case floating
 }
 
+/// Complete local-agent request assembled by the one-assistant chat path.
+/// Keeping attachment identity inside this value prevents the UI state and
+/// agent transport calls from drifting into separate request shapes.
+struct ChatProviderAgentQueryInvocation {
+  let prompt: String
+  let session: AgentSurfaceSession
+  let surface: AgentSurfaceReference
+  let mode: String?
+  let imageData: Data?
+  let attachments: [AgentQueryAttachment]
+  let producingTurnId: String?
+  let expectedContext: AgentContextFreshness?
+  let reasoningEffort: String?
+}
+
 /// State management for managed Omi chat.
 /// Uses hybrid architecture: Swift → Claude Agent (via Node.js bridge) for AI, Backend for persistence + context
 @MainActor
@@ -1113,9 +1123,6 @@ class ChatProvider: ObservableObject {
   var isOnboarding = false
   var preOnboardingMainMessages: [ChatMessage]?
   @Published var sessionsLoadError: String?
-  @Published var selectedAppId: String? {
-    didSet { restoreDraftForCurrentContextIfNeeded() }
-  }
   @Published var hasMoreMessages = false
   @Published var isLoadingMoreMessages = false
   @Published var showStarredOnly = false
@@ -1127,12 +1134,7 @@ class ChatProvider: ObservableObject {
   /// Whether the user is currently viewing the default chat (syncs with Flutter app)
   @Published var isInDefaultChat = true
 
-  /// Override app ID for message routing (e.g. "task-chat" to isolate task messages).
-  /// When set, messages are saved with this app_id so the backend routes them
-  /// to the correct session instead of the default chat.
-  var overrideAppId: String?
-
-  private var activeDraftKey = ChatDraftKey.mainChat(contextID: "omi:default")
+  private var activeDraftKey = ChatDraftKey.mainChat(contextID: "default")
   private var isRestoringDraft = false
   private var draftRevision: UInt64 = 0
 
@@ -1142,7 +1144,27 @@ class ChatProvider: ObservableObject {
 
   // MARK: - Agent client
   private var agentClient: AgentClient.Session?
+
+  #if DEBUG
+    var createChatSessionForTests: ((String?) async throws -> ChatSession)?
+    var runtimeOwnerIdForTests: (() -> String?)?
+    var ensureBridgeStartedForTests: ((Int?) async -> Bool)?
+    var resolveKernelQuerySessionForTests: ((AgentSurfaceReference, String?) async throws -> AgentSurfaceSession)?
+    var prepareKernelQueryContextForTests:
+      ((AgentSurfaceReference, AgentSurfaceSession?) async throws -> (AgentSurfaceSession, AgentContextSnapshot))?
+    var warmupKernelQuerySessionForTests: ((AgentSurfaceSession) async -> Void)?
+    var refreshMemoriesForPromptForTests: (() async -> Void)?
+    var recordStreamingJournalExchangeForTests: ((ChatMessage, ChatMessage) -> [ChatMessage]?)?
+    var initialMessageForTests: ((String, String) async throws -> InitialMessageResponse)?
+    var importInitialGreetingForTests: ((AgentSurfaceReference, KernelJournalRemoteTurn, String) async -> Bool)?
+    var refreshInitialGreetingForTests: ((AgentSurfaceReference) async -> Void)?
+    var agentClientForTests: AgentClient.Session?
+  #endif
+
   private func resolvedAgentClient() -> AgentClient.Session {
+    #if DEBUG
+      if let agentClientForTests { return agentClientForTests }
+    #endif
     if let agentClient { return agentClient }
     let session = AgentClient.makeSession(harnessMode: AgentHarnessMode.piMono.rawValue)
     agentClient = session
@@ -1370,9 +1392,7 @@ class ChatProvider: ObservableObject {
   private var terminationObserver: NSObjectProtocol?
 
   private var currentDraftKey: ChatDraftKey {
-    let appContext = selectedAppId?.isEmpty == false ? selectedAppId! : "omi"
-    let chatContext = currentSession?.id ?? "default"
-    return .mainChat(contextID: "\(appContext):\(chatContext)")
+    .mainChat(contextID: currentSession?.id ?? "default")
   }
 
   private func restoreDraftForCurrentContextIfNeeded() {
@@ -1385,7 +1405,7 @@ class ChatProvider: ObservableObject {
   }
 
   private func resetDraftAfterSignOut() {
-    activeDraftKey = .mainChat(contextID: "omi:default")
+    activeDraftKey = .mainChat(contextID: "default")
     isRestoringDraft = true
     draftText = ""
     isRestoringDraft = false
@@ -1411,6 +1431,11 @@ class ChatProvider: ObservableObject {
   private func ensureBridgeStarted(
     authoritativeGeneration: Int? = nil
   ) async -> Bool {
+    #if DEBUG
+      if let ensureBridgeStartedForTests {
+        return await ensureBridgeStartedForTests(authoritativeGeneration)
+      }
+    #endif
     guard let authorization = RuntimeOwnerIdentity.captureAuthorizationSnapshot() else {
       await presentBridgeStartupFailure(
         BridgeError.authMissing, authoritativeGeneration: authoritativeGeneration)
@@ -1516,16 +1541,16 @@ class ChatProvider: ObservableObject {
   }
 
   private var runtimeOwnerId: String? {
-    RuntimeOwnerIdentity.currentOwnerId()
+    #if DEBUG
+      if let runtimeOwnerIdForTests {
+        return runtimeOwnerIdForTests()
+      }
+    #endif
+    return RuntimeOwnerIdentity.currentOwnerId()
   }
 
   func mainChatRuntimeChatId(sessionId: String?) -> String {
-    guard let sessionId, !sessionId.isEmpty else {
-      if let appId = selectedAppId, !appId.isEmpty {
-        return "default|\(appId)"
-      }
-      return "default"
-    }
+    guard let sessionId, !sessionId.isEmpty else { return "default" }
     return sessionId
   }
 
@@ -1564,7 +1589,12 @@ class ChatProvider: ObservableObject {
     surface: AgentSurfaceReference,
     requestedModelProfile _: String?
   ) async throws -> AgentSurfaceSession {
-    try await resolvedAgentClient().resolveSurfaceSession(surface)
+    #if DEBUG
+      if let resolveKernelQuerySessionForTests {
+        return try await resolveKernelQuerySessionForTests(surface, nil)
+      }
+    #endif
+    return try await resolvedAgentClient().resolveSurfaceSession(surface)
   }
 
   private func prepareKernelQueryContext(
@@ -1578,6 +1608,12 @@ class ChatProvider: ObservableObject {
     requestedModelProfile: String? = nil,
     pinnedSession: AgentSurfaceSession? = nil
   ) async throws -> KernelQueryContext {
+    #if DEBUG
+      if let prepareKernelQueryContextForTests {
+        let context = try await prepareKernelQueryContextForTests(surface, pinnedSession)
+        return KernelQueryContext(session: context.0, snapshot: context.1)
+      }
+    #endif
     let client = resolvedAgentClient()
     let session: AgentSurfaceSession
     if let pinnedSession {
@@ -1722,6 +1758,44 @@ class ChatProvider: ObservableObject {
     }
   }
 
+  private func warmupKernelQuerySession(_ session: AgentSurfaceSession) async {
+    #if DEBUG
+      if let warmupKernelQuerySessionForTests {
+        await warmupKernelQuerySessionForTests(session)
+        return
+      }
+    #endif
+    await resolvedAgentClient().warmupSession(session)
+  }
+
+  private func performAgentQuery(
+    _ invocation: ChatProviderAgentQueryInvocation,
+    onTextDelta: @escaping AgentClient.TextDeltaHandler,
+    onToolActivity: @escaping AgentClient.ToolActivityHandler,
+    onThinkingDelta: @escaping AgentClient.ThinkingDeltaHandler,
+    onToolResultDisplay: @escaping AgentClient.ToolResultDisplayHandler,
+    onAuthRequired: @escaping AgentClient.AuthRequiredHandler,
+    onAuthSuccess: @escaping AgentClient.AuthSuccessHandler
+  ) async throws -> AgentClient.QueryResult {
+    return try await resolvedAgentClient().query(
+      prompt: invocation.prompt,
+      session: invocation.session,
+      surface: invocation.surface,
+      mode: invocation.mode,
+      imageData: invocation.imageData,
+      attachments: invocation.attachments,
+      producingTurnId: invocation.producingTurnId,
+      expectedContext: invocation.expectedContext,
+      reasoningEffort: invocation.reasoningEffort,
+      onTextDelta: onTextDelta,
+      onToolActivity: onToolActivity,
+      onThinkingDelta: onThinkingDelta,
+      onToolResultDisplay: onToolResultDisplay,
+      onAuthRequired: onAuthRequired,
+      onAuthSuccess: onAuthSuccess
+    )
+  }
+
   // MARK: - Session Management
 
   /// Fetch all chat sessions for the current app (retries up to 3 times on failure)
@@ -1735,10 +1809,7 @@ class ChatProvider: ObservableObject {
 
     for attempt in 1...maxAttempts {
       do {
-        sessions = try await APIClient.shared.getChatSessions(
-          appId: selectedAppId,
-          starred: showStarredOnly ? true : nil
-        )
+        sessions = try await APIClient.shared.getChatSessions(starred: showStarredOnly ? true : nil)
         log("ChatProvider loaded \(sessions.count) sessions (starred filter: \(showStarredOnly))")
         sessionsLoadError = nil
 
@@ -1772,15 +1843,22 @@ class ChatProvider: ObservableObject {
   /// - Parameters:
   ///   - title: Optional session title
   ///   - skipGreeting: Skip the initial AI greeting message
-  ///   - appId: Override app ID (e.g. "task-chat" to isolate task sessions from default chat)
   func createNewSession(
     title: String? = nil,
     skipGreeting: Bool = false,
-    appId: String? = nil,
     authoritativeSendGeneration: Int? = nil
   ) async -> ChatSession? {
     do {
-      let session = try await APIClient.shared.createChatSession(title: title, appId: appId ?? selectedAppId)
+      let session: ChatSession
+      #if DEBUG
+        if let createChatSessionForTests {
+          session = try await createChatSessionForTests(title)
+        } else {
+          session = try await APIClient.shared.createChatSession(title: title)
+        }
+      #else
+        session = try await APIClient.shared.createChatSession(title: title)
+      #endif
       guard authoritativeSendGeneration.map({ sendGeneration == $0 }) ?? true else { return nil }
       sessions.insert(session, at: 0)
       currentSession = session
@@ -1816,35 +1894,68 @@ class ChatProvider: ObservableObject {
         log("ChatProvider: initial greeting skipped because owner is unavailable")
         return
       }
-      let response = try await APIClient.shared.getInitialMessage(
-        sessionId: session.id,
-        appId: selectedAppId,
-        expectedOwnerId: ownerId
-      )
+      let response: InitialMessageResponse
+      #if DEBUG
+        if let initialMessageForTests {
+          response = try await initialMessageForTests(session.id, ownerId)
+        } else {
+          response = try await APIClient.shared.getInitialMessage(
+            sessionId: session.id,
+            expectedOwnerId: ownerId
+          )
+        }
+      #else
+        response = try await APIClient.shared.getInitialMessage(
+          sessionId: session.id,
+          expectedOwnerId: ownerId
+        )
+      #endif
       guard authoritativeSendGeneration.map({ sendGeneration == $0 }) ?? true else { return }
 
       let surface = AgentSurfaceReference.mainChat(
         chatId: mainChatRuntimeChatId(sessionId: session.id)
       )
-      let accepted = await kernelTurnProjection.importRemoteTurn(
-        surface: surface,
-        turn: KernelJournalRemoteTurn(
-          remoteId: response.messageId,
-          canonicalTurnId: response.messageId,
-          role: "assistant",
-          content: response.message,
-          contentBlocksJSON: "[]",
-          resourcesJSON: "[]",
-          metadataJSON: "{}",
-          createdAtMs: Int(Date().timeIntervalSince1970 * 1_000)
-        ),
-        ownerID: ownerId
+      let remoteTurn = KernelJournalRemoteTurn(
+        remoteId: response.messageId,
+        canonicalTurnId: response.messageId,
+        role: "assistant",
+        content: response.message,
+        contentBlocksJSON: "[]",
+        resourcesJSON: "[]",
+        metadataJSON: "{}",
+        createdAtMs: Int(Date().timeIntervalSince1970 * 1_000)
       )
+      let accepted: Bool
+      #if DEBUG
+        if let importInitialGreetingForTests {
+          accepted = await importInitialGreetingForTests(surface, remoteTurn, ownerId)
+        } else {
+          accepted = await kernelTurnProjection.importRemoteTurn(
+            surface: surface,
+            turn: remoteTurn,
+            ownerID: ownerId
+          )
+        }
+      #else
+        accepted = await kernelTurnProjection.importRemoteTurn(
+          surface: surface,
+          turn: remoteTurn,
+          ownerID: ownerId
+        )
+      #endif
       guard accepted else {
         log("ChatProvider: initial greeting journal admission failed")
         return
       }
-      await kernelTurnProjection.refresh(surface: surface)
+      #if DEBUG
+        if let refreshInitialGreetingForTests {
+          await refreshInitialGreetingForTests(surface)
+        } else {
+          await kernelTurnProjection.refresh(surface: surface)
+        }
+      #else
+        await kernelTurnProjection.refresh(surface: surface)
+      #endif
 
       // Preview is also downstream of canonical journal acceptance.
       if let index = sessions.firstIndex(where: { $0.id == session.id }) {
@@ -1852,7 +1963,7 @@ class ChatProvider: ObservableObject {
       }
 
       // Track analytics
-      AnalyticsManager.shared.initialMessageGenerated(hasApp: selectedAppId != nil)
+      AnalyticsManager.shared.initialMessageGenerated()
 
       log("Added initial greeting message for session \(session.id)")
     } catch {
@@ -1983,6 +2094,12 @@ class ChatProvider: ObservableObject {
 
   /// Loads user memories from local SQLite for use in prompts (refreshed each turn).
   private func refreshMemoriesForPrompt() async {
+    #if DEBUG
+      if let refreshMemoriesForPromptForTests {
+        await refreshMemoriesForPromptForTests()
+        return
+      }
+    #endif
     do {
       cachedMemories = try await MemoryStorage.shared.getLocalMemories(limit: 50)
       memoriesLoaded = true
@@ -2356,9 +2473,8 @@ class ChatProvider: ObservableObject {
           )
         }
       } else {
-        legacy = try await ChatLegacyPageCollector.all { [selectedAppId] limit, offset in
+        legacy = try await ChatLegacyPageCollector.all { limit, offset in
           try await APIClient.shared.getMessages(
-            appId: selectedAppId,
             limit: limit,
             offset: offset,
             expectedOwnerId: ownerId
@@ -2534,11 +2650,18 @@ class ChatProvider: ObservableObject {
     userMessage: ChatMessage,
     assistantMessage: ChatMessage,
     origin: String,
-    appId: String?,
     sessionId: String?,
     messageSource: String
   ) async -> Bool {
-    await admitStreamingJournalExchange(
+    #if DEBUG
+      if let recordStreamingJournalExchangeForTests {
+        guard let projected = recordStreamingJournalExchangeForTests(userMessage, assistantMessage)
+        else { return false }
+        messages = projected
+        return true
+      }
+    #endif
+    return await admitStreamingJournalExchange(
       userMessage: userMessage,
       assistantMessage: assistantMessage
     ) { [weak self] turns in
@@ -2548,7 +2671,6 @@ class ChatProvider: ObservableObject {
         turns: turns,
         origin: origin,
         continuityKey: continuityKey,
-        appId: appId,
         sessionId: sessionId,
         messageSource: messageSource,
         ownerID: ownerID
@@ -2616,7 +2738,7 @@ class ChatProvider: ObservableObject {
 
   /// PTT is a realtime projection of the selected main chat, never a second
   /// chat. Retain the exact external reference so the runtime resolves the
-  /// canonical main-chat conversation for non-default chats and app scopes.
+  /// canonical main-chat conversation for non-default chats.
   func realtimeVoiceSurfaceReference() -> AgentSurfaceReference {
     mainChatSurfaceReference().realtimeVoiceCompanion()
   }
@@ -2776,9 +2898,8 @@ class ChatProvider: ObservableObject {
     }
     let toAdd = Array(attachments.prefix(room))
     pendingAttachments.append(contentsOf: toAdd)
-    let capturedAppId = overrideAppId ?? selectedAppId
     for attachment in toAdd {
-      uploadAttachment(id: attachment.id, appId: capturedAppId)
+      uploadAttachment(id: attachment.id)
     }
   }
 
@@ -2788,7 +2909,7 @@ class ChatProvider: ObservableObject {
 
   /// Upload a single staged attachment in the background. The user can send
   /// the message before this completes — `sendMessage` will await the upload.
-  private func uploadAttachment(id: String, appId: String?) {
+  private func uploadAttachment(id: String) {
     Task { [weak self] in
       guard let self = self,
         let attachment = await MainActor.run(body: {
@@ -2813,8 +2934,7 @@ class ChatProvider: ObservableObject {
       }
       do {
         let resp = try await APIClient.shared.uploadChatFiles(
-          [(data: bytes, fileName: attachment.fileName, mimeType: attachment.mimeType)],
-          appId: appId
+          [(data: bytes, fileName: attachment.fileName, mimeType: attachment.mimeType)]
         )
         guard let server = resp.first else {
           throw APIError.invalidResponse
@@ -3282,7 +3402,6 @@ class ChatProvider: ObservableObject {
     let userMessageId = turnMessageIds.user
     let isFirstMessage = messages.isEmpty
     let capturedSessionId = sessionId
-    let capturedAppId = overrideAppId ?? selectedAppId
     let journalOrigin = journalOrigin(for: resolvedSurface)
     let userMessage = ChatMessage(
       id: userMessageId,
@@ -3310,11 +3429,16 @@ class ChatProvider: ObservableObject {
       userMessage: userMessage,
       assistantMessage: aiMessage,
       origin: journalOrigin,
-      appId: capturedAppId,
       sessionId: capturedSessionId,
       messageSource: journalOrigin
     )
-    if recordedExchange {
+    let shouldRegisterJournalTerminalTarget: Bool
+    #if DEBUG
+      shouldRegisterJournalTerminalTarget = recordStreamingJournalExchangeForTests == nil
+    #else
+      shouldRegisterJournalTerminalTarget = true
+    #endif
+    if recordedExchange, shouldRegisterJournalTerminalTarget {
       journalOwnerByMessageID[aiMessageId] = capturedRuntimeOwnerID
       journalTerminalTargets.register(
         ChatJournalTerminalTarget(
@@ -3462,7 +3586,7 @@ class ChatProvider: ObservableObject {
         requestedModelProfile: managedModel,
         pinnedSession: pinnedSession
       )
-      await resolvedAgentClient().warmupSession(kernelContext.session)
+      await warmupKernelQuerySession(kernelContext.session)
       let effectiveRequestModel = kernelContext.session.profile.modelProfile
 
       // Callbacks for agent bridge
@@ -3683,7 +3807,7 @@ class ChatProvider: ObservableObject {
       agentQueryStarted = true
       let queryResult: AgentClient.QueryResult
       do {
-        queryResult = try await resolvedAgentClient().query(
+        let invocation = ChatProviderAgentQueryInvocation(
           prompt: trimmedText,
           session: kernelContext.session,
           surface: resolvedSurface,
@@ -3692,7 +3816,10 @@ class ChatProvider: ObservableObject {
           attachments: Self.queryAttachments(attachmentsForMessage),
           producingTurnId: aiMessageId,
           expectedContext: kernelContext.snapshot.freshness,
-          reasoningEffort: turnOwner.reasoningEffort,
+          reasoningEffort: turnOwner.reasoningEffort
+        )
+        queryResult = try await performAgentQuery(
+          invocation,
           onTextDelta: textDeltaHandler,
           onToolActivity: toolActivityHandler,
           onThinkingDelta: thinkingDeltaHandler,
@@ -4229,8 +4356,7 @@ class ChatProvider: ObservableObject {
   /// Compose and present the personalized opener the instant the Chat tab
   /// appears after onboarding. Composed synchronously from locally-known
   /// facts (name, listening mode, cached suggestion chips) so it is instant
-  /// and never blank; today's calendar, if connected, enriches it a moment
-  /// later without ever blocking the first paint.
+  /// and never blank.
   func presentOnboardingOpener() {
     let name = Self.firstName(AuthService.shared.givenName)
     let mode: OnboardingOpenerComposer.ListeningMode =
@@ -4242,15 +4368,6 @@ class ChatProvider: ObservableObject {
     onboardingOpener = OnboardingOpenerComposer.compose(
       name: name, mode: mode, meetings: [], now: Date(), baseStarters: baseStarters)
 
-    // Enrich with today's real calendar when available — never blocks the
-    // instant opener above, and bails if the user has already started chatting.
-    Task { [weak self] in
-      let meetings = await Self.todaysMeetings()
-      guard !meetings.isEmpty else { return }
-      guard let self, self.onboardingOpener != nil else { return }
-      self.onboardingOpener = OnboardingOpenerComposer.compose(
-        name: name, mode: mode, meetings: meetings, now: Date(), baseStarters: baseStarters)
-    }
   }
 
   /// Hide the opener once the user sends their first message.
@@ -4261,47 +4378,6 @@ class ChatProvider: ObservableObject {
   private static func firstName(_ full: String) -> String {
     let trimmed = full.trimmingCharacters(in: .whitespaces)
     return trimmed.components(separatedBy: " ").first ?? trimmed
-  }
-
-  /// Today's remaining timed meetings (soonest first), best-effort. Returns an
-  /// empty array when the calendar isn't connected or the read fails — the
-  /// opener simply stays in its name-only form.
-  private static func todaysMeetings() async -> [OnboardingMeetingBrief] {
-    guard
-      let events = try? await CalendarReaderService.shared.readEvents(
-        daysBack: 0, daysForward: 1, maxResults: 50)
-    else { return [] }
-
-    // Compute "today" in the user's local timezone. ISO8601DateFormatter defaults to
-    // UTC, but event start_time date strings carry the calendar's local offset, so a
-    // UTC prefix would drop today's meetings for any user behind/ahead of UTC near the
-    // day boundary.
-    let localDayFormatter = ISO8601DateFormatter()
-    localDayFormatter.timeZone = TimeZone.current
-    let todayPrefix = localDayFormatter.string(from: Date()).prefix(10)
-    let plain = ISO8601DateFormatter()
-    let fractional = ISO8601DateFormatter()
-    fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-
-    let timeFormatter = DateFormatter()
-    timeFormatter.locale = Locale.current
-    timeFormatter.setLocalizedDateFormatFromTemplate("jmm")
-
-    let cutoff = Date().addingTimeInterval(-30 * 60)  // include a meeting that just started
-
-    return
-      events
-      .filter { !$0.isAllDay && $0.startTime.prefix(10) == todayPrefix }
-      .compactMap { event -> (Date, OnboardingMeetingBrief)? in
-        guard let start = plain.date(from: event.startTime) ?? fractional.date(from: event.startTime),
-          start >= cutoff
-        else { return nil }
-        let title = event.summary.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !title.isEmpty else { return nil }
-        return (start, OnboardingMeetingBrief(title: title, time: timeFormatter.string(from: start)))
-      }
-      .sorted { $0.0 < $1.0 }
-      .map(\.1)
   }
 
   /// Sends the active main-chat composer and clears only the exact draft that
@@ -5213,29 +5289,6 @@ class ChatProvider: ObservableObject {
 
     log("Chat cleared")
     AnalyticsManager.shared.chatCleared()
-  }
-
-  // MARK: - App Selection
-
-  /// Select a chat app and load its sessions
-  func selectApp(_ appId: String?) async {
-    guard selectedAppId != appId else { return }
-    selectedAppId = appId
-    currentSession = nil
-    messages = []
-    resetMessagesPagination()
-    sessions = []
-    errorMessage = nil
-    isInDefaultChat = true
-
-    if multiChatEnabled {
-      // Multi-chat mode: load sessions, then switch to default chat
-      await fetchSessions()
-      await switchToDefaultChat()
-    } else {
-      // Single chat mode: just load default chat messages
-      await loadDefaultChatMessages()
-    }
   }
 
   // MARK: - Session Grouping Helpers

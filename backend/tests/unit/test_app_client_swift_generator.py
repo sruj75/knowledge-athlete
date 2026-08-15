@@ -50,7 +50,6 @@ def test_swift_dto_file_covers_desktop_high_traffic_read_schemas():
         'struct ContinuationCheckpoint:',
         'struct TranscriptSegment:',
         'struct Geolocation:',
-        'struct AppResult:',
     ):
         assert f'public {name}' in generated, f'OmiAPI.{name} missing from generated Swift DTOs'
 
@@ -165,18 +164,19 @@ def test_swift_source_label_is_stable_for_windows_paths():
 
 def test_swift_generator_defaults_to_live_app_client_schema(monkeypatch):
     expected = {"openapi": "3.1.0", "paths": {}}
-    calls = []
+
+    def generate():
+        return expected
 
     monkeypatch.setattr(
         generate_swift_openapi_types.export_openapi,
-        "generate_openapi",
-        lambda surface: calls.append(surface) or expected,
+        "generate_app_client_openapi",
+        generate,
     )
 
     spec, source_label = generate_swift_openapi_types.load_spec(None)
 
     assert spec is expected
-    assert calls == ["app-client"]
     assert source_label == "live backend app-client schema"
 
 

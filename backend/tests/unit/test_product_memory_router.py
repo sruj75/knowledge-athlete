@@ -174,7 +174,6 @@ def _memory_item(memory_id: str, *, tier=MemoryTier.short_term, now=None, captur
         'evidence': [_evidence(f'{memory_id}-source')],
         'source_state': SourceState.active,
         'sensitivity_labels': [],
-        'visibility': 'private',
         'user_asserted': False,
         'captured_at': captured_at,
         'updated_at': captured_at,
@@ -290,7 +289,7 @@ def test_product_search_endpoint_uses_default_policy_and_excludes_stale_short_te
     assert response['limit'] == 25
     assert response['offset'] == 0
     assert response['policy']['consumer'] == 'omi_chat'
-    assert response['policy']['app_has_default_memory_grant'] is True
+    assert response['policy']['has_default_memory_grant'] is True
     assert response['policy']['archive_capability'] is False
     assert response['archive_default_visible'] is False
 

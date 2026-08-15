@@ -146,7 +146,6 @@ extension SettingsContentView {
 
   struct UserStats {
     let conversations: Int
-    let appsInstalled: Int
     let screenshotsTotal: Int
     let focusSessions: Int
     let tasksTodo: Int

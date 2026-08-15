@@ -348,22 +348,6 @@ def test_gateway_feature_mode_allows_acknowledged_direct_exception(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_app_icon_generation_always_uses_gateway(monkeypatch):
-    from utils.llm import app_generator
-
-    captured = {}
-
-    def gateway(**kwargs):
-        captured.update(kwargs)
-        return {'data': [{'b64_json': 'aWNvbg=='}]}
-
-    monkeypatch.setattr(app_generator, 'generate_image_via_gateway', gateway)
-
-    assert await app_generator.generate_app_icon('Name', 'Description', 'other') == b'icon'
-    assert captured['model'] == 'dall-e-3'
-
-
-@pytest.mark.asyncio
 async def test_perplexity_tool_always_uses_gateway(monkeypatch):
     perplexity_tools = _load_perplexity_tools()
 

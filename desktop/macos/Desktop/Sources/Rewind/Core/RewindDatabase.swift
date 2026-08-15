@@ -694,8 +694,7 @@ actor RewindDatabase {
     // close checkpoints and removes it); deleting that WAL outright would roll
     // the DB back to its last checkpoint and silently drop up to
     // wal_autocheckpoint (1000 pages, ~4MB) of recent writes:
-    //   - dest WAL: recent writes such as the knowledge graph saved during
-    //     onboarding, before the app restart for permissions.
+    //   - dest WAL: recent writes saved during onboarding before the permission restart.
     //   - source WAL: the legacy data being migrated.
     // If a checkpoint FAILS, those writes are still only in the WAL, so we must
     // NOT proceed to delete it — abort the whole migration and leave source +
@@ -2606,6 +2605,7 @@ actor RewindDatabase {
       }
     }
 
+    Self.registerExternalSurfaceRetirementMigration(on: &migrator)
     RewindAbandonedVideoChunkQuarantine.registerMigration(on: &migrator)
 
     try migrator.migrate(queue)

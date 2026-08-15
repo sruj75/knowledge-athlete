@@ -5,21 +5,16 @@ import Foundation
 extension APIClient {
 
   /// Create a new chat session
-  func createChatSession(
-    title: String? = nil,
-    appId: String? = nil
-  ) async throws -> ChatSession {
+  func createChatSession(title: String? = nil) async throws -> ChatSession {
     struct CreateRequest: Encodable {
       let title: String?
-      let app_id: String?
     }
-    let body = CreateRequest(title: title, app_id: appId)
+    let body = CreateRequest(title: title)
     return try await post("v2/chat-sessions", body: body)
   }
 
   /// Fetch chat sessions
   func getChatSessions(
-    appId: String? = nil,
     limit: Int = 50,
     offset: Int = 0,
     starred: Bool? = nil
@@ -29,9 +24,6 @@ extension APIClient {
       "offset=\(offset)",
     ]
 
-    if let appId = appId {
-      queryItems.append("app_id=\(appId)")
-    }
     if let starred = starred {
       queryItems.append("starred=\(starred)")
     }
@@ -69,22 +61,19 @@ extension APIClient {
   /// Generate an initial greeting message for a new chat session
   func getInitialMessage(
     sessionId: String,
-    appId: String? = nil,
     expectedOwnerId: String? = nil
   ) async throws
     -> InitialMessageResponse
   {
     struct InitialMessageRequest: Encodable {
       let sessionId: String
-      let appId: String?
 
       enum CodingKeys: String, CodingKey {
         case sessionId = "session_id"
-        case appId = "app_id"
       }
     }
 
-    let body = InitialMessageRequest(sessionId: sessionId, appId: appId)
+    let body = InitialMessageRequest(sessionId: sessionId)
     guard let expectedOwnerId else {
       return try await post("v2/chat/initial-message", body: body)
     }

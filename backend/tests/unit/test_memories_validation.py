@@ -288,7 +288,6 @@ class TestExtractedMemoryValidation:
             prompts = ModuleType('utils.prompts')
             prompts.extract_memories_prompt = object()
             prompts.extract_learnings_prompt = object()
-            prompts.extract_memories_text_content_prompt = object()
             sys.modules['utils.prompts'] = prompts
 
         llms_memory = sys.modules.get('utils.llms.memory')
