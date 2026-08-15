@@ -243,7 +243,7 @@ actor GeminiClient {
     }
 
     /// Expected product/account states should not page Sentry. They are useful in
-    /// local logs/breadcrumbs but represent paywall/BYOK state, not client bugs.
+    /// local logs/breadcrumbs but represent paywall state, not client bugs.
     var isExpectedProductState: Bool {
       switch self {
       case .apiError(let message):
@@ -251,8 +251,6 @@ actor GeminiClient {
         return lower.contains("trial_expired")
           || lower.contains("trial expired")
           || lower.contains("payment required")
-          || lower.contains("byok")
-          || lower.contains("bring your own key")
           || lower.contains("usage limit")
           || lower.contains("quota exceeded")
           || lower.contains("http 402")
@@ -282,11 +280,10 @@ actor GeminiClient {
       let lower = rawMessage.lowercased()
 
       if lower.contains("trial_expired") || lower.contains("trial expired")
-        || lower.contains("payment required") || lower.contains("byok")
-        || lower.contains("bring your own key") || lower.contains("usage limit")
+        || lower.contains("payment required") || lower.contains("usage limit")
         || lower.contains("http 402") || lower.contains("quota exceeded")
       {
-        return "AI features require an active plan or BYOK keys."
+        return "AI features require an active plan."
       }
       if lower.contains("leaked") || lower.contains("api key") || lower.contains("api_key")
         || lower.contains("unauthorized") || lower.contains("permission denied")

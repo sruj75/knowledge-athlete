@@ -374,7 +374,6 @@ struct SettingsContentView: View {
     case goals = "Goals"
     case preferences = "Preferences"
     case troubleshooting = "Troubleshooting"
-    case developerKeys = "Model API Keys"
 
     var icon: String {
       switch self {
@@ -389,7 +388,6 @@ struct SettingsContentView: View {
       case .goals: return "target"
       case .preferences: return "slider.horizontal.3"
       case .troubleshooting: return "wrench.and.screwdriver"
-      case .developerKeys: return "key"
       }
     }
   }
@@ -399,15 +397,6 @@ struct SettingsContentView: View {
 
   @State var isDeletingAccount: Bool = false
   @State var deleteAccountError: String?
-
-  // Model-provider API key overrides used as BYOK free-plan credentials.
-  // when all four (Gemini, Anthropic, OpenAI, Deepgram) are provided.
-  @AppStorage("dev_gemini_api_key") var devGeminiKey: String = ""
-  @AppStorage("dev_anthropic_api_key") var devAnthropicKey: String = ""
-  @AppStorage("dev_openai_api_key") var devOpenAIKey: String = ""
-  @AppStorage("dev_deepgram_api_key") var devDeepgramKey: String = ""
-  @State var byokKeyStatuses: [BYOKProvider: BYOKValidator.Status] = [:]
-  @State var byokActivationError: String?
 
   init(
     appState: AppState,

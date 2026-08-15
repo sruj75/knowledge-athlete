@@ -2852,28 +2852,7 @@ final class DesktopAutomationActionRegistry {
       ]
     }
 
-    register(
-      name: "advanced_settings_snapshot",
-      summary: "Return safe Advanced settings booleans",
-      params: []
-    ) { _ in
-      let focus = FocusAssistantSettings.shared
-      let task = TaskAssistantSettings.shared
-      let insight = InsightAssistantSettings.shared
-      let memory = MemoryAssistantSettings.shared
-      let assistant = AssistantSettings.shared
-      return [
-        "focus_enabled": focus.isEnabled ? "true" : "false",
-        "task_enabled": task.isEnabled ? "true" : "false",
-        "task_chat_agent_enabled": TaskAgentSettings.shared.isChatEnabled ? "true" : "false",
-        "insight_enabled": insight.isEnabled ? "true" : "false",
-        "memory_enabled": memory.isEnabled ? "true" : "false",
-        "screen_analysis_enabled": assistant.screenAnalysisEnabled ? "true" : "false",
-        "transcription_enabled": assistant.transcriptionEnabled ? "true" : "false",
-        "multi_chat_enabled": UserDefaults.standard.bool(forKey: .multiChatEnabled) ? "true" : "false",
-        "ask_mode_enabled": UserDefaults.standard.bool(forKey: "askModeEnabled") ? "true" : "false",
-      ]
-    }
+    registerManagedAccessActions()
 
     register(
       name: "assign_speaker_fixture",

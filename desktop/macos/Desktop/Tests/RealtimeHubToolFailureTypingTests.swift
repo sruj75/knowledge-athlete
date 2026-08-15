@@ -20,7 +20,7 @@ final class RealtimeHubToolFailureTypingTests: XCTestCase {
 
   func testClassifiesCredentialFailuresWithoutRawProviderText() {
     let failure = RealtimeHubToolFailure.classify(
-      CredentialHealthError.providerAuth(provider: .openai, mode: .byok, message: "raw provider body"))
+      CredentialHealthError.providerAuth(provider: .openai, mode: .managed, message: "raw provider body"))
 
     XCTAssertEqual(failure.kind, .providerCredential)
     XCTAssertEqual(

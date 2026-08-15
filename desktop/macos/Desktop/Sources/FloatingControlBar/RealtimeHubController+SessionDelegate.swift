@@ -1255,9 +1255,7 @@ extension RealtimeHubController {
       hasActiveTurn: hasActiveTurn,
       provider: sessionProvider ?? .openai)
     let provider = sessionProvider
-    let authMode: CredentialAuthMode = sessionAuth?.isEphemeral == true ? .managed : .byok
-    let fingerprint = provider.flatMap { APIKeyService.byokKey($0.byokProvider) }.map(
-      APIKeyService.byokFingerprint)
+    let authMode: CredentialAuthMode = .managed
     var credentialFailureClass: CredentialFailureClass?
     if let provider, !RealtimeHubCloseClassifier.isExpectedLifecycleClose(closeCategory) {
       var failureClass = CredentialHealthManager.classifyProviderClose(
@@ -1270,7 +1268,6 @@ extension RealtimeHubController {
         failureClass,
         provider: provider,
         authMode: authMode,
-        fingerprint: fingerprint,
         context: "realtime_socket")
     }
     let reportingPlan = RealtimeHubFailureReportingPlan.make(
@@ -1387,9 +1384,9 @@ extension RealtimeHubController {
       return
     }
     // Re-warm so the NEXT PTT uses the hub, not the STT cascade. Gemini idle-closes
-    // the socket (~2.5 min, close 1008) even before the first turn; managed users have
-    // no BYOK key, so once `session` is nil `isActive` is false and PTT silently falls
-    // back to omni STT. So always try to re-warm (the hub is the default voice path).
+    // the socket (~2.5 min, close 1008) even before the first turn. Once `session`
+    // is nil, `isActive` is false and PTT silently falls back to omni STT, so always
+    // try to re-warm (the hub is the default voice path).
     // A socket that survived past the idle window was a normal idle-close → reset the
     // strike budget (and the failover, returning to the Auto pick) and keep re-warming.
     if aliveFor > 60 {

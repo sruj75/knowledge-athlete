@@ -1193,14 +1193,14 @@ class ChatProvider: ObservableObject {
   }
 
   /// The legacy "$50 lifetime Omi AI spend" upgrade nudge (`showOmiThresholdAlert`)
-  /// must never fire for users who already pay — paid subscribers and BYOK users
-  /// aren't capped by the free Omi quota. `omiAICumulativeCostUsd` is seeded from the
+  /// must never fire for users who already pay because they aren't capped by
+  /// the free Omi quota. `omiAICumulativeCostUsd` is seeded from the
   /// backend *lifetime* total, so without this guard any heavy paying user (e.g. on
   /// Operator/Architect) trips $50 and gets a bogus "Upgrade Required" alert even
   /// while well within their plan. The authoritative free-tier block is the
   /// server-side quota in `FloatingBarUsageLimiter`; this is just a soft nudge.
   var isExemptFromOmiUpgradeNudge: Bool {
-    FloatingBarUsageLimiter.shared.hasPaidPlan || APIKeyService.isByokActive
+    FloatingBarUsageLimiter.shared.hasPaidPlan
   }
 
   /// Cumulative tokens used in the current session via Omi account
@@ -2371,7 +2371,7 @@ class ChatProvider: ObservableObject {
         self.omiAICumulativeCostUsd = serverCost
         log("ChatProvider: Seeded Omi AI cumulative cost from backend: $\(String(format: "%.4f", serverCost))")
         // Show upgrade prompt if over threshold but don't block chat. Never for
-        // paid/BYOK users — they aren't subject to the free Omi spend cap.
+        // paid users — they aren't subject to the free Omi spend cap.
         if self.isUsingOmiAccountProvider && serverCost >= 50.0
           && !self.isExemptFromOmiUpgradeNudge
         {

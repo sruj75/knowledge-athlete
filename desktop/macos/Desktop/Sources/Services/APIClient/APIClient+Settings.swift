@@ -199,7 +199,7 @@ extension APIClient {
     if let currentBuild {
       endpoint += "&current_build=\(currentBuild)"
     }
-    return try await get(endpoint, requireAuth: false, includeBYOK: false)
+    return try await get(endpoint, requireAuth: false)
   }
 
 }

@@ -13,7 +13,7 @@ final class AIBackendErrorNormalizationTests: XCTestCase {
     XCTAssertTrue(error.isNonActionableForSentry)
     XCTAssertEqual(
       error.localizedDescription,
-      "Embedding API unavailable: active plan or BYOK keys required.")
+      "Embedding API unavailable: an active plan is required.")
   }
 
   func testEmbeddingRateLimitAndUnavailableAreTransient() {
@@ -52,7 +52,7 @@ final class AIBackendErrorNormalizationTests: XCTestCase {
 
     XCTAssertTrue(error.isExpectedProductState)
     XCTAssertFalse(error.isTransient)
-    XCTAssertEqual(error.localizedDescription, "AI features require an active plan or BYOK keys.")
+    XCTAssertEqual(error.localizedDescription, "AI features require an active plan.")
   }
 
   func testGeminiQuotaExceededUsesProductGateMessage() {
@@ -60,6 +60,6 @@ final class AIBackendErrorNormalizationTests: XCTestCase {
 
     XCTAssertTrue(error.isExpectedProductState)
     XCTAssertFalse(error.isTransient)
-    XCTAssertEqual(error.localizedDescription, "AI features require an active plan or BYOK keys.")
+    XCTAssertEqual(error.localizedDescription, "AI features require an active plan.")
   }
 }

@@ -15,7 +15,7 @@ import redis as redis_pkg
 from database.redis_db import check_rate_limit, try_acquire_listen_lock
 from database.users import record_client_device, record_user_platform
 from utils.client_device import resolve_client_device
-from utils.byok import extract_byok_from_websocket, set_byok_keys, validate_byok_request, validate_byok_websocket
+from utils.byok import validate_byok_request
 from utils.executors import critical_executor, run_blocking
 from utils.rate_limit_config import RATE_POLICIES, RATE_LIMIT_SHADOW, get_effective_limit
 
@@ -234,28 +234,11 @@ async def get_current_user_uid_ws_listen(
     Mobile apps reconnect legitimately on network switch / backgrounding,
     so the per-UID rate limiter must not block them.
 
-    Also extracts BYOK headers from the WS upgrade request and validates
-    them against Firestore enrollment (BaseHTTPMiddleware doesn't fire for
-    WebSocket scope, so this is the shared entry point for WS BYOK).
-
-    **Why async:** Starlette runs sync WS deps in a worker thread via
-    ``anyio.to_thread.run_sync``, which copies the context. ContextVar
-    mutations inside the sync dep (``set_byok_keys``) are discarded when
-    control returns to the async handler, so ``get_byok_key('deepgram')``
-    would return None downstream. Running the dep on the event loop keeps
-    the mutation in the handler's context; the blocking Firebase and
-    Firestore calls are offloaded via ``run_blocking``.
+    This remains async so Firebase verification does not block the event loop.
+    Customer credential headers are intentionally ignored; listen always uses
+    the product-managed provider policy and account quota.
     """
     uid = await run_blocking(critical_executor, _verify_ws_auth, authorization)
-
-    # Extract BYOK headers from the WS upgrade request and validate.
-    if websocket is not None:  # pyright: ignore[reportUnnecessaryComparison]  # websocket is None outside WS context
-        byok_keys = extract_byok_from_websocket(websocket)
-        if byok_keys:
-            set_byok_keys(byok_keys)
-        error = await run_blocking(critical_executor, validate_byok_websocket, uid)
-        if error:
-            raise WebSocketException(code=4003, reason=error)
 
     return uid
 

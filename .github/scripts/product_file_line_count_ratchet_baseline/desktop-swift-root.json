@@ -1,7 +1,7 @@
 {
   "files": {
     "desktop/macos/Desktop/Sources/AuthService.swift": 2812,
-    "desktop/macos/Desktop/Sources/DesktopAutomationBridge.swift": 3766,
+    "desktop/macos/Desktop/Sources/DesktopAutomationBridge.swift": 3745,
     "desktop/macos/Desktop/Sources/OmiApp.swift": 1551
   },
   "raise_justifications": {

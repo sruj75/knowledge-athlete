@@ -519,7 +519,7 @@ import XCTest
     ) -> RealtimeHubSession {
       RealtimeHubSession(
         provider: provider,
-        auth: .byokKey("fixture"),
+        auth: .hermeticStub,
         instructions: "fixture",
         rawWebSocketFactory: rawWebSocketFactory,
         delegate: delegate)

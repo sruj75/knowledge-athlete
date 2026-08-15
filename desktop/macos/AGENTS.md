@@ -186,18 +186,16 @@ do not hand-edit those paths to match a specific machine.
 ## Key Architecture Notes
 
 ### Authentication
-- Firebase Auth with Apple/Google Sign-In
-- Desktop apps should use backend OAuth flow: `/v1/auth/authorize`
-- Apple Services ID: `me.omi.web` (shared across all apps)
-- iOS apps use native Sign-In, Desktop uses backend OAuth + custom token
-- Session death is owned by `AuthSessionCoordinator` (`INV-AUTH-1`); use `invalidateSession` for expired/revoked Firebase creds, not nuclear `signOut()`.
+- Firebase Auth is native Apple/Google on iOS; desktop uses `/v1/auth/authorize` plus a custom token.
+- Apple Services ID: `me.omi.web` (shared across all apps).
+- `AuthSessionCoordinator` owns session death (`INV-AUTH-1`); expired/revoked credentials use `invalidateSession`, never `signOut()`.
 
-#### Session 401 vs BYOK/provider 401
+#### Session vs provider 401
 
 | Failure class | Owner | Action on 401 after forced refresh |
 |---------------|-------|-----------------------------------|
 | Firebase session token (default API `Authorization`) | `AuthSessionCoordinator` | `invalidateSession` → Sign-in CTA |
-| BYOK provider key on request | `CredentialHealthManager` | Suppress/mark provider unhealthy; **do not** invalidate Firebase session |
+| Managed backend provider | `CredentialHealthManager` | Mark unhealthy/use the product fallback; **never** invalidate Firebase |
 | Realtime/voice managed lane | `CredentialHealthManager` + hub UX | `requiresLogin` only when session mint fails after refresh |
 | Background poll with `RequestAuthPolicy.sessionPreserving` | Caller | Throw `.unauthorized`; no session invalidation |
 | `DesktopLocalProfile` harness | Auth emulator bootstrap | Re-bootstrap emulator session; no prod invalidation side effects |

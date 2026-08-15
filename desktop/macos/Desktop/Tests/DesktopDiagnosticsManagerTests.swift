@@ -383,7 +383,7 @@ import XCTest
         category: nil,
         aliveFor: 7,
         activeTurn: true,
-        authMode: .byok,
+        authMode: .managed,
         failureClass: .providerTransient(provider: .openai))
 
       let snapshot = try latestSnapshot()
@@ -391,7 +391,7 @@ import XCTest
       XCTAssertEqual(snapshot["event"] as? String, "realtime_provider_session_error")
       XCTAssertEqual(snapshot["category"] as? String, "provider_transient")
       XCTAssertEqual(snapshot["failure_class"] as? String, "provider_transient")
-      XCTAssertEqual(snapshot["auth_mode"] as? String, "byok")
+      XCTAssertEqual(snapshot["auth_mode"] as? String, "managed")
     }
 
     func testTokenMintFailureIncludesHttpStatusWhenKnown() throws {

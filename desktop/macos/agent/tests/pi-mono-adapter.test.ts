@@ -953,20 +953,49 @@ describe("PiMonoAdapter spawn args (behavioral)", () => {
     await adapter.stop();
   });
 
-  it("scrubs OMI_API_KEY into the subprocess env from authToken", async () => {
+  it("builds a managed subprocess environment without retired customer credentials", async () => {
+    const inheritedEnvironment = {
+      OMI_BYOK_OPENAI: process.env.OMI_BYOK_OPENAI,
+      OMI_BYOK_ANTHROPIC: process.env.OMI_BYOK_ANTHROPIC,
+      OMI_BYOK_GEMINI: process.env.OMI_BYOK_GEMINI,
+      OMI_BYOK_DEEPGRAM: process.env.OMI_BYOK_DEEPGRAM,
+      OMI_BRIDGE_PIPE: process.env.OMI_BRIDGE_PIPE,
+      ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
+    };
+    process.env.OMI_BYOK_OPENAI = "legacy-openai";
+    process.env.OMI_BYOK_ANTHROPIC = "legacy-anthropic";
+    process.env.OMI_BYOK_GEMINI = "legacy-gemini";
+    process.env.OMI_BYOK_DEEPGRAM = "legacy-deepgram";
+    process.env.OMI_BRIDGE_PIPE = "/tmp/managed-bridge.sock";
+    process.env.ANTHROPIC_API_KEY = "legacy-direct-anthropic";
+
     const config: HarnessConfig = {
       authToken: "firebase-id-token-xyz",
     };
     const adapter = new PiMonoAdapter(config, "/fake/pi", "/fake/ext.ts");
-    await adapter.start();
+    try {
+      await adapter.start();
 
-    const [, , options] = vi.mocked(spawn).mock.calls[0] as [string, string[], { env: Record<string, string> }];
-    // Raw token, not "Bearer <token>"
-    expect(options.env.OMI_API_KEY).toBe("firebase-id-token-xyz");
-    // Upstream secret must be scrubbed
-    expect(options.env.ANTHROPIC_API_KEY).toBeUndefined();
-
-    await adapter.stop();
+      const [, args, options] = vi.mocked(spawn).mock.calls[0] as [
+        string,
+        string[],
+        { env: Record<string, string> },
+      ];
+      expect(args).toEqual(expect.arrayContaining(["-e", "/fake/ext.ts"]));
+      expect(options.env.OMI_API_KEY).toBe("firebase-id-token-xyz");
+      expect(options.env.ANTHROPIC_API_KEY).toBeUndefined();
+      expect(Object.keys(options.env).some((key) => key.toUpperCase().startsWith("OMI_BYOK_"))).toBe(false);
+      expect(options.env.OMI_BRIDGE_PIPE).toBe("/tmp/managed-bridge.sock");
+    } finally {
+      await adapter.stop();
+      for (const [key, value] of Object.entries(inheritedEnvironment)) {
+        if (value === undefined) {
+          delete process.env[key];
+        } else {
+          process.env[key] = value;
+        }
+      }
+    }
   });
 });
 

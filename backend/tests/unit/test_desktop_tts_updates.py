@@ -1,4 +1,50 @@
+from unittest.mock import MagicMock
+
+import httpx
+import pytest
+
+from routers import desktop_tts_updates
 from routers.desktop_tts_updates import ReleaseInfo, _appcast_xml, _is_allowed_openai_voice, _manual_download_url
+
+
+@pytest.mark.asyncio
+async def test_tts_uses_managed_key_and_metering_when_legacy_customer_key_exists(monkeypatch):
+    from utils.byok import set_byok_keys
+
+    captured = {}
+
+    class FakeClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_args):
+            return None
+
+        async def post(self, url, *, headers, json):
+            captured.update(url=url, headers=headers, json=json)
+            return httpx.Response(200, content=b'mp3')
+
+    async def immediate(_executor, function, *args, **kwargs):
+        return function(*args, **kwargs)
+
+    meter = MagicMock(return_value=(0, 1))
+    monkeypatch.setenv('OPENAI_API_KEY', 'managed-openai-key')
+    monkeypatch.setattr(desktop_tts_updates, 'is_trial_paywalled', lambda _uid, _source: False)
+    monkeypatch.setattr(desktop_tts_updates, 'run_blocking', immediate)
+    monkeypatch.setattr(desktop_tts_updates.redis_db, 'check_tts_rate_limit', meter)
+    monkeypatch.setattr(desktop_tts_updates.httpx, 'AsyncClient', lambda **_kwargs: FakeClient())
+
+    set_byok_keys({'openai': 'legacy-customer-key'})
+    try:
+        response = await desktop_tts_updates.tts_synthesize(
+            desktop_tts_updates.TtsSynthesizeRequest(text='hello', voice_id='marin'), uid='managed-user'
+        )
+    finally:
+        set_byok_keys({})
+
+    assert response.body == b'mp3'
+    assert captured['headers']['Authorization'] == 'Bearer managed-openai-key'
+    meter.assert_called_once()
 
 
 def _release(**overrides):

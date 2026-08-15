@@ -321,8 +321,8 @@ class PushToTalkManager: ObservableObject {
     hasMicPermission = AudioCaptureService.checkPermission()
     warmPTTInputRouting()
     installEventMonitors()
-    // Realtime hub: wire it to the bar and warm the WS if it's enabled + BYOK-keyed,
-    // so the persistent socket is ready before the first PTT (and stays warm after).
+    // Realtime hub: wire it to the bar and warm the managed session so the
+    // persistent socket is ready before the first PTT (and stays warm after).
     RealtimeHubController.shared.setup()
     // Hermetic local harness has no Firebase SDK and no live realtime providers.
     if !DesktopLocalProfile.isEnabled {
@@ -607,13 +607,13 @@ class PushToTalkManager: ObservableObject {
 
   // MARK: - Listening Lifecycle
 
-  /// True iff the user is on the Omi account (not BYOK) and has hit the monthly free-tier
-  /// chat-question limit. PTT turns count toward that limit (desktop_chat_realtime), so they
+  /// True iff the user has hit the managed monthly free-tier chat-question limit.
+  /// PTT turns count toward that limit (desktop_chat_realtime), so they
   /// must be gated by it too — same as typed chat (ChatProvider / floating bar). Without this,
   /// a free user over 30 questions could keep talking for free. Posts the same usage-limit
   /// popup and returns true so the caller early-returns.
   private func isBlockedByUsageLimit() -> Bool {
-    guard !APIKeyService.isByokActive, FloatingBarUsageLimiter.shared.isLimitReached else { return false }
+    guard FloatingBarUsageLimiter.shared.isLimitReached else { return false }
     log("PushToTalkManager: PTT blocked — monthly free-tier chat limit reached")
     NotificationCenter.default.post(
       name: .showUsageLimitPopup, object: nil, userInfo: ["reason": "ptt"])

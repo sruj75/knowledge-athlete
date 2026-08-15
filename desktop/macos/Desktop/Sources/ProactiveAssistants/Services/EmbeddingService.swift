@@ -386,8 +386,7 @@ actor EmbeddingService {
       case .serverError(let statusCode, let body):
         let lower = body.lowercased()
         if statusCode == 402 || lower.contains("trial_expired") || lower.contains("trial expired")
-          || lower.contains("payment required") || lower.contains("byok")
-          || lower.contains("bring your own key") || lower.contains("usage limit")
+          || lower.contains("payment required") || lower.contains("usage limit")
         {
           return "product_gate"
         }
@@ -416,7 +415,7 @@ actor EmbeddingService {
       case .serverError:
         switch reasonCode {
         case "product_gate":
-          return "Embedding API unavailable: active plan or BYOK keys required."
+          return "Embedding API unavailable: an active plan is required."
         case "rate_limited":
           return "Embedding API rate limited. Will retry later."
         case "temporarily_unavailable":

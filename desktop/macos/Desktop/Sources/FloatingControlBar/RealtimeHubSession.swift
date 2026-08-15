@@ -3,16 +3,15 @@ import VoiceTurnDomain
 
 // MARK: - Realtime Hub Session
 //
-// One persistent WebSocket to a realtime provider, opened either with the user's
-// own BYOK key (client-direct, gated by RealtimeHubSettings.canConnect) or with a
-// server-minted ephemeral token (managed users). The model is the hub: it does
+// One persistent WebSocket to a realtime provider, opened with a server-minted
+// ephemeral token. The model is the hub: it does
 // in-session STT + reasoning + routing (via tool calls) and speaks the answer.
 //
 // Two providers, normalized to ONE internal stream surface
 // (RealtimeHubSessionDelegate):
 //
 //   • OpenAI  — wss://api.openai.com/v1/realtime?model=gpt-realtime-2
-//               Bearer = BYOK OpenAI key, NO `OpenAI-Beta` header (GA).
+//               Bearer = managed ephemeral token, NO `OpenAI-Beta` header (GA).
 //               Native spoken audio out (24 kHz PCM) + function calling.
 //               Transport: URLSession WebSocket (HTTP/1.1-friendly endpoint).
 //
@@ -32,22 +31,32 @@ private struct PendingOpenAIResponseIdentity {
   var canceled: Bool
 }
 
-/// How the client authenticates to the realtime provider:
-///   • byokKey   — the user's own provider key (Phase 1, client-direct, no backend)
-///   • ephemeral — a short-lived token minted by the omi backend (Phase 2, managed)
-/// OpenAI takes either as the `Authorization: Bearer` value. Gemini differs: a BYOK
-/// key uses `?key=` on the normal BidiGenerateContent endpoint; an ephemeral token
-/// uses `?access_token=` on the BidiGenerateContentConstrained endpoint (v1alpha).
+/// How the client authenticates to the realtime provider. Production accepts only
+/// short-lived managed credentials. DEBUG builds also expose an explicit hermetic
+/// mode for local transport tests; it never reports provider usage.
 enum HubAuth {
-  case byokKey(String)
-  case ephemeral(String)
+  case managedEphemeral(String)
+  #if DEBUG
+    case hermeticStub
+  #endif
+
   var value: String {
     switch self {
-    case .byokKey(let k): return k
-    case .ephemeral(let t): return t
+    case .managedEphemeral(let token): return token
+    #if DEBUG
+      case .hermeticStub: return "omi-hermetic-realtime-stub"
+    #endif
     }
   }
-  var isEphemeral: Bool { if case .ephemeral = self { return true } else { return false } }
+
+  var reportsUsage: Bool {
+    switch self {
+    case .managedEphemeral: return true
+    #if DEBUG
+      case .hermeticStub: return false
+    #endif
+    }
+  }
 }
 
 enum RealtimeHubBargeInStrategy: Equatable {
@@ -171,9 +180,8 @@ final class RealtimeHubSession: NSObject, @unchecked Sendable {
   private var postToolContinuationAttempted = false
   private var geminiSyntheticToolCallCounter = 0
 
-  // Per-turn token usage for managed (ephemeral) billing — client-reported. Reset at
-  // commit, reported at finishTurn (only for ephemeral sessions; BYOK pays the provider
-  // directly). OpenAI sends a final usage per response.done (summed across a turn's
+  // Per-turn token usage for managed billing — client-reported. Reset at commit
+  // and reported at finishTurn. OpenAI sends a final usage per response.done (summed across a turn's
   // responses); Gemini sends cumulative usageMetadata (we keep the latest).
   private var usageInText = 0
   private var usageInAudio = 0
@@ -231,7 +239,7 @@ final class RealtimeHubSession: NSObject, @unchecked Sendable {
           systemCode: nil))
       return
     }
-    log("RealtimeHub: connecting \(provider.displayName) → \(url.host ?? "?") (client-direct)")
+    log("RealtimeHub: connecting \(provider.displayName) → \(url.host ?? "?")")
     if usesRawWS {
       let ws = rawWebSocketFactory(url, q)
       rawWS = ws
@@ -943,30 +951,19 @@ final class RealtimeHubSession: NSObject, @unchecked Sendable {
   private func makeRequest() -> URLRequest? {
     switch provider {
     case .openai:
-      // BYOK key and ephemeral token both ride the Bearer header (verified). GA: no
-      // OpenAI-Beta header. Same endpoint either way.
+      // Managed ephemeral token rides the Bearer header. GA: no OpenAI-Beta header.
       guard let url = URL(string: "wss://api.openai.com/v1/realtime?model=\(provider.modelID)")
       else { return nil }
       var r = URLRequest(url: url)
       r.setValue("Bearer \(auth.value)", forHTTPHeaderField: "Authorization")
       return r
     case .gemini:
-      // Ephemeral tokens require the *Constrained* endpoint on v1alpha with
-      // ?access_token= (verified); a BYOK key uses the plain endpoint on v1beta
-      // with ?key=. (Apple's WS stacks can't reach either — RawWebSocket handles it.)
+      // Managed tokens require the *Constrained* endpoint on v1alpha with
+      // ?access_token=. (Apple's WS stacks can't reach it — RawWebSocket handles it.)
       let prefix = "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage"
-      let base: String
-      let param: String
-      switch auth {
-      case .ephemeral:
-        base = "\(prefix).v1alpha.GenerativeService.BidiGenerateContentConstrained"
-        param = "access_token"
-      case .byokKey:
-        base = "\(prefix).v1beta.GenerativeService.BidiGenerateContent"
-        param = "key"
-      }
+      let base = "\(prefix).v1alpha.GenerativeService.BidiGenerateContentConstrained"
       guard var comps = URLComponents(string: base) else { return nil }
-      comps.queryItems = [URLQueryItem(name: param, value: auth.value)]
+      comps.queryItems = [URLQueryItem(name: "access_token", value: auth.value)]
       guard let url = comps.url else { return nil }
       return URLRequest(url: url)
     }
@@ -1279,7 +1276,7 @@ final class RealtimeHubSession: NSObject, @unchecked Sendable {
     usageInCached = (um["cachedContentTokenCount"] as? Int) ?? 0
   }
 
-  /// Report the turn's usage to the backend (managed sessions only — BYOK pays direct).
+  /// Report the turn's usage to the backend for every production managed session.
   /// Resets first so a second finishTurn (barge-in edge) can't double-report.
   private func reportUsageIfNeeded() {
     let it = usageInText
@@ -1294,7 +1291,7 @@ final class RealtimeHubSession: NSObject, @unchecked Sendable {
       activeScreenEvidence = nil
     }
     resetTurnUsage()
-    guard auth.isEphemeral, it + ia + ic + ot + oa > 0 else { return }
+    guard auth.reportsUsage, it + ia + ic + ot + oa > 0 else { return }
     let providerName = provider == .gemini ? "gemini" : "openai"
     let model = provider.modelID
     Task {

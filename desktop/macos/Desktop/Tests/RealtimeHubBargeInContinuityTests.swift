@@ -1076,9 +1076,8 @@ final class RealtimeHubBargeInContinuityTests: XCTestCase {
     XCTAssertTrue(source.contains("replacementAudioBuffer = pendingTurn"))
     XCTAssertTrue(source.contains("voiceResponseID = responseID"))
     XCTAssertTrue(source.contains("pendingBargeInOwnerScope = replacementOwnerScope"))
-    XCTAssertTrue(
-      source.contains(
-        "startReplacementSessionForBargeIn(\n        provider: alternate,"))
+    XCTAssertFalse(source.contains("APIKeyService.byokKey(alternate"))
+    XCTAssertTrue(source.contains("pendingBargeInAuth = .managedEphemeral(\"\")"))
     XCTAssertTrue(source.contains("remintReplacementSessionForBargeIn(provider: alternate)"))
     XCTAssertTrue(source.contains("let replayedReplacementTurn = replacementAudioBuffer != nil"))
     XCTAssertTrue(
@@ -1120,7 +1119,7 @@ final class RealtimeHubBargeInContinuityTests: XCTestCase {
     let source = try realtimeHubControllerSource()
 
     XCTAssertTrue(source.contains("pendingBargeInProvider = alternate"))
-    XCTAssertTrue(source.contains("pendingBargeInAuth = .ephemeral(\"\")"))
+    XCTAssertTrue(source.contains("pendingBargeInAuth = .managedEphemeral(\"\")"))
     XCTAssertTrue(source.contains("var bargeInReplacementGeneration: UInt64 = 0"))
     XCTAssertTrue(source.contains("generation == self.bargeInReplacementGeneration"))
     XCTAssertTrue(source.contains("let currentProvider = pendingBargeInProvider"))

@@ -263,7 +263,7 @@ Never block the event loop — it freezes health checks, HPA scaling, and all co
     - `submit_with_context(executor, fn)` — short sync fire-and-forget only (precache, small cleanups). Never for pipelines that hold a slot >10s.
   - **Long-running pipelines must be async coordinators.** Each blocking step uses `await run_blocking(pool, fn)`, borrowing a thread only for that step. Never hold a thread pool slot across await points or for >60s.
   - **Pool assignment** (match work type to pool):
-    - `critical_executor` (8w) — auth gates only: `_verify_ws_auth`, `validate_byok_websocket`, `check_rate_limit`, `is_hard_restricted`, session/code Redis ops in `auth.py`
+    - `critical_executor` (8w) — auth gates only: `_verify_ws_auth`, `check_rate_limit`, `is_hard_restricted`, session/code Redis ops in `auth.py`
     - `db_executor` (24w) — Firestore/Redis CRUD, vector DB queries
     - `llm_executor` (6w) — retained LLM API calls (`get_llm().invoke()` and first-party generation/classification work)
     - `stripe_executor` (4w) — Stripe API calls

@@ -390,14 +390,6 @@ extension AppState {
     case "freemium_threshold_reached":
       let remaining = event.raw["remaining_seconds"] as? Int ?? 0
       log("Transcription: Freemium threshold reached, \(remaining)s remaining")
-      // BYOK users must never be paywalled. The backend exempts them, but a
-      // heartbeat/Firestore lag can briefly let this event slip through right
-      // after activation — ignore it so we don't kill a BYOK user's capture.
-      if APIKeyService.isByokActive {
-        log("Paywall: ignoring freemium threshold — BYOK active locally")
-        if isPaywalled { isPaywalled = false }
-        break
-      }
       triggerUsageLimitPopup(reason: "transcription")
       // Hard-stop client-side capture so the mic LED and screen-recording
       // indicator actually turn off. Without this, popup shows but the user

@@ -882,6 +882,46 @@ final class AgentRuntimeProcessTests: XCTestCase {
     XCTAssertFalse(source.contains(#""adapterId": harnessMode == "piMono" ? "pi-mono" : "acp""#))
   }
 
+  func testRetiredCustomerCredentialSanitizerScrubsPrefixCaseInsensitively() {
+    var env = [
+      "OMI_BYOK_OPENAI": "stale-openai",
+      "omi_byok_experimental": "stale-experimental",
+      "OmI_bYoK_LEGACY": "stale-legacy",
+      "OMI_AUTH_TOKEN": "token",
+      "PATH": "/usr/bin",
+    ]
+
+    AgentRuntimeProcess.removeInheritedBYOKEnvironment(from: &env)
+
+    XCTAssertNil(env["OMI_BYOK_OPENAI"])
+    XCTAssertNil(env["omi_byok_experimental"])
+    XCTAssertNil(env["OmI_bYoK_LEGACY"])
+    XCTAssertEqual(env["OMI_AUTH_TOKEN"], "token")
+    XCTAssertEqual(env["PATH"], "/usr/bin")
+  }
+
+  func testPiMonoStartupRefreshesAuthTokenAndFiltersByokEnvironment() throws {
+    let sourceURL = URL(fileURLWithPath: #filePath)
+      .deletingLastPathComponent()
+      .deletingLastPathComponent()
+      .appendingPathComponent("Sources/Chat/AgentRuntimeProcess.swift")
+    let source = try String(contentsOf: sourceURL, encoding: .utf8)
+    let whitespaceNormalizedSource = source.split(whereSeparator: \.isWhitespace).joined(separator: " ")
+
+    XCTAssertTrue(source.contains("Self.removeInheritedBYOKEnvironment(from: &env)"))
+    XCTAssertFalse(source.contains("usableBYOKEnvironment"))
+    XCTAssertTrue(
+      whitespaceNormalizedSource.contains(
+        "let forceRefreshToken = preferredAdapterId == .piMono "
+          + "&& AgentRuntimeCredentialPolicy.shouldForceRefreshAtStartup("
+      ))
+    XCTAssertTrue(source.contains("isDesktopLocalProfile: DesktopLocalProfile.isEnabled"))
+    XCTAssertTrue(source.contains("getAuthHeader("))
+    XCTAssertTrue(source.contains("forceRefresh: forceRefreshToken"))
+    XCTAssertTrue(source.contains("expectedUserId: authorizationSnapshot.ownerID"))
+    XCTAssertFalse(source.contains("pi-mono BYOK active"))
+  }
+
   func testStdoutReaderIsEventDrivenInsteadOfDetachedAvailableDataLoop() throws {
     let sourceURL = URL(fileURLWithPath: #filePath)
       .deletingLastPathComponent()

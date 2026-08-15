@@ -24,7 +24,6 @@ from models.message_event import (
 from models.users import PlanType
 from utils.analytics import billable_transcription_seconds, record_usage
 from utils.async_tasks import WebSocketTaskSupervisor, drain_tasks, wait_for_event
-from utils.byok import extract_byok_from_websocket, get_byok_keys, set_byok_keys
 from utils.client_device import resolve_client_device_from_headers
 from utils.executors import db_executor, run_blocking, start_background_task
 from utils.fair_use import (
@@ -235,7 +234,6 @@ class ListenSessionRuntime:
         if not self.request.uid:
             await self.request.websocket.close(code=1008, reason='Bad uid')
             return False
-        set_byok_keys(extract_byok_from_websocket(self.request.websocket))
         if await run_blocking(db_executor, is_trial_paywalled, self.request.uid, self.request.source):
             await self.request.websocket.send_json(
                 FreemiumThresholdReachedEvent(remaining_seconds=0, action=FREEMIUM_ACTION_SETUP_ON_DEVICE_STT).to_json()
@@ -531,7 +529,6 @@ class ListenSessionRuntime:
                 get_current_conversation_id=lambda: self.state.current_conversation_id,
                 is_active=lambda: self.state.active,
                 shutdown_event=self.state.shutdown_event,
-                get_byok_keys=get_byok_keys,
                 on_conversation_processed=self.conversations.on_conversation_processed,
                 wait_for_event=wait_for_event,
             ),

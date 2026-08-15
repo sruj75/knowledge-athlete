@@ -858,30 +858,17 @@ class TestBYOKWrapperArchitecture:
             assert not hasattr(mod, name), f'{name} should have been removed from clients.py'
 
 
-class TestBYOKEmbeddingsProxy:
-    def test_model_access_403_falls_back_to_default_embeddings(self, monkeypatch):
-        """BYOK OpenAI projects can reject text-embedding-3-large with model_not_found."""
+class TestManagedEmbeddingsProxy:
+    def test_legacy_customer_key_cannot_select_embeddings_client(self, monkeypatch):
         import utils.llm.clients as mod
-
-        class _FailingBYOKEmbeddings:
-            def embed_documents(self, _texts):
-                raise RuntimeError(
-                    "openai.PermissionDeniedError: Error code: 403 - project does not have access "
-                    "to model text-embedding-3-large; code: model_not_found"
-                )
-
-            def embed_query(self, _text):
-                raise RuntimeError(
-                    "openai.PermissionDeniedError: Error code: 403 - project does not have access "
-                    "to model text-embedding-3-large; code: model_not_found"
-                )
 
         default = MagicMock()
         default.embed_documents.return_value = [[0.1, 0.2]]
         default.embed_query.return_value = [0.1, 0.2]
+        customer_factory = MagicMock(side_effect=AssertionError('legacy key selected an embeddings client'))
 
-        monkeypatch.setattr(mod, 'get_byok_key', lambda provider: 'sk-byok' if provider == 'openai' else None)
-        monkeypatch.setattr(mod, 'OpenAIEmbeddings', lambda **_kwargs: _FailingBYOKEmbeddings())
+        monkeypatch.setattr(mod, 'get_byok_key', lambda provider: 'legacy-key' if provider == 'openai' else None)
+        monkeypatch.setattr(mod, 'OpenAIEmbeddings', customer_factory)
         mod._openai_cache.clear()
 
         proxy = mod._OpenAIEmbeddingsProxy(
@@ -894,6 +881,7 @@ class TestBYOKEmbeddingsProxy:
         assert proxy.embed_query('hello') == [0.1, 0.2]
         default.embed_documents.assert_called_once_with(['hello'])
         default.embed_query.assert_called_once_with('hello')
+        customer_factory.assert_not_called()
 
 
 class TestBYOKProfile:
