@@ -17,15 +17,9 @@ content claim. It does not start an inline worker.
   — intentional inline modes, not an enqueue failure. BYOK cannot cross a
   task boundary; an explicitly disabled queue is configuration-controlled.
 
-**Prometheus scrape gap:** Metric definitions and emit sites live in-repo
-(`utils/metrics.py` + `routers/sync.py` on Cloud Run `backend-sync`), but GKE
-Prometheus does not currently scrape this Cloud Run service. The Grafana panel
-and alert are therefore advisory until the source-only monitoring contract in
-[#9587](https://github.com/BasedHardware/omi/issues/9587) enables verified
-delivery. Until then, use the structured Cloud Logging event above.
-
-**PromQL (when scrape exists):**
-`sum(rate(omi_sync_dispatch_attempts_total{mode="enqueue_uncertain"}[10m])) / clamp_min(sum(rate(omi_sync_dispatch_attempts_total[10m])), 1e-9)`
+Metric definitions and emit sites remain in `utils/metrics.py` and
+`routers/sync.py`. The current operational signal for the Cloud Run
+`backend-sync` service is the structured Cloud Logging event above.
 
 **First checks:** Cloud Tasks queue depth/errors and the deterministic task
 name; GCS staging permissions and object presence; `SYNC_TASKS_*` runtime

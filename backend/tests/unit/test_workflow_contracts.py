@@ -7,6 +7,7 @@ from pathlib import Path, PurePosixPath
 import pytest
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]
+REPO_DIR = BACKEND_DIR.parent
 
 
 def _load_script(name: str):
@@ -33,6 +34,30 @@ def _load_repo_script(name: str):
         else:
             sys.modules[name] = previous
     return module
+
+
+def test_standalone_monitoring_product_is_absent_from_the_deploy_graph():
+    """Static deployment contract: the retired all-in-one monitoring product cannot be installed."""
+    assert not (BACKEND_DIR / "charts/monitoring").exists()
+
+    exclusive_paths = (
+        BACKEND_DIR / "scripts/verify_pusher_dev_observability.py",
+        BACKEND_DIR / "tests/unit/test_verify_pusher_dev_observability.py",
+        BACKEND_DIR / "tests/unit/test_monitoring_alert_rule_contract.py",
+        BACKEND_DIR / "docs/runbooks/resilience-dashboards.md",
+    )
+    assert all(not path.exists() for path in exclusive_paths)
+
+    current_deploy_contracts = (
+        REPO_DIR / ".github/checks-manifest.yaml",
+        REPO_DIR / ".github/workflows/gcp_backend_pusher.yml",
+        REPO_DIR / ".github/workflows/gcp_backend_pusher_auto_deploy.yml",
+        BACKEND_DIR / "testing/workflow_contracts.json",
+    )
+    for path in current_deploy_contracts:
+        contents = path.read_text(encoding="utf-8")
+        assert "backend/charts/monitoring" not in contents, path
+        assert "verify_pusher_dev_observability" not in contents, path
 
 
 @pytest.fixture(scope="module")
@@ -113,11 +138,7 @@ def test_selector_docs_and_flat_utils_do_not_force_full_suite_via_globs(selector
     """Docs/AGENTS skip selection; metrics is not a FULL_RUN_GLOBS hit."""
     selector, all_tests = selector_and_all_tests
 
-    for path in (
-        "backend/AGENTS.md",
-        "backend/docs/runbooks/resilience-dashboards.md",
-        "backend/charts/monitoring/alerts/resilience.json",
-    ):
+    for path in ("backend/AGENTS.md",):
         selected, reason = selector.tests_for_changed_paths([path], all_tests)
         assert selected == [], path
         assert reason == "no backend files changed", (path, reason)

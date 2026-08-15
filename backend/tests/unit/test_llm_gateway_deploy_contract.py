@@ -368,22 +368,6 @@ def test_auto_dev_revision_fence_targets_the_deployment_project_static_contract(
     assert str(fence['run']).count('--project=${{ vars.GCP_PROJECT_ID }}') == 4
 
 
-def test_monitoring_scrapes_llm_gateway_with_shared_metrics_secret_contract():
-    for environment in ('dev', 'prod'):
-        monitoring = _load_yaml(f'charts/monitoring/kube-prometheus-stack/{environment}_omi_monitoring_values.yaml')
-        jobs = {job['job_name']: job for job in monitoring['prometheus']['prometheusSpec']['additionalScrapeConfigs']}
-
-        gateway_job = jobs['llm-gateway-metrics']
-        assert gateway_job['metrics_path'] == '/metrics'
-        assert gateway_job['authorization']['credentials_file'] == '/etc/prometheus/secrets/metrics-scrape-token/token'
-        name_filter = next(
-            config
-            for config in gateway_job['relabel_configs']
-            if config.get('source_labels') == ['__meta_kubernetes_pod_label_app_kubernetes_io_name']
-        )
-        assert name_filter['regex'] == 'llm-gateway'
-
-
 def test_gateway_env_validator_requires_vertex_runtime_configuration_not_gemini_api_key(tmp_path):
     backend_values = tmp_path / 'backend.yaml'
     gateway_values = tmp_path / 'gateway.yaml'

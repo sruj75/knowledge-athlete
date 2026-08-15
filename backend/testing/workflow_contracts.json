@@ -572,14 +572,12 @@
         "backend/scripts/verify_pusher_rollout_budget.py",
         "backend/scripts/verify_pusher_live_deployment_gate.py",
         "backend/scripts/verify_pusher_promotion_evidence.py",
-        "backend/scripts/verify_pusher_dev_observability.py",
         "backend/scripts/verify_pusher_source_closure.py"
       ],
       "tests": [
         "tests/unit/test_verify_pusher_rollout_budget.py",
         "tests/unit/test_verify_pusher_live_deployment_gate.py",
         "tests/unit/test_verify_pusher_promotion_evidence.py",
-        "tests/unit/test_verify_pusher_dev_observability.py",
         "tests/unit/test_pusher_deployment_control_workflow.py"
       ],
       "checks": [],

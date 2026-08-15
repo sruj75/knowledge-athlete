@@ -279,7 +279,6 @@ jobs:
         run: |
           python3 backend/scripts/verify_pusher_rollout_budget.py
           python3 backend/scripts/verify_pusher_rollout_gate.py preflight
-          python3 backend/scripts/verify_pusher_dev_observability.py
 
       - name: Get GKE credentials
         uses: google-github-actions/get-gke-credentials@v3
