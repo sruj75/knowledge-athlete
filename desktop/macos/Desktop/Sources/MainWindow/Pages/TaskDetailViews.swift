@@ -10,7 +10,7 @@ struct TaskDetailMetadataEntry: Identifiable, Equatable {
 }
 
 enum TaskDetailMetadataProjection {
-  private static let sentryBridgeOnlyKeys: Set<String> = [
+  private static let legacySentryMetadataKeys: Set<String> = [
     "sentry_issue_id", "sentry_issue_url", "sentry_short_id", "sentry_url",
     "reporter_name", "reporter_email", "feedback_type",
     "app_version", "app_build", "os", "device_model", "contexts",
@@ -19,10 +19,13 @@ enum TaskDetailMetadataProjection {
   static func entries(
     from metadata: [String: Any],
     excluding excludedKeys: Set<String>,
+    source: String?,
     arraySeparator: String = ", "
   ) -> [TaskDetailMetadataEntry] {
-    metadata
-      .filter { !sentryBridgeOnlyKeys.contains($0.key) && !excludedKeys.contains($0.key) }
+    let hiddenKeys = source == "sentry_feedback" ? legacySentryMetadataKeys : []
+    return
+      metadata
+      .filter { !hiddenKeys.contains($0.key) && !excludedKeys.contains($0.key) }
       .compactMap { entry in
         let display: String
         if let string = entry.value as? String, !string.isEmpty {
@@ -189,7 +192,7 @@ private struct TaskDetailTooltip: View {
       "context_summary", "current_activity",
     ]
     guard let meta = task.parsedMetadata else { return [] }
-    return TaskDetailMetadataProjection.entries(from: meta, excluding: skip)
+    return TaskDetailMetadataProjection.entries(from: meta, excluding: skip, source: task.source)
   }
 
   private func tooltipRow(_ label: String, _ value: String) -> some View {
@@ -553,6 +556,7 @@ struct TaskDetailView: View {
     return TaskDetailMetadataProjection.entries(
       from: meta,
       excluding: Self.handledMetadataKeys,
+      source: task.source,
       arraySeparator: "\n"
     )
   }
