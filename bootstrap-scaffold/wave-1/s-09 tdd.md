@@ -351,6 +351,7 @@ the local commit ledger below. Nothing has been pushed or opened as a PR:
 | `d1142e4` | Replaced the independently generated agentic Chat UUID with the actual current LangSmith run-tree identity, omitting the correlation field when no trace exists. |
 | `1a145bb` | Scoped retired Sentry metadata filtering to legacy `sentry_feedback` Tasks so arbitrary generic Task metadata remains visible. |
 | `879d554` | Added production-boundary coverage for the one authoritative PTT remote lifecycle event and Git-only Chat Lab history, and removed the last stale ratings comment. |
+| `9e267ef` | Removed the unused callback-level trace-ID input and strengthened the public persona stream test to prove its persisted correlation equals the actual Runnable run ID. |
 
 Observed GREEN evidence for this config-independent tranche:
 
@@ -371,6 +372,8 @@ Observed GREEN evidence for this config-independent tranche:
 - the final Chat Prompt Lab copy change passed its five focused Swift tests;
 - post-review backend verification passed 28 tests covering actual LangSmith
   run-tree binding/absence and the deleted monitoring operator/deploy surfaces;
+- the adjacent retained-persona correlation cleanup passed all 24 tests in
+  `test_chat_async_offload.py` and `test_langsmith_tracing_boundary.py`;
 - post-review Swift verification passed 35 tests: all 32
   `DesktopDiagnosticsManagerTests`, both source-aware generic Task projection
   tests, and the Git-only Chat Lab history test;
