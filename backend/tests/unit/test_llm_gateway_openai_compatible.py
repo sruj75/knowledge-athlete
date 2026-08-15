@@ -136,52 +136,6 @@ def test_provider_rejection_preserves_exact_terminal_class_and_bounded_member(
     assert error.provider_rejection == provider_rejection
 
 
-@pytest.mark.parametrize(
-    'failure_class',
-    [FailureClass.BYOK_RATE_LIMIT, FailureClass.BYOK_QUOTA],
-)
-def test_byok_throttling_is_not_reported_as_a_credential_rejection(monkeypatch, failure_class):
-    monkeypatch.setenv('LLM_GATEWAY_SERVICE_TOKEN', 'shared-secret')
-    provider = FakeChatCompletionProvider([ProviderFailure(failure_class)])
-    app.dependency_overrides[dependencies.get_provider_registry] = lambda: ProviderRegistry({'openai': provider})
-    try:
-        response = TestClient(app).post(
-            '/v1/chat/completions',
-            json=valid_request(),
-            headers={
-                **auth_headers(),
-                'X-Omi-Byok-OpenAI-Key': 'sk-user-byok',
-            },
-        )
-    finally:
-        app.dependency_overrides.clear()
-
-    assert response.status_code == 429
-    assert response.json()['error']['type'] == 'rate_limit_error'
-    assert response.json()['error']['message'] == f'provider request failed: {failure_class.value}'
-
-
-def test_byok_auth_failure_still_reports_a_credential_rejection(monkeypatch):
-    monkeypatch.setenv('LLM_GATEWAY_SERVICE_TOKEN', 'shared-secret')
-    provider = FakeChatCompletionProvider([ProviderFailure(FailureClass.BYOK_AUTH)])
-    app.dependency_overrides[dependencies.get_provider_registry] = lambda: ProviderRegistry({'openai': provider})
-    try:
-        response = TestClient(app).post(
-            '/v1/chat/completions',
-            json=valid_request(),
-            headers={
-                **auth_headers(),
-                'X-Omi-Byok-OpenAI-Key': 'sk-user-byok',
-            },
-        )
-    finally:
-        app.dependency_overrides.clear()
-
-    assert response.status_code == 401
-    assert response.json()['error']['type'] == 'authentication_error'
-    assert response.json()['error']['code'] == 'credential_failure'
-
-
 def test_chat_completions_persists_cache_aware_attempt_with_authenticated_attribution(monkeypatch):
     monkeypatch.setenv('LLM_GATEWAY_SERVICE_TOKEN', 'shared-secret')
     persisted = []
@@ -299,26 +253,6 @@ def test_metadata_feature_never_enters_the_accounting_context(monkeypatch):
 
     assert response.status_code == 200
     assert persisted[0][0].feature == LANE_ID
-
-
-def test_chat_completions_uses_forwarded_byok_credentials(monkeypatch):
-    monkeypatch.setenv('LLM_GATEWAY_SERVICE_TOKEN', 'shared-secret')
-    provider = FakeChatCompletionProvider()
-    app.dependency_overrides[dependencies.get_provider_registry] = lambda: ProviderRegistry({'openai': provider})
-    try:
-        response = TestClient(app).post(
-            '/v1/chat/completions',
-            json=valid_request(),
-            headers={
-                **auth_headers(),
-                'X-Omi-Byok-OpenAI-Key': 'sk-user-byok',
-            },
-        )
-    finally:
-        app.dependency_overrides.clear()
-
-    assert response.status_code == 200
-    assert provider.calls[0].credential_mode == 'byok'
 
 
 def test_image_generation_records_gateway_attempt(monkeypatch):
@@ -593,7 +527,7 @@ class TerminalStreamProvider(FakeChatCompletionProvider):
             yield chunk
 
 
-def test_streaming_success_requires_done_marker_and_records_byok_source(monkeypatch):
+def test_streaming_ignores_retired_customer_key_header_and_records_managed_source(monkeypatch):
     monkeypatch.setenv('LLM_GATEWAY_SERVICE_TOKEN', 'shared-secret')
     recorded: list[dict] = []
     persisted = []
@@ -632,7 +566,7 @@ def test_streaming_success_requires_done_marker_and_records_byok_source(monkeypa
     assert len(recorded) == 1
     assert recorded[0]['outcome'] == 'success'
     assert recorded[0]['phase'] == 'terminal_marker'
-    assert recorded[0]['credential_source'] == 'service_forwarded_byok'
+    assert recorded[0]['credential_source'] == 'omi_managed'
     assert recorded[0]['streaming'] is True
     assert recorded[0]['ttfb_seconds'] is not None
     assert recorded[0]['budget_source'] == 'none'
@@ -641,7 +575,7 @@ def test_streaming_success_requires_done_marker_and_records_byok_source(monkeypa
     assert recorded[0]['finish_reason'] == 'unknown'
     assert len(persisted) == 1
     context, trace = persisted[0]
-    assert context.payer == 'byok'
+    assert context.payer == 'omi'
     assert trace.attempts[-1].usage is not None
     assert trace.attempts[-1].usage.cache_status.value == 'no_cache_read_observed'
     assert provider.stream_requests[0]['stream_options']['include_usage'] is True

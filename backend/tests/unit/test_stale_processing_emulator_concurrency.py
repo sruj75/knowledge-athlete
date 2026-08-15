@@ -178,7 +178,6 @@ def test_production_finalizer_vs_orphan_race_exactly_one_wins():
             intent = jobs_db.create_or_get_finalization_intent(
                 uid,
                 cid,
-                requires_byok=False,
                 finalization_admission=lambda conv: lifecycle_service._finalization_admission(conv, cid),
             )
             results['finalizer'] = bool(intent.get('job_id'))

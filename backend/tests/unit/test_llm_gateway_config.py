@@ -109,16 +109,6 @@ def test_invalid_lkg_capability_fails(tmp_path):
         load_gateway_config(tmp_path, prod_mode=False)
 
 
-def test_invalid_lkg_credential_mode_fails(tmp_path):
-    write_config(
-        tmp_path,
-        lkg_overrides={'credential_policy': credential_policy(mode='byok')},
-    )
-
-    with pytest.raises(ConfigValidationError, match='last_known_good.*credential mode mismatch'):
-        load_gateway_config(tmp_path, prod_mode=False)
-
-
 def test_duplicate_route_id_fails(tmp_path):
     active = route_artifact(ACTIVE_ROUTE)
     write_config(tmp_path, route_artifacts=[active, {**route_artifact(LKG_ROUTE), 'route_artifact_id': ACTIVE_ROUTE}])
@@ -239,22 +229,16 @@ def capabilities(structured_output: str = 'json_schema') -> dict:
     }
 
 
-def credential_policy(mode: str = 'omi_paid') -> dict:
+def credential_policy() -> dict:
     return {
-        'mode': mode,
-        'allow_byok_to_omi_paid_fallback': False,
         'fallback_eligible_failure_classes': [
             'timeout_before_output',
             'provider_429_omi_paid',
             'provider_5xx_omi_paid',
         ],
         'never_fallback_failure_classes': [
-            'byok_auth',
-            'byok_quota',
-            'byok_rate_limit',
-            'byok_unsupported_provider',
-            'missing_byok_key',
             'capability_mismatch',
+            'provider_invalid_request',
             'invalid_config',
         ],
     }
@@ -281,11 +265,8 @@ def route_artifact(route_artifact_id: str, *, model: str = 'gpt-4.1-mini') -> di
         'fallback_policy': {
             'fallback_on': ['timeout_before_output', 'provider_429_omi_paid', 'provider_5xx_omi_paid'],
             'never_fallback_on': [
-                'byok_auth',
-                'byok_quota',
-                'byok_rate_limit',
-                'missing_byok_key',
                 'capability_mismatch',
+                'provider_invalid_request',
                 'invalid_config',
             ],
         },

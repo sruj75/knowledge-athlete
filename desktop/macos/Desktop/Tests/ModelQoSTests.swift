@@ -43,33 +43,7 @@ final class ModelQoSTests: XCTestCase {
       ModelQoS.activeTier = tier
       XCTAssertEqual(ModelQoS.Claude.chat, "claude-sonnet-4-6")
       XCTAssertEqual(ModelQoS.Claude.floatingBar, "claude-sonnet-4-6")
-      XCTAssertEqual(ModelQoS.Claude.synthesis, "claude-haiku-4-5-20251001")
     }
-  }
-
-  // MARK: - Synthesis uses Haiku (extraction workloads)
-
-  func testSynthesisUsesHaiku() {
-    XCTAssertEqual(ModelQoS.Claude.synthesis, "claude-haiku-4-5-20251001")
-  }
-
-  func testManagedSynthesisRequestRetainsHaikuOutsideAgentContract() throws {
-    let body = ManagedSynthesisClient.requestBody(
-      prompt: "extract durable facts",
-      systemPrompt: "output JSON")
-    let messages = try XCTUnwrap(body["messages"] as? [[String: String]])
-
-    XCTAssertEqual(body["model"] as? String, ModelQoS.Claude.synthesis)
-    XCTAssertEqual(body["max_tokens"] as? Int, 4096)
-    XCTAssertEqual(body["stream"] as? Bool, false)
-    XCTAssertEqual(
-      messages,
-      [
-        ["role": "system", "content": "output JSON"],
-        ["role": "user", "content": "extract durable facts"],
-      ])
-    XCTAssertNil(body["tools"])
-    XCTAssertNil(body["omi_web_search"])
   }
 
   // MARK: - Chat uses Sonnet (user-facing)
@@ -119,24 +93,23 @@ final class ModelQoSTests: XCTestCase {
     wait(for: [expectation], timeout: 1.0)
   }
 
-  // MARK: - Model count (5 unique model IDs across both tiers)
+  // MARK: - Model count (4 unique model IDs across both tiers)
 
-  func testFiveUniqueModelIDs() {
-    // Chat and floating use one Sonnet ID. Synthesis retains Haiku, while
-    // Gemini contributes flash, pro, and embedding across the two tiers.
+  func testFourUniqueModelIDs() {
+    // Chat and floating use one Sonnet ID. Gemini contributes flash, pro, and
+    // embedding across the two tiers.
     var allModels: Set<String> = []
     for tier in ModelTier.allCases {
       ModelQoS.activeTier = tier
       allModels.formUnion([
         ModelQoS.Claude.chat,
         ModelQoS.Claude.floatingBar,
-        ModelQoS.Claude.synthesis,
         ModelQoS.Gemini.proactive,
         ModelQoS.Gemini.taskExtraction,
         ModelQoS.Gemini.insight,
         ModelQoS.Gemini.embedding,
       ])
     }
-    XCTAssertEqual(allModels.count, 5, "Expected 5 unique model IDs across tiers: \(allModels)")
+    XCTAssertEqual(allModels.count, 4, "Expected 4 unique model IDs across tiers: \(allModels)")
   }
 }

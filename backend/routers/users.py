@@ -1,9 +1,7 @@
 from __future__ import annotations
 
-import re
 import uuid
 from typing import List, Dict, Any, Union, Optional
-import hashlib
 import os
 import asyncio
 
@@ -58,9 +56,7 @@ from models.users import (
     ChatUsageQuota,
     ChatQuotaUnit,
     UserSubscriptionResponse,
-    Subscription,
     SubscriptionPlan,
-    SubscriptionStatus,
     PlanType,
     PricingOption,
     PhoneCallQuota,
@@ -85,7 +81,6 @@ from utils.subscription import (
     adapt_plans_for_legacy_client,
     wire_plan_for_client,
     legacy_plan_features,
-    clear_trial_paywall_cache,
     get_trial_metadata,
 )
 from database import user_usage as user_usage_db
@@ -108,7 +103,6 @@ from utils.other.storage import (
     delete_user_person_speech_samples,
     delete_user_person_speech_sample,
 )
-from utils.byok import has_byok_keys, invalidate_byok_state_cache, peppered_fingerprint
 import logging
 
 logger = logging.getLogger(__name__)
@@ -895,98 +889,13 @@ def get_user_usage_stats_endpoint(
     return stats
 
 
-_SHA256_HEX_RE = re.compile(r'^[a-f0-9]{64}$')
-_BYOK_REQUIRED_PROVIDERS = {'openai', 'anthropic', 'gemini', 'deepgram'}
-
-
-class BYOKActivateRequest(BaseModel):
-    fingerprints: Dict[str, str]
-
-
-class BYOKActiveResponse(BaseModel):
-    active: bool
-
-
-@router.post('/v1/users/me/byok-active', tags=['v1'], response_model=BYOKActiveResponse)
-def activate_byok_endpoint(data: BYOKActivateRequest, uid: str = Depends(auth.get_current_user_uid_no_byok_validation)):
-    """Flip the user onto the BYOK free plan.
-
-    The client sends SHA-256 fingerprints of the 4 provider keys so we can
-    detect rotation without ever seeing the keys. The live keys themselves
-    travel on every request as headers; they are never persisted.
-    """
-    missing = _BYOK_REQUIRED_PROVIDERS - set(data.fingerprints.keys())
-    if missing:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Missing fingerprints for providers: {sorted(missing)}",
-        )
-    for provider, fp in data.fingerprints.items():
-        if provider not in _BYOK_REQUIRED_PROVIDERS:
-            raise HTTPException(status_code=400, detail=f"Unknown provider: {provider}")
-        if not _SHA256_HEX_RE.match(fp):
-            raise HTTPException(
-                status_code=400, detail=f"Invalid fingerprint for {provider}: expected lowercase hex SHA-256 (64 chars)"
-            )
-    users_db.set_byok_active(uid, {p: peppered_fingerprint(fp) for p, fp in data.fingerprints.items()})
-    invalidate_byok_state_cache(uid)
-    clear_trial_paywall_cache(uid)
-    return {"active": True}
-
-
-@router.delete('/v1/users/me/byok-active', tags=['v1'], response_model=BYOKActiveResponse)
-def deactivate_byok_endpoint(uid: str = Depends(auth.get_current_user_uid_no_byok_validation)):
-    """Drop the user off the BYOK free plan (keys were cleared client-side)."""
-    users_db.clear_byok_active(uid)
-    invalidate_byok_state_cache(uid)
-    clear_trial_paywall_cache(uid)
-    return {"active": False}
-
-
-def _byok_unlimited_subscription() -> Subscription:
-    """BYOK free plan: unlimited limits, marked with the `byok` feature flag."""
-    return Subscription(
-        plan=PlanType.unlimited,
-        status=SubscriptionStatus.active,
-        features=["byok"],
-        limits=PlanLimits(
-            transcription_seconds=None,
-            words_transcribed=None,
-            insights_gained=None,
-        ),
-    )
-
-
 @router.get('/v1/users/me/subscription', tags=['v1'], response_model=UserSubscriptionResponse)
 def get_user_subscription_endpoint(
-    # Keep reachable even when BYOK fingerprints drift — broken-BYOK users
-    # must still see their plan so they can recover.
-    uid: str = Depends(auth.get_current_user_uid_no_byok_validation),
+    uid: str = Depends(auth.get_current_user_uid),
     x_app_platform: Optional[str] = Header(None, alias='X-App-Platform'),
     x_app_version: Optional[str] = Header(None, alias='X-App-Version'),
 ):
     """Gets the user's subscription plan and usage."""
-    # BYOK free plan: user supplies their own OpenAI/Anthropic/Gemini/Deepgram keys.
-    # Only return unlimited when the request actually carries BYOK headers (desktop).
-    # Mobile (no BYOK headers) should see the real subscription even if BYOK is active.
-    # Synthetic paid-tier quota for BYOK so these users aren't surprised by a
-    # disabled phone-call feature.
-    unlimited_phone_quota = PhoneCallQuota(has_access=True, is_paid=True)
-
-    if users_db.is_byok_active(uid) and has_byok_keys():
-        return UserSubscriptionResponse(
-            subscription=_byok_unlimited_subscription(),
-            transcription_seconds_used=0,
-            transcription_seconds_limit=0,
-            words_transcribed_used=0,
-            words_transcribed_limit=0,
-            insights_gained_used=0,
-            insights_gained_limit=0,
-            available_plans=[],
-            show_subscription_ui=False,
-            phone_call_quota=unlimited_phone_quota,
-        )
-
     # First, reconcile any "basic but actually unlimited" inconsistencies against Stripe once.
     raw_subscription = get_user_subscription(uid)
     reconcile_basic_plan_with_stripe(uid, raw_subscription)
@@ -1156,21 +1065,6 @@ def get_user_chat_usage_quota(
 
     Used by the desktop app. Mobile uses the subscription endpoint instead.
     """
-    # BYOK free plan: user brings their own keys, so there's no Omi-side cost
-    # to meter. Only return unlimited when BYOK headers are on the request (desktop).
-    # Mobile (no headers) should see real quota.
-    if users_db.is_byok_active(uid) and has_byok_keys():
-        return ChatUsageQuota(
-            plan='Free (BYOK)',
-            plan_type=PlanType.unlimited.value,
-            unit=ChatQuotaUnit.questions,
-            used=0.0,
-            limit=None,
-            percent=0.0,
-            allowed=True,
-            reset_at=None,
-        )
-
     snapshot = get_chat_quota_snapshot(uid, platform=x_app_platform)
     plan = snapshot['plan']
 
@@ -1205,8 +1099,8 @@ def get_user_paywall_status(
 
     Used by the Rust desktop-backend middleware to decide whether to proxy
     paid LLM / TTS / Pinecone traffic. Mirrors the exact semantics of
-    `is_trial_paywalled`: basic plan + no active BYOK + Firebase Auth
-    account >3d old + platform in {macos, desktop}. Mobile platforms always
+    `is_trial_paywalled`: basic plan + Firebase Auth account >3d old + platform
+    in {macos, desktop}. Mobile platforms always
     return `paywalled=false`.
 
     Platform comes from `X-App-Platform` header (preferred) or `platform`
@@ -1225,8 +1119,8 @@ def get_user_trial_status(uid: str = Depends(auth.get_current_user_uid)):
     falls to after trial expiry. Used by desktop clients to render countdown
     banners and pre-expiry upgrade nudges.
 
-    Paid-plan and BYOK users get `trial_expired=False` with zeroed timing
-    (trial is irrelevant to them — they have full access).
+    Paid-plan users get `trial_expired=False` with zeroed timing because the
+    account-age trial is irrelevant to them.
     """
     return get_trial_metadata(uid)
 

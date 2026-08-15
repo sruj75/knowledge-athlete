@@ -1035,20 +1035,6 @@
             "title": "Created At",
             "type": "string"
           },
-          "device_models": {
-            "anyOf": [
-              {
-                "items": {
-                  "type": "string"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Device Models"
-          },
           "display": {
             "anyOf": [
               {
@@ -1070,17 +1056,6 @@
               }
             ],
             "title": "Expires At"
-          },
-          "firmware_version": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Firmware Version"
           },
           "id": {
             "title": "Id",
@@ -1656,35 +1631,6 @@
         "title": "AvailablePlansResponse",
         "type": "object"
       },
-      "BYOKActivateRequest": {
-        "properties": {
-          "fingerprints": {
-            "additionalProperties": {
-              "type": "string"
-            },
-            "title": "Fingerprints",
-            "type": "object"
-          }
-        },
-        "required": [
-          "fingerprints"
-        ],
-        "title": "BYOKActivateRequest",
-        "type": "object"
-      },
-      "BYOKActiveResponse": {
-        "properties": {
-          "active": {
-            "title": "Active",
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "active"
-        ],
-        "title": "BYOKActiveResponse",
-        "type": "object"
-      },
       "BatchCreateActionItemsResponse": {
         "properties": {
           "action_items": {
@@ -1978,23 +1924,6 @@
           "files"
         ],
         "title": "Body_create_voice_message_stream_v2_voice_messages_post",
-        "type": "object"
-      },
-      "Body_sync_local_files_v2_v2_sync_local_files_post": {
-        "properties": {
-          "files": {
-            "items": {
-              "format": "binary",
-              "type": "string"
-            },
-            "title": "Files",
-            "type": "array"
-          }
-        },
-        "required": [
-          "files"
-        ],
-        "title": "Body_sync_local_files_v2_v2_sync_local_files_post",
         "type": "object"
       },
       "Body_upload_file_chat_v2_files_post": {
@@ -3395,14 +3324,6 @@
             ],
             "title": "Language"
           },
-          "photos": {
-            "default": [],
-            "items": {
-              "$ref": "#/components/schemas/ConversationPhoto"
-            },
-            "title": "Photos",
-            "type": "array"
-          },
           "private_cloud_sync_enabled": {
             "default": false,
             "title": "Private Cloud Sync Enabled",
@@ -3869,62 +3790,6 @@
         "title": "ConversationMutationResponse",
         "type": "object"
       },
-      "ConversationPhoto": {
-        "properties": {
-          "base64": {
-            "title": "Base64",
-            "type": "string"
-          },
-          "created_at": {
-            "format": "date-time",
-            "title": "Created At",
-            "type": "string"
-          },
-          "data_protection_level": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Data Protection Level"
-          },
-          "description": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Description"
-          },
-          "discarded": {
-            "default": false,
-            "title": "Discarded",
-            "type": "boolean"
-          },
-          "id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Id"
-          }
-        },
-        "required": [
-          "base64"
-        ],
-        "title": "ConversationPhoto",
-        "type": "object"
-      },
       "ConversationRecordingResponse": {
         "properties": {
           "has_recording": {
@@ -4051,20 +3916,6 @@
             "title": "Content",
             "type": "object"
           },
-          "device_models": {
-            "anyOf": [
-              {
-                "items": {
-                  "type": "string"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Device Models"
-          },
           "display": {
             "anyOf": [
               {
@@ -4086,17 +3937,6 @@
               }
             ],
             "title": "Expires At"
-          },
-          "firmware_version": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Firmware Version"
           },
           "id": {
             "title": "Id",
@@ -5099,34 +4939,6 @@
         "title": "DecisionRecord",
         "type": "object"
       },
-      "DeleteAccountRequest": {
-        "properties": {
-          "reason": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Reason"
-          },
-          "reason_details": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Reason Details"
-          }
-        },
-        "title": "DeleteAccountRequest",
-        "type": "object"
-      },
       "DeleteActionItemRequest": {
         "properties": {
           "completed": {
@@ -5599,11 +5411,11 @@
             "title": "Case Ref",
             "type": "string"
           },
-          "dg_budget": {
-            "$ref": "#/components/schemas/FairUseDailyGenerationsBudgetResponse"
-          },
           "limits": {
             "$ref": "#/components/schemas/FairUseLimitsResponse"
+          },
+          "managed_stt_budget": {
+            "$ref": "#/components/schemas/FairUseDailyGenerationsBudgetResponse"
           },
           "message": {
             "title": "Message",
@@ -5637,7 +5449,7 @@
           "speech_hours_weekly",
           "limits",
           "usage_pct",
-          "dg_budget",
+          "managed_stt_budget",
           "message"
         ],
         "title": "FairUseStatusResponse",
@@ -5947,99 +5759,6 @@
           "created_at"
         ],
         "title": "FileChat",
-        "type": "object"
-      },
-      "FirmwareVersionResponse": {
-        "properties": {
-          "changelog": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "items": {
-                  "type": "string"
-                },
-                "type": "array"
-              }
-            ],
-            "default": "",
-            "title": "Changelog"
-          },
-          "draft": {
-            "default": false,
-            "title": "Draft",
-            "type": "boolean"
-          },
-          "is_legacy_secure_dfu": {
-            "default": true,
-            "title": "Is Legacy Secure Dfu",
-            "type": "boolean"
-          },
-          "min_app_version": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Min App Version"
-          },
-          "min_app_version_code": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Min App Version Code"
-          },
-          "min_version": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Min Version"
-          },
-          "ota_update_steps": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Ota Update Steps",
-            "type": "array"
-          },
-          "version": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Version"
-          },
-          "zip_url": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Zip Url"
-          }
-        },
-        "title": "FirmwareVersionResponse",
         "type": "object"
       },
       "FloatingBarSettings": {
@@ -8759,66 +8478,6 @@
         "title": "NotificationSettingsResponse",
         "type": "object"
       },
-      "OnboardingStateResponse": {
-        "properties": {
-          "acquisition_source": {
-            "default": "",
-            "title": "Acquisition Source",
-            "type": "string"
-          },
-          "completed": {
-            "default": false,
-            "title": "Completed",
-            "type": "boolean"
-          },
-          "device_onboarding_completed": {
-            "default": false,
-            "title": "Device Onboarding Completed",
-            "type": "boolean"
-          }
-        },
-        "title": "OnboardingStateResponse",
-        "type": "object"
-      },
-      "OnboardingStateUpdate": {
-        "properties": {
-          "acquisition_source": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Acquisition Source"
-          },
-          "completed": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Completed"
-          },
-          "device_onboarding_completed": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Device Onboarding Completed"
-          }
-        },
-        "title": "OnboardingStateUpdate",
-        "type": "object"
-      },
       "OpenLoopDescriptor": {
         "additionalProperties": false,
         "properties": {
@@ -9080,11 +8739,6 @@
       },
       "OverageInfoResponse": {
         "properties": {
-          "byok_available": {
-            "default": true,
-            "title": "Byok Available",
-            "type": "boolean"
-          },
           "excess_questions": {
             "default": 0,
             "title": "Excess Questions",
@@ -11198,237 +10852,6 @@
         "title": "SubscriptionStatus",
         "type": "string"
       },
-      "SyncCaptureManifestFile": {
-        "properties": {
-          "name": {
-            "maxLength": 255,
-            "minLength": 1,
-            "title": "Name",
-            "type": "string"
-          },
-          "sha256": {
-            "pattern": "^[0-9a-fA-F]{64}$",
-            "title": "Sha256",
-            "type": "string"
-          }
-        },
-        "required": [
-          "name",
-          "sha256"
-        ],
-        "title": "SyncCaptureManifestFile",
-        "type": "object"
-      },
-      "SyncCaptureManifestRequest": {
-        "properties": {
-          "conversation_id": {
-            "maxLength": 128,
-            "minLength": 1,
-            "title": "Conversation Id",
-            "type": "string"
-          },
-          "files": {
-            "items": {
-              "$ref": "#/components/schemas/SyncCaptureManifestFile"
-            },
-            "maxItems": 20,
-            "minItems": 1,
-            "title": "Files",
-            "type": "array"
-          }
-        },
-        "required": [
-          "conversation_id",
-          "files"
-        ],
-        "title": "SyncCaptureManifestRequest",
-        "type": "object"
-      },
-      "SyncCaptureManifestResponse": {
-        "properties": {
-          "manifest": {
-            "title": "Manifest",
-            "type": "string"
-          }
-        },
-        "required": [
-          "manifest"
-        ],
-        "title": "SyncCaptureManifestResponse",
-        "type": "object"
-      },
-      "SyncJobStartResponse": {
-        "properties": {
-          "job_id": {
-            "title": "Job Id",
-            "type": "string"
-          },
-          "lane": {
-            "default": "fresh",
-            "title": "Lane",
-            "type": "string"
-          },
-          "poll_after_ms": {
-            "title": "Poll After Ms",
-            "type": "integer"
-          },
-          "status": {
-            "title": "Status",
-            "type": "string"
-          },
-          "total_files": {
-            "title": "Total Files",
-            "type": "integer"
-          },
-          "total_segments": {
-            "title": "Total Segments",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "job_id",
-          "status",
-          "total_files",
-          "total_segments",
-          "poll_after_ms"
-        ],
-        "title": "SyncJobStartResponse",
-        "type": "object"
-      },
-      "SyncJobStatusResponse": {
-        "properties": {
-          "error": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Error"
-          },
-          "failed_segments": {
-            "default": 0,
-            "title": "Failed Segments",
-            "type": "integer"
-          },
-          "job_id": {
-            "title": "Job Id",
-            "type": "string"
-          },
-          "lane": {
-            "default": "fresh",
-            "title": "Lane",
-            "type": "string"
-          },
-          "processed_segments": {
-            "default": 0,
-            "title": "Processed Segments",
-            "type": "integer"
-          },
-          "reason_code": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Reason Code"
-          },
-          "recording_age_seconds": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Recording Age Seconds"
-          },
-          "result": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/SyncLocalFilesResultResponse"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "retry_after": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Retry After"
-          },
-          "status": {
-            "title": "Status",
-            "type": "string"
-          },
-          "successful_segments": {
-            "default": 0,
-            "title": "Successful Segments",
-            "type": "integer"
-          },
-          "total_segments": {
-            "default": 0,
-            "title": "Total Segments",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "job_id",
-          "status"
-        ],
-        "title": "SyncJobStatusResponse",
-        "type": "object"
-      },
-      "SyncLocalFilesResultResponse": {
-        "properties": {
-          "errors": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Errors",
-            "type": "array"
-          },
-          "failed_segments": {
-            "default": 0,
-            "title": "Failed Segments",
-            "type": "integer"
-          },
-          "new_memories": {
-            "items": {
-              "type": "string"
-            },
-            "title": "New Memories",
-            "type": "array"
-          },
-          "total_segments": {
-            "default": 0,
-            "title": "Total Segments",
-            "type": "integer"
-          },
-          "updated_memories": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Updated Memories",
-            "type": "array"
-          }
-        },
-        "title": "SyncLocalFilesResultResponse",
-        "type": "object"
-      },
       "Targeting": {
         "description": "Controls who sees the announcement",
         "properties": {
@@ -11453,42 +10876,6 @@
               }
             ],
             "title": "App Version Min"
-          },
-          "device_models": {
-            "anyOf": [
-              {
-                "items": {
-                  "type": "string"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Device Models"
-          },
-          "firmware_version_max": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Firmware Version Max"
-          },
-          "firmware_version_min": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Firmware Version Min"
           },
           "platforms": {
             "anyOf": [
@@ -12891,8 +12278,7 @@
       "TriggerType": {
         "enum": [
           "immediate",
-          "version_upgrade",
-          "firmware_upgrade"
+          "version_upgrade"
         ],
         "title": "TriggerType",
         "type": "string"
@@ -13083,20 +12469,6 @@
             ],
             "title": "Content"
           },
-          "device_models": {
-            "anyOf": [
-              {
-                "items": {
-                  "type": "string"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Device Models"
-          },
           "display": {
             "anyOf": [
               {
@@ -13118,17 +12490,6 @@
               }
             ],
             "title": "Expires At"
-          },
-          "firmware_version": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Firmware Version"
           },
           "targeting": {
             "anyOf": [
@@ -16136,7 +15497,7 @@
     },
     "/v1/announcements/features": {
       "get": {
-        "description": "Get feature announcements for a specific version.\n\nFor firmware updates: returns features explaining new device behavior.\nFor app updates: returns features explaining major new app functionality.",
+        "description": "Get feature announcements for a specific version.\n\nReturns features explaining major new app functionality.",
         "operationId": "get_features_v1_announcements_features_get",
         "parameters": [
           {
@@ -16148,35 +15509,6 @@
               "description": "Version user upgraded to",
               "title": "Version",
               "type": "string"
-            }
-          },
-          {
-            "description": "Type: 'app' or 'firmware'",
-            "in": "query",
-            "name": "version_type",
-            "required": true,
-            "schema": {
-              "description": "Type: 'app' or 'firmware'",
-              "title": "Version Type",
-              "type": "string"
-            }
-          },
-          {
-            "description": "Device model (for firmware features)",
-            "in": "query",
-            "name": "device_model",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Device model (for firmware features)",
-              "title": "Device Model"
             }
           }
         ],
@@ -16280,7 +15612,7 @@
     },
     "/v1/announcements/pending": {
       "get": {
-        "description": "Get all pending announcements for a user.\n\nThis is the new unified endpoint that replaces the separate changelogs/features/general endpoints.\nIt supports flexible targeting and per-user dismissal tracking.\n\nFiltering logic:\n1. active == True\n2. Not in user's dismissed_announcements (if show_once == True)\n3. Within time window (start_at <= now <= expires_at)\n4. Matches targeting rules (version range, device, platform)\n5. Matches trigger type\n6. Sorted by priority (descending)\n\nTriggers:\n- app_launch: Check every app launch (for immediate announcements)\n- version_upgrade: Check only when app version changed\n- firmware_upgrade: Check only when firmware version changed",
+        "description": "Get all pending announcements for a user.\n\nThis is the new unified endpoint that replaces the separate changelogs/features/general endpoints.\nIt supports flexible targeting and per-user dismissal tracking.\n\nFiltering logic:\n1. active == True\n2. Not in user's dismissed_announcements (if show_once == True)\n3. Within time window (start_at <= now <= expires_at)\n4. Matches targeting rules (version range and platform)\n5. Matches trigger type\n6. Sorted by priority (descending)\n\nTriggers:\n- app_launch: Check every app launch (for immediate announcements)\n- version_upgrade: Check only when app version changed",
         "operationId": "get_pending_announcements_endpoint_v1_announcements_pending_get",
         "parameters": [
           {
@@ -16306,50 +15638,14 @@
             }
           },
           {
-            "description": "Trigger: 'app_launch', 'version_upgrade', or 'firmware_upgrade'",
+            "description": "Trigger: 'app_launch' or 'version_upgrade'",
             "in": "query",
             "name": "trigger",
             "required": true,
             "schema": {
-              "description": "Trigger: 'app_launch', 'version_upgrade', or 'firmware_upgrade'",
+              "description": "Trigger: 'app_launch' or 'version_upgrade'",
               "title": "Trigger",
               "type": "string"
-            }
-          },
-          {
-            "description": "Current firmware version (optional)",
-            "in": "query",
-            "name": "firmware_version",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Current firmware version (optional)",
-              "title": "Firmware Version"
-            }
-          },
-          {
-            "description": "Device model name (optional)",
-            "in": "query",
-            "name": "device_model",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Device model name (optional)",
-              "title": "Device Model"
             }
           },
           {
@@ -19542,99 +18838,6 @@
         "summary": "Move Conversation To Folder",
         "tags": [
           "folders"
-        ]
-      }
-    },
-    "/v1/conversations/{conversation_id}/photos": {
-      "get": {
-        "operationId": "get_conversation_photos_v1_conversations__conversation_id__photos_get",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "conversation_id",
-            "required": true,
-            "schema": {
-              "title": "Conversation Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "title": "Authorization",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-App-Platform",
-            "required": false,
-            "schema": {
-              "title": "X-App-Platform",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-Device-Id-Hash",
-            "required": false,
-            "schema": {
-              "title": "X-Device-Id-Hash",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-App-Version",
-            "required": false,
-            "schema": {
-              "title": "X-App-Version",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/ConversationPhoto"
-                  },
-                  "title": "Response Get Conversation Photos V1 Conversations  Conversation Id  Photos Get",
-                  "type": "array"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "401": {
-            "$ref": "#/components/responses/Error401"
-          },
-          "404": {
-            "$ref": "#/components/responses/Error404"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "firebaseBearer": []
-          }
-        ],
-        "summary": "Get Conversation Photos",
-        "tags": [
-          "conversations"
         ]
       }
     },
@@ -24466,7 +23669,7 @@
     },
     "/v1/sync/audio/{conversation_id}/precache": {
       "post": {
-        "description": "Warm the audio cache for a conversation.\nReturns immediately - caching happens in background.",
+        "description": "Warm the playback cache for an existing conversation.",
         "operationId": "precache_conversation_audio_endpoint_v1_sync_audio__conversation_id__precache_post",
         "parameters": [
           {
@@ -24553,7 +23756,7 @@
     },
     "/v1/sync/audio/{conversation_id}/urls": {
       "get": {
-        "description": "Get signed URLs for all audio files in a conversation.\nSynchronously caches the first uncached file for immediate playback.\nRemaining files are cached in background.\n\nReturns:\n    List of audio file info with signed_url (if cached) or status \"pending\"",
+        "description": "Return playback URLs or pending states for conversation audio.",
         "operationId": "get_audio_signed_urls_endpoint_v1_sync_audio__conversation_id__urls_get",
         "parameters": [
           {
@@ -24643,7 +23846,7 @@
     },
     "/v1/sync/audio/{conversation_id}/{audio_file_id}": {
       "get": {
-        "description": "Download audio file from private cloud sync in the specified format.\nMerges chunks on-demand.\n\nArgs:\n    conversation_id: ID of the conversation\n    audio_file_id: ID of the audio file within the conversation\n    request: FastAPI Request object (for Range header)\n    format: Output format - 'wav' or 'pcm' (raw) (default: wav)\n    uid: User ID (from authentication)\n\nReturns:\n    StreamingResponse with the audio file in the requested format.\n    Returns 206 Partial Content for Range requests, 200 OK for full file.",
+        "description": "Download one authorized conversation-audio file.",
         "operationId": "download_audio_file_endpoint_v1_sync_audio__conversation_id___audio_file_id__get",
         "parameters": [
           {
@@ -26728,16 +25931,6 @@
             }
           }
         ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/DeleteAccountRequest",
-                "default": {}
-              }
-            }
-          }
-        },
         "responses": {
           "200": {
             "content": {
@@ -27351,170 +26544,6 @@
         ]
       }
     },
-    "/v1/users/me/byok-active": {
-      "delete": {
-        "description": "Drop the user off the BYOK free plan (keys were cleared client-side).",
-        "operationId": "deactivate_byok_endpoint_v1_users_me_byok_active_delete",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "title": "Authorization",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-App-Platform",
-            "required": false,
-            "schema": {
-              "title": "X-App-Platform",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-Device-Id-Hash",
-            "required": false,
-            "schema": {
-              "title": "X-Device-Id-Hash",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-App-Version",
-            "required": false,
-            "schema": {
-              "title": "X-App-Version",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BYOKActiveResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "401": {
-            "$ref": "#/components/responses/Error401"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "firebaseBearer": []
-          }
-        ],
-        "summary": "Deactivate Byok Endpoint",
-        "tags": [
-          "v1"
-        ]
-      },
-      "post": {
-        "description": "Flip the user onto the BYOK free plan.\n\nThe client sends SHA-256 fingerprints of the 4 provider keys so we can\ndetect rotation without ever seeing the keys. The live keys themselves\ntravel on every request as headers; they are never persisted.",
-        "operationId": "activate_byok_endpoint_v1_users_me_byok_active_post",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "title": "Authorization",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-App-Platform",
-            "required": false,
-            "schema": {
-              "title": "X-App-Platform",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-Device-Id-Hash",
-            "required": false,
-            "schema": {
-              "title": "X-Device-Id-Hash",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-App-Version",
-            "required": false,
-            "schema": {
-              "title": "X-App-Version",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/BYOKActivateRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BYOKActiveResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "401": {
-            "$ref": "#/components/responses/Error401"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "firebaseBearer": []
-          }
-        ],
-        "summary": "Activate Byok Endpoint",
-        "tags": [
-          "v1"
-        ]
-      }
-    },
     "/v1/users/me/llm-usage": {
       "get": {
         "description": "Get LLM token usage summary for the current user.\n\nReturns usage breakdown by feature for the specified time period.",
@@ -27875,7 +26904,7 @@
     },
     "/v1/users/me/paywall": {
       "get": {
-        "description": "Trial-paywall status for the calling user on the given platform.\n\nUsed by the Rust desktop-backend middleware to decide whether to proxy\npaid LLM / TTS / Pinecone traffic. Mirrors the exact semantics of\n`is_trial_paywalled`: basic plan + no active BYOK + Firebase Auth\naccount >3d old + platform in {macos, desktop}. Mobile platforms always\nreturn `paywalled=false`.\n\nPlatform comes from `X-App-Platform` header (preferred) or `platform`\nquery param (fallback). Unknown / missing platforms are never paywalled.",
+        "description": "Trial-paywall status for the calling user on the given platform.\n\nUsed by the Rust desktop-backend middleware to decide whether to proxy\npaid LLM / TTS / Pinecone traffic. Mirrors the exact semantics of\n`is_trial_paywalled`: basic plan + Firebase Auth account >3d old + platform\nin {macos, desktop}. Mobile platforms always\nreturn `paywalled=false`.\n\nPlatform comes from `X-App-Platform` header (preferred) or `platform`\nquery param (fallback). Unknown / missing platforms are never paywalled.",
         "operationId": "get_user_paywall_status_v1_users_me_paywall_get",
         "parameters": [
           {
@@ -28047,7 +27076,7 @@
     },
     "/v1/users/me/trial": {
       "get": {
-        "description": "Structured trial metadata for the calling user.\n\nReturns trial timing info (start, end, remaining seconds, expired flag)\nplus the list of features available during trial and the plan the user\nfalls to after trial expiry. Used by desktop clients to render countdown\nbanners and pre-expiry upgrade nudges.\n\nPaid-plan and BYOK users get `trial_expired=False` with zeroed timing\n(trial is irrelevant to them — they have full access).",
+        "description": "Structured trial metadata for the calling user.\n\nReturns trial timing info (start, end, remaining seconds, expired flag)\nplus the list of features available during trial and the plan the user\nfalls to after trial expiry. Used by desktop clients to render countdown\nbanners and pre-expiry upgrade nudges.\n\nPaid-plan users get `trial_expired=False` with zeroed timing because the\naccount-age trial is irrelevant to them.",
         "operationId": "get_user_trial_status_v1_users_me_trial_get",
         "parameters": [
           {
@@ -28968,170 +27997,6 @@
         "summary": "Update Notification Settings",
         "tags": [
           "users"
-        ]
-      }
-    },
-    "/v1/users/onboarding": {
-      "get": {
-        "description": "Get the user's onboarding state (completed status, acquisition source, etc.).",
-        "operationId": "get_onboarding_state_v1_users_onboarding_get",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "title": "Authorization",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-App-Platform",
-            "required": false,
-            "schema": {
-              "title": "X-App-Platform",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-Device-Id-Hash",
-            "required": false,
-            "schema": {
-              "title": "X-Device-Id-Hash",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-App-Version",
-            "required": false,
-            "schema": {
-              "title": "X-App-Version",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/OnboardingStateResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "401": {
-            "$ref": "#/components/responses/Error401"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "firebaseBearer": []
-          }
-        ],
-        "summary": "Get Onboarding State",
-        "tags": [
-          "v1"
-        ]
-      },
-      "patch": {
-        "description": "Update the user's onboarding state.",
-        "operationId": "update_onboarding_state_v1_users_onboarding_patch",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "title": "Authorization",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-App-Platform",
-            "required": false,
-            "schema": {
-              "title": "X-App-Platform",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-Device-Id-Hash",
-            "required": false,
-            "schema": {
-              "title": "X-Device-Id-Hash",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-App-Version",
-            "required": false,
-            "schema": {
-              "title": "X-App-Version",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/OnboardingStateUpdate"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/UserStatusResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "401": {
-            "$ref": "#/components/responses/Error401"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "firebaseBearer": []
-          }
-        ],
-        "summary": "Update Onboarding State",
-        "tags": [
-          "v1"
         ]
       }
     },
@@ -32247,185 +31112,6 @@
         ]
       }
     },
-    "/v2/firmware/latest": {
-      "get": {
-        "operationId": "get_latest_version_v2_firmware_latest_get",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "device_model",
-            "required": true,
-            "schema": {
-              "title": "Device Model",
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "firmware_revision",
-            "required": true,
-            "schema": {
-              "title": "Firmware Revision",
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "hardware_revision",
-            "required": true,
-            "schema": {
-              "title": "Hardware Revision",
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "manufacturer_name",
-            "required": true,
-            "schema": {
-              "title": "Manufacturer Name",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FirmwareVersionResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "401": {
-            "$ref": "#/components/responses/Error401"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "firebaseBearer": []
-          }
-        ],
-        "summary": "Get Latest Version"
-      }
-    },
-    "/v2/firmware/stable": {
-      "get": {
-        "description": "Return the latest stable firmware for a device, regardless of current version.\n\nUsed for rolling back to the official stable firmware after flashing custom firmware.",
-        "operationId": "get_stable_version_v2_firmware_stable_get",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "device_model",
-            "required": true,
-            "schema": {
-              "title": "Device Model",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FirmwareVersionResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "401": {
-            "$ref": "#/components/responses/Error401"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "firebaseBearer": []
-          }
-        ],
-        "summary": "Get Stable Version"
-      }
-    },
-    "/v2/firmware/version": {
-      "get": {
-        "description": "Return the OTA metadata for a specific published firmware version of a device.\n\nComplements /v2/firmware/stable by making any individual published build addressable, e.g. to pin\nor roll a device back to a known-good earlier version, or for QA/support to flash a named build.",
-        "operationId": "get_firmware_version_v2_firmware_version_get",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "device_model",
-            "required": true,
-            "schema": {
-              "title": "Device Model",
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "version",
-            "required": true,
-            "schema": {
-              "title": "Version",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FirmwareVersionResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "401": {
-            "$ref": "#/components/responses/Error401"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "firebaseBearer": []
-          }
-        ],
-        "summary": "Get Firmware Version"
-      }
-    },
     "/v2/initial-message": {
       "post": {
         "operationId": "create_initial_message_v2_initial_message_post",
@@ -32928,321 +31614,6 @@
         "tags": [
           "chat"
         ]
-      }
-    },
-    "/v2/sync-capture-manifest": {
-      "post": {
-        "operationId": "create_sync_capture_manifest_v2_sync_capture_manifest_post",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "X-App-Platform",
-            "required": false,
-            "schema": {
-              "title": "X-App-Platform",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-Device-Id-Hash",
-            "required": false,
-            "schema": {
-              "title": "X-Device-Id-Hash",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-App-Version",
-            "required": false,
-            "schema": {
-              "title": "X-App-Version",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "title": "Authorization",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SyncCaptureManifestRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SyncCaptureManifestResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "401": {
-            "$ref": "#/components/responses/Error401"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "firebaseBearer": []
-          }
-        ],
-        "summary": "Create Sync Capture Manifest"
-      }
-    },
-    "/v2/sync-local-files": {
-      "post": {
-        "description": "Async version of sync-local-files. Saves raw files and returns 202\nimmediately, then runs the full pipeline (decode → VAD → STT → LLM) as\nan async background task. The app polls GET /v2/sync-local-files/{job_id}.",
-        "operationId": "sync_local_files_v2_v2_sync_local_files_post",
-        "parameters": [
-          {
-            "description": "Target conversation ID to attach audio to (auto-sync from live capture)",
-            "in": "query",
-            "name": "conversation_id",
-            "required": false,
-            "schema": {
-              "description": "Target conversation ID to attach audio to (auto-sync from live capture)",
-              "title": "Conversation Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-App-Platform",
-            "required": false,
-            "schema": {
-              "title": "X-App-Platform",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-Device-Id-Hash",
-            "required": false,
-            "schema": {
-              "title": "X-Device-Id-Hash",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-App-Version",
-            "required": false,
-            "schema": {
-              "title": "X-App-Version",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-Request-ID",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Request-Id"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-Cloud-Trace-Context",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Cloud-Trace-Context"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-Omi-Sync-Capture-Manifest",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Omi-Sync-Capture-Manifest"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "title": "Authorization",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "multipart/form-data": {
-              "schema": {
-                "$ref": "#/components/schemas/Body_sync_local_files_v2_v2_sync_local_files_post"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "202": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SyncJobStartResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "401": {
-            "$ref": "#/components/responses/Error401"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "firebaseBearer": []
-          }
-        ],
-        "summary": "Sync Local Files V2"
-      }
-    },
-    "/v2/sync-local-files/{job_id}": {
-      "get": {
-        "description": "Poll for the status of an async sync job.",
-        "operationId": "get_sync_job_status_v2_sync_local_files__job_id__get",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "job_id",
-            "required": true,
-            "schema": {
-              "title": "Job Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "title": "Authorization",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-App-Platform",
-            "required": false,
-            "schema": {
-              "title": "X-App-Platform",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-Device-Id-Hash",
-            "required": false,
-            "schema": {
-              "title": "X-Device-Id-Hash",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-App-Version",
-            "required": false,
-            "schema": {
-              "title": "X-App-Version",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SyncJobStatusResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "401": {
-            "$ref": "#/components/responses/Error401"
-          },
-          "404": {
-            "$ref": "#/components/responses/Error404"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "firebaseBearer": []
-          }
-        ],
-        "summary": "Get Sync Job Status"
       }
     },
     "/v2/tts/synthesize": {

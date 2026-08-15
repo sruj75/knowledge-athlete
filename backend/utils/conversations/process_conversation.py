@@ -1234,7 +1234,7 @@ def process_conversation(
     # paid plan (basic / Neo) get ONLY the raw transcript on capture. The expensive LLM
     # enrichment (summary, action items, memories, embeddings, app results) is deferred until
     # they first OPEN the conversation (get_conversation_by_id reprocesses it with
-    # force_process=True). Paid desktop plans (Operator / Architect), BYOK users, and all
+    # force_process=True). Paid desktop plans (Operator / Architect) and all
     # non-desktop sources are processed normally here. force_process / is_reprocess — the lazy
     # trigger and manual reprocess — bypass this so the enrichment actually runs.
     if (

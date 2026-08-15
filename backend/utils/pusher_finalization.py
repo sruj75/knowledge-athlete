@@ -7,7 +7,6 @@ from fastapi.websockets import WebSocket, WebSocketDisconnect
 
 from database import conversation_finalization_jobs as finalization_jobs_db
 from services.conversation_finalization import final_attempt_failed
-from utils.byok import set_byok_keys, set_byok_uid
 from utils.cloud_tasks import get_listen_finalization_tasks_max_attempts
 from utils.conversations import lifecycle as lifecycle_service
 from utils.conversations.finalizer import (
@@ -26,19 +25,10 @@ async def process_conversation_task(
     conversation_id: str,
     language: str,
     websocket: WebSocket,
-    byok_keys: Optional[Dict[str, str]] = None,
     finalization_job_id: Optional[str] = None,
     dispatch_generation: Optional[int] = None,
 ) -> None:
-    """Process a leased conversation job and send a minimal result to listen.
-
-    `byok_keys` is forwarded from the listen service. When present, LLM and
-    STT calls made inside process_conversation route through the user's own
-    provider keys instead of Omi's env keys.
-    """
-    if byok_keys:
-        set_byok_keys(byok_keys)
-        set_byok_uid(uid)
+    """Process a leased conversation job and send a minimal result to listen."""
 
     async def send_result(result: Dict[str, Any]) -> None:
         """Attempt the optional live acknowledgement after durable work.
@@ -123,7 +113,6 @@ async def process_conversation_task(
             finalization_jobs_db.claim_finalization_job,
             job_id,
             generation,
-            allow_byok=bool(byok_keys),
             expected_uid=uid,
             expected_conversation_id=conversation_id,
         )

@@ -4,7 +4,6 @@ Validates:
 - get_trial_metadata returns correct timing for active trial users
 - get_trial_metadata returns expired=True after trial window
 - Paid-plan users get trial_expired=False (trial is moot)
-- BYOK users get trial_expired=False (trial is moot)
 - Firebase lookup failure fails open (trial_expired=False)
 - TRIAL_LENGTH_SECONDS is correctly configured
 - TrialMetadata model fields are correct
@@ -32,8 +31,9 @@ def _read_source(path):
         return f.read()
 
 
-SUBSCRIPTION_SRC_PATH = 'utils/subscription.py'
-USERS_ROUTER_SRC_PATH = 'routers/users.py'
+BACKEND_DIR = Path(__file__).resolve().parents[2]
+SUBSCRIPTION_SRC_PATH = BACKEND_DIR / 'utils' / 'subscription.py'
+USERS_ROUTER_SRC_PATH = BACKEND_DIR / 'routers' / 'users.py'
 
 
 class TestTrialEndpointExists:
@@ -82,12 +82,6 @@ class TestGetTrialMetadataExists:
         func_start = src.index('def get_trial_metadata(')
         func_body = src[func_start : src.index('\ndef ', func_start + 1)]
         assert "PlanType.basic" in func_body
-
-    def test_checks_byok(self):
-        src = _read_source(SUBSCRIPTION_SRC_PATH)
-        func_start = src.index('def get_trial_metadata(')
-        func_body = src[func_start : src.index('\ndef ', func_start + 1)]
-        assert "is_byok_active" in func_body
 
     def test_uses_firebase_creation_timestamp(self):
         src = _read_source(SUBSCRIPTION_SRC_PATH)
@@ -138,7 +132,6 @@ def _get_trial_metadata_fn():
         'logger': MagicMock(),
         'get_plan_display_name': lambda p: 'Free' if p == PlanType.basic else p.value.capitalize(),
         'FREE_CHAT_QUESTIONS_PER_MONTH': 30,
-        '_request_has_all_byok_keys': lambda: False,
         'DESKTOP_ACCESS_TIER_FREE': 'desktop_free',
         'DESKTOP_ACCESS_TIER_FULL': 'desktop_full',
         'DESKTOP_ACCESS_TIER_ARCHITECT': 'desktop_architect',
@@ -184,7 +177,6 @@ class TestGetTrialMetadataBehavior:
         sub = MagicMock()
         sub.plan = PlanType.basic
         self.ns['users_db'].get_user_valid_subscription.return_value = sub
-        self.ns['users_db'].is_byok_active.return_value = False
         creation_ms = (time.time() - age_seconds) * 1000
         user_record = MagicMock()
         user_record.user_metadata.creation_timestamp = creation_ms
@@ -195,7 +187,6 @@ class TestGetTrialMetadataBehavior:
         sub = MagicMock()
         sub.plan = PlanType.basic
         self.ns['users_db'].get_user_valid_subscription.return_value = sub
-        self.ns['users_db'].is_byok_active.return_value = False
         creation_ms = (time.time() - age_seconds) * 1000
         user_record = MagicMock()
         user_record.user_metadata.creation_timestamp = creation_ms
@@ -206,14 +197,6 @@ class TestGetTrialMetadataBehavior:
         sub = MagicMock()
         sub.plan = PlanType.operator
         self.ns['users_db'].get_user_valid_subscription.return_value = sub
-        self.ns['users_db'].is_byok_active.return_value = False
-
-    def _mock_byok_user(self):
-        """Mock a BYOK user on basic plan."""
-        sub = MagicMock()
-        sub.plan = PlanType.basic
-        self.ns['users_db'].get_user_valid_subscription.return_value = sub
-        self.ns['users_db'].is_byok_active.return_value = True
 
     def test_active_trial_returns_correct_timing(self):
         """User 1 hour into trial: trial_expired=False, remaining > 0."""
@@ -240,20 +223,12 @@ class TestGetTrialMetadataBehavior:
         assert result.trial_started_at is None
         assert result.trial_ends_at is None
 
-    def test_byok_user_trial_not_expired(self):
-        """BYOK user: trial_expired=False (trial is moot)."""
-        self._mock_byok_user()
-        result = self.fn('uid_test')
-        assert result.trial_expired is False
-        assert result.trial_started_at is None
-
     def test_neo_grandfather_trial_not_expired(self):
         """Grandfathered Neo user: trial_expired=False without Firebase lookup."""
         sub = MagicMock()
         sub.plan = PlanType.unlimited
         sub.current_period_start = None
         self.ns['users_db'].get_user_valid_subscription.return_value = sub
-        self.ns['users_db'].is_byok_active.return_value = False
 
         result = self.fn('uid_test')
 
@@ -267,7 +242,6 @@ class TestGetTrialMetadataBehavior:
         sub.plan = PlanType.unlimited
         sub.current_period_start = self.ns['NEO_DESKTOP_GRANDFATHER_CUTOFF'] + 1
         self.ns['users_db'].get_user_valid_subscription.return_value = sub
-        self.ns['users_db'].is_byok_active.return_value = False
 
         result = self.fn('uid_test')
 
@@ -280,7 +254,6 @@ class TestGetTrialMetadataBehavior:
         sub = MagicMock()
         sub.plan = PlanType.basic
         self.ns['users_db'].get_user_valid_subscription.return_value = sub
-        self.ns['users_db'].is_byok_active.return_value = False
         self.ns['firebase_auth'].get_user.side_effect = Exception("Firebase unavailable")
         result = self.fn('uid_test')
         assert result.trial_expired is False
@@ -309,7 +282,6 @@ class TestGetTrialMetadataBehavior:
         sub = MagicMock()
         sub.plan = PlanType.basic
         self.ns['users_db'].get_user_valid_subscription.return_value = sub
-        self.ns['users_db'].is_byok_active.return_value = False
         user_record = MagicMock()
         user_record.user_metadata.creation_timestamp = None
         self.ns['firebase_auth'].get_user.return_value = user_record
@@ -514,7 +486,6 @@ class TestTrialBoundaryDynamic:
         sub = MagicMock()
         sub.plan = PlanType.basic
         self.ns['users_db'].get_user_valid_subscription.return_value = sub
-        self.ns['users_db'].is_byok_active.return_value = False
         creation_ms = (self.now - age_seconds) * 1000
         user_record = MagicMock()
         user_record.user_metadata.creation_timestamp = creation_ms
@@ -558,7 +529,6 @@ class TestTrialBoundaryDynamic:
         sub = MagicMock()
         sub.plan = PlanType.basic
         ns['users_db'].get_user_valid_subscription.return_value = sub
-        ns['users_db'].is_byok_active.return_value = False
         creation_ms = (time.time() - 1800) * 1000
         user_record = MagicMock()
         user_record.user_metadata.creation_timestamp = creation_ms
@@ -582,7 +552,6 @@ class TestTrialBoundaryDynamic:
         sub = MagicMock()
         sub.plan = PlanType.basic
         ns['users_db'].get_user_valid_subscription.return_value = sub
-        ns['users_db'].is_byok_active.return_value = False
         creation_ms = (time.time() - 7200) * 1000  # 2 hours ago
         user_record = MagicMock()
         user_record.user_metadata.creation_timestamp = creation_ms

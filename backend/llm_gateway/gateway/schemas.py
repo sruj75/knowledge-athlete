@@ -27,11 +27,6 @@ class StructuredOutputMode(str, Enum):
     JSON_SCHEMA = 'json_schema'
 
 
-class CredentialMode(str, Enum):
-    OMI_PAID = 'omi_paid'
-    BYOK = 'byok'
-
-
 class RolloutStage(str, Enum):
     DISABLED = 'disabled'
     SHADOW = 'shadow'
@@ -44,11 +39,6 @@ class FailureClass(str, Enum):
     PROVIDER_429_OMI_PAID = 'provider_429_omi_paid'
     PROVIDER_5XX_OMI_PAID = 'provider_5xx_omi_paid'
     PROVIDER_INVALID_REQUEST = 'provider_invalid_request'
-    BYOK_AUTH = 'byok_auth'
-    BYOK_QUOTA = 'byok_quota'
-    BYOK_RATE_LIMIT = 'byok_rate_limit'
-    BYOK_UNSUPPORTED_PROVIDER = 'byok_unsupported_provider'
-    MISSING_BYOK_KEY = 'missing_byok_key'
     CAPABILITY_MISMATCH = 'capability_mismatch'
     INVALID_CONFIG = 'invalid_config'
 
@@ -173,8 +163,6 @@ class Evidence(StrictBaseModel):
 
 
 class CredentialPolicy(StrictBaseModel):
-    mode: CredentialMode
-    allow_byok_to_omi_paid_fallback: bool = False
     fallback_eligible_failure_classes: list[FailureClass] = Field(default_factory=_empty_failure_classes)
     never_fallback_failure_classes: list[FailureClass] = Field(default_factory=_empty_failure_classes)
 

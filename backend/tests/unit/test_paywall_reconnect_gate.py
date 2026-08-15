@@ -3,7 +3,7 @@
 Validates:
 - Admission phase rejects paywalled desktop before session start
 - No paywall close block inside the session body (removed, handled in admission)
-- Cache invalidation on payment/BYOK changes
+- Cache invalidation on payment changes
 - is_trial_paywalled handles platform filtering (only desktop/macos affected)
 - Behavioral tests for is_trial_paywalled and clear_trial_paywall_cache
 """
@@ -85,7 +85,7 @@ class TestNoPaywallBlockInSession:
 
 
 class TestCacheInvalidation:
-    """Verify trial paywall cache is cleared on subscription and BYOK changes."""
+    """Verify trial paywall cache is cleared on subscription changes."""
 
     def test_clear_trial_paywall_cache_clears_expired_key(self):
         src = _read_source(SUBSCRIPTION_SRC_PATH)
@@ -109,36 +109,6 @@ class TestCacheInvalidation:
         assert (
             'clear_trial_paywall_cache' in src.split('from utils.subscription import')[1].split(')')[0]
         ), "payment.py must import clear_trial_paywall_cache from utils.subscription"
-
-    def test_byok_activate_clears_paywall_cache(self):
-        src = _read_source(USERS_SRC_PATH)
-        lines = src.split('\n')
-        in_activate = False
-        found_clear = False
-        for line in lines:
-            if 'def activate_byok_endpoint' in line:
-                in_activate = True
-            if in_activate and 'clear_trial_paywall_cache' in line:
-                found_clear = True
-                break
-            if in_activate and line.strip().startswith('def ') and 'activate_byok' not in line:
-                break
-        assert found_clear, "activate_byok_endpoint must call clear_trial_paywall_cache"
-
-    def test_byok_deactivate_clears_paywall_cache(self):
-        src = _read_source(USERS_SRC_PATH)
-        lines = src.split('\n')
-        in_deactivate = False
-        found_clear = False
-        for line in lines:
-            if 'def deactivate_byok_endpoint' in line:
-                in_deactivate = True
-            if in_deactivate and 'clear_trial_paywall_cache' in line:
-                found_clear = True
-                break
-            if in_deactivate and line.strip().startswith('def ') and 'deactivate_byok' not in line:
-                break
-        assert found_clear, "deactivate_byok_endpoint must call clear_trial_paywall_cache"
 
 
 class TestCacheInvalidationBehavioral:
@@ -245,7 +215,6 @@ class TestIsTrialPaywalledBehavioral:
                 mod.delete_generic_cache = MagicMock()
             elif name == 'database.users':
                 mod.get_user_valid_subscription = MagicMock(return_value=None)
-                mod.is_byok_active = MagicMock(return_value=False)
             elif name == 'database.user_usage':
                 pass
             elif name == 'database.announcements':
@@ -330,130 +299,3 @@ class TestIsTrialPaywalledBehavioral:
     def test_clear_cache_calls_redis_delete(self):
         self._sub.clear_trial_paywall_cache('test-uid-123')
         self._sub.redis_db.delete_generic_cache.assert_called_with('trial_paywall:expired:test-uid-123')
-
-
-class TestByokRequestEscapeHatch:
-    """A request carrying all 4 BYOK provider headers must short-circuit the
-    trial paywall, even when Firestore says BYOK is inactive (heartbeat expired,
-    activation pending, cross-region sync gap).
-    """
-
-    @pytest.fixture(autouse=True)
-    def _setup_subscription(self):
-        import sys
-        import types
-
-        def _stub(name):
-            if name not in sys.modules:
-                sys.modules[name] = types.ModuleType(name)
-            return sys.modules[name]
-
-        saved = {}
-        stubs = [
-            'google.cloud',
-            'google.cloud.firestore',
-            'google.cloud.firestore_v1',
-            'firebase_admin',
-            'firebase_admin.auth',
-            'firebase_admin.firestore',
-            'database._client',
-            'database.redis_db',
-            'database.users',
-            'database.user_usage',
-            'database.announcements',
-        ]
-        for name in stubs:
-            saved[name] = sys.modules.get(name)
-            mod = _stub(name)
-            if name == 'database._client':
-                mod.db = MagicMock()
-            elif name == 'database.redis_db':
-                # Simulate a hot cache that says "expired" — escape hatch must beat it
-                mod.get_generic_cache = MagicMock(return_value=True)
-                mod.set_generic_cache = MagicMock()
-                mod.delete_generic_cache = MagicMock()
-            elif name == 'database.users':
-                # Firestore says BYOK NOT active — only the request headers should save us
-                mod.get_user_valid_subscription = MagicMock(return_value=None)
-                mod.is_byok_active = MagicMock(return_value=False)
-            elif name == 'database.user_usage':
-                pass
-            elif name == 'database.announcements':
-                mod.compare_versions = MagicMock()
-            elif name == 'firebase_admin.auth':
-                mock_user = MagicMock()
-                mock_user.user_metadata.creation_timestamp = 0
-                mod.get_user = MagicMock(return_value=mock_user)
-
-        if 'utils.subscription' in sys.modules:
-            del sys.modules['utils.subscription']
-
-        import utils.subscription as sub
-        from utils import byok
-
-        # Paywall is OFF by default (freemium); force it on for these BYOK-bypass tests.
-        sub.TRIAL_PAYWALL_ENABLED = True
-
-        self._sub = sub
-        self._byok = byok
-
-        yield
-
-        # Reset BYOK contextvar between tests so leftover keys don't bleed.
-        byok._byok_ctx.set(None)
-        for name in stubs:
-            if saved[name] is None:
-                sys.modules.pop(name, None)
-            else:
-                sys.modules[name] = saved[name]
-
-    def test_all_4_byok_headers_bypass_paywall(self):
-        self._byok.set_byok_keys(
-            {
-                'openai': 'sk-stub-openai',
-                'anthropic': 'sk-stub-anthropic',
-                'gemini': 'stub-gemini',
-                'deepgram': 'stub-deepgram',
-            }
-        )
-        assert self._sub.is_trial_paywalled('uid-stale-firestore', 'desktop') is False
-
-    def test_partial_byok_headers_still_paywall(self):
-        # Only 3 of 4 — not a fully-enrolled BYOK request, paywall remains.
-        self._byok.set_byok_keys(
-            {
-                'openai': 'sk-stub',
-                'anthropic': 'sk-stub',
-                'gemini': 'stub',
-                # deepgram missing
-            }
-        )
-        assert self._sub.is_trial_paywalled('uid-stale-firestore', 'desktop') is True
-
-    def test_empty_byok_keys_still_paywall(self):
-        self._byok.set_byok_keys({})
-        assert self._sub.is_trial_paywalled('uid-stale-firestore', 'desktop') is True
-
-    def test_blank_byok_value_does_not_count(self):
-        # A header whose value is empty string shouldn't count as "provided".
-        self._byok.set_byok_keys(
-            {
-                'openai': 'sk-stub',
-                'anthropic': 'sk-stub',
-                'gemini': 'stub',
-                'deepgram': '',
-            }
-        )
-        assert self._sub.is_trial_paywalled('uid-stale-firestore', 'desktop') is True
-
-    def test_get_trial_metadata_byok_headers_not_expired(self):
-        self._byok.set_byok_keys(
-            {
-                'openai': 'sk-stub-openai',
-                'anthropic': 'sk-stub-anthropic',
-                'gemini': 'stub-gemini',
-                'deepgram': 'stub-deepgram',
-            }
-        )
-        meta = self._sub.get_trial_metadata('uid-stale-firestore')
-        assert meta.trial_expired is False

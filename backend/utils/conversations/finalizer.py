@@ -41,12 +41,7 @@ async def finalize_persisted_conversation(
     lease_epoch: int,
     force_process: bool = False,
 ) -> ConversationFinalizationDisposition:
-    """Finalize persisted data once the caller has acquired the job lease.
-
-    The pusher WebSocket request already installs request-scoped BYOK context
-    before calling this helper.  Cloud Tasks never does, so it cannot silently
-    substitute platform credentials for a BYOK job.
-    """
+    """Finalize persisted data once the caller has acquired the job lease."""
     conversation_data = await run_blocking(db_executor, conversations_db.get_conversation, uid, conversation_id)
     if not conversation_data:
         # A prior delivery can have durably completed fanout just before the
@@ -86,9 +81,8 @@ async def finalize_persisted_conversation(
             # Keep the cached coordinates when the geocode lookup misses instead of dropping them.
             conversation.geolocation = await async_resolve_geolocation(geolocation)
 
-        # The post-processing bulkhead preserves request context (including
-        # validated live BYOK keys) while isolating this expensive sync path
-        # from WebSocket and Cloud Tasks event loops.
+        # The post-processing bulkhead isolates this expensive sync path from
+        # WebSocket and Cloud Tasks event loops.
         resolved_language = language or getattr(conversation, 'language', None) or 'en'
         persistence: dict[str, bool] = {'owned': True}
         derived_effects: list = []

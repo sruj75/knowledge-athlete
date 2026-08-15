@@ -8,9 +8,7 @@ from routers.desktop_tts_updates import ReleaseInfo, _appcast_xml, _is_allowed_o
 
 
 @pytest.mark.asyncio
-async def test_tts_uses_managed_key_and_metering_when_legacy_customer_key_exists(monkeypatch):
-    from utils.byok import set_byok_keys
-
+async def test_tts_uses_managed_key_and_metering(monkeypatch):
     captured = {}
 
     class FakeClient:
@@ -34,13 +32,9 @@ async def test_tts_uses_managed_key_and_metering_when_legacy_customer_key_exists
     monkeypatch.setattr(desktop_tts_updates.redis_db, 'check_tts_rate_limit', meter)
     monkeypatch.setattr(desktop_tts_updates.httpx, 'AsyncClient', lambda **_kwargs: FakeClient())
 
-    set_byok_keys({'openai': 'legacy-customer-key'})
-    try:
-        response = await desktop_tts_updates.tts_synthesize(
-            desktop_tts_updates.TtsSynthesizeRequest(text='hello', voice_id='marin'), uid='managed-user'
-        )
-    finally:
-        set_byok_keys({})
+    response = await desktop_tts_updates.tts_synthesize(
+        desktop_tts_updates.TtsSynthesizeRequest(text='hello', voice_id='marin'), uid='managed-user'
+    )
 
     assert response.body == b'mp3'
     assert captured['headers']['Authorization'] == 'Bearer managed-openai-key'

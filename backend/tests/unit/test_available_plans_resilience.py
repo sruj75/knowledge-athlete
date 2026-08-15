@@ -48,7 +48,7 @@ def ctx():
 
     app = FastAPI()
     app.include_router(payment_router.router)
-    app.dependency_overrides[payment_router.auth.get_current_user_uid_no_byok_validation] = lambda: "test-user"
+    app.dependency_overrides[payment_router.auth.get_current_user_uid] = lambda: "test-user"
     client = TestClient(app)
 
     yield {

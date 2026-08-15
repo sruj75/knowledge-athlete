@@ -37,16 +37,12 @@ def _compare_versions(a, b):
 # They are installed into sys.modules only inside the module-scoped fixture below
 # (the sanctioned stub_modules seam), so utils.subscription binds these fakes at
 # import time. Tests mutate their attributes to drive behavior.
-_db_users_mod = SimpleNamespace(get_user_valid_subscription=MagicMock(), is_byok_active=MagicMock(return_value=False))
+_db_users_mod = SimpleNamespace(get_user_valid_subscription=MagicMock())
 _db_user_usage_mod = SimpleNamespace(get_monthly_chat_usage=MagicMock())
 
 _announcements_mod = ModuleType("database.announcements")
 _announcements_mod._compare_versions = _compare_versions
 _announcements_mod.compare_versions = _compare_versions
-
-_byok_mod = ModuleType("utils.byok")
-_byok_mod.get_byok_key = MagicMock(return_value=None)
-_byok_mod.get_byok_keys = MagicMock(return_value={})
 
 # Loaded fresh by the autouse module fixture; reloaded per-test to pick up env changes.
 _sub_mod_ref = None
@@ -65,7 +61,6 @@ def _setup_subscription_module():
         "database.users": _db_users_mod,
         "database.user_usage": _db_user_usage_mod,
         "database.announcements": _announcements_mod,
-        "utils.byok": _byok_mod,
     }
     with stub_modules(fakes):
         _sub_mod_ref = load_module_fresh("utils.subscription", _SUBSCRIPTION_PATH)

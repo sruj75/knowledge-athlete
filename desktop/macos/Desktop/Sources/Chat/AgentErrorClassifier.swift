@@ -94,7 +94,7 @@ enum AgentErrorClassifier {
     }
     if lower.contains("invalid_token") || lower.contains("authentication_error")
       || lower.contains("failed to authenticate") || lower.contains("unauthorized")
-      || lower.contains("authentication required") || lower.contains("byok_validation_failed")
+      || lower.contains("authentication required")
       || lower.contains("forbidden") || lower.contains("permission denied")
       || lower.contains("api key") || lower.contains("api_key")
     {

@@ -39,7 +39,6 @@ ALLOWED_REASONS = frozenset(
         'local_heal',
         'policy',
         'dispatch_disabled',
-        'byok',
         'malformed_doc',
         'capacity_full',
         'allocation_rejected',

@@ -201,7 +201,7 @@ class TestUpsertMemoryVectorsBatch:
 
 class TestBatchMemoriesEndpointErrorIsolation:
     """
-    Regression for the BYOK embedding-403 cluster: POST /v3/memories/batch must
+    Regression for the embedding-403 cluster: POST /v3/memories/batch must
     isolate the best-effort vector upsert from the authoritative Firestore
     write. A 403 from `text-embedding-3-large` (or any embedding/Pinecone error)
     must NOT 500 the request after the memories were already saved — otherwise

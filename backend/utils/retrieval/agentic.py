@@ -46,7 +46,7 @@ from utils.retrieval.safety import (
     INPUT_TOO_LONG_MESSAGE,
 )
 from utils.observability.fallback import record_fallback
-from utils.llm.byok_errors import handle_llm_error_async
+from utils.llm.provider_errors import handle_llm_error_async
 from utils.llm.clients import anthropic_client, ANTHROPIC_AGENT_MODEL, num_tokens_from_string
 from utils.llm.chat import _get_agentic_qa_prompt, get_current_datetime_block, get_user_timezone
 from utils.executors import run_blocking, db_executor

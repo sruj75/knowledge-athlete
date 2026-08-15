@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import hashlib
 import time
 import uuid
 from collections.abc import Mapping
@@ -13,7 +12,6 @@ import anthropic
 import httpx
 from cachetools import TTLCache
 
-from utils.llm.gateway_byok import byok_gateway_default_headers
 from utils.llm.gateway_client import (
     CHAT_AGENT_AUTO_LANE_ID,
     feature_auto_lane_id,
@@ -45,23 +43,17 @@ def _gateway_request_headers(existing: object) -> dict[str, str]:
     return headers
 
 
-def get_gateway_anthropic_client(
-    *,
-    byok_api_key: str | None = None,
-) -> '_GatewayAnthropicClient':
-    gateway_client = _get_or_create_gateway_anthropic_client(byok_api_key=byok_api_key)
+def get_gateway_anthropic_client() -> '_GatewayAnthropicClient':
+    gateway_client = _get_or_create_gateway_anthropic_client()
     return _GatewayAnthropicClient(
         gateway_client=gateway_client,
-        credential_source='service_forwarded_byok' if byok_api_key else 'omi_managed',
+        credential_source='omi_managed',
     )
 
 
-def _get_or_create_gateway_anthropic_client(*, byok_api_key: str | None = None) -> anthropic.AsyncAnthropic:
+def _get_or_create_gateway_anthropic_client() -> anthropic.AsyncAnthropic:
     token = get_llm_gateway_service_token() or 'gateway-dev'
-    byok_fingerprint = 'none'
-    if byok_api_key:
-        byok_fingerprint = hashlib.sha256(byok_api_key.encode()).hexdigest()[:16]
-    cache_key = f'{token}:{byok_fingerprint}'
+    cache_key = token
     cached = _GATEWAY_CLIENT_CACHE.get(cache_key)
     if cached is not None:
         return cached
@@ -69,8 +61,6 @@ def _get_or_create_gateway_anthropic_client(*, byok_api_key: str | None = None) 
         'Authorization': f'Bearer {token}',
         'X-Omi-Service-Caller': 'backend',
     }
-    if byok_api_key:
-        default_headers.update(byok_gateway_default_headers('anthropic', byok_api_key))
     client = anthropic.AsyncAnthropic(
         api_key='gateway-managed',
         base_url=get_llm_gateway_base_url(),

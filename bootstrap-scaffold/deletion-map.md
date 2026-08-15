@@ -320,7 +320,7 @@ authorize implementing past an open gate in the slice's TDD plan.
 | **S-05** | Establishes one retained managed-Pi runtime and private `OMI_BRIDGE_PIPE` tool path before S-06 and S-07 prune adjacent tools and credentials. | Do not proceed with an uncertain transport boundary: keep the verified Pi bridge while deleting only the separately proven-unused entrances. |
 | **S-03** | Removes hosted STT providers before customer-key propagation is removed from the same STT surfaces. | The provider-copy decision is adopted: keep Local VAD Gate behavior and use “managed cloud transcription usage.” S-03 owns complete `stt_service` deletion and fixed-Modulate policy; revalidate those decisions at the pinned baseline. |
 | **S-06** | Consumes S-05's retained Pi boundary, then removes Apps, connectors, public MCP, sharing, and their route/deployment residue. | Cycles 0-2 may start. Before Cycle 3 or another route-removal cycle, record never-released evidence or land the adopted release-level version/sunset predecessor with client migration proof. |
-| **S-07** | Removes BYOK after S-03 and S-05 have stabilized the shared STT and Pi surfaces. | Cycles 1-7 may start while durable readers remain. Before Cycle 8, run the read-only legacy-data/job inventory and decide managed requeue versus explicit terminalization and purge versus tombstone. |
+| **S-07** | Removes BYOK after S-03 and S-05 have stabilized the shared STT and Pi surfaces. | Legacy migration is structurally inapplicable: this unreleased fork owns no deployed users/jobs. Delete inherited readers/writers without reading or mutating upstream Omi data. |
 | **S-08** | Publishes the canonical identity/session/sign-out boundary consumed by S-09 and later slices. | Start config-independent fences immediately in the plan's safe phase order. Owned-identity, invariant, and released-contract inputs gate only their named cycles; Cycles 6-9 still wait for later owners and authorizations. |
 | **S-09** | Re-owns telemetry/diagnostics and removes rejected observability products without coupling their authorities. | Start the configuration-independent deletion phase after the S-08 keep fences. Owned projects and the canonical identity seam gate configuration/identity cycles and live closure; never guess their identifiers or secrets. |
 
@@ -914,8 +914,9 @@ IR-938
 ### S-07 — Delete the customer BYOK plan and all key propagation
 
 **Type:** complete access-plan deletion<br>
-**Research status:** ready to start; Cycles 1-7 preserve durable legacy readers
-while the read-only inventory and transition decision gate Cycle 8<br>
+**Implementation status:** Wave 1 repository implementation complete on
+2026-08-15; legacy migration is structurally inapplicable because this
+unreleased fork owns no deployed user or job population<br>
 **Depends on:** none; coordinate Deepgram key residue with S-03 and Pi extension
 residue with S-05<br>
 **Primary decisions:** IR-058, IR-062, IR-606, IR-937
@@ -928,6 +929,10 @@ residue with S-05<br>
   headers, Node/runtime environment propagation, Firestore
   fingerprints, paywall/quota bypass, account copy, and provider-selection
   branches that exist only for customer keys.
+- **Legacy-data decision:** delete inherited `users.byok`, `blocked_byok`, and
+  `requires_byok` readers/writers without a migration. There is no owned live
+  population to inventory or mutate, and upstream Omi data is outside this
+  product's authority.
 - **Close when:** no customer-supplied model key can change entitlement or reach
   a provider, and every retained hosted call uses a product-owned credential.
 

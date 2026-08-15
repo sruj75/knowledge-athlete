@@ -87,7 +87,6 @@ def test_listener_projects_the_closed_durable_finalization_states(monkeypatch):
                 'failure': 1,
                 'stale': 2,
                 'nonterminal': 1,
-                'blocked_byok': 1,
                 'terminal_unknown': 1,
                 'queued': 1,
                 'leased': 0,
@@ -108,7 +107,6 @@ def test_listener_projects_the_closed_durable_finalization_states(monkeypatch):
         'failure',
         'stale',
         'nonterminal',
-        'blocked_byok',
         'terminal_unknown',
     }
 

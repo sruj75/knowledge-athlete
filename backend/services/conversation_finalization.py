@@ -1,9 +1,7 @@
 """Durable dispatch and recovery for listen conversation finalization.
 
-The Firestore job is the source of truth.  Cloud Tasks wakes a worker for
-platform-key conversations; it is never allowed to carry content or BYOK
-credentials.  BYOK jobs remain explicitly blocked until a live request again
-presents its request-scoped keys.
+The Firestore job is the source of truth. Cloud Tasks wakes a worker without
+carrying conversation content or provider credentials.
 """
 
 from __future__ import annotations
@@ -258,7 +256,7 @@ def _publish_job_metrics(*, firestore_client: Any = None) -> None:
         logger.exception('listen finalization metrics query failed')
         return
     LISTEN_FINALIZATION_OLDEST_NONTERMINAL_AGE_SECONDS.set(float(summary['oldest_nonterminal_age_seconds']))
-    for state in ('accepted', 'success', 'failure', 'stale', 'nonterminal', 'blocked_byok', 'terminal_unknown'):
+    for state in ('accepted', 'success', 'failure', 'stale', 'nonterminal', 'terminal_unknown'):
         LISTEN_FINALIZATION_DURABLE_JOBS.labels(state=state).set(float(summary[state]))
-    for status in ('queued', 'leased', 'blocked_byok', 'dead_letter'):
+    for status in ('queued', 'leased', 'dead_letter'):
         LISTEN_FINALIZATION_JOB_STATUS.labels(status=status).set(float(summary[status]))

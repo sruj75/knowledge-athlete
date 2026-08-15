@@ -1,35 +1,5 @@
 import Foundation
 
-/// Internal transport for the four pre-existing extraction workloads. These
-/// calls remain on their fixed Haiku model until Slice 22 owns their migration;
-/// they are deliberately separate from the managed-Pi agent contract.
-enum ManagedSynthesisClient {
-  static func requestBody(prompt: String, systemPrompt: String) -> [String: Any] {
-    [
-      "model": ModelQoS.Claude.synthesis,
-      "max_tokens": 4096,
-      "messages": [
-        ["role": "system", "content": systemPrompt],
-        ["role": "user", "content": prompt],
-      ],
-      "stream": false,
-    ]
-  }
-
-  static func run(prompt: String, systemPrompt: String) async throws -> String {
-    guard
-      let ownerID = UserDefaults.standard.string(forKey: .authUserId)?
-        .trimmingCharacters(in: .whitespacesAndNewlines),
-      !ownerID.isEmpty
-    else {
-      throw AuthError.notSignedIn
-    }
-    return try await APIClient.shared.askHigherModel(
-      body: requestBody(prompt: prompt, systemPrompt: systemPrompt),
-      expectedOwnerID: ownerID)
-  }
-}
-
 extension APIClient {
   /// Owner-bound transport for the realtime hub's kernel-authorized
   /// higher-model escalation. The body can contain the pinned turn's private

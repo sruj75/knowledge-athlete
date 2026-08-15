@@ -33,14 +33,6 @@ except ImportError:
 
 from pydantic import ConfigDict
 
-try:
-    from utils.byok import has_byok_keys
-except ImportError:
-
-    def has_byok_keys() -> bool:
-        return False
-
-
 from utils.executors import llm_executor, start_background_task, submit_with_context
 from utils.llm.gateway_client import BACKGROUND_CHAT_EXTRACTION_TIMEOUT_SECONDS, CHAT_STRUCTURED_AUTO_LANE_ID
 from utils.llm.gateway_observability import record_gateway_request_result, record_gateway_shadow_comparison
@@ -80,8 +72,6 @@ def maybe_wrap_dev_gateway_shadow(
 
 def _dev_shadow_enabled(*, provider: str, streaming: bool) -> bool:
     if streaming:
-        return False
-    if has_byok_keys():
         return False
     if _is_prod_like_runtime():
         return False

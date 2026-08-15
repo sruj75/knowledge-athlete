@@ -154,6 +154,7 @@ obs_mod = _stub_module("utils.observability")
 if not hasattr(obs_mod, "__path__"):
     obs_mod.__path__ = []
 langsmith_mod = _stub_module("utils.observability.langsmith")
+langsmith_mod.bind_current_langsmith_run = MagicMock(return_value=None)
 langsmith_mod.get_chat_tracer_callbacks = MagicMock(return_value=[])
 langsmith_mod.is_langsmith_enabled = MagicMock(return_value=False)
 # utils.observability.fallback is import-light (metrics counter + logging) and agentic.py calls

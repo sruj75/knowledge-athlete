@@ -2,7 +2,7 @@
 
 The cache is intentionally projection-oriented. Do not use it to cache whole
 ``users/{uid}`` documents: user docs mix low-risk preferences with entitlement,
-BYOK, privacy consent, and data-protection fields that require stricter
+privacy consent, and data-protection fields that require stricter
 correctness guarantees.
 """
 

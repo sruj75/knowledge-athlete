@@ -654,7 +654,6 @@ def request_finalization(
     uid: str,
     conversation_id: str,
     *,
-    has_byok_keys: bool,
     force_process: bool = False,
     extra_updates: Mapping[str, Any] | None = None,
     require_cloud_tasks: bool = False,
@@ -671,7 +670,6 @@ def request_finalization(
         intent = jobs_db.create_or_get_finalization_intent(
             uid,
             conversation_id,
-            requires_byok=has_byok_keys,
             finalization_admission=lambda conversation: _finalization_admission(conversation, conversation_id),
             force_process=force_process,
             extra_updates=extra_updates,
@@ -688,20 +686,6 @@ def request_finalization(
     status = intent['status']
     if intent['job_id'] is None or status in {'missing', 'no_content', 'deferred', 'completed', 'dead_letter'}:
         return dict(intent) | {'route': 'noop'}
-
-    if intent['requires_byok']:
-        if not has_byok_keys:
-            record_fallback(
-                component='pusher',
-                from_mode='cloud_tasks',
-                to_mode='blocked_byok',
-                reason='byok',
-                outcome='degraded',
-                log=logger,
-            )
-            return dict(intent) | {'route': 'blocked_byok'}
-        resumed = jobs_db.resume_blocked_byok_job_for_live_session(intent['job_id'], firestore_client=firestore_client)
-        return dict(resumed) | {'route': 'pusher'}
 
     if not is_listen_finalization_dispatch_enabled():
         return dict(intent) | {'route': 'pusher'}

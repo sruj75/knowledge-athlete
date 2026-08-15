@@ -101,17 +101,12 @@ def test_lkg_is_selected_only_for_active_route_policy_allowed_failure():
 @pytest.mark.parametrize(
     'failure_class',
     [
-        FailureClass.BYOK_AUTH,
-        FailureClass.BYOK_QUOTA,
-        FailureClass.BYOK_RATE_LIMIT,
-        FailureClass.BYOK_UNSUPPORTED_PROVIDER,
-        FailureClass.MISSING_BYOK_KEY,
         FailureClass.CAPABILITY_MISMATCH,
         FailureClass.PROVIDER_INVALID_REQUEST,
         FailureClass.INVALID_CONFIG,
     ],
 )
-def test_lkg_rejected_for_byok_capability_and_config_failure_classes(failure_class):
+def test_lkg_rejected_for_terminal_capability_and_config_failure_classes(failure_class):
     resolved = resolve_chat_completion_route(load_gateway_config(prod_mode=True), valid_request())
 
     assert not is_lkg_eligible(resolved.active_route, failure_class)

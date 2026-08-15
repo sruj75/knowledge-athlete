@@ -28,7 +28,7 @@ class _Metric:
         return _MetricChild(self, labels)
 
 
-def test_stream_terminal_metric_exposes_bounded_surface_phase_and_byok_source(monkeypatch):
+def test_stream_terminal_metric_exposes_bounded_surface_phase_and_managed_source(monkeypatch):
     requests = _Metric()
     latency = _Metric()
     ttfb = _Metric()
@@ -42,7 +42,7 @@ def test_stream_terminal_metric_exposes_bounded_surface_phase_and_byok_source(mo
         route_artifact_id='route.chat_agent.model_config.001',
         provider='anthropic',
         model='claude-sonnet-5',
-        credential_source='service_forwarded_byok',
+        credential_source='omi_managed',
         used_lkg=False,
         fallback_used=False,
         fallback_reason=None,
@@ -63,7 +63,7 @@ def test_stream_terminal_metric_exposes_bounded_surface_phase_and_byok_source(mo
     assert labels['api_surface'] == 'anthropic_messages'
     assert labels['streaming'] == 'true'
     assert labels['phase'] == 'midstream'
-    assert labels['credential_source'] == 'service_forwarded_byok'
+    assert labels['credential_source'] == 'omi_managed'
     assert labels['budget_source'] == 'route_default'
     assert labels['output_budget'] == 'le_128'
     assert labels['completion_size'] == 'le_256'
@@ -76,7 +76,7 @@ def test_stream_terminal_metric_exposes_bounded_surface_phase_and_byok_source(mo
             {
                 'api_surface': 'anthropic_messages',
                 'provider': 'anthropic',
-                'credential_source': 'service_forwarded_byok',
+                'credential_source': 'omi_managed',
             },
             0.42,
         )
@@ -107,10 +107,10 @@ def test_terminal_errors_are_warning_logs_with_only_bounded_failure_fields(monke
             route_artifact_id='route.conv_structure.model_config.001',
             provider='none',
             model='none',
-            credential_source='service_forwarded_byok',
+            credential_source='omi_managed',
             used_lkg=False,
             fallback_used=False,
-            fallback_reason='byok_auth',
+            fallback_reason='invalid_config',
             outcome='error',
             error_class='credential_failure',
             request_id='936c2c10-c509-41f1-95cf-2162710d5ac8',
@@ -124,8 +124,8 @@ def test_terminal_errors_are_warning_logs_with_only_bounded_failure_fields(monke
         'llm_gateway_terminal request_id=936c2c10-c509-41f1-95cf-2162710d5ac8 '
         'surface=openai_chat_completions streaming=false phase=before_output '
         'lane=omi:auto:conv-structure route=route.conv_structure.model_config.001 '
-        'provider=none model=none credential_source=service_forwarded_byok outcome=error '
-        'error_class=credential_failure failure_class=byok_auth fallback_used=false provider_rejection=none '
+        'provider=none model=none credential_source=omi_managed outcome=error '
+        'error_class=credential_failure failure_class=invalid_config fallback_used=false provider_rejection=none '
         'budget_source=none output_budget=none completion_size=unknown finish_reason=unknown ttfb_seconds=none'
     ]
 

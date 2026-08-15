@@ -7,7 +7,6 @@ from pathlib import Path
 import pytest
 import yaml
 
-from utils import byok
 from utils.llm import chat, gateway_client, gateway_observability
 from utils.llm import conversation_processing
 from models.conversation_enums import CategoryEnum
@@ -76,13 +75,6 @@ class FakeGatewayClient:
         return self._fake_post(url, headers=headers, json=json, **kwargs)
 
 
-@pytest.fixture(autouse=True)
-def clear_byok_context():
-    byok.set_byok_keys({})
-    yield
-    byok.set_byok_keys({})
-
-
 class FakeCounterChild:
     def __init__(self, parent, labels):
         self.parent = parent
@@ -115,15 +107,6 @@ _UNEXPECTED_STRUCTURE_RESPONSE = FakeGatewayResponse({'choices': [{'message': {'
 
 
 def test_requires_context_uses_legacy_llm_provider(monkeypatch):
-    existing_calls = []
-    monkeypatch.setattr(chat, 'get_llm', lambda feature: FakeLLM(chat.RequiresContext(value=True), existing_calls))
-
-    assert chat.requires_context('what did I discuss yesterday?') is True
-    assert existing_calls == [chat.RequiresContext]
-
-
-def test_requires_context_byok_context_uses_same_legacy_llm_provider(monkeypatch):
-    byok.set_byok_keys({'openai': 'secret'})
     existing_calls = []
     monkeypatch.setattr(chat, 'get_llm', lambda feature: FakeLLM(chat.RequiresContext(value=True), existing_calls))
 
@@ -460,34 +443,6 @@ def test_conversation_discard_uses_legacy_llm_provider(monkeypatch):
 
     assert conversation_processing.should_discard_conversation('hello there', duration_seconds=15) is True
     assert legacy_features == ['conv_discard']
-
-
-def test_conversation_discard_byok_uses_same_legacy_llm_provider(monkeypatch):
-    class FakeParser:
-        def __init__(self, pydantic_object):
-            self.pydantic_object = pydantic_object
-
-        def get_format_instructions(self):
-            return 'return structured output'
-
-    class FakePrompt:
-        def __or__(self, other):
-            return FakeChain()
-
-    class FakeChain:
-        def __or__(self, other):
-            return self
-
-        def invoke(self, values):
-            assert 'hello there' in values['full_context']
-            return conversation_processing.DiscardConversation(discard=False)
-
-    byok.set_byok_keys({'openai': 'secret'})
-    monkeypatch.setattr(conversation_processing, 'PydanticOutputParser', FakeParser)
-    monkeypatch.setattr(conversation_processing.ChatPromptTemplate, 'from_messages', lambda messages: FakePrompt())
-    monkeypatch.setattr(conversation_processing, 'get_llm', lambda feature, **kwargs: object())
-
-    assert conversation_processing.should_discard_conversation('hello there', duration_seconds=15) is False
 
 
 def test_action_items_gateway_shadow_keeps_legacy_result_and_records_comparison(monkeypatch, caplog):

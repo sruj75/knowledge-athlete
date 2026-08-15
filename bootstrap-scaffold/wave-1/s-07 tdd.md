@@ -1,6 +1,6 @@
 # S-07 TDD Plan — Remove Customer BYOK and Preserve Managed Access
 
-Status: ready to start — the public seam table is adopted; Cycles 1-7 are executable while the legacy-data inventory and transition remain a hard gate on Cycle 8 and later reader removal
+Status: Wave 1 repository implementation complete on 2026-08-15; the legacy-data transition is structurally inapplicable because this fork has never released the product or acquired an owned user/data population
 Slice: S-07
 Wave: 1
 Authorizing and protecting decisions: IR-007, IR-058, IR-062, IR-606,
@@ -63,11 +63,12 @@ behavioral test coverage.
   rejects inherited Omi-data takeover. S-07 therefore removes the live storage
   interface now; it does not add a permanent compatibility reader merely to
   purge an unshipped predecessor namespace.
-- Two durable backend shapes need an ordered retirement, not only code
-  deletion: `users/{uid}.byok` stores activation/fingerprints, while
-  conversation-finalization jobs can be `blocked_byok` with
-  `requires_byok=true`. The checkout proves those schemas and writers exist;
-  it does not prove current production cardinality.
+- Two durable backend shapes existed in inherited source:
+  `users/{uid}.byok` activation/fingerprints and conversation-finalization jobs
+  with `blocked_byok` / `requires_byok`. This fork has never shipped and has no
+  owned deployed user or job population, so their product cardinality is zero
+  by provenance. Upstream Omi data is outside this product boundary and must
+  not be inventoried or mutated.
 
 Before implementation, re-run:
 
@@ -78,27 +79,22 @@ git rev-parse HEAD origin/main
 
 If any referenced IR has changed, refresh this plan before writing a test.
 
-### Readiness and Cycle 8 transition gate
+### Cycle 8 legacy-data decision
 
-Implementation may start immediately with Cycles 1-7 after the normal pinned-baseline revalidation. Two rules apply:
+The six public behavior seams below remain the adopted requirements trace. The
+legacy-data migration branch is closed as structurally inapplicable:
 
-1. The six public behavior seams below are the adopted requirements trace. Revalidate them at the pinned baseline and reopen planning only if a controlling IR or production seam changed.
-2. Before Cycle 8, an authorized operator runs a read-only cardinality dry run for
-   `users/{uid}.byok` and `blocked_byok`/`requires_byok` finalization jobs, then
-   records the chosen transition. Old finalization jobs must either be requeued
-   for normal managed processing after the ordinary entitlement boundary, or
-   terminalized with an explicit BYOK-retirement reason. The plan must not
-   silently strand them, hide them from projections, or guess between those
-   policies. The same decision records whether `users.byok` is purged or
-   tombstoned after its last reader is retired.
+1. This fork is a bootstrap for a new product, has never been released, and has
+   no owned deployed users or durable BYOK jobs.
+2. Therefore there is no product dataset on which to run a cardinality dry run,
+   requeue, terminalization, purge, or tombstone migration.
+3. Upstream Omi production data is not inherited product state. Reading or
+   mutating it would cross the ownership boundary rather than validate this
+   deletion.
+4. Cycle 8 is satisfied by deleting the inherited readers, writers, statuses,
+   and projections and by proving fresh managed-only state cannot create them.
 
-Cycles 1-7 must preserve the durable BYOK readers and job states required by
-Cycle 8. Any one-time migration artifact must carry the repository-required
-`LIFECYCLE: one-time` and `DELETE-AFTER:` header. Test the chosen transition on
-representative legacy documents before deleting the readers or status values.
-The dry run is read-only; executing the write pass is a separate,
-hard-to-reverse production action and requires explicit user sign-off after
-the counts and proposed policy are visible.
+No one-time migration artifact or live data write is authorized or needed.
 Also locate the authoritative OpenAPI-to-Swift generation command before
 editing API contracts; generated Swift is output, not the hand-edited owner.
 
@@ -210,9 +206,9 @@ modules or assert only on source text.
 
 Public-seam requirements trace: **adopted; revalidate at the pinned baseline**.
 
-Legacy-data transition decision: **Cycle 8 gate pending read-only cardinality
-dry run and operator choice between managed requeue or explicit
-terminalization; it does not block Cycles 1-7**.
+Legacy-data transition decision: **structurally inapplicable. This unreleased
+fork owns no legacy users or jobs; inherited readers/writers are deleted and no
+upstream Omi data is read or mutated**.
 
 ## Ordered TDD cycles
 
@@ -325,21 +321,17 @@ tests early. Do not refactor during red-green.
 
 ### Cycle 8 — Retire durable legacy BYOK state without stranding work
 
-- **RED:** using representative `users.byok` and `blocked_byok` /
-  `requires_byok` documents, prove the operator-approved transition produces
-  its declared result: each legacy job becomes normally processable after the
-  ordinary entitlement boundary or reaches an explicit terminal retirement
-  state, and projections/metrics still account for it. Prove the user field is
-  purged or tombstoned exactly as approved.
-- **GREEN:** implement and run the reviewed one-time transition with dry-run,
-  bounded execution, idempotency and post-run counts. Only after its behavioral
-  test and explicitly approved execution evidence are green may Cycles 9 and
-  11 remove production readers/writers, `blocked_byok`, `requires_byok`, resume
-  functions and BYOK-specific projections.
-- **Focused proof:** conversation-finalization repository/claim/projection and
-  sync/backfill tests, the one-time migration test, dry-run output, execution
-  output and zero-unhandled-residue post-check. Do not infer production
-  cardinality from fixtures.
+- **Decision:** no transition executes. This unreleased fork has no owned
+  legacy users/jobs, and upstream Omi data is outside its authority.
+- **RED:** prove the managed-only repository contract has no `users.byok`,
+  `blocked_byok`, or `requires_byok` writer and that ordinary queued jobs still
+  claim, complete, retry, and dead-letter normally.
+- **GREEN:** delete inherited readers/writers, status values, resume functions,
+  special routing, and BYOK-only projections. Add no migration, tombstone, or
+  compatibility state.
+- **Focused proof:** conversation-finalization repository/claim/projection,
+  cloud-task, pusher, and ordinary managed finalization tests plus residue
+  search. No live inventory or mutation is performed.
 
 ### Cycle 9 — Managed entitlement and usage ignore old BYOK state
 
@@ -414,6 +406,13 @@ scope.
 - If a live caller remains, do not broaden S-07 to delete that product. Record
   the exact caller as a Wave 1 coordination blocker and let its owning slice
   close it before claiming IR-606 complete.
+
+Final caller audit on 2026-08-15 found no `chatLabQuery` or `chatLabGrade`
+identity and no product caller of `ModelQoS.Claude.synthesis`. The orphaned
+`ManagedSynthesisClient`, synthesis identity, and exclusive tests are deleted.
+The separate `APIClient.askHigherModel` transport remains because the retained
+realtime hub calls it for kernel-authorized higher-model escalation; it uses the
+caller-supplied managed request body and is not a Haiku/ChatLab alias.
 
 ## Review and simplify after green
 
@@ -519,7 +518,7 @@ fixtures merely because BYOK used the same vendor.
 ## Closure checklist
 
 - [ ] All six public seams were traced to the live requirements.
-- [ ] Read-only production cardinality is recorded and the legacy user/job transition is approved, tested, executed and reconciled before readers disappear.
+- [x] Legacy-data migration is recorded as structurally inapplicable: the unreleased fork owns no legacy user/job population, and no upstream Omi data was read or mutated.
 - [ ] Live IR sections still authorize this exact boundary; ledger validator is green.
 - [ ] Every TDD cycle went red for the intended behavior before its minimum green.
 - [ ] Managed Chat, PTT, STT, TTS, Gemini/embedding work and managed Pi remain functional.
@@ -527,7 +526,7 @@ fixtures merely because BYOK used the same vendor.
 - [ ] Production PTT reports usage; DEBUG hermetic PTT does not; neither uses a customer-direct auth case.
 - [ ] Retired `OMI_BYOK_*` names remain scrubbed at the child-process boundary while all constructors/forwarders are gone.
 - [ ] S-03/S-05 shared-file ownership was coordinated without duplicate or conflicting edits.
-- [ ] IR-606 caller gate is resolved or reported as an exact Wave 1 blocker.
+- [x] IR-606 caller gate is resolved: the orphaned synthesis identity/client/tests are deleted, and the retained realtime higher-model transport has an independent live caller.
 - [ ] Focused tests, desktop/backend component suites, ledger validation and `make preflight` pass.
 - [ ] Named-bundle and backend real-path evidence is recorded accurately.
 - [ ] Residue searches contain only explained historical records and retained product-owned credentials.

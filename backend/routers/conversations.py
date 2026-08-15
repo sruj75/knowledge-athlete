@@ -452,7 +452,6 @@ def finalize_conversation(
         finalization = lifecycle_service.request_finalization(
             uid,
             conversation.id,
-            has_byok_keys=False,
             force_process=True,
             extra_updates=extra_updates or None,
             require_cloud_tasks=True,

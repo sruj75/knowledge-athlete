@@ -227,7 +227,6 @@ final class DesktopAutomationSecondaryActionTests: XCTestCase {
 
     XCTAssertEqual(snapshot["access_model"], "managed")
     XCTAssertEqual(snapshot["customer_key_controls_visible"], "false")
-    XCTAssertEqual(snapshot["free_byok_promo_visible"], "false")
   }
 
   func testLatestConversationAliasSupported() throws {

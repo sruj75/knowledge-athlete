@@ -47,7 +47,6 @@ RouteRef = Union[ExplicitRouteRef, AutoLaneRouteRef]
 # Profiles:
 #   premium  — maximize cost savings while preserving 80% of max quality
 #   max      — 100% quality, best models available, no cost optimization
-#   byok     — same models as max (BYOK users pay their own API costs)
 # ---------------------------------------------------------------------------
 
 MODEL_QOS_PROFILES: Dict[str, Dict[str, Tuple[str, str]]] = {
@@ -132,45 +131,6 @@ MODEL_QOS_PROFILES: Dict[str, Dict[str, Tuple[str, str]]] = {
         # Perplexity
         'web_search': ('sonar-pro', 'perplexity'),
     },
-    # -----------------------------------------------------------------------
-    # byok — same models as max. BYOK users pay their own API costs so they
-    # get the same best-quality routing as max subscribers.
-    # -----------------------------------------------------------------------
-    'byok': {
-        # OpenAI — conversation processing
-        'conv_action_items': ('gpt-5.4', 'openai'),
-        'conv_structure': ('gpt-5.4', 'openai'),
-        'conv_folder': ('gpt-4.1-mini', 'openai'),
-        'conv_discard': ('gpt-4.1-mini', 'openai'),
-        'daily_summary': ('gpt-5.4', 'openai'),
-        # OpenAI — memories
-        'memories': ('gpt-4.1-mini', 'openai'),
-        'learnings': ('o4-mini', 'openai'),
-        'memory_conflict': ('gpt-4.1-mini', 'openai'),
-        'memory_category': ('gpt-4.1-mini', 'openai'),
-        'memory_l1': ('gpt-4.1-mini', 'openai'),
-        'memory_l2': ('gpt-4.1-mini', 'openai'),
-        # OpenAI — chat
-        'chat_responses': ('gpt-5.4', 'openai'),
-        'chat_extraction': ('gpt-4.1-mini', 'openai'),
-        'session_titles': ('gpt-4.1-mini', 'openai'),
-        # Features
-        'goals': ('gpt-4.1-mini', 'openai'),
-        'goals_advice': ('gpt-5.4', 'openai'),
-        'notifications': ('gpt-5.4', 'openai'),
-        'proactive_notification': ('gpt-4.1-mini', 'openai'),
-        'what_matters_now': ('gpt-4.1-mini', 'openai'),
-        'followup': ('gpt-4.1-mini', 'openai'),
-        'onboarding': ('gpt-4.1-mini', 'openai'),
-        'trends': ('gpt-4.1-mini', 'openai'),
-        'translation': ('gemini-2.5-flash-lite', 'gemini'),
-        # Anthropic
-        'chat_agent': ('claude-sonnet-4-6', 'anthropic'),
-        # OpenRouter
-        'wrapped_analysis': ('gemini-3-flash-preview', 'openrouter'),
-        # Perplexity
-        'web_search': ('sonar-pro', 'perplexity'),
-    },
 }
 
 # Pinned features — (model, provider) fixed regardless of profile or env override.
@@ -184,11 +144,6 @@ if _active_profile_name not in MODEL_QOS_PROFILES:
     logger.warning('MODEL_QOS=%s is not a valid profile, falling back to premium', _active_profile_name)
     _active_profile_name = 'premium'
 _active_profile = MODEL_QOS_PROFILES[_active_profile_name]
-
-# BYOK QoS — all BYOK users get routed to 'byok' profile (top-tier all-OpenAI).
-# BYOK users pay their own API costs, so we give them maximum quality models.
-_byok_profile_name = 'byok'
-_byok_profile = MODEL_QOS_PROFILES[_byok_profile_name]
 
 # Features that can't go through get_llm() (non-ChatOpenAI providers).
 _ANTHROPIC_ONLY_FEATURES = {'chat_agent'}
@@ -350,14 +305,6 @@ def get_all_configured_features() -> set[str]:
 
 def get_default_config() -> Tuple[str, str]:
     return _DEFAULT_CONFIG
-
-
-def get_byok_profile() -> Dict[str, Tuple[str, str]]:
-    return _byok_profile
-
-
-def get_byok_profile_name() -> str:
-    return _byok_profile_name
 
 
 def get_openrouter_temperatures() -> Dict[str, float]:

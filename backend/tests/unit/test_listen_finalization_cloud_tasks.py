@@ -184,54 +184,56 @@ def test_enqueue_uses_only_opaque_job_routing_fields():
 
 def test_worker_rejects_task_payloads_with_content_or_credentials():
     assert _parse_task_payload({'job_id': 'job-1', 'dispatch_generation': 1}) == ('job-1', 1)
-    assert _parse_task_payload({'job_id': 'job-1', 'dispatch_generation': 1, 'byok_keys': {'openai': 'secret'}}) is None
+    assert (
+        _parse_task_payload({'job_id': 'job-1', 'dispatch_generation': 1, 'credentials': {'openai': 'secret'}}) is None
+    )
     assert _parse_task_payload({'job_id': 'job-1', 'dispatch_generation': 1, 'transcript': 'private'}) is None
     assert _parse_task_payload({'job_id': 'job-1', 'dispatch_generation': 1, 'authorization': 'Bearer secret'}) is None
 
 
-def test_platform_key_job_dispatches_to_cloud_tasks(monkeypatch):
-    intent = {'job_id': 'job-1', 'status': 'queued', 'dispatch_generation': 2, 'requires_byok': False}
+def test_managed_job_dispatches_to_cloud_tasks(monkeypatch):
+    intent = {'job_id': 'job-1', 'status': 'queued', 'dispatch_generation': 2}
     enqueue = MagicMock()
     _mock_lifecycle_conversation(monkeypatch)
     monkeypatch.setattr(lifecycle_service.jobs_db, 'create_or_get_finalization_intent', MagicMock(return_value=intent))
     monkeypatch.setattr(lifecycle_service, 'is_listen_finalization_dispatch_enabled', lambda: True)
     monkeypatch.setattr(lifecycle_service, 'enqueue_listen_finalization_job', enqueue)
 
-    result = lifecycle_service.request_finalization('uid-1', 'conversation-1', has_byok_keys=False)
+    result = lifecycle_service.request_finalization('uid-1', 'conversation-1')
 
     assert result['route'] == 'cloud_tasks'
     enqueue.assert_called_once_with('job-1', 2)
 
 
 def test_durable_finalization_acceptance_counts_only_a_new_outbox_job(monkeypatch):
-    intent = {'job_id': 'job-1', 'status': 'queued', 'dispatch_generation': 2, 'requires_byok': False, 'created': True}
+    intent = {'job_id': 'job-1', 'status': 'queued', 'dispatch_generation': 2, 'created': True}
     accepted = MagicMock()
     _mock_lifecycle_conversation(monkeypatch)
     monkeypatch.setattr(lifecycle_service.jobs_db, 'create_or_get_finalization_intent', MagicMock(return_value=intent))
     monkeypatch.setattr(lifecycle_service, 'is_listen_finalization_dispatch_enabled', lambda: False)
     monkeypatch.setattr(lifecycle_service, 'record_journey_accepted', accepted)
 
-    result = lifecycle_service.request_finalization('uid-1', 'conversation-1', has_byok_keys=False)
+    result = lifecycle_service.request_finalization('uid-1', 'conversation-1')
 
     assert result['route'] == 'pusher'
     accepted.assert_called_once_with('capture_finalization')
 
 
 def test_durable_finalization_redelivery_does_not_count_as_new_traffic(monkeypatch):
-    intent = {'job_id': 'job-1', 'status': 'queued', 'dispatch_generation': 2, 'requires_byok': False, 'created': False}
+    intent = {'job_id': 'job-1', 'status': 'queued', 'dispatch_generation': 2, 'created': False}
     accepted = MagicMock()
     _mock_lifecycle_conversation(monkeypatch)
     monkeypatch.setattr(lifecycle_service.jobs_db, 'create_or_get_finalization_intent', MagicMock(return_value=intent))
     monkeypatch.setattr(lifecycle_service, 'is_listen_finalization_dispatch_enabled', lambda: False)
     monkeypatch.setattr(lifecycle_service, 'record_journey_accepted', accepted)
 
-    lifecycle_service.request_finalization('uid-1', 'conversation-1', has_byok_keys=False)
+    lifecycle_service.request_finalization('uid-1', 'conversation-1')
 
     accepted.assert_not_called()
 
 
 def test_enqueue_failure_leaves_job_queued_for_reconciler(monkeypatch):
-    intent = {'job_id': 'job-1', 'status': 'queued', 'dispatch_generation': 2, 'requires_byok': False}
+    intent = {'job_id': 'job-1', 'status': 'queued', 'dispatch_generation': 2}
     fallback = MagicMock()
     _mock_lifecycle_conversation(monkeypatch)
     monkeypatch.setattr(lifecycle_service.jobs_db, 'create_or_get_finalization_intent', MagicMock(return_value=intent))
@@ -241,7 +243,7 @@ def test_enqueue_failure_leaves_job_queued_for_reconciler(monkeypatch):
     )
     monkeypatch.setattr(lifecycle_service, 'record_fallback', fallback)
 
-    result = lifecycle_service.request_finalization('uid-1', 'conversation-1', has_byok_keys=False)
+    result = lifecycle_service.request_finalization('uid-1', 'conversation-1')
 
     assert result['route'] == 'queued'
     fallback.assert_called_once()
@@ -257,7 +259,6 @@ def test_required_cloud_tasks_rejects_rest_admission_before_outbox_mutation(monk
         lifecycle_service.request_finalization(
             'uid-1',
             'conversation-1',
-            has_byok_keys=False,
             require_cloud_tasks=True,
         )
 
@@ -269,7 +270,7 @@ def test_durable_finalization_maps_exhausted_firestore_contention_to_retryable_a
     monkeypatch.setattr(lifecycle_service.jobs_db, 'create_or_get_finalization_intent', create)
 
     with pytest.raises(lifecycle_service.FinalizationDispatchUnavailable) as raised:
-        lifecycle_service.request_finalization('uid-1', 'conversation-1', has_byok_keys=False)
+        lifecycle_service.request_finalization('uid-1', 'conversation-1')
 
     assert isinstance(raised.value.__cause__, FirestoreContentionExhausted)
     create.assert_called_once()
@@ -328,38 +329,6 @@ def test_finalization_status_exposes_retry_and_terminal_state(monkeypatch):
     }
 
 
-def test_byok_live_session_uses_pusher_even_when_platform_jobs_use_cloud_tasks(monkeypatch):
-    intent = {'job_id': 'job-1', 'status': 'blocked_byok', 'dispatch_generation': 1, 'requires_byok': True}
-    enqueue = MagicMock()
-    _mock_lifecycle_conversation(monkeypatch)
-    resumed = {'job_id': 'job-1', 'status': 'queued', 'dispatch_generation': 1, 'requires_byok': True}
-    monkeypatch.setattr(lifecycle_service.jobs_db, 'create_or_get_finalization_intent', MagicMock(return_value=intent))
-    monkeypatch.setattr(lifecycle_service, 'is_listen_finalization_dispatch_enabled', lambda: True)
-    monkeypatch.setattr(lifecycle_service, 'enqueue_listen_finalization_job', enqueue)
-    monkeypatch.setattr(
-        lifecycle_service.jobs_db, 'resume_blocked_byok_job_for_live_session', MagicMock(return_value=resumed)
-    )
-
-    result = lifecycle_service.request_finalization('uid-1', 'conversation-1', has_byok_keys=True)
-
-    assert result['route'] == 'pusher'
-    enqueue.assert_not_called()
-
-
-def test_byok_job_without_current_keys_remains_explicitly_blocked(monkeypatch):
-    intent = {'job_id': 'job-1', 'status': 'blocked_byok', 'dispatch_generation': 1, 'requires_byok': True}
-    resume = MagicMock()
-    _mock_lifecycle_conversation(monkeypatch)
-    monkeypatch.setattr(lifecycle_service.jobs_db, 'create_or_get_finalization_intent', MagicMock(return_value=intent))
-    monkeypatch.setattr(lifecycle_service, 'is_listen_finalization_dispatch_enabled', lambda: False)
-    monkeypatch.setattr(lifecycle_service.jobs_db, 'resume_blocked_byok_job_for_live_session', resume)
-
-    result = lifecycle_service.request_finalization('uid-1', 'conversation-1', has_byok_keys=False)
-
-    assert result['route'] == 'blocked_byok'
-    resume.assert_not_called()
-
-
 def test_lifecycle_runtime_persists_the_fuzzer_decisions_fanout_key(monkeypatch):
     original_decider = lifecycle_service.decide_finalization
     decider = MagicMock(side_effect=original_decider)
@@ -367,7 +336,6 @@ def test_lifecycle_runtime_persists_the_fuzzer_decisions_fanout_key(monkeypatch)
         'job_id': 'job-1',
         'status': 'queued',
         'dispatch_generation': 1,
-        'requires_byok': False,
         'fanout_key': 'conversation:conversation-1:finalization:1',
     }
     create_intent = MagicMock(return_value=intent)
@@ -375,7 +343,7 @@ def test_lifecycle_runtime_persists_the_fuzzer_decisions_fanout_key(monkeypatch)
     monkeypatch.setattr(lifecycle_service.jobs_db, 'create_or_get_finalization_intent', create_intent)
     monkeypatch.setattr(lifecycle_service, 'is_listen_finalization_dispatch_enabled', lambda: False)
 
-    result = lifecycle_service.request_finalization('uid-1', 'conversation-1', has_byok_keys=False)
+    result = lifecycle_service.request_finalization('uid-1', 'conversation-1')
 
     assert result['route'] == 'pusher'
     admission = create_intent.call_args.kwargs['finalization_admission'](
@@ -410,13 +378,12 @@ def test_lifecycle_runtime_rejects_late_terminal_finalization(monkeypatch, statu
             'job_id': None,
             'status': admission['reason'],
             'dispatch_generation': None,
-            'requires_byok': False,
             'fanout_key': None,
         }
 
     monkeypatch.setattr(lifecycle_service.jobs_db, 'create_or_get_finalization_intent', create_intent)
 
-    result = lifecycle_service.request_finalization('uid-1', 'conversation-1', has_byok_keys=False)
+    result = lifecycle_service.request_finalization('uid-1', 'conversation-1')
 
     assert result['route'] == 'noop'
     assert observed == {'accepted': False, 'terminal': True, 'reason': 'terminal', 'fanout_key': None}
@@ -777,7 +744,6 @@ async def test_pusher_claims_the_durable_job_before_finalizing(monkeypatch):
     claim.assert_called_once_with(
         'job-1',
         3,
-        allow_byok=False,
         expected_uid='uid-1',
         expected_conversation_id='conversation-1',
     )

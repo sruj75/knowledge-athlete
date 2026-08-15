@@ -25,9 +25,7 @@ from llm_gateway.gateway.auth import ServiceAuthDependency
 from llm_gateway.gateway.config_loader import GatewayConfig
 from llm_gateway.gateway.credentials import (
     CredentialContext,
-    build_byok_credential_context,
     build_omi_managed_credential_context,
-    parse_forwarded_byok_headers,
 )
 from llm_gateway.gateway.errors import (
     GatewayError,
@@ -63,10 +61,7 @@ from llm_gateway.routers.dependencies import get_gateway_config, get_provider_re
 router = APIRouter()
 _image_generation_client: httpx.AsyncClient | None = None
 
-# The provider throttled the caller's own key. These reach the router as a
-# credential failure, but they are not a bad credential: answering 401 tells
-# callers the key is invalid and makes a transient failure look permanent.
-_THROTTLED_FAILURE_CLASSES = frozenset({FailureClass.BYOK_RATE_LIMIT, FailureClass.BYOK_QUOTA})
+_THROTTLED_FAILURE_CLASSES = frozenset({FailureClass.PROVIDER_429_OMI_PAID})
 
 
 @router.post('/v1/chat/completions', response_model=None)
@@ -86,13 +81,13 @@ async def create_chat_completion(
     try:
         request_body = await _request_json(request)
         resolved_route = resolve_chat_completion_route(config, request_body)
-        credentials = _resolve_credentials(request, caller)
-        credential_source = credentials.source.value
+        credentials = _resolve_credentials(caller)
+        credential_source = 'omi_managed'
         accounting_context = _accounting_context(
             request_id=request_id,
             caller=caller,
             api_surface='openai_chat_completions',
-            payer='byok' if credentials.mode.value == 'byok' else 'omi',
+            payer='omi',
             fallback_feature=resolved_route.lane.lane_id,
         )
         is_streaming = resolved_route.validated_request.forwarded_params.get('stream') is True
@@ -238,10 +233,7 @@ async def _request_json(request: Request) -> dict[str, Any]:
     return cast(dict[str, Any], body)
 
 
-def _resolve_credentials(request: Request, caller: ServiceAuthDependency) -> CredentialContext:
-    forwarded = parse_forwarded_byok_headers(request.headers)
-    if forwarded:
-        return build_byok_credential_context(caller, forwarded)
+def _resolve_credentials(caller: ServiceAuthDependency) -> CredentialContext:
     return build_omi_managed_credential_context(caller)
 
 
@@ -489,7 +481,7 @@ async def _prepared_streaming_iterator(
                 cache_requested=cache_requested_for_openai_request(provider_request),
             )
         except ProviderFailure as exc:
-            last_error = _map_provider_failure(exc, credentials, provider_ref)
+            last_error = _map_provider_failure(exc, provider_ref)
             attempt_trace.record(
                 provider=provider_ref.provider,
                 configured_model=provider_ref.model,
@@ -570,7 +562,7 @@ async def _stream_with_terminal_metrics(
                 route_artifact_id=route.route_artifact_id,
                 provider=prepared.provider,
                 model=prepared.model,
-                credential_source=credentials.source.value,
+                credential_source='omi_managed',
                 used_lkg=route is resolved_route.last_known_good_route,
                 fallback_used=prepared.fallback_used,
                 fallback_reason=prepared.fallback_reason,

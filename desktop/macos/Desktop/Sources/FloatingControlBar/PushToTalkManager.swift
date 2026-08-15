@@ -2371,7 +2371,7 @@ extension PushToTalkManager {
     return true
   }
 
-  // Phase 1 key resolution: env (dev) → TODO BYOK / backend-minted token.
+  // Phase 1 key resolution: env (dev) → backend-minted token.
   fileprivate func resolveOmniKey(for provider: RealtimeOmniProvider) -> String? {
     let env = ProcessInfo.processInfo.environment
     let raw: String?

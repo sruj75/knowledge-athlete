@@ -266,10 +266,7 @@ def _try_reactivate_subscription(uid: str, target_price_id: str) -> dict | None:
 
 @router.get('/v1/payments/available-plans', response_model=AvailablePlansResponse)
 def get_available_plans_endpoint(
-    # Payment / plan surfaces must stay reachable even if BYOK fingerprints
-    # drift (e.g. user rotated a key locally without re-activating). Otherwise
-    # a broken-BYOK user can't see or change their plan to recover.
-    uid: str = Depends(auth.get_current_user_uid_no_byok_validation),
+    uid: str = Depends(auth.get_current_user_uid),
     x_app_platform: Optional[str] = Header(None, alias='X-App-Platform'),
     x_app_version: Optional[str] = Header(None, alias='X-App-Version'),
 ):
@@ -419,11 +416,10 @@ class OverageInfoResponse(BaseModel):
     explainer_title: str
     explainer_body: str
     provider_reference_rates: dict
-    byok_available: bool = True
 
 
 @router.get('/v1/payments/overage-info', response_model=OverageInfoResponse)
-def get_overage_info_endpoint(uid: str = Depends(auth.get_current_user_uid_no_byok_validation)):
+def get_overage_info_endpoint(uid: str = Depends(auth.get_current_user_uid)):
     """Explain overage billing + return the user's current accrued charge.
 
     Powers the clickable "What happens past the limit?" text on the plan page.

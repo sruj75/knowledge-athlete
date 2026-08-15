@@ -31,7 +31,6 @@ LIFECYCLE_METHODS = {
 GENERIC_LIFECYCLE_MUTATION_METHODS = {'update_conversation'}
 FINALIZATION_ADMISSION_METHODS = {
     'create_or_get_finalization_intent',
-    'resume_blocked_byok_job_for_live_session',
 }
 LIFECYCLE_FIELDS = {
     'status',

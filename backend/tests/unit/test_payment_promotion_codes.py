@@ -170,7 +170,6 @@ def _setup_payment_module(include_client: bool = True) -> Any:
 
     endpoints_mod = sys.modules["utils.other.endpoints"]
     endpoints_mod.get_current_user_uid = lambda: "test-uid"
-    endpoints_mod.get_current_user_uid_no_byok_validation = lambda: "test-uid"
 
     overage_mod = sys.modules["utils.overage"]
     overage_mod.OVERAGE_EXPLAINER_TITLE = ""
@@ -217,7 +216,6 @@ def _setup_payment_module(include_client: bool = True) -> Any:
     app = FastAPI()
     app.include_router(payment_router.router)
     app.dependency_overrides[payment_router.auth.get_current_user_uid] = lambda: "test-uid"
-    app.dependency_overrides[payment_router.auth.get_current_user_uid_no_byok_validation] = lambda: "test-uid"
 
     return TestClient(app), payment_router
 

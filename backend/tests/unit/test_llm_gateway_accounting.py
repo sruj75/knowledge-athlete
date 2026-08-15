@@ -234,19 +234,8 @@ def test_rate_card_estimate_uses_cached_input_price_and_never_priceless_unknowns
         error_class='none',
         metadata=ProviderResponseMetadata(usage=ProviderUsage(prompt_tokens=10, uncached_input_tokens=10)),
     )
-    byok_context = AccountingContext(
-        invocation_id='invocation-byok',
-        request_id='request-byok',
-        caller='backend',
-        user_uid='user-123',
-        feature='chat',
-        api_surface='openai_chat_completions',
-        payer='byok',
-    )
-
     priced = build_accounting_event(context, priced_attempt)
     unknown = build_accounting_event(context, unknown_attempt)
-    byok = build_accounting_event(byok_context, priced_attempt)
 
     assert priced.cost_status == CostStatus.ESTIMATED
     assert priced.estimated_cost_micro_usd == 1_414_000
@@ -254,8 +243,6 @@ def test_rate_card_estimate_uses_cached_input_price_and_never_priceless_unknowns
     assert priced.rate_card_id == 'openai.gpt-5.4-nano.2026-07-17'
     assert unknown.cost_status == CostStatus.UNPRICED
     assert unknown.estimated_cost_micro_usd is None
-    assert byok.cost_status == CostStatus.NOT_OMI_COST
-    assert byok.estimated_cost_micro_usd == 0
 
 
 def test_anthropic_cache_write_uses_the_requested_ttl_rate() -> None:

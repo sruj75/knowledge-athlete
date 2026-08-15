@@ -528,8 +528,7 @@ async def create_memories_batch(
 
     # Persist to Firestore first — that write is the authoritative result.
     # Mirror create_memory above: isolate the best-effort vector upsert so a
-    # transient/BYOK embedding failure (e.g. an OpenAI key without
-    # text-embedding-3-large access -> 403) can't 500 a request whose memories
+    # transient embedding failure can't 500 a request whose memories
     # were already saved, which would make the client retry and duplicate them.
     try:
         await run_blocking(

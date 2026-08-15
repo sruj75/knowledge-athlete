@@ -15,7 +15,6 @@ import redis as redis_pkg
 from database.redis_db import check_rate_limit, try_acquire_listen_lock
 from database.users import record_client_device, record_user_platform
 from utils.client_device import resolve_client_device
-from utils.byok import validate_byok_request
 from utils.executors import critical_executor, run_blocking
 from utils.rate_limit_config import RATE_POLICIES, RATE_LIMIT_SHADOW, get_effective_limit
 
@@ -94,60 +93,6 @@ def get_current_user_uid(
     write per (uid, platform) every 10 minutes. Failures here never fail the
     request — it's telemetry, not auth.
 
-    Also validates BYOK headers against Firestore enrollment (if applicable).
-    """
-    if not authorization:
-        raise HTTPException(status_code=401, detail="Authorization header not found")
-    elif len(str(authorization).split(' ')) != 2:
-        raise HTTPException(status_code=401, detail="Invalid authorization token")
-
-    token = authorization.split(' ')[1]
-    try:
-        uid = verify_token(token)
-    except InvalidIdTokenError as e:
-        logger.error(e)
-        raise HTTPException(status_code=401, detail="Invalid authorization token")
-
-    try:
-        record_user_platform(uid, x_app_platform)
-    except Exception as e:  # noqa: BLE001 — telemetry must never fail the request
-        logger.debug("record_user_platform swallowed error for uid=%s: %s", uid, e)
-
-    try:
-        device_ctx = resolve_client_device(
-            x_app_platform=x_app_platform,
-            x_device_id_hash=x_device_id_hash,
-            x_app_version=x_app_version,
-        )
-        record_client_device(
-            uid,
-            client_device_id=device_ctx.client_device_id,
-            platform=device_ctx.platform,
-            app_version=device_ctx.app_version,
-        )
-    except Exception as e:  # noqa: BLE001 — telemetry must never fail the request
-        logger.debug("record_client_device swallowed error for uid=%s: %s", uid, e)
-
-    # Validate BYOK keys against Firestore enrollment for ALL authenticated
-    # HTTP endpoints.  Runs after auth so we have the uid.  Lightweight: uses
-    # a 30-second TTL cache for Firestore state, and is a no-op when no BYOK
-    # headers are present.
-    validate_byok_request(uid)
-
-    return uid
-
-
-def get_current_user_uid_no_byok_validation(
-    authorization: str = Header(None),
-    x_app_platform: str = Header(None, alias='X-App-Platform'),
-    x_device_id_hash: str = Header(None, alias='X-Device-Id-Hash'),
-    x_app_version: str = Header(None, alias='X-App-Version'),
-) -> str:
-    """Auth dependency that skips BYOK fingerprint validation.
-
-    Used ONLY by the BYOK activation/deactivation endpoints — those need to
-    update Firestore fingerprints, so validating the old fingerprints first
-    would deadlock key rotation.
     """
     if not authorization:
         raise HTTPException(status_code=401, detail="Authorization header not found")

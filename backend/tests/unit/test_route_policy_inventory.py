@@ -15,7 +15,6 @@ def _policy(**overrides):
     policy = {
         'review_status': 'reviewed',
         'auth': {'mechanisms': ['unknown'], 'scopes': [], 'placement': 'unknown'},
-        'byok': 'unknown',
         'rate_limit': {
             'policy_name': 'unknown',
             'key_subject': 'unknown',
@@ -63,7 +62,6 @@ def _write_manifest(tmp_path: Path, routes) -> Path:
                 *[f'          - {mechanism}' for mechanism in route['policy']['auth']['mechanisms']],
                 '        scopes: []',
                 f"        placement: {route['policy']['auth']['placement']}",
-                f"      byok: {route['policy']['byok']}",
                 '      rate_limit:',
                 f"        policy_name: {route['policy']['rate_limit']['policy_name']}",
                 f"        key_subject: {route['policy']['rate_limit']['key_subject']}",

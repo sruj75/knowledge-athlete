@@ -618,7 +618,7 @@ enum RealtimeHubLifecyclePolicy {
 /// Immutable account identity attached to a realtime socket, its context, and
 /// every token mint that may create or replace it. `signedOut` is a real scope,
 /// distinct from the absence of a session, so a later sign-in cannot inherit a
-/// socket that was warmed from signed-out/BYOK state.
+/// socket that was warmed from signed-out state.
 enum RealtimeHubOwnerScope: Equatable, Sendable {
   case authenticated(String)
   case signedOut

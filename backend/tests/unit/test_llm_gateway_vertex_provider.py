@@ -7,7 +7,7 @@ import pytest
 
 from llm_gateway.gateway import providers as provider_module
 from llm_gateway.gateway.auth import ServiceCaller
-from llm_gateway.gateway.credentials import build_byok_credential_context, build_omi_managed_credential_context
+from llm_gateway.gateway.credentials import build_omi_managed_credential_context
 from llm_gateway.gateway.providers import ProviderFailure, VertexAccessTokenSupplier, VertexGeminiProvider
 from llm_gateway.gateway.schemas import FailureClass, ProviderRef
 from llm_gateway.routers import dependencies
@@ -150,25 +150,6 @@ async def test_vertex_provider_translates_native_sse_to_openai_sse(monkeypatch):
     assert b'"finish_reason":"stop"' in streamed
     assert b'"usage":{"prompt_tokens":10' in streamed
     assert streamed.endswith(b'data: [DONE]\n\n')
-
-
-@pytest.mark.asyncio
-async def test_vertex_provider_rejects_gemini_byok_before_making_request(monkeypatch):
-    monkeypatch.setenv('GOOGLE_CLOUD_PROJECT', 'test-project')
-    provider = VertexGeminiProvider(
-        http_client=httpx.AsyncClient(transport=httpx.MockTransport(lambda request: pytest.fail('unexpected request'))),
-        access_token_supplier=_access_token,
-    )
-
-    with pytest.raises(ProviderFailure) as exc_info:
-        await provider.create_chat_completion(
-            {'model': 'gemini-2.5-flash-lite', 'messages': [{'role': 'user', 'content': 'hello'}]},
-            provider_ref=ProviderRef(provider='gemini', model='gemini-2.5-flash-lite'),
-            credentials=build_byok_credential_context(ServiceCaller(name='backend'), {'gemini': 'byok-key'}),
-            timeout_ms=8000,
-        )
-
-    assert exc_info.value.failure_class == FailureClass.BYOK_UNSUPPORTED_PROVIDER
 
 
 @pytest.mark.asyncio

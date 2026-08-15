@@ -133,11 +133,3 @@ class TestProfileFeatureParity:
         extra_in_max = max_features - premium_features
         assert not missing_in_max, f"Features in premium but missing in max: {missing_in_max}"
         assert not extra_in_max, f"Features in max but missing in premium: {extra_in_max}"
-
-    def test_same_features_as_byok(self):
-        premium_features = set(MODEL_QOS_PROFILES['premium'].keys())
-        byok_features = set(MODEL_QOS_PROFILES['byok'].keys())
-        missing_in_byok = premium_features - byok_features
-        extra_in_byok = byok_features - premium_features
-        assert not missing_in_byok, f"Features in premium but missing in byok: {missing_in_byok}"
-        assert not extra_in_byok, f"Features in byok but missing in premium: {extra_in_byok}"

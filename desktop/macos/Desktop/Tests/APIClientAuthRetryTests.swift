@@ -515,7 +515,7 @@ import XCTest
         )
         XCTFail("Expected unauthorized failure")
       } catch APIError.unauthorized {
-        // Bare/Firebase-shaped 401 must not become providerAuth (BYOK poison).
+        // Bare/Firebase-shaped 401 must not become providerAuth.
       } catch {
         XCTFail("Unexpected error: \(error)")
       }

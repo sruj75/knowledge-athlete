@@ -7,18 +7,14 @@ import pytest
 from routers import desktop_chat
 
 
-def test_anthropic_adapter_ignores_legacy_customer_key(monkeypatch):
+def test_anthropic_adapter_uses_managed_client(monkeypatch):
     from utils.llm import clients
 
     managed_messages = object()
     proxy = clients._AnthropicClientProxy(default=SimpleNamespace(messages=managed_messages))
-    customer_factory = MagicMock(side_effect=AssertionError('legacy key selected an Anthropic client'))
-    monkeypatch.setattr(clients, 'get_byok_key', lambda _provider: 'legacy-customer-key')
     monkeypatch.setattr(clients, 'should_route_features_through_gateway', lambda: False)
-    monkeypatch.setattr(clients, '_cached_anthropic', customer_factory)
 
     assert proxy.messages is managed_messages
-    customer_factory.assert_not_called()
 
 
 def test_request_translates_openai_tool_history_and_alias():
@@ -115,21 +111,15 @@ async def test_stream_emits_openai_terminal_event(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_server_metering_fails_closed_even_with_legacy_customer_key(monkeypatch):
-    from utils.byok import set_byok_keys
-
+async def test_server_metering_fails_closed_when_rate_limit_storage_fails(monkeypatch):
     async def run_blocking(_, function, *args):
         return function(*args)
 
     monkeypatch.setattr(desktop_chat, 'run_blocking', run_blocking)
     monkeypatch.setattr(desktop_chat.redis_db, 'check_rate_limit', lambda *_: (_ for _ in ()).throw(RuntimeError()))
 
-    set_byok_keys({'anthropic': 'legacy-customer-key'})
-    try:
-        with pytest.raises(desktop_chat.HTTPException) as error:
-            await desktop_chat._meter_server_request('user')
-    finally:
-        set_byok_keys({})
+    with pytest.raises(desktop_chat.HTTPException) as error:
+        await desktop_chat._meter_server_request('user')
     assert error.value.status_code == 503
 
 

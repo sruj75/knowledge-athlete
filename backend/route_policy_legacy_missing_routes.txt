@@ -20,7 +20,6 @@ backend-main:http:DELETE:/v1/staged-tasks
 backend-main:http:DELETE:/v1/staged-tasks/{task_id}
 backend-main:http:DELETE:/v1/users/daily-summaries/{summary_id}
 backend-main:http:DELETE:/v1/users/delete-account
-backend-main:http:DELETE:/v1/users/me/byok-active
 backend-main:http:DELETE:/v1/users/people/{person_id}
 backend-main:http:DELETE:/v1/users/people/{person_id}/speech-samples/{sample_index}
 backend-main:http:DELETE:/v1/users/store-recording-permission
@@ -221,7 +220,6 @@ backend-main:http:POST:/v1/users/analytics/memory_summary
 backend-main:http:POST:/v1/users/daily-summaries/{summary_id}/regenerate
 backend-main:http:POST:/v1/users/daily-summary-settings/test
 backend-main:http:POST:/v1/users/fcm-token
-backend-main:http:POST:/v1/users/me/byok-active
 backend-main:http:POST:/v1/users/me/llm-usage
 backend-main:http:POST:/v1/users/migration/batch-requests
 backend-main:http:POST:/v1/users/migration/requests

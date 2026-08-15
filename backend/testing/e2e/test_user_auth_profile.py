@@ -101,7 +101,7 @@ def test_people_crud_without_speech_sample_signing(client, auth_headers):
     assert missing.status_code == 404
 
 
-def test_notification_assistant_ai_profile_and_byok_state(client, auth_headers):
+def test_notification_assistant_and_ai_profile(client, auth_headers):
     _seed_user()
 
     notif = client.get("/v1/users/notification-settings", headers=auth_headers)
@@ -161,19 +161,3 @@ def test_notification_assistant_ai_profile_and_byok_state(client, auth_headers):
     assert ai_merge.status_code == 200, ai_merge.text
     assert ai_merge.json()["profile_text"] == "E2E profile"
     assert ai_merge.json()["data_sources_used"] == 3
-
-    bad_byok = client.post(
-        "/v1/users/me/byok-active",
-        json={"fingerprints": {"openai": "a" * 64}},
-        headers=auth_headers,
-    )
-    assert bad_byok.status_code == 400
-
-    good_fingerprints = {provider: "a" * 64 for provider in ["openai", "anthropic", "gemini", "deepgram"]}
-    byok = client.post("/v1/users/me/byok-active", json={"fingerprints": good_fingerprints}, headers=auth_headers)
-    assert byok.status_code == 200, byok.text
-    assert byok.json() == {"active": True}
-
-    deactivate = client.delete("/v1/users/me/byok-active", headers=auth_headers)
-    assert deactivate.status_code == 200, deactivate.text
-    assert deactivate.json() == {"active": False}

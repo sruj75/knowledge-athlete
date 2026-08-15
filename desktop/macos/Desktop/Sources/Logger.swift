@@ -358,7 +358,7 @@ func isNonActionableTransient(_ error: Error?) -> Bool {
     return true
   }
   // Embedding backfills/searches can hit expected backend/product states (trial
-  // expired/BYOK required, rate limit, 5xx). Keep those local-only so screenshot
+  // expired/authentication required, rate limit, 5xx). Keep those local-only so screenshot
   // backfill loops don't create high-volume Sentry issues.
   if let embeddingError = error as? EmbeddingService.EmbeddingError,
     embeddingError.isNonActionableForSentry

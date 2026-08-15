@@ -185,8 +185,6 @@ def _validate_route_matches_lane(lane: LaneConfig, artifact: RouteArtifact, poin
         raise ConfigValidationError(f'{prefix} structured_output mismatch')
     if artifact.capabilities != lane.capabilities:
         raise ConfigValidationError(f'{prefix} capabilities mismatch')
-    if artifact.credential_policy.mode != lane.credential_policy.mode:
-        raise ConfigValidationError(f'{prefix} credential mode mismatch: {artifact.credential_policy.mode}')
 
 
 def _validate_feature_bundles(feature_bundles: dict[str, FeatureBundle], lanes: dict[str, LaneConfig]) -> None:
@@ -255,11 +253,6 @@ def _generated_feature_route_items(
                 'fallback_policy': {
                     'fallback_on': ['timeout_before_output', 'provider_429_omi_paid', 'provider_5xx_omi_paid'],
                     'never_fallback_on': [
-                        'byok_auth',
-                        'byok_quota',
-                        'byok_rate_limit',
-                        'byok_unsupported_provider',
-                        'missing_byok_key',
                         'capability_mismatch',
                         'provider_invalid_request',
                         'invalid_config',
@@ -310,19 +303,12 @@ def _capabilities_for_feature(feature: str, *, provider: str, surface: str) -> d
 
 def _credential_policy() -> dict[str, Any]:
     return {
-        'mode': 'omi_paid',
-        'allow_byok_to_omi_paid_fallback': False,
         'fallback_eligible_failure_classes': [
             'timeout_before_output',
             'provider_429_omi_paid',
             'provider_5xx_omi_paid',
         ],
         'never_fallback_failure_classes': [
-            'byok_auth',
-            'byok_quota',
-            'byok_rate_limit',
-            'byok_unsupported_provider',
-            'missing_byok_key',
             'capability_mismatch',
             'provider_invalid_request',
             'invalid_config',

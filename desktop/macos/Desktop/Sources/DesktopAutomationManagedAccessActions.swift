@@ -24,7 +24,6 @@ extension DesktopAutomationActionRegistry {
         "ask_mode_enabled": UserDefaults.standard.bool(forKey: "askModeEnabled") ? "true" : "false",
         "access_model": "managed",
         "customer_key_controls_visible": "false",
-        "free_byok_promo_visible": "false",
       ]
     }
 
