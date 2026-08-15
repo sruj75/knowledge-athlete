@@ -2,29 +2,19 @@ import XCTest
 
 @testable import Omi_Computer
 
-/// Captures the outgoing request and answers `{"status":"ok"}` so we can assert
-/// that the how-did-you-hear answer is PATCHed to the backend onboarding state.
-private final class AcquisitionSourceURLCapture: URLProtocol, @unchecked Sendable {
+private final class UnexpectedAcquisitionNetworkRequest: URLProtocol, @unchecked Sendable {
   private static let lock = NSLock()
-  private nonisolated(unsafe) static var _request: URLRequest?
-  private nonisolated(unsafe) static var _body: Data?
+  private nonisolated(unsafe) static var _requestCount = 0
 
-  static var request: URLRequest? {
+  static var requestCount: Int {
     lock.lock()
     defer { lock.unlock() }
-    return _request
-  }
-
-  static var body: Data? {
-    lock.lock()
-    defer { lock.unlock() }
-    return _body
+    return _requestCount
   }
 
   static func reset() {
     lock.lock()
-    _request = nil
-    _body = nil
+    _requestCount = 0
     lock.unlock()
   }
 
@@ -32,87 +22,44 @@ private final class AcquisitionSourceURLCapture: URLProtocol, @unchecked Sendabl
   override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
 
   override func startLoading() {
-    let body = Self.bodyData(from: request)
     Self.lock.lock()
-    Self._request = request
-    Self._body = body
+    Self._requestCount += 1
     Self.lock.unlock()
-
-    guard let url = request.url,
-      let response = HTTPURLResponse(
-        url: url,
-        statusCode: 200,
-        httpVersion: nil,
-        headerFields: ["Content-Type": "application/json"])
-    else {
-      client?.urlProtocolDidFinishLoading(self)
-      return
-    }
-    client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
-    client?.urlProtocol(self, didLoad: Data("{\"status\":\"ok\"}".utf8))
-    client?.urlProtocolDidFinishLoading(self)
+    client?.urlProtocol(self, didFailWithError: URLError(.dataNotAllowed))
   }
 
   override func stopLoading() {}
-
-  private static func bodyData(from request: URLRequest) -> Data? {
-    if let body = request.httpBody {
-      return body
-    }
-    guard let stream = request.httpBodyStream else {
-      return nil
-    }
-    stream.open()
-    defer { stream.close() }
-    var body = Data()
-    let buffer = UnsafeMutablePointer<UInt8>.allocate(capacity: 4_096)
-    defer { buffer.deallocate() }
-    while stream.hasBytesAvailable {
-      let readCount = stream.read(buffer, maxLength: 4_096)
-      if readCount > 0 {
-        body.append(buffer, count: readCount)
-      } else {
-        break
-      }
-    }
-    return body
-  }
 }
 
+@MainActor
 final class OnboardingAcquisitionSourceTests: XCTestCase {
-  override func setUp() {
-    super.setUp()
-    AcquisitionSourceURLCapture.reset()
-    setenv("OMI_PYTHON_API_URL", "http://acquisition-contract-test:9001", 1)
-  }
+  func testSelectionPersistsLocallyTracksOnceAndAdvancesWithoutRemoteState() {
+    let suiteName = "OnboardingAcquisitionSourceTests.\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: suiteName)!
+    defer { defaults.removePersistentDomain(forName: suiteName) }
+    var analyticsSources: [String] = []
+    let recorder = OnboardingAcquisitionSourceRecorder(
+      defaults: defaults,
+      track: { analyticsSources.append($0) })
+    let model = SBOnboardingModel(
+      appState: AppState(),
+      chatProvider: ChatProvider(),
+      acquisitionSourceRecorder: recorder,
+      onComplete: nil)
+    model.step = .howHeard
 
-  override func tearDown() {
-    unsetenv("OMI_PYTHON_API_URL")
-    AcquisitionSourceURLCapture.reset()
-    super.tearDown()
-  }
+    UnexpectedAcquisitionNetworkRequest.reset()
+    XCTAssertTrue(URLProtocol.registerClass(UnexpectedAcquisitionNetworkRequest.self))
+    defer { URLProtocol.unregisterClass(UnexpectedAcquisitionNetworkRequest.self) }
 
-  private func makeClient() async -> APIClient {
-    let configuration = URLSessionConfiguration.ephemeral
-    configuration.protocolClasses = [AcquisitionSourceURLCapture.self]
-    let client = APIClient(session: URLSession(configuration: configuration))
-    await client.setTestAuthHeader("Bearer test-token")
-    return client
-  }
+    model.pickHowHeard("YouTube")
 
-  func testUpdateAcquisitionSourcePatchesOnboardingStateWithSnakeCaseBody() async throws {
-    let client = await makeClient()
-
-    let status = try await client.updateOnboardingAcquisitionSource("YouTube")
-
-    XCTAssertEqual(status, "ok")
-    let request = try XCTUnwrap(AcquisitionSourceURLCapture.request)
-    XCTAssertEqual(request.httpMethod, "PATCH")
-    XCTAssertEqual(request.url?.path, "/v1/users/onboarding")
-    let json = try XCTUnwrap(
-      JSONSerialization.jsonObject(with: try XCTUnwrap(AcquisitionSourceURLCapture.body))
-        as? [String: Any])
-    // Must be the snake_case key the backend reads, not a camelCase Swift name.
-    XCTAssertEqual(json["acquisition_source"] as? String, "YouTube")
+    XCTAssertEqual(
+      defaults.string(forKey: DefaultsKey.onboardingHowDidYouHearSource),
+      "YouTube")
+    XCTAssertEqual(analyticsSources, ["YouTube"])
+    XCTAssertEqual(model.howHeard, "YouTube")
+    XCTAssertEqual(model.step, .language)
+    XCTAssertEqual(UnexpectedAcquisitionNetworkRequest.requestCount, 0)
   }
 }

@@ -1,13 +1,14 @@
 version: 2
 name: logout
 tier: manual
-description: Sign out via bridge sign_out — local Auth emulator only, not prod OAuth (Live P2)
+description: Sign out from the real status-menu entry — local Auth emulator only, not prod OAuth (Live P2)
 app: com.omi.computer-macos
 covers:
   - desktop/macos/Desktop/Sources/Auth/AuthOwnerTransition.swift
   - desktop/macos/Desktop/Sources/Auth/FirebaseAuthAvailability.swift
   - desktop/macos/Desktop/Sources/AuthService.swift
   - desktop/macos/Desktop/Sources/Chat/RuntimeOwnerIdentity.swift
+  - desktop/macos/Desktop/Sources/Auth/ExplicitSignOutAction.swift
   - desktop/macos/Desktop/Sources/OmiApp.swift
   - desktop/macos/Desktop/Sources/SignInView.swift
 preconditions:
@@ -23,12 +24,8 @@ steps:
       result.detail.is_signed_in: "true"
 
   - id: S2
-    name: Sign out via bridge (local Auth emulator)
-    bridge.action:
-      name: sign_out
-    expect:
-      result.detail.signed_out: "true"
-      result.detail.is_signed_in: "false"
+    name: Sign out from the status menu
+    do: "Open the Omi menu-bar item and click Sign Out. This must use AppDelegate.signOut and ExplicitSignOutAction, not the bridge sign_out shortcut."
 
   - id: S3
     name: Verify signed-out state

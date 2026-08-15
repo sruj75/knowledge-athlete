@@ -1,0 +1,36 @@
+version: 2
+name: logout-settings
+tier: manual
+description: Sign out from the real Settings Account entry — local Auth emulator only, not prod OAuth (Live P2)
+app: com.omi.computer-macos
+covers:
+  - desktop/macos/Desktop/Sources/Auth/ExplicitSignOutAction.swift
+  - desktop/macos/Desktop/Sources/MainWindow/Pages/Settings/Sections/SettingsContentView+AccountBilling.swift
+preconditions:
+  - auth_ready
+  - local_auth_emulator
+
+steps:
+  - id: S1
+    name: Baseline signed-in snapshot
+    bridge.action:
+      name: memories_snapshot
+    expect:
+      result.detail.is_signed_in: "true"
+
+  - id: S2
+    name: Sign out from Settings
+    do: "Open Settings, select Account & Plan, and click Sign Out. This must use the Account section button and ExplicitSignOutAction, not the bridge sign_out shortcut."
+
+  - id: S3
+    name: Verify signed-out state
+    bridge.action:
+      name: memories_snapshot
+    expect:
+      result.detail.is_signed_in: "false"
+
+  - id: S4
+    name: Logs clean
+    log.expect:
+      absent:
+        - "DesktopAutomationBridge: failed"

@@ -243,6 +243,19 @@ def test_account_deletion_cloud_task_completes_once_and_redelivery_is_acked(
     assert pending_marker["wipe_status"] == "pending"
     wipe_job_id = pending_marker["wipe_job_id"]
     assert re.fullmatch(r"[0-9a-f]{32}", wipe_job_id)
+
+    legacy_admitted = client.request(
+        "DELETE",
+        "/v1/users/delete-account",
+        json={"reason": "unused", "reason_details": "must not persist", "survey": {"answer": "anything"}},
+        headers=auth_headers,
+    )
+    assert legacy_admitted.status_code == 200, legacy_admitted.text
+    assert legacy_admitted.json() == admitted.json()
+
+    joined_marker = _read_marker(fake_firestore, test_uid)
+    assert joined_marker["wipe_job_id"] == wipe_job_id
+    assert {"reason", "reason_details", "survey"}.isdisjoint(joined_marker)
     payload = _assert_enqueued_task_schema(cloud_tasks_client, wipe_job_id)
 
     unauthenticated = client.post("/v1/users/account-deletion-wipes/run", json=payload)

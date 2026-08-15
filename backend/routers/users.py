@@ -177,12 +177,6 @@ class PrivateCloudSyncResponse(BaseModel):
     private_cloud_sync_enabled: bool
 
 
-class OnboardingStateResponse(BaseModel):
-    completed: bool = False
-    acquisition_source: str = ''
-    device_onboarding_completed: bool = False
-
-
 class UserLanguageResponse(BaseModel):
     language: Optional[str] = None
 
@@ -288,18 +282,10 @@ def get_user_profile_endpoint(uid: str = Depends(auth.get_current_user_uid)):
     return profile
 
 
-class DeleteAccountRequest(BaseModel):
-    reason: Optional[str] = None
-    reason_details: Optional[str] = None
-
-
 @router.delete('/v1/users/delete-account', tags=['v1'], response_model=UserStatusResponse)
-def delete_account(
-    request: DeleteAccountRequest = DeleteAccountRequest(),
-    uid: str = Depends(auth.get_current_user_uid),
-):
+def delete_account(uid: str = Depends(auth.get_current_user_uid)):
     try:
-        return start_account_deletion(uid, reason=request.reason, reason_details=request.reason_details)
+        return start_account_deletion(uid)
     except Exception as e:
         logger.info(f'delete_account {sanitize(str(e))}')
         raise HTTPException(status_code=500, detail='Could not delete account. Please try again.')
@@ -462,42 +448,6 @@ def get_store_recording_permission(uid: str = Depends(auth.get_current_user_uid)
 def delete_permission_and_recordings(uid: str = Depends(auth.get_current_user_uid)):
     set_user_store_recording_permission(uid, False)
     delete_all_conversation_recordings(uid)
-    return {'status': 'ok'}
-
-
-# *************************************************
-# ************* ONBOARDING STATE ******************
-# *************************************************
-
-
-@router.get('/v1/users/onboarding', tags=['v1'], response_model=OnboardingStateResponse)
-def get_onboarding_state(uid: str = Depends(auth.get_current_user_uid)):
-    """Get the user's onboarding state (completed status, acquisition source, etc.)."""
-    state = get_user_onboarding_state(uid)
-    return {
-        'completed': state.get('completed', False),
-        'acquisition_source': state.get('acquisition_source', ''),
-        'device_onboarding_completed': state.get('device_onboarding_completed', False),
-    }
-
-
-class OnboardingStateUpdate(BaseModel):
-    completed: Optional[bool] = None
-    acquisition_source: Optional[str] = None
-    device_onboarding_completed: Optional[bool] = None
-
-
-@router.patch('/v1/users/onboarding', tags=['v1'], response_model=UserStatusResponse)
-def update_onboarding_state(data: OnboardingStateUpdate, uid: str = Depends(auth.get_current_user_uid)):
-    """Update the user's onboarding state."""
-    current_state = get_user_onboarding_state(uid)
-    if data.completed is not None:
-        current_state['completed'] = data.completed
-    if data.acquisition_source is not None:
-        current_state['acquisition_source'] = data.acquisition_source
-    if data.device_onboarding_completed is not None:
-        current_state['device_onboarding_completed'] = data.device_onboarding_completed
-    set_user_onboarding_state(uid, current_state)
     return {'status': 'ok'}
 
 

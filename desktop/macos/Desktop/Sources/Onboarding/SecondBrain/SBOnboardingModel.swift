@@ -128,6 +128,7 @@ final class SBOnboardingModel: ObservableObject {
 
   unowned let appState: AppState
   let chatProvider: ChatProvider
+  private let acquisitionSourceRecorder: OnboardingAcquisitionSourceRecorder
   /// Backend writes for editable answers are per-field serialized. Revisiting a
   /// question never lets an earlier request finish after the user's revision.
   private let answerWriteGate = OnboardingAnswerWriteGate()
@@ -148,10 +149,12 @@ final class SBOnboardingModel: ObservableObject {
   init(
     appState: AppState,
     chatProvider: ChatProvider,
+    acquisitionSourceRecorder: OnboardingAcquisitionSourceRecorder = OnboardingAcquisitionSourceRecorder(),
     onComplete: (() -> Void)?
   ) {
     self.appState = appState
     self.chatProvider = chatProvider
+    self.acquisitionSourceRecorder = acquisitionSourceRecorder
     self.onComplete = onComplete
     // Isolate any onboarding chat/voice turns to the throwaway `.onboarding()`
     // journal surface so they never pollute the real Chat tab. Cleared on
@@ -418,15 +421,10 @@ final class SBOnboardingModel: ObservableObject {
     advance(userAnswer: trimmed, to: .howHeard)
   }
 
-  /// Record the acquisition source (analytics + backend, like the legacy step),
-  /// then move on.
+  /// Record the acquisition source locally and in analytics, then move on.
   func pickHowHeard(_ source: String) {
     howHeard = source
-    UserDefaults.standard.set(source, forKey: DefaultsKey.onboardingHowDidYouHearSource)
-    AnalyticsManager.shared.onboardingHowDidYouHear(source: source)
-    answerWriteGate.enqueue(.acquisitionSource) { [source] in
-      _ = try? await APIClient.shared.updateOnboardingAcquisitionSource(source)
-    }
+    acquisitionSourceRecorder.record(source)
     advance(userAnswer: source, to: .language)
   }
 

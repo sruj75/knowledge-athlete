@@ -25,20 +25,19 @@ def _task_auth(retry_count=0, audience='account_deletion'):
 
 def test_delete_account_delegates_to_service():
     start_account_deletion = MagicMock(return_value={'status': 'ok', 'message': 'Account deletion started'})
-    request = users_router.DeleteAccountRequest(reason='reason', reason_details='details')
 
     with patch.object(users_router, 'start_account_deletion', start_account_deletion):
-        result = users_router.delete_account(request=request, uid='uid1')
+        result = users_router.delete_account(uid='uid1')
 
     assert result == {'status': 'ok', 'message': 'Account deletion started'}
-    start_account_deletion.assert_called_once_with('uid1', reason='reason', reason_details='details')
+    start_account_deletion.assert_called_once_with('uid1')
 
 
 def test_delete_account_maps_unexpected_service_error_to_500():
     start_account_deletion = MagicMock(side_effect=Exception('boom'))
     with patch.object(users_router, 'start_account_deletion', start_account_deletion):
         with pytest.raises(HTTPException) as exc:
-            users_router.delete_account(request=users_router.DeleteAccountRequest(), uid='uid1')
+            users_router.delete_account(uid='uid1')
 
     assert exc.value.status_code == 500
     assert exc.value.detail == 'Could not delete account. Please try again.'
