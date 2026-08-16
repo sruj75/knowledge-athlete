@@ -10,11 +10,12 @@ from google.api_core.exceptions import AlreadyExists, Conflict, FailedPreconditi
 from google.cloud import firestore, firestore_v1
 from google.cloud.firestore_v1 import FieldFilter
 
+from database.firestore_index_registry import STARRED_CHAT_SESSIONS_QUERY
+from database.read_boundary import parse_snapshot_or_none
 from models.chat import Message
 from utils import encryption
 from ._client import db
 from .helpers import prepare_for_read, prepare_for_write, set_data_protection_level
-from database.read_boundary import parse_snapshot_or_none
 
 logger = logging.getLogger(__name__)
 
@@ -726,12 +727,15 @@ def get_chat_sessions(
     # Order by updated_at — v2 sessions always have this field.
     # Legacy v1 sessions (missing updated_at) are excluded by Firestore,
     # which is correct since this endpoint serves v2 clients only.
-    query = col.order_by('updated_at', direction=firestore.Query.DESCENDING)
-
+    query = col
     if starred is not None:
-        query = query.where(filter=FieldFilter('starred', '==', starred))
+        query = STARRED_CHAT_SESSIONS_QUERY.build(
+            query,
+            {'starred': starred},
+            field_filter_factory=FieldFilter,
+        )
 
-    query = query.offset(offset).limit(limit)
+    query = query.order_by('updated_at', direction=firestore.Query.DESCENDING).offset(offset).limit(limit)
     items: List[Dict[str, Any]] = []
     for doc in query.stream():
         data: Dict[str, Any] = _typed_doc(doc)

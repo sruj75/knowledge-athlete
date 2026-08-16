@@ -716,6 +716,23 @@ class TestGetChatSessionsQuery:
 
         mock_col.order_by.assert_called_once_with('updated_at', direction='DESCENDING')
 
+    def test_starred_sessions_use_registered_filter_before_ordering(self):
+        mock_col = MagicMock()
+        mock_query = MagicMock()
+        mock_col.where.return_value = mock_query
+        mock_query.order_by.return_value = mock_query
+        mock_query.offset.return_value = mock_query
+        mock_query.limit.return_value = mock_query
+        mock_query.stream.return_value = []
+
+        with patch.object(chat_db, 'db') as patched_db:
+            patched_db.collection.return_value.document.return_value.collection.return_value = mock_col
+            chat_db.get_chat_sessions('uid', starred=True)
+
+        field_filter_stub.FieldFilter.assert_called_once_with('starred', '==', True)
+        mock_col.where.assert_called_once_with(filter=field_filter_stub.FieldFilter.return_value)
+        mock_query.order_by.assert_called_once_with('updated_at', direction='DESCENDING')
+
 
 class TestCreateChatSession:
     """Verify create_chat_session writes correct fields."""
