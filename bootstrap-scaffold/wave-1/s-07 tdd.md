@@ -511,6 +511,24 @@ contracts, child-process secret scrub, component suites, and static residue
 searches are repository evidence only. Full Wave 1 acceptance remains open on
 the five live paths above even though the repository implementation is complete.
 
+### Final repository verification — 2026-08-16
+
+- The requirements ledger passed with 714 indexed rows and 714 detailed
+  sections.
+- The complete backend component runner passed. The complete desktop runner
+  passed its launcher checks, 8/8 E2E coverage, 34 desktop-backend tests and
+  368 Swift test suites.
+- The agent suite passed 514 tests, the Pi extension passed nine tests, and the
+  agent logic harness passed.
+- The final independent review covered Standards and Spec Compliance
+  separately. Its actionable findings were closed by deleting dead gateway
+  credential-policy plumbing, retaining the exact managed-access boundary,
+  registering the retained starred-chat Firestore query/index, and reconciling
+  SwiftLint with typed defaults and a non-trapping test setup.
+- Final `make preflight` passed all 89 checks selected for the 167-file diff in
+  173.11 seconds. This is repository evidence only and does not close the five
+  live acceptance paths above.
+
 ### Closure residue search
 
 Run after tests, excluding Windows and preserving accurate historical
@@ -546,8 +564,8 @@ fixtures merely because BYOK used the same vendor.
 - [x] Retired `OMI_BYOK_*` names remain scrubbed at the child-process boundary while all constructors/forwarders are gone.
 - [x] S-03/S-05 shared-file ownership was coordinated without duplicate or conflicting edits.
 - [x] IR-606 caller gate is resolved: the orphaned synthesis identity/client/tests are deleted, and the retained realtime higher-model transport has an independent live caller.
-- [ ] Focused tests, desktop/backend component suites, ledger validation and `make preflight` pass.
+- [x] Focused tests, desktop/backend component suites, ledger validation and `make preflight` pass.
 - [x] Named-bundle and backend real-path evidence is recorded accurately, including the five explicitly unexercised live paths above.
 - [x] Residue searches contain only explained historical records, negative guards, the child-process scrub, and retained product-owned credentials.
-- [ ] `engineering:code-review` reports both Standards and Spec axes; findings are fixed and reverified.
-- [ ] Changes are committed locally to the current branch; no push/PR/main action occurred without a separate request.
+- [x] `engineering:code-review` reports both Standards and Spec axes; findings are fixed and reverified.
+- [x] Changes are committed locally to the current branch; no push/PR/main action occurred without a separate request.
