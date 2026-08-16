@@ -33,9 +33,9 @@ private final class UnexpectedAcquisitionNetworkRequest: URLProtocol, @unchecked
 
 @MainActor
 final class OnboardingAcquisitionSourceTests: XCTestCase {
-  func testSelectionPersistsLocallyTracksOnceAndAdvancesWithoutRemoteState() {
+  func testSelectionPersistsLocallyTracksOnceAndAdvancesWithoutRemoteState() throws {
     let suiteName = "OnboardingAcquisitionSourceTests.\(UUID().uuidString)"
-    let defaults = UserDefaults(suiteName: suiteName)!
+    let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
     defer { defaults.removePersistentDomain(forName: suiteName) }
     var analyticsSources: [String] = []
     let recorder = OnboardingAcquisitionSourceRecorder(
