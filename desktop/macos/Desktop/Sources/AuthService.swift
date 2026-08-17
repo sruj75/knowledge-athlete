@@ -431,6 +431,7 @@ class AuthService {
   func commitSignedInSession(
     tokens: FirebaseTokenResult,
     email: String?,
+    incomingName: AuthLocalNameProjection.IncomingName? = nil,
     attempt: AuthSessionAttempt
   ) async throws -> Bool {
     let attemptFence = sessionAttemptFence
@@ -455,7 +456,7 @@ class AuthService {
               expiresIn: tokens.expiresIn,
               userId: tokens.localId)
             let defaults = UserDefaults.standard
-            Self.clearLocalNameProjectionIfOwnerChanges(in: defaults, to: tokens.localId)
+            Self.publishLocalNameProjection(incomingName, in: defaults, to: tokens.localId)
             defaults.set(true, forKey: .authIsSignedIn)
             defaults.set(email, forKey: .authUserEmail)
             defaults.set(tokens.localId, forKey: .authUserId)
@@ -728,16 +729,13 @@ class AuthService {
     NSLog("OMI AUTH: Got Apple identity token")
 
     // Save user name if provided (Apple only sends name on first sign-in)
-    var capturedFreshAppleName = false
+    var incomingAppleName: AuthLocalNameProjection.IncomingName?
     if let fullName = appleCredential.fullName {
       let given = fullName.givenName ?? ""
       let family = fullName.familyName ?? ""
       if !given.isEmpty {
-        givenName = given
-        familyName = family
-        capturedFreshAppleName = true
-        NSLog("OMI AUTH: Saved name from Apple: %@ %@", given, family)
-        postNameDidUpdate()
+        incomingAppleName = .init(given: given, family: family)
+        NSLog("OMI AUTH: Captured name from Apple: %@ %@", given, family)
       }
     }
     if let email = appleCredential.email {
@@ -771,6 +769,7 @@ class AuthService {
       try await commitSignedInSession(
         tokens: nativeSignIn.tokens,
         email: AuthState.shared.userEmail,
+        incomingName: incomingAppleName,
         attempt: sessionAttempt)
     else {
       throw AuthError.cancelled
@@ -778,10 +777,11 @@ class AuthService {
     if let fallbackReason = nativeSignIn.fallbackReason {
       FirebaseAuthAvailability.recordNativeAppleFallback(reason: fallbackReason)
     }
+    if incomingAppleName != nil { postNameDidUpdate() }
 
     if givenName.isEmpty {
       loadNameFromFirebaseIfNeeded()
-    } else if capturedFreshAppleName {
+    } else if incomingAppleName != nil {
       // Session is live now; persist the first-auth Apple name to Firebase so
       // it survives reinstalls (Apple won't resend it).
       let capturedName = displayName
@@ -997,12 +997,10 @@ class AuthService {
         throw AuthError.cancelled
       }
 
-      // Save user info from OAuth response immediately (before Firebase sign-in)
-      // This ensures we have the name even if Firebase session doesn't persist
+      var incomingName: AuthLocalNameProjection.IncomingName?
       if let extractedGivenName = tokenResult.givenName, !extractedGivenName.isEmpty {
-        givenName = extractedGivenName
-        familyName = tokenResult.familyName ?? ""
-        NSLog("OMI AUTH: Saved name from OAuth: %@ %@", givenName, familyName)
+        incomingName = .init(given: extractedGivenName, family: tokenResult.familyName ?? "")
+        NSLog("OMI AUTH: Captured name from OAuth: %@ %@", extractedGivenName, tokenResult.familyName ?? "")
       }
       if let extractedEmail = tokenResult.email {
         AuthState.shared.userEmail = extractedEmail
@@ -1065,10 +1063,12 @@ class AuthService {
         try await commitSignedInSession(
           tokens: firebaseTokens,
           email: tokenResult.email,
+          incomingName: incomingName,
           attempt: sessionAttempt)
       else {
         throw AuthError.cancelled
       }
+      if incomingName != nil { postNameDidUpdate() }
 
       // Fill a missing local projection from the owner-current Firebase identity.
       if givenName.isEmpty {

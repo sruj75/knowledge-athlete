@@ -322,6 +322,22 @@ final class AuthSessionAttemptFenceTests: XCTestCase {
     XCTAssertNil(UserDefaults.standard.string(forKey: .authUserId))
   }
 
+  func testFirstAuthPublishesProviderNameAtomicallyWithIncomingOwner() async throws {
+    let owner = makeOwnerID("first-provider-name")
+    let attempt = auth.beginSessionAttempt()
+
+    let committed = try await auth.commitSignedInSession(
+      tokens: tokens(for: owner),
+      email: "first@example.test",
+      incomingName: .init(given: "First", family: "Apple"),
+      attempt: attempt)
+
+    XCTAssertTrue(committed)
+    XCTAssertEqual(UserDefaults.standard.string(forKey: .authUserId), owner)
+    XCTAssertEqual(UserDefaults.standard.string(forKey: .authGivenName), "First")
+    XCTAssertEqual(UserDefaults.standard.string(forKey: .authFamilyName), "Apple")
+  }
+
   private func tokens(for ownerID: String) -> AuthService.FirebaseTokenResult {
     AuthService.FirebaseTokenResult(
       idToken: "id-\(ownerID)",

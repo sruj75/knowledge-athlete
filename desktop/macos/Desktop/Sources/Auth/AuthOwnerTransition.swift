@@ -1,6 +1,11 @@
 import Foundation
 
 enum AuthLocalNameProjection {
+  struct IncomingName: Equatable, Sendable {
+    let given: String
+    let family: String
+  }
+
   static func clearIfOwnerChanges(
     in defaults: UserDefaults,
     from previousOwner: String?,
@@ -9,6 +14,18 @@ enum AuthLocalNameProjection {
     guard previousOwner != nextOwner else { return }
     defaults.removeObject(forKey: .authGivenName)
     defaults.removeObject(forKey: .authFamilyName)
+  }
+
+  static func publish(
+    _ incomingName: IncomingName?,
+    in defaults: UserDefaults,
+    from previousOwner: String?,
+    to nextOwner: String?
+  ) {
+    clearIfOwnerChanges(in: defaults, from: previousOwner, to: nextOwner)
+    guard let incomingName else { return }
+    defaults.set(incomingName.given, forKey: .authGivenName)
+    defaults.set(incomingName.family, forKey: .authFamilyName)
   }
 }
 
@@ -36,6 +53,15 @@ extension AuthService {
   nonisolated static func clearLocalNameProjectionIfOwnerChanges(in defaults: UserDefaults, to nextOwner: String?) {
     AuthLocalNameProjection.clearIfOwnerChanges(
       in: defaults, from: defaults.string(forKey: .authUserId), to: nextOwner)
+  }
+
+  nonisolated static func publishLocalNameProjection(
+    _ incomingName: AuthLocalNameProjection.IncomingName?,
+    in defaults: UserDefaults,
+    to nextOwner: String?
+  ) {
+    AuthLocalNameProjection.publish(
+      incomingName, in: defaults, from: defaults.string(forKey: .authUserId), to: nextOwner)
   }
 
   /// Revoke the remote session and publish the signed-out credential generation

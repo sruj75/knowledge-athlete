@@ -21,6 +21,34 @@ private actor OnboardingStopFlag {
   func read() -> Bool { value }
 }
 
+private actor OnboardingRestorationGate {
+  private var continuation: CheckedContinuation<Void, Never>?
+  private var entryWaiters: [CheckedContinuation<Void, Never>] = []
+  private var entered = false
+
+  func suspend() async {
+    entered = true
+    entryWaiters.forEach { $0.resume() }
+    entryWaiters.removeAll()
+    await withCheckedContinuation { continuation = $0 }
+  }
+
+  func waitUntilSuspended() async {
+    if entered { return }
+    await withCheckedContinuation { entryWaiters.append($0) }
+  }
+
+  func release() {
+    continuation?.resume()
+    continuation = nil
+  }
+}
+
+@MainActor
+private final class OnboardingAuthorityFlag {
+  var isCurrent = true
+}
+
 @MainActor
 final class OnboardingPersistenceClearingTests: XCTestCase {
   private enum Effect: Equatable {
@@ -110,7 +138,10 @@ final class OnboardingPersistenceClearingTests: XCTestCase {
       captureRuntime: .init(
         effects: .init(
           quiesce: { effects.append("quiesce") },
-          restore: { effects.append("restore") })),
+          restore: { _ in
+            effects.append("restore")
+            return true
+          })),
       commitAuthentication: {
         effects.append("commit")
         throw SignOutFailure.injected
@@ -130,7 +161,7 @@ final class OnboardingPersistenceClearingTests: XCTestCase {
       XCTFail("Unexpected error: \(error)")
     }
 
-    XCTAssertEqual(effects, ["journal", "quiesce", "commit", "authority", "restore"])
+    XCTAssertEqual(effects, ["journal", "quiesce", "commit", "authority", "restore", "authority"])
   }
 
   func testSuccessfulSignOutQuiescesBeforeCommitThenAppliesCleanup() async throws {
@@ -140,7 +171,10 @@ final class OnboardingPersistenceClearingTests: XCTestCase {
       captureRuntime: .init(
         effects: .init(
           quiesce: { effects.append("quiesce") },
-          restore: { effects.append("restore") })),
+          restore: { _ in
+            effects.append("restore")
+            return true
+          })),
       commitAuthentication: {
         effects.append("commit")
         return true
@@ -169,7 +203,10 @@ final class OnboardingPersistenceClearingTests: XCTestCase {
       captureRuntime: .init(
         effects: .init(
           quiesce: { effects.append("quiesce") },
-          restore: { effects.append("restore") })),
+          restore: { _ in
+            effects.append("restore")
+            return true
+          })),
       commitAuthentication: {
         effects.append("commit")
         return false
@@ -183,6 +220,51 @@ final class OnboardingPersistenceClearingTests: XCTestCase {
 
     XCTAssertFalse(didCommit)
     XCTAssertEqual(effects, ["journal", "quiesce", "commit", "authority"])
+  }
+
+  func testAuthorityLossWhileRestorationIsSuspendedCancelsTheObsoleteFailure() async {
+    enum SignOutFailure: Error { case injected }
+    let restorationGate = OnboardingRestorationGate()
+    let authority = OnboardingAuthorityFlag()
+    var effects: [String] = []
+    let transaction = OnboardingSignOutTransaction(
+      preparation: transactionPreparation(effects: { effects.append($0) }),
+      captureRuntime: .init(
+        effects: .init(
+          quiesce: { effects.append("quiesce") },
+          restore: { isAuthoritative in
+            effects.append("restore:started")
+            await restorationGate.suspend()
+            guard isAuthoritative() else {
+              effects.append("restore:cancelled")
+              return false
+            }
+            effects.append("monitoring:started")
+            return true
+          })),
+      commitAuthentication: {
+        effects.append("commit")
+        throw SignOutFailure.injected
+      },
+      isAuthenticationAuthoritative: {
+        effects.append("authority")
+        return authority.isCurrent
+      })
+
+    let execution = Task { try await transaction.execute() }
+    await restorationGate.waitUntilSuspended()
+    authority.isCurrent = false
+    await restorationGate.release()
+
+    do {
+      let didCommit = try await execution.value
+      XCTAssertFalse(didCommit)
+    } catch {
+      XCTFail("A superseded sign-out must not surface its obsolete failure: \(error)")
+    }
+    XCTAssertEqual(
+      effects,
+      ["journal", "quiesce", "commit", "authority", "restore:started", "authority", "restore:cancelled"])
   }
 
   func testCaptureQuiescenceWaitsForTheActualTranscriptionStopTask() async {

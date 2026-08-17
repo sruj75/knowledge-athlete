@@ -40,13 +40,19 @@ private final class OnboardingSignOutCaptureSnapshot {
 struct OnboardingSignOutCaptureRuntime {
   struct Effects {
     let quiesce: () async -> Void
-    let restore: () async -> Void
+    let restore: @MainActor (_ isAuthenticationAuthoritative: @MainActor @escaping () -> Bool) async -> Bool
   }
 
   let effects: Effects
 
   func quiesce() async { await effects.quiesce() }
-  func restore() async { await effects.restore() }
+  func restore(
+    whileAuthenticationAuthoritative isAuthenticationAuthoritative: @MainActor @escaping () -> Bool
+  ) async -> Bool {
+    guard isAuthenticationAuthoritative() else { return false }
+    guard await effects.restore(isAuthenticationAuthoritative) else { return false }
+    return isAuthenticationAuthoritative()
+  }
 
   static func live(appState: AppState?) -> Self {
     let plugin = ProactiveAssistantsPlugin.shared
@@ -61,13 +67,21 @@ struct OnboardingSignOutCaptureRuntime {
             await appState?.stopTranscriptionAndWait()
           }
         },
-        restore: {
+        restore: { isAuthenticationAuthoritative in
+          guard isAuthenticationAuthoritative() else { return false }
+          var restartedTranscription = false
           if snapshot.transcriptionWasRunning, AssistantSettings.shared.transcriptionEnabled {
             if appState?.isTranscribing == false {
               appState?.startTranscription()
+              restartedTranscription = true
               await appState?.reconcileCapture()
+              guard isAuthenticationAuthoritative() else {
+                if restartedTranscription { await appState?.stopTranscriptionAndWait() }
+                return false
+              }
             }
           }
+          guard isAuthenticationAuthoritative() else { return false }
           plugin.refreshScreenRecordingPermission()
           if snapshot.monitoringWasRunning,
             OnboardingScreenMonitoringStartPolicy.shouldStart(
@@ -79,6 +93,7 @@ struct OnboardingSignOutCaptureRuntime {
           {
             plugin.startMonitoring { _, _ in }
           }
+          return true
         }))
   }
 
@@ -92,7 +107,7 @@ struct OnboardingSignOutTransaction {
   let preparation: OnboardingReplayPreparation
   let captureRuntime: OnboardingSignOutCaptureRuntime
   let commitAuthentication: () async throws -> Bool
-  let isAuthenticationAuthoritative: () -> Bool
+  let isAuthenticationAuthoritative: @MainActor () -> Bool
 
   func execute() async throws -> Bool {
     await preparation.clearCurrentOwnerJournal()
@@ -101,11 +116,15 @@ struct OnboardingSignOutTransaction {
     do {
       committed = try await commitAuthentication()
     } catch {
-      if isAuthenticationAuthoritative() { await captureRuntime.restore() }
+      guard
+        await captureRuntime.restore(
+          whileAuthenticationAuthoritative: isAuthenticationAuthoritative)
+      else { return false }
       throw error
     }
     guard committed else {
-      if isAuthenticationAuthoritative() { await captureRuntime.restore() }
+      _ = await captureRuntime.restore(
+        whileAuthenticationAuthoritative: isAuthenticationAuthoritative)
       return false
     }
     guard isAuthenticationAuthoritative() else { return false }
