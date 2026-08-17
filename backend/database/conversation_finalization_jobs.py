@@ -28,9 +28,9 @@ FINALIZATION_PROJECTION_COLLECTION = 'conversation_finalization_projection_shard
 FINALIZATION_PROJECTION_GENERATION = 'terminal-outcomes-v1'
 FINALIZATION_PROJECTION_SHARD_COUNT = 16
 
-FinalizationJobStatus = Literal['queued', 'leased', 'completed', 'dead_letter', 'blocked_byok']
+FinalizationJobStatus = Literal['queued', 'leased', 'completed', 'dead_letter']
 TERMINAL_JOB_STATUSES = frozenset({'completed', 'dead_letter'})
-NONTERMINAL_JOB_STATUSES = frozenset({'queued', 'leased', 'blocked_byok'})
+NONTERMINAL_JOB_STATUSES = frozenset({'queued', 'leased'})
 DEFAULT_LEASE_SECONDS = 1500
 DEFAULT_RECONCILE_STALE_SECONDS = 300
 # Conservative: the synchronous legacy route admits processing with no durable
@@ -43,7 +43,6 @@ class FinalizationIntent(TypedDict):
     job_id: str | None
     status: str
     dispatch_generation: int | None
-    requires_byok: bool
     fanout_key: str | None
     created: bool
 
@@ -196,7 +195,6 @@ def _intent_from_job(job_id: str, data: dict[str, Any], *, created: bool = False
         'job_id': job_id,
         'status': str(data.get('status') or 'queued'),
         'dispatch_generation': int(data.get('dispatch_generation') or 1),
-        'requires_byok': bool(data.get('requires_byok')),
         'fanout_key': data.get('fanout_key') if isinstance(data.get('fanout_key'), str) else None,
         'created': created,
     }
@@ -207,7 +205,6 @@ def _no_finalization_intent(status: str) -> FinalizationIntent:
         'job_id': None,
         'status': status,
         'dispatch_generation': None,
-        'requires_byok': False,
         'fanout_key': None,
         'created': False,
     }
@@ -223,7 +220,6 @@ def _create_or_get_finalization_intent_txn(
     jobs_collection: Any,
     uid: str,
     conversation_id: str,
-    requires_byok: bool,
     finalization_admission: Callable[[Mapping[str, Any]], FinalizationAdmission],
     now: datetime,
     *,
@@ -277,14 +273,13 @@ def _create_or_get_finalization_intent_txn(
         )
         return _intent_from_job(job_id, job)
 
-    status: FinalizationJobStatus = 'blocked_byok' if requires_byok else 'queued'
+    status: FinalizationJobStatus = 'queued'
     job = {
         'schema_version': 1,
         'uid': uid,
         'conversation_id': conversation_id,
         'finalization_revision': revision,
         'status': status,
-        'requires_byok': requires_byok,
         # REST finalization has historically forced enrichment while the listen
         # pipeline retains its existing default. Persist the choice with the
         # immutable finalization generation so a replay cannot change it.
@@ -300,15 +295,14 @@ def _create_or_get_finalization_intent_txn(
         'updated_at': now,
         'dispatch_requested_at': now,
     }
-    if not requires_byok:
-        job['reconcile_after_at'] = now + get_finalization_reconcile_stale_after()
+    job['reconcile_after_at'] = now + get_finalization_reconcile_stale_after()
     transaction.set(job_ref, job)
     _record_projection_delta(
         transaction,
         projection_collection,
         job,
         accepted=1,
-        **({'blocked_byok': 1} if requires_byok else {'queued': 1}),
+        queued=1,
     )
     conversation_updates = dict(extra_updates or {})
     # Lifecycle fields are authoritative to this outbox transaction. Callers
@@ -330,7 +324,6 @@ def create_or_get_finalization_intent(
     uid: str,
     conversation_id: str,
     *,
-    requires_byok: bool,
     finalization_admission: Callable[[Mapping[str, Any]], FinalizationAdmission],
     force_process: bool = False,
     extra_updates: Mapping[str, Any] | None = None,
@@ -352,7 +345,6 @@ def create_or_get_finalization_intent(
             jobs_collection,
             uid,
             conversation_id,
-            requires_byok,
             finalization_admission,
             _now(),
             projection_collection=projection_collection,
@@ -367,54 +359,10 @@ def create_or_get_finalization_intent(
     )
 
 
-def _resume_blocked_byok_job_txn(
-    transaction: Any, job_ref: Any, now: datetime, projection_collection: Any | None = None
-) -> FinalizationIntent:
-    snapshot = job_ref.get(transaction=transaction)
-    if not getattr(snapshot, 'exists', False):
-        return {
-            'job_id': None,
-            'status': 'missing',
-            'dispatch_generation': None,
-            'requires_byok': False,
-            'fanout_key': None,
-            'created': False,
-        }
-    job = snapshot.to_dict() or {}
-    if job.get('status') == 'blocked_byok' and job.get('requires_byok'):
-        transaction.update(
-            job_ref,
-            {
-                'status': 'queued',
-                'updated_at': now,
-                'last_byok_resume_at': now,
-                # BYOK jobs must only be resumed by the live pusher session,
-                # never by the credential-free Cloud Tasks reconciler.
-                'reconcile_after_at': firestore.DELETE_FIELD,
-            },
-        )
-        _record_projection_delta(transaction, projection_collection, job, blocked_byok=-1, queued=1)
-        job['status'] = 'queued'
-    return _intent_from_job(snapshot.id, job)
-
-
-def resume_blocked_byok_job_for_live_session(job_id: str, *, firestore_client: Any = None) -> FinalizationIntent:
-    client = _client(firestore_client)
-    transaction = client.transaction()
-    transactional = firestore.transactional(_resume_blocked_byok_job_txn)
-    return transactional(
-        transaction,
-        _job_ref(client, job_id),
-        _now(),
-        client.collection(FINALIZATION_PROJECTION_COLLECTION),
-    )
-
-
 def _claim_finalization_job_txn(
     transaction: Any,
     job_ref: Any,
     dispatch_generation: int,
-    allow_byok: bool,
     lease_seconds: int,
     now: datetime,
     expected_uid: str | None = None,
@@ -434,10 +382,6 @@ def _claim_finalization_job_txn(
         return _claim_result('fenced')
     if status in TERMINAL_JOB_STATUSES:
         return _claim_result(status)
-    if bool(job.get('requires_byok')) and not allow_byok:
-        return _claim_result('blocked_byok')
-    if status == 'blocked_byok':
-        return _claim_result('blocked_byok')
     if int(job.get('dispatch_generation') or 1) != dispatch_generation:
         return _claim_result('stale_generation')
     if status == 'leased':
@@ -460,7 +404,7 @@ def _claim_finalization_job_txn(
             # A lease epoch fences a worker that resumes after another worker
             # has reclaimed its expired lease. Terminal writes must present it.
             'lease_epoch': lease_epoch,
-            'reconcile_after_at': (firestore.DELETE_FIELD if bool(job.get('requires_byok')) else lease_expires_at),
+            'reconcile_after_at': lease_expires_at,
             'updated_at': now,
             # The claimer owns the attempt budget: an inline (pusher) worker has
             # no Cloud Tasks retry count to fence its terminal attempt with.
@@ -482,7 +426,6 @@ def claim_finalization_job(
     job_id: str,
     dispatch_generation: int,
     *,
-    allow_byok: bool = False,
     lease_seconds: int = DEFAULT_LEASE_SECONDS,
     expected_uid: str | None = None,
     expected_conversation_id: str | None = None,
@@ -495,7 +438,6 @@ def claim_finalization_job(
         transaction,
         _job_ref(client, job_id),
         dispatch_generation,
-        allow_byok,
         lease_seconds,
         _now(),
         expected_uid,
@@ -776,11 +718,7 @@ def _mark_finalization_retryable_txn(
             'status': 'queued',
             'updated_at': now,
             'lease_expires_at': now,
-            'reconcile_after_at': (
-                firestore.DELETE_FIELD
-                if bool(job.get('requires_byok'))
-                else now + get_finalization_reconcile_stale_after()
-            ),
+            'reconcile_after_at': now + get_finalization_reconcile_stale_after(),
             'last_failure_code': failure_code,
         },
     )
@@ -915,13 +853,12 @@ def _claim_finalization_replay_txn(
             'job_id': None,
             'status': 'missing',
             'dispatch_generation': None,
-            'requires_byok': False,
             'fanout_key': None,
             'created': False,
         }
     job = snapshot.to_dict() or {}
     status = str(job.get('status') or '')
-    if status == 'blocked_byok' or status in TERMINAL_JOB_STATUSES:
+    if status in TERMINAL_JOB_STATUSES:
         return _intent_from_job(snapshot.id, job)
     if status == 'leased':
         lease_expires_at = job.get('lease_expires_at')
@@ -1337,7 +1274,6 @@ def get_finalization_job_summary(*, firestore_client: Any = None) -> dict[str, f
             'accepted',
             'queued',
             'leased',
-            'blocked_byok',
             'completed',
             'dead_letter',
             'success',
@@ -1374,7 +1310,6 @@ def get_finalization_job_summary(*, firestore_client: Any = None) -> dict[str, f
         'nonterminal': totals['queued'] + totals['leased'],
         'queued': totals['queued'],
         'leased': totals['leased'],
-        'blocked_byok': totals['blocked_byok'],
         'completed': totals['completed'],
         'dead_letter': totals['dead_letter'],
         # Every admitted generation terminal transition writes an outcome.

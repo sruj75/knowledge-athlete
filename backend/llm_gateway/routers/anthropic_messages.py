@@ -79,7 +79,7 @@ async def create_anthropic_message(
         route_artifact_id=route.route_artifact_id,
         provider=route.primary.provider,
         model=route.primary.model,
-        credential_source=_anthropic_credential_source(request),
+        credential_source='omi_managed',
         request_id=request_id,
     )
     accounting_context = AccountingContext.create(
@@ -88,13 +88,13 @@ async def create_anthropic_message(
         user_uid=caller.user_uid,
         feature=_accounting_feature(caller, fallback=route.lane_id),
         api_surface='anthropic_messages',
-        payer='byok' if _anthropic_credential_source(request) == 'service_forwarded_byok' else 'omi',
+        payer='omi',
     )
     attempt_trace = AttemptTrace()
     body['model'] = route.primary.model
     body.update(route.provider_options)
 
-    api_key = _resolve_anthropic_api_key(request)
+    api_key = _resolve_anthropic_api_key()
     if not api_key:
         _observe_message_terminal(
             metric_context,
@@ -301,16 +301,9 @@ def _validate_anthropic_capabilities(route: RouteArtifact, body: Mapping[str, An
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='lane does not support tools')
 
 
-def _resolve_anthropic_api_key(request: Request) -> str | None:
-    forwarded = request.headers.get('x-omi-byok-anthropic-key', '').strip()
-    if forwarded:
-        return forwarded
+def _resolve_anthropic_api_key() -> str | None:
     configured = os.getenv('ANTHROPIC_API_KEY', '').strip()
     return configured or None
-
-
-def _anthropic_credential_source(request: Request) -> str:
-    return 'service_forwarded_byok' if request.headers.get('x-omi-byok-anthropic-key', '').strip() else 'omi_managed'
 
 
 def _anthropic_forward_headers(request: Request, *, api_key: str) -> dict[str, str]:

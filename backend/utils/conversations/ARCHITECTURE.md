@@ -21,6 +21,5 @@ and background processing.
 
 ## Data and credential safety
 
-This package receives persisted conversation data only. Request-scoped BYOK
-context may be propagated by a live Pusher caller into `finalizer.py`, but it
+This package receives persisted conversation data only. Provider credentials
 must never be written here, passed to durable task payloads, or logged.

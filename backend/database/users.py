@@ -47,7 +47,7 @@ class DeletionWipeIntent(TypedDict):
 
 
 # Conservative low-risk user projections. Do NOT use these policies for
-# entitlement, BYOK, data-protection, privacy-consent, or full user-doc caching.
+# entitlement, data-protection, privacy-consent, or full user-doc caching.
 _USER_LANGUAGE_CACHE = CachePolicy(namespace='user_language', version=1, ttl_seconds=300)
 _USER_TRANSCRIPTION_PREFS_CACHE = CachePolicy(namespace='user_transcription_prefs', version=1, ttl_seconds=120)
 _USER_AI_PROFILE_CACHE = CachePolicy(namespace='user_ai_profile', version=1, ttl_seconds=300)
@@ -236,62 +236,6 @@ def set_user_cancellation_feedback(uid: str, reason: str, reason_details: Option
                 'reason': reason,
                 'reason_details': reason_details or '',
                 'timestamp': datetime.now(timezone.utc),
-            }
-        },
-        merge=True,
-    )
-
-
-# BYOK (Bring Your Own Keys) — free-plan flag.
-# We never store keys themselves; only SHA-256 fingerprints so we can detect
-# rotation. `active` is the subscription-bypass gate.
-
-BYOK_HEARTBEAT_TTL_SECONDS = 7 * 24 * 60 * 60  # 7 days
-
-
-def get_byok_state(uid: str) -> dict:
-    user_ref = db.collection('users').document(uid)
-    data = user_ref.get().to_dict() or {}
-    return data.get('byok', {})
-
-
-def is_byok_active(uid: str) -> bool:
-    """True if user has a live BYOK activation (heartbeat within TTL)."""
-    state = get_byok_state(uid)
-    if not state.get('active'):
-        return False
-    last_seen = state.get('last_seen_at')
-    if not last_seen:
-        return False
-    if isinstance(last_seen, datetime):
-        age = (datetime.now(timezone.utc) - last_seen).total_seconds()
-    else:
-        return False
-    return age <= BYOK_HEARTBEAT_TTL_SECONDS
-
-
-def set_byok_active(uid: str, fingerprints: dict):
-    user_ref = db.collection('users').document(uid)
-    user_ref.set(
-        {
-            'byok': {
-                'active': True,
-                'fingerprints': fingerprints,
-                'last_seen_at': datetime.now(timezone.utc),
-            }
-        },
-        merge=True,
-    )
-
-
-def clear_byok_active(uid: str):
-    user_ref = db.collection('users').document(uid)
-    user_ref.set(
-        {
-            'byok': {
-                'active': False,
-                'fingerprints': {},
-                'last_seen_at': datetime.now(timezone.utc),
             }
         },
         merge=True,
@@ -1395,7 +1339,7 @@ def get_user_language_preference(uid: str) -> str:
     # - Language preference is a low-risk, frequently-read setting used during
     #   listen startup.
     # - Full user-doc caching is intentionally avoided because users/{uid} also
-    #   contains entitlement, BYOK, privacy, and data-protection fields.
+    #   contains entitlement, privacy, and data-protection fields.
     #
     # Safety: cache is disabled by default, Redis failures fall back to Firestore,
     # and set_user_language_preference() invalidates this namespace.
@@ -1621,7 +1565,7 @@ def get_user_transcription_preferences(uid: str) -> dict:
 
     # DESIGN DECISION: cache this typed user projection, not the full users/{uid} doc.
     # It includes only transcription startup preferences and language. It does not
-    # include entitlement, BYOK, data-protection, or privacy-consent fields.
+    # include entitlement, data-protection, or privacy-consent fields.
     return get_or_fetch(_USER_TRANSCRIPTION_PREFS_CACHE, uid, fetch_preferences)
 
 
@@ -1776,7 +1720,7 @@ def _get_ai_user_profile_from_firestore(uid: str) -> Optional[dict]:
 
 def get_ai_user_profile(uid: str) -> Optional[dict]:
     # DESIGN DECISION: cache only the low-risk ai_user_profile projection.
-    # Avoid full user-doc caching because high-risk entitlement/BYOK/privacy
+    # Avoid full user-doc caching because high-risk entitlement/privacy
     # fields live on the same Firestore document.
     return get_or_fetch(_USER_AI_PROFILE_CACHE, uid, lambda: _get_ai_user_profile_from_firestore(uid))
 

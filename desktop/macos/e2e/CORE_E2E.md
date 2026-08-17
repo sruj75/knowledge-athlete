@@ -58,7 +58,7 @@ Local full T0 (includes backend preflight + pytest desktop contracts):
 | **T1** | macOS agent-local | ~5 min | all flows with `tier: 1` metadata on bridge lane | `--tier 1` |
 | **T2** | macOS agent-local; **qualification tier** | ~15 min | dev-up offline (enforced); all flows with `tier <= 2` + spatial overlay swift tests | `--tier 2` |
 | **Fault** | macOS agent-local | ~5 min | `omi-fault-inject` + `omi-fault` bundle; `chat-fault-5xx.yaml` (backend 5xx → surfaced chat error) | `--fault-suite` |
-| **T3** | macOS opt-in | 30+ min | agent continuity gauntlet (live LLM/BYOK) | `--tier 3` |
+| **T3** | macOS opt-in | 30+ min | agent continuity gauntlet (live managed LLM) | `--tier 3` |
 | **Live P2** | macOS agent-local | varies | `tier: manual` flows — walker / TCC / external URL / destructive gates; **not** qualification tier | `omi-harness run e2e/flows/<name>.yaml --lane bridge` |
 
 ## Change → tier map

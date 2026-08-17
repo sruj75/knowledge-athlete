@@ -20,7 +20,6 @@ from models.structured import ActionItem, Event, Structured
 from models.structured_extraction import ActionItemsExtraction, StructuredExtraction
 from .clients import get_llm, get_llm_gateway_chat_structured, parser
 from .discard_parser import DiscardConversation, LenientDiscardParser
-from utils.byok import has_byok_keys
 from utils.llm.gateway_client import record_chat_extraction_gateway_result
 from utils.llm.gateway_observability import record_gateway_shadow_comparison
 
@@ -89,9 +88,6 @@ class SpeakerIdMatch(BaseModel):
 
 
 def _invoke_gateway_shadow_chain(chain: Any, values: dict[str, Any], *, feature: str) -> BaseModel | None:
-    if has_byok_keys():
-        record_chat_extraction_gateway_result(feature=feature, outcome='skipped', reason='byok')
-        return None
     try:
         response = chain.invoke(values)
     except Exception:
@@ -178,14 +174,6 @@ def _should_run_gateway_shadow(
     started_at: datetime,
     conversation_context: str,
 ) -> bool:
-    if has_byok_keys():
-        record_chat_extraction_gateway_result(
-            feature=feature,
-            outcome='skipped',
-            reason='byok',
-        )
-        return False
-
     if not _env_flag_enabled(enabled_env):
         record_chat_extraction_gateway_result(
             feature=feature,

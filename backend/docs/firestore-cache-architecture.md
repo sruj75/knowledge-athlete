@@ -31,7 +31,6 @@ Redis shared L2 cache, disabled by default
 | Field family | Risk if stale |
 |---|---|
 | Subscription / entitlement | grants or blocks paid features incorrectly |
-| BYOK | accepts removed keys or misroutes provider billing |
 | Data protection / migration state | writes data under wrong storage/encryption policy |
 | Privacy consent | continues recording/training/syncing after opt-out |
 | Account/security state | stale security decisions |
@@ -51,7 +50,6 @@ Cached projections:
 Not cached:
 
 - `get_user_subscription()` / `get_user_valid_subscription()`
-- BYOK state
 - data protection level
 - private cloud sync flag
 - recording / training consent
@@ -160,7 +158,7 @@ Do not add UID, email, route path, or free-form cache keys as labels.
 3. Monitor cache hit/miss, Redis errors, Firestore reads, listen startup errors.
 4. Enable `user_transcription_prefs`.
 5. Enable `user_ai_profile`.
-6. Only consider entitlement/BYOK/data-protection caches after shadow-mode mismatch metrics exist.
+6. Only consider entitlement or data-protection caches after shadow-mode mismatch metrics exist.
 
 ## Rollback
 

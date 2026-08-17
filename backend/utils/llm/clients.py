@@ -1,4 +1,3 @@
-import hashlib
 import logging
 import os
 from functools import lru_cache
@@ -6,7 +5,6 @@ from typing import Any, Callable, Dict, List, Optional
 
 import anthropic
 import httpx
-from cachetools import TTLCache
 
 try:
     from langchain_core.callbacks import BaseCallbackHandler
@@ -22,8 +20,7 @@ from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 import tiktoken
 
 from models.structured_extraction import StructuredExtraction
-from utils.byok import get_byok_key
-from utils.llm.byok_errors import handle_llm_error
+from utils.llm.provider_errors import handle_llm_error
 from utils.llm.model_config import (
     MODEL_QOS_PROFILES,
     _ANTHROPIC_ONLY_FEATURES,
@@ -34,13 +31,9 @@ from utils.llm.model_config import (
     _STRUCTURED_OUTPUT_FEATURES,
     _active_profile,
     _active_profile_name,
-    _byok_profile,
-    _byok_profile_name,
     get_active_profile,
     get_active_profile_name,
     get_all_configured_features,
-    get_byok_profile,
-    get_byok_profile_name,
     get_default_config,
     get_model,
     get_provider,
@@ -105,18 +98,10 @@ except ImportError:
 
 
 try:
-    from utils.llm.gateway_byok import get_or_create_omi_gateway_llm_for_byok
-except ImportError:
-
-    def get_or_create_omi_gateway_llm_for_byok(*_args, **_kwargs):
-        raise RuntimeError('BYOK gateway LangChain client is unavailable')
-
-
-try:
     from utils.llm.gateway_anthropic import get_gateway_anthropic_client
 except ImportError:
 
-    def get_gateway_anthropic_client(*, byok_api_key=None):
+    def get_gateway_anthropic_client():
         raise RuntimeError('Omi gateway Anthropic client is unavailable')
 
 
@@ -139,7 +124,7 @@ _GEMINI_OPENAI_BASE_URL = GEMINI_OPENAI_BASE_URL
 
 
 class _LLMErrorCallback(BaseCallbackHandler):
-    """LangChain callback that tags provider errors with platform/BYOK source."""
+    """LangChain callback that records managed-provider errors."""
 
     def __init__(self, provider: str, model: str = '', feature: str = ''):
         self.provider = provider
@@ -173,16 +158,6 @@ def _with_llm_callbacks(kwargs: Dict[str, Any], provider: str, model: str = '', 
     return result
 
 
-# ---------------------------------------------------------------------------
-# BYOK (Bring Your Own Key)
-#
-# Per-request feature that substitutes the user's own API key.
-# For get_llm() callers: resolved inline — no wrapper class needed.
-# For module-level singletons (anthropic_client, embeddings): proxy classes
-# provide lazy resolution since there's no request context at import time.
-# ---------------------------------------------------------------------------
-
-
 class _AnthropicClientProxy:
     """Lazily forwards attributes to the managed Anthropic client."""
 
@@ -200,7 +175,7 @@ class _AnthropicClientProxy:
 
     def _resolve(self) -> anthropic.AsyncAnthropic:
         if should_route_features_through_gateway():
-            return get_gateway_anthropic_client(byok_api_key=None)
+            return get_gateway_anthropic_client()
         return self._default_client()
 
     def __getattr__(self, name: str):
@@ -234,69 +209,7 @@ class _OpenAIEmbeddingsProxy:
         return getattr(self._default_client(), name)
 
 
-_BYOK_CACHE_MAX_SIZE = 256
-_BYOK_CACHE_TTL_SECONDS = 3600  # 1 hour
-
-_openai_cache: TTLCache = TTLCache(maxsize=_BYOK_CACHE_MAX_SIZE, ttl=_BYOK_CACHE_TTL_SECONDS)
-_anthropic_cache: TTLCache = TTLCache(maxsize=_BYOK_CACHE_MAX_SIZE, ttl=_BYOK_CACHE_TTL_SECONDS)
-
-
-def _hash_key(api_key: str) -> str:
-    """Derive a safe cache key from an API key. Never store raw keys in memory."""
-    return hashlib.sha256(api_key.encode()).hexdigest()
-
-
-def _cached_openai_chat(model: str, api_key: str, ctor_kwargs: Dict[str, Any]) -> ChatOpenAI:
-    cache_key = f"{model}:{_hash_key(api_key)}:{hash(frozenset((k, repr(v)) for k, v in ctor_kwargs.items()))}"
-    inst = _openai_cache.get(cache_key)
-    if inst is None:
-        inst = ChatOpenAI(model=model, api_key=api_key, **ctor_kwargs)
-        _openai_cache[cache_key] = inst
-    return inst
-
-
-def _cached_anthropic(api_key: str) -> anthropic.AsyncAnthropic:
-    cache_key = _hash_key(api_key)
-    inst = _anthropic_cache.get(cache_key)
-    if inst is None:
-        inst = anthropic.AsyncAnthropic(api_key=api_key, timeout=120.0, max_retries=1)
-        _anthropic_cache[cache_key] = inst
-    return inst
-
-
-def _create_byok_client(
-    model: str, provider: str, byok_key: str, streaming: bool = False, feature: str = ''
-) -> Optional[ChatOpenAI]:
-    """Create a ChatOpenAI using the user's BYOK key. Returns None if BYOK not supported for this provider."""
-    callback_provider = _effective_byok_provider(model, provider)
-    kwargs: Dict[str, Any] = _with_llm_callbacks(
-        {'request_timeout': 120, 'max_retries': 1}, callback_provider, model=model, feature=feature
-    )
-    if supports_cache_retention(model):
-        kwargs['extra_body'] = {"prompt_cache_retention": "24h"}
-    if streaming:
-        kwargs['streaming'] = True
-        kwargs['stream_options'] = {"include_usage": True}
-
-    if provider == 'openai':
-        return _cached_openai_chat(model, byok_key, kwargs)
-
-    if provider == 'gemini':
-        return _cached_openai_chat(model, byok_key, {**kwargs, 'base_url': GEMINI_OPENAI_BASE_URL})
-
-    if provider == 'openrouter':
-        # Gemini-based OpenRouter models reroute to Gemini direct via BYOK
-        if model.startswith('gemini'):
-            route_options = get_route_options(feature, model, provider)
-            if 'temperature' in route_options:
-                kwargs['temperature'] = route_options['temperature']
-            return _cached_openai_chat(model, byok_key, {**kwargs, 'base_url': GEMINI_OPENAI_BASE_URL})
-        return None  # Non-Gemini OpenRouter: no BYOK support
-
-    return None
-
-
-# Anthropic client for chat agent (module-level, BYOK-aware).
+# Anthropic client for chat agent (module-level, managed credentials only).
 # The proxy constructs the provider client at its first use so importing a
 # deployable entrypoint never needs provider credentials.
 anthropic_client = _AnthropicClientProxy()
@@ -305,22 +218,12 @@ anthropic_client = _AnthropicClientProxy()
 def get_openai_chat(model: str, **kwargs) -> ChatOpenAI:
     """Explicit factory; equivalent to using the module-level proxies."""
     kwargs = _with_llm_callbacks(kwargs, 'openai', model=model)
-    byok = get_byok_key('openai')
-    if byok:
-        return _cached_openai_chat(model, byok, kwargs)
     return ChatOpenAI(model=model, **kwargs)
 
 
 # ---------------------------------------------------------------------------
 # Model QoS and provider routing
 # ---------------------------------------------------------------------------
-
-
-def _effective_byok_provider(model: str, provider: str) -> str:
-    """Map provider to the actual BYOK key type needed (Gemini-based OpenRouter → Gemini key)."""
-    if provider == 'openrouter' and model.startswith('gemini'):
-        return 'gemini'
-    return provider
 
 
 # Compatibility wrappers for tests and legacy imports. New provider construction
@@ -383,35 +286,7 @@ def get_llm(
             get_active_profile_name(),
         )
 
-    byok_provider = _effective_byok_provider(model, provider)
-    byok_key = get_byok_key(byok_provider)
-    byok_profile = get_byok_profile()
-
-    if byok_key and byok_profile:
-        byok_model, byok_prov = byok_profile.get(feature, (model, provider))
-        byok_prov_eff = _effective_byok_provider(byok_model, byok_prov)
-        byok_key_for_profile = get_byok_key(byok_prov_eff)
-        if byok_key_for_profile:
-            logger.debug('BYOK QoS upgrade: feature=%s %s/%s→%s/%s', feature, model, provider, byok_model, byok_prov)
-            model, provider = byok_model, byok_prov
-            byok_key = byok_key_for_profile
-
-    if byok_key and gateway_feature_mode:
-        result = get_or_create_omi_gateway_llm_for_byok(
-            feature_auto_lane_id(feature),
-            provider=_effective_byok_provider(model, provider),
-            api_key=byok_key,
-            streaming=streaming,
-            feature=feature,
-        )
-    elif byok_key:
-        byok_client = _create_byok_client(model, provider, byok_key, streaming, feature)
-        result = (
-            byok_client
-            if byok_client is not None
-            else get_default_client(model, provider, streaming, get_route_options(feature, model, provider))
-        )
-    elif gateway_feature_mode:
+    if gateway_feature_mode:
         result = get_or_create_omi_gateway_llm(feature_auto_lane_id(feature), streaming, feature=feature)
     else:
         result = get_default_client(model, provider, streaming, get_route_options(feature, model, provider))
@@ -490,8 +365,6 @@ _active_profile = get_active_profile()
 logger.info('Model QoS profile=%s (%d features)', get_active_profile_name(), len(_active_profile))
 for _feat, (_model, _provider) in sorted(_active_profile.items()):
     logger.info('  QoS %s: %s [%s]', _feat, _model, _provider)
-logger.info('BYOK QoS profile=%s', get_byok_profile_name())
-
 _so_gemini = {f for f in _active_profile if is_structured_output_feature(f) and _get_model_config(f)[1] == 'gemini'}
 if _so_gemini:
     logger.info('Structured output features on Gemini: %s', ', '.join(sorted(_so_gemini)))

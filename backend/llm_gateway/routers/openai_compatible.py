@@ -23,12 +23,6 @@ from llm_gateway.gateway.accounting import (
 from llm_gateway.gateway.accounting_sink import schedule_attempt_trace
 from llm_gateway.gateway.auth import ServiceAuthDependency
 from llm_gateway.gateway.config_loader import GatewayConfig
-from llm_gateway.gateway.credentials import (
-    CredentialContext,
-    build_byok_credential_context,
-    build_omi_managed_credential_context,
-    parse_forwarded_byok_headers,
-)
 from llm_gateway.gateway.errors import (
     GatewayError,
     GatewayErrorCode,
@@ -63,10 +57,7 @@ from llm_gateway.routers.dependencies import get_gateway_config, get_provider_re
 router = APIRouter()
 _image_generation_client: httpx.AsyncClient | None = None
 
-# The provider throttled the caller's own key. These reach the router as a
-# credential failure, but they are not a bad credential: answering 401 tells
-# callers the key is invalid and makes a transient failure look permanent.
-_THROTTLED_FAILURE_CLASSES = frozenset({FailureClass.BYOK_RATE_LIMIT, FailureClass.BYOK_QUOTA})
+_THROTTLED_FAILURE_CLASSES = frozenset({FailureClass.PROVIDER_429_OMI_PAID})
 
 
 @router.post('/v1/chat/completions', response_model=None)
@@ -86,20 +77,18 @@ async def create_chat_completion(
     try:
         request_body = await _request_json(request)
         resolved_route = resolve_chat_completion_route(config, request_body)
-        credentials = _resolve_credentials(request, caller)
-        credential_source = credentials.source.value
+        credential_source = 'omi_managed'
         accounting_context = _accounting_context(
             request_id=request_id,
             caller=caller,
             api_surface='openai_chat_completions',
-            payer='byok' if credentials.mode.value == 'byok' else 'omi',
+            payer='omi',
             fallback_feature=resolved_route.lane.lane_id,
         )
         is_streaming = resolved_route.validated_request.forwarded_params.get('stream') is True
         if is_streaming:
             return await _streaming_response(
                 resolved_route,
-                credentials,
                 provider_registry,
                 started_at=started_at,
                 request_id=request_id,
@@ -108,7 +97,6 @@ async def create_chat_completion(
             )
         result = await execute_chat_completion(
             resolved_route,
-            credentials,
             provider_registry,
             attempt_trace=attempt_trace,
         )
@@ -236,13 +224,6 @@ async def _request_json(request: Request) -> dict[str, Any]:
     if not isinstance(body, dict):
         raise GatewayInvalidRequestError('request body must be an object')
     return cast(dict[str, Any], body)
-
-
-def _resolve_credentials(request: Request, caller: ServiceAuthDependency) -> CredentialContext:
-    forwarded = parse_forwarded_byok_headers(request.headers)
-    if forwarded:
-        return build_byok_credential_context(caller, forwarded)
-    return build_omi_managed_credential_context(caller)
 
 
 def _error_response(exc: GatewayError) -> JSONResponse:
@@ -404,7 +385,6 @@ async def close_image_generation_client() -> None:
 
 async def _streaming_response(
     resolved_route: ResolvedRoute,
-    credentials: CredentialContext,
     provider_registry: ProviderRegistry,
     *,
     started_at: float,
@@ -417,7 +397,6 @@ async def _streaming_response(
 
     prepared = await _prepared_streaming_iterator(
         resolved_route,
-        credentials,
         provider_registry,
         route,
         attempt_trace=attempt_trace,
@@ -425,7 +404,6 @@ async def _streaming_response(
     async_iterator = _stream_with_terminal_metrics(
         prepared,
         resolved_route=resolved_route,
-        credentials=credentials,
         route=route,
         started_at=started_at,
         request_id=request_id,
@@ -450,7 +428,6 @@ class _PreparedStream:
 
 async def _prepared_streaming_iterator(
     resolved_route: ResolvedRoute,
-    credentials: CredentialContext,
     provider_registry: ProviderRegistry,
     route: RouteArtifact,
     *,
@@ -470,7 +447,6 @@ async def _prepared_streaming_iterator(
         stream = stream_chat_completion(
             provider_request,
             provider_ref=provider_ref,
-            credentials=credentials,
             timeout_ms=route.timeouts.request_ms,
         )
         try:
@@ -489,7 +465,7 @@ async def _prepared_streaming_iterator(
                 cache_requested=cache_requested_for_openai_request(provider_request),
             )
         except ProviderFailure as exc:
-            last_error = _map_provider_failure(exc, credentials, provider_ref)
+            last_error = _map_provider_failure(exc, provider_ref)
             attempt_trace.record(
                 provider=provider_ref.provider,
                 configured_model=provider_ref.model,
@@ -522,7 +498,6 @@ async def _stream_with_terminal_metrics(
     prepared: _PreparedStream,
     *,
     resolved_route: ResolvedRoute,
-    credentials: CredentialContext,
     route: RouteArtifact,
     started_at: float,
     request_id: str,
@@ -570,7 +545,7 @@ async def _stream_with_terminal_metrics(
                 route_artifact_id=route.route_artifact_id,
                 provider=prepared.provider,
                 model=prepared.model,
-                credential_source=credentials.source.value,
+                credential_source='omi_managed',
                 used_lkg=route is resolved_route.last_known_good_route,
                 fallback_used=prepared.fallback_used,
                 fallback_reason=prepared.fallback_reason,

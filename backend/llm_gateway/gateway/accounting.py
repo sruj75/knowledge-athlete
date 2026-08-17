@@ -43,7 +43,6 @@ class CostStatus(StrEnum):
     ESTIMATED = 'estimated'
     UNPRICED = 'unpriced'
     INDETERMINATE = 'indeterminate'
-    NOT_OMI_COST = 'not_omi_cost'
 
 
 @dataclass(frozen=True)
@@ -470,7 +469,6 @@ def build_accounting_event(context: AccountingContext, attempt: ProviderAttempt)
     now = datetime.now(timezone.utc)
     usage = attempt.usage or ProviderUsage()
     cost_status, estimated_cost, cache_savings, rate_card_id, cost_basis = _estimate_cost(
-        payer=context.payer,
         provider=attempt.provider,
         model=attempt.configured_model,
         usage=attempt.usage,
@@ -603,14 +601,11 @@ def _cache_control_ttls(values: object) -> set[str]:
 
 def _estimate_cost(
     *,
-    payer: str,
     provider: str,
     model: str,
     usage: ProviderUsage | None,
     usage_status: UsageStatus,
 ) -> tuple[CostStatus, int | None, int | None, str | None, str]:
-    if payer == 'byok':
-        return CostStatus.NOT_OMI_COST, 0, 0, None, 'byok_not_omi_cogs'
     if usage_status == UsageStatus.INDETERMINATE:
         return CostStatus.INDETERMINATE, None, None, None, 'usage_indeterminate'
     if usage is None:

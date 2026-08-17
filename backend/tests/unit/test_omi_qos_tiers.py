@@ -106,7 +106,6 @@ _install_module('langchain_core.output_parsers', PydanticOutputParser=_PydanticO
 _install_module('langchain_openai', ChatOpenAI=_ChatOpenAI, OpenAIEmbeddings=_OpenAIEmbeddings)
 _install_module('langchain_google_genai', ChatGoogleGenerativeAI=_ChatGoogleGenerativeAI)
 _install_module('tiktoken', encoding_for_model=MagicMock(return_value=_Encoding()))
-_install_module('utils.byok', get_byok_key=MagicMock(return_value=None), get_byok_uid=MagicMock(return_value=None))
 
 _HEAVY_MOCKS = {
     'firebase_admin': MagicMock(),
@@ -192,9 +191,6 @@ from utils.llm.clients import (
     _STRUCTURED_OUTPUT_FEATURES,
     _active_profile,
     _active_profile_name,
-    _byok_profile,
-    _byok_profile_name,
-    _effective_byok_provider,
     _get_or_create_gemini_llm,
     _get_or_create_openai_llm,
     _get_or_create_openrouter_llm,
@@ -215,8 +211,8 @@ from utils.llm.clients import (
 class TestModelQosProfiles:
     """Verify profile structure and completeness."""
 
-    def test_three_profiles_exist(self):
-        assert set(MODEL_QOS_PROFILES.keys()) == {'premium', 'max', 'byok'}
+    def test_managed_profiles_exist(self):
+        assert set(MODEL_QOS_PROFILES.keys()) == {'premium', 'max'}
 
     def test_all_profiles_have_same_features(self):
         feature_sets = {name: set(profile.keys()) for name, profile in MODEL_QOS_PROFILES.items()}
@@ -235,7 +231,7 @@ class TestModelQosProfiles:
             assert 'perplexity' in providers, f'{profile_name} missing Perplexity models'
             assert 'openrouter' in providers, f'{profile_name} should have OpenRouter (wrapped_analysis)'
         # OpenAI-based profiles must have OpenAI provider
-        for name in ('premium', 'max', 'byok'):
+        for name in ('premium', 'max'):
             providers = {p for _m, p in MODEL_QOS_PROFILES[name].values()}
             assert 'openai' in providers, f'{name} missing OpenAI models'
         # Premium profile must have Gemini provider
@@ -818,11 +814,11 @@ class TestRuntimeProviderRouting:
         assert default.model_name.startswith('google/'), f"Expected google/ prefix, got {default.model_name}"
 
 
-class TestBYOKWrapperArchitecture:
-    """Verify get_llm() eagerly resolves BYOK and returns proper ChatOpenAI instances."""
+class TestClientArchitecture:
+    """Verify get_llm() eagerly returns proper chat-model instances."""
 
     def test_get_llm_returns_base_chat_model(self):
-        """get_llm() must eagerly resolve BYOK and return a BaseChatModel (Runnable), not a wrapper."""
+        """get_llm() must return a BaseChatModel (Runnable), not a routing wrapper."""
         from langchain_core.language_models import BaseChatModel
         from langchain_openai import ChatOpenAI
 
@@ -859,18 +855,12 @@ class TestBYOKWrapperArchitecture:
 
 
 class TestManagedEmbeddingsProxy:
-    def test_legacy_customer_key_cannot_select_embeddings_client(self, monkeypatch):
+    def test_proxy_uses_managed_embeddings_client(self):
         import utils.llm.clients as mod
 
         default = MagicMock()
         default.embed_documents.return_value = [[0.1, 0.2]]
         default.embed_query.return_value = [0.1, 0.2]
-        customer_factory = MagicMock(side_effect=AssertionError('legacy key selected an embeddings client'))
-
-        monkeypatch.setattr(mod, 'get_byok_key', lambda provider: 'legacy-key' if provider == 'openai' else None)
-        monkeypatch.setattr(mod, 'OpenAIEmbeddings', customer_factory)
-        mod._openai_cache.clear()
-
         proxy = mod._OpenAIEmbeddingsProxy(
             model='text-embedding-3-large',
             default=default,
@@ -881,94 +871,6 @@ class TestManagedEmbeddingsProxy:
         assert proxy.embed_query('hello') == [0.1, 0.2]
         default.embed_documents.assert_called_once_with(['hello'])
         default.embed_query.assert_called_once_with('hello')
-        customer_factory.assert_not_called()
-
-
-class TestBYOKProfile:
-    """Verify BYOK QoS profile structure and model selections."""
-
-    def test_byok_all_openai_except_special(self):
-        """byok routes all features to OpenAI except provider-specific features."""
-        bk = MODEL_QOS_PROFILES['byok']
-        for feature, (model, provider) in bk.items():
-            if feature in ('chat_agent', 'web_search', 'wrapped_analysis', 'translation'):
-                continue
-            assert provider == 'openai', f'byok {feature} should be openai, got {provider}'
-
-    def test_byok_model_variants(self):
-        """byok uses the same retained seven distinct models as max."""
-        bk = MODEL_QOS_PROFILES['byok']
-        distinct = {model for model, _p in bk.values()}
-        expected = {
-            'gpt-5.4',
-            'gpt-4.1-mini',
-            'o4-mini',
-            'claude-sonnet-4-6',
-            'gemini-2.5-flash-lite',
-            'gemini-3-flash-preview',
-            'sonar-pro',
-        }
-        assert distinct == expected
-
-    def test_byok_has_same_features_as_premium(self):
-        """BYOK profile must cover the same feature set as premium."""
-        premium_features = set(MODEL_QOS_PROFILES['premium'].keys())
-        byok_features = set(MODEL_QOS_PROFILES['byok'].keys())
-        assert byok_features == premium_features, f'byok features differ: {byok_features ^ premium_features}'
-
-
-class TestBYOKProfileFixed:
-    """Verify BYOK QoS profile is always 'byok'."""
-
-    def test_byok_profile_is_byok(self):
-        assert _byok_profile_name == 'byok'
-
-    def test_byok_profile_exists(self):
-        assert _byok_profile is not None
-        assert _byok_profile is MODEL_QOS_PROFILES['byok']
-
-    def test_byok_profile_via_subprocess(self):
-        """Verify byok is set regardless of MODEL_QOS value."""
-        import subprocess
-
-        result = subprocess.run(
-            [
-                sys.executable,
-                '-c',
-                _clients_subprocess_script(
-                    "os.environ['MODEL_QOS'] = 'max'\n"
-                    "from utils.llm.clients import _byok_profile_name, _byok_profile\n"
-                    "assert _byok_profile_name == 'byok', f'Expected byok, got {_byok_profile_name}'\n"
-                    "assert _byok_profile is not None"
-                ),
-            ],
-            capture_output=True,
-            text=True,
-            cwd=str(BACKEND_DIR),
-        )
-        assert result.returncode == 0, f"byok profile test failed: {result.stderr}"
-
-
-class TestEffectiveBYOKProvider:
-    """Verify _effective_byok_provider maps providers correctly."""
-
-    def test_openai_passthrough(self):
-        assert _effective_byok_provider('gpt-4.1-mini', 'openai') == 'openai'
-
-    def test_gemini_passthrough(self):
-        assert _effective_byok_provider('gemini-2.5-flash', 'gemini') == 'gemini'
-
-    def test_openrouter_gemini_maps_to_gemini(self):
-        assert _effective_byok_provider('gemini-3-flash-preview', 'openrouter') == 'gemini'
-
-    def test_openrouter_non_gemini_stays_openrouter(self):
-        assert _effective_byok_provider('anthropic/claude-3.5-sonnet', 'openrouter') == 'openrouter'
-
-    def test_anthropic_passthrough(self):
-        assert _effective_byok_provider('claude-sonnet-4-6', 'anthropic') == 'anthropic'
-
-    def test_perplexity_passthrough(self):
-        assert _effective_byok_provider('sonar-pro', 'perplexity') == 'perplexity'
 
 
 class TestStructuredOutputFeatureTracking:
@@ -997,15 +899,6 @@ class TestStructuredOutputFeatureTracking:
             'translation',
             'trends',
         }, f'Expected translation and trends on Gemini SO in premium, got {gemini_so}'
-
-    def test_byok_no_gemini_structured_output(self):
-        """BYOK routes structured output to OpenAI except managed translation."""
-        profile = MODEL_QOS_PROFILES['byok']
-        for feature in _STRUCTURED_OUTPUT_FEATURES:
-            if feature == 'translation':
-                assert profile[feature] == ('gemini-2.5-flash-lite', 'gemini')
-                continue
-            assert profile[feature][1] == 'openai', f'byok {feature} should be openai, got {profile[feature][1]}'
 
 
 class TestGeminiThinkingBudget:

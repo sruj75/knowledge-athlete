@@ -122,7 +122,6 @@ class LiveConversationController:
             lifecycle_service.request_finalization,
             self.host.request.uid,
             conversation_id,
-            has_byok_keys=False,
         )
         route = finalization['route']
         if route == 'pusher':
@@ -133,7 +132,7 @@ class LiveConversationController:
             )
             self.on_conversation_processing_started(conversation_id)
             return True
-        if route in {'cloud_tasks', 'queued', 'blocked_byok'}:
+        if route in {'cloud_tasks', 'queued'}:
             self.on_conversation_processing_started(conversation_id)
             return True
         return route == 'noop'

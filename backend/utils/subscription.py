@@ -12,7 +12,6 @@ import database.user_usage as user_usage_db
 from database import redis_db
 from database.announcements import compare_versions
 from models.users import PlanType, SubscriptionStatus, Subscription, PlanLimits, TrialMetadata
-from utils.byok import get_byok_key, get_byok_keys
 from utils.log_sanitizer import sanitize
 from utils.observability.fallback import record_fallback
 import logging
@@ -110,20 +109,17 @@ def neo_grandfather_until(subscription: Optional[Subscription]) -> Optional[int]
 
 
 def should_defer_desktop_processing(uid: str) -> bool:
-    """True for Desktop users on the Free effective tier without active BYOK.
+    """True for Desktop users on the Free effective tier.
 
     Free and non-grandfathered Neo users store a raw transcript on capture and
     defer expensive LLM enrichment until the first open. This cost policy must
     not be interpreted as a no-Desktop-access policy.
 
-    Operator / Architect (desktop-entitled) and BYOK users (who pay their own LLM bill) are
-    processed normally. The caller restricts this to `source == desktop`. Fails safe to False
-    (process normally) on any error so a Firestore blip never silently strips a paid user's
-    summaries.
+    Operator / Architect users are processed normally. The caller restricts
+    this to `source == desktop`. Fails safe to False (process normally) on any
+    error so a Firestore blip never silently strips a paid user's summaries.
     """
     try:
-        if users_db.is_byok_active(uid):
-            return False
         subscription = users_db.get_user_valid_subscription(uid)
         plan = subscription.plan if subscription else PlanType.basic
         return effective_desktop_access_tier(plan, subscription) == DESKTOP_ACCESS_TIER_FREE
@@ -135,10 +131,9 @@ def should_defer_desktop_processing(uid: str) -> bool:
 # Desktop-only 3-day trial paywall.
 #
 # Applies to desktop users without a desktop-entitled plan (basic OR Neo) once
-# their Firebase Auth account is older than TRIAL_LENGTH_SECONDS and they don't
-# have BYOK active. Mobile (ios / android), Omi devices, desktop-entitled plans
-# (Operator / Architect), BYOK users, and accounts inside the trial window are
-# exempt.
+# their Firebase Auth account is older than TRIAL_LENGTH_SECONDS. Mobile
+# (ios / android), Omi devices, desktop-entitled plans (Operator / Architect),
+# and accounts inside the trial window are exempt.
 TRIAL_LENGTH_SECONDS = 3 * 24 * 60 * 60  # 3 days
 
 # Master switch for the desktop trial paywall. Default OFF: basic/Neo desktop users are
@@ -166,42 +161,19 @@ _TRIAL_PAYWALL_DESKTOP_TOKENS = DESKTOP_PLATFORMS | {"desktop"}
 # so chat-quota polling doesn't fan out to Firebase on every request.
 _TRIAL_PAYWALL_CACHE_TTL_SECONDS = 300
 
-# Providers a fully-enrolled BYOK desktop client always sends headers for.
-# Used by the request-level escape hatch in `_is_trial_expired_cached`.
-_BYOK_REQUIRED_PROVIDERS = ("openai", "anthropic", "gemini", "deepgram")
-
-
-def _request_has_all_byok_keys() -> bool:
-    """True if the *current request* carries headers for all 4 enrolled BYOK
-    providers.
-
-    Firestore BYOK state is the source of truth for fingerprint validation,
-    but it can be temporarily stale — heartbeat just expired, activation
-    POST hasn't landed yet, cross-region read replica lag, etc. A user who is
-    literally sending all 4 valid API keys on this request should never be
-    paywalled because of a Firestore sync gap. The actual fingerprint check
-    in `utils.byok._check_byok_validity` runs separately and still rejects
-    forged headers (mismatched SHA-256 against the enrolled fingerprints) —
-    we trust the headers' *presence* here, not their *contents*.
-    """
-    keys = get_byok_keys()
-    return all(p in keys and keys[p] for p in _BYOK_REQUIRED_PROVIDERS)
-
 
 def _is_trial_expired_uncached(uid: str) -> bool:
     """Is this user past their 3-day desktop trial?
 
     The trial applies only to the Free Desktop tier. Neo may use that tier for
     non-premium capabilities, but is paid and must never be reduced to zero
-    access. BYOK users are also bypassed. Returns False on any lookup error so
-    a Firebase blip never paywalls a paying user.
+    access. Returns False on any lookup error so a Firebase blip never
+    paywalls a paying user.
     """
     try:
         subscription = users_db.get_user_valid_subscription(uid)
         plan = subscription.plan if subscription else PlanType.basic
         if not desktop_trial_paywall_eligible(plan, subscription):
-            return False
-        if users_db.is_byok_active(uid):
             return False
         user_record = _get_user(uid)
         creation_ms: int = cast(int, user_record.user_metadata.creation_timestamp)
@@ -215,14 +187,6 @@ def _is_trial_expired_uncached(uid: str) -> bool:
 
 
 def _is_trial_expired_cached(uid: str) -> bool:
-    # Request-level escape hatch: a request carrying all 4 BYOK provider
-    # headers is never paywalled, regardless of cached Firestore state. The
-    # cache TTL is 5 min and Firestore's BYOK `is_active` heartbeat is 24 h,
-    # so even a perfectly-configured BYOK user can transiently look stale to
-    # Firestore. Trust the live request.
-    if _request_has_all_byok_keys():
-        return False
-
     cache_key = f"trial_paywall:expired:{uid}"
     cached = redis_db.get_generic_cache(cache_key)
     if cached is not None:
@@ -269,7 +233,7 @@ def _is_trial_expired_cached(uid: str) -> bool:
 
 def is_trial_paywalled(uid: str, platform: Optional[str]) -> bool:
     """True iff the request is from a desktop client AND the user has used
-    their full 3-day free trial without subscribing or activating BYOK.
+    their full 3-day free trial without subscribing.
 
     `platform` is the X-App-Platform header for HTTP requests or the
     `source` query param for the listen WebSocket. Mobile (ios/android),
@@ -290,7 +254,7 @@ def get_trial_metadata(uid: str) -> TrialMetadata:
     """Compute structured trial metadata for the given user.
 
     Returns trial timing info regardless of platform — the client decides
-    whether to render the countdown UI. Paid-plan and BYOK users get
+    whether to render the countdown UI. Paid-plan users get
     `trial_expired=False` with zeroed timing (trial is irrelevant to them).
 
     This reuses the same Firebase Auth lookup path as `_is_trial_expired_uncached`
@@ -311,17 +275,10 @@ def get_trial_metadata(uid: str) -> TrialMetadata:
         subscription = users_db.get_user_valid_subscription(uid)
         plan = subscription.plan if subscription else PlanType.basic
 
-        # Any plan that is not eligible for the Free account-age trial, plus
-        # BYOK users, has usable Desktop access. In particular, Neo's Free
-        # Desktop tier is a floor, not a trial-only or zero-access state.
-        # Same request-level escape hatch as `_is_trial_expired_cached`: a request
-        # carrying all 4 BYOK provider headers is treated as BYOK-active even if
-        # Firestore hasn't caught up yet.
-        if (
-            not desktop_trial_paywall_eligible(plan, subscription)
-            or users_db.is_byok_active(uid)
-            or _request_has_all_byok_keys()
-        ):
+        # Any plan that is not eligible for the Free account-age trial has
+        # usable Desktop access. In particular, Neo's Free Desktop tier is a
+        # floor, not a trial-only or zero-access state.
+        if not desktop_trial_paywall_eligible(plan, subscription):
             return TrialMetadata(
                 trial_expired=False,
                 trial_duration_seconds=TRIAL_LENGTH_SECONDS,
@@ -821,13 +778,12 @@ OVERAGE_ENABLED_PLANS = {PlanType.operator, PlanType.unlimited, PlanType.archite
 def enforce_chat_quota(uid: str, platform: Optional[str] = None) -> None:
     """Block or allow a chat request based on the user's plan + usage.
 
-    - BYOK users with an LLM key attached: always allowed, no Omi-side cost.
     - Paid plans past their cap: ALLOWED — the call is served and the excess
       accrues an overage charge. See ``utils.overage``.
     - Free plan past its cap: blocked (no card on file) → 402, which the
       chat endpoint converts into a canned AI reply for mobile UX.
     """
-    # Paywall test override — bypass BYOK + plan checks so the same 402
+    # Paywall test override — bypass plan checks so the same 402
     # surfaces that a free user past 30 questions would hit. Desktop only;
     # mobile callers continue down the normal plan path.
     if is_trial_paywalled(uid, platform):
@@ -844,13 +800,6 @@ def enforce_chat_quota(uid: str, platform: Optional[str] = None) -> None:
                 'reset_at': snapshot['reset_at'],
             },
         )
-
-    # BYOK users pay their own LLM provider — no Omi-side cost to cap.
-    # Require an LLM provider key on this request (not just any BYOK header)
-    # so a user can't activate with fake fingerprints or send only x-byok-deepgram
-    # to bypass chat quota while chat falls back to Omi's OpenAI/Anthropic keys.
-    if users_db.is_byok_active(uid) and (get_byok_key('openai') or get_byok_key('anthropic')):
-        return
 
     snapshot = get_chat_quota_snapshot(uid, platform=platform)
     if snapshot['allowed']:

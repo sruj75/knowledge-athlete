@@ -11,10 +11,8 @@ from dataclasses import dataclass
 from typing import Any, cast
 
 from llm_gateway.gateway.accounting import AttemptTrace, ProviderResponseMetadata, UsageStatus
-from llm_gateway.gateway.credentials import CredentialContext, CredentialSource, is_byok_failure_class
 from llm_gateway.gateway.errors import (
     GatewayCapabilityMismatchError,
-    GatewayCredentialFailureError,
     GatewayError,
     GatewayInvalidRouteConfigError,
     GatewayProviderFailureError,
@@ -29,7 +27,7 @@ from llm_gateway.gateway.providers import (
 )
 from llm_gateway.gateway.output_budget import OutputBudgetDecision, apply_output_budget
 from llm_gateway.gateway.resolver import ResolvedRoute, is_lkg_eligible, select_lkg_route_for_failure
-from llm_gateway.gateway.schemas import CredentialMode, FailureClass, ProviderRef, RolloutStage, RouteArtifact
+from llm_gateway.gateway.schemas import FailureClass, ProviderRef, RolloutStage, RouteArtifact
 from llm_gateway.gateway.validator import ValidatedChatCompletionRequest
 from utils.log_sanitizer import sanitize
 
@@ -80,14 +78,12 @@ async def _close_provider(provider_name: str, provider: ChatCompletionProvider) 
 
 async def execute_chat_completion(
     resolved_route: ResolvedRoute,
-    credential_context: CredentialContext,
     provider_registry: ProviderRegistry,
     *,
     attempt_trace: AttemptTrace | None = None,
 ) -> ExecutorResult:
     serving_route = _select_serving_route(resolved_route)
     serving_is_lkg = serving_route is resolved_route.last_known_good_route
-    _validate_credential_mode(serving_route, credential_context)
     deadline_monotonic = monotonic() + serving_route.timeouts.request_ms / 1000.0
 
     first_failure: FailureClass | None = None
@@ -96,7 +92,6 @@ async def execute_chat_completion(
         return await _execute_route(
             resolved_route,
             serving_route,
-            credential_context,
             provider_registry,
             is_lkg=serving_is_lkg,
             fallback_reason=None,
@@ -117,7 +112,6 @@ async def execute_chat_completion(
             return await _execute_route(
                 resolved_route,
                 resolved_route.last_known_good_route,
-                credential_context,
                 provider_registry,
                 is_lkg=True,
                 fallback_reason=first_failure,
@@ -208,7 +202,6 @@ RETRYABLE_PROVIDER_FAILURE_CLASSES = frozenset(
 async def _execute_route(
     resolved_route: ResolvedRoute,
     route: RouteArtifact,
-    credential_context: CredentialContext,
     provider_registry: ProviderRegistry,
     *,
     is_lkg: bool,
@@ -223,22 +216,13 @@ async def _execute_route(
     for index, provider_ref in enumerate(refs):
         provider = provider_registry.provider_for(provider_ref.provider)
         if provider is None:
-            error = _unsupported_provider_error(provider_ref, credential_context)
-        elif credential_context.mode == CredentialMode.BYOK and not credential_context.has_provider_key(
-            provider_ref.provider
-        ):
-            error = GatewayCredentialFailureError(
-                f'BYOK key is required for provider {provider_ref.provider}',
-                failure_class=FailureClass.MISSING_BYOK_KEY,
-                param='credentials',
-            )
+            error = _unsupported_provider_error(provider_ref)
         else:
             response, error = await _attempt_provider(
                 resolved_route,
                 route,
                 provider,
                 provider_ref,
-                credential_context,
                 attempt_trace=attempt_trace,
                 fallback_reason=current_fallback_reason,
                 deadline_monotonic=deadline_monotonic,
@@ -274,7 +258,6 @@ async def _attempt_provider(
     route: RouteArtifact,
     provider: ChatCompletionProvider,
     provider_ref: ProviderRef,
-    credential_context: CredentialContext,
     *,
     attempt_trace: AttemptTrace | None,
     fallback_reason: FailureClass | None,
@@ -298,7 +281,6 @@ async def _attempt_provider(
             response = await provider.create_chat_completion(
                 _provider_request(resolved_route, provider_ref, route=route),
                 provider_ref=provider_ref,
-                credentials=credential_context,
                 timeout_ms=timeout_ms,
             )
             if attempt_trace is not None:
@@ -314,7 +296,7 @@ async def _attempt_provider(
                 )
             return response, None
         except ProviderFailure as exc:
-            error = _map_provider_failure(exc, credential_context, provider_ref)
+            error = _map_provider_failure(exc, provider_ref)
             if attempt_trace is not None:
                 attempt_trace.record(
                     provider=provider_ref.provider,
@@ -472,38 +454,12 @@ def _executor_result(
     )
 
 
-def _validate_credential_mode(route: RouteArtifact, credential_context: CredentialContext) -> None:
-    if (
-        credential_context.mode == CredentialMode.BYOK
-        and credential_context.source == CredentialSource.SERVICE_FORWARDED_BYOK
-    ):
-        if route.credential_policy.allow_byok_to_omi_paid_fallback:
-            raise GatewayInvalidRouteConfigError(
-                f'route {route.route_artifact_id} must not allow BYOK to Omi-paid fallback'
-            )
-        return
-    if route.credential_policy.mode != credential_context.mode:
-        raise GatewayInvalidRouteConfigError(
-            f'route {route.route_artifact_id} credential mode does not match request context'
-        )
-
-
-def _unsupported_provider_error(
-    provider_ref: ProviderRef,
-    credential_context: CredentialContext,
-) -> GatewayCredentialFailureError | GatewayInvalidRouteConfigError:
-    if credential_context.mode == CredentialMode.BYOK:
-        return GatewayCredentialFailureError(
-            f'BYOK provider is not supported for this route: {provider_ref.provider}',
-            failure_class=FailureClass.BYOK_UNSUPPORTED_PROVIDER,
-            param='provider',
-        )
+def _unsupported_provider_error(provider_ref: ProviderRef) -> GatewayInvalidRouteConfigError:
     return GatewayInvalidRouteConfigError(f'provider is not supported for this route: {provider_ref.provider}')
 
 
 def _map_provider_failure(
     exc: ProviderFailure,
-    credential_context: CredentialContext,
     provider_ref: ProviderRef,
 ) -> GatewayError:
     failure_class = exc.failure_class
@@ -515,12 +471,6 @@ def _map_provider_failure(
         error = GatewayCapabilityMismatchError(_safe_failure_message(failure_class, exc.safe_message), param='provider')
     elif failure_class == FailureClass.PROVIDER_INVALID_REQUEST:
         error = GatewayProviderRequestRejectedError(_safe_failure_message(failure_class, exc.safe_message))
-    elif credential_context.mode == CredentialMode.BYOK or is_byok_failure_class(failure_class):
-        error = GatewayCredentialFailureError(
-            _safe_failure_message(failure_class, exc.safe_message),
-            failure_class=failure_class,
-            param='provider',
-        )
     else:
         error = GatewayProviderFailureError(
             _safe_failure_message(failure_class, exc.safe_message),

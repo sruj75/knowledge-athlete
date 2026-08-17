@@ -1,6 +1,6 @@
 route_artifacts:
   - route_artifact_id: route.chat_structured.2026_06_27.001
-    artifact_digest: sha256:707331066d53439c5abd3a3614c5a5f3972880713e53b68fe470b0bf2a930104
+    artifact_digest: sha256:667faeaf961a3dbbe357e0671d36ee171dd1c7bdee643d04583a2b46ee687b1b
     lane_id: omi:auto:chat-structured
     surface: openai.chat_completions
     primary:
@@ -28,39 +28,18 @@ route_artifacts:
     rollout:
       stage: shadow
       percent: 0
-    credential_policy:
-      mode: omi_paid
-      allow_byok_to_omi_paid_fallback: false
-      fallback_eligible_failure_classes:
-        - timeout_before_output
-        - provider_429_omi_paid
-        - provider_5xx_omi_paid
-      never_fallback_failure_classes:
-        - byok_auth
-        - byok_quota
-        - byok_rate_limit
-        - byok_unsupported_provider
-        - missing_byok_key
-        - capability_mismatch
-        - provider_invalid_request
-        - invalid_config
     fallback_policy:
       fallback_on:
         - timeout_before_output
         - provider_429_omi_paid
         - provider_5xx_omi_paid
       never_fallback_on:
-        - byok_auth
-        - byok_quota
-        - byok_rate_limit
-        - byok_unsupported_provider
-        - missing_byok_key
         - capability_mismatch
         - provider_invalid_request
         - invalid_config
 
   - route_artifact_id: route.chat_structured.2026_06_20.001
-    artifact_digest: sha256:7a8c23fbb2bae7e005b69844c84191f4852e97f56cb99dd3bca75360c430a273
+    artifact_digest: sha256:93bc996bc789ae0da103462f969708fa034aa3d6d552373a4ff58b1b4872f743
     lane_id: omi:auto:chat-structured
     surface: openai.chat_completions
     # The gateway LKG mirrors the active model so shadow serving and fallback use
@@ -88,33 +67,12 @@ route_artifacts:
     rollout:
       stage: active
       percent: 100
-    credential_policy:
-      mode: omi_paid
-      allow_byok_to_omi_paid_fallback: false
-      fallback_eligible_failure_classes:
-        - timeout_before_output
-        - provider_429_omi_paid
-        - provider_5xx_omi_paid
-      never_fallback_failure_classes:
-        - byok_auth
-        - byok_quota
-        - byok_rate_limit
-        - byok_unsupported_provider
-        - missing_byok_key
-        - capability_mismatch
-        - provider_invalid_request
-        - invalid_config
     fallback_policy:
       fallback_on:
         - timeout_before_output
         - provider_429_omi_paid
         - provider_5xx_omi_paid
       never_fallback_on:
-        - byok_auth
-        - byok_quota
-        - byok_rate_limit
-        - byok_unsupported_provider
-        - missing_byok_key
         - capability_mismatch
         - provider_invalid_request
         - invalid_config

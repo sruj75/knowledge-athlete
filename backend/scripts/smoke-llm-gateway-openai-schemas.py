@@ -10,8 +10,6 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from llm_gateway.gateway.auth import ServiceCaller
-from llm_gateway.gateway.credentials import build_omi_managed_credential_context
 from llm_gateway.gateway.providers import OpenAICompatibleChatCompletionProvider
 from llm_gateway.gateway.schemas import ProviderRef
 from models.structured_extraction import ActionItemsExtraction, ConversationStructureExtraction
@@ -55,7 +53,6 @@ async def main(argv: Sequence[str] | None = None) -> int:
             response = await provider.create_chat_completion(
                 request,
                 provider_ref=PROVIDER_REF,
-                credentials=build_omi_managed_credential_context(ServiceCaller(name='backend')),
                 timeout_ms=args.timeout_ms,
             )
             content = response['choices'][0]['message']['content']

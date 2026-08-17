@@ -111,7 +111,6 @@ _SYS_MODULE_NAMES = [
     "database.notifications",
     "utils",
     "utils.notifications",
-    "utils.byok",
     "utils.llm",
     "utils.llm.gateway_client",
     "utils.llm.gateway_observability",
@@ -193,10 +192,6 @@ notif_mod.send_action_item_completed_notification = MagicMock()
 notif_mod.send_action_item_created_notification = MagicMock()
 notif_mod.send_action_item_data_message = MagicMock()
 notif_mod.sync_action_item_reminder = MagicMock()
-
-if "utils.byok" not in sys.modules:
-    byok_mod = _stub_module("utils.byok")
-    byok_mod.has_byok_keys = MagicMock(return_value=False)
 
 if "utils.llm.gateway_client" not in sys.modules:
     gateway_mod = _stub_module("utils.llm.gateway_client")

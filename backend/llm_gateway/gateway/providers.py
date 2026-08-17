@@ -23,8 +23,7 @@ from llm_gateway.gateway.accounting import (
     openai_usage_from_response,
     vertex_usage_from_response,
 )
-from llm_gateway.gateway.credentials import CredentialContext
-from llm_gateway.gateway.schemas import CredentialMode, FailureClass, ProviderRef, ProviderRejection
+from llm_gateway.gateway.schemas import FailureClass, ProviderRef, ProviderRejection
 from llm_gateway.gateway.sse import SSEEventDecoder
 from utils.executors import critical_executor, run_blocking
 from utils.log_sanitizer import sanitize
@@ -50,7 +49,6 @@ class ChatCompletionProvider(Protocol):
         request: Mapping[str, Any],
         *,
         provider_ref: ProviderRef,
-        credentials: CredentialContext,
         timeout_ms: int,
     ) -> 'ProviderResponse': ...
 
@@ -102,14 +100,9 @@ class OpenAICompatibleChatCompletionProvider:
         request: Mapping[str, Any],
         *,
         provider_ref: ProviderRef,
-        credentials: CredentialContext,
         timeout_ms: int,
     ) -> ProviderResponse:
-        api_key = _resolve_provider_api_key(
-            credentials=credentials,
-            provider_ref=provider_ref,
-            api_key_env=self._api_key_env,
-        )
+        api_key = _resolve_provider_api_key(self._api_key_env)
 
         try:
             async with self._http_client.stream(
@@ -131,7 +124,7 @@ class OpenAICompatibleChatCompletionProvider:
                     # body is never surfaced unless LLM_GATEWAY_EXPOSE_PROVIDER_ERROR_DETAILS
                     # is explicitly enabled.
                     error_preview = await _read_bounded_preview(response, max_bytes=PROVIDER_ERROR_DETAIL_BYTES)
-                    _raise_for_status(status_code, error_preview, credential_mode=credentials.mode)
+                    _raise_for_status(status_code, error_preview)
                 body = await _read_limited_response(response, max_bytes=_configured_max_response_bytes())
                 parsed = _parse_limited_json_response(body)
         except httpx.TimeoutException as exc:
@@ -150,14 +143,9 @@ class OpenAICompatibleChatCompletionProvider:
         request: Mapping[str, Any],
         *,
         provider_ref: ProviderRef,
-        credentials: CredentialContext,
         timeout_ms: int,
     ):
-        api_key = _resolve_provider_api_key(
-            credentials=credentials,
-            provider_ref=provider_ref,
-            api_key_env=self._api_key_env,
-        )
+        api_key = _resolve_provider_api_key(self._api_key_env)
 
         try:
             async with self._http_client.stream(
@@ -173,7 +161,7 @@ class OpenAICompatibleChatCompletionProvider:
             ) as response:
                 if response.status_code >= 400:
                     error_preview = await _read_bounded_preview(response, max_bytes=PROVIDER_ERROR_DETAIL_BYTES)
-                    _raise_for_status(response.status_code, error_preview, credential_mode=credentials.mode)
+                    _raise_for_status(response.status_code, error_preview)
                 async for chunk in response.aiter_bytes():
                     if chunk:
                         yield chunk
@@ -256,10 +244,8 @@ class VertexGeminiProvider:
         request: Mapping[str, Any],
         *,
         provider_ref: ProviderRef,
-        credentials: CredentialContext,
         timeout_ms: int,
     ) -> ProviderResponse:
-        self._reject_byok(credentials)
         endpoint = self._endpoint(provider_ref.model, method='generateContent')
         payload = _vertex_request(request)
         try:
@@ -298,10 +284,8 @@ class VertexGeminiProvider:
         request: Mapping[str, Any],
         *,
         provider_ref: ProviderRef,
-        credentials: CredentialContext,
         timeout_ms: int,
     ):
-        self._reject_byok(credentials)
         endpoint = self._endpoint(provider_ref.model, method='streamGenerateContent')
         payload = _vertex_request(request)
         decoder = SSEEventDecoder()
@@ -360,11 +344,6 @@ class VertexGeminiProvider:
             raise
         except Exception as exc:
             raise ProviderFailure(FailureClass.INVALID_CONFIG) from exc
-
-    @staticmethod
-    def _reject_byok(credentials: CredentialContext) -> None:
-        if credentials.mode == CredentialMode.BYOK:
-            raise ProviderFailure(FailureClass.BYOK_UNSUPPORTED_PROVIDER)
 
 
 def _vertex_headers(access_token: str) -> dict[str, str]:
@@ -602,12 +581,8 @@ class AnthropicMessagesProvider:
         request: Mapping[str, Any],
         *,
         provider_ref: ProviderRef,
-        credentials: CredentialContext,
         timeout_ms: int,
     ) -> ProviderResponse:
-        if credentials.mode == CredentialMode.BYOK:
-            raise ProviderFailure(FailureClass.BYOK_UNSUPPORTED_PROVIDER)
-
         api_key = os.getenv(self._api_key_env, '').strip()
         if not api_key:
             raise ProviderFailure(FailureClass.INVALID_CONFIG)
@@ -626,11 +601,7 @@ class AnthropicMessagesProvider:
                 timeout=timeout_ms / 1000.0,
             )
             if response.status_code >= 400:
-                _raise_for_status(
-                    response.status_code,
-                    response.content[:PROVIDER_ERROR_DETAIL_BYTES],
-                    credential_mode=credentials.mode,
-                )
+                _raise_for_status(response.status_code, response.content[:PROVIDER_ERROR_DETAIL_BYTES])
             parsed = response.json()
         except httpx.TimeoutException as exc:
             raise ProviderFailure(FailureClass.TIMEOUT_BEFORE_OUTPUT) from exc
@@ -770,17 +741,7 @@ def _openai_finish_reason(stop_reason: Any) -> str:
     return 'stop'
 
 
-def _resolve_provider_api_key(
-    *,
-    credentials: CredentialContext,
-    provider_ref: ProviderRef,
-    api_key_env: str,
-) -> str:
-    if credentials.mode == CredentialMode.BYOK:
-        forwarded = credentials.forwarded_key_for(provider_ref.provider)
-        if not forwarded:
-            raise ProviderFailure(FailureClass.MISSING_BYOK_KEY)
-        return forwarded
+def _resolve_provider_api_key(api_key_env: str) -> str:
     api_key = os.getenv(api_key_env, '').strip()
     if not api_key:
         raise ProviderFailure(FailureClass.INVALID_CONFIG)
@@ -797,7 +758,6 @@ class FakeChatCompletionProvider:
         request: Mapping[str, Any],
         *,
         provider_ref: ProviderRef,
-        credentials: CredentialContext,
         timeout_ms: int,
     ) -> ProviderResponse:
         self.calls.append(
@@ -805,7 +765,6 @@ class FakeChatCompletionProvider:
                 provider=provider_ref.provider,
                 model=provider_ref.model,
                 request=dict(request),
-                credential_mode=credentials.mode.value,
                 timeout_ms=timeout_ms,
             )
         )
@@ -825,7 +784,6 @@ class FakeProviderCall:
     provider: str
     model: str
     request: dict[str, Any]
-    credential_mode: str
     timeout_ms: int
 
 
@@ -852,13 +810,10 @@ def _default_fake_response(provider_ref: ProviderRef) -> dict[str, Any]:
 def _raise_for_status(
     status_code: int,
     body: bytes = b'',
-    *,
-    credential_mode: CredentialMode = CredentialMode.OMI_PAID,
 ) -> None:
-    byok = credential_mode == CredentialMode.BYOK
     if status_code in {401, 403}:
         raise ProviderFailure(
-            FailureClass.BYOK_AUTH if byok else FailureClass.INVALID_CONFIG,
+            FailureClass.INVALID_CONFIG,
             safe_message=_provider_error_message(status_code, body),
         )
     if status_code == 408:
@@ -867,7 +822,7 @@ def _raise_for_status(
         )
     if status_code == 429:
         raise ProviderFailure(
-            FailureClass.BYOK_RATE_LIMIT if byok else FailureClass.PROVIDER_429_OMI_PAID,
+            FailureClass.PROVIDER_429_OMI_PAID,
             safe_message=_provider_error_message(status_code, body),
         )
     if status_code >= 500:

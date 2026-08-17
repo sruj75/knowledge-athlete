@@ -136,16 +136,14 @@ def test_dmgbuild_does_not_attach_finder_info_to_the_signed_app():
     assert settings.get("hide_extensions", []) == []
 
 
-def test_universal_release_stages_and_smokes_both_sharp_architectures():
+def test_managed_pi_release_does_not_stage_retired_sharp_runtime():
     prepare = (REPO_ROOT / "desktop/macos/scripts/prepare-agent-runtime.sh").read_text(encoding="utf-8")
     smoke = (REPO_ROOT / "desktop/macos/scripts/smoke-signed-desktop-artifact.sh").read_text(encoding="utf-8")
-    assert "stage_darwin_sharp_arches" in prepare
-    assert "for package_arch in arm64 x64" in prepare
-    assert 'npm install --prefix "$overlay" --force' in prepare
-    assert "@img/sharp-darwin-$package_arch@$sharp_version" in prepare
-    assert "@img/sharp-libvips-darwin-$package_arch@$libvips_version" in prepare
-    assert "for sharp_arch in arm64 x64" in prepare
-    assert "agent runtime missing Sharp/libvips darwin-$sharp_arch pair" in smoke
+    assert "stage_darwin_sharp_arches" not in prepare
+    assert "sharp-darwin" not in prepare
+    assert "libvips" not in prepare
+    assert "sharp-darwin" not in smoke
+    assert "libvips" not in smoke
 
 
 def test_qualified_artifact_replacement_is_rejected_before_beta_or_stable_pointering():

@@ -368,7 +368,7 @@ async def test_anthropic_stream_open_cancellation_records_cancelled(monkeypatch,
     assert recorded[0]['streaming'] is True
 
 
-def test_anthropic_messages_uses_byok_key_header_when_present(_reset_anthropic_client, monkeypatch):
+def test_anthropic_messages_ignores_retired_customer_key_header(_reset_anthropic_client, monkeypatch):
     fake: _FakeAsyncClient = _reset_anthropic_client
     recorded: list[dict[str, Any]] = []
     monkeypatch.setattr(
@@ -377,16 +377,16 @@ def test_anthropic_messages_uses_byok_key_header_when_present(_reset_anthropic_c
         lambda context, **kwargs: recorded.append({'context': context, **kwargs}),
     )
     fake._post_response = httpx.Response(
-        200, json={'id': 'msg_byok', 'type': 'message', 'role': 'assistant', 'content': []}
+        200, json={'id': 'msg_test', 'type': 'message', 'role': 'assistant', 'content': []}
     )
 
     headers = {**_auth_headers(), 'x-omi-byok-anthropic-key': 'user-sk-ant'}
     response = TestClient(app).post('/v1/messages', json=_agentic_request(), headers=headers)
 
     assert response.status_code == 200
-    assert fake.post_calls[0]['headers']['x-api-key'] == 'user-sk-ant'
+    assert fake.post_calls[0]['headers']['x-api-key'] == 'anthropic-test-key'
     assert recorded[0]['outcome'] == 'success'
-    assert recorded[0]['context'].credential_source == 'service_forwarded_byok'
+    assert recorded[0]['context'].credential_source == 'omi_managed'
 
 
 def test_anthropic_stream_eof_without_message_stop_is_not_success(_reset_anthropic_client, monkeypatch):

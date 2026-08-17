@@ -125,10 +125,8 @@ final class AgentErrorClassifierTests: XCTestCase {
     XCTAssertFalse(classified.userMessage.lowercased().contains("provider"))
   }
 
-  func testAuthRequiredAndByokRouteToAuth() {
-    for raw in ["Authentication required", "403 \"byok_validation_failed\""] {
-      XCTAssertEqual(AgentErrorClassifier.classify(raw).code, .providerAuthExpired, raw)
-    }
+  func testAuthenticationRequiredRoutesToAuth() {
+    XCTAssertEqual(AgentErrorClassifier.classify("Authentication required").code, .providerAuthExpired)
   }
 
   func testRemainingToolSchemaAndLocalDataStringsFromCorpus() {
@@ -167,7 +165,6 @@ final class AgentErrorClassifierTests: XCTestCase {
       ("400 tools: Tool names must be unique.", true, false),
       ("pi-mono process exited (code 1)", true, true),
       ("table adapter_bindings has no column named last_delivered_turn_created_at_ms", true, false),
-      ("403 \"byok_validation_failed\"", true, false),
       ("Connection error.", true, true),
     ]
     for (raw, mustNotBeUnknown, expectedRetryable) in corpus {

@@ -41,7 +41,7 @@ def test_tripwire_rejects_the_public_generic_mutation_api():
 
 def test_tripwire_rejects_a_pasted_back_finalization_admission():
     errors = violations(
-        "jobs_db.create_or_get_finalization_intent(uid, conversation_id, requires_byok=False)\n",
+        "jobs_db.create_or_get_finalization_intent(uid, conversation_id)\n",
         'backend/routers/transcribe.py',
     )
     assert len(errors) == 1

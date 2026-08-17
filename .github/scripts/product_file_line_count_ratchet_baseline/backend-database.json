@@ -1,7 +1,7 @@
 {
   "files": {
     "backend/database/memory_apply_store.py": 1842,
-    "backend/database/users.py": 1801
+    "backend/database/users.py": 1745
   },
   "raise_justifications": {
     "backend/database/memory_apply_store.py": "Canonical apply, source replacement, lineage, and projection-outbox writes must remain one atomic Firestore transaction boundary; splitting this owner would reintroduce split mutation authority (FC-split-mutation-authority). +11 routes stored lineage reactivation validation through the shared malformed-document read boundary while retaining atomic conflict semantics (#9494/#9696).",

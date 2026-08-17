@@ -40,9 +40,6 @@ struct ModelQoS {
     /// Floating bar responses
     static var floatingBar: String { "claude-sonnet-4-6" }
 
-    /// Synthesis and extraction tasks.
-    static var synthesis: String { "claude-haiku-4-5-20251001" }
-
   }
 
   // MARK: - Gemini Models (tier-dependent, stable GA models)

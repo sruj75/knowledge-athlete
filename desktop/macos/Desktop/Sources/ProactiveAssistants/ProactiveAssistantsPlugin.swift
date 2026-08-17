@@ -264,7 +264,7 @@ public class ProactiveAssistantsPlugin: NSObject {
     // when the user is past their trial. `AppState` writes
     // `desktop_isPaywalled` to UserDefaults whenever it flips so other
     // singletons can synchronously check. Toggle UI also gates on this.
-    if UserDefaults.standard.bool(forKey: "desktop_isPaywalled") {
+    if UserDefaults.standard.bool(forKey: .desktopIsPaywalled) {
       log("Paywall: refusing startMonitoring (trial expired)")
       NotificationCenter.default.post(
         name: .showUsageLimitPopup,

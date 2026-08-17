@@ -94,7 +94,7 @@ async def run_blocking(executor: ThreadPoolExecutor, fn: Callable[P, T], *args: 
 def submit_with_context(
     executor: ThreadPoolExecutor, fn: Callable[P, T], *args: P.args, **kwargs: P.kwargs
 ) -> Future[T]:
-    """Submit *fn* to *executor*, propagating the current contextvars (BYOK keys, etc.)."""
+    """Submit *fn* to *executor*, propagating the current request contextvars."""
     ctx = contextvars.copy_context()
     return executor.submit(ctx.run, fn, *args, **kwargs)
 

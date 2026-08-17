@@ -19,15 +19,13 @@ The shared plumbing every feature call goes through.
   provider on hard transport failures.
 - `gateway_anthropic.py` — gateway-first Anthropic Messages client with a
   direct-transport fallback.
-- `gateway_byok.py` — BYOK (bring-your-own-key) credential envelope helpers for
-  gateway routing.
 - `gateway_shadow.py` — dev/shadow comparison wrapping (sampled, prod-gated).
 - `gateway_observability.py` — records gateway vs. direct outcomes for
   comparison and health.
 - `clients.py` — LLM client construction plus the shared error callback wiring.
 - `providers.py` / `model_config.py` — provider-specific chat-model
   construction and model/profile selection per feature.
-- `byok_errors.py` — classifies and normalizes BYOK/provider LLM errors.
+- `provider_errors.py` — sanitizes and records managed-provider LLM errors.
 - `usage_tracker.py` — feature-level token-usage accounting.
 
 ## Chat & conversation

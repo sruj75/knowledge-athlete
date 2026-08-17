@@ -117,8 +117,6 @@ def test_basic_plan_features_include_unlimited_memories(subscription_module):
 
 def test_unlimited_transcription_plan_skips_monthly_usage_scan(monkeypatch, subscription_module):
     monkeypatch.setattr(subscription_module, 'is_trial_paywalled', lambda uid, source: False)
-    monkeypatch.setattr(subscription_module.users_db, 'is_byok_active', lambda uid: False, raising=False)
-    monkeypatch.setattr(subscription_module, 'get_byok_key', lambda provider: None)
     monkeypatch.setattr(
         subscription_module.users_db,
         'get_user_valid_subscription',
@@ -134,8 +132,6 @@ def test_unlimited_transcription_plan_skips_monthly_usage_scan(monkeypatch, subs
 
 def test_bounded_transcription_plan_reads_monthly_usage_and_enforces_cap(monkeypatch, subscription_module):
     monkeypatch.setattr(subscription_module, 'is_trial_paywalled', lambda uid, source: False)
-    monkeypatch.setattr(subscription_module.users_db, 'is_byok_active', lambda uid: False, raising=False)
-    monkeypatch.setattr(subscription_module, 'get_byok_key', lambda provider: None)
     monkeypatch.setattr(
         subscription_module.users_db,
         'get_user_valid_subscription',
@@ -152,8 +148,6 @@ def test_bounded_transcription_plan_reads_monthly_usage_and_enforces_cap(monkeyp
 
 def _stub_remaining_deps(monkeypatch, subscription_module, plan, used_seconds):
     monkeypatch.setattr(subscription_module, 'is_trial_paywalled', lambda uid, source=None: False)
-    monkeypatch.setattr(subscription_module.users_db, 'is_byok_active', lambda uid: False, raising=False)
-    monkeypatch.setattr(subscription_module, 'get_byok_key', lambda provider: None)
     monkeypatch.setattr(
         subscription_module.users_db,
         'get_user_valid_subscription',

@@ -209,11 +209,8 @@ def _canonical_cohort(monkeypatch):
     )
     set_canonical_cohort(monkeypatch, CANONICAL_UID)
     cohort = frozenset({CANONICAL_UID})
-    for resolve_func in (
-        upsert_atom_keyword_doc.__globals__["resolve_memory_system"],
-        search_canonical_memories.__globals__["resolve_memory_system"],
-    ):
-        monkeypatch.setitem(resolve_func.__globals__, "CANONICAL_MEMORY_USERS", cohort)
+    resolve_func = upsert_atom_keyword_doc.__globals__["resolve_memory_system"]
+    monkeypatch.setitem(resolve_func.__globals__, "CANONICAL_MEMORY_USERS", cohort)
 
 
 @pytest.fixture
@@ -724,10 +721,6 @@ class TestPurgeAndRebuild:
         other_doc = build_atom_keyword_document(other_user)
         docs_store[other_doc["id"]] = other_doc
 
-        monkeypatch.setattr(
-            "utils.memory.canonical_memory_adapter.resolve_memory_system",
-            lambda uid, **_: MemorySystem.CANONICAL,
-        )
         monkeypatch.setattr(
             "utils.memory.canonical_memory_adapter.fetch_authoritative_product_memory_items",
             lambda uid, db_client=None: [item],

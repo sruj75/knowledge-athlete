@@ -227,7 +227,7 @@ def enqueue_listen_finalization_job(job_id: str, dispatch_generation: int) -> No
     """Wake the finalizer with opaque routing data only.
 
     The Firestore job is canonical.  The task intentionally contains neither a
-    uid nor any conversation/BYOK material so Cloud Tasks diagnostics cannot
+    uid nor any conversation or credential material so Cloud Tasks diagnostics cannot
     expose user content or credentials.
     """
     _enqueue_named_task(

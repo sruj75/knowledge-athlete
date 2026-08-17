@@ -80,7 +80,7 @@ def _admit_finalization(_conversation_data: dict) -> jobs.FinalizationAdmission:
     }
 
 
-def test_intent_persists_outbox_before_any_live_handoff_and_omits_byok_material():
+def test_intent_persists_outbox_before_any_live_handoff_and_omits_request_material():
     transaction = _Transaction()
     conversation_ref = _conversation()
     collection = _Collection({})
@@ -91,7 +91,6 @@ def test_intent_persists_outbox_before_any_live_handoff_and_omits_byok_material(
         collection,
         'uid-1',
         'conversation-1',
-        False,
         _admit_finalization,
         _now(),
     )
@@ -106,7 +105,7 @@ def test_intent_persists_outbox_before_any_live_handoff_and_omits_byok_material(
     assert job['status'] == 'queued'
     assert job['fanout_key'] == 'fanout-key'
     assert job['fanout_status'] == 'pending'
-    forbidden = {'byok_keys', 'transcript', 'transcript_segments', 'authorization', 'raw_error'}
+    forbidden = {'transcript', 'transcript_segments', 'authorization', 'raw_error'}
     assert forbidden.isdisjoint(job)
     assert transaction.updates[0][1]['status'] == 'processing'
     assert transaction.updates[0][1]['finalization_job_id'] == intent['job_id']
@@ -123,7 +122,6 @@ def test_rest_intent_persists_its_force_mode_and_calendar_context_atomically():
         collection,
         'uid-1',
         'conversation-1',
-        False,
         _admit_finalization,
         _now(),
         force_process=True,
@@ -193,7 +191,6 @@ def test_create_or_get_intent_retries_read_contention_with_a_fresh_transaction(m
     intent = jobs.create_or_get_finalization_intent(
         'uid-1',
         'conversation-1',
-        requires_byok=False,
         finalization_admission=_admit_finalization,
         firestore_client=_Client(),
     )
@@ -223,7 +220,6 @@ def test_conversation_with_durable_content_marker_is_admitted():
         collection,
         'uid-1',
         'conversation-1',
-        False,
         _admit_finalization,
         _now(),
     )
@@ -243,7 +239,7 @@ def test_duplicate_reconnect_reuses_the_same_outbox_job():
         {
             job_id: _Ref(
                 job_id,
-                {'status': 'queued', 'dispatch_generation': 1, 'requires_byok': False},
+                {'status': 'queued', 'dispatch_generation': 1},
             )
         }
     )
@@ -254,7 +250,6 @@ def test_duplicate_reconnect_reuses_the_same_outbox_job():
         collection,
         'uid-1',
         'conversation-1',
-        False,
         _admit_finalization,
         _now(),
     )
@@ -263,7 +258,6 @@ def test_duplicate_reconnect_reuses_the_same_outbox_job():
         'job_id': job_id,
         'status': 'queued',
         'dispatch_generation': 1,
-        'requires_byok': False,
         'fanout_key': None,
         'created': False,
     }
@@ -295,7 +289,6 @@ def test_duplicate_finalization_intent_keeps_the_same_processing_admission():
                 {
                     'status': 'queued',
                     'dispatch_generation': 1,
-                    'requires_byok': False,
                 },
             )
         }
@@ -307,7 +300,6 @@ def test_duplicate_finalization_intent_keeps_the_same_processing_admission():
         collection,
         'uid-1',
         'conversation-1',
-        False,
         _admit_finalization,
         _now(),
     )
@@ -316,27 +308,6 @@ def test_duplicate_finalization_intent_keeps_the_same_processing_admission():
     assert intent['dispatch_generation'] == 1
     assert transaction.updates == []
     assert transaction.sets == []
-
-
-def test_byok_job_is_explicitly_blocked_without_persisting_a_key():
-    transaction = _Transaction()
-    collection = _Collection({})
-
-    intent = jobs._create_or_get_finalization_intent_txn(
-        transaction,
-        _conversation(),
-        collection,
-        'uid-1',
-        'conversation-1',
-        True,
-        _admit_finalization,
-        _now(),
-    )
-
-    assert intent['status'] == 'blocked_byok'
-    persisted = transaction.sets[0][1]
-    assert persisted['requires_byok'] is True
-    assert set(persisted).isdisjoint({'byok_keys', 'openai', 'anthropic', 'gemini', 'deepgram'})
 
 
 def test_atomic_admission_rejects_terminal_snapshot_before_any_outbox_write():
@@ -353,7 +324,6 @@ def test_atomic_admission_rejects_terminal_snapshot_before_any_outbox_write():
         collection,
         'uid-1',
         'conversation-1',
-        False,
         terminal,
         _now(),
     )
@@ -368,7 +338,7 @@ def test_duplicate_task_delivery_claims_only_once_until_lease_expires():
     ref = _Ref('job-1', {'status': 'queued', 'dispatch_generation': 2, 'attempt_count': 0})
     first = _Transaction()
 
-    claim = jobs._claim_finalization_job_txn(first, ref, 2, False, 1500, now)
+    claim = jobs._claim_finalization_job_txn(first, ref, 2, 1500, now)
     assert claim == {'status': 'claimed', 'lease_epoch': 1, 'attempt_count': 1, 'created_at': None}
     claim_update = first.updates[0][1]
     assert claim_update['status'] == 'leased'
@@ -376,7 +346,7 @@ def test_duplicate_task_delivery_claims_only_once_until_lease_expires():
 
     ref.data = ref.data | claim_update
     duplicate = _Transaction()
-    assert jobs._claim_finalization_job_txn(duplicate, ref, 2, False, 1500, now + timedelta(seconds=1)) == {
+    assert jobs._claim_finalization_job_txn(duplicate, ref, 2, 1500, now + timedelta(seconds=1)) == {
         'status': 'leased',
         'lease_epoch': None,
         'attempt_count': 0,
@@ -398,7 +368,7 @@ def test_expired_worker_lease_can_be_safely_reclaimed():
     )
     transaction = _Transaction()
 
-    claim = jobs._claim_finalization_job_txn(transaction, ref, 2, False, 1500, now)
+    claim = jobs._claim_finalization_job_txn(transaction, ref, 2, 1500, now)
     assert claim == {'status': 'claimed', 'lease_epoch': 1, 'attempt_count': 2, 'created_at': None}
     assert transaction.updates[0][1]['attempt_count'] == 2
     assert transaction.updates[0][1]['lease_epoch'] == 1
@@ -479,25 +449,6 @@ def test_pre_projection_terminal_keeps_its_outcome_without_moving_the_new_denomi
     assert jobs._mark_finalization_completed_txn(transaction, ref, 1, 1, _now(), _Collection({})) is True
     assert transaction.updates[0][1]['terminal_outcome'] == 'success'
     assert transaction.sets == []
-
-
-def test_byok_resume_moves_only_its_admitted_projection_state():
-    ref = _Ref(
-        'job-1',
-        {
-            'status': 'blocked_byok',
-            'requires_byok': True,
-            'projection_generation': jobs.FINALIZATION_PROJECTION_GENERATION,
-            'projection_shard': 3,
-        },
-    )
-    transaction = _Transaction()
-
-    intent = jobs._resume_blocked_byok_job_txn(transaction, ref, _now(), _Collection({}))
-
-    assert intent['status'] == 'queued'
-    assert transaction.updates[0][1]['status'] == 'queued'
-    assert transaction.sets[0][0].id == jobs._projection_shard_id(jobs.FINALIZATION_PROJECTION_GENERATION, 3)
 
 
 def test_fanout_claim_terminally_fences_a_discard_that_wins_before_its_transaction():
@@ -598,7 +549,7 @@ def test_completed_fenced_job_replays_as_a_fenced_result():
         },
     )
 
-    claim = jobs._claim_finalization_job_txn(_Transaction(), ref, 1, False, 1500, _now())
+    claim = jobs._claim_finalization_job_txn(_Transaction(), ref, 1, 1500, _now())
 
     assert claim == {'status': 'fenced', 'lease_epoch': None, 'attempt_count': 0, 'created_at': None}
 
@@ -619,7 +570,6 @@ def test_live_pusher_claim_cannot_use_another_conversations_job():
         transaction,
         ref,
         1,
-        False,
         1500,
         _now(),
         expected_uid='other-uid',
@@ -634,7 +584,7 @@ def test_completed_and_dead_letter_jobs_never_execute_again():
     for status in ('completed', 'dead_letter'):
         transaction = _Transaction()
         ref = _Ref('job-1', {'status': status, 'dispatch_generation': 1})
-        assert jobs._claim_finalization_job_txn(transaction, ref, 1, False, 1500, _now()) == {
+        assert jobs._claim_finalization_job_txn(transaction, ref, 1, 1500, _now()) == {
             'status': status,
             'lease_epoch': None,
             'attempt_count': 0,
@@ -651,7 +601,6 @@ def test_reconciler_replaces_stale_generation_after_worker_crash():
         {
             'status': 'leased',
             'dispatch_generation': 4,
-            'requires_byok': False,
             'lease_expires_at': now - timedelta(seconds=1),
         },
     )
@@ -677,7 +626,7 @@ def test_expired_lease_reclaim_fences_a_stale_worker_terminal_write():
     )
 
     reclaim = _Transaction()
-    new_claim = jobs._claim_finalization_job_txn(reclaim, ref, 3, False, 1500, now)
+    new_claim = jobs._claim_finalization_job_txn(reclaim, ref, 3, 1500, now)
     assert new_claim == {'status': 'claimed', 'lease_epoch': 5, 'attempt_count': 1, 'created_at': None}
     ref.data = ref.data | reclaim.updates[0][1]
 
@@ -787,10 +736,9 @@ def test_durable_summary_reads_a_fixed_projection_shard_set_without_job_aggregat
                         {
                             'generation': jobs.FINALIZATION_PROJECTION_GENERATION,
                             'shard': 0,
-                            'accepted': 8,
+                            'accepted': 6,
                             'queued': 2,
                             'leased': 1,
-                            'blocked_byok': 2,
                             'completed': 2,
                             'dead_letter': 1,
                             'success': 1,
@@ -826,14 +774,13 @@ def test_durable_summary_reads_a_fixed_projection_shard_set_without_job_aggregat
 
     assert len(projection.read_ids) == jobs.FINALIZATION_PROJECTION_SHARD_COUNT
     assert summary == {
-        'accepted': 8,
+        'accepted': 6,
         'success': 1,
         'failure': 1,
         'stale': 1,
         'nonterminal': 3,
         'queued': 2,
         'leased': 1,
-        'blocked_byok': 2,
         'completed': 2,
         'dead_letter': 1,
         'terminal_unknown': 0,

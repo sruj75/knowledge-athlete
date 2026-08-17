@@ -57,13 +57,6 @@ AUTH_MECHANISMS = {
     'unknown',
 }
 AUTH_PLACEMENTS = {'dependency', 'inline', 'middleware', 'external_gateway', 'first_message', 'unknown', 'none'}
-BYOK_POLICIES = {
-    'not_applicable',
-    'validated_when_headers_present',
-    'skipped_for_key_rotation',
-    'websocket_manual',
-    'unknown',
-}
 RATE_LIMIT_KEY_SUBJECTS = {'uid', 'ip', 'custom', 'none', 'unknown'}
 RATE_LIMIT_ENFORCEMENTS = {'fail_open', 'fail_closed', 'shadow', 'none', 'unknown'}
 RATE_LIMIT_PLACEMENTS = {'dependency', 'inline', 'wrapper', 'websocket_lock', 'none', 'unknown'}
@@ -366,8 +359,6 @@ def _validate_policy(route_key_value: str, policy: Any) -> list[str]:
         if not isinstance(scopes, list):
             errors.append(f'{route_key_value}.policy.auth.scopes must be a list')
         _optional_enum(auth.get('placement'), AUTH_PLACEMENTS, f'{route_key_value}.policy.auth.placement', errors)
-
-    _optional_enum(policy.get('byok'), BYOK_POLICIES, f'{route_key_value}.policy.byok', errors)
 
     rate_limit = policy.get('rate_limit', {})
     if not isinstance(rate_limit, dict):
@@ -698,7 +689,6 @@ def build_summary(
     for name, path in {
         'auth_mechanisms': ('auth', 'mechanisms'),
         'auth_placement': ('auth', 'placement'),
-        'byok': ('byok',),
         'rate_limit_policy_name': ('rate_limit', 'policy_name'),
         'rate_limit_key_subject': ('rate_limit', 'key_subject'),
         'timeout_class': ('timeout_class',),

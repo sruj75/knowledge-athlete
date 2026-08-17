@@ -135,7 +135,6 @@ def test_users_module_only_wires_safe_projection_caches():
     forbidden_sections = [
         'def get_user_subscription',
         'def get_user_valid_subscription',
-        'def get_byok_state',
         'def get_data_protection_level',
         'def get_user_private_cloud_sync_enabled',
         'def get_user_training_data_opt_in',

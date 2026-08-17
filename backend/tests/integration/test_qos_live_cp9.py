@@ -3,10 +3,7 @@ CP9 Live Integration Test — Real LLM API calls covering ALL changed paths in P
 
 Tests every code path changed in the QoS profile refactor:
   P1: get_llm() routing for all features in premium profile
-  P2: get_model()/get_provider() resolution across all 6 profiles
-  P3: _create_byok_client() factory (mocked key, real client construction)
-  P4: _effective_byok_provider() mapping
-  P5: BYOK profile hardcoded to byok
+  P2: get_model()/get_provider() resolution across all managed profiles
   P6: Structured output compatibility on OpenAI (real .with_structured_output() call)
   P7: Prompt caching (cache_key binding for gpt-5.4-mini)
   P8: Streaming client construction and invocation
@@ -38,14 +35,9 @@ load_dotenv(os.path.join(os.path.dirname(__file__), '..', '..', '.env'))
 
 from utils.llm.clients import (
     MODEL_QOS_PROFILES,
-    _CACHE_KEY_MODELS,
     _STRUCTURED_OUTPUT_FEATURES,
     _active_profile,
     _active_profile_name,
-    _byok_profile,
-    _byok_profile_name,
-    _create_byok_client,
-    _effective_byok_provider,
     _get_or_create_gemini_llm,
     _get_or_create_openai_llm,
     _get_or_create_openrouter_llm,
@@ -54,6 +46,8 @@ from utils.llm.clients import (
     get_model,
     get_provider,
     get_qos_info,
+    supports_cache_retention,
+    supports_prompt_cache,
 )
 
 SIMPLE_PROMPT = "Reply with exactly one word: hello"
@@ -87,7 +81,7 @@ class TestP1_GetLlmRouting:
 
 
 # ---------------------------------------------------------------------------
-# P2: get_model()/get_provider() resolution across all 6 profiles
+# P2: get_model()/get_provider() resolution across all managed profiles
 # ---------------------------------------------------------------------------
 class TestP2_ModelProviderResolution:
     """P2: get_model/get_provider resolve correctly for all features in all profiles."""
@@ -107,95 +101,8 @@ class TestP2_ModelProviderResolution:
             assert model == _active_profile[feature][0]
             assert provider == _active_profile[feature][1]
 
-    def test_three_profiles_exist(self):
-        assert len(MODEL_QOS_PROFILES) == 3
-        assert set(MODEL_QOS_PROFILES.keys()) == {'premium', 'max', 'byok'}
-
-
-# ---------------------------------------------------------------------------
-# P3: _create_byok_client() factory — constructs real ChatOpenAI with test key
-# ---------------------------------------------------------------------------
-class TestP3_CreateByokClient:
-    """P3: _create_byok_client creates valid ChatOpenAI instances."""
-
-    def test_openai_byok_client(self):
-        client = _create_byok_client('gpt-4.1-mini', 'openai', os.environ['OPENAI_API_KEY'])
-        assert client is not None
-        response = client.invoke(SIMPLE_PROMPT)
-        assert response.content.strip(), "BYOK OpenAI client returned empty"
-        print(f"  P3 BYOK openai: {response.content.strip()[:60]}")
-
-    def test_openrouter_gemini_byok_reroute(self):
-        """OpenRouter + gemini model → reroutes to Gemini direct (needs GEMINI_API_KEY)."""
-        if not HAS_GEMINI_KEY:
-            pytest.skip("GEMINI_API_KEY not set")
-        client = _create_byok_client(
-            'gemini-3-flash-preview', 'openrouter', os.environ['GEMINI_API_KEY'], feature='wrapped_analysis'
-        )
-        assert client is not None
-        response = client.invoke(SIMPLE_PROMPT)
-        assert response.content.strip()
-        print(f"  P3 BYOK openrouter→gemini: {response.content.strip()[:60]}")
-
-    def test_unsupported_provider_returns_none(self):
-        client = _create_byok_client('sonar-pro', 'perplexity', 'fake-key')
-        assert client is None
-
-    def test_streaming_byok_client(self):
-        client = _create_byok_client('gpt-4.1-mini', 'openai', os.environ['OPENAI_API_KEY'], streaming=True)
-        assert client is not None
-        response = client.invoke(SIMPLE_PROMPT)
-        assert response.content.strip()
-        print(f"  P3 BYOK streaming: {response.content.strip()[:60]}")
-
-
-# ---------------------------------------------------------------------------
-# P4: _effective_byok_provider() mapping
-# ---------------------------------------------------------------------------
-class TestP4_EffectiveBYOKProvider:
-    """P4: Provider mapping for BYOK key type resolution."""
-
-    def test_openai(self):
-        assert _effective_byok_provider('gpt-4.1-mini', 'openai') == 'openai'
-
-    def test_gemini(self):
-        assert _effective_byok_provider('gemini-2.5-flash', 'gemini') == 'gemini'
-
-    def test_openrouter_gemini(self):
-        assert _effective_byok_provider('gemini-3-flash-preview', 'openrouter') == 'gemini'
-
-    def test_openrouter_non_gemini(self):
-        assert _effective_byok_provider('anthropic/claude', 'openrouter') == 'openrouter'
-
-
-# ---------------------------------------------------------------------------
-# P5: BYOK profile hardcoded to byok
-# ---------------------------------------------------------------------------
-class TestP5_BYOKProfileFixed:
-    """P5: BYOK profile is always hardcoded to 'byok' regardless of active profile."""
-
-    def test_byok_profile_is_byok(self):
-        assert _byok_profile_name == 'byok'
-
-    def test_byok_profile_exists(self):
-        assert _byok_profile is not None
-        assert _byok_profile is MODEL_QOS_PROFILES['byok']
-
-    def test_byok_profile_independent_of_active(self):
-        """BYOK profile should always be 'byok' regardless of MODEL_QOS setting."""
-        assert _byok_profile_name == 'byok'
-        assert _active_profile_name in MODEL_QOS_PROFILES
-        # Even if active is 'max', BYOK stays 'byok'
-        assert _byok_profile_name != _active_profile_name or _active_profile_name == 'byok'
-
-    def test_byok_mostly_openai(self):
-        """byok profile should use OpenAI for most features (chat_agent/web_search are exceptions)."""
-        exceptions = {'chat_agent': 'anthropic', 'web_search': 'perplexity', 'wrapped_analysis': 'openrouter'}
-        for feature, (model, provider) in MODEL_QOS_PROFILES['byok'].items():
-            if feature in exceptions:
-                assert provider == exceptions[feature], f'byok {feature} expected {exceptions[feature]}, got {provider}'
-            else:
-                assert provider == 'openai', f'byok feature {feature} uses {provider}, expected openai'
+    def test_managed_profiles_exist(self):
+        assert set(MODEL_QOS_PROFILES.keys()) == {'premium', 'max'}
 
 
 # ---------------------------------------------------------------------------
@@ -249,20 +156,23 @@ class TestP7_PromptCaching:
     """P7: cache_key binding works and produces valid responses."""
 
     def test_cache_key_with_cacheable_model(self):
-        """conv_structure uses gpt-5.4-mini (in _CACHE_KEY_MODELS) — cache_key should bind."""
+        """conv_structure uses a prompt-cache-capable model, so cache_key should bind."""
         llm = get_llm('conv_structure', cache_key='omi-test-cp9')
         response = llm.invoke(SIMPLE_PROMPT)
         assert response.content.strip()
         print(f"  P7 cache_key bound: {response.content.strip()[:60]}")
 
     def test_cache_key_ignored_for_non_cacheable(self):
-        """memories uses gpt-4.1-mini (not in _CACHE_KEY_MODELS) — cache_key is no-op."""
-        llm_with = get_llm('memories', cache_key='omi-test-cp9')
-        llm_without = get_llm('memories')
-        assert llm_with is llm_without  # same instance, cache_key was a no-op
+        """Gemini models do not receive the OpenAI cache-key option."""
+        llm_with = get_llm('followup', cache_key='omi-test-cp9')
+        llm_without = get_llm('followup')
+        assert llm_with is llm_without
 
-    def test_cache_key_models_set(self):
-        assert _CACHE_KEY_MODELS == {'gpt-5.4', 'gpt-5.4-mini'}
+    def test_prompt_cache_capabilities_follow_model_families(self):
+        assert supports_prompt_cache('gpt-5.4-mini')
+        assert supports_prompt_cache('gpt-4.1-mini')
+        assert not supports_prompt_cache('gemini-2.5-flash-lite')
+        assert supports_cache_retention('gpt-5.4-mini')
 
 
 # ---------------------------------------------------------------------------

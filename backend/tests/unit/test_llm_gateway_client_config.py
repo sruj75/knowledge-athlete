@@ -232,34 +232,6 @@ def test_gateway_serving_does_not_fallback_on_gateway_configuration_503():
     assert gateway_serving.is_gateway_transport_failure(error) is False
 
 
-def test_get_llm_feature_gateway_mode_routes_byok_through_gateway_only(monkeypatch):
-    captured: dict[str, object] = {}
-    legacy = FakeChatModel(name='byok', calls=[])
-
-    def fake_gateway(lane_id, *, provider, api_key, **_kwargs):
-        captured['lane_id'] = lane_id
-        captured['provider'] = provider
-        captured['api_key'] = api_key
-        return FakeChatModel(name='gateway-byok', calls=[])
-
-    monkeypatch.setenv(LLM_GATEWAY_FEATURE_MODE_ENV_VAR, 'gateway')
-    monkeypatch.setenv('OMI_ENV_STAGE', 'dev')
-    monkeypatch.delenv(gateway_shadow.DEV_SHADOW_ALL_ENABLED_ENV, raising=False)
-    monkeypatch.setattr(clients, 'get_byok_key', lambda provider: 'sk-test-byok' if provider == 'openai' else None)
-    monkeypatch.setattr(clients, 'get_or_create_omi_gateway_llm_for_byok', fake_gateway)
-    monkeypatch.setattr(clients, '_create_byok_client', lambda *args, **kwargs: legacy)
-
-    result = clients.get_llm('conv_discard').invoke('hello')
-
-    assert result.content == 'gateway-byok response'
-    assert captured == {
-        'lane_id': feature_auto_lane_id('conv_discard'),
-        'provider': 'openai',
-        'api_key': 'sk-test-byok',
-    }
-    assert legacy.calls == []
-
-
 def test_gateway_feature_mode_is_blocked_in_prod_without_explicit_allow(monkeypatch):
     monkeypatch.setenv(LLM_GATEWAY_FEATURE_MODE_ENV_VAR, 'gateway')
     monkeypatch.setenv('K_SERVICE', 'omi-backend')

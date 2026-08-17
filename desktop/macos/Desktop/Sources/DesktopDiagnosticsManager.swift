@@ -1354,7 +1354,6 @@ final class DesktopDiagnosticsManager {
     "local_heal",
     "policy",
     "dispatch_disabled",
-    "byok",
     "other",
     "none",
     "stale_alive_latch",

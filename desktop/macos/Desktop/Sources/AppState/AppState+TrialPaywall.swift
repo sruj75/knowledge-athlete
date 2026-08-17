@@ -21,7 +21,7 @@ extension AppState {
   /// Single source of truth for "should the UI block $-cost features" when
   /// only the persisted managed-access decision is available.
   nonisolated static var isPaywalledEffective: Bool {
-    UserDefaults.standard.bool(forKey: "desktop_isPaywalled")
+    UserDefaults.standard.bool(forKey: .desktopIsPaywalled)
   }
 
   /// Decision for the resume-on-paywall-clear hook in `fetchTrialMetadata()`.

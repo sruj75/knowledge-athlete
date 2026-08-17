@@ -21,10 +21,9 @@ extension DesktopAutomationActionRegistry {
         "screen_analysis_enabled": assistant.screenAnalysisEnabled ? "true" : "false",
         "transcription_enabled": assistant.transcriptionEnabled ? "true" : "false",
         "multi_chat_enabled": UserDefaults.standard.bool(forKey: .multiChatEnabled) ? "true" : "false",
-        "ask_mode_enabled": UserDefaults.standard.bool(forKey: "askModeEnabled") ? "true" : "false",
+        "ask_mode_enabled": UserDefaults.standard.bool(forKey: .askModeEnabled) ? "true" : "false",
         "access_model": "managed",
         "customer_key_controls_visible": "false",
-        "free_byok_promo_visible": "false",
       ]
     }
 

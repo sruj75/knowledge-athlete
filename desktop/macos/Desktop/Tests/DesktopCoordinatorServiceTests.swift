@@ -392,7 +392,8 @@ final class DesktopCoordinatorServiceTests: XCTestCase {
       source.contains("DesktopCoordinatorService.shared.peekCompletedAgentDelta(surface: consumerSurface)"))
     XCTAssertFalse(source.contains("DesktopCoordinatorService.shared.acknowledgeCompletedAgentDelta("))
     XCTAssertTrue(source.contains("queryResult.completionDeltaArtifacts"))
-    XCTAssertTrue(source.contains("queryResult = try await resolvedAgentClient().query("))
+    XCTAssertTrue(source.contains("queryResult = try await performAgentQuery("))
+    XCTAssertTrue(source.contains("return try await resolvedAgentClient().query("))
   }
 
   func testContextSnapshotAndRenderingAreOwnedByKernelRuntime() throws {

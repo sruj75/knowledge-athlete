@@ -36,7 +36,6 @@ _stub_modules = [
     'utils.encryption',
     'utils.executors',
     'utils.analytics',
-    'utils.byok',
     'utils.cloud_tasks',
     'utils.http_client',
     'utils.stt.pre_recorded',
@@ -104,7 +103,6 @@ _ensure_attrs(
         '_PRECACHE_FILE_SEM',
     ],
 )
-_ensure_attrs('utils.byok', ['get_byok_keys', 'set_byok_keys', 'has_byok_keys'])
 _ensure_attrs(
     'utils.cloud_tasks',
     [

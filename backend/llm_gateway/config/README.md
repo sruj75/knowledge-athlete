@@ -47,7 +47,7 @@ only in response headers and structured logs, never as Prometheus labels. Pre-ro
 
 ## Usage accounting ledger
 
-Every managed and BYOK provider attempt that reaches a gateway provider is scheduled for best-effort delivery to the
+Every managed provider attempt that reaches a gateway provider is scheduled for best-effort delivery to the
 backend-owned `llm_gateway_attempts` Firestore collection. A successfully delivered event is immutable and idempotent
 by gateway invocation/attempt ID; bounded queue overflow is measured as `delivery=dropped`, never hidden as zero cost.
 It holds attribution (`user_uid`, caller, low-cardinality feature, and a subscription-tier snapshot), route/provider

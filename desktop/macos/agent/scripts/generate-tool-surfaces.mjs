@@ -435,11 +435,9 @@ function generateExecutorsSwift() {
   // flow. They stay dispatchable in Swift without being advertised to Pi or
   // projected into the owned runtime manifest.
   const onboardingCommands = [
-    { name: "scan_files", aliases: ["start_file_scan", "get_file_scan_results"] },
     { name: "set_user_preferences", aliases: [] },
     { name: "ask_followup", aliases: [] },
     { name: "complete_onboarding", aliases: [] },
-    { name: "get_email_insights", aliases: [] },
   ];
   const enumCases = swiftTools
     .map((tool) => `  case ${swiftToolCaseName(tool.name)} = "${tool.name}"`)

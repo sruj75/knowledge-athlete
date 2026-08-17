@@ -7,7 +7,6 @@ the excess.
   - Neo / Unlimited (200 included): overage on questions past cap.
   - Architect ($400 included AI compute / mo): overage on cost past cap.
   - Free users still hard-capped (no payment method on file).
-  - BYOK users bypass everything (handled in ``utils.subscription.enforce_chat_quota``).
 
 True costs are tracked on every chat call via
 ``database.llm_usage.record_llm_usage_bucket`` → ``desktop_chat.cost_usd``.
@@ -60,9 +59,7 @@ OVERAGE_EXPLAINER_BODY = (
     "  • We add a {markup_pct:.0f}% buffer on top to cover infra and pricing variance.\n"
     "  • That's it — no surge pricing, no hidden fees.\n\n"
     "A typical chat question costs roughly $0.01–$0.05 of real compute. Heavy "
-    "RAG or agentic questions cost a bit more.\n\n"
-    "Prefer predictable billing? Bring your own API keys in Settings → Developer "
-    "API Keys and pay providers directly — Omi is free when BYOK is active."
+    "RAG or agentic questions cost a bit more."
 )
 
 

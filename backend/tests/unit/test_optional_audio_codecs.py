@@ -118,7 +118,6 @@ def _install_sync_import_stubs(monkeypatch):
         "utils.other.storage",
         "utils.encryption",
         "utils.analytics",
-        "utils.byok",
         "utils.cloud_tasks",
         "utils.http_client",
         "utils.stt.pre_recorded",

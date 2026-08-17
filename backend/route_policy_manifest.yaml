@@ -16,7 +16,6 @@ routes:
           - unknown
         placement: unknown
         scopes: []
-      byok: unknown
       rate_limit:
         policy_name: unknown
         key_subject: unknown
@@ -103,7 +102,6 @@ routes:
           - public
         placement: none
         scopes: []
-      byok: not_applicable
       rate_limit:
         policy_name: none
         key_subject: none
@@ -125,7 +123,6 @@ routes:
           - public
         placement: none
         scopes: []
-      byok: not_applicable
       rate_limit:
         policy_name: none
         key_subject: none
@@ -147,7 +144,6 @@ routes:
           - public
         placement: none
         scopes: []
-      byok: not_applicable
       rate_limit:
         policy_name: none
         key_subject: none
@@ -169,7 +165,6 @@ routes:
           - public
         placement: none
         scopes: []
-      byok: not_applicable
       rate_limit:
         policy_name: none
         key_subject: none
@@ -191,7 +186,6 @@ routes:
           - desktop_preview_publish_key
         placement: inline
         scopes: []
-      byok: not_applicable
       rate_limit:
         policy_name: none
         key_subject: none
@@ -213,7 +207,6 @@ routes:
           - desktop_preview_publish_key
         placement: inline
         scopes: []
-      byok: not_applicable
       rate_limit:
         policy_name: none
         key_subject: none
@@ -235,7 +228,6 @@ routes:
           - admin_key
         placement: inline
         scopes: []
-      byok: not_applicable
       rate_limit:
         policy_name: none
         key_subject: none
@@ -257,7 +249,6 @@ routes:
           - admin_key
         placement: inline
         scopes: []
-      byok: not_applicable
       rate_limit:
         policy_name: none
         key_subject: none
@@ -279,7 +270,6 @@ routes:
           - admin_key
         placement: inline
         scopes: []
-      byok: not_applicable
       rate_limit:
         policy_name: none
         key_subject: none
@@ -301,7 +291,6 @@ routes:
           - beta_promotion_token
         placement: inline
         scopes: []
-      byok: not_applicable
       rate_limit:
         policy_name: none
         key_subject: none
@@ -323,7 +312,6 @@ routes:
           - beta_promotion_token
         placement: inline
         scopes: []
-      byok: not_applicable
       rate_limit:
         policy_name: none
         key_subject: none
@@ -345,7 +333,6 @@ routes:
           - admin_key
         placement: inline
         scopes: []
-      byok: not_applicable
       rate_limit:
         policy_name: none
         key_subject: none
@@ -367,7 +354,6 @@ routes:
           - admin_key
         placement: inline
         scopes: []
-      byok: not_applicable
       rate_limit:
         policy_name: none
         key_subject: none
@@ -390,7 +376,6 @@ routes:
           - firebase_id_token
         placement: dependency
         scopes: []
-      byok: not_applicable
       rate_limit:
         policy_name: none
         key_subject: none
@@ -413,7 +398,6 @@ routes:
           - firebase_id_token
         placement: dependency
         scopes: []
-      byok: not_applicable
       rate_limit:
         policy_name: memories:delete_batch
         key_subject: uid
@@ -436,7 +420,6 @@ routes:
           - firebase_id_token
         placement: dependency
         scopes: []
-      byok: not_applicable
       rate_limit:
         policy_name: memories:modify
         key_subject: uid
@@ -459,7 +442,6 @@ routes:
           - service_oidc
         placement: dependency
         scopes: []
-      byok: not_applicable
       rate_limit:
         policy_name: none
         key_subject: none
@@ -481,7 +463,6 @@ routes:
           - service_oidc
         placement: dependency
         scopes: []
-      byok: not_applicable
       rate_limit:
         policy_name: none
         key_subject: none
@@ -503,7 +484,6 @@ routes:
           - firebase_id_token
         placement: dependency
         scopes: []
-      byok: not_applicable
       rate_limit:
         policy_name: none
         key_subject: none
@@ -526,7 +506,6 @@ routes:
           - firebase_id_token
         placement: dependency
         scopes: []
-      byok: not_applicable
       rate_limit:
         policy_name: none
         key_subject: none
@@ -549,7 +528,6 @@ routes:
           - firebase_id_token
         placement: dependency
         scopes: []
-      byok: not_applicable
       rate_limit:
         policy_name: none
         key_subject: none
@@ -572,7 +550,6 @@ routes:
           - firebase_id_token
         placement: dependency
         scopes: []
-      byok: not_applicable
       rate_limit:
         policy_name: none
         key_subject: none
@@ -595,7 +572,6 @@ routes:
           - firebase_id_token
         placement: dependency
         scopes: []
-      byok: not_applicable
       rate_limit:
         policy_name: none
         key_subject: none
@@ -618,7 +594,6 @@ routes:
           - firebase_id_token
         placement: dependency
         scopes: []
-      byok: not_applicable
       rate_limit:
         policy_name: none
         key_subject: none
@@ -641,7 +616,6 @@ routes:
           - firebase_id_token
         placement: dependency
         scopes: []
-      byok: not_applicable
       rate_limit:
         policy_name: none
         key_subject: none
@@ -664,7 +638,6 @@ routes:
           - firebase_id_token
         placement: dependency
         scopes: []
-      byok: not_applicable
       rate_limit:
         policy_name: none
         key_subject: none
@@ -687,7 +660,6 @@ routes:
           - firebase_id_token
         placement: dependency
         scopes: []
-      byok: not_applicable
       rate_limit:
         policy_name: none
         key_subject: none
@@ -710,7 +682,6 @@ routes:
           - firebase_id_token
         placement: dependency
         scopes: []
-      byok: not_applicable
       rate_limit:
         policy_name: none
         key_subject: none
@@ -733,7 +704,6 @@ routes:
           - firebase_id_token
         placement: dependency
         scopes: []
-      byok: not_applicable
       rate_limit:
         policy_name: none
         key_subject: none
@@ -756,7 +726,6 @@ routes:
           - firebase_id_token
         placement: dependency
         scopes: []
-      byok: not_applicable
       rate_limit:
         policy_name: none
         key_subject: none
@@ -779,7 +748,6 @@ routes:
           - firebase_id_token
         placement: dependency
         scopes: []
-      byok: not_applicable
       rate_limit:
         policy_name: none
         key_subject: none
@@ -802,7 +770,6 @@ routes:
           - firebase_id_token
         placement: dependency
         scopes: []
-      byok: not_applicable
       rate_limit:
         policy_name: none
         key_subject: none
@@ -825,7 +792,6 @@ routes:
           - firebase_id_token
         placement: dependency
         scopes: []
-      byok: not_applicable
       rate_limit:
         policy_name: none
         key_subject: none
@@ -848,7 +814,6 @@ routes:
           - firebase_id_token
         placement: dependency
         scopes: []
-      byok: not_applicable
       rate_limit:
         policy_name: none
         key_subject: none
@@ -871,7 +836,6 @@ routes:
           - firebase_id_token
         placement: dependency
         scopes: []
-      byok: not_applicable
       rate_limit:
         policy_name: none
         key_subject: none
@@ -894,7 +858,6 @@ routes:
           - firebase_id_token
         placement: dependency
         scopes: []
-      byok: not_applicable
       rate_limit:
         policy_name: none
         key_subject: none
@@ -917,7 +880,6 @@ routes:
           - firebase_id_token
         placement: dependency
         scopes: []
-      byok: not_applicable
       rate_limit:
         policy_name: none
         key_subject: none
@@ -940,7 +902,6 @@ routes:
           - firebase_id_token
         placement: dependency
         scopes: []
-      byok: not_applicable
       rate_limit:
         policy_name: none
         key_subject: none
@@ -963,7 +924,6 @@ routes:
           - firebase_id_token
         placement: dependency
         scopes: []
-      byok: not_applicable
       rate_limit:
         policy_name: none
         key_subject: none
@@ -986,7 +946,6 @@ routes:
           - firebase_id_token
         placement: dependency
         scopes: []
-      byok: not_applicable
       rate_limit:
         policy_name: none
         key_subject: none
@@ -1009,7 +968,6 @@ routes:
           - firebase_id_token
         placement: dependency
         scopes: []
-      byok: not_applicable
       rate_limit:
         policy_name: none
         key_subject: none
@@ -1032,7 +990,6 @@ routes:
           - firebase_id_token
         placement: dependency
         scopes: []
-      byok: not_applicable
       rate_limit:
         policy_name: none
         key_subject: none
@@ -1055,7 +1012,6 @@ routes:
           - firebase_id_token
         placement: dependency
         scopes: []
-      byok: not_applicable
       rate_limit:
         policy_name: none
         key_subject: none
@@ -1078,7 +1034,6 @@ routes:
           - firebase_id_token
         placement: dependency
         scopes: []
-      byok: not_applicable
       rate_limit:
         policy_name: none
         key_subject: none
@@ -1101,7 +1056,6 @@ routes:
           - firebase_id_token
         placement: dependency
         scopes: []
-      byok: not_applicable
       rate_limit:
         policy_name: none
         key_subject: none
@@ -1124,7 +1078,6 @@ routes:
           - firebase_id_token
         placement: dependency
         scopes: []
-      byok: not_applicable
       rate_limit:
         policy_name: none
         key_subject: none
@@ -1147,7 +1100,6 @@ routes:
           - firebase_id_token
         placement: dependency
         scopes: []
-      byok: not_applicable
       rate_limit:
         policy_name: none
         key_subject: none
@@ -1170,7 +1122,6 @@ routes:
           - firebase_id_token
         placement: dependency
         scopes: []
-      byok: not_applicable
       rate_limit:
         policy_name: none
         key_subject: none
@@ -1193,7 +1144,6 @@ routes:
           - firebase_id_token
         placement: dependency
         scopes: []
-      byok: not_applicable
       rate_limit:
         policy_name: none
         key_subject: none
@@ -1216,7 +1166,6 @@ routes:
           - firebase_id_token
         placement: dependency
         scopes: []
-      byok: not_applicable
       rate_limit:
         policy_name: none
         key_subject: none
@@ -1239,7 +1188,6 @@ routes:
           - firebase_id_token
         placement: dependency
         scopes: []
-      byok: not_applicable
       rate_limit:
         policy_name: none
         key_subject: none
@@ -1262,7 +1210,6 @@ routes:
           - firebase_id_token
         placement: dependency
         scopes: []
-      byok: not_applicable
       rate_limit:
         policy_name: none
         key_subject: none
@@ -1285,7 +1232,6 @@ routes:
           - firebase_id_token
         placement: dependency
         scopes: []
-      byok: not_applicable
       rate_limit:
         policy_name: none
         key_subject: none
@@ -1308,7 +1254,6 @@ routes:
           - firebase_id_token
         placement: dependency
         scopes: []
-      byok: not_applicable
       rate_limit:
         policy_name: none
         key_subject: none
@@ -1331,7 +1276,6 @@ routes:
           - firebase_id_token
         placement: dependency
         scopes: []
-      byok: not_applicable
       rate_limit:
         policy_name: none
         key_subject: none
@@ -1354,7 +1298,6 @@ routes:
           - firebase_id_token
         placement: dependency
         scopes: []
-      byok: not_applicable
       rate_limit:
         policy_name: none
         key_subject: none
@@ -1377,7 +1320,6 @@ routes:
           - firebase_id_token
         placement: dependency
         scopes: []
-      byok: not_applicable
       rate_limit:
         policy_name: none
         key_subject: none
@@ -1400,7 +1342,6 @@ routes:
           - firebase_id_token
         placement: dependency
         scopes: []
-      byok: not_applicable
       rate_limit:
         policy_name: none
         key_subject: none

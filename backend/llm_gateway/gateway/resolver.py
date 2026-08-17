@@ -4,7 +4,6 @@ from dataclasses import dataclass
 from typing import Any, Mapping
 
 from llm_gateway.gateway.config_loader import GatewayConfig
-from llm_gateway.gateway.credentials import is_byok_failure_class
 from llm_gateway.gateway.errors import (
     GatewayCapabilityMismatchError,
     GatewayInvalidRequestError,
@@ -21,11 +20,6 @@ NEVER_LKG_FAILURE_CLASSES = frozenset(
         FailureClass.CAPABILITY_MISMATCH,
         FailureClass.PROVIDER_INVALID_REQUEST,
         FailureClass.INVALID_CONFIG,
-        FailureClass.BYOK_AUTH,
-        FailureClass.BYOK_QUOTA,
-        FailureClass.BYOK_RATE_LIMIT,
-        FailureClass.BYOK_UNSUPPORTED_PROVIDER,
-        FailureClass.MISSING_BYOK_KEY,
     }
 )
 
@@ -90,7 +84,7 @@ def select_lkg_route_for_failure(
 
 def is_lkg_eligible(active_route: RouteArtifact, failure_class: FailureClass | str) -> bool:
     normalized_failure_class = _normalize_failure_class(failure_class)
-    if normalized_failure_class in NEVER_LKG_FAILURE_CLASSES or is_byok_failure_class(normalized_failure_class):
+    if normalized_failure_class in NEVER_LKG_FAILURE_CLASSES:
         return False
     if normalized_failure_class in set(active_route.fallback_policy.never_fallback_on):
         return False
@@ -112,8 +106,6 @@ def _validate_route_matches_lane(lane: LaneConfig, route: RouteArtifact, *, poin
         raise GatewayInvalidRouteConfigError(f'{prefix} surface mismatch: {route.surface.value}')
     if route.capabilities != lane.capabilities:
         raise GatewayInvalidRouteConfigError(f'{prefix} capabilities mismatch')
-    if route.credential_policy.mode != lane.credential_policy.mode:
-        raise GatewayInvalidRouteConfigError(f'{prefix} credential mode mismatch: {route.credential_policy.mode.value}')
 
 
 def _normalize_failure_class(failure_class: FailureClass | str) -> FailureClass:

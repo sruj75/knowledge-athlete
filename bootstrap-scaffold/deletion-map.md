@@ -320,7 +320,7 @@ authorize implementing past an open gate in the slice's TDD plan.
 | **S-05** | Establishes one retained managed-Pi runtime and private `OMI_BRIDGE_PIPE` tool path before S-06 and S-07 prune adjacent tools and credentials. | Do not proceed with an uncertain transport boundary: keep the verified Pi bridge while deleting only the separately proven-unused entrances. |
 | **S-03** | Removes hosted STT providers before customer-key propagation is removed from the same STT surfaces. | The provider-copy decision is adopted: keep Local VAD Gate behavior and use “managed cloud transcription usage.” S-03 owns complete `stt_service` deletion and fixed-Modulate policy; revalidate those decisions at the pinned baseline. |
 | **S-06** | Consumes S-05's retained Pi boundary, then removes Apps, connectors, public MCP, sharing, and their route/deployment residue. | Cycles 0-2 may start. Before Cycle 3 or another route-removal cycle, record never-released evidence or land the adopted release-level version/sunset predecessor with client migration proof. |
-| **S-07** | Removes BYOK after S-03 and S-05 have stabilized the shared STT and Pi surfaces. | Cycles 1-7 may start while durable readers remain. Before Cycle 8, run the read-only legacy-data/job inventory and decide managed requeue versus explicit terminalization and purge versus tombstone. |
+| **S-07** | Removes BYOK after S-03 and S-05 have stabilized the shared STT and Pi surfaces. | Legacy migration is structurally inapplicable: this unreleased fork owns no deployed users/jobs. Delete inherited readers/writers without reading or mutating upstream Omi data. |
 | **S-08** | Publishes the canonical identity/session/sign-out boundary consumed by S-09 and later slices. | Start config-independent fences immediately in the plan's safe phase order. Owned-identity, invariant, and released-contract inputs gate only their named cycles; Cycles 6-9 still wait for later owners and authorizations. |
 | **S-09** | Re-owns telemetry/diagnostics and removes rejected observability products without coupling their authorities. | Start the configuration-independent deletion phase after the S-08 keep fences. Owned projects and the canonical identity seam gate configuration/identity cycles and live closure; never guess their identifiers or secrets. |
 
@@ -385,8 +385,9 @@ contract.
 ### S-01 — Remove cloud Agent VM and local-database mirroring
 
 **Type:** complete vertical deletion<br>
-**Status:** ready to start; repository Cycles 0-4 are executable and live-cloud
-decommission remains separately gated<br>
+**Status:** repository Cycles 0-4 landed in `eb73915`; Wave 1 closeout removes
+the inherited Agent-VM failure-class definition, while any separately claimed
+live-cloud decommission remains explicitly gated<br>
 **Authorizing decisions:** IR-001, the VM half of IR-002, and IR-934<br>
 **Scope-partition decisions:** IR-003 belongs to S-11 and IR-011 belongs to
 S-15; S-01 removes only their VM-mirroring overlap
@@ -879,8 +880,10 @@ through IR-606, IR-800 through IR-802, IR-922 through IR-924, IR-936, IR-937
 ### S-06 — Delete Apps, marketplace, connectors, remote MCP, and broad indexing
 
 **Type:** complete multi-entry product deletion<br>
-**Research status:** ready to start; Cycles 0-2 are executable and the released
-contract gates only Cycle 3 and later route-removal work<br>
+**Implementation status:** repository deletion landed in `ff528f8`; the
+never-released product record satisfies the route-removal gate, and Wave 1
+closeout removed generated dispatch residue from retired file-scan/email tools
+plus the hosted-MCP-exclusive failure-class record<br>
 **Depends on:** none; coordinate the private Pi tool-bridge keep boundary with S-05<br>
 **Primary decisions:** IR-015, IR-045 through IR-047, IR-050 through IR-051,
 IR-106, IR-135, IR-141 through IR-142, IR-212 through IR-213, IR-256, IR-258
@@ -911,8 +914,9 @@ IR-938
 ### S-07 — Delete the customer BYOK plan and all key propagation
 
 **Type:** complete access-plan deletion<br>
-**Research status:** ready to start; Cycles 1-7 preserve durable legacy readers
-while the read-only inventory and transition decision gate Cycle 8<br>
+**Implementation status:** Wave 1 repository implementation complete on
+2026-08-15; legacy migration is structurally inapplicable because this
+unreleased fork owns no deployed user or job population<br>
 **Depends on:** none; coordinate Deepgram key residue with S-03 and Pi extension
 residue with S-05<br>
 **Primary decisions:** IR-058, IR-062, IR-606, IR-937
@@ -925,6 +929,10 @@ residue with S-05<br>
   headers, Node/runtime environment propagation, Firestore
   fingerprints, paywall/quota bypass, account copy, and provider-selection
   branches that exist only for customer keys.
+- **Legacy-data decision:** delete inherited `users.byok`, `blocked_byok`, and
+  `requires_byok` readers/writers without a migration. There is no owned live
+  population to inventory or mutate, and upstream Omi data is outside this
+  product's authority.
 - **Close when:** no customer-supplied model key can change entitlement or reach
   a provider, and every retained hosted call uses a product-owned credential.
 
@@ -1224,6 +1232,11 @@ IR-835
   migration, promotion codes, local checkout simulator, product-owned plan
   changes/reactivation, duplicate catalog reconstruction, unfinished paid
   overage, BYOK/free-plan bypass, and unused detailed usage readers.
+- **Interim MVP checkpoint:** ship `BILLING_MODE=disabled` with no credentials or
+  transactions, keep the future Dodo architecture fail-closed, and make the
+  existing usage-limit action say **Skip** and dismiss without granting paid
+  state or clearing quota. Do not add an onboarding paywall. This is a short
+  validation stop, not S-18 closure or a change to the destination below.
 - **Close when:** checkout, webhook reconciliation, portal, entitlement changes,
   quota denial, and cancellation work end to end using Dodo test then production
   configuration without a Stripe or Omi plan identifier.

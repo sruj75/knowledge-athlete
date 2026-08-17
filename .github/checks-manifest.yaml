@@ -126,11 +126,6 @@ checks:
     triggers: ["AGENTS.md", "**/AGENTS.md", "PRODUCT.md", ".github/scripts/check_agent_doc_references.py"]
     lanes: ["local", "ci"]
     reason: "agents cannot tell a stale pointer from a live one; CLAUDE.md and the desktop/app guides had shipped dead paths"
-  - id: agent-doc-claims
-    command: ["python3", ".github/scripts/check_agent_doc_claims.py"]
-    triggers: ["backend/test.sh", "backend/docs/test_isolation.md", ".github/scripts/check_agent_doc_claims.py", ".github/checks-manifest.yaml"]
-    lanes: ["local", "ci"]
-    reason: "a valid pointer proves nothing about the claim around it; .cursor/cloud-agent-environment.md described test.sh halting at the first failure long after it became an aggregating worker pool, and an agent read that and proposed replacing the per-file isolation the suite depends on"
   - id: diff-hygiene
     command: ["python3", ".github/scripts/check_diff_hygiene.py", "--changed-files", "{changed_files}", "--base", "{base}", "--head", "{head}"]
     triggers: ["all"]
@@ -254,7 +249,7 @@ checks:
     lanes: ["local", "ci"]
     reason: "development WIF pilot fixtures must reject secret access, apply, and scope expansion"
   - id: backend-async-blockers
-    command: ["python3", "backend/scripts/scan_async_blockers.py", "--dirs", "backend/routers", "backend/utils", "backend/dependencies.py", "--diff-base", "{base}", "--fail-on", "high_network_io,async_helpers_with_blocking,time_sleep,mixed_await_sync_db,no_await_should_be_def,unmanaged_thread_offload"]
+    command: ["python3", "backend/scripts/scan_async_blockers.py", "--dirs", "backend/routers", "backend/utils", "--diff-base", "{base}", "--fail-on", "high_network_io,async_helpers_with_blocking,time_sleep,mixed_await_sync_db,no_await_should_be_def,unmanaged_thread_offload"]
     triggers: ["backend/**/*.py", "backend/scripts/scan_async_blockers.py"]
     lanes: ["local", "ci"]
     reason: "backend Python changed"

@@ -99,7 +99,7 @@ def _make_live_conversation_stale(uid: str, conversation_id: str) -> None:
 def _assert_durable_finalization_identity(payload: dict[str, Any], conversation_id: str) -> None:
     assert payload['conversation_id'] == conversation_id
     assert payload['language'] == 'en'
-    assert payload['byok_keys'] == {}
+    assert 'byok_keys' not in payload
     assert isinstance(payload['finalization_job_id'], str) and payload['finalization_job_id']
     assert payload['dispatch_generation'] == 1
 

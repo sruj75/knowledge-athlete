@@ -418,7 +418,6 @@ def test_finalize_conversation_persists_durable_work_and_returns_without_process
     request_finalization.assert_called_once_with(
         'test-uid',
         'conv-1',
-        has_byok_keys=False,
         force_process=True,
         extra_updates=None,
         require_cloud_tasks=True,
@@ -514,34 +513,6 @@ def test_finalize_conversation_noop_returns_latest_without_side_effects():
     remove_pointer.assert_not_called()
     process.assert_not_called()
     assert response.conversation.status == ConversationStatus.processing
-
-
-def test_legacy_customer_context_cannot_change_managed_finalization_dispatch():
-    from utils.byok import set_byok_keys
-
-    target = _conversation()
-
-    set_byok_keys({'openai': 'legacy-customer-key'})
-    with (
-        patch.object(conv.conversations_db, 'get_conversation', return_value={'id': 'conv-1'}),
-        patch.object(conv, 'deserialize_conversation', return_value=target),
-        patch.object(
-            conv.lifecycle_service,
-            'request_finalization',
-            return_value={'route': 'cloud_tasks', 'job_id': 'job-1', 'status': 'queued'},
-        ) as request_finalization,
-        patch.object(conv.redis_db, 'get_in_progress_conversation_id', return_value=None),
-        patch.object(conv.redis_db, 'remove_in_progress_conversation_id') as remove_pointer,
-        patch.object(conv, 'process_conversation') as process,
-    ):
-        try:
-            conv.finalize_conversation('conv-1', uid='test-uid')
-        finally:
-            set_byok_keys({})
-
-    assert request_finalization.call_args.kwargs['has_byok_keys'] is False
-    remove_pointer.assert_not_called()
-    process.assert_not_called()
 
 
 def test_legacy_finalize_claim_loser_returns_latest_without_processing():

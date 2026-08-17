@@ -446,11 +446,6 @@ def test_canonical_account_delete_purge_emits_user_scoped_vector_outbox(monkeypa
         "utils.memory.canonical_memory_adapter.read_memory_v3_trusted_account_generation",
         lambda **_: _trusted_account_generation(),
     )
-    monkeypatch.setattr(
-        "utils.memory.canonical_memory_adapter.resolve_memory_system",
-        lambda uid, **_: MemorySystem.CANONICAL,
-    )
-
     canonical_delete_calls = []
 
     def _fake_delete_canonical(delete_uid, memory_id=None):
@@ -494,10 +489,6 @@ def test_canonical_account_delete_purge_raises_when_provider_is_unavailable(monk
     monkeypatch.setattr(
         "utils.memory.canonical_memory_adapter.read_memory_v3_trusted_account_generation",
         lambda **_: _trusted_account_generation(),
-    )
-    monkeypatch.setattr(
-        "utils.memory.canonical_memory_adapter.resolve_memory_system",
-        lambda uid, **_: MemorySystem.CANONICAL,
     )
     monkeypatch.setattr(
         "database.vector_db.delete_canonical_memory_vectors",

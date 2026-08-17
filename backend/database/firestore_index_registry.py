@@ -418,6 +418,18 @@ STALE_IN_PROGRESS_CONVERSATIONS_QUERY = FirestoreQuerySpec(
     ),
 )
 
+STARRED_CHAT_SESSIONS_QUERY = FirestoreQuerySpec(
+    identifier='chat_sessions_starred_by_updated_at',
+    collection_group='chat_sessions',
+    query_scope='COLLECTION',
+    filters=(FirestoreQueryFilter('starred', '==', 'starred'),),
+    index_fields=(
+        _asc('starred'),
+        _desc('updated_at'),
+        _desc('__name__'),
+    ),
+)
+
 QUERY_SPECS = (
     DUE_MEMORY_OUTBOX_QUERY,
     EXPIRED_MEMORY_OUTBOX_LEASE_QUERY,
@@ -434,6 +446,7 @@ QUERY_SPECS = (
     EXPIRED_SHORT_TERM_LIFECYCLE_QUERY,
     ACTIVE_ATTENTION_OVERRIDE_QUERY,
     STALE_IN_PROGRESS_CONVERSATIONS_QUERY,
+    STARRED_CHAT_SESSIONS_QUERY,
 )
 INDEX_REQUIREMENTS = (
     *INDEX_ONLY_REQUIREMENTS,

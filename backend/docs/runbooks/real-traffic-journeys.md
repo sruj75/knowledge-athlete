@@ -15,8 +15,8 @@ remain isolated, with no cross-environment comparison or labels.
 | `omi_live_stt_terminal_total` | `provider`, `outcome`, `client_platform`, `deployment_environment`, `phase` | A one-shot terminal outcome for an accepted live-STT attempt. |
 | `omi_live_stt_terminal_failures_total` | `provider`, `outcome`, `client_platform`, `deployment_environment`, `phase` | Provider failure detail correlated with a live-STT terminal. |
 | `omi_capture_finalization_reconciliations_total` | `outcome` | A stale durable capture job was requeued, or its requeue handoff failed. |
-| `listen_finalization_oldest_nonterminal_age_seconds` | none | Age of the oldest queued, leased, or BYOK-blocked capture finalization job. |
-| `listen_finalization_durable_jobs` | `state` | Authoritative Firestore job projection: `accepted`, `success`, `failure`, `stale`, `nonterminal`, `blocked_byok`, or `terminal_unknown`. |
+| `listen_finalization_oldest_nonterminal_age_seconds` | none | Age of the oldest queued or leased capture finalization job. |
+| `listen_finalization_durable_jobs` | `state` | Authoritative Firestore job projection: `accepted`, `success`, `failure`, `stale`, `nonterminal`, or `terminal_unknown`. |
 
 `journey` is exactly `chat_response`, `pusher_session`, or
 `capture_finalization`. Generic journey `outcome` is exactly `success`, `failure`,
@@ -55,8 +55,7 @@ image, provider-model, or content labels.
   outbox creates a new durable job. Successful completion is `success`, a
   dead-letter is `failure`, and a lifecycle-fenced durable job is `stale`.
   Existing job re-dispatches do not increment acceptance. Historical terminal
-  rows without the bounded field are `terminal_unknown`; `blocked_byok` stays
-  intentionally nonterminal. This Firestore projection is the capture
+  rows without the bounded field are `terminal_unknown`. This Firestore projection is the capture
   denominator: PromQL takes `max` across listener pods, then uses
   `clamp_min(delta(...), 0)` for movement. It never sums replicated global
   gauges. A dead-emission condition is bounded new `accepted` movement with

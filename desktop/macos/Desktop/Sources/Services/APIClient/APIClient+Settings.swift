@@ -454,7 +454,6 @@ struct OverageInfoResponse: Codable {
   let resetAt: Int?
   let explainerTitle: String
   let explainerBody: String
-  let byokAvailable: Bool
 
   enum CodingKeys: String, CodingKey {
     case plan
@@ -470,7 +469,6 @@ struct OverageInfoResponse: Codable {
     case resetAt = "reset_at"
     case explainerTitle = "explainer_title"
     case explainerBody = "explainer_body"
-    case byokAvailable = "byok_available"
   }
 }
 

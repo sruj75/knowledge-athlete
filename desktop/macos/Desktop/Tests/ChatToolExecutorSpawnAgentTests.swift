@@ -25,6 +25,16 @@ final class ChatToolExecutorSpawnAgentTests: XCTestCase {
       .requestPermission)
   }
 
+  func testRetiredExternalOnboardingToolsAreUnhandled() {
+    for name in ["scan_files", "start_file_scan", "get_file_scan_results", "get_email_insights"] {
+      XCTAssertEqual(
+        GeneratedToolExecutors.chatDispatch(for: name),
+        .unhandled,
+        "\(name) must not remain dispatchable after its product surface is deleted")
+      XCTAssertFalse(GeneratedToolExecutors.isChatToolExecutorTool(name))
+    }
+  }
+
   func testSpawnAgentHasNoDormantSwiftExecutionPath() async {
     let before = AgentPillsManager.shared.pills.count
     let toolCall = ToolCall(

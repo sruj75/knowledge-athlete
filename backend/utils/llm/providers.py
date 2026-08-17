@@ -25,8 +25,8 @@ logger = logging.getLogger(__name__)
 
 _usage_callback = get_usage_callback()
 
-# Google's OpenAI-compatible endpoint — used only for BYOK users who bring their
-# own AI Studio API key. Platform Gemini calls use ChatGoogleGenerativeAI.
+# Google's OpenAI-compatible endpoint used by the credential-free placeholder
+# when managed Gemini configuration is absent.
 GEMINI_OPENAI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
 
 
@@ -176,7 +176,6 @@ def get_or_create_gemini_llm(
       2. GEMINI_API_KEY set → AI Studio
       3. Neither → placeholder that fails at invoke time (unit tests)
 
-    BYOK users still go through the OpenAI-compatible Gemini endpoint in clients.py.
     """
 
     # Build cache key — only include thinking_budget when we'll actually use it

@@ -2,7 +2,6 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from routers import transcribe
-from utils.byok import get_byok_keys, set_byok_keys
 from utils.other import endpoints as auth
 
 
@@ -12,7 +11,6 @@ def test_v4_listen_ignores_legacy_customer_headers_and_emits_managed_transcript(
 
     async def fake_run_listen_session(request):
         assert request.uid == 'managed-user'
-        assert get_byok_keys() == {}
         await request.websocket.send_json(
             {
                 'type': 'transcript',
@@ -26,8 +24,6 @@ def test_v4_listen_ignores_legacy_customer_headers_and_emits_managed_transcript(
 
     app = FastAPI()
     app.include_router(transcribe.router)
-    set_byok_keys({})
-
     with TestClient(app) as client:
         with client.websocket_connect(
             '/v4/listen',
