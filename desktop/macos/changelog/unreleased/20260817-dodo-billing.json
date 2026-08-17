@@ -1,0 +1,3 @@
+{
+  "change": "Replaced legacy billing screens with server-managed plans and a safe Skip action when purchasing is unavailable"
+}

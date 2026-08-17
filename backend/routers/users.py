@@ -39,6 +39,7 @@ from database.users import (
     set_user_transcription_preferences,
 )
 from config.stt_provider_policy import supports_live_multilingual_mode
+from config.free_plan import get_default_free_subscription
 from utils.user_language import normalize_user_language
 from database.users import *
 from models.conversation import Conversation
@@ -46,7 +47,6 @@ from models.geolocation import Geolocation, GeolocationInput, validated_geolocat
 from utils.conversations.factory import deserialize_conversation, deserialize_conversations
 from models.other import Person, CreatePerson
 from models.shared import StatusResponse
-from typing import Optional
 from datetime import datetime, time, timedelta
 
 from models.users import (
@@ -70,8 +70,7 @@ from utils.subscription import (
     is_trial_paywalled,
     get_trial_metadata,
 )
-from database import user_usage as user_usage_db
-from utils.billing.config import load_billing_config
+from utils.billing.service import catalog_price_strings_for_config, load_billing_config
 from utils.cloud_tasks import (
     AccountDeletionTaskAuthentication,
     get_account_deletion_tasks_max_attempts,
@@ -891,6 +890,7 @@ def get_user_subscription_endpoint(
     insights_gained_limit = subscription.limits.insights_gained or 0
     available_plans: List[SubscriptionPlan] = []
     if billing_config.catalog is not None:
+        catalog_prices = catalog_price_strings_for_config(billing_config)
         available_plans = [
             SubscriptionPlan(
                 id=plan.id,
@@ -903,7 +903,7 @@ def get_user_subscription_endpoint(
                     PricingOption(
                         id=offer.id,
                         title=offer.title,
-                        price_string=offer.price_string,
+                        price_string=catalog_prices[offer.id],
                         description=offer.description,
                         interval=offer.interval,
                     )

@@ -162,15 +162,7 @@ struct DesktopHomeView: View {
                     }
                   },
                   onDismiss: {
-                    if !appState.billingAvailability.checkoutEnabled {
-                      DesktopDiagnosticsManager.shared.recordFallback(
-                        area: "billing",
-                        from: "checkout",
-                        to: "skip",
-                        reason: "disabled",
-                        outcome: .degraded)
-                    }
-                    appState.showUsageLimitPopup = false
+                    appState.dismissUsageLimitPopup()
                   }
                 )
               }

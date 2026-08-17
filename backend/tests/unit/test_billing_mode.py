@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import pytest
+from pydantic import ValidationError
 
+from models.users import BillingAvailability
 from utils.billing.config import BillingConfigurationError, BillingMode, load_billing_config
 from utils.billing.service import BillingDisabledError, BillingService
 
@@ -23,6 +25,11 @@ def test_missing_mode_defaults_to_disabled_without_credentials(monkeypatch: pyte
         'portal_enabled': False,
         'presentation': 'skip',
     }
+
+
+def test_billing_presentation_rejects_unknown_wire_values() -> None:
+    with pytest.raises(ValidationError):
+        BillingAvailability(checkout_enabled=False, portal_enabled=False, presentation='unknown')
 
 
 @pytest.mark.parametrize('mode', ['dodo_test', 'dodo_live'])

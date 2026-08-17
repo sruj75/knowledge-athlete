@@ -4,8 +4,7 @@ import os
 from dataclasses import dataclass
 from enum import Enum
 
-from pydantic import BaseModel, ConfigDict
-
+from models.users import BillingAvailability, BillingPresentation
 from utils.billing.catalog import BillingCatalog
 
 
@@ -17,14 +16,6 @@ class BillingMode(str, Enum):
     disabled = 'disabled'
     dodo_test = 'dodo_test'
     dodo_live = 'dodo_live'
-
-
-class BillingAvailability(BaseModel):
-    model_config = ConfigDict(frozen=True)
-
-    checkout_enabled: bool
-    portal_enabled: bool
-    presentation: str
 
 
 @dataclass(frozen=True)
@@ -45,7 +36,7 @@ class BillingConfig:
         return BillingAvailability(
             checkout_enabled=enabled,
             portal_enabled=enabled,
-            presentation='checkout' if enabled else 'skip',
+            presentation=BillingPresentation.checkout if enabled else BillingPresentation.skip,
         )
 
 

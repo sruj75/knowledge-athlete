@@ -686,21 +686,24 @@ extension SettingsContentView {
           activeCheckoutOfferId = nil
         }
 
-        if let url = URL(string: response.url) {
-          let normalizedBaseURL = apiBaseURL.hasSuffix("/") ? apiBaseURL : apiBaseURL + "/"
-          await MainActor.run {
-            activeBillingWebFlow = BillingWebFlow(
-              title: "Complete Checkout",
-              url: url,
-              successURL: URL(string: normalizedBaseURL + "v1/payments/success")!,
-              cancelURL: URL(string: normalizedBaseURL + "v1/payments/cancel")!
-            )
-          }
-        } else {
+        let normalizedBaseURL = apiBaseURL.hasSuffix("/") ? apiBaseURL : apiBaseURL + "/"
+        guard let checkoutURL = URL(string: response.url),
+          let successURL = URL(string: normalizedBaseURL + "v1/payments/success"),
+          let cancelURL = URL(string: normalizedBaseURL + "v1/payments/cancel")
+        else {
           await MainActor.run {
             pendingSubscriptionOfferId = nil
             subscriptionError = "Could not start checkout."
           }
+          return
+        }
+        await MainActor.run {
+          activeBillingWebFlow = BillingWebFlow(
+            title: "Complete Checkout",
+            url: checkoutURL,
+            successURL: successURL,
+            cancelURL: cancelURL
+          )
         }
       } catch let apiError as APIError {
         logError("Failed to create checkout session", error: apiError)

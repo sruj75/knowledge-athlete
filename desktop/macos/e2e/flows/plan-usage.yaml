@@ -1,11 +1,16 @@
 version: 2
 name: plan-usage
 tier: 2
-description: Hermetic Settings billing subscription snapshot on offline stack
+description: Hermetic disabled-billing subscription, visible Skip popup, and reconciliation budget on offline stack
 app: non-prod
 covers:
-  - desktop/macos/Desktop/Sources/BillingPresentationPolicy.swift
-  - desktop/macos/Desktop/Sources/BillingReconciler.swift
+  - desktop/macos/Desktop/Sources/Billing/BillingPresentationPolicy.swift
+  - desktop/macos/Desktop/Sources/Billing/BillingReconciler.swift
+  - desktop/macos/Desktop/Sources/Automation/DesktopAutomationBillingActions.swift
+  - desktop/macos/Desktop/Sources/Automation/DesktopAutomationBillingSnapshot.swift
+  - desktop/macos/Desktop/Sources/AppState/AppState+TrialPaywall.swift
+  - desktop/macos/Desktop/Sources/DesktopAutomationBridge.swift
+  - desktop/macos/Desktop/Sources/MainWindow/DesktopHomeView.swift
   - desktop/macos/Desktop/Sources/MainWindow/Pages/Settings/Sections/SettingsContentView+AccountBilling.swift
   - desktop/macos/Desktop/Sources/MainWindow/Pages/Settings/Components/SettingsContentView+BillingHelpers.swift
   - desktop/macos/Desktop/Sources/MainWindow/Pages/Settings/Components/BillingWebFlow.swift
@@ -36,7 +41,56 @@ steps:
       result.detail.primary_action: Skip
 
   - id: S3
+    name: Present real usage-limit popup
+    bridge.action:
+      name: show_usage_limit_popup
+      params:
+        reason: chat
+    expect:
+      result.detail.popup_visible: "true"
+      result.detail.primary_action: Skip
+
+  - id: S4
+    name: Visible popup exposes literal Skip
+    ax.expect:
+      text_visible:
+        - Skip
+
+  - id: S5
+    name: Select Skip without checkout or entitlement mutation
+    bridge.action:
+      name: select_usage_limit_primary_action
+    expect:
+      result.detail.popup_was_visible: "true"
+      result.detail.popup_visible: "false"
+      result.detail.primary_action: Skip
+      result.detail.checkout_invoked: "false"
+      result.detail.billing_availability_unchanged: "true"
+      result.detail.paywall_unchanged: "true"
+      result.detail.quota_unchanged: "true"
+
+  - id: S6
+    name: Reconciliation keeps the eight-read seven-sleep budget
+    bridge.action:
+      name: billing_reconciliation_probe
+    expect:
+      result.detail.outcome: matched
+      result.detail.reads: "8"
+      result.detail.sleeps: "7"
+
+  - id: S7
+    name: Hosted completion policy accepts only exact configured URLs
+    bridge.action:
+      name: billing_web_completion_policy_probe
+    expect:
+      result.detail.success_matches: "true"
+      result.detail.cancel_matches: "true"
+      result.detail.forged_query_matches: "false"
+      result.detail.foreign_host_matches: "false"
+
+  - id: S8
     name: Logs clean
     log.expect:
       absent:
+        - "/v1/payments/checkout-session"
         - "DesktopAutomationBridge: failed"

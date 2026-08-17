@@ -1,5 +1,12 @@
-from models.users import PlanLimits, PlanType, Subscription, UserSubscriptionResponse
-from utils.billing.config import BillingAvailability
+from database import users as users_db
+from models.users import (
+    BillingAvailability,
+    PlanLimits,
+    PlanType,
+    Subscription,
+    SubscriptionStatus,
+    UserSubscriptionResponse,
+)
 
 
 def _response(subscription: Subscription) -> UserSubscriptionResponse:
@@ -49,3 +56,38 @@ def test_disabled_billing_capability_is_explicit_and_has_no_catalog() -> None:
     assert response.billing_availability.portal_enabled is False
     assert response.billing_availability.presentation == 'skip'
     assert response.available_plans == []
+
+
+def test_paid_access_requires_complete_provider_identity_and_bounded_allowances(monkeypatch) -> None:
+    malformed = Subscription(
+        plan=PlanType.bounded,
+        entitlement_policy=PlanType.bounded,
+        status=SubscriptionStatus.active,
+        current_period_end=2_000_000_000,
+        provider_updated_at=1,
+        limits=PlanLimits(),
+    )
+    monkeypatch.setattr(users_db, 'get_user_subscription', lambda _uid: malformed)
+
+    fallback = users_db.get_user_valid_subscription('uid-1')
+
+    assert fallback is not None
+    assert fallback.plan is PlanType.free
+
+
+def test_complete_active_projection_grants_paid_access(monkeypatch) -> None:
+    subscription = Subscription(
+        plan=PlanType.unlimited,
+        entitlement_policy=PlanType.unlimited,
+        offer_id='synthetic-annual',
+        billing_customer_id='customer-synthetic',
+        billing_subscription_id='subscription-synthetic',
+        billing_product_id='product-synthetic',
+        status=SubscriptionStatus.active,
+        current_period_end=2_000_000_000,
+        provider_updated_at=1,
+        limits=PlanLimits(transcription_seconds=72000, chat_questions_per_month=20),
+    )
+    monkeypatch.setattr(users_db, 'get_user_subscription', lambda _uid: subscription)
+
+    assert users_db.get_user_valid_subscription('uid-1') is subscription

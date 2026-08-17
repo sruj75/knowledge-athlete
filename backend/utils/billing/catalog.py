@@ -16,11 +16,11 @@ class EntitlementPolicy(str, Enum):
 class CatalogLimits(BaseModel):
     model_config = ConfigDict(extra='forbid')
 
-    transcription_seconds: int | None = Field(default=None, ge=0)
+    transcription_seconds: int | None = Field(default=None, gt=0)
     words_transcribed: int | None = Field(default=None, ge=0)
     insights_gained: int | None = Field(default=None, ge=0)
-    chat_questions_per_month: int | None = Field(default=None, ge=0)
-    chat_cost_usd_per_month: float | None = Field(default=None, ge=0)
+    chat_questions_per_month: int | None = Field(default=None, gt=0)
+    chat_cost_usd_per_month: float | None = Field(default=None, gt=0)
 
     @model_validator(mode='after')
     def exactly_one_chat_allowance(self) -> 'CatalogLimits':
@@ -36,7 +36,6 @@ class CatalogOffer(BaseModel):
     id: str = Field(min_length=1)
     product_id: str = Field(min_length=1)
     title: str = Field(min_length=1)
-    price_string: str = Field(min_length=1)
     description: str | None = None
     interval: str = Field(pattern='^(month|year)$')
 
@@ -60,6 +59,12 @@ class CatalogPlan(BaseModel):
     entitlement_policy: EntitlementPolicy
     limits: CatalogLimits
     offers: list[CatalogOffer] = Field(min_length=1)
+
+    @model_validator(mode='after')
+    def managed_speech_allowance_is_bounded(self) -> 'CatalogPlan':
+        if self.limits.transcription_seconds is None:
+            raise ValueError('managed speech allowance must be configured')
+        return self
 
 
 class CatalogDocument(BaseModel):

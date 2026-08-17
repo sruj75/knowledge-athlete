@@ -1,6 +1,6 @@
 {
   "files": {
-    "backend/routers/users.py": 1716
+    "backend/routers/users.py": 1517
   },
   "raise_justifications": {
     "backend/routers/users.py": "Account-deletion outcome telemetry at the users router boundary for PostHog ownership repair."

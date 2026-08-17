@@ -12,6 +12,18 @@ extension AppState {
     showUsageLimitPopup = true
   }
 
+  func dismissUsageLimitPopup() {
+    if !billingAvailability.checkoutEnabled {
+      DesktopDiagnosticsManager.shared.recordFallback(
+        area: "billing",
+        from: "checkout",
+        to: "skip",
+        reason: "disabled",
+        outcome: .degraded)
+    }
+    showUsageLimitPopup = false
+  }
+
   /// Returns true if the requested capture toggle should be blocked because
   /// the user is paywalled. Posts the existing usage-limit popup and returns
   /// true so the caller can early-return without enabling the feature.

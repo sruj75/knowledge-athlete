@@ -6,7 +6,7 @@ import XCTest
 /// Hermetic source-contract tests for secondary-surface bridge actions added in Waves 1–2.
 final class DesktopAutomationSecondaryActionTests: XCTestCase {
   func testSecondarySnapshotActionsAreRegistered() throws {
-    let source = try [bridgeSource(), managedAccessActionsSource()].joined(separator: "\n")
+    let source = try [bridgeSource(), managedAccessActionsSource(), billingActionsSource()].joined(separator: "\n")
     for action in [
       "conversation_detail_snapshot",
       "create_test_memory",
@@ -197,14 +197,45 @@ final class DesktopAutomationSecondaryActionTests: XCTestCase {
   }
 
   func testSubscriptionSnapshotReadsBillingAPI() throws {
-    let source = try bridgeSource()
+    let source = try billingActionsSource()
     let body = try actionBody(named: "subscription_snapshot", in: source)
     XCTAssertTrue(body.contains("getUserSubscription"))
-    XCTAssertTrue(body.contains("billing_presentation"))
-    XCTAssertTrue(body.contains("checkout_enabled"))
-    XCTAssertTrue(body.contains("portal_enabled"))
-    XCTAssertTrue(body.contains("BillingPresentationPolicy.primaryLabel"))
-    XCTAssertTrue(body.contains("show_subscription_ui"))
+    XCTAssertTrue(body.contains("desktopAutomationBillingSnapshot"))
+
+    let projection = try billingSnapshotSource()
+    XCTAssertTrue(projection.contains("billing_presentation"))
+    XCTAssertTrue(projection.contains("checkout_enabled"))
+    XCTAssertTrue(projection.contains("portal_enabled"))
+    XCTAssertTrue(projection.contains("BillingPresentationPolicy.primaryLabel"))
+    XCTAssertTrue(projection.contains("show_subscription_ui"))
+  }
+
+  func testUsageLimitActionsExerciseDisabledProductionPolicyWithoutCheckout() throws {
+    let source = try billingActionsSource()
+    let show = try actionBody(named: "show_usage_limit_popup", in: source)
+    XCTAssertTrue(show.contains("triggerUsageLimitPopup"))
+    XCTAssertTrue(show.contains("BillingPresentationPolicy.primaryLabel"))
+
+    let select = try actionBody(named: "select_usage_limit_primary_action", in: source)
+    XCTAssertTrue(select.contains("BillingPresentationPolicy.performPrimaryAction"))
+    XCTAssertTrue(select.contains("dismissUsageLimitPopup"))
+    XCTAssertTrue(select.contains("checkout_invoked"))
+    XCTAssertTrue(select.contains("paywall_unchanged"))
+    XCTAssertTrue(select.contains("quota_unchanged"))
+  }
+
+  func testBillingReconciliationProbeUsesProductionReadBudget() throws {
+    let body = try actionBody(named: "billing_reconciliation_probe", in: billingActionsSource())
+    XCTAssertTrue(body.contains("BillingReconciler.poll"))
+    XCTAssertTrue(body.contains("BillingReconciler.maximumReads"))
+    XCTAssertTrue(body.contains("sleeps"))
+  }
+
+  func testBillingWebCompletionProbeUsesExactProductionURLPolicy() throws {
+    let body = try actionBody(named: "billing_web_completion_policy_probe", in: billingActionsSource())
+    XCTAssertTrue(body.contains("BillingWebView.Coordinator.urlsMatchCompletion"))
+    XCTAssertTrue(body.contains("forged_query_matches"))
+    XCTAssertTrue(body.contains("foreign_host_matches"))
   }
 
   @MainActor
@@ -395,18 +426,30 @@ final class DesktopAutomationSecondaryActionTests: XCTestCase {
   }
 
   private func bridgeSource() throws -> String {
-    let url = URL(fileURLWithPath: #filePath)
-      .deletingLastPathComponent()
-      .deletingLastPathComponent()
-      .appendingPathComponent("Sources/DesktopAutomationBridge.swift")
-    return try String(contentsOf: url, encoding: .utf8)
+    try sourceFile(named: "DesktopAutomationBridge.swift")
   }
 
   private func managedAccessActionsSource() throws -> String {
-    let url = URL(fileURLWithPath: #filePath)
+    try sourceFile(named: "DesktopAutomationManagedAccessActions.swift")
+  }
+
+  private func billingActionsSource() throws -> String {
+    try sourceFile(named: "DesktopAutomationBillingActions.swift", subdirectory: "Automation")
+  }
+
+  private func billingSnapshotSource() throws -> String {
+    try sourceFile(named: "DesktopAutomationBillingSnapshot.swift", subdirectory: "Automation")
+  }
+
+  private func sourceFile(named name: String, subdirectory: String? = nil) throws -> String {
+    var url = URL(fileURLWithPath: #filePath)
       .deletingLastPathComponent()
       .deletingLastPathComponent()
-      .appendingPathComponent("Sources/DesktopAutomationManagedAccessActions.swift")
+      .appendingPathComponent("Sources")
+    if let subdirectory {
+      url.appendPathComponent(subdirectory)
+    }
+    url.appendPathComponent(name)
     return try String(contentsOf: url, encoding: .utf8)
   }
 

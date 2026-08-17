@@ -2,9 +2,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Optional, List
 
-from pydantic import BaseModel, Field
-
-from utils.billing.config import BillingAvailability
+from pydantic import BaseModel, ConfigDict, Field
 
 
 LOCATION_CONTEXT_PURPOSE = 'chat_city_context'
@@ -73,6 +71,11 @@ class SubscriptionStatus(str, Enum):
     inactive = 'inactive'
 
 
+class BillingPresentation(str, Enum):
+    skip = 'skip'
+    checkout = 'checkout'
+
+
 class PlanLimits(BaseModel):
     transcription_seconds: Optional[int] = None
     words_transcribed: Optional[int] = None
@@ -117,6 +120,31 @@ class Subscription(BaseModel):
     features: List[str] = Field(default_factory=list)
     limits: PlanLimits = Field(default_factory=PlanLimits)
 
+    def is_current_paid_entitlement(self, now: Optional[datetime] = None) -> bool:
+        """Fail closed unless this is a complete, current provider projection."""
+
+        has_provider_identity = all(
+            (self.offer_id, self.billing_customer_id, self.billing_subscription_id, self.billing_product_id)
+        )
+        has_bounded_allowances = (
+            self.limits.transcription_seconds is not None
+            and self.limits.transcription_seconds > 0
+            and ((self.limits.chat_questions_per_month or 0) > 0 or (self.limits.chat_cost_usd_per_month or 0) > 0)
+        )
+        if not (
+            self.plan in {PlanType.bounded, PlanType.unlimited}
+            and self.entitlement_policy is self.plan
+            and self.status is SubscriptionStatus.active
+            and self.current_period_end is not None
+            and self.provider_updated_at is not None
+            and self.provider_updated_at > 0
+            and has_provider_identity
+            and has_bounded_allowances
+        ):
+            return False
+        current_time = now or datetime.now(timezone.utc)
+        return self.current_period_end >= int(current_time.timestamp())
+
 
 class PricingOption(BaseModel):
     id: str
@@ -134,6 +162,14 @@ class SubscriptionPlan(BaseModel):
     eyebrow: Optional[str] = None  # e.g. "Most popular" — rendered above the title
     features: List[str] = Field(default_factory=list)
     prices: List[PricingOption] = Field(default_factory=list)
+
+
+class BillingAvailability(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    checkout_enabled: bool
+    portal_enabled: bool
+    presentation: BillingPresentation
 
 
 class TrialMetadata(BaseModel):
@@ -170,7 +206,7 @@ class UserSubscriptionResponse(BaseModel):
     insights_gained_used: int
     insights_gained_limit: int
     available_plans: List[SubscriptionPlan] = []
-    billing_availability: 'BillingAvailability'
+    billing_availability: BillingAvailability
     show_subscription_ui: bool = True
     # Chat quota usage — derived from llm_usage collection
     chat_quota_used: float = 0.0

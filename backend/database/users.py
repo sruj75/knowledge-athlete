@@ -13,6 +13,7 @@ from database.redis_db import (
     try_acquire_client_device_write_lock,
     try_acquire_user_platform_write_lock,
 )
+from config.free_plan import get_default_free_subscription
 from models.users import (
     LOCATION_CONTEXT_DISCLOSED_PROVIDERS,
     LOCATION_CONTEXT_PURPOSE,
@@ -31,14 +32,6 @@ DELETION_WIPE_RUNNING_STALE_AFTER = timedelta(hours=6)
 _DELETION_WIPE_TERMINAL_STATUSES = frozenset({'completed', 'cancelled'})
 _DELETION_WIPE_LEGACY_ACTIONABLE_STATUSES = frozenset({'pending', 'retrying', 'running', 'failed'})
 LOCATION_CONTEXT_CONSENT_TTL = timedelta(days=30)
-
-
-def _default_free_subscription() -> Subscription:
-    # Import lazily: subscription policy reads this database module, while the
-    # database needs the policy-owned free projection only when a read misses.
-    from utils.subscription import get_default_free_subscription
-
-    return get_default_free_subscription()
 
 
 class DeletionWipeTaskResolution(TypedDict):
@@ -1215,99 +1208,6 @@ def get_default_payment_method(uid: str):
     return user_data.get('default_payment_method', None)
 
 
-def get_billing_customer_id(uid: str) -> Optional[str]:
-    user_ref = db.collection('users').document(uid)
-    user_doc = user_ref.get(['subscription.billing_customer_id'])
-    if user_doc.exists:
-        user_data = user_doc.to_dict()
-        subscription = user_data.get('subscription') or {}
-        return subscription.get('billing_customer_id') if isinstance(subscription, dict) else None
-    return None
-
-
-def get_user_by_billing_customer_id(customer_id: str):
-    users_ref = db.collection('users')
-    query = users_ref.where(filter=FieldFilter('subscription.billing_customer_id', '==', customer_id)).limit(1)
-    docs = list(query.stream())
-    if docs:
-        user_dict = docs[0].to_dict()
-        user_dict['uid'] = docs[0].id
-        return user_dict
-    return None
-
-
-def update_user_subscription(uid: str, subscription_data: dict):
-    """Update the normalized subscription projection."""
-    subscription_data_to_store = subscription_data.copy()
-
-    user_ref = db.collection('users').document(uid)
-    user_ref.update({'subscription': subscription_data_to_store})
-
-
-@transactional
-def _apply_billing_webhook_projection_txn(
-    transaction,
-    user_ref,
-    receipt_ref,
-    subscription_data: dict,
-    provider_updated_at: int,
-):
-    receipt = receipt_ref.get(transaction=transaction)
-    if receipt.exists:
-        return 'duplicate'
-
-    user = user_ref.get(transaction=transaction)
-    if not user.exists:
-        transaction.set(
-            receipt_ref,
-            {'outcome': 'ignored_deleted_user', 'received_at': datetime.now(timezone.utc)},
-        )
-        return 'ignored_deleted_user'
-
-    user_data = user.to_dict() or {}
-    current = user_data.get('subscription') or {}
-    current_updated_at = current.get('provider_updated_at', 0) if isinstance(current, dict) else 0
-    if isinstance(current_updated_at, (int, float)) and current_updated_at > provider_updated_at:
-        transaction.set(
-            receipt_ref,
-            {'outcome': 'stale', 'received_at': datetime.now(timezone.utc)},
-        )
-        return 'stale'
-
-    transaction.update(user_ref, {'subscription': subscription_data})
-    transaction.set(
-        receipt_ref,
-        {'outcome': 'applied', 'received_at': datetime.now(timezone.utc)},
-    )
-    return 'applied'
-
-
-def apply_billing_webhook_projection(
-    uid: str,
-    subscription_data: dict,
-    webhook_id: str,
-    provider_updated_at: int,
-) -> str:
-    """Atomically persist one normalized projection and durable webhook receipt."""
-
-    user_ref = db.collection('users').document(uid)
-    receipt_ref = db.collection('billing_webhook_receipts').document(webhook_id)
-    transaction = db.transaction()
-    return _apply_billing_webhook_projection_txn(
-        transaction,
-        user_ref,
-        receipt_ref,
-        subscription_data,
-        provider_updated_at,
-    )
-
-
-def has_billing_webhook_receipt(webhook_id: str) -> bool:
-    """Return whether a verified webhook delivery has already been committed."""
-
-    return db.collection('billing_webhook_receipts').document(webhook_id).get().exists
-
-
 # **************************************
 # ********* Data Protection ************
 # **************************************
@@ -1430,7 +1330,7 @@ def get_user_subscription(uid: str) -> Subscription:
             return parse_snapshot_strict(Subscription, user_doc, payload_from_snapshot=subscription_payload)
 
     # If subscription doesn't exist for the user, create and return a default free plan.
-    default_subscription = _default_free_subscription()
+    default_subscription = get_default_free_subscription()
     sub_to_store = default_subscription.model_dump()
     user_ref.set({'subscription': sub_to_store}, merge=True)
     return default_subscription
@@ -1554,13 +1454,11 @@ def get_user_valid_subscription(uid: str) -> Optional[Subscription]:
     if subscription.plan is PlanType.free:
         return subscription if subscription.status == SubscriptionStatus.active else None
 
-    if subscription.status == SubscriptionStatus.active and subscription.current_period_end:
-        period_end_dt = datetime.fromtimestamp(subscription.current_period_end, tz=timezone.utc)
-        if period_end_dt >= datetime.now(timezone.utc):
-            return subscription
+    if subscription.is_current_paid_entitlement():
+        return subscription
 
     # Fallback to default basic subscription
-    return _default_free_subscription()
+    return get_default_free_subscription()
 
 
 # **************************************

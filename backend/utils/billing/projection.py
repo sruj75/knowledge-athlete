@@ -1,25 +1,15 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Any, Mapping
+from typing import Any
 
 from models.users import PlanLimits, PlanType, Subscription, SubscriptionStatus
 from utils.billing.catalog import BillingCatalog, EntitlementPolicy
+from utils.billing.values import as_mapping, format_recurring_price
 
 
 class UnknownBillingProductError(ValueError):
     pass
-
-
-def _mapping(value: Any) -> Mapping[str, Any]:
-    if isinstance(value, Mapping):
-        return value
-    dump = getattr(value, 'model_dump', None)
-    if callable(dump):
-        result = dump(mode='json')
-        if isinstance(result, Mapping):
-            return result
-    raise TypeError('billing provider object must be a mapping')
 
 
 def _unix_seconds(value: Any) -> int | None:
@@ -51,7 +41,7 @@ def project_subscription(
     catalog: BillingCatalog,
     provider_updated_at: int,
 ) -> Subscription:
-    raw = _mapping(provider_subscription)
+    raw = as_mapping(provider_subscription, label='billing provider object')
     product_id = raw.get('product_id')
     if not isinstance(product_id, str):
         raise UnknownBillingProductError('provider subscription has no product identity')
@@ -59,7 +49,7 @@ def project_subscription(
     if resolved is None:
         raise UnknownBillingProductError('provider product is not mapped by the server catalog')
 
-    customer = _mapping(raw.get('customer') or {})
+    customer = as_mapping(raw.get('customer') or {}, label='billing customer')
     customer_id = customer.get('customer_id') or customer.get('id')
     subscription_id = raw.get('subscription_id') or raw.get('id')
     if not isinstance(customer_id, str) or not isinstance(subscription_id, str):
@@ -81,7 +71,11 @@ def project_subscription(
         current_period_end=_unix_seconds(raw.get('next_billing_date')),
         cancel_at_next_billing_date=bool(raw.get('cancel_at_next_billing_date')),
         billing_interval=resolved.offer.interval,
-        price_string=resolved.offer.price_string,
+        price_string=format_recurring_price(
+            raw.get('recurring_pre_tax_amount'),
+            raw.get('currency'),
+            raw.get('payment_frequency_interval'),
+        ),
         provider_updated_at=provider_updated_at,
         features=list(resolved.plan.features),
         limits=PlanLimits(**resolved.plan.limits.model_dump()),

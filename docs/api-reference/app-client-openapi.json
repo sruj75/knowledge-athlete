@@ -1893,8 +1893,7 @@
             "type": "boolean"
           },
           "presentation": {
-            "title": "Presentation",
-            "type": "string"
+            "$ref": "#/components/schemas/BillingPresentation"
           }
         },
         "required": [
@@ -1904,6 +1903,14 @@
         ],
         "title": "BillingAvailability",
         "type": "object"
+      },
+      "BillingPresentation": {
+        "enum": [
+          "skip",
+          "checkout"
+        ],
+        "title": "BillingPresentation",
+        "type": "string"
       },
       "Body_create_voice_message_stream_v2_voice_messages_post": {
         "properties": {
