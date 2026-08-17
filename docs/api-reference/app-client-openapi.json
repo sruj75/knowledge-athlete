@@ -12917,7 +12917,6 @@
         "type": "object"
       },
       "UserProfileResponse": {
-        "additionalProperties": true,
         "properties": {
           "company": {
             "anyOf": [
@@ -12997,17 +12996,6 @@
               }
             ],
             "title": "Motivation"
-          },
-          "name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Name"
           },
           "time_zone": {
             "anyOf": [
