@@ -66,6 +66,27 @@ final class ChatDiscoverabilityTests: XCTestCase {
     XCTAssertNotNil(cols["source"])
   }
 
+  func testConversationPromptSchemaMatchesLocalAuthority() throws {
+    let sessions = try XCTUnwrap(ChatPrompts.columnAnnotations["transcription_sessions"])
+    let segments = try XCTUnwrap(ChatPrompts.columnAnnotations["transcription_segments"])
+
+    for retained in ["conversationId", "status", "contentGeneration", "isTitleManuallyEdited"] {
+      XCTAssertNotNil(sessions[retained], "Missing local conversation column \(retained)")
+    }
+    for retired in ["backendId", "pendingUpload", "retryCount", "discarded", "deleted", "isLocked", "category"] {
+      XCTAssertNil(sessions[retired], "Retired conversation column \(retired) must not be advertised")
+    }
+    XCTAssertNotNil(segments["speakerId"])
+    XCTAssertNil(segments["speaker"])
+    XCTAssertNil(segments["speakerLabel"])
+    XCTAssertNil(segments["personId"])
+
+    XCTAssertTrue(ChatPrompts.schemaFooter.contains("transcription_sessions.conversationId"))
+    XCTAssertFalse(ChatPrompts.schemaFooter.contains("transcription_sessions.backendId"))
+    XCTAssertFalse(ChatPrompts.desktopChat.contains("deleted = 0 AND discarded = 0"))
+    XCTAssertFalse(ChatPrompts.desktopChat.contains("ts.speaker,"))
+  }
+
   // MARK: - Excluded Tables and Columns
 
   func testExcludedTablesDoNotIncludeUserTables() {

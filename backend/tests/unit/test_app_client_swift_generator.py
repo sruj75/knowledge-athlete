@@ -31,16 +31,18 @@ def test_swift_dto_file_is_generated_from_live_app_client_openapi():
 def test_swift_dto_file_covers_desktop_high_traffic_read_schemas():
     generated = SWIFT_PATH.read_text()
 
-    # The desktop's highest-traffic read endpoints (conversations, memories,
-    # action items, goals) decode these generated DTOs through adapter inits
-    # in APIClient.swift. Each must be present in the OmiAPI namespace.
+    # The retained conversation-compute, Memory, task, and goal endpoints
+    # decode these generated DTOs through narrow adapter layers.
     for name in (
-        'struct Conversation:',
-        'struct Structured:',
+        'struct ConversationDiscardRequest:',
+        'struct ConversationDiscardResponse:',
+        'struct ConversationCandidateRequest:',
+        'struct ConversationStructureResponse:',
+        'struct ConversationActionItemsRequest:',
+        'struct ConversationActionItemsResponse:',
         'struct ActionItemResponse:',
         'struct ActionItemCreateRequest:',
         'struct ActionItemUpdateRequest:',
-        'struct ActionItem:',
         'struct MemoryDB:',
         'struct GoalResponse:',
         'struct GoalDetailProjection:',
@@ -48,13 +50,11 @@ def test_swift_dto_file_covers_desktop_high_traffic_read_schemas():
         'struct WorkstreamDetailProjection:',
         'struct ArtifactDescriptor:',
         'struct ContinuationCheckpoint:',
-        'struct TranscriptSegment:',
-        'struct Geolocation:',
     ):
         assert f'public {name}' in generated, f'OmiAPI.{name} missing from generated Swift DTOs'
 
     # Enums the desktop consumes via the wire.
-    assert 'public enum ConversationStatus:' in generated
+    assert 'public struct ConversationActionCandidate:' in generated
     assert 'public enum MemoryCategory:' in generated
     assert 'public enum GoalType:' in generated
     assert 'public enum CandidateTaskChange: Codable {' in generated

@@ -366,28 +366,24 @@ enum ViewExporter {
 
     appState.conversations = previews.enumerated().map { index, preview in
       let createdAt = now.addingTimeInterval(Double(-index * 3_600))
-      return ServerConversation(
+      return LocalConversation(
         id: "conversation_preview_\(index)",
         createdAt: createdAt,
+        updatedAt: createdAt,
         startedAt: createdAt,
         finishedAt: createdAt.addingTimeInterval(2_700),
         structured: Structured(
           title: preview.0,
           overview: preview.1,
           emoji: preview.2,
-          category: "other",
           actionItems: [],
           events: []
         ),
         transcriptSegments: [],
         transcriptSegmentsIncluded: true,
-        geolocation: nil,
-        source: .desktop,
+        location: nil,
         language: "en",
         status: .completed,
-        discarded: false,
-        deleted: false,
-        isLocked: false,
         starred: index == 0,
         folderId: nil,
         inputDeviceName: "MacBook Pro Microphone"

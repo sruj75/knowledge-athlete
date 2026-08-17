@@ -6,7 +6,6 @@ import ast
 import hashlib
 import importlib
 import os
-import re
 import types
 import uuid
 from datetime import datetime, timezone
@@ -17,7 +16,6 @@ from unittest.mock import MagicMock
 import pytest
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]
-CONVERSATIONS_ROUTER_PATH = BACKEND_DIR / "routers" / "conversations.py"
 
 os.environ.setdefault(
     "ENCRYPTION_SECRET",
@@ -1367,27 +1365,6 @@ def test_canonical_review_reject_tombstones_content_and_rejects_unknown_decision
             decision="overwrite",
             db_client=canonical_db,
         )
-
-
-def test_conversation_delete_cascade_default_is_false():
-    """Q8 gated: production default must stay cascade=false until owner sign-off."""
-    source = CONVERSATIONS_ROUTER_PATH.read_text(encoding="utf-8")
-    assert re.search(r"cascade:\s*bool\s*=\s*Query\(False\)", source)
-    assert "Q8-gated" in source
-
-
-def test_conversation_delete_cascade_branches_memory_delete_by_cohort():
-    """Cascade delete must branch legacy delete vs canonical retract."""
-    source = CONVERSATIONS_ROUTER_PATH.read_text(encoding="utf-8")
-    cascade_start = source.index("if cascade:")
-    cascade_block = source[cascade_start : source.index("return {\"status\": \"Ok\"}", cascade_start)]
-    assert "memory_system = pin_memory_system(uid" in cascade_block
-    assert "memory_system == MemorySystem.CANONICAL" in cascade_block
-    assert ".retract_conversation_memories(uid, conversation_id)" in cascade_block
-    assert "memories_db.delete_memories_for_conversation(uid, conversation_id)" in cascade_block
-    canonical_branch_start = cascade_block.index("memory_system == MemorySystem.CANONICAL")
-    legacy_delete_idx = cascade_block.index("memories_db.delete_memories_for_conversation")
-    assert legacy_delete_idx > canonical_branch_start
 
 
 def test_purge_derived_user_data_wires_canonical_purge_helper():

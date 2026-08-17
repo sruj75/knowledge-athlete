@@ -26,9 +26,8 @@ private actor OwnerFencePauseGate {
 final class AppStateOwnerFenceTests: XCTestCase {
   func testRuntimeOwnerChangeClearsAccountScopedConversationState() throws {
     let state = AppState()
-    let folder = try JSONDecoder().decode(
-      Folder.self,
-      from: Data(#"{"id":"previous-folder","name":"Previous account folder"}"#.utf8))
+    let folder = Folder(
+      id: "previous-folder", name: "Previous account folder", color: "#6B7280", createdAt: Date())
     state.folders = [folder]
     state.selectedFolderId = "previous-folder"
     state.selectedDateFilter = Date(timeIntervalSince1970: 1)
@@ -38,7 +37,6 @@ final class AppStateOwnerFenceTests: XCTestCase {
     state.conversationsError = "stale error"
     state.isLoadingConversations = true
     state.isLoadingFolders = true
-    state.people = [Person(id: "previous-person", name: "Previous account person")]
 
     NotificationCenter.default.post(name: .runtimeOwnerDidChange, object: nil)
 
@@ -51,14 +49,12 @@ final class AppStateOwnerFenceTests: XCTestCase {
     XCTAssertNil(state.conversationsError)
     XCTAssertFalse(state.isLoadingConversations)
     XCTAssertFalse(state.isLoadingFolders)
-    XCTAssertTrue(state.people.isEmpty, "previous account's people must clear on switch")
   }
 
   func testInFlightFolderLoadFromPreviousAccountIsDroppedAfterOwnerSwitch() async throws {
     let state = AppState()
-    let previousFolder = try JSONDecoder().decode(
-      Folder.self,
-      from: Data(#"{"id":"previous-folder","name":"Previous account folder"}"#.utf8))
+    let previousFolder = Folder(
+      id: "previous-folder", name: "Previous account folder", color: "#6B7280", createdAt: Date())
     let gate = OwnerFencePauseGate()
 
     let load = Task { @MainActor in
@@ -78,23 +74,22 @@ final class AppStateOwnerFenceTests: XCTestCase {
       "a previous account's in-flight folder response must not repopulate after the switch")
   }
 
-  func testInFlightPeopleFetchFromPreviousAccountIsDroppedAfterOwnerSwitch() async throws {
+  func testOwnerTransitionQuiescenceRevokesActiveCaptureSessionBeforeRetarget() async {
     let state = AppState()
-    let gate = OwnerFencePauseGate()
+    state.isTranscribing = true
+    state.currentSessionId = 42
+    state.currentConversationId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+    state.currentSessionAuthorization = .unrestricted
+    state.speakerSegments = [
+      SpeakerSegment(segmentId: "tail", speaker: 0, text: "old owner", start: 0, end: 1)
+    ]
 
-    let load = Task { @MainActor in
-      await state.fetchPeople {
-        await gate.pause()
-        return [Person(id: "previous-person", name: "Previous account person")]
-      }
-    }
-    await Task.yield()
-    NotificationCenter.default.post(name: .runtimeOwnerDidChange, object: nil)
-    await gate.release()
-    await load.value
+    await state.quiesceAmbientCaptureForOwnerTransition()
 
-    XCTAssertTrue(
-      state.people.isEmpty,
-      "a previous account's in-flight people response must not repopulate after the switch")
+    XCTAssertFalse(state.isTranscribing)
+    XCTAssertNil(state.currentSessionId)
+    XCTAssertNil(state.currentConversationId)
+    XCTAssertNil(state.currentSessionAuthorization)
+    XCTAssertTrue(state.speakerSegments.isEmpty)
   }
 }

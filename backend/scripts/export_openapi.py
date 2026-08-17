@@ -35,9 +35,8 @@ APP_CLIENT_PREFIXES = (
     '/v1/action-items',
     '/v1/announcements',
     '/v1/candidates',
-    '/v1/conversations',
+    '/v1/conversation-compute',
     '/v1/fair-use',
-    '/v1/folders',
     '/v1/goals',
     '/v1/memories',
     '/v1/payment-methods',
@@ -70,7 +69,7 @@ HTTP_METHODS = {'GET', 'POST', 'PUT', 'PATCH', 'DELETE'}
 OPENAPI_TITLE = 'Omi App Client API'
 OPENAPI_VERSION = '1.0.0'
 OPENAPI_DESCRIPTION = (
-    'First-party Omi app access to memories, conversations, action items, goals, folders, and product services.'
+    'First-party Omi app access to transient conversation compute, memories, action items, goals, and product services.'
 )
 OPENAPI_CONTACT = {'name': 'Omi', 'url': 'https://omi.me'}
 OPENAPI_LICENSE = {'name': 'MIT', 'url': 'https://github.com/BasedHardware/omi/blob/main/LICENSE'}
@@ -79,9 +78,8 @@ OPENAPI_TAGS = [
     {'name': 'Memories', 'description': 'Read and write user memories - timeless facts, preferences, and insights.'},
     {
         'name': 'Conversations',
-        'description': 'Create and retrieve conversation transcripts with AI-generated summaries.',
+        'description': 'Compute bounded conversation candidates without backend persistence.',
     },
-    {'name': 'Folders', 'description': 'Retrieve user-defined folders for organizing conversations.'},
     {
         'name': 'Action Items',
         'description': 'Manage tasks and to-dos extracted from conversations or created manually.',

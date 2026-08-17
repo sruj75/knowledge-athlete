@@ -1,5 +1,13 @@
 # Local listen → pusher stack gauntlet
 
+> **S-10 → S-16 handoff:** this gauntlet still models the hosted listen
+> lifecycle and contains test-runner calls to the retired public conversation
+> read/finalize paths. It is not an S-10 macOS authority gate. S-16 must rewrite
+> those assertions around its narrowed listen protocol before this gauntlet is
+> treated as runnable again. Do not restore production `/v1/conversations`
+> routes to satisfy it; S-10 coverage lives in the transient-listen unit tests
+> and the macOS local-authority harness flows.
+
 Run this explicit, local-only gauntlet when changing the listen WebSocket,
 `ListenPusherSession`, pusher opcode handling, or finalization lifecycle:
 

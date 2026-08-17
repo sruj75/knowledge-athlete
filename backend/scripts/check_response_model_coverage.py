@@ -45,12 +45,9 @@ LEGIT_NON_JSON: dict[tuple[str, str], str] = {
     ("updates.py", "download_latest_desktop_release"): "binary file download (StreamingResponse)",
     ("updates.py", "download_beta_desktop_release"): "binary file download (StreamingResponse)",
     ("tts.py", "tts_synthesize"): "binary audio stream (StreamingResponse)",
-    ("sync.py", "download_audio_file_endpoint"): "binary audio file download (StreamingResponse)",
     ("users.py", "export_all_user_data"): "StreamingResponse data-export download",
     # --- 204 No Content (genuine empty-body deletes; FastAPI rejects response_model+204) ---
-    ("folders.py", "delete_folder"): "204 No Content",
     ("action_items.py", "delete_action_item"): "204 No Content",
-    ("users.py", "delete_person_endpoint"): "204 No Content",
     # --- OAuth / OpenID well-known discovery documents (spec-defined, not app-consumed) ---
     # --- Cloud Tasks job runners (OIDC-verified internal, return JSONResponse acks directly) ---
     ("sync.py", "run_audio_merge_job"): "Cloud Tasks job runner (OIDC-verified internal, JSONResponse acks)",

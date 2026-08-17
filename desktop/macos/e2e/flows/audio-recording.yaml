@@ -1,9 +1,11 @@
 version: 2
 name: audio-recording
 tier: manual
-description: Audio recording flow — verify Mac microphone selection, Start Recording, transcription state, and stop recording
-app: com.omi.computer-macos
+description: Audio capture flow — verify Mac microphone selection, local conversation admission, transcription state, and stop recording
+app: non-prod
 covers:
+  - desktop/macos/Desktop/Sources/LocalTranscriptionService.swift
+  - desktop/macos/Desktop/Sources/TranscriptionService.swift
   - desktop/Desktop/Sources/MainWindow/Pages/ConversationsPage.swift
   - desktop/Desktop/Sources/AudioCaptureService.swift
   - desktop/Desktop/Sources/AudioMixer.swift

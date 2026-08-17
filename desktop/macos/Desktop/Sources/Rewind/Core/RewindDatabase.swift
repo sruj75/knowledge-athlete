@@ -1534,7 +1534,7 @@ actor RewindDatabase {
       try db.create(index: "idx_live_notes_session", on: "live_notes", columns: ["sessionId"])
     }
 
-    // Migration 12: Expand transcription storage to match full ServerConversation schema
+    // Migration 12: Historical server-shaped conversation cache (retired by the local-authority migration).
     migrator.registerMigration("expandTranscriptionSchema") { db in
       // Add structured data columns to transcription_sessions
       try db.alter(table: "transcription_sessions") { t in
@@ -2606,8 +2606,8 @@ actor RewindDatabase {
     }
 
     Self.registerExternalSurfaceRetirementMigration(on: &migrator)
+    Self.registerConversationsLocalAuthoritativeMigration(on: &migrator)
     RewindAbandonedVideoChunkQuarantine.registerMigration(on: &migrator)
-
     try migrator.migrate(queue)
   }
 

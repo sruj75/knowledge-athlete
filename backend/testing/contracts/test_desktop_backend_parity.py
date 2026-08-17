@@ -1,10 +1,8 @@
-import base64
 import json
 import os
 import sys
 import types
-import zlib
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 
 os.environ.setdefault("ENCRYPTION_SECRET", "omi_ZwB2ZNqB2HHpMK6wStk7sTpavJiPTFg7gXUHnc4tFABPU6pZ2c2DKgehtfgi4RZv")
@@ -20,7 +18,6 @@ storage_stub = types.ModuleType("utils.other.storage")
 storage_stub.list_audio_chunks = lambda *_args, **_kwargs: []
 sys.modules.setdefault("utils.other.storage", storage_stub)
 
-from database import conversations as conversations_db
 from database import memories as memories_db
 from models.memories import MemoryCategory, MemoryDB
 
@@ -79,82 +76,6 @@ def filter_parts(field_filter):
         getattr(field_filter, "op_string", getattr(field_filter, "_op_string", None)),
         getattr(field_filter, "value", getattr(field_filter, "_value", None)),
     )
-
-
-def test_python_conversation_codec_reads_shared_standard_and_enhanced_fixtures():
-    data = fixture("conversations.json")
-    standard = conversations_db._prepare_conversation_for_read(
-        {
-            "data_protection_level": "standard",
-            "transcript_segments": base64.b64decode(data["standard_compressed_transcript_b64"]),
-            "transcript_segments_compressed": True,
-        },
-        data["uid"],
-    )
-    enhanced = conversations_db._prepare_conversation_for_read(
-        {
-            "data_protection_level": "enhanced",
-            "transcript_segments": data["enhanced_encrypted_transcript"],
-            "transcript_segments_compressed": True,
-        },
-        data["uid"],
-    )
-
-    assert standard["transcript_segments"] == data["segments"]
-    assert enhanced["transcript_segments"] == data["segments"]
-
-
-def test_python_conversation_codec_writes_normalized_segments():
-    data = fixture("conversations.json")
-    written = conversations_db._prepare_conversation_for_write(
-        {"transcript_segments": data["segments"]},
-        data["uid"],
-        "standard",
-    )
-
-    assert written["transcript_segments_compressed"] is True
-    assert zlib.decompress(written["transcript_segments"]).decode("utf-8")
-    assert json.loads(zlib.decompress(written["transcript_segments"]).decode("utf-8")) == data["segments"]
-
-
-def test_python_conversation_query_semantics(monkeypatch):
-    data = fixture("conversations.json")["query"]
-    fake_db = FakeQuery()
-    monkeypatch.setattr(conversations_db, "db", fake_db)
-
-    conversations_db.get_conversations(
-        "contract-user-8547",
-        limit=data["limit"],
-        offset=data["offset"],
-        statuses=["completed", "in_progress"],
-        starred=True,
-        folder_id="folder-1",
-        start_date=datetime.fromisoformat(data["start_date"]),
-        end_date=datetime.fromisoformat(data["end_date"]),
-        date_field=data["date_field"],
-    )
-
-    filters = [filter_parts(f) for f in fake_db.filters]
-    assert ("discarded", "==", False) in filters
-    assert ("status", "in", ["completed", "in_progress"]) in filters
-    assert ("starred", "==", True) in filters
-    assert ("folder_id", "==", "folder-1") in filters
-    assert (data["date_field"], ">=", datetime.fromisoformat(data["start_date"])) in filters
-    assert (data["date_field"], "<=", datetime.fromisoformat(data["end_date"])) in filters
-    assert fake_db.orders == [(data["date_field"], "DESCENDING")]
-    assert fake_db.limit_value == data["limit"]
-    assert fake_db.offset_value == data["offset"]
-
-
-def test_python_conversation_query_defaults_to_created_at(monkeypatch):
-    fake_db = FakeQuery()
-    monkeypatch.setattr(conversations_db, "db", fake_db)
-
-    conversations_db.get_conversations("contract-user-8547", limit=2, offset=1)
-
-    assert fake_db.orders == [("created_at", "DESCENDING")]
-    assert fake_db.limit_value == 2
-    assert fake_db.offset_value == 1
 
 
 def test_python_memory_codec_reads_shared_enhanced_fixture():

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-import uuid
-from typing import List, Dict, Any, Union, Optional
+from typing import List, Dict, Any, Optional
 import os
 import asyncio
 
@@ -26,14 +25,12 @@ from services.users.account_deletion import background_wipe_user_data, start_acc
 from database.app_review_config import should_hide_subscription_ui
 from database.conversations import get_in_progress_conversation, get_conversation
 from database.redis_db import (
-    cache_user_geolocation,
-    get_cached_user_geolocation,
-    set_user_data_protection_level,
+    get_generic_cache,
+    set_generic_cache,
 )
 
 from database.users import (
     claim_deletion_wipe_for_task,
-    get_user_transcription_preferences,
     resolve_deletion_wipe_job_id,
     resolve_legacy_deletion_wipe_uid,
     set_user_transcription_preferences,
@@ -43,9 +40,7 @@ from config.free_plan import get_default_free_subscription
 from utils.user_language import normalize_user_language
 from database.users import *
 from models.conversation import Conversation
-from models.geolocation import Geolocation, GeolocationInput, validated_geolocation_or_none
 from utils.conversations.factory import deserialize_conversation, deserialize_conversations
-from models.other import Person, CreatePerson
 from models.shared import StatusResponse
 from datetime import datetime, time, timedelta
 
@@ -58,8 +53,6 @@ from models.users import (
     PricingOption,
     PhoneCallQuota,
     TrialMetadata,
-    LocationContextConsentResponse,
-    LocationContextConsentUpdate,
 )
 from utils.phone_calls import get_quota_snapshot as get_phone_call_quota_snapshot
 from utils.subscription import (
@@ -79,44 +72,15 @@ from utils.cloud_tasks import (
 from utils.executors import cleanup_executor, db_executor, run_blocking
 from utils.log_sanitizer import sanitize
 from utils.llm.followup import followup_question_prompt
-from utils.notifications import send_notification, send_training_data_submitted_notification
+from utils.notifications import send_notification
 from utils.llm.daily_summary import generate_comprehensive_daily_summary
 from models.notification_message import NotificationMessage
 from utils.other import endpoints as auth
-from utils.other.storage import (
-    delete_all_conversation_recordings,
-    get_speech_sample_signed_urls,
-    delete_user_person_speech_samples,
-    delete_user_person_speech_sample,
-)
 import logging
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-
-
-class MigrationRequest(BaseModel):
-    type: str
-    id: str
-    target_level: str
-
-
-class MigrationTargetRequest(BaseModel):
-    target_level: str
-
-
-class BatchMigrationRequest(BaseModel):
-    requests: List[MigrationRequest]
-
-
-class MigrationStatusResponse(BaseModel):
-    status: str
-    message: Optional[str] = None
-
-
-class MigrationRequestsResponse(BaseModel):
-    needs_migration: List[Dict[str, Any]] = Field(default_factory=list)
 
 
 class UserStatusResponse(BaseModel):
@@ -149,14 +113,6 @@ class UserDataExportResponse(BaseModel):
     chat_messages: List[Dict[str, Any]] = Field(default_factory=list)
 
 
-class StoreRecordingPermissionResponse(BaseModel):
-    store_recording_permission: bool
-
-
-class PrivateCloudSyncResponse(BaseModel):
-    private_cloud_sync_enabled: bool
-
-
 class UserLanguageResponse(BaseModel):
     language: Optional[str] = None
 
@@ -168,18 +124,6 @@ class UserLanguageUpdateResponse(UserStatusResponse):
 class MemorySummaryRatingResponse(BaseModel):
     has_rating: bool
     rating: Optional[int] = None
-
-
-class TrainingDataOptInResponse(BaseModel):
-    opted_in: bool
-    status: Optional[str] = None
-
-
-def _location_context_consent_response(consent) -> LocationContextConsentResponse:
-    return LocationContextConsentResponse(
-        enabled=bool(consent and consent.is_active()),
-        expires_at=consent.expires_at if consent and consent.is_active() else None,
-    )
 
 
 class DailySummaryTestResponse(UserStatusResponse):
@@ -375,185 +319,6 @@ async def run_account_deletion_wipe(
             await run_blocking(db_executor, release_job_run_lock, lock_key, lock_token)
 
 
-@router.patch('/v1/users/geolocation', tags=['v1'], response_model=UserStatusResponse)
-def set_user_geolocation(geolocation: GeolocationInput, uid: str = Depends(auth.get_current_user_uid)):
-    validated_geolocation = validated_geolocation_or_none(geolocation)
-    if validated_geolocation is None:
-        # Preserve the released endpoint's success-shaped input contract while
-        # ensuring out-of-range coordinates cannot enter the cache or any provider path.
-        return {'status': 'ok', 'message': 'Location ignored because its coordinates are invalid.'}
-
-    last_location_data = get_cached_user_geolocation(uid)
-    if last_location_data:
-        try:
-            last_location = Geolocation(**last_location_data)
-
-            last_lat = round(last_location.latitude, 4)
-            last_lon = round(last_location.longitude, 4)
-            new_lat = round(validated_geolocation.latitude, 4)
-            new_lon = round(validated_geolocation.longitude, 4)
-
-            # Only update if location has changed up to 4 decimal places
-            if last_lat == new_lat and last_lon == new_lon:
-                return {'status': 'ok', 'message': 'Location not changed significantly.'}
-
-            cache_user_geolocation(uid, validated_geolocation.model_dump())
-        except Exception as e:
-            logger.error(f"Error processing geolocation update, caching new location anyway. Error: {e}")
-            cache_user_geolocation(uid, validated_geolocation.model_dump())
-    else:
-        # No previous location, so cache the new one
-        cache_user_geolocation(uid, validated_geolocation.model_dump())
-
-    return {'status': 'ok'}
-
-
-# *************************************************
-# ************* RECORDING PERMISSION **************
-# *************************************************
-
-
-@router.post('/v1/users/store-recording-permission', tags=['v1'], response_model=UserStatusResponse)
-def store_recording_permission(value: bool, uid: str = Depends(auth.get_current_user_uid)):
-    set_user_store_recording_permission(uid, value)
-    return {'status': 'ok'}
-
-
-@router.get('/v1/users/store-recording-permission', tags=['v1'], response_model=StoreRecordingPermissionResponse)
-def get_store_recording_permission(uid: str = Depends(auth.get_current_user_uid)):
-    return {'store_recording_permission': get_user_store_recording_permission(uid)}
-
-
-@router.delete('/v1/users/store-recording-permission', tags=['v1'], response_model=UserStatusResponse)
-def delete_permission_and_recordings(uid: str = Depends(auth.get_current_user_uid)):
-    set_user_store_recording_permission(uid, False)
-    delete_all_conversation_recordings(uid)
-    return {'status': 'ok'}
-
-
-# *************************************************
-# ************* PRIVATE CLOUD SYNC ****************
-# *************************************************
-
-
-@router.post('/v1/users/private-cloud-sync', tags=['v1'], response_model=UserStatusResponse)
-def set_private_cloud_sync(value: bool, uid: str = Depends(auth.get_current_user_uid)):
-    set_user_private_cloud_sync_enabled(uid, value)
-    return {'status': 'ok'}
-
-
-@router.get('/v1/users/private-cloud-sync', tags=['v1'], response_model=PrivateCloudSyncResponse)
-def get_private_cloud_sync(uid: str = Depends(auth.get_current_user_uid)):
-    return {'private_cloud_sync_enabled': get_user_private_cloud_sync_enabled(uid)}
-
-
-# ****************************************
-# ************* PEOPLE CRUD **************
-# ****************************************
-
-
-# TODO: consider adding person photo.
-@router.post('/v1/users/people', tags=['v1'], response_model=Person)
-def get_or_create_person(data: CreatePerson, uid: str = Depends(auth.get_current_user_uid)):
-    """Create a new person or return existing one with same name (idempotent by name).
-
-    This enables backward compatibility: old apps can call this API and get the
-    same person that backend already created, preventing duplicates.
-    """
-    # Check if person with same name already exists
-    existing_person = get_person_by_name(uid, data.name)
-    if existing_person:
-        return existing_person
-
-    # Create new person
-    person_data = {
-        'id': str(uuid.uuid4()),
-        'name': data.name,
-        'created_at': datetime.now(timezone.utc),
-        'updated_at': datetime.now(timezone.utc),
-    }
-    result = create_person(uid, person_data)
-    return result
-
-
-@router.get('/v1/users/people/{person_id}', tags=['v1'], response_model=Person)
-def get_single_person(
-    person_id: str, include_speech_samples: bool = False, uid: str = Depends(auth.get_current_user_uid)
-):
-    person = get_person(uid, person_id)
-    if not person:
-        raise HTTPException(status_code=404, detail="Person not found")
-    if include_speech_samples:
-        # Convert stored GCS paths to signed URLs
-        stored_paths = person.get('speech_samples', [])
-        person['speech_samples'] = get_speech_sample_signed_urls(stored_paths)
-    return person
-
-
-@router.get('/v1/users/people', tags=['v1'], response_model=List[Person])
-def get_all_people(include_speech_samples: bool = True, uid: str = Depends(auth.get_current_user_uid)):
-    logger.info(f'get_all_people {include_speech_samples}')
-    people = get_people(uid)
-    if include_speech_samples:
-        # Convert GCS paths to signed URLs for each person
-        for i, person in enumerate(people):
-            stored_paths = person.get('speech_samples', [])
-            people[i]['speech_samples'] = get_speech_sample_signed_urls(stored_paths)
-    return people
-
-
-@router.patch('/v1/users/people/{person_id}/name', tags=['v1'], response_model=UserStatusResponse)
-def update_person_name(
-    person_id: str,
-    value: str,  # = Field(min_length=2, max_length=40),
-    uid: str = Depends(auth.get_current_user_uid),
-):
-    if not update_person(uid, person_id, value):
-        raise HTTPException(status_code=404, detail="Person not found")
-    return {'status': 'ok'}
-
-
-@router.delete('/v1/users/people/{person_id}', tags=['v1'], status_code=204)
-def delete_person_endpoint(person_id: str, uid: str = Depends(auth.get_current_user_uid)):
-    delete_person(uid, person_id)
-    delete_user_person_speech_samples(uid, person_id)
-
-
-@router.delete(
-    '/v1/users/people/{person_id}/speech-samples/{sample_index}',
-    tags=['v1'],
-    response_model=UserStatusResponse,
-)
-def delete_person_speech_sample_endpoint(
-    person_id: str,
-    sample_index: int,
-    uid: str = Depends(auth.get_current_user_uid),
-):
-    """Delete a specific speech sample for a person by index."""
-    person = get_person(uid, person_id)
-    if not person:
-        raise HTTPException(status_code=404, detail="Person not found")
-
-    speech_samples = person.get('speech_samples', [])
-    if sample_index < 0 or sample_index >= len(speech_samples):
-        raise HTTPException(status_code=404, detail="Sample not found")
-
-    path_to_delete = speech_samples[sample_index]
-
-    # Extract filename from path for GCS deletion
-    filename = path_to_delete.split('/')[-1]
-
-    # Delete from GCS
-    delete_user_person_speech_sample(uid, person_id, filename)
-
-    # Remove from Firestore
-    from database.users import remove_person_speech_sample
-
-    remove_person_speech_sample(uid, person_id, path_to_delete)
-
-    return {'status': 'ok'}
-
-
 # **********************************************************
 # ************* RANDOM JOAN SPECIFIC FEATURES **************
 # **********************************************************
@@ -664,200 +429,6 @@ def set_user_language(data: SetUserLanguageRequest, uid: str = Depends(auth.get_
     single_language_mode = not supports_live_multilingual_mode(language)
     set_user_transcription_preferences(uid, single_language_mode=single_language_mode)
     return {'status': 'ok', 'single_language_mode': single_language_mode}
-
-
-# *************************************************
-# ********** Transcription Preferences ************
-# *************************************************
-
-
-class TranscriptionPreferencesResponse(BaseModel):
-    single_language_mode: bool = False
-    vocabulary: List[str] = Field(default_factory=list)
-    language: str = ''
-    uses_custom_stt: bool = False
-    custom_stt_since: Optional[datetime] = None
-
-
-class TranscriptionPreferencesUpdate(BaseModel):
-    single_language_mode: Optional[bool] = None
-    vocabulary: Optional[List[str]] = None
-
-
-@router.get('/v1/users/transcription-preferences', tags=['v1'], response_model=TranscriptionPreferencesResponse)
-def get_transcription_preferences_endpoint(uid: str = Depends(auth.get_current_user_uid)):
-    """Get user's transcription preferences (single language mode, vocabulary)."""
-    prefs = get_user_transcription_preferences(uid)
-    return prefs
-
-
-@router.patch('/v1/users/transcription-preferences', tags=['v1'], response_model=UserStatusResponse)
-def update_transcription_preferences_endpoint(
-    data: TranscriptionPreferencesUpdate, uid: str = Depends(auth.get_current_user_uid)
-):
-    """
-    Update user's transcription preferences.
-
-    - single_language_mode: If True, uses exact language for higher accuracy but disables translation
-    - vocabulary: List of custom keywords/terms (max 100) for better transcription accuracy
-    """
-    set_user_transcription_preferences(uid, single_language_mode=data.single_language_mode, vocabulary=data.vocabulary)
-    return {'status': 'ok'}
-
-
-# **************************************
-# ********* Data Protection ************
-# **************************************
-
-
-@router.post('/v1/users/migration/requests', tags=['v1'], response_model=MigrationStatusResponse)
-def handle_migration_requests(
-    request: Union[MigrationRequest, MigrationTargetRequest], uid: str = Depends(auth.get_current_user_uid)
-):
-    """
-    Handles data migration requests.
-    - If 'id' and 'type' are present, it migrates a single object.
-    - Otherwise, it initiates the data migration process for a 'target_level'.
-    """
-    if isinstance(request, MigrationRequest):
-        # This is for migrating a single object
-        if request.type == 'conversation':
-            try:
-                conversations_db.migrate_conversations_level_batch(uid, [request.id], request.target_level)
-                return {'status': 'ok'}
-            except Exception as e:
-                raise HTTPException(status_code=500, detail=f"Failed to migrate conversation {request.id}: {e}")
-        elif request.type == 'memory':
-            try:
-                memories_db.migrate_memories_level_batch(uid, [request.id], request.target_level)
-                return {'status': 'ok'}
-            except Exception as e:
-                raise HTTPException(status_code=500, detail=f"Failed to migrate memory {request.id}: {e}")
-        elif request.type == 'chat':
-            try:
-                chat_db.migrate_chats_level_batch(uid, [request.id], request.target_level)
-                return {'status': 'ok'}
-            except Exception as e:
-                raise HTTPException(status_code=500, detail=f"Failed to migrate chat message {request.id}: {e}")
-        else:
-            raise HTTPException(status_code=400, detail=f"Unknown object type for migration: {request.type}")
-    elif isinstance(request, MigrationTargetRequest):
-        # This is for starting the migration process
-        if request.target_level != 'enhanced':
-            raise HTTPException(
-                status_code=400, detail="Invalid target_level. Only migration to 'enhanced' is supported."
-            )
-
-        set_migration_status(uid, request.target_level)
-        return {'status': 'ok', 'message': 'Migration status set.'}
-
-
-@router.get('/v1/users/migration/requests', tags=['v1'], response_model=MigrationRequestsResponse)
-def get_migration_requests(target_level: str, uid: str = Depends(auth.get_current_user_uid)):
-    """Checks which documents need to be migrated to the target level."""
-    if target_level != 'enhanced':
-        raise HTTPException(status_code=400, detail="Invalid target_level. Only migration to 'enhanced' is supported.")
-
-    conversations_to_migrate = conversations_db.get_conversations_to_migrate(uid, target_level)
-    memories_to_migrate = memories_db.get_memories_to_migrate(uid, target_level)
-    chats_to_migrate = chat_db.get_chats_to_migrate(uid, target_level)
-    needs_migration = conversations_to_migrate + memories_to_migrate + chats_to_migrate
-    return {"needs_migration": needs_migration}
-
-
-@router.post('/v1/users/migration/batch-requests', tags=['v1'], response_model=MigrationStatusResponse)
-def handle_batch_migration_requests(
-    batch_request: BatchMigrationRequest, uid: str = Depends(auth.get_current_user_uid)
-):
-    """Migrates a batch of data objects to the target protection level."""
-    errors = []
-
-    # Group requests by type and target_level
-    grouped_requests: Dict[tuple[str, str], List[str]] = {}
-    for req in batch_request.requests:
-        key = (req.type, req.target_level)
-        if key not in grouped_requests:
-            grouped_requests[key] = []
-        grouped_requests[key].append(req.id)
-
-    for (req_type, target_level), ids in grouped_requests.items():
-        try:
-            if req_type == 'conversation':
-                conversations_db.migrate_conversations_level_batch(uid, ids, target_level)
-            elif req_type == 'memory':
-                memories_db.migrate_memories_level_batch(uid, ids, target_level)
-            elif req_type == 'chat':
-                chat_db.migrate_chats_level_batch(uid, ids, target_level)
-            else:
-                errors.append(f"Unknown object type for migration: {req_type}")
-        except Exception as e:
-            error_detail = f"Failed to migrate batch of type {req_type}: {e}"
-            logger.info(error_detail)
-            errors.append(error_detail)
-
-    if errors:
-        raise HTTPException(status_code=500, detail={"message": "Some objects failed to migrate.", "errors": errors})
-
-    return {'status': 'ok'}
-
-
-@router.post(
-    '/v1/users/migration/requests/data-protection-level/finalize',
-    tags=['v1'],
-    response_model=MigrationStatusResponse,
-)
-def finalize_migration_request(request: MigrationTargetRequest, uid: str = Depends(auth.get_current_user_uid)):
-    """Finalizes the migration by setting the user's global protection level."""
-    if request.target_level != 'enhanced':
-        raise HTTPException(status_code=400, detail="Invalid target_level. Only migration to 'enhanced' is supported.")
-
-    finalize_migration(uid, request.target_level)
-    set_user_data_protection_level(uid, request.target_level)
-    return {'status': 'ok'}
-
-
-# **************************************
-# *********** Training Data ************
-# **************************************
-
-
-@router.get('/v1/users/training-data-opt-in', tags=['v1'], response_model=TrainingDataOptInResponse)
-def get_training_data_opt_in_status(uid: str = Depends(auth.get_current_user_uid)):
-    """Get the user's training data opt-in status."""
-    opt_in_data = get_user_training_data_opt_in(uid)
-    if not opt_in_data:
-        return {'opted_in': False, 'status': None}
-    return {'opted_in': True, 'status': opt_in_data.get('status')}
-
-
-@router.post('/v1/users/training-data-opt-in', tags=['v1'], response_model=UserStatusResponse)
-def set_training_data_opt_in_status(uid: str = Depends(auth.get_current_user_uid)):
-    """Opt-in for training data program. User's request will be reviewed."""
-    set_user_training_data_opt_in(uid, 'pending_review')
-
-    # Check if private cloud sync is enabled, if not, enable it
-    if not get_user_private_cloud_sync_enabled(uid):
-        set_user_private_cloud_sync_enabled(uid, True)
-
-    # Send notification to user
-    send_training_data_submitted_notification(uid)
-
-    return {'status': 'ok', 'message': 'Your request has been submitted for review. We will let you know soon.'}
-
-
-@router.get('/v1/users/location-context-consent', tags=['v1'], response_model=LocationContextConsentResponse)
-def get_location_context_consent(uid: str = Depends(auth.get_current_user_uid)):
-    """Return the current city-context disclosure and active server-side consent state."""
-    return _location_context_consent_response(users_db.get_user_location_context_consent(uid))
-
-
-@router.put('/v1/users/location-context-consent', tags=['v1'], response_model=LocationContextConsentResponse)
-def set_location_context_consent(update: LocationContextConsentUpdate, uid: str = Depends(auth.get_current_user_uid)):
-    """Grant, renew, or revoke city-only location context for interactive chat."""
-    if update.enabled and not update.disclosure_accepted:
-        raise HTTPException(status_code=422, detail='location context requires accepting the provider disclosure')
-    consent = users_db.set_user_location_context_consent(uid, enabled=update.enabled)
-    return _location_context_consent_response(consent)
 
 
 # **************************************

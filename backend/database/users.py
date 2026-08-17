@@ -1,24 +1,15 @@
 import uuid
 from datetime import datetime, timedelta, timezone
-from typing import Any, Literal, Optional, TypedDict
+from typing import Literal, Optional, TypedDict
 
-from google.api_core.exceptions import NotFound
 from google.cloud import firestore
 from google.cloud.firestore_v1 import FieldFilter, transactional
-from ._client import db, delete_collection_recursive, document_id_from_seed, get_firestore_client
+from ._client import db, delete_collection_recursive, document_id_from_seed
 from database.firestore_cache import CachePolicy, get_or_fetch, invalidate
 from database.read_boundary import parse_snapshot_or_none, parse_snapshot_strict
-from database.redis_db import (
-    delete_cached_user_geolocation,
-    try_acquire_client_device_write_lock,
-    try_acquire_user_platform_write_lock,
-)
+from database.redis_db import try_acquire_client_device_write_lock, try_acquire_user_platform_write_lock
 from config.free_plan import get_default_free_subscription
 from models.users import (
-    LOCATION_CONTEXT_DISCLOSED_PROVIDERS,
-    LOCATION_CONTEXT_PURPOSE,
-    LocationContextConsent,
-    LocationContextConsentStatus,
     Subscription,
     PlanLimits,
     PlanType,
@@ -31,7 +22,6 @@ logger = logging.getLogger(__name__)
 DELETION_WIPE_RUNNING_STALE_AFTER = timedelta(hours=6)
 _DELETION_WIPE_TERMINAL_STATUSES = frozenset({'completed', 'cancelled'})
 _DELETION_WIPE_LEGACY_ACTIONABLE_STATUSES = frozenset({'pending', 'retrying', 'running', 'failed'})
-LOCATION_CONTEXT_CONSENT_TTL = timedelta(days=30)
 
 
 class DeletionWipeTaskResolution(TypedDict):
@@ -740,21 +730,6 @@ def get_people_by_ids(uid: str, person_ids: list[str]):
     return all_people
 
 
-def update_person(uid: str, person_id: str, name: str) -> bool:
-    """Rename a person. Returns False when the person does not exist so callers can 404,
-    instead of letting Firestore .update() raise NotFound and surface as an HTTP 500."""
-    person_ref = db.collection('users').document(uid).collection('people').document(person_id)
-    if not person_ref.get().exists:
-        return False
-    try:
-        person_ref.update({'name': name})
-    except NotFound:
-        # The person was deleted between the existence check and the update; treat as missing so
-        # the caller 404s instead of 500ing on the Firestore NotFound race.
-        return False
-    return True
-
-
 def delete_person(uid: str, person_id: str):
     person_ref = db.collection('users').document(uid).collection('people').document(person_id)
     person_ref.delete()
@@ -1355,86 +1330,6 @@ def get_existing_user_subscription(uid: str) -> Optional[Subscription]:
         return dict(sub_data)
 
     return parse_snapshot_strict(Subscription, user_doc, payload_from_snapshot=subscription_payload)
-
-
-def get_user_training_data_opt_in(uid: str) -> Optional[dict]:
-    """Get user's training data opt-in status."""
-    user_ref = db.collection('users').document(uid)
-    user_data = user_ref.get().to_dict() or {}
-    return user_data.get('training_data_opt_in', None)
-
-
-def get_user_location_context_consent(
-    uid: str, *, firestore_client: Any | None = None
-) -> Optional[LocationContextConsent]:
-    """Read the uncached, server-owned city-context consent record fail-closed."""
-    client = firestore_client or get_firestore_client()
-    snapshot = client.collection('users').document(uid).get(['location_context_consent'])
-    user_data = snapshot.to_dict() or {}
-    if not isinstance(user_data, dict):
-        return None
-    raw_consent = user_data.get('location_context_consent')
-    if not isinstance(raw_consent, dict):
-        return None
-    return parse_snapshot_or_none(
-        LocationContextConsent,
-        snapshot,
-        payload_from_snapshot=lambda _snapshot: raw_consent,
-    )
-
-
-def set_user_location_context_consent(
-    uid: str,
-    *,
-    enabled: bool,
-    now: datetime | None = None,
-    firestore_client: Any | None = None,
-) -> LocationContextConsent:
-    """Persist the only authority for city-context disclosure and revoke fail-closed."""
-    current_time = now or datetime.now(timezone.utc)
-    if current_time.tzinfo is None:
-        raise ValueError('location-context consent timestamp must be timezone-aware')
-
-    if enabled:
-        consent = LocationContextConsent(
-            status=LocationContextConsentStatus.granted,
-            purpose=LOCATION_CONTEXT_PURPOSE,
-            disclosed_providers=LOCATION_CONTEXT_DISCLOSED_PROVIDERS,
-            granted_at=current_time,
-            expires_at=current_time + LOCATION_CONTEXT_CONSENT_TTL,
-        )
-    else:
-        consent = LocationContextConsent(
-            status=LocationContextConsentStatus.revoked,
-            purpose=LOCATION_CONTEXT_PURPOSE,
-            disclosed_providers=LOCATION_CONTEXT_DISCLOSED_PROVIDERS,
-            granted_at=current_time,
-            expires_at=current_time,
-            revoked_at=current_time,
-        )
-
-    client = firestore_client or get_firestore_client()
-    client.collection('users').document(uid).set({'location_context_consent': consent.model_dump()}, merge=True)
-    if not enabled:
-        try:
-            delete_cached_user_geolocation(uid)
-        except Exception as error:
-            # The persisted revocation is the read gate; Redis cleanup is a best-effort reduction of retained cache.
-            logger.warning('location-context cache deletion failed uid=%s error_type=%s', uid, type(error).__name__)
-    return consent
-
-
-def set_user_training_data_opt_in(uid: str, status: str):
-    """Set user's training data opt-in status. Status can be: pending_review, approved, rejected"""
-    user_ref = db.collection('users').document(uid)
-    user_ref.update(
-        {
-            'training_data_opt_in': {
-                'status': status,
-                'requested_at': datetime.now(timezone.utc),
-            }
-        }
-    )
 
 
 def get_user_valid_subscription(uid: str) -> Optional[Subscription]:

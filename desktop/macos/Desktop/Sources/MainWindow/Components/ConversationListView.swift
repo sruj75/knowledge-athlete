@@ -3,12 +3,12 @@ import SwiftUI
 
 /// List view showing conversations grouped by date
 struct ConversationListView: View {
-  let conversations: [ServerConversation]
+  let conversations: [LocalConversation]
   let isLoading: Bool
   let error: String?
   let folders: [Folder]
-  var isCompactView: Bool = true
-  let onSelect: (ServerConversation) -> Void
+  var hasActiveFilters: Bool = false
+  let onSelect: (LocalConversation) -> Void
   let onRefresh: () -> Void
   let onMoveToFolder: (String, String?) async -> Void
 
@@ -33,7 +33,7 @@ struct ConversationListView: View {
   /// SwiftUI layout comparison hangs (AG::LayoutDescriptor::compare) on refresh.
   private enum ListItem: Identifiable {
     case header(key: String, isFirst: Bool)
-    case conversation(ServerConversation)
+    case conversation(LocalConversation)
 
     var id: String {
       switch self {
@@ -50,7 +50,7 @@ struct ConversationListView: View {
     let yesterday = calendar.date(byAdding: .day, value: -1, to: today)!
     let formatter = Self.groupDateFormatter
 
-    var groups: [String: [ServerConversation]] = [:]
+    var groups: [String: [LocalConversation]] = [:]
     var groupDates: [String: Date] = ["Today": today, "Yesterday": yesterday]
 
     for conversation in conversations {
@@ -128,7 +128,7 @@ struct ConversationListView: View {
         .scaledFont(size: OmiType.subheading, weight: .medium)
         .foregroundColor(OmiColors.textPrimary)
 
-      Text("Check your connection and try again.")
+      Text(ConversationLoadPresentation.failureMessage)
         .scaledFont(size: OmiType.body)
         .foregroundColor(OmiColors.textTertiary)
         .multilineTextAlignment(.center)
@@ -148,16 +148,18 @@ struct ConversationListView: View {
   }
 
   private var emptyView: some View {
-    VStack(spacing: OmiSpacing.lg) {
+    let presentation = ConversationListEmptyPresentation.resolve(
+      hasActiveFilters: hasActiveFilters)
+    return VStack(spacing: OmiSpacing.lg) {
       Image(systemName: "bubble.left.and.bubble.right")
         .scaledFont(size: 48)
         .foregroundColor(OmiColors.textTertiary)
 
-      Text("No Conversations")
+      Text(presentation.title)
         .scaledFont(size: OmiType.heading, weight: .semibold)
         .foregroundColor(OmiColors.textPrimary)
 
-      Text("Start recording to capture your first conversation")
+      Text(presentation.message)
         .scaledFont(size: OmiType.body)
         .foregroundColor(OmiColors.textTertiary)
         .multilineTextAlignment(.center)
@@ -183,7 +185,6 @@ struct ConversationListView: View {
             onTap: { onSelect(conversation) },
             folders: folders,
             onMoveToFolder: onMoveToFolder,
-            isCompactView: isCompactView,
             isMultiSelectMode: isMultiSelectMode,
             isSelected: selectedIds.contains(conversation.id),
             onToggleSelection: { onToggleSelection?(conversation.id) },

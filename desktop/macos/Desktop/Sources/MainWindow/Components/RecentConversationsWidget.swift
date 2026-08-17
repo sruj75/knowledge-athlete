@@ -2,7 +2,7 @@ import OmiTheme
 import SwiftUI
 
 struct RecentConversationsWidget: View {
-  let conversations: [ServerConversation]
+  let conversations: [LocalConversation]
   let folders: [Folder]
   let onViewAll: () -> Void
   let onMoveToFolder: (String, String?) async -> Void
@@ -42,7 +42,6 @@ struct RecentConversationsWidget: View {
               onTap: onViewAll,
               folders: folders,
               onMoveToFolder: onMoveToFolder,
-              isCompactView: true,
               appState: appState
             )
           }

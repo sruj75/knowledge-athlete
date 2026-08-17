@@ -5,14 +5,11 @@ import SwiftUI
 
 struct ConversationsPage: View {
   @ObservedObject var appState: AppState
-  @Binding var selectedConversation: ServerConversation?
+  @Binding var selectedConversation: LocalConversation?
   @ObservedObject private var automation = ConversationDetailAutomationState.shared
 
   /// When true, renders without internal ScrollViews (for embedding in an outer ScrollView)
   var embedded: Bool = false
-
-  // Compact view mode - persisted preference
-  @AppStorage("conversationsCompactView") private var isCompactView = true
 
   // Listening mode — used only to decide whether the manual "Start Recording"
   // affordance is meaningful (see startRecordingButton gating).
@@ -24,7 +21,7 @@ struct ConversationsPage: View {
 
   // Search state
   @State private var searchQuery: String = ""
-  @State private var searchResults: [ServerConversation] = []
+  @State private var searchResults: [LocalConversation] = []
   @State private var isSearching: Bool = false
   @State private var searchError: String? = nil
   @StateObject private var searchCoordinator = DebouncedSearchCoordinator()
@@ -76,18 +73,11 @@ struct ConversationsPage: View {
               }
             }
           },
-          people: appState.people,
-          onFetchPeople: {
-            await appState.fetchPeople()
-          },
-          onCreatePerson: { name in
-            await appState.createPerson(name: name)
-          },
-          onAssignSpeaker: { conversationId, segmentIds, personId, isUser in
+          onAssignSpeaker: { conversationId, segmentIds, speakerName, isUser in
             await appState.assignSpeakerToSegments(
               conversationId: conversationId,
               segmentIds: segmentIds,
-              personId: personId,
+              speakerName: speakerName,
               isUser: isUser
             )
           }
@@ -175,7 +165,7 @@ struct ConversationsPage: View {
 
   private func handleAutomationOpenConversation(conversationId: String) {
 
-    func present(_ conversation: ServerConversation) {
+    func present(_ conversation: LocalConversation) {
       selectedConversation = conversation
     }
 
@@ -190,12 +180,11 @@ struct ConversationsPage: View {
     }
 
     Task {
-      await appState.refreshConversations()
+      guard let conversation = await appState.loadConversationDetail(id: conversationId) else {
+        log("Desktop automation: conversation \(conversationId) not found")
+        return
+      }
       await MainActor.run {
-        guard let conversation = appState.conversations.first(where: { $0.id == conversationId }) else {
-          log("Desktop automation: conversation \(conversationId) not found")
-          return
-        }
         present(conversation)
       }
     }
@@ -433,9 +422,8 @@ struct ConversationsPage: View {
           isLoading: appState.isLoadingConversations,
           error: appState.conversationsError,
           folders: appState.folders,
-          isCompactView: isCompactView,
+          hasActiveFilters: appState.hasActiveConversationFilters,
           onSelect: { conversation in
-            AnalyticsManager.shared.memoryListItemClicked(conversationId: conversation.id)
             selectedConversation = conversation
           },
           onRefresh: {
@@ -444,7 +432,7 @@ struct ConversationsPage: View {
             }
           },
           onMoveToFolder: { conversationId, folderId in
-            await appState.moveConversationToFolder(conversationId, folderId: folderId)
+            _ = await appState.moveConversationToFolder(conversationId, folderId: folderId)
           },
           isMultiSelectMode: isMultiSelectMode,
           selectedIds: selectedConversationIds,
@@ -479,7 +467,7 @@ struct ConversationsPage: View {
           Image(systemName: "exclamationmark.triangle")
             .scaledFont(size: 32)
             .foregroundColor(OmiColors.textTertiary)
-          Text("Couldn't search conversations. Check your connection and try again.")
+          Text(ConversationSearchPresentation.failureMessage)
             .scaledFont(size: OmiType.body)
             .foregroundColor(OmiColors.textTertiary)
             .multilineTextAlignment(.center)
@@ -514,14 +502,12 @@ struct ConversationsPage: View {
         ConversationRowView(
           conversation: conversation,
           onTap: {
-            AnalyticsManager.shared.memoryListItemClicked(conversationId: conversation.id)
             selectedConversation = conversation
           },
           folders: appState.folders,
           onMoveToFolder: { conversationId, folderId in
-            await appState.moveConversationToFolder(conversationId, folderId: folderId)
+            _ = await appState.moveConversationToFolder(conversationId, folderId: folderId)
           },
-          isCompactView: isCompactView,
           isMultiSelectMode: isMultiSelectMode,
           isSelected: selectedConversationIds.contains(conversation.id),
           onToggleSelection: {
@@ -818,17 +804,26 @@ struct ConversationsPage: View {
 
     do {
       let ids = Array(selectedConversationIds)
-      let response = try await APIClient.shared.mergeConversations(ids: ids)
-
-      log("Merge completed: \(response.message)")
-
-      // Show warning if there was one
-      if let warning = response.warning {
-        log("Merge warning: \(warning)")
+      guard let snapshot = RuntimeOwnerIdentity.captureAuthorizationSnapshot() else {
+        throw LocalMutationAuthorizationError.revoked
       }
+      let authorization = LocalMutationAuthorization {
+        RuntimeOwnerIdentity.isAuthorizationCurrent(snapshot)
+      }
+      let replacement = try await TranscriptionStorage.shared.mergeConversations(
+        ids: ids, authorization: authorization)
+      log("Merge completed locally: \(replacement.conversationId)")
 
-      // Refresh conversations to show the merged one
-      await appState.refreshConversations()
+      await ConversationPostProcessProjectionFlow.run(
+        conversationId: replacement.conversationId,
+        refresh: {
+          await appState.refreshConversations()
+          await appState.loadFolders()
+        },
+        postProcess: { conversationId in
+          await ConversationFinalizationService.shared.processEnrichmentWithoutDiscard(
+            conversationId: conversationId)
+        })
 
       // Exit multi-select mode
       OmiMotion.withGated(.easeInOut(duration: 0.2)) {

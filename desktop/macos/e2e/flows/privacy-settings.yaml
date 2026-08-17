@@ -1,7 +1,7 @@
 version: 2
 name: privacy-settings
 tier: 2
-description: Hermetic Settings privacy toggle snapshot via bridge action
+description: Hermetic retained local privacy snapshot with retired cloud recording controls absent
 app: non-prod
 covers:
   - desktop/macos/Desktop/Sources/MainWindow/Pages/Settings/Sections/SettingsContentView+NotificationsPrivacy.swift
@@ -23,7 +23,7 @@ steps:
     bridge.action:
       name: settings_privacy_snapshot
     expect:
-      ok: true
+      result.detail.retired_cloud_controls_visible: "false"
 
   - id: S3
     name: Logs clean

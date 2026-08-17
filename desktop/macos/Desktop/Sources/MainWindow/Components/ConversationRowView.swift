@@ -4,13 +4,10 @@ import SwiftUI
 
 /// Row view for a conversation in the list
 struct ConversationRowView: View {
-  let conversation: ServerConversation
+  let conversation: LocalConversation
   let onTap: () -> Void
   let folders: [Folder]
   let onMoveToFolder: (String, String?) async -> Void
-
-  // View mode
-  var isCompactView: Bool = true
 
   // Multi-select support
   var isMultiSelectMode: Bool = false
@@ -30,7 +27,7 @@ struct ConversationRowView: View {
 
   /// The timestamp to display (prefer startedAt, fall back to createdAt)
   private var displayDate: Date {
-    conversation.startedAt ?? conversation.createdAt
+    conversation.startedAt
   }
 
   /// Check if conversation was created less than 1 minute ago (newly added)
@@ -83,25 +80,6 @@ struct ConversationRowView: View {
     return folders.first(where: { $0.id == folderId })?.name
   }
 
-  /// Label for the conversation source
-  private var sourceLabel: String {
-    switch conversation.source {
-    case .desktop: return "Desktop"
-    case .omi: return "omi"
-    case .phone: return "Phone"
-    case .appleWatch: return "Watch"
-    case .workflow: return "Workflow"
-    case .screenpipe: return "Screenpipe"
-    case .friend, .friendCom: return "Friend"
-    case .openglass: return "OpenGlass"
-    case .frame: return "Frame"
-    case .bee: return "Bee"
-    case .limitless: return "Limitless"
-    case .plaud: return "Plaud"
-    default: return "Unknown"
-    }
-  }
-
   private func toggleStar() async {
     guard !isStarring else { return }
     isStarring = true
@@ -115,10 +93,18 @@ struct ConversationRowView: View {
   // MARK: - Context Menu Actions
 
   private func copyTranscript() {
-    let pasteboard = NSPasteboard.general
-    pasteboard.clearContents()
-    pasteboard.setString(conversation.transcript, forType: .string)
-    log("Copied transcript to clipboard")
+    Task { @MainActor in
+      do {
+        let transcript = try await appState.conversationRepository.transcriptForCopy(
+          id: conversation.id)
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(transcript, forType: .string)
+        log("Copied transcript to clipboard")
+      } catch {
+        logError("Failed to load local transcript for copying", error: error)
+      }
+    }
   }
 
   private func deleteConversation() async {
@@ -136,8 +122,9 @@ struct ConversationRowView: View {
     guard !isUpdatingTitle, !editedTitle.isEmpty else { return }
     isUpdatingTitle = true
 
-    await appState.updateConversationTitle(conversation.id, title: editedTitle)
-    log("Updated conversation title to: \(editedTitle)")
+    if await appState.updateConversationTitle(conversation.id, title: editedTitle) {
+      log("Updated conversation title to: \(editedTitle)")
+    }
 
     isUpdatingTitle = false
   }
@@ -293,92 +280,6 @@ struct ConversationRowView: View {
     .contentShape(Rectangle())
   }
 
-  // MARK: - Expanded Row (title + time/duration)
-
-  private var expandedRowContent: some View {
-    HStack(spacing: OmiSpacing.md) {
-      // Checkbox for multi-select mode
-      if isMultiSelectMode {
-        Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-          .scaledFont(size: OmiType.heading)
-          .foregroundColor(isSelected ? OmiColors.accent : OmiColors.textTertiary)
-      }
-
-      // Emoji
-      Text(conversation.structured.emoji.isEmpty ? "💬" : conversation.structured.emoji)
-        .scaledFont(size: OmiType.heading)
-        .frame(width: 40, height: 40)
-        .background(
-          RoundedRectangle(cornerRadius: OmiChrome.chipRadius, style: .continuous).fill(OmiColors.backgroundRaised))
-
-      // Title + time/duration below
-      VStack(alignment: .leading, spacing: OmiSpacing.hairline) {
-        HStack(spacing: OmiSpacing.sm) {
-          Text(conversation.title)
-            .scaledFont(size: OmiType.subheading, weight: .medium)
-            .foregroundColor(OmiColors.textPrimary)
-            .lineLimit(1)
-
-          if isNewlyCreated {
-            NewBadge()
-          }
-
-          // Inline action buttons (show on hover)
-          if isHovering && !isMultiSelectMode {
-            inlineActionButtons
-              .transition(.opacity)
-          }
-        }
-
-        HStack(spacing: OmiSpacing.xs) {
-          Text(formattedTimestamp)
-            .scaledFont(size: OmiType.caption)
-            .foregroundColor(OmiColors.textTertiary)
-
-          Text("·")
-            .scaledFont(size: OmiType.caption)
-            .foregroundColor(OmiColors.textQuaternary)
-
-          Text(conversation.formattedDuration)
-            .scaledFont(size: OmiType.caption)
-            .foregroundColor(OmiColors.textTertiary)
-        }
-      }
-
-      Spacer()
-
-      // Star button
-      Button(action: {
-        Task { await toggleStar() }
-      }) {
-        Image(systemName: conversation.starred ? "star.fill" : "star")
-          .scaledFont(size: OmiType.body)
-          .foregroundColor(conversation.starred ? OmiColors.amber : OmiColors.textTertiary)
-          .opacity(isStarring ? 0.5 : 1.0)
-      }
-      .buttonStyle(.plain)
-    }
-    .padding(OmiSpacing.lg)
-    .background(
-      RoundedRectangle(cornerRadius: OmiChrome.sectionRadius, style: .continuous)
-        .fill(
-          isSelected
-            ? OmiColors.accent.opacity(0.22)
-            : (isHovering
-              ? OmiColors.backgroundRaised
-              : (isNewlyCreated
-                ? OmiColors.userBubble.opacity(0.18) : OmiColors.backgroundSecondary))
-        )
-    )
-    .overlay(
-      RoundedRectangle(cornerRadius: OmiChrome.sectionRadius, style: .continuous)
-        .stroke(
-          isSelected ? OmiColors.accent.opacity(0.4) : OmiColors.border.opacity(0.14),
-          lineWidth: 1)
-    )
-    .contentShape(Rectangle())
-  }
-
   var body: some View {
     Button(action: {
       if isMultiSelectMode {
@@ -387,13 +288,7 @@ struct ConversationRowView: View {
         onTap()
       }
     }) {
-      if isCompactView {
-        // Compact mode: single line with all info
-        compactRowContent
-      } else {
-        // Expanded mode: title + overview with metadata below
-        expandedRowContent
-      }
+      compactRowContent
     }
     .buttonStyle(.plain)
     .onHover { hovering in
@@ -491,7 +386,7 @@ struct ConversationRowView: View {
 #if canImport(PreviewsMacros)
   #Preview {
     VStack(spacing: OmiSpacing.md) {
-      // Preview would require mock ServerConversation
+      // Preview would require mock LocalConversation
       Text("ConversationRowView Preview")
         .foregroundColor(.white)
     }

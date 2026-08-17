@@ -13,8 +13,8 @@ def _make_app() -> FastAPI:
     app = FastAPI()
 
     @app.post(
-        '/v1/conversations/from-segments',
-        operation_id='postFromSegments',
+        '/v1/conversation-compute/structure',
+        operation_id='postConversationStructure',
         tags=['Conversations'],
     )
     def post_from_segments():
@@ -34,9 +34,9 @@ def _make_app() -> FastAPI:
 def test_app_client_openapi_filters_to_first_party_contract():
     schema = export_openapi.build_app_client_openapi(_make_app())
 
-    assert list(schema['paths']) == ['/v1/conversations/from-segments', '/v2/messages']
-    operation = schema['paths']['/v1/conversations/from-segments']['post']
-    assert operation['operationId'] == 'postFromSegments'
+    assert list(schema['paths']) == ['/v1/conversation-compute/structure', '/v2/messages']
+    operation = schema['paths']['/v1/conversation-compute/structure']['post']
+    assert operation['operationId'] == 'postConversationStructure'
     assert schema['components']['securitySchemes'] == {
         'firebaseBearer': export_openapi.FIREBASE_BEARER_AUTH_SCHEME,
     }
@@ -51,13 +51,13 @@ def test_app_client_openapi_filters_to_first_party_contract():
 def test_similar_prefix_without_path_boundary_is_not_included():
     app = _make_app()
 
-    @app.get('/v1/conversations-v2/preview', operation_id='conversationV2Preview')
+    @app.get('/v1/conversation-compute-preview', operation_id='conversationComputePreview')
     def conversation_v2_preview():
         return {'ok': True}
 
     schema = export_openapi.build_app_client_openapi(app)
 
-    assert '/v1/conversations-v2/preview' not in schema['paths']
+    assert '/v1/conversation-compute-preview' not in schema['paths']
 
 
 def test_component_names_follow_explicit_schema_titles():

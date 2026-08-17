@@ -5,74 +5,6 @@ Tests that selected invalid inputs and edge cases behave deterministically.
 Full LLM, Redis-unavailable, and STT failure simulations are explicit v2 work.
 """
 
-import pytest
-
-from fakes.firestore import read_conversation, seed_conversation
-
-
-class TestLLMFailureDegradation:
-    """Verify graceful degradation when LLM services are unavailable."""
-
-    @pytest.mark.skip(reason="Requires per-test HTTP server reconfiguration — TODO for v2")
-    def test_llm_500_graceful_degradation(self, client, auth_headers):
-        """
-        When LLM returns 500, conversations should still be saved.
-
-        The processing step may fail but the original conversation data
-        must persist in Firestore.
-        """
-        # This test requires configuring llm_httpserver to return 500
-        # after a conversation is created, then verifying it's still readable.
-        # For v1, we verify the pattern exists in code via static analysis.
-        pass
-
-    def test_conversation_persists_after_failed_processing(self, client, auth_headers):
-        """
-        Even if post-processing fails, the raw conversation should be
-        retrievable. We seed data directly and verify read works.
-        """
-
-        conv_data = {
-            "id": "fail-persist-001",
-            "created_at": "2025-01-15T15:00:00Z",
-            "started_at": "2025-01-15T15:00:00Z",
-            "finished_at": "2025-01-15T15:03:00Z",
-            "source": "omi",
-            "language": "en",
-            "structured": {
-                "title": "",
-                "overview": "",
-                "emoji": "🧠",
-                "category": "other",
-                "action_items": [],
-                "events": [],
-            },
-            "transcript_segments": [
-                {
-                    "id": "seg-fail-1",
-                    "text": "This conversation should persist even if processing fails.",
-                    "speaker": "SPEAKER_00",
-                    "is_user": True,
-                    "start": 0.0,
-                    "end": 4.0,
-                }
-            ],
-            "discarded": False,
-            "status": "in_progress",
-            "is_locked": False,
-            "data_protection_level": "standard",
-        }
-
-        seed_conversation("123", conv_data)
-
-        # Verify readable via API
-        resp = client.get(f"/v1/conversations/{conv_data['id']}", headers=auth_headers)
-        assert resp.status_code == 200, f"Conversation should be readable: {resp.text}"
-        body = resp.json()
-        assert body["id"] == conv_data["id"]
-        # Should still have transcript even if not processed
-        assert len(body.get("transcript_segments", [])) >= 1
-
 
 class TestRedisFakePaths:
     """Verify CRUD routes work with fakeredis-backed Redis paths."""
@@ -94,24 +26,6 @@ class TestRedisFakePaths:
             headers=auth_headers,
         )
         assert resp.status_code == 200, f"Memory create should work: {resp.text}"
-
-    def test_conversation_list_works_with_fake_redis_cache(self, client, auth_headers):
-        """Listing conversations works with fakeredis cache layer."""
-        resp = client.get("/v1/conversations", headers=auth_headers)
-        # Should return 200 with empty list or existing conversations
-        assert resp.status_code == 200, f"List should work: {resp.text}"
-
-    """Verify the API rejects malformed input gracefully."""
-
-    def test_missing_auth_returns_401(self, client):
-        """Requests without auth header get 401."""
-        resp = client.get("/v1/conversations")
-        assert resp.status_code == 401
-
-    def test_invalid_conversation_id_returns_404(self, client, auth_headers):
-        """Non-existent conversation ID returns 404."""
-        resp = client.get("/v1/conversations/nonexistent-id-12345", headers=auth_headers)
-        assert resp.status_code == 404
 
     def test_invalid_memory_id_returns_404(self, client, auth_headers):
         """Non-existent memory ID returns 404."""
@@ -162,32 +76,3 @@ class TestEdgeCases:
         read_resp = client.get(f"/v1/action-items/{ai_id}", headers=auth_headers)
         assert read_resp.status_code == 200, read_resp.text
         assert read_resp.json()["description"] == long_desc
-
-    def test_special_characters_in_title(self, client, auth_headers):
-        """Special characters in conversation title are preserved."""
-
-        conv = {
-            "id": "special-chars-001",
-            "created_at": "2025-01-15T16:00:00Z",
-            "started_at": "2025-01-15T16:00:00Z",
-            "finished_at": "2025-01-15T16:01:00Z",
-            "source": "omi",
-            "structured": {
-                "title": "Meeting with O'Brien & Associates <script>",
-                "overview": "",
-                "emoji": "🧠",
-                "category": "other",
-                "action_items": [],
-                "events": [],
-            },
-            "transcript_segments": [],
-            "discarded": False,
-            "status": "completed",
-            "is_locked": False,
-        }
-        seed_conversation("123", conv)
-
-        resp = client.get(f"/v1/conversations/{conv['id']}", headers=auth_headers)
-        assert resp.status_code == 200, resp.text
-        body = resp.json()
-        assert "O'Brien" in body["structured"]["title"]

@@ -49,9 +49,9 @@ backend/
   routers/                # FastAPI route handlers, one per retained feature domain
     transcribe.py         #   /v4/listen WebSocket — core audio streaming + transcription pipeline (2900 LOC)
     chat.py               #   /v2/messages — AI chat with tool use, voice messages, file uploads
-    conversations.py      #   /v1/conversations — CRUD, merge, search, action items, photos
+    conversation_compute.py # /v1/conversation-compute — stateless discard/structure/action-item candidates
     memories.py           #   /v3/memories — CRUD and semantic search
-    sync.py               #   Conversation-audio playback plus audio-merge Cloud Tasks handler
+    sync.py               #   Internal audio-merge Cloud Tasks handler retained for S-25
     auth.py               #   Google/Apple OAuth callbacks, session management
     users.py              #   Profile, subscription, settings (1200 LOC)
     ...                   #   + action_items, goals, payment, and other retained product routes
@@ -139,7 +139,17 @@ Managed STT is fixed to Modulate. `config/stt_provider_policy.py` owns its langu
 - **vad** (`modal/main.py`) — GPU. `/v1/vad` and `/v1/speaker-identification`. Called by backend only.
 - **modulate** — The fixed managed STT adapter for configured languages. Called by transcription-capable services through their `MODULATE_API_KEY` binding.
 - **nllb-translation** (`nllb_translation/`) — GPU translation service. Called by backend when `HOSTED_TRANSLATION_API_URL` is set and NLLB is selected.
-- **backend-sync** (`main.py`, same image as backend) — Shared Cloud Run task worker retained until S-25. Audio playback routes (`/v1/sync/audio/*`) and queue `audio-merge` build 30-day MP3 artifacts under `playback/` (`AUDIO_MERGE_DISPATCH_MODE`) — per-part files plus one dense per-conversation `conversation.mp3` whose spans manifest + audio-files fingerprint are stamped on the conversation doc (`conversation_audio`); a fingerprint mismatch after late chunks re-enqueues the build. In production, account deletion requires `ACCOUNT_DELETION_DISPATCH_MODE=cloud_tasks` and complete Cloud Tasks bindings to enqueue opaque job IDs to queue `account-deletion`, which posts `/v1/users/account-deletion-wipes/run`; startup rejects inline or incomplete configuration, reconciliation only re-dispatches tasks so the OIDC handler is the sole wipe executor, and the post-deploy queue-drain window accepts the former sync OIDC audience only for legacy UID payloads. Conversation finalization is also handled here through its dedicated queue and OIDC route. API success is returned only after the deletion marker is persisted and the wipe task is durably enqueued.
+- **backend-sync** (`main.py`, same image as backend) — Shared Cloud Run task worker retained until S-25. S-10 removed public conversation playback routes; only the OIDC `/v2/audio-merge-jobs/run` worker remains for already-queued/stored artifacts. In production, account deletion requires `ACCOUNT_DELETION_DISPATCH_MODE=cloud_tasks` and complete Cloud Tasks bindings to enqueue opaque job IDs to queue `account-deletion`, which posts `/v1/users/account-deletion-wipes/run`; startup rejects inline or incomplete configuration, reconciliation only re-dispatches tasks so the OIDC handler is the sole wipe executor, and the post-deploy queue-drain window accepts the former sync OIDC audience only for legacy UID payloads. Conversation finalization remains an S-16/S-23 handoff through its dedicated queue and OIDC route. API success is returned only after the deletion marker is persisted and the wipe task is durably enqueued.
+
+### macOS conversation boundary
+
+macOS conversation persistence is owner-scoped GRDB, not this backend. Do not
+add `/v1/conversations`, `/v1/folders`, public conversation-audio playback, or
+People/settings compatibility routes for the Mac. `/v4/listen` is a transient
+speech transport for macOS and `/v1/conversation-compute/{discard,structure,action-items}`
+returns candidate data without writing conversation records. Hosted listen and
+datastore internals remain only for the later-slice owners recorded in
+`FORK.md`.
 - **notifications-job** (`modal/job.py`) — Cron job that reads Firestore/Redis and sends first-party push notifications. It has no connector synchronization or canonical-maintenance role.
 - **memory-maintenance-job** (`modal/memory_maintenance_job.py`) — Cloud Run Job and sole host for canonical maintenance (required normalization → TTL audit with canonical rejection of expired processed items → one terminal consolidation route per remaining pending item). Manual deploy via `.github/workflows/gcp_memory_maintenance_job.yml`; auto-dev on push to `main` via `gcp_memory_maintenance_job_auto_dev.yml`. Enablement is a multi-var contract (`MEMORY_MODE`, `MEMORY_ENABLED_USERS`, `MEMORY_CANONICAL_MAINTENANCE_ENABLED`, and consolidation flags) enforced by `backend/scripts/validate-backend-runtime-env.py`; Cloud Scheduler owns cadence, and prod stays `MEMORY_MODE=off` until Gate 3.
 - **backend-secrets** (`backend/charts/backend-secrets/`) — ExternalSecret and SecretStore resources that sync backend runtime secrets into GKE namespaces.

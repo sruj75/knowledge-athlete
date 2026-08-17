@@ -22,13 +22,12 @@ struct HomeKnowledgeCounts: Equatable, Sendable {
   let conversations: Int?
   let memories: Int?
   let tasks: Int?
-  let hasOmiDeviceConversations: Bool?
 }
 
 @MainActor
 struct HomeStatusLoader {
   let loadScreenshotCount: @MainActor @Sendable () async -> Int?
-  let loadKnowledgeCounts: @MainActor @Sendable (_ includeOmiDeviceHistory: Bool) async -> HomeKnowledgeCounts
+  let loadKnowledgeCounts: @MainActor @Sendable () async -> HomeKnowledgeCounts
 
   static func live() -> HomeStatusLoader {
     HomeStatusLoader(
@@ -40,20 +39,15 @@ struct HomeStatusLoader {
           return nil
         }
       },
-      loadKnowledgeCounts: { includeOmiDeviceHistory in
-        async let conversations = try? APIClient.shared.getConversationsCount(includeDiscarded: false)
+      loadKnowledgeCounts: {
+        async let conversations = try? TranscriptionStorage.shared.conversationCount(query: .all)
         async let memories = try? MemoryStorage.shared.getLocalMemoriesCount()
         async let tasks = try? ActionItemStorage.shared.getLocalActionItemsCount(completed: false)
-        async let deviceHistory =
-          includeOmiDeviceHistory
-          ? (try? APIClient.shared.hasOmiDeviceConversations())
-          : nil
 
         return await HomeKnowledgeCounts(
           conversations: conversations,
           memories: memories,
-          tasks: tasks,
-          hasOmiDeviceConversations: deviceHistory
+          tasks: tasks
         )
       }
     )
@@ -65,14 +59,10 @@ struct HomeStatusLoader {
 /// returning to Home can render cached values without repeating provider scans.
 @MainActor
 final class HomeStatusStore: ObservableObject {
-  static let omiDeviceHistoryDefaultsKey = DefaultsKey.homeOmiDeviceAccountHistory.rawValue
-
   @Published private(set) var screenshotCount: Int?
   @Published private(set) var conversationCount: Int?
   @Published private(set) var memoryCount: Int?
   @Published private(set) var taskCount: Int?
-  @Published private(set) var accountHasOmiDeviceConversations: Bool
-  private let defaults: UserDefaults
   private let loader: HomeStatusLoader
   private let currentUserIDProvider: () -> String?
   private var sessionUserID: String?
@@ -97,15 +87,10 @@ final class HomeStatusStore: ObservableObject {
         defaults.string(forKey: .authUserId)
       }
     let sessionUserID = Self.normalizedUserID(currentUserIDProvider())
-    self.defaults = defaults
     self.loader = loader ?? .live()
     self.currentUserIDProvider = currentUserIDProvider
     self.sessionUserID = sessionUserID
     self.localDatabaseReady = localDatabaseReady
-    accountHasOmiDeviceConversations = Self.loadPersistedDeviceHistory(
-      defaults: defaults,
-      userID: sessionUserID
-    )
     NotificationCenter.default.publisher(for: .homeKnowledgeCountsDidChange)
       .receive(on: DispatchQueue.main)
       .sink { [weak self] _ in
@@ -145,7 +130,6 @@ final class HomeStatusStore: ObservableObject {
   func resetSessionState() {
     resetTransientState()
     sessionUserID = nil
-    accountHasOmiDeviceConversations = false
   }
 
   /// The Rewind database has opened for the current owner. Load the local
@@ -187,18 +171,13 @@ final class HomeStatusStore: ObservableObject {
 
     resetTransientState()
     sessionUserID = currentUserID
-    accountHasOmiDeviceConversations = Self.loadPersistedDeviceHistory(
-      defaults: defaults,
-      userID: currentUserID
-    )
   }
 
   private func performRefresh(generation: Int) async {
-    let includeDeviceHistory = !accountHasOmiDeviceConversations
     let shouldLoadScreenshotCount = localDatabaseReady
     let knowledgeRefreshID = beginKnowledgeRefresh()
     async let screenshots: Int? = shouldLoadScreenshotCount ? loader.loadScreenshotCount() : nil
-    async let knowledgeCounts = loader.loadKnowledgeCounts(includeDeviceHistory)
+    async let knowledgeCounts = loader.loadKnowledgeCounts()
     let (loadedScreenshots, loadedKnowledgeCounts) = await (screenshots, knowledgeCounts)
 
     guard !Task.isCancelled, generation == refreshGeneration else { return }
@@ -219,7 +198,7 @@ final class HomeStatusStore: ObservableObject {
     let knowledgeRefreshID = beginKnowledgeRefresh()
     let task = Task { [weak self] in
       guard let self else { return }
-      let counts = await self.loader.loadKnowledgeCounts(!self.accountHasOmiDeviceConversations)
+      let counts = await self.loader.loadKnowledgeCounts()
       guard !Task.isCancelled,
         generation == self.refreshGeneration,
         knowledgeRefreshID == self.latestKnowledgeRefreshID
@@ -263,33 +242,10 @@ final class HomeStatusStore: ObservableObject {
     if let tasks = knowledgeCounts.tasks {
       taskCount = tasks
     }
-    if knowledgeCounts.hasOmiDeviceConversations == true {
-      accountHasOmiDeviceConversations = true
-      if let key = Self.deviceHistoryDefaultsKey(userID: sessionUserID) {
-        defaults.set(true, forKey: key)
-      }
-    }
   }
 
   private static func normalizedUserID(_ userID: String?) -> String? {
     let trimmed = userID?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     return trimmed.isEmpty ? nil : trimmed
-  }
-
-  private static func deviceHistoryDefaultsKey(userID: String?) -> String? {
-    guard let userID = normalizedUserID(userID) else { return nil }
-    return "\(omiDeviceHistoryDefaultsKey).user.\(userID)"
-  }
-
-  private static func loadPersistedDeviceHistory(defaults: UserDefaults, userID: String?) -> Bool {
-    guard let scopedKey = deviceHistoryDefaultsKey(userID: userID) else { return false }
-
-    if defaults.object(forKey: scopedKey) == nil,
-      defaults.object(forKey: .homeOmiDeviceAccountHistory) != nil
-    {
-      defaults.set(defaults.bool(forKey: .homeOmiDeviceAccountHistory), forKey: scopedKey)
-      defaults.removeObject(forKey: .homeOmiDeviceAccountHistory)
-    }
-    return defaults.bool(forKey: scopedKey)
   }
 }

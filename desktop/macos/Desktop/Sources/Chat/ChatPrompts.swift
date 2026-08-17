@@ -95,7 +95,8 @@ struct ChatPrompts {
     SELECT title, overview, emoji, startedAt, finishedAt,
     ROUND((julianday(finishedAt) - julianday(startedAt)) * 1440, 1) as duration_min
     FROM transcription_sessions WHERE startedAt >= datetime('now', 'start of day', '-1 day', 'localtime')
-    AND startedAt < datetime('now', 'start of day', 'localtime') AND deleted = 0 AND discarded = 0
+    AND startedAt < datetime('now', 'start of day', 'localtime')
+    AND status NOT IN ('recording', 'merging')
     ORDER BY startedAt DESC
     -- Q3: Tasks
     SELECT description, completed, priority FROM action_items
@@ -117,17 +118,18 @@ struct ChatPrompts {
     VALUES ('task text', 'medium', 0, 0, 'chat', datetime('now'), datetime('now'))
 
     -- Recent conversations:
-    SELECT id, title, overview, emoji, startedAt, finishedAt FROM transcription_sessions
-    WHERE deleted = 0 AND discarded = 0 ORDER BY startedAt DESC LIMIT 10
+    SELECT conversationId, title, overview, emoji, startedAt, finishedAt FROM transcription_sessions
+    WHERE status NOT IN ('recording', 'merging') ORDER BY startedAt DESC LIMIT 10
 
     -- Conversation transcript:
-    SELECT ts.text, ts.speaker, ts.startTime FROM transcription_segments ts
-    WHERE ts.sessionId = ? ORDER BY ts.segmentOrder
+    SELECT ts.text, ts.speakerId, ts.isUser, ts.startTime FROM transcription_segments ts
+    JOIN transcription_sessions s ON s.id = ts.sessionId
+    WHERE s.conversationId = ? ORDER BY ts.segmentOrder
 
     -- Search conversation content:
-    SELECT s.id, s.title, s.overview, s.startedAt FROM transcription_sessions s
+    SELECT s.conversationId, s.title, s.overview, s.startedAt FROM transcription_sessions s
     JOIN transcription_segments seg ON seg.sessionId = s.id
-    WHERE s.deleted = 0 AND seg.text LIKE '%keyword%'
+    WHERE s.status NOT IN ('recording', 'merging') AND seg.text LIKE '%keyword%'
     GROUP BY s.id ORDER BY s.startedAt DESC LIMIT 10
 
     -- Time in user's timezone: use datetime('now', 'localtime') or datetime('now', '-N hours', 'localtime')
@@ -163,6 +165,9 @@ struct ChatPrompts {
     "action_items": "tasks (bidirectional sync with backend)",
     "transcription_sessions": "voice recordings / conversations",
     "transcription_segments": "transcript text with speaker/timing",
+    "conversation_folders": "user-created conversation folders",
+    "conversation_speaker_labels": "conversation-scoped names for numeric speakers",
+    "conversation_merge_sources": "source conversation IDs retained by a local merge",
     "proactive_extractions": "memories, advice, tasks extracted from screenshots",
     "focus_sessions": "focus tracking",
     "live_notes": "AI-generated notes during recording",
@@ -256,40 +261,56 @@ struct ChatPrompts {
       "deleted": "Soft-delete flag",
     ],
     "transcription_sessions": [
+      "conversationId": "Stable local UUID for this conversation",
       "startedAt": "When recording began",
       "finishedAt": "When recording ended (null if still recording)",
-      "source": "Recording source: desktop | omi | phone | etc",
       "language": "BCP-47 language code (e.g. en, fr)",
+      "autoDetectLanguage": "Whether capture language was detected automatically",
+      "vocabularyJson": "Immutable vocabulary snapshot used for this capture",
       "timezone": "IANA timezone of the device at recording time",
       "inputDeviceName": "Audio input device name",
-      "status": "recording | pending_upload | uploading | completed | failed",
-      "retryCount": "Number of upload retry attempts",
-      "lastError": "Last upload error message if status=failed",
-      "title": "AI-generated session title",
+      "status": "recording | finalizing | processing | completed | merging | failed",
+      "lastError": "Last local read or transient-compute error",
+      "finalizationReason": "Why local capture finalization began",
+      "finalizationStartedAt": "When local finalization began",
+      "finalizationCompletedAt": "When local finalization completed",
+      "title": "Generated or manually edited conversation title",
+      "isTitleManuallyEdited": "True when the user title takes precedence over generated output",
       "overview": "AI-generated session summary",
       "emoji": "AI-assigned emoji representing the session",
-      "category": "AI-assigned topic category",
-      "actionItemsJson": "JSON array of tasks extracted by backend",
-      "eventsJson": "JSON array of calendar events detected",
-      "geolocationJson": "Location data if available",
-      "conversationStatus": "User-set status label for the conversation",
-      "discarded": "True if user discarded/deleted this session",
-      "deleted": "Soft-delete flag",
-      "isLocked": "True if user has locked the session from edits",
+      "commitmentsJson": "JSON array of locally accepted commitment candidates",
+      "geolocationJson": "One opt-in conversation-scoped location snapshot",
       "starred": "True if user starred/favorited this session",
       "folderId": "Folder the session is organized into",
+      "contentGeneration": "Local generation used to reject stale compute results",
     ],
     "transcription_segments": [
       "sessionId": "FK to transcription_sessions",
-      "speaker": "Speaker index (0, 1, 2…) within this session",
+      "segmentId": "Stable local UUID for this transcript segment",
+      "speakerId": "Canonical numeric speaker ID within this conversation",
       "text": "Transcribed text for this segment",
       "startTime": "Segment start time in seconds from session start",
       "endTime": "Segment end time in seconds from session start",
       "segmentOrder": "Sequential order within the session",
-      "segmentId": "Backend segment ID",
-      "speakerLabel": "Human-readable speaker label if identified",
       "isUser": "True if this speaker is the primary user",
-      "personId": "Identified person ID if speaker was recognized",
+      "translationsJson": "Locally persisted transient translation output",
+    ],
+    "conversation_folders": [
+      "id": "Stable local folder UUID",
+      "name": "User-chosen folder name",
+      "color": "User-chosen folder color",
+      "createdAt": "Folder creation time",
+    ],
+    "conversation_speaker_labels": [
+      "conversationId": "Stable local conversation UUID",
+      "speakerId": "Canonical numeric speaker ID",
+      "name": "User-chosen label for this speaker",
+      "isUser": "True when the label represents the signed-in user",
+    ],
+    "conversation_merge_sources": [
+      "replacementConversationId": "Stable local UUID of the merged conversation",
+      "sourceConversationId": "Stable local UUID of an original conversation",
+      "sourceOrdinal": "Original conversation order in the merge",
     ],
     "live_notes": [
       "sessionId": "FK to transcription_sessions — which session this note belongs to",
@@ -377,7 +398,7 @@ struct ChatPrompts {
   static let excludedTablePrefixes = ["sqlite_", "grdb_"]
   /// Any table whose name contains "_fts" is an FTS virtual or internal table — exclude all.
   /// Specific infra tables also excluded.
-  static let excludedTables: Set<String> = ["migration_status", "task_dedup_log"]
+  static let excludedTables: Set<String> = ["migration_status", "task_dedup_log", "conversation_enrichment_work"]
 
   /// Infrastructure columns to strip from schema — file paths, binary blobs, sync state, internal flags.
   /// New migrations are still picked up automatically; only these specific names are hidden.
@@ -408,12 +429,14 @@ struct ChatPrompts {
 
     **Table relationships** (JOIN on these foreign keys):
     - action_items.screenshotId → screenshots.id (screen context at extraction)
-    - action_items.conversationId → transcription_sessions.backendId (voice session source)
+    - action_items.conversationId → transcription_sessions.conversationId (voice session source)
     - transcription_segments.sessionId → transcription_sessions.id (transcript lines)
+    - conversation_speaker_labels.conversationId → transcription_sessions.conversationId (local speaker names)
+    - conversation_merge_sources.replacementConversationId → transcription_sessions.conversationId (merged output)
     - observations.screenshotId → screenshots.id (screen context)
     - focus_sessions.screenshotId → screenshots.id (screen context)
     - memories.screenshotId → screenshots.id (screen context)
-    - memories.conversationId → transcription_sessions.backendId (voice session source)
+    - memories.conversationId → transcription_sessions.conversationId (voice session source)
     - live_notes.sessionId → transcription_sessions.id (recording notes)
     - staged_tasks.screenshotId → screenshots.id (screen context)
     - proactive_extractions.screenshotId → screenshots.id (source screen)

@@ -538,98 +538,6 @@ final class APIClientRoutingTests: XCTestCase {
     }
   }
 
-  // -- Conversations (GET, DELETE → Python) --
-
-  func testGetConversationRoutesToPython() async {
-    let client = await makeTestClient()
-    _ = try? await client.getConversation(id: "test-123") as ServerConversation
-    assertRoutes(
-      URLCapture.capturedRequests, host: "python-test", port: 9001,
-      pathContains: "v1/conversations/test-123", method: "GET",
-      label: "getConversation")
-  }
-
-  func testDeleteConversationRoutesToPython() async {
-    let client = await makeTestClient()
-    try? await client.deleteConversation(id: "conv-456")
-    assertRoutes(
-      URLCapture.capturedRequests, host: "python-test", port: 9001,
-      pathContains: "v1/conversations/conv-456?cascade=true", method: "DELETE",
-      label: "deleteConversation")
-  }
-
-  // -- Conversations: manual URL(string: baseURL + ...) paths (PATCH → Python) --
-
-  func testSetConversationStarredRoutesToPython() async {
-    let client = await makeTestClient()
-    _ = try? await client.setConversationStarred(id: "c1", starred: true)
-    assertRoutes(
-      URLCapture.capturedRequests, host: "python-test", port: 9001,
-      pathContains: "v1/conversations/c1/starred", method: "PATCH",
-      label: "setConversationStarred")
-  }
-
-  func testUpdateConversationTitleRoutesToPython() async {
-    let client = await makeTestClient()
-    _ = try? await client.updateConversationTitle(id: "c2", title: "New")
-    assertRoutes(
-      URLCapture.capturedRequests, host: "python-test", port: 9001,
-      pathContains: "v1/conversations/c2", method: "PATCH",
-      label: "updateConversationTitle")
-  }
-
-  func testConversationMutationDecodesCanonicalRevisionAndState() async throws {
-    URLCapture.setResponse(
-      statusCode: 200,
-      body: Data(
-        """
-        {
-          "status": "Ok",
-          "conversation": {
-            "id": "c2",
-            "created_at": "2026-07-09T12:00:00Z",
-            "updated_at": "2026-07-09T12:00:01.123456Z",
-            "started_at": "2026-07-09T12:00:00Z",
-            "finished_at": "2026-07-09T12:01:00Z",
-            "structured": {
-              "title": "Canonical title",
-              "overview": "Processing finished",
-              "emoji": "",
-              "category": "other",
-              "action_items": [],
-              "events": []
-            },
-            "status": "completed",
-            "starred": true,
-            "discarded": false,
-            "is_locked": false
-          }
-        }
-        """.utf8
-      )
-    )
-    let client = await makeTestClient()
-
-    let conversation = try await client.updateConversationTitle(id: "c2", title: "Canonical title")
-
-    XCTAssertEqual(conversation.structured.title, "Canonical title")
-    XCTAssertEqual(conversation.structured.overview, "Processing finished")
-    XCTAssertEqual(conversation.status, .completed)
-    XCTAssertTrue(conversation.starred)
-    XCTAssertNotNil(conversation.updatedAt)
-  }
-
-  // -- Folders (GET → Python) --
-
-  func testGetFoldersRoutesToPython() async {
-    let client = await makeTestClient()
-    _ = try? await client.getFolders() as [Folder]
-    assertRoutes(
-      URLCapture.capturedRequests, host: "python-test", port: 9001,
-      pathContains: "v1/folders", method: "GET",
-      label: "getFolders")
-  }
-
   // -- Memories (POST → Python) --
 
   func testCreateMemoryRoutesToPython() async {
@@ -804,39 +712,6 @@ final class APIClientRoutingTests: XCTestCase {
 
   // MARK: - Python-routed: remaining manual URL builders
 
-  // -- moveConversationToFolder: manual URL PATCH → Python --
-
-  func testMoveConversationToFolderRoutesToPython() async {
-    let client = await makeTestClient()
-    _ = try? await client.moveConversationToFolder(conversationId: "c4", folderId: "f1")
-    assertRoutes(
-      URLCapture.capturedRequests, host: "python-test", port: 9001,
-      pathContains: "v1/conversations/c4/folder", method: "PATCH",
-      label: "moveConversationToFolder")
-  }
-
-  // -- setRecordingPermission: manual URL POST → Python --
-
-  func testSetRecordingPermissionRoutesToPython() async {
-    let client = await makeTestClient()
-    try? await client.setRecordingPermission(enabled: true)
-    assertRoutes(
-      URLCapture.capturedRequests, host: "python-test", port: 9001,
-      pathContains: "v1/users/store-recording-permission", method: "POST",
-      label: "setRecordingPermission")
-  }
-
-  // -- setPrivateCloudSync: manual URL POST → Python --
-
-  func testSetPrivateCloudSyncRoutesToPython() async {
-    let client = await makeTestClient()
-    try? await client.setPrivateCloudSync(enabled: false)
-    assertRoutes(
-      URLCapture.capturedRequests, host: "python-test", port: 9001,
-      pathContains: "v1/users/private-cloud-sync", method: "POST",
-      label: "setPrivateCloudSync")
-  }
-
   // -- completeGoal: manual URL PATCH → Python --
 
   func testCompleteGoalRoutesToPython() async {
@@ -846,17 +721,6 @@ final class APIClientRoutingTests: XCTestCase {
       URLCapture.capturedRequests, host: "python-test", port: 9001,
       pathContains: "v1/goals/g2", method: "PATCH",
       label: "completeGoal")
-  }
-
-  // -- assignSegmentsBulk: manual URL PATCH → Python --
-
-  func testAssignSegmentsBulkRoutesToPython() async {
-    let client = await makeTestClient()
-    try? await client.assignSegmentsBulk(conversationId: "c5", segmentIds: ["s1"], isUser: true, personId: nil)
-    assertRoutes(
-      URLCapture.capturedRequests, host: "python-test", port: 9001,
-      pathContains: "v1/conversations/c5/segments/assign-bulk", method: "PATCH",
-      label: "assignSegmentsBulk")
   }
 
   // -- Chat AI endpoints (migrated from Rust to Python) --

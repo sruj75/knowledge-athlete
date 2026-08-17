@@ -571,13 +571,15 @@ class ListenSessionRuntime:
         self.send_event(
             MessageServiceStatusEvent(event_type='service_status', status='initiating', status_text='Service Starting')
         )
-        await self.conversations.send_last_conversation()
-        self.send_event(
-            MessageServiceStatusEvent(
-                status='in_progress_conversations_processing', status_text='Processing Conversations'
+        timed_out = None
+        if not getattr(self.request, 'transient_only', False):
+            await self.conversations.send_last_conversation()
+            self.send_event(
+                MessageServiceStatusEvent(
+                    status='in_progress_conversations_processing', status_text='Processing Conversations'
+                )
             )
-        )
-        timed_out = await self.conversations.prepare()
+            timed_out = await self.conversations.prepare()
         background: List[asyncio.Task[Any]] = []
         try:
             self.task_supervisor.start_session()
@@ -586,7 +588,8 @@ class ListenSessionRuntime:
             )
             if not await self.receiver.initialize_stt():
                 return
-            await self._start_pusher()
+            if not getattr(self.request, 'transient_only', False):
+                await self._start_pusher()
             receive_task = self.task_supervisor.create_task(self.receiver.receive_data(), name='receive')
             background.extend(
                 [
@@ -598,7 +601,9 @@ class ListenSessionRuntime:
                     *self.pusher_tasks,
                 ]
             )
-            if self.is_multi_channel:
+            if getattr(self.request, 'transient_only', False):
+                self.state.speaker_id_done.set()
+            elif self.is_multi_channel:
                 self.state.speaker_id_done.set()
             else:
                 background.extend(

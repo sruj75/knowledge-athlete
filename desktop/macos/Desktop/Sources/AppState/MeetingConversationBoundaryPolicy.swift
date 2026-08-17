@@ -5,12 +5,11 @@ enum MeetingConversationBoundaryPolicy {
     mode: AssistantSettings.SystemAudioCaptureMode,
     meetingStateReady: Bool,
     shouldCapture: Bool,
-    segmentCount: Int,
-    hasSpeakerSegments: Bool
+    hadActiveMeeting: Bool
   ) -> Bool {
     mode == .onlyDuringMeetings
       && meetingStateReady
       && !shouldCapture
-      && (segmentCount > 0 || hasSpeakerSegments)
+      && hadActiveMeeting
   }
 }
