@@ -152,7 +152,6 @@ struct FolderFormSheet: View {
   @EnvironmentObject var appState: AppState
 
   @State private var name: String = ""
-  @State private var descriptionText: String = ""
   @State private var selectedColor: String = "#6B7280"
   @State private var isSaving: Bool = false
 
@@ -179,27 +178,6 @@ struct FolderFormSheet: View {
             .scaledFont(size: OmiType.caption, weight: .medium)
             .foregroundColor(OmiColors.textSecondary)
           TextField("Folder name", text: $name)
-            .textFieldStyle(.plain)
-            .scaledFont(size: OmiType.body)
-            .foregroundColor(OmiColors.textPrimary)
-            .padding(.horizontal, OmiSpacing.sm)
-            .padding(.vertical, OmiSpacing.sm)
-            .background(
-              RoundedRectangle(cornerRadius: OmiChrome.elementRadius)
-                .fill(OmiColors.backgroundTertiary.opacity(0.5))
-            )
-            .overlay(
-              RoundedRectangle(cornerRadius: OmiChrome.elementRadius)
-                .stroke(OmiColors.border, lineWidth: 1)
-            )
-        }
-
-        // Description field
-        VStack(alignment: .leading, spacing: OmiSpacing.xs) {
-          Text("Description")
-            .scaledFont(size: OmiType.caption, weight: .medium)
-            .foregroundColor(OmiColors.textSecondary)
-          TextField("Optional description", text: $descriptionText)
             .textFieldStyle(.plain)
             .scaledFont(size: OmiType.body)
             .foregroundColor(OmiColors.textPrimary)
@@ -288,7 +266,6 @@ struct FolderFormSheet: View {
     .onAppear {
       if let folder = folder {
         name = folder.name
-        descriptionText = folder.description ?? ""
         selectedColor = folder.color
       }
     }
@@ -304,13 +281,11 @@ struct FolderFormSheet: View {
         await appState.updateFolder(
           folder.id,
           name: trimmedName,
-          description: descriptionText.isEmpty ? nil : descriptionText,
           color: selectedColor
         )
       } else {
         _ = await appState.createFolder(
           name: trimmedName,
-          description: descriptionText.isEmpty ? nil : descriptionText,
           color: selectedColor
         )
       }

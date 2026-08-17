@@ -6,7 +6,6 @@ from typing import Optional, List
 from datetime import datetime, timezone
 
 import database.action_items as action_items_db
-import database.conversations as conversations_db
 from database.firestore_transaction_retry import FirestoreContentionExhausted
 from database.vector_db import (
     upsert_action_item_vector,
@@ -31,7 +30,6 @@ from models.action_item import (
     ActionItemUpdateRequest,
     ActionItemsResponse,
     ActionItemsSearchResponse,
-    ConversationActionItemsResponse,
 )
 from utils.task_intelligence import task_links
 
@@ -411,76 +409,6 @@ def batch_delete_action_items(request: BatchDeleteActionItemsRequest, uid: str =
         send_action_items_batch_deletion_message(user_id=uid, action_item_ids=deleted_ids)
 
     return {"status": "Ok", "deleted_count": len(deleted_ids), "deleted_ids": deleted_ids}
-
-
-# *****************************
-# *** CONVERSATION-SPECIFIC ***
-# *****************************
-
-
-@router.get(
-    "/v1/conversations/{conversation_id}/action-items",
-    response_model=ConversationActionItemsResponse,
-    tags=['action-items'],
-)
-def get_conversation_action_items(conversation_id: str, uid: str = Depends(auth.get_current_user_uid)):
-    """Get all action items for a specific conversation."""
-    conversation = conversations_db.get_conversation(uid, conversation_id)
-    if not conversation:
-        raise HTTPException(status_code=404, detail="Conversation not found")
-    if conversation.get('is_locked', False):
-        raise HTTPException(status_code=402, detail="A paid plan is required to access this conversation.")
-    action_items = action_items_db.get_action_items_by_conversation(uid, conversation_id)
-    response_items = _safe_action_item_responses(action_items, uid=uid, context=f'conversation {conversation_id}')
-
-    return {"action_items": response_items, "conversation_id": conversation_id}
-
-
-class ConversationActionItemsCountResponse(BaseModel):
-    total: int
-    completed: int
-    incomplete: int
-
-
-@router.get(
-    "/v1/conversations/{conversation_id}/action-items/count",
-    response_model=ConversationActionItemsCountResponse,
-    tags=['action-items'],
-)
-def get_conversation_action_items_count(conversation_id: str, uid: str = Depends(auth.get_current_user_uid)):
-    """Return total / completed / incomplete action-item counts for one conversation.
-
-    A task-progress badge (e.g. 2 of 3 done) for a conversation without paging its items.
-    """
-    conversation = conversations_db.get_conversation(uid, conversation_id)
-    if not conversation:
-        raise HTTPException(status_code=404, detail="Conversation not found")
-    if conversation.get('is_locked', False):
-        raise HTTPException(status_code=402, detail="A paid plan is required to access this conversation.")
-    return action_items_db.get_action_items_count_by_conversation(uid, conversation_id)
-
-
-class ConversationActionItemsDeleteResponse(BaseModel):
-    status: str
-    deleted_count: int
-
-
-@router.delete(
-    "/v1/conversations/{conversation_id}/action-items",
-    response_model=ConversationActionItemsDeleteResponse,
-    tags=['action-items'],
-)
-def delete_conversation_action_items(conversation_id: str, uid: str = Depends(auth.get_current_user_uid)):
-    """Delete all action items for a specific conversation."""
-    existing = action_items_db.get_action_items_by_conversation(uid, conversation_id)
-    existing_ids = [item['id'] for item in existing]
-
-    deleted_count = action_items_db.delete_action_items_for_conversation(uid, conversation_id)
-
-    if existing_ids:
-        delete_action_item_vectors_batch(uid, existing_ids)
-
-    return {"status": "Ok", "deleted_count": deleted_count}
 
 
 @router.post("/v1/action-items/batch", response_model=BatchCreateActionItemsResponse, tags=['action-items'])

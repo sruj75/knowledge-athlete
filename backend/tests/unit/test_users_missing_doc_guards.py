@@ -55,7 +55,6 @@ def users():
             "database.redis_db",
             try_acquire_client_device_write_lock=MagicMock(return_value=True),
             try_acquire_user_platform_write_lock=MagicMock(return_value=True),
-            delete_cached_user_geolocation=MagicMock(),
         ),
         "models.users": _module(
             "models.users",
@@ -63,10 +62,6 @@ def users():
             PlanLimits=MagicMock(),
             PlanType=MagicMock(),
             SubscriptionStatus=MagicMock(),
-            LOCATION_CONTEXT_DISCLOSED_PROVIDERS=("Google Maps", "the configured AI chat provider"),
-            LOCATION_CONTEXT_PURPOSE="chat_city_context",
-            LocationContextConsent=MagicMock(),
-            LocationContextConsentStatus=MagicMock(),
         ),
         "utils.subscription": _module("utils.subscription", get_default_basic_subscription=MagicMock()),
         "models.other": _module("models.other", Person=MagicMock()),
@@ -91,7 +86,6 @@ CASES = [
     ("get_stripe_connect_account_id", "stripe_account_id", None, "acct_123"),
     ("get_paypal_payment_details", "paypal_details", None, {"email": "x@y.z"}),
     ("get_default_payment_method", "default_payment_method", None, "pm_123"),
-    ("get_user_training_data_opt_in", "training_data_opt_in", None, {"opt_in": True}),
 ]
 
 

@@ -137,9 +137,7 @@ def _normalize_action_item_due_dates(
             action_item.due_at = action_item.due_at.astimezone(timezone.utc)
         if action_item.due_at < now - timedelta(days=1):
             if log_past_due_clears:
-                logger.warning(
-                    f'Clearing past due_at {action_item.due_at.isoformat()} for action item: {action_item.description}'
-                )
+                logger.warning('Clearing action-item due date outside the retained time boundary')
             action_item.due_at = None
     return action_items
 
@@ -511,7 +509,12 @@ def _submit_conversation_action_items_shadow(
     )
 
 
-def should_discard_conversation(transcript: str, duration_seconds: Optional[float] = None) -> bool:
+def should_discard_conversation(
+    transcript: str,
+    duration_seconds: Optional[float] = None,
+    *,
+    raise_on_error: bool = False,
+) -> bool:
     # If there's a long transcript, it's very unlikely we want to discard it.
     # This is a performance optimization to avoid unnecessary LLM calls.
     word_count = _word_count(transcript) if transcript and transcript.strip() else 0
@@ -582,8 +585,10 @@ Content:
         response: DiscardConversation = chain.invoke(prompt_values)
         return response.discard
 
-    except Exception as e:
-        logger.error(f'Error determining memory discard: {e}')
+    except Exception:
+        logger.error('Error determining conversation discard')
+        if raise_on_error:
+            raise RuntimeError('conversation discard compute failed') from None
         return False
 
 
@@ -641,6 +646,7 @@ def extract_action_items(
     calendar_meeting_context: Optional['CalendarMeetingContext'] = None,
     output_language_code: Optional[str] = None,
     task_intelligence_capture: bool = False,
+    raise_on_error: bool = False,
 ) -> List[ActionItem]:
     """
     Dedicated function to extract action items from conversation content.
@@ -1011,8 +1017,10 @@ def extract_action_items(
 
         return action_items
 
-    except Exception as e:
-        logger.error(f'Error extracting action items: {e}')
+    except Exception:
+        logger.error('Error extracting action items')
+        if raise_on_error:
+            raise
         return []
 
 

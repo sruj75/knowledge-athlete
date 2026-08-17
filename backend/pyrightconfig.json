@@ -104,7 +104,6 @@
         "routers/auto_model.py",
         "routers/chat.py",
         "routers/chat_sessions.py",
-        "routers/conversations.py",
         "routers/fair_use_admin.py",
         "routers/memory_product.py",
         "routers/notifications.py",

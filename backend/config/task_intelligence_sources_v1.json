@@ -32,11 +32,6 @@
         },
         {
           "path": "backend/routers/action_items.py",
-          "symbol": "action_items_db.delete_action_items_for_conversation",
-          "discover": true
-        },
-        {
-          "path": "backend/routers/action_items.py",
           "symbol": "action_items_db.mark_action_item_completed",
           "discover": true
         },
@@ -99,8 +94,7 @@
       "policy_class": "shared_capture_policy",
       "owner_paths": [
         "backend/utils/conversations/process_conversation.py",
-        "backend/utils/conversations/merge_conversations.py",
-        "backend/routers/conversations.py"
+        "backend/utils/conversations/merge_conversations.py"
       ],
       "test_adapter": "transcript_capture_v2",
       "writer_anchors": [
@@ -117,26 +111,6 @@
         {
           "path": "backend/utils/conversations/merge_conversations.py",
           "symbol": "action_items_db.delete_action_items_for_conversation",
-          "discover": true
-        },
-        {
-          "path": "backend/routers/conversations.py",
-          "symbol": "action_items_db.delete_action_item",
-          "discover": true
-        },
-        {
-          "path": "backend/routers/conversations.py",
-          "symbol": "action_items_db.delete_action_items_for_conversation",
-          "discover": true
-        },
-        {
-          "path": "backend/routers/conversations.py",
-          "symbol": "action_items_db.mark_action_item_completed",
-          "discover": true
-        },
-        {
-          "path": "backend/routers/conversations.py",
-          "symbol": "action_items_db.update_action_item",
           "discover": true
         }
       ]

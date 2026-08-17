@@ -42,7 +42,7 @@ class TierManager {
       // Fetch all stats in parallel
       async let memoryStats = MemoryStorage.shared.getStats()
       async let filterCounts = ActionItemStorage.shared.getFilterCounts()
-      async let conversationsCount = APIClient.shared.getConversationsCount()
+      async let conversationsCount = TranscriptionStorage.shared.conversationCount(query: .all)
 
       let ms = try await memoryStats
       let filters = try await filterCounts

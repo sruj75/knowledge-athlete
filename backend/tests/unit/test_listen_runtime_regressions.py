@@ -416,6 +416,30 @@ async def test_transcript_delivery_marks_live_transcription_success_only_after_a
 
 
 @pytest.mark.anyio
+async def test_transient_listen_delivers_segments_without_loading_or_writing_a_conversation(monkeypatch):
+    class WebSocket:
+        def __init__(self):
+            self.sent = []
+
+        async def send_json(self, payload):
+            self.sent.append(payload)
+
+    websocket = WebSocket()
+    processor, delivered, flushed = _transcript_processor_for_delivery(monkeypatch, websocket)
+    processor.host.request.transient_only = True
+
+    async def forbidden_cache_read(*_args, **_kwargs):
+        raise AssertionError('transient listen must not read hosted conversation state')
+
+    processor.cache = SimpleNamespace(get=forbidden_cache_read)
+    await processor.process_loop()
+
+    assert websocket.sent == [[{'id': 'segment-1', 'text': 'Hello'}]]
+    assert delivered == [True]
+    assert flushed == []
+
+
+@pytest.mark.anyio
 async def test_transcript_loop_still_flushes_speaker_assignments_when_the_client_socket_is_closed(monkeypatch):
     """A send after close must not kill the loop before its final speaker flush.
 

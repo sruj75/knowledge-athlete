@@ -235,6 +235,7 @@ enum RuntimeOwnerIdentity {
         await PushToTalkManager.shared.quiesceForEffectiveOwnerTransition(
           previousOwnerID: previousOwner,
           cleanupCapability: cleanupCapability)
+        await AppState.quiesceCurrentAmbientCaptureForOwnerTransition()
       },
     revokeKernelOwner: (
       @Sendable (

@@ -54,3 +54,13 @@ def test_should_discard_conversation_fails_open_when_reply_is_unusable(monkeypat
     monkeypatch.setattr(conversation_processing, 'get_llm', lambda feature, **kwargs: fake_llm)
 
     assert conversation_processing.should_discard_conversation('hello there', duration_seconds=15) is False
+
+
+def test_should_discard_failure_log_does_not_include_model_output(monkeypatch, caplog):
+    sentinel = 'SENSITIVE MODEL OUTPUT'
+    fake_llm = FakeMessagesListChatModel(responses=[AIMessage(content=sentinel)])
+    monkeypatch.setattr(conversation_processing, 'get_llm', lambda feature, **kwargs: fake_llm)
+
+    assert conversation_processing.should_discard_conversation('hello there', duration_seconds=15) is False
+    assert 'Error determining conversation discard' in caplog.text
+    assert sentinel not in caplog.text

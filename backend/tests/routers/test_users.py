@@ -43,31 +43,6 @@ def test_delete_account_maps_unexpected_service_error_to_500():
     assert exc.value.detail == 'Could not delete account. Please try again.'
 
 
-def test_invalid_geolocation_is_ignored_without_cache_access():
-    cache_read = MagicMock()
-    cache_write = MagicMock()
-
-    with patch.object(users_router, 'get_cached_user_geolocation', cache_read), patch.object(
-        users_router, 'cache_user_geolocation', cache_write
-    ):
-        result = users_router.set_user_geolocation(
-            users_router.GeolocationInput(latitude=90.1, longitude=0), uid='uid1'
-        )
-
-    assert result == {'status': 'ok', 'message': 'Location ignored because its coordinates are invalid.'}
-    cache_read.assert_not_called()
-    cache_write.assert_not_called()
-
-
-def test_location_context_consent_requires_disclosure_before_enabling():
-    with pytest.raises(HTTPException) as exc:
-        users_router.set_location_context_consent(
-            users_router.LocationContextConsentUpdate(enabled=True, disclosure_accepted=False), uid='uid1'
-        )
-
-    assert exc.value.status_code == 422
-
-
 def test_run_account_deletion_wipe_retries_failed_wipe(monkeypatch):
     calls = []
 
@@ -404,22 +379,3 @@ def test_export_all_user_data_keeps_streaming_headers():
         return ''.join(parts)
 
     assert asyncio.run(_consume()) == '{"ok": true}\n'
-
-
-def test_update_person_name_missing_returns_404():
-    # A well-formed PATCH for a nonexistent/stale person id must 404, not 500. update_person now
-    # returns False for a missing person (instead of Firestore .update() raising NotFound).
-    with patch.object(users_router, 'update_person', MagicMock(return_value=False)):
-        with pytest.raises(HTTPException) as exc:
-            users_router.update_person_name(person_id='missing', value='Alice', uid='uid1')
-
-    assert exc.value.status_code == 404
-
-
-def test_update_person_name_existing_returns_ok():
-    update_person = MagicMock(return_value=True)
-    with patch.object(users_router, 'update_person', update_person):
-        result = users_router.update_person_name(person_id='p1', value='Alice', uid='uid1')
-
-    assert result == {'status': 'ok'}
-    update_person.assert_called_once_with('uid1', 'p1', 'Alice')

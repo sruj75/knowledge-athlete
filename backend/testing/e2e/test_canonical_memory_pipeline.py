@@ -260,12 +260,12 @@ def _write_short_term_via_conversation_ingress(client, auth_headers, monkeypatch
         assert memory_id == payload["id"]
         return deserialize_conversation(refreshed)
 
-    import routers.conversations as conversations_router
+    import database.conversations as conversations_db
+    from utils.conversations.factory import deserialize_conversation
 
-    monkeypatch.setattr(conversations_router, "process_conversation", fake_process_conversation)
-
-    resp = client.post(f"/v1/conversations/{CONV_ID}/reprocess", headers=auth_headers)
-    assert resp.status_code == 200, resp.text
+    stored = conversations_db.get_conversation(PIPELINE_UID, CONV_ID)
+    assert stored is not None
+    fake_process_conversation(PIPELINE_UID, "en", deserialize_conversation(stored))
     return extraction_memory_id(uid=PIPELINE_UID, source_id=CONV_ID, content=PIPELINE_CONTENT)
 
 

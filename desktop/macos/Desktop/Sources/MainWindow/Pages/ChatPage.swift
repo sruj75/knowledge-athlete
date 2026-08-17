@@ -6,7 +6,7 @@ struct ChatPage: View {
   @ObservedObject var chatProvider: ChatProvider
   let onHome: () -> Void
   @State private var selectedCitation: Citation?
-  @State private var citedConversation: ServerConversation?
+  @State private var citedConversation: LocalConversation?
   @State private var isLoadingCitation = false
   @State private var copied = false
 
@@ -402,7 +402,7 @@ struct ChatPage: View {
     // Fetch the full conversation
     Task {
       do {
-        let conversation = try await APIClient.shared.getConversation(id: citation.id)
+        let conversation = try await LocalAuthorityConversationDataSource().detail(id: citation.id)
         await MainActor.run {
           citedConversation = conversation
           isLoadingCitation = false

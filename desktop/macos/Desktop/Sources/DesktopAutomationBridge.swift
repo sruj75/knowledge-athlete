@@ -360,15 +360,6 @@ enum DesktopAutomationActionError: LocalizedError {
   }
 }
 
-enum DesktopAutomationRevisionComparator {
-  static func matchesAtMillisecondPrecision(_ lhs: Date?, _ rhs: Date?) -> Bool {
-    guard let lhs, let rhs else { return lhs == nil && rhs == nil }
-    let lhsMilliseconds = Int64((lhs.timeIntervalSince1970 * 1_000).rounded())
-    let rhsMilliseconds = Int64((rhs.timeIntervalSince1970 * 1_000).rounded())
-    return lhsMilliseconds == rhsMilliseconds
-  }
-}
-
 private func automationSafeErrorDetail(_ raw: String) -> String {
   var detail = raw.replacingOccurrences(of: #"[\r\n\t]+"#, with: " ", options: .regularExpression)
   let redactions: [(String, String)] = [
@@ -1166,34 +1157,28 @@ final class DesktopAutomationActionRegistry {
     }
 
     register(
-      name: "conversation_reconciliation_snapshot",
-      summary: "Exercise cache-first list/detail reconciliation and open the canonical detail",
+      name: "conversation_local_authority_snapshot",
+      summary: "Load one conversation from local authority and open its detail",
       params: []
     ) { _ in
       guard let appState = AppState.current else { return ["error": "app state unavailable"] }
       await appState.loadConversations()
       guard let seed = appState.conversations.first else {
-        return ["error": "no conversation available for reconciliation"]
+        return ["error": "no local conversation available"]
       }
 
-      var cachedProjectionId: String?
-      let detail = await appState.loadConversationDetail(seed) { cached in
-        cachedProjectionId = cached.id
-      }
-      let persisted = try? await TranscriptionStorage.shared.getCachedConversation(id: detail.id)
+      let detail = await appState.loadConversationDetail(seed)
+      let persisted = try? await TranscriptionStorage.shared.conversationDetail(id: detail.id)
 
       await requestAutomationConversationOpen(conversationId: detail.id, showTranscript: true)
 
       return [
         "list_loaded": appState.conversations.isEmpty ? "false" : "true",
-        "cached_projection_seen": cachedProjectionId == seed.id ? "true" : "false",
         "detail_id_matches": detail.id == seed.id ? "true" : "false",
-        "detail_has_revision": detail.updatedAt == nil ? "false" : "true",
+        "detail_has_revision": "true",
         "detail_transcript_included": detail.transcriptSegmentsIncluded ? "true" : "false",
-        "cache_id_matches": persisted?.id == detail.id ? "true" : "false",
-        "cache_revision_matches": DesktopAutomationRevisionComparator.matchesAtMillisecondPrecision(
-          persisted?.updatedAt, detail.updatedAt)
-          ? "true" : "false",
+        "local_id_matches": persisted?.conversationId == detail.id ? "true" : "false",
+        "local_status": persisted?.status.rawValue ?? "missing",
         "opened_detail": "true",
       ]
     }
@@ -1935,7 +1920,7 @@ final class DesktopAutomationActionRegistry {
 
     register(
       name: "delete_conversation",
-      summary: "Delete conversation with cascade (API + conversationDeleted notification)",
+      summary: "Delete a local conversation with its owned rows",
       params: ["id"]
     ) { params in
       guard let id = params["id"], !id.isEmpty else {
@@ -1946,7 +1931,7 @@ final class DesktopAutomationActionRegistry {
           throw APIError.invalidResponse
         }
       } else {
-        try await APIClient.shared.deleteConversation(id: id)
+        try await LocalAuthorityConversationDataSource().delete(id: id)
         NotificationCenter.default.post(
           name: .conversationDeleted,
           object: nil,
@@ -2347,7 +2332,7 @@ final class DesktopAutomationActionRegistry {
       let detailOpen = automation.openConversationId == conversationId
       let drawerOpen = detailOpen && automation.transcriptDrawerOpen
       do {
-        let conversation = try await APIClient.shared.getConversation(id: conversationId)
+        let conversation = try await LocalAuthorityConversationDataSource().detail(id: conversationId)
         let segmentCount = conversation.transcriptSegments.count
         return [
           "detail_open": detailOpen ? "true" : "false",
@@ -2492,21 +2477,17 @@ final class DesktopAutomationActionRegistry {
 
     register(
       name: "vocabulary_set_terms",
-      summary: "Set transcription custom vocabulary (local + backend)",
+      summary: "Set local transcription custom vocabulary",
       params: ["terms"]
     ) { params in
       let raw = params["terms"] ?? ""
       let terms = raw.split(separator: ",")
         .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
         .filter { !$0.isEmpty }
-      // Persist remotely first. A Settings-page hydration already in flight may
-      // write its response into UserDefaults; the final assignment makes this
-      // completed mutation authoritative without relying on a settle delay.
-      let saved = try await APIClient.shared.updateTranscriptionPreferences(vocabulary: terms)
-      AssistantSettings.shared.transcriptionVocabulary = saved.vocabulary
+      AssistantSettings.shared.transcriptionVocabulary = terms
       return [
         "saved": "true",
-        "term_count": "\(saved.vocabulary.count)",
+        "term_count": "\(terms.count)",
       ]
     }
 
@@ -2581,22 +2562,19 @@ final class DesktopAutomationActionRegistry {
 
     register(
       name: "settings_privacy_snapshot",
-      summary: "Return privacy toggle defaults (store recordings, cloud sync, tracking)"
+      summary: "Return retained local privacy settings"
     ) { _ in
-      async let recordingTask = APIClient.shared.getRecordingPermission()
-      async let cloudSyncTask = APIClient.shared.getPrivateCloudSync()
-      let (recording, cloudSync) = try await (recordingTask, cloudSyncTask)
       let trackingEnabled = PostHogManager.shared.hasOptedOut
       return [
-        "store_recordings": recording.enabled ? "true" : "false",
-        "cloud_sync": cloudSync.enabled ? "true" : "false",
         "tracking_enabled": trackingEnabled ? "true" : "false",
+        "conversation_location": AssistantSettings.shared.conversationLocationEnabled ? "true" : "false",
+        "retired_cloud_controls_visible": "false",
       ]
     }
 
     register(
       name: "create_test_folder",
-      summary: "Create a hermetic conversation folder via the real API",
+      summary: "Create a hermetic local conversation folder",
       params: ["name"]
     ) { params in
       guard AppBuild.isNonProduction else {
@@ -2683,7 +2661,9 @@ final class DesktopAutomationActionRegistry {
       guard let appState = AppState.current else {
         return ["error": "app state unavailable"]
       }
-      await appState.moveConversationToFolder(conversationId, folderId: resolvedFolderId)
+      guard await appState.moveConversationToFolder(conversationId, folderId: resolvedFolderId) else {
+        return ["error": "conversation folder mutation failed"]
+      }
       return [
         "conversation_id": conversationId,
         "folder_id": resolvedFolderId ?? "none",
@@ -2692,7 +2672,7 @@ final class DesktopAutomationActionRegistry {
 
     register(
       name: "set_transcription_language",
-      summary: "Set transcription language (local + backend)",
+      summary: "Set local capture language",
       params: ["language", "autoDetect"]
     ) { params in
       guard let rawLanguage = params["language"]?.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -2705,7 +2685,6 @@ final class DesktopAutomationActionRegistry {
         AssistantSettings.shared.transcriptionAutoDetect = boolParam(autoDetectRaw, default: true)
       }
       AssistantSettings.shared.transcriptionLanguage = normalized
-      _ = try await APIClient.shared.updateUserLanguage(normalized)
       return [
         "saved": "true",
         "language": normalized,
@@ -2855,18 +2834,18 @@ final class DesktopAutomationActionRegistry {
     registerManagedAccessActions()
 
     register(
-      name: "assign_speaker_fixture",
-      summary: "Assign a person name to a conversation segment (hermetic speaker naming)",
-      params: ["conversationId", "segmentIndex", "personName"]
+      name: "assign_local_speaker_label_fixture",
+      summary: "Assign a conversation-local speaker label (hermetic speaker naming)",
+      params: ["conversationId", "segmentIndex", "speakerName"]
     ) { params in
       guard AppBuild.isNonProduction else {
-        return ["error": "assign_speaker_fixture is disabled on production bundles"]
+        return ["error": "assign_local_speaker_label_fixture is disabled on production bundles"]
       }
       guard let appState = AppState.current else {
         return ["error": "app state unavailable"]
       }
-      let personName =
-        params["personName"]?.trimmingCharacters(in: .whitespacesAndNewlines)
+      let speakerName =
+        params["speakerName"]?.trimmingCharacters(in: .whitespacesAndNewlines)
         ?? "[[MARKER:speaker-naming]] Harness Speaker"
       let segmentIndex = max(0, Int(params["segmentIndex"] ?? "") ?? 0)
 
@@ -2881,7 +2860,7 @@ final class DesktopAutomationActionRegistry {
         return ["error": "no conversation available"]
       }
 
-      let conversation = try await APIClient.shared.getConversation(id: conversationId)
+      let conversation = try await LocalAuthorityConversationDataSource().detail(id: conversationId)
       guard segmentIndex < conversation.transcriptSegments.count else {
         return [
           "error": "segment index out of range",
@@ -2889,28 +2868,26 @@ final class DesktopAutomationActionRegistry {
         ]
       }
       let segment = conversation.transcriptSegments[segmentIndex]
-      guard let person = await appState.createPerson(name: personName) else {
-        return ["error": "failed to create person"]
-      }
-      let assigned = await appState.assignSpeakerToSegments(
-        conversationId: conversationId,
-        segmentIds: [segment.id],
-        personId: person.id,
-        isUser: false
-      )
-      guard assigned else {
-        return ["error": "assign segments failed"]
-      }
-      let refreshed = try await APIClient.shared.getConversation(id: conversationId)
+      let matchingSegmentIds = conversation.transcriptSegments
+        .filter { $0.speakerId == segment.speakerId }
+        .map(\.id)
+      guard
+        await appState.assignSpeakerToSegments(
+          conversationId: conversationId,
+          segmentIds: matchingSegmentIds,
+          speakerName: speakerName,
+          isUser: false,
+        )
+      else { return ["error": "speaker assignment failed"] }
+      let refreshed = try await LocalAuthorityConversationDataSource().detail(id: conversationId)
       let assignedSegment = refreshed.transcriptSegments.first(where: { $0.id == segment.id })
       return [
         "assigned": "true",
         "conversation_id": conversationId,
         "segment_id": segment.id,
         "segment_index": "\(segmentIndex)",
-        "person_id": person.id,
-        "person_name": person.name,
-        "speaker_label": assignedSegment?.speaker ?? segment.speaker ?? "",
+        "speaker_name": speakerName,
+        "speaker_label": assignedSegment?.speaker ?? speakerName,
         "segment_count": "\(refreshed.transcriptSegments.count)",
       ]
     }

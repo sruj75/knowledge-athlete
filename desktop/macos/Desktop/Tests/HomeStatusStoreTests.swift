@@ -4,25 +4,15 @@ import XCTest
 
 @MainActor
 final class HomeStatusStoreTests: XCTestCase {
-  func testRefreshLoadsRetainedKnowledgeCounts() async throws {
-    let defaults = try isolatedDefaults()
-    defaults.set("user-a", forKey: DefaultsKey.authUserId.rawValue)
+  func testRefreshLoadsLocalKnowledgeCounts() async throws {
     let store = HomeStatusStore(
-      defaults: defaults,
+      defaults: try isolatedDefaults(),
       loader: HomeStatusLoader(
         loadScreenshotCount: { 12 },
-        loadKnowledgeCounts: { includeDeviceHistory in
-          XCTAssertTrue(includeDeviceHistory)
-          return HomeKnowledgeCounts(
-            conversations: 7,
-            memories: 8,
-            tasks: 9,
-            hasOmiDeviceConversations: true
-          )
-        }
-      ),
-      localDatabaseReady: true
-    )
+        loadKnowledgeCounts: {
+          HomeKnowledgeCounts(conversations: 7, memories: 8, tasks: 9)
+        }),
+      localDatabaseReady: true)
 
     await store.refreshIfNeeded(force: true)
 
@@ -30,7 +20,6 @@ final class HomeStatusStoreTests: XCTestCase {
     XCTAssertEqual(store.conversationCount, 7)
     XCTAssertEqual(store.memoryCount, 8)
     XCTAssertEqual(store.taskCount, 9)
-    XCTAssertTrue(store.accountHasOmiDeviceConversations)
   }
 
   func testScreenshotCountWaitsUntilDatabaseIsReady() async throws {
@@ -42,16 +31,9 @@ final class HomeStatusStoreTests: XCTestCase {
           screenshotLoads += 1
           return 4
         },
-        loadKnowledgeCounts: { _ in
-          HomeKnowledgeCounts(
-            conversations: nil,
-            memories: nil,
-            tasks: nil,
-            hasOmiDeviceConversations: nil
-          )
-        }
-      )
-    )
+        loadKnowledgeCounts: {
+          HomeKnowledgeCounts(conversations: nil, memories: nil, tasks: nil)
+        }))
 
     await store.refreshIfNeeded(force: true)
     XCTAssertEqual(screenshotLoads, 0)
@@ -67,17 +49,10 @@ final class HomeStatusStoreTests: XCTestCase {
       defaults: try isolatedDefaults(),
       loader: HomeStatusLoader(
         loadScreenshotCount: { 1 },
-        loadKnowledgeCounts: { _ in
-          HomeKnowledgeCounts(
-            conversations: 2,
-            memories: 3,
-            tasks: 4,
-            hasOmiDeviceConversations: nil
-          )
-        }
-      ),
-      localDatabaseReady: true
-    )
+        loadKnowledgeCounts: {
+          HomeKnowledgeCounts(conversations: 2, memories: 3, tasks: 4)
+        }),
+      localDatabaseReady: true)
     await store.refreshIfNeeded(force: true)
 
     store.resetSessionState()
@@ -86,7 +61,6 @@ final class HomeStatusStoreTests: XCTestCase {
     XCTAssertNil(store.conversationCount)
     XCTAssertNil(store.memoryCount)
     XCTAssertNil(store.taskCount)
-    XCTAssertFalse(store.accountHasOmiDeviceConversations)
   }
 
   private func isolatedDefaults() throws -> UserDefaults {

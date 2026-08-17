@@ -24,7 +24,8 @@ class AssistantSettings {
   private let transcriptionLanguageKey = "transcriptionLanguage"
   private let transcriptionAutoDetectKey = "transcriptionAutoDetect"
   private let voiceLanguagesKey = "voiceAssistantLanguages"
-  private let transcriptionVocabularyKey = "transcriptionVocabulary"
+  private let transcriptionVocabularyKey = DefaultsKey.transcriptionVocabulary
+  private let conversationLocationEnabledKey = "conversationLocationEnabled"
   private let vadGateEnabledKey = "vadGateEnabled"
   private let batchTranscriptionEnabledKey = "batchTranscriptionEnabled"
   private let systemAudioCaptureModeKey = "systemAudioCaptureMode"
@@ -42,7 +43,6 @@ class AssistantSettings {
   private let defaultVadGateEnabled = false
   private let defaultBatchTranscriptionEnabled = false
   private let defaultSystemAudioCaptureMode: SystemAudioCaptureMode = .onlyDuringMeetings
-  private(set) var transcriptionVocabularyRevision: UInt64 = 0
 
   private init() {
     // Register defaults
@@ -54,7 +54,8 @@ class AssistantSettings {
       transcriptionEnabledKey: defaultTranscriptionEnabled,
       transcriptionLanguageKey: defaultTranscriptionLanguage,
       transcriptionAutoDetectKey: defaultTranscriptionAutoDetect,
-      transcriptionVocabularyKey: defaultTranscriptionVocabulary,
+      transcriptionVocabularyKey.rawValue: defaultTranscriptionVocabulary,
+      conversationLocationEnabledKey: false,
       vadGateEnabledKey: defaultVadGateEnabled,
       batchTranscriptionEnabledKey: defaultBatchTranscriptionEnabled,
       systemAudioCaptureModeKey: defaultSystemAudioCaptureMode.rawValue,
@@ -218,13 +219,17 @@ class AssistantSettings {
     }
     set {
       UserDefaults.standard.set(newValue, forKey: transcriptionVocabularyKey)
-      transcriptionVocabularyRevision &+= 1
       NotificationCenter.default.post(name: .transcriptionSettingsDidChange, object: nil)
     }
   }
 
-  func shouldApplyTranscriptionVocabularyHydration(startedAtRevision: UInt64) -> Bool {
-    transcriptionVocabularyRevision == startedAtRevision
+  /// Opt-in one-shot location snapshot captured only when a new conversation begins.
+  var conversationLocationEnabled: Bool {
+    get { UserDefaults.standard.bool(forKey: conversationLocationEnabledKey) }
+    set {
+      UserDefaults.standard.set(newValue, forKey: conversationLocationEnabledKey)
+      NotificationCenter.default.post(name: .transcriptionSettingsDidChange, object: nil)
+    }
   }
 
   /// Returns vocabulary as comma-separated string for display
@@ -294,6 +299,7 @@ class AssistantSettings {
     transcriptionLanguage = defaultTranscriptionLanguage
     transcriptionAutoDetect = defaultTranscriptionAutoDetect
     transcriptionVocabulary = defaultTranscriptionVocabulary
+    conversationLocationEnabled = false
     vadGateEnabled = defaultVadGateEnabled
     batchTranscriptionEnabled = defaultBatchTranscriptionEnabled
     systemAudioCaptureMode = defaultSystemAudioCaptureMode

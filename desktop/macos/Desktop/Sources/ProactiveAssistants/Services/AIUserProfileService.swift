@@ -433,13 +433,17 @@ actor AIUserProfileService {
   private func fetchConversations() async -> [String] {
     do {
       let sevenDaysAgo = Calendar.current.date(byAdding: .day, value: -7, to: Date())
-      let conversations = try await APIClient.shared.getConversations(
-        limit: 20,
-        startDate: sevenDaysAgo
-      )
+      let conversations = try await TranscriptionStorage.shared.conversationPage(
+        query: ConversationLocalQuery(
+          starredOnly: false,
+          startDate: sevenDaysAgo,
+          endDate: nil,
+          folderId: nil),
+        offset: 0,
+        limit: 20)
       return conversations.compactMap { convo in
-        let title = convo.structured.title
-        let summary = convo.structured.overview
+        let title = convo.title ?? ""
+        let summary = convo.overview ?? ""
         guard !title.isEmpty else { return nil }
         return "\(title): \(summary)"
       }

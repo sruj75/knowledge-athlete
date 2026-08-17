@@ -41,6 +41,27 @@ enum MemoryRecordReadScope: Sendable {
 actor MemoryStorage {
   static let shared = MemoryStorage()
 
+  /// Transaction-scoped seam used by conversation authority for exact-source cleanup.
+  static func deleteExactConversationSource(
+    in database: Database,
+    conversationId: String
+  ) throws {
+    try database.execute(
+      sql: "DELETE FROM memories WHERE conversationId = ?",
+      arguments: [conversationId])
+  }
+
+  /// Transaction-scoped seam used by a local conversation merge.
+  static func reassignExactConversationSource(
+    in database: Database,
+    from sourceConversationId: String,
+    to replacementConversationId: String
+  ) throws {
+    try database.execute(
+      sql: "UPDATE memories SET conversationId = ? WHERE conversationId = ?",
+      arguments: [replacementConversationId, sourceConversationId])
+  }
+
   private var _dbQueue: DatabasePool?
   private var _dbGeneration = -1
   private var isInitialized = false

@@ -40,15 +40,14 @@ struct SegmentTranslation: Identifiable {
 
 /// Speaker segment for diarized transcription
 struct SpeakerSegment: Identifiable {
-  /// Stable identity — uses backend segment ID when available, otherwise speaker + start time
+  /// Stable identity uses the persisted segment UUID when available.
   var id: String { segmentId ?? "\(speaker)-\(start)" }
-  var segmentId: String?  // Backend-assigned UUID
+  var segmentId: String?
   var speaker: Int
   var text: String
   var start: Double
   var end: Double
   var isUser: Bool = false
-  var personId: String?  // Backend-assigned person ID from speaker identification
   var translations: [SegmentTranslation] = []
 }
 
@@ -59,152 +58,15 @@ enum FinishConversationResult {
   case error(String)
 }
 
-enum DesktopConversationMatchPolicy {
-  /// Backend and local clocks can differ slightly around WebSocket close/reconnect.
-  static let startedAtTolerance: TimeInterval = 10
-  static let cloudReconciliationStatuses: [ConversationStatus] = [.inProgress, .processing, .completed]
-
-  static func matchesDesktopConversation(
-    startedAt conversationStartedAt: Date?,
-    source: ConversationSource?,
-    sessionStartedAt: Date
-  ) -> Bool {
-    guard let conversationStartedAt else { return false }
-    guard source == .desktop else { return false }
-    return abs(conversationStartedAt.timeIntervalSince(sessionStartedAt)) < startedAtTolerance
-  }
-
-  static func memoryEventMatchesFinishedSession(
-    _ memory: [String: Any]?,
-    sessionStartedAt: Date
-  ) -> Bool {
-    guard let memory else { return false }
-
-    // Older backend lifecycle events may omit source; accept missing source for
-    // compatibility, but reject an explicit non-desktop source.
-    if let source = memory["source"] as? String, source != "desktop" {
-      return false
-    }
-
-    guard let memoryStartedAt = parseMemoryEventDate(memory["started_at"] ?? memory["startedAt"]) else {
-      return false
-    }
-
-    return abs(memoryStartedAt.timeIntervalSince(sessionStartedAt)) < startedAtTolerance
-  }
-
-  static func shouldBindConversationSession(
-    incomingBackendId: String,
-    expectedBackendId: String? = nil,
-    activeBackendId: String?,
-    ignoredRotatedBackendIds: Set<String>
-  ) -> Bool {
-    guard !incomingBackendId.isEmpty else { return false }
-    if let expectedBackendId, !expectedBackendId.isEmpty, incomingBackendId != expectedBackendId {
-      return false
-    }
-    if let activeBackendId, !activeBackendId.isEmpty {
-      return incomingBackendId == activeBackendId
-    }
-    if ignoredRotatedBackendIds.contains(incomingBackendId) {
-      return false
-    }
-    return true
-  }
-
-  /// Identified listen sessions may only consume lifecycle events produced by
-  /// their own recording. Older backend versions omit `recording_session_id`,
-  /// so the matching conversation id remains the compatibility proof.
-  static func lifecycleEventBelongsToRecording(
-    memoryId: String,
-    recordingSessionId: String?,
-    expectedBackendId: String?
-  ) -> Bool {
-    guard let expectedBackendId, !expectedBackendId.isEmpty else { return true }
-    guard memoryId == expectedBackendId else { return false }
-    return recordingSessionId == nil || recordingSessionId == expectedBackendId
-  }
-
-  /// Versioned lifecycle envelopes are an ordered protocol. A client only
-  /// accepts a newer event for its own durable recording-session binding;
-  /// omitted fields use the legacy compatibility path above.
-  static func acceptsLifecycleEnvelope(
-    recordingSessionId: String?,
-    conversationId: String,
-    lifecycleVersion: Int?,
-    lifecyclePhase: String?,
-    lifecycleSequence: Int?,
-    expectedLifecyclePhase: String,
-    expectedBackendId: String?,
-    lastAcceptedSequence: Int?
-  ) -> Bool {
-    guard lifecycleVersion != nil || lifecycleSequence != nil else { return true }
-    guard lifecycleVersion == 1,
-      let recordingSessionId,
-      !recordingSessionId.isEmpty,
-      lifecyclePhase == expectedLifecyclePhase,
-      let lifecycleSequence,
-      lifecycleSequence >= 0
-    else { return false }
-    if let expectedBackendId, !expectedBackendId.isEmpty {
-      guard recordingSessionId == expectedBackendId, conversationId == expectedBackendId else { return false }
-    }
-    guard let lastAcceptedSequence else { return true }
-    return lifecycleSequence > lastAcceptedSequence
-  }
-
-  static func canCompleteBoundBackendConversation(
-    id conversationId: String,
-    boundBackendId: String,
-    status: ConversationStatus,
-    source: ConversationSource?
-  ) -> Bool {
-    conversationId == boundBackendId && source == .desktop && status != .inProgress
-  }
-
-  static func shouldFinalizeTimestampMatchedConversation(status: ConversationStatus) -> Bool {
-    status == .inProgress
-  }
-
-  static func canCompleteTimestampMatchedConversation(
-    status: ConversationStatus,
-    source: ConversationSource?
-  ) -> Bool {
-    source == .desktop && status != .inProgress
-  }
-
-  static func canForceProcessBoundCloudSession(
-    capturedBackendId: String?,
-    persistedBackendId: String?
-  ) -> Bool {
-    guard let capturedBackendId, !capturedBackendId.isEmpty else { return false }
-    return persistedBackendId == capturedBackendId
-  }
-
-  static func parseMemoryEventDate(_ value: Any?) -> Date? {
-    if let date = value as? Date {
-      return date
-    }
-    guard let string = value as? String else {
-      return nil
-    }
-
-    let fractionalFormatter = ISO8601DateFormatter()
-    fractionalFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-    if let date = fractionalFormatter.date(from: string) {
-      return date
-    }
-
-    let formatter = ISO8601DateFormatter()
-    return formatter.date(from: string)
-  }
-}
-
 @MainActor
 class AppState: ObservableObject {
   /// Weak reference to the current AppState instance, set on init.
   /// Used by background services (e.g. TranscriptionRetryService) to check recording state.
   static weak var current: AppState?
+
+  static func quiesceCurrentAmbientCaptureForOwnerTransition() async {
+    await current?.quiesceAmbientCaptureForOwnerTransition()
+  }
 
   @AppStorage("hasCompletedOnboarding") var hasCompletedOnboarding = false
 
@@ -216,6 +78,11 @@ class AppState: ObservableObject {
   /// Monotonically increasing counter — incremented each time a new recording starts.
   /// Used to detect if a new recording began during the post-stop force-process delay.
   var recordingGeneration: UInt64 = 0
+  var transcriptionStartTask: Task<Void, Never>?
+  var conversationLocationTask: Task<Void, Never>?
+  let segmentDeliveryQueue = OrderedAsyncOperationQueue()
+  let localMicAudioSink = LocalTranscriptionAudioSink()
+  let localSystemAudioSink = LocalTranscriptionAudioSink()
   @Published var isSavingConversation = false
   // currentTranscript is internal-only (not observed by views), so no @Published needed
   var currentTranscript: String = ""
@@ -246,7 +113,7 @@ class AppState: ObservableObject {
   var liveSpeakerSegments: [SpeakerSegment] { LiveTranscriptMonitor.shared.segments }
 
   // Conversation state
-  @Published var conversations: [ServerConversation] = []
+  @Published var conversations: [LocalConversation] = []
   @Published var isLoadingConversations: Bool = false
   @Published var conversationsError: String? = nil
   @Published var totalConversationsCount: Int? = nil  // Unfiltered total count for dashboard metrics.
@@ -262,15 +129,8 @@ class AppState: ObservableObject {
   @Published var folders: [Folder] = []
   @Published var isLoadingFolders: Bool = false
 
-  // People (speaker voice profiles)
-  @Published var people: [Person] = []
-  var peopleById: [String: Person] {
-    // Last-write-wins: the API can return duplicate person ids.
-    Dictionary(lastWriteWins: people.map { ($0.id, $0) })
-  }
-
-  /// Maps live speaker IDs to person IDs during recording (cleared on finalize)
-  @Published var liveSpeakerPersonMap: [Int: String] = [:]
+  /// Conversation-scoped labels for speakers in the active recording.
+  @Published var liveSpeakerNames: [Int: String] = [:]
 
   // Permission states for onboarding
   @Published var hasNotificationPermission = false
@@ -394,20 +254,12 @@ class AppState: ObservableObject {
   }
 
   var currentSessionId: Int64?
+  var currentConversationId: String?
+  /// Admission capability for the active capture. Never recapture it after an account switch:
+  /// SQLite session row IDs are scoped to the owner database and can collide across owners.
+  var currentSessionAuthorization: LocalMutationAuthorization?
   /// True while a bridge-owned hermetic capture session is active (T2 E2E only).
   var automationCaptureTestSessionActive = false
-  var currentBackendConversationId: String?
-  /// The UUID created by desktop before opening an identified `/v4/listen` stream.
-  /// In the current compatible protocol it is also the backend conversation id.
-  var currentClientConversationId: String?
-  var pendingBackendConversationId: String?
-  /// Last accepted server event sequence per durable recording session. This
-  /// is display state only; Firestore remains the authoritative sequence owner.
-  var lifecycleSequenceByRecordingSession: [String: Int] = [:]
-  var ignoredRotatedBackendConversationIds: Set<String> = []
-  var finishedSessionId: Int64?
-  var finishedClientConversationId: String?
-  var finishedRecordingStartTime: Date?
 
   var willTerminateObserver: NSObjectProtocol? {
     get { servicesCoordinator.willTerminateObserver }
@@ -447,6 +299,9 @@ class AppState: ObservableObject {
   }
 
   var wasTranscribingBeforeSleep = false
+  /// Tracks the observed open side of an only-during-meetings boundary. The close edge must
+  /// finalize even when the only speech is still buffered inside the STT producer.
+  var meetingCaptureWasActive = false
   var lastScreenLockTime: Date?
   var lastScreenUnlockTime: Date?
   nonisolated(unsafe) private var ownerChangeObserver: NSObjectProtocol?
@@ -461,9 +316,14 @@ class AppState: ObservableObject {
   /// The .userDidSignOut handler in DesktopHomeView covers full sign-out (and
   /// additionally resets onboarding and stops transcription); an in-place
   /// switch posts only .runtimeOwnerDidChange, so without this the previous
-  /// account's folders, filters, counts, and people kept rendering.
+  /// account's folders, filters, and counts kept rendering.
   func resetOwnerScopedContent() {
     ownerScopeGeneration &+= 1
+    recordingGeneration &+= 1
+    transcriptionStartTask?.cancel()
+    transcriptionStartTask = nil
+    conversationLocationTask?.cancel()
+    conversationLocationTask = nil
     folders = []
     selectedFolderId = nil
     selectedDateFilter = nil
@@ -473,7 +333,7 @@ class AppState: ObservableObject {
     conversationsError = nil
     isLoadingConversations = false
     isLoadingFolders = false
-    people = []
+    liveSpeakerNames = [:]
   }
 
   init() {
@@ -598,16 +458,30 @@ class AppState: ObservableObject {
       guard let self = self else { return }
       Task { @MainActor in
         if self.isTranscribing {
-          log("App terminating - stopping transcription (backend handles conversation)")
+          log("App terminating - closing the authoritative local conversation")
           let sessionId = self.currentSessionId
+          let authorization = self.currentSessionAuthorization
+          let wasLocalSTT = self.sttSession.useLocalSTT
+          let mic = self.localMicService
+          let system = self.localSystemService
+          if wasLocalSTT {
+            self.localMicService = nil
+            self.localSystemService = nil
+          }
           self.stopAudioCapture()
-          if let sessionId {
-            try? await TranscriptionStorage.shared.finishSession(id: sessionId, reason: .userStop)
+          if wasLocalSTT {
+            await mic?.finish()
+            await system?.finish()
+          } else {
+            await self.segmentDeliveryQueue.drain()
+          }
+          if let sessionId, let authorization {
+            _ = try? await TranscriptionStorage.shared.finishConversation(
+              sessionId: sessionId, reason: .userStop, authorization: authorization)
           }
           self.clearTranscriptionState(
             finalizationReason: .userStop,
             runFinalizer: false,
-            allowCloudForceProcess: false,
             finishSession: false
           )
         }
@@ -624,16 +498,30 @@ class AppState: ObservableObject {
       Task { @MainActor in
         self.wasTranscribingBeforeSleep = self.isTranscribing
         if self.isTranscribing {
-          log("Computer sleeping - stopping transcription (backend handles conversation)")
+          log("Computer sleeping - closing the authoritative local conversation")
           let sessionId = self.currentSessionId
+          let authorization = self.currentSessionAuthorization
+          let wasLocalSTT = self.sttSession.useLocalSTT
+          let mic = self.localMicService
+          let system = self.localSystemService
+          if wasLocalSTT {
+            self.localMicService = nil
+            self.localSystemService = nil
+          }
           self.stopAudioCapture()
-          if let sessionId {
-            try? await TranscriptionStorage.shared.finishSession(id: sessionId, reason: .userStop)
+          if wasLocalSTT {
+            await mic?.finish()
+            await system?.finish()
+          } else {
+            await self.segmentDeliveryQueue.drain()
+          }
+          if let sessionId, let authorization {
+            _ = try? await TranscriptionStorage.shared.finishConversation(
+              sessionId: sessionId, reason: .userStop, authorization: authorization)
           }
           self.clearTranscriptionState(
             finalizationReason: .userStop,
             runFinalizer: false,
-            allowCloudForceProcess: false,
             finishSession: false
           )
         }

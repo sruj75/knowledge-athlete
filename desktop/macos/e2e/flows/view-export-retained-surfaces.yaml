@@ -4,6 +4,7 @@ tier: manual
 description: Live P2 — run the named-bundle CLI exporter and verify its retained page registry
 app: non-prod
 covers:
+  - desktop/macos/Desktop/Sources/Rewind/Core/ConversationArchiveReader.swift
   - desktop/macos/Desktop/Sources/ViewExporter.swift
 preconditions:
   - named_bundle_built

@@ -17,8 +17,6 @@ from routers.listen import receiver as listen_receiver
 
 def test_real_routes_reject_invalid_boundary_query_values_without_500(client, auth_headers):
     cases = [
-        ("/v1/conversations?limit=0", 422),
-        ("/v1/conversations?offset=-1", 422),
         ("/v1/calendar/meetings?limit=101", 422),
         ("/v1/goals/goal-123/history?days=0", 422),
         ("/v1/goals/goal-123/history?days=366", 422),

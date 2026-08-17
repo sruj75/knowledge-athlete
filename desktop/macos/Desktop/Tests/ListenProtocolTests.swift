@@ -6,11 +6,54 @@ import XCTest
 /// Exercises TranscriptionService.parseBackendResponse() end-to-end with real callback dispatch.
 final class ListenProtocolTests: XCTestCase {
 
+  func testConversationListenURLUsesOnlyTransientSTTParameters() throws {
+    let service = try TranscriptionService(language: "en", mode: .conversation)
+
+    let url = try service.makeBackendWebSocketURL(base: "wss://api.example.test")
+    let components = try XCTUnwrap(URLComponents(url: url, resolvingAgainstBaseURL: false))
+    let query: [String: String] = Dictionary(
+      uniqueKeysWithValues: (components.queryItems ?? []).compactMap { item in
+        item.value.map { (item.name, $0) }
+      })
+
+    XCTAssertEqual(components.path, "/v4/listen")
+    XCTAssertEqual(
+      query,
+      [
+        "language": "en",
+        "sample_rate": "16000",
+        "codec": "linear16",
+        "channels": "1",
+        "source": "desktop",
+        "transient_only": "true",
+      ]
+    )
+    XCTAssertNil(query["client_conversation_id"])
+    XCTAssertNil(query["include_speech_profile"])
+    XCTAssertNil(query["vad_threshold"])
+    XCTAssertNil(query["stt_provider"])
+  }
+
+  func testConversationListenRequestKeepsOnlyAuthAndCoarsePlatformIdentity() throws {
+    let service = try TranscriptionService(language: "en", mode: .conversation)
+
+    let request = try service.makeBackendWebSocketRequest(
+      base: "https://api.example.test/",
+      authHeader: "Bearer token"
+    )
+
+    XCTAssertEqual(request.url?.scheme, "wss")
+    XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer token")
+    XCTAssertEqual(request.value(forHTTPHeaderField: "X-App-Platform"), "macos")
+    XCTAssertNil(request.value(forHTTPHeaderField: "X-Device-Id-Hash"))
+    XCTAssertNil(request.value(forHTTPHeaderField: "X-App-Version"))
+  }
+
   // MARK: - BackendSegment Decoding
 
   func testDecodeSegmentWithAllFields() throws {
     let json = """
-      [{"id":"seg-1","text":"hello world","speaker":"SPEAKER_00","speaker_id":0,"is_user":true,"person_id":"p1","start":1.5,"end":3.2}]
+      [{"id":"seg-1","text":"hello world","speaker":"SPEAKER_00","speaker_id":0,"is_user":true,"start":1.5,"end":3.2}]
       """
     let data = json.data(using: .utf8)!
     let segments = try JSONDecoder().decode([TranscriptionService.BackendSegment].self, from: data)
@@ -22,14 +65,13 @@ final class ListenProtocolTests: XCTestCase {
     XCTAssertEqual(seg.speaker, "SPEAKER_00")
     XCTAssertEqual(seg.speaker_id, 0)
     XCTAssertTrue(seg.is_user)
-    XCTAssertEqual(seg.person_id, "p1")
     XCTAssertEqual(seg.start, 1.5)
     XCTAssertEqual(seg.end, 3.2)
   }
 
   func testDecodeSegmentWithNullOptionals() throws {
     let json = """
-      [{"id":null,"text":"test","speaker":null,"speaker_id":null,"is_user":false,"person_id":null,"start":0.0,"end":1.0}]
+      [{"id":null,"text":"test","speaker":null,"speaker_id":null,"is_user":false,"start":0.0,"end":1.0}]
       """
     let data = json.data(using: .utf8)!
     let segments = try JSONDecoder().decode([TranscriptionService.BackendSegment].self, from: data)
@@ -39,15 +81,14 @@ final class ListenProtocolTests: XCTestCase {
     XCTAssertNil(seg.id)
     XCTAssertNil(seg.speaker)
     XCTAssertNil(seg.speaker_id)
-    XCTAssertNil(seg.person_id)
     XCTAssertFalse(seg.is_user)
   }
 
   func testDecodeMultipleSegments() throws {
     let json = """
       [
-          {"id":"s1","text":"first","speaker":"SPEAKER_00","speaker_id":0,"is_user":true,"person_id":null,"start":0.0,"end":1.0},
-          {"id":"s2","text":"second","speaker":"SPEAKER_01","speaker_id":1,"is_user":false,"person_id":"p2","start":1.0,"end":2.5}
+          {"id":"s1","text":"first","speaker":"SPEAKER_00","speaker_id":0,"is_user":true,"start":0.0,"end":1.0},
+          {"id":"s2","text":"second","speaker":"SPEAKER_01","speaker_id":1,"is_user":false,"start":1.0,"end":2.5}
       ]
       """
     let data = json.data(using: .utf8)!
@@ -97,7 +138,7 @@ final class ListenProtocolTests: XCTestCase {
     )
 
     let json = """
-      [{"id":"s1","text":"hello","speaker":"SPEAKER_00","speaker_id":0,"is_user":true,"person_id":null,"start":0.0,"end":1.5}]
+      [{"id":"s1","text":"hello","speaker":"SPEAKER_00","speaker_id":0,"is_user":true,"start":0.0,"end":1.5}]
       """
     service.parseBackendResponse(json)
 
@@ -119,13 +160,12 @@ final class ListenProtocolTests: XCTestCase {
     )
 
     let json = """
-      {"type":"memory_created","memory":{"id":"conv-abc"}}
+      {"type":"service_status","status":"ready"}
       """
     service.parseBackendResponse(json)
 
-    XCTAssertEqual(receivedEvent?.type, "memory_created")
-    let memory = receivedEvent?.raw["memory"] as? [String: Any]
-    XCTAssertEqual(memory?["id"] as? String, "conv-abc")
+    XCTAssertEqual(receivedEvent?.type, "service_status")
+    XCTAssertEqual(receivedEvent?.raw["status"] as? String, "ready")
   }
 
   func testParserIgnoresPingHeartbeat() throws {
@@ -183,48 +223,6 @@ final class ListenProtocolTests: XCTestCase {
     XCTAssertFalse(eventCalled)
   }
 
-  func testParserDispatchesSegmentsDeletedEvent() throws {
-    var receivedEvent: TranscriptionService.ListenEvent?
-    let service = try TranscriptionService(language: "en")
-    service.start(
-      onSegments: { _ in },
-      onEvent: { receivedEvent = $0 },
-      onError: nil,
-      onConnected: nil,
-      onDisconnected: nil
-    )
-
-    let json = """
-      {"type":"segments_deleted","segment_ids":["s1","s2"]}
-      """
-    service.parseBackendResponse(json)
-
-    XCTAssertEqual(receivedEvent?.type, "segments_deleted")
-    let ids = receivedEvent?.raw["segment_ids"] as? [String]
-    XCTAssertEqual(ids, ["s1", "s2"])
-  }
-
-  func testParserDispatchesSpeakerLabelEvent() throws {
-    var receivedEvent: TranscriptionService.ListenEvent?
-    let service = try TranscriptionService(language: "en")
-    service.start(
-      onSegments: { _ in },
-      onEvent: { receivedEvent = $0 },
-      onError: nil,
-      onConnected: nil,
-      onDisconnected: nil
-    )
-
-    let json = """
-      {"type":"speaker_label_suggestion","speaker_id":1,"person_id":"p1","person_name":"Alice"}
-      """
-    service.parseBackendResponse(json)
-
-    XCTAssertEqual(receivedEvent?.type, "speaker_label_suggestion")
-    XCTAssertEqual(receivedEvent?.raw["speaker_id"] as? Int, 1)
-    XCTAssertEqual(receivedEvent?.raw["person_name"] as? String, "Alice")
-  }
-
   func testParserIgnoresObjectWithoutType() throws {
     var eventCalled = false
     let service = try TranscriptionService(language: "en")
@@ -268,49 +266,6 @@ final class ListenProtocolTests: XCTestCase {
 
     XCTAssertFalse(segmentsCalled, "array with non-decodable objects should not trigger segments")
     XCTAssertFalse(eventCalled)
-  }
-
-  func testParserHandlesEventWithMissingNestedFields() throws {
-    // Event with type but missing expected nested fields (memory.id)
-    var receivedEvent: TranscriptionService.ListenEvent?
-    let service = try TranscriptionService(language: "en")
-    service.start(
-      onSegments: { _ in },
-      onEvent: { receivedEvent = $0 },
-      onError: nil,
-      onConnected: nil,
-      onDisconnected: nil
-    )
-
-    // memory_created without memory object
-    service.parseBackendResponse(
-      """
-      {"type":"memory_created"}
-      """)
-
-    XCTAssertEqual(receivedEvent?.type, "memory_created")
-    XCTAssertNil(receivedEvent?.raw["memory"], "missing memory field should be nil, not crash")
-  }
-
-  func testParserHandlesSegmentsDeletedWithMissingIds() throws {
-    var receivedEvent: TranscriptionService.ListenEvent?
-    let service = try TranscriptionService(language: "en")
-    service.start(
-      onSegments: { _ in },
-      onEvent: { receivedEvent = $0 },
-      onError: nil,
-      onConnected: nil,
-      onDisconnected: nil
-    )
-
-    // segments_deleted without segment_ids
-    service.parseBackendResponse(
-      """
-      {"type":"segments_deleted"}
-      """)
-
-    XCTAssertEqual(receivedEvent?.type, "segments_deleted")
-    XCTAssertNil(receivedEvent?.raw["segment_ids"])
   }
 
   func testParserHandlesJsonNumber() throws {
@@ -469,8 +424,8 @@ final class ListenProtocolTests: XCTestCase {
 
     let json = """
       [
-          {"id":"s1","text":"hello","speaker":"SPEAKER_00","speaker_id":0,"is_user":true,"person_id":null,"start":0.0,"end":1.0},
-          {"id":"s2","text":"world","speaker":"SPEAKER_01","speaker_id":1,"is_user":false,"person_id":"p2","start":1.0,"end":2.0}
+          {"id":"s1","text":"hello","speaker":"SPEAKER_00","speaker_id":0,"is_user":true,"start":0.0,"end":1.0},
+          {"id":"s2","text":"world","speaker":"SPEAKER_01","speaker_id":1,"is_user":false,"start":1.0,"end":2.0}
       ]
       """
     service.parseBackendResponse(json)
@@ -478,6 +433,5 @@ final class ListenProtocolTests: XCTestCase {
     XCTAssertEqual(receivedSegments.count, 2)
     XCTAssertEqual(receivedSegments[0].text, "hello")
     XCTAssertEqual(receivedSegments[1].text, "world")
-    XCTAssertEqual(receivedSegments[1].person_id, "p2")
   }
 }
