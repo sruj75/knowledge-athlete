@@ -33,7 +33,7 @@ final class DesktopAutomationSecondaryActionTests: XCTestCase {
       "rewind_settings_snapshot",
       "navigate_via_shortcut",
       "advanced_settings_snapshot",
-      "assign_speaker_fixture",
+      "assign_local_speaker_label_fixture",
     ] {
       XCTAssertTrue(
         source.contains("name: \"\(action)\""),
@@ -106,36 +106,18 @@ final class DesktopAutomationSecondaryActionTests: XCTestCase {
     XCTAssertTrue(waitBody.contains("submission_observed"))
   }
 
-  func testReconciliationUsesNormalizedServerRevision() throws {
+  func testConversationAuthoritySnapshotUsesOnlyLocalStorage() throws {
     let source = try bridgeSource()
-    XCTAssertTrue(source.contains("matchesAtMillisecondPrecision"))
-    XCTAssertTrue(source.contains("timeIntervalSince1970 * 1_000"))
-    let body = try actionBody(named: "conversation_reconciliation_snapshot", in: source)
-    XCTAssertTrue(body.contains("DesktopAutomationRevisionComparator.matchesAtMillisecondPrecision("))
+    let body = try actionBody(named: "conversation_local_authority_snapshot", in: source)
+    XCTAssertTrue(body.contains("TranscriptionStorage.shared.conversationDetail"))
+    XCTAssertFalse(body.contains("APIClient"))
+    XCTAssertFalse(source.contains("conversation_reconciliation_snapshot"))
   }
 
-  func testRevisionComparisonNormalizesSubMillisecondStorageDrift() {
-    XCTAssertTrue(
-      DesktopAutomationRevisionComparator.matchesAtMillisecondPrecision(
-        Date(timeIntervalSince1970: 1_000.12340),
-        Date(timeIntervalSince1970: 1_000.12349)
-      )
-    )
-    XCTAssertFalse(
-      DesktopAutomationRevisionComparator.matchesAtMillisecondPrecision(
-        Date(timeIntervalSince1970: 1_000.123),
-        Date(timeIntervalSince1970: 1_000.125)
-      )
-    )
-    XCTAssertFalse(DesktopAutomationRevisionComparator.matchesAtMillisecondPrecision(Date(), nil))
-  }
-
-  func testVocabularyMutationFinishesWithCanonicalBackendValue() throws {
+  func testVocabularyMutationWritesLocalSettings() throws {
     let body = try actionBody(named: "vocabulary_set_terms", in: try bridgeSource())
-    let update = try XCTUnwrap(body.range(of: "updateTranscriptionPreferences"))
-    let assignment = try XCTUnwrap(
-      body.range(of: "AssistantSettings.shared.transcriptionVocabulary = saved.vocabulary"))
-    XCTAssertLessThan(update.lowerBound, assignment.lowerBound)
+    XCTAssertTrue(body.contains("AssistantSettings.shared.transcriptionVocabulary = terms"))
+    XCTAssertFalse(body.contains("updateTranscriptionPreferences"))
   }
 
   func testActionHTTPFailuresKeepStatusAndSanitizedDetail() throws {
@@ -187,13 +169,15 @@ final class DesktopAutomationSecondaryActionTests: XCTestCase {
     XCTAssertTrue(body.contains("contains(marker)"))
   }
 
-  func testPrivacySnapshotReadsRecordingAndCloudSync() throws {
+  func testPrivacySnapshotOmitsRetiredCloudControls() throws {
     let source = try bridgeSource()
     let body = try actionBody(named: "settings_privacy_snapshot", in: source)
-    XCTAssertTrue(body.contains("getRecordingPermission"))
-    XCTAssertTrue(body.contains("getPrivateCloudSync"))
-    XCTAssertTrue(body.contains("store_recordings"))
-    XCTAssertTrue(body.contains("cloud_sync"))
+    XCTAssertTrue(body.contains("conversation_location"))
+    XCTAssertTrue(body.contains("retired_cloud_controls_visible"))
+    XCTAssertFalse(body.contains("getRecordingPermission"))
+    XCTAssertFalse(body.contains("getPrivateCloudSync"))
+    XCTAssertFalse(body.contains("store_recordings"))
+    XCTAssertFalse(body.contains("cloud_sync"))
   }
 
   func testSubscriptionSnapshotReadsBillingAPI() throws {
@@ -233,7 +217,7 @@ final class DesktopAutomationSecondaryActionTests: XCTestCase {
     let source = try bridgeSource()
     let starredBody = try actionBody(named: "set_conversation_starred", in: source)
     XCTAssertTrue(starredBody.contains("conversationId == \"latest\""))
-    let assignBody = try actionBody(named: "assign_speaker_fixture", in: source)
+    let assignBody = try actionBody(named: "assign_local_speaker_label_fixture", in: source)
     XCTAssertTrue(assignBody.contains("conversationId == \"latest\""))
   }
 
@@ -251,11 +235,11 @@ final class DesktopAutomationSecondaryActionTests: XCTestCase {
     )
   }
 
-  func testTranscriptionLanguageActionsPersistViaAPI() throws {
+  func testTranscriptionLanguageActionsPersistLocally() throws {
     let source = try bridgeSource()
     let setBody = try actionBody(named: "set_transcription_language", in: source)
-    XCTAssertTrue(setBody.contains("updateUserLanguage"))
     XCTAssertTrue(setBody.contains("transcriptionLanguage"))
+    XCTAssertFalse(setBody.contains("updateUserLanguage"))
     let snapshotBody = try actionBody(named: "transcription_language_snapshot", in: source)
     XCTAssertTrue(snapshotBody.contains("effectiveTranscriptionLanguage"))
   }
@@ -267,11 +251,12 @@ final class DesktopAutomationSecondaryActionTests: XCTestCase {
     XCTAssertTrue(body.contains("SidebarNavItem"))
   }
 
-  func testAssignSpeakerFixtureUsesNonProdGuard() throws {
+  func testAssignLocalSpeakerLabelFixtureUsesNonProdGuard() throws {
     let source = try bridgeSource()
-    let body = try actionBody(named: "assign_speaker_fixture", in: source)
+    let body = try actionBody(named: "assign_local_speaker_label_fixture", in: source)
     XCTAssertTrue(body.contains("AppBuild.isNonProduction"))
-    XCTAssertTrue(body.contains("assignSpeakerToSegments"))
+    XCTAssertTrue(body.contains("setConversationSpeakerLabel"))
+    XCTAssertFalse(body.contains("APIClient.shared"))
   }
 
   func testResetOnboardingUsesLiveAppStateSingleton() throws {

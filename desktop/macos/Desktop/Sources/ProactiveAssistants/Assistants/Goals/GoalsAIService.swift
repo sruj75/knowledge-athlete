@@ -153,9 +153,12 @@ actor GoalsAIService {
         return []
       }
     }()
-    async let conversationsFetch = { () async -> [ServerConversation] in
+    async let conversationsFetch = { () async -> [LocalConversation] in
       do {
-        return try await APIClient.shared.getConversations(limit: 100, statuses: [.completed])
+        return try await LocalAuthorityConversationDataSource().list(
+          query: ConversationListQuery(starredOnly: false, date: nil, folderId: nil),
+          offset: 0,
+          limit: 100)
       } catch {
         log("GoalsAI: Failed to fetch conversations: \(error.localizedDescription)")
         return []
@@ -330,8 +333,10 @@ actor GoalsAIService {
 
     // 1. Fetch context
     let memories = try await APIClient.shared.getMemories(limit: 15)
-    let conversations = try await APIClient.shared.getConversations(
-      limit: 10, statuses: [.completed])
+    let conversations = try await LocalAuthorityConversationDataSource().list(
+      query: ConversationListQuery(starredOnly: false, date: nil, folderId: nil),
+      offset: 0,
+      limit: 10)
 
     let memoryContext =
       memories

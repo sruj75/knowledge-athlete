@@ -4,17 +4,14 @@ import SwiftUI
 
 /// Full detail view for a single conversation
 struct ConversationDetailView: View {
-  let conversation: ServerConversation
+  let conversation: LocalConversation
   let onBack: () -> Void
   var folders: [Folder] = []
-  var onMoveToFolder: ((String, String?) async -> Void)?
+  var onMoveToFolder: ((String, String?) async -> Bool)?
   var onDelete: (() -> Void)?
   var onTitleUpdated: ((String) -> Void)?
 
-  // People (speaker naming)
-  var people: [Person] = []
-  var onFetchPeople: (() async -> Void)?
-  var onCreatePerson: ((String) async -> Person?)?
+  // Conversation-scoped speaker naming
   var onAssignSpeaker: ((String, [String], String?, Bool) async -> Bool)?
 
   // Transcript drawer state (replaces tab system)
@@ -27,9 +24,9 @@ struct ConversationDetailView: View {
   @State private var hasAppeared = false
 
   // Full conversation loaded from API (with transcript segments)
-  @State private var loadedConversation: ServerConversation?
+  @State private var loadedConversation: LocalConversation?
   @State private var isLoadingConversation = false
-  // True while a lazily-deferred conversation is being enriched (polled) on first open.
+  // True while durable local enrichment work is still pending.
   @State private var isEnrichingDeferred = false
 
   // Action states
@@ -38,6 +35,7 @@ struct ConversationDetailView: View {
   @State private var editedTitle = ""
   @State private var isUpdatingTitle = false
   @State private var isDeleting = false
+  @State private var isRetryingEnrichment = false
 
   // Speaker naming state
   @State private var selectedSegmentForNaming: TranscriptSegment? = nil
@@ -45,28 +43,19 @@ struct ConversationDetailView: View {
   static func assignmentMetadata(
     for segmentIndices: [Int],
     in segments: [TranscriptSegment]
-  ) -> (targets: [String], backendIds: [String], fallbackOrders: [Int]) {
+  ) -> [String] {
     let validIndices = segmentIndices.filter { segments.indices.contains($0) }
-    let targets = validIndices.map { index in
-      segments[index].backendId ?? "#index:\(index)"
-    }
-    let backendIds = validIndices.compactMap { index in
-      segments[index].backendId
-    }
-    let fallbackOrders = validIndices.filter { index in
-      segments[index].backendId == nil
-    }
-    return (targets, backendIds, fallbackOrders)
+    return validIndices.map { segments[$0].id }
   }
 
   /// The conversation to display - use loaded version if available, otherwise use prop
-  private var displayConversation: ServerConversation {
+  private var displayConversation: LocalConversation {
     loadedConversation ?? conversation
   }
 
   /// The date to display (prefer startedAt, fall back to createdAt)
   private var displayDate: Date {
-    displayConversation.startedAt ?? displayConversation.createdAt
+    displayConversation.startedAt
   }
 
   // Static date formatters — creating DateFormatter is expensive, avoid per-render allocation
@@ -200,19 +189,15 @@ struct ConversationDetailView: View {
         newValue, conversationId: conversation.id)
     }
     .task {
-      await onFetchPeople?()
-      AnalyticsManager.shared.conversationDetailOpened(conversationId: conversation.id)
+      AnalyticsManager.shared.conversationDetailOpened()
 
-      // All detail reads go through the repository. It can paint a complete
-      // cached detail immediately, but always revalidates server-owned fields.
-      if conversation.deferred || conversation.status == .processing {
+      // All detail reads go through the owner-scoped local repository.
+      if conversation.status == .processing {
         isEnrichingDeferred = true
         var attempts = 0
         while attempts < 15 {
           guard let appState = AppState.current else { break }
-          let fetched = await appState.loadConversationDetail(conversation) { cached in
-            loadedConversation = cached
-          }
+          let fetched = await appState.loadConversationDetail(conversation)
           loadedConversation = fetched
           if fetched.status != .processing { break }
           attempts += 1
@@ -224,9 +209,7 @@ struct ConversationDetailView: View {
 
       isLoadingConversation = true
       if let appState = AppState.current {
-        loadedConversation = await appState.loadConversationDetail(conversation) { cached in
-          loadedConversation = cached
-        }
+        loadedConversation = await appState.loadConversationDetail(conversation)
       }
       isLoadingConversation = false
     }
@@ -244,35 +227,27 @@ struct ConversationDetailView: View {
       NameSpeakerSheet(
         segment: segment,
         allSegments: displayConversation.transcriptSegments,
-        people: people,
-        onSave: { personId, isUser, segmentIndices in
+        onSave: { speakerName, isUser, segmentIndices in
           Task {
-            let assignment = Self.assignmentMetadata(
+            let segmentIds = Self.assignmentMetadata(
               for: segmentIndices,
               in: displayConversation.transcriptSegments
             )
             let success =
               await onAssignSpeaker?(
                 conversation.id,
-                assignment.targets,
-                personId,
+                segmentIds,
+                speakerName,
                 isUser
               ) ?? false
             if success {
-              await persistSpeakerAssignment(
-                conversationId: conversation.id,
-                backendSegmentIds: assignment.backendIds,
-                fallbackSegmentOrders: assignment.fallbackOrders,
+              updateDisplayedConversation(
+                segmentIndices: segmentIndices,
                 isUser: isUser,
-                personId: personId
-              )
-              updateDisplayedConversation(segmentIndices: segmentIndices, isUser: isUser, personId: personId)
+                speakerName: speakerName)
             }
             selectedSegmentForNaming = nil
           }
-        },
-        onCreatePerson: { name in
-          await onCreatePerson?(name)
         },
         onDismiss: {
           selectedSegmentForNaming = nil
@@ -411,7 +386,7 @@ struct ConversationDetailView: View {
         Menu {
           if displayConversation.folderId != nil {
             Button(action: {
-              Task { await onMoveToFolder?(conversation.id, nil) }
+              Task { await moveDisplayedConversation(to: nil) }
             }) {
               Label("Remove from Folder", systemImage: "folder.badge.minus")
             }
@@ -420,7 +395,7 @@ struct ConversationDetailView: View {
 
           ForEach(folders) { folder in
             Button(action: {
-              Task { await onMoveToFolder?(conversation.id, folder.id) }
+              Task { await moveDisplayedConversation(to: folder.id) }
             }) {
               HStack {
                 Text(folder.name)
@@ -463,7 +438,7 @@ struct ConversationDetailView: View {
   }
 
   private var canCopyTranscript: Bool {
-    displayConversation.transcriptPresenceState != .lockedOrRedacted
+    true
   }
 
   // MARK: - Actions
@@ -471,15 +446,14 @@ struct ConversationDetailView: View {
   private func copyTranscript() {
     guard canCopyTranscript else { return }
 
-    let peopleDict = Dictionary(lastWriteWins: people.map { ($0.id, $0) })
     let transcript: String = displayConversation.transcriptSegments.map { segment -> String in
       let speakerName: String
       if segment.isUser {
         speakerName = "You"
-      } else if let personId = segment.personId, let person = peopleDict[personId] {
-        speakerName = person.name
+      } else if let label = localSpeakerName(for: segment) {
+        speakerName = label
       } else {
-        speakerName = "Speaker \(segment.speaker ?? "Unknown")"
+        speakerName = "Speaker \(segment.speakerId)"
       }
       return "[\(speakerName)]: \(segment.text)"
     }.joined(separator: "\n\n")
@@ -489,12 +463,25 @@ struct ConversationDetailView: View {
   }
 
   private func updateTitle() async {
-    guard !editedTitle.isEmpty else { return }
+    let normalized = editedTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !normalized.isEmpty else { return }
     isUpdatingTitle = true
     defer { isUpdatingTitle = false }
 
-    await AppState.current?.updateConversationTitle(conversation.id, title: editedTitle)
-    onTitleUpdated?(editedTitle)
+    guard await AppState.current?.updateConversationTitle(conversation.id, title: normalized) == true else {
+      return
+    }
+    var projected = displayConversation
+    projected.structured.title = normalized
+    loadedConversation = projected
+    onTitleUpdated?(normalized)
+  }
+
+  private func moveDisplayedConversation(to folderId: String?) async {
+    guard await onMoveToFolder?(displayConversation.id, folderId) == true else { return }
+    var projected = displayConversation
+    projected.folderId = folderId
+    loadedConversation = projected
   }
 
   private func deleteConversation() async {
@@ -539,6 +526,12 @@ struct ConversationDetailView: View {
 
   @ViewBuilder
   private var summaryContent: some View {
+    if let message = ConversationEnrichmentFailurePresentation.message(
+      for: displayConversation.enrichmentFailures)
+    {
+      enrichmentFailureSection(message: message)
+    }
+
     // Overview section
     if !displayConversation.overview.isEmpty {
       overviewSection
@@ -550,6 +543,38 @@ struct ConversationDetailView: View {
     // Action items section
     if !displayConversation.structured.actionItems.isEmpty {
       actionItemsSection
+    }
+  }
+
+  private func enrichmentFailureSection(message: String) -> some View {
+    HStack(spacing: OmiSpacing.md) {
+      Image(systemName: "exclamationmark.triangle")
+        .foregroundColor(OmiColors.warning)
+      VStack(alignment: .leading, spacing: OmiSpacing.xxs) {
+        Text(message)
+          .scaledFont(size: OmiType.body, weight: .semibold)
+          .foregroundColor(OmiColors.textPrimary)
+        Text("Your transcript is safe on this Mac.")
+          .scaledFont(size: OmiType.caption)
+          .foregroundColor(OmiColors.textSecondary)
+      }
+      Spacer()
+      Button(isRetryingEnrichment ? "Retrying…" : "Retry") {
+        Task { await retryEnrichment() }
+      }
+      .disabled(isRetryingEnrichment)
+    }
+    .padding(OmiSpacing.lg)
+    .background(OmiColors.backgroundTertiary.opacity(0.5))
+    .cornerRadius(OmiChrome.smallControlRadius)
+  }
+
+  private func retryEnrichment() async {
+    guard !isRetryingEnrichment else { return }
+    isRetryingEnrichment = true
+    defer { isRetryingEnrichment = false }
+    if let retried = await AppState.current?.retryConversationEnrichment(id: displayConversation.id) {
+      loadedConversation = retried
     }
   }
 
@@ -637,18 +662,7 @@ struct ConversationDetailView: View {
       .background(OmiColors.backgroundTertiary.opacity(0.5))
 
       // Drawer content
-      if displayConversation.transcriptPresenceState == .lockedOrRedacted && !isLoadingConversation {
-        VStack(spacing: OmiSpacing.md) {
-          Image(systemName: "lock")
-            .scaledFont(size: OmiType.hero)
-            .foregroundColor(OmiColors.textTertiary.opacity(0.5))
-
-          Text("Transcript locked")
-            .scaledFont(size: OmiType.body)
-            .foregroundColor(OmiColors.textTertiary)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-      } else if displayConversation.transcriptSegments.isEmpty && !isLoadingConversation {
+      if displayConversation.transcriptSegments.isEmpty && !isLoadingConversation {
         // Empty state
         VStack(spacing: OmiSpacing.md) {
           Image(systemName: "text.quote")
@@ -691,12 +705,11 @@ struct ConversationDetailView: View {
   /// Do NOT wrap this in another LazyVStack or VStack — it emits ForEach items directly.
   @ViewBuilder
   private var transcriptBubblesContent: some View {
-    let peopleDict = Dictionary(lastWriteWins: people.map { ($0.id, $0) })
     ForEach(displayConversation.transcriptSegments) { segment in
       SpeakerBubbleView(
         segment: segment,
         isUser: segment.isUser,
-        personName: segment.personId.flatMap { peopleDict[$0]?.name },
+        personName: localSpeakerName(for: segment),
         onSpeakerTapped: segment.isUser
           ? nil
           : {
@@ -708,17 +721,20 @@ struct ConversationDetailView: View {
   }
 
   @MainActor
-  private func updateDisplayedConversation(segmentIndices: [Int], isUser: Bool, personId: String?) {
+  private func updateDisplayedConversation(
+    segmentIndices: [Int],
+    isUser: Bool,
+    speakerName: String?
+  ) {
     var updatedConversation = displayConversation
     for index in segmentIndices where updatedConversation.transcriptSegments.indices.contains(index) {
       let oldSegment = updatedConversation.transcriptSegments[index]
       updatedConversation.transcriptSegments[index] = TranscriptSegment(
         id: oldSegment.id,
-        backendId: oldSegment.backendId,
         text: oldSegment.text,
-        speaker: oldSegment.speaker,
+        speaker: isUser ? "You" : speakerName,
+        speakerId: oldSegment.speakerId,
         isUser: isUser,
-        personId: isUser ? nil : personId,
         start: oldSegment.start,
         end: oldSegment.end,
         translations: oldSegment.translations
@@ -727,30 +743,14 @@ struct ConversationDetailView: View {
     loadedConversation = updatedConversation
   }
 
-  private func persistSpeakerAssignment(
-    conversationId: String,
-    backendSegmentIds: [String],
-    fallbackSegmentOrders: [Int],
-    isUser: Bool,
-    personId: String?
-  ) async {
-    do {
-      try await TranscriptionStorage.shared.updateSpeakerAssignmentByBackendId(
-        conversationId,
-        segmentIds: backendSegmentIds,
-        fallbackSegmentOrders: fallbackSegmentOrders,
-        isUser: isUser,
-        personId: isUser ? nil : personId
-      )
-    } catch {
-      logError("ConversationDetail: Failed to persist speaker assignment locally", error: error)
-    }
+  private func localSpeakerName(for segment: TranscriptSegment) -> String? {
+    guard !segment.isUser, let value = segment.speaker else { return nil }
+    return value.hasPrefix("SPEAKER_") ? nil : value
   }
 
   // MARK: - Deferred Processing Loader
 
-  /// Overlaid while a lazily-deferred conversation is enriched, preserving the
-  /// position of details that may already be available from the local cache.
+  /// Overlaid while durable local enrichment work is still pending.
   private var deferredProcessingSection: some View {
     HStack(spacing: OmiSpacing.md) {
       ProgressView()
@@ -796,40 +796,10 @@ struct ConversationDetailView: View {
 
   private var metadataSection: some View {
     HStack(spacing: OmiSpacing.md) {
-      // Source chip (device indicator)
-      sourceChip
-
       // Duration chip
       metadataChip(icon: "hourglass", text: displayConversation.formattedDuration)
 
-      // Category chip
-      if !displayConversation.structured.category.isEmpty && displayConversation.structured.category != "other" {
-        metadataChip(icon: "tag", text: displayConversation.structured.category.capitalized)
-      }
-
       Spacer()
-    }
-  }
-
-  private var sourceChip: some View {
-    metadataChip(icon: "dot.radiowaves.left.and.right", text: sourceLabel)
-  }
-
-  private var sourceLabel: String {
-    switch displayConversation.source {
-    case .desktop: return "Desktop"
-    case .omi: return "omi"
-    case .phone: return "Phone"
-    case .appleWatch: return "Apple Watch"
-    case .workflow: return "Workflow"
-    case .screenpipe: return "Screenpipe"
-    case .friend, .friendCom: return "Friend"
-    case .openglass: return "OpenGlass"
-    case .frame: return "Frame"
-    case .bee: return "Bee"
-    case .limitless: return "Limitless"
-    case .plaud: return "Plaud"
-    default: return "Unknown"
     }
   }
 
@@ -913,7 +883,7 @@ struct ConversationDetailView: View {
 #if canImport(PreviewsMacros)
   #Preview {
     ConversationDetailView(
-      conversation: ServerConversation.preview,
+      conversation: LocalConversation.preview,
       onBack: {}
     )
     .frame(width: 600, height: 800)
@@ -922,8 +892,8 @@ struct ConversationDetailView: View {
 #endif
 
 // Preview helper
-extension ServerConversation {
-  static var preview: ServerConversation {
+extension LocalConversation {
+  static var preview: LocalConversation {
     // This would need to be implemented with a proper initializer
     // For now, previews won't work without mock data
     fatalError("Preview not implemented")

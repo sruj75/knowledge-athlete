@@ -31,6 +31,22 @@ source and tests.
    The concrete guards live in the desktop managed-access, request-routing,
    realtime-authentication, and agent-runtime tests and the backend route tests.
 
+## macOS conversation authority
+
+The Mac owns its conversation archive in its owner-scoped local GRDB database.
+Capture creates one stable local conversation ID; list, detail, search, folders,
+stars, titles, speaker labels, merge, deletion, and restart recovery read and
+write that local authority. The desktop does not project conversations to
+Firestore, reconcile server snapshots, or fall back to hosted conversation
+data.
+
+The backend remains a transient managed-compute boundary for live speech and
+the three candidate-only conversation operations: discard, structure, and
+action-item extraction. Those operations return candidates; the Mac validates
+and commits them locally. Cloud conversation playback, reusable People/voice
+identity, public conversation sharing, and Store Recordings/Private Cloud Sync
+settings are not macOS product surfaces.
+
 ## Proposed canonical memory lifecycle
 
 This direction remains proposed; it is not an enforced contract until the

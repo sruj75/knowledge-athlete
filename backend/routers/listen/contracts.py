@@ -39,6 +39,7 @@ class ListenRequest:
     call_id: Optional[str] = None
     client_conversation_id: Optional[str] = None
     client_device_context: Optional[ClientDeviceContext] = None
+    transient_only: bool = False
 
 
 @dataclass

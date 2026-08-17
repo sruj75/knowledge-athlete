@@ -242,6 +242,9 @@ class TranscriptProcessor:
         return False
 
     async def process_loop(self) -> None:
+        if getattr(self.host.request, 'transient_only', False):
+            await self._process_transient_loop()
+            return
         while self.host.state.active or self.segment_buffer:
             if await self.host.wait(0.6) and not self.segment_buffer:
                 break
@@ -325,6 +328,31 @@ class TranscriptProcessor:
             logger.warning('Timed out waiting for listen speaker identification to finish')
         await self.host.speakers.drain(timeout=10, label='listen_speaker_final')
         await self.flush_speaker_assignments(self.host.state.current_conversation_id)
+
+    async def _process_transient_loop(self) -> None:
+        """Deliver normalized STT candidates without creating server conversation state."""
+        while self.host.state.active or self.segment_buffer:
+            if await self.host.wait(0.6) and not self.segment_buffer:
+                break
+            if not self.segment_buffer:
+                continue
+            raw_segments = sort_segments_by_start(list(self.segment_buffer))
+            self.segment_buffer.clear()
+            candidates = [
+                TranscriptSegment(**raw, speech_profile_processed=False)
+                for raw in raw_segments
+                if raw.get('text', '').strip()
+            ]
+            combined, _, _ = TranscriptSegment.combine_segments([], candidates)
+            if not combined:
+                continue
+            self.host.state.last_transcript_time = time.time()
+            self.host.state.words_transcribed_since_last_record += len(
+                ' '.join(segment.text for segment in combined).split()
+            )
+            delivered = await self._deliver_segments([segment.model_dump() for segment in combined])
+            if delivered:
+                self.host.complete_live_transcription()
 
     async def _write_fresh(
         self,

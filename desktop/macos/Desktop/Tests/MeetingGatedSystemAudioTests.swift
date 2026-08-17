@@ -358,8 +358,7 @@ import XCTest
           mode: .onlyDuringMeetings,
           meetingStateReady: true,
           shouldCapture: false,
-          segmentCount: 12,
-          hasSpeakerSegments: false
+          hadActiveMeeting: true
         )
       )
     }
@@ -370,8 +369,7 @@ import XCTest
           mode: .onlyDuringMeetings,
           meetingStateReady: true,
           shouldCapture: false,
-          segmentCount: 0,
-          hasSpeakerSegments: true
+          hadActiveMeeting: true
         )
       )
     }
@@ -382,8 +380,7 @@ import XCTest
           mode: .onlyDuringMeetings,
           meetingStateReady: true,
           shouldCapture: false,
-          segmentCount: 0,
-          hasSpeakerSegments: false
+          hadActiveMeeting: false
         )
       )
     }
@@ -394,8 +391,7 @@ import XCTest
           mode: .always,
           meetingStateReady: true,
           shouldCapture: false,
-          segmentCount: 12,
-          hasSpeakerSegments: true
+          hadActiveMeeting: true
         )
       )
       XCTAssertFalse(
@@ -403,8 +399,7 @@ import XCTest
           mode: .never,
           meetingStateReady: true,
           shouldCapture: false,
-          segmentCount: 12,
-          hasSpeakerSegments: true
+          hadActiveMeeting: true
         )
       )
     }
@@ -415,8 +410,7 @@ import XCTest
           mode: .onlyDuringMeetings,
           meetingStateReady: true,
           shouldCapture: true,
-          segmentCount: 12,
-          hasSpeakerSegments: true
+          hadActiveMeeting: true
         )
       )
     }
@@ -427,8 +421,7 @@ import XCTest
           mode: .onlyDuringMeetings,
           meetingStateReady: false,
           shouldCapture: false,
-          segmentCount: 12,
-          hasSpeakerSegments: true
+          hadActiveMeeting: true
         )
       )
     }

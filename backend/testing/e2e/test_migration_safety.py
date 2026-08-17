@@ -6,9 +6,6 @@ that fake-store overwrite behavior is deterministic. These tests do not execute
 production migration scripts.
 """
 
-import json
-import copy
-
 from fakes.firestore import read_conversation, read_memories, seed_conversation, seed_memory
 
 
@@ -96,78 +93,6 @@ class TestFakeStoreIdempotency:
 
 class TestFieldShapeEvolution:
     """Test that field shape changes don't break reads."""
-
-    def test_missing_optional_fields(self, client, auth_headers):
-        """
-        Documents missing optional fields (e.g., folder_id, calendar_event,
-        processing_conversation_id) still deserialize correctly.
-        """
-
-        minimal_conv = {
-            "id": "minimal-fields-001",
-            "created_at": "2025-01-15T18:00:00Z",
-            "started_at": "2025-01-15T18:00:00Z",
-            "finished_at": "2025-01-15T18:01:00Z",
-            "source": "omi",
-            "structured": {
-                "title": "",
-                "overview": "",
-                "emoji": "🧠",
-                "category": "other",
-                "action_items": [],
-                "events": [],
-            },
-            "transcript_segments": [],
-            # Intentionally omit: folder_id, calendar_event, starred, etc.
-            "discarded": False,
-            "status": "completed",
-            "is_locked": False,
-        }
-        seed_conversation("123", minimal_conv)
-
-        resp = client.get(f"/v1/conversations/{minimal_conv['id']}", headers=auth_headers)
-        assert resp.status_code == 200, f"Minimal conv should be readable: {resp.text}"
-
-        body = resp.json()
-        # Missing fields should get defaults from Pydantic model
-        assert body.get("starred") is False or "starred" not in body or body.get("starred") is None
-
-    def test_extra_fields_ignored(self, client, auth_headers):
-        """
-        Documents with unknown extra fields (from future schema) don't
-        break deserialization.
-        """
-
-        conv_with_extra = {
-            "id": "extra-fields-001",
-            "created_at": "2025-01-15T19:00:00Z",
-            "started_at": "2025-01-15T19:00:00Z",
-            "finished_at": "2025-01-15T19:01:00Z",
-            "source": "omi",
-            "structured": {
-                "title": "",
-                "overview": "",
-                "emoji": "🧠",
-                "category": "other",
-                "action_items": [],
-                "events": [],
-            },
-            "transcript_segments": [],
-            "discarded": False,
-            "status": "completed",
-            "is_locked": False,
-            # Extra fields that don't exist on current model
-            "future_field_v2": "should be ignored",
-            "experimental_flag": 42,
-        }
-        seed_conversation("123", conv_with_extra)
-
-        resp = client.get(f"/v1/conversations/{conv_with_extra['id']}", headers=auth_headers)
-        assert resp.status_code == 200, f"Extra fields should be ignored on read: {resp.text}"
-        body = resp.json()
-        assert body["id"] == conv_with_extra["id"]
-        assert "future_field_v2" not in body
-        assert "experimental_flag" not in body
 
 
 class TestCategoryEnumMigration:

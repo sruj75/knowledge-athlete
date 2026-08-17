@@ -236,9 +236,14 @@ struct GeminiHomeSuggestionGenerator: HomeSuggestionGenerating {
     async let memoriesFetch = { () async -> [ServerMemory]? in
       try? await APIClient.shared.getMemories(limit: 200, authorizationSnapshot: snapshot)
     }()
-    async let conversationsFetch = { () async -> [ServerConversation]? in
-      try? await APIClient.shared.getConversations(
-        limit: 30, statuses: [.completed], authorizationSnapshot: snapshot)
+    async let conversationsFetch = { () async -> [LocalConversation]? in
+      guard RuntimeOwnerIdentity.isAuthorizationCurrent(snapshot) else { return nil }
+      let result = try? await LocalAuthorityConversationDataSource().list(
+        query: ConversationListQuery(starredOnly: false, date: nil, folderId: nil),
+        offset: 0,
+        limit: 30)
+      guard RuntimeOwnerIdentity.isAuthorizationCurrent(snapshot) else { return nil }
+      return result
     }()
     async let actionItemsFetch = { () async -> ActionItemsListResponse? in
       try? await APIClient.shared.getActionItems(

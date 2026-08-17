@@ -3,6 +3,55 @@ import FluidAudio
 import Foundation
 import SoundAnalysis
 
+protocol LocalTranscriptionAudioReceiving: AnyObject, Sendable {
+  func appendAudio(_ data: Data)
+}
+
+final class LocalTranscriptionAudioSink: @unchecked Sendable {
+  private let lock = NSLock()
+  private var service: (any LocalTranscriptionAudioReceiving)?
+  private var buffered: [Data] = []
+  private var buffering = false
+
+  func append(_ data: Data) {
+    lock.withLock {
+      if buffering {
+        buffered.append(data)
+      } else {
+        // Delivery is part of the sink's synchronization boundary. `beginHandoff()` must not
+        // return while an append already admitted to the retiring receiver is still in flight.
+        service?.appendAudio(data)
+      }
+    }
+  }
+
+  func beginHandoff() {
+    lock.withLock {
+      buffering = true
+      service = nil
+    }
+  }
+
+  func completeHandoff(to newService: any LocalTranscriptionAudioReceiving) {
+    lock.withLock {
+      // Keep live callbacks behind the sink lock until every older buffered chunk has reached
+      // the new receiver. Publishing the receiver first would let newer PCM overtake the replay.
+      buffered.forEach { newService.appendAudio($0) }
+      buffered.removeAll()
+      service = newService
+      buffering = false
+    }
+  }
+
+  func clear() {
+    lock.withLock {
+      service = nil
+      buffering = false
+      buffered.removeAll()
+    }
+  }
+}
+
 /// Tallies Apple SoundAnalysis frames over one window to decide if it's music/singing vs speech.
 /// Used to keep songs / TV / videos playing through *system audio* from becoming "conversations".
 @available(macOS 12.0, *)
@@ -39,7 +88,7 @@ private final class MusicTally: NSObject, SNResultsObserving {
 /// no Deepgram. Model weights (~600 MB–1.2 GB) download from HuggingFace on first run and are cached.
 final class LocalTranscriptionService: @unchecked Sendable {
 
-  typealias SegmentsHandler = @MainActor ([TranscriptionService.BackendSegment]) -> Void
+  typealias SegmentsHandler = @MainActor ([TranscriptionService.BackendSegment]) async -> Void
 
   private struct DrainSnapshot {
     let manager: AsrManager
@@ -74,9 +123,12 @@ final class LocalTranscriptionService: @unchecked Sendable {
   /// still running across a finishConversation rotation) would be appended past the snapshot and
   /// silently dropped.
   private var acceptingAudio = true
+  private var isRetiring = false
+  private var flushWaiters: [CheckedContinuation<Void, Never>] = []
   private var emittedSeconds = 0.0  // absolute start offset of the next emitted segment
 
   private var pumpTask: Task<Void, Never>?
+  private var modelLoadTask: Task<Void, Never>?
 
   init(language: String = "en", isUser: Bool = true) {
     self.language = language
@@ -92,7 +144,7 @@ final class LocalTranscriptionService: @unchecked Sendable {
     self.onSegments = onSegments
     self.onModelLoadFailed = onModelLoadFailed
 
-    Task { [weak self] in
+    modelLoadTask = Task { [weak self] in
       guard let self else { return }
       do {
         // Test hook: force a model-load failure to exercise the cloud fallback path.
@@ -128,6 +180,7 @@ final class LocalTranscriptionService: @unchecked Sendable {
     pumpTask = Task { [weak self] in
       while !Task.isCancelled {
         try? await Task.sleep(nanoseconds: 1_000_000_000)
+        guard !Task.isCancelled else { break }
         await self?.drain(force: false)
       }
     }
@@ -150,13 +203,24 @@ final class LocalTranscriptionService: @unchecked Sendable {
   /// right after (e.g. the 4-hour restart path) can still race; it exists for teardown sites
   /// that don't have an async context.
   func stop() {
-    pumpTask?.cancel()
-    pumpTask = nil
-    lock.withLock { acceptingAudio = false }
-    // Strong `self` (not weak): the caller (AppState) nils its reference immediately after
-    // stop(), so a weak capture could deallocate the service before the final tail is
-    // transcribed. The strong reference keeps it alive until drainAll() finishes.
-    Task { await self.drainAll() }
+    Task { await self.finish() }
+  }
+
+  /// Owner transitions revoke capture instead of flushing it. A flush can call the segment
+  /// callback and must not wait on the owner-transition fence or reach a retargeted database.
+  func discardBufferedAudio() {
+    let tasks = lock.withLock { () -> (Task<Void, Never>?, Task<Void, Never>?) in
+      acceptingAudio = false
+      isRetiring = true
+      buffer.removeAll()
+      onSegments = nil
+      let tasks = (pumpTask, modelLoadTask)
+      pumpTask = nil
+      modelLoadTask = nil
+      return tasks
+    }
+    tasks.0?.cancel()
+    tasks.1?.cancel()
   }
 
   /// Awaitable flush. Cancels the pump and transcribes ALL remaining audio, delivering the
@@ -164,31 +228,41 @@ final class LocalTranscriptionService: @unchecked Sendable {
   /// this before clearing/rotating the session so the last words persist to the right
   /// conversation instead of racing the async drain.
   func finish() async {
-    pumpTask?.cancel()
+    let mustWaitForFlush = lock.withLock {
+      acceptingAudio = false
+      isRetiring = true
+      onModelLoadFailed = nil
+      return isFlushing
+    }
+    if mustWaitForFlush {
+      await withCheckedContinuation { continuation in
+        let resumeNow = lock.withLock {
+          guard isFlushing else { return true }
+          flushWaiters.append(continuation)
+          return false
+        }
+        if resumeNow { continuation.resume() }
+      }
+    }
+    let pump = pumpTask
     pumpTask = nil
-    // Stop buffering new audio first so the single drain below captures the complete buffer —
-    // capture can still be running (finishConversation rotation) and would otherwise append
-    // past the drain snapshot.
-    lock.withLock { acceptingAudio = false }
-    await drainAll()
+    pump?.cancel()
+    await pump?.value
+    let loader = modelLoadTask
+    await loader?.value
+    modelLoadTask = nil
+    await drain(force: true)
   }
 
   /// Flush every remaining buffered sample (called on stop). Waits out any in-flight window
   /// flush first, then transcribes the sub-window tail so the last words aren't dropped.
-  private func drainAll() async {
-    for _ in 0..<50 {
-      let busy = lock.withLock { isFlushing }
-      if !busy { break }
-      try? await Task.sleep(nanoseconds: 100_000_000)
-    }
-    await drain(force: true)
-  }
-
   /// Transcribe one window (or whatever remains, when `force`) and emit a segment.
   private func drain(force: Bool) async {
     guard
       let snapshot = lock.withLock({
-        guard isReady, let manager = asrManager, !isFlushing else { return nil as DrainSnapshot? }
+        guard isReady, let manager = asrManager, !isFlushing, force || !isRetiring else {
+          return nil as DrainSnapshot?
+        }
         let available = buffer.count
         // On force (stop/finish) flush whatever is left, even a sub-window tail; otherwise wait for a full window.
         let ready = available >= windowSamples || (force && available > 0)
@@ -205,7 +279,13 @@ final class LocalTranscriptionService: @unchecked Sendable {
     else { return }
 
     defer {
-      lock.withLock { isFlushing = false }
+      let waiters = lock.withLock {
+        isFlushing = false
+        let values = flushWaiters
+        flushWaiters.removeAll()
+        return values
+      }
+      waiters.forEach { $0.resume() }
     }
 
     // Only skip DEAD silence (noise floor). The previous 0.012 threshold was tuned on loud
@@ -250,7 +330,6 @@ final class LocalTranscriptionService: @unchecked Sendable {
         speaker: speakerLabel,
         speaker_id: speakerId,
         is_user: isUser,
-        person_id: nil,
         start: snapshot.startSec,
         end: snapshot.startSec + snapshot.durSec,
         translations: nil
@@ -259,7 +338,7 @@ final class LocalTranscriptionService: @unchecked Sendable {
       // segment is persisted (to the current session) before the caller rotates state.
       if self.onSegments != nil {
         let segs = [segment]
-        await MainActor.run { self.onSegments?(segs) }
+        await self.onSegments?(segs)
       }
       log(
         String(
@@ -328,3 +407,5 @@ final class LocalTranscriptionService: @unchecked Sendable {
     }
   }
 }
+
+extension LocalTranscriptionService: LocalTranscriptionAudioReceiving {}

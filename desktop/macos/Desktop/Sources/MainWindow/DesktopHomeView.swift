@@ -1327,7 +1327,7 @@ private struct PageContentView: View {
 /// so tapping a row navigates to the detail view.
 private struct ConversationsPageHost: View {
   let appState: AppState
-  @State private var selectedConversation: ServerConversation? = nil
+  @State private var selectedConversation: LocalConversation? = nil
   @ObservedObject private var conversationDetailState = ConversationDetailAutomationState.shared
 
   private var usesAvailableWidth: Bool {

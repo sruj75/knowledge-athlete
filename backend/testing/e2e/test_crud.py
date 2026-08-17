@@ -1,91 +1,12 @@
 """
 Scenario 1: CRUD Golden Path
 
-Tests basic create-read-update-delete round-trips for conversations,
-action items, and memories through the real API with fake backend services.
+Tests basic create-read-update-delete round-trips for action items and memories
+through the real API with fake backend services.
 
 Assertions focus on real route behavior and durable postconditions through the
 request → router → database → response cycle.
 """
-
-import json
-
-from fakes.firestore import seed_conversation
-
-
-class TestConversationCRUD:
-    """Conversation read/update/delete lifecycle.
-
-    The backend does not expose a generic "create conversation from JSON" API.
-    POST /v1/conversations processes an existing in-progress conversation, so
-    these CRUD tests seed Firestore directly and then exercise real read/update/delete routes.
-    """
-
-    def test_seed_and_read_conversation(self, client, auth_headers, sample_conversation_data):
-        """Seed a conversation and read it back via GET."""
-        seed_conversation("123", sample_conversation_data)
-        conv_id = sample_conversation_data["id"]
-
-        resp = client.get(f"/v1/conversations/{conv_id}", headers=auth_headers)
-        assert resp.status_code == 200, f"Read failed: {resp.text}"
-
-        body = resp.json()
-        assert body["id"] == conv_id
-        assert body["source"] == "omi"
-        assert body["structured"]["title"] == "Test Conversation"
-        assert isinstance(body["transcript_segments"], list)
-        assert len(body["transcript_segments"]) >= 1
-
-    def test_list_conversations(self, client, auth_headers, sample_conversation_data):
-        """Seed two conversations, then list them through the real API."""
-        data1 = dict(sample_conversation_data, id="conv-list-001")
-        data2 = dict(
-            sample_conversation_data,
-            id="conv-list-002",
-            structured={
-                **sample_conversation_data["structured"],
-                "title": "Second Test Conversation",
-            },
-        )
-        seed_conversation("123", data1)
-        seed_conversation("123", data2)
-
-        resp = client.get("/v1/conversations", headers=auth_headers)
-        assert resp.status_code == 200
-
-        body = resp.json()
-        assert isinstance(body, list)
-        ids = [c["id"] for c in body]
-        assert "conv-list-001" in ids
-        assert "conv-list-002" in ids
-
-    def test_update_conversation_title(self, client, auth_headers, sample_conversation_data):
-        """Update a seeded conversation's title via PATCH."""
-        conv_id = sample_conversation_data["id"]
-        seed_conversation("123", sample_conversation_data)
-
-        new_title = "Updated Title from E2E"
-        resp = client.patch(
-            f"/v1/conversations/{conv_id}/title",
-            params={"title": new_title},
-            headers=auth_headers,
-        )
-        assert resp.status_code == 200, f"Title update failed: {resp.text}"
-
-        resp = client.get(f"/v1/conversations/{conv_id}", headers=auth_headers)
-        assert resp.status_code == 200
-        assert resp.json()["structured"]["title"] == new_title
-
-    def test_delete_conversation(self, client, auth_headers, sample_conversation_data):
-        """Delete a seeded conversation and verify it's gone."""
-        conv_id = sample_conversation_data["id"]
-        seed_conversation("123", sample_conversation_data)
-
-        resp = client.delete(f"/v1/conversations/{conv_id}", headers=auth_headers)
-        assert resp.status_code in (200, 204), f"Delete failed: {resp.text}"
-
-        resp = client.get(f"/v1/conversations/{conv_id}", headers=auth_headers)
-        assert resp.status_code == 404
 
 
 class TestActionItemCRUD:
@@ -287,37 +208,6 @@ class TestMemoryCRUD:
 
 class TestDataShapePreservation:
     """Verify that round-trips preserve all expected fields."""
-
-    def test_conversation_fields_preserved(self, client, auth_headers, sample_conversation_data):
-        """All conversation fields survive seed→read round-trip."""
-        seed_conversation("123", sample_conversation_data)
-
-        resp = client.get(f"/v1/conversations/{sample_conversation_data['id']}", headers=auth_headers)
-        assert resp.status_code == 200
-
-        body = resp.json()
-        assert body["id"] == sample_conversation_data["id"]
-        assert body["source"] == sample_conversation_data["source"]
-        assert body["structured"]["title"] == sample_conversation_data["structured"]["title"]
-        assert body["transcript_segments"][0]["text"] == sample_conversation_data["transcript_segments"][0]["text"]
-        # Check core fields exist
-        for field in [
-            "id",
-            "created_at",
-            "started_at",
-            "finished_at",
-            "source",
-            "structured",
-            "transcript_segments",
-            "status",
-            "discarded",
-        ]:
-            assert field in body, f"Missing field: {field}"
-
-        # Check structured sub-fields
-        s = body["structured"]
-        for sf in ["title", "overview", "emoji", "category", "action_items", "events"]:
-            assert sf in s, f"Missing structured field: {sf}"
 
     def test_action_item_fields_preserved(self, client, auth_headers):
         """Action item fields survive create→read round-trip."""

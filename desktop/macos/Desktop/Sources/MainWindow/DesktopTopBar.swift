@@ -22,7 +22,7 @@ struct DesktopTopBar: View {
   private var navItems: [TopNavigationItem] { TopNavigationRoutes.primaryItems }
 
   private var newConversations: Int {
-    appState.conversations.filter { $0.createdAt > sinceDate && $0.deleted != true }.count
+    appState.conversations.filter { $0.createdAt > sinceDate }.count
   }
   private var newMemories: Int {
     memoriesViewModel.memories.filter { $0.createdAt > sinceDate }.count

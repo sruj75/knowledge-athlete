@@ -141,40 +141,14 @@ class TestKeywordSearchConversationIds:
             )
 
 
-class TestSpeakerFilteredConversationSearch:
+class TestConversationSearchQueryBehavior:
+    _TYPESENSE_FILTERABLE_FIELDS = {'userId', 'created_at', 'discarded', 'started_at', 'finished_at'}
+
     def _search_mock(self):
         search = MagicMock(return_value={'hits': []})
         collection = MagicMock()
         collection.documents.search = search
         return search, {'conversations': collection}
-
-    def test_named_speaker_filter_keeps_other_filters_and_stays_out_of_typesense(self):
-        # transcript_segments is not in the Typesense schema, so a speaker clause here made Typesense
-        # reject the whole query (400) and 500 the request. Speaker matching moved to the hydrated
-        # Firestore documents (conversation_matches_speaker); the other filters still go to Typesense.
-        search, collections = self._search_mock()
-        with patch.object(search_module.client, 'collections', collections, create=True):
-            search_conversations(
-                uid='uid1',
-                query='launch',
-                include_discarded=False,
-                start_date=100,
-                end_date=200,
-                speaker_id='person-1',
-            )
-
-        params = search.call_args.args[0]
-        assert params['q'] == 'launch'
-        assert params['filter_by'] == ('userId:=uid1 && discarded:=false && created_at:>=100 && created_at:<=200')
-
-    def test_user_speaker_filter_still_browses_without_a_schema_filter(self):
-        search, collections = self._search_mock()
-        with patch.object(search_module.client, 'collections', collections, create=True):
-            search_conversations(uid='uid1', query='', speaker_id='user')
-
-        params = search.call_args.args[0]
-        assert params['q'] == '*'
-        assert params['filter_by'] == 'userId:=uid1'
 
     def test_empty_query_without_structured_filter_returns_empty_without_wildcard_search(self):
         search, collections = self._search_mock()
@@ -192,6 +166,25 @@ class TestSpeakerFilteredConversationSearch:
         params = search.call_args.args[0]
         assert params['q'] == 'planning'
         assert params['filter_by'] == 'userId:=uid1'
+
+    @pytest.mark.parametrize(
+        'kwargs',
+        [
+            {},
+            {'include_discarded': False},
+            {'start_date': 100},
+            {'end_date': 200},
+            {'include_discarded': False, 'start_date': 100, 'end_date': 200},
+        ],
+    )
+    def test_every_filter_field_exists_in_the_typesense_schema(self, kwargs):
+        search, collections = self._search_mock()
+        with patch.object(search_module.client, 'collections', collections, create=True):
+            search_conversations(uid='uid1', query='planning', **kwargs)
+
+        filter_by = search.call_args.args[0]['filter_by']
+        fields = {clause.strip().split(':', 1)[0].strip() for clause in filter_by.split('&&') if clause.strip()}
+        assert fields <= self._TYPESENSE_FILTERABLE_FIELDS
 
 
 class TestCallSitesUseHybridSearch:

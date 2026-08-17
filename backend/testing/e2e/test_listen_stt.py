@@ -3,6 +3,7 @@
 import json
 import uuid
 
+from database import conversations as conversations_db
 from fakes.firestore import get_mock_firestore, read_conversation
 from fakes.stt import fake_suggested_transcript_event, install_streaming_stt_fake
 from listen_test_helpers import (
@@ -14,6 +15,7 @@ from listen_test_helpers import (
     receive_until,
     seed_listen_user,
 )
+from utils.conversations.factory import deserialize_conversation
 
 
 def test_web_listen_custom_stt_dispatches_to_stream_handler(client, monkeypatch):
@@ -140,12 +142,14 @@ def test_web_listen_custom_stt_suggested_transcript_is_emitted_and_persisted(cli
     assert getattr(conversation["status"], "value", conversation["status"]) == "in_progress"
     assert isinstance(conversation["transcript_segments"], str)
 
-    persisted = client.get(f"/v1/conversations/{conversations[0].id}", headers=auth_headers)
-    assert persisted.status_code == 200, persisted.text
-    persisted_conversation = persisted.json()
-    assert persisted_conversation["source"] == "desktop"
-    assert persisted_conversation["status"] == "in_progress"
-    assert persisted_conversation["transcript_segments"] == emitted_segments
+    decrypted = conversations_db.get_conversation(test_uid, conversations[0].id)
+    assert decrypted is not None
+    persisted_conversation = deserialize_conversation(decrypted)
+    assert persisted_conversation.source.value == "desktop"
+    assert persisted_conversation.status.value == "in_progress"
+    assert [segment.text for segment in persisted_conversation.transcript_segments] == [
+        segment["text"] for segment in emitted_segments
+    ]
 
 
 def test_web_listen_custom_stt_multichannel_keeps_receiving_transcripts(client, test_uid):
@@ -309,12 +313,14 @@ def test_web_listen_streaming_stt_happy_path_persists_segments(client, auth_head
     assert len(emitted_segments) == 1
     assert {k: emitted_segments[0][k] for k in expected_segment} == expected_segment
 
-    persisted = client.get(f"/v1/conversations/{session_event['conversation_id']}", headers=auth_headers)
-    assert persisted.status_code == 200, persisted.text
-    body = persisted.json()
-    assert body["source"] == "desktop"
-    assert body["status"] == "in_progress"
-    assert body["transcript_segments"] == emitted_segments
+    stored = conversations_db.get_conversation(test_uid, session_event["conversation_id"])
+    assert stored is not None
+    persisted_conversation = deserialize_conversation(stored)
+    assert persisted_conversation.source.value == "desktop"
+    assert persisted_conversation.status.value == "in_progress"
+    assert [segment.text for segment in persisted_conversation.transcript_segments] == [
+        segment["text"] for segment in emitted_segments
+    ]
 
 
 def test_web_listen_streaming_stt_send_failure_emits_terminal_status_then_closes(

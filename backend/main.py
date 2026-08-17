@@ -30,7 +30,6 @@ from routers import (
     trends,
     sync,
     payment,
-    conversations,
     memories,
     auth,
     action_items,
@@ -39,7 +38,6 @@ from routers import (
     updates,
     calendar_meetings,
     wrapped,
-    folders,
     goals,
     workstreams,
     announcements,
@@ -62,6 +60,7 @@ from routers import (
     memory_product,
     task_recommendations,
     conversation_finalization,
+    conversation_compute,
 )
 
 from utils.other.timeout import TimeoutMiddleware
@@ -123,7 +122,6 @@ app.add_middleware(
 app.include_router(transcribe.router)
 app.include_router(omni_relay.router)
 app.include_router(auto_model.router)
-app.include_router(conversations.router)
 app.include_router(action_items.router)
 app.include_router(candidates.router)
 app.include_router(memories.router)
@@ -134,6 +132,7 @@ app.include_router(notifications.router)
 app.include_router(agents.router)
 app.include_router(users.router)
 app.include_router(conversation_finalization.router)
+app.include_router(conversation_compute.router)
 app.include_router(trends.router)
 
 app.include_router(other.router)
@@ -147,7 +146,6 @@ app.include_router(auth.router)  # Added auth router (for the main Omi App, this
 
 app.include_router(payment.router)
 app.include_router(wrapped.router)
-app.include_router(folders.router)
 app.include_router(goals.router)
 app.include_router(workstreams.router)
 app.include_router(announcements.router)

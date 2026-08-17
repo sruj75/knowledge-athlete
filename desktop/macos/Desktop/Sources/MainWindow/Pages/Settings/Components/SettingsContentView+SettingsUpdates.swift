@@ -55,56 +55,7 @@ extension SettingsContentView {
   }
 
   func updateLanguage(_ language: String) {
-    Task {
-      // Track language change
-      AnalyticsManager.shared.languageChanged(language: language)
-      do {
-        let _ = try await APIClient.shared.updateUserLanguage(language)
-      } catch {
-        logError("Failed to update language", error: error)
-      }
-    }
-  }
-
-  func updateRecordingPermission(_ enabled: Bool) {
-    Task {
-      do {
-        try await APIClient.shared.setRecordingPermission(enabled: enabled)
-      } catch {
-        logError("Failed to update recording permission", error: error)
-      }
-    }
-  }
-
-  func updatePrivateCloudSync(_ enabled: Bool) {
-    Task {
-      do {
-        try await APIClient.shared.setPrivateCloudSync(enabled: enabled)
-      } catch {
-        logError("Failed to update private cloud sync", error: error)
-      }
-    }
-  }
-
-  func updateTranscriptionPreferences(
-    singleLanguageMode: Bool? = nil, vocabulary: String? = nil
-  ) {
-    Task {
-      do {
-        var vocabArray: [String]? = nil
-        if let vocab = vocabulary {
-          vocabArray = vocab.split(separator: ",")
-            .map { $0.trimmingCharacters(in: .whitespaces) }
-            .filter { !$0.isEmpty }
-        }
-        let _ = try await APIClient.shared.updateTranscriptionPreferences(
-          singleLanguageMode: singleLanguageMode,
-          vocabulary: vocabArray
-        )
-      } catch {
-        logError("Failed to update transcription preferences", error: error)
-      }
-    }
+    AnalyticsManager.shared.languageChanged(language: language)
   }
 
   func deleteAccountAndData() {
