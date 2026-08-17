@@ -116,8 +116,6 @@ final class SBOnboardingModel: ObservableObject {
   @Published var scrState: PermState = .ask  // screen recording
   @Published var accState: PermState = .ask  // accessibility
 
-  var launchAtLogin: Bool = LaunchAtLoginManager.shared.isEnabled
-
   /// One-shot guard: fire a single throwaway ScreenCaptureKit capture to surface
   /// the "bypass the private window picker" consent in-context once Screen
   /// Recording is granted, so the live screen demo doesn't hit that prompt.
@@ -544,12 +542,11 @@ final class SBOnboardingModel: ObservableObject {
   // MARK: capture choice → completes onboarding
 
   func capture(_ selection: CaptureSelection) {
-    let plan = OnboardingExitPolicy.plan(for: .completed(selection))
-    if let mode = plan.systemAudioCaptureMode {
-      AssistantSettings.shared.systemAudioCaptureMode = mode
-    }
-    AssistantSettings.shared.transcriptionEnabled = plan.transcriptionIntentEnabled
-    complete(startTranscriptionSession: plan.shouldStartTranscriptionSession)
+    guard !exitStarted else { return }
+    exitStarted = true
+    teardownAll()
+    let executor = exitExecutorOverride ?? makeLiveExitExecutor()
+    executor.execute(OnboardingExitPolicy.plan(for: .completed(selection)), onComplete: onComplete)
   }
 
   /// Skip the rest of onboarding and land on a neutral Home. Capture, monitoring,
@@ -569,17 +566,35 @@ final class SBOnboardingModel: ObservableObject {
         recordAnalytics: { AnalyticsManager.shared.onboardingExit($0) },
         persistOutcome: { OnboardingExitPersistence.persist($0) },
         setTranscriptionIntent: { AssistantSettings.shared.transcriptionEnabled = $0 },
-        startTranscriptionSession: { [appState] in appState.startTranscription() },
+        startTranscriptionSession: { [appState] in
+          Task { @MainActor in
+            appState.startTranscription()
+            await appState.reconcileCapture()
+          }
+        },
         stopTranscriptionSession: { [appState] in appState.stopTranscription() },
         setScreenAnalysisIntent: { AssistantSettings.shared.screenAnalysisEnabled = $0 },
         startScreenMonitoring: {
-          ProactiveAssistantsPlugin.shared.startMonitoring { _, _ in }
+          let plugin = ProactiveAssistantsPlugin.shared
+          plugin.refreshScreenRecordingPermission()
+          guard
+            OnboardingScreenMonitoringStartPolicy.shouldStart(
+              intentEnabled: AssistantSettings.shared.screenAnalysisEnabled,
+              isPaywalled: AppState.isPaywalledEffective,
+              keysAvailable: APIKeyService.keysAvailable,
+              permissionGranted: plugin.hasScreenRecordingPermission,
+              isMonitoring: plugin.isMonitoring)
+          else { return }
+          plugin.startMonitoring { _, _ in }
         },
         stopScreenMonitoring: { ProactiveAssistantsPlugin.shared.stopMonitoring() },
         requestLaunchAtLogin: { enabled in
-          if LaunchAtLoginManager.shared.setEnabled(enabled) {
-            AnalyticsManager.shared.launchAtLoginChanged(enabled: enabled, source: "sb_onboarding_exit")
-          }
+          LaunchAtLoginIntentPolicy.apply(
+            enabled ? .onboardingCompletion : .onboardingSkip,
+            setEnabled: { LaunchAtLoginManager.shared.setEnabled($0) },
+            report: { enabled, source in
+              AnalyticsManager.shared.launchAtLoginChanged(enabled: enabled, source: source)
+            })
         },
         setJustCompleted: { UserDefaults.standard.set($0, forKey: .onboardingJustCompleted) },
         prepareMainChat: { [chatProvider] in
@@ -595,68 +610,6 @@ final class SBOnboardingModel: ObservableObject {
         finishJournal: { [chatProvider] in await chatProvider.finishOnboardingJournal() },
         publishCompletion: { [appState] in appState.hasCompletedOnboarding = true },
         setSystemAudioCaptureMode: { AssistantSettings.shared.systemAudioCaptureMode = $0 }))
-  }
-
-  /// Replicates the essential real side-effects of the legacy handleOnboardingComplete().
-  private func complete(startTranscriptionSession: Bool) {
-    teardownAll()
-    AnalyticsManager.shared.onboardingCompleted()
-    chatProvider.stopAgent(owner: .mainChat)
-    UserDefaults.standard.set(true, forKey: DefaultsKey.onboardingJustCompleted)
-    UserDefaults.standard.removeObject(forKey: Self.resumeStepKey)
-    chatProvider.isOnboarding = false
-    // Greet the user in the Home chat with the personalized opener + starters.
-    chatProvider.presentOnboardingOpener()
-    ChatToolExecutor.onboardingAppState = nil
-    OnboardingChatPersistence.clear()
-    ChatDraftStore.shared.clear(.onboardingMain)
-    ChatDraftStore.shared.clear(.onboardingFloating)
-
-    onComplete?()
-    Task { [weak self] in
-      guard let self else { return }
-      await self.chatProvider.finishOnboardingJournal()
-      self.appState.hasCompletedOnboarding = true
-    }
-
-    Task {
-      await GoalGenerationService.shared.generateNow()
-    }
-    applyLaunchAtLoginSelection()
-
-    if AppBuild.usesLazyDevPermissions {
-      AssistantSettings.shared.screenAnalysisEnabled = false
-    } else {
-      AssistantSettings.shared.screenAnalysisEnabled = true
-      if !ProactiveAssistantsPlugin.shared.isMonitoring {
-        ProactiveAssistantsPlugin.shared.startMonitoring { _, _ in }
-      }
-    }
-    Task { [appState] in
-      if startTranscriptionSession { appState.startTranscription() }
-      await appState.reconcileCapture()
-    }
-    // NOTE: previously this created a "Run omi for two days…" welcome task. That
-    // seeded onboarding scaffolding into the user's real Tasks surface (there is no
-    // hidden/system-task concept to hang it on), so it's been removed — onboarding
-    // must not leave artifacts in product data.
-  }
-
-  /// Apply the user's launch-at-login selection at completion — **preserve** their
-  /// choice (`launchAtLogin`) rather than force-enabling it, and report the actual
-  /// value to analytics. Previously this unconditionally called `setEnabled(true)`,
-  /// which overrode a user who declined auto-start. The `setEnabled`/`report` seams
-  /// keep this hermetic in tests (no real login-item registration side effects).
-  func applyLaunchAtLoginSelection(
-    setEnabled: (Bool) -> Bool = { LaunchAtLoginManager.shared.setEnabled($0) },
-    report: (Bool) -> Void = {
-      AnalyticsManager.shared.launchAtLoginChanged(enabled: $0, source: "sb_onboarding_complete")
-    }
-  ) {
-    let enabled = launchAtLogin
-    if setEnabled(enabled) {
-      report(enabled)
-    }
   }
 
   /// Cancel every live task/monitor this model owns. Safe to call repeatedly.

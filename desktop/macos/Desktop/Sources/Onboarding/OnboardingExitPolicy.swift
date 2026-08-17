@@ -1,5 +1,22 @@
 import Foundation
 
+enum SBOnboardingCompletionCopy {
+  static let disclosure =
+    "Finish setup requests Launch at Login, starts listening in your chosen mode, and turns on screen analysis when permission and account access allow."
+}
+
+enum OnboardingScreenMonitoringStartPolicy {
+  static func shouldStart(
+    intentEnabled: Bool,
+    isPaywalled: Bool,
+    keysAvailable: Bool,
+    permissionGranted: Bool,
+    isMonitoring: Bool
+  ) -> Bool {
+    intentEnabled && !isPaywalled && keysAvailable && permissionGranted && !isMonitoring
+  }
+}
+
 enum OnboardingExitOutcome: Equatable {
   case skipped
   case completed(SBOnboardingModel.CaptureSelection)

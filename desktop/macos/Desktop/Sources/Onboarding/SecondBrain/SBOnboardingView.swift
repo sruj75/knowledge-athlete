@@ -546,6 +546,11 @@ struct SBOnboardingView: View {
 
   private var captureWidget: some View {
     VStack(spacing: 8) {
+      Text(SBOnboardingCompletionCopy.disclosure)
+        .geist(size: 12)
+        .foregroundStyle(sb.ink(.w6))
+        .fixedSize(horizontal: false, vertical: true)
+        .padding(.bottom, 4)
       Button {
         model.capture(SBOnboardingModel.defaultCaptureSelection)
       } label: {

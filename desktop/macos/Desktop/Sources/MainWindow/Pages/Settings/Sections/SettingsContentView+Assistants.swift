@@ -1072,9 +1072,12 @@ extension SettingsContentView {
             isOn: Binding(
               get: { launchAtLoginManager.isEnabled },
               set: { newValue in
-                if launchAtLoginManager.setEnabled(newValue) {
-                  AnalyticsManager.shared.launchAtLoginChanged(enabled: newValue, source: "user")
-                }
+                LaunchAtLoginIntentPolicy.apply(
+                  .settings(newValue),
+                  setEnabled: { launchAtLoginManager.setEnabled($0) },
+                  report: { enabled, source in
+                    AnalyticsManager.shared.launchAtLoginChanged(enabled: enabled, source: source)
+                  })
               }
             )
           )

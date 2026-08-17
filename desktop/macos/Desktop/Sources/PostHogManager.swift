@@ -226,10 +226,6 @@ extension PostHogManager {
       ])
   }
 
-  func onboardingCompleted() {
-    track("Onboarding Completed")
-  }
-
   // MARK: - Authentication Events
 
   func signInStarted(provider: String) {

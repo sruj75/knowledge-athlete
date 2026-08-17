@@ -100,10 +100,6 @@ class AnalyticsManager {
     PostHogManager.shared.track("Onboarding How Did You Hear", properties: props)
   }
 
-  func onboardingCompleted() {
-    PostHogManager.shared.onboardingCompleted()
-  }
-
   func onboardingExit(_ outcome: OnboardingExitAnalyticsOutcome) {
     PostHogManager.shared.track(outcome.eventName)
   }
