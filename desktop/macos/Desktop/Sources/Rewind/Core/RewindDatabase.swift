@@ -2608,7 +2608,6 @@ actor RewindDatabase {
     Self.registerExternalSurfaceRetirementMigration(on: &migrator)
     Self.registerConversationsLocalAuthoritativeMigration(on: &migrator)
     RewindAbandonedVideoChunkQuarantine.registerMigration(on: &migrator)
-
     try migrator.migrate(queue)
   }
 

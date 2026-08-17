@@ -2442,10 +2442,7 @@ class AuthService {
     Task {
       do {
         log("Fetching user conversations...")
-        let conversations = try await LocalAuthorityConversationDataSource().list(
-          query: ConversationListQuery(starredOnly: false, date: nil, folderId: nil),
-          offset: 0,
-          limit: 10)
+        let conversations = try await LocalAuthorityConversationDataSource().list(query: .all, offset: 0, limit: 10)
         log("Fetched \(conversations.count) conversations")
 
         for (index, conversation) in conversations.prefix(5).enumerated() {

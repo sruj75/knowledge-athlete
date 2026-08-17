@@ -11,6 +11,7 @@ covers:
   - desktop/macos/Desktop/Sources/MainWindow/Conversations/ConversationStructureEnrichment.swift
   - desktop/macos/Desktop/Sources/MainWindow/Conversations/ConversationRepository.swift
   - desktop/macos/Desktop/Sources/Rewind/Core/TranscriptionStorage+LocalAuthority.swift
+  - desktop/macos/Desktop/Sources/Rewind/Core/ActionItemStorage+ConversationAuthority.swift
   - desktop/macos/Desktop/Sources/Services/APIClient/APIClient+ConversationCompute.swift
 preconditions:
   - automation_bridge_ready

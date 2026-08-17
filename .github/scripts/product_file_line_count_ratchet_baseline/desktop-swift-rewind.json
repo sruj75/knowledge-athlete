@@ -2,11 +2,13 @@
   "files": {
     "desktop/macos/Desktop/Sources/Rewind/Core/ActionItemStorage.swift": 1668,
     "desktop/macos/Desktop/Sources/Rewind/Core/RewindDatabase.swift": 3553,
-    "desktop/macos/Desktop/Sources/Rewind/UI/RewindPage.swift": 1856
+    "desktop/macos/Desktop/Sources/Rewind/Core/TranscriptionStorage+LocalAuthority.swift": 1863,
+    "desktop/macos/Desktop/Sources/Rewind/UI/RewindPage.swift": 1841
   },
   "raise_justifications": {
     "desktop/macos/Desktop/Sources/Rewind/Core/ActionItemStorage.swift": "Add authorized updateAgentStartedAt for recurring-task investigation dedup gate.",
     "desktop/macos/Desktop/Sources/Rewind/Core/RewindDatabase.swift": "Nullable screenshot capture provenance preserves the canonical-memory device identity and prevents multi-Mac screen activity from overwriting local row IDs.",
+    "desktop/macos/Desktop/Sources/Rewind/Core/TranscriptionStorage+LocalAuthority.swift": "S-10 centralizes owner-fenced conversation transactions so lifecycle, mutation, merge, and enrichment invariants share one atomic database boundary.",
     "desktop/macos/Desktop/Sources/Rewind/UI/RewindPage.swift": "Search-result rows load a downsampled ImageIO thumbnail instead of the full-resolution screenshot, so a long results list no longer retains full-size images behind a 120x80 view."
   },
   "threshold": 1500
