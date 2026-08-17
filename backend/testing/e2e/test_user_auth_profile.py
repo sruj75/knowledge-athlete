@@ -40,7 +40,7 @@ def test_profile_410_then_seeded_profile(client, auth_headers):
     assert body["data_protection_level"] == "standard"
 
 
-def test_language_and_transcription_preferences_roundtrip(client, auth_headers):
+def test_language_roundtrip(client, auth_headers):
     language = client.get("/v1/users/language", headers=auth_headers)
     assert language.status_code == 200, language.text
     assert language.json() == {"language": None}
@@ -52,53 +52,6 @@ def test_language_and_transcription_preferences_roundtrip(client, auth_headers):
     language = client.get("/v1/users/language", headers=auth_headers)
     assert language.status_code == 200, language.text
     assert language.json() == {"language": "en"}
-
-    prefs_update = client.patch(
-        "/v1/users/transcription-preferences",
-        json={"single_language_mode": True, "vocabulary": ["Omi", "Hermes"]},
-        headers=auth_headers,
-    )
-    assert prefs_update.status_code == 200, prefs_update.text
-
-    prefs = client.get("/v1/users/transcription-preferences", headers=auth_headers)
-    assert prefs.status_code == 200, prefs.text
-    body = prefs.json()
-    assert body["language"] == "en"
-    assert body["single_language_mode"] is True
-    assert body["vocabulary"] == ["Omi", "Hermes"]
-
-
-def test_people_crud_without_speech_sample_signing(client, auth_headers):
-    create = client.post("/v1/users/people", json={"name": "Alice E2E"}, headers=auth_headers)
-    assert create.status_code == 200, create.text
-    person = create.json()
-    person_id = person["id"]
-    assert person["name"] == "Alice E2E"
-
-    duplicate = client.post("/v1/users/people", json={"name": "Alice E2E"}, headers=auth_headers)
-    assert duplicate.status_code == 200, duplicate.text
-    assert duplicate.json()["id"] == person_id
-
-    listed = client.get("/v1/users/people?include_speech_samples=false", headers=auth_headers)
-    assert listed.status_code == 200, listed.text
-    assert any(p["id"] == person_id for p in listed.json())
-
-    single = client.get(f"/v1/users/people/{person_id}?include_speech_samples=false", headers=auth_headers)
-    assert single.status_code == 200, single.text
-    assert single.json()["name"] == "Alice E2E"
-
-    rename = client.patch(f"/v1/users/people/{person_id}/name?value=Alice Renamed", headers=auth_headers)
-    assert rename.status_code == 200, rename.text
-
-    renamed = client.get(f"/v1/users/people/{person_id}?include_speech_samples=false", headers=auth_headers)
-    assert renamed.status_code == 200, renamed.text
-    assert renamed.json()["name"] == "Alice Renamed"
-
-    delete = client.delete(f"/v1/users/people/{person_id}", headers=auth_headers)
-    assert delete.status_code == 204, delete.text
-
-    missing = client.get(f"/v1/users/people/{person_id}?include_speech_samples=false", headers=auth_headers)
-    assert missing.status_code == 404
 
 
 def test_notification_assistant_and_ai_profile(client, auth_headers):

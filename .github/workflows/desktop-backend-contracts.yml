@@ -5,13 +5,12 @@ on:
     paths:
       - ".github/workflows/desktop-backend-contracts.yml"
       - "backend/testing/contracts/**"
-      - "backend/database/conversations.py"
       - "backend/database/helpers.py"
       - "backend/database/memories.py"
-      - "backend/models/**"
+      - "backend/models/memories.py"
       - "backend/test.sh"
       - "backend/utils/encryption.py"
-      - "contract_tests/**"
+      - "contract_tests/fixtures/memories.json"
       - "desktop/macos/scripts/desktop-core-harness.sh"
       - "desktop/macos/scripts/desktop-flow-lint.py"
       - "desktop/macos/scripts/desktop_flow_contract.py"
@@ -43,8 +42,6 @@ jobs:
       - name: Desktop core E2E self-check (T0)
         run: ./desktop/macos/scripts/desktop-core-harness.sh --self-check --skip-backend-contracts
 
-  # Later ownership handoff: S-10 removes the conversation cases, root
-  # conversations fixture, and backend/database/conversations.py trigger.
   # S-12 removes the memory cases, root memories fixture, and this final hosted
   # contract job/triggers; it then removes testing/contracts from the discovery
   # registry and its guard test. The independent T0 job above remains retained.

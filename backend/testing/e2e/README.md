@@ -2,12 +2,6 @@
 
 A manually runnable integration test suite that imports the **real omi FastAPI backend** and exercises selected routes against **faked or disabled external dependencies**. It is intended as a local dogfood harness and a required GitHub Actions check for backend PRs that touch `backend/**`.
 
-Current dogfood status:
-
-```text
-111 passed, 3 skipped, 24 warnings
-```
-
 The run installs a local-only socket guard before importing backend code. Any non-local DNS/socket attempt raises an assertion, so real API calls fail the harness instead of silently leaking. The runner also wraps pytest in a process-level timeout (`E2E_PYTEST_TIMEOUT`, default `120s`) so websocket/provider-seam regressions fail instead of hanging indefinitely.
 
 Run it with:
@@ -27,18 +21,18 @@ python -m pip install -r testing/e2e/requirements.txt
 
 ## Scope of v1
 
-This version proves the backend can boot hermetically and that selected core CRUD, user/account, storage, listen-routing, conversation lifecycle, retrieval/search, deterministic processing-seam, and legacy-shape paths can execute without real Firestore, Redis, GCS, Pinecone, Typesense, Google ADC, or production API keys.
+This version proves the backend can boot hermetically and that selected task/Memory CRUD, user/account, storage, listen-routing, retrieval/search, and legacy-shape paths can execute without real Firestore, Redis, GCS, Pinecone, Typesense, Google ADC, or production API keys. Conversation CRUD and processing are deliberately absent: the Mac owns its conversation archive locally, while hosted listen persistence remains an internal S-16/S-23 handoff.
 
 | Scenario | Status | Notes |
 |---|---:|---|
-| CRUD golden path | ✅ Green | Conversations are seeded directly because `POST /v1/conversations` processes an existing in-progress conversation; action items and memories use real create/update/delete routes. |
-| Deterministic conversation-processing seam | ✅ Partial | Reprocess and finalize routes, auth, model serialization, Firestore update, memory readback, and action-item queryability run with the provider-heavy processing function replaced by deterministic output. Full LLM-client wiring remains v2. |
-| Listen/STT route seam | ✅ | `/v4/web/listen` websocket auth/query parsing/custom-STT dispatch is covered; managed-STT scenarios run the real Modulate socket against a loopback peer through client emission, reconnect behavior, terminal failure, decrypted conversation readback, and finalization lifecycle. |
+| CRUD golden path | ✅ Green | Action items and memories use real create/update/delete routes. Public conversation CRUD was retired by S-10. |
+| Canonical Memory ingress | ✅ | The Memory pipeline test invokes the retained server-internal processing seam directly; it does not restore the retired public conversation processing API. |
+| Listen/STT route seam | ✅ | `/v4/web/listen` websocket auth/query parsing/custom-STT dispatch is covered; managed-STT scenarios run the real Modulate socket against a loopback peer and inspect retained server-internal persistence directly. S-16 owns final web-listen/protocol retirement. |
 | Storage / speech profile | ✅ Green | `google.cloud.storage.Client` is patched to a temp-dir fake; speech-profile presence, signed URL, sample list, and delete paths run through real routes/helpers. |
-| User/auth/profile/account | ✅ Green | Auth guard, profile, onboarding, language/transcription prefs, people CRUD, notification/assistant settings, and AI profile are covered. Account deletion additionally exercises its real admission route, durable marker, opaque Cloud Tasks payload, worker claim, required-purge retry, and idempotent redelivery against local fakes. Firebase deletion, billing lookup, Twilio, and derived-data purge stay controlled test seams. |
+| User/auth/profile/account | ✅ Green | Auth guard, profile, onboarding, general language, notification/assistant settings, and AI profile are covered. S-10 removed Mac transcription preferences and People CRUD. Account deletion additionally exercises its real admission route, durable marker, opaque Cloud Tasks payload, worker claim, required-purge retry, and idempotent redelivery against local fakes. Firebase deletion, billing lookup, Twilio, and derived-data purge stay controlled test seams. |
 | Retrieval/search | ✅ Partial | Memory, action-item, conversation summary, and transcript-chunk retrieval routes run through real public APIs with Firestore-backed records and a deterministic in-memory replacement for Pinecone/OpenAI embeddings at the `database.vector_db` client seam. Full Pinecone/Typesense service compatibility remains out of scope. |
 | Failure / edge modes | ✅ Partial | Invalid input and edge-case coverage runs. Redis-unavailable, LLM 500, and STT timeout cases are explicitly skipped or deferred until per-test failure fakes are wired. |
-| Legacy shape compatibility | ✅ Green | Exercises legacy conversation/memory shapes and deterministic fake-store repeated writes. It does not execute production migration scripts. |
+| Legacy shape compatibility | ✅ Green | Exercises retained server-internal conversation storage and legacy Memory shapes plus deterministic fake-store repeated writes. It does not expose conversation routes or execute production migration scripts. |
 
 ## What is faked or disabled
 
@@ -68,12 +62,6 @@ This version proves the backend can boot hermetically and that selected core CRU
 ```bash
 # CRUD / data shape
 bash backend/testing/e2e/run.sh -k "test_crud"
-
-# Conversation processing and state seams
-bash backend/testing/e2e/run.sh -k "conversation_processing"
-
-# Core listen/conversation lifecycle seams
-bash backend/testing/e2e/run.sh -k "core_flow_expansion"
 
 # Listen/STT websocket route seam
 bash backend/testing/e2e/run.sh -k "listen_stt"
@@ -115,10 +103,8 @@ run.sh
         │   ├── conversations.json
         │   ├── memories.json
         │   └── action_items.json
-        ├── test_core_flow_expansion.py
         ├── test_crud.py
-        ├── test_conversation_processing.py
-        ├── test_conversation_processing_deterministic.py
+        ├── test_canonical_memory_pipeline.py
         ├── test_account_deletion_cloud_tasks.py
         ├── test_failure_modes.py
         ├── test_harness_guards.py
@@ -139,26 +125,21 @@ run.sh
 5. Patch Firestore/Redis/Storage client constructors before `import main`.
 6. Import the real FastAPI app and wrap it with `TestClient`.
 7. Clear fake Firestore/Redis/Storage state around each test.
-8. Seed data where the backend has no generic create endpoint.
+8. Seed retained server-internal data only where a later-slice contract requires it.
 9. Run route-level assertions through the real app.
 
 ## Adding tests
 
-Prefer real public routes. If no route exists for setup (for example, arbitrary conversation creation), seed via `fakes.firestore.seed_*` and then exercise the route under test.
+Prefer real retained public routes. For S-16/S-23-owned listen or datastore behavior, seed through `fakes.firestore.seed_*` and inspect the direct internal seam; do not recreate a public conversation compatibility route.
 
 ```python
-from fakes.firestore import seed_conversation
+from fakes.firestore import read_conversation, seed_conversation
 
 
-def test_read_seeded_conversation(client, auth_headers, sample_conversation_data):
+def test_server_internal_conversation_fixture(sample_conversation_data):
     seed_conversation("123", sample_conversation_data)
-
-    resp = client.get(
-        f"/v1/conversations/{sample_conversation_data['id']}",
-        headers=auth_headers,
-    )
-
-    assert resp.status_code == 200
+    stored = read_conversation("123", sample_conversation_data["id"])
+    assert stored is not None
 ```
 
 ## Current limitations / v2 work

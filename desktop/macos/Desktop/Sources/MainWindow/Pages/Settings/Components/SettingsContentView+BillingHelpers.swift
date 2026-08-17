@@ -730,8 +730,7 @@ extension SettingsContentView {
     transcriptionLanguage = AssistantSettings.shared.transcriptionLanguage
     transcriptionAutoDetect = AssistantSettings.shared.transcriptionAutoDetect
     vocabularyList = AssistantSettings.shared.transcriptionVocabulary
-    let transcriptionVocabularyRevisionAtLoadStart =
-      AssistantSettings.shared.transcriptionVocabularyRevision
+    conversationLocationEnabled = AssistantSettings.shared.conversationLocationEnabled
     vadGateEnabled = AssistantSettings.shared.vadGateEnabled
     systemAudioCaptureMode = AssistantSettings.shared.systemAudioCaptureMode
 
@@ -740,21 +739,13 @@ extension SettingsContentView {
         // Load all settings in parallel
         async let dailySummaryTask = APIClient.shared.getDailySummarySettings()
         async let notificationsTask = APIClient.shared.getNotificationSettings()
-        async let languageTask = APIClient.shared.getUserLanguage()
-        async let recordingTask = APIClient.shared.getRecordingPermission()
-        async let cloudSyncTask = APIClient.shared.getPrivateCloudSync()
-        async let transcriptionTask = APIClient.shared.getTranscriptionPreferences()
 
         // Sync assistant settings from server in parallel
         async let assistantSyncTask: () = SettingsSyncManager.shared.syncFromServer()
 
-        let (dailySummary, notifications, language, recording, cloudSync, transcription, _) = try await (
+        let (dailySummary, notifications, _) = try await (
           dailySummaryTask,
           notificationsTask,
-          languageTask,
-          recordingTask,
-          cloudSyncTask,
-          transcriptionTask,
           assistantSyncTask
         )
 
@@ -769,36 +760,6 @@ extension SettingsContentView {
           UserDefaults.standard.set(
             notifications.enabled, forKey: NotificationService.masterEnabledDefaultsKey)
           UserDefaults.standard.set(notifications.frequency, forKey: NotificationService.frequencyDefaultsKey)
-          userLanguage = language.language
-          recordingPermissionEnabled = recording.enabled
-          privateCloudSyncEnabled = cloudSync.enabled
-          singleLanguageMode = transcription.singleLanguageMode
-          // Do not let a GET that began before a local/PATCH mutation overwrite
-          // the newer vocabulary when it finally completes.
-          if AssistantSettings.shared.shouldApplyTranscriptionVocabularyHydration(
-            startedAtRevision: transcriptionVocabularyRevisionAtLoadStart
-          ) {
-            vocabularyList = transcription.vocabulary
-            AssistantSettings.shared.transcriptionVocabulary = transcription.vocabulary
-          } else {
-            vocabularyList = AssistantSettings.shared.transcriptionVocabulary
-          }
-
-          // Sync backend language to local if different (backend is source of truth for language)
-          let normalizedLanguage = AssistantSettings.normalizeTranscriptionLanguageCode(language.language)
-          if !language.language.isEmpty && normalizedLanguage != transcriptionLanguage {
-            transcriptionLanguage = normalizedLanguage
-            AssistantSettings.shared.transcriptionLanguage = normalizedLanguage
-          }
-
-          // Sync single language mode from backend (inverted to auto-detect)
-          // Only update if we got a valid response and it differs
-          let backendAutoDetect =
-            !transcription.singleLanguageMode && AssistantSettings.supportsAutoDetect(normalizedLanguage)
-          if backendAutoDetect != transcriptionAutoDetect {
-            transcriptionAutoDetect = backendAutoDetect
-            AssistantSettings.shared.transcriptionAutoDetect = backendAutoDetect
-          }
 
           isLoadingSettings = false
           viewModel.markBackendSettingsLoaded()

@@ -44,10 +44,6 @@ def _deserialize_cache_value(raw: Union[bytes, str, None]) -> Any:
             return text
 
 
-def _serialize_cache_value(value: Any) -> str:
-    return json.dumps(value, default=str)
-
-
 def try_catch_decorator(func: Callable[..., T]) -> Callable[..., Optional[T]]:
     """Wrap func so any exception is logged and returns None (fail-open).
 
@@ -109,28 +105,13 @@ def get_cached_signed_url(blob_path: str) -> str:
     return signed_url.decode()
 
 
-def cache_user_geolocation(uid: str, geolocation: Dict[str, Any]) -> None:
-    # Unset optional fields are dropped rather than serialized as JSON ``null``.
-    # This key is written by the API tier and read by pusher, which deploys on its
-    # own cadence; a reader still on the pre-JSON ``eval()`` reader raises
-    # ``NameError: name 'null' is not defined`` and discards the conversation it
-    # was finalizing. Every reader rebuilds ``Geolocation`` from this dict, whose
-    # optional fields already default to ``None`` when absent.
-    present_fields = {key: value for key, value in geolocation.items() if value is not None}
-    r.set(f'users:{uid}:geolocation', _serialize_cache_value(present_fields))
-    r.expire(f'users:{uid}:geolocation', 60 * 30)  # FIXME: too much?
-
-
 def get_cached_user_geolocation(uid: str) -> Optional[Dict[str, Any]]:
+    """Read legacy hosted-listen location residue until S-23 removes finalization storage."""
     raw = r.get(f'users:{uid}:geolocation')
     if not raw:
         return None
     loaded = _deserialize_cache_value(raw)
     return cast(Dict[str, Any], loaded) if isinstance(loaded, dict) else None
-
-
-def delete_cached_user_geolocation(uid: str) -> None:
-    r.delete(f'users:{uid}:geolocation')
 
 
 def set_in_progress_conversation_id(uid: str, conversation_id: str, ttl: int = 300) -> None:

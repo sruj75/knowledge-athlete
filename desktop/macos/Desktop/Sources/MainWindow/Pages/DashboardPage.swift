@@ -228,7 +228,7 @@ struct DashboardPage: View {
   @State private var dismissedKnowsTaskIDs: Set<String> = []
   @State private var homeAskFocusPolicy = HomeAskFocusPolicy()
   @Binding var selectedIndex: Int
-  @State private var citedConversation: ServerConversation? = nil
+  @State private var citedConversation: LocalConversation? = nil
   @State private var isLoadingCitation = false
   @State private var isCaptureMonitoring = false
   @State private var isTogglingCapture = false
@@ -1281,7 +1281,7 @@ struct DashboardPage: View {
 
     Task {
       do {
-        let conversation = try await APIClient.shared.getConversation(id: citation.id)
+        let conversation = try await LocalAuthorityConversationDataSource().detail(id: citation.id)
         await MainActor.run {
           citedConversation = conversation
           isLoadingCitation = false

@@ -416,7 +416,7 @@ extension SettingsContentView {
     defer { isLoadingStats = false }
 
     do {
-      async let conversationsCount = APIClient.shared.getConversationsCount()
+      async let conversationsCount = TranscriptionStorage.shared.conversationCount(query: .all)
       async let focusCount = ProactiveStorage.shared.getTotalFocusSessionCount()
       async let filterCounts = ActionItemStorage.shared.getFilterCounts()
       async let goals = APIClient.shared.getGoals()

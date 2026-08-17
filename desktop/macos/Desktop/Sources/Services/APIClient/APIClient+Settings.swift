@@ -21,30 +21,6 @@ extension APIClient {
     return try await patch("v1/users/daily-summary-settings", body: body)
   }
 
-  /// Fetches transcription preferences
-  func getTranscriptionPreferences() async throws -> TranscriptionPreferences {
-    return try await get("v1/users/transcription-preferences")
-  }
-
-  /// Updates transcription preferences
-  func updateTranscriptionPreferences(singleLanguageMode: Bool? = nil, vocabulary: [String]? = nil)
-    async throws -> TranscriptionPreferences
-  {
-    struct UpdateRequest: Encodable {
-      let singleLanguageMode: Bool?
-      let vocabulary: [String]?
-
-      enum CodingKeys: String, CodingKey {
-        case singleLanguageMode = "single_language_mode"
-        case vocabulary
-      }
-    }
-    let body = UpdateRequest(singleLanguageMode: singleLanguageMode, vocabulary: vocabulary)
-    struct StatusResponse: Decodable { let status: String }
-    let _: StatusResponse = try await patch("v1/users/transcription-preferences", body: body)
-    return try await getTranscriptionPreferences()
-  }
-
   /// Fetches user language preference
   func getUserLanguage() async throws -> UserLanguageResponse {
     return try await get("v1/users/language")
@@ -70,40 +46,6 @@ extension APIClient {
       body: body,
       expectedOwnerId: expectedOwnerId,
       authorizationSnapshot: authorizationSnapshot)
-  }
-
-  /// Fetches recording permission status
-  func getRecordingPermission() async throws -> RecordingPermissionResponse {
-    return try await get("v1/users/store-recording-permission")
-  }
-
-  /// Sets recording permission
-  func setRecordingPermission(enabled: Bool) async throws {
-    guard let url = URL(string: baseURL + "v1/users/store-recording-permission?value=\(enabled)") else {
-      throw APIError.invalidResponse
-    }
-    var request = URLRequest(url: url)
-    request.httpMethod = "POST"
-    request.allHTTPHeaderFields = try await buildHeaders(requireAuth: true)
-
-    try await performVoidRequest(request)
-  }
-
-  /// Fetches private cloud sync setting
-  func getPrivateCloudSync() async throws -> PrivateCloudSyncResponse {
-    return try await get("v1/users/private-cloud-sync")
-  }
-
-  /// Sets private cloud sync
-  func setPrivateCloudSync(enabled: Bool) async throws {
-    guard let url = URL(string: baseURL + "v1/users/private-cloud-sync?value=\(enabled)") else {
-      throw APIError.invalidResponse
-    }
-    var request = URLRequest(url: url)
-    request.httpMethod = "POST"
-    request.allHTTPHeaderFields = try await buildHeaders(requireAuth: true)
-
-    try await performVoidRequest(request)
   }
 
   /// Fetches notification settings
@@ -161,24 +103,6 @@ struct DailySummarySettings: Codable {
   let hour: Int
 }
 
-/// Transcription preferences
-struct TranscriptionPreferences: Codable {
-  let singleLanguageMode: Bool
-  let vocabulary: [String]
-
-  enum CodingKeys: String, CodingKey {
-    case singleLanguageMode = "single_language_mode"
-    case vocabulary
-  }
-
-  init(from decoder: Decoder) throws {
-    let container = try decoder.container(keyedBy: CodingKeys.self)
-    singleLanguageMode =
-      try container.decodeIfPresent(Bool.self, forKey: .singleLanguageMode) ?? false
-    vocabulary = try container.decodeIfPresent([String].self, forKey: .vocabulary) ?? []
-  }
-}
-
 /// User language response (GET /v1/users/language)
 struct UserLanguageResponse: Codable {
   let language: String
@@ -190,24 +114,6 @@ struct UserLanguageResponse: Codable {
 struct SetUserLanguageResponse: Codable {
   let status: String
   let single_language_mode: Bool
-}
-
-/// Recording permission response
-struct RecordingPermissionResponse: Codable {
-  let enabled: Bool
-
-  enum CodingKeys: String, CodingKey {
-    case enabled = "store_recording_permission"
-  }
-}
-
-/// Private cloud sync response
-struct PrivateCloudSyncResponse: Codable {
-  let enabled: Bool
-
-  enum CodingKeys: String, CodingKey {
-    case enabled = "private_cloud_sync_enabled"
-  }
 }
 
 /// Notification settings response

@@ -63,14 +63,6 @@ struct LiveNoteRecord: Codable, FetchableRecord, PersistableRecord, Identifiable
     id = inserted.rowID
   }
 
-  // MARK: - Relationships
-
-  static let session = belongsTo(TranscriptionSessionRecord.self)
-
-  var session: QueryInterfaceRequest<TranscriptionSessionRecord> {
-    request(for: LiveNoteRecord.session)
-  }
-
   // MARK: - Conversion
 
   /// Convert to LiveNote for UI consumption

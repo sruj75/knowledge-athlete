@@ -28,7 +28,7 @@ service:route_type:METHOD:/path/{param}
 Example:
 
 ```text
-backend-main:http:GET:/v1/conversations/{conversation_id}
+backend-main:http:POST:/v1/conversation-compute/structure
 ```
 
 Do not use function names or OpenAPI operation ids as the policy identity. They are useful evidence, but they are not the governed route surface.

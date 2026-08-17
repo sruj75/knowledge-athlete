@@ -4,24 +4,16 @@ import XCTest
 
 @MainActor
 final class AssistantSettingsVocabularyTests: XCTestCase {
-  func testVocabularyHydrationGuardRejectsResponseStartedBeforeLocalMutation() {
+  func testVocabularyIsStoredLocallyWithoutHydrationState() {
     let settings = AssistantSettings.shared
     let original = settings.transcriptionVocabulary
     defer { settings.transcriptionVocabulary = original }
 
-    let revisionAtLoadStart = settings.transcriptionVocabularyRevision
-    XCTAssertTrue(
-      settings.shouldApplyTranscriptionVocabularyHydration(
-        startedAtRevision: revisionAtLoadStart
-      )
-    )
-
     settings.transcriptionVocabulary = ["[[MARKER:vocabulary-race]]"]
 
-    XCTAssertFalse(
-      settings.shouldApplyTranscriptionVocabularyHydration(
-        startedAtRevision: revisionAtLoadStart
-      )
-    )
+    XCTAssertEqual(settings.transcriptionVocabulary, ["[[MARKER:vocabulary-race]]"])
+    XCTAssertEqual(
+      UserDefaults.standard.stringArray(forKey: .transcriptionVocabulary),
+      ["[[MARKER:vocabulary-race]]"])
   }
 }

@@ -13,14 +13,13 @@ extension AppState {
     )
   }
 
-  /// Cache-first load owned by ConversationRepository. The repository emits
-  /// the cached projection immediately and quietly replaces it with server truth.
+  /// Load owner-scoped local conversations through the single repository projection.
   func loadConversations() async {
     await conversationRepository.load(query: currentConversationQuery)
     NotificationCenter.default.post(name: .conversationsPageDidLoad, object: nil)
   }
 
-  /// Server-only revalidation for activation and Cmd+R.
+  /// Refresh local authority for activation and Cmd+R.
   func refreshConversations() async {
     guard AuthState.shared.isSignedIn else { return }
     await conversationRepository.refresh(query: currentConversationQuery)
@@ -72,7 +71,7 @@ extension AppState {
 
   // MARK: - Folder Management
 
-  /// Load folders from API. `fetch` is a test seam (production uses APIClient).
+  /// Load owner-scoped local folders. `fetch` remains a test seam.
   func loadFolders(fetch: (() async throws -> [Folder])? = nil) async {
     guard !isLoadingFolders else { return }
 
@@ -84,7 +83,9 @@ extension AppState {
       if let fetch {
         fetchedFolders = try await fetch()
       } else {
-        fetchedFolders = try await APIClient.shared.getFolders()
+        fetchedFolders = try await TranscriptionStorage.shared.conversationFolders().map {
+          Folder(local: $0)
+        }
       }
       // Owner fence: a previous account's in-flight response must not
       // repopulate folders after an account switch reset them.
@@ -100,11 +101,14 @@ extension AppState {
   }
 
   /// Create a new folder
-  func createFolder(name: String, description: String? = nil, color: String? = nil) async -> Folder? {
+  func createFolder(name: String, color: String? = nil) async -> Folder? {
     let generation = ownerScopeGeneration
     do {
-      let folder = try await APIClient.shared.createFolder(
-        name: name, description: description, color: color)
+      let record = try await TranscriptionStorage.shared.createConversationFolder(
+        name: name,
+        color: color ?? "#6B7280",
+        authorization: try localConversationAuthorization())
+      let folder = Folder(local: record)
       // Fence like loadFolders: an in-flight mutation must not repopulate the
       // next account's folders after an in-place account switch reset them.
       guard generation == ownerScopeGeneration else { return nil }
@@ -121,12 +125,17 @@ extension AppState {
   func deleteFolder(_ folderId: String, moveToFolderId: String? = nil) async {
     let generation = ownerScopeGeneration
     do {
-      try await APIClient.shared.deleteFolder(id: folderId, moveToFolderId: moveToFolderId)
+      try await TranscriptionStorage.shared.deleteConversationFolder(
+        id: folderId,
+        moveConversationsTo: moveToFolderId,
+        authorization: try localConversationAuthorization())
       guard generation == ownerScopeGeneration else { return }
       folders.removeAll { $0.id == folderId }
       if selectedFolderId == folderId {
         selectedFolderId = nil
       }
+      await loadConversations()
+      await loadFolders()
       log("Folders: Deleted folder \(folderId)")
     } catch {
       logError("Folders: Failed to delete folder", error: error)
@@ -134,11 +143,16 @@ extension AppState {
   }
 
   /// Update a folder
-  func updateFolder(_ folderId: String, name: String?, description: String?, color: String?) async {
+  func updateFolder(_ folderId: String, name: String?, color: String?) async {
     let generation = ownerScopeGeneration
     do {
-      let updated = try await APIClient.shared.updateFolder(
-        id: folderId, name: name, description: description, color: color)
+      guard let existing = folders.first(where: { $0.id == folderId }) else { return }
+      let record = try await TranscriptionStorage.shared.updateConversationFolder(
+        id: folderId,
+        name: name ?? existing.name,
+        color: color ?? existing.color,
+        authorization: try localConversationAuthorization())
+      let updated = Folder(local: record, conversationCount: existing.conversationCount)
       guard generation == ownerScopeGeneration else { return }
       if let index = folders.firstIndex(where: { $0.id == folderId }) {
         folders[index] = updated
@@ -150,36 +164,58 @@ extension AppState {
   }
 
   /// Move a conversation through the single conversation repository.
-  func moveConversationToFolder(_ conversationId: String, folderId: String?) async {
+  func moveConversationToFolder(_ conversationId: String, folderId: String?) async -> Bool {
     do {
       try await conversationRepository.moveToFolder(id: conversationId, folderId: folderId)
+      await loadFolders()
       log("Folders: Moved conversation \(conversationId) to folder \(folderId ?? "none")")
+      return true
     } catch {
       logError("Folders: Failed to move conversation to folder", error: error)
+      return false
     }
   }
 
   /// Optimistically update title, then settle from the canonical mutation response.
-  func updateConversationTitle(_ conversationId: String, title: String) async {
+  func updateConversationTitle(_ conversationId: String, title: String) async -> Bool {
     do {
-      try await conversationRepository.updateTitle(id: conversationId, title: title)
+      let updated = try await conversationRepository.updateTitle(id: conversationId, title: title)
+      _ = updated
+      await loadConversations()
+      ConversationDeferredPostProcessFlow.launch(
+        conversationId: conversationId,
+        postProcess: { id in
+          await ConversationFinalizationService.shared.processCurrentWork(conversationId: id)
+        },
+        refresh: { await self.loadConversations() })
+      return true
     } catch {
       logError("Conversations: Failed to update title", error: error)
+      return false
     }
   }
 
-  func loadConversationDetail(
-    _ conversation: ServerConversation,
-    onCached: ((ServerConversation) -> Void)? = nil
-  ) async -> ServerConversation {
-    (try? await conversationRepository.detail(
-      id: conversation.id,
-      seed: conversation,
-      onCached: onCached
-    )) ?? conversation
+  func loadConversationDetail(_ conversation: LocalConversation) async -> LocalConversation {
+    (try? await conversationRepository.detail(id: conversation.id)) ?? conversation
   }
 
-  func searchConversations(_ query: String) async throws -> [ServerConversation] {
+  func loadConversationDetail(id: String) async -> LocalConversation? {
+    try? await conversationRepository.detail(id: id)
+  }
+
+  func retryConversationEnrichment(id: String) async -> LocalConversation? {
+    do {
+      _ = try await conversationRepository.retryEnrichment(id: id)
+      await ConversationFinalizationService.shared.processEnrichmentWithoutDiscard(
+        conversationId: id)
+      return try await conversationRepository.detail(id: id)
+    } catch {
+      logError("Conversations: Failed to retry local enrichment", error: error)
+      return nil
+    }
+  }
+
+  func searchConversations(_ query: String) async throws -> [LocalConversation] {
     try await conversationRepository.search(text: query)
   }
 
@@ -190,6 +226,7 @@ extension AppState {
   func deleteConversation(_ conversationId: String) async -> Bool {
     do {
       try await conversationRepository.delete(id: conversationId)
+      await loadFolders()
       return true
     } catch {
       logError("Conversations: Failed to delete conversation", error: error)
@@ -197,87 +234,78 @@ extension AppState {
     }
   }
 
-  // MARK: - People (Speaker Profiles)
-
-  /// Fetches all people from the OMI API. `fetch` is a test seam.
-  func fetchPeople(fetch: (() async throws -> [Person])? = nil) async {
-    let generation = ownerScopeGeneration
-    do {
-      let fetchedPeople: [Person]
-      if let fetch {
-        fetchedPeople = try await fetch()
-      } else {
-        fetchedPeople = try await APIClient.shared.getPeople()
-      }
-      // Owner fence: see loadFolders.
-      guard generation == ownerScopeGeneration else { return }
-      people = fetchedPeople
-      log("People: Loaded \(fetchedPeople.count) people")
-    } catch {
-      guard generation == ownerScopeGeneration else { return }
-      logError("People: Failed to load", error: error)
+  private func localConversationAuthorization() throws -> LocalMutationAuthorization {
+    guard let snapshot = RuntimeOwnerIdentity.captureAuthorizationSnapshot() else {
+      throw LocalMutationAuthorizationError.revoked
     }
+    return LocalMutationAuthorization { RuntimeOwnerIdentity.isAuthorizationCurrent(snapshot) }
   }
 
-  /// Creates a new person and adds to local cache
-  func createPerson(name: String) async -> Person? {
-    let generation = ownerScopeGeneration
-    do {
-      let person = try await APIClient.shared.createPerson(name: name)
-      guard generation == ownerScopeGeneration else { return nil }
-      people.append(person)
-      log("People: Created person '\(name)' with id \(person.id)")
-      return person
-    } catch {
-      logError("People: Failed to create person", error: error)
-      return nil
-    }
-  }
-
-  /// Assigns segments to a person or user via bulk API
+  /// Applies a conversation-scoped speaker label to one segment or all matching segments.
   func assignSpeakerToSegments(
     conversationId: String,
     segmentIds: [String],
-    personId: String?,
+    speakerName: String?,
     isUser: Bool
   ) async -> Bool {
     do {
-      try await APIClient.shared.assignSegmentsBulk(
-        conversationId: conversationId,
-        segmentIds: segmentIds,
-        isUser: isUser,
-        personId: personId
-      )
-      log("People: Assigned \(segmentIds.count) segments in conversation \(conversationId)")
-      // Update in-memory conversations list so the prop is fresh on next open
-      let idSet = Set(segmentIds)
-      if let idx = conversations.firstIndex(where: { $0.id == conversationId }) {
-        for segIdx in conversations[idx].transcriptSegments.indices
-        where idSet.contains(conversations[idx].transcriptSegments[segIdx].id) {
-          let old = conversations[idx].transcriptSegments[segIdx]
-          conversations[idx].transcriptSegments[segIdx] = TranscriptSegment(
-            id: old.id,
-            backendId: old.backendId,
-            text: old.text,
-            speaker: old.speaker,
-            isUser: isUser,
-            personId: isUser ? nil : personId,
-            start: old.start,
-            end: old.end,
-            translations: old.translations
-          )
-        }
+      guard let detail = try await TranscriptionStorage.shared.conversationDetail(id: conversationId) else {
+        return false
       }
-      // Also update local SQLite cache so changes persist across app restarts
-      try? await TranscriptionStorage.shared.updateSegmentSpeakerAssignment(
-        backendConversationId: conversationId,
-        segmentIds: segmentIds,
-        personId: personId,
-        isUser: isUser
-      )
+      let resolvedIds = segmentIds.compactMap { target -> String? in
+        if target.hasPrefix("#index:"), let index = Int(target.dropFirst(7)), detail.segments.indices.contains(index) {
+          return detail.segments[index].segmentId
+        }
+        return target
+      }
+      guard
+        let firstId = resolvedIds.first,
+        let first = detail.segments.first(where: { $0.segmentId == firstId })
+      else { return false }
+      let sameSpeakerCount = detail.segments.filter { $0.speakerId == first.speakerId }.count
+      let applyAll = Set(resolvedIds).count >= sameSpeakerCount
+      let name = isUser ? "You" : speakerName ?? "Speaker"
+      try await TranscriptionStorage.shared.setConversationSpeakerLabel(
+        conversationId: conversationId,
+        speakerId: first.speakerId,
+        name: name,
+        isUser: isUser,
+        applyToExisting: applyAll,
+        segmentIds: resolvedIds,
+        authorization: try localConversationAuthorization())
+      if detail.status != .recording {
+        await refreshConversations()
+        ConversationDeferredPostProcessFlow.launch(
+          conversationId: conversationId,
+          postProcess: { id in
+            await ConversationFinalizationService.shared.processCurrentWork(conversationId: id)
+          },
+          refresh: { await self.refreshConversations() })
+      } else {
+        await refreshConversations()
+      }
       return true
     } catch {
-      logError("People: Failed to assign segments", error: error)
+      logError("Conversations: Failed to assign a local speaker label", error: error)
+      return false
+    }
+  }
+
+  /// Save a custom name while recording and apply it to future segments with the same diarization ID.
+  func nameLiveSpeaker(speakerId: Int, name: String) async -> Bool {
+    let normalized = name.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard let conversationId = currentConversationId, !normalized.isEmpty else { return false }
+    do {
+      try await TranscriptionStorage.shared.setConversationSpeakerLabel(
+        conversationId: conversationId,
+        speakerId: speakerId,
+        name: normalized,
+        isUser: false,
+        authorization: currentSessionAuthorization ?? localConversationAuthorization())
+      liveSpeakerNames[speakerId] = normalized
+      return true
+    } catch {
+      logError("Conversations: Failed to name live speaker", error: error)
       return false
     }
   }
@@ -285,5 +313,5 @@ extension AppState {
   // MARK: - Backend Segment Handling
 
   /// Handle incoming transcript segments from Python backend `/v4/listen`.
-  /// Backend sends pre-merged segments with speaker attribution — no client-side word merging needed.
+  /// The backend is a transient segment producer; the local store normalizes and owns the durable transcript.
 }

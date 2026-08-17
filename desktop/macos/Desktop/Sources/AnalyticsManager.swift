@@ -206,30 +206,6 @@ class AnalyticsManager {
     )
   }
 
-  func conversationReconciliationFailed(
-    error: String,
-    reason: String,
-    source: String?,
-    stage: String?,
-    retryCount: Int,
-    hasBackendId: Bool,
-    hasClientConversationId: Bool,
-    segmentCount: Int?,
-    diagnostics: ReconciliationFailureDiagnostics? = nil
-  ) {
-    PostHogManager.shared.conversationReconciliationFailed(
-      error: error,
-      reason: reason,
-      source: source,
-      stage: stage,
-      retryCount: retryCount,
-      hasBackendId: hasBackendId,
-      hasClientConversationId: hasClientConversationId,
-      segmentCount: segmentCount,
-      diagnostics: diagnostics
-    )
-  }
-
   // MARK: - Permission Events
 
   func permissionRequested(permission: String, extraProperties: [String: Any] = [:]) {
@@ -477,10 +453,6 @@ class AnalyticsManager {
     PostHogManager.shared.track("Share Action", properties: props)
   }
 
-  func memoryListItemClicked(conversationId: String) {
-    PostHogManager.shared.memoryListItemClicked(conversationId: conversationId)
-  }
-
   // MARK: - Chat Events
 
   func chatMessageSent(messageLength: Int, source: String) {
@@ -529,8 +501,8 @@ class AnalyticsManager {
     PostHogManager.shared.tabChanged(tabName: tabName)
   }
 
-  func conversationDetailOpened(conversationId: String) {
-    PostHogManager.shared.conversationDetailOpened(conversationId: conversationId)
+  func conversationDetailOpened() {
+    PostHogManager.shared.conversationDetailOpened()
   }
 
   // MARK: - Chat Events (Additional)

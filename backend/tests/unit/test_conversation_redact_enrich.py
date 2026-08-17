@@ -204,36 +204,6 @@ class TestConversationToDict:
 class TestCallSitesMigrated:
     """Verify production files use redact/enrich/render instead of inline logic."""
 
-    REDACT_CONSUMERS = [
-        'routers/conversations.py',
-        'routers/folders.py',
-    ]
-
-    def test_no_inline_locked_redaction_in_routers(self):
-        """Routers should not have inline is_locked field-stripping loops."""
-        import os
-
-        backend = os.path.join(os.path.dirname(__file__), '../..')
-        for rel_path in self.REDACT_CONSUMERS:
-            path = os.path.join(backend, rel_path)
-            with open(path, encoding='utf-8') as f:
-                content = f.read()
-            # Should not have the old inline pattern of stripping action_items inside an is_locked check
-            assert (
-                "conv['structured']['action_items'] = []" not in content
-            ), f"{rel_path} still has inline locked redaction"
-
-    def test_no_as_dict_cleaned_dates_in_production_callers(self):
-        """Production callers should use render.conversation_to_dict."""
-        import os
-
-        backend = os.path.join(os.path.dirname(__file__), '../..')
-        for rel_path in ['routers/conversations.py']:
-            path = os.path.join(backend, rel_path)
-            with open(path, encoding='utf-8') as f:
-                content = f.read()
-            assert '.as_dict_cleaned_dates()' not in content, f"{rel_path} still uses .as_dict_cleaned_dates()"
-
     def test_conversation_upsert_uses_native_datetimes(self):
         """Firestore writes must pass native datetimes so created_at/started_at/finished_at
         are stored as Timestamps, not ISO strings (mixed types break sort + date filters)."""

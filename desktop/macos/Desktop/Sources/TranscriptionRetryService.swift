@@ -1,7 +1,6 @@
 import Foundation
 
-/// Background service for retrying failed transcription uploads
-/// Runs a periodic timer to check for pending/failed sessions and attempt upload
+/// Background service for recovering local finalization and enrichment work.
 class TranscriptionRetryService: @unchecked Sendable {
   static let shared = TranscriptionRetryService()
 
@@ -51,50 +50,8 @@ class TranscriptionRetryService: @unchecked Sendable {
   /// Recover pending transcriptions on app launch
   /// Call this after database initialization
   func recoverPendingTranscriptions() async {
-    log("TranscriptionRetryService: Checking for pending transcriptions...")
-
-    do {
-      // First, find any crashed sessions (status = 'recording' from previous run)
-      let crashedSessions = try await TranscriptionStorage.shared.getCrashedSessions()
-      if !crashedSessions.isEmpty {
-        log("TranscriptionRetryService: Found \(crashedSessions.count) crashed sessions")
-        for session in crashedSessions {
-          // Skip sessions that are too recent - they might be actively recording
-          // (race condition: recovery runs before segments arrive)
-          let sessionAge = Date().timeIntervalSince(session.createdAt)
-          if sessionAge < 30 {
-            log(
-              "TranscriptionRetryService: Skipping recent session \(session.id!) (age: \(String(format: "%.1f", sessionAge))s)"
-            )
-            continue
-          }
-
-          // Check if session has segments - if not, delete it
-          let segmentCount = try await TranscriptionStorage.shared.getSegmentCount(sessionId: session.id!)
-          if segmentCount == 0 {
-            log("TranscriptionRetryService: Deleting empty crashed session \(session.id!)")
-            try await TranscriptionStorage.shared.deleteSession(id: session.id!)
-          } else {
-            // Mark as pending upload so it will be retried
-            log(
-              "TranscriptionRetryService: Marking crashed session \(session.id!) as pending upload (\(segmentCount) segments)"
-            )
-            try await TranscriptionStorage.shared.finishSession(id: session.id!, reason: .crashRecovery)
-          }
-        }
-      }
-
-      await ConversationFinalizationService.shared.recoverPendingFinalizations()
-
-      // Log stats
-      let stats = try await TranscriptionStorage.shared.getStats()
-      log(
-        "TranscriptionRetryService: Stats - total=\(stats.totalSessions), pending=\(stats.pendingCount), failed=\(stats.failedCount), completed=\(stats.completedCount)"
-      )
-
-    } catch {
-      logError("TranscriptionRetryService: Recovery failed", error: error)
-    }
+    log("TranscriptionRetryService: Checking local conversation work...")
+    await ConversationFinalizationService.shared.recoverPendingFinalizations()
   }
 
   // MARK: - Retry Queue Processing
@@ -112,7 +69,7 @@ class TranscriptionRetryService: @unchecked Sendable {
     defer { isProcessing = false }
 
     do {
-      _ = try await TranscriptionStorage.shared.getStats()
+      _ = try await TranscriptionStorage.shared.conversationCount(query: .all)
       if consecutiveDBFailures > 0 || isPausedForDBErrors {
         log("TranscriptionRetryService: DB healthy again — resuming retry timer")
       }

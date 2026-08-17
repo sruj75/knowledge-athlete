@@ -53,12 +53,7 @@ private final class MemoryMutationURLCapture: URLProtocol, @unchecked Sendable {
     )!
     client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
     let payload: Data
-    if request.httpMethod == "GET", request.url?.path == "/v1/users/transcription-preferences" {
-      payload = Data(
-        "{\"single_language_mode\":false,\"vocabulary\":[\"Omi\",\"Codex\"],\"language\":\"en\"}".utf8)
-    } else {
-      payload = Data("{\"status\":\"ok\"}".utf8)
-    }
+    payload = Data("{\"status\":\"ok\"}".utf8)
     client?.urlProtocol(self, didLoad: payload)
     client?.urlProtocolDidFinishLoading(self)
   }
@@ -121,21 +116,6 @@ final class APIClientMemoryMutationRequestTests: XCTestCase {
     XCTAssertEqual(request.url?.path, "/v3/memories/memory-1")
     XCTAssertNil(request.url?.query)
     XCTAssertEqual(try requestJSON()["value"] as? String, "Updated content")
-  }
-
-  func testUpdateTranscriptionPreferencesReadsCanonicalStateAfterStatusResponse() async throws {
-    let client = await makeClient()
-
-    let saved = try await client.updateTranscriptionPreferences(vocabulary: ["Omi", "Codex"])
-
-    XCTAssertEqual(saved.vocabulary, ["Omi", "Codex"])
-    XCTAssertEqual(
-      MemoryMutationURLCapture.requests.map { "\($0.method) \($0.path)" },
-      [
-        "PATCH /v1/users/transcription-preferences",
-        "GET /v1/users/transcription-preferences",
-      ]
-    )
   }
 
   private func requestJSON() throws -> [String: Any] {

@@ -75,16 +75,9 @@ struct RewindPage: View {
     return .white
   }
 
-  /// Compute speaker names from the live speaker-person map
+  /// Conversation-scoped names for the active recording.
   private var speakerNames: [Int: String] {
-    guard let appState = appState else { return [:] }
-    var names: [Int: String] = [:]
-    for (speakerId, personId) in appState.liveSpeakerPersonMap {
-      if let person = appState.peopleById[personId] {
-        names[speakerId] = person.name
-      }
-    }
-    return names
+    appState?.liveSpeakerNames ?? [:]
   }
 
   var body: some View {
@@ -1229,22 +1222,14 @@ struct RewindPage: View {
       }
     }
     .background(OmiColors.backgroundPrimary)
-    .task {
-      await appState?.fetchPeople()
-    }
     .dismissableSheet(item: $selectedSpeakerSegment) { segment in
       if let appState = appState {
         LiveNameSpeakerSheet(
           speakerId: segment.speaker,
           sampleText: segment.text,
-          people: appState.people,
-          currentPersonId: appState.liveSpeakerPersonMap[segment.speaker],
-          onSave: { personId in
-            appState.liveSpeakerPersonMap[segment.speaker] = personId
-            selectedSpeakerSegment = nil
-          },
-          onCreatePerson: { name in
-            return await appState.createPerson(name: name)
+          currentName: appState.liveSpeakerNames[segment.speaker],
+          onSave: { name in
+            await appState.nameLiveSpeaker(speakerId: segment.speaker, name: name)
           },
           onDismiss: {
             selectedSpeakerSegment = nil

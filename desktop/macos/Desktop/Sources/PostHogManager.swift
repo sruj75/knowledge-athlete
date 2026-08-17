@@ -331,66 +331,6 @@ extension PostHogManager {
     track("Desktop Recording Error", properties: properties)
   }
 
-  func conversationReconciliationFailed(
-    error: String,
-    reason: String,
-    source: String?,
-    stage: String?,
-    retryCount: Int,
-    hasBackendId: Bool,
-    hasClientConversationId: Bool,
-    segmentCount: Int?,
-    diagnostics: ReconciliationFailureDiagnostics? = nil
-  ) {
-    let errorClass = Self.diagnosticErrorClass(error)
-    var properties: [String: Any] = [
-      "platform": "macos",
-      "error": errorClass,
-      "error_class": errorClass,
-      "recording_error_reason": reason,
-      "retry_count": retryCount,
-      "has_backend_id": hasBackendId,
-      "has_client_conversation_id": hasClientConversationId,
-    ]
-    if let source {
-      properties["recording_source"] = source
-    }
-    if let stage {
-      properties["recording_stage"] = stage
-    }
-    if let segmentCount {
-      properties["segment_count"] = segmentCount
-      properties["has_local_segments"] = segmentCount > 0
-    }
-    if let diagnostics {
-      if let sessionStatus = diagnostics.sessionStatus {
-        properties["session_status"] = sessionStatus
-      }
-      if let conversationStatus = diagnostics.conversationStatus {
-        properties["conversation_status"] = conversationStatus
-      }
-      if let finalizationReason = diagnostics.finalizationReason {
-        properties["finalization_reason"] = finalizationReason
-      }
-      properties["has_finished_at"] = diagnostics.hasFinishedAt
-      properties["has_finalization_started_at"] = diagnostics.hasFinalizationStartedAt
-      properties["has_finalization_completed_at"] = diagnostics.hasFinalizationCompletedAt
-      properties["has_input_device_name"] = diagnostics.hasInputDeviceName
-      properties["local_fallback_available"] = diagnostics.localFallbackAvailable
-      properties["local_fallback_retries_remaining"] = diagnostics.localFallbackRetriesRemaining
-      if let hasLocalSegments = diagnostics.hasLocalSegments {
-        properties["has_local_segments"] = hasLocalSegments
-      }
-      if let sessionAgeSeconds = diagnostics.sessionAgeSeconds {
-        properties["session_age_seconds"] = sessionAgeSeconds
-      }
-      if let sessionDurationSeconds = diagnostics.sessionDurationSeconds {
-        properties["session_duration_seconds"] = sessionDurationSeconds
-      }
-    }
-    track("Desktop Conversation Reconciliation Failed", properties: properties)
-  }
-
   // MARK: - Permission Events
 
   func permissionRequested(permission: String, extraProperties: [String: Any] = [:]) {
@@ -523,14 +463,6 @@ extension PostHogManager {
       ])
   }
 
-  func memoryListItemClicked(conversationId: String) {
-    track(
-      "Memory List Item Clicked",
-      properties: [
-        "conversation_id": conversationId
-      ])
-  }
-
   // MARK: - Chat Events
 
   func chatMessageSent(messageLength: Int, source: String) {
@@ -586,12 +518,8 @@ extension PostHogManager {
       ])
   }
 
-  func conversationDetailOpened(conversationId: String) {
-    track(
-      "Conversation Detail Opened",
-      properties: [
-        "conversation_id": conversationId
-      ])
+  func conversationDetailOpened() {
+    track("Conversation Detail Opened")
   }
 
   // MARK: - Chat Events (Additional)

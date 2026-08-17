@@ -201,19 +201,22 @@ do not hand-edit those paths to match a specific machine.
 | `DesktopLocalProfile` harness | Auth emulator bootstrap | Re-bootstrap emulator session; no prod invalidation side effects |
 
 ### Database Structure
-- **Firestore** (`based-hardware`): User data, conversations, action items
+- **GRDB/SQLite**: owner-scoped Mac conversation authority
+- **Firestore** (`based-hardware`): retained non-conversation user, Memory, task, and later-slice state
 - **Redis**: Caching
 - **Typesense**: Search
 
 ### User Subcollections (Firestore)
-- `users/{uid}/conversations` - Has `source` field (omi, desktop, phone, etc.)
+- `users/{uid}/conversations` - S-16/S-23 server residue; never Mac authority
 - `users/{uid}/action_items` - Tasks (no platform tracking)
 - `users/{uid}/fcm_tokens` - Token ID prefix = platform (ios_, android_, macos_)
 - `users/{uid}/memories` - Extracted memories
+- Capture creates its UUID before ingestion; reads and mutations stay local.
+- `/v4/listen` is transient; `/v1/conversation-compute/*` returns untrusted local-commit candidates. Never restore `ServerConversation`/reconciliation, People speakers, cloud playback, or removed privacy controls; test only named non-production bundles.
 
 ### Platform Detection
 - **FCM tokens**: Document ID prefix (e.g., `macos_abc123`)
-- **Conversations**: `source` field
+- **Conversations**: local capture metadata; no broad hosted `source` taxonomy
 - **Action items**: No platform tracking
 
 ### Known Limitations

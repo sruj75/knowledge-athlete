@@ -46,6 +46,7 @@ async def _stream_handler(
     call_id: Optional[str] = None,
     client_conversation_id: Optional[str] = None,
     client_device_context: Optional[ClientDeviceContext] = None,
+    transient_only: bool = False,
 ) -> None:
     """Compatibility facade for the accepted-socket listen session."""
     await run_listen_session(
@@ -67,6 +68,7 @@ async def _stream_handler(
             call_id=call_id,
             client_conversation_id=client_conversation_id,
             client_device_context=client_device_context,
+            transient_only=transient_only,
         )
     )
 
@@ -88,6 +90,7 @@ async def _listen(
     vad_gate_override: Optional[str] = None,
     call_id: Optional[str] = None,
     client_conversation_id: Optional[str] = None,
+    transient_only: bool = False,
 ) -> None:
     try:
         await websocket.accept()
@@ -111,6 +114,7 @@ async def _listen(
         vad_gate_override=vad_gate_override,
         call_id=call_id,
         client_conversation_id=client_conversation_id,
+        transient_only=transient_only,
     )
 
 
@@ -132,6 +136,7 @@ async def listen_handler(
     vad_gate: str = '',
     call_id: Optional[str] = None,
     client_conversation_id: Optional[str] = None,
+    transient_only: bool = False,
 ) -> None:
     await _listen(
         websocket,
@@ -150,6 +155,7 @@ async def listen_handler(
         vad_gate_override=vad_gate if vad_gate in ('enabled', 'disabled') else None,
         call_id=call_id,
         client_conversation_id=client_conversation_id,
+        transient_only=transient_only,
     )
 
 

@@ -238,7 +238,7 @@ class MemoriesViewModel: ObservableObject {
   @Published var isBulkOperationInProgress = false
 
   // Conversation linking state
-  @Published var linkedConversation: ServerConversation? = nil
+  @Published var linkedConversation: LocalConversation? = nil
   @Published var isLoadingConversation = false
 
   // MARK: - Cached Properties (avoid recomputation on every render)
@@ -1490,7 +1490,7 @@ class MemoriesViewModel: ObservableObject {
   func navigateToConversation(id: String) async {
     isLoadingConversation = true
     do {
-      linkedConversation = try await APIClient.shared.getConversation(id: id)
+      linkedConversation = try await LocalAuthorityConversationDataSource().detail(id: id)
     } catch {
       logError("Failed to load conversation", error: error)
     }

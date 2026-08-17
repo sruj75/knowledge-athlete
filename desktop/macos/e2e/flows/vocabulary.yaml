@@ -21,7 +21,7 @@ steps:
       result.detail.term_count: "2"
 
   - id: S2
-    name: Open Settings Transcription section after the backend mutation settles
+    name: Open Settings Transcription section after the local mutation settles
     bridge.navigate:
       target: settings
       settingsSection: Transcription
