@@ -148,8 +148,6 @@ backend-main:http:POST:/v1/staged-tasks/migrate
 backend-main:http:POST:/v1/staged-tasks/migrate-conversation-items
 backend-main:http:POST:/v1/staged-tasks/promote
 backend-main:http:POST:/v1/staged-tasks/{task_id}/promote
-backend-main:http:POST:/v1/sync/audio/{conversation_id}/precache
-backend-main:http:POST:/v1/stripe/webhook
 backend-main:http:POST:/v1/tools/action-items
 backend-main:http:POST:/v1/tools/conversations/search
 backend-main:http:POST:/v1/tools/conversations/search-chunks
@@ -159,14 +157,6 @@ backend-main:http:POST:/v1/users/analytics/memory_summary
 backend-main:http:POST:/v1/users/daily-summaries/{summary_id}/regenerate
 backend-main:http:POST:/v1/users/daily-summary-settings/test
 backend-main:http:POST:/v1/users/fcm-token
-backend-main:http:POST:/v1/users/migration/batch-requests
-backend-main:http:POST:/v1/users/migration/requests
-backend-main:http:POST:/v1/users/migration/requests/data-protection-level/finalize
-backend-main:http:POST:/v1/users/people
-backend-main:http:POST:/v1/users/private-cloud-sync
-backend-main:http:POST:/v1/users/store-recording-permission
-backend-main:http:POST:/v1/users/training-data-opt-in
-backend-main:http:POST:/v1/users/me/llm-usage
 backend-main:http:POST:/v1/wrapped/{year}/generate
 backend-main:http:POST:/v2/audio-merge-jobs/run
 backend-main:http:POST:/v2/chat-sessions
