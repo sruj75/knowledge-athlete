@@ -40,10 +40,10 @@ enum HomeSuggestionComposer {
   }
 
   /// The three chips: universal first, then personalized questions, topped up
-  /// from onboarding-scan suggestions and static fallbacks when fewer than
-  /// two personalized questions are available.
-  static func compose(personalized: [String], onboarding: [String]) -> [String] {
-    let rest = sanitize(personalized + onboarding + staticFallbacks)
+  /// from static fallbacks when fewer than two personalized questions are
+  /// available.
+  static func compose(personalized: [String]) -> [String] {
+    let rest = sanitize(personalized + staticFallbacks)
     return [universalFirstQuestion] + rest.prefix(2)
   }
 }

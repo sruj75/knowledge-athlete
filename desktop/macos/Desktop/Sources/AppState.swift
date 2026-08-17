@@ -747,8 +747,6 @@ extension Notification.Name {
   static let screenCapturePermissionLost = Notification.Name("screenCapturePermissionLost")
   /// Posted when ScreenCaptureKit is broken (TCC granted but SCK declined)
   static let screenCaptureKitBroken = Notification.Name("screenCaptureKitBroken")
-  /// Posted to show the "Try asking" popup centered over the full window
-  static let showTryAskingPopup = Notification.Name("showTryAskingPopup")
   /// Posted (automation bridge) to open the inline chat on the redesigned Home
   static let homeStageOpenChat = Notification.Name("homeStageOpenChat")
   /// Posted (automation bridge) to collapse the redesigned Home back to the hub

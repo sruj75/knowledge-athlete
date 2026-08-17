@@ -67,7 +67,6 @@ struct DesktopHomeView: View {
   // Settings sidebar state
   @State private var selectedSettingsSection: SettingsContentView.SettingsSection = .general
   @State private var highlightedSettingId: String? = nil
-  @State private var showTryAskingPopup = false
   @State private var previousIndexBeforeSettings: Int = 0
   @State private var logoPulse = false
   @State private var lastActivationRefresh = Date.distantPast
@@ -960,30 +959,6 @@ struct DesktopHomeView: View {
     .padding(OmiSpacing.md)
   }
 
-  // The "Try asking" popup overlay content, split out so the overlay closure
-  // above it stays a small expression for the type checker.
-  @ViewBuilder
-  private var tryAskingPopupOverlay: some View {
-    if showTryAskingPopup {
-      let suggestions = PostOnboardingPromptSuggestions.suggestions()
-      if !suggestions.isEmpty {
-        TryAskingPopupView(
-          suggestions: suggestions,
-          onAsk: { suggestion in
-            showTryAskingPopup = false
-            PostOnboardingPromptSuggestions.shouldShowPopup = false
-            FloatingControlBarManager.shared.openAIInputWithQuery(suggestion)
-          },
-          onDismiss: {
-            showTryAskingPopup = false
-            PostOnboardingPromptSuggestions.shouldShowPopup = false
-            PostOnboardingPromptSuggestions.isDismissed = true
-          }
-        )
-      }
-    }
-  }
-
   private var mainContentWithOverlays: some View {
     HStack(spacing: 0) {
       sidebarSlot
@@ -992,9 +967,6 @@ struct DesktopHomeView: View {
     .overlay {
       // Goal completion celebration overlay
       GoalCelebrationView()
-    }
-    .overlay {
-      tryAskingPopupOverlay
     }
   }
 
@@ -1006,9 +978,6 @@ struct DesktopHomeView: View {
   // in Swift's SwiftUI diagnostics for this well-known compiler limitation.
   private var mainContentWithNavigationNotifications: some View {
     mainContentWithOverlays
-      .onReceive(NotificationCenter.default.publisher(for: .showTryAskingPopup)) { _ in
-        showTryAskingPopup = true
-      }
       .onReceive(NotificationCenter.default.publisher(for: .navigateToRewindSettings)) { _ in
         // Set the section directly and navigate to settings
         selectedSettingsSection = .rewind

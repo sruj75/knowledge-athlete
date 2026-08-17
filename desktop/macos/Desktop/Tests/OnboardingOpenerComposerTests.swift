@@ -18,10 +18,6 @@ final class OnboardingOpenerComposerTests: XCTestCase {
     return date
   }
 
-  private func meeting(_ title: String, _ time: String) -> OnboardingMeetingBrief {
-    OnboardingMeetingBrief(title: title, time: time)
-  }
-
   // MARK: timeOfDay
 
   func testTimeOfDayBuckets() {
@@ -44,63 +40,57 @@ final class OnboardingOpenerComposerTests: XCTestCase {
     XCTAssertEqual(g, "Morning")
   }
 
-  // MARK: subline — no meetings
+  // MARK: subline
 
-  func testSublineNoMeetingsAlways() {
-    let s = OnboardingOpenerComposer.subline(mode: .always, meetings: [])
+  func testSublineAlways() {
+    let s = OnboardingOpenerComposer.subline(mode: .always)
     XCTAssertEqual(s, "I'm set up and listening. Ask me anything to start.")
   }
 
-  func testSublineNoMeetingsMeetingsOnly() {
-    let s = OnboardingOpenerComposer.subline(mode: .meetingsOnly, meetings: [])
+  func testSublineMeetingsOnly() {
+    let s = OnboardingOpenerComposer.subline(mode: .meetingsOnly)
     XCTAssertEqual(s, "I'm set up and I'll listen during your meetings. Ask me anything to start.")
-  }
-
-  // MARK: subline — with meetings
-
-  func testSublineSingleMeeting() {
-    let s = OnboardingOpenerComposer.subline(mode: .always, meetings: [meeting("Design sync", "2:00 PM")])
-    XCTAssertEqual(s, "'Design sync' at 2:00 PM today. I'll be listening.")
-  }
-
-  func testSublineMultipleMeetingsUsesCountAndFirst() {
-    let s = OnboardingOpenerComposer.subline(
-      mode: .meetingsOnly,
-      meetings: [meeting("Design sync", "2:00 PM"), meeting("1:1", "4:00 PM"), meeting("Standup", "5:00 PM")])
-    XCTAssertEqual(
-      s,
-      "3 meetings today — first is 'Design sync' at 2:00 PM. I'll listen during your meetings.")
   }
 
   // MARK: starters
 
-  func testStartersWithMeetingPrependsPrepAndCapsAtThree() {
+  func testStartersUseBaseCappedAtThree() {
     let starters = OnboardingOpenerComposer.starters(
-      meetings: [meeting("Design sync", "2:00 PM")],
-      baseStarters: ["What should I do today?", "How is Atlas going?", "What did I miss?"])
-    XCTAssertEqual(starters, ["Prep me for 'Design sync'", "What should I do today?", "How is Atlas going?"])
-  }
-
-  func testStartersWithoutMeetingUsesBaseCappedAtThree() {
-    let starters = OnboardingOpenerComposer.starters(
-      meetings: [],
       baseStarters: ["What should I do today?", "How is Atlas going?", "What did I miss?", "Extra?"])
     XCTAssertEqual(starters, ["What should I do today?", "How is Atlas going?", "What did I miss?"])
   }
 
   func testStartersDedupIsCaseInsensitiveAndDropsEmpties() {
     let starters = OnboardingOpenerComposer.starters(
-      meetings: [],
       baseStarters: ["What should I do today?", "  ", "what should i do today?", "Next step?"])
     XCTAssertEqual(starters, ["What should I do today?", "Next step?"])
   }
 
   func testComposeBundlesGreetingSublineAndStarters() {
     let content = OnboardingOpenerComposer.compose(
-      name: "Archit", mode: .always, meetings: [meeting("Design sync", "2:00 PM")],
+      name: "Archit", mode: .always,
       now: date(hour: 8), baseStarters: ["What should I do today?"], calendar: utcCalendar)
     XCTAssertEqual(content.greeting, "Morning, Archit")
-    XCTAssertTrue(content.subline.hasPrefix("'Design sync' at 2:00 PM today"))
-    XCTAssertEqual(content.starters, ["Prep me for 'Design sync'", "What should I do today?"])
+    XCTAssertEqual(content.subline, "I'm set up and listening. Ask me anything to start.")
+    XCTAssertEqual(content.starters, ["What should I do today?"])
+  }
+
+  func testRetiredSuggestionDefaultsCannotEnterTheOpener() throws {
+    let suiteName = "OnboardingOpenerComposerTests-\(UUID().uuidString)"
+    let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+    defer { defaults.removePersistentDomain(forName: suiteName) }
+    let retiredQuestion = "Private onboarding suggestion that must stay retired"
+    defaults.set([retiredQuestion], forKey: "postOnboardingPromptSuggestions")
+    defaults.set(true, forKey: "showPostOnboardingPromptPopup")
+    defaults.set(false, forKey: "dismissedPostOnboardingPromptSuggestions")
+
+    let baseStarters = HomeSuggestionComposer.compose(personalized: [])
+    let content = OnboardingOpenerComposer.compose(
+      name: "Archit", mode: .meetingsOnly,
+      now: date(hour: 8), baseStarters: baseStarters, calendar: utcCalendar)
+
+    XCTAssertFalse(content.greeting.contains(retiredQuestion))
+    XCTAssertFalse(content.subline.contains(retiredQuestion))
+    XCTAssertFalse(content.starters.contains(retiredQuestion))
   }
 }
