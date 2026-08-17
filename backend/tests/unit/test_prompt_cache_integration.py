@@ -323,8 +323,6 @@ def _get_agentic_module():
         "search_files_tool",
         "manage_daily_summary_tool",
         "create_chart_tool",
-        "get_screen_activity_tool",
-        "search_screen_activity_tool",
         "save_user_preference_tool",
         "fetch_url_tool",
     ]
@@ -555,10 +553,10 @@ def test_static_prefix_exceeds_minimum_cache_tokens():
 # ---------------------------------------------------------------------------
 
 
-def test_core_tools_has_15_retained_tools():
+def test_core_tools_has_13_retained_tools():
     """CORE_TOOLS contains only the retained first-party tools."""
     agentic_mod = _get_agentic_module()
-    assert len(agentic_mod.CORE_TOOLS) == 15, f"CORE_TOOLS has {len(agentic_mod.CORE_TOOLS)} tools, expected 15"
+    assert len(agentic_mod.CORE_TOOLS) == 13, f"CORE_TOOLS has {len(agentic_mod.CORE_TOOLS)} tools, expected 13"
 
 
 def test_core_tools_list_creates_independent_copy():
@@ -581,9 +579,9 @@ def test_core_tools_list_creates_independent_copy():
     request_local_tool.name = "request_local_tool"
     tools_a.append(request_local_tool)
 
-    assert len(tools_a) == 16
-    assert len(tools_b) == 15
-    assert len(agentic_mod.CORE_TOOLS) == 15, "CORE_TOOLS was mutated!"
+    assert len(tools_a) == 14
+    assert len(tools_b) == 13
+    assert len(agentic_mod.CORE_TOOLS) == 13, "CORE_TOOLS was mutated!"
 
 
 def test_core_tools_order_matches_exports():
@@ -605,8 +603,6 @@ def test_core_tools_order_matches_exports():
         "search_files_tool",
         "manage_daily_summary_tool",
         "create_chart_tool",
-        "get_screen_activity_tool",
-        "search_screen_activity_tool",
         "save_user_preference_tool",
         "fetch_url_tool",
     ]
@@ -615,6 +611,16 @@ def test_core_tools_order_matches_exports():
     assert (
         actual_names == expected_names
     ), f"CORE_TOOLS order mismatch.\nExpected: {expected_names}\nActual: {actual_names}"
+
+
+def test_retired_screen_activity_tools_are_not_resolvable_or_given_status_labels():
+    agentic_mod = _get_agentic_module()
+    _, tool_registry = agentic_mod._convert_tools(agentic_mod.CORE_TOOLS)
+
+    retired_names = {"get_screen_activity_tool", "search_screen_activity_tool"}
+    assert retired_names.isdisjoint(tool_registry)
+    assert agentic_mod.get_tool_display_name("get_screen_activity_tool") == "Get Screen Activity Tool"
+    assert agentic_mod.get_tool_display_name("search_screen_activity_tool") == "Search Screen Activity Tool"
 
 
 def test_core_tools_not_accidentally_duplicated():
