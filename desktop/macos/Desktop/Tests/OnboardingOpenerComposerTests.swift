@@ -80,9 +80,12 @@ final class OnboardingOpenerComposerTests: XCTestCase {
     let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
     defer { defaults.removePersistentDomain(forName: suiteName) }
     let retiredQuestion = "Private onboarding suggestion that must stay retired"
-    defaults.set([retiredQuestion], forKey: "postOnboardingPromptSuggestions")
-    defaults.set(true, forKey: "showPostOnboardingPromptPopup")
-    defaults.set(false, forKey: "dismissedPostOnboardingPromptSuggestions")
+    let retiredSuggestionsKey = "postOnboardingPromptSuggestions"
+    let retiredPopupKey = "showPostOnboardingPromptPopup"
+    let retiredDismissalKey = "dismissedPostOnboardingPromptSuggestions"
+    defaults.set([retiredQuestion], forKey: retiredSuggestionsKey)
+    defaults.set(true, forKey: retiredPopupKey)
+    defaults.set(false, forKey: retiredDismissalKey)
 
     let baseStarters = HomeSuggestionComposer.compose(personalized: [])
     let content = OnboardingOpenerComposer.compose(

@@ -27,12 +27,13 @@ final class APIClientPeopleDecodingTests: XCTestCase {
   }
 
   func testPersonToleratesLegacyMissingOptionalFields() throws {
-    let json = """
+    let json = try XCTUnwrap(
+      """
       {
         "id": "person-123",
         "name": "Alice"
       }
-      """.data(using: .utf8)!
+      """.data(using: .utf8))
 
     let person = try makeDecoder().decode(Person.self, from: json)
 
@@ -46,7 +47,8 @@ final class APIClientPeopleDecodingTests: XCTestCase {
   }
 
   func testPersonDecodesFullPeoplePayload() throws {
-    let json = """
+    let json = try XCTUnwrap(
+      """
       {
         "id": "person-456",
         "name": "Bob",
@@ -56,7 +58,7 @@ final class APIClientPeopleDecodingTests: XCTestCase {
         "speech_sample_transcripts": ["hello"],
         "speech_samples_version": 4
       }
-      """.data(using: .utf8)!
+      """.data(using: .utf8))
 
     let person = try makeDecoder().decode(Person.self, from: json)
 

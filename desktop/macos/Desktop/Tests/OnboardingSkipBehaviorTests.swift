@@ -82,15 +82,17 @@ final class OnboardingSkipBehaviorTests: XCTestCase {
     let suiteName = "OnboardingSkipBehaviorTests-\(UUID().uuidString)"
     let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
     defer { defaults.removePersistentDomain(forName: suiteName) }
-    defaults.register(defaults: ["transcriptionEnabled": true, "screenAnalysisEnabled": true])
+    let transcriptionIntentKey = "transcriptionEnabled"
+    let screenIntentKey = "screenAnalysisEnabled"
+    defaults.register(defaults: [transcriptionIntentKey: true, screenIntentKey: true])
 
     OnboardingExitPersistence.persist(.skipped, in: defaults)
-    defaults.set(false, forKey: "transcriptionEnabled")
-    defaults.set(false, forKey: "screenAnalysisEnabled")
+    defaults.set(false, forKey: transcriptionIntentKey)
+    defaults.set(false, forKey: screenIntentKey)
 
     XCTAssertEqual(OnboardingExitPersistence.outcome(in: defaults), .skipped)
-    XCTAssertFalse(defaults.bool(forKey: "transcriptionEnabled"))
-    XCTAssertFalse(defaults.bool(forKey: "screenAnalysisEnabled"))
+    XCTAssertFalse(defaults.bool(forKey: transcriptionIntentKey))
+    XCTAssertFalse(defaults.bool(forKey: screenIntentKey))
   }
 
   func testSkippedOutcomeCannotRestoreCaptureAcrossHomeLifecycleTriggers() {
@@ -124,8 +126,9 @@ final class OnboardingSkipBehaviorTests: XCTestCase {
 
   func testSettingsSyncCannotReenableScreenIntentAfterSkip() {
     let defaults = UserDefaults.standard
+    let screenIntentKey = "screenAnalysisEnabled"
     let previousOutcome = defaults.object(forKey: .onboardingExitOutcome)
-    let previousScreenIntent = defaults.object(forKey: "screenAnalysisEnabled")
+    let previousScreenIntent = defaults.object(forKey: screenIntentKey)
     defer {
       if let previousOutcome {
         defaults.set(previousOutcome, forKey: .onboardingExitOutcome)
@@ -133,9 +136,9 @@ final class OnboardingSkipBehaviorTests: XCTestCase {
         defaults.removeObject(forKey: .onboardingExitOutcome)
       }
       if let previousScreenIntent {
-        defaults.set(previousScreenIntent, forKey: "screenAnalysisEnabled")
+        defaults.set(previousScreenIntent, forKey: screenIntentKey)
       } else {
-        defaults.removeObject(forKey: "screenAnalysisEnabled")
+        defaults.removeObject(forKey: screenIntentKey)
       }
     }
     OnboardingExitPersistence.persist(.skipped)

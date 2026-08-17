@@ -40,7 +40,8 @@ final class OnboardingPersistenceClearingTests: XCTestCase {
     for key in retiredKeys {
       defaults.set("ignored-retired-value", forKey: key)
     }
-    defaults.set("normal-main-chat-value", forKey: "mainChatUserData")
+    let normalMainChatKey = "mainChatUserData"
+    defaults.set("normal-main-chat-value", forKey: normalMainChatKey)
 
     OnboardingFlow.clearPersistedState(in: defaults)
 
@@ -50,7 +51,7 @@ final class OnboardingPersistenceClearingTests: XCTestCase {
     for key in retiredKeys {
       XCTAssertEqual(defaults.string(forKey: key), "ignored-retired-value")
     }
-    XCTAssertEqual(defaults.string(forKey: "mainChatUserData"), "normal-main-chat-value")
+    XCTAssertEqual(defaults.string(forKey: normalMainChatKey), "normal-main-chat-value")
   }
 
   func testEveryReplayEntryPointUsesTheSameCaptureSafePreparation() async {
