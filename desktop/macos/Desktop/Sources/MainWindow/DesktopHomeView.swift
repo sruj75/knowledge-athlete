@@ -10,8 +10,13 @@ private struct AnySendableBox: @unchecked Sendable { let value: Any? }
 /// settings sync therefore both need to reconcile the two states instead of using
 /// a one-time readiness check as the source of truth.
 enum PersistedCaptureLaunchPolicy {
-  static func shouldStartTranscription(intentEnabled: Bool, isTranscribing: Bool) -> Bool {
-    intentEnabled && !isTranscribing
+  static func transcriptionModeToRestore(
+    intentEnabled: Bool,
+    isTranscribing: Bool,
+    persistedMode: AssistantSettings.SystemAudioCaptureMode
+  ) -> AssistantSettings.SystemAudioCaptureMode? {
+    guard intentEnabled, !isTranscribing else { return nil }
+    return persistedMode
   }
 
   static func shouldStartScreenAnalysis(intentEnabled: Bool, isMonitoring: Bool) -> Bool {
@@ -804,11 +809,12 @@ struct DesktopHomeView: View {
 
   private func restorePersistedCaptureServices(reason: String) {
     let settings = AssistantSettings.shared
-    if PersistedCaptureLaunchPolicy.shouldStartTranscription(
+    if let mode = PersistedCaptureLaunchPolicy.transcriptionModeToRestore(
       intentEnabled: settings.transcriptionEnabled,
-      isTranscribing: appState.isTranscribing
+      isTranscribing: appState.isTranscribing,
+      persistedMode: settings.systemAudioCaptureMode
     ) {
-      log("DesktopHomeView: Restoring transcription from persisted intent (\(reason))")
+      log("DesktopHomeView: Restoring transcription in \(mode.rawValue) mode from persisted intent (\(reason))")
       // Local transcription does not require remote API keys. AppState owns the
       // permission and provider checks, so it remains the single start boundary.
       appState.startTranscription()

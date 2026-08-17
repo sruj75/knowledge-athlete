@@ -4,26 +4,41 @@ import XCTest
 
 final class PersistedCaptureLaunchPolicyTests: XCTestCase {
   func testRestoresListeningFromPersistedIntentWithoutWaitingForRemoteKeys() {
-    XCTAssertTrue(
-      PersistedCaptureLaunchPolicy.shouldStartTranscription(
+    XCTAssertEqual(
+      PersistedCaptureLaunchPolicy.transcriptionModeToRestore(
         intentEnabled: true,
-        isTranscribing: false
-      )
+        isTranscribing: false,
+        persistedMode: .onlyDuringMeetings
+      ),
+      .onlyDuringMeetings
     )
   }
 
   func testDoesNotRestartListeningWhenUserDisabledItOrItIsAlreadyRunning() {
-    XCTAssertFalse(
-      PersistedCaptureLaunchPolicy.shouldStartTranscription(
+    XCTAssertNil(
+      PersistedCaptureLaunchPolicy.transcriptionModeToRestore(
         intentEnabled: false,
-        isTranscribing: false
+        isTranscribing: false,
+        persistedMode: .always
       )
     )
-    XCTAssertFalse(
-      PersistedCaptureLaunchPolicy.shouldStartTranscription(
+    XCTAssertNil(
+      PersistedCaptureLaunchPolicy.transcriptionModeToRestore(
         intentEnabled: true,
-        isTranscribing: true
+        isTranscribing: true,
+        persistedMode: .always
       )
+    )
+  }
+
+  func testRestoresContinuousListeningWithItsPersistedMode() {
+    XCTAssertEqual(
+      PersistedCaptureLaunchPolicy.transcriptionModeToRestore(
+        intentEnabled: true,
+        isTranscribing: false,
+        persistedMode: .always
+      ),
+      .always
     )
   }
 

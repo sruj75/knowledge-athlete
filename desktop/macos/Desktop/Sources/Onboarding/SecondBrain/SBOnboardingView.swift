@@ -551,7 +551,7 @@ struct SBOnboardingView: View {
       } label: {
         HStack(spacing: 4) {
           Text("● Only during meetings").geist(size: 14, weight: .semibold).foregroundStyle(sb.inkInverted)
-          Text("· from my calendar").geist(size: 12).foregroundStyle(sb.inkInverted.opacity(0.7))
+          Text("· starts when a call is detected").geist(size: 12).foregroundStyle(sb.inkInverted.opacity(0.7))
         }
         .frame(maxWidth: .infinity).padding(.vertical, 11)
         .background(RoundedRectangle(cornerRadius: 11).fill(sb.ink))

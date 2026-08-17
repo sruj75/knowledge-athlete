@@ -34,7 +34,7 @@ final class SBOnboardingModel: ObservableObject {
       }
     }
 
-    var startsListeningImmediately: Bool {
+    var capturesWithoutActiveMeeting: Bool {
       self == .continuous
     }
   }
@@ -540,8 +540,12 @@ final class SBOnboardingModel: ObservableObject {
   // MARK: capture choice → completes onboarding
 
   func capture(_ selection: CaptureSelection) {
-    AssistantSettings.shared.systemAudioCaptureMode = selection.systemAudioCaptureMode
-    complete(startListening: selection.startsListeningImmediately)
+    let plan = OnboardingExitPolicy.plan(for: .completed(selection))
+    if let mode = plan.systemAudioCaptureMode {
+      AssistantSettings.shared.systemAudioCaptureMode = mode
+    }
+    AssistantSettings.shared.transcriptionEnabled = plan.transcriptionIntentEnabled
+    complete(startTranscriptionSession: plan.shouldStartTranscriptionSession)
   }
 
   /// Skip the rest of onboarding: mark it complete and drop straight to the Chat
@@ -568,7 +572,7 @@ final class SBOnboardingModel: ObservableObject {
   }
 
   /// Replicates the essential real side-effects of the legacy handleOnboardingComplete().
-  private func complete(startListening: Bool) {
+  private func complete(startTranscriptionSession: Bool) {
     teardownAll()
     AnalyticsManager.shared.onboardingCompleted()
     chatProvider.stopAgent(owner: .mainChat)
@@ -603,7 +607,7 @@ final class SBOnboardingModel: ObservableObject {
       }
     }
     Task { [appState] in
-      if startListening { appState.startTranscription() }
+      if startTranscriptionSession { appState.startTranscription() }
       await appState.reconcileCapture()
     }
     // NOTE: previously this created a "Run omi for two days…" welcome task. That
