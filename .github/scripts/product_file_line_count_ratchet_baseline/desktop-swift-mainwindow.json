@@ -4,7 +4,7 @@
     "desktop/macos/Desktop/Sources/MainWindow/Pages/DashboardPage.swift": 2228,
     "desktop/macos/Desktop/Sources/MainWindow/Pages/MemoriesPage.swift": 3186,
     "desktop/macos/Desktop/Sources/MainWindow/Pages/TasksPage.swift": 5635,
-    "desktop/macos/Desktop/Sources/MainWindow/SidebarView.swift": 1679
+    "desktop/macos/Desktop/Sources/MainWindow/SidebarView.swift": 1676
   },
   "raise_justifications": {
     "desktop/macos/Desktop/Sources/MainWindow/Components/ChatBubble.swift": "Final-assistant Omi mark ownership and canonical expandable tool-call presentation are row-level rendering contracts that belong with bubble equality and layout. The mark remains an overlay so it cannot shift bubbles horizontally, while its owner row reserves the mark's height to prevent an empty streaming reply from clipping at the transcript live edge.",

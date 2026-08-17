@@ -2432,19 +2432,14 @@ class AuthService {
   }
 
   // MARK: - Sign Out
-
   func signOut() async throws {
     let sessionAttempt = beginSessionAttempt()
     let signingOutUserID = UserDefaults.standard.string(forKey: .authUserId)
 
     let onboardingPreparation = OnboardingReplayPreparation.live(
-      appState: AppState.current,
-      chatProvider: ChatProvider.mainInstance
-    )
+      appState: AppState.current, chatProvider: ChatProvider.mainInstance)
     let didCommit = try await OnboardingSignOutTransaction(
-      clearCurrentOwnerJournal: {
-        await onboardingPreparation.clearCurrentOwnerJournal()
-      },
+      clearCurrentOwnerJournal: { await onboardingPreparation.clearCurrentOwnerJournal() },
       commitAuthentication: { [self] in
         try await commitSignedOutSession(
           attempt: sessionAttempt,
