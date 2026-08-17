@@ -1,0 +1,3 @@
+{
+  "change": "Removed the retired cloud copy and backend search path for Rewind history while keeping Rewind data and search on this Mac"
+}

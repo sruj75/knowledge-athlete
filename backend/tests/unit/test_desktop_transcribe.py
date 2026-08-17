@@ -154,7 +154,6 @@ def _desktop_transcribe_isolation():
             'phone_calls',
             'redis_db',
             'redis_pubsub',
-            'screen_activity',
             'tasks',
             'trends',
             'user_usage',
