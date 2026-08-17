@@ -77,3 +77,22 @@ steps:
   - id: S8
     name: Repeat with the other genuine exit
     do: "Run S1-S7 a second consecutive time after reset_onboarding, choosing the other listening mode at S7. The first run uses 'Only during meetings'; the second uses 'Start listening — continuously'. Preserve both run reports as S-17 evidence."
+
+  - id: S9
+    name: Visible Skip stays neutral but does not ban later consent
+    do: "Reset again, advance to an intermediate retained stage, and use the visible global Skip action. Verify Home has no completion opener, both capture intents and owners are off, Launch at Login was not requested, and relaunch does not restore capture. Then explicitly enable Listening or Capture from Home, verify that capability can start subject to its normal permission and paywall gates, and relaunch to confirm the historical Skip fence no longer blocks that explicit choice."
+
+  - id: S10
+    name: Sign-out isolates setup state between owners
+    do: "As disposable account A, save a distinctive acquisition answer, leave a resumable setup step, and sign out. If Firebase sign-out is deliberately failed, verify A remains authenticated and capture/default/completion state is unchanged. Complete a successful sign-out, authenticate as disposable account B, and verify B starts at the promise with no A answer, resume step, setup transcript, fallback messages, opener, or running capture owner."
+    expect:
+      text_visible:
+        - "Set up Omi →"
+
+  - id: S11
+    name: Both user reset entrances share the capture-safe boundary
+    do: "Complete setup, use the confirmed Settings reset, and verify capture stops before the promise appears. Complete again, use the immediate status-menu reset, and verify the same result. For both entrances confirm only the setup journal and retained setup keys are cleared while the S1 normal-data controls survive."
+
+  - id: S12
+    name: Last-window lifecycle respects the onboarding boundary
+    do: "Before completion, close the last main window and reopen it from the status item; verify the current onboarding stage remains authoritative and capture is still off. After a genuine completion, close the last window and reopen it again; verify Home returns without replaying setup, duplicating the opener, or starting a second capture owner."

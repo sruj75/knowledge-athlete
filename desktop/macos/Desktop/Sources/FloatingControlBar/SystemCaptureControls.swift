@@ -63,6 +63,7 @@ enum SystemCaptureControls {
       return .blockedPermission
     }
 
+    OnboardingExitPersistence.recordExplicitCapabilityEnablement()
     AssistantSettings.shared.screenAnalysisEnabled = true
     ProactiveAssistantsPlugin.shared.startMonitoring { success, error in
       DispatchQueue.main.async {
@@ -83,6 +84,7 @@ enum SystemCaptureControls {
         name: .showUsageLimitPopup, object: nil, userInfo: ["reason": "trial_expired"])
       return .blockedPaywall
     }
+    if enabled { OnboardingExitPersistence.recordExplicitCapabilityEnablement() }
 
     AssistantSettings.shared.transcriptionEnabled = enabled
     // Starting/stopping transcription needs AppState, which lives on the main view.

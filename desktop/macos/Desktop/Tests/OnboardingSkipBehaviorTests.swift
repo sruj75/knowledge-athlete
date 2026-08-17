@@ -113,6 +113,29 @@ final class OnboardingSkipBehaviorTests: XCTestCase {
     }
   }
 
+  func testExplicitPostOnboardingEnablementRetiresTheHistoricalSkipFence() throws {
+    let suiteName = "OnboardingSkipBehaviorTests.explicit-enable-\(UUID().uuidString)"
+    let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+    defer { defaults.removePersistentDomain(forName: suiteName) }
+    OnboardingExitPersistence.persist(.skipped, in: defaults)
+
+    OnboardingExitPersistence.recordExplicitCapabilityEnablement(in: defaults)
+
+    XCTAssertNil(OnboardingExitPersistence.outcome(in: defaults))
+    XCTAssertEqual(
+      PersistedCaptureLaunchPolicy.transcriptionModeToRestore(
+        intentEnabled: true,
+        isTranscribing: false,
+        persistedMode: .always,
+        onboardingExitOutcome: OnboardingExitPersistence.outcome(in: defaults)),
+      .always)
+    XCTAssertTrue(
+      PersistedCaptureLaunchPolicy.shouldStartScreenAnalysis(
+        intentEnabled: true,
+        isMonitoring: false,
+        onboardingExitOutcome: OnboardingExitPersistence.outcome(in: defaults)))
+  }
+
   func testSkippedOutcomeRejectsRemoteScreenIntent() {
     XCTAssertFalse(
       SettingsSyncManager.shouldImportScreenAnalysis(

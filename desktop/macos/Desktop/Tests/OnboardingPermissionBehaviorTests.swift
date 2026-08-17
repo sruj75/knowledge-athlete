@@ -2,6 +2,10 @@ import XCTest
 
 @testable import Omi_Computer
 
+private final class PermissionGrantFlag: @unchecked Sendable {
+  var value = false
+}
+
 @MainActor
 final class OnboardingPermissionBehaviorTests: XCTestCase {
   func testInjectedNativePermissionBoundaryAdvancesWithoutStartingCapture() {
@@ -78,6 +82,32 @@ final class OnboardingPermissionBehaviorTests: XCTestCase {
     model.setPermOn("screen_recording")
 
     XCTAssertEqual(primeCount, 1)
+  }
+
+  func testLeavingPermissionStepCancelsLateGrantPollBeforeItCanPrimeCapture() async {
+    let appState = AppState()
+    let permissionGranted = PermissionGrantFlag()
+    var primeCount = 0
+    let model = SBOnboardingModel(
+      appState: appState,
+      chatProvider: ChatProvider(),
+      stepResolver: { $0 },
+      permissionRefresher: { _ in },
+      permissionGranted: { _ in permissionGranted.value },
+      screenCapturePrimer: { primeCount += 1 },
+      onComplete: nil)
+    model.step = .screen
+
+    model.pollPermission("screen_recording")
+    XCTAssertNotNil(model.pollTasks["screen_recording"])
+
+    model.advance(userAnswer: "Skip", to: .accessibility)
+    permissionGranted.value = true
+    await Task.yield()
+
+    XCTAssertNil(model.pollTasks["screen_recording"])
+    XCTAssertEqual(primeCount, 0)
+    XCTAssertEqual(model.scrState, .ask)
   }
 
   func testAccessibilityCopyNamesGlobalPTTAndPreciseRewindFocusTargeting() throws {

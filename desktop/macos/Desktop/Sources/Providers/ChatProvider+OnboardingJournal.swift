@@ -14,6 +14,21 @@ extension ChatProvider {
     return await kernelTurnProjection.clear(surface: surface, deleteBackend: false)
   }
 
+  /// Clear every in-memory setup projection before replay or owner handoff.
+  /// The setup journal is local-only, and none of its transcript, fallback, or
+  /// personalized opener may survive into another authenticated owner.
+  func resetOnboardingProjectionForReplay() {
+    if isOnboarding, let fallbackMessages = preOnboardingMainMessages {
+      messages = fallbackMessages
+      resetMessagesPagination()
+    }
+    isOnboarding = false
+    preOnboardingMainMessages = nil
+    onboardingOpener = nil
+    ChatDraftStore.shared.clear(.onboardingMain)
+    ChatDraftStore.shared.clear(.onboardingFloating)
+  }
+
   /// Leave the setup-only chat surface, purge its local transcript, and restore
   /// the authoritative main-chat projection before the product UI is revealed.
   func finishOnboardingJournal() async {

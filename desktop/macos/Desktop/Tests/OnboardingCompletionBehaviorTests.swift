@@ -72,7 +72,16 @@ final class OnboardingCompletionBehaviorTests: XCTestCase {
       XCTAssertEqual(effects.filter { $0 == .justCompleted(true) }.count, 1)
       XCTAssertEqual(effects.filter { $0 == .openerPresented }.count, 1)
       XCTAssertEqual(effects.filter { $0 == .journalFinishedAndMainReloaded }.count, 1)
-      XCTAssertEqual(effects.last, .completionPublished)
+      XCTAssertEqual(
+        effects,
+        [
+          .analytics(.completed), .persisted(.completed),
+          .mode(selection.systemAudioCaptureMode), .transcriptionIntent(true),
+          .screenIntent(true), .launchAtLogin(true), .transcriptionStarted,
+          .monitoringStarted, .resumeCleared, .journalFinishedAndMainReloaded,
+          .mainChatPrepared, .openerPresented, .justCompleted(true),
+          .completionPublished,
+        ])
     }
   }
 

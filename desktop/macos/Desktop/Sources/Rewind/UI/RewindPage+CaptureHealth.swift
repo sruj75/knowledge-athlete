@@ -45,6 +45,7 @@ extension RewindPage {
       ScreenCaptureService.requestScreenRecordingAccessAndOpenSettings()
       return
     }
+    if enabled { OnboardingExitPersistence.recordExplicitCapabilityEnablement() }
 
     isTogglingMonitoring = true
     isMonitoring = enabled

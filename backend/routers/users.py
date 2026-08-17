@@ -48,7 +48,6 @@ from models.geolocation import Geolocation, GeolocationInput, validated_geolocat
 from utils.conversations.factory import deserialize_conversation, deserialize_conversations
 from models.other import Person, CreatePerson
 from models.shared import StatusResponse
-from typing import Optional
 from models.user_usage import UserUsageResponse, UsagePeriod
 from datetime import datetime, time, timedelta
 
@@ -139,7 +138,7 @@ class UserStatusResponse(BaseModel):
 
 
 class UserProfileResponse(BaseModel):
-    model_config = ConfigDict(extra='ignore')
+    model_config = ConfigDict(extra='allow')
 
     uid: str
     email: Optional[str] = None
@@ -271,9 +270,9 @@ def get_user_profile_endpoint(uid: str = Depends(auth.get_current_user_uid)):
     profile = get_user_profile(uid)
     if not profile:
         raise HTTPException(status_code=410, detail="User not found")
-    return UserProfileResponse.model_validate({**profile, 'uid': profile.get('uid', uid)}).model_dump(
-        exclude_unset=True
-    )
+    profile.pop('name', None)
+    profile.setdefault('uid', uid)
+    return profile
 
 
 @router.delete('/v1/users/delete-account', tags=['v1'], response_model=UserStatusResponse)

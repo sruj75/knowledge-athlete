@@ -418,7 +418,6 @@ final class SBOnboardingModel: ObservableObject {
   func goBack() {
     guard let previous = step.previous else { return }
     teardownStep(step)
-    cancelPermissionPollForCurrentStep()
     rehydrateDrafts()
     step = previous
     UserDefaults.standard.set(previous.rawValue, forKey: Self.resumeStepKey)
@@ -431,6 +430,7 @@ final class SBOnboardingModel: ObservableObject {
 
   /// Tear down any live monitors/tasks a step installed before leaving it.
   private func teardownStep(_ step: Step) {
+    cancelPermissionPoll(for: step)
     switch step {
     case .shortcutOpen, .shortcutTalk: disarmShortcutSummon()
     case .screenDemo: teardownVoiceDemo()
@@ -442,7 +442,7 @@ final class SBOnboardingModel: ObservableObject {
   /// that page while macOS is still open, stop the stale poll so a late grant
   /// cannot overwrite the newly displayed page's state. The system grant itself
   /// is still observed if the user returns to this page.
-  private func cancelPermissionPollForCurrentStep() {
+  private func cancelPermissionPoll(for step: Step) {
     guard let key = permissionKey(for: step) else { return }
     pollTasks[key]?.cancel()
     pollTasks[key] = nil
@@ -561,10 +561,8 @@ final class SBOnboardingModel: ObservableObject {
         persistOutcome: { OnboardingExitPersistence.persist($0) },
         setTranscriptionIntent: { AssistantSettings.shared.transcriptionEnabled = $0 },
         startTranscriptionSession: { [appState] in
-          Task { @MainActor in
-            appState.startTranscription()
-            await appState.reconcileCapture()
-          }
+          appState.startTranscription()
+          await appState.reconcileCapture()
         },
         stopTranscriptionSession: { [appState] in appState.stopTranscription() },
         setScreenAnalysisIntent: { AssistantSettings.shared.screenAnalysisEnabled = $0 },

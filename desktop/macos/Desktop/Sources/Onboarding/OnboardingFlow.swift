@@ -30,6 +30,24 @@ struct OnboardingReplayPlan: Equatable, Sendable {
   let shouldRestart: Bool
 }
 
+/// Sign-out clears the setup-only journal while the current owner's lease is
+/// valid, but delays capture/default/projection cleanup until auth commits.
+/// A failed Firebase sign-out therefore leaves the still-authenticated session
+/// usable instead of partially resetting it.
+@MainActor
+struct OnboardingSignOutTransaction {
+  let clearCurrentOwnerJournal: () async -> Void
+  let commitAuthentication: () async throws -> Bool
+  let applyPostCommitCleanup: () async -> Void
+
+  func execute() async throws -> Bool {
+    await clearCurrentOwnerJournal()
+    guard try await commitAuthentication() else { return false }
+    await applyPostCommitCleanup()
+    return true
+  }
+}
+
 enum OnboardingReplayPolicy {
   static func plan(for source: OnboardingReplaySource) -> OnboardingReplayPlan {
     OnboardingReplayPlan(shouldRestart: source != .signOut)
@@ -48,19 +66,28 @@ struct OnboardingReplayPreparation {
     let resetCompletion: () -> Void
     let clearPersistedState: () -> Void
     let clearOnboardingJournal: () async -> Void
+    let resetOnboardingProjection: () -> Void
   }
 
   let effects: Effects
 
-  func execute(source: OnboardingReplaySource) async -> OnboardingReplayPlan {
+  func execute(
+    source: OnboardingReplaySource,
+    journalAlreadyCleared: Bool = false
+  ) async -> OnboardingReplayPlan {
     effects.setTranscriptionIntent(false)
     effects.stopTranscription()
     effects.setScreenAnalysisIntent(false)
     effects.stopScreenMonitoring()
     effects.resetCompletion()
     effects.clearPersistedState()
-    await effects.clearOnboardingJournal()
+    if !journalAlreadyCleared { await clearCurrentOwnerJournal() }
+    effects.resetOnboardingProjection()
     return OnboardingReplayPolicy.plan(for: source)
+  }
+
+  func clearCurrentOwnerJournal() async {
+    await effects.clearOnboardingJournal()
   }
 
   static func live(appState: AppState?, chatProvider: ChatProvider?) -> Self {
@@ -85,7 +112,8 @@ struct OnboardingReplayPreparation {
           } else {
             log("Failed to clear onboarding journal")
           }
-        }))
+        },
+        resetOnboardingProjection: { chatProvider?.resetOnboardingProjectionForReplay() }))
   }
 }
 

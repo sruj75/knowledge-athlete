@@ -2437,26 +2437,31 @@ class AuthService {
     let sessionAttempt = beginSessionAttempt()
     let signingOutUserID = UserDefaults.standard.string(forKey: .authUserId)
 
-    // Clear the current owner's setup journal while its owner lease is still
-    // valid. The shared boundary also disables capture before any replay state
-    // changes, so sign-out cannot leave either capture mode running.
-    _ = await OnboardingReplayPreparation.live(
+    let onboardingPreparation = OnboardingReplayPreparation.live(
       appState: AppState.current,
       chatProvider: ChatProvider.mainInstance
-    ).execute(source: .signOut)
-
-    guard
-      try await commitSignedOutSession(
-        attempt: sessionAttempt,
-        phase: .signedOut,
-        beforeClearingCredentials: { [self] in
-          if let auth = configuredFirebaseAuth() {
-            try auth.signOut()
-          } else {
-            log("AuthService: Firebase SDK unavailable; signing out the REST-backed session")
-          }
-        })
-    else {
+    )
+    let didCommit = try await OnboardingSignOutTransaction(
+      clearCurrentOwnerJournal: {
+        await onboardingPreparation.clearCurrentOwnerJournal()
+      },
+      commitAuthentication: { [self] in
+        try await commitSignedOutSession(
+          attempt: sessionAttempt,
+          phase: .signedOut,
+          beforeClearingCredentials: { [self] in
+            if let auth = configuredFirebaseAuth() {
+              try auth.signOut()
+            } else {
+              log("AuthService: Firebase SDK unavailable; signing out the REST-backed session")
+            }
+          })
+      },
+      applyPostCommitCleanup: {
+        _ = await onboardingPreparation.execute(source: .signOut, journalAlreadyCleared: true)
+      }
+    ).execute()
+    guard didCommit else {
       log("AuthService: stale sign-out completion ignored")
       return
     }

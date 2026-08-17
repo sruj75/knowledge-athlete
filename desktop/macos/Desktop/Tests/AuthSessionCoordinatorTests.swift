@@ -85,7 +85,9 @@ final class AuthSessionCoordinatorTests: XCTestCase {
     // Nuclear sign-out uses the same capture-safe setup boundary as replay;
     // light invalidation must not.
     XCTAssertTrue(signOutSnippet.contains("OnboardingReplayPreparation.live("))
-    XCTAssertTrue(signOutSnippet.contains("execute(source: .signOut)"))
+    XCTAssertTrue(signOutSnippet.contains("OnboardingSignOutTransaction("))
+    XCTAssertTrue(signOutSnippet.contains("clearCurrentOwnerJournal"))
+    XCTAssertTrue(signOutSnippet.contains("execute(source: .signOut, journalAlreadyCleared: true)"))
     XCTAssertTrue(signOutSnippet.contains("userDidSignOut"))
 
     let invalidateRange = authSource.range(of: "func performLightSessionInvalidation()")

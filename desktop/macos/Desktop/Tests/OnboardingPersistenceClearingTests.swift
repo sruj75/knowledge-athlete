@@ -12,6 +12,7 @@ final class OnboardingPersistenceClearingTests: XCTestCase {
     case completionReset
     case defaultsCleared
     case onboardingJournalCleared
+    case onboardingProjectionReset
   }
 
   func testPersistedStateKeysContainOnlyRetainedSetupState() {
@@ -65,7 +66,8 @@ final class OnboardingPersistenceClearingTests: XCTestCase {
           stopScreenMonitoring: { effects.append(.monitoringStopped) },
           resetCompletion: { effects.append(.completionReset) },
           clearPersistedState: { effects.append(.defaultsCleared) },
-          clearOnboardingJournal: { effects.append(.onboardingJournalCleared) }))
+          clearOnboardingJournal: { effects.append(.onboardingJournalCleared) },
+          resetOnboardingProjection: { effects.append(.onboardingProjectionReset) }))
 
       let plan = await preparation.execute(source: source)
 
@@ -74,10 +76,49 @@ final class OnboardingPersistenceClearingTests: XCTestCase {
         [
           .transcriptionIntent(false), .transcriptionStopped,
           .screenIntent(false), .monitoringStopped,
-          .completionReset, .defaultsCleared, .onboardingJournalCleared,
+          .completionReset, .defaultsCleared, .onboardingJournalCleared, .onboardingProjectionReset,
         ])
       XCTAssertEqual(plan.shouldRestart, source != .signOut)
     }
+  }
+
+  func testFailedAuthCommitDoesNotApplyDestructiveSignOutCleanup() async {
+    enum SignOutFailure: Error { case injected }
+    var effects: [String] = []
+    let transaction = OnboardingSignOutTransaction(
+      clearCurrentOwnerJournal: { effects.append("journal") },
+      commitAuthentication: {
+        effects.append("commit")
+        throw SignOutFailure.injected
+      },
+      applyPostCommitCleanup: { effects.append("cleanup") })
+
+    do {
+      _ = try await transaction.execute()
+      XCTFail("Injected sign-out failure must be surfaced")
+    } catch SignOutFailure.injected {
+      // The owner-scoped setup journal is cleared while its lease is valid, but
+      // capture/default/completion cleanup cannot run until auth commits.
+    } catch {
+      XCTFail("Unexpected error: \(error)")
+    }
+
+    XCTAssertEqual(effects, ["journal", "commit"])
+  }
+
+  func testReplayProjectionCannotLeakIntoTheNextOwner() {
+    let provider = ChatProvider()
+    provider.isOnboarding = true
+    provider.preOnboardingMainMessages = []
+    provider.presentOnboardingOpener()
+
+    provider.resetOnboardingProjectionForReplay()
+
+    XCTAssertFalse(provider.isOnboarding)
+    XCTAssertNil(provider.preOnboardingMainMessages)
+    XCTAssertNil(provider.onboardingOpener)
+    provider.beginOnboardingJournal()
+    XCTAssertTrue(provider.isOnboarding)
   }
 
   func testSecondAccountDoesNotSeeThePreviousSetupAnswer() throws {

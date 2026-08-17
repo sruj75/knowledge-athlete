@@ -47,3 +47,19 @@ steps:
   - id: S6
     name: Two-run absence and isolation gate
     do: "Across both reports verify no role, connector, Full Disk Access, BYOK, Goal, or Tasks stage appeared; permission grants never started capture before completion; and the second run did not inherit the first run's acquisition or resume answer."
+
+  - id: S7
+    name: Exercise the neutral Skip exit
+    do: "Reset, advance to an intermediate stage, and choose the visible global Skip. Verify Home has no opener, both capture owners and intents are off, Launch at Login was not requested, and relaunch stays neutral. Explicitly enable one capability from Home and verify the old Skip fence no longer overrides that user choice."
+
+  - id: S8
+    name: Compare both user reset entrances
+    do: "After separate genuine completions, run the confirmed Settings reset and the immediate status-menu reset. Each must stop capture before replay, preserve the S1 normal-data controls, clear only setup state, and return to the promise."
+
+  - id: S9
+    name: Prove owner isolation through sign-out
+    do: "As account A, save a distinctive setup answer and resume step. Inject one failed Firebase sign-out and verify A remains usable without destructive capture/default/completion cleanup; then sign out successfully and authenticate as account B. Verify B sees no A answer, resume stage, setup transcript, fallback messages, opener, or running capture owner."
+
+  - id: S10
+    name: Verify last-window behavior before and after completion
+    do: "During setup, close and reopen the last main window from the status item; verify the current stage returns and capture remains off. After completion, repeat the close and reopen; verify Home returns without replaying setup, duplicating the opener, or creating a second capture owner."

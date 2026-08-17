@@ -50,6 +50,14 @@ enum OnboardingExitPersistence {
   static func outcome(in defaults: UserDefaults = .standard) -> OnboardingPersistedExitOutcome? {
     defaults.string(forKey: .onboardingExitOutcome).flatMap(OnboardingPersistedExitOutcome.init(rawValue:))
   }
+
+  /// Skip is a restoration fence, not a permanent capability ban. Retire it
+  /// only when the user explicitly enables capture from a product control;
+  /// remote settings and launch restoration must continue to respect it.
+  static func recordExplicitCapabilityEnablement(in defaults: UserDefaults = .standard) {
+    guard outcome(in: defaults) == .skipped else { return }
+    defaults.removeObject(forKey: .onboardingExitOutcome)
+  }
 }
 
 struct OnboardingExitPlan: Equatable {
@@ -111,7 +119,7 @@ struct OnboardingExitExecutor {
     let recordAnalytics: @MainActor (OnboardingExitAnalyticsOutcome) -> Void
     let persistOutcome: @MainActor (OnboardingPersistedExitOutcome) -> Void
     let setTranscriptionIntent: @MainActor (Bool) -> Void
-    let startTranscriptionSession: @MainActor () -> Void
+    let startTranscriptionSession: @MainActor () async -> Void
     let stopTranscriptionSession: @MainActor () -> Void
     let setScreenAnalysisIntent: @MainActor (Bool) -> Void
     let startScreenMonitoring: @MainActor () -> Void
@@ -129,7 +137,7 @@ struct OnboardingExitExecutor {
       recordAnalytics: @escaping @MainActor (OnboardingExitAnalyticsOutcome) -> Void,
       persistOutcome: @escaping @MainActor (OnboardingPersistedExitOutcome) -> Void,
       setTranscriptionIntent: @escaping @MainActor (Bool) -> Void,
-      startTranscriptionSession: @escaping @MainActor () -> Void,
+      startTranscriptionSession: @escaping @MainActor () async -> Void,
       stopTranscriptionSession: @escaping @MainActor () -> Void,
       setScreenAnalysisIntent: @escaping @MainActor (Bool) -> Void,
       startScreenMonitoring: @escaping @MainActor () -> Void,
@@ -165,33 +173,32 @@ struct OnboardingExitExecutor {
   let effects: Effects
 
   func execute(_ plan: OnboardingExitPlan, onComplete: (@MainActor @Sendable () -> Void)? = nil) {
-    effects.recordAnalytics(plan.analyticsOutcome)
-    effects.persistOutcome(plan.persistedOutcome)
-    if let mode = plan.systemAudioCaptureMode {
-      effects.setSystemAudioCaptureMode(mode)
-    }
-    effects.setTranscriptionIntent(plan.transcriptionIntentEnabled)
-    if plan.shouldStopTranscriptionSession {
-      effects.stopTranscriptionSession()
-    } else if plan.shouldStartTranscriptionSession {
-      effects.startTranscriptionSession()
-    }
-    effects.setScreenAnalysisIntent(plan.screenAnalysisIntentEnabled)
-    if plan.shouldStopScreenMonitoring {
-      effects.stopScreenMonitoring()
-    } else if plan.shouldStartScreenMonitoring {
-      effects.startScreenMonitoring()
-    }
-    effects.requestLaunchAtLogin(plan.launchAtLoginRequested)
-    effects.setJustCompleted(plan.shouldMarkJustCompleted)
-    effects.prepareMainChat()
-    if plan.shouldPresentOpener {
-      effects.presentOpener()
-    }
-    effects.clearResumeState()
-
     Task { @MainActor in
+      effects.recordAnalytics(plan.analyticsOutcome)
+      effects.persistOutcome(plan.persistedOutcome)
+      if let mode = plan.systemAudioCaptureMode {
+        effects.setSystemAudioCaptureMode(mode)
+      }
+      effects.setTranscriptionIntent(plan.transcriptionIntentEnabled)
+      effects.setScreenAnalysisIntent(plan.screenAnalysisIntentEnabled)
+      effects.requestLaunchAtLogin(plan.launchAtLoginRequested)
+      if plan.shouldStopTranscriptionSession {
+        effects.stopTranscriptionSession()
+      } else if plan.shouldStartTranscriptionSession {
+        await effects.startTranscriptionSession()
+      }
+      if plan.shouldStopScreenMonitoring {
+        effects.stopScreenMonitoring()
+      } else if plan.shouldStartScreenMonitoring {
+        effects.startScreenMonitoring()
+      }
+      effects.clearResumeState()
       await effects.finishJournal()
+      effects.prepareMainChat()
+      if plan.shouldPresentOpener {
+        effects.presentOpener()
+      }
+      effects.setJustCompleted(plan.shouldMarkJustCompleted)
       onComplete?()
       effects.publishCompletion()
     }
