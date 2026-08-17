@@ -8,6 +8,7 @@ from __future__ import annotations
 ACTION_SOURCE_RELATIVE_PATHS = (
     "Desktop/Sources/DesktopAutomationBridge.swift",
     "Desktop/Sources/DesktopAutomationManagedAccessActions.swift",
+    "Desktop/Sources/Automation/DesktopAutomationBillingActions.swift",
     "Desktop/Sources/FloatingControlBar/RealtimeHubController.swift",
     "Desktop/Sources/Rewind/Core/RewindArtifactGauntlet.swift",
     "Desktop/Sources/DesktopAutomationOpenOmiShortcutQA.swift",

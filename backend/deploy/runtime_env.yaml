@@ -176,14 +176,6 @@ environments:
             secret:
               name: dev-omi-backend-secrets
               key: LANGCHAIN_API_KEY
-          STRIPE_API_KEY:
-            secret:
-              name: dev-omi-backend-secrets
-              key: STRIPE_API_KEY
-          STRIPE_WEBHOOK_SECRET:
-            secret:
-              name: dev-omi-backend-secrets
-              key: STRIPE_WEBHOOK_SECRET
           TYPESENSE_HOST:
             config_map:
               name: dev-omi-backend-config
@@ -216,6 +208,9 @@ environments:
       services:
         backend:
           env:
+            BILLING_MODE:
+              value: disabled
+              category: rollout
             DESKTOP_UPDATE_POINTERS_MODE:
               value: primary
               category: rollout
@@ -700,14 +695,9 @@ environments:
             GOOGLE_CLIENT_ID:
               env_var: GOOGLE_CLIENT_ID
               category: oauth_metadata
-            STRIPE_PLUS_MONTHLY_PRICE_ID:
-              value: price_1TuH6z1F8wnoWYvw7Siv61SX
-            STRIPE_PLUS_ANNUAL_PRICE_ID:
-              value: price_1TuHCw1F8wnoWYvwZvKu86sI
-            STRIPE_UNLIMITED_V2_MONTHLY_PRICE_ID:
-              value: price_1TuIa81F8wnoWYvw0iX0j5M8
-            STRIPE_UNLIMITED_V2_ANNUAL_PRICE_ID:
-              value: price_1TuIap1F8wnoWYvwHWq0EvNU
+            BILLING_MODE:
+              value: disabled
+              category: rollout
             OMI_LLM_GATEWAY_URL:
               env_var: OMI_LLM_GATEWAY_URL
               # Never make a reserved ILB IP independently valid runtime

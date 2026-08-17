@@ -1,12 +1,12 @@
-"""Regression test for issue #6750 — delete-account must cancel the active Stripe subscription.
+"""Regression test for issue #6750 — delete-account must cancel an active billing subscription.
 
 Before the fix, DELETE /v1/users/delete-account revoked Firebase auth and wiped Firestore but never
-canceled the user's Stripe subscription, so a paying user kept getting billed with no way to log back
+canceled the user's provider subscription, so a paying user kept getting billed with no way to log back
 in and cancel. The handler now cancels the subscription before Firebase auth deletion and blocks the
 deletion if billing cancellation cannot be confirmed.
 
 ``services.users.account_deletion`` binds its collaborators at import (``from database import users as
-users_db``, ``from utils import stripe as stripe_utils``, …) and those packages pull heavy chains with
+users_db`` and the billing service, and those packages pull heavy chains with
 import-time side effects, so the fake ``database``/``utils`` namespaces must be active before the
 module is exec'd. This is the sanctioned Tier-2 "fake must precede import" case: see
 ``backend/docs/test_isolation.md`` and ``testing.import_isolation.load_module_fresh``.
@@ -41,7 +41,8 @@ def users_service():
         "database.vector_db": AutoMockModule("database.vector_db"),
         "utils": _pkg("utils"),
         "utils.cloud_tasks": AutoMockModule("utils.cloud_tasks"),
-        "utils.stripe": AutoMockModule("utils.stripe"),
+        "utils.billing": _pkg("utils.billing"),
+        "utils.billing.service": AutoMockModule("utils.billing.service"),
         "utils.executors": AutoMockModule("utils.executors"),
         "utils.log_sanitizer": AutoMockModule("utils.log_sanitizer"),
         "utils.posthog_telemetry": AutoMockModule("utils.posthog_telemetry"),
@@ -65,9 +66,9 @@ def users_service():
         yield service
 
 
-def _sub(stripe_subscription_id):
+def _sub(billing_subscription_id):
     s = MagicMock()
-    s.stripe_subscription_id = stripe_subscription_id
+    s.billing_subscription_id = billing_subscription_id
     return s
 
 
@@ -75,7 +76,7 @@ def test_paid_user_subscription_is_left_for_the_claimed_wipe_worker(users_servic
     with patch.object(
         users_service.users_db, 'get_user_subscription', return_value=_sub('sub_123')
     ) as get_sub, patch.object(
-        users_service.stripe_utils, 'cancel_subscription', return_value=MagicMock()
+        users_service, 'cancel_subscription_for_account_deletion', return_value=True
     ) as cancel, patch.object(
         users_service.auth, 'delete_account'
     ) as fb_delete, patch.object(
@@ -89,9 +90,9 @@ def test_paid_user_subscription_is_left_for_the_claimed_wipe_worker(users_servic
     assert resp['status'] == 'ok'
 
 
-def test_free_user_does_not_call_stripe(users_service):
+def test_free_user_does_not_call_billing_provider(users_service):
     with patch.object(users_service.users_db, 'get_user_subscription', return_value=_sub(None)), patch.object(
-        users_service.stripe_utils, 'cancel_subscription'
+        users_service, 'cancel_subscription_for_account_deletion'
     ) as cancel, patch.object(users_service.auth, 'delete_account'), patch.object(
         users_service, 'submit_with_context'
     ) as submit:
@@ -101,9 +102,9 @@ def test_free_user_does_not_call_stripe(users_service):
     assert resp['status'] == 'ok'
 
 
-def test_request_does_not_observe_stripe_errors_before_claimed_wipe(users_service):
+def test_request_does_not_observe_billing_errors_before_claimed_wipe(users_service):
     with patch.object(users_service.users_db, 'get_user_subscription', return_value=_sub('sub_123')), patch.object(
-        users_service.stripe_utils, 'cancel_subscription', side_effect=Exception('stripe down')
+        users_service, 'cancel_subscription_for_account_deletion', side_effect=Exception('billing down')
     ), patch.object(users_service.users_db, 'mark_user_deletion_billing_failed') as mark_billing_failed, patch.object(
         users_service.auth, 'delete_account'
     ) as fb_delete, patch.object(

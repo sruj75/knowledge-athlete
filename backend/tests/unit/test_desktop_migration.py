@@ -160,7 +160,7 @@ models_users_stub.SubscriptionStatus = MagicMock()
 _stub_package("utils")
 _stub_package("utils.other")
 utils_sub_stub = _stub_module("utils.subscription")
-utils_sub_stub.get_default_basic_subscription = MagicMock()
+utils_sub_stub.get_default_free_subscription = MagicMock()
 utils_enc_stub = _stub_module("utils.encryption")
 utils_enc_stub.encrypt = MagicMock(return_value="encrypted")
 utils_enc_stub.decrypt = MagicMock(return_value="decrypted")
@@ -1958,25 +1958,6 @@ class TestModelParity:
         else:
             pytest.fail("UpdateNotificationSettingsRequest not found in routers/users.py")
         expected = [f.alias or name for name, f in UpdateNotificationSettingsRequest.model_fields.items()]
-        assert set(field_names) == set(expected), f"Field mismatch: source={field_names} test={expected}"
-
-    def test_llm_usage_fields_match_source(self):
-        """Inline RecordLlmUsageBucketRequest matches routers/users.py definition."""
-        import ast
-
-        source = (BACKEND_DIR / 'routers' / 'users.py').read_text(encoding='utf-8')
-        tree = ast.parse(source)
-        for node in ast.walk(tree):
-            if isinstance(node, ast.ClassDef) and node.name == 'RecordLlmUsageBucketRequest':
-                field_names = [
-                    stmt.target.id
-                    for stmt in node.body
-                    if isinstance(stmt, ast.AnnAssign) and isinstance(stmt.target, ast.Name)
-                ]
-                break
-        else:
-            pytest.fail("RecordLlmUsageBucketRequest not found in routers/users.py")
-        expected = [f.alias or name for name, f in RecordLlmUsageBucketRequest.model_fields.items()]
         assert set(field_names) == set(expected), f"Field mismatch: source={field_names} test={expected}"
 
 

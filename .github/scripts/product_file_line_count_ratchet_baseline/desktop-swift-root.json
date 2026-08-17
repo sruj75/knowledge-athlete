@@ -1,7 +1,7 @@
 {
   "files": {
     "desktop/macos/Desktop/Sources/AuthService.swift": 2773,
-    "desktop/macos/Desktop/Sources/DesktopAutomationBridge.swift": 3720
+    "desktop/macos/Desktop/Sources/DesktopAutomationBridge.swift": 3707
   },
   "raise_justifications": {
     "desktop/macos/Desktop/Sources/AuthService.swift": "Apple first-auth name capture signals observers (authNameDidUpdate) and persists the name to Firebase so it survives reinstalls.",

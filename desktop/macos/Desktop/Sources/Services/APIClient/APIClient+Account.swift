@@ -12,48 +12,20 @@ extension APIClient {
     return try await get("v1/users/me/trial")
   }
 
-  func getAvailablePlans() async throws -> AvailablePlansResponse {
-    return try await get("v1/payments/available-plans")
-  }
-
-  func getOverageInfo() async throws -> OverageInfoResponse {
-    return try await get("v1/payments/overage-info")
-  }
-
-  func createCheckoutSession(priceId: String, promotionCode: String? = nil) async throws
+  func createCheckoutSession(offerId: String) async throws
     -> CheckoutSessionResponse
   {
     struct Request: Encodable {
-      let priceId: String
-      let promotionCode: String?
+      let offerId: String
 
       enum CodingKeys: String, CodingKey {
-        case priceId = "price_id"
-        case promotionCode = "promotion_code"
+        case offerId = "offer_id"
       }
     }
 
     return try await post(
       "v1/payments/checkout-session",
-      body: Request(priceId: priceId, promotionCode: promotionCode))
-  }
-
-  func upgradeSubscription(priceId: String, promotionCode: String? = nil) async throws
-    -> UpgradeSubscriptionResponse
-  {
-    struct Request: Encodable {
-      let priceId: String
-      let promotionCode: String?
-
-      enum CodingKeys: String, CodingKey {
-        case priceId = "price_id"
-        case promotionCode = "promotion_code"
-      }
-    }
-
-    return try await post(
-      "v1/payments/upgrade-subscription",
-      body: Request(priceId: priceId, promotionCode: promotionCode))
+      body: Request(offerId: offerId))
   }
 
   func createCustomerPortalSession() async throws -> CustomerPortalResponse {
@@ -61,42 +33,6 @@ extension APIClient {
   }
 
   // MARK: - LLM Usage
-
-  func recordLlmUsage(
-    inputTokens: Int,
-    outputTokens: Int,
-    cacheReadTokens: Int,
-    cacheWriteTokens: Int,
-    totalTokens: Int,
-    costUsd: Double,
-    account: String = "omi"
-  ) async {
-    struct Req: Encodable {
-      let input_tokens: Int
-      let output_tokens: Int
-      let cache_read_tokens: Int
-      let cache_write_tokens: Int
-      let total_tokens: Int
-      let cost_usd: Double
-      let account: String
-    }
-    struct Res: Decodable { let status: String }
-    do {
-      let _: Res = try await post(
-        "v1/users/me/llm-usage",
-        body: Req(
-          input_tokens: inputTokens,
-          output_tokens: outputTokens,
-          cache_read_tokens: cacheReadTokens,
-          cache_write_tokens: cacheWriteTokens,
-          total_tokens: totalTokens,
-          cost_usd: costUsd,
-          account: account
-        ))
-    } catch {
-      log("APIClient: LLM usage record failed: \(error.localizedDescription)")
-    }
-  }
 
   func fetchTotalOmiAICost() async -> Double? {
     struct Res: Decodable { let total_cost_usd: Double }
@@ -117,8 +53,8 @@ extension APIClient {
   /// Current-month chat usage + the plan's cap. Backed by Python backend
   /// endpoint `/v1/users/me/usage-quota` which reads `users/{uid}/llm_usage/*`.
   struct ChatUsageQuota: Decodable {
-    let plan: String  // display name: "Free" | "Plus" | "Pro"
-    let planType: String  // internal id: "basic" | "unlimited" | "architect"
+    let plan: String  // server-owned display name
+    let planType: String  // normalized id: "free" | "bounded" | "unlimited"
     let unit: String  // "questions" | "cost_usd"
     let used: Double
     let limit: Double?  // nil means unlimited

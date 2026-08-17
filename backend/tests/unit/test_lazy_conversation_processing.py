@@ -1,8 +1,8 @@
 """Unit tests for lazy desktop conversation processing (freemium cost cut).
 
-Validates `should_defer_desktop_processing`: desktop users on a non-desktop-entitled plan
-(basic / Neo) are deferred (raw transcript on capture, enriched on first open);
-Operator/Architect users are processed normally; lookups fail safe to "process".
+Validates `should_defer_desktop_processing`: free desktop users are deferred
+(raw transcript on capture, enriched on first open); normalized paid users are
+processed normally; lookups fail safe to "process".
 
 Uses sys.modules stubs so importing utils.subscription doesn't trigger Firestore/Firebase init.
 """
@@ -69,33 +69,24 @@ class TestShouldDeferDesktopProcessing:
     def _sub_with_plan(self, plan):
         s = MagicMock()
         s.plan = plan
-        # Model an ordinary post-policy Neo renewal. A missing period-start is
-        # intentionally grandfathered by production code for webhook safety.
-        s.current_period_start = self._sub.NEO_DESKTOP_GRANDFATHER_CUTOFF + 1
         return s
 
-    def test_basic_plan_is_deferred(self):
+    def test_free_plan_is_deferred(self):
         from models.users import PlanType
 
-        self._users.get_user_valid_subscription.return_value = None  # no sub => basic
+        self._users.get_user_valid_subscription.return_value = None
         assert self._sub.should_defer_desktop_processing('uid') is True
 
-    def test_neo_unlimited_is_deferred(self):
+    def test_bounded_is_not_deferred(self):
+        from models.users import PlanType
+
+        self._users.get_user_valid_subscription.return_value = self._sub_with_plan(PlanType.bounded)
+        assert self._sub.should_defer_desktop_processing('uid') is False
+
+    def test_unlimited_is_not_deferred(self):
         from models.users import PlanType
 
         self._users.get_user_valid_subscription.return_value = self._sub_with_plan(PlanType.unlimited)
-        assert self._sub.should_defer_desktop_processing('uid') is True
-
-    def test_operator_is_not_deferred(self):
-        from models.users import PlanType
-
-        self._users.get_user_valid_subscription.return_value = self._sub_with_plan(PlanType.operator)
-        assert self._sub.should_defer_desktop_processing('uid') is False
-
-    def test_architect_is_not_deferred(self):
-        from models.users import PlanType
-
-        self._users.get_user_valid_subscription.return_value = self._sub_with_plan(PlanType.architect)
         assert self._sub.should_defer_desktop_processing('uid') is False
 
     def test_lookup_error_fails_safe_to_not_deferred(self):

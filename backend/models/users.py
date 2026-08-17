@@ -1,28 +1,28 @@
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Optional, List
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class PlanType(str, Enum):
-    basic = 'basic'  # display "Free"
-    unlimited = 'unlimited'  # LEGACY — display "Neo"; hidden from new users
-    architect = 'architect'  # display "Architect" (desktop)
-    operator = 'operator'  # display "Operator" (desktop)
-    plus = 'plus'  # display "Plus" (mobile)
-    unlimited_v2 = 'unlimited_v2'  # display "Unlimited" (mobile); distinct from legacy `unlimited` (Neo)
-
-    @classmethod
-    def _missing_(cls, value: object):
-        # Backward compat: 'pro' was renamed to 'architect'
-        if value == 'pro':
-            return cls.architect
-        return None
+    free = 'free'
+    bounded = 'bounded'
+    unlimited = 'unlimited'
 
 
 class SubscriptionStatus(str, Enum):
     active = 'active'
+    on_hold = 'on_hold'
+    cancelled = 'cancelled'
+    failed = 'failed'
+    expired = 'expired'
     inactive = 'inactive'
+
+
+class BillingPresentation(str, Enum):
+    skip = 'skip'
+    checkout = 'checkout'
 
 
 class PlanLimits(BaseModel):
@@ -41,8 +41,8 @@ class ChatQuotaUnit(str, Enum):
 
 
 class ChatUsageQuota(BaseModel):
-    plan: str  # display name: "Free", "Plus", "Architect"
-    plan_type: str  # internal id: "basic" | "unlimited" | "architect"
+    plan: str
+    plan_type: str
     unit: ChatQuotaUnit
     used: float
     limit: Optional[float] = None  # None = unlimited (fallback)
@@ -52,42 +52,73 @@ class ChatUsageQuota(BaseModel):
 
 
 class Subscription(BaseModel):
-    plan: PlanType = Field(
-        default=PlanType.basic,
-        json_schema_extra={"enum": ["basic", "unlimited", "architect", "operator"]},
-    )
+    plan: PlanType = PlanType.free
+    plan_name: str = 'Free'
+    offer_id: Optional[str] = None
+    billing_customer_id: Optional[str] = None
+    billing_subscription_id: Optional[str] = None
+    billing_product_id: Optional[str] = None
+    entitlement_policy: PlanType = PlanType.bounded
     status: SubscriptionStatus = SubscriptionStatus.active
     current_period_end: Optional[int] = None
-    # Period start is used by the Neo desktop-grandfather check. Populated by the
-    # Stripe webhook on every subscription event going forward; existing subs
-    # have None until their first post-deploy webhook fires (renewal/cancel/etc.)
-    # and are treated as pre-cutoff (grandfathered) until then.
     current_period_start: Optional[int] = None
-    stripe_subscription_id: Optional[str] = None
-    current_price_id: Optional[str] = None
-    features: List[str] = []
-    cancel_at_period_end: bool = False
-    limits: PlanLimits = PlanLimits()
-    deprecated: bool = False
-    deprecation_message: Optional[str] = None
+    cancel_at_next_billing_date: bool = False
+    billing_interval: Optional[str] = None
+    price_string: Optional[str] = None
+    provider_updated_at: Optional[int] = None
+    features: List[str] = Field(default_factory=list)
+    limits: PlanLimits = Field(default_factory=PlanLimits)
+
+    def is_current_paid_entitlement(self, now: Optional[datetime] = None) -> bool:
+        """Fail closed unless this is a complete, current provider projection."""
+
+        has_provider_identity = all(
+            (self.offer_id, self.billing_customer_id, self.billing_subscription_id, self.billing_product_id)
+        )
+        has_bounded_allowances = (
+            self.limits.transcription_seconds is not None
+            and self.limits.transcription_seconds > 0
+            and ((self.limits.chat_questions_per_month or 0) > 0 or (self.limits.chat_cost_usd_per_month or 0) > 0)
+        )
+        if not (
+            self.plan in {PlanType.bounded, PlanType.unlimited}
+            and self.entitlement_policy is self.plan
+            and self.status is SubscriptionStatus.active
+            and self.current_period_end is not None
+            and self.provider_updated_at is not None
+            and self.provider_updated_at > 0
+            and has_provider_identity
+            and has_bounded_allowances
+        ):
+            return False
+        current_time = now or datetime.now(timezone.utc)
+        return self.current_period_end >= int(current_time.timestamp())
 
 
 class PricingOption(BaseModel):
-    id: str  # price_id
+    id: str
     title: str
     description: Optional[str] = None
     price_string: str
+    interval: str
 
 
 class SubscriptionPlan(BaseModel):
-    id: str  # e.g., 'operator'
+    id: str
     title: str
     subtitle: Optional[str] = None  # e.g. "500 questions per month" — rendered under the title
     description: Optional[str] = None  # longer copy rendered below price
     eyebrow: Optional[str] = None  # e.g. "Most popular" — rendered above the title
-    features: List[str] = []
-    prices: List[PricingOption] = []
-    legacy: bool = False
+    features: List[str] = Field(default_factory=list)
+    prices: List[PricingOption] = Field(default_factory=list)
+
+
+class BillingAvailability(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    checkout_enabled: bool
+    portal_enabled: bool
+    presentation: BillingPresentation
 
 
 class TrialMetadata(BaseModel):
@@ -124,6 +155,7 @@ class UserSubscriptionResponse(BaseModel):
     insights_gained_used: int
     insights_gained_limit: int
     available_plans: List[SubscriptionPlan] = []
+    billing_availability: BillingAvailability
     show_subscription_ui: bool = True
     # Chat quota usage — derived from llm_usage collection
     chat_quota_used: float = 0.0
@@ -134,15 +166,3 @@ class UserSubscriptionResponse(BaseModel):
     # Phone call feature access snapshot — null means the client hasn't been
     # given a quota read (older servers or disabled endpoints).
     phone_call_quota: Optional[PhoneCallQuota] = None
-    # Unix seconds. Set for Neo subscribers who retain desktop access under the
-    # grandfather rule (subscription period started before NEO_DESKTOP_GRANDFATHER_CUTOFF)
-    # — value is `subscription.current_period_end`. Null otherwise. The desktop client
-    # uses this to render a "Neo desktop access ends on <date>" notice.
-    desktop_grandfather_until: Optional[int] = None
-
-    @field_validator("subscription", mode="before")
-    @classmethod
-    def _reject_unshipped_mobile_plan_values(cls, value: Subscription) -> Subscription:
-        if value.plan in {PlanType.plus, PlanType.unlimited_v2}:
-            raise ValueError("mobile plan IDs require a versioned app-client subscription contract")
-        return value

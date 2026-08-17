@@ -63,7 +63,6 @@
         "scripts/stt/r_modulate_stability.py",
         "scripts/stt/r_silence_compression_test.py",
         "scripts/stt/r_silence_sweep.py",
-        "scripts/support/find_stripe_entitlement_mismatches.py",
         "scripts/unlock_soft_cap_locked.py",
         "scripts/users/chats_analysis.py",
         "scripts/users/memories_fixes.py",

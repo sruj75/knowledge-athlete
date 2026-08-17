@@ -1,7 +1,4 @@
 from datetime import datetime, timezone
-from enum import Enum
-from typing import List, Optional
-
 from pydantic import BaseModel, Field
 
 
@@ -17,27 +14,6 @@ class UsageStats(BaseModel):
     insights_gained: int = 0
     memories_created: int = 0
     speech_seconds: int = 0
-
-
-class UsagePeriod(str, Enum):
-    TODAY = "today"
-    MONTHLY = "monthly"
-    YEARLY = "yearly"
-    ALL_TIME = "all_time"
-
-
-class UsageHistoryPoint(UsageStats):
-    date: str
-
-
-class UserUsageResponse(BaseModel):
-    """The response model for the user usage API endpoint."""
-
-    today: Optional[UsageStats] = None
-    monthly: Optional[UsageStats] = None
-    yearly: Optional[UsageStats] = None
-    all_time: Optional[UsageStats] = None
-    history: Optional[List[UsageHistoryPoint]] = None
 
 
 class HourlyUsage(UsageStats):

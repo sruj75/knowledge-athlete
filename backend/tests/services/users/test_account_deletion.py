@@ -61,7 +61,7 @@ finally:
     for _name in list(_finder._created):
         sys.modules.pop(_name, None)
     # The imported service module itself was loaded against the MagicMock
-    # stubs (its globals hold MagicMock objects for users_db, stripe_utils,
+    # stubs (its globals hold MagicMock objects for users_db, billing helpers,
     # etc.). Pop it — along with its parent packages — so a later test that
     # imports the real service reloads it with production dependencies
     # instead of reusing this mock-backed copy.
@@ -163,7 +163,8 @@ def test_start_account_deletion_schedules_background_wipe(monkeypatch):
         MagicMock(return_value=True),
     )
     monkeypatch.setattr(account_deletion.users_db, 'get_user_subscription', MagicMock(return_value=None))
-    monkeypatch.setattr(account_deletion.stripe_utils, 'cancel_subscription', MagicMock())
+    cancel = MagicMock()
+    monkeypatch.setattr(account_deletion, 'cancel_subscription_for_account_deletion', cancel)
     monkeypatch.setattr(account_deletion.auth, 'delete_account', MagicMock(side_effect=Exception('USER_NOT_FOUND')))
     submit = MagicMock()
     monkeypatch.setattr(account_deletion, 'submit_with_context', submit)
@@ -172,7 +173,7 @@ def test_start_account_deletion_schedules_background_wipe(monkeypatch):
     result = account_deletion.start_account_deletion('uid1')
 
     assert result['status'] == 'ok'
-    account_deletion.stripe_utils.cancel_subscription.assert_not_called()
+    cancel.assert_not_called()
     submit.assert_called_once_with(
         account_deletion.cleanup_executor, account_deletion.background_wipe_user_data, 'uid1'
     )
@@ -201,14 +202,15 @@ def test_start_account_deletion_blocks_when_subscription_lookup_fails(monkeypatc
     submit.assert_called_once()
 
 
-def test_start_account_deletion_blocks_when_stripe_cancel_returns_none(monkeypatch):
-    sub = types.SimpleNamespace(stripe_subscription_id='sub_123')
+def test_start_account_deletion_leaves_billing_to_claimed_worker(monkeypatch):
+    sub = types.SimpleNamespace(billing_subscription_id='subscription-synthetic')
     monkeypatch.setattr(
         account_deletion.users_db, 'mark_user_deletion_wipe_intent', MagicMock(return_value=_new_wipe_intent())
     )
     monkeypatch.setattr(account_deletion.users_db, 'mark_user_deletion_wipe_started', MagicMock(return_value=True))
     monkeypatch.setattr(account_deletion.users_db, 'get_user_subscription', MagicMock(return_value=sub))
-    monkeypatch.setattr(account_deletion.stripe_utils, 'cancel_subscription', MagicMock(return_value=None))
+    cancel = MagicMock(return_value=False)
+    monkeypatch.setattr(account_deletion, 'cancel_subscription_for_account_deletion', cancel)
     monkeypatch.setattr(account_deletion.users_db, 'mark_user_deletion_billing_failed', MagicMock())
     monkeypatch.setattr(account_deletion.auth, 'delete_account', MagicMock())
     submit = MagicMock()
@@ -220,7 +222,7 @@ def test_start_account_deletion_blocks_when_stripe_cancel_returns_none(monkeypat
     assert result['status'] == 'ok'
     account_deletion.users_db.mark_user_deletion_billing_failed.assert_not_called()
     account_deletion.users_db.get_user_subscription.assert_not_called()
-    account_deletion.stripe_utils.cancel_subscription.assert_not_called()
+    cancel.assert_not_called()
     account_deletion.auth.delete_account.assert_not_called()
     submit.assert_called_once()
 
@@ -395,8 +397,54 @@ def test_background_wipe_user_data_preserves_order(monkeypatch):
     ]
 
 
+def test_background_wipe_confirms_billing_cancellation_before_irreversible_deletion(monkeypatch):
+    calls = []
+    subscription = types.SimpleNamespace(billing_subscription_id='subscription-synthetic')
+    monkeypatch.setattr(account_deletion.users_db, 'mark_user_deletion_wipe_running', MagicMock())
+    monkeypatch.setattr(account_deletion.users_db, 'get_user_subscription', lambda uid: subscription)
+    monkeypatch.setattr(
+        account_deletion,
+        'cancel_subscription_for_account_deletion',
+        lambda subscription_id: calls.append(('billing', subscription_id)) or True,
+    )
+    monkeypatch.setattr(account_deletion.auth, 'delete_account', lambda uid: calls.append(('auth', uid)))
+    monkeypatch.setattr(account_deletion, 'delete_user_caller_ids', lambda uid: calls.append(('twilio', uid)))
+    monkeypatch.setattr(
+        account_deletion,
+        'purge_derived_user_data',
+        lambda uid: {
+            'required_failures': [],
+            'best_effort_failures': [],
+            'vectors_deleted': 0,
+            'recordings_deleted': 0,
+        },
+    )
+    monkeypatch.setattr(account_deletion.users_db, 'delete_user_data', lambda uid: {'status': 'ok'})
+    monkeypatch.setattr(account_deletion.users_db, 'mark_user_deletion_wipe_completed', MagicMock())
+
+    assert account_deletion.background_wipe_user_data('uid-1') is True
+    assert calls[:2] == [('billing', 'subscription-synthetic'), ('auth', 'uid-1')]
+
+
+def test_background_wipe_retries_when_billing_cancellation_is_uncertain(monkeypatch):
+    subscription = types.SimpleNamespace(billing_subscription_id='subscription-synthetic')
+    monkeypatch.setattr(account_deletion.users_db, 'mark_user_deletion_wipe_running', MagicMock())
+    monkeypatch.setattr(account_deletion.users_db, 'get_user_subscription', lambda uid: subscription)
+    monkeypatch.setattr(account_deletion, 'cancel_subscription_for_account_deletion', lambda _id: False)
+    monkeypatch.setattr(account_deletion.users_db, 'mark_user_deletion_billing_failed', MagicMock())
+    monkeypatch.setattr(account_deletion.users_db, 'mark_user_deletion_wipe_failed', MagicMock())
+    delete_auth = MagicMock()
+    monkeypatch.setattr(account_deletion.auth, 'delete_account', delete_auth)
+
+    assert account_deletion.background_wipe_user_data('uid-1') is False
+    delete_auth.assert_not_called()
+    account_deletion.users_db.mark_user_deletion_billing_failed.assert_called_once()
+    account_deletion.users_db.mark_user_deletion_wipe_failed.assert_called_once_with('uid-1')
+
+
 def test_background_wipe_user_data_swallows_failures(monkeypatch):
     monkeypatch.setattr(account_deletion.users_db, 'mark_user_deletion_wipe_running', MagicMock())
+    monkeypatch.setattr(account_deletion.users_db, 'get_user_subscription', MagicMock(return_value=None))
     monkeypatch.setattr(account_deletion, 'delete_user_caller_ids', MagicMock(side_effect=Exception('twilio down')))
     monkeypatch.setattr(account_deletion, 'purge_derived_user_data', MagicMock())
     monkeypatch.setattr(account_deletion.users_db, 'delete_user_data', MagicMock())

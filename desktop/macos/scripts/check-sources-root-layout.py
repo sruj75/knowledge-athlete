@@ -24,7 +24,7 @@ import sys
 from pathlib import Path
 
 # Pinned baseline — loose root-level Swift files. MAY ONLY DECREASE.
-BASELINE = 77
+BASELINE = 64
 
 SOURCES_ROOT = "desktop/macos/Desktop/Sources"
 

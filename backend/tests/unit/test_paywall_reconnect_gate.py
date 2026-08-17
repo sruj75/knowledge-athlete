@@ -18,7 +18,6 @@ from routers.listen.runtime import ListenSessionRuntime
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]
 RUNTIME_SRC_PATH = BACKEND_DIR / 'routers' / 'listen' / 'runtime.py'
-PAYMENT_SRC_PATH = BACKEND_DIR / 'routers' / 'payment.py'
 USERS_SRC_PATH = BACKEND_DIR / 'routers' / 'users.py'
 SUBSCRIPTION_SRC_PATH = BACKEND_DIR / 'utils' / 'subscription.py'
 
@@ -94,21 +93,6 @@ class TestCacheInvalidation:
         assert fn_start != -1
         fn_body = src[fn_start : src.find('\ndef ', fn_start + 1)]
         assert 'delete_generic_cache' in fn_body
-
-    def test_payment_clears_paywall_cache_at_all_invalidation_sites(self):
-        src = _read_source(PAYMENT_SRC_PATH)
-        signal_count = src.count('set_credits_invalidation_signal(uid)')
-        clear_count = src.count('clear_trial_paywall_cache(uid)')
-        assert signal_count == clear_count, (
-            f"payment.py has {signal_count} set_credits_invalidation_signal calls "
-            f"but only {clear_count} clear_trial_paywall_cache calls — must match"
-        )
-
-    def test_payment_imports_clear_function(self):
-        src = _read_source(PAYMENT_SRC_PATH)
-        assert (
-            'clear_trial_paywall_cache' in src.split('from utils.subscription import')[1].split(')')[0]
-        ), "payment.py must import clear_trial_paywall_cache from utils.subscription"
 
 
 class TestCacheInvalidationBehavioral:

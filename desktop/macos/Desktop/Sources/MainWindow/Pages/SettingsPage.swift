@@ -56,59 +56,6 @@ struct SettingsPage: View {
   }
 }
 
-struct SubscriptionPlanCatalogMerger {
-  static func merge(
-    primary: [SubscriptionPlanOption],
-    fallback: [SubscriptionPlanOption]
-  ) -> [SubscriptionPlanOption] {
-    var mergedById: [String: SubscriptionPlanOption] = [:]
-
-    for plan in fallback {
-      mergedById[plan.id] = plan
-    }
-
-    for plan in primary {
-      if let existing = mergedById[plan.id] {
-        mergedById[plan.id] = SubscriptionPlanOption(
-          id: plan.id,
-          title: plan.title.isEmpty ? existing.title : plan.title,
-          subtitle: plan.subtitle ?? existing.subtitle,
-          description: plan.description ?? existing.description,
-          eyebrow: plan.eyebrow ?? existing.eyebrow,
-          features: plan.features.isEmpty ? existing.features : plan.features,
-          prices: mergePrices(primary: plan.prices, fallback: existing.prices)
-        )
-      } else {
-        mergedById[plan.id] = plan
-      }
-    }
-
-    return Array(mergedById.values)
-  }
-
-  private static func mergePrices(
-    primary: [SubscriptionPriceOption],
-    fallback: [SubscriptionPriceOption]
-  ) -> [SubscriptionPriceOption] {
-    var mergedById: [String: SubscriptionPriceOption] = [:]
-
-    for price in fallback {
-      mergedById[price.id] = price
-    }
-
-    for price in primary {
-      mergedById[price.id] = price
-    }
-
-    return Array(mergedById.values).sorted { lhs, rhs in
-      if lhs.title != rhs.title {
-        return lhs.title < rhs.title
-      }
-      return lhs.id < rhs.id
-    }
-  }
-}
-
 /// Dark-themed settings content matching the main window style
 struct SettingsContentView: View {
   // AppState for transcription control
@@ -228,19 +175,12 @@ struct SettingsContentView: View {
   @State var userSubscription: UserSubscriptionResponse?
   @State var chatUsageQuota: APIClient.ChatUsageQuota?
   @State var isLoadingChatUsage: Bool = false
-  @State var overageInfo: OverageInfoResponse?
-  @State var isLoadingOverage: Bool = false
   @State var planUsageDetailsRequestID: Int = 0
-  @State var showOverageExplainer: Bool = false
-  @State var fallbackPlanCatalog: [SubscriptionPlanOption] = []
-  @State var activeCheckoutPriceId: String?
+  @State var activeCheckoutOfferId: String?
   @State var selectedPlanIdForCheckout: String?
-  @State var upgradePromotionCode: String = ""
-  @State var isPromoCodeExpanded: Bool = false
   @State var isOpeningCustomerPortal: Bool = false
   @State var activeBillingWebFlow: BillingWebFlow?
-  @State var pendingSubscriptionPriceId: String?
-  @State var pendingCheckoutSessionId: String?
+  @State var pendingSubscriptionOfferId: String?
 
   var isLoadingSettings: Bool {
     get { viewModel.isLoadingBackendSettings }

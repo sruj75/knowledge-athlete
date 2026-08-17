@@ -21,7 +21,6 @@ os.environ.setdefault(
 
 from database import user_usage  # noqa: E402
 from database.firestore_read_metrics import FirestoreReadFamily, FirestoreReadMode  # noqa: E402
-from routers import users as users_router  # noqa: E402
 
 
 @pytest.fixture
@@ -201,33 +200,3 @@ def test_today_usage_without_timezone_still_falls_back_to_utc_day(mock_db):
     result = user_usage.get_current_user_usage('uid', 'today', tz_name=None, now=_LA_EVENING_NOW)
 
     assert result['today']['transcription_seconds'] == 300, result['today']
-
-
-def test_usage_endpoint_serves_the_users_local_day_not_the_utc_day(mock_db, monkeypatch):
-    """Behavioural proof through the route the app actually calls.
-
-    The two tests above exercise the helper directly and so can only be written against the
-    tz-aware signature. This one goes through GET /v1/users/me/usage, which is the surface the
-    Flutter usage page hits, and therefore fails on unfixed source with a wrong total rather
-    than a signature error: the handler there never consults the stored timezone at all.
-
-    `routers.users` is imported at module scope like the other router-level unit tests. The
-    router graph is a heavy import, and paying it inside the test body charges ~26s of CPU to
-    this one test and trips the fast-unit duration guard.
-    """
-
-    _setup_hourly_docs(mock_db, _LA_HOURLY_DOCS)
-    monkeypatch.setattr(users_router.notification_db, 'get_user_time_zone', lambda uid: 'America/Los_Angeles')
-
-    class _FrozenDatetime(datetime):
-        @classmethod
-        def now(cls, tz=None):
-            return _LA_EVENING_NOW if tz is not None else _LA_EVENING_NOW.replace(tzinfo=None)
-
-    monkeypatch.setattr(user_usage, 'datetime', _FrozenDatetime)
-
-    result = users_router.get_user_usage_stats_endpoint(uid='uid')
-
-    # 600 (7am local, filed under the previous UTC date) + 300 (6pm local, filed under today's
-    # UTC date). Serving the UTC day alone finds only the 300.
-    assert result['today']['transcription_seconds'] == 900, result['today']

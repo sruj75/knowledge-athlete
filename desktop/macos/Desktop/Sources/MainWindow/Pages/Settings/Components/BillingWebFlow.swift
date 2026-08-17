@@ -6,7 +6,8 @@ struct BillingWebFlow: Identifiable {
   let id = UUID()
   let title: String
   let url: URL
-  let completionURLs: [String]
+  let successURL: URL
+  let cancelURL: URL
 }
 
 enum BillingWebFlowOutcome {
@@ -89,14 +90,13 @@ struct BillingWebView: NSViewRepresentable {
         return
       }
 
-      if let matchedCompletionURL = flow.completionURLs.compactMap(URL.init(string:)).first(where: {
-        Self.urlsMatchCompletion(url, completionURL: $0)
-      }) {
-        if matchedCompletionURL.pathComponents.last == "cancel" {
-          finish(.cancelled)
-        } else {
-          finish(.completed)
-        }
+      if Self.urlsMatchCompletion(url, completionURL: flow.successURL) {
+        finish(.completed)
+        decisionHandler(.cancel)
+        return
+      }
+      if Self.urlsMatchCompletion(url, completionURL: flow.cancelURL) {
+        finish(.cancelled)
         decisionHandler(.cancel)
         return
       }
@@ -104,14 +104,16 @@ struct BillingWebView: NSViewRepresentable {
       decisionHandler(.allow)
     }
 
-    private static func urlsMatchCompletion(_ url: URL, completionURL: URL) -> Bool {
+    static func urlsMatchCompletion(_ url: URL, completionURL: URL) -> Bool {
       guard url.scheme == completionURL.scheme,
         url.host == completionURL.host,
         url.path == completionURL.path
       else {
         return false
       }
-      return url.query == completionURL.query || completionURL.query == nil
+      return url.port == completionURL.port
+        && url.query == completionURL.query
+        && url.fragment == completionURL.fragment
     }
 
     func webView(

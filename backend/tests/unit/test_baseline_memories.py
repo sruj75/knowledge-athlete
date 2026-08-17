@@ -9,8 +9,8 @@ Tests exercise:
   - get_prompt_data() bucket routing (legacy path, DB stubbed via import_isolation)
   - get_prompt_memories() prompt-string formatting (legacy path, DB stubbed)
 
-No Firebase, Redis, stripe, anthropic, or network connections are required.
-Heavy transitive deps (database.memories → stripe, utils.memory.memory_service → anthropic)
+No Firebase, Redis, anthropic, or network connections are required.
+Heavy transitive dependencies (for example, the memory service to anthropic)
 are blocked at import time using the project's sanctioned stub_modules + load_module_fresh
 isolation primitives from testing/import_isolation.py.
 """
@@ -58,8 +58,8 @@ def _raw_memory(
 def mem_module():
     """Load utils.llms.memory fresh with the heavy database chain stubbed out.
 
-    Import chain that pulls in heavy packages (stripe, anthropic, …):
-      database.memories → database.helpers → database.users → utils.subscription → stripe
+    Import chain that pulls in heavy packages (anthropic, etc.):
+      database.memories → database.helpers → database.users → utils.subscription
       utils.memory.memory_service → database.vector_db → utils.llm.clients → anthropic
 
     We stub exactly those two top-level modules.  All other imports

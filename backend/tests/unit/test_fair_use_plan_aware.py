@@ -12,29 +12,22 @@ import utils.fair_use as fair_use_mod
 from models.fair_use import SoftCapTrigger
 from models.users import PlanType
 
-DEFAULT_TIER_PLANS = [PlanType.basic, PlanType.plus, None]
-UNLIMITED_TIER_PLANS = [
-    PlanType.unlimited_v2,
-    PlanType.unlimited,
-    PlanType.operator,
-    PlanType.architect,
-]
+BOUNDED_POLICIES = [PlanType.bounded, PlanType.free, None]
 
 
 def _totals(daily_ms=0, three_day_ms=0, weekly_ms=0):
     return {'daily_ms': daily_ms, 'three_day_ms': three_day_ms, 'weekly_ms': weekly_ms}
 
 
-class TestFairUseCapsForPlan:
-    def test_default_tier_plans_get_default_caps(self):
+class TestFairUseCapsForEntitlement:
+    def test_bounded_or_missing_policy_gets_bounded_caps(self):
         expected = (
             fair_use_mod.FAIR_USE_DAILY_SPEECH_MS,
             fair_use_mod.FAIR_USE_3DAY_SPEECH_MS,
             fair_use_mod.FAIR_USE_WEEKLY_SPEECH_MS,
         )
-        for plan in DEFAULT_TIER_PLANS:
-            assert fair_use_mod.fair_use_caps_for_plan(plan) == expected, plan
-            assert fair_use_mod._is_unlimited_tier(plan) is False, plan
+        for policy in BOUNDED_POLICIES:
+            assert fair_use_mod.fair_use_caps_for_entitlement(policy) == expected, policy
 
     def test_unlimited_tier_plans_get_raised_caps(self):
         expected = (
@@ -42,44 +35,37 @@ class TestFairUseCapsForPlan:
             fair_use_mod.FAIR_USE_3DAY_SPEECH_MS_UNLIMITED,
             fair_use_mod.FAIR_USE_WEEKLY_SPEECH_MS_UNLIMITED,
         )
-        for plan in UNLIMITED_TIER_PLANS:
-            assert fair_use_mod.fair_use_caps_for_plan(plan) == expected, plan
-            assert fair_use_mod._is_unlimited_tier(plan) is True, plan
+        assert fair_use_mod.fair_use_caps_for_entitlement(PlanType.unlimited) == expected
 
     def test_unlimited_daily_cap_is_higher_than_default(self):
         # Guards the whole point of the feature: Unlimited must tolerate more before scrutiny.
         assert fair_use_mod.FAIR_USE_DAILY_SPEECH_MS_UNLIMITED > fair_use_mod.FAIR_USE_DAILY_SPEECH_MS
 
-    def test_free_and_plus_are_never_unlimited_tier(self):
-        # The whole point of the tier split: Free/Plus must never get the raised caps.
-        assert fair_use_mod._is_unlimited_tier(PlanType.basic) is False
-        assert fair_use_mod._is_unlimited_tier(PlanType.plus) is False
-        assert fair_use_mod._is_unlimited_tier(None) is False
-
-    def test_is_unlimited_tier_accepts_raw_string_plan(self):
-        # subscription.plan may arrive as a raw string; PlanType is a str enum so membership holds.
-        assert fair_use_mod._is_unlimited_tier('unlimited_v2') is True
-        assert fair_use_mod._is_unlimited_tier('basic') is False
+    def test_unknown_raw_policy_fails_closed(self):
+        assert fair_use_mod.fair_use_caps_for_entitlement('retired-plan') == (
+            fair_use_mod.FAIR_USE_DAILY_SPEECH_MS,
+            fair_use_mod.FAIR_USE_3DAY_SPEECH_MS,
+            fair_use_mod.FAIR_USE_WEEKLY_SPEECH_MS,
+        )
 
 
 class TestCheckSoftCapsPlanAware:
     @patch.object(fair_use_mod, 'FAIR_USE_ENABLED', True)
     def test_default_tier_triggers_daily_at_three_hours(self):
         totals = _totals(daily_ms=fair_use_mod.FAIR_USE_DAILY_SPEECH_MS + 1)
-        for plan in [PlanType.basic, PlanType.plus]:
-            triggers = [t['trigger'] for t in fair_use_mod.check_soft_caps('u', totals, plan)]
-            assert SoftCapTrigger.DAILY in triggers, plan
+        triggers = [t['trigger'] for t in fair_use_mod.check_soft_caps('u', totals, PlanType.bounded)]
+        assert SoftCapTrigger.DAILY in triggers
 
     @patch.object(fair_use_mod, 'FAIR_USE_ENABLED', True)
     def test_unlimited_tier_does_not_trigger_below_its_higher_daily_cap(self):
         # Just over the DEFAULT daily cap but under the UNLIMITED daily cap.
         totals = _totals(daily_ms=fair_use_mod.FAIR_USE_DAILY_SPEECH_MS + 1)
-        assert fair_use_mod.check_soft_caps('u', totals, PlanType.unlimited_v2) == []
+        assert fair_use_mod.check_soft_caps('u', totals, PlanType.unlimited) == []
 
     @patch.object(fair_use_mod, 'FAIR_USE_ENABLED', True)
     def test_unlimited_tier_triggers_daily_above_its_own_cap(self):
         totals = _totals(daily_ms=fair_use_mod.FAIR_USE_DAILY_SPEECH_MS_UNLIMITED + 1)
-        triggers = [t['trigger'] for t in fair_use_mod.check_soft_caps('u', totals, PlanType.unlimited_v2)]
+        triggers = [t['trigger'] for t in fair_use_mod.check_soft_caps('u', totals, PlanType.unlimited)]
         assert SoftCapTrigger.DAILY in triggers
 
     @patch.object(fair_use_mod, 'FAIR_USE_ENABLED', True)
@@ -93,7 +79,7 @@ class TestCheckSoftCapsPlanAware:
         totals = _totals(daily_ms=fair_use_mod.FAIR_USE_DAILY_SPEECH_MS_UNLIMITED + 1)
         [daily] = [
             t
-            for t in fair_use_mod.check_soft_caps('u', totals, PlanType.unlimited_v2)
+            for t in fair_use_mod.check_soft_caps('u', totals, PlanType.unlimited)
             if t['trigger'] == SoftCapTrigger.DAILY
         ]
         assert daily['threshold_ms'] == fair_use_mod.FAIR_USE_DAILY_SPEECH_MS_UNLIMITED

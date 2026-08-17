@@ -16,7 +16,7 @@ from database.vector_db import (
     delete_memory_vectors_batch,
     delete_transcript_chunk_vectors_batch,
 )
-from utils import stripe as stripe_utils
+from utils.billing.service import cancel_subscription_for_account_deletion
 from utils.cloud_tasks import enqueue_account_deletion_wipe, is_account_deletion_dispatch_enabled
 from utils.executors import cleanup_executor, submit_with_context
 from utils.log_sanitizer import sanitize
@@ -374,12 +374,12 @@ def _cancel_subscription_for_account_deletion(uid: str) -> None:
     subscription_id = None
     try:
         sub = users_db.get_user_subscription(uid)
-        subscription_id = getattr(sub, 'stripe_subscription_id', None) if sub else None
+        subscription_id = getattr(sub, 'billing_subscription_id', None) if sub else None
         if not subscription_id:
             return
-        canceled = stripe_utils.cancel_subscription(subscription_id)
+        canceled = cancel_subscription_for_account_deletion(subscription_id)
         if not canceled:
-            raise RuntimeError('stripe cancel returned no subscription')
+            raise RuntimeError('billing provider did not confirm cancellation')
     except Exception as e:
         raw_error = str(e)
         sanitized_error = sanitize(raw_error)

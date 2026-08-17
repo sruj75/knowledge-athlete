@@ -1,15 +1,12 @@
-"""Tests for fair-use clearing on paid plan upgrade (#6298).
+"""Tests for fair-use clearing when a normalized paid entitlement is applied.
 
 Covers:
 - clear_fair_use_on_upgrade() clears free_exhausted enforcement stages
 - clear_fair_use_on_upgrade() preserves abuse-derived enforcement
 - clear_fair_use_on_upgrade() no-ops when not applicable
 - is_hard_restricted() defense-in-depth guard for paid + free_exhausted
-- Source-level verification that payment.py calls clear_fair_use_on_upgrade
 """
 
-import os
-import re
 from datetime import datetime, timedelta
 from unittest.mock import MagicMock, patch
 
@@ -40,10 +37,10 @@ def _make_paid_subscription():
     )
 
 
-def _make_basic_subscription():
-    """Create a basic (free) subscription object."""
+def _make_free_subscription():
+    """Create a free subscription object."""
     return Subscription(
-        plan=PlanType.basic,
+        plan=PlanType.free,
         status=SubscriptionStatus.active,
     )
 
@@ -145,7 +142,7 @@ class TestClearFairUseOnUpgrade:
     @patch.object(fair_use_mod, 'users_db')
     def test_noop_when_not_paid_plan(self, mock_users):
         """No-op when user is not on a paid plan."""
-        mock_users.get_user_valid_subscription.return_value = _make_basic_subscription()
+        mock_users.get_user_valid_subscription.return_value = _make_free_subscription()
         _fair_use_db.get_fair_use_state.return_value = {
             'stage': 'restrict',
             'last_classifier_type': 'free_exhausted',
@@ -192,60 +189,3 @@ class TestClearFairUseOnUpgrade:
 
         assert result is False
         _fair_use_db.update_fair_use_state.assert_not_called()
-
-
-class TestWebhookClearFairUseSourceLevel:
-    """Source-level verification that payment.py calls clear_fair_use_on_upgrade.
-
-    Uses source analysis (same pattern as test_firestore_read_ops_cache.py)
-    because payment.py imports the full Firestore dependency chain.
-    """
-
-    PAYMENT_SOURCE_FILE = os.path.join(os.path.dirname(__file__), '..', '..', 'routers', 'payment.py')
-
-    def _read_source(self):
-        with open(self.PAYMENT_SOURCE_FILE, encoding='utf-8') as f:
-            return f.read()
-
-    @staticmethod
-    def _assert_clear_fair_use_called(block):
-        direct_call = r'\bclear_fair_use_on_upgrade\s*\(\s*uid\b'
-        run_blocking_call = r'\brun_blocking\s*\([^)]*\bclear_fair_use_on_upgrade\b[^)]*\buid\b'
-        assert re.search(direct_call, block) or re.search(
-            run_blocking_call, block, re.DOTALL
-        ), "clear_fair_use_on_upgrade is not called with uid"
-
-    def test_payment_imports_clear_fair_use_on_upgrade(self):
-        """payment.py must import clear_fair_use_on_upgrade."""
-        source = self._read_source()
-        assert 'clear_fair_use_on_upgrade' in source
-
-    def test_checkout_session_completed_calls_clear(self):
-        """checkout.session.completed path must call clear_fair_use_on_upgrade."""
-        source = self._read_source()
-        # Find the checkout.session.completed block and verify clear call exists
-        checkout_idx = source.find("event['type'] == 'checkout.session.completed'")
-        assert checkout_idx != -1, "checkout.session.completed handler not found"
-        # The clear call should appear between checkout handler and the next event type
-        next_event_idx = source.find("customer.subscription.updated", checkout_idx)
-        block = source[checkout_idx:next_event_idx]
-        self._assert_clear_fair_use_called(block)
-
-    def test_subscription_event_calls_clear(self):
-        """customer.subscription.* path must call clear_fair_use_on_upgrade."""
-        source = self._read_source()
-        sub_idx = source.find("'customer.subscription.updated'")
-        assert sub_idx != -1, "customer.subscription handler not found"
-        next_event_idx = source.find("subscription_schedule.completed", sub_idx)
-        block = source[sub_idx:next_event_idx]
-        self._assert_clear_fair_use_called(block)
-
-    def test_schedule_completed_calls_clear(self):
-        """subscription_schedule.completed path must call clear_fair_use_on_upgrade."""
-        source = self._read_source()
-        schedule_idx = source.find("'subscription_schedule.completed'")
-        assert schedule_idx != -1, "subscription_schedule handler not found"
-        canceled_idx = source.find("elif schedule_obj.get('status') == 'canceled'", schedule_idx)
-        assert canceled_idx != -1, "subscription_schedule canceled branch not found"
-        block = source[schedule_idx:canceled_idx]
-        self._assert_clear_fair_use_called(block)

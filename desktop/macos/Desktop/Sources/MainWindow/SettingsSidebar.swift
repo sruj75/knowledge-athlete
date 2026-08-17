@@ -140,15 +140,15 @@ struct SettingsSearchItem: Identifiable {
     // Plan and Usage
     SettingsSearchItem(
       name: "Plan and Usage", subtitle: "Subscription status and usage limits",
-      keywords: ["subscription", "billing", "plan", "usage", "stripe", "architect", "unlimited"],
+      keywords: ["subscription", "billing", "plan", "usage", "renewal"],
       section: .planUsage, icon: "creditcard", settingId: "planusage.overview"),
     SettingsSearchItem(
       name: "Current Plan", subtitle: "See your current subscription and renewal status",
       keywords: ["current plan", "renewal", "billing"], section: .planUsage, icon: "creditcard",
       settingId: "planusage.current"),
     SettingsSearchItem(
-      name: "Upgrade Plan", subtitle: "Buy Operator or Architect",
-      keywords: ["upgrade", "buy", "pricing", "checkout", "architect", "operator", "unlimited"], section: .planUsage,
+      name: "Available Plans", subtitle: "Review server-provided billing offers",
+      keywords: ["upgrade", "buy", "pricing", "checkout"], section: .planUsage,
       icon: "creditcard", settingId: "planusage.purchase"),
 
     // About

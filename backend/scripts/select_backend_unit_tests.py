@@ -151,13 +151,12 @@ AREA_TESTS = (
         ('tests/unit/test_action_item*.py',),
     ),
     (
-        ('backend/routers/payment', 'backend/services/payment/', 'backend/utils/payments'),
+        ('backend/routers/payment', 'backend/utils/billing/'),
         (),
         (
-            'tests/unit/test_payment_*.py',
-            'tests/unit/test_stripe_*.py',
+            'tests/unit/test_billing_*.py',
+            'tests/unit/test_dodo_*.py',
             'tests/unit/test_subscription_*.py',
-            'tests/unit/test_available_plans_resilience.py',
             'tests/unit/test_trial_metadata.py',
             'tests/unit/test_paywall_reconnect_gate.py',
             'tests/unit/test_chat_quota.py',

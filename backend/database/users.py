@@ -8,6 +8,7 @@ from ._client import db, delete_collection_recursive, document_id_from_seed
 from database.firestore_cache import CachePolicy, get_or_fetch, invalidate
 from database.read_boundary import parse_snapshot_or_none, parse_snapshot_strict
 from database.redis_db import try_acquire_client_device_write_lock, try_acquire_user_platform_write_lock
+from config.free_plan import get_default_free_subscription
 from models.users import (
     Subscription,
     PlanLimits,
@@ -15,7 +16,6 @@ from models.users import (
     SubscriptionStatus,
 )
 from models.other import Person
-from utils.subscription import get_default_basic_subscription
 import logging
 
 logger = logging.getLogger(__name__)
@@ -427,7 +427,7 @@ def _mark_user_deletion_billing_failed_txn(transaction, doc_ref, uid: str, subsc
 
 
 def mark_user_deletion_billing_failed(uid: str, subscription_id: str | None, error: str) -> bool:
-    """Record that account deletion is blocked on Stripe cancellation.
+    """Record that account deletion is blocked on provider cancellation.
 
     Never clobbers an actionable or terminal wipe state. A billing failure can
     only block deletion before a destructive wipe has been queued or started.
@@ -1161,17 +1161,6 @@ def set_chat_message_rating_score(
 # **************************************
 
 
-def get_stripe_connect_account_id(uid: str):
-    user_ref = db.collection('users').document(uid)
-    user_data = user_ref.get().to_dict() or {}
-    return user_data.get('stripe_account_id', None)
-
-
-def set_stripe_connect_account_id(uid: str, account_id: str):
-    user_ref = db.collection('users').document(uid)
-    user_ref.update({'stripe_account_id': account_id})
-
-
 def set_paypal_payment_details(uid: str, data: dict):
     user_ref = db.collection('users').document(uid)
     user_ref.update({'paypal_details': data})
@@ -1192,42 +1181,6 @@ def get_default_payment_method(uid: str):
     user_ref = db.collection('users').document(uid)
     user_data = user_ref.get().to_dict() or {}
     return user_data.get('default_payment_method', None)
-
-
-def get_stripe_customer_id(uid: str) -> Optional[str]:
-    """Get the Stripe customer ID for a user."""
-    user_ref = db.collection('users').document(uid)
-    user_doc = user_ref.get()
-    if user_doc.exists:
-        user_data = user_doc.to_dict()
-        return user_data.get('stripe_customer_id')
-    return None
-
-
-def set_stripe_customer_id(uid: str, customer_id: str):
-    user_ref = db.collection('users').document(uid)
-    user_ref.update({'stripe_customer_id': customer_id})
-
-
-def get_user_by_stripe_customer_id(customer_id: str):
-    users_ref = db.collection('users')
-    query = users_ref.where(filter=FieldFilter('stripe_customer_id', '==', customer_id)).limit(1)
-    docs = list(query.stream())
-    if docs:
-        user_dict = docs[0].to_dict()
-        user_dict['uid'] = docs[0].id
-        return user_dict
-    return None
-
-
-def update_user_subscription(uid: str, subscription_data: dict):
-    """Updates the user's subscription information, removing dynamic fields before storing."""
-    subscription_data_to_store = subscription_data.copy()
-    subscription_data_to_store.pop('features', None)
-    subscription_data_to_store.pop('limits', None)
-
-    user_ref = db.collection('users').document(uid)
-    user_ref.update({'subscription': subscription_data_to_store})
 
 
 # **************************************
@@ -1343,29 +1296,17 @@ def get_user_subscription(uid: str) -> Subscription:
         user_data = user_doc.to_dict()
         if 'subscription' in user_data:
             sub_data = user_data['subscription']
-            legacy_free_plan = isinstance(sub_data, dict) and sub_data.get('plan') == 'free'
 
             def subscription_payload(_snapshot: object) -> dict:
                 if not isinstance(sub_data, dict):
                     raise TypeError('Firestore subscription payload must be a mapping')
-                payload = dict(sub_data)
-                if legacy_free_plan:
-                    payload['plan'] = PlanType.basic.value
-                return payload
+                return dict(sub_data)
 
-            subscription = parse_snapshot_strict(Subscription, user_doc, payload_from_snapshot=subscription_payload)
-            # Handle migration for old 'free' plan identifier after validating the normalized payload.
-            if legacy_free_plan:
-                sub_data['plan'] = PlanType.basic.value
-                update_user_subscription(uid, sub_data)
-            return subscription
+            return parse_snapshot_strict(Subscription, user_doc, payload_from_snapshot=subscription_payload)
 
     # If subscription doesn't exist for the user, create and return a default free plan.
-    default_subscription = get_default_basic_subscription()
-    # Strip dynamic fields before storing
+    default_subscription = get_default_free_subscription()
     sub_to_store = default_subscription.model_dump()
-    sub_to_store.pop('features', None)
-    sub_to_store.pop('limits', None)
     user_ref.set({'subscription': sub_to_store}, merge=True)
     return default_subscription
 
@@ -1386,10 +1327,7 @@ def get_existing_user_subscription(uid: str) -> Optional[Subscription]:
     def subscription_payload(_snapshot: object) -> dict:
         if not isinstance(sub_data, dict):
             raise TypeError('Firestore subscription payload must be a mapping')
-        payload = dict(sub_data)
-        if payload.get('plan') == 'free':
-            payload['plan'] = PlanType.basic.value
-        return payload
+        return dict(sub_data)
 
     return parse_snapshot_strict(Subscription, user_doc, payload_from_snapshot=subscription_payload)
 
@@ -1408,18 +1346,14 @@ def get_user_valid_subscription(uid: str) -> Optional[Subscription]:
     """
     subscription = get_user_subscription(uid)
 
-    # Basic (free) plans are only valid if their status is active.
-    if subscription.plan == PlanType.basic:
+    if subscription.plan is PlanType.free:
         return subscription if subscription.status == SubscriptionStatus.active else None
 
-    # For paid plans, validity is determined by the period end.
-    if subscription.current_period_end:
-        period_end_dt = datetime.fromtimestamp(subscription.current_period_end, tz=timezone.utc)
-        if period_end_dt >= datetime.now(timezone.utc):
-            return subscription
+    if subscription.is_current_paid_entitlement():
+        return subscription
 
     # Fallback to default basic subscription
-    return get_default_basic_subscription()
+    return get_default_free_subscription()
 
 
 # **************************************

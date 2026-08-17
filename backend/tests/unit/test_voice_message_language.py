@@ -57,7 +57,7 @@ def chat():
     redis_db = MagicMock()
     redis_db.try_acquire_user_platform_write_lock = MagicMock()
     subscription = MagicMock()
-    subscription.get_default_basic_subscription = MagicMock()
+    subscription.get_default_free_subscription = MagicMock()
     usage_tracker = MagicMock()
     usage_tracker.track_usage = MagicMock()
     usage_tracker.set_usage_context = MagicMock()
@@ -65,7 +65,6 @@ def chat():
 
     fakes: dict[str, object] = {
         "database._client": MagicMock(),
-        "stripe": MagicMock(),
         "database.chat": MagicMock(),
         "database.notifications": MagicMock(),
         "database.auth": MagicMock(),

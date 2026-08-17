@@ -65,7 +65,7 @@ from routers import (
 
 from utils.other.timeout import TimeoutMiddleware
 from utils.observability import log_langsmith_status
-from utils.subscription import validate_stripe_price_ids
+from utils.billing.config import validate_billing_config
 from utils.http_client import close_all_clients
 from utils.executors import (
     drain_background_tasks,
@@ -82,8 +82,8 @@ from services.users.account_deletion import reconcile_pending_deletion_wipes
 # Log LangSmith tracing status at startup
 log_langsmith_status()
 
-# Validate Stripe price IDs so misconfigured plans fail loud
-validate_stripe_price_ids()
+# Validate active billing configuration without constructing a provider client.
+validate_billing_config()
 
 _auth_emulator_host = os.environ.get("FIREBASE_AUTH_EMULATOR_HOST", "").strip()
 if _auth_emulator_host:

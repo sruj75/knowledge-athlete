@@ -78,8 +78,7 @@ jiwer==3.0.4
 python-ulid==3.0.0
 pytz==2024.1
 
-# Payment & communication
-stripe==11.3.0
+# Communication
 twilio==9.5.0
 
 # Search

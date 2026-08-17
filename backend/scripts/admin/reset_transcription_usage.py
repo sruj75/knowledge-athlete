@@ -65,6 +65,8 @@ BACKEND_DIR = Path(__file__).resolve().parents[2]
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
+from config.free_plan import get_default_free_subscription
+
 # Firestore batch write limit.
 _BATCH_LIMIT = 400
 
@@ -293,7 +295,6 @@ def resolve_plan_and_limit(uid: str) -> tuple[str, Optional[int]]:
     """
     from database import users as users_db
     from utils.subscription import (
-        get_default_basic_subscription,
         get_plan_display_name,
         get_plan_limits,
     )
@@ -302,7 +303,7 @@ def resolve_plan_and_limit(uid: str) -> tuple[str, Optional[int]]:
     # enforcement treats that user as Basic, so we do the same here.
     subscription = users_db.get_user_valid_subscription(uid)
     if subscription is None:
-        subscription = get_default_basic_subscription()
+        subscription = get_default_free_subscription()
     plan = subscription.plan
     limits = get_plan_limits(plan)
     limit_seconds = limits.transcription_seconds
