@@ -594,8 +594,6 @@ final class SBOnboardingModel: ObservableObject {
         prepareMainChat: { [chatProvider] in
           chatProvider.stopAgent(owner: .mainChat)
           chatProvider.isOnboarding = false
-          ChatToolExecutor.onboardingAppState = nil
-          OnboardingChatPersistence.clear()
           ChatDraftStore.shared.clear(.onboardingMain)
           ChatDraftStore.shared.clear(.onboardingFloating)
         },

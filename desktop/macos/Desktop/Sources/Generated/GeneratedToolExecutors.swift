@@ -72,7 +72,6 @@ enum GeneratedToolExecutors {
   }
 
   static func isChatToolExecutorTool(_ name: String) -> Bool {
-    if backendOnboardingToolNames.contains(name) { return true }
     guard let tool = resolve(name) else { return false }
     return executorByTool[tool] == .chatToolExecutor
   }
@@ -85,15 +84,12 @@ enum GeneratedToolExecutors {
       + aliasToCanonical.compactMap { alias, tool in
         executorByTool[tool] == .chatToolExecutor ? alias : nil
       }
-      + Array(backendOnboardingToolNames)
     )
   }
 
   static var realtimeHubToolNames: Set<String> {
     Set(GeneratedToolCapabilities.realtimeToolNames)
   }
-
-  private static let backendOnboardingToolNames: Set<String> = ["set_user_preferences","ask_followup","complete_onboarding"]
 
   /// Dispatch surface for ChatToolExecutor — chatToolExecutor-bound tools only.
   enum ChatDispatch {
@@ -114,19 +110,10 @@ enum GeneratedToolExecutors {
     case checkPermissionStatus
     case requestPermission
     case getWorkContext
-    case setUserPreferences
-    case askFollowup
-    case completeOnboarding
     case unhandled
   }
 
   static func chatDispatch(for name: String) -> ChatDispatch {
-    switch name {
-    case "set_user_preferences": return .setUserPreferences
-    case "ask_followup": return .askFollowup
-    case "complete_onboarding": return .completeOnboarding
-    default: break
-    }
     guard let tool = resolve(name), executorByTool[tool] == .chatToolExecutor else {
       return .unhandled
     }

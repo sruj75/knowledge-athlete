@@ -163,10 +163,6 @@ extension AppState {
     UserDefaults.standard.synchronize()
     log("Cleared onboarding UserDefaults keys")
 
-    // Clear onboarding chat persistence and messages
-    OnboardingChatPersistence.clear()
-    log("Cleared onboarding chat persistence")
-
     Task { @MainActor [self] in
       // Clear only setup-owned local conversation state. A re-walkthrough must
       // never mutate the user's normal local or backend chat history.

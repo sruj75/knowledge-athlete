@@ -4,16 +4,16 @@ import XCTest
 
 final class OnboardingPermissionToolTests: XCTestCase {
   func testPermissionStatusPayloadContainsOnlyRetainedPermissions() {
-    let statuses = ChatToolExecutor.onboardingPermissionStatusPayload(
+    let statuses = ChatToolExecutor.permissionStatusPayload(
       screenRecording: false,
       microphone: false,
       notifications: false,
       accessibility: false
     )
 
-    XCTAssertEqual(Set(statuses.keys), Set(ChatToolExecutor.onboardingPermissionTypes))
+    XCTAssertEqual(Set(statuses.keys), Set(ChatToolExecutor.supportedPermissionTypes))
     XCTAssertEqual(
-      ChatToolExecutor.onboardingPermissionTypes,
+      ChatToolExecutor.supportedPermissionTypes,
       ["screen_recording", "microphone", "notifications", "accessibility"])
   }
 

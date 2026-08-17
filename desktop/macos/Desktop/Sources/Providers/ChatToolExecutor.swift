@@ -61,31 +61,16 @@ class ChatToolExecutor {
     ChatToolOwnerAuthorization.snapshot
   }
 
-  // MARK: - Onboarding State
+  // MARK: - Permission tools
 
-  /// Set while the active onboarding coordinator owns a permission request.
-  static var onboardingAppState: AppState?
-  /// Called when AI invokes complete_onboarding
-  static var onCompleteOnboarding: (() -> Void)?
-  /// Called when AI invokes ask_followup — delivers quick-reply options to the UI
-  static var onQuickReplyOptions: ((_ options: [String]) -> Void)?
-  /// Called when AI invokes ask_followup — delivers the question text to the UI
-  static var onQuickReplyQuestion: ((_ question: String) -> Void)?
-  /// Called when request_permission returns "pending" — used to trigger the permission help timer
-  static var onPermissionPending: ((_ permissionType: String) -> Void)?
-
-  nonisolated static let onboardingPermissionTypes = [
+  nonisolated static let supportedPermissionTypes = [
     "screen_recording",
     "microphone",
     "notifications",
     "accessibility",
   ]
 
-  nonisolated static var onboardingPermissionTypesDescription: String {
-    onboardingPermissionTypes.joined(separator: ", ")
-  }
-
-  nonisolated static func onboardingPermissionStatusPayload(
+  nonisolated static func permissionStatusPayload(
     screenRecording: Bool,
     microphone: Bool,
     notifications: Bool,
@@ -206,9 +191,7 @@ class ChatToolExecutor {
         toolCall.arguments,
         expectedOwnerID: expectedOwnerID)
 
-    // Onboarding tools
     case .requestPermission:
-      let isOnboardingRequest = isOnboardingSurface
       let permissionAuthorization = currentOwnerAuthorizationSnapshot
       guard
         let result = await performOwnerBoundAsyncPhysicalEffect(
@@ -231,23 +214,6 @@ class ChatToolExecutor {
           expectedOwnerID,
           authorizationSnapshot: permissionAuthorization)
       else { return authorizedOwnerChangedResult() }
-      let permType = toolCall.arguments["type"] as? String ?? "unknown"
-      let granted = permissionToolResultGranted(result)
-      if isOnboardingRequest {
-        AnalyticsManager.shared.onboardingChatToolUsed(
-          tool: "request_permission",
-          properties: ["permission": permType, "result": granted ? "granted" : "pending"])
-        if !granted {
-          let callback = onPermissionPending
-          DispatchQueue.main.async {
-            publishPermissionPendingIfCurrent(
-              permType,
-              expectedOwnerID: expectedOwnerID,
-              authorizationSnapshot: permissionAuthorization,
-              callback: callback)
-          }
-        }
-      }
       return result
 
     case .checkPermissionStatus:
@@ -261,47 +227,6 @@ class ChatToolExecutor {
           expectedOwnerID,
           authorizationSnapshot: permissionAuthorization)
       else { return authorizedOwnerChangedResult() }
-      AnalyticsManager.shared.onboardingChatToolUsed(tool: "check_permission_status")
-      return result
-
-    case .setUserPreferences:
-      let result = await executeSetUserPreferences(
-        toolCall.arguments,
-        expectedOwnerID: expectedOwnerID,
-        api: backendAPIClient)
-      guard isExpectedOwnerCurrent(expectedOwnerID) else { return authorizedOwnerChangedResult() }
-      var props: [String: Any] = [:]
-      if let name = toolCall.arguments["name"] as? String {
-        props["name_changed"] = true
-        props["name"] = name
-      }
-      if let lang = toolCall.arguments["language"] as? String { props["language"] = lang }
-      AnalyticsManager.shared.onboardingChatToolUsed(
-        tool: "set_user_preferences", properties: props)
-      return result
-
-    case .askFollowup:
-      let result = await executeAskFollowup(
-        toolCall.arguments,
-        expectedOwnerID: expectedOwnerID)
-      guard isExpectedOwnerCurrent(expectedOwnerID) else { return authorizedOwnerChangedResult() }
-      let question = toolCall.arguments["question"] as? String ?? ""
-      let optionCount = (toolCall.arguments["options"] as? [String])?.count ?? 0
-      AnalyticsManager.shared.onboardingChatToolUsed(
-        tool: "ask_followup",
-        properties: ["question_length": question.count, "option_count": optionCount])
-      return result
-
-    case .completeOnboarding:
-      if !OnboardingChatPersistence.isGoalCompleted {
-        return
-          "ERROR: Cannot complete onboarding yet. The user has NOT set their monthly goal. You MUST call ask_followup to ask about their top goal this month BEFORE calling complete_onboarding."
-      }
-      let result = await executeCompleteOnboarding(
-        toolCall.arguments,
-        expectedOwnerID: expectedOwnerID)
-      guard isExpectedOwnerCurrent(expectedOwnerID) else { return authorizedOwnerChangedResult() }
-      AnalyticsManager.shared.onboardingChatToolUsed(tool: "complete_onboarding")
       return result
 
     case .captureScreen:
@@ -1609,12 +1534,12 @@ class ChatToolExecutor {
         "ok": false,
         "status": "error",
         "error": "missing_permission_type",
-        "valid_types": onboardingPermissionTypes,
+        "valid_types": supportedPermissionTypes,
       ])
     }
 
     AnalyticsManager.shared.permissionRequested(permission: type)
-    let appState = onboardingAppState ?? AppState.current
+    let appState = AppState.current
 
     switch type {
     case "screen_recording":
@@ -1762,7 +1687,7 @@ class ChatToolExecutor {
         "status": "error",
         "error": "unknown_permission_type",
         "permission": type,
-        "valid_types": onboardingPermissionTypes,
+        "valid_types": supportedPermissionTypes,
       ])
     }
   }
@@ -1778,7 +1703,7 @@ class ChatToolExecutor {
         expectedOwnerID,
         authorizationSnapshot: authorizationSnapshot)
     else { return authorizedOwnerChangedResult() }
-    let appState = onboardingAppState ?? AppState.current
+    let appState = AppState.current
     guard
       let statuses = await currentPermissionStatuses(
         appState: appState,
@@ -1790,7 +1715,7 @@ class ChatToolExecutor {
         expectedOwnerID,
         authorizationSnapshot: authorizationSnapshot)
     else { return authorizedOwnerChangedResult() }
-    if let type = permissionType(from: args), onboardingPermissionTypes.contains(type) {
+    if let type = permissionType(from: args), supportedPermissionTypes.contains(type) {
       return permissionJSON([
         "ok": true,
         "permission": type,
@@ -1831,17 +1756,6 @@ class ChatToolExecutor {
     ])
   }
 
-  private static func permissionToolResultGranted(_ result: String) -> Bool {
-    guard
-      let data = result.data(using: .utf8),
-      let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-      let status = json["status"] as? String
-    else {
-      return result.trimmingCharacters(in: .whitespacesAndNewlines) == "granted"
-    }
-    return status == "granted"
-  }
-
   private static func currentPermissionStatuses(
     appState: AppState?,
     expectedOwnerID: String?,
@@ -1868,7 +1782,7 @@ class ChatToolExecutor {
     appState?.hasNotificationPermission = notificationsGranted
     appState?.hasAccessibilityPermission = accessibilityGranted
 
-    return onboardingPermissionStatusPayload(
+    return permissionStatusPayload(
       screenRecording: screenRecordingGranted,
       microphone: microphoneGranted,
       notifications: notificationsGranted,
@@ -1952,124 +1866,6 @@ class ChatToolExecutor {
         string: "x-apple.systempreferences:com.apple.preference.notifications?id=\(bundleID)")
     else { return false }
     return open(url)
-  }
-
-  @MainActor
-  static func publishPermissionPendingIfCurrent(
-    _ permissionType: String,
-    expectedOwnerID: String?,
-    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot?,
-    callback: ((String) -> Void)?
-  ) {
-    guard
-      isPermissionAuthorizationCurrent(
-        expectedOwnerID,
-        authorizationSnapshot: authorizationSnapshot)
-    else { return }
-    callback?(permissionType)
-  }
-
-  /// Set user preferences (language, name)
-  private static func executeSetUserPreferences(
-    _ args: [String: Any],
-    expectedOwnerID: String?,
-    api: APIClient
-  ) async -> String {
-    var results: [String] = []
-
-    if let language = args["language"] as? String, !language.isEmpty {
-      let normalizedLanguage = AssistantSettings.normalizeTranscriptionLanguageCode(language)
-      if let expectedOwnerID {
-        _ = try? await api.updateUserLanguage(
-          normalizedLanguage,
-          expectedOwnerId: expectedOwnerID,
-          authorizationSnapshot: currentOwnerAuthorizationSnapshot)
-        guard isExpectedOwnerCurrent(expectedOwnerID) else {
-          return authorizedOwnerChangedResult()
-        }
-      }
-      AssistantSettings.shared.transcriptionLanguage = normalizedLanguage
-      let supportsMulti = AssistantSettings.supportsAutoDetect(normalizedLanguage)
-      AssistantSettings.shared.transcriptionAutoDetect = supportsMulti
-      results.append("Language set to \(normalizedLanguage)")
-    }
-
-    if let name = args["name"] as? String, !name.isEmpty {
-      guard isExpectedOwnerCurrent(expectedOwnerID) else {
-        return authorizedOwnerChangedResult()
-      }
-      await AuthService.shared.updateGivenName(
-        name,
-        expectedOwnerID: expectedOwnerID,
-        authorizationSnapshot: currentOwnerAuthorizationSnapshot)
-      guard isExpectedOwnerCurrent(expectedOwnerID) else {
-        return authorizedOwnerChangedResult()
-      }
-      results.append("Name updated to \(name)")
-    }
-
-    if results.isEmpty {
-      return
-        "No preferences were changed. Provide 'language' (code like 'en', 'es', 'ja') and/or 'name' (string)."
-    }
-    return results.joined(separator: ". ") + "."
-  }
-
-  private static func executeAskFollowup(
-    _ args: [String: Any],
-    expectedOwnerID: String?
-  ) async -> String {
-    guard isExpectedOwnerCurrent(expectedOwnerID) else { return authorizedOwnerChangedResult() }
-    guard let question = args["question"] as? String else {
-      return "Error: 'question' parameter is required"
-    }
-    let options = (args["options"] as? [String]) ?? []
-
-    // Notify the UI to render quick-reply buttons
-    onQuickReplyOptions?(options)
-    onQuickReplyQuestion?(question)
-
-    return "Presented to user: \"\(question)\" with options: \(options.joined(separator: ", "))"
-  }
-
-  /// Complete the onboarding process
-  private static func executeCompleteOnboarding(
-    _ args: [String: Any],
-    expectedOwnerID: String?
-  ) async -> String {
-    guard isExpectedOwnerCurrent(expectedOwnerID) else { return authorizedOwnerChangedResult() }
-    guard let appState = onboardingAppState else {
-      return "Error: onboarding not active"
-    }
-
-    // Log analytics for each permission
-    let permissions: [(String, Bool)] = [
-      ("screen_recording", appState.hasScreenRecordingPermission),
-      ("microphone", appState.hasMicrophonePermission),
-      ("accessibility", appState.hasAccessibilityPermission),
-    ]
-    for (name, granted) in permissions {
-      if granted {
-        AnalyticsManager.shared.permissionGranted(permission: name)
-      } else {
-        AnalyticsManager.shared.permissionSkipped(permission: name)
-      }
-    }
-
-    // Mark that the tool was called so the "Continue to App" button shows even after restart
-    OnboardingChatPersistence.markToolCompleted()
-
-    // Call the completion callback
-    onCompleteOnboarding?()
-
-    // Clean up state
-    onboardingAppState = nil
-    onCompleteOnboarding = nil
-    onQuickReplyOptions = nil
-    onQuickReplyQuestion = nil
-    onPermissionPending = nil
-
-    return "Onboarding completed successfully! The app is now set up."
   }
 
   // MARK: - Date Validation

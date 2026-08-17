@@ -2485,7 +2485,6 @@ class AuthService {
     // Shared list with resetOnboardingAndRestart so a new onboarding key
     // can't be forgotten at one site and leak to the next account.
     OnboardingFlow.clearPersistedState()
-    OnboardingChatPersistence.clear()
 
     // screenAnalysisEnabled: Don't removeObject here — SettingsSyncManager overwrites
     // it from the server within ~200ms of sign-in. Instead, onboarding force-starts
