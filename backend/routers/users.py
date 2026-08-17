@@ -153,15 +153,6 @@ class UserProfileResponse(BaseModel):
     migration_status: Optional[Dict[str, Any]] = None
 
 
-_USER_PROFILE_RESPONSE_FIELDS = frozenset(UserProfileResponse.model_fields)
-
-
-def _public_user_profile(uid: str, profile: Dict[str, Any]) -> Dict[str, Any]:
-    public_profile = {key: value for key, value in profile.items() if key in _USER_PROFILE_RESPONSE_FIELDS}
-    public_profile.setdefault('uid', uid)
-    return public_profile
-
-
 class UserDataExportResponse(BaseModel):
     profile: Dict[str, Any] = Field(default_factory=dict)
     conversations: List[Dict[str, Any]] = Field(default_factory=list)
@@ -280,7 +271,9 @@ def get_user_profile_endpoint(uid: str = Depends(auth.get_current_user_uid)):
     profile = get_user_profile(uid)
     if not profile:
         raise HTTPException(status_code=410, detail="User not found")
-    return _public_user_profile(uid, profile)
+    return UserProfileResponse.model_validate({**profile, 'uid': profile.get('uid', uid)}).model_dump(
+        exclude_unset=True
+    )
 
 
 @router.delete('/v1/users/delete-account', tags=['v1'], response_model=UserStatusResponse)
