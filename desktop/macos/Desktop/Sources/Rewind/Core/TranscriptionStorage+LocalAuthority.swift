@@ -760,6 +760,10 @@ extension TranscriptionStorage {
           var sourceMaxEnd = 0.0
           for segment in segments {
             let oldSegmentId: String = segment["segmentId"]
+            let sourceSpeakerId: Int = segment["speakerId"]
+            guard let mergedSpeakerId = mergedSpeakerIds[sourceSpeakerId] else {
+              throw TranscriptionStorageError.invalidState("merged segment speaker mapping missing")
+            }
             let mergedSegmentId = LocalTranscriptFormatter.stableSegmentId(
               conversationId: replacementId.lowercased(),
               input: ConversationSegmentInput(
@@ -772,14 +776,13 @@ extension TranscriptionStorage {
             sourceMaxEnd = max(sourceMaxEnd, end)
             try database.execute(
               sql: """
-                INSERT INTO transcription_segments
-                  (sessionId, segmentId, speakerId, text, startTime, endTime, segmentOrder, isUser,
-                   translationsJson, createdAt, updatedAt)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                  INSERT INTO transcription_segments
+                    (sessionId, segmentId, speakerId, text, startTime, endTime, segmentOrder, isUser,
+                     translationsJson, createdAt, updatedAt)
+                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
               arguments: [
-                replacementSessionId, mergedSegmentId,
-                mergedSpeakerIds[segment["speakerId"] as Int]!,
+                replacementSessionId, mergedSegmentId, mergedSpeakerId,
                 segment["text"] as String, start + offset, end + offset, segmentOrder,
                 segment["isUser"] as Bool, segment["translationsJson"] as String?, now, now,
               ])
@@ -792,6 +795,10 @@ extension TranscriptionStorage {
           previousFinishedAt = source["finishedAt"]
 
           for label in labels {
+            let sourceSpeakerId: Int = label["speakerId"]
+            guard let mergedSpeakerId = mergedSpeakerIds[sourceSpeakerId] else {
+              throw TranscriptionStorageError.invalidState("merged label speaker mapping missing")
+            }
             try database.execute(
               sql: """
                 INSERT OR IGNORE INTO conversation_speaker_labels
@@ -799,7 +806,7 @@ extension TranscriptionStorage {
                 VALUES (?, ?, ?, ?, ?)
                 """,
               arguments: [
-                replacementId.lowercased(), mergedSpeakerIds[label["speakerId"] as Int]!, label["name"] as String,
+                replacementId.lowercased(), mergedSpeakerId, label["name"] as String,
                 label["isUser"] as Bool, now,
               ])
           }

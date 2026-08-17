@@ -27,13 +27,14 @@ final class APIClientUserProfileDecodingTests: XCTestCase {
   }
 
   func testUserProfileRequiresUidButToleratesOptionalProfileFields() throws {
-    let json = """
+    let json = Data(
+      """
       {
         "uid": "user-123",
         "name": "Desktop User",
         "unexpected_profile_field": "ignored"
       }
-      """.data(using: .utf8)!
+      """.utf8)
 
     let profile = try makeDecoder().decode(UserProfileResponse.self, from: json)
 
@@ -44,13 +45,13 @@ final class APIClientUserProfileDecodingTests: XCTestCase {
   }
 
   func testUserProfileStillFailsWithoutUid() {
-    let json = """
+    let json = Data(
+      """
       {
         "name": "Legacy User"
       }
-      """.data(using: .utf8)!
+      """.utf8)
 
     XCTAssertThrowsError(try makeDecoder().decode(UserProfileResponse.self, from: json))
   }
-
 }

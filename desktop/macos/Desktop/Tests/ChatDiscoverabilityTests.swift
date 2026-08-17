@@ -66,9 +66,9 @@ final class ChatDiscoverabilityTests: XCTestCase {
     XCTAssertNotNil(cols["source"])
   }
 
-  func testConversationPromptSchemaMatchesLocalAuthority() {
-    let sessions = ChatPrompts.columnAnnotations["transcription_sessions"]!
-    let segments = ChatPrompts.columnAnnotations["transcription_segments"]!
+  func testConversationPromptSchemaMatchesLocalAuthority() throws {
+    let sessions = try XCTUnwrap(ChatPrompts.columnAnnotations["transcription_sessions"])
+    let segments = try XCTUnwrap(ChatPrompts.columnAnnotations["transcription_segments"])
 
     for retained in ["conversationId", "status", "contentGeneration", "isTitleManuallyEdited"] {
       XCTAssertNotNil(sessions[retained], "Missing local conversation column \(retained)")

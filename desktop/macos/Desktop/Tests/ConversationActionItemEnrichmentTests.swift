@@ -85,6 +85,7 @@ final class ConversationActionItemEnrichmentTests: XCTestCase {
     let handle = try await processing(owner.storage)
     let now = Date(timeIntervalSince1970: 1_700_001_000)
     let existing = try await insertTask(owner.pool, "original", now: now)
+    let requestGeneration = try XCTUnwrap(UUID(uuidString: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"))
     let computer = ActionComputerStub(candidates: [
       .init(action: .update, description: "updated", targetTaskToken: "t0", dueAt: now.addingTimeInterval(600)),
       .init(action: .create, description: "recent past task", targetTaskToken: nil, dueAt: now.addingTimeInterval(-10)),
@@ -97,7 +98,7 @@ final class ConversationActionItemEnrichmentTests: XCTestCase {
       similarityProvider: ActionSimilarityStub(
         matches: [.init(localRowId: existing, similarity: 0.9)], fails: false),
       requiresOwnerAuthorization: false,
-      requestGeneration: { UUID(uuidString: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")! },
+      requestGeneration: { requestGeneration },
       now: { now })
 
     let result = await service.process(conversationId: handle.conversationId)

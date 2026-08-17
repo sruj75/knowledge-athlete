@@ -48,6 +48,7 @@ enum DefaultsKey: String {
   case shortcutPTTInputDeviceUID = "shortcut_pttInputDeviceUID"
   case desktopIsPaywalled = "desktop_isPaywalled"
   case rewindDisableContentCache = "rewindDisableContentCache"
+  case transcriptionVocabulary = "transcriptionVocabulary"
 }
 
 /// Compile-checked owner-scoped defaults keys whose final storage key is
@@ -75,6 +76,7 @@ extension UserDefaults {
   func bool(forKey key: DefaultsKey) -> Bool { bool(forKey: key.rawValue) }
   func integer(forKey key: DefaultsKey) -> Int { integer(forKey: key.rawValue) }
   func double(forKey key: DefaultsKey) -> Double { double(forKey: key.rawValue) }
+  func stringArray(forKey key: DefaultsKey) -> [String]? { stringArray(forKey: key.rawValue) }
   func data(forKey key: ScopedDefaultsKey) -> Data? { data(forKey: key.rawValue) }
   func bool(forKey key: ScopedDefaultsKey) -> Bool { bool(forKey: key.rawValue) }
   func object(forKey key: ScopedDefaultsKey) -> Any? { object(forKey: key.rawValue) }

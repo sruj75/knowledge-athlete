@@ -13,7 +13,7 @@ final class AssistantSettingsVocabularyTests: XCTestCase {
 
     XCTAssertEqual(settings.transcriptionVocabulary, ["[[MARKER:vocabulary-race]]"])
     XCTAssertEqual(
-      UserDefaults.standard.stringArray(forKey: "transcriptionVocabulary"),
+      UserDefaults.standard.stringArray(forKey: .transcriptionVocabulary),
       ["[[MARKER:vocabulary-race]]"])
   }
 }

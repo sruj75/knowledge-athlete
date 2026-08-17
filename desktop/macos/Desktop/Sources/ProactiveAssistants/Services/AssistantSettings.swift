@@ -24,7 +24,7 @@ class AssistantSettings {
   private let transcriptionLanguageKey = "transcriptionLanguage"
   private let transcriptionAutoDetectKey = "transcriptionAutoDetect"
   private let voiceLanguagesKey = "voiceAssistantLanguages"
-  private let transcriptionVocabularyKey = "transcriptionVocabulary"
+  private let transcriptionVocabularyKey = DefaultsKey.transcriptionVocabulary
   private let conversationLocationEnabledKey = "conversationLocationEnabled"
   private let vadGateEnabledKey = "vadGateEnabled"
   private let batchTranscriptionEnabledKey = "batchTranscriptionEnabled"
@@ -54,7 +54,7 @@ class AssistantSettings {
       transcriptionEnabledKey: defaultTranscriptionEnabled,
       transcriptionLanguageKey: defaultTranscriptionLanguage,
       transcriptionAutoDetectKey: defaultTranscriptionAutoDetect,
-      transcriptionVocabularyKey: defaultTranscriptionVocabulary,
+      transcriptionVocabularyKey.rawValue: defaultTranscriptionVocabulary,
       conversationLocationEnabledKey: false,
       vadGateEnabledKey: defaultVadGateEnabled,
       batchTranscriptionEnabledKey: defaultBatchTranscriptionEnabled,

@@ -156,13 +156,14 @@ final class ConversationLocalAuthorityMigrationTests: XCTestCase {
           (sessions[0]["commitmentsJson"] as String?).flatMap { $0.data(using: .utf8) })
         let commitments = try JSONDecoder().decode(
           [ConversationCommitmentComputeCandidate].self, from: commitmentsData)
+        let commitmentStart = try XCTUnwrap(ISO8601DateFormatter().date(from: "2026-08-18T09:00:00Z"))
         XCTAssertEqual(
           commitments,
           [
             ConversationCommitmentComputeCandidate(
               title: "Follow up",
               description: "Send notes",
-              start: ISO8601DateFormatter().date(from: "2026-08-18T09:00:00Z")!,
+              start: commitmentStart,
               durationMinutes: 30,
               created: false)
           ])
