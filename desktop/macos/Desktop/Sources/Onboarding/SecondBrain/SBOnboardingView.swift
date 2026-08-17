@@ -36,7 +36,7 @@ struct SBOnboardingView: View {
   init(
     appState: AppState,
     chatProvider: ChatProvider,
-    onComplete: (() -> Void)?
+    onComplete: (@MainActor @Sendable () -> Void)?
   ) {
     _model = StateObject(
       wrappedValue: SBOnboardingModel(
@@ -201,7 +201,6 @@ struct SBOnboardingView: View {
     case .name: nameWidget
     case .howHeard: howHeardWidget
     case .language: languageWidget
-    case .role: roleWidget
     case .mic: permStepWidget("microphone", "Microphone", "hears your side of conversations") { model.answerMic() }
     case .systemAudio:
       permStepWidget("system_audio", "System audio", "the other side — Zoom, Meet, calls") { model.answerSystemAudio() }
@@ -210,7 +209,9 @@ struct SBOnboardingView: View {
         model.answerScreen()
       }
     case .accessibility:
-      permStepWidget("accessibility", "Accessibility", "catch your shortcut + click/type for you") {
+      permStepWidget(
+        "accessibility", "Accessibility", "global push-to-talk + precise Rewind and Focus window targeting"
+      ) {
         model.answerAccessibility()
       }
     case .shortcutOpen: shortcutWidget(isTalk: false)
@@ -336,27 +337,6 @@ struct SBOnboardingView: View {
       }
     }
     .frame(maxWidth: 340, alignment: .leading)
-  }
-
-  private var roleWidget: some View {
-    VStack(alignment: .leading, spacing: 10) {
-      FlowChips(
-        items: ["Student", "Sales", "Consultant", "Founder", "Engineer", "Analyst", "Creator", "Other"],
-        selectedItem: model.role
-      ) { r in
-        model.pickRole(r)
-      }
-      HStack(spacing: 8) {
-        TextField("or just say it in your own words…", text: $model.roleDraft)
-          .textFieldStyle(.plain).geist(size: 14).foregroundStyle(sb.ink)
-          .padding(.horizontal, 13).padding(.vertical, 9)
-          .background(RoundedRectangle(cornerRadius: 10).fill(sb.ink(.w06)))
-          .overlay(RoundedRectangle(cornerRadius: 10).stroke(sb.ink(.w12), lineWidth: 1))
-          .onSubmit { model.answerRoleText() }
-        SBInkButton(title: "→", horizontalPadding: 15, verticalPadding: 9) { model.answerRoleText() }
-      }
-      .frame(maxWidth: 360)
-    }
   }
 
   // MARK: permissions (one at a time)
@@ -566,12 +546,17 @@ struct SBOnboardingView: View {
 
   private var captureWidget: some View {
     VStack(spacing: 8) {
+      Text(SBOnboardingCompletionCopy.disclosure)
+        .geist(size: 12)
+        .foregroundStyle(sb.ink(.w6))
+        .fixedSize(horizontal: false, vertical: true)
+        .padding(.bottom, 4)
       Button {
         model.capture(SBOnboardingModel.defaultCaptureSelection)
       } label: {
         HStack(spacing: 4) {
           Text("● Only during meetings").geist(size: 14, weight: .semibold).foregroundStyle(sb.inkInverted)
-          Text("· from my calendar").geist(size: 12).foregroundStyle(sb.inkInverted.opacity(0.7))
+          Text("· starts when a call is detected").geist(size: 12).foregroundStyle(sb.inkInverted.opacity(0.7))
         }
         .frame(maxWidth: .infinity).padding(.vertical, 11)
         .background(RoundedRectangle(cornerRadius: 11).fill(sb.ink))

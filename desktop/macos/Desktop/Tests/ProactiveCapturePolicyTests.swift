@@ -35,4 +35,15 @@ final class ProactiveCapturePolicyTests: XCTestCase {
       ProactiveCapturePolicy.captureTickAllowed(
         isMonitoring: false, isInRecoveryMode: false, isInBackgroundPolling: false))
   }
+
+  func testStopInvalidatesEveryPendingMonitoringRetryGeneration() {
+    var fence = ProactiveMonitoringStartFence()
+    let pendingRetry = fence.begin()
+
+    fence.cancel()
+
+    XCTAssertFalse(fence.isCurrent(pendingRetry))
+    let explicitRestart = fence.begin()
+    XCTAssertTrue(fence.isCurrent(explicitRestart))
+  }
 }

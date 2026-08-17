@@ -358,22 +358,6 @@ private actor PermissionCallbackBox<Value: Sendable> {
       "late or duplicate OS callbacks must not resume the revoked continuation again")
   }
 
-  func testSignedOutPermissionPublicationIsRevokedWhenAnOwnerSignsIn() async {
-    await replaceStandardOwner(with: nil)
-    var pendingCallbacks: [String] = []
-    await replaceStandardOwner(with: "owner-b")
-
-    ChatToolExecutor.publishPermissionPendingIfCurrent(
-      "microphone",
-      expectedOwnerID: nil,
-      authorizationSnapshot: nil,
-      callback: { pendingCallbacks.append($0) })
-
-    XCTAssertTrue(
-      pendingCallbacks.isEmpty,
-      "the narrow signed-out permission path must close as soon as an owner signs in")
-  }
-
   func testRetainedPhysicalEffectsAreNotInvokedAfterOwnerSwap() async {
     for effectName in ["permission", "task_update"] {
       var currentOwner = "owner-a"

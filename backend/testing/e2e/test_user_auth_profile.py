@@ -35,7 +35,7 @@ def test_profile_410_then_seeded_profile(client, auth_headers):
     resp = client.get("/v1/users/profile", headers=auth_headers)
     assert resp.status_code == 200, resp.text
     body = resp.json()
-    assert body["name"] == seeded["name"]
+    assert "name" not in body
     assert body["email"] == seeded["email"]
     assert body["data_protection_level"] == "standard"
 

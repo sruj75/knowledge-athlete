@@ -117,7 +117,7 @@ healthy enough to boot the hermetic T2 stack. Stable nomination and production p
 | `refer-external` | v2 | manual `do:` | manual | Profile menu → affiliate URL |
 | `delete-account` | v2 | manual `do:` | manual | Confirmation sheet only; never confirm |
 | `logout` | v2 | manual bridge | manual | `sign_out` bridge action; local Auth emulator only |
-| `onboarding-smoke` | v2 | manual `do:` + bridge | manual | `reset_onboarding`; Wave 7 fix — manual until 2× local green |
+| `onboarding-smoke` | v2 | manual `do:` + bridge | manual | Named-bundle reset/restart plus two retained-flow exits; destructive/TCC manual gate |
 | `rewind` | v2 | manual `do:` | manual | |
 | `screen-recording-permission` | v2 | manual `do:` | manual | TCC-dependent |
 | `external-surface-retirement-upgrade` | v2 | manual `do:` | manual | Named bundle + disposable migrated profile |
@@ -142,7 +142,7 @@ healthy enough to boot the hermetic T2 stack. Stable nomination and production p
 | Refer external | Live P2 | manual | opens browser | ⚠️ `refer-external.yaml` |
 | Delete account | Live P2 | manual | confirm sheet only | ⚠️ `delete-account.yaml` |
 | Logout | Live P2 | manual bridge | `sign_out` action | ⚠️ `logout.yaml` (local emulator; stays manual — destructive to session) |
-| Onboarding reset | Live P2 | manual + bridge | reset + restart | ⚠️ `onboarding-smoke.yaml` (fix landed; manual gate) |
+| Onboarding reset | Live P2 | manual + bridge | reset + restart + two exits | ⚠️ `onboarding-smoke.yaml` (named bundle only; destructive/TCC manual gate) |
 | Settings depth | T2 | bridge | About / Notifications / Rewind / Shortcuts / Advanced | ✅ dedicated flows + `settings-basic.yaml` |
 
 Evidence contract: `.harness/desktop-core/<run-id>/{manifest.json, flows/, summary.md}` plus `latest-green` on pass. T2+ manifests include `provider_mode` (must be `offline` for qualification-eligible runs).

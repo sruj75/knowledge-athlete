@@ -8,13 +8,13 @@ final class SBOnboardingCaptureSelectionTests: XCTestCase {
     let selection = SBOnboardingModel.defaultCaptureSelection
 
     XCTAssertEqual(selection.systemAudioCaptureMode, .onlyDuringMeetings)
-    XCTAssertFalse(selection.startsListeningImmediately)
+    XCTAssertFalse(selection.capturesWithoutActiveMeeting)
   }
 
-  func testContinuousCaptureSelectionStartsListeningImmediately() {
+  func testContinuousCaptureSelectionCapturesWithoutActiveMeeting() {
     let selection = SBOnboardingModel.CaptureSelection.continuous
 
     XCTAssertEqual(selection.systemAudioCaptureMode, .always)
-    XCTAssertTrue(selection.startsListeningImmediately)
+    XCTAssertTrue(selection.capturesWithoutActiveMeeting)
   }
 }

@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Set, cast
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import database.folders as folders_db
+import database.auth as auth_db
 import database.users as users_db
 from models.other import Person
 
@@ -66,8 +67,7 @@ def populate_speaker_names(uid: str, conversations: List[Dict[str, Any]]) -> Non
     Mutates conversation dicts in-place. Works with both single conversations
     (pass as [conv]) and lists.
     """
-    user_profile = users_db.get_user_profile(uid)
-    user_name = user_profile.get('name') or 'User'
+    user_name = auth_db.get_user_name(uid, use_default=False) or 'User'
 
     all_person_ids: Set[str] = set()
     for conv in conversations:

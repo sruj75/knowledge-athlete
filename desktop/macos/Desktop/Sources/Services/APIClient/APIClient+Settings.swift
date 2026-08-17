@@ -65,34 +65,6 @@ extension APIClient {
     return try await patch("v1/users/notification-settings", body: body)
   }
 
-  /// Fetches user profile
-  func getUserProfile() async throws -> UserProfileResponse {
-    return try await get("v1/users/profile")
-  }
-
-  /// Updates user profile (onboarding data)
-  func updateUserProfile(
-    name: String? = nil, motivation: String? = nil, useCase: String? = nil, job: String? = nil,
-    company: String? = nil,
-    expectedOwnerId: String? = nil,
-    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot? = nil
-  ) async throws {
-    struct UpdateRequest: Encodable {
-      let name: String?
-      let motivation: String?
-      let use_case: String?
-      let job: String?
-      let company: String?
-    }
-    let body = UpdateRequest(
-      name: name, motivation: motivation, use_case: useCase, job: job, company: company)
-    let _: UserProfileResponse = try await patch(
-      "v1/users/profile",
-      body: body,
-      expectedOwnerId: expectedOwnerId,
-      authorizationSnapshot: authorizationSnapshot)
-  }
-
   /// Deletes the authenticated user's account and all server data.
   func deleteAccount() async throws {
     try await delete("v1/users/delete-account")
@@ -400,39 +372,6 @@ struct TrialMetadataResponse: Codable {
     case trialDurationSeconds = "trial_duration_seconds"
     case trialFeatures = "trial_features"
     case planAfterTrial = "plan_after_trial"
-  }
-}
-
-/// User profile response
-struct UserProfileResponse: Codable {
-  let uid: String
-  let email: String?
-  let name: String?
-  let timeZone: String?
-  let createdAt: String?
-  let motivation: String?
-  let useCase: String?
-  let job: String?
-  let company: String?
-
-  enum CodingKeys: String, CodingKey {
-    case uid, email, name, motivation, job, company
-    case timeZone = "time_zone"
-    case createdAt = "created_at"
-    case useCase = "use_case"
-  }
-
-  init(from decoder: Decoder) throws {
-    let container = try decoder.container(keyedBy: CodingKeys.self)
-    uid = try container.decode(String.self, forKey: .uid)
-    email = try container.decodeIfPresent(String.self, forKey: .email)
-    name = try container.decodeIfPresent(String.self, forKey: .name)
-    timeZone = try container.decodeIfPresent(String.self, forKey: .timeZone)
-    createdAt = try container.decodeIfPresent(String.self, forKey: .createdAt)
-    motivation = try container.decodeIfPresent(String.self, forKey: .motivation)
-    useCase = try container.decodeIfPresent(String.self, forKey: .useCase)
-    job = try container.decodeIfPresent(String.self, forKey: .job)
-    company = try container.decodeIfPresent(String.self, forKey: .company)
   }
 }
 

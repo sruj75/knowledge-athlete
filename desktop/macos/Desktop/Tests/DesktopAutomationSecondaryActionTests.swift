@@ -259,35 +259,12 @@ final class DesktopAutomationSecondaryActionTests: XCTestCase {
     XCTAssertFalse(body.contains("APIClient.shared"))
   }
 
-  func testResetOnboardingUsesLiveAppStateSingleton() throws {
+  func testResetOnboardingUsesSharedAutomationReplayBoundary() throws {
     let source = try bridgeSource()
     let bridgeBody = try actionBody(named: "reset_onboarding", in: source)
     XCTAssertTrue(bridgeBody.contains("AppState.current"))
-    let systemActions = try String(
-      contentsOf: URL(fileURLWithPath: #filePath)
-        .deletingLastPathComponent()
-        .deletingLastPathComponent()
-        .appendingPathComponent("Sources/AppState/AppState+SystemActions.swift"),
-      encoding: .utf8
-    )
-    let resetStart = try XCTUnwrap(systemActions.range(of: "func resetOnboardingAndRestart"))
-    let resetRemainder = systemActions[resetStart.lowerBound...]
-    let asynchronousCleanup = try XCTUnwrap(
-      resetRemainder.range(of: "Task { @MainActor [self] in")
-    )
-    let resetBody = String(resetRemainder[..<asynchronousCleanup.lowerBound])
-    XCTAssertTrue(resetBody.contains("resetOnboardingRequested"))
-    let notificationRange = try XCTUnwrap(resetBody.range(of: "resetOnboardingRequested"))
-    let udClearRange = try XCTUnwrap(resetBody.range(of: "removeObject(forKey:"))
-    XCTAssertLessThan(
-      notificationRange.lowerBound,
-      udClearRange.lowerBound,
-      "reset must post resetOnboardingRequested before UserDefaults keys are removed"
-    )
-    XCTAssertTrue(
-      resetBody.contains("DispatchQueue.main.sync"),
-      "reset must synchronously deliver resetOnboardingRequested on the main thread"
-    )
+    XCTAssertTrue(bridgeBody.contains("source: .automation"))
+    XCTAssertTrue(source.contains("OnboardingResetAutomationPolicy.isAvailable"))
   }
 
   func testMemoryAutomationActionsRegisteredOnViewModel() throws {

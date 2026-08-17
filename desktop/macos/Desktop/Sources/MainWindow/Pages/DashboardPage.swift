@@ -364,9 +364,6 @@ struct DashboardPage: View {
   private func applyHomeLifecycleCore<Content: View>(to content: Content) -> some View {
     content
       .onAppear {
-        if PostOnboardingPromptSuggestions.shouldShowPopup && !postOnboardingSuggestions.isEmpty {
-          NotificationCenter.default.post(name: .showTryAskingPopup, object: nil)
-        }
         syncCaptureState()
         autoOpenChatForExistingHistoryIfNeeded()
         // Post-onboarding, the resting hub is shown by default — open the chat
@@ -1022,8 +1019,7 @@ struct DashboardPage: View {
 
   private var homeSuggestedQuestions: [String] {
     HomeSuggestionComposer.compose(
-      personalized: homeSuggestionsStore.personalizedQuestions,
-      onboarding: PostOnboardingPromptSuggestions.suggestions()
+      personalized: homeSuggestionsStore.personalizedQuestions
     )
   }
 
@@ -1389,18 +1385,6 @@ struct DashboardPage: View {
 
   private var dashboardWidgets: some View {
     VStack(alignment: .leading, spacing: widgetsCollapsed ? 0 : OmiSpacing.xl) {
-      if shouldShowSuggestionBanner {
-        PromptSuggestionBanner(
-          suggestions: postOnboardingSuggestions,
-          onOpen: {
-            dismissSuggestionBanner()
-            NotificationCenter.default.post(name: .showTryAskingPopup, object: nil)
-          },
-          onAsk: handleSuggestedPrompt,
-          onDismiss: dismissSuggestionBanner
-        )
-      }
-
       dashboardIntelligenceError
 
       FocusedGoalsSection(
@@ -1618,24 +1602,6 @@ struct DashboardPage: View {
       .buttonStyle(.plain)
       Spacer()
     }
-  }
-
-  private var postOnboardingSuggestions: [String] {
-    PostOnboardingPromptSuggestions.suggestions()
-  }
-
-  private var shouldShowSuggestionBanner: Bool {
-    !postOnboardingSuggestions.isEmpty && !PostOnboardingPromptSuggestions.isDismissed
-  }
-
-  private func dismissSuggestionBanner() {
-    PostOnboardingPromptSuggestions.shouldShowPopup = false
-    PostOnboardingPromptSuggestions.isDismissed = true
-  }
-
-  private func handleSuggestedPrompt(_ suggestion: String) {
-    PostOnboardingPromptSuggestions.shouldShowPopup = false
-    FloatingControlBarManager.shared.openAIInputWithQuery(suggestion)
   }
 
 }

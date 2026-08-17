@@ -10,29 +10,32 @@ final class SBOnboardingBackNavigationTests: XCTestCase {
     super.setUp()
     UserDefaults.standard.removeObject(forKey: resumeStepKey)
     UserDefaults.standard.removeObject(forKey: DefaultsKey.onboardingHowDidYouHearSource)
-    UserDefaults.standard.removeObject(forKey: DefaultsKey.onboardingRole)
   }
 
   override func tearDown() {
     UserDefaults.standard.removeObject(forKey: resumeStepKey)
     UserDefaults.standard.removeObject(forKey: DefaultsKey.onboardingHowDidYouHearSource)
-    UserDefaults.standard.removeObject(forKey: DefaultsKey.onboardingRole)
     super.tearDown()
   }
 
-  func testBackFromPermissionsReturnsToRoleAndPreservesSelectedRole() {
+  func testBackFromMicrophoneReturnsToLanguage() {
     let model = SBOnboardingModel(
       appState: AppState(), chatProvider: ChatProvider(), onComplete: nil)
-    UserDefaults.standard.set("Student", forKey: DefaultsKey.onboardingRole)
     model.step = .mic
+    model.thread = [
+      .init(isOmi: true, text: "Choose a language"),
+      .init(isOmi: false, text: "English"),
+      .init(isOmi: true, text: "Microphone"),
+    ]
+    let transcriptBeforeBack = model.thread.map(\.text)
 
     model.goBack()
 
-    XCTAssertEqual(model.step, .role)
-    XCTAssertEqual(model.role, "Student")
+    XCTAssertEqual(model.step, .language)
+    XCTAssertEqual(model.thread.map(\.text), transcriptBeforeBack)
     XCTAssertEqual(
       UserDefaults.standard.integer(forKey: SBOnboardingModel.resumeStepKey),
-      SBOnboardingModel.Step.role.rawValue)
+      SBOnboardingModel.Step.language.rawValue)
   }
 
   func testBackPreservesEarlierAcquisitionChoiceAndStopsAtFirstStep() {

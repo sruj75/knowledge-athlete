@@ -16,28 +16,4 @@ final class RewindCaptureIntentPolicyTests: XCTestCase {
     XCTAssertTrue(state.isMonitoring)
     XCTAssertFalse(state.captureEnabled)
   }
-
-  func testQuietNamedBundleRepairRestoresCaptureDefaultOnce() {
-    XCTAssertTrue(
-      RewindCaptureState.shouldRepairQuietBundleCaptureDefault(
-        usesLazyDevPermissions: true,
-        migrationApplied: false
-      )
-    )
-    XCTAssertFalse(
-      RewindCaptureState.shouldRepairQuietBundleCaptureDefault(
-        usesLazyDevPermissions: true,
-        migrationApplied: true
-      )
-    )
-  }
-
-  func testQuietBundleRepairDoesNotChangeProductionPreference() {
-    XCTAssertFalse(
-      RewindCaptureState.shouldRepairQuietBundleCaptureDefault(
-        usesLazyDevPermissions: false,
-        migrationApplied: false
-      )
-    )
-  }
 }

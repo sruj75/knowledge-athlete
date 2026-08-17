@@ -842,6 +842,7 @@ struct ConversationsPage: View {
 
   private var startRecordingButton: some View {
     Button(action: {
+      OnboardingExitPersistence.recordExplicitCapabilityEnablement()
       appState.startTranscription()
     }) {
       HStack(spacing: OmiSpacing.xs) {

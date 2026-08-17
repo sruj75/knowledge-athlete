@@ -1,8 +1,7 @@
-from typing import Any, Dict, Optional, cast
+from typing import Any, Dict, Optional
 
 from firebase_admin import auth
 
-from database._client import db
 from database.redis_db import cache_user_name
 import logging
 
@@ -41,50 +40,19 @@ def get_user_from_uid(uid: str) -> Optional[Dict[str, Any]]:
     }
 
 
-def _get_firestore_user_name(uid: str) -> Optional[str]:
-    """Fallback: get user name from Firestore user profile."""
-    try:
-        user_doc = db.collection('users').document(uid).get()
-        if getattr(user_doc, "exists", False):
-            raw: object = user_doc.to_dict()
-            data: Dict[str, Any] = cast(Dict[str, Any], raw) if isinstance(raw, dict) else {}
-            name = data.get('name')
-            if name and isinstance(name, str):
-                return name.split(' ')[0]
-    except Exception as e:
-        logger.error(f"Firestore user name lookup failed: {e}")
-    return None
-
-
 def get_user_name(uid: str, use_default: bool = True) -> Optional[str]:
     default_name: Optional[str] = 'The User' if use_default else None
     user = get_user_from_uid(uid)
     if not user:
-        # Fallback to Firestore profile
-        firestore_name = _get_firestore_user_name(uid)
-        if firestore_name:
-            cache_user_name(uid, firestore_name, ttl=60 * 60)
-            return firestore_name
         return default_name
 
     display_name_raw = user.get('display_name')
     if not display_name_raw:
-        # Fallback to Firestore profile
-        firestore_name = _get_firestore_user_name(uid)
-        if firestore_name:
-            cache_user_name(uid, firestore_name, ttl=60 * 60)
-            return firestore_name
         return default_name
 
     display_name: str = display_name_raw.split(' ')[0]
     if display_name == 'AnonymousUser':
-        firestore_name = _get_firestore_user_name(uid)
-        if firestore_name:
-            display_name = firestore_name
-        elif use_default:
-            display_name = 'The User'
-        else:
-            return None
+        return default_name
 
     cache_user_name(uid, display_name, ttl=60 * 60)
     return display_name

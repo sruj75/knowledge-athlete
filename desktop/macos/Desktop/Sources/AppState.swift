@@ -72,8 +72,8 @@ class AppState: ObservableObject {
 
   // Transcription state
   @Published var isTranscribing = false
-  /// A terminal live-STT failure reported by `/v4/listen`. This stays visible
-  /// until the backend is ready or the active session is reset.
+  var transcriptionStopTask: Task<Void, Never>?
+  /// A terminal live-STT failure reported by `/v4/listen`; visible until the backend is ready or the session resets.
   @Published var transcriptionServiceError: String?
   /// Monotonically increasing counter — incremented each time a new recording starts.
   /// Used to detect if a new recording began during the post-stop force-process delay.
@@ -619,12 +619,6 @@ class AppState: ObservableObject {
 
 extension Notification.Name {
   static let resetOnboardingRequested = Notification.Name("resetOnboardingRequested")
-  /// Posted by the onboarding arrow-key monitor with a "targetStep" Int in
-  /// userInfo. The mounted OnboardingView applies it to its live @AppStorage —
-  /// the monitor closure must not mutate its own captured copy (writes there
-  /// never reach UserDefaults or the UI on all macOS versions).
-  static let onboardingStepNavigationRequested = Notification.Name(
-    "onboardingStepNavigationRequested")
   /// Posted when the system wakes from sleep
   static let systemDidWake = Notification.Name("systemDidWake")
   /// Posted when the screen is locked
@@ -635,8 +629,6 @@ extension Notification.Name {
   static let screenCapturePermissionLost = Notification.Name("screenCapturePermissionLost")
   /// Posted when ScreenCaptureKit is broken (TCC granted but SCK declined)
   static let screenCaptureKitBroken = Notification.Name("screenCaptureKitBroken")
-  /// Posted to show the "Try asking" popup centered over the full window
-  static let showTryAskingPopup = Notification.Name("showTryAskingPopup")
   /// Posted (automation bridge) to open the inline chat on the redesigned Home
   static let homeStageOpenChat = Notification.Name("homeStageOpenChat")
   /// Posted (automation bridge) to collapse the redesigned Home back to the hub

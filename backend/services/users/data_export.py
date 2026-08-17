@@ -11,6 +11,13 @@ from database.action_items import get_action_items as get_standalone_action_item
 from database.users import get_people, get_user_profile
 
 JsonRecord = dict[str, Any]
+_PROFILE_EXPORT_EXCLUDED_FIELDS = frozenset({'name'})
+
+
+def _exportable_profile(profile: JsonRecord | None) -> JsonRecord:
+    if not profile:
+        return {}
+    return {key: value for key, value in profile.items() if key not in _PROFILE_EXPORT_EXCLUDED_FIELDS}
 
 
 def _json_default(obj: object) -> str:
@@ -47,8 +54,8 @@ def _yield_json_array(items: Iterable[Mapping[str, Any]]) -> Iterator[str]:
 def iter_user_data_export(uid: str) -> Iterator[str]:
     yield '{\n'
 
-    profile = cast(JsonRecord | None, get_user_profile(uid))
-    yield '  "profile": ' + json.dumps(profile if profile else {}, default=_json_default, indent=2) + ',\n'
+    profile = _exportable_profile(cast(JsonRecord | None, get_user_profile(uid)))
+    yield '  "profile": ' + json.dumps(profile, default=_json_default, indent=2) + ',\n'
 
     yield '  "conversations": [\n'
     first = True

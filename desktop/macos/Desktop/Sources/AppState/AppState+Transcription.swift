@@ -37,6 +37,7 @@ extension AppState {
     if isTranscribing {
       stopTranscription()
     } else {
+      OnboardingExitPersistence.recordExplicitCapabilityEnablement()
       startTranscription()
     }
   }
@@ -672,6 +673,7 @@ extension AppState {
   /// Stop real-time transcription.
   /// Both local and managed STT feed the same locally authoritative finalization path.
   func stopTranscription() {
+    guard transcriptionStopTask == nil else { return }
     recordingGeneration &+= 1
     transcriptionStartTask?.cancel()
     transcriptionStartTask = nil
@@ -679,7 +681,7 @@ extension AppState {
     conversationLocationTask = nil
     let capturedSessionId = currentSessionId
     let capturedAuthorization = currentSessionAuthorization
-    // On-device path stops capture, then AWAITS both Parakeet instances'
+    // On-device path stops capture, then awaits both Parakeet instances'
     // final tail flushes (delivered to the still-current session) BEFORE clearing state, so the
     // last words persist to the right conversation instead of racing the async drain.
     if sttSession.useLocalSTT {
@@ -687,7 +689,8 @@ extension AppState {
       let sys = localSystemService
       localMicService = nil
       localSystemService = nil
-      Task { @MainActor in
+      transcriptionStopTask = Task { @MainActor in
+        defer { self.transcriptionStopTask = nil }
         self.stopAudioCapture()
         await mic?.finish()
         await sys?.finish()
@@ -705,7 +708,8 @@ extension AppState {
     }
 
     stopAudioCapture()
-    Task { @MainActor in
+    transcriptionStopTask = Task { @MainActor in
+      defer { self.transcriptionStopTask = nil }
       await segmentDeliveryQueue.drain()
       clearTranscriptionState(
         finalizationReason: .userStop,
@@ -720,6 +724,14 @@ extension AppState {
           authorization: capturedAuthorization)
       }
     }
+  }
+
+  /// Stop ambient capture and wait for the real transport teardown boundary.
+  /// Local STT owns asynchronous final-tail flushes, so account authority must
+  /// not change until the task created by `stopTranscription()` completes.
+  func stopTranscriptionAndWait() async {
+    stopTranscription()
+    await transcriptionStopTask?.value
   }
 
   /// On-device Parakeet failed to load — fall back to cloud STT instead of silently recording a

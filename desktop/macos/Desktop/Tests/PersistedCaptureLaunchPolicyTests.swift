@@ -4,26 +4,45 @@ import XCTest
 
 final class PersistedCaptureLaunchPolicyTests: XCTestCase {
   func testRestoresListeningFromPersistedIntentWithoutWaitingForRemoteKeys() {
-    XCTAssertTrue(
-      PersistedCaptureLaunchPolicy.shouldStartTranscription(
+    XCTAssertEqual(
+      PersistedCaptureLaunchPolicy.transcriptionModeToRestore(
         intentEnabled: true,
-        isTranscribing: false
-      )
+        isTranscribing: false,
+        persistedMode: .onlyDuringMeetings,
+        onboardingExitOutcome: .completed
+      ),
+      .onlyDuringMeetings
     )
   }
 
   func testDoesNotRestartListeningWhenUserDisabledItOrItIsAlreadyRunning() {
-    XCTAssertFalse(
-      PersistedCaptureLaunchPolicy.shouldStartTranscription(
+    XCTAssertNil(
+      PersistedCaptureLaunchPolicy.transcriptionModeToRestore(
         intentEnabled: false,
-        isTranscribing: false
+        isTranscribing: false,
+        persistedMode: .always,
+        onboardingExitOutcome: .completed
       )
     )
-    XCTAssertFalse(
-      PersistedCaptureLaunchPolicy.shouldStartTranscription(
+    XCTAssertNil(
+      PersistedCaptureLaunchPolicy.transcriptionModeToRestore(
         intentEnabled: true,
-        isTranscribing: true
+        isTranscribing: true,
+        persistedMode: .always,
+        onboardingExitOutcome: .completed
       )
+    )
+  }
+
+  func testRestoresContinuousListeningWithItsPersistedMode() {
+    XCTAssertEqual(
+      PersistedCaptureLaunchPolicy.transcriptionModeToRestore(
+        intentEnabled: true,
+        isTranscribing: false,
+        persistedMode: .always,
+        onboardingExitOutcome: .completed
+      ),
+      .always
     )
   }
 
@@ -31,7 +50,8 @@ final class PersistedCaptureLaunchPolicyTests: XCTestCase {
     XCTAssertTrue(
       PersistedCaptureLaunchPolicy.shouldStartScreenAnalysis(
         intentEnabled: true,
-        isMonitoring: false
+        isMonitoring: false,
+        onboardingExitOutcome: .completed
       )
     )
   }
@@ -40,13 +60,15 @@ final class PersistedCaptureLaunchPolicyTests: XCTestCase {
     XCTAssertFalse(
       PersistedCaptureLaunchPolicy.shouldStartScreenAnalysis(
         intentEnabled: false,
-        isMonitoring: false
+        isMonitoring: false,
+        onboardingExitOutcome: .completed
       )
     )
     XCTAssertFalse(
       PersistedCaptureLaunchPolicy.shouldStartScreenAnalysis(
         intentEnabled: true,
-        isMonitoring: true
+        isMonitoring: true,
+        onboardingExitOutcome: .completed
       )
     )
   }

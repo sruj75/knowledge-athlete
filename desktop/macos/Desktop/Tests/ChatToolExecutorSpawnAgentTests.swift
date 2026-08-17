@@ -26,7 +26,15 @@ final class ChatToolExecutorSpawnAgentTests: XCTestCase {
   }
 
   func testRetiredExternalOnboardingToolsAreUnhandled() {
-    for name in ["scan_files", "start_file_scan", "get_file_scan_results", "get_email_insights"] {
+    for name in [
+      "scan_files",
+      "start_file_scan",
+      "get_file_scan_results",
+      "get_email_insights",
+      "set_user_preferences",
+      "ask_followup",
+      "complete_onboarding",
+    ] {
       XCTAssertEqual(
         GeneratedToolExecutors.chatDispatch(for: name),
         .unhandled,
