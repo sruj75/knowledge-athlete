@@ -22,6 +22,7 @@ covers:
   - desktop/macos/Desktop/Sources/DesktopAutomationBridge.swift
   - desktop/macos/Desktop/Sources/LaunchAtLoginManager.swift
   - desktop/macos/Desktop/Sources/MainWindow/Pages/Settings/Sections/SettingsContentView+Assistants.swift
+  - desktop/macos/Desktop/Sources/Rewind/UI/RewindPage+CaptureHealth.swift
   - desktop/macos/Desktop/Sources/Rewind/UI/RewindCaptureState.swift
 preconditions:
   - named_test_bundle_only
