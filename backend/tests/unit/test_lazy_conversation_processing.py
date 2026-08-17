@@ -108,8 +108,14 @@ class TestDeferredNotRequeuedBySweeper:
     get_processing_conversations (the listen-session sweeper re-sends those to pusher, which would
     background-process deferred rows and defeat the cost saving)."""
 
-    def test_get_processing_conversations_excludes_deferred(self):
+    @pytest.fixture(scope='class')
+    def conversations_db(self):
         import database.conversations as cdb
+
+        return cdb
+
+    def test_get_processing_conversations_excludes_deferred(self, conversations_db):
+        cdb = conversations_db
 
         def _doc(d):
             m = MagicMock()
