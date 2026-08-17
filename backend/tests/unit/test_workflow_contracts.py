@@ -109,7 +109,6 @@ def test_workflow_contract_sources_select_adjacent_tests(selector_and_all_tests)
     selected_cases = {
         "backend/utils/memory/legacy_backfill.py": "tests/unit/test_ws_c_backfill.py",
         "backend/utils/memory/canonical_memory_adapter.py": "testing/e2e/test_canonical_memory_pipeline.py",
-        "backend/routers/conversations.py": "tests/unit/test_conversation_lifecycle_contract.py",
         "backend/services/users/account_deletion.py": "tests/services/users/test_account_deletion.py",
         "backend/routers/sync.py": "tests/unit/test_audio_merge_tasks.py",
         "backend/routers/transcribe.py": "tests/unit/test_listen_pipeline.py",
@@ -208,18 +207,14 @@ def test_mapped_source_with_direct_test_remains_narrow(selector_and_all_tests):
     assert reason == "selected backend unit tests from changed paths and workflow contracts"
 
 
-def test_location_context_paths_select_their_focused_privacy_regressions(selector_and_all_tests):
+def test_chat_retrieval_paths_select_their_focused_async_regressions(selector_and_all_tests):
     selector, all_tests = selector_and_all_tests
 
     for source_path in (
-        "backend/models/geolocation.py",
-        "backend/models/users.py",
-        "backend/database/users.py",
         "backend/utils/retrieval/agentic.py",
-        "backend/routers/users.py",
+        "backend/utils/retrieval/graph.py",
     ):
         selected, reason = selector.tests_for_changed_paths([source_path], all_tests)
-        assert "tests/unit/test_location_context_consent.py" in selected, source_path
         assert "tests/unit/test_chat_async_offload.py" in selected, source_path
         assert selected != all_tests, source_path
         assert reason == "selected backend unit tests from changed paths and workflow contracts"

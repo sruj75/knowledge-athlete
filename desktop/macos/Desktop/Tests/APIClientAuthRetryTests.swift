@@ -180,31 +180,6 @@ import XCTest
       XCTAssertEqual(snapshot["retry_outcome"] as? String, "succeeded")
     }
 
-    func testFeatureVoidRoutesUseShared401Recovery() async throws {
-      let config = URLSessionConfiguration.ephemeral
-      config.protocolClasses = [AuthRetryURLStub.self]
-      let client = APIClient(session: URLSession(configuration: config))
-      try configureRefreshableSession()
-      setenv("FIREBASE_API_KEY", "test-key", 1)
-      defer { unsetenv("FIREBASE_API_KEY") }
-
-      try await client.assignSegmentsBulk(
-        conversationId: "conversation-1",
-        segmentIds: ["segment-1"],
-        isUser: true,
-        personId: nil
-      )
-      XCTAssertEqual(AuthRetryURLStub.attempts, 2)
-
-      AuthRetryURLStub.reset()
-      try await client.setRecordingPermission(enabled: true)
-      XCTAssertEqual(AuthRetryURLStub.attempts, 2)
-
-      AuthRetryURLStub.reset()
-      try await client.setPrivateCloudSync(enabled: true)
-      XCTAssertEqual(AuthRetryURLStub.attempts, 2)
-    }
-
     func testGoalMutationsUseShared401Recovery() async throws {
       let config = URLSessionConfiguration.ephemeral
       config.protocolClasses = [AuthRetryURLStub.self]

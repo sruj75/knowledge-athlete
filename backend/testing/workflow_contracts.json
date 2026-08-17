@@ -345,7 +345,6 @@
         "backend/routers/transcribe.py",
         "backend/routers/conversation_finalization.py",
         "backend/routers/pusher.py",
-        "backend/routers/conversations.py",
         "backend/routers/sync.py",
         "backend/utils/conversations/process_conversation.py",
         "backend/utils/conversations/postprocess_conversation.py",

@@ -40,6 +40,27 @@ enum ActionItemTaskIdentity: Equatable {
 actor ActionItemStorage {
   static let shared = ActionItemStorage()
 
+  /// Transaction-scoped seam used by conversation authority for exact-source cleanup.
+  static func deleteExactConversationSource(
+    in database: Database,
+    conversationId: String
+  ) throws {
+    try database.execute(
+      sql: "DELETE FROM action_items WHERE conversationId = ?",
+      arguments: [conversationId])
+  }
+
+  /// Transaction-scoped seam used by a local conversation merge.
+  static func reassignExactConversationSource(
+    in database: Database,
+    from sourceConversationId: String,
+    to replacementConversationId: String
+  ) throws {
+    try database.execute(
+      sql: "UPDATE action_items SET conversationId = ? WHERE conversationId = ?",
+      arguments: [replacementConversationId, sourceConversationId])
+  }
+
   /// Resolve a surfaced task id (backend id or "local_<rowid>") to its record.
   static func fetchRecord(_ database: Database, surfacedId: String) throws -> ActionItemRecord? {
     switch ActionItemTaskIdentity(surfacedId: surfacedId) {

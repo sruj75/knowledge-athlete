@@ -96,6 +96,11 @@ struct SettingsSearchItem: Identifiable {
       keywords: ["vocabulary", "words", "custom words", "dictionary"], section: .transcription,
       icon: "waveform", settingId: "transcription.vocabulary"),
     SettingsSearchItem(
+      name: "Conversation Location",
+      subtitle: "Optionally save one location when a conversation starts",
+      keywords: ["location", "conversation", "snapshot", "privacy"], section: .transcription,
+      icon: "location", settingId: "transcription.location"),
+    SettingsSearchItem(
       name: "Local VAD Gate", subtitle: "Skip silence to reduce transcription cost",
       keywords: ["vad", "silence", "gate", "cost", "transcription"], section: .transcription,
       icon: "waveform", settingId: "transcription.vadgate"),
@@ -140,20 +145,11 @@ struct SettingsSearchItem: Identifiable {
     // Privacy
     SettingsSearchItem(
       name: "Privacy", subtitle: "Control your data and privacy settings",
-      keywords: ["data", "encryption", "cloud sync", "recordings"], section: .privacy,
+      keywords: ["data", "privacy", "analytics", "diagnostics"], section: .privacy,
       icon: "lock.shield", settingId: "privacy.privacy"),
     SettingsSearchItem(
-      name: "Store Recordings",
-      subtitle: "Allow omi to store audio recordings of your conversations",
-      keywords: ["store", "save recordings", "audio storage"], section: .privacy,
-      icon: "lock.shield", settingId: "privacy.storerecordings"),
-    SettingsSearchItem(
-      name: "Private Cloud Sync", subtitle: "Sync your data securely to your private cloud storage",
-      keywords: ["cloud", "sync", "private cloud"], section: .privacy, icon: "lock.shield",
-      settingId: "privacy.cloudsync"),
-    SettingsSearchItem(
-      name: "Encryption", subtitle: "Server-side encryption for your data",
-      keywords: ["encrypt", "security", "end to end"], section: .privacy, icon: "lock.shield",
+      name: "Local Data", subtitle: "Local storage for conversation transcripts and metadata",
+      keywords: ["local", "database", "storage"], section: .privacy, icon: "lock.shield",
       settingId: "privacy.encryption"),
     SettingsSearchItem(
       name: "What We Track", subtitle: "View analytics and telemetry data we collect",

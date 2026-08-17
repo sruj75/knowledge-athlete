@@ -1,7 +1,7 @@
 import Foundation
 
 /// Service for real-time speech-to-text transcription.
-/// Conversation capture: Python backend `/v4/listen` WebSocket (speech profiles, speaker assignment, memory events).
+/// Conversation capture: Python backend `/v4/listen` WebSocket used as transient speech transport.
 /// PTT live streaming: Python backend `/v2/voice-message/transcribe-stream` WebSocket (transcription only).
 /// PTT batch: Python backend `/v2/voice-message/transcribe` REST API.
 /// Full stereo batch: removed with the retired Rust proxy.
@@ -11,8 +11,7 @@ class TranscriptionService: @unchecked Sendable {
 
   /// Streaming mode determines which backend endpoint and parameters are used.
   enum StreamingMode {
-    /// Conversation capture via `/v4/listen` — full pipeline with speech profiles,
-    /// speaker assignment, memory creation events, and conversation lifecycle.
+    /// Conversation capture via `/v4/listen` — transient speech segments and translations.
     case conversation
     /// PTT live transcription via `/v2/voice-message/transcribe-stream` — transcription only,
     /// no conversation lifecycle. Supports "finalize" text message for flush.
@@ -47,7 +46,6 @@ class TranscriptionService: @unchecked Sendable {
     let speaker: String?  // e.g. "SPEAKER_00"
     let speaker_id: Int?
     let is_user: Bool
-    let person_id: String?
     let start: Double
     let end: Double
     let translations: [BackendTranslation]?
@@ -112,7 +110,6 @@ class TranscriptionService: @unchecked Sendable {
   private let channels = 1  // Always mono for Python backend streaming
   private let streamingMode: StreamingMode
   private let contextKeywords: [String]
-  private let clientConversationId: String?
 
   /// Python backend base URL for transcription endpoints.
   /// Resolution order: explicit OMI_PYTHON_API_URL → production https://api.omi.me/
@@ -181,13 +178,11 @@ class TranscriptionService: @unchecked Sendable {
   init(
     language: String = "en",
     mode: StreamingMode = .conversation,
-    contextKeywords: [String] = [],
-    clientConversationId: String? = nil
+    contextKeywords: [String] = []
   ) throws {
     self.language = language
     self.streamingMode = mode
     self.contextKeywords = Self.sanitizedContextKeywords(contextKeywords)
-    self.clientConversationId = clientConversationId?.trimmingCharacters(in: .whitespacesAndNewlines)
     log(
       "TranscriptionService: Initialized for \(mode == .conversation ? "/v4/listen" : "/v2/voice-message/transcribe-stream"), language=\(language), contextKeywords=\(self.contextKeywords.count)"
     )
@@ -253,6 +248,7 @@ class TranscriptionService: @unchecked Sendable {
     }
 
     disconnect()
+    onBackendSegments = nil
   }
 
   /// Send audio data to the backend (buffered for efficiency)
@@ -328,74 +324,16 @@ class TranscriptionService: @unchecked Sendable {
   }
 
   private func connectToBackend(authHeader: String) {
-    let base = Self.pythonBackendBaseURL
-      .replacingOccurrences(of: "https://", with: "wss://")
-      .replacingOccurrences(of: "http://", with: "ws://")
-    let wsBase = base.hasSuffix("/") ? String(base.dropLast()) : base
-
-    // Select endpoint and query params based on streaming mode
-    let path: String
-    let queryItems: [URLQueryItem]
-
-    switch streamingMode {
-    case .conversation:
-      // Full conversation pipeline with speech profiles, speaker assignment, memory events
-      path = "/v4/listen"
-      var items = [
-        URLQueryItem(name: "language", value: language),
-        URLQueryItem(name: "sample_rate", value: String(sampleRate)),
-        URLQueryItem(name: "codec", value: encoding),
-        URLQueryItem(name: "channels", value: String(channels)),
-        URLQueryItem(name: "include_speech_profile", value: "true"),
-        URLQueryItem(name: "source", value: "desktop"),
-        URLQueryItem(name: "speaker_auto_assign", value: "enabled"),
-      ]
-      if let clientConversationId, !clientConversationId.isEmpty {
-        items.append(URLQueryItem(name: "client_conversation_id", value: clientConversationId))
-      }
-      queryItems = items
-    case .ptt:
-      // PTT-only transcription — no conversation lifecycle
-      path = "/v2/voice-message/transcribe-stream"
-      var items = [
-        URLQueryItem(name: "language", value: language),
-        URLQueryItem(name: "sample_rate", value: String(sampleRate)),
-        URLQueryItem(name: "codec", value: encoding),
-        URLQueryItem(name: "channels", value: String(channels)),
-      ]
-      if !contextKeywords.isEmpty {
-        items.append(URLQueryItem(name: "keywords", value: contextKeywords.joined(separator: ",")))
-      }
-      queryItems = items
-    }
-
-    guard var components = URLComponents(string: "\(wsBase)\(path)") else {
-      log("TranscriptionService: Invalid URL base: \(wsBase)")
-      onError?(TranscriptionError.connectionFailed(NSError(domain: "Invalid URL", code: -1)))
+    let request: URLRequest
+    do {
+      request = try makeBackendWebSocketRequest(base: Self.pythonBackendBaseURL, authHeader: authHeader)
+    } catch {
+      log("TranscriptionService: Invalid Python backend URL")
+      onError?(TranscriptionError.connectionFailed(error))
       return
     }
 
-    components.queryItems = queryItems
-
-    guard let url = components.url else {
-      onError?(TranscriptionError.connectionFailed(NSError(domain: "Invalid URL", code: -1)))
-      return
-    }
-
-    log("TranscriptionService: Connecting to \(url.absoluteString)")
-
-    // Create URL request with authorization header
-    var request = URLRequest(url: url)
-    request.setValue(authHeader, forHTTPHeaderField: "Authorization")
-    // Keep capture provenance on the WebSocket upgrade as well as regular
-    // API requests. The backend stamps this onto the conversation, which
-    // flows through evidence into canonical memory device filtering.
-    request.setValue("macos", forHTTPHeaderField: "X-App-Platform")
-    request.setValue(ClientDeviceService.shared.deviceIdHash, forHTTPHeaderField: "X-Device-Id-Hash")
-    request.setValue(
-      Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown",
-      forHTTPHeaderField: "X-App-Version"
-    )
+    log("TranscriptionService: Connecting to \(request.url?.absoluteString ?? "invalid")")
 
     // Create URLSession and WebSocket task
     let configuration = URLSessionConfiguration.default
@@ -448,6 +386,64 @@ class TranscriptionService: @unchecked Sendable {
       log("TranscriptionService: Connect timeout (10s) — forcing reconnect")
       self.cleanupAndReconnect()
     }
+  }
+
+  func makeBackendWebSocketRequest(base: String, authHeader: String) throws -> URLRequest {
+    var request = URLRequest(url: try makeBackendWebSocketURL(base: base))
+    request.setValue(authHeader, forHTTPHeaderField: "Authorization")
+    request.setValue("macos", forHTTPHeaderField: "X-App-Platform")
+    return request
+  }
+
+  /// Builds the exact authenticated WebSocket destination used by `connectToBackend`.
+  /// Internal visibility keeps the transient conversation contract behaviorally testable.
+  func makeBackendWebSocketURL(base: String) throws -> URL {
+    let websocketBase =
+      base
+      .replacingOccurrences(of: "https://", with: "wss://")
+      .replacingOccurrences(of: "http://", with: "ws://")
+    let normalizedBase = websocketBase.hasSuffix("/") ? String(websocketBase.dropLast()) : websocketBase
+
+    let path: String
+    let queryItems: [URLQueryItem]
+
+    switch streamingMode {
+    case .conversation:
+      // Transient conversation transcription; the Mac owns conversation identity and persistence.
+      path = "/v4/listen"
+      queryItems = [
+        URLQueryItem(name: "language", value: language),
+        URLQueryItem(name: "sample_rate", value: String(sampleRate)),
+        URLQueryItem(name: "codec", value: encoding),
+        URLQueryItem(name: "channels", value: "1"),
+        URLQueryItem(name: "source", value: "desktop"),
+        URLQueryItem(name: "transient_only", value: "true"),
+      ]
+    case .ptt:
+      // PTT-only transcription — no conversation lifecycle
+      path = "/v2/voice-message/transcribe-stream"
+      var items = [
+        URLQueryItem(name: "language", value: language),
+        URLQueryItem(name: "sample_rate", value: String(sampleRate)),
+        URLQueryItem(name: "codec", value: encoding),
+        URLQueryItem(name: "channels", value: String(channels)),
+      ]
+      if !contextKeywords.isEmpty {
+        items.append(URLQueryItem(name: "keywords", value: contextKeywords.joined(separator: ",")))
+      }
+      queryItems = items
+    }
+
+    guard var components = URLComponents(string: "\(normalizedBase)\(path)") else {
+      throw TranscriptionError.invalidResponse
+    }
+
+    components.queryItems = queryItems
+
+    guard let url = components.url else {
+      throw TranscriptionError.invalidResponse
+    }
+    return url
   }
 
   private func handleWebSocketOpen() {

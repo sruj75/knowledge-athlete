@@ -4,7 +4,6 @@ import SwiftUI
 /// Detailed transcript view showing all segments as chat bubbles
 struct TranscriptDetailView: View {
   let segments: [TranscriptSegment]
-  var peopleById: [String: Person] = [:]
   var onSpeakerTapped: ((TranscriptSegment) -> Void)? = nil
 
   var body: some View {
@@ -14,7 +13,7 @@ struct TranscriptDetailView: View {
           SpeakerBubbleView(
             segment: segment,
             isUser: segment.isUser,
-            personName: segment.personId.flatMap { peopleById[$0]?.name },
+            personName: segment.isUser ? nil : segment.speaker,
             onSpeakerTapped: segment.isUser ? nil : (onSpeakerTapped != nil ? { onSpeakerTapped?(segment) } : nil)
           )
         }

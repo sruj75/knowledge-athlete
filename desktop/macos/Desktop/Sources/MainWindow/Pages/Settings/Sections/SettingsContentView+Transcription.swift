@@ -26,7 +26,6 @@ extension SettingsContentView {
           Button(action: {
             transcriptionAutoDetect = true
             AssistantSettings.shared.transcriptionAutoDetect = true
-            updateTranscriptionPreferences(singleLanguageMode: false)
             restartTranscriptionIfNeeded()
           }) {
             HStack(alignment: .top, spacing: OmiSpacing.md) {
@@ -75,7 +74,6 @@ extension SettingsContentView {
           Button(action: {
             transcriptionAutoDetect = false
             AssistantSettings.shared.transcriptionAutoDetect = false
-            updateTranscriptionPreferences(singleLanguageMode: true)
             restartTranscriptionIfNeeded()
           }) {
             HStack(alignment: .top, spacing: OmiSpacing.md) {
@@ -110,7 +108,6 @@ extension SettingsContentView {
                     ) { option in
                       transcriptionLanguage = option.id
                       AssistantSettings.shared.transcriptionLanguage = option.id
-                      updateTranscriptionPreferences(singleLanguageMode: true)
                       updateLanguage(option.id)
                       restartTranscriptionIfNeeded()
                     }
@@ -149,6 +146,39 @@ extension SettingsContentView {
             .scaledFont(size: OmiType.caption)
             .foregroundColor(OmiColors.textTertiary)
           }
+        }
+      }
+
+      settingsCard(settingId: "transcription.location") {
+        VStack(alignment: .leading, spacing: OmiSpacing.md) {
+          HStack {
+            Image(systemName: "location")
+              .scaledFont(size: OmiType.subheading)
+              .foregroundColor(OmiColors.textSecondary)
+
+            VStack(alignment: .leading, spacing: OmiSpacing.xxs) {
+              Text("Conversation Location")
+                .scaledFont(size: OmiType.subheading, weight: .medium)
+                .foregroundColor(OmiColors.textPrimary)
+
+              Text("Save one location snapshot when a new conversation starts")
+                .scaledFont(size: OmiType.body)
+                .foregroundColor(OmiColors.textTertiary)
+            }
+
+            Spacer()
+
+            Toggle("", isOn: $conversationLocationEnabled)
+              .toggleStyle(OmiToggleStyle())
+              .labelsHidden()
+              .onChange(of: conversationLocationEnabled) { _, enabled in
+                AssistantSettings.shared.conversationLocationEnabled = enabled
+              }
+          }
+
+          Text("Location is optional, conversation-scoped, and is never tracked in the background.")
+            .scaledFont(size: OmiType.caption)
+            .foregroundColor(OmiColors.textTertiary)
         }
       }
 
@@ -300,13 +330,9 @@ extension SettingsContentView {
     saveVocabulary()
   }
 
-  /// Save vocabulary to local settings and backend
+  /// Save vocabulary locally. The next conversation snapshots the new value.
   func saveVocabulary() {
-    // Save to local settings
     AssistantSettings.shared.transcriptionVocabulary = vocabularyList
-
-    // Sync to backend
-    updateTranscriptionPreferences(vocabulary: vocabularyList.joined(separator: ", "))
   }
 
   /// Restart transcription if currently running to apply new settings

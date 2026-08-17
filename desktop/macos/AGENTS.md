@@ -201,19 +201,28 @@ do not hand-edit those paths to match a specific machine.
 | `DesktopLocalProfile` harness | Auth emulator bootstrap | Re-bootstrap emulator session; no prod invalidation side effects |
 
 ### Database Structure
-- **Firestore** (`based-hardware`): User data, conversations, action items
+- **GRDB/SQLite**: owner-scoped macOS conversation authority, including transcript, folder, speaker-label, merge, and enrichment state
+- **Firestore** (`based-hardware`): retained user, Memory, task, and later-slice server state; never macOS conversation authority
 - **Redis**: Caching
 - **Typesense**: Search
 
 ### User Subcollections (Firestore)
-- `users/{uid}/conversations` - Has `source` field (omi, desktop, phone, etc.)
+- `users/{uid}/conversations` - Legacy/server-internal S-16/S-23 residue; the Mac must not read, write, or reconcile it
 - `users/{uid}/action_items` - Tasks (no platform tracking)
 - `users/{uid}/fcm_tokens` - Token ID prefix = platform (ios_, android_, macos_)
 - `users/{uid}/memories` - Extracted memories
 
+### Conversation authority
+
+- Capture creates the stable conversation UUID locally before transcript ingestion.
+- List, detail, count, search, date/folder/star filters, title, folder, speaker labels, merge, and delete use `TranscriptionStorage`/`ConversationRepository` only.
+- `/v4/listen` supplies transient speech events. The three `/v1/conversation-compute/*` calls return untrusted candidates that local services validate and commit.
+- Never restore `ServerConversation`, remote/cache reconciliation, People-backed speaker identity, cloud playback, or Store Recordings/Private Cloud Sync controls.
+- Test with a disposable named bundle such as `omi-s10-local-conversations`; never launch or reset permissions for production Omi bundles.
+
 ### Platform Detection
 - **FCM tokens**: Document ID prefix (e.g., `macos_abc123`)
-- **Conversations**: `source` field
+- **Conversations**: local capture metadata; no broad hosted `source` taxonomy
 - **Action items**: No platform tracking
 
 ### Known Limitations

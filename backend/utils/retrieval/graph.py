@@ -28,7 +28,6 @@ from utils.retrieval.agentic import (
     AsyncStreamingCallback,
     cancel_stream_task,
     execute_agentic_chat_stream,
-    get_mobile_city,
     next_stream_chunk,
 )
 import logging
@@ -36,11 +35,10 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-async def _current_prompt_metadata(uid: str, platform: Optional[str]) -> tuple[str, str]:
+async def _current_prompt_metadata(uid: str, _platform: Optional[str]) -> tuple[str, str]:
     try:
         tz = await run_blocking(db_executor, get_user_timezone, uid)
-        city = await get_mobile_city(uid, platform)
-        return get_current_datetime_block(uid, tz=tz, location=city), tz
+        return get_current_datetime_block(uid, tz=tz), tz
     except Exception as error:
         logger.warning('Prompt metadata unavailable error_type=%s', type(error).__name__)
         return get_current_datetime_block(uid, tz='UTC'), 'UTC'

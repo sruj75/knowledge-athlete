@@ -1,23 +1,19 @@
-"""Retained conversation-audio playback and merge routes.
+"""Retained server-side conversation-audio merge worker.
 
-S-02 retired wearable file ingestion from this router. The remaining routes
-serve already-authorized conversation audio and execute the shared playback
-artifact job; they are not wearable sync compatibility surfaces.
+S-10 removes public cloud playback. The worker remains temporarily owned by
+S-25 while deployed Cloud Tasks and stored server conversations are retired.
 """
 
 import logging
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from fastapi.responses import JSONResponse, StreamingResponse
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, Request
+from fastapi.responses import JSONResponse
 
 from database import conversations as conversations_db
 from database.job_run_locks import release_job_run_lock, try_acquire_job_run_lock
-from models.sync_audio import AudioPrecacheResponse, AudioUrlsResponse
 from utils.cloud_tasks import get_sync_tasks_max_attempts, verify_cloud_tasks_oidc
 from utils.executors import db_executor, run_blocking, storage_executor, sync_executor
-from utils.other import endpoints as auth
 from utils.other.storage import (
     compute_audio_files_fingerprint,
     get_conversation_playback_signed_url,
@@ -31,98 +27,6 @@ from utils.sync import playback as sync_playback
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
-
-
-class AudioDownloadPendingResponse(BaseModel):
-    status: str
-    poll_after_ms: int
-
-
-@router.post("/v1/sync/audio/{conversation_id}/precache", response_model=AudioPrecacheResponse, tags=["v1"])
-def precache_conversation_audio_endpoint(
-    conversation_id: str,
-    uid: str = Depends(auth.get_current_user_uid),
-):
-    """Warm the playback cache for an existing conversation."""
-    conversation = conversations_db.get_conversation(uid, conversation_id)
-    if not conversation:
-        raise HTTPException(status_code=404, detail="Conversation not found")
-    if conversation.get("is_locked", False):
-        raise HTTPException(status_code=402, detail="A paid plan is required to access this conversation.")
-    return sync_playback.precache_audio_files(uid, conversation_id, conversation.get("audio_files", []))
-
-
-@router.get("/v1/sync/audio/{conversation_id}/urls", response_model=AudioUrlsResponse, tags=["v1"])
-def get_audio_signed_urls_endpoint(
-    conversation_id: str,
-    uid: str = Depends(auth.get_current_user_uid),
-):
-    """Return playback URLs or pending states for conversation audio."""
-    conversation = conversations_db.get_conversation(uid, conversation_id)
-    if not conversation:
-        raise HTTPException(status_code=404, detail="Conversation not found")
-    if conversation.get("is_locked", False):
-        raise HTTPException(status_code=402, detail="A paid plan is required to access this conversation.")
-    return sync_playback.get_audio_signed_urls(
-        uid,
-        conversation_id,
-        conversation.get("audio_files", []),
-        conversation=conversation,
-    )
-
-
-@router.get(
-    "/v1/sync/audio/{conversation_id}/{audio_file_id}",
-    tags=["v1"],
-    response_class=StreamingResponse,
-    responses={
-        200: {
-            "description": "Audio stream.",
-            "content": {
-                "audio/wav": {"schema": {"type": "string", "format": "binary"}},
-                "audio/mpeg": {"schema": {"type": "string", "format": "binary"}},
-                "application/octet-stream": {"schema": {"type": "string", "format": "binary"}},
-            },
-        },
-        202: {"description": "Audio artifact is being prepared.", "model": AudioDownloadPendingResponse},
-        206: {
-            "description": "Partial audio stream.",
-            "content": {
-                "audio/wav": {"schema": {"type": "string", "format": "binary"}},
-                "audio/mpeg": {"schema": {"type": "string", "format": "binary"}},
-                "application/octet-stream": {"schema": {"type": "string", "format": "binary"}},
-            },
-        },
-    },
-)
-def download_audio_file_endpoint(
-    conversation_id: str,
-    audio_file_id: str,
-    request: Request,
-    format: str = Query(default="wav", pattern="^(wav|pcm)$"),
-    uid: str = Depends(auth.get_current_user_uid),
-):
-    """Download one authorized conversation-audio file."""
-    conversation = conversations_db.get_conversation(uid, conversation_id)
-    if not conversation:
-        raise HTTPException(status_code=404, detail="Conversation not found")
-    if conversation.get("is_locked", False):
-        raise HTTPException(status_code=402, detail="A paid plan is required to access this conversation.")
-
-    audio_file = next(
-        (candidate for candidate in conversation.get("audio_files", []) if candidate.get("id") == audio_file_id),
-        None,
-    )
-    if not audio_file:
-        raise HTTPException(status_code=404, detail="Audio file not found in conversation")
-    return sync_playback.download_audio_file_response(
-        uid,
-        conversation_id,
-        audio_file_id,
-        audio_file,
-        request,
-        format,
-    )
 
 
 @router.post("/v2/audio-merge-jobs/run", include_in_schema=False)

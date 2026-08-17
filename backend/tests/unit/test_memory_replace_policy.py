@@ -1,4 +1,4 @@
-"""Memory replace policy — legacy re-extract and cascade delete invariants."""
+"""Memory replace policy invariants for retained extraction behavior."""
 
 from __future__ import annotations
 
@@ -15,7 +15,6 @@ import pytest
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]
 PROCESS_CONVERSATION_PATH = BACKEND_DIR / "utils" / "conversations" / "process_conversation.py"
-CONVERSATIONS_ROUTER_PATH = BACKEND_DIR / "routers" / "conversations.py"
 
 os.environ.setdefault(
     "ENCRYPTION_SECRET",
@@ -87,20 +86,6 @@ def test_canonical_extract_replaces_only_after_successful_parse():
     assert extract_idx < replace_idx
     assert "retract_conversation_memories" not in body
     assert "memory_service.write" not in body
-
-
-def test_cascade_delete_cleans_memories_before_conversation_doc():
-    """Cascade delete must remove memories/action-items before the conversation document."""
-    source = CONVERSATIONS_ROUTER_PATH.read_text(encoding="utf-8")
-    fn_start = source.index("def delete_conversation(")
-    fn_end = source.index("\n@router.", fn_start)
-    body = source[fn_start:fn_end]
-    conv_delete_idx = body.index("conversations_db.delete_conversation")
-    cascade_idx = body.index("if cascade:")
-    memories_idx = body.index("delete_memories_for_conversation")
-    action_items_idx = body.index("delete_action_items_for_conversation")
-    assert cascade_idx < memories_idx < conv_delete_idx
-    assert cascade_idx < action_items_idx < conv_delete_idx
 
 
 @pytest.mark.parametrize("extractor_side_effect", [Exception("llm down"), []])

@@ -218,18 +218,11 @@ struct SettingsContentView: View {
   @State var notificationsEnabled: Bool = true
   @State var notificationFrequency: Int = 3
 
-  // Privacy settings (from backend)
-  @State var recordingPermissionEnabled: Bool = false
-  @State var privateCloudSyncEnabled: Bool = true
   @State var isTrackingExpanded: Bool = false
 
-  // Transcription settings (from backend)
-  @State var singleLanguageMode: Bool = false
+  // Local transcription settings
   @State var newVocabularyWord: String = ""
   @State var vocabularyList: [String] = []
-
-  // Language setting
-  @State var userLanguage: String = "en"
 
   // Loading states
   @State var userSubscription: UserSubscriptionResponse?
@@ -284,12 +277,12 @@ struct SettingsContentView: View {
   // Language auto-detect state (from local settings)
   @State var transcriptionAutoDetect: Bool = true
   @State var transcriptionLanguage: String = "en"
+  @State var conversationLocationEnabled: Bool = false
   @State var vadGateEnabled: Bool = false
   @State var systemAudioCaptureMode: AssistantSettings.SystemAudioCaptureMode = .always
 
   // Multi-chat mode setting
   @AppStorage("multiChatEnabled") var multiChatEnabled = false
-  @AppStorage("conversationsCompactView") var conversationsCompactView = true
   @AppStorage("useLegacyHomeDesign") var useLegacyHomeDesign = false
 
   // Advanced AI settings

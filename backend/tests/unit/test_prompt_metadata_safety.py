@@ -1,13 +1,6 @@
 from pydantic import ValidationError
 
 from models.geolocation import Geolocation, GeolocationInput, validated_geolocation_or_none
-from utils.llm.chat import get_current_datetime_block
-
-
-def test_prompt_metadata_escapes_city_text():
-    metadata = get_current_datetime_block('uid1', tz='UTC', location='A < B & C')
-
-    assert 'Current city-level location: A &lt; B &amp; C' in metadata
 
 
 def test_geolocation_rejects_coordinates_outside_the_earth():

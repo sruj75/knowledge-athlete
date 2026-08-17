@@ -169,33 +169,6 @@ extension SettingsContentView {
 
   var privacySection: some View {
     VStack(spacing: OmiSpacing.xl) {
-      // Data Controls
-      settingsCard(settingId: "privacy.storerecordings") {
-        VStack(alignment: .leading, spacing: OmiSpacing.lg) {
-          settingsCardHeader(icon: "shield", title: "Data Controls")
-
-          privacyToggleRow(
-            icon: "mic.fill",
-            title: "Store Recordings",
-            subtitle: "Allow omi to store audio recordings of your conversations",
-            isOn: $recordingPermissionEnabled
-          ) { newValue in
-            updateRecordingPermission(newValue)
-          }
-
-          Divider()
-
-          privacyToggleRow(
-            icon: "cloud.fill",
-            title: "Private Cloud Sync",
-            subtitle: "Sync your data securely to your private cloud storage",
-            isOn: $privateCloudSyncEnabled
-          ) { newValue in
-            updatePrivateCloudSync(newValue)
-          }
-        }
-      }
-
       // Encryption
       settingsCard(settingId: "privacy.encryption") {
         VStack(alignment: .leading, spacing: OmiSpacing.md) {
@@ -207,7 +180,7 @@ extension SettingsContentView {
               .foregroundColor(.green)
               .frame(width: 20, alignment: .leading)
 
-            Text("Server-side encryption")
+            Text("Local database protection")
               .scaledFont(size: OmiType.body)
               .foregroundColor(OmiColors.textSecondary)
 
@@ -220,7 +193,7 @@ extension SettingsContentView {
               .cornerRadius(OmiChrome.stripRadius)
           }
 
-          Text("Your data is encrypted and stored securely with Google Cloud infrastructure.")
+          Text("Conversation transcripts and metadata are stored in the app's local database.")
             .scaledFont(size: OmiType.caption)
             .foregroundColor(OmiColors.textTertiary)
         }

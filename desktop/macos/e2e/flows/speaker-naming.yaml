@@ -9,7 +9,7 @@ covers:
   - desktop/macos/Desktop/Sources/MainWindow/Components/LiveNameSpeakerSheet.swift
   - desktop/macos/Desktop/Sources/MainWindow/Components/NameSpeakerSheet.swift
   - desktop/macos/Desktop/Sources/MainWindow/Components/SpeakerBubbleView.swift
-  - desktop/macos/Desktop/Sources/Services/APIClient/APIClient+People.swift
+  - desktop/macos/Desktop/Sources/Rewind/Core/TranscriptionStorage+LocalAuthority.swift
 preconditions:
   - automation_bridge_ready
 
@@ -65,14 +65,14 @@ steps:
   - id: S6
     name: Assign speaker name to second segment
     bridge.action:
-      name: assign_speaker_fixture
+      name: assign_local_speaker_label_fixture
       params:
         conversationId: latest
         segmentIndex: "1"
-        personName: "[[MARKER:speaker-naming]] Harness Guest"
+        speakerName: "[[MARKER:speaker-naming]] Harness Guest"
     expect:
       result.detail.assigned: "true"
-      result.detail.person_name: "[[MARKER:speaker-naming]] Harness Guest"
+      result.detail.speaker_name: "[[MARKER:speaker-naming]] Harness Guest"
 
   - id: S7
     name: Conversation detail snapshot
