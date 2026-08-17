@@ -18,7 +18,7 @@ from config.free_plan import (
 import database.user_usage as user_usage_db
 import database.users as users_db
 from database import redis_db
-from models.users import PlanLimits, PlanType, Subscription, SubscriptionStatus, TrialMetadata
+from models.users import PlanLimits, PlanType, Subscription, TrialMetadata
 from utils.observability.fallback import record_fallback
 
 logger = logging.getLogger(__name__)

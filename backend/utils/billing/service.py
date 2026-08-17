@@ -118,9 +118,7 @@ class BillingService:
         self._provider = None
         if provider is None:
             return
-        close = getattr(provider, 'close', None)
-        if callable(close):
-            await close()
+        await provider.close()
 
     async def process_webhook(self, raw_body: str, headers: Mapping[str, str]) -> str:
         provider = self._active_provider()
@@ -170,7 +168,11 @@ class BillingService:
         )
         outcome = await self._projection_store.apply(uid, projected, webhook_id)
         if outcome == 'applied':
-            await run_blocking(db_executor, self._projection_invalidator, uid)
+
+            def invalidate_projection() -> None:
+                self._projection_invalidator(uid)
+
+            await run_blocking(db_executor, invalidate_projection)
         return outcome
 
     async def _associate_checkout_customer(
