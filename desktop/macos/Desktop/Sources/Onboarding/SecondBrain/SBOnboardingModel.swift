@@ -155,8 +155,11 @@ final class SBOnboardingModel: ObservableObject {
   unowned let appState: AppState
   let chatProvider: ChatProvider
   private let acquisitionSourceRecorder: OnboardingAcquisitionSourceRecorder
-  /// Backend writes for editable answers are per-field serialized. Revisiting a
-  /// question never lets an earlier request finish after the user's revision.
+  private let nameWriter: @MainActor (String, String?, RuntimeOwnerAuthorizationSnapshot?) async -> Void
+  private let languageWriter: @MainActor ([String]) -> Void
+  private let stepResolver: (@MainActor (Step) -> Step)?
+  /// Firebase name writes are serialized. Revisiting the question never lets an
+  /// earlier request finish after the user's revision.
   private let answerWriteGate = OnboardingAnswerWriteGate()
   private let onComplete: (() -> Void)?
   var streamTask: Task<Void, Never>?
@@ -176,11 +179,25 @@ final class SBOnboardingModel: ObservableObject {
     appState: AppState,
     chatProvider: ChatProvider,
     acquisitionSourceRecorder: OnboardingAcquisitionSourceRecorder = OnboardingAcquisitionSourceRecorder(),
+    nameWriter: @escaping @MainActor (String, String?, RuntimeOwnerAuthorizationSnapshot?) async -> Void = {
+      name, expectedOwnerID, authorizationSnapshot in
+      await AuthService.shared.updateGivenName(
+        name,
+        expectedOwnerID: expectedOwnerID,
+        authorizationSnapshot: authorizationSnapshot)
+    },
+    languageWriter: @escaping @MainActor ([String]) -> Void = {
+      AssistantSettings.shared.voiceLanguages = $0
+    },
+    stepResolver: (@MainActor (Step) -> Step)? = nil,
     onComplete: (() -> Void)?
   ) {
     self.appState = appState
     self.chatProvider = chatProvider
     self.acquisitionSourceRecorder = acquisitionSourceRecorder
+    self.nameWriter = nameWriter
+    self.languageWriter = languageWriter
+    self.stepResolver = stepResolver
     self.onComplete = onComplete
     // Isolate any onboarding chat/voice turns to the throwaway `.onboarding()`
     // journal surface so they never pollute the real Chat tab. Cleared on
@@ -192,7 +209,7 @@ final class SBOnboardingModel: ObservableObject {
     // instead of "friend"/blank (regression from the SB redesign; see #9919).
     let known = AuthService.shared.givenName.trimmingCharacters(in: .whitespaces)
     if !known.isEmpty { nameDraft = known }
-    AuthService.shared.loadNameFromBackendIfNeeded()
+    AuthService.shared.loadNameFromFirebaseIfNeeded()
     nameObserver = NotificationCenter.default.addObserver(
       forName: .authNameDidUpdate, object: nil, queue: .main
     ) { [weak self] _ in
@@ -272,7 +289,7 @@ final class SBOnboardingModel: ObservableObject {
     recordSetupStateDisagreementAtRead(savedRaw: savedRaw)
     if savedRaw > Step.promise.rawValue, let resumed = Step.resumeTarget(forPersistedRawValue: savedRaw) {
       // Skip a resumed permission step the user granted while away.
-      let target = firstUnaskedStep(from: resumed)
+      let target = stepResolver?(resumed) ?? firstUnaskedStep(from: resumed)
       step = target
       streamMessage(for: target)
       return
@@ -359,7 +376,7 @@ final class SBOnboardingModel: ObservableObject {
     teardownStep(step)
     // Don't ask for a permission the user has already granted — skip straight to
     // the first step that still needs an answer.
-    let target = firstUnaskedStep(from: next)
+    let target = stepResolver?(next) ?? firstUnaskedStep(from: next)
     step = target
     UserDefaults.standard.set(target.rawValue, forKey: Self.resumeStepKey)
     streamMessage(for: target)
@@ -431,10 +448,18 @@ final class SBOnboardingModel: ObservableObject {
   func answerName() {
     let trimmed = nameDraft.trimmingCharacters(in: .whitespaces)
     guard !trimmed.isEmpty else { return }
-    answerWriteGate.enqueue(.name) { [trimmed] in
-      await AuthService.shared.updateGivenName(trimmed)
+    let expectedOwnerID = RuntimeOwnerIdentity.currentOwnerId()
+    let authorizationSnapshot = expectedOwnerID.flatMap {
+      RuntimeOwnerIdentity.captureAuthorizationSnapshot(expectedOwnerID: $0)
+    }
+    answerWriteGate.enqueue { [nameWriter, trimmed] in
+      await nameWriter(trimmed, expectedOwnerID, authorizationSnapshot)
     }
     advance(userAnswer: trimmed, to: .howHeard)
+  }
+
+  func waitForPendingNameWrite() async {
+    await answerWriteGate.waitForIdle()
   }
 
   /// Record the acquisition source locally and in analytics, then move on.
@@ -444,16 +469,12 @@ final class SBOnboardingModel: ObservableObject {
     advance(userAnswer: source, to: .language)
   }
 
-  /// Set the user's spoken language locally + on the backend (mirrors the legacy
-  /// confirmLanguages, single-primary). Advances optimistically.
+  /// Set the user's spoken language locally (single-primary) and advance.
   func pickLanguage(code: String, name: String) {
     languageName = name
     languageDraft = name
     languageIsDetectedFromMac = false
-    AssistantSettings.shared.voiceLanguages = [code]
-    answerWriteGate.enqueue(.language) { [code] in
-      _ = try? await APIClient.shared.updateUserLanguage(code)
-    }
+    languageWriter([code])
     advance(userAnswer: name, to: .mic)
   }
 

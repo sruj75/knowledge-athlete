@@ -11,7 +11,7 @@ extension Notification.Name {
   /// Posted by AuthService.signOut() so views can reset @AppStorage-backed properties directly.
   static let userDidSignOut = Notification.Name("com.omi.desktop.userDidSignOut")
   /// Posted whenever the signed-in user's name becomes known (Apple first-auth
-  /// capture, or a later backend/Firebase fetch). `givenName`/`familyName` are
+  /// capture, or a later Firebase fetch). `givenName`/`familyName` are
   /// plain UserDefaults, so onboarding can't observe them directly — it listens
   /// for this and re-reads `AuthService.shared.givenName`.
   static let authNameDidUpdate = Notification.Name("com.omi.desktop.authNameDidUpdate")
@@ -166,6 +166,17 @@ class AuthService {
   // or RuntimeOwnerIdentity; those remain the session owner's responsibility.
   // The availability seam is intentionally narrow.
   var firebaseAuthAvailability = FirebaseAuthAvailability.live
+
+  struct NameAuthorityHooks {
+    var updateFirebaseDisplayName: ((_ name: String, _ expectedOwnerID: String?) async throws -> Void)?
+    var firebaseDisplayName: ((_ expectedOwnerID: String?) -> String?)?
+
+    nonisolated(unsafe) static let live = NameAuthorityHooks(
+      updateFirebaseDisplayName: nil,
+      firebaseDisplayName: nil)
+  }
+
+  var nameAuthorityHooks = NameAuthorityHooks.live
 
   /// Returns the SDK only when its default Firebase app exists. Callers must
   /// treat `nil` as an expected runtime mode, never as a reason to read the
@@ -569,7 +580,7 @@ class AuthService {
       else {
         return
       }
-      loadNameFromBackendIfNeeded()
+      loadNameFromFirebaseIfNeeded()
       APIKeyService.shared.startFetchingKeys()
       Task { await FloatingBarUsageLimiter.shared.fetchPlan() }
     } catch AuthError.notSignedIn {
@@ -621,7 +632,7 @@ class AuthService {
               return
             }
             AuthState.shared.userEmail = user.email
-            self.loadNameFromBackendIfNeeded()
+            self.loadNameFromFirebaseIfNeeded()
             Task { await SettingsSyncManager.shared.syncFromServer() }
           }
         } else {
@@ -768,10 +779,10 @@ class AuthService {
     }
 
     if givenName.isEmpty {
-      loadNameFromBackendIfNeeded()
+      loadNameFromFirebaseIfNeeded()
     } else if capturedFreshAppleName {
-      // Session is live now; persist the first-auth Apple name to Firebase +
-      // backend so it survives reinstalls (Apple won't resend it).
+      // Session is live now; persist the first-auth Apple name to Firebase so
+      // it survives reinstalls (Apple won't resend it).
       let capturedName = displayName
       Task { [weak self] in await self?.updateGivenName(capturedName) }
     }
@@ -1058,9 +1069,9 @@ class AuthService {
         throw AuthError.cancelled
       }
 
-      // Try to load name from backend profile (Firestore), then Firebase Auth as fallback
+      // Fill a missing local projection from the owner-current Firebase identity.
       if givenName.isEmpty {
-        loadNameFromBackendIfNeeded()
+        loadNameFromFirebaseIfNeeded()
       }
 
       // Identify user first, then track sign-in completed
@@ -1636,7 +1647,7 @@ class AuthService {
 
   // MARK: - User Name Management
 
-  /// Update the user's given name (stores locally, updates Firebase Auth, and syncs to backend profile)
+  /// Update the user's given name in the local projection and Firebase Auth.
   @MainActor
   func updateGivenName(
     _ fullName: String,
@@ -1669,26 +1680,14 @@ class AuthService {
     let isImpersonating = UserDefaults.standard.bool(forKey: .authIsImpersonating)
     if isImpersonating {
       NSLog("OMI AUTH: Skipping Firebase displayName update (impersonation mode)")
-    } else if let user = configuredFirebaseAuth()?.currentUser {
+    } else {
       do {
-        let changeRequest = user.createProfileChangeRequest()
-        changeRequest.displayName = trimmedName
-        try await changeRequest.commitChanges()
-        NSLog("OMI AUTH: Updated Firebase displayName to: %@", trimmedName)
+        try await updateFirebaseDisplayName(trimmedName, expectedOwnerID: nil)
       } catch {
         NSLog("OMI AUTH: Failed to update Firebase displayName (non-fatal): %@", error.localizedDescription)
       }
     }
-
-    // Also save to backend profile (Firestore) so it persists across sign-in methods
-    if !isImpersonating {
-      do {
-        try await APIClient.shared.updateUserProfile(name: trimmedName)
-        NSLog("OMI AUTH: Updated backend profile name to: %@", trimmedName)
-      } catch {
-        NSLog("OMI AUTH: Failed to update backend profile name (non-fatal): %@", error.localizedDescription)
-      }
-    }
+    postNameDidUpdate()
   }
 
   private func updateGivenNameOwnerBound(
@@ -1701,12 +1700,9 @@ class AuthService {
     guard isCurrentOwner(expectedOwnerID, authorizationSnapshot: authorizationSnapshot) else { return }
     let isImpersonating = UserDefaults.standard.bool(forKey: .authIsImpersonating)
 
-    if !isImpersonating, let user = configuredFirebaseAuth()?.currentUser {
-      guard user.uid == expectedOwnerID else { return }
+    if !isImpersonating {
       do {
-        let changeRequest = user.createProfileChangeRequest()
-        changeRequest.displayName = trimmedName
-        try await changeRequest.commitChanges()
+        try await updateFirebaseDisplayName(trimmedName, expectedOwnerID: expectedOwnerID)
       } catch {
         NSLog(
           "OMI AUTH: Failed to update Firebase displayName (non-fatal): %@",
@@ -1716,25 +1712,10 @@ class AuthService {
       guard isCurrentOwner(expectedOwnerID, authorizationSnapshot: authorizationSnapshot) else { return }
     }
 
-    if !isImpersonating {
-      do {
-        try await APIClient.shared.updateUserProfile(
-          name: trimmedName,
-          expectedOwnerId: expectedOwnerID,
-          authorizationSnapshot: authorizationSnapshot
-        )
-      } catch {
-        NSLog(
-          "OMI AUTH: Failed to update backend profile name (non-fatal): %@",
-          error.localizedDescription
-        )
-      }
-      guard isCurrentOwner(expectedOwnerID, authorizationSnapshot: authorizationSnapshot) else { return }
-    }
-
     givenName = newGivenName
     familyName = newFamilyName
     NSLog("OMI AUTH: Updated owner-bound name locally - given: %@, family: %@", newGivenName, newFamilyName)
+    postNameDidUpdate()
   }
 
   private nonisolated func isCurrentOwner(
@@ -1756,60 +1737,47 @@ class AuthService {
     return nil
   }
 
-  /// Load name from backend profile (Firestore) first, then fall back to Firebase Auth.
-  /// This handles cases like Apple Sign-In where Firebase Auth displayName may be empty
-  /// but the user already has a name stored in Firestore from a previous sign-up.
-  func loadNameFromBackendIfNeeded() {
+  private func updateFirebaseDisplayName(
+    _ name: String,
+    expectedOwnerID: String?
+  ) async throws {
+    if let update = nameAuthorityHooks.updateFirebaseDisplayName {
+      try await update(name, expectedOwnerID)
+      return
+    }
+    guard let user = configuredFirebaseAuth()?.currentUser else { return }
+    if let expectedOwnerID, user.uid != expectedOwnerID { return }
+    let changeRequest = user.createProfileChangeRequest()
+    changeRequest.displayName = name
+    try await changeRequest.commitChanges()
+    NSLog("OMI AUTH: Updated Firebase displayName to: %@", name)
+  }
+
+  /// Load a missing local name from the owner-current Firebase identity.
+  func loadNameFromFirebaseIfNeeded() {
     guard givenName.isEmpty,
       let expectedOwnerID = RuntimeOwnerIdentity.currentOwnerId()
     else {
       return
     }
-    let attempt = currentSessionAttempt()
-    Task { [weak self] in
-      guard let self,
-        self.isSessionAttemptCurrent(attempt),
-        RuntimeOwnerIdentity.currentOwnerId() == expectedOwnerID
-      else {
-        return
-      }
-      do {
-        let profile = try await APIClient.shared.getUserProfile()
-        guard self.isSessionAttemptCurrent(attempt),
-          RuntimeOwnerIdentity.currentOwnerId() == expectedOwnerID
-        else {
-          return
-        }
-        if let name = profile.name, !name.trimmingCharacters(in: .whitespaces).isEmpty {
-          let nameParts = name.trimmingCharacters(in: .whitespaces).split(separator: " ", maxSplits: 1)
-          self.givenName = nameParts.first.map(String.init) ?? name.trimmingCharacters(in: .whitespaces)
-          self.familyName = nameParts.count > 1 ? String(nameParts[1]) : ""
-          NSLog("OMI AUTH: Loaded name from backend profile - given: %@, family: %@", self.givenName, self.familyName)
-          self.postNameDidUpdate()
-          return
-        }
-      } catch {
-        guard self.isSessionAttemptCurrent(attempt),
-          RuntimeOwnerIdentity.currentOwnerId() == expectedOwnerID
-        else {
-          return
-        }
-        NSLog("OMI AUTH: Failed to fetch backend profile for name (non-fatal): %@", error.localizedDescription)
-      }
-      // Fall back to Firebase Auth displayName
-      guard self.givenName.isEmpty,
-        self.isSessionAttemptCurrent(attempt),
-        RuntimeOwnerIdentity.currentOwnerId() == expectedOwnerID,
-        self.configuredFirebaseAuth()?.currentUser?.uid == expectedOwnerID,
-        let firebaseName = self.getNameFromFirebase()
-      else {
-        return
-      }
-      let nameParts = firebaseName.split(separator: " ", maxSplits: 1)
-      self.givenName = nameParts.first.map(String.init) ?? firebaseName
-      self.familyName = nameParts.count > 1 ? String(nameParts[1]) : ""
-      NSLog("OMI AUTH: Loaded owner-bound name from Firebase - given: %@, family: %@", self.givenName, self.familyName)
+    let firebaseName: String?
+    if let load = nameAuthorityHooks.firebaseDisplayName {
+      firebaseName = load(expectedOwnerID)
+    } else if configuredFirebaseAuth()?.currentUser?.uid == expectedOwnerID {
+      firebaseName = getNameFromFirebase()
+    } else {
+      firebaseName = nil
     }
+    guard RuntimeOwnerIdentity.currentOwnerId() == expectedOwnerID,
+      let firebaseName,
+      !firebaseName.trimmingCharacters(in: .whitespaces).isEmpty
+    else { return }
+    let trimmedName = firebaseName.trimmingCharacters(in: .whitespaces)
+    let nameParts = trimmedName.split(separator: " ", maxSplits: 1)
+    givenName = nameParts.first.map(String.init) ?? trimmedName
+    familyName = nameParts.count > 1 ? String(nameParts[1]) : ""
+    NSLog("OMI AUTH: Loaded owner-bound name from Firebase - given: %@, family: %@", givenName, familyName)
+    postNameDidUpdate()
   }
 
   // MARK: - Token Storage

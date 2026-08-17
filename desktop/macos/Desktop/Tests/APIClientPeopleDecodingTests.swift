@@ -2,7 +2,7 @@ import XCTest
 
 @testable import Omi_Computer
 
-final class APIClientUserProfilePeopleDecodingTests: XCTestCase {
+final class APIClientPeopleDecodingTests: XCTestCase {
   private func makeDecoder() -> JSONDecoder {
     let decoder = JSONDecoder()
     decoder.dateDecodingStrategy = .custom { decoder in
@@ -24,33 +24,6 @@ final class APIClientUserProfilePeopleDecodingTests: XCTestCase {
         in: container, debugDescription: "Invalid ISO8601 date: \(value)")
     }
     return decoder
-  }
-
-  func testUserProfileRequiresUidButToleratesOptionalProfileFields() throws {
-    let json = """
-      {
-        "uid": "user-123",
-        "name": "Desktop User",
-        "unexpected_profile_field": "ignored"
-      }
-      """.data(using: .utf8)!
-
-    let profile = try makeDecoder().decode(UserProfileResponse.self, from: json)
-
-    XCTAssertEqual(profile.uid, "user-123")
-    XCTAssertEqual(profile.name, "Desktop User")
-    XCTAssertNil(profile.email)
-    XCTAssertNil(profile.timeZone)
-  }
-
-  func testUserProfileStillFailsWithoutUid() {
-    let json = """
-      {
-        "name": "Legacy User"
-      }
-      """.data(using: .utf8)!
-
-    XCTAssertThrowsError(try makeDecoder().decode(UserProfileResponse.self, from: json))
   }
 
   func testPersonToleratesLegacyMissingOptionalFields() throws {
