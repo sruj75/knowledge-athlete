@@ -209,7 +209,9 @@ struct SBOnboardingView: View {
         model.answerScreen()
       }
     case .accessibility:
-      permStepWidget("accessibility", "Accessibility", "catch your shortcut + click/type for you") {
+      permStepWidget(
+        "accessibility", "Accessibility", "global push-to-talk + precise Rewind and Focus window targeting"
+      ) {
         model.answerAccessibility()
       }
     case .shortcutOpen: shortcutWidget(isTalk: false)

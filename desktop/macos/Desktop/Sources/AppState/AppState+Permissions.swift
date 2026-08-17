@@ -10,14 +10,6 @@ extension AppState {
     ScreenCaptureService.openScreenRecordingPreferences()
   }
 
-  func openAutomationPreferences() {
-    if let url = URL(
-      string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation")
-    {
-      NSWorkspace.shared.open(url)
-    }
-  }
-
   func requestNotificationPermission() {
     // First check current authorization status
     UserNotificationCallbackBridge.authorizationStatus { [weak self] authorizationStatus in

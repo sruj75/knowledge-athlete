@@ -88,6 +88,14 @@ final class SBOnboardingModel: ObservableObject {
 
   enum PermState: Equatable { case ask, waiting, on }
 
+  enum PermissionEffect: Equatable {
+    case checked(String)
+    case requested(String)
+    case granted(String)
+    case advanced(from: Step, to: Step)
+    case primedScreenCapture
+  }
+
   @Published var step: Step = .promise
   @Published var thread: [Msg] = []
   /// The current Omi message streaming in (nil once committed).
@@ -158,6 +166,12 @@ final class SBOnboardingModel: ObservableObject {
   private let nameWriter: @MainActor (String, String?, RuntimeOwnerAuthorizationSnapshot?) async -> Void
   private let languageWriter: @MainActor ([String]) -> Void
   private let stepResolver: (@MainActor (Step) -> Step)?
+  let permissionRefresher: (@MainActor (String) -> Void)?
+  let permissionRequester: (@MainActor (String) -> Void)?
+  let permissionGranted: (@MainActor (String) -> Bool)?
+  let systemAudioPrimer: @MainActor (AppState) async -> Bool
+  let screenCapturePrimer: @MainActor () -> Void
+  let permissionEffectRecorder: @MainActor (PermissionEffect) -> Void
   /// Firebase name writes are serialized. Revisiting the question never lets an
   /// earlier request finish after the user's revision.
   private let answerWriteGate = OnboardingAnswerWriteGate()
@@ -190,6 +204,18 @@ final class SBOnboardingModel: ObservableObject {
       AssistantSettings.shared.voiceLanguages = $0
     },
     stepResolver: (@MainActor (Step) -> Step)? = nil,
+    permissionRefresher: (@MainActor (String) -> Void)? = nil,
+    permissionRequester: (@MainActor (String) -> Void)? = nil,
+    permissionGranted: (@MainActor (String) -> Bool)? = nil,
+    systemAudioPrimer: @escaping @MainActor (AppState) async -> Bool = {
+      await $0.primeSystemAudioPermission()
+    },
+    screenCapturePrimer: @escaping @MainActor () -> Void = {
+      if #available(macOS 14.0, *) {
+        Task.detached { await ScreenCaptureService.primeCaptureConsent() }
+      }
+    },
+    permissionEffectRecorder: @escaping @MainActor (PermissionEffect) -> Void = { _ in },
     onComplete: (() -> Void)?
   ) {
     self.appState = appState
@@ -198,6 +224,12 @@ final class SBOnboardingModel: ObservableObject {
     self.nameWriter = nameWriter
     self.languageWriter = languageWriter
     self.stepResolver = stepResolver
+    self.permissionRefresher = permissionRefresher
+    self.permissionRequester = permissionRequester
+    self.permissionGranted = permissionGranted
+    self.systemAudioPrimer = systemAudioPrimer
+    self.screenCapturePrimer = screenCapturePrimer
+    self.permissionEffectRecorder = permissionEffectRecorder
     self.onComplete = onComplete
     // Isolate any onboarding chat/voice turns to the throwaway `.onboarding()`
     // journal surface so they never pollute the real Chat tab. Cleared on
@@ -248,7 +280,8 @@ final class SBOnboardingModel: ObservableObject {
     case .screen:
       return "Let me see your screen, so I can help with whatever you're looking at."
     case .accessibility:
-      return "Turn on Accessibility, so I can use your shortcut and click and type for you."
+      return
+        "Turn on Accessibility so your global push-to-talk shortcut works, and Rewind and Focus can target the exact window you're using."
     case .shortcutOpen:
       return "How do you want to open me? Just press one of these to set it."
     case .shortcutTalk:
