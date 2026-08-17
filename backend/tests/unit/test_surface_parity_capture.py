@@ -19,11 +19,11 @@ def _capture(root, *, principal_id="allowed-user"):
     return SurfaceParityCapture.from_environ(
         principal_id=principal_id,
         session_id="surface-session",
-        surface="screen",
-        source="desktop_screen_activity_sync",
-        provider_lane="screen",
-        route_or_model="screen-activity-sync",
-        request={"row_count": 1},
+        surface="ptt",
+        source="desktop_ptt_http",
+        provider_lane="deepgram",
+        route_or_model="deepgram-nova-3",
+        request={"audio_bytes": 20},
         environ=_env(root),
     )
 
@@ -33,13 +33,13 @@ def test_surface_capture_persists_discriminators_and_redacts_text_payloads(tmp_p
 
     capture.observe(
         "client",
-        {"type": "screen_activity_rows", "email": "dogfood@example.com", "token": "do-not-keep"},
+        {"type": "ptt_audio", "email": "dogfood@example.com", "token": "do-not-keep"},
     )
     capture.persist()
 
     cassette = json.loads(next((tmp_path / "cassettes").glob("*.json")).read_text())
-    assert cassette["surface"] == "screen"
-    assert cassette["source"] == "desktop_screen_activity_sync"
+    assert cassette["surface"] == "ptt"
+    assert cassette["source"] == "desktop_ptt_http"
     assert cassette["identity"]["anon_session"] != "allowed-user"
     assert cassette["events"][0]["payload"]["email"] == "[REDACTED_EMAIL]"
     assert cassette["events"][0]["payload"]["token"] == "[REDACTED]"
