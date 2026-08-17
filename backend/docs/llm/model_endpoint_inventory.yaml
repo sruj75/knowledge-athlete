@@ -8,11 +8,6 @@ out_of_scope_surfaces:
     provider_model: openai/text-embedding-3-large
     request_shape: embedding
     reason: Embeddings are explicitly out of scope for this phase.
-  - surface: gemini_screen_activity_query_embedding
-    code_path: backend/utils/llm/clients.py:gemini_embed_query
-    provider_model: gemini/embedding-001
-    request_shape: embedding
-    reason: Embeddings are explicitly out of scope for this phase.
 model_config_features:
   status: gateway_lane_generated_from_model_config
   source_of_truth: backend/utils/llm/model_config.py

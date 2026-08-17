@@ -66,7 +66,7 @@ backend/
     conversations/        #   Conversation lifecycle (6 files): ingestion, memory extraction, action items,
                           #   merge, post-processing, search
     retrieval/            #   RAG pipeline for retained action-item, conversation, memory,
-                          #   screen-activity, explicit-file, web-search, and notification tools
+                          #   explicit-file, web-search, and notification tools
     other/                #   Storage (GCS), auth dependencies, timeout middleware, Hume emotion detection
     log_sanitizer.py      #   sanitize() / sanitize_pii() — required for all logging
     encryption.py         #   AES-256-GCM per-user encryption (HKDF-SHA256 key derivation)

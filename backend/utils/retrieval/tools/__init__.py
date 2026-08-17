@@ -30,10 +30,6 @@ from .notification_settings_tools import (
 from .chart_tools import (
     create_chart_tool,
 )
-from .screen_activity_tools import (
-    get_screen_activity_tool,
-    search_screen_activity_tool,
-)
 from .preference_tools import (
     save_user_preference_tool,
 )
@@ -53,8 +49,6 @@ __all__ = [
     'search_files_tool',
     'manage_daily_summary_tool',
     'create_chart_tool',
-    'get_screen_activity_tool',
-    'search_screen_activity_tool',
     'save_user_preference_tool',
     'fetch_url_tool',
 ]
