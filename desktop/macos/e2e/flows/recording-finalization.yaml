@@ -5,6 +5,7 @@ description: Hermetic stop finalizes exactly one conversation in local authority
 app: non-prod
 covers:
   - desktop/macos/Desktop/Sources/AppState/AppState+Transcription.swift
+  - desktop/macos/Desktop/Sources/AppState/MeetingConversationBoundaryPolicy.swift
   - desktop/macos/Desktop/Sources/MainWindow/Conversations/ConversationActionItemEnrichment.swift
   - desktop/macos/Desktop/Sources/MainWindow/Conversations/ConversationDiscardAdmission.swift
   - desktop/macos/Desktop/Sources/ConversationFinalizationService.swift
