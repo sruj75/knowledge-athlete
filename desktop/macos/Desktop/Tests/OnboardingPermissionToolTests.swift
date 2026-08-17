@@ -22,7 +22,7 @@ final class OnboardingPermissionToolTests: XCTestCase {
     XCTAssertEqual(
       SBOnboardingModel.Step.allCases,
       [
-        .promise, .name, .howHeard, .language, .role,
+        .promise, .name, .howHeard, .language,
         .mic, .systemAudio, .screen, .accessibility,
         .shortcutOpen, .shortcutTalk, .screenDemo, .capture,
       ])

@@ -247,7 +247,7 @@ extension SBOnboardingModel {
     var step = target
     while let key = permissionKey(for: step) {
       refreshPermCheck(key)
-      guard isGranted(key), let next = Step(rawValue: step.rawValue + 1) else { break }
+      guard isGranted(key), let next = step.next else { break }
       setPermOn(key)
       step = next
     }

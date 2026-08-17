@@ -14,7 +14,7 @@ enum SBOnboardingLanguageCopy {
 
 /// Drives the Second Brain conversational onboarding: a real chat with Omi that
 /// streams word-by-word, collects answers, and performs the SAME live side-effects
-/// as the legacy wizard (name/language → backend, retained permissions, the summon
+/// as the legacy wizard (name/language, retained permissions, the summon
 /// shortcut, a live screen+voice demo, capture,
 /// completion). No fake steps — every widget does real work.
 ///
@@ -42,9 +42,37 @@ final class SBOnboardingModel: ObservableObject {
   static let defaultCaptureSelection: CaptureSelection = .onlyDuringMeetings
 
   enum Step: Int, CaseIterable {
-    case promise, name, howHeard, language, role
-    case mic, systemAudio, screen, accessibility
-    case shortcutOpen, shortcutTalk, screenDemo, capture
+    case promise = 0
+    case name = 1
+    case howHeard = 2
+    case language = 3
+    // Raw value 4 belonged to the retired role step. Keep every subsequent raw
+    // value stable so a persisted in-progress setup does not resume at the wrong
+    // stage after upgrading.
+    case mic = 5
+    case systemAudio = 6
+    case screen = 7
+    case accessibility = 8
+    case shortcutOpen = 9
+    case shortcutTalk = 10
+    case screenDemo = 11
+    case capture = 12
+
+    var next: Step? {
+      guard let index = Self.allCases.firstIndex(of: self) else { return nil }
+      let nextIndex = Self.allCases.index(after: index)
+      return nextIndex < Self.allCases.endIndex ? Self.allCases[nextIndex] : nil
+    }
+
+    var previous: Step? {
+      guard let index = Self.allCases.firstIndex(of: self), index > Self.allCases.startIndex else { return nil }
+      return Self.allCases[Self.allCases.index(before: index)]
+    }
+
+    static func resumeTarget(forPersistedRawValue rawValue: Int) -> Step? {
+      if rawValue == 4 { return .mic }
+      return Step(rawValue: rawValue)
+    }
   }
 
   /// "How did you hear about Omi?" options (mirrors the legacy step).
@@ -73,8 +101,6 @@ final class SBOnboardingModel: ObservableObject {
   @Published private(set) var languageIsDetectedFromMac = false
   @Published var languageName: String?
   @Published var howHeard: String?
-  @Published var roleDraft = ""
-  @Published var role: String?
 
   // Permissions
   @Published var micState: PermState = .ask
@@ -198,9 +224,6 @@ final class SBOnboardingModel: ObservableObject {
     case .howHeard: return "Quick one. How did you hear about Omi?"
     case .language:
       return SBOnboardingLanguageCopy.question
-    case .role:
-      return
-        "Nice to meet you, \(name). What do your days look like? Pick the closest, or tell me. It shapes what I make for you."
     case .mic:
       return "Let's give me senses. First, your microphone, so I hear your side of a conversation."
     case .systemAudio:
@@ -238,7 +261,7 @@ final class SBOnboardingModel: ObservableObject {
   func begin() {
     guard thread.isEmpty && streamingText == nil else { return }
     // Re-hydrate the editable drafts from what was already saved, so stepping
-    // back to (or resuming at) name/language/role shows the prior answer instead
+    // back to (or resuming at) name/language shows the prior answer instead
     // of an empty field.
     rehydrateDrafts()
     // Resume where the user left off. Their earlier answers (name, language, role)
@@ -247,7 +270,7 @@ final class SBOnboardingModel: ObservableObject {
     // granted before the quit shows ✓ rather than prompting again.
     let savedRaw = UserDefaults.standard.integer(forKey: Self.resumeStepKey)
     recordSetupStateDisagreementAtRead(savedRaw: savedRaw)
-    if savedRaw > Step.promise.rawValue, let resumed = Step(rawValue: savedRaw) {
+    if savedRaw > Step.promise.rawValue, let resumed = Step.resumeTarget(forPersistedRawValue: savedRaw) {
       // Skip a resumed permission step the user granted while away.
       let target = firstUnaskedStep(from: resumed)
       step = target
@@ -267,7 +290,7 @@ final class SBOnboardingModel: ObservableObject {
       from: "completed_flag",
       to: "sb_stage",
       direction: "completed_flag_with_active_stage")
-    if savedRaw > Step.promise.rawValue, Step(rawValue: savedRaw) != nil {
+    if savedRaw > Step.promise.rawValue, Step.resumeTarget(forPersistedRawValue: savedRaw) != nil {
       DesktopDiagnosticsManager.shared.recordStateAuthoritySignal(
         seam: .onboardingSetupState,
         from: "completed_flag",
@@ -347,7 +370,7 @@ final class SBOnboardingModel: ObservableObject {
   /// intact; the re-rendered widget is the editable source of truth for that
   /// stage, so a user can revise (for example) Student to Founder.
   func goBack() {
-    guard let previous = Step(rawValue: step.rawValue - 1) else { return }
+    guard let previous = step.previous else { return }
     teardownStep(step)
     cancelPermissionPollForCurrentStep()
     rehydrateDrafts()
@@ -383,19 +406,12 @@ final class SBOnboardingModel: ObservableObject {
   }
 
   /// Re-fill the editable drafts from already-saved answers so revisiting (via
-  /// Back) or resuming a name/language/role step shows the prior value, not an
+  /// Back) or resuming a name/language step shows the prior value, not an
   /// empty field. Only fills empties — never clobbers in-progress typing.
   private func rehydrateDrafts() {
     if nameDraft.isEmpty {
       let n = AuthService.shared.givenName.trimmingCharacters(in: .whitespaces)
       if !n.isEmpty { nameDraft = n }
-    }
-    if role == nil {
-      let saved = UserDefaults.standard.string(forKey: .onboardingRole) ?? ""
-      if !saved.isEmpty {
-        role = saved
-        if roleDraft.isEmpty { roleDraft = saved }
-      }
     }
     if howHeard == nil {
       let saved = UserDefaults.standard.string(forKey: DefaultsKey.onboardingHowDidYouHearSource)
@@ -408,7 +424,7 @@ final class SBOnboardingModel: ObservableObject {
     }
   }
 
-  // MARK: promise / name / language / role
+  // MARK: promise / name / language
 
   func answerPromise() { advance(userAnswer: "Set me up", to: .name) }
 
@@ -438,7 +454,7 @@ final class SBOnboardingModel: ObservableObject {
     answerWriteGate.enqueue(.language) { [code] in
       _ = try? await APIClient.shared.updateUserLanguage(code)
     }
-    advance(userAnswer: name, to: .role)
+    advance(userAnswer: name, to: .mic)
   }
 
   /// Auto-detect the Mac's language and pre-fill it so the picker defaults to it
@@ -465,18 +481,6 @@ final class SBOnboardingModel: ObservableObject {
     let code = AssistantSettings.normalizeTranscriptionLanguageCode(raw)
     let name = AssistantSettings.supportedLanguages.first { $0.code == code }?.name ?? raw
     pickLanguage(code: code, name: name)
-  }
-
-  func pickRole(_ r: String) {
-    role = r
-    UserDefaults.standard.set(r, forKey: DefaultsKey.onboardingRole)
-    advance(userAnswer: r, to: .mic)
-  }
-
-  func answerRoleText() {
-    let t = roleDraft.trimmingCharacters(in: .whitespaces)
-    guard !t.isEmpty else { return }
-    pickRole(t)
   }
 
   // MARK: capture choice → completes onboarding

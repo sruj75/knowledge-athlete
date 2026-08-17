@@ -7,7 +7,7 @@ final class OnboardingFlowTests: XCTestCase {
     XCTAssertEqual(
       SBOnboardingModel.Step.allCases,
       [
-        .promise, .name, .howHeard, .language, .role, .mic, .systemAudio, .screen,
+        .promise, .name, .howHeard, .language, .mic, .systemAudio, .screen,
         .accessibility, .shortcutOpen, .shortcutTalk, .screenDemo, .capture,
       ]
     )
@@ -25,7 +25,18 @@ final class OnboardingFlowTests: XCTestCase {
 
   func testPersistedStateClearingIncludesActiveSecondBrainResumeState() {
     XCTAssertTrue(OnboardingFlow.persistedStateKeys.contains("sbOnboardingResumeStep"))
-    XCTAssertTrue(OnboardingFlow.persistedStateKeys.contains("onboardingRole"))
+    XCTAssertFalse(OnboardingFlow.persistedStateKeys.contains("onboardingRole"))
+  }
+
+  func testRetainedStepGraphDoesNotDependOnAdjacentRawValues() {
+    XCTAssertEqual(SBOnboardingModel.Step.language.next, .mic)
+    XCTAssertEqual(SBOnboardingModel.Step.mic.previous, .language)
+    XCTAssertEqual(SBOnboardingModel.Step.capture.next, nil)
+    XCTAssertEqual(SBOnboardingModel.Step.promise.previous, nil)
+  }
+
+  func testLegacyRoleResumeMarkerMigratesToMicrophone() {
+    XCTAssertEqual(SBOnboardingModel.Step.resumeTarget(forPersistedRawValue: 4), .mic)
   }
 
   func testSecondBrainProceedActionsUseDefaultActionKeyboardShortcut() throws {

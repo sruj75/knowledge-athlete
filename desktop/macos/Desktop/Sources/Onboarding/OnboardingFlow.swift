@@ -9,7 +9,6 @@ enum OnboardingFlow {
     "onboardingFurthestStep",
     "onboardingHowDidYouHearSource",
     "sbOnboardingResumeStep",
-    "onboardingRole",
     "onboardingGoalDraft",
     "onboardingJustCompleted",
     "hasSeenRewindIntro",

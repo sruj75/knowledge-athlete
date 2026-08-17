@@ -39,7 +39,6 @@ enum DefaultsKey: String {
   case onboardingStep = "onboardingStep"
   case onboardingFurthestStep = "onboardingFurthestStep"
   case onboardingHowDidYouHearSource = "onboardingHowDidYouHearSource"
-  case onboardingRole = "onboardingRole"
   case onboardingJustCompleted = "onboardingJustCompleted"
   case homeOmiDeviceAccountHistory = "home-omi-device-account-history"
   case chatScreenshotSharingEnabled = "chatScreenshotSharingEnabled"

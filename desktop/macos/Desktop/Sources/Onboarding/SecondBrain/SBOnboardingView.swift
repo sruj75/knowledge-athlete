@@ -201,7 +201,6 @@ struct SBOnboardingView: View {
     case .name: nameWidget
     case .howHeard: howHeardWidget
     case .language: languageWidget
-    case .role: roleWidget
     case .mic: permStepWidget("microphone", "Microphone", "hears your side of conversations") { model.answerMic() }
     case .systemAudio:
       permStepWidget("system_audio", "System audio", "the other side — Zoom, Meet, calls") { model.answerSystemAudio() }
@@ -336,27 +335,6 @@ struct SBOnboardingView: View {
       }
     }
     .frame(maxWidth: 340, alignment: .leading)
-  }
-
-  private var roleWidget: some View {
-    VStack(alignment: .leading, spacing: 10) {
-      FlowChips(
-        items: ["Student", "Sales", "Consultant", "Founder", "Engineer", "Analyst", "Creator", "Other"],
-        selectedItem: model.role
-      ) { r in
-        model.pickRole(r)
-      }
-      HStack(spacing: 8) {
-        TextField("or just say it in your own words…", text: $model.roleDraft)
-          .textFieldStyle(.plain).geist(size: 14).foregroundStyle(sb.ink)
-          .padding(.horizontal, 13).padding(.vertical, 9)
-          .background(RoundedRectangle(cornerRadius: 10).fill(sb.ink(.w06)))
-          .overlay(RoundedRectangle(cornerRadius: 10).stroke(sb.ink(.w12), lineWidth: 1))
-          .onSubmit { model.answerRoleText() }
-        SBInkButton(title: "→", horizontalPadding: 15, verticalPadding: 9) { model.answerRoleText() }
-      }
-      .frame(maxWidth: 360)
-    }
   }
 
   // MARK: permissions (one at a time)
