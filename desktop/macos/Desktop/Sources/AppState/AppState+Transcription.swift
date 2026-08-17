@@ -656,6 +656,7 @@ extension AppState {
   /// When `/v4/listen` has announced the backend conversation id, finalize that exact conversation
   /// instead of relying on the user's current in-progress pointer.
   func stopTranscription() {
+    guard transcriptionStopTask == nil else { return }
     // On-device path: there is no backend WebSocket/conversation, so skip the cloud
     // force-process/reconciliation entirely. Stop capture, then AWAIT both Parakeet instances'
     // final tail flushes (delivered to the still-current session) BEFORE clearing state, so the
@@ -665,7 +666,8 @@ extension AppState {
       let sys = localSystemService
       localMicService = nil
       localSystemService = nil
-      Task { @MainActor in
+      transcriptionStopTask = Task { @MainActor in
+        defer { self.transcriptionStopTask = nil }
         self.stopAudioCapture()
         await mic?.finish()
         await sys?.finish()
@@ -721,6 +723,14 @@ extension AppState {
 
       await loadConversations()
     }
+  }
+
+  /// Stop ambient capture and wait for the real transport teardown boundary.
+  /// Local STT owns asynchronous final-tail flushes, so account authority must
+  /// not change until the task created by `stopTranscription()` completes.
+  func stopTranscriptionAndWait() async {
+    stopTranscription()
+    await transcriptionStopTask?.value
   }
 
   /// On-device Parakeet failed to load — fall back to cloud STT instead of silently recording a

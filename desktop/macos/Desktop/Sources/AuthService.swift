@@ -455,6 +455,7 @@ class AuthService {
               expiresIn: tokens.expiresIn,
               userId: tokens.localId)
             let defaults = UserDefaults.standard
+            Self.clearLocalNameProjectionIfOwnerChanges(in: defaults, to: tokens.localId)
             defaults.set(true, forKey: .authIsSignedIn)
             defaults.set(email, forKey: .authUserEmail)
             defaults.set(tokens.localId, forKey: .authUserId)
@@ -2438,8 +2439,7 @@ class AuthService {
     let didCommit = try await OnboardingSignOutTransaction(
       preparation: .live(
         appState: AppState.current,
-        chatProvider: ChatProvider.mainInstance,
-        clearLocalNameProjection: { [self] in (givenName, familyName) = ("", "") }),
+        chatProvider: ChatProvider.mainInstance),
       captureRuntime: .live(appState: AppState.current),
       commitAuthentication: { [self] in
         try await commitSignedOutSession(
@@ -2452,7 +2452,7 @@ class AuthService {
               log("AuthService: Firebase SDK unavailable; signing out the REST-backed session")
             }
           })
-      }
+      }, isAuthenticationAuthoritative: { [self] in sessionAttemptFence.isCurrent(sessionAttempt) }
     ).execute()
     guard didCommit else {
       log("AuthService: stale sign-out completion ignored")

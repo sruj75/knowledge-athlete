@@ -31,6 +31,12 @@ struct OnboardingReplayPlan: Equatable, Sendable {
 }
 
 @MainActor
+private final class OnboardingSignOutCaptureSnapshot {
+  var transcriptionWasRunning = false
+  var monitoringWasRunning = false
+}
+
+@MainActor
 struct OnboardingSignOutCaptureRuntime {
   struct Effects {
     let quiesce: () async -> Void
@@ -44,27 +50,26 @@ struct OnboardingSignOutCaptureRuntime {
 
   static func live(appState: AppState?) -> Self {
     let plugin = ProactiveAssistantsPlugin.shared
-    let transcriptionWasRunning = appState?.isTranscribing == true
-    let monitoringWasRunning = plugin.isMonitoring
+    let snapshot = OnboardingSignOutCaptureSnapshot()
     return Self(
       effects: .init(
         quiesce: {
-          if plugin.isMonitoring { plugin.stopMonitoring() }
-          if appState?.isTranscribing == true {
-            appState?.stopTranscription()
-            await waitForTranscriptionIdle(appState)
+          snapshot.transcriptionWasRunning = appState?.isTranscribing == true
+          snapshot.monitoringWasRunning = plugin.isMonitoring
+          plugin.stopMonitoring()
+          if appState?.isTranscribing == true || appState?.transcriptionStopTask != nil {
+            await appState?.stopTranscriptionAndWait()
           }
         },
         restore: {
-          if transcriptionWasRunning, AssistantSettings.shared.transcriptionEnabled {
-            await waitForTranscriptionIdle(appState)
+          if snapshot.transcriptionWasRunning, AssistantSettings.shared.transcriptionEnabled {
             if appState?.isTranscribing == false {
               appState?.startTranscription()
               await appState?.reconcileCapture()
             }
           }
           plugin.refreshScreenRecordingPermission()
-          if monitoringWasRunning,
+          if snapshot.monitoringWasRunning,
             OnboardingScreenMonitoringStartPolicy.shouldStart(
               intentEnabled: AssistantSettings.shared.screenAnalysisEnabled,
               isPaywalled: AppState.isPaywalledEffective,
@@ -77,11 +82,6 @@ struct OnboardingSignOutCaptureRuntime {
         }))
   }
 
-  private static func waitForTranscriptionIdle(_ appState: AppState?) async {
-    for _ in 0..<100 where appState?.isTranscribing == true {
-      try? await Task.sleep(for: .milliseconds(50))
-    }
-  }
 }
 
 /// Sign-out deletes the setup journal and quiesces capture while the current
@@ -92,20 +92,24 @@ struct OnboardingSignOutTransaction {
   let preparation: OnboardingReplayPreparation
   let captureRuntime: OnboardingSignOutCaptureRuntime
   let commitAuthentication: () async throws -> Bool
+  let isAuthenticationAuthoritative: () -> Bool
 
   func execute() async throws -> Bool {
     await preparation.clearCurrentOwnerJournal()
     await captureRuntime.quiesce()
+    let committed: Bool
     do {
-      guard try await commitAuthentication() else {
-        await captureRuntime.restore()
-        return false
-      }
+      committed = try await commitAuthentication()
     } catch {
-      await captureRuntime.restore()
+      if isAuthenticationAuthoritative() { await captureRuntime.restore() }
       throw error
     }
-    _ = await preparation.execute(source: .signOut, journalAlreadyCleared: true)
+    guard committed else {
+      if isAuthenticationAuthoritative() { await captureRuntime.restore() }
+      return false
+    }
+    guard isAuthenticationAuthoritative() else { return false }
+    _ = preparation.executeAfterJournalCleared(source: .signOut)
     return true
   }
 }
@@ -129,7 +133,6 @@ struct OnboardingReplayPreparation {
     let clearPersistedState: () -> Void
     let clearOnboardingJournal: () async -> Void
     let resetOnboardingProjection: () -> Void
-    let clearLocalNameProjection: () -> Void
   }
 
   let effects: Effects
@@ -138,15 +141,27 @@ struct OnboardingReplayPreparation {
     source: OnboardingReplaySource,
     journalAlreadyCleared: Bool = false
   ) async -> OnboardingReplayPlan {
+    applyCaptureAndPersistedStateCleanup()
+    if !journalAlreadyCleared { await clearCurrentOwnerJournal() }
+    return finishCleanup(source: source)
+  }
+
+  func executeAfterJournalCleared(source: OnboardingReplaySource) -> OnboardingReplayPlan {
+    applyCaptureAndPersistedStateCleanup()
+    return finishCleanup(source: source)
+  }
+
+  private func applyCaptureAndPersistedStateCleanup() {
     effects.setTranscriptionIntent(false)
     effects.stopTranscription()
     effects.setScreenAnalysisIntent(false)
     effects.stopScreenMonitoring()
     effects.resetCompletion()
     effects.clearPersistedState()
-    if !journalAlreadyCleared { await clearCurrentOwnerJournal() }
+  }
+
+  private func finishCleanup(source: OnboardingReplaySource) -> OnboardingReplayPlan {
     effects.resetOnboardingProjection()
-    if source == .signOut { effects.clearLocalNameProjection() }
     return OnboardingReplayPolicy.plan(for: source)
   }
 
@@ -154,14 +169,7 @@ struct OnboardingReplayPreparation {
     await effects.clearOnboardingJournal()
   }
 
-  static func live(
-    appState: AppState?,
-    chatProvider: ChatProvider?,
-    clearLocalNameProjection: @escaping () -> Void = {
-      AuthService.shared.givenName = ""
-      AuthService.shared.familyName = ""
-    }
-  ) -> Self {
+  static func live(appState: AppState?, chatProvider: ChatProvider?) -> Self {
     Self(
       effects: .init(
         setTranscriptionIntent: { AssistantSettings.shared.transcriptionEnabled = $0 },
@@ -184,8 +192,7 @@ struct OnboardingReplayPreparation {
             log("Failed to clear onboarding journal")
           }
         },
-        resetOnboardingProjection: { chatProvider?.resetOnboardingProjectionForReplay() },
-        clearLocalNameProjection: clearLocalNameProjection))
+        resetOnboardingProjection: { chatProvider?.resetOnboardingProjectionForReplay() }))
   }
 }
 

@@ -2,6 +2,25 @@ import XCTest
 
 @testable import Omi_Computer
 
+private actor OnboardingStopGate {
+  private var continuation: CheckedContinuation<Void, Never>?
+
+  func wait() async {
+    await withCheckedContinuation { continuation = $0 }
+  }
+
+  func release() {
+    continuation?.resume()
+    continuation = nil
+  }
+}
+
+private actor OnboardingStopFlag {
+  private var value = false
+  func mark() { value = true }
+  func read() -> Bool { value }
+}
+
 @MainActor
 final class OnboardingPersistenceClearingTests: XCTestCase {
   private enum Effect: Equatable {
@@ -13,7 +32,6 @@ final class OnboardingPersistenceClearingTests: XCTestCase {
     case defaultsCleared
     case onboardingJournalCleared
     case onboardingProjectionReset
-    case localNameProjectionCleared
   }
 
   func testPersistedStateKeysContainOnlyRetainedSetupState() {
@@ -68,17 +86,15 @@ final class OnboardingPersistenceClearingTests: XCTestCase {
           resetCompletion: { effects.append(.completionReset) },
           clearPersistedState: { effects.append(.defaultsCleared) },
           clearOnboardingJournal: { effects.append(.onboardingJournalCleared) },
-          resetOnboardingProjection: { effects.append(.onboardingProjectionReset) },
-          clearLocalNameProjection: { effects.append(.localNameProjectionCleared) }))
+          resetOnboardingProjection: { effects.append(.onboardingProjectionReset) }))
 
       let plan = await preparation.execute(source: source)
 
-      var expected: [Effect] = [
+      let expected: [Effect] = [
         .transcriptionIntent(false), .transcriptionStopped,
         .screenIntent(false), .monitoringStopped,
         .completionReset, .defaultsCleared, .onboardingJournalCleared, .onboardingProjectionReset,
       ]
-      if source == .signOut { expected.append(.localNameProjectionCleared) }
       XCTAssertEqual(
         effects,
         expected)
@@ -89,15 +105,6 @@ final class OnboardingPersistenceClearingTests: XCTestCase {
   func testFailedAuthCommitRestoresQuiescedCaptureWithoutApplyingDestructiveCleanup() async {
     enum SignOutFailure: Error { case injected }
     var effects: [String] = []
-    let auth = AuthService.shared
-    let previousGivenName = auth.givenName
-    let previousFamilyName = auth.familyName
-    defer {
-      auth.givenName = previousGivenName
-      auth.familyName = previousFamilyName
-    }
-    auth.givenName = "Alice"
-    auth.familyName = "Owner A"
     let transaction = OnboardingSignOutTransaction(
       preparation: transactionPreparation(effects: { effects.append($0) }),
       captureRuntime: .init(
@@ -107,6 +114,10 @@ final class OnboardingPersistenceClearingTests: XCTestCase {
       commitAuthentication: {
         effects.append("commit")
         throw SignOutFailure.injected
+      },
+      isAuthenticationAuthoritative: {
+        effects.append("authority")
+        return true
       })
 
     do {
@@ -119,22 +130,11 @@ final class OnboardingPersistenceClearingTests: XCTestCase {
       XCTFail("Unexpected error: \(error)")
     }
 
-    XCTAssertEqual(effects, ["journal", "quiesce", "commit", "restore"])
-    XCTAssertEqual(auth.givenName, "Alice")
-    XCTAssertEqual(auth.familyName, "Owner A")
+    XCTAssertEqual(effects, ["journal", "quiesce", "commit", "authority", "restore"])
   }
 
-  func testSuccessfulSignOutQuiescesBeforeCommitAndClearsNameBeforeTheNextOwner() async throws {
+  func testSuccessfulSignOutQuiescesBeforeCommitThenAppliesCleanup() async throws {
     var effects: [String] = []
-    let auth = AuthService.shared
-    let previousGivenName = auth.givenName
-    let previousFamilyName = auth.familyName
-    defer {
-      auth.givenName = previousGivenName
-      auth.familyName = previousFamilyName
-    }
-    auth.givenName = "Alice"
-    auth.familyName = "Owner A"
     let transaction = OnboardingSignOutTransaction(
       preparation: transactionPreparation(effects: { effects.append($0) }),
       captureRuntime: .init(
@@ -144,6 +144,10 @@ final class OnboardingPersistenceClearingTests: XCTestCase {
       commitAuthentication: {
         effects.append("commit")
         return true
+      },
+      isAuthenticationAuthoritative: {
+        effects.append("authority")
+        return true
       })
 
     let didCommit = try await transaction.execute()
@@ -152,16 +156,54 @@ final class OnboardingPersistenceClearingTests: XCTestCase {
     XCTAssertEqual(
       effects,
       [
-        "journal", "quiesce", "commit", "transcriptionIntent:false", "transcriptionStopped",
+        "journal", "quiesce", "commit", "authority", "transcriptionIntent:false", "transcriptionStopped",
         "screenIntent:false", "monitoringStopped", "completionReset", "defaultsCleared",
-        "projectionReset", "localNameCleared",
+        "projectionReset",
       ])
-    XCTAssertEqual(auth.givenName, "")
-    XCTAssertEqual(auth.familyName, "")
-    auth.givenName = "Bob"
-    auth.familyName = "Owner B"
-    XCTAssertEqual(auth.givenName, "Bob")
-    XCTAssertEqual(auth.familyName, "Owner B")
+  }
+
+  func testSupersededSignOutDoesNotRestoreCaptureOrApplyPriorOwnerCleanup() async throws {
+    var effects: [String] = []
+    let transaction = OnboardingSignOutTransaction(
+      preparation: transactionPreparation(effects: { effects.append($0) }),
+      captureRuntime: .init(
+        effects: .init(
+          quiesce: { effects.append("quiesce") },
+          restore: { effects.append("restore") })),
+      commitAuthentication: {
+        effects.append("commit")
+        return false
+      },
+      isAuthenticationAuthoritative: {
+        effects.append("authority")
+        return false
+      })
+
+    let didCommit = try await transaction.execute()
+
+    XCTAssertFalse(didCommit)
+    XCTAssertEqual(effects, ["journal", "quiesce", "commit", "authority"])
+  }
+
+  func testCaptureQuiescenceWaitsForTheActualTranscriptionStopTask() async {
+    let gate = OnboardingStopGate()
+    let returned = OnboardingStopFlag()
+    let appState = AppState()
+    appState.transcriptionStopTask = Task { await gate.wait() }
+    let waiter = Task { @MainActor in
+      await appState.stopTranscriptionAndWait()
+      await returned.mark()
+    }
+
+    for _ in 0..<10 { await Task.yield() }
+    let returnedBeforeTeardown = await returned.read()
+    XCTAssertFalse(returnedBeforeTeardown)
+
+    await gate.release()
+    await waiter.value
+    let returnedAfterTeardown = await returned.read()
+    XCTAssertTrue(returnedAfterTeardown)
+    appState.transcriptionStopTask = nil
   }
 
   func testReplayProjectionCannotLeakIntoTheNextOwner() {
@@ -210,11 +252,6 @@ final class OnboardingPersistenceClearingTests: XCTestCase {
         resetCompletion: { effects("completionReset") },
         clearPersistedState: { effects("defaultsCleared") },
         clearOnboardingJournal: { effects("journal") },
-        resetOnboardingProjection: { effects("projectionReset") },
-        clearLocalNameProjection: {
-          effects("localNameCleared")
-          AuthService.shared.givenName = ""
-          AuthService.shared.familyName = ""
-        }))
+        resetOnboardingProjection: { effects("projectionReset") }))
   }
 }

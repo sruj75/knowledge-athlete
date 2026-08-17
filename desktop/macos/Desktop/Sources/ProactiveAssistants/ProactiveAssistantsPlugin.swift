@@ -18,6 +18,18 @@ enum ProactiveCapturePolicy {
   }
 }
 
+struct ProactiveMonitoringStartFence {
+  private(set) var generation: UInt64 = 0
+
+  mutating func begin() -> UInt64 {
+    generation &+= 1
+    return generation
+  }
+
+  mutating func cancel() { generation &+= 1 }
+  func isCurrent(_ candidate: UInt64) -> Bool { candidate == generation }
+}
+
 /// Service that manages proactive assistants - screen monitoring, frame capture, and assistant coordination
 @MainActor
 public class ProactiveAssistantsPlugin: NSObject {
@@ -45,6 +57,7 @@ public class ProactiveAssistantsPlugin: NSObject {
 
   private(set) var isMonitoring = false
   private var isStartingMonitoring = false  // Prevents race condition with async startMonitoring
+  private var monitoringStartFence = ProactiveMonitoringStartFence()
   private var _hasScreenRecordingPermission: Bool?  // Cached permission state
   private var currentApp: String?
   private var currentAppBundleID: String?
@@ -251,6 +264,19 @@ public class ProactiveAssistantsPlugin: NSObject {
 
   /// Start monitoring with optional retry for transient permission failures
   public func startMonitoring(retryCount: Int = 0, completion: @escaping (Bool, String?) -> Void) {
+    let generation = monitoringStartFence.begin()
+    startMonitoringAttempt(retryCount: retryCount, generation: generation, completion: completion)
+  }
+
+  private func startMonitoringAttempt(
+    retryCount: Int,
+    generation: UInt64,
+    completion: @escaping (Bool, String?) -> Void
+  ) {
+    guard monitoringStartFence.isCurrent(generation) else {
+      completion(false, "monitoring_start_cancelled")
+      return
+    }
     let maxRetries = 3
     let retryDelays: [Double] = [2.0, 4.0, 8.0]  // exponential backoff
 
@@ -293,7 +319,10 @@ public class ProactiveAssistantsPlugin: NSObject {
         )
         isStartingMonitoring = false
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
-          self?.startMonitoring(retryCount: retryCount + 1, completion: completion)
+          self?.startMonitoringAttempt(
+            retryCount: retryCount + 1,
+            generation: generation,
+            completion: completion)
         }
         return
       }
@@ -510,6 +539,8 @@ public class ProactiveAssistantsPlugin: NSObject {
 
   /// Stop monitoring
   public func stopMonitoring() {
+    monitoringStartFence.cancel()
+    isStartingMonitoring = false
     guard isMonitoring else { return }
 
     captureTimer?.invalidate()

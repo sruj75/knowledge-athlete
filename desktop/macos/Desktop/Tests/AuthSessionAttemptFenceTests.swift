@@ -92,6 +92,7 @@ final class AuthSessionAttemptFenceTests: XCTestCase {
     _ = try? await auth.commitSignedOutSession(attempt: cleanupAttempt, phase: .signedOut)
     auth.tokenStorageHooks = .live
     auth.tokenRefreshHooks = .live
+    auth.nameAuthorityHooks = .live
     auth = nil
     await RewindDatabase.shared.close()
     clearAuthDefaults()
@@ -157,6 +158,8 @@ final class AuthSessionAttemptFenceTests: XCTestCase {
       email: "a@example.test",
       attempt: seedAttempt)
     XCTAssertTrue(seededOwnerA)
+    auth.givenName = "Alice"
+    auth.familyName = "Owner A"
     let phaseBeforeSignOut = AuthState.shared.sessionPhase
 
     let signOutAttempt = auth.beginSessionAttempt()
@@ -175,6 +178,8 @@ final class AuthSessionAttemptFenceTests: XCTestCase {
     XCTAssertEqual(UserDefaults.standard.string(forKey: .authIdToken), "id-\(ownerA)")
     XCTAssertTrue(UserDefaults.standard.bool(forKey: .authIsSignedIn))
     XCTAssertEqual(AuthState.shared.sessionPhase, phaseBeforeSignOut)
+    XCTAssertEqual(auth.givenName, "Alice")
+    XCTAssertEqual(auth.familyName, "Owner A")
   }
 
   func testReplacementCredentialsPublishAtomicallyWithTheirOwner() async throws {
@@ -186,6 +191,8 @@ final class AuthSessionAttemptFenceTests: XCTestCase {
       email: "a@example.test",
       attempt: seedAttempt)
     XCTAssertTrue(seededOwnerA)
+    auth.givenName = "Alice"
+    auth.familyName = "Owner A"
 
     let gate = AuthCommitLeaseGate()
     let leaseTask = Task {
@@ -221,6 +228,15 @@ final class AuthSessionAttemptFenceTests: XCTestCase {
     XCTAssertEqual(UserDefaults.standard.string(forKey: .authUserId), ownerB)
     XCTAssertEqual(UserDefaults.standard.string(forKey: .authTokenUserId), ownerB)
     XCTAssertEqual(UserDefaults.standard.string(forKey: .authIdToken), "id-\(ownerB)")
+    XCTAssertEqual(auth.givenName, "")
+    XCTAssertEqual(auth.familyName, "")
+    auth.nameAuthorityHooks.firebaseDisplayName = { expectedOwnerID in
+      XCTAssertEqual(expectedOwnerID, ownerB)
+      return "Bob Owner B"
+    }
+    auth.loadNameFromFirebaseIfNeeded()
+    XCTAssertEqual(auth.givenName, "Bob")
+    XCTAssertEqual(auth.familyName, "Owner B")
     let ownerBToken = try await auth.getIdToken()
     XCTAssertEqual(ownerBToken, "id-\(ownerB)")
   }
@@ -335,6 +351,8 @@ final class AuthSessionAttemptFenceTests: XCTestCase {
       .authRefreshToken,
       .authTokenExpiry,
       .authTokenUserId,
+      .authGivenName,
+      .authFamilyName,
       .automationOwnerOverride,
       .automationOwnerABackup,
     ] {

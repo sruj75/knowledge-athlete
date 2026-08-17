@@ -1,5 +1,17 @@
 import Foundation
 
+enum AuthLocalNameProjection {
+  static func clearIfOwnerChanges(
+    in defaults: UserDefaults,
+    from previousOwner: String?,
+    to nextOwner: String?
+  ) {
+    guard previousOwner != nextOwner else { return }
+    defaults.removeObject(forKey: .authGivenName)
+    defaults.removeObject(forKey: .authFamilyName)
+  }
+}
+
 /// Auth state publication fails closed when owner-bound physical storage could
 /// not be released before the defaults/token generation changes.
 @MainActor
@@ -20,6 +32,11 @@ func performAuthOwnerTransition<T: Sendable>(
 
 extension AuthService {
   // MARK: - Auth Persistence (UserDefaults for dev builds)
+
+  nonisolated static func clearLocalNameProjectionIfOwnerChanges(in defaults: UserDefaults, to nextOwner: String?) {
+    AuthLocalNameProjection.clearIfOwnerChanges(
+      in: defaults, from: defaults.string(forKey: .authUserId), to: nextOwner)
+  }
 
   /// Revoke the remote session and publish the signed-out credential generation
   /// only after owner-bound storage is safely prepared. A preparation failure
@@ -50,6 +67,7 @@ extension AuthService {
             AuthState.shared.userEmail = nil
             AuthState.shared.transition(to: phase)
             let defaults = UserDefaults.standard
+            Self.clearLocalNameProjectionIfOwnerChanges(in: defaults, to: nil)
             defaults.set(false, forKey: .authIsSignedIn)
             defaults.removeObject(forKey: .authUserEmail)
             defaults.removeObject(forKey: .authUserId)
@@ -77,6 +95,7 @@ extension AuthService {
         },
         { defaults in
           attemptFence.commitIfCurrent(attempt) {
+            Self.clearLocalNameProjectionIfOwnerChanges(in: defaults, to: userId)
             defaults.set(isSignedIn, forKey: .authIsSignedIn)
             defaults.set(email, forKey: .authUserEmail)
             defaults.set(userId, forKey: .authUserId)
@@ -101,6 +120,7 @@ extension AuthService {
         },
         { defaults in
           attemptFence.commitIfCurrent(attempt) {
+            Self.clearLocalNameProjectionIfOwnerChanges(in: defaults, to: nil)
             defaults.removeObject(forKey: .authIsSignedIn)
             defaults.removeObject(forKey: .authUserEmail)
             defaults.removeObject(forKey: .authUserId)
@@ -131,6 +151,7 @@ extension AuthService {
         },
         { defaults in
           attemptFence.commitIfCurrent(attempt) {
+            Self.clearLocalNameProjectionIfOwnerChanges(in: defaults, to: userId)
             if let userId {
               defaults.set(userId, forKey: .authUserId)
             } else {
