@@ -44,10 +44,6 @@ def _deserialize_cache_value(raw: Union[bytes, str, None]) -> Any:
             return text
 
 
-def _serialize_cache_value(value: Any) -> str:
-    return json.dumps(value, default=str)
-
-
 def try_catch_decorator(func: Callable[..., T]) -> Callable[..., Optional[T]]:
     """Wrap func so any exception is logged and returns None (fail-open).
 
