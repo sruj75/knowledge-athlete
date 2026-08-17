@@ -104,6 +104,10 @@ class AnalyticsManager {
     PostHogManager.shared.onboardingCompleted()
   }
 
+  func onboardingExit(_ outcome: OnboardingExitAnalyticsOutcome) {
+    PostHogManager.shared.track(outcome.eventName)
+  }
+
   func onboardingChatToolUsed(tool: String, properties: [String: Any] = [:]) {
     var props = properties
     props["tool"] = ChatTelemetryDimension.toolName(tool)

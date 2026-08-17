@@ -172,10 +172,12 @@ final class SBOnboardingModel: ObservableObject {
   let systemAudioPrimer: @MainActor (AppState) async -> Bool
   let screenCapturePrimer: @MainActor () -> Void
   let permissionEffectRecorder: @MainActor (PermissionEffect) -> Void
+  private let exitExecutorOverride: OnboardingExitExecutor?
   /// Firebase name writes are serialized. Revisiting the question never lets an
   /// earlier request finish after the user's revision.
   private let answerWriteGate = OnboardingAnswerWriteGate()
-  private let onComplete: (() -> Void)?
+  private let onComplete: (@MainActor @Sendable () -> Void)?
+  private var exitStarted = false
   var streamTask: Task<Void, Never>?
   /// Permission-grant pollers, one per permission key. Keyed so requesting a
   /// second permission (the meetings "both" mic+system-audio step) never cancels
@@ -216,7 +218,8 @@ final class SBOnboardingModel: ObservableObject {
       }
     },
     permissionEffectRecorder: @escaping @MainActor (PermissionEffect) -> Void = { _ in },
-    onComplete: (() -> Void)?
+    exitExecutor: OnboardingExitExecutor? = nil,
+    onComplete: (@MainActor @Sendable () -> Void)?
   ) {
     self.appState = appState
     self.chatProvider = chatProvider
@@ -230,6 +233,7 @@ final class SBOnboardingModel: ObservableObject {
     self.systemAudioPrimer = systemAudioPrimer
     self.screenCapturePrimer = screenCapturePrimer
     self.permissionEffectRecorder = permissionEffectRecorder
+    self.exitExecutorOverride = exitExecutor
     self.onComplete = onComplete
     // Isolate any onboarding chat/voice turns to the throwaway `.onboarding()`
     // journal surface so they never pollute the real Chat tab. Cleared on
@@ -548,27 +552,49 @@ final class SBOnboardingModel: ObservableObject {
     complete(startTranscriptionSession: plan.shouldStartTranscriptionSession)
   }
 
-  /// Skip the rest of onboarding: mark it complete and drop straight to the Chat
-  /// tab (with the personalized opener), without force-enabling capture or screen
-  /// analysis the user chose to bypass. They can turn those on later.
+  /// Skip the rest of onboarding and land on a neutral Home. Capture, monitoring,
+  /// launch at login, and the completion opener remain off until the user enables
+  /// them later.
   func skip() {
+    guard !exitStarted else { return }
+    exitStarted = true
     teardownAll()
-    AnalyticsManager.shared.onboardingCompleted()
-    chatProvider.stopAgent(owner: .mainChat)
-    UserDefaults.standard.set(true, forKey: DefaultsKey.onboardingJustCompleted)
-    UserDefaults.standard.removeObject(forKey: Self.resumeStepKey)
-    // Greet the user in the Home chat with the personalized opener + starters.
-    chatProvider.presentOnboardingOpener()
-    ChatToolExecutor.onboardingAppState = nil
-    OnboardingChatPersistence.clear()
-    ChatDraftStore.shared.clear(.onboardingMain)
-    ChatDraftStore.shared.clear(.onboardingFloating)
-    onComplete?()
-    Task { [weak self] in
-      guard let self else { return }
-      await self.chatProvider.finishOnboardingJournal()
-      self.appState.hasCompletedOnboarding = true
-    }
+    let executor = exitExecutorOverride ?? makeLiveExitExecutor()
+    executor.execute(OnboardingExitPolicy.plan(for: .skipped), onComplete: onComplete)
+  }
+
+  private func makeLiveExitExecutor() -> OnboardingExitExecutor {
+    OnboardingExitExecutor(
+      effects: .init(
+        recordAnalytics: { AnalyticsManager.shared.onboardingExit($0) },
+        persistOutcome: { OnboardingExitPersistence.persist($0) },
+        setTranscriptionIntent: { AssistantSettings.shared.transcriptionEnabled = $0 },
+        startTranscriptionSession: { [appState] in appState.startTranscription() },
+        stopTranscriptionSession: { [appState] in appState.stopTranscription() },
+        setScreenAnalysisIntent: { AssistantSettings.shared.screenAnalysisEnabled = $0 },
+        startScreenMonitoring: {
+          ProactiveAssistantsPlugin.shared.startMonitoring { _, _ in }
+        },
+        stopScreenMonitoring: { ProactiveAssistantsPlugin.shared.stopMonitoring() },
+        requestLaunchAtLogin: { enabled in
+          if LaunchAtLoginManager.shared.setEnabled(enabled) {
+            AnalyticsManager.shared.launchAtLoginChanged(enabled: enabled, source: "sb_onboarding_exit")
+          }
+        },
+        setJustCompleted: { UserDefaults.standard.set($0, forKey: .onboardingJustCompleted) },
+        prepareMainChat: { [chatProvider] in
+          chatProvider.stopAgent(owner: .mainChat)
+          chatProvider.isOnboarding = false
+          ChatToolExecutor.onboardingAppState = nil
+          OnboardingChatPersistence.clear()
+          ChatDraftStore.shared.clear(.onboardingMain)
+          ChatDraftStore.shared.clear(.onboardingFloating)
+        },
+        presentOpener: { [chatProvider] in chatProvider.presentOnboardingOpener() },
+        clearResumeState: { UserDefaults.standard.removeObject(forKey: Self.resumeStepKey) },
+        finishJournal: { [chatProvider] in await chatProvider.finishOnboardingJournal() },
+        publishCompletion: { [appState] in appState.hasCompletedOnboarding = true },
+        setSystemAudioCaptureMode: { AssistantSettings.shared.systemAudioCaptureMode = $0 }))
   }
 
   /// Replicates the essential real side-effects of the legacy handleOnboardingComplete().

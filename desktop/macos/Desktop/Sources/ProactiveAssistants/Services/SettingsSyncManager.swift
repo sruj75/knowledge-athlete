@@ -54,7 +54,11 @@ class SettingsSyncManager {
       // Lazy-dev bundles keep their per-bundle capture preference instead of
       // importing another bundle's remote value. Capture defaults to enabled;
       // the runtime checks TCC without prompting when permission is absent.
-      if let v = shared.screenAnalysisEnabled, !shouldKeepLocalScreenAnalysisDefault {
+      if let v = shared.screenAnalysisEnabled,
+        Self.shouldImportScreenAnalysis(
+          usesLazyDevPermissions: AppBuild.usesLazyDevPermissions,
+          onboardingExitOutcome: OnboardingExitPersistence.outcome())
+      {
         AssistantSettings.shared.screenAnalysisEnabled = v
       }
     }
@@ -118,6 +122,13 @@ class SettingsSyncManager {
 
   private var shouldKeepLocalScreenAnalysisDefault: Bool {
     AppBuild.usesLazyDevPermissions
+  }
+
+  static func shouldImportScreenAnalysis(
+    usesLazyDevPermissions: Bool,
+    onboardingExitOutcome: OnboardingPersistedExitOutcome?
+  ) -> Bool {
+    !usesLazyDevPermissions && onboardingExitOutcome != .skipped
   }
 
   private func buildFromLocal() -> AssistantSettingsResponse {

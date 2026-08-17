@@ -13,14 +13,19 @@ enum PersistedCaptureLaunchPolicy {
   static func transcriptionModeToRestore(
     intentEnabled: Bool,
     isTranscribing: Bool,
-    persistedMode: AssistantSettings.SystemAudioCaptureMode
+    persistedMode: AssistantSettings.SystemAudioCaptureMode,
+    onboardingExitOutcome: OnboardingPersistedExitOutcome?
   ) -> AssistantSettings.SystemAudioCaptureMode? {
-    guard intentEnabled, !isTranscribing else { return nil }
+    guard onboardingExitOutcome != .skipped, intentEnabled, !isTranscribing else { return nil }
     return persistedMode
   }
 
-  static func shouldStartScreenAnalysis(intentEnabled: Bool, isMonitoring: Bool) -> Bool {
-    intentEnabled && !isMonitoring
+  static func shouldStartScreenAnalysis(
+    intentEnabled: Bool,
+    isMonitoring: Bool,
+    onboardingExitOutcome: OnboardingPersistedExitOutcome?
+  ) -> Bool {
+    onboardingExitOutcome != .skipped && intentEnabled && !isMonitoring
   }
 }
 
@@ -199,37 +204,6 @@ struct DesktopHomeView: View {
               updatePolicyManager.refresh(force: true)
               // Check all permissions on launch
               appState.checkAllPermissions()
-
-              // Migration: one-time reset for users whose screenAnalysisEnabled
-              // was incorrectly set to false by a bug in syncMonitoringState() that
-              // persisted false whenever monitoring stopped for any reason.
-              // v2: re-run because the root cause (syncMonitoringState disabling the
-              // setting) was only fixed in this release, so v1 users got re-broken.
-              let migrationKey = "screenAnalysisAutoStartFixed_v2"
-              if !UserDefaults.standard.bool(forKey: migrationKey) {
-                UserDefaults.standard.set(true, forKey: "screenAnalysisEnabled")
-                AssistantSettings.shared.screenAnalysisEnabled = true
-                UserDefaults.standard.set(true, forKey: migrationKey)
-                log(
-                  "DesktopHomeView: Applied screenAnalysisAutoStart v2 migration — reset to enabled"
-                )
-                // Push true to server so syncFromServer() doesn't revert it
-                Task { await SettingsSyncManager.shared.syncToServer() }
-              }
-
-              // Named development bundles used to seed screen analysis off to
-              // avoid permission prompts. Screen capture no longer requests
-              // TCC during startup, so restore the default once: a granted
-              // named-bundle permission must actually begin storing frames.
-              let quietBundleCaptureMigrationKey = "screenAnalysisAutoStartFixed_v3"
-              if RewindCaptureState.shouldRepairQuietBundleCaptureDefault(
-                usesLazyDevPermissions: AppBuild.usesLazyDevPermissions,
-                migrationApplied: UserDefaults.standard.bool(forKey: quietBundleCaptureMigrationKey)
-              ) {
-                AssistantSettings.shared.screenAnalysisEnabled = true
-                UserDefaults.standard.set(true, forKey: quietBundleCaptureMigrationKey)
-                log("DesktopHomeView: Restored screen capture default for quiet named bundle")
-              }
 
               restorePersistedCaptureServices(reason: "launch")
 
@@ -809,10 +783,12 @@ struct DesktopHomeView: View {
 
   private func restorePersistedCaptureServices(reason: String) {
     let settings = AssistantSettings.shared
+    let onboardingExitOutcome = OnboardingExitPersistence.outcome()
     if let mode = PersistedCaptureLaunchPolicy.transcriptionModeToRestore(
       intentEnabled: settings.transcriptionEnabled,
       isTranscribing: appState.isTranscribing,
-      persistedMode: settings.systemAudioCaptureMode
+      persistedMode: settings.systemAudioCaptureMode,
+      onboardingExitOutcome: onboardingExitOutcome
     ) {
       log("DesktopHomeView: Restoring transcription in \(mode.rawValue) mode from persisted intent (\(reason))")
       // Local transcription does not require remote API keys. AppState owns the
@@ -824,7 +800,8 @@ struct DesktopHomeView: View {
     guard
       PersistedCaptureLaunchPolicy.shouldStartScreenAnalysis(
         intentEnabled: settings.screenAnalysisEnabled,
-        isMonitoring: plugin.isMonitoring
+        isMonitoring: plugin.isMonitoring,
+        onboardingExitOutcome: onboardingExitOutcome
       )
     else { return }
 

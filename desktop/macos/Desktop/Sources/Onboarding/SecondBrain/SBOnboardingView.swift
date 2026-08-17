@@ -36,7 +36,7 @@ struct SBOnboardingView: View {
   init(
     appState: AppState,
     chatProvider: ChatProvider,
-    onComplete: (() -> Void)?
+    onComplete: (@MainActor @Sendable () -> Void)?
   ) {
     _model = StateObject(
       wrappedValue: SBOnboardingModel(

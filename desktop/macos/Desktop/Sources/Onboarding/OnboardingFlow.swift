@@ -11,6 +11,7 @@ enum OnboardingFlow {
     "sbOnboardingResumeStep",
     "onboardingGoalDraft",
     "onboardingJustCompleted",
+    DefaultsKey.onboardingExitOutcome.rawValue,
     "hasSeenRewindIntro",
     "hasTriggeredNotification",
     "hasTriggeredScreenRecording",

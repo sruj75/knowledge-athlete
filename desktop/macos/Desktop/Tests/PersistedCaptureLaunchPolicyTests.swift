@@ -8,7 +8,8 @@ final class PersistedCaptureLaunchPolicyTests: XCTestCase {
       PersistedCaptureLaunchPolicy.transcriptionModeToRestore(
         intentEnabled: true,
         isTranscribing: false,
-        persistedMode: .onlyDuringMeetings
+        persistedMode: .onlyDuringMeetings,
+        onboardingExitOutcome: .completed
       ),
       .onlyDuringMeetings
     )
@@ -19,14 +20,16 @@ final class PersistedCaptureLaunchPolicyTests: XCTestCase {
       PersistedCaptureLaunchPolicy.transcriptionModeToRestore(
         intentEnabled: false,
         isTranscribing: false,
-        persistedMode: .always
+        persistedMode: .always,
+        onboardingExitOutcome: .completed
       )
     )
     XCTAssertNil(
       PersistedCaptureLaunchPolicy.transcriptionModeToRestore(
         intentEnabled: true,
         isTranscribing: true,
-        persistedMode: .always
+        persistedMode: .always,
+        onboardingExitOutcome: .completed
       )
     )
   }
@@ -36,7 +39,8 @@ final class PersistedCaptureLaunchPolicyTests: XCTestCase {
       PersistedCaptureLaunchPolicy.transcriptionModeToRestore(
         intentEnabled: true,
         isTranscribing: false,
-        persistedMode: .always
+        persistedMode: .always,
+        onboardingExitOutcome: .completed
       ),
       .always
     )
@@ -46,7 +50,8 @@ final class PersistedCaptureLaunchPolicyTests: XCTestCase {
     XCTAssertTrue(
       PersistedCaptureLaunchPolicy.shouldStartScreenAnalysis(
         intentEnabled: true,
-        isMonitoring: false
+        isMonitoring: false,
+        onboardingExitOutcome: .completed
       )
     )
   }
@@ -55,13 +60,15 @@ final class PersistedCaptureLaunchPolicyTests: XCTestCase {
     XCTAssertFalse(
       PersistedCaptureLaunchPolicy.shouldStartScreenAnalysis(
         intentEnabled: false,
-        isMonitoring: false
+        isMonitoring: false,
+        onboardingExitOutcome: .completed
       )
     )
     XCTAssertFalse(
       PersistedCaptureLaunchPolicy.shouldStartScreenAnalysis(
         intentEnabled: true,
-        isMonitoring: true
+        isMonitoring: true,
+        onboardingExitOutcome: .completed
       )
     )
   }
