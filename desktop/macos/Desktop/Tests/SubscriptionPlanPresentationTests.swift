@@ -6,15 +6,15 @@ final class SubscriptionPlanPresentationTests: XCTestCase {
   func testSelectionLabelIncludesTheStartingPrice() {
     XCTAssertEqual(
       SubscriptionPlanPresentation.selectionLabel(
-        planTitle: "Operator", startingPrice: "$49.00/month"),
-      "Select Operator · $49.00/month"
+        planTitle: "Focused", startingPrice: "$49.00/month"),
+      "Select Focused · $49.00/month"
     )
   }
 
   func testSelectionLabelOmitsTheSeparatorWhenNoPriceIsAvailable() {
     XCTAssertEqual(
-      SubscriptionPlanPresentation.selectionLabel(planTitle: "Operator", startingPrice: nil),
-      "Select Operator"
+      SubscriptionPlanPresentation.selectionLabel(planTitle: "Focused", startingPrice: nil),
+      "Select Focused"
     )
   }
 }

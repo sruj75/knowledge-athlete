@@ -65,7 +65,7 @@ class ListenSessionState:
     fair_use_last_check_ts: float = 0.0
     fair_use_managed_stt_budget_exhausted: bool = False
     fair_use_track_managed_stt_usage: bool = False
-    fair_use_plan: Optional[Any] = None
+    fair_use_entitlement_policy: Optional[Any] = None
     managed_stt_usage_ms_pending: int = 0
     last_audio_received_time: Optional[float] = None
     last_activity_time: Optional[float] = None

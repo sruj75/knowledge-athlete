@@ -150,7 +150,8 @@ struct DesktopHomeView: View {
               if appState.showUsageLimitPopup {
                 UsageLimitPopupView(
                   reason: appState.usageLimitReason,
-                  onUpgrade: {
+                  billingAvailability: appState.billingAvailability,
+                  onCheckout: {
                     appState.showUsageLimitPopup = false
                     selectedSettingsSection = .planUsage
                     // Plan and Usage now lives below Account on the merged
@@ -161,14 +162,15 @@ struct DesktopHomeView: View {
                     }
                   },
                   onDismiss: {
-                    appState.showUsageLimitPopup = false
-                  },
-                  onBringYourOwnKeys: {
-                    appState.showUsageLimitPopup = false
-                    selectedSettingsSection = .advanced
-                    OmiMotion.withGated(Self.pageNavigationAnimation) {
-                      selectedIndex = SidebarNavItem.settings.rawValue
+                    if !appState.billingAvailability.checkoutEnabled {
+                      DesktopDiagnosticsManager.shared.recordFallback(
+                        area: "billing",
+                        from: "checkout",
+                        to: "skip",
+                        reason: "disabled",
+                        outcome: .degraded)
                     }
+                    appState.showUsageLimitPopup = false
                   }
                 )
               }

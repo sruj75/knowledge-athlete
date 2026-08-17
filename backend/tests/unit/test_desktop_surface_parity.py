@@ -13,7 +13,7 @@ def test_deprecated_route_surface_is_registered() -> None:
     }
     expected = {(method, path) for path, methods in desktop_deprecated._ROUTES.items() for method in methods}
     assert actual == expected
-    assert len(actual) == 99
+    assert len(actual) == 98
 
 
 def test_deprecated_routes_preserve_gone_response() -> None:

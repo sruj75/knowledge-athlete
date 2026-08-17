@@ -296,12 +296,13 @@ class AppState: ObservableObject {
   /// The popup is mounted as an overlay in `DesktopHomeView` and is closable.
   @Published var showUsageLimitPopup: Bool = false
   @Published var usageLimitReason: String = ""
+  @Published var billingAvailability: BillingAvailability = .disabled
 
   /// True once the backend has told us this desktop user is past their trial
   /// (e.g. via the `freemium_threshold_reached` listen-WS event). When true,
   /// every $-incurring toggle on the desktop client should refuse to enable
   /// and show the paywall popup instead. Stays sticky until the app restarts
-  /// or the user successfully reactivates (chat-quota allows / paid plan).
+  /// or a verified paid projection clears it (chat-quota allows / paid plan).
   ///
   /// Mirrored to UserDefaults `desktop_isPaywalled` so non-AppState singletons
   /// (e.g. `ProactiveAssistantsPlugin`) can synchronously gate without holding

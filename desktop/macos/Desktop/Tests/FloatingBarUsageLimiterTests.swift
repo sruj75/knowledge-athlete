@@ -16,7 +16,7 @@ final class FloatingBarUsageLimiterTests: XCTestCase {
   ) throws -> APIClient.ChatUsageQuota {
     var json: [String: Any] = [
       "plan": plan,
-      "plan_type": "basic",
+      "plan_type": "free",
       "unit": unit,
       "used": used,
       "percent": percent,
@@ -37,7 +37,7 @@ final class FloatingBarUsageLimiterTests: XCTestCase {
     XCTAssertEqual(limiter.limitDescription, "your monthly free message limit")
   }
 
-  // MARK: - Question-based quota (Free / Operator / Unlimited)
+  // MARK: - Question-based quota
 
   func testBelowLimitAllowsQuery() throws {
     let limiter = FloatingBarUsageLimiter()
@@ -74,12 +74,12 @@ final class FloatingBarUsageLimiterTests: XCTestCase {
     XCTAssertTrue(limiter.isLimitReached)
   }
 
-  // MARK: - Cost-based quota (Architect / Pro)
+  // MARK: - Cost-based quota
 
   func testCostUsdDoesNotApplyOptimisticDelta() throws {
     let limiter = FloatingBarUsageLimiter()
     let quota = try makeQuota(
-      plan: "Architect", unit: "cost_usd", used: 399, limit: 400, percent: 99, allowed: true)
+      plan: "Focused", unit: "cost_usd", used: 399, limit: 400, percent: 99, allowed: true)
     limiter.applyQuota(quota)
     XCTAssertFalse(limiter.isLimitReached)
     // recordQuery should NOT push to limit for cost_usd
@@ -92,7 +92,7 @@ final class FloatingBarUsageLimiterTests: XCTestCase {
   func testCostUsdServerDeniedBlocks() throws {
     let limiter = FloatingBarUsageLimiter()
     let quota = try makeQuota(
-      plan: "Architect", unit: "cost_usd", used: 420, limit: 400, percent: 105, allowed: false)
+      plan: "Focused", unit: "cost_usd", used: 420, limit: 400, percent: 105, allowed: false)
     limiter.applyQuota(quota)
     XCTAssertTrue(limiter.isLimitReached)
   }
@@ -109,9 +109,9 @@ final class FloatingBarUsageLimiterTests: XCTestCase {
   func testLimitDescriptionCostUsd() throws {
     let limiter = FloatingBarUsageLimiter()
     let quota = try makeQuota(
-      plan: "Architect", unit: "cost_usd", used: 50, limit: 400, percent: 12, allowed: true)
+      plan: "Focused", unit: "cost_usd", used: 50, limit: 400, percent: 12, allowed: true)
     limiter.applyQuota(quota)
-    XCTAssertEqual(limiter.limitDescription, "your $400 Architect monthly spend limit")
+    XCTAssertEqual(limiter.limitDescription, "your $400 Focused monthly spend limit")
   }
 
   // MARK: - applyQuota resets optimistic delta
@@ -150,15 +150,15 @@ final class FloatingBarUsageLimiterTests: XCTestCase {
 
   // MARK: - applyPlan
 
-  func testApplyPlanBasicIsNotPaid() {
+  func testApplyPlanFreeIsNotPaid() {
     let limiter = FloatingBarUsageLimiter()
-    limiter.applyPlan(plan: .basic, status: .active)
+    limiter.applyPlan(plan: .free, status: .active)
     XCTAssertFalse(limiter.hasPaidPlan)
   }
 
-  func testApplyPlanOperatorActiveIsPaid() {
+  func testApplyPlanBoundedActiveIsPaid() {
     let limiter = FloatingBarUsageLimiter()
-    limiter.applyPlan(plan: .operator, status: .active)
+    limiter.applyPlan(plan: .bounded, status: .active)
     XCTAssertTrue(limiter.hasPaidPlan)
   }
 
@@ -168,7 +168,7 @@ final class FloatingBarUsageLimiterTests: XCTestCase {
     limiter.applyQuota(quota)
     XCTAssertTrue(limiter.isLimitReached)
 
-    limiter.applyPlan(plan: .operator, status: .active)
+    limiter.applyPlan(plan: .bounded, status: .active)
 
     XCTAssertTrue(limiter.hasPaidPlan)
     XCTAssertNil(limiter.serverQuota)
@@ -178,7 +178,7 @@ final class FloatingBarUsageLimiterTests: XCTestCase {
 
   func testApplyPlanInactiveIsNotPaid() {
     let limiter = FloatingBarUsageLimiter()
-    limiter.applyPlan(plan: .operator, status: .inactive)
+    limiter.applyPlan(plan: .bounded, status: .inactive)
     XCTAssertFalse(limiter.hasPaidPlan)
   }
 

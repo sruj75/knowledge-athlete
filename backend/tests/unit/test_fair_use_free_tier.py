@@ -73,18 +73,18 @@ class TestIsFreeCreditsExhausted:
 
         assert fair_use_mod.is_free_credits_exhausted('test-uid') is False
 
-    def test_basic_user_with_credits_returns_false(self):
+    def test_free_user_with_credits_returns_false(self):
         mock_sub = MagicMock()
-        mock_sub.plan = 'basic'
+        mock_sub.plan = 'free'
         fair_use_mod.users_db.get_user_valid_subscription = MagicMock(return_value=mock_sub)
         fair_use_mod.is_paid_plan = MagicMock(return_value=False)
         fair_use_mod.has_transcription_credits = MagicMock(return_value=True)
 
         assert fair_use_mod.is_free_credits_exhausted('test-uid') is False
 
-    def test_basic_user_no_credits_returns_true(self):
+    def test_free_user_no_credits_returns_true(self):
         mock_sub = MagicMock()
-        mock_sub.plan = 'basic'
+        mock_sub.plan = 'free'
         fair_use_mod.users_db.get_user_valid_subscription = MagicMock(return_value=mock_sub)
         fair_use_mod.is_paid_plan = MagicMock(return_value=False)
         fair_use_mod.has_transcription_credits = MagicMock(return_value=False)

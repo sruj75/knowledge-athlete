@@ -20,7 +20,7 @@ final class FloatingBarUsageLimiter: ObservableObject {
 
   init() {
     hasPaidPlan =
-      UserDefaults.standard.string(forKey: Self.cachedPlanKey).map { $0 != "basic" } ?? false
+      UserDefaults.standard.string(forKey: Self.cachedPlanKey).map { $0 != "free" } ?? false
   }
 
   /// Fetch the user's subscription plan and usage quota from the backend.
@@ -28,6 +28,7 @@ final class FloatingBarUsageLimiter: ObservableObject {
   func fetchPlan() async {
     do {
       let response = try await APIClient.shared.getUserSubscription()
+      AppState.current?.billingAvailability = response.billingAvailability
       applyPlan(plan: response.subscription.plan, status: response.subscription.status)
     } catch {
       log("FloatingBarUsageLimiter: failed to fetch plan: \(error.localizedDescription)")
@@ -50,16 +51,15 @@ final class FloatingBarUsageLimiter: ObservableObject {
 
   /// Update cached plan directly from an already-fetched subscription (no extra API call).
   func applyPlan(plan: SubscriptionPlanType, status: SubscriptionStatusType) {
-    hasPaidPlan = plan != .basic && status == .active
-    // A verified active subscription is authoritative over a stale
-    // trial/usage flag. Neo uses the Free Desktop floor for non-premium
-    // features, but it is still paid and must never remain blocked from
-    // audio capture while the app waits for another trial-metadata poll.
+    hasPaidPlan = plan != .free && status == .active
+    // A verified active paid subscription is authoritative over a stale
+    // trial/usage flag and must not remain blocked while the app waits for
+    // another trial-metadata poll.
     if hasPaidPlan {
       AppState.current?.isPaywalled = false
       UserDefaults.standard.set(false, forKey: .desktopIsPaywalled)
     }
-    if hasPaidPlan, serverQuota?.planType == SubscriptionPlanType.basic.rawValue {
+    if hasPaidPlan, serverQuota?.planType == SubscriptionPlanType.free.rawValue {
       serverQuota = nil
       optimisticDelta = 0
     }
@@ -71,6 +71,7 @@ final class FloatingBarUsageLimiter: ObservableObject {
     serverQuota = nil
     optimisticDelta = 0
     hasPaidPlan = false
+    AppState.current?.billingAvailability = .disabled
     UserDefaults.standard.removeObject(forKey: Self.cachedPlanKey)
   }
 
@@ -81,7 +82,7 @@ final class FloatingBarUsageLimiter: ObservableObject {
     }
     if quota.allowed {
       // Optimistic delta only applies to question-based quotas.
-      // For cost_usd (Architect/Pro), we can't estimate cost per query
+      // For cost_usd quotas, we can't estimate cost per query
       // locally — rely on the server snapshot alone.
       guard quota.unit == "questions", let limit = quota.limit else { return false }
       return (quota.used + Double(optimisticDelta)) >= limit

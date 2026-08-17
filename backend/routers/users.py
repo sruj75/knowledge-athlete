@@ -29,8 +29,6 @@ from database.redis_db import (
     cache_user_geolocation,
     get_cached_user_geolocation,
     set_user_data_protection_level,
-    get_generic_cache,
-    set_generic_cache,
 )
 
 from database.users import (
@@ -49,7 +47,6 @@ from utils.conversations.factory import deserialize_conversation, deserialize_co
 from models.other import Person, CreatePerson
 from models.shared import StatusResponse
 from typing import Optional
-from models.user_usage import UserUsageResponse, UsagePeriod
 from datetime import datetime, time, timedelta
 
 from models.users import (
@@ -67,24 +64,14 @@ from models.users import (
 from utils.phone_calls import get_quota_snapshot as get_phone_call_quota_snapshot
 from utils.subscription import (
     get_chat_quota_snapshot,
-    get_paid_plan_definitions,
-    get_plan_display_name,
     get_plan_limits,
     get_plan_features,
     get_monthly_usage_for_subscription,
     is_trial_paywalled,
-    neo_grandfather_until,
-    reconcile_basic_plan_with_stripe,
-    filter_plans_for_user,
-    has_ever_purchased,
-    should_show_new_plans,
-    adapt_plans_for_legacy_client,
-    wire_plan_for_client,
-    legacy_plan_features,
     get_trial_metadata,
 )
 from database import user_usage as user_usage_db
-from utils import stripe as stripe_utils
+from utils.billing.config import load_billing_config
 from utils.cloud_tasks import (
     AccountDeletionTaskAuthentication,
     get_account_deletion_tasks_max_attempts,
@@ -879,145 +866,52 @@ def set_location_context_consent(update: LocationContextConsentUpdate, uid: str 
 # **************************************
 
 
-@router.get('/v1/users/me/usage', tags=['v1'], response_model=UserUsageResponse)
-def get_user_usage_stats_endpoint(
-    uid: str = Depends(auth.get_current_user_uid),
-    period: UsagePeriod = UsagePeriod.TODAY,
-):
-    """Gets daily and monthly usage stats for the authenticated user."""
-    stats = user_usage_db.get_current_user_usage(uid, period.value, tz_name=notification_db.get_user_time_zone(uid))
-    return stats
-
-
 @router.get('/v1/users/me/subscription', tags=['v1'], response_model=UserSubscriptionResponse)
 def get_user_subscription_endpoint(
     uid: str = Depends(auth.get_current_user_uid),
     x_app_platform: Optional[str] = Header(None, alias='X-App-Platform'),
     x_app_version: Optional[str] = Header(None, alias='X-App-Version'),
 ):
-    """Gets the user's subscription plan and usage."""
-    # First, reconcile any "basic but actually unlimited" inconsistencies against Stripe once.
-    raw_subscription = get_user_subscription(uid)
-    reconcile_basic_plan_with_stripe(uid, raw_subscription)
-
-    # Then re-evaluate using our normal "valid subscription" semantics.
+    """Return the server-owned subscription, usage, and billing capability."""
+    billing_config = load_billing_config()
     subscription = get_user_valid_subscription(uid)
     if not subscription:
-        # Return default basic plan if no valid subscription
-        subscription = get_default_basic_subscription()
+        subscription = get_default_free_subscription()
 
-    # Get current price ID from Stripe if subscription exists
-    if subscription.stripe_subscription_id:
-        try:
-            stripe_sub = stripe_utils.stripe.Subscription.retrieve(subscription.stripe_subscription_id)
-            stripe_sub_dict = stripe_sub.to_dict()
-            if stripe_sub_dict and stripe_sub_dict.get('items', {}).get('data'):
-                subscription.current_price_id = stripe_sub_dict['items']['data'][0]['price']['id']
-        except Exception as e:
-            logger.error(f"Error retrieving current price ID: {e}")
-
-    # Populate dynamic fields for the response
-    subscription.limits = get_plan_limits(subscription.plan)
+    subscription.limits = get_plan_limits(subscription)
     is_mobile = x_app_platform in ('ios', 'android')
-    subscription.features = get_plan_features(subscription.plan, simplified=is_mobile)
+    subscription.features = get_plan_features(subscription, simplified=is_mobile)
 
-    new_plans_enabled = should_show_new_plans(x_app_platform, x_app_version)
-
-    # Backward-compat: old clients without the `operator` enum value would crash
-    # on deserialization. Only send the real plan type to clients that understand it.
-    if not new_plans_enabled and subscription.plan == PlanType.operator:
-        subscription.plan = PlanType.unlimited
-
-    # Get current usage
     usage = get_monthly_usage_for_subscription(uid)
-
-    # Calculate usage metrics
     transcription_seconds_used = usage.get('transcription_seconds', 0)
     words_transcribed_used = usage.get('words_transcribed', 0)
     insights_gained_used = usage.get('insights_gained', 0)
-
-    # Get limits from subscription (0 means unlimited)
     transcription_seconds_limit = subscription.limits.transcription_seconds or 0
     words_transcribed_limit = subscription.limits.words_transcribed or 0
     insights_gained_limit = subscription.limits.insights_gained or 0
-
-    # Build available plans. Version-gated: new clients see Operator + Architect,
-    # old clients get legacy plan names. Legacy plans filtered from purchase catalog.
-    all_definitions = get_paid_plan_definitions()
-    if not new_plans_enabled:
-        all_definitions = adapt_plans_for_legacy_client(all_definitions)
     available_plans: List[SubscriptionPlan] = []
-    ever_purchased = has_ever_purchased(uid, raw_subscription)
-    definitions_for_user = filter_plans_for_user(
-        all_definitions, subscription.plan, platform=x_app_platform, ever_purchased=ever_purchased
-    )
-    for definition in definitions_for_user:
-        plan_prices: List[PricingOption] = []
-        monthly_price_id = definition["monthly_price_id"]
-        annual_price_id = definition["annual_price_id"]
-
-        if monthly_price_id:
-            try:
-                price_data = get_generic_cache(f'stripe_price:{monthly_price_id}')
-                if not price_data:
-                    price = stripe_utils.stripe.Price.retrieve(monthly_price_id)
-                    price_data = price.to_dict_recursive()
-                    set_generic_cache(f'stripe_price:{monthly_price_id}', price_data, ttl=3600 * 24)
-
-                plan_prices.append(
+    if billing_config.catalog is not None:
+        available_plans = [
+            SubscriptionPlan(
+                id=plan.id,
+                title=plan.title,
+                subtitle=plan.subtitle,
+                description=plan.description,
+                eyebrow=plan.eyebrow,
+                features=plan.features,
+                prices=[
                     PricingOption(
-                        id=price_data['id'],
-                        title="Monthly",
-                        price_string=f"${price_data['unit_amount'] / 100:.2f}/{price_data['recurring']['interval']}",
-                        description="Billed monthly. Cancel anytime.",
+                        id=offer.id,
+                        title=offer.title,
+                        price_string=offer.price_string,
+                        description=offer.description,
+                        interval=offer.interval,
                     )
-                )
-            except Exception as e:
-                logger.error(
-                    f"Error retrieving monthly price from Stripe for {definition['plan_id']} "
-                    f"(price_id={monthly_price_id}): {sanitize(str(e))}"
-                )
-
-        if annual_price_id:
-            try:
-                price_data = get_generic_cache(f'stripe_price:{annual_price_id}')
-                if not price_data:
-                    price = stripe_utils.stripe.Price.retrieve(annual_price_id)
-                    price_data = price.to_dict_recursive()
-                    set_generic_cache(f'stripe_price:{annual_price_id}', price_data, ttl=3600 * 24)
-
-                plan_prices.append(
-                    PricingOption(
-                        id=price_data['id'],
-                        title="Annual",
-                        price_string=f"${price_data['unit_amount'] / 100:.2f}/{price_data['recurring']['interval']}",
-                        description=definition["annual_description"],
-                    )
-                )
-            except Exception as e:
-                logger.error(
-                    f"Error retrieving annual price from Stripe for {definition['plan_id']} "
-                    f"(price_id={annual_price_id}): {sanitize(str(e))}"
-                )
-
-        if plan_prices:
-            features = (
-                get_plan_features(definition["plan_type"], simplified=is_mobile)
-                if new_plans_enabled
-                else legacy_plan_features(definition["plan_type"])
+                    for offer in plan.offers
+                ],
             )
-            available_plans.append(
-                SubscriptionPlan(
-                    id=definition["plan_id"],
-                    title=definition["title"],
-                    subtitle=definition.get("subtitle"),
-                    description=definition.get("description"),
-                    eyebrow=definition.get("eyebrow"),
-                    features=features,
-                    prices=plan_prices,
-                    legacy=bool(definition.get("legacy")),
-                )
-            )
+            for plan in billing_config.catalog.plans
+        ]
 
     show_subscription_ui = not should_hide_subscription_ui(uid, x_app_platform, x_app_version)
 
@@ -1031,11 +925,6 @@ def get_user_subscription_endpoint(
         chat_percent = min(100.0, round(100.0 * chat_snapshot['used'] / chat_snapshot['limit'], 2))
     chat_allowed = chat_snapshot['allowed']
 
-    # Grandfather is read from the true plan before the label is remapped for
-    # clients whose enum predates `plus`/`unlimited_v2` (see wire_plan_for_client).
-    desktop_grandfather_until = neo_grandfather_until(subscription)
-    subscription.plan = wire_plan_for_client(subscription.plan, x_app_platform, x_app_version)
-
     return UserSubscriptionResponse(
         subscription=subscription,
         transcription_seconds_used=transcription_seconds_used,
@@ -1045,6 +934,7 @@ def get_user_subscription_endpoint(
         insights_gained_used=insights_gained_used,
         insights_gained_limit=insights_gained_limit,
         available_plans=available_plans,
+        billing_availability=billing_config.availability,
         show_subscription_ui=show_subscription_ui,
         chat_quota_used=round(chat_snapshot['used'], 4),
         chat_quota_unit=chat_snapshot['unit'],
@@ -1052,7 +942,6 @@ def get_user_subscription_endpoint(
         chat_quota_allowed=chat_allowed,
         chat_quota_reset_at=chat_snapshot['reset_at'],
         phone_call_quota=phone_call_quota,
-        desktop_grandfather_until=desktop_grandfather_until,
     )
 
 
@@ -1074,7 +963,7 @@ def get_user_chat_usage_quota(
         percent = 0.0
 
     return ChatUsageQuota(
-        plan=get_plan_display_name(plan),
+        plan=snapshot['plan_name'],
         plan_type=plan.value,
         unit=ChatQuotaUnit(snapshot['unit']),
         used=round(snapshot['used'], 4),
@@ -1462,63 +1351,8 @@ def update_mentor_notification_settings(
     return {'status': 'ok'}
 
 
-# LLM Usage Tracking Endpoints
-
-
-class LlmUsageFeatureResponse(BaseModel):
-    feature: str
-    input_tokens: int = 0
-    output_tokens: int = 0
-    total_tokens: int = 0
-    call_count: int = 0
-
-
-class LlmUsageResponse(BaseModel):
-    summary: Dict[str, Any] = Field(default_factory=dict)
-    top_features: List[LlmUsageFeatureResponse] = Field(default_factory=list)
-    period_days: int
-
-
-class LlmUsageRecordResponse(BaseModel):
-    status: str
-
-
 class LlmTotalCostResponse(BaseModel):
     total_cost_usd: float
-
-
-@router.get('/v1/users/me/llm-usage', tags=['users'], response_model=LlmUsageResponse)
-def get_llm_usage(
-    days: int = Query(default=30, ge=1, le=365),
-    uid: str = Depends(auth.get_current_user_uid),
-):
-    """
-    Get LLM token usage summary for the current user.
-
-    Returns usage breakdown by feature for the specified time period.
-    """
-    summary = llm_usage_db.get_usage_summary(uid, days=days)
-    top_features = llm_usage_db.get_top_features(uid, days=days, limit=5)
-
-    return {
-        'summary': summary,
-        'top_features': top_features,
-        'period_days': days,
-    }
-
-
-@router.get('/v1/users/me/llm-usage/top-features', tags=['users'], response_model=List[LlmUsageFeatureResponse])
-def get_llm_top_features(
-    days: int = Query(default=30, ge=1, le=365),
-    limit: int = Query(default=3, ge=1, le=10),
-    uid: str = Depends(auth.get_current_user_uid),
-):
-    """
-    Get top features by LLM token usage for the current user.
-
-    Returns the top N features sorted by total token consumption.
-    """
-    return llm_usage_db.get_top_features(uid, days=days, limit=limit)
 
 
 # response_model omitted: this streams a chunked JSON document via StreamingResponse (not a single JSON object);
@@ -1675,39 +1509,6 @@ def update_ai_profile(
         generated_at=request.generated_at,
         data_sources_used=request.data_sources_used,
     )
-
-
-# ============================================================================
-# Bucket-based LLM Usage (extends existing /v1/users/me/llm-usage endpoints above)
-# ============================================================================
-
-
-class RecordLlmUsageBucketRequest(BaseModel):
-    input_tokens: int = Field(0, ge=0)
-    output_tokens: int = Field(0, ge=0)
-    cache_read_tokens: int = Field(0, ge=0)
-    cache_write_tokens: int = Field(0, ge=0)
-    total_tokens: int = Field(0, ge=0)
-    cost_usd: float = Field(0.0, ge=0.0)
-    account: str = Field('omi', max_length=100)
-
-
-@router.post('/v1/users/me/llm-usage', tags=['users'], response_model=LlmUsageRecordResponse)
-def record_llm_usage_bucket(
-    request: RecordLlmUsageBucketRequest,
-    uid: str = Depends(auth.get_current_user_uid),
-):
-    llm_usage_db.record_llm_usage_bucket(
-        uid,
-        input_tokens=request.input_tokens,
-        output_tokens=request.output_tokens,
-        cache_read_tokens=request.cache_read_tokens,
-        cache_write_tokens=request.cache_write_tokens,
-        total_tokens=request.total_tokens,
-        cost_usd=request.cost_usd,
-        account=request.account,
-    )
-    return {'status': 'ok'}
 
 
 @router.get('/v1/users/me/llm-usage/total', tags=['users'], response_model=LlmTotalCostResponse)

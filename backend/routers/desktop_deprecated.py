@@ -32,7 +32,6 @@ _ROUTES = {
     "/v1/users/people/{person_id}": ("DELETE",),
     "/v1/users/people/{person_id}/name": ("PATCH",),
     "/v1/conversations/{conversation_id}/segments/assign-bulk": ("PATCH",),
-    "/v1/users/me/llm-usage": ("POST",),
     "/v1/users/me/llm-usage/total": ("GET",),
     "/v1/users/stats/chat-messages": ("GET",),
     "/v1/conversations": ("GET",),

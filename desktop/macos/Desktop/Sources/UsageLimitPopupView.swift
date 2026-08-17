@@ -6,18 +6,22 @@ import SwiftUI
 ///
 /// Rendered as a `.overlay` on `DesktopHomeView.mainContent` so it appears
 /// above every page. The user can dismiss it with the X button or the
-/// "Not now" button; clicking "Upgrade" navigates to Settings → Plan & Usage.
+/// primary action. Disabled billing renders a literal Skip action that only
+/// dismisses the presentation; active billing can route to hosted checkout.
 struct UsageLimitPopupView: View {
   let reason: String
-  let onUpgrade: () -> Void
+  let billingAvailability: BillingAvailability
+  let onCheckout: () -> Void
   let onDismiss: () -> Void
-  let onBringYourOwnKeys: () -> Void
 
   private var headline: String {
     "You've hit your monthly limit"
   }
 
   private var body_text: String {
+    if !billingAvailability.checkoutEnabled {
+      return "You've hit your monthly limit. You can continue when your allowance resets."
+    }
     switch reason {
     case "transcription":
       return "You've hit your monthly limit. Upgrade to make sure your new recordings aren't lost."
@@ -84,8 +88,13 @@ struct UsageLimitPopupView: View {
           }
 
           VStack(spacing: OmiSpacing.sm) {
-            Button(action: onUpgrade) {
-              Text("Upgrade")
+            Button {
+              BillingPresentationPolicy.performPrimaryAction(
+                for: billingAvailability,
+                onCheckout: onCheckout,
+                onDismiss: onDismiss)
+            } label: {
+              Text(BillingPresentationPolicy.primaryLabel(for: billingAvailability))
                 .scaledFont(size: OmiType.subheading, weight: .semibold)
                 .foregroundColor(OmiColors.backgroundPrimary)
                 .frame(maxWidth: .infinity)
@@ -97,14 +106,6 @@ struct UsageLimitPopupView: View {
             }
             .buttonStyle(.plain)
 
-            Button(action: onBringYourOwnKeys) {
-              Text("Bring your own keys")
-                .scaledFont(size: OmiType.body, weight: .medium)
-                .foregroundColor(OmiColors.accent)
-                .frame(maxWidth: .infinity)
-                .frame(height: 32)
-            }
-            .buttonStyle(.plain)
           }
           .padding(.horizontal, OmiSpacing.xxl)
         }
@@ -129,9 +130,9 @@ struct UsageLimitPopupView: View {
   #Preview {
     UsageLimitPopupView(
       reason: "transcription",
-      onUpgrade: {},
-      onDismiss: {},
-      onBringYourOwnKeys: {}
+      billingAvailability: .disabled,
+      onCheckout: {},
+      onDismiss: {}
     )
     .frame(width: 900, height: 600)
   }

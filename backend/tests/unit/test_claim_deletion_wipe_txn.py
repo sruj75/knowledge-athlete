@@ -63,9 +63,9 @@ for _mod_name in ('database.firestore_cache', 'database.redis_db'):
         setattr(_mod, _attr, MagicMock())
     _install_stub(_mod_name, _mod)
 
-# Stub utils.subscription (imported at module level for get_default_basic_subscription)
+# Stub utils.subscription (imported at module level for get_default_free_subscription)
 _utils_sub = types.ModuleType('utils.subscription')
-setattr(_utils_sub, 'get_default_basic_subscription', MagicMock())
+setattr(_utils_sub, 'get_default_free_subscription', MagicMock())
 _install_stub('utils.subscription', _utils_sub)
 
 # database.users is imported against the stubs above, so record its prior
@@ -143,7 +143,7 @@ def _run_mark_billing_failed(data):
         def get(self, transaction=None):
             return snapshot
 
-    result = raw_fn(txn, FakeDocRef(), 'uid1', 'sub_123', 'stripe down')
+    result = raw_fn(txn, FakeDocRef(), 'uid1', 'sub_123', 'billing provider down')
     return result, txn._sets
 
 
@@ -155,7 +155,7 @@ def test_mark_billing_failed_allows_pre_wipe_states():
     _, fields, kwargs = sets[0]
     assert fields['wipe_status'] == 'billing_failed'
     assert fields['billing_subscription_id'] == 'sub_123'
-    assert fields['billing_error'] == 'stripe down'
+    assert fields['billing_error'] == 'billing provider down'
     assert kwargs == {'merge': True}
 
 

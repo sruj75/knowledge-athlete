@@ -888,11 +888,11 @@ final class APIClientRoutingTests: XCTestCase {
       label: "getChatMessageCount")
   }
 
-  // MARK: - Promotion code routing and body tests
+  // MARK: - Billing routing and server-owned offer body tests
 
-  func testCreateCheckoutSessionSendsPromotionCode() async {
+  func testCreateCheckoutSessionSendsOnlyOfferIdentity() async {
     let client = await makeTestClient()
-    _ = try? await client.createCheckoutSession(priceId: "price_abc", promotionCode: "WELCOME50")
+    _ = try? await client.createCheckoutSession(offerId: "synthetic-monthly")
 
     let requests = URLCapture.capturedRequests
     assertRoutes(
@@ -901,40 +901,14 @@ final class APIClientRoutingTests: XCTestCase {
       label: "createCheckoutSession")
 
     let body = requests.first?.body.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
-    XCTAssertEqual(body?["price_id"] as? String, "price_abc")
-    XCTAssertEqual(body?["promotion_code"] as? String, "WELCOME50")
-  }
-
-  func testCreateCheckoutSessionOmitsNilPromoCode() async {
-    let client = await makeTestClient()
-    _ = try? await client.createCheckoutSession(priceId: "price_abc")
-
-    let body = URLCapture.capturedRequests.first?.body.flatMap {
-      try? JSONSerialization.jsonObject(with: $0) as? [String: Any]
-    }
-    XCTAssertEqual(body?["price_id"] as? String, "price_abc")
-    XCTAssertNil(body?["promotion_code"])
-  }
-
-  func testUpgradeSubscriptionSendsPromotionCode() async {
-    let client = await makeTestClient()
-    _ = try? await client.upgradeSubscription(priceId: "price_xyz", promotionCode: "SAVE20")
-
-    let requests = URLCapture.capturedRequests
-    assertRoutes(
-      requests, host: "python-test", port: 9001,
-      pathContains: "v1/payments/upgrade-subscription", method: "POST",
-      label: "upgradeSubscription")
-
-    let body = requests.first?.body.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
-    XCTAssertEqual(body?["price_id"] as? String, "price_xyz")
-    XCTAssertEqual(body?["promotion_code"] as? String, "SAVE20")
+    XCTAssertEqual(body?["offer_id"] as? String, "synthetic-monthly")
+    XCTAssertEqual(body?.count, 1)
   }
 
   func testHttpErrorPreservesDetailFromResponse() async {
     let client = await makeTestClient()
     do {
-      _ = try await client.createCheckoutSession(priceId: "price_abc", promotionCode: "INVALID")
+      _ = try await client.createCheckoutSession(offerId: "invalid-offer")
       XCTFail("Expected httpError to be thrown")
     } catch let error as APIError {
       // URLCapture returns 403 with {"detail":"test"} — verify detail is preserved

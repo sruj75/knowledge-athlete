@@ -101,7 +101,7 @@ def install_canonical_write_runtime_stubs() -> list[str]:
     touched.append("firebase_admin")
 
     subscription_mod = types.ModuleType("utils.subscription")
-    subscription_mod.get_default_basic_subscription = MagicMock()
+    subscription_mod.get_default_free_subscription = MagicMock()
     subscription_mod.is_trial_paywalled = lambda uid: False
     subscription_mod.should_defer_desktop_processing = lambda uid: False
     sys.modules["utils.subscription"] = subscription_mod
@@ -188,8 +188,6 @@ def install_ws_i_heavy_import_stubs() -> list[str]:
     _set("langchain", langchain)
     _set("langchain.prompts", langchain.prompts)
 
-    _set("stripe", types.ModuleType("stripe"))
-
     subjects_mod = types.ModuleType("utils.conversations.subjects")
     subjects_mod.infer_subject_from_segments = lambda segments: (None, None)
     _set("utils.conversations.subjects", subjects_mod)
@@ -213,7 +211,7 @@ def install_ws_i_heavy_import_stubs() -> list[str]:
     _set("database.users", users_mod)
 
     subscription_mod = types.ModuleType("utils.subscription")
-    subscription_mod.get_default_basic_subscription = MagicMock()
+    subscription_mod.get_default_free_subscription = MagicMock()
     subscription_mod.is_trial_paywalled = lambda uid: False
     subscription_mod.should_defer_desktop_processing = lambda uid: False
     _set("utils.subscription", subscription_mod)
@@ -301,7 +299,6 @@ WS_I_HEAVY_STUB_MODULE_NAMES = (
     "utils.analytics",
     "langchain",
     "langchain.prompts",
-    "stripe",
     "utils.conversations.subjects",
     "utils.llm.conversation_processing",
     "pinecone",
@@ -343,10 +340,6 @@ WS_I_HEAVY_STUB_MODULE_NAMES = (
 
 def install_ws_c_backfill_stubs() -> list[str]:
     touched = install_canonical_write_runtime_stubs()
-
-    stripe_mod = types.ModuleType("stripe")
-    sys.modules["stripe"] = stripe_mod
-    touched.append("stripe")
 
     pinecone_mod = types.ModuleType("pinecone")
     pinecone_mod.Pinecone = MagicMock()
@@ -420,7 +413,6 @@ def install_ws_j_heavy_import_stubs() -> list[str]:
         "database.daily_summaries",
         "database.llm_usage",
         "database.app_review_config",
-        "stripe",
         "pytz",
         "twilio",
         "google.cloud",
@@ -480,7 +472,6 @@ def install_ws_m_heavy_import_stubs() -> list[str]:
         "database.memories",
         "utils.subscription",
         "utils.executors",
-        "stripe",
         "pytz",
         "google.cloud",
         "google.api_core",
@@ -526,7 +517,6 @@ WS_C_STUB_MODULE_NAMES = (
     "firebase_admin",
     "utils.subscription",
     "database.users",
-    "stripe",
     "pinecone",
     "database.vector_db",
     "database.memories",

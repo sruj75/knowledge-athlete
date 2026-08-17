@@ -13,7 +13,7 @@ source .venv/bin/activate
 uvicorn main:app --host 0.0.0.0 --port 8080
 ```
 
-**Env stages** (`OMI_ENV_STAGE`): `local` (emulator harness, `.env.local-dev`), `offline` (fake-backed providers, `.env.offline`), `dev` (remote dev GCP, `.env.dev`), `prod` (reference only, `.env.prod`). `load_backend_env()` loads the stage file then `backend/.env` overrides. Templates: `backend/.env.*.template`. Harness: `PROVIDER_MODE=offline make dev-up` or `OMI_ENV_STAGE=offline`. Offline harness app factories install the shared hermetic Modulate fake for managed live and prerecorded STT without provider credentials. Dev skips the startup-only Stripe price validation; plan catalog and checkout calls still require mode-matched Stripe credentials.
+**Env stages** (`OMI_ENV_STAGE`): `local` (emulator harness, `.env.local-dev`), `offline` (fake-backed providers, `.env.offline`), `dev` (remote dev GCP, `.env.dev`), `prod` (reference only, `.env.prod`). `load_backend_env()` loads the stage file then `backend/.env` overrides. Templates: `backend/.env.*.template`. Harness: `PROVIDER_MODE=offline make dev-up` or `OMI_ENV_STAGE=offline`. Offline harness app factories install the shared hermetic Modulate fake for managed live and prerecorded STT without provider credentials. Billing is independently selected by `BILLING_MODE=disabled|dodo_test|dodo_live`; disabled is the default and ignores billing credentials. Active modes fail startup unless `DODO_PAYMENTS_API_KEY`, `DODO_PAYMENTS_WEBHOOK_KEY`, and the normalized `DODO_BILLING_CATALOG_JSON` are all present.
 
 When intentionally changing backend Python dependencies, edit the relevant `requirements*.txt` input file and refresh the lock:
 
@@ -23,7 +23,7 @@ When intentionally changing backend Python dependencies, edit the relevant `requ
 
 By default, the lock refresh preserves already-locked package versions so unrelated transitive upgrades do not sneak into infrastructure changes. Set `PYLOCK_UPGRADE=1` only when intentionally refreshing dependency versions.
 
-Key env vars: `OPENAI_API_KEY` (LLM calls — not `OPENAI_ADMIN_KEY` which is billing-only), `MODULATE_API_KEY` (managed live and prerecorded STT), `GEMINI_API_KEY` and `ANTHROPIC_API_KEY` (desktop-backend chat/realtime), `ENCRYPTION_SECRET` (required for tests), `REDIS_DB_HOST` (cache/rate-limiting, fail-open without it), and `SERVICE_ACCOUNT_JSON` / `GOOGLE_APPLICATION_CREDENTIALS` (Firebase Admin credentials; prefer the secret value in Cloud Run, never commit files).
+Key env vars: `OPENAI_API_KEY` (LLM calls — not `OPENAI_ADMIN_KEY` which is billing-only), `MODULATE_API_KEY` (managed live and prerecorded STT), `GEMINI_API_KEY` and `ANTHROPIC_API_KEY` (desktop-backend chat/realtime), `ENCRYPTION_SECRET` (required for tests), `REDIS_DB_HOST` (cache/rate-limiting, fail-open without it), and `SERVICE_ACCOUNT_JSON` / `GOOGLE_APPLICATION_CREDENTIALS` (Firebase Admin credentials; prefer the secret value in Cloud Run, never commit files). Dodo billing is enabled only by the explicit billing mode above; checkout accepts an opaque server-owned offer ID, and the provider webhook is the only authority that projects paid entitlement state.
 
 Chat SSE deadlines: `AGENT_STREAM_FIRST_EVENT_TIMEOUT_SECONDS` (default `25`), `AGENT_STREAM_PROGRESS_HEARTBEAT_SECONDS` (default `20`), `AGENT_STREAM_MAX_DURATION_SECONDS` (default `150`), and `AGENT_STREAM_CANCEL_GRACE_SECONDS` (default `2`) bound silent setup/producer work and keep valid long tool calls observable. Values must be positive. The agent's provider call is re-issued on transport-class failures up to `AGENT_STREAM_PROVIDER_MAX_ATTEMPTS` (default `3`), spaced by `AGENT_STREAM_PROVIDER_RETRY_BACKOFF_SECONDS` (default `1`), and only while at least `AGENT_STREAM_PROVIDER_MIN_RETRY_HEADROOM_SECONDS` (default `45`) of the turn budget remains. The silent-interval bound on the call itself stays with the transport — in prod that is the gateway client's `OMI_LLM_GATEWAY_FIRST_BYTE_TIMEOUT_SECONDS` (default `15`), since `OMI_LLM_GATEWAY_FEATURE_MODE=gateway` routes chat through it — and must not be overridden with a per-request `timeout=`.
 
@@ -265,7 +265,7 @@ Never block the event loop — it freezes health checks, HPA scaling, and all co
     - `critical_executor` (8w) — auth gates only: `_verify_ws_auth`, `check_rate_limit`, `is_hard_restricted`, session/code Redis ops in `auth.py`
     - `db_executor` (24w) — Firestore/Redis CRUD, vector DB queries
     - `llm_executor` (6w) — retained LLM API calls (`get_llm().invoke()` and first-party generation/classification work)
-    - `stripe_executor` (4w) — Stripe API calls
+    - `billing_executor` (4w) — billing-provider API calls
     - `sync_executor` (16w) — sync endpoint pipeline work, parent calls that fan out to storage_executor
     - `postprocess_executor` (24w) — post-conversation processing, coordinator functions
     - `storage_executor` (128w) — GCS uploads/downloads, audio chunk I/O (fan-out gated by semaphores: 32 global chunks, 8 per-call window, 4 concurrent precache files)

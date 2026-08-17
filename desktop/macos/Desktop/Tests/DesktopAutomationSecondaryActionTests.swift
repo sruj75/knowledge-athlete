@@ -200,6 +200,10 @@ final class DesktopAutomationSecondaryActionTests: XCTestCase {
     let source = try bridgeSource()
     let body = try actionBody(named: "subscription_snapshot", in: source)
     XCTAssertTrue(body.contains("getUserSubscription"))
+    XCTAssertTrue(body.contains("billing_presentation"))
+    XCTAssertTrue(body.contains("checkout_enabled"))
+    XCTAssertTrue(body.contains("portal_enabled"))
+    XCTAssertTrue(body.contains("BillingPresentationPolicy.primaryLabel"))
     XCTAssertTrue(body.contains("show_subscription_ui"))
   }
 

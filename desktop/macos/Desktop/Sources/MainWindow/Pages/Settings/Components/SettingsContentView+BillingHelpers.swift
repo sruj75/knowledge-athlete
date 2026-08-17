@@ -16,68 +16,26 @@ enum SubscriptionPlanPresentation {
 extension SettingsContentView {
   var hasPaidSubscription: Bool {
     guard let subscription = userSubscription?.subscription else { return false }
-    return subscription.plan != .basic && subscription.status == .active
+    return subscription.plan != .free && subscription.status == .active
   }
 
   var shouldShowPlanPurchaseOptions: Bool {
-    !subscriptionPlansForDisplay.isEmpty
+    userSubscription?.billingAvailability.checkoutEnabled == true
+      && !hasPaidSubscription
+      && !subscriptionPlansForDisplay.isEmpty
   }
 
   var subscriptionPlansForDisplay: [SubscriptionPlanOption] {
-    // Operator (mass-market, green) on the left, Architect (premium, white accent)
-    // on the right. Hide the user's current plan — they already see it above.
-    // Neo ($20) | Operator ($49) | Architect ($200) — cheapest to premium
-    let order = ["unlimited": 0, "operator": 1, "architect": 2]
-    return
-      mergedPlanCatalog
+    (userSubscription?.availablePlans ?? [])
       .filter { !isCurrentSubscriptionPlan($0) }
-      .sorted { lhs, rhs in
-        let lhsOrder = order[lhs.id, default: Int.max]
-        let rhsOrder = order[rhs.id, default: Int.max]
-        if lhsOrder != rhsOrder {
-          return lhsOrder < rhsOrder
-        }
-        return lhs.title < rhs.title
-      }
+      .sorted { $0.title < $1.title }
   }
 
   var currentPlanTitle: String {
     guard let subscription = userSubscription?.subscription else {
       return isLoadingSubscription ? "Loading plan..." : "Free"
     }
-    switch subscription.plan {
-    case .basic:
-      return "Free"
-    case .unlimited:
-      // Backend serializes Operator subscribers as plan="unlimited" for
-      // backward compat with old mobile builds that don't know the
-      // `operator` enum. Distinguish by matching current_price_id against
-      // an Operator-titled plan in the catalog.
-      if isCurrentSubscriptionOperator() {
-        return "Operator"
-      }
-      return "Neo"
-    case .architect, .pro:
-      return "Architect"
-    case .operator:
-      return "Operator"
-    }
-  }
-
-  /// Returns true when the user's current Stripe price maps to a plan the
-  /// backend is calling "Operator". Protects against the wire-level
-  /// Operator→Unlimited remapping in `/v1/users/me/subscription`.
-  func isCurrentSubscriptionOperator() -> Bool {
-    guard let subscription = userSubscription?.subscription,
-      let currentPriceId = subscription.currentPriceId
-    else { return false }
-    for plan in mergedPlanCatalog {
-      guard plan.title == "Operator" else { continue }
-      if plan.prices.contains(where: { $0.id == currentPriceId }) {
-        return true
-      }
-    }
-    return false
+    return subscription.planName
   }
 
   var currentPlanSubtitle: String {
@@ -94,20 +52,12 @@ extension SettingsContentView {
   }
 
   var currentPlanBillingDetail: String? {
-    guard hasPaidSubscription,
-      let subscription = userSubscription?.subscription,
-      let currentPriceId = subscription.currentPriceId
-    else {
+    guard hasPaidSubscription, let subscription = userSubscription?.subscription else {
       return nil
     }
-
-    for plan in mergedPlanCatalog {
-      if let price = plan.prices.first(where: { $0.id == currentPriceId }) {
-        return "\(plan.title) \(price.title) • \(price.priceString)"
-      }
-    }
-
-    return nil
+    guard let price = subscription.priceString else { return nil }
+    let interval = subscription.billingInterval.map { " · \($0.capitalized)" } ?? ""
+    return "\(subscription.planName) · \(price)\(interval)"
   }
 
   var currentPlanPeriodText: String? {
@@ -117,27 +67,13 @@ extension SettingsContentView {
     let formatter = DateFormatter()
     formatter.dateStyle = .medium
     formatter.timeStyle = .none
-    let prefix = subscription.cancelAtPeriodEnd ? "Access ends" : "Renews"
+    let prefix = subscription.cancelAtNextBillingDate ? "Access ends" : "Renews"
     return "\(prefix) on \(formatter.string(from: date))"
   }
 
-  func planSubtitle(for planId: String) -> String? {
-    switch planId {
-    case "unlimited":
-      return "200 questions per month"
-    case "operator":
-      return "500 questions per month"
-    case "architect":
-      return "Power-user AI — thousands of chats + agentic automations"
-    default:
-      return nil
-    }
-  }
-
   func planAccentColor(for planId: String) -> Color {
-    // Architect is the premium white-accent tier; Operator + legacy Unlimited
-    // are the mass-market green tier.
-    planId == "architect" ? OmiColors.accent : OmiColors.success
+    _ = planId
+    return OmiColors.accent
   }
 
   func planSummaryText(for plan: SubscriptionPlanOption) -> String {
@@ -162,32 +98,6 @@ extension SettingsContentView {
     return prices.first
   }
 
-  func planEyebrow(for planId: String) -> String {
-    switch planId {
-    case "unlimited":
-      return "Starter"
-    case "operator":
-      return "Most popular"
-    case "architect":
-      return "Automation + coding"
-    default:
-      return "Plan"
-    }
-  }
-
-  func planDescription(for planId: String) -> String {
-    switch planId {
-    case "unlimited":
-      return "100 chat questions per month. Shared with mobile and web."
-    case "operator":
-      return "500 chat questions per month. Shared with mobile and web."
-    case "architect":
-      return "Power-user AI for heavy agentic workflows and vibe coding."
-    default:
-      return ""
-    }
-  }
-
   func sortedPrices(for plan: SubscriptionPlanOption) -> [SubscriptionPriceOption] {
     plan.prices.sorted { lhs, rhs in
       let lhsIsMonthly = lhs.title.lowercased().contains("month")
@@ -200,110 +110,10 @@ extension SettingsContentView {
   }
 
   func isCurrentSubscriptionPlan(_ plan: SubscriptionPlanOption) -> Bool {
-    guard hasPaidSubscription, let currentPlan = userSubscription?.subscription.plan else {
+    guard hasPaidSubscription, let subscription = userSubscription?.subscription else {
       return false
     }
-    if currentPlan == .operator && plan.id == "unlimited" {
-      return true
-    }
-    if currentPlan == .unlimited && plan.id == "operator" && isCurrentSubscriptionOperator() {
-      return true
-    }
-    return currentPlan.rawValue == plan.id
-  }
-
-  var mergedPlanCatalog: [SubscriptionPlanOption] {
-    mergePlanCatalog(primary: userSubscription?.availablePlans ?? [], fallback: fallbackPlanCatalog)
-  }
-
-  func mergePlanCatalog(
-    primary: [SubscriptionPlanOption],
-    fallback: [SubscriptionPlanOption]
-  ) -> [SubscriptionPlanOption] {
-    SubscriptionPlanCatalogMerger.merge(primary: primary, fallback: fallback)
-  }
-
-  func fallbackFeatures(for planId: String) -> [String] {
-    switch planId {
-    case "architect":
-      return [
-        "Automations and vibe coding",
-        "Unlimited listening, memories, and insights",
-        "Priority desktop AI features",
-        "~$400 of monthly AI compute included (fair-use cap)",
-      ]
-    case "operator":
-      return [
-        "500 chat questions per month",
-        "Unlimited listening and transcription",
-        "Unlimited memories and insights",
-        "Shared with mobile and web",
-      ]
-    case "unlimited":
-      return [
-        "200 chat questions per month",
-        "Unlimited listening and transcription",
-        "Unlimited memories and insights",
-        "Shared with mobile and web",
-      ]
-    default:
-      return []
-    }
-  }
-
-  func normalizedPlanId(from title: String) -> String? {
-    let normalized = title.lowercased()
-    // Match the three plan families by title keyword. Neo is the post-rename
-    // display name for the legacy "unlimited" plan and still maps to that id
-    // because Stripe/backend PlanType enum is unchanged.
-    if normalized.contains("unlimited") || normalized.contains("neo") {
-      return "unlimited"
-    }
-    if normalized.contains("operator") {
-      return "operator"
-    }
-    if normalized.contains("architect") || normalized.contains("pro") {
-      return "architect"
-    }
-    return nil
-  }
-
-  func planCatalog(from prices: [AvailablePlanPriceOption]) -> [SubscriptionPlanOption] {
-    let groupedPrices = Dictionary(grouping: prices) { price in
-      normalizedPlanId(from: price.title) ?? "unknown"
-    }
-
-    return groupedPrices.compactMap { planId, options in
-      guard planId != "unknown" else { return nil }
-
-      let title: String
-      switch planId {
-      case "unlimited":
-        title = "Neo"
-      case "operator":
-        title = "Operator"
-      case "architect":
-        title = "Architect"
-      default:
-        title = options.first?.title ?? "Plan"
-      }
-
-      let mappedPrices = options.map { option in
-        SubscriptionPriceOption(
-          id: option.id,
-          title: option.interval.lowercased().contains("year") ? "Annual" : "Monthly",
-          description: option.description,
-          priceString: option.priceString
-        )
-      }
-
-      return SubscriptionPlanOption(
-        id: planId,
-        title: title,
-        features: fallbackFeatures(for: planId),
-        prices: mappedPrices
-      )
-    }
+    return plan.title == subscription.planName
   }
 
   @ViewBuilder
@@ -311,16 +121,12 @@ extension SettingsContentView {
     let isSelected = selectedPlanIdForCheckout == plan.id
     let accent = planAccentColor(for: plan.id)
     let isCurrentPlan = isCurrentSubscriptionPlan(plan)
-    let isArchitectUser =
-      userSubscription?.subscription.plan == .architect
-      || userSubscription?.subscription.plan == .pro
-    let isDowngrade = isArchitectUser && plan.id == "unlimited"
-    let canPurchase = !isCurrentPlan && !isDowngrade
+    let canPurchase = !isCurrentPlan && userSubscription?.billingAvailability.checkoutEnabled == true
 
     VStack(alignment: .leading, spacing: OmiSpacing.lg) {
       HStack(alignment: .top, spacing: OmiSpacing.md) {
         VStack(alignment: .leading, spacing: OmiSpacing.xs) {
-          Text((plan.eyebrow ?? planEyebrow(for: plan.id)).uppercased())
+          Text((plan.eyebrow ?? "Plan").uppercased())
             .scaledFont(size: OmiType.micro, weight: .bold)
             .foregroundColor(accent)
             .tracking(0.8)
@@ -329,7 +135,7 @@ extension SettingsContentView {
             .scaledFont(size: OmiType.heading, weight: .bold)
             .foregroundColor(OmiColors.textPrimary)
 
-          if let subtitle = plan.subtitle ?? planSubtitle(for: plan.id) {
+          if let subtitle = plan.subtitle {
             Text(subtitle)
               .scaledFont(size: OmiType.caption)
               .foregroundColor(OmiColors.textTertiary)
@@ -352,7 +158,7 @@ extension SettingsContentView {
         .fixedSize(horizontal: true, vertical: false)
       }
 
-      Text(plan.description ?? planDescription(for: plan.id))
+      Text(plan.description ?? "")
         .scaledFont(size: OmiType.body)
         .foregroundColor(OmiColors.textSecondary)
 
@@ -379,47 +185,6 @@ extension SettingsContentView {
           .overlay(OmiColors.backgroundQuaternary)
 
         VStack(alignment: .leading, spacing: OmiSpacing.sm) {
-          VStack(alignment: .leading, spacing: OmiSpacing.xs) {
-            Button(action: {
-              OmiMotion.withGated(.easeInOut(duration: 0.2)) {
-                isPromoCodeExpanded.toggle()
-              }
-            }) {
-              HStack(spacing: OmiSpacing.xs) {
-                Image(systemName: "tag")
-                  .scaledFont(size: OmiType.caption)
-                Text("Promo code")
-                  .scaledFont(size: OmiType.caption)
-                Image(systemName: isPromoCodeExpanded ? "chevron.up" : "chevron.down")
-                  .scaledFont(size: OmiType.micro)
-              }
-              .foregroundColor(OmiColors.textTertiary)
-            }
-            .buttonStyle(.plain)
-
-            if isPromoCodeExpanded {
-              VStack(alignment: .leading, spacing: OmiSpacing.xs) {
-                TextField("Enter promo code", text: $upgradePromotionCode)
-                  .settingsTextInputStyle()
-                  .disabled(activeCheckoutPriceId != nil)
-                  .onChange(of: upgradePromotionCode) {
-                    subscriptionError = nil
-                  }
-
-                if let error = subscriptionError {
-                  HStack(spacing: OmiSpacing.xxs) {
-                    Image(systemName: "exclamationmark.circle")
-                      .scaledFont(size: OmiType.caption)
-                    Text(error)
-                      .scaledFont(size: OmiType.caption)
-                  }
-                  .foregroundColor(OmiColors.warning)
-                }
-              }
-              .transition(.opacity.combined(with: .move(edge: .top)))
-            }
-          }
-
           Text("Choose billing")
             .scaledFont(size: OmiType.caption, weight: .semibold)
             .foregroundColor(OmiColors.textTertiary)
@@ -430,7 +195,7 @@ extension SettingsContentView {
                 startCheckout(for: price.id)
               }) {
                 Group {
-                  if activeCheckoutPriceId == price.id {
+                  if activeCheckoutOfferId == price.id {
                     ProgressView()
                       .controlSize(.small)
                       .frame(maxWidth: .infinity)
@@ -447,7 +212,7 @@ extension SettingsContentView {
                 }
               }
               .buttonStyle(OmiButtonStyle(.secondary, size: .compact))
-              .disabled(activeCheckoutPriceId != nil)
+              .disabled(activeCheckoutOfferId != nil)
             }
           }
         }
@@ -820,22 +585,16 @@ extension SettingsContentView {
     Task {
       do {
         let subscription = try await APIClient.shared.getUserSubscription()
-        let availablePlans = try? await APIClient.shared.getAvailablePlans()
         await MainActor.run {
           userSubscription = subscription
+          appState.billingAvailability = subscription.billingAvailability
           subscriptionError = nil
-          fallbackPlanCatalog = availablePlans.map { planCatalog(from: $0.plans) } ?? []
-          if let selectedPlanIdForCheckout,
-            subscription.subscription.plan.rawValue == selectedPlanIdForCheckout
-          {
-            self.selectedPlanIdForCheckout = nil
-          }
           // Clear the sticky paywall flag whenever the subscription endpoint
-          // reports a non-basic active plan. Catches the case where a paid user
+          // reports a paid active plan. Catches the case where a paid user
           // hit the paywall once (e.g. WS connected before payment cleared
           // the trial cache) — without this they'd stay paywalled until the
-          // next app restart even after their Operator/Architect plan is active.
-          if subscription.subscription.plan != .basic,
+          // next app restart even after their normalized entitlement is active.
+          if subscription.subscription.plan != .free,
             subscription.subscription.status == .active,
             AppState.current?.isPaywalled == true
           {
@@ -859,52 +618,34 @@ extension SettingsContentView {
     planUsageDetailsRequestID += 1
     let requestID = planUsageDetailsRequestID
     isLoadingChatUsage = true
-    isLoadingOverage = true
     chatUsageQuota = nil
-    overageInfo = nil
 
     Task {
-      async let quota = APIClient.shared.fetchChatUsageQuota()
-      async let overageInfo = fetchOverageInfoForPlanUsage()
-      let (quotaValue, overageInfoValue) = await (quota, overageInfo)
+      let quotaValue = await APIClient.shared.fetchChatUsageQuota()
       applyPlanUsageDetails(
         requestID: requestID,
-        quota: quotaValue,
-        overageInfo: overageInfoValue
+        quota: quotaValue
       )
-    }
-  }
-
-  func fetchOverageInfoForPlanUsage() async -> OverageInfoResponse? {
-    do {
-      return try await APIClient.shared.getOverageInfo()
-    } catch {
-      logError("Failed to load overage info", error: error)
-      return nil
     }
   }
 
   @MainActor
   func applyPlanUsageDetails(
     requestID: Int,
-    quota: APIClient.ChatUsageQuota?,
-    overageInfo: OverageInfoResponse?
+    quota: APIClient.ChatUsageQuota?
   ) {
     guard requestID == planUsageDetailsRequestID else { return }
     chatUsageQuota = quota
     if let quota {
       FloatingBarUsageLimiter.shared.applyQuota(quota)
     }
-    self.overageInfo = overageInfo
     isLoadingChatUsage = false
-    isLoadingOverage = false
   }
 
   func applySuccessfulSubscriptionRefresh(_ subscription: UserSubscriptionResponse) {
     userSubscription = subscription
     subscriptionError = nil
-    pendingSubscriptionPriceId = nil
-    pendingCheckoutSessionId = nil
+    pendingSubscriptionOfferId = nil
     selectedPlanIdForCheckout = nil
 
     FloatingBarUsageLimiter.shared.applyPlan(
@@ -912,7 +653,7 @@ extension SettingsContentView {
       status: subscription.subscription.status
     )
 
-    if subscription.subscription.plan != .basic,
+    if subscription.subscription.plan != .free,
       subscription.subscription.status == .active,
       AppState.current?.isPaywalled == true
     {
@@ -923,98 +664,56 @@ extension SettingsContentView {
     refreshPlanUsageDetails()
   }
 
-  func startCheckout(for priceId: String) {
-    guard activeCheckoutPriceId == nil else { return }
-    activeCheckoutPriceId = priceId
-    pendingSubscriptionPriceId = priceId
-    subscriptionError = nil
-
-    let promotionCode = upgradePromotionCode.trimmingCharacters(in: .whitespacesAndNewlines)
-    let promoToSend: String? = promotionCode.isEmpty ? nil : promotionCode
-
-    // If user already has an active paid subscription (not canceled), use upgrade endpoint
-    // to schedule the plan change at end of billing period (no double-charging)
-    if hasPaidSubscription,
-      let subscription = userSubscription?.subscription,
-      !subscription.cancelAtPeriodEnd
-    {
-      Task {
-        do {
-          _ = try await APIClient.shared.upgradeSubscription(
-            priceId: priceId, promotionCode: promoToSend)
-          await MainActor.run {
-            activeCheckoutPriceId = nil
-            pendingSubscriptionPriceId = nil
-            subscriptionError = nil
-            self.upgradePromotionCode = ""
-            loadSubscriptionInfo()
-          }
-        } catch let apiError as APIError {
-          await MainActor.run {
-            activeCheckoutPriceId = nil
-            pendingSubscriptionPriceId = nil
-            subscriptionError = apiError.detail ?? "Failed to schedule plan change."
-          }
-        } catch {
-          logError("Failed to schedule plan change", error: error)
-          await MainActor.run {
-            activeCheckoutPriceId = nil
-            pendingSubscriptionPriceId = nil
-            subscriptionError = "Failed to schedule plan change."
-          }
-        }
-      }
+  func startCheckout(for offerId: String) {
+    guard activeCheckoutOfferId == nil else { return }
+    guard userSubscription?.billingAvailability.checkoutEnabled == true else {
+      subscriptionError = "Billing is not available in this build."
       return
     }
+    guard !hasPaidSubscription else {
+      openCustomerPortal()
+      return
+    }
+    activeCheckoutOfferId = offerId
+    pendingSubscriptionOfferId = offerId
+    subscriptionError = nil
 
     Task {
       do {
-        let response = try await APIClient.shared.createCheckoutSession(
-          priceId: priceId, promotionCode: promoToSend)
+        let response = try await APIClient.shared.createCheckoutSession(offerId: offerId)
         let apiBaseURL = await APIClient.shared.baseURL
         await MainActor.run {
-          activeCheckoutPriceId = nil
-          pendingCheckoutSessionId = response.sessionId
+          activeCheckoutOfferId = nil
         }
 
-        if response.status == "reactivated" {
-          await MainActor.run {
-            subscriptionError = nil
-            pendingSubscriptionPriceId = nil
-            pendingCheckoutSessionId = nil
-            loadSubscriptionInfo()
-          }
-        } else if let urlString = response.url, let url = URL(string: urlString) {
+        if let url = URL(string: response.url) {
           let normalizedBaseURL = apiBaseURL.hasSuffix("/") ? apiBaseURL : apiBaseURL + "/"
           await MainActor.run {
             activeBillingWebFlow = BillingWebFlow(
-              title: "Complete Your Upgrade",
+              title: "Complete Checkout",
               url: url,
-              completionURLs: [
-                normalizedBaseURL + "v1/payments/success",
-                normalizedBaseURL + "v1/payments/cancel",
-              ]
+              successURL: URL(string: normalizedBaseURL + "v1/payments/success")!,
+              cancelURL: URL(string: normalizedBaseURL + "v1/payments/cancel")!
             )
           }
         } else {
           await MainActor.run {
-            subscriptionError = response.message ?? "Could not start checkout."
+            pendingSubscriptionOfferId = nil
+            subscriptionError = "Could not start checkout."
           }
         }
       } catch let apiError as APIError {
         logError("Failed to create checkout session", error: apiError)
         await MainActor.run {
-          activeCheckoutPriceId = nil
-          pendingSubscriptionPriceId = nil
-          pendingCheckoutSessionId = nil
+          activeCheckoutOfferId = nil
+          pendingSubscriptionOfferId = nil
           subscriptionError = apiError.detail ?? "Failed to open checkout."
         }
       } catch {
         logError("Failed to create checkout session", error: error)
         await MainActor.run {
-          activeCheckoutPriceId = nil
-          pendingSubscriptionPriceId = nil
-          pendingCheckoutSessionId = nil
+          activeCheckoutOfferId = nil
+          pendingSubscriptionOfferId = nil
           subscriptionError = "Failed to open checkout."
         }
       }
@@ -1023,6 +722,10 @@ extension SettingsContentView {
 
   func openCustomerPortal() {
     guard !isOpeningCustomerPortal else { return }
+    guard userSubscription?.billingAvailability.portalEnabled == true else {
+      subscriptionError = "Billing management is not available in this build."
+      return
+    }
     isOpeningCustomerPortal = true
     subscriptionError = nil
 
@@ -1056,117 +759,42 @@ extension SettingsContentView {
   func handleBillingFlowCompletion(_ outcome: BillingWebFlowOutcome) {
     switch outcome {
     case .completed:
-      Task {
-        await completeLocalTestSubscriptionIfNeeded()
-        await MainActor.run {
-          pollForUpdatedSubscription()
-        }
-      }
+      pollForUpdatedSubscription()
     case .cancelled, .dismissed:
-      pendingSubscriptionPriceId = nil
-      pendingCheckoutSessionId = nil
+      pendingSubscriptionOfferId = nil
       loadSubscriptionInfo()
     }
   }
 
   func pollForUpdatedSubscription() {
-    let expectedPriceId = pendingSubscriptionPriceId
+    let expectedOfferId = pendingSubscriptionOfferId
 
     Task {
-      for attempt in 0..<8 {
-        do {
-          let subscription = try await APIClient.shared.getUserSubscription()
-          let matchedPrice =
-            expectedPriceId == nil || subscription.subscription.currentPriceId == expectedPriceId
-          let hasPaidPlan =
-            subscription.subscription.plan != .basic && subscription.subscription.status == .active
-
-          if matchedPrice && hasPaidPlan {
-            await MainActor.run {
-              applySuccessfulSubscriptionRefresh(subscription)
-            }
-            return
-          }
-
-          if attempt == 7 {
-            await MainActor.run {
-              userSubscription = subscription
-              subscriptionError =
-                "Payment completed, but plan refresh is still catching up. Please try reloading this page in a moment."
-              pendingSubscriptionPriceId = nil
-              pendingCheckoutSessionId = nil
-            }
-            return
-          }
-
-          try await Task.sleep(nanoseconds: 1_000_000_000)
-        } catch {
-          if attempt == 7 {
-            await MainActor.run {
-              subscriptionError = "Payment completed, but subscription refresh failed."
-              pendingSubscriptionPriceId = nil
-              pendingCheckoutSessionId = nil
-            }
-            return
-          }
-
-          try? await Task.sleep(nanoseconds: 1_000_000_000)
+      let outcome = await BillingReconciler.poll(
+        read: { try await APIClient.shared.getUserSubscription() },
+        matches: { subscription in
+          let matchedOffer = expectedOfferId == nil || subscription.subscription.offerId == expectedOfferId
+          return matchedOffer
+            && subscription.subscription.plan != .free
+            && subscription.subscription.status == .active
+        },
+        sleep: { try? await Task.sleep(nanoseconds: 1_000_000_000) }
+      )
+      await MainActor.run {
+        switch outcome {
+        case .matched(let subscription):
+          applySuccessfulSubscriptionRefresh(subscription)
+        case .timedOut(let subscription):
+          if let subscription { userSubscription = subscription }
+          subscriptionError =
+            "Payment completed, but plan refresh is still catching up. Please try reloading this page in a moment."
+          pendingSubscriptionOfferId = nil
+        case .failed:
+          subscriptionError = "Payment completed, but subscription refresh failed."
+          pendingSubscriptionOfferId = nil
         }
       }
     }
-  }
-
-  func completeLocalTestSubscriptionIfNeeded() async {
-    guard let expectedPriceId = pendingSubscriptionPriceId else { return }
-    let checkoutSessionId = pendingCheckoutSessionId
-    let pythonBaseURL = await APIClient.shared.baseURL
-    let rustBaseURL = await APIClient.shared.rustBackendURL
-
-    if let checkoutSessionId, isLocalURL(pythonBaseURL) {
-      guard
-        let encodedSessionId = checkoutSessionId.addingPercentEncoding(
-          withAllowedCharacters: .urlQueryAllowed),
-        let url = URL(string: "\(pythonBaseURL)v1/payments/success?session_id=\(encodedSessionId)")
-      else {
-        return
-      }
-
-      do {
-        _ = try await URLSession.shared.data(from: url)
-      } catch {
-        logError("Failed to complete local python test subscription", error: error)
-      }
-      return
-    }
-
-    guard isLocalURL(rustBaseURL) else { return }
-
-    guard
-      let encodedPriceId = expectedPriceId.addingPercentEncoding(
-        withAllowedCharacters: .urlQueryAllowed)
-    else {
-      return
-    }
-
-    var urlString = "\(rustBaseURL)test/complete-subscription?price_id=\(encodedPriceId)"
-    if let checkoutSessionId,
-      let encodedSessionId = checkoutSessionId.addingPercentEncoding(
-        withAllowedCharacters: .urlQueryAllowed)
-    {
-      urlString += "&session_id=\(encodedSessionId)"
-    }
-
-    guard let url = URL(string: urlString) else { return }
-
-    do {
-      _ = try await URLSession.shared.data(from: url)
-    } catch {
-      logError("Failed to complete local test subscription", error: error)
-    }
-  }
-
-  func isLocalURL(_ url: String) -> Bool {
-    url.hasPrefix("http://127.0.0.1:") || url.hasPrefix("http://localhost:")
   }
 
 }

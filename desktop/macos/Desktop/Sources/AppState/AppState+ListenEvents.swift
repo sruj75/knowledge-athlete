@@ -395,7 +395,7 @@ extension AppState {
       // indicator actually turn off. Without this, popup shows but the user
       // still sees the mic indicator green and assumes recording continues —
       // confusing and a battery/trust hit. Sticky until next app launch or
-      // successful plan reactivation.
+      // verified paid projection.
       isPaywalled = true
       if isTranscribing {
         log("Paywall: stopping transcription (freemium threshold)")

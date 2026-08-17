@@ -90,8 +90,7 @@ def _set_e2e_env():
     os.environ["BUCKET_DESKTOP_UPDATES"] = "desktop-updates"
     os.environ["DEV_WEBHOOK_RETRY_DELAYS"] = "0,0,0"
     os.environ["AUDIO_MERGE_DISPATCH_MODE"] = "inline"
-    # Disable Stripe validation so startup doesn't fail.
-    os.environ["STRIPE_SECRET_KEY"] = ""
+    os.environ["BILLING_MODE"] = "disabled"
     os.environ["ADMIN_KEY"] = ""
     for proxy_var in (
         "HTTP_PROXY",

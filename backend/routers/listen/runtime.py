@@ -380,12 +380,15 @@ class ListenSessionRuntime:
             if FAIR_USE_ENABLED and now - self.state.fair_use_last_check_ts >= FAIR_USE_CHECK_INTERVAL_SECONDS:
                 self.state.fair_use_last_check_ts = now
                 try:
-                    if self.state.fair_use_plan is None:
+                    if self.state.fair_use_entitlement_policy is None:
                         sub = await self.persistence.call(user_db.get_user_valid_subscription, self.request.uid)
-                        self.state.fair_use_plan = sub.plan if sub else None
+                        self.state.fair_use_entitlement_policy = sub.entitlement_policy if sub else None
                     totals = await self.persistence.call(get_rolling_speech_ms, self.request.uid)
                     caps = await self.persistence.call(
-                        check_soft_caps, self.request.uid, speech_totals=totals, plan=self.state.fair_use_plan
+                        check_soft_caps,
+                        self.request.uid,
+                        speech_totals=totals,
+                        entitlement_policy=self.state.fair_use_entitlement_policy,
                     )
                     if caps:
                         start_background_task(
@@ -455,7 +458,7 @@ class ListenSessionRuntime:
         if self.user_has_credits and (remaining is None or remaining > FREEMIUM_THRESHOLD_SECONDS):
             self.state.freemium_threshold_sent = False
         subscription = await self.persistence.call(user_db.get_user_valid_subscription, self.request.uid)
-        if not subscription or subscription.plan == PlanType.basic:
+        if not subscription or subscription.plan == PlanType.free:
             last_words = self.state.last_transcript_time or self.state.first_audio_byte_timestamp
             if (
                 self.state.last_audio_received_time

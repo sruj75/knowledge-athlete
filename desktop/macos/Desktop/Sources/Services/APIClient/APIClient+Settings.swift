@@ -258,51 +258,90 @@ struct NotificationSettingsResponse: Codable {
 }
 
 enum SubscriptionPlanType: String, Codable {
-  case basic  // display "Free"
-  case unlimited  // legacy — display "Unlimited (legacy)"
-  case architect  // display "Architect" ($400/mo, cost_usd quota)
-  case pro  // backward compat: old Firestore docs may still say "pro"
-  case `operator`  // new — display "Operator"
+  case free
+  case bounded
+  case unlimited
 }
 
 enum SubscriptionStatusType: String, Codable {
   case active
+  case onHold = "on_hold"
+  case cancelled
+  case failed
+  case expired
   case inactive
+}
+
+struct BillingAvailability: Codable, Equatable, Sendable {
+  enum Presentation: String, Codable, Sendable {
+    case skip
+    case checkout
+  }
+
+  static let disabled = BillingAvailability(
+    checkoutEnabled: false,
+    portalEnabled: false,
+    presentation: .skip)
+
+  let checkoutEnabled: Bool
+  let portalEnabled: Bool
+  let presentation: Presentation
+
+  enum CodingKeys: String, CodingKey {
+    case checkoutEnabled = "checkout_enabled"
+    case portalEnabled = "portal_enabled"
+    case presentation
+  }
 }
 
 struct SubscriptionLimitsResponse: Codable {
   let transcriptionSeconds: Int?
   let wordsTranscribed: Int?
   let insightsGained: Int?
-  let memoriesCreated: Int?
+  let chatQuestionsPerMonth: Int?
+  let chatCostUsdPerMonth: Double?
 
   enum CodingKeys: String, CodingKey {
     case transcriptionSeconds = "transcription_seconds"
     case wordsTranscribed = "words_transcribed"
     case insightsGained = "insights_gained"
-    case memoriesCreated = "memories_created"
+    case chatQuestionsPerMonth = "chat_questions_per_month"
+    case chatCostUsdPerMonth = "chat_cost_usd_per_month"
   }
 }
 
 struct UserSubscriptionInfo: Codable {
   let plan: SubscriptionPlanType
+  let planName: String
+  let offerId: String?
+  let billingCustomerId: String?
+  let billingSubscriptionId: String?
+  let billingProductId: String?
+  let entitlementPolicy: SubscriptionPlanType
   let status: SubscriptionStatusType
+  let currentPeriodStart: Int?
   let currentPeriodEnd: Int?
-  let stripeSubscriptionId: String?
-  let currentPriceId: String?
   let features: [String]
-  let cancelAtPeriodEnd: Bool
+  let cancelAtNextBillingDate: Bool
+  let billingInterval: String?
+  let priceString: String?
+  let providerUpdatedAt: Int?
   let limits: SubscriptionLimitsResponse
-  let deprecated: Bool?
-  let deprecationMessage: String?
 
   enum CodingKeys: String, CodingKey {
-    case plan, status, features, limits, deprecated
+    case plan, status, features, limits
+    case planName = "plan_name"
+    case offerId = "offer_id"
+    case billingCustomerId = "billing_customer_id"
+    case billingSubscriptionId = "billing_subscription_id"
+    case billingProductId = "billing_product_id"
+    case entitlementPolicy = "entitlement_policy"
+    case currentPeriodStart = "current_period_start"
     case currentPeriodEnd = "current_period_end"
-    case stripeSubscriptionId = "stripe_subscription_id"
-    case currentPriceId = "current_price_id"
-    case cancelAtPeriodEnd = "cancel_at_period_end"
-    case deprecationMessage = "deprecation_message"
+    case cancelAtNextBillingDate = "cancel_at_next_billing_date"
+    case billingInterval = "billing_interval"
+    case priceString = "price_string"
+    case providerUpdatedAt = "provider_updated_at"
   }
 }
 
@@ -311,9 +350,10 @@ struct SubscriptionPriceOption: Codable, Identifiable {
   let title: String
   let description: String?
   let priceString: String
+  let interval: String
 
   enum CodingKeys: String, CodingKey {
-    case id, title, description
+    case id, title, description, interval
     case priceString = "price_string"
   }
 }
@@ -349,14 +389,9 @@ struct UserSubscriptionResponse: Codable {
   let wordsTranscribedLimit: Int
   let insightsGainedUsed: Int
   let insightsGainedLimit: Int
-  let memoriesCreatedUsed: Int
-  let memoriesCreatedLimit: Int
   let availablePlans: [SubscriptionPlanOption]
+  let billingAvailability: BillingAvailability
   let showSubscriptionUI: Bool
-  // Set for Neo subscribers whose current billing period started before the
-  // policy change in #7496 — they retain desktop access until this unix-seconds
-  // timestamp (their `current_period_end`). Null for everyone else.
-  let desktopGrandfatherUntil: Int?
 
   enum CodingKeys: String, CodingKey {
     case subscription
@@ -366,11 +401,9 @@ struct UserSubscriptionResponse: Codable {
     case wordsTranscribedLimit = "words_transcribed_limit"
     case insightsGainedUsed = "insights_gained_used"
     case insightsGainedLimit = "insights_gained_limit"
-    case memoriesCreatedUsed = "memories_created_used"
-    case memoriesCreatedLimit = "memories_created_limit"
     case availablePlans = "available_plans"
+    case billingAvailability = "billing_availability"
     case showSubscriptionUI = "show_subscription_ui"
-    case desktopGrandfatherUntil = "desktop_grandfather_until"
   }
 
   // Defensive decode: only `subscription` is required. The usage counters and
@@ -386,89 +419,20 @@ struct UserSubscriptionResponse: Codable {
     wordsTranscribedLimit = try c.decodeIfPresent(Int.self, forKey: .wordsTranscribedLimit) ?? 0
     insightsGainedUsed = try c.decodeIfPresent(Int.self, forKey: .insightsGainedUsed) ?? 0
     insightsGainedLimit = try c.decodeIfPresent(Int.self, forKey: .insightsGainedLimit) ?? 0
-    memoriesCreatedUsed = try c.decodeIfPresent(Int.self, forKey: .memoriesCreatedUsed) ?? 0
-    memoriesCreatedLimit = try c.decodeIfPresent(Int.self, forKey: .memoriesCreatedLimit) ?? 0
     availablePlans = try c.decodeIfPresent([SubscriptionPlanOption].self, forKey: .availablePlans) ?? []
+    billingAvailability =
+      try c.decodeIfPresent(BillingAvailability.self, forKey: .billingAvailability) ?? .disabled
     showSubscriptionUI = try c.decodeIfPresent(Bool.self, forKey: .showSubscriptionUI) ?? true
-    desktopGrandfatherUntil = try c.decodeIfPresent(Int.self, forKey: .desktopGrandfatherUntil)
   }
 }
 
 struct CheckoutSessionResponse: Codable {
-  let url: String?
-  let sessionId: String?
-  let status: String?
-  let message: String?
+  let url: String
+  let sessionId: String
 
   enum CodingKeys: String, CodingKey {
-    case url, status, message
+    case url
     case sessionId = "session_id"
-  }
-}
-
-struct UpgradeSubscriptionResponse: Codable {
-  let status: String
-  let message: String
-  let daysRemaining: Int?
-  let scheduleId: String?
-
-  enum CodingKeys: String, CodingKey {
-    case status, message
-    case daysRemaining = "days_remaining"
-    case scheduleId = "schedule_id"
-  }
-}
-
-struct AvailablePlanPriceOption: Codable, Identifiable {
-  let id: String
-  let title: String
-  let priceString: String
-  let description: String?
-  let interval: String
-  let unitAmount: Int
-  let isActive: Bool
-
-  enum CodingKeys: String, CodingKey {
-    case id, title, description, interval
-    case priceString = "price_string"
-    case unitAmount = "unit_amount"
-    case isActive = "is_active"
-  }
-}
-
-struct AvailablePlansResponse: Codable {
-  let plans: [AvailablePlanPriceOption]
-}
-
-struct OverageInfoResponse: Codable {
-  let plan: String
-  let planType: String
-  let isOveragePlan: Bool
-  let includedQuestions: Int?
-  let usedQuestions: Int
-  let excessQuestions: Int
-  let realCostUsd: Double
-  let overageUsd: Double
-  let markupMultiplier: Double
-  let markupPercent: Double
-  let resetAt: Int?
-  let explainerTitle: String
-  let explainerBody: String
-
-  enum CodingKeys: String, CodingKey {
-    case plan
-    case planType = "plan_type"
-    case isOveragePlan = "is_overage_plan"
-    case includedQuestions = "included_questions"
-    case usedQuestions = "used_questions"
-    case excessQuestions = "excess_questions"
-    case realCostUsd = "real_cost_usd"
-    case overageUsd = "overage_usd"
-    case markupMultiplier = "markup_multiplier"
-    case markupPercent = "markup_percent"
-    case resetAt = "reset_at"
-    case explainerTitle = "explainer_title"
-    case explainerBody = "explainer_body"
   }
 }
 

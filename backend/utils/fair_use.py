@@ -47,15 +47,13 @@ logger = logging.getLogger(__name__)
 FAIR_USE_ENABLED = os.getenv('FAIR_USE_ENABLED', 'false').lower() == 'true'
 FAIR_USE_KILL_SWITCH = os.getenv('FAIR_USE_KILL_SWITCH', 'false').lower() == 'true'
 
-# Soft cap thresholds (milliseconds of real speech) — default tier (Free, Plus, and any
-# plan with a bounded monthly transcription allowance).
+# Soft cap thresholds (milliseconds of real speech) for bounded entitlement.
 FAIR_USE_DAILY_SPEECH_MS = int(os.getenv('FAIR_USE_DAILY_SPEECH_MS', '7200000'))  # 2h
 FAIR_USE_3DAY_SPEECH_MS = int(os.getenv('FAIR_USE_3DAY_SPEECH_MS', '28800000'))  # 8h
 FAIR_USE_WEEKLY_SPEECH_MS = int(os.getenv('FAIR_USE_WEEKLY_SPEECH_MS', '36000000'))  # 10h
 
-# Raised triggers for unlimited-transcription tiers (Unlimited/unlimited_v2, legacy Neo,
-# Operator, Architect). They pay for unlimited use, so scrutiny starts later. Kept in the
-# same burst-vs-sustained ratio as the default tier (~4x daily for 3-day, ~5x for weekly).
+# Raised triggers for unlimited entitlement. Kept in the same
+# burst-vs-sustained ratio as bounded entitlement.
 FAIR_USE_DAILY_SPEECH_MS_UNLIMITED = int(os.getenv('FAIR_USE_DAILY_SPEECH_MS_UNLIMITED', '14400000'))  # 4h
 FAIR_USE_3DAY_SPEECH_MS_UNLIMITED = int(os.getenv('FAIR_USE_3DAY_SPEECH_MS_UNLIMITED', '57600000'))  # 16h
 FAIR_USE_WEEKLY_SPEECH_MS_UNLIMITED = int(os.getenv('FAIR_USE_WEEKLY_SPEECH_MS_UNLIMITED', '72000000'))  # 20h
@@ -235,31 +233,12 @@ def get_rolling_speech_ms(uid: str, sources: Optional[tuple[str, ...]] = None) -
 # ---------------------------------------------------------------------------
 
 
-# Paid unlimited-transcription tiers get the raised fair-use triggers. Hardcoded (like
-# _platform_hidden_plans in utils.subscription) rather than derived from get_plan_limits so
-# utils.fair_use does not depend on utils.subscription.get_plan_limits at import time (that
-# import broke module-stubbing tests), and so a mis-set BASIC_TIER cap can never flip Free
-# into this set. Plus and Free carry a bounded monthly cap and stay on the default tier.
-_UNLIMITED_TRANSCRIPTION_PLANS = frozenset(
-    {PlanType.unlimited, PlanType.unlimited_v2, PlanType.operator, PlanType.architect}
-)
+def fair_use_caps_for_entitlement(entitlement_policy: Optional[PlanType] = None) -> tuple[int, int, int]:
+    """Return soft caps from the normalized bounded/unlimited entitlement.
 
-
-def _is_unlimited_tier(plan: Optional[PlanType]) -> bool:
-    """True for paid unlimited-transcription tiers (Unlimited/unlimited_v2, legacy Neo,
-    Operator, Architect) — the plans whose monthly transcription allowance is unbounded.
-    Free and Plus (bounded monthly cap) stay on the default tier. Robust to ``None`` and to
-    plans passed as raw strings (PlanType is a str enum)."""
-    return plan in _UNLIMITED_TRANSCRIPTION_PLANS
-
-
-def fair_use_caps_for_plan(plan: Optional[PlanType] = None) -> tuple[int, int, int]:
-    """Return the (daily_ms, three_day_ms, weekly_ms) soft-cap triggers for a plan.
-
-    Unlimited-tier plans get the raised triggers; everyone else gets the default tier.
-    plan=None yields the default tier (backwards-compatible for callers without plan context).
+    Missing, free, and malformed values fail closed to bounded thresholds.
     """
-    if _is_unlimited_tier(plan):
+    if entitlement_policy == PlanType.unlimited:
         return (
             FAIR_USE_DAILY_SPEECH_MS_UNLIMITED,
             FAIR_USE_3DAY_SPEECH_MS_UNLIMITED,
@@ -284,7 +263,9 @@ def is_daily_audio_ceiling_exceeded(uid: str, speech_totals: Optional[Dict[str, 
 
 
 def check_soft_caps(
-    uid: str, speech_totals: Optional[Dict[str, Any]] = None, plan: Optional[PlanType] = None
+    uid: str,
+    speech_totals: Optional[Dict[str, Any]] = None,
+    entitlement_policy: Optional[PlanType] = None,
 ) -> List[Dict[str, Any]]:
     """Check if user exceeds any rolling speech cap.
 
@@ -292,8 +273,8 @@ def check_soft_caps(
         uid: User ID.
         speech_totals: Optional precomputed result from get_rolling_speech_ms().
             If None, fetches fresh from Redis.
-        plan: Optional plan; selects the per-tier trigger thresholds. Unlimited-tier plans
-            get raised triggers. plan=None uses the default tier (backwards-compatible).
+        entitlement_policy: Normalized bounded/unlimited policy. Missing values
+            use the bounded thresholds.
 
     Returns list of triggered caps, e.g.:
       [{'trigger': 'daily', 'speech_ms': 7500000, 'threshold_ms': 7200000}]
@@ -305,7 +286,7 @@ def check_soft_caps(
         return []
 
     speech = speech_totals if speech_totals is not None else get_rolling_speech_ms(uid)
-    daily_cap, three_day_cap, weekly_cap = fair_use_caps_for_plan(plan)
+    daily_cap, three_day_cap, weekly_cap = fair_use_caps_for_entitlement(entitlement_policy)
     triggered: List[Dict[str, Any]] = []
 
     if speech['daily_ms'] > daily_cap:

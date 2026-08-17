@@ -33,7 +33,7 @@ def _runtime_for_periodic_usage(*, tracking, exhausted):
         fair_use_last_check_ts=0.0,
         fair_use_track_managed_stt_usage=tracking,
         fair_use_managed_stt_budget_exhausted=exhausted,
-        fair_use_plan=None,
+        fair_use_entitlement_policy=None,
     )
 
     async def wait(_seconds):
