@@ -21,9 +21,11 @@ covers:
   - desktop/macos/Desktop/Sources/AuthService.swift
   - desktop/macos/Desktop/Sources/DesktopAutomationBridge.swift
   - desktop/macos/Desktop/Sources/LaunchAtLoginManager.swift
+  - desktop/macos/Desktop/Sources/MainWindow/Pages/ConversationsPage.swift
   - desktop/macos/Desktop/Sources/MainWindow/Pages/Settings/Sections/SettingsContentView+Assistants.swift
   - desktop/macos/Desktop/Sources/Rewind/UI/RewindPage+CaptureHealth.swift
   - desktop/macos/Desktop/Sources/Rewind/UI/RewindCaptureState.swift
+  - desktop/macos/Desktop/Sources/Rewind/UI/RewindPage.swift
 preconditions:
   - named_test_bundle_only
   - automation_bridge_ready
@@ -96,4 +98,4 @@ steps:
 
   - id: S12
     name: Last-window lifecycle respects the onboarding boundary
-    do: "Before completion, close the last main window and reopen it from the status item; verify the current onboarding stage remains authoritative and capture is still off. After a genuine completion, close the last window and reopen it again; verify Home returns without replaying setup, duplicating the opener, or starting a second capture owner."
+    do: "Before completion, close the last main window and verify the named-bundle PID exits and its automation bridge disconnects. Relaunch that same named bundle externally and verify the persisted onboarding stage returns with capture still off. After genuine completion, close the last window and reopen it from the surviving status item; verify Home returns without replaying setup, duplicating the opener, or starting a second capture owner."

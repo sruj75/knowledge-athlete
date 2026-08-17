@@ -62,4 +62,4 @@ steps:
 
   - id: S10
     name: Verify last-window behavior before and after completion
-    do: "During setup, close and reopen the last main window from the status item; verify the current stage returns and capture remains off. After completion, repeat the close and reopen; verify Home returns without replaying setup, duplicating the opener, or creating a second capture owner."
+    do: "During setup, close the last main window and verify the named-bundle PID exits and its automation bridge disconnects. Relaunch the same named bundle externally and verify the current stage resumes with capture off. After completion, close the last window and reopen it from the surviving status item; verify Home returns without replaying setup, duplicating the opener, or creating a second capture owner."

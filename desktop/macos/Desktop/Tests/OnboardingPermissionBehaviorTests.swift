@@ -8,46 +8,58 @@ private final class PermissionGrantFlag: @unchecked Sendable {
 
 @MainActor
 final class OnboardingPermissionBehaviorTests: XCTestCase {
-  func testInjectedNativePermissionBoundaryAdvancesWithoutStartingCapture() {
-    let appState = AppState()
-    appState.hasMicrophonePermission = false
-    var checks: [String] = []
-    var requests: [String] = []
-    var effects: [SBOnboardingModel.PermissionEffect] = []
+  func testEveryInjectedNativePermissionBoundaryAdvancesWithoutStartingCapture() {
+    let permissionCases: [(key: String, step: SBOnboardingModel.Step, next: SBOnboardingModel.Step)] = [
+      ("microphone", .mic, .systemAudio),
+      ("system_audio", .systemAudio, .screen),
+      ("screen_recording", .screen, .accessibility),
+      ("accessibility", .accessibility, .shortcutOpen),
+    ]
     let transcriptionIntent = AssistantSettings.shared.transcriptionEnabled
     let screenIntent = AssistantSettings.shared.screenAnalysisEnabled
     let monitoring = ProactiveAssistantsPlugin.shared.isMonitoring
-    let model = SBOnboardingModel(
-      appState: appState,
-      chatProvider: ChatProvider(),
-      stepResolver: { $0 },
-      permissionRefresher: { checks.append($0) },
-      permissionRequester: { requests.append($0) },
-      permissionGranted: { _ in appState.hasMicrophonePermission },
-      permissionEffectRecorder: { effects.append($0) },
-      onComplete: nil)
-    model.step = .mic
 
-    model.requestPerm("microphone")
-    XCTAssertEqual(model.micState, .waiting)
-    appState.hasMicrophonePermission = true
-    model.requestPerm("microphone")
+    for permissionCase in permissionCases {
+      let appState = AppState()
+      let granted = PermissionGrantFlag()
+      var checks: [String] = []
+      var requests: [String] = []
+      var primeCount = 0
+      var effects: [SBOnboardingModel.PermissionEffect] = []
+      let model = SBOnboardingModel(
+        appState: appState,
+        chatProvider: ChatProvider(),
+        stepResolver: { $0 },
+        permissionRefresher: { checks.append($0) },
+        permissionRequester: { requests.append($0) },
+        permissionGranted: { _ in granted.value },
+        screenCapturePrimer: { primeCount += 1 },
+        permissionEffectRecorder: { effects.append($0) },
+        onComplete: nil)
+      model.step = permissionCase.step
 
-    XCTAssertEqual(checks, ["microphone", "microphone"])
-    XCTAssertEqual(requests, ["microphone"])
-    XCTAssertEqual(model.step, .systemAudio)
-    XCTAssertEqual(AssistantSettings.shared.transcriptionEnabled, transcriptionIntent)
-    XCTAssertEqual(AssistantSettings.shared.screenAnalysisEnabled, screenIntent)
-    XCTAssertEqual(ProactiveAssistantsPlugin.shared.isMonitoring, monitoring)
-    XCTAssertEqual(
-      effects,
-      [
-        .checked("microphone"),
-        .requested("microphone"),
-        .checked("microphone"),
-        .granted("microphone"),
-        .advanced(from: .mic, to: .systemAudio),
-      ])
+      model.requestPerm(permissionCase.key)
+      granted.value = true
+      model.requestPerm(permissionCase.key)
+
+      XCTAssertEqual(checks, [permissionCase.key, permissionCase.key])
+      XCTAssertEqual(requests, [permissionCase.key])
+      XCTAssertEqual(model.permState(permissionCase.key), .on)
+      XCTAssertEqual(model.step, permissionCase.next)
+      XCTAssertFalse(appState.isTranscribing)
+      XCTAssertEqual(AssistantSettings.shared.transcriptionEnabled, transcriptionIntent)
+      XCTAssertEqual(AssistantSettings.shared.screenAnalysisEnabled, screenIntent)
+      XCTAssertEqual(ProactiveAssistantsPlugin.shared.isMonitoring, monitoring)
+      let primesScreen = ["system_audio", "screen_recording"].contains(permissionCase.key)
+      XCTAssertEqual(primeCount, primesScreen ? 1 : 0)
+      var expectedEffects: [SBOnboardingModel.PermissionEffect] = [
+        .checked(permissionCase.key), .requested(permissionCase.key),
+        .checked(permissionCase.key), .granted(permissionCase.key),
+      ]
+      if primesScreen { expectedEffects.append(.primedScreenCapture) }
+      expectedEffects.append(.advanced(from: permissionCase.step, to: permissionCase.next))
+      XCTAssertEqual(effects, expectedEffects)
+    }
   }
 
   func testSystemAudioConsentUsesTheRealTapResult() async {

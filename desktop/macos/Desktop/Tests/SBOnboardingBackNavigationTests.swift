@@ -22,10 +22,17 @@ final class SBOnboardingBackNavigationTests: XCTestCase {
     let model = SBOnboardingModel(
       appState: AppState(), chatProvider: ChatProvider(), onComplete: nil)
     model.step = .mic
+    model.thread = [
+      .init(isOmi: true, text: "Choose a language"),
+      .init(isOmi: false, text: "English"),
+      .init(isOmi: true, text: "Microphone"),
+    ]
+    let transcriptBeforeBack = model.thread.map(\.text)
 
     model.goBack()
 
     XCTAssertEqual(model.step, .language)
+    XCTAssertEqual(model.thread.map(\.text), transcriptBeforeBack)
     XCTAssertEqual(
       UserDefaults.standard.integer(forKey: SBOnboardingModel.resumeStepKey),
       SBOnboardingModel.Step.language.rawValue)

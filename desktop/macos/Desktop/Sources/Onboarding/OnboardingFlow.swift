@@ -30,20 +30,82 @@ struct OnboardingReplayPlan: Equatable, Sendable {
   let shouldRestart: Bool
 }
 
-/// Sign-out clears the setup-only journal while the current owner's lease is
-/// valid, but delays capture/default/projection cleanup until auth commits.
-/// A failed Firebase sign-out therefore leaves the still-authenticated session
-/// usable instead of partially resetting it.
+@MainActor
+struct OnboardingSignOutCaptureRuntime {
+  struct Effects {
+    let quiesce: () async -> Void
+    let restore: () async -> Void
+  }
+
+  let effects: Effects
+
+  func quiesce() async { await effects.quiesce() }
+  func restore() async { await effects.restore() }
+
+  static func live(appState: AppState?) -> Self {
+    let plugin = ProactiveAssistantsPlugin.shared
+    let transcriptionWasRunning = appState?.isTranscribing == true
+    let monitoringWasRunning = plugin.isMonitoring
+    return Self(
+      effects: .init(
+        quiesce: {
+          if plugin.isMonitoring { plugin.stopMonitoring() }
+          if appState?.isTranscribing == true {
+            appState?.stopTranscription()
+            await waitForTranscriptionIdle(appState)
+          }
+        },
+        restore: {
+          if transcriptionWasRunning, AssistantSettings.shared.transcriptionEnabled {
+            await waitForTranscriptionIdle(appState)
+            if appState?.isTranscribing == false {
+              appState?.startTranscription()
+              await appState?.reconcileCapture()
+            }
+          }
+          plugin.refreshScreenRecordingPermission()
+          if monitoringWasRunning,
+            OnboardingScreenMonitoringStartPolicy.shouldStart(
+              intentEnabled: AssistantSettings.shared.screenAnalysisEnabled,
+              isPaywalled: AppState.isPaywalledEffective,
+              keysAvailable: APIKeyService.keysAvailable,
+              permissionGranted: plugin.hasScreenRecordingPermission,
+              isMonitoring: plugin.isMonitoring)
+          {
+            plugin.startMonitoring { _, _ in }
+          }
+        }))
+  }
+
+  private static func waitForTranscriptionIdle(_ appState: AppState?) async {
+    for _ in 0..<100 where appState?.isTranscribing == true {
+      try? await Task.sleep(for: .milliseconds(50))
+    }
+  }
+}
+
+/// Sign-out deletes the setup journal and quiesces capture while the current
+/// owner is still authoritative. Persisted state changes only after auth
+/// commits; failed commits restore runtime capture from unchanged user intent.
 @MainActor
 struct OnboardingSignOutTransaction {
-  let clearCurrentOwnerJournal: () async -> Void
+  let preparation: OnboardingReplayPreparation
+  let captureRuntime: OnboardingSignOutCaptureRuntime
   let commitAuthentication: () async throws -> Bool
-  let applyPostCommitCleanup: () async -> Void
 
   func execute() async throws -> Bool {
-    await clearCurrentOwnerJournal()
-    guard try await commitAuthentication() else { return false }
-    await applyPostCommitCleanup()
+    await preparation.clearCurrentOwnerJournal()
+    await captureRuntime.quiesce()
+    do {
+      guard try await commitAuthentication() else {
+        await captureRuntime.restore()
+        return false
+      }
+    } catch {
+      await captureRuntime.restore()
+      throw error
+    }
+    _ = await preparation.execute(source: .signOut, journalAlreadyCleared: true)
     return true
   }
 }
@@ -67,6 +129,7 @@ struct OnboardingReplayPreparation {
     let clearPersistedState: () -> Void
     let clearOnboardingJournal: () async -> Void
     let resetOnboardingProjection: () -> Void
+    let clearLocalNameProjection: () -> Void
   }
 
   let effects: Effects
@@ -83,6 +146,7 @@ struct OnboardingReplayPreparation {
     effects.clearPersistedState()
     if !journalAlreadyCleared { await clearCurrentOwnerJournal() }
     effects.resetOnboardingProjection()
+    if source == .signOut { effects.clearLocalNameProjection() }
     return OnboardingReplayPolicy.plan(for: source)
   }
 
@@ -90,7 +154,14 @@ struct OnboardingReplayPreparation {
     await effects.clearOnboardingJournal()
   }
 
-  static func live(appState: AppState?, chatProvider: ChatProvider?) -> Self {
+  static func live(
+    appState: AppState?,
+    chatProvider: ChatProvider?,
+    clearLocalNameProjection: @escaping () -> Void = {
+      AuthService.shared.givenName = ""
+      AuthService.shared.familyName = ""
+    }
+  ) -> Self {
     Self(
       effects: .init(
         setTranscriptionIntent: { AssistantSettings.shared.transcriptionEnabled = $0 },
@@ -113,7 +184,8 @@ struct OnboardingReplayPreparation {
             log("Failed to clear onboarding journal")
           }
         },
-        resetOnboardingProjection: { chatProvider?.resetOnboardingProjectionForReplay() }))
+        resetOnboardingProjection: { chatProvider?.resetOnboardingProjectionForReplay() },
+        clearLocalNameProjection: clearLocalNameProjection))
   }
 }
 

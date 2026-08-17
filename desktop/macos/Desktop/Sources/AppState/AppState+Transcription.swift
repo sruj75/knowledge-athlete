@@ -9,6 +9,7 @@ extension AppState {
     if isTranscribing {
       stopTranscription()
     } else {
+      OnboardingExitPersistence.recordExplicitCapabilityEnablement()
       startTranscription()
     }
   }

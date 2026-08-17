@@ -12917,6 +12917,7 @@
         "type": "object"
       },
       "UserProfileResponse": {
+        "additionalProperties": true,
         "properties": {
           "company": {
             "anyOf": [

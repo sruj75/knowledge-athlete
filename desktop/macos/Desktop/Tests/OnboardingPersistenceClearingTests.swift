@@ -13,6 +13,7 @@ final class OnboardingPersistenceClearingTests: XCTestCase {
     case defaultsCleared
     case onboardingJournalCleared
     case onboardingProjectionReset
+    case localNameProjectionCleared
   }
 
   func testPersistedStateKeysContainOnlyRetainedSetupState() {
@@ -67,43 +68,100 @@ final class OnboardingPersistenceClearingTests: XCTestCase {
           resetCompletion: { effects.append(.completionReset) },
           clearPersistedState: { effects.append(.defaultsCleared) },
           clearOnboardingJournal: { effects.append(.onboardingJournalCleared) },
-          resetOnboardingProjection: { effects.append(.onboardingProjectionReset) }))
+          resetOnboardingProjection: { effects.append(.onboardingProjectionReset) },
+          clearLocalNameProjection: { effects.append(.localNameProjectionCleared) }))
 
       let plan = await preparation.execute(source: source)
 
+      var expected: [Effect] = [
+        .transcriptionIntent(false), .transcriptionStopped,
+        .screenIntent(false), .monitoringStopped,
+        .completionReset, .defaultsCleared, .onboardingJournalCleared, .onboardingProjectionReset,
+      ]
+      if source == .signOut { expected.append(.localNameProjectionCleared) }
       XCTAssertEqual(
         effects,
-        [
-          .transcriptionIntent(false), .transcriptionStopped,
-          .screenIntent(false), .monitoringStopped,
-          .completionReset, .defaultsCleared, .onboardingJournalCleared, .onboardingProjectionReset,
-        ])
+        expected)
       XCTAssertEqual(plan.shouldRestart, source != .signOut)
     }
   }
 
-  func testFailedAuthCommitDoesNotApplyDestructiveSignOutCleanup() async {
+  func testFailedAuthCommitRestoresQuiescedCaptureWithoutApplyingDestructiveCleanup() async {
     enum SignOutFailure: Error { case injected }
     var effects: [String] = []
+    let auth = AuthService.shared
+    let previousGivenName = auth.givenName
+    let previousFamilyName = auth.familyName
+    defer {
+      auth.givenName = previousGivenName
+      auth.familyName = previousFamilyName
+    }
+    auth.givenName = "Alice"
+    auth.familyName = "Owner A"
     let transaction = OnboardingSignOutTransaction(
-      clearCurrentOwnerJournal: { effects.append("journal") },
+      preparation: transactionPreparation(effects: { effects.append($0) }),
+      captureRuntime: .init(
+        effects: .init(
+          quiesce: { effects.append("quiesce") },
+          restore: { effects.append("restore") })),
       commitAuthentication: {
         effects.append("commit")
         throw SignOutFailure.injected
-      },
-      applyPostCommitCleanup: { effects.append("cleanup") })
+      })
 
     do {
       _ = try await transaction.execute()
       XCTFail("Injected sign-out failure must be surfaced")
     } catch SignOutFailure.injected {
-      // The owner-scoped setup journal is cleared while its lease is valid, but
-      // capture/default/completion cleanup cannot run until auth commits.
+      // Runtime capture is restored from unchanged intent; persisted owner
+      // projections cannot change until authentication commits.
     } catch {
       XCTFail("Unexpected error: \(error)")
     }
 
-    XCTAssertEqual(effects, ["journal", "commit"])
+    XCTAssertEqual(effects, ["journal", "quiesce", "commit", "restore"])
+    XCTAssertEqual(auth.givenName, "Alice")
+    XCTAssertEqual(auth.familyName, "Owner A")
+  }
+
+  func testSuccessfulSignOutQuiescesBeforeCommitAndClearsNameBeforeTheNextOwner() async throws {
+    var effects: [String] = []
+    let auth = AuthService.shared
+    let previousGivenName = auth.givenName
+    let previousFamilyName = auth.familyName
+    defer {
+      auth.givenName = previousGivenName
+      auth.familyName = previousFamilyName
+    }
+    auth.givenName = "Alice"
+    auth.familyName = "Owner A"
+    let transaction = OnboardingSignOutTransaction(
+      preparation: transactionPreparation(effects: { effects.append($0) }),
+      captureRuntime: .init(
+        effects: .init(
+          quiesce: { effects.append("quiesce") },
+          restore: { effects.append("restore") })),
+      commitAuthentication: {
+        effects.append("commit")
+        return true
+      })
+
+    let didCommit = try await transaction.execute()
+    XCTAssertTrue(didCommit)
+
+    XCTAssertEqual(
+      effects,
+      [
+        "journal", "quiesce", "commit", "transcriptionIntent:false", "transcriptionStopped",
+        "screenIntent:false", "monitoringStopped", "completionReset", "defaultsCleared",
+        "projectionReset", "localNameCleared",
+      ])
+    XCTAssertEqual(auth.givenName, "")
+    XCTAssertEqual(auth.familyName, "")
+    auth.givenName = "Bob"
+    auth.familyName = "Owner B"
+    XCTAssertEqual(auth.givenName, "Bob")
+    XCTAssertEqual(auth.familyName, "Owner B")
   }
 
   func testReplayProjectionCannotLeakIntoTheNextOwner() {
@@ -138,5 +196,25 @@ final class OnboardingPersistenceClearingTests: XCTestCase {
   func testResetAutomationIsUnavailableToProductionFamilyBundles() {
     XCTAssertFalse(OnboardingResetAutomationPolicy.isAvailable(isProductionBundle: true))
     XCTAssertTrue(OnboardingResetAutomationPolicy.isAvailable(isProductionBundle: false))
+  }
+
+  private func transactionPreparation(
+    effects: @escaping (String) -> Void
+  ) -> OnboardingReplayPreparation {
+    OnboardingReplayPreparation(
+      effects: .init(
+        setTranscriptionIntent: { effects("transcriptionIntent:\($0)") },
+        stopTranscription: { effects("transcriptionStopped") },
+        setScreenAnalysisIntent: { effects("screenIntent:\($0)") },
+        stopScreenMonitoring: { effects("monitoringStopped") },
+        resetCompletion: { effects("completionReset") },
+        clearPersistedState: { effects("defaultsCleared") },
+        clearOnboardingJournal: { effects("journal") },
+        resetOnboardingProjection: { effects("projectionReset") },
+        clearLocalNameProjection: {
+          effects("localNameCleared")
+          AuthService.shared.givenName = ""
+          AuthService.shared.familyName = ""
+        }))
   }
 }

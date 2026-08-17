@@ -937,10 +937,9 @@ struct RewindPage: View {
         .scaledFont(size: OmiType.body)
         .foregroundColor(.white.opacity(0.6))
         .multilineTextAlignment(.center)
-
         Button {
           AnalyticsManager.shared.screenCaptureResetClicked(source: "rewind_empty_state")
-          // Re-enable screen analysis so it auto-starts after the restart
+          OnboardingExitPersistence.recordExplicitCapabilityEnablement()
           screenAnalysisEnabled = true
           AssistantSettings.shared.screenAnalysisEnabled = true
           ScreenCaptureService.resetScreenCapturePermissionAndRestart()
@@ -976,7 +975,7 @@ struct RewindPage: View {
           .multilineTextAlignment(.center)
 
         Button {
-          // Re-enable screen analysis so it auto-starts after permission is granted and app restarts
+          OnboardingExitPersistence.recordExplicitCapabilityEnablement()
           screenAnalysisEnabled = true
           AssistantSettings.shared.screenAnalysisEnabled = true
           ScreenCaptureService.requestScreenRecordingAccessAndOpenSettings()
@@ -1381,6 +1380,7 @@ struct RewindPage: View {
       if appState.isTranscribing {
         appState.stopTranscription()
       } else {
+        OnboardingExitPersistence.recordExplicitCapabilityEnablement()
         appState.startTranscription()
       }
     }

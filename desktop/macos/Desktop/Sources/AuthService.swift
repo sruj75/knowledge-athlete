@@ -2435,11 +2435,12 @@ class AuthService {
   func signOut() async throws {
     let sessionAttempt = beginSessionAttempt()
     let signingOutUserID = UserDefaults.standard.string(forKey: .authUserId)
-
-    let onboardingPreparation = OnboardingReplayPreparation.live(
-      appState: AppState.current, chatProvider: ChatProvider.mainInstance)
     let didCommit = try await OnboardingSignOutTransaction(
-      clearCurrentOwnerJournal: { await onboardingPreparation.clearCurrentOwnerJournal() },
+      preparation: .live(
+        appState: AppState.current,
+        chatProvider: ChatProvider.mainInstance,
+        clearLocalNameProjection: { [self] in (givenName, familyName) = ("", "") }),
+      captureRuntime: .live(appState: AppState.current),
       commitAuthentication: { [self] in
         try await commitSignedOutSession(
           attempt: sessionAttempt,
@@ -2451,9 +2452,6 @@ class AuthService {
               log("AuthService: Firebase SDK unavailable; signing out the REST-backed session")
             }
           })
-      },
-      applyPostCommitCleanup: {
-        _ = await onboardingPreparation.execute(source: .signOut, journalAlreadyCleared: true)
       }
     ).execute()
     guard didCommit else {
