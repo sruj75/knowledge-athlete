@@ -54,9 +54,6 @@ struct DesktopHomeView: View {
   }()
   @State private var isSidebarCollapsed: Bool = true
   @AppStorage("currentTierLevel") private var currentTierLevel = 0
-  @AppStorage("onboardingStep") private var onboardingStep = 0
-  @AppStorage("onboardingFurthestStep") private var onboardingFurthestStep = 0
-  @AppStorage("onboardingJustCompleted") private var onboardingJustCompleted = false
   @AppStorage("useLegacyHomeDesign") private var useLegacyHomeDesign = false
   @AppStorage(MemoryHubDestination.storageKey) private var memoryDestinationRawValue =
     MemoryHubDestination.memories.rawValue
@@ -145,8 +142,8 @@ struct DesktopHomeView: View {
           Color.clear
             .frame(width: 0, height: 0)
             .onAppear {
-              if UserDefaults.standard.bool(forKey: "onboardingJustCompleted") {
-                UserDefaults.standard.removeObject(forKey: "onboardingJustCompleted")
+              if UserDefaults.standard.bool(forKey: .onboardingJustCompleted) {
+                UserDefaults.standard.removeObject(forKey: .onboardingJustCompleted)
                 log("DesktopHomeView: Onboarding just completed — landing on Home")
                 // Land on Home in the chat-first layout with the old rail collapsed.
                 selectedIndex = SidebarNavItem.dashboard.rawValue
@@ -250,15 +247,10 @@ struct DesktopHomeView: View {
             .onReceive(NotificationCenter.default.publisher(for: .refreshAllData)) { _ in
               Task { await appState.refreshConversations() }
             }
-            // On sign-out: reset @AppStorage-backed onboarding flag and stop transcription.
-            // hasCompletedOnboarding must be set here (in a View) because @AppStorage
-            // on ObservableObject caches internally and ignores UserDefaults.removeObject().
-            // Stopping transcription here prevents FOREIGN KEY errors from an old
-            // transcription session writing to a new user's database.
+            // The shared sign-out boundary has already stopped capture and reset
+            // setup. This observer releases the remaining account-scoped UI state.
             .onReceive(NotificationCenter.default.publisher(for: .userDidSignOut)) { _ in
-              log(
-                "DesktopHomeView: userDidSignOut — resetting hasCompletedOnboarding and stopping transcription"
-              )
+              log("DesktopHomeView: userDidSignOut — releasing account-scoped UI state")
               resetSessionScopedStartupWarmups()
               appState.conversationRepository.reset()
               appState.folders = []
@@ -269,19 +261,12 @@ struct DesktopHomeView: View {
               appState.conversationsError = nil
               appState.isLoadingConversations = false
               appState.isLoadingFolders = false
-              appState.hasCompletedOnboarding = false
-              appState.stopTranscription()
             }
             .onReceive(NotificationCenter.default.publisher(for: .resetOnboardingRequested)) { _ in
               log(
                 "DesktopHomeView: resetOnboardingRequested — clearing live onboarding state for current app"
               )
               resetSessionScopedStartupWarmups()
-              appState.hasCompletedOnboarding = false
-              onboardingStep = 0
-              onboardingFurthestStep = 0
-              onboardingJustCompleted = false
-              appState.stopTranscription()
             }
             .onReceive(NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)) { _ in
               log("DesktopHomeView: app terminating — cancelling startup warmups")

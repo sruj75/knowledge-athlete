@@ -308,7 +308,7 @@ final class SBOnboardingModel: ObservableObject {
 
   /// Persisted so quitting mid-onboarding (e.g. stepping away to grant a permission
   /// in System Settings) resumes where you left off instead of restarting.
-  static let resumeStepKey = "sbOnboardingResumeStep"
+  static let resumeStepKey = DefaultsKey.onboardingResumeStep.rawValue
 
   func begin() {
     guard thread.isEmpty && streamingText == nil else { return }
@@ -316,8 +316,8 @@ final class SBOnboardingModel: ObservableObject {
     // back to (or resuming at) name/language shows the prior answer instead
     // of an empty field.
     rehydrateDrafts()
-    // Resume where the user left off. Their earlier answers (name, language, role)
-    // were already saved to the backend/settings, so we just re-enter at the saved
+    // Resume where the user left off. Their earlier name and language answers
+    // were already saved to their owning stores, so we just re-enter at the saved
     // step; each permission step re-checks its grant on appear, so a permission
     // granted before the quit shows ✓ rather than prompting again.
     let savedRaw = UserDefaults.standard.integer(forKey: Self.resumeStepKey)
@@ -414,7 +414,7 @@ final class SBOnboardingModel: ObservableObject {
   /// Return to the immediately preceding onboarding stage without discarding
   /// any answer the user already supplied. The conversational transcript stays
   /// intact; the re-rendered widget is the editable source of truth for that
-  /// stage, so a user can revise (for example) Student to Founder.
+  /// stage, so a user can revise an earlier identity or language answer.
   func goBack() {
     guard let previous = step.previous else { return }
     teardownStep(step)

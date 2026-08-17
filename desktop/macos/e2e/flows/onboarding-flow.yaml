@@ -2,56 +2,77 @@ version: 2
 name: onboarding-flow
 tier: manual
 description: >
-  Onboarding orchestration after BYOK removal. Reset into onboarding, walk Goal → Tasks,
-  confirm acquisition stays local with no onboarding-state request, and confirm there is no
-  Bring Your Own Keys step and the 2nd-brain label has no background.
+  Walk the retained conversational setup in a disposable named bundle. Verify identity answers,
+  permission consent, shortcut practice, the screen-and-voice demo, and both listening choices without
+  restoring retired role, connector, Full Disk Access, BYOK, Goal, or Tasks stages.
 app: non-prod
 covers:
-  - desktop/macos/Desktop/Sources/MainWindow/Components/AnimatedGIFView.swift
-  - desktop/macos/Desktop/Sources/MainWindow/Components/DismissableSheet.swift
-  - desktop/macos/Desktop/Sources/MainWindow/Components/FlowLayout.swift
-  - desktop/macos/Desktop/Sources/MainWindow/Components/OverlayModalEscapeCatcher.swift
-  - desktop/macos/Desktop/Sources/Onboarding/OnboardingChatPersistence.swift
-  - desktop/macos/Desktop/Sources/PermissionGuidanceOverlay.swift
   - desktop/macos/Desktop/Sources/Onboarding/OnboardingFlow.swift
-  - desktop/macos/Desktop/Sources/Onboarding/OnboardingPromptSuggestions.swift
+  - desktop/macos/Desktop/Sources/Onboarding/OnboardingExitPolicy.swift
   - desktop/macos/Desktop/Sources/Onboarding/OnboardingAcquisitionSourceRecorder.swift
-  - desktop/macos/Desktop/Sources/PostOnboardingPromptViews.swift
   - desktop/macos/Desktop/Sources/Onboarding/OnboardingAnswerWriteGate.swift
+  - desktop/macos/Desktop/Sources/Onboarding/SecondBrain/OnboardingOpenerComposer.swift
   - desktop/macos/Desktop/Sources/Onboarding/SecondBrain/SBOnboardingView.swift
   - desktop/macos/Desktop/Sources/Onboarding/SecondBrain/SBOnboardingModel.swift
   - desktop/macos/Desktop/Sources/Onboarding/SecondBrain/SBOnboardingModel+Steps.swift
-  - desktop/macos/Desktop/Sources/Onboarding/SecondBrain/OnboardingOpenerComposer.swift
-  - desktop/macos/Desktop/Sources/MainWindow/OnboardingOpenerView.swift
+  - desktop/macos/Desktop/Sources/Providers/ChatProvider+OnboardingJournal.swift
+  - desktop/macos/Desktop/Sources/AppState/AppState+SystemActions.swift
+  - desktop/macos/Desktop/Sources/AuthService.swift
+  - desktop/macos/Desktop/Sources/DesktopAutomationBridge.swift
+  - desktop/macos/Desktop/Sources/LaunchAtLoginManager.swift
+  - desktop/macos/Desktop/Sources/MainWindow/Pages/Settings/Sections/SettingsContentView+Assistants.swift
+  - desktop/macos/Desktop/Sources/Rewind/UI/RewindCaptureState.swift
 preconditions:
+  - named_test_bundle_only
   - automation_bridge_ready
+  - auth_ready
 
 steps:
   - id: S1
-    name: Reset into onboarding
-    do: "Run bridge action reset_onboarding, wait for the app to restart, then reconnect the automation bridge."
+    name: Reset into the retained first stage
+    do: "Run reset_onboarding, wait for the same named bundle to restart, and reconnect its automation port. Verify the promise card begins with 'Hey, I'm Omi, your second brain', offers 'Set up Omi →', and keeps a visible global Skip action."
     expect:
       text_visible:
-        - "What's your name"
+        - "Set up Omi →"
+        - "Skip"
 
   - id: S2
-    name: Record acquisition source locally without a backend write
-    do: "Advance through the name prompt to 'How did you hear about Omi?', start local backend request capture, and choose YouTube. Verify the answer advances immediately to the language question and the request capture contains no /v1/users/onboarding request."
+    name: Save identity answers through their real owners
+    do: "Continue, enter a disposable name, choose YouTube for 'How did you hear about Omi?', and accept or change the spoken language. Verify the acquisition answer advances immediately and backend request capture contains no /v1/users/onboarding request."
     expect:
       text_visible:
-        - "What language should Omi listen and reply in?"
+        - "Let's give me senses. First, your microphone"
 
   - id: S3
-    name: Advance to Goal
-    do: "Skip or complete earlier steps until the Goal screen. Confirm progress reaches Goal without a Bring Your Own Keys / API keys page."
-
-  - id: S4
-    name: Goal continues to Tasks
-    do: "Continue or Skip on Goal. The next screen must be Tasks (not Bring your own keys)."
+    name: Revise an answer with Back
+    do: "From Microphone choose '← Back', change the spoken language, and continue again. Verify the revised language is shown when returning and the next stage is Microphone; no role question appears."
     expect:
       text_visible:
-        - "Take me to Omi"
+        - "Microphone"
+
+  - id: S4
+    name: Permissions never start capture
+    do: "For Microphone, System audio, Screen Recording, and Accessibility, grant or choose 'Skip for now'. After each stage, verify transcription is not running and screen monitoring is not running. Granting consent may update the checkmark but must not start either capture owner before the final listening choice."
 
   - id: S5
-    name: 2nd brain label has no background
-    do: "On any split onboarding step with the graph pane, confirm 'This is your 2nd brain' has no pill fill and no bottom gradient behind the label."
+    name: Shortcut and demo stages stay skippable
+    do: "Walk the open-Omi shortcut, push-to-talk shortcut, and screen-and-voice demo. Verify each shortcut can use 'Skip for now' until exercised and the demo exposes a clearly visible full-width 'Skip for now' while voice is unavailable or unfinished."
+    expect:
+      text_visible:
+        - "Skip for now"
+
+  - id: S6
+    name: Only retained listening choices finish setup
+    do: "At the final disclosure verify the only choices are 'Only during meetings' and 'Start listening — continuously'. Confirm the disclosure names Launch at Login, listening, and screen analysis. Verify no role, connector, Full Disk Access, BYOK, Goal, or Tasks stage appeared anywhere in the run."
+    expect:
+      text_visible:
+        - "Only during meetings"
+        - "Start listening — continuously"
+
+  - id: S7
+    name: Complete with the selected mode and relaunch
+    do: "Choose the run's assigned listening mode. Verify Home appears, completion owns the listening and screen-analysis intents, the setup-only journal is gone, and normal Chat remains. Quit and relaunch the same named bundle; verify it returns to Home without replaying setup."
+
+  - id: S8
+    name: Repeat with the other genuine exit
+    do: "Run S1-S7 a second consecutive time after reset_onboarding, choosing the other listening mode at S7. The first run uses 'Only during meetings'; the second uses 'Start listening — continuously'. Preserve both run reports as S-17 evidence."

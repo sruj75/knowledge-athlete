@@ -1164,7 +1164,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, @unchecked S
 
   @MainActor @objc private func resetOnboarding() {
     AnalyticsManager.shared.menuBarActionClicked(action: "reset_onboarding")
-    (AppState.current ?? AppState()).resetOnboardingAndRestart()
+    (AppState.current ?? AppState()).resetOnboardingAndRestart(source: .statusMenu)
   }
 
   @MainActor @objc private func reportIssue() {
@@ -1174,7 +1174,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, @unchecked S
 
   @MainActor @objc private func signOut() {
     AnalyticsManager.shared.menuBarActionClicked(action: "sign_out")
-    ExplicitSignOutAction().perform(from: .menuBar)
+    ExplicitSignOutAction().perform()
   }
 
   @MainActor @objc private func quitApp() {

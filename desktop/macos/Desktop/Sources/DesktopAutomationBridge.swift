@@ -1362,18 +1362,16 @@ final class DesktopAutomationActionRegistry {
       return await harness.run(timeoutSeconds: timeout)
     }
 
-    // Same code path as the status-menu "Reset Onboarding..." item and the
-    // Settings "Reset & Restart" button — clears onboarding state and restarts
-    // the app. Lets agents exercise the reset→restart→onboarding flow without
-    // driving menus or the cursor.
-    register(
-      name: "reset_onboarding",
-      summary: "Reset onboarding state and restart the app (same path as the Reset Onboarding menu item)"
-    ) { _ in
-      await MainActor.run {
-        (AppState.current ?? AppState()).resetOnboardingAndRestart()
+    if OnboardingResetAutomationPolicy.isAvailable(isProductionBundle: AppBuild.isProductionBundle) {
+      register(
+        name: "reset_onboarding",
+        summary: "Reset onboarding state and restart the app (same path as the Reset Onboarding menu item)"
+      ) { _ in
+        await MainActor.run {
+          (AppState.current ?? AppState()).resetOnboardingAndRestart(source: .automation)
+        }
+        return ["status": "resetting and restarting"]
       }
-      return ["status": "resetting and restarting"]
     }
 
     register(

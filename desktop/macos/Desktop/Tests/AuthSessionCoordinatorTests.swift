@@ -82,9 +82,10 @@ final class AuthSessionCoordinatorTests: XCTestCase {
     let signOutTail = authSource[signOutRange!.lowerBound...]
     let signOutEnd = signOutTail.range(of: "// MARK: - Helper Methods")?.lowerBound ?? signOutTail.endIndex
     let signOutSnippet = String(signOutTail[..<signOutEnd])
-    // Onboarding wipe now routes through the shared clearing helpers
-    // (OnboardingFlow.persistedStateKeys), not a hand-rolled key list.
-    XCTAssertTrue(signOutSnippet.contains("OnboardingFlow.clearPersistedState()"))
+    // Nuclear sign-out uses the same capture-safe setup boundary as replay;
+    // light invalidation must not.
+    XCTAssertTrue(signOutSnippet.contains("OnboardingReplayPreparation.live("))
+    XCTAssertTrue(signOutSnippet.contains("execute(source: .signOut)"))
     XCTAssertTrue(signOutSnippet.contains("userDidSignOut"))
 
     let invalidateRange = authSource.range(of: "func performLightSessionInvalidation()")

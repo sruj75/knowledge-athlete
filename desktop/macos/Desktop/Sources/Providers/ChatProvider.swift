@@ -4267,11 +4267,11 @@ class ChatProvider: ObservableObject {
       // Preserve only a bounded error class in analytics. Raw details stay
       // in the local log and Sentry error above.
       if isOnboarding {
-        let onboardingRole: String
+        let messageOutcome: String
         if !watchdogFired, !toolStallAbortFired, let explicitStopReason {
-          onboardingRole = explicitStopReason == .browserExtensionMissing ? "error" : "cancelled"
+          messageOutcome = explicitStopReason == .browserExtensionMissing ? "error" : "cancelled"
         } else {
-          onboardingRole =
+          messageOutcome =
             ChatQueryFailureDisposition.classify(
               error,
               watchdogFired: watchdogFired,
@@ -4279,10 +4279,10 @@ class ChatProvider: ObservableObject {
             ).presentsUserError ? "error" : "cancelled"
         }
         AnalyticsManager.shared.onboardingChatMessageDetailed(
-          role: onboardingRole,
+          role: messageOutcome,
           text: trimmedText,
           step: "chat",
-          error: onboardingRole == "error" ? String(describing: error) : nil
+          error: messageOutcome == "error" ? String(describing: error) : nil
         )
       }
 

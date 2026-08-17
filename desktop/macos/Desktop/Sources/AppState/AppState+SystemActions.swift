@@ -135,51 +135,21 @@ extension AppState {
       "sleep 0.5 && while kill -0 \(terminatingProcessIdentifier) 2>/dev/null; do sleep 0.1; done && \(openCommand)"
   }
 
-  /// Reset onboarding state for the current app only, then restart.
-  /// This clears onboarding state without touching production data or system permissions.
-  nonisolated func resetOnboardingAndRestart() {
+  /// Reset setup-owned state for the current app only, then restart.
+  /// Normal chats, memories, tasks, Rewind data, auth, and TCC grants remain untouched.
+  nonisolated func resetOnboardingAndRestart(source: OnboardingReplaySource) {
     log("Resetting onboarding state for current app...")
-
-    // Update live @AppStorage-backed state on the main thread *before* clearing
-    // UserDefaults. DesktopHomeView handles .resetOnboardingRequested by setting
-    // hasCompletedOnboarding = false; dispatch synchronously so that runs first.
-    let postResetNotification = {
-      NotificationCenter.default.post(name: .resetOnboardingRequested, object: nil)
-    }
-    if Thread.isMainThread {
-      postResetNotification()
-    } else {
-      DispatchQueue.main.sync(execute: postResetNotification)
-    }
-
-    // Clear onboarding-related UserDefaults keys (thread-safe, after live state).
-    // Shared list with AuthService.signOut so a new onboarding key can't be
-    // forgotten at one site.
-    OnboardingFlow.clearPersistedState()
-    // hasCompletedOnboarding lives on AppState (@AppStorage on an
-    // ObservableObject); the .resetOnboardingRequested handler above set it to
-    // false, this drops the persisted key before the restart.
-    UserDefaults.standard.removeObject(forKey: DefaultsKey.hasCompletedOnboarding)
-    UserDefaults.standard.synchronize()
-    log("Cleared onboarding UserDefaults keys")
-
     Task { @MainActor [self] in
-      // Clear only setup-owned local conversation state. A re-walkthrough must
-      // never mutate the user's normal local or backend chat history.
-      if let chatProvider = ChatProvider.mainInstance {
-        if await chatProvider.clearOnboardingJournal() {
-          log("Cleared onboarding journal")
-        } else {
-          log("Failed to clear onboarding journal")
-        }
-      } else {
-        log("Onboarding journal reset deferred: main chat provider unavailable")
-      }
+      let plan = await OnboardingReplayPreparation.live(
+        appState: self,
+        chatProvider: ChatProvider.mainInstance
+      ).execute(source: source)
+      NotificationCenter.default.post(name: .resetOnboardingRequested, object: nil)
 
       try? await Task.sleep(nanoseconds: 150_000_000)
-      // Keep onboarding reset scoped to the current app instance.
-      // It must not mutate production defaults, shared local data, or TCC permissions.
-      self.restartApp()
+      if plan.shouldRestart {
+        self.restartApp()
+      }
     }
   }
 

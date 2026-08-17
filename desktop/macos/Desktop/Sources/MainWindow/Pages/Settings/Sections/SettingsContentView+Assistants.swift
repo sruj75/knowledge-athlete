@@ -1154,11 +1154,11 @@ extension SettingsContentView {
       .alert("Reset Onboarding?", isPresented: $showResetOnboardingAlert) {
         Button("Cancel", role: .cancel) {}
         Button("Reset & Restart", role: .destructive) {
-          appState.resetOnboardingAndRestart()
+          appState.resetOnboardingAndRestart(source: .settings)
         }
       } message: {
         Text(
-          "This will reset onboarding for this app build only, clear onboarding chat history, and restart the app without affecting the other installed build."
+          "This will reset onboarding for this app build only, clear the setup-only journal, and restart the app without affecting normal app data or the other installed build."
         )
       }
     }

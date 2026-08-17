@@ -1,27 +1,48 @@
 version: 2
 name: onboarding-smoke
 tier: manual
-description: "Manual only: reset_onboarding restarts the app. State corruption fixed in Wave 7 — run twice locally before promoting to T2."
+description: >
+  Destructive named-bundle smoke for capture-safe reset, same-bundle restart, completion persistence,
+  and two consecutive retained onboarding exits. It remains manual because it changes setup state and
+  may exercise macOS permission UI.
 app: non-prod
 covers:
   - desktop/macos/Desktop/Sources/Onboarding/OnboardingFlow.swift
   - desktop/macos/Desktop/Sources/DesktopAutomationBridge.swift
   - desktop/macos/Desktop/Sources/AppState/AppState+SystemActions.swift
   - desktop/macos/Desktop/Sources/OmiApp.swift
+  - desktop/macos/Desktop/Sources/AuthService.swift
   - desktop/macos/Desktop/Sources/Providers/ChatProvider+OnboardingJournal.swift
 preconditions:
+  - named_test_bundle_only
   - automation_bridge_ready
   - auth_ready
 
 steps:
   - id: S1
-    name: Document reset path (manual — app restart)
-    do: "Manual probe only: `./scripts/omi-ctl action reset_onboarding` (same path as tray Reset Onboarding). Wave 7 fixed @AppStorage writeback ordering and uses AppState.current. App restarts into onboarding step 0. Keep manual until green twice locally."
-    expect:
-      interactive_count: { min: 0 }
+    name: Seed retained normal data
+    do: "In a disposable named bundle, note one normal Chat conversation and the current local conversation, memory, task, and Rewind counts. These are negative controls and must survive both resets."
 
   - id: S2
-    name: Expected post-reset surface
-    do: "After restart, verify onboarding welcome / first step is visible. Promote to T2 only after two consecutive local greens."
+    name: Reset stops capture before replay
+    do: "Run reset_onboarding and wait for the same named bundle to restart on the promise stage. Verify transcription and screen-analysis intents are off, neither capture owner is running, completion is false, and reset_onboarding remains listed only for this non-production bundle."
     expect:
-      interactive_count: { min: 1 }
+      text_visible:
+        - "Set up Omi →"
+        - "Skip"
+
+  - id: S3
+    name: First run uses meeting-only listening
+    do: "Walk every retained stage from onboarding-flow.yaml, including Back revision and permission-no-start checks. Choose 'Only during meetings', verify Home and the opener, then quit and relaunch the same bundle and verify completion persists."
+
+  - id: S4
+    name: Second reset preserves ordinary data
+    do: "Run reset_onboarding again. Verify the setup-only journal and retained setup answers are cleared, while the normal Chat conversation and the recorded conversation, memory, task, and Rewind counts are unchanged."
+
+  - id: S5
+    name: Second run uses continuous listening
+    do: "Walk every retained stage again and choose 'Start listening — continuously'. Verify Home, the opener, active continuous listening subject to existing access gates, then quit and relaunch the same bundle and verify completion persists."
+
+  - id: S6
+    name: Two-run absence and isolation gate
+    do: "Across both reports verify no role, connector, Full Disk Access, BYOK, Goal, or Tasks stage appeared; permission grants never started capture before completion; and the second run did not inherit the first run's acquisition or resume answer."

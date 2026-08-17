@@ -4,27 +4,13 @@ import XCTest
 
 @MainActor
 final class ExplicitSignOutActionTests: XCTestCase {
-  func testMenuBarStopsMonitoringBeforeSigningOutWithoutChangingCapture() async {
+  func testActionDelegatesAllCleanupToTheSharedSignOutBoundary() async {
     var events: [String] = []
     let action = ExplicitSignOutAction(
-      stopTranscription: { events.append("stop_transcription") },
-      stopMonitoring: { events.append("stop_monitoring") },
       signOut: { events.append("sign_out") })
 
-    await action.perform(from: .menuBar).value
+    await action.perform().value
 
-    XCTAssertEqual(events, ["stop_monitoring", "sign_out"])
-  }
-
-  func testSettingsStopsCaptureAndMonitoringBeforeSigningOut() async {
-    var events: [String] = []
-    let action = ExplicitSignOutAction(
-      stopTranscription: { events.append("stop_transcription") },
-      stopMonitoring: { events.append("stop_monitoring") },
-      signOut: { events.append("sign_out") })
-
-    await action.perform(from: .settings).value
-
-    XCTAssertEqual(events, ["stop_transcription", "stop_monitoring", "sign_out"])
+    XCTAssertEqual(events, ["sign_out"])
   }
 }

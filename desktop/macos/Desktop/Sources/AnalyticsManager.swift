@@ -91,10 +91,6 @@ class AnalyticsManager {
 
   // MARK: - Onboarding Events
 
-  func onboardingStepCompleted(step: Int, stepName: String) {
-    PostHogManager.shared.onboardingStepCompleted(step: step, stepName: stepName)
-  }
-
   func onboardingHowDidYouHear(source: String) {
     let props: [String: Any] = ["source": source, "is_referral": source == "Friend"]
     PostHogManager.shared.track("Onboarding How Did You Hear", properties: props)

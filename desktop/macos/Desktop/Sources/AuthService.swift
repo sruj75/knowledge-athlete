@@ -2436,6 +2436,15 @@ class AuthService {
   func signOut() async throws {
     let sessionAttempt = beginSessionAttempt()
     let signingOutUserID = UserDefaults.standard.string(forKey: .authUserId)
+
+    // Clear the current owner's setup journal while its owner lease is still
+    // valid. The shared boundary also disables capture before any replay state
+    // changes, so sign-out cannot leave either capture mode running.
+    _ = await OnboardingReplayPreparation.live(
+      appState: AppState.current,
+      chatProvider: ChatProvider.mainInstance
+    ).execute(source: .signOut)
+
     guard
       try await commitSignedOutSession(
         attempt: sessionAttempt,
@@ -2476,21 +2485,8 @@ class AuthService {
     }
     TrialBannerService.shared.stop()
 
-    // Notify observers (DesktopHomeView) to reset @AppStorage-backed properties directly.
-    // Using removeObject() on @AppStorage properties doesn't work because the cached value
-    // in AppState (an ObservableObject, not a View) gets written back immediately.
+    // Notify observers to release the remaining account-scoped UI projections.
     NotificationCenter.default.post(name: .userDidSignOut, object: nil)
-
-    // Clear non-@AppStorage onboarding keys via UserDefaults (these work fine).
-    // Shared list with resetOnboardingAndRestart so a new onboarding key
-    // can't be forgotten at one site and leak to the next account.
-    OnboardingFlow.clearPersistedState()
-
-    // screenAnalysisEnabled: Don't removeObject here — SettingsSyncManager overwrites
-    // it from the server within ~200ms of sign-in. Instead, onboarding force-starts
-    // monitoring regardless of this setting.
-    // transcriptionEnabled: removeObject works since nothing writes it back.
-    UserDefaults.standard.removeObject(forKey: "transcriptionEnabled")
 
     NSLog("OMI AUTH: Signed out and cleared saved state + onboarding")
   }
