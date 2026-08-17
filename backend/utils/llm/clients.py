@@ -4,7 +4,6 @@ from functools import lru_cache
 from typing import Any, Callable, Dict, List, Optional
 
 import anthropic
-import httpx
 
 try:
     from langchain_core.callbacks import BaseCallbackHandler

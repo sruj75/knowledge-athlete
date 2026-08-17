@@ -26,8 +26,8 @@ def test_neighboring_desktop_routes_keep_their_existing_contracts() -> None:
     desktop_client = TestClient(desktop_backend.app, raise_server_exceptions=False)
 
     proxy_path = "/v1/proxy/gemini/models/gemini-2.5-flash:generateContent"
-    assert main_client.post(proxy_path, json={}).status_code == 401
-    assert desktop_client.post(proxy_path, json={}).status_code == 401
-    assert desktop_client.get("/health").status_code == 200
-    assert desktop_client.post("/v2/chat/completions").status_code == 401
-    assert desktop_client.post("/v2/realtime/session").status_code == 401
+    for client in (main_client, desktop_client):
+        assert client.post(proxy_path, json={}).status_code == 401
+        assert client.get("/health").status_code == 200
+        assert client.post("/v2/chat/completions").status_code == 401
+        assert client.post("/v2/realtime/session").status_code == 401

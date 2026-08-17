@@ -10,7 +10,7 @@ final class SettingsSearchContractTests: XCTestCase {
     XCTAssertFalse(settingIDs.contains("advanced.troubleshooting.rescanfiles"))
   }
 
-  func testSearchCatalogMatchesAvailableRewindAndTranscriptionDestinations() {
+  func testSearchCatalogRemovesRetiredEntriesAndPreservesAvailableDestinations() {
     let settingIDs = Set(SettingsSearchItem.allSearchableItems.map(\.settingId))
 
     let retiredSettingIDs: Set<String> = [
