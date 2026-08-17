@@ -93,7 +93,6 @@ class UserProfileResponse(BaseModel):
 
     uid: str
     email: Optional[str] = None
-    name: Optional[str] = None
     time_zone: Optional[str] = None
     created_at: Optional[datetime] = None
     motivation: Optional[str] = None
@@ -202,6 +201,7 @@ def get_user_profile_endpoint(uid: str = Depends(auth.get_current_user_uid)):
     profile = get_user_profile(uid)
     if not profile:
         raise HTTPException(status_code=410, detail="User not found")
+    profile.pop('name', None)
     profile.setdefault('uid', uid)
     return profile
 

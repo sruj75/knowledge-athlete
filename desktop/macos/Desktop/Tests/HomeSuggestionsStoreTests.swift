@@ -7,8 +7,7 @@ import XCTest
 final class HomeSuggestionComposerTests: XCTestCase {
   func testComposeUsesPersonalizedPairAfterUniversalFirst() {
     let chips = HomeSuggestionComposer.compose(
-      personalized: ["How do I unblock the Atlas launch?", "Is the hiring loop for EE on track?"],
-      onboarding: ["What email follow-ups matter most today?"]
+      personalized: ["How do I unblock the Atlas launch?", "Is the hiring loop for EE on track?"]
     )
 
     XCTAssertEqual(
@@ -21,23 +20,9 @@ final class HomeSuggestionComposerTests: XCTestCase {
     )
   }
 
-  func testComposeFallsBackToOnboardingThenStatic() {
-    let onboardingSaved = [
-      "What should I focus on today to achieve my goals?",
-      "What email follow-ups matter most today?",
-      "Where can I find focus time this week?",
-    ]
+  func testComposeFallsBackToStaticQuestions() {
     XCTAssertEqual(
-      HomeSuggestionComposer.compose(personalized: [], onboarding: onboardingSaved),
-      [
-        "What should I do today?",
-        "What email follow-ups matter most today?",
-        "Where can I find focus time this week?",
-      ]
-    )
-
-    XCTAssertEqual(
-      HomeSuggestionComposer.compose(personalized: [], onboarding: []),
+      HomeSuggestionComposer.compose(personalized: []),
       [
         "What should I do today?",
         "What did I spend my time on this week?",
@@ -48,8 +33,7 @@ final class HomeSuggestionComposerTests: XCTestCase {
 
   func testComposeTopsUpSinglePersonalizedQuestionFromFallbacks() {
     let chips = HomeSuggestionComposer.compose(
-      personalized: ["How do I unblock the Atlas launch?"],
-      onboarding: []
+      personalized: ["How do I unblock the Atlas launch?"]
     )
 
     XCTAssertEqual(

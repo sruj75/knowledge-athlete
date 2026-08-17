@@ -29,7 +29,7 @@ extension SettingsContentView {
             Spacer()
 
             Button("Sign Out") {
-              ExplicitSignOutAction(stopTranscription: { appState.stopTranscription() }).perform(from: .settings)
+              ExplicitSignOutAction().perform()
             }
             .buttonStyle(OmiButtonStyle(.primary, size: .compact))
             .disabled(isDeletingAccount)

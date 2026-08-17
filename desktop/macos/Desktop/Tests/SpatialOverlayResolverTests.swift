@@ -38,6 +38,27 @@ final class SpatialOverlayResolverTests: XCTestCase {
     XCTAssertEqual(resolution.candidate.id, "add-ax")
   }
 
+  func testResolverFallsBackToCGWindowCandidateWhenAccessibilityIsUnavailable() throws {
+    let fallback = candidate(
+      id: "add-cg-window",
+      rect: CGRect(x: 1180, y: 160, width: 80, height: 36),
+      source: .cgWindowList,
+      confidence: 0.9,
+      uses: [.displayGuidance]
+    )
+    let snapshot = SpatialOverlayDesktopSnapshot(screens: [screen], candidates: [fallback])
+
+    let resolution = try SpatialOverlayAnchorResolver()
+      .resolve(
+        SpatialOverlayAnchorSpec(
+          id: "add.guidance", use: .displayGuidance, minimumConfidence: 0.5),
+        in: snapshot
+      )
+      .get()
+
+    XCTAssertEqual(resolution.candidate.id, "add-cg-window")
+  }
+
   func testResolverAppliesConfidenceThresholdBeforeSourceRanking() throws {
     let lowConfidenceAX = candidate(
       id: "add-ax-low",

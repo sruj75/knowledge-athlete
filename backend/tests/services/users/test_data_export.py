@@ -73,7 +73,11 @@ finally:
 
 def test_iter_user_data_export_streams_all_top_level_sections(monkeypatch):
     now = datetime(2026, 1, 2, 3, 4, 5, tzinfo=timezone.utc)
-    monkeypatch.setattr(data_export, 'get_user_profile', MagicMock(return_value={'created_at': now}))
+    monkeypatch.setattr(
+        data_export,
+        'get_user_profile',
+        MagicMock(return_value={'name': 'Legacy Firestore Name', 'created_at': now}),
+    )
     monkeypatch.setattr(data_export.memories_db, 'get_non_filtered_memories', MagicMock(return_value=[{'id': 'mem1'}]))
     monkeypatch.setattr(data_export, 'get_people', MagicMock(return_value=[{'id': 'person1'}]))
     monkeypatch.setattr(data_export, 'get_standalone_action_items', MagicMock(return_value=[{'id': 'task1'}]))

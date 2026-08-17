@@ -16,6 +16,13 @@ extension SBOnboardingModel {
       return
     }
 
+    permissionEffectRecorder(.requested(key))
+    if let permissionRequester {
+      setPermWaiting(key)
+      permissionRequester(key)
+      return
+    }
+
     switch key {
     case "microphone":
       micState = .waiting
@@ -95,7 +102,7 @@ extension SBOnboardingModel {
           // A real process-tap attempt is the only truthful preflight for
           // system audio. It completes without another prompt when consent was
           // already granted, so reconcile it before asking the user again.
-          let granted = await self.appState.primeSystemAudioPermission()
+          let granted = await self.resolveSystemAudioConsent()
           guard !Task.isCancelled else { return }
           guard granted else {
             self.resetPermToAsk("system_audio")
@@ -119,6 +126,11 @@ extension SBOnboardingModel {
 
   /// Re-probe a single permission (each check writes the matching AppState flag).
   private func refreshPermCheck(_ key: String) {
+    permissionEffectRecorder(.checked(key))
+    if let permissionRefresher {
+      permissionRefresher(key)
+      return
+    }
     switch key {
     case "microphone": appState.checkMicrophonePermission()
     case "system_audio":
@@ -154,12 +166,16 @@ extension SBOnboardingModel {
   func primeScreenCaptureConsentIfNeeded() {
     guard !didPrimeScreenCapture else { return }
     didPrimeScreenCapture = true
-    if #available(macOS 14.0, *) {
-      Task.detached { await ScreenCaptureService.primeCaptureConsent() }
-    }
+    permissionEffectRecorder(.primedScreenCapture)
+    screenCapturePrimer()
+  }
+
+  func resolveSystemAudioConsent() async -> Bool {
+    await systemAudioPrimer(appState)
   }
 
   func isGranted(_ key: String) -> Bool {
+    if let permissionGranted { return permissionGranted(key) }
     switch key {
     case "microphone": return appState.hasMicrophonePermission
     case "system_audio":
@@ -171,6 +187,7 @@ extension SBOnboardingModel {
   }
 
   func setPermOn(_ key: String) {
+    permissionEffectRecorder(.granted(key))
     switch key {
     case "microphone": micState = .on
     case "system_audio":
@@ -198,6 +215,16 @@ extension SBOnboardingModel {
     }
   }
 
+  private func setPermWaiting(_ key: String) {
+    switch key {
+    case "microphone": micState = .waiting
+    case "system_audio": sysState = .waiting
+    case "screen_recording": scrState = .waiting
+    case "accessibility": accState = .waiting
+    default: break
+    }
+  }
+
   func permState(_ key: String) -> PermState {
     switch key {
     case "microphone": return micState
@@ -218,6 +245,7 @@ extension SBOnboardingModel {
   /// already moved past.
   func autoAdvanceIfCurrent(_ key: String) {
     guard permissionKey(for: step) == key, permState(key) == .on else { return }
+    let previous = step
     switch step {
     case .mic: answerMic()
     case .systemAudio: answerSystemAudio()
@@ -225,6 +253,7 @@ extension SBOnboardingModel {
     case .accessibility: answerAccessibility()
     default: break
     }
+    permissionEffectRecorder(.advanced(from: previous, to: step))
   }
 
   /// The permission key a step gates on, or nil for non-permission steps.
@@ -247,7 +276,7 @@ extension SBOnboardingModel {
     var step = target
     while let key = permissionKey(for: step) {
       refreshPermCheck(key)
-      guard isGranted(key), let next = Step(rawValue: step.rawValue + 1) else { break }
+      guard isGranted(key), let next = step.next else { break }
       setPermOn(key)
       step = next
     }

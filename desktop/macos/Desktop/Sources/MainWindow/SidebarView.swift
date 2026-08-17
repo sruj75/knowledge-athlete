@@ -937,6 +937,7 @@ struct SidebarView: View {
     if enabled && !appState.hasMicrophonePermission {
       return
     }
+    if enabled { OnboardingExitPersistence.recordExplicitCapabilityEnablement() }
 
     // Show loading immediately
     isTogglingTranscription = true
@@ -970,6 +971,7 @@ struct SidebarView: View {
       ScreenCaptureService.requestScreenRecordingAccessAndOpenSettings()
       return
     }
+    if enabled { OnboardingExitPersistence.recordExplicitCapabilityEnablement() }
 
     // Show loading immediately and update state optimistically
     isTogglingMonitoring = true

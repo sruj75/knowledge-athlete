@@ -69,8 +69,6 @@ const TASK_WRITE_TOOLS = new Set([
   "delete_task",
   "create_action_item",
   "update_action_item",
-  "set_user_preferences",
-  "complete_onboarding",
 ]);
 const SCREEN_IMAGE_TOOLS = new Set(["get_screenshot", "capture_screen"]);
 const SCREEN_SUMMARY_TOOLS = new Set(["semantic_search", "get_work_context"]);

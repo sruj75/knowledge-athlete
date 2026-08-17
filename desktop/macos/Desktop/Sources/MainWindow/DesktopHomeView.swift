@@ -10,12 +10,22 @@ private struct AnySendableBox: @unchecked Sendable { let value: Any? }
 /// settings sync therefore both need to reconcile the two states instead of using
 /// a one-time readiness check as the source of truth.
 enum PersistedCaptureLaunchPolicy {
-  static func shouldStartTranscription(intentEnabled: Bool, isTranscribing: Bool) -> Bool {
-    intentEnabled && !isTranscribing
+  static func transcriptionModeToRestore(
+    intentEnabled: Bool,
+    isTranscribing: Bool,
+    persistedMode: AssistantSettings.SystemAudioCaptureMode,
+    onboardingExitOutcome: OnboardingPersistedExitOutcome?
+  ) -> AssistantSettings.SystemAudioCaptureMode? {
+    guard onboardingExitOutcome != .skipped, intentEnabled, !isTranscribing else { return nil }
+    return persistedMode
   }
 
-  static func shouldStartScreenAnalysis(intentEnabled: Bool, isMonitoring: Bool) -> Bool {
-    intentEnabled && !isMonitoring
+  static func shouldStartScreenAnalysis(
+    intentEnabled: Bool,
+    isMonitoring: Bool,
+    onboardingExitOutcome: OnboardingPersistedExitOutcome?
+  ) -> Bool {
+    onboardingExitOutcome != .skipped && intentEnabled && !isMonitoring
   }
 }
 
@@ -44,9 +54,6 @@ struct DesktopHomeView: View {
   }()
   @State private var isSidebarCollapsed: Bool = true
   @AppStorage("currentTierLevel") private var currentTierLevel = 0
-  @AppStorage("onboardingStep") private var onboardingStep = 0
-  @AppStorage("onboardingFurthestStep") private var onboardingFurthestStep = 0
-  @AppStorage("onboardingJustCompleted") private var onboardingJustCompleted = false
   @AppStorage("useLegacyHomeDesign") private var useLegacyHomeDesign = false
   @AppStorage(MemoryHubDestination.storageKey) private var memoryDestinationRawValue =
     MemoryHubDestination.memories.rawValue
@@ -57,7 +64,6 @@ struct DesktopHomeView: View {
   // Settings sidebar state
   @State private var selectedSettingsSection: SettingsContentView.SettingsSection = .general
   @State private var highlightedSettingId: String? = nil
-  @State private var showTryAskingPopup = false
   @State private var previousIndexBeforeSettings: Int = 0
   @State private var logoPulse = false
   @State private var lastActivationRefresh = Date.distantPast
@@ -136,8 +142,8 @@ struct DesktopHomeView: View {
           Color.clear
             .frame(width: 0, height: 0)
             .onAppear {
-              if UserDefaults.standard.bool(forKey: "onboardingJustCompleted") {
-                UserDefaults.standard.removeObject(forKey: "onboardingJustCompleted")
+              if UserDefaults.standard.bool(forKey: .onboardingJustCompleted) {
+                UserDefaults.standard.removeObject(forKey: .onboardingJustCompleted)
                 log("DesktopHomeView: Onboarding just completed — landing on Home")
                 // Land on Home in the chat-first layout with the old rail collapsed.
                 selectedIndex = SidebarNavItem.dashboard.rawValue
@@ -189,37 +195,6 @@ struct DesktopHomeView: View {
               // Check all permissions on launch
               appState.checkAllPermissions()
 
-              // Migration: one-time reset for users whose screenAnalysisEnabled
-              // was incorrectly set to false by a bug in syncMonitoringState() that
-              // persisted false whenever monitoring stopped for any reason.
-              // v2: re-run because the root cause (syncMonitoringState disabling the
-              // setting) was only fixed in this release, so v1 users got re-broken.
-              let migrationKey = "screenAnalysisAutoStartFixed_v2"
-              if !UserDefaults.standard.bool(forKey: migrationKey) {
-                UserDefaults.standard.set(true, forKey: "screenAnalysisEnabled")
-                AssistantSettings.shared.screenAnalysisEnabled = true
-                UserDefaults.standard.set(true, forKey: migrationKey)
-                log(
-                  "DesktopHomeView: Applied screenAnalysisAutoStart v2 migration — reset to enabled"
-                )
-                // Push true to server so syncFromServer() doesn't revert it
-                Task { await SettingsSyncManager.shared.syncToServer() }
-              }
-
-              // Named development bundles used to seed screen analysis off to
-              // avoid permission prompts. Screen capture no longer requests
-              // TCC during startup, so restore the default once: a granted
-              // named-bundle permission must actually begin storing frames.
-              let quietBundleCaptureMigrationKey = "screenAnalysisAutoStartFixed_v3"
-              if RewindCaptureState.shouldRepairQuietBundleCaptureDefault(
-                usesLazyDevPermissions: AppBuild.usesLazyDevPermissions,
-                migrationApplied: UserDefaults.standard.bool(forKey: quietBundleCaptureMigrationKey)
-              ) {
-                AssistantSettings.shared.screenAnalysisEnabled = true
-                UserDefaults.standard.set(true, forKey: quietBundleCaptureMigrationKey)
-                log("DesktopHomeView: Restored screen capture default for quiet named bundle")
-              }
-
               restorePersistedCaptureServices(reason: "launch")
 
               // Set up floating control bar. Product invariant: normal signed-in
@@ -266,15 +241,10 @@ struct DesktopHomeView: View {
             .onReceive(NotificationCenter.default.publisher(for: .refreshAllData)) { _ in
               Task { await appState.refreshConversations() }
             }
-            // On sign-out: reset @AppStorage-backed onboarding flag and stop transcription.
-            // hasCompletedOnboarding must be set here (in a View) because @AppStorage
-            // on ObservableObject caches internally and ignores UserDefaults.removeObject().
-            // Stopping transcription here prevents FOREIGN KEY errors from an old
-            // transcription session writing to a new user's database.
+            // The shared sign-out boundary has already stopped capture and reset
+            // setup. This observer releases the remaining account-scoped UI state.
             .onReceive(NotificationCenter.default.publisher(for: .userDidSignOut)) { _ in
-              log(
-                "DesktopHomeView: userDidSignOut — resetting hasCompletedOnboarding and stopping transcription"
-              )
+              log("DesktopHomeView: userDidSignOut — releasing account-scoped UI state")
               resetSessionScopedStartupWarmups()
               appState.conversationRepository.reset()
               appState.folders = []
@@ -285,19 +255,12 @@ struct DesktopHomeView: View {
               appState.conversationsError = nil
               appState.isLoadingConversations = false
               appState.isLoadingFolders = false
-              appState.hasCompletedOnboarding = false
-              appState.stopTranscription()
             }
             .onReceive(NotificationCenter.default.publisher(for: .resetOnboardingRequested)) { _ in
               log(
                 "DesktopHomeView: resetOnboardingRequested — clearing live onboarding state for current app"
               )
               resetSessionScopedStartupWarmups()
-              appState.hasCompletedOnboarding = false
-              onboardingStep = 0
-              onboardingFurthestStep = 0
-              onboardingJustCompleted = false
-              appState.stopTranscription()
             }
             .onReceive(NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)) { _ in
               log("DesktopHomeView: app terminating — cancelling startup warmups")
@@ -578,25 +541,21 @@ struct DesktopHomeView: View {
   /// flag prevents SBOnboardingModel from mounting.
   private var hasCompletedOnboardingAtAuthorityRead: Bool {
     let completed = appState.hasCompletedOnboarding
-    guard completed else { return false }
     let savedRaw = UserDefaults.standard.integer(forKey: SBOnboardingModel.resumeStepKey)
-    if savedRaw > SBOnboardingModel.Step.promise.rawValue,
-      SBOnboardingModel.Step(rawValue: savedRaw) != nil
-    {
+    let resolution = OnboardingSetupAuthorityPolicy.resolve(
+      hasCompletedOnboarding: completed,
+      hasActiveStage: false,
+      hasPersistedResume: savedRaw > SBOnboardingModel.Step.promise.rawValue
+        && SBOnboardingModel.Step.resumeTarget(forPersistedRawValue: savedRaw) != nil,
+      hasActiveJournal: viewModelContainer.chatProvider.isOnboarding)
+    for disagreement in resolution.disagreements {
       DesktopDiagnosticsManager.shared.recordStateAuthoritySignal(
         seam: .onboardingSetupState,
-        from: "completed_flag",
-        to: "persisted_resume",
-        direction: "completed_flag_with_resume_state")
+        from: disagreement.source.rawValue,
+        to: disagreement.target.rawValue,
+        direction: disagreement.direction)
     }
-    if viewModelContainer.chatProvider.isOnboarding {
-      DesktopDiagnosticsManager.shared.recordStateAuthoritySignal(
-        seam: .onboardingSetupState,
-        from: "completed_flag",
-        to: "setup_journal",
-        direction: "completed_flag_with_active_journal")
-    }
-    return true
+    return resolution.hasCompletedOnboarding
   }
 
   private func reportAutomationState() {
@@ -798,11 +757,14 @@ struct DesktopHomeView: View {
 
   private func restorePersistedCaptureServices(reason: String) {
     let settings = AssistantSettings.shared
-    if PersistedCaptureLaunchPolicy.shouldStartTranscription(
+    let onboardingExitOutcome = OnboardingExitPersistence.outcome()
+    if let mode = PersistedCaptureLaunchPolicy.transcriptionModeToRestore(
       intentEnabled: settings.transcriptionEnabled,
-      isTranscribing: appState.isTranscribing
+      isTranscribing: appState.isTranscribing,
+      persistedMode: settings.systemAudioCaptureMode,
+      onboardingExitOutcome: onboardingExitOutcome
     ) {
-      log("DesktopHomeView: Restoring transcription from persisted intent (\(reason))")
+      log("DesktopHomeView: Restoring transcription in \(mode.rawValue) mode from persisted intent (\(reason))")
       // Local transcription does not require remote API keys. AppState owns the
       // permission and provider checks, so it remains the single start boundary.
       appState.startTranscription()
@@ -812,7 +774,8 @@ struct DesktopHomeView: View {
     guard
       PersistedCaptureLaunchPolicy.shouldStartScreenAnalysis(
         intentEnabled: settings.screenAnalysisEnabled,
-        isMonitoring: plugin.isMonitoring
+        isMonitoring: plugin.isMonitoring,
+        onboardingExitOutcome: onboardingExitOutcome
       )
     else { return }
 
@@ -971,30 +934,6 @@ struct DesktopHomeView: View {
     .padding(OmiSpacing.md)
   }
 
-  // The "Try asking" popup overlay content, split out so the overlay closure
-  // above it stays a small expression for the type checker.
-  @ViewBuilder
-  private var tryAskingPopupOverlay: some View {
-    if showTryAskingPopup {
-      let suggestions = PostOnboardingPromptSuggestions.suggestions()
-      if !suggestions.isEmpty {
-        TryAskingPopupView(
-          suggestions: suggestions,
-          onAsk: { suggestion in
-            showTryAskingPopup = false
-            PostOnboardingPromptSuggestions.shouldShowPopup = false
-            FloatingControlBarManager.shared.openAIInputWithQuery(suggestion)
-          },
-          onDismiss: {
-            showTryAskingPopup = false
-            PostOnboardingPromptSuggestions.shouldShowPopup = false
-            PostOnboardingPromptSuggestions.isDismissed = true
-          }
-        )
-      }
-    }
-  }
-
   private var mainContentWithOverlays: some View {
     HStack(spacing: 0) {
       sidebarSlot
@@ -1003,9 +942,6 @@ struct DesktopHomeView: View {
     .overlay {
       // Goal completion celebration overlay
       GoalCelebrationView()
-    }
-    .overlay {
-      tryAskingPopupOverlay
     }
   }
 
@@ -1017,9 +953,6 @@ struct DesktopHomeView: View {
   // in Swift's SwiftUI diagnostics for this well-known compiler limitation.
   private var mainContentWithNavigationNotifications: some View {
     mainContentWithOverlays
-      .onReceive(NotificationCenter.default.publisher(for: .showTryAskingPopup)) { _ in
-        showTryAskingPopup = true
-      }
       .onReceive(NotificationCenter.default.publisher(for: .navigateToRewindSettings)) { _ in
         // Set the section directly and navigate to settings
         selectedSettingsSection = .rewind

@@ -91,23 +91,13 @@ class AnalyticsManager {
 
   // MARK: - Onboarding Events
 
-  func onboardingStepCompleted(step: Int, stepName: String) {
-    PostHogManager.shared.onboardingStepCompleted(step: step, stepName: stepName)
-  }
-
   func onboardingHowDidYouHear(source: String) {
     let props: [String: Any] = ["source": source, "is_referral": source == "Friend"]
     PostHogManager.shared.track("Onboarding How Did You Hear", properties: props)
   }
 
-  func onboardingCompleted() {
-    PostHogManager.shared.onboardingCompleted()
-  }
-
-  func onboardingChatToolUsed(tool: String, properties: [String: Any] = [:]) {
-    var props = properties
-    props["tool"] = ChatTelemetryDimension.toolName(tool)
-    PostHogManager.shared.track("Onboarding Chat Tool Used", properties: props)
+  func onboardingExit(_ outcome: OnboardingExitAnalyticsOutcome) {
+    PostHogManager.shared.track(outcome.eventName)
   }
 
   func onboardingChatMessage(role: String, step: String) {

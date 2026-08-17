@@ -10,12 +10,10 @@ from database import users as users_db
 from database.action_items import get_action_item_ids
 from database.conversations import get_conversation_ids
 from database.memories import get_memory_ids
-from database.screen_activity import get_screen_activity_ids
 from database.vector_db import (
     delete_action_item_vectors_batch,
     delete_conversation_vectors_batch,
     delete_memory_vectors_batch,
-    delete_screen_activity_vectors,
     delete_transcript_chunk_vectors_batch,
 )
 from utils.billing.service import cancel_subscription_for_account_deletion
@@ -115,16 +113,6 @@ def purge_derived_user_data(uid: str) -> PurgeResult:
     except Exception as e:
         record_failure('required_failures', 'action_item_vectors', e)
         logger.error(f'delete_account purge action item vectors failed for {uid}: {sanitize(str(e))}')
-
-    try:
-        screen_activity_ids = get_screen_activity_ids(uid)
-        if screen_activity_ids:
-            require_vector_index('screen_activity_vectors')
-            delete_screen_activity_vectors(uid, screen_activity_ids)
-            result['vectors_deleted'] += len(screen_activity_ids)
-    except Exception as e:
-        record_failure('required_failures', 'screen_activity_vectors', e)
-        logger.error(f'delete_account purge screen activity vectors failed for {uid}: {sanitize(str(e))}')
 
     try:
         result['recordings_deleted'] = delete_all_conversation_recordings(uid) or 0

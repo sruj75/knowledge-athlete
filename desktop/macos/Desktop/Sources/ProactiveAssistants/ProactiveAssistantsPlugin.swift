@@ -2,22 +2,6 @@ import Cocoa
 import CoreGraphics
 @preconcurrency import UserNotifications
 
-/// Pure gating policy for scheduled screen-capture ticks. Extracted so the
-/// precondition is unit-testable: a scheduled capture may run only while
-/// monitoring and neither recovering nor background-polling. This is the
-/// contract stopMonitoring must restore — if it fails to clear the recovery /
-/// background-polling flags, every subsequent tick is gated off even though
-/// monitoring is nominally on.
-enum ProactiveCapturePolicy {
-  static func captureTickAllowed(
-    isMonitoring: Bool,
-    isInRecoveryMode: Bool,
-    isInBackgroundPolling: Bool
-  ) -> Bool {
-    isMonitoring && !isInRecoveryMode && !isInBackgroundPolling
-  }
-}
-
 /// Service that manages proactive assistants - screen monitoring, frame capture, and assistant coordination
 @MainActor
 public class ProactiveAssistantsPlugin: NSObject {
@@ -45,6 +29,7 @@ public class ProactiveAssistantsPlugin: NSObject {
 
   private(set) var isMonitoring = false
   private var isStartingMonitoring = false  // Prevents race condition with async startMonitoring
+  private var monitoringStartFence = ProactiveMonitoringStartFence()
   private var _hasScreenRecordingPermission: Bool?  // Cached permission state
   private var currentApp: String?
   private var currentAppBundleID: String?
@@ -251,6 +236,7 @@ public class ProactiveAssistantsPlugin: NSObject {
 
   /// Start monitoring with optional retry for transient permission failures
   public func startMonitoring(retryCount: Int = 0, completion: @escaping (Bool, String?) -> Void) {
+    let generation = monitoringStartFence.begin()
     let maxRetries = 3
     let retryDelays: [Double] = [2.0, 4.0, 8.0]  // exponential backoff
 
@@ -293,7 +279,11 @@ public class ProactiveAssistantsPlugin: NSObject {
         )
         isStartingMonitoring = false
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
-          self?.startMonitoring(retryCount: retryCount + 1, completion: completion)
+          guard let self, monitoringStartFence.isCurrent(generation) else {
+            completion(false, "monitoring_start_cancelled")
+            return
+          }
+          startMonitoring(retryCount: retryCount + 1, completion: completion)
         }
         return
       }
@@ -510,6 +500,8 @@ public class ProactiveAssistantsPlugin: NSObject {
 
   /// Stop monitoring
   public func stopMonitoring() {
+    monitoringStartFence.cancel()
+    isStartingMonitoring = false
     guard isMonitoring else { return }
 
     captureTimer?.invalidate()

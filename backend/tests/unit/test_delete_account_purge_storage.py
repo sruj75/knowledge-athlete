@@ -2,8 +2,8 @@
 
 Before the fix, _background_wipe_user_data only cleaned Twilio + Firestore, leaving the user's
 Pinecone vectors and GCS conversation recordings behind. The wipe now enumerates IDs (before the
-Firestore delete removes them) and purges Pinecone (conversations/memories/action-items/screen-
-activity) + recordings, each backend isolated so a failure never blocks the Firestore wipe.
+Firestore delete removes them) and purges retained Pinecone namespaces plus recordings, each
+backend isolated so a failure never blocks the Firestore wipe.
 
 services.users.account_deletion binds its database/utils collaborators at import time
 (``from database.X import Y``), so the fakes must be active before the module is exec'd. This is
@@ -36,7 +36,6 @@ def users_service():
         "database.action_items": AutoMockModule("database.action_items"),
         "database.conversations": AutoMockModule("database.conversations"),
         "database.memories": AutoMockModule("database.memories"),
-        "database.screen_activity": AutoMockModule("database.screen_activity"),
         "database.vector_db": AutoMockModule("database.vector_db"),
         "utils": _pkg("utils"),
         "utils.cloud_tasks": AutoMockModule("utils.cloud_tasks"),
@@ -66,7 +65,6 @@ def _purge_patches(users_service, **overrides):
         "get_conversation_ids": ["c1", "c2"],
         "get_memory_ids": ["m1"],
         "get_action_item_ids": ["a1", "a2"],
-        "get_screen_activity_ids": ["s1"],
     }
     patchers = {}
     # create=True: some collaborators are pulled into account_deletion.py via `from database.users import *`,
@@ -80,7 +78,6 @@ def _purge_patches(users_service, **overrides):
         "delete_transcript_chunk_vectors_batch",
         "delete_memory_vectors_batch",
         "delete_action_item_vectors_batch",
-        "delete_screen_activity_vectors",
         "delete_all_conversation_recordings",
         "delete_user_caller_ids",
     ):
@@ -108,7 +105,6 @@ def test_purge_runs_all_backends_before_firestore_wipe(users_service):
     m["delete_conversation_vectors_batch"].assert_called_once_with("uid1", ["c1", "c2"])
     m["delete_memory_vectors_batch"].assert_called_once_with("uid1", ["m1"])
     m["delete_action_item_vectors_batch"].assert_called_once_with("uid1", ["a1", "a2"])
-    m["delete_screen_activity_vectors"].assert_called_once_with("uid1", ["s1"])
     # GCS + Firestore
     m["delete_all_conversation_recordings"].assert_called_once_with("uid1")
     m["delete_user_data"].assert_called_once_with("uid1")

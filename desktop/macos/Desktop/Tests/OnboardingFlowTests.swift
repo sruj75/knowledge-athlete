@@ -2,12 +2,13 @@ import XCTest
 
 @testable import Omi_Computer
 
+@MainActor
 final class OnboardingFlowTests: XCTestCase {
   func testActiveFlowContainsOnlyRetainedStages() {
     XCTAssertEqual(
       SBOnboardingModel.Step.allCases,
       [
-        .promise, .name, .howHeard, .language, .role, .mic, .systemAudio, .screen,
+        .promise, .name, .howHeard, .language, .mic, .systemAudio, .screen,
         .accessibility, .shortcutOpen, .shortcutTalk, .screenDemo, .capture,
       ]
     )
@@ -25,7 +26,50 @@ final class OnboardingFlowTests: XCTestCase {
 
   func testPersistedStateClearingIncludesActiveSecondBrainResumeState() {
     XCTAssertTrue(OnboardingFlow.persistedStateKeys.contains("sbOnboardingResumeStep"))
-    XCTAssertTrue(OnboardingFlow.persistedStateKeys.contains("onboardingRole"))
+    XCTAssertFalse(OnboardingFlow.persistedStateKeys.contains("onboardingRole"))
+  }
+
+  func testRetainedStepGraphDoesNotDependOnAdjacentRawValues() {
+    XCTAssertEqual(SBOnboardingModel.Step.language.next, .mic)
+    XCTAssertEqual(SBOnboardingModel.Step.mic.previous, .language)
+    XCTAssertEqual(SBOnboardingModel.Step.capture.next, nil)
+    XCTAssertEqual(SBOnboardingModel.Step.promise.previous, nil)
+  }
+
+  func testLegacyRoleResumeMarkerMigratesToMicrophone() {
+    XCTAssertEqual(SBOnboardingModel.Step.resumeTarget(forPersistedRawValue: 4), .mic)
+  }
+
+  func testBeginResumesFromEveryRetainedStageMarker() {
+    let defaults = UserDefaults.standard
+    let previous = defaults.object(forKey: SBOnboardingModel.resumeStepKey)
+    var retainedAppStates: [AppState] = []
+    var retainedModels: [SBOnboardingModel] = []
+    defer {
+      retainedModels.removeAll()
+      retainedAppStates.removeAll()
+      if let previous {
+        defaults.set(previous, forKey: SBOnboardingModel.resumeStepKey)
+      } else {
+        defaults.removeObject(forKey: SBOnboardingModel.resumeStepKey)
+      }
+    }
+
+    for expected in SBOnboardingModel.Step.allCases {
+      defaults.set(expected.rawValue, forKey: SBOnboardingModel.resumeStepKey)
+      let appState = AppState()
+      let model = SBOnboardingModel(
+        appState: appState,
+        chatProvider: ChatProvider(),
+        stepResolver: { $0 },
+        onComplete: nil)
+
+      model.begin()
+
+      XCTAssertEqual(model.step, expected, "resume marker \(expected.rawValue)")
+      retainedAppStates.append(appState)
+      retainedModels.append(model)
+    }
   }
 
   func testSecondBrainProceedActionsUseDefaultActionKeyboardShortcut() throws {

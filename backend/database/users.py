@@ -1078,7 +1078,7 @@ def delete_user_data(uid: str):
     # This picks up
     # everything the user has written (conversations, memories, action_items,
     # folders, goals, fcm_tokens, fair_use_*,
-    # hourly_usage, meetings, screen_activity, files, people, chat_sessions,
+    # hourly_usage, meetings, files, people, chat_sessions,
     # messages, and any future additions).
     for sub in user_ref.collections():
         logger.info(f"Deleting subcollection {sub.id} for user {uid}")

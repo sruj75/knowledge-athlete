@@ -29,7 +29,7 @@ fi
   tests/unit/test_desktop_core.py \
   tests/unit/test_desktop_proxy.py \
   tests/unit/test_desktop_realtime.py \
-  tests/unit/test_desktop_screen_activity.py \
+  tests/unit/test_s15_screen_history_retirement.py \
   tests/unit/test_desktop_tts_updates.py
 echo ""
 

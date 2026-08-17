@@ -26,13 +26,13 @@ private actor OnboardingAnswerWriteTestLatch {
 
 @MainActor
 final class OnboardingAnswerWriteGateTests: XCTestCase {
-  func testRevisionWaitsForEarlierWriteBeforeItCanReachTheBackend() async {
+  func testRevisionWaitsForEarlierFirebaseProjection() async {
     let gate = OnboardingAnswerWriteGate()
     let firstWriteStarted = expectation(description: "first write started")
     let latch = OnboardingAnswerWriteTestLatch()
     var writes: [String] = []
 
-    gate.enqueue(.name) {
+    gate.enqueue {
       writes.append("first started")
       firstWriteStarted.fulfill()
       await latch.wait()
@@ -40,11 +40,11 @@ final class OnboardingAnswerWriteGateTests: XCTestCase {
     }
     await fulfillment(of: [firstWriteStarted], timeout: 1)
 
-    gate.enqueue(.name) {
+    gate.enqueue {
       writes.append("revision")
     }
     await latch.open()
-    await gate.waitForIdle(.name)
+    await gate.waitForIdle()
 
     XCTAssertEqual(writes, ["first started", "first finished", "revision"])
   }

@@ -43,8 +43,8 @@ class VectorMetadataDoc(TypedDict, total=False):
     """Metadata sub-document attached to a Pinecone vector record.
 
     Captures the union of metadata keys written across this module's
-    namespaces (ns1 conversations, ns2 memories, ns3 screen activity,
-    ns4 action items, ns_tchunks transcript chunks, ns_x X posts).
+    namespaces (ns1 conversations, ns2 memories, ns4 action items,
+    ns_tchunks transcript chunks, ns_x X posts).
     Canonical memory vectors (built by ``build_memory_vector_metadata``)
     add further projection keys not enumerated here, which is why the
     ``metadata`` field on ``VectorRecordDoc`` stays ``Dict[str, Any]``.
@@ -55,14 +55,11 @@ class VectorMetadataDoc(TypedDict, total=False):
     conversation_id: str
     action_item_id: str
     post_id: str
-    screenshot_id: str
     chunk_index: int
     created_at: int
-    timestamp: int
     category: str
     subject_entity_id: str
     kind: str
-    appName: str
 
 
 class VectorRecordDoc(TypedDict):
@@ -766,110 +763,6 @@ def find_similar_x_posts(uid: str, content: str, limit: int = 10) -> List[Dict[s
         }
         for m in matches
     ]
-
-
-# ==========================================
-# Screen Activity Vector Functions
-# For screenshot embeddings (Gemini embedding-001, 3072-dim)
-# ==========================================
-
-SCREEN_ACTIVITY_NAMESPACE = "ns3"
-
-
-def upsert_screen_activity_vectors(uid: str, rows: List[Dict[str, Any]]) -> int:
-    """Batch upsert screenshot embeddings to Pinecone ns3."""
-    if index is None:
-        logger.warning('Pinecone index not initialized, skipping screen activity vector upsert')
-        return 0
-
-    vectors: List[VectorRecordDoc] = []
-    for row in rows:
-        embedding = row.get('embedding')
-        if not embedding:
-            continue
-        ts_value: Any = row['timestamp']
-        timestamp = (
-            int(datetime.fromisoformat(ts_value.replace('Z', '+00:00')).timestamp())
-            if isinstance(ts_value, str)
-            else int(ts_value)
-        )
-        metadata = {
-            "uid": uid,
-            "screenshot_id": str(row.get("storageId") or row['id']),
-            "timestamp": timestamp,
-            "appName": row.get('appName', ''),
-        }
-        if row.get('deviceName'):
-            metadata['deviceName'] = row['deviceName']
-        if row.get('clientDeviceId'):
-            metadata['clientDeviceId'] = row['clientDeviceId']
-        vectors.append(
-            {"id": f'{uid}-sa-{row.get("storageId") or row["id"]}', "values": embedding, "metadata": metadata}
-        )
-
-    if not vectors:
-        return 0
-
-    # Pinecone upsert limit is 100 vectors per call
-    upserted = 0
-    for i in range(0, len(vectors), 100):
-        chunk = vectors[i : i + 100]
-        index.upsert(vectors=chunk, namespace=SCREEN_ACTIVITY_NAMESPACE)
-        upserted += len(chunk)
-
-    logger.info(f'upsert_screen_activity_vectors uid={uid} count={upserted}')
-    return upserted
-
-
-def search_screen_activity_vectors(
-    uid: str,
-    query_vector: List[float],
-    start_date: Optional[int] = None,
-    end_date: Optional[int] = None,
-    app_filter: Optional[str] = None,
-    k: int = 10,
-) -> List[Dict[str, Any]]:
-    """Vector search across screenshot embeddings in ns3."""
-    if index is None:
-        logger.warning('Pinecone index not initialized, skipping screen activity search')
-        return []
-
-    filter_data: Dict[str, Any] = {'uid': uid}
-    if start_date and end_date:
-        filter_data['timestamp'] = {'$gte': start_date, '$lte': end_date}
-    elif start_date:
-        filter_data['timestamp'] = {'$gte': start_date}
-    elif end_date:
-        filter_data['timestamp'] = {'$lte': end_date}
-    if app_filter:
-        filter_data['appName'] = app_filter
-
-    xc = index.query(
-        vector=query_vector,
-        top_k=k,
-        include_metadata=True,
-        filter=filter_data,
-        namespace=SCREEN_ACTIVITY_NAMESPACE,
-    )
-
-    matches: List[Any] = xc.get('matches', [])
-    return [
-        {
-            'screenshot_id': match['metadata'].get('screenshot_id'),
-            'timestamp': match['metadata'].get('timestamp'),
-            'appName': match['metadata'].get('appName'),
-            'score': match['score'],
-        }
-        for match in matches
-    ]
-
-
-def delete_screen_activity_vectors(uid: str, ids: List[str]) -> None:
-    """Delete screen activity vectors by screenshot IDs."""
-    if index is None:
-        return
-    vector_ids = [f'{uid}-sa-{sid}' for sid in ids]
-    index.delete(ids=vector_ids, namespace=SCREEN_ACTIVITY_NAMESPACE)
 
 
 # ==========================================

@@ -1,6 +1,42 @@
 import Foundation
 import ServiceManagement
 
+enum LaunchAtLoginIntentSource: Equatable {
+  case onboardingCompletion
+  case onboardingSkip
+  case settings(Bool)
+
+  var analyticsSource: String {
+    switch self {
+    case .onboardingCompletion: "sb_onboarding_complete"
+    case .onboardingSkip: "sb_onboarding_skip"
+    case .settings: "user"
+    }
+  }
+}
+
+enum LaunchAtLoginIntentPolicy {
+  static func requestedEnabled(for source: LaunchAtLoginIntentSource) -> Bool {
+    switch source {
+    case .onboardingCompletion: true
+    case .onboardingSkip: false
+    case .settings(let enabled): enabled
+    }
+  }
+
+  @discardableResult
+  static func apply(
+    _ source: LaunchAtLoginIntentSource,
+    setEnabled: (Bool) -> Bool,
+    report: (Bool, String) -> Void
+  ) -> Bool {
+    let enabled = requestedEnabled(for: source)
+    guard setEnabled(enabled) else { return false }
+    report(enabled, source.analyticsSource)
+    return true
+  }
+}
+
 /// Manages the app's launch at login status using SMAppService (macOS 13+)
 @MainActor
 class LaunchAtLoginManager: ObservableObject {

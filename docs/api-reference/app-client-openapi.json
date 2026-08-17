@@ -10010,17 +10010,6 @@
             ],
             "title": "Motivation"
           },
-          "name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Name"
-          },
           "time_zone": {
             "anyOf": [
               {

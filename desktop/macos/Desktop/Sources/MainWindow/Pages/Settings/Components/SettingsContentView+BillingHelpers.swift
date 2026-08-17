@@ -309,6 +309,7 @@ extension SettingsContentView {
       ScreenCaptureService.requestScreenRecordingAccessAndOpenSettings()
       return
     }
+    if enabled { OnboardingExitPersistence.recordExplicitCapabilityEnablement() }
 
     permissionError = nil
     isToggling = true
@@ -342,6 +343,7 @@ extension SettingsContentView {
       isTranscribing = false
       return
     }
+    if enabled { OnboardingExitPersistence.recordExplicitCapabilityEnablement() }
 
     transcriptionError = nil
     isTogglingTranscription = true

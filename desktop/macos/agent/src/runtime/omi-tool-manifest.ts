@@ -429,24 +429,6 @@ const swiftToolSurfacePatches: Record<string, OmiToolSurfacePatch> = {
         "Request Omi's macOS permission through the kernel-authorized native executor by opening the native prompt or relevant System Settings pane. Screen share, screen sharing, and screen-share mean Screen Recording. Supports Screen Recording, microphone, notifications, and Accessibility.",
     },
   },
-  set_user_preferences: {
-    surfaces: ["onboarding"],
-    capabilityDoc: doc("Set User Preferences", "Persist onboarding preferences such as name and language.", [
-      "Onboarding-only.",
-    ]),
-  },
-  ask_followup: {
-    surfaces: ["onboarding"],
-    capabilityDoc: doc("Ask Followup", "Ask the user a follow-up onboarding question with optional quick replies.", [
-      "Onboarding-only.",
-    ]),
-  },
-  complete_onboarding: {
-    surfaces: ["onboarding"],
-    capabilityDoc: doc("Complete Onboarding", "Complete onboarding after required goals and context are collected.", [
-      "Onboarding-only.",
-    ]),
-  },
   get_local_status: {
     surfaces: ["desktop_chat"],
     capabilityDoc: doc(

@@ -19,10 +19,6 @@ struct SettingsSearchItem: Identifiable {
   static let allSearchableItems: [SettingsSearchItem] = [
     // General
     SettingsSearchItem(
-      name: "Rewind", subtitle: "Screen capture and audio recording",
-      keywords: ["monitor", "screenshot", "capture", "audio", "recording", "microphone", "speech"],
-      section: .general, icon: "gearshape", settingId: "general.rewind"),
-    SettingsSearchItem(
       name: "System Audio", subtitle: "When to record audio from other apps",
       keywords: [
         "system audio", "meeting", "zoom", "google meet", "teams", "call", "capture", "recording",
@@ -33,31 +29,11 @@ struct SettingsSearchItem: Identifiable {
       keywords: ["alerts", "notify"], section: .general, icon: "gearshape",
       settingId: "general.notifications"),
     SettingsSearchItem(
-      name: "Ask omi", subtitle: "Show or hide the floating chat bar",
-      keywords: ["floating bar", "chat bar"], section: .general, icon: "gearshape",
-      settingId: "general.askomi"),
-    SettingsSearchItem(
       name: "Font Size", subtitle: "Adjust text size across the app",
       keywords: ["text size", "zoom", "scale", "reset"], section: .general, icon: "gearshape",
       settingId: "general.fontsize"),
-    SettingsSearchItem(
-      name: "Reset Window Size", subtitle: "Restore the default window dimensions",
-      keywords: ["resize", "window", "default size"], section: .general, icon: "gearshape",
-      settingId: "general.resetwindow"),
 
     // Rewind
-    SettingsSearchItem(
-      name: "Rewind", subtitle: "Browse your screen history",
-      keywords: ["screen history", "screenshots", "recording"], section: .rewind,
-      icon: "clock.arrow.circlepath", settingId: "rewind.rewind"),
-    SettingsSearchItem(
-      name: "Screen Capture", subtitle: "Toggle screen capture on or off",
-      keywords: ["screen capture", "screenshot", "monitor", "recording", "rewind"],
-      section: .rewind, icon: "rectangle.dashed.badge.record", settingId: "rewind.screencapture"),
-    SettingsSearchItem(
-      name: "Audio Recording", subtitle: "Toggle audio recording and transcription",
-      keywords: ["audio", "microphone", "recording", "transcription", "mic"], section: .rewind,
-      icon: "mic.fill", settingId: "rewind.audiorecording"),
     SettingsSearchItem(
       name: "Storage", subtitle: "View frame count and disk usage",
       keywords: ["frames", "storage", "disk", "space", "gb"], section: .rewind,
@@ -76,10 +52,6 @@ struct SettingsSearchItem: Identifiable {
       icon: "clock.arrow.circlepath", settingId: "rewind.retention"),
 
     // Transcription
-    SettingsSearchItem(
-      name: "Transcription Settings", subtitle: "Configure speech-to-text options",
-      keywords: ["language", "vocabulary", "speech"], section: .transcription, icon: "waveform",
-      settingId: "transcription.settings"),
     SettingsSearchItem(
       name: "Language Mode", subtitle: "Choose single or multi-language transcription",
       keywords: ["language", "multilingual", "single language"], section: .transcription,

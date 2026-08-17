@@ -42,6 +42,7 @@ enum CaptureListeningLogic {
     appState: AppState, transcriptionEnabled: Binding<Bool>, isTogglingListening: Binding<Bool>
   ) {
     let enabled = !appState.isTranscribing
+    if enabled { OnboardingExitPersistence.recordExplicitCapabilityEnablement() }
     if enabled && !appState.hasMicrophonePermission {
       appState.requestMicrophonePermission()
       return
@@ -89,6 +90,7 @@ enum CaptureListeningLogic {
         ScreenCaptureService.requestScreenRecordingAccessAndOpenSettings()
         return
       }
+      OnboardingExitPersistence.recordExplicitCapabilityEnablement()
     }
 
     screenAnalysisEnabled.wrappedValue = enabled

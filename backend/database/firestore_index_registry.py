@@ -154,12 +154,6 @@ INDEX_ONLY_REQUIREMENTS = (
         (_asc('status'), _desc('created_at'), _asc('__name__')),
     ),
     FirestoreIndexRequirement(
-        'screen_activity_app_timestamp',
-        'screen_activity',
-        'COLLECTION',
-        (_asc('appName'), _asc('timestamp'), _asc('__name__')),
-    ),
-    FirestoreIndexRequirement(
         'candidates_generation_created',
         'candidates',
         'COLLECTION',

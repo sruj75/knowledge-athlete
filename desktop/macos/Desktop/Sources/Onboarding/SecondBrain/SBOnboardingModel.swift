@@ -14,7 +14,7 @@ enum SBOnboardingLanguageCopy {
 
 /// Drives the Second Brain conversational onboarding: a real chat with Omi that
 /// streams word-by-word, collects answers, and performs the SAME live side-effects
-/// as the legacy wizard (name/language → backend, retained permissions, the summon
+/// as the legacy wizard (name/language, retained permissions, the summon
 /// shortcut, a live screen+voice demo, capture,
 /// completion). No fake steps — every widget does real work.
 ///
@@ -34,7 +34,7 @@ final class SBOnboardingModel: ObservableObject {
       }
     }
 
-    var startsListeningImmediately: Bool {
+    var capturesWithoutActiveMeeting: Bool {
       self == .continuous
     }
   }
@@ -42,9 +42,37 @@ final class SBOnboardingModel: ObservableObject {
   static let defaultCaptureSelection: CaptureSelection = .onlyDuringMeetings
 
   enum Step: Int, CaseIterable {
-    case promise, name, howHeard, language, role
-    case mic, systemAudio, screen, accessibility
-    case shortcutOpen, shortcutTalk, screenDemo, capture
+    case promise = 0
+    case name = 1
+    case howHeard = 2
+    case language = 3
+    // Raw value 4 belonged to the retired role step. Keep every subsequent raw
+    // value stable so a persisted in-progress setup does not resume at the wrong
+    // stage after upgrading.
+    case mic = 5
+    case systemAudio = 6
+    case screen = 7
+    case accessibility = 8
+    case shortcutOpen = 9
+    case shortcutTalk = 10
+    case screenDemo = 11
+    case capture = 12
+
+    var next: Step? {
+      guard let index = Self.allCases.firstIndex(of: self) else { return nil }
+      let nextIndex = Self.allCases.index(after: index)
+      return nextIndex < Self.allCases.endIndex ? Self.allCases[nextIndex] : nil
+    }
+
+    var previous: Step? {
+      guard let index = Self.allCases.firstIndex(of: self), index > Self.allCases.startIndex else { return nil }
+      return Self.allCases[Self.allCases.index(before: index)]
+    }
+
+    static func resumeTarget(forPersistedRawValue rawValue: Int) -> Step? {
+      if rawValue == 4 { return .mic }
+      return Step(rawValue: rawValue)
+    }
   }
 
   /// "How did you hear about Omi?" options (mirrors the legacy step).
@@ -60,6 +88,14 @@ final class SBOnboardingModel: ObservableObject {
 
   enum PermState: Equatable { case ask, waiting, on }
 
+  enum PermissionEffect: Equatable {
+    case checked(String)
+    case requested(String)
+    case granted(String)
+    case advanced(from: Step, to: Step)
+    case primedScreenCapture
+  }
+
   @Published var step: Step = .promise
   @Published var thread: [Msg] = []
   /// The current Omi message streaming in (nil once committed).
@@ -73,16 +109,12 @@ final class SBOnboardingModel: ObservableObject {
   @Published private(set) var languageIsDetectedFromMac = false
   @Published var languageName: String?
   @Published var howHeard: String?
-  @Published var roleDraft = ""
-  @Published var role: String?
 
   // Permissions
   @Published var micState: PermState = .ask
   @Published var sysState: PermState = .ask
   @Published var scrState: PermState = .ask  // screen recording
   @Published var accState: PermState = .ask  // accessibility
-
-  var launchAtLogin: Bool = LaunchAtLoginManager.shared.isEnabled
 
   /// One-shot guard: fire a single throwaway ScreenCaptureKit capture to surface
   /// the "bypass the private window picker" consent in-context once Screen
@@ -129,10 +161,21 @@ final class SBOnboardingModel: ObservableObject {
   unowned let appState: AppState
   let chatProvider: ChatProvider
   private let acquisitionSourceRecorder: OnboardingAcquisitionSourceRecorder
-  /// Backend writes for editable answers are per-field serialized. Revisiting a
-  /// question never lets an earlier request finish after the user's revision.
+  private let nameWriter: @MainActor (String, String?, RuntimeOwnerAuthorizationSnapshot?) async -> Void
+  private let languageWriter: @MainActor ([String]) -> Void
+  private let stepResolver: (@MainActor (Step) -> Step)?
+  let permissionRefresher: (@MainActor (String) -> Void)?
+  let permissionRequester: (@MainActor (String) -> Void)?
+  let permissionGranted: (@MainActor (String) -> Bool)?
+  let systemAudioPrimer: @MainActor (AppState) async -> Bool
+  let screenCapturePrimer: @MainActor () -> Void
+  let permissionEffectRecorder: @MainActor (PermissionEffect) -> Void
+  private let exitExecutorOverride: OnboardingExitExecutor?
+  /// Firebase name writes are serialized. Revisiting the question never lets an
+  /// earlier request finish after the user's revision.
   private let answerWriteGate = OnboardingAnswerWriteGate()
-  private let onComplete: (() -> Void)?
+  private let onComplete: (@MainActor @Sendable () -> Void)?
+  private var exitStarted = false
   var streamTask: Task<Void, Never>?
   /// Permission-grant pollers, one per permission key. Keyed so requesting a
   /// second permission (the meetings "both" mic+system-audio step) never cancels
@@ -150,11 +193,45 @@ final class SBOnboardingModel: ObservableObject {
     appState: AppState,
     chatProvider: ChatProvider,
     acquisitionSourceRecorder: OnboardingAcquisitionSourceRecorder = OnboardingAcquisitionSourceRecorder(),
-    onComplete: (() -> Void)?
+    nameWriter: @escaping @MainActor (String, String?, RuntimeOwnerAuthorizationSnapshot?) async -> Void = {
+      name, expectedOwnerID, authorizationSnapshot in
+      await AuthService.shared.updateGivenName(
+        name,
+        expectedOwnerID: expectedOwnerID,
+        authorizationSnapshot: authorizationSnapshot)
+    },
+    languageWriter: @escaping @MainActor ([String]) -> Void = {
+      AssistantSettings.shared.voiceLanguages = $0
+    },
+    stepResolver: (@MainActor (Step) -> Step)? = nil,
+    permissionRefresher: (@MainActor (String) -> Void)? = nil,
+    permissionRequester: (@MainActor (String) -> Void)? = nil,
+    permissionGranted: (@MainActor (String) -> Bool)? = nil,
+    systemAudioPrimer: @escaping @MainActor (AppState) async -> Bool = {
+      await $0.primeSystemAudioPermission()
+    },
+    screenCapturePrimer: @escaping @MainActor () -> Void = {
+      if #available(macOS 14.0, *) {
+        Task.detached { await ScreenCaptureService.primeCaptureConsent() }
+      }
+    },
+    permissionEffectRecorder: @escaping @MainActor (PermissionEffect) -> Void = { _ in },
+    exitExecutor: OnboardingExitExecutor? = nil,
+    onComplete: (@MainActor @Sendable () -> Void)?
   ) {
     self.appState = appState
     self.chatProvider = chatProvider
     self.acquisitionSourceRecorder = acquisitionSourceRecorder
+    self.nameWriter = nameWriter
+    self.languageWriter = languageWriter
+    self.stepResolver = stepResolver
+    self.permissionRefresher = permissionRefresher
+    self.permissionRequester = permissionRequester
+    self.permissionGranted = permissionGranted
+    self.systemAudioPrimer = systemAudioPrimer
+    self.screenCapturePrimer = screenCapturePrimer
+    self.permissionEffectRecorder = permissionEffectRecorder
+    self.exitExecutorOverride = exitExecutor
     self.onComplete = onComplete
     // Isolate any onboarding chat/voice turns to the throwaway `.onboarding()`
     // journal surface so they never pollute the real Chat tab. Cleared on
@@ -166,7 +243,7 @@ final class SBOnboardingModel: ObservableObject {
     // instead of "friend"/blank (regression from the SB redesign; see #9919).
     let known = AuthService.shared.givenName.trimmingCharacters(in: .whitespaces)
     if !known.isEmpty { nameDraft = known }
-    AuthService.shared.loadNameFromBackendIfNeeded()
+    AuthService.shared.loadNameFromFirebaseIfNeeded()
     nameObserver = NotificationCenter.default.addObserver(
       forName: .authNameDidUpdate, object: nil, queue: .main
     ) { [weak self] _ in
@@ -198,9 +275,6 @@ final class SBOnboardingModel: ObservableObject {
     case .howHeard: return "Quick one. How did you hear about Omi?"
     case .language:
       return SBOnboardingLanguageCopy.question
-    case .role:
-      return
-        "Nice to meet you, \(name). What do your days look like? Pick the closest, or tell me. It shapes what I make for you."
     case .mic:
       return "Let's give me senses. First, your microphone, so I hear your side of a conversation."
     case .systemAudio:
@@ -208,7 +282,8 @@ final class SBOnboardingModel: ObservableObject {
     case .screen:
       return "Let me see your screen, so I can help with whatever you're looking at."
     case .accessibility:
-      return "Turn on Accessibility, so I can use your shortcut and click and type for you."
+      return
+        "Turn on Accessibility so your global push-to-talk shortcut works, and Rewind and Focus can target the exact window you're using."
     case .shortcutOpen:
       return "How do you want to open me? Just press one of these to set it."
     case .shortcutTalk:
@@ -233,23 +308,23 @@ final class SBOnboardingModel: ObservableObject {
 
   /// Persisted so quitting mid-onboarding (e.g. stepping away to grant a permission
   /// in System Settings) resumes where you left off instead of restarting.
-  static let resumeStepKey = "sbOnboardingResumeStep"
+  static let resumeStepKey = DefaultsKey.onboardingResumeStep.rawValue
 
   func begin() {
     guard thread.isEmpty && streamingText == nil else { return }
     // Re-hydrate the editable drafts from what was already saved, so stepping
-    // back to (or resuming at) name/language/role shows the prior answer instead
+    // back to (or resuming at) name/language shows the prior answer instead
     // of an empty field.
     rehydrateDrafts()
-    // Resume where the user left off. Their earlier answers (name, language, role)
-    // were already saved to the backend/settings, so we just re-enter at the saved
+    // Resume where the user left off. Their earlier name and language answers
+    // were already saved to their owning stores, so we just re-enter at the saved
     // step; each permission step re-checks its grant on appear, so a permission
     // granted before the quit shows ✓ rather than prompting again.
     let savedRaw = UserDefaults.standard.integer(forKey: Self.resumeStepKey)
     recordSetupStateDisagreementAtRead(savedRaw: savedRaw)
-    if savedRaw > Step.promise.rawValue, let resumed = Step(rawValue: savedRaw) {
+    if savedRaw > Step.promise.rawValue, let resumed = Step.resumeTarget(forPersistedRawValue: savedRaw) {
       // Skip a resumed permission step the user granted while away.
-      let target = firstUnaskedStep(from: resumed)
+      let target = stepResolver?(resumed) ?? firstUnaskedStep(from: resumed)
       step = target
       streamMessage(for: target)
       return
@@ -261,25 +336,19 @@ final class SBOnboardingModel: ObservableObject {
   /// bounded signals reveal when that gate says setup is complete while the SB
   /// stage, persisted resume state, or setup journal still says it is active.
   private func recordSetupStateDisagreementAtRead(savedRaw: Int) {
-    guard appState.hasCompletedOnboarding else { return }
-    DesktopDiagnosticsManager.shared.recordStateAuthoritySignal(
-      seam: .onboardingSetupState,
-      from: "completed_flag",
-      to: "sb_stage",
-      direction: "completed_flag_with_active_stage")
-    if savedRaw > Step.promise.rawValue, Step(rawValue: savedRaw) != nil {
+    let hasPersistedResume =
+      savedRaw > Step.promise.rawValue && Step.resumeTarget(forPersistedRawValue: savedRaw) != nil
+    let resolution = OnboardingSetupAuthorityPolicy.resolve(
+      hasCompletedOnboarding: appState.hasCompletedOnboarding,
+      hasActiveStage: true,
+      hasPersistedResume: hasPersistedResume,
+      hasActiveJournal: chatProvider.isOnboarding)
+    for disagreement in resolution.disagreements {
       DesktopDiagnosticsManager.shared.recordStateAuthoritySignal(
         seam: .onboardingSetupState,
-        from: "completed_flag",
-        to: "persisted_resume",
-        direction: "completed_flag_with_resume_state")
-    }
-    if chatProvider.isOnboarding {
-      DesktopDiagnosticsManager.shared.recordStateAuthoritySignal(
-        seam: .onboardingSetupState,
-        from: "completed_flag",
-        to: "setup_journal",
-        direction: "completed_flag_with_active_journal")
+        from: disagreement.source.rawValue,
+        to: disagreement.target.rawValue,
+        direction: disagreement.direction)
     }
   }
 
@@ -336,7 +405,7 @@ final class SBOnboardingModel: ObservableObject {
     teardownStep(step)
     // Don't ask for a permission the user has already granted — skip straight to
     // the first step that still needs an answer.
-    let target = firstUnaskedStep(from: next)
+    let target = stepResolver?(next) ?? firstUnaskedStep(from: next)
     step = target
     UserDefaults.standard.set(target.rawValue, forKey: Self.resumeStepKey)
     streamMessage(for: target)
@@ -345,11 +414,10 @@ final class SBOnboardingModel: ObservableObject {
   /// Return to the immediately preceding onboarding stage without discarding
   /// any answer the user already supplied. The conversational transcript stays
   /// intact; the re-rendered widget is the editable source of truth for that
-  /// stage, so a user can revise (for example) Student to Founder.
+  /// stage, so a user can revise an earlier identity or language answer.
   func goBack() {
-    guard let previous = Step(rawValue: step.rawValue - 1) else { return }
+    guard let previous = step.previous else { return }
     teardownStep(step)
-    cancelPermissionPollForCurrentStep()
     rehydrateDrafts()
     step = previous
     UserDefaults.standard.set(previous.rawValue, forKey: Self.resumeStepKey)
@@ -362,6 +430,7 @@ final class SBOnboardingModel: ObservableObject {
 
   /// Tear down any live monitors/tasks a step installed before leaving it.
   private func teardownStep(_ step: Step) {
+    cancelPermissionPoll(for: step)
     switch step {
     case .shortcutOpen, .shortcutTalk: disarmShortcutSummon()
     case .screenDemo: teardownVoiceDemo()
@@ -373,7 +442,7 @@ final class SBOnboardingModel: ObservableObject {
   /// that page while macOS is still open, stop the stale poll so a late grant
   /// cannot overwrite the newly displayed page's state. The system grant itself
   /// is still observed if the user returns to this page.
-  private func cancelPermissionPollForCurrentStep() {
+  private func cancelPermissionPoll(for step: Step) {
     guard let key = permissionKey(for: step) else { return }
     pollTasks[key]?.cancel()
     pollTasks[key] = nil
@@ -383,19 +452,12 @@ final class SBOnboardingModel: ObservableObject {
   }
 
   /// Re-fill the editable drafts from already-saved answers so revisiting (via
-  /// Back) or resuming a name/language/role step shows the prior value, not an
+  /// Back) or resuming a name/language step shows the prior value, not an
   /// empty field. Only fills empties — never clobbers in-progress typing.
   private func rehydrateDrafts() {
     if nameDraft.isEmpty {
       let n = AuthService.shared.givenName.trimmingCharacters(in: .whitespaces)
       if !n.isEmpty { nameDraft = n }
-    }
-    if role == nil {
-      let saved = UserDefaults.standard.string(forKey: .onboardingRole) ?? ""
-      if !saved.isEmpty {
-        role = saved
-        if roleDraft.isEmpty { roleDraft = saved }
-      }
     }
     if howHeard == nil {
       let saved = UserDefaults.standard.string(forKey: DefaultsKey.onboardingHowDidYouHearSource)
@@ -408,17 +470,25 @@ final class SBOnboardingModel: ObservableObject {
     }
   }
 
-  // MARK: promise / name / language / role
+  // MARK: promise / name / language
 
   func answerPromise() { advance(userAnswer: "Set me up", to: .name) }
 
   func answerName() {
     let trimmed = nameDraft.trimmingCharacters(in: .whitespaces)
     guard !trimmed.isEmpty else { return }
-    answerWriteGate.enqueue(.name) { [trimmed] in
-      await AuthService.shared.updateGivenName(trimmed)
+    let expectedOwnerID = RuntimeOwnerIdentity.currentOwnerId()
+    let authorizationSnapshot = expectedOwnerID.flatMap {
+      RuntimeOwnerIdentity.captureAuthorizationSnapshot(expectedOwnerID: $0)
+    }
+    answerWriteGate.enqueue { [nameWriter, trimmed] in
+      await nameWriter(trimmed, expectedOwnerID, authorizationSnapshot)
     }
     advance(userAnswer: trimmed, to: .howHeard)
+  }
+
+  func waitForPendingNameWrite() async {
+    await answerWriteGate.waitForIdle()
   }
 
   /// Record the acquisition source locally and in analytics, then move on.
@@ -428,17 +498,13 @@ final class SBOnboardingModel: ObservableObject {
     advance(userAnswer: source, to: .language)
   }
 
-  /// Set the user's spoken language locally + on the backend (mirrors the legacy
-  /// confirmLanguages, single-primary). Advances optimistically.
+  /// Set the user's spoken language locally (single-primary) and advance.
   func pickLanguage(code: String, name: String) {
     languageName = name
     languageDraft = name
     languageIsDetectedFromMac = false
-    AssistantSettings.shared.voiceLanguages = [code]
-    answerWriteGate.enqueue(.language) { [code] in
-      _ = try? await APIClient.shared.updateUserLanguage(code)
-    }
-    advance(userAnswer: name, to: .role)
+    languageWriter([code])
+    advance(userAnswer: name, to: .mic)
   }
 
   /// Auto-detect the Mac's language and pre-fill it so the picker defaults to it
@@ -467,108 +533,73 @@ final class SBOnboardingModel: ObservableObject {
     pickLanguage(code: code, name: name)
   }
 
-  func pickRole(_ r: String) {
-    role = r
-    UserDefaults.standard.set(r, forKey: DefaultsKey.onboardingRole)
-    advance(userAnswer: r, to: .mic)
-  }
-
-  func answerRoleText() {
-    let t = roleDraft.trimmingCharacters(in: .whitespaces)
-    guard !t.isEmpty else { return }
-    pickRole(t)
-  }
-
   // MARK: capture choice → completes onboarding
 
   func capture(_ selection: CaptureSelection) {
-    AssistantSettings.shared.systemAudioCaptureMode = selection.systemAudioCaptureMode
-    complete(startListening: selection.startsListeningImmediately)
+    guard !exitStarted else { return }
+    exitStarted = true
+    teardownAll()
+    let executor = exitExecutorOverride ?? makeLiveExitExecutor()
+    executor.execute(OnboardingExitPolicy.plan(for: .completed(selection)), onComplete: onComplete)
   }
 
-  /// Skip the rest of onboarding: mark it complete and drop straight to the Chat
-  /// tab (with the personalized opener), without force-enabling capture or screen
-  /// analysis the user chose to bypass. They can turn those on later.
+  /// Skip the rest of onboarding and land on a neutral Home. Capture, monitoring,
+  /// launch at login, and the completion opener remain off until the user enables
+  /// them later.
   func skip() {
+    guard !exitStarted else { return }
+    exitStarted = true
     teardownAll()
-    AnalyticsManager.shared.onboardingCompleted()
-    chatProvider.stopAgent(owner: .mainChat)
-    UserDefaults.standard.set(true, forKey: DefaultsKey.onboardingJustCompleted)
-    UserDefaults.standard.removeObject(forKey: Self.resumeStepKey)
-    // Greet the user in the Home chat with the personalized opener + starters.
-    chatProvider.presentOnboardingOpener()
-    ChatToolExecutor.onboardingAppState = nil
-    OnboardingChatPersistence.clear()
-    ChatDraftStore.shared.clear(.onboardingMain)
-    ChatDraftStore.shared.clear(.onboardingFloating)
-    onComplete?()
-    Task { [weak self] in
-      guard let self else { return }
-      await self.chatProvider.finishOnboardingJournal()
-      self.appState.hasCompletedOnboarding = true
-    }
+    let executor = exitExecutorOverride ?? makeLiveExitExecutor()
+    executor.execute(OnboardingExitPolicy.plan(for: .skipped), onComplete: onComplete)
   }
 
-  /// Replicates the essential real side-effects of the legacy handleOnboardingComplete().
-  private func complete(startListening: Bool) {
-    teardownAll()
-    AnalyticsManager.shared.onboardingCompleted()
-    chatProvider.stopAgent(owner: .mainChat)
-    UserDefaults.standard.set(true, forKey: DefaultsKey.onboardingJustCompleted)
-    UserDefaults.standard.removeObject(forKey: Self.resumeStepKey)
-    chatProvider.isOnboarding = false
-    // Greet the user in the Home chat with the personalized opener + starters.
-    chatProvider.presentOnboardingOpener()
-    ChatToolExecutor.onboardingAppState = nil
-    OnboardingChatPersistence.clear()
-    ChatDraftStore.shared.clear(.onboardingMain)
-    ChatDraftStore.shared.clear(.onboardingFloating)
-
-    onComplete?()
-    Task { [weak self] in
-      guard let self else { return }
-      await self.chatProvider.finishOnboardingJournal()
-      self.appState.hasCompletedOnboarding = true
-    }
-
-    Task {
-      await GoalGenerationService.shared.generateNow()
-    }
-    applyLaunchAtLoginSelection()
-
-    if AppBuild.usesLazyDevPermissions {
-      AssistantSettings.shared.screenAnalysisEnabled = false
-    } else {
-      AssistantSettings.shared.screenAnalysisEnabled = true
-      if !ProactiveAssistantsPlugin.shared.isMonitoring {
-        ProactiveAssistantsPlugin.shared.startMonitoring { _, _ in }
-      }
-    }
-    Task { [appState] in
-      if startListening { appState.startTranscription() }
-      await appState.reconcileCapture()
-    }
-    // NOTE: previously this created a "Run omi for two days…" welcome task. That
-    // seeded onboarding scaffolding into the user's real Tasks surface (there is no
-    // hidden/system-task concept to hang it on), so it's been removed — onboarding
-    // must not leave artifacts in product data.
-  }
-
-  /// Apply the user's launch-at-login selection at completion — **preserve** their
-  /// choice (`launchAtLogin`) rather than force-enabling it, and report the actual
-  /// value to analytics. Previously this unconditionally called `setEnabled(true)`,
-  /// which overrode a user who declined auto-start. The `setEnabled`/`report` seams
-  /// keep this hermetic in tests (no real login-item registration side effects).
-  func applyLaunchAtLoginSelection(
-    setEnabled: (Bool) -> Bool = { LaunchAtLoginManager.shared.setEnabled($0) },
-    report: (Bool) -> Void = {
-      AnalyticsManager.shared.launchAtLoginChanged(enabled: $0, source: "sb_onboarding_complete")
-    }
-  ) {
-    let enabled = launchAtLogin
-    if setEnabled(enabled) {
-      report(enabled)
-    }
+  private func makeLiveExitExecutor() -> OnboardingExitExecutor {
+    OnboardingExitExecutor(
+      effects: .init(
+        recordAnalytics: { AnalyticsManager.shared.onboardingExit($0) },
+        persistOutcome: { OnboardingExitPersistence.persist($0) },
+        setTranscriptionIntent: { AssistantSettings.shared.transcriptionEnabled = $0 },
+        startTranscriptionSession: { [appState] in
+          appState.startTranscription()
+          await appState.reconcileCapture()
+        },
+        stopTranscriptionSession: { [appState] in appState.stopTranscription() },
+        setScreenAnalysisIntent: { AssistantSettings.shared.screenAnalysisEnabled = $0 },
+        startScreenMonitoring: {
+          let plugin = ProactiveAssistantsPlugin.shared
+          plugin.refreshScreenRecordingPermission()
+          guard
+            OnboardingScreenMonitoringStartPolicy.shouldStart(
+              intentEnabled: AssistantSettings.shared.screenAnalysisEnabled,
+              isPaywalled: AppState.isPaywalledEffective,
+              keysAvailable: APIKeyService.keysAvailable,
+              permissionGranted: plugin.hasScreenRecordingPermission,
+              isMonitoring: plugin.isMonitoring)
+          else { return }
+          plugin.startMonitoring { _, _ in }
+        },
+        stopScreenMonitoring: { ProactiveAssistantsPlugin.shared.stopMonitoring() },
+        requestLaunchAtLogin: { enabled in
+          LaunchAtLoginIntentPolicy.apply(
+            enabled ? .onboardingCompletion : .onboardingSkip,
+            setEnabled: { LaunchAtLoginManager.shared.setEnabled($0) },
+            report: { enabled, source in
+              AnalyticsManager.shared.launchAtLoginChanged(enabled: enabled, source: source)
+            })
+        },
+        setJustCompleted: { UserDefaults.standard.set($0, forKey: .onboardingJustCompleted) },
+        prepareMainChat: { [chatProvider] in
+          chatProvider.stopAgent(owner: .mainChat)
+          chatProvider.isOnboarding = false
+          ChatDraftStore.shared.clear(.onboardingMain)
+          ChatDraftStore.shared.clear(.onboardingFloating)
+        },
+        presentOpener: { [chatProvider] in chatProvider.presentOnboardingOpener() },
+        clearResumeState: { UserDefaults.standard.removeObject(forKey: Self.resumeStepKey) },
+        finishJournal: { [chatProvider] in await chatProvider.finishOnboardingJournal() },
+        publishCompletion: { [appState] in appState.hasCompletedOnboarding = true },
+        setSystemAudioCaptureMode: { AssistantSettings.shared.systemAudioCaptureMode = $0 }))
   }
 
   /// Cancel every live task/monitor this model owns. Safe to call repeatedly.

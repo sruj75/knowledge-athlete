@@ -67,7 +67,7 @@ Prioritized feature map to guide desktop E2E coverage. Uses the same two-dimensi
 | 28 | Refer a Friend (external affiliate URL) | retrieval-action (3) | 6 | 0 | 2 | ⚠️ manual: `refer-external.yaml` (profile menu → browser) |
 | 29 | Delete account (confirmation only) | — | 5 | 0 | 2 | ⚠️ manual: `delete-account.yaml` (never confirms) |
 | 30 | Logout (local auth / emulator) | — | 5 | 1 | 2 | ⚠️ manual: `logout.yaml` (`sign_out` bridge; not prod OAuth) |
-| 31 | Onboarding (first launch / reset) | — | 5 | 1 | 1 | ⚠️ manual: `onboarding-smoke.yaml` — reset fix landed; keep manual until 2× local green |
+| 31 | Onboarding (first launch / reset) | — | 5 | 1 | 1 | ⚠️ manual: `onboarding-flow.yaml` + `onboarding-smoke.yaml` — retained stages, two exits, reset/relaunch |
 
 ### SETTINGS & SYSTEM (priority 3-5)
 
@@ -95,7 +95,7 @@ Agent-local flows with `tier: manual` — **not** qualification-tier (T2). Run i
 | `refer-external.yaml` | Opens `https://affiliate.omi.me` in the default browser | No |
 | `delete-account.yaml` | Exercises confirmation sheet only; **never** taps Delete Permanently | Yes (gated) |
 | `logout.yaml` | Sign out via Settings; requires **local Auth emulator** (`make desktop-run-local`), not prod OAuth | No |
-| `onboarding-smoke.yaml` | `reset_onboarding` restarts app; Wave 7 fix landed — manual until 2× local green | Yes (local reset) |
+| `onboarding-smoke.yaml` | Named-bundle reset/restart, capture-safe replay, retained-data controls, and two consecutive genuine exits | Yes (local reset) |
 | `audio-recording.yaml` | Microphone TCC | No |
 | `rewind.yaml` | Rewind page + permission state | No |
 | `screen-recording-permission.yaml` | Screen Recording TCC + System Settings | No |
@@ -113,7 +113,7 @@ Do **not** promote destructive flows (`delete-account`, `onboarding-smoke`) to t
 
 | Rank | Feature | Priority | Blocker | Notes |
 |------|---------|----------|---------|-------|
-| 1 | Onboarding reset smoke | 5 | App restart harness | `onboarding-smoke.yaml` stays manual until 2× local green after Wave 7 fix |
+| 1 | Onboarding reset smoke | 5 | Permission UI and destructive reset | `onboarding-flow.yaml` and `onboarding-smoke.yaml` stay named-bundle manual gates |
 | 2 | Prod OAuth sign-in | 5 | External browser | Use local Auth emulator for logout manual lane |
 | 4 | TCC live lanes | 15 | Mic / screen recording | `audio-recording.yaml`, `rewind.yaml`, `screen-recording-permission.yaml` |
 | 5 | System tray depth | 5 | Low ROI | Partial via manual logout/onboarding only |

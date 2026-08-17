@@ -83,11 +83,14 @@ describe("omi tool manifest", () => {
       "start_file_scan",
       "get_file_scan_results",
       "create_calendar_event",
+      "set_user_preferences",
+      "ask_followup",
+      "complete_onboarding",
     ];
 
-    const advertised = toolNamesForAdapter("pi-mono", { screenContext: true });
+    const manifestNames = omiToolManifest.map((tool) => tool.name);
     for (const tool of retired) {
-      expect(advertised).not.toContain(tool);
+      expect(manifestNames).not.toContain(tool);
     }
   });
 
