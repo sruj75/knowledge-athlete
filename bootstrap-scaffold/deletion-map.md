@@ -1232,6 +1232,11 @@ IR-835
   migration, promotion codes, local checkout simulator, product-owned plan
   changes/reactivation, duplicate catalog reconstruction, unfinished paid
   overage, BYOK/free-plan bypass, and unused detailed usage readers.
+- **Interim MVP checkpoint:** ship `BILLING_MODE=disabled` with no credentials or
+  transactions, keep the future Dodo architecture fail-closed, and make the
+  existing usage-limit action say **Skip** and dismiss without granting paid
+  state or clearing quota. Do not add an onboarding paywall. This is a short
+  validation stop, not S-18 closure or a change to the destination below.
 - **Close when:** checkout, webhook reconciliation, portal, entitlement changes,
   quota denial, and cancellation work end to end using Dodo test then production
   configuration without a Stripe or Omi plan identifier.

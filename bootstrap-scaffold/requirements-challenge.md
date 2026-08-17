@@ -19612,7 +19612,7 @@ Preserve the current “How did you hear?” selection in local storage and its 
 
 This narrow storage decision did not itself decide the complete Mac onboarding experience. IR-125's later screen-by-screen child audit now closes that umbrella without changing this storage boundary.
 
-The backend `/v4/listen` voice-questionnaire mode called `OnboardingHandler` is not the same as this Firestore record and remains a separate concrete branch.
+The backend `/v4/listen` voice-questionnaire mode called `OnboardingHandler` is not the same as this Firestore record and is a separate concrete branch. IR-124 neither keeps nor deletes that branch; IR-395 later resolves it for deletion.
 
 No code deletion is authorized yet.
 
