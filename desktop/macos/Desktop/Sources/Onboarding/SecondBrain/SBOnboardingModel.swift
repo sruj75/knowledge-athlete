@@ -336,25 +336,19 @@ final class SBOnboardingModel: ObservableObject {
   /// bounded signals reveal when that gate says setup is complete while the SB
   /// stage, persisted resume state, or setup journal still says it is active.
   private func recordSetupStateDisagreementAtRead(savedRaw: Int) {
-    guard appState.hasCompletedOnboarding else { return }
-    DesktopDiagnosticsManager.shared.recordStateAuthoritySignal(
-      seam: .onboardingSetupState,
-      from: "completed_flag",
-      to: "sb_stage",
-      direction: "completed_flag_with_active_stage")
-    if savedRaw > Step.promise.rawValue, Step.resumeTarget(forPersistedRawValue: savedRaw) != nil {
+    let hasPersistedResume =
+      savedRaw > Step.promise.rawValue && Step.resumeTarget(forPersistedRawValue: savedRaw) != nil
+    let resolution = OnboardingSetupAuthorityPolicy.resolve(
+      hasCompletedOnboarding: appState.hasCompletedOnboarding,
+      hasActiveStage: true,
+      hasPersistedResume: hasPersistedResume,
+      hasActiveJournal: chatProvider.isOnboarding)
+    for disagreement in resolution.disagreements {
       DesktopDiagnosticsManager.shared.recordStateAuthoritySignal(
         seam: .onboardingSetupState,
-        from: "completed_flag",
-        to: "persisted_resume",
-        direction: "completed_flag_with_resume_state")
-    }
-    if chatProvider.isOnboarding {
-      DesktopDiagnosticsManager.shared.recordStateAuthoritySignal(
-        seam: .onboardingSetupState,
-        from: "completed_flag",
-        to: "setup_journal",
-        direction: "completed_flag_with_active_journal")
+        from: disagreement.source.rawValue,
+        to: disagreement.target.rawValue,
+        direction: disagreement.direction)
     }
   }
 

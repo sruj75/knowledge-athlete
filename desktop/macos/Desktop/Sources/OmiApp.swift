@@ -24,10 +24,102 @@ enum LaunchMode: String {
   }
 }
 
-// MARK: - Dev Flags
-/// Check for --skip-onboarding flag to bypass onboarding during development
-func shouldSkipOnboarding() -> Bool {
-  return CommandLine.arguments.contains("--skip-onboarding")
+// MARK: - Onboarding lifecycle
+
+enum DirectOnboardingBypassAction: Equatable {
+  case none
+  case markCompletionOnly
+}
+
+enum DirectOnboardingBypassPolicy {
+  static func action(arguments: [String]) -> DirectOnboardingBypassAction {
+    arguments.contains("--skip-onboarding") ? .markCompletionOnly : .none
+  }
+}
+
+/// The published `--skip-onboarding` launch argument remains a direct completion
+/// bypass. It deliberately does not execute the visible Skip exit policy.
+func shouldSkipOnboarding(arguments: [String] = CommandLine.arguments) -> Bool {
+  DirectOnboardingBypassPolicy.action(arguments: arguments) == .markCompletionOnly
+}
+
+enum OnboardingWindowLifecyclePolicy {
+  static func shouldTerminateAfterLastWindowClosed(hasCompletedOnboarding: Bool) -> Bool {
+    !hasCompletedOnboarding
+  }
+}
+
+enum AppKitRelaunchAtLogoutDecision: Equatable {
+  case disable
+  case enable
+}
+
+enum AppKitRelaunchAtLogoutPolicy {
+  static func decision(
+    isProductionBundle: Bool,
+    hasCompletedOnboarding: Bool
+  ) -> AppKitRelaunchAtLogoutDecision {
+    isProductionBundle && hasCompletedOnboarding ? .enable : .disable
+  }
+}
+
+enum OnboardingSetupAuthorityNode: String, Hashable {
+  case completedFlag = "completed_flag"
+  case stage = "sb_stage"
+  case persistedResume = "persisted_resume"
+  case setupJournal = "setup_journal"
+}
+
+struct OnboardingSetupStateDisagreement: Equatable, Hashable {
+  let source: OnboardingSetupAuthorityNode
+  let target: OnboardingSetupAuthorityNode
+  let direction: String
+}
+
+struct OnboardingSetupAuthorityResolution: Equatable {
+  let hasCompletedOnboarding: Bool
+  let disagreements: [OnboardingSetupStateDisagreement]
+}
+
+enum OnboardingSetupAuthorityPolicy {
+  static func resolve(
+    hasCompletedOnboarding: Bool,
+    hasActiveStage: Bool,
+    hasPersistedResume: Bool,
+    hasActiveJournal: Bool
+  ) -> OnboardingSetupAuthorityResolution {
+    guard hasCompletedOnboarding else {
+      return OnboardingSetupAuthorityResolution(
+        hasCompletedOnboarding: false,
+        disagreements: [])
+    }
+
+    var disagreements: [OnboardingSetupStateDisagreement] = []
+    if hasActiveStage {
+      disagreements.append(
+        .init(
+          source: .completedFlag,
+          target: .stage,
+          direction: "completed_flag_with_active_stage"))
+    }
+    if hasPersistedResume {
+      disagreements.append(
+        .init(
+          source: .completedFlag,
+          target: .persistedResume,
+          direction: "completed_flag_with_resume_state"))
+    }
+    if hasActiveJournal {
+      disagreements.append(
+        .init(
+          source: .completedFlag,
+          target: .setupJournal,
+          direction: "completed_flag_with_active_journal"))
+    }
+    return OnboardingSetupAuthorityResolution(
+      hasCompletedOnboarding: true,
+      disagreements: disagreements)
+  }
 }
 
 // Simple observable state without Firebase types
@@ -531,9 +623,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, @unchecked S
       // File indexing now runs through FileIndexingView UI (user consent required)
       // No background scan — prevents race condition where scan finishes before UI listens
     }
-
-    // One-time migration: Enable launch at login for existing users who haven't set it
-    migrateLaunchAtLoginDefault()
 
     // One-time migration: Rename app bundle from legacy names to "omi.app"
     migrateAppName()
@@ -1204,7 +1293,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, @unchecked S
   }
 
   func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
-    let shouldTerminate = !UserDefaults.standard.bool(forKey: "hasCompletedOnboarding")
+    let shouldTerminate = OnboardingWindowLifecyclePolicy.shouldTerminateAfterLastWindowClosed(
+      hasCompletedOnboarding: UserDefaults.standard.bool(forKey: DefaultsKey.hasCompletedOnboarding.rawValue))
     if shouldTerminate {
       log(
         "AppDelegate: Last onboarding window closed — terminating instead of keeping a background menu bar process"
@@ -1346,70 +1436,28 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, @unchecked S
     }
   }
 
-  /// One-time migration to enable launch at login for existing users
-  /// Only runs once, and only enables if user hasn't explicitly set a preference
-  private func migrateLaunchAtLoginDefault() {
-    let migrationKey = "didMigrateLaunchAtLoginV1"
-
-    // Skip if migration already done
-    guard !UserDefaults.standard.bool(forKey: migrationKey) else {
-      return
-    }
-
-    // Mark migration as done (do this first to ensure it only runs once)
-    UserDefaults.standard.set(true, forKey: migrationKey)
-
-    // Only enable for users who have completed onboarding (existing users)
-    // New users will get this enabled at the end of onboarding
-    let hasCompletedOnboarding = UserDefaults.standard.bool(forKey: "hasCompletedOnboarding")
-    guard hasCompletedOnboarding else {
-      log("LaunchAtLogin migration: Skipped - user hasn't completed onboarding yet")
-      return
-    }
-
-    // Check current status - only enable if not already registered
-    // This respects users who may have explicitly disabled it via System Settings
-    Task { @MainActor in
-      let manager = LaunchAtLoginManager.shared
-      if !manager.isEnabled {
-        let success = manager.setEnabled(true)
-        log("LaunchAtLogin migration: Enabled for existing user (success: \(success))")
-        if success {
-          AnalyticsManager.shared.launchAtLoginChanged(enabled: true, source: "migration")
-        }
-      } else {
-        log("LaunchAtLogin migration: Already enabled, skipping")
-      }
-    }
-  }
-
   private func updateOnboardingLifecyclePolicy(reason: String) {
     // Only the production/beta bundle (com.omi.computer-macos) should relaunch on login.
     // Dev and named test bundles must always opt out — otherwise every local build that was
     // open at shutdown gets relaunched on the next restart, swarming the screen with dev apps.
     MainActor.assumeIsolated {
-      guard AppBuild.isProductionBundle else {
+      let hasCompletedOnboarding = UserDefaults.standard.bool(forKey: DefaultsKey.hasCompletedOnboarding.rawValue)
+      switch AppKitRelaunchAtLogoutPolicy.decision(
+        isProductionBundle: AppBuild.isProductionBundle,
+        hasCompletedOnboarding: hasCompletedOnboarding)
+      {
+      case .disable:
         guard !relaunchOnLoginSuppressedForOnboarding else { return }
         NSApp.disableRelaunchOnLogin()
         relaunchOnLoginSuppressedForOnboarding = true
-        log("AppDelegate: Disabled relaunch on login for non-production bundle (\(reason))")
-        return
-      }
-
-      let hasCompletedOnboarding = UserDefaults.standard.bool(forKey: DefaultsKey.hasCompletedOnboarding.rawValue)
-
-      if hasCompletedOnboarding {
+        let context = AppBuild.isProductionBundle ? "onboarding is incomplete" : "non-production bundle"
+        log("AppDelegate: Disabled relaunch on login while \(context) (\(reason))")
+      case .enable:
         guard relaunchOnLoginSuppressedForOnboarding else { return }
         NSApp.enableRelaunchOnLogin()
         relaunchOnLoginSuppressedForOnboarding = false
         log("AppDelegate: Re-enabled relaunch on login after onboarding completed (\(reason))")
-        return
       }
-
-      guard !relaunchOnLoginSuppressedForOnboarding else { return }
-      NSApp.disableRelaunchOnLogin()
-      relaunchOnLoginSuppressedForOnboarding = true
-      log("AppDelegate: Disabled relaunch on login while onboarding is incomplete (\(reason))")
     }
   }
 

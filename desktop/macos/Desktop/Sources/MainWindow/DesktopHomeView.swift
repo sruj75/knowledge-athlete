@@ -562,25 +562,21 @@ struct DesktopHomeView: View {
   /// flag prevents SBOnboardingModel from mounting.
   private var hasCompletedOnboardingAtAuthorityRead: Bool {
     let completed = appState.hasCompletedOnboarding
-    guard completed else { return false }
     let savedRaw = UserDefaults.standard.integer(forKey: SBOnboardingModel.resumeStepKey)
-    if savedRaw > SBOnboardingModel.Step.promise.rawValue,
-      SBOnboardingModel.Step(rawValue: savedRaw) != nil
-    {
+    let resolution = OnboardingSetupAuthorityPolicy.resolve(
+      hasCompletedOnboarding: completed,
+      hasActiveStage: false,
+      hasPersistedResume: savedRaw > SBOnboardingModel.Step.promise.rawValue
+        && SBOnboardingModel.Step.resumeTarget(forPersistedRawValue: savedRaw) != nil,
+      hasActiveJournal: viewModelContainer.chatProvider.isOnboarding)
+    for disagreement in resolution.disagreements {
       DesktopDiagnosticsManager.shared.recordStateAuthoritySignal(
         seam: .onboardingSetupState,
-        from: "completed_flag",
-        to: "persisted_resume",
-        direction: "completed_flag_with_resume_state")
+        from: disagreement.source.rawValue,
+        to: disagreement.target.rawValue,
+        direction: disagreement.direction)
     }
-    if viewModelContainer.chatProvider.isOnboarding {
-      DesktopDiagnosticsManager.shared.recordStateAuthoritySignal(
-        seam: .onboardingSetupState,
-        from: "completed_flag",
-        to: "setup_journal",
-        direction: "completed_flag_with_active_journal")
-    }
-    return true
+    return resolution.hasCompletedOnboarding
   }
 
   private func reportAutomationState() {
