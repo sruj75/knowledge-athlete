@@ -8,6 +8,7 @@ description: >
 app: non-prod
 covers:
   - desktop/macos/Desktop/Sources/Onboarding/OnboardingFlow.swift
+  - desktop/macos/Desktop/Sources/Onboarding/OnboardingLifecyclePolicy.swift
   - desktop/macos/Desktop/Sources/Onboarding/OnboardingExitPolicy.swift
   - desktop/macos/Desktop/Sources/Onboarding/OnboardingAcquisitionSourceRecorder.swift
   - desktop/macos/Desktop/Sources/Onboarding/OnboardingAnswerWriteGate.swift

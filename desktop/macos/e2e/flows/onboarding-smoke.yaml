@@ -8,6 +8,7 @@ description: >
 app: non-prod
 covers:
   - desktop/macos/Desktop/Sources/Onboarding/OnboardingFlow.swift
+  - desktop/macos/Desktop/Sources/Onboarding/OnboardingLifecyclePolicy.swift
   - desktop/macos/Desktop/Sources/DesktopAutomationBridge.swift
   - desktop/macos/Desktop/Sources/AppState/AppState+SystemActions.swift
   - desktop/macos/Desktop/Sources/OmiApp.swift
