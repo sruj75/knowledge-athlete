@@ -25,8 +25,8 @@ class TranscriptionService: @unchecked Sendable {
     }
   }
 
-  /// Translation from backend (lang code + translated text)
-  struct BackendTranslation: Decodable {
+  /// Locally attached translation (lang code + translated text)
+  struct BackendTranslation: Decodable, Equatable {
     let lang: String
     let text: String
   }
@@ -38,12 +38,90 @@ class TranscriptionService: @unchecked Sendable {
     let model: String?
   }
 
-  /// Transcript segment from Python backend
-  /// Matches `models.transcript_segment.TranscriptSegment` on the backend
-  struct BackendSegment: Decodable {
+  /// Canonical segment shared by cloud listen and on-device Parakeet ingestion.
+  struct BackendSegment: Equatable {
+    let segmentId: String
+    let speakerId: Int
+    let text: String
+    let isUser: Bool
+    let start: Double
+    let end: Double
+    let translations: [BackendTranslation]
+
+    init(
+      segmentId: String,
+      speakerId: Int,
+      text: String,
+      isUser: Bool,
+      start: Double,
+      end: Double,
+      translations: [BackendTranslation] = []
+    ) {
+      self.segmentId = segmentId
+      self.speakerId = speakerId
+      self.text = text
+      self.isUser = isUser
+      self.start = start
+      self.end = end
+      self.translations = translations
+    }
+  }
+
+  private struct TransientSegmentWire: Decodable {
+    let segmentId: String
+    let speakerId: Int
+    let text: String
+    let start: Double
+    let end: Double
+  }
+
+  private struct TransientSegmentsEnvelope: Decodable {
+    let type: String
+    let segments: [TransientSegmentWire]
+  }
+
+  private struct ListenServiceStatusWire: Decodable {
+    let type: String
+    let status: ListenServiceStatus
+    let statusText: String?
+    let outcome: String?
+    let provider: String?
+    let retryable: Bool?
+    let reason: String?
+
+    enum CodingKeys: String, CodingKey {
+      case type
+      case status
+      case statusText = "status_text"
+      case outcome
+      case provider
+      case retryable
+      case reason
+    }
+  }
+
+  private struct ListenTranslationWire: Decodable {
+    let type: String
+    let segmentId: String
+    let language: String
+    let text: String
+  }
+
+  private struct ListenFreemiumWire: Decodable {
+    let type: String
+    let remainingSeconds: Int
+    let action: String
+
+    enum CodingKeys: String, CodingKey {
+      case type
+      case remainingSeconds = "remaining_seconds"
+      case action
+    }
+  }
+
+  private struct PTTSegmentWire: Decodable {
     let id: String?
     let text: String
-    let speaker: String?  // e.g. "SPEAKER_00"
     let speaker_id: Int?
     let is_user: Bool
     let start: Double
@@ -51,11 +129,24 @@ class TranscriptionService: @unchecked Sendable {
     let translations: [BackendTranslation]?
   }
 
-  /// Message event (from `/v4/listen` only — not used by PTT transcribe-stream)
-  /// JSON object with a `type` field indicating the event kind
-  struct ListenEvent {
-    let type: String
-    let raw: [String: Any]  // Full JSON for event-specific fields
+  enum ListenServiceStatus: String, Decodable, Sendable {
+    case ready
+    case sttFailed = "stt_failed"
+  }
+
+  /// Exact retained event domain for `/v4/listen`; PTT has its own response shape.
+  enum ListenEvent: Sendable {
+    case serviceStatus(ListenServiceStatus)
+    case translation(segmentId: String, language: String, text: String)
+    case freemiumThresholdReached(remainingSeconds: Int, action: String)
+
+    var type: String {
+      switch self {
+      case .serviceStatus: "service_status"
+      case .translation: "translation"
+      case .freemiumThresholdReached: "freemium_threshold_reached"
+      }
+    }
   }
 
   /// Callback types
@@ -68,6 +159,7 @@ class TranscriptionService: @unchecked Sendable {
     case missingBackendURL
     case connectionFailed(Error)
     case invalidResponse
+    case invalidSessionConfiguration(String)
     case payloadTooLarge
     case webSocketError(String)
 
@@ -79,6 +171,8 @@ class TranscriptionService: @unchecked Sendable {
         return "Connection failed: \(error.localizedDescription)"
       case .invalidResponse:
         return "Invalid response from backend"
+      case .invalidSessionConfiguration(let message):
+        return "Invalid transcription session: \(message)"
       case .payloadTooLarge:
         return "Recording too long — keep it under 5 minutes"
       case .webSocketError(let message):
@@ -110,6 +204,8 @@ class TranscriptionService: @unchecked Sendable {
   private let channels = 1  // Always mono for Python backend streaming
   private let streamingMode: StreamingMode
   private let contextKeywords: [String]
+  private let translationTarget: String?
+  private let vocabulary: [String]
 
   /// Python backend base URL for transcription endpoints.
   /// Resolution order: explicit OMI_PYTHON_API_URL → production https://api.omi.me/
@@ -178,14 +274,44 @@ class TranscriptionService: @unchecked Sendable {
   init(
     language: String = "en",
     mode: StreamingMode = .conversation,
-    contextKeywords: [String] = []
+    contextKeywords: [String] = [],
+    translationTarget: String? = nil,
+    vocabulary: [String] = []
   ) throws {
     self.language = language
     self.streamingMode = mode
     self.contextKeywords = Self.sanitizedContextKeywords(contextKeywords)
+    self.translationTarget = translationTarget?.trimmingCharacters(in: .whitespacesAndNewlines)
+    self.vocabulary = try Self.validatedListenVocabulary(vocabulary)
+    if mode == .conversation, let target = self.translationTarget,
+      target.isEmpty || target == "auto" || target == "multi"
+    {
+      throw TranscriptionError.invalidSessionConfiguration("translation target is invalid")
+    }
     log(
       "TranscriptionService: Initialized for \(mode == .conversation ? "/v4/listen" : "/v2/voice-message/transcribe-stream"), language=\(language), contextKeywords=\(self.contextKeywords.count)"
     )
+  }
+
+  private static func validatedListenVocabulary(_ rawTerms: [String]) throws -> [String] {
+    guard rawTerms.count <= 100 else {
+      throw TranscriptionError.invalidSessionConfiguration("vocabulary exceeds 100 terms")
+    }
+    var result: [String] = []
+    var seen = Set<String>()
+    for rawTerm in rawTerms {
+      let term = rawTerm.trimmingCharacters(in: .whitespacesAndNewlines)
+      guard !term.isEmpty, term.count <= 256 else {
+        throw TranscriptionError.invalidSessionConfiguration("vocabulary contains an invalid term")
+      }
+      if seen.insert(term.lowercased()).inserted {
+        result.append(term)
+      }
+    }
+    guard result.reduce(0, { $0 + $1.count }) <= 8_000 else {
+      throw TranscriptionError.invalidSessionConfiguration("vocabulary exceeds 8,000 characters")
+    }
+    return result
   }
 
   /// Flush remaining audio and (for PTT mode) tell the backend to finalize transcription.
@@ -193,7 +319,7 @@ class TranscriptionService: @unchecked Sendable {
   /// In PTT mode, sends a "finalize" text message so the backend flushes any sub-threshold
   /// audio to managed STT and triggers provider finalization.
   /// In conversation mode, just flushes the local audio buffer (no "finalize" — `/v4/listen`
-  /// manages its own endpointing via the pusher pipeline).
+  /// relies on finalized utterances from the transient Modulate transport).
   func finishStream() {
     flushAudioBuffer()
 
@@ -409,16 +535,14 @@ class TranscriptionService: @unchecked Sendable {
 
     switch streamingMode {
     case .conversation:
-      // Transient conversation transcription; the Mac owns conversation identity and persistence.
+      // Immutable transient-session snapshot; audio format is fixed by the route contract.
       path = "/v4/listen"
-      queryItems = [
-        URLQueryItem(name: "language", value: language),
-        URLQueryItem(name: "sample_rate", value: String(sampleRate)),
-        URLQueryItem(name: "codec", value: encoding),
-        URLQueryItem(name: "channels", value: "1"),
-        URLQueryItem(name: "source", value: "desktop"),
-        URLQueryItem(name: "transient_only", value: "true"),
-      ]
+      var items = [URLQueryItem(name: "language", value: language == "multi" ? "auto" : language)]
+      if let translationTarget {
+        items.append(URLQueryItem(name: "translation_target", value: translationTarget))
+      }
+      items.append(contentsOf: vocabulary.map { URLQueryItem(name: "vocabulary", value: $0) })
+      queryItems = items
     case .ptt:
       // PTT-only transcription — no conversation lifecycle
       path = "/v2/voice-message/transcribe-stream"
@@ -594,10 +718,8 @@ class TranscriptionService: @unchecked Sendable {
   }
 
   /// Parse response from Python backend transcription WebSocket.
-  /// Message types:
-  /// 1. JSON array = transcript segments (primary, from `/v2/voice-message/transcribe-stream`)
-  /// 2. JSON object with "type" field = message event (from `/v4/listen` only, kept for compatibility)
-  /// 3. Plain text "ping" = heartbeat (ignore)
+  /// Conversation mode accepts only the typed transient envelope/events. PTT retains its
+  /// independent array response contract. Plain text `ping` is the listen heartbeat.
   /// Visible to tests (`@testable import`) so ListenProtocolTests can drive real callback dispatch.
   func parseBackendResponse(_ text: String) {
     // Handle heartbeat ping
@@ -611,16 +733,98 @@ class TranscriptionService: @unchecked Sendable {
     do {
       let json = try JSONSerialization.jsonObject(with: data)
 
-      if json is [[String: Any]] {
-        // JSON array = transcript segments
-        let segments = try JSONDecoder().decode([BackendSegment].self, from: data)
-        if !segments.isEmpty {
-          onBackendSegments?(segments)
+      switch streamingMode {
+      case .ptt:
+        guard json is [[String: Any]] else { return }
+        let wireSegments = try JSONDecoder().decode([PTTSegmentWire].self, from: data)
+        let segments = wireSegments.map { wire in
+          BackendSegment(
+            segmentId: UUID(uuidString: wire.id ?? "")?.uuidString.lowercased()
+              ?? UUID().uuidString.lowercased(),
+            speakerId: max(0, wire.speaker_id ?? 0),
+            text: wire.text,
+            isUser: wire.is_user,
+            start: wire.start,
+            end: wire.end,
+            translations: wire.translations ?? [])
         }
-      } else if let dict = json as? [String: Any], let type = dict["type"] as? String {
-        // JSON object with "type" = message event
-        let event = ListenEvent(type: type, raw: dict)
-        onListenEvent?(event)
+        if !segments.isEmpty { onBackendSegments?(segments) }
+
+      case .conversation:
+        guard let dict = json as? [String: Any], let type = dict["type"] as? String else { return }
+        if type == "segments" {
+          guard Set(dict.keys) == ["type", "segments"],
+            let rawSegments = dict["segments"] as? [[String: Any]],
+            !rawSegments.isEmpty,
+            rawSegments.allSatisfy({
+              Set($0.keys) == ["segmentId", "speakerId", "text", "start", "end"]
+            })
+          else { return }
+          let envelope = try JSONDecoder().decode(TransientSegmentsEnvelope.self, from: data)
+          guard envelope.type == "segments" else { return }
+          let segments = envelope.segments.compactMap { wire -> BackendSegment? in
+            guard UUID(uuidString: wire.segmentId) != nil,
+              wire.speakerId >= 0,
+              !wire.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              wire.start >= 0,
+              wire.end >= wire.start
+            else { return nil }
+            return BackendSegment(
+              segmentId: wire.segmentId.lowercased(),
+              speakerId: wire.speakerId,
+              text: wire.text,
+              isUser: false,
+              start: wire.start,
+              end: wire.end)
+          }
+          guard segments.count == envelope.segments.count else { return }
+          onBackendSegments?(segments)
+          return
+        }
+
+        switch type {
+        case "service_status":
+          let wire = try JSONDecoder().decode(ListenServiceStatusWire.self, from: data)
+          guard wire.type == "service_status" else { return }
+          switch wire.status {
+          case .ready:
+            guard Set(dict.keys) == ["type", "status"] else { return }
+          case .sttFailed:
+            guard
+              Set(dict.keys) == [
+                "type", "status", "status_text", "outcome", "provider", "retryable", "reason",
+              ],
+              !(wire.statusText ?? "").isEmpty,
+              !(wire.outcome ?? "").isEmpty,
+              !(wire.provider ?? "").isEmpty,
+              wire.retryable != nil,
+              !(wire.reason ?? "").isEmpty
+            else { return }
+          }
+          onListenEvent?(.serviceStatus(wire.status))
+        case "translation":
+          guard Set(dict.keys) == ["type", "segmentId", "language", "text"] else { return }
+          let wire = try JSONDecoder().decode(ListenTranslationWire.self, from: data)
+          guard wire.type == "translation",
+            UUID(uuidString: wire.segmentId) != nil,
+            !wire.language.isEmpty,
+            !wire.text.isEmpty
+          else { return }
+          onListenEvent?(
+            .translation(
+              segmentId: wire.segmentId.lowercased(), language: wire.language, text: wire.text))
+        case "freemium_threshold_reached":
+          guard Set(dict.keys) == ["type", "remaining_seconds", "action"] else { return }
+          let wire = try JSONDecoder().decode(ListenFreemiumWire.self, from: data)
+          guard wire.type == "freemium_threshold_reached", wire.remainingSeconds >= 0,
+            !wire.action.isEmpty
+          else { return }
+          onListenEvent?(
+            .freemiumThresholdReached(
+              remainingSeconds: wire.remainingSeconds, action: wire.action))
+        default:
+          return
+        }
       }
     } catch {
       logError("TranscriptionService: Parse error", error: error)

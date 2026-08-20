@@ -111,7 +111,7 @@ def test_workflow_contract_sources_select_adjacent_tests(selector_and_all_tests)
         "backend/utils/memory/canonical_memory_adapter.py": "testing/e2e/test_canonical_memory_pipeline.py",
         "backend/services/users/account_deletion.py": "tests/services/users/test_account_deletion.py",
         "backend/routers/sync.py": "tests/unit/test_audio_merge_tasks.py",
-        "backend/routers/transcribe.py": "tests/unit/test_listen_pipeline.py",
+        "backend/routers/transcribe.py": "tests/unit/test_listen_transient_contract.py",
         "backend/config/prerecorded_stt.py": "tests/unit/test_prerecorded_stt_config.py",
         "backend/scripts/validate-backend-runtime-env.py": "tests/unit/test_backend_runtime_env_validator.py",
         "backend/scripts/firebase_release_probe_token.py": "tests/unit/test_firebase_release_probe_token.py",

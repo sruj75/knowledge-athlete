@@ -100,7 +100,6 @@ final class LocalTranscriptionService: @unchecked Sendable {
   private let language: String
   /// Source-based diarization: mic = the user ("You"), system audio = another speaker.
   private let isUser: Bool
-  private let speakerLabel: String
   private let speakerId: Int
   private let sampleRate = 16000
   /// Window length transcribed at a time. Not real-time — gives a ~10 s "lag" like the user wants.
@@ -133,7 +132,6 @@ final class LocalTranscriptionService: @unchecked Sendable {
   init(language: String = "en", isUser: Bool = true) {
     self.language = language
     self.isUser = isUser
-    self.speakerLabel = isUser ? "SPEAKER_00" : "SPEAKER_01"
     self.speakerId = isUser ? 0 : 1
   }
 
@@ -325,14 +323,12 @@ final class LocalTranscriptionService: @unchecked Sendable {
       }
 
       let segment = TranscriptionService.BackendSegment(
-        id: UUID().uuidString,
+        segmentId: UUID().uuidString.lowercased(),
+        speakerId: speakerId,
         text: text,
-        speaker: speakerLabel,
-        speaker_id: speakerId,
-        is_user: isUser,
+        isUser: isUser,
         start: snapshot.startSec,
-        end: snapshot.startSec + snapshot.durSec,
-        translations: nil
+        end: snapshot.startSec + snapshot.durSec
       )
       // Deliver synchronously on the main actor so an awaited finish() guarantees the
       // segment is persisted (to the current session) before the caller rotates state.

@@ -33,7 +33,6 @@ from database.users import (
     claim_deletion_wipe_for_task,
     resolve_deletion_wipe_job_id,
     resolve_legacy_deletion_wipe_uid,
-    set_user_transcription_preferences,
 )
 from config.stt_provider_policy import supports_live_multilingual_mode
 from config.free_plan import get_default_free_subscription
@@ -427,7 +426,6 @@ def set_user_language(data: SetUserLanguageRequest, uid: str = Depends(auth.get_
         raise HTTPException(status_code=400, detail="A supported language code is required")
     set_user_language_preference(uid, language)
     single_language_mode = not supports_live_multilingual_mode(language)
-    set_user_transcription_preferences(uid, single_language_mode=single_language_mode)
     return {'status': 'ok', 'single_language_mode': single_language_mode}
 
 

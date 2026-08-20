@@ -1,22 +1,19 @@
 """
 Fake STT (Speech-to-Text) helpers.
 
-For custom-STT mode, the app/client is the STT
-boundary: it sends ``suggested_transcript`` events into the real listen
-websocket after audio bytes establish the session clock. Those deterministic
-events exercise backend transcript handling and persistence without allowing
-provider/network access. Managed-STT tests replace the fixed Modulate adapter
-at its socket boundary.
+Managed-STT tests replace the fixed Modulate adapter at its socket boundary;
+prerecorded and PTT callers continue to share the same offline fake.
 """
 
 from __future__ import annotations
 
 import sys
+import uuid
 from typing import Any, Optional, Sequence
 
 
 class FakeStreamingSTTSocket:
-    """Minimal STT socket surface used by routers.transcribe._stream_handler."""
+    """Minimal socket surface used by retained managed-STT callers."""
 
     def __init__(self, callback, *, die_on_first_send=False):
         self.callback = callback
@@ -49,14 +46,11 @@ class FakeStreamingSTTSocket:
         self.callback(
             [
                 {
-                    "id": "seg-streaming-stt-1",
+                    "segmentId": str(uuid.UUID("00000000-0000-4000-8000-000000000001")),
                     "text": "Hermetic streaming STT transcript from the fake socket.",
-                    "speaker": "SPEAKER_00",
-                    "is_user": True,
-                    "person_id": None,
+                    "speakerId": 0,
                     "start": 0.0,
                     "end": 1.25,
-                    "stt_provider": "e2e-streaming-stt",
                 }
             ]
         )
@@ -168,42 +162,3 @@ def install_offline_managed_stt_fake() -> None:
             continue
         for name, replacement in replacements.items():
             setattr(module, name, replacement)
-
-
-def install_streaming_stt_fake(monkeypatch, *, die_on_first_send=False):
-    """Patch the listen receiver provider boundary and return fake sockets.
-
-    The fake patches the single managed provider entry point.
-    """
-    from routers.listen import receiver as listen_receiver
-    from routers.listen import runtime as listen_runtime
-
-    sockets = []
-
-    async def fake_process_audio_modulate(callback, *args, **kwargs):
-        socket = FakeStreamingSTTSocket(callback, die_on_first_send=die_on_first_send)
-        sockets.append(socket)
-        return socket
-
-    monkeypatch.setattr(listen_receiver, "process_audio_modulate", fake_process_audio_modulate)
-    monkeypatch.setattr(listen_receiver, "is_gate_enabled", lambda: False)
-    monkeypatch.setattr(listen_runtime, "record_usage", lambda *args, **kwargs: None)
-    return sockets
-
-
-def fake_suggested_transcript_event():
-    """Return a deterministic custom-STT event accepted by routers.transcribe."""
-    return {
-        "type": "suggested_transcript",
-        "stt_provider": "e2e-custom-stt",
-        "segments": [
-            {
-                "id": "seg-custom-stt-1",
-                "text": "Hermetic custom STT transcript from the listen harness.",
-                "speaker": "SPEAKER_00",
-                "is_user": True,
-                "start": 0.0,
-                "end": 1.25,
-            }
-        ],
-    }

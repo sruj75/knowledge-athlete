@@ -7,8 +7,7 @@ failure is fail-closed, a persisted sweep cursor guarantees eventual discovery,
 unexpected per-row failures are counted as errors distinct from expected CAS
 skips, and outcomes surface on a privacy-safe reconciliation counter. The deeper
 saturation / timestamp-authority / cursor-wraparound / fence contracts live in
-``test_conversation_finalization_jobs.py``; the end-to-end no-fanout proof lives
-in the hermetic listen_pusher_stack gauntlet.
+``test_conversation_finalization_jobs.py``.
 """
 
 from __future__ import annotations

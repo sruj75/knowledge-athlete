@@ -56,7 +56,6 @@ LOCK_CONTRACTS = {
     ),
     "gcp_memory_maintenance_job_auto_dev.yml": LockContract("deploy-cloud-run-memory-maintenance-job-development"),
     "gcp_models.yml": LockContract("deploy-gke-vad-${{ github.event.inputs.environment }}"),
-    "gcp_nllb_translation.yml": LockContract("deploy-gke-nllb-translation-${{ github.event.inputs.environment }}"),
     "gcp_notifications_job.yml": LockContract(
         "deploy-cloud-run-notifications-job-${{ github.event.inputs.environment }}"
     ),
@@ -532,7 +531,6 @@ def validate_shared_families(groups: dict[str, str]) -> list[str]:
         "gcp_llm_gateway.yml",
         "gcp_memory_maintenance_job.yml",
         "gcp_models.yml",
-        "gcp_nllb_translation.yml",
         "gcp_notifications_job.yml",
     )
     for name in environment_scoped:

@@ -587,13 +587,13 @@ class TestListenRuntimeSupervisor:
     def test_runtime_uses_supervisor_utility(self):
         src = _read_source(LISTEN_RUNTIME_SRC)
         assert 'WebSocketTaskSupervisor' in src
-        assert 'drain_tasks' in src
+        assert 'self.task_supervisor.drain_all' in src
 
-    def test_runtime_has_finite_task_creation(self):
+    def test_runtime_has_no_retired_product_background_tasks(self):
         src = _read_source(LISTEN_RUNTIME_SRC)
-        assert 'self.task_supervisor.create_finite_task' in src
-        assert "name='pending_convos'" in src
-        assert "name='speaker_id'" in src
+        assert 'self.task_supervisor.create_finite_task' not in src
+        assert 'pending_convos' not in src
+        assert 'speaker_id' not in src
 
     def test_runtime_has_receive_timeout(self):
         src = _read_source(Path(__file__).resolve().parents[2] / 'routers' / 'listen' / 'receiver.py')
@@ -633,7 +633,7 @@ class TestListenRuntimeSupervisor:
     def test_runtime_supervisor_before_drain(self):
         src = _read_source(LISTEN_RUNTIME_SRC)
         supervise_pos = src.find('result = await self.task_supervisor.supervise(')
-        drain_pos = src.find('await self.task_supervisor.drain_monitored(')
+        drain_pos = src.find('await self.task_supervisor.drain_all(')
         assert supervise_pos != -1
         assert drain_pos != -1
         assert supervise_pos < drain_pos, "supervise_tasks must appear before bg drain in transcribe.py"

@@ -68,10 +68,10 @@ def cleanup_redis(r, uid):
 
 
 async def connect_and_wait_ready(url, timeout=30):
-    """Connect to WebSocket and wait for 'ready' or 'stt_initiating' status."""
+    """Connect to the transient WebSocket and wait for its exact ready event."""
     ws = await websockets.connect(
         url,
-        extra_headers={'authorization': 'Bearer dev-token'},
+        extra_headers={'authorization': 'Bearer dev-token', 'X-App-Platform': 'desktop'},
         close_timeout=5,
         max_size=10 * 1024 * 1024,
         ping_interval=None,  # Let server handle pings
@@ -89,8 +89,7 @@ async def connect_and_wait_ready(url, timeout=30):
                     if status:
                         statuses.append(status)
                         print(f'  [status] {status}')
-                    if status in ('ready', 'stt_initiating'):
-                        # stt_initiating means managed STT is connecting, good enough to start sending
+                    if status == 'ready':
                         return ws, statuses
                 except json.JSONDecodeError:
                     pass
@@ -189,7 +188,7 @@ async def main():
 
     # Phase 1: Connect and verify ready
     print('\n--- Phase 1: Connect to /v4/listen ---')
-    url = f'{BACKEND_URL}?language=en&sample_rate=16000&codec=pcm8&channels=1&vad_gate=enabled'
+    url = f'{BACKEND_URL}?language=en'
     print(f'  [url] {url}')
 
     try:
@@ -316,7 +315,7 @@ async def main():
     print('=' * 60)
 
     results = {
-        'connection': 'ready' in statuses or 'stt_initiating' in statuses,
+        'connection': 'ready' in statuses,
         'audio_sent': duration > 0,
         'transcripts': len(transcripts) > 0,
         'speech_in_redis': speech_detected,

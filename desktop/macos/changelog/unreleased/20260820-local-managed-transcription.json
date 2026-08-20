@@ -1,0 +1,3 @@
+{
+  "change": "Made managed transcription save directly to the Mac's local conversation archive without cloud conversation state"
+}

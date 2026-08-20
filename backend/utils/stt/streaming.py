@@ -10,6 +10,7 @@ import logging
 import os
 import threading
 import urllib.parse
+import uuid
 import wave as _wave
 from typing import Any, Callable, Dict, List, Optional, cast
 
@@ -22,6 +23,7 @@ from config.stt_provider_policy import (
     normalized_stt_language,
     supports_live_multilingual_mode,
 )
+from utils.log_sanitizer import sanitize
 from utils.metrics import OMI_LIVE_STT_MISALIGNED_FRAMES_TOTAL
 from utils.stt.socket import STTSocket
 
@@ -90,11 +92,13 @@ class SafeModulateSocket(STTSocket):
         stream_transcript: Callable[[List[Dict[str, Any]]], None],
         loop: asyncio.AbstractEventLoop,
         preseconds: int = 0,
+        canonical_segments: bool = False,
     ) -> None:
         self._ws: Any = ws
         self._stream_transcript: Callable[[List[Dict[str, Any]]], None] = stream_transcript
         self._loop: asyncio.AbstractEventLoop = loop
         self._preseconds = preseconds
+        self._canonical_segments = canonical_segments
         self._dead = False
         self._closed = False
         self._death_reason: Optional[str] = None
@@ -263,11 +267,11 @@ class SafeModulateSocket(STTSocket):
                 msg_type = msg.get('type', '')
                 if msg_type == 'error':
                     err = msg.get('error', msg.get('message', 'unknown error'))
-                    logger.error(f'Modulate streaming error: {err}')
+                    logger.error('Modulate streaming error: %s', sanitize(err))
                     if self._prev_partial_text:
                         self._flush_partial()
                     self._done_event.set()
-                    self._mark_dead(f'modulate error: {err}')
+                    self._mark_dead('modulate provider error')
                     break
                 elif msg_type == 'done':
                     logger.info('Modulate streaming done: duration_ms=%s', msg.get('duration_ms'))
@@ -295,6 +299,8 @@ class SafeModulateSocket(STTSocket):
             self._mark_dead(f'ws recv error: {e}')
 
     def _handle_partial_utterance(self, msg: Dict[str, Any]) -> None:
+        if self._canonical_segments:
+            return
         # Modulate sends cumulative partial_utterance messages during streaming
         # (e.g., "He", "He could", "He could hardly"...) but these are preview-only.
         # We buffer them here and only forward the final `utterance` via _handle_utterance.
@@ -317,6 +323,10 @@ class SafeModulateSocket(STTSocket):
         self._prev_partial_word_count = len(text.split())
 
     def _flush_partial(self) -> None:
+        if self._canonical_segments:
+            self._prev_partial_text = ''
+            self._prev_partial_word_count = 0
+            return
         text = self._prev_partial_text
         start_ms = self._prev_partial_start_ms
         self._prev_partial_text = ''
@@ -339,6 +349,12 @@ class SafeModulateSocket(STTSocket):
         self._stream_transcript(segments)
 
     def _handle_utterance(self, msg: Dict[str, Any]) -> None:
+        if self._canonical_segments:
+            self._stream_transcript([canonical_segment_from_modulate(msg)])
+            self._prev_partial_text = ''
+            self._prev_partial_word_count = 0
+            return
+
         text = msg.get('text', '').strip()
         if not text:
             return
@@ -374,11 +390,46 @@ class SafeModulateSocket(STTSocket):
         self._stream_transcript(segments)
 
 
+def canonical_segment_from_modulate(utterance: Dict[str, Any]) -> Dict[str, Any]:
+    """Validate and project a finalized Velma utterance into the public listen DTO."""
+    raw_segment_id = utterance.get('utterance_uuid')
+    if not isinstance(raw_segment_id, str):
+        raise ValueError('Modulate utterance is missing utterance_uuid')
+    try:
+        segment_id = str(uuid.UUID(raw_segment_id))
+    except ValueError as error:
+        raise ValueError('Modulate utterance_uuid is not a UUID') from error
+
+    text = utterance.get('text')
+    if not isinstance(text, str) or not text.strip():
+        raise ValueError('Modulate utterance is missing text')
+    start_ms = utterance.get('start_ms')
+    duration_ms = utterance.get('duration_ms')
+    if not isinstance(start_ms, (int, float)) or start_ms < 0:
+        raise ValueError('Modulate utterance start_ms is invalid')
+    if not isinstance(duration_ms, (int, float)) or duration_ms < 0:
+        raise ValueError('Modulate utterance duration_ms is invalid')
+    raw_speaker = utterance.get('speaker')
+    if not isinstance(raw_speaker, int) or isinstance(raw_speaker, bool) or raw_speaker < 1:
+        raise ValueError('Modulate utterance speaker is invalid')
+
+    return {
+        'segmentId': segment_id,
+        'speakerId': raw_speaker - 1,
+        'text': text.strip(),
+        'start': start_ms / 1000.0,
+        'end': (start_ms + duration_ms) / 1000.0,
+    }
+
+
 async def process_audio_modulate(
     stream_transcript: Callable[[List[Dict[str, Any]]], None],
     sample_rate: int,
     language: str,
     preseconds: int = 0,
+    *,
+    vocabulary: tuple[str, ...] = (),
+    canonical_segments: bool = False,
 ) -> SafeModulateSocket:
     api_key = os.getenv('MODULATE_API_KEY')
     if not api_key:
@@ -387,19 +438,39 @@ async def process_audio_modulate(
     params = {
         'api_key': api_key,
         'speaker_diarization': 'true',
-        'partial_results': 'true',
+        'partial_results': 'false' if canonical_segments else 'true',
         'sample_rate': str(sample_rate),
         'audio_format': 's16le',
         'num_channels': '1',
     }
-    if language and language != 'multi':
+    if language and language != 'multi' and not canonical_segments:
         params['language'] = language
-    uri = f'wss://modulate-developer-apis.com/api/velma-2-stt-streaming?{urllib.parse.urlencode(params)}'
+    endpoint = (
+        'wss://platform.modulate.ai/api/velma-2-stt-streaming'
+        if canonical_segments
+        else 'wss://modulate-developer-apis.com/api/velma-2-stt-streaming'
+    )
+    uri = f'{endpoint}?{urllib.parse.urlencode(params)}'
 
     logger.info(f'Connecting to Modulate Velma-2 streaming sample_rate={sample_rate} language={language}')
     ws = await websockets.connect(uri, ping_timeout=10, ping_interval=10)
+    if canonical_segments:
+        configuration: Dict[str, Any] = {}
+        if language and language != 'multi':
+            configuration['language'] = language
+        if vocabulary:
+            configuration['custom_terms'] = list(vocabulary)
+        configuration['speaker_diarization'] = True
+        configuration['partial_results'] = False
+        await ws.send(json.dumps(configuration, separators=(',', ':')))
     loop = asyncio.get_running_loop()
-    sock = SafeModulateSocket(ws, stream_transcript, loop, preseconds=preseconds)
+    sock = SafeModulateSocket(
+        ws,
+        stream_transcript,
+        loop,
+        preseconds=preseconds,
+        canonical_segments=canonical_segments,
+    )
     logger.info('Modulate Velma-2 streaming connection established')
     return sock
 

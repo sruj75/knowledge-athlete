@@ -1,15 +1,8 @@
-"""Fail-open durable export of dev-only parity-pack cassettes to GCS.
-
-Local emptyDir capture remains the source of truth inside the pod. This module
-best-effort mirrors `cassettes/*.json` to a private development bucket so
-operators can download packs for offline replay after the pod is gone.
-
-Export never raises into the listen path. GCS outages only log + optional
-fallback telemetry.
-"""
+"""Fail-open durable export of dev-only parity-pack cassettes to GCS."""
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import threading
@@ -18,32 +11,32 @@ from pathlib import Path
 from typing import Mapping
 from urllib.parse import urlparse
 
+from google.cloud import storage
+from google.oauth2 import service_account
+
 logger = logging.getLogger(__name__)
 
 _DEFAULT_EXPORT_INTERVAL_SECONDS = 3600
 _reconcile_lock = threading.Lock()
 _reconcile_started = False
+_client = None
+_client_lock = threading.Lock()
 
 
 def _parse_gcs_uri(uri: str) -> tuple[str, str] | None:
     value = (uri or "").strip()
-    if not value:
+    if not value or not value.startswith("gs://"):
         return None
-    if value.startswith("gs://"):
-        parsed = urlparse(value)
-        bucket = parsed.netloc.strip()
-        prefix = parsed.path.lstrip("/")
-        if not bucket:
-            return None
-        return bucket, prefix.rstrip("/")
-    return None
+    parsed = urlparse(value)
+    bucket = parsed.netloc.strip()
+    if not bucket:
+        return None
+    return bucket, parsed.path.lstrip("/").rstrip("/")
 
 
 def resolve_export_target(environ: Mapping[str, str] | None = None) -> tuple[str, str] | None:
-    """Return (bucket, object_prefix) when durable export is configured."""
     env = os.environ if environ is None else environ
-    uri = (env.get("OMI_PARITY_PACK_GCS_URI") or "").strip()
-    parsed = _parse_gcs_uri(uri)
+    parsed = _parse_gcs_uri((env.get("OMI_PARITY_PACK_GCS_URI") or "").strip())
     if parsed is not None:
         return parsed
     bucket = (env.get("OMI_PARITY_PACK_GCS_BUCKET") or "").strip()
@@ -55,31 +48,20 @@ def resolve_export_target(environ: Mapping[str, str] | None = None) -> tuple[str
 
 def _object_name(prefix: str, local_path: Path, root: Path) -> str:
     try:
-        rel = local_path.resolve().relative_to(root.resolve())
+        relative = local_path.resolve().relative_to(root.resolve())
     except ValueError:
-        rel = Path("cassettes") / local_path.name
-    rel_s = rel.as_posix().lstrip("/")
-    if not prefix:
-        return rel_s
-    return f"{prefix.rstrip('/')}/{rel_s}"
-
-
-_client = None
-_client_lock = threading.Lock()
+        relative = Path("cassettes") / local_path.name
+    value = relative.as_posix().lstrip("/")
+    return f"{prefix.rstrip('/')}/{value}" if prefix else value
 
 
 def _storage_client():
-    """Lazy GCS client using the same credential sources as backend storage."""
     global _client
     if _client is not None:
         return _client
     with _client_lock:
         if _client is not None:
             return _client
-        from google.cloud import storage
-        from google.oauth2 import service_account
-        import json
-
         if os.environ.get("SERVICE_ACCOUNT_JSON"):
             info = json.loads(os.environ["SERVICE_ACCOUNT_JSON"])
             credentials = service_account.Credentials.from_service_account_info(info)
@@ -90,7 +72,7 @@ def _storage_client():
         return _client
 
 
-def _record_export_failure(*, reason: str) -> None:
+def _record_export_failure() -> None:
     try:
         from utils.observability.fallback import record_fallback
 
@@ -98,64 +80,44 @@ def _record_export_failure(*, reason: str) -> None:
             component="other",
             from_mode="parity_pack_gcs_export",
             to_mode="local_only",
-            reason="other" if reason not in {"auth", "timeout", "other"} else reason,
+            reason="other",
             outcome="degraded",
         )
     except Exception:
-        # Telemetry must never block listen.
         pass
 
 
 def export_cassette_file(local_path: Path, *, environ: Mapping[str, str] | None = None) -> bool:
-    """Upload one local cassette JSON. Returns True on success. Fail-open."""
+    """Upload one local cassette JSON without raising into its product surface."""
+
     env = os.environ if environ is None else environ
     target = resolve_export_target(env)
-    if target is None:
-        return False
     root_value = (env.get("OMI_PARITY_PACK_ROOT") or "").strip()
-    if not root_value:
-        return False
-    root = Path(root_value)
     path = Path(local_path)
-    if not path.is_file():
+    if target is None or not root_value or not path.is_file():
         return False
     bucket_name, prefix = target
-    object_name = _object_name(prefix, path, root)
+    object_name = _object_name(prefix, path, Path(root_value))
     try:
-        client = _storage_client()
-        blob = client.bucket(bucket_name).blob(object_name)
+        blob = _storage_client().bucket(bucket_name).blob(object_name)
         blob.upload_from_filename(str(path), content_type="application/json")
-        logger.info(
-            "Parity pack cassette exported bucket=%s object=%s",
-            bucket_name,
-            object_name,
-        )
+        logger.info("Parity pack cassette exported bucket=%s object=%s", bucket_name, object_name)
         return True
     except Exception as error:
-        logger.warning(
-            "Parity pack cassette export failed error_type=%s",
-            type(error).__name__,
-        )
-        _record_export_failure(reason="other")
+        logger.warning("Parity pack cassette export failed error_type=%s", type(error).__name__)
+        _record_export_failure()
         return False
 
 
 def reconcile_local_cassettes(*, environ: Mapping[str, str] | None = None) -> int:
-    """Best-effort upload of every local cassette under ROOT/cassettes."""
     env = os.environ if environ is None else environ
-    if resolve_export_target(env) is None:
-        return 0
     root_value = (env.get("OMI_PARITY_PACK_ROOT") or "").strip()
-    if not root_value:
+    if resolve_export_target(env) is None or not root_value:
         return 0
     cassettes = Path(root_value) / "cassettes"
     if not cassettes.is_dir():
         return 0
-    uploaded = 0
-    for path in sorted(cassettes.glob("*.json")):
-        if export_cassette_file(path, environ=env):
-            uploaded += 1
-    return uploaded
+    return sum(export_cassette_file(path, environ=env) for path in sorted(cassettes.glob("*.json")))
 
 
 def _export_interval_seconds(environ: Mapping[str, str]) -> int:
@@ -163,14 +125,14 @@ def _export_interval_seconds(environ: Mapping[str, str]) -> int:
     if not raw:
         return _DEFAULT_EXPORT_INTERVAL_SECONDS
     try:
-        value = int(raw)
+        return max(60, int(raw))
     except ValueError:
         return _DEFAULT_EXPORT_INTERVAL_SECONDS
-    return max(60, value)
 
 
 def ensure_reconcile_loop(*, environ: Mapping[str, str] | None = None) -> None:
-    """Start a single daemon thread that periodically re-exports local cassettes."""
+    """Start one daemon that periodically retries local cassette exports."""
+
     global _reconcile_started
     env = dict(os.environ if environ is None else environ)
     if resolve_export_target(env) is None:
@@ -179,7 +141,6 @@ def ensure_reconcile_loop(*, environ: Mapping[str, str] | None = None) -> None:
         if _reconcile_started:
             return
         _reconcile_started = True
-
     interval = _export_interval_seconds(env)
 
     def _loop() -> None:
@@ -188,14 +149,6 @@ def ensure_reconcile_loop(*, environ: Mapping[str, str] | None = None) -> None:
                 time.sleep(interval)
                 reconcile_local_cassettes(environ=env)
             except Exception as error:
-                logger.warning(
-                    "Parity pack cassette reconcile loop error error_type=%s",
-                    type(error).__name__,
-                )
+                logger.warning("Parity pack cassette reconcile error type=%s", type(error).__name__)
 
-    thread = threading.Thread(
-        target=_loop,
-        name="omi-parity-pack-export-reconcile",
-        daemon=True,
-    )
-    thread.start()
+    threading.Thread(target=_loop, name="omi-parity-pack-export-reconcile", daemon=True).start()

@@ -1580,42 +1580,6 @@ def test_memory_maintenance_auto_dev_workflow_is_listed_and_targets_job():
     )
 
 
-_ILB_ENV_VARS = ['HOSTED_TRANSLATION_API_URL']
-
-
-@pytest.mark.parametrize('env_name', ['dev', 'prod'])
-def test_repo_ilb_endpoints_use_http_scheme(env_name):
-    """ILB endpoints are HTTP-only (no TLS) — https:// causes timeouts."""
-    validator = load_validator()
-    manifest = validator._load_yaml(validator.DEFAULT_MANIFEST)
-    env_config = validator._get_env_config(manifest, env_name)
-
-    violations = []
-
-    def _check_service(surface, svc_name, svc_cfg):
-        env_vars = svc_cfg.get('env', {})
-        for var_name in _ILB_ENV_VARS:
-            if var_name not in env_vars:
-                continue
-            value = env_vars[var_name]
-            url = value.get('value', '') if isinstance(value, dict) else value
-            if url.startswith('https://'):
-                violations.append(f'{env_name}/{surface}/{svc_name}: {var_name}={url}')
-
-    # cloud_run: nested under 'services' key
-    cloud_run_cfg = env_config.get('cloud_run', {})
-    for svc_name, svc_cfg in cloud_run_cfg.get('services', {}).items():
-        _check_service('cloud_run', svc_name, svc_cfg)
-
-    # gke: service entries are direct children (not under 'services')
-    gke_cfg = env_config.get('gke', {})
-    for svc_name, svc_cfg in gke_cfg.items():
-        if isinstance(svc_cfg, dict) and 'env' in svc_cfg:
-            _check_service('gke', svc_name, svc_cfg)
-
-    assert violations == [], f'ILB endpoints must use http:// (no TLS): {violations}'
-
-
 # --- live Cloud Run check validates services only (this pipeline deploys no Cloud Run jobs) ---
 
 _LIVE_SERVICE_JSON = '{"spec":{"template":{"metadata":{"annotations":{}},"spec":{"containers":[{"env":[]}]}}}}'

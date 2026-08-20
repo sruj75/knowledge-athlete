@@ -28,12 +28,10 @@ cassette bytes and retains only bounded lane/reason metadata.
 
 ## Live surface wiring
 
-The `/v4/listen` runtime creates `routers.listen.parity_capture.ListenParityCapture`
-only after Firebase WebSocket authentication and STT provider selection. It uses
-the Firebase UID solely for the exact `CaptureWhitelist` comparison, derives
-anonymous session/event identifiers before cassette creation, and records decoded
-client audio, the successful STT socket send, and provider transcript callbacks.
-The capture persists during normal listen-session teardown.
+Retained product surfaces construct `SurfaceParityCapture` only after their own
+authentication and provider selection. The adapter uses the principal solely
+for the exact `CaptureWhitelist` comparison, derives anonymous identifiers
+before cassette creation, and bounds every captured value before persistence.
 
 Set a fourth, required operator-only variable to an absolute path outside the
 repository:

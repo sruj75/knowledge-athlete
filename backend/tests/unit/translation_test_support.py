@@ -1,22 +1,18 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Any
-
-from config.translation import TranslationProfile, TranslationProvider
+from config.translation import TranslationProfile
 from utils.translation import TranslationService
 from utils.translation_core.cache import CachedTranslation, PersistentTranslationStore, TranslationCache
 from utils.translation_core.metrics import NoopTranslationMetrics
 from utils.translation_core.providers import (
+    GeminiTranslationExecutor,
     ProviderTranslation,
-    TranslationProviderChain,
-    TranslationProviderError,
+    TranslationExecutionError,
 )
 
 
 class FakeProvider:
-    def __init__(self, provider: TranslationProvider, responses: list[object]) -> None:
-        self.provider = provider
+    def __init__(self, responses: list[object]) -> None:
         self.responses = list(responses)
         self.calls: list[dict[str, object]] = []
 
@@ -67,54 +63,34 @@ class DictTranslationStore(PersistentTranslationStore):
         self.negative.add((fingerprint, target_language))
 
 
-@dataclass
-class FallbackEvent:
-    fields: dict[str, Any]
-
-
-class FallbackRecorder:
-    def __init__(self) -> None:
-        self.events: list[FallbackEvent] = []
-
-    def __call__(self, **fields: Any) -> None:
-        self.events.append(FallbackEvent(fields=fields))
-
-
 def profile(
-    providers: tuple[TranslationProvider, ...] = (TranslationProvider.google,),
     *,
     max_batch_size: int = 100,
 ) -> TranslationProfile:
     return TranslationProfile(
-        providers=providers,
-        nllb_url='http://nllb.test',
-        nllb_timeout_seconds=1.0,
         cache_ttl_seconds=600,
         negative_cache_ttl_seconds=300,
-        configured_providers=providers,
         max_batch_size=max_batch_size,
     )
 
 
 def build_service(
-    providers: dict[TranslationProvider, FakeProvider],
+    provider: FakeProvider,
     *,
     selected_profile: TranslationProfile | None = None,
     store: PersistentTranslationStore | None = None,
     cache: TranslationCache | None = None,
-    recorder: FallbackRecorder | None = None,
 ) -> tuple[TranslationService, TranslationCache]:
     metrics = NoopTranslationMetrics()
     selected_cache = cache or TranslationCache(persistent=store, metrics=metrics)
-    provider_chain = TranslationProviderChain(
-        providers=providers,
+    translation_executor = GeminiTranslationExecutor(
+        adapter=provider,
         metrics=metrics,
-        fallback_recorder=recorder or FallbackRecorder(),
     )
-    resolved_profile = selected_profile or profile(tuple(providers))
+    resolved_profile = selected_profile or profile()
     service = TranslationService(
         cache=selected_cache,
-        provider_chain=provider_chain,
+        translation_executor=translation_executor,
         profile_resolver=lambda: resolved_profile,
         metrics=metrics,
     )
@@ -125,5 +101,5 @@ def translations(*items: tuple[str, str]) -> list[ProviderTranslation]:
     return [ProviderTranslation(text=text, detected_language=language) for text, language in items]
 
 
-def provider_error(provider: TranslationProvider, reason: str = 'other') -> TranslationProviderError:
-    return TranslationProviderError(provider, reason, f'{provider.value} failed')
+def translation_error(reason: str = 'other') -> TranslationExecutionError:
+    return TranslationExecutionError(reason, 'Gemini translation failed')

@@ -180,4 +180,3 @@ backend-main:http:PUT:/v1/announcements/{announcement_id}
 backend-main:websocket:WEBSOCKET:/v1/omni/relay
 backend-main:websocket:WEBSOCKET:/v2/voice-message/transcribe-stream
 backend-main:websocket:WEBSOCKET:/v4/listen
-backend-main:websocket:WEBSOCKET:/v4/web/listen

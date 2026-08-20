@@ -284,9 +284,10 @@ class AssistantSettings {
 
   /// Returns vocabulary with "Omi" always included.
   var effectiveVocabulary: [String] {
-    var vocab = Set(transcriptionVocabulary)
-    vocab.insert("Omi")
-    return Array(vocab)
+    var seen = Set<String>()
+    return (["Omi"] + transcriptionVocabulary).filter {
+      seen.insert($0.lowercased()).inserted
+    }
   }
 
   /// Reset all settings to defaults

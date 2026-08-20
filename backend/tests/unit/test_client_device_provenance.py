@@ -135,19 +135,18 @@ def test_transcript_artifact_ref_omits_device_from_hash_inputs():
     assert _artifact_ref(base) == _artifact_ref(with_device)
 
 
-def test_listen_conversation_stamps_websocket_device_provenance():
+def test_transient_listen_has_no_durable_device_provenance_owner():
     runtime = (Path(__file__).resolve().parents[2] / "routers" / "listen" / "runtime.py").read_text(encoding="utf-8")
-    conversations = (Path(__file__).resolve().parents[2] / "routers" / "listen" / "conversations.py").read_text(
-        encoding="utf-8"
-    )
+    conversations = Path(__file__).resolve().parents[2] / "routers" / "listen" / "conversations.py"
 
-    assert "resolve_client_device_from_headers(" in runtime
-    assert "client_device_id=context.client_device_id" in conversations
-    assert "client_platform=context.platform" in conversations
+    assert not conversations.exists()
+    assert "resolve_client_device_from_headers(" not in runtime
+    assert "client_device_id" not in runtime
 
 
-def test_web_listen_forwards_first_message_device_provenance():
+def test_retired_web_listen_device_provenance_handshake_is_absent():
     source = (Path(__file__).resolve().parents[2] / "routers" / "transcribe.py").read_text(encoding="utf-8")
 
-    assert "resolve_client_device_from_websocket_auth_message(first_message)" in source
-    assert "client_device_context=client_device_context" in source
+    assert 'websocket("/v4/web/listen")' not in source
+    assert "resolve_client_device_from_websocket_auth_message(first_message)" not in source
+    assert "client_device_context=client_device_context" not in source
