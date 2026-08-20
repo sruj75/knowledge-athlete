@@ -1085,7 +1085,14 @@ final class HomeChatCatalogTests: XCTestCase {
   }
 }
 
+@MainActor
 final class HomeLocalSourceTests: XCTestCase {
+  private let ownerFixture = RuntimeOwnerAuthorityTestFixture()
+
+  override func tearDown() async throws {
+    await ownerFixture.restore()
+  }
+
   func testEveryContextSourceIsBounded() {
     let oversized = Array(repeating: String(repeating: "x", count: 800), count: 20)
     let result = GeminiHomeSuggestionGenerator.boundedContext(oversized)
@@ -1141,5 +1148,36 @@ final class HomeLocalSourceTests: XCTestCase {
     XCTAssertFalse(source.contains("APIClient.shared.getGoals"))
     XCTAssertFalse(source.contains("APIClient.shared.getConversations"))
     XCTAssertFalse(source.contains("APIClient.shared.getMemories"))
+  }
+
+  @MainActor
+  func testRevokedSameUIDSnapshotCannotDispatchHomeSuggestionRequest() async throws {
+    await ownerFixture.establish(authOwnerID: "owner-a")
+    let staleSnapshot = try XCTUnwrap(RuntimeOwnerIdentity.captureAuthorizationSnapshot())
+    await ownerFixture.establish(authOwnerID: "owner-a")
+    let dispatchCounter = HomeRequestDispatchCounter()
+
+    do {
+      _ = try await GeminiHomeSuggestionGenerator.performAuthorizedTextRequest(
+        authorizationSnapshot: staleSnapshot
+      ) {
+        await dispatchCounter.record()
+        return #"{"questions":["Owner A private suggestion"]}"#
+      }
+      XCTFail("revoked authorization unexpectedly dispatched a Gemini request")
+    } catch {
+      XCTAssertEqual(error as? LocalMutationAuthorizationError, .revoked)
+    }
+
+    let dispatchCount = await dispatchCounter.count
+    XCTAssertEqual(dispatchCount, 0)
+  }
+}
+
+private actor HomeRequestDispatchCounter {
+  private(set) var count = 0
+
+  func record() {
+    count += 1
   }
 }

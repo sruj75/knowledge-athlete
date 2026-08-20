@@ -6,10 +6,8 @@
 # Remove keys from this file as routes get reviewed and added to the manifest.
 backend-main:http:DELETE:/v1/advice/{advice_id}
 backend-main:http:DELETE:/v1/announcements/{announcement_id}
-backend-main:http:DELETE:/v1/focus-sessions/{session_id}
 backend-main:http:DELETE:/v1/joan/{memory_id}/followup-question
 backend-main:http:DELETE:/v1/phone/numbers/{phone_number_id}
-backend-main:http:DELETE:/v1/users/daily-summaries/{summary_id}
 backend-main:http:DELETE:/v1/users/delete-account
 backend-main:http:DELETE:/v3/speech-profile/expand
 backend-main:http:GET:/metrics
@@ -30,18 +28,11 @@ backend-main:http:GET:/v1/calendar/meetings
 backend-main:http:GET:/v1/calendar/meetings/{meeting_id}
 backend-main:http:GET:/v1/fair-use/case/{case_ref}/status
 backend-main:http:GET:/v1/fair-use/status
-backend-main:http:GET:/v1/focus-sessions
-backend-main:http:GET:/v1/focus-stats
 backend-main:http:GET:/v1/health
 backend-main:http:GET:/v1/phone/numbers
 backend-main:http:GET:/v1/tools/conversations
 backend-main:http:GET:/v1/trends
-backend-main:http:GET:/v1/users/ai-profile
 backend-main:http:GET:/v1/users/analytics/memory_summary
-backend-main:http:GET:/v1/users/assistant-settings
-backend-main:http:GET:/v1/users/daily-summaries
-backend-main:http:GET:/v1/users/daily-summaries/{summary_id}
-backend-main:http:GET:/v1/users/daily-summary-settings
 backend-main:http:GET:/v1/users/export
 backend-main:http:GET:/v1/users/language
 backend-main:http:GET:/v1/users/me/llm-usage/total
@@ -49,8 +40,6 @@ backend-main:http:GET:/v1/users/me/paywall
 backend-main:http:GET:/v1/users/me/subscription
 backend-main:http:GET:/v1/users/me/trial
 backend-main:http:GET:/v1/users/me/usage-quota
-backend-main:http:GET:/v1/users/mentor-notification-settings
-backend-main:http:GET:/v1/users/notification-settings
 backend-main:http:GET:/v1/users/profile
 backend-main:http:GET:/v1/wrapped/{year}
 backend-main:http:GET:/v2/desktop/appcast.xml
@@ -62,12 +51,7 @@ backend-main:http:GET:/v3/speech-profile/expand
 backend-main:http:GET:/v4/speech-profile
 backend-main:http:HEAD:/v1/health
 backend-main:http:PATCH:/v1/advice/{advice_id}
-backend-main:http:PATCH:/v1/users/ai-profile
-backend-main:http:PATCH:/v1/users/assistant-settings
-backend-main:http:PATCH:/v1/users/daily-summary-settings
 backend-main:http:PATCH:/v1/users/language
-backend-main:http:PATCH:/v1/users/mentor-notification-settings
-backend-main:http:PATCH:/v1/users/notification-settings
 backend-main:http:POST:/v1/admin/fair-use/user/{uid}/reset
 backend-main:http:POST:/v1/admin/fair-use/user/{uid}/resolve-event/{event_id}
 backend-main:http:POST:/v1/admin/fair-use/user/{uid}/set-stage
@@ -80,7 +64,6 @@ backend-main:http:POST:/v1/auth/callback/apple
 backend-main:http:POST:/v1/auth/token
 backend-main:http:POST:/v1/calendar/meetings
 backend-main:http:POST:/v1/files
-backend-main:http:POST:/v1/focus-sessions
 backend-main:http:POST:/v1/messages/{message_id}/report
 backend-main:http:POST:/v1/notification
 backend-main:http:POST:/v1/phone/numbers/verify
@@ -90,8 +73,6 @@ backend-main:http:POST:/v1/phone/twiml
 backend-main:http:POST:/v1/tools/conversations/search
 backend-main:http:POST:/v1/tools/conversations/search-chunks
 backend-main:http:POST:/v1/users/analytics/memory_summary
-backend-main:http:POST:/v1/users/daily-summaries/{summary_id}/regenerate
-backend-main:http:POST:/v1/users/daily-summary-settings/test
 backend-main:http:POST:/v1/users/fcm-token
 backend-main:http:POST:/v1/wrapped/{year}/generate
 backend-main:http:POST:/v2/audio-merge-jobs/run

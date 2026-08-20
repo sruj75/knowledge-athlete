@@ -80,7 +80,7 @@ struct SettingsSearchItem: Identifiable {
     // Notifications
     SettingsSearchItem(
       name: "Notification Settings", subtitle: "Control how often you receive notifications",
-      keywords: ["daily summary", "frequency", "alerts"], section: .notifications, icon: "bell",
+      keywords: ["frequency", "alerts"], section: .notifications, icon: "bell",
       settingId: "notifications.settings"),
     SettingsSearchItem(
       name: "Notification Frequency", subtitle: "How often to receive notifications",
@@ -104,16 +104,6 @@ struct SettingsSearchItem: Identifiable {
       name: "Memory Notifications", subtitle: "Show notification when a memory is extracted",
       keywords: ["memory", "facts", "notify memory"], section: .notifications, icon: "bell",
       settingId: "notifications.memory"),
-    SettingsSearchItem(
-      name: "Daily Summary",
-      subtitle: "Receive a daily summary of your conversations and activities",
-      keywords: ["daily", "summary", "digest", "end of day"], section: .notifications, icon: "bell",
-      settingId: "notifications.dailysummary"),
-    SettingsSearchItem(
-      name: "Summary Time", subtitle: "When to send your daily summary",
-      keywords: ["time", "schedule", "when", "hour"], section: .notifications, icon: "bell",
-      settingId: "notifications.summarytime"),
-
     // Privacy
     SettingsSearchItem(
       name: "Privacy", subtitle: "Control your data and privacy settings",

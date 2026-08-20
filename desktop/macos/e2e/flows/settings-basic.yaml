@@ -58,7 +58,7 @@ steps:
 
   - id: S6
     name: Navigate to Notifications & Privacy section
-    do: "Click 'Notifications & Privacy' in the Settings section list. Verify notification preferences appear with frequency slider, focus/task/insight/memory notification toggles, and Daily Summary settings."
+    do: "Click 'Notifications & Privacy' in the Settings section list. Verify local notification preferences appear with the master switch, frequency slider, and focus/task/insight/memory notification toggles."
     expect:
       text_visible:
         - Notifications & Privacy

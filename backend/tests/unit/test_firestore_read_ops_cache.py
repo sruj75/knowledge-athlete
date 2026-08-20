@@ -1,10 +1,7 @@
 """
 Tests for Firestore read ops optimization (#5439).
 
-Verifies:
-1. Credit cache in transcribe loop (sub-task 1): local caching with 15-min TTL
-2. Mentor notification frequency cache (sub-task 2): field projection + 30s TTL
-3. Tester flag + available apps cache (sub-task 3): 30s TTL with invalidation
+Verifies retained credit and tester/app projection caches.
 """
 
 import os
@@ -54,110 +51,6 @@ import pytest
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Sub-task 2: Mentor notification frequency cache
-# ═══════════════════════════════════════════════════════════════════════════════
-
-
-class TestMentorFrequencyCache:
-    """Tests for cached get_mentor_notification_frequency."""
-
-    def setup_method(self):
-        self.cache = InMemoryCacheManager(max_memory_mb=1)
-        self.db_mock = MagicMock()
-        self.fetch_count = 0
-
-    def _make_doc(self, exists=True, frequency=3):
-        doc = MagicMock()
-        doc.exists = exists
-        doc.to_dict.return_value = {'mentor_notification_frequency': frequency} if exists else {}
-        return doc
-
-    def test_cache_hit_skips_firestore(self):
-        """Repeated calls within TTL should not re-query Firestore."""
-        cache = self.cache
-        call_count = 0
-
-        def fetch():
-            nonlocal call_count
-            call_count += 1
-            return 3
-
-        # First call fetches
-        result1 = cache.get_or_fetch("mentor_frequency:user1", fetch, ttl=30)
-        assert result1 == 3
-        assert call_count == 1
-
-        # Second call uses cache
-        result2 = cache.get_or_fetch("mentor_frequency:user1", fetch, ttl=30)
-        assert result2 == 3
-        assert call_count == 1  # Still 1, not re-fetched
-
-    def test_cache_returns_zero_correctly(self):
-        """Frequency of 0 (disabled) must be cached, not treated as miss."""
-        cache = self.cache
-        call_count = 0
-
-        def fetch():
-            nonlocal call_count
-            call_count += 1
-            return 0
-
-        result = cache.get_or_fetch("mentor_frequency:user_disabled", fetch, ttl=30)
-        assert result == 0
-        assert call_count == 1
-
-        # Verify 0 is cached (not treated as None/miss)
-        # Note: InMemoryCacheManager only treats None as miss, 0 is cached
-        cached = cache.get("mentor_frequency:user_disabled")
-        assert cached == 0
-
-    @pytest.mark.integration
-    def test_cache_ttl_expiry(self):
-        """Cache should expire and re-fetch after TTL."""
-        cache = self.cache
-        call_count = 0
-
-        def fetch():
-            nonlocal call_count
-            call_count += 1
-            return 3
-
-        cache.get_or_fetch("mentor_frequency:user_ttl", fetch, ttl=1)
-        assert call_count == 1
-
-        # Wait for TTL to expire
-        time.sleep(1.1)
-
-        cache.get_or_fetch("mentor_frequency:user_ttl", fetch, ttl=1)
-        assert call_count == 2  # Re-fetched after expiry
-
-    def test_invalidation_on_set(self):
-        """Setting frequency should invalidate the cache for that user."""
-        cache = self.cache
-
-        # Populate cache
-        cache.set("mentor_frequency:user_inv", 3, ttl=30)
-        assert cache.get("mentor_frequency:user_inv") == 3
-
-        # Simulate invalidation (what set_mentor_notification_frequency does)
-        cache.delete("mentor_frequency:user_inv")
-
-        # Should be None (miss) now
-        assert cache.get("mentor_frequency:user_inv") is None
-
-    def test_default_for_nonexistent_user(self):
-        """Non-existent user doc should return default (0)."""
-        cache = self.cache
-        DEFAULT = 0
-
-        def fetch():
-            return DEFAULT  # Simulates doc.exists=False path
-
-        result = cache.get_or_fetch("mentor_frequency:ghost_user", fetch, ttl=30)
-        assert result == DEFAULT
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# Sub-task 3: Tester flag + available apps cache
 # ═══════════════════════════════════════════════════════════════════════════════
 
 

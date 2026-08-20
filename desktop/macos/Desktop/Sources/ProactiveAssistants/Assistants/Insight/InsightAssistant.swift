@@ -9,6 +9,29 @@ private struct EventPayloadBox: @unchecked Sendable {
   let value: [String: Any]
 }
 
+/// Tracks the exact authenticated generation owning Insight's transient
+/// prompt context. A repeated UID after sign-out is still a different owner
+/// generation and therefore requires a full reset.
+struct InsightOwnerBoundary {
+  private(set) var authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+
+  mutating func bind(_ snapshot: RuntimeOwnerAuthorizationSnapshot) -> Bool {
+    guard snapshot != authorizationSnapshot else { return false }
+    authorizationSnapshot = snapshot
+    return true
+  }
+
+  func accepts(_ snapshot: RuntimeOwnerAuthorizationSnapshot) -> Bool {
+    snapshot == authorizationSnapshot
+      && RuntimeOwnerIdentity.isAuthorizationCurrent(snapshot)
+  }
+}
+
+private struct OwnerBoundInsightFrame: Sendable {
+  let frame: CapturedFrame
+  let authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+}
+
 /// Proactive insight assistant that provides contextual suggestions based on screen content
 actor InsightAssistant: ProactiveAssistant {
   // MARK: - ProactiveAssistant Protocol
@@ -32,16 +55,21 @@ actor InsightAssistant: ProactiveAssistant {
   // MARK: - Properties
 
   private let geminiClient: GeminiClient
+  typealias LanguageLoader =
+    @Sendable (_ authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot) async throws -> String
+  private let languageLoader: LanguageLoader
   private var isRunning = false
   private var lastAnalysisTime: Date = .distantPast
   private var previousInsights: [ExtractedInsight] = []  // Dedup window for insight context
   private let maxPreviousInsights = 50
   private let maxInsightsInPrompt = 30  // Only include first 30 in prompt to keep token count reasonable
   private var currentApp: String?
-  private var pendingFrame: CapturedFrame?
+  private var pendingFrame: OwnerBoundInsightFrame?
+  private var ownerBoundary: InsightOwnerBoundary?
   private var cachedLanguage: String?
   private var languageFetchedAt: Date = .distantPast
   private var processingTask: Task<Void, Never>?
+  private nonisolated(unsafe) var ownerObserver: NSObjectProtocol?
   private let frameSignal: AsyncStream<Void>
   private let frameSignalContinuation: AsyncStream<Void>.Continuation
 
@@ -74,17 +102,35 @@ actor InsightAssistant: ProactiveAssistant {
 
   // MARK: - Initialization
 
-  init(apiKey: String? = nil) throws {
+  init(
+    apiKey: String? = nil,
+    startProcessingImmediately: Bool = true,
+    languageLoader: @escaping LanguageLoader = { authorizationSnapshot in
+      try await APIClient.shared.getUserLanguage(
+        expectedOwnerId: authorizationSnapshot.ownerID,
+        authorizationSnapshot: authorizationSnapshot
+      ).language
+    }
+  ) throws {
     self.geminiClient = try GeminiClient(
       apiKey: apiKey, model: ModelQoS.Gemini.insight, fallbackModel: "gemini-2.5-flash")
+    self.languageLoader = languageLoader
 
     let (stream, continuation) = AsyncStream.makeStream(of: Void.self, bufferingPolicy: .bufferingNewest(1))
     self.frameSignal = stream
     self.frameSignalContinuation = continuation
 
-    // Start processing loop
-    Task {
-      await self.startProcessing()
+    ownerObserver = NotificationCenter.default.addObserver(
+      forName: .runtimeOwnerDidChange, object: nil, queue: nil
+    ) { [weak self] _ in
+      Task { await self?.reconcileOwnerContextAfterChange() }
+    }
+
+    if startProcessingImmediately {
+      // Start processing loop
+      Task {
+        await self.startProcessing()
+      }
     }
   }
 
@@ -93,7 +139,8 @@ actor InsightAssistant: ProactiveAssistant {
   private func startProcessing() {
     isRunning = true
     Task {
-      await loadPreviousAdviceFromDB()
+      guard let snapshot = RuntimeOwnerIdentity.captureAuthorizationSnapshot() else { return }
+      await bindOwnerContext(to: snapshot)
     }
     processingTask = Task {
       await processLoop()
@@ -101,14 +148,18 @@ actor InsightAssistant: ProactiveAssistant {
   }
 
   /// Load previous insights from SQLite to persist dedup across app restarts
-  private func loadPreviousAdviceFromDB() async {
+  private func loadPreviousAdviceFromDB(
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async {
+    guard ownerBoundary?.accepts(authorizationSnapshot) == true else { return }
     do {
       let memories = try await MemoryStorage.shared.list(
         categories: [.interesting],
         tags: ["tips"],
         limit: maxPreviousInsights
       )
-      for memory in memories {
+      guard ownerBoundary?.accepts(authorizationSnapshot) == true else { return }
+      let loadedInsights = memories.map { memory in
         let insight = ExtractedInsight(
           insight: memory.content,
           headline: nil,
@@ -117,8 +168,9 @@ actor InsightAssistant: ProactiveAssistant {
           sourceApp: memory.sourceApp ?? "",
           confidence: 0.0
         )
-        previousInsights.append(insight)
+        return insight
       }
+      previousInsights = loadedInsights
       if !previousInsights.isEmpty {
         log("Insight: Loaded \(previousInsights.count) previous tips from DB for dedup")
       }
@@ -126,6 +178,92 @@ actor InsightAssistant: ProactiveAssistant {
       logError("Insight: Failed to load previous tips from DB", error: error)
     }
   }
+
+  private func bindOwnerContext(to snapshot: RuntimeOwnerAuthorizationSnapshot) async {
+    let requiresReload: Bool
+    if var boundary = ownerBoundary {
+      requiresReload = boundary.bind(snapshot)
+      ownerBoundary = boundary
+    } else {
+      ownerBoundary = InsightOwnerBoundary(authorizationSnapshot: snapshot)
+      requiresReload = true
+    }
+    guard requiresReload else { return }
+    previousInsights.removeAll()
+    pendingFrame = nil
+    currentApp = nil
+    cachedLanguage = nil
+    languageFetchedAt = .distantPast
+    await loadPreviousAdviceFromDB(authorizationSnapshot: snapshot)
+  }
+
+  private func resetOwnerContext() {
+    ownerBoundary = nil
+    previousInsights.removeAll()
+    pendingFrame = nil
+    currentApp = nil
+    cachedLanguage = nil
+    languageFetchedAt = .distantPast
+  }
+
+  /// Reconcile against the live authorization when the observer task reaches
+  /// the actor. This makes a delayed A→B reset idempotent: it binds B instead
+  /// of erasing a B frame that was already queued by `analyze`.
+  private func reconcileOwnerContextAfterChange() async {
+    guard let liveSnapshot = RuntimeOwnerIdentity.captureAuthorizationSnapshot() else {
+      resetOwnerContext()
+      return
+    }
+    await bindOwnerContext(to: liveSnapshot)
+  }
+
+  /// Execute a delayed event publication only while the exact owner
+  /// generation that created its payload remains authorized.
+  nonisolated static func publishOwnerBoundEvent<Value: Sendable>(
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot,
+    value: Value,
+    publisher: @escaping @MainActor @Sendable (Value) -> Void
+  ) async {
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
+    await MainActor.run {
+      guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
+      publisher(value)
+    }
+  }
+
+  #if DEBUG
+    func bindAndQueueFrameForTesting(
+      _ frame: CapturedFrame,
+      authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+    ) async {
+      await bindOwnerContext(to: authorizationSnapshot)
+      guard ownerBoundary?.accepts(authorizationSnapshot) == true else { return }
+      pendingFrame = OwnerBoundInsightFrame(
+        frame: frame,
+        authorizationSnapshot: authorizationSnapshot)
+    }
+
+    func reconcileOwnerContextAfterChangeForTesting() async {
+      await reconcileOwnerContextAfterChange()
+    }
+
+    func hasPendingFrameForTesting(
+      authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+    ) -> Bool {
+      pendingFrame?.authorizationSnapshot == authorizationSnapshot
+        && ownerBoundary?.accepts(authorizationSnapshot) == true
+    }
+
+    func loadUserLanguageForTesting(
+      authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+    ) async -> String? {
+      await getUserLanguage(authorizationSnapshot: authorizationSnapshot)
+    }
+
+    func cachedLanguageForTesting() -> String? {
+      cachedLanguage
+    }
+  #endif
 
   private func processLoop() async {
     log("Advice assistant started")
@@ -143,7 +281,12 @@ actor InsightAssistant: ProactiveAssistant {
       }
 
       // Grab the latest frame (may have been updated or cleared during sleep)
-      guard let frame = pendingFrame else { continue }
+      guard let ownerBoundFrame = pendingFrame,
+        ownerBoundary?.accepts(ownerBoundFrame.authorizationSnapshot) == true
+      else {
+        pendingFrame = nil
+        continue
+      }
       pendingFrame = nil
       // Capture the previous analysis time BEFORE advancing it: the activity
       // lookback window is "since the last analysis", so it must use the prior
@@ -152,7 +295,7 @@ actor InsightAssistant: ProactiveAssistant {
       // with an empty activity summary.
       let previousAnalysisTime = lastAnalysisTime
       lastAnalysisTime = Date()
-      await processFrame(frame, since: previousAnalysisTime)
+      await processFrame(ownerBoundFrame, since: previousAnalysisTime)
     }
 
     log("Advice assistant stopped")
@@ -167,6 +310,10 @@ actor InsightAssistant: ProactiveAssistant {
   func testAnalyze(jpegData: Data, appName: String, windowTitle: String? = nil, screenshotTime: Date) async throws -> (
     InsightExtractionResult?, Int
   ) {
+    guard let authorizationSnapshot = RuntimeOwnerIdentity.captureAuthorizationSnapshot() else {
+      throw LocalMutationAuthorizationError.revoked
+    }
+    await bindOwnerContext(to: authorizationSnapshot)
     let interval = await extractionInterval
     let lookbackStart = screenshotTime.addingTimeInterval(-interval)
     return try await runAdviceExtraction(
@@ -175,7 +322,8 @@ actor InsightAssistant: ProactiveAssistant {
       windowTitle: windowTitle,
       referenceTime: screenshotTime,
       lookbackStart: lookbackStart,
-      trackSqlCount: true
+      trackSqlCount: true,
+      authorizationSnapshot: authorizationSnapshot
     )
   }
 
@@ -196,8 +344,17 @@ actor InsightAssistant: ProactiveAssistant {
       return nil
     }
 
-    // Store the latest frame - we'll process it when the interval has passed
-    pendingFrame = frame
+    guard let authorizationSnapshot = RuntimeOwnerIdentity.captureAuthorizationSnapshot() else {
+      resetOwnerContext()
+      return nil
+    }
+    await bindOwnerContext(to: authorizationSnapshot)
+    guard ownerBoundary?.accepts(authorizationSnapshot) == true else { return nil }
+
+    // Store the latest frame with the exact owner generation that observed it.
+    pendingFrame = OwnerBoundInsightFrame(
+      frame: frame,
+      authorizationSnapshot: authorizationSnapshot)
     // Signal the processing loop that a frame is available
     frameSignalContinuation.yield()
     return nil
@@ -206,10 +363,13 @@ actor InsightAssistant: ProactiveAssistant {
   func handleResult(_ result: AssistantResult, sendEvent: @escaping @Sendable (String, [String: Any]) -> Void) async {
     // This method is required by protocol but we use handleResultWithScreenshot instead
     guard let insightResult = result as? InsightExtractionResult else { return }
-    guard let ownerID = RuntimeOwnerIdentity.currentOwnerId() else { return }
+    guard let ownerID = RuntimeOwnerIdentity.currentOwnerId(),
+      let ownerAuthorization = RuntimeOwnerIdentity.captureAuthorizationSnapshot(expectedOwnerID: ownerID)
+    else { return }
     await handleResultWithScreenshot(
       insightResult,
       ownerID: ownerID,
+      ownerAuthorization: ownerAuthorization,
       screenshotId: nil,
       sendEvent: sendEvent
     )
@@ -219,12 +379,13 @@ actor InsightAssistant: ProactiveAssistant {
   private func handleResultWithScreenshot(
     _ adviceResult: InsightExtractionResult,
     ownerID: String,
+    ownerAuthorization: RuntimeOwnerAuthorizationSnapshot,
     screenshotId: Int64?,
     windowTitle: String? = nil,
     screenshotData: Data? = nil,
     sendEvent: @escaping (String, [String: Any]) -> Void
   ) async {
-    guard RuntimeOwnerIdentity.currentOwnerId() == ownerID else { return }
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(ownerAuthorization) else { return }
     // Check if AI has new insight (should almost always be true now - only false for duplicates)
     guard adviceResult.hasInsight, let extractedInsight = adviceResult.insight else {
       log("Insight: Skipped (duplicate or no context)")
@@ -233,7 +394,7 @@ actor InsightAssistant: ProactiveAssistant {
 
     // Get min confidence threshold
     let threshold = await minConfidence
-    guard RuntimeOwnerIdentity.currentOwnerId() == ownerID else { return }
+    guard ownerBoundary?.accepts(ownerAuthorization) == true else { return }
     let confidencePercent = Int(extractedInsight.confidence * 100)
 
     // Check confidence threshold
@@ -244,53 +405,58 @@ actor InsightAssistant: ProactiveAssistant {
 
     log("Insight: [\(confidencePercent)% conf.] \"\(extractedInsight.insight)\"")
 
-    // Add to previous insights (keep last N for context)
-    previousInsights.insert(extractedInsight, at: 0)
-    if previousInsights.count > maxPreviousInsights {
-      previousInsights.removeLast()
-    }
-
-    // The local Memory row is the sole durable Memory record. The separate
-    // StoredInsight cache remains presentation state owned by the Insight slice.
+    // The owner-local tagged Memory row is the sole durable Insight record.
     let extractionRecord = await saveInsightToSQLite(
       insight: extractedInsight,
       screenshotId: screenshotId,
       contextSummary: adviceResult.contextSummary,
       currentActivity: adviceResult.currentActivity,
       windowTitle: windowTitle,
-      ownerID: ownerID
+      ownerID: ownerID,
+      ownerAuthorization: ownerAuthorization
     )
-    guard RuntimeOwnerIdentity.currentOwnerId() == ownerID else { return }
+    guard let extractionRecord,
+      let memoryID = Int64(extractionRecord.id),
+      RuntimeOwnerIdentity.isAuthorizationCurrent(ownerAuthorization)
+    else { return }
 
-    // Also update InsightStorage cache (for UI display)
-    await MainActor.run {
-      guard RuntimeOwnerIdentity.currentOwnerId() == ownerID else { return }
-      InsightStorage.shared.addInsight(adviceResult, memoryID: extractionRecord.flatMap { Int64($0.id) })
+    guard ownerBoundary?.accepts(ownerAuthorization) == true else { return }
+    previousInsights.insert(extractedInsight, at: 0)
+    if previousInsights.count > maxPreviousInsights {
+      previousInsights.removeLast()
     }
-    guard RuntimeOwnerIdentity.currentOwnerId() == ownerID else { return }
+
+    // Publish the in-memory projection only after the durable local commit.
+    await MainActor.run {
+      guard RuntimeOwnerIdentity.isAuthorizationCurrent(ownerAuthorization) else { return }
+      InsightStorage.shared.addInsight(adviceResult, memoryID: memoryID)
+    }
+    guard ownerBoundary?.accepts(ownerAuthorization) == true else { return }
 
     // Track insight generated
     await MainActor.run {
-      guard RuntimeOwnerIdentity.currentOwnerId() == ownerID else { return }
+      guard RuntimeOwnerIdentity.isAuthorizationCurrent(ownerAuthorization) else { return }
       AnalyticsManager.shared.insightGenerated(category: extractedInsight.category.rawValue)
     }
-    guard RuntimeOwnerIdentity.currentOwnerId() == ownerID else { return }
+    guard ownerBoundary?.accepts(ownerAuthorization) == true else { return }
 
     // Send notification if enabled
     let notificationsEnabled = await MainActor.run {
-      InsightAssistantSettings.shared.notificationsEnabled
+      guard RuntimeOwnerIdentity.isAuthorizationCurrent(ownerAuthorization) else { return false }
+      return InsightAssistantSettings.shared.notificationsEnabled
     }
-    guard RuntimeOwnerIdentity.currentOwnerId() == ownerID else { return }
+    guard ownerBoundary?.accepts(ownerAuthorization) == true else { return }
     if notificationsEnabled {
       await sendInsightNotification(
         ownerID: ownerID,
+        ownerAuthorization: ownerAuthorization,
         insight: extractedInsight,
         result: adviceResult,
         windowTitle: windowTitle,
         screenshotData: screenshotData
       )
     }
-    guard RuntimeOwnerIdentity.currentOwnerId() == ownerID else { return }
+    guard ownerBoundary?.accepts(ownerAuthorization) == true else { return }
 
     // Send event to Flutter
     sendEvent(
@@ -309,13 +475,12 @@ actor InsightAssistant: ProactiveAssistant {
     contextSummary: String,
     currentActivity: String,
     windowTitle: String? = nil,
-    ownerID: String
+    ownerID: String,
+    ownerAuthorization: RuntimeOwnerAuthorizationSnapshot
   ) async -> MemoryItem? {
-    guard RuntimeOwnerIdentity.currentOwnerId() == ownerID,
-      let snapshot = RuntimeOwnerIdentity.captureAuthorizationSnapshot(expectedOwnerID: ownerID)
-    else { return nil }
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(ownerAuthorization) else { return nil }
     let authorization = LocalMutationAuthorization {
-      RuntimeOwnerIdentity.isAuthorizationCurrent(snapshot)
+      RuntimeOwnerIdentity.isAuthorizationCurrent(ownerAuthorization)
     }
     // Build tags: ["tips", "<category>"]
     let categoryTag = insight.category.rawValue.lowercased()
@@ -338,7 +503,7 @@ actor InsightAssistant: ProactiveAssistant {
         ),
         authorization: authorization
       )
-      guard RuntimeOwnerIdentity.isAuthorizationCurrent(snapshot) else { return nil }
+      guard RuntimeOwnerIdentity.isAuthorizationCurrent(ownerAuthorization) else { return nil }
       log("Insight: Saved to SQLite (id: \(inserted.id)) with tags \(tags)")
       return inserted
     } catch {
@@ -350,6 +515,7 @@ actor InsightAssistant: ProactiveAssistant {
   /// Send a notification for the insight (uses short headline for notification body)
   private func sendInsightNotification(
     ownerID: String,
+    ownerAuthorization: RuntimeOwnerAuthorizationSnapshot,
     insight: ExtractedInsight,
     result: InsightExtractionResult,
     windowTitle: String?,
@@ -374,7 +540,8 @@ actor InsightAssistant: ProactiveAssistant {
         message: message,
         assistantId: identifier,
         context: context,
-        screenshotData: screenshotData
+        screenshotData: screenshotData,
+        authorizationSnapshot: ownerAuthorization
       )
     }
   }
@@ -400,6 +567,10 @@ actor InsightAssistant: ProactiveAssistant {
     frameSignalContinuation.finish()
     processingTask?.cancel()
     pendingFrame = nil
+    if let ownerObserver {
+      NotificationCenter.default.removeObserver(ownerObserver)
+      self.ownerObserver = nil
+    }
   }
 
   // MARK: - Image Processing
@@ -442,32 +613,46 @@ actor InsightAssistant: ProactiveAssistant {
   // MARK: - Helpers
 
   /// Get user's preferred language, cached for 1 hour
-  private func getUserLanguage() async -> String? {
+  private func getUserLanguage(
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async -> String? {
+    guard ownerBoundary?.accepts(authorizationSnapshot) == true else { return nil }
     // Return cached value if fresh (< 1 hour)
     if let cached = cachedLanguage, Date().timeIntervalSince(languageFetchedAt) < 3600 {
       return cached
     }
 
     do {
-      let response = try await APIClient.shared.getUserLanguage()
-      let lang = response.language
+      let lang = try await languageLoader(authorizationSnapshot)
+      guard ownerBoundary?.accepts(authorizationSnapshot) == true else { return nil }
       cachedLanguage = lang
       languageFetchedAt = Date()
       return lang.isEmpty ? nil : lang
     } catch {
+      guard ownerBoundary?.accepts(authorizationSnapshot) == true else { return nil }
       // Fall back to transcription language setting
       let fallback = await MainActor.run { AssistantSettings.shared.transcriptionLanguage }
+      guard ownerBoundary?.accepts(authorizationSnapshot) == true else { return nil }
       return fallback.isEmpty || fallback == "en" ? nil : fallback
     }
   }
 
   // MARK: - Analysis
 
-  private func processFrame(_ frame: CapturedFrame, since previousAnalysisTime: Date) async {
-    guard let ownerID = RuntimeOwnerIdentity.currentOwnerId() else { return }
+  private func processFrame(_ ownerBoundFrame: OwnerBoundInsightFrame, since previousAnalysisTime: Date) async {
+    let frame = ownerBoundFrame.frame
+    let ownerAuthorization = ownerBoundFrame.authorizationSnapshot
+    let ownerID = ownerAuthorization.ownerID
+    guard ownerBoundary?.accepts(ownerAuthorization) == true else { return }
     guard await isEnabled else { return }
+    guard ownerBoundary?.accepts(ownerAuthorization) == true else { return }
     do {
-      guard let result = try await extractAdvice(from: frame, since: previousAnalysisTime) else {
+      guard
+        let result = try await extractAdvice(
+          from: frame,
+          since: previousAnalysisTime,
+          authorizationSnapshot: ownerAuthorization)
+      else {
         return
       }
 
@@ -475,13 +660,19 @@ actor InsightAssistant: ProactiveAssistant {
       await handleResultWithScreenshot(
         result,
         ownerID: ownerID,
+        ownerAuthorization: ownerAuthorization,
         screenshotId: frame.screenshotId,
         windowTitle: frame.windowTitle,
         screenshotData: frame.jpegData
       ) { type, data in
         let payload = EventPayloadBox(value: data)
-        Task { @MainActor in
-          AssistantCoordinator.shared.sendEvent(type: type, data: payload.value)
+        Task {
+          await Self.publishOwnerBoundEvent(
+            authorizationSnapshot: ownerAuthorization,
+            value: payload
+          ) { payload in
+            AssistantCoordinator.shared.sendEvent(type: type, data: payload.value)
+          }
         }
       }
     } catch {
@@ -489,7 +680,11 @@ actor InsightAssistant: ProactiveAssistant {
     }
   }
 
-  private func extractAdvice(from frame: CapturedFrame, since previousAnalysisTime: Date) async throws
+  private func extractAdvice(
+    from frame: CapturedFrame,
+    since previousAnalysisTime: Date,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async throws
     -> InsightExtractionResult?
   {
     let now = Date()
@@ -503,7 +698,8 @@ actor InsightAssistant: ProactiveAssistant {
       windowTitle: frame.windowTitle,
       referenceTime: now,
       lookbackStart: lookbackStart,
-      trackSqlCount: false
+      trackSqlCount: false,
+      authorizationSnapshot: authorizationSnapshot
     )
     return result
   }
@@ -522,8 +718,12 @@ actor InsightAssistant: ProactiveAssistant {
     windowTitle: String?,
     referenceTime: Date,
     lookbackStart: Date,
-    trackSqlCount: Bool
+    trackSqlCount: Bool,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
   ) async throws -> (InsightExtractionResult?, Int) {
+    guard ownerBoundary?.accepts(authorizationSnapshot) == true else {
+      throw LocalMutationAuthorizationError.revoked
+    }
     var sqlCount = 0
 
     // Build prompt with current context
@@ -551,6 +751,9 @@ actor InsightAssistant: ProactiveAssistant {
       prompt += "\n\nUSER PROFILE (who this user is):\n"
       prompt += profile.profileText + "\n"
     }
+    guard ownerBoundary?.accepts(authorizationSnapshot) == true else {
+      throw LocalMutationAuthorizationError.revoked
+    }
 
     // Add previous insights for dedup
     if !previousInsights.isEmpty {
@@ -575,7 +778,7 @@ actor InsightAssistant: ProactiveAssistant {
 
     // Build system prompt
     var currentSystemPrompt = await systemPrompt
-    if let language = await getUserLanguage(), language != "en" {
+    if let language = await getUserLanguage(authorizationSnapshot: authorizationSnapshot), language != "en" {
       currentSystemPrompt += "\n\nIMPORTANT: Respond in the user's preferred language: \(language)"
     }
     currentSystemPrompt +=
@@ -604,14 +807,23 @@ actor InsightAssistant: ProactiveAssistant {
       let iterForce = iteration == 0
       let result: ToolChatResult
       do {
+        guard ownerBoundary?.accepts(authorizationSnapshot) == true else {
+          throw LocalMutationAuthorizationError.revoked
+        }
         result = try await withThrowingTimeout(seconds: 120) {
-          try await client.sendImageToolLoop(
+          guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else {
+            throw LocalMutationAuthorizationError.revoked
+          }
+          return try await client.sendImageToolLoop(
             contents: iterContents,
             systemPrompt: iterSystemPrompt,
             tools: iterTools,
             forceToolCall: iterForce,
             thinkingBudget: 1024
           )
+        }
+        guard ownerBoundary?.accepts(authorizationSnapshot) == true else {
+          throw LocalMutationAuthorizationError.revoked
         }
       } catch {
         log("Insight: Phase 1 failed on iteration \(iteration): \(error.localizedDescription)")
@@ -630,6 +842,9 @@ actor InsightAssistant: ProactiveAssistant {
         log("Insight: P1 execute_sql iter \(iteration): \(query)")
         let sqlToolCall = ToolCall(name: "execute_sql", arguments: ["query": query], thoughtSignature: nil)
         let resultStr = await ChatToolExecutor.execute(sqlToolCall)
+        guard ownerBoundary?.accepts(authorizationSnapshot) == true else {
+          throw LocalMutationAuthorizationError.revoked
+        }
         let truncated = resultStr.count > 2000 ? String(resultStr.prefix(2000)) + "... (truncated)" : resultStr
         log("Insight: P1 sql result (\(resultStr.count) chars): \(truncated)")
 
@@ -709,6 +924,9 @@ actor InsightAssistant: ProactiveAssistant {
     // =============================================
 
     log("Insight: Phase 2 — loading screenshot \(screenshotId)")
+    guard ownerBoundary?.accepts(authorizationSnapshot) == true else {
+      throw LocalMutationAuthorizationError.revoked
+    }
 
     // Load the screenshot image
     let imageData: Data
@@ -727,6 +945,9 @@ actor InsightAssistant: ProactiveAssistant {
       }
       let rawData = try await RewindStorage.shared.loadScreenshotData(for: screenshot)
       imageData = Self.compressForGemini(rawData) ?? rawData
+      guard ownerBoundary?.accepts(authorizationSnapshot) == true else {
+        throw LocalMutationAuthorizationError.revoked
+      }
       log("Insight: P2 loaded \(imageData.count) bytes (\(rawData.count) raw) from \(screenshot.appName)")
     } catch {
       log("Insight: P2 screenshot load failed: \(error.localizedDescription)")
@@ -768,14 +989,23 @@ actor InsightAssistant: ProactiveAssistant {
       let p2Force = p2Iteration == 0
       let phase2Result: ToolChatResult
       do {
+        guard ownerBoundary?.accepts(authorizationSnapshot) == true else {
+          throw LocalMutationAuthorizationError.revoked
+        }
         phase2Result = try await withThrowingTimeout(seconds: 120) {
-          try await client.sendImageToolLoop(
+          guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else {
+            throw LocalMutationAuthorizationError.revoked
+          }
+          return try await client.sendImageToolLoop(
             contents: p2Contents,
             systemPrompt: p2SystemPrompt,
             tools: p2Tools,
             forceToolCall: p2Force,
             thinkingBudget: 1024
           )
+        }
+        guard ownerBoundary?.accepts(authorizationSnapshot) == true else {
+          throw LocalMutationAuthorizationError.revoked
         }
       } catch {
         log("Insight: Phase 2 failed on iteration \(p2Iteration): \(error.localizedDescription)")
@@ -794,6 +1024,9 @@ actor InsightAssistant: ProactiveAssistant {
         log("Insight: P2 execute_sql iter \(p2Iteration): \(query)")
         let sqlToolCall = ToolCall(name: "execute_sql", arguments: ["query": query], thoughtSignature: nil)
         let resultStr = await ChatToolExecutor.execute(sqlToolCall)
+        guard ownerBoundary?.accepts(authorizationSnapshot) == true else {
+          throw LocalMutationAuthorizationError.revoked
+        }
         let truncated = resultStr.count > 2000 ? String(resultStr.prefix(2000)) + "... (truncated)" : resultStr
         log("Insight: P2 sql result (\(resultStr.count) chars): \(truncated)")
 

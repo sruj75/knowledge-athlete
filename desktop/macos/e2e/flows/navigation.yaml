@@ -1,26 +1,29 @@
 version: 2
 name: navigation
 tier: manual
-description: Top navigation bar smoke — verify the retained Home, Memory, and Tasks tabs plus Settings and Rewind
+description: Top navigation bar smoke — verify Home, Memory, Tasks, and the unified Insights hub plus Settings and Rewind
 app: com.omi.computer-macos
 covers:
   - desktop/macos/Desktop/Sources/OmiApp.swift
   - desktop/macos/Desktop/Sources/MainWindow/SidebarView.swift
   - desktop/macos/Desktop/Sources/MainWindow/DesktopHomeView.swift
   - desktop/macos/Desktop/Sources/MainWindow/DesktopTopBar.swift
+  - desktop/macos/Desktop/Sources/MainWindow/InsightsHubNavigation.swift
+  - desktop/macos/Desktop/Sources/MainWindow/Pages/InsightPage.swift
 preconditions:
   - auth_ready
 
 steps:
   - id: S1
     name: Verify Home tab loads
-    do: "Verify the app is on the Home tab. Top nav bar should show Home, Memory, and Tasks, with no Apps destination. Right side should show Capture status, Listening status, and Settings gear icon. Home content should include chat input area and insight cards."
+    do: "Verify the app is on the Home tab. Top nav bar should show Home, Memory, Tasks, and Insights, with no Apps destination. Right side should show Capture status, Listening status, and Settings gear icon. Home content should include chat input area and insight cards."
     expect:
       interactive_count: { min: 8 }
       text_visible:
         - Home
         - Memory
         - Tasks
+        - Insights
 
   - id: S2
     name: Navigate to Memory
@@ -38,6 +41,14 @@ steps:
         - Tasks
 
   - id: S4
+    name: Navigate through the unified Insights hub
+    do: "Click Insights in the top nav bar, verify the unified hub appears, then switch between Insights and Focus without leaving the hub."
+    expect:
+      text_visible:
+        - Insights
+        - Focus
+
+  - id: S5
     name: Open Settings via gear icon
     do: "Click the Settings gear icon (agent-swift find text 'gearshape' click). Verify Settings page opens showing section names: General, Account & Plan, Transcription, Floating Bar, Notifications & Privacy, Rewind, Shortcuts, Advanced, About."
     expect:
@@ -46,14 +57,14 @@ steps:
         - Settings
         - General
 
-  - id: S5
+  - id: S6
     name: Return to Home from Settings
     do: "Click the Back button (agent-swift find text 'Back' click) to return from Settings. Verify the Home tab loads with top nav bar visible."
     expect:
       text_visible:
         - Home
 
-  - id: S6
+  - id: S7
     name: Open Rewind via View menu
     do: "Open Rewind via View menu (agent-swift press on View > Rewind menu item, or use keyboard shortcut ⌘⌥R). Verify Rewind overlay appears with search bar, date picker, and either timeline content or 'Screen Recording Permission Required' gate."
     expect:

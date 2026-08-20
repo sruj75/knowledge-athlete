@@ -180,6 +180,10 @@ struct FloatingBarNotification: Identifiable, Equatable {
   /// Immutable owner provenance captured before the workflow that produced
   /// this notification crossed an async boundary.
   let ownerID: String
+  /// Exact authenticated-session generation that produced the notification.
+  /// `nil` is reserved for presentation-only reach-error cards that bypass the
+  /// owner-bound notification pipeline.
+  let authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot?
   let title: String
   let message: String
   let assistantId: String
@@ -192,6 +196,7 @@ struct FloatingBarNotification: Identifiable, Equatable {
 
   init(
     ownerID: String,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot? = nil,
     title: String,
     message: String,
     assistantId: String,
@@ -200,6 +205,7 @@ struct FloatingBarNotification: Identifiable, Equatable {
     screenshotData: Data? = nil
   ) {
     self.ownerID = ownerID
+    self.authorizationSnapshot = authorizationSnapshot
     self.title = title
     self.message = message
     self.assistantId = assistantId

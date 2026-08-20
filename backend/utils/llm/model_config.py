@@ -62,13 +62,10 @@ MODEL_QOS_PROFILES: Dict[str, Dict[str, Tuple[str, str]]] = {
         'conv_structure': ('gpt-5.4-mini', 'openai'),
         'conv_folder': ('gpt-4.1-nano', 'openai'),
         'conv_discard': ('gpt-4.1-nano', 'openai'),
-        'daily_summary': ('gpt-5.4-mini', 'openai'),
         # OpenAI — chat
         'chat_responses': ('gpt-5.4-mini', 'openai'),
         'session_titles': ('gemini-2.5-flash-lite', 'gemini'),
         # Features
-        'notifications': ('gpt-5.4-mini', 'openai'),
-        'proactive_notification': ('gpt-4.1-mini', 'openai'),
         'followup': ('gemini-2.5-flash-lite', 'gemini'),
         'onboarding': ('gemini-2.5-flash-lite', 'gemini'),
         'trends': ('gemini-2.5-flash-lite', 'gemini'),
@@ -91,13 +88,10 @@ MODEL_QOS_PROFILES: Dict[str, Dict[str, Tuple[str, str]]] = {
         'conv_structure': ('gpt-5.4', 'openai'),
         'conv_folder': ('gpt-4.1-mini', 'openai'),
         'conv_discard': ('gpt-4.1-mini', 'openai'),
-        'daily_summary': ('gpt-5.4', 'openai'),
         # OpenAI — chat
         'chat_responses': ('gpt-5.4', 'openai'),
         'session_titles': ('gemini-2.5-flash-lite', 'gemini'),
         # Features
-        'notifications': ('gpt-5.4', 'openai'),
-        'proactive_notification': ('gpt-4.1-mini', 'openai'),
         'followup': ('gpt-4.1-mini', 'openai'),
         'onboarding': ('gpt-4.1-mini', 'openai'),
         'trends': ('gpt-4.1-mini', 'openai'),
@@ -154,7 +148,6 @@ _CACHE_RETENTION_MODEL_PREFIXES = ('gpt-5', 'o1', 'o3', 'o4')
 
 # Features that call .with_structured_output() — logged when resolving to Gemini for compat monitoring.
 _STRUCTURED_OUTPUT_FEATURES = {
-    'proactive_notification',
     'trends',
     'translation',
 }

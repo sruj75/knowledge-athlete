@@ -612,33 +612,13 @@ def test_dev_cloud_run_pusher_contract_rejects_legacy_and_non_listener_bindings(
     ]
 
 
-def test_dev_cloud_run_pusher_contract_rejects_job_binding():
-    validator = load_validator()
-    manifest = validator._load_yaml(validator.DEFAULT_MANIFEST)
-    env_config = validator._get_env_config(manifest, 'dev')
-    rendered_state = validator._build_rendered_cloud_run_state(env_config)
-    rendered_state['jobs']['notifications-job']['env'].append(
-        {
-            'name': 'HOSTED_PUSHER_API_URL',
-            'value': 'http://internal-alb.pusher-ep-dev.il7.us-central1.lb.based-hardware-dev.internal',
-        }
-    )
-
-    errors = validator._validate_cloud_run(env_config, rendered_state, strict_provisional=False)
-
-    assert (
-        validator.ValidationError('cloud_run/notifications-job', 'forbidden env HOSTED_PUSHER_API_URL is present')
-        in errors
-    )
-
-
 def test_cloud_run_workflow_forbidden_env_requires_remove_env_vars(tmp_path):
     validator = load_validator()
     values_file = tmp_path / 'backend_listen.yaml'
     write_yaml(values_file, {'env': []})
     workflow_file = tmp_path / 'deploy.yml'
     workflow = {
-        'env': {'SERVICE': 'notifications-job'},
+        'env': {'SERVICE': 'maintenance-job'},
         'jobs': {
             'deploy': {
                 'steps': [
@@ -671,7 +651,7 @@ def test_cloud_run_workflow_forbidden_env_requires_remove_env_vars(tmp_path):
                         'workflow_files': [str(workflow_file)],
                         'services': {},
                         'jobs': {
-                            'notifications-job': {
+                            'maintenance-job': {
                                 'env': {'GOOGLE_CLOUD_PROJECT': {'value': 'based-hardware'}},
                                 'forbidden_env': ['HOSTED_PUSHER_API_URL'],
                                 'secrets': {
@@ -692,7 +672,7 @@ def test_cloud_run_workflow_forbidden_env_requires_remove_env_vars(tmp_path):
 
     assert (
         validator.ValidationError(
-            'cloud_run_workflow/notifications-job',
+            'cloud_run_workflow/maintenance-job',
             'forbidden env HOSTED_PUSHER_API_URL must be listed in --remove-env-vars',
         )
         in errors
@@ -1362,16 +1342,14 @@ def _live_env_config():
         'region': 'us-central1',
         'cloud_run': {
             'services': {'backend': {}},
-            'jobs': {'notifications-job': {}},
+            'jobs': {'maintenance-job': {}},
         },
     }
 
 
 def test_fetch_live_cloud_run_state_validates_services_only(monkeypatch):
-    # gcp_backend.yml deploys Cloud Run services, not jobs (notifications-job ships via a
-    # separate workflow). The live check must describe services
-    # only and never `gcloud run jobs describe` — that produced false deploy failures (a
-    # not-found job crashed it; a separately-managed job's env legitimately differs).
+    # gcp_backend.yml deploys Cloud Run services, not jobs. The live check must
+    # describe services only and never run `gcloud run jobs describe`.
     validator = load_validator()
     described = []
 

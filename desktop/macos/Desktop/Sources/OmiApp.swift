@@ -112,6 +112,15 @@ struct OMIApp: App {
     Self.launchMode == .rewind ? CGSize(width: 1000, height: 700) : CGSize(width: 1200, height: 800)
   }
 
+  private func navigate(using shortcut: String) {
+    guard let destination = PrimaryNavigationShortcut.destination(for: shortcut) else { return }
+    NotificationCenter.default.post(
+      name: .navigateToSidebarItem,
+      object: nil,
+      userInfo: ["rawValue": destination.rawValue]
+    )
+  }
+
   var body: some Scene {
     let _ = Self.registerOpenMainWindowHandler(openWindow)
 
@@ -153,49 +162,32 @@ struct OMIApp: App {
         }
       }
 
-      // Sidebar navigation shortcuts: Cmd+1..5 for main pages, Cmd+, for Settings
+      // Primary navigation shortcuts: Cmd+1..4, Cmd+, for Settings.
       CommandGroup(after: .sidebar) {
         Button("Home") {
-          NotificationCenter.default.post(
-            name: .navigateToSidebarItem, object: nil,
-            userInfo: ["rawValue": SidebarNavItem.dashboard.rawValue])
+          navigate(using: "1")
         }
         .keyboardShortcut("1", modifiers: .command)
 
-        Button("Conversations") {
-          NotificationCenter.default.post(
-            name: .navigateToSidebarItem, object: nil,
-            userInfo: ["rawValue": SidebarNavItem.conversations.rawValue])
+        Button("Memories") {
+          navigate(using: "2")
         }
         .keyboardShortcut("2", modifiers: .command)
 
-        Button("Memories") {
-          NotificationCenter.default.post(
-            name: .navigateToSidebarItem, object: nil,
-            userInfo: ["rawValue": SidebarNavItem.memories.rawValue])
+        Button("Tasks") {
+          navigate(using: "3")
         }
         .keyboardShortcut("3", modifiers: .command)
 
-        Button("Tasks") {
-          NotificationCenter.default.post(
-            name: .navigateToSidebarItem, object: nil,
-            userInfo: ["rawValue": SidebarNavItem.tasks.rawValue])
+        Button("Insights") {
+          navigate(using: "4")
         }
         .keyboardShortcut("4", modifiers: .command)
-
-        Button("Rewind") {
-          NotificationCenter.default.post(
-            name: .navigateToSidebarItem, object: nil,
-            userInfo: ["rawValue": SidebarNavItem.rewind.rawValue])
-        }
-        .keyboardShortcut("5", modifiers: .command)
 
         Divider()
 
         Button("Settings") {
-          NotificationCenter.default.post(
-            name: .navigateToSidebarItem, object: nil,
-            userInfo: ["rawValue": SidebarNavItem.settings.rawValue])
+          navigate(using: ",")
         }
         .keyboardShortcut(",", modifiers: .command)
       }
@@ -249,8 +241,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, @unchecked S
   private var apiKeyFetchTask: Task<Void, Never>?
   private var floatingBarPlanFetchTask: Task<Void, Never>?
   private var appLifecycleMaintenanceTask: Task<Void, Never>?
-  private var didScheduleInitialSettingsSync = false
-  private var initialSettingsSyncTask: Task<Void, Never>?
 
   func applicationWillFinishLaunching(_ notification: Notification) {
     // Publish the live delegate instance for callers that can't rely on
@@ -1283,8 +1273,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, @unchecked S
     floatingBarPlanFetchTask = nil
     appLifecycleMaintenanceTask?.cancel()
     appLifecycleMaintenanceTask = nil
-    initialSettingsSyncTask?.cancel()
-    initialSettingsSyncTask = nil
 
     // Stop transcription retry service
     TranscriptionRetryService.shared.stop()
@@ -1470,26 +1458,4 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, @unchecked S
     }
   }
 
-  func applicationDidBecomeActive(_ notification: Notification) {
-    guard didScheduleInitialSettingsSync else {
-      scheduleInitialSettingsSync()
-      return
-    }
-
-    // Sync remote assistant settings so server-side changes take effect promptly
-    Task { await SettingsSyncManager.shared.syncFromServer() }
-  }
-
-  private func scheduleInitialSettingsSync() {
-    didScheduleInitialSettingsSync = true
-    initialSettingsSyncTask?.cancel()
-    initialSettingsSyncTask = Task {
-      let delay = StartupWarmupPolicy.initialSettingsSyncDelay
-      if delay > 0 {
-        try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
-      }
-      guard !Task.isCancelled else { return }
-      await SettingsSyncManager.shared.syncFromServer()
-    }
-  }
 }

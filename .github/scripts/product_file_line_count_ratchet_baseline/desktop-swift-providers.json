@@ -1,10 +1,10 @@
 {
   "files": {
-    "desktop/macos/Desktop/Sources/Providers/ChatProvider.swift": 6259,
+    "desktop/macos/Desktop/Sources/Providers/ChatProvider.swift": 6261,
     "desktop/macos/Desktop/Sources/Providers/ChatToolExecutor.swift": 2071
   },
   "raise_justifications": {
-    "desktop/macos/Desktop/Sources/Providers/ChatProvider.swift": "S-11 moves Home chat catalog, selection, journal, drafts, attachment lifecycle, and clear coordination behind the canonical owner-fenced ChatProvider boundary; a component split remains tracked follow-up.",
+    "desktop/macos/Desktop/Sources/Providers/ChatProvider.swift": "S-14 threads the original notification authorization snapshot through the existing canonical journal write API so no second writer or stale-generation fallback is introduced.",
     "desktop/macos/Desktop/Sources/Providers/ChatToolExecutor.swift": "S-12 replaces hosted Memory tool dispatch with owner-authorized local get/search/add/edit/delete behavior at the existing tool boundary; splitting this multi-tool executor is outside the Memory authority deletion."
   },
   "threshold": 1500

@@ -157,7 +157,7 @@ def test_get_llm_dev_shadow_wraps_structured_output(monkeypatch):
     monkeypatch.setattr(gateway_shadow, 'get_or_create_omi_gateway_llm', lambda *args, **kwargs: gateway)
     monkeypatch.setattr(gateway_shadow, 'submit_with_context', immediate_submit)
 
-    result = clients.get_llm('proactive_notification').with_structured_output(dict).invoke('hello')
+    result = clients.get_llm('trends').with_structured_output(dict).invoke('hello')
 
     assert result == {'result': 'legacy'}
     assert legacy.calls == [{'input': 'hello', 'kwargs': {}}]

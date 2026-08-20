@@ -75,11 +75,13 @@ final class PersistedCaptureLaunchPolicyTests: XCTestCase {
 }
 
 @MainActor
-final class SettingsSyncCaptureRestorationTests: XCTestCase {
-  func testApplyingServerSettingsNotifiesCaptureRuntimeToReconcile() {
+final class LocalSettingsCaptureRestorationTests: XCTestCase {
+  func testChangingLocalSettingsNotifiesCaptureRuntimeToReconcile() {
+    let previous = AssistantSettings.shared.screenAnalysisEnabled
+    defer { AssistantSettings.shared.screenAnalysisEnabled = previous }
     let notification = expectation(description: "capture runtime reconciliation notification")
     let observer = NotificationCenter.default.addObserver(
-      forName: .assistantSettingsDidSyncFromServer,
+      forName: .assistantSettingsDidChange,
       object: nil,
       queue: nil
     ) { _ in
@@ -87,7 +89,7 @@ final class SettingsSyncCaptureRestorationTests: XCTestCase {
     }
     defer { NotificationCenter.default.removeObserver(observer) }
 
-    SettingsSyncManager.shared.applyRemoteSettings(AssistantSettingsResponse())
+    AssistantSettings.shared.screenAnalysisEnabled.toggle()
 
     XCTAssertEqual(XCTWaiter().wait(for: [notification], timeout: 0), .completed)
   }

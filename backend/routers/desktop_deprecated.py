@@ -8,17 +8,10 @@ _ROUTES = {
     "/v1/advice": ("GET", "POST"),
     "/v1/advice/{id}": ("PATCH", "DELETE"),
     "/v1/advice/mark-all-read": ("POST",),
-    "/v1/focus-sessions": ("GET", "POST"),
-    "/v1/focus-sessions/{id}": ("DELETE",),
-    "/v1/focus-stats": ("GET",),
     "/v1/users/me/llm-usage": ("POST",),
     "/v1/users/me/llm-usage/total": ("GET",),
-    "/v1/users/daily-summary-settings": ("GET", "PATCH"),
     "/v1/users/language": ("GET", "PATCH"),
-    "/v1/users/notification-settings": ("GET", "PATCH"),
     "/v1/users/profile": ("GET", "PATCH"),
-    "/v1/users/ai-profile": ("GET", "PATCH"),
-    "/v1/users/assistant-settings": ("GET", "PATCH"),
     "/v1/users/delete-account": ("DELETE",),
 }
 

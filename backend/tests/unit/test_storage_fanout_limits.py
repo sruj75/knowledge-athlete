@@ -180,25 +180,6 @@ class TestSpeakerIdentificationPool:
         assert 'sync_executor' in context
 
 
-class TestNotificationsFanOut:
-    """notifications.py must not use storage_executor for summary work."""
-
-    def test_bulk_summary_uses_postprocess_executor(self):
-        """_send_bulk_summary_notification must use postprocess_executor, not storage_executor."""
-        src = _read_source('utils/other/notifications.py')
-        func_start = src.index('async def _send_bulk_summary_notification')
-        func_body = src[func_start : func_start + 400]
-        assert 'postprocess_executor' in func_body
-        assert 'storage_executor' not in func_body
-
-    def test_bulk_summary_is_batched(self):
-        """_send_bulk_summary_notification must process users in batches."""
-        src = _read_source('utils/other/notifications.py')
-        func_start = src.index('async def _send_bulk_summary_notification')
-        func_body = src[func_start : func_start + 400]
-        assert '_BATCH_SIZE' in func_body
-
-
 @pytest.mark.slow
 class TestSlidingWindowBehavior:
     """Behavioral tests verifying the sliding-window + semaphore pattern at runtime."""

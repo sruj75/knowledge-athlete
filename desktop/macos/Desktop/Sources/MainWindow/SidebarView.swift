@@ -8,8 +8,7 @@ enum SidebarNavItem: Int, CaseIterable {
   case conversations = 1
   case memories = 3
   case tasks = 4
-  case focus = 5
-  case insight = 6
+  case insights = 5
   case rewind = 7
   case settings = 9
   case permissions = 10
@@ -20,8 +19,7 @@ enum SidebarNavItem: Int, CaseIterable {
     case .conversations: return "Conversations"
     case .memories: return "Memories"
     case .tasks: return "Tasks"
-    case .focus: return "Focus"
-    case .insight: return "Insights"
+    case .insights: return "Insights"
     case .rewind: return "Rewind"
     case .settings: return "Settings"
     case .permissions: return "Permissions"
@@ -34,8 +32,7 @@ enum SidebarNavItem: Int, CaseIterable {
     case .conversations: return "text.bubble.fill"
     case .memories: return "brain"
     case .tasks: return "checklist"
-    case .focus: return "eye.fill"
-    case .insight: return "lightbulb.fill"
+    case .insights: return "lightbulb.fill"
     case .rewind: return "clock.arrow.circlepath"
     case .settings: return "gearshape.fill"
     case .permissions: return "exclamationmark.triangle.fill"
@@ -55,7 +52,7 @@ enum SidebarNavItem: Int, CaseIterable {
 
   /// Items shown in the main navigation (top section)
   static var mainItems: [SidebarNavItem] {
-    [.dashboard, .conversations, .memories, .tasks, .focus, .insight, .rewind]
+    [.dashboard, .conversations, .memories, .tasks, .insights, .rewind]
   }
 }
 
@@ -65,8 +62,6 @@ struct SidebarView: View {
   @Binding var isCollapsed: Bool
   @ObservedObject var appState: AppState
   @ObservedObject private var authState = AuthState.shared
-  @ObservedObject private var insightStorage = InsightStorage.shared
-  @ObservedObject private var focusStorage = FocusStorage.shared
   @ObservedObject private var updaterViewModel = UpdaterViewModel.shared
 
   // Tier gating (0 = show all, 1-6 = sequential tiers)
@@ -85,7 +80,6 @@ struct SidebarView: View {
   @State private var isRewindPageLoading = false
   @State private var isConversationsPageLoading = false
   @State private var isTasksPageLoading = false
-  @State private var isFocusPageLoading = false
   @State private var isInsightPageLoading = false
 
   // Drag state
@@ -113,12 +107,6 @@ struct SidebarView: View {
       return SidebarNavItem.mainItems
     }
     return SidebarNavItem.mainItems.filter { $0.requiredTier <= tier }
-  }
-
-  /// Color for focus status indicator (green = focused, orange = distracted, nil = no status)
-  private var focusStatusColor: Color? {
-    guard let status = focusStorage.currentStatus else { return nil }
-    return status == .focused ? Color.green : Color.orange
   }
 
   var body: some View {
@@ -208,8 +196,8 @@ struct SidebarView: View {
                   isSelected: !locked && selectedIndex == item.rawValue,
                   isCollapsed: isCollapsed,
                   iconWidth: iconWidth,
-                  badge: item == .insight ? insightStorage.unreadCount : 0,
-                  statusColor: item == .focus ? focusStatusColor : nil,
+                  badge: 0,
+                  statusColor: nil,
                   isLoading: pageLoadingState(for: item),
                   isLocked: locked,
                   lockTooltip: locked ? "Unlocks at Tier \(item.requiredTier)" : nil,
@@ -378,9 +366,6 @@ struct SidebarView: View {
     }
     .onReceive(NotificationCenter.default.publisher(for: .tasksPageDidLoad)) { _ in
       isTasksPageLoading = false
-    }
-    .onReceive(NotificationCenter.default.publisher(for: .focusPageDidLoad)) { _ in
-      isFocusPageLoading = false
     }
     .onReceive(NotificationCenter.default.publisher(for: .insightPageDidLoad)) { _ in
       isInsightPageLoading = false
@@ -1013,8 +998,7 @@ struct SidebarView: View {
   private func pageLoadingState(for item: SidebarNavItem) -> Bool {
     switch item {
     case .tasks: return isTasksPageLoading
-    case .focus: return isFocusPageLoading
-    case .insight: return isInsightPageLoading
+    case .insights: return isInsightPageLoading
     default: return false
     }
   }
@@ -1022,8 +1006,7 @@ struct SidebarView: View {
   private func setPageLoading(for item: SidebarNavItem, loading: Bool) {
     switch item {
     case .tasks: isTasksPageLoading = loading
-    case .focus: isFocusPageLoading = loading
-    case .insight: isInsightPageLoading = loading
+    case .insights: isInsightPageLoading = loading
     default: break
     }
   }

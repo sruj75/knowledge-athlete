@@ -98,8 +98,6 @@ struct FocusSessionRecord: Codable, FetchableRecord, PersistableRecord, Identifi
   var description: String
   var message: String?
   var durationSeconds: Int?
-  var backendId: String?
-  var backendSynced: Bool
   var createdAt: Date
 
   static let databaseTableName = "focus_sessions"
@@ -115,8 +113,6 @@ struct FocusSessionRecord: Codable, FetchableRecord, PersistableRecord, Identifi
     description: String,
     message: String? = nil,
     durationSeconds: Int? = nil,
-    backendId: String? = nil,
-    backendSynced: Bool = false,
     createdAt: Date = Date()
   ) {
     self.id = id
@@ -127,8 +123,6 @@ struct FocusSessionRecord: Codable, FetchableRecord, PersistableRecord, Identifi
     self.description = description
     self.message = message
     self.durationSeconds = durationSeconds
-    self.backendId = backendId
-    self.backendSynced = backendSynced
     self.createdAt = createdAt
   }
 

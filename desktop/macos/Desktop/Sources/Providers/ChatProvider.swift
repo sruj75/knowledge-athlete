@@ -3276,7 +3276,8 @@ class ChatProvider: ObservableObject {
     assistantText: String,
     origin: String,
     contentBlocks: [ChatContentBlock] = [],
-    resources: [ChatResource] = []
+    resources: [ChatResource] = [],
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot? = nil
   ) async -> (user: ChatMessage?, assistant: ChatMessage?) {
     let targetSurface = surface ?? mainChatSurfaceReference()
     let normalizedContinuityKey = continuityKey.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -3296,7 +3297,8 @@ class ChatProvider: ObservableObject {
         continuityKey: normalizedContinuityKey,
         assistantContentBlocks: contentBlocks,
         resources: resources,
-        ownerID: ownerID
+        ownerID: ownerID,
+        authorizationSnapshot: authorizationSnapshot
       )
     }
   }

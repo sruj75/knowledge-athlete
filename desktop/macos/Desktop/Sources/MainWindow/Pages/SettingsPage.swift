@@ -146,15 +146,9 @@ struct SettingsContentView: View {
   @Binding var selectedSection: SettingsSection
   @Binding var highlightedSettingId: String?
 
-  // Notification settings (from backend)
-  @State var dailySummaryEnabled: Bool = true
-  @State var dailySummaryHour: Int = 22
-  // UI-only date for the Summary Time stepper field; the backend stores whole hours,
-  // so this glides freely while only the hour component is persisted.
-  @State var dailySummaryTime: Date = SettingsControlMetrics.dailySummaryDate(
-    forHour: 22, referenceDate: Date())
+  // Local notification settings
   @State var notificationsEnabled: Bool = true
-  @State var notificationFrequency: Int = 3
+  @State var notificationFrequency: Int = 0
 
   @State var isTrackingExpanded: Bool = false
 
@@ -362,6 +356,9 @@ struct SettingsContentView: View {
     _memoryNotificationsEnabled = State(
       initialValue: MemoryAssistantSettings.shared.notificationsEnabled)
     _memoryExcludedApps = State(initialValue: MemoryAssistantSettings.shared.excludedApps)
+    let notificationSettings = LocalNotificationSettings().snapshot()
+    _notificationsEnabled = State(initialValue: notificationSettings.enabled)
+    _notificationFrequency = State(initialValue: notificationSettings.frequency)
     _vadGateEnabled = State(initialValue: settings.vadGateEnabled)
     _transcriptionLanguage = State(initialValue: settings.transcriptionLanguage)
     _transcriptionAutoDetect = State(initialValue: settings.transcriptionAutoDetect)
@@ -429,7 +426,7 @@ struct SettingsContentView: View {
       .omiAnimation(.easeInOut(duration: 0.15), value: selectedSection)
     }
     .onAppear {
-      loadBackendSettings()
+      loadLocalSettings()
       loadSubscriptionInfo()
       // Sync transcription state with appState
       isTranscribing = appState.isTranscribing

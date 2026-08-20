@@ -245,8 +245,6 @@ class TestModelQosProfiles:
         # Flagship features use gpt-5.4-mini on openai
         assert premium['conv_structure'] == ('gpt-5.4-mini', 'openai')
         assert premium['chat_responses'] == ('gpt-5.4-mini', 'openai')
-        # Quality-sensitive features use gpt-4.1-mini on openai
-        assert premium['proactive_notification'] == ('gpt-4.1-mini', 'openai')
         # Free-text features use Gemini 2.5 Flash-Lite on gemini provider
         assert premium['session_titles'] == ('gemini-2.5-flash-lite', 'gemini')
         assert premium['followup'] == ('gemini-2.5-flash-lite', 'gemini')
@@ -264,8 +262,6 @@ class TestModelQosProfiles:
         assert max_prof['chat_responses'] == ('gpt-5.4', 'openai')
         assert max_prof['conv_action_items'] == ('gpt-5.4', 'openai')
         assert max_prof['conv_structure'] == ('gpt-5.4', 'openai')
-        assert max_prof['daily_summary'] == ('gpt-5.4', 'openai')
-        assert max_prof['notifications'] == ('gpt-5.4', 'openai')
         # Cheap tasks use gpt-4.1-mini on openai
         # OpenRouter for wrapped_analysis with explicit provider
         assert max_prof['wrapped_analysis'] == ('gemini-3-flash-preview', 'openrouter')
@@ -292,7 +288,6 @@ class TestModelQosProfiles:
         new_features = [
             'conv_folder',
             'conv_discard',
-            'proactive_notification',
         ]
         for feature in new_features:
             for profile_name, profile in MODEL_QOS_PROFILES.items():
@@ -340,14 +335,12 @@ class TestGetLlm:
         assert llm1 is llm2
 
     def test_different_features_same_model_share_instance(self):
-        # Both use gpt-4.1-mini in premium profile (quality-sensitive)
-        llm1 = get_llm('proactive_notification')
-        llm2 = get_llm('memory_l1')
+        llm1 = get_llm('memory_l1')
+        llm2 = get_llm('memory_l2')
         assert llm1 is llm2
 
     def test_different_models_return_different_instances(self):
-        # proactive_notification=gpt-4.1-mini, conv_structure=gpt-5.4-mini in premium
-        llm1 = get_llm('proactive_notification')
+        llm1 = get_llm('memory_l1')
         llm2 = get_llm('conv_structure')
         assert llm1 is not llm2
 
@@ -374,8 +367,6 @@ class TestGetLlm:
         for feature in [
             'conv_folder',
             'conv_discard',
-            'daily_summary_simple',
-            'proactive_notification',
         ]:
             llm = get_llm(feature)
             assert hasattr(llm, 'invoke'), f'{feature} did not return a valid client'
@@ -677,7 +668,6 @@ class TestExpandedCallsiteCoverage:
             'conv_discard',
             'conv_action_items',
             'conv_structure',
-            'daily_summary',
         ]:
             assert key in calls, f"Missing get_llm('{key}') in conversation_processing.py"
         assert calls.count('conv_structure') >= 2, "conv_structure should appear at least twice"
@@ -690,13 +680,6 @@ class TestExpandedCallsiteCoverage:
         source = self._read_source("utils/llm/trends.py")
         assert "get_llm('trends')" in source
 
-    def test_notifications_py_key(self):
-        import re
-
-        source = self._read_source("utils/llm/notifications.py")
-        calls = re.findall(r"get_llm\('(\w+)'", source)
-        assert 'notifications' in calls
-
     def test_perplexity_tools_key(self):
         import re
 
@@ -707,18 +690,6 @@ class TestExpandedCallsiteCoverage:
     def test_chat_sessions_router_key(self):
         source = self._read_source("routers/chat_sessions.py")
         assert "get_llm('session_titles')" in source
-
-    def test_daily_summary_key(self):
-        source = self._read_source("utils/llm/daily_summary.py")
-        assert "get_llm('daily_summary'" in source
-
-    def test_proactive_notification_key(self):
-        import re
-
-        source = self._read_source("utils/llm/proactive_notification.py")
-        calls = re.findall(r"get_llm\('(\w+)'", source)
-        assert 'proactive_notification' in calls
-        assert calls.count('proactive_notification') >= 4, "proactive_notification should appear in 4 functions"
 
     def test_generate_2025_key(self):
         import re
@@ -736,9 +707,6 @@ class TestExpandedCallsiteCoverage:
         wired_files = [
             "utils/llm/conversation_processing.py",
             "utils/llm/memory_compute.py",
-            "utils/llm/proactive_notification.py",
-            "utils/llm/daily_summary.py",
-            "utils/llm/notifications.py",
             "utils/llm/followup.py",
             "utils/llm/trends.py",
             "utils/onboarding.py",
@@ -849,7 +817,6 @@ class TestStructuredOutputFeatureTracking:
 
     def test_expected_features_tracked(self):
         expected = {
-            'proactive_notification',
             'translation',
             'trends',
         }

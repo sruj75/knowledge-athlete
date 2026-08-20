@@ -236,7 +236,7 @@ def test_desktop_rest_inventory_is_nonempty():
     """Sanity guard: the extractor must keep finding routes."""
     source = _load_api_client_sources()
     in_scope = _in_scope(_extract_routes_from_swift(source))
-    assert len(in_scope) >= 15, (
-        f'Expected at least 15 in-scope desktop REST routes, found {len(in_scope)}. '
+    assert len(in_scope) >= 11, (
+        f'Expected at least 11 in-scope desktop REST routes, found {len(in_scope)}. '
         'The Swift route extractor may have regressed.'
     )

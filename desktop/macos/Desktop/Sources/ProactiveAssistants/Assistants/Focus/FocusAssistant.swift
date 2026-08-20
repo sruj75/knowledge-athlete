@@ -454,7 +454,9 @@ actor FocusAssistant: ProactiveAssistant {
   }
 
   private func processFrame(_ frame: CapturedFrame) async {
-    guard let ownerID = RuntimeOwnerIdentity.currentOwnerId() else { return }
+    guard let ownerID = RuntimeOwnerIdentity.currentOwnerId(),
+      let ownerAuthorization = RuntimeOwnerIdentity.captureAuthorizationSnapshot(expectedOwnerID: ownerID)
+    else { return }
     guard await isEnabled else { return }
     guard RuntimeOwnerIdentity.currentOwnerId() == ownerID else { return }
     do {
@@ -510,12 +512,15 @@ actor FocusAssistant: ProactiveAssistant {
           analysis: analysis,
           screenshotId: frame.screenshotId,
           windowTitle: frame.windowTitle,
-          ownerID: ownerID)
-        guard RuntimeOwnerIdentity.currentOwnerId() == ownerID else { return }
+          ownerID: ownerID,
+          ownerAuthorization: ownerAuthorization)
+        guard let sqliteId,
+          RuntimeOwnerIdentity.isAuthorizationCurrent(ownerAuthorization)
+        else { return }
 
         // Update FocusStorage UI state (sessions list, currentStatus, currentApp)
-        Task { @MainActor [ownerID] in
-          guard RuntimeOwnerIdentity.currentOwnerId() == ownerID else { return }
+        Task { @MainActor in
+          guard RuntimeOwnerIdentity.isAuthorizationCurrent(ownerAuthorization) else { return }
           FocusStorage.shared.addSession(from: analysis, sqliteId: sqliteId)
         }
 
@@ -570,7 +575,8 @@ actor FocusAssistant: ProactiveAssistant {
                 message: fullMessage,
                 assistantId: identifier,
                 sound: .none,
-                context: context
+                context: context,
+                authorizationSnapshot: ownerAuthorization
               )
             }
           }
@@ -588,12 +594,15 @@ actor FocusAssistant: ProactiveAssistant {
           analysis: analysis,
           screenshotId: frame.screenshotId,
           windowTitle: frame.windowTitle,
-          ownerID: ownerID)
-        guard RuntimeOwnerIdentity.currentOwnerId() == ownerID else { return }
+          ownerID: ownerID,
+          ownerAuthorization: ownerAuthorization)
+        guard let sqliteId,
+          RuntimeOwnerIdentity.isAuthorizationCurrent(ownerAuthorization)
+        else { return }
 
         // Update FocusStorage UI state (sessions list, currentStatus, currentApp)
-        Task { @MainActor [ownerID] in
-          guard RuntimeOwnerIdentity.currentOwnerId() == ownerID else { return }
+        Task { @MainActor in
+          guard RuntimeOwnerIdentity.isAuthorizationCurrent(ownerAuthorization) else { return }
           FocusStorage.shared.addSession(from: analysis, sqliteId: sqliteId)
         }
 
@@ -634,7 +643,8 @@ actor FocusAssistant: ProactiveAssistant {
                   message: message,
                   assistantId: identifier,
                   sound: .none,
-                  context: context
+                  context: context,
+                  authorizationSnapshot: ownerAuthorization
                 )
               }
             }
@@ -786,13 +796,12 @@ actor FocusAssistant: ProactiveAssistant {
     analysis: ScreenAnalysis,
     screenshotId: Int64?,
     windowTitle: String? = nil,
-    ownerID: String
+    ownerID: String,
+    ownerAuthorization: RuntimeOwnerAuthorizationSnapshot
   ) async -> Int64? {
-    guard RuntimeOwnerIdentity.currentOwnerId() == ownerID,
-      let snapshot = RuntimeOwnerIdentity.captureAuthorizationSnapshot(expectedOwnerID: ownerID)
-    else { return nil }
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(ownerAuthorization) else { return nil }
     let authorization = LocalMutationAuthorization {
-      RuntimeOwnerIdentity.isAuthorizationCurrent(snapshot)
+      RuntimeOwnerIdentity.isAuthorizationCurrent(ownerAuthorization)
     }
     // Save to focus_sessions table (for detailed tracking)
     let focusRecord = FocusSessionRecord(
@@ -806,68 +815,17 @@ actor FocusAssistant: ProactiveAssistant {
 
     var focusSessionId: Int64?
     do {
-      let inserted = try await ProactiveStorage.shared.insertFocusSession(focusRecord)
-      guard RuntimeOwnerIdentity.currentOwnerId() == ownerID else { return focusSessionId }
+      let inserted = try await ProactiveStorage.shared.insertFocusSession(
+        focusRecord,
+        authorization: authorization)
+      guard RuntimeOwnerIdentity.isAuthorizationCurrent(ownerAuthorization) else { return nil }
       focusSessionId = inserted.id
       log("Focus: Saved to focus_sessions (id: \(inserted.id ?? -1), status: \(analysis.status.rawValue))")
     } catch {
       logError("Focus: Failed to save to focus_sessions", error: error)
     }
 
-    // Save to unified memories table (for search/filter)
-    _ = await saveFocusToMemoriesTable(
-      analysis: analysis,
-      screenshotId: screenshotId,
-      windowTitle: windowTitle,
-      ownerID: ownerID,
-      authorization: authorization)
     return focusSessionId
-  }
-
-  /// Save focus event to unified memories table for search/filter
-  /// Returns the inserted memory ID if successful
-  private func saveFocusToMemoriesTable(
-    analysis: ScreenAnalysis,
-    screenshotId: Int64?,
-    windowTitle: String? = nil,
-    ownerID: String,
-    authorization: LocalMutationAuthorization
-  ) async -> Int64? {
-    guard RuntimeOwnerIdentity.currentOwnerId() == ownerID else { return nil }
-    // Build content for the memory
-    let statusText = analysis.status == .focused ? "Focused" : "Distracted"
-    let content = "\(statusText) on \(analysis.appOrSite): \(analysis.description)"
-
-    // Build tags: ["focus", "focused"/"distracted", "app:{appName}"]
-    let statusTag = analysis.status == .focused ? "focused" : "distracted"
-    let appTag = "app:\(analysis.appOrSite)"
-    var tags = ["focus", statusTag, appTag]
-
-    // Add message indicator if present
-    if let message = analysis.message, !message.isEmpty {
-      tags.append("has-message")
-    }
-
-    do {
-      let insertedMemory = try await MemoryStorage.shared.acceptAssertion(
-        MemoryAssertion(
-          content: content,
-          category: .system,
-          layer: .shortTerm,
-          tags: tags,
-          source: .focus,
-          screenshotId: screenshotId,
-          sourceApp: analysis.appOrSite,
-          windowTitle: windowTitle,
-          contextSummary: analysis.description),
-        authorization: authorization)
-      try authorization.require()
-      log("Focus: Saved to memories (id: \(insertedMemory.id)) with tags \(tags)")
-      return Int64(insertedMemory.id)
-    } catch {
-      logError("Focus: Failed to save to memories table", error: error)
-      return nil
-    }
   }
 
 }

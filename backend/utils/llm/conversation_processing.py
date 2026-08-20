@@ -1184,17 +1184,3 @@ def get_reprocess_transcript_structure(
         event.created = False
 
     return response
-
-
-def generate_summary_with_prompt(conversation_text: str, prompt: str, language_code: str = 'en') -> str:
-    # Build prompt matching the app processing format (without forced "be concise" constraint)
-    full_prompt = f"""
-    Your task is: {prompt}
-
-    Language: The conversation language is {language_code}. Use the same language {language_code} for your response.
-
-    The conversation is:
-    {conversation_text}
-    """
-    response = get_llm('daily_summary', cache_key='omi-daily-summary').invoke(full_prompt)
-    return _content_str(response)

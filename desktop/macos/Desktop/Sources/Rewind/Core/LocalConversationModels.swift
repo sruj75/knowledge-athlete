@@ -123,9 +123,24 @@ struct ConversationLocalQuery: Equatable, Sendable {
   let startDate: Date?
   let endDate: Date?
   let folderId: String?
+  let statuses: [ConversationLifecycleState]?
+
+  init(
+    starredOnly: Bool,
+    startDate: Date?,
+    endDate: Date?,
+    folderId: String?,
+    statuses: [ConversationLifecycleState]? = nil
+  ) {
+    self.starredOnly = starredOnly
+    self.startDate = startDate
+    self.endDate = endDate
+    self.folderId = folderId
+    self.statuses = statuses
+  }
 
   static let all = ConversationLocalQuery(
-    starredOnly: false, startDate: nil, endDate: nil, folderId: nil)
+    starredOnly: false, startDate: nil, endDate: nil, folderId: nil, statuses: nil)
 }
 
 struct ConversationFolderRecord: Codable, Equatable, Sendable, Identifiable {

@@ -67,9 +67,7 @@ class TestPremiumFlagship:
     FLAGSHIP_FEATURES = [
         'conv_action_items',
         'conv_structure',
-        'daily_summary',
         'chat_responses',
-        'notifications',
     ]
 
     @pytest.mark.parametrize("feature", FLAGSHIP_FEATURES)
@@ -85,33 +83,12 @@ class TestPremiumFlagship:
 # ---------------------------------------------------------------------------
 # Premium profile — gpt-4.1-mini features (quality-sensitive tier)
 # ---------------------------------------------------------------------------
-class TestPremiumMini:
-    """Test gpt-4.1-mini features in premium profile respond to real prompts."""
-
-    MINI_FEATURES = [
-        'proactive_notification',
-    ]
-
-    @pytest.mark.parametrize("feature", MINI_FEATURES)
-    def test_mini_feature_responds(self, feature):
-        model = get_model(feature)
-        assert model == 'gpt-4.1-mini', f"{feature} should be gpt-4.1-mini in premium, got {model}"
-        llm = get_llm(feature)
-        response = llm.invoke(SIMPLE_PROMPT)
-        assert response.content.strip(), f"{feature} ({model}) returned empty response"
-        print(f"  {feature} ({model}): {response.content.strip()[:60]}")
-
-
-# ---------------------------------------------------------------------------
-# Premium profile — gpt-4.1-nano features (simple tasks tier)
-# ---------------------------------------------------------------------------
 class TestPremiumNano:
     """Test gpt-4.1-nano features in premium profile respond to real prompts."""
 
     NANO_FEATURES = [
         'conv_folder',
         'conv_discard',
-        'daily_summary_simple',
     ]
 
     @pytest.mark.parametrize("feature", NANO_FEATURES)

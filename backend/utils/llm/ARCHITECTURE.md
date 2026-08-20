@@ -48,13 +48,11 @@ The shared plumbing every feature call goes through.
 ## Proactive, notifications & insights
 
 - `notifications.py` — relevance retrieval and notification content.
-- `proactive_notification.py` — proactive notification drafting + validation.
 - `trends.py` — trend extraction.
 - `temporal.py` — current-date grounding injected into prompts.
 
 ## Summaries & policy
 
-- `daily_summary.py` — first-party daily-summary generation.
 - `fair_use_classifier.py` — LLM-based purpose detection for fair-use policy.
 
 ## Conventions

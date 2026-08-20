@@ -59,6 +59,34 @@ final class ConversationLocalQueryTests: XCTestCase {
     XCTAssertEqual(count, 1)
   }
 
+  func testCompletedStatusFilterIsAppliedBeforeThePageLimit() async throws {
+    let owner = try makeOwner()
+    defer { owner.cleanup() }
+    let completed = try await seed(
+      owner.storage,
+      startedAt: Date(timeIntervalSince1970: 1),
+      title: "Completed")
+    let newerFinalizing = try await seed(
+      owner.storage,
+      startedAt: Date(timeIntervalSince1970: 2),
+      title: "Still finalizing")
+    try await owner.pool.write { database in
+      try database.execute(
+        sql: "UPDATE transcription_sessions SET status = 'finalizing' WHERE conversationId = ?",
+        arguments: [newerFinalizing.conversationId])
+    }
+    let query = ConversationLocalQuery(
+      starredOnly: false,
+      startDate: nil,
+      endDate: nil,
+      folderId: nil,
+      statuses: [.completed])
+
+    let rows = try await owner.storage.conversationPage(query: query, offset: 0, limit: 1)
+
+    XCTAssertEqual(rows.map(\.conversationId), [completed.conversationId])
+  }
+
   func testSearchNormalizesWhitespaceMatchesTitleAndOverviewOnlyAndCapsAtFifty() async throws {
     let owner = try makeOwner()
     defer { owner.cleanup() }

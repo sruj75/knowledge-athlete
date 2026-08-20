@@ -111,7 +111,6 @@ _stubs = [
     'database.vector_db',
     'database.chat',
     'database.notifications',
-    'database.daily_summaries',
     'database.fair_use',
     'database.auth',
     'database.llm_usage',
@@ -502,35 +501,6 @@ class TestUsersLockEnforcement:
                 result = delete_person_endpoint(memory_id='conv-1', uid='test-uid')
         assert result['result'] == 'test result'
 
-    def test_daily_summary_excludes_locked(self):
-        """L3: test_daily_summary must filter locked conversations before processing."""
-        import database.conversations as conversations_db
-        import database.notifications as notification_db
-        import database.daily_summaries as daily_summaries_db
-
-        data = [
-            _make_conversation(locked=True),
-            _make_conversation(locked=False, conversation_id='conv-2'),
-            _make_conversation(locked=True, conversation_id='conv-3'),
-        ]
-        conversations_db.get_conversations = MagicMock(return_value=data)
-        notification_db.get_user_time_zone = MagicMock(return_value=None)
-        notification_db.get_all_tokens = MagicMock(return_value=['token1'])
-        daily_summaries_db.create_daily_summary = MagicMock(return_value='summary-1')
-
-        from routers.users import test_daily_summary
-
-        mock_gen = MagicMock(return_value={'headline': 'Test', 'overview': 'Overview'})
-        with patch('routers.users.generate_comprehensive_daily_summary', mock_gen):
-            with patch('routers.users.send_notification'):
-                result = test_daily_summary(uid='test-uid')
-
-        # Verify only unlocked conversations were passed to summary generation
-        call_args = mock_gen.call_args
-        conversations_passed = call_args[0][1]  # second positional arg
-        assert len(conversations_passed) == 1
-        assert conversations_passed[0].id == 'conv-2'
-
     def test_gdpr_export_includes_locked(self):
         """H6: GDPR export must include locked conversations (Art. 15)."""
         import database.conversations as conversations_db
@@ -571,59 +541,3 @@ class TestUsersLockEnforcement:
         assert len(data['conversations']) == 2
         assert data['conversations'][0]['is_locked'] is True
         assert data['conversations'][1]['id'] == 'conv-2'
-
-
-# =============================================================================
-# Test scheduled daily summary excludes locked conversations
-# =============================================================================
-
-
-class TestScheduledDailySummaryLockFilter:
-    """Scheduled daily summary must exclude locked conversations from LLM context."""
-
-    def test_scheduled_summary_excludes_locked(self):
-        """_send_summary_notification filters locked conversations before generating summary."""
-        import database.conversations as conversations_db
-        import database.daily_summaries as daily_summaries_db
-
-        locked_conv = _make_conversation(locked=True)
-        unlocked_conv = _make_conversation(locked=False, conversation_id='conv-2')
-        conversations_db.get_conversations = MagicMock(return_value=[locked_conv, unlocked_conv])
-
-        with patch('utils.other.notifications.try_acquire_daily_summary_lock', return_value=True):
-            with patch(
-                'utils.other.notifications.generate_comprehensive_daily_summary',
-                return_value={'headline': 'Test', 'day_emoji': '📅', 'overview': 'ok'},
-            ) as mock_gen:
-                daily_summaries_db.create_daily_summary = MagicMock(return_value='summary-1')
-                daily_summaries_db.get_daily_summary_by_date = MagicMock(return_value=None)
-                with patch('utils.other.notifications.send_notification'):
-                    from utils.other.notifications import _send_summary_notification
-
-                    _send_summary_notification(('test-uid', 'token', 'UTC'))
-
-        # generate_comprehensive_daily_summary must be called only with unlocked conversations
-        mock_gen.assert_called_once()
-        conversations_passed = mock_gen.call_args[0][1]
-        assert len(conversations_passed) == 1
-        assert conversations_passed[0].id == 'conv-2'
-
-    def test_scheduled_summary_skips_when_all_locked(self):
-        """_send_summary_notification returns early when all conversations are locked."""
-        import database.conversations as conversations_db
-        import database.daily_summaries as daily_summaries_db
-
-        conversations_db.get_conversations = MagicMock(return_value=[_make_conversation(locked=True)])
-        daily_summaries_db.get_daily_summary_by_date = MagicMock(return_value=None)
-
-        with patch('utils.other.notifications.try_acquire_daily_summary_lock', return_value=True):
-            with patch('utils.other.notifications.generate_comprehensive_daily_summary') as mock_gen:
-                from utils.other.notifications import _send_summary_notification
-
-                _send_summary_notification(('test-uid', 'token', 'UTC'))
-
-        # Should not call LLM when no unlocked conversations remain
-        mock_gen.assert_not_called()
-
-
-# =============================================================================

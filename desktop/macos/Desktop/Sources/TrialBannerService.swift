@@ -22,6 +22,7 @@ final class TrialBannerService {
   typealias NotificationPresenter =
     @MainActor (
       _ ownerID: String,
+      _ authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot,
       _ title: String,
       _ message: String
     ) -> OwnerBoundNotificationPresentationResult
@@ -33,9 +34,10 @@ final class TrialBannerService {
   /// Start observing trial metadata changes from AppState.
   func start(
     appState: AppState,
-    presenter: @escaping NotificationPresenter = { ownerID, title, message in
+    presenter: @escaping NotificationPresenter = { ownerID, authorizationSnapshot, title, message in
       FloatingControlBarManager.shared.showNotification(
         ownerID: ownerID,
+        authorizationSnapshot: authorizationSnapshot,
         title: title,
         message: message,
         assistantId: "trial",
@@ -44,7 +46,9 @@ final class TrialBannerService {
     }
   ) {
     cancellable?.cancel()
-    guard let ownerID = RuntimeOwnerIdentity.currentOwnerId() else {
+    guard let ownerID = RuntimeOwnerIdentity.currentOwnerId(),
+      let authorizationSnapshot = RuntimeOwnerIdentity.captureAuthorizationSnapshot(expectedOwnerID: ownerID)
+    else {
       activeOwnerID = nil
       cancellable = nil
       return
@@ -52,9 +56,13 @@ final class TrialBannerService {
     activeOwnerID = ownerID
     cancellable = appState.$trialMetadata
       .compactMap { $0 }
-      .sink { [weak self, ownerID] metadata in
-        guard RuntimeOwnerIdentity.currentOwnerId() == ownerID else { return }
-        self?.evaluate(metadata, ownerID: ownerID, presenter: presenter)
+      .sink { [weak self, ownerID, authorizationSnapshot] metadata in
+        guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
+        self?.evaluate(
+          metadata,
+          ownerID: ownerID,
+          authorizationSnapshot: authorizationSnapshot,
+          presenter: presenter)
       }
   }
 
@@ -75,15 +83,17 @@ final class TrialBannerService {
   private func evaluate(
     _ metadata: TrialMetadataResponse,
     ownerID: String,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot,
     presenter: NotificationPresenter
   ) {
-    guard RuntimeOwnerIdentity.currentOwnerId() == ownerID else { return }
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
     guard metadata.trialStartedAt != nil else { return }
 
     if metadata.trialExpired {
       showOnce(
         kind: .expired,
         ownerID: ownerID,
+        authorizationSnapshot: authorizationSnapshot,
         title: "Trial Ended",
         message: "Your 3-day premium trial has ended. Upgrade to keep unlimited access or bring your own API keys.",
         presenter: presenter)
@@ -95,6 +105,7 @@ final class TrialBannerService {
       showOnce(
         kind: .oneHour,
         ownerID: ownerID,
+        authorizationSnapshot: authorizationSnapshot,
         title: "Less than 1 hour left",
         message: "Your premium trial expires soon. Upgrade now to keep unlimited listening & transcription.",
         presenter: presenter)
@@ -102,6 +113,7 @@ final class TrialBannerService {
       showOnce(
         kind: .twentyFourHours,
         ownerID: ownerID,
+        authorizationSnapshot: authorizationSnapshot,
         title: "Trial ending tomorrow",
         message: "Your premium trial ends in less than 24 hours. Check out plans in Settings.",
         presenter: presenter)
@@ -111,15 +123,16 @@ final class TrialBannerService {
   private func showOnce(
     kind: NudgeKind,
     ownerID: String,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot,
     title: String,
     message: String,
     presenter: NotificationPresenter
   ) {
-    guard RuntimeOwnerIdentity.currentOwnerId() == ownerID else { return }
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
     let key = Self.nudgeKey(kind, ownerID: ownerID)
     guard !UserDefaults.standard.bool(forKey: key) else { return }
 
-    let result = presenter(ownerID, title, message)
+    let result = presenter(ownerID, authorizationSnapshot, title, message)
     if result == .presented || result == .queued {
       Self.recordNudge(kind, ownerID: ownerID)
     }

@@ -22,14 +22,11 @@ model_config_features:
       - conv_discard
       - conv_folder
       - conv_structure
-      - daily_summary
       - followup
-      - notifications
       - onboarding
       - session_titles
       - wrapped_analysis
     structured_output:
-      - proactive_notification
       - translation
       - trends
     streaming:

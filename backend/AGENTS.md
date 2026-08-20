@@ -43,7 +43,7 @@ backend/
     users.py              #   Profiles, subscriptions, people/contacts, private cloud sync settings
     vector_db.py          #   Pinecone integration for semantic search
     fair_use.py           #   Usage limits and soft-cap tracking
-    ...                   #   + folders, phone_calls, daily_summaries, trends, etc.
+    ...                   #   + folders, phone_calls, trends, etc.
   routers/                # FastAPI route handlers, one per retained feature domain
     transcribe.py         #   /v4/listen WebSocket — auth + exact transient session contract
     listen/               #   Modulate transport, VAD, metering, canonical segments, direct translation
@@ -53,11 +53,11 @@ backend/
     memory_compute.py     #   Three authenticated, bounded, stateless Memory proposal routes
     sync.py               #   Internal audio-merge Cloud Tasks handler retained for S-25
     auth.py               #   Google/Apple OAuth callbacks, session management
-    users.py              #   Profile, subscription, settings (1200 LOC)
+    users.py              #   Account profile, subscription, usage, export, and deletion routes
     ...                   #   + payment and other retained product routes
   utils/                  # Business logic — 60+ files (never import from routers/)
     llm/                  #   LLM orchestration (14 files): chat processing, conversation post-processing,
-                          #   transient Memory proposal compute and proactive notifications,
+                          #   transient Memory proposal compute,
                           #   fair-use classification, and usage tracking
       clients.py          #     Model instances: OpenAI (gpt-4.1-mini, o4-mini), Anthropic (claude-sonnet-4-6),
                           #     OpenRouter (gemini-flash), with prompt caching and usage callbacks
@@ -85,10 +85,9 @@ backend/
                           #   - POST /v1/diarization — speaker boundary detection (pyannote/speaker-diarization)
                           #   - POST /v1/embedding — speaker vector extraction (pyannote/embedding)
                           #   - POST /v2/embedding — alt speaker vectors (wespeaker-voxceleb-resnet34-LM)
-  modal/                 # Serverless GPU services (deployed on Modal) + Cloud Run Jobs
+  modal/                 # Serverless GPU services deployed on Modal
                           #   - Speaker identification: matches segments to speech profiles (SpeechBrain, T4 GPU)
                           #   - VAD: voice activity detection (pyannote/voice-activity-detection)
-                          #   - notifications-job: hourly push notifications (Cloud Run Job)
   tests/unit/            # 50+ unit tests (no external service deps)
   tests/integration/     # Integration tests (need Redis, Firebase, API keys)
   scripts/run-unit-ci.sh # Full CI unit-test contract
@@ -117,7 +116,6 @@ backend-sync (main.py, Cloud Run)
   ├── ──────► Cloud Tasks queue `account-deletion` ──► POST /v1/users/account-deletion-wipes/run (OIDC, same service)
   └── ──────► Cloud Tasks queue `conversation-finalization` ──► POST /v1/conversation-finalization-jobs/run (OIDC, same service)
 
-notifications-job (modal/job.py)  [cron]
 ```
 
 Helm charts: `backend/charts/{backend-listen,backend-secrets,diarizer,llm-gateway,pusher,vad}/`.
@@ -162,8 +160,17 @@ proposal computation pinned to OpenAI GPT-4.1-mini. These modules must not impor
 Redis, hosted vectors, product Memory stores, or log request/response bodies. The retained Gemini
 embedding proxy is transient compute; vector storage and similarity remain local on macOS.
 
-- **notifications-job** (`modal/job.py`) — Cron job that reads Firestore/Redis and sends first-party push notifications. It has no connector synchronization or canonical-maintenance role.
 - **backend-secrets** (`backend/charts/backend-secrets/`) — ExternalSecret and SecretStore resources that sync backend runtime secrets into GKE namespaces.
+
+### macOS Focus, Insights, profile, and settings boundary
+
+Focus sessions, `tips` Insights, AI Profile history, assistant controls, and the
+master notification/frequency controls are Mac-local authorities. Do not add
+backend Focus/stat APIs, AI Profile persistence, assistant/notification/Mentor
+settings mirrors, Daily Summary, personalized purchase/quota push generation,
+or a notifications cron job. Generic FCM primitives remain only for separately
+owned live callers; managed Gemini remains transient compute and owns no product
+records.
 
 Backend runtime env contract: keep `backend/deploy/runtime_env.yaml` aligned with GKE Helm values and Cloud Run runtime env; run `backend/scripts/pre-deploy-check.sh` after backend runtime env or deploy workflow changes. The `llm_gateway` manifest section owns the release, ingress, and static-address identity; a reserved address alone is never an endpoint contract. Gateway-mode promotion requires the control-plane gate plus `probe-llm-gateway-from-cloud-run.sh` before Cloud Run revisions are created.
 

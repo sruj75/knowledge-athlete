@@ -269,21 +269,6 @@ def delete_auth_code(auth_code: str) -> None:
     r.delete(f'auth_code:{auth_code}')
 
 
-# ******************************************************
-# ************** CREDIT LIMIT NOTIFICATIONS ************
-# ******************************************************
-
-
-def set_credit_limit_notification_sent(uid: str, ttl: int = 60 * 60 * 24) -> None:
-    """Cache that credit limit notification was sent to user (24 hours TTL by default)"""
-    r.set(f'users:{uid}:credit_limit_notification_sent', '1', ex=ttl)
-
-
-def has_credit_limit_notification_been_sent(uid: str) -> bool:
-    """Check if credit limit notification was already sent to user recently"""
-    return r.exists(f'users:{uid}:credit_limit_notification_sent')
-
-
 def set_silent_user_notification_sent(uid: str, ttl: int = 60 * 60 * 24) -> None:
     """Cache that silent user notification was sent to user (24 hours TTL by default)"""
     r.set(f'users:{uid}:silent_notification_sent', '1', ex=ttl)
@@ -470,17 +455,6 @@ def try_acquire_user_platform_write_lock(uid: str, platform: str, ttl: int = 600
 def set_speech_profile_duration(uid: str, duration: float) -> None:
     """Cache speech profile duration (write-ahead on upload)"""
     r.set(f'users:{uid}:speech_profile_duration', str(duration))
-
-
-# ******************************************************
-# ************ DAILY SUMMARY NOTIFICATIONS *************
-# ******************************************************
-
-
-def try_acquire_daily_summary_lock(uid: str, date: str, ttl: int = 60 * 60 * 2) -> bool:
-    """Atomically acquire lock BEFORE expensive LLM work. Returns True if acquired, False if another job instance already holds it."""
-    result = r.set(f'users:{uid}:daily_summary_lock:{date}', '1', ex=ttl, nx=True)
-    return result is not None
 
 
 @try_catch_decorator

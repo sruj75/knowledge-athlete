@@ -59,6 +59,14 @@ final class HomeSuggestionComposerTests: XCTestCase {
 
     XCTAssertEqual(sanitized, ["How do I unblock the Atlas launch?"])
   }
+
+  func testSuggestionTapPrefillsTrimmedDraftWithoutSendOutcome() {
+    XCTAssertEqual(
+      HomeSuggestionSelection.resolve("  How do I unblock the Atlas launch?  "),
+      .prefill("How do I unblock the Atlas launch?")
+    )
+    XCTAssertEqual(HomeSuggestionSelection.resolve("   \n"), .ignore)
+  }
 }
 
 // MARK: - Context classification

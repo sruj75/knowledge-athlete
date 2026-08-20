@@ -311,10 +311,7 @@ final class MemoryAssistantSettingChangeTelemetryTests: XCTestCase {
     XCTAssertEqual(captured[0].properties["value"] as? Bool, true)
   }
 
-  func testRemoteSyncAndResetEmitNoSettingChangeEvent() {
-    SettingsSyncManager.shared.applyRemoteSettings(
-      AssistantSettingsResponse(memory: MemorySettingsResponse(enabled: false, notificationsEnabled: true))
-    )
+  func testProgrammaticResetEmitsNoSettingChangeEvent() {
     MemoryAssistantSettings.shared.resetToDefaults()
 
     XCTAssertTrue(captured.isEmpty)

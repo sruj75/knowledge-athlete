@@ -8,6 +8,8 @@ covers:
   - desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/Insight/InsightAssistant.swift
   - desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/Insight/InsightStorage.swift
   - desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/MemoryExtraction/MemoryAssistantTelemetry.swift
+  - desktop/macos/Desktop/Sources/Rewind/Core/ProactiveModels.swift
+  - desktop/macos/Desktop/Sources/Rewind/Core/ProactiveStorage.swift
 preconditions:
   - auth_ready
   - screen_recording_ready

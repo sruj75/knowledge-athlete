@@ -1,6 +1,12 @@
 import OmiTheme
 import SwiftUI
 
+enum InsightErrorPresentation {
+  static func message(_ error: String) -> String {
+    "Insights could not be updated: \(error)"
+  }
+}
+
 // MARK: - Insight View Model
 
 @MainActor
@@ -40,28 +46,45 @@ class InsightViewModel: ObservableObject {
   }
 
   func markAsRead(_ id: String) {
-    storage.markAsRead(id)
-    objectWillChange.send()
+    Task {
+      await storage.markAsRead(id)
+      objectWillChange.send()
+    }
   }
 
   func markAllAsRead() {
-    storage.markAllAsRead()
-    objectWillChange.send()
+    Task {
+      await storage.markAllAsRead()
+      objectWillChange.send()
+    }
   }
 
   func dismissInsight(_ id: String) {
-    storage.dismissInsight(id)
-    objectWillChange.send()
+    Task {
+      await storage.dismissInsight(id)
+      objectWillChange.send()
+    }
   }
 
   func deleteInsight(_ id: String) {
-    storage.deleteInsight(id)
-    objectWillChange.send()
+    Task {
+      await storage.deleteInsight(id)
+      objectWillChange.send()
+    }
   }
 
   func clearAll() {
-    storage.clearAll()
-    objectWillChange.send()
+    Task {
+      await storage.clearAll()
+      objectWillChange.send()
+    }
+  }
+
+  func refresh() {
+    Task {
+      await storage.refresh()
+      objectWillChange.send()
+    }
   }
 
   func countForCategory(_ category: InsightCategory?) -> Int {
@@ -75,12 +98,29 @@ class InsightViewModel: ObservableObject {
 
 // MARK: - Insight Page
 
+enum InsightNavigationResolver {
+  static func resolve(id: String, in insights: [StoredInsight]) -> StoredInsight? {
+    insights.first { $0.id == id }
+  }
+}
+
 struct InsightPage: View {
   @StateObject private var viewModel = InsightViewModel()
   @ObservedObject private var storage = InsightStorage.shared
   @State private var selectedInsight: StoredInsight? = nil
   @State private var showClearConfirmation = false
   @Environment(\.sbTheme) private var sb
+
+  let requestedInsightID: String?
+  let onRequestConsumed: () -> Void
+
+  init(
+    requestedInsightID: String? = nil,
+    onRequestConsumed: @escaping () -> Void = {}
+  ) {
+    self.requestedInsightID = requestedInsightID
+    self.onRequestConsumed = onRequestConsumed
+  }
 
   private let contentMaxWidth: CGFloat = 820
 
@@ -96,6 +136,13 @@ struct InsightPage: View {
       .padding(.horizontal, 28)
       .padding(.top, 24)
       .padding(.bottom, 16)
+
+      if let error = storage.lastSyncError {
+        errorBanner(error)
+          .frame(maxWidth: contentMaxWidth)
+          .padding(.horizontal, 28)
+          .padding(.bottom, 12)
+      }
 
       // Content
       if storage.insightHistory.isEmpty {
@@ -126,7 +173,43 @@ struct InsightPage: View {
     .onAppear {
       // Advice uses local storage, so it's immediately ready
       NotificationCenter.default.post(name: .insightPageDidLoad, object: nil)
+      openRequestedInsightIfNeeded()
     }
+    .onChange(of: requestedInsightID) { _, _ in
+      openRequestedInsightIfNeeded()
+    }
+  }
+
+  private func errorBanner(_ error: String) -> some View {
+    HStack(spacing: 12) {
+      Image(systemName: "exclamationmark.triangle")
+        .foregroundStyle(Color.orange)
+      Text(InsightErrorPresentation.message(error))
+        .geist(size: 13)
+        .foregroundStyle(sb.ink(.w55))
+      Spacer()
+      Button("Retry") { viewModel.refresh() }
+        .buttonStyle(.plain)
+        .foregroundStyle(sb.ink)
+    }
+    .padding(12)
+    .background(sb.ink(.w04), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+  }
+
+  private func openRequestedInsightIfNeeded() {
+    guard let requestedInsightID else { return }
+    defer { onRequestConsumed() }
+    guard
+      let insight = InsightNavigationResolver.resolve(
+        id: requestedInsightID,
+        in: storage.insightHistory
+      )
+    else {
+      InsightsHubNavigationStore.shared.reportInsightUnavailable()
+      return
+    }
+    selectedInsight = insight
+    viewModel.markAsRead(insight.id)
   }
 
   // MARK: - Header

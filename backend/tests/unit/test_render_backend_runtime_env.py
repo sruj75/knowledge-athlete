@@ -77,22 +77,6 @@ def test_network_flags_still_required(monkeypatch):
         _MODULE['_render_flags']({'--network': {'env_var': 'CLOUD_RUN_VPC_NETWORK'}})
 
 
-def test_selected_job_renders_only_shared_network_and_named_job_outputs(capsys, monkeypatch):
-    monkeypatch.setenv('CLOUD_RUN_VPC_NETWORK', 'omi-dev-vpc-1')
-    monkeypatch.setenv('CLOUD_RUN_VPC_SUBNET', 'omi-dev-subnet-1')
-    monkeypatch.setattr(
-        'sys.argv',
-        ['render_backend_runtime_env.py', '--env', 'dev', '--job', 'notifications-job'],
-    )
-
-    assert _MODULE['main']() == 0
-
-    output = capsys.readouterr().out
-    assert 'cloud_run_flags<<' in output
-    assert 'notifications_job_env_vars<<' in output
-    assert 'backend_env_vars<<' not in output
-
-
 def test_selected_job_rejects_unknown_name_without_emitting_partial_output(capsys, monkeypatch):
     monkeypatch.setattr('sys.argv', ['render_backend_runtime_env.py', '--env', 'dev', '--job', 'unknown-job'])
 
@@ -136,15 +120,3 @@ def test_render_prod_requires_vpc_env_vars_before_job_outputs(monkeypatch):
     monkeypatch.setattr('sys.argv', ['render_backend_runtime_env.py', '--env', 'prod'])
     with pytest.raises(ValueError, match='CLOUD_RUN_VPC'):
         _MODULE['main']()
-
-
-def test_notifications_job_workflow_passes_vpc_vars_and_checkout_sha():
-    workflow = Path(__file__).resolve().parents[3] / '.github/workflows/gcp_notifications_job.yml'
-    text = workflow.read_text(encoding='utf-8')
-    assert 'CLOUD_RUN_VPC_NETWORK: ${{ vars.CLOUD_RUN_VPC_NETWORK }}' in text
-    assert 'CLOUD_RUN_VPC_SUBNET: ${{ vars.CLOUD_RUN_VPC_SUBNET }}' in text
-    assert 'git rev-parse --short=7 HEAD' in text
-    assert 'short_sha=${GITHUB_SHA::7}' not in text
-    assert 'render_backend_runtime_env.py --env ${{ vars.ENV }} --job notifications-job' in text
-    assert 'env_vars_update_strategy: overwrite' not in text
-    assert 'secrets_update_strategy: overwrite' not in text

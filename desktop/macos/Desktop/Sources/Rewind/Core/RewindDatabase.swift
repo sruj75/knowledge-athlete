@@ -2609,6 +2609,9 @@ actor RewindDatabase {
     migrator.registerMigration("makeTasksAndGoalsLocalAuthoritative") { db in
       try Self.makeTasksAndGoalsLocalAuthoritative(in: db)
     }
+    migrator.registerMigration("makeProactiveSurfacesLocalAuthoritative") { db in
+      try Self.makeProactiveSurfacesLocalAuthoritative(in: db)
+    }
     RewindAbandonedVideoChunkQuarantine.registerMigration(on: &migrator)
     try migrator.migrate(queue)
   }
@@ -2740,6 +2743,57 @@ actor RewindDatabase {
         """)
     try db.execute(sql: "DROP TABLE goals_legacy_s13")
     try db.create(index: "idx_goals_active", on: "goals", columns: ["isActive", "createdAt"])
+  }
+
+  static func makeProactiveSurfacesLocalAuthoritative(in db: Database) throws {
+    try db.execute(sql: "DROP INDEX IF EXISTS idx_focus_synced")
+    try db.execute(sql: "ALTER TABLE focus_sessions RENAME TO focus_sessions_legacy_s14")
+    try db.create(table: "focus_sessions") { t in
+      t.autoIncrementedPrimaryKey("id")
+      t.column("screenshotId", .integer).references("screenshots", onDelete: .cascade)
+      t.column("status", .text).notNull()
+      t.column("appOrSite", .text).notNull()
+      t.column("windowTitle", .text)
+      t.column("description", .text).notNull()
+      t.column("message", .text)
+      t.column("durationSeconds", .integer)
+      t.column("createdAt", .datetime).notNull()
+    }
+    try db.execute(
+      sql: """
+        INSERT INTO focus_sessions (
+          id, screenshotId, status, appOrSite, windowTitle, description, message,
+          durationSeconds, createdAt
+        )
+        SELECT id, screenshotId, status, appOrSite, windowTitle, description, message,
+          durationSeconds, createdAt
+        FROM focus_sessions_legacy_s14
+        ORDER BY id
+        """)
+    try db.execute(sql: "DROP TABLE focus_sessions_legacy_s14")
+    try db.create(index: "idx_focus_created", on: "focus_sessions", columns: ["createdAt"])
+    try db.create(index: "idx_focus_status", on: "focus_sessions", columns: ["status"])
+    try db.create(index: "idx_focus_screenshot", on: "focus_sessions", columns: ["screenshotId"])
+
+    try db.execute(sql: "ALTER TABLE ai_user_profiles RENAME TO ai_user_profiles_legacy_s14")
+    try db.create(table: "ai_user_profiles") { t in
+      t.autoIncrementedPrimaryKey("id")
+      t.column("profileText", .text).notNull()
+      t.column("dataSourcesUsed", .integer).notNull()
+      t.column("generatedAt", .datetime).notNull()
+    }
+    try db.execute(
+      sql: """
+        INSERT INTO ai_user_profiles (id, profileText, dataSourcesUsed, generatedAt)
+        SELECT id, profileText, dataSourcesUsed, generatedAt
+        FROM ai_user_profiles_legacy_s14
+        ORDER BY id
+        """)
+    try db.execute(sql: "DROP TABLE ai_user_profiles_legacy_s14")
+    try db.create(
+      index: "idx_ai_user_profiles_generated",
+      on: "ai_user_profiles",
+      columns: ["generatedAt"])
   }
 
   // MARK: - OCR Precision Reduction Migration

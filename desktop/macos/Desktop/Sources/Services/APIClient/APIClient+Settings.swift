@@ -4,26 +4,15 @@ import Foundation
 
 extension APIClient {
 
-  /// Fetches daily summary settings
-  func getDailySummarySettings() async throws -> DailySummarySettings {
-    return try await get("v1/users/daily-summary-settings")
-  }
-
-  /// Updates daily summary settings
-  func updateDailySummarySettings(enabled: Bool? = nil, hour: Int? = nil) async throws
-    -> DailySummarySettings
-  {
-    struct UpdateRequest: Encodable {
-      let enabled: Bool?
-      let hour: Int?
-    }
-    let body = UpdateRequest(enabled: enabled, hour: hour)
-    return try await patch("v1/users/daily-summary-settings", body: body)
-  }
-
   /// Fetches user language preference
-  func getUserLanguage() async throws -> UserLanguageResponse {
-    return try await get("v1/users/language")
+  func getUserLanguage(
+    expectedOwnerId: String? = nil,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot? = nil
+  ) async throws -> UserLanguageResponse {
+    return try await get(
+      "v1/users/language",
+      expectedOwnerId: expectedOwnerId,
+      authorizationSnapshot: authorizationSnapshot)
   }
 
   /// Updates user language preference. The PATCH endpoint's response shape differs
@@ -48,40 +37,9 @@ extension APIClient {
       authorizationSnapshot: authorizationSnapshot)
   }
 
-  /// Fetches notification settings
-  func getNotificationSettings() async throws -> NotificationSettingsResponse {
-    return try await get("v1/users/notification-settings")
-  }
-
-  /// Updates notification settings
-  func updateNotificationSettings(enabled: Bool? = nil, frequency: Int? = nil) async throws
-    -> NotificationSettingsResponse
-  {
-    struct UpdateRequest: Encodable {
-      let enabled: Bool?
-      let frequency: Int?
-    }
-    let body = UpdateRequest(enabled: enabled, frequency: frequency)
-    return try await patch("v1/users/notification-settings", body: body)
-  }
-
   /// Deletes the authenticated user's account and all server data.
   func deleteAccount() async throws {
     try await delete("v1/users/delete-account")
-  }
-
-  // MARK: - Assistant Settings API
-
-  /// Fetches assistant settings from the backend
-  func getAssistantSettings() async throws -> AssistantSettingsResponse {
-    return try await get("v1/users/assistant-settings")
-  }
-
-  /// Updates assistant settings on the backend (partial update — only non-nil fields are changed)
-  func updateAssistantSettings(_ settings: AssistantSettingsResponse) async throws
-    -> AssistantSettingsResponse
-  {
-    return try await patch("v1/users/assistant-settings", body: settings)
   }
 
   /// Fetches server-controlled desktop update/banner policy.
@@ -97,12 +55,6 @@ extension APIClient {
 
 // MARK: - User Settings Models
 
-/// Daily summary notification settings
-struct DailySummarySettings: Codable {
-  let enabled: Bool
-  let hour: Int
-}
-
 /// User language response (GET /v1/users/language)
 struct UserLanguageResponse: Codable {
   let language: String
@@ -114,25 +66,6 @@ struct UserLanguageResponse: Codable {
 struct SetUserLanguageResponse: Codable {
   let status: String
   let single_language_mode: Bool
-}
-
-/// Notification settings response
-struct NotificationSettingsResponse: Codable {
-  let enabled: Bool
-  let frequency: Int
-
-  /// Frequency level description
-  var frequencyDescription: String {
-    switch frequency {
-    case 0: return "Off"
-    case 1: return "Minimal"
-    case 2: return "Low"
-    case 3: return "Balanced"
-    case 4: return "High"
-    case 5: return "Maximum"
-    default: return "Unknown"
-    }
-  }
 }
 
 enum SubscriptionPlanType: String, Codable {
@@ -447,245 +380,4 @@ struct DesktopUpdatePolicyResponse: Decodable, Equatable, Sendable {
   var isRequired: Bool {
     active && severity == .required
   }
-}
-
-// MARK: - Assistant Settings Models
-
-struct SharedAssistantSettingsResponse: Codable {
-  var cooldownInterval: Int?
-  var glowOverlayEnabled: Bool?
-  var analysisDelay: Int?
-  var screenAnalysisEnabled: Bool?
-
-  enum CodingKeys: String, CodingKey {
-    case cooldownInterval = "cooldown_interval"
-    case glowOverlayEnabled = "glow_overlay_enabled"
-    case analysisDelay = "analysis_delay"
-    case screenAnalysisEnabled = "screen_analysis_enabled"
-  }
-}
-
-struct FocusSettingsResponse: Codable {
-  var enabled: Bool?
-  var analysisPrompt: String?
-  var cooldownInterval: Int?
-  var notificationsEnabled: Bool?
-  var excludedApps: [String]?
-
-  enum CodingKeys: String, CodingKey {
-    case enabled
-    case analysisPrompt = "analysis_prompt"
-    case cooldownInterval = "cooldown_interval"
-    case notificationsEnabled = "notifications_enabled"
-    case excludedApps = "excluded_apps"
-  }
-}
-
-struct InsightSettingsResponse: Codable {
-  var enabled: Bool?
-  var analysisPrompt: String?
-  var extractionInterval: Double?
-  var minConfidence: Double?
-  var notificationsEnabled: Bool?
-  var excludedApps: [String]?
-
-  enum CodingKeys: String, CodingKey {
-    case enabled
-    case analysisPrompt = "analysis_prompt"
-    case extractionInterval = "extraction_interval"
-    case minConfidence = "min_confidence"
-    case notificationsEnabled = "notifications_enabled"
-    case excludedApps = "excluded_apps"
-  }
-}
-
-struct MemorySettingsResponse: Codable {
-  var enabled: Bool?
-  var analysisPrompt: String?
-  var extractionInterval: Double?
-  var minConfidence: Double?
-  var notificationsEnabled: Bool?
-  var excludedApps: [String]?
-
-  enum CodingKeys: String, CodingKey {
-    case enabled
-    case analysisPrompt = "analysis_prompt"
-    case extractionInterval = "extraction_interval"
-    case minConfidence = "min_confidence"
-    case notificationsEnabled = "notifications_enabled"
-    case excludedApps = "excluded_apps"
-  }
-}
-
-struct FloatingBarSettingsResponse: Codable {
-  var voiceAnswersEnabled: Bool?
-  var elevenlabsVoiceId: String?
-
-  enum CodingKeys: String, CodingKey {
-    case voiceAnswersEnabled = "voice_answers_enabled"
-    case elevenlabsVoiceId = "elevenlabs_voice_id"
-  }
-}
-
-enum AssistantSettingsJSONValue: Codable, Equatable {
-  case null
-  case bool(Bool)
-  case int(Int)
-  case double(Double)
-  case string(String)
-  case array([AssistantSettingsJSONValue])
-  case object([String: AssistantSettingsJSONValue])
-
-  init(from decoder: Decoder) throws {
-    let container = try decoder.singleValueContainer()
-    if container.decodeNil() {
-      self = .null
-    } else if let value = try? container.decode(Bool.self) {
-      self = .bool(value)
-    } else if let value = try? container.decode(Int.self) {
-      self = .int(value)
-    } else if let value = try? container.decode(Double.self) {
-      self = .double(value)
-    } else if let value = try? container.decode(String.self) {
-      self = .string(value)
-    } else if let value = try? container.decode([AssistantSettingsJSONValue].self) {
-      self = .array(value)
-    } else if let value = try? container.decode([String: AssistantSettingsJSONValue].self) {
-      self = .object(value)
-    } else {
-      throw DecodingError.dataCorruptedError(
-        in: container, debugDescription: "Unsupported assistant settings JSON value")
-    }
-  }
-
-  func encode(to encoder: Encoder) throws {
-    var container = encoder.singleValueContainer()
-    switch self {
-    case .null:
-      try container.encodeNil()
-    case .bool(let value):
-      try container.encode(value)
-    case .int(let value):
-      try container.encode(value)
-    case .double(let value):
-      try container.encode(value)
-    case .string(let value):
-      try container.encode(value)
-    case .array(let value):
-      try container.encode(value)
-    case .object(let value):
-      try container.encode(value)
-    }
-  }
-}
-
-struct AssistantSettingsResponse: Codable {
-  var shared: SharedAssistantSettingsResponse?
-  var focus: FocusSettingsResponse?
-  var insight: InsightSettingsResponse?
-  var memory: MemorySettingsResponse?
-  var floatingBar: FloatingBarSettingsResponse?
-  var updateChannel: String?
-  var unknownSections: [String: AssistantSettingsJSONValue]
-
-  enum CodingKeys: String, CodingKey, CaseIterable {
-    case shared, focus, task
-    case insight = "advice"
-    case memory
-    case floatingBar = "floating_bar"
-    case updateChannel = "update_channel"
-  }
-
-  init(
-    shared: SharedAssistantSettingsResponse? = nil,
-    focus: FocusSettingsResponse? = nil,
-    insight: InsightSettingsResponse? = nil,
-    memory: MemorySettingsResponse? = nil,
-    floatingBar: FloatingBarSettingsResponse? = nil,
-    updateChannel: String? = nil,
-    unknownSections: [String: AssistantSettingsJSONValue] = [:]
-  ) {
-    self.shared = shared
-    self.focus = focus
-    self.insight = insight
-    self.memory = memory
-    self.floatingBar = floatingBar
-    self.updateChannel = updateChannel
-    self.unknownSections = unknownSections
-  }
-
-  init(from decoder: Decoder) throws {
-    let container = try decoder.container(keyedBy: CodingKeys.self)
-    shared = Self.decodeLossy(SharedAssistantSettingsResponse.self, from: container, forKey: .shared)
-    focus = Self.decodeLossy(FocusSettingsResponse.self, from: container, forKey: .focus)
-    insight = Self.decodeLossy(InsightSettingsResponse.self, from: container, forKey: .insight)
-    memory = Self.decodeLossy(MemorySettingsResponse.self, from: container, forKey: .memory)
-    floatingBar = Self.decodeLossy(
-      FloatingBarSettingsResponse.self, from: container, forKey: .floatingBar)
-    updateChannel = Self.decodeLossy(String.self, from: container, forKey: .updateChannel)
-
-    let rawContainer = try decoder.container(keyedBy: AssistantSettingsDynamicCodingKey.self)
-    let knownKeys = Set(CodingKeys.allCases.map(\.rawValue))
-    unknownSections = rawContainer.allKeys.reduce(into: [:]) { result, key in
-      guard !knownKeys.contains(key.stringValue),
-        let value = try? rawContainer.decode(AssistantSettingsJSONValue.self, forKey: key)
-      else { return }
-      result[key.stringValue] = value
-    }
-  }
-
-  func encode(to encoder: Encoder) throws {
-    var container = encoder.container(keyedBy: CodingKeys.self)
-    try container.encodeIfPresent(shared, forKey: .shared)
-    try container.encodeIfPresent(focus, forKey: .focus)
-    try container.encodeIfPresent(insight, forKey: .insight)
-    try container.encodeIfPresent(memory, forKey: .memory)
-    try container.encodeIfPresent(floatingBar, forKey: .floatingBar)
-    try container.encodeIfPresent(updateChannel, forKey: .updateChannel)
-
-    var rawContainer = encoder.container(keyedBy: AssistantSettingsDynamicCodingKey.self)
-    let knownKeys = Set(CodingKeys.allCases.map(\.rawValue))
-    for (key, value) in unknownSections where !knownKeys.contains(key) {
-      try rawContainer.encode(value, forKey: AssistantSettingsDynamicCodingKey(stringValue: key))
-    }
-  }
-
-  private static func decodeLossy<T: Decodable>(
-    _ type: T.Type,
-    from container: KeyedDecodingContainer<CodingKeys>,
-    forKey key: CodingKeys
-  ) -> T? {
-    do {
-      return try container.decodeIfPresent(type, forKey: key)
-    } catch {
-      return nil
-    }
-  }
-}
-
-struct AssistantSettingsDynamicCodingKey: CodingKey {
-  let stringValue: String
-  let intValue: Int?
-
-  init(stringValue: String) {
-    self.stringValue = stringValue
-    intValue = nil
-  }
-
-  init(intValue: Int) {
-    stringValue = String(intValue)
-    self.intValue = intValue
-  }
-}
-
-// MARK: - Focus Sessions API
-
-extension APIClient {
-
-}
-
-// MARK: - Insight API
-
-extension APIClient {
-
 }

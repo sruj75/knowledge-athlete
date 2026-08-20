@@ -241,8 +241,7 @@ class MemoryAssistantSettings {
   ///
   /// This is the **only** path that emits the activation-denominator event. The
   /// raw property setters (`isEnabled` / `notificationsEnabled`) are deliberately
-  /// silent so that remote settings sync (`SettingsSyncManager.applyRemoteSettings`),
-  /// migrations/defaults, and programmatic resets cannot create denominator
+  /// silent so that migrations/defaults and programmatic resets cannot create denominator
   /// events. Call this exclusively from explicit user-intent sites (UI toggles,
   /// intentional user commands).
   @discardableResult

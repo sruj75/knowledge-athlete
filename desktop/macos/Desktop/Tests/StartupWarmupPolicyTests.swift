@@ -88,20 +88,6 @@ final class StartupWarmupPolicyTests: XCTestCase {
     XCTAssertEqual(StartupWarmupPolicy.floatingBarPlanFetchDelay, 0)
   }
 
-  func testInitialSettingsSyncWaitsUntilAfterDeferredWarmupStarts() {
-    XCTAssertGreaterThan(
-      StartupWarmupPolicy.initialSettingsSyncDelay,
-      StartupWarmupPolicy.deferredWarmupDelay
-    )
-  }
-
-  func testInitialSettingsSyncRunsBeforeProactiveAssistantsStart() {
-    XCTAssertLessThan(
-      StartupWarmupPolicy.initialSettingsSyncDelay,
-      StartupWarmupPolicy.proactiveAssistantsStartDelay
-    )
-  }
-
   func testAPIKeyFetchWaitsUntilAfterDashboardNetworkRefresh() {
     XCTAssertGreaterThan(
       StartupWarmupPolicy.apiKeyFetchDelay,

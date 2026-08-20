@@ -90,7 +90,7 @@ def test_is_auto_lane_id_matches_gateway_namespace(value, expected):
 
 
 def test_auto_lane_mapping_is_opt_in_and_does_not_change_existing_direct_helpers(monkeypatch):
-    feature = 'proactive_notification'
+    feature = 'conv_structure'
     before_model = get_model(feature)
     before_provider = get_provider(feature)
 
@@ -104,7 +104,7 @@ def test_auto_lane_mapping_is_opt_in_and_does_not_change_existing_direct_helpers
 
 
 def test_auto_lane_mapping_rejects_non_gateway_namespace(monkeypatch):
-    monkeypatch.setitem(model_config._AUTO_LANE_FEATURES, 'proactive_notification', 'gpt-4.1-mini')
+    monkeypatch.setitem(model_config._AUTO_LANE_FEATURES, 'conv_structure', 'gpt-4.1-mini')
 
     with pytest.raises(ValueError, match='omi:auto'):
-        get_route_ref('proactive_notification')
+        get_route_ref('conv_structure')

@@ -48,6 +48,40 @@ import XCTest
     }
   }
 
+  private actor SuspendedJournalExchangeGate {
+    private var started = false
+    private var startedWaiters: [CheckedContinuation<Void, Never>] = []
+    private var releaseContinuation: CheckedContinuation<Void, Never>?
+    private(set) var committedWriteCount = 0
+
+    func record(
+      authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot?,
+      result: AgentRuntimeProcess.JournalOperationResult
+    ) async throws -> AgentRuntimeProcess.JournalOperationResult {
+      started = true
+      startedWaiters.forEach { $0.resume() }
+      startedWaiters.removeAll()
+      await withCheckedContinuation { releaseContinuation = $0 }
+      guard let authorizationSnapshot,
+        RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
+      else {
+        throw LocalMutationAuthorizationError.revoked
+      }
+      committedWriteCount += 1
+      return result
+    }
+
+    func waitUntilStarted() async {
+      guard !started else { return }
+      await withCheckedContinuation { startedWaiters.append($0) }
+    }
+
+    func release() {
+      releaseContinuation?.resume()
+      releaseContinuation = nil
+    }
+  }
+
   @MainActor
   final class KernelTurnRecordedProjectionTests: XCTestCase {
     override func setUp() {
@@ -355,6 +389,54 @@ import XCTest
       XCTAssertNil(rejected.user)
       XCTAssertNil(rejected.assistant)
       XCTAssertTrue(provider.messages.isEmpty)
+    }
+
+    func testSameUIDReauthenticationRevokesNotificationExchangeBeforeCanonicalWrite() async throws {
+      let ownerFixture = RuntimeOwnerAuthorityTestFixture()
+      await ownerFixture.establish(authOwnerID: "owner-a")
+      let staleSnapshot = try XCTUnwrap(RuntimeOwnerIdentity.captureAuthorizationSnapshot())
+      let provider = ChatProvider()
+      let surface = provider.mainChatSurfaceReference()
+      let gate = SuspendedJournalExchangeGate()
+      let unusedReceipt = AgentRuntimeProcess.JournalOperationResult(
+        operation: "record_exchange",
+        conversationId: "notification-conversation",
+        turn: nil,
+        turns: [],
+        clearedCount: 0,
+        highWaterTurnSeq: 0,
+        conversationGeneration: 1,
+        generationBaseTurnSeq: 0)
+      let projection = KernelTurnProjection(
+        host: provider,
+        client: AgentClient.Session(harnessMode: "piMono"),
+        kernelReadyOperation: { true },
+        journalRecordExchangeOperation: { _, _, _, _, authorizationSnapshot in
+          try await gate.record(
+            authorizationSnapshot: authorizationSnapshot,
+            result: unusedReceipt)
+        })
+
+      let admission = Task { @MainActor in
+        await projection.recordExchange(
+          surface: surface,
+          userText: "",
+          assistantText: "Owner A private notification",
+          origin: ProactiveNotificationContinuityPolicy.journalOrigin,
+          continuityKey: "notification:owner-a",
+          ownerID: "owner-a",
+          authorizationSnapshot: staleSnapshot)
+      }
+      await gate.waitUntilStarted()
+
+      await ownerFixture.establish(authOwnerID: "owner-a")
+      await gate.release()
+
+      let admitted = await admission.value
+      XCTAssertFalse(admitted)
+      let committedWriteCount = await gate.committedWriteCount
+      XCTAssertEqual(committedWriteCount, 0)
+      await ownerFixture.restore()
     }
 
     func testRejectedStreamingExchangeKeepsBothRowsInvisible() async {

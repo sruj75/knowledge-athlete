@@ -1794,8 +1794,16 @@ extension TranscriptionStorage {
   private static func localConversationPredicate(
     query: ConversationLocalQuery
   ) -> (sql: String, arguments: StatementArguments) {
-    var clauses = ["s.status NOT IN ('recording', 'merging')"]
+    var clauses: [String] = []
     var arguments: StatementArguments = []
+    if let statuses = query.statuses, !statuses.isEmpty {
+      clauses.append("s.status IN (\(statuses.map { _ in "?" }.joined(separator: ", ")))")
+      for status in statuses {
+        arguments += [status.rawValue]
+      }
+    } else {
+      clauses.append("s.status NOT IN ('recording', 'merging')")
+    }
     if query.starredOnly {
       clauses.append("s.starred = 1")
     }

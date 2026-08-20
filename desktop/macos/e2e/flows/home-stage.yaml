@@ -9,7 +9,6 @@ covers:
   - desktop/macos/Desktop/Sources/MainWindow/CaptureListeningLogic.swift
   - desktop/macos/Desktop/Sources/FloatingControlBar/AboutUserCard.swift
   - desktop/macos/Desktop/Sources/ProactiveAssistants/Services/AIUserProfileService.swift
-  - desktop/macos/Desktop/Sources/Services/APIClient/APIClient+AIProfile.swift
   - desktop/macos/Desktop/Sources/MainWindow/Components/ChatMessagesView.swift
   - desktop/macos/Desktop/Sources/MainWindow/HomeStatusControls.swift
   - desktop/macos/Desktop/Sources/MainWindow/Pages/DashboardPage.swift
