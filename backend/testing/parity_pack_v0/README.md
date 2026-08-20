@@ -47,15 +47,14 @@ path. The local cassette may include restricted audio/transcript event payloads,
 so keep its root outside Git and never attach it to a PR.
 
 `SurfaceParityCapture` uses the same gate/exporter for the additional
-memory-forming surfaces below.  It extends the cassette document with optional
+retained surfaces below. It extends the cassette document with optional
 top-level discriminators while leaving the v1 identity, fingerprint, and event
 contract unchanged for existing players:
 
 | `surface` | `source` | Captured seam |
 | --- | --- | --- |
 | `ptt` | `desktop_ptt_http`, `desktop_ptt_stream` | Desktop PCM PTT and live PTT STT (bounded audio + transcript events) |
-| `conversation_finalization` | `conversation_<source>` | Transcript input, memory extraction result, and accepted memories |
-| `memory_write` | `v3_memory_create`, `v3_memory_batch_create` | Retained manual/API memory writers |
+| `conversation_finalization` | `conversation_<source>` | Transcript input and retained finalization result |
 
 The development listen deployment mounts `/var/omi-parity-pack` as an `emptyDir`
 for explicitly allowlisted dogfood principals and best-effort exports cassette

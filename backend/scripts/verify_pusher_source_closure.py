@@ -6,7 +6,7 @@ and prints the repo-relative source paths — plus the Helm chart directory — 
 must be unchanged between a development-qualified SHA and the checked-out
 production SHA.  Using the Dockerfile's own COPY closure instead of a hardcoded
 two-directory subset prevents a stale digest from silently deploying newer shared
-backend source (for example ``backend/utils/memory/memory_service.py``) that the image baked in.
+backend source (for example ``backend/utils/conversations/finalizer.py``) that the image baked in.
 """
 
 from __future__ import annotations

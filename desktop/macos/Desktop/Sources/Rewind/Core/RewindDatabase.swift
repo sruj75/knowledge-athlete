@@ -1597,8 +1597,8 @@ actor RewindDatabase {
         on: "task_dedup_log", columns: ["deletedAt"])
     }
 
-    // Migration 14: Create unified memories table for local-first pattern
-    // Stores all memories (extracted, advice/tips, focus-tagged) with bidirectional sync
+    // Historical migration 14: creates the former hosted Memory cache schema.
+    // makeMemoriesLocalAuthoritativeS12 later rebuilds it into the live local-only schema.
     migrator.registerMigration("createMemoriesTable") { db in
       try db.create(table: "memories") { t in
         t.autoIncrementedPrimaryKey("id")
@@ -1607,7 +1607,7 @@ actor RewindDatabase {
         t.column("backendId", .text).unique()  // Server memory ID
         t.column("backendSynced", .boolean).notNull().defaults(to: false)
 
-        // Core ServerMemory fields
+        // Core MemoryItem fields
         t.column("content", .text).notNull()
         t.column("category", .text).notNull()  // system, interesting, manual
         t.column("tagsJson", .text)  // JSON array: ["tips"], ["focus", "focused"]
@@ -2335,7 +2335,7 @@ actor RewindDatabase {
       try db.execute(sql: "ALTER TABLE action_items ADD COLUMN indentLevel INTEGER")
     }
 
-    // Migration: Delete orphaned unsynced memories that have synced duplicates.
+    // Historical hosted-cache cleanup; retained only so old migration ledgers replay.
     // Same race condition as action_items migration 32: insertLocalMemory succeeded
     // but before markSynced ran, syncServerMemories pulled the same memory from the
     // API and inserted a second record with the proper backendId.
@@ -2395,6 +2395,12 @@ actor RewindDatabase {
       try db.create(index: "idx_indexed_files_folder", on: "indexed_files", columns: ["folder"])
       try db.create(index: "idx_indexed_files_ext", on: "indexed_files", columns: ["fileExtension"])
       try db.create(index: "idx_indexed_files_modified", on: "indexed_files", columns: ["modifiedAt"])
+    }
+
+    migrator.registerMigration("addMemoryHeadline") { db in
+      try db.alter(table: "memories") { t in
+        t.add(column: "headline", .text)
+      }
     }
 
     migrator.registerMigration("createTaskChatMessages") { db in
@@ -2499,12 +2505,6 @@ actor RewindDatabase {
       }
     }
 
-    migrator.registerMigration("addMemoryHeadline") { db in
-      try db.alter(table: "memories") { t in
-        t.add(column: "headline", .text)
-      }
-    }
-
     migrator.registerMigration("createLocalKnowledgeGraph") { db in
       try db.create(table: "local_kg_nodes") { t in
         t.autoIncrementedPrimaryKey("id")
@@ -2555,9 +2555,7 @@ actor RewindDatabase {
       try db.create(index: "idx_memories_tier", on: "memories", columns: ["tier"])
     }
 
-    // Records cached before tiering shipped were all defaulted to "long_term".
-    // Default this flag to false so those legacy rows render with no tier badge;
-    // a backend sync re-flags any memory the server actually tiers.
+    // Historical hosted-cache tier marker. The S12 forward migration removes it.
     migrator.registerMigration("addMemoryTierIsExplicit") { db in
       try db.alter(table: "memories") { t in
         t.add(column: "tierIsExplicit", .boolean).notNull().defaults(to: false)
@@ -2607,6 +2605,7 @@ actor RewindDatabase {
 
     Self.registerExternalSurfaceRetirementMigration(on: &migrator)
     Self.registerConversationsLocalAuthoritativeMigration(on: &migrator)
+    Self.registerMemoryLocalAuthorityMigration(on: &migrator)
     RewindAbandonedVideoChunkQuarantine.registerMigration(on: &migrator)
     try migrator.migrate(queue)
   }

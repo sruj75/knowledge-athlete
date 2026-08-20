@@ -35,7 +35,6 @@ def users_service():
         "database.users": AutoMockModule("database.users"),
         "database.action_items": AutoMockModule("database.action_items"),
         "database.conversations": AutoMockModule("database.conversations"),
-        "database.memories": AutoMockModule("database.memories"),
         "database.vector_db": AutoMockModule("database.vector_db"),
         "utils": _pkg("utils"),
         "utils.cloud_tasks": AutoMockModule("utils.cloud_tasks"),
@@ -47,8 +46,6 @@ def users_service():
         "utils.other": _pkg("utils.other"),
         "utils.other.endpoints": AutoMockModule("utils.other.endpoints"),
         "utils.other.storage": AutoMockModule("utils.other.storage"),
-        "utils.memory": _pkg("utils.memory"),
-        "utils.memory.canonical_memory_adapter": AutoMockModule("utils.memory.canonical_memory_adapter"),
         "utils.twilio_service": AutoMockModule("utils.twilio_service"),
     }
     with stub_modules(fakes):
@@ -63,7 +60,6 @@ def _purge_patches(users_service, **overrides):
     """Patch every purge collaborator on the users service. overrides set return_value/side_effect."""
     enumerators = {
         "get_conversation_ids": ["c1", "c2"],
-        "get_memory_ids": ["m1"],
         "get_action_item_ids": ["a1", "a2"],
     }
     patchers = {}
@@ -76,7 +72,6 @@ def _purge_patches(users_service, **overrides):
     for name in (
         "delete_conversation_vectors_batch",
         "delete_transcript_chunk_vectors_batch",
-        "delete_memory_vectors_batch",
         "delete_action_item_vectors_batch",
         "delete_all_conversation_recordings",
         "delete_user_caller_ids",
@@ -103,7 +98,6 @@ def test_purge_runs_all_backends_before_firestore_wipe(users_service):
 
     # Pinecone: one batched call per namespace (no per-item loop to abandon on a transient failure)
     m["delete_conversation_vectors_batch"].assert_called_once_with("uid1", ["c1", "c2"])
-    m["delete_memory_vectors_batch"].assert_called_once_with("uid1", ["m1"])
     m["delete_action_item_vectors_batch"].assert_called_once_with("uid1", ["a1", "a2"])
     # GCS + Firestore
     m["delete_all_conversation_recordings"].assert_called_once_with("uid1")
@@ -134,7 +128,7 @@ def test_pinecone_failure_does_not_block_recordings_or_firestore_wipe(users_serv
     finally:
         _stop(patchers)
     # required vector purge failures must block the irreversible Firestore wipe.
-    m["delete_memory_vectors_batch"].assert_called_once()
+    m["delete_action_item_vectors_batch"].assert_called_once()
     m["delete_all_conversation_recordings"].assert_called_once_with("uid1")
     m["delete_user_data"].assert_not_called()
 
@@ -158,6 +152,6 @@ def test_enumeration_failure_is_isolated(users_service):
     finally:
         _stop(patchers)
     # conversation enumeration is a required purge input, so it blocks the irreversible wipe.
-    m["delete_memory_vectors_batch"].assert_called_once_with("uid1", ["m1"])
+    m["delete_action_item_vectors_batch"].assert_called_once_with("uid1", ["a1", "a2"])
     m["delete_all_conversation_recordings"].assert_called_once_with("uid1")
     m["delete_user_data"].assert_not_called()

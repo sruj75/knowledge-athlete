@@ -167,7 +167,7 @@ def _validate_gemini_output(
     for source, translation in zip(contents, translations):
         if not isinstance(translation, ProviderTranslation):
             raise TranslationExecutionError('invalid_response', 'Translation response item is malformed')
-        if not isinstance(translation.text, str) or not isinstance(translation.detected_language, str):
+        if not _is_string(translation.text) or not _is_string(translation.detected_language):
             raise TranslationExecutionError('invalid_response', 'Translation response fields are malformed')
         if source and not translation.text.strip():
             raise TranslationExecutionError('invalid_response', 'Translation response item is empty')
@@ -175,3 +175,7 @@ def _validate_gemini_output(
 
 def _metric_error(reason: str) -> str:
     return 'invalid_response' if reason == 'invalid_response' else 'api_error'
+
+
+def _is_string(value: object) -> bool:
+    return isinstance(value, str)

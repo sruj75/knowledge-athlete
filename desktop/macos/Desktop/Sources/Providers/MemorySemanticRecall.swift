@@ -1,0 +1,22 @@
+import Foundation
+
+/// Bridges transient embedding compute to owner-local vector persistence.
+actor MemorySemanticRecall {
+  static let shared = MemorySemanticRecall()
+
+  func search(query: String, limit: Int) async throws -> [MemorySemanticMatch] {
+    guard let authorizationSnapshot = RuntimeOwnerIdentity.captureAuthorizationSnapshot() else {
+      throw LocalMutationAuthorizationError.revoked
+    }
+    let queryVector = try await EmbeddingService.shared.embed(
+      text: query,
+      taskType: "RETRIEVAL_QUERY",
+      authorizationSnapshot: authorizationSnapshot)
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else {
+      throw LocalMutationAuthorizationError.revoked
+    }
+    return try await MemoryStorage.shared.semanticMatches(
+      queryVector: queryVector.map(Double.init),
+      limit: max(1, min(limit, 20)))
+  }
+}

@@ -147,8 +147,8 @@ actor GoalsAIService {
     rawTasks: [TaskActionItem]
   ) {
     // Fetch all context in parallel — no truncation, full items
-    async let memoriesFetch = { () async -> [ServerMemory] in
-      do { return try await APIClient.shared.getMemories(limit: 500) } catch {
+    async let memoriesFetch = { () async -> [MemoryItem] in
+      do { return try await MemoryStorage.shared.list(limit: 500) } catch {
         log("GoalsAI: Failed to fetch memories: \(error.localizedDescription)")
         return []
       }
@@ -332,7 +332,7 @@ actor GoalsAIService {
     }
 
     // 1. Fetch context
-    let memories = try await APIClient.shared.getMemories(limit: 15)
+    let memories = try await MemoryStorage.shared.list(limit: 15)
     let conversations = try await LocalAuthorityConversationDataSource().list(
       query: ConversationListQuery(starredOnly: false, date: nil, folderId: nil),
       offset: 0,

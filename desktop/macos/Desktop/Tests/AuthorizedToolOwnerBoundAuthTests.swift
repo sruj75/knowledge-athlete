@@ -180,49 +180,6 @@ private actor PermissionCallbackBox<Value: Sendable> {
     await AuthorizedToolOwnerURLProtocol.gate.reset()
   }
 
-  func testMemoryReadRejectsPrivateResponseAfterMidFlightAccountSwitch() async {
-    let client = await makeClient()
-    let operation = Task { @MainActor in
-      await ChatToolExecutor.execute(
-        ToolCall(name: "get_memories", arguments: [:], thoughtSignature: nil),
-        expectedOwnerID: "owner-a",
-        backendAPIClient: client)
-    }
-
-    let request = await AuthorizedToolOwnerURLProtocol.gate.waitForRequest(path: "/v1/tools/memories")
-    XCTAssertEqual(request.httpMethod, "GET")
-    XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer owner-a-token")
-
-    UserDefaults.standard.set("owner-b", forKey: .authUserId)
-    await AuthorizedToolOwnerURLProtocol.gate.succeed(
-      path: "/v1/tools/memories",
-      with:
-        #"{"tool_name":"get_memories","result_text":"owner-a-private-memory","is_error":false}"#)
-
-    let result = await operation.value
-    XCTAssertEqual(result, ChatToolExecutor.authorizedOwnerChangedResult())
-    XCTAssertFalse(result.contains("owner-a-private-memory"))
-  }
-
-  func testMemoryReadReturnsResponseWhileOriginalOwnerRemainsCurrent() async {
-    let client = await makeClient()
-    let operation = Task { @MainActor in
-      await ChatToolExecutor.execute(
-        ToolCall(name: "get_memories", arguments: [:], thoughtSignature: nil),
-        expectedOwnerID: "owner-a",
-        backendAPIClient: client)
-    }
-
-    _ = await AuthorizedToolOwnerURLProtocol.gate.waitForRequest(path: "/v1/tools/memories")
-    await AuthorizedToolOwnerURLProtocol.gate.succeed(
-      path: "/v1/tools/memories",
-      with:
-        #"{"tool_name":"get_memories","result_text":"owner-a-memory","is_error":false}"#)
-
-    let result = await operation.value
-    XCTAssertEqual(result, "owner-a-memory")
-  }
-
   func testActionItemWriteKeepsOriginalCredentialAndRejectsResultAfterMidFlightAccountSwitch() async {
     let client = await makeClient()
     let operation = Task { @MainActor in

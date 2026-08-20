@@ -23,7 +23,6 @@ if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
 import check_brand_ui  # noqa: E402
-import check_isinstance_return_ratchet  # noqa: E402
 import check_lifecycle_headers  # noqa: E402
 import check_package_architecture_maps  # noqa: E402
 import check_version_prefixed_filenames  # noqa: E402
@@ -47,19 +46,6 @@ def _load_hyphen_module(filename: str, module_name: str):
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
-
-
-def _union_return_metric(repo_root: Path) -> Metric:
-    baseline_path = repo_root / check_isinstance_return_ratchet.DEFAULT_BASELINE
-    baseline = check_isinstance_return_ratchet.load_baseline(baseline_path)
-    counts = check_isinstance_return_ratchet.collect_counts(
-        repo_root, check_isinstance_return_ratchet.DEFAULT_SCAN_ROOT
-    )
-    return Metric(
-        "union_return_isinstance",
-        sum(counts.values()),
-        sum(baseline.values()),
-    )
 
 
 def _lifecycle_metric(repo_root: Path) -> Metric:
@@ -121,7 +107,6 @@ def _brand_ui_metric(repo_root: Path) -> Metric:
 
 def collect_metrics(repo_root: Path) -> list[Metric]:
     return [
-        _union_return_metric(repo_root),
         _lifecycle_metric(repo_root),
         _mapless_metric(repo_root),
         _version_prefixed_metric(),

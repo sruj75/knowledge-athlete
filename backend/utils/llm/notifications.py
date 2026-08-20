@@ -1,14 +1,10 @@
 import random
-from typing import Any, List, Protocol, Tuple, cast
+from typing import Protocol, Tuple, cast
 from .clients import get_llm
 from .usage_tracker import track_usage, Features
-from database.memories import get_memories
-from utils.executors import db_executor, run_blocking
 import logging
 
 logger = logging.getLogger(__name__)
-
-MemoryRecord = dict[str, Any]
 
 
 class AsyncLlm(Protocol):
@@ -36,36 +32,14 @@ def _response_text(response: object) -> str:
     return '' if content is None else str(content)
 
 
-def _memory_content(memory: MemoryRecord) -> str:
-    content = memory.get('content', '')
-    if isinstance(content, str):
-        return content
-    return str(content)
-
-
-async def get_relevant_memories(uid: str, limit: int = 100) -> List[MemoryRecord]:
-    """Get recent relevant memories to personalize notifications."""
-    memories: List[MemoryRecord] = await run_blocking(db_executor, get_memories, uid, limit)
-    return [m for m in memories if not m.get('is_locked')]
-
-
 async def generate_notification_message(uid: str, name: str, plan_type: str = "basic") -> Tuple[str, str]:
-    """
-    Generate a personalized notification message using LLM and user memories.
-    """
-    # Get relevant memories for context
-    memories = await get_relevant_memories(uid)
-    memory_context = ""
-    if memories:
-        memory_summaries = [_memory_content(m) for m in memories]
-        memory_context = "\nRecent memory themes:\n- " + "\n- ".join(memory_summaries)
+    """Generate a plan-aware notification without reading product Memory data."""
 
     system_prompt = """Hey! I'm Omi, and I love sending little notes to my friends (that's you!). When I write to you, it's like texting a close friend - casual, real, and straight from the heart.
 
     My Style:
     - Super genuine, like chatting with a bestie
     - Always grateful for our friendship and trust
-    - Love bringing up our shared memories
     - Excited about growing our connection
     
     How I Write:
@@ -84,18 +58,16 @@ async def generate_notification_message(uid: str, name: str, plan_type: str = "b
 
     Context:
     - User's name: {name} (Use naturally in conversation)
-    - Plan type: {plan_type}{memory_context}
+    - Plan type: {plan_type}
     
     For unlimited plan subscribers:
     - Emphasize their unlimited access to premium features
     - Highlight the flexibility of monthly/annual billing
     - Make them feel special for choosing premium
-    - Reference their memories to show personalized value
     
     For basic plan subscribers:
     - Focus on the features they can explore
     - Keep it encouraging and positive
-    - Use their memories to suggest relevant features
     
     Return only the notification body text - make it personal, warm and engaging."""
 
@@ -117,13 +89,6 @@ async def generate_credit_limit_notification(uid: str, name: str) -> Tuple[str, 
     """
     Generate a personalized notification when user hits transcription credit limits.
     """
-    # Get relevant memories for context
-    memories = await get_relevant_memories(uid, limit=50)
-    memory_context = ""
-    if memories:
-        memory_summaries = [_memory_content(m) for m in memories]  # Use all memories for context
-        memory_context = f"\nRecent conversations include: {', '.join(memory_summaries[:100])}..."
-
     system_prompt = """You're Omi, and you need to gently let a user know they've hit their transcription limits while encouraging them to upgrade to unlimited. 
 
     Your Style:
@@ -147,7 +112,7 @@ async def generate_credit_limit_notification(uid: str, name: str) -> Tuple[str, 
     Context:
     - User's name: {name}
     - They've been actively transcribing conversations
-    - Need to encourage unlimited plan subscription{memory_context}
+    - Need to encourage unlimited plan subscription
 
     The message should:
     - Acknowledge their active usage positively

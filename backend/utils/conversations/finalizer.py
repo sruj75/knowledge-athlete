@@ -15,7 +15,7 @@ from models.conversation_enums import ConversationStatus
 from models.geolocation import Geolocation
 from utils.conversations.factory import deserialize_conversation
 from utils.conversations.location import async_resolve_geolocation
-from utils.conversations.process_conversation import extract_memories, process_conversation
+from utils.conversations.process_conversation import process_conversation
 from utils.conversations import lifecycle as lifecycle_service
 from utils.executors import db_executor, postprocess_executor, run_blocking
 
@@ -98,10 +98,10 @@ async def finalize_persisted_conversation(
                 persistence_observer=lambda owned: persistence.__setitem__('owned', owned),
                 derived_effects_observer=derived_effects.append,
             )
-        # If lifecycle persistence lost to discard/terminal state, no canonical
-        # memory or derived side effect may happen.  process_conversation
+        # If lifecycle persistence lost to discard/terminal state, no derived
+        # side effect may happen. process_conversation
         # reports this through the observer and returns without side effects;
-        # the finalizer must honour that result before touching memories.
+        # the finalizer must honour that result before emitting derived effects.
         if not persistence['owned']:
             logger.info(
                 'persisted conversation finalization fenced: lifecycle persistence lost uid=%s conversation=%s',
@@ -114,8 +114,8 @@ async def finalize_persisted_conversation(
         # transaction re-reads the durable conversation together with the job
         # lease, so a discard or superseding generation cannot slip between a
         # stale pre-read and the derived-effect bundle.  This fence must
-        # precede every derived effect (usage, vector, action/goal, audio,
-        # memory) so a losing finalizer produces
+        # precede every derived effect (usage, vector, action/goal, audio) so a
+        # losing finalizer produces
         # zero canonical side effects (#10468 r5).
         fanout = await run_blocking(
             db_executor,
@@ -128,7 +128,7 @@ async def finalize_persisted_conversation(
             return ConversationFinalizationDisposition.completed
         if fanout['status'] == 'fenced':
             logger.info(
-                'persisted conversation finalization fenced before memory extraction uid=%s conversation=%s',
+                'persisted conversation finalization fenced before derived effects uid=%s conversation=%s',
                 uid,
                 conversation_id,
             )
@@ -137,17 +137,11 @@ async def finalize_persisted_conversation(
             raise ConversationFinalizationError('fanout_lease_conflict')
 
         # Ownership is now proven. Emit every retained derived side effect —
-        # usage, vector, action/goal, audio artifact/enqueue, and memory
-        # extraction — only behind the winning claim. A processing
-        # conversation hands the bundle back from process_conversation; an
-        # already-completed replay re-extracts memories behind the proven claim.
+        # usage, vector, action/goal, and audio artifact/enqueue — only behind
+        # the winning claim. A processing conversation hands the bundle back
+        # from process_conversation.
         if derived_effects:
             await run_blocking(postprocess_executor, derived_effects[0])
-        elif not getattr(conversation, 'discarded', False):
-            # A finalization job owns a durable lease. Keep canonical memory
-            # extraction inside that lease so a temporary fail-closed gate
-            # leaves the job retryable instead of dropping the source.
-            await run_blocking(postprocess_executor, extract_memories, uid, conversation)
         fanout_completed = await run_blocking(
             db_executor,
             lifecycle_service.complete_finalization_fanout,

@@ -221,7 +221,7 @@ actor MemoryAssistant: ProactiveAssistant {
       previousMemories.removeLast()
     }
 
-    let durability = await durabilityPipeline.persistSyncAndEmit(
+    let durability = await durabilityPipeline.persistAndEmit(
       MemoryAssistantDurabilityRequest(
         memory: memory,
         screenshotId: screenshotId,
@@ -232,8 +232,8 @@ actor MemoryAssistant: ProactiveAssistant {
       confidence: memory.confidence
     )
     guard RuntimeOwnerIdentity.currentOwnerId() == ownerID else { return }
-    // A failed insert never reaches backend sync and must never be reported as
-    // the historical extraction success. The pipeline already recorded exactly
+    // A failed insert must never be reported as the historical extraction
+    // success. The pipeline already recorded exactly
     // one closed analysis terminal (and historical success where appropriate).
     guard durability.shouldEmitMemoryExtracted else { return }
     guard RuntimeOwnerIdentity.currentOwnerId() == ownerID else { return }

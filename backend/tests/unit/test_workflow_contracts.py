@@ -85,30 +85,11 @@ def selector_and_all_tests():
     return selector, selector.discover_all_tests()
 
 
-def test_memory_policy_core_change_selects_inv_mem_guard(selector_and_all_tests):
-    """Narrow memory policy PRs always pull INV-MEM guard tests."""
-    selector, all_tests = selector_and_all_tests
-
-    selected, reason = selector.tests_for_changed_paths(
-        ["backend/utils/memory/chat_memory_adapter.py"],
-        all_tests,
-    )
-    assert "tests/unit/test_inv_mem_1_guard.py" in selected
-    assert reason == "selected backend unit tests from changed paths and workflow contracts"
-
-
 def test_workflow_contract_sources_select_adjacent_tests(selector_and_all_tests):
     selector, all_tests = selector_and_all_tests
 
-    full_run_cases = {
-        "backend/database/memory_vector_repair_outbox_worker.py": "tests/unit/test_vector_repair_outbox_worker.py",
-        "backend/database/projection_repair.py": "tests/unit/test_memory_ledger.py",
-        "backend/main.py": "tests/unit/test_vector_repair_outbox_worker.py",
-        "backend/utils/executors.py": "tests/unit/test_vector_repair_outbox_worker.py",
-    }
+    full_run_cases = {}
     selected_cases = {
-        "backend/utils/memory/legacy_backfill.py": "tests/unit/test_ws_c_backfill.py",
-        "backend/utils/memory/canonical_memory_adapter.py": "testing/e2e/test_canonical_memory_pipeline.py",
         "backend/services/users/account_deletion.py": "tests/services/users/test_account_deletion.py",
         "backend/routers/sync.py": "tests/unit/test_audio_merge_tasks.py",
         "backend/routers/transcribe.py": "tests/unit/test_listen_transient_contract.py",
@@ -123,8 +104,6 @@ def test_workflow_contract_sources_select_adjacent_tests(selector_and_all_tests)
         "backend/scripts/validate_rendered_deployment_contract.py": "tests/unit/test_rendered_deployment_contract.py",
         ".github/workflows/gcp_backend_auto_dev.yml": "tests/unit/test_llm_gateway_deploy_contract.py",
         ".github/workflows/gcp_llm_gateway.yml": "tests/unit/test_preflight_cloud_run_deploy.py",
-        "backend/jobs/short_term_lifecycle_worker.py": "tests/unit/test_ws_b_short_term_lifecycle.py",
-        "backend/utils/memory_ingestion/export_runner.py": "tests/unit/test_memory_ingestion_pipeline.py",
     }
 
     for source_path, expected_test in selected_cases.items():
@@ -414,7 +393,7 @@ def test_workflow_contracts_static_check_rejects_unlisted_large_tuple_result(tmp
     checker = _load_script("check_workflow_contracts")
     fake_repo = tmp_path / "repo"
     fake_repo.mkdir()
-    fake_source = fake_repo / "backend" / "utils" / "memory" / "new_workflow.py"
+    fake_source = fake_repo / "backend" / "utils" / "workflow" / "new_workflow.py"
     fake_source.parent.mkdir(parents=True)
     fake_source.write_text("def bad_contract() -> tuple[int, int, int]:\n    return 1, 2, 3\n")
 
@@ -424,7 +403,7 @@ def test_workflow_contracts_static_check_rejects_unlisted_large_tuple_result(tmp
         "workflows": [
             {
                 "risk": "high",
-                "sources": ["backend/utils/memory/new_workflow.py"],
+                "sources": ["backend/utils/workflow/new_workflow.py"],
                 "tests": ["tests/unit/test_new_workflow.py"],
                 "checks": ["no_large_tuple_results"],
             }
@@ -464,7 +443,7 @@ def test_workflow_contracts_static_check_skips_workflows_without_tuple_check(tmp
 def test_workflow_contracts_static_check_ignores_non_python_glob_matches(tmp_path, monkeypatch):
     checker = _load_script("check_workflow_contracts")
     fake_repo = tmp_path / "repo"
-    source_dir = fake_repo / "backend" / "utils" / "memory"
+    source_dir = fake_repo / "backend" / "utils" / "workflow"
     source_dir.mkdir(parents=True)
     (source_dir / "contract.py").write_text("def safe_contract() -> tuple[int, int, int]:\n    return 1, 2, 3\n")
     (source_dir / "ARCHITECTURE.md").write_text("# architecture\n")
@@ -478,7 +457,7 @@ def test_workflow_contracts_static_check_ignores_non_python_glob_matches(tmp_pat
             "no_large_tuple_results": {
                 "allowlist": [
                     {
-                        "path": "backend/utils/memory/contract.py",
+                        "path": "backend/utils/workflow/contract.py",
                         "function": "safe_contract",
                     }
                 ]
@@ -487,7 +466,7 @@ def test_workflow_contracts_static_check_ignores_non_python_glob_matches(tmp_pat
         "workflows": [
             {
                 "risk": "high",
-                "sources": ["backend/utils/memory/**"],
+                "sources": ["backend/utils/workflow/**"],
                 "tests": ["tests/unit/test_contract.py"],
                 "checks": ["no_large_tuple_results"],
             }
@@ -501,7 +480,7 @@ def test_workflow_contracts_static_check_validates_all_sources_when_manifest_cha
     checker = _load_script("check_workflow_contracts")
     fake_repo = tmp_path / "repo"
     fake_repo.mkdir()
-    fake_source = fake_repo / "backend" / "utils" / "memory" / "new_workflow.py"
+    fake_source = fake_repo / "backend" / "utils" / "workflow" / "new_workflow.py"
     fake_source.parent.mkdir(parents=True)
     fake_source.write_text("def bad_contract() -> tuple[int, int, int]:\n    return 1, 2, 3\n")
 
@@ -511,7 +490,7 @@ def test_workflow_contracts_static_check_validates_all_sources_when_manifest_cha
         "workflows": [
             {
                 "risk": "high",
-                "sources": ["backend/utils/memory/new_workflow.py"],
+                "sources": ["backend/utils/workflow/new_workflow.py"],
                 "tests": ["tests/unit/test_new_workflow.py"],
                 "checks": ["no_large_tuple_results"],
             }

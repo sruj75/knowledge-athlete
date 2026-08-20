@@ -6,7 +6,6 @@ from typing import Any, Callable, Iterable, Iterator, Mapping, Sequence, cast
 
 from database import chat as chat_db
 from database import conversations as conversations_db
-from database import memories as memories_db
 from database.action_items import get_action_items as get_standalone_action_items
 from database.users import get_people, get_user_profile
 
@@ -67,16 +66,6 @@ def iter_user_data_export(uid: str) -> Iterator[str]:
         first = False
         yield '    ' + json.dumps(conv, default=_json_default, indent=4)
     yield '\n  ],\n'
-
-    yield '  "memories": '
-    yield from _yield_json_array(
-        _iter_paginated(
-            lambda limit, offset: cast(
-                Sequence[Mapping[str, Any]], memories_db.get_non_filtered_memories(uid, limit=limit, offset=offset)
-            )
-        )
-    )
-    yield ',\n'
 
     people = cast(Sequence[Mapping[str, Any]], get_people(uid))
     yield '  "people": ' + json.dumps(people, default=_json_default, indent=2) + ',\n'

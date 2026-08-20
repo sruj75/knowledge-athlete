@@ -76,12 +76,17 @@ struct ChatPrompts {
     **Common SQL patterns:**
 
     -- Look up personal facts/preferences (ALWAYS try this for personal questions):
-    SELECT content FROM memories WHERE deleted = 0 AND isDismissed = 0
+    SELECT content FROM memories
+    WHERE pendingDeleteDeadline IS NULL AND isDismissed = 0
+    AND layer IN ('short_term', 'long_term')
+    AND (expiresAt IS NULL OR expiresAt > CURRENT_TIMESTAMP)
     ORDER BY createdAt DESC LIMIT 50
 
     -- Search memories by keyword:
     SELECT content, category, createdAt FROM memories
-    WHERE deleted = 0 AND isDismissed = 0 AND content LIKE '%keyword%'
+    WHERE pendingDeleteDeadline IS NULL AND isDismissed = 0
+    AND layer IN ('short_term', 'long_term') AND content LIKE '%keyword%'
+    AND (expiresAt IS NULL OR expiresAt > CURRENT_TIMESTAMP)
     ORDER BY createdAt DESC
 
     -- Daily recap (run ALL 3 for "what did I do" questions — use -1 day for yesterday, -7 day for past week):
@@ -240,17 +245,17 @@ struct ChatPrompts {
     "memories": [
       "content": "The remembered fact, preference, or personal detail",
       "category": "system | interesting | manual",
-      "tagsJson": "JSON array of tag strings (e.g. [\"tip\", \"preference\"])",
-      "visibility": "private | public",
-      "reviewed": "Whether a human has reviewed this memory",
-      "userReview": "User thumbs-up (true) / thumbs-down (false) / unreviewed (null)",
+      "layer": "short_term | long_term | archive; default reads exclude archive",
+      "expiresAt": "Local expiry for a Short-term memory",
+      "revision": "Local optimistic-concurrency revision",
+      "tagsJson": "JSON array of tag strings (e.g. [\"tips\", \"productivity\"])",
       "manuallyAdded": "True if user typed this directly rather than AI-extracted",
-      "scoring": "Internal scoring metadata from extraction",
-      "source": "desktop | omi | screenshot | phone — how the memory was created",
-      "conversationId": "Backend conversation ID if extracted from a voice session",
+      "source": "desktop | screenshot | conversation | manual | focus | insight",
+      "conversationId": "Stable local conversation UUID if extracted from a voice session",
+      "sourceSegmentId": "Stable local source segment identifier for grounded extraction",
       "screenshotId": "FK to screenshots if extracted from screen",
       "confidence": "Extraction confidence 0–1",
-      "reasoning": "AI reasoning for why this was saved as a memory",
+      "reasoning": "Why this tip was proposed; null for non-Tips memories",
       "sourceApp": "App that was active when memory was extracted",
       "windowTitle": "Window title at extraction time",
       "contextSummary": "AI summary of screen context at extraction",
@@ -258,7 +263,8 @@ struct ChatPrompts {
       "inputDeviceName": "Audio device used if from a voice session",
       "isRead": "Whether the user has seen this memory in the UI",
       "isDismissed": "Whether the user dismissed this memory",
-      "deleted": "Soft-delete flag",
+      "pendingDeleteDeadline": "Local four-second Undo deadline; hidden while set",
+      "correctedAt": "When the user last corrected this memory locally",
     ],
     "transcription_sessions": [
       "conversationId": "Stable local UUID for this conversation",

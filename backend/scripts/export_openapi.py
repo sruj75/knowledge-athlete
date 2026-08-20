@@ -38,7 +38,7 @@ APP_CLIENT_PREFIXES = (
     '/v1/conversation-compute',
     '/v1/fair-use',
     '/v1/goals',
-    '/v1/memories',
+    '/v1/memory/compute',
     '/v1/payment-methods',
     '/v1/payments',
     '/v1/paypal',
@@ -58,7 +58,6 @@ APP_CLIENT_PREFIXES = (
     '/v2/tts',
     '/v2/voice-message',
     '/v2/voice-messages',
-    '/v3/memories',
     '/v3/speech-profile',
     '/v3/upload-audio',
     '/v4/speech-profile',
@@ -68,14 +67,12 @@ HTTP_METHODS = {'GET', 'POST', 'PUT', 'PATCH', 'DELETE'}
 
 OPENAPI_TITLE = 'Omi App Client API'
 OPENAPI_VERSION = '1.0.0'
-OPENAPI_DESCRIPTION = (
-    'First-party Omi app access to transient conversation compute, memories, action items, goals, and product services.'
-)
+OPENAPI_DESCRIPTION = 'First-party Omi app access to transient conversation and Memory compute, action items, goals, and product services.'
 OPENAPI_CONTACT = {'name': 'Omi', 'url': 'https://omi.me'}
 OPENAPI_LICENSE = {'name': 'MIT', 'url': 'https://github.com/BasedHardware/omi/blob/main/LICENSE'}
 OPENAPI_SERVERS = [{'url': 'https://api.omi.me', 'description': 'Production'}]
 OPENAPI_TAGS = [
-    {'name': 'Memories', 'description': 'Read and write user memories - timeless facts, preferences, and insights.'},
+    {'name': 'Memory Compute', 'description': 'Compute bounded Memory proposals without backend persistence.'},
     {
         'name': 'Conversations',
         'description': 'Compute bounded conversation candidates without backend persistence.',

@@ -1,23 +1,24 @@
 version: 2
 name: proactive-memory-writers-retention
 tier: manual
-description: Live P2 — drive retained Focus, Insight, and Memory assistants through memory persistence without removed visibility state
+description: Live P2 — drive Focus, Insight, and Memory assistants through the owner-local Memory authority
 app: non-prod
 covers:
   - desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/Focus/FocusAssistant.swift
   - desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/Insight/InsightAssistant.swift
+  - desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/Insight/InsightStorage.swift
   - desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/MemoryExtraction/MemoryAssistantTelemetry.swift
 preconditions:
   - auth_ready
   - screen_recording_ready
   - named_bundle_with_disposable_profile
   - proactive_provider_fixture_ready
-  - backend_request_capture_ready
+  - transient_compute_fixture_ready
 
 steps:
   - id: S1
     name: Prepare deterministic retained assistant inputs
-    do: "Enable Focus, Insight, and Memory assistants in the disposable named-bundle profile, select their shortest test intervals, disable notifications, and remove the three fixture apps from exclusion lists. Configure the external provider fixture to return one high-confidence focus event, one insight, and one new memory for three distinct seeded app contexts. Configure the hermetic backend boundary to capture memory-create requests and return valid retained memory responses."
+    do: "Enable Focus, Insight, and Memory assistants in the disposable named-bundle profile, select their shortest test intervals, disable notifications, and remove the three fixture apps from exclusion lists. Configure the external provider fixture to return one high-confidence focus event, one insight, and one new memory for three distinct seeded app contexts. Configure transient normalization compute to return bounded proposals without durable IDs."
     expect:
       interactive_count: { min: 1 }
 
@@ -29,13 +30,13 @@ steps:
 
   - id: S3
     name: Verify all retained assistant receipts
-    do: "Inspect the named-bundle log. Verify Focus reports a saved/synced memory, Insight reports a saved/synced memory, and Memory reports a successful durability terminal for the expected fixture contents. Verify there is no connector, persona, public-share, marketplace, or broad-file-scan fallback."
+    do: "Inspect the named-bundle log. Verify Focus, Insight, and Memory each report a successful local durability terminal for the expected fixture content. Verify there is no hosted sync, connector, persona, public-share, marketplace, or broad-file-scan fallback."
     expect:
       interactive_count: { min: 1 }
 
   - id: S4
-    name: Verify the retained memory wire contract
-    do: "Inspect the three captured memory-create requests. Verify the Focus request carries system/focus fields, the Insight request carries interesting/screenshot fields, and the Memory request carries its extracted category/context fields. Verify the visibility field is absent from every request."
+    name: Verify the local Memory contract
+    do: "Inspect the three local rows. Verify Focus retains system/focus provenance, Insight retains interesting/screenshot provenance, and Memory retains its extracted category/context provenance. Verify backend identity, sync, visibility, review, scoring, and device fields are absent from the live schema."
     expect:
       interactive_count: { min: 1 }
 

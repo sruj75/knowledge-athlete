@@ -11,7 +11,6 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from database import (
     conversations as conversations_db,
-    memories as memories_db,
     chat as chat_db,
     user_usage as user_usage_db,
     notifications as notification_db,
@@ -105,7 +104,6 @@ class UserProfileResponse(BaseModel):
 class UserDataExportResponse(BaseModel):
     profile: Dict[str, Any] = Field(default_factory=dict)
     conversations: List[Dict[str, Any]] = Field(default_factory=list)
-    memories: List[Dict[str, Any]] = Field(default_factory=list)
     people: List[Dict[str, Any]] = Field(default_factory=list)
     action_items: List[Dict[str, Any]] = Field(default_factory=list)
     chat_messages: List[Dict[str, Any]] = Field(default_factory=list)

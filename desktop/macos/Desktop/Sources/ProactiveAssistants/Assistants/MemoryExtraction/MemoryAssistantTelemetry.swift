@@ -64,23 +64,17 @@ enum MemoryAssistantTelemetry {
   /// that cannot occur.
   enum AnalysisOutcome: String, CaseIterable {
     /// Analysis succeeded, produced a memory that passed the confidence
-    /// threshold, and was persisted + synced to the backend.
-    case synced
+    /// threshold, and was admitted to the owner-local database.
+    case persisted
     /// Analysis succeeded and produced a memory that was below the confidence
     /// threshold (filtered out before persistence).
     case filteredLowConfidence = "filtered_low_confidence"
     /// Analysis succeeded but produced no new memory (model decided nothing to
     /// extract, or returned an empty result set).
     case noNewMemory = "no_new_memory"
-    /// Analysis succeeded and the memory passed the threshold and was saved
-    /// locally, but backend synchronization failed.
-    case syncFailed = "sync_failed"
-    /// The SQLite insert did not complete, so no backend sync was attempted and
-    /// no historical `Memory Extracted` success is emitted.
+    /// The SQLite admission did not complete, so no historical `Memory Extracted`
+    /// success is emitted.
     case localPersistenceFailed = "local_persistence_failed"
-    /// Backend create completed, but writing the local synced-state receipt
-    /// failed. This is deliberately distinct from a fully synced extraction.
-    case syncStatePersistenceFailed = "sync_state_persistence_failed"
     /// The analysis call itself failed (provider error / no decodable result)
     /// before any memory could be classified.
     case analysisFailed = "analysis_failed"
@@ -145,69 +139,31 @@ struct MemoryAssistantDurabilityRequest: Sendable {
 }
 
 /// Injectable production boundary for a proactive memory extraction after the
-/// model has produced a candidate. The actor owns the real SQLite/API operations;
+/// model has produced a candidate. The actor owns the real SQLite admission;
 /// tests inject a deterministic runner into the same pipeline used by
 /// ``MemoryAssistant`` rather than exercising a parallel helper.
 protocol MemoryAssistantDurabilityRunning: Sendable {
-  func persistAndSync(_ request: MemoryAssistantDurabilityRequest) async -> MemoryAssistantDurability.Outcome
+  func persistLocally(_ request: MemoryAssistantDurabilityRequest) async -> MemoryAssistantDurability.Outcome
 }
 
-/// The three production operations behind the durable sequence. Returning only
-/// bounded receipts lets the sequence itself be exercised with deterministic
-/// failures while the live implementation continues to own all product data.
+/// The production operation behind the single local durability terminal.
 protocol MemoryAssistantDurabilityOperating: Sendable {
-  func insertLocalMemory(_ request: MemoryAssistantDurabilityRequest) async -> Int64?
-  func createRemoteMemory(_ request: MemoryAssistantDurabilityRequest) async -> MemoryAssistantRemoteReceipt?
-  func markLocalMemorySynced(
-    id: Int64,
-    receipt: MemoryAssistantRemoteReceipt,
-    ownerID: String
-  ) async -> Bool
-}
-
-/// Immutable handoff from backend creation to local sync-state persistence.
-/// `ServerMemory` is an immutable decoded value whose members are value types;
-/// the unchecked wrapper keeps that product payload inside the live operations
-/// actor and never exposes it to telemetry or test payloads.
-struct MemoryAssistantRemoteReceipt: @unchecked Sendable {
-  fileprivate let serverMemory: ServerMemory?
-
-  fileprivate init(serverMemory: ServerMemory) {
-    self.serverMemory = serverMemory
-  }
-
-  static let testFixture = MemoryAssistantRemoteReceipt(serverMemory: nil)
-
-  private init(serverMemory: ServerMemory?) {
-    self.serverMemory = serverMemory
-  }
+  func acceptLocalMemory(_ request: MemoryAssistantDurabilityRequest) async -> Bool
 }
 
 enum MemoryAssistantDurability {
   enum Outcome: String, Equatable {
-    /// Local SQLite insert, backend create, and local synced-state update all
-    /// completed. This is the only fully synced terminal.
-    case synced
-    /// No local record was durably inserted, so backend sync must not run.
+    case persisted
     case localPersistenceFailed = "local_persistence_failed"
-    /// The local record exists, but backend create did not succeed.
-    case syncFailed = "sync_failed"
-    /// Backend create succeeded but the local record could not be marked synced.
-    case syncStatePersistenceFailed = "sync_state_persistence_failed"
 
-    /// Preserve the historical `Memory Extracted` success meaning: it requires
-    /// a durable local memory record, but is not a claim that the local
-    /// `backendSynced` bookkeeping update completed.
     var shouldEmitMemoryExtracted: Bool {
-      self != .localPersistenceFailed
+      self == .persisted
     }
 
     var analysisOutcome: MemoryAssistantTelemetry.AnalysisOutcome {
       switch self {
-      case .synced: .synced
+      case .persisted: .persisted
       case .localPersistenceFailed: .localPersistenceFailed
-      case .syncFailed: .syncFailed
-      case .syncStatePersistenceFailed: .syncStatePersistenceFailed
       }
     }
   }
@@ -227,9 +183,7 @@ enum MemoryAssistantDurability {
   }
 }
 
-/// Production sequence used by `MemoryAssistant`. Tests inject failures into
-/// its operation boundary, so local insert, backend sync, and sync-receipt
-/// classification are covered through the same runner that ships.
+/// Production sequence used by `MemoryAssistant`.
 actor MemoryAssistantProductionDurability: MemoryAssistantDurabilityRunning {
   private let operations: any MemoryAssistantDurabilityOperating
 
@@ -237,98 +191,42 @@ actor MemoryAssistantProductionDurability: MemoryAssistantDurabilityRunning {
     self.operations = operations
   }
 
-  func persistAndSync(_ request: MemoryAssistantDurabilityRequest) async -> MemoryAssistantDurability.Outcome {
-    guard let localID = await operations.insertLocalMemory(request) else {
-      return .localPersistenceFailed
-    }
-    guard let receipt = await operations.createRemoteMemory(request) else {
-      return .syncFailed
-    }
-    guard
-      await operations.markLocalMemorySynced(
-        id: localID,
-        receipt: receipt,
-        ownerID: request.ownerID
-      )
-    else {
-      return .syncStatePersistenceFailed
-    }
-    return .synced
+  func persistLocally(_ request: MemoryAssistantDurabilityRequest) async -> MemoryAssistantDurability.Outcome {
+    await operations.acceptLocalMemory(request) ? .persisted : .localPersistenceFailed
   }
 }
 
-/// Live SQLite/API implementation. Owner checks stay adjacent to every product
-/// mutation; tests replace this actor without adding mutable global hooks.
+/// Live SQLite implementation. Owner checks stay adjacent to the product mutation.
 actor MemoryAssistantLiveDurabilityOperations: MemoryAssistantDurabilityOperating {
-  func insertLocalMemory(_ request: MemoryAssistantDurabilityRequest) async -> Int64? {
-    guard RuntimeOwnerIdentity.currentOwnerId() == request.ownerID else {
-      return nil
-    }
-
-    let record = MemoryRecord(
-      backendSynced: false,
-      content: request.content,
-      category: request.category,
-      source: "desktop",
-      screenshotId: request.screenshotId,
-      confidence: request.confidence,
-      sourceApp: request.sourceApp,
-      windowTitle: request.windowTitle,
-      contextSummary: request.contextSummary
-    )
-
-    do {
-      let localRecord = try await MemoryStorage.shared.insertLocalMemory(record)
-      guard RuntimeOwnerIdentity.currentOwnerId() == request.ownerID, localRecord.id != nil else {
-        return nil
-      }
-      log("Memory: Saved to SQLite (id: \(localRecord.id ?? -1))")
-      return localRecord.id
-    } catch {
-      logError("Memory: Failed to save to SQLite", error: error)
-      return nil
-    }
-  }
-
-  func createRemoteMemory(_ request: MemoryAssistantDurabilityRequest) async -> MemoryAssistantRemoteReceipt? {
-    guard RuntimeOwnerIdentity.currentOwnerId() == request.ownerID else {
-      return nil
-    }
-    do {
-      let category: MemoryCategory = request.category == "interesting" ? .interesting : .system
-      let backendMemory = try await APIClient.shared.createMemory(
-        content: request.content,
-        category: category,
-        confidence: request.confidence,
-        sourceApp: request.sourceApp,
-        contextSummary: request.contextSummary,
-        windowTitle: request.windowTitle,
-        expectedOwnerId: request.ownerID
-      )
-      guard RuntimeOwnerIdentity.currentOwnerId() == request.ownerID else {
-        return nil
-      }
-      log("Memory: Synced to backend (id: \(backendMemory.id))")
-      return MemoryAssistantRemoteReceipt(serverMemory: backendMemory)
-    } catch {
-      logError("Memory: Failed to sync to backend", error: error)
-      return nil
-    }
-  }
-
-  func markLocalMemorySynced(
-    id: Int64,
-    receipt: MemoryAssistantRemoteReceipt,
-    ownerID: String
-  ) async -> Bool {
-    guard RuntimeOwnerIdentity.currentOwnerId() == ownerID, let serverMemory = receipt.serverMemory else {
+  func acceptLocalMemory(_ request: MemoryAssistantDurabilityRequest) async -> Bool {
+    guard RuntimeOwnerIdentity.currentOwnerId() == request.ownerID,
+      let snapshot = RuntimeOwnerIdentity.captureAuthorizationSnapshot(expectedOwnerID: request.ownerID)
+    else {
       return false
     }
+    let authorization = LocalMutationAuthorization {
+      RuntimeOwnerIdentity.isAuthorizationCurrent(snapshot)
+    }
+
     do {
-      try await MemoryStorage.shared.markSynced(id: id, serverMemory: serverMemory)
+      let item = try await MemoryStorage.shared.acceptAssertion(
+        MemoryAssertion(
+          content: request.content,
+          category: MemoryCategory(rawValue: request.category) ?? .system,
+          source: .screenshot,
+          screenshotId: request.screenshotId,
+          confidence: request.confidence,
+          sourceApp: request.sourceApp,
+          windowTitle: request.windowTitle,
+          contextSummary: request.contextSummary
+        ),
+        authorization: authorization
+      )
+      guard RuntimeOwnerIdentity.isAuthorizationCurrent(snapshot) else { return false }
+      log("Memory: Saved to SQLite (id: \(item.id))")
       return true
     } catch {
-      logError("Memory: Failed to update sync status", error: error)
+      logError("Memory: Failed to save to SQLite", error: error)
       return false
     }
   }
@@ -344,11 +242,11 @@ actor MemoryAssistantDurabilityPipeline {
     self.runner = runner
   }
 
-  func persistSyncAndEmit(
+  func persistAndEmit(
     _ request: MemoryAssistantDurabilityRequest,
     confidence: Double
   ) async -> MemoryAssistantDurability.Outcome {
-    let outcome = await runner.persistAndSync(request)
+    let outcome = await runner.persistLocally(request)
     await MainActor.run {
       MemoryAssistantDurability.emitPersistenceTerminal(outcome, confidence: confidence)
     }

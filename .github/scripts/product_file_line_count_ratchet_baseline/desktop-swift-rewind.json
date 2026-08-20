@@ -1,7 +1,7 @@
 {
   "files": {
     "desktop/macos/Desktop/Sources/Rewind/Core/ActionItemStorage.swift": 1668,
-    "desktop/macos/Desktop/Sources/Rewind/Core/RewindDatabase.swift": 3553,
+    "desktop/macos/Desktop/Sources/Rewind/Core/RewindDatabase.swift": 3552,
     "desktop/macos/Desktop/Sources/Rewind/Core/TranscriptionStorage+LocalAuthority.swift": 1915,
     "desktop/macos/Desktop/Sources/Rewind/UI/RewindPage.swift": 1841
   },

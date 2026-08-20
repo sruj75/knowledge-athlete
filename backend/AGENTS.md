@@ -34,13 +34,12 @@ LLM gateway resilience: `OMI_LLM_GATEWAY_CONNECT_TIMEOUT_SECONDS` (default `3`),
 ```
 backend/
   main.py                 # FastAPI entry, middleware, 45+ router registrations
-  models/                 # Pydantic request/response schemas (conversation, memory, chat, subscription, etc.)
+  models/                 # Pydantic request/response schemas (conversation, transient Memory compute, chat, subscription, etc.)
   database/               # All persistence — 25+ domain modules
     _client.py            #   Firestore singleton + document_id_from_seed utility
     redis_db.py           #   Cache, rate limiting (Lua scripts), pub/sub, locks, geolocation
     helpers.py            #   Decorators: data protection levels, encryption/decryption on read/write
     conversations.py      #   Conversations with encrypted segments, photos, processing status
-    memories.py           #   User facts/learnings with categories and encryption
     users.py              #   Profiles, subscriptions, people/contacts, private cloud sync settings
     action_items.py       #   Tasks with due dates, completion status
     vector_db.py          #   Pinecone integration for semantic search
@@ -51,34 +50,33 @@ backend/
     listen/               #   Modulate transport, VAD, metering, canonical segments, direct translation
     chat.py               #   /v2/messages — AI chat with tool use, voice messages, file uploads
     conversation_compute.py # /v1/conversation-compute — stateless discard/structure/action-item candidates
-    memories.py           #   /v3/memories — CRUD and semantic search
+    memory_compute.py     #   Three authenticated, bounded, stateless Memory proposal routes
     sync.py               #   Internal audio-merge Cloud Tasks handler retained for S-25
     auth.py               #   Google/Apple OAuth callbacks, session management
     users.py              #   Profile, subscription, settings (1200 LOC)
     ...                   #   + action_items, goals, payment, and other retained product routes
   utils/                  # Business logic — 60+ files (never import from routers/)
     llm/                  #   LLM orchestration (14 files): chat processing, conversation post-processing,
-                          #   memory extraction, proactive notifications, goal tracking,
+                          #   transient Memory proposal compute, proactive notifications, goal tracking,
                           #   fair-use classification, and usage tracking
       clients.py          #     Model instances: OpenAI (gpt-4.1-mini, o4-mini), Anthropic (claude-sonnet-4-6),
                           #     OpenRouter (gemini-flash), with prompt caching and usage callbacks
     stt/                  #   Managed Modulate speech-to-text, provider-neutral VAD gating, speech profiles,
                           #   pre-recorded batch transcription, speaker embeddings
-    conversations/        #   Conversation lifecycle (6 files): ingestion, memory extraction, action items,
+    conversations/        #   Conversation lifecycle (6 files): ingestion, action items,
                           #   merge, post-processing, search
-    retrieval/            #   RAG pipeline for retained action-item, conversation, memory,
+    retrieval/            #   RAG pipeline for retained action-item, conversation,
                           #   explicit-file, web-search, and notification tools
     other/                #   Storage (GCS), auth dependencies, timeout middleware, Hume emotion detection
     log_sanitizer.py      #   sanitize() / sanitize_pii() — required for all logging
     encryption.py         #   AES-256-GCM per-user encryption (HKDF-SHA256 key derivation)
     fair_use.py           #   Rolling speech-hour tracking via Redis minute buckets, soft-cap enforcement
-    prompts.py            #   LLM prompt templates for memory extraction, categorization, etc.
     translation.py        #   Multi-language translation coordination
     speaker_identification.py  # Speaker diarization + person matching against speech profiles
   pusher/                 # Subservice: real-time data distribution hub (separate Docker)
                           #   - Retained for server workflows outside transient /v4/listen
                           #   - Streams retained transcript/audio data to first-party consumers
-                          #   - Runs LLM-powered conversation analysis (memories, action items, insights)
+                          #   - Runs retained LLM-powered conversation analysis (action items and insights)
                           #   - Batches + uploads audio to private cloud storage (60s batches, 3 retries)
                           #   - Queues speaker sample extraction (120s age minimum)
                           #   - 5 concurrent background tasks per WebSocket connection
@@ -91,7 +89,6 @@ backend/
                           #   - Speaker identification: matches segments to speech profiles (SpeechBrain, T4 GPU)
                           #   - VAD: voice activity detection (pyannote/voice-activity-detection)
                           #   - notifications-job: hourly push notifications (Cloud Run Job)
-                          #   - memory-maintenance-job: canonical ST→LT maintenance (Cloud Run Job)
   tests/unit/            # 50+ unit tests (no external service deps)
   tests/integration/     # Integration tests (need Redis, Firebase, API keys)
   scripts/run-unit-ci.sh # Full CI unit-test contract
@@ -121,7 +118,6 @@ backend-sync (main.py, Cloud Run)
   └── ──────► Cloud Tasks queue `conversation-finalization` ──► POST /v1/conversation-finalization-jobs/run (OIDC, same service)
 
 notifications-job (modal/job.py)  [cron]
-memory-maintenance-job (modal/memory_maintenance_job.py)  [cron]
 ```
 
 Helm charts: `backend/charts/{backend-listen,backend-secrets,diarizer,llm-gateway,pusher,vad}/`.
@@ -145,8 +141,16 @@ speech transport for macOS and `/v1/conversation-compute/{discard,structure,acti
 returns candidate data without writing conversation records. Hosted listen and
 conversation lifecycle are gone; shared historical datastore internals remain
 only for the later-slice owners recorded in `FORK.md`.
+
+### macOS Memory boundary
+
+The effective owner's `omi.db` is the sole durable Memory authority. The backend exposes only
+`POST /v1/memory/compute/{extract,normalize,consolidate}`: authenticated, bounded, stateless
+proposal computation pinned to OpenAI GPT-4.1-mini. These modules must not import Firestore,
+Redis, hosted vectors, product Memory stores, or log request/response bodies. The retained Gemini
+embedding proxy is transient compute; vector storage and similarity remain local on macOS.
+
 - **notifications-job** (`modal/job.py`) — Cron job that reads Firestore/Redis and sends first-party push notifications. It has no connector synchronization or canonical-maintenance role.
-- **memory-maintenance-job** (`modal/memory_maintenance_job.py`) — Cloud Run Job and sole host for canonical maintenance (required normalization → TTL audit with canonical rejection of expired processed items → one terminal consolidation route per remaining pending item). Manual deploy via `.github/workflows/gcp_memory_maintenance_job.yml`; auto-dev on push to `main` via `gcp_memory_maintenance_job_auto_dev.yml`. Enablement is a multi-var contract (`MEMORY_MODE`, `MEMORY_ENABLED_USERS`, `MEMORY_CANONICAL_MAINTENANCE_ENABLED`, and consolidation flags) enforced by `backend/scripts/validate-backend-runtime-env.py`; Cloud Scheduler owns cadence, and prod stays `MEMORY_MODE=off` until Gate 3.
 - **backend-secrets** (`backend/charts/backend-secrets/`) — ExternalSecret and SecretStore resources that sync backend runtime secrets into GKE namespaces.
 
 Backend runtime env contract: keep `backend/deploy/runtime_env.yaml` aligned with GKE Helm values and Cloud Run runtime env; run `backend/scripts/pre-deploy-check.sh` after backend runtime env or deploy workflow changes. The `llm_gateway` manifest section owns the release, ingress, and static-address identity; a reserved address alone is never an endpoint contract. Gateway-mode promotion requires the control-plane gate plus `probe-llm-gateway-from-cloud-run.sh` before Cloud Run revisions are created.
@@ -190,10 +194,9 @@ Never log raw sensitive data. Use `sanitize()` and `sanitize_pii()` from `utils.
 - Keep UIDs, IPs, status codes visible for debugging.
 - Never put raw `response.text` in exception messages.
 
-## Error Composition & Memory
+## Resource Management
 
-- **Composition errors** — step helpers raise a typed error caught once at the composition boundary. Do not add assigned-call `isinstance(...): return` flow control; `.github/scripts/check_isinstance_return_ratchet.py` ratchets existing occurrences.
-- **Memory management** — `del` byte arrays after processing, `.clear()` dicts/lists holding data.
+- `del` byte arrays after processing and `.clear()` dicts/lists holding data.
 
 ## Testing
 
@@ -217,21 +220,6 @@ The app-client snapshot begins at the S-06 retained-product boundary. The pinned
 **Firestore transaction fakes** — a fake at this service boundary must enforce its ordering and constraint semantics. Use `tests.unit.fixtures.strict_firestore_transaction.StrictFirestore` for transaction tests that need document-reference reads plus `set`/`update`: it rejects reads after the first write, the production rule that #9739's lenient fake missed. If an incident requires queries, deletes, retry, or contention behavior, first cover it with the Firestore emulator; extend the fixture only for a proven hermetic guard.
 
 Pre-mock heavy deps before importing the module under test. Use `patch.object(target_module, "func")` not string-based `patch("module.func")` — the string form silently patches the wrong reference if the function was already imported. When modules construct objects at import time, use lazy getters to avoid triggering heavy init in tests.
-
-### Memory continuity gauntlet gates
-
-Do not confuse these gates — a green live gauntlet does **not** prove hermetic
-pipeline invariants, and hermetic tests do **not** prove deployed-backend continuity.
-
-| Gate | What it covers | What it does **not** cover |
-| --- | --- | --- |
-| **Hermetic pipeline E2E** (`testing/e2e/test_canonical_memory_pipeline.py`) | capture→consolidate→promote→read, archive excluded from default reads, surface default-access matrix, projection fail-closed without legacy bleed | Deployed revision identity, prod IAM/index deltas, live LLM consolidation |
-| **Gauntlet `--self-check`** | Required files, `canonical_memory_pipeline` workflow registration, suite/nonce wiring in `memory-continuity-gauntlet.py` | Any memory write or HTTP probe |
-| **Live gauntlet** (`memory-continuity-gauntlet.sh` with `ADMIN_KEY` + reachable backend) | Structural `/v3/memories` probes per suite on a running backend | Full Gate 2 synthetic matrix or Gate 3 prod activation |
-| **Gate 2 dev-cloud proof** (`v3_dev_cloud_proof.py` + deployed branch revision) | Multi-user synthetic matrix, indexes, IAM, auth, rollback on dev-cloud | Local hermetic fakes; not production activation |
-
-CI runs `python3 backend/scripts/memory-continuity-gauntlet.py --self-check` only.
-Live suites record `NOT_RUN` when credentials/backend are unavailable — never fake `GO`.
 
 ## Self-Testing a Change (run the real path)
 

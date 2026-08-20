@@ -305,7 +305,7 @@ checks:
     reason: "backend production Python changes must retain import-time purity"
   - id: backend-runtime-image-source-closure
     command: ["python3", "backend/scripts/runtime_image_contracts.py", "check"]
-    triggers: ["backend/**/*.py", "backend/**/Dockerfile*", "backend/runtime_images.json", "backend/scripts/runtime_image_contracts.py", ".github/workflows/runtime_image_contracts.yml", ".github/workflows/desktop_backend_auto_dev.yml", ".github/workflows/gcp_backend*.yml", ".github/workflows/gcp_diarizer.yml", ".github/workflows/gcp_models.yml", ".github/workflows/gcp_memory_maintenance_job*.yml", ".github/workflows/gcp_notifications_job.yml"]
+    triggers: ["backend/**/*.py", "backend/**/Dockerfile*", "backend/runtime_images.json", "backend/scripts/runtime_image_contracts.py", ".github/workflows/runtime_image_contracts.yml", ".github/workflows/desktop_backend_auto_dev.yml", ".github/workflows/gcp_backend*.yml", ".github/workflows/gcp_diarizer.yml", ".github/workflows/gcp_models.yml", ".github/workflows/gcp_notifications_job.yml"]
     lanes: ["local", "ci"]
     reason: "#9857: deployable Python images must contain the transitive first-party imports of their runtime entrypoints"
   - id: backend-module-isolation
@@ -392,7 +392,7 @@ checks:
     command: ["bash", "desktop/macos/tests/test-launch-env-forwarding.sh"]
     triggers: ["desktop/macos/run.sh", "desktop/macos/tests/test-launch-env-forwarding.sh"]
     lanes: ["local", "ci"]
-    reason: "`open` launches from launchd, so a documented run.sh env override that is not passed with `open --env` silently does nothing; caught OMI_FORCE_CANONICAL_MEMORY_ATLAS being documented but never forwarded"
+    reason: "`open` launches from launchd, so retained automation token overrides must be passed explicitly with `open --env`"
   - id: desktop-main-actor-xctest-hooks
     command: ["python3", "desktop/macos/scripts/check-main-actor-xctest-hooks.py"]
     triggers: ["desktop/macos/Desktop/Tests/**/*.swift", "desktop/macos/scripts/check-main-actor-xctest-hooks.py"]
@@ -593,5 +593,3 @@ exempt:
     reason: "release-policy full-tree check, not diff-scoped"
   - path: ".github/scripts/check-deployment-concurrency.py"
     reason: "deployment concurrency policy full-tree check, not diff-scoped"
-  - path: ".github/scripts/check_isinstance_return_ratchet.py"
-    reason: "typed error flow-control ratchet uses a committed baseline, not diff-scoped triggers"

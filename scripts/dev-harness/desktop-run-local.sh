@@ -20,8 +20,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from dev_harness import config, desktop_profile, safety
-from dev_harness.cli import _current_scenario_manifest, _scenario_users_from_seed_manifest
+from dev_harness import config, desktop_profile, safety, synthetic_profiles
 
 user = sys.argv[1]
 repo = Path.cwd()
@@ -39,13 +38,13 @@ if not cfg.layout.sentinel_path.is_file():
     raise SystemExit(1)
 
 safety.read_and_validate_sentinel(cfg.layout.state_root, repo_root=repo, instance=cfg.instance)
-scenario = _current_scenario_manifest(cfg)
-if not scenario:
-    print("Cannot launch desktop local profile: no memory scenario has been seeded.")
-    print("Next step: make seed-memory-scenario SCENARIO=happy_path")
+profiles = synthetic_profiles.load_manifest(cfg)
+if not profiles:
+    print("Cannot launch desktop local profile: synthetic profiles are not initialized.")
+    print("Next step: make dev-init, then make dev-up")
     raise SystemExit(1)
 
-users = _scenario_users_from_seed_manifest(cfg)
+users = synthetic_profiles.profile_aliases(cfg)
 if user not in users:
     print(f"Cannot launch desktop local profile: USER={user!r} is not in seeded users: {', '.join(users) if users else 'none'}")
     print("Next step: choose one of the seeded synthetic users, e.g. make desktop-run-local DESKTOP_USER=alice")
@@ -66,8 +65,7 @@ if errors:
 
 resolved_path = cfg.layout.reports_dir / "desktop-local-profile-resolved.json"
 desktop_profile.write_resolved_profile(profile, resolved_path)
-print(f"scenario_id: {scenario.get('scenario_id')}")
-print(f"scenario_selected_user: {scenario.get('selected_user')}")
+print(f"profile_selected_user: {profiles.get('selected_user')}")
 print(f"selected_desktop_user: {profile.selected_user}")
 print(f"selected_desktop_email: {profile.selected_user_email}")
 print(f"local_desktop_profile: {profile.display_name} ({profile.app_name}.app)")

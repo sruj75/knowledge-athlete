@@ -19,19 +19,6 @@ class TestRedisFakePaths:
         )
         assert resp.status_code == 200, f"Should succeed with fakeredis: {resp.text}"
 
-        # Create memory (also uses Redis for caching)
-        resp = client.post(
-            "/v3/memories",
-            json={"content": "Redis fail-open memory", "category": "system"},
-            headers=auth_headers,
-        )
-        assert resp.status_code == 200, f"Memory create should work: {resp.text}"
-
-    def test_invalid_memory_id_returns_404(self, client, auth_headers):
-        """Non-existent memory ID returns 404."""
-        resp = client.delete("/v3/memories/nonexistent-mem-id", headers=auth_headers)
-        assert resp.status_code == 404
-
     def test_empty_action_item_description_rejected(self, client, auth_headers):
         """Empty descriptions are rejected by TaskCreate min_length=1 validation."""
         resp = client.post(
@@ -44,24 +31,6 @@ class TestRedisFakePaths:
 
 class TestEdgeCases:
     """Edge cases and boundary conditions."""
-
-    def test_unicode_content_roundtrip(self, client, auth_headers):
-        """Unicode text survives create→read round-trip."""
-        unicode_text = "Hello 世界 🌍 Привет 日本語"
-
-        resp = client.post(
-            "/v3/memories",
-            json={"content": unicode_text, "category": "manual"},
-            headers=auth_headers,
-        )
-        assert resp.status_code == 200, resp.text
-        mem_id = resp.json()["id"]
-        resp = client.get("/v3/memories", headers=auth_headers)
-        assert resp.status_code == 200, resp.text
-        memories = resp.json()
-        found = [m for m in memories if m["id"] == mem_id]
-        assert found, f"Memory {mem_id} not found"
-        assert found[0]["content"] == unicode_text
 
     def test_long_action_item_description(self, client, auth_headers):
         """Very long descriptions are handled correctly."""

@@ -10,7 +10,6 @@
 # empty and deleted. See .coordination/test-isolation/PLAN.md §4 and WORKSTREAM.md.
 tests/unit/test_goals_sort_missing_created_at.py
 tests/unit/test_goals_id_fallback.py
-tests/unit/test_review_queue_cascade_purge.py
 tests/unit/test_folder_name_enrichment.py
 tests/unit/test_staged_tasks_dedup.py
 tests/unit/test_delete_account_stripe_cancel.py
@@ -24,10 +23,6 @@ tests/unit/test_merge_validation.py
 tests/unit/test_user_usage.py
 tests/unit/test_chat_quota.py
 tests/unit/test_llm_usage_endpoints.py
-tests/unit/test_memories_stale_updates.py
-tests/unit/test_non_active_routes.py
-tests/unit/test_non_active_route_audit.py
-tests/unit/test_non_active_route_report.py
 tests/unit/test_conversations_count.py
 tests/unit/test_phone_calls.py
 tests/unit/test_available_plans_resilience.py
@@ -44,21 +39,13 @@ tests/unit/test_speech_profile_existence.py
 tests/unit/test_llm_usage_db.py
 tests/unit/test_llm_usage_tracker.py
 tests/unit/test_people_conversations_500s.py
-tests/unit/test_v3_account_generation_source.py
-tests/unit/test_inv_mem_1_guard.py
-tests/unit/test_memory_apply_store.py
-tests/unit/test_memory_evidence_persistence.py
-tests/unit/test_memory_ledger.py
-tests/unit/test_short_term_memory.py
 tests/unit/test_desktop_updates.py
-tests/unit/test_review_queue_non_active_routes.py
 tests/unit/test_conversation_events_bounds.py
 tests/unit/test_conversations_date_range_validation.py
 tests/unit/test_delete_account_purge_storage.py
 tests/unit/test_screen_activity_tool_result_bound.py
 tests/unit/test_ws_auth_handshake.py
 tests/unit/test_batch_upload_storage.py
-tests/unit/test_memorydb_memory_id_alias.py
 tests/unit/test_geocoding_cache.py
 tests/unit/test_tts.py
 tests/unit/test_notification_token_cleanup.py
@@ -81,5 +68,4 @@ tests/unit/test_translation_cost_optimization.py
 tests/unit/test_translation_dedup_edge_cases.py
 tests/unit/test_translation_optimization.py
 tests/routers/test_users.py
-tests/unit/v3_router_probes/fastapi_route_contract.py
 tests/unit/test_desktop_transcribe.py

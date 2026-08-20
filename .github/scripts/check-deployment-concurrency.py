@@ -51,10 +51,6 @@ LOCK_CONTRACTS = {
     "gcp_backend_pusher_auto_deploy.yml": LockContract("deploy-gke-pusher-development"),
     "gcp_diarizer.yml": LockContract("deploy-gke-diarizer-${{ github.event.inputs.environment }}"),
     "gcp_llm_gateway.yml": LockContract("deploy-backend-stack-${{ github.event.inputs.environment }}"),
-    "gcp_memory_maintenance_job.yml": LockContract(
-        "deploy-cloud-run-memory-maintenance-job-${{ github.event.inputs.environment }}"
-    ),
-    "gcp_memory_maintenance_job_auto_dev.yml": LockContract("deploy-cloud-run-memory-maintenance-job-development"),
     "gcp_models.yml": LockContract("deploy-gke-vad-${{ github.event.inputs.environment }}"),
     "gcp_notifications_job.yml": LockContract(
         "deploy-cloud-run-notifications-job-${{ github.event.inputs.environment }}"
@@ -513,7 +509,6 @@ def validate_shared_families(groups: dict[str, str]) -> list[str]:
         ("gcp_firestore_indexes.yml", "gcp_backend_auto_dev.yml"),
         ("gcp_backend_listen_helm.yml", "gcp_backend_auto_dev.yml"),
         ("gcp_llm_gateway.yml", "gcp_backend_auto_dev.yml"),
-        ("gcp_memory_maintenance_job.yml", "gcp_memory_maintenance_job_auto_dev.yml"),
         ("gcp_backend_pusher.yml", "gcp_backend_pusher_auto_deploy.yml"),
     )
     for manual, automatic in family_pairs:
@@ -529,7 +524,6 @@ def validate_shared_families(groups: dict[str, str]) -> list[str]:
         "gcp_backend_listen_helm.yml",
         "gcp_diarizer.yml",
         "gcp_llm_gateway.yml",
-        "gcp_memory_maintenance_job.yml",
         "gcp_models.yml",
         "gcp_notifications_job.yml",
     )
@@ -675,7 +669,7 @@ jobs:
     direct_writer_commands = (
         "npx firebase deploy",
         "npx firebase deploy --project prod --only=firestore:indexes",
-        "gcloud --project=prod firestore indexes composite create --collection-group=memories",
+        "gcloud --project=prod firestore indexes composite create --collection-group=workstreams",
     )
     for command in direct_writer_commands:
         fixture = direct_firebase_writer.replace(

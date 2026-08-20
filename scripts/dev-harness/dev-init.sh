@@ -30,6 +30,9 @@ fi
 "$PYTHON_BIN" -m pip install -q -r backend/requirements.txt
 echo "Backend Python dependencies installed"
 
+PYTHONPATH="scripts/dev-harness" "$PYTHON_BIN" -m dev_harness.synthetic_profiles init >/dev/null
+echo "Initialized neutral synthetic desktop profiles"
+
 hook=".git/hooks/pre-commit"
 if [ ! -f "$hook" ]; then
   ln -s -f ../../scripts/pre-commit "$hook"
@@ -39,5 +42,5 @@ else
 fi
 
 echo ""
-echo "Next: add your four API keys to backend/.env.local-dev, then run:"
+echo "Next: add your provider API keys to backend/.env.local-dev, then run:"
 echo "  make dev-desktop"

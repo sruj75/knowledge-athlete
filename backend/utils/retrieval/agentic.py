@@ -22,8 +22,6 @@ from models.chat import Message, ChatSession, PageContext
 from utils.retrieval.tools import (
     get_conversations_tool,
     search_conversations_tool,
-    get_memories_tool,
-    search_memories_tool,
     get_action_items_tool,
     create_action_item_tool,
     update_action_item_tool,
@@ -31,10 +29,8 @@ from utils.retrieval.tools import (
     search_files_tool,
     manage_daily_summary_tool,
     create_chart_tool,
-    save_user_preference_tool,
     fetch_url_tool,
 )
-from utils.retrieval.tool_result_boundaries import preserve_chat_memory_tool_result_boundary
 from utils.retrieval.safety import (
     AgentSafetyGuard,
     SafetyGuardError,
@@ -119,8 +115,6 @@ AGENT_STREAM_FAILURE_MESSAGE = 'Unable to complete the response. Please try agai
 CORE_TOOLS = [
     get_conversations_tool,
     search_conversations_tool,
-    get_memories_tool,
-    search_memories_tool,
     get_action_items_tool,
     create_action_item_tool,
     update_action_item_tool,
@@ -128,7 +122,6 @@ CORE_TOOLS = [
     search_files_tool,
     manage_daily_summary_tool,
     create_chart_tool,
-    save_user_preference_tool,
     fetch_url_tool,
 ]
 
@@ -143,15 +136,12 @@ def get_tool_display_name(tool_name: str, tool_obj: Optional[Any] = None) -> str
         'web_search': 'Searching the web',
         'get_conversations_tool': 'Searching conversations',
         'search_conversations_tool': 'Searching conversations',
-        'get_memories_tool': 'Searching memories',
-        'search_memories_tool': 'Searching memories',
         'get_action_items_tool': 'Checking action items',
         'create_action_item_tool': 'Creating action item',
         'update_action_item_tool': 'Updating action item',
         'get_omi_product_info_tool': 'Looking up product info',
         'manage_daily_summary_tool': 'Updating notification settings',
         'create_chart_tool': 'Creating chart',
-        'save_user_preference_tool': 'Saving preference',
         'fetch_url_tool': 'Reading page',
     }
 
@@ -162,8 +152,6 @@ def get_tool_display_name(tool_name: str, tool_obj: Optional[Any] = None) -> str
         return 'Checking calendar'
     elif 'web_search' in tool_name.lower():
         return 'Searching the web'
-    elif 'memory' in tool_name.lower():
-        return 'Searching memories'
     elif 'conversation' in tool_name.lower():
         return 'Searching conversations'
     elif 'action' in tool_name.lower():
@@ -289,8 +277,7 @@ async def _execute_tool(tool_name: str, tool_input: dict, registry: dict, config
     tool_obj = registry[tool_name]
     config = RunnableConfig(configurable=configurable)
     result = await tool_obj.ainvoke(tool_input, config=config)
-    result = preserve_chat_memory_tool_result_boundary(tool_name, str(result))
-    return result
+    return str(result)
 
 
 # ---------------------------------------------------------------------------

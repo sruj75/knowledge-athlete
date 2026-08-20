@@ -25,11 +25,6 @@ model_config_features:
       - followup
       - goals
       - goals_advice
-      - learnings
-      - memories
-      - memory_category
-      - memory_conflict
-      - memory_l1
       - notifications
       - onboarding
       - session_titles
@@ -44,11 +39,13 @@ model_config_features:
       - chat_responses
     tool_calling:
       - chat_agent
-      - memory_l2
     provider_search:
       - web_search
     pinned:
       - fair_use
+      - memory_conflict
+      - memory_l1
+      - memory_l2
   gateway_capability_needed: OpenAI-compatible chat-completions lane with provider refs for openai, native Vertex Gemini, openrouter, perplexity, and anthropic.
   migration_status: get_llm centrally switches Omi-managed feature traffic to generated gateway lanes with OMI_LLM_GATEWAY_FEATURE_MODE=gateway and does not retain a direct-provider fallback; gateway Gemini uses native Vertex generateContent authenticated by GKE Workload Identity.
   test_guardrail_coverage:
@@ -102,12 +99,5 @@ surfaces:
     current_provider_model: openai/fair_use pinned feature
     request_shape: async plain chat JSON
     gateway_lane_capability_needed: generated omi:auto:fair-use lane
-    migration_status: get_llm_routed
-    test_guardrail_coverage: backend/tests/unit/test_llm_gateway_coverage_guardrails.py
-  - surface: production_like_memory_ingestion
-    code_path: backend/utils/memory_ingestion/adapters/production_like_model.py:_memory_llm
-    current_provider_model: openai/memories feature
-    request_shape: parser chain
-    gateway_lane_capability_needed: generated omi:auto:memories lane
     migration_status: get_llm_routed
     test_guardrail_coverage: backend/tests/unit/test_llm_gateway_coverage_guardrails.py

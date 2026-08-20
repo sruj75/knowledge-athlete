@@ -47,8 +47,8 @@ final class MemoryAssistantTelemetryTests: XCTestCase {
 
   func testAnalysisOutcomeEnumIsClosedAndSourceFaithful() {
     let expected: Set<String> = [
-      "synced", "filtered_low_confidence", "no_new_memory", "sync_failed", "local_persistence_failed",
-      "sync_state_persistence_failed", "analysis_failed",
+      "persisted", "filtered_low_confidence", "no_new_memory", "local_persistence_failed",
+      "analysis_failed",
     ]
     let actual = Set(MemoryAssistantTelemetry.AnalysisOutcome.allCases.map(\.rawValue))
     XCTAssertEqual(actual, expected)
@@ -81,16 +81,16 @@ final class MemoryAssistantTelemetryTests: XCTestCase {
   }
 
   func testAnalysisRunPayloadBucketsConfidenceForOutcomesThatProducedAMemory() {
-    let synced = MemoryAssistantTelemetry.analysisRunPayload(outcome: .synced, confidence: 0.82)
-    XCTAssertEqual(synced["outcome"] as? String, "synced")
-    XCTAssertEqual(synced["confidence_bucket"] as? String, "80_90")
-    XCTAssertEqual(Set(synced.keys), Set(["outcome", "confidence_bucket"]))
+    let persisted = MemoryAssistantTelemetry.analysisRunPayload(outcome: .persisted, confidence: 0.82)
+    XCTAssertEqual(persisted["outcome"] as? String, "persisted")
+    XCTAssertEqual(persisted["confidence_bucket"] as? String, "80_90")
+    XCTAssertEqual(Set(persisted.keys), Set(["outcome", "confidence_bucket"]))
 
     let filtered = MemoryAssistantTelemetry.analysisRunPayload(
       outcome: .filteredLowConfidence, confidence: 0.42)
     XCTAssertEqual(filtered["confidence_bucket"] as? String, "40_50")
 
-    let failed = MemoryAssistantTelemetry.analysisRunPayload(outcome: .syncFailed, confidence: 0.91)
+    let failed = MemoryAssistantTelemetry.analysisRunPayload(outcome: .localPersistenceFailed, confidence: 0.91)
     XCTAssertEqual(failed["confidence_bucket"] as? String, "90_100")
   }
 
@@ -113,38 +113,18 @@ final class MemoryAssistantTelemetryTests: XCTestCase {
 
 }
 
-/// Deterministic operations injected into the real production sequence. Call
-/// order proves a failed SQLite insert cannot reach backend sync, while the
-/// other fixtures drive backend and sync-state failures independently.
+/// Deterministic operation injected into the real local durability terminal.
 private actor MemoryAssistantDurabilityFixtureOperations: MemoryAssistantDurabilityOperating {
-  private let insertSucceeds: Bool
-  private let remoteSucceeds: Bool
-  private let markSucceeds: Bool
+  private let succeeds: Bool
   private var calls: [String] = []
 
-  init(insertSucceeds: Bool, remoteSucceeds: Bool, markSucceeds: Bool) {
-    self.insertSucceeds = insertSucceeds
-    self.remoteSucceeds = remoteSucceeds
-    self.markSucceeds = markSucceeds
+  init(succeeds: Bool) {
+    self.succeeds = succeeds
   }
 
-  func insertLocalMemory(_ request: MemoryAssistantDurabilityRequest) async -> Int64? {
-    calls.append("insert")
-    return insertSucceeds ? 42 : nil
-  }
-
-  func createRemoteMemory(_ request: MemoryAssistantDurabilityRequest) async -> MemoryAssistantRemoteReceipt? {
-    calls.append("remote")
-    return remoteSucceeds ? .testFixture : nil
-  }
-
-  func markLocalMemorySynced(
-    id: Int64,
-    receipt: MemoryAssistantRemoteReceipt,
-    ownerID: String
-  ) async -> Bool {
-    calls.append("mark")
-    return markSucceeds
+  func acceptLocalMemory(_ request: MemoryAssistantDurabilityRequest) async -> Bool {
+    calls.append("accept")
+    return succeeds
   }
 
   func recordedCalls() -> [String] {
@@ -169,37 +149,26 @@ final class MemoryAssistantDurabilityPipelineTests: XCTestCase {
     captured = []
   }
 
-  func testProductionPipelineEmitsTerminalAndHistoricalSuccessForEveryDurabilityOutcome() async {
+  func testProductionPipelineEmitsLocalDurabilityTerminalAndHistoricalSuccess() async {
     let cases:
       [(
-        insert: Bool,
-        remote: Bool,
-        mark: Bool,
+        succeeds: Bool,
         outcome: MemoryAssistantDurability.Outcome,
         terminal: String,
         historicalSuccess: Bool,
         calls: [String]
       )] = [
-        (false, true, true, .localPersistenceFailed, "local_persistence_failed", false, ["insert"]),
-        (true, false, true, .syncFailed, "sync_failed", true, ["insert", "remote"]),
-        (
-          true, true, false, .syncStatePersistenceFailed, "sync_state_persistence_failed", true,
-          ["insert", "remote", "mark"]
-        ),
-        (true, true, true, .synced, "synced", true, ["insert", "remote", "mark"]),
+        (false, .localPersistenceFailed, "local_persistence_failed", false, ["accept"]),
+        (true, .persisted, "persisted", true, ["accept"]),
       ]
 
     for testCase in cases {
       captured = []
-      let operations = MemoryAssistantDurabilityFixtureOperations(
-        insertSucceeds: testCase.insert,
-        remoteSucceeds: testCase.remote,
-        markSucceeds: testCase.mark
-      )
+      let operations = MemoryAssistantDurabilityFixtureOperations(succeeds: testCase.succeeds)
       let pipeline = MemoryAssistantDurabilityPipeline(
         runner: MemoryAssistantProductionDurability(operations: operations)
       )
-      let result = await pipeline.persistSyncAndEmit(
+      let result = await pipeline.persistAndEmit(
         MemoryAssistantDurabilityRequest(
           memory: ExtractedMemory(content: "test memory", category: .system, sourceApp: "Test", confidence: 0.82),
           screenshotId: nil,
@@ -275,11 +244,7 @@ final class MemoryAssistantAnalysisFailureTests: XCTestCase {
   }
 
   func testThrowingAnalysisEmitsExactlyOneBoundedAnalysisFailedTerminal() async {
-    let operations = MemoryAssistantDurabilityFixtureOperations(
-      insertSucceeds: false,
-      remoteSucceeds: false,
-      markSucceeds: false
-    )
+    let operations = MemoryAssistantDurabilityFixtureOperations(succeeds: false)
     let assistant = MemoryAssistant(
       extractionOverride: { _, _ in
         throw MemoryAssistantAnalysisFixtureError.providerFailure
