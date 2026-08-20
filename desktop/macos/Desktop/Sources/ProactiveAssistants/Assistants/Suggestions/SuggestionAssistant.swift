@@ -222,7 +222,7 @@ actor SuggestionAssistant: ProactiveAssistant {
     }
 
     do {
-      let memories = try await MemoryStorage.shared.searchLocalMemories(query: searchTerm, limit: 15)
+      let memories = try await MemoryStorage.shared.literalSearch(searchTerm, limit: 15)
       grounding.memories = memories.map(\.content)
     } catch {
       logError("Suggestion: memory grounding unavailable", error: error)

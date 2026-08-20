@@ -47,9 +47,10 @@ def test_neighboring_retained_product_routes_remain_registered() -> None:
     route_keys = {(method, route.path) for route in main.app.routes for method in getattr(route, "methods", set())}
 
     for route_key in (
-        ("GET", "/v1/tools/memories"),
         ("GET", "/v1/action-items"),
-        ("GET", "/v3/memories"),
+        ("POST", "/v1/memory/compute/extract"),
+        ("POST", "/v1/memory/compute/normalize"),
+        ("POST", "/v1/memory/compute/consolidate"),
         ("GET", "/v1/users/me/subscription"),
         ("GET", "/v1/auth/authorize"),
     ):
@@ -64,7 +65,7 @@ def test_initial_chat_message_uses_only_retained_personal_context(monkeypatch) -
             captured['prompt'] = prompt
             return SimpleNamespace(content='Welcome back, Srujan.')
 
-    monkeypatch.setattr(llm_chat, 'get_prompt_memories', lambda uid: ('Srujan', 'Prefers concise answers.'))
+    monkeypatch.setattr(llm_chat, '_user_identity_context', lambda uid: ('Srujan', ''))
     monkeypatch.setattr(llm_chat, 'get_llm', lambda profile: GreetingModel())
     monkeypatch.setattr(llm_chat, 'track_usage', lambda uid, feature: nullcontext())
 
@@ -72,6 +73,6 @@ def test_initial_chat_message_uses_only_retained_personal_context(monkeypatch) -
 
     assert result == 'Welcome back, Srujan.'
     assert "make Srujan's life better" in captured['prompt']
-    assert 'Prefers concise answers.' in captured['prompt']
+    assert 'Prefers concise answers.' not in captured['prompt']
     for retired_identity in ('app_id', 'persona_id', 'marketplace'):
         assert retired_identity not in captured['prompt'].lower()

@@ -25,8 +25,8 @@ TWO mechanisms, in priority order:
 resolve to ``MagicMock``). It is the sanctioned replacement for ad-hoc
 ``types.ModuleType`` stubs.
 
-NOTE: the legacy ``tests/unit/memory_import_isolation.py`` is deprecated (DECISIONS
-D3). Do not extend it; migrate its consumers to the mechanisms here.
+NOTE: the former test-local Memory compatibility helper has been removed. New
+fixture-scoped import substitution belongs in this module.
 """
 
 from __future__ import annotations
@@ -90,7 +90,7 @@ def stub_modules(mapping: dict[str, ModuleType | None]) -> Iterator[None]:
     Example::
 
         with stub_modules({"database.vector_db": AutoMockModule("database.vector_db")}):
-            from routers.memories import router  # picks up the fake
+            from routers.search import router  # picks up the fake
     """
     # Explicit per-name state for the requested fakes (presence + parent attr).
     saved: dict[str, ModuleType | None] = {name: sys.modules.get(name) for name in mapping}
@@ -230,32 +230,4 @@ def load_module_fresh(name: str, path: str) -> ModuleType:
     return module
 
 
-def fake_firestore_transactional(func):
-    """Firestore ``transactional`` replacement for unit-test fake transactions.
-
-    The production fallback in ``database.memory_non_active_routes`` exists only for
-    environments where Firestore is unavailable. Tests that load the module against a
-    fake Firestore module need the same transaction lifecycle contract without
-    copying the wrapper body into each test file.
-    """
-
-    def wrapper(transaction, *args, **kwargs):
-        if hasattr(transaction, "_begin"):
-            transaction._begin()
-        try:
-            result = func(transaction, *args, **kwargs)
-            if hasattr(transaction, "_commit"):
-                transaction._commit()
-            return result
-        except Exception:
-            if hasattr(transaction, "_rollback"):
-                transaction._rollback()
-            raise
-        finally:
-            if hasattr(transaction, "_clean_up"):
-                transaction._clean_up()
-
-    return wrapper
-
-
-__all__ = ["AutoMockModule", "stub_modules", "load_module_fresh", "fake_firestore_transactional"]
+__all__ = ["AutoMockModule", "stub_modules", "load_module_fresh"]

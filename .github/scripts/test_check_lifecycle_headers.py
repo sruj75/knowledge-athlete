@@ -10,7 +10,7 @@ from pathlib import Path
 from check_lifecycle_headers import is_designated_path, parse_lifecycle_header, validate
 
 PERMANENT = "# LIFECYCLE: permanent\n\nprint('ok')\n"
-ONE_TIME = "# LIFECYCLE: one-time\n# DELETE-AFTER: INV-MEM-3\n\nprint('ok')\n"
+ONE_TIME = "# LIFECYCLE: one-time\n# DELETE-AFTER: INV-OPS-3\n\nprint('ok')\n"
 
 
 def write(root: Path, relative_path: str, content: str) -> Path:
@@ -24,8 +24,8 @@ class DesignatedPathTests(unittest.TestCase):
     def test_designated_paths_match_initial_policy(self) -> None:
         self.assertTrue(is_designated_path("backend/scripts/example_readiness.py"))
         self.assertTrue(is_designated_path("backend/scripts/rollout-proof.sh"))
-        self.assertTrue(is_designated_path("backend/utils/memory/compatibility.py"))
-        self.assertTrue(is_designated_path("backend/utils/memory/rollout/config.py"))
+        self.assertTrue(is_designated_path("backend/utils/provider/compatibility.py"))
+        self.assertTrue(is_designated_path("backend/utils/provider/rollout/config.py"))
         self.assertFalse(is_designated_path("backend/scripts/deploy.py"))
         self.assertFalse(is_designated_path("backend/routers/rollout.py"))
 
@@ -54,7 +54,7 @@ class HeaderTests(unittest.TestCase):
 
     def test_rejects_permanent_header_with_delete_after(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            path = write(Path(tmp), "permanent.py", PERMANENT.replace("\n\n", "\n# DELETE-AFTER: INV-MEM-3\n\n"))
+            path = write(Path(tmp), "permanent.py", PERMANENT.replace("\n\n", "\n# DELETE-AFTER: INV-OPS-3\n\n"))
             lifecycle, error = parse_lifecycle_header(path)
             self.assertIsNone(lifecycle)
             self.assertIn("must not", error or "")
@@ -99,7 +99,7 @@ class ValidationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             permanent = "backend/scripts/permanent_gauntlet.py"
-            one_time = "backend/utils/memory/one_time_rollout.py"
+            one_time = "backend/utils/provider/one_time_rollout.py"
             write(root, permanent, PERMANENT)
             write(root, one_time, ONE_TIME)
             baseline = write(root, ".github/lifecycle-header-baseline.txt", "")

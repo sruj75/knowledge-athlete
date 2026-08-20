@@ -12,7 +12,7 @@ matrix across all-datetime, all-string, and mixed inputs.
 
 The module under test imports the ``database.*`` chain (which pulls
 ``utils.encryption`` — a module that validates ``ENCRYPTION_SECRET`` at import
-time) plus the ``models.*`` and ``utils.memory.*`` graphs. None of those are
+time) plus the ``models.*`` graph. None of those are
 exercised by the pure functions under test, so they are stubbed inside a
 module-scoped fixture via the sanctioned ``stub_modules`` +
 ``load_module_fresh`` seam (see ``backend/docs/test_isolation.md`` and
@@ -34,7 +34,7 @@ _BACKEND = Path(__file__).resolve().parents[2]
 
 @pytest.fixture(scope="module")
 def merge():
-    """Load a fresh merge_conversations against stubbed database/models/memory chains."""
+    """Load a fresh merge_conversations against stubbed database/model chains."""
     database_pkg = ModuleType("database")
     database_pkg.__path__ = []  # type: ignore[attr-defined]
 
@@ -90,23 +90,6 @@ def merge():
             setattr(_mod, _attr, MagicMock())
         model_stubs[_modname] = _mod
 
-    # utils.memory.* — used only by the delete/cascade path in perform_merge_async.
-    memory_service_stub = ModuleType("utils.memory.memory_service")
-    setattr(memory_service_stub, "MemoryService", MagicMock())
-
-    class _MemorySystem:
-        LEGACY = "legacy"
-        CANONICAL = "canonical"
-
-    memory_system_stub = ModuleType("utils.memory.memory_system")
-    setattr(memory_system_stub, "MemorySystem", _MemorySystem)
-
-    canonical_activation_stub = ModuleType("utils.memory.canonical_activation")
-    setattr(canonical_activation_stub, "canonical_write_enabled", MagicMock(return_value=False))
-
-    surface_routing_stub = ModuleType("utils.memory.surface_routing")
-    setattr(surface_routing_stub, "pin_memory_system", MagicMock(return_value=_MemorySystem.LEGACY))
-
     fakes: dict[str, ModuleType] = {
         "database": database_pkg,
         "database._client": client_stub,
@@ -118,10 +101,6 @@ def merge():
         "utils.conversations.lifecycle": lifecycle_stub,
         "utils.other.storage": storage_stub,
         "models": models_pkg,
-        "utils.memory.memory_service": memory_service_stub,
-        "utils.memory.memory_system": memory_system_stub,
-        "utils.memory.canonical_activation": canonical_activation_stub,
-        "utils.memory.surface_routing": surface_routing_stub,
     }
     fakes.update(model_stubs)
 

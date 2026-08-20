@@ -40,10 +40,10 @@ def test_provisional_env_var_missing_is_omitted(monkeypatch):
     rendered = _MODULE['_render_env_vars'](
         {
             'OMI_LLM_GATEWAY_URL': {'env_var': 'OMI_LLM_GATEWAY_URL', 'provisional': True},
-            'MEMORY_MODE': {'value': 'canonical'},
+            'BILLING_MODE': {'value': 'enabled'},
         }
     )
-    assert rendered == 'MEMORY_MODE=canonical'
+    assert rendered == 'BILLING_MODE=enabled'
 
 
 def test_provisional_env_var_present_is_rendered(monkeypatch):
@@ -82,17 +82,15 @@ def test_selected_job_renders_only_shared_network_and_named_job_outputs(capsys, 
     monkeypatch.setenv('CLOUD_RUN_VPC_SUBNET', 'omi-dev-subnet-1')
     monkeypatch.setattr(
         'sys.argv',
-        ['render_backend_runtime_env.py', '--env', 'dev', '--job', 'memory-maintenance-job'],
+        ['render_backend_runtime_env.py', '--env', 'dev', '--job', 'notifications-job'],
     )
 
     assert _MODULE['main']() == 0
 
     output = capsys.readouterr().out
     assert 'cloud_run_flags<<' in output
-    assert 'memory_maintenance_job_flags<<' in output
-    assert 'memory_maintenance_job_env_vars<<' in output
+    assert 'notifications_job_env_vars<<' in output
     assert 'backend_env_vars<<' not in output
-    assert 'notifications_job_env_vars<<' not in output
 
 
 def test_selected_job_rejects_unknown_name_without_emitting_partial_output(capsys, monkeypatch):
@@ -102,81 +100,6 @@ def test_selected_job_rejects_unknown_name_without_emitting_partial_output(capsy
         _MODULE['main']()
 
     assert capsys.readouterr().out == ''
-
-
-def test_render_dev_emits_memory_maintenance_job_outputs():
-    jobs = _MANIFEST['environments']['dev']['cloud_run']['jobs']
-    memory_job = jobs['memory-maintenance-job']
-    memory_env = _MODULE['_render_env_vars'](memory_job['env'])
-    assert 'MEMORY_CANONICAL_MAINTENANCE_ENABLED=true' in memory_env
-    assert 'MEMORY_CANONICAL_CONSOLIDATION_ENABLED=true' in memory_env
-    assert 'MEMORY_ENABLED_USERS=vi7SA9ckQCe4ccobWNxlbdcNdC23' in memory_env
-    assert 'MEMORY_MODE=read' in memory_env
-    assert 'TYPESENSE_HOST_PORT=443' in memory_env
-
-    rendered_flags = _MODULE['_render_flags'](memory_job['flags'])
-    assert '--task-timeout=3600s' in rendered_flags
-    assert '--cpu=2' in rendered_flags
-    assert '--memory=2Gi' in rendered_flags
-    assert (
-        '--remove-env-vars=MEMORY_CANONICAL_PROMOTION_CRON_ENABLED,'
-        'MEMORY_CANONICAL_PROMOTION_CRON_INTERVAL_HOURS,'
-        'MEMORY_CANONICAL_PROMOTION_FAST_TRACK_ENABLED'
-    ) in rendered_flags
-    memory_secrets = _MODULE['_render_secrets'](memory_job['secrets'])
-    assert 'OPENAI_API_KEY=OPENAI_API_KEY:latest' in memory_secrets
-    assert 'PINECONE_API_KEY=PINECONE_API_KEY:latest' in memory_secrets
-    assert 'TYPESENSE_API_KEY=TYPESENSE_API_KEY:latest' in memory_secrets
-
-    notifications_job = jobs['notifications-job']
-    notifications_env = notifications_job['env']
-    forbidden_notifications_vars = {
-        'MEMORY_MODE',
-        'MEMORY_ENABLED_USERS',
-        'MEMORY_V3_GET_ENABLED',
-        'MEMORY_CANONICAL_MAINTENANCE_ENABLED',
-        'MEMORY_CANONICAL_CONSOLIDATION_ENABLED',
-        'MEMORY_TYPESENSE_COLLECTION',
-        'TYPESENSE_HOST',
-        'TYPESENSE_HOST_PORT',
-        'TYPESENSE_API_KEY',
-        'PINECONE_INDEX_NAME',
-    }
-    assert forbidden_notifications_vars.isdisjoint(notifications_env)
-    assert set(notifications_job['secrets']) == {
-        'SERVICE_ACCOUNT_JSON',
-        'ENCRYPTION_SECRET',
-        'OPENAI_API_KEY',
-    }
-
-
-def test_render_prod_keeps_memory_maintenance_job_promotion_off(capsys, monkeypatch):
-    monkeypatch.setenv('CLOUD_RUN_VPC_NETWORK', 'omi-prod-vpc')
-    monkeypatch.setenv('CLOUD_RUN_VPC_SUBNET', 'omi-prod-subnet')
-    monkeypatch.setenv('GOOGLE_CLIENT_ID', 'fake-google-client-id')
-    monkeypatch.setenv(
-        'ACCOUNT_DELETION_HANDLER_URL', 'https://backend-sync.example.com/v1/users/account-deletion-wipes/run'
-    )
-    monkeypatch.setenv(
-        'LISTEN_FINALIZATION_TASKS_HANDLER_URL',
-        'https://backend-sync.example.com/v1/conversation-finalization-jobs/run',
-    )
-    monkeypatch.setenv('LISTEN_FINALIZATION_TASKS_INVOKER_SA', 'invoker@project.iam.gserviceaccount.com')
-    monkeypatch.setenv('SYNC_TASKS_HANDLER_URL', 'https://backend-sync.example.com/v2/sync-jobs/run')
-    monkeypatch.setenv('SYNC_TASKS_INVOKER_SA', 'invoker@project.iam.gserviceaccount.com')
-    monkeypatch.setattr('sys.argv', ['render_backend_runtime_env.py', '--env', 'prod'])
-    rc = _MODULE['main']()
-    assert rc == 0
-    out = capsys.readouterr().out
-    job_env = _job_env_block(out, 'memory_maintenance_job')
-    assert 'MEMORY_MODE=off' in job_env
-    assert 'MEMORY_CANONICAL_MAINTENANCE_ENABLED=false' in job_env
-    assert 'MEMORY_ENABLED_USERS=vi7SA9ckQCe4ccobWNxlbdcNdC23' not in job_env
-
-    assert 'DESKTOP_PREVIEW_PUBLISH_KEY=DESKTOP_PREVIEW_PUBLISH_KEY:latest' in _job_secret_lines(out, 'backend')
-
-    notifications_env = _job_env_block(out, 'notifications_job')
-    assert 'MEMORY_CANONICAL_MAINTENANCE_ENABLED' not in notifications_env
 
 
 def test_render_prod_gateway_callers_inject_verified_endpoint(capsys, monkeypatch):
@@ -207,11 +130,7 @@ def test_render_prod_gateway_callers_inject_verified_endpoint(capsys, monkeypatc
 
 
 def test_render_prod_requires_vpc_env_vars_before_job_outputs(monkeypatch):
-    """Prod network flags are env_var-backed; missing VPC vars abort render before job outputs.
-
-    gcp_memory_maintenance_job.yml must pass CLOUD_RUN_VPC_* like gcp_backend.yml, or prod
-    workflow_dispatch fails before memory-maintenance-job env/secrets are emitted.
-    """
+    """Prod network flags are env_var-backed; missing VPC vars abort rendering."""
     monkeypatch.delenv('CLOUD_RUN_VPC_NETWORK', raising=False)
     monkeypatch.delenv('CLOUD_RUN_VPC_SUBNET', raising=False)
     monkeypatch.setattr('sys.argv', ['render_backend_runtime_env.py', '--env', 'prod'])
@@ -229,61 +148,3 @@ def test_notifications_job_workflow_passes_vpc_vars_and_checkout_sha():
     assert 'render_backend_runtime_env.py --env ${{ vars.ENV }} --job notifications-job' in text
     assert 'env_vars_update_strategy: overwrite' not in text
     assert 'secrets_update_strategy: overwrite' not in text
-    assert (
-        '--remove-env-vars=MEMORY_MODE,MEMORY_ENABLED_USERS,MEMORY_V3_GET_ENABLED,'
-        'MEMORY_CANONICAL_MAINTENANCE_ENABLED,'
-        'MEMORY_CANONICAL_CONSOLIDATION_ENABLED,MEMORY_CANONICAL_PROMOTION_CRON_ENABLED,'
-        'MEMORY_CANONICAL_PROMOTION_CRON_INTERVAL_HOURS,MEMORY_CANONICAL_PROMOTION_FAST_TRACK_ENABLED,'
-        'MEMORY_TYPESENSE_COLLECTION,TYPESENSE_HOST,'
-        'TYPESENSE_HOST_PORT,TYPESENSE_API_KEY'
-    ) in text
-
-
-def test_memory_maintenance_job_workflow_passes_vpc_vars_and_checkout_sha():
-    workflow = Path(__file__).resolve().parents[3] / '.github/workflows/gcp_memory_maintenance_job.yml'
-    text = workflow.read_text(encoding='utf-8')
-    assert 'SERVICE: memory-maintenance-job' in text
-    assert 'Dockerfile.memory_maintenance_job' in text
-    assert 'memory_maintenance_job_env_vars' in text
-    assert 'memory_maintenance_job_secrets' in text
-    assert 'CLOUD_RUN_VPC_NETWORK: ${{ vars.CLOUD_RUN_VPC_NETWORK }}' in text
-    assert 'CLOUD_RUN_VPC_SUBNET: ${{ vars.CLOUD_RUN_VPC_SUBNET }}' in text
-    assert (
-        'flags: ${{ steps.runtime-env.outputs.cloud_run_flags }} '
-        '${{ steps.runtime-env.outputs.memory_maintenance_job_flags }}'
-    ) in text
-    assert "id-token: 'write'" not in text
-    assert 'git rev-parse --short=7 HEAD' in text
-    assert 'short_sha=${GITHUB_SHA::7}' not in text
-    assert 'render_backend_runtime_env.py --env ${{ vars.ENV }} --job memory-maintenance-job' in text
-    prod_memory_job = _MANIFEST['environments']['prod']['cloud_run']['jobs']['memory-maintenance-job']
-    prod_job_flags = _MODULE['_render_flags'](prod_memory_job['flags'])
-    assert 'MEMORY_CANONICAL_PROMOTION_CRON_ENABLED' in prod_job_flags
-    assert 'MEMORY_CANONICAL_PROMOTION_CRON_INTERVAL_HOURS' in prod_job_flags
-    assert 'MEMORY_CANONICAL_PROMOTION_FAST_TRACK_ENABLED' in prod_job_flags
-    assert 'Measure runner disk cleanup' in text
-    assert 'Duration: $((SECONDS - started_at))s' in text
-
-
-def test_auto_dev_memory_maintenance_workflow_selects_only_its_job():
-    workflow = Path(__file__).resolve().parents[3] / '.github/workflows/gcp_memory_maintenance_job_auto_dev.yml'
-
-    assert 'render_backend_runtime_env.py --env dev --job memory-maintenance-job' in workflow.read_text(
-        encoding='utf-8'
-    )
-    text = workflow.read_text(encoding='utf-8')
-    assert 'Measure runner disk cleanup' in text
-    assert 'Duration: $((SECONDS - started_at))s' in text
-
-
-def test_backend_service_deploys_remove_retired_canonical_promotion_env_vars():
-    retired = (
-        'MEMORY_CANONICAL_PROMOTION_CRON_ENABLED,'
-        'MEMORY_CANONICAL_PROMOTION_CRON_INTERVAL_HOURS,'
-        'MEMORY_CANONICAL_PROMOTION_FAST_TRACK_ENABLED'
-    )
-    workflow_root = Path(__file__).resolve().parents[3] / '.github/workflows'
-    for workflow_name in ('gcp_backend.yml', 'gcp_backend_auto_dev.yml'):
-        text = (workflow_root / workflow_name).read_text(encoding='utf-8')
-        assert text.count(f'--remove-env-vars={retired}') == 1
-        assert text.count(f'--remove-env-vars=HOSTED_PUSHER_API_URL,{retired}') == 1

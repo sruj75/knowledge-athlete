@@ -68,7 +68,7 @@ def test_component_names_follow_explicit_schema_titles():
 
     app = FastAPI()
 
-    @app.get('/v1/memories/titled', response_model=InternalRuntimeName, operation_id='getTitled')
+    @app.get('/v1/memory/compute/titled', response_model=InternalRuntimeName, operation_id='getTitled')
     def get_titled():
         return {'value': 'ok'}
 
@@ -76,7 +76,7 @@ def test_component_names_follow_explicit_schema_titles():
 
     assert 'AppClientContractName' in schema['components']['schemas']
     assert 'InternalRuntimeName' not in schema['components']['schemas']
-    assert schema['paths']['/v1/memories/titled']['get']['responses']['200']['content']['application/json'][
+    assert schema['paths']['/v1/memory/compute/titled']['get']['responses']['200']['content']['application/json'][
         'schema'
     ] == {'$ref': '#/components/schemas/AppClientContractName'}
 

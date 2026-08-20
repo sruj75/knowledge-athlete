@@ -202,6 +202,7 @@ from utils.llm.clients import (
     supports_cache_retention,
     supports_prompt_cache,
 )
+import utils.llm.providers as providers_module
 
 # ---------------------------------------------------------------------------
 # Tests
@@ -246,9 +247,7 @@ class TestModelQosProfiles:
         assert premium['chat_responses'] == ('gpt-5.4-mini', 'openai')
         assert premium['goals_advice'] == ('gpt-5.4-mini', 'openai')
         # Quality-sensitive features use gpt-4.1-mini on openai
-        assert premium['memories'] == ('gpt-4.1-mini', 'openai')
         assert premium['chat_extraction'] == ('gpt-4.1-mini', 'openai')
-        assert premium['memory_conflict'] == ('gpt-4.1-mini', 'openai')
         assert premium['goals'] == ('gpt-4.1-mini', 'openai')
         assert premium['proactive_notification'] == ('gpt-4.1-mini', 'openai')
         # Free-text features use Gemini 2.5 Flash-Lite on gemini provider
@@ -256,7 +255,6 @@ class TestModelQosProfiles:
         assert premium['followup'] == ('gemini-2.5-flash-lite', 'gemini')
         assert premium['onboarding'] == ('gemini-2.5-flash-lite', 'gemini')
         # Simple classification uses gpt-4.1-nano on openai
-        assert premium['memory_category'] == ('gpt-4.1-nano', 'openai')
         assert premium['trends'] == ('gemini-2.5-flash-lite', 'gemini')
         # Anthropic & Perplexity with explicit provider
         assert premium['chat_agent'] == ('claude-sonnet-4-6', 'anthropic')
@@ -273,8 +271,6 @@ class TestModelQosProfiles:
         assert max_prof['daily_summary'] == ('gpt-5.4', 'openai')
         assert max_prof['notifications'] == ('gpt-5.4', 'openai')
         # Cheap tasks use gpt-4.1-mini on openai
-        assert max_prof['memories'] == ('gpt-4.1-mini', 'openai')
-        assert max_prof['learnings'] == ('o4-mini', 'openai')
         # OpenRouter for wrapped_analysis with explicit provider
         assert max_prof['wrapped_analysis'] == ('gemini-3-flash-preview', 'openrouter')
         # Anthropic & Perplexity with explicit provider
@@ -288,7 +284,6 @@ class TestModelQosProfiles:
         expected = {
             'gpt-5.4',
             'gpt-4.1-mini',
-            'o4-mini',
             'claude-sonnet-4-6',
             'gemini-2.5-flash-lite',
             'gemini-3-flash-preview',
@@ -301,7 +296,6 @@ class TestModelQosProfiles:
         new_features = [
             'conv_folder',
             'conv_discard',
-            'learnings',
             'proactive_notification',
         ]
         for feature in new_features:
@@ -320,6 +314,13 @@ class TestGetModel:
 
     def test_pinned_feature_ignores_profile(self):
         assert get_model('fair_use') == 'gpt-5.1'
+
+    def test_memory_compute_features_are_exactly_pinned(self):
+        memory_features = {'memory_l1', 'memory_l2', 'memory_conflict'}
+        assert {key for key in _PINNED_FEATURES if key.startswith('memory')} == memory_features
+        for feature in memory_features:
+            assert get_model(feature) == 'gpt-4.1-mini'
+            assert get_provider(feature) == 'openai'
 
     def test_anthropic_feature_returns_model_string(self):
         model = get_model('chat_agent')
@@ -344,13 +345,13 @@ class TestGetLlm:
 
     def test_different_features_same_model_share_instance(self):
         # Both use gpt-4.1-mini in premium profile (quality-sensitive)
-        llm1 = get_llm('memories')
+        llm1 = get_llm('chat_extraction')
         llm2 = get_llm('goals')
         assert llm1 is llm2
 
     def test_different_models_return_different_instances(self):
-        # memories=gpt-4.1-mini, conv_structure=gpt-5.4-mini in premium
-        llm1 = get_llm('memories')
+        # goals=gpt-4.1-mini, conv_structure=gpt-5.4-mini in premium
+        llm1 = get_llm('goals')
         llm2 = get_llm('conv_structure')
         assert llm1 is not llm2
 
@@ -378,7 +379,6 @@ class TestGetLlm:
             'conv_folder',
             'conv_discard',
             'daily_summary_simple',
-            'learnings',
             'proactive_notification',
         ]:
             llm = get_llm(feature)
@@ -409,7 +409,7 @@ class TestGetOrCreateLlmBehavioral:
         captured_kwargs = {}
 
         try:
-            from langchain_openai import ChatOpenAI as RealChatOpenAI
+            RealChatOpenAI = providers_module.ChatOpenAI
 
             original_init = RealChatOpenAI.__init__
 
@@ -466,7 +466,7 @@ class TestGetOrCreateLlmBehavioral:
         captured_kwargs = {}
 
         try:
-            from langchain_openai import ChatOpenAI as RealChatOpenAI
+            RealChatOpenAI = providers_module.ChatOpenAI
 
             original_init = RealChatOpenAI.__init__
 
@@ -495,7 +495,7 @@ class TestOpenRouterClient:
         captured_kwargs = {}
 
         try:
-            from langchain_openai import ChatOpenAI as RealChatOpenAI
+            RealChatOpenAI = providers_module.ChatOpenAI
 
             original_init = RealChatOpenAI.__init__
 
@@ -686,15 +686,6 @@ class TestExpandedCallsiteCoverage:
             assert key in calls, f"Missing get_llm('{key}') in conversation_processing.py"
         assert calls.count('conv_structure') >= 2, "conv_structure should appear at least twice"
 
-    def test_memories_all_keys(self):
-        import re
-
-        source = self._read_source("utils/llm/memories.py")
-        calls = re.findall(r"get_llm\('(\w+)'", source)
-        for key in ['memories', 'learnings', 'memory_category', 'memory_conflict']:
-            assert key in calls, f"Missing get_llm('{key}') in memories.py"
-        assert calls.count('memories') == 1, "the retained memory extraction path should resolve once"
-
     def test_followup_key(self):
         source = self._read_source("utils/llm/followup.py")
         assert "get_llm('followup')" in source
@@ -765,7 +756,7 @@ class TestExpandedCallsiteCoverage:
         wired_files = [
             "utils/llm/chat.py",
             "utils/llm/conversation_processing.py",
-            "utils/llm/memories.py",
+            "utils/llm/memory_compute.py",
             "utils/llm/proactive_notification.py",
             "utils/llm/daily_summary.py",
             "utils/llm/goals.py",
@@ -819,8 +810,9 @@ class TestClientArchitecture:
 
     def test_get_llm_returns_base_chat_model(self):
         """get_llm() must return a BaseChatModel (Runnable), not a routing wrapper."""
-        from langchain_core.language_models import BaseChatModel
-        from langchain_openai import ChatOpenAI
+        BaseChatModel = providers_module.BaseChatModel
+        ChatOpenAI = providers_module.ChatOpenAI
+        ChatGoogleGenerativeAI = providers_module.ChatGoogleGenerativeAI
 
         # OpenAI feature — always ChatOpenAI
         llm_openai = get_llm('conv_structure')
@@ -828,7 +820,9 @@ class TestClientArchitecture:
 
         # Gemini feature — ChatGoogleGenerativeAI (with key) or ChatOpenAI fallback (no key)
         llm_gemini = get_llm('followup')
-        assert isinstance(llm_gemini, BaseChatModel), 'Gemini get_llm must return BaseChatModel'
+        assert isinstance(
+            llm_gemini, (ChatGoogleGenerativeAI, ChatOpenAI, BaseChatModel)
+        ), 'Gemini get_llm must return BaseChatModel'
 
         # OpenRouter feature — always ChatOpenAI
         llm_or = get_llm('wrapped_analysis')

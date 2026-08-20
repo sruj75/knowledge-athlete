@@ -2,8 +2,7 @@
 Backfill existing action items to Pinecone vector database (ns4).
 
 Iterates all users' action_items subcollections, generates embeddings
-for each description, and upserts to Pinecone. Same approach as
-005_backfill_memory_vectors.py.
+for each description, and upserts to Pinecone.
 
 Usage:
     python 007_backfill_action_item_vectors.py [--dry-run] [--uid USER_ID] [--workers N]

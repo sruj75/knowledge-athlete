@@ -80,15 +80,22 @@ final class MemoriesViewModelObserverTests: XCTestCase {
 
   func testConversationDeletedNotificationTriggersCascadeHandler() async throws {
     let conversationId = "conv-cascade-test"
-    let linkedMemory = makeMemory(id: "mem-linked", conversationId: conversationId)
-    let otherMemory = makeMemory(id: "mem-other", conversationId: "conv-keep")
-
-    try await MemoryStorage.shared.syncServerMemories([linkedMemory, otherMemory])
+    let linkedMemory = try await MemoryStorage.shared.acceptAssertion(
+      MemoryAssertion(
+        content: "linked memory", layer: .shortTerm,
+        source: .conversation, conversationId: conversationId))
+    let otherMemory = try await MemoryStorage.shared.acceptAssertion(
+      MemoryAssertion(
+        content: "other memory", layer: .shortTerm,
+        source: .conversation, conversationId: "conv-keep"))
 
     let viewModel = MemoriesViewModel()
-    let cached = try await MemoryStorage.shared.getLocalMemories(limit: 50, offset: 0)
+    let cached = try await MemoryStorage.shared.list(limit: 50, offset: 0)
     viewModel.memories = cached
     XCTAssertTrue(viewModel.memories.contains { $0.conversationId == conversationId })
+
+    _ = try await MemoryStorage.shared.deleteAssertions(
+      source: .conversation, exactContent: linkedMemory.content)
 
     NotificationCenter.default.post(
       name: .conversationDeleted,
@@ -111,10 +118,10 @@ final class MemoriesViewModelObserverTests: XCTestCase {
       "Unrelated memories must remain after cascade"
     )
 
-    let linkedRecord = try await MemoryStorage.shared.getMemoryByBackendId(linkedMemory.id)
-    XCTAssertEqual(linkedRecord?.deleted, true, "SQLite must soft-delete conversation-linked rows")
-    let otherRecord = try await MemoryStorage.shared.getMemoryByBackendId(otherMemory.id)
-    XCTAssertEqual(otherRecord?.deleted, false, "Unrelated SQLite rows must stay active")
+    let deleted = try await MemoryStorage.shared.memory(id: linkedMemory.id)
+    let retained = try await MemoryStorage.shared.memory(id: otherMemory.id)
+    XCTAssertNil(deleted)
+    XCTAssertNotNil(retained)
   }
 
   func testDeallocatedViewModelDoesNotLeakObservers() async {
@@ -135,31 +142,4 @@ final class MemoriesViewModelObserverTests: XCTestCase {
     // If the weak capture misbehaved we'd crash above; reaching here is the assertion.
   }
 
-  private func makeMemory(id: String, conversationId: String?) -> ServerMemory {
-    ServerMemory(
-      id: id,
-      content: "Memory \(id)",
-      category: .system,
-      tier: .shortTerm,
-      createdAt: Date(timeIntervalSince1970: 1),
-      updatedAt: Date(timeIntervalSince1970: 2),
-      conversationId: conversationId,
-      reviewed: false,
-      userReview: nil,
-      manuallyAdded: false,
-      scoring: nil,
-      source: "desktop",
-      confidence: nil,
-      sourceApp: nil,
-      contextSummary: nil,
-      isRead: false,
-      isDismissed: false,
-      tags: [],
-      reasoning: nil,
-      currentActivity: nil,
-      inputDeviceName: nil,
-      windowTitle: nil,
-      headline: nil
-    )
-  }
 }

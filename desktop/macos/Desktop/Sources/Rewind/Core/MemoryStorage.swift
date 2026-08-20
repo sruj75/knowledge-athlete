@@ -1,1001 +1,1238 @@
 import Foundation
 @preconcurrency import GRDB
 
-/// Identity of a memory surfaced to the UI: either a backend ID, or the
-/// `local_<rowid>` placeholder minted by `MemoryRecord.toServerMemory()` for a
-/// local-only row. Mutations must resolve both forms: filtering a local ID by
-/// `backendId` silently misses rows whose backend sync failed or is pending.
-enum MemoryIdentity: Equatable {
-  case backend(String)
-  case localRow(Int64)
-
-  init(surfacedId: String) {
-    if surfacedId.hasPrefix("local_"), let rowId = Int64(surfacedId.dropFirst(6)) {
-      self = .localRow(rowId)
-    } else {
-      self = .backend(surfacedId)
-    }
-  }
-
-  var isLocalOnly: Bool {
-    if case .localRow = self { return true }
-    return false
-  }
+struct MemoryStats: Sendable {
+  let total: Int
+  let unread: Int
 }
 
-/// Selects which provenance class may participate in a local-memory read.
-///
-/// This is intentionally separate from ``MemoryLayer``: legacy compatibility
-/// rows and unsynced local captures are not product-memory tiers.
-enum MemoryRecordReadScope: Sendable {
-  /// Preserve the caller's historical mixed-cache behavior.
-  case all
-  /// Only rows whose lifecycle came from the authoritative canonical API.
-  case canonicalProduct
-  /// Rows that do not expose a canonical lifecycle, for legacy compatibility.
-  case legacyCompatibility
+struct LeasedMemoryWork: Sendable {
+  let work: MemoryProcessingWorkRecord
+  let memory: MemoryItem?
 }
 
-/// Actor-based storage manager for memories with bidirectional sync
-/// Provides local-first caching for fast startup and background sync with backend
 actor MemoryStorage {
   static let shared = MemoryStorage()
+  static let shortTermLifetime: TimeInterval = 30 * 24 * 60 * 60
 
-  /// Transaction-scoped seam used by conversation authority for exact-source cleanup.
   static func deleteExactConversationSource(
     in database: Database,
     conversationId: String
   ) throws {
     try database.execute(
+      sql: "DELETE FROM memory_processing_work WHERE conversationId = ?",
+      arguments: [conversationId])
+    try database.execute(
       sql: "DELETE FROM memories WHERE conversationId = ?",
       arguments: [conversationId])
   }
 
-  /// Transaction-scoped seam used by a local conversation merge.
   static func reassignExactConversationSource(
     in database: Database,
     from sourceConversationId: String,
     to replacementConversationId: String
   ) throws {
     try database.execute(
-      sql: "UPDATE memories SET conversationId = ? WHERE conversationId = ?",
+      sql: "UPDATE memory_processing_work SET conversationId = ? WHERE conversationId = ?",
       arguments: [replacementConversationId, sourceConversationId])
+    try database.execute(
+      sql: """
+        UPDATE memories
+        SET conversationId = ?,
+            sourceSegmentId = CASE
+              WHEN sourceSegmentId IS NULL THEN NULL
+              ELSE 'merge:' || ? || ':' || sourceSegmentId
+            END
+        WHERE conversationId = ?
+        """,
+      arguments: [replacementConversationId, sourceConversationId, sourceConversationId])
   }
 
-  private var _dbQueue: DatabasePool?
-  private var _dbGeneration = -1
-  private var isInitialized = false
+  private var dbQueue: DatabasePool?
+  private var dbGeneration = -1
 
   private init() {}
 
-  /// Invalidate cached DB queue (called on user switch / sign-out)
   func invalidateCache() {
-    _dbQueue = nil
-    isInitialized = false
+    dbQueue = nil
+    dbGeneration = -1
   }
 
-  /// Ensure database is initialized before use
-  private func ensureInitialized() async throws -> DatabasePool {
-    if let db = _dbQueue, await RewindDatabase.shared.poolGeneration() == _dbGeneration {
-      return db
+  private func database() async throws -> DatabasePool {
+    if let dbQueue, await RewindDatabase.shared.poolGeneration() == dbGeneration {
+      return dbQueue
     }
-
-    // Initialize RewindDatabase which creates our tables via migrations
-    do {
-      try await RewindDatabase.shared.initialize()
-    } catch {
-      log("MemoryStorage: Database initialization failed: \(error.localizedDescription)")
-      throw error
-    }
-
-    let (queue, generation) = await RewindDatabase.shared.getDatabaseQueueWithGeneration()
-    guard let db = queue else {
-      throw MemoryStorageError.databaseNotInitialized
-    }
-
-    _dbQueue = db
-    _dbGeneration = generation
-    isInitialized = true
-    return db
+    try await RewindDatabase.shared.initialize()
+    let (pool, generation) = await RewindDatabase.shared.getDatabaseQueueWithGeneration()
+    guard let pool else { throw MemoryStorageError.databaseNotInitialized }
+    dbQueue = pool
+    dbGeneration = generation
+    return pool
   }
 
-  private static func applyTierFilter(_ query: QueryInterfaceRequest<MemoryRecord>, tiers: [MemoryLayer]?)
-    -> QueryInterfaceRequest<MemoryRecord>
-  {
-    guard let tiers = tiers, !tiers.isEmpty else { return query }
-    return query.filter(tiers.map { $0.rawValue }.contains(Column("tier")))
+  private static func localID(_ value: String) throws -> Int64 {
+    guard let id = Int64(value), id > 0 else { throw MemoryStorageError.invalidIdentity }
+    return id
   }
 
-  private static func applyRecordReadScope(
-    _ query: QueryInterfaceRequest<MemoryRecord>,
-    scope: MemoryRecordReadScope
-  ) -> QueryInterfaceRequest<MemoryRecord> {
-    switch scope {
-    case .all:
-      return query
-    case .canonicalProduct:
-      return query.filter(Column("tierIsExplicit") == true)
-    case .legacyCompatibility:
-      return query.filter(Column("tierIsExplicit") == false)
-    }
+  private static func trimmed(_ content: String) throws -> String {
+    let value = content.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !value.isEmpty else { throw MemoryStorageError.emptyContent }
+    return value
   }
 
-  private static func appendRecordReadScopeCondition(
-    _ conditions: inout [String],
-    scope: MemoryRecordReadScope
+  private static func addLayerCondition(
+    _ scope: MemoryLayerScope,
+    conditions: inout [String],
+    arguments: inout [DatabaseValue]
   ) {
-    switch scope {
-    case .all:
-      return
-    case .canonicalProduct:
-      conditions.append("tierIsExplicit = 1")
-    case .legacyCompatibility:
-      conditions.append("tierIsExplicit = 0")
-    }
+    conditions.append("layer IN (\(scope.layers.map { _ in "?" }.joined(separator: ", ")))")
+    arguments.append(contentsOf: scope.layers.compactMap { DatabaseValue(value: $0.rawValue) })
   }
 
-  private static func appendTierCondition(
-    _ conditions: inout [String], _ arguments: inout [DatabaseValue], tiers: [MemoryLayer]?
+  private static func addDefaultExpiryCondition(
+    _ scope: MemoryLayerScope,
+    now: Date,
+    conditions: inout [String],
+    arguments: inout [DatabaseValue]
   ) {
-    guard let tiers = tiers, !tiers.isEmpty else { return }
-    let placeholders = tiers.map { _ in "?" }.joined(separator: ", ")
-    conditions.append("tier IN (\(placeholders))")
-    for tier in tiers {
-      if let dbValue = DatabaseValue(value: tier.rawValue) {
-        arguments.append(dbValue)
-      }
-    }
+    guard scope == .defaultAccess else { return }
+    conditions.append("(layer != ? OR expiresAt IS NULL OR expiresAt > ?)")
+    arguments.append(DatabaseValue(value: MemoryLayer.shortTerm.rawValue)!)
+    arguments.append(DatabaseValue(value: now)!)
   }
 
-  // MARK: - Local-First Read Operations
-
-  /// Get memories from local cache for instant display
-  /// Supports filtering by category and tags
-  func getLocalMemories(
-    limit: Int = 50,
-    offset: Int = 0,
-    category: String? = nil,
-    tags: [String]? = nil,
-    tiers: [MemoryLayer]? = [.shortTerm, .longTerm],
-    scope: MemoryRecordReadScope = .all,
-    includeDismissed: Bool = false
-  ) async throws -> [ServerMemory] {
-    let db = try await ensureInitialized()
-
-    return try await db.read { database in
-      var query =
-        MemoryRecord
-        .filter(Column("deleted") == false)
-      // Show ALL local memories (synced or not) for local-first experience
-
-      if !includeDismissed {
-        query = query.filter(Column("isDismissed") == false)
-      }
-
-      if let category = category {
-        query = query.filter(Column("category") == category)
-      }
-
-      query = Self.applyTierFilter(query, tiers: tiers)
-      query = Self.applyRecordReadScope(
-        query,
-        scope: scope
-      )
-
-      // Tag filtering using JSON
-      if let tags = tags, !tags.isEmpty {
-        for tag in tags {
-          // Use LIKE for JSON array contains check
-          query = query.filter(Column("tagsJson").like("%\"\(tag)\"%"))
-        }
-      }
-
-      let records =
-        try query
-        .order(Column("createdAt").desc)
-        .limit(limit, offset: offset)
-        .fetchAll(database)
-
-      return records.compactMap { $0.toServerMemory() }
-    }
+  private static func enqueue(
+    _ kind: MemoryProcessingKind,
+    memoryId: Int64?,
+    conversationId: String? = nil,
+    revision: Int,
+    generation: Int = 0,
+    ownerGeneration: Int,
+    now: Date,
+    in db: Database
+  ) throws {
+    let work = MemoryProcessingWorkRecord(
+      id: UUID().uuidString,
+      memoryId: memoryId,
+      conversationId: conversationId,
+      kind: kind.rawValue,
+      inputRevision: revision,
+      inputGeneration: generation,
+      ownerGeneration: ownerGeneration,
+      state: MemoryProcessingState.pending.rawValue,
+      attemptCount: 0,
+      nextAttemptAt: now,
+      leaseExpiresAt: nil,
+      lastErrorCode: nil,
+      createdAt: now,
+      updatedAt: now)
+    try work.insert(db)
   }
 
-  /// Get count of local memories
-  func getLocalMemoriesCount(
-    category: String? = nil,
-    tags: [String]? = nil,
-    tiers: [MemoryLayer]? = [.shortTerm, .longTerm],
-    scope: MemoryRecordReadScope = .all,
-    includeDismissed: Bool = false
-  ) async throws -> Int {
-    let db = try await ensureInitialized()
-
-    return try await db.read { database in
-      var query =
-        MemoryRecord
-        .filter(Column("deleted") == false)
-      // Count ALL local memories (synced or not) for local-first experience
-
-      if !includeDismissed {
-        query = query.filter(Column("isDismissed") == false)
-      }
-
-      if let category = category {
-        query = query.filter(Column("category") == category)
-      }
-
-      query = Self.applyTierFilter(query, tiers: tiers)
-      query = Self.applyRecordReadScope(
-        query,
-        scope: scope
-      )
-
-      if let tags = tags, !tags.isEmpty {
-        for tag in tags {
-          query = query.filter(Column("tagsJson").like("%\"\(tag)\"%"))
-        }
-      }
-
-      return try query.fetchCount(database)
-    }
-  }
-
-  /// Fetch specific memories by their backend id.
-  ///
-  /// Deliberately unfiltered by tier, device scope, or dismissal: the caller
-  /// already knows exactly which memories it wants because something else
-  /// (a knowledge-graph edge, a citation) named them. Applying the list's
-  /// browsing filters here would silently drop cited evidence and make it look
-  /// like the memory does not exist.
-  func getMemories(backendIds: [String]) async throws -> [ServerMemory] {
-    let wanted = Array(Set(backendIds.filter { !$0.isEmpty }))
-    guard !wanted.isEmpty else { return [] }
-    let db = try await ensureInitialized()
-
-    // SQLite caps host parameters per statement, and an entity in a large graph
-    // can cite more ids than that, so read in chunks rather than one IN (...).
-    let chunkSize = 400
-    var found: [ServerMemory] = []
-    for start in stride(from: 0, to: wanted.count, by: chunkSize) {
-      let chunk = Array(wanted[start..<min(start + chunkSize, wanted.count)])
-      let records = try await db.read { database in
-        try MemoryRecord
-          .filter(Column("deleted") == false)
-          .filter(chunk.contains(Column("backendId")))
-          .order(Column("createdAt").desc)
-          .fetchAll(database)
-      }
-      found.append(contentsOf: records.compactMap { $0.toServerMemory() })
-    }
-    return found.sorted { $0.createdAt > $1.createdAt }
-  }
-
-  /// Get memories matching ANY of the specified tags (OR logic)
-  /// Used for filter dropdowns where selecting multiple tags shows items matching any tag
-  func getFilteredMemories(
-    limit: Int = 200,
-    offset: Int = 0,
-    matchAnyTag: [String]? = nil,  // OR logic: matches any of these tags
-    matchAnyCategory: [String]? = nil,  // OR logic: matches any of these categories
-    excludeTags: [String]? = nil,  // Exclude memories containing these tags
-    tiers: [MemoryLayer]? = [.shortTerm, .longTerm],
-    scope: MemoryRecordReadScope = .all,
-    includeDismissed: Bool = false
-  ) async throws -> [ServerMemory] {
-    let db = try await ensureInitialized()
-
-    return try await db.read { database in
-      // Build SQL for complex OR/AND logic
-      var conditions: [String] = ["deleted = 0"]
-      var arguments: [DatabaseValue] = []
-
-      if !includeDismissed {
-        conditions.append("isDismissed = 0")
-      }
-
-      Self.appendTierCondition(&conditions, &arguments, tiers: tiers)
-      Self.appendRecordReadScopeCondition(&conditions, scope: scope)
-
-      // Tag OR conditions
-      if let tags = matchAnyTag, !tags.isEmpty {
-        let tagConditions = tags.map { _ in "tagsJson LIKE ?" }.joined(separator: " OR ")
-        conditions.append("(\(tagConditions))")
-        for tag in tags {
-          if let dbValue = DatabaseValue(value: "%\"\(tag)\"%") {
-            arguments.append(dbValue)
-          }
-        }
-      }
-
-      // Category OR conditions
-      if let categories = matchAnyCategory, !categories.isEmpty {
-        let placeholders = categories.map { _ in "?" }.joined(separator: ", ")
-        conditions.append("category IN (\(placeholders))")
-        for cat in categories {
-          if let dbValue = DatabaseValue(value: cat) {
-            arguments.append(dbValue)
-          }
-        }
-      }
-
-      // Exclude tags
-      if let excludeTags = excludeTags, !excludeTags.isEmpty {
-        for tag in excludeTags {
-          conditions.append("tagsJson NOT LIKE ?")
-          if let dbValue = DatabaseValue(value: "%\"\(tag)\"%") {
-            arguments.append(dbValue)
-          }
-        }
-      }
-
-      let sql = """
-            SELECT * FROM memories
-            WHERE \(conditions.joined(separator: " AND "))
-            ORDER BY createdAt DESC
-            LIMIT ? OFFSET ?
-        """
-      if let limitValue = DatabaseValue(value: limit) {
-        arguments.append(limitValue)
-      }
-      if let offsetValue = DatabaseValue(value: offset) {
-        arguments.append(offsetValue)
-      }
-
-      let records = try MemoryRecord.fetchAll(database, sql: sql, arguments: StatementArguments(arguments))
-      return records.compactMap { $0.toServerMemory() }
-    }
-  }
-
-  /// Search memories by content text (case-insensitive)
-  /// Queries SQLite directly for efficient full-database search
-  func searchLocalMemories(
-    query searchText: String,
-    limit: Int = 100,
-    offset: Int = 0,
-    category: String? = nil,
-    tags: [String]? = nil,
-    tiers: [MemoryLayer]? = [.shortTerm, .longTerm],
-    scope: MemoryRecordReadScope = .all,
-    includeDismissed: Bool = false
-  ) async throws -> [ServerMemory] {
-    let db = try await ensureInitialized()
-
-    return try await db.read { database in
-      var query =
-        MemoryRecord
-        .filter(Column("deleted") == false)
-
-      if !includeDismissed {
-        query = query.filter(Column("isDismissed") == false)
-      }
-
-      // Search in content (case-insensitive)
-      if !searchText.isEmpty {
-        query = query.filter(Column("content").like("%\(searchText)%"))
-      }
-
-      if let category = category {
-        query = query.filter(Column("category") == category)
-      }
-
-      query = Self.applyTierFilter(query, tiers: tiers)
-      query = Self.applyRecordReadScope(
-        query,
-        scope: scope
-      )
-
-      if let tags = tags, !tags.isEmpty {
-        for tag in tags {
-          query = query.filter(Column("tagsJson").like("%\"\(tag)\"%"))
-        }
-      }
-
-      let records =
-        try query
-        .order(Column("createdAt").desc)
-        .limit(limit, offset: offset)
-        .fetchAll(database)
-
-      return records.compactMap { $0.toServerMemory() }
-    }
-  }
-
-  /// Get count of unread tips from SQLite
-  func getUnreadTipsCount() async throws -> Int {
-    let db = try await ensureInitialized()
-
-    return try await db.read { database in
-      let sql = """
-            SELECT COUNT(*) FROM memories
-            WHERE deleted = 0 AND isDismissed = 0
-            AND tagsJson LIKE '%"tips"%'
-            AND isRead = 0
-        """
-      return try Int.fetchOne(database, sql: sql) ?? 0
-    }
-  }
-
-  /// Get count of memories matching search query
-  func searchLocalMemoriesCount(
-    query searchText: String,
-    category: String? = nil,
-    tags: [String]? = nil,
-    tiers: [MemoryLayer]? = [.shortTerm, .longTerm],
-    includeDismissed: Bool = false
-  ) async throws -> Int {
-    let db = try await ensureInitialized()
-
-    return try await db.read { database in
-      var query =
-        MemoryRecord
-        .filter(Column("deleted") == false)
-
-      if !includeDismissed {
-        query = query.filter(Column("isDismissed") == false)
-      }
-
-      if !searchText.isEmpty {
-        query = query.filter(Column("content").like("%\(searchText)%"))
-      }
-
-      if let category = category {
-        query = query.filter(Column("category") == category)
-      }
-
-      query = Self.applyTierFilter(query, tiers: tiers)
-
-      if let tags = tags, !tags.isEmpty {
-        for tag in tags {
-          query = query.filter(Column("tagsJson").like("%\"\(tag)\"%"))
-        }
-      }
-
-      return try query.fetchCount(database)
-    }
-  }
-
-  /// Get a memory by local ID
-  func getMemory(id: Int64) async throws -> MemoryRecord? {
-    let db = try await ensureInitialized()
-
-    return try await db.read { database in
-      try MemoryRecord.fetchOne(database, key: id)
-    }
-  }
-
-  /// Get a memory by backend ID
-  func getMemoryByBackendId(_ backendId: String) async throws -> MemoryRecord? {
-    let db = try await ensureInitialized()
-
-    return try await db.read { database in
-      try MemoryRecord
-        .filter(Column("backendId") == backendId)
-        .fetchOne(database)
-    }
-  }
-
-  // MARK: - Bidirectional Sync Operations
-
-  /// Sync a single ServerMemory to local storage (upsert)
-  /// Used when fetching from API to cache locally
   @discardableResult
-  func syncServerMemory(_ memory: ServerMemory) async throws -> Int64 {
-    let db = try await ensureInitialized()
-
-    return try await db.write { database -> Int64 in
-      // Check if memory already exists by backendId
-      if var existingRecord =
-        try MemoryRecord
-        .filter(Column("backendId") == memory.id)
-        .fetchOne(database)
-      {
-        // Update existing record
-        existingRecord.updateFrom(memory)
-        try existingRecord.update(database)
-        guard let recordId = existingRecord.id else {
-          throw MemoryStorageError.syncFailed("Record ID is nil after update")
-        }
-        return recordId
-      } else {
-        // Insert new record, catching UNIQUE constraint from concurrent syncs
-        do {
-          let newRecord = try MemoryRecord.from(memory).inserted(database)
-          guard let recordId = newRecord.id else {
-            throw MemoryStorageError.syncFailed("Record ID is nil after insert")
-          }
-          return recordId
-        } catch let dbError as DatabaseError where dbError.resultCode == .SQLITE_CONSTRAINT {
-          // Race: another sync path already inserted this backendId — update instead
-          if var record = try MemoryRecord.filter(Column("backendId") == memory.id).fetchOne(database) {
-            record.updateFrom(memory)
-            try record.update(database)
-            return record.id ?? 0
-          }
-          throw dbError
-        }
-      }
-    }
+  func acceptExplicitAssertion(
+    content: String,
+    now: Date = Date(),
+    authorization: LocalMutationAuthorization = .unrestricted
+  ) async throws -> MemoryItem {
+    try await acceptAssertion(
+      MemoryAssertion(
+        content: content,
+        category: .manual,
+        layer: .shortTerm,
+        manuallyAdded: true,
+        source: .manual),
+      now: now,
+      authorization: authorization)
   }
 
-  /// Sync multiple ServerMemory objects to local storage (batch upsert)
-  /// Used for efficient background sync after API fetch
-  func syncServerMemories(_ memories: [ServerMemory]) async throws {
-    let db = try await ensureInitialized()
-
-    let (skipped, adopted, inserted) = try await db.write { database -> (Int, Int, Int) in
-      var skipped = 0
-      var adopted = 0
-      var inserted = 0
-      for memory in memories {
-        if var existingRecord =
-          try MemoryRecord
-          .filter(Column("backendId") == memory.id)
-          .fetchOne(database)
-        {
-          // Skip full merge if local record is newer than incoming API data.
-          // This prevents auto-refresh from overwriting recent local edits,
-          // but tier is server-authoritative and must still be reconciled.
-          if existingRecord.updatedAt > memory.updatedAt {
-            if existingRecord.mergeAuthoritativeTierFrom(memory) {
-              try existingRecord.update(database)
-            }
-            skipped += 1
-            continue
-          }
-          existingRecord.updateFrom(memory)
-          try existingRecord.update(database)
-        } else if var orphan =
-          try MemoryRecord
-          .filter(Column("backendSynced") == false)
-          .filter(Column("backendId") == nil)
-          .filter(Column("content") == memory.content)
-          .fetchOne(database)
-        {
-          // Adopt orphaned local record: link it to the backend ID.
-          // This heals records where insertLocalMemory succeeded but
-          // markSynced hasn't run yet (or failed).
-          orphan.backendId = memory.id
-          orphan.backendSynced = true
-          orphan.updateFrom(memory)
-          try orphan.update(database)
-          adopted += 1
-        } else {
-          do {
-            _ = try MemoryRecord.from(memory).inserted(database)
-            inserted += 1
-          } catch let dbError as DatabaseError where dbError.resultCode == .SQLITE_CONSTRAINT {
-            // Race: record already exists — update instead
-            if var record = try MemoryRecord.filter(Column("backendId") == memory.id).fetchOne(database) {
-              record.updateFrom(memory)
-              try record.update(database)
-            }
-          }
-        }
-      }
-      return (skipped, adopted, inserted)
-    }
-
-    if skipped > 0 || adopted > 0 {
-      log(
-        "MemoryStorage: Synced \(memories.count - skipped) memories from backend (skipped \(skipped) newer local, adopted \(adopted) orphans)"
-      )
-    } else {
-      log("MemoryStorage: Synced \(memories.count) memories from backend")
-    }
-    if inserted > 0 {
-      HomeKnowledgeCountInvalidation.post()
-    }
-  }
-
-  /// Upsert a server snapshot, then tombstone synced locals whose backendId is absent.
-  /// Local-only rows (backendId NULL) are preserved. No-op when the snapshot is empty.
   @discardableResult
-  func syncServerMemoriesAndPruneAbsent(
-    _ memories: [ServerMemory],
-    within scope: MemoryLayerScope
-  ) async throws -> Int {
-    try await syncServerMemories(memories)
-    // An empty snapshot is authoritative, not a no-op: the sole caller
-    // (refreshMemoriesAfterConversationCascade) exhaustively fetches the
-    // whole backend. If the cascade delete removed every default-scope
-    // memory, `memories` is empty and synced local rows must be tombstoned.
-    // softDeleteSyncedOrphans only touches rows with a non-nil backendId,
-    // so local-only (unsynced) rows are preserved even with an empty keep-set.
-    return try await softDeleteSyncedOrphans(
-      keepingBackendIds: Set(memories.map(\.id)),
-      within: scope
-    )
-  }
-
-  // MARK: - Local Extraction Operations
-
-  /// Insert a locally extracted memory (before backend sync)
-  /// Used by MemoryAssistant and InsightAssistant
-  @discardableResult
-  func insertLocalMemory(_ record: MemoryRecord) async throws -> MemoryRecord {
-    let db = try await ensureInitialized()
-
-    var insertRecord = record
-    insertRecord.backendSynced = false  // Mark as not yet synced
-
-    let recordToInsert = insertRecord
-    let inserted = try await db.write { database in
-      try recordToInsert.inserted(database)
-    }
-
-    log("MemoryStorage: Inserted local memory (id: \(inserted.id ?? -1))")
-    HomeKnowledgeCountInvalidation.post()
-    return inserted
-  }
-
-  /// Mark a local memory as synced with backend ID
-  func markSynced(id: Int64, backendId: String) async throws {
-    let db = try await ensureInitialized()
-
-    try await db.write { database in
-      guard let record = try MemoryRecord.fetchOne(database, key: id) else {
-        throw MemoryStorageError.recordNotFound
-      }
-
-      // Check if another record already has this backendId
-      // (race: syncServerMemories inserted it from an API fetch before we got here)
-      if let existing =
-        try MemoryRecord
-        .filter(Column("backendId") == backendId)
-        .fetchOne(database)
-      {
-        // Another record owns this backendId — delete our local duplicate
-        if existing.id != record.id {
-          try record.delete(database)
-          return
-        }
-      }
-
-      var mutableRecord = record
-      mutableRecord.backendId = backendId
-      mutableRecord.backendSynced = true
-      try mutableRecord.update(database)
-    }
-
-    log("MemoryStorage: Marked memory \(id) as synced (backendId: \(backendId))")
-  }
-
-  /// Reconcile a known local capture with the authoritative create receipt.
-  ///
-  /// A local record has no product-tier authority before the server responds.
-  /// Updating it from the receipt prevents a canonical Short-term item from
-  /// being rendered as the local model's legacy Long-term default.
-  func markSynced(id: Int64, serverMemory: ServerMemory) async throws {
-    let db = try await ensureInitialized()
-
-    try await db.write { database in
-      guard var record = try MemoryRecord.fetchOne(database, key: id) else {
-        throw MemoryStorageError.recordNotFound
-      }
-
-      if let existing =
-        try MemoryRecord
-        .filter(Column("backendId") == serverMemory.id)
-        .fetchOne(database),
-        existing.id != record.id
-      {
-        try record.delete(database)
-        return
-      }
-
-      record.backendId = serverMemory.id
-      record.backendSynced = true
-      record.updateFrom(serverMemory)
-      try record.update(database)
-    }
-
-    log("MemoryStorage: Reconciled memory \(id) from authoritative create receipt (backendId: \(serverMemory.id))")
-  }
-
-  /// Get memories that haven't been synced to backend yet
-  func getUnsyncedMemories() async throws -> [MemoryRecord] {
-    let db = try await ensureInitialized()
-
-    return try await db.read { database in
-      try MemoryRecord
-        .filter(Column("backendSynced") == false)
-        .filter(Column("deleted") == false)
-        .order(Column("createdAt").asc)
-        .fetchAll(database)
-    }
-  }
-
-  // MARK: - Update Operations
-
-  /// Update memory read status
-  func updateReadStatus(id: Int64, isRead: Bool) async throws {
-    let db = try await ensureInitialized()
-
-    try await db.write { database in
-      guard var record = try MemoryRecord.fetchOne(database, key: id) else {
-        throw MemoryStorageError.recordNotFound
-      }
-
-      record.isRead = isRead
-      record.updatedAt = Date()
-      try record.update(database)
-    }
-  }
-
-  /// Update memory dismissed status
-  func updateDismissedStatus(id: Int64, isDismissed: Bool) async throws {
-    let db = try await ensureInitialized()
-
-    try await db.write { database in
-      guard var record = try MemoryRecord.fetchOne(database, key: id) else {
-        throw MemoryStorageError.recordNotFound
-      }
-
-      record.isDismissed = isDismissed
-      record.updatedAt = Date()
-      try record.update(database)
-    }
-  }
-
-  /// Mark memories as read within a tier scope.
-  func markAllAsRead(scope: MemoryLayerScope) async throws {
-    let db = try await ensureInitialized()
-
-    try await db.write { database in
-      var conditions = ["isRead = 0"]
-      var arguments: [DatabaseValue] = []
-      guard let updatedAt = DatabaseValue(value: Date()) else { return }
-      arguments.append(updatedAt)
-      Self.appendTierCondition(&conditions, &arguments, tiers: scope.tiers)
-
-      try database.execute(
-        sql: "UPDATE memories SET isRead = 1, updatedAt = ? WHERE \(conditions.joined(separator: " AND "))",
-        arguments: StatementArguments(arguments)
-      )
-    }
-
-    log("MemoryStorage: Marked memories as read for scope \(scope.sqlTierRawValues)")
-  }
-
-  /// Soft delete a memory
-  func deleteMemory(id: Int64) async throws {
-    let db = try await ensureInitialized()
-
-    try await db.write { database in
-      guard var record = try MemoryRecord.fetchOne(database, key: id) else {
-        throw MemoryStorageError.recordNotFound
-      }
-
-      record.deleted = true
-      record.updatedAt = Date()
-      try record.update(database)
-    }
-
-    log("MemoryStorage: Soft deleted memory \(id)")
-    HomeKnowledgeCountInvalidation.post()
-  }
-
-  /// Soft-delete synced memories tied to a deleted conversation (local cache hygiene).
-  @discardableResult
-  func softDeleteMemoriesByConversationId(_ conversationId: String) async throws -> Int {
-    let db = try await ensureInitialized()
-
-    let deleted = try await db.write { database -> Int in
-      try database.execute(
-        sql: "UPDATE memories SET deleted = 1, updatedAt = ? WHERE deleted = 0 AND conversationId = ?",
-        arguments: [Date(), conversationId]
-      )
-      return database.changesCount
-    }
-    if deleted > 0 {
-      HomeKnowledgeCountInvalidation.post()
-    }
-    return deleted
-  }
-
-  /// Soft delete a memory by backend ID
-  func deleteMemoryByBackendId(_ backendId: String) async throws {
-    try await deleteMemory(surfacedId: backendId)
-  }
-
-  /// Soft-delete a memory addressed by either a backend ID or a surfaced
-  /// `local_<rowid>` placeholder.
-  func deleteMemory(surfacedId: String) async throws {
-    switch MemoryIdentity(surfacedId: surfacedId) {
-    case .localRow(let rowId):
-      try await deleteMemory(id: rowId)
-    case .backend(let backendId):
-      let db = try await ensureInitialized()
-
-      try await db.write { database in
-        try database.execute(
-          sql: "UPDATE memories SET deleted = 1, updatedAt = ? WHERE backendId = ?",
-          arguments: [Date(), backendId]
-        )
-      }
-
-      log("MemoryStorage: Soft deleted memory with backendId \(backendId)")
-      HomeKnowledgeCountInvalidation.post()
-    }
-  }
-
-  /// Restore a soft-deleted memory addressed by either a backend ID or a
-  /// surfaced `local_<rowid>` placeholder. Used by undo/delete-failure paths;
-  /// callers must requery the active tier scope instead of appending directly
-  /// to UI arrays.
-  func restoreMemory(surfacedId: String) async throws {
-    switch MemoryIdentity(surfacedId: surfacedId) {
-    case .localRow(let rowId):
-      let db = try await ensureInitialized()
-
-      try await db.write { database in
-        guard var record = try MemoryRecord.fetchOne(database, key: rowId) else {
+  func acceptAssertion(
+    _ assertion: MemoryAssertion,
+    now: Date = Date(),
+    ownerGeneration: Int = 0,
+    authorization: LocalMutationAuthorization = .unrestricted
+  ) async throws -> MemoryItem {
+    let content = try Self.trimmed(assertion.content)
+    let normalized = MemoryAssertion(
+      content: content,
+      category: assertion.category,
+      layer: assertion.layer,
+      expiresAt: assertion.layer == .shortTerm
+        ? assertion.expiresAt ?? now.addingTimeInterval(Self.shortTermLifetime)
+        : nil,
+      tags: assertion.tags,
+      manuallyAdded: assertion.manuallyAdded,
+      source: assertion.source,
+      conversationId: assertion.conversationId,
+      sourceSegmentId: assertion.sourceSegmentId,
+      screenshotId: assertion.screenshotId,
+      confidence: assertion.confidence,
+      reasoning: assertion.reasoning,
+      sourceApp: assertion.sourceApp,
+      windowTitle: assertion.windowTitle,
+      contextSummary: assertion.contextSummary,
+      currentActivity: assertion.currentActivity,
+      inputDeviceName: assertion.inputDeviceName)
+    let pool = try await database()
+    let effectiveOwnerGeneration = ownerGeneration == 0 ? dbGeneration : ownerGeneration
+    let item = try await authorization.withCommitLease {
+      try await pool.write { db -> MemoryItem in
+        try authorization.require()
+        let record = try MemoryRecord.from(assertion: normalized, now: now).inserted(db)
+        guard let id = record.id, let item = record.toMemoryItem() else {
           throw MemoryStorageError.recordNotFound
         }
-        record.deleted = false
-        record.updatedAt = Date()
-        try record.update(database)
+        if assertion.manuallyAdded {
+          try Self.enqueue(
+            .normalize, memoryId: id, revision: record.revision,
+            ownerGeneration: effectiveOwnerGeneration, now: now, in: db)
+        }
+        if normalized.layer == .shortTerm && !normalized.manuallyAdded {
+          try Self.enqueue(
+            .consolidate, memoryId: id, revision: record.revision,
+            ownerGeneration: effectiveOwnerGeneration, now: now, in: db)
+        }
+        try Self.enqueue(
+          .embed, memoryId: id, revision: record.revision,
+          ownerGeneration: effectiveOwnerGeneration, now: now, in: db)
+        return item
       }
-
-      log("MemoryStorage: Restored local memory \(rowId)")
-      HomeKnowledgeCountInvalidation.post()
-    case .backend(let backendId):
-      let db = try await ensureInitialized()
-
-      try await db.write { database in
-        try database.execute(
-          sql: "UPDATE memories SET deleted = 0, updatedAt = ? WHERE backendId = ?",
-          arguments: [Date(), backendId]
-        )
-      }
-
-      log("MemoryStorage: Restored memory with backendId \(backendId)")
-      HomeKnowledgeCountInvalidation.post()
     }
+    HomeKnowledgeCountInvalidation.post()
+    return item
   }
 
-  /// Restore a soft-deleted memory by backend ID. Kept for existing callers;
-  /// surfaced local IDs are resolved by `restoreMemory(surfacedId:)` as well.
-  func restoreMemoryByBackendId(_ backendId: String) async throws {
-    try await restoreMemory(surfacedId: backendId)
+  func list(
+    scope: MemoryLayerScope = .defaultAccess,
+    categories: [MemoryCategory] = [],
+    tags: [String] = [],
+    includeDismissed: Bool = false,
+    limit: Int = 100,
+    offset: Int = 0
+  ) async throws -> [MemoryItem] {
+    try await listForTool(
+      scope: scope,
+      categories: categories,
+      tags: tags,
+      includeDismissed: includeDismissed,
+      startDate: nil,
+      endDate: nil,
+      limit: limit,
+      offset: offset)
   }
 
-  /// Soft-delete synced memories whose backendId is no longer present on the
-  /// backend. Used by the one-time cache reconcile to clear orphaned local rows
-  /// that diverged from the authoritative backend (e.g. after the server-side
-  /// category cleanup). Local-only unsynced memories (backendId NULL) are kept.
-  @discardableResult
-  func softDeleteSyncedOrphans(
-    keepingBackendIds keep: Set<String>,
-    within scope: MemoryLayerScope
-  ) async throws -> Int {
-    let db = try await ensureInitialized()
-
-    let removed = try await db.write { database -> Int in
-      var query =
-        MemoryRecord
-        .filter(Column("backendId") != nil)
-        .filter(Column("deleted") == false)
-      query = Self.applyTierFilter(query, tiers: scope.tiers)
-
-      let candidates = try query.fetchAll(database)
-
-      var removed = 0
-      for var record in candidates {
-        guard let backendId = record.backendId, !keep.contains(backendId) else { continue }
-        record.deleted = true
-        record.updatedAt = Date()
-        try record.update(database)
-        removed += 1
-      }
-      return removed
-    }
-    if removed > 0 {
-      HomeKnowledgeCountInvalidation.post()
-    }
-    return removed
-  }
-
-  /// Soft delete memories within a tier scope.
-  func deleteAllMemories(scope: MemoryLayerScope) async throws {
-    let db = try await ensureInitialized()
-
-    try await db.write { database in
-      var conditions = ["deleted = 0"]
+  func listForTool(
+    scope: MemoryLayerScope = .defaultAccess,
+    categories: [MemoryCategory] = [],
+    tags: [String] = [],
+    includeDismissed: Bool = false,
+    startDate: Date? = nil,
+    endDate: Date? = nil,
+    limit: Int = 100,
+    offset: Int = 0
+  ) async throws -> [MemoryItem] {
+    let pool = try await database()
+    return try await pool.read { db in
+      var conditions = ["pendingDeleteDeadline IS NULL"]
       var arguments: [DatabaseValue] = []
-      guard let updatedAt = DatabaseValue(value: Date()) else { return }
-      arguments.append(updatedAt)
-      Self.appendTierCondition(&conditions, &arguments, tiers: scope.tiers)
-
-      try database.execute(
-        sql: "UPDATE memories SET deleted = 1, updatedAt = ? WHERE \(conditions.joined(separator: " AND "))",
-        arguments: StatementArguments(arguments)
-      )
+      if !includeDismissed { conditions.append("isDismissed = 0") }
+      Self.addDefaultExpiryCondition(
+        scope, now: Date(), conditions: &conditions, arguments: &arguments)
+      if let startDate {
+        conditions.append("createdAt >= ?")
+        arguments.append(DatabaseValue(value: startDate)!)
+      }
+      if let endDate {
+        conditions.append("createdAt <= ?")
+        arguments.append(DatabaseValue(value: endDate)!)
+      }
+      Self.addLayerCondition(scope, conditions: &conditions, arguments: &arguments)
+      if !categories.isEmpty {
+        conditions.append("category IN (\(categories.map { _ in "?" }.joined(separator: ", ")))")
+        arguments.append(contentsOf: categories.compactMap { DatabaseValue(value: $0.rawValue) })
+      }
+      for tag in tags {
+        conditions.append("tagsJson LIKE ?")
+        if let value = DatabaseValue(value: "%\"\(tag)\"%") { arguments.append(value) }
+      }
+      arguments.append(DatabaseValue(value: max(0, limit))!)
+      arguments.append(DatabaseValue(value: max(0, offset))!)
+      let records = try MemoryRecord.fetchAll(
+        db,
+        sql: """
+          SELECT * FROM memories
+          WHERE \(conditions.joined(separator: " AND "))
+          ORDER BY createdAt DESC, id DESC
+          LIMIT ? OFFSET ?
+          """,
+        arguments: StatementArguments(arguments))
+      return records.compactMap { $0.toMemoryItem() }
     }
+  }
 
-    log("MemoryStorage: Soft deleted memories for scope \(scope.sqlTierRawValues)")
+  func count(
+    scope: MemoryLayerScope = .defaultAccess,
+    categories: [MemoryCategory] = [],
+    tags: [String] = [],
+    includeDismissed: Bool = false
+  ) async throws -> Int {
+    let pool = try await database()
+    return try await pool.read { db in
+      var conditions = ["pendingDeleteDeadline IS NULL"]
+      var arguments: [DatabaseValue] = []
+      if !includeDismissed { conditions.append("isDismissed = 0") }
+      Self.addDefaultExpiryCondition(
+        scope, now: Date(), conditions: &conditions, arguments: &arguments)
+      Self.addLayerCondition(scope, conditions: &conditions, arguments: &arguments)
+      if !categories.isEmpty {
+        conditions.append("category IN (\(categories.map { _ in "?" }.joined(separator: ", ")))")
+        arguments.append(contentsOf: categories.compactMap { DatabaseValue(value: $0.rawValue) })
+      }
+      for tag in tags {
+        conditions.append("tagsJson LIKE ?")
+        arguments.append(DatabaseValue(value: "%\"\(tag)\"%")!)
+      }
+      return try Int.fetchOne(
+        db,
+        sql: "SELECT COUNT(*) FROM memories WHERE \(conditions.joined(separator: " AND "))",
+        arguments: StatementArguments(arguments)) ?? 0
+    }
+  }
+
+  func literalSearch(
+    _ text: String,
+    scope: MemoryLayerScope = .defaultAccess,
+    categories: [MemoryCategory] = [],
+    tags: [String] = [],
+    includeDismissed: Bool = false,
+    limit: Int = 100,
+    offset: Int = 0
+  ) async throws -> [MemoryItem] {
+    let query = text.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !query.isEmpty else {
+      return try await list(
+        scope: scope, categories: categories, tags: tags,
+        includeDismissed: includeDismissed, limit: limit, offset: offset)
+    }
+    let pool = try await database()
+    return try await pool.read { db in
+      var conditions = ["pendingDeleteDeadline IS NULL", "content LIKE ? COLLATE NOCASE"]
+      var arguments: [DatabaseValue] = [DatabaseValue(value: "%\(query)%")!]
+      if !includeDismissed { conditions.append("isDismissed = 0") }
+      Self.addDefaultExpiryCondition(
+        scope, now: Date(), conditions: &conditions, arguments: &arguments)
+      Self.addLayerCondition(scope, conditions: &conditions, arguments: &arguments)
+      if !categories.isEmpty {
+        conditions.append("category IN (\(categories.map { _ in "?" }.joined(separator: ", ")))")
+        arguments.append(contentsOf: categories.compactMap { DatabaseValue(value: $0.rawValue) })
+      }
+      for tag in tags {
+        conditions.append("tagsJson LIKE ?")
+        arguments.append(DatabaseValue(value: "%\"\(tag)\"%")!)
+      }
+      arguments.append(DatabaseValue(value: max(0, limit))!)
+      arguments.append(DatabaseValue(value: max(0, offset))!)
+      let records = try MemoryRecord.fetchAll(
+        db,
+        sql: """
+          SELECT * FROM memories WHERE \(conditions.joined(separator: " AND "))
+          ORDER BY createdAt DESC, id DESC LIMIT ? OFFSET ?
+          """,
+        arguments: StatementArguments(arguments))
+      return records.compactMap { $0.toMemoryItem() }
+    }
+  }
+
+  func memories(ids: [String]) async throws -> [MemoryItem] {
+    let localIDs = try ids.map(Self.localID)
+    guard !localIDs.isEmpty else { return [] }
+    let pool = try await database()
+    return try await pool.read { db in
+      var found: [MemoryItem] = []
+      for chunk in localIDs.chunked(maxSize: 400) {
+        let rows =
+          try MemoryRecord
+          .filter(chunk.contains(Column("id")))
+          .filter(Column("pendingDeleteDeadline") == nil)
+          .order(Column("createdAt").desc)
+          .fetchAll(db)
+        found.append(contentsOf: rows.compactMap { $0.toMemoryItem() })
+      }
+      return found.sorted { $0.createdAt > $1.createdAt }
+    }
+  }
+
+  func memory(id: String, includePendingDelete: Bool = false) async throws -> MemoryItem? {
+    let rowID = try Self.localID(id)
+    let pool = try await database()
+    return try await pool.read { db in
+      guard let record = try MemoryRecord.fetchOne(db, key: rowID) else { return nil }
+      guard includePendingDelete || record.pendingDeleteDeadline == nil else { return nil }
+      return record.toMemoryItem()
+    }
+  }
+
+  @discardableResult
+  func correct(
+    id: String,
+    expectedRevision: Int,
+    content: String,
+    now: Date = Date(),
+    ownerGeneration: Int = 0,
+    authorization: LocalMutationAuthorization = .unrestricted
+  ) async throws -> MemoryItem {
+    let rowID = try Self.localID(id)
+    let value = try Self.trimmed(content)
+    let pool = try await database()
+    let effectiveOwnerGeneration = ownerGeneration == 0 ? dbGeneration : ownerGeneration
+    let item = try await authorization.withCommitLease {
+      try await pool.write { db -> MemoryItem in
+        try authorization.require()
+        guard var record = try MemoryRecord.fetchOne(db, key: rowID) else {
+          throw MemoryStorageError.recordNotFound
+        }
+        guard record.revision == expectedRevision else { throw MemoryStorageError.staleRevision }
+        record.content = value
+        record.revision += 1
+        record.updatedAt = now
+        record.correctedAt = now
+        try record.update(db)
+        try db.execute(sql: "DELETE FROM memory_embeddings WHERE memoryId = ?", arguments: [rowID])
+        try db.execute(
+          sql: "DELETE FROM memory_processing_work WHERE memoryId = ? AND state != ?",
+          arguments: [rowID, MemoryProcessingState.completed.rawValue])
+        try Self.enqueue(
+          .normalize, memoryId: rowID, revision: record.revision,
+          ownerGeneration: effectiveOwnerGeneration, now: now, in: db)
+        try Self.enqueue(
+          .embed, memoryId: rowID, revision: record.revision,
+          ownerGeneration: effectiveOwnerGeneration, now: now, in: db)
+        guard let item = record.toMemoryItem() else { throw MemoryStorageError.recordNotFound }
+        return item
+      }
+    }
+    HomeKnowledgeCountInvalidation.post()
+    return item
+  }
+
+  func markRead(id: String, isRead: Bool, now: Date = Date()) async throws {
+    try await updateFlags(id: id, isRead: isRead, isDismissed: nil, now: now)
+  }
+
+  func markDismissed(id: String, isDismissed: Bool, now: Date = Date()) async throws {
+    try await updateFlags(id: id, isRead: nil, isDismissed: isDismissed, now: now)
+  }
+
+  private func updateFlags(
+    id: String,
+    isRead: Bool?,
+    isDismissed: Bool?,
+    now: Date
+  ) async throws {
+    let rowID = try Self.localID(id)
+    let pool = try await database()
+    try await pool.write { db in
+      guard var record = try MemoryRecord.fetchOne(db, key: rowID) else {
+        throw MemoryStorageError.recordNotFound
+      }
+      if let isRead { record.isRead = isRead }
+      if let isDismissed { record.isDismissed = isDismissed }
+      record.updatedAt = now
+      try record.update(db)
+    }
+  }
+
+  func markAllRead(scope: MemoryLayerScope, now: Date = Date()) async throws {
+    let pool = try await database()
+    try await pool.write { db in
+      let placeholders = scope.layers.map { _ in "?" }.joined(separator: ", ")
+      var arguments: [DatabaseValue] = [DatabaseValue(value: now)!]
+      arguments.append(contentsOf: scope.layers.compactMap { DatabaseValue(value: $0.rawValue) })
+      try db.execute(
+        sql: "UPDATE memories SET isRead = 1, updatedAt = ? WHERE layer IN (\(placeholders))",
+        arguments: StatementArguments(arguments))
+    }
+  }
+
+  @discardableResult
+  func beginDeletion(
+    id: String,
+    now: Date = Date(),
+    authorization: LocalMutationAuthorization = .unrestricted
+  ) async throws -> Date {
+    let rowID = try Self.localID(id)
+    let deadline = now.addingTimeInterval(4)
+    let pool = try await database()
+    try await authorization.withCommitLease {
+      try await pool.write { db in
+        try authorization.require()
+        guard var record = try MemoryRecord.fetchOne(db, key: rowID) else {
+          throw MemoryStorageError.recordNotFound
+        }
+        record.pendingDeleteDeadline = deadline
+        record.updatedAt = now
+        try record.update(db)
+      }
+    }
+    HomeKnowledgeCountInvalidation.post()
+    return deadline
+  }
+
+  func undoDeletion(
+    id: String,
+    now: Date = Date(),
+    authorization: LocalMutationAuthorization = .unrestricted
+  ) async throws {
+    let rowID = try Self.localID(id)
+    let pool = try await database()
+    try await authorization.withCommitLease {
+      try await pool.write { db in
+        try authorization.require()
+        guard var record = try MemoryRecord.fetchOne(db, key: rowID) else {
+          throw MemoryStorageError.recordNotFound
+        }
+        guard let deadline = record.pendingDeleteDeadline, now <= deadline else {
+          throw MemoryStorageError.invalidTransition("Undo window expired")
+        }
+        record.pendingDeleteDeadline = nil
+        record.updatedAt = now
+        try record.update(db)
+      }
+    }
     HomeKnowledgeCountInvalidation.post()
   }
 
-  /// Update content by backend ID
-  func updateContentByBackendId(_ backendId: String, content: String) async throws {
-    let db = try await ensureInitialized()
+  func finalizeDeletion(
+    id: String,
+    authorization: LocalMutationAuthorization = .unrestricted
+  ) async throws {
+    let rowID = try Self.localID(id)
+    let pool = try await database()
+    try await authorization.withCommitLease {
+      try await pool.write { db in
+        try authorization.require()
+        guard let record = try MemoryRecord.fetchOne(db, key: rowID) else { return }
+        guard record.pendingDeleteDeadline != nil else {
+          throw MemoryStorageError.invalidTransition("Memory is not pending deletion")
+        }
+        try record.delete(db)
+      }
+    }
+    HomeKnowledgeCountInvalidation.post()
+  }
 
-    try await db.write { database in
-      try database.execute(
-        sql: "UPDATE memories SET content = ?, updatedAt = ? WHERE backendId = ?",
-        arguments: [content, Date(), backendId]
-      )
+  @discardableResult
+  func finalizeExpiredDeletions(now: Date = Date()) async throws -> Int {
+    let pool = try await database()
+    let count = try await pool.write { db -> Int in
+      try db.execute(
+        sql: "DELETE FROM memories WHERE pendingDeleteDeadline IS NOT NULL AND pendingDeleteDeadline <= ?",
+        arguments: [now])
+      return db.changesCount
+    }
+    if count > 0 { HomeKnowledgeCountInvalidation.post() }
+    return count
+  }
+
+  func deleteDefaultMemories(
+    authorization: LocalMutationAuthorization = .unrestricted
+  ) async throws {
+    let pool = try await database()
+    try await authorization.withCommitLease {
+      try await pool.write { db in
+        try authorization.require()
+        try db.execute(
+          sql: "DELETE FROM memories WHERE layer IN (?, ?)",
+          arguments: [MemoryLayer.shortTerm.rawValue, MemoryLayer.longTerm.rawValue])
+      }
+    }
+    HomeKnowledgeCountInvalidation.post()
+  }
+
+  @discardableResult
+  func deleteAssertions(source: MemorySource, exactContent: String) async throws -> Int {
+    let pool = try await database()
+    let count = try await pool.write { db -> Int in
+      try db.execute(
+        sql: "DELETE FROM memories WHERE source = ? AND content = ?",
+        arguments: [source.rawValue, exactContent])
+      return db.changesCount
+    }
+    if count > 0 { HomeKnowledgeCountInvalidation.post() }
+    return count
+  }
+
+  @discardableResult
+  func deleteTaggedAssertions(tag: String) async throws -> Int {
+    let pool = try await database()
+    let count = try await pool.write { db -> Int in
+      let records = try MemoryRecord.fetchAll(db)
+      let ids = records.compactMap { record in
+        record.tags.contains(tag) ? record.id : nil
+      }
+      guard !ids.isEmpty else { return 0 }
+      let placeholders = ids.map { _ in "?" }.joined(separator: ", ")
+      try db.execute(
+        sql: "DELETE FROM memories WHERE id IN (\(placeholders))",
+        arguments: StatementArguments(ids))
+      return db.changesCount
+    }
+    if count > 0 { HomeKnowledgeCountInvalidation.post() }
+    return count
+  }
+
+  func enqueueConversationExtraction(
+    conversationId: String,
+    generation: Int,
+    ownerGeneration: Int,
+    now: Date = Date()
+  ) async throws {
+    let pool = try await database()
+    try await pool.write { db in
+      let exists =
+        try Bool.fetchOne(
+          db,
+          sql: """
+            SELECT EXISTS(
+              SELECT 1 FROM memory_processing_work
+              WHERE kind = ? AND conversationId = ? AND inputGeneration = ?
+                AND state != ?
+            )
+            """,
+          arguments: [
+            MemoryProcessingKind.extract.rawValue, conversationId, generation,
+            MemoryProcessingState.terminal.rawValue,
+          ]) ?? false
+      guard !exists else { return }
+      try Self.enqueue(
+        .extract, memoryId: nil, conversationId: conversationId, revision: 0,
+        generation: generation, ownerGeneration: ownerGeneration, now: now, in: db)
     }
   }
 
-  /// Update read status by backend ID
-  func updateReadStatusByBackendId(_ backendId: String, isRead: Bool) async throws {
-    let db = try await ensureInitialized()
-
-    try await db.write { database in
-      try database.execute(
-        sql: "UPDATE memories SET isRead = ?, updatedAt = ? WHERE backendId = ?",
-        arguments: [isRead, Date(), backendId]
-      )
+  func leaseDueWork(
+    kind: MemoryProcessingKind,
+    now: Date = Date(),
+    ownerGeneration: Int,
+    limit: Int = 8,
+    leaseDuration: TimeInterval = 600
+  ) async throws -> [LeasedMemoryWork] {
+    let pool = try await database()
+    return try await pool.write { db in
+      try db.execute(
+        sql: """
+          UPDATE memory_processing_work
+          SET state = ?, leaseExpiresAt = NULL, updatedAt = ?
+          WHERE state = ? AND leaseExpiresAt <= ?
+          """,
+        arguments: [
+          MemoryProcessingState.retry.rawValue, now,
+          MemoryProcessingState.leased.rawValue, now,
+        ])
+      let due = try MemoryProcessingWorkRecord.fetchAll(
+        db,
+        sql: """
+          SELECT * FROM memory_processing_work
+          WHERE kind = ? AND state IN (?, ?) AND nextAttemptAt <= ? AND ownerGeneration = ?
+          ORDER BY nextAttemptAt, createdAt LIMIT ?
+          """,
+        arguments: [
+          kind.rawValue, MemoryProcessingState.pending.rawValue, MemoryProcessingState.retry.rawValue,
+          now, ownerGeneration, max(1, limit),
+        ])
+      let deadline = now.addingTimeInterval(leaseDuration)
+      var leased: [LeasedMemoryWork] = []
+      for var work in due {
+        work.state = MemoryProcessingState.leased.rawValue
+        work.leaseExpiresAt = deadline
+        work.updatedAt = now
+        try work.update(db)
+        let memory = try work.memoryId.flatMap { id in
+          try MemoryRecord.fetchOne(db, key: id)?.toMemoryItem()
+        }
+        leased.append(LeasedMemoryWork(work: work, memory: memory))
+      }
+      return leased
     }
   }
 
-  // MARK: - Stats
+  func retryWork(
+    id: String,
+    errorCode: String,
+    now: Date = Date()
+  ) async throws {
+    let pool = try await database()
+    try await pool.write { db in
+      guard var work = try MemoryProcessingWorkRecord.fetchOne(db, key: id) else {
+        throw MemoryStorageError.recordNotFound
+      }
+      work.attemptCount += 1
+      work.state =
+        work.attemptCount >= 3
+        ? MemoryProcessingState.terminal.rawValue
+        : MemoryProcessingState.retry.rawValue
+      let exponent = min(max(0, work.attemptCount - 1), 3)
+      work.nextAttemptAt = now.addingTimeInterval(pow(2, Double(exponent)) * 300)
+      work.leaseExpiresAt = nil
+      work.lastErrorCode = String(errorCode.prefix(80))
+      work.updatedAt = now
+      try work.update(db)
+    }
+  }
 
-  /// Get memory storage statistics
-  func getStats() async throws -> (total: Int, synced: Int, unsynced: Int, unread: Int) {
-    let db = try await ensureInitialized()
+  func completeNormalization(
+    workId: String,
+    memoryId: String,
+    expectedRevision: Int,
+    normalizedContent: String,
+    receiptId: String,
+    ownerGeneration: Int,
+    now: Date = Date()
+  ) async throws -> MemoryItem {
+    let rowID = try Self.localID(memoryId)
+    let content = try Self.trimmed(normalizedContent)
+    let pool = try await database()
+    let item = try await pool.write { db in
+      if let transition =
+        try MemoryTransitionRecord
+        .filter(Column("idempotencyKey") == "normalize:\(workId)").fetchOne(db),
+        transition.receiptId == receiptId,
+        transition.memoryId == rowID,
+        let record = try MemoryRecord.fetchOne(db, key: rowID),
+        record.revision == transition.outputRevision,
+        let item = record.toMemoryItem()
+      {
+        return item
+      }
+      guard var work = try MemoryProcessingWorkRecord.fetchOne(db, key: workId),
+        work.state == MemoryProcessingState.leased.rawValue,
+        work.ownerGeneration == ownerGeneration,
+        work.memoryId == rowID,
+        var record = try MemoryRecord.fetchOne(db, key: rowID),
+        record.revision == expectedRevision
+      else { throw MemoryStorageError.staleRevision }
 
-    return try await db.read { database in
+      record.content = content
+      record.revision += 1
+      record.updatedAt = now
+      try record.update(db)
+      let transition = MemoryTransitionRecord(
+        id: UUID().uuidString,
+        memoryId: rowID,
+        idempotencyKey: "normalize:\(workId)",
+        fromLayer: record.layer,
+        toLayer: record.layer,
+        inputRevision: expectedRevision,
+        outputRevision: record.revision,
+        outcome: "normalized",
+        receiptId: receiptId,
+        createdAt: now)
+      try transition.insert(db)
+      try db.execute(
+        sql: "DELETE FROM memory_processing_work WHERE memoryId = ? AND kind = ? AND state != ? AND id != ?",
+        arguments: [
+          rowID, MemoryProcessingKind.embed.rawValue,
+          MemoryProcessingState.completed.rawValue, workId,
+        ])
+      work.state = MemoryProcessingState.completed.rawValue
+      work.leaseExpiresAt = nil
+      work.updatedAt = now
+      try work.update(db)
+      try Self.enqueue(
+        .embed, memoryId: rowID, revision: record.revision,
+        ownerGeneration: ownerGeneration, now: now, in: db)
+      try Self.enqueue(
+        .consolidate, memoryId: rowID, revision: record.revision,
+        ownerGeneration: ownerGeneration, now: now, in: db)
+      guard let item = record.toMemoryItem() else { throw MemoryStorageError.recordNotFound }
+      return item
+    }
+    HomeKnowledgeCountInvalidation.post()
+    return item
+  }
+
+  @discardableResult
+  func completeExtraction(
+    workId: String,
+    conversationId: String,
+    expectedGeneration: Int,
+    admissions: [MemoryExtractionAdmission],
+    receiptId: String,
+    ownerGeneration: Int,
+    now: Date = Date()
+  ) async throws -> [MemoryItem] {
+    guard admissions.count <= 32 else {
+      throw MemoryStorageError.invalidTransition("Extraction exceeded 32 candidates")
+    }
+    let contents = admissions.map { $0.content.trimmingCharacters(in: .whitespacesAndNewlines) }
+    guard contents.allSatisfy({ !$0.isEmpty }), Set(contents).count == contents.count else {
+      throw MemoryStorageError.invalidTransition("Extraction candidates must be unique and non-empty")
+    }
+    let pool = try await database()
+    let items = try await pool.write { db -> [MemoryItem] in
+      let priorTransitions = try admissions.indices.compactMap { index in
+        try MemoryTransitionRecord
+          .filter(Column("idempotencyKey") == "extract:\(workId):\(index)")
+          .fetchOne(db)
+      }
+      if !priorTransitions.isEmpty {
+        guard priorTransitions.count == admissions.count,
+          priorTransitions.allSatisfy({ $0.receiptId == receiptId })
+        else { throw MemoryStorageError.invalidTransition("Extraction replay is inconsistent") }
+        return try priorTransitions.map { transition in
+          guard let record = try MemoryRecord.fetchOne(db, key: transition.memoryId),
+            let item = record.toMemoryItem()
+          else { throw MemoryStorageError.recordNotFound }
+          return item
+        }
+      }
+      guard var work = try MemoryProcessingWorkRecord.fetchOne(db, key: workId),
+        work.state == MemoryProcessingState.leased.rawValue,
+        work.kind == MemoryProcessingKind.extract.rawValue,
+        work.ownerGeneration == ownerGeneration,
+        work.conversationId == conversationId,
+        work.inputGeneration == expectedGeneration,
+        let currentGeneration = try Int.fetchOne(
+          db,
+          sql: "SELECT contentGeneration FROM transcription_sessions WHERE conversationId = ?",
+          arguments: [conversationId]),
+        currentGeneration == expectedGeneration
+      else { throw MemoryStorageError.staleRevision }
+      if admissions.isEmpty {
+        work.state = MemoryProcessingState.completed.rawValue
+        work.leaseExpiresAt = nil
+        work.updatedAt = now
+        try work.update(db)
+        return []
+      }
+
+      var accepted: [MemoryItem] = []
+      for (index, admission) in admissions.enumerated() {
+        let duplicate =
+          try Bool.fetchOne(
+            db,
+            sql: """
+              SELECT EXISTS(
+                SELECT 1 FROM memories
+                WHERE conversationId = ? AND content = ? AND pendingDeleteDeadline IS NULL
+              )
+              """,
+            arguments: [conversationId, contents[index]]) ?? false
+        guard !duplicate else {
+          throw MemoryStorageError.invalidTransition("Extraction duplicated an accepted Memory")
+        }
+        let assertion = MemoryAssertion(
+          content: contents[index], category: admission.category, layer: .shortTerm,
+          expiresAt: now.addingTimeInterval(Self.shortTermLifetime),
+          source: .conversation, conversationId: conversationId,
+          sourceSegmentId: admission.segmentId,
+          confidence: admission.confidence,
+          contextSummary: admission.quote)
+        let record = try MemoryRecord.from(assertion: assertion, now: now).inserted(db)
+        guard let memoryId = record.id, let item = record.toMemoryItem() else {
+          throw MemoryStorageError.recordNotFound
+        }
+        try MemoryTransitionRecord(
+          id: UUID().uuidString,
+          memoryId: memoryId,
+          idempotencyKey: "extract:\(workId):\(index)",
+          fromLayer: nil,
+          toLayer: MemoryLayer.shortTerm.rawValue,
+          inputRevision: 0,
+          outputRevision: record.revision,
+          outcome: "conversation_candidate_admitted",
+          receiptId: receiptId,
+          createdAt: now
+        ).insert(db)
+        try Self.enqueue(
+          .embed, memoryId: memoryId, revision: record.revision,
+          ownerGeneration: ownerGeneration, now: now, in: db)
+        try Self.enqueue(
+          .consolidate, memoryId: memoryId, revision: record.revision,
+          ownerGeneration: ownerGeneration, now: now, in: db)
+        accepted.append(item)
+      }
+      work.state = MemoryProcessingState.completed.rawValue
+      work.leaseExpiresAt = nil
+      work.updatedAt = now
+      try work.update(db)
+      return accepted
+    }
+    if !items.isEmpty { HomeKnowledgeCountInvalidation.post() }
+    return items
+  }
+
+  @discardableResult
+  func completeConsolidation(
+    applications: [MemoryConsolidationApplication],
+    receiptId: String,
+    ownerGeneration: Int,
+    now: Date = Date()
+  ) async throws -> [MemoryItem] {
+    guard !applications.isEmpty, applications.count <= 32,
+      Set(applications.map(\.workId)).count == applications.count,
+      Set(applications.map(\.memoryId)).count == applications.count
+    else { throw MemoryStorageError.invalidTransition("Consolidation decisions are incomplete") }
+
+    let pool = try await database()
+    let changed = try await pool.write { db -> [MemoryItem] in
+      var candidateRecords: [String: MemoryRecord] = [:]
+      var alreadyApplied: [String: MemoryItem] = [:]
+      for application in applications {
+        let rowID = try Self.localID(application.memoryId)
+        if let transition =
+          try MemoryTransitionRecord
+          .filter(Column("idempotencyKey") == "consolidate:\(application.workId)").fetchOne(db),
+          transition.receiptId == receiptId,
+          transition.memoryId == rowID,
+          let record = try MemoryRecord.fetchOne(db, key: rowID),
+          record.revision == transition.outputRevision,
+          let item = record.toMemoryItem()
+        {
+          alreadyApplied[application.memoryId] = item
+          continue
+        }
+        guard let work = try MemoryProcessingWorkRecord.fetchOne(db, key: application.workId),
+          work.state == MemoryProcessingState.leased.rawValue,
+          work.kind == MemoryProcessingKind.consolidate.rawValue,
+          work.ownerGeneration == ownerGeneration,
+          work.memoryId == rowID,
+          work.inputRevision == application.expectedRevision,
+          let record = try MemoryRecord.fetchOne(db, key: rowID),
+          record.revision == application.expectedRevision,
+          record.layer == MemoryLayer.shortTerm.rawValue
+        else { throw MemoryStorageError.staleRevision }
+        try Self.validate(application: application)
+        candidateRecords[application.memoryId] = record
+        for target in application.targets {
+          let targetID = try Self.localID(target.memoryId)
+          guard let targetRecord = try MemoryRecord.fetchOne(db, key: targetID),
+            targetRecord.revision == target.expectedRevision,
+            targetRecord.pendingDeleteDeadline == nil,
+            targetRecord.layer != MemoryLayer.archive.rawValue
+          else { throw MemoryStorageError.staleRevision }
+        }
+      }
+
+      var output: [MemoryItem] = []
+      for application in applications {
+        if let item = alreadyApplied[application.memoryId] {
+          output.append(item)
+          continue
+        }
+        guard var candidate = candidateRecords[application.memoryId], let candidateID = candidate.id else {
+          throw MemoryStorageError.recordNotFound
+        }
+        if application.reconciliation == .replace || application.reconciliation == .merge {
+          for target in application.targets {
+            let targetID = try Self.localID(target.memoryId)
+            guard var targetRecord = try MemoryRecord.fetchOne(db, key: targetID),
+              let fromLayer = MemoryLayer(rawValue: targetRecord.layer)
+            else { throw MemoryStorageError.recordNotFound }
+            let inputRevision = targetRecord.revision
+            targetRecord.layer = MemoryLayer.archive.rawValue
+            targetRecord.expiresAt = nil
+            targetRecord.revision += 1
+            targetRecord.updatedAt = now
+            try targetRecord.update(db)
+            try Self.replaceEmbeddingWork(
+              memoryId: targetID, revision: targetRecord.revision,
+              ownerGeneration: ownerGeneration, now: now, in: db)
+            try MemoryTransitionRecord(
+              id: UUID().uuidString,
+              memoryId: targetID,
+              idempotencyKey: "consolidate:\(application.workId):target:\(targetID)",
+              fromLayer: fromLayer.rawValue,
+              toLayer: MemoryLayer.archive.rawValue,
+              inputRevision: inputRevision,
+              outputRevision: targetRecord.revision,
+              outcome: "superseded_\(application.reconciliation.rawValue)",
+              receiptId: receiptId,
+              createdAt: now
+            ).insert(db)
+          }
+        }
+
+        let fromLayer = candidate.layer
+        let inputRevision = candidate.revision
+        switch (application.action, application.reconciliation) {
+        case (_, .duplicate), (.reject, _):
+          candidate.layer = MemoryLayer.archive.rawValue
+          candidate.isDismissed = true
+          candidate.expiresAt = nil
+        case (.archive, _):
+          candidate.layer = MemoryLayer.archive.rawValue
+          candidate.expiresAt = nil
+        case (.review, _):
+          candidate.layer = MemoryLayer.shortTerm.rawValue
+          candidate.expiresAt = now.addingTimeInterval(Self.shortTermLifetime)
+        case (.promote, _):
+          candidate.layer = MemoryLayer.longTerm.rawValue
+          candidate.expiresAt = nil
+          candidate.content = try Self.trimmed(application.memoryText ?? "")
+        }
+        candidate.revision += 1
+        candidate.updatedAt = now
+        try candidate.update(db)
+        try MemoryTransitionRecord(
+          id: UUID().uuidString,
+          memoryId: candidateID,
+          idempotencyKey: "consolidate:\(application.workId)",
+          fromLayer: fromLayer,
+          toLayer: candidate.layer,
+          inputRevision: inputRevision,
+          outputRevision: candidate.revision,
+          outcome: "\(application.action.rawValue)_\(application.reconciliation.rawValue)",
+          receiptId: receiptId,
+          createdAt: now
+        ).insert(db)
+        try Self.replaceEmbeddingWork(
+          memoryId: candidateID, revision: candidate.revision,
+          ownerGeneration: ownerGeneration, now: now, in: db)
+        guard var work = try MemoryProcessingWorkRecord.fetchOne(db, key: application.workId) else {
+          throw MemoryStorageError.recordNotFound
+        }
+        work.state = MemoryProcessingState.completed.rawValue
+        work.leaseExpiresAt = nil
+        work.updatedAt = now
+        try work.update(db)
+        guard let item = candidate.toMemoryItem() else { throw MemoryStorageError.recordNotFound }
+        output.append(item)
+      }
+      return output
+    }
+    HomeKnowledgeCountInvalidation.post()
+    return changed
+  }
+
+  private static func validate(application: MemoryConsolidationApplication) throws {
+    let needsTargets: Bool
+    switch application.reconciliation {
+    case .duplicate, .replace, .merge: needsTargets = true
+    case .create, .keepBoth: needsTargets = false
+    }
+    guard needsTargets == !application.targets.isEmpty else {
+      throw MemoryStorageError.invalidTransition("Consolidation target shape is invalid")
+    }
+    guard application.targets.count <= 8,
+      Set(application.targets.map(\.memoryId)).count == application.targets.count,
+      !application.targets.contains(where: { $0.memoryId == application.memoryId })
+    else { throw MemoryStorageError.invalidTransition("Consolidation targets are invalid") }
+    guard (application.action == .promote) == (application.memoryText != nil) else {
+      throw MemoryStorageError.invalidTransition("Consolidation Memory text is invalid")
+    }
+    if application.reconciliation == .replace || application.reconciliation == .merge {
+      guard application.action == .promote else {
+        throw MemoryStorageError.invalidTransition("Replacement and merge must promote")
+      }
+    }
+  }
+
+  private static func replaceEmbeddingWork(
+    memoryId: Int64,
+    revision: Int,
+    ownerGeneration: Int,
+    now: Date,
+    in db: Database
+  ) throws {
+    try db.execute(sql: "DELETE FROM memory_embeddings WHERE memoryId = ?", arguments: [memoryId])
+    try db.execute(
+      sql: "DELETE FROM memory_processing_work WHERE memoryId = ? AND kind = ? AND state != ?",
+      arguments: [
+        memoryId, MemoryProcessingKind.embed.rawValue,
+        MemoryProcessingState.completed.rawValue,
+      ])
+    try Self.enqueue(
+      .embed, memoryId: memoryId, revision: revision,
+      ownerGeneration: ownerGeneration, now: now, in: db)
+  }
+
+  func storeEmbedding(
+    workId: String,
+    memoryId: String,
+    expectedRevision: Int,
+    model: String,
+    vector: [Double],
+    ownerGeneration: Int,
+    now: Date = Date()
+  ) async throws {
+    guard !vector.isEmpty, vector.allSatisfy(\.isFinite), vector.contains(where: { $0 != 0 }) else {
+      throw MemoryStorageError.invalidEmbedding
+    }
+    let rowID = try Self.localID(memoryId)
+    let data = try JSONEncoder().encode(vector)
+    let encoded = String(decoding: data, as: UTF8.self)
+    let pool = try await database()
+    try await pool.write { db in
+      guard var work = try MemoryProcessingWorkRecord.fetchOne(db, key: workId),
+        work.state == MemoryProcessingState.leased.rawValue,
+        work.ownerGeneration == ownerGeneration,
+        work.memoryId == rowID,
+        let record = try MemoryRecord.fetchOne(db, key: rowID),
+        record.revision == expectedRevision
+      else { throw MemoryStorageError.staleRevision }
+      try MemoryEmbeddingRecord(
+        memoryId: rowID, revision: expectedRevision, model: model,
+        vectorJson: encoded, updatedAt: now
+      ).save(db)
+      work.state = MemoryProcessingState.completed.rawValue
+      work.leaseExpiresAt = nil
+      work.updatedAt = now
+      try work.update(db)
+    }
+  }
+
+  func semanticMatches(
+    queryVector: [Double],
+    scope: MemoryLayerScope = .defaultAccess,
+    limit: Int = 20
+  ) async throws -> [MemorySemanticMatch] {
+    guard !queryVector.isEmpty, queryVector.allSatisfy(\.isFinite) else {
+      throw MemoryStorageError.invalidEmbedding
+    }
+    let pool = try await database()
+    return try await pool.read { db in
+      let placeholders = scope.layers.map { _ in "?" }.joined(separator: ", ")
+      let expiryClause =
+        scope == .defaultAccess
+        ? "AND (m.layer != ? OR m.expiresAt IS NULL OR m.expiresAt > ?)"
+        : ""
+      var arguments: [DatabaseValue] = scope.layers.map { DatabaseValue(value: $0.rawValue)! }
+      if scope == .defaultAccess {
+        arguments.append(DatabaseValue(value: MemoryLayer.shortTerm.rawValue)!)
+        arguments.append(DatabaseValue(value: Date())!)
+      }
+      let rows = try Row.fetchAll(
+        db,
+        sql: """
+          SELECT m.*, e.vectorJson
+          FROM memories m JOIN memory_embeddings e ON e.memoryId = m.id AND e.revision = m.revision
+          WHERE m.pendingDeleteDeadline IS NULL AND m.isDismissed = 0
+            AND m.layer IN (\(placeholders))
+            \(expiryClause)
+          """,
+        arguments: StatementArguments(arguments))
+      return rows.compactMap { row -> (MemoryItem, Double)? in
+        guard let record = try? MemoryRecord(row: row).toMemoryItem(),
+          let json: String = row["vectorJson"],
+          let data = json.data(using: .utf8),
+          let vector = try? JSONDecoder().decode([Double].self, from: data),
+          vector.count == queryVector.count,
+          let score = Self.cosine(queryVector, vector)
+        else { return nil }
+        return (record, score)
+      }
+      .sorted { lhs, rhs in
+        lhs.1 == rhs.1 ? lhs.0.createdAt > rhs.0.createdAt : lhs.1 > rhs.1
+      }
+      .prefix(max(0, limit))
+      .map { MemorySemanticMatch(memory: $0.0, score: $0.1) }
+    }
+  }
+
+  func semanticSearch(
+    queryVector: [Double],
+    scope: MemoryLayerScope = .defaultAccess,
+    limit: Int = 20
+  ) async throws -> [MemoryItem] {
+    try await semanticMatches(queryVector: queryVector, scope: scope, limit: limit).map(\.memory)
+  }
+
+  private static func cosine(_ lhs: [Double], _ rhs: [Double]) -> Double? {
+    var dot = 0.0
+    var lhsMagnitude = 0.0
+    var rhsMagnitude = 0.0
+    for index in lhs.indices {
+      dot += lhs[index] * rhs[index]
+      lhsMagnitude += lhs[index] * lhs[index]
+      rhsMagnitude += rhs[index] * rhs[index]
+    }
+    guard lhsMagnitude > 0, rhsMagnitude > 0 else { return nil }
+    return dot / (sqrt(lhsMagnitude) * sqrt(rhsMagnitude))
+  }
+
+  @discardableResult
+  func enqueueDueLifecycleWork(
+    now: Date = Date(),
+    ownerGeneration: Int
+  ) async throws -> Int {
+    let pool = try await database()
+    let count = try await pool.write { db -> Int in
+      let records = try MemoryRecord.fetchAll(
+        db,
+        sql: """
+          SELECT m.* FROM memories m
+          WHERE m.layer = ? AND m.expiresAt IS NOT NULL AND m.expiresAt <= ?
+            AND m.pendingDeleteDeadline IS NULL
+            AND NOT EXISTS (
+              SELECT 1 FROM memory_processing_work w
+              WHERE w.memoryId = m.id AND w.kind = ? AND w.inputRevision = m.revision
+            )
+          """,
+        arguments: [
+          MemoryLayer.shortTerm.rawValue, now,
+          MemoryProcessingKind.consolidate.rawValue,
+        ])
+      for record in records {
+        guard let memoryId = record.id else { continue }
+        try Self.enqueue(
+          .consolidate, memoryId: memoryId, revision: record.revision,
+          ownerGeneration: ownerGeneration, now: now, in: db)
+      }
+      return records.count
+    }
+    return count
+  }
+
+  func getUnreadTipsCount() async throws -> Int {
+    let pool = try await database()
+    return try await pool.read { db in
+      try Int.fetchOne(
+        db,
+        sql: """
+          SELECT COUNT(*) FROM memories
+          WHERE pendingDeleteDeadline IS NULL AND isDismissed = 0 AND isRead = 0
+            AND tagsJson LIKE '%"tips"%'
+          """) ?? 0
+    }
+  }
+
+  func getStats() async throws -> MemoryStats {
+    let pool = try await database()
+    return try await pool.read { db in
       let total =
-        try MemoryRecord
-        .filter(Column("deleted") == false)
-        .fetchCount(database)
-
-      let synced =
-        try MemoryRecord
-        .filter(Column("deleted") == false)
-        .filter(Column("backendSynced") == true)
-        .fetchCount(database)
-
-      let unsynced =
-        try MemoryRecord
-        .filter(Column("deleted") == false)
-        .filter(Column("backendSynced") == false)
-        .fetchCount(database)
-
+        try Int.fetchOne(
+          db, sql: "SELECT COUNT(*) FROM memories WHERE pendingDeleteDeadline IS NULL") ?? 0
       let unread =
-        try MemoryRecord
-        .filter(Column("deleted") == false)
-        .filter(Column("isRead") == false)
-        .filter(Column("isDismissed") == false)
-        .fetchCount(database)
-
-      return (total, synced, unsynced, unread)
+        try Int.fetchOne(
+          db,
+          sql: """
+            SELECT COUNT(*) FROM memories
+            WHERE pendingDeleteDeadline IS NULL AND isRead = 0 AND isDismissed = 0
+            """) ?? 0
+      return MemoryStats(total: total, unread: unread)
     }
   }
 
-  // MARK: - Cleanup
-
-  /// Permanently delete old dismissed memories
+  @discardableResult
   func cleanupOldDismissedMemories(olderThan date: Date) async throws -> Int {
-    let db = try await ensureInitialized()
-
-    return try await db.write { database in
-      let count =
-        try Int.fetchOne(
-          database,
-          sql: "SELECT COUNT(*) FROM memories WHERE isDismissed = 1 AND updatedAt < ?",
-          arguments: [date]
-        ) ?? 0
-
-      try database.execute(
+    let pool = try await database()
+    return try await pool.write { db in
+      try db.execute(
         sql: "DELETE FROM memories WHERE isDismissed = 1 AND updatedAt < ?",
-        arguments: [date]
-      )
+        arguments: [date])
+      return db.changesCount
+    }
+  }
+}
 
-      return count
+extension Array {
+  func chunked(maxSize: Int) -> [[Element]] {
+    precondition(maxSize > 0)
+    return stride(from: 0, to: count, by: maxSize).map {
+      Array(self[$0..<Swift.min($0 + maxSize, count)])
     }
   }
 }

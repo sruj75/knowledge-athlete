@@ -48,7 +48,6 @@ if not hasattr(database_mod, "__path__"):
     database_mod.__path__ = []
 for submodule in [
     "redis_db",
-    "memories",
     "conversations",
     "users",
     "tasks",
@@ -79,7 +78,6 @@ sys.modules["database.redis_db"].add_filter_category_item = MagicMock()
 sys.modules["database.redis_db"].get_cached_user_geolocation = MagicMock(return_value=None)
 sys.modules["database.users"].get_user_location_context_consent = MagicMock(return_value=None)
 sys.modules["database.conversations"].get_conversations = MagicMock(return_value=[])
-sys.modules["database.memories"].get_memories = MagicMock(return_value=[])
 sys.modules["database.vector_db"].query_vectors_enhanced = MagicMock(return_value=[])
 
 # --- LLM client stubs ---
@@ -141,13 +139,6 @@ langchain_runnables_mod = _stub_module("langchain_core.runnables")
 langchain_runnables_mod.RunnableConfig = dict
 langchain_callbacks_mod = _stub_module("langchain_core.callbacks")
 langchain_callbacks_mod.BaseCallbackHandler = type("BaseCallbackHandler", (), {})
-
-# --- LLMs/memory stubs ---
-llms_mod = _stub_module("utils.llms")
-if not hasattr(llms_mod, "__path__"):
-    llms_mod.__path__ = []
-llms_memory_mod = _stub_module("utils.llms.memory")
-llms_memory_mod.get_prompt_memories = MagicMock(return_value=("TestUser", "Some facts"))
 
 # --- Observability stubs ---
 obs_mod = _stub_module("utils.observability")
@@ -314,8 +305,6 @@ def _get_agentic_module():
     tool_names = [
         "get_conversations_tool",
         "search_conversations_tool",
-        "get_memories_tool",
-        "search_memories_tool",
         "get_action_items_tool",
         "create_action_item_tool",
         "update_action_item_tool",
@@ -323,7 +312,6 @@ def _get_agentic_module():
         "search_files_tool",
         "manage_daily_summary_tool",
         "create_chart_tool",
-        "save_user_preference_tool",
         "fetch_url_tool",
     ]
     for name in tool_names:
@@ -556,7 +544,7 @@ def test_static_prefix_exceeds_minimum_cache_tokens():
 def test_core_tools_has_13_retained_tools():
     """CORE_TOOLS contains only the retained first-party tools."""
     agentic_mod = _get_agentic_module()
-    assert len(agentic_mod.CORE_TOOLS) == 13, f"CORE_TOOLS has {len(agentic_mod.CORE_TOOLS)} tools, expected 13"
+    assert len(agentic_mod.CORE_TOOLS) == 10, f"CORE_TOOLS has {len(agentic_mod.CORE_TOOLS)} tools, expected 10"
 
 
 def test_core_tools_list_creates_independent_copy():
@@ -579,9 +567,9 @@ def test_core_tools_list_creates_independent_copy():
     request_local_tool.name = "request_local_tool"
     tools_a.append(request_local_tool)
 
-    assert len(tools_a) == 14
-    assert len(tools_b) == 13
-    assert len(agentic_mod.CORE_TOOLS) == 13, "CORE_TOOLS was mutated!"
+    assert len(tools_a) == 11
+    assert len(tools_b) == 10
+    assert len(agentic_mod.CORE_TOOLS) == 10, "CORE_TOOLS was mutated!"
 
 
 def test_core_tools_order_matches_exports():
@@ -594,8 +582,6 @@ def test_core_tools_order_matches_exports():
     expected_names = [
         "get_conversations_tool",
         "search_conversations_tool",
-        "get_memories_tool",
-        "search_memories_tool",
         "get_action_items_tool",
         "create_action_item_tool",
         "update_action_item_tool",
@@ -603,7 +589,6 @@ def test_core_tools_order_matches_exports():
         "search_files_tool",
         "manage_daily_summary_tool",
         "create_chart_tool",
-        "save_user_preference_tool",
         "fetch_url_tool",
     ]
 

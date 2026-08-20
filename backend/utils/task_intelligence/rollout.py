@@ -1,22 +1,14 @@
-"""Pure task-intelligence rollout decisions.
-
-Workflow migration mode and canonical-memory cohort eligibility are deliberately
-separate axes. The pure composer accepts both for hermetic tests; the production
-resolver obtains cohort membership from the canonical memory owner.
-"""
+"""Pure task-intelligence workflow-migration decisions."""
 
 # LIFECYCLE: permanent
 
-from config.what_matters_now_smoke_fixture import is_development_smoke_fixture
 from models.task_intelligence import TaskIntelligenceRolloutDecision, TaskWorkflowMode
-from utils.memory.memory_system import MemorySystem, resolve_memory_system
 
 
 def resolve_task_intelligence_rollout(
     *,
     uid: str,
     workflow_mode: TaskWorkflowMode | str,
-    memory_cohort_eligible: bool,
     account_generation: int = 0,
 ) -> TaskIntelligenceRolloutDecision:
     mode = workflow_mode if isinstance(workflow_mode, TaskWorkflowMode) else TaskWorkflowMode(workflow_mode)
@@ -29,7 +21,6 @@ def resolve_task_intelligence_rollout(
         return TaskIntelligenceRolloutDecision(
             uid=uid,
             workflow_mode=mode,
-            memory_cohort_eligible=memory_cohort_eligible,
             account_generation=account_generation,
             legacy_reads_authoritative=True,
             legacy_writes_enabled=True,
@@ -45,15 +36,14 @@ def resolve_task_intelligence_rollout(
     return TaskIntelligenceRolloutDecision(
         uid=uid,
         workflow_mode=mode,
-        memory_cohort_eligible=memory_cohort_eligible,
         account_generation=account_generation,
         legacy_reads_authoritative=not canonical_reads,
         legacy_writes_enabled=not canonical_reads,
-        intelligence_evaluation_enabled=memory_cohort_eligible,
+        intelligence_evaluation_enabled=True,
         canonical_sidecar_writes_enabled=canonical_writes,
         canonical_reads_authoritative=canonical_reads,
         compatibility_projection_required=canonical_reads,
-        intelligence_product_enabled=canonical_reads and memory_cohort_eligible,
+        intelligence_product_enabled=canonical_reads,
     )
 
 
@@ -64,15 +54,12 @@ def resolve_task_intelligence_for_user(
     account_generation: int = 0,
     db_client=None,
 ) -> TaskIntelligenceRolloutDecision:
-    """Compose workflow mode with the authoritative canonical-memory selector."""
+    """Resolve the retained workflow mode without a product-Memory dependency."""
 
-    memory_cohort_eligible = is_development_smoke_fixture(uid) or (
-        resolve_memory_system(uid, db_client=db_client) == MemorySystem.CANONICAL
-    )
+    del db_client
     return resolve_task_intelligence_rollout(
         uid=uid,
         workflow_mode=workflow_mode,
-        memory_cohort_eligible=memory_cohort_eligible,
         account_generation=account_generation,
     )
 

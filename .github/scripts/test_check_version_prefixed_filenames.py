@@ -21,23 +21,20 @@ class VersionPrefixedFilenameTests(unittest.TestCase):
         self.assertFalse(lint.is_versioned_filename("src/v4_.py"))
 
     def test_allows_versioned_filenames_inside_version_packages(self) -> None:
-        self.assertTrue(lint.is_in_versioned_package("backend/utils/memory/v4/v4_reader.py"))
-        self.assertEqual(lint.violations(["backend/utils/memory/v4/v4_reader.py"]), [])
+        self.assertTrue(lint.is_in_versioned_package("backend/utils/search/v4/v4_reader.py"))
+        self.assertEqual(lint.violations(["backend/utils/search/v4/v4_reader.py"]), [])
 
     def test_rejects_new_version_prefixed_filename_outside_package(self) -> None:
-        self.assertEqual(lint.violations(["backend/utils/memory/v4_reader.py"]), ["backend/utils/memory/v4_reader.py"])
+        self.assertEqual(lint.violations(["backend/utils/search/v4_reader.py"]), ["backend/utils/search/v4_reader.py"])
 
     def test_rejects_filename_in_a_different_version_package(self) -> None:
         self.assertEqual(
-            lint.violations(["backend/utils/memory/v3/v4_reader.py"]), ["backend/utils/memory/v3/v4_reader.py"]
+            lint.violations(["backend/utils/search/v3/v4_reader.py"]), ["backend/utils/search/v3/v4_reader.py"]
         )
-
-    def test_allows_grandfathered_legacy_path(self) -> None:
-        self.assertEqual(lint.violations(["backend/scripts/v3_dev_cloud_proof.py"]), [])
 
     def test_main_reports_issue_for_new_violation(self) -> None:
         output = io.StringIO()
-        with patch.object(lint, "tracked_paths", return_value=["backend/utils/memory/v4_reader.py"]), patch(
+        with patch.object(lint, "tracked_paths", return_value=["backend/utils/search/v4_reader.py"]), patch(
             "sys.stdout", output
         ):
             self.assertEqual(lint.main(), 1)

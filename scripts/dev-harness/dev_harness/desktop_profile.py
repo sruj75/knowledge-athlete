@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Iterable, Mapping
 from urllib.parse import urlparse
 
-from . import config, safety
+from . import config, safety, synthetic_profiles
 
 LOCAL_APP_NAME = "Omi Dev"
 LOCAL_DISPLAY_NAME = "Omi Dev"
@@ -140,20 +140,6 @@ def _is_loopback_url(raw: str) -> bool:
     return safety.is_loopback_host(parsed.netloc)
 
 
-def _user_payload_from_seed_manifest(cfg: config.HarnessConfig, user: str) -> dict[str, str]:
-    manifests = sorted((cfg.layout.state_root / "manifests").glob("memory-scenario-*-seed.json"))
-    if not manifests:
-        return {}
-    data = json.loads(max(manifests, key=lambda path: path.stat().st_mtime).read_text(encoding="utf-8"))
-    for op in data.get("operations", []):
-        if not isinstance(op, dict) or op.get("kind") != "auth" or op.get("action") != "upsert":
-            continue
-        payload = op.get("payload")
-        if isinstance(payload, dict) and payload.get("localId") == user:
-            return {str(k): str(v) for k, v in payload.items() if v is not None}
-    return {}
-
-
 def resolve_profile(
     cfg: config.HarnessConfig,
     *,
@@ -162,9 +148,9 @@ def resolve_profile(
     env: Mapping[str, str] | None = None,
 ) -> DesktopLocalProfile:
     users = tuple(sorted(set(str(item) for item in seeded_users)))
-    payload = _user_payload_from_seed_manifest(cfg, user)
+    payload = synthetic_profiles.profile_payload(cfg, user)
     email = payload.get("email", f"{user}@local.omi.invalid")
-    display_name = payload.get("displayName", f"Synthetic {user}")
+    display_name = payload.get("display_name", f"Synthetic {user}")
     password = payload.get("password", f"{user}-local-password-030")
     python_api_url = cfg.backend_url
     desktop_api_url = cfg.desktop_backend_url
@@ -222,7 +208,7 @@ def resolve_profile(
         default_user="local_default_user",
         seeded_users=users,
         state_root=str(cfg.layout.state_root),
-        session_summary_path=str(cfg.layout.reports_dir / "local-emulator-memory-session-summary.json"),
+        session_summary_path=str(cfg.layout.reports_dir / "local-emulator-session-summary.json"),
         env=env,
     )
 
@@ -233,8 +219,6 @@ def validate_profile(profile: DesktopLocalProfile) -> list[str]:
         errors.append(LOCAL_PROFILE_OMI_DEV_BLOCKED)
     if profile.bundle_id == "com.omi.computer-macos":
         errors.append("local profile must not use production bundle")
-    if profile.bundle_id == "com.omi.omi-local-memory" or profile.app_name == "omi-local-memory":
-        errors.append("legacy omi-local-memory bundle is disabled; use omi-memory or default Omi Dev")
     if profile.app_name == LOCAL_APP_NAME:
         if profile.bundle_id != LOCAL_BUNDLE_ID:
             errors.append("local profile app/bundle identity drifted")

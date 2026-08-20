@@ -201,8 +201,8 @@ do not hand-edit those paths to match a specific machine.
 | `DesktopLocalProfile` harness | Auth emulator bootstrap | Re-bootstrap emulator session; no prod invalidation side effects |
 
 ### Database Structure
-- **GRDB/SQLite**: owner-scoped Mac conversation authority
-- **Firestore** (`based-hardware`): retained non-conversation user, Memory, task, and later-slice state
+- **GRDB/SQLite**: owner-scoped Mac conversation and Memory authority; Memory lifecycle, provenance, transition receipts, and vectors stay in `omi.db` (see `desktop/macos/docs/memory-local-authority.md`)
+- **Firestore** (`based-hardware`): retained non-conversation user, task, and later-slice state; never Mac Memory authority
 - **Redis**: Caching
 - **Typesense**: Search
 
@@ -210,9 +210,9 @@ do not hand-edit those paths to match a specific machine.
 - `users/{uid}/conversations` - S-16/S-23 server residue; never Mac authority
 - `users/{uid}/action_items` - Tasks (no platform tracking)
 - `users/{uid}/fcm_tokens` - Token ID prefix = platform (ios_, android_, macos_)
-- `users/{uid}/memories` - Extracted memories
 - Capture creates its UUID before ingestion; reads and mutations stay local.
 - `/v4/listen` is transient; `/v1/conversation-compute/*` returns untrusted local-commit candidates. Never restore `ServerConversation`/reconciliation, People speakers, cloud playback, or removed privacy controls; test only named non-production bundles.
+- Memory reads and mutations go through `MemoryStorage`; only `/v1/memory/compute/{extract,normalize,consolidate}` and the Gemini embedding proxy may leave the Mac, and all responses are untrusted proposals committed under the current owner/revision lease.
 
 ### Platform Detection
 - **FCM tokens**: Document ID prefix (e.g., `macos_abc123`)

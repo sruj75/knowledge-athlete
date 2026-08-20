@@ -1,4 +1,3 @@
-import FirebaseCore
 import Foundation
 
 /// Stored insight item with additional metadata
@@ -29,15 +28,15 @@ struct StoredInsight: Codable, Identifiable {
     self.isDismissed = isDismissed
   }
 
-  /// Convert from server memory model (insights are stored as memories with "tips" tag)
-  init(from memory: ServerMemory) {
+  /// Convert from the authoritative local Memory model.
+  init(from memory: MemoryItem) {
     self.id = memory.id
     // Extract category from tags: ["tips", "productivity"] → .productivity
     let categoryTag = memory.tags.first(where: { $0 != "tips" })
     let category = InsightCategory(rawValue: categoryTag ?? "other") ?? .other
     self.insight = ExtractedInsight(
       insight: memory.content,
-      headline: memory.headline,
+      headline: nil,
       reasoning: memory.reasoning,
       category: category,
       sourceApp: memory.sourceApp ?? "Unknown",
@@ -63,7 +62,7 @@ struct StoredInsight: Codable, Identifiable {
   }
 }
 
-/// Local storage manager for advice history with backend sync
+/// Presentation cache for advice history. Memory rows remain authoritative in omi.db.
 @MainActor
 class InsightStorage: ObservableObject {
   static let shared = InsightStorage()
@@ -80,20 +79,21 @@ class InsightStorage: ObservableObject {
     // Load from local cache first for immediate display
     loadFromLocalCache()
 
-    // Then sync with backend
+    // Then refresh the Memory-backed portion from the owner-local database.
     Task {
-      await syncFromBackend()
+      await refreshFromLocalMemories()
     }
   }
 
   // MARK: - Public Methods
 
-  /// Add new insight to storage for UI display (backend sync handled by InsightAssistant)
-  func addInsight(_ result: InsightExtractionResult) {
+  /// Add new insight to presentation storage after InsightAssistant commits its Memory row.
+  func addInsight(_ result: InsightExtractionResult, memoryID: Int64? = nil) {
     guard let insight = result.insight else { return }
 
     // Create local stored insight
     let storedInsight = StoredInsight(
+      id: memoryID.map(String.init) ?? UUID().uuidString,
       insight: insight,
       contextSummary: result.contextSummary,
       currentActivity: result.currentActivity
@@ -112,9 +112,9 @@ class InsightStorage: ObservableObject {
     insightHistory[index] = insightHistory[index].withRead(true)
     saveToLocalCache()
 
-    // Sync to backend
+    // Mirror the presentation flag into the authoritative local Memory when linked.
     Task {
-      await updateInsightOnBackend(id: id, isRead: true, isDismissed: nil)
+      await updateLocalMemory(id: id, isRead: true, isDismissed: nil)
     }
   }
 
@@ -123,9 +123,9 @@ class InsightStorage: ObservableObject {
     insightHistory = insightHistory.map { $0.withRead(true) }
     saveToLocalCache()
 
-    // Sync to backend
+    // Mirror all linked rows locally.
     Task {
-      await markAllReadOnBackend()
+      await markAllLocalMemoriesRead()
     }
   }
 
@@ -136,9 +136,9 @@ class InsightStorage: ObservableObject {
     insightHistory[index] = insightHistory[index].withDismissed(true)
     saveToLocalCache()
 
-    // Sync to backend
+    // Mirror the presentation flag into the authoritative local Memory when linked.
     Task {
-      await updateInsightOnBackend(id: id, isRead: nil, isDismissed: true)
+      await updateLocalMemory(id: id, isRead: nil, isDismissed: true)
     }
   }
 
@@ -147,29 +147,29 @@ class InsightStorage: ObservableObject {
     insightHistory.removeAll { $0.id == id }
     saveToLocalCache()
 
-    // Sync to backend
+    // Delete the linked local Memory immediately; this history surface has no Undo UI.
     Task {
-      await deleteInsightOnBackend(id: id)
+      await deleteLocalMemory(id: id)
     }
   }
 
   /// Clear all advice history
   func clearAll() {
-    let idsToDelete = insightHistory.map { $0.id }
     insightHistory = []
     saveToLocalCache()
 
-    // Delete all from backend
     Task {
-      for id in idsToDelete {
-        await deleteInsightOnBackend(id: id)
+      do {
+        _ = try await MemoryStorage.shared.deleteTaggedAssertions(tag: "tips")
+      } catch {
+        logError("Insight: Failed to clear local Memory rows", error: error)
       }
     }
   }
 
-  /// Refresh from backend
+  /// Refresh from authoritative local Memory storage.
   func refresh() async {
-    await syncFromBackend()
+    await refreshFromLocalMemories()
   }
 
   /// Get unread count
@@ -182,31 +182,26 @@ class InsightStorage: ObservableObject {
     insightHistory.filter { !$0.isDismissed }
   }
 
-  // MARK: - Backend Sync
+  // MARK: - Local Memory Projection
 
-  private func syncFromBackend() async {
+  private func refreshFromLocalMemories() async {
     guard !isSyncing else { return }
-
-    // Don't sync if Firebase isn't configured yet (app still initializing)
-    guard FirebaseApp.app() != nil else {
-      log("Insight: Skipping sync - Firebase not configured yet")
-      return
-    }
 
     isSyncing = true
     isLoading = true
     lastSyncError = nil
 
     do {
-      // Insights are stored as memories with "tips" tag
-      let serverMemories = try await APIClient.shared.getMemories(
-        limit: maxLocalInsights,
+      let memories = try await MemoryStorage.shared.list(
+        scope: .allIncludingArchive,
+        categories: [.interesting],
         tags: ["tips"],
-        includeDismissed: true
+        includeDismissed: true,
+        limit: maxLocalInsights,
+        offset: 0
       )
 
-      // Convert to local model
-      let localInsight = serverMemories.map { StoredInsight(from: $0) }
+      let localInsight = memories.map { StoredInsight(from: $0) }
 
       // Update local cache
       await MainActor.run {
@@ -215,58 +210,54 @@ class InsightStorage: ObservableObject {
         self.isLoading = false
       }
 
-      log("Insight: Synced \(localInsight.count) items from backend (via memories)")
+      log("Insight: Refreshed \(localInsight.count) items from local Memories")
     } catch {
       await MainActor.run {
         self.lastSyncError = error.localizedDescription
         self.isLoading = false
       }
-      logError("Insight: Failed to sync from backend", error: error)
+      logError("Insight: Failed to refresh local Memories", error: error)
     }
 
     isSyncing = false
   }
 
-  private func updateInsightOnBackend(id: String, isRead: Bool?, isDismissed: Bool?) async {
+  private func updateLocalMemory(id: String, isRead: Bool?, isDismissed: Bool?) async {
+    guard Int64(id) != nil else { return }
     do {
-      _ = try await APIClient.shared.updateMemoryReadStatus(id: id, isRead: isRead, isDismissed: isDismissed)
-      log(
-        "Insight: Updated on backend (id=\(id), isRead=\(String(describing: isRead)), isDismissed=\(String(describing: isDismissed)))"
-      )
+      if let isRead { try await MemoryStorage.shared.markRead(id: id, isRead: isRead) }
+      if let isDismissed { try await MemoryStorage.shared.markDismissed(id: id, isDismissed: isDismissed) }
     } catch {
-      logError("Insight: Failed to update on backend", error: error)
+      logError("Insight: Failed to update local Memory", error: error)
     }
   }
 
-  private func deleteInsightOnBackend(id: String) async {
+  private func deleteLocalMemory(id: String) async {
+    guard Int64(id) != nil else { return }
     do {
-      try await APIClient.shared.deleteMemory(id: id)
-      log("Insight: Deleted from backend (id=\(id))")
+      _ = try await MemoryStorage.shared.beginDeletion(id: id)
+      try await MemoryStorage.shared.finalizeDeletion(id: id)
     } catch {
-      logError("Insight: Failed to delete from backend", error: error)
+      logError("Insight: Failed to delete local Memory", error: error)
     }
   }
 
-  /// Mark all insights as read on the backend using the working per-memory
-  /// read-status endpoint. The legacy `markAllMemoriesRead` bulk route was
-  /// removed and `markAllMemoriesRead(scope:)` now throws
-  /// `unsupportedTierScopedBulkMutation`, so update each unread insight
-  /// individually to ensure the optimistic local read state is persisted.
-  private func markAllReadOnBackend() async {
+  private func markAllLocalMemoriesRead() async {
     let unreadIds = insightHistory.filter { !$0.isRead }.map { $0.id }
     guard !unreadIds.isEmpty else { return }
     await withTaskGroup(of: Void.self) { group in
       for id in unreadIds {
         group.addTask {
+          guard Int64(id) != nil else { return }
           do {
-            _ = try await APIClient.shared.updateMemoryReadStatus(id: id, isRead: true, isDismissed: nil)
+            try await MemoryStorage.shared.markRead(id: id, isRead: true)
           } catch {
-            logError("Insight: Failed to mark \(id) as read on backend", error: error)
+            logError("Insight: Failed to mark \(id) as read locally", error: error)
           }
         }
       }
     }
-    log("Insight: Marked \(unreadIds.count) insight(s) as read on backend")
+    log("Insight: Marked \(unreadIds.count) insight(s) as read locally")
   }
 
   // MARK: - Local Cache

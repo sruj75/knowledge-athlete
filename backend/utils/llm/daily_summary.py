@@ -12,13 +12,13 @@ from pydantic import ValidationError
 
 import database.action_items as action_items_db
 import database.users as users_db
+from database.auth import get_user_name
 from models.conversation import Conversation
 from models.daily_summary_payload import DailySummaryPayload
 from models.other import Person
 from utils.conversations.render import conversations_to_string
 from utils.llm.clients import get_llm
 from utils.llm.usage_tracker import Features, track_usage
-from utils.llms.memory import get_prompt_memories
 from utils.log_sanitizer import sanitize, sanitize_validation_error
 
 logger = logging.getLogger(__name__)
@@ -77,7 +77,8 @@ def generate_comprehensive_daily_summary(
     except Exception:
         user_tz = pytz.UTC
 
-    user_name, memories_str = get_prompt_memories(uid)
+    user_name = get_user_name(uid) or 'The User'
+    memories_str = ''
 
     # Get user's language preference for generating summary in their language
     output_language = user_profile.get('language', '') or 'en'

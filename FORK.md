@@ -169,7 +169,7 @@ name with no direct user-visible identity.
 | CI control-plane credentials | `GCP_CREDENTIALS`, `GCP_FIRESTORE_READONLY_CREDENTIALS`, and `CODEMAGIC_API_TOKEN`; the Windows Azure secret set is inventoried above | `.github/workflows/gcp_*.yml`, `.github/workflows/desktop_*.yml`, `desktop/macos/AGENTS.md`, `desktop/windows/docs/release-pipeline.md` | Backend deploys, release eligibility, desktop promotion/rollback, Codemagic intake checks, and Windows signing authenticate to the accounts supplied by these secrets; missing values fail or downgrade the documented lane. Secret values and current GitHub environment population are not present in the tracked snapshot. | Omi/BasedHardware operator; Google Cloud; Codemagic; Azure | external identifier; release infrastructure |
 | Public domains | `api.omi.me`, `api.omiapi.com`, `h.omi.me`, `macos.omi.me`, `windows.omi.me`, and service-specific Omi hosts | Backend routers/config, desktop clients, charts, workflows | Auth callbacks, APIs, sharing, downloads, health checks, and provider routing remain bound to Omi DNS and certificates. | Omi/BasedHardware | service endpoint |
 | Update asset origin | `https://github.com/BasedHardware/omi/releases/download/` | `backend/routers/updates.py` | Generated macOS appcasts and Windows feed directories hand clients Omi-hosted binaries. | Omi/BasedHardware | service endpoint; release infrastructure |
-| Backend data plane | Firestore plus Redis, object/search stores, queues, and Omi-named service deployments | `backend/database/`, `backend/deploy/runtime_env.yaml`, charts and workflows | User identity, memories, conversations, capture, release manifests, and operational state are owned by the configured Omi cloud environment. | Omi/BasedHardware; cloud providers | service endpoint; persistent identity |
+| Backend data plane | Firestore plus Redis, object/search stores, queues, and Omi-named service deployments | `backend/database/`, `backend/deploy/runtime_env.yaml`, charts and workflows | User identity, tasks, retained server conversation workflows, capture, release manifests, and operational state are owned by the configured Omi cloud environment. Mac conversations and Memories are excluded. | Omi/BasedHardware; cloud providers | service endpoint; persistent identity |
 | Provider credentials | OpenAI, Anthropic, Gemini, Modulate, Pinecone/Typesense, Dodo Payments, email, connector, and related environment-backed accounts | Backend env templates, runtime env contract, charts, and workflow secrets | Values are not selected by a visual rebrand. Billing is disabled by default; an operator must explicitly select Dodo test or live mode and supply its API key, webhook key, and normalized server-owned offer catalog. | Third-party accounts configured by operator | service endpoint |
 | macOS build lane | External workflow identity `omi-desktop-swift-release`, `CODEMAGIC_API_TOKEN`, self-hosted `omi-qual-m1-studio`, then GitHub promotion workflows | `desktop/macos/AGENTS.md`, release docs, `.github/workflows/desktop_*.yml` | GitHub can observe same-tag provider intake and qualify/publish an artifact, but this checkout has no tracked build-provider definition. S-29 owns adding that definition before the lane is self-contained. | Omi/BasedHardware; external build provider/self-hosted runner | release infrastructure |
 | Internal source naming | `Omi*` Swift/Python/TypeScript symbols plus repository-local `OMI_*` variables and `omi-*` development scripts/test conventions | Retained source and tests; macOS development controls are inventoried above | These symbols can remain without contacting Omi and do not by themselves preserve an upstream account, endpoint, shipped bundle identity, or deployment resource. Blind renames would still require coordinated in-tree caller and test changes. | Local repository | internal-only symbol |
@@ -188,12 +188,9 @@ name with no direct user-visible identity.
 - The universal dylibs in `desktop/macos/vendor/libwebp/` remain protected
   inputs for S-29 and are not proof that the missing provider lane exists.
 - `.github/workflows/desktop-backend-contracts.yml` keeps its independent
-  `desktop-core-e2e-t0` self-check. S-10 removed the conversation cases,
-  `contract_tests/fixtures/conversations.json`, and the conversation-database
-  trigger. S-12 owns the memory cases,
-  `contract_tests/fixtures/memories.json`, the remaining hosted-contract job and
-  triggers, then the `backend/testing/contracts/` discovery-registry and guard
-  cleanup after the final contract file is removed.
+  `desktop-core-e2e-t0` self-check. S-10 removed conversation parity and S-12
+  removed the final hosted Memory parity contract, fixture, job, discovery
+  registry, and guard residue.
 
 ### Local conversation authority and exact handoffs
 
@@ -205,7 +202,6 @@ playback caller. The remaining server-side residue is intentionally bounded:
 |---|---|---|
 | `backend/routers/listen/`, `/v4/listen`, `/v4/web/listen`, listen integration tests, and `backend/testing/listen_pusher_stack/` | S-16 | Non-Mac clients and the staged listen transport still use hosted lifecycle/protocol internals. S-10 removed the Mac conversation-ID/lifecycle dependency. |
 | Historical conversation columns in `RewindDatabase.swift`, `RewindDatabase+ConversationLocalAuthority.swift`, and `ConversationLocalAuthorityMigrationTests.swift` | S-10 migration ledger | Retired server/cache names occur only while creating the old schema, migrating it once, and proving the new live schema excludes them. They are not current model or caller fields. |
-| Memory `backendId`/`backendSynced` fields, backend-keyed mutations, and their historical schema in `RewindDatabase.swift` | S-12 | Memory authority and hosted-sync retirement are deliberately separate. S-10 rewrites exact conversation source IDs and supplies transaction-scoped cascade hooks only. |
 | Action-item/staged-task `backendId`/`backendSynced` fields, backend-keyed mutations, and their historical schema in `RewindDatabase.swift` | S-13 | Task authority and sync retirement are deliberately separate. S-10 supplies the exact local conversation source and atomic delete/merge hooks only. |
 | Goal and proactive/focus backend identity and sync fields in the shared Rewind store | S-14 | Goal/profile/language authority is separately owned; these matches are not conversation state or a conversation fallback. |
 | PTT provider-result telemetry in `TranscriptionService.swift` and `PushToTalkManager.swift` | S-19 | Batch PTT still records the backend-selected provider as transient diagnostics; ambient conversation capture neither sends nor persists a provider identity. |
@@ -214,5 +210,22 @@ playback caller. The remaining server-side residue is intentionally bounded:
 | `/v1/tools/conversations`, `/v1/tools/conversations/search`, and `/v1/tools/conversations/search-chunks` | S-19 | Push-to-talk retrieval remains a separate remote tool boundary. |
 | `backend/database/conversations.py`, `backend/database/folders.py`, hosted finalization/process helpers, and their direct tests/fixtures | S-23 | Existing server workflows still require the datastore; S-10 stops new Mac projection but does not wipe live data or remove shared persistence. |
 | `/v2/audio-merge-jobs/run`, audio merge helpers/tests, queues, and stored playback artifacts | S-25 | The public playback surface is gone, but operational worker/deployment teardown requires a separately authorized drain. |
-| Memory cases in `backend/testing/contracts/test_desktop_backend_parity.py`, `contract_tests/fixtures/memories.json`, and their mixed workflow job | S-12 | Memory authority migration owns the final parity removal. |
 | `conv_discard`, `conv_structure`, and `conv_action_items` model-policy configuration | S-22 | S-10 consumes these existing feature keys through stateless compute routes; model routing remains independently owned. |
+
+### Local Memory authority and exact handoffs
+
+The macOS app is authoritative for Memories in its effective-owner `omi.db`.
+`MemoryStorage` owns all durable reads, mutations, lifecycle leases,
+transition receipts, provenance, and local vectors. The Memories page, local
+automation, Chat/PTT/Pi tools, screenshot and proactive writers, and profile or
+suggestion readers share that boundary. Hosted Memory product routes,
+Firestore Memory documents/rules/indexes, vector/search projections,
+maintenance jobs, parity fixtures, and generated hosted DTOs are absent.
+
+The backend retains exactly three authenticated stateless proposal routes:
+`/v1/memory/compute/extract`, `/normalize`, and `/consolidate`. They use pinned
+OpenAI GPT-4.1-mini compute and cannot assign a durable Memory identity or
+persist input/output. Gemini embedding remains a transient shared proxy; the
+Mac owns the resulting vectors. S-22 may replace provider routing, S-23 owns
+remaining hosted conversation internals, and S-24/S-25 own their separately
+listed cloud-state and operational teardown boundaries.

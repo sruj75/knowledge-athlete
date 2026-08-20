@@ -59,22 +59,6 @@ RATE_POLICIES: dict[str, tuple[int, int]] = {
     # Action items — lightweight Firestore writes; an automated caller can loop,
     # so cap creation per hour.
     "action_items:write": (120, 3600),
-    # Memories — single LLM call each
-    "memories:create": (60, 3600),
-    # Memory batch writes — each request can create up to 100 memories, so the
-    # per-request cap is intentionally tighter than memories:create.
-    "memories:batch": (30, 3600),
-    # Memory mutations — lightweight Firestore writes
-    "memories:modify": (120, 3600),
-    # Memory review queue — lightweight read/resolve workflow over review artifacts
-    "memories:review": (120, 3600),
-    # Memory deletes — destructive operations
-    "memories:delete": (60, 3600),
-    # Delete-all is extremely destructive; tight cap with one retry cushion
-    "memories:delete_all": (2, 3600),
-    # Batch delete — each request removes up to 100 memories in one Firestore write,
-    # so the per-request cap is tighter than memories:delete (which is one memory each).
-    "memories:delete_batch": (10, 3600),
     # Goals — single LLM call
     "goals:suggest": (30, 3600),
     "goals:advice": (30, 3600),

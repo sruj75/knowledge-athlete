@@ -27,7 +27,7 @@ def test_retired_conversation_projection_routes_are_absent() -> None:
     assert surviving == []
 
 
-def test_transient_compute_listen_ptt_memory_and_worker_routes_remain() -> None:
+def test_transient_compute_listen_ptt_and_worker_routes_remain() -> None:
     route_keys = _route_keys()
 
     for route_key in (
@@ -37,7 +37,9 @@ def test_transient_compute_listen_ptt_memory_and_worker_routes_remain() -> None:
         ("GET", "/v1/tools/conversations"),
         ("POST", "/v1/tools/conversations/search"),
         ("POST", "/v1/tools/conversations/search-chunks"),
-        ("GET", "/v3/memories"),
+        ("POST", "/v1/memory/compute/extract"),
+        ("POST", "/v1/memory/compute/normalize"),
+        ("POST", "/v1/memory/compute/consolidate"),
         ("POST", "/v2/audio-merge-jobs/run"),
         ("GET", "/v1/users/language"),
         ("PATCH", "/v1/users/language"),

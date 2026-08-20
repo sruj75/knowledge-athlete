@@ -1,7 +1,7 @@
 version: 2
 name: memories
 tier: manual
-description: Memory menu — navigate retained Memories and Conversations destinations
+description: Memory menu — navigate owner-local Memories and Conversations destinations
 app: non-prod
 covers:
   - desktop/macos/Desktop/Sources/MainWindow/MemoryHubDestination.swift
@@ -9,7 +9,7 @@ covers:
   - desktop/macos/Desktop/Sources/MainWindow/Pages/MemoriesPage.swift
   - desktop/macos/Desktop/Sources/MainWindow/Pages/MemoryProvenance.swift
   - desktop/macos/Desktop/Sources/DesktopAutomationBridge.swift
-  - desktop/macos/Desktop/Sources/Services/APIClient/APIClient+Memories.swift
+  - desktop/macos/Desktop/Sources/Rewind/Core/MemoryStorage.swift
 preconditions:
   - auth_ready
 
@@ -24,7 +24,7 @@ steps:
 
   - id: S2
     name: Select and verify Memories
-    do: "Choose Memories from the Memory menu. Verify the full-width page shows Search memories, lifecycle/category filters, the Add button, and no device-scope or public/private controls."
+    do: "Choose Memories from the Memory menu. Verify the full-width page shows Search memories, lifecycle filters, the Add button, and no device-scope, sync, or public/private controls."
     expect:
       text_visible:
         - Memories

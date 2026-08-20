@@ -426,19 +426,21 @@ enum ViewExporter {
     let viewModel = MemoriesViewModel()
     let now = Date()
     viewModel.memories = [
-      ServerMemory(
-        id: "memory_preview_1",
+      MemoryItem(
+        id: "1",
         content:
           "Nik prefers brutally concise launch updates with concrete status, blockers, and next steps.",
         category: .manual,
+        layer: .longTerm,
+        expiresAt: nil,
+        revision: 1,
         createdAt: now.addingTimeInterval(-90),
         updatedAt: now.addingTimeInterval(-90),
+        correctedAt: nil,
         conversationId: nil,
-        reviewed: true,
-        userReview: true,
+        sourceSegmentId: nil,
         manuallyAdded: true,
-        scoring: nil,
-        source: "manual",
+        source: .manual,
         confidence: 0.98,
         sourceApp: "Omi Desktop",
         contextSummary: "Founder preferences captured from direct instruction.",
@@ -449,21 +451,23 @@ enum ViewExporter {
         currentActivity: "Refining the desktop app UI",
         inputDeviceName: nil,
         windowTitle: "macOS polish notes",
-        headline: nil
+        screenshotId: nil
       ),
-      ServerMemory(
-        id: "memory_preview_2",
+      MemoryItem(
+        id: "2",
         content:
           "Dashboard widgets should feel like roomy cards, not admin panels: larger radii, fewer strokes, stronger spacing.",
         category: .interesting,
+        layer: .shortTerm,
+        expiresAt: now.addingTimeInterval(7 * 86_400),
+        revision: 1,
         createdAt: now.addingTimeInterval(-3600),
         updatedAt: now.addingTimeInterval(-3600),
+        correctedAt: nil,
         conversationId: "conversation_preview_dashboard",
-        reviewed: false,
-        userReview: nil,
+        sourceSegmentId: nil,
         manuallyAdded: false,
-        scoring: nil,
-        source: "conversation",
+        source: .conversation,
         confidence: 0.92,
         sourceApp: "Design Review",
         contextSummary: "Notes from comparing the new macOS build to the old Flutter app.",
@@ -474,21 +478,23 @@ enum ViewExporter {
         currentActivity: "Reviewing home surfaces",
         inputDeviceName: "MacBook Pro Microphone",
         windowTitle: "Home",
-        headline: nil
+        screenshotId: nil
       ),
-      ServerMemory(
-        id: "memory_preview_3",
+      MemoryItem(
+        id: "3",
         content:
           "Tip: keep memory rows mostly borderless and let hover depth do the work instead of outlining every card.",
-        category: .system,
+        category: .interesting,
+        layer: .shortTerm,
+        expiresAt: now.addingTimeInterval(7 * 86_400),
+        revision: 1,
         createdAt: now.addingTimeInterval(-7200),
         updatedAt: now.addingTimeInterval(-7200),
+        correctedAt: nil,
         conversationId: "conversation_preview_memories",
-        reviewed: false,
-        userReview: nil,
+        sourceSegmentId: nil,
         manuallyAdded: false,
-        scoring: nil,
-        source: "advice",
+        source: .insight,
         confidence: 0.89,
         sourceApp: "Omi Assistant",
         contextSummary: "Extracted from the desktop UI polish pass.",
@@ -499,7 +505,7 @@ enum ViewExporter {
         currentActivity: "Polishing memory cards",
         inputDeviceName: nil,
         windowTitle: "Memories",
-        headline: "Less chrome, more content"
+        screenshotId: nil
       ),
     ]
     return viewModel

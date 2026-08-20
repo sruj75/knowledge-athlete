@@ -195,32 +195,6 @@ def seed_conversation(uid: str, conversation_data: dict):
     db.collection("users").document(uid).collection("conversations").document(conv_id).set(data)
 
 
-def seed_memory(uid: str, memory_data: dict):
-    """Seed a memory document into fake Firestore for testing."""
-    db = get_mock_firestore()
-    data = dict(memory_data)
-    # The real Firestore query in database/memories.py orders by scoring and created_at.
-    # Firestore tolerates sparse legacy docs, but fake-firestore sorts by direct key lookup.
-    # Add defaults in the fake seeder so legacy-shape tests exercise backend validation
-    # instead of fake-firestore's stricter implementation detail.
-    data.setdefault("uid", uid)
-    data.setdefault("reviewed", False)
-    data.setdefault("manually_added", False)
-    data.setdefault("edited", False)
-    data.setdefault("is_locked", False)
-    data.setdefault("scoring", "00_999_0000000000")
-    data.setdefault("visibility", "public")
-    data.setdefault("user_review", True)
-    for timestamp_field in ("created_at", "updated_at"):
-        value = data.get(timestamp_field)
-        if isinstance(value, str):
-            data[timestamp_field] = datetime.fromisoformat(value.replace("Z", "+00:00"))
-    data.setdefault("created_at", datetime.now(timezone.utc))
-    data.setdefault("updated_at", data["created_at"])
-    mem_id = data["id"]
-    db.collection("users").document(uid).collection("memories").document(mem_id).set(data)
-
-
 def seed_action_item(uid: str, action_item_data: dict):
     """Seed an action item document into fake Firestore for testing."""
     db = get_mock_firestore()
@@ -242,13 +216,6 @@ def read_conversation(uid: str, conversation_id: str) -> Optional[dict]:
     return None
 
 
-def read_memories(uid: str) -> list:
-    """Read all memories for a user from fake Firestore."""
-    db = get_mock_firestore()
-    docs = db.collection("users").document(uid).collection("memories").stream()
-    return [d.to_dict() for d in docs]
-
-
 def read_action_items(uid: str) -> list:
     """Read all action items for a user from fake Firestore."""
     db = get_mock_firestore()
@@ -262,7 +229,6 @@ def clear_user_data(uid: str):
     user_ref = db.collection("users").document(uid)
     for coll_name in [
         "conversations",
-        "memories",
         "action_items",
         "people",
         "chat_sessions",

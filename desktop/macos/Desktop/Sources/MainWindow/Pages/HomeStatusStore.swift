@@ -41,7 +41,7 @@ struct HomeStatusLoader {
       },
       loadKnowledgeCounts: {
         async let conversations = try? TranscriptionStorage.shared.conversationCount(query: .all)
-        async let memories = try? MemoryStorage.shared.getLocalMemoriesCount()
+        async let memories = try? MemoryStorage.shared.count()
         async let tasks = try? ActionItemStorage.shared.getLocalActionItemsCount(completed: false)
 
         return await HomeKnowledgeCounts(

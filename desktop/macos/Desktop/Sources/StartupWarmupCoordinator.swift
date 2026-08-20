@@ -133,6 +133,7 @@ final class StartupWarmupCoordinator {
     }
 
     tasksStore.scheduleStartupMaintenanceIfNeeded()
+    await LocalMemoryLifecycleRunner.shared.start()
 
     await measurePerfAsync("DATA LOAD: DB lifecycle warmup") {
       await measurePerfAsync("DATA LOAD: Task agent restore") {

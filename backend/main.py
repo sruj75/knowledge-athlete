@@ -30,7 +30,6 @@ from routers import (
     trends,
     sync,
     payment,
-    memories,
     auth,
     action_items,
     candidates,
@@ -56,11 +55,10 @@ from routers import (
     desktop_tts_updates,
     scores,
     tts,
-    memory_admin,
-    memory_product,
     task_recommendations,
     conversation_finalization,
     conversation_compute,
+    memory_compute,
 )
 
 from utils.other.timeout import TimeoutMiddleware
@@ -124,7 +122,6 @@ app.include_router(omni_relay.router)
 app.include_router(auto_model.router)
 app.include_router(action_items.router)
 app.include_router(candidates.router)
-app.include_router(memories.router)
 app.include_router(chat.router)
 app.include_router(speech_profile.router)
 # app.include_router(screenpipe.router)
@@ -133,6 +130,7 @@ app.include_router(agents.router)
 app.include_router(users.router)
 app.include_router(conversation_finalization.router)
 app.include_router(conversation_compute.router)
+app.include_router(memory_compute.router)
 app.include_router(trends.router)
 
 app.include_router(other.router)
@@ -159,8 +157,6 @@ app.include_router(advice.router)
 app.include_router(chat_sessions.router)
 app.include_router(scores.router)
 app.include_router(tts.router)
-app.include_router(memory_admin.router)
-app.include_router(memory_product.router)
 app.include_router(task_recommendations.router)
 app.include_router(desktop_core.router)
 app.include_router(desktop_chat.router)
