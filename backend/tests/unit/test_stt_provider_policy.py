@@ -37,11 +37,11 @@ def test_live_multilingual_policy_normalizes_supported_locales_and_rejects_unkno
 
 def test_user_language_route_gates_multilingual_mode_by_live_policy():
     """Static tripwire (source order, not behavior): the PATCH /v1/users/language
-    preference gate derives single_language_mode from the live STT capability
-    policy, and the retired Deepgram Nova-3 multi-language list no longer
-    appears in the route module (#10022)."""
+    response derives single_language_mode from the live STT capability policy,
+    without reviving cloud transcription-preference persistence (#10022)."""
     users_py = (Path(__file__).resolve().parents[2] / 'routers' / 'users.py').read_text(encoding='utf-8')
     assert 'single_language_mode = not supports_live_multilingual_mode(language)' in users_py
+    assert 'set_user_transcription_preferences' not in users_py
     assert 'deepgram_nova3_multi_languages' not in users_py
 
 

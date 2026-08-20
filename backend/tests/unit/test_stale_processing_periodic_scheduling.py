@@ -1,7 +1,7 @@
 """Behavioral test that the periodic (not only startup) reconcile drives the sweep.
 
-The hermetic listen_pusher_stack gauntlet exercises the startup drain; this test
-proves the periodic ``_periodic_listen_finalization_reconcile`` loop itself
+The startup-drain contract is covered beside finalization jobs; this test proves
+the periodic ``_periodic_listen_finalization_reconcile`` loop itself
 invokes the stale-processing reconciliation on its cadence (#10461 point 3).
 """
 

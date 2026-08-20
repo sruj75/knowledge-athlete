@@ -47,6 +47,14 @@ and commits them locally. Cloud conversation playback, reusable People/voice
 identity, public conversation sharing, and Store Recordings/Private Cloud Sync
 settings are not macOS product surfaces.
 
+Continuous cloud transcription uses one Firebase-authenticated `/v4/listen`
+socket. The Mac snapshots language, optional translation target, and ordered
+vocabulary for the recording; audio is fixed mono 16 kHz signed PCM. The backend
+streams it to managed Modulate and returns only stable UUID segments with
+zero-based numeric speakers, truthful transport/account status, and optional
+Gemini 2.5 Flash-Lite translations keyed to the segment. It does not create,
+persist, identify, roll over, reconcile, or finalize a conversation.
+
 ## macOS Memory authority
 
 The Mac owns its Memory archive in the same owner-scoped local `omi.db` boundary

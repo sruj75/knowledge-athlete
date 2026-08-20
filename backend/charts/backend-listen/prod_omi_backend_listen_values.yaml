@@ -254,10 +254,6 @@ env:
     value: "based-hardware"
   - name: GCP_LOCATION
     value: "us-central1"
-  - name: HOSTED_TRANSLATION_API_URL
-    value: "http://nllb.omi.me"
-  - name: TRANSLATION_SERVICE_MODELS
-    value: "nllb,gemini"
   - name: ENCRYPTION_SECRET
     valueFrom:
       secretKeyRef:

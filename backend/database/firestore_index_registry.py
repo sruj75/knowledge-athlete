@@ -110,10 +110,6 @@ def _desc(field_path: str) -> FirestoreIndexField:
     return FirestoreIndexField(field_path, order='DESCENDING')
 
 
-def _contains(field_path: str) -> FirestoreIndexField:
-    return FirestoreIndexField(field_path, array_config='CONTAINS')
-
-
 # These explicit requirements preserve the current deployed index set while
 # callers migrate one compound serving query at a time into QUERY_SPECS.
 INDEX_ONLY_REQUIREMENTS = (

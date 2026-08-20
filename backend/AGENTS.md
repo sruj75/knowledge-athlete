@@ -46,7 +46,8 @@ backend/
     fair_use.py           #   Usage limits and soft-cap tracking
     ...                   #   + folders, goals, phone_calls, daily_summaries, trends, etc.
   routers/                # FastAPI route handlers, one per retained feature domain
-    transcribe.py         #   /v4/listen WebSocket — core audio streaming + transcription pipeline (2900 LOC)
+    transcribe.py         #   /v4/listen WebSocket — auth + exact transient session contract
+    listen/               #   Modulate transport, VAD, metering, canonical segments, direct translation
     chat.py               #   /v2/messages — AI chat with tool use, voice messages, file uploads
     conversation_compute.py # /v1/conversation-compute — stateless discard/structure/action-item candidates
     memory_compute.py     #   Three authenticated, bounded, stateless Memory proposal routes
@@ -73,7 +74,7 @@ backend/
     translation.py        #   Multi-language translation coordination
     speaker_identification.py  # Speaker diarization + person matching against speech profiles
   pusher/                 # Subservice: real-time data distribution hub (separate Docker)
-                          #   - Receives audio + transcripts from backend-listen via binary WebSocket protocol
+                          #   - Retained for server workflows outside transient /v4/listen
                           #   - Streams retained transcript/audio data to first-party consumers
                           #   - Runs retained LLM-powered conversation analysis (action items and insights)
                           #   - Batches + uploads audio to private cloud storage (60s batches, 3 retries)
@@ -84,10 +85,6 @@ backend/
                           #   - POST /v1/diarization — speaker boundary detection (pyannote/speaker-diarization)
                           #   - POST /v1/embedding — speaker vector extraction (pyannote/embedding)
                           #   - POST /v2/embedding — alt speaker vectors (wespeaker-voxceleb-resnet34-LM)
-  nllb_translation/      # Subservice: self-hosted NLLB translation (separate Docker, GPU/CUDA)
-                          #   - POST /v1/translate — batch sentence translation (NLLB-200 + CTranslate2)
-                          #   - Prometheus metrics at /metrics, health at /health, readiness at /ready
-                          #   - Fallback to Gemini 2.5 Flash-Lite when NLLB is unavailable
   modal/                 # Serverless GPU services (deployed on Modal) + Cloud Run Jobs
                           #   - Speaker identification: matches segments to speech profiles (SpeechBrain, T4 GPU)
                           #   - VAD: voice activity detection (pyannote/voice-activity-detection)
@@ -109,7 +106,6 @@ backend (main.py)
   ├── ──────► diarizer (diarizer/)
   ├── ──────► vad (modal/)
   ├── ──────► modulate (managed API)
-  ├── ──────► nllb-translation (nllb_translation/)
   └── ──────► llm-gateway (llm_gateway/main.py)
 
 pusher
@@ -124,18 +120,17 @@ backend-sync (main.py, Cloud Run)
 notifications-job (modal/job.py)  [cron]
 ```
 
-Helm charts: `backend/charts/{backend-listen,backend-secrets,diarizer,llm-gateway,nllb-translation,pusher,vad}/`.
+Helm charts: `backend/charts/{backend-listen,backend-secrets,diarizer,llm-gateway,pusher,vad}/`.
 
 Managed STT is fixed to Modulate. `config/stt_provider_policy.py` owns its language/capability policy, and the runtime manifest binds only `MODULATE_API_KEY` on transcription-capable services.
 
-- **backend** (`main.py`) — REST API. Streams audio to pusher via WebSocket (`utils/pusher.py`). Calls diarizer for speaker embeddings (`utils/stt/speaker_embedding.py`). Calls vad for voice activity detection and speaker identification (`utils/stt/vad.py`, `utils/stt/speech_profile.py`). Managed live and prerecorded STT uses Modulate (`MODULATE_API_KEY`). Calls NLLB translation when `HOSTED_TRANSLATION_API_URL` is set and NLLB is selected (`utils/translation.py`).
+- **backend** (`main.py`) — REST API. `/v4/listen` streams fixed PCM directly to Modulate and returns transient canonical segments without Pusher, People, or conversation storage. Other retained server workflows call diarizer for speaker embeddings (`utils/stt/speaker_embedding.py`) and vad for voice activity detection and speaker identification (`utils/stt/vad.py`, `utils/stt/speech_profile.py`). Managed live and prerecorded STT uses Modulate (`MODULATE_API_KEY`). Transient live translation uses Gemini 2.5 Flash-Lite through the LLM gateway (`utils/translation.py`).
 - **llm-gateway** (`llm_gateway/main.py`) — Internal FastAPI service for Omi-managed LLM auto lanes. Called by backend with service auth for `omi:auto:*` chat-completions routes; not exposed to clients.
 - **pusher** (`pusher/main.py`) — Receives audio via binary WebSocket protocol. Calls diarizer and managed Modulate STT for speaker sample extraction (`utils/speaker_identification.py` → `utils/speaker_sample.py`).
 - **diarizer** (`diarizer/main.py`) — GPU. Speaker embeddings at `/v2/embedding`. Called by backend and pusher (`HOSTED_SPEAKER_EMBEDDING_API_URL`).
 - **vad** (`modal/main.py`) — GPU. `/v1/vad` and `/v1/speaker-identification`. Called by backend only.
 - **modulate** — The fixed managed STT adapter for configured languages. Called by transcription-capable services through their `MODULATE_API_KEY` binding.
-- **nllb-translation** (`nllb_translation/`) — GPU translation service. Called by backend when `HOSTED_TRANSLATION_API_URL` is set and NLLB is selected.
-- **backend-sync** (`main.py`, same image as backend) — Shared Cloud Run task worker retained until S-25. S-10 removed public conversation playback routes; only the OIDC `/v2/audio-merge-jobs/run` worker remains for already-queued/stored artifacts. In production, account deletion requires `ACCOUNT_DELETION_DISPATCH_MODE=cloud_tasks` and complete Cloud Tasks bindings to enqueue opaque job IDs to queue `account-deletion`, which posts `/v1/users/account-deletion-wipes/run`; startup rejects inline or incomplete configuration, reconciliation only re-dispatches tasks so the OIDC handler is the sole wipe executor, and the post-deploy queue-drain window accepts the former sync OIDC audience only for legacy UID payloads. Conversation finalization remains an S-16/S-23 handoff through its dedicated queue and OIDC route. API success is returned only after the deletion marker is persisted and the wipe task is durably enqueued.
+- **backend-sync** (`main.py`, same image as backend) — Shared Cloud Run task worker retained until S-25. S-10 removed public conversation playback routes; only the OIDC `/v2/audio-merge-jobs/run` worker remains for already-queued/stored artifacts. In production, account deletion requires `ACCOUNT_DELETION_DISPATCH_MODE=cloud_tasks` and complete Cloud Tasks bindings to enqueue opaque job IDs to queue `account-deletion`, which posts `/v1/users/account-deletion-wipes/run`; startup rejects inline or incomplete configuration, reconciliation only re-dispatches tasks so the OIDC handler is the sole wipe executor, and the post-deploy queue-drain window accepts the former sync OIDC audience only for legacy UID payloads. Conversation finalization is outside transient listen and remains with its storage owners. API success is returned only after the deletion marker is persisted and the wipe task is durably enqueued.
 
 ### macOS conversation boundary
 
@@ -144,8 +139,8 @@ add `/v1/conversations`, `/v1/folders`, public conversation-audio playback, or
 People/settings compatibility routes for the Mac. `/v4/listen` is a transient
 speech transport for macOS and `/v1/conversation-compute/{discard,structure,action-items}`
 returns candidate data without writing conversation records. Hosted listen and
-datastore internals remain only for the later-slice owners recorded in
-`FORK.md`.
+conversation lifecycle are gone; shared historical datastore internals remain
+only for the later-slice owners recorded in `FORK.md`.
 
 ### macOS Memory boundary
 
@@ -208,7 +203,6 @@ Never log raw sensitive data. Use `sanitize()` and `sanitize_pii()` from `utils.
 ```bash
 bash test-preflight.sh   # Verify env
 bash test.sh             # Run all tests (CI source of truth)
-npm run test:listen-lifecycle:emulator  # Real Firestore transaction contention for listen cleanup/content
 ```
 
 **Tests are selector-driven.** `scripts/run-unit-ci.sh` is the full GitHub Actions contract: it selects changed-file tests on PRs, runs preflight and type-checking, then invokes `test.sh`; main CI uses it with `--all`. Local pre-push intentionally keeps its own 40-file cap and runs changed test files when a broad selector exceeds that budget. Do not make the hook call the CI runner: bounded push latency protects the normal development loop. Local `test.sh` runs the selected set from `tests/unit/`, `tests/services/`, and `tests/routers/` via `scripts/select_backend_unit_tests.py`. Tests that need live services (Redis, Firebase, real API keys) go in `tests/integration/`, which is not part of selector auto-discovery; note in the PR how you ran them.
@@ -281,7 +275,7 @@ Never block the event loop — it freezes health checks, HPA scaling, and all co
 
 ## WebSocket Concurrency (Long-Lived Connections)
 
-WS handlers in `transcribe.py` and `pusher.py` manage 5-11 concurrent tasks per connection. Use `utils/async_tasks.py` utilities — never raw `asyncio.gather()` or bare `await receive_task`.
+WS handlers in `routers/listen/runtime.py` and `pusher.py` manage concurrent tasks per connection. Use `utils/async_tasks.py` utilities — never raw `asyncio.gather()` or bare `await receive_task`.
 
 - **Supervision**: `supervise_tasks()` wraps `asyncio.wait(FIRST_COMPLETED)` — detects both client disconnect and bg task crashes immediately. Classify tasks as finite (can complete during session) or lifetime (completion = session ending).
 - **Drain**: `drain_tasks()` cancels remaining bg tasks with bounded timeout, force-cancels stragglers via `asyncio.wait` (not `asyncio.gather`, which hangs if a task suppresses CancelledError).

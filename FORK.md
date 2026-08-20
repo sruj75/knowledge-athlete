@@ -196,17 +196,19 @@ name with no direct user-visible identity.
 
 The macOS app is authoritative for conversations in its owner-scoped local
 GRDB store. Its ordinary code has no hosted conversation/folder/People/audio
-playback caller. The remaining server-side residue is intentionally bounded:
+playback caller. `/v4/listen` is now only an authenticated, fixed-PCM transient
+Modulate transport: it returns canonical segments and optional keyed
+translations without creating or mutating product data. The remaining
+server-side residue is intentionally bounded:
 
 | Retained residue | Later owner | Why it remains after S-10 |
 |---|---|---|
-| `backend/routers/listen/`, `/v4/listen`, `/v4/web/listen`, listen integration tests, and `backend/testing/listen_pusher_stack/` | S-16 | Non-Mac clients and the staged listen transport still use hosted lifecycle/protocol internals. S-10 removed the Mac conversation-ID/lifecycle dependency. |
 | Historical conversation columns in `RewindDatabase.swift`, `RewindDatabase+ConversationLocalAuthority.swift`, and `ConversationLocalAuthorityMigrationTests.swift` | S-10 migration ledger | Retired server/cache names occur only while creating the old schema, migrating it once, and proving the new live schema excludes them. They are not current model or caller fields. |
 | Action-item/staged-task `backendId`/`backendSynced` fields, backend-keyed mutations, and their historical schema in `RewindDatabase.swift` | S-13 | Task authority and sync retirement are deliberately separate. S-10 supplies the exact local conversation source and atomic delete/merge hooks only. |
 | Goal and proactive/focus backend identity and sync fields in the shared Rewind store | S-14 | Goal/profile/language authority is separately owned; these matches are not conversation state or a conversation fallback. |
 | PTT provider-result telemetry in `TranscriptionService.swift` and `PushToTalkManager.swift` | S-19 | Batch PTT still records the backend-selected provider as transient diagnostics; ambient conversation capture neither sends nor persists a provider identity. |
-| Generated speech-profile DTO/client residue in `OmiApi.generated.swift` | S-16 / S-23 | The app-client generator still exports the separately owned speech-profile surface. S-10 removed all Mac People and persistent voice-identity callers but does not hand-edit shared generated output. |
-| Backend People, speech-profile, speaker-matching, and reusable person-ID helpers/models | S-16 / S-23 | Hosted listen and server-only historical workflows still own these internals. No ordinary Mac conversation caller, durable Mac person ID, or cross-conversation voice identity remains after S-10. |
+| Generated speech-profile DTO/client residue in `OmiApi.generated.swift` | S-23 | The app-client generator still exports the separately owned speech-profile surface. S-10 removed all Mac People and persistent voice-identity callers; S-16 removed listen's dependency without hand-editing shared generated output. |
+| Backend People, speech-profile, speaker-matching, and reusable person-ID helpers/models | S-23 | Server-only historical workflows still own these internals. Listen no longer reads profiles, matches persistent voices, or returns person identity. |
 | `/v1/tools/conversations`, `/v1/tools/conversations/search`, and `/v1/tools/conversations/search-chunks` | S-19 | Push-to-talk retrieval remains a separate remote tool boundary. |
 | `backend/database/conversations.py`, `backend/database/folders.py`, hosted finalization/process helpers, and their direct tests/fixtures | S-23 | Existing server workflows still require the datastore; S-10 stops new Mac projection but does not wipe live data or remove shared persistence. |
 | `/v2/audio-merge-jobs/run`, audio merge helpers/tests, queues, and stored playback artifacts | S-25 | The public playback surface is gone, but operational worker/deployment teardown requires a separately authorized drain. |

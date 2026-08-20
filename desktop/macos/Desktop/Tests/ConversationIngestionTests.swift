@@ -164,6 +164,40 @@ final class ConversationIngestionTests: XCTestCase {
     XCTAssertNotNil(UUID(uuidString: detail.segments[0].segmentId))
   }
 
+  func testTransientTranslationAttachesOnlyToTheRequestedLocalSegment() async throws {
+    let owner = try makeStorage()
+    defer {
+      try? owner.pool.close()
+      try? FileManager.default.removeItem(at: owner.directory)
+    }
+    let conversation = try await owner.storage.beginConversation(configuration: .testDefault)
+    let firstId = "40000000-0000-4000-8000-000000000001"
+    let secondId = "40000000-0000-4000-8000-000000000002"
+    try await owner.storage.upsertSegments(
+      sessionId: conversation.sessionId,
+      segments: [
+        ConversationSegmentInput(
+          segmentId: firstId, speakerId: 0, text: "First.", startTime: 0, endTime: 1,
+          isUser: false, translations: []),
+        ConversationSegmentInput(
+          segmentId: secondId, speakerId: 1, text: "Second.", startTime: 2, endTime: 3,
+          isUser: false, translations: []),
+      ])
+
+    try await owner.storage.attachTranslation(
+      sessionId: conversation.sessionId,
+      segmentId: secondId,
+      translation: ConversationSegmentTranslation(language: "es", text: "Segundo."),
+      authorization: .unrestricted)
+
+    let loaded = try await owner.storage.conversationDetail(id: conversation.conversationId)
+    let detail = try XCTUnwrap(loaded)
+    XCTAssertEqual(detail.segments.first { $0.segmentId == firstId }?.translations, [])
+    XCTAssertEqual(
+      detail.segments.first { $0.segmentId == secondId }?.translations,
+      [ConversationSegmentTranslation(language: "es", text: "Segundo.")])
+  }
+
   func testRedeliveryAndCorrectionOfJoinedFragmentRemainIdempotent() async throws {
     let owner = try makeStorage()
     defer {

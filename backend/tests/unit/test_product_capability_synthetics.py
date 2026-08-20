@@ -38,7 +38,7 @@ def test_output_uses_required_status_vocabulary_and_json_formatting():
     assert decoded["suite"] == "omi_product_capability_synthetics"
     assert decoded["status_vocabulary"] == ["FAIL", "NOT_RUN", "PASS", "SKIP_NO_CREDENTIALS"]
     assert {check["status"] for check in decoded["checks"]} <= set(decoded["status_vocabulary"])
-    assert decoded["summary"]["NOT_RUN"] >= 3
+    assert decoded["summary"]["NOT_RUN"] >= 2
     fixture_details = {
         check["name"]: check["details"] for check in decoded["checks"] if check["name"].endswith("_local_fixture")
     }
@@ -96,12 +96,6 @@ def test_failing_check_sets_overall_failure(monkeypatch):
         "conversation_processing_fixture_check",
         lambda _config: ("NOT_RUN", "disabled", {}),
     )
-    monkeypatch.setattr(
-        module,
-        "listen_protocol_fixture_check",
-        lambda _config: ("NOT_RUN", "disabled", {}),
-    )
-
     report = module.build_report(config)
     encoded = json.dumps(report)
 

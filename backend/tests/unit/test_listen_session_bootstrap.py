@@ -1,98 +1,60 @@
-"""Characterization tests for listen WebSocket connect bootstrap (#9239)."""
-
-import ast
-from pathlib import Path
-from unittest.mock import AsyncMock, patch
+"""Account-only bootstrap coverage for transient listen."""
 
 import pytest
 
-BACKEND_DIR = Path(__file__).resolve().parents[2]
-BOOTSTRAP_PATH = BACKEND_DIR / "utils" / "listen_session_bootstrap.py"
-RUNTIME_PATH = BACKEND_DIR / "routers" / "listen" / "runtime.py"
-
-
-def test_bootstrap_offloads_firestore_reads():
-    tree = ast.parse(BOOTSTRAP_PATH.read_text(encoding="utf-8"))
-    awaited_targets = []
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.Await):
-            continue
-        call = node.value
-        if isinstance(call, ast.Call) and getattr(call.func, "id", None) == "run_blocking":
-            if len(call.args) >= 2 and isinstance(call.args[1], ast.Attribute):
-                awaited_targets.append(call.args[1].attr)
-            elif len(call.args) >= 2 and isinstance(call.args[1], ast.Name):
-                awaited_targets.append(call.args[1].id)
-    for required in (
-        "is_exists_user",
-        "has_transcription_credits",
-        "get_user_transcription_preferences",
-        "get_enforcement_stage",
-        "is_managed_stt_budget_exhausted",
-    ):
-        assert required in awaited_targets
-
-
-def test_runtime_uses_listen_connect_bootstrap():
-    source = RUNTIME_PATH.read_text(encoding="utf-8")
-    bootstrap_start = source.index("async def _bootstrap(")
-    bootstrap_end = source.index("    async def _heartbeat", bootstrap_start)
-    bootstrap = source[bootstrap_start:bootstrap_end]
-    assert "load_listen_connect_base" in bootstrap
-    assert "finalize_listen_connect_context" in bootstrap
-    assert "get_user_transcription_preferences(" not in bootstrap
-    assert "has_transcription_credits(" not in bootstrap
-
-
-def test_project_listen_connect_decisions_pins_vocabulary_and_translation():
-    from utils.listen_session_bootstrap import project_listen_connect_decisions
-
-    single_language_mode, vocabulary, language, translation_language = project_listen_connect_decisions(
-        language="auto",
-        onboarding_mode=False,
-        transcription_prefs={
-            "single_language_mode": False,
-            "vocabulary": ["Acme"],
-            "language": "es",
-        },
-        stt_language="multi",
-    )
-    assert single_language_mode is False
-    assert "Omi" in vocabulary
-    assert "Acme" in vocabulary
-    assert language == "multi"
-    assert translation_language == "es"
+from utils import listen_session_bootstrap as bootstrap
 
 
 @pytest.mark.asyncio
-async def test_load_listen_connect_context_returns_offloaded_state():
-    from utils.listen_session_bootstrap import load_listen_connect_context
+async def test_admission_reads_only_account_and_entitlement_state(monkeypatch):
+    calls = []
 
-    prefs = {"single_language_mode": True, "vocabulary": [], "language": "en", "uses_custom_stt": False}
+    async def immediate(_executor, function, *args, **kwargs):
+        calls.append((function, args, kwargs))
+        if function is bootstrap.user_db.is_exists_user:
+            return True
+        if function is bootstrap.has_transcription_credits:
+            return True
+        raise AssertionError(f"unexpected listen bootstrap read: {function}")
 
-    with patch(
-        "utils.listen_session_bootstrap.run_blocking",
-        new=AsyncMock(
-            side_effect=[
-                True,
-                True,
-                prefs,
-                "none",
-                False,
-            ]
-        ),
-    ) as mock_run_blocking:
-        ctx = await load_listen_connect_context(
-            "uid-bootstrap",
-            language="en",
-            source="omi",
-            use_custom_stt=False,
-            onboarding_mode=False,
-            stt_language="en",
-        )
+    monkeypatch.setattr(bootstrap, "run_blocking", immediate)
+    monkeypatch.setattr(bootstrap, "FAIR_USE_ENABLED", False)
 
-    assert ctx.user_exists is True
-    assert ctx.user_has_credits is True
-    assert ctx.transcription_prefs == prefs
-    assert ctx.language == "en"
-    assert mock_run_blocking.await_count >= 3
+    snapshot = await bootstrap.load_listen_admission("uid-1")
+
+    assert snapshot.user_exists is True
+    assert snapshot.user_has_credits is True
+    assert calls == [
+        (bootstrap.user_db.is_exists_user, ("uid-1",), {}),
+        (bootstrap.has_transcription_credits, ("uid-1",), {"source": None}),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_restrict_stage_loads_only_fair_use_account_state(monkeypatch):
+    calls = []
+
+    async def immediate(_executor, function, *args, **kwargs):
+        calls.append(function)
+        values = {
+            bootstrap.user_db.is_exists_user: True,
+            bootstrap.has_transcription_credits: False,
+            bootstrap.get_enforcement_stage: "restrict",
+            bootstrap.is_managed_stt_budget_exhausted: True,
+        }
+        return values[function]
+
+    monkeypatch.setattr(bootstrap, "run_blocking", immediate)
+    monkeypatch.setattr(bootstrap, "FAIR_USE_ENABLED", True)
+    monkeypatch.setattr(bootstrap, "FAIR_USE_RESTRICT_DAILY_MANAGED_STT_MS", 60_000)
+
+    snapshot = await bootstrap.load_listen_admission("uid-1")
+
+    assert snapshot.fair_use_track_managed_stt_usage is True
+    assert snapshot.fair_use_managed_stt_budget_exhausted is True
+    assert calls == [
+        bootstrap.user_db.is_exists_user,
+        bootstrap.has_transcription_credits,
+        bootstrap.get_enforcement_stage,
+        bootstrap.is_managed_stt_budget_exhausted,
+    ]

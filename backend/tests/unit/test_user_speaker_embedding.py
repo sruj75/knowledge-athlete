@@ -381,7 +381,7 @@ class TestFinalAssignmentPass:
         A late embedding match maps speaker 0 -> user. The flush before rollover
         must retroactively correct all 5 segments, not just the triggering one.
 
-        Note: _flush_speaker_assignments is an inner function of _stream_handler and
+        Note: the retired listen flush was an inner function and
         cannot be imported directly. This test validates the core logic it delegates to
         (process_speaker_assigned_segments on all segments with populated maps).
         """
@@ -411,7 +411,7 @@ class TestFinalAssignmentPass:
 class TestDirtyFlagBehavior:
     """Tests for the speaker_map_dirty flag controlling full vs batch assignment.
 
-    The dirty flag is an inner variable of _stream_handler. These tests validate
+    The retired dirty flag was an inner variable. These tests validate
     the behavioral difference: when dirty (new match), all segments are processed;
     when not dirty, only new/updated segments are processed.
     """

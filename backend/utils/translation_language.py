@@ -181,27 +181,6 @@ LANGDETECT_RELIABLE_LANGUAGES = {
     'zh',
 }
 
-NLLB_SUPPORTED_SOURCE_LANGUAGES = {
-    'en',
-    'es',
-    'zh',
-    'hi',
-    'pt',
-    'ru',
-    'ja',
-    'de',
-    'ar',
-    'fr',
-    'it',
-    'ko',
-    'nl',
-    'th',
-    'tr',
-    'uk',
-    'ur',
-    'vi',
-}
-
 
 def _detect_with_langdetect(text: str, hint_language: Optional[str] = None) -> Optional[str]:
     # Normalize locale-tagged language (e.g. "en-US" -> "en") for langdetect compatibility

@@ -35,7 +35,7 @@ Redis shared L2 cache, disabled by default
 | Privacy consent | continues recording/training/syncing after opt-out |
 | Account/security state | stale security decisions |
 
-Therefore, this cache stores only allowlisted projections such as language, transcription preferences, and AI profile metadata. It must not be used for whole documents or critical fields without a separate design review and shadow rollout.
+Therefore, this cache stores only allowlisted projections such as language and AI profile metadata. It must not be used for whole documents or critical fields without a separate design review and shadow rollout.
 
 ## Current PR scope
 
@@ -43,8 +43,7 @@ Cached projections:
 
 | Projection | Namespace | TTL | Notes |
 |---|---|---:|---|
-| language preference | `user_language` | 300s | low-risk listen startup setting |
-| transcription preferences | `user_transcription_prefs` | 120s | low-risk startup prefs; includes language |
+| language preference | `user_language` | 300s | low-risk account and retained voice-message setting |
 | AI user profile | `user_ai_profile` | 300s | read-mostly metadata |
 
 Not cached:
@@ -67,7 +66,6 @@ Per-namespace override:
 
 ```bash
 FIRESTORE_CACHE_USER_LANGUAGE_ENABLED=true
-FIRESTORE_CACHE_USER_TRANSCRIPTION_PREFS_ENABLED=true
 FIRESTORE_CACHE_USER_AI_PROFILE_ENABLED=true
 ```
 
@@ -88,7 +86,7 @@ fs:v{global_version}:{namespace}:v{policy_version}:b64:{base64url(entity_id)}
 Example for entity ID `uid_123`:
 
 ```text
-fs:v1:user_transcription_prefs:v1:b64:dWlkXzEyMw
+fs:v1:user_language:v1:b64:dWlkXzEyMw
 ```
 
 Keys must include:
@@ -136,9 +134,7 @@ Current invalidation hooks:
 
 | Write path | Invalidates |
 |---|---|
-| `set_user_language_preference()` | `user_language`, `user_transcription_prefs` |
-| `set_user_transcription_preferences()` | `user_transcription_prefs` |
-| `set_user_custom_stt_usage()` | `user_transcription_prefs` |
+| `set_user_language_preference()` | `user_language` |
 | `update_ai_user_profile()` | `user_ai_profile` |
 
 ## Metrics
@@ -156,9 +152,8 @@ Do not add UID, email, route path, or free-form cache keys as labels.
 1. Deploy with cache disabled.
 2. Enable `user_language` for internal users / small percentage.
 3. Monitor cache hit/miss, Redis errors, Firestore reads, listen startup errors.
-4. Enable `user_transcription_prefs`.
-5. Enable `user_ai_profile`.
-6. Only consider entitlement or data-protection caches after shadow-mode mismatch metrics exist.
+4. Enable `user_ai_profile`.
+5. Only consider entitlement or data-protection caches after shadow-mode mismatch metrics exist.
 
 ## Rollback
 

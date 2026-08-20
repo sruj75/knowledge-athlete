@@ -762,8 +762,8 @@ class TestStructuralUsage:
                 imports.extend(alias.name for alias in node.names)
 
         assert 'WebSocketTaskSupervisor' in imports
-        assert 'drain_tasks' in imports
         assert 'wait_for_event' in imports
+        assert 'drain_tasks' not in imports
 
     def test_no_raw_gather_in_ws_supervisor(self):
         """Verify that WS handlers don't use raw asyncio.gather for task supervision."""

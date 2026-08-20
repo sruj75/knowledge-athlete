@@ -1,8 +1,9 @@
 import json
-from datetime import datetime, timezone
 from pathlib import Path
 
 from database import firestore_cache as fc
+
+_USERS_SOURCE = Path(__file__).resolve().parents[2] / 'database' / 'users.py'
 
 
 class FakeRedis:
@@ -90,24 +91,6 @@ def test_redis_get_failure_falls_back_to_fetch(monkeypatch):
     assert fc.get_or_fetch(policy, 'uid_1', lambda: {'value': 'fallback'}) == {'value': 'fallback'}
 
 
-def test_cache_round_trips_datetime_payloads(monkeypatch):
-    fake = FakeRedis()
-    monkeypatch.setattr(fc, 'r', fake)
-    monkeypatch.setenv('FIRESTORE_CACHE_ENABLED', 'true')
-
-    policy = fc.CachePolicy(namespace='test_projection', ttl_seconds=60, jitter_ratio=0)
-    stamp = datetime(2026, 6, 14, 22, 0, tzinfo=timezone.utc)
-    calls = {'count': 0}
-
-    def fetch():
-        calls['count'] += 1
-        return {'custom_stt_since': stamp}
-
-    assert fc.get_or_fetch(policy, 'uid_1', fetch) == {'custom_stt_since': stamp}
-    assert fc.get_or_fetch(policy, 'uid_1', fetch) == {'custom_stt_since': stamp}
-    assert calls['count'] == 1
-
-
 def test_cache_key_includes_namespace_version_and_encoded_entity_id(monkeypatch):
     monkeypatch.setenv('FIRESTORE_CACHE_GLOBAL_VERSION', '1')
     policy = fc.CachePolicy(namespace='user_language', version=3)
@@ -126,10 +109,9 @@ def test_cache_key_entity_encoding_is_collision_free(monkeypatch):
 
 
 def test_users_module_only_wires_safe_projection_caches():
-    source = open('database/users.py').read()
+    source = _USERS_SOURCE.read_text()
 
     assert "namespace='user_language'" in source
-    assert "namespace='user_transcription_prefs'" in source
     assert "namespace='user_ai_profile'" in source
 
     forbidden_sections = [
@@ -147,7 +129,7 @@ def test_users_module_only_wires_safe_projection_caches():
 
 
 def test_ai_profile_update_bypasses_cached_getter_for_merge_safety():
-    source = open('database/users.py').read()
+    source = _USERS_SOURCE.read_text()
     start = source.find('def update_ai_user_profile')
     assert start != -1
     next_def = source.find('\ndef ', start + 1)
@@ -155,15 +137,3 @@ def test_ai_profile_update_bypasses_cached_getter_for_merge_safety():
 
     assert '_get_ai_user_profile_from_firestore(uid)' in block
     assert 'get_ai_user_profile(uid)' not in block
-
-
-def test_listen_reuses_transcription_projection_language_without_second_user_read():
-    backend_dir = Path(__file__).resolve().parents[2]
-    runtime_source = (backend_dir / 'routers' / 'listen' / 'runtime.py').read_text()
-    bootstrap_source = (backend_dir / 'utils' / 'listen_session_bootstrap.py').read_text()
-
-    assert 'get_user_transcription_preferences(' not in runtime_source
-    assert 'base.transcription_prefs' in runtime_source
-    assert bootstrap_source.count('run_blocking(db_executor, get_user_transcription_preferences, uid)') == 1
-    assert "transcription_prefs.get('language', '')" in bootstrap_source
-    assert 'get_user_language_preference' not in runtime_source

@@ -8,6 +8,7 @@ from fastapi import HTTPException
 import database.chat as chat_db
 import database.notifications as notification_db
 import database.users as user_db
+from config.stt_provider_policy import supports_live_multilingual_mode
 from models.chat import ChatSession, Message, ResponseMessage, MessageConversation
 from models.notification_message import NotificationMessage
 from models.transcript_segment import TranscriptSegment
@@ -99,11 +100,7 @@ def resolve_voice_message_language(uid: str, request_language: Optional[str]) ->
 
     user_language = user_db.get_user_language_preference(uid)
     if user_language:
-        transcription_prefs = user_db.get_user_transcription_preferences(uid)
-        single_language_mode = transcription_prefs.get('single_language_mode', False)
-        if single_language_mode:
-            return user_language
-        return 'multi'
+        return 'multi' if supports_live_multilingual_mode(user_language) else user_language
 
     return 'multi'
 

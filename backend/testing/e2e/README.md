@@ -21,12 +21,12 @@ python -m pip install -r testing/e2e/requirements.txt
 
 ## Scope of v1
 
-This version proves the backend can boot hermetically and that selected task CRUD, user/account, storage, listen-routing, retrieval/search, and legacy-shape paths can execute without real Firestore, Redis, GCS, Pinecone, Typesense, Google ADC, or production API keys. Conversation CRUD and processing are deliberately absent: the Mac owns its conversation archive locally, while hosted listen persistence remains an internal S-16/S-23 handoff. Memory product CRUD/search is also absent because the Mac owns durable Memory state locally; only the three stateless Memory compute routes remain on the backend.
+This version proves the backend can boot hermetically and that selected task CRUD, user/account, storage, retrieval/search, and legacy-shape paths can execute without real Firestore, Redis, GCS, Pinecone, Typesense, Google ADC, or production API keys. Conversation CRUD and processing are deliberately absent because the Mac owns its conversation archive locally. Memory product CRUD/search is also absent because the Mac owns durable Memory state locally; only the three stateless Memory compute routes remain on the backend. The authenticated transient listen route is exercised by `tests/unit/test_listen_transient_contract.py` with the real FastAPI route/runtime and a fake Modulate socket.
 
 | Scenario | Status | Notes |
 |---|---:|---|
 | CRUD golden path | ✅ Green | Action items use real create/update/delete routes. Public conversation CRUD was retired by S-10 and hosted Memory CRUD was retired by S-12. |
-| Listen/STT route seam | ✅ | `/v4/web/listen` websocket auth/query parsing/custom-STT dispatch is covered; managed-STT scenarios run the real Modulate socket against a loopback peer and inspect retained server-internal persistence directly. S-16 owns final web-listen/protocol retirement. |
+| Listen/STT route seam | ✅ | `/v4/listen` authentication, exact query parsing, fixed audio contract, managed Modulate transport, direct segment delivery, and optional translation are covered without server conversation persistence. `/v4/web/listen` is retired. |
 | Storage / speech profile | ✅ Green | `google.cloud.storage.Client` is patched to a temp-dir fake; speech-profile presence, signed URL, sample list, and delete paths run through real routes/helpers. |
 | User/auth/profile/account | ✅ Green | Auth guard, profile, onboarding, general language, notification/assistant settings, and AI profile are covered. S-10 removed Mac transcription preferences and People CRUD. Account deletion additionally exercises its real admission route, durable marker, opaque Cloud Tasks payload, worker claim, required-purge retry, and idempotent redelivery against local fakes. Firebase deletion, billing lookup, Twilio, and derived-data purge stay controlled test seams. |
 | Retrieval/search | ✅ Partial | Action-item, conversation-summary, and transcript-chunk retrieval routes run through real public APIs with Firestore-backed records. Full Pinecone/Typesense service compatibility remains out of scope. |
@@ -61,9 +61,6 @@ This version proves the backend can boot hermetically and that selected task CRU
 ```bash
 # CRUD / data shape
 bash backend/testing/e2e/run.sh -k "test_crud"
-
-# Listen/STT websocket route seam
-bash backend/testing/e2e/run.sh -k "listen_stt"
 
 # Storage-backed speech profile routes
 bash backend/testing/e2e/run.sh -k "storage_speech_profile"
@@ -105,7 +102,6 @@ run.sh
         ├── test_account_deletion_cloud_tasks.py
         ├── test_failure_modes.py
         ├── test_harness_guards.py
-        ├── test_listen_stt.py
         ├── test_migration_safety.py
         ├── test_storage_speech_profile.py
         ├── test_user_auth_profile.py
@@ -126,7 +122,7 @@ run.sh
 
 ## Adding tests
 
-Prefer real retained public routes. For S-16/S-23-owned listen or datastore behavior, seed through `fakes.firestore.seed_*` and inspect the direct internal seam; do not recreate a public conversation compatibility route.
+Prefer real retained public routes, including `/v4/listen` for transient STT. For S-23-owned historical datastore behavior, seed through `fakes.firestore.seed_*` and inspect the direct internal seam; do not recreate a public conversation compatibility route.
 
 ```python
 from fakes.firestore import read_conversation, seed_conversation

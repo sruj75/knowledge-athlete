@@ -543,7 +543,8 @@ class TestRecvLoop(unittest.TestCase):
         msg = json.dumps({'type': 'error', 'error': 'rate limit'})
         sock = self._run_recv([msg])
         self.assertTrue(sock.is_connection_dead)
-        self.assertIn('rate limit', sock.death_reason)
+        self.assertEqual(sock.death_reason, 'modulate provider error')
+        self.assertNotIn('rate limit', sock.death_reason)
         self.assertTrue(sock._done_event.is_set(), 'error must set done_event so drain does not hang')
 
     def test_error_flushes_pending_partial(self):
@@ -701,6 +702,7 @@ class TestProcessAudioModulate(unittest.TestCase):
             self.assertFalse(sock._header_sent)
             call_args = mock_ws_module.connect.call_args
             uri = call_args[0][0]
+            self.assertTrue(uri.startswith('wss://modulate-developer-apis.com/api/velma-2-stt-streaming?'))
             self.assertIn('api_key=test-key', uri)
             self.assertIn('sample_rate=16000', uri)
             self.assertIn('speaker_diarization=true', uri)

@@ -66,7 +66,6 @@ tests/unit/test_llm_gateway_chat_extraction_pilot.py
 tests/unit/test_voice_message_language.py
 tests/unit/test_translation_cost_optimization.py
 tests/unit/test_translation_dedup_edge_cases.py
-tests/unit/test_translation_nllb.py
 tests/unit/test_translation_optimization.py
 tests/routers/test_users.py
 tests/unit/test_desktop_transcribe.py

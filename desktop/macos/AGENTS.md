@@ -207,7 +207,7 @@ do not hand-edit those paths to match a specific machine.
 - **Typesense**: Search
 
 ### User Subcollections (Firestore)
-- `users/{uid}/conversations` - S-16/S-23 server residue; never Mac authority
+- `users/{uid}/conversations` - S-23 residue; never Mac/listen authority
 - `users/{uid}/action_items` - Tasks (no platform tracking)
 - `users/{uid}/fcm_tokens` - Token ID prefix = platform (ios_, android_, macos_)
 - Capture creates its UUID before ingestion; reads and mutations stay local.

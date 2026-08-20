@@ -89,15 +89,8 @@ def chat():
         yield module
 
 
-def test_request_language_auto_overrides_preferences(chat, monkeypatch):
-    def fake_get_user_language_preference(uid: str) -> str:
-        return "es"
-
-    def fake_get_user_transcription_preferences(uid: str) -> dict:
-        return {"single_language_mode": True, "vocabulary": []}
-
-    monkeypatch.setattr(chat.user_db, "get_user_language_preference", fake_get_user_language_preference)
-    monkeypatch.setattr(chat.user_db, "get_user_transcription_preferences", fake_get_user_transcription_preferences)
+def test_request_language_auto_overrides_account_language(chat, monkeypatch):
+    monkeypatch.setattr(chat.user_db, "get_user_language_preference", lambda uid: "es")
 
     language = chat.resolve_voice_message_language("uid", " auto ")
     assert language == "multi"
@@ -105,7 +98,6 @@ def test_request_language_auto_overrides_preferences(chat, monkeypatch):
 
 def test_request_language_multi(chat, monkeypatch):
     monkeypatch.setattr(chat.user_db, "get_user_language_preference", lambda uid: "ru")
-    monkeypatch.setattr(chat.user_db, "get_user_transcription_preferences", lambda uid: {"single_language_mode": True})
 
     language = chat.resolve_voice_message_language("uid", "multi")
     assert language == "multi"
@@ -113,31 +105,27 @@ def test_request_language_multi(chat, monkeypatch):
 
 def test_request_language_specific(chat, monkeypatch):
     monkeypatch.setattr(chat.user_db, "get_user_language_preference", lambda uid: "en")
-    monkeypatch.setattr(chat.user_db, "get_user_transcription_preferences", lambda uid: {"single_language_mode": False})
 
     language = chat.resolve_voice_message_language("uid", "ru")
     assert language == "ru"
 
 
-def test_request_language_blank_uses_user_preferences(chat, monkeypatch):
-    monkeypatch.setattr(chat.user_db, "get_user_language_preference", lambda uid: "vi")
-    monkeypatch.setattr(chat.user_db, "get_user_transcription_preferences", lambda uid: {"single_language_mode": True})
+def test_request_language_blank_uses_account_language_capability(chat, monkeypatch):
+    monkeypatch.setattr(chat.user_db, "get_user_language_preference", lambda uid: "my")
 
     language = chat.resolve_voice_message_language("uid", "   ")
-    assert language == "vi"
+    assert language == "my"
 
 
-def test_user_preference_single_language(chat, monkeypatch):
-    monkeypatch.setattr(chat.user_db, "get_user_language_preference", lambda uid: "vi")
-    monkeypatch.setattr(chat.user_db, "get_user_transcription_preferences", lambda uid: {"single_language_mode": True})
+def test_account_language_without_auto_detection_uses_explicit_language(chat, monkeypatch):
+    monkeypatch.setattr(chat.user_db, "get_user_language_preference", lambda uid: "my")
 
     language = chat.resolve_voice_message_language("uid", None)
-    assert language == "vi"
+    assert language == "my"
 
 
-def test_user_preference_multi_language_mode(chat, monkeypatch):
+def test_supported_account_language_uses_auto_detection(chat, monkeypatch):
     monkeypatch.setattr(chat.user_db, "get_user_language_preference", lambda uid: "fr")
-    monkeypatch.setattr(chat.user_db, "get_user_transcription_preferences", lambda uid: {"single_language_mode": False})
 
     language = chat.resolve_voice_message_language("uid", None)
     assert language == "multi"
@@ -145,7 +133,6 @@ def test_user_preference_multi_language_mode(chat, monkeypatch):
 
 def test_no_preference_detect_language(chat, monkeypatch):
     monkeypatch.setattr(chat.user_db, "get_user_language_preference", lambda uid: "")
-    monkeypatch.setattr(chat.user_db, "get_user_transcription_preferences", lambda uid: {"single_language_mode": False})
 
     language = chat.resolve_voice_message_language("uid", None)
     assert language == "multi"

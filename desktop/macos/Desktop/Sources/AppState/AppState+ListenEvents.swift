@@ -5,31 +5,31 @@ import SwiftUI
 
 @MainActor
 extension AppState {
-  func handleBackendSegments(_ segments: [TranscriptionService.BackendSegment]) async {
+  func handleBackendSegments(
+    _ segments: [TranscriptionService.BackendSegment], expectedSessionId: Int64? = nil
+  ) async {
+    if let expectedSessionId, currentSessionId != expectedSessionId { return }
     for segment in segments {
       guard !segment.text.isEmpty else { continue }
 
-      // Extract speaker_id from backend (e.g. "SPEAKER_00" → 0)
-      let speakerId = segment.speaker_id ?? 0
+      let speakerId = segment.speakerId
 
       // Convert backend segment to local SpeakerSegment
-      let translations = (segment.translations ?? []).map {
+      let translations = segment.translations.map {
         SegmentTranslation(lang: $0.lang, text: $0.text)
       }
       let newSeg = SpeakerSegment(
-        segmentId: segment.id,
+        segmentId: segment.segmentId,
         speaker: speakerId,
         text: segment.text,
         start: segment.start,
         end: segment.end,
-        isUser: segment.is_user,
+        isUser: segment.isUser,
         translations: translations
       )
 
       // Upsert: if we already have a segment with this ID, update it; otherwise append
-      if let segId = segment.id,
-        let existingIdx = speakerSegments.firstIndex(where: { $0.segmentId == segId })
-      {
+      if let existingIdx = speakerSegments.firstIndex(where: { $0.segmentId == segment.segmentId }) {
         // Adjust word count: subtract old words, add new words
         let oldWords = speakerSegments[existingIdx].text.split(separator: " ").count
         totalWordCount += newSeg.text.split(separator: " ").count - oldWords
@@ -39,16 +39,12 @@ extension AppState {
           updatedSeg.translations = speakerSegments[existingIdx].translations
         }
         speakerSegments[existingIdx] = updatedSeg
-        log(
-          "Transcript [UPDATE] Speaker \(speakerId) [\(String(format: "%.1f", segment.start))s-\(String(format: "%.1f", segment.end))s]: \(segment.text.prefix(80))"
-        )
+        log("Transcript [UPDATE] Speaker \(speakerId)")
       } else {
         totalWordCount += newSeg.text.split(separator: " ").count
         speakerSegments.append(newSeg)
         totalSegmentCount += 1
-        log(
-          "Transcript [ADD] Speaker \(speakerId) [\(String(format: "%.1f", segment.start))s-\(String(format: "%.1f", segment.end))s]: \(segment.text.prefix(80))"
-        )
+        log("Transcript [ADD] Speaker \(speakerId)")
       }
     }
 
@@ -80,13 +76,13 @@ extension AppState {
     let inputs = segments.compactMap { segment -> ConversationSegmentInput? in
       guard !segment.text.isEmpty else { return nil }
       return ConversationSegmentInput(
-        segmentId: segment.id,
-        speakerId: segment.speaker_id ?? 0,
+        segmentId: segment.segmentId,
+        speakerId: segment.speakerId,
         text: segment.text,
         startTime: segment.start,
         endTime: segment.end,
-        isUser: segment.is_user,
-        translations: (segment.translations ?? []).map {
+        isUser: segment.isUser,
+        translations: segment.translations.map {
           ConversationSegmentTranslation(language: $0.lang, text: $0.text)
         })
     }
@@ -100,22 +96,23 @@ extension AppState {
   }
 
   /// Handle message events from Python backend `/v4/listen`
-  func handleListenEvent(_ event: TranscriptionService.ListenEvent) {
-    switch event.type {
-    case "service_status":
-      let status = event.raw["status"] as? String ?? "unknown"
-      if status == "stt_failed" {
+  func handleListenEvent(
+    _ event: TranscriptionService.ListenEvent, expectedSessionId: Int64? = nil
+  ) async {
+    if let expectedSessionId, currentSessionId != expectedSessionId { return }
+    switch event {
+    case .serviceStatus(let status):
+      if status == .sttFailed {
         // The socket is closed immediately after this status. Keep a
         // user-visible truth state through reconnects; only a subsequent
         // ready status proves that live transcription recovered.
         transcriptionServiceError = "Transcription unavailable"
-      } else if status == "ready" {
+      } else if status == .ready {
         transcriptionServiceError = nil
       }
-      log("Transcription: Backend service status: \(status)")
+      log("Transcription: Backend service status: \(status.rawValue)")
 
-    case "freemium_threshold_reached":
-      let remaining = event.raw["remaining_seconds"] as? Int ?? 0
+    case .freemiumThresholdReached(let remaining, _):
       log("Transcription: Freemium threshold reached, \(remaining)s remaining")
       triggerUsageLimitPopup(reason: "transcription")
       // Hard-stop client-side capture so the mic LED and screen-recording
@@ -132,59 +129,27 @@ extension AppState {
         ProactiveAssistantsPlugin.shared.stopMonitoring()
       }
 
-    case "translating":
-      if let segmentsArray = event.raw["segments"] as? [[String: Any]] {
-        do {
-          let data = try JSONSerialization.data(withJSONObject: segmentsArray)
-          let translatedSegments = try JSONDecoder().decode(
-            [TranscriptionService.BackendSegment].self, from: data)
-          log("Transcription: Translation event with \(translatedSegments.count) segments")
-          for translated in translatedSegments {
-            guard let segId = translated.id else { continue }
-            let newTranslations = (translated.translations ?? []).map {
-              SegmentTranslation(lang: $0.lang, text: $0.text)
-            }
-            guard !newTranslations.isEmpty else { continue }
-
-            // Update in-memory if the segment is still loaded
-            if let idx = speakerSegments.firstIndex(where: { $0.segmentId == segId }) {
-              speakerSegments[idx].translations = newTranslations
-            }
-
-            // Always persist to SQLite — even if the segment was trimmed from
-            // the in-memory window, the event payload has all fields needed
-            if let sessionId = currentSessionId {
-              let mapped = newTranslations.map {
-                ConversationSegmentTranslation(language: $0.lang, text: $0.text)
-              }
-              Task {
-                try? await TranscriptionStorage.shared.upsertSegments(
-                  sessionId: sessionId,
-                  segments: [
-                    ConversationSegmentInput(
-                      segmentId: segId,
-                      speakerId: translated.speaker_id ?? 0,
-                      text: translated.text,
-                      startTime: translated.start,
-                      endTime: translated.end,
-                      isUser: translated.is_user,
-                      translations: mapped)
-                  ])
-              }
-            }
-          }
-          LiveTranscriptMonitor.shared.updateSegments(speakerSegments)
-        } catch {
-          logError("Transcription: Failed to parse translation event", error: error)
-        }
-      } else {
-        log("Transcription: Translation event received (no segments)")
+    case .translation(let segmentId, let language, let text):
+      let translation = SegmentTranslation(lang: language, text: text)
+      if let index = speakerSegments.firstIndex(where: { $0.segmentId == segmentId }) {
+        var translations = speakerSegments[index].translations
+        translations.removeAll { $0.lang == language }
+        translations.append(translation)
+        speakerSegments[index].translations = translations
+        LiveTranscriptMonitor.shared.updateSegments(speakerSegments)
       }
-
-    default:
-      // `/v4/listen` remains a transient STT transport until S-16. Unknown
-      // hosted lifecycle/identity events have no authority on the Mac.
-      break
+      guard let sessionId = currentSessionId,
+        let authorization = currentSessionAuthorization
+      else { return }
+      do {
+        try await TranscriptionStorage.shared.attachTranslation(
+          sessionId: sessionId,
+          segmentId: segmentId,
+          translation: ConversationSegmentTranslation(language: language, text: text),
+          authorization: authorization)
+      } catch {
+        logError("Transcription: Failed to persist local translation", error: error)
+      }
     }
   }
 

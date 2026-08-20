@@ -153,9 +153,7 @@ class SurfaceParityCapture:
             logger.warning("Parity pack surface capture persist failed error_type=%s", type(error).__name__)
             return
         try:
-            # Keep the exporter as one shared implementation while it remains
-            # located beside the originally shipped listen adapter.
-            from routers.listen.parity_pack_export import ensure_reconcile_loop, export_cassette_file
+            from .export import ensure_reconcile_loop, export_cassette_file
 
             ensure_reconcile_loop()
             export_cassette_file(path)

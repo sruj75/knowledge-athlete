@@ -280,14 +280,6 @@ def _validate_manifest_shape(env_config: ConfigDict, env: str) -> list[Validatio
     return errors
 
 
-def _manifest_literal_env_value(env_map: object, key: str) -> str | None:
-    entries = _as_config_dict(env_map) or {}
-    entry = _as_config_dict(entries.get(key))
-    if entry is None or 'value' not in entry:
-        return None
-    return str(entry['value'])
-
-
 def _manifest_env_binding_is_configured(env_map: ConfigDict, secrets_map: ConfigDict, key: str) -> bool:
     """Return whether a manifest binding will yield a non-empty runtime env value."""
     entry = _as_config_dict(env_map.get(key))

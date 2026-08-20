@@ -52,7 +52,6 @@ LOCK_CONTRACTS = {
     "gcp_diarizer.yml": LockContract("deploy-gke-diarizer-${{ github.event.inputs.environment }}"),
     "gcp_llm_gateway.yml": LockContract("deploy-backend-stack-${{ github.event.inputs.environment }}"),
     "gcp_models.yml": LockContract("deploy-gke-vad-${{ github.event.inputs.environment }}"),
-    "gcp_nllb_translation.yml": LockContract("deploy-gke-nllb-translation-${{ github.event.inputs.environment }}"),
     "gcp_notifications_job.yml": LockContract(
         "deploy-cloud-run-notifications-job-${{ github.event.inputs.environment }}"
     ),
@@ -526,7 +525,6 @@ def validate_shared_families(groups: dict[str, str]) -> list[str]:
         "gcp_diarizer.yml",
         "gcp_llm_gateway.yml",
         "gcp_models.yml",
-        "gcp_nllb_translation.yml",
         "gcp_notifications_job.yml",
     )
     for name in environment_scoped:
