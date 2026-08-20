@@ -149,12 +149,17 @@ actor ConversationFinalizationService {
   private func enqueueAndProcessMemoryExtraction(conversationId: String) async {
     guard let memoryRunner else { return }
     do {
+      guard let snapshot = RuntimeOwnerIdentity.captureAuthorizationSnapshot() else { return }
+      let authorization = LocalMutationAuthorization {
+        RuntimeOwnerIdentity.isAuthorizationCurrent(snapshot)
+      }
       guard let detail = try await storage.conversationDetail(id: conversationId) else { return }
       let ownerGeneration = await RewindDatabase.shared.poolGeneration()
       try await MemoryStorage.shared.enqueueConversationExtraction(
         conversationId: conversationId,
         generation: detail.contentGeneration,
-        ownerGeneration: ownerGeneration)
+        ownerGeneration: ownerGeneration,
+        authorization: authorization)
       _ = await memoryRunner.runOnce()
     } catch {
       logError("ConversationFinalization: Failed to schedule local Memory extraction", error: error)

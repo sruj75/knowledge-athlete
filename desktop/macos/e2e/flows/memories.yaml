@@ -7,9 +7,17 @@ covers:
   - desktop/macos/Desktop/Sources/MainWindow/MemoryHubDestination.swift
   - desktop/macos/Desktop/Sources/MainWindow/Components/OmiSearchField.swift
   - desktop/macos/Desktop/Sources/MainWindow/Pages/MemoriesPage.swift
+  - desktop/macos/Desktop/Sources/MainWindow/Pages/MemoriesViewModel.swift
   - desktop/macos/Desktop/Sources/MainWindow/Pages/MemoryProvenance.swift
   - desktop/macos/Desktop/Sources/DesktopAutomationBridge.swift
+  - desktop/macos/Desktop/Sources/ProactiveAssistants/Services/EmbeddingService.swift
+  - desktop/macos/Desktop/Sources/Providers/MemorySemanticRecall.swift
+  - desktop/macos/Desktop/Sources/Rewind/Core/LocalMemoryLifecycleRunner.swift
+  - desktop/macos/Desktop/Sources/Rewind/Core/MemoryModels.swift
   - desktop/macos/Desktop/Sources/Rewind/Core/MemoryStorage.swift
+  - desktop/macos/Desktop/Sources/Rewind/Core/MemoryStorage+Semantic.swift
+  - desktop/macos/Desktop/Sources/Rewind/Core/RewindDatabase+MemoryLocalAuthority.swift
+  - desktop/macos/Desktop/Sources/Services/APIClient/APIClient+MemoryCompute.swift
 preconditions:
   - auth_ready
 

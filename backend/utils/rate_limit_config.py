@@ -63,6 +63,10 @@ RATE_POLICIES: dict[str, tuple[int, int]] = {
     "goals:suggest": (30, 3600),
     "goals:advice": (30, 3600),
     "goals:extract": (30, 3600),
+    # Memory compute — paid, bounded model judgments selected by the local lifecycle.
+    "memory:extract": (30, 3600),
+    "memory:normalize": (60, 3600),
+    "memory:consolidate": (30, 3600),
     # Search
     "conversations:search": (60, 3600),
     # Expensive background ops

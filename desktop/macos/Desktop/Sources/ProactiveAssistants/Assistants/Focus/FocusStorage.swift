@@ -239,6 +239,10 @@ class FocusStorage: ObservableObject {
   /// Delete a session
   func deleteSession(_ id: String) {
     if let index = sessions.firstIndex(where: { $0.id == id }) {
+      guard let snapshot = RuntimeOwnerIdentity.captureAuthorizationSnapshot() else { return }
+      let authorization = LocalMutationAuthorization {
+        RuntimeOwnerIdentity.isAuthorizationCurrent(snapshot)
+      }
       let session = sessions[index]
       sessions.remove(at: index)
       saveToStorage()
@@ -250,7 +254,8 @@ class FocusStorage: ObservableObject {
         }
         let statusText = session.status == .focused ? "Focused" : "Distracted"
         let content = "\(statusText) on \(session.appOrSite): \(session.description)"
-        _ = try? await MemoryStorage.shared.deleteAssertions(source: .focus, exactContent: content)
+        _ = try? await MemoryStorage.shared.deleteAssertions(
+          source: .focus, exactContent: content, authorization: authorization)
       }
     }
   }

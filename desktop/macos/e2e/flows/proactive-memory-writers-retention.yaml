@@ -6,6 +6,7 @@ app: non-prod
 covers:
   - desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/Focus/FocusAssistant.swift
   - desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/Insight/InsightAssistant.swift
+  - desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/Insight/InsightStorage.swift
   - desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/MemoryExtraction/MemoryAssistantTelemetry.swift
 preconditions:
   - auth_ready

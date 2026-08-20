@@ -181,12 +181,6 @@ struct MemoriesPage: View {
       AddMemorySheet(viewModel: viewModel, onDismiss: { viewModel.showingAddMemory = false })
         .frame(width: 400)
     }
-    .dismissableSheet(item: $viewModel.editingMemory) { memory in
-      EditMemorySheet(
-        memory: memory, viewModel: viewModel, onDismiss: { viewModel.editingMemory = nil }
-      )
-      .frame(width: 400)
-    }
     .overlay(alignment: .bottom) {
       undoDeleteToast
     }
@@ -760,7 +754,7 @@ struct MemoriesPage: View {
         .foregroundColor(OmiColors.textPrimary)
 
       Text(
-        "Your memories and tips will appear here.\nMemories are extracted from your conversations."
+        "Memories you add and insights learned from your conversations and activity will appear here."
       )
       .scaledFont(size: OmiType.body)
       .foregroundColor(OmiColors.textTertiary)
@@ -1134,6 +1128,10 @@ private struct MemoryDetailTooltip: View {
       Text(value)
         .scaledFont(size: OmiType.caption)
         .foregroundColor(OmiColors.textPrimary)
+
+      Text(value)
+        .scaledFont(size: OmiType.caption)
+        .foregroundColor(OmiColors.textPrimary)
     }
   }
 
@@ -1345,8 +1343,9 @@ struct MemoryDetailPanel: View {
           Button {
             viewModel.editText = editContentText
             Task {
-              await viewModel.saveEditedMemory(memory)
-              isEditingContent = false
+              if await viewModel.saveEditedMemory(memory) {
+                isEditingContent = false
+              }
             }
           } label: {
             Text("Save")
@@ -1358,7 +1357,7 @@ struct MemoryDetailPanel: View {
               .cornerRadius(OmiChrome.badgeRadius)
           }
           .buttonStyle(.plain)
-          .disabled(editContentText.isEmpty)
+          .disabled(editContentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         }
       }
     } else {
@@ -1613,78 +1612,6 @@ struct AddMemorySheet: View {
         }
         .buttonStyle(.plain)
         .disabled(viewModel.newMemoryText.isEmpty)
-      }
-    }
-    .padding(OmiSpacing.xxl)
-    .frame(width: 400)
-    .background(OmiColors.backgroundSecondary)
-  }
-}
-
-// MARK: - Edit Memory Sheet
-
-struct EditMemorySheet: View {
-  let memory: MemoryItem
-  @ObservedObject var viewModel: MemoriesViewModel
-  var onDismiss: (() -> Void)? = nil
-
-  @Environment(\.dismiss) private var environmentDismiss
-
-  private func dismissSheet() {
-    viewModel.editText = ""
-    if let onDismiss = onDismiss {
-      onDismiss()
-    } else {
-      environmentDismiss()
-    }
-  }
-
-  var body: some View {
-    VStack(spacing: OmiSpacing.xl) {
-      // Header with close button
-      HStack {
-        Text("Edit Memory")
-          .scaledFont(size: OmiType.heading, weight: .semibold)
-          .foregroundColor(OmiColors.textPrimary)
-        Spacer()
-        DismissButton(action: dismissSheet)
-      }
-
-      TextEditor(text: $viewModel.editText)
-        .scaledFont(size: OmiType.body)
-        .foregroundColor(OmiColors.textPrimary)
-        .scrollContentBackground(.hidden)
-        .padding(OmiSpacing.md)
-        .background(OmiColors.backgroundTertiary)
-        .cornerRadius(OmiChrome.elementRadius)
-        .frame(height: 150)
-
-      HStack(spacing: OmiSpacing.md) {
-        // Cancel button
-        Button(action: dismissSheet) {
-          Text("Cancel")
-            .foregroundColor(OmiColors.textSecondary)
-        }
-
-        Spacer()
-
-        Button {
-          Task { await viewModel.saveEditedMemory(memory) }
-        } label: {
-          Text("Save")
-            .scaledFont(size: OmiType.body, weight: .medium)
-            .foregroundColor(viewModel.editText.isEmpty ? OmiColors.textTertiary : .black)
-            .padding(.horizontal, OmiSpacing.xl)
-            .padding(.vertical, OmiSpacing.sm)
-            .background(viewModel.editText.isEmpty ? OmiColors.backgroundTertiary : Color.white)
-            .cornerRadius(OmiChrome.elementRadius)
-            .overlay(
-              RoundedRectangle(cornerRadius: OmiChrome.elementRadius)
-                .stroke(viewModel.editText.isEmpty ? Color.clear : OmiColors.border, lineWidth: 1)
-            )
-        }
-        .buttonStyle(.plain)
-        .disabled(viewModel.editText.isEmpty)
       }
     }
     .padding(OmiSpacing.xxl)

@@ -58,7 +58,7 @@ actor MemoryStorage {
     dbGeneration = -1
   }
 
-  private func database() async throws -> DatabasePool {
+  func database() async throws -> DatabasePool {
     if let dbQueue, await RewindDatabase.shared.poolGeneration() == dbGeneration {
       return dbQueue
     }
@@ -70,7 +70,7 @@ actor MemoryStorage {
     return pool
   }
 
-  private static func localID(_ value: String) throws -> Int64 {
+  static func localID(_ value: String) throws -> Int64 {
     guard let id = Int64(value), id > 0 else { throw MemoryStorageError.invalidIdentity }
     return id
   }
@@ -81,13 +81,17 @@ actor MemoryStorage {
     return value
   }
 
+  private static func jsonString<T: Encodable>(_ value: T) throws -> String {
+    String(decoding: try JSONEncoder().encode(value), as: UTF8.self)
+  }
+
   private static func addLayerCondition(
     _ scope: MemoryLayerScope,
     conditions: inout [String],
     arguments: inout [DatabaseValue]
   ) {
     conditions.append("layer IN (\(scope.layers.map { _ in "?" }.joined(separator: ", ")))")
-    arguments.append(contentsOf: scope.layers.compactMap { DatabaseValue(value: $0.rawValue) })
+    arguments.append(contentsOf: scope.layers.map { $0.rawValue.databaseValue })
   }
 
   private static func addDefaultExpiryCondition(
@@ -98,8 +102,8 @@ actor MemoryStorage {
   ) {
     guard scope == .defaultAccess else { return }
     conditions.append("(layer != ? OR expiresAt IS NULL OR expiresAt > ?)")
-    arguments.append(DatabaseValue(value: MemoryLayer.shortTerm.rawValue)!)
-    arguments.append(DatabaseValue(value: now)!)
+    arguments.append(MemoryLayer.shortTerm.rawValue.databaseValue)
+    arguments.append(now.databaseValue)
   }
 
   private static func enqueue(
@@ -174,16 +178,28 @@ actor MemoryStorage {
       windowTitle: assertion.windowTitle,
       contextSummary: assertion.contextSummary,
       currentActivity: assertion.currentActivity,
-      inputDeviceName: assertion.inputDeviceName)
+      inputDeviceName: assertion.inputDeviceName,
+      evidenceTokens: assertion.evidenceTokens,
+      sensitivityLabels: assertion.sensitivityLabels,
+      subject: assertion.subject,
+      predicate: assertion.predicate,
+      arguments: assertion.arguments)
     let pool = try await database()
     let effectiveOwnerGeneration = ownerGeneration == 0 ? dbGeneration : ownerGeneration
     let item = try await authorization.withCommitLease {
       try await pool.write { db -> MemoryItem in
         try authorization.require()
-        let record = try MemoryRecord.from(assertion: normalized, now: now).inserted(db)
-        guard let id = record.id, let item = record.toMemoryItem() else {
+        var record = try MemoryRecord.from(assertion: normalized, now: now).inserted(db)
+        guard let id = record.id else {
           throw MemoryStorageError.recordNotFound
         }
+        if record.evidenceTokens.isEmpty {
+          record.evidenceTokensJson = try Self.jsonString([
+            "local:\(normalized.source.rawValue):\(id):r\(record.revision)"
+          ])
+          try record.update(db)
+        }
+        guard let item = record.toMemoryItem() else { throw MemoryStorageError.recordNotFound }
         if assertion.manuallyAdded {
           try Self.enqueue(
             .normalize, memoryId: id, revision: record.revision,
@@ -242,23 +258,23 @@ actor MemoryStorage {
         scope, now: Date(), conditions: &conditions, arguments: &arguments)
       if let startDate {
         conditions.append("createdAt >= ?")
-        arguments.append(DatabaseValue(value: startDate)!)
+        arguments.append(startDate.databaseValue)
       }
       if let endDate {
         conditions.append("createdAt <= ?")
-        arguments.append(DatabaseValue(value: endDate)!)
+        arguments.append(endDate.databaseValue)
       }
       Self.addLayerCondition(scope, conditions: &conditions, arguments: &arguments)
       if !categories.isEmpty {
         conditions.append("category IN (\(categories.map { _ in "?" }.joined(separator: ", ")))")
-        arguments.append(contentsOf: categories.compactMap { DatabaseValue(value: $0.rawValue) })
+        arguments.append(contentsOf: categories.map { $0.rawValue.databaseValue })
       }
       for tag in tags {
         conditions.append("tagsJson LIKE ?")
-        if let value = DatabaseValue(value: "%\"\(tag)\"%") { arguments.append(value) }
+        arguments.append("%\"\(tag)\"%".databaseValue)
       }
-      arguments.append(DatabaseValue(value: max(0, limit))!)
-      arguments.append(DatabaseValue(value: max(0, offset))!)
+      arguments.append(max(0, limit).databaseValue)
+      arguments.append(max(0, offset).databaseValue)
       let records = try MemoryRecord.fetchAll(
         db,
         sql: """
@@ -288,11 +304,11 @@ actor MemoryStorage {
       Self.addLayerCondition(scope, conditions: &conditions, arguments: &arguments)
       if !categories.isEmpty {
         conditions.append("category IN (\(categories.map { _ in "?" }.joined(separator: ", ")))")
-        arguments.append(contentsOf: categories.compactMap { DatabaseValue(value: $0.rawValue) })
+        arguments.append(contentsOf: categories.map { $0.rawValue.databaseValue })
       }
       for tag in tags {
         conditions.append("tagsJson LIKE ?")
-        arguments.append(DatabaseValue(value: "%\"\(tag)\"%")!)
+        arguments.append("%\"\(tag)\"%".databaseValue)
       }
       return try Int.fetchOne(
         db,
@@ -319,21 +335,21 @@ actor MemoryStorage {
     let pool = try await database()
     return try await pool.read { db in
       var conditions = ["pendingDeleteDeadline IS NULL", "content LIKE ? COLLATE NOCASE"]
-      var arguments: [DatabaseValue] = [DatabaseValue(value: "%\(query)%")!]
+      var arguments: [DatabaseValue] = ["%\(query)%".databaseValue]
       if !includeDismissed { conditions.append("isDismissed = 0") }
       Self.addDefaultExpiryCondition(
         scope, now: Date(), conditions: &conditions, arguments: &arguments)
       Self.addLayerCondition(scope, conditions: &conditions, arguments: &arguments)
       if !categories.isEmpty {
         conditions.append("category IN (\(categories.map { _ in "?" }.joined(separator: ", ")))")
-        arguments.append(contentsOf: categories.compactMap { DatabaseValue(value: $0.rawValue) })
+        arguments.append(contentsOf: categories.map { $0.rawValue.databaseValue })
       }
       for tag in tags {
         conditions.append("tagsJson LIKE ?")
-        arguments.append(DatabaseValue(value: "%\"\(tag)\"%")!)
+        arguments.append("%\"\(tag)\"%".databaseValue)
       }
-      arguments.append(DatabaseValue(value: max(0, limit))!)
-      arguments.append(DatabaseValue(value: max(0, offset))!)
+      arguments.append(max(0, limit).databaseValue)
+      arguments.append(max(0, offset).databaseValue)
       let records = try MemoryRecord.fetchAll(
         db,
         sql: """
@@ -398,6 +414,13 @@ actor MemoryStorage {
         record.revision += 1
         record.updatedAt = now
         record.correctedAt = now
+        record.evidenceTokensJson = try Self.jsonString([
+          "local:correction:\(rowID):r\(record.revision)"
+        ])
+        record.sensitivityLabelsJson = nil
+        record.subject = nil
+        record.predicate = nil
+        record.argumentsJson = nil
         try record.update(db)
         try db.execute(sql: "DELETE FROM memory_embeddings WHERE memoryId = ?", arguments: [rowID])
         try db.execute(
@@ -417,42 +440,61 @@ actor MemoryStorage {
     return item
   }
 
-  func markRead(id: String, isRead: Bool, now: Date = Date()) async throws {
-    try await updateFlags(id: id, isRead: isRead, isDismissed: nil, now: now)
+  func markRead(
+    id: String, isRead: Bool, now: Date = Date(),
+    authorization: LocalMutationAuthorization = .unrestricted
+  ) async throws {
+    try await updateFlags(
+      id: id, isRead: isRead, isDismissed: nil, now: now, authorization: authorization)
   }
 
-  func markDismissed(id: String, isDismissed: Bool, now: Date = Date()) async throws {
-    try await updateFlags(id: id, isRead: nil, isDismissed: isDismissed, now: now)
+  func markDismissed(
+    id: String, isDismissed: Bool, now: Date = Date(),
+    authorization: LocalMutationAuthorization = .unrestricted
+  ) async throws {
+    try await updateFlags(
+      id: id, isRead: nil, isDismissed: isDismissed, now: now,
+      authorization: authorization)
   }
 
   private func updateFlags(
     id: String,
     isRead: Bool?,
     isDismissed: Bool?,
-    now: Date
+    now: Date,
+    authorization: LocalMutationAuthorization
   ) async throws {
     let rowID = try Self.localID(id)
     let pool = try await database()
-    try await pool.write { db in
-      guard var record = try MemoryRecord.fetchOne(db, key: rowID) else {
-        throw MemoryStorageError.recordNotFound
+    try await authorization.withCommitLease {
+      try await pool.write { db in
+        try authorization.require()
+        guard var record = try MemoryRecord.fetchOne(db, key: rowID) else {
+          throw MemoryStorageError.recordNotFound
+        }
+        if let isRead { record.isRead = isRead }
+        if let isDismissed { record.isDismissed = isDismissed }
+        record.updatedAt = now
+        try record.update(db)
       }
-      if let isRead { record.isRead = isRead }
-      if let isDismissed { record.isDismissed = isDismissed }
-      record.updatedAt = now
-      try record.update(db)
     }
   }
 
-  func markAllRead(scope: MemoryLayerScope, now: Date = Date()) async throws {
+  func markAllRead(
+    scope: MemoryLayerScope, now: Date = Date(),
+    authorization: LocalMutationAuthorization = .unrestricted
+  ) async throws {
     let pool = try await database()
-    try await pool.write { db in
-      let placeholders = scope.layers.map { _ in "?" }.joined(separator: ", ")
-      var arguments: [DatabaseValue] = [DatabaseValue(value: now)!]
-      arguments.append(contentsOf: scope.layers.compactMap { DatabaseValue(value: $0.rawValue) })
-      try db.execute(
-        sql: "UPDATE memories SET isRead = 1, updatedAt = ? WHERE layer IN (\(placeholders))",
-        arguments: StatementArguments(arguments))
+    try await authorization.withCommitLease {
+      try await pool.write { db in
+        try authorization.require()
+        let placeholders = scope.layers.map { _ in "?" }.joined(separator: ", ")
+        var arguments: [DatabaseValue] = [now.databaseValue]
+        arguments.append(contentsOf: scope.layers.map { $0.rawValue.databaseValue })
+        try db.execute(
+          sql: "UPDATE memories SET isRead = 1, updatedAt = ? WHERE layer IN (\(placeholders))",
+          arguments: StatementArguments(arguments))
+      }
     }
   }
 
@@ -524,13 +566,18 @@ actor MemoryStorage {
   }
 
   @discardableResult
-  func finalizeExpiredDeletions(now: Date = Date()) async throws -> Int {
+  func finalizeExpiredDeletions(
+    now: Date = Date(), authorization: LocalMutationAuthorization = .unrestricted
+  ) async throws -> Int {
     let pool = try await database()
-    let count = try await pool.write { db -> Int in
-      try db.execute(
-        sql: "DELETE FROM memories WHERE pendingDeleteDeadline IS NOT NULL AND pendingDeleteDeadline <= ?",
-        arguments: [now])
-      return db.changesCount
+    let count = try await authorization.withCommitLease {
+      try await pool.write { db -> Int in
+        try authorization.require()
+        try db.execute(
+          sql: "DELETE FROM memories WHERE pendingDeleteDeadline IS NOT NULL AND pendingDeleteDeadline <= ?",
+          arguments: [now])
+        return db.changesCount
+      }
     }
     if count > 0 { HomeKnowledgeCountInvalidation.post() }
     return count
@@ -552,32 +599,43 @@ actor MemoryStorage {
   }
 
   @discardableResult
-  func deleteAssertions(source: MemorySource, exactContent: String) async throws -> Int {
+  func deleteAssertions(
+    source: MemorySource, exactContent: String,
+    authorization: LocalMutationAuthorization = .unrestricted
+  ) async throws -> Int {
     let pool = try await database()
-    let count = try await pool.write { db -> Int in
-      try db.execute(
-        sql: "DELETE FROM memories WHERE source = ? AND content = ?",
-        arguments: [source.rawValue, exactContent])
-      return db.changesCount
+    let count = try await authorization.withCommitLease {
+      try await pool.write { db -> Int in
+        try authorization.require()
+        try db.execute(
+          sql: "DELETE FROM memories WHERE source = ? AND content = ?",
+          arguments: [source.rawValue, exactContent])
+        return db.changesCount
+      }
     }
     if count > 0 { HomeKnowledgeCountInvalidation.post() }
     return count
   }
 
   @discardableResult
-  func deleteTaggedAssertions(tag: String) async throws -> Int {
+  func deleteTaggedAssertions(
+    tag: String, authorization: LocalMutationAuthorization = .unrestricted
+  ) async throws -> Int {
     let pool = try await database()
-    let count = try await pool.write { db -> Int in
-      let records = try MemoryRecord.fetchAll(db)
-      let ids = records.compactMap { record in
-        record.tags.contains(tag) ? record.id : nil
+    let count = try await authorization.withCommitLease {
+      try await pool.write { db -> Int in
+        try authorization.require()
+        let records = try MemoryRecord.fetchAll(db)
+        let ids = records.compactMap { record in
+          record.tags.contains(tag) ? record.id : nil
+        }
+        guard !ids.isEmpty else { return 0 }
+        let placeholders = ids.map { _ in "?" }.joined(separator: ", ")
+        try db.execute(
+          sql: "DELETE FROM memories WHERE id IN (\(placeholders))",
+          arguments: StatementArguments(ids))
+        return db.changesCount
       }
-      guard !ids.isEmpty else { return 0 }
-      let placeholders = ids.map { _ in "?" }.joined(separator: ", ")
-      try db.execute(
-        sql: "DELETE FROM memories WHERE id IN (\(placeholders))",
-        arguments: StatementArguments(ids))
-      return db.changesCount
     }
     if count > 0 { HomeKnowledgeCountInvalidation.post() }
     return count
@@ -587,28 +645,95 @@ actor MemoryStorage {
     conversationId: String,
     generation: Int,
     ownerGeneration: Int,
-    now: Date = Date()
+    now: Date = Date(),
+    authorization: LocalMutationAuthorization = .unrestricted
   ) async throws {
     let pool = try await database()
-    try await pool.write { db in
-      let exists =
-        try Bool.fetchOne(
-          db,
+    try await authorization.withCommitLease {
+      try await pool.write { db in
+        try authorization.require()
+        let exists =
+          try Bool.fetchOne(
+            db,
+            sql: """
+              SELECT EXISTS(
+                SELECT 1 FROM memory_processing_work
+                WHERE kind = ? AND conversationId = ? AND inputGeneration = ?
+                  AND state != ?
+              )
+              """,
+            arguments: [
+              MemoryProcessingKind.extract.rawValue, conversationId, generation,
+              MemoryProcessingState.terminal.rawValue,
+            ]) ?? false
+        guard !exists else { return }
+        try Self.enqueue(
+          .extract, memoryId: nil, conversationId: conversationId, revision: 0,
+          generation: generation, ownerGeneration: ownerGeneration, now: now, in: db)
+      }
+    }
+  }
+
+  /// Durable work lives inside the owner database; pool generations only fence
+  /// in-flight commits. Rebind unfinished rows after an authorized reopen and
+  /// repair any missing vector work for current revisions.
+  func recoverLifecycleWork(
+    ownerGeneration: Int,
+    now: Date = Date(),
+    authorization: LocalMutationAuthorization = .unrestricted
+  ) async throws {
+    let pool = try await database()
+    try await authorization.withCommitLease {
+      try await pool.write { db in
+        try authorization.require()
+        try db.execute(
           sql: """
-            SELECT EXISTS(
-              SELECT 1 FROM memory_processing_work
-              WHERE kind = ? AND conversationId = ? AND inputGeneration = ?
-                AND state != ?
-            )
+            UPDATE memory_processing_work
+            SET ownerGeneration = ?,
+                state = CASE WHEN state = ? THEN ? ELSE state END,
+                leaseExpiresAt = NULL,
+                nextAttemptAt = CASE WHEN state = ? THEN ? ELSE nextAttemptAt END,
+                updatedAt = ?
+            WHERE ownerGeneration != ? AND state IN (?, ?, ?)
             """,
           arguments: [
-            MemoryProcessingKind.extract.rawValue, conversationId, generation,
+            ownerGeneration,
+            MemoryProcessingState.leased.rawValue,
+            MemoryProcessingState.retry.rawValue,
+            MemoryProcessingState.leased.rawValue,
+            now,
+            now,
+            ownerGeneration,
+            MemoryProcessingState.pending.rawValue,
+            MemoryProcessingState.retry.rawValue,
+            MemoryProcessingState.leased.rawValue,
+          ])
+        let missing = try MemoryRecord.fetchAll(
+          db,
+          sql: """
+            SELECT m.* FROM memories m
+            WHERE m.pendingDeleteDeadline IS NULL
+              AND NOT EXISTS (
+                SELECT 1 FROM memory_embeddings e
+                WHERE e.memoryId = m.id AND e.revision = m.revision
+              )
+              AND NOT EXISTS (
+                SELECT 1 FROM memory_processing_work w
+                WHERE w.memoryId = m.id AND w.kind = ? AND w.inputRevision = m.revision
+                  AND w.state != ?
+              )
+            """,
+          arguments: [
+            MemoryProcessingKind.embed.rawValue,
             MemoryProcessingState.terminal.rawValue,
-          ]) ?? false
-      guard !exists else { return }
-      try Self.enqueue(
-        .extract, memoryId: nil, conversationId: conversationId, revision: 0,
-        generation: generation, ownerGeneration: ownerGeneration, now: now, in: db)
+          ])
+        for record in missing {
+          guard let memoryID = record.id else { continue }
+          try Self.enqueue(
+            .embed, memoryId: memoryID, revision: record.revision,
+            ownerGeneration: ownerGeneration, now: now, in: db)
+        }
+      }
     }
   }
 
@@ -617,68 +742,80 @@ actor MemoryStorage {
     now: Date = Date(),
     ownerGeneration: Int,
     limit: Int = 8,
-    leaseDuration: TimeInterval = 600
+    leaseDuration: TimeInterval = 600,
+    authorization: LocalMutationAuthorization = .unrestricted
   ) async throws -> [LeasedMemoryWork] {
     let pool = try await database()
-    return try await pool.write { db in
-      try db.execute(
-        sql: """
-          UPDATE memory_processing_work
-          SET state = ?, leaseExpiresAt = NULL, updatedAt = ?
-          WHERE state = ? AND leaseExpiresAt <= ?
-          """,
-        arguments: [
-          MemoryProcessingState.retry.rawValue, now,
-          MemoryProcessingState.leased.rawValue, now,
-        ])
-      let due = try MemoryProcessingWorkRecord.fetchAll(
-        db,
-        sql: """
-          SELECT * FROM memory_processing_work
-          WHERE kind = ? AND state IN (?, ?) AND nextAttemptAt <= ? AND ownerGeneration = ?
-          ORDER BY nextAttemptAt, createdAt LIMIT ?
-          """,
-        arguments: [
-          kind.rawValue, MemoryProcessingState.pending.rawValue, MemoryProcessingState.retry.rawValue,
-          now, ownerGeneration, max(1, limit),
-        ])
-      let deadline = now.addingTimeInterval(leaseDuration)
-      var leased: [LeasedMemoryWork] = []
-      for var work in due {
-        work.state = MemoryProcessingState.leased.rawValue
-        work.leaseExpiresAt = deadline
-        work.updatedAt = now
-        try work.update(db)
-        let memory = try work.memoryId.flatMap { id in
-          try MemoryRecord.fetchOne(db, key: id)?.toMemoryItem()
+    return try await authorization.withCommitLease {
+      try await pool.write { db in
+        try authorization.require()
+        try db.execute(
+          sql: """
+            UPDATE memory_processing_work
+            SET state = ?, leaseExpiresAt = NULL, updatedAt = ?
+            WHERE state = ? AND leaseExpiresAt <= ?
+            """,
+          arguments: [
+            MemoryProcessingState.retry.rawValue, now,
+            MemoryProcessingState.leased.rawValue, now,
+          ])
+        let due = try MemoryProcessingWorkRecord.fetchAll(
+          db,
+          sql: """
+            SELECT * FROM memory_processing_work
+            WHERE kind = ? AND state IN (?, ?) AND nextAttemptAt <= ? AND ownerGeneration = ?
+            ORDER BY nextAttemptAt, createdAt LIMIT ?
+            """,
+          arguments: [
+            kind.rawValue, MemoryProcessingState.pending.rawValue, MemoryProcessingState.retry.rawValue,
+            now, ownerGeneration, max(1, limit),
+          ])
+        let deadline = now.addingTimeInterval(leaseDuration)
+        var leased: [LeasedMemoryWork] = []
+        for var work in due {
+          work.state = MemoryProcessingState.leased.rawValue
+          work.leaseExpiresAt = deadline
+          work.updatedAt = now
+          try work.update(db)
+          let memory = try work.memoryId.flatMap { id in
+            try MemoryRecord.fetchOne(db, key: id)?.toMemoryItem()
+          }
+          leased.append(LeasedMemoryWork(work: work, memory: memory))
         }
-        leased.append(LeasedMemoryWork(work: work, memory: memory))
+        return leased
       }
-      return leased
     }
   }
 
   func retryWork(
     id: String,
     errorCode: String,
-    now: Date = Date()
+    now: Date = Date(),
+    ownerGeneration: Int? = nil,
+    authorization: LocalMutationAuthorization = .unrestricted
   ) async throws {
     let pool = try await database()
-    try await pool.write { db in
-      guard var work = try MemoryProcessingWorkRecord.fetchOne(db, key: id) else {
-        throw MemoryStorageError.recordNotFound
+    try await authorization.withCommitLease {
+      try await pool.write { db in
+        try authorization.require()
+        guard var work = try MemoryProcessingWorkRecord.fetchOne(db, key: id) else {
+          throw MemoryStorageError.recordNotFound
+        }
+        if let ownerGeneration, work.ownerGeneration != ownerGeneration {
+          throw MemoryStorageError.staleRevision
+        }
+        work.attemptCount += 1
+        work.state =
+          work.attemptCount >= 3
+          ? MemoryProcessingState.terminal.rawValue
+          : MemoryProcessingState.retry.rawValue
+        let exponent = min(max(0, work.attemptCount - 1), 3)
+        work.nextAttemptAt = now.addingTimeInterval(pow(2, Double(exponent)) * 300)
+        work.leaseExpiresAt = nil
+        work.lastErrorCode = String(errorCode.prefix(80))
+        work.updatedAt = now
+        try work.update(db)
       }
-      work.attemptCount += 1
-      work.state =
-        work.attemptCount >= 3
-        ? MemoryProcessingState.terminal.rawValue
-        : MemoryProcessingState.retry.rawValue
-      let exponent = min(max(0, work.attemptCount - 1), 3)
-      work.nextAttemptAt = now.addingTimeInterval(pow(2, Double(exponent)) * 300)
-      work.leaseExpiresAt = nil
-      work.lastErrorCode = String(errorCode.prefix(80))
-      work.updatedAt = now
-      try work.update(db)
     }
   }
 
@@ -687,67 +824,79 @@ actor MemoryStorage {
     memoryId: String,
     expectedRevision: Int,
     normalizedContent: String,
+    subject: String,
+    predicate: String,
+    arguments: [String: String],
+    sensitivityLabels: [String],
     receiptId: String,
     ownerGeneration: Int,
-    now: Date = Date()
+    now: Date = Date(),
+    authorization: LocalMutationAuthorization = .unrestricted
   ) async throws -> MemoryItem {
     let rowID = try Self.localID(memoryId)
     let content = try Self.trimmed(normalizedContent)
     let pool = try await database()
-    let item = try await pool.write { db in
-      if let transition =
-        try MemoryTransitionRecord
-        .filter(Column("idempotencyKey") == "normalize:\(workId)").fetchOne(db),
-        transition.receiptId == receiptId,
-        transition.memoryId == rowID,
-        let record = try MemoryRecord.fetchOne(db, key: rowID),
-        record.revision == transition.outputRevision,
-        let item = record.toMemoryItem()
-      {
+    let item = try await authorization.withCommitLease {
+      try await pool.write { db in
+        try authorization.require()
+        if let transition =
+          try MemoryTransitionRecord
+          .filter(Column("idempotencyKey") == "normalize:\(workId)").fetchOne(db),
+          transition.receiptId == receiptId,
+          transition.memoryId == rowID,
+          let record = try MemoryRecord.fetchOne(db, key: rowID),
+          record.revision == transition.outputRevision,
+          let item = record.toMemoryItem()
+        {
+          return item
+        }
+        guard var work = try MemoryProcessingWorkRecord.fetchOne(db, key: workId),
+          work.state == MemoryProcessingState.leased.rawValue,
+          work.ownerGeneration == ownerGeneration,
+          work.memoryId == rowID,
+          var record = try MemoryRecord.fetchOne(db, key: rowID),
+          record.revision == expectedRevision
+        else { throw MemoryStorageError.staleRevision }
+
+        record.content = content
+        record.subject = subject
+        record.predicate = predicate
+        record.argumentsJson = try Self.jsonString(arguments)
+        record.sensitivityLabelsJson = try Self.jsonString(sensitivityLabels)
+        record.revision += 1
+        record.updatedAt = now
+        try record.update(db)
+        let transition = MemoryTransitionRecord(
+          id: UUID().uuidString,
+          memoryId: rowID,
+          idempotencyKey: "normalize:\(workId)",
+          fromLayer: record.layer,
+          toLayer: record.layer,
+          inputRevision: expectedRevision,
+          outputRevision: record.revision,
+          outcome: "normalized",
+          receiptId: receiptId,
+          createdAt: now)
+        try transition.insert(db)
+        try db.execute(
+          sql: "DELETE FROM memory_processing_work WHERE memoryId = ? AND kind = ? AND state != ? AND id != ?",
+          arguments: [
+            rowID, MemoryProcessingKind.embed.rawValue,
+            MemoryProcessingState.completed.rawValue, workId,
+          ])
+        work.state = MemoryProcessingState.completed.rawValue
+        work.leaseExpiresAt = nil
+        work.updatedAt = now
+        try work.update(db)
+        try Self.enqueue(
+          .embed, memoryId: rowID, revision: record.revision,
+          ownerGeneration: ownerGeneration, now: now, in: db)
+        try Self.enqueue(
+          .consolidate, memoryId: rowID, revision: record.revision,
+          ownerGeneration: ownerGeneration, now: now, in: db)
+        guard let item = record.toMemoryItem() else { throw MemoryStorageError.recordNotFound }
         return item
       }
-      guard var work = try MemoryProcessingWorkRecord.fetchOne(db, key: workId),
-        work.state == MemoryProcessingState.leased.rawValue,
-        work.ownerGeneration == ownerGeneration,
-        work.memoryId == rowID,
-        var record = try MemoryRecord.fetchOne(db, key: rowID),
-        record.revision == expectedRevision
-      else { throw MemoryStorageError.staleRevision }
-
-      record.content = content
-      record.revision += 1
-      record.updatedAt = now
-      try record.update(db)
-      let transition = MemoryTransitionRecord(
-        id: UUID().uuidString,
-        memoryId: rowID,
-        idempotencyKey: "normalize:\(workId)",
-        fromLayer: record.layer,
-        toLayer: record.layer,
-        inputRevision: expectedRevision,
-        outputRevision: record.revision,
-        outcome: "normalized",
-        receiptId: receiptId,
-        createdAt: now)
-      try transition.insert(db)
-      try db.execute(
-        sql: "DELETE FROM memory_processing_work WHERE memoryId = ? AND kind = ? AND state != ? AND id != ?",
-        arguments: [
-          rowID, MemoryProcessingKind.embed.rawValue,
-          MemoryProcessingState.completed.rawValue, workId,
-        ])
-      work.state = MemoryProcessingState.completed.rawValue
-      work.leaseExpiresAt = nil
-      work.updatedAt = now
-      try work.update(db)
-      try Self.enqueue(
-        .embed, memoryId: rowID, revision: record.revision,
-        ownerGeneration: ownerGeneration, now: now, in: db)
-      try Self.enqueue(
-        .consolidate, memoryId: rowID, revision: record.revision,
-        ownerGeneration: ownerGeneration, now: now, in: db)
-      guard let item = record.toMemoryItem() else { throw MemoryStorageError.recordNotFound }
-      return item
     }
     HomeKnowledgeCountInvalidation.post()
     return item
@@ -761,104 +910,120 @@ actor MemoryStorage {
     admissions: [MemoryExtractionAdmission],
     receiptId: String,
     ownerGeneration: Int,
-    now: Date = Date()
+    now: Date = Date(),
+    authorization: LocalMutationAuthorization = .unrestricted
   ) async throws -> [MemoryItem] {
     guard admissions.count <= 32 else {
       throw MemoryStorageError.invalidTransition("Extraction exceeded 32 candidates")
     }
     let contents = admissions.map { $0.content.trimmingCharacters(in: .whitespacesAndNewlines) }
-    guard contents.allSatisfy({ !$0.isEmpty }), Set(contents).count == contents.count else {
+    guard contents.allSatisfy({ !$0.isEmpty }), Set(contents).count == contents.count,
+      admissions.allSatisfy({
+        ["general", "sensitive"].contains($0.archiveClass)
+          && $0.riskFlags.count <= 16 && $0.sensitivityLabels.count <= 16
+      })
+    else {
       throw MemoryStorageError.invalidTransition("Extraction candidates must be unique and non-empty")
     }
     let pool = try await database()
-    let items = try await pool.write { db -> [MemoryItem] in
-      let priorTransitions = try admissions.indices.compactMap { index in
-        try MemoryTransitionRecord
-          .filter(Column("idempotencyKey") == "extract:\(workId):\(index)")
-          .fetchOne(db)
-      }
-      if !priorTransitions.isEmpty {
-        guard priorTransitions.count == admissions.count,
-          priorTransitions.allSatisfy({ $0.receiptId == receiptId })
-        else { throw MemoryStorageError.invalidTransition("Extraction replay is inconsistent") }
-        return try priorTransitions.map { transition in
-          guard let record = try MemoryRecord.fetchOne(db, key: transition.memoryId),
-            let item = record.toMemoryItem()
-          else { throw MemoryStorageError.recordNotFound }
-          return item
+    let items = try await authorization.withCommitLease {
+      try await pool.write { db -> [MemoryItem] in
+        try authorization.require()
+        let priorTransitions = try admissions.indices.compactMap { index in
+          try MemoryTransitionRecord
+            .filter(Column("idempotencyKey") == "extract:\(workId):\(index)")
+            .fetchOne(db)
         }
-      }
-      guard var work = try MemoryProcessingWorkRecord.fetchOne(db, key: workId),
-        work.state == MemoryProcessingState.leased.rawValue,
-        work.kind == MemoryProcessingKind.extract.rawValue,
-        work.ownerGeneration == ownerGeneration,
-        work.conversationId == conversationId,
-        work.inputGeneration == expectedGeneration,
-        let currentGeneration = try Int.fetchOne(
-          db,
-          sql: "SELECT contentGeneration FROM transcription_sessions WHERE conversationId = ?",
-          arguments: [conversationId]),
-        currentGeneration == expectedGeneration
-      else { throw MemoryStorageError.staleRevision }
-      if admissions.isEmpty {
+        if !priorTransitions.isEmpty {
+          guard priorTransitions.count == admissions.count,
+            priorTransitions.allSatisfy({ $0.receiptId == receiptId })
+          else { throw MemoryStorageError.invalidTransition("Extraction replay is inconsistent") }
+          return try priorTransitions.map { transition in
+            guard let record = try MemoryRecord.fetchOne(db, key: transition.memoryId),
+              let item = record.toMemoryItem()
+            else { throw MemoryStorageError.recordNotFound }
+            return item
+          }
+        }
+        guard var work = try MemoryProcessingWorkRecord.fetchOne(db, key: workId),
+          work.state == MemoryProcessingState.leased.rawValue,
+          work.kind == MemoryProcessingKind.extract.rawValue,
+          work.ownerGeneration == ownerGeneration,
+          work.conversationId == conversationId,
+          work.inputGeneration == expectedGeneration,
+          let currentGeneration = try Int.fetchOne(
+            db,
+            sql: "SELECT contentGeneration FROM transcription_sessions WHERE conversationId = ?",
+            arguments: [conversationId]),
+          currentGeneration == expectedGeneration
+        else { throw MemoryStorageError.staleRevision }
+        if admissions.isEmpty {
+          work.state = MemoryProcessingState.completed.rawValue
+          work.leaseExpiresAt = nil
+          work.updatedAt = now
+          try work.update(db)
+          return []
+        }
+
+        var accepted: [MemoryItem] = []
+        for (index, admission) in admissions.enumerated() {
+          let duplicate =
+            try Bool.fetchOne(
+              db,
+              sql: """
+                SELECT EXISTS(
+                  SELECT 1 FROM memories
+                  WHERE conversationId = ? AND content = ? AND pendingDeleteDeadline IS NULL
+                )
+                """,
+              arguments: [conversationId, contents[index]]) ?? false
+          guard !duplicate else {
+            throw MemoryStorageError.invalidTransition("Extraction duplicated an accepted Memory")
+          }
+          var sensitivityLabels = admission.sensitivityLabels.map { $0.lowercased() }
+          sensitivityLabels.append(contentsOf: admission.riskFlags.map { $0.lowercased() })
+          if admission.archiveClass == "sensitive" { sensitivityLabels.append("secret") }
+          sensitivityLabels = Array(Set(sensitivityLabels)).sorted()
+          let assertion = MemoryAssertion(
+            content: contents[index], category: admission.category, layer: .shortTerm,
+            expiresAt: now.addingTimeInterval(Self.shortTermLifetime),
+            source: .conversation, conversationId: conversationId,
+            sourceSegmentId: admission.segmentId,
+            confidence: admission.confidence,
+            contextSummary: admission.quote,
+            evidenceTokens: admission.evidenceTokens,
+            sensitivityLabels: sensitivityLabels,
+            subject: admission.subject)
+          let record = try MemoryRecord.from(assertion: assertion, now: now).inserted(db)
+          guard let memoryId = record.id, let item = record.toMemoryItem() else {
+            throw MemoryStorageError.recordNotFound
+          }
+          try MemoryTransitionRecord(
+            id: UUID().uuidString,
+            memoryId: memoryId,
+            idempotencyKey: "extract:\(workId):\(index)",
+            fromLayer: nil,
+            toLayer: MemoryLayer.shortTerm.rawValue,
+            inputRevision: 0,
+            outputRevision: record.revision,
+            outcome: "conversation_candidate_admitted",
+            receiptId: receiptId,
+            createdAt: now
+          ).insert(db)
+          try Self.enqueue(
+            .embed, memoryId: memoryId, revision: record.revision,
+            ownerGeneration: ownerGeneration, now: now, in: db)
+          try Self.enqueue(
+            .consolidate, memoryId: memoryId, revision: record.revision,
+            ownerGeneration: ownerGeneration, now: now, in: db)
+          accepted.append(item)
+        }
         work.state = MemoryProcessingState.completed.rawValue
         work.leaseExpiresAt = nil
         work.updatedAt = now
         try work.update(db)
-        return []
+        return accepted
       }
-
-      var accepted: [MemoryItem] = []
-      for (index, admission) in admissions.enumerated() {
-        let duplicate =
-          try Bool.fetchOne(
-            db,
-            sql: """
-              SELECT EXISTS(
-                SELECT 1 FROM memories
-                WHERE conversationId = ? AND content = ? AND pendingDeleteDeadline IS NULL
-              )
-              """,
-            arguments: [conversationId, contents[index]]) ?? false
-        guard !duplicate else {
-          throw MemoryStorageError.invalidTransition("Extraction duplicated an accepted Memory")
-        }
-        let assertion = MemoryAssertion(
-          content: contents[index], category: admission.category, layer: .shortTerm,
-          expiresAt: now.addingTimeInterval(Self.shortTermLifetime),
-          source: .conversation, conversationId: conversationId,
-          sourceSegmentId: admission.segmentId,
-          confidence: admission.confidence,
-          contextSummary: admission.quote)
-        let record = try MemoryRecord.from(assertion: assertion, now: now).inserted(db)
-        guard let memoryId = record.id, let item = record.toMemoryItem() else {
-          throw MemoryStorageError.recordNotFound
-        }
-        try MemoryTransitionRecord(
-          id: UUID().uuidString,
-          memoryId: memoryId,
-          idempotencyKey: "extract:\(workId):\(index)",
-          fromLayer: nil,
-          toLayer: MemoryLayer.shortTerm.rawValue,
-          inputRevision: 0,
-          outputRevision: record.revision,
-          outcome: "conversation_candidate_admitted",
-          receiptId: receiptId,
-          createdAt: now
-        ).insert(db)
-        try Self.enqueue(
-          .embed, memoryId: memoryId, revision: record.revision,
-          ownerGeneration: ownerGeneration, now: now, in: db)
-        try Self.enqueue(
-          .consolidate, memoryId: memoryId, revision: record.revision,
-          ownerGeneration: ownerGeneration, now: now, in: db)
-        accepted.append(item)
-      }
-      work.state = MemoryProcessingState.completed.rawValue
-      work.leaseExpiresAt = nil
-      work.updatedAt = now
-      try work.update(db)
-      return accepted
     }
     if !items.isEmpty { HomeKnowledgeCountInvalidation.post() }
     return items
@@ -869,145 +1034,165 @@ actor MemoryStorage {
     applications: [MemoryConsolidationApplication],
     receiptId: String,
     ownerGeneration: Int,
-    now: Date = Date()
+    now: Date = Date(),
+    authorization: LocalMutationAuthorization = .unrestricted
   ) async throws -> [MemoryItem] {
+    let supersededTargets =
+      applications
+      .filter { $0.reconciliation == .replace || $0.reconciliation == .merge }
+      .flatMap { $0.targets.map(\.memoryId) }
     guard !applications.isEmpty, applications.count <= 32,
       Set(applications.map(\.workId)).count == applications.count,
-      Set(applications.map(\.memoryId)).count == applications.count
+      Set(applications.map(\.memoryId)).count == applications.count,
+      Set(supersededTargets).count == supersededTargets.count
     else { throw MemoryStorageError.invalidTransition("Consolidation decisions are incomplete") }
 
     let pool = try await database()
-    let changed = try await pool.write { db -> [MemoryItem] in
-      var candidateRecords: [String: MemoryRecord] = [:]
-      var alreadyApplied: [String: MemoryItem] = [:]
-      for application in applications {
-        let rowID = try Self.localID(application.memoryId)
-        if let transition =
-          try MemoryTransitionRecord
-          .filter(Column("idempotencyKey") == "consolidate:\(application.workId)").fetchOne(db),
-          transition.receiptId == receiptId,
-          transition.memoryId == rowID,
-          let record = try MemoryRecord.fetchOne(db, key: rowID),
-          record.revision == transition.outputRevision,
-          let item = record.toMemoryItem()
-        {
-          alreadyApplied[application.memoryId] = item
-          continue
-        }
-        guard let work = try MemoryProcessingWorkRecord.fetchOne(db, key: application.workId),
-          work.state == MemoryProcessingState.leased.rawValue,
-          work.kind == MemoryProcessingKind.consolidate.rawValue,
-          work.ownerGeneration == ownerGeneration,
-          work.memoryId == rowID,
-          work.inputRevision == application.expectedRevision,
-          let record = try MemoryRecord.fetchOne(db, key: rowID),
-          record.revision == application.expectedRevision,
-          record.layer == MemoryLayer.shortTerm.rawValue
-        else { throw MemoryStorageError.staleRevision }
-        try Self.validate(application: application)
-        candidateRecords[application.memoryId] = record
-        for target in application.targets {
-          let targetID = try Self.localID(target.memoryId)
-          guard let targetRecord = try MemoryRecord.fetchOne(db, key: targetID),
-            targetRecord.revision == target.expectedRevision,
-            targetRecord.pendingDeleteDeadline == nil,
-            targetRecord.layer != MemoryLayer.archive.rawValue
+    let changed = try await authorization.withCommitLease {
+      try await pool.write { db -> [MemoryItem] in
+        try authorization.require()
+        var candidateRecords: [String: MemoryRecord] = [:]
+        var alreadyApplied: [String: MemoryItem] = [:]
+        for application in applications {
+          let rowID = try Self.localID(application.memoryId)
+          if let transition =
+            try MemoryTransitionRecord
+            .filter(Column("idempotencyKey") == "consolidate:\(application.workId)").fetchOne(db),
+            transition.receiptId == receiptId,
+            transition.memoryId == rowID,
+            let record = try MemoryRecord.fetchOne(db, key: rowID),
+            record.revision == transition.outputRevision,
+            let item = record.toMemoryItem()
+          {
+            alreadyApplied[application.memoryId] = item
+            continue
+          }
+          guard let work = try MemoryProcessingWorkRecord.fetchOne(db, key: application.workId),
+            work.state == MemoryProcessingState.leased.rawValue,
+            work.kind == MemoryProcessingKind.consolidate.rawValue,
+            work.ownerGeneration == ownerGeneration,
+            work.memoryId == rowID,
+            work.inputRevision == application.expectedRevision,
+            let record = try MemoryRecord.fetchOne(db, key: rowID),
+            record.revision == application.expectedRevision,
+            record.layer == MemoryLayer.shortTerm.rawValue
           else { throw MemoryStorageError.staleRevision }
-        }
-      }
-
-      var output: [MemoryItem] = []
-      for application in applications {
-        if let item = alreadyApplied[application.memoryId] {
-          output.append(item)
-          continue
-        }
-        guard var candidate = candidateRecords[application.memoryId], let candidateID = candidate.id else {
-          throw MemoryStorageError.recordNotFound
-        }
-        if application.reconciliation == .replace || application.reconciliation == .merge {
+          try Self.validate(application: application, candidate: record)
+          candidateRecords[application.memoryId] = record
           for target in application.targets {
             let targetID = try Self.localID(target.memoryId)
-            guard var targetRecord = try MemoryRecord.fetchOne(db, key: targetID),
-              let fromLayer = MemoryLayer(rawValue: targetRecord.layer)
-            else { throw MemoryStorageError.recordNotFound }
-            let inputRevision = targetRecord.revision
-            targetRecord.layer = MemoryLayer.archive.rawValue
-            targetRecord.expiresAt = nil
-            targetRecord.revision += 1
-            targetRecord.updatedAt = now
-            try targetRecord.update(db)
-            try Self.replaceEmbeddingWork(
-              memoryId: targetID, revision: targetRecord.revision,
-              ownerGeneration: ownerGeneration, now: now, in: db)
-            try MemoryTransitionRecord(
-              id: UUID().uuidString,
-              memoryId: targetID,
-              idempotencyKey: "consolidate:\(application.workId):target:\(targetID)",
-              fromLayer: fromLayer.rawValue,
-              toLayer: MemoryLayer.archive.rawValue,
-              inputRevision: inputRevision,
-              outputRevision: targetRecord.revision,
-              outcome: "superseded_\(application.reconciliation.rawValue)",
-              receiptId: receiptId,
-              createdAt: now
-            ).insert(db)
+            guard let targetRecord = try MemoryRecord.fetchOne(db, key: targetID),
+              targetRecord.revision == target.expectedRevision,
+              targetRecord.pendingDeleteDeadline == nil,
+              targetRecord.layer != MemoryLayer.archive.rawValue
+            else { throw MemoryStorageError.staleRevision }
           }
         }
 
-        let fromLayer = candidate.layer
-        let inputRevision = candidate.revision
-        switch (application.action, application.reconciliation) {
-        case (_, .duplicate), (.reject, _):
-          candidate.layer = MemoryLayer.archive.rawValue
-          candidate.isDismissed = true
-          candidate.expiresAt = nil
-        case (.archive, _):
-          candidate.layer = MemoryLayer.archive.rawValue
-          candidate.expiresAt = nil
-        case (.review, _):
-          candidate.layer = MemoryLayer.shortTerm.rawValue
-          candidate.expiresAt = now.addingTimeInterval(Self.shortTermLifetime)
-        case (.promote, _):
-          candidate.layer = MemoryLayer.longTerm.rawValue
-          candidate.expiresAt = nil
-          candidate.content = try Self.trimmed(application.memoryText ?? "")
+        var output: [MemoryItem] = []
+        for application in applications {
+          if let item = alreadyApplied[application.memoryId] {
+            output.append(item)
+            continue
+          }
+          guard var candidate = candidateRecords[application.memoryId], let candidateID = candidate.id else {
+            throw MemoryStorageError.recordNotFound
+          }
+          if application.reconciliation == .replace || application.reconciliation == .merge {
+            for target in application.targets {
+              let targetID = try Self.localID(target.memoryId)
+              guard var targetRecord = try MemoryRecord.fetchOne(db, key: targetID),
+                targetRecord.revision == target.expectedRevision,
+                targetRecord.pendingDeleteDeadline == nil,
+                targetRecord.layer == MemoryLayer.longTerm.rawValue,
+                let fromLayer = MemoryLayer(rawValue: targetRecord.layer)
+              else { throw MemoryStorageError.staleRevision }
+              let inputRevision = targetRecord.revision
+              targetRecord.layer = MemoryLayer.archive.rawValue
+              targetRecord.expiresAt = nil
+              targetRecord.revision += 1
+              targetRecord.updatedAt = now
+              try targetRecord.update(db)
+              try Self.replaceEmbeddingWork(
+                memoryId: targetID, revision: targetRecord.revision,
+                ownerGeneration: ownerGeneration, now: now, in: db)
+              try MemoryTransitionRecord(
+                id: UUID().uuidString,
+                memoryId: targetID,
+                idempotencyKey: "consolidate:\(application.workId):target:\(targetID)",
+                fromLayer: fromLayer.rawValue,
+                toLayer: MemoryLayer.archive.rawValue,
+                inputRevision: inputRevision,
+                outputRevision: targetRecord.revision,
+                outcome: "superseded_\(application.reconciliation.rawValue)",
+                receiptId: receiptId,
+                createdAt: now
+              ).insert(db)
+            }
+          }
+
+          let fromLayer = candidate.layer
+          let inputRevision = candidate.revision
+          switch (application.action, application.reconciliation) {
+          case (_, .duplicate), (.reject, _):
+            candidate.layer = MemoryLayer.archive.rawValue
+            candidate.isDismissed = true
+            candidate.expiresAt = nil
+          case (.archive, _):
+            candidate.layer = MemoryLayer.archive.rawValue
+            candidate.expiresAt = nil
+          case (.review, _):
+            candidate.layer = MemoryLayer.shortTerm.rawValue
+            candidate.expiresAt = now.addingTimeInterval(Self.shortTermLifetime)
+          case (.promote, _):
+            candidate.layer = MemoryLayer.longTerm.rawValue
+            candidate.expiresAt = nil
+            candidate.content = try Self.trimmed(application.memoryText ?? "")
+            candidate.evidenceTokensJson = try Self.jsonString(application.evidenceTokens)
+            candidate.sensitivityLabelsJson = try Self.jsonString(application.sensitivityLabels)
+            candidate.subject = application.subject
+            candidate.predicate = application.predicate
+            candidate.argumentsJson = try Self.jsonString(application.arguments)
+          }
+          candidate.revision += 1
+          candidate.updatedAt = now
+          try candidate.update(db)
+          try MemoryTransitionRecord(
+            id: UUID().uuidString,
+            memoryId: candidateID,
+            idempotencyKey: "consolidate:\(application.workId)",
+            fromLayer: fromLayer,
+            toLayer: candidate.layer,
+            inputRevision: inputRevision,
+            outputRevision: candidate.revision,
+            outcome: "\(application.action.rawValue)_\(application.reconciliation.rawValue)",
+            receiptId: receiptId,
+            createdAt: now
+          ).insert(db)
+          try Self.replaceEmbeddingWork(
+            memoryId: candidateID, revision: candidate.revision,
+            ownerGeneration: ownerGeneration, now: now, in: db)
+          guard var work = try MemoryProcessingWorkRecord.fetchOne(db, key: application.workId) else {
+            throw MemoryStorageError.recordNotFound
+          }
+          work.state = MemoryProcessingState.completed.rawValue
+          work.leaseExpiresAt = nil
+          work.updatedAt = now
+          try work.update(db)
+          guard let item = candidate.toMemoryItem() else { throw MemoryStorageError.recordNotFound }
+          output.append(item)
         }
-        candidate.revision += 1
-        candidate.updatedAt = now
-        try candidate.update(db)
-        try MemoryTransitionRecord(
-          id: UUID().uuidString,
-          memoryId: candidateID,
-          idempotencyKey: "consolidate:\(application.workId)",
-          fromLayer: fromLayer,
-          toLayer: candidate.layer,
-          inputRevision: inputRevision,
-          outputRevision: candidate.revision,
-          outcome: "\(application.action.rawValue)_\(application.reconciliation.rawValue)",
-          receiptId: receiptId,
-          createdAt: now
-        ).insert(db)
-        try Self.replaceEmbeddingWork(
-          memoryId: candidateID, revision: candidate.revision,
-          ownerGeneration: ownerGeneration, now: now, in: db)
-        guard var work = try MemoryProcessingWorkRecord.fetchOne(db, key: application.workId) else {
-          throw MemoryStorageError.recordNotFound
-        }
-        work.state = MemoryProcessingState.completed.rawValue
-        work.leaseExpiresAt = nil
-        work.updatedAt = now
-        try work.update(db)
-        guard let item = candidate.toMemoryItem() else { throw MemoryStorageError.recordNotFound }
-        output.append(item)
+        return output
       }
-      return output
     }
     HomeKnowledgeCountInvalidation.post()
     return changed
   }
 
-  private static func validate(application: MemoryConsolidationApplication) throws {
+  private static func validate(
+    application: MemoryConsolidationApplication,
+    candidate: MemoryRecord
+  ) throws {
     let needsTargets: Bool
     switch application.reconciliation {
     case .duplicate, .replace, .merge: needsTargets = true
@@ -1028,6 +1213,49 @@ actor MemoryStorage {
         throw MemoryStorageError.invalidTransition("Replacement and merge must promote")
       }
     }
+    if application.reconciliation == .keepBoth && application.action != .promote {
+      throw MemoryStorageError.invalidTransition("Only promotion may keep both")
+    }
+    if application.reconciliation == .duplicate && application.action == .promote {
+      throw MemoryStorageError.invalidTransition("Duplicate observations must not promote")
+    }
+    guard Set(application.evidenceTokens).isSubset(of: Set(candidate.evidenceTokens)),
+      application.evidenceTokens.count == Set(application.evidenceTokens).count,
+      Set(application.sensitivityLabels) == Set(candidate.sensitivityLabels),
+      application.subject == (candidate.subject ?? "unclear")
+    else { throw MemoryStorageError.invalidTransition("Consolidation changed authoritative evidence") }
+    if application.action == .promote {
+      let restricted = Set([
+        "credential", "secret", "financial", "health", "intimate", "minor", "minors",
+        "workplace_confidential", "identity_authentication",
+      ])
+      let durableRelationship =
+        (application.relationshipToUser == "self" && application.aboutness == "primary_user")
+        || (application.relationshipToUser == "owned_work"
+          && application.aboutness == "user_owned_project")
+        || (application.relationshipToUser == "adopted"
+          && application.aboutness == "user_relationship")
+        || (application.relationshipToUser == "other_speaker"
+          && application.aboutness == "user_relationship"
+          && application.basisForMemory == "recurring")
+      guard restricted.isDisjoint(with: Set(application.sensitivityLabels)),
+        !["third_party", "unclear"].contains(application.aboutness),
+        application.basisForMemory != "weak_or_none",
+        durableRelationship,
+        !application.evidenceTokens.isEmpty,
+        application.predicate != nil,
+        argumentsAreBounded(application.arguments)
+      else { throw MemoryStorageError.invalidTransition("Unsafe Memory promotion") }
+    }
+  }
+
+  private static func argumentsAreBounded(_ arguments: [String: String]) -> Bool {
+    guard arguments.count <= 32,
+      arguments.allSatisfy({ !$0.key.isEmpty && $0.key.count <= 128 && $0.value.count <= 1_024 }),
+      let encoded = try? JSONSerialization.data(withJSONObject: arguments),
+      encoded.count <= 8_192
+    else { return false }
+    return true
   }
 
   private static func replaceEmbeddingWork(
@@ -1056,7 +1284,8 @@ actor MemoryStorage {
     model: String,
     vector: [Double],
     ownerGeneration: Int,
-    now: Date = Date()
+    now: Date = Date(),
+    authorization: LocalMutationAuthorization = .unrestricted
   ) async throws {
     guard !vector.isEmpty, vector.allSatisfy(\.isFinite), vector.contains(where: { $0 != 0 }) else {
       throw MemoryStorageError.invalidEmbedding
@@ -1065,123 +1294,61 @@ actor MemoryStorage {
     let data = try JSONEncoder().encode(vector)
     let encoded = String(decoding: data, as: UTF8.self)
     let pool = try await database()
-    try await pool.write { db in
-      guard var work = try MemoryProcessingWorkRecord.fetchOne(db, key: workId),
-        work.state == MemoryProcessingState.leased.rawValue,
-        work.ownerGeneration == ownerGeneration,
-        work.memoryId == rowID,
-        let record = try MemoryRecord.fetchOne(db, key: rowID),
-        record.revision == expectedRevision
-      else { throw MemoryStorageError.staleRevision }
-      try MemoryEmbeddingRecord(
-        memoryId: rowID, revision: expectedRevision, model: model,
-        vectorJson: encoded, updatedAt: now
-      ).save(db)
-      work.state = MemoryProcessingState.completed.rawValue
-      work.leaseExpiresAt = nil
-      work.updatedAt = now
-      try work.update(db)
-    }
-  }
-
-  func semanticMatches(
-    queryVector: [Double],
-    scope: MemoryLayerScope = .defaultAccess,
-    limit: Int = 20
-  ) async throws -> [MemorySemanticMatch] {
-    guard !queryVector.isEmpty, queryVector.allSatisfy(\.isFinite) else {
-      throw MemoryStorageError.invalidEmbedding
-    }
-    let pool = try await database()
-    return try await pool.read { db in
-      let placeholders = scope.layers.map { _ in "?" }.joined(separator: ", ")
-      let expiryClause =
-        scope == .defaultAccess
-        ? "AND (m.layer != ? OR m.expiresAt IS NULL OR m.expiresAt > ?)"
-        : ""
-      var arguments: [DatabaseValue] = scope.layers.map { DatabaseValue(value: $0.rawValue)! }
-      if scope == .defaultAccess {
-        arguments.append(DatabaseValue(value: MemoryLayer.shortTerm.rawValue)!)
-        arguments.append(DatabaseValue(value: Date())!)
+    try await authorization.withCommitLease {
+      try await pool.write { db in
+        try authorization.require()
+        guard var work = try MemoryProcessingWorkRecord.fetchOne(db, key: workId),
+          work.state == MemoryProcessingState.leased.rawValue,
+          work.ownerGeneration == ownerGeneration,
+          work.memoryId == rowID,
+          let record = try MemoryRecord.fetchOne(db, key: rowID),
+          record.revision == expectedRevision
+        else { throw MemoryStorageError.staleRevision }
+        try MemoryEmbeddingRecord(
+          memoryId: rowID, revision: expectedRevision, model: model,
+          vectorJson: encoded, updatedAt: now
+        ).save(db)
+        work.state = MemoryProcessingState.completed.rawValue
+        work.leaseExpiresAt = nil
+        work.updatedAt = now
+        try work.update(db)
       }
-      let rows = try Row.fetchAll(
-        db,
-        sql: """
-          SELECT m.*, e.vectorJson
-          FROM memories m JOIN memory_embeddings e ON e.memoryId = m.id AND e.revision = m.revision
-          WHERE m.pendingDeleteDeadline IS NULL AND m.isDismissed = 0
-            AND m.layer IN (\(placeholders))
-            \(expiryClause)
-          """,
-        arguments: StatementArguments(arguments))
-      return rows.compactMap { row -> (MemoryItem, Double)? in
-        guard let record = try? MemoryRecord(row: row).toMemoryItem(),
-          let json: String = row["vectorJson"],
-          let data = json.data(using: .utf8),
-          let vector = try? JSONDecoder().decode([Double].self, from: data),
-          vector.count == queryVector.count,
-          let score = Self.cosine(queryVector, vector)
-        else { return nil }
-        return (record, score)
-      }
-      .sorted { lhs, rhs in
-        lhs.1 == rhs.1 ? lhs.0.createdAt > rhs.0.createdAt : lhs.1 > rhs.1
-      }
-      .prefix(max(0, limit))
-      .map { MemorySemanticMatch(memory: $0.0, score: $0.1) }
     }
-  }
-
-  func semanticSearch(
-    queryVector: [Double],
-    scope: MemoryLayerScope = .defaultAccess,
-    limit: Int = 20
-  ) async throws -> [MemoryItem] {
-    try await semanticMatches(queryVector: queryVector, scope: scope, limit: limit).map(\.memory)
-  }
-
-  private static func cosine(_ lhs: [Double], _ rhs: [Double]) -> Double? {
-    var dot = 0.0
-    var lhsMagnitude = 0.0
-    var rhsMagnitude = 0.0
-    for index in lhs.indices {
-      dot += lhs[index] * rhs[index]
-      lhsMagnitude += lhs[index] * lhs[index]
-      rhsMagnitude += rhs[index] * rhs[index]
-    }
-    guard lhsMagnitude > 0, rhsMagnitude > 0 else { return nil }
-    return dot / (sqrt(lhsMagnitude) * sqrt(rhsMagnitude))
   }
 
   @discardableResult
   func enqueueDueLifecycleWork(
     now: Date = Date(),
-    ownerGeneration: Int
+    ownerGeneration: Int,
+    authorization: LocalMutationAuthorization = .unrestricted
   ) async throws -> Int {
     let pool = try await database()
-    let count = try await pool.write { db -> Int in
-      let records = try MemoryRecord.fetchAll(
-        db,
-        sql: """
-          SELECT m.* FROM memories m
-          WHERE m.layer = ? AND m.expiresAt IS NOT NULL AND m.expiresAt <= ?
-            AND m.pendingDeleteDeadline IS NULL
-            AND NOT EXISTS (
-              SELECT 1 FROM memory_processing_work w
-              WHERE w.memoryId = m.id AND w.kind = ? AND w.inputRevision = m.revision
-            )
-          """,
-        arguments: [
-          MemoryLayer.shortTerm.rawValue, now,
-          MemoryProcessingKind.consolidate.rawValue,
-        ])
-      for record in records {
-        guard let memoryId = record.id else { continue }
-        try Self.enqueue(
-          .consolidate, memoryId: memoryId, revision: record.revision,
-          ownerGeneration: ownerGeneration, now: now, in: db)
+    let count = try await authorization.withCommitLease {
+      try await pool.write { db -> Int in
+        try authorization.require()
+        let records = try MemoryRecord.fetchAll(
+          db,
+          sql: """
+            SELECT m.* FROM memories m
+            WHERE m.layer = ? AND m.expiresAt IS NOT NULL AND m.expiresAt <= ?
+              AND m.pendingDeleteDeadline IS NULL
+              AND NOT EXISTS (
+                SELECT 1 FROM memory_processing_work w
+                WHERE w.memoryId = m.id AND w.kind = ? AND w.inputRevision = m.revision
+              )
+            """,
+          arguments: [
+            MemoryLayer.shortTerm.rawValue, now,
+            MemoryProcessingKind.consolidate.rawValue,
+          ])
+        for record in records {
+          guard let memoryId = record.id else { continue }
+          try Self.enqueue(
+            .consolidate, memoryId: memoryId, revision: record.revision,
+            ownerGeneration: ownerGeneration, now: now, in: db)
+        }
+        return records.count
       }
-      return records.count
     }
     return count
   }

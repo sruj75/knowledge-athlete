@@ -1,10 +1,8 @@
 {
   "files": {
-    "backend/utils/conversations/process_conversation.py": 1597,
     "backend/utils/other/storage.py": 1501
   },
   "raise_justifications": {
-    "backend/utils/conversations/process_conversation.py": "Conversation finalization coordinates retained transcript enrichment and action-item candidate work across the service boundary; splitting the state machine would duplicate finalization authority.",
     "backend/utils/other/storage.py": "delete_app_logo now requires an exact app-logo bucket prefix (startswith) so a foreign URL embedding the prefix later cannot delete an unrelated object on this deletion path (David review on #9873); the deletion purge path additionally records bounded storage wipe counters for telemetry."
   },
   "threshold": 1500

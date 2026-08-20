@@ -16,6 +16,14 @@ CandidateToken = Annotated[str, StringConstraints(pattern=r'^c[0-9]+$')]
 MemoryToken = Annotated[str, StringConstraints(pattern=r'^m[0-9]+$')]
 
 
+def _validate_bounded_arguments(value: dict[str, str]) -> dict[str, str]:
+    if len(value) > 32 or len(json.dumps(value, ensure_ascii=False)) > 8_192:
+        raise ValueError('arguments exceed the bounded contract')
+    if any(not key or len(key) > 128 or len(argument) > 1_024 for key, argument in value.items()):
+        raise ValueError('argument keys and values must be bounded')
+    return value
+
+
 class MemoryComputeModel(BaseModel):
     model_config = ConfigDict(extra='forbid')
 
@@ -48,7 +56,12 @@ class MemoryExtractCandidate(MemoryComputeModel):
     category: Literal['system', 'interesting']
     quote: MemoryText
     segment_token: SegmentToken
+    speaker_label: ShortText
     subject: Literal['primary_user', 'other_speaker']
+    about: ShortText
+    archive_class: Literal['general', 'sensitive'] = 'general'
+    risk_flags: list[ShortText] = Field(default_factory=list, max_length=16)
+    sensitivity_labels: list[ShortText] = Field(default_factory=list, max_length=16)
     confidence: float = Field(ge=0, le=1, allow_inf_nan=False)
 
 
@@ -66,6 +79,9 @@ class MemoryNormalizeRequest(MemoryComputeModel):
     request_id: UUID
     revision: int = Field(gt=0)
     assertion: MemoryText
+    source: Literal['manual', 'correction']
+    source_attribution: Literal['primary_user', 'user_owned_project', 'user_relationship', 'third_party', 'unclear']
+    provenance_tokens: list[ShortText] = Field(default_factory=list, max_length=16)
 
 
 class MemoryNormalizeProposal(MemoryComputeModel):
@@ -81,11 +97,7 @@ class MemoryNormalizeProposal(MemoryComputeModel):
     @field_validator('arguments')
     @classmethod
     def validate_arguments(cls, value: dict[str, str]) -> dict[str, str]:
-        if len(value) > 32 or len(json.dumps(value, ensure_ascii=False)) > 8_192:
-            raise ValueError('arguments exceed the bounded contract')
-        if any(not key or len(key) > 128 or len(argument) > 1_024 for key, argument in value.items()):
-            raise ValueError('argument keys and values must be bounded')
-        return value
+        return _validate_bounded_arguments(value)
 
 
 class MemoryNormalizeResponse(MemoryNormalizeProposal):
@@ -98,6 +110,14 @@ class MemoryConsolidateCandidate(MemoryComputeModel):
     content: MemoryText
     evidence_tokens: list[SegmentToken] = Field(default_factory=list, max_length=32)
     sensitivity_labels: list[ShortText] = Field(default_factory=list, max_length=16)
+    subject: Literal['primary_user', 'user_owned_project', 'user_relationship', 'third_party', 'unclear']
+    predicate: ShortText | None = None
+    arguments: dict[str, str] = Field(default_factory=dict)
+
+    @field_validator('arguments')
+    @classmethod
+    def validate_arguments(cls, value: dict[str, str]) -> dict[str, str]:
+        return _validate_bounded_arguments(value)
 
 
 class MemoryConsolidateActiveMemory(MemoryComputeModel):
@@ -105,6 +125,15 @@ class MemoryConsolidateActiveMemory(MemoryComputeModel):
     content: MemoryText
     layer: Literal['short_term', 'long_term']
     revision: int = Field(gt=0)
+    subject: Literal['primary_user', 'user_owned_project', 'user_relationship', 'third_party', 'unclear']
+    predicate: ShortText | None = None
+    arguments: dict[str, str] = Field(default_factory=dict)
+    sensitivity_labels: list[ShortText] = Field(default_factory=list, max_length=16)
+
+    @field_validator('arguments')
+    @classmethod
+    def validate_arguments(cls, value: dict[str, str]) -> dict[str, str]:
+        return _validate_bounded_arguments(value)
 
 
 class MemoryConsolidateRequest(MemoryComputeModel):
@@ -130,7 +159,23 @@ class MemoryConsolidateDecision(MemoryComputeModel):
     reconciliation: Literal['create', 'duplicate', 'replace', 'merge', 'keep_both']
     target_memory_tokens: list[MemoryToken] = Field(default_factory=list, max_length=8)
     memory_text: MemoryText | None = None
+    evidence_tokens: list[SegmentToken] = Field(default_factory=list, max_length=32)
+    subject: Literal['primary_user', 'user_owned_project', 'user_relationship', 'third_party', 'unclear']
+    predicate: ShortText | None = None
+    arguments: dict[str, str] = Field(default_factory=dict)
+    sensitivity_labels: list[ShortText] = Field(default_factory=list, max_length=16)
+    relationship_to_user: Literal[
+        'self', 'owned_work', 'adopted', 'asking_about', 'encountered', 'other_speaker', 'unclear'
+    ]
+    aboutness: Literal['primary_user', 'user_owned_project', 'user_relationship', 'third_party', 'unclear']
+    basis_for_memory: Literal['explicit', 'recurring', 'inferred_pattern', 'weak_or_none']
+    confidence: Literal['high', 'medium', 'low']
     rationale: Rationale
+
+    @field_validator('arguments')
+    @classmethod
+    def validate_arguments(cls, value: dict[str, str]) -> dict[str, str]:
+        return _validate_bounded_arguments(value)
 
     @model_validator(mode='after')
     def validate_decision_shape(self) -> 'MemoryConsolidateDecision':
@@ -143,6 +188,18 @@ class MemoryConsolidateDecision(MemoryComputeModel):
             raise ValueError('promote requires memory_text')
         if self.action != 'promote' and self.memory_text is not None:
             raise ValueError('only promote may return memory_text')
+        if self.action == 'promote' and (not self.evidence_tokens or self.predicate is None):
+            raise ValueError('promote requires evidence and a structured predicate')
+        if self.action == 'promote' and self.basis_for_memory == 'weak_or_none':
+            raise ValueError('promote requires a defensible basis')
+        if self.action == 'promote' and self.reconciliation == 'duplicate':
+            raise ValueError('duplicate observations must not be promoted')
+        if self.action != 'promote' and self.reconciliation in {'replace', 'merge', 'keep_both'}:
+            raise ValueError('only promote may replace, merge, or keep both')
+        if len(self.target_memory_tokens) != len(set(self.target_memory_tokens)):
+            raise ValueError('target memory tokens must be unique')
+        if len(self.evidence_tokens) != len(set(self.evidence_tokens)):
+            raise ValueError('evidence tokens must be unique')
         return self
 
 

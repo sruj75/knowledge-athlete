@@ -2158,91 +2158,162 @@ public enum OmiAPI {
 
 
   public struct MemoryConsolidateActiveMemory: Codable {
+    public let arguments: [String: String]?
     public let content: String
     public let layer: String
+    public let predicate: String?
     public let revision: Int
+    public let sensitivityLabels: [String]?
+    public let subject: String
     public let token: String
+
+    private enum CodingKeys: String, CodingKey {
+      case arguments
+      case content
+      case layer
+      case predicate
+      case revision
+      case sensitivityLabels = "sensitivity_labels"
+      case subject
+      case token
+    }
 
     public init(from decoder: Decoder) throws {
       let c = try decoder.container(keyedBy: CodingKeys.self)
+      arguments = try c.decodeIfPresent([String: String].self, forKey: .arguments)
       content = try c.decode(String.self, forKey: .content)
       layer = try c.decode(String.self, forKey: .layer)
+      predicate = try c.decodeIfPresent(String.self, forKey: .predicate)
       revision = try c.decode(Int.self, forKey: .revision)
+      sensitivityLabels = try c.decodeIfPresent([String].self, forKey: .sensitivityLabels)
+      subject = try c.decode(String.self, forKey: .subject)
       token = try c.decode(String.self, forKey: .token)
     }
 
-    public init(content: String, layer: String, revision: Int, token: String) {
+    public init(arguments: [String: String]?, content: String, layer: String, predicate: String?, revision: Int, sensitivityLabels: [String]?, subject: String, token: String) {
+      self.arguments = arguments
       self.content = content
       self.layer = layer
+      self.predicate = predicate
       self.revision = revision
+      self.sensitivityLabels = sensitivityLabels
+      self.subject = subject
       self.token = token
     }
   }
 
 
   public struct MemoryConsolidateCandidate: Codable {
+    public let arguments: [String: String]?
     public let content: String
     public let evidenceTokens: [String]?
+    public let predicate: String?
     public let sensitivityLabels: [String]?
+    public let subject: String
     public let token: String
 
     private enum CodingKeys: String, CodingKey {
+      case arguments
       case content
       case evidenceTokens = "evidence_tokens"
+      case predicate
       case sensitivityLabels = "sensitivity_labels"
+      case subject
       case token
     }
 
     public init(from decoder: Decoder) throws {
       let c = try decoder.container(keyedBy: CodingKeys.self)
+      arguments = try c.decodeIfPresent([String: String].self, forKey: .arguments)
       content = try c.decode(String.self, forKey: .content)
       evidenceTokens = try c.decodeIfPresent([String].self, forKey: .evidenceTokens)
+      predicate = try c.decodeIfPresent(String.self, forKey: .predicate)
       sensitivityLabels = try c.decodeIfPresent([String].self, forKey: .sensitivityLabels)
+      subject = try c.decode(String.self, forKey: .subject)
       token = try c.decode(String.self, forKey: .token)
     }
 
-    public init(content: String, evidenceTokens: [String]?, sensitivityLabels: [String]?, token: String) {
+    public init(arguments: [String: String]?, content: String, evidenceTokens: [String]?, predicate: String?, sensitivityLabels: [String]?, subject: String, token: String) {
+      self.arguments = arguments
       self.content = content
       self.evidenceTokens = evidenceTokens
+      self.predicate = predicate
       self.sensitivityLabels = sensitivityLabels
+      self.subject = subject
       self.token = token
     }
   }
 
 
   public struct MemoryConsolidateDecision: Codable {
+    public let aboutness: String
     public let action: String
+    public let arguments: [String: String]?
+    public let basisForMemory: String
     public let candidateToken: String
+    public let confidence: String
+    public let evidenceTokens: [String]?
     public let memoryText: String?
+    public let predicate: String?
     public let rationale: String
     public let reconciliation: String
+    public let relationshipToUser: String
+    public let sensitivityLabels: [String]?
+    public let subject: String
     public let targetMemoryTokens: [String]?
 
     private enum CodingKeys: String, CodingKey {
+      case aboutness
       case action
+      case arguments
+      case basisForMemory = "basis_for_memory"
       case candidateToken = "candidate_token"
+      case confidence
+      case evidenceTokens = "evidence_tokens"
       case memoryText = "memory_text"
+      case predicate
       case rationale
       case reconciliation
+      case relationshipToUser = "relationship_to_user"
+      case sensitivityLabels = "sensitivity_labels"
+      case subject
       case targetMemoryTokens = "target_memory_tokens"
     }
 
     public init(from decoder: Decoder) throws {
       let c = try decoder.container(keyedBy: CodingKeys.self)
+      aboutness = try c.decode(String.self, forKey: .aboutness)
       action = try c.decode(String.self, forKey: .action)
+      arguments = try c.decodeIfPresent([String: String].self, forKey: .arguments)
+      basisForMemory = try c.decode(String.self, forKey: .basisForMemory)
       candidateToken = try c.decode(String.self, forKey: .candidateToken)
+      confidence = try c.decode(String.self, forKey: .confidence)
+      evidenceTokens = try c.decodeIfPresent([String].self, forKey: .evidenceTokens)
       memoryText = try c.decodeIfPresent(String.self, forKey: .memoryText)
+      predicate = try c.decodeIfPresent(String.self, forKey: .predicate)
       rationale = try c.decode(String.self, forKey: .rationale)
       reconciliation = try c.decode(String.self, forKey: .reconciliation)
+      relationshipToUser = try c.decode(String.self, forKey: .relationshipToUser)
+      sensitivityLabels = try c.decodeIfPresent([String].self, forKey: .sensitivityLabels)
+      subject = try c.decode(String.self, forKey: .subject)
       targetMemoryTokens = try c.decodeIfPresent([String].self, forKey: .targetMemoryTokens)
     }
 
-    public init(action: String, candidateToken: String, memoryText: String?, rationale: String, reconciliation: String, targetMemoryTokens: [String]?) {
+    public init(aboutness: String, action: String, arguments: [String: String]?, basisForMemory: String, candidateToken: String, confidence: String, evidenceTokens: [String]?, memoryText: String?, predicate: String?, rationale: String, reconciliation: String, relationshipToUser: String, sensitivityLabels: [String]?, subject: String, targetMemoryTokens: [String]?) {
+      self.aboutness = aboutness
       self.action = action
+      self.arguments = arguments
+      self.basisForMemory = basisForMemory
       self.candidateToken = candidateToken
+      self.confidence = confidence
+      self.evidenceTokens = evidenceTokens
       self.memoryText = memoryText
+      self.predicate = predicate
       self.rationale = rationale
       self.reconciliation = reconciliation
+      self.relationshipToUser = relationshipToUser
+      self.sensitivityLabels = sensitivityLabels
+      self.subject = subject
       self.targetMemoryTokens = targetMemoryTokens
     }
   }
@@ -2305,38 +2376,58 @@ public enum OmiAPI {
 
 
   public struct MemoryExtractCandidate: Codable {
+    public let about: String
+    public let archiveClass: String?
     public let category: String
     public let confidence: Double
     public let content: String
     public let quote: String
+    public let riskFlags: [String]?
     public let segmentToken: String
+    public let sensitivityLabels: [String]?
+    public let speakerLabel: String
     public let subject: String
 
     private enum CodingKeys: String, CodingKey {
+      case about
+      case archiveClass = "archive_class"
       case category
       case confidence
       case content
       case quote
+      case riskFlags = "risk_flags"
       case segmentToken = "segment_token"
+      case sensitivityLabels = "sensitivity_labels"
+      case speakerLabel = "speaker_label"
       case subject
     }
 
     public init(from decoder: Decoder) throws {
       let c = try decoder.container(keyedBy: CodingKeys.self)
+      about = try c.decode(String.self, forKey: .about)
+      archiveClass = try c.decodeIfPresent(String.self, forKey: .archiveClass)
       category = try c.decode(String.self, forKey: .category)
       confidence = try c.decode(Double.self, forKey: .confidence)
       content = try c.decode(String.self, forKey: .content)
       quote = try c.decode(String.self, forKey: .quote)
+      riskFlags = try c.decodeIfPresent([String].self, forKey: .riskFlags)
       segmentToken = try c.decode(String.self, forKey: .segmentToken)
+      sensitivityLabels = try c.decodeIfPresent([String].self, forKey: .sensitivityLabels)
+      speakerLabel = try c.decode(String.self, forKey: .speakerLabel)
       subject = try c.decode(String.self, forKey: .subject)
     }
 
-    public init(category: String, confidence: Double, content: String, quote: String, segmentToken: String, subject: String) {
+    public init(about: String, archiveClass: String?, category: String, confidence: Double, content: String, quote: String, riskFlags: [String]?, segmentToken: String, sensitivityLabels: [String]?, speakerLabel: String, subject: String) {
+      self.about = about
+      self.archiveClass = archiveClass
       self.category = category
       self.confidence = confidence
       self.content = content
       self.quote = quote
+      self.riskFlags = riskFlags
       self.segmentToken = segmentToken
+      self.sensitivityLabels = sensitivityLabels
+      self.speakerLabel = speakerLabel
       self.subject = subject
     }
   }
@@ -2400,26 +2491,38 @@ public enum OmiAPI {
 
   public struct MemoryNormalizeRequest: Codable {
     public let assertion: String
+    public let provenanceTokens: [String]?
     public let requestId: String
     public let revision: Int
+    public let source: String
+    public let sourceAttribution: String
 
     private enum CodingKeys: String, CodingKey {
       case assertion
+      case provenanceTokens = "provenance_tokens"
       case requestId = "request_id"
       case revision
+      case source
+      case sourceAttribution = "source_attribution"
     }
 
     public init(from decoder: Decoder) throws {
       let c = try decoder.container(keyedBy: CodingKeys.self)
       assertion = try c.decode(String.self, forKey: .assertion)
+      provenanceTokens = try c.decodeIfPresent([String].self, forKey: .provenanceTokens)
       requestId = try c.decode(String.self, forKey: .requestId)
       revision = try c.decode(Int.self, forKey: .revision)
+      source = try c.decode(String.self, forKey: .source)
+      sourceAttribution = try c.decode(String.self, forKey: .sourceAttribution)
     }
 
-    public init(assertion: String, requestId: String, revision: Int) {
+    public init(assertion: String, provenanceTokens: [String]?, requestId: String, revision: Int, source: String, sourceAttribution: String) {
       self.assertion = assertion
+      self.provenanceTokens = provenanceTokens
       self.requestId = requestId
       self.revision = revision
+      self.source = source
+      self.sourceAttribution = sourceAttribution
     }
   }
 

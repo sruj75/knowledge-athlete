@@ -22,6 +22,9 @@ The live schema is deliberately local-only:
 The forward `makeMemoriesLocalAuthoritativeS12` migration rebuilds legacy rows
 while preserving their local primary keys and removes backend identity, sync,
 review, scoring, device, public/private, headline, and compatibility fields.
+The follow-up lifecycle migration converts legacy Tips rows to `interesting`,
+assigns finite expiry to legacy Short-term rows, and queues normalization,
+consolidation, and missing-vector work without changing local identities.
 Historical migrations remain registered so both upgraded and fresh databases
 converge through the same forward migration.
 
@@ -29,7 +32,10 @@ converge through the same forward migration.
 calls transient extraction/normalization/consolidation or embedding compute,
 then commits through `MemoryStorage` only if the owner generation and input
 revision are still current. Model responses never become an authority by
-themselves.
+themselves. On an authorized database reopen it rebinds unfinished durable work
+to the new pool generation, batches document embeddings, and selects conflict
+context from revision-matched local vectors. Evidence, subject, sensitivity,
+relationship, and supersession rules are revalidated in the local transaction.
 
 Conversation deletion and merge use the transaction-scoped source hooks from
 the conversation authority so Memory provenance and cascades stay atomic with

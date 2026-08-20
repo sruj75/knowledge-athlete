@@ -1,3 +1,4 @@
+import GRDB
 import XCTest
 
 @testable import Omi_Computer
@@ -55,6 +56,45 @@ final class MemoryLocalAuthorityTests: XCTestCase {
     XCTAssertTrue(visible.isEmpty)
   }
 
+  func testInlineEditKeepsItsDraftWhenTheAcceptedRevisionIsStale() async throws {
+    let original = try await MemoryStorage.shared.acceptExplicitAssertion(
+      content: "I prefer tea.", now: Date(timeIntervalSince1970: 1_000))
+    _ = try await MemoryStorage.shared.correct(
+      id: original.id,
+      expectedRevision: original.revision,
+      content: "I prefer coffee.",
+      now: Date(timeIntervalSince1970: 1_001),
+      ownerGeneration: await RewindDatabase.shared.poolGeneration())
+    let viewModel = MemoriesViewModel()
+    viewModel.editText = "  I prefer espresso.  "
+
+    let saved = await viewModel.saveEditedMemory(original)
+    let persisted = try await MemoryStorage.shared.memory(id: original.id)
+
+    XCTAssertFalse(saved)
+    XCTAssertEqual(viewModel.editText, "  I prefer espresso.  ")
+    XCTAssertNil(viewModel.errorMessage)
+    XCTAssertEqual(persisted?.content, "I prefer coffee.")
+  }
+
+  func testRevokedAuthorizationCannotMutateMemoryPresentationFlags() async throws {
+    let memory = try await MemoryStorage.shared.acceptAssertion(
+      MemoryAssertion(content: "Owner-fenced Memory", layer: .longTerm))
+
+    do {
+      try await MemoryStorage.shared.markRead(
+        id: memory.id,
+        isRead: true,
+        authorization: LocalMutationAuthorization { false })
+      XCTFail("a revoked owner lease must reject the mutation")
+    } catch LocalMutationAuthorizationError.revoked {
+      // Expected: authorization is checked inside the write transaction.
+    }
+
+    let persisted = try await MemoryStorage.shared.memory(id: memory.id)
+    XCTAssertEqual(persisted?.isRead, false)
+  }
+
   func testDefaultScopeExcludesArchiveAndLiteralSearchStaysLocal() async throws {
     _ = try await MemoryStorage.shared.acceptAssertion(
       MemoryAssertion(content: "Enjoys Ethiopian coffee", category: .system, layer: .longTerm),
@@ -95,7 +135,13 @@ final class MemoryLocalAuthorityTests: XCTestCase {
     let second = try await MemoryStorage.shared.acceptAssertion(
       MemoryAssertion(content: "Second local Memory", layer: .longTerm))
     let viewModel = MemoriesViewModel(
-      sleeper: { _ in try await Task.sleep(nanoseconds: 60_000_000_000) })
+      sleeper: { _ in
+        let cancellationStream = AsyncStream<Void> { continuation in
+          continuation.onTermination = { _ in }
+        }
+        for await _ in cancellationStream {}
+        try Task.checkCancellation()
+      })
 
     await viewModel.deleteMemory(first)
     await viewModel.deleteMemory(second)
@@ -110,9 +156,53 @@ final class MemoryLocalAuthorityTests: XCTestCase {
     XCTAssertNotNil(
       pendingSecond,
       "the newest delete remains undoable during its four-second window")
+    await viewModel.undoDelete()
   }
 
   func testMemoriesPageCopyDescribesLocalDurabilityExactly() {
     XCTAssertEqual(MemoryPageCopy.subtitle, "Memories and insights saved on this Mac")
+  }
+
+  func testLegacyTipsMigrationPreservesInsightAndSchedulesExpiryAndEmbedding() throws {
+    let directory = FileManager.default.temporaryDirectory
+      .appendingPathComponent("memory-s12-migration-\(UUID().uuidString)", isDirectory: true)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let queue = try DatabaseQueue(path: directory.appendingPathComponent("omi.db").path)
+    try queue.write { db in
+      try db.create(table: "memories") { table in
+        table.autoIncrementedPrimaryKey("id")
+        table.column("content", .text).notNull()
+        table.column("category", .text).notNull()
+        table.column("tier", .text)
+        table.column("tagsJson", .text)
+        table.column("manuallyAdded", .boolean).notNull().defaults(to: false)
+        table.column("createdAt", .datetime).notNull()
+        table.column("updatedAt", .datetime).notNull()
+      }
+      try db.execute(
+        sql: """
+          INSERT INTO memories
+            (content, category, tier, tagsJson, manuallyAdded, createdAt, updatedAt)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+          """,
+        arguments: [
+          "A retained productivity tip", "system", "short_term", "[\"tips\",\"productivity\"]",
+          false, Date(timeIntervalSince1970: 1_000), Date(timeIntervalSince1970: 1_000),
+        ])
+    }
+
+    var migrator = DatabaseMigrator()
+    RewindDatabase.registerMemoryLocalAuthorityMigration(on: &migrator)
+    try migrator.migrate(queue)
+
+    try queue.read { db in
+      let row = try XCTUnwrap(Row.fetchOne(db, sql: "SELECT * FROM memories"))
+      XCTAssertEqual(row["category"] as String, MemoryCategory.interesting.rawValue)
+      XCTAssertNotNil(row["expiresAt"] as Date?)
+      let workKinds = Set(
+        try String.fetchAll(db, sql: "SELECT kind FROM memory_processing_work ORDER BY kind"))
+      XCTAssertEqual(workKinds, Set([MemoryProcessingKind.consolidate.rawValue, MemoryProcessingKind.embed.rawValue]))
+    }
   }
 }

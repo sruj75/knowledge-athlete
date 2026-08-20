@@ -1,3 +1,4 @@
+import Combine
 import Foundation
 
 /// Stored insight item with additional metadata
@@ -71,11 +72,22 @@ class InsightStorage: ObservableObject {
   @Published private(set) var isLoading = false
   @Published private(set) var lastSyncError: String?
 
-  private let localStorageKey = "omi.advice.history"
+  private let localStorageKeyPrefix = "omi.advice.history"
   private let maxLocalInsights = 100
   private var isSyncing = false
+  private var ownerScopeGeneration = 0
+  private var cancellables = Set<AnyCancellable>()
+
+  private var localStorageKey: String? {
+    RuntimeOwnerIdentity.currentOwnerId().map { "\(localStorageKeyPrefix).owner.\($0)" }
+  }
 
   private init() {
+    NotificationCenter.default.publisher(for: .runtimeOwnerDidChange)
+      .sink { [weak self] _ in
+        Task { @MainActor in self?.resetForCurrentOwner() }
+      }
+      .store(in: &cancellables)
     // Load from local cache first for immediate display
     loadFromLocalCache()
 
@@ -83,6 +95,16 @@ class InsightStorage: ObservableObject {
     Task {
       await refreshFromLocalMemories()
     }
+  }
+
+  private func resetForCurrentOwner() {
+    ownerScopeGeneration += 1
+    insightHistory = []
+    isLoading = false
+    lastSyncError = nil
+    isSyncing = false
+    loadFromLocalCache()
+    Task { await refreshFromLocalMemories() }
   }
 
   // MARK: - Public Methods
@@ -108,59 +130,68 @@ class InsightStorage: ObservableObject {
   /// Mark advice as read
   func markAsRead(_ id: String) {
     guard let index = insightHistory.firstIndex(where: { $0.id == id }) else { return }
+    guard let authorization = currentOwnerAuthorization() else { return }
 
     insightHistory[index] = insightHistory[index].withRead(true)
     saveToLocalCache()
 
     // Mirror the presentation flag into the authoritative local Memory when linked.
     Task {
-      await updateLocalMemory(id: id, isRead: true, isDismissed: nil)
+      await updateLocalMemory(
+        id: id, isRead: true, isDismissed: nil, authorization: authorization)
     }
   }
 
   /// Mark all advice as read
   func markAllAsRead() {
+    guard let authorization = currentOwnerAuthorization() else { return }
+    let unreadIds = insightHistory.filter { !$0.isRead }.map(\.id)
     insightHistory = insightHistory.map { $0.withRead(true) }
     saveToLocalCache()
 
     // Mirror all linked rows locally.
     Task {
-      await markAllLocalMemoriesRead()
+      await markAllLocalMemoriesRead(ids: unreadIds, authorization: authorization)
     }
   }
 
   /// Dismiss advice (hide from list)
   func dismissInsight(_ id: String) {
     guard let index = insightHistory.firstIndex(where: { $0.id == id }) else { return }
+    guard let authorization = currentOwnerAuthorization() else { return }
 
     insightHistory[index] = insightHistory[index].withDismissed(true)
     saveToLocalCache()
 
     // Mirror the presentation flag into the authoritative local Memory when linked.
     Task {
-      await updateLocalMemory(id: id, isRead: nil, isDismissed: true)
+      await updateLocalMemory(
+        id: id, isRead: nil, isDismissed: true, authorization: authorization)
     }
   }
 
   /// Delete advice permanently
   func deleteInsight(_ id: String) {
+    guard let authorization = currentOwnerAuthorization() else { return }
     insightHistory.removeAll { $0.id == id }
     saveToLocalCache()
 
     // Delete the linked local Memory immediately; this history surface has no Undo UI.
     Task {
-      await deleteLocalMemory(id: id)
+      await deleteLocalMemory(id: id, authorization: authorization)
     }
   }
 
   /// Clear all advice history
   func clearAll() {
+    guard let authorization = currentOwnerAuthorization() else { return }
     insightHistory = []
     saveToLocalCache()
 
     Task {
       do {
-        _ = try await MemoryStorage.shared.deleteTaggedAssertions(tag: "tips")
+        _ = try await MemoryStorage.shared.deleteTaggedAssertions(
+          tag: "tips", authorization: authorization)
       } catch {
         logError("Insight: Failed to clear local Memory rows", error: error)
       }
@@ -186,8 +217,13 @@ class InsightStorage: ObservableObject {
 
   private func refreshFromLocalMemories() async {
     guard !isSyncing else { return }
+    guard let snapshot = RuntimeOwnerIdentity.captureAuthorizationSnapshot() else { return }
+    let generation = ownerScopeGeneration
 
     isSyncing = true
+    defer {
+      if generation == ownerScopeGeneration { isSyncing = false }
+    }
     isLoading = true
     lastSyncError = nil
 
@@ -202,6 +238,9 @@ class InsightStorage: ObservableObject {
       )
 
       let localInsight = memories.map { StoredInsight(from: $0) }
+      guard generation == ownerScopeGeneration,
+        RuntimeOwnerIdentity.isAuthorizationCurrent(snapshot)
+      else { return }
 
       // Update local cache
       await MainActor.run {
@@ -212,6 +251,9 @@ class InsightStorage: ObservableObject {
 
       log("Insight: Refreshed \(localInsight.count) items from local Memories")
     } catch {
+      guard generation == ownerScopeGeneration,
+        RuntimeOwnerIdentity.isAuthorizationCurrent(snapshot)
+      else { return }
       await MainActor.run {
         self.lastSyncError = error.localizedDescription
         self.isLoading = false
@@ -219,51 +261,67 @@ class InsightStorage: ObservableObject {
       logError("Insight: Failed to refresh local Memories", error: error)
     }
 
-    isSyncing = false
   }
 
-  private func updateLocalMemory(id: String, isRead: Bool?, isDismissed: Bool?) async {
+  private func updateLocalMemory(
+    id: String,
+    isRead: Bool?,
+    isDismissed: Bool?,
+    authorization: LocalMutationAuthorization
+  ) async {
     guard Int64(id) != nil else { return }
     do {
-      if let isRead { try await MemoryStorage.shared.markRead(id: id, isRead: isRead) }
-      if let isDismissed { try await MemoryStorage.shared.markDismissed(id: id, isDismissed: isDismissed) }
+      if let isRead {
+        try await MemoryStorage.shared.markRead(
+          id: id, isRead: isRead, authorization: authorization)
+      }
+      if let isDismissed {
+        try await MemoryStorage.shared.markDismissed(
+          id: id, isDismissed: isDismissed, authorization: authorization)
+      }
     } catch {
       logError("Insight: Failed to update local Memory", error: error)
     }
   }
 
-  private func deleteLocalMemory(id: String) async {
+  private func deleteLocalMemory(
+    id: String, authorization: LocalMutationAuthorization
+  ) async {
     guard Int64(id) != nil else { return }
     do {
-      _ = try await MemoryStorage.shared.beginDeletion(id: id)
-      try await MemoryStorage.shared.finalizeDeletion(id: id)
+      _ = try await MemoryStorage.shared.beginDeletion(id: id, authorization: authorization)
+      try await MemoryStorage.shared.finalizeDeletion(id: id, authorization: authorization)
     } catch {
       logError("Insight: Failed to delete local Memory", error: error)
     }
   }
 
-  private func markAllLocalMemoriesRead() async {
-    let unreadIds = insightHistory.filter { !$0.isRead }.map { $0.id }
-    guard !unreadIds.isEmpty else { return }
+  private func markAllLocalMemoriesRead(
+    ids: [String], authorization: LocalMutationAuthorization
+  ) async {
+    guard !ids.isEmpty else { return }
     await withTaskGroup(of: Void.self) { group in
-      for id in unreadIds {
+      for id in ids {
         group.addTask {
           guard Int64(id) != nil else { return }
           do {
-            try await MemoryStorage.shared.markRead(id: id, isRead: true)
+            try await MemoryStorage.shared.markRead(
+              id: id, isRead: true, authorization: authorization)
           } catch {
             logError("Insight: Failed to mark \(id) as read locally", error: error)
           }
         }
       }
     }
-    log("Insight: Marked \(unreadIds.count) insight(s) as read locally")
+    log("Insight: Marked \(ids.count) insight(s) as read locally")
   }
 
   // MARK: - Local Cache
 
   private func loadFromLocalCache() {
-    guard let data = UserDefaults.standard.data(forKey: localStorageKey) else {
+    guard let localStorageKey,
+      let data = UserDefaults.standard.data(forKey: localStorageKey)
+    else {
       return
     }
 
@@ -277,6 +335,7 @@ class InsightStorage: ObservableObject {
   }
 
   private func saveToLocalCache() {
+    guard let localStorageKey else { return }
     do {
       let encoder = JSONEncoder()
       encoder.dateEncodingStrategy = .iso8601
@@ -285,6 +344,11 @@ class InsightStorage: ObservableObject {
     } catch {
       logError("Failed to save insights to local cache", error: error)
     }
+  }
+
+  private func currentOwnerAuthorization() -> LocalMutationAuthorization? {
+    guard let snapshot = RuntimeOwnerIdentity.captureAuthorizationSnapshot() else { return nil }
+    return LocalMutationAuthorization { RuntimeOwnerIdentity.isAuthorizationCurrent(snapshot) }
   }
 
   private func trimLocalCache() {

@@ -22,16 +22,19 @@ from utils.llm.memory_compute import (
     validate_consolidation_response,
 )
 from utils.llm.usage_tracker import Features, track_usage
-from utils.other.endpoints import get_current_user_uid
+from utils.other import endpoints as auth
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=['Memory Compute'])
+extract_compute_uid = auth.with_rate_limit(auth.get_current_user_uid, 'memory:extract')
+normalize_compute_uid = auth.with_rate_limit(auth.get_current_user_uid, 'memory:normalize')
+consolidate_compute_uid = auth.with_rate_limit(auth.get_current_user_uid, 'memory:consolidate')
 
 
 @router.post('/v1/memory/compute/extract', response_model=MemoryExtractResponse)
 def extract_memory_candidates(
     request: MemoryExtractRequest,
-    uid: str = Depends(get_current_user_uid),
+    uid: str = Depends(extract_compute_uid),
 ) -> MemoryExtractResponse:
     try:
         with track_usage(uid, Features.MEMORY_L1):
@@ -47,7 +50,7 @@ def extract_memory_candidates(
 @router.post('/v1/memory/compute/normalize', response_model=MemoryNormalizeResponse)
 def normalize_memory_assertion(
     request: MemoryNormalizeRequest,
-    uid: str = Depends(get_current_user_uid),
+    uid: str = Depends(normalize_compute_uid),
 ) -> MemoryNormalizeResponse:
     try:
         with track_usage(uid, Features.MEMORY_L2):
@@ -63,7 +66,7 @@ def normalize_memory_assertion(
 @router.post('/v1/memory/compute/consolidate', response_model=MemoryConsolidateResponse)
 def consolidate_memory_candidates(
     request: MemoryConsolidateRequest,
-    uid: str = Depends(get_current_user_uid),
+    uid: str = Depends(consolidate_compute_uid),
 ) -> MemoryConsolidateResponse:
     try:
         with track_usage(uid, Features.MEMORY_CONFLICT):
@@ -72,6 +75,8 @@ def consolidate_memory_candidates(
             candidate_tokens={candidate.token for candidate in request.candidates},
             active_memory_tokens={memory.token for memory in request.active_memories},
             response=response,
+            candidates={candidate.token: candidate for candidate in request.candidates},
+            active_memories={memory.token: memory for memory in request.active_memories},
         )
     except (ValidationError, ValueError) as error:
         logger.warning('Memory consolidate returned an invalid candidate shape')

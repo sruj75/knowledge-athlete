@@ -4,10 +4,15 @@ struct MemoryNormalizeComputeRequest: Codable, Equatable, Sendable {
   let requestId: UUID
   let revision: Int
   let assertion: String
+  let source: String
+  let sourceAttribution: String
+  let provenanceTokens: [String]
 
   enum CodingKeys: String, CodingKey {
     case requestId = "request_id"
-    case revision, assertion
+    case revision, assertion, source
+    case sourceAttribution = "source_attribution"
+    case provenanceTokens = "provenance_tokens"
   }
 }
 
@@ -62,13 +67,23 @@ struct MemoryExtractComputeCandidate: Codable, Equatable, Sendable {
   let category: String
   let quote: String
   let segmentToken: String
+  let speakerLabel: String
   let subject: String
+  let about: String
+  let archiveClass: String
+  let riskFlags: [String]
+  let sensitivityLabels: [String]
   let confidence: Double
 
   enum CodingKeys: String, CodingKey {
     case content, category, quote
     case segmentToken = "segment_token"
-    case subject, confidence
+    case speakerLabel = "speaker_label"
+    case subject, about
+    case archiveClass = "archive_class"
+    case riskFlags = "risk_flags"
+    case sensitivityLabels = "sensitivity_labels"
+    case confidence
   }
 }
 
@@ -88,11 +103,15 @@ struct MemoryConsolidateComputeCandidate: Codable, Equatable, Sendable {
   let content: String
   let evidenceTokens: [String]
   let sensitivityLabels: [String]
+  let subject: String
+  let predicate: String?
+  let arguments: [String: String]
 
   enum CodingKeys: String, CodingKey {
     case token, content
     case evidenceTokens = "evidence_tokens"
     case sensitivityLabels = "sensitivity_labels"
+    case subject, predicate, arguments
   }
 }
 
@@ -101,6 +120,15 @@ struct MemoryConsolidateComputeActiveMemory: Codable, Equatable, Sendable {
   let content: String
   let layer: String
   let revision: Int
+  let subject: String
+  let predicate: String?
+  let arguments: [String: String]
+  let sensitivityLabels: [String]
+
+  enum CodingKeys: String, CodingKey {
+    case token, content, layer, revision, subject, predicate, arguments
+    case sensitivityLabels = "sensitivity_labels"
+  }
 }
 
 struct MemoryConsolidateComputeRequest: Codable, Equatable, Sendable {
@@ -122,6 +150,15 @@ struct MemoryConsolidateComputeDecision: Codable, Equatable, Sendable {
   let reconciliation: String
   let targetMemoryTokens: [String]
   let memoryText: String?
+  let evidenceTokens: [String]
+  let subject: String
+  let predicate: String?
+  let arguments: [String: String]
+  let sensitivityLabels: [String]
+  let relationshipToUser: String
+  let aboutness: String
+  let basisForMemory: String
+  let confidence: String
   let rationale: String
 
   enum CodingKeys: String, CodingKey {
@@ -129,6 +166,13 @@ struct MemoryConsolidateComputeDecision: Codable, Equatable, Sendable {
     case action, reconciliation
     case targetMemoryTokens = "target_memory_tokens"
     case memoryText = "memory_text"
+    case evidenceTokens = "evidence_tokens"
+    case subject, predicate, arguments
+    case sensitivityLabels = "sensitivity_labels"
+    case relationshipToUser = "relationship_to_user"
+    case aboutness
+    case basisForMemory = "basis_for_memory"
+    case confidence
     case rationale
   }
 }

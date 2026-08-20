@@ -96,7 +96,6 @@ final class MemoriesViewModel: ObservableObject {
   @Published private(set) var isLoadingFiltered = false
   @Published var showingAddMemory = false
   @Published var newMemoryText = ""
-  @Published var editingMemory: MemoryItem?
   @Published var editText = ""
   @Published var selectedMemory: MemoryItem?
   @Published var pendingDeleteMemory: MemoryItem?
@@ -190,7 +189,6 @@ final class MemoriesViewModel: ObservableObject {
     isLoadingFiltered = false
     showingAddMemory = false
     newMemoryText = ""
-    editingMemory = nil
     editText = ""
     selectedMemory = nil
     pendingDeleteMemory = nil
@@ -304,21 +302,26 @@ final class MemoriesViewModel: ObservableObject {
     }
   }
 
-  func saveEditedMemory(_ memory: MemoryItem) async {
+  @discardableResult
+  func saveEditedMemory(_ memory: MemoryItem) async -> Bool {
+    let trimmedDraft = editText.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmedDraft.isEmpty else { return false }
     do {
       let saved = try await storage.correct(
         id: memory.id,
         expectedRevision: memory.revision,
-        content: editText,
+        content: trimmedDraft,
         now: clock(),
         ownerGeneration: await RewindDatabase.shared.poolGeneration(),
         authorization: try ownerAuthorization())
       replaceMemory(saved)
-      editingMemory = nil
       editText = ""
       await refreshSelectedMemory()
+      return true
     } catch {
-      errorMessage = UserFacingErrorPresentation.message(for: error, while: .memories)
+      // The inline editor owns this rare local-acceptance failure. Keep its
+      // draft open without replacing the entire page with a global error view.
+      return false
     }
   }
 

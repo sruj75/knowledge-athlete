@@ -44,6 +44,19 @@ private actor MemoryComputeStub: MemoryComputing {
   }
 }
 
+private actor MemoryEmbeddingStub: MemoryEmbeddingComputing {
+  private(set) var batches: [[String]] = []
+
+  func embedBatch(
+    texts: [String],
+    taskType: String?,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot?
+  ) async throws -> [[Float]] {
+    batches.append(texts)
+    return texts.map { _ in [1, 0] }
+  }
+}
+
 @MainActor
 final class LocalMemoryLifecycleRunnerTests: XCTestCase {
   private var userDir: URL?
@@ -119,7 +132,12 @@ final class LocalMemoryLifecycleRunnerTests: XCTestCase {
             category: "system",
             quote: "I train for a half marathon every Saturday.",
             segmentToken: "s0",
+            speakerLabel: "Primary user",
             subject: "primary_user",
+            about: "the user",
+            archiveClass: "sensitive",
+            riskFlags: ["health"],
+            sensitivityLabels: ["intimate"],
             confidence: 0.96)
         ])
     })
@@ -135,6 +153,7 @@ final class LocalMemoryLifecycleRunnerTests: XCTestCase {
     XCTAssertEqual(rows[0].source, .conversation)
     XCTAssertEqual(rows[0].conversationId, validConversation.conversationId)
     XCTAssertEqual(rows[0].sourceSegmentId, "segment-valid")
+    XCTAssertEqual(Set(rows[0].sensitivityLabels), Set(["health", "intimate", "secret"]))
 
     let invalidConversation = try await storage.beginConversation(
       configuration: .testDefault, authorization: .unrestricted)
@@ -156,7 +175,9 @@ final class LocalMemoryLifecycleRunnerTests: XCTestCase {
         candidates: [
           MemoryExtractComputeCandidate(
             content: "Drinks coffee.", category: "system", quote: "I drink coffee.",
-            segmentToken: "s0", subject: "primary_user", confidence: 0.9)
+            segmentToken: "s0", speakerLabel: "Primary user", subject: "primary_user",
+            about: "the user", archiveClass: "general", riskFlags: [],
+            sensitivityLabels: [], confidence: 0.9)
         ])
     })
     let invalidRunner = LocalMemoryLifecycleRunner(
@@ -209,7 +230,7 @@ final class LocalMemoryLifecycleRunnerTests: XCTestCase {
     let candidate = try await MemoryStorage.shared.acceptAssertion(
       MemoryAssertion(
         content: "Runs every Saturday", category: .system, layer: .shortTerm,
-        source: .conversation),
+        source: .conversation, subject: "primary_user"),
       now: now)
     let computer = MemoryComputeStub(consolidate: { request in
       MemoryConsolidateComputeResponse(
@@ -222,6 +243,15 @@ final class LocalMemoryLifecycleRunnerTests: XCTestCase {
             reconciliation: "create",
             targetMemoryTokens: [],
             memoryText: "Runs every Saturday.",
+            evidenceTokens: $0.evidenceTokens,
+            subject: $0.subject,
+            predicate: "runs_on_schedule",
+            arguments: ["day": "Saturday"],
+            sensitivityLabels: $0.sensitivityLabels,
+            relationshipToUser: "self",
+            aboutness: "primary_user",
+            basisForMemory: "explicit",
+            confidence: "high",
             rationale: "Stable repeated preference")
         })
     })
@@ -325,5 +355,88 @@ final class LocalMemoryLifecycleRunnerTests: XCTestCase {
     XCTAssertEqual(beforeExpiry, 0)
     XCTAssertEqual(atExpiry, 1)
     XCTAssertEqual(duplicateSchedule, 0)
+  }
+
+  func testPoolReopenRebindsDurablePendingWork() async throws {
+    let now = Date(timeIntervalSince1970: 30_000)
+    let originalGeneration = await RewindDatabase.shared.poolGeneration()
+    let memory = try await MemoryStorage.shared.acceptAssertion(
+      MemoryAssertion(content: "A durable pending observation", subject: "primary_user"),
+      now: now,
+      ownerGeneration: originalGeneration)
+    let reopenedGeneration = originalGeneration + 7
+
+    try await MemoryStorage.shared.recoverLifecycleWork(
+      ownerGeneration: reopenedGeneration, now: now)
+    let rebound = try await MemoryStorage.shared.leaseDueWork(
+      kind: .consolidate, now: now, ownerGeneration: reopenedGeneration)
+
+    XCTAssertEqual(rebound.map { $0.memory?.id }, [memory.id])
+    XCTAssertEqual(rebound.first?.work.ownerGeneration, reopenedGeneration)
+  }
+
+  func testRunnerBatchEmbedsCurrentRevisionsBeforeSearch() async throws {
+    let memory = try await MemoryStorage.shared.acceptAssertion(
+      MemoryAssertion(content: "Prefers unusual single-origin coffee", layer: .longTerm))
+    let embedder = MemoryEmbeddingStub()
+    let runner = LocalMemoryLifecycleRunner(
+      storage: .shared,
+      conversations: .shared,
+      computer: MemoryComputeStub(),
+      embedder: embedder,
+      requiresOwnerAuthorization: false)
+
+    let report = await runner.runOnce()
+    let matches = try await MemoryStorage.shared.semanticSearch(queryVector: [1, 0])
+    let batches = await embedder.batches
+
+    XCTAssertEqual(report.embedded, 1)
+    XCTAssertEqual(matches.map(\.id), [memory.id])
+    XCTAssertEqual(batches, [[memory.content]])
+  }
+
+  func testConsolidationRejectsTwoDecisionsSupersedingOneRevision() async throws {
+    let now = Date(timeIntervalSince1970: 40_000)
+    let generation = await RewindDatabase.shared.poolGeneration()
+    let target = try await MemoryStorage.shared.acceptAssertion(
+      MemoryAssertion(content: "Lives in New York", layer: .longTerm),
+      now: now, ownerGeneration: generation)
+    var candidates: [MemoryItem] = []
+    for content in ["Moved to Tallinn", "Now lives in Tallinn"] {
+      candidates.append(
+        try await MemoryStorage.shared.acceptAssertion(
+          MemoryAssertion(content: content, subject: "primary_user"),
+          now: now, ownerGeneration: generation))
+    }
+    let leases = try await MemoryStorage.shared.leaseDueWork(
+      kind: .consolidate, now: now, ownerGeneration: generation)
+    let byID = Dictionary(
+      lastWriteWins: leases.compactMap { lease in
+        lease.memory.map { ($0.id, lease) }
+      })
+    let applications = try candidates.map { candidate -> MemoryConsolidationApplication in
+      let lease = try XCTUnwrap(byID[candidate.id])
+      return MemoryConsolidationApplication(
+        workId: lease.work.id,
+        memoryId: candidate.id,
+        expectedRevision: candidate.revision,
+        action: .promote,
+        reconciliation: .replace,
+        targets: [MemoryConsolidationTarget(memoryId: target.id, expectedRevision: target.revision)],
+        memoryText: candidate.content,
+        rationale: "Conflicting replacement")
+    }
+
+    do {
+      _ = try await MemoryStorage.shared.completeConsolidation(
+        applications: applications, receiptId: "duplicate-target",
+        ownerGeneration: generation, now: now)
+      XCTFail("two decisions must not supersede the same target revision")
+    } catch MemoryStorageError.invalidTransition {
+      // Whole-batch validation rejects before the first target mutation.
+    }
+    let persistedTarget = try await MemoryStorage.shared.memory(id: target.id)
+    XCTAssertEqual(persistedTarget?.revision, target.revision)
+    XCTAssertEqual(persistedTarget?.layer, .longTerm)
   }
 }

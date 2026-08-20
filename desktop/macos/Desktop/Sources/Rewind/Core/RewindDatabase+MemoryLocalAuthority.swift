@@ -20,6 +20,42 @@ extension RewindDatabase {
         try db.alter(table: "memories") { $0.add(column: "sourceSegmentId", .text) }
       }
     }
+    migrator.registerMigration("completeMemoryLifecycleInputsS12") { db in
+      let columns = Set(try db.columns(in: "memories").map(\.name))
+      try db.alter(table: "memories") { table in
+        if !columns.contains("evidenceTokensJson") { table.add(column: "evidenceTokensJson", .text) }
+        if !columns.contains("sensitivityLabelsJson") { table.add(column: "sensitivityLabelsJson", .text) }
+        if !columns.contains("subject") { table.add(column: "subject", .text) }
+        if !columns.contains("predicate") { table.add(column: "predicate", .text) }
+        if !columns.contains("argumentsJson") { table.add(column: "argumentsJson", .text) }
+      }
+      try db.execute(
+        sql: "UPDATE memories SET category = ? WHERE tagsJson LIKE '%\"tips\"%'",
+        arguments: [MemoryCategory.interesting.rawValue])
+      try db.execute(
+        sql: """
+          UPDATE memories
+          SET expiresAt = datetime(updatedAt, '+30 days')
+          WHERE layer = ? AND expiresAt IS NULL
+          """,
+        arguments: [MemoryLayer.shortTerm.rawValue])
+
+      let now = Date()
+      let rows = try Row.fetchAll(db, sql: "SELECT id, revision, layer, manuallyAdded FROM memories")
+      for row in rows {
+        let memoryID: Int64 = row["id"]
+        let revision: Int = row["revision"]
+        let layer: String = row["layer"]
+        let manuallyAdded: Bool = row["manuallyAdded"]
+        try enqueueMigrationWorkIfMissing(
+          kind: .embed, memoryID: memoryID, revision: revision, now: now, in: db)
+        if layer == MemoryLayer.shortTerm.rawValue {
+          try enqueueMigrationWorkIfMissing(
+            kind: manuallyAdded ? .normalize : .consolidate,
+            memoryID: memoryID, revision: revision, now: now, in: db)
+        }
+      }
+    }
   }
 
   private static func rebuildMemoryTableForLocalAuthority(
@@ -60,6 +96,11 @@ extension RewindDatabase {
       t.column("createdAt", .datetime).notNull()
       t.column("updatedAt", .datetime).notNull()
       t.column("correctedAt", .datetime)
+      t.column("evidenceTokensJson", .text)
+      t.column("sensitivityLabelsJson", .text)
+      t.column("subject", .text)
+      t.column("predicate", .text)
+      t.column("argumentsJson", .text)
     }
 
     func column(_ name: String, fallback: String) -> String {
@@ -87,6 +128,12 @@ extension RewindDatabase {
       ? "CASE WHEN tagsJson LIKE '%\"tips\"%' THEN reasoning ELSE NULL END"
       : "NULL"
     let visiblePredicate = legacyColumns.contains("deleted") ? "WHERE deleted = 0" : ""
+    let categoryExpression =
+      legacyColumns.contains("tagsJson")
+      ? "CASE WHEN tagsJson LIKE '%\"tips\"%' THEN 'interesting' ELSE category END"
+      : "category"
+    let expiryExpression =
+      "CASE WHEN \(layerExpression) = 'short_term' THEN datetime(updatedAt, '+30 days') ELSE NULL END"
 
     try db.execute(
       sql: """
@@ -94,10 +141,11 @@ extension RewindDatabase {
           id, content, category, layer, expiresAt, revision, tagsJson, manuallyAdded,
           source, conversationId, sourceSegmentId, screenshotId, confidence, reasoning, sourceApp,
           windowTitle, contextSummary, currentActivity, inputDeviceName, isRead,
-          isDismissed, pendingDeleteDeadline, createdAt, updatedAt, correctedAt
+          isDismissed, pendingDeleteDeadline, createdAt, updatedAt, correctedAt,
+          evidenceTokensJson, sensitivityLabelsJson, subject, predicate, argumentsJson
         )
         SELECT
-          id, content, category, \(layerExpression), NULL, 1,
+          id, content, \(categoryExpression), \(layerExpression), \(expiryExpression), 1,
           \(column("tagsJson", fallback: "NULL")),
           \(column("manuallyAdded", fallback: "0")),
           \(sourceExpression),
@@ -113,13 +161,51 @@ extension RewindDatabase {
           \(column("inputDeviceName", fallback: "NULL")),
           \(column("isRead", fallback: "0")),
           \(column("isDismissed", fallback: "0")),
-          NULL, createdAt, updatedAt, NULL
+          NULL, createdAt, updatedAt, NULL, NULL, NULL, NULL, NULL, NULL
         FROM memories
         \(visiblePredicate)
         """)
 
     try db.drop(table: "memories")
     try db.rename(table: "memories_s12", to: "memories")
+  }
+
+  private static func enqueueMigrationWorkIfMissing(
+    kind: MemoryProcessingKind,
+    memoryID: Int64,
+    revision: Int,
+    now: Date,
+    in db: Database
+  ) throws {
+    let exists =
+      try Bool.fetchOne(
+        db,
+        sql: """
+          SELECT EXISTS(
+            SELECT 1 FROM memory_processing_work
+            WHERE kind = ? AND memoryId = ? AND inputRevision = ? AND state != ?
+          )
+          """,
+        arguments: [
+          kind.rawValue, memoryID, revision, MemoryProcessingState.completed.rawValue,
+        ]) ?? false
+    guard !exists else { return }
+    try MemoryProcessingWorkRecord(
+      id: "s12-migration-\(kind.rawValue)-\(memoryID)-r\(revision)",
+      memoryId: memoryID,
+      conversationId: nil,
+      kind: kind.rawValue,
+      inputRevision: revision,
+      inputGeneration: 0,
+      ownerGeneration: 0,
+      state: MemoryProcessingState.pending.rawValue,
+      attemptCount: 0,
+      nextAttemptAt: now,
+      leaseExpiresAt: nil,
+      lastErrorCode: nil,
+      createdAt: now,
+      updatedAt: now
+    ).insert(db)
   }
 
   private static func createMemoryAuthorityTables(in db: Database) throws {

@@ -108,6 +108,11 @@ struct MemoryAssertion: Sendable {
   let contextSummary: String?
   let currentActivity: String?
   let inputDeviceName: String?
+  let evidenceTokens: [String]
+  let sensitivityLabels: [String]
+  let subject: String?
+  let predicate: String?
+  let arguments: [String: String]
 
   init(
     content: String,
@@ -126,7 +131,12 @@ struct MemoryAssertion: Sendable {
     windowTitle: String? = nil,
     contextSummary: String? = nil,
     currentActivity: String? = nil,
-    inputDeviceName: String? = nil
+    inputDeviceName: String? = nil,
+    evidenceTokens: [String] = [],
+    sensitivityLabels: [String] = [],
+    subject: String? = nil,
+    predicate: String? = nil,
+    arguments: [String: String] = [:]
   ) {
     self.content = content
     self.category = category
@@ -145,6 +155,11 @@ struct MemoryAssertion: Sendable {
     self.contextSummary = contextSummary
     self.currentActivity = currentActivity
     self.inputDeviceName = inputDeviceName
+    self.evidenceTokens = evidenceTokens
+    self.sensitivityLabels = sensitivityLabels
+    self.subject = subject
+    self.predicate = predicate
+    self.arguments = arguments
   }
 }
 
@@ -174,6 +189,11 @@ struct MemoryRecord: Codable, FetchableRecord, PersistableRecord, Identifiable, 
   var createdAt: Date
   var updatedAt: Date
   var correctedAt: Date?
+  var evidenceTokensJson: String?
+  var sensitivityLabelsJson: String?
+  var subject: String?
+  var predicate: String?
+  var argumentsJson: String?
 
   static let databaseTableName = "memories"
 
@@ -202,7 +222,12 @@ struct MemoryRecord: Codable, FetchableRecord, PersistableRecord, Identifiable, 
     pendingDeleteDeadline: Date? = nil,
     createdAt: Date = Date(),
     updatedAt: Date = Date(),
-    correctedAt: Date? = nil
+    correctedAt: Date? = nil,
+    evidenceTokensJson: String? = nil,
+    sensitivityLabelsJson: String? = nil,
+    subject: String? = nil,
+    predicate: String? = nil,
+    argumentsJson: String? = nil
   ) {
     self.id = id
     self.content = content
@@ -229,11 +254,19 @@ struct MemoryRecord: Codable, FetchableRecord, PersistableRecord, Identifiable, 
     self.createdAt = createdAt
     self.updatedAt = updatedAt
     self.correctedAt = correctedAt
+    self.evidenceTokensJson = evidenceTokensJson
+    self.sensitivityLabelsJson = sensitivityLabelsJson
+    self.subject = subject
+    self.predicate = predicate
+    self.argumentsJson = argumentsJson
   }
 
   mutating func didInsert(_ inserted: InsertionSuccess) { id = inserted.rowID }
 
   var tags: [String] { Self.decodeTags(tagsJson) }
+  var evidenceTokens: [String] { Self.decodeTags(evidenceTokensJson) }
+  var sensitivityLabels: [String] { Self.decodeTags(sensitivityLabelsJson) }
+  var arguments: [String: String] { Self.decodeArguments(argumentsJson) }
 
   mutating func setTags(_ tags: [String]) { tagsJson = Self.encodeTags(tags) }
 
@@ -276,7 +309,12 @@ struct MemoryRecord: Codable, FetchableRecord, PersistableRecord, Identifiable, 
       currentActivity: currentActivity,
       inputDeviceName: inputDeviceName,
       windowTitle: windowTitle,
-      screenshotId: screenshotId
+      screenshotId: screenshotId,
+      evidenceTokens: evidenceTokens,
+      sensitivityLabels: sensitivityLabels,
+      subject: subject,
+      predicate: predicate,
+      arguments: arguments
     )
   }
 
@@ -300,7 +338,12 @@ struct MemoryRecord: Codable, FetchableRecord, PersistableRecord, Identifiable, 
       currentActivity: assertion.currentActivity,
       inputDeviceName: assertion.inputDeviceName,
       createdAt: now,
-      updatedAt: now
+      updatedAt: now,
+      evidenceTokensJson: encodeTags(assertion.evidenceTokens),
+      sensitivityLabelsJson: encodeTags(assertion.sensitivityLabels),
+      subject: assertion.subject,
+      predicate: assertion.predicate,
+      argumentsJson: encodeArguments(assertion.arguments)
     )
   }
 
@@ -315,6 +358,19 @@ struct MemoryRecord: Codable, FetchableRecord, PersistableRecord, Identifiable, 
   private static func decodeTags(_ value: String?) -> [String] {
     guard let value, let data = value.data(using: .utf8) else { return [] }
     return (try? JSONDecoder().decode([String].self, from: data)) ?? []
+  }
+
+  private static func encodeArguments(_ arguments: [String: String]) -> String? {
+    guard !arguments.isEmpty,
+      let data = try? JSONEncoder().encode(arguments),
+      let value = String(data: data, encoding: .utf8)
+    else { return nil }
+    return value
+  }
+
+  private static func decodeArguments(_ value: String?) -> [String: String] {
+    guard let value, let data = value.data(using: .utf8) else { return [:] }
+    return (try? JSONDecoder().decode([String: String].self, from: data)) ?? [:]
   }
 }
 
@@ -343,6 +399,73 @@ struct MemoryItem: Identifiable, Equatable, Sendable {
   let inputDeviceName: String?
   let windowTitle: String?
   let screenshotId: Int64?
+  let evidenceTokens: [String]
+  let sensitivityLabels: [String]
+  let subject: String?
+  let predicate: String?
+  let arguments: [String: String]
+
+  init(
+    id: String,
+    content: String,
+    category: MemoryCategory,
+    layer: MemoryLayer,
+    expiresAt: Date?,
+    revision: Int,
+    createdAt: Date,
+    updatedAt: Date,
+    correctedAt: Date?,
+    conversationId: String?,
+    sourceSegmentId: String?,
+    manuallyAdded: Bool,
+    source: MemorySource?,
+    confidence: Double?,
+    sourceApp: String?,
+    contextSummary: String?,
+    isRead: Bool,
+    isDismissed: Bool,
+    tags: [String],
+    reasoning: String?,
+    currentActivity: String?,
+    inputDeviceName: String?,
+    windowTitle: String?,
+    screenshotId: Int64?,
+    evidenceTokens: [String] = [],
+    sensitivityLabels: [String] = [],
+    subject: String? = nil,
+    predicate: String? = nil,
+    arguments: [String: String] = [:]
+  ) {
+    self.id = id
+    self.content = content
+    self.category = category
+    self.layer = layer
+    self.expiresAt = expiresAt
+    self.revision = revision
+    self.createdAt = createdAt
+    self.updatedAt = updatedAt
+    self.correctedAt = correctedAt
+    self.conversationId = conversationId
+    self.sourceSegmentId = sourceSegmentId
+    self.manuallyAdded = manuallyAdded
+    self.source = source
+    self.confidence = confidence
+    self.sourceApp = sourceApp
+    self.contextSummary = contextSummary
+    self.isRead = isRead
+    self.isDismissed = isDismissed
+    self.tags = tags
+    self.reasoning = reasoning
+    self.currentActivity = currentActivity
+    self.inputDeviceName = inputDeviceName
+    self.windowTitle = windowTitle
+    self.screenshotId = screenshotId
+    self.evidenceTokens = evidenceTokens
+    self.sensitivityLabels = sensitivityLabels
+    self.subject = subject
+    self.predicate = predicate
+    self.arguments = arguments
+  }
 
   var confidenceString: String? {
     confidence.map { "\(Int($0 * 100))%" }
@@ -396,6 +519,35 @@ struct MemoryExtractionAdmission: Equatable, Sendable {
   let quote: String
   let segmentId: String
   let confidence: Double
+  let evidenceTokens: [String]
+  let sensitivityLabels: [String]
+  let subject: String
+  let archiveClass: String
+  let riskFlags: [String]
+
+  init(
+    content: String,
+    category: MemoryCategory,
+    quote: String,
+    segmentId: String,
+    confidence: Double,
+    evidenceTokens: [String] = [],
+    sensitivityLabels: [String] = [],
+    subject: String = "unclear",
+    archiveClass: String = "general",
+    riskFlags: [String] = []
+  ) {
+    self.content = content
+    self.category = category
+    self.quote = quote
+    self.segmentId = segmentId
+    self.confidence = confidence
+    self.evidenceTokens = evidenceTokens
+    self.sensitivityLabels = sensitivityLabels
+    self.subject = subject
+    self.archiveClass = archiveClass
+    self.riskFlags = riskFlags
+  }
 }
 
 enum MemoryConsolidationAction: String, Equatable, Sendable {
@@ -426,7 +578,54 @@ struct MemoryConsolidationApplication: Equatable, Sendable {
   let reconciliation: MemoryReconciliation
   let targets: [MemoryConsolidationTarget]
   let memoryText: String?
+  let evidenceTokens: [String]
+  let subject: String
+  let predicate: String?
+  let arguments: [String: String]
+  let sensitivityLabels: [String]
+  let relationshipToUser: String
+  let aboutness: String
+  let basisForMemory: String
+  let confidence: String
   let rationale: String
+
+  init(
+    workId: String,
+    memoryId: String,
+    expectedRevision: Int,
+    action: MemoryConsolidationAction,
+    reconciliation: MemoryReconciliation,
+    targets: [MemoryConsolidationTarget],
+    memoryText: String?,
+    evidenceTokens: [String] = [],
+    subject: String = "unclear",
+    predicate: String? = nil,
+    arguments: [String: String] = [:],
+    sensitivityLabels: [String] = [],
+    relationshipToUser: String = "unclear",
+    aboutness: String = "unclear",
+    basisForMemory: String = "weak_or_none",
+    confidence: String = "medium",
+    rationale: String
+  ) {
+    self.workId = workId
+    self.memoryId = memoryId
+    self.expectedRevision = expectedRevision
+    self.action = action
+    self.reconciliation = reconciliation
+    self.targets = targets
+    self.memoryText = memoryText
+    self.evidenceTokens = evidenceTokens
+    self.subject = subject
+    self.predicate = predicate
+    self.arguments = arguments
+    self.sensitivityLabels = sensitivityLabels
+    self.relationshipToUser = relationshipToUser
+    self.aboutness = aboutness
+    self.basisForMemory = basisForMemory
+    self.confidence = confidence
+    self.rationale = rationale
+  }
 }
 
 enum MemoryProcessingKind: String, Codable, Sendable {
