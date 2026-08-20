@@ -1,16 +1,8 @@
-import { createHash, randomUUID } from "node:crypto";
+import { createHash } from "node:crypto";
 import { conversationTurnFromRow } from "./conversation-turns.js";
 import { generateAgentId } from "./sqlite-store.js";
-import {
-  backendTombstoneCode,
-  backendTurnPayload,
-  backendTurnPayloadHash,
-  type BackendTurnPayload,
-} from "./backend-turn-projection.js";
 import type {
   AgentStore,
-  BackendTurnOutboxRecord,
-  BackendTurnOutboxStatus,
   ConversationContentBlock,
   ConversationResource,
   ConversationTurn,
@@ -25,29 +17,7 @@ const TURN_COLUMNS = `
   origin, status, content_blocks_json, resources_json, producing_run_id,
   producing_attempt_id, remote_id, updated_at_ms, completed_at_ms
 `;
-
-const OUTBOX_COLUMNS = `
-  turn_id, conversation_id, owner_id, status, attempt_count, available_at_ms,
-  lease_expires_at_ms, remote_id, last_error_code, payload_hash,
-  delivery_generation, conversation_generation, created_at_ms, updated_at_ms,
-  delivered_at_ms
-`;
-const DELETE_OUTBOX_COLUMNS = `
-  operation_id, conversation_id, owner_id, target_kind, target_id,
-  conversation_generation, status, attempt_count, delivery_generation,
-  payload_hash, available_at_ms, lease_expires_at_ms, last_error_code,
-  created_at_ms, updated_at_ms, delivered_at_ms
-`;
-
-const LOCAL_ONLY_SURFACES = new Set(["onboarding"]);
-const DEFAULT_OUTBOX_LEASE_MS = 30_000;
-const MAX_DRAIN_BATCH = 100;
-const BACKEND_RECONCILE_PAGE_LIMIT = 100;
-const MAX_BACKEND_RECONCILE_CURSOR_BYTES = 512;
-
-export type { BackendTurnPayload } from "./backend-turn-projection.js";
-
-export type JournalDeliveryDestination = "backend" | "local";
+const MAX_LIST_BATCH = 100;
 
 export interface RecordJournalTurnInput {
   ownerId: string;
@@ -71,7 +41,6 @@ export interface RecordJournalTurnResult {
   turn: ConversationTurn;
   created: boolean;
   duplicate: boolean;
-  outboxStatus: BackendTurnOutboxStatus | null;
 }
 
 export interface RecordJournalExchangeInput {
@@ -83,6 +52,26 @@ export interface RecordJournalExchangeInput {
 export interface RecordJournalExchangeResult {
   turns: ConversationTurn[];
   createdTurns: ConversationTurn[];
+  firstCompletedRealPair: boolean;
+  firstCompletedRealExchange: CompletedRealExchange | null;
+}
+
+export interface TerminalizeJournalTurnResult {
+  turn: ConversationTurn;
+  firstCompletedRealPair: boolean;
+  firstCompletedRealExchange: CompletedRealExchange | null;
+}
+
+export interface UpdateJournalTurnResult {
+  turn: ConversationTurn;
+  firstCompletedRealPair: boolean;
+  firstCompletedRealExchange: CompletedRealExchange | null;
+}
+
+export interface CompletedRealExchange {
+  continuityKey: string;
+  userText: string;
+  assistantText: string;
 }
 
 export interface UpdateJournalTurnInput {
@@ -140,87 +129,6 @@ export interface DiscardProducingJournalTurnInput {
   nowMs?: number;
 }
 
-export interface ImportRemoteJournalTurnInput {
-  ownerId: string;
-  conversationId: string;
-  remoteId: string;
-  canonicalTurnId?: string | null;
-  role: ConversationTurnRole;
-  surfaceKind: string;
-  content: string;
-  contentBlocks: readonly ConversationContentBlock[];
-  resources?: readonly ConversationResource[];
-  metadataJson?: string;
-  createdAtMs: number;
-  nowMs?: number;
-  source: "backend_reconcile" | "legacy_upgrade";
-}
-
-export interface ImportRemoteJournalTurnResult {
-  turn: ConversationTurn;
-  imported: boolean;
-  reconciledLocal: boolean;
-}
-
-export interface BackendTurnDelivery extends BackendTurnOutboxRecord {
-  /** Existing backend POST idempotency field. Always identical to turn.turnId. */
-  clientMessageId: string;
-  turn: ConversationTurn;
-  payload: BackendTurnPayload;
-}
-
-export type BackendTurnResultDisposition = "active" | "superseded" | "duplicate";
-
-export interface BackendConversationDeleteDelivery {
-  operationId: string;
-  conversationId: string;
-  ownerId: string;
-  targetKind: "messages" | "chat_session";
-  targetId: string | null;
-  conversationGeneration: number;
-  status: BackendTurnOutboxStatus;
-  attemptCount: number;
-  deliveryGeneration: number;
-  payloadHash: string;
-  availableAtMs: number;
-  leaseExpiresAtMs: number | null;
-  lastErrorCode: string | null;
-  createdAtMs: number;
-  updatedAtMs: number;
-  deliveredAtMs: number | null;
-}
-
-export interface BackendReconcileRequest {
-  reconcileId: string;
-  ownerId: string;
-  conversationId: string;
-  surfaceKind: string;
-  externalRefKind: string;
-  externalRefId: string;
-  targetKind: "messages" | "chat_session";
-  targetId: string | null;
-  frontierRemoteId: string | null;
-  pageCursor: string | null;
-  pageLimit: number;
-}
-
-export interface BackendReconcileRemoteTurn {
-  remoteId: string;
-  canonicalTurnId?: string | null;
-  role: "user" | "assistant";
-  content: string;
-  contentBlocks: readonly ConversationContentBlock[];
-  resources?: readonly ConversationResource[];
-  metadataJson?: string;
-  createdAtMs: number;
-}
-
-export interface BackendReconcilePageResult {
-  importedTurns: ConversationTurn[];
-  nextRequest: BackendReconcileRequest | null;
-  completed: boolean;
-}
-
 export interface JournalTurnRange {
   conversationId: string;
   generation: number;
@@ -261,31 +169,17 @@ export interface MigrateJournalConversationInput {
 export interface MigrateJournalConversationResult {
   movedTurnCount: number;
   movedRevisionCount: number;
-  movedOutboxCount: number;
   destinationGeneration: number;
   destinationHighWaterTurnSeq: number;
 }
 
-export interface BackendTurnAckInput {
-  ownerId: string;
-  turnId: string;
-  remoteId: string;
-  deliveryGeneration: number;
-  attemptCount: number;
-  conversationGeneration: number;
-  payloadHash: string;
-  nowMs?: number;
-}
-
 export interface JournalObservabilitySnapshot {
   turnStatusCounts: Partial<Record<ConversationTurnStatus, number>>;
-  deliveryStatusCounts: Partial<Record<BackendTurnOutboxStatus, number>>;
-  oldestPendingDeliveryCreatedAtMs: number | null;
 }
 
 /**
  * The only durable local insertion API for chat-visible turns. The turn and
- * optional backend projection are committed in the same SQLite transaction.
+ * its revision are committed in the same SQLite transaction.
  */
 export function recordJournalTurn(
   store: AgentStore,
@@ -300,8 +194,6 @@ export function recordJournalTurn(
 
   return store.withTransaction(() => {
     assertConversationOwner(store, input.conversationId, input.ownerId);
-    const canonicalDelivery = canonicalJournalDelivery(store, input.ownerId, input.conversationId);
-    assertCanonicalJournalDelivery(input.surfaceKind, canonicalDelivery);
     assertProducingRunOwner(store, input.producingRunId ?? null, input.ownerId);
 
     const existingByTurnId = findJournalTurnById(store, turnId);
@@ -324,14 +216,7 @@ export function recordJournalTurn(
         producerId,
       };
       assertIdempotentRecord(existing, normalizedInput);
-      const outboxStatus = ensureDeliveryState(store, {
-        ownerId: input.ownerId,
-        conversationId: input.conversationId,
-        turnId: existing.turnId,
-        delivery: canonicalDelivery,
-        nowMs: now,
-      });
-      return { turn: existing, created: false, duplicate: true, outboxStatus };
+      return { turn: existing, created: false, duplicate: true };
     }
 
     const sequence = nextJournalSequence(store, input.conversationId, now);
@@ -370,21 +255,14 @@ export function recordJournalTurn(
       metadataJson,
     });
     appendJournalRevision(store, turn, sequence.generation, "recorded", now);
-    const outboxStatus = ensureDeliveryState(store, {
-      ownerId: input.ownerId,
-      conversationId: input.conversationId,
-      turnId,
-      delivery: canonicalDelivery,
-      nowMs: now,
-    });
-    return { turn, created: true, duplicate: false, outboxStatus };
+    return { turn, created: true, duplicate: false };
   });
 }
 
 /**
  * Records the visible halves of one logical exchange under one commit. A
  * failure or identity collision on either half rolls back every row, revision,
- * and outbox mutation created by the other half.
+ * created by the other half.
  */
 export function recordJournalExchange(
   store: AgentStore,
@@ -403,10 +281,7 @@ export function recordJournalExchange(
 
   return store.withTransaction(() => {
     assertConversationOwner(store, input.conversationId, input.ownerId);
-    const canonicalDelivery = canonicalJournalDelivery(store, input.ownerId, input.conversationId);
-    for (const turn of input.turns) {
-      assertCanonicalJournalDelivery(turn.surfaceKind, canonicalDelivery);
-    }
+    const existingCompletedRealExchange = firstCompletedRealExchange(store, input.conversationId);
     const exchangeBaseCreatedAtMs = input.turns[0]?.createdAtMs ?? Date.now();
     const normalizedTurns = input.turns.map((turn, index) => ({
       ...turn,
@@ -422,15 +297,41 @@ export function recordJournalExchange(
       ownerId: input.ownerId,
       conversationId: input.conversationId,
     }));
+    const completedRealExchange = firstCompletedRealExchange(store, input.conversationId);
+    const firstCompletedRealPair = existingCompletedRealExchange === null && completedRealExchange !== null;
     return {
       turns: results.map((result) => result.turn),
       createdTurns: results.filter((result) => result.created).map((result) => result.turn),
+      firstCompletedRealPair,
+      firstCompletedRealExchange: firstCompletedRealPair ? completedRealExchange : null,
     };
   });
 }
 
 /** Update or complete the producing turn; block/resource IDs are idempotent. */
 export function updateJournalTurn(store: AgentStore, input: UpdateJournalTurnInput): ConversationTurn {
+  return updateJournalTurnMutation(store, input);
+}
+
+export function updateJournalTurnWithReceipt(
+  store: AgentStore,
+  input: UpdateJournalTurnInput,
+): UpdateJournalTurnResult {
+  return store.withTransaction(() => {
+    assertConversationOwner(store, input.conversationId, input.ownerId);
+    const existingCompletedRealExchange = firstCompletedRealExchange(store, input.conversationId);
+    const turn = updateJournalTurnMutation(store, input);
+    const completedRealExchange = firstCompletedRealExchange(store, input.conversationId);
+    const firstCompletedRealPair = existingCompletedRealExchange === null && completedRealExchange !== null;
+    return {
+      turn,
+      firstCompletedRealPair,
+      firstCompletedRealExchange: firstCompletedRealPair ? completedRealExchange : null,
+    };
+  });
+}
+
+function updateJournalTurnMutation(store: AgentStore, input: UpdateJournalTurnInput): ConversationTurn {
   if (
     input.status === undefined
     && input.content === undefined
@@ -550,20 +451,6 @@ export function updateJournalTurn(store: AgentStore, input: UpdateJournalTurnInp
 
     const updated = requireJournalTurn(store, input.conversationId, input.turnId);
     appendJournalRevision(store, updated, sequence.generation, "updated", now);
-    const backendHash = backendTurnPayloadHash(backendTurnPayload(updated));
-    const tombstoneCode = backendTombstoneCode(updated);
-    store.execute(
-      `UPDATE backend_turn_outbox
-       SET payload_hash = ?,
-           status = CASE WHEN ? IS NOT NULL THEN 'failed' ELSE 'pending' END,
-           attempt_count = 0,
-           available_at_ms = ?,
-           lease_expires_at_ms = NULL,
-           last_error_code = ?,
-           updated_at_ms = ?
-       WHERE turn_id = ? AND payload_hash != ?`,
-      [backendHash, tombstoneCode, now, tombstoneCode, now, input.turnId, backendHash],
-    );
     return updated;
   });
 }
@@ -676,12 +563,7 @@ export function assertPublicJournalUpdatePolicy(
     && terminalTurnStatus(current.status);
   if (!linkedTerminal) return;
   const metadata = parseObjectJson(current.metadataJson) as Record<string, unknown>;
-  const discarded = metadata.terminalMarker === "discarded_terminal_projection"
-    || store.getOptionalRow(
-      `SELECT 1 FROM backend_turn_outbox
-       WHERE turn_id = ? AND last_error_code = 'discarded_terminal_projection'`,
-      [current.turnId],
-    ) !== undefined;
+  const discarded = metadata.terminalMarker === "discarded_terminal";
   if (discarded) {
     throw new Error("Discarded terminal journal projection rejects every public update");
   }
@@ -766,6 +648,13 @@ export function terminalizeJournalTurn(
   store: AgentStore,
   input: TerminalizeJournalTurnInput,
 ): ConversationTurn {
+  return terminalizeJournalTurnWithReceipt(store, input).turn;
+}
+
+export function terminalizeJournalTurnWithReceipt(
+  store: AgentStore,
+  input: TerminalizeJournalTurnInput,
+): TerminalizeJournalTurnResult {
   const now = input.nowMs ?? Date.now();
   const producingRunId = nonEmpty(input.producingRunId, "producingRunId");
   const producingAttemptId = nonEmpty(input.producingAttemptId, "producingAttemptId");
@@ -812,6 +701,7 @@ export function terminalizeJournalTurn(
       ? "failed"
       : journalTerminalStatus(authority.run_status, authority.attempt_status);
     const current = requireJournalTurn(store, input.conversationId, input.turnId);
+    const existingCompletedRealExchange = firstCompletedRealExchange(store, input.conversationId);
     if (current.producingRunId !== producingRunId) {
       throw new Error("Journal terminalization run does not match the producing turn");
     }
@@ -827,7 +717,7 @@ export function terminalizeJournalTurn(
       : resources ?? current.resources;
     const metadata = parseObjectJson(current.metadataJson) as Record<string, unknown>;
     const metadataJson = input.disposition === "discard"
-      ? JSON.stringify({ ...metadata, terminalMarker: "discarded_terminal_projection" })
+      ? JSON.stringify({ ...metadata, terminalMarker: "discarded_terminal" })
       : current.metadataJson;
     const exactReplay = current.status === status
       && current.content === content
@@ -835,15 +725,12 @@ export function terminalizeJournalTurn(
       && stableJson(current.resources) === stableJson(finalResources)
       && stableJson(parseObjectJson(current.metadataJson)) === stableJson(parseObjectJson(metadataJson));
     if (exactReplay) {
-      if (input.disposition === "discard") {
-        markDiscardedBackendProjection(store, input.turnId, now);
-      }
-      return current;
+      return { turn: current, firstCompletedRealPair: false, firstCompletedRealExchange: null };
     }
     if (terminalTurnStatus(current.status) && current.producingAttemptId !== null) {
       throw new Error("Journal turn is already terminalized with different canonical material");
     }
-    const terminalized = updateJournalTurn(store, {
+    const terminalized = updateJournalTurnMutation(store, {
       ownerId: input.ownerId,
       conversationId: input.conversationId,
       turnId: input.turnId,
@@ -856,21 +743,50 @@ export function terminalizeJournalTurn(
       metadataJson,
       nowMs: now,
     });
-    if (input.disposition === "discard") {
-      markDiscardedBackendProjection(store, input.turnId, now);
-    }
-    return terminalized;
+    const completedRealExchange = firstCompletedRealExchange(store, input.conversationId);
+    const firstCompletedRealPair = existingCompletedRealExchange === null && completedRealExchange !== null;
+    return {
+      turn: terminalized,
+      firstCompletedRealPair,
+      firstCompletedRealExchange: firstCompletedRealPair ? completedRealExchange : null,
+    };
   });
 }
 
-function markDiscardedBackendProjection(store: AgentStore, turnId: string, nowMs: number): void {
-  store.execute(
-    `UPDATE backend_turn_outbox
-     SET status = 'failed', lease_expires_at_ms = NULL,
-         last_error_code = 'discarded_terminal_projection', updated_at_ms = ?
-     WHERE turn_id = ?`,
-    [nowMs, turnId],
+function firstCompletedRealExchange(
+  store: AgentStore,
+  conversationId: string,
+): CompletedRealExchange | null {
+  const usersByContinuityKey = new Map<string, string>();
+  const rows = store.allRows(
+    `SELECT role, content, metadata_json
+     FROM conversation_turns
+     WHERE conversation_id = ?
+       AND status = 'completed'
+       AND length(trim(content)) > 0
+     ORDER BY turn_seq ASC`,
+    [conversationId],
   );
+  for (const row of rows) {
+    const metadata = parseObjectJson(String(row.metadata_json ?? "{}")) as Record<string, unknown>;
+    const continuityKey = typeof metadata.continuityKey === "string"
+      ? metadata.continuityKey.trim()
+      : "";
+    if (!continuityKey) continue;
+    const role = String(row.role);
+    const content = String(row.content);
+    if (role === "user") {
+      if (!usersByContinuityKey.has(continuityKey)) {
+        usersByContinuityKey.set(continuityKey, content);
+      }
+      continue;
+    }
+    if (role !== "assistant") continue;
+    const userText = usersByContinuityKey.get(continuityKey);
+    if (userText === undefined) continue;
+    return { continuityKey, userText, assistantText: content };
+  }
+  return null;
 }
 
 function monotonicAcceptContentBlocks(
@@ -921,7 +837,6 @@ export function migrateJournalConversation(
       return {
         movedTurnCount: 0,
         movedRevisionCount: 0,
-        movedOutboxCount: 0,
         destinationGeneration: state.generation,
         destinationHighWaterTurnSeq: state.highWaterTurnSeq,
       };
@@ -946,7 +861,6 @@ export function migrateJournalConversation(
       return {
         movedTurnCount: 0,
         movedRevisionCount: 0,
-        movedOutboxCount: 0,
         destinationGeneration: destinationState.generation,
         destinationHighWaterTurnSeq: destinationState.highWaterTurnSeq,
       };
@@ -962,14 +876,6 @@ export function migrateJournalConversation(
        ORDER BY turn_seq ASC`,
       [input.sourceConversationId, sourceState.generation],
     ).filter((row) => sourceTurnIds.has(String(row.turn_id)));
-    const outboxRows = store.allRows(
-      `SELECT ${OUTBOX_COLUMNS}, client_message_id
-       FROM backend_turn_outbox
-       WHERE conversation_id = ?
-       ORDER BY created_at_ms ASC, turn_id ASC`,
-      [input.sourceConversationId],
-    );
-
     const currentById = new Map(sourceTurns.map((turn) => [turn.turnId, turn]));
     const migratedRevisions: Array<{
       turn: ConversationTurn;
@@ -1006,7 +912,6 @@ export function migrateJournalConversation(
       migratedCurrentSequence.set(current.turnId, sequence.turnSeq);
     }
 
-    store.execute("DELETE FROM backend_turn_outbox WHERE conversation_id = ?", [input.sourceConversationId]);
     store.execute("DELETE FROM conversation_turns WHERE conversation_id = ?", [input.sourceConversationId]);
     store.execute(
       "DELETE FROM conversation_turn_revisions WHERE conversation_id = ? AND generation = ?",
@@ -1049,38 +954,9 @@ export function migrateJournalConversation(
         revision.createdAtMs,
       );
     }
-    for (const row of outboxRows) {
-      store.execute(
-        `INSERT INTO backend_turn_outbox(
-           turn_id, conversation_id, owner_id, client_message_id, status,
-           attempt_count, available_at_ms, lease_expires_at_ms, remote_id,
-           last_error_code, payload_hash, delivery_generation,
-           conversation_generation, created_at_ms, updated_at_ms, delivered_at_ms
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          row.turn_id,
-          input.destinationConversationId,
-          row.owner_id,
-          row.client_message_id,
-          row.status,
-          row.attempt_count,
-          row.available_at_ms,
-          row.lease_expires_at_ms,
-          row.remote_id,
-          row.last_error_code,
-          row.payload_hash,
-          row.delivery_generation,
-          destinationState.generation,
-          row.created_at_ms,
-          row.updated_at_ms,
-          row.delivered_at_ms,
-        ],
-      );
-    }
     return {
       movedTurnCount: sourceTurns.length,
       movedRevisionCount: migratedRevisions.length,
-      movedOutboxCount: outboxRows.length,
       destinationGeneration: destinationState.generation,
       destinationHighWaterTurnSeq: destinationState.highWaterTurnSeq,
     };
@@ -1138,12 +1014,6 @@ export function clearJournalConversation(
     conversationId: string;
     expectedGeneration: number;
     nowMs?: number;
-    // When false, the local journal is fenced and its turns are purged, but the
-    // user's server-side chat history is left untouched (no backend delete is
-    // enqueued). Used by resets (onboarding re-walkthrough, non-prod harness)
-    // that must not destroy cloud history. Defaults to true — the explicit
-    // user "Clear history" action still deletes backend messages.
-    deleteBackend?: boolean;
   },
 ): {
   conversationId: string;
@@ -1151,7 +1021,6 @@ export function clearJournalConversation(
   generationBaseTurnSeq: number;
   highWaterTurnSeq: number;
   deletedTurns: number;
-  backendDeleteOperationId: string | null;
 } {
   if (!Number.isSafeInteger(input.expectedGeneration) || input.expectedGeneration < 1) {
     throw new Error("Journal clear expectedGeneration must be a positive integer");
@@ -1178,49 +1047,6 @@ export function clearJournalConversation(
        WHERE conversation_id = ?`,
       [generation, highWaterTurnSeq, highWaterTurnSeq, now, now, input.conversationId],
     );
-    store.execute(
-      `INSERT OR REPLACE INTO cleared_backend_turn_claims(
-         turn_id, conversation_id, owner_id, attempt_count, delivery_generation,
-         conversation_generation, payload_hash, lease_expires_at_ms, status,
-         result_outcome, created_at_ms, settled_at_ms
-       )
-       SELECT turn_id, conversation_id, owner_id, attempt_count, delivery_generation,
-              conversation_generation, payload_hash, COALESCE(lease_expires_at_ms, ?),
-              'waiting', NULL, ?, NULL
-       FROM backend_turn_outbox
-       WHERE conversation_id = ? AND status = 'delivering'`,
-      [now, now, input.conversationId],
-    );
-    store.execute(
-      `UPDATE backend_reconcile_state
-       SET conversation_generation = ?, frontier_remote_id = NULL,
-           candidate_frontier_remote_id = NULL, in_flight_id = NULL,
-           page_cursor = NULL, page_count = 0, status = 'idle',
-           last_error_code = 'conversation_cleared', last_requested_at_ms = NULL,
-           last_completed_at_ms = NULL, updated_at_ms = ?
-       WHERE conversation_id = ?`,
-      [generation, now, input.conversationId],
-    );
-    const deleteBackend =
-      canonicalJournalDelivery(store, input.ownerId, input.conversationId) === "backend"
-      && input.deleteBackend !== false;
-    const backendDeleteOperationId =
-      !deleteBackend
-        ? null
-        : enqueueBackendConversationDelete(store, {
-            ownerId: input.ownerId,
-            conversationId: input.conversationId,
-            conversationGeneration: generation,
-            nowMs: now,
-          });
-    // Canonical rows are hard-deleted. The narrow claim tombstone above retains
-    // only exact physical-delivery identity so a pre-clear POST can settle
-    // before the backend delete is acknowledged; it is never projected as chat.
-    store.execute(
-      `DELETE FROM backend_turn_outbox
-       WHERE conversation_id = ? AND status != 'delivered'`,
-      [input.conversationId],
-    );
     const deletedTurns = store.execute(
       "DELETE FROM conversation_turns WHERE conversation_id = ?",
       [input.conversationId],
@@ -1231,813 +1057,7 @@ export function clearJournalConversation(
       generationBaseTurnSeq: highWaterTurnSeq,
       highWaterTurnSeq,
       deletedTurns,
-      backendDeleteOperationId,
     };
-  });
-}
-
-/**
- * Import a backend row only when it is genuinely remote. A canonical turn ID
- * reconciles a local outbox row in place; remote IDs independently dedupe
- * backend-only rows across polling cycles.
- */
-export function importRemoteJournalTurn(
-  store: AgentStore,
-  input: ImportRemoteJournalTurnInput,
-): ImportRemoteJournalTurnResult {
-  if (input.source !== "backend_reconcile" && input.source !== "legacy_upgrade") {
-    throw new Error("Remote journal import requires a kernel-owned import source");
-  }
-  const remoteId = nonEmpty(input.remoteId, "remoteId");
-  const canonicalTurnId = input.canonicalTurnId == null
-    ? null
-    : nonEmpty(input.canonicalTurnId, "canonicalTurnId");
-  const now = input.nowMs ?? Date.now();
-  const contentBlocks = validateContentBlocks(input.contentBlocks);
-  const resources = validateResources(input.resources ?? []);
-  const metadataJson = validObjectJson(input.metadataJson ?? "{}", "metadataJson");
-
-  return store.withTransaction(() => {
-    assertConversationOwner(store, input.conversationId, input.ownerId);
-    if (canonicalTurnId) {
-      const local = findJournalTurnById(store, canonicalTurnId);
-      if (local) {
-        if (local.conversationId !== input.conversationId) {
-          throw new Error("Canonical turn ID belongs to a different conversation");
-        }
-        acknowledgeBackendTurn(store, {
-          ownerId: input.ownerId,
-          turnId: canonicalTurnId,
-          remoteId,
-          nowMs: now,
-          requireOutbox: false,
-        });
-        return {
-          turn: requireJournalTurn(store, input.conversationId, canonicalTurnId),
-          imported: false,
-          reconciledLocal: true,
-        };
-      }
-    }
-
-    const existingRemote = findJournalTurnByRemoteId(store, input.conversationId, remoteId);
-    if (existingRemote) {
-      return { turn: existingRemote, imported: false, reconciledLocal: false };
-    }
-
-    const turnId = canonicalTurnId ?? generateAgentId("turn");
-    const sequence = nextJournalSequence(store, input.conversationId, now);
-    const producerId = `legacy_remote:${remoteId}`;
-    const payloadHash = journalTurnPayloadHash({
-      turnId,
-      role: input.role,
-      surfaceKind: input.surfaceKind,
-      content: input.content,
-      origin: "backend_import",
-      status: "completed",
-      contentBlocks,
-      resources,
-      producingRunId: null,
-      producingAttemptId: null,
-      remoteId,
-      metadataJson,
-    });
-    const turn = store.insertConversationTurn({
-      conversationId: input.conversationId,
-      turnId,
-      turnSeq: sequence.turnSeq,
-      producerId,
-      payloadHash,
-      role: input.role,
-      surfaceKind: nonEmpty(input.surfaceKind, "surfaceKind"),
-      content: input.content,
-      origin: "backend_import",
-      status: "completed",
-      contentBlocks,
-      resources,
-      producingRunId: null,
-      producingAttemptId: null,
-      remoteId,
-      createdAtMs: input.createdAtMs,
-      updatedAtMs: now,
-      completedAtMs: input.createdAtMs,
-      metadataJson,
-    });
-    appendJournalRevision(store, turn, sequence.generation, "imported", now);
-    return { turn, imported: true, reconciledLocal: false };
-  });
-}
-
-function backendTargetForConversation(
-  store: AgentStore,
-  ownerId: string,
-  conversationId: string,
-): Omit<BackendReconcileRequest, "reconcileId" | "ownerId" | "conversationId" | "frontierRemoteId" | "pageCursor" | "pageLimit"> | null {
-  const surface = store.getOptionalRow(
-    `SELECT surface_kind, external_ref_kind, external_ref_id
-     FROM surface_conversations
-     WHERE conversation_id = ? AND owner_id = ? AND surface_kind = 'main_chat'
-     ORDER BY CASE WHEN external_ref_id LIKE 'default%' THEN 0 ELSE 1 END,
-              last_active_at_ms DESC
-     LIMIT 1`,
-    [conversationId, ownerId],
-  );
-  if (!surface) return null;
-  const externalRefId = String(surface.external_ref_id);
-  const targetKind = externalRefId === "default" || externalRefId.startsWith("default|")
-    ? "messages" as const
-    : "chat_session" as const;
-  return {
-    surfaceKind: String(surface.surface_kind),
-    externalRefKind: String(surface.external_ref_kind),
-    externalRefId,
-    targetKind,
-    targetId: targetKind === "messages"
-      ? (externalRefId.includes("|") ? externalRefId.slice(externalRefId.indexOf("|") + 1) || null : null)
-      : externalRefId,
-  };
-}
-
-export function beginBackendReconcilesForOwner(
-  store: AgentStore,
-  input: {
-    ownerId: string;
-    conversationId?: string;
-    nowMs?: number;
-    cooldownMs?: number;
-    limit?: number;
-  },
-): BackendReconcileRequest[] {
-  const ownerId = nonEmpty(input.ownerId, "ownerId");
-  const now = input.nowMs ?? Date.now();
-  const cooldownMs = Math.max(1, input.cooldownMs ?? 5_000);
-  const limit = boundedLimit(input.limit ?? 5);
-  const rows = store.allRows(
-    `SELECT sc.conversation_id
-     FROM surface_conversations sc
-     LEFT JOIN backend_reconcile_state state ON state.conversation_id = sc.conversation_id
-     WHERE sc.owner_id = ? AND sc.surface_kind = 'main_chat'
-       AND (? IS NULL OR sc.conversation_id = ?)
-       AND COALESCE(state.status, 'idle') != 'fetching'
-       AND NOT EXISTS (
-         SELECT 1 FROM backend_conversation_delete_outbox deletion
-         WHERE deletion.conversation_id = sc.conversation_id AND deletion.status != 'delivered'
-       )
-       AND (state.last_requested_at_ms IS NULL OR state.last_requested_at_ms <= ?)
-     GROUP BY sc.conversation_id
-     ORDER BY MAX(sc.last_active_at_ms) DESC, sc.conversation_id ASC
-     LIMIT ?`,
-    [ownerId, input.conversationId ?? null, input.conversationId ?? null, now - cooldownMs, limit],
-  );
-  return rows.flatMap((row) => {
-    const request = beginBackendReconcile(store, {
-      ownerId,
-      conversationId: String(row.conversation_id),
-      nowMs: now,
-    });
-    return request ? [request] : [];
-  });
-}
-
-export function beginBackendReconcile(
-  store: AgentStore,
-  input: { ownerId: string; conversationId: string; nowMs?: number },
-): BackendReconcileRequest | null {
-  const now = input.nowMs ?? Date.now();
-  return store.withTransaction(() => {
-    assertConversationOwner(store, input.conversationId, input.ownerId);
-    const pendingDelete = store.getOptionalRow(
-      `SELECT operation_id FROM backend_conversation_delete_outbox
-       WHERE conversation_id = ? AND status != 'delivered' LIMIT 1`,
-      [input.conversationId],
-    );
-    if (pendingDelete) return null;
-    const target = backendTargetForConversation(store, input.ownerId, input.conversationId);
-    if (!target) return null;
-    store.execute(
-      `INSERT INTO conversation_journal_state(
-         conversation_id, generation, high_water_turn_seq, updated_at_ms
-       ) VALUES (?, 1, 0, ?)
-       ON CONFLICT(conversation_id) DO NOTHING`,
-      [input.conversationId, now],
-    );
-    const journalState = requireJournalState(store, input.conversationId);
-    store.execute(
-      `INSERT INTO backend_reconcile_state(
-         conversation_id, owner_id, conversation_generation, status, page_cursor, page_count, updated_at_ms
-       ) VALUES (?, ?, ?, 'idle', NULL, 0, ?)
-       ON CONFLICT(conversation_id) DO NOTHING`,
-      [input.conversationId, input.ownerId, journalState.generation, now],
-    );
-    const state = store.getRow(
-      "SELECT * FROM backend_reconcile_state WHERE conversation_id = ?",
-      [input.conversationId],
-    );
-    if (String(state.owner_id) !== input.ownerId) throw new Error("Backend reconcile is outside owner scope");
-    if (String(state.status) === "fetching") return null;
-    const reconcileId = `reconcile:${randomUUID()}`;
-    store.execute(
-      `UPDATE backend_reconcile_state
-       SET in_flight_id = ?, candidate_frontier_remote_id = NULL,
-           conversation_generation = ?,
-           page_cursor = NULL, page_count = 0, status = 'fetching',
-           last_error_code = NULL, last_requested_at_ms = ?, updated_at_ms = ?
-       WHERE conversation_id = ?`,
-      [reconcileId, journalState.generation, now, now, input.conversationId],
-    );
-    return {
-      reconcileId,
-      ownerId: input.ownerId,
-      conversationId: input.conversationId,
-      ...target,
-      frontierRemoteId: state.frontier_remote_id == null ? null : String(state.frontier_remote_id),
-      pageCursor: null,
-      pageLimit: BACKEND_RECONCILE_PAGE_LIMIT,
-    };
-  });
-}
-
-export function applyBackendReconcilePage(
-  store: AgentStore,
-  input: {
-    ownerId: string;
-    reconcileId: string;
-    conversationId: string;
-    pageCursor: string | null;
-    nextCursor?: string | null;
-    turns: readonly BackendReconcileRemoteTurn[];
-    hasMore: boolean;
-    nowMs?: number;
-  },
-): BackendReconcilePageResult {
-  const now = input.nowMs ?? Date.now();
-  if (input.turns.length > BACKEND_RECONCILE_PAGE_LIMIT) {
-    throw new Error("Backend reconcile page exceeds the bounded page limit");
-  }
-  const pageCursor = boundedReconcileCursor(input.pageCursor, "pageCursor");
-  const nextCursor = boundedReconcileCursor(input.nextCursor ?? null, "nextCursor");
-  return store.withTransaction(() => {
-    const state = store.getRow(
-      "SELECT * FROM backend_reconcile_state WHERE conversation_id = ?",
-      [input.conversationId],
-    );
-    const journalState = requireJournalState(store, input.conversationId);
-    if (
-      String(state.owner_id) !== input.ownerId
-      || String(state.status) !== "fetching"
-      || String(state.in_flight_id) !== input.reconcileId
-      || (state.page_cursor == null ? null : String(state.page_cursor)) !== pageCursor
-      || Number(state.conversation_generation) !== journalState.generation
-    ) {
-      throw new Error("Backend reconcile page does not match the active owner-scoped request");
-    }
-    const frontier = state.frontier_remote_id == null ? null : String(state.frontier_remote_id);
-    const remoteIds = input.turns.map((turn) => nonEmpty(turn.remoteId, "remoteId"));
-    const frontierIndex = frontier ? remoteIds.indexOf(frontier) : -1;
-    const newTurns = frontierIndex >= 0 ? input.turns.slice(0, frontierIndex) : input.turns;
-    const importedTurns: ConversationTurn[] = [];
-    for (const turn of newTurns) {
-      const imported = importRemoteJournalTurn(store, {
-        ownerId: input.ownerId,
-        conversationId: input.conversationId,
-        remoteId: turn.remoteId,
-        canonicalTurnId: turn.canonicalTurnId,
-        role: turn.role,
-        surfaceKind: "main_chat",
-        content: turn.content,
-        contentBlocks: turn.contentBlocks,
-        resources: turn.resources,
-        metadataJson: turn.metadataJson,
-        createdAtMs: turn.createdAtMs,
-        nowMs: now,
-        source: "backend_reconcile",
-      });
-      if (imported.imported || imported.reconciledLocal) importedTurns.push(imported.turn);
-    }
-    const candidateFrontier = Number(state.page_count) === 0 && remoteIds.length > 0
-      ? remoteIds[0]!
-      : state.candidate_frontier_remote_id == null ? null : String(state.candidate_frontier_remote_id);
-    const completed = frontierIndex >= 0 || !input.hasMore;
-    if (completed) {
-      store.execute(
-        `UPDATE backend_reconcile_state
-         SET frontier_remote_id = COALESCE(?, frontier_remote_id),
-             candidate_frontier_remote_id = NULL, in_flight_id = NULL,
-             page_cursor = NULL, page_count = 0, status = 'idle',
-             last_error_code = NULL, last_completed_at_ms = ?, updated_at_ms = ?
-         WHERE conversation_id = ?`,
-        [candidateFrontier, now, now, input.conversationId],
-      );
-      return { importedTurns, nextRequest: null, completed: true };
-    }
-    if (!nextCursor) throw new Error("Backend reconcile continuation requires a stable next cursor");
-    if (nextCursor === pageCursor) throw new Error("Backend reconcile next cursor did not advance");
-    const pageCount = Number(state.page_count) + 1;
-    store.execute(
-      `UPDATE backend_reconcile_state
-       SET candidate_frontier_remote_id = ?, page_cursor = ?, page_count = ?, updated_at_ms = ?
-       WHERE conversation_id = ?`,
-      [candidateFrontier, nextCursor, pageCount, now, input.conversationId],
-    );
-    const target = backendTargetForConversation(store, input.ownerId, input.conversationId);
-    if (!target) throw new Error("Backend reconcile target disappeared");
-    return {
-      importedTurns,
-      completed: false,
-      nextRequest: {
-        reconcileId: input.reconcileId,
-        ownerId: input.ownerId,
-        conversationId: input.conversationId,
-        ...target,
-        frontierRemoteId: frontier,
-        pageCursor: nextCursor,
-        pageLimit: BACKEND_RECONCILE_PAGE_LIMIT,
-      },
-    };
-  });
-}
-
-export function failBackendReconcile(
-  store: AgentStore,
-  input: {
-    ownerId: string;
-    reconcileId: string;
-    conversationId: string;
-    errorCode: string;
-    nowMs?: number;
-  },
-): void {
-  const now = input.nowMs ?? Date.now();
-  const errorCode = boundedErrorCode(input.errorCode);
-  store.withTransaction(() => {
-    const state = store.getRow(
-      "SELECT owner_id, in_flight_id, status FROM backend_reconcile_state WHERE conversation_id = ?",
-      [input.conversationId],
-    );
-    if (
-      String(state.owner_id) !== input.ownerId
-      || String(state.in_flight_id) !== input.reconcileId
-      || String(state.status) !== "fetching"
-    ) {
-      throw new Error("Backend reconcile failure does not match the active owner-scoped request");
-    }
-    store.execute(
-      `UPDATE backend_reconcile_state
-       SET in_flight_id = NULL, candidate_frontier_remote_id = NULL,
-           page_cursor = NULL, page_count = 0, status = 'failed',
-           last_error_code = ?, updated_at_ms = ?
-       WHERE conversation_id = ?`,
-      [errorCode, now, input.conversationId],
-    );
-  });
-}
-
-function enqueueBackendConversationDelete(
-  store: AgentStore,
-  input: { ownerId: string; conversationId: string; conversationGeneration: number; nowMs: number },
-): string | null {
-  const target = backendTargetForConversation(store, input.ownerId, input.conversationId);
-  if (!target) return null;
-  const { targetKind, targetId } = target;
-  const operationId = `delete:${input.conversationId}:${input.conversationGeneration}`;
-  const payloadHash = sha256(stableJson({
-    operationId,
-    ownerId: input.ownerId,
-    targetKind,
-    targetId,
-    conversationGeneration: input.conversationGeneration,
-  }));
-  store.execute(
-    `INSERT INTO backend_conversation_delete_outbox(
-       operation_id, conversation_id, owner_id, target_kind, target_id,
-       conversation_generation, status, attempt_count, delivery_generation,
-       payload_hash, available_at_ms, lease_expires_at_ms, last_error_code,
-       created_at_ms, updated_at_ms, delivered_at_ms
-     ) VALUES (?, ?, ?, ?, ?, ?, 'pending', 0, 0, ?, ?, NULL, NULL, ?, ?, NULL)`,
-    [
-      operationId,
-      input.conversationId,
-      input.ownerId,
-      targetKind,
-      targetId,
-      input.conversationGeneration,
-      payloadHash,
-      input.nowMs,
-      input.nowMs,
-      input.nowMs,
-    ],
-  );
-  return operationId;
-}
-
-export function drainBackendConversationDeleteOutbox(
-  store: AgentStore,
-  input: { ownerId: string; limit?: number; nowMs?: number; leaseMs?: number },
-): BackendConversationDeleteDelivery[] {
-  const ownerId = nonEmpty(input.ownerId, "ownerId");
-  const now = input.nowMs ?? Date.now();
-  const leaseMs = Math.max(1, input.leaseMs ?? DEFAULT_OUTBOX_LEASE_MS);
-  const limit = boundedLimit(input.limit ?? 20);
-  return store.withTransaction(() => {
-    const candidates = store.allRows(
-      `SELECT operation_id
-       FROM backend_conversation_delete_outbox
-       WHERE owner_id = ? AND (
-         (status IN ('pending', 'retrying') AND available_at_ms <= ?)
-         OR (status = 'delivering' AND lease_expires_at_ms IS NOT NULL AND lease_expires_at_ms <= ?)
-       )
-       ORDER BY available_at_ms ASC, created_at_ms ASC, operation_id ASC
-       LIMIT ?`,
-      [ownerId, now, now, limit],
-    );
-    return candidates.map((candidate) => {
-      const operationId = String(candidate.operation_id);
-      store.execute(
-        `UPDATE backend_conversation_delete_outbox
-         SET status = 'delivering', attempt_count = attempt_count + 1,
-             delivery_generation = delivery_generation + 1,
-             lease_expires_at_ms = ?, updated_at_ms = ?
-         WHERE operation_id = ?`,
-        [now + leaseMs, now, operationId],
-      );
-      return requireBackendConversationDelete(store, operationId);
-    });
-  });
-}
-
-export function ackBackendConversationDeleteOutbox(
-  store: AgentStore,
-  input: {
-    ownerId: string;
-    operationId: string;
-    conversationGeneration: number;
-    attemptCount: number;
-    deliveryGeneration: number;
-    payloadHash: string;
-    nowMs?: number;
-  },
-): BackendConversationDeleteDelivery {
-  const now = input.nowMs ?? Date.now();
-  return store.withTransaction(() => {
-    const current = requireBackendConversationDelete(store, input.operationId);
-    assertBackendConversationDeleteClaim(current, input);
-    store.execute(
-      `UPDATE cleared_backend_turn_claims
-       SET status = 'settled', result_outcome = 'expired', settled_at_ms = ?
-       WHERE conversation_id = ? AND status = 'waiting' AND lease_expires_at_ms <= ?`,
-      [now, current.conversationId, now],
-    );
-    const waiting = Number(store.getRow(
-      `SELECT COUNT(*) AS count FROM cleared_backend_turn_claims
-       WHERE conversation_id = ? AND status = 'waiting'`,
-      [current.conversationId],
-    ).count);
-    if (waiting > 0) {
-      throw new Error("Backend conversation delete is waiting for prior turn claims to settle or expire");
-    }
-    store.execute(
-      `UPDATE backend_conversation_delete_outbox
-       SET status = 'delivered', lease_expires_at_ms = NULL, last_error_code = NULL,
-           delivered_at_ms = ?, updated_at_ms = ?
-       WHERE operation_id = ?`,
-      [now, now, input.operationId],
-    );
-    store.execute(
-      "DELETE FROM cleared_backend_turn_claims WHERE conversation_id = ? AND status = 'settled'",
-      [current.conversationId],
-    );
-    return requireBackendConversationDelete(store, input.operationId);
-  });
-}
-
-export function failBackendConversationDeleteOutbox(
-  store: AgentStore,
-  input: {
-    ownerId: string;
-    operationId: string;
-    conversationGeneration: number;
-    attemptCount: number;
-    deliveryGeneration: number;
-    payloadHash: string;
-    errorCode: string;
-    retryAtMs?: number;
-    nowMs?: number;
-  },
-): BackendConversationDeleteDelivery {
-  const now = input.nowMs ?? Date.now();
-  return store.withTransaction(() => {
-    const current = requireBackendConversationDelete(store, input.operationId);
-    assertBackendConversationDeleteClaim(current, input);
-    const status = input.retryAtMs === undefined ? "failed" : "retrying";
-    store.execute(
-      `UPDATE backend_conversation_delete_outbox
-       SET status = ?, available_at_ms = ?, lease_expires_at_ms = NULL,
-           last_error_code = ?, updated_at_ms = ?
-       WHERE operation_id = ?`,
-      [
-        status,
-        input.retryAtMs ?? current.availableAtMs,
-        boundedErrorCode(input.errorCode),
-        now,
-        input.operationId,
-      ],
-    );
-    return requireBackendConversationDelete(store, input.operationId);
-  });
-}
-
-function requireBackendConversationDelete(
-  store: AgentStore,
-  operationId: string,
-): BackendConversationDeleteDelivery {
-  const row = store.getOptionalRow(
-    `SELECT ${DELETE_OUTBOX_COLUMNS}
-     FROM backend_conversation_delete_outbox WHERE operation_id = ?`,
-    [operationId],
-  );
-  if (!row) throw new Error(`Unknown backend conversation delete ${operationId}`);
-  return {
-    operationId: String(row.operation_id),
-    conversationId: String(row.conversation_id),
-    ownerId: String(row.owner_id),
-    targetKind: String(row.target_kind) as BackendConversationDeleteDelivery["targetKind"],
-    targetId: row.target_id == null ? null : String(row.target_id),
-    conversationGeneration: Number(row.conversation_generation),
-    status: String(row.status) as BackendTurnOutboxStatus,
-    attemptCount: Number(row.attempt_count),
-    deliveryGeneration: Number(row.delivery_generation),
-    payloadHash: String(row.payload_hash),
-    availableAtMs: Number(row.available_at_ms),
-    leaseExpiresAtMs: row.lease_expires_at_ms == null ? null : Number(row.lease_expires_at_ms),
-    lastErrorCode: row.last_error_code == null ? null : String(row.last_error_code),
-    createdAtMs: Number(row.created_at_ms),
-    updatedAtMs: Number(row.updated_at_ms),
-    deliveredAtMs: row.delivered_at_ms == null ? null : Number(row.delivered_at_ms),
-  };
-}
-
-function assertBackendConversationDeleteClaim(
-  current: BackendConversationDeleteDelivery,
-  input: {
-    ownerId: string;
-    conversationGeneration: number;
-    attemptCount: number;
-    deliveryGeneration: number;
-    payloadHash: string;
-  },
-): void {
-  if (current.ownerId !== input.ownerId) throw new Error("Backend conversation delete is outside owner scope");
-  if (
-    current.status !== "delivering"
-    || current.conversationGeneration !== input.conversationGeneration
-    || current.attemptCount !== input.attemptCount
-    || current.deliveryGeneration !== input.deliveryGeneration
-    || current.payloadHash !== input.payloadHash
-  ) {
-    throw new Error("Backend conversation delete result does not match the active claim");
-  }
-}
-
-/**
- * Diagnostic `last_error_code` stamped on an outbox row whose stored payload
- * hash diverges from the canonical journal turn. Such a row is parked (see
- * {@link drainBackendTurnOutbox}) so the pump can keep draining; the same code
- * lets an operator spot the quarantine in the local store.
- */
-export const OUTBOX_CANONICAL_HASH_MISMATCH_CODE = "canonical_hash_mismatch";
-
-/** Atomically leases completed journal rows for the backend sync adapter. */
-export function drainBackendTurnOutbox(
-  store: AgentStore,
-  input: {
-    ownerId?: string;
-    limit?: number;
-    nowMs?: number;
-    leaseMs?: number;
-    onQuarantine?: (turnId: string) => void;
-  } = {},
-): BackendTurnDelivery[] {
-  const now = input.nowMs ?? Date.now();
-  const leaseMs = Math.max(1, input.leaseMs ?? DEFAULT_OUTBOX_LEASE_MS);
-  const limit = boundedLimit(input.limit ?? 20);
-  return store.withTransaction(() => {
-    const ownerClause = input.ownerId ? " AND o.owner_id = ?" : "";
-    const values: unknown[] = [now, now];
-    if (input.ownerId) values.push(input.ownerId);
-    values.push(limit);
-    const candidates = store.allRows(
-      `SELECT o.turn_id
-       FROM backend_turn_outbox o
-       JOIN conversation_turns t
-         ON t.conversation_id = o.conversation_id AND t.turn_id = o.turn_id
-       WHERE (
-         (o.status IN ('pending', 'retrying') AND o.available_at_ms <= ?)
-         OR (o.status = 'delivering' AND o.lease_expires_at_ms IS NOT NULL AND o.lease_expires_at_ms <= ?)
-       )
-         AND t.status IN ('completed', 'failed')${ownerClause}
-         AND NOT EXISTS (
-           SELECT 1 FROM backend_conversation_delete_outbox d
-           WHERE d.conversation_id = o.conversation_id AND d.status != 'delivered'
-         )
-       ORDER BY o.available_at_ms ASC, o.created_at_ms ASC, o.turn_id ASC
-       LIMIT ?`,
-      values,
-    );
-
-    const deliveries: BackendTurnDelivery[] = [];
-    const quarantined: string[] = [];
-    for (const candidate of candidates) {
-      const turnId = String(candidate.turn_id);
-      const currentOutbox = requireOutboxRecord(store, turnId);
-      const turn = requireJournalTurn(store, currentOutbox.conversationId, turnId);
-      const payload = backendTurnPayload(turn);
-      const payloadHash = backendTurnPayloadHash(payload);
-      if (payloadHash !== currentOutbox.payloadHash) {
-        // Fail closed on a divergence from the canonical turn — but quarantine
-        // this one row instead of throwing. Throwing aborts the whole batch
-        // transaction, so the 1s outbox pump re-selects the same poisoned row
-        // forever, wedging delivery for every turn (observed as an app-wide
-        // stall that persists across restarts because the row is durable).
-        // Parking to 'failed' excludes it from future selection; a later
-        // `updateJournalTurn` re-stamps the hash and re-arms it to 'pending'.
-        store.execute(
-          `UPDATE backend_turn_outbox
-           SET status = 'failed', last_error_code = ?, lease_expires_at_ms = NULL, updated_at_ms = ?
-           WHERE turn_id = ?`,
-          [OUTBOX_CANONICAL_HASH_MISMATCH_CODE, now, turnId],
-        );
-        quarantined.push(turnId);
-        continue;
-      }
-      const journalState = requireJournalState(store, currentOutbox.conversationId);
-      store.execute(
-        `UPDATE backend_turn_outbox
-         SET status = 'delivering', attempt_count = attempt_count + 1,
-             delivery_generation = delivery_generation + 1,
-             conversation_generation = ?, payload_hash = ?,
-             lease_expires_at_ms = ?, updated_at_ms = ?
-         WHERE turn_id = ?`,
-        [journalState.generation, payloadHash, now + leaseMs, now, turnId],
-      );
-      const outbox = requireOutboxRecord(store, turnId);
-      deliveries.push({ ...outbox, clientMessageId: turnId, turn, payload });
-    }
-    if (input.onQuarantine) {
-      for (const turnId of quarantined) input.onQuarantine(turnId);
-    }
-    return deliveries;
-  });
-}
-
-export function ackBackendTurnOutbox(
-  store: AgentStore,
-  input: BackendTurnAckInput,
-): BackendTurnOutboxRecord {
-  return acknowledgeBackendTurn(store, { ...input, nowMs: input.nowMs ?? Date.now(), requireOutbox: true });
-}
-
-/**
- * ACK plus notification projections for every surface bound to the mutated
- * conversation. The wake carries the post-ACK remote-id revision; consumers
- * still range-fetch by turnSeq before applying it.
- */
-export function ackBackendTurnOutboxWithWakes(
-  store: AgentStore,
-  input: BackendTurnAckInput,
-): { outbox: BackendTurnOutboxRecord; wakes: JournalTurnChangedWake[] } {
-  const outbox = ackBackendTurnOutbox(store, input);
-  const turn = requireJournalTurn(store, outbox.conversationId, input.turnId);
-  return {
-    outbox,
-    wakes: journalTurnChangedWakes(store, input.ownerId, turn),
-  };
-}
-
-/**
- * Classify a backend result against durable claim and journal history.
- *
- * A turn revision can supersede a physical POST while it is in flight. The
- * exact ACK/failure mutators intentionally continue to reject that stale
- * claim; this boundary absorbs it only when the supplied payload is provably a
- * prior canonical revision (or the exact result was already settled).
- */
-export function classifyBackendTurnResultDisposition(
-  store: AgentStore,
-  input: {
-    ownerId: string;
-    turnId: string;
-    conversationId: string;
-    attemptCount: number;
-    deliveryGeneration: number;
-    conversationGeneration: number;
-    payloadHash: string;
-    ok: boolean;
-    remoteId?: string;
-    errorCode?: string;
-  },
-): BackendTurnResultDisposition {
-  for (const [label, value] of [
-    ["attemptCount", input.attemptCount],
-    ["deliveryGeneration", input.deliveryGeneration],
-    ["conversationGeneration", input.conversationGeneration],
-  ] as const) {
-    if (!Number.isSafeInteger(value) || value < 1) {
-      throw new Error(`Backend sync result ${label} must be a positive safe integer`);
-    }
-  }
-  nonEmpty(input.payloadHash, "payloadHash");
-  const current = requireOutboxRecord(store, input.turnId);
-  if (current.ownerId !== input.ownerId) {
-    throw new Error("Backend sync result owner does not match the claim owner");
-  }
-  if (current.conversationId !== input.conversationId) {
-    throw new Error("Backend sync result conversation does not match the active claim");
-  }
-  const exactClaim = current.deliveryGeneration === input.deliveryGeneration
-    && current.attemptCount === input.attemptCount
-    && current.conversationGeneration === input.conversationGeneration
-    && current.payloadHash === input.payloadHash;
-  if (exactClaim && current.status === "delivering") return "active";
-  if (exactClaim && current.status === "delivered") {
-    if (!input.ok || !input.remoteId || current.remoteId !== input.remoteId) {
-      throw new Error("Duplicate backend sync success conflicts with the delivered result");
-    }
-    return "duplicate";
-  }
-  if (exactClaim && (current.status === "retrying" || current.status === "failed")) {
-    const errorCode = input.errorCode ?? "backend_sync_failed";
-    if (input.ok || current.lastErrorCode !== errorCode) {
-      throw new Error("Duplicate backend sync failure conflicts with the settled result");
-    }
-    return "duplicate";
-  }
-  if (
-    input.deliveryGeneration > current.deliveryGeneration
-    || input.conversationGeneration > current.conversationGeneration
-  ) {
-    throw new Error("Backend sync result claims a future delivery generation");
-  }
-  const currentTurn = requireJournalTurn(store, input.conversationId, input.turnId);
-  const historicalTurnSeq = historicalBackendPayloadTurnSeq(store, {
-    conversationId: input.conversationId,
-    turnId: input.turnId,
-    conversationGeneration: input.conversationGeneration,
-    payloadHash: input.payloadHash,
-  });
-  if (historicalTurnSeq === null) {
-    throw new Error("Backend sync result payload was never a canonical journal revision");
-  }
-  const olderClaim = input.deliveryGeneration < current.deliveryGeneration;
-  const olderPayloadOnSupersededClaim = input.deliveryGeneration === current.deliveryGeneration
-    && input.payloadHash !== current.payloadHash
-    && historicalTurnSeq < currentTurn.turnSeq
-    && current.status !== "delivering"
-    && current.attemptCount === 0
-    && input.attemptCount > 0;
-  if (olderClaim || olderPayloadOnSupersededClaim) return "superseded";
-  throw new Error("Backend sync result does not match the active claimed generation");
-}
-
-/** Settle an exact pre-clear physical POST claim after its canonical turn was removed. */
-export function settleClearedBackendTurnClaim(
-  store: AgentStore,
-  input: {
-    ownerId: string;
-    turnId: string;
-    conversationId: string;
-    attemptCount: number;
-    deliveryGeneration: number;
-    conversationGeneration: number;
-    payloadHash: string;
-    ok: boolean;
-    nowMs?: number;
-  },
-): boolean {
-  const now = input.nowMs ?? Date.now();
-  return store.withTransaction(() => {
-    const row = store.getOptionalRow(
-      "SELECT * FROM cleared_backend_turn_claims WHERE turn_id = ?",
-      [input.turnId],
-    );
-    if (!row) return false;
-    if (
-      String(row.owner_id) !== input.ownerId
-      || String(row.conversation_id) !== input.conversationId
-      || Number(row.attempt_count) !== input.attemptCount
-      || Number(row.delivery_generation) !== input.deliveryGeneration
-      || Number(row.conversation_generation) !== input.conversationGeneration
-      || String(row.payload_hash) !== input.payloadHash
-    ) {
-      throw new Error("Cleared backend turn result does not match the preserved physical claim");
-    }
-    if (String(row.status) === "settled") return true;
-    store.execute(
-      `UPDATE cleared_backend_turn_claims
-       SET status = 'settled', result_outcome = ?, settled_at_ms = ?
-       WHERE turn_id = ?`,
-      [input.ok ? "succeeded" : "failed", now, input.turnId],
-    );
-    return true;
   });
 }
 
@@ -2072,40 +1092,7 @@ export function journalTurnChangedWakes(
   });
 }
 
-export function failBackendTurnOutbox(
-  store: AgentStore,
-  input: {
-    ownerId: string;
-    turnId: string;
-    deliveryGeneration: number;
-    attemptCount: number;
-    conversationGeneration: number;
-    payloadHash: string;
-    errorCode: string;
-    retryAtMs?: number;
-    nowMs?: number;
-  },
-): BackendTurnOutboxRecord {
-  const now = input.nowMs ?? Date.now();
-  const errorCode = boundedErrorCode(input.errorCode);
-  return store.withTransaction(() => {
-    const current = requireOutboxRecord(store, input.turnId);
-    if (current.ownerId !== input.ownerId) throw new Error("Backend turn delivery is outside owner scope");
-    assertClaimMatches(current, input);
-    if (current.status === "delivered") throw new Error("Delivered backend turn cannot be failed");
-    const status: BackendTurnOutboxStatus = input.retryAtMs === undefined ? "failed" : "retrying";
-    store.execute(
-      `UPDATE backend_turn_outbox
-       SET status = ?, available_at_ms = ?, lease_expires_at_ms = NULL,
-           last_error_code = ?, updated_at_ms = ?
-       WHERE turn_id = ?`,
-      [status, input.retryAtMs ?? current.availableAtMs, errorCode, now, input.turnId],
-    );
-    return requireOutboxRecord(store, input.turnId);
-  });
-}
-
-/** State-only health projection. It intentionally never returns turn content. */
+/** State-only journal health. It intentionally never returns turn content. */
 export function getJournalObservability(
   store: AgentStore,
   input: { ownerId?: string } = {},
@@ -2120,172 +1107,9 @@ export function getJournalObservability(
     `SELECT status, COUNT(*) AS count FROM conversation_turns${ownerTurnClause} GROUP BY status`,
     input.ownerId ? [input.ownerId] : [],
   );
-  const deliveryWhere = input.ownerId ? " WHERE owner_id = ?" : "";
-  const deliveryRows = store.allRows(
-    `SELECT status, COUNT(*) AS count FROM backend_turn_outbox${deliveryWhere} GROUP BY status`,
-    input.ownerId ? [input.ownerId] : [],
-  );
-  const oldest = store.getOptionalRow(
-    `SELECT MIN(created_at_ms) AS oldest
-     FROM backend_turn_outbox
-     WHERE status IN ('pending', 'delivering', 'retrying')${input.ownerId ? " AND owner_id = ?" : ""}`,
-    input.ownerId ? [input.ownerId] : [],
-  );
   return {
     turnStatusCounts: countRows<ConversationTurnStatus>(turnRows),
-    deliveryStatusCounts: countRows<BackendTurnOutboxStatus>(deliveryRows),
-    oldestPendingDeliveryCreatedAtMs: oldest?.oldest == null ? null : Number(oldest.oldest),
   };
-}
-
-function ensureDeliveryState(
-  store: AgentStore,
-  input: {
-    ownerId: string;
-    conversationId: string;
-    turnId: string;
-    delivery: JournalDeliveryDestination;
-    nowMs: number;
-  },
-): BackendTurnOutboxStatus | null {
-  const existing = store.getOptionalRow(
-    `SELECT ${OUTBOX_COLUMNS} FROM backend_turn_outbox WHERE turn_id = ?`,
-    [input.turnId],
-  );
-  if (input.delivery === "local") {
-    if (existing) throw new Error("Journal turn delivery destination cannot change from backend to local");
-    return null;
-  }
-  const turn = requireJournalTurn(store, input.conversationId, input.turnId);
-  const payloadHash = backendTurnPayloadHash(backendTurnPayload(turn));
-  const journalState = requireJournalState(store, input.conversationId);
-  const tombstoneCode = backendTombstoneCode(turn);
-  store.execute(
-    `INSERT INTO backend_turn_outbox (
-       turn_id, conversation_id, owner_id, client_message_id, status, attempt_count,
-       available_at_ms, payload_hash, delivery_generation, conversation_generation,
-       last_error_code, created_at_ms, updated_at_ms
-     ) VALUES (?, ?, ?, ?, ?, 0, ?, ?, 0, ?, ?, ?, ?)
-     ON CONFLICT(turn_id) DO NOTHING`,
-    [
-      input.turnId,
-      input.conversationId,
-      input.ownerId,
-      input.turnId,
-      tombstoneCode ? "failed" : "pending",
-      input.nowMs,
-      payloadHash,
-      journalState.generation,
-      tombstoneCode,
-      input.nowMs,
-      input.nowMs,
-    ],
-  );
-  const row = requireOutboxRecord(store, input.turnId);
-  if (row.ownerId !== input.ownerId || row.conversationId !== input.conversationId) {
-    throw new Error("Canonical turn ID is already bound to a different backend delivery");
-  }
-  return row.status;
-}
-
-function acknowledgeBackendTurn(
-  store: AgentStore,
-  input: {
-    ownerId: string;
-    turnId: string;
-    remoteId: string;
-    nowMs: number;
-    requireOutbox: boolean;
-    deliveryGeneration?: number;
-    attemptCount?: number;
-    conversationGeneration?: number;
-    payloadHash?: string;
-  },
-): BackendTurnOutboxRecord {
-  const remoteId = nonEmpty(input.remoteId, "remoteId");
-  return store.withTransaction(() => {
-    const turn = findJournalTurnById(store, input.turnId);
-    if (!turn) throw new Error(`Unknown journal turn ${input.turnId}`);
-    assertConversationOwner(store, turn.conversationId, input.ownerId);
-    if (turn.remoteId !== null && turn.remoteId !== remoteId) {
-      throw new Error("Journal turn is already reconciled to a different remote ID");
-    }
-    const existing = store.getOptionalRow(
-      `SELECT ${OUTBOX_COLUMNS} FROM backend_turn_outbox WHERE turn_id = ?`,
-      [input.turnId],
-    );
-    if (!existing && input.requireOutbox) throw new Error(`Journal turn ${input.turnId} has no backend delivery`);
-    if (existing) {
-      const outbox = outboxRecordFromRow(existing);
-      if (outbox.ownerId !== input.ownerId) throw new Error("Backend turn delivery is outside owner scope");
-      if (input.requireOutbox) {
-        assertClaimMatches(outbox, {
-          deliveryGeneration: input.deliveryGeneration!,
-          attemptCount: input.attemptCount!,
-          conversationGeneration: input.conversationGeneration!,
-          payloadHash: input.payloadHash!,
-        });
-      }
-      if (outbox.remoteId !== null && outbox.remoteId !== remoteId) {
-        throw new Error("Backend delivery is already acknowledged with a different remote ID");
-      }
-      store.execute(
-        `UPDATE backend_turn_outbox
-         SET status = 'delivered', remote_id = ?, lease_expires_at_ms = NULL,
-             last_error_code = NULL, updated_at_ms = ?, delivered_at_ms = COALESCE(delivered_at_ms, ?)
-         WHERE turn_id = ?`,
-        [remoteId, input.nowMs, input.nowMs, input.turnId],
-      );
-    }
-    if (turn.remoteId === null) {
-      const sequence = nextJournalSequence(store, turn.conversationId, input.nowMs);
-      const payloadHash = journalTurnPayloadHash({
-        turnId: turn.turnId,
-        role: turn.role,
-        surfaceKind: turn.surfaceKind,
-        content: turn.content,
-        origin: turn.origin,
-        status: turn.status,
-        contentBlocks: turn.contentBlocks,
-        resources: turn.resources,
-        producingRunId: turn.producingRunId,
-        producingAttemptId: turn.producingAttemptId,
-        remoteId,
-        metadataJson: turn.metadataJson,
-      });
-      store.execute(
-        `UPDATE conversation_turns
-         SET remote_id = ?, turn_seq = ?, payload_hash = ?, updated_at_ms = MAX(updated_at_ms, ?)
-         WHERE conversation_id = ? AND turn_id = ?`,
-        [remoteId, sequence.turnSeq, payloadHash, input.nowMs, turn.conversationId, input.turnId],
-      );
-      appendJournalRevision(
-        store,
-        requireJournalTurn(store, turn.conversationId, input.turnId),
-        sequence.generation,
-        "updated",
-        input.nowMs,
-      );
-    }
-    if (existing) return requireOutboxRecord(store, input.turnId);
-    return {
-      turnId: input.turnId,
-      conversationId: turn.conversationId,
-      ownerId: input.ownerId,
-      status: "delivered",
-      attemptCount: 0,
-      deliveryGeneration: 0,
-      conversationGeneration: requireJournalState(store, turn.conversationId).generation,
-      payloadHash: backendTurnPayloadHash(backendTurnPayload(turn)),
-      availableAtMs: input.nowMs,
-      leaseExpiresAtMs: null,
-      remoteId,
-      lastErrorCode: null,
-      createdAtMs: turn.createdAtMs,
-      updatedAtMs: input.nowMs,
-      deliveredAtMs: input.nowMs,
-    };
-  });
 }
 
 function findJournalTurnById(store: AgentStore, turnId: string): ConversationTurn | null {
@@ -2311,19 +1135,6 @@ function findJournalTurnByProducer(
   return row ? conversationTurnFromRow(row) : null;
 }
 
-function findJournalTurnByRemoteId(
-  store: AgentStore,
-  conversationId: string,
-  remoteId: string,
-): ConversationTurn | null {
-  const row = store.getOptionalRow(
-    `SELECT ${TURN_COLUMNS}
-     FROM conversation_turns WHERE conversation_id = ? AND remote_id = ? LIMIT 1`,
-    [conversationId, remoteId],
-  );
-  return row ? conversationTurnFromRow(row) : null;
-}
-
 function requireJournalTurn(store: AgentStore, conversationId: string, turnId: string): ConversationTurn {
   const row = store.getOptionalRow(
     `SELECT ${TURN_COLUMNS}
@@ -2332,50 +1143,6 @@ function requireJournalTurn(store: AgentStore, conversationId: string, turnId: s
   );
   if (!row) throw new Error(`Unknown journal turn ${turnId}`);
   return conversationTurnFromRow(row);
-}
-
-function requireOutboxRecord(store: AgentStore, turnId: string): BackendTurnOutboxRecord {
-  const row = store.getOptionalRow(
-    `SELECT ${OUTBOX_COLUMNS} FROM backend_turn_outbox WHERE turn_id = ?`,
-    [turnId],
-  );
-  if (!row) throw new Error(`Journal turn ${turnId} has no backend delivery`);
-  return outboxRecordFromRow(row);
-}
-
-function outboxRecordFromRow(row: Record<string, unknown>): BackendTurnOutboxRecord {
-  return {
-    turnId: String(row.turn_id),
-    conversationId: String(row.conversation_id),
-    ownerId: String(row.owner_id),
-    status: String(row.status) as BackendTurnOutboxStatus,
-    attemptCount: Number(row.attempt_count),
-    deliveryGeneration: Number(row.delivery_generation),
-    conversationGeneration: Number(row.conversation_generation),
-    payloadHash: String(row.payload_hash),
-    availableAtMs: Number(row.available_at_ms),
-    leaseExpiresAtMs: row.lease_expires_at_ms == null ? null : Number(row.lease_expires_at_ms),
-    remoteId: row.remote_id == null ? null : String(row.remote_id),
-    lastErrorCode: row.last_error_code == null ? null : String(row.last_error_code),
-    createdAtMs: Number(row.created_at_ms),
-    updatedAtMs: Number(row.updated_at_ms),
-    deliveredAtMs: row.delivered_at_ms == null ? null : Number(row.delivered_at_ms),
-  };
-}
-
-function assertClaimMatches(
-  current: BackendTurnOutboxRecord,
-  claim: { deliveryGeneration: number; attemptCount: number; conversationGeneration: number; payloadHash: string },
-): void {
-  if (
-    current.status !== "delivering"
-    || current.deliveryGeneration !== claim.deliveryGeneration
-    || current.attemptCount !== claim.attemptCount
-    || current.conversationGeneration !== claim.conversationGeneration
-    || current.payloadHash !== claim.payloadHash
-  ) {
-    throw new Error("Backend delivery acknowledgement does not match the active claimed generation");
-  }
 }
 
 function assertConversationOwner(store: AgentStore, conversationId: string, ownerId: string): void {
@@ -2437,41 +1204,6 @@ function assertIdempotentRecord(
     && stableJson(existing.resources) === stableJson(input.resources)
     && stableJson(parseObjectJson(existing.metadataJson)) === stableJson(parseObjectJson(input.metadataJson));
   if (!equivalent) throw new Error("Canonical turn or producer identity collision has different journal content");
-}
-
-function canonicalJournalDelivery(
-  store: AgentStore,
-  ownerId: string,
-  conversationId: string,
-): JournalDeliveryDestination {
-  const surfaces = store.allRows(
-    `SELECT DISTINCT surface_kind
-     FROM surface_conversations
-     WHERE conversation_id = ? AND owner_id = ?`,
-    [conversationId, ownerId],
-  );
-  if (surfaces.length === 0) throw new Error("Journal conversation is outside owner scope");
-  const destinations = new Set(
-    surfaces.map((surface) => journalDeliveryForSurface(String(surface.surface_kind))),
-  );
-  if (destinations.size !== 1) {
-    throw new Error("Journal conversation mixes local-only and backend-backed canonical surfaces");
-  }
-  return destinations.values().next().value!;
-}
-
-function assertCanonicalJournalDelivery(
-  surfaceKind: string,
-  canonicalDelivery: JournalDeliveryDestination,
-): void {
-  const normalizedSurfaceKind = nonEmpty(surfaceKind, "surfaceKind");
-  if (journalDeliveryForSurface(normalizedSurfaceKind) !== canonicalDelivery) {
-    throw new Error("Journal turn surface does not match the canonical conversation delivery boundary");
-  }
-}
-
-function journalDeliveryForSurface(surfaceKind: string): JournalDeliveryDestination {
-  return LOCAL_ONLY_SURFACES.has(surfaceKind) ? "local" : "backend";
 }
 
 function validateContentBlocks(blocks: readonly ConversationContentBlock[]): ConversationContentBlock[] {
@@ -2540,25 +1272,7 @@ function journalTerminalStatus(runStatus: unknown, attemptStatus: unknown): Conv
 
 function boundedLimit(limit: number): number {
   if (!Number.isInteger(limit) || limit <= 0) throw new Error("Journal list limit must be a positive integer");
-  return Math.min(limit, MAX_DRAIN_BATCH);
-}
-
-function boundedErrorCode(value: string): string {
-  const code = nonEmpty(value, "errorCode");
-  if (code.length > 128 || !/^[A-Za-z0-9_.:-]+$/.test(code)) {
-    throw new Error("Backend turn failure requires a bounded error code, not a raw error message");
-  }
-  return code;
-}
-
-function boundedReconcileCursor(value: string | null, label: string): string | null {
-  if (value === null) return null;
-  if (typeof value !== "string") throw new Error(`Backend reconcile ${label} must be a string or null`);
-  const cursor = value.trim();
-  if (!cursor || Buffer.byteLength(cursor, "utf8") > MAX_BACKEND_RECONCILE_CURSOR_BYTES) {
-    throw new Error(`Backend reconcile ${label} is empty or unbounded`);
-  }
-  return cursor;
+  return Math.min(limit, MAX_LIST_BATCH);
 }
 
 function validObjectJson(raw: string, field: string): string {
@@ -2592,33 +1306,6 @@ function sha256(value: string): string {
 
 function journalTurnPayloadHash(value: Record<string, unknown>): string {
   return sha256(stableJson(value));
-}
-
-function historicalBackendPayloadTurnSeq(
-  store: AgentStore,
-  input: {
-    conversationId: string;
-    turnId: string;
-    conversationGeneration: number;
-    payloadHash: string;
-  },
-): number | null {
-  const rows = store.allRows(
-    `SELECT turn_json FROM conversation_turn_revisions
-     WHERE conversation_id = ? AND turn_id = ? AND generation = ?
-     ORDER BY turn_seq DESC`,
-    [input.conversationId, input.turnId, input.conversationGeneration],
-  );
-  for (const row of rows) {
-    const parsed = JSON.parse(String(row.turn_json)) as ConversationTurn;
-    if (parsed.conversationId !== input.conversationId || parsed.turnId !== input.turnId) {
-      throw new Error("Backend sync result history has inconsistent turn identity");
-    }
-    if (backendTurnPayloadHash(backendTurnPayload(parsed)) === input.payloadHash) {
-      return parsed.turnSeq;
-    }
-  }
-  return null;
 }
 
 function nextJournalSequence(

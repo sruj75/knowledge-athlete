@@ -1,20 +1,14 @@
 from __future__ import annotations
 
-import json
 import os
-import time
 from collections.abc import Mapping
 from copy import deepcopy
-from typing import Any, TypeVar, cast
+from typing import Any, cast
 
-import httpx
-from jsonschema import ValidationError as JsonSchemaValidationError
-from jsonschema import validate as validate_json_schema
 from langchain_openai import ChatOpenAI
-from pydantic import BaseModel, PrivateAttr, ValidationError
+from pydantic import BaseModel, PrivateAttr
 
 from utils.llm.gateway_observability import record_direct_exception_surface, record_gateway_request_result
-from utils.llm.gateway_resilience import gateway_circuit, gateway_transport_timeout, observe_gateway_first_byte
 from utils.llm.usage_tracker import get_current_context
 
 LLM_GATEWAY_SERVICE_TOKEN_ENV_VAR = 'OMI_LLM_GATEWAY_SERVICE_TOKEN'
@@ -30,11 +24,9 @@ LLM_GATEWAY_ALLOW_DIRECT_EXCEPTION_ENV_VAR = 'OMI_LLM_GATEWAY_ALLOW_DIRECT_MODEL
 LLM_GATEWAY_CALLER = 'backend'
 LLM_GATEWAY_USER_UID_HEADER = 'X-Omi-User-Uid'
 LLM_GATEWAY_USAGE_FEATURE_HEADER = 'X-Omi-LLM-Feature'
-CHAT_EXTRACTION_TIMEOUT_SECONDS = 10.0
-BACKGROUND_CHAT_EXTRACTION_TIMEOUT_SECONDS = 35.0
+BACKGROUND_STRUCTURED_TIMEOUT_SECONDS = 35.0
 GATEWAY_TRANSPORT_STATUS_CODES = frozenset({502, 504})
 
-StructuredOutput = TypeVar('StructuredOutput', bound=BaseModel)
 JsonDict = dict[str, Any]
 JsonList = list[Any]
 
@@ -139,80 +131,7 @@ def _is_local_or_dev_runtime() -> bool:
     return True
 
 
-def invoke_chat_structured_gateway(
-    prompt: str,
-    output_model: type[StructuredOutput],
-    *,
-    feature: str,
-    timeout_seconds: float = CHAT_EXTRACTION_TIMEOUT_SECONDS,
-) -> StructuredOutput | None:
-    """Call the LLM gateway for chat structured extraction (pilot).
-
-    This is a **synchronous** function intended to be called only from sync
-    ``def`` call sites (e.g. ``requires_context``). When such a sync function
-    is invoked by FastAPI it runs inside a threadpool, so the blocking HTTP
-    call does not stall the event loop. Do **not** call this from ``async def``
-    code without first offloading via ``run_blocking(llm_executor, ...)``.
-    """
-    if not gateway_circuit.allow_request():
-        record_chat_extraction_gateway_result(feature=feature, outcome='fallback', reason='circuit_open')
-        return None
-
-    gateway_started_at = time.monotonic()
-    try:
-        with httpx.Client(timeout=_gateway_timeout(timeout_seconds)) as client:
-            response = client.post(
-                f'{get_llm_gateway_base_url()}/v1/chat/completions',
-                headers=_gateway_headers(feature=feature),
-                json=_chat_structured_payload(prompt, output_model, feature=feature),
-            )
-            response.raise_for_status()
-            response_body = response.json()
-        content = _extract_choice_content(response_body)
-        if not isinstance(content, str) or not content.strip():
-            record_chat_extraction_gateway_result(feature=feature, outcome='fallback', reason='empty_content')
-            return None
-        try:
-            decoded = json.loads(content)
-        except json.JSONDecodeError:
-            record_chat_extraction_gateway_result(feature=feature, outcome='fallback', reason='invalid_json')
-            return None
-        if not isinstance(decoded, Mapping):
-            record_chat_extraction_gateway_result(feature=feature, outcome='fallback', reason='invalid_json_shape')
-            return None
-        result = _validate_output_model(output_model, cast(Mapping[str, object], decoded))
-        gateway_circuit.record_transport_success()
-        observe_gateway_first_byte(feature=feature, started_at=gateway_started_at, outcome='success')
-        record_chat_extraction_gateway_result(feature=feature, outcome='success', reason='ok')
-        return result
-    except httpx.HTTPStatusError as exc:
-        reason = f'http_{exc.response.status_code}'
-        if is_gateway_transport_status_code(exc.response.status_code):
-            gateway_circuit.record_transport_failure()
-            observe_gateway_first_byte(feature=feature, started_at=gateway_started_at, outcome='transport_failure')
-            record_chat_extraction_gateway_result(feature=feature, outcome='fallback', reason=reason)
-            return None
-        record_chat_extraction_gateway_result(feature=feature, outcome='error', reason=reason)
-        raise
-    except httpx.TimeoutException:
-        gateway_circuit.record_transport_failure()
-        observe_gateway_first_byte(feature=feature, started_at=gateway_started_at, outcome='transport_failure')
-        record_chat_extraction_gateway_result(feature=feature, outcome='fallback', reason='timeout')
-        return None
-    except httpx.RequestError:
-        gateway_circuit.record_transport_failure()
-        observe_gateway_first_byte(feature=feature, started_at=gateway_started_at, outcome='transport_failure')
-        record_chat_extraction_gateway_result(feature=feature, outcome='fallback', reason='request_error')
-        return None
-    except (ValidationError, JsonSchemaValidationError):
-        record_chat_extraction_gateway_result(feature=feature, outcome='fallback', reason='schema_validation')
-        return None
-    except Exception:
-        record_chat_extraction_gateway_result(feature=feature, outcome='fallback', reason='unexpected_error')
-        return None
-
-
-def record_chat_extraction_gateway_result(*, feature: str, outcome: str, reason: str, mode: str | None = None) -> None:
+def record_gateway_structured_result(*, feature: str, outcome: str, reason: str, mode: str | None = None) -> None:
     record_gateway_request_result(feature=feature, outcome=outcome, reason=reason, mode=mode)
 
 
@@ -232,7 +151,7 @@ def llm_gateway_headers(*, feature: str | None = None) -> dict[str, str]:
     return _gateway_headers(feature=feature)
 
 
-def _chat_structured_payload(prompt: str, output_model: type[BaseModel], *, feature: str) -> JsonDict:
+def build_structured_gateway_payload(prompt: str, output_model: type[BaseModel], *, feature: str) -> JsonDict:
     return {
         'model': CHAT_STRUCTURED_AUTO_LANE_ID,
         'messages': [{'role': 'user', 'content': prompt}],
@@ -336,45 +255,6 @@ def _inline_ref_siblings(schema: JsonDict) -> None:
                 walk(value)
 
     walk(schema)
-
-
-def _extract_choice_content(response_body: object) -> object:
-    if not isinstance(response_body, Mapping):
-        return None
-    response_mapping = cast(Mapping[str, object], response_body)
-    choices = _as_json_list(response_mapping.get('choices'))
-    if choices is None or not choices:
-        return None
-    first_choice = choices[0]
-    if not isinstance(first_choice, Mapping):
-        return None
-    choice_mapping = cast(Mapping[str, object], first_choice)
-    message = choice_mapping.get('message')
-    if not isinstance(message, Mapping):
-        return None
-    message_mapping = cast(Mapping[str, object], message)
-    return message_mapping.get('content')
-
-
-def _validate_output_model(
-    output_model: type[StructuredOutput],
-    decoded: Mapping[str, object],
-) -> StructuredOutput:
-    validate_json_schema(instance=decoded, schema=_strict_model_json_schema(output_model))
-    return output_model.model_validate(decoded)
-
-
-def _gateway_timeout(timeout_seconds: float) -> httpx.Timeout:
-    """Keep feature-specific total budgets while bounding the gateway connect/read hop."""
-
-    shared = gateway_transport_timeout()
-    bounded = min(timeout_seconds, shared.read or timeout_seconds)
-    return httpx.Timeout(
-        connect=shared.connect,
-        read=bounded,
-        write=bounded,
-        pool=shared.pool,
-    )
 
 
 def _gateway_usage_headers(*, feature: str | None) -> dict[str, str]:

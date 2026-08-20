@@ -2,8 +2,9 @@
 
 This package is the local desktop agent daemon. It owns durable agent identity,
 execution profiles, routing, context admission, run/attempt state, physical-tool
-authorization, and the cross-surface conversation journal. Swift is a transport
-and presentation client; adapters execute model work but do not own policy.
+authorization, the owner-scoped Chat catalog, and the cross-surface conversation
+journal. Swift is a transport and presentation client; adapters execute model
+work but do not own policy.
 
 ## Boundaries
 
@@ -46,14 +47,12 @@ Swift desktop client
 - `context-snapshot.ts` owns versioned context source selection, admission, and
   rendering. Surface policy and tool capability fingerprints are distinct from
   the shared base-content version.
-- `conversation-journal.ts` is the sole durable conversation writer.
-  `backend-turn-projection.ts` is the shared canonical backend payload/hash
-  projection used by normal writes and startup repair. Backend synchronization
-  and deletion use owner-scoped outboxes; Swift performs physical HTTP only and
-  returns exact claim receipts. Clear advances the
-  journal generation, invalidates remote reconciliation, preserves only the
-  identity of already-delivering POST claims, and gates both remote reads and
-  new-generation POSTs until the backend DELETE is acknowledged.
+- `kernel-sessions.ts` owns the local Chat catalog over `sessions`, including
+  title origin, stars, derived previews/counts/activity, owner isolation, and
+  atomic delete. `conversation-journal.ts` is the sole durable turn writer.
+  Neither module projects normal Chat to a backend or maintains a remote
+  reconcile/delete outbox. Swift invokes the typed `chat_catalog_*` protocol
+  operations and presents their results; it does not own a shadow catalog.
 - `run-tool-capability.ts` and `tool-invocation-ledger.ts` jointly authorize and
   record physical effects. Request IDs are tracing keys, never authorization.
 - `sqlite-store.ts` owns schema creation, migrations, startup reconciliation,

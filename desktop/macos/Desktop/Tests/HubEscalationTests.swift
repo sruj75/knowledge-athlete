@@ -39,6 +39,7 @@ final class HubEscalationTests: XCTestCase {
   @MainActor
   func testResolvedSnapshotWithoutContextMaterialStillAllowsEscalation() {
     let context = RealtimeHubController.VoiceSessionContext(
+      surface: .realtimeVoice(chatId: "default"),
       sessionID: "session_1",
       rendered: "",
       snapshotFreshnessIdentity: "conversation:renderer:v1",
@@ -54,6 +55,7 @@ final class HubEscalationTests: XCTestCase {
   @MainActor
   func testUnresolvedSnapshotBlocksEscalation() {
     let unbound = RealtimeHubController.VoiceSessionContext(
+      surface: nil,
       sessionID: "",
       rendered: "",
       snapshotFreshnessIdentity: "",
@@ -64,6 +66,7 @@ final class HubEscalationTests: XCTestCase {
     XCTAssertFalse(unbound.isResolved)
 
     let sessionlessButRendered = RealtimeHubController.VoiceSessionContext(
+      surface: .realtimeVoice(chatId: "default"),
       sessionID: "",
       rendered: "[Kernel Context Snapshot]",
       snapshotFreshnessIdentity: "conversation:renderer:v1",

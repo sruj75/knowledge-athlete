@@ -24,22 +24,6 @@ export interface ResolveSurfaceSessionResult {
   agentSessionId: string;
 }
 
-export interface LegacyMainChatSessionEntry {
-  chatId: string;
-  agentSessionId: string;
-}
-
-export interface LegacyMainChatSessionImportReceipt {
-  acceptedEntries: LegacyMainChatSessionEntry[];
-  importedCount: number;
-}
-
-export const LEGACY_MAIN_CHAT_SESSION_COMPATIBILITY = {
-  owner: "desktop-agent-runtime",
-  removalCondition: "all supported desktop versions have imported UserDefaults main-chat session aliases",
-  removeBy: "2026-10-01",
-} as const;
-
 const SHARED_CHAT_SURFACES = new Set(["main_chat", "floating_chat", "realtime_voice", "realtime"]);
 
 function sharesChatContinuity(surfaceRef: SurfaceRef): boolean {
@@ -218,105 +202,25 @@ export function resolveSurfaceSession(
   });
 }
 
-function resolveLegacyAgentSessionId(
+/// Resolve a surface only when its catalog/session identity already exists.
+/// Journal reads and writes for named chats use this path so a stale request
+/// cannot resurrect a session after atomic catalog deletion.
+export function resolveExistingSurfaceSession(
   store: AgentStore,
-  input: { ownerId: string; surfaceRef: SurfaceRef; legacySessionId: string; defaultAdapterId?: string },
-): string {
-  const existingByRef = readSessionIdByExternalRef(store, {
-    ownerId: input.ownerId,
-    surfaceRef: input.surfaceRef,
-  });
-  if (existingByRef) return existingByRef;
-
-  const sessionRow = store.getOptionalRow(
-    "SELECT session_id FROM sessions WHERE session_id = ? AND owner_id = ?",
-    [input.legacySessionId, input.ownerId],
-  );
-  if (sessionRow) return String(sessionRow.session_id);
-
-  try {
-    return store.insertSession({
-      ownerId: input.ownerId,
-      sessionId: input.legacySessionId,
-      surfaceKind: input.surfaceRef.surfaceKind,
-      externalRefKind: input.surfaceRef.externalRefKind,
-      externalRefId: input.surfaceRef.externalRefId,
-      defaultAdapterId: input.defaultAdapterId ?? "pi-mono",
-    }).sessionId;
-  } catch (error) {
-    if (!isSqliteUniqueConstraintError(error)) throw error;
-    const raced = readSessionIdByExternalRef(store, {
-      ownerId: input.ownerId,
-      surfaceRef: input.surfaceRef,
-    });
-    if (!raced) throw error;
-    return raced;
-  }
-}
-
-export function importLegacyMainChatSessions(
-  store: AgentStore,
-  input: { ownerId: string; entries: LegacyMainChatSessionEntry[] },
+  input: ResolveSurfaceSessionInput,
   nowMs: () => number,
-): LegacyMainChatSessionImportReceipt {
-  const acceptedEntries = input.entries.map((entry) => ({
-    chatId: typeof entry?.chatId === "string" ? entry.chatId.trim() : "",
-    agentSessionId: typeof entry?.agentSessionId === "string" ? entry.agentSessionId.trim() : "",
-  }));
-  const seenChatIds = new Set<string>();
-  for (const entry of acceptedEntries) {
-    if (!entry.chatId || !entry.agentSessionId) {
-      throw new Error("invalid_legacy_main_chat_session_entry");
+): ResolveSurfaceSessionResult {
+  return store.withTransaction(() => {
+    const now = nowMs();
+    const mapped = readSurfaceConversation(store, input);
+    if (mapped) {
+      touchSurfaceConversation(store, input, now);
+      return mapped;
     }
-    if (seenChatIds.has(entry.chatId)) {
-      throw new Error("duplicate_legacy_main_chat_session_entry");
-    }
-    seenChatIds.add(entry.chatId);
-  }
-
-  const now = nowMs();
-  let imported = 0;
-  for (const entry of acceptedEntries) {
-    const surfaceRef: SurfaceRef = {
-      surfaceKind: "main_chat",
-      externalRefKind: "chat",
-      externalRefId: entry.chatId,
-    };
-    const existing = store.getOptionalRow(
-      `SELECT conversation_id FROM surface_conversations
-       WHERE owner_id = ? AND surface_kind = ? AND external_ref_kind = ? AND external_ref_id = ?`,
-      [input.ownerId, surfaceRef.surfaceKind, surfaceRef.externalRefKind, surfaceRef.externalRefId],
-    );
-    if (existing) continue;
-
-    const resolvedSessionId = resolveLegacyAgentSessionId(store, {
-      ownerId: input.ownerId,
-      surfaceRef,
-      legacySessionId: entry.agentSessionId,
-      defaultAdapterId: "pi-mono",
-    });
-
-    const conversationId = generateAgentId("conversation");
-    try {
-      store.insertSurfaceConversation({
-        ownerId: input.ownerId,
-        surfaceKind: surfaceRef.surfaceKind,
-        externalRefKind: surfaceRef.externalRefKind,
-        externalRefId: surfaceRef.externalRefId,
-        conversationId,
-        agentSessionId: resolvedSessionId,
-        createdAtMs: now,
-        lastActiveAtMs: now,
-      });
-    } catch (error) {
-      if (!isSqliteUniqueConstraintError(error)) throw error;
-      const mapped = readSurfaceConversation(store, { ownerId: input.ownerId, surfaceRef });
-      if (mapped) continue;
-      throw error;
-    }
-    imported += 1;
-  }
-  return { acceptedEntries, importedCount: imported };
+    const existingSessionId = readSessionIdByExternalRef(store, input);
+    if (!existingSessionId) throw new Error("chat_catalog_not_found");
+    return createSurfaceConversationMapping(store, input, existingSessionId, now);
+  });
 }
 
 export function clearOwnerSurfaceState(store: AgentStore, ownerId: string, nowMs: () => number): {

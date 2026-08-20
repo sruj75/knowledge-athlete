@@ -74,14 +74,6 @@ AREA_TESTS = (
         ('tests/unit/test_memory_compute.py',),
     ),
     (
-        (
-            'backend/utils/retrieval/agentic.py',
-            'backend/utils/retrieval/graph.py',
-        ),
-        (),
-        ('tests/unit/test_chat_async_offload.py',),
-    ),
-    (
         ('backend/llm_gateway/',),
         (),
         ('tests/unit/test_llm_gateway_*.py',),

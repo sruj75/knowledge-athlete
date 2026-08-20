@@ -6,15 +6,18 @@ app: non-prod
 covers:
   - desktop/macos/Desktop/Sources/Chat/ScreenContextTelemetry.swift
   - desktop/macos/Desktop/Sources/MainWindow/CaptureListeningControls.swift
+  - desktop/macos/Desktop/Sources/MainWindow/CaptureListeningLogic.swift
   - desktop/macos/Desktop/Sources/FloatingControlBar/AboutUserCard.swift
   - desktop/macos/Desktop/Sources/ProactiveAssistants/Services/AIUserProfileService.swift
+  - desktop/macos/Desktop/Sources/Services/APIClient/APIClient+AIProfile.swift
   - desktop/macos/Desktop/Sources/MainWindow/Components/ChatMessagesView.swift
   - desktop/macos/Desktop/Sources/MainWindow/HomeStatusControls.swift
   - desktop/macos/Desktop/Sources/MainWindow/Pages/DashboardPage.swift
   - desktop/macos/Desktop/Sources/MainWindow/Pages/HomeStagePresentation.swift
-  - desktop/macos/Desktop/Sources/MainWindow/Pages/HomeStatusStore.swift
+  - desktop/macos/Desktop/Sources/MainWindow/Components/HomeChatCatalog.swift
   - desktop/macos/Desktop/Sources/MainWindow/Dashboard/HomeSuggestionsStore.swift
   - desktop/macos/Desktop/Sources/MainWindow/Dashboard/HomeKnowsComposer.swift
+  - desktop/macos/Desktop/Sources/Theme/OmiColors.swift
   - desktop/macos/Desktop/Sources/MainWindow/MainChatNavigationRequest.swift
   - desktop/macos/Desktop/Sources/Services/APIClient/APIClient+Settings.swift
   - desktop/macos/Desktop/Sources/DesktopAutomationBridge.swift
@@ -52,6 +55,40 @@ steps:
       state.homeMode: chat
 
   - id: S4
+    name: Enable and open compact Chat catalog
+    bridge.action:
+      name: home_set_multi_chat
+      params:
+        enabled: "true"
+    expect:
+      result.detail.enabled: "true"
+
+  - id: S5
+    name: Open compact Chat catalog
+    bridge.action:
+      name: home_open_chat_catalog
+    expect:
+      result.detail.opened: "true"
+    wait:
+      state.homeCatalogOpen: true
+
+  - id: S6
+    name: Exercise local catalog CRUD through canonical Home provider
+    bridge.action:
+      name: home_catalog_round_trip
+    expect:
+      result.detail.round_trip: "true"
+
+  - id: S7
+    name: Close compact Chat catalog
+    bridge.action:
+      name: home_close_chat_catalog
+    expect:
+      result.detail.closed: "true"
+    wait:
+      state.homeCatalogOpen: false
+
+  - id: S8
     name: Home ask stub (no LLM wait)
     bridge.action:
       name: home_ask
@@ -62,14 +99,14 @@ steps:
     wait:
       state.homeMode: chat
 
-  - id: S5
+  - id: S9
     name: Collapse back to loaded-history chat
     bridge.action:
       name: home_close_panel
     wait:
       state.homeMode: chat
 
-  - id: S6
+  - id: S10
     name: Logs clean
     log.expect:
       absent:

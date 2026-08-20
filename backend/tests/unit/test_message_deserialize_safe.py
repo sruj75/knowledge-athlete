@@ -1,10 +1,4 @@
-"""Loading chat history must skip a malformed message instead of 500ing the send.
-
-The chat send path built [Message(**msg) for msg in chat_db.get_messages(...)], and
-Message has required fields (id, text, created_at, sender, type). One malformed or
-legacy stored message raised a ValidationError that took down the whole send.
-Message.deserialize_many_safe skips bad records, keeping the valid history.
-"""
+"""Historical hosted message records skip malformed rows during typed decoding."""
 
 from datetime import datetime, timezone
 

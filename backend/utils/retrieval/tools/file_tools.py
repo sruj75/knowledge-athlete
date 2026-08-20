@@ -4,29 +4,22 @@ File search tools for the agentic chat system.
 These tools allow the LLM to search and query files uploaded to chat sessions.
 """
 
-import contextvars
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool  # type: ignore[reportUnknownVariableType]  # langchain @tool decorator partially typed
 from typing import Any, Dict, List, Optional, cast
 import database.chat as chat_db
 from models.chat import ChatSession
 from utils.other.chat_file import FileChatTool
+from utils.retrieval.tool_context import tool_config_context
 import logging
 
 logger = logging.getLogger(__name__)
-
-# Import agent_config_context for fallback config access
-try:
-    from utils.retrieval.agentic import agent_config_context
-except ImportError:
-    # Fallback if import fails
-    agent_config_context = contextvars.ContextVar('agent_config', default=None)
 
 
 def _agent_config() -> Optional[Dict[str, Any]]:
     """Retrieve the agent config dict from the context var, or None if unset."""
     try:
-        return agent_config_context.get()
+        return tool_config_context.get()
     except LookupError:
         return None
 

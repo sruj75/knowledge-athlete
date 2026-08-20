@@ -70,8 +70,7 @@ enum ChatTranscriptLayout {
   }
 }
 
-/// Reusable chat messages scroll view extracted from ChatPage.
-/// Shared messages list used by the main Chat surface.
+/// Reusable chat messages scroll view used by canonical Home Chat.
 struct ChatMessagesView<WelcomeContent: View>: View {
   let messages: [ChatMessage]
   let isSending: Bool
@@ -90,7 +89,7 @@ struct ChatMessagesView<WelcomeContent: View>: View {
   var localSendToken: LocalSendToken? = nil
   /// Fired when the user taps Cancel on a stalled-tool banner.
   /// Threaded down to `ToolCallsGroup`. Optional so existing callers
-  /// don't need updating; ChatPage passes `chatProvider.stopAgent`.
+  /// don't need updating; Home passes `chatProvider.stopAgent`.
   var onCancelTurn: (() -> Void)? = nil
   /// Opens a spawned background-agent pill from a `spawn_agent` tool row.
   /// Optional so task/sidebar chat callers that do not expose floating pills

@@ -2,34 +2,18 @@ import OmiTheme
 import SwiftUI
 
 /// The constant floating top bar that replaces the left nav rail: primary
-/// navigation (Home / Memory / Tasks), a "new since you were last here"
-/// counter (conversations · memories · tasks created while Omi wasn't in front),
-/// and the Capture/Listening controls on the right.
+/// navigation (Home / Memory / Tasks) and the Capture/Listening controls on
+/// the right.
 struct DesktopTopBar: View {
   @Binding var selectedIndex: Int
   @Binding var memoryDestinationRawValue: Int
   @ObservedObject var appState: AppState
-  @ObservedObject var memoriesViewModel: MemoriesViewModel
-  @ObservedObject var tasksStore: TasksStore
-  /// Items created after this instant count as "new" — updated whenever Omi
-  /// last resigned front (see DesktopHomeView).
-  let sinceDate: Date
   let onRewind: () -> Void
   @State private var memoryDropdownState = MemoryDropdownInteractionState()
   @State private var memoryDropdownTask: Task<Void, Never>?
   @State private var isMemoryButtonHovered = false
 
   private var navItems: [TopNavigationItem] { TopNavigationRoutes.primaryItems }
-
-  private var newConversations: Int {
-    appState.conversations.filter { $0.createdAt > sinceDate }.count
-  }
-  private var newMemories: Int {
-    memoriesViewModel.memories.filter { $0.createdAt > sinceDate }.count
-  }
-  private var newTasks: Int {
-    tasksStore.tasks.filter { $0.createdAt > sinceDate && $0.deleted != true }.count
-  }
 
   var body: some View {
     TopNavigationBarLayout(
@@ -119,7 +103,6 @@ struct DesktopTopBar: View {
         if item.index == SidebarNavItem.conversations.rawValue {
           memoryNavigationItem(item)
         } else {
-          let badgeCount = newCount(for: item)
           Button {
             dismissMemoryDropdown()
             OmiMotion.withGated(.easeOut(duration: 0.08)) { selectedIndex = item.index }
@@ -127,9 +110,8 @@ struct DesktopTopBar: View {
             TopNavigationPill(
               icon: item.icon,
               title: item.title,
-              badgeCount: badgeCount,
               isSelected: selectedIndex == item.index,
-              width: TopNavigationPillMetrics.width(for: item.index, badgeCount: badgeCount)
+              width: TopNavigationPillMetrics.width(for: item.index)
             )
           }
           .buttonStyle(.plain)
@@ -154,8 +136,7 @@ struct DesktopTopBar: View {
   private func memoryNavigationItem(_ item: TopNavigationItem) -> some View {
     let isSelected =
       selectedIndex == item.index && memoryDestination == .memories
-    let badgeCount = newCount(for: item)
-    let pillWidth = TopNavigationPillMetrics.width(for: item.index, badgeCount: badgeCount)
+    let pillWidth = TopNavigationPillMetrics.width(for: item.index)
     return Button {
       selectMemoryDestination(.memories)
     } label: {
@@ -165,7 +146,6 @@ struct DesktopTopBar: View {
           .frame(width: TopNavigationPillMetrics.iconWidth)
         Text(item.title)
           .scaledFont(size: OmiType.caption, weight: .semibold)
-        memoryBadge(count: badgeCount)
       }
       .foregroundStyle(
         isSelected || isMemoryButtonHovered
@@ -242,28 +222,6 @@ struct DesktopTopBar: View {
     memoryDropdownState.dismiss()
   }
 
-  @ViewBuilder
-  private func memoryBadge(count: Int) -> some View {
-    if count > 0 {
-      Text("+\(count)")
-        .scaledFont(size: OmiType.micro, weight: .bold)
-        .foregroundColor(OmiColors.textPrimary)
-        .padding(.horizontal, 5)
-        .padding(.vertical, 1)
-        .background(Capsule(style: .continuous).fill(OmiColors.textPrimary.opacity(0.16)))
-    }
-  }
-
-  /// New-item count to badge on a nav button (since Omi was last in front).
-  /// The Memory hub holds both memories and conversations, so its badge sums
-  /// them; Tasks badges new tasks. Home has no counter.
-  private func newCount(for item: TopNavigationItem) -> Int {
-    switch item.index {
-    case SidebarNavItem.conversations.rawValue: return newMemories + newConversations
-    case SidebarNavItem.tasks.rawValue: return newTasks
-    default: return 0
-    }
-  }
 }
 
 /// Keeps the persistent capture and settings controls visible while replacing
@@ -403,9 +361,7 @@ enum TopNavigationPillMetrics {
   static let horizontalPadding: CGFloat = 12
   static let height: CGFloat = 30
   static let iconWidth: CGFloat = 18
-  static let badgeWidth: CGFloat = 38
-
-  static func width(for itemIndex: Int, badgeCount: Int = 0) -> CGFloat {
+  static func width(for itemIndex: Int) -> CGFloat {
     let baseWidth: CGFloat
     switch itemIndex {
     case SidebarNavItem.dashboard.rawValue:
@@ -417,14 +373,13 @@ enum TopNavigationPillMetrics {
     default:
       baseWidth = 88
     }
-    return baseWidth + (badgeCount > 0 ? badgeWidth : 0)
+    return baseWidth
   }
 }
 
 private struct TopNavigationPill: View {
   let icon: String
   let title: String
-  let badgeCount: Int
   let isSelected: Bool
   let width: CGFloat
   @State private var isHovering = false
@@ -436,14 +391,6 @@ private struct TopNavigationPill: View {
         .frame(width: TopNavigationPillMetrics.iconWidth)
       Text(title)
         .scaledFont(size: OmiType.caption, weight: .semibold)
-      if badgeCount > 0 {
-        Text("+\(badgeCount)")
-          .scaledFont(size: OmiType.micro, weight: .bold)
-          .foregroundColor(OmiColors.textPrimary)
-          .padding(.horizontal, 5)
-          .padding(.vertical, 1)
-          .background(Capsule(style: .continuous).fill(OmiColors.textPrimary.opacity(0.16)))
-      }
     }
     .foregroundStyle(isSelected || isHovering ? OmiColors.textPrimary : OmiColors.textTertiary)
     .padding(.horizontal, TopNavigationPillMetrics.horizontalPadding)

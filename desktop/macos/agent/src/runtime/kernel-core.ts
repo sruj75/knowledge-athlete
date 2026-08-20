@@ -11,9 +11,7 @@ import { generateAgentId } from "./sqlite-store.js";
 import { AdapterRuntimeError, failureFromError, type RuntimeFailure } from "./failures.js";
 import {
   clearOwnerSurfaceState,
-  importLegacyMainChatSessions,
   resolveSurfaceSession,
-  type LegacyMainChatSessionEntry,
   type ResolveSurfaceSessionInput,
 } from "./surface-session.js";
 import {

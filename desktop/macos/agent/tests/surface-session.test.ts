@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { SqliteAgentStore } from "../src/runtime/sqlite-store.js";
 import { AgentRuntimeKernel } from "../src/runtime/kernel.js";
 import { AdapterRegistry } from "../src/runtime/adapter-registry.js";
-import { importLegacyMainChatSessions, resolveSurfaceSession } from "../src/runtime/surface-session.js";
+import { resolveSurfaceSession } from "../src/runtime/surface-session.js";
 import { listJournalTurns, recordJournalTurn } from "../src/runtime/conversation-journal.js";
 
 function newStore(): SqliteAgentStore {
@@ -206,127 +206,6 @@ describe("surface_conversations", () => {
     expect(store.allRows("SELECT * FROM surface_conversations")).toHaveLength(1);
   });
 
-  it("importLegacyMainChatSessions links surface when session already exists by external ref", () => {
-    const existing = store.insertSession({
-      ownerId: "owner-a",
-      surfaceKind: "main_chat",
-      externalRefKind: "chat",
-      externalRefId: "default",
-      defaultAdapterId: "test-adapter",
-    });
-
-    const imported = importLegacyMainChatSessions(
-      store,
-      {
-        ownerId: "owner-a",
-        entries: [{ chatId: "default", agentSessionId: "ses_legacy_other" }],
-      },
-      () => 1,
-    );
-    expect(imported).toEqual({
-      acceptedEntries: [{ chatId: "default", agentSessionId: "ses_legacy_other" }],
-      importedCount: 1,
-    });
-
-    const row = store.getRow(
-      `SELECT conversation_id, agent_session_id FROM surface_conversations
-       WHERE owner_id = ? AND external_ref_id = ?`,
-      ["owner-a", "default"],
-    );
-    expect(String(row.agent_session_id)).toBe(existing.sessionId);
-    expect(store.allRows("SELECT * FROM sessions")).toHaveLength(1);
-  });
-
-  it("imports legacy main-chat UserDefaults sessions once", () => {
-    const imported = importLegacyMainChatSessions(
-      store,
-      {
-        ownerId: "owner-a",
-        entries: [{ chatId: "default", agentSessionId: "ses_legacy_1" }],
-      },
-      () => 1,
-    );
-    expect(imported).toEqual({
-      acceptedEntries: [{ chatId: "default", agentSessionId: "ses_legacy_1" }],
-      importedCount: 1,
-    });
-
-    expect(importLegacyMainChatSessions(
-      store,
-      {
-        ownerId: "owner-a",
-        entries: [{ chatId: "default", agentSessionId: "ses_legacy_1" }],
-      },
-      () => 2,
-    )).toEqual({
-      acceptedEntries: [{ chatId: "default", agentSessionId: "ses_legacy_1" }],
-      importedCount: 0,
-    });
-
-    const resolved = resolveSurfaceSession(
-      store,
-      {
-        ownerId: "owner-a",
-        surfaceRef: {
-          surfaceKind: "main_chat",
-          externalRefKind: "chat",
-          externalRefId: "default",
-        },
-      },
-      () => 2,
-    );
-    expect(resolved.agentSessionId).toBe("ses_legacy_1");
-  });
-
-  it("rejects an invalid legacy alias batch atomically instead of acknowledging partial import", () => {
-    expect(() => importLegacyMainChatSessions(
-      store,
-      {
-        ownerId: "owner-a",
-        entries: [
-          { chatId: "default", agentSessionId: "ses_valid" },
-          { chatId: "other", agentSessionId: "   " },
-        ],
-      },
-      () => 1,
-    )).toThrow("invalid_legacy_main_chat_session_entry");
-    expect(store.allRows("SELECT * FROM surface_conversations")).toEqual([]);
-    expect(store.allRows("SELECT * FROM sessions")).toEqual([]);
-  });
-
-  it("canonicalizes an imported session onto the managed Pi profile", () => {
-    importLegacyMainChatSessions(
-      store,
-      {
-        ownerId: "owner-a",
-        entries: [{ chatId: "default", agentSessionId: "ses_legacy_1" }],
-      },
-      () => 1,
-    );
-
-    const resolved = resolveSurfaceSession(
-      store,
-      {
-        ownerId: "owner-a",
-        surfaceRef: {
-          surfaceKind: "main_chat",
-          externalRefKind: "chat",
-          externalRefId: "default",
-        },
-        defaultAdapterId: "pi-mono",
-      },
-      () => 2,
-    );
-
-    expect(resolved.agentSessionId).toBe("ses_legacy_1");
-    const session = store.getRow(
-      "SELECT default_adapter_id, provider_boundary FROM sessions WHERE session_id = ?",
-      [resolved.agentSessionId],
-    );
-    expect(String(session.default_adapter_id)).toBe("pi-mono");
-    expect(String(session.provider_boundary)).toBe("managed_cloud");
-  });
-
   it("does not rewrite a main-chat provider boundary after execution starts", () => {
     const resolved = resolveSurfaceSession(
       store,
@@ -370,25 +249,6 @@ describe("surface_conversations", () => {
     );
     expect(String(session.default_adapter_id)).toBe("test-adapter");
     expect(String(session.provider_boundary)).toBe("local_user:test-adapter");
-  });
-
-  it("imports legacy sessions with distinct conversationId from agentSessionId", () => {
-    importLegacyMainChatSessions(
-      store,
-      {
-        ownerId: "owner-a",
-        entries: [{ chatId: "default", agentSessionId: "ses_legacy_1" }],
-      },
-      () => 1,
-    );
-    const row = store.getRow(
-      `SELECT conversation_id, agent_session_id FROM surface_conversations
-       WHERE owner_id = ? AND external_ref_id = ?`,
-      ["owner-a", "default"],
-    );
-    expect(String(row.agent_session_id)).toBe("ses_legacy_1");
-    expect(String(row.conversation_id)).not.toBe("ses_legacy_1");
-    expect(String(row.conversation_id)).toMatch(/^conv_/);
   });
 
   it("owner B does not reuse owner A conversation for the same surface", () => {

@@ -13,7 +13,6 @@ class ViewModelContainer: ObservableObject {
 
   // ViewModels for each page
   let dashboardViewModel = DashboardViewModel()
-  let homeStatusStore = HomeStatusStore()
   let tasksViewModel = TasksViewModel()
   let memoriesViewModel = MemoriesViewModel()
   /// Brain-map graph — persistent so the SceneKit scene, force layout, and
@@ -101,10 +100,6 @@ class ViewModelContainer: ObservableObject {
     // DB-dependent loads are guarded — skip them if database init failed
     // to prevent a stampede of retries from each storage actor
     let dbAvailable = !databaseInitFailed
-    if dbAvailable {
-      await homeStatusStore.databaseDidBecomeReady()
-    }
-
     schedulePostInteractiveWarmup(dbAvailable: dbAvailable)
     isLoading = false
 
@@ -135,7 +130,6 @@ class ViewModelContainer: ObservableObject {
     warmupCoordinator.reset()
     tasksStore.resetSessionState()
     dashboardViewModel.resetSessionState()
-    homeStatusStore.resetSessionState()
     memoriesViewModel.resetSessionState()
     isInitialLoadComplete = false
     isLoading = false
@@ -152,7 +146,6 @@ class ViewModelContainer: ObservableObject {
     do {
       try await RewindDatabase.shared.initialize()
       databaseInitFailed = false
-      await homeStatusStore.databaseDidBecomeReady()
       warmupCoordinator.markDatabaseRetryComplete()
       TranscriptionRetryService.shared.resumeAfterDatabaseRecovery()
       log("ViewModelContainer: Database retry succeeded, scheduling staged startup warmup")

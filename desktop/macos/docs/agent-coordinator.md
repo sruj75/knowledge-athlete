@@ -44,5 +44,4 @@ Temporary shims from the platonic refactor are scheduled for deletion **two desk
 
 | Shim | Site | Delete in |
 |------|------|-----------|
-| `import_legacy_main_chat_sessions` | `agent/src/runtime/surface-session.ts`, `agent/src/index.ts`, `AgentRuntimeProcess.swift` | ship+2 releases |
 | sqlite `legacy_client_scope` / `legacy_session_key` columns | `agent/src/runtime/sqlite-store.ts` | ship+2 releases |

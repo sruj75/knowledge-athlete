@@ -352,10 +352,10 @@ describe("JsonlTransport kernel-owned query contract", () => {
       "SELECT status, content FROM conversation_turns WHERE turn_id = ?",
       ["turn-query-cancel"],
     )).toEqual({ status: "failed", content: "Working before cancel" });
-    expect(store.getRow(
-      "SELECT status, last_error_code FROM backend_turn_outbox WHERE turn_id = ?",
+    expect(JSON.parse(String(store.getRow(
+      "SELECT metadata_json FROM conversation_turns WHERE turn_id = ?",
       ["turn-query-cancel"],
-    )).toEqual({ status: "failed", last_error_code: "discarded_terminal_projection" });
+    ).metadata_json))).toMatchObject({ terminalMarker: "discarded_terminal" });
 
     adapter.resolveDeferred({ terminalStatus: "succeeded", text: "late result must not resurrect" });
     await running;
@@ -519,11 +519,7 @@ describe("JsonlTransport kernel-owned query contract", () => {
     expect(JSON.parse(String(store.getRow(
       "SELECT metadata_json FROM conversation_turns WHERE turn_id = ?",
       ["turn-post-bind-failure"],
-    ).metadata_json))).toMatchObject({ terminalMarker: "discarded_terminal_projection" });
-    expect(store.getRow(
-      "SELECT status, last_error_code FROM backend_turn_outbox WHERE turn_id = ?",
-      ["turn-post-bind-failure"],
-    )).toEqual({ status: "failed", last_error_code: "discarded_terminal_projection" });
+    ).metadata_json))).toMatchObject({ terminalMarker: "discarded_terminal" });
     expect(sent.findLast((message) => message.type === "error")).toMatchObject({
       type: "error",
       failure: { code: "runtime_query_failed" },

@@ -218,7 +218,6 @@ describe("durable agent-spawn producer journal", () => {
     await waitUntil(() => String(store.getRow(
       "SELECT content_blocks_json FROM conversation_turns WHERE role = 'assistant'",
     ).content_blocks_json).includes("agentCompletion"));
-    store.execute("DELETE FROM backend_turn_outbox");
     store.execute("DELETE FROM conversation_turn_revisions");
     store.execute("DELETE FROM conversation_turns");
     expect(store.getRow("SELECT COUNT(*) AS count FROM conversation_turns").count).toBe(0);

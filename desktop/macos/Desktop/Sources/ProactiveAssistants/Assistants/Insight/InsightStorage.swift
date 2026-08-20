@@ -85,7 +85,9 @@ class InsightStorage: ObservableObject {
   private init() {
     NotificationCenter.default.publisher(for: .runtimeOwnerDidChange)
       .sink { [weak self] _ in
-        Task { @MainActor in self?.resetForCurrentOwner() }
+        MainActor.assumeIsolated {
+          self?.resetForCurrentOwner()
+        }
       }
       .store(in: &cancellables)
     // Load from local cache first for immediate display

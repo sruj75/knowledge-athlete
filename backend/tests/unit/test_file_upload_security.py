@@ -6,8 +6,8 @@ Covers: BasedHardware/omi#6804
 - Path traversal: directory components stripped from filename
 - Cleanup: temp files removed even on upload failure
 
-These tests verify the security logic extracted from the endpoints in
-backend/routers/chat.py (both /v1/files and /v2/files handlers).
+These tests verify the security logic extracted from the retained `/v1/files`
+handler in backend/routers/chat.py.
 """
 
 import tempfile

@@ -1,5 +1,6 @@
 import Combine
 import CoreGraphics
+import CryptoKit
 @preconcurrency import GRDB
 import OmiSupport
 import SwiftUI
@@ -22,58 +23,26 @@ private final class ChatToolTimingState: @unchecked Sendable {
   var toolStartTimes: [String: Date] = [:]
 }
 
-struct ChatLegacyCompatibilityMetadata: Equatable {
-  static let owner = "desktop-main-chat"
-  static let removalCondition =
-    "all supported desktop versions have checkpointed backend chat history into the kernel journal"
-  static let removeBy = "2026-10-01"
-  static let pageSize = 100
-}
+struct LocalChatSelectionStore {
+  private let defaults: UserDefaults
 
-enum ChatLegacyPageCollector {
-  static func all<Element>(
-    fetchPage: @Sendable (_ limit: Int, _ offset: Int) async throws -> [Element]
-  ) async throws -> [Element] {
-    var rows: [Element] = []
-    var offset = 0
-    while true {
-      let page = try await fetchPage(ChatLegacyCompatibilityMetadata.pageSize, offset)
-      rows.append(contentsOf: page)
-      offset += page.count
-      if page.count < ChatLegacyCompatibilityMetadata.pageSize { return rows }
-    }
-  }
-}
-
-enum ChatLegacyImportChronology {
-  struct Entry<Row> {
-    let row: Row
-    let createdAtMs: Int
+  init(defaults: UserDefaults = .standard) {
+    self.defaults = defaults
   }
 
-  /// Converts a backend page into a strict immutable chronology before the
-  /// rows cross the one-at-a-time runtime import protocol.
-  static func plan<Row>(
-    _ rows: [Row],
-    createdAt: (Row) -> Date,
-    role: (Row) -> String
-  ) -> [Entry<Row>] {
-    let ordered = rows.enumerated().sorted { lhs, rhs in
-      let lhsDate = createdAt(lhs.element)
-      let rhsDate = createdAt(rhs.element)
-      if lhsDate != rhsDate { return lhsDate < rhsDate }
-      let lhsRank = role(lhs.element) == "human" ? 0 : 1
-      let rhsRank = role(rhs.element) == "human" ? 0 : 1
-      if lhsRank != rhsRank { return lhsRank < rhsRank }
-      return lhs.offset < rhs.offset
-    }
-    var previousCreatedAtMs: Int?
-    return ordered.map { item in
-      let raw = Int(createdAt(item.element).timeIntervalSince1970 * 1_000)
-      let normalized = max(raw, (previousCreatedAtMs ?? (raw - 1)) + 1)
-      previousCreatedAtMs = normalized
-      return Entry(row: item.element, createdAtMs: normalized)
-    }
+  func selectedChatID(ownerID: String) -> String {
+    defaults.string(forKey: key(ownerID: ownerID)) ?? "default"
+  }
+
+  func setSelectedChatID(_ chatID: String, ownerID: String) {
+    defaults.set(chatID, forKey: key(ownerID: ownerID))
+  }
+
+  private func key(ownerID: String) -> String {
+    let ownerHash = SHA256.hash(data: Data(ownerID.utf8))
+      .map { String(format: "%02x", $0) }
+      .joined()
+    return "omi.chat.selected.v1.\(ownerHash)"
   }
 }
 
@@ -770,15 +739,13 @@ struct MessageMetadata {
 
 /// A single chat message
 struct ChatMessage: Identifiable {
-  var id: String  // Mutable to sync with server-generated ID
+  var id: String  // Mutable while a provisional UI turn becomes a durable journal turn.
   let clientTurnId: String?
   var text: String
   let createdAt: Date
   let sender: ChatSender
   var isStreaming: Bool
-  /// Rating: 1 = thumbs up, -1 = thumbs down, nil = no rating
-  var rating: Int?
-  /// Whether the message has been synced with the backend (has valid server ID)
+  /// Whether the message has been accepted by the local journal authority.
   var isSynced: Bool
   /// Citations extracted from the AI response
   var citations: [Citation]
@@ -808,7 +775,7 @@ struct ChatMessage: Identifiable {
 
   init(
     id: String = UUID().uuidString, clientTurnId: String? = nil, text: String, createdAt: Date = Date(),
-    sender: ChatSender, isStreaming: Bool = false, rating: Int? = nil, isSynced: Bool = false,
+    sender: ChatSender, isStreaming: Bool = false, isSynced: Bool = false,
     citations: [Citation] = [], contentBlocks: [ChatContentBlock] = [], metadata: MessageMetadata? = nil,
     notificationContext: String? = nil, notificationScreenshot: Data? = nil, attachments: [ChatAttachment] = [],
     resources: [ChatResource] = [], turnOwner: ChatTurnOwner? = nil, journalStatus: KernelJournalTurnStatus? = nil
@@ -820,7 +787,6 @@ struct ChatMessage: Identifiable {
     self.createdAt = createdAt
     self.sender = sender
     self.isStreaming = isStreaming
-    self.rating = rating
     self.isSynced = isSynced
     self.citations = citations
     self.contentBlocks = contentBlocks
@@ -900,51 +866,6 @@ enum ChatTurnOwner: Equatable {
   }
 }
 
-extension ChatMessage {
-  /// Convert a backend message to a local ChatMessage
-  init(from db: ChatMessageDB) {
-    let resources = ChatResource.decodeResourcesFromMessageMetadata(db.metadata)
-    let contentBlocks = ChatContentBlockCodec.decodeFromMessageMetadata(db.metadata)
-    self.init(
-      id: db.id,
-      text: db.text,
-      createdAt: db.createdAt,
-      sender: db.sender == "human" ? .user : .ai,
-      isStreaming: false,
-      rating: db.rating,
-      isSynced: true,
-      contentBlocks: contentBlocks,
-      attachments: ChatMessage.decodeAttachments(from: db.metadata),
-      resources: resources
-    )
-  }
-
-  /// Parse the `attachments` array from a message's persisted metadata JSON.
-  /// Format (mirrors `MessageMetadata.attachmentsJSON()` on send):
-  ///   `{ "attachments": [ { "id": "...", "name": "...", "mime_type": "...", "thumbnail": "..." } ] }`
-  static func decodeAttachments(from metadataJSON: String?) -> [ChatAttachment] {
-    guard let json = metadataJSON, let data = json.data(using: .utf8),
-      let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-      let raw = root["attachments"] as? [[String: Any]]
-    else { return [] }
-    return raw.compactMap { item -> ChatAttachment? in
-      guard let id = item["id"] as? String else { return nil }
-      let name = (item["name"] as? String) ?? "file"
-      let mime = (item["mime_type"] as? String) ?? "application/octet-stream"
-      let thumb = item["thumbnail"] as? String
-      return ChatAttachment(
-        id: id,
-        fileName: name,
-        mimeType: mime,
-        data: nil,
-        serverId: id,
-        thumbnailURL: thumb,
-        state: .uploaded
-      )
-    }
-  }
-}
-
 // MARK: - Citation Model
 
 /// A citation referencing a source conversation or memory
@@ -990,13 +911,38 @@ struct ChatProviderAgentQueryInvocation {
   let reasoningEffort: String?
 }
 
-/// State management for managed Omi chat.
-/// Uses hybrid architecture: Swift → Claude Agent (via Node.js bridge) for AI, Backend for persistence + context
+/// State management for local-authoritative managed Omi chat.
+/// Swift presents the shared timeline while the Node runtime owns accepted turns and catalog metadata.
 @MainActor
 class ChatProvider: ObservableObject {
 
   nonisolated static func shouldInterruptTimedOutAgentQuery(queryStarted: Bool) -> Bool {
     queryStarted
+  }
+
+  nonisolated static func hasCompletedRealExchange(_ messages: [ChatMessage]) -> Bool {
+    firstCompletedRealExchange(messages) != nil
+  }
+
+  nonisolated static func firstCompletedRealExchange(
+    _ messages: [ChatMessage]
+  ) -> (userText: String, assistantText: String)? {
+    var sawCompletedUser = false
+    var userText = ""
+    for message in messages {
+      if message.sender == .user, message.journalStatus == .completed,
+        !message.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      {
+        sawCompletedUser = true
+        userText = message.text
+      } else if sawCompletedUser, message.sender == .ai,
+        message.journalStatus == .completed,
+        !message.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      {
+        return (userText, message.text)
+      }
+    }
+    return nil
   }
 
   /// Weak reference to the app-root main-window instance (set by
@@ -1025,12 +971,19 @@ class ChatProvider: ObservableObject {
   @Published var draftText = "" {
     didSet {
       guard !isRestoringDraft else { return }
-      draftRevision &+= 1
+      draftRevisions[activeDraftKey, default: 0] &+= 1
       ChatDraftStore.shared.setText(draftText, for: activeDraftKey)
     }
   }
-  /// Files staged for attachment to the next message. Cleared when the message is sent.
-  @Published var pendingAttachments: [ChatAttachment] = []
+  /// Files staged for attachment to the next message. Each chat keeps an
+  /// independent in-memory staging list, just like its persisted draft text.
+  @Published var pendingAttachments: [ChatAttachment] = [] {
+    didSet {
+      guard !isRestoringPendingAttachments else { return }
+      pendingAttachmentsByDraftKey[activeDraftKey] = pendingAttachments
+      ChatDraftStore.shared.setAttachments(pendingAttachments, for: activeDraftKey)
+    }
+  }
   @Published var messages: [ChatMessage] = []
   @Published var sessions: [ChatSession] = []
   @Published var currentSession: ChatSession? {
@@ -1038,6 +991,7 @@ class ChatProvider: ObservableObject {
   }
   @Published var isLoading = false
   @Published var isLoadingSessions = true  // Start true since we load sessions on init
+  @Published private(set) var isCreatingSession = false
   @Published var isSending = false
   @Published var isStopping = false
   @Published private(set) var activeTurnOwner: ChatTurnOwner?
@@ -1087,6 +1041,21 @@ class ChatProvider: ObservableObject {
   /// matches — so a watchdog fired by a stuck send #N won't cancel a
   /// later, healthy send #N+1. See sendMessage() and stopAgent().
   private var sendGeneration: Int = 0
+  /// Catalog list requests can overlap user mutations while they are suspended
+  /// on the local runtime. Never let an older snapshot replace a receipt that
+  /// has already been applied to the visible catalog.
+  private var catalogMutationGeneration: UInt64 = 0
+  private var catalogFetchGeneration: UInt64 = 0
+  private var catalogOwnerGeneration: UInt64 = 0
+  /// Last-intent-wins lease for chat selection. Journal reloads can suspend,
+  /// so an older selection must not persist or roll back over a newer one.
+  private var chatSelectionGeneration: UInt64 = 0
+
+  private struct CatalogOwnerLease {
+    let ownerID: String?
+    let ownerGeneration: UInt64
+    let authorization: RuntimeOwnerAuthorizationSnapshot?
+  }
   private var sendLockOwnership = ChatSendLockOwnership()
   private var activeBridgeSendGeneration: Int?
   private var activeChatTelemetryAttempt: (generation: Int, attempt: ChatQueryTelemetryAttempt)?
@@ -1127,7 +1096,7 @@ class ChatProvider: ObservableObject {
 
   private var activeDraftKey = ChatDraftKey.mainChat(contextID: "default")
   private var isRestoringDraft = false
-  private var draftRevision: UInt64 = 0
+  private var draftRevisions: [ChatDraftKey: UInt64] = [:]
 
   /// Multi-chat mode setting - when false, only default chat is shown (syncs with Flutter)
   /// When true, user can create multiple chat sessions
@@ -1137,7 +1106,16 @@ class ChatProvider: ObservableObject {
   private var agentClient: AgentClient.Session?
 
   #if DEBUG
-    var createChatSessionForTests: ((String?) async throws -> ChatSession)?
+    var listChatCatalogForTests: (() async throws -> [LocalChatSummary])?
+    var createChatCatalogForTests: ((String, String?) async throws -> LocalChatSummary)?
+    var updateChatCatalogForTests:
+      ((String, String?, LocalChatTitleOrigin?, LocalChatTitleOrigin?, Bool?) async throws -> LocalChatSummary)?
+    var deleteChatCatalogForTests: ((String) async throws -> Set<String>)?
+    var clearChatJournalForTests: ((String) async -> Bool)?
+    var reloadChatJournalForTests: ((AgentSurfaceReference) async -> Bool)?
+    var beginRealtimeChatClearForTests: ((AgentSurfaceReference) -> Bool)?
+    var endRealtimeChatClearForTests: ((AgentSurfaceReference) -> Void)?
+    var garbageCollectChatAttachmentsForTests: ((String, Set<String>) async throws -> Void)?
     var runtimeOwnerIdForTests: (() -> String?)?
     var ensureBridgeStartedForTests: ((Int?) async -> Bool)?
     var resolveKernelQuerySessionForTests: ((AgentSurfaceReference, String?) async throws -> AgentSurfaceSession)?
@@ -1145,11 +1123,18 @@ class ChatProvider: ObservableObject {
       ((AgentSurfaceReference, AgentSurfaceSession?) async throws -> (AgentSurfaceSession, AgentContextSnapshot))?
     var warmupKernelQuerySessionForTests: ((AgentSurfaceSession) async -> Void)?
     var refreshMemoriesForPromptForTests: (() async -> Void)?
-    var recordStreamingJournalExchangeForTests: ((ChatMessage, ChatMessage) -> [ChatMessage]?)?
-    var initialMessageForTests: ((String, String) async throws -> InitialMessageResponse)?
-    var importInitialGreetingForTests: ((AgentSurfaceReference, KernelJournalRemoteTurn, String) async -> Bool)?
-    var refreshInitialGreetingForTests: ((AgentSurfaceReference) async -> Void)?
+    var loadGoalsForTests: (() async throws -> [LocalGoal])?
+    var loadTasksForTests: (() async throws -> [TaskActionItem])?
+    var loadAIProfileForTests: (() async -> String?)?
+    var recordStreamingJournalExchangeForTests: ((ChatMessage, ChatMessage) async -> [ChatMessage]?)?
+    var initialMessageForTests: ((String, [String], String) async throws -> InitialMessageResponse)?
+    var recordInitialGreetingForTests: ((AgentSurfaceReference, ChatMessage, String) async -> Bool)?
+    var generateTitleForTests: ((String, String, String) async throws -> GenerateTitleResponse)?
     var agentClientForTests: AgentClient.Session?
+
+    func setActiveSendChatIDForTests(_ chatID: String?) {
+      activeSendChatID = chatID
+    }
   #endif
 
   private func resolvedAgentClient() -> AgentClient.Session {
@@ -1179,33 +1164,8 @@ class ChatProvider: ObservableObject {
   private var agentBridgeStarted = false
   private let bridgeReadinessSingleFlight =
     AgentRuntimeStartupSingleFlight<RuntimeOwnerAuthorizationSnapshot, Bool>()
-  var isUsingOmiAccountProvider: Bool {
-    true
-  }
-
-  /// The legacy "$50 lifetime Omi AI spend" upgrade nudge (`showOmiThresholdAlert`)
-  /// must never fire for users who already pay because they aren't capped by
-  /// the free Omi quota. `omiAICumulativeCostUsd` is seeded from the
-  /// backend *lifetime* total, so without this guard any heavy paying user (e.g. on
-  /// Operator/Architect) trips $50 and gets a bogus "Upgrade Required" alert even
-  /// while well within their plan. The authoritative free-tier block is the
-  /// server-side quota in `FloatingBarUsageLimiter`; this is just a soft nudge.
-  var isExemptFromOmiUpgradeNudge: Bool {
-    FloatingBarUsageLimiter.shared.hasPaidPlan
-  }
-
-  /// Cumulative tokens used in the current session via Omi account
-  @Published var sessionTokensUsed: Int = 0
-  /// Cumulative USD cost spent using the Omi account, persisted across sessions.
-  /// Used to enforce the $50 threshold for auto-switching to the user's Claude account.
-  @AppStorage("omiAICumulativeCostUsd") var omiAICumulativeCostUsd: Double = 0.0
-  /// Set to true when the $50 Omi account usage threshold is reached, triggering an alert.
-  @Published var showOmiThresholdAlert = false
-
   private let messagesPageSize = 50
-  /// Raw server records consumed by history pagination (the backend pages newest-first).
-  /// Kept separate from messages.count: deduped pages and live messages merged by
-  /// polling would otherwise stall or skew the offset.
+  /// Visible journal offset used while refreshing older local turns.
   private var messagesPaginationOffset = 0
 
   /// Reset history-pagination state. Must accompany every clear/replace of
@@ -1230,22 +1190,45 @@ class ChatProvider: ObservableObject {
   /// the published messages array in batches, reducing SwiftUI re-render frequency.
   private let streamingBuffer = ChatStreamingBuffer(flushInterval: 0.035)
 
+  private struct PendingAttachmentScope {
+    let ownerID: String
+    let chatID: String
+  }
+
+  private var pendingAttachmentsByDraftKey: [ChatDraftKey: [ChatAttachment]] = [:]
+  private var pendingAttachmentScopes: [String: PendingAttachmentScope] = [:]
+  private var attachmentsAwaitingJournalAdmission: Set<String> = []
+  private var isRestoringPendingAttachments = false
+  private let chatSelectionStore = LocalChatSelectionStore()
+  private var pendingCreateChatID: String?
+  private var activeSendChatID: String?
+  private var activeRealtimeChatClearSurface: AgentSurfaceReference?
+  private var activeHarnessClearTransactionID: UUID?
+
+  struct AuthorizedHarnessClearTransaction {
+    fileprivate let id: UUID
+    let surface: AgentSurfaceReference
+  }
+
+  private struct ChatSelectionRollbackState {
+    let session: ChatSession?
+    let wasDefault: Bool
+    let messages: [ChatMessage]
+    let paginationOffset: Int
+    let hasMoreMessages: Bool
+  }
+
+  /// The last committed projection, retained while last-intent-wins selection
+  /// requests overlap. A later failed request must never roll back to an older
+  /// request's provisional session identity.
+  private var chatSelectionRollbackState: ChatSelectionRollbackState?
+
   // MARK: - Filtered Sessions
   var filteredSessions: [ChatSession] {
-    // Filter out "empty" sessions (only AI greeting, no user messages)
-    // These have messageCount <= 1 and default "New Chat" title
-    // Always keep the currently selected session visible
-    let nonEmptySessions = sessions.filter { session in
-      // Always show the current session (so user can continue working)
-      if session.id == currentSession?.id { return true }
-      // Keep sessions that have user messages (more than just AI greeting)
-      // or have been renamed (user intentionally kept them)
-      return session.messageCount > 1 || session.title != "New Chat"
-    }
-
-    guard !searchQuery.isEmpty else { return nonEmptySessions }
+    let starredSessions = showStarredOnly ? sessions.filter(\.starred) : sessions
+    guard !searchQuery.isEmpty else { return starredSessions }
     let query = searchQuery.lowercased()
-    return nonEmptySessions.filter { session in
+    return starredSessions.filter { session in
       session.title.lowercased().contains(query) || (session.preview?.lowercased().contains(query) ?? false)
     }
   }
@@ -1279,6 +1262,11 @@ class ChatProvider: ObservableObject {
     isRestoringDraft = true
     draftText = ChatDraftStore.shared.text(for: activeDraftKey)
     isRestoringDraft = false
+    isRestoringPendingAttachments = true
+    pendingAttachments = ChatDraftStore.shared.attachments(for: activeDraftKey)
+    pendingAttachmentsByDraftKey[activeDraftKey] = pendingAttachments
+    isRestoringPendingAttachments = false
+    restorePendingAttachmentScopes(pendingAttachments, for: activeDraftKey)
     log("ChatProvider initialized, will start managed Pi on first use")
 
     // Observe changes to multiChatEnabled setting
@@ -1355,9 +1343,9 @@ class ChatProvider: ObservableObject {
       }
 
     // Keep groupedSessions in sync — runs off the hot path so SwiftUI body never recomputes it
-    sessionGroupingObserver = Publishers.CombineLatest3($sessions, $searchQuery, $currentSession)
+    sessionGroupingObserver = Publishers.CombineLatest4($sessions, $searchQuery, $currentSession, $showStarredOnly)
       .receive(on: RunLoop.main)
-      .sink { [weak self] _, _, _ in
+      .sink { [weak self] _, _, _, _ in
         guard let self else { return }
         self.groupedSessions = self.computeGroupedSessions()
       }
@@ -1393,13 +1381,38 @@ class ChatProvider: ObservableObject {
     isRestoringDraft = true
     draftText = ChatDraftStore.shared.text(for: nextKey)
     isRestoringDraft = false
+    isRestoringPendingAttachments = true
+    let restoredAttachments =
+      pendingAttachmentsByDraftKey[nextKey]
+      ?? ChatDraftStore.shared.attachments(for: nextKey)
+    pendingAttachmentsByDraftKey[nextKey] = restoredAttachments
+    pendingAttachments = restoredAttachments
+    isRestoringPendingAttachments = false
+    restorePendingAttachmentScopes(restoredAttachments, for: nextKey)
+  }
+
+  private func restorePendingAttachmentScopes(
+    _ attachments: [ChatAttachment],
+    for key: ChatDraftKey
+  ) {
+    guard key.scope == "main_chat", let ownerID = runtimeOwnerId else { return }
+    for attachment in attachments {
+      pendingAttachmentScopes[attachment.id] = PendingAttachmentScope(
+        ownerID: ownerID,
+        chatID: key.contextID
+      )
+    }
   }
 
   private func resetDraftAfterSignOut() {
     activeDraftKey = .mainChat(contextID: "default")
+    chatSelectionRollbackState = nil
     isRestoringDraft = true
     draftText = ""
     isRestoringDraft = false
+    isRestoringPendingAttachments = true
+    pendingAttachments = []
+    isRestoringPendingAttachments = false
   }
 
   /// Pre-start the active bridge so the first query doesn't wait for process launch
@@ -1504,6 +1517,14 @@ class ChatProvider: ObservableObject {
   }
 
   private func resetSessionStateForAuthChange() {
+    // These files are owned by the outgoing account's persisted drafts, not by
+    // this in-memory projection. Clearing the projection must not destroy bytes
+    // that need to rehydrate if the user switches back to that account.
+    catalogOwnerGeneration &+= 1
+    catalogMutationGeneration &+= 1
+    catalogFetchGeneration &+= 1
+    chatSelectionGeneration &+= 1
+    isLoadingSessions = false
     kernelTurnProjection.invalidateOwnerState()
     journalWriteCoordinator.cancelAll()
     journalOwnerByMessageID.removeAll()
@@ -1516,9 +1537,40 @@ class ChatProvider: ObservableObject {
     lastFailedPrompt = nil
     messages.removeAll()
     resetMessagesPagination()
+    isRestoringPendingAttachments = true
     pendingAttachments.removeAll()
+    isRestoringPendingAttachments = false
+    pendingAttachmentsByDraftKey.removeAll()
+    pendingAttachmentScopes.removeAll()
+    draftRevisions.removeAll()
+    pendingCreateChatID = nil
+    if let activeRealtimeChatClearSurface {
+      endRealtimeChatClear(surface: activeRealtimeChatClearSurface)
+      self.activeRealtimeChatClearSurface = nil
+    }
+    activeHarnessClearTransactionID = nil
+    isCreatingSession = false
+    isClearing = false
     sessions.removeAll()
     currentSession = nil
+    isInDefaultChat = true
+    isLoading = false
+    isLoadingMoreMessages = false
+    deletingSessionIds.removeAll()
+    activeDraftKey = .mainChat(contextID: "default")
+    chatSelectionRollbackState = nil
+    let hasCurrentOwner = runtimeOwnerId != nil
+    isRestoringDraft = true
+    draftText = hasCurrentOwner ? ChatDraftStore.shared.text(for: activeDraftKey) : ""
+    isRestoringDraft = false
+    let restoredAttachments =
+      hasCurrentOwner
+      ? ChatDraftStore.shared.attachments(for: activeDraftKey) : []
+    pendingAttachmentsByDraftKey[activeDraftKey] = restoredAttachments
+    isRestoringPendingAttachments = true
+    pendingAttachments = restoredAttachments
+    isRestoringPendingAttachments = false
+    restorePendingAttachmentScopes(restoredAttachments, for: activeDraftKey)
     cachedMemories = []
     memoriesLoaded = false
     cachedGoals = []
@@ -1538,6 +1590,108 @@ class ChatProvider: ObservableObject {
       }
     #endif
     return RuntimeOwnerIdentity.currentOwnerId()
+  }
+
+  private func captureCatalogOwnerLease() -> CatalogOwnerLease {
+    CatalogOwnerLease(
+      ownerID: runtimeOwnerId,
+      ownerGeneration: catalogOwnerGeneration,
+      authorization: RuntimeOwnerIdentity.captureAuthorizationSnapshot()
+    )
+  }
+
+  private func isCatalogOwnerLeaseCurrent(_ lease: CatalogOwnerLease) -> Bool {
+    guard lease.ownerGeneration == catalogOwnerGeneration,
+      lease.ownerID == runtimeOwnerId
+    else { return false }
+    guard let authorization = lease.authorization else { return true }
+    return RuntimeOwnerIdentity.isAuthorizationCurrent(authorization)
+  }
+
+  private func isChatSelectionLeaseCurrent(
+    _ generation: UInt64,
+    ownerLease: CatalogOwnerLease
+  ) -> Bool {
+    generation == chatSelectionGeneration && isCatalogOwnerLeaseCurrent(ownerLease)
+  }
+
+  private func reloadChatJournal(surface: AgentSurfaceReference) async -> Bool {
+    #if DEBUG
+      if let reloadChatJournalForTests { return await reloadChatJournalForTests(surface) }
+    #endif
+    return await kernelTurnProjection.reload(surface: surface)
+  }
+
+  private func beginRealtimeChatClear(surface: AgentSurfaceReference) -> Bool {
+    #if DEBUG
+      if let beginRealtimeChatClearForTests { return beginRealtimeChatClearForTests(surface) }
+    #endif
+    return RealtimeHubController.shared.beginChatClearBarrier(surface: surface)
+  }
+
+  private func endRealtimeChatClear(surface: AgentSurfaceReference) {
+    #if DEBUG
+      if let endRealtimeChatClearForTests {
+        endRealtimeChatClearForTests(surface)
+        return
+      }
+    #endif
+    RealtimeHubController.shared.endChatClearBarrier(surface: surface)
+  }
+
+  /// Acquires the same typed-send, catalog-mutation, and realtime persistence
+  /// exclusion boundary used by the product Clear action. Harness resets must
+  /// hold this before touching the authoritative journal so an admitted turn
+  /// cannot repopulate the chat after the reset returns.
+  func beginAuthorizedHarnessClearTransaction(
+    surface: AgentSurfaceReference
+  ) -> (transaction: AuthorizedHarnessClearTransaction?, error: String?) {
+    guard !isClearing else { return (nil, "chat clear already in progress") }
+    guard !isCreatingSession else { return (nil, "new chat creation is in progress") }
+    guard !isLoading else { return (nil, "chat loading is in progress") }
+    guard deletingSessionIds.isEmpty else { return (nil, "chat deletion is in progress") }
+    guard activeSendChatID == nil else { return (nil, "chat response is in progress") }
+    guard beginRealtimeChatClear(surface: surface) else { return (nil, "voice turn is in progress") }
+    let transaction = AuthorizedHarnessClearTransaction(id: UUID(), surface: surface)
+    activeHarnessClearTransactionID = transaction.id
+    activeRealtimeChatClearSurface = surface
+    chatSelectionGeneration &+= 1
+    isClearing = true
+    return (transaction, nil)
+  }
+
+  func endAuthorizedHarnessClearTransaction(_ transaction: AuthorizedHarnessClearTransaction) {
+    guard activeHarnessClearTransactionID == transaction.id,
+      activeRealtimeChatClearSurface == transaction.surface
+    else { return }
+    endRealtimeChatClear(surface: transaction.surface)
+    activeHarnessClearTransactionID = nil
+    activeRealtimeChatClearSurface = nil
+    isClearing = false
+  }
+
+  func isAuthorizedHarnessClearTransactionCurrent(
+    _ transaction: AuthorizedHarnessClearTransaction
+  ) -> Bool {
+    activeHarnessClearTransactionID == transaction.id
+      && activeRealtimeChatClearSurface == transaction.surface
+      && isClearing
+  }
+
+  private func garbageCollectChatAttachments(
+    ownerID: String,
+    retaining retainedAttachmentURIs: Set<String>
+  ) async throws {
+    #if DEBUG
+      if let garbageCollectChatAttachmentsForTests {
+        try await garbageCollectChatAttachmentsForTests(ownerID, retainedAttachmentURIs)
+        return
+      }
+    #endif
+    try await LocalChatAttachmentStore.shared.garbageCollect(
+      ownerID: ownerID,
+      retaining: retainedAttachmentURIs
+    )
   }
 
   func mainChatRuntimeChatId(sessionId: String?) -> String {
@@ -1709,8 +1863,9 @@ class ChatProvider: ObservableObject {
   func prepareRealtimeVoiceContextSnapshot() async throws -> KernelVoiceContextSnapshot {
     guard await ensureBridgeStartedForKernel() else { return .empty }
     do {
+      let surface = realtimeVoiceSurfaceReference()
       let context = try await prepareKernelQueryContext(
-        surface: realtimeVoiceSurfaceReference(),
+        surface: surface,
         systemPromptStyle: .floating,
         systemPromptPrefix: nil,
         systemPromptSuffix: nil,
@@ -1720,7 +1875,8 @@ class ChatProvider: ObservableObject {
       )
       return KernelTurnProjection.voiceContextSnapshot(
         from: context.snapshot,
-        sessionId: context.session.sessionId
+        sessionId: context.session.sessionId,
+        surface: surface
       )
     } catch is CancellationError {
       // Cancellation is caller-owned. A speculative key-down prefetch may
@@ -1736,13 +1892,11 @@ class ChatProvider: ObservableObject {
   private static func queryAttachments(_ attachments: [ChatAttachment]) -> [AgentQueryAttachment] {
     attachments.map { attachment in
       AgentQueryAttachment(
-        attachmentId: attachment.serverId ?? attachment.id,
+        attachmentId: attachment.id,
         displayName: attachment.fileName,
         mimeType: attachment.mimeType,
         sizeBytes: attachment.data?.count,
         uri: attachment.localFileURL?.absoluteString
-          ?? attachment.thumbnailURL
-          ?? attachment.serverId.map { "omi-file:\($0)" }
       )
     }
   }
@@ -1787,45 +1941,176 @@ class ChatProvider: ObservableObject {
 
   // MARK: - Session Management
 
-  /// Fetch all chat sessions for the current app (retries up to 3 times on failure)
+  private func listLocalChatCatalog() async throws -> LocalChatCatalogSnapshot {
+    #if DEBUG
+      if let listChatCatalogForTests {
+        return LocalChatCatalogSnapshot(
+          chats: try await listChatCatalogForTests(),
+          retainedAttachmentURIs: []
+        )
+      }
+    #endif
+    return try await resolvedAgentClient().listChatCatalog()
+  }
+
+  private func createLocalChatCatalog(chatID: String, title: String?) async throws -> LocalChatSummary {
+    #if DEBUG
+      if let createChatCatalogForTests { return try await createChatCatalogForTests(chatID, title) }
+    #endif
+    return try await resolvedAgentClient().createChatCatalog(chatID: chatID, title: title)
+  }
+
+  private func updateLocalChatCatalog(
+    chatID: String,
+    title: String? = nil,
+    titleOrigin: LocalChatTitleOrigin? = nil,
+    expectedTitleOrigin: LocalChatTitleOrigin? = nil,
+    starred: Bool? = nil
+  ) async throws -> LocalChatSummary {
+    let ownerLease = captureCatalogOwnerLease()
+    let updated: LocalChatSummary
+    #if DEBUG
+      if let updateChatCatalogForTests {
+        updated = try await updateChatCatalogForTests(
+          chatID, title, titleOrigin, expectedTitleOrigin, starred)
+      } else {
+        updated = try await resolvedAgentClient().updateChatCatalog(
+          chatID: chatID,
+          title: title,
+          titleOrigin: titleOrigin,
+          expectedTitleOrigin: expectedTitleOrigin,
+          starred: starred
+        )
+      }
+    #else
+      updated = try await resolvedAgentClient().updateChatCatalog(
+        chatID: chatID,
+        title: title,
+        titleOrigin: titleOrigin,
+        expectedTitleOrigin: expectedTitleOrigin,
+        starred: starred
+      )
+    #endif
+    guard isCatalogOwnerLeaseCurrent(ownerLease) else { throw BridgeError.authMissing }
+    catalogMutationGeneration &+= 1
+    return updated
+  }
+
+  private func deleteLocalChatCatalog(chatID: String) async throws -> Set<String> {
+    let ownerLease = captureCatalogOwnerLease()
+    let retainedAttachmentURIs: Set<String>
+    #if DEBUG
+      if let deleteChatCatalogForTests {
+        retainedAttachmentURIs = try await deleteChatCatalogForTests(chatID)
+      } else {
+        retainedAttachmentURIs = try await resolvedAgentClient().deleteChatCatalog(chatID: chatID)
+      }
+    #else
+      retainedAttachmentURIs = try await resolvedAgentClient().deleteChatCatalog(chatID: chatID)
+    #endif
+    guard isCatalogOwnerLeaseCurrent(ownerLease) else { throw BridgeError.authMissing }
+    catalogMutationGeneration &+= 1
+    return retainedAttachmentURIs
+  }
+
+  /// Load the owner-scoped catalog from the local Node authority.
   func fetchSessions() async {
+    let ownerLease = captureCatalogOwnerLease()
+    catalogFetchGeneration &+= 1
+    let fetchGeneration = catalogFetchGeneration
+    let startingMutationGeneration = catalogMutationGeneration
     isLoadingSessions = true
-    defer { isLoadingSessions = false }
-
-    let maxAttempts = 3
-    let delays: [UInt64] = [1_000_000_000, 2_000_000_000]  // 1s, 2s
-    var lastError: Error?
-
-    for attempt in 1...maxAttempts {
-      do {
-        sessions = try await APIClient.shared.getChatSessions(starred: showStarredOnly ? true : nil)
-        log("ChatProvider loaded \(sessions.count) sessions (starred filter: \(showStarredOnly))")
-        sessionsLoadError = nil
-
-        // If we have sessions and no current session, select the most recent
-        if currentSession == nil, let mostRecent = sessions.first {
-          await selectSession(mostRecent)
-        }
-        return
-      } catch {
-        lastError = error
-        logError("Failed to load chat sessions (attempt \(attempt)/\(maxAttempts))", error: error)
-        if attempt < maxAttempts {
-          try? await Task.sleep(nanoseconds: delays[attempt - 1])
-        }
+    defer {
+      if catalogFetchGeneration == fetchGeneration {
+        isLoadingSessions = false
       }
     }
 
-    sessions = []
-    sessionsLoadError = lastError?.localizedDescription ?? "Failed to load chats. Check your connection and try again."
+    do {
+      var snapshot = try await listLocalChatCatalog()
+      var catalog = snapshot.chats
+      if !catalog.contains(where: { $0.chatID == "default" }) {
+        catalog.append(try await createLocalChatCatalog(chatID: "default", title: "New Chat"))
+        snapshot = LocalChatCatalogSnapshot(
+          chats: catalog,
+          retainedAttachmentURIs: snapshot.retainedAttachmentURIs
+        )
+      }
+      guard catalogFetchGeneration == fetchGeneration,
+        catalogMutationGeneration == startingMutationGeneration,
+        isCatalogOwnerLeaseCurrent(ownerLease)
+      else {
+        log("ChatProvider ignored a stale local catalog snapshot")
+        return
+      }
+      sessions = multiChatEnabled ? catalog.map(\.chatSession) : []
+      sessionsLoadError = nil
+
+      if let ownerID = runtimeOwnerId {
+        do {
+          ChatDraftStore.shared.reconcileMainChatCatalog(
+            ownerID: ownerID,
+            retainingChatIDs: Set(catalog.map(\.chatID)).union(["default"])
+          )
+          let retainedAttachmentURIs = snapshot.retainedAttachmentURIs.union(
+            ChatDraftStore.shared.managedAttachmentURIs(ownerID: ownerID)
+          )
+          try await garbageCollectChatAttachments(
+            ownerID: ownerID,
+            retaining: retainedAttachmentURIs
+          )
+        } catch {
+          logError("Local attachment sweep remains pending", error: error)
+        }
+      }
+
+      if let selectedID = currentSession?.id,
+        !sessions.contains(where: { $0.id == selectedID })
+      {
+        await switchToDefaultChat()
+      }
+      log("ChatProvider loaded \(catalog.count) local catalog entries")
+    } catch {
+      guard catalogFetchGeneration == fetchGeneration,
+        catalogMutationGeneration == startingMutationGeneration,
+        isCatalogOwnerLeaseCurrent(ownerLease)
+      else { return }
+      sessions = []
+      sessionsLoadError = error.localizedDescription
+      logError("Failed to load local chat catalog", error: error)
+    }
   }
 
-  /// Toggle the starred filter and reload sessions
+  /// Refresh before presenting the popover so retained voice and other
+  /// non-typed journal writes are reflected in preview/count/activity order.
+  func refreshCatalogForPresentation() async {
+    guard multiChatEnabled else { return }
+    await fetchSessions()
+  }
+
+  /// Captures the journal-owned attachment references while the outgoing
+  /// account is still authorized. Sign-out uses this to delete draft-only
+  /// bytes without breaking an already accepted message after a crash-window
+  /// left the same managed URI in both the draft and journal.
+  func retainedJournalAttachmentURIsForSignOut(ownerID: String) async -> Set<String>? {
+    let ownerLease = captureCatalogOwnerLease()
+    guard ownerLease.ownerID == ownerID, isCatalogOwnerLeaseCurrent(ownerLease) else { return nil }
+    do {
+      let retained = try await listLocalChatCatalog().retainedAttachmentURIs
+      guard isCatalogOwnerLeaseCurrent(ownerLease) else { return nil }
+      return retained
+    } catch {
+      guard isCatalogOwnerLeaseCurrent(ownerLease) else { return nil }
+      logError("ChatProvider: retained attachment capture failed before sign-out", error: error)
+      return nil
+    }
+  }
+
+  /// Toggle the local starred filter without refetching the authoritative catalog.
   func toggleStarredFilter() async {
     showStarredOnly.toggle()
     log("Toggled starred filter: \(showStarredOnly)")
     AnalyticsManager.shared.chatStarredFilterToggled(enabled: showStarredOnly)
-    await fetchSessions()
   }
 
   /// Create a new chat session
@@ -1835,25 +2120,53 @@ class ChatProvider: ObservableObject {
   func createNewSession(
     title: String? = nil,
     skipGreeting: Bool = false,
-    authoritativeSendGeneration: Int? = nil
+    authoritativeSendGeneration: Int? = nil,
+    allowWhileClearing: Bool = false
   ) async -> ChatSession? {
+    guard !isCreatingSession else { return nil }
+    guard !isClearing || allowWhileClearing else {
+      errorMessage = "Wait for this chat to finish clearing before creating another chat."
+      return nil
+    }
+    guard deletingSessionIds.isEmpty else {
+      errorMessage = "Wait for chat deletion to finish before creating another chat."
+      return nil
+    }
+    guard !isLoading else {
+      errorMessage = "Wait for this chat to finish loading before creating another chat."
+      return nil
+    }
+    let ownerLease = captureCatalogOwnerLease()
+    isCreatingSession = true
+    defer {
+      if isCatalogOwnerLeaseCurrent(ownerLease) {
+        isCreatingSession = false
+      }
+    }
+    let chatID = pendingCreateChatID ?? UUID().uuidString.lowercased()
+    pendingCreateChatID = chatID
     do {
-      let session: ChatSession
-      #if DEBUG
-        if let createChatSessionForTests {
-          session = try await createChatSessionForTests(title)
-        } else {
-          session = try await APIClient.shared.createChatSession(title: title)
-        }
-      #else
-        session = try await APIClient.shared.createChatSession(title: title)
-      #endif
+      let session = try await createLocalChatCatalog(chatID: chatID, title: title).chatSession
+      guard isCatalogOwnerLeaseCurrent(ownerLease) else {
+        return nil
+      }
+      catalogMutationGeneration &+= 1
+      pendingCreateChatID = nil
       guard authoritativeSendGeneration.map({ sendGeneration == $0 }) ?? true else { return nil }
-      sessions.insert(session, at: 0)
+      chatSelectionGeneration &+= 1
+      if let existingIndex = sessions.firstIndex(where: { $0.id == session.id }) {
+        sessions[existingIndex] = session
+      } else {
+        sessions.insert(session, at: 0)
+      }
       currentSession = session
       isInDefaultChat = false
+      if let ownerID = runtimeOwnerId {
+        chatSelectionStore.setSelectedChatID(session.id, ownerID: ownerID)
+      }
       messages = []
       resetMessagesPagination()
+      RealtimeHubController.shared.invalidateVoiceContextForChatSelectionChange()
       log("Created new chat session: \(session.id)")
       AnalyticsManager.shared.chatSessionCreated()
 
@@ -1862,8 +2175,9 @@ class ChatProvider: ObservableObject {
         await fetchInitialMessage(for: session, authoritativeSendGeneration: authoritativeSendGeneration)
       }
 
-      return session
+      return isCatalogOwnerLeaseCurrent(ownerLease) ? session : nil
     } catch {
+      guard isCatalogOwnerLeaseCurrent(ownerLease) else { return nil }
       logError("Failed to create chat session", error: error)
       if authoritativeSendGeneration.map({ sendGeneration == $0 }) ?? true {
         errorMessage = "Failed to create new chat"
@@ -1879,72 +2193,77 @@ class ChatProvider: ObservableObject {
     authoritativeSendGeneration: Int? = nil
   ) async {
     do {
-      guard let ownerId = runtimeOwnerId else {
+      let ownerLease = captureCatalogOwnerLease()
+      guard let ownerId = ownerLease.ownerID, isCatalogOwnerLeaseCurrent(ownerLease) else {
         log("ChatProvider: initial greeting skipped because owner is unavailable")
         return
       }
+      await refreshMemoriesForPrompt()
+      guard isCatalogOwnerLeaseCurrent(ownerLease) else { return }
+      await loadAIProfileIfNeeded()
+      guard isCatalogOwnerLeaseCurrent(ownerLease) else { return }
+      let memories = cachedMemories.prefix(20).map { String($0.content.prefix(1_000)) }
+      let profileText = String(cachedAIProfile.prefix(8_000))
       let response: InitialMessageResponse
       #if DEBUG
         if let initialMessageForTests {
-          response = try await initialMessageForTests(session.id, ownerId)
+          response = try await initialMessageForTests(profileText, memories, ownerId)
         } else {
           response = try await APIClient.shared.getInitialMessage(
-            sessionId: session.id,
+            profileText: profileText,
+            memories: memories,
             expectedOwnerId: ownerId
           )
         }
       #else
         response = try await APIClient.shared.getInitialMessage(
-          sessionId: session.id,
+          profileText: profileText,
+          memories: memories,
           expectedOwnerId: ownerId
         )
       #endif
-      guard authoritativeSendGeneration.map({ sendGeneration == $0 }) ?? true else { return }
+      guard isCatalogOwnerLeaseCurrent(ownerLease),
+        authoritativeSendGeneration.map({ sendGeneration == $0 }) ?? true
+      else { return }
 
       let surface = AgentSurfaceReference.mainChat(
         chatId: mainChatRuntimeChatId(sessionId: session.id)
       )
-      let remoteTurn = KernelJournalRemoteTurn(
-        remoteId: response.messageId,
-        canonicalTurnId: response.messageId,
-        role: "assistant",
-        content: response.message,
-        contentBlocksJSON: "[]",
-        resourcesJSON: "[]",
-        metadataJSON: "{}",
-        createdAtMs: Int(Date().timeIntervalSince1970 * 1_000)
+      let greeting = ChatMessage(
+        id: UUID().uuidString.lowercased(),
+        text: response.message,
+        sender: .ai,
+        isSynced: true,
+        journalStatus: .completed
       )
       let accepted: Bool
       #if DEBUG
-        if let importInitialGreetingForTests {
-          accepted = await importInitialGreetingForTests(surface, remoteTurn, ownerId)
+        if let recordInitialGreetingForTests {
+          accepted = await recordInitialGreetingForTests(surface, greeting, ownerId)
         } else {
-          accepted = await kernelTurnProjection.importRemoteTurn(
-            surface: surface,
-            turn: remoteTurn,
-            ownerID: ownerId
-          )
+          accepted =
+            await kernelTurnProjection.recordTurn(
+              surface: surface,
+              message: greeting,
+              origin: "typed_chat",
+              status: .completed,
+              ownerID: ownerId
+            ) != nil
         }
       #else
-        accepted = await kernelTurnProjection.importRemoteTurn(
-          surface: surface,
-          turn: remoteTurn,
-          ownerID: ownerId
-        )
+        accepted =
+          await kernelTurnProjection.recordTurn(
+            surface: surface,
+            message: greeting,
+            origin: "typed_chat",
+            status: .completed,
+            ownerID: ownerId
+          ) != nil
       #endif
-      guard accepted else {
+      guard isCatalogOwnerLeaseCurrent(ownerLease), accepted else {
         log("ChatProvider: initial greeting journal admission failed")
         return
       }
-      #if DEBUG
-        if let refreshInitialGreetingForTests {
-          await refreshInitialGreetingForTests(surface)
-        } else {
-          await kernelTurnProjection.refresh(surface: surface)
-        }
-      #else
-        await kernelTurnProjection.refresh(surface: surface)
-      #endif
 
       // Preview is also downstream of canonical journal acceptance.
       if let index = sessions.firstIndex(where: { $0.id == session.id }) {
@@ -1963,7 +2282,36 @@ class ChatProvider: ObservableObject {
 
   /// Select a session and load its messages
   func selectSession(_ session: ChatSession, force: Bool = false) async {
+    guard !isClearing else {
+      errorMessage = "Wait for this chat to finish clearing before switching chats."
+      return
+    }
+    guard !isCreatingSession else {
+      errorMessage = "Wait for the new chat to finish opening before switching chats."
+      return
+    }
+    guard deletingSessionIds.isEmpty else {
+      errorMessage = "Wait for chat deletion to finish before switching chats."
+      return
+    }
+    if session.id == "default" {
+      await switchToDefaultChat()
+      return
+    }
     guard force || currentSession?.id != session.id || isInDefaultChat else { return }
+    let ownerLease = captureCatalogOwnerLease()
+    let rollbackState =
+      chatSelectionRollbackState
+      ?? ChatSelectionRollbackState(
+        session: currentSession,
+        wasDefault: isInDefaultChat,
+        messages: messages,
+        paginationOffset: messagesPaginationOffset,
+        hasMoreMessages: hasMoreMessages
+      )
+    chatSelectionRollbackState = rollbackState
+    chatSelectionGeneration &+= 1
+    let selectionGeneration = chatSelectionGeneration
 
     currentSession = session
     isInDefaultChat = false
@@ -1972,17 +2320,44 @@ class ChatProvider: ObservableObject {
     hasMoreMessages = false
 
     let surface = mainChatSurfaceReference()
-    guard await ensureBridgeStartedForKernel() else {
-      messages = []
-      resetMessagesPagination()
+    guard await ensureBridgeStartedForKernel(),
+      isChatSelectionLeaseCurrent(selectionGeneration, ownerLease: ownerLease)
+    else {
+      guard isChatSelectionLeaseCurrent(selectionGeneration, ownerLease: ownerLease) else { return }
+      currentSession = rollbackState.session
+      isInDefaultChat = rollbackState.wasDefault
+      messages = rollbackState.messages
+      messagesPaginationOffset = rollbackState.paginationOffset
+      hasMoreMessages = rollbackState.hasMoreMessages
+      chatSelectionRollbackState = nil
+      errorMessage = "Failed to load chat"
       isLoading = false
       return
     }
-    await importLegacyBackendMessagesIfNeeded(surface: surface, sessionId: session.id)
-    await kernelTurnProjection.reload(surface: surface)
+    guard await reloadChatJournal(surface: surface),
+      isChatSelectionLeaseCurrent(selectionGeneration, ownerLease: ownerLease)
+    else {
+      guard isChatSelectionLeaseCurrent(selectionGeneration, ownerLease: ownerLease) else { return }
+      currentSession = rollbackState.session
+      isInDefaultChat = rollbackState.wasDefault
+      messages = rollbackState.messages
+      messagesPaginationOffset = rollbackState.paginationOffset
+      hasMoreMessages = rollbackState.hasMoreMessages
+      chatSelectionRollbackState = nil
+      errorMessage = "Failed to load chat"
+      isLoading = false
+      return
+    }
+    guard isChatSelectionLeaseCurrent(selectionGeneration, ownerLease: ownerLease) else { return }
     await rehydrateMissingArtifactResourcesFromKernel()
+    guard isChatSelectionLeaseCurrent(selectionGeneration, ownerLease: ownerLease) else { return }
+    if let ownerID = ownerLease.ownerID {
+      chatSelectionStore.setSelectedChatID(session.id, ownerID: ownerID)
+    }
+    RealtimeHubController.shared.invalidateVoiceContextForChatSelectionChange()
     messagesPaginationOffset = messages.count
     hasMoreMessages = false
+    chatSelectionRollbackState = nil
     log("ChatProvider loaded \(messages.count) kernel journal messages for session \(session.id)")
 
     isLoading = false
@@ -2004,39 +2379,284 @@ class ChatProvider: ObservableObject {
   /// Track which sessions are currently being deleted
   @Published var deletingSessionIds: Set<String> = []
 
-  /// Delete a chat session
-  func deleteSession(_ session: ChatSession) async {
-    deletingSessionIds.insert(session.id)
-    let surface = AgentSurfaceReference.mainChat(chatId: session.id)
-    guard await kernelTurnProjection.clear(surface: surface) else {
-      deletingSessionIds.remove(session.id)
-      errorMessage = "Failed to delete chat"
+  /// Preserve baseline clear semantics with local authority: `default` clears
+  /// in place; a named chat is atomically deleted and replaced by a fresh local
+  /// session (including its normal greeting).
+  func clearCurrentChat() async {
+    guard !isClearing else { return }
+    guard !isCreatingSession else {
+      errorMessage = "Wait for the new chat to finish opening before clearing this chat."
       return
     }
-    deletingSessionIds.remove(session.id)
-    sessions.removeAll { $0.id == session.id }
+    guard !isLoading else {
+      errorMessage = "Wait for this chat to finish loading before clearing it."
+      return
+    }
+    guard deletingSessionIds.isEmpty else {
+      errorMessage = "Wait for chat deletion to finish before clearing this chat."
+      return
+    }
+    guard activeSendChatID == nil else {
+      errorMessage = "Wait for the current response to finish before clearing this chat."
+      return
+    }
+    let ownerLease = captureCatalogOwnerLease()
+    guard let ownerID = ownerLease.ownerID else {
+      errorMessage = "Failed to clear chat"
+      return
+    }
+    let chatID = currentSession?.id ?? "default"
+    let surface = AgentSurfaceReference.mainChat(chatId: chatID)
+    guard beginRealtimeChatClear(surface: surface) else {
+      errorMessage = "Wait for the current voice turn to finish before clearing this chat."
+      return
+    }
+    activeRealtimeChatClearSurface = surface
+    chatSelectionGeneration &+= 1
+    isClearing = true
+    defer {
+      if isCatalogOwnerLeaseCurrent(ownerLease) {
+        endRealtimeChatClear(surface: surface)
+        if activeRealtimeChatClearSurface == surface {
+          activeRealtimeChatClearSurface = nil
+        }
+        isClearing = false
+      }
+    }
+    var attachmentCleanupPending = false
 
-    if currentSession?.id == session.id {
-      if let nextSession = sessions.first {
-        await selectSession(nextSession)
-      } else {
-        currentSession = nil
+    if chatID == "default" {
+      let cleared: Bool
+      #if DEBUG
+        if let clearChatJournalForTests {
+          cleared = await clearChatJournalForTests(chatID)
+        } else {
+          cleared = await kernelTurnProjection.clearOwnerSurfaceState(chatId: chatID)
+        }
+      #else
+        cleared = await kernelTurnProjection.clearOwnerSurfaceState(chatId: chatID)
+      #endif
+      guard isCatalogOwnerLeaseCurrent(ownerLease) else { return }
+      guard cleared else {
+        errorMessage = "Failed to clear chat"
+        return
+      }
+      AgentRuntimeStatusStore.shared.clear(surface: surface)
+      if isInDefaultChat && currentSession == nil {
         messages = []
         resetMessagesPagination()
       }
+      await fetchSessions()
+    } else {
+      let retainedAttachmentURIs: Set<String>
+      do {
+        retainedAttachmentURIs = try await deleteLocalChatCatalog(chatID: chatID)
+      } catch {
+        guard isCatalogOwnerLeaseCurrent(ownerLease) else { return }
+        errorMessage = "Failed to clear chat"
+        logError("Failed to replace cleared local chat", error: error)
+        return
+      }
+      guard isCatalogOwnerLeaseCurrent(ownerLease) else { return }
+      let deletedDraftKey = ChatDraftKey.mainChat(contextID: chatID)
+      let deletedAttachments = pendingAttachmentsByDraftKey.removeValue(forKey: deletedDraftKey) ?? []
+      for attachment in deletedAttachments {
+        pendingAttachmentScopes.removeValue(forKey: attachment.id)
+      }
+      ChatDraftStore.shared.clear(deletedDraftKey, ownerID: ownerID)
+      ChatDraftStore.shared.flush()
+      sessions.removeAll { $0.id == chatID }
+      currentSession = nil
+      isInDefaultChat = true
+      messages = []
+      resetMessagesPagination()
+      AgentRuntimeStatusStore.shared.clear(surface: surface)
+
+      do {
+        try await garbageCollectChatAttachments(
+          ownerID: ownerID,
+          retaining: retainedAttachmentURIs.union(
+            ChatDraftStore.shared.managedAttachmentURIs(ownerID: ownerID)
+          )
+        )
+      } catch {
+        attachmentCleanupPending = true
+        logError("Cleared chat attachment cleanup will retry", error: error)
+      }
+      guard isCatalogOwnerLeaseCurrent(ownerLease) else { return }
+      guard await createNewSession(allowWhileClearing: true) != nil else {
+        guard isCatalogOwnerLeaseCurrent(ownerLease) else { return }
+        errorMessage = "Chat cleared, but a new chat couldn't be opened."
+        return
+      }
+    }
+    guard isCatalogOwnerLeaseCurrent(ownerLease), runtimeOwnerId == ownerID else { return }
+    errorMessage =
+      attachmentCleanupPending
+      ? "Chat cleared. Attachment cleanup will retry automatically."
+      : nil
+    log("Cleared local chat journal: \(chatID)")
+    AnalyticsManager.shared.chatCleared()
+  }
+
+  /// Harness counterpart for a named chat whose journal clear has already
+  /// succeeded. The local catalog remains authoritative, so removing only the
+  /// Swift row would let the old chat reappear on the next catalog fetch.
+  func deleteNamedChatCatalogForAuthorizedHarness(_ session: ChatSession) async -> String? {
+    let ownerLease = captureCatalogOwnerLease()
+    guard let ownerID = ownerLease.ownerID else { return "missing owner for named chat reset" }
+    let retainedAttachmentURIs: Set<String>
+    do {
+      retainedAttachmentURIs = try await deleteLocalChatCatalog(chatID: session.id)
+    } catch {
+      guard isCatalogOwnerLeaseCurrent(ownerLease) else {
+        return "owner changed during named chat reset"
+      }
+      logError("Harness failed to delete named local chat catalog", error: error)
+      return "failed to delete named local chat catalog"
+    }
+    guard isCatalogOwnerLeaseCurrent(ownerLease) else {
+      return "owner changed during named chat reset"
     }
 
-    log("Deleted kernel chat session projection: \(session.id)")
+    let deletedDraftKey = ChatDraftKey.mainChat(contextID: session.id)
+    let deletedAttachments = pendingAttachmentsByDraftKey.removeValue(forKey: deletedDraftKey) ?? []
+    for attachment in deletedAttachments {
+      pendingAttachmentScopes.removeValue(forKey: attachment.id)
+    }
+    ChatDraftStore.shared.clear(deletedDraftKey, ownerID: ownerID)
+    ChatDraftStore.shared.flush()
+    sessions.removeAll { $0.id == session.id }
+    chatSelectionGeneration &+= 1
+    currentSession = nil
+    isInDefaultChat = true
+    messages = []
+    resetMessagesPagination()
+
+    do {
+      try await garbageCollectChatAttachments(
+        ownerID: ownerID,
+        retaining: retainedAttachmentURIs.union(
+          ChatDraftStore.shared.managedAttachmentURIs(ownerID: ownerID)
+        )
+      )
+    } catch {
+      logError("Harness named-chat attachment cleanup will retry", error: error)
+    }
+    return nil
+  }
+
+  /// Delete a chat session
+  func deleteSession(_ session: ChatSession) async {
+    guard session.id != "default" else {
+      errorMessage = "The default chat cannot be deleted."
+      return
+    }
+    guard !isCreatingSession else {
+      errorMessage = "Wait for the new chat to finish opening before deleting it."
+      return
+    }
+    guard activeSendChatID == nil else {
+      errorMessage = "Wait for the current response to finish before deleting a chat."
+      return
+    }
+    guard !isClearing else {
+      errorMessage = "Wait for this chat to finish clearing before deleting a chat."
+      return
+    }
+    guard !isLoading else {
+      errorMessage = "Wait for this chat to finish loading before deleting a chat."
+      return
+    }
+    guard deletingSessionIds.isEmpty else {
+      errorMessage = "Wait for chat deletion to finish before deleting another chat."
+      return
+    }
+    let ownerLease = captureCatalogOwnerLease()
+    deletingSessionIds.insert(session.id)
+    defer {
+      if isCatalogOwnerLeaseCurrent(ownerLease) {
+        deletingSessionIds.remove(session.id)
+      }
+    }
+    let retainedAttachmentURIs: Set<String>
+    let ownerID: String
+    do {
+      guard let currentOwnerID = runtimeOwnerId else { throw BridgeError.authMissing }
+      ownerID = currentOwnerID
+      retainedAttachmentURIs = try await deleteLocalChatCatalog(chatID: session.id)
+    } catch {
+      guard isCatalogOwnerLeaseCurrent(ownerLease) else { return }
+      errorMessage = "Failed to delete chat"
+      logError("Failed to delete local chat", error: error)
+      return
+    }
+    guard isCatalogOwnerLeaseCurrent(ownerLease) else { return }
+    let deletedDraftKey = ChatDraftKey.mainChat(contextID: session.id)
+    let deletedAttachments = pendingAttachmentsByDraftKey.removeValue(forKey: deletedDraftKey) ?? []
+    for attachment in deletedAttachments {
+      pendingAttachmentScopes.removeValue(forKey: attachment.id)
+    }
+    ChatDraftStore.shared.clear(deletedDraftKey, ownerID: ownerID)
+    ChatDraftStore.shared.flush()
+    sessions.removeAll { $0.id == session.id }
+
+    var fallbackSession: ChatSession?
+    if currentSession?.id == session.id {
+      chatSelectionGeneration &+= 1
+      currentSession = nil
+      isInDefaultChat = true
+      messages = []
+      resetMessagesPagination()
+      fallbackSession = sessions.first
+    }
+
+    log("Deleted local chat: \(session.id)")
     AnalyticsManager.shared.chatSessionDeleted()
+
+    var attachmentCleanupPending = false
+    do {
+      let allRetainedAttachmentURIs = retainedAttachmentURIs.union(
+        ChatDraftStore.shared.managedAttachmentURIs(ownerID: ownerID)
+      )
+      try await garbageCollectChatAttachments(
+        ownerID: ownerID,
+        retaining: allRetainedAttachmentURIs
+      )
+    } catch {
+      attachmentCleanupPending = true
+      logError("Deleted local chat but attachment cleanup is pending", error: error)
+    }
+    guard isCatalogOwnerLeaseCurrent(ownerLease) else { return }
+    // Keep the deletion gate held through the retained-URI snapshot and GC so
+    // no accepted send can add an attachment between those two operations.
+    deletingSessionIds.remove(session.id)
+    if let fallbackSession {
+      await selectSession(fallbackSession)
+    }
+    guard isCatalogOwnerLeaseCurrent(ownerLease) else { return }
+    if attachmentCleanupPending {
+      errorMessage = "Chat deleted. Attachment cleanup will retry automatically."
+    }
   }
 
   /// Toggle starred status for a session
   func toggleStarred(_ session: ChatSession) async {
+    guard !isClearing else {
+      errorMessage = "Wait for this chat to finish clearing before updating a chat."
+      return
+    }
+    guard deletingSessionIds.isEmpty else {
+      errorMessage = "Wait for chat deletion to finish before updating a chat."
+      return
+    }
+    let ownerLease = captureCatalogOwnerLease()
     do {
-      let updated = try await APIClient.shared.updateChatSession(
-        sessionId: session.id,
+      let updated = try await updateLocalChatCatalog(
+        chatID: session.id,
         starred: !session.starred
-      )
+      ).chatSession
+      guard isCatalogOwnerLeaseCurrent(ownerLease) else { return }
 
       // Update in sessions list
       if let index = sessions.firstIndex(where: { $0.id == session.id }) {
@@ -2050,17 +2670,30 @@ class ChatProvider: ObservableObject {
 
       log("Toggled starred for session \(session.id): \(updated.starred)")
     } catch {
+      guard isCatalogOwnerLeaseCurrent(ownerLease) else { return }
+      errorMessage = "Couldn't update this chat. Try again."
       logError("Failed to toggle starred", error: error)
     }
   }
 
   /// Update session title (user-initiated rename)
   func updateSessionTitle(_ session: ChatSession, title: String) async {
+    guard !isClearing else {
+      errorMessage = "Wait for this chat to finish clearing before renaming a chat."
+      return
+    }
+    guard deletingSessionIds.isEmpty else {
+      errorMessage = "Wait for chat deletion to finish before renaming a chat."
+      return
+    }
+    let ownerLease = captureCatalogOwnerLease()
     do {
-      let updated = try await APIClient.shared.updateChatSession(
-        sessionId: session.id,
-        title: title
-      )
+      let updated = try await updateLocalChatCatalog(
+        chatID: session.id,
+        title: title,
+        titleOrigin: .manual
+      ).chatSession
+      guard isCatalogOwnerLeaseCurrent(ownerLease) else { return }
 
       // Update in sessions list
       if let index = sessions.firstIndex(where: { $0.id == session.id }) {
@@ -2075,6 +2708,8 @@ class ChatProvider: ObservableObject {
       log("Updated title for session \(session.id): \(title)")
       AnalyticsManager.shared.sessionRenamed()
     } catch {
+      guard isCatalogOwnerLeaseCurrent(ownerLease) else { return }
+      errorMessage = "Couldn't rename this chat. Try again."
       logError("Failed to update session title", error: error)
     }
   }
@@ -2083,17 +2718,22 @@ class ChatProvider: ObservableObject {
 
   /// Loads user memories from local SQLite for use in prompts (refreshed each turn).
   private func refreshMemoriesForPrompt() async {
+    let ownerLease = captureCatalogOwnerLease()
     #if DEBUG
       if let refreshMemoriesForPromptForTests {
         await refreshMemoriesForPromptForTests()
+        guard isCatalogOwnerLeaseCurrent(ownerLease) else { return }
         return
       }
     #endif
     do {
-      cachedMemories = try await MemoryStorage.shared.list(limit: 50)
+      let memories = try await MemoryStorage.shared.list(limit: 50)
+      guard isCatalogOwnerLeaseCurrent(ownerLease) else { return }
+      cachedMemories = memories
       memoriesLoaded = true
       log("ChatProvider refreshed \(cachedMemories.count) memories from local DB")
     } catch {
+      guard isCatalogOwnerLeaseCurrent(ownerLease) else { return }
       logError("Failed to load memories from local DB", error: error)
       // Continue without memories - non-critical
     }
@@ -2119,11 +2759,24 @@ class ChatProvider: ObservableObject {
   /// Refreshes user goals from the current owner's local SQLite database for
   /// every prompt so a task/goal mutation is visible on the next Chat turn.
   private func loadGoalsIfNeeded() async {
+    let ownerLease = captureCatalogOwnerLease()
     do {
-      cachedGoals = try await GoalStorage.shared.getLocalGoals(activeOnly: true)
+      let goals: [LocalGoal]
+      #if DEBUG
+        if let loadGoalsForTests {
+          goals = try await loadGoalsForTests()
+        } else {
+          goals = try await GoalStorage.shared.getLocalGoals(activeOnly: true)
+        }
+      #else
+        goals = try await GoalStorage.shared.getLocalGoals(activeOnly: true)
+      #endif
+      guard isCatalogOwnerLeaseCurrent(ownerLease) else { return }
+      cachedGoals = goals
       goalsLoaded = true
       log("ChatProvider loaded \(cachedGoals.count) goals from local DB")
     } catch {
+      guard isCatalogOwnerLeaseCurrent(ownerLease) else { return }
       logError("Failed to load goals for chat context", error: error)
     }
   }
@@ -2149,18 +2802,40 @@ class ChatProvider: ObservableObject {
   /// Refreshes the latest 20 active tasks for every prompt. This deliberately
   /// avoids a process-lifetime cache crossing local mutations or owner changes.
   private func loadTasksIfNeeded() async {
+    let ownerLease = captureCatalogOwnerLease()
     do {
-      cachedTasks = try await ActionItemStorage.shared.getLocalActionItems(
-        limit: 20,
-        completed: false
-      )
+      let tasks: [TaskActionItem]
+      #if DEBUG
+        if let loadTasksForTests {
+          tasks = try await loadTasksForTests()
+        } else {
+          tasks = try await ActionItemStorage.shared.getLocalActionItems(
+            limit: 20,
+            completed: false
+          )
+        }
+      #else
+        tasks = try await ActionItemStorage.shared.getLocalActionItems(
+          limit: 20,
+          completed: false
+        )
+      #endif
+      guard isCatalogOwnerLeaseCurrent(ownerLease) else { return }
+      cachedTasks = tasks
       tasksLoaded = true
       log("ChatProvider loaded \(cachedTasks.count) tasks for context")
     } catch {
+      guard isCatalogOwnerLeaseCurrent(ownerLease) else { return }
       logError("Failed to load tasks for chat context", error: error)
       tasksLoaded = true
     }
   }
+
+  #if DEBUG
+    func promptContextSectionsForTests() -> (goals: String, tasks: String) {
+      (formatGoalSection(), formatTasksSection())
+    }
+  #endif
 
   /// Formats cached tasks into a prompt section
   private func formatTasksSection() -> String {
@@ -2189,8 +2864,19 @@ class ChatProvider: ObservableObject {
   /// Fetches the latest AI-generated user profile from local database
   private func loadAIProfileIfNeeded() async {
     guard !aiProfileLoaded else { return }
-
-    if let profile = await AIUserProfileService.shared.getLatestProfile() {
+    let ownerLease = captureCatalogOwnerLease()
+    #if DEBUG
+      if let loadAIProfileForTests {
+        let profileText = await loadAIProfileForTests()
+        guard isCatalogOwnerLeaseCurrent(ownerLease) else { return }
+        if let profileText { cachedAIProfile = profileText }
+        aiProfileLoaded = true
+        return
+      }
+    #endif
+    let profile = await AIUserProfileService.shared.getLatestProfile()
+    guard isCatalogOwnerLeaseCurrent(ownerLease) else { return }
+    if let profile {
       cachedAIProfile = profile.profileText
       log("ChatProvider loaded AI profile (generated \(profile.generatedAt))")
     }
@@ -2337,33 +3023,16 @@ class ChatProvider: ObservableObject {
 
   /// Load the chat state that is directly visible in Dashboard/Chat without warming prompt-only context.
   func initializeVisibleMessages() async {
-    // Seed cumulative Omi AI cost from backend now that auth is ready (background, no latency)
-    Task.detached(priority: .background) { [weak self] in
-      guard let serverCost = await APIClient.shared.fetchTotalOmiAICost() else { return }
-      guard let self else { return }
-      // Make sure the user's plan is known before deciding whether to nudge —
-      // otherwise a cold plan cache could flash the upgrade alert at a paid user.
-      await FloatingBarUsageLimiter.shared.fetchPlan()
-      await MainActor.run {
-        // Always trust the server value — it's the authoritative total
-        self.omiAICumulativeCostUsd = serverCost
-        log("ChatProvider: Seeded Omi AI cumulative cost from backend: $\(String(format: "%.4f", serverCost))")
-        // Show upgrade prompt if over threshold but don't block chat. Never for
-        // paid users — they aren't subject to the free Omi spend cap.
-        if self.isUsingOmiAccountProvider && serverCost >= 50.0
-          && !self.isExemptFromOmiUpgradeNudge
-        {
-          log("ChatProvider: Omi AI cost at $\(String(format: "%.2f", serverCost)) on startup — showing upgrade prompt")
-          self.showOmiThresholdAlert = true
-        }
-      }
-    }
-
     if multiChatEnabled {
-      // Multi-chat mode: load sessions, default to default chat
       await fetchSessions()
-      // Start in default chat mode
-      await switchToDefaultChat()
+      let selectedChatID = runtimeOwnerId.map { chatSelectionStore.selectedChatID(ownerID: $0) } ?? "default"
+      if selectedChatID != "default",
+        let selectedSession = sessions.first(where: { $0.id == selectedChatID })
+      {
+        await selectSession(selectedSession, force: true)
+      } else {
+        await switchToDefaultChat()
+      }
     } else {
       // Single chat mode: just load default chat messages (syncs with Flutter)
       isLoadingSessions = false
@@ -2396,98 +3065,113 @@ class ChatProvider: ObservableObject {
     await initialize()
   }
 
-  /// Switch to the default chat (messages without session_id, syncs with Flutter app)
+  /// Switch to the stable local `default` chat.
   func switchToDefaultChat() async {
+    guard !isClearing else {
+      errorMessage = "Wait for this chat to finish clearing before switching chats."
+      return
+    }
+    guard !isCreatingSession else {
+      errorMessage = "Wait for the new chat to finish opening before switching chats."
+      return
+    }
+    guard deletingSessionIds.isEmpty else {
+      errorMessage = "Wait for chat deletion to finish before switching chats."
+      return
+    }
+    let ownerLease = captureCatalogOwnerLease()
+    let rollbackState =
+      chatSelectionRollbackState
+      ?? ChatSelectionRollbackState(
+        session: currentSession,
+        wasDefault: isInDefaultChat,
+        messages: messages,
+        paginationOffset: messagesPaginationOffset,
+        hasMoreMessages: hasMoreMessages
+      )
+    chatSelectionRollbackState = rollbackState
+    chatSelectionGeneration &+= 1
+    let selectionGeneration = chatSelectionGeneration
     currentSession = nil
     isInDefaultChat = true
-    await loadDefaultChatMessages()
+    let loaded = await loadDefaultChatMessages(expectedSelectionGeneration: selectionGeneration)
+    guard isChatSelectionLeaseCurrent(selectionGeneration, ownerLease: ownerLease) else { return }
+    guard loaded else {
+      currentSession = rollbackState.session
+      isInDefaultChat = rollbackState.wasDefault
+      messages = rollbackState.messages
+      messagesPaginationOffset = rollbackState.paginationOffset
+      hasMoreMessages = rollbackState.hasMoreMessages
+      chatSelectionRollbackState = nil
+      errorMessage = "Failed to load chat"
+      return
+    }
+    if let ownerID = ownerLease.ownerID {
+      chatSelectionStore.setSelectedChatID("default", ownerID: ownerID)
+    }
+    RealtimeHubController.shared.invalidateVoiceContextForChatSelectionChange()
+    chatSelectionRollbackState = nil
     log("Switched to default chat")
   }
 
-  /// Load the kernel-owned default-chat journal. The backend is consulted only
-  /// by the bounded, checkpointed legacy importer on first migration.
-  func loadDefaultChatMessages() async {
+  /// Load the kernel-owned default-chat journal.
+  @discardableResult
+  func loadDefaultChatMessages(expectedSelectionGeneration: UInt64? = nil) async -> Bool {
+    let selectionGeneration: UInt64
+    if let expectedSelectionGeneration {
+      selectionGeneration = expectedSelectionGeneration
+    } else {
+      chatSelectionGeneration &+= 1
+      selectionGeneration = chatSelectionGeneration
+    }
+    let ownerLease = captureCatalogOwnerLease()
+    let ownsSelection = {
+      selectionGeneration == self.chatSelectionGeneration
+        && self.isCatalogOwnerLeaseCurrent(ownerLease)
+    }
+    guard ownsSelection() else { return false }
     isLoading = true
     errorMessage = nil
     hasMoreMessages = false
 
-    let surface = mainChatSurfaceReference()
-    guard await ensureBridgeStartedForKernel() else {
+    do {
+      _ = try await createLocalChatCatalog(chatID: "default", title: "New Chat")
+    } catch {
+      guard ownsSelection() else { return false }
       messages = []
       resetMessagesPagination()
-      sessionsLoadError = "Failed to load messages. Check your connection and try again."
+      sessionsLoadError = error.localizedDescription
       isLoading = false
-      return
+      return false
     }
-    await importLegacyBackendMessagesIfNeeded(surface: surface, sessionId: nil)
-    await kernelTurnProjection.reload(surface: surface)
+
+    guard ownsSelection() else { return false }
+
+    let surface = mainChatSurfaceReference()
+    guard await ensureBridgeStartedForKernel() else {
+      guard ownsSelection() else { return false }
+      messages = []
+      resetMessagesPagination()
+      sessionsLoadError = "Failed to load messages"
+      isLoading = false
+      return false
+    }
+    guard ownsSelection() else { return false }
+    guard await reloadChatJournal(surface: surface) else {
+      guard ownsSelection() else { return false }
+      sessionsLoadError = "Failed to load messages"
+      isLoading = false
+      return false
+    }
+    guard ownsSelection() else { return false }
     await rehydrateMissingArtifactResourcesFromKernel()
+    guard ownsSelection() else { return false }
     messagesPaginationOffset = messages.count
     hasMoreMessages = false
     sessionsLoadError = nil
     log("ChatProvider loaded \(messages.count) default kernel journal messages")
     isLoading = false
-  }
-
-  /// One-release compatibility import. The checkpoint is written only after
-  /// every bounded row is idempotently accepted by the kernel; normal refresh
-  /// never reads backend history again.
-  private func importLegacyBackendMessagesIfNeeded(
-    surface: AgentSurfaceReference,
-    sessionId: String?
-  ) async {
-    guard let ownerId = runtimeOwnerId else { return }
-    let checkpointKey = "kernelJournal.legacyBackendImport.v1|\(ownerId)|\(surface.key)"
-    guard !UserDefaults.standard.bool(forKey: checkpointKey) else { return }
-    do {
-      let legacy: [ChatMessageDB]
-      if let sessionId {
-        legacy = try await ChatLegacyPageCollector.all { limit, offset in
-          try await APIClient.shared.getMessages(
-            sessionId: sessionId,
-            limit: limit,
-            offset: offset,
-            expectedOwnerId: ownerId
-          )
-        }
-      } else {
-        legacy = try await ChatLegacyPageCollector.all { limit, offset in
-          try await APIClient.shared.getMessages(
-            limit: limit,
-            offset: offset,
-            expectedOwnerId: ownerId
-          )
-        }
-      }
-      let importPlan = ChatLegacyImportChronology.plan(
-        legacy,
-        createdAt: { $0.createdAt },
-        role: { $0.sender }
-      )
-      for entry in importPlan {
-        let row = entry.row
-        let blocks = ChatContentBlockCodec.decodeFromMessageMetadata(row.metadata)
-        let resources = ChatResource.decodeResourcesFromMessageMetadata(row.metadata)
-        let accepted = await kernelTurnProjection.importRemoteTurn(
-          surface: surface,
-          turn: KernelJournalRemoteTurn(
-            remoteId: row.id,
-            canonicalTurnId: row.clientMessageId,
-            role: row.sender == "human" ? "user" : "assistant",
-            content: row.text,
-            contentBlocksJSON: ChatContentBlockCodec.encode(blocks) ?? "[]",
-            resourcesJSON: ChatResource.encodeResourcesForPersistence(resources) ?? "[]",
-            metadataJSON: row.metadata ?? "{}",
-            createdAtMs: entry.createdAtMs
-          ),
-          ownerID: ownerId
-        )
-        guard accepted else { return }
-      }
-      UserDefaults.standard.set(true, forKey: checkpointKey)
-    } catch {
-      log("ChatProvider: bounded legacy import deferred (code=legacy_backend_import_failed)")
-    }
+    return true
   }
 
   // MARK: - Kernel Journal Refresh
@@ -2633,7 +3317,7 @@ class ChatProvider: ObservableObject {
   ) async -> Bool {
     #if DEBUG
       if let recordStreamingJournalExchangeForTests {
-        guard let projected = recordStreamingJournalExchangeForTests(userMessage, assistantMessage)
+        guard let projected = await recordStreamingJournalExchangeForTests(userMessage, assistantMessage)
         else { return false }
         messages = projected
         return true
@@ -2714,6 +3398,11 @@ class ChatProvider: ObservableObject {
     .mainChat(chatId: mainChatRuntimeChatId(sessionId: isInDefaultChat ? nil : currentSessionId))
   }
 
+  func shouldProjectJournalSurface(_ surface: AgentSurfaceReference) -> Bool {
+    surface.externalRefKind == "chat"
+      && surface.externalRefId == mainChatSurfaceReference().externalRefId
+  }
+
   /// PTT is a realtime projection of the selected main chat, never a second
   /// chat. Retain the exact external reference so the runtime resolves the
   /// canonical main-chat conversation for non-default chats.
@@ -2726,15 +3415,14 @@ class ChatProvider: ObservableObject {
   /// Some `ChatMessage` fields live only in the in-memory row and are never
   /// written to the kernel journal, so `KernelJournalTurn.chatMessage()` cannot
   /// reconstruct them and a journal projection can never be their authority:
-  /// `rating` (user-set), `metadata` (model/token/cost stats attached at
-  /// completion, rendered in the message footer) and `notificationScreenshot`.
+  /// `metadata` (model/token/cost stats attached at completion, rendered in the
+  /// message footer) and `notificationScreenshot`.
   /// Replacing a row wholesale with the projection would drop them, so carry
   /// them forward from the row being replaced. A field the projection *does*
   /// carry (non-nil) wins, so this stays correct if the journal schema later
   /// starts persisting one of them.
   static func carryingLocalOnlyFields(_ projected: ChatMessage, from existing: ChatMessage) -> ChatMessage {
     var merged = projected
-    if merged.rating == nil { merged.rating = existing.rating }
     if merged.metadata == nil { merged.metadata = existing.metadata }
     if merged.notificationScreenshot == nil { merged.notificationScreenshot = existing.notificationScreenshot }
     return merged
@@ -2866,8 +3554,7 @@ class ChatProvider: ObservableObject {
 
   // MARK: - Pending Attachments
 
-  /// Stage attachments for the next message and kick off background upload.
-  /// Caps the total at `kMaxChatAttachments` (matches Flutter's 4-file limit).
+  /// Stage attachments and atomically materialize them into app-managed local storage.
   func addAttachments(_ attachments: [ChatAttachment]) {
     let room = max(0, kMaxChatAttachments - pendingAttachments.count)
     guard room > 0 else {
@@ -2875,114 +3562,141 @@ class ChatProvider: ObservableObject {
       return
     }
     let toAdd = Array(attachments.prefix(room))
+    guard let ownerID = runtimeOwnerId else {
+      errorMessage = "Sign in again to attach files."
+      return
+    }
+    let targetKey = activeDraftKey
+    let chatID = mainChatSurfaceReference().externalRefId
     pendingAttachments.append(contentsOf: toAdd)
     for attachment in toAdd {
-      uploadAttachment(id: attachment.id)
+      let scope = PendingAttachmentScope(ownerID: ownerID, chatID: chatID)
+      pendingAttachmentScopes[attachment.id] = scope
+      materializeAttachment(id: attachment.id, targetKey: targetKey, scope: scope)
     }
   }
 
   func removePendingAttachment(id: String) {
+    guard !attachmentsAwaitingJournalAdmission.contains(id) else { return }
+    let discardedURL = pendingAttachments.first(where: { $0.id == id })?.localFileURL
+    let scope = pendingAttachmentScopes.removeValue(forKey: id)
     pendingAttachments.removeAll { $0.id == id }
+    guard let discardedURL, let scope else { return }
+    Task {
+      do {
+        try await LocalChatAttachmentStore.shared.discardManagedFiles(
+          [discardedURL],
+          ownerID: scope.ownerID,
+          chatID: scope.chatID
+        )
+      } catch {
+        logError("ChatProvider: failed to discard staged attachment", error: error)
+      }
+    }
   }
 
-  /// Upload a single staged attachment in the background. The user can send
-  /// the message before this completes — `sendMessage` will await the upload.
-  private func uploadAttachment(id: String) {
+  private func materializeAttachment(
+    id: String,
+    targetKey: ChatDraftKey,
+    scope: PendingAttachmentScope
+  ) {
     Task { [weak self] in
       guard let self = self,
         let attachment = await MainActor.run(body: {
-          self.pendingAttachments.first(where: { $0.id == id })
+          self.pendingAttachmentsByDraftKey[targetKey]?.first(where: { $0.id == id })
         })
       else { return }
-
-      // For non-image files we still need bytes — load them lazily here
-      // (we skipped this at add-time to keep the UI responsive).
-      let data: Data? =
-        attachment.data
-        ?? attachment.localFileURL.flatMap { try? Data(contentsOf: $0) }
-      guard let bytes = data else {
-        await MainActor.run {
-          if attachment.isSendableLocalResource {
-            self.setAttachmentState(id: id, state: .localOnly)
-          } else {
-            self.setAttachmentState(id: id, state: .failed("File could not be read"))
-          }
-        }
-        return
-      }
       do {
-        let resp = try await APIClient.shared.uploadChatFiles(
-          [(data: bytes, fileName: attachment.fileName, mimeType: attachment.mimeType)]
+        let managed = try await LocalChatAttachmentStore.shared.materialize(
+          attachment,
+          ownerID: scope.ownerID,
+          chatID: scope.chatID
         )
-        guard let server = resp.first else {
-          throw APIError.invalidResponse
+        let retained = await MainActor.run {
+          guard var staged = self.pendingAttachmentsByDraftKey[targetKey],
+            let index = staged.firstIndex(where: { $0.id == id })
+          else { return false }
+          staged[index] = managed
+          self.pendingAttachmentsByDraftKey[targetKey] = staged
+          ChatDraftStore.shared.setAttachments(staged, for: targetKey)
+          if self.activeDraftKey == targetKey {
+            self.isRestoringPendingAttachments = true
+            self.pendingAttachments = staged
+            self.isRestoringPendingAttachments = false
+          }
+          return true
         }
-        await MainActor.run {
-          if let idx = self.pendingAttachments.firstIndex(where: { $0.id == id }) {
-            self.pendingAttachments[idx].serverId = server.id
-            self.pendingAttachments[idx].thumbnailURL = server.thumbnail
-            if let mime = server.mimeType { self.pendingAttachments[idx].mimeType = mime }
-            if let name = server.name { self.pendingAttachments[idx].fileName = name }
-            self.pendingAttachments[idx].state = .uploaded
+        if let fileURL = managed.localFileURL {
+          if retained {
+            await LocalChatAttachmentStore.shared.releaseMaterializationProtection([fileURL])
+          } else {
+            try await LocalChatAttachmentStore.shared.discardManagedFiles(
+              [fileURL],
+              ownerID: scope.ownerID,
+              chatID: scope.chatID
+            )
           }
         }
       } catch {
-        logError("ChatProvider: attachment upload failed", error: error)
+        logError("ChatProvider: local attachment materialization failed", error: error)
         await MainActor.run {
-          if attachment.isSendableLocalResource {
-            self.setAttachmentState(id: id, state: .localOnly)
-          } else {
-            self.setAttachmentState(id: id, state: .failed(error.localizedDescription))
-          }
+          self.setAttachmentState(
+            id: id,
+            targetKey: targetKey,
+            state: .failed(error.localizedDescription)
+          )
         }
       }
     }
   }
 
-  private func setAttachmentState(id: String, state: ChatAttachment.State) {
-    guard let idx = pendingAttachments.firstIndex(where: { $0.id == id }) else { return }
-    pendingAttachments[idx].state = state
-  }
-
-  /// Serialize attachments to the JSON string stored in `metadata` on the
-  /// backend. Only the fields needed to re-render thumbnails are kept; image
-  /// bytes never travel through this channel.
-  private func encodeAttachmentsMetadata(_ attachments: [ChatAttachment]) -> String? {
-    let items: [[String: Any]] = attachments.map { att in
-      var dict: [String: Any] = [
-        "id": att.serverId ?? att.id,
-        "name": att.fileName,
-        "mime_type": att.mimeType,
-      ]
-      if let thumb = att.thumbnailURL { dict["thumbnail"] = thumb }
-      return dict
+  private func setAttachmentState(
+    id: String,
+    targetKey: ChatDraftKey,
+    state: ChatAttachment.State
+  ) {
+    guard var staged = pendingAttachmentsByDraftKey[targetKey],
+      let index = staged.firstIndex(where: { $0.id == id })
+    else { return }
+    staged[index].state = state
+    pendingAttachmentsByDraftKey[targetKey] = staged
+    ChatDraftStore.shared.setAttachments(staged, for: targetKey)
+    if activeDraftKey == targetKey {
+      isRestoringPendingAttachments = true
+      pendingAttachments = staged
+      isRestoringPendingAttachments = false
     }
-    let root: [String: Any] = ["attachments": items]
-    guard let data = try? JSONSerialization.data(withJSONObject: root),
-      let str = String(data: data, encoding: .utf8)
-    else { return nil }
-    return str
   }
 
-  /// Block until all currently-uploading attachments either succeed or fail.
-  /// Returns `false` if any failed — caller surfaces an error and aborts.
-  private func awaitPendingUploads() async -> Bool {
-    let timeoutNs: UInt64 = 60 * 1_000_000_000  // 60s safety bound
+  /// Block until the exact submitted chat's local copies settle. A chat switch
+  /// cannot retarget or consume another draft's attachments.
+  private func awaitPendingAttachmentMaterialization(
+    targetKey: ChatDraftKey,
+    attachmentIDs: Set<String>
+  ) async -> [ChatAttachment]? {
+    let timeoutNs: UInt64 = 10 * 1_000_000_000
     let start = DispatchTime.now().uptimeNanoseconds
-    while pendingAttachments.contains(where: {
-      if case .uploading = $0.state { return true }
-      return false
-    }) {
-      if DispatchTime.now().uptimeNanoseconds - start > timeoutNs {
-        errorMessage = "Attachment upload timed out."
+    while true {
+      let staged = (pendingAttachmentsByDraftKey[targetKey] ?? []).filter {
+        attachmentIDs.contains($0.id)
+      }
+      guard staged.count == attachmentIDs.count else { return nil }
+      let isUploading = staged.contains { attachment in
+        if case .uploading = attachment.state { return true }
         return false
+      }
+      if !isUploading {
+        return staged.contains(where: {
+          if case .failed = $0.state { return true }
+          return false
+        }) ? nil : staged
+      }
+      if DispatchTime.now().uptimeNanoseconds - start > timeoutNs {
+        errorMessage = "Attachment copy timed out."
+        return nil
       }
       try? await Task.sleep(nanoseconds: 100_000_000)
     }
-    return !pendingAttachments.contains(where: {
-      if case .failed = $0.state { return !$0.isSendableLocalResource }
-      return false
-    })
   }
 
   nonisolated static func attachmentContextPrompt(for attachments: [ChatAttachment]) -> String? {
@@ -3008,9 +3722,6 @@ class ChatProvider: ObservableObject {
       } else {
         lines.append("   local_path: unavailable")
       }
-      if let serverId = attachment.serverId {
-        lines.append("   uploaded_file_id: \(serverId)")
-      }
       if attachment.isImage {
         lines.append("   image_payload: included separately when available")
       }
@@ -3021,7 +3732,7 @@ class ChatProvider: ObservableObject {
   // MARK: - Send Message
 
   /// Send a message and get a response through managed Pi.
-  /// Persists both user and AI messages to backend
+  /// Journals both the user turn and accepted assistant turn locally.
   /// - Parameters:
   ///   - text: The message text
   @discardableResult
@@ -3040,10 +3751,31 @@ class ChatProvider: ObservableObject {
     let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
     let managedModel = ModelQoS.Claude.chat
     guard !trimmedText.isEmpty else { return nil }
+    guard !isClearing, !isLoading else {
+      errorMessage =
+        isClearing
+        ? "Wait for this chat to finish clearing before sending."
+        : "Wait for this chat to finish loading before sending."
+      return nil
+    }
+    guard !isCreatingSession else {
+      errorMessage = "Wait for the new chat to finish opening before sending."
+      return nil
+    }
+    guard deletingSessionIds.isEmpty else {
+      errorMessage = "Wait for chat deletion to finish before sending."
+      return nil
+    }
     guard let capturedRuntimeOwnerID = runtimeOwnerId else {
       errorMessage = "Sign in again to continue."
       return nil
     }
+    let usesMainComposer = turnOwner == .mainChat && surfaceRef == nil
+    let submittedDraftKey = activeDraftKey
+    let submittedIsDefaultChat = isInDefaultChat
+    let submittedSessionID = currentSession?.id
+    let submittedAttachments = usesMainComposer ? pendingAttachments : []
+    let submittedAttachmentIDs = Set(submittedAttachments.map(\.id))
 
     // Guard against concurrent sendMessage calls.
     // The bridge uses a single message continuation, so concurrent queries
@@ -3081,10 +3813,10 @@ class ChatProvider: ObservableObject {
       harness: AgentHarnessMode.piMono.rawValue,
       runtimeSurface: surfaceRef?.surfaceKind,
       inputLength: trimmedText.count,
-      attachmentCount: pendingAttachments.count,
+      attachmentCount: submittedAttachments.count,
       hasImage: Self.chatTelemetryHasImage(
         explicitImagePresent: imageData != nil,
-        stagedImageAttachmentPresent: pendingAttachments.contains(where: \.isImage)
+        stagedImageAttachmentPresent: submittedAttachments.contains(where: \.isImage)
       )
     )
     let turnLifecycle = ChatTurnLifecycle()
@@ -3092,6 +3824,7 @@ class ChatProvider: ObservableObject {
     activeChatTelemetryAttempt = (generation: sendGen, attempt: telemetryAttempt)
     activeChatTurnLifecycle = (generation: sendGen, lifecycle: turnLifecycle)
     activeChatClientTurnId = (generation: sendGen, id: turnAttemptId)
+    activeSendChatID = submittedSessionID ?? "default"
 
     // Ensure bridge is running
     tracer?.begin("bridge_ensure")
@@ -3121,19 +3854,8 @@ class ChatProvider: ObservableObject {
     // In default chat mode (isInDefaultChat=true): no session ID (compatible with Flutter)
     // In session mode: require session ID
     var sessionId: String? = nil
-    if !isInDefaultChat {
-      // Session mode - require a session
-      if currentSession == nil {
-        _ = await createNewSession(authoritativeSendGeneration: sendGen)
-      }
-      guard sendGeneration == sendGen, turnLifecycle.acceptsResult else {
-        tracer?.finalize(tokenCount: 0, model: managedModel)
-        telemetryAttempt.finish(stopReason: turnLifecycle.stopReason ?? stopReason(for: sendGen))
-        clearChatTelemetryState(for: sendGen)
-        releaseSendLock(sendGeneration: sendGen)
-        return nil
-      }
-      guard let sid = currentSessionId else {
+    if !submittedIsDefaultChat {
+      guard let sid = submittedSessionID else {
         errorMessage = "Failed to create chat session"
         tracer?.finalize(tokenCount: 0, model: managedModel)
         telemetryAttempt.fail(errorClass: .sessionSetup)
@@ -3212,12 +3934,6 @@ class ChatProvider: ObservableObject {
       releaseSendLock(sendGeneration: sendGen)
       return nil
     }
-    if omiAICumulativeCostUsd >= 50.0,
-      !isExemptFromOmiUpgradeNudge
-    {
-      showOmiThresholdAlert = true
-    }
-
     // The generic watchdog owns only a silent bridge with no active tool.
     // Active tools must reach their 90s no-progress watchdog first so their
     // terminal cause and correlation survive the bridge interruption.
@@ -3340,13 +4056,13 @@ class ChatProvider: ObservableObject {
     }
     defer { genericWatchdogTask.cancel() }
 
-    // Wait for staged attachments to finish uploading so we can include their
-    // server IDs in the saved-message metadata. The bubble shows immediately
-    // via the local thumbnail data — we only block sending until the upload
-    // settles so persistence stays consistent across sessions.
+    // A journal turn may reference only an app-managed local copy.
     var attachmentsForMessage: [ChatAttachment] = []
-    if !pendingAttachments.isEmpty {
-      let ok = await awaitPendingUploads()
+    if !submittedAttachmentIDs.isEmpty {
+      let materializedAttachments = await awaitPendingAttachmentMaterialization(
+        targetKey: submittedDraftKey,
+        attachmentIDs: submittedAttachmentIDs
+      )
       guard
         ChatQueryResultAuthority.acceptsContinuation(
           currentGeneration: sendGeneration,
@@ -3360,25 +4076,22 @@ class ChatProvider: ObservableObject {
         releaseSendLock(sendGeneration: sendGen)
         return nil
       }
-      if !ok {
-        errorMessage = "Some attachments failed to upload. Remove them and try again."
+      guard let materializedAttachments else {
+        errorMessage = "Some attachments could not be copied. Remove them and try again."
         tracer?.finalize(tokenCount: 0, model: managedModel)
         telemetryAttempt.fail(errorClass: .attachmentUpload)
         clearChatTelemetryState(for: sendGen)
         releaseSendLock(sendGeneration: sendGen)
         return nil
       }
-      attachmentsForMessage = pendingAttachments
-      pendingAttachments.removeAll()
+      attachmentsForMessage = materializedAttachments
     }
     usageLimiter.recordQuery()
 
-    // Attempt-derived IDs are the canonical journal identities. Backend
-    // delivery preserves them through the outbox instead of minting a
-    // second writer identity.
+    // Attempt-derived IDs are the canonical local journal identities. No
+    // backend delivery may mint or preserve a second writer identity.
     let turnMessageIds = Self.messageIds(forAttemptId: turnAttemptId)
     let userMessageId = turnMessageIds.user
-    let isFirstMessage = messages.isEmpty
     let capturedSessionId = sessionId
     let journalOrigin = journalOrigin(for: resolvedSurface)
     let userMessage = ChatMessage(
@@ -3400,6 +4113,7 @@ class ChatProvider: ObservableObject {
     )
     // Both visible halves enter the journal under one SQLite transaction.
     // If either identity/payload is rejected, neither row can project.
+    attachmentsAwaitingJournalAdmission.formUnion(submittedAttachmentIDs)
     let recordedExchange = await recordStreamingJournalExchange(
       surface: resolvedSurface,
       ownerID: capturedRuntimeOwnerID,
@@ -3410,6 +4124,7 @@ class ChatProvider: ObservableObject {
       sessionId: capturedSessionId,
       messageSource: journalOrigin
     )
+    attachmentsAwaitingJournalAdmission.subtract(submittedAttachmentIDs)
     let shouldRegisterJournalTerminalTarget: Bool
     #if DEBUG
       shouldRegisterJournalTerminalTarget = recordStreamingJournalExchangeForTests == nil
@@ -3425,6 +4140,9 @@ class ChatProvider: ObservableObject {
           ownerID: capturedRuntimeOwnerID,
           onFinalized: onJournalFinalized
         ), generation: sendGen)
+    }
+    if multiChatEnabled {
+      await fetchSessions()
     }
     guard
       ChatQueryResultAuthority.acceptsContinuation(
@@ -3449,6 +4167,20 @@ class ChatProvider: ObservableObject {
       clearChatTelemetryState(for: sendGen)
       releaseSendLock(sendGeneration: sendGen)
       return nil
+    }
+    if !submittedAttachmentIDs.isEmpty {
+      for attachment in attachmentsForMessage {
+        pendingAttachmentScopes.removeValue(forKey: attachment.id)
+      }
+      var remaining = pendingAttachmentsByDraftKey[submittedDraftKey] ?? []
+      remaining.removeAll { submittedAttachmentIDs.contains($0.id) }
+      pendingAttachmentsByDraftKey[submittedDraftKey] = remaining
+      ChatDraftStore.shared.setAttachments(remaining, for: submittedDraftKey)
+      if activeDraftKey == submittedDraftKey {
+        isRestoringPendingAttachments = true
+        pendingAttachments = remaining
+        isRestoringPendingAttachments = false
+      }
     }
     // Signal to ChatMessagesView only after the complete exchange exists so
     // anchoring can never expose a user row without its response target.
@@ -4007,7 +4739,7 @@ class ChatProvider: ObservableObject {
         runtimeRunId: queryResult.runId,
         runtimeAttemptId: queryResult.attemptId
       )
-      _ = await ChatVisibleTurnCompletion.finish(
+      let journalAccepted = await ChatVisibleTurnCompletion.finish(
         lifecycle: turnLifecycle,
         telemetryAttempt: telemetryAttempt,
         metrics: completionMetrics,
@@ -4024,13 +4756,12 @@ class ChatProvider: ObservableObject {
         }
       )
 
-      // The kernel journal commit, not backend delivery, releases the turn.
-      // The durable outbox may retry independently after this point.
+      // The kernel journal commit releases the turn.
       releaseSendLock(sendGeneration: sendGen)
 
       // Auto-generate title after first exchange (user message + AI response)
-      if isFirstMessage, let sid = capturedSessionId {
-        await generateSessionTitle(sessionId: sid)
+      if journalAccepted, multiChatEnabled {
+        await fetchSessions()
       }
 
       log("Chat response complete")
@@ -4049,15 +4780,8 @@ class ChatProvider: ObservableObject {
 
       // Skip client-side cost telemetry because /v2/chat/completions
       // already logs Omi-account token/cost usage server-side. Question
-      // quota is recorded by the backend when the accepted human message
-      // is persisted, so model calls and helper calls cannot double-count.
-      sessionTokensUsed += queryResult.inputTokens + queryResult.outputTokens
-      omiAICumulativeCostUsd += queryResult.costUsd
-      // Show the upgrade flow when the free managed-AI threshold is reached.
-      if omiAICumulativeCostUsd >= 50.0 && !isExemptFromOmiUpgradeNudge {
-        showOmiThresholdAlert = true
-      }
-
+      // quota is recorded by the transient inference endpoint, so model calls
+      // and helper calls cannot double-count.
       completedResponseText = messageText
     } catch {
       if activeBridgeSendGeneration == sendGen {
@@ -4357,16 +5081,36 @@ class ChatProvider: ObservableObject {
   /// and typing a new draft while acceptance is pending is never overwritten.
   @discardableResult
   func sendMainDraft(_ text: String) async -> String? {
-    let submittedRevision = draftRevision
+    let submittedKey = activeDraftKey
+    let submittedRevision = draftRevisions[submittedKey, default: 0]
+    guard let submittedOwnerID = runtimeOwnerId else { return nil }
     return await sendMessage(
       text,
       onAccepted: { [weak self] in
-        guard let self,
-          self.draftRevision == submittedRevision,
-          self.draftText == text
-        else { return }
-        self.draftText = ""
+        self?.clearSubmittedDraftIfUnchanged(
+          text,
+          key: submittedKey,
+          ownerID: submittedOwnerID,
+          revision: submittedRevision
+        )
       })
+  }
+
+  private func clearSubmittedDraftIfUnchanged(
+    _ text: String,
+    key: ChatDraftKey,
+    ownerID: String,
+    revision: UInt64
+  ) {
+    guard draftRevisions[key, default: 0] == revision,
+      ChatDraftStore.shared.text(for: key, ownerID: ownerID) == text
+    else { return }
+    ChatDraftStore.shared.setText("", for: key, ownerID: ownerID)
+    if runtimeOwnerId == ownerID, activeDraftKey == key {
+      isRestoringDraft = true
+      draftText = ""
+      isRestoringDraft = false
+    }
   }
 
   nonisolated static func chatTelemetrySurface(
@@ -4473,6 +5217,7 @@ class ChatProvider: ObservableObject {
     isStopping = false
     activeBridgeSendGeneration = nil
     activeTurnOwner = nil
+    activeSendChatID = nil
     if let prompt = pendingErrorRecoveryPrompt {
       pendingErrorRecoveryPrompt = nil
       Task { [weak self] in
@@ -4481,41 +5226,88 @@ class ChatProvider: ObservableObject {
     }
   }
 
-  /// Generate a title for the session using LLM
-  private func generateSessionTitle(sessionId: String) async {
-    // Need at least 2 messages (user + AI) for meaningful title
-    guard messages.count >= 2 else {
-      log("Not enough messages for title generation")
-      return
-    }
+  /// One accepted real pair, regardless of typed or voice origin, may claim an
+  /// automatic title only while the local catalog still reports `default`.
+  func catalogDidAcceptFirstCompletedExchange(
+    chatID: String,
+    ownerID: String,
+    userText: String,
+    assistantText: String
+  ) async {
+    guard multiChatEnabled,
+      chatID != "default",
+      runtimeOwnerId == ownerID,
+      !userText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+      !assistantText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    else { return }
 
-    // Convert messages to the format expected by the API
-    let messageTuples: [(text: String, sender: String)] = messages.map { msg in
-      (text: msg.text, sender: msg.sender == .user ? "human" : "ai")
-    }
+    await generateSessionTitle(
+      sessionId: chatID,
+      userText: userText,
+      assistantText: assistantText
+    )
+  }
+
+  /// Generate a title for the session using LLM
+  private func generateSessionTitle(
+    sessionId: String,
+    userText: String,
+    assistantText: String
+  ) async {
+    guard let ownerID = runtimeOwnerId else { return }
+    let ownerLease = captureCatalogOwnerLease()
 
     do {
-      let response = try await APIClient.shared.generateSessionTitle(
-        sessionId: sessionId,
-        messages: messageTuples
-      )
+      let response: GenerateTitleResponse
+      #if DEBUG
+        if let generateTitleForTests {
+          response = try await generateTitleForTests(userText, assistantText, ownerID)
+        } else {
+          response = try await APIClient.shared.generateSessionTitle(
+            userText: userText,
+            assistantText: assistantText,
+            expectedOwnerId: ownerID
+          )
+        }
+      #else
+        response = try await APIClient.shared.generateSessionTitle(
+          userText: userText,
+          assistantText: assistantText,
+          expectedOwnerId: ownerID
+        )
+      #endif
+      guard isCatalogOwnerLeaseCurrent(ownerLease) else { return }
+      let title = Self.normalizedAutomaticTitle(response.title)
+      let updated = try await updateLocalChatCatalog(
+        chatID: sessionId,
+        title: title,
+        titleOrigin: .automatic,
+        expectedTitleOrigin: .defaultTitle
+      ).chatSession
 
       // Update session in list
       if let index = sessions.firstIndex(where: { $0.id == sessionId }) {
-        sessions[index].title = response.title
+        sessions[index] = updated
       }
 
       // Update current session
       if currentSession?.id == sessionId {
-        currentSession?.title = response.title
+        currentSession = updated
       }
 
-      log("Generated session title (\(response.title.count) chars)")
+      log("Generated session title (\(updated.title.count) chars)")
       AnalyticsManager.shared.sessionTitleGenerated()
     } catch {
+      guard isCatalogOwnerLeaseCurrent(ownerLease) else { return }
       logError("Failed to generate session title", error: error)
       // Non-fatal - session continues with default title
     }
+  }
+
+  static func normalizedAutomaticTitle(_ title: String) -> String {
+    let words = title.trimmingCharacters(in: .whitespacesAndNewlines).split(whereSeparator: \.isWhitespace)
+    let normalized = words.prefix(6).joined(separator: " ")
+    return normalized.isEmpty ? "New Chat" : normalized
   }
 
   /// Update message text (replaces entire text)
@@ -5186,50 +5978,6 @@ class ChatProvider: ObservableObject {
   func dismissCurrentError() {
     currentError = nil
     lastFailedPrompt = nil
-  }
-
-  // MARK: - Clear Chat
-
-  /// Clear current session messages (delete and create new)
-  func clearChat() async {
-    isClearing = true
-    defer { isClearing = false }
-
-    if isInDefaultChat {
-      let runtimeChatId = mainChatRuntimeChatId(sessionId: nil)
-      let surface = AgentSurfaceReference.mainChat(chatId: runtimeChatId)
-      AgentRuntimeStatusStore.shared.clear(surface: surface)
-      guard await kernelTurnProjection.clear(surface: surface) else {
-        errorMessage = "Failed to clear chat"
-        return
-      }
-      log("Cleared default chat messages")
-    } else {
-      // Session mode: clear UI immediately, delete old session in background, create new
-      let sessionToDelete = currentSession
-      if let session = sessionToDelete {
-        let surface = AgentSurfaceReference.mainChat(chatId: session.id)
-        AgentRuntimeStatusStore.shared.clear(surface: surface)
-        guard await kernelTurnProjection.clear(surface: surface) else {
-          errorMessage = "Failed to clear chat"
-          return
-        }
-      }
-
-      // Immediately clear UI state
-      if let session = sessionToDelete {
-        sessions.removeAll { $0.id == session.id }
-      }
-      currentSession = nil
-      messages = []
-      resetMessagesPagination()
-
-      // Create a fresh session immediately
-      _ = await createNewSession()
-    }
-
-    log("Chat cleared")
-    AnalyticsManager.shared.chatCleared()
   }
 
   // MARK: - Session Grouping Helpers

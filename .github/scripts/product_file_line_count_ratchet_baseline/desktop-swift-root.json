@@ -1,11 +1,11 @@
 {
   "files": {
-    "desktop/macos/Desktop/Sources/AuthService.swift": 2773,
-    "desktop/macos/Desktop/Sources/DesktopAutomationBridge.swift": 3410
+    "desktop/macos/Desktop/Sources/AuthService.swift": 2800,
+    "desktop/macos/Desktop/Sources/DesktopAutomationBridge.swift": 3475
   },
   "raise_justifications": {
-    "desktop/macos/Desktop/Sources/AuthService.swift": "Apple first-auth name capture signals observers (authNameDidUpdate) and persists the name to Firebase so it survives reinstalls.",
-    "desktop/macos/Desktop/Sources/DesktopAutomationBridge.swift": "The bridge owns the retained named-bundle QA actions, including local Memory snapshot/create/edit/delete commands, sheet capture, system wake, restart, and resource-pressure remediation. The Memory page view model owns its scoped search and filter actions."
+    "desktop/macos/Desktop/Sources/AuthService.swift": "S-11 sign-out captures journal attachment references before deleting draft-only managed files so durable local chat history remains readable.",
+    "desktop/macos/Desktop/Sources/DesktopAutomationBridge.swift": "S-11 adds retained named-bundle Home chat catalog controls and a create-rename-star-delete acceptance round trip through the production ChatProvider boundary."
   },
   "threshold": 1500
 }

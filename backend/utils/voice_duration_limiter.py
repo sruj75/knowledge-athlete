@@ -1,9 +1,9 @@
 """
 Voice-message audio-duration budget enforcement.
 
-Shared rolling 24h budget across all three voice-message STT endpoints
-(/v2/voice-message/transcribe, /v2/voice-message/transcribe-stream,
-/v2/voice-messages) to prevent unbounded managed transcription cost.
+Shared rolling 24h budget across the retained voice-message STT endpoints
+(/v2/voice-message/transcribe and /v2/voice-message/transcribe-stream) to
+prevent unbounded managed transcription cost.
 
 Design:
 - Single Redis sorted set per UID with minute-granularity buckets.

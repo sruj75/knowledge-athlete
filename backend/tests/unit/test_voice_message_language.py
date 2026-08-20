@@ -69,7 +69,6 @@ def chat():
         "database.notifications": MagicMock(),
         "database.auth": MagicMock(),
         "database.users": MagicMock(),
-        "utils.llm.chat": MagicMock(),
         "database.redis_db": redis_db,
         "models.chat": MagicMock(),
         "models.conversation": MagicMock(),
@@ -160,63 +159,5 @@ def test_silent_voice_message_still_schedules_temporary_audio_cleanup(chat, monk
     monkeypatch.setattr(chat, "_validated_wav_is_silent", lambda path, provider: True)
 
     assert chat.transcribe_voice_message_segment("audio.wav", "uid", "en") == (None, "en")
-    sign.assert_called_once_with("audio.wav")
-    schedule_cleanup.assert_called_once_with("audio.wav")
-
-
-@pytest.mark.asyncio
-async def test_stream_routes_storage_and_transcription_to_owned_executors(chat, monkeypatch):
-    calls = []
-    monkeypatch.setattr(chat, "get_prerecorded_service", lambda language: ("modulate", language, "modulate-velma-2"))
-
-    async def fake_run_blocking(executor, func, *args, **kwargs):
-        calls.append((executor, func, args, kwargs))
-        if func is chat._validated_wav_is_silent:
-            return False
-        if func is chat._prepare_voice_message_url:
-            return "https://signed.test/audio"
-        if func is chat._transcribe_voice_message_url:
-            return None, "en"
-        raise AssertionError(f"unexpected blocking call: {func.__name__}")
-
-    monkeypatch.setattr(chat, "run_blocking", fake_run_blocking)
-
-    chunks = [chunk async for chunk in chat.process_voice_message_segment_stream("audio.wav", "uid", "en")]
-
-    assert chunks == []
-    assert [(executor, func) for executor, func, _, _ in calls] == [
-        (chat.storage_executor, chat._prepare_voice_message_url),
-        (chat.sync_executor, chat._validated_wav_is_silent),
-        (chat.sync_executor, chat._transcribe_voice_message_url),
-    ]
-    assert calls[0][2] == ("audio.wav",)
-    assert calls[1][2] == ("audio.wav",)
-    assert calls[1][3] == {"provider": "modulate"}
-    assert calls[2][2] == ("https://signed.test/audio", "audio.wav", "en", False)
-
-
-@pytest.mark.asyncio
-async def test_silent_stream_still_schedules_temporary_audio_cleanup(chat, monkeypatch):
-    """The streamed VAD gate must preserve the same deletion lifecycle."""
-    sign = MagicMock(return_value="https://signed.test/audio")
-    schedule_cleanup = MagicMock()
-    monkeypatch.setattr(chat, "get_syncing_file_temporal_signed_url", sign)
-    monkeypatch.setattr(chat, "schedule_syncing_temporal_file_deletion", schedule_cleanup)
-    monkeypatch.setattr(chat, "get_prerecorded_service", lambda language: ("modulate", "en", "modulate-velma-2"))
-
-    async def fake_run_blocking(executor, func, *args, **kwargs):
-        if func is chat._prepare_voice_message_url:
-            assert executor is chat.storage_executor
-            return func(*args, **kwargs)
-        if func is chat._validated_wav_is_silent:
-            assert executor is chat.sync_executor
-            return True
-        raise AssertionError(f"unexpected blocking call: {func.__name__}")
-
-    monkeypatch.setattr(chat, "run_blocking", fake_run_blocking)
-
-    chunks = [chunk async for chunk in chat.process_voice_message_segment_stream("audio.wav", "uid", "en")]
-
-    assert chunks == []
     sign.assert_called_once_with("audio.wav")
     schedule_cleanup.assert_called_once_with("audio.wav")

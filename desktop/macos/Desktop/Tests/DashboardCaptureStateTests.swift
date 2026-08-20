@@ -27,24 +27,24 @@ final class DashboardCaptureStateTests: XCTestCase {
 
   func testListeningPillShowsAndTogglesCaptureMode() throws {
     let source = try captureControlsSource()
-    let topBar = try desktopTopBarSource()
     let logic = try captureLogicSource()
 
     XCTAssertTrue(source.contains("@AppStorage(\"systemAudioCaptureMode\")"))
     XCTAssertTrue(source.contains("HomeListeningStatusButton("))
+    XCTAssertTrue(source.contains("modeTitle: listeningModeTitle"))
     XCTAssertTrue(source.contains("modeAction: toggleListeningMode"))
-    XCTAssertTrue(topBar.contains("CaptureListeningControls(appState: appState, onRewind: onRewind)"))
-    XCTAssertTrue(logic.contains("AssistantSettings.shared.systemAudioCaptureMode = nextMode"))
+    XCTAssertTrue(logic.contains("return \"Meetings Only\""))
+    XCTAssertTrue(logic.contains("return \"Always\""))
+    XCTAssertTrue(logic.contains("AssistantSettings.shared.systemAudioCaptureMode = mode"))
     XCTAssertFalse(source.contains("OmiColors.purplePrimary"))
   }
 
   func testRedesignedHomeUsesResponsiveStageSizing() throws {
     let source = try dashboardSource()
 
-    XCTAssertTrue(source.contains("private static let homeStageMaxWidth: CGFloat = 1360"))
-    XCTAssertTrue(source.contains("private func homeStageSideInset(for stageWidth: CGFloat) -> CGFloat"))
-    XCTAssertTrue(source.contains("private func homeAskBarWidth(for stageWidth: CGFloat) -> CGFloat"))
-    XCTAssertTrue(source.contains("private func homeHubStage(stageWidth: CGFloat, askBarWidth: CGFloat) -> some View"))
+    XCTAssertTrue(source.contains("private static let contentMaxWidth: CGFloat = 980"))
+    XCTAssertTrue(source.contains("homeHub(width: min(Self.contentMaxWidth, max(560, size.width - 80)))"))
+    XCTAssertTrue(source.contains("homeChat(width: size.width, height: size.height)"))
   }
 
   func testHomeAskBarRefocusesAfterOpeningChatStage() throws {
@@ -85,14 +85,6 @@ final class DashboardCaptureStateTests: XCTestCase {
       .deletingLastPathComponent()
       .deletingLastPathComponent()
       .appendingPathComponent("Sources/MainWindow/CaptureListeningControls.swift")
-    return try String(contentsOf: path, encoding: .utf8)
-  }
-
-  private func desktopTopBarSource() throws -> String {
-    let path = URL(fileURLWithPath: #filePath)
-      .deletingLastPathComponent()
-      .deletingLastPathComponent()
-      .appendingPathComponent("Sources/MainWindow/DesktopTopBar.swift")
     return try String(contentsOf: path, encoding: .utf8)
   }
 

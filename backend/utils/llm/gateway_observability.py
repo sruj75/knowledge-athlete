@@ -6,8 +6,8 @@ import threading
 import time
 
 from utils.metrics import (
-    LLM_GATEWAY_CHAT_EXTRACTION_COMPARISONS,
-    LLM_GATEWAY_CHAT_EXTRACTION_REQUESTS,
+    LLM_GATEWAY_STRUCTURED_COMPARISONS,
+    LLM_GATEWAY_STRUCTURED_REQUESTS,
     LLM_GATEWAY_DIRECT_EXCEPTION_REQUESTS,
 )
 
@@ -45,7 +45,7 @@ def record_gateway_request_result(
     mode_label = _safe_label(mode or _mode_for_outcome(outcome))
 
     try:
-        LLM_GATEWAY_CHAT_EXTRACTION_REQUESTS.labels(
+        LLM_GATEWAY_STRUCTURED_REQUESTS.labels(
             feature=feature_label,
             mode=mode_label,
             outcome=outcome_label,
@@ -77,7 +77,7 @@ def record_direct_exception_surface(*, surface: str, reason: str = 'acknowledged
         _report_observation_failure('direct_exception_metric')
 
     try:
-        LLM_GATEWAY_CHAT_EXTRACTION_REQUESTS.labels(
+        LLM_GATEWAY_STRUCTURED_REQUESTS.labels(
             feature=surface_label,
             mode=_GATEWAY_MODE_DIRECT_EXCEPTION,
             outcome='direct_exception',
@@ -106,7 +106,7 @@ def record_gateway_shadow_comparison(*, feature: str, field: str, outcome: str, 
     route_label = _safe_label(route)
 
     try:
-        LLM_GATEWAY_CHAT_EXTRACTION_COMPARISONS.labels(
+        LLM_GATEWAY_STRUCTURED_COMPARISONS.labels(
             feature=feature_label,
             field=field_label,
             outcome=outcome_label,

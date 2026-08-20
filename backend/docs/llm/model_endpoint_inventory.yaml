@@ -17,6 +17,7 @@ model_config_features:
     - backend/llm_gateway/gateway/config_loader.py:_generated_feature_route_items
   request_shapes:
     plain_chat:
+      - chat_greeting
       - conv_action_items
       - conv_discard
       - conv_folder
@@ -28,7 +29,6 @@ model_config_features:
       - session_titles
       - wrapped_analysis
     structured_output:
-      - chat_extraction
       - proactive_notification
       - translation
       - trends

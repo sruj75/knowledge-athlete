@@ -353,10 +353,10 @@ It is self-driving for agents: it runs the risky Swift lifecycle/state tests, fo
 
 ### Chat Continuity Write-Path Contract (INV-6)
 
-Invariant: Main Chat, Home chat, and floating/notch chat are one timeline over one
-`ChatProvider` (`historyChatProvider`). Kernel `main_chat` turns are the durable
-source of truth; journal acceptance publishes the immediate pending projection,
-and UI must never append a pre-journal turn.
+Invariant: Home and floating/notch Chat present one owner-scoped local timeline
+through `historyChatProvider`. Node owns Chat metadata; kernel `main_chat` turns
+own durable history. Journal acceptance publishes pending projection; UI never
+appends pre-journal turns or maintains a backend shadow catalog.
 
 Rules (fail the PR if any break):
 1. **Single provider + floating viewport** — floating presentation is chrome + a
@@ -378,11 +378,11 @@ Rules (fail the PR if any break):
    visible row, and replay/acknowledgement must replace rather than append.
 5. **Cross-surface agent identity is structured** — `agentSpawn` / `agentCompletion`
    content blocks (plus tool-block `spawnedAgentID` / sessionId / runId lines) are
-   authoritative. Persist structured blocks through the kernel journal/outbox so
-   they survive reload; kernel apply still materializes `agentCompletion` from
-   bracket text for legacy rows. Legacy `[Background agent id=…]` bracket
-   text remains dual-read only. Do not invent new free-text formats; extend the
-   schema + tests together.
+   authoritative. Persist them in kernel journal; kernel apply still
+   materializes `agentCompletion` from bracket text for legacy rows. Legacy
+   `[Background agent id=…]` bracket text is dual-read only. Extend schema + tests
+   together. Chat turns and catalog metadata stay local; never restore backend
+   projection/reconcile outboxes.
    Proactive notifications use continuity key `notification:<uuid>` (origin
    `proactive_notification`) and enter the notification-to-chat cache only after
    journal acceptance; do not reintroduce local timeline append paths.

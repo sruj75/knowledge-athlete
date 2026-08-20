@@ -89,7 +89,6 @@ class TestPremiumMini:
     """Test gpt-4.1-mini features in premium profile respond to real prompts."""
 
     MINI_FEATURES = [
-        'chat_extraction',
         'proactive_notification',
     ]
 

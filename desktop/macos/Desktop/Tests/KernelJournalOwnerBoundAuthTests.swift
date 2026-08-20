@@ -96,7 +96,8 @@ final class KernelJournalOwnerBoundAuthTests: XCTestCase {
 
     do {
       _ = try await client.getInitialMessage(
-        sessionId: "owner-a-session",
+        profileText: "local profile",
+        memories: [],
         expectedOwnerId: "owner-a"
       )
       XCTFail("an owner-A greeting must not use owner-B credentials")

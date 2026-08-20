@@ -192,26 +192,6 @@ export type NewConversationTurn = Pick<
     | "metadataJson"
   >>;
 
-export type BackendTurnOutboxStatus = "pending" | "delivering" | "retrying" | "delivered" | "failed";
-
-export interface BackendTurnOutboxRecord {
-  turnId: string;
-  conversationId: string;
-  ownerId: string;
-  status: BackendTurnOutboxStatus;
-  attemptCount: number;
-  deliveryGeneration: number;
-  conversationGeneration: number;
-  payloadHash: string;
-  availableAtMs: number;
-  leaseExpiresAtMs: number | null;
-  remoteId: string | null;
-  lastErrorCode: string | null;
-  createdAtMs: number;
-  updatedAtMs: number;
-  deliveredAtMs: number | null;
-}
-
 export interface CompletionDeltaCheckpoint {
   ownerId: string;
   surfaceKey: string;
@@ -603,8 +583,6 @@ export interface StartupReconciliationResult {
   staleBindingIds: string[];
   expiredContextPacketIds: string[];
   failedArtifactDeliveryIds: string[];
-  requeuedBackendTurnOutboxIds: string[];
-  requeuedBackendConversationDeleteIds: string[];
   failedPreparedToolInvocationIds: string[];
   outcomeUnknownToolInvocationIds: string[];
   repairedSessionProfileIds: string[];
@@ -613,7 +591,6 @@ export interface StartupReconciliationResult {
   repairedBindingProfileReferenceIds: string[];
   repairedLegacyJournalTurnIds: string[];
   reconciledJournalTurnIds: string[];
-  repairedBackendTurnOutboxIds: string[];
   recoveryDispatchIds: string[];
   clearedAttemptInstanceIds: number;
   clearedBindingInstanceIds: number;

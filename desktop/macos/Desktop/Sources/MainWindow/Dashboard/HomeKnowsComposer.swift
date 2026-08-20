@@ -43,19 +43,12 @@ struct HomeKnowsInsightCandidate: Equatable {
 enum HomeKnowsListComposer {
   static let maxRows = 4
 
-  /// How many candidates must exist beyond what's shown before the hub starts
-  /// rotating — otherwise the same rows would "rotate" back onto themselves.
-  static func canRotate(taskCount: Int, insightCount: Int, questionCount: Int) -> Bool {
-    taskCount > 2 || insightCount > 1 || questionCount > 1
-  }
-
   static func compose(
     tasks: [HomeKnowsTaskCandidate],
     insights: [HomeKnowsInsightCandidate],
     tip: String? = nil,
     questions: [String],
-    dismissedTaskIDs: Set<String> = [],
-    rotation: Int = 0
+    dismissedTaskIDs: Set<String> = []
   ) -> [HomeKnowsRow] {
     let freshTasksRaw = tasks.filter { candidate in
       !dismissedTaskIDs.contains(candidate.id)
@@ -75,16 +68,9 @@ enum HomeKnowsListComposer {
       .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
       .filter { !$0.isEmpty && seenQuestions.insert($0).inserted }
 
-    // Rotate each source so the hub cycles through fresh candidates over time
-    // while the diverse task · tip · task · ask structure below stays fixed.
-    func rotated<T>(_ arr: [T]) -> [T] {
-      guard arr.count > 1 else { return arr }
-      let k = ((rotation % arr.count) + arr.count) % arr.count
-      return Array(arr[k...] + arr[..<k])
-    }
-    let freshTasks = rotated(freshTasksRaw)
-    let cleanInsights = rotated(cleanInsightsRaw)
-    let cleanQuestions = rotated(cleanQuestionsRaw)
+    let freshTasks = freshTasksRaw
+    let cleanInsights = cleanInsightsRaw
+    let cleanQuestions = cleanQuestionsRaw
     // The ask never duplicates the composed tip.
     let ask = cleanQuestions.first { $0 != cleanTip }
 

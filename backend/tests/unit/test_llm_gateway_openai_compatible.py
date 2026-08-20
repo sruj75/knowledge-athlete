@@ -17,7 +17,7 @@ from llm_gateway.gateway.schemas import FailureClass, ProviderRef, ProviderRejec
 from llm_gateway.main import app
 from llm_gateway.routers import dependencies, openai_compatible
 from models.structured_extraction import ActionItemsExtraction, ConversationStructureExtraction
-from utils.llm.gateway_client import _chat_structured_payload
+from utils.llm.gateway_client import build_structured_gateway_payload
 
 LANE_ID = 'omi:auto:chat-structured'
 
@@ -81,8 +81,7 @@ def test_chat_completions_success_uses_lane_model_and_hides_route_metadata(monke
     assert 'selected_route_artifact_id' not in body
     # The checked-in active route is in shadow rollout (percent 0), so live
     # traffic is served by the last-known-good route. The LKG primary uses the
-    # gateway-only chat_extraction policy (gpt-5.4-nano), leaving the legacy
-    # product route unchanged while shadow-only.
+    # lane policy (gpt-5.4-nano), leaving direct product routes unchanged while shadow-only.
     assert provider.calls[0].model == 'gpt-5.4-nano'
     assert provider.calls[0].request['model'] == 'gpt-5.4-nano'
     assert provider.calls[0].request['temperature'] == 0
@@ -322,7 +321,7 @@ def test_chat_completions_forwards_action_item_extraction_strict_schema(monkeypa
     provider = FakeChatCompletionProvider()
     app.dependency_overrides[dependencies.get_provider_registry] = lambda: ProviderRegistry({'openai': provider})
     try:
-        request = _chat_structured_payload(
+        request = build_structured_gateway_payload(
             'Extract action items.',
             ActionItemsExtraction,
             feature='conversation_action_items.extract.shadow',
@@ -355,7 +354,7 @@ def test_chat_completions_forwards_conversation_structure_extraction_strict_sche
     provider = FakeChatCompletionProvider()
     app.dependency_overrides[dependencies.get_provider_registry] = lambda: ProviderRegistry({'openai': provider})
     try:
-        request = _chat_structured_payload(
+        request = build_structured_gateway_payload(
             'Extract conversation structure.',
             ConversationStructureExtraction,
             feature='conversation_structure.extract.shadow',

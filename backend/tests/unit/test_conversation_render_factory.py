@@ -231,7 +231,6 @@ class TestProductionCallSitesMigrated:
 
     RENDER_CONSUMERS = [
         'utils/llm/daily_summary.py',
-        'utils/retrieval/rag.py',
         'utils/retrieval/tool_services/conversations.py',
         'utils/retrieval/tools/conversation_tools.py',
     ]

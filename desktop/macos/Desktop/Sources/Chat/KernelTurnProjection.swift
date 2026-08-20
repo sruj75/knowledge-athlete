@@ -3,6 +3,7 @@ import Foundation
 
 struct KernelVoiceContextSnapshot: Equatable, Sendable {
   static let empty = KernelVoiceContextSnapshot(
+    surface: .realtimeVoice(chatId: "default"),
     sessionId: "",
     conversationId: "",
     context: "",
@@ -14,6 +15,7 @@ struct KernelVoiceContextSnapshot: Equatable, Sendable {
     turnIDs: []
   )
 
+  let surface: AgentSurfaceReference
   let sessionId: String
   let conversationId: String
   let context: String
@@ -24,6 +26,30 @@ struct KernelVoiceContextSnapshot: Equatable, Sendable {
   let dynamicContextIdentity: String
   let semanticGuidance: String
   let turnIDs: Set<String>
+
+  init(
+    surface: AgentSurfaceReference = .realtimeVoice(chatId: "default"),
+    sessionId: String,
+    conversationId: String,
+    context: String,
+    freshnessIdentity: String,
+    contextPlanID: String,
+    stableCacheIdentity: String,
+    dynamicContextIdentity: String,
+    semanticGuidance: String,
+    turnIDs: Set<String>
+  ) {
+    self.surface = surface
+    self.sessionId = sessionId
+    self.conversationId = conversationId
+    self.context = context
+    self.freshnessIdentity = freshnessIdentity
+    self.contextPlanID = contextPlanID
+    self.stableCacheIdentity = stableCacheIdentity
+    self.dynamicContextIdentity = dynamicContextIdentity
+    self.semanticGuidance = semanticGuidance
+    self.turnIDs = turnIDs
+  }
 
   /// `.empty` is a transport/bridge failure sentinel, not a valid blank
   /// conversation. A valid new conversation may render no text, but it still
@@ -387,10 +413,12 @@ final class KernelTurnProjection {
     if !refreshSucceeded, !publishPartialResults {
       return false
     }
-    if shouldResetProjection {
-      host?.resetJournalProjection(surface: surface)
+    if host?.shouldProjectJournalSurface(surface) == true {
+      if shouldResetProjection {
+        host?.resetJournalProjection(surface: surface)
+      }
+      host?.projectJournalTurns(pendingProjectionTurns)
     }
-    host?.projectJournalTurns(pendingProjectionTurns)
     return refreshSucceeded
   }
 
@@ -485,14 +513,24 @@ final class KernelTurnProjection {
     guard let lease = captureOwnerLease(ownerID: ownerID), let host else { return nil }
     guard await host.ensureBridgeStartedForKernel(), isCurrent(lease), let client else { return nil }
     do {
-      let turn = try await client.updateJournalTurn(
+      let result = try await client.updateJournalTurnWithReceipt(
         surface: surface,
         ownerID: lease.ownerID,
         update: message.journalUpdate(status: status)
       )
+      guard let turn = result.turn else { return nil }
       guard isCurrent(lease) else { return nil }
       _ = await refresh(surface: surface, lease: lease, publishPartialResults: true)
       guard isCurrent(lease) else { return nil }
+      if result.firstCompletedRealPair, let exchange = result.firstCompletedRealExchange {
+        scheduleCatalogTitleGeneration(
+          host: host,
+          chatID: surface.externalRefId,
+          ownerID: lease.ownerID,
+          userText: exchange.userText,
+          assistantText: exchange.assistantText
+        )
+      }
       return turn
     } catch {
       log("KernelTurnProjection: journal update failed (code=journal_update_failed)")
@@ -531,13 +569,24 @@ final class KernelTurnProjection {
         : nil
     )
     do {
-      let turn = try await client.terminalizeJournalTurn(
+      let result = try await client.terminalizeJournalTurn(
         surface: surface,
         ownerID: lease.ownerID,
         terminalization: terminalization
       )
+      let turn = result.turn
       guard isCurrent(lease) else { return nil }
       _ = await refresh(surface: surface, lease: lease, publishPartialResults: true)
+      guard isCurrent(lease) else { return nil }
+      if result.firstCompletedRealPair, let exchange = result.firstCompletedRealExchange {
+        scheduleCatalogTitleGeneration(
+          host: host,
+          chatID: surface.externalRefId,
+          ownerID: lease.ownerID,
+          userText: exchange.userText,
+          assistantText: exchange.assistantText
+        )
+      }
       return isCurrent(lease) ? turn : nil
     } catch {
       log("KernelTurnProjection: journal terminalization failed (code=journal_terminalize_failed)")
@@ -737,12 +786,38 @@ final class KernelTurnProjection {
         return nil
       }
       applyAcceptedExchange(result, surface: surface, lease: lease)
+      if result.firstCompletedRealPair, let exchange = result.firstCompletedRealExchange {
+        scheduleCatalogTitleGeneration(
+          host: host,
+          chatID: surface.externalRefId,
+          ownerID: lease.ownerID,
+          userText: exchange.userText,
+          assistantText: exchange.assistantText
+        )
+      }
       return isCurrent(lease) ? result.turns : nil
     } catch {
       if isCurrent(lease) {
         log("KernelTurnProjection: journal exchange failed (code=journal_exchange_failed)")
       }
       return nil
+    }
+  }
+
+  private func scheduleCatalogTitleGeneration(
+    host: ChatProvider,
+    chatID: String,
+    ownerID: String,
+    userText: String,
+    assistantText: String
+  ) {
+    Task { @MainActor [weak host] in
+      await host?.catalogDidAcceptFirstCompletedExchange(
+        chatID: chatID,
+        ownerID: ownerID,
+        userText: userText,
+        assistantText: assistantText
+      )
     }
   }
 
@@ -905,29 +980,9 @@ final class KernelTurnProjection {
   func clearOwnerSurfaceState(chatId: String = "default") async -> Bool {
     await clear(
       surface: .mainChat(chatId: chatId),
-      requiresModelReadiness: false
+      requiresModelReadiness: false,
+      deleteBackend: false
     )
-  }
-
-  @discardableResult
-  func importRemoteTurn(
-    surface: AgentSurfaceReference,
-    turn: KernelJournalRemoteTurn,
-    ownerID: String? = nil
-  ) async -> Bool {
-    guard let lease = captureOwnerLease(ownerID: ownerID), let host else { return false }
-    guard await host.ensureBridgeStartedForKernel(), isCurrent(lease), let client else { return false }
-    do {
-      _ = try await client.importRemoteJournalTurn(
-        surface: surface,
-        ownerID: lease.ownerID,
-        turn: turn
-      )
-      return isCurrent(lease)
-    } catch {
-      log("KernelTurnProjection: bounded legacy import failed (code=journal_legacy_import_failed)")
-      return false
-    }
   }
 
   func fetchVoiceContextSnapshot(
@@ -946,7 +1001,11 @@ final class KernelTurnProjection {
         sessionId: session.sessionId,
         surfaceKind: surface.surfaceKind)
       guard isCurrent(lease) else { return .empty }
-      return Self.voiceContextSnapshot(from: snapshot, sessionId: session.sessionId)
+      return Self.voiceContextSnapshot(
+        from: snapshot,
+        sessionId: session.sessionId,
+        surface: surface
+      )
     } catch {
       log("KernelTurnProjection: voice context snapshot fetch failed: \(error.localizedDescription)")
       return .empty
@@ -1045,9 +1104,11 @@ final class KernelTurnProjection {
       generationByConversation[checkpointKey] = result.conversationGeneration
     }
 
-    for turn in result.turns.sorted(by: { $0.turnSeq < $1.turnSeq }) {
-      guard isCurrent(lease) else { return }
-      host.projectJournalTurn(turn)
+    if host.shouldProjectJournalSurface(surface) {
+      for turn in result.turns.sorted(by: { $0.turnSeq < $1.turnSeq }) {
+        guard isCurrent(lease) else { return }
+        host.projectJournalTurn(turn)
+      }
     }
 
     let checkpoint =
@@ -1179,7 +1240,8 @@ final class KernelTurnProjection {
 
   nonisolated static func voiceContextSnapshot(
     from snapshot: AgentContextSnapshot,
-    sessionId: String = ""
+    sessionId: String = "",
+    surface: AgentSurfaceReference = .realtimeVoice(chatId: "default")
   ) -> KernelVoiceContextSnapshot {
     let freshnessIdentity = [
       snapshot.version,
@@ -1187,6 +1249,7 @@ final class KernelTurnProjection {
       snapshot.capabilityVersion,
     ].joined(separator: ":")
     return KernelVoiceContextSnapshot(
+      surface: surface,
       sessionId: sessionId,
       conversationId: snapshot.conversationId,
       context: snapshot.renderedContext,

@@ -299,7 +299,6 @@ actor ActionItemStorage {
         }
       }
     }
-    HomeKnowledgeCountInvalidation.post(logMessage: "ActionItemStorage: inserted local task \(inserted.id ?? -1)")
     return inserted
   }
 
@@ -329,7 +328,6 @@ actor ActionItemStorage {
         return inserted
       }
     }
-    if inserted != nil { HomeKnowledgeCountInvalidation.post() }
     return inserted
   }
 
@@ -407,7 +405,6 @@ actor ActionItemStorage {
         return (record, child)
       }
     }
-    HomeKnowledgeCountInvalidation.post()
     return (result.0.toTaskActionItem(), result.1?.toTaskActionItem())
   }
 
@@ -496,7 +493,6 @@ actor ActionItemStorage {
         try authorization.require()
       }
     }
-    HomeKnowledgeCountInvalidation.post()
   }
 
   @discardableResult
@@ -521,7 +517,6 @@ actor ActionItemStorage {
         return record
       }
     }
-    HomeKnowledgeCountInvalidation.post()
     return record.toTaskActionItem()
   }
 

@@ -39,19 +39,13 @@ from utils.llm.conversation_folder import assign_conversation_to_folder
 from utils.analytics import record_usage
 from utils.llm.usage_tracker import track_usage, Features
 from utils.llm.temporal import date_in_tz
-from utils.llm.chat import (
-    retrieve_metadata_fields_from_transcript,
-    obtain_emotional_message,
-)
 from utils.llm.clients import generate_embedding
-from utils.notifications import send_notification
 from utils.other.hume import (
     get_hume,
     HumeJobCallbackModel,
     HumeJobModelPredictionResponseModel,
     HumePredictionEmotionResponseModel,
 )
-from utils.retrieval.rag import retrieve_rag_conversation_context
 from utils.cloud_tasks import is_audio_merge_dispatch_enabled
 from utils.other.storage import (
     compute_audio_files_fingerprint,
@@ -182,14 +176,7 @@ def save_transcript_chunk_vectors(uid: str, conversation: Conversation):
 
 def save_structured_vector(uid: str, conversation: Conversation, update_only: bool = False) -> None:
     vector = generate_embedding(str(conversation.structured)) if not update_only else None
-    tz = notification_db.get_user_time_zone(uid) or ''
-
-    metadata: Dict[str, Any] = {}
-
-    segments: List[Dict[str, Any]] = [t.dict() for t in conversation.transcript_segments]
-    metadata = retrieve_metadata_fields_from_transcript(uid, conversation.created_at, segments, tz)
-
-    metadata['created_at'] = int(conversation.created_at.timestamp())
+    metadata: Dict[str, Any] = {'created_at': int(conversation.created_at.timestamp())}
 
     if not update_only:
         logger.info('save_structured_vector creating vector')
@@ -608,20 +595,7 @@ def process_user_expression_measurement_callback(
         logger.info(f"Can not extract users emmotion. uid: {uid}")
         return
 
-    emotion = ','.join(emotions)
-    logger.info(f"Emotion Uid: {uid} {emotion}")
-
-    # Ask llms about notification content
-    title = "omi"
-    context_str, _ = retrieve_rag_conversation_context(uid, conversation)
-
-    response: str = obtain_emotional_message(
-        uid, conversation.transcript_segments, conversation.get_person_ids(), context_str, emotion
-    )
-    message = response
-
-    # Send the notification
-    send_notification(uid, title, message, None)
+    logger.info("Emotion analysis result stored for uid=%s", uid)
 
     return
 

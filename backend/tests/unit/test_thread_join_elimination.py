@@ -58,11 +58,6 @@ class TestNoThreadJoinInMigratedFiles:
         patterns = _count_thread_join_patterns(filepath)
         assert patterns == [], f"Thread+join still in process_conversation.py: {patterns}"
 
-    def test_rag_no_thread_join(self):
-        filepath = os.path.join(BACKEND_DIR, 'utils', 'retrieval', 'rag.py')
-        patterns = _count_thread_join_patterns(filepath)
-        assert patterns == [], f"Thread+join still in rag.py: {patterns}"
-
     def test_sync_no_thread_join(self):
         filepath = os.path.join(BACKEND_DIR, 'routers', 'sync.py')
         patterns = _count_thread_join_patterns(filepath)
@@ -70,12 +65,7 @@ class TestNoThreadJoinInMigratedFiles:
 
 
 class TestThreadPoolExecutorUsed:
-    """Verify migrated files use ThreadPoolExecutor or asyncio.gather."""
-
-    def test_rag_uses_shared_executor(self):
-        filepath = os.path.join(BACKEND_DIR, 'utils', 'retrieval', 'rag.py')
-        source = _read_source(filepath)
-        assert 'db_executor' in source
+    """Verify retained migrated files use shared executors or asyncio.gather."""
 
     def test_sync_uses_shared_executor_or_gather(self):
         filepath = os.path.join(BACKEND_DIR, 'routers', 'sync.py')

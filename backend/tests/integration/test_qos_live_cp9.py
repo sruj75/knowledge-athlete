@@ -114,15 +114,6 @@ class TestP6_StructuredOutput:
     class SimpleOutput(BaseModel):
         word: str = Field(description="A single word greeting")
 
-    def test_structured_output_chat_extraction(self):
-        """chat_extraction (OpenAI in premium) works with with_structured_output."""
-        llm = get_llm('chat_extraction')
-        structured = llm.with_structured_output(self.SimpleOutput)
-        result = structured.invoke("Reply with a JSON object containing a single word: hello")
-        assert isinstance(result, self.SimpleOutput)
-        assert len(result.word) > 0
-        print(f"  P6 structured chat_extraction: {result.word}")
-
     def test_structured_output_proactive_notification(self):
         llm = get_llm('proactive_notification')
         structured = llm.with_structured_output(self.SimpleOutput)
@@ -141,7 +132,6 @@ class TestP6_StructuredOutput:
 
     def test_structured_output_features_set(self):
         assert _STRUCTURED_OUTPUT_FEATURES == {
-            'chat_extraction',
             'proactive_notification',
             'trends',
             'translation',

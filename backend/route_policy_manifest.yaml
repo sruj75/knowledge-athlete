@@ -74,6 +74,54 @@ routes:
     policy: *desktop_migration_policy
   - route_type: http
     method: POST
+    path: /v2/chat/initial-message
+    policy: &chat_transient_compute_policy
+      review_status: reviewed
+      auth:
+        mechanisms:
+          - firebase_id_token
+        placement: dependency
+        scopes: []
+      rate_limit:
+        policy_name: chat:initial
+        key_subject: uid
+        enforcement: fail_closed
+        placement: dependency
+      timeout_class: default_method
+      surface: first_party_app
+      visibility: first_party
+      data_domain: chat
+      deprecation:
+        state: active
+      owner: backend
+  - route_type: http
+    method: POST
+    path: /v2/chat/generate-title
+    policy: *chat_transient_compute_policy
+  - route_type: http
+    method: POST
+    path: /v2/voice-messages
+    policy:
+      review_status: reviewed
+      auth:
+        mechanisms:
+          - firebase_id_token
+        placement: dependency
+        scopes: []
+      rate_limit:
+        policy_name: voice:message
+        key_subject: uid
+        enforcement: fail_closed
+        placement: dependency
+      timeout_class: streaming
+      surface: first_party_app
+      visibility: first_party
+      data_domain: chat
+      deprecation:
+        state: active
+      owner: backend
+  - route_type: http
+    method: POST
     path: /v2/realtime/session
     policy: *desktop_migration_policy
   - route_type: http
@@ -440,28 +488,6 @@ routes:
       deprecation:
         state: active
 
-  - route_type: http
-    method: GET
-    path: /v2/desktop/messages/reconcile
-    policy:
-      review_status: reviewed
-      auth:
-        mechanisms:
-          - firebase_id_token
-        placement: dependency
-        scopes: []
-      rate_limit:
-        policy_name: none
-        key_subject: none
-        enforcement: none
-        placement: none
-      timeout_class: default_method
-      surface: first_party_app
-      visibility: first_party
-      data_domain: conversations
-      deprecation:
-        state: active
-      owner: backend
   - route_type: http
     method: POST
     path: /v1/memory/compute/consolidate

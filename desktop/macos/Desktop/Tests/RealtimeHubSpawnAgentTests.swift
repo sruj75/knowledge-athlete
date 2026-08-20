@@ -314,7 +314,8 @@ import XCTest
       XCTAssertLessThan(outputCall.lowerBound, currentFence.lowerBound)
       XCTAssertLessThan(currentFence.lowerBound, pillProjection.lowerBound)
       XCTAssertTrue(
-        source.contains("producingJournalSurface: FloatingControlBarManager.shared.realtimeVoiceSurfaceReference()"))
+        source.contains("journalPinsByContinuityKey[receipt.continuityKey]?.surface"))
+      XCTAssertTrue(source.contains("producingJournalSurface: producingSurface"))
     }
 
     func testRealtimeHubUsesCanonicalVoicePlaybackServiceForLocalSpeechFallbacks() throws {

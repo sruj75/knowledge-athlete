@@ -450,17 +450,6 @@ extension SettingsContentView {
     }
   }
 
-  func loadChatMessageCount() async {
-    isLoadingChatMessages = true
-    defer { isLoadingChatMessages = false }
-
-    do {
-      chatMessageCount = try await APIClient.shared.getChatMessageCount()
-    } catch {
-      chatMessageCount = 0
-    }
-  }
-
   // MARK: - About Section
 
   var aboutSection: some View {

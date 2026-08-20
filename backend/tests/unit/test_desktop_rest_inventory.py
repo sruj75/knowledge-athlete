@@ -39,10 +39,8 @@ OUT_OF_SCOPE_PREFIXES = (
     '/v2/realtime',  # Rust desktop backend
     '/v1/config/api-keys',  # Rust desktop backend
     '/v1/tts/synthesize',  # Rust desktop backend
-    '/v2/chat/',  # streaming chat / Rust
-    '/v2/chat-sessions',  # Rust desktop backend
+    '/v2/chat/completions',  # streaming chat / Rust
     '/v2/desktop/',  # Rust desktop backend
-    '/v2/files',  # multipart upload
 )
 
 # Swift string-interpolation route literals look like "v1/conversations/\(id)".

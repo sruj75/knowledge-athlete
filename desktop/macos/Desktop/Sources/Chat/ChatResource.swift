@@ -82,18 +82,18 @@ struct ChatResource: Identifiable, Equatable {
     switch attachment.state {
     case .uploading:
       state = .uploading
-    case .uploaded, .localOnly:
+    case .localOnly:
       state = .ready
     case .failed(let message):
       state = attachment.localFileURL == nil ? .failed(message) : .ready
     }
     return ChatResource(
-      id: "attachment:\(attachment.serverId ?? attachment.id)",
+      id: "attachment:\(attachment.id)",
       origin: .userAttachment,
       title: attachment.fileName,
       subtitle: attachment.mimeType,
       mimeType: attachment.mimeType,
-      thumbnailURL: attachment.thumbnailURL,
+      thumbnailURL: nil,
       imageData: attachment.data,
       uri: attachment.localFileURL?.absoluteString,
       artifactId: nil,
@@ -176,10 +176,34 @@ struct ChatResource: Identifiable, Equatable {
         return resource.markingUnavailableOnDisk()
       }
       if FileManager.default.fileExists(atPath: fileURL.path) {
-        return resource
+        return resource.hydratingBoundedImageData(from: fileURL)
       }
       return resource.markingUnavailableOnDisk()
     }
+  }
+
+  private func hydratingBoundedImageData(from fileURL: URL) -> ChatResource {
+    guard isImage, imageData == nil,
+      let values = try? fileURL.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey]),
+      values.isRegularFile == true,
+      let fileSize = values.fileSize,
+      fileSize <= 25 * 1_024 * 1_024,
+      let data = try? Data(contentsOf: fileURL, options: [.mappedIfSafe])
+    else { return self }
+    return ChatResource(
+      id: id,
+      origin: origin,
+      title: title,
+      subtitle: subtitle,
+      mimeType: mimeType,
+      thumbnailURL: thumbnailURL,
+      imageData: data,
+      uri: uri,
+      artifactId: artifactId,
+      sessionId: sessionId,
+      runId: runId,
+      state: state
+    )
   }
 
   func refreshedFromKernelArtifact(_ artifact: AgentArtifactProjection) -> ChatResource {

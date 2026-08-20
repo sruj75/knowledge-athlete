@@ -634,6 +634,10 @@ extension Notification.Name {
   static let homeStageOpenChat = Notification.Name("homeStageOpenChat")
   /// Posted (automation bridge) to collapse the redesigned Home back to the hub
   static let homeStageClose = Notification.Name("homeStageClose")
+  /// Posted (automation bridge) to open the compact Home Chat catalog.
+  static let homeChatCatalogOpen = Notification.Name("homeChatCatalogOpen")
+  /// Posted (automation bridge) to close the compact Home Chat catalog.
+  static let homeChatCatalogClose = Notification.Name("homeChatCatalogClose")
   /// Posted (automation bridge) to send a query through the Home ask bar. userInfo["query"] = text.
   static let homeStageAsk = Notification.Name("homeStageAsk")
   /// Posted (automation bridge) to stage a file in the Home ask bar. userInfo["path"] = file path.

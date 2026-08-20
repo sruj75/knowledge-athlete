@@ -2436,6 +2436,17 @@ class AuthService {
   func signOut() async throws {
     let sessionAttempt = beginSessionAttempt()
     let signingOutUserID = UserDefaults.standard.string(forKey: .authUserId)
+    let draftManagedAttachmentURIs = ChatDraftStore.shared.managedAttachmentURIs(
+      ownerID: signingOutUserID
+    )
+    let retainedJournalAttachmentURIs: Set<String>? =
+      if let signingOutUserID,
+        let chatProvider = ChatProvider.mainInstance
+      {
+        await chatProvider.retainedJournalAttachmentURIsForSignOut(ownerID: signingOutUserID)
+      } else {
+        nil
+      }
     let didCommit = try await OnboardingSignOutTransaction(
       preparation: .live(
         appState: AppState.current,
@@ -2473,6 +2484,22 @@ class AuthService {
     sessionCoordinator.resetAfterNuclearSignOut()
     CredentialHealthManager.shared.reset()
     APIKeyService.shared.clear()
+    if let retainedJournalAttachmentURIs {
+      let draftOnlyManagedAttachmentURLs =
+        draftManagedAttachmentURIs
+        .subtracting(retainedJournalAttachmentURIs)
+        .compactMap(URL.init(string:))
+      do {
+        try await LocalChatAttachmentStore.shared.discardManagedDraftFiles(
+          draftOnlyManagedAttachmentURLs,
+          ownerID: signingOutUserID ?? ""
+        )
+      } catch {
+        logError("AuthService: failed to remove unsent managed attachments during sign-out", error: error)
+      }
+    } else if !draftManagedAttachmentURIs.isEmpty {
+      log("AuthService: preserving managed attachment bytes because journal references could not be captured")
+    }
     ChatDraftStore.shared.clearAll(ownerID: signingOutUserID)
 
     // Stop trial polling and reset banner state for this user session

@@ -55,6 +55,10 @@ TARGET_SCHEMAS = (
     'MemoryNormalizeResponse',
     'MemoryConsolidateRequest',
     'MemoryConsolidateResponse',
+    'GenerateTitleRequest',
+    'GenerateTitleResponse',
+    'InitialMessageRequest',
+    'InitialMessageResponse',
     'Translation',
 )
 

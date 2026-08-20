@@ -54,12 +54,8 @@ struct DesktopHomeView: View {
   }()
   @State private var isSidebarCollapsed: Bool = true
   @AppStorage("currentTierLevel") private var currentTierLevel = 0
-  @AppStorage("useLegacyHomeDesign") private var useLegacyHomeDesign = false
   @AppStorage(MemoryHubDestination.storageKey) private var memoryDestinationRawValue =
     MemoryHubDestination.memories.rawValue
-  /// Reference instant for the top bar's "new since you were last here" counts —
-  /// updated to now whenever Omi resigns front (see the didResignActive handler).
-  @AppStorage("topBarNewSince") private var topBarNewSinceRaw: Double = 0
 
   // Settings sidebar state
   @State private var selectedSettingsSection: SettingsContentView.SettingsSection = .general
@@ -73,7 +69,7 @@ struct DesktopHomeView: View {
   // creation (≈ launch) so the delay is spent once per session, not once per
   // trigger — see StartupWarmupPolicy.remainingProactiveAssistantsStartDelay.
   @State private var proactiveMonitoringWarmupAnchor = Date()
-  @State private var didScheduleConversationWarmup = false
+  @State private var didScheduleMemoryHubWarmup = false
 
   // Pre-loaded hero logo to avoid NSImage init crashes during SwiftUI body evaluation
   private static let heroLogoImage: NSImage? = {
@@ -212,7 +208,7 @@ struct DesktopHomeView: View {
             .task {
               // Trigger eager data loading when main content appears
               await viewModelContainer.loadAllData()
-              scheduleConversationWarmup()
+              scheduleMemoryHubWarmup()
             }
             // Refresh conversations when app becomes active (e.g. switching back from another app)
             .onReceive(
@@ -366,14 +362,9 @@ struct DesktopHomeView: View {
     .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
       enforceMainWindowMinimumSize()
       reportAutomationState()
-      // First-run seed so the counter doesn't count the entire backlog as "new".
-      if topBarNewSinceRaw == 0 { topBarNewSinceRaw = Date().timeIntervalSince1970 }
     }
     .onReceive(NotificationCenter.default.publisher(for: NSApplication.didResignActiveNotification)) { _ in
       reportAutomationState()
-      // Mark the moment Omi went to the background; anything created after this
-      // shows in the top bar's "new since you were last here" counter.
-      topBarNewSinceRaw = Date().timeIntervalSince1970
     }
     .onReceive(NotificationCenter.default.publisher(for: .desktopAutomationNavigateRequested)) {
       notification in
@@ -510,22 +501,17 @@ struct DesktopHomeView: View {
   }
 
   private var showsPrimarySidebar: Bool {
-    useLegacyHomeDesign && !hideSidebar
+    false
   }
 
-  /// The constant floating top bar (nav + new-item counts + Capture/Listening)
+  /// The constant floating top bar (navigation + Capture/Listening)
   /// replaces the old left nav rail. It shows on every main content page —
   /// including Settings, whose page has no back button, so the bar's nav pills
   /// are the way out. Permissions is a full-screen utility flow with its own
   /// chrome and stays bar-less.
   private var showsTopBar: Bool {
-    guard !useLegacyHomeDesign, let item = SidebarNavItem(rawValue: selectedIndex) else { return false }
+    guard let item = SidebarNavItem(rawValue: selectedIndex) else { return false }
     return item != .permissions
-  }
-
-  /// Reference instant for the top bar's "new since you were last here" counts.
-  private var topBarSinceDate: Date {
-    topBarNewSinceRaw > 0 ? Date(timeIntervalSince1970: topBarNewSinceRaw) : Date()
   }
 
   private var currentAppStateLabel: String {
@@ -575,8 +561,8 @@ struct DesktopHomeView: View {
       selectedTabIndex: selectedIndex,
       selectedSettingsSection: isInSettings ? selectedSettingsSection.rawValue : nil,
       highlightedSettingId: highlightedSettingId,
-      usesLegacyHomeDesign: useLegacyHomeDesign,
-      homeMode: onDashboard && !useLegacyHomeDesign ? (priorHomeMode ?? "hub") : nil,
+      usesLegacyHomeDesign: false,
+      homeMode: onDashboard ? (priorHomeMode ?? "hub") : nil,
       showsPrimarySidebar: showsPrimarySidebar,
       isSidebarCollapsed: isSidebarCollapsed,
       hasCompletedOnboarding: appState.hasCompletedOnboarding,
@@ -639,7 +625,8 @@ struct DesktopHomeView: View {
     case "conversations":
       return .conversations
     case "chat":
-      return .chat
+      MainChatNavigationRequestStore.shared.request()
+      return .dashboard
     case "memories":
       return .memories
     case "tasks":
@@ -663,28 +650,24 @@ struct DesktopHomeView: View {
 
   private func resetSessionScopedStartupWarmups() {
     viewModelContainer.resetStartupState()
-    didScheduleConversationWarmup = false
+    didScheduleMemoryHubWarmup = false
     proactiveMonitoringStartGate.finishAttempt()
   }
 
-  private func scheduleConversationWarmup() {
-    guard !didScheduleConversationWarmup else { return }
-    didScheduleConversationWarmup = true
+  private func scheduleMemoryHubWarmup() {
+    guard !didScheduleMemoryHubWarmup else { return }
+    didScheduleMemoryHubWarmup = true
 
     let scheduled = viewModelContainer.scheduleSessionWarmup(
       id: .conversationWarmup,
       delay: StartupWarmupPolicy.conversationWarmupDelay,
-      onCancel: { didScheduleConversationWarmup = false }
+      onCancel: { didScheduleMemoryHubWarmup = false }
     ) {
       async let conversations: Void = loadConversationsIfNeeded()
       async let folders: Void = loadFoldersIfNeeded()
-      // Warm memories + tasks too so the top bar's new-item counter has data
-      // even before those tabs are visited.
-      async let memories: Void = viewModelContainer.memoriesViewModel.loadMemoriesIfNeeded()
-      async let tasks: Void = viewModelContainer.tasksStore.loadTasksIfNeeded()
-      _ = await (conversations, folders, memories, tasks)
+      _ = await (conversations, folders)
     }
-    if !scheduled { didScheduleConversationWarmup = false }
+    if !scheduled { didScheduleMemoryHubWarmup = false }
   }
 
   private func loadConversationsIfNeeded() async {
@@ -878,7 +861,7 @@ struct DesktopHomeView: View {
       // Extracted into a separate struct so that pages like TasksPage
       // are not re-rendered when AppState publishes unrelated changes.
       VStack(spacing: 0) {
-        // Constant floating top bar — primary nav, new-item counts, and the
+        // Constant floating top bar — primary nav and the
         // Capture/Listening controls. Replaces the old left nav rail. Some
         // full-screen destinations hide it through showsTopBar.
         if showsTopBar {
@@ -886,9 +869,6 @@ struct DesktopHomeView: View {
             selectedIndex: $selectedIndex,
             memoryDestinationRawValue: $memoryDestinationRawValue,
             appState: appState,
-            memoriesViewModel: viewModelContainer.memoriesViewModel,
-            tasksStore: viewModelContainer.tasksStore,
-            sinceDate: topBarSinceDate,
             onRewind: {
               OmiMotion.withGated(Self.pageNavigationAnimation) {
                 selectedIndex = SidebarNavItem.rewind.rawValue
@@ -1008,19 +988,13 @@ struct DesktopHomeView: View {
         // Only auto-refresh stores when their pages are visible
         updateStoreActivity(for: newValue)
       }
-      .onChange(of: useLegacyHomeDesign) { _, newValue in
-        OmiMotion.withGated(.easeInOut(duration: 0.2)) {
-          isSidebarCollapsed = !newValue
-        }
-      }
       .onAppear {
-        isSidebarCollapsed = !useLegacyHomeDesign
+        isSidebarCollapsed = true
         updateStoreActivity(for: selectedIndex)
       }
   }
 
   private func navigateHomeOnEscapeIfNeeded() {
-    guard !useLegacyHomeDesign else { return }
     guard let item = SidebarNavItem(rawValue: selectedIndex) else { return }
     guard [.conversations, .memories, .tasks, .rewind].contains(item) else { return }
     OmiMotion.withGated(Self.pageNavigationAnimation) {
@@ -1164,7 +1138,6 @@ private struct PageContentView: View {
       case 0:
         DashboardPage(
           viewModel: viewModelContainer.dashboardViewModel,
-          homeStatusStore: viewModelContainer.homeStatusStore,
           appState: appState,
           chatProvider: viewModelContainer.chatProvider,
           memoriesViewModel: viewModelContainer.memoriesViewModel,
@@ -1177,10 +1150,17 @@ private struct PageContentView: View {
           destinationRawValue: $memoryDestinationRawValue
         )
       case 2:
-        ChatPage(
+        DashboardPage(
+          viewModel: viewModelContainer.dashboardViewModel,
+          appState: appState,
           chatProvider: viewModelContainer.chatProvider,
-          onHome: { selectedTabIndex = SidebarNavItem.dashboard.rawValue }
+          memoriesViewModel: viewModelContainer.memoriesViewModel,
+          selectedIndex: $selectedTabIndex
         )
+        .onAppear {
+          selectedTabIndex = SidebarNavItem.dashboard.rawValue
+          MainChatNavigationRequestStore.shared.request()
+        }
       case 3:
         MemoriesPage(viewModel: viewModelContainer.memoriesViewModel)
           .frame(
@@ -1211,7 +1191,6 @@ private struct PageContentView: View {
       default:
         DashboardPage(
           viewModel: viewModelContainer.dashboardViewModel,
-          homeStatusStore: viewModelContainer.homeStatusStore,
           appState: appState,
           chatProvider: viewModelContainer.chatProvider,
           memoriesViewModel: viewModelContainer.memoriesViewModel,

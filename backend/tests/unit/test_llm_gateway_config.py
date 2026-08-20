@@ -23,7 +23,7 @@ def test_loads_default_gateway_config():
     assert lane.active_route == ACTIVE_ROUTE
     assert lane.last_known_good == LKG_ROUTE
     assert config.route_artifacts[ACTIVE_ROUTE].content_digest.startswith('sha256:')
-    assert config.feature_bundles['chat_extraction.requires_context'].lane_id == LANE_ID
+    assert config.feature_bundles['conversation_structure.extract.shadow'].lane_id == LANE_ID
     assert config.route_artifacts[ACTIVE_ROUTE].primary.model == 'gpt-5.4-nano'
     assert config.route_artifacts[ACTIVE_ROUTE].provider_options['reasoning_effort'] == 'low'
 
@@ -202,11 +202,11 @@ def write_config(
         route_artifacts = [active, lkg]
 
     feature_bundle = {
-        'feature': 'chat_extraction.requires_context',
+        'feature': 'conversation_structure.extract.shadow',
         'lane_id': LANE_ID,
-        'prompt_version': 'chat_extraction.requires_context.v1',
-        'parser_version': 'RequiresContext.v1',
-        'eval_suite': 'chat_extraction_requires_context.v1',
+        'prompt_version': 'conversation_structure.extract.v1',
+        'parser_version': 'ConversationStructureExtraction.v1',
+        'eval_suite': 'conversation_structure_extract.v1',
         'promotion_gates': {'schema_valid_rate': '>= 99.5%'},
     }
 

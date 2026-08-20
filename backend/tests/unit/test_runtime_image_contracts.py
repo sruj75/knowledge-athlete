@@ -95,15 +95,6 @@ def test_relative_import_resolution_keeps_the_current_package(contracts_module):
     )
 
 
-def test_pusher_dependency_probe_includes_jsonschema(contracts_module):
-    dependencies = contracts_module.third_party_dependency_modules(_contract(contracts_module, 'pusher'))
-
-    assert 'jsonschema' in dependencies
-    assert not any(
-        dependency == 'omi_plugin_sdk' or dependency.startswith('omi_plugin_sdk.') for dependency in dependencies
-    )
-
-
 def test_dependency_probe_checks_dotted_module_when_namespace_exists(contracts_module, monkeypatch, tmp_path):
     contract = replace(
         _contract(contracts_module, 'pusher'),

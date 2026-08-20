@@ -391,23 +391,6 @@
         "title": "Body_create_voice_message_stream_v2_voice_messages_post",
         "type": "object"
       },
-      "Body_upload_file_chat_v2_files_post": {
-        "properties": {
-          "files": {
-            "items": {
-              "format": "binary",
-              "type": "string"
-            },
-            "title": "Files",
-            "type": "array"
-          }
-        },
-        "required": [
-          "files"
-        ],
-        "title": "Body_upload_file_chat_v2_files_post",
-        "type": "object"
-      },
       "Body_upload_profile_v3_upload_audio_post": {
         "properties": {
           "file": {
@@ -422,121 +405,6 @@
         "title": "Body_upload_profile_v3_upload_audio_post",
         "type": "object"
       },
-      "ChartData": {
-        "properties": {
-          "chart_type": {
-            "enum": [
-              "line",
-              "bar"
-            ],
-            "title": "Chart Type",
-            "type": "string"
-          },
-          "datasets": {
-            "items": {
-              "$ref": "#/components/schemas/ChartDataset"
-            },
-            "title": "Datasets",
-            "type": "array"
-          },
-          "title": {
-            "title": "Title",
-            "type": "string"
-          },
-          "x_label": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "X Label"
-          },
-          "y_label": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Y Label"
-          }
-        },
-        "required": [
-          "chart_type",
-          "title",
-          "datasets"
-        ],
-        "title": "ChartData",
-        "type": "object"
-      },
-      "ChartDataPoint": {
-        "properties": {
-          "label": {
-            "title": "Label",
-            "type": "string"
-          },
-          "value": {
-            "title": "Value",
-            "type": "number"
-          }
-        },
-        "required": [
-          "label",
-          "value"
-        ],
-        "title": "ChartDataPoint",
-        "type": "object"
-      },
-      "ChartDataset": {
-        "properties": {
-          "color": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Color"
-          },
-          "data_points": {
-            "items": {
-              "$ref": "#/components/schemas/ChartDataPoint"
-            },
-            "title": "Data Points",
-            "type": "array"
-          },
-          "label": {
-            "title": "Label",
-            "type": "string"
-          }
-        },
-        "required": [
-          "label",
-          "data_points"
-        ],
-        "title": "ChartDataset",
-        "type": "object"
-      },
-      "ChatMessageCountResponse": {
-        "properties": {
-          "count": {
-            "title": "Count",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "count"
-        ],
-        "title": "ChatMessageCountResponse",
-        "type": "object"
-      },
       "ChatQuotaUnit": {
         "enum": [
           "questions",
@@ -544,19 +412,6 @@
         ],
         "title": "ChatQuotaUnit",
         "type": "string"
-      },
-      "ChatRatingResponse": {
-        "properties": {
-          "status": {
-            "title": "Status",
-            "type": "string"
-          }
-        },
-        "required": [
-          "status"
-        ],
-        "title": "ChatRatingResponse",
-        "type": "object"
       },
       "ChatUsageQuota": {
         "properties": {
@@ -1778,64 +1633,6 @@
         "title": "FcmTokenResponse",
         "type": "object"
       },
-      "FileChat": {
-        "properties": {
-          "created_at": {
-            "format": "date-time",
-            "title": "Created At",
-            "type": "string"
-          },
-          "id": {
-            "title": "Id",
-            "type": "string"
-          },
-          "mime_type": {
-            "title": "Mime Type",
-            "type": "string"
-          },
-          "name": {
-            "title": "Name",
-            "type": "string"
-          },
-          "openai_file_id": {
-            "title": "Openai File Id",
-            "type": "string"
-          },
-          "thumb_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": "",
-            "title": "Thumb Name"
-          },
-          "thumbnail": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": "",
-            "title": "Thumbnail"
-          }
-        },
-        "required": [
-          "id",
-          "name",
-          "mime_type",
-          "openai_file_id",
-          "created_at"
-        ],
-        "title": "FileChat",
-        "type": "object"
-      },
       "FloatingBarSettings": {
         "properties": {
           "elevenlabs_voice_id": {
@@ -1930,6 +1727,44 @@
         "title": "FocusAssistantSettings",
         "type": "object"
       },
+      "GenerateTitleRequest": {
+        "properties": {
+          "assistant_text": {
+            "maxLength": 12000,
+            "minLength": 1,
+            "title": "Assistant Text",
+            "type": "string"
+          },
+          "user_text": {
+            "maxLength": 12000,
+            "minLength": 1,
+            "title": "User Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_text",
+          "assistant_text"
+        ],
+        "title": "GenerateTitleRequest",
+        "type": "object"
+      },
+      "GenerateTitleResponse": {
+        "description": "Response for ``POST /v2/chat/generate-title``.",
+        "properties": {
+          "title": {
+            "description": "Generated session title.",
+            "maxLength": 120,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title"
+        ],
+        "title": "GenerateTitleResponse",
+        "type": "object"
+      },
       "GenerateWrappedResponse": {
         "properties": {
           "message": {
@@ -1972,6 +1807,43 @@
           "has_profile"
         ],
         "title": "HasSpeechProfileResponse",
+        "type": "object"
+      },
+      "InitialMessageRequest": {
+        "properties": {
+          "memories": {
+            "items": {
+              "maxLength": 1000,
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "Memories",
+            "type": "array"
+          },
+          "profile_text": {
+            "default": "",
+            "maxLength": 8000,
+            "title": "Profile Text",
+            "type": "string"
+          }
+        },
+        "title": "InitialMessageRequest",
+        "type": "object"
+      },
+      "InitialMessageResponse": {
+        "description": "Response for ``POST /v2/chat/initial-message``.",
+        "properties": {
+          "message": {
+            "description": "Generated greeting message text.",
+            "maxLength": 500,
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "message"
+        ],
+        "title": "InitialMessageResponse",
         "type": "object"
       },
       "LlmTotalCostResponse": {
@@ -2831,263 +2703,6 @@
         "title": "MentorNotificationSettingsUpdate",
         "type": "object"
       },
-      "Message": {
-        "properties": {
-          "chart_data": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/ChartData"
-              },
-              {
-                "additionalProperties": true,
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Chart Data"
-          },
-          "chat_session_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Chat Session Id"
-          },
-          "client_message_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Client Message Id"
-          },
-          "created_at": {
-            "format": "date-time",
-            "title": "Created At",
-            "type": "string"
-          },
-          "data_protection_level": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Data Protection Level"
-          },
-          "files": {
-            "default": [],
-            "items": {
-              "$ref": "#/components/schemas/FileChat"
-            },
-            "title": "Files",
-            "type": "array"
-          },
-          "files_id": {
-            "default": [],
-            "items": {
-              "type": "string"
-            },
-            "title": "Files Id",
-            "type": "array"
-          },
-          "id": {
-            "title": "Id",
-            "type": "string"
-          },
-          "journal_revision": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Journal Revision"
-          },
-          "langsmith_run_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Langsmith Run Id"
-          },
-          "memories": {
-            "default": [],
-            "items": {
-              "$ref": "#/components/schemas/MessageConversation"
-            },
-            "title": "Memories",
-            "type": "array"
-          },
-          "memories_id": {
-            "default": [],
-            "items": {
-              "type": "string"
-            },
-            "title": "Memories Id",
-            "type": "array"
-          },
-          "message_source": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Message Source"
-          },
-          "metadata": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Metadata"
-          },
-          "prompt_commit": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Prompt Commit"
-          },
-          "prompt_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Prompt Name"
-          },
-          "rating": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Rating"
-          },
-          "report_reason": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Report Reason"
-          },
-          "reported": {
-            "default": false,
-            "title": "Reported",
-            "type": "boolean"
-          },
-          "sender": {
-            "$ref": "#/components/schemas/MessageSender"
-          },
-          "session_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Session Id"
-          },
-          "text": {
-            "title": "Text",
-            "type": "string"
-          },
-          "type": {
-            "$ref": "#/components/schemas/MessageType"
-          }
-        },
-        "required": [
-          "id",
-          "text",
-          "created_at",
-          "sender",
-          "type"
-        ],
-        "title": "Message",
-        "type": "object"
-      },
-      "MessageConversation": {
-        "properties": {
-          "created_at": {
-            "format": "date-time",
-            "title": "Created At",
-            "type": "string"
-          },
-          "id": {
-            "title": "Id",
-            "type": "string"
-          },
-          "structured": {
-            "$ref": "#/components/schemas/MessageConversationStructured"
-          }
-        },
-        "required": [
-          "id",
-          "structured",
-          "created_at"
-        ],
-        "title": "MessageConversation",
-        "type": "object"
-      },
-      "MessageConversationStructured": {
-        "properties": {
-          "emoji": {
-            "title": "Emoji",
-            "type": "string"
-          },
-          "title": {
-            "title": "Title",
-            "type": "string"
-          }
-        },
-        "required": [
-          "title",
-          "emoji"
-        ],
-        "title": "MessageConversationStructured",
-        "type": "object"
-      },
       "MessageReportResponse": {
         "properties": {
           "message": {
@@ -3100,22 +2715,6 @@
         ],
         "title": "MessageReportResponse",
         "type": "object"
-      },
-      "MessageSender": {
-        "enum": [
-          "ai",
-          "human"
-        ],
-        "title": "MessageSender",
-        "type": "string"
-      },
-      "MessageType": {
-        "enum": [
-          "text",
-          "day_summary"
-        ],
-        "title": "MessageType",
-        "type": "string"
       },
       "NotificationSettingsResponse": {
         "properties": {
@@ -3133,48 +2732,6 @@
           "frequency"
         ],
         "title": "NotificationSettingsResponse",
-        "type": "object"
-      },
-      "PageContext": {
-        "description": "Page context for chat - indicates what the user is currently viewing.",
-        "properties": {
-          "id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Id"
-          },
-          "title": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Title"
-          },
-          "type": {
-            "enum": [
-              "conversation",
-              "task",
-              "memory",
-              "recap"
-            ],
-            "title": "Type",
-            "type": "string"
-          }
-        },
-        "required": [
-          "type"
-        ],
-        "title": "PageContext",
         "type": "object"
       },
       "PaymentCheckoutSessionResponse": {
@@ -3513,23 +3070,6 @@
         "title": "PublicFairUseCaseStatusResponse",
         "type": "object"
       },
-      "RateMessageRequest": {
-        "properties": {
-          "rating": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Rating"
-          }
-        },
-        "title": "RateMessageRequest",
-        "type": "object"
-      },
       "RelatedTaskCandidate": {
         "additionalProperties": false,
         "properties": {
@@ -3569,234 +3109,6 @@
         "title": "RelatedTaskCandidate",
         "type": "object"
       },
-      "ResponseMessage": {
-        "properties": {
-          "ask_for_nps": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": false,
-            "title": "Ask For Nps"
-          },
-          "chart_data": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/ChartData"
-              },
-              {
-                "additionalProperties": true,
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Chart Data"
-          },
-          "chat_session_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Chat Session Id"
-          },
-          "client_message_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Client Message Id"
-          },
-          "created_at": {
-            "format": "date-time",
-            "title": "Created At",
-            "type": "string"
-          },
-          "data_protection_level": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Data Protection Level"
-          },
-          "files": {
-            "default": [],
-            "items": {
-              "$ref": "#/components/schemas/FileChat"
-            },
-            "title": "Files",
-            "type": "array"
-          },
-          "files_id": {
-            "default": [],
-            "items": {
-              "type": "string"
-            },
-            "title": "Files Id",
-            "type": "array"
-          },
-          "id": {
-            "title": "Id",
-            "type": "string"
-          },
-          "journal_revision": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Journal Revision"
-          },
-          "langsmith_run_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Langsmith Run Id"
-          },
-          "memories": {
-            "default": [],
-            "items": {
-              "$ref": "#/components/schemas/MessageConversation"
-            },
-            "title": "Memories",
-            "type": "array"
-          },
-          "memories_id": {
-            "default": [],
-            "items": {
-              "type": "string"
-            },
-            "title": "Memories Id",
-            "type": "array"
-          },
-          "message_source": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Message Source"
-          },
-          "metadata": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Metadata"
-          },
-          "prompt_commit": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Prompt Commit"
-          },
-          "prompt_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Prompt Name"
-          },
-          "rating": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Rating"
-          },
-          "report_reason": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Report Reason"
-          },
-          "reported": {
-            "default": false,
-            "title": "Reported",
-            "type": "boolean"
-          },
-          "sender": {
-            "$ref": "#/components/schemas/MessageSender"
-          },
-          "session_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Session Id"
-          },
-          "text": {
-            "title": "Text",
-            "type": "string"
-          },
-          "type": {
-            "$ref": "#/components/schemas/MessageType"
-          }
-        },
-        "required": [
-          "id",
-          "text",
-          "created_at",
-          "sender",
-          "type"
-        ],
-        "title": "ResponseMessage",
-        "type": "object"
-      },
       "SaveFcmTokenRequest": {
         "properties": {
           "fcm_token": {
@@ -3813,44 +3125,6 @@
           "time_zone"
         ],
         "title": "SaveFcmTokenRequest",
-        "type": "object"
-      },
-      "SendMessageRequest": {
-        "properties": {
-          "context": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/PageContext"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "file_ids": {
-            "anyOf": [
-              {
-                "items": {
-                  "type": "string"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": [],
-            "title": "File Ids"
-          },
-          "text": {
-            "title": "Text",
-            "type": "string"
-          }
-        },
-        "required": [
-          "text"
-        ],
-        "title": "SendMessageRequest",
         "type": "object"
       },
       "SetUserLanguageRequest": {
@@ -7627,111 +6901,6 @@
         ]
       }
     },
-    "/v1/users/analytics/chat_message": {
-      "post": {
-        "description": "Submit feedback rating for a chat message.\n\nArgs:\n    message_id: ID of the message being rated\n    value: Rating value (1 = thumbs up, -1 = thumbs down, 0 = neutral/removed)\n    reason: Optional reason for thumbs down. Valid values:\n        - 'too_verbose': Response was too long or wordy\n        - 'incorrect_or_hallucination': Response contained incorrect information\n        - 'not_helpful_or_irrelevant': Response didn't address the question\n        - 'didnt_follow_instructions': Response didn't follow user instructions\n        - 'other': Other reason",
-        "operationId": "set_chat_message_analytics_v1_users_analytics_chat_message_post",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "message_id",
-            "required": true,
-            "schema": {
-              "title": "Message Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "value",
-            "required": true,
-            "schema": {
-              "title": "Value",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "query",
-            "name": "reason",
-            "required": false,
-            "schema": {
-              "title": "Reason",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "title": "Authorization",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-App-Platform",
-            "required": false,
-            "schema": {
-              "title": "X-App-Platform",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-Device-Id-Hash",
-            "required": false,
-            "schema": {
-              "title": "X-Device-Id-Hash",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-App-Version",
-            "required": false,
-            "schema": {
-              "title": "X-App-Version",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/UserStatusResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "401": {
-            "$ref": "#/components/responses/Error401"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "firebaseBearer": []
-          }
-        ],
-        "summary": "Set Chat Message Analytics",
-        "tags": [
-          "v1"
-        ]
-      }
-    },
     "/v1/users/analytics/memory_summary": {
       "get": {
         "operationId": "get_memory_summary_rating_v1_users_analytics_memory_summary_get",
@@ -9902,84 +9071,6 @@
         ]
       }
     },
-    "/v1/users/stats/chat-messages": {
-      "get": {
-        "description": "Get total count of chat messages for the user.",
-        "operationId": "get_chat_message_count_v1_users_stats_chat_messages_get",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "title": "Authorization",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-App-Platform",
-            "required": false,
-            "schema": {
-              "title": "X-App-Platform",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-Device-Id-Hash",
-            "required": false,
-            "schema": {
-              "title": "X-Device-Id-Hash",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-App-Version",
-            "required": false,
-            "schema": {
-              "title": "X-App-Version",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ChatMessageCountResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "401": {
-            "$ref": "#/components/responses/Error401"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "firebaseBearer": []
-          }
-        ],
-        "summary": "Get Chat Message Count",
-        "tags": [
-          "chat-sessions"
-        ]
-      }
-    },
     "/v1/wrapped/{year}": {
       "get": {
         "description": "Get the status and result of wrapped generation for a given year.\n\nReturns:\n    - status: not_generated, processing, done, or error\n    - result: The wrapped payload (only when status=done)\n    - error: Error message (only when status=error)\n    - progress: Progress info (only when status=processing)",
@@ -10157,9 +9248,10 @@
         ]
       }
     },
-    "/v2/files": {
+    "/v2/chat/generate-title": {
       "post": {
-        "operationId": "upload_file_chat_v2_files_post",
+        "description": "Compute a title from the first real local exchange without storing it.",
+        "operationId": "generate_session_title_v2_chat_generate_title_post",
         "parameters": [
           {
             "in": "header",
@@ -10200,9 +9292,9 @@
         ],
         "requestBody": {
           "content": {
-            "multipart/form-data": {
+            "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/Body_upload_file_chat_v2_files_post"
+                "$ref": "#/components/schemas/GenerateTitleRequest"
               }
             }
           },
@@ -10213,11 +9305,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/FileChat"
-                  },
-                  "title": "Response Upload File Chat V2 Files Post",
-                  "type": "array"
+                  "$ref": "#/components/schemas/GenerateTitleResponse"
                 }
               }
             },
@@ -10242,15 +9330,16 @@
             "firebaseBearer": []
           }
         ],
-        "summary": "Upload File Chat",
+        "summary": "Generate Session Title",
         "tags": [
-          "chat"
+          "chat-sessions"
         ]
       }
     },
-    "/v2/initial-message": {
+    "/v2/chat/initial-message": {
       "post": {
-        "operationId": "create_initial_message_v2_initial_message_post",
+        "description": "Compute a greeting from bounded Mac-owned context without product-data access.",
+        "operationId": "create_initial_message_v2_chat_initial_message_post",
         "parameters": [
           {
             "in": "header",
@@ -10289,12 +9378,22 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InitialMessageRequest"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Message"
+                  "$ref": "#/components/schemas/InitialMessageResponse"
                 }
               }
             },
@@ -10321,348 +9420,7 @@
         ],
         "summary": "Create Initial Message",
         "tags": [
-          "chat"
-        ]
-      }
-    },
-    "/v2/messages": {
-      "delete": {
-        "operationId": "clear_chat_messages_v2_messages_delete",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "title": "Authorization",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-App-Platform",
-            "required": false,
-            "schema": {
-              "title": "X-App-Platform",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-Device-Id-Hash",
-            "required": false,
-            "schema": {
-              "title": "X-Device-Id-Hash",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-App-Version",
-            "required": false,
-            "schema": {
-              "title": "X-App-Version",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Message"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "401": {
-            "$ref": "#/components/responses/Error401"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "firebaseBearer": []
-          }
-        ],
-        "summary": "Clear Chat Messages",
-        "tags": [
-          "chat"
-        ]
-      },
-      "get": {
-        "operationId": "get_messages_v2_messages_get",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "title": "Authorization",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-App-Platform",
-            "required": false,
-            "schema": {
-              "title": "X-App-Platform",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-Device-Id-Hash",
-            "required": false,
-            "schema": {
-              "title": "X-Device-Id-Hash",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-App-Version",
-            "required": false,
-            "schema": {
-              "title": "X-App-Version",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/Message"
-                  },
-                  "title": "Response Get Messages V2 Messages Get",
-                  "type": "array"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "401": {
-            "$ref": "#/components/responses/Error401"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "firebaseBearer": []
-          }
-        ],
-        "summary": "Get Messages",
-        "tags": [
-          "chat"
-        ]
-      },
-      "post": {
-        "operationId": "send_message_v2_messages_post",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "X-App-Platform",
-            "required": false,
-            "schema": {
-              "title": "X-App-Platform",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "title": "Authorization",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-Device-Id-Hash",
-            "required": false,
-            "schema": {
-              "title": "X-Device-Id-Hash",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-App-Version",
-            "required": false,
-            "schema": {
-              "title": "X-App-Version",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SendMessageRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ResponseMessage"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "401": {
-            "$ref": "#/components/responses/Error401"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "firebaseBearer": []
-          }
-        ],
-        "summary": "Send Message",
-        "tags": [
-          "chat"
-        ]
-      }
-    },
-    "/v2/messages/{message_id}/rating": {
-      "patch": {
-        "description": "Rate a chat message (thumbs up/down). Used by desktop client.",
-        "operationId": "rate_message_v2_messages__message_id__rating_patch",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "message_id",
-            "required": true,
-            "schema": {
-              "title": "Message Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "title": "Authorization",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-App-Platform",
-            "required": false,
-            "schema": {
-              "title": "X-App-Platform",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-Device-Id-Hash",
-            "required": false,
-            "schema": {
-              "title": "X-Device-Id-Hash",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-App-Version",
-            "required": false,
-            "schema": {
-              "title": "X-App-Version",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/RateMessageRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ChatRatingResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "401": {
-            "$ref": "#/components/responses/Error401"
-          },
-          "404": {
-            "$ref": "#/components/responses/Error404"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "firebaseBearer": []
-          }
-        ],
-        "summary": "Rate Message",
-        "tags": [
-          "chat"
+          "chat-sessions"
         ]
       }
     },
@@ -10958,6 +9716,7 @@
     },
     "/v2/voice-messages": {
       "post": {
+        "description": "Transcribe a legacy voice-message upload without hosted Chat persistence or persona inference.",
         "operationId": "create_voice_message_stream_v2_voice_messages_post",
         "parameters": [
           {
@@ -11016,7 +9775,7 @@
                 }
               }
             },
-            "description": "Server-sent event stream of chat message chunks."
+            "description": "Server-sent stream containing the transient voice-message transcript."
           },
           "401": {
             "$ref": "#/components/responses/Error401"

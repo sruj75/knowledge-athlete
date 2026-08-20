@@ -4,7 +4,6 @@ Tools for accessing user conversations.
 
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Set, Tuple, cast
-import contextvars
 
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool  # type: ignore[reportUnknownVariableType]  # langchain @tool decorator partially typed
@@ -17,22 +16,16 @@ from models.other import Person
 from utils.conversations.factory import deserialize_conversation
 from utils.conversations.render import conversations_to_string
 from utils.conversations.search import keyword_search_conversation_ids, merge_conversation_search_ids
+from utils.retrieval.tool_context import tool_config_context
 import logging
 
 logger = logging.getLogger(__name__)
-
-# Import agent_config_context for fallback config access
-try:
-    from utils.retrieval.agentic import agent_config_context
-except ImportError:
-    # Fallback if import fails
-    agent_config_context = contextvars.ContextVar('agent_config', default=None)
 
 
 def _agent_config() -> Optional[Dict[str, Any]]:
     """Retrieve the agent config dict from the context var, or None if unset."""
     try:
-        return agent_config_context.get()
+        return tool_config_context.get()
     except LookupError:
         return None
 

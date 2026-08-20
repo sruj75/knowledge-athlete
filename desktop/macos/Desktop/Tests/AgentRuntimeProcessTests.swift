@@ -258,11 +258,11 @@ final class AgentRuntimeProcessTests: XCTestCase {
   func testRuntimeHandshakeRejectsStaleV2RuntimeWithoutRequiredCapability() throws {
     let valid = try XCTUnwrap(
       AgentRuntimeProcess.RuntimeMessage.parse(
-        #"{"type":"init","protocolVersion":2,"sessionId":"","agentControlTools":[],"runtimeVersion":"1.0.0","runtimeCapabilities":["journal_import_remote_turn","runtime_adapter_availability"]}"#
+        #"{"type":"init","protocolVersion":2,"sessionId":"","agentControlTools":[],"runtimeVersion":"1.0.0","runtimeCapabilities":["chat_catalog","runtime_adapter_availability"]}"#
       ))
     let handshake = try AgentRuntimeProcess.validateRuntimeHandshake(valid)
     XCTAssertEqual(handshake.protocolVersion, AgentRuntimeProcess.expectedProtocolVersion)
-    XCTAssertTrue(handshake.capabilities.contains("journal_import_remote_turn"))
+    XCTAssertTrue(handshake.capabilities.contains("chat_catalog"))
 
     let stale = try XCTUnwrap(
       AgentRuntimeProcess.RuntimeMessage.parse(
@@ -272,7 +272,7 @@ final class AgentRuntimeProcessTests: XCTestCase {
 
     let wrongProtocol = try XCTUnwrap(
       AgentRuntimeProcess.RuntimeMessage.parse(
-        #"{"type":"init","protocolVersion":1,"sessionId":"","agentControlTools":[],"runtimeVersion":"1.0.0","runtimeCapabilities":["journal_import_remote_turn"]}"#
+        #"{"type":"init","protocolVersion":1,"sessionId":"","agentControlTools":[],"runtimeVersion":"1.0.0","runtimeCapabilities":["chat_catalog","runtime_adapter_availability"]}"#
       ))
     XCTAssertThrowsError(try AgentRuntimeProcess.validateRuntimeHandshake(wrongProtocol))
   }
@@ -475,7 +475,7 @@ final class AgentRuntimeProcessTests: XCTestCase {
     XCTAssertEqual(handshake["ownerId"] as? String, "signed-in-owner")
     XCTAssertNil(handshake["token"])
 
-    // omi-test-quality: source-inspection -- static contract: every harness must synchronize daemon owner authority before owner-scoped legacy migration; wire and resource-layout behavior are tested directly beside this ordering guard
+    // omi-test-quality: source-inspection -- static contract: every harness synchronizes daemon owner authority before owner-scoped work.
     let bridgeSource = try sourceFile("Chat/AgentBridge.swift")
     let startRange = try XCTUnwrap(
       bridgeSource.range(
@@ -485,13 +485,10 @@ final class AgentRuntimeProcessTests: XCTestCase {
         of: "\n  func restart() async throws",
         range: startRange.upperBound..<bridgeSource.endIndex))
     let startBody = String(bridgeSource[startRange.lowerBound..<restartRange.lowerBound])
-    let handshakeRange = try XCTUnwrap(
+    XCTAssertNotNil(
       startBody.range(
         of: "await synchronizeRuntimeAuthority(\n          authorizationSnapshot: authorizationSnapshot,"))
-    let migrationRange = try XCTUnwrap(
-      startBody.range(
-        of: "await migrateLegacyMainChatSessionsIfNeeded("))
-    XCTAssertLessThan(handshakeRange.lowerBound, migrationRange.lowerBound)
+    XCTAssertFalse(startBody.contains("migrateLegacyMainChatSessions"))
     XCTAssertTrue(bridgeSource.contains("synchronizeAuthorityForStart("))
     XCTAssertTrue(bridgeSource.contains("runtime.refreshRuntimeOwner("))
   }
@@ -662,37 +659,6 @@ final class AgentRuntimeProcessTests: XCTestCase {
       candidates.contains(
         "/tmp/debug/Omi Computer_Omi Computer.bundle/node"))
     XCTAssertFalse(candidates.isEmpty)
-  }
-
-  func testLegacyMainChatAliasReceiptRoutesByRequestAndOwner() {
-    let message = AgentRuntimeProcess.RuntimeMessage.parse(
-      #"{"type":"legacy_main_chat_sessions_imported","protocolVersion":2,"requestId":"legacy-1","clientId":"client-1","ownerId":"owner-1","acceptedEntries":[{"chatId":"default","agentSessionId":"ses-1"}],"acceptedCount":1,"importedCount":1}"#
-    )
-
-    XCTAssertEqual(message?.kind, .legacyMainChatSessionsImported)
-    XCTAssertEqual(
-      message?.requestKey,
-      AgentRuntimeProcess.RuntimeMessage.RequestKey(clientId: "client-1", requestId: "legacy-1")
-    )
-    XCTAssertEqual(message?.payload["ownerId"] as? String, "owner-1")
-  }
-
-  func testLegacyMainChatAliasImportWireMessageCarriesOwnerAndEntries() {
-    let entry = LegacyMainChatSessionAliasEntry(chatId: "default", agentSessionId: "ses-1")
-    let message = AgentRuntimeProcess.importLegacyMainChatSessionsWireMessage(
-      clientId: "client-1",
-      requestId: "legacy-1",
-      ownerId: "owner-1",
-      entries: [entry]
-    )
-
-    XCTAssertEqual(message["type"] as? String, "import_legacy_main_chat_sessions")
-    XCTAssertEqual(message["protocolVersion"] as? Int, 2)
-    XCTAssertEqual(message["ownerId"] as? String, "owner-1")
-    XCTAssertEqual(
-      message["entries"] as? [[String: String]],
-      [["chatId": "default", "agentSessionId": "ses-1"]]
-    )
   }
 
   func testAuthorizedToolExecutionCarriesLedgerIdentityWithoutRequestScope() {

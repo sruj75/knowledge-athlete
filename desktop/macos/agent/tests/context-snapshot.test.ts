@@ -14,7 +14,6 @@ import {
   updateContextSource,
 } from "../src/runtime/context-snapshot.js";
 import {
-  importRemoteJournalTurn,
   recordJournalExchange,
   recordJournalTurn,
   updateJournalTurn,
@@ -364,7 +363,7 @@ describe("kernel ContextSnapshot", () => {
     store.close();
   });
 
-  it("uses the immutable insertion ordinal for individually imported equal timestamps", () => {
+  it("uses the immutable insertion ordinal for individually recorded equal timestamps", () => {
     const { store } = fixture();
     const surface = resolveSurfaceSession(store, {
       ownerId: "continuity-owner",
@@ -372,18 +371,18 @@ describe("kernel ContextSnapshot", () => {
       defaultAdapterId: "fake",
     }, () => 1);
     for (const turn of [
-      { remoteId: "remote-user", role: "user" as const, content: "Request it." },
-      { remoteId: "remote-assistant", role: "assistant" as const, content: "Permission opened." },
+      { turnId: "local-user", role: "user" as const, content: "Request it." },
+      { turnId: "local-assistant", role: "assistant" as const, content: "Permission opened." },
     ]) {
-      importRemoteJournalTurn(store, {
+      recordJournalTurn(store, {
         ownerId: "continuity-owner",
         conversationId: surface.conversationId,
         ...turn,
         surfaceKind: "main_chat",
+        origin: turn.role === "user" ? "typed_chat" : "agent_runtime",
+        status: "completed",
         contentBlocks: [],
         createdAtMs: 100,
-        nowMs: 101,
-        source: "legacy_upgrade",
       });
     }
 

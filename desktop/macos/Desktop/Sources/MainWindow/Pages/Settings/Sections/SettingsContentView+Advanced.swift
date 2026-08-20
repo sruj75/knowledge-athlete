@@ -353,18 +353,6 @@ extension SettingsContentView {
 
           if let stats = advancedStats {
             statRow(label: "Conversations", value: stats.conversations)
-            if isLoadingChatMessages {
-              HStack {
-                Text("AI Chat Messages")
-                  .scaledFont(size: OmiType.body)
-                  .foregroundColor(OmiColors.textSecondary)
-                Spacer()
-                ProgressView()
-                  .controlSize(.mini)
-              }
-            } else if let count = chatMessageCount {
-              statRow(label: "AI Chat Messages", value: count)
-            }
             statRow(label: "Screenshots", value: stats.screenshotsTotal)
             statRow(label: "Focus Sessions", value: stats.focusSessions)
             statRow(label: "Tasks (To Do)", value: stats.tasksTodo)
@@ -393,9 +381,6 @@ extension SettingsContentView {
     }
     .task {
       await loadAdvancedStats()
-    }
-    .task {
-      await loadChatMessageCount()
     }
   }
 

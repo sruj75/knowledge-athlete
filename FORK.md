@@ -214,6 +214,24 @@ server-side residue is intentionally bounded:
 | `/v2/audio-merge-jobs/run`, audio merge helpers/tests, queues, and stored playback artifacts | S-25 | The public playback surface is gone, but operational worker/deployment teardown requires a separately authorized drain. |
 | `conv_discard`, `conv_structure`, and `conv_action_items` model-policy configuration | S-22 | S-10 consumes these existing feature keys through stateless compute routes; model routing remains independently owned. |
 
+### Local Chat authority and exact handoffs
+
+The owner-scoped `omi-agentd.sqlite3` catalog and journal are authoritative for
+ordinary macOS Chat identity, metadata, turns, and activity. Swift owns drafts
+and app-managed attachment bytes. The backend stores none of that normal Chat
+product data; its greeting, title, and managed-answer routes are transient
+compute only. The remaining similarly named backend residue has separate live
+callers and later owners:
+
+| Retained residue | Later owner | Why it remains after S-11 |
+|---|---|---|
+| `database/chat.py::{get_message,report_message}` and the `/v1/messages/{message_id}/report` plus `/v2/messages/{message_id}/report` routes | S-23 | The independently owned abuse-report surface still reads and flags historical hosted messages; no desktop catalog or journal caller uses it. |
+| `database/chat.py::iter_all_messages` | S-23 | Account export remains a hosted historical-data consumer for S-23; normal macOS Chat never calls it. |
+| `database/chat.py` file/session helpers, `utils/other/chat_file.py`, `utils/retrieval/tools/file_tools.py`, and `/v1/files` | S-24 | The legacy hosted file/OpenAI Files surface remains until S-24 deletes cloud product-object authority; S-11's attachments are local app-managed files and never use these paths. |
+| `database/chat.py::{get_chats_to_migrate,migrate_chats_level_batch}` and `migrations/001_enhanced_protection_default.py` | S-23 | This is a hosted historical-data migration, not a local Chat compatibility path. |
+| `chat_responses`, `session_titles`, and their gateway/model-policy artifacts | S-22 | `session_titles` is the pinned transient S-11 title workload; `chat_responses` still has gateway/QoS callers that S-22 owns. |
+| `/v2/voice-messages`, `/v2/voice-message/transcribe`, `/v2/voice-message/transcribe-stream`, and their multipart, duration, and `transcribe_voice_message_segment` helpers | S-19 | Voice-message and push-to-talk speech transport are transient STT, distinct from the deleted hosted Chat persona and from local Chat persistence. |
+
 ### Local Memory authority and exact handoffs
 
 The macOS app is authoritative for Memories in its effective-owner `omi.db`.

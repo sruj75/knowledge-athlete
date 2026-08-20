@@ -6,9 +6,11 @@ app: non-prod
 covers:
   - desktop/macos/Desktop/Sources/MainWindow/Pages/DashboardPage.swift
   - desktop/macos/Desktop/Sources/MainWindow/Components/GoalsWidget.swift
-  - desktop/macos/Desktop/Sources/MainWindow/Components/TodaysTasksWidget.swift
-  - desktop/macos/Desktop/Sources/MainWindow/Components/FocusSummaryWidget.swift
-  - desktop/macos/Desktop/Sources/MainWindow/Components/RecentConversationsWidget.swift
+  - desktop/macos/Desktop/Sources/MainWindow/Dashboard/HomeSuggestionsStore.swift
+  - desktop/macos/Desktop/Sources/MainWindow/Dashboard/HomeKnowsComposer.swift
+  - desktop/macos/Desktop/Sources/MainWindow/Dashboard/TaskNavigationRequestStore.swift
+  - desktop/macos/Desktop/Sources/MainWindow/Components/UserFacingErrorPresentation.swift
+  - desktop/macos/Desktop/Sources/MainWindow/Components/HomeChatCatalog.swift
 preconditions:
   - automation_bridge_ready
 

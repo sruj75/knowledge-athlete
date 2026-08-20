@@ -11,7 +11,6 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from database import (
     conversations as conversations_db,
-    chat as chat_db,
     user_usage as user_usage_db,
     notifications as notification_db,
     daily_summaries as daily_summaries_db,
@@ -358,36 +357,6 @@ def get_memory_summary_rating(
     if not rating:
         return {'has_rating': False}
     return {'has_rating': rating.get('value', -1) != -1, 'rating': rating.get('value', -1)}
-
-
-@router.post('/v1/users/analytics/chat_message', tags=['v1'], response_model=UserStatusResponse)
-def set_chat_message_analytics(
-    message_id: str,
-    value: int,
-    reason: str = None,  # Reason for thumbs down (e.g. 'too_verbose', 'incorrect_or_hallucination')
-    uid: str = Depends(auth.get_current_user_uid),
-):
-    """
-    Submit feedback rating for a chat message.
-
-    Args:
-        message_id: ID of the message being rated
-        value: Rating value (1 = thumbs up, -1 = thumbs down, 0 = neutral/removed)
-        reason: Optional reason for thumbs down. Valid values:
-            - 'too_verbose': Response was too long or wordy
-            - 'incorrect_or_hallucination': Response contained incorrect information
-            - 'not_helpful_or_irrelevant': Response didn't address the question
-            - 'didnt_follow_instructions': Response didn't follow user instructions
-            - 'other': Other reason
-    """
-    # Always store feedback in Firestore analytics collection
-    set_chat_message_rating_score(uid, message_id, value, reason)
-
-    # Also update the rating directly on the message document for persistence
-    rating_value = None if value == 0 else value
-    chat_db.update_message_rating(uid, message_id, rating_value)
-
-    return {'status': 'ok'}
 
 
 # ***************************************

@@ -66,12 +66,6 @@ enum ViewExporter {
       ),
 
       (
-        "03-ai-chat",
-        { AnyView(ChatPage(chatProvider: ChatProvider())) },
-        CGSize(width: 900, height: 700)
-      ),
-
-      (
         "04-conversations",
         { AnyView(ConversationsPage(appState: AppState(), selectedConversation: .constant(nil))) },
         CGSize(width: 900, height: 700)
@@ -108,12 +102,6 @@ enum ViewExporter {
       ),
 
       (
-        "14-chat-sessions",
-        { AnyView(ChatSessionsSidebar(chatProvider: ChatProvider())) },
-        CGSize(width: 250, height: 500)
-      ),
-
-      (
         "15-settings",
         {
           AnyView(
@@ -131,7 +119,7 @@ enum ViewExporter {
     return (entry.0, entry.1(), entry.2)
   }
 
-  static var standaloneViewCount: Int { 11 }
+  static var standaloneViewCount: Int { 9 }
 
   static func onboardingViewAt(_ index: Int) -> (String, AnyView, CGSize)? {
     nil
@@ -148,7 +136,6 @@ enum ViewExporter {
     private let items: [(String, String, Int)] = [
       ("Home", "house.fill", 0),
       ("Conversations", "text.bubble.fill", 1),
-      ("Chat", "bubble.left.and.bubble.right.fill", 2),
       ("Memories", "brain", 3),
       ("Tasks", "checklist", 4),
       ("Focus", "eye.fill", 5),
@@ -246,10 +233,6 @@ enum ViewExporter {
         }
       ),
       (
-        "full-ai-chat", 2,
-        { AnyView(ChatPage(chatProvider: previewChatProvider())) }
-      ),
-      (
         "full-memories", 3,
         {
           AnyView(
@@ -284,9 +267,6 @@ enum ViewExporter {
     let pageContent = entry.2()
 
     let topBarAppState = AppState()
-    let topBarMemories = previewMemoriesViewModel()
-    let topBarTasks = TasksStore.shared
-
     // Compose with the production top bar and rounded shell.
     let fullView = AnyView(
       ZStack {
@@ -302,9 +282,6 @@ enum ViewExporter {
             selectedIndex: .constant(entry.1),
             memoryDestinationRawValue: .constant(MemoryHubDestination.memories.rawValue),
             appState: topBarAppState,
-            memoriesViewModel: topBarMemories,
-            tasksStore: topBarTasks,
-            sinceDate: Date(),
             onRewind: {}
           )
           pageContent
@@ -317,7 +294,7 @@ enum ViewExporter {
     return (entry.0, fullView, CGSize(width: 1600, height: 1000))
   }
 
-  static var fullPageCount: Int { 11 }
+  static var fullPageCount: Int { 10 }
 
   private static func previewConversationsAppState() -> AppState {
     let appState = AppState()

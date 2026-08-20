@@ -5,10 +5,6 @@ router = APIRouter()
 
 _ROUTES = {
     "/v2/chat-context": ("POST",),
-    "/v2/chat/initial-message": ("POST",),
-    "/v2/chat/generate-title": ("POST",),
-    "/v2/chat-sessions": ("GET", "POST"),
-    "/v2/chat-sessions/{id}": ("GET", "PATCH", "DELETE"),
     "/v1/advice": ("GET", "POST"),
     "/v1/advice/{id}": ("PATCH", "DELETE"),
     "/v1/advice/mark-all-read": ("POST",),
@@ -17,9 +13,6 @@ _ROUTES = {
     "/v1/focus-stats": ("GET",),
     "/v1/users/me/llm-usage": ("POST",),
     "/v1/users/me/llm-usage/total": ("GET",),
-    "/v1/users/stats/chat-messages": ("GET",),
-    "/v2/messages": ("GET", "POST", "DELETE"),
-    "/v2/messages/{id}/rating": ("PATCH",),
     "/v1/users/daily-summary-settings": ("GET", "PATCH"),
     "/v1/users/language": ("GET", "PATCH"),
     "/v1/users/notification-settings": ("GET", "PATCH"),

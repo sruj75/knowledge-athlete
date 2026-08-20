@@ -6,23 +6,47 @@ import XCTest
 final class OneAssistantChatContractTests: XCTestCase {
   private struct QueryProbeStop: Error {}
 
+  private actor JournalAdmissionGate {
+    private var continuation: CheckedContinuation<Void, Never>?
+
+    func wait() async {
+      await withCheckedContinuation { continuation = $0 }
+    }
+
+    func open() {
+      continuation?.resume()
+      continuation = nil
+    }
+  }
+
   private final class QueryCapture: @unchecked Sendable {
     var invocation: AgentClient.QueryTransportRequest?
+    var createdChatID: String?
     var events: [String] = []
+    var deletedChatIDs: [String] = []
   }
 
   @MainActor
   func testNewChatSendsPersonalizedExplicitAttachmentThroughOneAssistantPath() async throws {
     let defaults = UserDefaults.standard
     let previousGivenName = defaults.string(forKey: DefaultsKey.authGivenName)
+    let previousOwnerID = defaults.string(forKey: .authUserId)
     defer {
+      ChatDraftStore.shared.clearAll(ownerID: "s06-one-assistant-test")
+      ChatDraftStore.shared.flush()
       if let previousGivenName {
         defaults.set(previousGivenName, forKey: DefaultsKey.authGivenName)
       } else {
         defaults.removeObject(forKey: DefaultsKey.authGivenName)
       }
+      if let previousOwnerID {
+        defaults.set(previousOwnerID, forKey: .authUserId)
+      } else {
+        defaults.removeObject(forKey: .authUserId)
+      }
     }
     defaults.set("Srujan", forKey: DefaultsKey.authGivenName)
+    defaults.set("s06-one-assistant-test", forKey: .authUserId)
 
     let profile = try XCTUnwrap(
       AgentExecutionProfile(dictionary: [
@@ -75,6 +99,7 @@ final class OneAssistantChatContractTests: XCTestCase {
       ]))
 
     let provider = ChatProvider()
+    provider.multiChatEnabled = true
     let capture = QueryCapture()
     provider.agentClientForTests = AgentClient.Session(harnessMode: "piMono") {
       _, request, _ in
@@ -83,41 +108,71 @@ final class OneAssistantChatContractTests: XCTestCase {
       throw QueryProbeStop()
     }
     provider.runtimeOwnerIdForTests = { "s06-one-assistant-test" }
-    provider.createChatSessionForTests = { title in
-      capture.events.append("create_session")
-      return ChatSession(id: "session-1", title: title ?? "New Chat")
+    provider.createChatCatalogForTests = { chatID, title in
+      capture.events.append("create_catalog")
+      capture.createdChatID = chatID
+      return try XCTUnwrap(
+        LocalChatSummary(dictionary: [
+          "chatId": chatID,
+          "title": title ?? "New Chat",
+          "titleOrigin": "default",
+          "messageCount": 0,
+          "createdAtMs": 1_000,
+          "lastActivityAtMs": 1_000,
+          "starred": false,
+        ]))
     }
     let greeting = "Welcome back, Srujan — what would you like to work on?"
-    provider.initialMessageForTests = { sessionID, ownerID in
+    provider.listChatCatalogForTests = {
+      let createdChatID = try XCTUnwrap(capture.createdChatID)
+      return [
+        try XCTUnwrap(
+          LocalChatSummary(dictionary: [
+            "chatId": "default",
+            "title": "New Chat",
+            "titleOrigin": "default",
+            "messageCount": 0,
+            "createdAtMs": 1_000,
+            "lastActivityAtMs": 1_000,
+            "starred": false,
+          ])),
+        try XCTUnwrap(
+          LocalChatSummary(dictionary: [
+            "chatId": createdChatID,
+            "title": "Fresh chat",
+            "titleOrigin": "manual",
+            "preview": greeting,
+            "messageCount": 1,
+            "createdAtMs": 1_000,
+            "lastActivityAtMs": 2_000,
+            "starred": false,
+          ])),
+      ]
+    }
+    provider.initialMessageForTests = { profileText, memories, ownerID in
       capture.events.append("initial_message")
-      XCTAssertEqual(sessionID, "session-1")
+      XCTAssertTrue(profileText.isEmpty)
+      XCTAssertTrue(memories.isEmpty)
       XCTAssertEqual(ownerID, "s06-one-assistant-test")
-      return InitialMessageResponse(message: greeting, messageId: "greeting-1")
+      return InitialMessageResponse(message: greeting)
     }
-    provider.importInitialGreetingForTests = { surface, turn, ownerID in
-      capture.events.append("import_greeting")
+    provider.recordInitialGreetingForTests = { [weak provider] surface, turn, ownerID in
+      capture.events.append("record_greeting")
       XCTAssertEqual(surface.surfaceKind, "main_chat")
-      XCTAssertEqual(surface.externalRefId, "session-1")
-      XCTAssertEqual(turn.remoteId, "greeting-1")
-      XCTAssertEqual(turn.canonicalTurnId, "greeting-1")
-      XCTAssertEqual(turn.role, "assistant")
-      XCTAssertEqual(turn.content, greeting)
+      XCTAssertEqual(surface.externalRefId, capture.createdChatID)
+      XCTAssertEqual(turn.sender, .ai)
+      XCTAssertEqual(turn.text, greeting)
       XCTAssertEqual(ownerID, "s06-one-assistant-test")
-      return true
-    }
-    provider.refreshInitialGreetingForTests = { [weak provider] surface in
-      capture.events.append("refresh_greeting")
-      XCTAssertEqual(surface.surfaceKind, "main_chat")
-      XCTAssertEqual(surface.externalRefId, "session-1")
       provider?.messages = [
         ChatMessage(
-          id: "greeting-1",
+          id: turn.id,
           text: greeting,
           sender: .ai,
           isSynced: true,
           journalStatus: .completed
         )
       ]
+      return true
     }
     provider.ensureBridgeStartedForTests = { _ in
       capture.events.append("ensure_bridge")
@@ -166,19 +221,19 @@ final class OneAssistantChatContractTests: XCTestCase {
     let requestPayload = requestAttachment.dictionary
 
     XCTAssertNil(response)
-    XCTAssertEqual(session.id, "session-1")
+    XCTAssertEqual(session.id, capture.createdChatID)
     XCTAssertEqual(session.title, "Fresh chat")
-    XCTAssertEqual(provider.currentSession?.id, "session-1")
-    XCTAssertEqual(provider.sessions.map(\.id), ["session-1"])
+    XCTAssertEqual(provider.currentSession?.id, capture.createdChatID)
+    XCTAssertEqual(provider.sessions.map(\.id), ["default", capture.createdChatID])
     XCTAssertNil(provider.onboardingOpener)
-    XCTAssertEqual(provider.sessions.first?.preview, greeting)
+    XCTAssertEqual(provider.sessions.first(where: { $0.id == session.id })?.preview, greeting)
     XCTAssertEqual(
       capture.events,
       [
-        "create_session",
+        "create_catalog",
+        "refresh_memories",
         "initial_message",
-        "import_greeting",
-        "refresh_greeting",
+        "record_greeting",
         "ensure_bridge",
         "resolve_session",
         "record_exchange",
@@ -191,7 +246,7 @@ final class OneAssistantChatContractTests: XCTestCase {
     XCTAssertEqual(invocation.prompt, prompt)
     XCTAssertEqual(invocation.session, agentSession)
     XCTAssertEqual(invocation.surface.surfaceKind, "main_chat")
-    XCTAssertEqual(invocation.surface.externalRefId, "session-1")
+    XCTAssertEqual(invocation.surface.externalRefId, capture.createdChatID)
     XCTAssertEqual(invocation.mode, ChatMode.act.rawValue)
     XCTAssertEqual(invocation.reasoningEffort, "adaptive")
     XCTAssertEqual(requestAttachment.attachmentId, "local-file-1")
@@ -207,5 +262,45 @@ final class OneAssistantChatContractTests: XCTestCase {
     XCTAssertFalse(requestPayload.keys.contains("app_id"))
     XCTAssertFalse(requestPayload.keys.contains("persona_id"))
     XCTAssertFalse(requestPayload.keys.contains("marketplace_id"))
+
+    let failedAttachment = ChatAttachment(
+      id: "local-file-2",
+      fileName: "retry-notes.txt",
+      mimeType: "text/plain",
+      localFileURL: URL(fileURLWithPath: "/tmp/retry-notes.txt"),
+      state: .localOnly
+    )
+    let admissionStarted = expectation(description: "journal admission started")
+    let admissionGate = JournalAdmissionGate()
+    provider.recordStreamingJournalExchangeForTests = { _, _ in
+      admissionStarted.fulfill()
+      await admissionGate.wait()
+      return nil
+    }
+    provider.pendingAttachments = [failedAttachment]
+    provider.draftText = "This send must stay recoverable"
+
+    let failedSend = Task { @MainActor in
+      await provider.sendMainDraft("This send must stay recoverable")
+    }
+    await fulfillment(of: [admissionStarted], timeout: 2)
+
+    provider.removePendingAttachment(id: failedAttachment.id)
+    XCTAssertEqual(provider.pendingAttachments.map(\.id), [failedAttachment.id])
+    let otherChat = ChatSession(id: "other-chat", title: "Other")
+    provider.sessions.append(otherChat)
+    provider.deleteChatCatalogForTests = { chatID in
+      capture.deletedChatIDs.append(chatID)
+      return []
+    }
+    await provider.deleteSession(otherChat)
+    XCTAssertTrue(capture.deletedChatIDs.isEmpty)
+    XCTAssertTrue(provider.sessions.contains(where: { $0.id == otherChat.id }))
+
+    await admissionGate.open()
+    _ = await failedSend.value
+    XCTAssertEqual(provider.pendingAttachments.map(\.id), [failedAttachment.id])
+    XCTAssertEqual(provider.draftText, "This send must stay recoverable")
+    XCTAssertEqual(provider.errorMessage, "Could not save this message. Try again.")
   }
 }

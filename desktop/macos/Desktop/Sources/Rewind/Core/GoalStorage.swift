@@ -102,7 +102,6 @@ actor GoalStorage {
       }
     }
     guard let goal = inserted.toLocalGoal() else { throw GoalStorageError.recordNotFound }
-    HomeKnowledgeCountInvalidation.post()
     return goal
   }
 
@@ -134,7 +133,6 @@ actor GoalStorage {
       }
     }
     guard let goal = record.toLocalGoal() else { throw GoalStorageError.recordNotFound }
-    HomeKnowledgeCountInvalidation.post()
     return goal
   }
 
@@ -162,7 +160,6 @@ actor GoalStorage {
       }
     }
     guard let goal = record.toLocalGoal() else { throw GoalStorageError.recordNotFound }
-    HomeKnowledgeCountInvalidation.post()
     return goal
   }
 }

@@ -47,6 +47,16 @@ package enum OmiColors {
 
   /// User bubble color: richer than the page chrome, softer than a flat primary fill.
   package static let userBubble = Color(hex: 0x2C2C33)
+
+  // MARK: - Home
+  // Canonical Home uses the shared neutral palette so its stage, catalog, and
+  // composer cannot drift into a page-private accent system.
+  package static let homeBackground = Color(hex: 0x050506)
+  package static let homePanel = Color(hex: 0x0C0C0D)
+  package static let homeTile = Color(hex: 0x141416)
+  package static let homeTileHover = Color(hex: 0x1C1C1F)
+  package static let homeHairline = Color(hex: 0x28282C)
+  package static let homeGlow = Color(hex: 0xB8BDC7)
 }
 
 // MARK: - Color Extension for Hex

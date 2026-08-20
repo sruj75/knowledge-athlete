@@ -227,7 +227,7 @@ actor AgentRuntimeProcess {
   static let shared = AgentRuntimeProcess()
   nonisolated static let expectedProtocolVersion = 2
   nonisolated static let requiredRuntimeCapabilities: Set<String> = [
-    "journal_import_remote_turn",
+    "chat_catalog",
     "runtime_adapter_availability",
   ]
   private static let ownerTransitionClientID = "runtime-owner-transition"
@@ -319,13 +319,10 @@ actor AgentRuntimeProcess {
       case controlToolResult
       case journalOperationResult
       case journalTurnChanged
-      case journalBackendSync
-      case journalBackendDelete
-      case journalBackendReconcile
+      case chatCatalogResult
       case surfaceSessionResolved
       case contextSourceUpdated
       case contextSnapshot
-      case legacyMainChatSessionsImported
       case externalSurfaceRunBeginResult
       case externalSurfaceToolResult
       case externalSurfaceRunCompleteResult
@@ -377,13 +374,10 @@ actor AgentRuntimeProcess {
       case "control_tool_result": return .controlToolResult
       case "journal_operation_result": return .journalOperationResult
       case "journal_turn_changed": return .journalTurnChanged
-      case "journal_backend_sync": return .journalBackendSync
-      case "journal_backend_delete": return .journalBackendDelete
-      case "journal_backend_reconcile": return .journalBackendReconcile
+      case "chat_catalog_result": return .chatCatalogResult
       case "surface_session_resolved": return .surfaceSessionResolved
       case "context_source_updated": return .contextSourceUpdated
       case "context_snapshot": return .contextSnapshot
-      case "legacy_main_chat_sessions_imported": return .legacyMainChatSessionsImported
       case "external_surface_run_begin_result": return .externalSurfaceRunBeginResult
       case "external_surface_tool_result": return .externalSurfaceToolResult
       case "external_surface_run_complete_result": return .externalSurfaceRunCompleteResult
@@ -479,6 +473,12 @@ actor AgentRuntimeProcess {
     let timedOutAtUptime: TimeInterval
   }
 
+  struct JournalFirstCompletedRealExchange: Sendable, Equatable {
+    let continuityKey: String
+    let userText: String
+    let assistantText: String
+  }
+
   struct JournalOperationResult: Sendable {
     let operation: String
     let conversationId: String
@@ -488,6 +488,38 @@ actor AgentRuntimeProcess {
     let highWaterTurnSeq: Int
     let conversationGeneration: Int
     let generationBaseTurnSeq: Int
+    let firstCompletedRealPair: Bool
+    let firstCompletedRealExchange: JournalFirstCompletedRealExchange?
+
+    init(
+      operation: String,
+      conversationId: String,
+      turn: KernelJournalTurn?,
+      turns: [KernelJournalTurn],
+      clearedCount: Int,
+      highWaterTurnSeq: Int,
+      conversationGeneration: Int,
+      generationBaseTurnSeq: Int,
+      firstCompletedRealPair: Bool = false,
+      firstCompletedRealExchange: JournalFirstCompletedRealExchange? = nil
+    ) {
+      self.operation = operation
+      self.conversationId = conversationId
+      self.turn = turn
+      self.turns = turns
+      self.clearedCount = clearedCount
+      self.highWaterTurnSeq = highWaterTurnSeq
+      self.conversationGeneration = conversationGeneration
+      self.generationBaseTurnSeq = generationBaseTurnSeq
+      self.firstCompletedRealPair = firstCompletedRealPair
+      self.firstCompletedRealExchange = firstCompletedRealExchange
+    }
+  }
+
+  struct JournalTerminalizationResult: Sendable {
+    let turn: KernelJournalTurn
+    let firstCompletedRealPair: Bool
+    let firstCompletedRealExchange: JournalFirstCompletedRealExchange?
   }
 
   typealias JournalTurnChangedHandler = @Sendable (KernelJournalTurn) -> Void
@@ -861,6 +893,136 @@ actor AgentRuntimeProcess {
       throw BridgeError.agentError("Kernel returned an invalid surface session")
     }
     return session
+  }
+
+  func listChatCatalog(
+    clientId: String,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async throws -> LocalChatCatalogSnapshot {
+    let result = try await chatCatalogRequest(
+      operation: .list,
+      clientId: clientId,
+      authorizationSnapshot: authorizationSnapshot
+    )
+    guard
+      let dictionaries = result["chats"] as? [[String: Any]],
+      let retainedAttachmentURIs = result["retainedAttachmentUris"] as? [String]
+    else {
+      throw BridgeError.agentError("Kernel returned an invalid Chat catalog")
+    }
+    let chats = dictionaries.compactMap(LocalChatSummary.init(dictionary:))
+    guard chats.count == dictionaries.count else {
+      throw BridgeError.agentError("Kernel returned an invalid Chat catalog entry")
+    }
+    return LocalChatCatalogSnapshot(
+      chats: chats,
+      retainedAttachmentURIs: Set(retainedAttachmentURIs)
+    )
+  }
+
+  func createChatCatalog(
+    clientId: String,
+    chatID: String,
+    title: String?,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async throws -> LocalChatSummary {
+    let result = try await chatCatalogRequest(
+      operation: .create,
+      clientId: clientId,
+      chatID: chatID,
+      title: title,
+      authorizationSnapshot: authorizationSnapshot
+    )
+    guard
+      let dictionary = result["chat"] as? [String: Any],
+      let chat = LocalChatSummary(dictionary: dictionary)
+    else {
+      throw BridgeError.agentError("Kernel returned an invalid created Chat")
+    }
+    return chat
+  }
+
+  func updateChatCatalog(
+    clientId: String,
+    chatID: String,
+    title: String? = nil,
+    titleOrigin: LocalChatTitleOrigin? = nil,
+    expectedTitleOrigin: LocalChatTitleOrigin? = nil,
+    starred: Bool? = nil,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async throws -> LocalChatSummary {
+    let result = try await chatCatalogRequest(
+      operation: .update,
+      clientId: clientId,
+      chatID: chatID,
+      title: title,
+      titleOrigin: titleOrigin,
+      expectedTitleOrigin: expectedTitleOrigin,
+      starred: starred,
+      authorizationSnapshot: authorizationSnapshot
+    )
+    guard
+      let dictionary = result["chat"] as? [String: Any],
+      let chat = LocalChatSummary(dictionary: dictionary)
+    else {
+      throw BridgeError.agentError("Kernel returned an invalid updated Chat")
+    }
+    return chat
+  }
+
+  func deleteChatCatalog(
+    clientId: String,
+    chatID: String,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async throws -> Set<String> {
+    let result = try await chatCatalogRequest(
+      operation: .delete,
+      clientId: clientId,
+      chatID: chatID,
+      authorizationSnapshot: authorizationSnapshot
+    )
+    guard
+      result["deletedChatId"] as? String == chatID,
+      let retainedAttachmentURIs = result["retainedAttachmentUris"] as? [String]
+    else {
+      throw BridgeError.agentError("Kernel returned an invalid deleted Chat receipt")
+    }
+    return Set(retainedAttachmentURIs)
+  }
+
+  private func chatCatalogRequest(
+    operation: ChatCatalogOperation,
+    clientId: String,
+    chatID: String? = nil,
+    title: String? = nil,
+    titleOrigin: LocalChatTitleOrigin? = nil,
+    expectedTitleOrigin: LocalChatTitleOrigin? = nil,
+    starred: Bool? = nil,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async throws -> [String: Any] {
+    try assertAuthorization(authorizationSnapshot)
+    let result = try await kernelContractRequest(
+      payload: Self.chatCatalogWireMessage(
+        operation: operation,
+        clientId: clientId,
+        requestId: UUID().uuidString,
+        ownerID: authorizationSnapshot.ownerID,
+        chatID: chatID,
+        title: title,
+        titleOrigin: titleOrigin,
+        expectedTitleOrigin: expectedTitleOrigin,
+        starred: starred
+      ),
+      expectedKind: .chatCatalogResult,
+      authorizationSnapshot: authorizationSnapshot
+    )
+    guard
+      result["ownerId"] as? String == authorizationSnapshot.ownerID,
+      result["operation"] as? String == operation.rawValue
+    else {
+      throw BridgeError.agentError("Kernel returned a mismatched Chat catalog receipt")
+    }
+    return result
   }
 
   func updateContextSource(
@@ -1310,6 +1472,33 @@ actor AgentRuntimeProcess {
     return message
   }
 
+  static func chatCatalogWireMessage(
+    operation: ChatCatalogOperation,
+    clientId: String,
+    requestId: String,
+    ownerID: String,
+    chatID: String? = nil,
+    title: String? = nil,
+    titleOrigin: LocalChatTitleOrigin? = nil,
+    expectedTitleOrigin: LocalChatTitleOrigin? = nil,
+    starred: Bool? = nil
+  ) -> [String: Any] {
+    var message = protocolEnvelope(
+      type: operation.wireType,
+      clientId: clientId,
+      requestId: requestId,
+      ownerId: ownerID
+    )
+    if let chatID { message["chatId"] = chatID }
+    if let title { message["title"] = title }
+    if let titleOrigin { message["titleOrigin"] = titleOrigin.rawValue }
+    if let expectedTitleOrigin {
+      message["expectedTitleOrigin"] = expectedTitleOrigin.rawValue
+    }
+    if let starred { message["starred"] = starred }
+    return message
+  }
+
   static func contextSourceUpdateWireMessage(
     clientId: String,
     requestId: String,
@@ -1355,22 +1544,6 @@ actor AgentRuntimeProcess {
     )
     message["sessionId"] = sessionId
     message["surfaceKind"] = surfaceKind
-    return message
-  }
-
-  static func importLegacyMainChatSessionsWireMessage(
-    clientId: String,
-    requestId: String,
-    ownerId: String,
-    entries: [LegacyMainChatSessionAliasEntry]
-  ) -> [String: Any] {
-    var message = protocolEnvelope(
-      type: "import_legacy_main_chat_sessions",
-      clientId: clientId,
-      requestId: requestId,
-      ownerId: ownerId
-    )
-    message["entries"] = entries.map(\.dictionary)
     return message
   }
 
@@ -1583,36 +1756,6 @@ actor AgentRuntimeProcess {
     sendJson(dict)
   }
 
-  // Startup-only reader for pre-kernel session aliases; it never writes turns or
-  // participates in runtime routing after canonical surface identity exists.
-  func importLegacyMainChatSessions(
-    clientId: String,
-    entries: [LegacyMainChatSessionAliasEntry],
-    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
-  ) async throws -> LegacyMainChatSessionImportReceipt {
-    try assertAuthorization(authorizationSnapshot)
-    let ownerId = authorizationSnapshot.ownerID
-    let payload = Self.importLegacyMainChatSessionsWireMessage(
-      clientId: clientId,
-      requestId: UUID().uuidString,
-      ownerId: ownerId,
-      entries: entries
-    )
-    let result = try await kernelContractRequest(
-      payload: payload,
-      expectedKind: .legacyMainChatSessionsImported,
-      authorizationSnapshot: authorizationSnapshot
-    )
-    guard
-      let receipt = LegacyMainChatSessionImportReceipt(dictionary: result),
-      receipt.ownerId == ownerId,
-      receipt.acceptedEntries == entries
-    else {
-      throw BridgeError.agentError("Kernel returned an invalid legacy main-chat alias receipt")
-    }
-    return receipt
-  }
-
   func setJournalTurnChangedHandler(_ handler: JournalTurnChangedHandler?) {
     journalTurnChangedHandler = handler
   }
@@ -1685,6 +1828,26 @@ actor AgentRuntimeProcess {
     update: KernelJournalTurnUpdate,
     authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
   ) async throws -> KernelJournalTurn {
+    let result = try await updateJournalTurnWithReceipt(
+      clientId: clientId,
+      surface: surface,
+      ownerID: ownerID,
+      update: update,
+      authorizationSnapshot: authorizationSnapshot
+    )
+    guard let updated = result.turn else {
+      throw BridgeError.agentError("Kernel journal update returned no turn")
+    }
+    return updated
+  }
+
+  func updateJournalTurnWithReceipt(
+    clientId: String,
+    surface: AgentSurfaceReference,
+    ownerID: String? = nil,
+    update: KernelJournalTurnUpdate,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async throws -> JournalOperationResult {
     let result = try await journalOperation(
       type: "journal_update_turn",
       operation: "update",
@@ -1698,7 +1861,7 @@ actor AgentRuntimeProcess {
       throw BridgeError.agentError("Kernel journal update returned no turn")
     }
     recordLifecycleJournalMutation(updated)
-    return updated
+    return result
   }
 
   func terminalizeJournalTurn(
@@ -1707,7 +1870,7 @@ actor AgentRuntimeProcess {
     ownerID: String,
     terminalization: KernelJournalTurnTerminalization,
     authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
-  ) async throws -> KernelJournalTurn {
+  ) async throws -> JournalTerminalizationResult {
     let result = try await journalOperation(
       type: "journal_terminalize_turn",
       operation: "terminalize",
@@ -1721,7 +1884,11 @@ actor AgentRuntimeProcess {
       throw BridgeError.agentError("Kernel journal terminalization returned no turn")
     }
     recordLifecycleJournalMutation(turn)
-    return turn
+    return JournalTerminalizationResult(
+      turn: turn,
+      firstCompletedRealPair: result.firstCompletedRealPair,
+      firstCompletedRealExchange: result.firstCompletedRealExchange
+    )
   }
 
   func repairJournalTurns(
@@ -1764,29 +1931,6 @@ actor AgentRuntimeProcess {
       ],
       authorizationSnapshot: authorizationSnapshot
     )
-  }
-
-  func importRemoteJournalTurn(
-    clientId: String,
-    surface: AgentSurfaceReference,
-    ownerID: String? = nil,
-    turn: KernelJournalRemoteTurn,
-    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
-  ) async throws -> KernelJournalTurn {
-    let result = try await journalOperation(
-      type: "journal_import_remote_turn",
-      operation: "import_remote",
-      clientId: clientId,
-      surface: surface,
-      ownerID: ownerID,
-      payload: ["turn": turn.dictionary],
-      authorizationSnapshot: authorizationSnapshot
-    )
-    guard let imported = result.turn else {
-      throw BridgeError.agentError("Kernel journal import returned no turn")
-    }
-    recordLifecycleJournalMutation(imported)
-    return imported
   }
 
   func clearJournalTurns(
@@ -2949,17 +3093,7 @@ actor AgentRuntimeProcess {
         journalTurnChangedHandler?(turn)
       }
 
-    case .journalBackendSync:
-      if messageOwnerIsCurrentlyAuthorized(message) { handleJournalBackendSync(message) }
-
-    case .journalBackendDelete:
-      if messageOwnerIsCurrentlyAuthorized(message) { handleJournalBackendDelete(message) }
-
-    case .journalBackendReconcile:
-      if messageOwnerIsCurrentlyAuthorized(message) { handleJournalBackendReconcile(message) }
-
-    case .surfaceSessionResolved, .contextSourceUpdated, .contextSnapshot,
-      .legacyMainChatSessionsImported,
+    case .surfaceSessionResolved, .chatCatalogResult, .contextSourceUpdated, .contextSnapshot,
       .externalSurfaceRunBeginResult, .externalSurfaceToolResult,
       .externalSurfaceRunCompleteResult, .ownerRuntimeRevoked:
       completeKernelContractRequest(message)
@@ -3346,6 +3480,19 @@ actor AgentRuntimeProcess {
       message.payload["generationBaseTurnSeq"] as? Int
       ?? turns.map(\.turnSeq).min().map { max(0, $0 - 1) }
       ?? (conversationGeneration > 1 ? highWaterTurnSeq : 0)
+    let firstCompletedRealExchange: JournalFirstCompletedRealExchange? =
+      (message.payload["firstCompletedRealExchange"] as? [String: Any]).flatMap { exchange in
+        guard
+          let continuityKey = exchange["continuityKey"] as? String,
+          let userText = exchange["userText"] as? String,
+          let assistantText = exchange["assistantText"] as? String
+        else { return nil }
+        return JournalFirstCompletedRealExchange(
+          continuityKey: continuityKey,
+          userText: userText,
+          assistantText: assistantText
+        )
+      }
     request.continuation.resume(
       returning: JournalOperationResult(
         operation: message.payload["operation"] as? String ?? "",
@@ -3356,7 +3503,9 @@ actor AgentRuntimeProcess {
         clearedCount: message.payload["clearedCount"] as? Int ?? 0,
         highWaterTurnSeq: highWaterTurnSeq,
         conversationGeneration: conversationGeneration,
-        generationBaseTurnSeq: generationBaseTurnSeq
+        generationBaseTurnSeq: generationBaseTurnSeq,
+        firstCompletedRealPair: message.payload["firstCompletedRealPair"] as? Bool ?? false,
+        firstCompletedRealExchange: firstCompletedRealExchange
       ))
   }
 
@@ -3373,251 +3522,6 @@ actor AgentRuntimeProcess {
       conversationGenerationFallback: message.payload["conversationGeneration"] as? Int ?? 1,
       generationBaseTurnSeqFallback: message.payload["generationBaseTurnSeq"] as? Int ?? 0
     )
-  }
-
-  private func handleJournalBackendSync(_ message: RuntimeMessage) {
-    guard let request = KernelJournalBackendSyncDriver.Request(payload: message.payload) else {
-      sendJournalBackendSyncResult(
-        requestId: message.requestId,
-        clientId: message.clientId,
-        ownerId: message.payload["ownerId"] as? String,
-        turnId: message.payload["turnId"] as? String ?? "",
-        conversationId: message.payload["conversationId"] as? String,
-        conversationGeneration: message.payload["conversationGeneration"] as? Int,
-        attemptCount: message.payload["attemptCount"] as? Int,
-        deliveryGeneration: message.payload["deliveryGeneration"] as? Int,
-        payloadHash: message.payload["payloadHash"] as? String,
-        remoteId: nil,
-        errorCode: "malformed_backend_sync_request"
-      )
-      return
-    }
-    Task { [weak self] in
-      do {
-        let receipt = try await KernelJournalBackendSyncDriver.shared.sync(request)
-        await self?.sendJournalBackendSyncResult(
-          requestId: message.requestId,
-          clientId: message.clientId,
-          ownerId: request.ownerId,
-          turnId: receipt.turnId,
-          conversationId: request.conversationId,
-          conversationGeneration: request.conversationGeneration,
-          attemptCount: request.attemptCount,
-          deliveryGeneration: request.deliveryGeneration,
-          payloadHash: request.payloadHash,
-          remoteId: receipt.remoteId,
-          errorCode: nil
-        )
-      } catch {
-        await self?.sendJournalBackendSyncResult(
-          requestId: message.requestId,
-          clientId: message.clientId,
-          ownerId: request.ownerId,
-          turnId: request.turnId,
-          conversationId: request.conversationId,
-          conversationGeneration: request.conversationGeneration,
-          attemptCount: request.attemptCount,
-          deliveryGeneration: request.deliveryGeneration,
-          payloadHash: request.payloadHash,
-          remoteId: nil,
-          errorCode: KernelJournalBackendSyncDriver.boundedErrorCode(for: error)
-        )
-      }
-    }
-  }
-
-  private func sendJournalBackendSyncResult(
-    requestId: String?,
-    clientId: String?,
-    ownerId: String?,
-    turnId: String,
-    conversationId: String?,
-    conversationGeneration: Int?,
-    attemptCount: Int?,
-    deliveryGeneration: Int?,
-    payloadHash: String?,
-    remoteId: String?,
-    errorCode: String?
-  ) {
-    var payload: [String: Any] = [
-      "type": "journal_backend_sync_result",
-      "protocolVersion": 2,
-      "turnId": turnId,
-      "ok": remoteId != nil,
-    ]
-    if let requestId { payload["requestId"] = requestId }
-    if let clientId { payload["clientId"] = clientId }
-    if let ownerId { payload["ownerId"] = ownerId }
-    if let conversationId { payload["conversationId"] = conversationId }
-    if let conversationGeneration { payload["conversationGeneration"] = conversationGeneration }
-    if let attemptCount { payload["attemptCount"] = attemptCount }
-    if let deliveryGeneration { payload["deliveryGeneration"] = deliveryGeneration }
-    if let payloadHash { payload["payloadHash"] = payloadHash }
-    if let remoteId { payload["remoteId"] = remoteId }
-    if let errorCode { payload["errorCode"] = errorCode }
-    sendJson(payload)
-  }
-
-  private func handleJournalBackendDelete(_ message: RuntimeMessage) {
-    guard let request = KernelJournalBackendSyncDriver.DeleteRequest(payload: message.payload) else {
-      sendJournalBackendDeleteResult(
-        requestId: message.requestId,
-        clientId: message.clientId,
-        ownerId: message.payload["ownerId"] as? String,
-        operationId: message.payload["operationId"] as? String ?? "",
-        conversationId: message.payload["conversationId"] as? String,
-        conversationGeneration: message.payload["conversationGeneration"] as? Int,
-        attemptCount: message.payload["attemptCount"] as? Int,
-        deliveryGeneration: message.payload["deliveryGeneration"] as? Int,
-        payloadHash: message.payload["payloadHash"] as? String,
-        ok: false,
-        errorCode: "malformed_backend_delete_request"
-      )
-      return
-    }
-
-    Task { [weak self] in
-      do {
-        try await KernelJournalBackendSyncDriver.shared.delete(request)
-        await self?.sendJournalBackendDeleteResult(
-          requestId: message.requestId,
-          clientId: message.clientId,
-          ownerId: request.ownerId,
-          operationId: request.operationId,
-          conversationId: request.conversationId,
-          conversationGeneration: request.conversationGeneration,
-          attemptCount: request.attemptCount,
-          deliveryGeneration: request.deliveryGeneration,
-          payloadHash: request.payloadHash,
-          ok: true,
-          errorCode: nil
-        )
-      } catch {
-        await self?.sendJournalBackendDeleteResult(
-          requestId: message.requestId,
-          clientId: message.clientId,
-          ownerId: request.ownerId,
-          operationId: request.operationId,
-          conversationId: request.conversationId,
-          conversationGeneration: request.conversationGeneration,
-          attemptCount: request.attemptCount,
-          deliveryGeneration: request.deliveryGeneration,
-          payloadHash: request.payloadHash,
-          ok: false,
-          errorCode: KernelJournalBackendSyncDriver.boundedDeleteErrorCode(for: error)
-        )
-      }
-    }
-  }
-
-  private func sendJournalBackendDeleteResult(
-    requestId: String?,
-    clientId: String?,
-    ownerId: String?,
-    operationId: String,
-    conversationId: String?,
-    conversationGeneration: Int?,
-    attemptCount: Int?,
-    deliveryGeneration: Int?,
-    payloadHash: String?,
-    ok: Bool,
-    errorCode: String?
-  ) {
-    var payload: [String: Any] = [
-      "type": "journal_backend_delete_result",
-      "protocolVersion": 2,
-      "operationId": operationId,
-      "ok": ok,
-    ]
-    if let requestId { payload["requestId"] = requestId }
-    if let clientId { payload["clientId"] = clientId }
-    if let ownerId { payload["ownerId"] = ownerId }
-    if let conversationId { payload["conversationId"] = conversationId }
-    if let conversationGeneration { payload["conversationGeneration"] = conversationGeneration }
-    if let attemptCount { payload["attemptCount"] = attemptCount }
-    if let deliveryGeneration { payload["deliveryGeneration"] = deliveryGeneration }
-    if let payloadHash { payload["payloadHash"] = payloadHash }
-    if let errorCode { payload["errorCode"] = errorCode }
-    sendJson(payload)
-  }
-
-  private func handleJournalBackendReconcile(_ message: RuntimeMessage) {
-    guard let request = KernelJournalBackendSyncDriver.ReconcileRequest(payload: message.payload) else {
-      sendJournalBackendReconcileResult(
-        requestId: message.requestId,
-        clientId: message.clientId,
-        ownerId: message.payload["ownerId"] as? String,
-        reconcileId: message.payload["reconcileId"] as? String ?? "",
-        conversationId: message.payload["conversationId"] as? String,
-        pageCursor: message.payload["pageCursor"] as? String,
-        nextCursor: nil,
-        turns: nil,
-        hasMore: nil,
-        errorCode: "malformed_backend_reconcile_request"
-      )
-      return
-    }
-
-    Task { [weak self] in
-      do {
-        let page = try await KernelJournalBackendSyncDriver.shared.reconcile(request)
-        await self?.sendJournalBackendReconcileResult(
-          requestId: message.requestId,
-          clientId: message.clientId,
-          ownerId: request.ownerId,
-          reconcileId: request.reconcileId,
-          conversationId: request.conversationId,
-          pageCursor: request.pageCursor,
-          nextCursor: page.nextCursor,
-          turns: page.turns.map(\.dictionary),
-          hasMore: page.hasMore,
-          errorCode: nil
-        )
-      } catch {
-        await self?.sendJournalBackendReconcileResult(
-          requestId: message.requestId,
-          clientId: message.clientId,
-          ownerId: request.ownerId,
-          reconcileId: request.reconcileId,
-          conversationId: request.conversationId,
-          pageCursor: request.pageCursor,
-          nextCursor: nil,
-          turns: nil,
-          hasMore: nil,
-          errorCode: KernelJournalBackendSyncDriver.boundedReconcileErrorCode(for: error)
-        )
-      }
-    }
-  }
-
-  private func sendJournalBackendReconcileResult(
-    requestId: String?,
-    clientId: String?,
-    ownerId: String?,
-    reconcileId: String,
-    conversationId: String?,
-    pageCursor: String?,
-    nextCursor: String?,
-    turns: [[String: Any]]?,
-    hasMore: Bool?,
-    errorCode: String?
-  ) {
-    var payload: [String: Any] = [
-      "type": "journal_backend_reconcile_result",
-      "protocolVersion": 2,
-      "reconcileId": reconcileId,
-      "ok": errorCode == nil,
-      "pageCursor": pageCursor ?? NSNull(),
-    ]
-    if let requestId { payload["requestId"] = requestId }
-    if let clientId { payload["clientId"] = clientId }
-    if let ownerId { payload["ownerId"] = ownerId }
-    if let conversationId { payload["conversationId"] = conversationId }
-    if errorCode == nil { payload["nextCursor"] = nextCursor ?? NSNull() }
-    if let turns { payload["turns"] = turns }
-    if let hasMore { payload["hasMore"] = hasMore }
-    if let errorCode { payload["errorCode"] = errorCode }
-    sendJson(payload)
   }
 
   private func failRequest(_ message: RuntimeMessage) {

@@ -65,7 +65,7 @@ except ImportError as exc:
 
 try:
     from utils.llm.gateway_client import (
-        BACKGROUND_CHAT_EXTRACTION_TIMEOUT_SECONDS,
+        BACKGROUND_STRUCTURED_TIMEOUT_SECONDS,
         CHAT_STRUCTURED_AUTO_LANE_ID,
         feature_auto_lane_id,
         raise_if_gateway_feature_mode_blocks_direct_model_surface,
@@ -75,7 +75,7 @@ except ImportError as exc:
     if exc.name != 'utils.llm.gateway_client':
         raise
 
-    BACKGROUND_CHAT_EXTRACTION_TIMEOUT_SECONDS = 35.0
+    BACKGROUND_STRUCTURED_TIMEOUT_SECONDS = 35.0
     CHAT_STRUCTURED_AUTO_LANE_ID = 'omi:auto:chat-structured'
 
     def feature_auto_lane_id(feature: str) -> str:
@@ -317,6 +317,21 @@ def get_llm(
     return result
 
 
+def bind_llm_output_token_limit(feature: str, llm: BaseChatModel, max_output_tokens: int) -> BaseChatModel:
+    """Bind the provider-correct completion cap for a configured feature.
+
+    Native Gemini consumes ``max_output_tokens`` while the gateway and
+    OpenAI-compatible clients consume ``max_tokens``. Keeping the choice next
+    to model routing prevents a bounded workload from silently becoming
+    unbounded when its pinned provider changes.
+    """
+    if max_output_tokens <= 0:
+        raise ValueError('max_output_tokens must be positive')
+    _model, provider = _get_model_config(feature)
+    parameter = 'max_tokens' if should_route_features_through_gateway() or provider != 'gemini' else 'max_output_tokens'
+    return llm.bind(**{parameter: max_output_tokens})
+
+
 def get_llm_gateway_chat_structured(
     streaming: bool = False,
     cache_key: Optional[str] = None,
@@ -335,10 +350,10 @@ def get_llm_gateway_chat_structured(
         streaming,
         options={
             'request_timeout': (
-                request_timeout if request_timeout is not None else BACKGROUND_CHAT_EXTRACTION_TIMEOUT_SECONDS
+                request_timeout if request_timeout is not None else BACKGROUND_STRUCTURED_TIMEOUT_SECONDS
             )
         },
-        feature='chat_extraction',
+        feature='structured_extraction',
     )
     if cache_key:
         return result.bind(prompt_cache_key=cache_key)

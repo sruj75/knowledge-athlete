@@ -1793,14 +1793,6 @@ import XCTest
     return try String(contentsOf: sourceURL, encoding: .utf8)
   }
 
-  private func chatPageSource() throws -> String {
-    let sourceURL = URL(fileURLWithPath: #filePath)
-      .deletingLastPathComponent()
-      .deletingLastPathComponent()
-      .appendingPathComponent("Sources/MainWindow/Pages/ChatPage.swift")
-    return try String(contentsOf: sourceURL, encoding: .utf8)
-  }
-
   private func chatBubbleSource() throws -> String {
     let sourceURL = URL(fileURLWithPath: #filePath)
       .deletingLastPathComponent()
