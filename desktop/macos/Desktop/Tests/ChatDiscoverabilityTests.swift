@@ -10,8 +10,6 @@ final class ChatDiscoverabilityTests: XCTestCase {
     let footer = ChatPrompts.schemaFooter
     XCTAssertTrue(footer.contains("screenshots_fts"))
     XCTAssertTrue(footer.contains("action_items_fts"))
-    XCTAssertTrue(footer.contains("staged_tasks_fts"))
-    XCTAssertTrue(footer.contains("task_chat_messages_fts"))
     XCTAssertTrue(footer.contains("proactive_extractions_fts"))
   }
 
@@ -388,7 +386,7 @@ final class ChatDiscoverabilityTests: XCTestCase {
     let expected = [
       "screenshots", "action_items", "transcription_sessions", "transcription_segments",
       "focus_sessions", "live_notes", "memories", "ai_user_profiles",
-      "goals", "staged_tasks", "observations", "task_chat_messages",
+      "goals", "observations",
     ]
     for table in expected {
       XCTAssertNotNil(

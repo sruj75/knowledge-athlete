@@ -20,14 +20,11 @@ final class ChatDraftStoreTests: XCTestCase {
     let first = makeStore(ownerID: "user-a")
     first.setText("main draft\nwith detail", for: .mainChat(contextID: "omi:default"))
     first.setText("notch draft", for: .floatingMain)
-    first.setText("task draft", for: .taskChat("task-1"))
     first.flush()
 
     let relaunched = makeStore(ownerID: "user-a")
     XCTAssertEqual(relaunched.text(for: .mainChat(contextID: "omi:default")), "main draft\nwith detail")
     XCTAssertEqual(relaunched.text(for: .floatingMain), "notch draft")
-    XCTAssertEqual(relaunched.text(for: .taskChat("task-1")), "task draft")
-    XCTAssertEqual(relaunched.text(for: .taskChat("task-2")), "")
   }
 
   func testLatestEditWinsWhenWritesAreCoalesced() {

@@ -26,8 +26,6 @@ extension SettingsContentView {
       profileAndStatsSubsection
       advancedCategoryHeader(title: "Reset Onboarding", icon: "arrow.counterclockwise")
       resetOnboardingSubsection
-      advancedCategoryHeader(title: "Goals", icon: "target")
-      goalsSubsection
       advancedCategoryHeader(title: "Preferences", icon: "slider.horizontal.3")
       preferencesSubsection
       advancedCategoryHeader(title: "Troubleshooting", icon: "wrench.and.screwdriver")

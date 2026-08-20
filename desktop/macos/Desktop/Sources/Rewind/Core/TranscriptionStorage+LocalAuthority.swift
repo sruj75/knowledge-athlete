@@ -653,10 +653,6 @@ extension TranscriptionStorage {
           try ActionItemStorage.deleteExactConversationSource(
             in: database, conversationId: conversationId)
         }
-        if try database.tableExists("staged_tasks") {
-          try database.execute(
-            sql: "DELETE FROM staged_tasks WHERE conversationId = ?", arguments: [conversationId])
-        }
         if try database.tableExists("memories") {
           try MemoryStorage.deleteExactConversationSource(
             in: database, conversationId: conversationId)
@@ -835,11 +831,6 @@ extension TranscriptionStorage {
               in: database,
               from: sourceConversationId,
               to: replacementId.lowercased())
-          }
-          if try database.tableExists("staged_tasks") {
-            try database.execute(
-              sql: "UPDATE staged_tasks SET conversationId = ? WHERE conversationId = ?",
-              arguments: [replacementId.lowercased(), sourceConversationId])
           }
           if try database.tableExists("memories") {
             try MemoryStorage.reassignExactConversationSource(
@@ -1463,9 +1454,9 @@ extension TranscriptionStorage {
             try database.execute(
               sql: """
                 INSERT INTO action_items
-                  (backendSynced, description, completed, deleted, source, conversationId,
-                   dueAt, createdAt, updatedAt, fromStaged)
-                VALUES (0, ?, 0, 0, 'conversation', ?, ?, ?, ?, 0)
+                  (description, completed, deleted, source, conversationId,
+                   dueAt, createdAt, updatedAt)
+                VALUES (?, 0, 0, 'conversation', ?, ?, ?, ?)
                 """,
               arguments: [description, conversationId, dueAt, now, now])
           case .update, .complete:

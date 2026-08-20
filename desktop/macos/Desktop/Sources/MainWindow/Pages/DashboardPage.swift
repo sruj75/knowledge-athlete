@@ -6,207 +6,206 @@ import UniformTypeIdentifiers
 
 // MARK: - Dashboard View Model
 
+/// Local projection for the Home dashboard.
+///
+/// Tasks and goals are deliberately independent of the network. Their storage
+/// actors are the only durable authorities; this model only coordinates reads
+/// and forwards changes to SwiftUI.
 @MainActor
-class DashboardViewModel: ObservableObject {
-  // Observe the shared TasksStore
-  private let tasksStore = TasksStore.shared
+final class DashboardViewModel: ObservableObject {
+  typealias GoalLoader = () async throws -> [LocalGoal]
 
-  @Published var scoreResponse: ScoreResponse?
-  @Published var goals: [Goal] = []
+  private let tasksStore = TasksStore.shared
+  private let goalLoader: GoalLoader
+
+  @Published var goals: [LocalGoal] = []
   @Published var isLoading = false
   @Published var error: String?
 
   private var cancellables = Set<AnyCancellable>()
-  private var lastGoalRefreshTime: Date = .distantPast
+  private var ownerGeneration: UInt64 = 0
 
-  // Computed properties that delegate to TasksStore
   var overdueTasks: [TaskActionItem] { tasksStore.overdueTasks }
   var todaysTasks: [TaskActionItem] { tasksStore.todaysTasks }
   var recentTasks: [TaskActionItem] { tasksStore.tasksWithoutDueDate }
 
-  init() {
-    // Forward TasksStore changes to trigger view updates
+  init(goalLoader: GoalLoader? = nil) {
+    self.goalLoader =
+      goalLoader ?? {
+        try await GoalStorage.shared.getLocalGoals(activeOnly: true)
+      }
     tasksStore.objectWillChange
       .receive(on: DispatchQueue.main)
-      .sink { [weak self] _ in
-        self?.objectWillChange.send()
-      }
+      .sink { [weak self] _ in self?.objectWillChange.send() }
       .store(in: &cancellables)
 
-    // Load goals from local SQLite for instant display
-    loadGoalsFromLocal()
-
-    // Refresh goals when one is auto-created
-    NotificationCenter.default.publisher(for: .goalAutoCreated)
+    NotificationCenter.default.publisher(for: .runtimeOwnerDidChange)
       .receive(on: DispatchQueue.main)
       .sink { [weak self] _ in
-        Task { [weak self] in
-          await self?.loadGoals()
-        }
+        self?.resetSessionState()
+        Task { @MainActor [weak self] in await self?.loadDashboardData() }
       }
       .store(in: &cancellables)
   }
 
   func loadDashboardData() async {
+    let generation = ownerGeneration
     isLoading = true
     error = nil
-
-    // Load all data in parallel
-    async let scoreTask: Void = loadScores()
-    async let tasksTask: Void = tasksStore.refreshDashboardTasksFromServer()
-    async let goalsTask: Void = loadGoals()
-
-    let _ = await (scoreTask, tasksTask, goalsTask)
-
-    isLoading = false
+    async let taskLoad: Void = tasksStore.loadDashboardTasks()
+    async let goalLoad: Void = loadGoals()
+    _ = await (taskLoad, goalLoad)
+    if generation == ownerGeneration { isLoading = false }
   }
 
   func loadCachedDashboardData() async {
-    await loadGoalsFromLocalSnapshot()
+    await loadGoals()
   }
 
   func resetSessionState() {
-    scoreResponse = nil
+    ownerGeneration &+= 1
     goals = []
     isLoading = false
     error = nil
-    lastGoalRefreshTime = .distantPast
   }
 
-  private func loadScores() async {
+  func refreshGoals() {
+    Task { @MainActor [weak self] in await self?.loadGoals() }
+  }
+
+  func toggleTaskCompletion(_ task: TaskActionItem) async {
+    await tasksStore.toggleTask(task)
+  }
+
+  func createGoal(title: String, description: String?) async {
+    guard let authorization = localAuthorization() else { return }
     do {
-      scoreResponse = try await APIClient.shared.getScores()
+      _ = try await GoalStorage.shared.createGoal(
+        title: title,
+        description: description,
+        authorization: authorization
+      )
+      await loadGoals()
     } catch {
-      logError("Failed to load scores", error: error)
+      self.error = error.localizedDescription
+      logError("Dashboard: Failed to create local goal", error: error)
+    }
+  }
+
+  func updateGoal(_ goal: LocalGoal, title: String, description: String?) async {
+    guard let authorization = localAuthorization() else { return }
+    do {
+      _ = try await GoalStorage.shared.updateGoal(
+        surfacedID: goal.id,
+        title: title,
+        description: description,
+        authorization: authorization
+      )
+      await loadGoals()
+    } catch {
+      self.error = error.localizedDescription
+      logError("Dashboard: Failed to update local goal", error: error)
+    }
+  }
+
+  func toggleGoalCompletion(_ goal: LocalGoal) async {
+    guard let authorization = localAuthorization() else { return }
+    do {
+      _ = try await GoalStorage.shared.setCompleted(
+        surfacedID: goal.id,
+        completed: goal.completedAt == nil,
+        authorization: authorization
+      )
+      await loadGoals()
+    } catch {
+      self.error = error.localizedDescription
+      logError("Dashboard: Failed to complete local goal", error: error)
     }
   }
 
   private func loadGoals() async {
-    // 1. Show local data first (already loaded in init)
-    // 2. Fetch from API
+    guard let snapshot = RuntimeOwnerIdentity.captureAuthorizationSnapshot() else {
+      goals = []
+      return
+    }
+    let generation = ownerGeneration
     do {
-      let apiGoals = try await APIClient.shared.getGoals()
-      // 3. Sync to SQLite
-      try await GoalStorage.shared.syncServerGoals(apiGoals)
-      // 4. Reload from SQLite (source of truth)
-      goals = try await GoalStorage.shared.getLocalGoals()
-      lastGoalRefreshTime = Date()
+      let loadedGoals = try await goalLoader()
+      guard generation == ownerGeneration,
+        RuntimeOwnerIdentity.isAuthorizationCurrent(snapshot),
+        !Task.isCancelled
+      else { return }
+      goals = loadedGoals
     } catch {
-      logError("Failed to load goals", error: error)
+      guard generation == ownerGeneration,
+        RuntimeOwnerIdentity.isAuthorizationCurrent(snapshot)
+      else { return }
+      self.error = error.localizedDescription
+      logError("Dashboard: Failed to load local goals", error: error)
     }
   }
 
-  /// Refresh goals with 30-second debounce (for app lifecycle events)
-  func refreshGoals() {
-    let now = Date()
-    guard now.timeIntervalSince(lastGoalRefreshTime) > 30 else { return }
-    Task {
-      await loadGoals()
+  private func localAuthorization() -> LocalMutationAuthorization? {
+    guard let snapshot = RuntimeOwnerIdentity.captureAuthorizationSnapshot() else { return nil }
+    return LocalMutationAuthorization {
+      RuntimeOwnerIdentity.isAuthorizationCurrent(snapshot)
     }
   }
+}
 
-  // MARK: - Local Goals Storage
-
-  private func loadGoalsFromLocal() {
-    Task {
-      await loadGoalsFromLocalSnapshot()
-    }
+/// The retained non-task Home projection. S-13 may replace task and goal
+/// authority, but Focus, Insights, and once-daily questions remain owned by
+/// their existing stores until S-14.
+struct HomeRetainedContextProjection: Equatable {
+  struct Insight: Equatable {
+    let id: String
+    let text: String
   }
 
-  private func loadGoalsFromLocalSnapshot() async {
-    do {
-      goals = try await GoalStorage.shared.getLocalGoals()
-    } catch {
-      logError("Failed to load goals from local storage", error: error)
+  let focusTitle: String
+  let focusDetail: String
+  let latestInsight: Insight?
+  let questions: [String]
+
+  static func make(
+    focusStatus: FocusStatus?,
+    currentApp: String?,
+    detectedApp: String?,
+    insights: [StoredInsight],
+    personalizedQuestions: [String]
+  ) -> HomeRetainedContextProjection {
+    let rawApp = currentApp ?? detectedApp
+    let app = rawApp?.trimmingCharacters(in: .whitespacesAndNewlines)
+    let namedApp = app.flatMap { value in
+      value.isEmpty || value.localizedCaseInsensitiveContains("unknown") ? nil : value
     }
-  }
 
-  func toggleTaskCompletion(_ task: TaskActionItem) async {
-    // Delegate to shared store - it handles the update
-    await tasksStore.toggleTask(task)
-    // Reload scores after task completion change
-    await loadScores()
-  }
-
-  func createGoal(title: String, goalType: GoalType, targetValue: Double, unit: String?) async {
-    do {
-      let goal = try await APIClient.shared.createGoal(
-        title: title,
-        goalType: goalType,
-        targetValue: targetValue,
-        unit: unit,
-        source: "user"
-      )
-      _ = try? await GoalStorage.shared.syncServerGoal(goal)
-      goals = try await GoalStorage.shared.getLocalGoals()
-    } catch {
-      logError("Failed to create goal", error: error)
+    let focusTitle: String
+    let focusDetail: String
+    switch focusStatus {
+    case .focused:
+      focusTitle = "Focused"
+      focusDetail = namedApp.map { "Working in \($0)" } ?? "A focused stretch is in progress"
+    case .distracted:
+      focusTitle = "Distracted"
+      focusDetail = namedApp.map { "Attention shifted in \($0)" } ?? "Open Focus for the recent signal"
+    case nil:
+      focusTitle = "Focus is ready"
+      focusDetail = namedApp.map { "Watching \($0)" } ?? "Open Focus to see today's pattern"
     }
-  }
 
-  func updateGoalProgress(_ goal: Goal, currentValue: Double) async {
-    log("Goals: Updating '\(goal.title)' progress to \(currentValue)")
+    let latestInsight =
+      insights
+      .filter { !$0.isDismissed }
+      .max(by: { $0.createdAt < $1.createdAt })
+      .map { Insight(id: $0.id, text: $0.insight.insight) }
 
-    // Optimistically update local SQLite
-    if let index = goals.firstIndex(where: { $0.id == goal.id }) {
-      goals[index].currentValue = currentValue
-    }
-    try? await GoalStorage.shared.updateProgress(backendId: goal.id, currentValue: currentValue)
-
-    do {
-      let updated = try await APIClient.shared.updateGoalProgress(
-        goalId: goal.id,
-        currentValue: currentValue
-      )
-
-      // Sync API response to SQLite
-      _ = try? await GoalStorage.shared.syncServerGoal(updated)
-
-      // Check if the backend auto-completed this goal
-      if updated.completedAt != nil {
-        log("Goals: '\(goal.title)' COMPLETED! Triggering celebration.")
-        goals = try await GoalStorage.shared.getLocalGoals()
-        NotificationCenter.default.post(name: .goalCompleted, object: updated)
-        return
-      }
-
-      goals = try await GoalStorage.shared.getLocalGoals()
-      log("Goals: Updated '\(goal.title)' progress confirmed by API")
-    } catch {
-      logError("Failed to update goal progress", error: error)
-    }
-  }
-
-  func updateGoal(_ goal: Goal, title: String, currentValue: Double, targetValue: Double) async {
-    log("Goals: Updating goal '\(goal.title)' -> title='\(title)', current=\(currentValue), target=\(targetValue)")
-
-    do {
-      let updated = try await APIClient.shared.updateGoal(
-        goalId: goal.id,
-        title: title,
-        currentValue: currentValue,
-        targetValue: targetValue
-      )
-
-      _ = try? await GoalStorage.shared.syncServerGoal(updated)
-      goals = try await GoalStorage.shared.getLocalGoals()
-      log("Goals: Updated goal '\(updated.title)' confirmed by API")
-    } catch {
-      logError("Failed to update goal", error: error)
-      goals = (try? await GoalStorage.shared.getLocalGoals()) ?? goals
-    }
-  }
-
-  func deleteGoal(_ goal: Goal) async {
-    do {
-      // Soft-delete locally first for instant UI update
-      try? await GoalStorage.shared.softDelete(backendId: goal.id)
-      goals = try await GoalStorage.shared.getLocalGoals()
-      // Then delete on backend
-      try await APIClient.shared.deleteGoal(id: goal.id)
-    } catch {
-      logError("Failed to delete goal", error: error)
-    }
+    return HomeRetainedContextProjection(
+      focusTitle: focusTitle,
+      focusDetail: focusDetail,
+      latestInsight: latestInsight,
+      questions: HomeSuggestionComposer.compose(personalized: personalizedQuestions)
+    )
   }
 }
 
@@ -218,52 +217,17 @@ struct DashboardPage: View {
   @ObservedObject var appState: AppState
   @ObservedObject var chatProvider: ChatProvider
   @ObservedObject var memoriesViewModel: MemoriesViewModel
-  var taskChatCoordinator: TaskChatCoordinator? = nil
   @ObservedObject private var homeSuggestionsStore = HomeSuggestionsStore.shared
   @ObservedObject private var focusStorage = FocusStorage.shared
-  @StateObject private var intelligenceStore = DashboardIntelligenceStore()
-  /// Learned insights ("things about you") — surfaced in the home hub's rotating
-  /// knows-list alongside tasks and asks, not just on the Insights page.
   @ObservedObject private var insightStorage = InsightStorage.shared
-  @State private var dismissedKnowsTaskIDs: Set<String> = []
-  @State private var homeAskFocusPolicy = HomeAskFocusPolicy()
   @Binding var selectedIndex: Int
-  @State private var citedConversation: LocalConversation? = nil
+  @State private var citedConversation: LocalConversation?
   @State private var isLoadingCitation = false
-  @State private var isCaptureMonitoring = false
-  @State private var isTogglingCapture = false
-  @State private var isTogglingListening = false
-  @State private var showingAllGoals = false
-  @State private var showingGoalDetail = false
   @AppStorage("dashboardWidgetsCollapsed") private var widgetsCollapsed = false
-  @AppStorage("screenAnalysisEnabled") private var screenAnalysisEnabled = true
-  @AppStorage("transcriptionEnabled") private var transcriptionEnabled = true
-  @AppStorage("systemAudioCaptureMode") private var systemAudioCaptureModeRaw =
-    AssistantSettings.SystemAudioCaptureMode.onlyDuringMeetings.rawValue
   @AppStorage("useLegacyHomeDesign") private var useLegacyHomeDesign = false
   @State private var homeMode: HomeStageMode = .hub
+  @State private var homeAskFocusPolicy = HomeAskFocusPolicy()
   @FocusState private var homeAskFieldFocused: Bool
-
-  /// Rotation index for the home knows-list; a timer advances it so the hub
-  /// cycles through fresh suggestions while you're looking at it.
-  @State private var knowsRotation = 0
-  private let knowsRotationTimer = Timer.publish(every: 7, on: .main, in: .common).autoconnect()
-
-  private var captureStatus: HomeStatusState {
-    CaptureListeningLogic.captureStatus(appState: appState, isCaptureMonitoring: isCaptureMonitoring)
-  }
-
-  private var isCaptureLive: Bool {
-    CaptureListeningLogic.isCaptureLive(isCaptureMonitoring: isCaptureMonitoring)
-  }
-
-  private var listeningCaptureMode: AssistantSettings.SystemAudioCaptureMode {
-    CaptureListeningLogic.listeningCaptureMode(raw: systemAudioCaptureModeRaw)
-  }
-
-  private var listeningModeTitle: String {
-    CaptureListeningLogic.listeningModeTitle(appState: appState, raw: systemAudioCaptureModeRaw)
-  }
 
   private static let homeStageMaxWidth: CGFloat = 1360
   private static let homeStageMinSideInset: CGFloat = 30
@@ -271,22 +235,18 @@ struct DashboardPage: View {
   private static let homeAskBarMinWidth: CGFloat = 560
   private static let homeAskBarMaxWidth: CGFloat = 980
   private static let homeChatColumnMaxWidth: CGFloat = 900
-  private static let homeStageTopPadding: CGFloat = 74
+  private static let homeStageTopPadding: CGFloat = 42
   private static let homeStageBottomPadding: CGFloat = 26
   private static let homeStageAnimation = Animation.spring(response: 0.46, dampingFraction: 0.86)
+
   var body: some View {
     applyChatNavigation(to: applyHomeLifecycle(to: applyHomeSheets(to: homeSurface)))
   }
 
-  /// Opening chat from the notch / Ask-Omi shortcut (posts `.navigateToChat`)
-  /// lands in the live chat surface — which shares the notch's transcript —
-  /// rather than the resting hero. Kept in its own modifier so the main
-  /// lifecycle chain stays type-checkable.
   private func applyChatNavigation<Content: View>(to content: Content) -> some View {
-    content
-      .onReceive(NotificationCenter.default.publisher(for: .navigateToChat)) { _ in
-        openHomeChat(focusInput: true)
-      }
+    content.onReceive(NotificationCenter.default.publisher(for: .navigateToChat)) { _ in
+      openHomeChat(focusInput: true)
+    }
   }
 
   private var homeSurface: some View {
@@ -304,150 +264,51 @@ struct DashboardPage: View {
   private func applyHomeSheets<Content: View>(to content: Content) -> some View {
     content
       .sheet(item: $citedConversation) { conversation in
-        ConversationDetailView(
-          conversation: conversation,
-          onBack: {
-            citedConversation = nil
-          }
-        )
-        .frame(minWidth: 500, minHeight: 500)
-      }
-      .sheet(isPresented: $showingAllGoals) {
-        AllGoalsSheet(
-          store: intelligenceStore,
-          onOpenGoal: { goalID in await openGoal(goalID) },
-          onDismiss: { showingAllGoals = false }
-        )
-      }
-      .sheet(isPresented: $showingGoalDetail) {
-        if let detail = intelligenceStore.selectedGoalDetail {
-          CanonicalGoalDetailSheet(
-            detail: detail,
-            error: intelligenceStore.error,
-            onResumeThread: { workstreamID in
-              _ = await resumeThread(workstreamID: workstreamID, taskID: nil)
-            },
-            onStartWork: { await startWorkFromSelectedGoal() },
-            onDismiss: {
-              showingGoalDetail = false
-              intelligenceStore.clearGoalDetail()
-            }
-          )
-        } else {
-          ProgressView().frame(width: 300, height: 180)
-        }
+        ConversationDetailView(conversation: conversation, onBack: { citedConversation = nil })
+          .frame(minWidth: 500, minHeight: 500)
       }
       .overlay {
         if isLoadingCitation {
           ZStack {
             Color.black.opacity(0.3)
-            VStack(spacing: OmiSpacing.md) {
-              ProgressView()
-              Text("Loading source...")
-                .scaledFont(size: OmiType.body)
-                .foregroundColor(.white)
-            }
-            .padding(OmiSpacing.xl)
-            .background(OmiColors.backgroundSecondary)
-            .cornerRadius(OmiChrome.smallControlRadius)
+            ProgressView()
+              .padding(OmiSpacing.xl)
+              .background(OmiColors.backgroundSecondary)
+              .cornerRadius(OmiChrome.smallControlRadius)
           }
         }
       }
   }
 
-  // Split in two (`applyHomeLifecycle` → `applyHomeStageObservers`) so each
-  // modifier chain stays within the type-checker's budget.
   private func applyHomeLifecycle<Content: View>(to content: Content) -> some View {
-    applyHomeStageObservers(to: applyHomeLifecycleCore(to: content))
-  }
-
-  private func applyHomeLifecycleCore<Content: View>(to content: Content) -> some View {
     content
       .onAppear {
-        syncCaptureState()
         autoOpenChatForExistingHistoryIfNeeded()
-        // Post-onboarding, the resting hub is shown by default — open the chat
-        // surface so the personalized opener (set on onboarding completion) is
-        // actually visible instead of hidden behind the hub.
         if chatProvider.onboardingOpener != nil { openHomeChat(focusInput: false) }
         consumePendingMainChatOpenRequest()
         reportHomeAutomationMode()
-        intelligenceStore.setRecommendationActionHandler { recommendation in
-          await openRecommendation(recommendation)
-        }
-        intelligenceStore.registerAutomationActions()
-        Task { await intelligenceStore.load() }
-        Task {
-          if let recommendationID = ContextualTaskNavigationRouter.shared.consume() {
-            _ = await intelligenceStore.openRecommendation(id: recommendationID)
-          }
-        }
+        Task { await viewModel.loadDashboardData() }
         Task { await homeStatusStore.refreshIfNeeded() }
         Task { await homeSuggestionsStore.refreshIfNeeded() }
-      }
-      .onDisappear {
-        intelligenceStore.setRecommendationActionHandler(nil)
       }
       .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
         viewModel.refreshGoals()
-        Task { await intelligenceStore.load() }
         appState.checkAllPermissions()
-        syncCaptureState()
         Task { await homeStatusStore.refreshIfNeeded() }
         Task { await homeSuggestionsStore.refreshIfNeeded() }
       }
-      .onReceive(NotificationCenter.default.publisher(for: .assistantMonitoringStateDidChange)) { _ in
-        syncCaptureState()
-      }
-      .onReceive(NotificationCenter.default.publisher(for: .whatMattersNowContextDidRefresh)) { notification in
-        guard let projection = notification.object as? OmiAPI.WhatMattersNowProjection else { return }
-        intelligenceStore.applyContextProjection(projection)
-      }
-      .onReceive(NotificationCenter.default.publisher(for: .openWhatMattersNowRecommendation)) { notification in
-        guard
-          let recommendationID = notification.userInfo?[
-            TaskContextualResurfacingService.recommendationIDUserInfoKey
-          ] as? String
-        else { return }
-        guard ContextualTaskNavigationRouter.shared.consume(requestedID: recommendationID) != nil else { return }
-        Task { _ = await intelligenceStore.openRecommendation(id: recommendationID) }
-      }
-      .onReceive(NotificationCenter.default.publisher(for: .screenCapturePermissionLost)) { _ in
-        syncCaptureState()
-      }
-      .onReceive(NotificationCenter.default.publisher(for: .screenCaptureKitBroken)) { _ in
-        syncCaptureState()
-      }
-  }
-
-  private func applyHomeStageObservers<Content: View>(to content: Content) -> some View {
-    content
-      // "Continue in Omi" while the dashboard is already mounted; the
-      // not-yet-mounted case is covered by the consume in onAppear.
       .onReceive(NotificationCenter.default.publisher(for: .openMainChatRequested)) { _ in
         consumePendingMainChatOpenRequest()
       }
-      // Chat history is the home surface: as soon as the (async) history
-      // load shows prior messages, land on the chat panel, not the greeting.
       .onChange(of: chatProvider.messages.count) { _, _ in
         autoOpenChatForExistingHistoryIfNeeded()
       }
-      // The journal projection is installed before the initial-load flag is
-      // cleared. Observe the flag as well so Home reveals the atomic snapshot
-      // only after restoration is complete.
       .onChange(of: chatProvider.isLoading) { _, _ in
         autoOpenChatForExistingHistoryIfNeeded()
       }
-      // Clicking into the ask bar reveals the inline chat; the same is true
-      // when focus lands there via keyboard (Tab / Full Keyboard Access).
       .onChange(of: homeAskFieldFocused) { _, focused in
-        if focused && !useLegacyHomeDesign && homeMode != .chat {
-          openHomeChat()
-        }
+        if focused && !useLegacyHomeDesign && homeMode != .chat { openHomeChat() }
       }
-      // Automation-bridge entry points (home_open_chat / home_close_panel /
-      // home_ask) — they call the exact functions the
-      // on-screen controls call.
       .onReceive(NotificationCenter.default.publisher(for: .homeStageOpenChat)) { _ in
         guard !useLegacyHomeDesign else { return }
         openHomeChat()
@@ -457,17 +318,11 @@ struct DashboardPage: View {
         collapseHomeStagePanel()
       }
       .onReceive(NotificationCenter.default.publisher(for: .homeStageAsk)) { note in
-        guard !useLegacyHomeDesign,
-          let query = note.userInfo?["query"] as? String
-        else { return }
+        guard !useLegacyHomeDesign, let query = note.userInfo?["query"] as? String else { return }
         askHomeSuggestion(query)
       }
       .onReceive(NotificationCenter.default.publisher(for: .homeStageAttach)) { note in
-        guard !useLegacyHomeDesign,
-          let path = note.userInfo?["path"] as? String
-        else { return }
-        // Same wiring the ask bar's paperclip/drag-drop runs after the
-        // OS hands back file URLs.
+        guard !useLegacyHomeDesign, let path = note.userInfo?["path"] as? String else { return }
         if let attachment = ChatAttachment.from(url: URL(fileURLWithPath: path)) {
           chatProvider.addAttachments([attachment])
         }
@@ -477,7 +332,6 @@ struct DashboardPage: View {
   private var legacyHome: some View {
     VStack(spacing: 0) {
       dashboardWidgets
-
       ChatMessagesView(
         messages: chatProvider.messages,
         isSending: chatProvider.isSending,
@@ -485,14 +339,13 @@ struct DashboardPage: View {
         isLoadingMoreMessages: chatProvider.isLoadingMoreMessages,
         isLoadingInitial: chatProvider.isLoading && !chatProvider.isClearing,
         onLoadMore: { await chatProvider.loadMoreMessages() },
-        onCitationTap: { citation in
-          handleCitationTap(citation)
-        },
+        onCitationTap: handleCitationTap,
         sessionsLoadError: chatProvider.sessionsLoadError.map {
           UserFacingErrorPresentation.message(from: $0, while: .chatSessions)
         },
         onRetry: { Task { await chatProvider.retryLoad() } },
         localSendToken: chatProvider.localSendToken,
+        onCancelTurn: { chatProvider.stopAgent(owner: .mainChat) },
         onOpenAgent: { agentID, completion in
           FloatingControlBarManager.shared.openAgentChatFromTimeline(agentID: agentID, completion: completion)
         },
@@ -501,33 +354,15 @@ struct DashboardPage: View {
         welcomeContent: { dashboardChatWelcome }
       )
       .frame(maxWidth: .infinity, maxHeight: .infinity)
-      .mask(
-        LinearGradient(
-          stops: [
-            .init(color: .clear, location: 0.0),
-            .init(color: .black, location: 0.08),
-            .init(color: .black, location: 0.92),
-            .init(color: .clear, location: 1.0),
-          ],
-          startPoint: .top,
-          endPoint: .bottom
-        )
-      )
 
-      dashboardChatErrorCard
-        .padding(.horizontal, OmiSpacing.section)
+      dashboardChatErrorCard.padding(.horizontal, OmiSpacing.section)
 
       ChatInputView(
         onSend: { text in
-          AnalyticsManager.shared.chatMessageSent(
-            messageLength: text.count,
-            source: "dashboard_chat"
-          )
+          AnalyticsManager.shared.chatMessageSent(messageLength: text.count, source: "dashboard_chat")
           Task { await chatProvider.sendMainDraft(text) }
         },
-        onStop: {
-          chatProvider.stopAgent(owner: .mainChat)
-        },
+        onStop: { chatProvider.stopAgent(owner: .mainChat) },
         isSending: chatProvider.isSending,
         isStopping: chatProvider.isStopping,
         placeholder: "Ask omi anything",
@@ -535,64 +370,35 @@ struct DashboardPage: View {
         inputText: $chatProvider.draftText,
         attachments: $chatProvider.pendingAttachments,
         onAttachmentsAdded: { urls in
-          let toAdd = urls.compactMap { ChatAttachment.from(url: $0) }
-          chatProvider.addAttachments(toAdd)
+          chatProvider.addAttachments(urls.compactMap { ChatAttachment.from(url: $0) })
         },
-        onAttachmentRemoved: { id in
-          chatProvider.removePendingAttachment(id: id)
-        }
+        onAttachmentRemoved: chatProvider.removePendingAttachment
       )
       .padding(.horizontal, OmiSpacing.section)
-      .padding(.top, OmiSpacing.md)
-      .padding(.bottom, OmiSpacing.xl)
+      .padding(.vertical, OmiSpacing.md)
     }
-    .frame(maxWidth: .infinity, maxHeight: .infinity)
-    .background(Color.clear)
   }
-
-  // MARK: - Redesigned Home
 
   private var redesignedHome: some View {
     GeometryReader { proxy in
-      ZStack(alignment: .topTrailing) {
-        HomeCanvasBackground()
-
-        // Clicking anywhere outside the chat panel collapses
-        // back to the resting surface (panels and the ask bar consume their
-        // own clicks above this catcher). When chat history exists, chat IS
-        // the resting Home surface, so no catcher is mounted over it — and
-        // the hub is never an overlay, so no catcher is ever mounted over
-        // the hub either (a stray click must not throw the user into chat).
+      ZStack {
+        HomePalette.paper.ignoresSafeArea()
         if HomeStageMode.collapseCatcherActive(mode: homeMode, resting: homeRestingMode) {
           Color.black.opacity(0.001)
             .ignoresSafeArea()
             .contentShape(Rectangle())
-            .onTapGesture {
-              collapseHomeStagePanel()
-            }
+            .onTapGesture { collapseHomeStagePanel() }
         }
-
         homeStage(stageWidth: proxy.size.width, stageHeight: proxy.size.height)
           .frame(width: proxy.size.width, height: proxy.size.height)
-
-        // Capture/Listening now live in the shell's constant top bar (see
-        // DesktopTopBar), so the home no longer renders its own header copy.
-
-        // Esc collapses an empty inline chat back to the resting hub. Chat with
-        // history is Home itself and cannot be escaped.
         if HomeStageMode.collapseCatcherActive(mode: homeMode, resting: homeRestingMode) {
-          OverlayModalEscapeCatcher {
-            collapseHomeStagePanel()
-          }
+          OverlayModalEscapeCatcher { collapseHomeStagePanel() }
         }
       }
       .omiAnimation(Self.homeStageAnimation, value: homeMode)
     }
   }
 
-  /// Vertical stage: mode content on top (hub metrics or inline chat), the
-  /// persistent ask bar anchored beneath it, and the
-  /// suggested questions under the bar while the hub is showing.
   private func homeStage(stageWidth: CGFloat, stageHeight: CGFloat) -> some View {
     let askBarWidth = homeAskBarWidth(for: stageWidth)
     return Group {
@@ -607,390 +413,66 @@ struct DashboardPage: View {
     .padding(.bottom, Self.homeStageBottomPadding)
   }
 
-  /// Hub layout: the greeting headline and knows-list rows centered on the
-  /// stage over the memory constellation, with the goals/error surfaces and
-  /// the ask bar docked as one column at the bottom.
   private func homeHubStage(stageWidth: CGFloat, askBarWidth: CGFloat) -> some View {
-    // Keep the knows-list column tight so short rows (e.g. "Call Rabia") don't
-    // strand their trailing icon across a wide gap; long one-liners still fit.
-    let columnWidth = min(CGFloat(520), homeStageContentWidth(for: stageWidth))
-
-    return VStack(spacing: 0) {
-      Spacer(minLength: 0)
-
-      homeHubHeadline
-        .transition(.homeHubFade)
-
-      homeKnowsList(width: columnWidth)
-        .padding(.top, OmiSpacing.xxl)
-        .transition(.homeSuggestionsFade)
-
-      Spacer(minLength: 0)
-
-      VStack(spacing: 0) {
-        dashboardIntelligenceError
-          .frame(width: askBarWidth)
-          .padding(.bottom, intelligenceStore.error == nil ? 0 : OmiSpacing.sm)
-
-        FocusedGoalsSection(
-          store: intelligenceStore,
-          onOpenGoal: { goalID in await openGoal(goalID) },
-          onShowAll: { showingAllGoals = true }
-        )
-        .frame(width: askBarWidth)
-        .padding(.bottom, hasFocusedGoalsSurface ? OmiSpacing.md : 0)
-
-        homeAskBar
-          .frame(width: askBarWidth)
-      }
+    VStack(spacing: OmiSpacing.lg) {
+      ScrollView { dashboardWidgets }
+        .frame(maxWidth: homeStageContentWidth(for: stageWidth), maxHeight: .infinity)
+      homeAskBar.frame(width: askBarWidth)
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
   }
 
-  private var hasFocusedGoalsSurface: Bool {
-    !intelligenceStore.focusedGoals.isEmpty || intelligenceStore.accountGeneration != nil
-  }
-
-  /// Chat panel layout: the surface fills the height with the ask
-  /// bar anchored directly beneath it.
   private func homePanelStage(stageWidth: CGFloat, askBarWidth: CGFloat) -> some View {
     VStack(spacing: 0) {
-      ZStack {
-        switch homeMode {
-        case .chat:
-          homeChatPanel(width: askBarWidth)
-            .transition(.homeChatRise)
-        case .hub:
-          EmptyView()
-        }
-      }
-      .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-      // Rolling suggestions sit just above the ask bar while the chat is empty —
-      // but not for a just-onboarded user, whose empty chat shows the personalized
-      // onboarding opener (with its own starter questions) instead.
-      if chatProvider.messages.isEmpty && chatProvider.onboardingOpener == nil {
-        homeRollingSuggestions
-          .frame(width: askBarWidth)
-          .padding(.bottom, OmiSpacing.sm)
-      }
-
+      homeChatPanel(width: askBarWidth)
+        .transition(.homeChatRise)
+        .frame(maxHeight: .infinity)
       homeAskBar
         .frame(width: askBarWidth)
         .padding(.top, OmiSpacing.xxs)
-
       dashboardChatErrorCard
         .frame(width: askBarWidth)
         .padding(.top, OmiSpacing.sm)
     }
   }
 
-  /// A small, auto-rotating set of prompt suggestions shown above the ask bar on
-  /// an empty home chat — replaces the old greeting hero + knows-list cards.
-  private var homeRollingSuggestions: some View {
-    VStack(spacing: OmiSpacing.xs) {
-      ForEach(Array(homeKnowsRows.prefix(3))) { row in
-        Button {
-          openKnowsRow(row)
-        } label: {
-          HStack(spacing: OmiSpacing.sm) {
-            Image(systemName: rollingSuggestionIcon(row.kind))
-              .scaledFont(size: OmiType.caption)
-              .foregroundStyle(HomePalette.muted)
-            Text(row.text)
-              .scaledFont(size: OmiType.caption, weight: .medium)
-              .foregroundStyle(HomePalette.secondary)
-              .lineLimit(1)
-            Spacer(minLength: 8)
-          }
-          .padding(.horizontal, OmiSpacing.md)
-          .frame(height: 34)
-          .frame(maxWidth: .infinity)
-          .background(RoundedRectangle(cornerRadius: 11, style: .continuous).fill(HomePalette.tile.opacity(0.5)))
-          .overlay(
-            RoundedRectangle(cornerRadius: 11, style: .continuous)
-              .stroke(HomePalette.hairline.opacity(0.55), lineWidth: 1)
-          )
-          .contentShape(.rect(cornerRadius: 11))
-        }
-        .buttonStyle(.plain)
-        .transition(.opacity)
-      }
-    }
-    .omiAnimation(.easeInOut(duration: 0.45), value: knowsRotation)
-    .onReceive(knowsRotationTimer) { _ in
-      guard homeMode == .chat, chatProvider.messages.isEmpty, !chatProvider.isSending, homeKnowsCanRotate
-      else { return }
-      knowsRotation += 1
-    }
-  }
-
-  private func rollingSuggestionIcon(_ kind: HomeKnowsRowKind) -> String {
-    switch kind {
-    case .task: return "circle"
-    case .insight: return "lightbulb"
-    case .focus: return "eye"
-    case .question: return "bubble.left"
-    }
-  }
-
-  // MARK: Hub centerpiece
-
-  private var homeHubHeadline: some View {
-    VStack(spacing: OmiSpacing.sm) {
-      SBLogo(size: 40, spinning: chatProvider.isSending)
-        .padding(.bottom, OmiSpacing.lg)
-
-      Text(homeHubGreeting)
-        .scaledFont(size: OmiType.hero, weight: .bold)
-        .foregroundStyle(HomePalette.ink)
-        .multilineTextAlignment(.center)
-
-      Text(homeDailyBrief)
-        .scaledFont(size: OmiType.subheading)
-        .foregroundStyle(HomePalette.muted)
-        .multilineTextAlignment(.center)
-        .fixedSize(horizontal: false, vertical: true)
-    }
-    .frame(maxWidth: .infinity, alignment: .center)
-  }
-
-  private var homeHubGreeting: String {
-    let name = AuthService.shared.givenName.trimmingCharacters(in: .whitespacesAndNewlines)
-    return name.isEmpty ? "I'm ready." : "Hey \(name). I'm ready."
-  }
-
-  // MARK: Knows list
-
-  /// Insight rows for the hub: the task-intelligence recommendations plus the
-  /// learned insights ("things about you") from the Insights store, so the hub
-  /// surfaces insights, not only tasks and asks.
-  private var homeKnowsInsightCandidates: [HomeKnowsInsightCandidate] {
-    let recommendations = intelligenceStore.recommendations.map {
-      HomeKnowsInsightCandidate(id: $0.id, text: $0.headline)
-    }
-    let learned = insightStorage.insightHistory
-      .filter { !$0.isDismissed }
-      .prefix(12)
-      .map { HomeKnowsInsightCandidate(id: $0.id, text: $0.insight.insight) }
-    return recommendations + Array(learned)
-  }
-
-  private var homeKnowsRows: [HomeKnowsRow] {
-    HomeKnowsListComposer.compose(
-      tasks: homeKnowsTaskCandidates,
-      insights: homeKnowsInsightCandidates,
-      tip: homeActionTip,
-      questions: homeSuggestedQuestions,
-      dismissedTaskIDs: dismissedKnowsTaskIDs,
-      rotation: knowsRotation
-    )
-  }
-
-  /// True when there are more candidates than the hub shows, so rotating cycles
-  /// to genuinely different rows instead of the same set.
-  private var homeKnowsCanRotate: Bool {
-    HomeKnowsListComposer.canRotate(
-      taskCount: homeKnowsTaskCandidates.filter { !dismissedKnowsTaskIDs.contains($0.id) }.count,
-      insightCount: homeKnowsInsightCandidates.count,
-      questionCount: homeSuggestedQuestions.count
-    )
-  }
-
-  /// A composed, high-agency nudge for the tip slot when there's no server
-  /// insight — one thing you can hand Omi with a tap (it prefills the chat).
-  private var homeActionTip: String? {
-    if focusStorage.currentStatus == .distracted {
-      return "Help me get back on track"
-    }
-    let openCount =
-      homeKnowsTaskCandidates
-      .filter { !dismissedKnowsTaskIDs.contains($0.id) }
-      .count
-    if openCount >= 5 {
-      return "Sort my open tasks — which 3 actually matter today?"
-    }
-    return "Recap what I got done today"
-  }
-
-  /// A short, conversational read on the day — what you've been doing and how
-  /// much is waiting — shown under the greeting. It absorbs the focus status so
-  /// the action rows below stay purely actionable.
-  private var homeDailyBrief: String {
-    let openCount =
-      homeKnowsTaskCandidates
-      .filter { !dismissedKnowsTaskIDs.contains($0.id) }
-      .count
-    let tail: String
-    switch openCount {
-    case 0: tail = "nothing's waiting on you."
-    case 1: tail = "one thing needs you."
-    default: tail = "\(openCount) things need you."
-    }
-
-    var lead: String?
-    if let status = focusStorage.currentStatus {
-      let rawApp = focusStorage.currentApp ?? focusStorage.detectedAppName
-      let appName = rawApp?.trimmingCharacters(in: .whitespacesAndNewlines)
-      let namedApp: String? = {
-        guard let appName, !appName.isEmpty,
-          !appName.lowercased().contains("unknown")
-        else { return nil }
-        return appName
-      }()
-      if status == .focused, let namedApp {
-        lead = "Deep in \(namedApp) today"
-      } else if status == .focused {
-        lead = "Heads-down today"
-      } else if status == .distracted {
-        lead = "A scattered stretch just now"
-      }
-    }
-
-    if let lead {
-      return "\(lead) — \(tail)"
-    }
-    return tail.prefix(1).uppercased() + tail.dropFirst()
-  }
-
-  private var homeKnowsTaskCandidates: [HomeKnowsTaskCandidate] {
-    (viewModel.overdueTasks + viewModel.todaysTasks + viewModel.recentTasks)
-      .filter { !$0.completed && $0.deleted != true }
-      .map { HomeKnowsTaskCandidate(id: $0.id, text: $0.description) }
-  }
-
-  private func homeKnowsList(width: CGFloat) -> some View {
-    VStack(spacing: OmiSpacing.sm) {
-      ForEach(homeKnowsRows) { row in
-        HomeKnowsRowView(
-          row: row,
-          onOpen: { openKnowsRow(row) },
-          onDismiss: knowsDismissHandler(for: row),
-          onLater: knowsLaterHandler(for: row)
-        )
-        .transition(.opacity.combined(with: .move(edge: .bottom)))
-      }
-    }
-    .frame(width: width)
-    .omiAnimation(.easeInOut(duration: 0.45), value: knowsRotation)
-    .onReceive(knowsRotationTimer) { _ in
-      // Only rotate on the resting hub, when idle, and when there's genuinely
-      // more to show — so the set feels alive without churning under you.
-      guard homeMode == .hub, !chatProvider.isSending, homeKnowsCanRotate else { return }
-      knowsRotation += 1
-    }
-    .accessibilityIdentifier("home-knows-list")
-  }
-
-  private func openKnowsRow(_ row: HomeKnowsRow) {
-    switch row.kind {
-    case .task(let id):
-      if let task = (viewModel.overdueTasks + viewModel.todaysTasks + viewModel.recentTasks)
-        .first(where: { $0.id == id })
-      {
-        TaskNavigationRequestStore.shared.request(task: task)
-      }
-      navigate(to: .tasks)
-    case .insight(let id):
-      guard let recommendation = intelligenceStore.recommendations.first(where: { $0.id == id })
-      else { return }
-      Task {
-        if await openRecommendation(recommendation) {
-          await intelligenceStore.recordPrimaryAction(recommendation)
-        }
-      }
-    case .focus:
-      navigate(to: .focus)
-    case .question:
-      // Prefill the ask bar so you can glance it over and edit before sending,
-      // rather than firing the suggestion blindly.
-      chatProvider.draftText = row.text
-      homeAskFieldFocused = true
-    }
-  }
-
-  private func knowsDismissHandler(for row: HomeKnowsRow) -> ((OmiAPI.TaskIntelligenceFeedbackReason?) -> Void)? {
-    switch row.kind {
-    case .task(let id):
-      return { _ in dismissedKnowsTaskIDs.insert(id) }
-    case .insight(let id):
-      return { reason in
-        guard let recommendation = intelligenceStore.recommendations.first(where: { $0.id == id })
-        else { return }
-        Task { await intelligenceStore.dismiss(recommendation, reason: reason) }
-      }
-    case .focus, .question:
-      return nil
-    }
-  }
-
-  private func knowsLaterHandler(for row: HomeKnowsRow) -> (() -> Void)? {
-    guard case .insight(let id) = row.kind else { return nil }
-    return {
-      guard let recommendation = intelligenceStore.recommendations.first(where: { $0.id == id })
-      else { return }
-      Task { await intelligenceStore.later(recommendation) }
-    }
-  }
-
-  // MARK: Inline chat panel
-
   private func homeChatPanel(width: CGFloat) -> some View {
-    VStack(spacing: 0) {
-      ChatMessagesView(
-        messages: chatProvider.messages,
-        isSending: chatProvider.isSending,
-        hasMoreMessages: chatProvider.hasMoreMessages,
-        isLoadingMoreMessages: chatProvider.isLoadingMoreMessages,
-        isLoadingInitial: chatProvider.isLoading && !chatProvider.isClearing,
-        onLoadMore: { await chatProvider.loadMoreMessages() },
-        onCitationTap: { citation in
-          handleCitationTap(citation)
-        },
-        sessionsLoadError: chatProvider.sessionsLoadError.map {
-          UserFacingErrorPresentation.message(from: $0, while: .chatSessions)
-        },
-        onRetry: { Task { await chatProvider.retryLoad() } },
-        localSendToken: chatProvider.localSendToken,
-        onCancelTurn: { chatProvider.stopAgent(owner: .mainChat) },
-        onOpenAgent: { agentID, completion in
-          FloatingControlBarManager.shared.openAgentChatFromTimeline(agentID: agentID, completion: completion)
-        },
-        onOpenAgentRef: { ref, completion in
-          FloatingControlBarManager.shared.openAgentChatFromTimeline(ref: ref, completion: completion)
-        },
-        horizontalContentPadding: 0,
-        verticalContentPadding: OmiSpacing.sm,
-        trailingContentPadding: OmiSpacing.md,
-        contentColumnWidth: 760,
-        timelineTrailingInset: 0,
-        welcomeContent: { dashboardChatWelcome }
-      )
-      .frame(maxWidth: .infinity, maxHeight: .infinity)
-      // The composer already has its own visual boundary. Masking this viewport
-      // fades the live edge and can cut off the first lines of an incoming reply.
-      .padding(.bottom, OmiSpacing.xs)
-
-    }
-    // Chat is the Home surface itself — no card chrome, it sits directly on
-    // the ambient canvas. The column matches the ask bar's width exactly so
-    // message edges align with the bar's edges.
+    ChatMessagesView(
+      messages: chatProvider.messages,
+      isSending: chatProvider.isSending,
+      hasMoreMessages: chatProvider.hasMoreMessages,
+      isLoadingMoreMessages: chatProvider.isLoadingMoreMessages,
+      isLoadingInitial: chatProvider.isLoading && !chatProvider.isClearing,
+      onLoadMore: { await chatProvider.loadMoreMessages() },
+      onCitationTap: handleCitationTap,
+      sessionsLoadError: chatProvider.sessionsLoadError.map {
+        UserFacingErrorPresentation.message(from: $0, while: .chatSessions)
+      },
+      onRetry: { Task { await chatProvider.retryLoad() } },
+      localSendToken: chatProvider.localSendToken,
+      onCancelTurn: { chatProvider.stopAgent(owner: .mainChat) },
+      onOpenAgent: { agentID, completion in
+        FloatingControlBarManager.shared.openAgentChatFromTimeline(agentID: agentID, completion: completion)
+      },
+      onOpenAgentRef: FloatingControlBarManager.shared.openAgentChatFromTimeline(ref:completion:),
+      horizontalContentPadding: 0,
+      verticalContentPadding: OmiSpacing.sm,
+      trailingContentPadding: OmiSpacing.md,
+      contentColumnWidth: 760,
+      timelineTrailingInset: 0,
+      welcomeContent: { dashboardChatWelcome }
+    )
     .frame(width: width)
+    .frame(maxHeight: .infinity)
   }
-
-  // MARK: Ask bar + suggestions
 
   @ViewBuilder
   private var dashboardChatErrorCard: some View {
     if let cardState = chatProvider.currentError {
       ChatErrorCard(
         state: cardState,
-        onRecover: {
-          Task { await chatProvider.recoverFromError() }
-        },
-        onDismiss: {
-          chatProvider.dismissCurrentError()
-        }
+        onRecover: { Task { await chatProvider.recoverFromError() } },
+        onDismiss: { chatProvider.dismissCurrentError() }
       )
     }
   }
@@ -1003,23 +485,12 @@ struct DashboardPage: View {
       focus: $homeAskFieldFocused,
       attachments: $chatProvider.pendingAttachments,
       onAttachmentsAdded: { urls in
-        let toAdd = urls.compactMap { ChatAttachment.from(url: $0) }
-        chatProvider.addAttachments(toAdd)
+        chatProvider.addAttachments(urls.compactMap { ChatAttachment.from(url: $0) })
       },
-      onAttachmentRemoved: { id in
-        chatProvider.removePendingAttachment(id: id)
-      },
+      onAttachmentRemoved: chatProvider.removePendingAttachment,
       onSend: sendFromHomeAskBar,
       onStop: { chatProvider.stopAgent(owner: .mainChat) },
-      // Tapping the bar begins a fresh chat and focuses it to type, staying on
-      // the hero; only sending enters the chat surface (see sendFromHomeAskBar).
-      onActivate: { focusHomeAskBar() }
-    )
-  }
-
-  private var homeSuggestedQuestions: [String] {
-    HomeSuggestionComposer.compose(
-      personalized: homeSuggestionsStore.personalizedQuestions
+      onActivate: focusHomeAskBar
     )
   }
 
@@ -1028,33 +499,16 @@ struct DashboardPage: View {
   }
 
   private func homeStageContentWidth(for stageWidth: CGFloat) -> CGFloat {
-    let sideInset = homeStageSideInset(for: stageWidth)
-    return min(Self.homeStageMaxWidth, max(CGFloat(0), stageWidth - (sideInset * 2)))
+    min(Self.homeStageMaxWidth, max(0, stageWidth - (homeStageSideInset(for: stageWidth) * 2)))
   }
 
   private func homeAskBarWidth(for stageWidth: CGFloat) -> CGFloat {
-    let contentWidth = homeStageContentWidth(for: stageWidth)
-    if homeMode != .hub {
-      // Chat mode: bar and message column share one readable width, edges
-      // aligned (bubbles start/end on the bar's verticals).
-      return min(Self.homeChatColumnMaxWidth, contentWidth)
-    }
-
-    let availableWidth = min(Self.homeAskBarMaxWidth, contentWidth)
-    let text = chatProvider.draftText.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !text.isEmpty else {
-      return min(availableWidth, Self.homeAskBarMinWidth)
-    }
-
-    let attributes: [NSAttributedString.Key: Any] = [
-      .font: NSFont.systemFont(ofSize: 15)
-    ]
-    let measuredTextWidth = (text as NSString).size(withAttributes: attributes).width
-    let chromeWidth: CGFloat = 210
-    return min(availableWidth, max(Self.homeAskBarMinWidth, measuredTextWidth + chromeWidth))
+    let available = min(
+      homeMode == .hub ? Self.homeAskBarMaxWidth : Self.homeChatColumnMaxWidth,
+      homeStageContentWidth(for: stageWidth)
+    )
+    return min(available, max(Self.homeAskBarMinWidth, available))
   }
-
-  // MARK: Stage actions
 
   private func reportHomeAutomationMode() {
     guard DesktopAutomationLaunchOptions.isEnabled else { return }
@@ -1065,9 +519,6 @@ struct DashboardPage: View {
     }
   }
 
-  /// Keep the useful insights hub visible while the canonical journal restores.
-  /// Once the atomic snapshot is ready, existing history becomes Home without
-  /// exposing the generic transcript loading spinner.
   private func autoOpenChatForExistingHistoryIfNeeded() {
     guard
       HomeHistoryPresentationPolicy.restingMode(
@@ -1080,22 +531,16 @@ struct DashboardPage: View {
     openHomeChat(focusInput: false)
   }
 
-  /// Floating-bar "Continue in Omi": land directly on the chat panel instead
-  /// of whatever surface Home was resting on.
   private func consumePendingMainChatOpenRequest() {
-    guard MainChatNavigationRequestStore.shared.consume() else { return }
-    guard !useLegacyHomeDesign else { return }
+    guard MainChatNavigationRequestStore.shared.consume(), !useLegacyHomeDesign else { return }
     openHomeChat()
   }
+
   private func openHomeChat(focusInput: Bool = true) {
     if homeMode != .chat {
-      OmiMotion.withGated(Self.homeStageAnimation) {
-        homeMode = .chat
-      }
+      OmiMotion.withGated(Self.homeStageAnimation) { homeMode = .chat }
     }
-    if focusInput {
-      focusHomeAskFieldAfterStageTransition()
-    }
+    if focusInput { focusHomeAskFieldAfterStageTransition() }
     reportHomeAutomationMode()
   }
 
@@ -1103,18 +548,11 @@ struct DashboardPage: View {
     let token = homeAskFocusPolicy.currentToken()
     Task { @MainActor in
       await Task.yield()
-      // A deferred focus is stale once anything connects / collapses / closes
-      // (each bumps the policy's generation), and must never land on a non-chat
-      // stage — both would route back through the focus observer into chat.
       guard homeAskFocusPolicy.isCurrent(token), homeMode == .chat else { return }
       homeAskFieldFocused = true
     }
   }
 
-  /// The surface Home rests on when no panel is explicitly open: the chat
-  /// timeline once any history exists, otherwise the greeting hub.
-  /// Home opens directly in the continuous chat (no greeting hero). Rolling
-  /// suggestions sit above the ask bar while the chat is empty.
   private var homeRestingMode: HomeStageMode {
     HomeHistoryPresentationPolicy.restingMode(
       isLoading: chatProvider.isLoading,
@@ -1122,20 +560,13 @@ struct DashboardPage: View {
     )
   }
 
-  /// User-facing collapse (click outside or Esc) and the automation
-  /// bridge's `home_close_panel`: returns to the resting surface. There is a
-  /// single close path now — the bridge no longer force-jumps to the hub.
   private func collapseHomeStagePanel() {
     homeAskFieldFocused = false
     homeAskFocusPolicy.invalidate()
-    OmiMotion.withGated(Self.homeStageAnimation) {
-      homeMode = homeRestingMode
-    }
+    OmiMotion.withGated(Self.homeStageAnimation) { homeMode = homeRestingMode }
     reportHomeAutomationMode()
   }
 
-  /// Omi is one continuous chat — tapping the ask bar just focuses it to type,
-  /// continuing the single thread (no new sessions, no history).
   private func focusHomeAskBar() {
     homeAskFieldFocused = true
   }
@@ -1143,142 +574,45 @@ struct DashboardPage: View {
   private func sendFromHomeAskBar() {
     let draft = chatProvider.draftText
     let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
-    // Text is required — ChatProvider.sendMessage no-ops on empty text, so
-    // an attachment-only "send" would silently drop the turn.
-    guard !text.isEmpty else { return }
+    guard !text.isEmpty, !chatProvider.isSending else { return }
     openHomeChat(focusInput: false)
-    AnalyticsManager.shared.chatMessageSent(
-      messageLength: text.count,
-      source: "home_ask_bar"
-    )
-    if chatProvider.isSending {
-      return
-    } else {
-      Task { await chatProvider.sendMainDraft(draft) }
-    }
+    AnalyticsManager.shared.chatMessageSent(messageLength: text.count, source: "home_ask_bar")
+    Task { await chatProvider.sendMainDraft(draft) }
   }
 
   private func askHomeSuggestion(_ suggestion: String) {
     openHomeChat(focusInput: false)
-    AnalyticsManager.shared.chatMessageSent(
-      messageLength: suggestion.count,
-      source: "home_suggested_question"
-    )
+    AnalyticsManager.shared.chatMessageSent(messageLength: suggestion.count, source: "home_suggested_question")
     Task { await chatProvider.sendMessage(suggestion) }
   }
 
-  private var homeHeader: some View {
-    let transcriptionUnavailable = appState.transcriptionServiceError != nil
-
-    return HStack {
-      Spacer()
-      HStack(spacing: OmiSpacing.sm) {
-        HomeStatusButton(
-          title: "Capture",
-          systemImage: "viewfinder",
-          status: captureStatus,
-          isToggling: isTogglingCapture,
-          action: toggleCapture
-        )
-        // Rewind isn't a top-level tab; it opens from a right-click on Capture.
-        .contextMenu {
-          Button {
-            navigate(to: .rewind)
-          } label: {
-            Label("Open Rewind", systemImage: "clock.arrow.circlepath")
-          }
-        }
-
-        HomeListeningStatusButton(
-          title: transcriptionUnavailable ? "Transcription unavailable" : "Listening",
-          systemImage: transcriptionUnavailable
-            ? "exclamationmark.triangle.fill"
-            : (appState.isTranscribing ? "waveform.circle.fill" : "mic.circle"),
-          status: transcriptionUnavailable ? .blocked : (appState.isTranscribing ? .active : .inactive),
-          modeTitle: listeningModeTitle,
-          isMeetingsOnly: listeningCaptureMode == .onlyDuringMeetings,
-          isToggling: isTogglingListening,
-          action: toggleListening,
-          modeAction: toggleListeningMode
-        )
-        // Settings lives in the nav rail (bottom-left) — no duplicate gear here.
-      }
-    }
-    .frame(height: 36)
+  private func prefillHomeQuestion(_ question: String) {
+    chatProvider.draftText = question
+    openHomeChat()
   }
 
-  private func navigate(to item: SidebarNavItem) {
-    selectedIndex = item.rawValue
-    AnalyticsManager.shared.tabChanged(tabName: item.title)
-  }
-
-  private func toggleListening() {
-    CaptureListeningLogic.toggleListening(
-      appState: appState, transcriptionEnabled: $transcriptionEnabled, isTogglingListening: $isTogglingListening)
-  }
-
-  private func toggleListeningMode() {
-    CaptureListeningLogic.toggleListeningMode(raw: $systemAudioCaptureModeRaw)
-  }
-
-  private func toggleCapture() {
-    CaptureListeningLogic.toggleCapture(
-      appState: appState, screenAnalysisEnabled: $screenAnalysisEnabled,
-      isCaptureMonitoring: $isCaptureMonitoring, isTogglingCapture: $isTogglingCapture)
-  }
-
-  private func syncCaptureState() {
-    CaptureListeningLogic.syncCaptureState(
-      screenAnalysisEnabled: $screenAnalysisEnabled, isCaptureMonitoring: $isCaptureMonitoring)
-  }
-
-  /// Welcome message shown when there are no chat messages yet.
-  /// Transparent — no card chrome — so it morphs into the dashboard background.
-  /// Empty-state of the Home chat: the personalized post-onboarding opener when
-  /// one is pending (this is where onboarding lands the user), else the default
-  /// "Ask omi anything" welcome.
-  @ViewBuilder private var dashboardChatWelcome: some View {
+  @ViewBuilder
+  private var dashboardChatWelcome: some View {
     if let opener = chatProvider.onboardingOpener {
       OnboardingOpenerView(opener: opener, chatProvider: chatProvider)
     } else {
-      defaultChatWelcome
-    }
-  }
-
-  private var defaultChatWelcome: some View {
-    VStack(spacing: OmiSpacing.md) {
-      if let logoURL = Bundle.resourceBundle.url(forResource: "herologo", withExtension: "png"),
-        let logoImage = NSImage(contentsOf: logoURL)
-      {
-        Image(nsImage: logoImage)
-          .resizable()
-          .scaledToFit()
-          .frame(width: 40, height: 40)
+      VStack(spacing: OmiSpacing.md) {
+        Text("Ask omi anything")
+          .scaledFont(size: OmiType.subheading, weight: .semibold)
+          .foregroundColor(OmiColors.textPrimary)
+        Text("Your personal AI assistant — knows you through your memories and conversations")
+          .scaledFont(size: OmiType.body)
+          .foregroundColor(OmiColors.textSecondary)
+          .multilineTextAlignment(.center)
       }
-
-      Text("Ask omi anything")
-        .scaledFont(size: OmiType.subheading, weight: .semibold)
-        .foregroundColor(OmiColors.textPrimary)
-
-      Text("Your personal AI assistant — knows you through your memories and conversations")
-        .scaledFont(size: OmiType.body)
-        .foregroundColor(OmiColors.textSecondary)
-        .multilineTextAlignment(.center)
-        .padding(.horizontal, OmiSpacing.page)
+      .frame(maxWidth: .infinity)
+      .padding(.vertical, OmiSpacing.section)
     }
-    .frame(maxWidth: .infinity)
-    .padding(.vertical, OmiSpacing.section)
   }
 
-  /// Handle tapping on a citation card — opens the cited conversation in a sheet.
   private func handleCitationTap(_ citation: Citation) {
-    guard citation.sourceType == .conversation else {
-      log("Citation tapped: \(citation.title) (memory - no detail view)")
-      return
-    }
-
+    guard citation.sourceType == .conversation else { return }
     isLoadingCitation = true
-
     Task {
       do {
         let conversation = try await LocalAuthorityConversationDataSource().detail(id: citation.id)
@@ -1287,350 +621,210 @@ struct DashboardPage: View {
           isLoadingCitation = false
         }
       } catch {
-        logError("Failed to fetch cited conversation", error: error)
-        await MainActor.run {
-          isLoadingCitation = false
-        }
+        await MainActor.run { isLoadingCitation = false }
       }
     }
   }
-
-  private func openRecommendation(_ recommendation: DashboardRecommendation) async -> Bool {
-    switch recommendation.destination {
-    case .suggested(let candidateID):
-      guard let candidate = await intelligenceStore.candidateForNavigation(candidateID: candidateID) else {
-        return false
-      }
-      TaskNavigationRequestStore.shared.request(candidate: candidate)
-      selectedIndex = 4
-      return true
-    case .task(let taskID, let workstreamID):
-      if let workstreamID {
-        return await resumeThread(workstreamID: workstreamID, taskID: taskID)
-      } else {
-        guard let task = await intelligenceStore.taskForNavigation(taskID: taskID) else {
-          return false
-        }
-        TaskNavigationRequestStore.shared.request(task: task)
-        selectedIndex = 4
-        return true
-      }
-    case .thread(let workstreamID, let taskID):
-      return await resumeThread(workstreamID: workstreamID, taskID: taskID)
-    case .unavailable:
-      intelligenceStore.error = "This review target is no longer available."
-      return false
-    }
-  }
-
-  private func openGoal(_ goalID: String) async {
-    await intelligenceStore.loadGoalDetail(goalID: goalID)
-    guard intelligenceStore.selectedGoalDetail != nil else { return }
-    showingAllGoals = false
-    showingGoalDetail = true
-  }
-
-  @discardableResult
-  private func resumeThread(workstreamID: String, taskID: String?) async -> Bool {
-    guard let taskChatCoordinator else {
-      intelligenceStore.error = "The task thread is unavailable."
-      return false
-    }
-    if await taskChatCoordinator.openExistingThread(
-      workstreamID: workstreamID,
-      preferredTaskID: taskID
-    ) {
-      showingGoalDetail = false
-      showingAllGoals = false
-      selectedIndex = 4
-      return true
-    } else {
-      intelligenceStore.error = taskChatCoordinator.errorMessage ?? "The task thread could not be opened."
-      return false
-    }
-  }
-
-  private func startWorkFromSelectedGoal() async {
-    guard let detail = intelligenceStore.selectedGoalDetail, let taskChatCoordinator else {
-      intelligenceStore.error = "The goal thread is unavailable."
-      return
-    }
-    do {
-      let receipt = try await taskChatCoordinator.resolveGoalOrigin(
-        goalId: detail.goal.goalId,
-        occurrenceId: "goal-detail-primary-v1",
-        title: detail.goal.title,
-        objective: detail.goal.desiredOutcome,
-        anchorTaskDescription: "Make progress on \(detail.goal.title)"
-      )
-      await resumeThread(workstreamID: receipt.workstreamId, taskID: receipt.taskId)
-    } catch {
-      intelligenceStore.error = "Omi could not start work on this goal."
-    }
-  }
-
-  // MARK: - Summary counts for collapsed bar
-
-  private var incompleteTaskCount: Int {
-    viewModel.overdueTasks.count + viewModel.todaysTasks.count + viewModel.recentTasks.count
-  }
-
-  private var activeGoalCount: Int {
-    intelligenceStore.accountGeneration == nil
-      ? viewModel.goals.count
-      : intelligenceStore.currentGoals.count
-  }
-
-  // MARK: - Dashboard Widgets (collapsible)
 
   private var dashboardWidgets: some View {
-    VStack(alignment: .leading, spacing: widgetsCollapsed ? 0 : OmiSpacing.xl) {
-      dashboardIntelligenceError
+    VStack(alignment: .leading, spacing: OmiSpacing.lg) {
+      HStack {
+        VStack(alignment: .leading, spacing: OmiSpacing.xs) {
+          Text("Home")
+            .scaledFont(size: OmiType.title, weight: .semibold)
+            .foregroundColor(OmiColors.textPrimary)
+          Text("Your local tasks and goals, with today's focus and insights")
+            .scaledFont(size: OmiType.body)
+            .foregroundColor(OmiColors.textTertiary)
+        }
+        Spacer()
+        if viewModel.isLoading { ProgressView().controlSize(.small) }
+        Button {
+          widgetsCollapsed.toggle()
+        } label: {
+          Image(systemName: widgetsCollapsed ? "chevron.down" : "chevron.up")
+        }
+        .buttonStyle(.plain)
+      }
 
-      FocusedGoalsSection(
-        store: intelligenceStore,
-        onOpenGoal: { goalID in await openGoal(goalID) },
-        onShowAll: { showingAllGoals = true }
-      )
+      retainedHomeContext
 
-      if widgetsCollapsed {
-        // Collapsed: slim summary bar
-        collapsedWidgetBar
-      } else {
-        // Expanded: full Tasks + Goals cards
-        expandedWidgets
+      if !widgetsCollapsed {
+        HStack(alignment: .top, spacing: OmiSpacing.lg) {
+          TasksWidget(
+            overdueTasks: viewModel.overdueTasks,
+            todaysTasks: viewModel.todaysTasks,
+            recentTasks: viewModel.recentTasks,
+            onToggleCompletion: { task in
+              Task { await viewModel.toggleTaskCompletion(task) }
+            }
+          )
+          GoalsWidget(
+            goals: viewModel.goals,
+            onCreateGoal: { title, description in
+              Task { await viewModel.createGoal(title: title, description: description) }
+            },
+            onUpdateGoal: { goal, title, description in
+              Task { await viewModel.updateGoal(goal, title: title, description: description) }
+            },
+            onToggleCompletion: { goal in
+              Task { await viewModel.toggleGoalCompletion(goal) }
+            }
+          )
+        }
+        .frame(minHeight: 260)
+      }
 
-        // Collapse button centered below widgets
-        collapseButton
+      if let error = viewModel.error {
+        Text(error)
+          .scaledFont(size: OmiType.caption)
+          .foregroundColor(OmiColors.textTertiary)
       }
     }
     .padding(.horizontal, OmiSpacing.section)
-    .padding(.top, widgetsCollapsed ? OmiSpacing.xl : OmiSpacing.section)
-    .padding(.bottom, OmiSpacing.sm)
-    .omiAnimation(.easeInOut(duration: 0.25), value: widgetsCollapsed)
+    .padding(.vertical, OmiSpacing.md)
   }
 
-  @ViewBuilder
-  private var dashboardIntelligenceError: some View {
-    if let error = intelligenceStore.error, !error.isEmpty {
-      HStack(spacing: OmiSpacing.sm) {
-        Image(systemName: "exclamationmark.triangle.fill")
-          .scaledFont(size: OmiType.caption)
-          .foregroundColor(OmiColors.warning)
-        Text(error)
-          .scaledFont(size: OmiType.caption)
-          .foregroundColor(OmiColors.textSecondary)
-        Spacer(minLength: OmiSpacing.sm)
-        Button("Retry") {
-          Task { await intelligenceStore.load() }
-        }
-        .buttonStyle(.plain)
-        .scaledFont(size: OmiType.caption, weight: .medium)
-        .foregroundColor(OmiColors.textPrimary)
-      }
-      .padding(.horizontal, OmiSpacing.md)
-      .padding(.vertical, OmiSpacing.sm)
-      .background(
-        RoundedRectangle(cornerRadius: OmiChrome.smallControlRadius, style: .continuous)
-          .fill(OmiColors.backgroundSecondary.opacity(0.88))
-      )
-      .overlay(
-        RoundedRectangle(cornerRadius: OmiChrome.smallControlRadius, style: .continuous)
-          .stroke(OmiColors.border.opacity(0.7), lineWidth: 1)
-      )
-      .accessibilityIdentifier("dashboard-intelligence-error")
-    }
-  }
-
-  private var collapsedWidgetBar: some View {
-    Button(action: { widgetsCollapsed = false }) {
-      HStack(spacing: OmiSpacing.lg) {
-        // Tasks summary
-        HStack(spacing: OmiSpacing.xs) {
-          Image(systemName: "checklist")
-            .scaledFont(size: OmiType.caption)
-            .foregroundColor(OmiColors.textTertiary)
-          Text(
-            incompleteTaskCount == 0
-              ? "No tasks"
-              : "\(incompleteTaskCount) task\(incompleteTaskCount == 1 ? "" : "s")"
-          )
-          .scaledFont(size: OmiType.body, weight: .medium)
-          .foregroundColor(OmiColors.textSecondary)
-        }
-
-        // Subtle divider dot
-        Circle()
-          .fill(OmiColors.textQuaternary)
-          .frame(width: 3, height: 3)
-
-        // Goals summary
-        HStack(spacing: OmiSpacing.xs) {
-          Image(systemName: "target")
-            .scaledFont(size: OmiType.caption)
-            .foregroundColor(OmiColors.textTertiary)
-          Text(
-            activeGoalCount == 0
-              ? "No goals"
-              : "\(activeGoalCount) goal\(activeGoalCount == 1 ? "" : "s")"
-          )
-          .scaledFont(size: OmiType.body, weight: .medium)
-          .foregroundColor(OmiColors.textSecondary)
-        }
-
-        Spacer()
-
-        // Expand chevron
-        Image(systemName: "chevron.down")
-          .scaledFont(size: OmiType.caption, weight: .semibold)
-          .foregroundColor(OmiColors.textQuaternary)
-      }
-      .padding(.horizontal, OmiSpacing.lg)
-      .padding(.vertical, OmiSpacing.md)
-      .background(
-        RoundedRectangle(cornerRadius: OmiChrome.chipRadius, style: .continuous)
-          .fill(OmiColors.backgroundSecondary.opacity(0.6))
-      )
-      .overlay(
-        RoundedRectangle(cornerRadius: OmiChrome.chipRadius, style: .continuous)
-          .stroke(OmiColors.border.opacity(0.12), lineWidth: 1)
-      )
-    }
-    .buttonStyle(.plain)
-    .transition(.opacity.combined(with: .move(edge: .top)))
-  }
-
-  private var expandedWidgets: some View {
-    // fixedSize(vertical:) constrains the Grid to its row's intrinsic
-    // height so Tasks/Goals stop competing with ChatMessagesView for
-    // vertical space; each cell still fills the row, so the two cards
-    // remain visually equal-height (matching the taller intrinsic).
-    Grid(horizontalSpacing: OmiSpacing.xl, verticalSpacing: OmiSpacing.xl) {
-      GridRow {
-        TasksWidget(
-          overdueTasks: viewModel.overdueTasks,
-          todaysTasks: viewModel.todaysTasks,
-          recentTasks: viewModel.recentTasks,
-          onToggleCompletion: { task in
-            Task {
-              await viewModel.toggleTaskCompletion(task)
-            }
-          }
-        )
-        .frame(minWidth: 0, maxWidth: .infinity)
-
-        if intelligenceStore.accountGeneration != nil {
-          canonicalGoalsWidget
-        } else {
-          GoalsWidget(
-            goals: viewModel.goals,
-            onCreateGoal: { title, current, target in
-              Task {
-                await viewModel.createGoal(
-                  title: title,
-                  goalType: .numeric,
-                  targetValue: target,
-                  unit: nil
-                )
-              }
-            },
-            onUpdateGoal: { goal, title, current, target in
-              Task {
-                await viewModel.updateGoal(
-                  goal,
-                  title: title,
-                  currentValue: current,
-                  targetValue: target
-                )
-              }
-            },
-            onUpdateProgress: { goal, value in
-              Task { await viewModel.updateGoalProgress(goal, currentValue: value) }
-            },
-            onDeleteGoal: { goal in
-              Task { await viewModel.deleteGoal(goal) }
-            }
-          )
-          .frame(minWidth: 0, maxWidth: .infinity)
-        }
-      }
-    }
-    .fixedSize(horizontal: false, vertical: true)
-    .transition(.opacity.combined(with: .move(edge: .top)))
-  }
-
-  private var canonicalGoalsWidget: some View {
-    VStack(alignment: .leading, spacing: OmiSpacing.md) {
-      HStack {
-        Text("Goals")
-          .scaledFont(size: OmiType.subheading, weight: .semibold)
-          .foregroundColor(OmiColors.textPrimary)
-        Spacer()
-        Button("All goals") { showingAllGoals = true }
-          .buttonStyle(.plain)
-          .scaledFont(size: OmiType.micro, weight: .medium)
-      }
-      FocusedGoalsSection(
-        store: intelligenceStore,
-        onOpenGoal: { goalID in await openGoal(goalID) },
-        onShowAll: { showingAllGoals = true }
-      )
-      if intelligenceStore.focusedGoals.isEmpty {
-        Text("Keep a few outcomes in focus.")
-          .scaledFont(size: OmiType.caption)
-          .foregroundColor(OmiColors.textSecondary)
-      }
-      Spacer(minLength: 0)
-    }
-    .padding(OmiSpacing.lg)
-    .frame(minWidth: 0, maxWidth: .infinity, minHeight: 150, alignment: .topLeading)
-    .background(
-      RoundedRectangle(cornerRadius: OmiChrome.smallControlRadius)
-        .fill(OmiColors.backgroundSecondary.opacity(0.65))
+  private var retainedHomeProjection: HomeRetainedContextProjection {
+    HomeRetainedContextProjection.make(
+      focusStatus: focusStorage.currentStatus,
+      currentApp: focusStorage.currentApp,
+      detectedApp: focusStorage.detectedAppName,
+      insights: insightStorage.insightHistory,
+      personalizedQuestions: homeSuggestionsStore.personalizedQuestions
     )
   }
 
-  private var collapseButton: some View {
-    HStack {
-      Spacer()
-      Button(action: { widgetsCollapsed = true }) {
-        Image(systemName: "chevron.up")
-          .scaledFont(size: OmiType.caption, weight: .semibold)
-          .foregroundColor(OmiColors.textQuaternary)
-          .frame(width: 48, height: 20)
+  private var retainedHomeContext: some View {
+    let projection = retainedHomeProjection
+    return LazyVGrid(
+      columns: [GridItem(.adaptive(minimum: 250), spacing: OmiSpacing.md)],
+      alignment: .leading,
+      spacing: OmiSpacing.md
+    ) {
+      HomeRetainedContextCard(
+        icon: "eye",
+        eyebrow: "Focus",
+        title: projection.focusTitle,
+        detail: projection.focusDetail,
+        accessibilityIdentifier: "home-focus-projection"
+      ) {
+        selectedIndex = SidebarNavItem.focus.rawValue
       }
-      .buttonStyle(.plain)
-      Spacer()
-    }
-  }
 
+      if let insight = projection.latestInsight {
+        HomeRetainedContextCard(
+          icon: "lightbulb",
+          eyebrow: "Latest insight",
+          title: insight.text,
+          detail: "Open Insights for context and history",
+          accessibilityIdentifier: "home-insight-projection"
+        ) {
+          insightStorage.markAsRead(insight.id)
+          selectedIndex = SidebarNavItem.insight.rawValue
+        }
+      }
+
+      HomeQuestionCard(questions: projection.questions, onSelect: prefillHomeQuestion)
+    }
+    .accessibilityIdentifier("home-retained-context")
+  }
 }
 
 // MARK: - Home Components
 
 enum HomePalette {
   static let paper = Color(red: 0.018, green: 0.019, blue: 0.021)
-  static let panel = Color(red: 0.045, green: 0.046, blue: 0.052)
   static let tile = Color(red: 0.078, green: 0.078, blue: 0.088)
-  static let tileHover = Color(red: 0.108, green: 0.110, blue: 0.122)
   static let ink = Color(red: 0.97, green: 0.97, blue: 0.975)
   static let secondary = Color(red: 0.72, green: 0.73, blue: 0.75)
   static let muted = Color(red: 0.46, green: 0.47, blue: 0.50)
-  static let faint = Color(red: 0.34, green: 0.35, blue: 0.37)
-  static let hairline = Color(red: 0.155, green: 0.155, blue: 0.172)
-  static let green = Color(red: 0.17, green: 0.78, blue: 0.38)
-  // Neutral cool-grey key light (INV-UI-1 brand accent rules).
   static let stageGlow = Color(red: 0.72, green: 0.74, blue: 0.78)
-  static let glow = stageGlow
 }
 
-private enum HomeDestinationProminence {
-  case primary
-  case quiet
+private struct HomeRetainedContextCard: View {
+  let icon: String
+  let eyebrow: String
+  let title: String
+  let detail: String
+  let accessibilityIdentifier: String
+  let action: () -> Void
+
+  var body: some View {
+    Button(action: action) {
+      VStack(alignment: .leading, spacing: OmiSpacing.sm) {
+        HStack(spacing: OmiSpacing.xs) {
+          Image(systemName: icon)
+          Text(eyebrow.uppercased())
+        }
+        .scaledFont(size: OmiType.micro, weight: .semibold)
+        .foregroundStyle(HomePalette.muted)
+
+        Text(title)
+          .scaledFont(size: OmiType.body, weight: .semibold)
+          .foregroundStyle(HomePalette.ink)
+          .lineLimit(2)
+
+        Text(detail)
+          .scaledFont(size: OmiType.caption)
+          .foregroundStyle(HomePalette.secondary)
+          .lineLimit(2)
+      }
+      .frame(maxWidth: .infinity, minHeight: 112, alignment: .topLeading)
+      .padding(OmiSpacing.md)
+      .background(
+        RoundedRectangle(cornerRadius: OmiChrome.smallControlRadius, style: .continuous)
+          .fill(HomePalette.tile.opacity(0.62))
+      )
+      .contentShape(.rect(cornerRadius: OmiChrome.smallControlRadius))
+    }
+    .buttonStyle(.plain)
+    .accessibilityIdentifier(accessibilityIdentifier)
+  }
 }
 
-/// The persistent home ask bar: a pill-shaped chat input with attachments
-/// (paperclip + drag-drop, same limits as the chat page) and a send/stop action.
+private struct HomeQuestionCard: View {
+  let questions: [String]
+  let onSelect: (String) -> Void
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: OmiSpacing.sm) {
+      HStack(spacing: OmiSpacing.xs) {
+        Image(systemName: "bubble.left")
+        Text("ASK OMI")
+      }
+      .scaledFont(size: OmiType.micro, weight: .semibold)
+      .foregroundStyle(HomePalette.muted)
+
+      ForEach(questions, id: \.self) { question in
+        Button {
+          onSelect(question)
+        } label: {
+          HStack(spacing: OmiSpacing.xs) {
+            Text(question)
+              .scaledFont(size: OmiType.caption, weight: .medium)
+              .foregroundStyle(HomePalette.secondary)
+              .lineLimit(1)
+            Spacer(minLength: OmiSpacing.xs)
+            Image(systemName: "arrow.up.right")
+              .scaledFont(size: OmiType.micro, weight: .semibold)
+              .foregroundStyle(HomePalette.muted)
+          }
+          .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+      }
+    }
+    .frame(maxWidth: .infinity, minHeight: 112, alignment: .topLeading)
+    .padding(OmiSpacing.md)
+    .background(
+      RoundedRectangle(cornerRadius: OmiChrome.smallControlRadius, style: .continuous)
+        .fill(HomePalette.tile.opacity(0.62))
+    )
+    .accessibilityIdentifier("home-question-projection")
+  }
+}
+
 struct HomeAskBar: View {
   @Binding var text: String
   let isSending: Bool
@@ -1848,381 +1042,3 @@ private enum HomeAskBarActionMode: Equatable {
   case stop
   case none
 }
-
-/// One knows-list row: leading kind icon, single-line text, and either a
-/// dismiss × (task/insight) or an ask ↗ (question) on the trailing edge.
-private struct HomeKnowsRowView: View {
-  let row: HomeKnowsRow
-  let onOpen: () -> Void
-  let onDismiss: ((OmiAPI.TaskIntelligenceFeedbackReason?) -> Void)?
-  let onLater: (() -> Void)?
-
-  @State private var isHovering = false
-  @State private var showDismissReasons = false
-  @State private var choseReason = false
-
-  private var leadingIcon: String {
-    switch row.kind {
-    case .task: return "circle"
-    case .insight: return "lightbulb"
-    case .focus: return "eye"
-    case .question: return "bubble.left"
-    }
-  }
-
-  var body: some View {
-    Button(action: onOpen) {
-      HStack(spacing: OmiSpacing.md) {
-        Image(systemName: leadingIcon)
-          .scaledFont(size: OmiType.body, weight: .medium)
-          .foregroundStyle(isHovering ? HomePalette.secondary : HomePalette.muted)
-          .frame(width: 18)
-
-        Text(row.text)
-          .scaledFont(size: OmiType.body, weight: .medium)
-          .foregroundStyle(isHovering ? HomePalette.ink : HomePalette.secondary)
-          .lineLimit(1)
-
-        Spacer(minLength: 8)
-
-        trailingAccessory
-      }
-      .padding(.horizontal, OmiSpacing.lg)
-      .frame(height: 46)
-      .frame(maxWidth: .infinity)
-      .background(
-        RoundedRectangle(cornerRadius: 13, style: .continuous)
-          .fill(isHovering ? HomePalette.tileHover : HomePalette.tile.opacity(0.62))
-      )
-      .overlay(
-        RoundedRectangle(cornerRadius: 13, style: .continuous)
-          .stroke(HomePalette.hairline.opacity(isHovering ? 1 : 0.55), lineWidth: 1)
-      )
-      .contentShape(.rect(cornerRadius: 13))
-    }
-    .buttonStyle(.plain)
-    .onHover { isHovering = $0 }
-    .contextMenu {
-      if let onLater {
-        Button("Later") { onLater() }
-      }
-      if onDismiss != nil {
-        Button("Dismiss") { handleDismissTap() }
-      }
-    }
-    .accessibilityLabel(row.text)
-    .accessibilityIdentifier("home-knows-\(row.id)")
-  }
-
-  @ViewBuilder
-  private var trailingAccessory: some View {
-    if onDismiss != nil {
-      Button(action: handleDismissTap) {
-        Image(systemName: "xmark")
-          .scaledFont(size: OmiType.micro, weight: .bold)
-          .foregroundStyle(isHovering ? HomePalette.secondary : HomePalette.faint)
-          .frame(width: 20, height: 20)
-          .contentShape(Rectangle())
-      }
-      .buttonStyle(.plain)
-      .help("Dismiss")
-      .accessibilityLabel("Dismiss")
-      .popover(isPresented: $showDismissReasons) {
-        VStack(alignment: .leading, spacing: OmiSpacing.sm) {
-          Text("Optional reason")
-            .scaledFont(size: OmiType.caption, weight: .semibold)
-          ForEach(Self.reasonChoices, id: \.label) { choice in
-            Button(choice.label) {
-              choseReason = true
-              onDismiss?(choice.reason)
-              showDismissReasons = false
-            }
-            .buttonStyle(.bordered)
-          }
-        }
-        .padding(OmiSpacing.md)
-        .frame(width: 210)
-      }
-      .onChange(of: showDismissReasons) { wasShowing, isShowing in
-        guard wasShowing, !isShowing, !choseReason else { return }
-        onDismiss?(nil)
-      }
-    } else {
-      Image(systemName: "arrow.up.right")
-        .scaledFont(size: OmiType.micro, weight: .bold)
-        .foregroundStyle(isHovering ? HomePalette.ink : HomePalette.faint)
-    }
-  }
-
-  /// Insight dismissals offer the same optional feedback reasons the old
-  /// What-matters-now cards recorded; task rows just hide for the session.
-  private func handleDismissTap() {
-    if case .insight = row.kind {
-      choseReason = false
-      showDismissReasons = true
-    } else {
-      onDismiss?(nil)
-    }
-  }
-
-  private static let reasonChoices: [(label: String, reason: OmiAPI.TaskIntelligenceFeedbackReason)] = [
-    ("Already handled", .already_handled),
-    ("Not mine", .not_mine),
-    ("Not useful", .not_useful),
-  ]
-}
-
-private struct HomeCanvasBackground: View {
-  var body: some View {
-    // A clean, flat neutral-dark canvas — no muddy glow. One very soft
-    // top-to-bottom lift keeps the surface from reading dead-flat.
-    LinearGradient(
-      colors: [
-        Color(red: 0.056, green: 0.058, blue: 0.065),
-        Color(red: 0.040, green: 0.042, blue: 0.048),
-      ],
-      startPoint: .top,
-      endPoint: .bottom
-    )
-    .ignoresSafeArea()
-  }
-}
-
-enum HomeStatusState {
-  case active
-  case inactive
-  case blocked
-
-  var indicator: Color {
-    switch self {
-    case .active:
-      return HomePalette.green
-    case .inactive:
-      return HomePalette.faint
-    case .blocked:
-      return Color(red: 1.0, green: 0.24, blue: 0.30)
-    }
-  }
-
-  var text: String {
-    switch self {
-    case .active:
-      return "On"
-    case .inactive:
-      return "Off"
-    case .blocked:
-      return "Blocked"
-    }
-  }
-
-  var isActive: Bool {
-    if case .active = self { return true }
-    return false
-  }
-
-  var isBlocked: Bool {
-    if case .blocked = self { return true }
-    return false
-  }
-}
-
-struct HomeStatusButton: View {
-  let title: String
-  let systemImage: String
-  let status: HomeStatusState
-  let isToggling: Bool
-  let action: () -> Void
-
-  @State private var isHovering = false
-
-  var body: some View {
-    Button(action: action) {
-      HStack(spacing: OmiSpacing.sm) {
-        ZStack {
-          if isToggling {
-            ProgressView()
-              .controlSize(.small)
-              .scaleEffect(0.55)
-          } else {
-            Image(systemName: systemImage)
-              .scaledFont(size: OmiType.body, weight: .semibold)
-          }
-        }
-        .frame(width: 18, height: 18)
-
-        Text(title)
-          .scaledFont(size: OmiType.caption, weight: .semibold)
-          .lineLimit(1)
-      }
-      .foregroundStyle(status.isActive ? HomePalette.ink : (status.isBlocked ? status.indicator : HomePalette.muted))
-      .padding(.horizontal, OmiSpacing.md)
-      .padding(.vertical, OmiSpacing.sm)
-      .frame(height: 34)
-      .background(
-        Capsule(style: .continuous)
-          .fill(statusFill)
-      )
-      .overlay(
-        Capsule(style: .continuous)
-          .stroke(statusStroke, lineWidth: 1)
-      )
-      .contentShape(Capsule())
-    }
-    .buttonStyle(.plain)
-    .disabled(isToggling)
-    .onHover { isHovering = $0 }
-    .help("\(title): \(status.text)")
-    .accessibilityLabel("\(title) \(status.text)")
-  }
-
-  private var statusFill: Color {
-    if status.isActive {
-      return HomePalette.green.opacity(isHovering ? 0.20 : 0.12)
-    }
-    if status.isBlocked {
-      return status.indicator.opacity(isHovering ? 0.16 : 0.10)
-    }
-    return isHovering ? HomePalette.tile.opacity(0.6) : Color.clear
-  }
-
-  private var statusStroke: Color {
-    if status.isActive {
-      return HomePalette.green.opacity(0.38)
-    }
-    if status.isBlocked {
-      return status.indicator.opacity(isHovering ? 0.54 : 0.38)
-    }
-    return HomePalette.hairline.opacity(isHovering ? 0.6 : 0.0)
-  }
-}
-
-struct HomeListeningStatusButton: View {
-  let title: String
-  let systemImage: String
-  let status: HomeStatusState
-  let modeTitle: String
-  let isMeetingsOnly: Bool
-  let isToggling: Bool
-  let action: () -> Void
-  let modeAction: () -> Void
-
-  // Single pill-level hover flag so moving between the title and the mode
-  // toggle never flickers the revealed controls.
-  @State private var isHovering = false
-
-  var body: some View {
-    HStack(spacing: 0) {
-      Button(action: action) {
-        HStack(spacing: OmiSpacing.sm) {
-          ZStack {
-            if isToggling {
-              ProgressView()
-                .controlSize(.small)
-                .scaleEffect(0.55)
-            } else {
-              Image(systemName: systemImage)
-                .scaledFont(size: OmiType.body, weight: .semibold)
-            }
-          }
-          .frame(width: 18, height: 18)
-
-          VStack(alignment: .leading, spacing: 1) {
-            Text(title)
-              .scaledFont(size: OmiType.caption, weight: .semibold)
-              .lineLimit(1)
-
-            // Mode ("Always" / "In meeting" / …) is revealed only on
-            // hover to keep the resting pill clean.
-            if isHovering {
-              Text(modeTitle)
-                .scaledFont(size: 8, weight: .medium)
-                .foregroundStyle(status.isActive ? HomePalette.secondary : HomePalette.muted)
-                .lineLimit(1)
-                .transition(.opacity)
-            }
-          }
-        }
-        .padding(.leading, OmiSpacing.md)
-        .padding(.trailing, OmiSpacing.sm)
-        .frame(height: 34)
-        .contentShape(Rectangle())
-      }
-      .buttonStyle(.plain)
-      .disabled(isToggling)
-      .help("Listening: \(status.text), \(modeTitle)")
-      .accessibilityLabel("Listening \(status.text), \(modeTitle)")
-
-      // Divider + mode toggle are revealed only on hover to keep the
-      // resting pill compact.
-      if isHovering {
-        Rectangle()
-          .fill(HomePalette.hairline.opacity(0.65))
-          .frame(width: 1, height: 18)
-          .transition(.opacity)
-
-        Button(action: modeAction) {
-          Image(systemName: isMeetingsOnly ? "person.2.fill" : "person.fill")
-            .scaledFont(size: OmiType.caption, weight: .semibold)
-            .foregroundStyle(modeIconColor)
-            .frame(width: 30, height: 34)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .help(isMeetingsOnly ? "Switch to always listening" : "Switch to meetings only")
-        .accessibilityLabel(isMeetingsOnly ? "Switch Listening to Always" : "Switch Listening to Meetings Only")
-        .transition(.opacity)
-      }
-    }
-    .foregroundStyle(status.isActive ? HomePalette.ink : (status.isBlocked ? status.indicator : HomePalette.muted))
-    .background(
-      Capsule(style: .continuous)
-        .fill(statusFill)
-    )
-    .overlay(
-      Capsule(style: .continuous)
-        .stroke(statusStroke, lineWidth: 1)
-    )
-    .contentShape(Capsule())
-    .frame(height: 34)
-    .onHover { isHovering = $0 }
-    .omiAnimation(.easeInOut(duration: 0.14), value: isHovering)
-  }
-
-  private var modeIconColor: Color {
-    status.isActive ? HomePalette.green : HomePalette.muted
-  }
-
-  private var statusFill: Color {
-    if status.isActive {
-      return HomePalette.green.opacity(isHovering ? 0.20 : 0.12)
-    }
-    if status.isBlocked {
-      return status.indicator.opacity(isHovering ? 0.16 : 0.10)
-    }
-    return isHovering ? HomePalette.tile.opacity(0.6) : Color.clear
-  }
-
-  private var statusStroke: Color {
-    if status.isActive {
-      return HomePalette.green.opacity(0.38)
-    }
-    if status.isBlocked {
-      return status.indicator.opacity(isHovering ? 0.54 : 0.38)
-    }
-    return HomePalette.hairline.opacity(isHovering ? 0.6 : 0.0)
-  }
-}
-
-#if canImport(PreviewsMacros)
-  #Preview {
-    DashboardPage(
-      viewModel: DashboardViewModel(),
-      appState: AppState(),
-      chatProvider: ChatProvider(),
-      memoriesViewModel: MemoriesViewModel(),
-      selectedIndex: .constant(0)
-    )
-    .frame(width: 800, height: 600)
-    .background(OmiColors.backgroundPrimary)
-  }
-#endif

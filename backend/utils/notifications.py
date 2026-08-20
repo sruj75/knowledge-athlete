@@ -1,9 +1,7 @@
 import asyncio
 import hashlib
 import math
-import uuid
-from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple, Union, cast
+from typing import Any, Dict, List, Optional, Tuple, cast
 from firebase_admin import messaging, auth
 import database.notifications as notification_db
 from utils.executors import db_executor, postprocess_executor, run_blocking
@@ -50,7 +48,7 @@ def _generate_notification_tag(user_id: str, title: str, body: str, data: Option
     """Generate a tag for notification deduplication based on content."""
     content = f"{user_id}:{title}:{body}"
     if data:
-        unique_id: str = str(data.get('action_item_id') or data.get('type', ''))
+        unique_id: str = str(data.get('type', ''))
         content += f":{unique_id}"
     return _generate_tag(content)
 
@@ -403,22 +401,6 @@ async def send_bulk_notification(user_tokens: List[str], title: str, body: str) 
         logger.error(f"Error sending bulk notification: {e}")
 
 
-def send_action_item_data_message(user_id: str, action_item_id: str, description: str, due_at: str):
-    """
-    Sends a data-only FCM message for action item reminder scheduling.
-    The app receives this in the background and schedules a local notification.
-    """
-    logger.info(f'send_action_item_data_message to user {user_id}')
-    data = {
-        'type': 'action_item_reminder',
-        'action_item_id': action_item_id,
-        'description': description,
-        'due_at': due_at,
-    }
-    tag = _generate_tag(f"{user_id}:action_item_reminder:{action_item_id}")
-    _send_to_user(user_id, tag, data=data, is_background=True, priority='high')
-
-
 def send_merge_completed_message(
     user_id: str, merged_conversation_id: str, removed_conversation_ids: List[str]
 ) -> None:
@@ -470,125 +452,3 @@ def send_important_conversation_message(user_id: str, conversation_id: str):
 
     tag = _generate_tag(f'{user_id}:important_conversation:{conversation_id}')
     _send_to_user(user_id, tag, data=data, is_background=True, priority='high')
-
-
-def send_action_item_update_message(user_id: str, action_item_id: str, description: str, due_at: str):
-    """
-    Sends a data-only FCM message when an action item is updated.
-    The app receives this and reschedules the local notification.
-    """
-    logger.info(f'send_action_item_update_message to user {user_id}')
-    data = {
-        'type': 'action_item_update',
-        'action_item_id': action_item_id,
-        'description': description,
-        'due_at': due_at,
-    }
-    tag = _generate_tag(f"{user_id}:action_item_update:{action_item_id}")
-    _send_to_user(user_id, tag, data=data, is_background=True, priority='high')
-
-
-def send_action_item_deletion_message(user_id: str, action_item_id: str):
-    """
-    Sends a data-only FCM message when an action item is deleted.
-    The app receives this and cancels the scheduled local notification.
-    """
-    logger.info(f'send_action_item_deletion_message to user {user_id}')
-    data = {
-        'type': 'action_item_delete',
-        'action_item_id': action_item_id,
-    }
-    tag = _generate_tag(f"{user_id}:action_item_delete:{action_item_id}")
-    _send_to_user(user_id, tag, data=data, is_background=True, priority='high')
-
-
-def sync_action_item_reminder(
-    user_id: str,
-    action_item_id: str,
-    description: str,
-    completed: bool,
-    due_at: Optional[Union[datetime, str]],
-):
-    """Reconcile the client-scheduled reminder after an action item is created or updated (#5085).
-
-    The mobile client schedules a local reminder from the action-item update/data message and
-    cancels it on the 'action_item_delete' message. The reminder must be cancelled when the task is
-    completed or no longer has a due date, and (re)scheduled only for an open task that still has a
-    due date. Reusing send_action_item_deletion_message is intentional: the client treats it as
-    "cancel the scheduled local notification by id", not as a task deletion.
-    """
-    if completed or not due_at:
-        send_action_item_deletion_message(user_id=user_id, action_item_id=action_item_id)
-        return
-    due_iso: str = due_at.isoformat() if isinstance(due_at, datetime) else due_at
-    send_action_item_update_message(
-        user_id=user_id, action_item_id=action_item_id, description=description or '', due_at=due_iso
-    )
-
-
-def send_action_items_batch_deletion_message(user_id: str, action_item_ids: List[str]):
-    """
-    Bulk equivalent of send_action_item_deletion_message — one FCM data
-    message per chunk of ids (chunked to stay under FCM's 4KB data payload
-    ceiling) instead of one message per id. The app splits the comma-joined
-    ids and cancels each scheduled local notification client-side.
-    """
-    if not action_item_ids:
-        return
-
-    # Action item ids are UUID-shaped (~36 chars); 100 per chunk keeps the
-    # serialized payload comfortably under FCM's 4KB limit.
-    chunk_size = 100
-    # Per-invocation nonce so concurrent bulk-delete calls that happen to
-    # share a leading id don't collide on FCM tags (which would let the
-    # second dispatch silently replace the first).
-    nonce = uuid.uuid4().hex[:8]
-    for start in range(0, len(action_item_ids), chunk_size):
-        chunk = action_item_ids[start : start + chunk_size]
-        data = {
-            'type': 'action_item_batch_delete',
-            'ids': ','.join(chunk),
-        }
-        tag = _generate_tag(f"{user_id}:action_item_batch_delete:{nonce}:{start}")
-        _send_to_user(user_id, tag, data=data, is_background=True, priority='high')
-    logger.info(f'send_action_items_batch_deletion_message to user {user_id} count={len(action_item_ids)}')
-
-
-def send_action_item_created_notification(user_id: str, action_item_description: str):
-    """
-    Sends a notification when a new action item is created via the agentic chat.
-    This provides confirmation that the task was successfully added.
-    """
-    # Truncate description if too long
-    max_length = 60
-    display_description = (
-        action_item_description[:max_length] + '...'
-        if len(action_item_description) > max_length
-        else action_item_description
-    )
-
-    title = "Task Added"
-    body = display_description
-
-    send_notification(user_id, title, body)
-    logger.info(f"Action item created notification sent to user {user_id}")
-
-
-def send_action_item_completed_notification(user_id: str, action_item_description: str):
-    """
-    Sends a notification when a user completes an action item via the agentic chat.
-    This provides positive feedback and confirmation of task completion.
-    """
-    # Truncate description if too long
-    max_length = 60
-    display_description = (
-        action_item_description[:max_length] + '...'
-        if len(action_item_description) > max_length
-        else action_item_description
-    )
-
-    title = "Task Complete! 🎉"
-    body = display_description
-
-    send_notification(user_id, title, body)
-    logger.info(f"Action item completed notification sent to user {user_id}")

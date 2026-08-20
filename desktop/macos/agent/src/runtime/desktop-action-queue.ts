@@ -73,7 +73,7 @@ export interface QueueArtifactDeliveryInput {
 export interface QueueCandidateInput {
   candidateId: string;
   ownerId: string;
-  kind: "memory_candidate" | "task_candidate";
+  kind: "memory_candidate";
   status: DesktopCandidateStatus;
   createdAtMs: number;
   sourceSessionId?: string | null;

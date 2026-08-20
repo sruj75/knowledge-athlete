@@ -7,7 +7,6 @@ from typing import Any, Callable, Iterable, Iterator, Mapping, Sequence, cast
 from database import chat as chat_db
 from database import conversations as conversations_db
 from database import memories as memories_db
-from database.action_items import get_action_items as get_standalone_action_items
 from database.users import get_people, get_user_profile
 
 JsonRecord = dict[str, Any]
@@ -80,16 +79,6 @@ def iter_user_data_export(uid: str) -> Iterator[str]:
 
     people = cast(Sequence[Mapping[str, Any]], get_people(uid))
     yield '  "people": ' + json.dumps(people, default=_json_default, indent=2) + ',\n'
-
-    yield '  "action_items": '
-    yield from _yield_json_array(
-        _iter_paginated(
-            lambda limit, offset: cast(
-                Sequence[Mapping[str, Any]], get_standalone_action_items(uid, limit=limit, offset=offset)
-            )
-        )
-    )
-    yield ',\n'
 
     yield '  "chat_messages": [\n'
     first = True

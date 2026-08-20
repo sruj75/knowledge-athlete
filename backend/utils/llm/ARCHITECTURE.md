@@ -49,7 +49,6 @@ The shared plumbing every feature call goes through.
 
 - `notifications.py` — relevance retrieval and notification content.
 - `proactive_notification.py` — proactive notification drafting + validation.
-- `goals.py` — goal-tracking LLM utilities.
 - `trends.py` — trend extraction.
 - `temporal.py` — current-date grounding injected into prompts.
 

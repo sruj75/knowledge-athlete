@@ -196,30 +196,26 @@
     }
   },
   {
-    "name": "search_tasks",
-    "label": "Search Tasks",
-    "description": "Vector similarity search on tasks. Find tasks by meaning or topic.",
-    "promptSnippet": "search_tasks - Find tasks by meaning",
+    "name": "complete_task",
+    "label": "Complete Task",
+    "description": "Mark a task complete in local task storage.",
+    "promptSnippet": "complete_task - Mark a task as complete",
     "latency": "fast local",
     "inputSchema": {
       "type": "object",
       "properties": {
-        "query": {
+        "task_id": {
           "type": "string",
-          "description": "Natural language task description"
-        },
-        "include_completed": {
-          "type": "boolean",
-          "description": "Include completed tasks"
+          "description": "Surfaced local_<rowid> from action_items"
         }
       },
       "required": [
-        "query"
+        "task_id"
       ],
       "additionalProperties": false
     },
     "annotations": {
-      "readOnlyHint": true,
+      "readOnlyHint": false,
       "destructiveHint": false,
       "openWorldHint": false
     },
@@ -230,7 +226,7 @@
     },
     "intendedForAgents": true,
     "runtimePreconditions": [
-      "Requires local task index."
+      "Requires a surfaced local task ID found via get_action_items or execute_sql."
     ],
     "adapters": {
       "pi-mono": {
@@ -241,24 +237,21 @@
       "desktop_chat"
     ],
     "capabilityDoc": {
-      "title": "Search Tasks",
-      "summary": "Vector similarity search on tasks (action_items + staged_tasks).",
+      "title": "Complete Task",
+      "summary": "Mark a task complete by surfaced local ID.",
       "bullets": [
-        "Use for finding tasks by meaning, not exact keywords, e.g. \"find tasks about shopping\".",
-        "Examples: \"tasks about shopping\", \"anything related to the presentation\".",
-        "Parameters: query (required), include_completed (default false).",
-        "More reliable than hand-writing MATCH queries for task search."
+        "Use after finding the task with get_action_items or execute_sql."
       ]
     }
   },
   {
     "name": "list_agent_sessions",
     "label": "List Agent Sessions",
-    "description": "List Omi-managed agent sessions from the local runtime kernel.\n\nUse when the user asks what Omi agents/subagents are active, recent, failed, or attached to a surface.\nReturns canonical session/run summaries plus task_agents and floating_agent_pills projections.",
+    "description": "List Omi-managed agent sessions from the local runtime kernel.\n\nUse when the user asks what Omi agents/subagents are active, recent, failed, or attached to a surface.\nReturns canonical session/run summaries plus floating_agent_pills projections.",
     "promptSnippet": "list_agent_sessions - List Omi-managed agent sessions and active runs",
     "promptGuidelines": [
-      "Use for current or recent kernel-backed Omi agents/subagents across chat, PTT/realtime, task chat, and floating-bar pills.",
-      "Returns task_agents and floating_agent_pills alongside canonical session summaries.",
+      "Use for current or recent kernel-backed Omi agents/subagents across chat, PTT/realtime, and floating-bar pills.",
+      "Returns floating_agent_pills alongside canonical session summaries.",
       "For a prior child agent's final answer, do not infer run completion from session status or restrict discovery to status='open'. List recent sessions, then call get_agent_run with the returned runId and answer from run.finalText without exposing the internal id."
     ],
     "latency": "fast local",
@@ -282,7 +275,6 @@
           "description": "Optional surface hint. background_agent and delegated_agent discover recent child sessions across concrete surfaces.",
           "enum": [
             "main_chat",
-            "task_chat",
             "realtime",
             "delegated_agent",
             "background_agent",
@@ -319,12 +311,12 @@
       "title": "List Agent Sessions",
       "summary": "List Omi-managed agent sessions from the local runtime kernel.",
       "bullets": [
-        "Use for current or recent kernel-backed Omi agents/subagents across chat, PTT/realtime, task chat, and floating-bar pills.",
-        "Returns task_agents and floating_agent_pills alongside canonical session summaries."
+        "Use for current or recent kernel-backed Omi agents/subagents across chat, PTT/realtime, and floating-bar pills.",
+        "Returns floating_agent_pills alongside canonical session summaries."
       ]
     },
     "voice": {
-      "realtimeDescription": "List canonical Omi-managed agents and subagents, including their sessions/runs, across chat, PTT/realtime, task chat, floating-bar pills, and migrated surfaces. For a prior child agent's final answer, omit status filters: session archive state is not run completion. List recent sessions, then answer from latestRun.finalText or inspect the returned run with get_agent_run. Keep internal ids out of the user-visible response.",
+      "realtimeDescription": "List canonical Omi-managed agents and subagents, including their sessions/runs, across chat, PTT/realtime, floating-bar pills, and migrated general-agent surfaces. For a prior child agent's final answer, omit status filters: session archive state is not run completion. List recent sessions, then answer from latestRun.finalText or inspect the returned run with get_agent_run. Keep internal ids out of the user-visible response.",
       "schemaOverride": {
         "type": "object",
         "properties": {
@@ -332,7 +324,6 @@
             "type": "string",
             "enum": [
               "main_chat",
-              "task_chat",
               "realtime",
               "delegated_agent",
               "background_agent",
@@ -571,60 +562,6 @@
     }
   },
   {
-    "name": "get_desktop_open_loops",
-    "label": "Get Desktop Open Loops",
-    "description": "Summarize unresolved local coordinator loops: blocking dispatches, failed/stale runs, undelivered artifacts, and candidate reviews.",
-    "promptSnippet": "get_desktop_open_loops - Summarize unresolved local agent work",
-    "promptGuidelines": [
-      "Use for quick status answers and voice status summaries."
-    ],
-    "latency": "fast local",
-    "inputSchema": {
-      "type": "object",
-      "properties": {
-        "ownerId": {
-          "type": "string",
-          "description": "Owner id. Defaults to active owner."
-        },
-        "limit": {
-          "type": "number",
-          "description": "Maximum loops. Default 50, max 200."
-        }
-      },
-      "required": [],
-      "additionalProperties": false
-    },
-    "annotations": {
-      "readOnlyHint": true,
-      "destructiveHint": false,
-      "openWorldHint": false
-    },
-    "timeoutClass": "normal",
-    "executor": {
-      "kind": "runtimeControl"
-    },
-    "surfaces": [
-      "desktop_chat",
-      "realtime_voice"
-    ],
-    "capabilityDoc": {
-      "title": "Get Desktop Open Loops",
-      "summary": "Summarize unresolved local coordinator loops: blocking dispatches, failed/stale runs, undelivered artifacts, and candidate reviews.",
-      "bullets": [
-        "Use for quick status answers and voice status summaries."
-      ]
-    },
-    "intendedForAgents": true,
-    "runtimePreconditions": [
-      "Defaults ownerId to active owner."
-    ],
-    "adapters": {
-      "pi-mono": {
-        "advertised": true
-      }
-    }
-  },
-  {
     "name": "build_desktop_context_packet",
     "label": "Build Desktop Context Packet",
     "description": "Persist a minimized DesktopContextPacket plus context-access audit rows from explicit selected snippets.",
@@ -651,7 +588,7 @@
         },
         "surfaceKind": {
           "type": "string",
-          "description": "Surface kind such as main_chat or task_chat."
+          "description": "Surface kind such as main_chat or background_agent."
         },
         "objective": {
           "type": "string",
@@ -907,7 +844,6 @@
             "failure_recovery",
             "artifact_review",
             "memory_candidate",
-            "task_candidate",
             "external_draft",
             "screen_context"
           ]
@@ -1623,7 +1559,6 @@
             "main_chat",
             "floating_bar",
             "realtime",
-            "task_chat",
             "agent_control"
           ]
         },
@@ -1720,7 +1655,6 @@
             "main_chat",
             "floating_bar",
             "realtime",
-            "task_chat",
             "agent_control"
           ]
         },
@@ -1961,7 +1895,6 @@
             "main_chat",
             "floating_bar",
             "realtime",
-            "task_chat",
             "agent_control"
           ]
         },
@@ -2116,58 +2049,9 @@
     }
   },
   {
-    "name": "complete_task",
-    "label": "Complete Task",
-    "description": "Toggle a task's completion status. Syncs to backend.",
-    "promptSnippet": "complete_task - Mark a task as complete/incomplete",
-    "latency": "fast local",
-    "inputSchema": {
-      "type": "object",
-      "properties": {
-        "task_id": {
-          "type": "string",
-          "description": "backendId from action_items"
-        }
-      },
-      "required": [
-        "task_id"
-      ],
-      "additionalProperties": false
-    },
-    "annotations": {
-      "readOnlyHint": false,
-      "destructiveHint": false,
-      "openWorldHint": false
-    },
-    "timeoutClass": "normal",
-    "executor": {
-      "kind": "swiftTool",
-      "executorName": "chatToolExecutor"
-    },
-    "intendedForAgents": true,
-    "runtimePreconditions": [
-      "Requires a backendId found via execute_sql or search_tasks."
-    ],
-    "adapters": {
-      "pi-mono": {
-        "advertised": true
-      }
-    },
-    "surfaces": [
-      "desktop_chat"
-    ],
-    "capabilityDoc": {
-      "title": "Complete Task",
-      "summary": "Toggle a task's completion status by backendId.",
-      "bullets": [
-        "Use after finding the task with execute_sql or search_tasks."
-      ]
-    }
-  },
-  {
     "name": "delete_task",
     "label": "Delete Task",
-    "description": "Delete a task permanently. Syncs to backend.",
+    "description": "Delete a task in local task storage.",
     "promptSnippet": "delete_task - Delete a task permanently",
     "latency": "fast local",
     "inputSchema": {
@@ -2175,7 +2059,7 @@
       "properties": {
         "task_id": {
           "type": "string",
-          "description": "backendId from action_items"
+          "description": "Surfaced local_<rowid> from action_items"
         }
       },
       "required": [
@@ -2195,7 +2079,7 @@
     },
     "intendedForAgents": true,
     "runtimePreconditions": [
-      "Requires a backendId found via execute_sql or search_tasks."
+      "Requires a surfaced local task ID found via get_action_items or execute_sql."
     ],
     "adapters": {
       "pi-mono": {
@@ -2207,9 +2091,9 @@
     ],
     "capabilityDoc": {
       "title": "Delete Task",
-      "summary": "Delete a task permanently by backendId.",
+      "summary": "Delete a task by surfaced local ID.",
       "bullets": [
-        "Use after finding the task with execute_sql or search_tasks."
+        "Use after finding the task with get_action_items or execute_sql."
       ]
     }
   },
@@ -2466,9 +2350,9 @@
   {
     "name": "get_action_items",
     "label": "Get Action Items",
-    "description": "Retrieve user tasks from Omi backend. Filter by completion status or due date.",
+    "description": "Retrieve owner-local tasks. Filter by completion status or due date.",
     "promptSnippet": "get_action_items - Retrieve tasks",
-    "latency": "fast network",
+    "latency": "fast local",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -2510,7 +2394,7 @@
     },
     "intendedForAgents": true,
     "runtimePreconditions": [
-      "Requires authenticated backend access."
+      "Requires the current owner's local task database."
     ],
     "adapters": {
       "pi-mono": {
@@ -2538,7 +2422,7 @@
     "label": "Create Action Item",
     "description": "Create a new task. Use when user explicitly asks to add a task.",
     "promptSnippet": "create_action_item - Create a new task",
-    "latency": "fast network",
+    "latency": "fast local",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -2549,9 +2433,6 @@
         "due_at": {
           "type": "string",
           "description": "Due date ISO"
-        },
-        "conversation_id": {
-          "type": "string"
         }
       },
       "required": [
@@ -2571,7 +2452,7 @@
     },
     "intendedForAgents": true,
     "runtimePreconditions": [
-      "Requires authenticated backend access."
+      "Requires the current owner's local task database."
     ],
     "adapters": {
       "pi-mono": {
@@ -2587,7 +2468,7 @@
       "summary": "Create a new task, to-do, or reminder.",
       "bullets": [
         "Use when the user explicitly asks to add something to their list.",
-        "Pass a concise description and due_at only when the user gave a time."
+        "Pass a concise description; omit due_at to use the local 24-hour default."
       ]
     },
     "voice": {
@@ -2599,13 +2480,13 @@
     "label": "Update Action Item",
     "description": "Update task status, description, or due date.",
     "promptSnippet": "update_action_item - Update an existing task",
-    "latency": "fast network",
+    "latency": "fast local",
     "inputSchema": {
       "type": "object",
       "properties": {
         "action_item_id": {
           "type": "string",
-          "description": "Task ID (required)"
+          "description": "Surfaced local_<rowid> task ID (required)"
         },
         "completed": {
           "type": "boolean"
@@ -2634,7 +2515,7 @@
     },
     "intendedForAgents": true,
     "runtimePreconditions": [
-      "Requires authenticated backend access."
+      "Requires the current owner's local task database."
     ],
     "adapters": {
       "pi-mono": {

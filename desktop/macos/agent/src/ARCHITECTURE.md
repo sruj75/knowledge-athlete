@@ -78,8 +78,9 @@ Swift desktop client
 
 - Memory Export and onboarding connector names are not agent-runtime entrances;
   their removal or redesign belongs to S-06 and S-17.
-- Workstream persistence remains a kernel surface, but terminal workstream runs
-  never enter completion-to-voice delivery.
+- Task-attached agent, task-chat, and workstream persistence are retired; the
+  runtime keeps only general Chat, realtime, delegated-agent, service, and
+  floating-bar surfaces.
 - The four live non-agent extraction callers retain their fixed Haiku request
   through the existing managed completion transport. Their model alias and any
   later migration belong to S-22. Retired agent/provider names may appear only

@@ -218,8 +218,6 @@ function journalOrigin(raw: unknown): ConversationTurnOrigin {
     case "agent_runtime":
     case "notification":
     case "tool_runtime":
-    case "task_chat":
-    case "workstream":
     case "swift_backfill":
     case "legacy":
       return raw;

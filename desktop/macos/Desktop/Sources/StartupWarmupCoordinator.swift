@@ -134,12 +134,6 @@ final class StartupWarmupCoordinator {
 
     tasksStore.scheduleStartupMaintenanceIfNeeded()
 
-    await measurePerfAsync("DATA LOAD: DB lifecycle warmup") {
-      await measurePerfAsync("DATA LOAD: Task agent restore") {
-        await TaskAgentManager.shared.restoreSessionsFromDatabase()
-      }
-    }
-
     logPerf("DATA LOAD: DB warmup complete", cpu: true)
   }
 

@@ -36,30 +36,6 @@ extension APIClient {
     let limit: Int
   }
 
-  struct CreateActionItemRequest: Encodable {
-    let description: String
-    let dueAt: String?
-    let conversationId: String?
-
-    enum CodingKeys: String, CodingKey {
-      case description
-      case dueAt = "due_at"
-      case conversationId = "conversation_id"
-    }
-  }
-
-  struct UpdateActionItemRequest: Encodable {
-    let completed: Bool?
-    let description: String?
-    let dueAt: String?
-
-    enum CodingKeys: String, CodingKey {
-      case completed
-      case description
-      case dueAt = "due_at"
-    }
-  }
-
   /// Percent-encode a date string for use in query parameters.
   /// `.urlQueryAllowed` does not encode `+`, but servers decode `+` as space in query strings.
   /// This encodes `+` as `%2B` so timezone offsets like `+07:00` survive round-trip.
@@ -136,64 +112,6 @@ extension APIClient {
     let body = MemorySearchRequest(query: query, limit: limit)
     return try await post(
       "v1/tools/memories/search",
-      body: body,
-      customBaseURL: nil,
-      expectedOwnerId: expectedOwnerId,
-      authorizationSnapshot: authorizationSnapshot)
-  }
-
-  func toolGetActionItems(
-    limit: Int = 50,
-    offset: Int = 0,
-    completed: Bool? = nil,
-    startDate: String? = nil,
-    endDate: String? = nil,
-    dueStartDate: String? = nil,
-    dueEndDate: String? = nil,
-    expectedOwnerId: String? = nil,
-    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot? = nil
-  ) async throws -> ToolResponse {
-    var params = "v1/tools/action-items?limit=\(limit)&offset=\(offset)"
-    if let c = completed { params += "&completed=\(c)" }
-    if let sd = startDate { params += "&start_date=\(encodeQueryDate(sd))" }
-    if let ed = endDate { params += "&end_date=\(encodeQueryDate(ed))" }
-    if let dsd = dueStartDate { params += "&due_start_date=\(encodeQueryDate(dsd))" }
-    if let ded = dueEndDate { params += "&due_end_date=\(encodeQueryDate(ded))" }
-    return try await get(
-      params,
-      customBaseURL: nil,
-      expectedOwnerId: expectedOwnerId,
-      authorizationSnapshot: authorizationSnapshot)
-  }
-
-  func toolCreateActionItem(
-    description: String,
-    dueAt: String? = nil,
-    conversationId: String? = nil,
-    expectedOwnerId: String? = nil,
-    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot? = nil
-  ) async throws -> ToolResponse {
-    let body = CreateActionItemRequest(
-      description: description, dueAt: dueAt, conversationId: conversationId)
-    return try await post(
-      "v1/tools/action-items",
-      body: body,
-      customBaseURL: nil,
-      expectedOwnerId: expectedOwnerId,
-      authorizationSnapshot: authorizationSnapshot)
-  }
-
-  func toolUpdateActionItem(
-    id: String,
-    completed: Bool? = nil,
-    description: String? = nil,
-    dueAt: String? = nil,
-    expectedOwnerId: String? = nil,
-    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot? = nil
-  ) async throws -> ToolResponse {
-    let body = UpdateActionItemRequest(completed: completed, description: description, dueAt: dueAt)
-    return try await patch(
-      "v1/tools/action-items/\(id)",
       body: body,
       customBaseURL: nil,
       expectedOwnerId: expectedOwnerId,

@@ -1177,7 +1177,7 @@ import XCTest
       let provider = ChatProvider()
       provider.projectJournalTurn(
         try turn(
-          surface: .workstream(workstreamId: "workstream-1"),
+          surface: .service("other-surface"),
           turnId: "wrong-surface",
           turnSeq: 1,
           content: "Do not project"
@@ -1335,9 +1335,6 @@ import XCTest
     func testKernelJournalIsOnlyDurableDesktopChatWriter() throws {
       let provider = try sourceFile("Providers/ChatProvider.swift")
       let journalProjection = try sourceFile("Providers/ChatProvider+JournalProjection.swift")
-      let taskState = try sourceFile(
-        "ProactiveAssistants/Assistants/TaskAgent/TaskChatState.swift")
-      let taskStorage = try sourceFile("Rewind/Core/TaskChatMessageStorage.swift")
       let realtime = try RealtimeHubControllerSourceTestSupport.moduleSource(testFilePath: #filePath)
       let runtime = try sourceFile("Chat/AgentRuntimeProcess.swift")
 
@@ -1356,13 +1353,6 @@ import XCTest
       XCTAssertLessThan(preview.lowerBound, analytics.lowerBound)
       XCTAssertEqual(provider.components(separatedBy: "APIClient.shared.getMessages(").count - 1, 2)
       XCTAssertEqual(provider.components(separatedBy: "expectedOwnerId: ownerId").count - 1, 4)
-      XCTAssertFalse(taskState.contains("persistMessage("))
-      XCTAssertFalse(taskStorage.contains("PersistableRecord"))
-      XCTAssertFalse(taskStorage.contains("func insert("))
-      XCTAssertFalse(taskStorage.contains("func save("))
-      XCTAssertFalse(taskStorage.contains("func getMessages("))
-      XCTAssertFalse(taskStorage.contains("func getMessagesForWorkstream("))
-      XCTAssertFalse(taskStorage.contains("func search("))
       XCTAssertFalse(realtime.contains("RealtimeVoiceTurnOutbox"))
       XCTAssertFalse(runtime.contains("import_conversation_turns"))
       XCTAssertFalse(runtime.contains("record_surface_turn"))

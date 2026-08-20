@@ -5,6 +5,13 @@ import Foundation
 class TaskAssistantSettings {
   static let shared = TaskAssistantSettings()
 
+  /// Commit-time gate for work that may finish after the setting is toggled.
+  /// This is intentionally nonisolated so owner-fenced database transactions
+  /// can recheck it synchronously immediately before commit.
+  nonisolated static func isEnabledForCommit(defaults: UserDefaults = .standard) -> Bool {
+    (defaults.object(forKey: "taskAssistantEnabled") as? Bool) ?? true
+  }
+
   // MARK: - UserDefaults Keys
 
   private let enabledKey = "taskAssistantEnabled"
@@ -263,21 +270,6 @@ class TaskAssistantSettings {
     - Resolve relative dates using the current date provided: "Thursday" → the next upcoming Thursday, "tomorrow" → the next day, "next week" → the following Monday
     - If a specific time is mentioned ("by 3pm Friday"), just use the date portion (yyyy-MM-dd)
     - CRITICAL: Any deadline you assign MUST be today or in the future. If you see a date mentioned in the screenshot that is already in the past (before the current date provided), do NOT use it as the deadline. Leave inferred_deadline empty instead.
-
-    SOURCE CLASSIFICATION (mandatory for every extracted task):
-    Classify each task's origin with source_category + source_subcategory.
-    Categories and their subcategories:
-    - direct_request: Someone explicitly asked the user to do something.
-      → message (chat/email message), meeting (verbal request in meeting), mention (@mention/tag), commitment (user agreed/committed to doing something asked of them)
-    - self_generated: User created this for themselves.
-      → idea (user's own idea/note), reminder (explicit "remind me"), goal_subtask (part of a larger goal)
-    - calendar_driven: Triggered by a calendar event or deadline.
-      → event_prep (prepare for upcoming event), recurring (repeating task), deadline (approaching due date)
-    - reactive: Response to something that happened.
-      → error (build error/crash), notification (system/app notification), observation (something noticed on screen)
-    - external_system: Comes from a project tool or automated system.
-      → project_tool (Jira/Linear/Trello), alert (monitoring/CI alert), documentation (doc update needed)
-    - other: None of the above. → other
 
     Examples:
     - Slack message "Can you review my PR?" → direct_request / message

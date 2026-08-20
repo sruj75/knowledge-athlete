@@ -24,9 +24,6 @@ from utils.retrieval.tools import (
     search_conversations_tool,
     get_memories_tool,
     search_memories_tool,
-    get_action_items_tool,
-    create_action_item_tool,
-    update_action_item_tool,
     get_omi_product_info_tool,
     search_files_tool,
     manage_daily_summary_tool,
@@ -121,9 +118,6 @@ CORE_TOOLS = [
     search_conversations_tool,
     get_memories_tool,
     search_memories_tool,
-    get_action_items_tool,
-    create_action_item_tool,
-    update_action_item_tool,
     get_omi_product_info_tool,
     search_files_tool,
     manage_daily_summary_tool,
@@ -145,9 +139,6 @@ def get_tool_display_name(tool_name: str, tool_obj: Optional[Any] = None) -> str
         'search_conversations_tool': 'Searching conversations',
         'get_memories_tool': 'Searching memories',
         'search_memories_tool': 'Searching memories',
-        'get_action_items_tool': 'Checking action items',
-        'create_action_item_tool': 'Creating action item',
-        'update_action_item_tool': 'Updating action item',
         'get_omi_product_info_tool': 'Looking up product info',
         'manage_daily_summary_tool': 'Updating notification settings',
         'create_chart_tool': 'Creating chart',
@@ -166,9 +157,6 @@ def get_tool_display_name(tool_name: str, tool_obj: Optional[Any] = None) -> str
         return 'Searching memories'
     elif 'conversation' in tool_name.lower():
         return 'Searching conversations'
-    elif 'action' in tool_name.lower():
-        return 'Checking action items'
-
     return tool_name.replace('_', ' ').title()
 
 

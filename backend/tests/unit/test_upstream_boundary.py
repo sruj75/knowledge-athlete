@@ -60,13 +60,11 @@ def _ensure_process_conversation_importable():
         "database.conversations",
         "database.memories",
         "database.short_term_memories",
-        "database.action_items",
         "database.folders",
         "database.users",
         "database.user_usage",
         "database.vector_db",
         "database.chat",
-        "database.goals",
         "database.notifications",
         "database.tasks",
         "database.trends",
@@ -94,22 +92,22 @@ def _ensure_process_conversation_importable():
         "utils.other.storage",
         "utils.other.hume",
         "utils.analytics",
+        "utils.cloud_tasks",
         "utils.retrieval.rag",
         "utils.llm.memories",
         "utils.llm.conversation_processing",
         "utils.llm.daily_summary",
         "utils.llm.trends",
-        "utils.llm.goals",
         "utils.llm.chat",
         "utils.llm.clients",
         "utils.llm.usage_tracker",
         "utils.conversations.factory",
+        "utils.conversations.lifecycle",
         "utils.conversations.subjects",
         "utils.conversations.transcript_chunks",
         "utils.notifications",
         "utils.executors",
         "utils.subscription",
-        "utils.task_intelligence.workstream_association",
     ]
     for mod_name in stubs:
         if mod_name not in sys.modules:
@@ -140,46 +138,35 @@ def _ensure_process_conversation_importable():
     usage.track_usage = MagicMock(return_value=types.SimpleNamespace(__enter__=lambda s: s, __exit__=lambda *a: None))
     usage.Features = types.SimpleNamespace(
         MEMORIES=MagicMock(),
-        CONVERSATION_ACTION_ITEMS=MagicMock(),
-        GOALS=MagicMock(),
         CONVERSATION_FOLDER=MagicMock(),
     )
-    sys.modules["utils.task_intelligence.workstream_association"].associate_canonical_evidence = MagicMock()
 
     sys.modules.pop("utils.conversations.process_conversation", None)
     return importlib.import_module("utils.conversations.process_conversation")
 
 
 class TestStoreSeparation:
-    """Firestore collection names must stay disjoint — no silent store aliasing."""
+    """Conversation and memory collections stay disjoint."""
 
     def test_conversation_and_memory_collections_are_distinct_constants(self):
         conversations_collection = _collection_constant("database/conversations.py", "conversations_collection")
         memories_collection = _collection_constant("database/memories.py", "memories_collection")
         short_term_collection = _collection_constant("database/short_term_memories.py", "short_term_collection")
-        action_items_collection = _collection_constant("database/action_items.py", "action_items_collection")
-        goals_collection = _collection_constant("database/goals.py", "goals_collection")
 
         memory_stores = {memories_collection, short_term_collection}
-        workflow = {action_items_collection, goals_collection}
 
         assert conversations_collection not in memory_stores
-        assert conversations_collection not in workflow
-        assert memory_stores.isdisjoint(workflow)
 
 
 class TestExtractionSeamFanOut:
-    """process_conversation must fan out to separate downstream writers."""
+    """process_conversation must retain the memory extraction writer."""
 
-    def test_process_conversation_submits_three_separate_postprocess_tasks(self):
+    def test_process_conversation_submits_memory_postprocessing(self):
         source = PROCESS_CONVERSATION_PATH.read_text(encoding="utf-8")
-        # Characterization of the live seam — WS-I must keep three distinct destinations.
         assert "submit_with_context(postprocess_executor, _extract_memories" in source
-        assert "submit_with_context(postprocess_executor, _save_action_items" in source
-        assert "submit_with_context(postprocess_executor, _update_goal_progress" in source
 
-    def test_fan_out_invokes_memory_action_item_and_goal_paths_separately(self):
-        """Functional: mocked postprocess submits must hit three different callables."""
+    def test_fan_out_invokes_memory_path(self):
+        """Functional: mocked postprocess submits include the memory callable."""
         pc = _ensure_process_conversation_importable()
 
         from models.conversation import Conversation
@@ -231,11 +218,6 @@ class TestExtractionSeamFanOut:
 
         submitted_fns = {fn.__name__ for fn, _ in submitted if callable(fn) and hasattr(fn, "__name__")}
         assert "_extract_memories" in submitted_fns
-        assert "_save_action_items" in submitted_fns
-        assert "_update_goal_progress" in submitted_fns
-        assert (
-            len(submitted_fns.intersection({"_extract_memories", "_save_action_items", "_update_goal_progress"})) == 3
-        )
 
 
 class TestNoConversationAsMemory:

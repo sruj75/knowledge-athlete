@@ -419,7 +419,7 @@ extension SettingsContentView {
       async let conversationsCount = TranscriptionStorage.shared.conversationCount(query: .all)
       async let focusCount = ProactiveStorage.shared.getTotalFocusSessionCount()
       async let filterCounts = ActionItemStorage.shared.getFilterCounts()
-      async let goals = APIClient.shared.getGoals()
+      async let goals = GoalStorage.shared.getLocalGoals(activeOnly: false)
       async let memoryStats = MemoryStorage.shared.getStats()
 
       let cc = try await conversationsCount

@@ -60,7 +60,6 @@ for submodule in [
     "llm_usage",
     "_client",
     "chat",
-    "goals",
     "daily_summaries",
     "notifications",
     "auth",
@@ -72,8 +71,6 @@ sys.modules["database.llm_usage"].record_llm_usage = MagicMock()
 sys.modules["database.notifications"].get_mentor_notification_frequency = MagicMock(return_value=3)
 sys.modules["database.notifications"].get_user_time_zone = MagicMock(return_value="America/Los_Angeles")
 sys.modules["database.auth"].get_user_name = MagicMock(return_value="Alice")
-sys.modules["database.goals"].get_user_goal = MagicMock(return_value=None)
-sys.modules["database.goals"].get_user_goals = MagicMock(return_value=[])
 sys.modules["database.redis_db"].get_filter_category_items = MagicMock(return_value=[])
 sys.modules["database.redis_db"].add_filter_category_item = MagicMock()
 sys.modules["database.redis_db"].get_cached_user_geolocation = MagicMock(return_value=None)
@@ -268,7 +265,7 @@ def _get_chat_module():
     return _load_module_from_file("utils.llm.chat", BACKEND_DIR / "utils" / "llm" / "chat.py")
 
 
-def _set_user(chat_mod, name: str, tz: str, goal=None):
+def _set_user(chat_mod, name: str, tz: str):
     """
     Patch the already-bound references inside the loaded chat module.
 
@@ -278,8 +275,6 @@ def _set_user(chat_mod, name: str, tz: str, goal=None):
     """
     chat_mod.get_user_name = MagicMock(return_value=name)
     chat_mod.notification_db.get_user_time_zone = MagicMock(return_value=tz)
-    chat_mod.goals_db.get_user_goal = MagicMock(return_value=goal)
-    chat_mod.goals_db.get_user_goals = MagicMock(return_value=[goal] if goal else [])
     chat_mod.ZoneInfo = _test_zone_info
 
 
@@ -316,9 +311,6 @@ def _get_agentic_module():
         "search_conversations_tool",
         "get_memories_tool",
         "search_memories_tool",
-        "get_action_items_tool",
-        "create_action_item_tool",
-        "update_action_item_tool",
         "get_omi_product_info_tool",
         "search_files_tool",
         "manage_daily_summary_tool",
@@ -380,36 +372,6 @@ def test_static_prefix_identical_for_different_users():
         f"Alice prefix length: {len(alice_prefix)}, Bob prefix length: {len(bob_prefix)}\n"
         f"First diff at: {_find_first_diff(alice_prefix, bob_prefix)}"
     )
-
-
-def test_static_prefix_identical_with_and_without_goal():
-    """
-    Static prefix stays the same whether the user has a goal set or not.
-    Goal section is dynamic and comes after <assistant_role>.
-    """
-    chat_mod = _get_chat_module()
-    fn = chat_mod._get_agentic_qa_prompt
-
-    # Without goal
-    _set_user(chat_mod, "TestUser", "America/Los_Angeles", goal=None)
-    prompt_no_goal = fn("uid_1")
-
-    # With goal
-    _set_user(
-        chat_mod, "TestUser", "America/Los_Angeles", goal={"title": "Run 5K", "current_value": 2, "target_value": 5}
-    )
-    prompt_with_goal = fn("uid_1")
-
-    marker = "<assistant_role>"
-    prefix_no_goal = prompt_no_goal[: prompt_no_goal.index(marker)]
-    prefix_with_goal = prompt_with_goal[: prompt_with_goal.index(marker)]
-
-    assert prefix_no_goal == prefix_with_goal, "Static prefix must not change when user has a goal set"
-
-    # But the full prompts should differ (goal section is dynamic)
-    assert prompt_no_goal != prompt_with_goal, "Full prompts should differ when goal is set"
-    assert "<user_goals>" in prompt_with_goal
-    assert "<user_goals>" not in prompt_no_goal
 
 
 def test_dynamic_sections_actually_vary_per_user():
@@ -553,10 +515,10 @@ def test_static_prefix_exceeds_minimum_cache_tokens():
 # ---------------------------------------------------------------------------
 
 
-def test_core_tools_has_13_retained_tools():
+def test_core_tools_has_10_retained_tools():
     """CORE_TOOLS contains only the retained first-party tools."""
     agentic_mod = _get_agentic_module()
-    assert len(agentic_mod.CORE_TOOLS) == 13, f"CORE_TOOLS has {len(agentic_mod.CORE_TOOLS)} tools, expected 13"
+    assert len(agentic_mod.CORE_TOOLS) == 10, f"CORE_TOOLS has {len(agentic_mod.CORE_TOOLS)} tools, expected 10"
 
 
 def test_core_tools_list_creates_independent_copy():
@@ -579,9 +541,9 @@ def test_core_tools_list_creates_independent_copy():
     request_local_tool.name = "request_local_tool"
     tools_a.append(request_local_tool)
 
-    assert len(tools_a) == 14
-    assert len(tools_b) == 13
-    assert len(agentic_mod.CORE_TOOLS) == 13, "CORE_TOOLS was mutated!"
+    assert len(tools_a) == 11
+    assert len(tools_b) == 10
+    assert len(agentic_mod.CORE_TOOLS) == 10, "CORE_TOOLS was mutated!"
 
 
 def test_core_tools_order_matches_exports():
@@ -596,9 +558,6 @@ def test_core_tools_order_matches_exports():
         "search_conversations_tool",
         "get_memories_tool",
         "search_memories_tool",
-        "get_action_items_tool",
-        "create_action_item_tool",
-        "update_action_item_tool",
         "get_omi_product_info_tool",
         "search_files_tool",
         "manage_daily_summary_tool",

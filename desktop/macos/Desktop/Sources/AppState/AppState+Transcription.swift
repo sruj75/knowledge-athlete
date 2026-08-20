@@ -456,13 +456,7 @@ extension AppState {
           },
           onChange: { [weak self] active in
             Task { @MainActor in await self?.reconcileCapture() }
-            if let event = TaskLocalContextEvent.normalized(
-              kind: .meeting,
-              rawReference: active ? "meeting-active" : "meeting-ended"
-            ) {
-              let matched = TaskContextSubjectMatcher.shared.resolve(event)
-              Task { await TaskContextualResurfacingService.shared.observe(matched) }
-            }
+            _ = active
           }
         )
         meetingDetector = detector

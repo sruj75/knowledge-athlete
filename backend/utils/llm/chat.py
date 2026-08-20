@@ -8,7 +8,6 @@ from pydantic import BaseModel, Field, ValidationError
 
 import database.users as users_db
 import database.notifications as notification_db
-import database.goals as goals_db
 from database.redis_db import add_filter_category_item
 from database.auth import get_user_name
 from models.chat import Message, MessageSender, PageContext
@@ -541,25 +540,7 @@ When you see [Files attached: X file(s), IDs: ...], you can reference those file
 
 """
 
-    # Get user's current goals
-    user_goals = goals_db.get_user_goals(uid)
     goal_section = ""
-    if user_goals:
-        goals_lines: List[str] = []
-        for g in user_goals:
-            g_title = g.get('title', '')
-            g_current = g.get('current_value', 0)
-            g_target = g.get('target_value', 0)
-            goals_lines.append(f'- "{g_title}" (Progress: {g_current}/{g_target})')
-        goals_list = "\n".join(goals_lines)
-        goal_section = f"""
-<user_goals>
-{user_name}'s current goals:
-{goals_list}
-Keep these goals in mind when giving advice or suggestions.
-</user_goals>
-
-"""
 
     # Add page context if provided
     context_section = ""

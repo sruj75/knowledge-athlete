@@ -45,7 +45,7 @@ describe("desktop action queue", () => {
           deliveryStatus: "pending",
           createdAtMs: 4_000,
           updatedAtMs: 7_000,
-          targetKind: "task_chat",
+          targetKind: "local_file",
         },
       ],
     });
@@ -296,7 +296,7 @@ describe("desktop action queue", () => {
           deliveryStatus: "pending",
           createdAtMs: 7_000,
           updatedAtMs: 8_000,
-          targetKind: "task_chat",
+          targetKind: "local_file",
         },
       ],
     });
@@ -343,9 +343,9 @@ describe("desktop action queue", () => {
       nowMs: 10_000,
       candidates: [
         {
-          candidateId: "task-candidate-1",
+          candidateId: "memory-candidate-1",
           ownerId: "owner-1",
-          kind: "task_candidate",
+          kind: "memory_candidate",
           status: "pending",
           createdAtMs: 5_000,
         },

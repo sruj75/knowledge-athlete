@@ -19,7 +19,6 @@ final class TasksViewModelLoadMoreTappedTests: XCTestCase {
     let store = TasksStore.shared
     store.resetSessionState()
     let vm = TasksViewModel()
-    vm.selectedTags = [.todo]
 
     // The list is empty at execution time (the store was reset). The old
     // displayTasks.last! would have crashed here; loadMoreTapped must return.

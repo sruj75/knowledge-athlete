@@ -1,68 +1,20 @@
 import OmiTheme
 import SwiftUI
 
-struct TaskDetailMetadataEntry: Identifiable, Equatable {
-  let key: String
-  let label: String
-  let value: String
-
-  var id: String { key }
-}
-
-enum TaskDetailMetadataProjection {
-  private static let legacySentryMetadataKeys: Set<String> = [
-    "sentry_issue_id", "sentry_issue_url", "sentry_short_id", "sentry_url",
-    "reporter_name", "reporter_email", "feedback_type",
-    "app_version", "app_build", "os", "device_model", "contexts",
-  ]
-
-  static func entries(
-    from metadata: [String: Any],
-    excluding excludedKeys: Set<String>,
-    source: String?,
-    arraySeparator: String = ", "
-  ) -> [TaskDetailMetadataEntry] {
-    let hiddenKeys = source == "sentry_feedback" ? legacySentryMetadataKeys : []
-    return
-      metadata
-      .filter { !hiddenKeys.contains($0.key) && !excludedKeys.contains($0.key) }
-      .compactMap { entry in
-        let display: String
-        if let string = entry.value as? String, !string.isEmpty {
-          display = string
-        } else if let number = entry.value as? NSNumber {
-          display = number.stringValue
-        } else if let array = entry.value as? [String] {
-          display = array.joined(separator: arraySeparator)
-        } else {
-          return nil
-        }
-        return TaskDetailMetadataEntry(
-          key: entry.key,
-          label: entry.key.replacingOccurrences(of: "_", with: " ").capitalized,
-          value: display
-        )
-      }
-      .sorted { $0.key < $1.key }
-  }
-}
-
-// MARK: - Task Detail Button
-
-/// Small inline info button with hover preview and click-to-open detail modal.
-/// Hover shows a popover preview; click opens the full detail sheet.
-/// The popover stays open while the cursor is on the button OR the popover itself.
+/// Small info button with a pointer-transfer-safe hover preview and a fixed,
+/// scrolling detail sheet. Only explicitly retained task fields are rendered.
 struct TaskDetailButton: View {
   let task: TaskActionItem
   @Binding var showDetail: Bool
   @State private var showTooltip = false
-  @State private var isButtonHovered = false
-  @State private var isPopoverHovered = false
+  @State private var buttonHovered = false
+  @State private var popoverHovered = false
   @State private var dismissWork: DispatchWorkItem?
 
   var body: some View {
     Button {
-      dismissNow()
+      dismissWork?.cancel()
+      showTooltip = false
       showDetail = true
     } label: {
       Image(systemName: "info.circle")
@@ -70,225 +22,150 @@ struct TaskDetailButton: View {
         .foregroundColor(showTooltip ? OmiColors.textSecondary : OmiColors.textTertiary)
     }
     .buttonStyle(.plain)
-    .onHover { hovering in
-      isButtonHovered = hovering
-      scheduleHoverUpdate()
+    .onHover { hovered in
+      buttonHovered = hovered
+      updateTooltip()
     }
     .popover(isPresented: $showTooltip, attachmentAnchor: .rect(.bounds), arrowEdge: .bottom) {
-      TaskDetailTooltip(task: task, isPopoverHovered: $isPopoverHovered)
-        .onHover { hovering in
-          isPopoverHovered = hovering
-          scheduleHoverUpdate()
+      TaskDetailTooltip(task: task)
+        .onHover { hovered in
+          popoverHovered = hovered
+          updateTooltip()
         }
     }
   }
 
-  private func scheduleHoverUpdate() {
+  private func updateTooltip() {
     dismissWork?.cancel()
-    if isButtonHovered || isPopoverHovered {
+    if buttonHovered || popoverHovered {
       showTooltip = true
     } else {
-      // Short delay so the cursor can travel from button to popover
       let work = DispatchWorkItem { showTooltip = false }
       dismissWork = work
       DispatchQueue.main.asyncAfter(deadline: .now() + 0.25, execute: work)
     }
   }
-
-  private func dismissNow() {
-    dismissWork?.cancel()
-    showTooltip = false
-  }
 }
 
-// MARK: - Task Detail Tooltip
-
-/// Compact hover preview showing all task fields
 private struct TaskDetailTooltip: View {
   let task: TaskActionItem
-  @Binding var isPopoverHovered: Bool
-
-  private var metadata: [String: Any] {
-    task.parsedMetadata ?? [:]
-  }
 
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: OmiSpacing.xs) {
-        // Core fields
-        tooltipRow("Status", task.completed ? "Completed" : "Active")
-        if let category = task.category {
-          tooltipRow("Category", category.capitalized)
-        }
-        if !task.tags.isEmpty {
-          tooltipRow("Tags", task.tags.joined(separator: ", "))
-        }
-        if let priority = task.priority {
-          tooltipRow("Priority", priority.capitalized)
-        }
-        if let source = task.source {
-          tooltipRow("Source", "\(task.sourceLabel) (\(source))")
-        }
-        if let app = task.sourceApp {
-          tooltipRow("App", app)
-        }
-        if let window = task.windowTitle {
-          tooltipRow("Window", window)
-        }
-        tooltipRow(
-          "Created",
-          {
-            let f = DateFormatter()
-            f.dateStyle = .medium
-            f.timeStyle = .short
-            return f.string(from: task.createdAt)
-          }())
-        if let dueAt = task.dueAt {
-          tooltipRow(
-            "Due",
-            {
-              let f = DateFormatter()
-              f.dateStyle = .medium
-              f.timeStyle = .short
-              return f.string(from: dueAt)
-            }())
-        }
-        if let goalId = task.goalId {
-          tooltipRow("Goal", goalId)
-        }
-
-        // Context
-        if let ctx = task.contextSummary, !ctx.isEmpty {
-          tooltipBlock("Context", ctx)
-        }
-        if let act = task.currentActivity, !act.isEmpty {
-          tooltipBlock("Activity", act)
-        }
-
-        // Agent
-        if let status = task.agentStatus {
-          tooltipRow("Agent", status.capitalized)
-        }
-
-        // All metadata (compact)
-        ForEach(allMetadataEntries, id: \.key) { entry in
-          if entry.value.count > 60 || entry.value.contains("\n") {
-            tooltipBlock(entry.label, entry.value)
-          } else {
-            tooltipRow(entry.label, entry.value)
-          }
-        }
+        detail("Status", task.completed ? "Completed" : "Active")
+        if let priority = task.priority { detail("Priority", priority.capitalized) }
+        if let dueAt = task.dueAt { detail("Due", Self.date(dueAt)) }
+        if let recurrence = task.recurrenceRule { detail("Repeats", Self.recurrence(recurrence)) }
+        detail("Created", Self.date(task.createdAt))
+        if let source = task.source { detail("Source", task.sourceLabel + " (" + source + ")") }
+        if let sourceApp = task.sourceApp { detail("App", sourceApp) }
+        if let windowTitle = task.windowTitle { detail("Window", windowTitle) }
+        if let context = task.contextSummary, !context.isEmpty { block("Context", context) }
+        if let activity = task.currentActivity, !activity.isEmpty { block("Activity", activity) }
+        if let confidence = task.confidence { detail("Confidence", "\(Int(confidence * 100))%") }
+        let sourceCount = (task.provenance ?? []).count
+        if sourceCount > 0 { detail("Evidence", "\(sourceCount) linked source\(sourceCount == 1 ? "" : "s")") }
       }
       .padding(OmiSpacing.sm)
     }
     .frame(maxWidth: 350, maxHeight: 400)
   }
 
-  /// All metadata entries, skipping keys already shown as direct fields
-  private var allMetadataEntries: [TaskDetailMetadataEntry] {
-    let skip: Set<String> = [
-      "tags", "source_app", "window_title", "confidence",
-      "source_category", "source_subcategory",
-      "context_summary", "current_activity",
-    ]
-    guard let meta = task.parsedMetadata else { return [] }
-    return TaskDetailMetadataProjection.entries(from: meta, excluding: skip, source: task.source)
-  }
-
-  private func tooltipRow(_ label: String, _ value: String) -> some View {
+  private func detail(_ label: String, _ value: String) -> some View {
     HStack(alignment: .top, spacing: OmiSpacing.xs) {
       Text(label)
         .scaledFont(size: OmiType.caption, weight: .medium)
         .foregroundColor(OmiColors.textTertiary)
         .frame(width: 70, alignment: .trailing)
-
       Text(value)
         .scaledFont(size: OmiType.caption)
         .foregroundColor(OmiColors.textPrimary)
     }
   }
 
-  private func tooltipBlock(_ label: String, _ value: String) -> some View {
+  private func block(_ label: String, _ value: String) -> some View {
     VStack(alignment: .leading, spacing: OmiSpacing.hairline) {
       Text(label)
         .scaledFont(size: OmiType.caption, weight: .medium)
         .foregroundColor(OmiColors.textTertiary)
-        .padding(.leading, 76)
-
       Text(value)
         .scaledFont(size: OmiType.caption)
         .foregroundColor(OmiColors.textPrimary)
-        .padding(.leading, 76)
+    }
+  }
+
+  fileprivate static func date(_ date: Date) -> String {
+    date.formatted(date: .abbreviated, time: .shortened)
+  }
+
+  fileprivate static func recurrence(_ value: String) -> String {
+    switch value {
+    case "daily": return "Daily"
+    case "weekdays": return "Weekdays"
+    case "weekly": return "Weekly"
+    case "biweekly": return "Every 2 Weeks"
+    case "monthly": return "Monthly"
+    default: return value.capitalized
     }
   }
 }
 
-// MARK: - Task Detail View
-
-/// Modal showing rich metadata for generic tasks, analytics tasks, and screenshot sources.
 struct TaskDetailView: View {
   let task: TaskActionItem
-  var onDismiss: (() -> Void)? = nil
-
-  @Environment(\.dismiss) private var environmentDismiss
-
-  private var metadata: [String: Any] {
-    task.parsedMetadata ?? [:]
-  }
-
-  private func dismissSheet() {
-    if let onDismiss = onDismiss {
-      onDismiss()
-    } else {
-      environmentDismiss()
-    }
-  }
+  var onDismiss: (() -> Void)?
+  @Environment(\.dismiss) private var dismiss
 
   var body: some View {
     VStack(spacing: 0) {
-      // Header
-      header
+      HStack {
+        Text("Task Details")
+          .scaledFont(size: OmiType.subheading, weight: .semibold)
+          .foregroundColor(OmiColors.textPrimary)
+        Spacer()
+        DismissButton { onDismiss?() ?? dismiss() }
+      }
+      .padding(.horizontal, OmiSpacing.xl)
+      .padding(.vertical, OmiSpacing.lg)
 
       Divider()
 
-      // Content
       ScrollView {
         VStack(alignment: .leading, spacing: OmiSpacing.xl) {
-          // Task description
-          taskInfoSection
-
-          // Core fields (always shown)
-          coreFieldsSection
-
-          // Context at extraction time
-          if task.contextSummary != nil || task.currentActivity != nil || metadata["context_summary"] != nil
-            || metadata["current_activity"] != nil || metadata["reasoning"] != nil
-          {
-            contextSection
+          section("Task") {
+            Text(task.description)
+              .scaledFont(size: OmiType.body)
+              .foregroundColor(OmiColors.textPrimary)
+              .textSelection(.enabled)
           }
 
-          // Agent work
-          if task.agentStatus != nil || task.agentPlan != nil {
-            agentSection
+          section("Details") {
+            detail("Status", task.completed ? "Completed" : "Active")
+            if let priority = task.priority { detail("Priority", priority.capitalized) }
+            detail("Created", TaskDetailTooltip.date(task.createdAt))
+            if let dueAt = task.dueAt { detail("Due", TaskDetailTooltip.date(dueAt)) }
+            if let completedAt = task.completedAt { detail("Completed", TaskDetailTooltip.date(completedAt)) }
+            if let recurrence = task.recurrenceRule {
+              detail("Repeats", TaskDetailTooltip.recurrence(recurrence))
+            }
           }
 
-          // Analysis section (omi-analytics)
-          if metadata["original_message"] != nil || metadata["creation_reason"] != nil
-            || metadata["key_findings"] != nil || metadata["search_summary"] != nil
-          {
-            analysisSection
+          if task.source != nil || task.sourceApp != nil || task.windowTitle != nil || task.confidence != nil {
+            section("Source") {
+              if let source = task.source { detail("Type", task.sourceLabel + " (" + source + ")") }
+              if let sourceApp = task.sourceApp { detail("App", sourceApp) }
+              if let windowTitle = task.windowTitle { detail("Window", windowTitle) }
+              if let confidence = task.confidence { detail("Confidence", "\(Int(confidence * 100))%") }
+              let count = (task.provenance ?? []).count
+              if count > 0 { detail("Evidence", "\(count) linked source\(count == 1 ? "" : "s")") }
+            }
           }
 
-          // Source section (screenshot metadata)
-          if metadata["source_app"] != nil || metadata["confidence"] != nil || metadata["inferred_deadline"] != nil
-            || metadata["window_title"] != nil
-          {
-            sourceSection
-          }
-
-          // Catch-all: render any metadata keys not covered by sections above
-          if !remainingMetadata.isEmpty {
-            remainingMetadataSection
+          if task.contextSummary != nil || task.currentActivity != nil {
+            section("Context") {
+              if let context = task.contextSummary, !context.isEmpty { block("Summary", context) }
+              if let activity = task.currentActivity, !activity.isEmpty { block("Activity", activity) }
+            }
           }
         }
         .padding(OmiSpacing.xl)
@@ -298,45 +175,15 @@ struct TaskDetailView: View {
     .background(OmiColors.backgroundPrimary)
   }
 
-  // MARK: - Header
-
-  private var header: some View {
-    HStack {
-      VStack(alignment: .leading, spacing: OmiSpacing.xxs) {
-        Text("Task Details")
-          .scaledFont(size: OmiType.subheading, weight: .semibold)
-          .foregroundColor(OmiColors.textPrimary)
-
-        if let source = task.source {
-          Text(source)
-            .scaledFont(size: OmiType.caption, weight: .medium)
-            .foregroundColor(OmiColors.textTertiary)
-            .padding(.horizontal, OmiSpacing.xs)
-            .padding(.vertical, OmiSpacing.hairline)
-            .background(
-              RoundedRectangle(cornerRadius: OmiChrome.stripRadius)
-                .fill(OmiColors.backgroundSecondary)
-            )
-        }
-      }
-
-      Spacer()
-
-      DismissButton(action: dismissSheet)
-    }
-    .padding(.horizontal, OmiSpacing.xl)
-    .padding(.vertical, OmiSpacing.lg)
-  }
-
-  // MARK: - Task Info
-
-  private var taskInfoSection: some View {
+  private func section<Content: View>(
+    _ title: String,
+    @ViewBuilder content: () -> Content
+  ) -> some View {
     VStack(alignment: .leading, spacing: OmiSpacing.sm) {
-      sectionHeader("Task")
-
-      Text(task.description)
-        .scaledFont(size: OmiType.body)
-        .foregroundColor(OmiColors.textPrimary)
+      Text(title)
+        .scaledFont(size: OmiType.body, weight: .semibold)
+        .foregroundColor(OmiColors.textSecondary)
+      VStack(alignment: .leading, spacing: OmiSpacing.xs) { content() }
         .padding(OmiSpacing.md)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
@@ -346,277 +193,28 @@ struct TaskDetailView: View {
     }
   }
 
-  // MARK: - Core Fields
-
-  private var coreFieldsSection: some View {
-    VStack(alignment: .leading, spacing: OmiSpacing.sm) {
-      sectionHeader("Details")
-
-      VStack(alignment: .leading, spacing: OmiSpacing.xs) {
-        if let category = task.category {
-          detailRow("Category", category.capitalized)
-        }
-        if !task.tags.isEmpty {
-          detailRow("Tags", task.tags.joined(separator: ", "))
-        }
-        if let priority = task.priority {
-          detailRow("Priority", priority.capitalized)
-        }
-        detailRow("Status", task.completed ? "Completed" : "Active")
-        if let source = task.source {
-          detailRow("Source", "\(task.sourceLabel) (\(source))")
-        }
-        if let app = task.sourceApp {
-          detailRow("Source App", app)
-        }
-        if let window = task.windowTitle {
-          detailRow("Window", window)
-        }
-        detailRow(
-          "Created",
-          {
-            let f = DateFormatter()
-            f.dateStyle = .medium
-            f.timeStyle = .short
-            return f.string(from: task.createdAt)
-          }())
-        if let dueAt = task.dueAt {
-          detailRow(
-            "Due",
-            {
-              let f = DateFormatter()
-              f.dateStyle = .medium
-              f.timeStyle = .short
-              return f.string(from: dueAt)
-            }())
-        }
-        if let completedAt = task.completedAt {
-          detailRow(
-            "Completed",
-            {
-              let f = DateFormatter()
-              f.dateStyle = .medium
-              f.timeStyle = .short
-              return f.string(from: completedAt)
-            }())
-        }
-        if let goalId = task.goalId {
-          detailRow("Goal", goalId)
-        }
-        if let convId = task.conversationId {
-          detailRow("Conversation", convId)
-        }
-      }
-      .padding(OmiSpacing.md)
-      .frame(maxWidth: .infinity, alignment: .leading)
-      .background(
-        RoundedRectangle(cornerRadius: OmiChrome.elementRadius)
-          .fill(OmiColors.backgroundSecondary)
-      )
-    }
-  }
-
-  // MARK: - Agent
-
-  private var agentSection: some View {
-    VStack(alignment: .leading, spacing: OmiSpacing.sm) {
-      sectionHeader("Agent")
-
-      VStack(alignment: .leading, spacing: OmiSpacing.xs) {
-        if let status = task.agentStatus {
-          detailRow("Status", status.capitalized)
-        }
-        if let files = task.agentEditedFiles, !files.isEmpty {
-          detailBlock("Edited Files", files.joined(separator: "\n"))
-        }
-        if let plan = task.agentPlan, !plan.isEmpty {
-          detailBlock("Plan", String(plan.prefix(2000)))
-        }
-      }
-      .padding(OmiSpacing.md)
-      .frame(maxWidth: .infinity, alignment: .leading)
-      .background(
-        RoundedRectangle(cornerRadius: OmiChrome.elementRadius)
-          .fill(OmiColors.backgroundSecondary)
-      )
-    }
-  }
-
-  // MARK: - Analysis (omi-analytics)
-
-  private var analysisSection: some View {
-    VStack(alignment: .leading, spacing: OmiSpacing.sm) {
-      sectionHeader("Analysis")
-
-      VStack(alignment: .leading, spacing: OmiSpacing.sm) {
-        if let reason = metadata["creation_reason"] as? String {
-          detailBlock("Reason", reason)
-        }
-        if let original = metadata["original_message"] as? String {
-          detailBlock("Original Message", original)
-        }
-        if let findings = metadata["key_findings"] as? String {
-          detailBlock("Key Findings", findings)
-        } else if let findings = metadata["key_findings"] as? [String] {
-          detailBlock("Key Findings", findings.joined(separator: "\n"))
-        }
-        if let summary = metadata["search_summary"] as? String {
-          detailBlock("Search Summary", summary)
-        }
-        if let files = metadata["relevant_files"] as? [String] {
-          detailBlock("Relevant Files", files.joined(separator: "\n"))
-        } else if let files = metadata["relevant_files"] as? String {
-          detailBlock("Relevant Files", files)
-        }
-      }
-      .padding(OmiSpacing.md)
-      .frame(maxWidth: .infinity, alignment: .leading)
-      .background(
-        RoundedRectangle(cornerRadius: OmiChrome.elementRadius)
-          .fill(OmiColors.backgroundSecondary)
-      )
-    }
-  }
-
-  // MARK: - Context (screenshot)
-
-  private var contextSection: some View {
-    VStack(alignment: .leading, spacing: OmiSpacing.sm) {
-      sectionHeader("Context")
-
-      VStack(alignment: .leading, spacing: OmiSpacing.sm) {
-        // Prefer direct task fields, fall back to metadata
-        if let summary = task.contextSummary ?? metadata["context_summary"] as? String {
-          detailBlock("Summary", summary)
-        }
-        if let activity = task.currentActivity ?? metadata["current_activity"] as? String {
-          detailBlock("Current Activity", activity)
-        }
-        if let reasoning = metadata["reasoning"] as? String {
-          detailBlock("Reasoning", reasoning)
-        }
-      }
-      .padding(OmiSpacing.md)
-      .frame(maxWidth: .infinity, alignment: .leading)
-      .background(
-        RoundedRectangle(cornerRadius: OmiChrome.elementRadius)
-          .fill(OmiColors.backgroundSecondary)
-      )
-    }
-  }
-
-  // MARK: - Source (screenshot)
-
-  private var sourceSection: some View {
-    VStack(alignment: .leading, spacing: OmiSpacing.sm) {
-      sectionHeader("Source")
-
-      VStack(alignment: .leading, spacing: OmiSpacing.xs) {
-        if let app = metadata["source_app"] as? String {
-          detailRow("App", app)
-        }
-        if let confidence = metadata["confidence"] as? Double {
-          detailRow("Confidence", "\(Int(confidence * 100))%")
-        }
-        if let deadline = metadata["inferred_deadline"] as? String {
-          detailRow("Deadline", deadline)
-        }
-        if let window = metadata["window_title"] as? String {
-          detailRow("Window", window)
-        }
-      }
-      .padding(OmiSpacing.md)
-      .frame(maxWidth: .infinity, alignment: .leading)
-      .background(
-        RoundedRectangle(cornerRadius: OmiChrome.elementRadius)
-          .fill(OmiColors.backgroundSecondary)
-      )
-    }
-  }
-
-  // MARK: - Remaining Metadata (catch-all)
-
-  /// Keys already rendered by dedicated sections above
-  private static let handledMetadataKeys: Set<String> = [
-    // Core fields section (shown via task properties)
-    "tags", "source_app", "window_title", "confidence",
-    "source_category", "source_subcategory",
-    // Context section
-    "context_summary", "current_activity", "reasoning",
-    // Analysis section
-    "original_message", "creation_reason", "key_findings",
-    "search_summary", "relevant_files",
-    // Source section
-    "inferred_deadline",
-  ]
-
-  /// Metadata entries not handled by any dedicated section
-  private var remainingMetadata: [TaskDetailMetadataEntry] {
-    guard let meta = task.parsedMetadata else { return [] }
-    return TaskDetailMetadataProjection.entries(
-      from: meta,
-      excluding: Self.handledMetadataKeys,
-      source: task.source,
-      arraySeparator: "\n"
-    )
-  }
-
-  private var remainingMetadataSection: some View {
-    VStack(alignment: .leading, spacing: OmiSpacing.sm) {
-      sectionHeader("Other Info")
-
-      VStack(alignment: .leading, spacing: OmiSpacing.sm) {
-        ForEach(remainingMetadata, id: \.key) { entry in
-          if entry.value.count > 80 || entry.value.contains("\n") {
-            detailBlock(entry.label, entry.value)
-          } else {
-            detailRow(entry.label, entry.value)
-          }
-        }
-      }
-      .padding(OmiSpacing.md)
-      .frame(maxWidth: .infinity, alignment: .leading)
-      .background(
-        RoundedRectangle(cornerRadius: OmiChrome.elementRadius)
-          .fill(OmiColors.backgroundSecondary)
-      )
-    }
-  }
-
-  // MARK: - Helpers
-
-  private func sectionHeader(_ title: String) -> some View {
-    Text(title)
-      .scaledFont(size: OmiType.body, weight: .semibold)
-      .foregroundColor(OmiColors.textSecondary)
-  }
-
-  private func detailRow(_ label: String, _ value: String) -> some View {
+  private func detail(_ label: String, _ value: String) -> some View {
     HStack(alignment: .top) {
       Text(label)
         .scaledFont(size: OmiType.caption, weight: .medium)
         .foregroundColor(OmiColors.textSecondary)
         .frame(width: 100, alignment: .leading)
-
       Text(value)
         .scaledFont(size: OmiType.caption)
         .foregroundColor(OmiColors.textPrimary)
         .textSelection(.enabled)
-        .if_available_writingToolsNone()
     }
   }
 
-  private func detailBlock(_ label: String, _ value: String) -> some View {
+  private func block(_ label: String, _ value: String) -> some View {
     VStack(alignment: .leading, spacing: OmiSpacing.xxs) {
       Text(label)
         .scaledFont(size: OmiType.caption, weight: .medium)
         .foregroundColor(OmiColors.textSecondary)
-
       Text(value)
         .scaledFont(size: OmiType.caption)
         .foregroundColor(OmiColors.textPrimary)
         .textSelection(.enabled)
-        .if_available_writingToolsNone()
     }
   }
 }

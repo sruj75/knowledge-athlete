@@ -282,7 +282,6 @@ extension KernelJournalTurn {
     switch origin {
     case "realtime_voice": owner = .floatingVoice
     case "floating_chat": owner = .floatingDefault
-    case "task_chat", "workstream": owner = .taskChat(externalRefId)
     default: owner = .mainChat
     }
     return ChatMessage(

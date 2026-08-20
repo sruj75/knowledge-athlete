@@ -153,49 +153,8 @@ INDEX_ONLY_REQUIREMENTS = (
         'COLLECTION',
         (_asc('status'), _desc('created_at'), _asc('__name__')),
     ),
-    FirestoreIndexRequirement(
-        'candidates_generation_created',
-        'candidates',
-        'COLLECTION',
-        (_asc('account_generation'), _desc('created_at'), _desc('__name__')),
-    ),
-    FirestoreIndexRequirement(
-        'candidates_status_generation_created',
-        'candidates',
-        'COLLECTION',
-        (_asc('status'), _asc('account_generation'), _desc('created_at'), _desc('__name__')),
-    ),
-    FirestoreIndexRequirement(
-        'action_items_completed_due',
-        'action_items',
-        'COLLECTION',
-        (_asc('completed'), _asc('due_at'), _asc('__name__')),
-    ),
-    FirestoreIndexRequirement(
-        'action_items_conversation_due',
-        'action_items',
-        'COLLECTION',
-        (_asc('conversation_id'), _asc('due_at'), _asc('__name__')),
-    ),
-    FirestoreIndexRequirement(
-        'action_items_completed_conversation_due',
-        'action_items',
-        'COLLECTION',
-        (_asc('completed'), _asc('conversation_id'), _asc('due_at'), _asc('__name__')),
-    ),
 )
 
-
-ACTIVE_ATTENTION_OVERRIDE_QUERY = FirestoreQuerySpec(
-    identifier='task_attention_overrides_active_by_generation',
-    collection_group='task_attention_overrides',
-    query_scope='COLLECTION',
-    filters=(
-        FirestoreQueryFilter('account_generation', '==', 'account_generation'),
-        FirestoreQueryFilter('expires_at', '>', 'now'),
-    ),
-    index_fields=(_asc('account_generation'), _asc('expires_at'), _asc('__name__')),
-)
 
 REQUIRED_MEMORY_PROCESSING_QUERY = FirestoreQuerySpec(
     identifier='memory_items_required_processing_by_capture',
@@ -438,7 +397,6 @@ QUERY_SPECS = (
     SUPERSEDED_MEMORY_BY_CANONICAL_TARGET_QUERY,
     SUPERSEDED_MEMORY_BY_LEGACY_TARGET_QUERY,
     EXPIRED_SHORT_TERM_LIFECYCLE_QUERY,
-    ACTIVE_ATTENTION_OVERRIDE_QUERY,
     STALE_IN_PROGRESS_CONVERSATIONS_QUERY,
     STARRED_CHAT_SESSIONS_QUERY,
 )

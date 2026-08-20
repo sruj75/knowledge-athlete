@@ -32,20 +32,15 @@ from routers import (
     payment,
     memories,
     auth,
-    action_items,
-    candidates,
     other,
     updates,
     calendar_meetings,
     wrapped,
-    goals,
-    workstreams,
     announcements,
     phone_calls,
     tools,
     metrics,
     fair_use_admin,
-    staged_tasks,
     focus_sessions,
     advice,
     chat_sessions,
@@ -54,11 +49,9 @@ from routers import (
     desktop_proxy,
     desktop_realtime,
     desktop_tts_updates,
-    scores,
     tts,
     memory_admin,
     memory_product,
-    task_recommendations,
     conversation_finalization,
     conversation_compute,
 )
@@ -122,8 +115,6 @@ app.add_middleware(
 app.include_router(transcribe.router)
 app.include_router(omni_relay.router)
 app.include_router(auto_model.router)
-app.include_router(action_items.router)
-app.include_router(candidates.router)
 app.include_router(memories.router)
 app.include_router(chat.router)
 app.include_router(speech_profile.router)
@@ -146,22 +137,17 @@ app.include_router(auth.router)  # Added auth router (for the main Omi App, this
 
 app.include_router(payment.router)
 app.include_router(wrapped.router)
-app.include_router(goals.router)
-app.include_router(workstreams.router)
 app.include_router(announcements.router)
 app.include_router(phone_calls.router)
 app.include_router(tools.router)
 app.include_router(metrics.router)
 app.include_router(fair_use_admin.router)
-app.include_router(staged_tasks.router)
 app.include_router(focus_sessions.router)
 app.include_router(advice.router)
 app.include_router(chat_sessions.router)
-app.include_router(scores.router)
 app.include_router(tts.router)
 app.include_router(memory_admin.router)
 app.include_router(memory_product.router)
-app.include_router(task_recommendations.router)
 app.include_router(desktop_core.router)
 app.include_router(desktop_chat.router)
 app.include_router(desktop_proxy.router)

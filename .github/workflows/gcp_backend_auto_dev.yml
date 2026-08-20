@@ -500,8 +500,6 @@ jobs:
             --service=backend-sync \
             --revision=${{ steps.capture-backend-sync-revision.outputs.revision }} \
             --tag=${{ env.CANDIDATE_TAG }})"
-          # Cloud Run verifies the service URL as the OIDC audience even when
-          # the HTTP request itself uses a tagged candidate URL.
           backend_audience="$(gcloud run services describe backend --project=${{ vars.GCP_PROJECT_ID }} --region=${{ env.REGION }} --format='value(status.url)')"
           backend_sync_audience="$(gcloud run services describe backend-sync --project=${{ vars.GCP_PROJECT_ID }} --region=${{ env.REGION }} --format='value(status.url)')"
           test -n "$backend_audience"
@@ -517,14 +515,8 @@ jobs:
         run: |
           python3 backend/scripts/validate-backend-runtime-env.py --env dev --check-workflows --check-live-cloud-run
 
-      - name: Gate candidate revisions with the acceptance manifest
-        env:
-          PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+      - name: Smoke no-traffic Cloud Run candidates
         run: |
-          set -euo pipefail
-          ADMIN_KEY="$(gcloud secrets versions access latest --secret=ADMIN_KEY --project="$PROJECT_ID")"
-          export ADMIN_KEY
-          trap 'unset ADMIN_KEY' EXIT
           python3 backend/scripts/run_dev_candidate_acceptance.py \
             --candidate backend=${{ steps.candidate-urls.outputs.backend_url }} \
             --candidate backend-sync=${{ steps.candidate-urls.outputs.backend_sync_url }} \
@@ -533,7 +525,7 @@ jobs:
             --evidence-path artifacts/dev-backend-candidate-acceptance.json
 
       # This is the Cloud Run-only acceptance boundary. The development
-      # candidate manifest must pass before shared GKE runtime state can change.
+      # release vector must pass before shared GKE runtime state can change.
       - name: Accept no-traffic Cloud Run candidate
         run: |
           python3 backend/scripts/verify_backend_release_vector.py \

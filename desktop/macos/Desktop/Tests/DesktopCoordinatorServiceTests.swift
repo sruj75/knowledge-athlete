@@ -223,12 +223,12 @@ final class DesktopCoordinatorServiceTests: XCTestCase {
     _ = try await service.continueAgent(
       sessionId: "ses",
       prompt: "Continue.",
-      originSurface: .taskChat
+      originSurface: .mainChat
     )
 
     XCTAssertEqual(
       runtime.calls.compactMap { $0.input["originSurfaceKind"] as? String },
-      ["main_chat", "floating_bar", "realtime", "task_chat"]
+      ["main_chat", "floating_bar", "realtime", "main_chat"]
     )
     XCTAssertTrue(
       runtime.calls.prefix(3).allSatisfy {
@@ -237,7 +237,6 @@ final class DesktopCoordinatorServiceTests: XCTestCase {
       })
     XCTAssertEqual(runtime.calls.last?.name, "send_agent_message")
     XCTAssertEqual(runtime.calls.last?.input["sessionId"] as? String, "ses")
-    XCTAssertEqual(DesktopCoordinatorOriginSurface.taskChat.rawValue, "task_chat")
   }
 
   @MainActor
@@ -442,7 +441,6 @@ final class DesktopCoordinatorServiceTests: XCTestCase {
     let sources = [
       try sourceFile("Providers/ChatProvider.swift"),
       try sourceFile("Chat/AgentClient.swift"),
-      try sourceFile("ProactiveAssistants/Assistants/TaskAgent/TaskChatRuntime.swift"),
     ].joined(separator: "\n")
 
     XCTAssertFalse(sources.contains("AgentSessionCreationProfile"))

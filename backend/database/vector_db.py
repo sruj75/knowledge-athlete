@@ -43,8 +43,8 @@ class VectorMetadataDoc(TypedDict, total=False):
     """Metadata sub-document attached to a Pinecone vector record.
 
     Captures the union of metadata keys written across this module's
-    namespaces (ns1 conversations, ns2 memories, ns4 action items,
-    ns_tchunks transcript chunks, ns_x X posts).
+    namespaces (ns1 conversations, ns2 memories, ns_tchunks transcript chunks,
+    ns_x X posts).
     Canonical memory vectors (built by ``build_memory_vector_metadata``)
     add further projection keys not enumerated here, which is why the
     ``metadata`` field on ``VectorRecordDoc`` stays ``Dict[str, Any]``.
@@ -53,7 +53,6 @@ class VectorMetadataDoc(TypedDict, total=False):
     uid: str
     memory_id: str
     conversation_id: str
-    action_item_id: str
     post_id: str
     chunk_index: int
     created_at: int
@@ -274,90 +273,6 @@ def delete_vector(uid: str, conversation_id: str) -> None:
 # ==========================================
 
 MEMORIES_NAMESPACE = "ns2"
-WORKSTREAM_ASSOCIATION_NAMESPACE = "workstream-association-v1"
-WORKSTREAM_ASSOCIATION_SCHEMA_VERSION = 1
-
-
-def upsert_workstream_association_vector(
-    uid: str,
-    workstream_id: str,
-    *,
-    objective: str,
-    current_state_summary: str,
-    account_generation: int = 0,
-) -> bool:
-    """Write a rebuildable retrieval projection for one open workstream."""
-    if index is None:
-        return False
-    content = f"Objective: {objective.strip()}\nCurrent state: {current_state_summary.strip()}".strip()
-    if not content:
-        return False
-    data: VectorRecordDoc = {
-        'id': f'{uid}:workstream:{account_generation}:{workstream_id}',
-        'values': embeddings.embed_query(content),
-        'metadata': {
-            'uid': uid,
-            'workstream_id': workstream_id,
-            'status': 'open',
-            'account_generation': account_generation,
-            'schema_version': WORKSTREAM_ASSOCIATION_SCHEMA_VERSION,
-        },
-    }
-    index.upsert(vectors=[data], namespace=WORKSTREAM_ASSOCIATION_NAMESPACE)
-    return True
-
-
-def query_workstream_association_candidates(
-    uid: str, summary: str, *, account_generation: int = 0, limit: int = 5
-) -> List[str]:
-    """Return derived candidate IDs only; callers must hydrate authority."""
-    if index is None or not summary.strip():
-        return []
-    response = index.query(
-        vector=embeddings.embed_query(summary),
-        top_k=max(1, min(limit, 20)),
-        include_metadata=True,
-        include_values=False,
-        filter={
-            'uid': {'$eq': uid},
-            'status': {'$eq': 'open'},
-            'account_generation': {'$eq': account_generation},
-            'schema_version': {'$eq': WORKSTREAM_ASSOCIATION_SCHEMA_VERSION},
-        },
-        namespace=WORKSTREAM_ASSOCIATION_NAMESPACE,
-    )
-    result: List[str] = []
-    for match in response.get('matches', []):
-        metadata = match.get('metadata') if isinstance(match, dict) else None
-        workstream_id = metadata.get('workstream_id') if isinstance(metadata, dict) else None
-        if isinstance(workstream_id, str) and workstream_id not in result:
-            result.append(workstream_id)
-    return result
-
-
-def delete_workstream_association_vector(uid: str, workstream_id: str, *, account_generation: int = 0) -> bool:
-    if index is None:
-        return False
-    index.delete(
-        ids=[f'{uid}:workstream:{account_generation}:{workstream_id}'],
-        namespace=WORKSTREAM_ASSOCIATION_NAMESPACE,
-    )
-    return True
-
-
-def reset_workstream_association_vectors(uid: str, *, account_generation: int = 0) -> bool:
-    if index is None:
-        return False
-    index.delete(
-        filter={
-            '$and': [
-                {'uid': {'$eq': uid}},
-                {'account_generation': {'$eq': account_generation}},
-            ]
-        },
-        namespace=WORKSTREAM_ASSOCIATION_NAMESPACE,
-    )
-    return True
 
 
 def build_legacy_memory_vector_filter(uid: str, subject_entity_id: str | None = None) -> Dict[str, Any]:
@@ -763,176 +678,6 @@ def find_similar_x_posts(uid: str, content: str, limit: int = 10) -> List[Dict[s
         }
         for m in matches
     ]
-
-
-# ==========================================
-# Action Item Vector Functions
-# ==========================================
-
-ACTION_ITEMS_NAMESPACE = "ns4"
-
-
-def upsert_action_item_vector(uid: str, action_item_id: str, description: str) -> List[float] | None:
-    """Index one action item for semantic search.
-
-    Every caller runs this *after* the Firestore write has already committed, so an
-    embedding/Pinecone failure must not propagate: it would turn a successful
-    create/update into an HTTP 500 (and make clients retry a write that landed).
-    Degrades to ``None`` — the task is simply absent from semantic search until it
-    is next indexed, matching ``find_similar_action_items``.
-    """
-    if index is None:
-        logger.warning('Pinecone index not initialized, skipping action item vector upsert')
-        return None
-
-    try:
-        vector = embeddings.embed_query(description)
-        data: VectorRecordDoc = {
-            "id": f'{uid}-ai-{action_item_id}',
-            "values": vector,
-            "metadata": {
-                "uid": uid,
-                "action_item_id": action_item_id,
-                "created_at": int(datetime.now(timezone.utc).timestamp()),
-            },
-        }
-        res = index.upsert(vectors=[data], namespace=ACTION_ITEMS_NAMESPACE)
-        logger.info(f'upsert_action_item_vector {action_item_id} {res}')
-        return vector
-    except Exception as e:
-        logger.exception(
-            f'upsert_action_item_vector failed uid={uid} action_item_id={action_item_id} '
-            f'(task saved, vector missing): {e}'
-        )
-        return None
-
-
-def upsert_action_item_vectors_batch(uid: str, items: List[Dict[str, Any]]) -> int:
-    """Index a batch of action items. Best-effort, for the same reason as
-    ``upsert_action_item_vector``: returns 0 instead of raising into a caller
-    whose Firestore writes already succeeded."""
-    if index is None:
-        logger.warning('Pinecone index not initialized, skipping action item vector batch upsert')
-        return 0
-
-    if not items:
-        return 0
-
-    try:
-        descriptions: List[str] = [item['description'] for item in items]
-        vectors: List[List[float]] = embeddings.embed_documents(descriptions)
-
-        now_ts = int(datetime.now(timezone.utc).timestamp())
-        payload: List[VectorRecordDoc] = [
-            {
-                "id": f"{uid}-ai-{item['action_item_id']}",
-                "values": vectors[i],
-                "metadata": {
-                    "uid": uid,
-                    "action_item_id": item['action_item_id'],
-                    "created_at": now_ts,
-                },
-            }
-            for i, item in enumerate(items)
-        ]
-        res = index.upsert(vectors=payload, namespace=ACTION_ITEMS_NAMESPACE)
-        logger.info(f'upsert_action_item_vectors_batch count={len(payload)} {res}')
-        return len(payload)
-    except Exception as e:
-        logger.exception(
-            f'upsert_action_item_vectors_batch failed uid={uid} count={len(items)} '
-            f'(tasks saved, vectors missing): {e}'
-        )
-        return 0
-
-
-def search_action_items_by_vector(uid: str, query: str, limit: int = 10, min_score: float = 0.3) -> List[str]:
-    if index is None:
-        logger.warning('Pinecone index not initialized, skipping action item search')
-        return []
-
-    vector = embeddings.embed_query(query)
-    filter_data: Dict[str, Any] = {'uid': uid}
-
-    xc = index.query(
-        vector=vector, top_k=limit, include_metadata=True, filter=filter_data, namespace=ACTION_ITEMS_NAMESPACE
-    )
-
-    matches: List[Any] = xc.get('matches', [])
-    top_score = matches[0]['score'] if matches else None
-    kept = [m for m in matches if m.get('score', 0.0) >= min_score]
-    logger.info(
-        f'search_action_items_by_vector uid={uid} matches={len(matches)} kept={len(kept)} '
-        f'top_score={top_score} min_score={min_score}'
-    )
-    return [m['metadata'].get('action_item_id') for m in kept]
-
-
-def find_similar_action_items(uid: str, query: str, threshold: float = 0.6, limit: int = 10) -> List[Dict[str, Any]]:
-    """
-    Find action items semantically similar to the given query text. Used to
-    feed the conversation extraction prompt with potentially-duplicate open
-    tasks so the LLM can suppress true duplicates.
-
-    Returns matches at or above the threshold. Each result is
-    `{'action_item_id': str, 'score': float}` ordered by Pinecone relevance.
-    Pinecone or embedding failures degrade silently to an empty list — the
-    caller treats "no candidates" as "user has nothing relevant," which is
-    the same behavior as a brand-new user.
-    """
-    if index is None:
-        return []
-
-    try:
-        vector = embeddings.embed_query(query)
-        xc = index.query(
-            vector=vector,
-            top_k=limit,
-            include_metadata=True,
-            filter={'uid': uid},
-            namespace=ACTION_ITEMS_NAMESPACE,
-        )
-        matches: List[Any] = xc.get('matches', [])
-        kept: List[Dict[str, Any]] = []
-        dropped_no_id = 0
-        for m in matches:
-            if m.get('score', 0.0) < threshold:
-                continue
-            aid = m.get('metadata', {}).get('action_item_id')
-            if not aid:
-                dropped_no_id += 1
-                continue
-            kept.append({'action_item_id': aid, 'score': m.get('score', 0.0)})
-        top_score = matches[0]['score'] if matches else None
-        logger.info(
-            f'find_similar_action_items uid={uid} matches={len(matches)} '
-            f'kept={len(kept)} dropped_no_id={dropped_no_id} '
-            f'top_score={top_score} threshold={threshold}'
-        )
-        return kept
-    except Exception as e:
-        logger.exception(f'find_similar_action_items failed uid={uid}: {e}')
-        return []
-
-
-def delete_action_item_vector(uid: str, action_item_id: str) -> None:
-    if index is None:
-        logger.warning('Pinecone index not initialized, skipping action item vector delete')
-        return
-
-    vector_id = f'{uid}-ai-{action_item_id}'
-    result = index.delete(ids=[vector_id], namespace=ACTION_ITEMS_NAMESPACE)
-    logger.info(f'delete_action_item_vector {vector_id} {result}')
-
-
-def delete_action_item_vectors_batch(uid: str, action_item_ids: List[str]) -> None:
-    if index is None:
-        return
-    if not action_item_ids:
-        return
-    vector_ids = [f'{uid}-ai-{aid}' for aid in action_item_ids]
-    index.delete(ids=vector_ids, namespace=ACTION_ITEMS_NAMESPACE)
-    logger.info(f'delete_action_item_vectors_batch count={len(vector_ids)}')
 
 
 def delete_conversation_vectors_batch(uid: str, conversation_ids: List[str]) -> None:

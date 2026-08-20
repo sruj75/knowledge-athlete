@@ -7,11 +7,9 @@ from typing import Any, Callable, Literal, TypedDict, cast
 
 from database import vector_db
 from database import users as users_db
-from database.action_items import get_action_item_ids
 from database.conversations import get_conversation_ids
 from database.memories import get_memory_ids
 from database.vector_db import (
-    delete_action_item_vectors_batch,
     delete_conversation_vectors_batch,
     delete_memory_vectors_batch,
     delete_transcript_chunk_vectors_batch,
@@ -103,16 +101,6 @@ def purge_derived_user_data(uid: str) -> PurgeResult:
     except Exception as e:
         record_failure('required_failures', 'memory_vectors', e)
         logger.error(f'delete_account purge memory vectors failed for {uid}: {sanitize(str(e))}')
-
-    try:
-        action_item_ids = get_action_item_ids(uid)
-        if action_item_ids:
-            require_vector_index('action_item_vectors')
-            delete_action_item_vectors_batch(uid, action_item_ids)
-            result['vectors_deleted'] += len(action_item_ids)
-    except Exception as e:
-        record_failure('required_failures', 'action_item_vectors', e)
-        logger.error(f'delete_account purge action item vectors failed for {uid}: {sanitize(str(e))}')
 
     try:
         result['recordings_deleted'] = delete_all_conversation_recordings(uid) or 0

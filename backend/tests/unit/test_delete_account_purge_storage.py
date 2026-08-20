@@ -33,7 +33,6 @@ def users_service():
     fakes = {
         "database": _pkg("database"),
         "database.users": AutoMockModule("database.users"),
-        "database.action_items": AutoMockModule("database.action_items"),
         "database.conversations": AutoMockModule("database.conversations"),
         "database.memories": AutoMockModule("database.memories"),
         "database.vector_db": AutoMockModule("database.vector_db"),
@@ -64,7 +63,6 @@ def _purge_patches(users_service, **overrides):
     enumerators = {
         "get_conversation_ids": ["c1", "c2"],
         "get_memory_ids": ["m1"],
-        "get_action_item_ids": ["a1", "a2"],
     }
     patchers = {}
     # create=True: some collaborators are pulled into account_deletion.py via `from database.users import *`,
@@ -77,7 +75,6 @@ def _purge_patches(users_service, **overrides):
         "delete_conversation_vectors_batch",
         "delete_transcript_chunk_vectors_batch",
         "delete_memory_vectors_batch",
-        "delete_action_item_vectors_batch",
         "delete_all_conversation_recordings",
         "delete_user_caller_ids",
     ):
@@ -104,7 +101,6 @@ def test_purge_runs_all_backends_before_firestore_wipe(users_service):
     # Pinecone: one batched call per namespace (no per-item loop to abandon on a transient failure)
     m["delete_conversation_vectors_batch"].assert_called_once_with("uid1", ["c1", "c2"])
     m["delete_memory_vectors_batch"].assert_called_once_with("uid1", ["m1"])
-    m["delete_action_item_vectors_batch"].assert_called_once_with("uid1", ["a1", "a2"])
     # GCS + Firestore
     m["delete_all_conversation_recordings"].assert_called_once_with("uid1")
     m["delete_user_data"].assert_called_once_with("uid1")

@@ -375,14 +375,6 @@ def memory_fixture():
         return json.load(f)
 
 
-@pytest.fixture()
-def action_item_fixture():
-    """Load action item fixture data from JSON."""
-    fixture_path = E2E_DIR / "fixtures" / "action_items.json"
-    with open(fixture_path) as f:
-        return json.load(f)
-
-
 # ─── Utility fixtures ──────────────────────────────────────────────────
 
 
@@ -448,13 +440,4 @@ def sample_memory_data():
         "category": "interesting",
         "visibility": "public",
         "tags": ["test", "e2e"],
-    }
-
-
-@pytest.fixture()
-def sample_action_item_data():
-    """Return dict suitable for creating an action item via POST /v1/action-items."""
-    return {
-        "description": "Complete the e2e harness setup",
-        "completed": False,
     }

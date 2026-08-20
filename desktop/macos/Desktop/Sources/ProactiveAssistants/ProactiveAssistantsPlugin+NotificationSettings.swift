@@ -126,9 +126,13 @@ final class ProactiveTestNotificationObserver: NSObject, @unchecked Sendable {
 /// handler, preventing release builds from running actor-isolated work on the
 /// framework's private XPC callback queue.
 enum UserNotificationCallbackBridge {
+  private struct PendingRequestsBox: @unchecked Sendable {
+    let value: [UNNotificationRequest]
+  }
   static let signedSmokeResultPathEnvironmentKey = "OMI_NOTIFICATION_CALLBACK_SMOKE_RESULT_PATH"
 
   typealias SettingsQuery = @Sendable (@escaping @Sendable (UserNotificationSettingsSnapshot) -> Void) -> Void
+  typealias PendingRequestsQuery = @Sendable (@escaping @Sendable ([UNNotificationRequest]) -> Void) -> Void
 
   nonisolated static func notificationSettings(
     handler: @escaping @MainActor @Sendable (UserNotificationSettingsSnapshot) -> Void
@@ -188,6 +192,27 @@ enum UserNotificationCallbackBridge {
     }
   }
 
+  nonisolated static func pendingRequests(
+    handler: @escaping @MainActor @Sendable ([UNNotificationRequest]) -> Void
+  ) {
+    pendingRequests(query: systemPendingRequestsQuery, handler: handler)
+  }
+
+  nonisolated static func pendingRequests(
+    query: @escaping PendingRequestsQuery,
+    handler: @escaping @MainActor @Sendable ([UNNotificationRequest]) -> Void
+  ) {
+    query { requests in
+      let box = PendingRequestsBox(value: requests)
+      dispatchToMain { handler(box.value) }
+    }
+  }
+
+  nonisolated static func removePendingRequests(withIdentifiers identifiers: [String]) {
+    guard !identifiers.isEmpty else { return }
+    UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: identifiers)
+  }
+
   /// Distribution-only probe for the signed artifact smoke suite. It has no
   /// effect unless the caller provides an explicit marker path, and it queries
   /// notification settings without prompting or accessing product services.
@@ -217,6 +242,12 @@ enum UserNotificationCallbackBridge {
     UNUserNotificationCenter.current().getNotificationSettings { settings in
       completion(UserNotificationSettingsSnapshot(settings))
     }
+  }
+
+  nonisolated private static func systemPendingRequestsQuery(
+    completion: @escaping @Sendable ([UNNotificationRequest]) -> Void
+  ) {
+    UNUserNotificationCenter.current().getPendingNotificationRequests(completionHandler: completion)
   }
 
   nonisolated private static func dispatchToMain(_ work: @escaping @MainActor @Sendable () -> Void) {

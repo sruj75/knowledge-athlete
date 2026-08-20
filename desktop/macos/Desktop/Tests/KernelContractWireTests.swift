@@ -82,7 +82,7 @@ final class KernelContractWireTests: XCTestCase {
       clientId: "client",
       requestId: "request",
       ownerId: "owner-a",
-      surface: .workstream(workstreamId: "workstream-1"),
+      surface: .service("wire-test"),
       payload: ["terminalization": terminalization.dictionary]
     )
 

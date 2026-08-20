@@ -145,7 +145,6 @@ class TestP6_StructuredOutput:
             'proactive_notification',
             'trends',
             'translation',
-            'what_matters_now',
         }
 
 

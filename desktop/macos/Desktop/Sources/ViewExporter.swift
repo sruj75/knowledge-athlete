@@ -108,12 +108,6 @@ enum ViewExporter {
       ),
 
       (
-        "13-daily-score",
-        { AnyView(DailyScoreWidget(dailyScore: nil)) },
-        CGSize(width: 400, height: 350)
-      ),
-
-      (
         "14-chat-sessions",
         { AnyView(ChatSessionsSidebar(chatProvider: ChatProvider())) },
         CGSize(width: 250, height: 500)
@@ -137,7 +131,7 @@ enum ViewExporter {
     return (entry.0, entry.1(), entry.2)
   }
 
-  static var standaloneViewCount: Int { 12 }
+  static var standaloneViewCount: Int { 11 }
 
   static func onboardingViewAt(_ index: Int) -> (String, AnyView, CGSize)? {
     nil
@@ -266,11 +260,8 @@ enum ViewExporter {
       (
         "full-tasks", 4,
         {
-          let cp = ChatProvider()
           return AnyView(
-            TasksPage(
-              viewModel: TasksViewModel(), chatCoordinator: TaskChatCoordinator(chatProvider: cp),
-              chatProvider: cp))
+            TasksPage(viewModel: TasksViewModel()))
         }
       ),
       ("full-focus", 5, { AnyView(FocusPage()) }),

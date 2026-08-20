@@ -99,14 +99,11 @@ struct SettingsContentView: View {
 
   // Task Assistant states
   @State var taskEnabled: Bool
-  @State var taskChatAgentEnabled: Bool
-  @State var taskAgentWorkingDirectory: String
   @State var taskExtractionInterval: Double
   @State var taskMinConfidence: Double
   @State var taskNotificationsEnabled: Bool
   @State var taskAllowedApps: Set<String>
   @State var taskBrowserKeywords: [String]
-  @State var isRescoringTasks = false
 
   // Advice Assistant states
   @State var insightEnabled: Bool
@@ -121,10 +118,6 @@ struct SettingsContentView: View {
   @State var memoryMinConfidence: Double
   @State var memoryNotificationsEnabled: Bool
   @State var memoryExcludedApps: Set<String>
-
-  // Goals states
-  @State var goalsAutoGenerateEnabled: Bool = GoalGenerationService.shared
-    .isAutoGenerationEnabled
 
   // Glow preview state
   @State var isPreviewRunning: Bool = false
@@ -352,8 +345,6 @@ struct SettingsContentView: View {
     _liveSuggestionsEnabled = State(initialValue: SuggestionAssistantSettings.shared.isEnabled)
     _focusExcludedApps = State(initialValue: FocusAssistantSettings.shared.excludedApps)
     _taskEnabled = State(initialValue: TaskAssistantSettings.shared.isEnabled)
-    _taskChatAgentEnabled = State(initialValue: TaskAgentSettings.shared.isChatEnabled)
-    _taskAgentWorkingDirectory = State(initialValue: TaskAgentSettings.shared.workingDirectory)
     _taskExtractionInterval = State(initialValue: TaskAssistantSettings.shared.extractionInterval)
     _taskMinConfidence = State(initialValue: TaskAssistantSettings.shared.minConfidence)
     _taskNotificationsEnabled = State(

@@ -5,10 +5,7 @@ Covers:
 2. search_conversations_text — query routing, date conversion to timestamps
 3. get_memories_text — date parsing, locked memory filtering
 4. search_memories_text — vector search delegation
-5. get_action_items_text — date parsing, status filtering
-6. create_action_item_text — validation, default due date, past-date rejection
-7. update_action_item_text — exists check, field updates
-8. Router _ok envelope — is_error flag detection
+5. Router _ok envelope — is_error flag detection
 """
 
 import importlib
@@ -16,7 +13,7 @@ import importlib.util
 import os
 import sys
 import types
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 from zoneinfo import ZoneInfo
@@ -98,11 +95,9 @@ _SYS_MODULE_NAMES = [
     "database.conversations",
     "database.users",
     "database.memories",
-    "database.vector_db",
-    "database.action_items",
     "database.notifications",
+    "database.vector_db",
     "utils",
-    "utils.notifications",
     "utils.conversations",
     "utils.conversations.render",
     "utils.conversations.factory",
@@ -113,7 +108,6 @@ _SYS_MODULE_NAMES = [
     "utils.retrieval.tool_services",
     "utils.retrieval.tool_services.conversations",
     "utils.retrieval.tool_services.memories",
-    "utils.retrieval.tool_services.action_items",
     "utils.retrieval.tool_result_boundaries",
     "utils.other",
     "utils.other.endpoints",
@@ -173,28 +167,14 @@ memories_db = _stub_module("database.memories")
 memories_db.get_memories = MagicMock(return_value=[])
 memories_db.get_memories_by_ids = MagicMock(return_value=[])
 
+# Stub timezone lookup used by retained conversation and memory rendering.
+notifications_db = _stub_module("database.notifications")
+notifications_db.get_user_time_zone = MagicMock(return_value="UTC")
+
 # Stub database.vector_db
 vector_db = _stub_module("database.vector_db")
 vector_db.query_vectors = MagicMock(return_value=[])
 vector_db.find_similar_memories = MagicMock(return_value=[])
-
-# Stub database.action_items
-action_items_db = _stub_module("database.action_items")
-action_items_db.get_action_items = MagicMock(return_value=[])
-action_items_db.get_action_item = MagicMock(return_value=None)
-action_items_db.create_action_item = MagicMock(return_value="test-item-id")
-action_items_db.update_action_item = MagicMock(return_value=True)
-
-# Stub database.notifications
-notifications_db = _stub_module("database.notifications")
-notifications_db.get_user_time_zone = MagicMock(return_value="UTC")
-
-# Stub notifications
-notif_mod = _stub_module("utils.notifications")
-notif_mod.send_action_item_completed_notification = MagicMock()
-notif_mod.send_action_item_created_notification = MagicMock()
-notif_mod.send_action_item_data_message = MagicMock()
-notif_mod.sync_action_item_reminder = MagicMock()
 
 # Stub utils packages
 _stub_package("utils")
@@ -378,10 +358,6 @@ memories_svc = _load_module_from_file(
     "utils.retrieval.tool_services.memories",
     BACKEND_DIR / "utils" / "retrieval" / "tool_services" / "memories.py",
 )
-action_items_svc = _load_module_from_file(
-    "utils.retrieval.tool_services.action_items",
-    BACKEND_DIR / "utils" / "retrieval" / "tool_services" / "action_items.py",
-)
 router_mod = _load_module_from_file(
     "routers.tools",
     BACKEND_DIR / "routers" / "tools.py",
@@ -478,9 +454,9 @@ class TestParseIsoDate:
             pytest.skip("APIClient sources not found (backend-only test environment)")
         source = "\n".join(path.read_text(encoding="utf-8") for path in paths)
         assert 'func encodeQueryDate' in source, "encodeQueryDate helper must exist in the APIClient extension set"
-        # 8 call sites + 1 definition = at least 9 occurrences
+        # Retained non-task routes have four call sites plus the definition.
         count = source.count('encodeQueryDate(')
-        assert count >= 9, f"Expected >= 9 encodeQueryDate( occurrences (1 def + 8 calls), got {count}"
+        assert count >= 5, f"Expected >= 5 encodeQueryDate( occurrences (1 def + 4 calls), got {count}"
 
 
 # ===========================================================================
@@ -655,129 +631,6 @@ class TestSearchMemoriesText:
 
 
 # ===========================================================================
-# Tests: get_action_items_text
-# ===========================================================================
-class TestGetActionItemsText:
-    def setup_method(self):
-        action_items_db.get_action_items.reset_mock()
-        action_items_db.get_action_items.return_value = []
-
-    def test_empty_result(self):
-        result = action_items_svc.get_action_items_text(uid="test-uid")
-        assert "No" in result and "action items found" in result
-
-    def test_empty_with_completed_filter(self):
-        result = action_items_svc.get_action_items_text(uid="test-uid", completed=False)
-        assert "pending" in result
-
-    def test_with_items(self):
-        action_items_db.get_action_items.return_value = [
-            {
-                'id': 'ai-1',
-                'description': 'Buy groceries',
-                'completed': False,
-                'created_at': datetime.now(timezone.utc),
-                'due_at': datetime.now(timezone.utc) + timedelta(hours=24),
-            },
-        ]
-        result = action_items_svc.get_action_items_text(uid="test-uid")
-        assert "Buy groceries" in result
-        assert "Pending" in result
-        assert "ai-1" in result
-
-    def test_filters_locked_items(self):
-        action_items_db.get_action_items.return_value = [
-            {'id': 'ai-1', 'description': 'Visible', 'completed': False, 'is_locked': False},
-            {'id': 'ai-2', 'description': 'Locked', 'completed': False, 'is_locked': True},
-        ]
-        result = action_items_svc.get_action_items_text(uid="test-uid")
-        assert "Visible" in result
-        assert "Locked" not in result
-        assert "1 total" in result
-
-
-# ===========================================================================
-# Tests: create_action_item_text
-# ===========================================================================
-class TestCreateActionItemText:
-    def setup_method(self):
-        action_items_db.create_action_item.reset_mock()
-        action_items_db.create_action_item.return_value = "test-item-id"
-        action_items_db.get_action_item.reset_mock()
-        action_items_db.get_action_item.return_value = {
-            'id': 'test-item-id',
-            'description': 'Test task',
-            'completed': False,
-            'due_at': datetime.now(timezone.utc) + timedelta(hours=24),
-        }
-        notif_mod.send_action_item_data_message.reset_mock()
-        notif_mod.send_action_item_created_notification.reset_mock()
-
-    def test_empty_description_rejected(self):
-        result = action_items_svc.create_action_item_text(uid="test-uid", description="")
-        assert "Error" in result
-
-    def test_whitespace_description_rejected(self):
-        result = action_items_svc.create_action_item_text(uid="test-uid", description="   ")
-        assert "Error" in result
-
-    def test_past_due_date_rejected(self):
-        past = (datetime.now(timezone.utc) - timedelta(days=5)).strftime('%Y-%m-%dT%H:%M:%S+00:00')
-        result = action_items_svc.create_action_item_text(uid="test-uid", description="Test", due_at=past)
-        assert "Error" in result
-        assert "past" in result.lower()
-
-    def test_success(self):
-        result = action_items_svc.create_action_item_text(uid="test-uid", description="Ship feature")
-        assert "Added" in result
-        assert "Ship feature" in result or "Test task" in result
-
-    def test_invalid_due_format(self):
-        result = action_items_svc.create_action_item_text(uid="test-uid", description="Test", due_at="bad-date")
-        assert "Error" in result
-
-
-# ===========================================================================
-# Tests: update_action_item_text
-# ===========================================================================
-class TestUpdateActionItemText:
-    def setup_method(self):
-        action_items_db.get_action_item.reset_mock()
-        action_items_db.update_action_item.reset_mock()
-        action_items_db.update_action_item.return_value = True
-        notif_mod.send_action_item_completed_notification.reset_mock()
-
-    def test_empty_id_rejected(self):
-        result = action_items_svc.update_action_item_text(uid="test-uid", action_item_id="")
-        assert "Error" in result
-
-    def test_nonexistent_item(self):
-        action_items_db.get_action_item.return_value = None
-        result = action_items_svc.update_action_item_text(uid="test-uid", action_item_id="bad-id")
-        assert "not found" in result.lower()
-
-    def test_locked_item_rejected(self):
-        action_items_db.get_action_item.return_value = {'id': 'ai-1', 'description': 'Test', 'is_locked': True}
-        result = action_items_svc.update_action_item_text(uid="test-uid", action_item_id="ai-1", completed=True)
-        assert "paid plan" in result.lower()
-
-    def test_no_changes(self):
-        action_items_db.get_action_item.return_value = {'id': 'ai-1', 'description': 'Test'}
-        result = action_items_svc.update_action_item_text(uid="test-uid", action_item_id="ai-1")
-        assert "No changes" in result
-
-    def test_mark_completed(self):
-        action_items_db.get_action_item.return_value = {'id': 'ai-1', 'description': 'Test'}
-        result = action_items_svc.update_action_item_text(uid="test-uid", action_item_id="ai-1", completed=True)
-        assert "completed" in result.lower()
-
-    def test_update_description(self):
-        action_items_db.get_action_item.return_value = {'id': 'ai-1', 'description': 'Old'}
-        result = action_items_svc.update_action_item_text(uid="test-uid", action_item_id="ai-1", description="New desc")
-        assert "New desc" in result
-
-
-# ===========================================================================
 # Tests: Router envelope
 # ===========================================================================
 class TestRouterEnvelope:
@@ -835,14 +688,6 @@ class TestRouterEndpoints:
         memories_db.get_memories_by_ids.return_value = []
         vector_db.find_similar_memories.reset_mock()
         vector_db.find_similar_memories.return_value = []
-        action_items_db.get_action_items.reset_mock()
-        action_items_db.get_action_items.return_value = []
-        action_items_db.get_action_item.reset_mock()
-        action_items_db.get_action_item.return_value = None
-        action_items_db.create_action_item.reset_mock()
-        action_items_db.create_action_item.return_value = "test-item-id"
-        action_items_db.update_action_item.reset_mock()
-        action_items_db.update_action_item.return_value = True
 
     def test_get_conversations_endpoint(self):
         resp = self.client.get("/v1/tools/conversations")
@@ -869,34 +714,6 @@ class TestRouterEndpoints:
         body = resp.json()
         assert body["tool_name"] == "search_memories"
 
-    def test_get_action_items_endpoint(self):
-        resp = self.client.get("/v1/tools/action-items")
-        assert resp.status_code == 200
-        body = resp.json()
-        assert body["tool_name"] == "get_action_items"
-
-    def test_create_action_item_endpoint(self):
-        action_items_db.create_action_item.return_value = "new-id"
-        action_items_db.get_action_item.return_value = {
-            'id': 'new-id',
-            'description': 'Test task',
-            'completed': False,
-            'due_at': datetime.now(timezone.utc) + timedelta(hours=24),
-        }
-        resp = self.client.post("/v1/tools/action-items", json={"description": "Test task"})
-        assert resp.status_code == 200
-        body = resp.json()
-        assert body["tool_name"] == "create_action_item"
-        assert "Added" in body["result_text"]
-
-    def test_update_action_item_endpoint(self):
-        action_items_db.get_action_item.return_value = {'id': 'ai-1', 'description': 'Task'}
-        resp = self.client.patch("/v1/tools/action-items/ai-1", json={"completed": True})
-        assert resp.status_code == 200
-        body = resp.json()
-        assert body["tool_name"] == "update_action_item"
-        assert "completed" in body["result_text"].lower()
-
     def test_get_conversations_query_params(self):
         """Query params are forwarded correctly to the service."""
         resp = self.client.get("/v1/tools/conversations?limit=10&offset=5&include_transcript=false")
@@ -904,11 +721,6 @@ class TestRouterEndpoints:
         call_kwargs = conversations_db.get_conversations.call_args[1]
         assert call_kwargs['limit'] == 10
         assert call_kwargs['offset'] == 5
-
-    def test_create_action_item_empty_body_rejected(self):
-        """Missing required field returns 422."""
-        resp = self.client.post("/v1/tools/action-items", json={})
-        assert resp.status_code == 422
 
     def test_search_conversations_missing_query_rejected(self):
         """Missing required query field returns 422."""
@@ -951,12 +763,6 @@ class TestRateLimitPolicies:
         calls = endpoints_mod.with_rate_limit.call_args_list
         search_calls = [c for c in calls if len(c[0]) >= 2 and c[0][1] == "tools:search"]
         assert len(search_calls) >= 1, "with_rate_limit not called with 'tools:search'"
-
-    def test_with_rate_limit_called_for_mutate(self):
-        """with_rate_limit was called with 'tools:mutate' during router import."""
-        calls = endpoints_mod.with_rate_limit.call_args_list
-        mutate_calls = [c for c in calls if len(c[0]) >= 2 and c[0][1] == "tools:mutate"]
-        assert len(mutate_calls) >= 1, "with_rate_limit not called with 'tools:mutate'"
 
 
 # ===========================================================================
@@ -1050,10 +856,6 @@ class TestErrorHandling:
         vector_db.query_vectors.reset_mock()
         memories_db.get_memories.reset_mock()
         vector_db.find_similar_memories.reset_mock()
-        action_items_db.get_action_items.reset_mock()
-        action_items_db.create_action_item.reset_mock()
-        action_items_db.get_action_item.reset_mock()
-        action_items_db.update_action_item.reset_mock()
 
     def test_get_conversations_db_error(self):
         """DB failure in get_conversations returns error text."""
@@ -1087,45 +889,6 @@ class TestErrorHandling:
         assert "Vector timeout" in result
         vector_db.find_similar_memories.side_effect = None
 
-    def test_get_action_items_db_error(self):
-        """DB failure in get_action_items returns error text."""
-        action_items_db.get_action_items.side_effect = Exception("DB connection lost")
-        result = action_items_svc.get_action_items_text(uid="test-uid")
-        assert "Error" in result
-        assert "DB connection lost" in result
-        action_items_db.get_action_items.side_effect = None
-
-    def test_create_action_item_db_returns_none(self):
-        """create_action_item returning None (failure) returns error text."""
-        action_items_db.create_action_item.return_value = None
-        result = action_items_svc.create_action_item_text(uid="test-uid", description="Test")
-        assert "Error" in result or "Failed" in result
-        action_items_db.create_action_item.return_value = "test-item-id"
-
-    def test_create_action_item_db_exception(self):
-        """create_action_item raising exception returns error text."""
-        action_items_db.create_action_item.side_effect = Exception("Write failed")
-        result = action_items_svc.create_action_item_text(uid="test-uid", description="Test")
-        assert "Error" in result
-        assert "Write failed" in result
-        action_items_db.create_action_item.side_effect = None
-
-    def test_update_action_item_db_exception(self):
-        """update_action_item raising exception returns error text."""
-        action_items_db.get_action_item.return_value = {'id': 'ai-1', 'description': 'Task'}
-        action_items_db.update_action_item.side_effect = Exception("Update failed")
-        result = action_items_svc.update_action_item_text(uid="test-uid", action_item_id="ai-1", completed=True)
-        assert "Error" in result
-        assert "Update failed" in result
-        action_items_db.update_action_item.side_effect = None
-
-    def test_create_action_item_get_after_create_returns_none(self):
-        """Created item can't be retrieved — partial success message."""
-        action_items_db.create_action_item.return_value = "new-id"
-        action_items_db.get_action_item.return_value = None
-        result = action_items_svc.create_action_item_text(uid="test-uid", description="Test")
-        assert "created" in result.lower() or "couldn't retrieve" in result.lower()
-
 
 # ===========================================================================
 # Tests: Boundary conditions — limit caps and edge values
@@ -1140,8 +903,6 @@ class TestBoundaryConditions:
         memories_db.get_memories.return_value = []
         vector_db.find_similar_memories.reset_mock()
         vector_db.find_similar_memories.return_value = []
-        action_items_db.get_action_items.reset_mock()
-        action_items_db.get_action_items.return_value = []
 
     def test_search_conversations_limit_cap(self):
         """search_conversations_text caps limit at 20."""
@@ -1155,36 +916,3 @@ class TestBoundaryConditions:
         call_kwargs = vector_db.find_similar_memories.call_args
         # limit is positional arg 3 or keyword
         assert call_kwargs[1].get('limit', call_kwargs[0][2] if len(call_kwargs[0]) > 2 else 20) <= 20
-
-    def test_action_items_limit_cap(self):
-        """get_action_items_text caps limit at 500."""
-        action_items_svc.get_action_items_text(uid="test-uid", limit=99999)
-        call_kwargs = action_items_db.get_action_items.call_args[1]
-        assert call_kwargs['limit'] <= 500
-
-    def test_update_action_item_mark_pending(self):
-        """completed=False marks item as pending."""
-        action_items_db.get_action_item.reset_mock()
-        action_items_db.update_action_item.reset_mock()
-        action_items_db.get_action_item.return_value = {'id': 'ai-1', 'description': 'Task', 'completed': True}
-        result = action_items_svc.update_action_item_text(uid="test-uid", action_item_id="ai-1", completed=False)
-        assert "pending" in result.lower()
-        update_data = action_items_db.update_action_item.call_args[0][2]
-        assert update_data['completed'] is False
-        assert update_data['completed_at'] is None
-
-    def test_update_action_item_due_date(self):
-        """due_at update with valid future date succeeds."""
-        action_items_db.get_action_item.reset_mock()
-        action_items_db.update_action_item.reset_mock()
-        action_items_db.get_action_item.return_value = {'id': 'ai-1', 'description': 'Task'}
-        future = (datetime.now(timezone.utc) + timedelta(days=7)).strftime('%Y-%m-%dT%H:%M:%S+00:00')
-        result = action_items_svc.update_action_item_text(uid="test-uid", action_item_id="ai-1", due_at=future)
-        assert "due date" in result.lower()
-
-    def test_update_action_item_invalid_due_date(self):
-        """due_at update with invalid format returns error."""
-        action_items_db.get_action_item.reset_mock()
-        action_items_db.get_action_item.return_value = {'id': 'ai-1', 'description': 'Task'}
-        result = action_items_svc.update_action_item_text(uid="test-uid", action_item_id="ai-1", due_at="not-a-date")
-        assert "Error" in result

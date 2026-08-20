@@ -222,9 +222,6 @@ def install_ws_i_heavy_import_stubs() -> list[str]:
     vector_db_mod.upsert_memory_vector = MagicMock()
     vector_db_mod.delete_memory_vectors_batch = MagicMock()
     vector_db_mod.upsert_memory_vectors_batch = MagicMock()
-    vector_db_mod.upsert_action_item_vectors_batch = MagicMock()
-    vector_db_mod.delete_action_item_vectors_batch = MagicMock()
-    vector_db_mod.find_similar_action_items = MagicMock(return_value=[])
     vector_db_mod.upsert_vector2 = MagicMock()
     vector_db_mod.update_vector_metadata = MagicMock()
     vector_db_mod.upsert_transcript_chunk_vectors = MagicMock()
@@ -250,7 +247,6 @@ def install_ws_i_heavy_import_stubs() -> list[str]:
         "database.notifications",
         "database.tasks",
         "database.trends",
-        "database.action_items",
         "database.folders",
         "database.calendar_meetings",
         "database.short_term_memories",
@@ -312,7 +308,6 @@ WS_I_HEAVY_STUB_MODULE_NAMES = (
     "database.notifications",
     "database.tasks",
     "database.trends",
-    "database.action_items",
     "database.folders",
     "database.calendar_meetings",
     "database.short_term_memories",
@@ -390,7 +385,6 @@ def install_ws_j_heavy_import_stubs() -> list[str]:
         "database.redis_db",
         "database.conversations",
         "database.notifications",
-        "database.action_items",
         "database.short_term_memories",
         "database.review_queue",
         "utils.executors",

@@ -21,7 +21,7 @@ final class AgentCompletionVoiceDelivery {
 
   /// Background surfaces whose terminal transitions can carry a user-facing
   /// completion. Primary conversational surfaces (main_chat, realtime_voice,
-  /// task_chat, …) reach a terminal state on every ordinary answer and must
+  /// realtime_voice, …) reach a terminal state on every ordinary answer and must
   /// not trigger kernel delta reads.
   static let triggerSurfaceKinds: Set<String> = ["floating_bar", "service"]
 

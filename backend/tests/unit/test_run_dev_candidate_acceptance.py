@@ -9,7 +9,7 @@ def test_checked_in_manifest_declares_exactly_the_dev_cloud_run_candidates():
     checks = acceptance.load_manifest(acceptance.DEFAULT_MANIFEST)
 
     assert [(check.service, check.contract) for check in checks] == [
-        ('backend', 'what_matters_now'),
+        ('backend', 'health'),
         ('backend-sync', 'health'),
     ]
     assert all('{base_url}' in check.command for check in checks)
@@ -76,8 +76,8 @@ def test_main_writes_redacted_failed_contract_evidence(monkeypatch, tmp_path, ca
                 'schema_version': 1,
                 'services': {
                     'backend': {
-                        'contract': 'what_matters_now',
-                        'command': ['python3', 'backend/scripts/smoke_what_matters_now.py', '--base-url', '{base_url}'],
+                        'contract': 'health',
+                        'command': ['python3', 'backend/scripts/smoke_cloud_run_health.py', '--base-url', '{base_url}'],
                     }
                 },
             }
@@ -108,7 +108,7 @@ def test_main_writes_redacted_failed_contract_evidence(monkeypatch, tmp_path, ca
 
     evidence = json.loads(evidence_path.read_text(encoding='utf-8'))
     assert evidence == {
-        'checks': [{'contract': 'what_matters_now', 'service': 'backend', 'status': 'FAIL'}],
+        'checks': [{'contract': 'health', 'service': 'backend', 'status': 'FAIL'}],
         'schema_version': 1,
         'status': 'FAIL',
     }
@@ -123,7 +123,7 @@ def test_failure_marks_later_manifest_contracts_not_run(monkeypatch, tmp_path):
             {
                 'schema_version': 1,
                 'services': {
-                    'backend': {'contract': 'what_matters_now', 'command': ['echo', '{base_url}']},
+                    'backend': {'contract': 'health', 'command': ['echo', '{base_url}']},
                     'backend-sync': {'contract': 'health', 'command': ['echo', '{base_url}']},
                 },
             }
@@ -157,6 +157,6 @@ def test_failure_marks_later_manifest_contracts_not_run(monkeypatch, tmp_path):
     )
 
     assert json.loads(evidence_path.read_text(encoding='utf-8'))['checks'] == [
-        {'contract': 'what_matters_now', 'service': 'backend', 'status': 'FAIL'},
+        {'contract': 'health', 'service': 'backend', 'status': 'FAIL'},
         {'contract': 'health', 'service': 'backend-sync', 'status': 'NOT_RUN'},
     ]

@@ -75,11 +75,8 @@ MODEL_QOS_PROFILES: Dict[str, Dict[str, Tuple[str, str]]] = {
         'chat_extraction': ('gpt-4.1-mini', 'openai'),
         'session_titles': ('gemini-2.5-flash-lite', 'gemini'),
         # Features
-        'goals': ('gpt-4.1-mini', 'openai'),
-        'goals_advice': ('gpt-5.4-mini', 'openai'),
         'notifications': ('gpt-5.4-mini', 'openai'),
         'proactive_notification': ('gpt-4.1-mini', 'openai'),
-        'what_matters_now': ('gpt-4.1-mini', 'openai'),
         'followup': ('gemini-2.5-flash-lite', 'gemini'),
         'onboarding': ('gemini-2.5-flash-lite', 'gemini'),
         'trends': ('gemini-2.5-flash-lite', 'gemini'),
@@ -115,11 +112,8 @@ MODEL_QOS_PROFILES: Dict[str, Dict[str, Tuple[str, str]]] = {
         'chat_extraction': ('gpt-4.1-mini', 'openai'),
         'session_titles': ('gpt-4.1-mini', 'openai'),
         # Features
-        'goals': ('gpt-4.1-mini', 'openai'),
-        'goals_advice': ('gpt-5.4', 'openai'),
         'notifications': ('gpt-5.4', 'openai'),
         'proactive_notification': ('gpt-4.1-mini', 'openai'),
-        'what_matters_now': ('gpt-4.1-mini', 'openai'),
         'followup': ('gpt-4.1-mini', 'openai'),
         'onboarding': ('gpt-4.1-mini', 'openai'),
         'trends': ('gpt-4.1-mini', 'openai'),
@@ -174,7 +168,6 @@ _STRUCTURED_OUTPUT_FEATURES = {
     'chat_extraction',
     'proactive_notification',
     'trends',
-    'what_matters_now',
     'translation',
 }
 STRUCTURED_OUTPUT_FEATURES = _STRUCTURED_OUTPUT_FEATURES

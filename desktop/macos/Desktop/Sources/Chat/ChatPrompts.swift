@@ -113,9 +113,9 @@ struct ChatPrompts {
     SELECT id, description, priority, dueAt, createdAt FROM action_items
     WHERE completed = 0 AND deleted = 0 ORDER BY createdAt DESC
 
-    -- Create a task:
-    INSERT INTO action_items (description, priority, completed, deleted, source, createdAt, updatedAt)
-    VALUES ('task text', 'medium', 0, 0, 'chat', datetime('now'), datetime('now'))
+    -- Task and goal writes are not allowed through execute_sql. Use the typed
+    -- create_action_item/update_action_item tools so owner, reminder, and UI
+    -- projection fences all run.
 
     -- Recent conversations:
     SELECT conversationId, title, overview, emoji, startedAt, finishedAt FROM transcription_sessions
@@ -162,7 +162,7 @@ struct ChatPrompts {
 
   static let tableAnnotations: [String: String] = [
     "screenshots": "captured screen frames with OCR text",
-    "action_items": "tasks (bidirectional sync with backend)",
+    "action_items": "owner-scoped local tasks",
     "transcription_sessions": "voice recordings / conversations",
     "transcription_segments": "transcript text with speaker/timing",
     "conversation_folders": "user-created conversation folders",
@@ -174,9 +174,7 @@ struct ChatPrompts {
     "memories":
       "user facts, preferences, personal details (age, relationships, habits, interests) — PRIMARY source for personal questions",
     "ai_user_profiles": "daily AI-generated user profile summaries",
-    "goals": "user goals with progress tracking",
-    "staged_tasks": "AI-extracted task candidates pending user review",
-    "task_chat_messages": "Claude Code agent ↔ user chat history, one thread per task (action item)",
+    "goals": "owner-scoped local goals with active/completed state",
     "observations": "per-screenshot AI observations used to detect tasks and activities",
   ]
 
@@ -200,42 +198,22 @@ struct ChatPrompts {
       "completed": "Whether the task is marked done",
       "deleted": "Soft-delete flag",
       "source": "Origin: screenshot | conversation | omi | manual",
-      "conversationId": "Backend conversation ID if extracted from a voice session",
+      "conversationId": "Stable local source-session ID if extracted from a voice session",
       "priority": "high | medium | low",
-      "category": "AI-assigned category label",
-      "tagsJson": "JSON array of tag strings",
-      "deletedBy": "Who deleted it: user | ai_dedup",
+      "deletedBy": "Local user-deletion tombstone marker",
+      "deletedAt": "When the local user-deletion tombstone was created",
       "dueAt": "Optional due date/time",
+      "completedAt": "When the task was completed",
       "screenshotId": "FK to screenshots — screen context at extraction time",
       "confidence": "Extraction confidence 0–1",
       "sourceApp": "App that was active when task was extracted",
       "windowTitle": "Window title at extraction time",
       "contextSummary": "AI summary of what was happening on screen",
       "currentActivity": "Short label of user activity at capture time",
-      "metadataJson": "Arbitrary extra metadata JSON",
+      "provenanceJson": "Typed source evidence for why Omi added the task",
       "sortOrder": "Manual user-defined sort position",
-      "indentLevel": "Nesting level 0–3 for subtasks",
-      "relevanceScore": "AI-scored relevance 0–100; higher = more important",
-      "scoredAt": "When relevanceScore was last computed",
-      "agentStatus": "AI agent execution state: pending | processing | editing | completed | failed",
-      "agentSessionName": "tmux session name for the running agent",
-      "agentPrompt": "Prompt that was sent to the Claude agent",
-      "agentPlan": "Claude agent's response / execution plan",
-      "agentStartedAt": "When the agent started working on this task",
-      "agentCompletedAt": "When the agent finished",
-      "agentEditedFilesJson": "JSON array of file paths the agent modified",
-      "chatSessionId": "Firestore session ID for the task-scoped sidebar chat",
       "recurrenceRule": "Recurrence pattern: daily | weekdays | weekly | biweekly | monthly",
-      "recurrenceParentId": "backendId of the parent recurring task template",
-    ],
-    "task_chat_messages": [
-      "taskId": "FK to action_items.backendId — which task this message belongs to",
-      "messageId": "Stable UUID for this message (dedup key)",
-      "sender": "user | ai",
-      "messageText": "Plain text content of the message",
-      "contentBlocksJson": "JSON-encoded Claude content blocks: text, toolCall, thinking",
-      "createdAt": "When the message was sent",
-      "updatedAt": "Last modification time",
+      "recurrenceParentId": "Surfaced local ID of the recurrence series parent",
     ],
     "memories": [
       "content": "The remembered fact, preference, or personal detail",
@@ -349,43 +327,13 @@ struct ChatPrompts {
       "currentActivity": "Short activity label",
       "hasTask": "Whether a task was found in this screenshot",
       "taskTitle": "Task title if hasTask=true",
-      "sourceCategory": "High-level category (work/personal/social/etc)",
-      "sourceSubcategory": "More specific subcategory",
       "metadataJson": "Additional structured metadata",
     ],
     "goals": [
       "title": "Short goal name shown in UI",
       "goalDescription": "Longer description of the goal",
-      "goalType": "boolean (done/not done) | scale (0–N) | numeric (measured value)",
-      "targetValue": "The value to reach for completion",
-      "currentValue": "Current progress value",
-      "minValue": "Minimum possible value",
-      "maxValue": "Maximum possible value",
-      "unit": "Unit label (e.g. km, hours, pages)",
       "isActive": "Whether goal is currently being tracked",
       "completedAt": "When the goal was completed (null if in progress)",
-      "deleted": "Soft-delete flag",
-    ],
-    "staged_tasks": [
-      "description": "Task text proposed by AI",
-      "completed": "Whether promoted task was completed",
-      "deleted": "Soft-delete flag",
-      "source": "Origin: screenshot | conversation | omi",
-      "conversationId": "Backend conversation ID if from voice",
-      "priority": "high | medium | low",
-      "category": "AI-assigned category",
-      "tagsJson": "JSON array of tag strings",
-      "deletedBy": "user | ai_dedup",
-      "dueAt": "Proposed due date",
-      "screenshotId": "FK to screenshots",
-      "confidence": "Extraction confidence 0–1",
-      "sourceApp": "App active at extraction",
-      "windowTitle": "Window title at extraction",
-      "contextSummary": "AI summary of screen context",
-      "currentActivity": "Activity label at extraction time",
-      "metadataJson": "Extra metadata JSON",
-      "relevanceScore": "AI relevance score 0–100",
-      "scoredAt": "When relevanceScore was computed",
     ],
     "ai_user_profiles": [
       "profileText": "Full AI-generated profile summary text",
@@ -408,7 +356,6 @@ struct ChatPrompts {
     "ocrDataJson", "extractedTasksJson", "adviceJson",
     "isIndexed", "backendId", "backendSynced", "backendSyncedAt",
     "embeddingData", "embedding", "normalizedOcrTextId",
-    "fromStaged",
   ]
 
   /// Static suffix appended after the dynamic schema — FTS tables, relationships, and query patterns
@@ -416,8 +363,6 @@ struct ChatPrompts {
     **FTS5 full-text search tables** (use MATCH for keyword search, BM25 for ranking):
     - screenshots_fts(ocrText, windowTitle, appName)
     - action_items_fts(description)
-    - staged_tasks_fts(description)
-    - task_chat_messages_fts(messageText)
     - proactive_extractions_fts(content, reasoning, contextSummary)
 
     FTS query patterns:
@@ -438,7 +383,6 @@ struct ChatPrompts {
     - memories.screenshotId → screenshots.id (screen context)
     - memories.conversationId → transcription_sessions.conversationId (voice session source)
     - live_notes.sessionId → transcription_sessions.id (recording notes)
-    - staged_tasks.screenshotId → screenshots.id (screen context)
     - proactive_extractions.screenshotId → screenshots.id (source screen)
 
     Full DDL for any table: SELECT sql FROM sqlite_master WHERE name='table_name'

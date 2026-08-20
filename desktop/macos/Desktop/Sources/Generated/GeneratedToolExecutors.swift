@@ -5,7 +5,6 @@ enum GeneratedSwiftTool: String, CaseIterable {
   case executeSql = "execute_sql"
   case semanticSearch = "semantic_search"
   case getDailyRecap = "get_daily_recap"
-  case searchTasks = "search_tasks"
   case completeTask = "complete_task"
   case deleteTask = "delete_task"
   case getConversations = "get_conversations"
@@ -33,7 +32,7 @@ enum GeneratedSwiftToolExecutor: String {
 
 enum GeneratedToolExecutors {
   static let manifestVersion = 1
-  static let manifestDigest = "sha256:a7e75fc111238101a4b11c9ea08b503ab6e62accc9a562348a04d757a87a236c"
+  static let manifestDigest = "sha256:80e0da90a76da08f01f1279d639adf7f458b2dc5a15fd51f9010eeff669a3199"
 
   static let aliasToCanonical: [String: GeneratedSwiftTool] = [
     "search_screen_history": .semanticSearch
@@ -43,7 +42,6 @@ enum GeneratedToolExecutors {
     .executeSql: .chatToolExecutor,
     .semanticSearch: .chatToolExecutor,
     .getDailyRecap: .chatToolExecutor,
-    .searchTasks: .chatToolExecutor,
     .completeTask: .chatToolExecutor,
     .deleteTask: .chatToolExecutor,
     .getConversations: .chatToolExecutor,
@@ -96,7 +94,6 @@ enum GeneratedToolExecutors {
     case executeSql
     case semanticSearch
     case getDailyRecap
-    case searchTasks
     case completeTask
     case deleteTask
     case getConversations
@@ -121,7 +118,6 @@ enum GeneratedToolExecutors {
     case .executeSql: return .executeSql
     case .semanticSearch: return .semanticSearch
     case .getDailyRecap: return .getDailyRecap
-    case .searchTasks: return .searchTasks
     case .completeTask: return .completeTask
     case .deleteTask: return .deleteTask
     case .getConversations: return .getConversations

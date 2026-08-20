@@ -2607,8 +2607,140 @@ actor RewindDatabase {
 
     Self.registerExternalSurfaceRetirementMigration(on: &migrator)
     Self.registerConversationsLocalAuthoritativeMigration(on: &migrator)
+    migrator.registerMigration("makeTasksAndGoalsLocalAuthoritative") { db in
+      try Self.makeTasksAndGoalsLocalAuthoritative(in: db)
+    }
     RewindAbandonedVideoChunkQuarantine.registerMigration(on: &migrator)
     try migrator.migrate(queue)
+  }
+
+  static func makeTasksAndGoalsLocalAuthoritative(in db: Database) throws {
+    // Retiring FTS and task-chat products must be removed before rebuilding
+    // their content tables. Historical migrations stay immutable; this one
+    // makes upgraded and fresh databases converge on the retained schema.
+    for trigger in [
+      "action_items_fts_ai", "action_items_fts_ad", "action_items_fts_au",
+      "staged_tasks_fts_ai", "staged_tasks_fts_ad", "staged_tasks_fts_au",
+      "task_chat_messages_ai", "task_chat_messages_ad", "task_chat_messages_au",
+    ] {
+      try db.execute(sql: "DROP TRIGGER IF EXISTS \(trigger)")
+    }
+    try db.execute(sql: "DROP TABLE IF EXISTS action_items_fts")
+    try db.execute(sql: "DROP TABLE IF EXISTS staged_tasks_fts")
+    try db.execute(sql: "DROP TABLE IF EXISTS task_chat_messages_fts")
+    try db.execute(sql: "DROP TABLE IF EXISTS staged_tasks")
+    try db.execute(sql: "DROP TABLE IF EXISTS task_chat_messages")
+
+    try db.execute(sql: "ALTER TABLE action_items RENAME TO action_items_legacy_s13")
+    try db.create(table: "action_items") { t in
+      t.autoIncrementedPrimaryKey("id")
+      t.column("description", .text).notNull()
+      t.column("completed", .boolean).notNull().defaults(to: false)
+      t.column("deleted", .boolean).notNull().defaults(to: false)
+      t.column("source", .text)
+      t.column("conversationId", .text)
+        .references("transcription_sessions", column: "conversationId", onDelete: .cascade)
+      t.column("priority", .text)
+      t.column("deletedBy", .text)
+      t.column("deletedAt", .datetime)
+      t.column("dueAt", .datetime)
+      t.column("completedAt", .datetime)
+      t.column("recurrenceRule", .text)
+      t.column("recurrenceParentId", .text)
+      t.column("provenanceJson", .text)
+      t.column("screenshotId", .integer).references("screenshots", onDelete: .setNull)
+      t.column("confidence", .double)
+      t.column("sourceApp", .text)
+      t.column("windowTitle", .text)
+      t.column("contextSummary", .text)
+      t.column("currentActivity", .text)
+      t.column("embedding", .blob)
+      t.column("sortOrder", .integer)
+      t.column("createdAt", .datetime).notNull()
+      t.column("updatedAt", .datetime).notNull()
+    }
+    try db.execute(
+      sql: """
+        INSERT INTO action_items (
+          id, description, completed, deleted, source, conversationId, priority, deletedBy, deletedAt,
+          dueAt, completedAt, recurrenceRule, recurrenceParentId, provenanceJson, screenshotId,
+          confidence, sourceApp, windowTitle, contextSummary, currentActivity, embedding, sortOrder,
+          createdAt, updatedAt
+        )
+        SELECT
+          id, description, completed, deleted, source,
+          CASE
+            WHEN conversationId IS NULL THEN NULL
+            WHEN EXISTS (
+              SELECT 1 FROM transcription_sessions s
+              WHERE s.conversationId = action_items_legacy_s13.conversationId
+            ) THEN conversationId
+            ELSE NULL
+          END,
+          priority, deletedBy,
+          CASE WHEN deleted = 1 AND deletedBy = 'user' THEN updatedAt ELSE NULL END,
+          dueAt, completedAt, recurrenceRule, recurrenceParentId,
+          provenanceJson, screenshotId, confidence, sourceApp, windowTitle, contextSummary,
+          currentActivity, embedding, sortOrder, createdAt, updatedAt
+        FROM action_items_legacy_s13
+        ORDER BY id
+        """)
+    try db.execute(sql: "DROP TABLE action_items_legacy_s13")
+    try db.create(index: "idx_action_items_created", on: "action_items", columns: ["createdAt"])
+    try db.create(index: "idx_action_items_completed", on: "action_items", columns: ["completed"])
+    try db.create(index: "idx_action_items_deleted", on: "action_items", columns: ["deleted"])
+    try db.create(index: "idx_action_items_due", on: "action_items", columns: ["dueAt"])
+    try db.create(index: "idx_action_items_conversation", on: "action_items", columns: ["conversationId"])
+    try Self.installActionItemsFTS(in: db, populateExistingRows: true)
+
+    try db.execute(sql: "ALTER TABLE observations RENAME TO observations_legacy_s13")
+    try db.create(table: "observations") { t in
+      t.autoIncrementedPrimaryKey("id")
+      t.column("screenshotId", .integer).references("screenshots", onDelete: .setNull)
+      t.column("appName", .text).notNull()
+      t.column("contextSummary", .text).notNull()
+      t.column("currentActivity", .text).notNull()
+      t.column("hasTask", .boolean).notNull().defaults(to: false)
+      t.column("taskTitle", .text)
+      t.column("metadataJson", .text)
+      t.column("createdAt", .datetime).notNull()
+    }
+    try db.execute(
+      sql: """
+        INSERT INTO observations (
+          id, screenshotId, appName, contextSummary, currentActivity,
+          hasTask, taskTitle, metadataJson, createdAt
+        )
+        SELECT id, screenshotId, appName, contextSummary, currentActivity,
+          hasTask, taskTitle, metadataJson, createdAt
+        FROM observations_legacy_s13
+        ORDER BY id
+        """)
+    try db.execute(sql: "DROP TABLE observations_legacy_s13")
+    try db.create(index: "idx_observations_created", on: "observations", columns: ["createdAt"])
+    try db.create(index: "idx_observations_app", on: "observations", columns: ["appName"])
+    try db.create(index: "idx_observations_screenshot", on: "observations", columns: ["screenshotId"])
+
+    try db.execute(sql: "ALTER TABLE goals RENAME TO goals_legacy_s13")
+    try db.create(table: "goals") { t in
+      t.autoIncrementedPrimaryKey("id")
+      t.column("title", .text).notNull()
+      t.column("goalDescription", .text)
+      t.column("isActive", .boolean).notNull().defaults(to: true)
+      t.column("completedAt", .datetime)
+      t.column("createdAt", .datetime).notNull()
+      t.column("updatedAt", .datetime).notNull()
+    }
+    try db.execute(
+      sql: """
+        INSERT INTO goals (id, title, goalDescription, isActive, completedAt, createdAt, updatedAt)
+        SELECT id, title, goalDescription, isActive, completedAt, createdAt, updatedAt
+        FROM goals_legacy_s13
+        WHERE deleted = 0
+        ORDER BY id
+        """)
+    try db.execute(sql: "DROP TABLE goals_legacy_s13")
+    try db.create(index: "idx_goals_active", on: "goals", columns: ["isActive", "createdAt"])
   }
 
   // MARK: - OCR Precision Reduction Migration

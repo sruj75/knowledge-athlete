@@ -74,9 +74,6 @@ extension SettingsContentView {
                 .labelsHidden()
                 .onChange(of: taskNotificationsEnabled) { _, newValue in
                   TaskAssistantSettings.shared.notificationsEnabled = newValue
-                  SettingsSyncManager.shared.pushPartialUpdate(
-                    AssistantSettingsResponse(
-                      task: TaskSettingsResponse(notificationsEnabled: newValue)))
                 }
             }
 

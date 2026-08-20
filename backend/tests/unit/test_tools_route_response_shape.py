@@ -83,12 +83,6 @@ def _install_route_stubs(monkeypatch):
     conv_services_mod.search_conversations_text = MagicMock(return_value='No conversations found.')
     monkeypatch.setitem(sys.modules, 'utils.retrieval.tool_services.conversations', conv_services_mod)
 
-    action_services_mod = types.ModuleType('utils.retrieval.tool_services.action_items')
-    action_services_mod.get_action_items_text = MagicMock(return_value='No action items found.')
-    action_services_mod.create_action_item_text = MagicMock(return_value='Created action item.')
-    action_services_mod.update_action_item_text = MagicMock(return_value='Updated action item.')
-    monkeypatch.setitem(sys.modules, 'utils.retrieval.tool_services.action_items', action_services_mod)
-
     executors_mod = types.ModuleType('utils.executors')
     executors_mod.db_executor = object()
     executors_mod.postprocess_executor = object()

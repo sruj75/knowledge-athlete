@@ -2,14 +2,11 @@ import OmiTheme
 import SwiftUI
 
 /// Persistent Capture + Listening status controls for the shell top bar, shown
-/// on every non-home page (the home screen renders its own column-aligned copy
-/// via `DashboardPage.homeHeader`). Hovering Capture reveals a Rewind shortcut
-/// beneath it.
+/// on every page where the shared shell top bar is visible. Hovering Capture
+/// reveals a Rewind shortcut beneath it.
 ///
-/// The toggle logic mirrors `DashboardPage`'s and drives the same shared
-/// singletons (`AssistantSettings`, `ProactiveAssistantsPlugin`, `AppState`), so
-/// both surfaces stay consistent. Keep the two copies in sync until they are
-/// unified behind one controller.
+/// The controls drive the shared capture/listening policy through
+/// `CaptureListeningLogic`.
 struct CaptureListeningControls: View {
   @ObservedObject var appState: AppState
   var onRewind: () -> Void

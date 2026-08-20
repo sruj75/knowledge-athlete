@@ -15,8 +15,6 @@ from datetime import datetime, timedelta
 from backend.utils.notifications import (
     send_notification,
     send_bulk_notification,
-    send_action_item_created_notification,
-    send_action_item_completed_notification,
     send_training_data_submitted_notification,
 )
 import database.notifications as notification_db
@@ -97,30 +95,6 @@ class TestBulkNotifications:
         )
 
         print("✅ Large bulk notifications sent")
-
-
-class TestActionItemNotifications:
-    """Test action item notifications"""
-
-    def test_action_created(self, test_user_id):
-        """Test action item created notification"""
-        send_action_item_created_notification(user_id=test_user_id, action_item_description="Buy groceries for dinner")
-
-        print("✅ Action created notification sent")
-
-    def test_action_completed(self, test_user_id):
-        """Test action item completed notification"""
-        send_action_item_completed_notification(user_id=test_user_id, action_item_description="Finish quarterly report")
-
-        print("✅ Action completed notification sent")
-
-    def test_action_long_description(self, test_user_id):
-        """Test action with very long description (should truncate)"""
-        long_desc = "A" * 100  # 100 characters
-
-        send_action_item_created_notification(user_id=test_user_id, action_item_description=long_desc)
-
-        print("✅ Long description notification sent (truncated)")
 
 
 class TestOtherNotifications:

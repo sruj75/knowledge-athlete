@@ -20,7 +20,7 @@ const MACOS_DIR = join(AGENT_DIR, "..");
 const GENERATED_DIR = join(MACOS_DIR, "Desktop", "Sources", "Generated");
 const FIXTURE_PATH = join(AGENT_DIR, "tests", "fixtures", "tool-manifest.json");
 
-const VALID_SURFACES = new Set(["desktop_chat", "realtime_voice", "onboarding", "task_chat"]);
+const VALID_SURFACES = new Set(["desktop_chat", "realtime_voice", "onboarding"]);
 const PROVIDER_TOP_LEVEL_COMPOSITE_SCHEMA_KEYS = ["anyOf", "oneOf", "allOf"];
 const CHECK_MODE = process.argv.includes("--check");
 
@@ -65,8 +65,6 @@ function surfaceEnum(surface) {
       return ".realtimeHub";
     case "onboarding":
       return ".onboarding";
-    case "task_chat":
-      return ".taskChat";
     default:
       throw new Error(`Unknown surface: ${surface}`);
   }
@@ -329,7 +327,6 @@ enum GeneratedToolCapabilities {
     case desktopChat
     case realtimeHub
     case onboarding
-    case taskChat
   }
 
   enum LatencyClass: String {

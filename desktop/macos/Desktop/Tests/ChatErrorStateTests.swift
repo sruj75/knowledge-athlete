@@ -309,7 +309,7 @@ final class ChatErrorStateTests: XCTestCase {
   func testDashboardHomeChatHasOneSharedErrorCardRenderSite() throws {
     let source = try sourceFile("MainWindow/Pages/DashboardPage.swift")
     let panelStart = try XCTUnwrap(source.range(of: "private func homePanelStage"))
-    let panelEnd = try XCTUnwrap(source.range(of: "private var homeRollingSuggestions"))
+    let panelEnd = try XCTUnwrap(source.range(of: "private func homeChatPanel"))
     let chatStart = try XCTUnwrap(source.range(of: "private func homeChatPanel"))
     let chatEnd = try XCTUnwrap(source.range(of: "private var dashboardChatErrorCard"))
 

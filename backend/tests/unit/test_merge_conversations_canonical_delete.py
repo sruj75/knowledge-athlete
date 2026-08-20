@@ -28,9 +28,6 @@ def _install_merge_conversations_stubs() -> list[str]:
     conversations_mod.delete_conversation = MagicMock()
     memories_mod = sys.modules["database.memories"]
     memories_mod.delete_memories_for_conversation = MagicMock()
-    action_items_mod = sys.modules["database.action_items"]
-    action_items_mod.delete_action_items_for_conversation = MagicMock()
-
     sys.modules["utils.other.storage"] = AutoMockModule("utils.other.storage")
     touched.append("utils.other.storage")
 

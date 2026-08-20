@@ -666,10 +666,6 @@ extension Notification.Name {
   static let focusPageDidLoad = Notification.Name("focusPageDidLoad")
   /// Posted when Advice page finishes loading initial data
   static let insightPageDidLoad = Notification.Name("insightPageDidLoad")
-  /// Posted when a goal is auto-created by GoalGenerationService
-  static let goalAutoCreated = Notification.Name("goalAutoCreated")
-  /// Posted when a goal is completed (current_value >= target_value)
-  static let goalCompleted = Notification.Name("goalCompleted")
   /// Posted to navigate to AI Chat page
   static let navigateToChat = Notification.Name("navigateToChat")
   static let navigateToTasks = Notification.Name("navigateToTasks")

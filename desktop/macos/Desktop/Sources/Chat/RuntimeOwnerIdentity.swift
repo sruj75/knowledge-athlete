@@ -366,9 +366,7 @@ enum RuntimeOwnerIdentity {
     await ProactiveStorage.shared.invalidateCache()
     await NoteStorage.shared.invalidateCache()
     await AIUserProfileService.shared.invalidateCache()
-    await StagedTaskStorage.shared.invalidateCache()
     await GoalStorage.shared.invalidateCache()
-    await TaskChatMessageStorage.shared.invalidateCache()
     await MainActor.run {
       FloatingBarUsageLimiter.shared.reset()
     }

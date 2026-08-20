@@ -5,7 +5,7 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 /// Reusable chat input field with send button, extracted from ChatPage.
-/// Used by both ChatPage (main chat) and TaskChatPanel (task sidebar chat).
+/// Shared input used by the main Chat surface.
 ///
 /// When `isSending` is true:
 ///   - Input stays enabled so the user can draft the next message
@@ -118,7 +118,7 @@ struct ChatInputView: View {
           // Hidden Text drives the SwiftUI height; OmiTextEditor overlays it exactly.
           // This lets SwiftUI measure height from text content without fighting AppKit's
           // scroll view layout — the onHeightChange pattern caused layout loops inside
-          // the TaskChatPanel VStack with frame(maxHeight: .infinity).
+          // a parent VStack with frame(maxHeight: .infinity).
           Text(inputText.isEmpty ? " " : inputText + " ")
             .scaledFont(size: OmiType.body)
             .padding(.horizontal, inputPaddingH)

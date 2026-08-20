@@ -1151,37 +1151,6 @@ struct FloatingControlBarView: View {
     .buttonStyle(.plain)
     .overlay(alignment: .topTrailing) {
       HStack(spacing: OmiSpacing.xs) {
-        // Execute is only meaningful for actionable notifications (tasks).
-        // Focus / Insight (tips) / other passive notifications are
-        // informational — spawning an agent there made no sense.
-        if notification.assistantId == "task" {
-          Button {
-            let query = ProactiveTaskExecute.buildQuery(
-              title: notification.title,
-              message: notification.message
-            )
-            _ = AgentPillsManager.shared.spawn(
-              query: query,
-              originSurface: .floatingBar
-            )
-            FloatingControlBarManager.shared.dismissCurrentNotification()
-          } label: {
-            HStack(spacing: OmiSpacing.xxs) {
-              Image(systemName: "sparkles")
-                .font(.system(size: 9, weight: .bold))
-              Text("Execute")
-                .scaledFont(size: OmiType.micro, weight: .semibold)
-            }
-            .foregroundColor(.white)
-            .padding(.horizontal, OmiSpacing.sm)
-            .padding(.vertical, OmiSpacing.xxs)
-            .background(Color.white.opacity(0.18))
-            .clipShape(Capsule())
-          }
-          .buttonStyle(.plain)
-          .help("Spawn an agent to handle this")
-        }
-
         Button {
           FloatingControlBarManager.shared.dismissCurrentNotification()
         } label: {

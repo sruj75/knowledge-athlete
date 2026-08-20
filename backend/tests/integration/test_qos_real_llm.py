@@ -70,7 +70,6 @@ class TestPremiumFlagship:
         'daily_summary',
         'learnings',
         'chat_responses',
-        'goals_advice',
         'notifications',
     ]
 
@@ -94,7 +93,6 @@ class TestPremiumMini:
         'memories',
         'memory_conflict',
         'chat_extraction',
-        'goals',
         'proactive_notification',
     ]
 

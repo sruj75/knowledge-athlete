@@ -228,9 +228,9 @@ export function createKernelHarness(
 
 export const baseRunInput = {
   ownerId: "owner",
-  surfaceKind: "task_chat",
-  externalRefKind: "task",
-  externalRefId: "task-1",
+  surfaceKind: "main_chat",
+  externalRefKind: "chat",
+  externalRefId: "default",
   defaultAdapterId: "fake",
   adapterId: "fake",
   clientId: "client",

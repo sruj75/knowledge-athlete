@@ -106,13 +106,11 @@ _stubs = [
     'database.redis_db',
     'database.conversations',
     'database.memories',
-    'database.action_items',
     'database.folders',
     'database.users',
     'database.user_usage',
     'database.vector_db',
     'database.chat',
-    'database.goals',
     'database.notifications',
     'database.daily_summaries',
     'database.fair_use',
@@ -631,23 +629,22 @@ class TestUsersLockEnforcement:
         # Patches must stay active during body consumption since the generator is lazy.
         with patch('services.users.data_export.get_user_profile', return_value={'name': 'Test'}):
             with patch('services.users.data_export.get_people', return_value=[]):
-                with patch('services.users.data_export.get_standalone_action_items', return_value=[]):
-                    from routers.users import export_all_user_data
+                from routers.users import export_all_user_data
 
-                    response = export_all_user_data(uid='test-uid')
+                response = export_all_user_data(uid='test-uid')
 
-                    # Consume body inside patches — the generator is lazy.
-                    # StreamingResponse wraps sync generators as async iterators,
-                    # so iterate the underlying generator directly.
-                    import asyncio
+                # Consume body inside patches — the generator is lazy.
+                # StreamingResponse wraps sync generators as async iterators,
+                # so iterate the underlying generator directly.
+                import asyncio
 
-                    async def _consume():
-                        parts = []
-                        async for chunk in response.body_iterator:
-                            parts.append(chunk)
-                        return ''.join(parts)
+                async def _consume():
+                    parts = []
+                    async for chunk in response.body_iterator:
+                        parts.append(chunk)
+                    return ''.join(parts)
 
-                    body = asyncio.run(_consume())
+                body = asyncio.run(_consume())
 
         import json
 
@@ -709,63 +706,6 @@ class TestScheduledDailySummaryLockFilter:
 
         # Should not call LLM when no unlocked conversations remain
         mock_gen.assert_not_called()
-
-
-# =============================================================================
-# Test goal context excludes locked conversations and memories
-# =============================================================================
-
-
-class TestGoalContextLockFilter:
-    """Goal suggestion/advice must exclude locked conversations and memories."""
-
-    def test_get_goal_context_filters_locked_conversations(self):
-        """_get_goal_context excludes locked conversations from vector and recent results."""
-        import database.conversations as conversations_db
-        import database.memories as memories_db
-        import database.chat as chat_db
-
-        locked_conv = _make_conversation(locked=True)
-        locked_conv['structured']['overview'] = 'SECRET_LOCKED_OVERVIEW'
-        unlocked_conv = _make_conversation(locked=False, conversation_id='conv-2')
-        unlocked_conv['structured']['overview'] = 'VISIBLE_UNLOCKED_OVERVIEW'
-
-        # Mock vector search to return both conv IDs
-        with patch('utils.llm.goals.vector_search', return_value=['conv-1', 'conv-2']):
-            conversations_db.get_conversations_by_id = MagicMock(return_value=[locked_conv, unlocked_conv])
-            conversations_db.get_conversations = MagicMock(return_value=[])
-            chat_db.get_messages = MagicMock(return_value=[])
-            memories_db.get_memories = MagicMock(return_value=[])
-
-            from utils.llm.goals import _get_goal_context
-
-            result = _get_goal_context('test-uid', 'Exercise more')
-
-        # Locked overview must not appear in context
-        assert 'SECRET_LOCKED_OVERVIEW' not in result['conversation_context']
-        assert 'VISIBLE_UNLOCKED_OVERVIEW' in result['conversation_context']
-
-    def test_get_goal_context_filters_locked_memories(self):
-        """_get_goal_context excludes locked memories from context."""
-        import database.conversations as conversations_db
-        import database.memories as memories_db
-        import database.chat as chat_db
-
-        locked_mem = {'content': 'LOCKED_SECRET_MEMORY', 'is_locked': True}
-        unlocked_mem = {'content': 'VISIBLE_UNLOCKED_MEMORY', 'is_locked': False}
-
-        with patch('utils.llm.goals.vector_search', return_value=[]):
-            conversations_db.get_conversations_by_id = MagicMock(return_value=[])
-            conversations_db.get_conversations = MagicMock(return_value=[])
-            chat_db.get_messages = MagicMock(return_value=[])
-            memories_db.get_memories = MagicMock(return_value=[locked_mem, unlocked_mem])
-
-            from utils.llm.goals import _get_goal_context
-
-            result = _get_goal_context('test-uid', 'Read more')
-
-        assert 'LOCKED_SECRET_MEMORY' not in result['memory_context']
-        assert 'VISIBLE_UNLOCKED_MEMORY' in result['memory_context']
 
 
 # =============================================================================
@@ -840,46 +780,3 @@ class TestPromptDataLockFilter:
         all_mems = baseline + user_made + generated
         assert len(all_mems) == 1
         assert all_mems[0].content == 'VISIBLE_CONTENT'
-
-
-# =============================================================================
-# Test suggest_goal excludes locked memories
-# =============================================================================
-
-
-class TestSuggestGoalLockFilter:
-    """suggest_goal must exclude locked memories from context."""
-
-    def test_suggest_goal_filters_locked_memories(self):
-        """suggest_goal must not include locked memories in AI prompt context."""
-        import database.memories as memories_db
-
-        locked_mem = _make_memory(locked=True)
-        locked_mem['content'] = 'LOCKED_SECRET'
-        unlocked_mem = _make_memory(locked=False, memory_id='mem-2')
-        unlocked_mem['content'] = 'visible goal-related memory'
-
-        memories_db.get_memories = MagicMock(return_value=[locked_mem, unlocked_mem])
-
-        mock_llm_response = MagicMock()
-        mock_llm_response.content = '{"suggested_title": "Test Goal", "suggested_type": "scale", "suggested_target": 10, "suggested_min": 0, "suggested_max": 10, "reasoning": "test"}'
-
-        mock_track = MagicMock()
-        mock_track.__enter__ = MagicMock(return_value=None)
-        mock_track.__exit__ = MagicMock(return_value=False)
-
-        with patch('utils.llm.goals.track_usage', return_value=mock_track):
-            with patch('utils.llm.goals.get_llm') as mock_get_llm:
-                mock_llm = MagicMock()
-                mock_llm.invoke.return_value = mock_llm_response
-                mock_get_llm.return_value = mock_llm
-
-                from utils.llm.goals import suggest_goal
-
-                result = suggest_goal('test-uid')
-
-        # Verify the prompt sent to the LLM did not contain locked content
-        call_args = mock_llm.invoke.call_args[0][0]
-        prompt_text = str(call_args)
-        assert 'LOCKED_SECRET' not in prompt_text
-        assert 'visible goal-related memory' in prompt_text

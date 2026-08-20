@@ -167,8 +167,10 @@ def validate_auto_deploy_acceptance(text: str) -> list[str]:
         return ["gcp_backend_auto_dev.yml: missing deploy job"]
     required_markers = (
         "Capture exact no-traffic candidate URLs",
-        "backend/scripts/verify_backend_release_vector.py",
         "backend/scripts/run_dev_candidate_acceptance.py",
+        "Smoke no-traffic Cloud Run candidates",
+        "Accept no-traffic Cloud Run candidate",
+        "backend/scripts/verify_backend_release_vector.py",
         "--candidate",
         f'--commit-sha "{AUTO_DEPLOY_ADMITTED_SHA}"',
         '--deploy-run-id "${{ github.run_id }}"',
@@ -182,8 +184,13 @@ def validate_auto_deploy_acceptance(text: str) -> list[str]:
         if not any(marker in line for line in block)
     ]
     smoke_index = next((index for index, line in enumerate(block) if "run_dev_candidate_acceptance.py" in line), -1)
+    acceptance_index = next(
+        (index for index, line in enumerate(block) if "Accept no-traffic Cloud Run candidate" in line), -1
+    )
     promotion_index = next((index for index, line in enumerate(block) if "Shift Cloud Run traffic" in line), -1)
     if smoke_index >= promotion_index:
+        errors.append("gcp_backend_auto_dev.yml: candidate health smoke must run before traffic promotion")
+    if acceptance_index >= promotion_index:
         errors.append("gcp_backend_auto_dev.yml: candidate acceptance must run before traffic promotion")
     if job_block(text, "verify") is not None:
         errors.append("gcp_backend_auto_dev.yml: candidate acceptance must not run in a post-promotion verify job")
@@ -762,7 +769,9 @@ jobs:
           --deploy-run-attempt "${{ github.run_attempt }}"
           --environment dev
       - name: Capture exact no-traffic candidate URLs
+      - name: Smoke no-traffic Cloud Run candidates
       - run: python3 backend/scripts/run_dev_candidate_acceptance.py
+      - name: Accept no-traffic Cloud Run candidate
       - name: Shift Cloud Run traffic to validated revisions
 """
     if validate_auto_deploy_acceptance(in_deploy_acceptance):

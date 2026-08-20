@@ -65,7 +65,6 @@ pytest backend/tests/integration/test_notifications_integration.py::TestBasicNot
 
 - ✅ Basic notifications (with/without data, with emoji)
 - ✅ Bulk notifications (small and large batches)
-- ✅ Action item notifications
 - ✅ Training data notifications
 - ✅ Error handling (non-existent users, empty lists)
 

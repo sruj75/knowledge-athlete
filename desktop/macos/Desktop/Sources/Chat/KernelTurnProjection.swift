@@ -681,7 +681,7 @@ final class KernelTurnProjection {
   }
 
   /// Admit prebuilt visible turns under one journal transaction. This is the
-  /// canonical typed/task-chat entry point because it preserves caller-owned
+  /// canonical typed-chat entry point because it preserves caller-owned
   /// message IDs, attachments, and a deliberately empty streaming placeholder.
   @discardableResult
   func recordExchange(

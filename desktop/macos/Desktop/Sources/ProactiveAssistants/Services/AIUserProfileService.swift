@@ -405,8 +405,8 @@ actor AIUserProfileService {
 
   private func fetchTasks() async -> [String] {
     do {
-      let response = try await APIClient.shared.getActionItems(limit: 50)
-      return response.items.map { item in
+      let tasks = try await ActionItemStorage.shared.getLocalActionItems(limit: 50)
+      return tasks.map { item in
         let status = item.completed ? "done" : "todo"
         let priority = item.priority ?? "medium"
         return "[\(status)/\(priority)] \(item.description)"
@@ -419,11 +419,8 @@ actor AIUserProfileService {
 
   private func fetchGoals() async -> [String] {
     do {
-      let goals = try await APIClient.shared.getGoals()
-      return goals.filter { $0.isActive }.map { goal in
-        let progress = goal.targetValue > 0 ? Int((goal.currentValue / goal.targetValue) * 100) : 0
-        return "\(goal.title) (\(progress)% complete)"
-      }
+      let goals = try await GoalStorage.shared.getLocalGoals(activeOnly: true)
+      return goals.map(\.title)
     } catch {
       log("AIUserProfileService: Failed to fetch goals: \(error.localizedDescription)")
       return []

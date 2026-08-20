@@ -331,7 +331,6 @@ class NotificationService: NSObject, UNUserNotificationCenterDelegate {
     assistantId: String = "default",
     sound: NotificationSound = .default,
     context: FloatingBarNotificationContext? = nil,
-    action: FloatingBarNotificationAction? = nil,
     suggestionTelemetryIdentity: SuggestionAssistantTelemetry.NotificationIdentity? = nil,
     screenshotData: Data? = nil,
     deliverSystemBanner: Bool = false,
@@ -416,7 +415,6 @@ class NotificationService: NSObject, UNUserNotificationCenterDelegate {
       assistantId: assistantId,
       sound: sound,
       context: context,
-      action: action,
       suggestionTelemetryIdentity: suggestionTelemetryIdentity,
       screenshotData: screenshotData
     )
@@ -459,104 +457,6 @@ class NotificationService: NSObject, UNUserNotificationCenterDelegate {
         authorizationSnapshot: authorizationSnapshot
       )
     }
-  }
-
-  /// The only delivery path for contextual task interruptions. Unlike the
-  /// generic functional-notification API, this path exposes no bypass flag.
-  @discardableResult
-  func sendContextualTaskInterruption(
-    _ candidate: TaskInterruptionCandidate,
-    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot,
-    now: Date = Date(),
-    calendar: Calendar = .current,
-    ledgerPersistence: (any TaskInterruptionLedgerPersisting)? = nil
-  ) -> TaskInterruptionGateTrace {
-    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else {
-      return Self.staleOwnerGateTrace(candidate: candidate, now: now)
-    }
-    let ownerID = authorizationSnapshot.ownerID
-    prepareOwnerScopedState(for: authorizationSnapshot)
-    let configuration = ProactiveTaskInterruptionSettings.load()
-    let environment = TaskInterruptionEnvironment(
-      cohort: ProactiveTaskCohort.current,
-      masterNotificationsEnabled: Self.areNotificationsEnabled(),
-      frequencyEnabled: Self.currentFrequencyLevel() > 0,
-      ambientFrequencyEligible: isProactiveNotificationEligible(
-        assistantId: "task",
-        now: now,
-        authorizationSnapshot: authorizationSnapshot
-      ),
-      taskNotificationsEnabled: TaskAssistantSettings.shared.notificationsEnabled,
-      focusSuppressed: FocusStorage.shared.currentStatus == .focused
-        || ProactiveTaskInterruptionSettings.isFocusSuppressed,
-      snoozed: FloatingControlBarManager.shared.isSnoozed,
-      now: now,
-      calendar: calendar
-    )
-    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else {
-      return Self.staleOwnerGateTrace(candidate: candidate, now: now)
-    }
-    let proactiveTaskGate = ProactiveTaskInterruptionGate(
-      persistence: ledgerPersistence ?? TaskInterruptionLedgerDefaults(ownerID: ownerID)
-    )
-    let trace = proactiveTaskGate.evaluate(
-      candidate: candidate,
-      configuration: configuration,
-      environment: environment
-    )
-    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else {
-      return Self.staleOwnerGateTrace(candidate: candidate, now: now)
-    }
-    AnalyticsManager.shared.proactiveTaskGateEvaluated(trace)
-    guard trace.reason == .allowed else {
-      log(
-        "TaskInterruptionGate: suppressed recommendation=\(candidate.recommendationID) "
-          + "reason=\(trace.reason.rawValue) cohort=\(trace.cohort.rawValue)"
-      )
-      return trace
-    }
-
-    let context = FloatingBarNotificationContext(
-      sourceTitle: candidate.headline,
-      assistantId: "task",
-      sourceApp: nil,
-      windowTitle: nil,
-      contextSummary: candidate.whyNow,
-      currentActivity: nil,
-      reasoning: candidate.whyNow,
-      detail: "recommendation_id=\(candidate.recommendationID)"
-    )
-    sendNotification(
-      ownerID: ownerID,
-      title: candidate.headline,
-      message: "\(candidate.whyNow) · \(candidate.recommendedAction)",
-      assistantId: "task",
-      context: context,
-      action: .openWhatMattersNow(recommendationID: candidate.recommendationID),
-      authorizationSnapshot: authorizationSnapshot
-    )
-    return trace
-  }
-
-  private static func staleOwnerGateTrace(
-    candidate: TaskInterruptionCandidate,
-    now: Date
-  ) -> TaskInterruptionGateTrace {
-    TaskInterruptionGateTrace(
-      candidate: candidate,
-      environment: TaskInterruptionEnvironment(
-        cohort: ProactiveTaskCohort.current,
-        masterNotificationsEnabled: false,
-        frequencyEnabled: false,
-        ambientFrequencyEligible: false,
-        taskNotificationsEnabled: false,
-        focusSuppressed: false,
-        snoozed: false,
-        now: now,
-        calendar: .current
-      ),
-      reason: .staleOwner
-    )
   }
 
   private func deliverNotification(

@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import os
 from datetime import datetime, timezone
-from typing import Any, cast
+from typing import Any
 from unittest.mock import MagicMock
 
 os.environ.setdefault(
@@ -13,7 +13,6 @@ os.environ.setdefault(
     "omi_ZwB2ZNqB2HHpMK6wStk7sTpavJiPTFg7gXUHnc4tFABPU6pZ2c2DKgehtfgi4RZv",
 )
 
-from models.memory_recurrence import CanonicalRecurrenceSignal
 from models.product_memory import MemoryItem
 from utils.memory import canonical_short_term_maintenance_cron as cron
 from utils.memory.canonical_consolidation import ConsolidationReport
@@ -55,7 +54,6 @@ def test_disabled_cohort_runner_returns_empty_summary_without_running_maintenanc
 def test_cohort_summary_uses_consolidation_routes_and_promotions(monkeypatch):
     _enable_for(monkeypatch, CANONICAL_A, CANONICAL_B)
     client = object()
-    recurrence_sink = MagicMock()
     calls: list[tuple[str, dict[str, Any]]] = []
     reports = {
         CANONICAL_A: MaintenanceReport(
@@ -89,7 +87,6 @@ def test_cohort_summary_uses_consolidation_routes_and_promotions(monkeypatch):
         db_client=client,
         now=NOW,
         run_id="cron-routes",
-        recurrence_signal_persister=recurrence_sink,
     )
 
     assert summary.user_count == 2
@@ -102,13 +99,11 @@ def test_cohort_summary_uses_consolidation_routes_and_promotions(monkeypatch):
         assert kwargs["db_client"] is client
         assert kwargs["now"] == NOW
         assert kwargs["run_id"] == "cron-routes"
-        assert kwargs["recurrence_signal_sink"] is recurrence_sink
         assert callable(kwargs["required_processor"])
         assert set(kwargs) == {
             "db_client",
             "now",
             "run_id",
-            "recurrence_signal_sink",
             "required_processor",
         }
 
@@ -270,62 +265,9 @@ def test_required_processing_failures_are_cohort_errors_that_fail_the_job_contra
     assert summary.errors == [f"uid={CANONICAL_A}: required_processing_failed:failed=2:retryable=1:quarantined=1"]
 
 
-def test_recurrence_consumer_failure_is_degraded_and_does_not_abort_user(monkeypatch):
-    _enable_for(monkeypatch, CANONICAL_A)
-    client = object()
-    signal = cast(CanonicalRecurrenceSignal, object())
-    recurrence_sink = MagicMock()
-    consumer = MagicMock(side_effect=RuntimeError("candidate store unavailable"))
-    fallback = MagicMock()
-    maintenance_kwargs: dict[str, Any] = {}
-
-    def run_maintenance(uid: str, **kwargs: Any) -> MaintenanceReport:
-        maintenance_kwargs.update(kwargs)
-        return MaintenanceReport(
-            uid=uid,
-            consolidation=ConsolidationReport(
-                uid=uid,
-                batched_memory_ids=["mem-a"],
-                recurrence_signals=[signal],
-            ),
-        )
-
-    monkeypatch.setattr(cron, "run_canonical_short_term_maintenance", run_maintenance)
-    monkeypatch.setattr(cron, "record_fallback", fallback)
-
-    summary = cron.run_canonical_short_term_maintenance_for_cohort(
-        db_client=client,
-        now=NOW,
-        run_id="cron-recurrence",
-        recurrence_signal_persister=recurrence_sink,
-        recurrence_signal_consumer=consumer,
-    )
-
-    assert maintenance_kwargs["recurrence_signal_sink"] is recurrence_sink
-    consumer.assert_called_once_with(
-        CANONICAL_A,
-        [signal],
-        firestore_client=client,
-    )
-    fallback.assert_called_once_with(
-        component="other",
-        from_mode="recurrence_maintenance",
-        to_mode="recurrence_inbox_retry",
-        reason="other",
-        outcome="degraded",
-    )
-    assert summary.routed_total == 1
-    assert summary.promoted_total == 0
-    assert summary.skipped_users == 0
-    assert summary.recurrence_candidates_total == 0
-    assert summary.errors == [f"uid={CANONICAL_A}: recurrence_consumer:RuntimeError"]
-
-
 def test_async_entrypoint_offloads_sync_cohort_runner_to_db_executor(monkeypatch):
     client = object()
     executor = object()
-    recurrence_sink = MagicMock()
-    recurrence_consumer = MagicMock()
     expected = cron.CanonicalShortTermMaintenanceCronSummary(
         run_id="cron-async",
         user_count=1,
@@ -346,8 +288,6 @@ def test_async_entrypoint_offloads_sync_cohort_runner_to_db_executor(monkeypatch
             db_client=client,
             now=NOW,
             run_id="cron-async",
-            recurrence_signal_persister=recurrence_sink,
-            recurrence_signal_consumer=recurrence_consumer,
         )
     )
 
@@ -361,8 +301,6 @@ def test_async_entrypoint_offloads_sync_cohort_runner_to_db_executor(monkeypatch
                 "db_client": client,
                 "now": NOW,
                 "run_id": "cron-async",
-                "recurrence_signal_persister": recurrence_sink,
-                "recurrence_signal_consumer": recurrence_consumer,
             },
         )
     ]

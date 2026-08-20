@@ -14,7 +14,6 @@ import type {
   DesktopCoordinatorDispatch,
   DesktopArtifactDelivery,
   DesktopMemoryCandidate,
-  DesktopTaskCandidate,
 } from "./types.js";
 import type { ExecuteAgentRunInput } from "./kernel-types.js";
 import type { DesktopContextSnippetInput } from "./desktop-context-packet.js";
@@ -202,40 +201,6 @@ export function desktopMemoryCandidateFromRow(row: Record<string, unknown>): Des
   };
 }
 
-export function desktopTaskCandidateFromRow(row: Record<string, unknown>): DesktopTaskCandidate {
-  return {
-    candidateId: text(row.candidate_id),
-    ownerId: text(row.owner_id),
-    sourceSessionId: nullableText(row.source_session_id),
-    sourceRunId: nullableText(row.source_run_id),
-    action: text(row.action) as DesktopTaskCandidate["action"],
-    taskRef: nullableText(row.task_ref),
-    proposedChangeJson: text(row.proposed_change_json),
-    evidenceRefsJson: text(row.evidence_refs_json),
-    confidence: Number(row.confidence),
-    ownershipConfidence: Number(row.ownership_confidence),
-    requiresApproval: Number(row.requires_approval) === 1 ? 1 : 0,
-    goalRef: nullableText(row.goal_ref),
-    workstreamRef: nullableText(row.workstream_ref),
-    sourceSurface: text(row.source_surface),
-    accountGeneration: Number(row.account_generation),
-    generationReconciled: Number(row.generation_reconciled) === 1 ? 1 : 0,
-    status: text(row.status) as DesktopTaskCandidate["status"],
-    deliveryStatus: text(row.delivery_status) as DesktopTaskCandidate["deliveryStatus"],
-    deliveryAttemptCount: Number(row.delivery_attempt_count),
-    deliveryKey: text(row.delivery_key),
-    backendCandidateId: nullableText(row.backend_candidate_id),
-    backendReceiptJson: nullableText(row.backend_receipt_json),
-    backendResolutionReceiptJson: nullableText(row.backend_resolution_receipt_json),
-    backendResolutionStatus: nullableText(row.backend_resolution_status),
-    lastDeliveryErrorJson: nullableText(row.last_delivery_error_json),
-    createdAtMs: Number(row.created_at_ms),
-    updatedAtMs: Number(row.updated_at_ms),
-    deliveredAtMs: nullableNumber(row.delivered_at_ms),
-    resolvedAtMs: nullableNumber(row.resolved_at_ms),
-  };
-}
-
 export function desktopAttentionOverrideFromRow(row: Record<string, unknown>): DesktopAttentionOverride {
   return {
     ownerId: text(row.owner_id),
@@ -284,18 +249,6 @@ export function memoryCandidateToQueueInput(candidate: DesktopMemoryCandidate): 
     ownerId: candidate.ownerId,
     kind: "memory_candidate",
     status: candidate.status,
-    createdAtMs: candidate.createdAtMs,
-    sourceSessionId: candidate.sourceSessionId,
-    sourceRunId: candidate.sourceRunId,
-  };
-}
-
-export function taskCandidateToQueueInput(candidate: DesktopTaskCandidate): QueueCandidateInput {
-  return {
-    candidateId: candidate.candidateId,
-    ownerId: candidate.ownerId,
-    kind: "task_candidate",
-    status: candidate.status === "forwarded" ? "accepted" : candidate.status,
     createdAtMs: candidate.createdAtMs,
     sourceSessionId: candidate.sourceSessionId,
     sourceRunId: candidate.sourceRunId,

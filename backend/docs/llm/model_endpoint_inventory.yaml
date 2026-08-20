@@ -23,8 +23,6 @@ model_config_features:
       - conv_structure
       - daily_summary
       - followup
-      - goals
-      - goals_advice
       - learnings
       - memories
       - memory_category
@@ -39,7 +37,6 @@ model_config_features:
       - proactive_notification
       - translation
       - trends
-      - what_matters_now
     streaming:
       - chat_responses
     tool_calling:

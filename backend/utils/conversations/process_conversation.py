@@ -16,24 +16,18 @@ import database.conversations as conversations_db
 import database.notifications as notification_db
 import database.users as users_db
 import database.tasks as tasks_db
-import database.action_items as action_items_db
 import database.folders as folders_db
 import database.calendar_meetings as calendar_db
 from database.vector_db import (
     find_similar_memories,
     upsert_memory_vector,
     delete_memory_vector,
-    upsert_action_item_vectors_batch,
-    delete_action_item_vectors_batch,
-    find_similar_action_items,
 )
 from utils.llm.memories import resolve_memory_conflict
 from database.vector_db import upsert_vector2, update_vector_metadata, upsert_transcript_chunk_vectors
 from utils.conversations.transcript_chunks import build_transcript_chunks
 from models.memories import MemoryDB, Memory, MemoryCategory, SubjectAttribution, render_memory
-from models.action_item import EvidenceKind, EvidenceRef, EvidenceScope
 from models.memory_contracts import L1MemoryArchiveClass, deterministic_contract_id
-from models.workstream_association import AssociationEvidence
 from models.product_memory import MemoryTier
 from models.calendar_context import CalendarMeetingContext
 from models.conversation import Conversation, CreateConversation
@@ -48,7 +42,6 @@ from utils.memory.memory_system import MemorySystem
 from utils.memory.memory_system_pin import memory_system_request_scope
 from utils.memory.canonical_memory_adapter import extraction_memory_id
 from utils.observability.fallback import record_fallback
-from utils.task_intelligence.workstream_association import associate_canonical_evidence
 from utils.subscription import is_trial_paywalled, should_defer_desktop_processing
 from models.other import Person
 from models.structured import Structured  # type: ignore[reportAttributeAccessIssue]  # SDK/fallback export is runtime-complete.
@@ -60,7 +53,6 @@ from utils.llm.conversation_processing import (
     get_transcript_structure,
     should_discard_conversation,
     get_reprocess_transcript_structure,
-    extract_action_items,
 )
 from utils.llm.conversation_folder import assign_conversation_to_folder
 from utils.analytics import record_usage
@@ -77,7 +69,6 @@ from utils.conversations.memory_extraction_telemetry import (
     emit_conversation_memories_extracted,
 )
 from utils.llm.temporal import date_in_tz
-from utils.llm.goals import extract_and_update_goal_progress
 from utils.llm.chat import (
     retrieve_metadata_fields_from_transcript,
     obtain_emotional_message,
@@ -91,8 +82,6 @@ from utils.other.hume import (
     HumePredictionEmotionResponseModel,
 )
 from utils.retrieval.rag import retrieve_rag_conversation_context
-from utils.notifications import send_action_item_data_message
-from utils.task_intelligence import conversation_capture
 from utils.cloud_tasks import is_audio_merge_dispatch_enabled
 from utils.other.storage import (
     compute_audio_files_fingerprint,
@@ -103,61 +92,6 @@ from utils.other.storage import (
 logger = logging.getLogger(__name__)
 
 
-def _dedup_excluded_conversation_ids(conversation: Any) -> set:
-    """The conversation's own id plus any merge-source ids. Items from these
-    conversations must never be dedup candidates: on reprocess/merge they are
-    this conversation's previous items — the LLM would suppress re-extracting
-    them, and the save step then deletes them, silently losing the tasks."""
-    excluded = {getattr(conversation, 'id', None)}
-    external_data = getattr(conversation, 'external_data', None) or {}
-    merge_metadata = external_data.get('merge_metadata') or {}
-    excluded.update(merge_metadata.get('source_conversation_ids') or [])
-    excluded.discard(None)
-    return excluded
-
-
-def _fetch_dedup_candidates(uid: str, structured: Structured, conversation: Any = None) -> List[Dict[str, Any]]:
-    """
-    Fetch open action items semantically related to this conversation, active
-    in the past week, for the LLM extraction prompt to consider as potential
-    duplicates. Replaces the older time-windowed fetch (past 2 days, limit
-    50). Returns [] if Pinecone is down or there's no overview to query —
-    extraction then proceeds with no dedup context, same as for a new user.
-    """
-    if not structured or not structured.overview:
-        return []
-
-    excluded_conversation_ids = _dedup_excluded_conversation_ids(conversation) if conversation else set()
-
-    try:
-        similar = find_similar_action_items(uid, structured.overview, threshold=0.6, limit=10)
-        if not similar:
-            return []
-
-        items = action_items_db.get_action_items_by_ids(uid, [s['action_item_id'] for s in similar])
-        cutoff = datetime.now(timezone.utc) - timedelta(days=7)
-
-        eligible: List[Dict[str, Any]] = []
-        for item in items:
-            if item.get('completed', False):
-                continue
-            if item.get('conversation_id') in excluded_conversation_ids:
-                continue
-            last_active = item.get('updated_at') or item.get('created_at')
-            if last_active is None or last_active < cutoff:
-                continue
-            eligible.append(item)
-
-        logger.info(
-            f'dedup_candidates uid={uid} similar={len(similar)} '
-            f'eligible={len(eligible)} top_score={similar[0]["score"]}'
-        )
-        return eligible
-    except Exception as e:
-        logger.exception(f'_fetch_dedup_candidates failed uid={uid}: {e}')
-        return []
-
-
 def _get_structured(
     uid: str,
     language_code: str,
@@ -166,7 +100,6 @@ def _get_structured(
     people: Optional[List[Person]] = None,
 ) -> Tuple[Structured, bool]:
     try:
-        task_intelligence_capture = conversation_capture.capture_enabled(uid)
         tz: Optional[str] = notification_db.get_user_time_zone(uid)
         tz_str: str = tz or ''
         user_language = users_db.get_user_language_preference(uid) or language_code
@@ -196,16 +129,6 @@ def _get_structured(
                     tz_str,
                     output_language_code=user_language,
                 )
-            with track_usage(uid, Features.CONVERSATION_ACTION_ITEMS):
-                structured.action_items = extract_action_items(
-                    transcript_text,
-                    conv_started_at,
-                    language_code,
-                    tz_str,
-                    existing_action_items=_fetch_dedup_candidates(uid, structured, conversation),
-                    output_language_code=user_language,
-                    task_intelligence_capture=task_intelligence_capture,
-                )
             return structured, False
 
         # Compute conversation duration for discard heuristics
@@ -230,17 +153,6 @@ def _get_structured(
                 uid,
                 calendar_meeting_context=calendar_context,
                 output_language_code=user_language,
-            )
-        with track_usage(uid, Features.CONVERSATION_ACTION_ITEMS):
-            structured.action_items = extract_action_items(
-                transcript_text,
-                conv_started_at,
-                language_code,
-                tz_str,
-                existing_action_items=_fetch_dedup_candidates(uid, structured, conversation),
-                calendar_meeting_context=calendar_context,
-                output_language_code=user_language,
-                task_intelligence_capture=task_intelligence_capture,
             )
         return structured, False
     except Exception as e:
@@ -282,31 +194,6 @@ def _get_conversation_obj(
         main_conv.structured = structured
         main_conv.discarded = discarded
         return main_conv
-
-
-def _update_goal_progress(uid: str, conversation: Conversation) -> None:
-    """Extract and update goal progress from conversation text."""
-    try:
-        # Idempotency: skip if this conversation was already processed for goals
-        if not redis_db.try_acquire_conversation_goal_lock(uid, conversation.id):
-            logger.info(f"[GOAL] Skipping already-processed conversation {conversation.id}")
-            return
-
-        # Get conversation text
-        text = ""
-        if conversation.structured and conversation.structured.overview:
-            text = conversation.structured.overview
-        elif conversation.transcript_segments:
-            text = " ".join([s.text for s in conversation.transcript_segments[:20]])
-
-        if not text or len(text) < 10:
-            return
-
-        # Use utility function to extract and update goal progress
-        with track_usage(uid, Features.GOALS):
-            extract_and_update_goal_progress(uid, text)
-    except Exception as e:
-        logger.error(f"[GOAL] Error updating progress: {e}")
 
 
 def _parity_transcript_segments(conversation: Conversation) -> list[dict[str, Any]]:
@@ -788,44 +675,6 @@ def _extract_memories_canonical(
             },
         )
 
-    if not is_locked:
-        memory_refs = [
-            EvidenceRef(
-                kind=EvidenceKind.memory_item,
-                id=cast(str, memory_db_obj.id),
-                scope=EvidenceScope.canonical,
-            )
-            for memory_db_obj, _, _, _ in parsed_memories[:49]
-        ]
-        evidence_summary = '\n'.join(
-            memory.content.strip() for memory, _, _, _ in parsed_memories if memory.content.strip()
-        )[:2000]
-        try:
-            associate_canonical_evidence(
-                uid,
-                AssociationEvidence(
-                    evidence_id=conversation.id,
-                    summary=evidence_summary,
-                    evidence_refs=[
-                        EvidenceRef(
-                            kind=EvidenceKind.conversation,
-                            id=conversation.id,
-                            scope=EvidenceScope.canonical,
-                        ),
-                        *memory_refs,
-                    ],
-                ),
-                firestore_client=db_client,
-            )
-        except Exception:
-            record_fallback(
-                component='other',
-                from_mode='canonical_memory_workflow_association',
-                to_mode='memory_write_only',
-                reason='other',
-                outcome='degraded',
-            )
-
     record_usage(uid, memories_created=len(parsed_memories))
     return ConversationMemoryExtractionResult(count=len(parsed_memories), path=PATH_CANONICAL)
 
@@ -1019,94 +868,6 @@ def send_new_memories_notification(user_id: str, memories: List[MemoryDB]) -> No
     )
 
     send_notification(user_id, "omi" + ' says', message, NotificationMessage.get_message_as_dict(ai_message))
-
-
-def _save_action_items(uid: str, conversation: Conversation):
-    """
-    Save action items from a conversation to the dedicated action_items collection.
-    This runs in addition to storing them in the conversation for backward compatibility.
-    """
-    if not conversation.structured or not conversation.structured.action_items:
-        return
-
-    is_locked = conversation.is_locked
-    if conversation_capture.process_before_legacy(uid, conversation.id, conversation.structured.action_items):
-        return
-
-    action_items_data: List[Dict[str, Any]] = []
-    now = datetime.now(timezone.utc)
-
-    for action_item in conversation.structured.action_items:
-        action_item_data = {
-            'description': action_item.description,
-            'completed': action_item.completed,
-            'created_at': action_item.created_at or now,
-            'updated_at': action_item.updated_at or now,
-            'due_at': action_item.due_at,
-            'completed_at': action_item.completed_at,
-            'conversation_id': conversation.id,
-            'is_locked': is_locked,
-            **conversation_capture.canonical_fields(action_item, conversation.id),
-        }
-        action_items_data.append(action_item_data)
-
-    if action_items_data:
-        # Delete existing action items and their vectors first (in case of reprocessing)
-        old_items = action_items_db.get_action_items_by_conversation(uid, conversation.id)
-        old_ids = [item['id'] for item in old_items]
-        if old_ids:
-            delete_action_item_vectors_batch(uid, old_ids)
-        document_ids = conversation_capture.legacy_document_ids(
-            uid,
-            conversation.id,
-            conversation.structured.action_items,
-        )
-        if document_ids is None:
-            action_items_db.delete_action_items_for_conversation(uid, conversation.id)
-        else:
-            action_items_db.retire_action_items_for_conversation(
-                uid,
-                conversation.id,
-                active_ids=document_ids,
-                replacements=conversation_capture.legacy_replacement_map(
-                    old_items,
-                    conversation.structured.action_items,
-                    document_ids,
-                ),
-            )
-        # Save new action items
-        action_item_ids = action_items_db.create_action_items_batch(
-            uid,
-            action_items_data,
-            document_ids=document_ids,
-        )
-        logger.info(f"Saved {len(action_item_ids)} action items for conversation {conversation.id}")
-
-        conversation_capture.reconcile_after_legacy(
-            uid,
-            conversation.id,
-            conversation.structured.action_items,
-            action_item_ids,
-        )
-
-        # Send FCM data messages for action items with due dates
-        for idx, action_item in enumerate(conversation.structured.action_items):
-            if action_item.due_at and idx < len(action_item_ids):
-                action_item_id = action_item_ids[idx]
-                send_action_item_data_message(
-                    user_id=uid,
-                    action_item_id=action_item_id,
-                    description=action_item.description,
-                    due_at=action_item.due_at.isoformat(),
-                )
-
-        upsert_action_item_vectors_batch(
-            uid,
-            [
-                {'action_item_id': aid, 'description': data['description']}
-                for aid, data in zip(action_item_ids, action_items_data)
-            ],
-        )
 
 
 # Verbatim transcript-chunk indexing (ns_tchunks). Off by default: enables semantic
@@ -1334,8 +1095,7 @@ def process_conversation(
                             if len(sentence.split()) > 5:
                                 insights_gained += 1
 
-                # Count number of action items and events
-                insights_gained += len(conversation.structured.action_items)
+                # Count extracted calendar events.
                 insights_gained += len(conversation.structured.events)
 
             if insights_gained > 0:
@@ -1353,9 +1113,6 @@ def process_conversation(
                         _extract_memories(uid, conversation)
                     else:
                         submit_with_context(postprocess_executor, _extract_memories, uid, conversation)
-            submit_with_context(postprocess_executor, _save_action_items, uid, conversation)
-            submit_with_context(postprocess_executor, _update_goal_progress, uid, conversation)
-
         # Create audio files from chunks if private cloud sync was enabled
         if not is_reprocess and conversation.private_cloud_sync_enabled:
             try:

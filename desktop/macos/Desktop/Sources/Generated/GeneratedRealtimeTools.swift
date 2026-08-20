@@ -73,7 +73,7 @@ enum GeneratedRealtimeTools {
   {
     "type": "function",
     "name": "list_agent_sessions",
-    "description": "List canonical Omi-managed agents and subagents, including their sessions/runs, across chat, PTT/realtime, task chat, floating-bar pills, and migrated surfaces. For a prior child agent's final answer, omit status filters: session archive state is not run completion. List recent sessions, then answer from latestRun.finalText or inspect the returned run with get_agent_run. Keep internal ids out of the user-visible response.",
+    "description": "List canonical Omi-managed agents and subagents, including their sessions/runs, across chat, PTT/realtime, floating-bar pills, and migrated general-agent surfaces. For a prior child agent's final answer, omit status filters: session archive state is not run completion. List recent sessions, then answer from latestRun.finalText or inspect the returned run with get_agent_run. Keep internal ids out of the user-visible response.",
     "parameters": {
       "type": "object",
       "properties": {
@@ -81,7 +81,6 @@ enum GeneratedRealtimeTools {
           "type": "string",
           "enum": [
             "main_chat",
-            "task_chat",
             "realtime",
             "delegated_agent",
             "background_agent",
@@ -464,9 +463,6 @@ enum GeneratedRealtimeTools {
         "due_at": {
           "type": "string",
           "description": "Due date ISO"
-        },
-        "conversation_id": {
-          "type": "string"
         }
       },
       "required": [

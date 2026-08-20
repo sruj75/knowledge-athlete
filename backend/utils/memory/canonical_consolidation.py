@@ -35,7 +35,6 @@ from models.memory_contracts import DurablePatchDecision, LifecycleState, determ
 from models.memory_operations import MemoryOperation, MemoryOperationType
 from models.memory_promotion import build_promotion_admission_receipt
 from models.memory_search_gateway import SearchMode
-from models.memory_recurrence import CanonicalRecurrenceSignal
 from models.product_memory import (
     RESTRICTED_SENSITIVITY_LABELS,
     MemoryItem,
@@ -90,10 +89,6 @@ def _empty_str_list() -> List[str]:
 
 
 def _empty_consolidation_decisions() -> List["ConsolidationAgentDecision"]:
-    return []
-
-
-def _empty_recurrence_signals() -> List[CanonicalRecurrenceSignal]:
     return []
 
 
@@ -857,7 +852,6 @@ class ConsolidationAgentDecision(BaseModel):
 
 class ConsolidationAgentBatch(BaseModel):
     decisions: List[ConsolidationAgentDecision] = Field(default_factory=_empty_consolidation_decisions)
-    recurrence_signals: List[CanonicalRecurrenceSignal] = Field(default_factory=_empty_recurrence_signals)
     reasoning: str = ""
 
 
@@ -907,14 +901,6 @@ Reference conflict-resolution patterns (adapt for batch reasoning):
 - Duplicate text: archive/reject source, reconciliation=duplicate, target=existing.
 - Compatible preferences (tennis + basketball): promote source, reconciliation=keep_both.
 - Cross-source richer fact: promote source, reconciliation=merge, supersede old.
-- recurrence_signals are only for the same unresolved open loop appearing on at
-  least two distinct days. One-off mentions never qualify. Cite only canonical
-  memory_item/conversation EvidenceRefs; do not include raw source content.
-  EvidenceRefs MUST be oldest-first, retaining the original first-seen evidence
-  anchor when later batches add evidence or refine wording. signal_id identifies
-  this observation; workflow derives enduring loop identity from canonical time
-  and that first evidence anchor rather than trusting model-authored identity.
-
 Batch JSON:
 {context_json}
 
@@ -1343,7 +1329,6 @@ class ConsolidationReport:
     review_escalations: int = 0
     last_consolidation_run_at: Optional[datetime] = None
     watermark_blocked: bool = False
-    recurrence_signals: List[CanonicalRecurrenceSignal] = field(default_factory=_empty_recurrence_signals)
     retryable_memory_ids: List[str] = field(default_factory=_empty_str_list)
     quarantined_memory_ids: List[str] = field(default_factory=_empty_str_list)
     errors: List[str] = field(default_factory=_empty_str_list)
@@ -1567,7 +1552,6 @@ def run_canonical_consolidation(
     now: Optional[datetime] = None,
     run_id: str,
     llm_invoke: Optional[Callable[[str], str]] = None,
-    recurrence_signal_sink: Optional[Callable[..., int]] = None,
 ) -> ConsolidationReport:
     """Batched consolidation entry point for one canonical user."""
     client: Any = db_client if db_client is not None else default_db_client
@@ -1629,7 +1613,6 @@ def run_canonical_consolidation(
     batched_ids: List[str] = []
     watermark_blocked = False
     offset = 0
-    recurrence_signals_by_id: Dict[str, CanonicalRecurrenceSignal] = {}
     attempt_lease_owner = f"{run_id}:{uuid.uuid4().hex}"
 
     while offset < len(pending):
@@ -1797,36 +1780,6 @@ def run_canonical_consolidation(
             offset += effective_batch_cap
             continue
 
-        for signal in agent_batch.recurrence_signals:
-            recurrence_signals_by_id[signal.stable_loop_key] = signal
-        if recurrence_signal_sink is not None and agent_batch.recurrence_signals:
-            try:
-                recurrence_signal_sink(
-                    uid,
-                    agent_batch.recurrence_signals,
-                    firestore_client=client,
-                )
-            except Exception as exc:
-                watermark_blocked = True
-                logger.warning(
-                    'consolidation_recurrence_handoff_blocked uid=%s reason=%s',
-                    uid,
-                    type(exc).__name__,
-                )
-                _record_batch_failure(
-                    uid,
-                    llm_pending_batch,
-                    claimed_states=claimed_states,
-                    error_code=f"recurrence_handoff:{type(exc).__name__}",
-                    report=report,
-                    batched_ids=batched_ids,
-                    run_id=run_id,
-                    now=current_time,
-                    db_client=client,
-                )
-                offset += effective_batch_cap
-                continue
-
         ordered_decisions = sorted(agent_batch.decisions, key=lambda decision: decision.route != "promote")
         batch_apply_failed = False
         for decision_index, decision in enumerate(ordered_decisions):
@@ -1899,7 +1852,6 @@ def run_canonical_consolidation(
 
     report.batched_memory_ids = list(dict.fromkeys(batched_ids))
     report.watermark_blocked = watermark_blocked
-    report.recurrence_signals = list(recurrence_signals_by_id.values())
 
     try:
         if watermark_blocked and pending:

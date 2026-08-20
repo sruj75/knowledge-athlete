@@ -699,11 +699,11 @@ actor FocusAssistant: ProactiveAssistant {
           appIsTerminating: RewindDatabase.isTerminationInProgress))
     }
 
-    // Top tasks by importance
+    // Current local tasks in deterministic priority/due/order/recency order.
     do {
-      let tasks = try await ActionItemStorage.shared.getTopRelevanceTasks(limit: 50)
+      let tasks = try await ActionItemStorage.shared.getLocalActionItems(limit: 50, completed: false)
       if !tasks.isEmpty {
-        var lines = ["CURRENT TASKS (by importance):"]
+        var lines = ["CURRENT TASKS:"]
         for (i, task) in tasks.enumerated() {
           let priority = task.priority ?? "medium"
           lines.append("\(i + 1). [\(priority)] \(task.description)")

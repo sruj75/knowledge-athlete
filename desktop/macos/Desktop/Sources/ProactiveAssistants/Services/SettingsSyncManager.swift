@@ -72,17 +72,6 @@ class SettingsSyncManager {
       if let v = focus.excludedApps { FocusAssistantSettings.shared.excludedApps = Set(v) }
     }
 
-    // Task settings
-    if let task = remote.task {
-      if let v = task.enabled { TaskAssistantSettings.shared.isEnabled = v }
-      if let v = task.analysisPrompt { TaskAssistantSettings.shared.analysisPrompt = v }
-      if let v = task.extractionInterval { TaskAssistantSettings.shared.extractionInterval = v }
-      if let v = task.minConfidence { TaskAssistantSettings.shared.minConfidence = v }
-      if let v = task.notificationsEnabled { TaskAssistantSettings.shared.notificationsEnabled = v }
-      if let v = task.allowedApps { TaskAssistantSettings.shared.allowedApps = Set(v) }
-      if let v = task.browserKeywords { TaskAssistantSettings.shared.browserKeywords = v }
-    }
-
     // Insight settings
     if let insight = remote.insight {
       if let v = insight.enabled { InsightAssistantSettings.shared.isEnabled = v }
@@ -147,16 +136,6 @@ class SettingsSyncManager {
       excludedApps: Array(FocusAssistantSettings.shared.excludedApps)
     )
 
-    let task = TaskSettingsResponse(
-      enabled: TaskAssistantSettings.shared.isEnabled,
-      analysisPrompt: TaskAssistantSettings.shared.analysisPrompt,
-      extractionInterval: TaskAssistantSettings.shared.extractionInterval,
-      minConfidence: TaskAssistantSettings.shared.minConfidence,
-      notificationsEnabled: TaskAssistantSettings.shared.notificationsEnabled,
-      allowedApps: Array(TaskAssistantSettings.shared.allowedApps),
-      browserKeywords: TaskAssistantSettings.shared.browserKeywords
-    )
-
     let insight = InsightSettingsResponse(
       enabled: InsightAssistantSettings.shared.isEnabled,
       analysisPrompt: InsightAssistantSettings.shared.analysisPrompt,
@@ -182,7 +161,6 @@ class SettingsSyncManager {
     return AssistantSettingsResponse(
       shared: shared,
       focus: focus,
-      task: task,
       insight: insight,
       memory: memory,
       floatingBar: floatingBar,

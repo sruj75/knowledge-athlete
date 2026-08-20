@@ -2,72 +2,116 @@ import XCTest
 
 @testable import Omi_Computer
 
-/// Regression coverage for `TaskAssistant.contextEvidencePrompt`.
-///
-/// Staged (local-only) tasks used to be merged into the id'd ACTIVE TASKS list
-/// with a hard-coded `id:0`. The model could echo that back as
-/// `duplicate_of:0` / `refines_task:0`, driving a task update against a
-/// non-existent backend task. Staged tasks must instead render as id-less
-/// "already captured" evidence, so only real backend tasks carry an id the
-/// model can target.
 final class TaskAssistantContextPromptTests: XCTestCase {
-  func testStagedTasksRenderWithoutAnUpdatableId() {
+  func testActiveTasksExposeOnlyStableLocalIDs() {
     let context = TaskExtractionContext(
-      activeTasks: [(id: "action-item-42", description: "Review the PR", priority: "high", relevanceScore: 10)],
+      activeTasks: [(id: "local_42", description: "Review the PR", priority: "high")],
       completedTasks: [],
       deletedTasks: [],
-      stagedTaskDescriptions: ["Draft the Q3 report"],
       goals: []
     )
 
     let prompt = TaskAssistant.contextEvidencePrompt(context)
 
-    // Real backend tasks keep their updatable id.
-    XCTAssertTrue(prompt.contains("[id:action-item-42] Review the PR"))
-    // Staged tasks appear as id-less evidence.
-    XCTAssertTrue(prompt.contains("ALREADY CAPTURED — STAGED"))
-    let stagedLine = prompt.split(separator: "\n").first { $0.contains("Draft the Q3 report") }
-    XCTAssertNotNil(stagedLine, "Staged description should be present in the prompt")
-    XCTAssertFalse(
-      stagedLine?.contains("[id:") ?? true,
-      "A staged task must never be rendered with an updatable id")
-    // The specific bug signature must be gone entirely.
-    XCTAssertFalse(prompt.contains("[id:0]"), "No task may be rendered with the sentinel id 0")
+    XCTAssertTrue(prompt.contains("[id:local_42] Review the PR [high]"))
+    XCTAssertFalse(prompt.contains("STAGED"))
+    XCTAssertFalse(prompt.contains("relevance"))
+    XCTAssertFalse(prompt.contains("backend"))
   }
 
-  func testSearchResultSerializesOnlyBackendTaskIDs() throws {
-    let localResult = TaskSearchResult(
-      taskID: nil,
-      description: "Unsynced local task",
+  func testSearchResultSerializesLocalTaskIDWithoutRank() throws {
+    let result = TaskSearchResult(
+      taskID: "local_42",
+      description: "Local task",
       status: "active",
       similarity: 0.9,
-      matchType: "vector",
-      relevanceScore: 1
+      matchType: "vector"
     )
-    let backendResult = TaskSearchResult(
-      taskID: "backend-task-42",
-      description: "Synced task",
-      status: "active",
-      similarity: 0.9,
-      matchType: "vector",
-      relevanceScore: 1
+    let payload = try XCTUnwrap(
+      JSONSerialization.jsonObject(with: JSONEncoder().encode(result)) as? [String: Any]
     )
 
-    let localPayload = try XCTUnwrap(
-      JSONSerialization.jsonObject(with: JSONEncoder().encode(localResult)) as? [String: Any]
-    )
-    let backendPayload = try XCTUnwrap(
-      JSONSerialization.jsonObject(with: JSONEncoder().encode(backendResult)) as? [String: Any]
-    )
-
-    XCTAssertNil(localPayload["id"])
-    XCTAssertNil(localPayload["task_id"])
-    XCTAssertEqual(backendPayload["task_id"] as? String, "backend-task-42")
+    XCTAssertEqual(payload["task_id"] as? String, "local_42")
+    XCTAssertNil(payload["relevance_score"])
   }
 
   func testEmptyContextRendersNothing() {
     let context = TaskExtractionContext(
-      activeTasks: [], completedTasks: [], deletedTasks: [], stagedTaskDescriptions: [], goals: [])
+      activeTasks: [], completedTasks: [], deletedTasks: [], goals: [])
     XCTAssertEqual(TaskAssistant.contextEvidencePrompt(context), "")
+  }
+
+  func testDirectAdmissionRequiresOwnedConcreteNonBroadcastCapture() {
+    let accepted = makeTask(
+      captureKind: "clear_commitment",
+      owner: "user",
+      concreteDeliverable: true,
+      publicBroadcast: false,
+      directMention: false,
+      confidence: 0.86,
+      ownershipConfidence: 0.9
+    )
+    XCTAssertTrue(TaskAssistant.shouldAdmit(accepted, minimumConfidence: 0.3))
+    XCTAssertFalse(
+      TaskAssistant.shouldAdmit(
+        makeTask(
+          captureKind: "clear_commitment", owner: "user", concreteDeliverable: true,
+          publicBroadcast: true, directMention: true, confidence: 0.99,
+          ownershipConfidence: 0.99),
+        minimumConfidence: 0.3
+      ))
+    XCTAssertFalse(
+      TaskAssistant.shouldAdmit(
+        makeTask(
+          captureKind: "direct_request", owner: "user", concreteDeliverable: true,
+          publicBroadcast: false, directMention: false, confidence: 0.99,
+          ownershipConfidence: 0.99),
+        minimumConfidence: 0.3
+      ))
+  }
+
+  func testStoredProvenanceRetainsCapturePolicyAndTypedEvidence() throws {
+    let task = makeTask(
+      captureKind: "explicit_command", owner: "user", concreteDeliverable: true,
+      publicBroadcast: false, directMention: true, confidence: 0.92,
+      ownershipConfidence: 0.95)
+    let json = try XCTUnwrap(TaskAssistant.storedProvenance(for: task, screenshotId: 42))
+    let provenance = try JSONDecoder().decode(
+      StoredTaskProvenance.self,
+      from: try XCTUnwrap(json.data(using: .utf8))
+    )
+
+    XCTAssertEqual(provenance.evidence.first?.id, "screenshot:42")
+    XCTAssertEqual(provenance.evidence.first?.kind, .localScreen)
+    XCTAssertEqual(provenance.capturePolicy?.captureKind, "explicit_command")
+    XCTAssertEqual(provenance.capturePolicy?.ownershipConfidence, 0.95)
+  }
+
+  private func makeTask(
+    captureKind: String,
+    owner: String,
+    concreteDeliverable: Bool,
+    publicBroadcast: Bool,
+    directMention: Bool,
+    confidence: Double,
+    ownershipConfidence: Double
+  ) -> ExtractedTask {
+    ExtractedTask(
+      title: "Send the signed project brief to Mina",
+      description: nil,
+      priority: .medium,
+      sourceApp: "Messages",
+      inferredDeadline: nil,
+      confidence: confidence,
+      captureKind: captureKind,
+      owner: owner,
+      concreteDeliverable: concreteDeliverable,
+      publicBroadcast: publicBroadcast,
+      directMention: directMention,
+      alreadyDone: false,
+      duplicateOf: nil,
+      refinesTask: nil,
+      ownershipConfidence: ownershipConfidence
+    )
   }
 }

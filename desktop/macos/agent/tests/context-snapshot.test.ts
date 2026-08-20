@@ -670,16 +670,16 @@ describe("kernel ContextSnapshot", () => {
     store.close();
   });
 
-  it("isolates workspace and recent turns between main chat and workstream sessions", () => {
+  it("isolates workspace and recent turns between main chat and service sessions", () => {
     const { store } = fixture();
     const main = resolveSurfaceSession(store, {
       ownerId: "isolated-owner",
       surfaceRef: { surfaceKind: "main_chat", externalRefKind: "chat", externalRefId: "default" },
       defaultAdapterId: "fake",
     }, () => 1);
-    const workstream = resolveSurfaceSession(store, {
+    const service = resolveSurfaceSession(store, {
       ownerId: "isolated-owner",
-      surfaceRef: { surfaceKind: "workstream", externalRefKind: "workstream", externalRefId: "project-1" },
+      surfaceRef: { surfaceKind: "service", externalRefKind: "service", externalRefId: "project-1" },
       defaultAdapterId: "fake",
     }, () => 2);
     updateContextSource(store, {
@@ -695,15 +695,15 @@ describe("kernel ContextSnapshot", () => {
     recordJournalTurn(store, journalTurn("isolated-owner", main.conversationId, "main-turn", "main only", 4));
     recordJournalTurn(store, journalTurn(
       "isolated-owner",
-      workstream.conversationId,
+      service.conversationId,
       "work-turn",
       "work only",
       5,
-      "workstream",
+      "service",
     ));
 
     const mainSnapshot = buildContextSnapshot(store, main.agentSessionId, "isolated-owner", 6, "main_chat");
-    const workSnapshot = buildContextSnapshot(store, workstream.agentSessionId, "isolated-owner", 6, "workstream");
+    const workSnapshot = buildContextSnapshot(store, service.agentSessionId, "isolated-owner", 6, "service");
     expect(mainSnapshot.sourceOutcomes.find((source) => source.source === "workspace")?.payload)
       .toEqual({ root: "/main-only" });
     expect(workSnapshot.sourceOutcomes.find((source) => source.source === "workspace")).toMatchObject({
@@ -1039,7 +1039,7 @@ function journalTurn(
     turnId,
     role: "user" as const,
     surfaceKind,
-    origin: surfaceKind === "workstream" ? "workstream" as const : "typed_chat" as const,
+    origin: "typed_chat" as const,
     status: "completed" as const,
     content,
     contentBlocks: [{ type: "text" as const, id: `${turnId}:text`, text: content }],

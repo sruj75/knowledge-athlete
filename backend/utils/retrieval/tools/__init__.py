@@ -13,11 +13,6 @@ from .memory_tools import (
     get_memories_tool,
     search_memories_tool,
 )
-from .action_item_tools import (
-    get_action_items_tool,
-    create_action_item_tool,
-    update_action_item_tool,
-)
 from .omi_tools import (
     get_omi_product_info_tool,
 )
@@ -42,9 +37,6 @@ __all__ = [
     'search_conversations_tool',
     'get_memories_tool',
     'search_memories_tool',
-    'get_action_items_tool',
-    'create_action_item_tool',
-    'update_action_item_tool',
     'get_omi_product_info_tool',
     'search_files_tool',
     'manage_daily_summary_tool',

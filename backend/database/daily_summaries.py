@@ -10,7 +10,6 @@ users/{uid}/daily_summaries/{summary_id}
     ├── overview: str
     ├── day_emoji: str
     ├── highlights: List[TopicHighlight]
-    ├── action_items: List[ActionItemSummary]
     ├── people_mentioned: List[PersonMentioned]
     ├── memorable_moments: List[MemorabeMoment]
     ├── stats: DayStats

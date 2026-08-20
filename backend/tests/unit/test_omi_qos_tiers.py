@@ -244,12 +244,10 @@ class TestModelQosProfiles:
         # Flagship features use gpt-5.4-mini on openai
         assert premium['conv_structure'] == ('gpt-5.4-mini', 'openai')
         assert premium['chat_responses'] == ('gpt-5.4-mini', 'openai')
-        assert premium['goals_advice'] == ('gpt-5.4-mini', 'openai')
         # Quality-sensitive features use gpt-4.1-mini on openai
         assert premium['memories'] == ('gpt-4.1-mini', 'openai')
         assert premium['chat_extraction'] == ('gpt-4.1-mini', 'openai')
         assert premium['memory_conflict'] == ('gpt-4.1-mini', 'openai')
-        assert premium['goals'] == ('gpt-4.1-mini', 'openai')
         assert premium['proactive_notification'] == ('gpt-4.1-mini', 'openai')
         # Free-text features use Gemini 2.5 Flash-Lite on gemini provider
         assert premium['session_titles'] == ('gemini-2.5-flash-lite', 'gemini')
@@ -267,7 +265,6 @@ class TestModelQosProfiles:
         max_prof = MODEL_QOS_PROFILES['max']
         # Flagship uses gpt-5.4 on openai
         assert max_prof['chat_responses'] == ('gpt-5.4', 'openai')
-        assert max_prof['goals_advice'] == ('gpt-5.4', 'openai')
         assert max_prof['conv_action_items'] == ('gpt-5.4', 'openai')
         assert max_prof['conv_structure'] == ('gpt-5.4', 'openai')
         assert max_prof['daily_summary'] == ('gpt-5.4', 'openai')
@@ -345,7 +342,7 @@ class TestGetLlm:
     def test_different_features_same_model_share_instance(self):
         # Both use gpt-4.1-mini in premium profile (quality-sensitive)
         llm1 = get_llm('memories')
-        llm2 = get_llm('goals')
+        llm2 = get_llm('chat_extraction')
         assert llm1 is llm2
 
     def test_different_models_return_different_instances(self):
@@ -711,14 +708,6 @@ class TestExpandedCallsiteCoverage:
         assert 'chat_responses' in calls
         assert 'chat_extraction' in calls
 
-    def test_goals_py_all_keys(self):
-        import re
-
-        source = self._read_source("utils/llm/goals.py")
-        calls = re.findall(r"get_llm\('(\w+)'", source)
-        assert 'goals' in calls, "Missing get_llm('goals') in goals.py"
-        assert 'goals_advice' in calls, "Missing get_llm('goals_advice') in goals.py"
-
     def test_notifications_py_key(self):
         import re
 
@@ -768,7 +757,6 @@ class TestExpandedCallsiteCoverage:
             "utils/llm/memories.py",
             "utils/llm/proactive_notification.py",
             "utils/llm/daily_summary.py",
-            "utils/llm/goals.py",
             "utils/llm/notifications.py",
             "utils/llm/followup.py",
             "utils/llm/trends.py",
@@ -882,7 +870,6 @@ class TestStructuredOutputFeatureTracking:
             'proactive_notification',
             'translation',
             'trends',
-            'what_matters_now',
         }
         assert _STRUCTURED_OUTPUT_FEATURES == expected
 

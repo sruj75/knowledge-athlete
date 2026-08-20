@@ -201,16 +201,16 @@ do not hand-edit those paths to match a specific machine.
 | `DesktopLocalProfile` harness | Auth emulator bootstrap | Re-bootstrap emulator session; no prod invalidation side effects |
 
 ### Database Structure
-- **GRDB/SQLite**: owner-scoped Mac conversation authority
-- **Firestore** (`based-hardware`): retained non-conversation user, Memory, task, and later-slice state
+- **GRDB/SQLite**: owner-scoped Mac conversation, task, and simple-goal authority
+- **Firestore** (`based-hardware`): retained non-conversation user, Memory, and later-slice state
 - **Redis**: Caching
 - **Typesense**: Search
 
 ### User Subcollections (Firestore)
 - `users/{uid}/conversations` - S-16/S-23 server residue; never Mac authority
-- `users/{uid}/action_items` - Tasks (no platform tracking)
 - `users/{uid}/fcm_tokens` - Token ID prefix = platform (ios_, android_, macos_)
 - `users/{uid}/memories` - Extracted memories
+- Tasks and simple goals never project to Firestore. All retained task/goal callers use the current owner's GRDB store and stable local IDs; reminders are derived local notification requests.
 - Capture creates its UUID before ingestion; reads and mutations stay local.
 - `/v4/listen` is transient; `/v1/conversation-compute/*` returns untrusted local-commit candidates. Never restore `ServerConversation`/reconciliation, People speakers, cloud playback, or removed privacy controls; test only named non-production bundles.
 

@@ -214,7 +214,7 @@ def load_module_fresh(name: str, path: str) -> ModuleType:
     Example::
 
         with stub_modules({"database._client": fake_client, "google.cloud.firestore": fake}):
-            goals = load_module_fresh("database.goals", "database/goals.py")
+            memories = load_module_fresh("database.memories", "database/memories.py")
     """
     import importlib.util
 

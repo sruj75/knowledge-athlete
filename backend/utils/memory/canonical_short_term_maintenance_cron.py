@@ -58,7 +58,6 @@ class CanonicalShortTermMaintenanceCronSummary:
     routed_total: int = 0
     promoted_total: int = 0
     skipped_users: int = 0
-    recurrence_candidates_total: int = 0
     outbox_delivered_total: int = 0
     outbox_retryable_failures_total: int = 0
     outbox_dead_letters_total: int = 0
@@ -95,8 +94,6 @@ def run_canonical_short_term_maintenance_for_cohort(
     db_client: Any = None,
     now: Optional[datetime] = None,
     run_id: Optional[str] = None,
-    recurrence_signal_persister: Optional[Callable[..., int]] = None,
-    recurrence_signal_consumer: Optional[Callable[..., int]] = None,
 ) -> CanonicalShortTermMaintenanceCronSummary:
     """Run maintenance for every uid in ``CANONICAL_MEMORY_USERS``.
 
@@ -131,7 +128,6 @@ def run_canonical_short_term_maintenance_for_cohort(
                 db_client=client,
                 now=maintenance_now,
                 run_id=effective_run_id,
-                recurrence_signal_sink=recurrence_signal_persister,
                 required_processor=_required_memory_processor,
             )
         except Exception as exc:
@@ -193,24 +189,6 @@ def run_canonical_short_term_maintenance_for_cohort(
                 f"ack={outbox_ack_failures}:"
                 f"errors={outbox_error_count}"
             )
-        if recurrence_signal_consumer is not None and report.consolidation is not None:
-            try:
-                summary.recurrence_candidates_total += recurrence_signal_consumer(
-                    uid,
-                    report.consolidation.recurrence_signals,
-                    firestore_client=client,
-                )
-            except Exception as exc:
-                message = f"uid={uid}: recurrence_consumer:{type(exc).__name__}"
-                summary.errors.append(message)
-                logger.warning("canonical_short_term_maintenance_cron: %s", message)
-                record_fallback(
-                    component="other",
-                    from_mode="recurrence_maintenance",
-                    to_mode="recurrence_inbox_retry",
-                    reason="other",
-                    outcome="degraded",
-                )
         if report.routed_count == 0:
             summary.skipped_users += 1
 
@@ -242,8 +220,6 @@ async def run_canonical_short_term_maintenance_cron(
     db_client: Any = None,
     now: Optional[datetime] = None,
     run_id: Optional[str] = None,
-    recurrence_signal_persister: Optional[Callable[..., int]] = None,
-    recurrence_signal_consumer: Optional[Callable[..., int]] = None,
 ) -> CanonicalShortTermMaintenanceCronSummary:
     """Async entrypoint: offload sync Firestore maintenance to ``db_executor``."""
     return await run_blocking(
@@ -252,6 +228,4 @@ async def run_canonical_short_term_maintenance_cron(
         db_client=db_client,
         now=now,
         run_id=run_id,
-        recurrence_signal_persister=recurrence_signal_persister,
-        recurrence_signal_consumer=recurrence_signal_consumer,
     )

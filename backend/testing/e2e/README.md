@@ -21,16 +21,16 @@ python -m pip install -r testing/e2e/requirements.txt
 
 ## Scope of v1
 
-This version proves the backend can boot hermetically and that selected task/Memory CRUD, user/account, storage, listen-routing, retrieval/search, and legacy-shape paths can execute without real Firestore, Redis, GCS, Pinecone, Typesense, Google ADC, or production API keys. Conversation CRUD and processing are deliberately absent: the Mac owns its conversation archive locally, while hosted listen persistence remains an internal S-16/S-23 handoff.
+This version proves the backend can boot hermetically and that selected Memory CRUD, user/account, storage, listen-routing, retrieval/search, and legacy-shape paths can execute without real Firestore, Redis, GCS, Pinecone, Typesense, Google ADC, or production API keys. Conversation CRUD and task/goal CRUD are deliberately absent: the Mac owns those products locally, while hosted listen persistence remains an internal S-16/S-23 handoff.
 
 | Scenario | Status | Notes |
 |---|---:|---|
-| CRUD golden path | ✅ Green | Action items and memories use real create/update/delete routes. Public conversation CRUD was retired by S-10. |
+| CRUD golden path | ✅ Green | Memories use real create/update/delete routes. Public conversation CRUD was retired by S-10; hosted task/goal CRUD was retired by S-13. |
 | Canonical Memory ingress | ✅ | The Memory pipeline test invokes the retained server-internal processing seam directly; it does not restore the retired public conversation processing API. |
 | Listen/STT route seam | ✅ | `/v4/web/listen` websocket auth/query parsing/custom-STT dispatch is covered; managed-STT scenarios run the real Modulate socket against a loopback peer and inspect retained server-internal persistence directly. S-16 owns final web-listen/protocol retirement. |
 | Storage / speech profile | ✅ Green | `google.cloud.storage.Client` is patched to a temp-dir fake; speech-profile presence, signed URL, sample list, and delete paths run through real routes/helpers. |
 | User/auth/profile/account | ✅ Green | Auth guard, profile, onboarding, general language, notification/assistant settings, and AI profile are covered. S-10 removed Mac transcription preferences and People CRUD. Account deletion additionally exercises its real admission route, durable marker, opaque Cloud Tasks payload, worker claim, required-purge retry, and idempotent redelivery against local fakes. Firebase deletion, billing lookup, Twilio, and derived-data purge stay controlled test seams. |
-| Retrieval/search | ✅ Partial | Memory, action-item, conversation summary, and transcript-chunk retrieval routes run through real public APIs with Firestore-backed records and a deterministic in-memory replacement for Pinecone/OpenAI embeddings at the `database.vector_db` client seam. Full Pinecone/Typesense service compatibility remains out of scope. |
+| Retrieval/search | ✅ Partial | Memory, conversation summary, and transcript-chunk retrieval routes run through real public APIs with Firestore-backed records and a deterministic in-memory replacement for Pinecone/OpenAI embeddings at the `database.vector_db` client seam. Full Pinecone/Typesense service compatibility remains out of scope. |
 | Failure / edge modes | ✅ Partial | Invalid input and edge-case coverage runs. Redis-unavailable, LLM 500, and STT timeout cases are explicitly skipped or deferred until per-test failure fakes are wired. |
 | Legacy shape compatibility | ✅ Green | Exercises retained server-internal conversation storage and legacy Memory shapes plus deterministic fake-store repeated writes. It does not expose conversation routes or execute production migration scripts. |
 
@@ -101,8 +101,7 @@ run.sh
         │   └── embeddings.py                   # VAD/diarization/embedding fake scaffold
         ├── fixtures/
         │   ├── conversations.json
-        │   ├── memories.json
-        │   └── action_items.json
+        │   └── memories.json
         ├── test_crud.py
         ├── test_canonical_memory_pipeline.py
         ├── test_account_deletion_cloud_tasks.py

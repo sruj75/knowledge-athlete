@@ -330,7 +330,6 @@ def run_canonical_short_term_maintenance(
     now: Optional[datetime] = None,
     run_id: str,
     llm_invoke: Optional[Callable[[str], str]] = None,
-    recurrence_signal_sink: Optional[Callable[..., int]] = None,
     required_processor: Optional[RequiredMemoryProcessor] = None,
 ) -> CanonicalShortTermMaintenanceReport:
     """Drain prior projections, run maintenance phases, then project their commits."""
@@ -366,7 +365,6 @@ def run_canonical_short_term_maintenance(
         now=current_time,
         run_id=run_id,
         llm_invoke=llm_invoke,
-        recurrence_signal_sink=recurrence_signal_sink,
     )
     # In production, use a post-commit timestamp so events created during this
     # pass are immediately due. Explicit test/replay clocks remain deterministic.

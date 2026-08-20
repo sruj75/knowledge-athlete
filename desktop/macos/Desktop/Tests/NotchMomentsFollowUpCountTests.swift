@@ -5,7 +5,7 @@ import XCTest
 /// Regression tests for the conversation-end "N follow-ups ready" count.
 /// The count must reflect only follow-ups the just-ended conversation produced —
 /// never the whole open-task backlog, and never older tasks that pagination or a
-/// cross-device sync brings in mid-session (new ids, but stale `createdAt`).
+/// local pagination brings in mid-session (new ids, but stale `createdAt`).
 final class NotchMomentsFollowUpCountTests: XCTestCase {
   private func task(_ id: String, createdAt: Date) -> TaskActionItem {
     TaskActionItem(id: id, description: id, completed: false, createdAt: createdAt)
@@ -37,7 +37,7 @@ final class NotchMomentsFollowUpCountTests: XCTestCase {
 
   func testExcludesPaginatedOrSyncedOlderTasks() {
     // A new id (not in baseline) but with a `createdAt` before the session start —
-    // e.g. an older task paginated in or synced from another device mid-recording.
+    // e.g. an older task paginated in mid-recording.
     let baseline: Set<String> = ["a"]
     let tasks = [
       task("a", createdAt: sessionStart.addingTimeInterval(-3600)),
@@ -59,7 +59,7 @@ final class NotchMomentsFollowUpCountTests: XCTestCase {
       NotchMomentsCoordinator.followUpCount(tasks: tasks, baselineIds: baseline, since: nil), 1)
   }
 
-  func testReceiptRequiresMatchingActiveCanonicalTask() {
+  func testReceiptRequiresMatchingActiveDurableTask() {
     let observed = task("task-1", createdAt: sessionStart)
     let canonical = task("task-1", createdAt: sessionStart)
 
@@ -68,10 +68,10 @@ final class NotchMomentsFollowUpCountTests: XCTestCase {
       NotchMomentsCoordinator.isReceiptConfirmation(
         observed,
         task("different-task", createdAt: sessionStart)),
-      "a different canonical task must never acknowledge the observed cache insert")
+      "a different durable task must never acknowledge the observed projection row")
   }
 
-  func testReceiptRejectsCompletedOrRetiredCanonicalTask() {
+  func testReceiptRejectsCompletedOrRetiredDurableTask() {
     let observed = task("task-1", createdAt: sessionStart)
     let completed = TaskActionItem(id: "task-1", description: "task-1", completed: true, createdAt: sessionStart)
     let retired = TaskActionItem(

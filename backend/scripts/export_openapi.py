@@ -32,12 +32,9 @@ E2E_DIR = BACKEND_DIR / 'testing' / 'e2e'
 DEFAULT_SPEC_PATH = ROOT_DIR / 'docs' / 'api-reference' / 'app-client-openapi.json'
 
 APP_CLIENT_PREFIXES = (
-    '/v1/action-items',
     '/v1/announcements',
-    '/v1/candidates',
     '/v1/conversation-compute',
     '/v1/fair-use',
-    '/v1/goals',
     '/v1/memories',
     '/v1/payment-methods',
     '/v1/payments',
@@ -45,13 +42,8 @@ APP_CLIENT_PREFIXES = (
     '/v1/persons',
     '/v1/phone',
     '/v1/sync',
-    '/v1/task-intelligence',
     '/v1/users',
     '/v1/wrapped',
-    '/v1/work-intents',
-    '/v1/workflow-migrations',
-    '/v1/workstreams',
-    '/v1/what-matters-now',
     '/v2/files',
     '/v2/initial-message',
     '/v2/messages',
@@ -68,9 +60,7 @@ HTTP_METHODS = {'GET', 'POST', 'PUT', 'PATCH', 'DELETE'}
 
 OPENAPI_TITLE = 'Omi App Client API'
 OPENAPI_VERSION = '1.0.0'
-OPENAPI_DESCRIPTION = (
-    'First-party Omi app access to transient conversation compute, memories, action items, goals, and product services.'
-)
+OPENAPI_DESCRIPTION = 'First-party Omi app access to transient conversation compute, memories, and product services.'
 OPENAPI_CONTACT = {'name': 'Omi', 'url': 'https://omi.me'}
 OPENAPI_LICENSE = {'name': 'MIT', 'url': 'https://github.com/BasedHardware/omi/blob/main/LICENSE'}
 OPENAPI_SERVERS = [{'url': 'https://api.omi.me', 'description': 'Production'}]
@@ -80,11 +70,6 @@ OPENAPI_TAGS = [
         'name': 'Conversations',
         'description': 'Compute bounded conversation candidates without backend persistence.',
     },
-    {
-        'name': 'Action Items',
-        'description': 'Manage tasks and to-dos extracted from conversations or created manually.',
-    },
-    {'name': 'Goals', 'description': 'Manage user goals and progress history.'},
 ]
 FIREBASE_BEARER_AUTH_SCHEME = {
     'type': 'http',

@@ -85,61 +85,6 @@ def test_memory_search_reindexes_updates_and_delete_removes_result(client, auth_
     assert fake_index.count(namespace=vector_db.MEMORIES_NAMESPACE) == 0
 
 
-def test_action_item_search_tracks_create_update_and_delete(client, auth_headers, monkeypatch):
-    vector_db, fake_index, _ = _install_fakes(monkeypatch)
-
-    create = client.post(
-        "/v1/action-items",
-        json={"description": "Renew passport before Lisbon travel"},
-        headers=auth_headers,
-    )
-    assert create.status_code == 200, create.text
-    action_item_id = create.json()["id"]
-
-    search = client.get(
-        "/v1/action-items/search",
-        params={"query": "passport travel", "limit": 5},
-        headers=auth_headers,
-    )
-    assert search.status_code == 200, search.text
-    assert [item["id"] for item in search.json()["action_items"]] == [action_item_id]
-
-    update = client.patch(
-        f"/v1/action-items/{action_item_id}",
-        json={"description": "Book veterinarian appointment for Momo"},
-        headers=auth_headers,
-    )
-    assert update.status_code == 200, update.text
-
-    stale_search = client.get(
-        "/v1/action-items/search",
-        params={"query": "passport travel", "limit": 5},
-        headers=auth_headers,
-    )
-    assert stale_search.status_code == 200, stale_search.text
-    assert stale_search.json()["action_items"] == []
-
-    fresh_search = client.get(
-        "/v1/action-items/search",
-        params={"query": "veterinarian Momo", "limit": 5},
-        headers=auth_headers,
-    )
-    assert fresh_search.status_code == 200, fresh_search.text
-    assert [item["id"] for item in fresh_search.json()["action_items"]] == [action_item_id]
-
-    delete = client.delete(f"/v1/action-items/{action_item_id}", headers=auth_headers)
-    assert delete.status_code in (200, 204), delete.text
-
-    after_delete = client.get(
-        "/v1/action-items/search",
-        params={"query": "veterinarian Momo", "limit": 5},
-        headers=auth_headers,
-    )
-    assert after_delete.status_code == 200, after_delete.text
-    assert after_delete.json()["action_items"] == []
-    assert fake_index.count(namespace=vector_db.ACTION_ITEMS_NAMESPACE) == 0
-
-
 def test_conversation_and_transcript_chunk_search_return_persisted_conversation_text(
     client, auth_headers, sample_conversation_data, monkeypatch
 ):

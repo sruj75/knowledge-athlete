@@ -485,14 +485,12 @@ def _delete_conversation_and_related_data(uid: str, conversation_id: str) -> Non
 
     Deletes:
     - Memories linked to this conversation
-    - Action items linked to this conversation (standalone collection)
     - Audio chunks in GCS
     - Vector embedding
     - Conversation document
     """
     # Import here to avoid circular imports
     import database.memories as memories_db
-    import database.action_items as action_items_db
 
     memory_system: MemorySystem | None = None
     try:
@@ -509,12 +507,6 @@ def _delete_conversation_and_related_data(uid: str, conversation_id: str) -> Non
         # memories pointing at a deleted source.
         if memory_system == MemorySystem.CANONICAL:
             raise
-
-    try:
-        # Delete action items from standalone collection
-        action_items_db.delete_action_items_for_conversation(uid, conversation_id)
-    except Exception as e:
-        logger.error(f"Error deleting action items for {conversation_id}: {e}")
 
     try:
         # Delete audio chunks from GCS

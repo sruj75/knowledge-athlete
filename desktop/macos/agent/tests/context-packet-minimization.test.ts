@@ -5,7 +5,7 @@ describe("desktop context packet builder", () => {
   it("allocates unique occurrence ids for simultaneous identical packets", () => {
     const input = {
       ownerId: "owner-a",
-      surfaceKind: "task_chat",
+      surfaceKind: "main_chat",
       objective: "same objective",
       snippets: [],
       retentionClass: "ephemeral" as const,
@@ -22,7 +22,7 @@ describe("desktop context packet builder", () => {
       ownerId: "owner-1",
       sessionId: "session-1",
       runId: "run-1",
-      surfaceKind: "task_chat",
+      surfaceKind: "main_chat",
       objective: "Finish the visible task",
       retentionClass: "ephemeral",
       ttlMs: 60_000,
@@ -31,7 +31,7 @@ describe("desktop context packet builder", () => {
       snippets: [
         {
           snippetId: "selected-chat",
-          sourceKind: "task_chat",
+          sourceKind: "chat_surface",
           operation: "selected_snippet",
           provenance: { taskId: "task-1", range: "last_user_turn" },
           content: "User asked to finish the task.",
@@ -66,7 +66,7 @@ describe("desktop context packet builder", () => {
       ownerId: "owner-1",
       packetId: result.packet.packetId,
       runId: "run-1",
-      sourceKind: "task_chat",
+      sourceKind: "chat_surface",
       policyDecision: "allowed",
     });
   });

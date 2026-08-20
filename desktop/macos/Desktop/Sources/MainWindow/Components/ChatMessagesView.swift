@@ -71,7 +71,7 @@ enum ChatTranscriptLayout {
 }
 
 /// Reusable chat messages scroll view extracted from ChatPage.
-/// Used by both ChatPage (main chat) and TaskChatPanel (task sidebar chat).
+/// Shared messages list used by the main Chat surface.
 struct ChatMessagesView<WelcomeContent: View>: View {
   let messages: [ChatMessage]
   let isSending: Bool
@@ -85,7 +85,7 @@ struct ChatMessagesView<WelcomeContent: View>: View {
   /// Token that increments each time the local user sends a message.
   /// ChatMessagesView uses this to follow the latest message immediately
   /// after the local user row is inserted.
-  /// Pass nil when the caller cannot distinguish local sends (e.g. TaskChatPanel
+  /// Pass nil when the caller cannot distinguish local sends
   /// with its own send path).
   var localSendToken: LocalSendToken? = nil
   /// Fired when the user taps Cancel on a stalled-tool banner.

@@ -31,7 +31,6 @@ export interface AgentControlManifestTool {
     | "get_agent_run"
     | "build_desktop_awareness_snapshot"
     | "list_desktop_action_queue"
-    | "get_desktop_open_loops"
     | "build_desktop_context_packet"
     | "route_desktop_intent"
     | "evaluate_desktop_tool_policy"
@@ -120,19 +119,19 @@ export const agentControlCapabilityManifest = [
     description: `List Omi-managed agent sessions from the local runtime kernel.
 
 Use when the user asks what Omi agents/subagents are active, recent, failed, or attached to a surface.
-Returns canonical session/run summaries plus task_agents and floating_agent_pills projections.`,
+Returns canonical session/run summaries plus floating_agent_pills projections.`,
     promptSnippet: "list_agent_sessions - List Omi-managed agent sessions and active runs",
     promptGuidelines: [
-      "Use for current or recent kernel-backed Omi agents/subagents across chat, PTT/realtime, task chat, and floating-bar pills.",
-      "Returns task_agents and floating_agent_pills alongside canonical session summaries.",
+      "Use for current or recent kernel-backed Omi agents/subagents across chat, PTT/realtime, and floating-bar pills.",
+      "Returns floating_agent_pills alongside canonical session summaries.",
       "For a prior child agent's final answer, do not infer run completion from session status or restrict discovery to status='open'. List recent sessions, then call get_agent_run with the returned runId and answer from run.finalText without exposing the internal id.",
     ],
     capabilityDoc: controlDoc(
       "List Agent Sessions",
       "List Omi-managed agent sessions from the local runtime kernel.",
       [
-        "Use for current or recent kernel-backed Omi agents/subagents across chat, PTT/realtime, task chat, and floating-bar pills.",
-        "Returns task_agents and floating_agent_pills alongside canonical session summaries.",
+        "Use for current or recent kernel-backed Omi agents/subagents across chat, PTT/realtime, and floating-bar pills.",
+        "Returns floating_agent_pills alongside canonical session summaries.",
       ],
     ),
     latency: "fast local",
@@ -145,7 +144,7 @@ Returns canonical session/run summaries plus task_agents and floating_agent_pill
       status: { type: "string", enum: ["open", "archived", "closed"] },
       surfaceKind: {
         type: "string",
-        enum: ["main_chat", "task_chat", "realtime", "delegated_agent", "background_agent", "floating_bar", "floating_pill"],
+        enum: ["main_chat", "realtime", "delegated_agent", "background_agent", "floating_bar", "floating_pill"],
         description: "Optional surface hint. background_agent and delegated_agent discover recent child sessions across concrete surfaces.",
       },
       limit: { type: "number", description: "Maximum sessions to return. Default 50, max 200." },
@@ -247,28 +246,6 @@ Use a runId returned by list_agent_sessions or a correlated Omi response. Return
     required: [],
   },
   {
-    name: "get_desktop_open_loops",
-    label: "Get Desktop Open Loops",
-    description: "Summarize unresolved local coordinator loops: blocking dispatches, failed/stale runs, undelivered artifacts, and candidate reviews.",
-    promptSnippet: "get_desktop_open_loops - Summarize unresolved local agent work",
-    promptGuidelines: ["Use for quick status answers and voice status summaries."],
-    capabilityDoc: controlDoc(
-      "Get Desktop Open Loops",
-      "Summarize unresolved local coordinator loops: blocking dispatches, failed/stale runs, undelivered artifacts, and candidate reviews.",
-      ["Use for quick status answers and voice status summaries."],
-    ),
-    latency: "fast local",
-    surfaces: ["desktopChat", "realtimeHub"],
-    ...agentControlReadPolicy,
-    runtimePreconditions: ["Defaults ownerId to active owner."],
-    timeoutClass: "normal",
-    properties: {
-      ownerId: { type: "string", description: "Owner id. Defaults to active owner." },
-      limit: { type: "number", description: "Maximum loops. Default 50, max 200." },
-    },
-    required: [],
-  },
-  {
     name: "build_desktop_context_packet",
     label: "Build Desktop Context Packet",
     description: "Persist a minimized DesktopContextPacket plus context-access audit rows from explicit selected snippets.",
@@ -295,7 +272,7 @@ Use a runId returned by list_agent_sessions or a correlated Omi response. Return
       ownerId: { type: "string", description: "Owner id. Defaults to active owner." },
       sessionId: { type: "string", description: "Optional canonical session id scope." },
       runId: { type: "string", description: "Optional canonical run id scope." },
-      surfaceKind: { type: "string", description: "Surface kind such as main_chat or task_chat." },
+      surfaceKind: { type: "string", description: "Surface kind such as main_chat or background_agent." },
       objective: { type: "string", description: "Worker objective." },
       packetJson: { type: "object", description: "Selected context snippets and policy fields.", additionalProperties: true },
       ttlMs: { type: "number", description: "Positive TTL in milliseconds." },
@@ -409,7 +386,7 @@ Use a runId returned by list_agent_sessions or a correlated Omi response. Return
     timeoutClass: "normal",
     properties: {
       ownerId: { type: "string", description: "Owner id. Defaults to active owner." },
-      kind: { type: "string", enum: ["approval", "routing_choice", "failure_recovery", "artifact_review", "memory_candidate", "task_candidate", "external_draft", "screen_context"] },
+      kind: { type: "string", enum: ["approval", "routing_choice", "failure_recovery", "artifact_review", "memory_candidate", "external_draft", "screen_context"] },
       priority: { type: "number", description: "Priority integer." },
       title: { type: "string", description: "Short title." },
       decisionPrompt: { type: "string", description: "Exact decision prompt." },
@@ -652,7 +629,7 @@ Creates a new run in that session through the runtime kernel.`,
     timeoutClass: "long",
     properties: {
       sessionId: { type: "string", description: "Canonical Omi session_id to continue." },
-      originSurfaceKind: { type: "string", enum: ["main_chat", "floating_bar", "realtime", "task_chat", "agent_control"], description: "Surface that originated the continuation request. Persisted caller session authority overrides this routing fact." },
+      originSurfaceKind: { type: "string", enum: ["main_chat", "floating_bar", "realtime", "agent_control"], description: "Surface that originated the continuation request. Persisted caller session authority overrides this routing fact." },
       ownerId: { type: "string", description: "Owner id. Defaults to the active signed-in owner." },
       prompt: { type: "string", description: "The follow-up message." },
       mode: { type: "string", enum: ["ask", "act"], description: "Run mode. Default ask." },
@@ -686,7 +663,7 @@ Not exposed to agent-facing surfaces.`,
     timeoutClass: "long",
     properties: {
       prompt: { type: "string", description: "Self-contained background-agent task prompt." },
-      originSurfaceKind: { type: "string", enum: ["main_chat", "floating_bar", "realtime", "task_chat", "agent_control"], description: "Surface that originated the spawn request. Persisted caller session authority overrides this routing fact." },
+      originSurfaceKind: { type: "string", enum: ["main_chat", "floating_bar", "realtime", "agent_control"], description: "Surface that originated the spawn request. Persisted caller session authority overrides this routing fact." },
       title: { type: "string", description: "Optional visible session title." },
       surfaceKind: { type: "string", description: "Optional session surface kind. Default floating_bar." },
       externalRefKind: { type: "string", description: "Optional external reference kind for UI projection." },
@@ -767,7 +744,7 @@ Pass parentRunId to link the new run to a parent.`,
     properties: {
       objective: { type: "string", description: "Delegated objective for the child agent." },
       parentRunId: { type: "string", description: "Canonical parent Omi run_id." },
-      originSurfaceKind: { type: "string", enum: ["main_chat", "floating_bar", "realtime", "task_chat", "agent_control"], description: "Surface that originated the synchronous delegation request. Persisted caller session authority overrides this routing fact." },
+      originSurfaceKind: { type: "string", enum: ["main_chat", "floating_bar", "realtime", "agent_control"], description: "Surface that originated the synchronous delegation request. Persisted caller session authority overrides this routing fact." },
       context: { type: "string", description: "Optional concise context, not a full transcript." },
       ownerId: { type: "string", description: "Optional owner guard for the parent run." },
       runMode: { type: "string", enum: ["ask", "act"], description: "Child run mode. Default ask." },

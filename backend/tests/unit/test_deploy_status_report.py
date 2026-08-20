@@ -185,9 +185,9 @@ def test_secret_key_verifier_reads_expected_keys_without_secret_values() -> None
 def test_candidate_tracker_records_the_failed_contract_without_candidate_url(tmp_path) -> None:
     manifest = tmp_path / 'manifest.json'
     evidence = tmp_path / 'evidence.json'
-    manifest.write_text('{"schema_version":1,"services":{"backend":{"contract":"what_matters_now"}}}', encoding='utf-8')
+    manifest.write_text('{"schema_version":1,"services":{"backend":{"contract":"memory_pipeline"}}}', encoding='utf-8')
     evidence.write_text(
-        '{"schema_version":1,"status":"FAIL","checks":[{"service":"backend","contract":"what_matters_now","status":"FAIL"}]}',
+        '{"schema_version":1,"status":"FAIL","checks":[{"service":"backend","contract":"memory_pipeline","status":"FAIL"}]}',
         encoding='utf-8',
     )
 
@@ -195,8 +195,8 @@ def test_candidate_tracker_records_the_failed_contract_without_candidate_url(tmp
     report, findings = render_candidate_acceptance_report(tracker)
 
     assert tracker['status'] == 'FAIL'
-    assert tracker['failed_contract_category'] == 'what_matters_now'
-    assert 'candidate contract what_matters_now failed before traffic promotion' in findings[0].message
+    assert tracker['failed_contract_category'] == 'memory_pipeline'
+    assert 'candidate contract memory_pipeline failed before traffic promotion' in findings[0].message
     assert 'candidate.example' not in report
 
 

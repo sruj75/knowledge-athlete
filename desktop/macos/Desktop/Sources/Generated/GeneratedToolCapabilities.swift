@@ -6,7 +6,6 @@ enum GeneratedToolCapabilities {
     case desktopChat
     case realtimeHub
     case onboarding
-    case taskChat
   }
 
   enum LatencyClass: String {
@@ -80,16 +79,13 @@ enum GeneratedToolCapabilities {
     ]
     ),
     Capability(
-      toolName: "search_tasks",
-      title: "Search Tasks",
+      toolName: "complete_task",
+      title: "Complete Task",
       latency: .fastLocal,
       surfaces: Set([.desktopChat]),
-      summary: "Vector similarity search on tasks (action_items + staged_tasks).",
+      summary: "Mark a task complete by surfaced local ID.",
       bullets: [
-      "Use for finding tasks by meaning, not exact keywords, e.g. \"find tasks about shopping\".",
-      "Examples: \"tasks about shopping\", \"anything related to the presentation\".",
-      "Parameters: query (required), include_completed (default false).",
-      "More reliable than hand-writing MATCH queries for task search."
+      "Use after finding the task with get_action_items or execute_sql."
     ]
     ),
     Capability(
@@ -99,8 +95,8 @@ enum GeneratedToolCapabilities {
       surfaces: Set([.desktopChat, .realtimeHub]),
       summary: "List Omi-managed agent sessions from the local runtime kernel.",
       bullets: [
-      "Use for current or recent kernel-backed Omi agents/subagents across chat, PTT/realtime, task chat, and floating-bar pills.",
-      "Returns task_agents and floating_agent_pills alongside canonical session summaries.",
+      "Use for current or recent kernel-backed Omi agents/subagents across chat, PTT/realtime, and floating-bar pills.",
+      "Returns floating_agent_pills alongside canonical session summaries.",
       "For a prior child agent's final answer, do not infer run completion from session status or restrict discovery to status='open'. List recent sessions, then call get_agent_run with the returned runId and answer from run.finalText without exposing the internal id."
     ]
     ),
@@ -136,16 +132,6 @@ enum GeneratedToolCapabilities {
       bullets: [
       "Use for approvals, failed runs, artifact review, stale work, and candidate review.",
       "The queue is derived and not persisted as authority."
-    ]
-    ),
-    Capability(
-      toolName: "get_desktop_open_loops",
-      title: "Get Desktop Open Loops",
-      latency: .fastLocal,
-      surfaces: Set([.desktopChat, .realtimeHub]),
-      summary: "Summarize unresolved local coordinator loops: blocking dispatches, failed/stale runs, undelivered artifacts, and candidate reviews.",
-      bullets: [
-      "Use for quick status answers and voice status summaries."
     ]
     ),
     Capability(
@@ -316,23 +302,13 @@ enum GeneratedToolCapabilities {
     ]
     ),
     Capability(
-      toolName: "complete_task",
-      title: "Complete Task",
-      latency: .fastLocal,
-      surfaces: Set([.desktopChat]),
-      summary: "Toggle a task's completion status by backendId.",
-      bullets: [
-      "Use after finding the task with execute_sql or search_tasks."
-    ]
-    ),
-    Capability(
       toolName: "delete_task",
       title: "Delete Task",
       latency: .fastLocal,
       surfaces: Set([.desktopChat]),
-      summary: "Delete a task permanently by backendId.",
+      summary: "Delete a task by surfaced local ID.",
       bullets: [
-      "Use after finding the task with execute_sql or search_tasks."
+      "Use after finding the task with get_action_items or execute_sql."
     ]
     ),
     Capability(
@@ -379,7 +355,7 @@ enum GeneratedToolCapabilities {
     Capability(
       toolName: "get_action_items",
       title: "Get Action Items",
-      latency: .fastNetwork,
+      latency: .fastLocal,
       surfaces: Set([.desktopChat, .realtimeHub]),
       summary: "Retrieve the user's tasks with optional completion and due-date filters.",
       bullets: [
@@ -390,18 +366,18 @@ enum GeneratedToolCapabilities {
     Capability(
       toolName: "create_action_item",
       title: "Create Action Item",
-      latency: .fastNetwork,
+      latency: .fastLocal,
       surfaces: Set([.desktopChat, .realtimeHub]),
       summary: "Create a new task, to-do, or reminder.",
       bullets: [
       "Use when the user explicitly asks to add something to their list.",
-      "Pass a concise description and due_at only when the user gave a time."
+      "Pass a concise description; omit due_at to use the local 24-hour default."
     ]
     ),
     Capability(
       toolName: "update_action_item",
       title: "Update Action Item",
-      latency: .fastNetwork,
+      latency: .fastLocal,
       surfaces: Set([.desktopChat, .realtimeHub]),
       summary: "Update an existing task's status, description, or due date.",
       bullets: [

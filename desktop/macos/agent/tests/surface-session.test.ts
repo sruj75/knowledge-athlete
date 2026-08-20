@@ -145,7 +145,7 @@ describe("surface_conversations", () => {
     ]);
   });
 
-  it("shares main, floating, and realtime aliases while preserving task/workstream boundaries", () => {
+  it("shares main, floating, and realtime aliases", () => {
     const main = resolveSurfaceSession(store, {
       ownerId: "owner-a",
       surfaceRef: { surfaceKind: "main_chat", externalRefKind: "chat", externalRefId: "default" },
@@ -158,21 +158,8 @@ describe("surface_conversations", () => {
       ownerId: "owner-a",
       surfaceRef: { surfaceKind: "realtime_voice", externalRefKind: "chat", externalRefId: "default" },
     }, () => 3);
-    const task = resolveSurfaceSession(store, {
-      ownerId: "owner-a",
-      surfaceRef: { surfaceKind: "task_chat", externalRefKind: "task", externalRefId: "default" },
-    }, () => 4);
-    const workstream = resolveSurfaceSession(store, {
-      ownerId: "owner-a",
-      surfaceRef: { surfaceKind: "workstream", externalRefKind: "workstream", externalRefId: "default" },
-    }, () => 5);
-
     expect(floating).toEqual(main);
     expect(voice).toEqual(main);
-    expect(task.conversationId).not.toBe(main.conversationId);
-    expect(workstream.conversationId).not.toBe(main.conversationId);
-    expect(task.agentSessionId).not.toBe(main.agentSessionId);
-    expect(workstream.agentSessionId).not.toBe(main.agentSessionId);
 
     recordJournalTurn(store, {
       ownerId: "owner-a",
@@ -190,10 +177,6 @@ describe("surface_conversations", () => {
       ownerId: "owner-a",
       conversationId: main.conversationId,
     }).turns).toEqual([expect.objectContaining({ turnId: "voice-visible-everywhere" })]);
-    expect(listJournalTurns(store, {
-      ownerId: "owner-a",
-      conversationId: task.conversationId,
-    }).turns).toEqual([]);
   });
 
   it("links orphan sessions by external ref instead of violating uniqueness", () => {

@@ -48,7 +48,6 @@ def test_neighboring_retained_product_routes_remain_registered() -> None:
 
     for route_key in (
         ("GET", "/v1/tools/memories"),
-        ("GET", "/v1/action-items"),
         ("GET", "/v3/memories"),
         ("GET", "/v1/users/me/subscription"),
         ("GET", "/v1/auth/authorize"),

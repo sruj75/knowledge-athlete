@@ -108,7 +108,6 @@ class UserDataExportResponse(BaseModel):
     conversations: List[Dict[str, Any]] = Field(default_factory=list)
     memories: List[Dict[str, Any]] = Field(default_factory=list)
     people: List[Dict[str, Any]] = Field(default_factory=list)
-    action_items: List[Dict[str, Any]] = Field(default_factory=list)
     chat_messages: List[Dict[str, Any]] = Field(default_factory=list)
 
 
@@ -128,13 +127,6 @@ class MemorySummaryRatingResponse(BaseModel):
 class DailySummaryTestResponse(UserStatusResponse):
     summary_id: str
     conversations_count: int
-
-
-class DailySummaryActionItem(BaseModel):
-    description: Optional[str] = None
-    priority: Optional[str] = None
-    source_conversation_id: Optional[str] = None
-    completed: Optional[bool] = None
 
 
 class DailySummaryTopicHighlight(BaseModel):
@@ -162,7 +154,6 @@ class DailySummaryKnowledgeNugget(BaseModel):
 class DailySummaryDayStats(BaseModel):
     total_conversations: Optional[int] = None
     total_duration_minutes: Optional[int] = None
-    action_items_count: Optional[int] = None
 
 
 class DailySummaryLocationPin(BaseModel):
@@ -184,7 +175,6 @@ class DailySummaryResponse(BaseModel):
     day_emoji: Optional[str] = None
     stats: Optional[DailySummaryDayStats] = None
     highlights: Optional[List[DailySummaryTopicHighlight]] = None
-    action_items: Optional[List[DailySummaryActionItem]] = None
     unresolved_questions: Optional[List[DailySummaryUnresolvedQuestion]] = None
     decisions_made: Optional[List[DailySummaryDecisionMade]] = None
     knowledge_nuggets: Optional[List[DailySummaryKnowledgeNugget]] = None

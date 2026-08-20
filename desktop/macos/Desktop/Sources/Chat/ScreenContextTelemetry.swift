@@ -110,7 +110,7 @@ enum ScreenContextAutoIncludePolicy {
       // as explicit so a real capture is attempted and capture/permission
       // failures surface in the answer instead of a silently blind reply.
       return onboardingActive ? .explicitScreenRequest : .ambientSurfaceContext
-    case .taskChat, .agentPill:
+    case .agentPill:
       return .ambientSurfaceContext
     case .mainChat:
       return systemPromptStyle == .floating ? .ambientSurfaceContext : nil

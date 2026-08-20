@@ -23,15 +23,15 @@ enum DesktopCapabilityRegistry {
       filteredCapabilities
       .map { toolDoc($0, excluding: excludedToolNames) }
       .joined(separator: "\n\n")
-    let taskAgentAwareness = taskAgentAwarenessPrompt(availableToolNames: availableToolNames)
+    let backgroundAgentAwareness = backgroundAgentAwarenessPrompt(availableToolNames: availableToolNames)
     let proactiveGuidance = proactiveGuidancePrompt(availableToolNames: availableToolNames)
     let usageGuidance = usageGuidancePrompt(availableToolNames: availableToolNames)
     return """
-      These Omi data/status tools are documented for desktop chat. Use them before answering when the question depends on the user's personal data, tasks, conversations, memories, app/screen activity, or task-agent state. Do not guess when you can look it up. Do not call tools for simple chit-chat or general knowledge that does not depend on the user's data.
+      These Omi data/status tools are documented for desktop chat. Use them before answering when the question depends on the user's personal data, tasks, conversations, memories, app/screen activity, or background-agent state. Do not guess when you can look it up. Do not call tools for simple chit-chat or general knowledge that does not depend on the user's data.
 
       \(docs)
 
-      \(taskAgentAwareness)
+      \(backgroundAgentAwareness)
 
       \(proactiveGuidance)
 
@@ -49,7 +49,7 @@ enum DesktopCapabilityRegistry {
     - You can read Omi data quickly with fast tools: tasks, memories, conversations, daily recaps, and screen history.
     - You can propose macOS permission checks or requests with check_permission_status and request_permission; the kernel authorizes the native action. Treat "screen share", "screen sharing", and "screen-share" as the Screen Recording permission type, screen_recording.
     - When screen access is unavailable, explicitly say that Omi needs Screen Recording permission so a next-turn request such as "request it" has one unambiguous permission referent. If the user then asks to request it, propose request_permission with type screen_recording immediately.
-    - You can inspect task-chat agents, floating-bar pills, and canonical Omi-managed agent sessions/runs with list_agent_sessions, get_agent_run, and cancel_agent_run.
+    - You can inspect floating-bar pills and canonical Omi-managed agent sessions/runs with list_agent_sessions, get_agent_run, and cancel_agent_run.
     - You can inspect canonical agent output references with inspect_agent_artifacts and mark artifact metadata with update_agent_artifact_lifecycle.
     - You can dismiss floating-bar pills with set_desktop_attention_override after checking list_agent_sessions.
     - spawn_agent submits a background-work proposal; only an accepted kernel result creates a canonical agent session/run.
@@ -109,14 +109,14 @@ enum DesktopCapabilityRegistry {
     return lines.joined(separator: "\n")
   }
 
-  private static func taskAgentAwarenessPrompt(availableToolNames: Set<String>) -> String {
+  private static func backgroundAgentAwarenessPrompt(availableToolNames: Set<String>) -> String {
     guard availableToolNames.contains("list_agent_sessions") else {
       return ""
     }
     return """
-      **Task-Agent Awareness:**
-      - Omi can run local task-chat agents/subagents in the desktop task panel and floating-bar background agents.
-      - If the user says "your subagents", "task agents", "running agents", "background agents", or mentions task-agent errors/timeouts, do NOT deny that you have subagents.
+      **Background-Agent Awareness:**
+      - Omi can run local subagents and floating-bar background agents.
+      - If the user says "your subagents", "running agents", "background agents", or mentions agent errors/timeouts, do NOT deny that you have subagents.
       - Call list_agent_sessions before answering those questions.
       """
   }
@@ -170,7 +170,6 @@ enum DesktopCapabilityRegistry {
     append("What the user did today/yesterday/this week -> get_daily_recap.", when: has("get_daily_recap"))
     append("App usage counts or exact local stats -> execute_sql.", when: has("execute_sql"))
     append("Fuzzy screen-history questions -> semantic_search.", when: has("semantic_search"))
-    append("Find tasks by meaning -> search_tasks.", when: has("search_tasks"))
     let taskWriteTools = ["create_action_item", "update_action_item", "execute_sql"]
     append(
       "Create/update tasks -> \(toolList(taskWriteTools)); use execute_sql only for exact local inspection or legacy local writes.",
@@ -178,10 +177,10 @@ enum DesktopCapabilityRegistry {
     )
     let taskCompletionTools = ["complete_task", "delete_task"]
     append(
-      "Complete/delete local tasks -> find the backendId, then \(toolList(taskCompletionTools)).",
+      "Complete/delete local tasks -> find the surfaced local_<rowid>, then \(toolList(taskCompletionTools)).",
       when: !available(taskCompletionTools).isEmpty
     )
-    append("Subagents/task-agent/floating-pill status -> list_agent_sessions.", when: has("list_agent_sessions"))
+    append("Subagent/floating-pill status -> list_agent_sessions.", when: has("list_agent_sessions"))
     let agentSessionTools = ["list_agent_sessions", "get_agent_run"]
     append(
       "Canonical Omi-managed agent sessions/runs -> \(toolList(agentSessionTools)).",

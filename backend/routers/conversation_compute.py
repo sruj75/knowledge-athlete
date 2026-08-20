@@ -165,7 +165,6 @@ def compute_action_item_candidates(request: ConversationActionItemsRequest, uid:
         existing_action_items=existing,
         calendar_meeting_context=None,
         output_language_code=request.output_language,
-        task_intelligence_capture=True,
         raise_on_error=True,
     )
 

@@ -174,10 +174,6 @@ struct FloatingBarNotificationContext: Equatable {
   let detail: String?
 }
 
-enum FloatingBarNotificationAction: Equatable {
-  case openWhatMattersNow(recommendationID: String)
-}
-
 /// A custom in-app notification rendered directly below the floating bar.
 struct FloatingBarNotification: Identifiable, Equatable {
   let id = UUID()
@@ -188,7 +184,6 @@ struct FloatingBarNotification: Identifiable, Equatable {
   let message: String
   let assistantId: String
   let context: FloatingBarNotificationContext?
-  let action: FloatingBarNotificationAction?
   /// Optional opaque proactive-suggestion join keys. No card content or screen
   /// provenance enters notification analytics through this field.
   let suggestionTelemetryIdentity: SuggestionAssistantTelemetry.NotificationIdentity?
@@ -201,7 +196,6 @@ struct FloatingBarNotification: Identifiable, Equatable {
     message: String,
     assistantId: String,
     context: FloatingBarNotificationContext? = nil,
-    action: FloatingBarNotificationAction? = nil,
     suggestionTelemetryIdentity: SuggestionAssistantTelemetry.NotificationIdentity? = nil,
     screenshotData: Data? = nil
   ) {
@@ -210,7 +204,6 @@ struct FloatingBarNotification: Identifiable, Equatable {
     self.message = message
     self.assistantId = assistantId
     self.context = context
-    self.action = action
     self.suggestionTelemetryIdentity = suggestionTelemetryIdentity
     self.screenshotData = screenshotData
   }

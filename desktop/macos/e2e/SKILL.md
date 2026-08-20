@@ -108,11 +108,12 @@ manager; use a natural authenticated physical PTT press as the final UX validati
 
 ### 2c. Inject backend faults (failure-path testing)
 The hermetic E2E harness is backend-only, so desktop failure paths (backend 5xx →
-structured `ChatErrorState`, task sortOrder sync failure surfaced/retried not silent,
-transcription transport truthfulness) can't be driven end-to-end. `scripts/omi-fault-inject.sh`
+structured `ChatErrorState` and transcription transport truthfulness) can't be driven
+end-to-end. Tasks and goals are local-authoritative and are verified with the bridge flows
+below instead of a fault server. `scripts/omi-fault-inject.sh`
 stands up a local endpoint that fails on purpose; point a **named test bundle** (never
-prod) at it via the documented backend overrides — `OMI_PYTHON_API_URL` (chat / action-item
-sync / transcription relay), `OMI_DESKTOP_API_URL` (Rust backend), `OMI_AUTH_API_URL` (auth):
+prod) at it via the documented backend overrides — `OMI_PYTHON_API_URL` (chat / transcription
+relay), `OMI_DESKTOP_API_URL` (Rust backend), `OMI_AUTH_API_URL` (auth):
 ```bash
 cd desktop/macos
 eval "$(./scripts/omi-fault-inject.sh start error)"      # modes: error | status:CODE | latency | reset | refuse
@@ -187,30 +188,21 @@ sleep 185
 `suspend_agent_stream` returns `{suspended:true, pid, durationMs}` (or an `error` if no
 agent process is running / on a prod bundle).
 
-### 2f. Inject a server push mid-drag (task requery suppression, TASK-06)
-A server push arriving while a task drag/sort-sync is in flight must not clobber the
-in-flight order — the Tasks view model holds `suppressDatabaseRequery` during that
-window so a recompute recomputes from the in-memory drag order instead of re-reading
-stale rows from SQLite. `inject_requery_during_drag` (non-prod) drives the **real**
-`recomputeAllCaches` path under a simulated drag and reports the outcome:
+### 2f. Exercise local task authority through the bridge
+The non-production task actions call the same `TasksViewModel`, `TasksStore`, and
+`ActionItemStorage` paths as the UI. Their returned `local_<rowid>` identity means the
+GRDB transaction committed; no task API or server requery participates:
 
 ```bash
 cd desktop/macos
-# optional: seed some tasks first so the order snapshot is non-trivial
-./scripts/omi-ctl action seed_tasks count=8
-./scripts/omi-ctl action inject_requery_during_drag | python3 -c 'import json,sys; d=json.load(sys.stdin)["result"]; print(d)'
-#   assert: requery_suppressed_during_drag=true  (the server-push recompute did NOT re-read SQLite)
-#   control: requery_fires_without_suppress=true  (same push with the flag cleared DOES requery)
+./scripts/omi-ctl action create_task description="bridge local task" priority=high
+./scripts/omi-ctl action dump_tasks marker="bridge local task"
+./scripts/omi-ctl action toggle_task description="bridge local task"
+./scripts/omi-ctl action dump_tasks includeCompleted=true marker="bridge local task"
+./scripts/omi-ctl action delete_task description="bridge local task"
 ```
-A suppressed requery is exactly why the in-memory drag order stays on screen instead of
-a stale SQLite re-read clobbering it — so `requery_suppressed_during_drag=true` is the
-TASK-06 assertion; the control proves the guard is load-bearing. The action **forces the
-filtered-requery branch** internally, so the assertion is never vacuous even with no user
-filter active; it polls the requery counter (no fixed sleeps) for a deterministic signal.
-The Tasks page no longer exposes user filters (the popover was replaced by the
-mobile-parity completed toggle), so the forced branch is the only way the requery
-path arms; `requery_fires_without_suppress=true` confirms the injected push *would*
-have requeried without the drag guard. Non-production bundles only.
+Use `scripts/omi-harness run e2e/flows/tasks-crud.yaml --lane bridge` for the typed
+version. `inject_requery_during_drag`, sync waits, and backend task fields are retired.
 
 ### 2g. Inspect the feedback payload without submitting (SET-02)
 `FeedbackView.submitFeedback()` always fires a real Sentry event and attaches the app log
@@ -317,26 +309,19 @@ Hermetic ratchets: `xcrun swift test --package-path Desktop --filter FloatingBar
 (deterministic counter + `testResetClearsLimitReachedState`) and `--filter UsageLimiterActionTests`
 (the non-prod actions wire to the limiter and the reset is prod-gated).
 
-### 2k. Prove rapid reorders coalesce through the 500ms debounce (TASK-05)
-`reorder_task` flushes the sortOrder sync by default (deterministic SQLite reads for
-CRUD recipes) — which *hides* the debounce under test. Pass `flush=false` to leave the
-production 500ms debounce running: rapid calls must coalesce into exactly ONE
-`TasksVM: Synced N sort orders` log line, with no lost update.
+### 2k. Prove task order is committed locally (TASK-05)
+`reorder_task` commits the due-section mapping and numeric `sortOrder` through one local
+GRDB transaction. Read the rows back immediately; there is no network flush or sync log.
 ```bash
 cd desktop/macos
 ./scripts/omi-ctl action seed_tasks count=5 prefix=T05x      # note the returned ids
-OMI_LOG_PATH="$(./scripts/omi-ctl log-path)"
-MARK="T05-$(date +%s)"; echo "$MARK" >> "$OMI_LOG_PATH"
-# three reorders inside one debounce window (each returns immediately, flushed=false)
-./scripts/omi-ctl action reorder_task id=<id1> index=0 category=nodeadline flush=false
-./scripts/omi-ctl action reorder_task id=<id2> index=1 category=nodeadline flush=false
-./scripts/omi-ctl action reorder_task id=<id3> index=2 category=nodeadline flush=false
-sleep 2   # > 500ms debounce + sync
-awk "/$MARK/{f=1} f" "$OMI_LOG_PATH" | grep -c 'TasksVM: Synced'   # assert exactly 1
-./scripts/omi-ctl action dump_tasks limit=5000                 # assert final order persisted (no lost update)
+./scripts/omi-ctl action reorder_task id=<id1> index=0 category=nodeadline
+./scripts/omi-ctl action reorder_task id=<id2> index=1 category=nodeadline
+./scripts/omi-ctl action reorder_task id=<id3> index=2 category=nodeadline
+./scripts/omi-ctl action dump_tasks limit=5000                 # assert final local order persisted
 ```
-Hermetic ratchets: `--filter HardeningSeamActionTests` (flush param wiring) and
-`--filter Task03ReorderStressTests` (150-reorder collision-free/deterministic property).
+Hermetic ratchets: `--filter Task03ReorderStressTests` and
+`--filter TasksSortOrderBandingTests`.
 
 ### 2l. Prove post-wake restart paths without sleeping the machine (CHAT-07)
 `simulate_system_wake` (non-prod) posts `NSWorkspace.didWakeNotification` on the
@@ -421,7 +406,7 @@ Main Window — Top Navigation Bar (use `click` for all nav buttons)
 ├── Memory — 2 destinations
 │   ├── Memories — search, lifecycle/category filters, memory list
 │   ├── Conversations — Live section, search, category filters (All/Starred/Work/Personal/Social), conversation list
-├── Tasks — search, Today/No Deadline sections, keyboard toolbar (Navigate/New/Delete/Indent/Outdent)
+├── Tasks — one To Do/Done list, search, grouped deadlines, inline CRUD, details, and Undo
 │
 ├── Capture status button (top-right, red when blocked)
 ├── Listening status button (top-right, green when active)
@@ -495,7 +480,9 @@ Reference flows in `desktop/macos/e2e/flows/*.yaml` describe the app's key user 
 | `flows/navigation.yaml` | Top nav bar, Home, Memory, Tasks, Settings | 7 | Core nav smoke — retained top nav buttons + gear icon + Rewind via View menu |
 | `flows/home.yaml` | Home tab, embedded chat, insights, status banners | 5 | Chat input, insight cards, Capture/Listening status |
 | `flows/memories.yaml` | Memory tab — Memories and Conversations | 6 | Destination switching, search, conversation list |
-| `flows/tasks.yaml` | Tasks tab — search, Today/No Deadline sections | 5 | Task list, keyboard toolbar, task interactions |
+| `flows/tasks.yaml` | Local Tasks UI — grouped To Do/Done, inline editing, recurrence, Undo | 6 | Manual retained UI and rejected-control absence |
+| `flows/tasks-crud.yaml` | Local task bridge CRUD | 8 | Hermetic stable local-ID create/read/complete/delete |
+| `flows/goals-dashboard.yaml` | Simple local goal and Dashboard projection | 5 | Hermetic local goal creation/readback |
 | `flows/settings-basic.yaml` | Settings — all 9 sections | 11 | General through About, verify each loads |
 | `flows/rewind.yaml` | Rewind overlay — View menu access, permission gate | 4 | ⌘⌥R shortcut, search, date picker, Grant Permission |
 | `flows/chat-hermetic.yaml` | Home chat with Rust `OMI_LLM_STUB=1` | 6 | Hermetic chat send/receive in Home tab |

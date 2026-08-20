@@ -3,54 +3,39 @@ import XCTest
 @testable import Omi_Computer
 
 final class TaskDetailMetadataProjectionTests: XCTestCase {
-  func testBridgeOnlyMetadataIsHiddenWhileGenericTaskMetadataRemains() {
-    let entries = TaskDetailMetadataProjection.entries(
-      from: [
-        "sentry_issue_id": "issue-42",
-        "sentry_issue_url": "https://example.invalid/issues/42",
-        "sentry_short_id": "APP-42",
-        "reporter_name": "Reporter",
-        "reporter_email": "reporter@example.invalid",
-        "feedback_type": "bug",
-        "app_version": "1.2.3",
-        "app_build": "123",
-        "os": "macOS",
-        "device_model": "Mac",
-        "project": "Launch",
-        "estimate": 3,
-        "owners": ["Ada", "Lin"],
-      ],
-      excluding: [],
-      source: "sentry_feedback"
+  func testDetailsExposeOnlyExplicitRetainedFacts() {
+    let task = TaskActionItem(
+      id: "local_7",
+      description: "Send the launch note",
+      completed: false,
+      createdAt: Date(timeIntervalSince1970: 1_700_000_000),
+      conversationId: "raw-source-session-id",
+      source: "screenshot",
+      priority: "high",
+      screenshotId: 9,
+      confidence: 0.91,
+      sourceApp: "Mail",
+      windowTitle: "Launch",
+      contextSummary: "Preparing the announcement",
+      currentActivity: "Writing"
     )
 
-    XCTAssertEqual(entries.map(\.key), ["estimate", "owners", "project"])
-    XCTAssertEqual(entries.map(\.value), ["3", "Ada, Lin", "Launch"])
+    XCTAssertTrue(task.hasDetailMetadata)
+    XCTAssertTrue(task.chatContext.contains("Source app: Mail"))
+    XCTAssertTrue(task.chatContext.contains("Extraction confidence: 91%"))
+    XCTAssertFalse(task.chatContext.contains("raw-source-session-id"))
+    XCTAssertFalse(task.chatContext.lowercased().contains("metadata"))
+    XCTAssertFalse(task.chatContext.lowercased().contains("goal id"))
   }
 
-  func testGenericDiagnosticMetadataRemainsVisibleOutsideLegacySentryTasks() {
-    let entries = TaskDetailMetadataProjection.entries(
-      from: [
-        "sentry_issue_id": "issue-42",
-        "reporter_email": "reporter@example.invalid",
-        "app_version": "1.2.3",
-        "app_build": "123",
-        "os": "macOS",
-        "device_model": "Mac",
-        "contexts": "local",
-        "reporter_name": "Ada",
-        "feedback_type": "support",
-      ],
-      excluding: [],
-      source: "generic"
+  func testManualTaskWithoutProvenanceHasNoDetailMetadata() {
+    let task = TaskActionItem(
+      id: "local_8",
+      description: "Buy tea",
+      completed: false,
+      createdAt: Date(),
+      source: "manual"
     )
-
-    XCTAssertEqual(
-      entries.map(\.key),
-      [
-        "app_build", "app_version", "contexts", "device_model", "feedback_type", "os",
-        "reporter_email", "reporter_name", "sentry_issue_id",
-      ]
-    )
+    XCTAssertFalse(task.hasDetailMetadata)
   }
 }

@@ -15,10 +15,8 @@ os.environ.setdefault(
 )
 
 from models.product_memory import RESTRICTED_SENSITIVITY_LABELS
-from models.action_item import EvidenceKind, EvidenceRef, EvidenceScope
 from models.memory_apply import MemoryControlState, memory_content_hash
 from models.memory_evidence import ArtifactPreservationState, MemoryEvidence, SourceState
-from models.memory_recurrence import CanonicalRecurrenceSignal
 from models.product_memory import MemoryItemStatus, MemoryTier, ProcessingState, MemoryItem
 from utils.memory import canonical_consolidation as consolidation
 from utils.memory.canonical_consolidation import (
@@ -1088,51 +1086,6 @@ def test_incomplete_output_blocks_all_mutation_and_watermark():
 
     assert report.watermark_blocked is True
     assert report.batched_memory_ids == []
-    assert report.last_consolidation_run_at is None
-    apply_route.assert_not_called()
-
-
-def test_recurrence_handoff_failure_blocks_routes_and_watermark():
-    item = _item("mem_loop", "Investor update remains unresolved")
-    control = MemoryControlState(uid=UID, head_commit_id="head0", account_generation=1, source_generation=1)
-    db = _FakeDb({f"users/{UID}/memory_state/apply_control": control.model_dump(mode="python")})
-    signal = CanonicalRecurrenceSignal(
-        signal_id="observation-1",
-        title="Investor update",
-        objective="Send the revised investor update",
-        anchor_task_description="Prepare the investor email",
-        occurrence_count=2,
-        distinct_day_count=2,
-        unresolved=True,
-        confidence=0.9,
-        first_seen_at=NOW - timedelta(days=1),
-        last_seen_at=NOW,
-        evidence_refs=[EvidenceRef(kind=EvidenceKind.memory_item, id=item.memory_id, scope=EvidenceScope.canonical)],
-    )
-    response = ConsolidationAgentBatch(decisions=[_archive(item)], recurrence_signals=[signal])
-
-    with (
-        patch("utils.memory.canonical_consolidation.resolve_memory_system", return_value=MemorySystem.CANONICAL),
-        patch("utils.memory.canonical_consolidation.list_pending_consolidation_items", return_value=[item]),
-        patch(
-            "utils.memory.canonical_consolidation.gather_consolidation_candidates",
-            return_value=_context([item]),
-        ),
-        patch(
-            "utils.memory.canonical_consolidation.invoke_consolidation_agent",
-            return_value=response,
-        ),
-        patch("utils.memory.canonical_consolidation.apply_consolidation_decision") as apply_route,
-    ):
-        report = run_canonical_consolidation(
-            UID,
-            db_client=db,
-            run_id="run-1",
-            now=NOW,
-            recurrence_signal_sink=lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("down")),
-        )
-
-    assert report.watermark_blocked is True
     assert report.last_consolidation_run_at is None
     apply_route.assert_not_called()
 
