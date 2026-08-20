@@ -20,7 +20,7 @@ from models.structured import ActionItem, Event, Structured
 from models.structured_extraction import ActionItemsExtraction, StructuredExtraction
 from .clients import get_llm, get_llm_gateway_chat_structured, parser
 from .discard_parser import DiscardConversation, LenientDiscardParser
-from utils.llm.gateway_client import record_chat_extraction_gateway_result
+from utils.llm.gateway_client import record_gateway_structured_result
 from utils.llm.gateway_observability import record_gateway_shadow_comparison
 
 try:
@@ -91,9 +91,9 @@ def _invoke_gateway_shadow_chain(chain: Any, values: dict[str, Any], *, feature:
     try:
         response = chain.invoke(values)
     except Exception:
-        record_chat_extraction_gateway_result(feature=feature, outcome='fallback', reason='unexpected_error')
+        record_gateway_structured_result(feature=feature, outcome='fallback', reason='unexpected_error')
         return None
-    record_chat_extraction_gateway_result(feature=feature, outcome='success', reason='ok')
+    record_gateway_structured_result(feature=feature, outcome='success', reason='ok')
     return response
 
 
@@ -142,7 +142,7 @@ def _normalize_action_item_due_dates(
     return action_items
 
 
-def _record_chat_extraction_comparison(*, feature: str, field: str, outcome: str) -> None:
+def _record_gateway_shadow_comparison(*, feature: str, field: str, outcome: str) -> None:
     record_gateway_shadow_comparison(feature=feature, field=field, outcome=outcome)
 
 
@@ -173,7 +173,7 @@ def _should_run_gateway_shadow(
     conversation_context: str,
 ) -> bool:
     if not _env_flag_enabled(enabled_env):
-        record_chat_extraction_gateway_result(
+        record_gateway_structured_result(
             feature=feature,
             outcome='skipped',
             reason='disabled',
@@ -182,7 +182,7 @@ def _should_run_gateway_shadow(
 
     sample_rate = _env_sample_rate(sample_rate_env, default=1.0)
     if sample_rate <= 0:
-        record_chat_extraction_gateway_result(
+        record_gateway_structured_result(
             feature=feature,
             outcome='skipped',
             reason='sample_rate_zero',
@@ -196,7 +196,7 @@ def _should_run_gateway_shadow(
     if sample_value < sample_rate:
         return True
 
-    record_chat_extraction_gateway_result(
+    record_gateway_structured_result(
         feature=feature,
         outcome='skipped',
         reason='sampled_out',
@@ -286,27 +286,27 @@ def _record_conversation_structure_shadow_comparison(
     legacy_category = getattr(legacy_response.category, 'value', legacy_response.category)
     gateway_category = getattr(gateway_response.category, 'value', gateway_response.category)
 
-    _record_chat_extraction_comparison(
+    _record_gateway_shadow_comparison(
         feature=CONVERSATION_STRUCTURE_SHADOW_FEATURE,
         field='category',
         outcome='exact_match' if legacy_category == gateway_category else 'mismatch',
     )
-    _record_chat_extraction_comparison(
+    _record_gateway_shadow_comparison(
         feature=CONVERSATION_STRUCTURE_SHADOW_FEATURE,
         field='emoji',
         outcome='exact_match' if legacy_response.emoji == gateway_response.emoji else 'mismatch',
     )
-    _record_chat_extraction_comparison(
+    _record_gateway_shadow_comparison(
         feature=CONVERSATION_STRUCTURE_SHADOW_FEATURE,
         field='title_similarity',
         outcome=_text_similarity_bucket(legacy_response.title, gateway_response.title),
     )
-    _record_chat_extraction_comparison(
+    _record_gateway_shadow_comparison(
         feature=CONVERSATION_STRUCTURE_SHADOW_FEATURE,
         field='overview_similarity',
         outcome=_text_similarity_bucket(legacy_response.overview, gateway_response.overview),
     )
-    _record_chat_extraction_comparison(
+    _record_gateway_shadow_comparison(
         feature=CONVERSATION_STRUCTURE_SHADOW_FEATURE,
         field='overview_length_ratio',
         outcome=_length_ratio_bucket(legacy_response.overview, gateway_response.overview),
@@ -380,22 +380,22 @@ def _record_conversation_action_items_shadow_comparison(
 
     gateway_items = _coerce_action_items(gateway_response)
     _normalize_action_item_due_dates(gateway_items, user_tz=user_tz, now=now, log_past_due_clears=False)
-    _record_chat_extraction_comparison(
+    _record_gateway_shadow_comparison(
         feature=CONVERSATION_ACTION_ITEMS_SHADOW_FEATURE,
         field='count',
         outcome=_count_comparison_bucket(len(legacy_response), len(gateway_items)),
     )
-    _record_chat_extraction_comparison(
+    _record_gateway_shadow_comparison(
         feature=CONVERSATION_ACTION_ITEMS_SHADOW_FEATURE,
         field='description_similarity',
         outcome=_ordered_description_similarity_bucket(legacy_response, gateway_items),
     )
-    _record_chat_extraction_comparison(
+    _record_gateway_shadow_comparison(
         feature=CONVERSATION_ACTION_ITEMS_SHADOW_FEATURE,
         field='due_at_presence',
         outcome=_due_at_presence_bucket(legacy_response, gateway_items),
     )
-    _record_chat_extraction_comparison(
+    _record_gateway_shadow_comparison(
         feature=CONVERSATION_ACTION_ITEMS_SHADOW_FEATURE,
         field='due_at_value',
         outcome=_due_at_value_bucket(legacy_response, gateway_items),
@@ -461,7 +461,7 @@ def _submit_gateway_shadow(
     try:
         future = _submit_llm_background(worker_fn, *args)
     except Exception:
-        record_chat_extraction_gateway_result(
+        record_gateway_structured_result(
             feature=feature,
             outcome='skipped',
             reason='submit_error',

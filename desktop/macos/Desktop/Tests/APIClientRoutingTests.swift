@@ -617,64 +617,13 @@ final class APIClientRoutingTests: XCTestCase {
       label: "getNotificationSettings")
   }
 
-  // -- Chat sessions (GET, POST, DELETE → Python, migrated from Rust) --
-
-  func testGetChatSessionsRoutesToPython() async {
-    let client = await makeTestClient()
-    _ = try? await client.getChatSessions() as [ChatSession]
-    assertRoutes(
-      URLCapture.capturedRequests, host: "python-test", port: 9001,
-      pathContains: "v2/chat-sessions", method: "GET",
-      label: "getChatSessions")
-  }
-
-  func testCreateChatSessionRoutesToPython() async {
-    let client = await makeTestClient()
-    _ = try? await client.createChatSession(title: "test") as ChatSession
-    assertRoutes(
-      URLCapture.capturedRequests, host: "python-test", port: 9001,
-      pathContains: "v2/chat-sessions", method: "POST",
-      label: "createChatSession")
-  }
-
-  func testDeleteChatSessionRoutesToPython() async {
-    let client = await makeTestClient()
-    try? await client.deleteChatSession(sessionId: "sess-1")
-    assertRoutes(
-      URLCapture.capturedRequests, host: "python-test", port: 9001,
-      pathContains: "v2/chat-sessions/sess-1", method: "DELETE",
-      label: "deleteChatSession")
-  }
-
-  // -- Desktop messages (DELETE → Python, path changed to v2/desktop/messages) --
-
-  func testDeleteMessagesRoutesToPython() async {
-    let client = await makeTestClient()
-    _ = try? await client.deleteMessages() as MessageDeleteResponse
-    assertRoutes(
-      URLCapture.capturedRequests, host: "python-test", port: 9001,
-      pathContains: "v2/desktop/messages", method: "DELETE",
-      label: "deleteMessages")
-  }
-
-  // -- LLM usage (GET → Python, migrated from Rust) --
-
-  func testFetchTotalOmiAICostRoutesToPython() async {
-    let client = await makeTestClient()
-    _ = await client.fetchTotalOmiAICost()
-    assertRoutes(
-      URLCapture.capturedRequests, host: "python-test", port: 9001,
-      pathContains: "v1/users/me/llm-usage/total", method: "GET",
-      label: "fetchTotalOmiAICost")
-  }
-
   // MARK: - Python-routed: remaining manual URL builders
 
   // -- Chat AI endpoints (migrated from Rust to Python) --
 
   func testGetInitialMessageRoutesToPython() async {
     let client = await makeTestClient()
-    _ = try? await client.getInitialMessage(sessionId: "s1")
+    _ = try? await client.getInitialMessage(profileText: "Local profile", memories: ["Local memory"])
     assertRoutes(
       URLCapture.capturedRequests, host: "python-test", port: 9001,
       pathContains: "v2/chat/initial-message", method: "POST",
@@ -683,20 +632,11 @@ final class APIClientRoutingTests: XCTestCase {
 
   func testGenerateSessionTitleRoutesToPython() async {
     let client = await makeTestClient()
-    _ = try? await client.generateSessionTitle(sessionId: "s1", messages: [("hi", "human")])
+    _ = try? await client.generateSessionTitle(userText: "hi", assistantText: "hello")
     assertRoutes(
       URLCapture.capturedRequests, host: "python-test", port: 9001,
       pathContains: "v2/chat/generate-title", method: "POST",
       label: "generateSessionTitle")
-  }
-
-  func testGetChatMessageCountRoutesToPython() async {
-    let client = await makeTestClient()
-    _ = try? await client.getChatMessageCount()
-    assertRoutes(
-      URLCapture.capturedRequests, host: "python-test", port: 9001,
-      pathContains: "v1/users/stats/chat-messages", method: "GET",
-      label: "getChatMessageCount")
   }
 
   // MARK: - Billing routing and server-owned offer body tests

@@ -2,7 +2,7 @@
 
 Tests the upload logic as closely as possible to the real endpoint behavior,
 without requiring the full FastAPI import chain. Verifies the complete
-path-traversal fix across both /v1/files and /v2/files upload paths.
+path-traversal fix on the retained /v1/files upload path.
 
 Covers: BasedHardware/omi#6804
 """
@@ -33,7 +33,7 @@ class UploadFile:
 def simulate_upload_endpoint(files, upload_fn):
     """Simulate the upload endpoint logic from backend/routers/chat.py.
 
-    This is the actual code path from both /v1/files and /v2/files:
+    This is the actual code path from /v1/files:
     - safe_suffix = Path(file.filename).name if file.filename else "upload"
     - temp_file = Path(tempfile.gettempdir()) / f"{uuid.uuid4().hex}_{safe_suffix}"
     - try: write + upload
@@ -43,7 +43,7 @@ def simulate_upload_endpoint(files, upload_fn):
     temp_files = []
 
     for file in files:
-        # --- Exact code from chat.py lines 831-854 (v2) / 890-913 (v1) ---
+        # --- Security-relevant code from the retained /v1/files handler. ---
         safe_suffix = Path(file.filename).name if file.filename else "upload"
         temp_file = Path(tempfile.gettempdir()) / f"{uuid.uuid4().hex}_{safe_suffix}"
         temp_files.append(temp_file)
@@ -79,8 +79,8 @@ def uploaded_paths():
     return upload
 
 
-class TestPathTraversalV2:
-    """Test /v2/files path traversal fix at endpoint logic level."""
+class TestPathTraversalV1:
+    """Test /v1/files path traversal fix at endpoint logic level."""
 
     def test_traversal_stripped_to_basename(self, uploaded_paths):
         """../../etc/passwd → only 'passwd' in temp file path."""
@@ -107,7 +107,7 @@ class TestPathTraversalV2:
         assert "report.pdf" in uploaded_paths.paths[0]
 
 
-class TestNoneFilenameV2:
+class TestNoneFilenameV1:
     """Test P1 fix: None filename handling."""
 
     def test_none_filename_no_crash(self, uploaded_paths):
@@ -122,7 +122,7 @@ class TestNoneFilenameV2:
             assert not tf.exists()
 
 
-class TestTempFileLocationV2:
+class TestTempFileLocationV1:
     """Test P2 fix: temp files in system temp dir."""
 
     def test_in_system_temp_dir(self, uploaded_paths):
@@ -144,7 +144,7 @@ class TestTempFileLocationV2:
         assert not uploaded_paths.paths[0].startswith(cwd + os.sep)
 
 
-class TestCleanupV2:
+class TestCleanupV1:
     """Test temp file cleanup in all scenarios."""
 
     def test_cleanup_on_success(self):
@@ -189,12 +189,12 @@ class TestCleanupV2:
             assert not tf.exists()
 
 
-class TestBothEndpoints:
-    """Verify both /v1 and /v2 upload paths share the same secure logic."""
+class TestRetainedEndpoint:
+    """Verify the retained /v1 upload path uses the secure filename logic."""
 
-    def test_same_logic_v1_v2(self, uploaded_paths):
-        """The secure filename logic is identical for both endpoints."""
-        # Both endpoints use the exact same code:
+    def test_secure_filename_logic(self, uploaded_paths):
+        """The endpoint strips unsafe path components."""
+        # The retained endpoint uses:
         #   safe_suffix = Path(file.filename).name if file.filename else "upload"
         #   temp_file = Path(tempfile.gettempdir()) / f"{uuid.uuid4().hex}_{safe_suffix}"
         # This test verifies the logic function handles all cases correctly.

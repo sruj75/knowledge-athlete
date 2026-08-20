@@ -124,6 +124,7 @@ struct DesktopAutomationSnapshot: Codable, Sendable {
   var usesLegacyHomeDesign: Bool
   /// Redesigned Home stage mode: `hub` or `chat`. Nil when legacy home or not on Dashboard.
   var homeMode: String?
+  var homeCatalogOpen: Bool = false
   var showsPrimarySidebar: Bool
   var isSidebarCollapsed: Bool
   var hasCompletedOnboarding: Bool
@@ -1136,6 +1137,70 @@ final class DesktopAutomationActionRegistry {
     }
 
     register(
+      name: "home_set_multi_chat",
+      summary: "Enable or disable the real Multiple Chat Sessions preference",
+      params: ["enabled"]
+    ) { params in
+      guard let provider = ChatProvider.mainInstance else {
+        return ["error": "main ChatProvider not yet initialized"]
+      }
+      let enabled = boolParam(params["enabled"], default: true)
+      provider.multiChatEnabled = enabled
+      return ["enabled": enabled ? "true" : "false"]
+    }
+
+    register(
+      name: "home_open_chat_catalog",
+      summary: "Open the compact local Chat catalog on Home"
+    ) { _ in
+      guard ChatProvider.mainInstance?.multiChatEnabled == true else {
+        return ["error": "Multiple Chat Sessions is disabled"]
+      }
+      NotificationCenter.default.post(name: .homeChatCatalogOpen, object: nil)
+      return ["opened": "true"]
+    }
+
+    register(
+      name: "home_close_chat_catalog",
+      summary: "Close the compact local Chat catalog on Home"
+    ) { _ in
+      NotificationCenter.default.post(name: .homeChatCatalogClose, object: nil)
+      return ["closed": "true"]
+    }
+
+    register(
+      name: "home_catalog_round_trip",
+      summary: "Create, rename, star, and delete one local Home Chat through ChatProvider"
+    ) { _ in
+      guard let provider = ChatProvider.mainInstance else {
+        return ["error": "main ChatProvider not yet initialized"]
+      }
+      guard provider.multiChatEnabled else {
+        return ["error": "Multiple Chat Sessions is disabled"]
+      }
+      await provider.fetchSessions()
+      guard let created = await provider.createNewSession(skipGreeting: true) else {
+        return ["error": "failed to create local chat"]
+      }
+      await provider.updateSessionTitle(created, title: "Catalog acceptance")
+      guard let renamed = provider.sessions.first(where: { $0.id == created.id }) else {
+        return ["error": "renamed chat disappeared"]
+      }
+      await provider.toggleStarred(renamed)
+      guard let starred = provider.sessions.first(where: { $0.id == created.id }), starred.starred else {
+        return ["error": "failed to star local chat"]
+      }
+      await provider.deleteSession(starred)
+      guard !provider.sessions.contains(where: { $0.id == created.id }) else {
+        return ["error": "failed to delete local chat"]
+      }
+      return [
+        "round_trip": "true",
+        "chat_id": created.id,
+      ]
+    }
+
+    register(
       name: "home_ask",
       summary: "Send a query through the Home ask bar (opens the inline chat and sends)",
       params: ["query"]
@@ -1255,7 +1320,7 @@ final class DesktopAutomationActionRegistry {
       ]
     }
 
-    // Send a message through the real main-window chat pipeline (ChatPage),
+    // Send a message through the real main-window chat pipeline (Home),
     // in-process via ViewModelContainer's ChatProvider — no synthetic mouse
     // or keyboard input, so it never touches the user's actual cursor.
     register(

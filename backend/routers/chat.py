@@ -1,15 +1,14 @@
 import asyncio
-import binascii
+import base64
 import json
 import tempfile
 import uuid
 import re
-import base64
 from datetime import datetime, timezone
 from typing import List, Optional
 from pathlib import Path
 
-from utils.executors import critical_executor, db_executor, llm_executor, storage_executor, sync_executor, run_blocking
+from utils.executors import critical_executor, db_executor, storage_executor, sync_executor, run_blocking
 
 from fastapi import (
     APIRouter,
@@ -28,25 +27,11 @@ from multipart.multipart import shutil
 from pydantic import BaseModel
 
 import database.chat as chat_db
-import database.conversations as conversations_db
-import database.llm_usage as llm_usage_db
 from models.chat import (
-    ChatSession,
     Message,
-    SendMessageRequest,
-    MessageSender,
-    ResponseMessage,
-    MessageConversation,
     FileChat,
-    RateMessageRequest,
 )
-from utils.conversation_helpers import extract_memory_ids
 from utils.chat import (
-    acquire_chat_session,
-    emit_stream_error_fallback,
-    initial_message_util,
-    process_voice_message_segment,
-    process_voice_message_segment_stream,
     resolve_voice_message_language,
     transcribe_voice_message_segment,
     transcribe_pcm_bytes,
@@ -59,9 +44,8 @@ from config.stt_provider_policy import MODULATE_MODEL, MODULATE_PROVIDER, STTSer
 from utils.stt.outcomes import TranscriptionFailure, failure_from_exception
 from utils.observability.transcription import TranscriptionAttempt
 from database.redis_db import check_rate_limit
-from database.users import set_chat_message_rating_score
 from utils.rate_limit_config import get_effective_limit, RATE_LIMIT_SHADOW
-from utils.subscription import enforce_chat_quota, is_trial_paywalled
+from utils.subscription import is_trial_paywalled
 from utils.other import endpoints as auth, storage
 from utils.other.chat_file import FileChatTool
 from utils.multipart import (
@@ -71,10 +55,6 @@ from utils.multipart import (
     max_part_size,
     parse_multipart_form,
 )
-from utils.retrieval.graph import execute_chat_stream
-from utils.llm.usage_tracker import set_usage_context, reset_usage_context, Features
-from utils.log_sanitizer import sanitize_pii
-from utils.observability.journeys import JourneyAttempt
 from utils.voice_duration_limiter import (
     compute_pcm_duration_ms,
     read_wav_duration_ms,
@@ -140,10 +120,6 @@ class MessageReportResponse(BaseModel):
     message: str
 
 
-class ChatRatingResponse(BaseModel):
-    status: str
-
-
 def _parse_context_keywords(raw: Optional[str]) -> List[str]:
     if not raw:
         return []
@@ -164,259 +140,6 @@ def _parse_context_keywords(raw: Optional[str]) -> List[str]:
     return keywords
 
 
-def _build_quota_exceeded_reply(uid: str, data: SendMessageRequest, detail: dict) -> ResponseMessage:
-    """Persist the user's question + a canned AI reply and return it.
-
-    Mobile clients render the reply as a normal AI message, so users on
-    older builds without structured 402 handling at least see *why* nothing
-    happened instead of a silent failure. Desktop never reaches this path —
-    its client-side quota pre-check in AgentBridge throws BridgeError.quotaExceeded
-    before the request fires.
-    """
-    now = datetime.now(timezone.utc)
-    user_msg = Message(
-        id=str(uuid.uuid4()),
-        text=data.text,
-        created_at=now,
-        sender='human',
-        type='text',
-    )
-    chat_db.add_message(uid, user_msg.model_dump())
-
-    plan = detail.get('plan') or 'Free'
-    unit = detail.get('unit')
-    limit = detail.get('limit')
-    reset_at = detail.get('reset_at')
-    if unit == 'cost_usd' and isinstance(limit, (int, float)):
-        limit_phrase = f"your ${int(limit)} monthly AI compute budget"
-    elif isinstance(limit, (int, float)):
-        limit_phrase = f"your {int(limit)} monthly chat question limit"
-    else:
-        limit_phrase = "your monthly chat limit"
-    reset_phrase = ''
-    if reset_at:
-        try:
-            reset_dt = datetime.fromtimestamp(int(reset_at), tz=timezone.utc)
-            reset_phrase = f' Your limit resets on {reset_dt.strftime("%B %-d")}.'
-        except (TypeError, ValueError):
-            pass
-
-    canned = (
-        f"You've reached {limit_phrase} on the {plan} plan.{reset_phrase}\n\n"
-        "Upgrade your plan to keep chatting, or bring your own API keys in Settings "
-        "to use Omi free."
-    )
-    ai_msg = Message(
-        id=str(uuid.uuid4()),
-        text=canned,
-        created_at=datetime.now(timezone.utc),
-        sender='ai',
-        type='text',
-    )
-    chat_db.add_message(uid, ai_msg.model_dump())
-    return ResponseMessage(**ai_msg.model_dump(), ask_for_nps=False)
-
-
-def _record_chat_quota_question_safe(
-    uid: str,
-    *,
-    idempotency_key: str,
-    source: str,
-    message_id: Optional[str] = None,
-    chat_session_id: Optional[str] = None,
-    platform: Optional[str] = None,
-):
-    try:
-        llm_usage_db.record_chat_quota_question(
-            uid,
-            idempotency_key=idempotency_key,
-            source=source,
-            message_id=message_id,
-            chat_session_id=chat_session_id,
-            platform=platform,
-        )
-    except Exception:
-        logger.exception('Failed to record chat quota question source=%s uid=%s', source, uid)
-
-
-@router.post('/v2/messages', tags=['chat'], response_model=ResponseMessage)
-def send_message(
-    data: SendMessageRequest,
-    uid: str = Depends(auth.with_rate_limit(auth.get_current_user_uid, "chat:send_message")),
-    x_app_platform: Optional[str] = Header(None, alias='X-App-Platform'),
-):
-    # Every normalized entitlement is hard capped by the server snapshot. If
-    # exceeded, instead of raising 402 (which mobile
-    # clients render as a generic "having issues with the server" error), save
-    # a canned AI reply and emit it as an SSE `done:` chunk — matching the
-    # streaming contract this endpoint already uses — so mobile parses it like
-    # any other reply. Desktop pre-checks via /v1/users/me/usage-quota and
-    # never reaches here when capped.
-    try:
-        enforce_chat_quota(uid, platform=x_app_platform)
-    except HTTPException as exc:
-        if exc.status_code != 402 or not isinstance(exc.detail, dict):
-            raise
-        if exc.detail.get('error') != 'quota_exceeded':
-            raise
-        response_msg = _build_quota_exceeded_reply(uid, data, exc.detail)
-
-        def _quota_exceeded_stream():
-            encoded = base64.b64encode(bytes(response_msg.model_dump_json(), 'utf-8')).decode('utf-8')
-            yield f"done: {encoded}\n\n"
-
-        return StreamingResponse(_quota_exceeded_stream(), media_type="text/event-stream")
-
-    logger.info(f'send_message {sanitize_pii(data.text)} {uid}')
-
-    # get chat session
-    chat_session = chat_db.get_chat_session(uid)
-    chat_session = ChatSession(**chat_session) if chat_session else None
-
-    message = Message(
-        id=str(uuid.uuid4()),
-        text=data.text,
-        created_at=datetime.now(timezone.utc),
-        sender='human',
-        type='text',
-    )
-    # Ensure chat session exists when files are attached
-    if data.file_ids and not chat_session:
-        chat_session = acquire_chat_session(uid)
-        chat_session = ChatSession(**chat_session) if isinstance(chat_session, dict) else chat_session
-
-    if data.file_ids is not None and chat_session:
-        new_file_ids = chat_session.retrieve_new_file(data.file_ids)
-        chat_session.add_file_ids(data.file_ids)
-        chat_db.add_files_to_chat_session(uid, chat_session.id, data.file_ids)
-
-        if len(new_file_ids) > 0:
-            message.files_id = new_file_ids
-            files = chat_db.get_chat_files(uid, new_file_ids)
-            files = [FileChat(**f) if f else None for f in files]
-            message.files = files
-
-    if chat_session:
-        message.chat_session_id = chat_session.id
-        chat_db.add_message_to_chat_session(uid, chat_session.id, message.id)
-
-    chat_db.add_message(uid, message.model_dump())
-    _record_chat_quota_question_safe(
-        uid,
-        idempotency_key=f'v2_messages:{message.id}',
-        source='v2_messages',
-        message_id=message.id,
-        chat_session_id=message.chat_session_id,
-        platform=x_app_platform,
-    )
-
-    # Skip a malformed/legacy stored message rather than 500 the whole chat send.
-    messages = list(
-        reversed(
-            Message.deserialize_many_safe(
-                chat_db.get_cache_aligned_messages(uid, chat_session_id=message.chat_session_id),
-                on_error=lambda record, exc: logger.warning(
-                    'Skipping malformed chat message %s for uid=%s: %s',
-                    record.get('id') if isinstance(record, dict) else None,
-                    uid,
-                    type(exc).__name__,
-                ),
-            )
-        )
-    )
-
-    def process_message(response: str, callback_data: dict):
-        memories = callback_data.get('memories_found', [])
-        ask_for_nps = callback_data.get('ask_for_nps', False)
-        langsmith_run_id = callback_data.get('langsmith_run_id')
-        prompt_name = callback_data.get('prompt_name')
-        prompt_commit = callback_data.get('prompt_commit')
-        chart_data = callback_data.get('chart_data')
-
-        # cited extraction
-        cited_conversation_idxs = {int(i) for i in re.findall(r'\[(\d+)\]', response)}
-        if len(cited_conversation_idxs) > 0:
-            response = re.sub(r'\[\d+\]', '', response)
-        memories = [memories[i - 1] for i in cited_conversation_idxs if 0 < i and i <= len(memories)]
-
-        memories_id = extract_memory_ids(memories) if memories else []
-
-        ai_message = Message(
-            id=str(uuid.uuid4()),
-            text=response,
-            created_at=datetime.now(timezone.utc),
-            sender='ai',
-            type='text',
-            memories_id=memories_id,
-            chart_data=chart_data,
-            langsmith_run_id=langsmith_run_id,  # Store run_id for operator trace correlation
-            prompt_name=prompt_name,  # LangSmith prompt name for versioning
-            prompt_commit=prompt_commit,  # LangSmith prompt commit for traceability
-        )
-        if chat_session:
-            ai_message.chat_session_id = chat_session.id
-            chat_db.add_message_to_chat_session(uid, chat_session.id, ai_message.id)
-
-        chat_db.add_message(uid, ai_message.model_dump())
-        ai_message.memories = [MessageConversation(**m) for m in (memories if len(memories) < 5 else memories[:5])]
-        return ai_message, ask_for_nps
-
-    journey_attempt = JourneyAttempt('chat_response')
-
-    async def generate_stream():
-        callback_data = {}
-        answered = False
-        stream_exhausted = False
-        # Set usage context for streaming (can't use 'with' across yields)
-        usage_token = set_usage_context(uid, Features.CHAT)
-        try:
-            async for chunk in execute_chat_stream(
-                uid,
-                messages,
-                cited=True,
-                callback_data=callback_data,
-                chat_session=chat_session,
-                context=data.context,
-                platform=x_app_platform,
-            ):
-                if chunk:
-                    msg = chunk.replace("\n", "__CRLF__")
-                    yield f'{msg}\n\n'
-                else:
-                    response = callback_data.get('answer')
-                    if response:
-                        ai_message, ask_for_nps = process_message(response, callback_data)
-                        ai_message_dict = ai_message.model_dump()
-                        response_message = ResponseMessage(**ai_message_dict)
-                        response_message.ask_for_nps = ask_for_nps
-                        encoded_response = base64.b64encode(bytes(response_message.model_dump_json(), 'utf-8')).decode(
-                            'utf-8'
-                        )
-                        # This is the furthest server-observable client boundary:
-                        # a yielded terminal frame is not a client-render acknowledgement.
-                        journey_attempt.finish('success')
-                        yield f"done: {encoded_response}\n\n"
-                        answered = True
-
-            if not answered:
-                yield await emit_stream_error_fallback(
-                    uid, chat_session, label='chat', error_recorded=bool(callback_data.get('error'))
-                )
-            stream_exhausted = True
-        except asyncio.CancelledError:
-            journey_attempt.finish('cancelled')
-            raise
-        except Exception:
-            journey_attempt.finish('failure')
-            raise
-        finally:
-            reset_usage_context(usage_token)
-            if not journey_attempt.finished:
-                journey_attempt.finish('failure' if stream_exhausted else 'cancelled')
-
-    return StreamingResponse(generate_stream(), media_type="text/event-stream")
-
-
 @router.post('/v2/messages/{message_id}/report', tags=['chat'], response_model=MessageReportResponse)
 def report_message(message_id: str, uid: str = Depends(auth.get_current_user_uid)):
     result = chat_db.get_message(uid, message_id)
@@ -431,65 +154,12 @@ def report_message(message_id: str, uid: str = Depends(auth.get_current_user_uid
     return {'message': 'Message reported'}
 
 
-@router.delete('/v2/messages', tags=['chat'], response_model=Message)
-def clear_chat_messages(uid: str = Depends(auth.get_current_user_uid)):
-    # get current chat session
-    chat_session = chat_db.get_chat_session(uid)
-    chat_session_id = chat_session['id'] if chat_session else None
-
-    err = chat_db.clear_chat(uid, chat_session_id=chat_session_id)
-    if err:
-        raise HTTPException(status_code=500, detail='Failed to clear chat')
-
-    # clean thread chat file
-    if chat_session and chat_session.get('id'):
-        try:
-            fc_tool = FileChatTool(uid, chat_session['id'])
-            fc_tool.cleanup()
-        except ValueError:
-            # Session not found, continue with cleanup
-            pass
-
-    # clear session
-    if chat_session_id is not None:
-        chat_db.delete_chat_session(uid, chat_session_id)
-
-    return initial_message_util(uid)
-
-
-@router.post('/v2/initial-message', tags=['chat'], response_model=Message)
-def create_initial_message(
-    uid: str = Depends(auth.with_rate_limit(auth.get_current_user_uid, "chat:initial")),
-):
-    return initial_message_util(uid)
-
-
-@router.get('/v2/messages', response_model=List[Message], tags=['chat'])
-def get_messages(uid: str = Depends(auth.get_current_user_uid)):
-    chat_session = chat_db.get_chat_session(uid)
-    chat_session_id = chat_session['id'] if chat_session else None
-
-    messages = chat_db.get_messages(uid, limit=100, include_conversations=True, chat_session_id=chat_session_id)
-    logger.info(f'get_messages {len(messages)}')
-
-    # Debug: Check for messages with ratings
-    rated_messages = [m for m in messages if m.get('rating') is not None]
-    if rated_messages:
-        logger.info(f'📊 Messages with ratings: {len(rated_messages)}')
-        for m in rated_messages[:5]:  # Show first 5
-            logger.info(f"  - Message {m.get('id')}: rating={m.get('rating')}")
-
-    if not messages:
-        return [initial_message_util(uid)]
-    return messages
-
-
 @router.post(
     "/v2/voice-messages",
     response_class=StreamingResponse,
     responses={
         200: {
-            "description": "Server-sent event stream of chat message chunks.",
+            "description": "Server-sent stream containing the transient voice-message transcript.",
             "content": {"text/event-stream": {"schema": {"type": "string"}}},
         }
     },
@@ -501,20 +171,19 @@ def create_voice_message_stream(
     uid: str = Depends(auth.with_rate_limit(auth.get_current_user_uid, "voice:message")),
     x_app_platform: Optional[str] = Header(None, alias='X-App-Platform'),
 ):
-    enforce_chat_quota(uid, platform=x_app_platform)
-
+    """Transcribe a legacy voice-message upload without hosted Chat persistence or persona inference."""
     resolved_language = resolve_voice_message_language(uid, language)
     stt_provider, _, _stt_model = get_prerecorded_service(resolved_language)
     paths: List[str] = []
     wav_paths: List[str] = []
 
-    def _record_preparation_failure(failure: TranscriptionFailure) -> None:
-        preparation_attempt = TranscriptionAttempt(
+    def record_preparation_failure(failure: TranscriptionFailure) -> None:
+        attempt = TranscriptionAttempt(
             route='voice_chat_sse',
             provider=stt_provider,
             platform=x_app_platform,
         )
-        preparation_attempt.finish(failure.outcome)
+        attempt.finish(failure.outcome)
 
     try:
         paths = retrieve_file_paths(files, uid)
@@ -531,70 +200,54 @@ def create_voice_message_stream(
                 provider=stt_provider,
                 retryable=False,
             )
-
-        # Daily budget check (first file only — matches actual managed STT usage).
-        # A quota rejection is not an STT attempt and therefore is not an
-        # invalid-input or provider-outcome metric.
         first_wav = wav_paths[0]
         duration_ms = read_wav_duration_ms(first_wav)
         if duration_ms is not None:
-            allowed, used_ms, remaining_ms = try_consume_budget(uid, duration_ms)
+            allowed, _used_ms, _remaining_ms = try_consume_budget(uid, duration_ms)
             if not allowed:
                 raise HTTPException(status_code=429, detail='Daily transcription budget exhausted')
     except TranscriptionFailure as failure:
-        _record_preparation_failure(failure)
+        record_preparation_failure(failure)
         _cleanup_temp_voice_wavs(paths + wav_paths, uid)
         raise _transcription_http_error(failure) from failure
-    except HTTPException as error:
+    except HTTPException:
         _cleanup_temp_voice_wavs(paths + wav_paths, uid)
-        if error.status_code == 429:
-            raise
-        failure = TranscriptionFailure(
-            TranscriptionOutcome.INVALID_INPUT,
-            provider=stt_provider,
-            retryable=False,
-        )
-        _record_preparation_failure(failure)
-        raise _transcription_http_error(failure) from error
+        raise
     except Exception as error:
         failure = failure_from_exception(error, provider=stt_provider)
-        _record_preparation_failure(failure)
+        record_preparation_failure(failure)
         _cleanup_temp_voice_wavs(paths + wav_paths, uid)
         raise _transcription_http_error(failure) from error
 
-    # process
     async def generate_stream():
         attempt = TranscriptionAttempt(
             route='voice_chat_sse',
             provider=stt_provider,
             platform=x_app_platform,
         )
-        quota_recorded = False
         try:
-            async for chunk in process_voice_message_segment_stream(
-                first_wav, uid, language=resolved_language, platform=x_app_platform
-            ):
-                if chunk.startswith('message: '):
-                    attempt.finish(TranscriptionOutcome.SUCCESS)
-                if not quota_recorded and chunk.startswith('message: '):
-                    payload = chunk.removeprefix('message: ').strip()
-                    try:
-                        message_data = json.loads(base64.b64decode(payload).decode('utf-8'))
-                        await run_blocking(
-                            db_executor,
-                            _record_chat_quota_question_safe,
-                            uid,
-                            idempotency_key=f"v2_voice_messages:{message_data.get('id') or first_wav}",
-                            source='v2_voice_messages',
-                            message_id=message_data.get('id'),
-                            chat_session_id=message_data.get('chat_session_id'),
-                            platform=x_app_platform,
-                        )
-                        quota_recorded = True
-                    except (binascii.Error, UnicodeDecodeError, ValueError, TypeError, json.JSONDecodeError) as exc:
-                        logger.warning('Failed to record voice chat quota question: %s', exc)
-                yield chunk
-            if not attempt.finished:
+            text, _detected_language = await run_blocking(
+                sync_executor,
+                transcribe_voice_message_segment,
+                first_wav,
+                uid,
+                language=resolved_language,
+            )
+            if text:
+                # Preserve the legacy `message:` SSE frame shape for retained
+                # callers, but do not write the transient transcript to hosted
+                # Chat or invoke the deleted persona/RAG answer path.
+                message = Message(
+                    id=str(uuid.uuid4()),
+                    text=text,
+                    created_at=datetime.now(timezone.utc),
+                    sender='human',
+                    type='text',
+                )
+                encoded = base64.b64encode(message.model_dump_json().encode('utf-8')).decode('utf-8')
+                attempt.finish(TranscriptionOutcome.SUCCESS)
+                yield f"message: {encoded}\n\n"
+            else:
                 attempt.finish(TranscriptionOutcome.EXPECTED_SILENCE)
         except Exception as error:
             if attempt.finished:
@@ -1261,66 +914,6 @@ async def transcribe_voice_message_stream(
         parity_capture.persist()
 
 
-@router.post('/v2/files', response_model=List[FileChat], tags=['chat'])
-@max_part_size(CHAT_FILE_MAX_PART_SIZE)
-def upload_file_chat(
-    files: List[UploadFile] = File(...),
-    uid: str = Depends(auth.with_rate_limit(auth.get_current_user_uid, "file:upload")),
-):
-    thumbs_name = []
-    files_chat = []
-    for file in files:
-        # Use a UUID-based temp file name to prevent path traversal via user-controlled filename
-        safe_suffix = Path(file.filename).name if file.filename else "upload"
-        temp_file = Path(tempfile.gettempdir()) / f"{uuid.uuid4().hex}_{safe_suffix}"
-        try:
-            with temp_file.open("wb") as buffer:
-                shutil.copyfileobj(file.file, buffer)
-
-            result = FileChatTool.upload(temp_file)
-
-            thumb_name = result.get("thumbnail_name", "")
-            if thumb_name != "":
-                thumbs_name.append(thumb_name)
-
-            filechat = FileChat(
-                id=str(uuid.uuid4()),
-                name=result.get("file_name", ""),
-                mime_type=result.get("mime_type", ""),
-                openai_file_id=result.get("file_id", ""),
-                created_at=datetime.now(timezone.utc),
-                thumb_name=thumb_name,
-            )
-            files_chat.append(filechat)
-        finally:
-            if temp_file.exists():
-                temp_file.unlink()
-
-    if len(thumbs_name) > 0:
-        thumbs_path = storage.upload_multi_chat_files(thumbs_name, uid)
-        for fc in files_chat:
-            if not fc.is_image():
-                continue
-            thumb_path = thumbs_path.get(fc.thumb_name, "")
-            fc.thumbnail = thumb_path
-            # cleanup file thumb
-            thumb_file = Path(fc.thumb_name)
-            if thumb_file.exists():
-                thumb_file.unlink()
-
-    # save db
-    files_chat_dict = [fc.model_dump() for fc in files_chat]
-
-    chat_db.add_multi_files(uid, files_chat_dict)
-
-    response = [fc.model_dump() for fc in files_chat]
-
-    return response
-
-
-# CLEANUP: Remove after new app goes to prod ----------------------------------------------------------
-
-
 @router.post('/v1/files', response_model=List[FileChat], tags=['chat'])
 @max_part_size(CHAT_FILE_MAX_PART_SIZE)
 def upload_file_chat(
@@ -1389,58 +982,3 @@ def report_message(message_id: str, uid: str = Depends(auth.get_current_user_uid
         raise HTTPException(status_code=400, detail='Message already reported')
     chat_db.report_message(uid, msg_doc_id)
     return {'message': 'Message reported'}
-
-
-@router.delete('/v1/messages', tags=['chat'], response_model=Message)
-def clear_chat_messages(uid: str = Depends(auth.get_current_user_uid)):
-    # get current chat session
-    chat_session = chat_db.get_chat_session(uid)
-    chat_session_id = chat_session['id'] if chat_session else None
-
-    err = chat_db.clear_chat(uid, chat_session_id=chat_session_id)
-    if err:
-        raise HTTPException(status_code=500, detail='Failed to clear chat')
-
-    # clean thread chat file (v1 endpoint)
-    if chat_session and chat_session.get('id'):
-        try:
-            fc_tool = FileChatTool(uid, chat_session['id'])
-            fc_tool.cleanup()
-        except ValueError:
-            # Session not found, continue with cleanup
-            pass
-
-    # clear session
-    if chat_session_id is not None:
-        chat_db.delete_chat_session(uid, chat_session_id)
-
-    return initial_message_util(uid)
-
-
-@router.post('/v1/initial-message', tags=['chat'], response_model=Message)
-def create_initial_message(
-    uid: str = Depends(auth.with_rate_limit(auth.get_current_user_uid, "chat:initial")),
-):
-    return initial_message_util(uid)
-
-
-# MARK: - Message Rating
-
-
-@router.patch('/v2/messages/{message_id}/rating', tags=['chat'], response_model=ChatRatingResponse)
-def rate_message(
-    message_id: str,
-    data: RateMessageRequest,
-    uid: str = Depends(auth.get_current_user_uid),
-):
-    """Rate a chat message (thumbs up/down). Used by desktop client."""
-    rating = data.rating
-
-    # Update rating on the message document
-    chat_db.update_message_rating(uid, message_id, rating)
-
-    # Also store in analytics collection
-    value = rating if rating is not None else 0
-    set_chat_message_rating_score(uid, message_id, value, platform='mobile')
-
-    return {'status': 'ok'}

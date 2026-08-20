@@ -32,22 +32,6 @@ extension APIClient {
     return try await post("v1/payments/customer-portal")
   }
 
-  // MARK: - LLM Usage
-
-  func fetchTotalOmiAICost() async -> Double? {
-    struct Res: Decodable { let total_cost_usd: Double }
-    do {
-      log("APIClient: Fetching total Omi AI cost from backend")
-      let res: Res = try await get("v1/users/me/llm-usage/total")
-      log(
-        "APIClient: Total Omi AI cost from backend: $\(String(format: "%.4f", res.total_cost_usd))")
-      return res.total_cost_usd
-    } catch {
-      log("APIClient: LLM total cost fetch failed: \(error.localizedDescription)")
-      return nil
-    }
-  }
-
   // MARK: - Chat Usage Quota
 
   /// Current-month chat usage + the plan's cap. Backed by Python backend

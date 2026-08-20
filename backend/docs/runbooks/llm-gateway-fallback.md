@@ -3,9 +3,9 @@
 **What it means:** The gateway or one of its upstream routes is unhealthy. A short client transport deadline and per-process circuit send new requests directly to the legacy provider after consecutive gateway transport failures, so this is normally a degraded dependency rather than a total chat outage. A circuit-open event still requires prompt investigation: it can mean the gateway is unreachable from Cloud Run even when its pods look healthy.
 
 **Derived expression (through an environment-owned authenticated metrics
-consumer only):** `sum(rate(llm_gateway_chat_extraction_requests_total{mode="fallback"}[30m])) / clamp_min(sum(rate(llm_gateway_chat_extraction_requests_total{mode=~"serving|fallback"}[30m])), 1e-9)`
+consumer only):** `sum(rate(llm_gateway_structured_requests_total{mode="fallback"}[30m])) / clamp_min(sum(rate(llm_gateway_structured_requests_total{mode=~"serving|fallback"}[30m])), 1e-9)`
 
-**Client-side signals:** `llm_gateway_chat_extraction_requests_total{mode="fallback"}`, `llm_gateway_circuit_open`, `llm_gateway_client_first_byte_seconds`, and structured `llm_gateway_backend_event` logs with `reason=circuit_open`. The gateway cannot emit a request metric for a TCP black hole it never receives, so inspect client-side fallback/circuit telemetry as the primary signal for reachability failures.
+**Client-side signals:** `llm_gateway_structured_requests_total{mode="fallback"}`, `llm_gateway_circuit_open`, `llm_gateway_client_first_byte_seconds`, and structured `llm_gateway_backend_event` logs with `reason=circuit_open`. The gateway cannot emit a request metric for a TCP black hole it never receives, so inspect client-side fallback/circuit telemetry as the primary signal for reachability failures.
 
 The repository no longer owns a dashboard, scrape deployment, or alert rules
 for these signals. A client fallback ratio above 5%, any open circuit, zero

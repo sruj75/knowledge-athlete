@@ -160,7 +160,7 @@ struct AIResponseView: View {
 
   // MARK: - Content Blocks Rendering
 
-  /// Renders a ChatMessage's content blocks using the shared components from ChatPage.
+  /// Renders a ChatMessage's content blocks using the shared Home Chat components.
   @ViewBuilder
   private func contentBlocksView(for message: ChatMessage) -> some View {
     if !message.contentBlocks.isEmpty {

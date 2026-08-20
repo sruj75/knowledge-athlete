@@ -116,8 +116,8 @@ LISTEN_FINALIZATION_STALE_PROCESSING_RECONCILIATIONS_TOTAL = Counter(
 for _outcome in ('completed', 'migrated', 'skipped', 'error'):
     LISTEN_FINALIZATION_STALE_PROCESSING_RECONCILIATIONS_TOTAL.labels(outcome=_outcome)
 
-LLM_GATEWAY_CHAT_EXTRACTION_REQUESTS = Counter(
-    'llm_gateway_chat_extraction_requests_total',
+LLM_GATEWAY_STRUCTURED_REQUESTS = Counter(
+    'llm_gateway_structured_requests_total',
     'LLM gateway routing outcomes by feature (serving, fallback, direct_exception, shadow)',
     ['feature', 'mode', 'outcome', 'reason'],
 )
@@ -128,8 +128,8 @@ LLM_GATEWAY_DIRECT_EXCEPTION_REQUESTS = Counter(
     ['surface', 'reason'],
 )
 
-LLM_GATEWAY_CHAT_EXTRACTION_COMPARISONS = Counter(
-    'llm_gateway_chat_extraction_comparisons_total',
+LLM_GATEWAY_STRUCTURED_COMPARISONS = Counter(
+    'llm_gateway_structured_comparisons_total',
     'Privacy-safe comparison buckets between shadow gateway output and legacy extraction output',
     ['feature', 'field', 'outcome'],
 )

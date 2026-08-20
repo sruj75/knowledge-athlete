@@ -80,7 +80,6 @@ class Message(BaseModel):
     langsmith_run_id: Optional[str] = None  # LangSmith run ID for operator trace correlation
     prompt_name: Optional[str] = None  # LangSmith prompt name for versioning
     prompt_commit: Optional[str] = None  # LangSmith prompt commit/version for traceability
-    rating: Optional[int] = None  # User feedback: 1 = thumbs up, -1 = thumbs down, None = no rating
     # Desktop journal compatibility fields. These are optional so the existing
     # message response remains readable by older clients while a new client can
     # reconcile the canonical turn identity and structured payload exactly.
@@ -179,28 +178,6 @@ class Message(BaseModel):
             formatted_messages.append(msg.strip())
 
         return '\n'.join(formatted_messages)
-
-
-class ResponseMessage(Message):
-    ask_for_nps: Optional[bool] = False
-
-
-class PageContext(BaseModel):
-    """Page context for chat - indicates what the user is currently viewing."""
-
-    type: Literal["conversation", "task", "memory", "recap"]
-    id: Optional[str] = None
-    title: Optional[str] = None
-
-
-class SendMessageRequest(BaseModel):
-    text: str
-    file_ids: Optional[List[str]] = []
-    context: Optional[PageContext] = None
-
-
-class RateMessageRequest(BaseModel):
-    rating: Optional[int] = None
 
 
 class ChatSession(BaseModel):

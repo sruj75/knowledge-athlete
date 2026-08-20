@@ -65,170 +65,6 @@ struct AgentSurfaceSession: Equatable, Sendable {
   }
 }
 
-struct LegacyMainChatSessionAliasEntry: Equatable, Hashable, Sendable {
-  let chatId: String
-  let agentSessionId: String
-
-  var dictionary: [String: String] {
-    ["chatId": chatId, "agentSessionId": agentSessionId]
-  }
-}
-
-struct LegacyMainChatSessionImportReceipt: Equatable, Sendable {
-  let ownerId: String
-  let acceptedEntries: [LegacyMainChatSessionAliasEntry]
-  let importedCount: Int
-
-  init(
-    ownerId: String,
-    acceptedEntries: [LegacyMainChatSessionAliasEntry],
-    importedCount: Int
-  ) {
-    self.ownerId = ownerId
-    self.acceptedEntries = acceptedEntries
-    self.importedCount = importedCount
-  }
-
-  init?(dictionary: [String: Any]) {
-    guard
-      let rawOwnerId = dictionary["ownerId"] as? String,
-      !rawOwnerId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-      let acceptedCount = dictionary["acceptedCount"] as? Int,
-      let importedCount = dictionary["importedCount"] as? Int,
-      importedCount >= 0,
-      importedCount <= acceptedCount,
-      let rawEntries = dictionary["acceptedEntries"] as? [[String: Any]]
-    else { return nil }
-
-    let entries = rawEntries.compactMap { raw -> LegacyMainChatSessionAliasEntry? in
-      guard
-        let rawChatId = raw["chatId"] as? String,
-        let rawSessionId = raw["agentSessionId"] as? String
-      else { return nil }
-      let chatId = rawChatId.trimmingCharacters(in: .whitespacesAndNewlines)
-      let agentSessionId = rawSessionId.trimmingCharacters(in: .whitespacesAndNewlines)
-      guard !chatId.isEmpty, !agentSessionId.isEmpty else { return nil }
-      return LegacyMainChatSessionAliasEntry(chatId: chatId, agentSessionId: agentSessionId)
-    }
-    guard
-      entries.count == rawEntries.count,
-      entries.count == acceptedCount,
-      Set(entries.map(\.chatId)).count == entries.count
-    else { return nil }
-
-    ownerId = rawOwnerId.trimmingCharacters(in: .whitespacesAndNewlines)
-    acceptedEntries = entries
-    self.importedCount = importedCount
-  }
-}
-
-private struct LegacyAliasDefaultsReference: @unchecked Sendable {
-  let value: UserDefaults
-}
-
-enum LegacyMainChatSessionAliasMigration {
-  enum Outcome: Equatable, Sendable {
-    case noAliases
-    case acknowledged(removedCount: Int)
-    case retained(reason: String)
-  }
-
-  static let owner = "desktop-agent-bridge"
-  static let removalCondition =
-    "all supported desktop versions have imported UserDefaults main-chat session aliases into omi-agentd"
-  static let removeBy = "2026-10-01"
-  static let defaultsKey = "mainChatRuntimeSessionIdsByOwnerAndChat"
-
-  private struct PendingAlias: Sendable {
-    let defaultsKey: String
-    let storedSessionId: String
-    let entry: LegacyMainChatSessionAliasEntry
-  }
-
-  static func migrate(
-    ownerId: String,
-    defaults: UserDefaults,
-    isAuthorizationCurrent: @escaping @Sendable () -> Bool = { true },
-    importer:
-      @Sendable ([LegacyMainChatSessionAliasEntry]) async throws ->
-      LegacyMainChatSessionImportReceipt
-  ) async -> Outcome {
-    let ownerId = ownerId.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !ownerId.isEmpty else { return .retained(reason: "invalid_owner") }
-    guard isAuthorizationCurrent() else {
-      return .retained(reason: "owner_authorization_revoked")
-    }
-    guard let rawMap = defaults.dictionary(forKey: defaultsKey), !rawMap.isEmpty else {
-      return .noAliases
-    }
-    var map: [String: String] = [:]
-    for (key, value) in rawMap {
-      guard let sessionId = value as? String else {
-        return .retained(reason: "invalid_defaults_payload")
-      }
-      map[key] = sessionId
-    }
-
-    let prefix = "\(ownerId)|"
-    var pending: [PendingAlias] = []
-    var seenChatIds = Set<String>()
-    for key in map.keys.filter({ $0.hasPrefix(prefix) }).sorted() {
-      guard let storedSessionId = map[key] else { continue }
-      let suffix = String(key.dropFirst(prefix.count))
-      let chatId = suffix.isEmpty ? "default" : suffix.trimmingCharacters(in: .whitespacesAndNewlines)
-      let agentSessionId = storedSessionId.trimmingCharacters(in: .whitespacesAndNewlines)
-      guard !chatId.isEmpty, !agentSessionId.isEmpty, seenChatIds.insert(chatId).inserted else {
-        return .retained(reason: "invalid_alias_entry")
-      }
-      pending.append(
-        PendingAlias(
-          defaultsKey: key,
-          storedSessionId: storedSessionId,
-          entry: LegacyMainChatSessionAliasEntry(chatId: chatId, agentSessionId: agentSessionId)
-        ))
-    }
-    guard !pending.isEmpty else { return .noAliases }
-
-    let entries = pending.map(\.entry)
-    let receipt: LegacyMainChatSessionImportReceipt
-    do {
-      receipt = try await importer(entries)
-    } catch {
-      return .retained(reason: "kernel_import_failed")
-    }
-    guard receipt.ownerId == ownerId, receipt.acceptedEntries == entries else {
-      return .retained(reason: "invalid_kernel_receipt")
-    }
-
-    let authorization = LocalMutationAuthorization(isAuthorizationCurrent)
-    let defaultsReference = LegacyAliasDefaultsReference(value: defaults)
-    let pendingAliases = pending
-    do {
-      let removedCount = try await authorization.withCommitLease {
-        try authorization.require()
-        var latest = defaultsReference.value.dictionary(forKey: defaultsKey) ?? [:]
-        var removedCount = 0
-        for alias in pendingAliases
-        where latest[alias.defaultsKey] as? String == alias.storedSessionId {
-          latest.removeValue(forKey: alias.defaultsKey)
-          removedCount += 1
-        }
-        if latest.isEmpty {
-          defaultsReference.value.removeObject(forKey: defaultsKey)
-        } else {
-          defaultsReference.value.set(latest, forKey: defaultsKey)
-        }
-        return removedCount
-      }
-      return .acknowledged(removedCount: removedCount)
-    } catch LocalMutationAuthorizationError.revoked {
-      return .retained(reason: "owner_authorization_revoked")
-    } catch {
-      return .retained(reason: "defaults_commit_failed")
-    }
-  }
-}
-
 enum AgentContextSource: String, CaseIterable, Sendable {
   case identity
   case memories
@@ -867,14 +703,6 @@ actor AgentBridge {
         synchronizedRuntimeAuthorityEpoch = synchronized.epoch
         synchronizedRuntimeAuthorityOwnerID = ownerID
       }
-      if registeredThisCall || authorityNeedsSynchronization {
-        await migrateLegacyMainChatSessionsIfNeeded(
-          authorizationSnapshot: authorizationSnapshot)
-        try assertLifecycleFlightCurrent(
-          id: flightID,
-          generation: generation,
-          authorizationSnapshot: authorizationSnapshot)
-      }
       registered = true
     } catch {
       if acquiredRegistration {
@@ -948,12 +776,6 @@ actor AgentBridge {
     }
     synchronizedRuntimeAuthorityEpoch = status.epoch
     synchronizedRuntimeAuthorityOwnerID = ownerID
-    await migrateLegacyMainChatSessionsIfNeeded(
-      authorizationSnapshot: authorizationSnapshot)
-    try assertLifecycleFlightCurrent(
-      id: flightID,
-      generation: generation,
-      authorizationSnapshot: authorizationSnapshot)
     registered = true
   }
 
@@ -1100,6 +922,66 @@ actor AgentBridge {
     )
   }
 
+  func listChatCatalog(
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot? = nil
+  ) async throws -> LocalChatCatalogSnapshot {
+    let authorization = try resolveAuthorization(authorizationSnapshot)
+    try await start(authorizationSnapshot: authorization)
+    return try await runtime.listChatCatalog(
+      clientId: clientId,
+      authorizationSnapshot: authorization
+    )
+  }
+
+  func createChatCatalog(
+    chatID: String,
+    title: String? = nil,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot? = nil
+  ) async throws -> LocalChatSummary {
+    let authorization = try resolveAuthorization(authorizationSnapshot)
+    try await start(authorizationSnapshot: authorization)
+    return try await runtime.createChatCatalog(
+      clientId: clientId,
+      chatID: chatID,
+      title: title,
+      authorizationSnapshot: authorization
+    )
+  }
+
+  func updateChatCatalog(
+    chatID: String,
+    title: String? = nil,
+    titleOrigin: LocalChatTitleOrigin? = nil,
+    expectedTitleOrigin: LocalChatTitleOrigin? = nil,
+    starred: Bool? = nil,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot? = nil
+  ) async throws -> LocalChatSummary {
+    let authorization = try resolveAuthorization(authorizationSnapshot)
+    try await start(authorizationSnapshot: authorization)
+    return try await runtime.updateChatCatalog(
+      clientId: clientId,
+      chatID: chatID,
+      title: title,
+      titleOrigin: titleOrigin,
+      expectedTitleOrigin: expectedTitleOrigin,
+      starred: starred,
+      authorizationSnapshot: authorization
+    )
+  }
+
+  func deleteChatCatalog(
+    chatID: String,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot? = nil
+  ) async throws -> Set<String> {
+    let authorization = try resolveAuthorization(authorizationSnapshot)
+    try await start(authorizationSnapshot: authorization)
+    return try await runtime.deleteChatCatalog(
+      clientId: clientId,
+      chatID: chatID,
+      authorizationSnapshot: authorization
+    )
+  }
+
   func warmupSession(
     _ session: AgentSurfaceSession,
     authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot? = nil
@@ -1206,18 +1088,6 @@ actor AgentBridge {
       authorizationSnapshot: authorization)
   }
 
-  func importLegacyMainChatSessions(
-    _ entries: [LegacyMainChatSessionAliasEntry],
-    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot? = nil
-  ) async throws -> LegacyMainChatSessionImportReceipt {
-    let authorization = try resolveAuthorization(authorizationSnapshot)
-    try await start(authorizationSnapshot: authorization)
-    return try await runtime.importLegacyMainChatSessions(
-      clientId: clientId,
-      entries: entries,
-      authorizationSnapshot: authorization)
-  }
-
   func recordJournalTurn(
     surface: AgentSurfaceReference,
     ownerID: String? = nil,
@@ -1275,12 +1145,31 @@ actor AgentBridge {
     )
   }
 
+  func updateJournalTurnWithReceipt(
+    surface: AgentSurfaceReference,
+    ownerID: String? = nil,
+    update: KernelJournalTurnUpdate,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot? = nil
+  ) async throws -> AgentRuntimeProcess.JournalOperationResult {
+    let authorization = try resolveAuthorization(
+      authorizationSnapshot,
+      expectedOwnerID: ownerID)
+    try await start(authorizationSnapshot: authorization)
+    return try await runtime.updateJournalTurnWithReceipt(
+      clientId: clientId,
+      surface: surface,
+      ownerID: ownerID,
+      update: update,
+      authorizationSnapshot: authorization
+    )
+  }
+
   func terminalizeJournalTurn(
     surface: AgentSurfaceReference,
     ownerID: String,
     terminalization: KernelJournalTurnTerminalization,
     authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot? = nil
-  ) async throws -> KernelJournalTurn {
+  ) async throws -> AgentRuntimeProcess.JournalTerminalizationResult {
     let authorization = try resolveAuthorization(
       authorizationSnapshot,
       expectedOwnerID: ownerID)
@@ -1354,25 +1243,6 @@ actor AgentBridge {
       ownerID: ownerID,
       afterTurnSeq: afterTurnSeq,
       limit: limit,
-      authorizationSnapshot: authorization
-    )
-  }
-
-  func importRemoteJournalTurn(
-    surface: AgentSurfaceReference,
-    ownerID: String? = nil,
-    turn: KernelJournalRemoteTurn,
-    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot? = nil
-  ) async throws -> KernelJournalTurn {
-    let authorization = try resolveAuthorization(
-      authorizationSnapshot,
-      expectedOwnerID: ownerID)
-    try await start(authorizationSnapshot: authorization)
-    return try await runtime.importRemoteJournalTurn(
-      clientId: clientId,
-      surface: surface,
-      ownerID: ownerID,
-      turn: turn,
       authorizationSnapshot: authorization
     )
   }
@@ -1868,39 +1738,6 @@ actor AgentBridge {
       quota: quota)
   }
 
-  private func migrateLegacyMainChatSessionsIfNeeded(
-    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
-  ) async {
-    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
-    let ownerId = authorizationSnapshot.ownerID
-    let runtime = self.runtime
-    let clientId = self.clientId
-    let outcome = await LegacyMainChatSessionAliasMigration.migrate(
-      ownerId: ownerId,
-      defaults: .standard,
-      isAuthorizationCurrent: {
-        RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
-      },
-      importer: { entries in
-        try await runtime.importLegacyMainChatSessions(
-          clientId: clientId,
-          entries: entries,
-          authorizationSnapshot: authorizationSnapshot)
-      })
-    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
-    switch outcome {
-    case .noAliases:
-      break
-    case .acknowledged(let removedCount):
-      log(
-        "Legacy main-chat alias migration acknowledged "
-          + "(removed=\(removedCount) compat-owner=\(LegacyMainChatSessionAliasMigration.owner))")
-    case .retained(let reason):
-      log(
-        "Legacy main-chat alias migration retained for restart retry "
-          + "(reason=\(reason) compat-owner=\(LegacyMainChatSessionAliasMigration.owner))")
-    }
-  }
 }
 
 #if DEBUG

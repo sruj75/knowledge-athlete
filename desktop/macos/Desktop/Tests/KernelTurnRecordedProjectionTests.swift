@@ -316,44 +316,6 @@ import XCTest
         ))
     }
 
-    func testLegacyBackendCollectorReadsEveryBoundedPageBeforeCheckpoint() async throws {
-      let requested = Box<[(limit: Int, offset: Int)]>([])
-      let rows = try await ChatLegacyPageCollector.all { limit, offset in
-        requested.value.append((limit, offset))
-        let end = min(offset + limit, 235)
-        return offset < end ? Array(offset..<end) : []
-      }
-
-      XCTAssertEqual(rows, Array(0..<235))
-      XCTAssertEqual(requested.value.map(\.limit), [100, 100, 100])
-      XCTAssertEqual(requested.value.map(\.offset), [0, 100, 200])
-      XCTAssertEqual(ChatLegacyCompatibilityMetadata.owner, "desktop-main-chat")
-      XCTAssertFalse(ChatLegacyCompatibilityMetadata.removalCondition.isEmpty)
-      XCTAssertEqual(ChatLegacyCompatibilityMetadata.removeBy, "2026-10-01")
-    }
-
-    func testLegacyBackendImportChronologyNormalizesCoarseTimestampPairs() {
-      struct Row: Equatable {
-        let id: String
-        let createdAt: Date
-        let sender: String
-      }
-      let timestamp = Date(timeIntervalSince1970: 100)
-      let rows = [
-        Row(id: "assistant", createdAt: timestamp, sender: "ai"),
-        Row(id: "user", createdAt: timestamp, sender: "human"),
-      ]
-
-      let plan = ChatLegacyImportChronology.plan(
-        rows,
-        createdAt: { $0.createdAt },
-        role: { $0.sender }
-      )
-
-      XCTAssertEqual(plan.map(\.row.id), ["user", "assistant"])
-      XCTAssertEqual(plan.map(\.createdAtMs), [100_000, 100_001])
-    }
-
     func testJournalProjectionUpsertsMutationByCanonicalTurnID() throws {
       let provider = ChatProvider()
       let surface = provider.mainChatSurfaceReference()
@@ -696,6 +658,13 @@ import XCTest
       let error: String? = await RuntimeOwnerIdentity.withAutomationOwnerIfMissing(
         "fault-harness-owner"
       ) {
+        provider.runtimeOwnerIdForTests = {
+          RuntimeOwnerIdentity.currentOwnerId(allowAutomationOverride: true)
+        }
+        provider.deleteChatCatalogForTests = { chatID in
+          XCTAssertEqual(chatID, session.id)
+          return []
+        }
         provider.sessions = [session]
         provider.currentSession = session
         provider.isInDefaultChat = false
@@ -739,6 +708,99 @@ import XCTest
       XCTAssertEqual(clearedSurfaceIDs, [session.id])
       XCTAssertEqual(replacementSessionRequests, 1)
       XCTAssertTrue(sessionWasCleared)
+    }
+
+    func testFaultHarnessNamedResetDeletesCatalogAndCreatesReplacementWithoutInjectedClosure() async {
+      let provider = ChatProvider()
+      let session = ChatSession(id: "fault-old-session")
+      var deletedChatIDs: [String] = []
+      var createdChatIDs: [String] = []
+      var replacementCurrentSessionID: String?
+
+      let error: String? = await RuntimeOwnerIdentity.withAutomationOwnerIfMissing(
+        "fault-harness-owner"
+      ) {
+        provider.runtimeOwnerIdForTests = {
+          RuntimeOwnerIdentity.currentOwnerId(allowAutomationOverride: true)
+        }
+        provider.sessions = [session]
+        provider.currentSession = session
+        provider.isInDefaultChat = false
+        provider.deleteChatCatalogForTests = { chatID in
+          deletedChatIDs.append(chatID)
+          return []
+        }
+        provider.createChatCatalogForTests = { chatID, _ in
+          createdChatIDs.append(chatID)
+          return try XCTUnwrap(
+            LocalChatSummary(dictionary: [
+              "chatId": chatID,
+              "title": "New Chat",
+              "titleOrigin": "default",
+              "messageCount": 0,
+              "createdAtMs": 1_000,
+              "lastActivityAtMs": 1_000,
+              "starred": false,
+            ]))
+        }
+        provider.refreshMemoriesForPromptForTests = {}
+        provider.loadAIProfileForTests = { "" }
+        provider.initialMessageForTests = { _, _, _ in
+          InitialMessageResponse(message: "Fresh harness greeting")
+        }
+        provider.recordInitialGreetingForTests = { _, _, _ in true }
+        provider.kernelTurnProjection = KernelTurnProjection(
+          host: provider,
+          client: AgentClient.Session(harnessMode: "piMono"),
+          ownerIDProvider: {
+            RuntimeOwnerIdentity.currentOwnerId(allowAutomationOverride: true)
+          },
+          journalListOperation: { _, _, _, _, _ in
+            self.journalPage(
+              conversationId: "fault-old-session-conversation",
+              turns: [],
+              generation: 9
+            )
+          },
+          journalClearOperation: { _, _, _, _, _ in 1 },
+          kernelReadyOperation: { false }
+        )
+
+        let error = await provider.performMainChatHarnessResetTransaction()
+        replacementCurrentSessionID = provider.currentSession?.id
+        return error
+      }
+
+      XCTAssertNil(error)
+      XCTAssertEqual(deletedChatIDs, [session.id])
+      XCTAssertEqual(createdChatIDs.count, 1)
+      XCTAssertNotEqual(createdChatIDs.first, session.id)
+      XCTAssertFalse(provider.sessions.contains(where: { $0.id == session.id }))
+      XCTAssertEqual(replacementCurrentSessionID, createdChatIDs.first)
+    }
+
+    func testFaultHarnessResetFailsClosedBeforeJournalClearWhileTypedTurnIsInFlight() async {
+      let provider = ChatProvider()
+      provider.setActiveSendChatIDForTests("default")
+      var journalClearRequests = 0
+      provider.kernelTurnProjection = KernelTurnProjection(
+        host: provider,
+        client: AgentClient.Session(harnessMode: "piMono"),
+        ownerIDProvider: {
+          RuntimeOwnerIdentity.currentOwnerId(allowAutomationOverride: true)
+        },
+        journalClearOperation: { _, _, _, _, _ in
+          journalClearRequests += 1
+          return 1
+        },
+        kernelReadyOperation: { false }
+      )
+
+      let error = await provider.performMainChatHarnessResetTransaction()
+
+      XCTAssertEqual(error, "chat response is in progress")
+      XCTAssertEqual(journalClearRequests, 0)
+      XCTAssertFalse(provider.isClearing)
     }
 
     func testClearOwnerSurfaceStateUsesAuthoritativeJournalControlWhenModelReadinessIsUnavailable() async throws {
@@ -1237,100 +1299,6 @@ import XCTest
       XCTAssertEqual(counter.count, 1)
     }
 
-    func testBackendSyncRejectsClientMessageIDDifferentFromTurnID() {
-      let valid: [String: Any] = [
-        "ownerId": "owner-1",
-        "turnId": "turn-1",
-        "conversationId": "conversation-1",
-        "clientMessageId": "turn-1",
-        "conversationGeneration": 3,
-        "attemptCount": 2,
-        "deliveryGeneration": 4,
-        "payloadHash": "sha256:payload",
-        "journalRevision": 11,
-        "text": "hello",
-        "sender": "human",
-        "messageSource": "desktop_chat",
-      ]
-      XCTAssertEqual(KernelJournalBackendSyncDriver.Request(payload: valid)?.turnId, "turn-1")
-      XCTAssertEqual(KernelJournalBackendSyncDriver.Request(payload: valid)?.ownerId, "owner-1")
-      XCTAssertEqual(KernelJournalBackendSyncDriver.Request(payload: valid)?.journalRevision, 11)
-
-      var invalid = valid
-      invalid["clientMessageId"] = "another-id"
-      XCTAssertNil(KernelJournalBackendSyncDriver.Request(payload: invalid))
-
-      invalid = valid
-      invalid.removeValue(forKey: "payloadHash")
-      XCTAssertNil(KernelJournalBackendSyncDriver.Request(payload: invalid))
-
-      invalid = valid
-      invalid.removeValue(forKey: "ownerId")
-      XCTAssertNil(KernelJournalBackendSyncDriver.Request(payload: invalid))
-
-      invalid = valid
-      invalid["journalRevision"] = 0
-      XCTAssertNil(KernelJournalBackendSyncDriver.Request(payload: invalid))
-
-    }
-
-    func testBackendSyncRejectsOwnerChangeBeforeHTTP() async throws {
-      let request = try XCTUnwrap(
-        KernelJournalBackendSyncDriver.Request(payload: [
-          "ownerId": "impossible-owner-\(UUID().uuidString)",
-          "turnId": "turn-1",
-          "conversationId": "conversation-1",
-          "clientMessageId": "turn-1",
-          "conversationGeneration": 3,
-          "attemptCount": 2,
-          "deliveryGeneration": 4,
-          "payloadHash": "sha256:payload",
-          "journalRevision": 11,
-          "text": "hello",
-          "sender": "human",
-          "messageSource": "desktop_chat",
-        ]))
-
-      do {
-        _ = try await KernelJournalBackendSyncDriver.shared.sync(request)
-        XCTFail("owner mismatch must fail before backend POST")
-      } catch {
-        XCTAssertEqual(
-          KernelJournalBackendSyncDriver.boundedErrorCode(for: error),
-          "backend_sync_owner_changed"
-        )
-      }
-    }
-
-    func testBackendSyncUsesBoundedPermanentAndTransientErrorCodes() {
-      XCTAssertEqual(
-        KernelJournalBackendSyncDriver.boundedErrorCode(
-          for: APIError.httpError(statusCode: 422, detail: "payload rejected")
-        ),
-        "backend_sync_http_4xx"
-      )
-      XCTAssertEqual(
-        KernelJournalBackendSyncDriver.boundedErrorCode(
-          for: APIError.httpError(statusCode: 503, detail: "unavailable")
-        ),
-        "backend_sync_failed"
-      )
-      for statusCode in [408, 425, 429] {
-        XCTAssertEqual(
-          KernelJournalBackendSyncDriver.boundedErrorCode(
-            for: APIError.httpError(statusCode: statusCode, detail: "retry")
-          ),
-          "backend_sync_http_retryable"
-        )
-      }
-      XCTAssertEqual(
-        KernelJournalBackendSyncDriver.boundedErrorCode(
-          for: URLError(.networkConnectionLost)
-        ),
-        "backend_sync_failed"
-      )
-    }
-
     /// Static architecture tripwire; behavioral journal coverage lives above.
     func testKernelJournalIsOnlyDurableDesktopChatWriter() throws {
       let provider = try sourceFile("Providers/ChatProvider.swift")
@@ -1341,18 +1309,15 @@ import XCTest
       XCTAssertFalse(provider.contains("APIClient.shared.saveMessage("))
       XCTAssertFalse(provider.contains("messages.append(greetingMessage)"))
       XCTAssertFalse(provider.contains("func recordCompletedTurn("))
-      XCTAssertTrue(provider.contains("remoteId: response.messageId"))
-      XCTAssertTrue(provider.contains("canonicalTurnId: response.messageId"))
-      XCTAssertTrue(provider.contains("await kernelTurnProjection.refresh(surface: surface)"))
+      XCTAssertTrue(provider.contains("await kernelTurnProjection.recordTurn("))
       let greetingStart = try XCTUnwrap(provider.range(of: "private func fetchInitialMessage("))
       let greetingSource = provider[greetingStart.lowerBound...]
-      let admission = try XCTUnwrap(greetingSource.range(of: "guard accepted else"))
+      let admission = try XCTUnwrap(greetingSource.range(of: "accepted else"))
       let preview = try XCTUnwrap(greetingSource.range(of: "sessions[index].preview = response.message"))
       let analytics = try XCTUnwrap(greetingSource.range(of: "initialMessageGenerated("))
       XCTAssertLessThan(admission.lowerBound, preview.lowerBound)
       XCTAssertLessThan(preview.lowerBound, analytics.lowerBound)
-      XCTAssertEqual(provider.components(separatedBy: "APIClient.shared.getMessages(").count - 1, 2)
-      XCTAssertEqual(provider.components(separatedBy: "expectedOwnerId: ownerId").count - 1, 4)
+      XCTAssertEqual(provider.components(separatedBy: "expectedOwnerId: ownerId").count - 1, 2)
       XCTAssertFalse(realtime.contains("RealtimeVoiceTurnOutbox"))
       XCTAssertFalse(runtime.contains("import_conversation_turns"))
       XCTAssertFalse(runtime.contains("record_surface_turn"))

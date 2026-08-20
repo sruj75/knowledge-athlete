@@ -7,7 +7,6 @@ covers:
   - desktop/macos/Desktop/Sources/AnalyticsManager.swift
   - desktop/macos/Desktop/Sources/APIClient+AuthPolicy.swift
   - desktop/macos/Desktop/Sources/Auth/AuthSessionAttemptFence.swift
-  - desktop/macos/Desktop/Sources/Chat/APIClient+KernelJournal.swift
   - desktop/macos/Desktop/Sources/Chat/AgentControlService.swift
   - desktop/macos/Desktop/Sources/Chat/AgentArtifactProjection.swift
   - desktop/macos/Desktop/Sources/Chat/AgentErrorClassifier.swift
@@ -18,6 +17,8 @@ covers:
   - desktop/macos/Desktop/Sources/Chat/ChatPrompts.swift
   - desktop/macos/Desktop/Sources/Chat/DesktopCapabilityRegistry.swift
   - desktop/macos/Desktop/Sources/Chat/ChatOmiMark.swift
+  - desktop/macos/Desktop/Sources/Chat/ChatAttachment.swift
+  - desktop/macos/Desktop/Sources/Chat/ChatResource.swift
   - desktop/macos/Desktop/Sources/Chat/ChatPrompts.swift
   - desktop/macos/Desktop/Sources/Chat/TypingIndicator.swift
   - desktop/macos/Desktop/Sources/MainWindow/Components/ChatBubble.swift
@@ -25,21 +26,20 @@ covers:
   - desktop/macos/Desktop/Sources/MainWindow/Components/ChatScrollBehavior.swift
   - desktop/macos/Desktop/Sources/Chat/ChatContentBlockCodec.swift
   - desktop/macos/Desktop/Sources/Chat/ChatQueryTelemetry.swift
-  - desktop/macos/Desktop/Sources/Chat/KernelJournalBackendSyncDriver.swift
   - desktop/macos/Desktop/Sources/Chat/KernelJournalEventHub.swift
   - desktop/macos/Desktop/Sources/Chat/KernelTurnJournal.swift
   - desktop/macos/Desktop/Sources/Chat/WritingToolsFix.swift
-  - desktop/macos/Desktop/Sources/MainWindow/Pages/ChatPage.swift
+  - desktop/macos/Desktop/Sources/MainWindow/Pages/DashboardPage.swift
   - desktop/macos/Desktop/Sources/MainWindow/Components/ChatPromptTimeline.swift
   - desktop/macos/Desktop/Sources/MainWindow/Components/ChatPromptTimelineModel.swift
   - desktop/macos/Desktop/Sources/MainWindow/Components/ChatTranscriptGeometry.swift
   - desktop/macos/Desktop/Sources/MainWindow/DesktopHomeView.swift
   - desktop/macos/Desktop/Sources/MainWindow/Components/OmiMarkdown.swift
   - desktop/macos/Desktop/Sources/Providers/ChatProvider.swift
-  - desktop/macos/Desktop/Sources/Services/APIClient/APIClient+ChatSessions.swift
-  - desktop/macos/Desktop/Sources/Services/APIClient/APIClient+Messages.swift
-  - desktop/macos/Desktop/Sources/Providers/ChatProvider+JournalProjection.swift
-  - desktop/macos/Desktop/Sources/Providers/ChatProvider+OrphanRepair.swift
+  - desktop/macos/Desktop/Sources/Providers/ChatProvider+HarnessReset.swift
+  - desktop/macos/Desktop/Sources/Services/APIClient/APIClient+ChatCompute.swift
+  - desktop/macos/Desktop/Sources/Chat/LocalChatAttachmentStore.swift
+  - desktop/macos/Desktop/Sources/Chat/LocalChatCatalog.swift
   - desktop/macos/Desktop/Sources/Chat/AgentBridge.swift
   - desktop/macos/Desktop/Sources/Chat/AgentClient.swift
   - desktop/macos/Desktop/Sources/Chat/AgentContextRevision.swift

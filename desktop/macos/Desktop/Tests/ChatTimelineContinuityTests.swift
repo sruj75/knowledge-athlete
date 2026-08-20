@@ -1376,37 +1376,25 @@ final class ChatTimelineContinuityTests: XCTestCase {
       .deletingLastPathComponent()
       .deletingLastPathComponent()
 
-    let chatPage = try String(
-      contentsOf: root.appendingPathComponent("Sources/MainWindow/Pages/ChatPage.swift"),
-      encoding: .utf8)
-    XCTAssertTrue(
-      chatPage.contains("messages: chatProvider.messages,"),
-      "main Chat must bind the shared ChatProvider timeline"
-    )
-    XCTAssertFalse(
-      chatPage.contains("transcriptMessages"),
-      "main Chat must not filter notch/PTT turns out of history"
-    )
-    XCTAssertTrue(
-      chatPage.contains("openAgentChatFromTimeline(agentID: agentID, completion: completion)"),
-      "main Chat must open spawned-agent links from the timeline with open result feedback"
-    )
-    XCTAssertTrue(
-      chatPage.contains("openAgentChatFromTimeline(ref: ref, completion: completion)"),
-      "main Chat must open structured agent refs with open result feedback"
-    )
-
     let dashboard = try String(
       contentsOf: root.appendingPathComponent("Sources/MainWindow/Pages/DashboardPage.swift"),
       encoding: .utf8)
-    XCTAssertGreaterThanOrEqual(
+    XCTAssertEqual(
       dashboard.components(separatedBy: "messages: chatProvider.messages,").count - 1,
-      2,
-      "Home chat surfaces must bind the shared ChatProvider timeline"
+      1,
+      "the one canonical Home timeline must bind the shared ChatProvider messages"
     )
     XCTAssertFalse(
       dashboard.contains("transcriptMessages"),
       "Home chat must not filter notch/PTT turns out of history"
+    )
+    XCTAssertTrue(
+      dashboard.contains("openAgentChatFromTimeline(agentID: agentID, completion: completion)"),
+      "Home Chat must open spawned-agent links from the timeline with open result feedback"
+    )
+    XCTAssertTrue(
+      dashboard.contains("openAgentChatFromTimeline(ref:completion:)"),
+      "Home Chat must open structured agent refs with open result feedback"
     )
 
     let floatingState = try String(

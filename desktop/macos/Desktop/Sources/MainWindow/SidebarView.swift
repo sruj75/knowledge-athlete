@@ -6,7 +6,6 @@ import SwiftUI
 enum SidebarNavItem: Int, CaseIterable {
   case dashboard = 0
   case conversations = 1
-  case chat = 2
   case memories = 3
   case tasks = 4
   case focus = 5
@@ -19,7 +18,6 @@ enum SidebarNavItem: Int, CaseIterable {
     switch self {
     case .dashboard: return "Home"
     case .conversations: return "Conversations"
-    case .chat: return "Chat"
     case .memories: return "Memories"
     case .tasks: return "Tasks"
     case .focus: return "Focus"
@@ -34,7 +32,6 @@ enum SidebarNavItem: Int, CaseIterable {
     switch self {
     case .dashboard: return "house.fill"
     case .conversations: return "text.bubble.fill"
-    case .chat: return "bubble.left.and.bubble.right.fill"
     case .memories: return "brain"
     case .tasks: return "checklist"
     case .focus: return "eye.fill"
@@ -51,7 +48,6 @@ enum SidebarNavItem: Int, CaseIterable {
     case .conversations, .rewind: return 1
     case .memories: return 2
     case .tasks: return 3
-    case .chat: return 4
     case .dashboard: return 5
     default: return 0
     }

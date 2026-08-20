@@ -131,8 +131,6 @@ struct SettingsContentView: View {
   // Advanced stats
   @State var advancedStats: UserStats?
   @State var isLoadingStats = false
-  @State var chatMessageCount: Int?
-  @State var isLoadingChatMessages = false
   @State var showProfileAndStats = false
 
   // AI User Profile
@@ -216,7 +214,6 @@ struct SettingsContentView: View {
 
   // Multi-chat mode setting
   @AppStorage("multiChatEnabled") var multiChatEnabled = false
-  @AppStorage("useLegacyHomeDesign") var useLegacyHomeDesign = false
 
   // Advanced AI settings
   @AppStorage("realtimeOmniProvider") var realtimeOmniProvider: String = RealtimeOmniProvider.auto.rawValue

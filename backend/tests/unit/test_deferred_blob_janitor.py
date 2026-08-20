@@ -123,20 +123,16 @@ class TestSleepPatternRemoved:
         for rel in ('routers/sync.py', 'utils/chat.py'):
             assert 'time.sleep(480)' not in _read_source(rel), f'{rel} still parks threads as deletion timers'
 
-    def test_chat_cleanup_has_two_explicit_owners(self):
+    def test_chat_transcription_cleanup_has_one_explicit_owner(self):
         source = _read_source('utils/chat.py')
 
-        # ``_prepare_voice_message_url`` is the single cleanup owner for every
-        # voice-message entry point. A direct caller-side schedule would
-        # double-schedule the same temporary object.
+        # ``_prepare_voice_message_url`` remains the single cleanup owner for
+        # the retained voice-transcription path. The hosted voice-chat path was
+        # retired with normal backend Chat authority.
         assert source.count('schedule_syncing_temporal_file_deletion(path)') == 1
 
         helper_source = source.split('def _prepare_voice_message_url(', 1)[1].split('\ndef ', 1)[0]
         assert helper_source.count('schedule_syncing_temporal_file_deletion(path)') == 1
-
-        processing_source = source.split('def process_voice_message_segment(', 1)[1].split('\nasync def ', 1)[0]
-        assert 'transcribe_voice_message_segment(path, uid, language)' in processing_source
-        assert 'schedule_syncing_temporal_file_deletion(path)' not in processing_source
 
     def test_storage_defines_scheduler_with_480_default(self):
         src = _read_source('utils/other/storage.py')

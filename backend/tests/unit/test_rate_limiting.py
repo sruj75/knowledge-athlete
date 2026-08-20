@@ -451,13 +451,17 @@ class TestRouterWiring(unittest.TestCase):
 
     def test_chat_router_has_rate_limits(self):
         matches = self._grep_file("routers/chat.py", r"with_rate_limit.*(?:chat:|voice:|file:)")
-        # send_message, initial(x2), voice_message, voice_transcribe, file_upload(v1+v2) = 7
-        self.assertEqual(len(matches), 7, f"chat.py expected 7 rate limits, got {len(matches)}")
+        # Retained backend surfaces here are the two voice transcription routes
+        # and legacy v1 file upload. Stateless greeting/title live in chat_sessions.py.
+        self.assertEqual(len(matches), 3, f"chat.py expected 3 retained rate limits, got {len(matches)}")
+
+        compute_matches = self._grep_file("routers/chat_sessions.py", r"with_rate_limit.*chat:initial")
+        self.assertEqual(len(compute_matches), 2, "greeting and title must both remain rate limited")
 
     def test_legacy_file_upload_rate_limited(self):
         """Legacy v1/files must also be rate limited to prevent bypass."""
         matches = self._grep_file("routers/chat.py", r"with_rate_limit.*file:upload")
-        self.assertEqual(len(matches), 2, f"chat.py expected 2 file:upload limits (v1+v2), got {len(matches)}")
+        self.assertEqual(len(matches), 1, f"chat.py expected the retained v1 file:upload limit, got {len(matches)}")
 
     def test_goals_router_has_rate_limits(self):
         matches = self._grep_file("routers/goals.py", r"with_rate_limit.*goals:")

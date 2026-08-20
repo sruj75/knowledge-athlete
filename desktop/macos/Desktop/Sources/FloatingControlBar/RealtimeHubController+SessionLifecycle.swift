@@ -33,10 +33,14 @@ extension RealtimeHubController {
     }
     let provider = effectiveProvider
     let ownerScope = currentOwnerScope
+    let contextRequirement = voiceSessionContext(for: ownerScope)
     if session != nil, sessionProvider == provider,
       RealtimeHubOwnerFence.canReuseWarmSession(
         sessionOwner: sessionOwnerScope,
-        currentOwnerID: RuntimeOwnerIdentity.currentOwnerId())
+        currentOwnerID: RuntimeOwnerIdentity.currentOwnerId()),
+      contextRequirement.isResolved,
+      contextRequirement.snapshotFreshnessIdentity == sessionVoiceContextFreshnessIdentity,
+      contextRequirement.surface == sessionVoiceContextSurface
     {
       return
     }
@@ -50,7 +54,6 @@ extension RealtimeHubController {
       return
     }
 
-    let contextRequirement = voiceSessionContext(for: ownerScope)
     guard RealtimeWarmSessionStartPolicy.canStart(requirementIsResolved: contextRequirement.isResolved) else {
       log("RealtimeHub: waiting for resolved voice context before warming session")
       if !voiceContextSingleFlight.isRunning {
@@ -225,6 +228,9 @@ extension RealtimeHubController {
   }
 
   func voiceTurnDidTerminate(turnID: VoiceTurnID) {
+    markVoiceJournalPinTerminal(
+      continuityKey: "voice:\(turnID.rawValue.uuidString.lowercased())"
+    )
     if admittedInputTurnID == turnID { admittedInputTurnID = nil }
     if let terminal = VoiceTurnCoordinator.shared.model.lastTerminal,
       terminal.turnID == turnID
@@ -379,6 +385,7 @@ extension RealtimeHubController {
       }
     #endif
     sessionVoiceContextFreshnessIdentity = topLevelContext.snapshotFreshnessIdentity
+    sessionVoiceContextSurface = topLevelContext.surface
     let instructions = RealtimeHubTools.systemInstruction(
       kernelContext: topLevelContext.rendered,
       kernelSemanticGuidance: topLevelContext.semanticGuidance,
@@ -415,6 +422,7 @@ extension RealtimeHubController {
   }
 
   struct VoiceSessionContext {
+    let surface: AgentSurfaceReference?
     let sessionID: String
     let rendered: String
     let snapshotFreshnessIdentity: String
@@ -430,7 +438,7 @@ extension RealtimeHubController {
     /// `RealtimeHubTools.escalationBody` omits each empty section on its own.
     /// Requiring them here would fail-closed on the first turn of every session.
     var isResolved: Bool {
-      !sessionID.isEmpty && !snapshotFreshnessIdentity.isEmpty
+      surface != nil && !sessionID.isEmpty && !snapshotFreshnessIdentity.isEmpty
     }
   }
 
@@ -438,10 +446,11 @@ extension RealtimeHubController {
   func voiceSessionContext(for ownerScope: RealtimeHubOwnerScope) -> VoiceSessionContext {
     guard prefetchedVoiceContextOwnerScope == ownerScope else {
       return VoiceSessionContext(
-        sessionID: "", rendered: "", snapshotFreshnessIdentity: "", planID: "",
+        surface: nil, sessionID: "", rendered: "", snapshotFreshnessIdentity: "", planID: "",
         stableCacheIdentity: "", dynamicContextIdentity: "", semanticGuidance: "")
     }
     return VoiceSessionContext(
+      surface: prefetchedVoiceContextSurface,
       sessionID: prefetchedVoiceContextSessionID,
       rendered: prefetchedVoiceContext,
       snapshotFreshnessIdentity: prefetchedVoiceContextFreshnessIdentity,
@@ -458,7 +467,6 @@ extension RealtimeHubController {
     let ownerScope = currentOwnerScope
     let operation: @MainActor @Sendable () async -> Bool = { @MainActor [weak self] in
       guard let self else { return false }
-      await self.importLegacyVoiceJournalIfNeeded()
       guard !Task.isCancelled, self.isOwnerScopeCurrent(ownerScope) else { return false }
       let resolvedSnapshot: KernelVoiceContextSnapshot
       do {
@@ -481,6 +489,7 @@ extension RealtimeHubController {
       self.prefetchedVoiceSemanticGuidance = resolvedSnapshot.semanticGuidance
       self.prefetchedVoiceContextTurnIDs = resolvedSnapshot.turnIDs
       self.prefetchedVoiceContextOwnerScope = ownerScope
+      self.prefetchedVoiceContextSurface = resolvedSnapshot.surface
       self.reconcileWarmSessionForCurrentRequirement()
       return true
     }
@@ -501,6 +510,26 @@ extension RealtimeHubController {
     return await prefetchVoiceContextSnapshotIfNeeded(forceRefresh: true).value
   }
 
+  /// A chat switch invalidates only the next-turn cache. Existing continuity
+  /// keys remain pinned to the surface that supplied their context until their
+  /// journal obligations finish.
+  func invalidateVoiceContextForChatSelectionChange() {
+    voiceContextSingleFlight.cancel()
+    prefetchedVoiceContext = ""
+    prefetchedVoiceContextSessionID = ""
+    prefetchedVoiceContextFreshnessIdentity = ""
+    prefetchedVoiceContextPlanID = ""
+    prefetchedVoiceStableCacheIdentity = ""
+    prefetchedVoiceDynamicContextIdentity = ""
+    prefetchedVoiceSemanticGuidance = ""
+    prefetchedVoiceContextTurnIDs.removeAll()
+    prefetchedVoiceContextOwnerScope = nil
+    prefetchedVoiceContextSurface = nil
+    if session != nil || VoiceTurnCoordinator.shared.activeTurnID != nil {
+      requestSessionHandoff(reason: .voiceContextFreshness)
+    }
+  }
+
   func reconcileWarmSessionForCurrentRequirement() {
     let requirement = voiceSessionContext(for: currentOwnerScope)
     guard requirement.isResolved else { return }
@@ -519,6 +548,15 @@ extension RealtimeHubController {
     }
     guard session != nil else {
       ensureWarm()
+      return
+    }
+    if requirement.surface != sessionVoiceContextSurface {
+      idleVoiceContextRefreshTask?.cancel()
+      idleVoiceContextRefreshTask = nil
+      requestSessionHandoff(
+        reason: .voiceContextFreshness,
+        preservingReconnectAudio: reconnectAudioBuffer != nil
+      )
       return
     }
     switch RealtimeVoiceContextRefreshPolicy.handoffDecision(
@@ -635,6 +673,13 @@ extension RealtimeHubController {
   func finishContextFreshInputOnCurrentSession() {
     guard let pending = reconnectAudioBuffer, let live = session else { return }
     guard let voiceSessionID else { return }
+    guard let pinnedSurface = journalPinsByContinuityKey[turnIdempotencyKey]?.surface,
+      pinnedSurface == sessionVoiceContextSurface
+    else {
+      pendingContextCacheReplacement = true
+      requestSessionHandoff(reason: .voiceContextFreshness, preservingReconnectAudio: true)
+      return
+    }
     let admission = RealtimeInputAdmissionPolicy.decide(
       pending: pending,
       activeTurnID: VoiceTurnCoordinator.shared.activeTurnID,
@@ -765,9 +810,9 @@ extension RealtimeHubController {
     }
   }
 
-  /// The kernel journal and its SQLite outbox are the only durable transcript
-  /// authority. Swift may retry this idempotent RPC in-process, but never stores
-  /// a second durable queue.
+  /// The kernel journal is the only durable transcript authority. Swift may
+  /// retry this idempotent RPC in-process, but never stores a second durable
+  /// queue or projects the turn to a backend Chat store.
   func persistTurnDirectlyToKernel(
     ownerID: String,
     userText: String,
@@ -780,7 +825,14 @@ extension RealtimeHubController {
       log("RealtimeHub: refusing voice journal write after authenticated owner changed")
       return false
     }
-    let surface = FloatingControlBarManager.shared.mainChatSurfaceReference()
+    guard let surface = journalPinsByContinuityKey[idempotencyKey]?.surface else {
+      log("RealtimeHub: refusing voice journal write without a pinned chat surface")
+      return false
+    }
+    guard chatClearBarrierAllowsPersistence(to: surface) else {
+      log("RealtimeHub: refusing voice journal write across an active chat clear barrier")
+      return false
+    }
     let kernelOwnsExchange = RealtimeHubContinuityRestore.kernelOwnsExchange(
       continuityKey: idempotencyKey,
       kernelTurnIDs: prefetchedVoiceContextTurnIDs)
@@ -840,61 +892,9 @@ extension RealtimeHubController {
       })
   }
 
-  /// Imports at most 200 entries per pass from the retired Swift queue. This is
-  /// an upgrade-only reader: successful entries move into the kernel journal and
-  /// are deleted from UserDefaults; no new entry is ever written here.
-  func importLegacyVoiceJournalIfNeeded() async {
-    guard let ownerID = RuntimeOwnerIdentity.currentOwnerId(),
-      !legacyVoiceJournalImportedOwners.contains(ownerID)
-    else { return }
-    if let existing = legacyVoiceJournalImportTask {
-      await existing.value
-      return
-    }
-    let task = Task { @MainActor [weak self] in
-      guard let self else { return }
-      guard let candidates = self.legacyVoiceJournalImportStore.nextBatch(ownerID: ownerID) else {
-        log("RealtimeHub: legacy voice journal import skipped unreadable data")
-        self.legacyVoiceJournalImportedOwners.insert(ownerID)
-        return
-      }
-      if candidates.isEmpty {
-        self.legacyVoiceJournalImportedOwners.insert(ownerID)
-        return
-      }
-
-      var importedKeys = Set<String>()
-      for entry in candidates {
-        guard RuntimeOwnerIdentity.currentOwnerId() == ownerID else { break }
-        let surface = AgentSurfaceReference(
-          surfaceKind: entry.surfaceKind,
-          externalRefKind: entry.externalRefKind,
-          externalRefId: entry.externalRefID)
-        let accepted = await FloatingControlBarManager.shared.recordExchange(
-          surface: surface,
-          ownerID: ownerID,
-          userText: entry.userText,
-          assistantText: entry.assistantText,
-          origin: "realtime_voice",
-          continuityKey: entry.idempotencyKey)
-        guard accepted else { break }
-        importedKeys.insert(entry.idempotencyKey)
-      }
-
-      self.legacyVoiceJournalImportStore.acknowledge(
-        ownerID: ownerID, idempotencyKeys: importedKeys)
-      if self.legacyVoiceJournalImportStore.nextBatch(ownerID: ownerID)?.isEmpty == true {
-        self.legacyVoiceJournalImportedOwners.insert(ownerID)
-      }
-    }
-    legacyVoiceJournalImportTask = task
-    await task.value
-    legacyVoiceJournalImportTask = nil
-  }
-
   /// Completes the reducer-owned journal fence only after the canonical kernel
-  /// has acknowledged this turn's stable idempotency key. Merely enqueueing the
-  /// durable outbox entry is not logical success.
+  /// has acknowledged this turn's stable idempotency key. Merely scheduling an
+  /// in-process retry is not logical success.
   func finalizeJournal(turnID: VoiceTurnID, identity: VoiceEffectIdentity) {
     let idempotencyKey = turnIdempotencyKey
     Task { @MainActor [weak self] in
@@ -953,6 +953,7 @@ extension RealtimeHubController {
     #endif
     hubConnected = false  // no live session → PTT falls back to the cascade until re-warm
     sessionVoiceContextFreshnessIdentity = ""
+    sessionVoiceContextSurface = nil
     admittedInputTurnID = nil
     geminiSessionNeedsTurnBoundary = false
     if !preservingReconnectAudio {
@@ -1067,6 +1068,15 @@ extension RealtimeHubController {
             self.isOwnerScopeCurrent(replacementOwnerScope)
           else { return nil }
           guard await self.refreshVoiceContextSnapshot() else { return nil }
+          guard let turnID = self.replacementAudioBuffer?.turnID else { return nil }
+          let continuityKey = "voice:\(turnID.rawValue.uuidString.lowercased())"
+          let requirement = self.voiceSessionContext(for: replacementOwnerScope)
+          guard let surface = requirement.surface, requirement.isResolved else { return nil }
+          self.pinVoiceJournal(
+            continuityKey: continuityKey,
+            surface: surface,
+            sessionID: requirement.sessionID
+          )
           return self.prefetchedVoiceContextTurnIDs
         },
         startReplacementSession: { [weak self] in

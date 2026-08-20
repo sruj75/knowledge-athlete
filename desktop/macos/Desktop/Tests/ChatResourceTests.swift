@@ -3,7 +3,7 @@ import XCTest
 @testable import Omi_Computer
 
 final class ChatResourceTests: XCTestCase {
-  func testAttachmentResourcePreservesUploadStateAndThumbnail() throws {
+  func testAttachmentResourcePreservesManagedLocalIdentityAndPreviewBytes() throws {
     let tempDir = FileManager.default.temporaryDirectory
     let fileURL = tempDir.appendingPathComponent("receipt-\(UUID().uuidString).png")
     try Data([0x89, 0x50, 0x4E, 0x47]).write(to: fileURL)
@@ -14,23 +14,31 @@ final class ChatResourceTests: XCTestCase {
       fileName: "receipt.png",
       mimeType: "image/png",
       data: Data([0x89, 0x50, 0x4E, 0x47]),
-      serverId: "file-1",
       localFileURL: fileURL,
-      thumbnailURL: "https://example.com/thumb.png",
-      state: .uploaded
+      state: .localOnly
     )
 
     let resource = ChatResource.attachment(attachment)
 
-    XCTAssertEqual(resource.id, "attachment:file-1")
+    XCTAssertEqual(resource.id, "attachment:local-1")
     XCTAssertEqual(resource.origin, .userAttachment)
     XCTAssertEqual(resource.title, "receipt.png")
     XCTAssertEqual(resource.mimeType, "image/png")
-    XCTAssertEqual(resource.thumbnailURL, "https://example.com/thumb.png")
+    XCTAssertNil(resource.thumbnailURL)
     XCTAssertEqual(resource.state, .ready)
     XCTAssertTrue(resource.isImage)
     XCTAssertEqual(resource.fileURL?.path, fileURL.path)
     XCTAssertTrue(resource.canOpen)
+    XCTAssertEqual(resource.imageData, Data([0x89, 0x50, 0x4E, 0x47]))
+
+    let encoded = try XCTUnwrap(ChatResource.encodeResourcesForPersistence([resource]))
+    let restored = try XCTUnwrap(
+      ChatResource.hydrateFileStates(
+        ChatResource.decodeResourcesFromPersistence(encoded)
+      ).first
+    )
+    XCTAssertEqual(restored.imageData, Data([0x89, 0x50, 0x4E, 0x47]))
+    XCTAssertEqual(restored.fileURL?.path, fileURL.path)
   }
 
   func testArtifactResourcePreservesCanonicalRuntimeIdentityAndFileActions() throws {
@@ -80,12 +88,11 @@ final class ChatResourceTests: XCTestCase {
       id: "file-local",
       fileName: "notes.txt",
       mimeType: "text/plain",
-      serverId: "file-server",
-      state: .uploaded
+      state: .localOnly
     )
     let message = ChatMessage(text: "see attached", sender: .user, attachments: [attachment])
 
-    XCTAssertEqual(message.displayResources.map(\.id), ["attachment:file-server"])
+    XCTAssertEqual(message.displayResources.map(\.id), ["attachment:file-local"])
   }
 
   func testChatMessagePrefersExplicitResourcesOverAttachments() {
@@ -107,8 +114,7 @@ final class ChatResourceTests: XCTestCase {
       id: "file-local",
       fileName: "notes.txt",
       mimeType: "text/plain",
-      serverId: "file-server",
-      state: .uploaded
+      state: .localOnly
     )
     let message = ChatMessage(text: "done", sender: .ai, attachments: [attachment], resources: [explicit])
 
@@ -199,7 +205,6 @@ final class ChatResourceTests: XCTestCase {
       id: "local-1",
       fileName: "codebase-audit-SKILL.md",
       mimeType: "text/plain",
-      serverId: "file-server",
       localFileURL: url,
       state: .localOnly
     )
@@ -210,6 +215,6 @@ final class ChatResourceTests: XCTestCase {
     XCTAssertTrue(prompt.contains("The user attached 1 file to this exact message"))
     XCTAssertTrue(prompt.contains("what do you think of this"))
     XCTAssertTrue(prompt.contains("local_path: /Users/dazheng/vibespace/codebase-audit-SKILL.md"))
-    XCTAssertTrue(prompt.contains("uploaded_file_id: file-server"))
+    XCTAssertFalse(prompt.contains("uploaded_file_id"))
   }
 }

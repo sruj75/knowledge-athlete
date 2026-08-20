@@ -316,10 +316,8 @@ final class AgentRuntimeStatusStore: ObservableObject {
       )
     case .initMessage, .toolUse, .authorizedToolExecution,
       .authRequired, .authSuccess, .controlToolResult,
-      .journalOperationResult, .journalTurnChanged, .journalBackendSync, .journalBackendDelete,
-      .journalBackendReconcile, .surfaceSessionResolved,
+      .journalOperationResult, .journalTurnChanged, .chatCatalogResult, .surfaceSessionResolved,
       .contextSourceUpdated, .contextSnapshot,
-      .legacyMainChatSessionsImported,
       .externalSurfaceRunBeginResult, .externalSurfaceToolResult,
       .externalSurfaceRunCompleteResult, .ownerRuntimeRevoked,
       .unknown:

@@ -3,7 +3,6 @@ import XCTest
 @testable import Omi_Computer
 
 final class DesktopChatDriftGuardTests: XCTestCase {
-
   func testChatComposerUsesAThinUniformShellAndTranscriptFade() {
     XCTAssertEqual(ChatComposerLayout.shellInset, 8)
     XCTAssertEqual(ChatComposerLayout.pageMargin, 16)
@@ -31,7 +30,7 @@ final class DesktopChatDriftGuardTests: XCTestCase {
   }
 
   func testMainAndNotchChatShareTheTranscriptFade() throws {
-    let mainChat = try sourceFile("MainWindow/Pages/ChatPage.swift")
+    let mainChat = try sourceFile("MainWindow/Pages/DashboardPage.swift")
     let notchChat = try sourceFile("FloatingControlBar/AIResponseView.swift")
 
     XCTAssertTrue(mainChat.contains(".overlay(alignment: .bottom) {\n      ChatComposerFade()"))
@@ -40,10 +39,9 @@ final class DesktopChatDriftGuardTests: XCTestCase {
   }
 
   func testChatTranscriptLoaderIgnoresSessionListRefreshes() throws {
-    let chatPage = try sourceFile("MainWindow/Pages/ChatPage.swift")
     let dashboardPage = try sourceFile("MainWindow/Pages/DashboardPage.swift")
 
-    for source in [chatPage, dashboardPage] {
+    for source in [dashboardPage] {
       XCTAssertFalse(
         source.contains("isLoadingInitial: (chatProvider.isLoading || chatProvider.isLoadingSessions)"),
         "Session-list refreshes must not hide a non-empty transcript behind the initial message-history loader."
@@ -54,7 +52,6 @@ final class DesktopChatDriftGuardTests: XCTestCase {
       )
     }
 
-    XCTAssertTrue(chatPage.contains("isLoadingInitial: chatProvider.isLoading && !chatProvider.isClearing"))
     XCTAssertEqual(
       dashboardPage.components(separatedBy: "isLoadingInitial: chatProvider.isLoading && !chatProvider.isClearing")
         .count - 1,

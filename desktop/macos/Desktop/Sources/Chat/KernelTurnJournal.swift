@@ -236,41 +236,6 @@ struct KernelJournalTurnTerminalization: Sendable {
   }
 }
 
-struct KernelJournalRemoteTurn: Sendable {
-  let remoteId: String
-  let canonicalTurnId: String?
-  let role: String
-  let content: String
-  let contentBlocksJSON: String
-  let resourcesJSON: String
-  let metadataJSON: String
-  let createdAtMs: Int
-
-  var dictionary: [String: Any] {
-    var value: [String: Any] = [
-      "remoteId": remoteId,
-      "role": role,
-      "content": content,
-      "contentBlocks": KernelJournalTurnWrite.jsonArray(contentBlocksJSON),
-      "resources": KernelJournalTurnWrite.jsonArray(resourcesJSON),
-      "metadataJson": Self.normalizedMetadataObject(metadataJSON),
-      "createdAtMs": createdAtMs,
-    ]
-    if let canonicalTurnId { value["canonicalTurnId"] = canonicalTurnId }
-    return value
-  }
-
-  private static func normalizedMetadataObject(_ raw: String) -> String {
-    guard let data = raw.data(using: .utf8),
-      let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-      JSONSerialization.isValidJSONObject(object),
-      let normalized = try? JSONSerialization.data(withJSONObject: object),
-      let encoded = String(data: normalized, encoding: .utf8)
-    else { return "{}" }
-    return encoded
-  }
-}
-
 @MainActor
 extension KernelJournalTurn {
   func chatMessage() -> ChatMessage {
@@ -322,8 +287,8 @@ extension ChatMessage {
     var metadata: [String: Any] = [:]
     if let continuityKey, !continuityKey.isEmpty { metadata["continuityKey"] = continuityKey }
     if let notificationContext { metadata["notificationContext"] = notificationContext }
-    // These rollback-compatible fields are consumed only by the kernel outbox
-    // renderer for the existing /v2/desktop/messages POST shape.
+    // Preserve the local session and source context with the canonical turn so
+    // local projections can reconstruct the shared typed/voice timeline.
     if let sessionId { metadata["sessionId"] = sessionId }
     if let messageSource { metadata["messageSource"] = messageSource }
     let metadataJSON: String

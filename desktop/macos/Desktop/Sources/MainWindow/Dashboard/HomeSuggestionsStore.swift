@@ -89,6 +89,8 @@ final class HomeSuggestionsStore: ObservableObject {
   private let generator: any HomeSuggestionGenerating
   private let now: () -> Date
   private var generatingOwnerID: String?
+  private var generatingOwnerGeneration: UInt64?
+  private var ownerGeneration: UInt64 = 0
   private nonisolated(unsafe) var ownerObserver: NSObjectProtocol?
 
   init(
@@ -103,8 +105,15 @@ final class HomeSuggestionsStore: ObservableObject {
     ownerObserver = NotificationCenter.default.addObserver(
       forName: .runtimeOwnerDidChange, object: nil, queue: .main
     ) { [weak self] _ in
-      Task { @MainActor in
-        await self?.refreshIfNeeded()
+      MainActor.assumeIsolated {
+        guard let self else { return }
+        self.ownerGeneration &+= 1
+        self.generatingOwnerID = nil
+        self.generatingOwnerGeneration = nil
+        self.publishCache(for: RuntimeOwnerIdentity.currentOwnerId() ?? "signed-out")
+        Task { @MainActor [weak self] in
+          await self?.refreshIfNeeded()
+        }
       }
     }
   }
@@ -127,6 +136,7 @@ final class HomeSuggestionsStore: ObservableObject {
       return
     }
     let ownerID = snapshot.ownerID
+    let generation = ownerGeneration
     publishCache(for: ownerID)
 
     let today = Self.dayStampFormatter.string(from: now())
@@ -134,11 +144,19 @@ final class HomeSuggestionsStore: ObservableObject {
     guard generatingOwnerID == nil else { return }
 
     generatingOwnerID = ownerID
-    defer { generatingOwnerID = nil }
+    generatingOwnerGeneration = generation
+    defer {
+      if generatingOwnerID == ownerID, generatingOwnerGeneration == generation {
+        generatingOwnerID = nil
+        generatingOwnerGeneration = nil
+      }
+    }
 
     do {
       let generated = try await generator.generatePersonalizedQuestions(snapshot: snapshot)
-      guard RuntimeOwnerIdentity.isAuthorizationCurrent(snapshot) else {
+      guard generation == ownerGeneration,
+        RuntimeOwnerIdentity.isAuthorizationCurrent(snapshot)
+      else {
         log("HomeSuggestions: dropped generation result after account switch")
         return
       }
@@ -176,9 +194,82 @@ enum HomeSuggestionGenerationError: Error {
   case contextUnavailable
 }
 
+protocol HomeSuggestionLocalSources: Sendable {
+  func memoryContext(snapshot: RuntimeOwnerAuthorizationSnapshot) async -> String?
+  func conversationContext(snapshot: RuntimeOwnerAuthorizationSnapshot) async -> String?
+  func taskContext(snapshot: RuntimeOwnerAuthorizationSnapshot) async -> String?
+  func goalContext(snapshot: RuntimeOwnerAuthorizationSnapshot) async -> String?
+}
+
+struct DefaultHomeSuggestionLocalSources: HomeSuggestionLocalSources {
+  func memoryContext(snapshot: RuntimeOwnerAuthorizationSnapshot) async -> String? {
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(snapshot) else { return nil }
+    guard let items = try? await MemoryStorage.shared.list(limit: 50) else { return nil }
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(snapshot) else { return nil }
+    return GeminiHomeSuggestionGenerator.boundedContext(items.map(\.content))
+  }
+
+  func conversationContext(snapshot: RuntimeOwnerAuthorizationSnapshot) async -> String? {
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(snapshot) else { return nil }
+    guard
+      let items = try? await LocalAuthorityConversationDataSource().list(
+        query: ConversationListQuery(starredOnly: false, date: nil, folderId: nil),
+        offset: 0,
+        limit: 30)
+    else { return nil }
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(snapshot) else { return nil }
+    return GeminiHomeSuggestionGenerator.boundedContext(
+      items.compactMap { $0.structured.overview.isEmpty ? nil : $0.structured.overview }
+    )
+  }
+
+  func taskContext(snapshot: RuntimeOwnerAuthorizationSnapshot) async -> String? {
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(snapshot) else { return nil }
+    guard
+      let items = try? await ActionItemStorage.shared.getLocalActionItems(
+        limit: 50,
+        completed: false
+      )
+    else { return nil }
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(snapshot) else { return nil }
+    return GeminiHomeSuggestionGenerator.boundedContext(items.map(\.description))
+  }
+
+  func goalContext(snapshot: RuntimeOwnerAuthorizationSnapshot) async -> String? {
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(snapshot) else { return nil }
+    guard let goals = try? await GoalStorage.shared.getLocalGoals(activeOnly: true) else { return nil }
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(snapshot) else { return nil }
+    return GeminiHomeSuggestionGenerator.boundedContext(goals.prefix(50).map(\.title))
+  }
+}
+
 struct GeminiHomeSuggestionGenerator: HomeSuggestionGenerating {
   private struct Response: Decodable {
     let questions: [String]
+  }
+
+  static let maxSourceCharacters = 6_000
+  static let maxItemCharacters = 500
+
+  let sources: any HomeSuggestionLocalSources
+
+  init(sources: any HomeSuggestionLocalSources = DefaultHomeSuggestionLocalSources()) {
+    self.sources = sources
+  }
+
+  static func boundedContext<S: Sequence>(_ values: S) -> String where S.Element == String {
+    var result = ""
+    for value in values {
+      let cleaned = value.trimmingCharacters(in: .whitespacesAndNewlines)
+      guard !cleaned.isEmpty else { continue }
+      let item = String(cleaned.prefix(maxItemCharacters))
+      let separator = result.isEmpty ? "" : "\n"
+      let remaining = maxSourceCharacters - result.count
+      guard remaining > separator.count else { break }
+      result += String((separator + item).prefix(remaining))
+      if result.count == maxSourceCharacters { break }
+    }
+    return result
   }
 
   /// Classifies the four context fetches (nil = that fetch failed) so an
@@ -228,52 +319,31 @@ struct GeminiHomeSuggestionGenerator: HomeSuggestionGenerating {
     )
   }
 
+  func loadContext(
+    snapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async -> ContextClassification {
+    async let memoriesFetch = sources.memoryContext(snapshot: snapshot)
+    async let conversationsFetch = sources.conversationContext(snapshot: snapshot)
+    async let actionItemsFetch = sources.taskContext(snapshot: snapshot)
+    async let goalsFetch = sources.goalContext(snapshot: snapshot)
+
+    let (memories, conversations, actionItems, goals) = await (
+      memoriesFetch, conversationsFetch, actionItemsFetch, goalsFetch
+    )
+    return Self.classifyContext(
+      memories: memories,
+      conversations: conversations,
+      tasks: actionItems,
+      goals: goals
+    )
+  }
+
   func generatePersonalizedQuestions(
     snapshot: RuntimeOwnerAuthorizationSnapshot
   ) async throws -> [String] {
     // nil = that fetch failed (vs. succeeded with no data) — the distinction
     // drives outage-vs-thin classification below.
-    async let memoriesFetch = { () async -> [MemoryItem]? in
-      guard RuntimeOwnerIdentity.isAuthorizationCurrent(snapshot) else { return nil }
-      let result = try? await MemoryStorage.shared.list(limit: 200)
-      guard RuntimeOwnerIdentity.isAuthorizationCurrent(snapshot) else { return nil }
-      return result
-    }()
-    async let conversationsFetch = { () async -> [LocalConversation]? in
-      guard RuntimeOwnerIdentity.isAuthorizationCurrent(snapshot) else { return nil }
-      let result = try? await LocalAuthorityConversationDataSource().list(
-        query: ConversationListQuery(starredOnly: false, date: nil, folderId: nil),
-        offset: 0,
-        limit: 30)
-      guard RuntimeOwnerIdentity.isAuthorizationCurrent(snapshot) else { return nil }
-      return result
-    }()
-    async let actionItemsFetch = { () async -> [TaskActionItem]? in
-      guard RuntimeOwnerIdentity.isAuthorizationCurrent(snapshot) else { return nil }
-      let tasks = try? await ActionItemStorage.shared.getLocalActionItems(limit: 50, completed: false)
-      guard RuntimeOwnerIdentity.isAuthorizationCurrent(snapshot) else { return nil }
-      return tasks
-    }()
-    async let goalsFetch = { () async -> [LocalGoal]? in
-      guard RuntimeOwnerIdentity.isAuthorizationCurrent(snapshot) else { return nil }
-      let goals = try? await GoalStorage.shared.getLocalGoals(activeOnly: true)
-      guard RuntimeOwnerIdentity.isAuthorizationCurrent(snapshot) else { return nil }
-      return goals
-    }()
-
-    let (memories, conversations, actionItems, goals) = await (
-      memoriesFetch, conversationsFetch, actionItemsFetch, goalsFetch
-    )
-
-    let classification = Self.classifyContext(
-      memories: memories.map { $0.map { $0.content }.joined(separator: "\n") },
-      conversations: conversations.map {
-        $0.compactMap { $0.structured.overview.isEmpty ? nil : $0.structured.overview }
-          .joined(separator: "\n")
-      },
-      tasks: actionItems.map { $0.map { $0.description }.joined(separator: "\n") },
-      goals: goals.map { $0.map { $0.title }.joined(separator: "\n") }
-    )
+    let classification = await loadContext(snapshot: snapshot)
 
     let memoryContext: String
     let conversationContext: String

@@ -1,11 +1,6 @@
 import SwiftUI
 
-/// Shared Capture/Listening control logic used by both the persistent status bar
-/// (`CaptureListeningControls`) and Home's column-aligned header
-/// (`DashboardPage.homeHeader`). The two surfaces render different layouts but
-/// drive identical behavior, so the toggle actions and status derivations live
-/// here once. Each view keeps its own `@State`/`@AppStorage` (preserving SwiftUI
-/// ownership + reactivity) and passes them in as values/bindings.
+/// Capture/Listening control logic used by the persistent shell status bar.
 @MainActor
 enum CaptureListeningLogic {
   // MARK: Status derivations
@@ -30,7 +25,7 @@ enum CaptureListeningLogic {
     case .always:
       return "Always"
     case .onlyDuringMeetings:
-      return appState.isAwaitingMeeting ? "Meetings only" : "In meeting"
+      return "Meetings Only"
     case .never:
       return "Mic only"
     }
@@ -62,15 +57,19 @@ enum CaptureListeningLogic {
     }
   }
 
+  static func setListeningMode(_ mode: AssistantSettings.SystemAudioCaptureMode, raw: Binding<String>) {
+    raw.wrappedValue = mode.rawValue
+    AssistantSettings.shared.systemAudioCaptureMode = mode
+    AnalyticsManager.shared.settingToggled(
+      setting: "meetings_only_listening",
+      enabled: mode == .onlyDuringMeetings
+    )
+  }
+
   static func toggleListeningMode(raw: Binding<String>) {
     let nextMode: AssistantSettings.SystemAudioCaptureMode =
       listeningCaptureMode(raw: raw.wrappedValue) == .onlyDuringMeetings ? .always : .onlyDuringMeetings
-    raw.wrappedValue = nextMode.rawValue
-    AssistantSettings.shared.systemAudioCaptureMode = nextMode
-    AnalyticsManager.shared.settingToggled(
-      setting: "meetings_only_listening",
-      enabled: nextMode == .onlyDuringMeetings
-    )
+    setListeningMode(nextMode, raw: raw)
   }
 
   static func toggleCapture(

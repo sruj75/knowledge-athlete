@@ -78,6 +78,14 @@ final class HomeKnowsComposerTests: XCTestCase {
     XCTAssertTrue(HomeKnowsListComposer.compose(tasks: [], insights: [], questions: []).isEmpty)
   }
 
+  func testCompositionIsStableAcrossRepeatedReads() {
+    let first = HomeKnowsListComposer.compose(tasks: tasks, insights: insights, questions: questions)
+    let second = HomeKnowsListComposer.compose(tasks: tasks, insights: insights, questions: questions)
+
+    XCTAssertEqual(first, second)
+    XCTAssertEqual(first.map(\.id), ["task-t1", "insight-i1", "task-t2", "question-What should I do today?"])
+  }
+
   func testDuplicateQuestionsDoNotCollideAcrossQuestionRows() {
     // Question rows derive their ForEach ID from the text, so a repeated
     // suggestion must never surface twice. The redesign surfaces at most two

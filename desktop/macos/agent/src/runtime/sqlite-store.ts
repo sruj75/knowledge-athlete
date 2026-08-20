@@ -2,11 +2,6 @@ import { mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 import { DatabaseSync, type SQLInputValue, type SQLOutputValue } from "node:sqlite";
-import {
-  backendTombstoneCode,
-  backendTurnPayload,
-  backendTurnPayloadHash,
-} from "./backend-turn-projection.js";
 import { conversationTurnFromRow } from "./conversation-turns.js";
 import type {
   AdapterBinding,
@@ -67,14 +62,12 @@ const TOOL_INVOCATION_LEDGER_MIGRATION_VERSION = 18;
 const KERNEL_CONTEXT_AUTHORITY_MIGRATION_VERSION = 19;
 const JOURNAL_GENERATION_BASE_MIGRATION_VERSION = 20;
 const OWNER_CONTEXT_SNAPSHOT_MIGRATION_VERSION = 21;
-const BACKEND_CONVERSATION_DELETE_OUTBOX_MIGRATION_VERSION = 22;
-const BACKEND_RECONCILE_STATE_MIGRATION_VERSION = 23;
-const CLEARED_BACKEND_TURN_CLAIMS_MIGRATION_VERSION = 24;
 const CONTEXT_SOURCE_SURFACE_SCOPE_MIGRATION_VERSION = 25;
-const BACKEND_RECONCILE_CURSOR_MIGRATION_VERSION = 26;
 const JOURNAL_PRODUCING_ATTEMPT_MIGRATION_VERSION = 27;
-const LOCAL_ONLY_JOURNAL_DELIVERY_MIGRATION_VERSION = 28;
 const MANAGED_PI_EXECUTION_PROFILE_MIGRATION_VERSION = 29;
+const LOCAL_CHAT_CATALOG_MIGRATION_VERSION = 31;
+const DROP_CHAT_PROJECTION_MIGRATION_VERSION = 32;
+const RETIRED_CHAT_PROJECTION_MIGRATION_VERSIONS = [22, 23, 24, 26, 28] as const;
 
 const ACTIVE_ATTEMPT_STATUSES = ["queued", "starting", "running", "waiting_input", "waiting_approval", "cancelling"] as const;
 const TERMINAL_ATTEMPT_STATUSES = ["succeeded", "failed", "cancelled", "timed_out", "orphaned"] as const;
@@ -105,6 +98,9 @@ CREATE TABLE sessions (
   owner_id TEXT NOT NULL,
   agent_definition_id TEXT NOT NULL DEFAULT 'omi.generalist@1',
   title TEXT,
+  title_origin TEXT NOT NULL DEFAULT 'default'
+    CHECK (title_origin IN ('default', 'automatic', 'manual')),
+  starred INTEGER NOT NULL DEFAULT 0 CHECK (starred IN (0, 1)),
   status TEXT NOT NULL CHECK (status IN ('open', 'archived', 'closed')),
   surface_kind TEXT NOT NULL,
   external_ref_kind TEXT,
@@ -383,14 +379,14 @@ export function probeNodeSqliteRuntime(options: NodeSqliteProbeOptions = {}): vo
     runKernelContextAuthorityMigration(db, Date.now());
     runJournalGenerationBaseMigration(db, Date.now());
     runOwnerContextSnapshotMigration(db, Date.now());
-    runBackendConversationDeleteOutboxMigration(db, Date.now());
-    runBackendReconcileStateMigration(db, Date.now());
-    runClearedBackendTurnClaimsMigration(db, Date.now());
+    for (const version of RETIRED_CHAT_PROJECTION_MIGRATION_VERSIONS) {
+      recordRetiredMigration(db, Date.now(), version);
+    }
     runContextSourceSurfaceScopeMigration(db, Date.now());
-    runBackendReconcileCursorMigration(db, Date.now());
     runJournalProducingAttemptMigration(db, Date.now());
-    runLocalOnlyJournalDeliveryMigration(db, Date.now());
     runRetiredTaskProductMigration(db, Date.now());
+    runLocalChatCatalogMigration(db, Date.now());
+    runDropChatProjectionMigration(db, Date.now());
     runTransaction(db, () => {
       db?.prepare("INSERT INTO sessions (session_id, owner_id, status, surface_kind, default_adapter_id, created_at_ms, updated_at_ms, last_activity_at_ms) VALUES (?, ?, ?, ?, ?, ?, ?, ?)").run(
         "ses_probe",
@@ -508,26 +504,16 @@ export class SqliteAgentStore implements AgentStore {
     if (!this.hasMigration(OWNER_CONTEXT_SNAPSHOT_MIGRATION_VERSION)) {
       runOwnerContextSnapshotMigration(this.db, this.nowMs());
     }
-    if (!this.hasMigration(BACKEND_CONVERSATION_DELETE_OUTBOX_MIGRATION_VERSION)) {
-      runBackendConversationDeleteOutboxMigration(this.db, this.nowMs());
-    }
-    if (!this.hasMigration(BACKEND_RECONCILE_STATE_MIGRATION_VERSION)) {
-      runBackendReconcileStateMigration(this.db, this.nowMs());
-    }
-    if (!this.hasMigration(CLEARED_BACKEND_TURN_CLAIMS_MIGRATION_VERSION)) {
-      runClearedBackendTurnClaimsMigration(this.db, this.nowMs());
+    for (const version of RETIRED_CHAT_PROJECTION_MIGRATION_VERSIONS) {
+      if (!this.hasMigration(version)) {
+        recordRetiredMigration(this.db, this.nowMs(), version);
+      }
     }
     if (!this.hasMigration(CONTEXT_SOURCE_SURFACE_SCOPE_MIGRATION_VERSION)) {
       runContextSourceSurfaceScopeMigration(this.db, this.nowMs());
     }
-    if (!this.hasMigration(BACKEND_RECONCILE_CURSOR_MIGRATION_VERSION)) {
-      runBackendReconcileCursorMigration(this.db, this.nowMs());
-    }
     if (!this.hasMigration(JOURNAL_PRODUCING_ATTEMPT_MIGRATION_VERSION)) {
       runJournalProducingAttemptMigration(this.db, this.nowMs());
-    }
-    if (!this.hasMigration(LOCAL_ONLY_JOURNAL_DELIVERY_MIGRATION_VERSION)) {
-      runLocalOnlyJournalDeliveryMigration(this.db, this.nowMs());
     }
     if (!this.hasMigration(MANAGED_PI_EXECUTION_PROFILE_MIGRATION_VERSION)) {
       runManagedPiExecutionProfileMigration(
@@ -538,6 +524,12 @@ export class SqliteAgentStore implements AgentStore {
     }
     if (!this.hasMigration(RETIRED_TASK_PRODUCT_MIGRATION_VERSION)) {
       runRetiredTaskProductMigration(this.db, this.nowMs());
+    }
+    if (!this.hasMigration(LOCAL_CHAT_CATALOG_MIGRATION_VERSION)) {
+      runLocalChatCatalogMigration(this.db, this.nowMs());
+    }
+    if (!this.hasMigration(DROP_CHAT_PROJECTION_MIGRATION_VERSION)) {
+      runDropChatProjectionMigration(this.db, this.nowMs());
     }
   }
 
@@ -677,8 +669,7 @@ export class SqliteAgentStore implements AgentStore {
       }
 
       const reconciledJournalTurns = reconcileNonterminalJournalRows(this.db, now);
-      const repairedBackendTurnOutboxes = reconcileBackendTurnOutboxRows(this.db, now);
-      for (const repair of [...reconciledJournalTurns, ...repairedBackendTurnOutboxes]) {
+      for (const repair of reconciledJournalTurns) {
         const surface = this.getOptionalRow(
           `SELECT agent_session_id FROM surface_conversations
            WHERE conversation_id = ? ORDER BY last_active_at_ms DESC LIMIT 1`,
@@ -724,37 +715,6 @@ export class SqliteAgentStore implements AgentStore {
            WHERE delivery_status = ?`,
         ).run("failed", now, "daemon_startup_reconciliation", "retrying");
       }
-
-      const requeuedBackendTurnOutboxIds = this.allRows(
-        "SELECT turn_id FROM backend_turn_outbox WHERE status = 'delivering'",
-      ).map((row) => text(row.turn_id));
-      if (requeuedBackendTurnOutboxIds.length > 0) {
-        this.db.prepare(
-          `UPDATE backend_turn_outbox
-           SET status = 'retrying', available_at_ms = ?, lease_expires_at_ms = NULL,
-               last_error_code = 'daemon_restart', updated_at_ms = ?
-           WHERE status = 'delivering'`,
-        ).run(now, now);
-      }
-      const requeuedBackendConversationDeleteIds = this.allRows(
-        "SELECT operation_id FROM backend_conversation_delete_outbox WHERE status = 'delivering'",
-      ).map((row) => text(row.operation_id));
-      if (requeuedBackendConversationDeleteIds.length > 0) {
-        this.db.prepare(
-          `UPDATE backend_conversation_delete_outbox
-           SET status = 'retrying', available_at_ms = ?, lease_expires_at_ms = NULL,
-               last_error_code = 'daemon_restart', updated_at_ms = ?
-           WHERE status = 'delivering'`,
-        ).run(now, now);
-      }
-      this.db.prepare(
-        `UPDATE backend_reconcile_state
-         SET in_flight_id = NULL, page_cursor = NULL, page_count = 0,
-             candidate_frontier_remote_id = NULL, status = 'idle',
-             last_error_code = CASE WHEN status = 'fetching' THEN 'daemon_restart' ELSE last_error_code END,
-             updated_at_ms = ?
-         WHERE status = 'fetching'`,
-      ).run(now);
 
       const recoveryDispatchIds: string[] = [];
       const orphanedDelegatedRuns = this.allRows(
@@ -820,8 +780,6 @@ export class SqliteAgentStore implements AgentStore {
         staleBindingIds: staleBindings.map((row) => text(row.binding_id)),
         expiredContextPacketIds,
         failedArtifactDeliveryIds,
-        requeuedBackendTurnOutboxIds,
-        requeuedBackendConversationDeleteIds,
         failedPreparedToolInvocationIds,
         outcomeUnknownToolInvocationIds,
         repairedSessionProfileIds,
@@ -830,7 +788,6 @@ export class SqliteAgentStore implements AgentStore {
         repairedBindingProfileReferenceIds: repairedProfileReferences.bindingIds,
         repairedLegacyJournalTurnIds,
         reconciledJournalTurnIds: reconciledJournalTurns.map((repair) => repair.turnId),
-        repairedBackendTurnOutboxIds: repairedBackendTurnOutboxes.map((repair) => repair.turnId),
         recoveryDispatchIds,
         clearedAttemptInstanceIds,
         clearedBindingInstanceIds,
@@ -1791,11 +1748,6 @@ function reconcileNonterminalJournalRows(
       completedAtMs: nowMs,
       nowMs,
     });
-    const blocks = parseJsonArray(row.content_blocks_json);
-    const resources = parseJsonArray(row.resources_json);
-    if (status === "failed" && !String(row.content).trim() && blocks.length === 0 && resources.length === 0) {
-      db.prepare("DELETE FROM backend_turn_outbox WHERE turn_id = ?").run(row.turn_id);
-    }
     return {
       turnId: text(row.turn_id),
       conversationId: text(row.conversation_id),
@@ -1803,55 +1755,6 @@ function reconcileNonterminalJournalRows(
       code,
     };
   });
-}
-
-function reconcileBackendTurnOutboxRows(
-  db: Pick<DatabaseSync, "prepare">,
-  nowMs: number,
-): StartupJournalRepair[] {
-  const rows = db.prepare(
-    `SELECT ct.*, outbox.payload_hash AS outbox_payload_hash
-     FROM backend_turn_outbox outbox
-     JOIN conversation_turns ct
-       ON ct.conversation_id = outbox.conversation_id
-      AND ct.turn_id = outbox.turn_id
-     WHERE outbox.status IN ('pending', 'retrying', 'delivering')
-       AND ct.status IN ('completed', 'failed')
-     ORDER BY outbox.created_at_ms ASC, outbox.turn_id ASC`,
-  ).all() as Row[];
-  const repairs: StartupJournalRepair[] = [];
-  for (const row of rows) {
-    const turn = conversationTurnFromRow(row);
-    const payloadHash = backendTurnPayloadHash(backendTurnPayload(turn));
-    if (payloadHash === text(row.outbox_payload_hash)) continue;
-    const tombstoneCode = backendTombstoneCode(turn);
-    db.prepare(
-      `UPDATE backend_turn_outbox
-       SET payload_hash = ?,
-           status = CASE WHEN ? IS NOT NULL THEN 'failed' ELSE 'pending' END,
-           attempt_count = 0,
-           available_at_ms = ?,
-           lease_expires_at_ms = NULL,
-           last_error_code = ?,
-           updated_at_ms = ?
-       WHERE turn_id = ? AND payload_hash != ?`,
-    ).run(
-      payloadHash,
-      tombstoneCode,
-      nowMs,
-      tombstoneCode,
-      nowMs,
-      turn.turnId,
-      payloadHash,
-    );
-    repairs.push({
-      turnId: turn.turnId,
-      conversationId: turn.conversationId,
-      producingRunId: turn.producingRunId,
-      code: "daemon_restart_outbox_revision_repair",
-    });
-  }
-  return repairs;
 }
 
 function rewriteJournalRow(
@@ -2465,29 +2368,6 @@ function runConversationJournalMigration(db: Pick<DatabaseSync, "exec" | "prepar
       CREATE UNIQUE INDEX IF NOT EXISTS conversation_turns_remote_id_uq
         ON conversation_turns(conversation_id, remote_id)
         WHERE remote_id IS NOT NULL;
-
-      CREATE TABLE IF NOT EXISTS backend_turn_outbox(
-        turn_id TEXT PRIMARY KEY,
-        conversation_id TEXT NOT NULL,
-        owner_id TEXT NOT NULL,
-        client_message_id TEXT NOT NULL UNIQUE CHECK (client_message_id = turn_id),
-        status TEXT NOT NULL CHECK (status IN ('pending', 'delivering', 'retrying', 'delivered', 'failed')),
-        attempt_count INTEGER NOT NULL DEFAULT 0 CHECK (attempt_count >= 0),
-        available_at_ms INTEGER NOT NULL,
-        lease_expires_at_ms INTEGER,
-        remote_id TEXT,
-        last_error_code TEXT CHECK (last_error_code IS NULL OR length(last_error_code) <= 128),
-        created_at_ms INTEGER NOT NULL,
-        updated_at_ms INTEGER NOT NULL,
-        delivered_at_ms INTEGER,
-        FOREIGN KEY(conversation_id, turn_id)
-          REFERENCES conversation_turns(conversation_id, turn_id) ON DELETE CASCADE
-      ) STRICT;
-
-      CREATE INDEX IF NOT EXISTS backend_turn_outbox_drain_idx
-        ON backend_turn_outbox(status, available_at_ms ASC, created_at_ms ASC);
-      CREATE INDEX IF NOT EXISTS backend_turn_outbox_owner_status_idx
-        ON backend_turn_outbox(owner_id, status, updated_at_ms DESC);
     `);
     db.prepare("INSERT INTO schema_migrations (version, applied_at_ms) VALUES (?, ?)").run(
       CONVERSATION_JOURNAL_MIGRATION_VERSION,
@@ -2660,13 +2540,6 @@ function runConversationJournalSequenceMigration(
              payload_hash,
              updated_at_ms
       FROM conversation_turns;
-
-      ALTER TABLE backend_turn_outbox
-        ADD COLUMN payload_hash TEXT NOT NULL DEFAULT 'uncomputed';
-      ALTER TABLE backend_turn_outbox
-        ADD COLUMN delivery_generation INTEGER NOT NULL DEFAULT 0 CHECK (delivery_generation >= 0);
-      ALTER TABLE backend_turn_outbox
-        ADD COLUMN conversation_generation INTEGER NOT NULL DEFAULT 1 CHECK (conversation_generation > 0);
     `);
     db.prepare("INSERT INTO schema_migrations (version, applied_at_ms) VALUES (?, ?)").run(
       CONVERSATION_JOURNAL_SEQUENCE_MIGRATION_VERSION,
@@ -2813,107 +2686,6 @@ function runOwnerContextSnapshotMigration(
   });
 }
 
-function runBackendConversationDeleteOutboxMigration(
-  db: Pick<DatabaseSync, "exec" | "prepare" | "isTransaction">,
-  appliedAtMs: number,
-): void {
-  runTransaction(db, () => {
-    db.exec(`
-      CREATE TABLE backend_conversation_delete_outbox(
-        operation_id TEXT PRIMARY KEY,
-        conversation_id TEXT NOT NULL,
-        owner_id TEXT NOT NULL,
-        target_kind TEXT NOT NULL CHECK (target_kind IN ('messages', 'chat_session')),
-        target_id TEXT,
-        conversation_generation INTEGER NOT NULL CHECK (conversation_generation > 0),
-        status TEXT NOT NULL CHECK (status IN ('pending', 'delivering', 'retrying', 'delivered', 'failed')),
-        attempt_count INTEGER NOT NULL DEFAULT 0 CHECK (attempt_count >= 0),
-        delivery_generation INTEGER NOT NULL DEFAULT 0 CHECK (delivery_generation >= 0),
-        payload_hash TEXT NOT NULL,
-        available_at_ms INTEGER NOT NULL,
-        lease_expires_at_ms INTEGER,
-        last_error_code TEXT,
-        created_at_ms INTEGER NOT NULL,
-        updated_at_ms INTEGER NOT NULL,
-        delivered_at_ms INTEGER,
-        UNIQUE(conversation_id, conversation_generation)
-      ) STRICT;
-      CREATE INDEX backend_conversation_delete_outbox_drain_idx
-        ON backend_conversation_delete_outbox(owner_id, status, available_at_ms ASC, created_at_ms ASC);
-    `);
-    db.prepare("INSERT INTO schema_migrations (version, applied_at_ms) VALUES (?, ?)").run(
-      BACKEND_CONVERSATION_DELETE_OUTBOX_MIGRATION_VERSION,
-      appliedAtMs,
-    );
-  });
-}
-
-function runBackendReconcileStateMigration(
-  db: Pick<DatabaseSync, "exec" | "prepare" | "isTransaction">,
-  appliedAtMs: number,
-): void {
-  runTransaction(db, () => {
-    db.exec(`
-      CREATE TABLE backend_reconcile_state(
-        conversation_id TEXT PRIMARY KEY,
-        owner_id TEXT NOT NULL,
-        conversation_generation INTEGER NOT NULL DEFAULT 1 CHECK (conversation_generation > 0),
-        frontier_remote_id TEXT,
-        candidate_frontier_remote_id TEXT,
-        in_flight_id TEXT,
-        page_cursor TEXT,
-        page_count INTEGER NOT NULL DEFAULT 0 CHECK (page_count >= 0),
-        status TEXT NOT NULL DEFAULT 'idle' CHECK (status IN ('idle', 'fetching', 'failed')),
-        last_error_code TEXT,
-        last_requested_at_ms INTEGER,
-        last_completed_at_ms INTEGER,
-        updated_at_ms INTEGER NOT NULL
-      ) STRICT;
-      CREATE INDEX backend_reconcile_state_owner_status_idx
-        ON backend_reconcile_state(owner_id, status, updated_at_ms ASC);
-    `);
-    db.prepare("INSERT INTO schema_migrations (version, applied_at_ms) VALUES (?, ?)").run(
-      BACKEND_RECONCILE_STATE_MIGRATION_VERSION,
-      appliedAtMs,
-    );
-  });
-}
-
-function runClearedBackendTurnClaimsMigration(
-  db: Pick<DatabaseSync, "exec" | "prepare" | "isTransaction">,
-  appliedAtMs: number,
-): void {
-  runTransaction(db, () => {
-    if (!tableHasColumn(db, "backend_reconcile_state", "conversation_generation")) {
-      db.exec(
-        "ALTER TABLE backend_reconcile_state ADD COLUMN conversation_generation INTEGER NOT NULL DEFAULT 1 CHECK (conversation_generation > 0)",
-      );
-    }
-    db.exec(`
-      CREATE TABLE cleared_backend_turn_claims(
-        turn_id TEXT PRIMARY KEY,
-        conversation_id TEXT NOT NULL,
-        owner_id TEXT NOT NULL,
-        attempt_count INTEGER NOT NULL CHECK (attempt_count > 0),
-        delivery_generation INTEGER NOT NULL CHECK (delivery_generation > 0),
-        conversation_generation INTEGER NOT NULL CHECK (conversation_generation > 0),
-        payload_hash TEXT NOT NULL,
-        lease_expires_at_ms INTEGER NOT NULL,
-        status TEXT NOT NULL DEFAULT 'waiting' CHECK (status IN ('waiting', 'settled')),
-        result_outcome TEXT CHECK (result_outcome IS NULL OR result_outcome IN ('succeeded', 'failed', 'expired')),
-        created_at_ms INTEGER NOT NULL,
-        settled_at_ms INTEGER
-      ) STRICT;
-      CREATE INDEX cleared_backend_turn_claims_conversation_status_idx
-        ON cleared_backend_turn_claims(conversation_id, status, lease_expires_at_ms ASC);
-    `);
-    db.prepare("INSERT INTO schema_migrations (version, applied_at_ms) VALUES (?, ?)").run(
-      CLEARED_BACKEND_TURN_CLAIMS_MIGRATION_VERSION,
-      appliedAtMs,
-    );
-  });
-}
-
 function runContextSourceSurfaceScopeMigration(
   db: Pick<DatabaseSync, "exec" | "prepare" | "isTransaction">,
   appliedAtMs: number,
@@ -2954,50 +2726,6 @@ function runContextSourceSurfaceScopeMigration(
   });
 }
 
-function runBackendReconcileCursorMigration(
-  db: Pick<DatabaseSync, "exec" | "prepare" | "isTransaction">,
-  appliedAtMs: number,
-): void {
-  runTransaction(db, () => {
-    db.exec(`
-      ALTER TABLE backend_reconcile_state RENAME TO backend_reconcile_state_legacy;
-      CREATE TABLE backend_reconcile_state(
-        conversation_id TEXT PRIMARY KEY,
-        owner_id TEXT NOT NULL,
-        conversation_generation INTEGER NOT NULL DEFAULT 1 CHECK (conversation_generation > 0),
-        frontier_remote_id TEXT,
-        candidate_frontier_remote_id TEXT,
-        in_flight_id TEXT,
-        page_cursor TEXT,
-        page_count INTEGER NOT NULL DEFAULT 0 CHECK (page_count >= 0),
-        status TEXT NOT NULL DEFAULT 'idle' CHECK (status IN ('idle', 'fetching', 'failed')),
-        last_error_code TEXT,
-        last_requested_at_ms INTEGER,
-        last_completed_at_ms INTEGER,
-        updated_at_ms INTEGER NOT NULL
-      ) STRICT;
-      INSERT INTO backend_reconcile_state(
-        conversation_id, owner_id, conversation_generation, frontier_remote_id,
-        candidate_frontier_remote_id, in_flight_id, page_cursor, page_count, status,
-        last_error_code, last_requested_at_ms, last_completed_at_ms, updated_at_ms
-      )
-      SELECT conversation_id, owner_id, conversation_generation, frontier_remote_id,
-             NULL, NULL, NULL, 0,
-             CASE WHEN status = 'fetching' THEN 'idle' ELSE status END,
-             CASE WHEN status = 'fetching' THEN 'cursor_migration' ELSE last_error_code END,
-             last_requested_at_ms, last_completed_at_ms, updated_at_ms
-      FROM backend_reconcile_state_legacy;
-      DROP TABLE backend_reconcile_state_legacy;
-      CREATE INDEX backend_reconcile_state_owner_status_idx
-        ON backend_reconcile_state(owner_id, status, updated_at_ms ASC);
-    `);
-    db.prepare("INSERT INTO schema_migrations (version, applied_at_ms) VALUES (?, ?)").run(
-      BACKEND_RECONCILE_CURSOR_MIGRATION_VERSION,
-      appliedAtMs,
-    );
-  });
-}
-
 function runJournalProducingAttemptMigration(
   db: Pick<DatabaseSync, "exec" | "prepare" | "isTransaction">,
   appliedAtMs: number,
@@ -3012,55 +2740,6 @@ function runJournalProducingAttemptMigration(
     `);
     db.prepare("INSERT INTO schema_migrations (version, applied_at_ms) VALUES (?, ?)").run(
       JOURNAL_PRODUCING_ATTEMPT_MIGRATION_VERSION,
-      appliedAtMs,
-    );
-  });
-}
-
-function runLocalOnlyJournalDeliveryMigration(
-  db: Pick<DatabaseSync, "exec" | "prepare" | "isTransaction">,
-  appliedAtMs: number,
-): void {
-  runTransaction(db, () => {
-    // Canonical surface ownership is the delivery authority. Remove only rows
-    // whose owner and conversation both resolve to a local-only surface so an
-    // upgrade cannot flush previously queued onboarding/task data to backend.
-    db.exec(`
-      DELETE FROM backend_turn_outbox
-      WHERE EXISTS (
-        SELECT 1
-        FROM surface_conversations
-        WHERE surface_conversations.conversation_id = backend_turn_outbox.conversation_id
-          AND surface_conversations.owner_id = backend_turn_outbox.owner_id
-          AND surface_conversations.surface_kind = 'onboarding'
-      );
-      DELETE FROM backend_conversation_delete_outbox
-      WHERE EXISTS (
-        SELECT 1
-        FROM surface_conversations
-        WHERE surface_conversations.conversation_id = backend_conversation_delete_outbox.conversation_id
-          AND surface_conversations.owner_id = backend_conversation_delete_outbox.owner_id
-          AND surface_conversations.surface_kind = 'onboarding'
-      );
-      DELETE FROM backend_reconcile_state
-      WHERE EXISTS (
-        SELECT 1
-        FROM surface_conversations
-        WHERE surface_conversations.conversation_id = backend_reconcile_state.conversation_id
-          AND surface_conversations.owner_id = backend_reconcile_state.owner_id
-          AND surface_conversations.surface_kind = 'onboarding'
-      );
-      DELETE FROM cleared_backend_turn_claims
-      WHERE EXISTS (
-        SELECT 1
-        FROM surface_conversations
-        WHERE surface_conversations.conversation_id = cleared_backend_turn_claims.conversation_id
-          AND surface_conversations.owner_id = cleared_backend_turn_claims.owner_id
-          AND surface_conversations.surface_kind = 'onboarding'
-      );
-    `);
-    db.prepare("INSERT INTO schema_migrations (version, applied_at_ms) VALUES (?, ?)").run(
-      LOCAL_ONLY_JOURNAL_DELIVERY_MIGRATION_VERSION,
       appliedAtMs,
     );
   });
@@ -3162,6 +2841,64 @@ function runRetiredTaskProductMigration(
     `);
     db.prepare("INSERT INTO schema_migrations (version, applied_at_ms) VALUES (?, ?)").run(
       RETIRED_TASK_PRODUCT_MIGRATION_VERSION,
+      appliedAtMs,
+    );
+  });
+}
+
+function runLocalChatCatalogMigration(
+  db: Pick<DatabaseSync, "exec" | "prepare" | "isTransaction">,
+  appliedAtMs: number,
+): void {
+  runTransaction(db, () => {
+    if (!tableHasColumn(db, "sessions", "title_origin")) {
+      db.exec(`
+        ALTER TABLE sessions
+          ADD COLUMN title_origin TEXT NOT NULL DEFAULT 'default'
+          CHECK (title_origin IN ('default', 'automatic', 'manual'));
+      `);
+    }
+    if (!tableHasColumn(db, "sessions", "starred")) {
+      db.exec(`
+        ALTER TABLE sessions
+          ADD COLUMN starred INTEGER NOT NULL DEFAULT 0 CHECK (starred IN (0, 1));
+      `);
+    }
+    db.prepare("INSERT INTO schema_migrations (version, applied_at_ms) VALUES (?, ?)").run(
+      LOCAL_CHAT_CATALOG_MIGRATION_VERSION,
+      appliedAtMs,
+    );
+  });
+}
+
+function recordRetiredMigration(
+  db: Pick<DatabaseSync, "exec" | "prepare" | "isTransaction">,
+  appliedAtMs: number,
+  version: (typeof RETIRED_CHAT_PROJECTION_MIGRATION_VERSIONS)[number],
+): void {
+  runTransaction(db, () => {
+    db.prepare("INSERT INTO schema_migrations (version, applied_at_ms) VALUES (?, ?)").run(version, appliedAtMs);
+  });
+}
+
+/**
+ * S-11 removes the retired cloud Chat projection. These tables never owned
+ * canonical data, so the upgrade intentionally drops them without importing
+ * or preserving queued projection state.
+ */
+function runDropChatProjectionMigration(
+  db: Pick<DatabaseSync, "exec" | "prepare" | "isTransaction">,
+  appliedAtMs: number,
+): void {
+  runTransaction(db, () => {
+    db.exec(`
+      DROP TABLE IF EXISTS cleared_backend_turn_claims;
+      DROP TABLE IF EXISTS backend_conversation_delete_outbox;
+      DROP TABLE IF EXISTS backend_reconcile_state;
+      DROP TABLE IF EXISTS backend_turn_outbox;
+    `);
+    db.prepare("INSERT INTO schema_migrations (version, applied_at_ms) VALUES (?, ?)").run(
+      DROP_CHAT_PROJECTION_MIGRATION_VERSION,
       appliedAtMs,
     );
   });

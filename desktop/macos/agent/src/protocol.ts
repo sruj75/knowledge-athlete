@@ -4,7 +4,7 @@
 // === Swift → Bridge (stdin) ===
 
 export const PROTOCOL_VERSION = 2 as const;
-export const RUNTIME_CAPABILITIES = ["journal_import_remote_turn", "runtime_adapter_availability"] as const;
+export const RUNTIME_CAPABILITIES = ["chat_catalog", "runtime_adapter_availability"] as const;
 export type ProtocolVersion = typeof PROTOCOL_VERSION;
 
 export interface ProtocolEnvelope {
@@ -138,11 +138,6 @@ export interface RevokeOwnerRuntimeMessage extends ProtocolEnvelope {
   ownerId: string;
 }
 
-export interface ImportLegacyMainChatSessionsMessage extends ProtocolEnvelope {
-  type: "import_legacy_main_chat_sessions";
-  entries: Array<{ chatId: string; agentSessionId: string }>;
-}
-
 /** A warmup can identify a pinned session/profile, but cannot configure it. */
 export interface WarmupMessage extends ProtocolEnvelope {
   type: "warmup";
@@ -156,6 +151,47 @@ export interface ResolveSurfaceSessionMessage extends ProtocolEnvelope {
   externalRefKind: string;
   externalRefId: string;
   title?: string;
+}
+
+export type ChatCatalogTitleOrigin = "default" | "automatic" | "manual";
+
+export interface ChatCatalogSummaryProjection {
+  chatId: string;
+  title: string;
+  titleOrigin: ChatCatalogTitleOrigin;
+  preview: string;
+  messageCount: number;
+  createdAtMs: number;
+  lastActivityAtMs: number;
+  starred: boolean;
+}
+
+export interface ChatCatalogListMessage extends ProtocolEnvelope {
+  type: "chat_catalog_list";
+  ownerId: string;
+}
+
+export interface ChatCatalogCreateMessage extends ProtocolEnvelope {
+  type: "chat_catalog_create";
+  ownerId: string;
+  chatId: string;
+  title?: string;
+}
+
+export interface ChatCatalogUpdateMessage extends ProtocolEnvelope {
+  type: "chat_catalog_update";
+  ownerId: string;
+  chatId: string;
+  title?: string;
+  titleOrigin?: Exclude<ChatCatalogTitleOrigin, "default">;
+  expectedTitleOrigin?: ChatCatalogTitleOrigin;
+  starred?: boolean;
+}
+
+export interface ChatCatalogDeleteMessage extends ProtocolEnvelope {
+  type: "chat_catalog_delete";
+  ownerId: string;
+  chatId: string;
 }
 
 export type ContextSourceKind =
@@ -238,57 +274,6 @@ export interface JournalRecordExchangeMessage extends ProtocolEnvelope {
   turns: JournalTurnWireInput[];
 }
 
-export interface JournalRemoteTurnWireInput {
-  remoteId: string;
-  canonicalTurnId?: string;
-  role: "user" | "assistant";
-  content: string;
-  contentBlocks: unknown[];
-  resources: unknown[];
-  metadataJson: string;
-  createdAtMs: number;
-}
-
-/**
- * Bounded upgrade input for backend rows written before the kernel journal was
- * authoritative. The runtime, not Swift, resolves the canonical conversation
- * and owns the imported turn projection.
- */
-export interface JournalImportRemoteTurnMessage extends ProtocolEnvelope {
-  type: "journal_import_remote_turn";
-  surfaceKind: string;
-  externalRefKind: string;
-  externalRefId: string;
-  turn: JournalRemoteTurnWireInput;
-}
-
-export function assertJournalRemoteTurnInput(
-  input: unknown,
-): asserts input is JournalRemoteTurnWireInput {
-  if (!input || typeof input !== "object" || Array.isArray(input)) {
-    throw new Error("Remote journal turn input must be an object");
-  }
-  const turn = input as Partial<JournalRemoteTurnWireInput>;
-  if (typeof turn.remoteId !== "string" || !turn.remoteId.trim()) {
-    throw new Error("Remote journal turn requires remoteId");
-  }
-  if (turn.canonicalTurnId !== undefined
-      && (typeof turn.canonicalTurnId !== "string" || !turn.canonicalTurnId.trim())) {
-    throw new Error("Remote journal canonicalTurnId must be non-empty when provided");
-  }
-  if (turn.role !== "user" && turn.role !== "assistant") {
-    throw new Error("Remote journal turn requires a valid role");
-  }
-  if (typeof turn.content !== "string"
-      || !Array.isArray(turn.contentBlocks)
-      || !Array.isArray(turn.resources)
-      || typeof turn.metadataJson !== "string"
-      || typeof turn.createdAtMs !== "number"
-      || !Number.isFinite(turn.createdAtMs)) {
-    throw new Error("Remote journal turn has an invalid payload");
-  }
-}
-
 export interface JournalUpdateTurnMessage extends ProtocolEnvelope {
   type: "journal_update_turn";
   surfaceKind: string;
@@ -347,9 +332,6 @@ export interface JournalClearTurnsMessage extends ProtocolEnvelope {
   externalRefKind: string;
   externalRefId: string;
   expectedGeneration: number;
-  // When false, purge the local journal only and leave server-side chat history
-  // intact (no backend delete). Defaults to true for the explicit user clear.
-  deleteBackend?: boolean;
 }
 
 export interface EnsureAgentSpawnJournalMessage extends ProtocolEnvelope {
@@ -357,46 +339,6 @@ export interface EnsureAgentSpawnJournalMessage extends ProtocolEnvelope {
   ownerId: string;
   sessionId: string;
   runId: string;
-}
-
-export interface JournalBackendSyncResultMessage extends ProtocolEnvelope {
-  type: "journal_backend_sync_result";
-  ownerId: string;
-  turnId: string;
-  conversationId: string;
-  conversationGeneration: number;
-  attemptCount: number;
-  deliveryGeneration: number;
-  payloadHash: string;
-  ok: boolean;
-  remoteId?: string;
-  errorCode?: string;
-}
-
-export interface JournalBackendDeleteResultMessage extends ProtocolEnvelope {
-  type: "journal_backend_delete_result";
-  ownerId: string;
-  operationId: string;
-  conversationId: string;
-  conversationGeneration: number;
-  attemptCount: number;
-  deliveryGeneration: number;
-  payloadHash: string;
-  ok: boolean;
-  errorCode?: string;
-}
-
-export interface JournalBackendReconcileResultMessage extends ProtocolEnvelope {
-  type: "journal_backend_reconcile_result";
-  ownerId: string;
-  reconcileId: string;
-  conversationId: string;
-  pageCursor: string | null;
-  nextCursor?: string | null;
-  ok: boolean;
-  turns?: Record<string, unknown>[];
-  hasMore?: boolean;
-  errorCode?: string;
 }
 
 /** Swift pushes a refreshed Firebase ID token to the bridge (piMono mode) */
@@ -424,31 +366,27 @@ export type InboundMessage =
   | InterruptMessage
   | InvalidateSessionMessage
   | RevokeOwnerRuntimeMessage
-  | ImportLegacyMainChatSessionsMessage
   | WarmupMessage
   | ResolveSurfaceSessionMessage
+  | ChatCatalogListMessage
+  | ChatCatalogCreateMessage
+  | ChatCatalogUpdateMessage
+  | ChatCatalogDeleteMessage
   | ContextSourceUpdateMessage
   | GetContextSnapshotMessage
   | JournalRecordTurnMessage
   | JournalRecordExchangeMessage
-  | JournalImportRemoteTurnMessage
   | JournalUpdateTurnMessage
   | JournalTerminalizeTurnMessage
   | JournalRepairTurnsMessage
   | JournalListTurnsMessage
   | JournalClearTurnsMessage
   | EnsureAgentSpawnJournalMessage
-  | JournalBackendSyncResultMessage
-  | JournalBackendDeleteResultMessage
-  | JournalBackendReconcileResultMessage
   | RefreshTokenMessage
   | RefreshOwnerMessage;
 
 const INBOUND_RESPONSE_MESSAGE_TYPES = new Set<InboundMessage["type"]>([
   "authorized_tool_execution_result",
-  "journal_backend_sync_result",
-  "journal_backend_delete_result",
-  "journal_backend_reconcile_result",
 ]);
 
 /** Response handlers log invalid replies locally; they never echo request errors back to Swift. */
@@ -699,6 +637,16 @@ export interface SurfaceSessionResolvedMessage extends OutboundEnvelope {
   profile: ExecutionProfileProjection;
 }
 
+export interface ChatCatalogResultMessage extends OutboundEnvelope {
+  type: "chat_catalog_result";
+  ownerId: string;
+  operation: "list" | "create" | "update" | "delete";
+  chats?: ChatCatalogSummaryProjection[];
+  chat?: ChatCatalogSummaryProjection;
+  deletedChatId?: string;
+  retainedAttachmentUris?: string[];
+}
+
 export interface ContextSourceOutcomeProjection {
   source: ContextSourceKind;
   sourceRevision: string;
@@ -800,14 +748,6 @@ export interface ContextSnapshotMessage extends OutboundEnvelope {
   snapshot: ContextSnapshotProjection;
 }
 
-export interface LegacyMainChatSessionsImportedMessage extends OutboundEnvelope {
-  type: "legacy_main_chat_sessions_imported";
-  ownerId: string;
-  acceptedEntries: Array<{ chatId: string; agentSessionId: string }>;
-  acceptedCount: number;
-  importedCount: number;
-}
-
 export interface JournalTurnProjection {
   conversationId: string;
   turnId: string;
@@ -842,7 +782,7 @@ export interface AgentSpawnJournalEnsuredMessage extends OutboundEnvelope {
 
 export interface JournalOperationResultMessage extends OutboundEnvelope {
   type: "journal_operation_result";
-  operation: "record" | "record_exchange" | "import_remote" | "update" | "repair" | "list" | "clear";
+  operation: "record" | "record_exchange" | "update" | "repair" | "list" | "clear";
   conversationId: string;
   surfaceKind: string;
   externalRefKind: string;
@@ -853,7 +793,12 @@ export interface JournalOperationResultMessage extends OutboundEnvelope {
   highWaterTurnSeq: number;
   generationBaseTurnSeq: number;
   conversationGeneration: number;
-  backendDeleteOperationId?: string;
+  firstCompletedRealPair?: boolean;
+  firstCompletedRealExchange?: {
+    continuityKey: string;
+    userText: string;
+    assistantText: string;
+  };
 }
 
 export interface JournalTurnChangedMessage extends OutboundEnvelope {
@@ -865,53 +810,6 @@ export interface JournalTurnChangedMessage extends OutboundEnvelope {
   externalRefKind: string;
   externalRefId: string;
   turn: JournalTurnProjection;
-}
-
-export interface JournalBackendSyncMessage extends OutboundEnvelope {
-  type: "journal_backend_sync";
-  ownerId: string;
-  turnId: string;
-  conversationId: string;
-  conversationGeneration: number;
-  attemptCount: number;
-  deliveryGeneration: number;
-  payloadHash: string;
-  clientMessageId: string;
-  journalRevision: number;
-  text: string;
-  sender: "human" | "ai";
-  appId: string | null;
-  sessionId: string | null;
-  metadata: string | null;
-  messageSource: "desktop_chat" | "realtime_voice";
-}
-
-export interface JournalBackendDeleteMessage extends OutboundEnvelope {
-  type: "journal_backend_delete";
-  ownerId: string;
-  operationId: string;
-  conversationId: string;
-  conversationGeneration: number;
-  attemptCount: number;
-  deliveryGeneration: number;
-  payloadHash: string;
-  targetKind: "messages" | "chat_session";
-  targetId: string | null;
-}
-
-export interface JournalBackendReconcileMessage extends OutboundEnvelope {
-  type: "journal_backend_reconcile";
-  ownerId: string;
-  reconcileId: string;
-  conversationId: string;
-  surfaceKind: string;
-  externalRefKind: string;
-  externalRefId: string;
-  targetKind: "messages" | "chat_session";
-  targetId: string | null;
-  frontierRemoteId: string | null;
-  pageCursor: string | null;
-  pageLimit: number;
 }
 
 export type OutboundMessage =
@@ -933,15 +831,12 @@ export type OutboundMessage =
   | OwnerRuntimeRevokedMessage
   | ControlToolResultMessage
   | SurfaceSessionResolvedMessage
+  | ChatCatalogResultMessage
   | ContextSourceUpdatedMessage
   | ContextSnapshotMessage
-  | LegacyMainChatSessionsImportedMessage
   | JournalOperationResultMessage
   | AgentSpawnJournalEnsuredMessage
-  | JournalTurnChangedMessage
-  | JournalBackendSyncMessage
-  | JournalBackendDeleteMessage
-  | JournalBackendReconcileMessage;
+  | JournalTurnChangedMessage;
 
 type OutboundWithEnvelope = Exclude<OutboundMessage, AuthRequiredMessage | AuthSuccessMessage>;
 
@@ -967,15 +862,12 @@ export type OutboundMessageDraft =
   | DraftEnvelope<OwnerRuntimeRevokedMessage>
   | DraftEnvelope<ControlToolResultMessage>
   | DraftEnvelope<SurfaceSessionResolvedMessage>
+  | DraftEnvelope<ChatCatalogResultMessage>
   | DraftEnvelope<ContextSourceUpdatedMessage>
   | DraftEnvelope<ContextSnapshotMessage>
-  | DraftEnvelope<LegacyMainChatSessionsImportedMessage>
   | DraftEnvelope<JournalOperationResultMessage>
   | DraftEnvelope<AgentSpawnJournalEnsuredMessage>
-  | DraftEnvelope<JournalTurnChangedMessage>
-  | DraftEnvelope<JournalBackendSyncMessage>
-  | DraftEnvelope<JournalBackendDeleteMessage>
-  | DraftEnvelope<JournalBackendReconcileMessage>;
+  | DraftEnvelope<JournalTurnChangedMessage>;
 
 export function ensureOutboundProtocolVersion(message: OutboundMessageDraft): OutboundMessage {
   if (message.type === "auth_required" || message.type === "auth_success") {

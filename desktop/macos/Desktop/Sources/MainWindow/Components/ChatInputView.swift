@@ -4,8 +4,7 @@ import OmiTheme
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// Reusable chat input field with send button, extracted from ChatPage.
-/// Shared input used by the main Chat surface.
+/// Reusable chat input field used by canonical Home Chat.
 ///
 /// When `isSending` is true:
 ///   - Input stays enabled so the user can draft the next message
@@ -61,7 +60,9 @@ struct ChatInputView: View {
   var onStop: (() -> Void)? = nil
   let isSending: Bool
   var isStopping: Bool = false
+  var isSendDisabled = false
   var placeholder: String = "Type a message..."
+  var requiresTextBeforeSend = false
   @Binding var mode: ChatMode
   /// Optional text to pre-fill the input (e.g. task context). Consumed on change.
   var pendingText: Binding<String>?
@@ -222,7 +223,9 @@ struct ChatInputView: View {
   /// Send is enabled when there's text OR (when supported) any attachment ready
   /// to ship — Flutter allows sending attachments without text.
   private var canSend: Bool {
+    guard !isSendDisabled else { return false }
     guard !hasMarkedText else { return false }
+    if requiresTextBeforeSend { return hasText }
     if hasText { return true }
     if attachmentsEnabled && !currentAttachments.isEmpty { return true }
     return false
@@ -235,6 +238,7 @@ struct ChatInputView: View {
   private func handleSubmit() {
     guard canSend else { return }
     guard !isSending else { return }
+    guard !isSendDisabled else { return }
     let text = inputText
     onSend(text)
   }
@@ -410,19 +414,6 @@ private struct AttachmentChip: View {
         .scaledToFill()
         .frame(width: 60, height: 60)
         .clipShape(RoundedRectangle(cornerRadius: OmiChrome.smallControlRadius, style: .continuous))
-    } else if attachment.isImage, let urlString = attachment.thumbnailURL,
-      let url = URL(string: urlString)
-    {
-      AsyncImage(url: url) { phase in
-        switch phase {
-        case .success(let image):
-          image.resizable().scaledToFill()
-        default:
-          Color.gray.opacity(0.2)
-        }
-      }
-      .frame(width: 60, height: 60)
-      .clipShape(RoundedRectangle(cornerRadius: OmiChrome.smallControlRadius, style: .continuous))
     } else {
       ZStack {
         RoundedRectangle(cornerRadius: OmiChrome.smallControlRadius, style: .continuous)

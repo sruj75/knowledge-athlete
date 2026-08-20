@@ -186,19 +186,6 @@ def test_mapped_source_with_direct_test_remains_narrow(selector_and_all_tests):
     assert reason == "selected backend unit tests from changed paths and workflow contracts"
 
 
-def test_chat_retrieval_paths_select_their_focused_async_regressions(selector_and_all_tests):
-    selector, all_tests = selector_and_all_tests
-
-    for source_path in (
-        "backend/utils/retrieval/agentic.py",
-        "backend/utils/retrieval/graph.py",
-    ):
-        selected, reason = selector.tests_for_changed_paths([source_path], all_tests)
-        assert "tests/unit/test_chat_async_offload.py" in selected, source_path
-        assert selected != all_tests, source_path
-        assert reason == "selected backend unit tests from changed paths and workflow contracts"
-
-
 def test_removed_test_forces_full_discovered_suite(selector_and_all_tests):
     selector, all_tests = selector_and_all_tests
 

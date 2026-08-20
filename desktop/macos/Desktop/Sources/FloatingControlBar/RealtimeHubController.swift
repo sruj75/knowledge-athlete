@@ -73,8 +73,21 @@ final class RealtimeHubController: NSObject, RealtimeHubSessionDelegate {
   /// fail-closed value until the runtime has declared available adapters.
   var prefetchedVoiceContextTurnIDs: Set<String> = []
   var prefetchedVoiceContextOwnerScope: RealtimeHubOwnerScope?
+  var prefetchedVoiceContextSurface: AgentSurfaceReference?
   /// Typed snapshot identity baked into the current warm session's instructions.
   var sessionVoiceContextFreshnessIdentity = ""
+  var sessionVoiceContextSurface: AgentSurfaceReference?
+  struct RealtimeJournalPin: Equatable {
+    let surface: AgentSurfaceReference
+    let sessionID: String
+  }
+
+  /// Every live turn retains one pin containing the exact chat and runtime
+  /// session identities that supplied its context. Selection changes may
+  /// replace the next warm context but cannot retarget an admitted or
+  /// interrupted turn's journal obligation.
+  var journalPinsByContinuityKey: [String: RealtimeJournalPin] = [:]
+  var terminalJournalContinuityKeys: Set<String> = []
   /// A PTT current-screen answer is grounded in exactly one pre-overlay, turn-scoped image.
   /// It is never ambient context and is released on terminal/cancel paths.
   var screenEvidence: RealtimeScreenEvidence?
@@ -92,6 +105,10 @@ final class RealtimeHubController: NSObject, RealtimeHubSessionDelegate {
   /// rebuilt via `RealtimeHubContinuityRestore.kernelOwnsExchange`, never disk.
   let turnPersistenceLedger = RealtimeTurnPersistenceLedger()
   let streamingJournalWriteLedger = RealtimeStreamingJournalWriteLedger()
+  /// Short owner-surface mutation barrier used by Clear. It is acquired only
+  /// when no voice turn or journal obligation is active, then prevents a new
+  /// PTT admission from repopulating the journal generation being cleared.
+  var clearingChatSurface: AgentSurfaceReference?
   var streamingJournalFlushTasks: [String: Task<Void, Never>] = [:]
   /// (c) Shadow truth: mirrors a kernel-accepted spawn exchange for this process.
   /// Authoritative owner is the kernel journal / voice-context turn IDs; restore
@@ -100,9 +117,6 @@ final class RealtimeHubController: NSObject, RealtimeHubSessionDelegate {
   /// One bounded same-turn recovery after a failed spawn. The first failure
   /// returns typed guidance to the provider; a repeat closes the turn.
   var spawnFailureContinuationPolicy = RealtimeSpawnFailureContinuationPolicy()
-  let legacyVoiceJournalImportStore = LegacyVoiceJournalImportStore.shared
-  var legacyVoiceJournalImportTask: Task<Void, Never>?
-  var legacyVoiceJournalImportedOwners = Set<String>()
   var deferredSessionRefreshTask: Task<Void, Never>?
   /// Coalesces idle voice-context updates while chat is still streaming. A
   /// real PTT press bypasses this delay and preserves its captured audio.
@@ -354,6 +368,7 @@ final class RealtimeHubController: NSObject, RealtimeHubSessionDelegate {
     prefetchedVoiceSemanticGuidance = ""
     prefetchedVoiceContextTurnIDs.removeAll()
     prefetchedVoiceContextOwnerScope = nil
+    prefetchedVoiceContextSurface = nil
     replaceSessionAfterDrain()
   }
 
@@ -395,8 +410,6 @@ final class RealtimeHubController: NSObject, RealtimeHubSessionDelegate {
     voiceContextSingleFlight.cancel()
     turnPreparationTask?.cancel()
     turnPreparationTask = nil
-    legacyVoiceJournalImportTask?.cancel()
-    legacyVoiceJournalImportTask = nil
     deferredSessionRefreshTask?.cancel()
     deferredSessionRefreshTask = nil
     canceledTurnRewarmTask?.cancel()
@@ -423,6 +436,8 @@ final class RealtimeHubController: NSObject, RealtimeHubSessionDelegate {
     lastExternalToolName = ""
     lastExternalToolErrorCode = ""
     turnIdempotencyKey = ""
+    journalPinsByContinuityKey.removeAll()
+    terminalJournalContinuityKeys.removeAll()
     turnAudio16k.removeAll()
     turnEarlyVerdictCode = nil
     lastTurnDiagnostics.removeAll()
@@ -437,6 +452,8 @@ final class RealtimeHubController: NSObject, RealtimeHubSessionDelegate {
     prefetchedVoiceSemanticGuidance = ""
     prefetchedVoiceContextTurnIDs.removeAll()
     prefetchedVoiceContextOwnerScope = nil
+    prefetchedVoiceContextSurface = nil
+    sessionVoiceContextSurface = nil
 
     if let detachedSession = detachPhysicalSessionForTeardown() {
       schedulePhysicalSessionTeardown(detachedSession)
@@ -838,7 +855,9 @@ final class RealtimeHubController: NSObject, RealtimeHubSessionDelegate {
     return RealtimePTTAdmissionPolicy.decide(
       requirementIsResolved: requirement.isResolved,
       transportIsReady: isTransportReady,
-      bindingMatchesRequirement: requirement.snapshotFreshnessIdentity == sessionVoiceContextFreshnessIdentity)
+      bindingMatchesRequirement:
+        requirement.snapshotFreshnessIdentity == sessionVoiceContextFreshnessIdentity
+        && requirement.surface == sessionVoiceContextSurface)
   }
 
   func hasPendingInputPreparation(for turnID: VoiceTurnID?) -> Bool {
@@ -1152,6 +1171,7 @@ final class RealtimeHubController: NSObject, RealtimeHubSessionDelegate {
       teardownSession()
       let context = voiceSessionContext(for: localOwnerScope)
       sessionVoiceContextFreshnessIdentity = context.snapshotFreshnessIdentity
+      sessionVoiceContextSurface = context.surface
       let localSession = RealtimeHubSession(
         provider: .openai,
         auth: .hermeticStub,

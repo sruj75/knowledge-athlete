@@ -47,7 +47,8 @@ backend/
   routers/                # FastAPI route handlers, one per retained feature domain
     transcribe.py         #   /v4/listen WebSocket — auth + exact transient session contract
     listen/               #   Modulate transport, VAD, metering, canonical segments, direct translation
-    chat.py               #   /v2/messages — AI chat with tool use, voice messages, file uploads
+    chat.py               #   retained message reports, voice STT, and legacy /v1 file upload
+    chat_sessions.py      #   stateless /v2/chat greeting and title compute
     conversation_compute.py # /v1/conversation-compute — stateless discard/structure/action-item candidates
     memory_compute.py     #   Three authenticated, bounded, stateless Memory proposal routes
     sync.py               #   Internal audio-merge Cloud Tasks handler retained for S-25
@@ -64,8 +65,8 @@ backend/
                           #   pre-recorded batch transcription, speaker embeddings
     conversations/        #   Conversation lifecycle (6 files): ingestion, action items,
                           #   merge, post-processing, search
-    retrieval/            #   RAG pipeline for retained conversation,
-                          #   explicit-file, web-search, and notification tools
+    retrieval/            #   Retained conversation, explicit-file, web-search,
+                          #   and notification tools (no hosted Chat RAG owner)
     other/                #   Storage (GCS), auth dependencies, timeout middleware, Hume emotion detection
     log_sanitizer.py      #   sanitize() / sanitize_pii() — required for all logging
     encryption.py         #   AES-256-GCM per-user encryption (HKDF-SHA256 key derivation)
@@ -140,6 +141,18 @@ speech transport for macOS and `/v1/conversation-compute/{discard,structure,acti
 returns candidate data without writing conversation records. Hosted listen and
 conversation lifecycle are gone; shared historical datastore internals remain
 only for the later-slice owners recorded in `FORK.md`.
+
+### macOS Chat and Home boundary
+
+The owner-scoped desktop Node SQLite catalog and journal are the sole durable
+authority for normal Chat sessions, titles/stars, turns, and activity metadata;
+Swift owns drafts and app-managed attachment bytes. Do not add backend session,
+message, rating, attachment, projection, reconcile, import, or count authority
+for macOS Chat. `POST /v2/chat/initial-message` and
+`POST /v2/chat/generate-title` are authenticated, bounded, stateless compute:
+they return only a greeting or title and never read or write Chat product data.
+Managed answers continue through the desktop Pi `/v2/chat/completions` boundary;
+the Python hosted persona/RAG route is retired.
 
 ### macOS Memory boundary
 

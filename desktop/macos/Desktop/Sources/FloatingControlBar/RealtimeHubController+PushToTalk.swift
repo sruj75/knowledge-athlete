@@ -11,6 +11,10 @@ extension RealtimeHubController {
   /// result is the caller's fail-closed gate for buffered audio replay.
   @discardableResult
   func beginTurn(turnID requestedTurnID: VoiceTurnID? = nil) -> RealtimeInputPreparationResult {
+    guard !chatClearBarrierBlocksVoiceAdmission() else {
+      log("RealtimeHub: refusing PTT admission while a chat clear transaction is active")
+      return .rejected
+    }
     if discardMismatchedSessionIfNeeded() { ensureWarm() }
     turnPreparationTask?.cancel()
     turnPreparationTask = nil
@@ -133,6 +137,17 @@ extension RealtimeHubController {
       }
       let cachedRequirement = voiceSessionContext(for: currentOwnerScope)
       if cachedRequirement.isResolved {
+        guard let pinnedSurface = cachedRequirement.surface else {
+          failContextFreshInputPreparation(
+            turnID: turnID,
+            message: "Voice context chat identity is unavailable")
+          return .rejected
+        }
+        pinVoiceJournal(
+          continuityKey: turnIdempotencyKey,
+          surface: pinnedSurface,
+          sessionID: cachedRequirement.sessionID
+        )
         guard var pending = reconnectAudioBuffer,
           pending.turnID == turnID,
           pending.bindRequiredContextFreshnessIdentity(cachedRequirement.snapshotFreshnessIdentity)
@@ -178,6 +193,17 @@ extension RealtimeHubController {
             preparationEpoch: preparationEpoch)
         else { return }
         let current = self.voiceSessionContext(for: self.currentOwnerScope)
+        guard let pinnedSurface = current.surface else {
+          self.failContextFreshInputPreparation(
+            turnID: turnID,
+            message: "Voice context chat identity is unavailable")
+          return
+        }
+        self.pinVoiceJournal(
+          continuityKey: self.turnIdempotencyKey,
+          surface: pinnedSurface,
+          sessionID: current.sessionID
+        )
         guard var pending = self.reconnectAudioBuffer,
           pending.turnID == turnID,
           pending.bindRequiredContextFreshnessIdentity(current.snapshotFreshnessIdentity)

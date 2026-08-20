@@ -10,9 +10,7 @@ import { AdapterRegistry } from "./adapter-registry.js";
 import { AdapterRuntimeError, failureFromError } from "./failures.js";
 import {
   clearOwnerSurfaceState,
-  importLegacyMainChatSessions,
   resolveSurfaceSession,
-  type LegacyMainChatSessionEntry,
   type ResolveSurfaceSessionInput,
   type ResolveSurfaceSessionResult,
 } from "./surface-session.js";

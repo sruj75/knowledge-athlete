@@ -505,40 +505,11 @@ class TestPhase4ConsumerMigration:
                 return
         pytest.fail('trends_extractor function not found')
 
-    def test_retrieve_memory_context_params_accepts_segments(self):
-        """retrieve_memory_context_params no longer accepts Conversation object."""
-        import ast
-        import pathlib
-
-        source = pathlib.Path('utils/llm/chat.py').read_text(encoding='utf-8')
-        tree = ast.parse(source)
-        for node in ast.walk(tree):
-            if isinstance(node, ast.FunctionDef) and node.name == 'retrieve_memory_context_params':
-                params = [arg.arg for arg in node.args.args]
-                assert params == ['uid', 'transcript_segments', 'person_ids']
-                return
-        pytest.fail('retrieve_memory_context_params function not found')
-
-    def test_obtain_emotional_message_accepts_segments(self):
-        """obtain_emotional_message no longer accepts Conversation object."""
-        import ast
-        import pathlib
-
-        source = pathlib.Path('utils/llm/chat.py').read_text(encoding='utf-8')
-        tree = ast.parse(source)
-        for node in ast.walk(tree):
-            if isinstance(node, ast.FunctionDef) and node.name == 'obtain_emotional_message':
-                params = [arg.arg for arg in node.args.args]
-                assert params == ['uid', 'transcript_segments', 'person_ids', 'context', 'emotion']
-                return
-        pytest.fail('obtain_emotional_message function not found')
-
     def test_removed_imports_not_present(self):
         """Files that had Conversation import removed no longer import it."""
         import pathlib
 
         for file_path in [
-            'utils/retrieval/agentic.py',
             'routers/speech_profile.py',
             'utils/llm/trends.py',
             'routers/chat.py',
@@ -549,82 +520,9 @@ class TestPhase4ConsumerMigration:
                 'from models.conversation import' not in source
             ), f'{file_path} still imports from models.conversation'
 
-    def test_type_checking_only_imports(self):
-        """Files using TYPE_CHECKING should not have runtime Conversation import."""
-        import pathlib
-
-        source = pathlib.Path('utils/retrieval/graph.py').read_text(encoding='utf-8')
-        assert 'TYPE_CHECKING' in source, 'graph.py should use TYPE_CHECKING'
-        assert 'from __future__ import annotations' in source
-
 
 class TestPhase4RuntimeBehavior:
     """Phase 4b (#6484): runtime tests for narrowed interfaces."""
-
-    def test_extract_memory_ids_from_dicts(self):
-        """extract_memory_ids handles dict inputs (used by routers/chat.py and utils/chat.py)."""
-        from utils.conversation_helpers import extract_memory_ids
-
-        memories = [
-            {'id': 'conv-1', 'structured': {'title': 'Test'}},
-            {'id': 'conv-2', 'structured': {'title': 'Test 2'}},
-        ]
-        assert extract_memory_ids(memories) == ['conv-1', 'conv-2']
-
-    def test_extract_memory_ids_from_objects(self):
-        """extract_memory_ids handles Conversation objects."""
-        from models.conversation import Conversation
-        from models.structured import Structured
-        from utils.conversation_helpers import extract_memory_ids
-
-        now = datetime.now(timezone.utc)
-        conv = Conversation(
-            id='conv-obj',
-            created_at=now,
-            started_at=now,
-            finished_at=now,
-            structured=Structured(title='Test'),
-        )
-        assert extract_memory_ids([conv]) == ['conv-obj']
-
-    def test_extract_memory_ids_mixed(self):
-        """extract_memory_ids handles mixed dict/object inputs."""
-        from models.conversation import Conversation
-        from models.structured import Structured
-        from utils.conversation_helpers import extract_memory_ids
-
-        now = datetime.now(timezone.utc)
-        conv = Conversation(
-            id='conv-obj',
-            created_at=now,
-            started_at=now,
-            finished_at=now,
-            structured=Structured(title='Test'),
-        )
-        memories = [{'id': 'conv-dict'}, conv]
-        assert extract_memory_ids(memories) == ['conv-dict', 'conv-obj']
-
-    def test_extract_memory_ids_limit(self):
-        """extract_memory_ids respects the limit parameter."""
-        from utils.conversation_helpers import extract_memory_ids
-
-        memories = [{'id': f'conv-{i}'} for i in range(10)]
-        assert len(extract_memory_ids(memories, limit=3)) == 3
-
-    def test_extract_memory_ids_empty(self):
-        """extract_memory_ids handles empty list."""
-        from utils.conversation_helpers import extract_memory_ids
-
-        assert extract_memory_ids([]) == []
-
-    def test_call_sites_use_extract_memory_ids(self):
-        """Verify routers/chat.py and utils/chat.py use the shared helper."""
-        import pathlib
-
-        for file_path in ['routers/chat.py', 'utils/chat.py']:
-            source = pathlib.Path(file_path).read_text(encoding='utf-8')
-            assert 'extract_memory_ids' in source, f'{file_path} should use extract_memory_ids'
-            assert 'from utils.conversation_helpers import extract_memory_ids' in source
 
     def test_trends_extractor_signature_callable(self):
         """trends_extractor can be called with the new signature shape."""

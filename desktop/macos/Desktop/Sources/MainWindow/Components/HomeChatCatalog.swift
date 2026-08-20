@@ -1,13 +1,12 @@
 import OmiTheme
 import SwiftUI
 
-/// Sidebar showing chat sessions grouped by date
-struct ChatSessionsSidebar: View {
+/// Compact Home popover showing local chat sessions grouped by date.
+struct HomeChatCatalog: View {
   @ObservedObject var chatProvider: ChatProvider
+  var onDismiss: () -> Void = {}
 
   @State private var isTogglingStarredFilter = false
-
-  private let sidebarWidth: CGFloat = 220
 
   var body: some View {
     VStack(spacing: 0) {
@@ -39,7 +38,7 @@ struct ChatSessionsSidebar: View {
             .scaledFont(size: OmiType.body, weight: .medium)
             .foregroundColor(OmiColors.textPrimary)
 
-          Text(error)
+          Text(UserFacingErrorPresentation.message(from: error, while: .chatSessions))
             .scaledFont(size: OmiType.caption)
             .foregroundColor(OmiColors.textTertiary)
             .multilineTextAlignment(.center)
@@ -68,7 +67,7 @@ struct ChatSessionsSidebar: View {
         sessionsList
       }
     }
-    .frame(width: sidebarWidth)
+    .frame(maxWidth: .infinity, maxHeight: .infinity)
     .background(OmiColors.backgroundSecondary)
   }
 
@@ -77,12 +76,18 @@ struct ChatSessionsSidebar: View {
   private var newChatButton: some View {
     Button(action: {
       Task {
-        _ = await chatProvider.createNewSession()
+        if await chatProvider.createNewSession() != nil {
+          onDismiss()
+        }
       }
     }) {
       HStack(spacing: OmiSpacing.sm) {
-        Image(systemName: "plus.circle.fill")
-          .scaledFont(size: OmiType.subheading)
+        if chatProvider.isCreatingSession {
+          ProgressView().controlSize(.small)
+        } else {
+          Image(systemName: "plus.circle.fill")
+            .scaledFont(size: OmiType.subheading)
+        }
 
         Text("New Chat")
           .scaledFont(size: OmiType.body, weight: .medium)
@@ -96,6 +101,10 @@ struct ChatSessionsSidebar: View {
       .cornerRadius(OmiChrome.smallControlRadius)
     }
     .buttonStyle(.plain)
+    .disabled(
+      chatProvider.isCreatingSession || chatProvider.isLoading || chatProvider.isClearing
+        || !chatProvider.deletingSessionIds.isEmpty
+    )
   }
 
   // MARK: - Starred Filter Button
@@ -186,11 +195,18 @@ struct ChatSessionsSidebar: View {
           ForEach(sessions) { session in
             SessionRow(
               session: session,
-              isSelected: chatProvider.currentSession?.id == session.id,
+              isSelected:
+                chatProvider.currentSession?.id == session.id
+                || (session.id == "default" && chatProvider.isInDefaultChat),
               isDeleting: chatProvider.deletingSessionIds.contains(session.id),
+              isMutationDisabled:
+                chatProvider.isCreatingSession || chatProvider.isLoading || chatProvider.isClearing
+                || !chatProvider.deletingSessionIds.isEmpty,
+              canDelete: session.id != "default",
               onSelect: {
                 Task {
                   await chatProvider.selectSession(session)
+                  onDismiss()
                 }
               },
               onDelete: {
@@ -287,6 +303,8 @@ struct SessionRow: View {
   let session: ChatSession
   let isSelected: Bool
   var isDeleting: Bool = false
+  var isMutationDisabled: Bool = false
+  var canDelete: Bool = true
   let onSelect: () -> Void
   let onDelete: () -> Void
   let onToggleStar: () -> Void
@@ -351,7 +369,7 @@ struct SessionRow: View {
         }
 
         // Hover actions
-        if isHovering && !isEditing && !isDeleting {
+        if isHovering && !isEditing && !isDeleting && !isMutationDisabled {
           HStack(spacing: OmiSpacing.xxs) {
             // Rename button
             Button(action: startEditing) {
@@ -369,13 +387,14 @@ struct SessionRow: View {
             }
             .buttonStyle(.plain)
 
-            // Delete button
-            Button(action: { showDeleteConfirm = true }) {
-              Image(systemName: "trash")
-                .scaledFont(size: OmiType.caption)
-                .foregroundColor(OmiColors.textTertiary)
+            if canDelete {
+              Button(action: { showDeleteConfirm = true }) {
+                Image(systemName: "trash")
+                  .scaledFont(size: OmiType.caption)
+                  .foregroundColor(OmiColors.textTertiary)
+              }
+              .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
           }
         }
       }
@@ -390,10 +409,13 @@ struct SessionRow: View {
       .cornerRadius(OmiChrome.elementRadius)
     }
     .buttonStyle(.plain)
+    .disabled(isMutationDisabled || isDeleting)
     .padding(.horizontal, OmiSpacing.sm)
     .onHover { isHovering = $0 }
     .onTapGesture(count: 2) {
-      startEditing()
+      if !isMutationDisabled && !isDeleting {
+        startEditing()
+      }
     }
     .alert("Delete Chat?", isPresented: $showDeleteConfirm) {
       Button("Cancel", role: .cancel) {}
@@ -427,7 +449,7 @@ struct SessionRow: View {
 
 #if canImport(PreviewsMacros)
   #Preview {
-    ChatSessionsSidebar(chatProvider: ChatProvider())
+    HomeChatCatalog(chatProvider: ChatProvider())
       .frame(height: 500)
   }
 #endif

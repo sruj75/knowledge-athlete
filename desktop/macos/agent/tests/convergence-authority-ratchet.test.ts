@@ -169,11 +169,10 @@ describe("#9515 single-owner authority ratchets", () => {
     expect(existsSync(join(AGENT_SOURCES, "runtime", "turn-context.ts"))).toBe(false);
   });
 
-  it("keeps physical backend chat writes and deletes behind the journal driver", () => {
+  it("keeps physical backend chat writes and deletes out of the local journal runtime", () => {
     const violations: string[] = [];
     const physicalMutation = /APIClient\.shared\.(?:saveMessage|deleteMessages|deleteChatSession)\s*\(/;
     for (const path of sourceFiles(SWIFT_SOURCES)) {
-      if (path.endsWith("/Chat/KernelJournalBackendSyncDriver.swift")) continue;
       if (physicalMutation.test(readFileSync(path, "utf8"))) violations.push(path);
     }
     expect(violations, violations.join("\n")).toEqual([]);
@@ -205,26 +204,7 @@ describe("#9515 single-owner authority ratchets", () => {
     expect(offenders, offenders.join("\n")).toEqual([]);
   });
 
-  it("requires explicit owners and removal contracts on convergence compatibility readers", () => {
-    const contracts = [
-      readFileSync(join(SWIFT_SOURCES, "Providers", "ChatProvider.swift"), "utf8"),
-      readFileSync(join(SWIFT_SOURCES, "FloatingControlBar", "LegacyVoiceJournalImporter.swift"), "utf8"),
-      readFileSync(join(SWIFT_SOURCES, "Chat", "AgentBridge.swift"), "utf8"),
-      readFileSync(join(AGENT_SOURCES, "runtime", "surface-session.ts"), "utf8"),
-    ];
-    for (const contract of contracts) {
-      expect(contract).toMatch(/\bowner\b/);
-      expect(contract).toMatch(/removalCondition/);
-      expect(contract).toMatch(/removeBy/);
-    }
-    const surfaceCompatibility = readFileSync(
-      join(AGENT_SOURCES, "runtime", "surface-session.ts"),
-      "utf8",
-    );
-    const legacyHandler = readFileSync(join(AGENT_SOURCES, "index.ts"), "utf8");
-    expect(surfaceCompatibility).toMatch(/LEGACY_MAIN_CHAT_SESSION_COMPATIBILITY[\s\S]*?owner[\s\S]*?removalCondition[\s\S]*?removeBy/);
-    expect(legacyHandler).toContain("LEGACY_MAIN_CHAT_SESSION_COMPATIBILITY");
-
+  it("requires explicit owners and removal contracts on retained compatibility readers", () => {
     for (const path of [join(AGENT_SOURCES, "runtime", "sqlite-store.ts")]) {
       const source = readFileSync(path, "utf8");
       const declarations = [...source.matchAll(/legacyProjection\s*[:',]\s*(?:json_object\()?\s*\{?[\s\S]{0,500}?(?=\n\s*\}?\)?[,;])/g)]

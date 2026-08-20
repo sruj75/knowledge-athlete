@@ -213,6 +213,34 @@ enum AgentClient {
       )
     }
 
+    func listChatCatalog() async throws -> LocalChatCatalogSnapshot {
+      try await bridge.listChatCatalog()
+    }
+
+    func createChatCatalog(chatID: String, title: String? = nil) async throws -> LocalChatSummary {
+      try await bridge.createChatCatalog(chatID: chatID, title: title)
+    }
+
+    func updateChatCatalog(
+      chatID: String,
+      title: String? = nil,
+      titleOrigin: LocalChatTitleOrigin? = nil,
+      expectedTitleOrigin: LocalChatTitleOrigin? = nil,
+      starred: Bool? = nil
+    ) async throws -> LocalChatSummary {
+      try await bridge.updateChatCatalog(
+        chatID: chatID,
+        title: title,
+        titleOrigin: titleOrigin,
+        expectedTitleOrigin: expectedTitleOrigin,
+        starred: starred
+      )
+    }
+
+    func deleteChatCatalog(chatID: String) async throws -> Set<String> {
+      try await bridge.deleteChatCatalog(chatID: chatID)
+    }
+
     func warmupSession(_ session: AgentSurfaceSession) async {
       await bridge.warmupSession(session)
     }
@@ -271,11 +299,23 @@ enum AgentClient {
       try await bridge.updateJournalTurn(surface: surface, ownerID: ownerID, update: update)
     }
 
+    func updateJournalTurnWithReceipt(
+      surface: AgentSurfaceReference,
+      ownerID: String? = nil,
+      update: KernelJournalTurnUpdate
+    ) async throws -> AgentRuntimeProcess.JournalOperationResult {
+      try await bridge.updateJournalTurnWithReceipt(
+        surface: surface,
+        ownerID: ownerID,
+        update: update
+      )
+    }
+
     func terminalizeJournalTurn(
       surface: AgentSurfaceReference,
       ownerID: String,
       terminalization: KernelJournalTurnTerminalization
-    ) async throws -> KernelJournalTurn {
+    ) async throws -> AgentRuntimeProcess.JournalTerminalizationResult {
       try await bridge.terminalizeJournalTurn(
         surface: surface,
         ownerID: ownerID,
@@ -321,14 +361,6 @@ enum AgentClient {
         afterTurnSeq: afterTurnSeq,
         limit: limit
       )
-    }
-
-    func importRemoteJournalTurn(
-      surface: AgentSurfaceReference,
-      ownerID: String? = nil,
-      turn: KernelJournalRemoteTurn
-    ) async throws -> KernelJournalTurn {
-      try await bridge.importRemoteJournalTurn(surface: surface, ownerID: ownerID, turn: turn)
     }
 
     func clearJournalTurns(

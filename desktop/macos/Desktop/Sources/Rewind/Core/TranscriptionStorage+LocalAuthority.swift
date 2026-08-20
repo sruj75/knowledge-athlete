@@ -709,7 +709,6 @@ extension TranscriptionStorage {
         guard database.changesCount == 1 else { throw TranscriptionStorageError.sessionNotFound }
       }
     }
-    HomeKnowledgeCountInvalidation.post()
   }
 
   func mergeConversations(

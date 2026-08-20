@@ -14,9 +14,7 @@ BACKEND_DIR = Path(__file__).resolve().parents[2]
 
 EXPECTED_ROUTE_LIMITS = {
     'routers/chat.py': {
-        ('POST', '/v2/voice-messages'): 'VOICE_MESSAGE_MAX_PART_SIZE',
         ('POST', '/v2/voice-message/transcribe'): 'VOICE_MESSAGE_MAX_PART_SIZE',
-        ('POST', '/v2/files'): 'CHAT_FILE_MAX_PART_SIZE',
         ('POST', '/v1/files'): 'CHAT_FILE_MAX_PART_SIZE',
     },
     'routers/phone_calls.py': {

@@ -17,14 +17,15 @@ import type {
   ExternalSurfaceToolResultMessage,
   ExternalSurfaceRunCompleteMessage,
   ExternalSurfaceRunCompleteResultMessage,
-  ImportLegacyMainChatSessionsMessage,
-  LegacyMainChatSessionsImportedMessage,
   RevokeOwnerRuntimeMessage,
   OwnerRuntimeRevokedMessage,
   JournalRecordTurnMessage,
-  JournalImportRemoteTurnMessage,
   JournalTerminalizeTurnMessage,
-  JournalBackendSyncMessage,
+  ChatCatalogListMessage,
+  ChatCatalogCreateMessage,
+  ChatCatalogUpdateMessage,
+  ChatCatalogDeleteMessage,
+  ChatCatalogResultMessage,
 } from "../src/protocol.js";
 import {
   PROTOCOL_VERSION,
@@ -39,6 +40,72 @@ import {
 } from "../src/runtime/control-tools.js";
 
 describe("protocol v2", () => {
+  it("defines receipt-bearing owner-scoped local Chat catalog operations", () => {
+    const messages: InboundMessage[] = [
+      {
+        type: "chat_catalog_list",
+        protocolVersion: PROTOCOL_VERSION,
+        requestId: "catalog-list",
+        clientId: "main-chat",
+        ownerId: "owner-a",
+      } satisfies ChatCatalogListMessage,
+      {
+        type: "chat_catalog_create",
+        protocolVersion: PROTOCOL_VERSION,
+        requestId: "catalog-create",
+        clientId: "main-chat",
+        ownerId: "owner-a",
+        chatId: "chat-a",
+      } satisfies ChatCatalogCreateMessage,
+      {
+        type: "chat_catalog_update",
+        protocolVersion: PROTOCOL_VERSION,
+        requestId: "catalog-update",
+        clientId: "main-chat",
+        ownerId: "owner-a",
+        chatId: "chat-a",
+        title: "Manual title",
+        titleOrigin: "manual",
+        expectedTitleOrigin: "automatic",
+        starred: true,
+      } satisfies ChatCatalogUpdateMessage,
+      {
+        type: "chat_catalog_delete",
+        protocolVersion: PROTOCOL_VERSION,
+        requestId: "catalog-delete",
+        clientId: "main-chat",
+        ownerId: "owner-a",
+        chatId: "chat-a",
+      } satisfies ChatCatalogDeleteMessage,
+    ];
+    expect(messages.map((message) => message.type)).toEqual([
+      "chat_catalog_list",
+      "chat_catalog_create",
+      "chat_catalog_update",
+      "chat_catalog_delete",
+    ]);
+
+    const receipt: ChatCatalogResultMessage = {
+      type: "chat_catalog_result",
+      protocolVersion: PROTOCOL_VERSION,
+      requestId: "catalog-create",
+      clientId: "main-chat",
+      ownerId: "owner-a",
+      operation: "create",
+      chat: {
+        chatId: "chat-a",
+        title: "New Chat",
+        titleOrigin: "default",
+        preview: "",
+        messageCount: 0,
+        createdAtMs: 1,
+        lastActivityAtMs: 1,
+        starred: false,
+      },
+    };
+    expect((receipt as OutboundMessage).operation).toBe("create");
+  });
+
   it("makes canonical session identity the only query execution selector", () => {
     const message: QueryMessage = {
       type: "query",
@@ -110,30 +177,6 @@ describe("protocol v2", () => {
       result: JSON.stringify({ ok: false, error: { code: "direct_control_owner_revoked" } }),
     };
     expect((receipt as OutboundMessage).ownerId).toBe(message.ownerId);
-  });
-
-  it("types the bounded remote-turn upgrade as an owner-scoped journal request", () => {
-    const message: JournalImportRemoteTurnMessage = {
-      type: "journal_import_remote_turn",
-      protocolVersion: PROTOCOL_VERSION,
-      requestId: "import-remote",
-      clientId: "main-chat-upgrade",
-      ownerId: "owner-1",
-      surfaceKind: "main_chat",
-      externalRefKind: "chat",
-      externalRefId: "default",
-      turn: {
-        remoteId: "remote-1",
-        canonicalTurnId: "turn-1",
-        role: "user",
-        content: "fixture",
-        contentBlocks: [],
-        resources: [],
-        metadataJson: "{}",
-        createdAtMs: 1,
-      },
-    };
-    expect((message as InboundMessage).type).toBe("journal_import_remote_turn");
   });
 
   it("bootstraps local runtimes with an owner-only handshake before owner-scoped RPCs", () => {
@@ -215,29 +258,6 @@ describe("protocol v2", () => {
       producingAttemptId: "att-task-1",
     });
 
-    const delivery: JournalBackendSyncMessage = {
-      type: "journal_backend_sync",
-      protocolVersion: PROTOCOL_VERSION,
-      requestId: "journal:turn-task-1:2",
-      clientId: "kernel-journal",
-      ownerId: "owner",
-      turnId: "turn-task-1",
-      conversationId: "conversation-1",
-      conversationGeneration: 1,
-      attemptCount: 1,
-      deliveryGeneration: 2,
-      payloadHash: "sha256:payload",
-      clientMessageId: "turn-task-1",
-      journalRevision: 3,
-      text: "Done",
-      sender: "ai",
-      appId: null,
-      sessionId: null,
-      metadata: null,
-      messageSource: "desktop_chat",
-    };
-    expect(delivery).toMatchObject({ clientMessageId: delivery.turnId, journalRevision: 3 });
-    expect(delivery).not.toHaveProperty("remoteId");
     expect(() => assertPublicJournalRecordAuthority({ ...record.turn, delivery: "local" })).toThrow(
       /delivery is kernel-owned/i,
     );
@@ -250,30 +270,6 @@ describe("protocol v2", () => {
       /explicit accept or discard disposition/i,
     );
     expect(() => journalTerminalizationDisposition({})).toThrow(/explicit accept or discard disposition/i);
-  });
-
-  it("acknowledges legacy main-chat aliases only with correlated owner-scoped acceptance", () => {
-    const request: ImportLegacyMainChatSessionsMessage = {
-      type: "import_legacy_main_chat_sessions",
-      protocolVersion: PROTOCOL_VERSION,
-      requestId: "legacy-import",
-      clientId: "bridge-client",
-      ownerId: "owner-1",
-      entries: [{ chatId: "default", agentSessionId: "ses_legacy" }],
-    };
-    const receipt: LegacyMainChatSessionsImportedMessage = {
-      type: "legacy_main_chat_sessions_imported",
-      protocolVersion: PROTOCOL_VERSION,
-      requestId: request.requestId,
-      clientId: request.clientId,
-      ownerId: "owner-1",
-      acceptedEntries: request.entries,
-      acceptedCount: 1,
-      importedCount: 1,
-    };
-
-    expect((request as InboundMessage).ownerId).toBe(receipt.ownerId);
-    expect((receipt as OutboundMessage).acceptedEntries).toEqual(request.entries);
   });
 
   it("binds every physical command/result to the exact manifest and ledger tuple", () => {
@@ -417,14 +413,7 @@ describe("protocol v2", () => {
   });
 
   it("classifies inbound results as responses that must not receive reflected request errors", () => {
-    for (const type of [
-      "authorized_tool_execution_result",
-      "journal_backend_sync_result",
-      "journal_backend_delete_result",
-      "journal_backend_reconcile_result",
-    ] as const) {
-      expect(isInboundResponseMessage({ type })).toBe(true);
-    }
+    expect(isInboundResponseMessage({ type: "authorized_tool_execution_result" })).toBe(true);
     expect(isInboundResponseMessage({ type: "query" })).toBe(false);
     const here = dirname(fileURLToPath(import.meta.url));
     const source = readFileSync(join(here, "../src/index.ts"), "utf8");

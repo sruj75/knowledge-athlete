@@ -20,21 +20,20 @@ import type {
   WarmupMessage,
   AuthorizedToolExecutionResultMessage,
   ResolveSurfaceSessionMessage,
+  ChatCatalogListMessage,
+  ChatCatalogCreateMessage,
+  ChatCatalogUpdateMessage,
+  ChatCatalogDeleteMessage,
   ContextSourceUpdateMessage,
-  ImportLegacyMainChatSessionsMessage,
   InvalidateSessionMessage,
   JournalRecordTurnMessage,
   JournalRecordExchangeMessage,
-  JournalImportRemoteTurnMessage,
   JournalUpdateTurnMessage,
   JournalTerminalizeTurnMessage,
   JournalRepairTurnsMessage,
   JournalListTurnsMessage,
   JournalClearTurnsMessage,
   EnsureAgentSpawnJournalMessage,
-  JournalBackendSyncResultMessage,
-  JournalBackendDeleteResultMessage,
-  JournalBackendReconcileResultMessage,
   RefreshOwnerMessage,
   RevokeOwnerRuntimeMessage,
   RefreshTokenMessage,
@@ -42,7 +41,6 @@ import type {
 import {
   PROTOCOL_VERSION,
   RUNTIME_CAPABILITIES,
-  assertJournalRemoteTurnInput,
   assertPublicJournalRecordAuthority,
   assertPublicJournalUpdateAuthority,
   ensureOutboundProtocolVersion,
@@ -52,7 +50,6 @@ import {
 import type { PromptBlock } from "./adapters/interface.js";
 import { detectImageMimeType } from "./mime-detect.js";
 import { AdapterRegistry } from "./runtime/adapter-registry.js";
-import { nextJournalPumpDelayMs } from "./runtime/journal-pump-backoff.js";
 import { JsonlTransport } from "./runtime/jsonl-transport.js";
 import { AgentRuntimeKernel } from "./runtime/kernel.js";
 import {
@@ -87,29 +84,18 @@ import {
   finalizedToolResultOutcome,
   type RelayToolResultIdentity,
 } from "./runtime/relay-tool-result.js";
-import { LEGACY_MAIN_CHAT_SESSION_COMPATIBILITY } from "./runtime/surface-session.js";
 import {
-  ackBackendConversationDeleteOutbox,
-  ackBackendTurnOutboxWithWakes,
-  applyBackendReconcilePage,
-  beginBackendReconcilesForOwner,
   clearJournalConversation,
-  classifyBackendTurnResultDisposition,
-  drainBackendConversationDeleteOutbox,
-  drainBackendTurnOutbox,
-  failBackendConversationDeleteOutbox,
-  failBackendReconcile,
-  failBackendTurnOutbox,
   journalTurnForSurfaceProjection,
   journalTurnChangedWakes,
-  importRemoteJournalTurn,
   listJournalTurns,
   recordJournalExchange,
   recordJournalTurn,
   repairOrphanedJournalTurns,
-  settleClearedBackendTurnClaim,
   assertPublicJournalUpdatePolicy,
   terminalizeJournalTurn,
+  terminalizeJournalTurnWithReceipt,
+  updateJournalTurnWithReceipt,
   updateJournalTurn,
 } from "./runtime/conversation-journal.js";
 import { DirectControlExecutionBroker } from "./runtime/direct-control-execution.js";
@@ -170,6 +156,30 @@ function runtimeErrorEnvelope(error: unknown): { message: string; failure: Retur
     userMessage: message,
   };
   return { message: failure.userMessage, failure };
+}
+
+type ChatCatalogRequest =
+  | ChatCatalogListMessage
+  | ChatCatalogCreateMessage
+  | ChatCatalogUpdateMessage
+  | ChatCatalogDeleteMessage;
+
+function requireCatalogCorrelation(request: ChatCatalogRequest): void {
+  if (!request.requestId?.trim() || !request.clientId?.trim()) {
+    throw new Error("chat_catalog_requires_correlation");
+  }
+}
+
+function sendCatalogError(request: ChatCatalogRequest, error: unknown): void {
+  const envelope = runtimeErrorEnvelope(error);
+  send({
+    type: "error",
+    protocolVersion: request.protocolVersion,
+    requestId: request.requestId,
+    clientId: request.clientId,
+    message: envelope.message,
+    failure: envelope.failure,
+  });
 }
 
 function agentStateDir(): string {
@@ -1094,7 +1104,10 @@ async function main(): Promise<void> {
     externalRefKind: string;
     externalRefId: string;
   }) => {
-    return kernel.resolveSurfaceSession({
+    const resolver = input.externalRefKind === "chat" && input.externalRefId !== "default"
+      ? kernel.resolveExistingSurfaceSession.bind(kernel)
+      : kernel.resolveSurfaceSession.bind(kernel);
+    return resolver({
       ownerId: input.ownerId,
       surfaceRef: {
         surfaceKind: input.surfaceKind,
@@ -1109,101 +1122,6 @@ async function main(): Promise<void> {
     });
   };
   const journalTurnProjection = (turn: ConversationTurn) => ({ ...turn });
-  const sendBackendReconcile = (request: ReturnType<typeof beginBackendReconcilesForOwner>[number]) => {
-    send({
-      type: "journal_backend_reconcile",
-      requestId: request.reconcileId,
-      clientId: "kernel-journal",
-      ...request,
-    });
-  };
-  const triggerBackendReconcile = (input: { ownerId: string; conversationId?: string }) => {
-    for (const reconcile of beginBackendReconcilesForOwner(store, {
-      ownerId: input.ownerId,
-      conversationId: input.conversationId,
-      limit: input.conversationId ? 1 : 5,
-    })) {
-      sendBackendReconcile(reconcile);
-    }
-  };
-  let pumpingJournalOutbox = false;
-  // Returns true when the pump ran (or was safely skipped) without throwing, so
-  // the timer can back off while it keeps failing instead of hot-looping.
-  const pumpJournalOutbox = (): boolean => {
-    if (!ownerAuthorityEstablished || pumpingJournalOutbox) return true;
-    pumpingJournalOutbox = true;
-    try {
-      const activeOwnerId = currentOwnerId;
-      for (const deletion of drainBackendConversationDeleteOutbox(store, {
-        ownerId: activeOwnerId,
-        limit: 20,
-      })) {
-        send({
-          type: "journal_backend_delete",
-          requestId: `journal-delete:${deletion.operationId}:${deletion.deliveryGeneration}`,
-          clientId: "kernel-journal",
-          ownerId: deletion.ownerId,
-          operationId: deletion.operationId,
-          conversationId: deletion.conversationId,
-          conversationGeneration: deletion.conversationGeneration,
-          attemptCount: deletion.attemptCount,
-          deliveryGeneration: deletion.deliveryGeneration,
-          payloadHash: deletion.payloadHash,
-          targetKind: deletion.targetKind,
-          targetId: deletion.targetId,
-        });
-      }
-      for (const delivery of drainBackendTurnOutbox(store, {
-        ownerId: activeOwnerId,
-        limit: 20,
-        onQuarantine: (turnId) =>
-          logErr(`Journal outbox parked turn ${turnId}: canonical payload hash mismatch (not re-delivered)`),
-      })) {
-        send({
-          type: "journal_backend_sync",
-          requestId: `journal:${delivery.turnId}:${delivery.deliveryGeneration}`,
-          clientId: "kernel-journal",
-          ownerId: delivery.ownerId,
-          ...delivery.payload,
-          turnId: delivery.turnId,
-          conversationId: delivery.conversationId,
-          conversationGeneration: delivery.conversationGeneration,
-          attemptCount: delivery.attemptCount,
-          deliveryGeneration: delivery.deliveryGeneration,
-          payloadHash: delivery.payloadHash,
-        });
-      }
-      return true;
-    } catch (error) {
-      logErr(`Journal outbox pump failed: ${error}`);
-      return false;
-    } finally {
-      pumpingJournalOutbox = false;
-    }
-  };
-  // Self-rescheduling timer with exponential backoff: a poisoned outbox row can
-  // make the pump throw indefinitely, so a fixed interval would re-throw every
-  // second forever. Back off on consecutive failures (capped at ~1/min) and snap
-  // back to base cadence the moment a pump completes cleanly.
-  let journalPumpTimer: ReturnType<typeof setTimeout> | undefined;
-  let journalPumpFailureStreak = 0;
-  const scheduleJournalPumpTick = (delayMs: number): void => {
-    journalPumpTimer = setTimeout(runJournalPumpTick, delayMs);
-    journalPumpTimer.unref();
-  };
-  const runJournalPumpTick = (): void => {
-    const clean = pumpJournalOutbox();
-    if (clean) {
-      if (journalPumpFailureStreak > 0) {
-        logErr(`Journal outbox pump recovered after ${journalPumpFailureStreak} consecutive failure(s)`);
-        journalPumpFailureStreak = 0;
-      }
-    } else {
-      journalPumpFailureStreak += 1;
-    }
-    scheduleJournalPumpTick(nextJournalPumpDelayMs(journalPumpFailureStreak));
-  };
-  scheduleJournalPumpTick(nextJournalPumpDelayMs(0));
   // 3. Signal readiness
   send({
     type: "init",
@@ -1310,8 +1228,102 @@ async function main(): Promise<void> {
             executionRole: profile.executionRole,
           },
         });
-        if (resolve.surfaceKind === "main_chat") {
-          triggerBackendReconcile({ ownerId, conversationId: resolved.conversationId });
+        break;
+      }
+
+      case "chat_catalog_list": {
+        const request = msg as ChatCatalogListMessage;
+        try {
+          requireCatalogCorrelation(request);
+          const ownerId = resolveActiveOwner(request.ownerId);
+          send({
+            type: "chat_catalog_result",
+            protocolVersion: request.protocolVersion,
+            requestId: request.requestId,
+            clientId: request.clientId,
+            ownerId,
+            operation: "list",
+            chats: kernel.listChatCatalog({ ownerId }),
+            retainedAttachmentUris: kernel.retainedAttachmentUris(ownerId),
+          });
+        } catch (error) {
+          sendCatalogError(request, error);
+        }
+        break;
+      }
+
+      case "chat_catalog_create": {
+        const request = msg as ChatCatalogCreateMessage;
+        try {
+          requireCatalogCorrelation(request);
+          const ownerId = resolveActiveOwner(request.ownerId);
+          send({
+            type: "chat_catalog_result",
+            protocolVersion: request.protocolVersion,
+            requestId: request.requestId,
+            clientId: request.clientId,
+            ownerId,
+            operation: "create",
+            chat: kernel.createChatCatalog({
+              ownerId,
+              chatId: request.chatId,
+              title: request.title,
+              defaultAdapterId,
+              modelProfile: "omi-sonnet",
+              defaultCwd: agentArtifactsDir(),
+            }),
+          });
+        } catch (error) {
+          sendCatalogError(request, error);
+        }
+        break;
+      }
+
+      case "chat_catalog_update": {
+        const request = msg as ChatCatalogUpdateMessage;
+        try {
+          requireCatalogCorrelation(request);
+          const ownerId = resolveActiveOwner(request.ownerId);
+          send({
+            type: "chat_catalog_result",
+            protocolVersion: request.protocolVersion,
+            requestId: request.requestId,
+            clientId: request.clientId,
+            ownerId,
+            operation: "update",
+            chat: kernel.updateChatCatalog({
+              ownerId,
+              chatId: request.chatId,
+              title: request.title,
+              titleOrigin: request.titleOrigin,
+              expectedTitleOrigin: request.expectedTitleOrigin,
+              starred: request.starred,
+            }),
+          });
+        } catch (error) {
+          sendCatalogError(request, error);
+        }
+        break;
+      }
+
+      case "chat_catalog_delete": {
+        const request = msg as ChatCatalogDeleteMessage;
+        try {
+          requireCatalogCorrelation(request);
+          const ownerId = resolveActiveOwner(request.ownerId);
+          const receipt = kernel.deleteChatCatalog({ ownerId, chatId: request.chatId });
+          send({
+            type: "chat_catalog_result",
+            protocolVersion: request.protocolVersion,
+            requestId: request.requestId,
+            clientId: request.clientId,
+            ownerId,
+            operation: "delete",
+            deletedChatId: receipt.deletedChatId,
+            retainedAttachmentUris: receipt.retainedAttachmentUris,
+          });
+        } catch (error) {
+          sendCatalogError(request, error);
         }
         break;
       }
@@ -1686,7 +1698,6 @@ async function main(): Promise<void> {
             turn: journalTurnProjection(result.turn),
           });
         }
-        pumpJournalOutbox();
         break;
       }
 
@@ -1742,6 +1753,8 @@ async function main(): Promise<void> {
             highWaterTurnSeq: range.highWaterTurnSeq,
             generationBaseTurnSeq: range.generationBaseTurnSeq,
             conversationGeneration: range.generation,
+            firstCompletedRealPair: result.firstCompletedRealPair,
+            firstCompletedRealExchange: result.firstCompletedRealExchange ?? undefined,
           });
           // recordJournalExchange has returned, so its outer transaction is
           // committed before any observer can see either half.
@@ -1757,7 +1770,6 @@ async function main(): Promise<void> {
               turn: journalTurnProjection(turn),
             });
           }
-          pumpJournalOutbox();
         } catch (error) {
           const envelope = runtimeErrorEnvelope(error);
           send({
@@ -1767,68 +1779,6 @@ async function main(): Promise<void> {
             clientId: request.clientId,
             message: envelope.message,
             failure: envelope.failure,
-          });
-        }
-        break;
-      }
-
-      case "journal_import_remote_turn": {
-        const request = msg as JournalImportRemoteTurnMessage;
-        const ownerId = resolveActiveOwner(request.ownerId);
-        const resolved = resolveJournalSurface({
-          ownerId,
-          surfaceKind: request.surfaceKind,
-          externalRefKind: request.externalRefKind,
-          externalRefId: request.externalRefId,
-        });
-        assertJournalRemoteTurnInput(request.turn);
-        const imported = importRemoteJournalTurn(store, {
-          ownerId,
-          conversationId: resolved.conversationId,
-          remoteId: request.turn.remoteId,
-          canonicalTurnId: request.turn.canonicalTurnId,
-          role: request.turn.role,
-          surfaceKind: request.surfaceKind,
-          content: request.turn.content,
-          contentBlocks: request.turn.contentBlocks as ConversationContentBlock[],
-          resources: request.turn.resources as ConversationResource[],
-          metadataJson: request.turn.metadataJson,
-          createdAtMs: request.turn.createdAtMs,
-          source: "legacy_upgrade",
-        });
-        const range = listJournalTurns(store, {
-          ownerId,
-          conversationId: resolved.conversationId,
-          afterTurnSeq: Math.max(0, imported.turn.turnSeq - 1),
-          limit: 1,
-        });
-        send({
-          type: "journal_operation_result",
-          protocolVersion: request.protocolVersion,
-          requestId: request.requestId,
-          clientId: request.clientId,
-          operation: "import_remote",
-          conversationId: resolved.conversationId,
-          surfaceKind: request.surfaceKind,
-          externalRefKind: request.externalRefKind,
-          externalRefId: request.externalRefId,
-          turn: journalTurnProjection(imported.turn),
-          turns: [],
-          clearedCount: 0,
-          highWaterTurnSeq: range.highWaterTurnSeq,
-          generationBaseTurnSeq: range.generationBaseTurnSeq,
-          conversationGeneration: range.generation,
-        });
-        if (imported.imported) {
-          send({
-            type: "journal_turn_changed",
-            ownerId,
-            conversationGeneration: range.generation,
-            generationBaseTurnSeq: range.generationBaseTurnSeq,
-            surfaceKind: request.surfaceKind,
-            externalRefKind: request.externalRefKind,
-            externalRefId: request.externalRefId,
-            turn: journalTurnProjection(imported.turn),
           });
         }
         break;
@@ -1879,7 +1829,8 @@ async function main(): Promise<void> {
             metadataJson: typeof update.metadataJson === "string" ? update.metadataJson : undefined,
           };
           assertPublicJournalUpdatePolicy(store, parsedUpdate);
-          const turn = updateJournalTurn(store, parsedUpdate);
+          const updated = updateJournalTurnWithReceipt(store, parsedUpdate);
+          const turn = updated.turn;
           const range = listJournalTurns(store, {
             ownerId,
             conversationId: resolved.conversationId,
@@ -1902,6 +1853,8 @@ async function main(): Promise<void> {
             highWaterTurnSeq: range.highWaterTurnSeq,
             generationBaseTurnSeq: range.generationBaseTurnSeq,
             conversationGeneration: range.generation,
+            firstCompletedRealPair: updated.firstCompletedRealPair,
+            firstCompletedRealExchange: updated.firstCompletedRealExchange ?? undefined,
           });
           if (turn.turnSeq !== Number(before.turn_seq)) {
             send({
@@ -1915,7 +1868,6 @@ async function main(): Promise<void> {
               turn: journalTurnProjection(turn),
             });
           }
-          pumpJournalOutbox();
         } catch (error) {
           const envelope = runtimeErrorEnvelope(error);
           send({
@@ -1947,7 +1899,7 @@ async function main(): Promise<void> {
             "SELECT turn_seq FROM conversation_turns WHERE conversation_id = ? AND turn_id = ?",
             [resolved.conversationId, turnId],
           );
-          const turn = terminalizeJournalTurn(store, {
+          const terminalized = terminalizeJournalTurnWithReceipt(store, {
             ownerId,
             conversationId: resolved.conversationId,
             turnId,
@@ -1966,6 +1918,7 @@ async function main(): Promise<void> {
               ? terminalization.replaceResources as ConversationResource[]
               : undefined,
           });
+          const turn = terminalized.turn;
           const range = listJournalTurns(store, {
             ownerId,
             conversationId: resolved.conversationId,
@@ -1988,6 +1941,8 @@ async function main(): Promise<void> {
             highWaterTurnSeq: range.highWaterTurnSeq,
             generationBaseTurnSeq: range.generationBaseTurnSeq,
             conversationGeneration: range.generation,
+            firstCompletedRealPair: terminalized.firstCompletedRealPair,
+            firstCompletedRealExchange: terminalized.firstCompletedRealExchange ?? undefined,
           });
           if (turn.turnSeq !== Number(before.turn_seq)) {
             send({
@@ -2001,7 +1956,6 @@ async function main(): Promise<void> {
               turn: journalTurnProjection(turn),
             });
           }
-          pumpJournalOutbox();
         } catch (error) {
           const envelope = runtimeErrorEnvelope(error);
           send({
@@ -2050,7 +2004,6 @@ async function main(): Promise<void> {
               });
             }
           }
-          pumpJournalOutbox();
         } catch (error) {
           const envelope = runtimeErrorEnvelope(error);
           send({
@@ -2098,9 +2051,6 @@ async function main(): Promise<void> {
           generationBaseTurnSeq: range.generationBaseTurnSeq,
           conversationGeneration: range.generation,
         });
-        if (request.surfaceKind === "main_chat") {
-          triggerBackendReconcile({ ownerId, conversationId: resolved.conversationId });
-        }
         break;
       }
 
@@ -2117,7 +2067,6 @@ async function main(): Promise<void> {
           ownerId,
           conversationId: resolved.conversationId,
           expectedGeneration: request.expectedGeneration,
-          deleteBackend: request.deleteBackend,
         });
         send({
           type: "journal_operation_result",
@@ -2134,9 +2083,7 @@ async function main(): Promise<void> {
           highWaterTurnSeq: result.highWaterTurnSeq,
           generationBaseTurnSeq: result.generationBaseTurnSeq,
           conversationGeneration: result.generation,
-          backendDeleteOperationId: result.backendDeleteOperationId ?? undefined,
         });
-        pumpJournalOutbox();
         break;
       }
 
@@ -2166,206 +2113,6 @@ async function main(): Promise<void> {
             send({ type: "journal_turn_changed", ...wake, turn: journalTurnProjection(wake.turn) });
           }
         }
-        pumpJournalOutbox();
-        break;
-      }
-
-      case "journal_backend_sync_result": {
-        const result = msg as JournalBackendSyncResultMessage;
-        resolveActiveOwner(result.ownerId);
-        const claimOwner = store.getOptionalRow(
-          "SELECT owner_id, conversation_id FROM backend_turn_outbox WHERE turn_id = ?",
-          [result.turnId],
-        );
-        if (!claimOwner) {
-          const settled = settleClearedBackendTurnClaim(store, {
-            ownerId: result.ownerId,
-            turnId: result.turnId,
-            conversationId: result.conversationId,
-            attemptCount: result.attemptCount,
-            deliveryGeneration: result.deliveryGeneration,
-            conversationGeneration: result.conversationGeneration,
-            payloadHash: result.payloadHash,
-            ok: result.ok,
-          });
-          if (!settled) throw new Error("Backend sync result has no active or preserved claim");
-          pumpJournalOutbox();
-          break;
-        }
-        if (String(claimOwner.conversation_id) !== result.conversationId) {
-          throw new Error("Backend sync result conversation does not match the active claim");
-        }
-        const ownerId = String(claimOwner.owner_id);
-        if (result.ownerId !== ownerId) throw new Error("Backend sync result owner does not match the claim owner");
-        const disposition = classifyBackendTurnResultDisposition(store, {
-          ownerId,
-          turnId: result.turnId,
-          conversationId: result.conversationId,
-          attemptCount: result.attemptCount,
-          deliveryGeneration: result.deliveryGeneration,
-          conversationGeneration: result.conversationGeneration,
-          payloadHash: result.payloadHash,
-          ok: result.ok,
-          remoteId: result.remoteId,
-          errorCode: result.errorCode,
-        });
-        if (disposition !== "active") {
-          logErr(
-            `Ignoring ${disposition} backend sync result turn=${result.turnId} delivery=${result.deliveryGeneration}`,
-          );
-          pumpJournalOutbox();
-          break;
-        }
-        if (result.ok && result.remoteId) {
-          if (ownerId !== currentOwnerId) throw new Error("Backend sync success is outside the active owner");
-          const acknowledged = ackBackendTurnOutboxWithWakes(store, {
-            ownerId,
-            turnId: result.turnId,
-            remoteId: result.remoteId,
-            attemptCount: result.attemptCount,
-            deliveryGeneration: result.deliveryGeneration,
-            conversationGeneration: result.conversationGeneration,
-            payloadHash: result.payloadHash,
-          });
-          for (const wake of acknowledged.wakes) {
-            send({ type: "journal_turn_changed", ...wake });
-          }
-        } else {
-          failBackendTurnOutbox(store, {
-            ownerId,
-            turnId: result.turnId,
-            attemptCount: result.attemptCount,
-            deliveryGeneration: result.deliveryGeneration,
-            conversationGeneration: result.conversationGeneration,
-            payloadHash: result.payloadHash,
-            errorCode: result.errorCode ?? "backend_sync_failed",
-            retryAtMs: result.attemptCount < 5
-              && [
-                "backend_sync_failed",
-                "backend_sync_owner_changed",
-                "backend_sync_http_retryable",
-                "network_unavailable",
-                "timeout",
-                "connection_lost",
-              ].includes(
-                result.errorCode ?? "backend_sync_failed",
-              )
-              ? Date.now() + Math.min(60_000, 1_000 * 2 ** result.attemptCount)
-              : undefined,
-          });
-        }
-        pumpJournalOutbox();
-        break;
-      }
-
-      case "journal_backend_delete_result": {
-        const result = msg as JournalBackendDeleteResultMessage;
-        resolveActiveOwner(result.ownerId);
-        const claim = store.getRow(
-          `SELECT owner_id, conversation_id
-           FROM backend_conversation_delete_outbox WHERE operation_id = ?`,
-          [result.operationId],
-        );
-        const claimOwnerId = String(claim.owner_id);
-        if (result.ownerId !== claimOwnerId || String(claim.conversation_id) !== result.conversationId) {
-          throw new Error("Backend conversation delete result does not match the active owner or conversation");
-        }
-        if (result.ok) {
-          if (claimOwnerId !== currentOwnerId) throw new Error("Backend delete success is outside the active owner");
-          ackBackendConversationDeleteOutbox(store, {
-            ownerId: claimOwnerId,
-            operationId: result.operationId,
-            conversationGeneration: result.conversationGeneration,
-            attemptCount: result.attemptCount,
-            deliveryGeneration: result.deliveryGeneration,
-            payloadHash: result.payloadHash,
-          });
-        } else {
-          const errorCode = result.errorCode ?? "backend_delete_failed";
-          failBackendConversationDeleteOutbox(store, {
-            ownerId: claimOwnerId,
-            operationId: result.operationId,
-            conversationGeneration: result.conversationGeneration,
-            attemptCount: result.attemptCount,
-            deliveryGeneration: result.deliveryGeneration,
-            payloadHash: result.payloadHash,
-            errorCode,
-            retryAtMs: result.attemptCount < 5
-              && [
-                "backend_delete_failed",
-                "backend_sync_owner_changed",
-                "backend_sync_http_retryable",
-                "network_unavailable",
-                "timeout",
-                "connection_lost",
-              ].includes(errorCode)
-              ? Date.now() + Math.min(60_000, 1_000 * 2 ** result.attemptCount)
-              : undefined,
-          });
-        }
-        pumpJournalOutbox();
-        if (result.ok && claimOwnerId === currentOwnerId) {
-          triggerBackendReconcile({ ownerId: claimOwnerId, conversationId: result.conversationId });
-        }
-        break;
-      }
-
-      case "journal_backend_reconcile_result": {
-        const result = msg as JournalBackendReconcileResultMessage;
-        resolveActiveOwner(result.ownerId);
-        const claim = store.getOptionalRow(
-          `SELECT owner_id, in_flight_id, status FROM backend_reconcile_state
-           WHERE conversation_id = ?`,
-          [result.conversationId],
-        );
-        if (
-          !claim
-          || String(claim.owner_id) !== result.ownerId
-          || String(claim.status) !== "fetching"
-          || String(claim.in_flight_id) !== result.reconcileId
-        ) {
-          logErr(`Dropping stale backend reconcile result reconcile=${result.reconcileId}`);
-          break;
-        }
-        if (!result.ok) {
-          failBackendReconcile(store, {
-            ownerId: result.ownerId,
-            reconcileId: result.reconcileId,
-            conversationId: result.conversationId,
-            errorCode: result.errorCode ?? "backend_reconcile_failed",
-          });
-          pumpJournalOutbox();
-          break;
-        }
-        if (result.ownerId !== currentOwnerId) {
-          throw new Error("Backend reconcile success is outside the active owner");
-        }
-        const page = applyBackendReconcilePage(store, {
-          ownerId: result.ownerId,
-          reconcileId: result.reconcileId,
-          conversationId: result.conversationId,
-          pageCursor: result.pageCursor,
-          nextCursor: result.nextCursor,
-          turns: (result.turns ?? []).map((turn) => ({
-            remoteId: typeof turn.remoteId === "string" ? turn.remoteId : "",
-            canonicalTurnId: typeof turn.canonicalTurnId === "string" ? turn.canonicalTurnId : null,
-            role: turn.role === "assistant" ? "assistant" : "user",
-            content: typeof turn.content === "string" ? turn.content : "",
-            contentBlocks: Array.isArray(turn.contentBlocks)
-              ? turn.contentBlocks as ConversationContentBlock[]
-              : [],
-            resources: Array.isArray(turn.resources) ? turn.resources as ConversationResource[] : [],
-            metadataJson: typeof turn.metadataJson === "string" ? turn.metadataJson : "{}",
-            createdAtMs: typeof turn.createdAtMs === "number" ? turn.createdAtMs : Date.now(),
-          })),
-          hasMore: result.hasMore === true,
-        });
-        for (const turn of page.importedTurns) {
-          for (const wake of journalTurnChangedWakes(store, result.ownerId, turn)) {
-            send({ type: "journal_turn_changed", ...wake, turn: journalTurnProjection(wake.turn) });
-          }
-        }
-        if (page.nextRequest) sendBackendReconcile(page.nextRequest);
         break;
       }
 
@@ -2488,47 +2235,6 @@ async function main(): Promise<void> {
         break;
       }
 
-      case "import_legacy_main_chat_sessions": {
-        // Compatibility contract is owner-scoped and removal-bounded in
-        // LEGACY_MAIN_CHAT_SESSION_COMPATIBILITY; this handler owns no fallback authority.
-        const request = msg as ImportLegacyMainChatSessionsMessage;
-        try {
-          if (!request.requestId?.trim() || !request.clientId?.trim()) {
-            throw new Error("legacy_main_chat_session_import_requires_correlation");
-          }
-          if (!Array.isArray(request.entries) || request.entries.length === 0) {
-            throw new Error("legacy_main_chat_session_import_requires_entries");
-          }
-          const ownerId = resolveActiveOwner(request.ownerId);
-          const receipt = kernel.importLegacyMainChatSessions({ ownerId, entries: request.entries });
-          send({
-            type: "legacy_main_chat_sessions_imported",
-            protocolVersion: request.protocolVersion,
-            requestId: request.requestId,
-            clientId: request.clientId,
-            ownerId,
-            acceptedEntries: receipt.acceptedEntries,
-            acceptedCount: receipt.acceptedEntries.length,
-            importedCount: receipt.importedCount,
-          });
-          logErr(
-            `Accepted ${receipt.acceptedEntries.length} legacy main-chat alias(es); `
-            + `imported ${receipt.importedCount} (compat-owner=${LEGACY_MAIN_CHAT_SESSION_COMPATIBILITY.owner})`,
-          );
-        } catch (error) {
-          const envelope = runtimeErrorEnvelope(error);
-          send({
-            type: "error",
-            protocolVersion: request.protocolVersion,
-            requestId: request.requestId,
-            clientId: request.clientId,
-            message: envelope.message,
-            failure: envelope.failure,
-          });
-        }
-        break;
-      }
-
       case "invalidate_session": {
         const invalidate = msg as InvalidateSessionMessage;
         invalidate.ownerId = resolveActiveOwner(invalidate.ownerId);
@@ -2551,8 +2257,6 @@ async function main(): Promise<void> {
         ownerAuthorityEstablished = true;
         lastOwnerRuntimeRevocation = null;
         if (transition.changed || transition.firstEstablishment) {
-          triggerBackendReconcile({ ownerId: currentOwnerId });
-          pumpJournalOutbox();
         }
         break;
       }
@@ -2573,8 +2277,6 @@ async function main(): Promise<void> {
         ownerAuthorityEstablished = true;
         lastOwnerRuntimeRevocation = null;
         if (transition.changed || transition.firstEstablishment) {
-          triggerBackendReconcile({ ownerId: currentOwnerId });
-          pumpJournalOutbox();
         }
         try {
           await ensurePiMonoAdapter(rtm.token);
@@ -2599,7 +2301,6 @@ async function main(): Promise<void> {
           "runtime_stopped",
           "Agent runtime stopped during tool execution",
         );
-        if (journalPumpTimer) clearTimeout(journalPumpTimer);
         store.close();
         await Promise.all([...piMonoAdapters].map((adapter) => adapter.stop()));
         process.exit(0);

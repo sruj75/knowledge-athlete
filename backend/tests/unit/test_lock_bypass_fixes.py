@@ -168,7 +168,6 @@ _stubs = [
     'utils.conversations.process_conversation',
     'utils.notifications',
     'utils.llm.clients',
-    'utils.llm.chat',
     'utils.llm.usage_tracker',
     'websockets',
 ]

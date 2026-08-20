@@ -120,15 +120,11 @@ class TestActionItemsExecutorMigration:
 
 
 class TestChatExecutorMigration:
-    """Verify chat router uses llm_executor for goal extraction, critical_executor for rate limit."""
+    """Verify the retained chat router uses the shared rate-limit executor."""
 
     def test_no_threading_thread(self):
         src = _read_source('routers/chat.py')
         assert 'threading.Thread' not in src
-
-    def test_uses_llm_executor_for_goals(self):
-        src = _read_source('routers/chat.py')
-        assert 'llm_executor.submit(' in src
 
     def test_uses_critical_executor_for_rate_limit(self):
         src = _read_source('routers/chat.py')

@@ -142,7 +142,8 @@ extension RealtimeHubController {
       return state.task
     }
     let normalizedPrompt = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
-    let sessionID = prefetchedVoiceContextSessionID
+    let continuityKey = "voice:\(turnID.rawValue.uuidString.lowercased())"
+    let sessionID = journalPinsByContinuityKey[continuityKey]?.sessionID ?? ""
     let capturedOwnerID = RuntimeOwnerIdentity.currentOwnerId() ?? ""
     let task = Task<ExternalSurfaceRunBinding, Error> {
       guard !capturedOwnerID.isEmpty,
@@ -365,7 +366,9 @@ extension RealtimeHubController {
             log(
               "RealtimeHub[\(self.providerTag)]: accepted spawn receipt; preserving native provider continuation"
             )
-            if let pill = receipt.pillProjection {
+            if let pill = receipt.pillProjection,
+              let producingSurface = self.journalPinsByContinuityKey[receipt.continuityKey]?.surface
+            {
               AgentPillsManager.shared.upsertSpawnedPill(
                 id: pill.pillID,
                 query: pill.objective,
@@ -373,7 +376,7 @@ extension RealtimeHubController {
                 sessionId: pill.sessionID,
                 runId: pill.runID,
                 attemptId: pill.attemptID,
-                producingJournalSurface: FloatingControlBarManager.shared.realtimeVoiceSurfaceReference())
+                producingJournalSurface: producingSurface)
             }
           case .accepted, .rejected:
             log("RealtimeHub[\(self.providerTag)]: spawn_agent rejected without a canonical child receipt")
@@ -1206,8 +1209,7 @@ extension RealtimeHubController {
       // only after transcript resolution creates a TOCTOU window where the
       // next PTT turn can snapshot the journal without this failed turn.
       let failedTurnContinuityKey = turnIdempotencyKey
-      _ = RealtimeProviderFailureContinuity.registerCapturedTurn(
-        in: turnPersistenceLedger,
+      _ = enqueueProviderFailurePersistence(
         continuityKey: failedTurnContinuityKey,
         capturedTurnTask: interruptedTurnTask
       ) { [weak self] interruptedTurn in

@@ -2,9 +2,60 @@ import Foundation
 import VoiceTurnDomain
 
 extension RealtimeHubController {
+  func beginChatClearBarrier(surface: AgentSurfaceReference) -> Bool {
+    guard clearingChatSurface == nil,
+      VoiceTurnCoordinator.shared.activeTurnID == nil,
+      turnPersistenceLedger.pendingContinuityKeys.isEmpty,
+      !streamingJournalWriteLedger.hasActiveProjections
+    else { return false }
+    clearingChatSurface = surface
+    return true
+  }
+
+  func endChatClearBarrier(surface: AgentSurfaceReference) {
+    guard clearingChatSurface == surface else { return }
+    clearingChatSurface = nil
+  }
+
+  func chatClearBarrierBlocksVoiceAdmission() -> Bool {
+    clearingChatSurface != nil
+  }
+
+  func chatClearBarrierAllowsPersistence(to surface: AgentSurfaceReference) -> Bool {
+    guard let clearingChatSurface else { return true }
+    return clearingChatSurface.externalRefKind != surface.externalRefKind
+      || clearingChatSurface.externalRefId != surface.externalRefId
+  }
+
   struct AcceptedSpawnJournalReceipt {
     let ownerID: String
     let receipt: RealtimeSpawnJournalReceipt
+  }
+
+  func pinVoiceJournal(
+    continuityKey: String,
+    surface: AgentSurfaceReference,
+    sessionID: String
+  ) {
+    journalPinsByContinuityKey[continuityKey] = RealtimeJournalPin(
+      surface: surface,
+      sessionID: sessionID
+    )
+    terminalJournalContinuityKeys.remove(continuityKey)
+  }
+
+  func markVoiceJournalPinTerminal(continuityKey: String) {
+    terminalJournalContinuityKeys.insert(continuityKey)
+    retireVoiceJournalPinIfPossible(continuityKey: continuityKey)
+  }
+
+  func retireVoiceJournalPinIfPossible(continuityKey: String) {
+    guard terminalJournalContinuityKeys.contains(continuityKey),
+      !turnPersistenceLedger.pendingContinuityKeys.contains(continuityKey)
+    else { return }
+    journalPinsByContinuityKey.removeValue(forKey: continuityKey)
+    acceptedSpawnJournalReceiptByContinuityKey.removeValue(forKey: continuityKey)
+    terminalJournalContinuityKeys.remove(continuityKey)
   }
 
   @discardableResult
@@ -13,10 +64,36 @@ extension RealtimeHubController {
     retainingReceipt: Bool = false,
     _ operation: @escaping @MainActor () async -> Bool
   ) -> Task<Bool, Never> {
-    turnPersistenceLedger.enqueue(
+    let persistence = turnPersistenceLedger.enqueue(
       continuityKey: idempotencyKey,
       retainingReceipt: retainingReceipt,
       operation)
+    return Task { @MainActor [weak self] in
+      let accepted = await persistence.value
+      self?.retireVoiceJournalPinIfPossible(continuityKey: idempotencyKey)
+      return accepted
+    }
+  }
+
+  /// Provider teardown must register its obligation synchronously, so it uses
+  /// the dedicated failure-continuity policy and then rejoins the same pin
+  /// retirement boundary as ordinary turn persistence.
+  func enqueueProviderFailurePersistence(
+    continuityKey: String,
+    capturedTurnTask: Task<InterruptedTurnPayload?, Never>,
+    record: @escaping @MainActor (InterruptedTurnPayload) async -> Bool
+  ) -> Task<Bool, Never> {
+    let persistence = RealtimeProviderFailureContinuity.registerCapturedTurn(
+      in: turnPersistenceLedger,
+      continuityKey: continuityKey,
+      capturedTurnTask: capturedTurnTask,
+      record: record
+    )
+    return Task { @MainActor [weak self] in
+      let accepted = await persistence.value
+      self?.retireVoiceJournalPinIfPossible(continuityKey: continuityKey)
+      return accepted
+    }
   }
 
   /// Starts the shared journal stream only after both sides have meaningful text.
@@ -26,12 +103,13 @@ extension RealtimeHubController {
     guard !turnIdempotencyKey.isEmpty, !userText.isEmpty, !responseText.isEmpty,
       acceptedSpawnJournalReceiptByContinuityKey[turnIdempotencyKey] == nil,
       VoiceTurnCoordinator.shared.activeTurn?.pendingToolCallIDs.isEmpty == true,
-      let ownerID = VoiceTurnCoordinator.shared.activeTurn?.ownerID
+      let ownerID = VoiceTurnCoordinator.shared.activeTurn?.ownerID,
+      let admissionSurface = journalPinsByContinuityKey[turnIdempotencyKey]?.surface
     else { return }
 
     let projection = RealtimeStreamingJournalProjection(
       ownerID: ownerID, continuityKey: turnIdempotencyKey,
-      admissionSurface: FloatingControlBarManager.shared.mainChatSurfaceReference())
+      admissionSurface: admissionSurface)
     guard
       streamingJournalWriteLedger.begin(
         projection: projection,

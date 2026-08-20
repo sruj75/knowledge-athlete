@@ -7,7 +7,6 @@ import Foundation
 //
 // Deliberately out of scope (kept as their own dedicated sheets, since
 // they are product flows rather than generic error recovery):
-//   - `showOmiThresholdAlert`  (usage-cap upgrade alert)
 
 /// Why the bridge process is unavailable. Used to drive copy and choose
 /// whether the primary recovery opens runtime install docs or retries.

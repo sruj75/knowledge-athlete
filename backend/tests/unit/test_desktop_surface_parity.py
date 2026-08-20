@@ -13,19 +13,18 @@ def test_deprecated_route_surface_is_registered() -> None:
     }
     expected = {(method, path) for path, methods in desktop_deprecated._ROUTES.items() for method in methods}
     assert actual == expected
-    assert len(actual) == 63
 
 
 def test_deprecated_routes_preserve_gone_response() -> None:
     app = FastAPI()
     app.include_router(desktop_deprecated.router)
-    response = TestClient(app).patch("/v2/messages/message-1/rating")
+    response = TestClient(app).post("/v2/chat-context")
 
     assert response.status_code == 410
     assert response.json() == {
         "error": "gone",
         "message": (
-            "This endpoint (PATCH /v2/messages/message-1/rating) is deprecated and no longer served by the "
+            "This endpoint (POST /v2/chat-context) is deprecated and no longer served by the "
             "desktop backend. See https://api.omi.me for supported endpoints."
         ),
         "migration": "https://api.omi.me",

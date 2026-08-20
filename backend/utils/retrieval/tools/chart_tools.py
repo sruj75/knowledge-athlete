@@ -2,21 +2,16 @@
 Tool for creating inline chart visualizations in chat responses.
 """
 
-import contextvars
 from typing import Any, Dict, List, Optional
 
 from langchain_core.tools import tool  # type: ignore[reportUnknownVariableType]  # langchain @tool decorator partially typed
-
-try:
-    from utils.retrieval.agentic import agent_config_context
-except ImportError:
-    agent_config_context = contextvars.ContextVar('agent_config', default=None)
+from utils.retrieval.tool_context import tool_config_context
 
 
 def _agent_config() -> Optional[Dict[str, Any]]:
     """Retrieve the agent config dict from the context var, or None if unset."""
     try:
-        return agent_config_context.get()
+        return tool_config_context.get()
     except LookupError:
         return None
 

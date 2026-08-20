@@ -18,8 +18,9 @@ remain isolated, with no cross-environment comparison or labels.
 | `listen_finalization_oldest_nonterminal_age_seconds` | none | Age of the oldest queued or leased capture finalization job. |
 | `listen_finalization_durable_jobs` | `state` | Authoritative Firestore job projection: `accepted`, `success`, `failure`, `stale`, `nonterminal`, or `terminal_unknown`. |
 
-`journey` is exactly `chat_response`, `pusher_session`, or
-`capture_finalization`. Generic journey `outcome` is exactly `success`, `failure`,
+`journey` remains a closed metric label: `pusher_session`,
+`capture_finalization`, or the reserved legacy `chat_response` value. S-11 has
+no hosted Chat response producer. Generic journey `outcome` is exactly `success`, `failure`,
 `cancelled`, or `stale`; reconciliation `outcome` is exactly `requeued` or
 `enqueue_failed`. Live-STT terminal `outcome` is exactly `success`, `failure`,
 or `cancelled`; its terminal `phase` is exactly `transcript_delivery`,
@@ -31,12 +32,6 @@ image, provider-model, or content labels.
 
 ## Boundary semantics
 
-- `chat_response` is accepted after `/v2/messages` has persisted the human
-  message and prepared its SSE response. `success` is recorded when the server
-  yields the terminal `done:` frame. `failure` means the server-side stream
-  raised; `cancelled` means the stream ended before a terminal frame because
-  its consumer disconnected or cancelled it. This cannot prove a client
-  rendered the response after the server yielded it.
 - `pusher_session` is accepted only after `/v1/trigger/listen` completes its
   WebSocket accept. Close codes `1000` and `1001` are `success` unless the
   server has already identified an application failure. A `1011` or stronger

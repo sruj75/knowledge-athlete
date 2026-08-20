@@ -34,7 +34,7 @@ except ImportError:
 from pydantic import ConfigDict
 
 from utils.executors import llm_executor, start_background_task, submit_with_context
-from utils.llm.gateway_client import BACKGROUND_CHAT_EXTRACTION_TIMEOUT_SECONDS, CHAT_STRUCTURED_AUTO_LANE_ID
+from utils.llm.gateway_client import BACKGROUND_STRUCTURED_TIMEOUT_SECONDS, CHAT_STRUCTURED_AUTO_LANE_ID
 from utils.llm.gateway_observability import record_gateway_request_result, record_gateway_shadow_comparison
 from utils.llm.providers import get_or_create_omi_gateway_llm
 
@@ -58,7 +58,7 @@ def maybe_wrap_dev_gateway_shadow(
     gateway_model = get_or_create_omi_gateway_llm(
         CHAT_STRUCTURED_AUTO_LANE_ID,
         streaming=False,
-        options={'request_timeout': BACKGROUND_CHAT_EXTRACTION_TIMEOUT_SECONDS},
+        options={'request_timeout': BACKGROUND_STRUCTURED_TIMEOUT_SECONDS},
         feature=feature,
     )
     return GatewayShadowChatModel(

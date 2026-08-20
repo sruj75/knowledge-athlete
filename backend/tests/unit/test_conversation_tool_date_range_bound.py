@@ -72,7 +72,7 @@ for _name, _attrs in {
     "utils.conversations.render": ["conversations_to_string"],
     "utils.conversations.search": ["keyword_search_conversation_ids", "merge_conversation_search_ids"],
     "utils.llm.clients": ["embeddings"],
-    "utils.retrieval.agentic": ["agent_config_context"],
+    "utils.retrieval.tool_context": ["tool_config_context"],
 }.items():
     _m = _mod(_name)
     for _a in _attrs:

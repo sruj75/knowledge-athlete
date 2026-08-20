@@ -6,6 +6,8 @@ Verifies:
 """
 
 import importlib.util
+import base64
+import json
 import os
 import shutil as _shutil
 import sys
@@ -335,7 +337,6 @@ def _desktop_transcribe_isolation():
         for _ufull in [
             'utils.llm',
             'utils.llm.memories',
-            'utils.llm.chat',
             'utils.llm.goals',
             'utils.llm.usage_tracker',
             'utils.conversations.process_conversation',
@@ -581,6 +582,35 @@ class TestVoiceMessageTranscribeEndpoint:
             for status in ('400', '502', '503', '504'):
                 schema = operation['responses'][status]['content']['application/json']['schema']
                 assert schema['$ref'].endswith('/TranscriptionErrorResponse')
+        finally:
+            _cleanup_chat_client(saved)
+
+    def test_legacy_voice_messages_stream_is_transient_stt_only(self):
+        client, module, saved = _make_chat_client()
+        try:
+            with (
+                patch.object(module, 'retrieve_file_paths', return_value=['/tmp/test-uid_voice-input']),
+                patch.object(module, 'decode_files_to_wav', return_value=['/tmp/test-uid_voice-input.wav']),
+                patch.object(module, 'read_wav_duration_ms', return_value=1_000),
+                patch.object(module, 'try_consume_budget', return_value=(True, 1_000, 1_000)),
+                patch.object(
+                    module,
+                    'transcribe_voice_message_segment',
+                    return_value=('Transient transcript', 'en'),
+                ) as transcribe,
+            ):
+                response = client.post(
+                    '/v2/voice-messages',
+                    files={'files': ('voice.m4a', b'audio', 'audio/mp4')},
+                )
+
+            assert response.status_code == 200
+            frame = response.text.removeprefix('message: ').strip()
+            payload = json.loads(base64.b64decode(frame).decode('utf-8'))
+            assert payload['text'] == 'Transient transcript'
+            assert payload['sender'] == 'human'
+            assert transcribe.call_count == 1
+            assert not hasattr(module, 'process_voice_message_segment_stream')
         finally:
             _cleanup_chat_client(saved)
 
@@ -1003,29 +1033,6 @@ class TestDurationBudgetEnforcement:
                     )
                     assert resp.status_code == 429
                     assert 'budget exhausted' in resp.json()['detail']
-        finally:
-            _cleanup_chat_client(saved)
-
-
-class TestVoiceMessagesEndpointBudget:
-    """Test /v2/voice-messages daily budget enforcement."""
-
-    def test_voice_messages_budget_exhausted_429(self):
-        """Exhausted budget on /v2/voice-messages should return 429."""
-        import io
-
-        client, module, saved = _make_chat_client()
-        try:
-            with patch.object(module, 'retrieve_file_paths', return_value=['/tmp/test_vm.wav']):
-                with patch.object(module, 'decode_files_to_wav', return_value=['/tmp/test_vm_decoded.wav']):
-                    with patch.object(module, 'read_wav_duration_ms', return_value=60_000):
-                        with patch.object(module, 'try_consume_budget', return_value=(False, 7200000, 0)):
-                            resp = client.post(
-                                '/v2/voice-messages',
-                                files=[('files', ('test.wav', io.BytesIO(b'\x00' * 100), 'audio/wav'))],
-                            )
-                            assert resp.status_code == 429
-                            assert 'budget exhausted' in resp.json()['detail']
         finally:
             _cleanup_chat_client(saved)
 

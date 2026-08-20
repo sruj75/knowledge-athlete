@@ -65,7 +65,6 @@ MODEL_QOS_PROFILES: Dict[str, Dict[str, Tuple[str, str]]] = {
         'daily_summary': ('gpt-5.4-mini', 'openai'),
         # OpenAI — chat
         'chat_responses': ('gpt-5.4-mini', 'openai'),
-        'chat_extraction': ('gpt-4.1-mini', 'openai'),
         'session_titles': ('gemini-2.5-flash-lite', 'gemini'),
         # Features
         'notifications': ('gpt-5.4-mini', 'openai'),
@@ -95,8 +94,7 @@ MODEL_QOS_PROFILES: Dict[str, Dict[str, Tuple[str, str]]] = {
         'daily_summary': ('gpt-5.4', 'openai'),
         # OpenAI — chat
         'chat_responses': ('gpt-5.4', 'openai'),
-        'chat_extraction': ('gpt-4.1-mini', 'openai'),
-        'session_titles': ('gpt-4.1-mini', 'openai'),
+        'session_titles': ('gemini-2.5-flash-lite', 'gemini'),
         # Features
         'notifications': ('gpt-5.4', 'openai'),
         'proactive_notification': ('gpt-4.1-mini', 'openai'),
@@ -115,10 +113,12 @@ MODEL_QOS_PROFILES: Dict[str, Dict[str, Tuple[str, str]]] = {
 
 # Pinned features — (model, provider) fixed regardless of profile or env override.
 _PINNED_FEATURES: Dict[str, Tuple[str, str]] = {
+    'chat_greeting': ('gpt-5.4-mini', 'openai'),
     'fair_use': (os.getenv('FAIR_USE_CLASSIFIER_MODEL', 'gpt-5.1').strip() or 'gpt-5.1', 'openai'),
     'memory_l1': ('gpt-4.1-mini', 'openai'),
     'memory_l2': ('gpt-4.1-mini', 'openai'),
     'memory_conflict': ('gpt-4.1-mini', 'openai'),
+    'session_titles': ('gemini-2.5-flash-lite', 'gemini'),
 }
 
 # Resolve active profile once at startup.
@@ -154,7 +154,6 @@ _CACHE_RETENTION_MODEL_PREFIXES = ('gpt-5', 'o1', 'o3', 'o4')
 
 # Features that call .with_structured_output() — logged when resolving to Gemini for compat monitoring.
 _STRUCTURED_OUTPUT_FEATURES = {
-    'chat_extraction',
     'proactive_notification',
     'trends',
     'translation',

@@ -216,7 +216,6 @@ actor MemoryStorage {
         return item
       }
     }
-    HomeKnowledgeCountInvalidation.post()
     return item
   }
 
@@ -436,7 +435,6 @@ actor MemoryStorage {
         return item
       }
     }
-    HomeKnowledgeCountInvalidation.post()
     return item
   }
 
@@ -518,7 +516,6 @@ actor MemoryStorage {
         try record.update(db)
       }
     }
-    HomeKnowledgeCountInvalidation.post()
     return deadline
   }
 
@@ -543,7 +540,6 @@ actor MemoryStorage {
         try record.update(db)
       }
     }
-    HomeKnowledgeCountInvalidation.post()
   }
 
   func finalizeDeletion(
@@ -562,7 +558,6 @@ actor MemoryStorage {
         try record.delete(db)
       }
     }
-    HomeKnowledgeCountInvalidation.post()
   }
 
   @discardableResult
@@ -579,7 +574,6 @@ actor MemoryStorage {
         return db.changesCount
       }
     }
-    if count > 0 { HomeKnowledgeCountInvalidation.post() }
     return count
   }
 
@@ -595,7 +589,6 @@ actor MemoryStorage {
           arguments: [MemoryLayer.shortTerm.rawValue, MemoryLayer.longTerm.rawValue])
       }
     }
-    HomeKnowledgeCountInvalidation.post()
   }
 
   @discardableResult
@@ -613,7 +606,6 @@ actor MemoryStorage {
         return db.changesCount
       }
     }
-    if count > 0 { HomeKnowledgeCountInvalidation.post() }
     return count
   }
 
@@ -637,7 +629,6 @@ actor MemoryStorage {
         return db.changesCount
       }
     }
-    if count > 0 { HomeKnowledgeCountInvalidation.post() }
     return count
   }
 
@@ -898,7 +889,6 @@ actor MemoryStorage {
         return item
       }
     }
-    HomeKnowledgeCountInvalidation.post()
     return item
   }
 
@@ -1025,7 +1015,6 @@ actor MemoryStorage {
         return accepted
       }
     }
-    if !items.isEmpty { HomeKnowledgeCountInvalidation.post() }
     return items
   }
 
@@ -1185,7 +1174,6 @@ actor MemoryStorage {
         return output
       }
     }
-    HomeKnowledgeCountInvalidation.post()
     return changed
   }
 

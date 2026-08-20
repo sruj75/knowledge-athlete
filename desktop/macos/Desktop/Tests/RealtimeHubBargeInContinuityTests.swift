@@ -87,6 +87,40 @@ final class RealtimeHubBargeInContinuityTests: XCTestCase {
     XCTAssertEqual(events, ["resolved-before-cleanup", "recorded:voice:failure-a"])
   }
 
+  func testProviderFailureRetiresTerminalVoiceJournalPinAfterPersistence() async {
+    let controller = RealtimeHubController()
+    let gate = SuspendedTurnPersistenceGate()
+    let payload = InterruptedTurnPayload(
+      ownerID: "owner-a",
+      userText: "keep the failed turn",
+      assistantText: "partial answer",
+      idempotencyKey: "voice:failure-pin"
+    )
+    controller.pinVoiceJournal(
+      continuityKey: payload.idempotencyKey,
+      surface: .realtimeVoice(chatId: "chat-a"),
+      sessionID: "session-a"
+    )
+    let capturedTurnTask = Task<InterruptedTurnPayload?, Never> { payload }
+    let persistence = controller.enqueueProviderFailurePersistence(
+      continuityKey: payload.idempotencyKey,
+      capturedTurnTask: capturedTurnTask
+    ) { captured in
+      await gate.persist(continuityKey: captured.idempotencyKey)
+    }
+
+    controller.markVoiceJournalPinTerminal(continuityKey: payload.idempotencyKey)
+    XCTAssertNotNil(controller.journalPinsByContinuityKey[payload.idempotencyKey])
+
+    await gate.waitUntilSuspended(continuityKey: payload.idempotencyKey)
+    let accepted = await gate.accept(continuityKey: payload.idempotencyKey)
+    XCTAssertTrue(accepted)
+    let persisted = await persistence.value
+
+    XCTAssertTrue(persisted)
+    XCTAssertNil(controller.journalPinsByContinuityKey[payload.idempotencyKey])
+  }
+
   func testTurnPersistenceLedgerKeepsConcurrentContinuityObligationsIndependent() async {
     let ledger = RealtimeTurnPersistenceLedger()
     let gate = SuspendedTurnPersistenceGate()
@@ -1005,7 +1039,7 @@ final class RealtimeHubBargeInContinuityTests: XCTestCase {
     XCTAssertTrue(source.contains("try? await Task.sleep(nanoseconds: 250_000_000)"))
     XCTAssertFalse(source.contains("RealtimeVoiceTurnOutbox"))
     XCTAssertFalse(source.contains("scheduleVoiceTurnOutboxDrain"))
-    XCTAssertTrue(source.contains("importLegacyVoiceJournalIfNeeded"))
+    XCTAssertFalse(source.contains("importLegacyVoiceJournalIfNeeded"))
     XCTAssertTrue(source.contains("kernelVoiceContextSnapshot()"))
     XCTAssertFalse(source.contains("stageRealtimeVoiceTurn("))
     XCTAssertTrue(source.contains("await self.awaitTurnPersistenceFence()"))

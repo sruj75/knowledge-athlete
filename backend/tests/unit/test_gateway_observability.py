@@ -23,7 +23,7 @@ class _CounterStub:
 
 def test_record_gateway_request_result_maps_success_to_serving_mode(monkeypatch):
     counter = _CounterStub()
-    monkeypatch.setattr(gateway_observability, 'LLM_GATEWAY_CHAT_EXTRACTION_REQUESTS', counter)
+    monkeypatch.setattr(gateway_observability, 'LLM_GATEWAY_STRUCTURED_REQUESTS', counter)
     monkeypatch.setattr(gateway_observability, '_observability_logs_enabled', lambda: False)
 
     gateway_observability.record_gateway_request_result(
@@ -45,7 +45,7 @@ def test_record_gateway_request_result_maps_success_to_serving_mode(monkeypatch)
 
 def test_record_gateway_request_result_maps_fallback_mode(monkeypatch):
     counter = _CounterStub()
-    monkeypatch.setattr(gateway_observability, 'LLM_GATEWAY_CHAT_EXTRACTION_REQUESTS', counter)
+    monkeypatch.setattr(gateway_observability, 'LLM_GATEWAY_STRUCTURED_REQUESTS', counter)
     monkeypatch.setattr(gateway_observability, '_observability_logs_enabled', lambda: False)
 
     gateway_observability.record_gateway_request_result(
@@ -62,7 +62,7 @@ def test_record_direct_exception_surface_increments_counter(monkeypatch):
     direct_counter = _CounterStub()
     unified_counter = _CounterStub()
     monkeypatch.setattr(gateway_observability, 'LLM_GATEWAY_DIRECT_EXCEPTION_REQUESTS', direct_counter)
-    monkeypatch.setattr(gateway_observability, 'LLM_GATEWAY_CHAT_EXTRACTION_REQUESTS', unified_counter)
+    monkeypatch.setattr(gateway_observability, 'LLM_GATEWAY_STRUCTURED_REQUESTS', unified_counter)
     monkeypatch.setattr(gateway_observability, '_observability_logs_enabled', lambda: False)
 
     gateway_observability.record_direct_exception_surface(
@@ -102,7 +102,7 @@ def test_gateway_observability_metric_failure_warns_without_breaking_request(mon
         def labels(self, **_kwargs):
             raise RuntimeError('metric unavailable')
 
-    monkeypatch.setattr(gateway_observability, 'LLM_GATEWAY_CHAT_EXTRACTION_REQUESTS', _BrokenCounter())
+    monkeypatch.setattr(gateway_observability, 'LLM_GATEWAY_STRUCTURED_REQUESTS', _BrokenCounter())
     monkeypatch.setattr(gateway_observability, '_last_observation_warning_at', 0.0)
     monkeypatch.setattr(gateway_observability, '_observability_logs_enabled', lambda: False)
 

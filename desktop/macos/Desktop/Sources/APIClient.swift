@@ -547,21 +547,6 @@ struct RealtimeTokenMintError: LocalizedError {
   }
 }
 
-// MARK: - Usage API
-
-extension APIClient {
-  /// Gets the count of AI chat messages from PostHog.
-  func getChatMessageCount() async throws -> Int {
-    struct CountResponse: Decodable {
-      let count: Int
-    }
-
-    let response: CountResponse = try await get("v1/users/stats/chat-messages")
-    return response.count
-  }
-
-}
-
 extension APIClient {
   // MARK: - PATCH helper
 

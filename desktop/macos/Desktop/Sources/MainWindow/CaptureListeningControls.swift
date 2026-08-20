@@ -2,11 +2,8 @@ import OmiTheme
 import SwiftUI
 
 /// Persistent Capture + Listening status controls for the shell top bar, shown
-/// on every page where the shared shell top bar is visible. Hovering Capture
-/// reveals a Rewind shortcut beneath it.
-///
-/// The controls drive the shared capture/listening policy through
-/// `CaptureListeningLogic`.
+/// throughout the canonical desktop shell. Hovering Capture reveals a Rewind
+/// shortcut beneath it.
 struct CaptureListeningControls: View {
   @ObservedObject var appState: AppState
   var onRewind: () -> Void
@@ -98,7 +95,7 @@ struct CaptureListeningControls: View {
     .fixedSize()
   }
 
-  // MARK: Derived state (mirrors DashboardPage)
+  // MARK: Derived state
 
   private var captureStatus: HomeStatusState {
     CaptureListeningLogic.captureStatus(appState: appState, isCaptureMonitoring: isCaptureMonitoring)
@@ -116,7 +113,7 @@ struct CaptureListeningControls: View {
     CaptureListeningLogic.listeningModeTitle(appState: appState, raw: systemAudioCaptureModeRaw)
   }
 
-  // MARK: Actions (shared with DashboardPage via CaptureListeningLogic)
+  // MARK: Actions
 
   private func toggleListening() {
     CaptureListeningLogic.toggleListening(

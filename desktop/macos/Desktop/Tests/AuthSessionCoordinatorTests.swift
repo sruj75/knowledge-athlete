@@ -88,6 +88,11 @@ final class AuthSessionCoordinatorTests: XCTestCase {
     XCTAssertTrue(signOutSnippet.contains("preparation: .live("))
     XCTAssertTrue(signOutSnippet.contains("captureRuntime: .live("))
     XCTAssertTrue(signOutSnippet.contains("userDidSignOut"))
+    XCTAssertTrue(signOutSnippet.contains("discardManagedDraftFiles"))
+    XCTAssertTrue(signOutSnippet.contains("draftManagedAttachmentURIs"))
+    XCTAssertTrue(signOutSnippet.contains("ChatDraftStore.shared.managedAttachmentURIs("))
+    XCTAssertTrue(signOutSnippet.contains("retainedJournalAttachmentURIsForSignOut"))
+    XCTAssertTrue(signOutSnippet.contains("subtracting(retainedJournalAttachmentURIs)"))
 
     let invalidateRange = authSource.range(of: "func performLightSessionInvalidation()")
     XCTAssertNotNil(invalidateRange)

@@ -246,7 +246,6 @@ class TestModelQosProfiles:
         assert premium['conv_structure'] == ('gpt-5.4-mini', 'openai')
         assert premium['chat_responses'] == ('gpt-5.4-mini', 'openai')
         # Quality-sensitive features use gpt-4.1-mini on openai
-        assert premium['chat_extraction'] == ('gpt-4.1-mini', 'openai')
         assert premium['proactive_notification'] == ('gpt-4.1-mini', 'openai')
         # Free-text features use Gemini 2.5 Flash-Lite on gemini provider
         assert premium['session_titles'] == ('gemini-2.5-flash-lite', 'gemini')
@@ -342,13 +341,13 @@ class TestGetLlm:
 
     def test_different_features_same_model_share_instance(self):
         # Both use gpt-4.1-mini in premium profile (quality-sensitive)
-        llm1 = get_llm('chat_extraction')
-        llm2 = get_llm('proactive_notification')
+        llm1 = get_llm('proactive_notification')
+        llm2 = get_llm('memory_l1')
         assert llm1 is llm2
 
     def test_different_models_return_different_instances(self):
-        # chat_extraction=gpt-4.1-mini, conv_structure=gpt-5.4-mini in premium
-        llm1 = get_llm('chat_extraction')
+        # proactive_notification=gpt-4.1-mini, conv_structure=gpt-5.4-mini in premium
+        llm1 = get_llm('proactive_notification')
         llm2 = get_llm('conv_structure')
         assert llm1 is not llm2
 
@@ -691,14 +690,6 @@ class TestExpandedCallsiteCoverage:
         source = self._read_source("utils/llm/trends.py")
         assert "get_llm('trends')" in source
 
-    def test_chat_py_all_keys(self):
-        import re
-
-        source = self._read_source("utils/llm/chat.py")
-        calls = re.findall(r"get_llm\('(\w+)'", source)
-        assert 'chat_responses' in calls
-        assert 'chat_extraction' in calls
-
     def test_notifications_py_key(self):
         import re
 
@@ -743,7 +734,6 @@ class TestExpandedCallsiteCoverage:
     def test_no_legacy_llm_mini_invocations_in_wired_files(self):
         """No wired file should still call llm_mini.invoke or llm_medium_experiment.invoke."""
         wired_files = [
-            "utils/llm/chat.py",
             "utils/llm/conversation_processing.py",
             "utils/llm/memory_compute.py",
             "utils/llm/proactive_notification.py",
@@ -752,7 +742,6 @@ class TestExpandedCallsiteCoverage:
             "utils/llm/followup.py",
             "utils/llm/trends.py",
             "utils/onboarding.py",
-            "utils/retrieval/graph.py",
         ]
         for path in wired_files:
             source = self._read_source(path)
@@ -860,7 +849,6 @@ class TestStructuredOutputFeatureTracking:
 
     def test_expected_features_tracked(self):
         expected = {
-            'chat_extraction',
             'proactive_notification',
             'translation',
             'trends',

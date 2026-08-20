@@ -14,9 +14,9 @@ import XCTest
 ///     were silently dropped for the rest of the session.
 ///
 ///  2. `ChatProvider.projectJournalTurn` replaced a row wholesale on every
-///     journal replay, preserving only `rating`. Fields the journal never
-///     persists and `KernelJournalTurn.chatMessage()` cannot reconstruct —
-///     `metadata` (model/token/cost stats shown in the message footer) and
+///     journal replay. Fields the journal never persists and
+///     `KernelJournalTurn.chatMessage()` cannot reconstruct — `metadata`
+///     (model/token/cost stats shown in the message footer) and
 ///     `notificationScreenshot` — were clobbered the instant a completed turn
 ///     was refreshed, so the footer stats vanished from the just-answered turn.
 @MainActor
@@ -224,7 +224,7 @@ final class ChatJournalWritePathTests: XCTestCase {
     XCTAssertEqual(provider.messages.count, 1)
 
     // The query-completion handler attaches local-only state the journal never
-    // persists: model/token/cost metadata, a user rating, a screenshot.
+    // persists: model/token/cost metadata and a screenshot.
     let index = try XCTUnwrap(provider.messages.firstIndex { $0.id == "assistant-1" })
     provider.messages[index].metadata = MessageMetadata(
       model: "claude-sonnet",
@@ -240,7 +240,6 @@ final class ChatJournalWritePathTests: XCTestCase {
       sqlRowsReturned: 7,
       sqlQueryCount: 2
     )
-    provider.messages[index].rating = 1
     let screenshot = Data([0x0A, 0x0B, 0x0C])
     provider.messages[index].notificationScreenshot = screenshot
 
@@ -257,23 +256,29 @@ final class ChatJournalWritePathTests: XCTestCase {
     XCTAssertEqual(refreshed.metadata?.model, "claude-sonnet")
     XCTAssertEqual(refreshed.metadata?.outputTokens, 42)
     XCTAssertEqual(refreshed.metadata?.sqlRowsReturned, 7)
-    XCTAssertEqual(refreshed.rating, 1)
     XCTAssertEqual(refreshed.notificationScreenshot, screenshot)
   }
 
   func testProjectionCarryingHelperPrefersProjectedFieldWhenPresent() {
     // If the journal ever starts carrying one of these fields, the projected
     // (kernel-authoritative) value must win over the local carry-forward.
-    let existing = ChatMessage(id: "m", text: "old", sender: .ai, rating: -1)
-    var projected = ChatMessage(id: "m", text: "new", sender: .ai)
-    projected.rating = 1
+    let oldScreenshot = Data([0x01])
+    let newScreenshot = Data([0x02])
+    let existing = ChatMessage(
+      id: "m", text: "old", sender: .ai, notificationScreenshot: oldScreenshot)
+    let projected = ChatMessage(
+      id: "m", text: "new", sender: .ai, notificationScreenshot: newScreenshot)
 
     let merged = ChatProvider.carryingLocalOnlyFields(projected, from: existing)
-    XCTAssertEqual(merged.rating, 1, "A non-nil projected rating wins over the local value")
+    XCTAssertEqual(
+      merged.notificationScreenshot, newScreenshot,
+      "A non-nil projected local-only field wins over the existing value")
 
     let carried = ChatProvider.carryingLocalOnlyFields(
       ChatMessage(id: "m", text: "new", sender: .ai), from: existing)
-    XCTAssertEqual(carried.rating, -1, "A nil projected rating falls back to the local value")
+    XCTAssertEqual(
+      carried.notificationScreenshot, oldScreenshot,
+      "A nil projected local-only field falls back to the existing value")
   }
 
   // MARK: - Helpers

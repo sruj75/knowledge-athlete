@@ -15,18 +15,51 @@ extension ChatProvider {
   /// clear has succeeded for the active surface.
   func resetChatForAuthorizedHarness(
     journalAlreadyCleared: Bool = false,
+    authorizedClearTransaction: AuthorizedHarnessClearTransaction? = nil,
     createReplacementSession: (@MainActor () async -> ChatSession?)? = nil
   ) async -> String? {
-    isClearing = true
-    defer { isClearing = false }
+    let surface = mainChatSurfaceReference()
+    var ownedClearTransaction: AuthorizedHarnessClearTransaction?
+    let effectiveClearTransaction: AuthorizedHarnessClearTransaction
+    if let authorizedClearTransaction {
+      guard isAuthorizedHarnessClearTransactionCurrent(authorizedClearTransaction) else {
+        return "owner changed during chat reset"
+      }
+      effectiveClearTransaction = authorizedClearTransaction
+    } else {
+      let admission = beginAuthorizedHarnessClearTransaction(surface: surface)
+      guard let transaction = admission.transaction else {
+        return admission.error ?? "chat clear unavailable"
+      }
+      ownedClearTransaction = transaction
+      effectiveClearTransaction = transaction
+    }
+    defer {
+      if let ownedClearTransaction {
+        endAuthorizedHarnessClearTransaction(ownedClearTransaction)
+      }
+    }
 
     if isInDefaultChat {
       let runtimeChatId = mainChatRuntimeChatId(sessionId: nil)
-      let surface = AgentSurfaceReference.mainChat(chatId: runtimeChatId)
-      AgentRuntimeStatusStore.shared.clear(surface: surface)
+      let defaultSurface = AgentSurfaceReference.mainChat(chatId: runtimeChatId)
+      AgentRuntimeStatusStore.shared.clear(surface: defaultSurface)
       if !journalAlreadyCleared {
-        guard await kernelTurnProjection.clear(surface: surface) else {
+        let cleared: Bool
+        #if DEBUG
+          if let clearChatJournalForTests {
+            cleared = await clearChatJournalForTests(runtimeChatId)
+          } else {
+            cleared = await kernelTurnProjection.clear(surface: defaultSurface)
+          }
+        #else
+          cleared = await kernelTurnProjection.clear(surface: defaultSurface)
+        #endif
+        guard cleared else {
           return "failed to clear default kernel journal"
+        }
+        guard isAuthorizedHarnessClearTransactionCurrent(effectiveClearTransaction) else {
+          return "owner changed during chat reset"
         }
       }
     } else {
@@ -35,21 +68,35 @@ extension ChatProvider {
         let surface = AgentSurfaceReference.mainChat(chatId: session.id)
         AgentRuntimeStatusStore.shared.clear(surface: surface)
         if !journalAlreadyCleared {
-          guard await kernelTurnProjection.clear(surface: surface) else {
+          let cleared: Bool
+          #if DEBUG
+            if let clearChatJournalForTests {
+              cleared = await clearChatJournalForTests(session.id)
+            } else {
+              cleared = await kernelTurnProjection.clear(surface: surface)
+            }
+          #else
+            cleared = await kernelTurnProjection.clear(surface: surface)
+          #endif
+          guard cleared else {
             return "failed to clear session kernel journal"
+          }
+          guard isAuthorizedHarnessClearTransactionCurrent(effectiveClearTransaction) else {
+            return "owner changed during chat reset"
           }
         }
       }
-      if let session = sessionToDelete {
-        sessions.removeAll { $0.id == session.id }
+      if let session = sessionToDelete,
+        let error = await deleteNamedChatCatalogForAuthorizedHarness(session)
+      {
+        return error
       }
-      currentSession = nil
-      messages = []
-      resetMessagesPagination()
       if let createReplacementSession {
         _ = await createReplacementSession()
       } else {
-        _ = await createNewSession()
+        guard await createNewSession(allowWhileClearing: true) != nil else {
+          return "failed to create replacement chat session"
+        }
       }
     }
     return nil
@@ -78,12 +125,22 @@ extension ChatProvider {
       // non-default session, a hard-coded "default" would clear the wrong
       // surface and leave the visible/persisted rows for the next ask intact.
       let activeChatId = mainChatSurfaceReference().externalRefId
+      let surface = AgentSurfaceReference.mainChat(chatId: activeChatId)
+      let admission = beginAuthorizedHarnessClearTransaction(surface: surface)
+      guard let transaction = admission.transaction else {
+        return admission.error ?? "chat clear unavailable"
+      }
+      defer { endAuthorizedHarnessClearTransaction(transaction) }
       let clear = await clearOwnerSurfaceStateForAuthorizedHarness(chatId: activeChatId)
       if let error = clear["error"] {
         return error
       }
+      guard isAuthorizedHarnessClearTransactionCurrent(transaction) else {
+        return "owner changed during chat reset"
+      }
       return await resetChatForAuthorizedHarness(
         journalAlreadyCleared: true,
+        authorizedClearTransaction: transaction,
         createReplacementSession: createReplacementSession
       )
     }

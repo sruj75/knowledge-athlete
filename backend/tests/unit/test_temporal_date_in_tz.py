@@ -1,12 +1,8 @@
 """Contract tests for utils.llm.temporal.date_in_tz.
 
-The conversation metadata-extraction prompts (retrieve_metadata_from_message / _from_text /
-_fields_from_transcript in utils/llm/chat.py) ground the model's notion of "today" with the
-conversation's created_at rendered in the user's timezone. They previously did this with a raw
-``created_at.astimezone(ZoneInfo(tz))``, which raises ``ValueError`` when the user has no saved
-timezone (``tz == ''`` -> ``ZoneInfo('')``) — the default conversation path, so timezone-less
-users silently lost search metadata — and reinterprets naive timestamps as server-local time
-(issues #4643, #6214).
+Conversation processing grounds the model's notion of "today" with the capture date rendered
+in the user's timezone. The helper must tolerate absent or invalid timezone state and interpret
+naive timestamps consistently as UTC (issues #4643, #6214).
 
 Those call sites now delegate to ``date_in_tz``. These tests lock the guarantees they rely on:
 an empty/None/invalid timezone falls back to UTC (never raises), and a naive datetime is read

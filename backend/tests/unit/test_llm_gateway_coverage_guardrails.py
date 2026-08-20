@@ -62,7 +62,6 @@ DIRECT_PROVIDER_ALLOWLIST = {
     DirectUse('utils/other/chat_file.py', 'AsyncOpenAI'),
     DirectUse('utils/other/chat_file.py', 'openai.beta'),
     DirectUse('utils/other/chat_file.py', 'openai.files'),
-    DirectUse('utils/retrieval/agentic.py', 'anthropic_client.messages'),
     DirectUse('routers/omni_relay.py', 'GEMINI_API_KEY'),
     DirectUse('routers/omni_relay.py', 'OPENAI_API_KEY'),
 }

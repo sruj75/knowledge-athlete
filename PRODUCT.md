@@ -55,6 +55,20 @@ zero-based numeric speakers, truthful transport/account status, and optional
 Gemini 2.5 Flash-Lite translations keyed to the segment. It does not create,
 persist, identify, roll over, reconcile, or finalize a conversation.
 
+## macOS Chat and Home authority
+
+Home is the canonical ordinary-Chat host. The owner-scoped Node SQLite catalog
+owns Chat identity, titles, title origin, stars, activity metadata, and accepted
+turns; Swift owns drafts and app-managed attachment bytes. The desktop does not
+project normal Chat sessions, messages, ratings, or attachments to Firestore and
+does not reconcile a server catalog.
+
+The backend is transient compute only for managed assistant completion and the
+authenticated, bounded greeting and title routes. Greeting and title results are
+identified and committed locally. Home reads tasks, Focus, Insights, and daily
+suggestions from their local authorities and must not restore a hosted dashboard
+fallback.
+
 ## macOS Memory authority
 
 The Mac owns its Memory archive in the same owner-scoped local `omi.db` boundary
