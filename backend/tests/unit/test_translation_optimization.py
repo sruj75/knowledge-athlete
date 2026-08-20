@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import pytest
 
-from config.translation import TranslationProvider
 from tests.unit.translation_test_support import DictTranslationStore, FakeProvider, build_service, translations
 from utils.translation import (
     TranslationNeed,
@@ -12,7 +11,7 @@ from utils.translation import (
     detect_language_with_confidence,
     split_into_sentences,
 )
-from utils.translation_cache import should_persist_translation
+from utils.translation_cache import should_emit_translation
 
 
 def test_sentence_splitter_preserves_abbreviations_and_decimals():
@@ -87,13 +86,12 @@ def test_translation_need_thresholds_are_explicit(monkeypatch, detected, confide
 
 def test_whole_text_and_sentence_methods_delegate_to_one_engine():
     provider = FakeProvider(
-        TranslationProvider.google,
         responses=[
             translations(('Bonjour là-bas', 'en')),
             translations(('Bonjour.', 'en'), ('Comment ça va?', 'en')),
         ],
     )
-    service, _cache = build_service({TranslationProvider.google: provider})
+    service, _cache = build_service(provider)
 
     assert service.translate_text('fr', 'Hello there') == ('Bonjour là-bas', 'en')
     assert service.translate_text_by_sentence('fr', 'Hello. How are you?') == ('Bonjour. Comment ça va?', 'en')
@@ -108,12 +106,12 @@ def test_default_services_share_external_adapters_but_keep_session_lrus_separate
 
     assert first.cache is not second.cache
     assert first.cache._persistent is second.cache._persistent
-    assert first._engine._providers is second._engine._providers
+    assert first._engine._translation_executor is second._engine._translation_executor
 
 
 def test_whitespace_only_input_skips_the_provider_in_every_mode():
-    provider = FakeProvider(TranslationProvider.google, responses=[])
-    service, _cache = build_service({TranslationProvider.google: provider})
+    provider = FakeProvider(responses=[])
+    service, _cache = build_service(provider)
 
     assert service.translate_text('fr', '   ') == ('   ', '')
     assert service.translate_text_by_sentence('fr', '   ') == ('   ', '')
@@ -123,10 +121,9 @@ def test_whitespace_only_input_skips_the_provider_in_every_mode():
 def test_full_text_cache_is_shared_by_sentence_mode():
     store = DictTranslationStore()
     provider = FakeProvider(
-        TranslationProvider.google,
         responses=[translations(('Bonjour.', 'en'), ('Ça va?', 'en'))],
     )
-    service, _cache = build_service({TranslationProvider.google: provider}, store=store)
+    service, _cache = build_service(provider, store=store)
 
     first = service.translate_text_by_sentence('fr', 'Hello. How are you?')
     second = service.translate_text_by_sentence('fr', 'Hello. How are you?')
@@ -138,8 +135,8 @@ def test_full_text_cache_is_shared_by_sentence_mode():
 
 def test_memory_cache_survives_persistent_cache_miss():
     store = DictTranslationStore()
-    provider = FakeProvider(TranslationProvider.google, responses=[translations(('Hola', 'en'))])
-    service, _cache = build_service({TranslationProvider.google: provider}, store=store)
+    provider = FakeProvider(responses=[translations(('Hola', 'en'))])
+    service, _cache = build_service(provider, store=store)
 
     assert service.translate_text('es', 'Hello') == ('Hola', 'en')
     store.values.clear()
@@ -150,10 +147,9 @@ def test_memory_cache_survives_persistent_cache_miss():
 def test_session_cleanup_releases_memory_without_clearing_shared_storage():
     store = DictTranslationStore()
     provider = FakeProvider(
-        TranslationProvider.google,
         responses=[translations(('Hola', 'en')), translations(('Hola otra vez', 'en'))],
     )
-    service, _cache = build_service({TranslationProvider.google: provider}, store=store)
+    service, _cache = build_service(provider, store=store)
 
     assert service.translate_text('es', 'Hello') == ('Hola', 'en')
     persisted = dict(store.values)
@@ -167,8 +163,8 @@ def test_session_cleanup_releases_memory_without_clearing_shared_storage():
 
 
 def test_typed_unchanged_outcome_maps_to_legacy_tuple_only_at_facade():
-    provider = FakeProvider(TranslationProvider.google, responses=[translations(('Hello', 'en'))])
-    service, _cache = build_service({TranslationProvider.google: provider})
+    provider = FakeProvider(responses=[translations(('Hello', 'en'))])
+    service, _cache = build_service(provider)
 
     outcomes = service.translate_outcomes('en', [('segment', 'Hello')])
 
@@ -191,5 +187,5 @@ def test_typed_unchanged_outcome_maps_to_legacy_tuple_only_at_facade():
         ('one  two', 'one two', 'en', 'en', False),
     ],
 )
-def test_should_persist_translation_is_material_change_policy(source, translated, detected, target, expected):
-    assert should_persist_translation(source, translated, detected, target) is expected
+def test_should_emit_translation_is_material_change_policy(source, translated, detected, target, expected):
+    assert should_emit_translation(source, translated, detected, target) is expected

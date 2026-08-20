@@ -515,7 +515,6 @@ def test_purge_derived_user_data_isolates_backends_and_reloads_conversation_ids(
         'get_conversation_ids',
         lambda uid: calls.append(('get_conversations', uid)) or next(conversation_calls),
     )
-    monkeypatch.setattr(account_deletion, 'get_memory_ids', lambda uid: calls.append(('get_memories', uid)) or ['m1'])
     monkeypatch.setattr(
         account_deletion,
         'delete_conversation_vectors_batch',
@@ -527,19 +526,8 @@ def test_purge_derived_user_data_isolates_backends_and_reloads_conversation_ids(
         lambda uid, ids, **kwargs: calls.append(('delete_transcript_vectors', uid, ids, kwargs)) or 2,
     )
     monkeypatch.setattr(
-        account_deletion,
-        'delete_memory_vectors_batch',
-        lambda uid, ids: calls.append(('delete_memory_vectors', uid, ids)) or 1,
-    )
-    monkeypatch.setattr(
         account_deletion, 'delete_all_conversation_recordings', lambda uid: calls.append(('recordings', uid)) or 3
     )
-    monkeypatch.setattr(
-        account_deletion,
-        'purge_canonical_derived_user_data',
-        MagicMock(return_value={'vector_ids': ['canonical-1', 'canonical-2']}),
-    )
-
     result = account_deletion.purge_derived_user_data('uid1')
 
     assert calls == [
@@ -547,14 +535,12 @@ def test_purge_derived_user_data_isolates_backends_and_reloads_conversation_ids(
         ('delete_conversation_vectors', 'uid1', ['c1']),
         ('get_conversations', 'uid1'),
         ('delete_transcript_vectors', 'uid1', ['c2'], {'raise_on_failure': True}),
-        ('get_memories', 'uid1'),
-        ('delete_memory_vectors', 'uid1', ['m1']),
         ('recordings', 'uid1'),
     ]
     assert result == {
         'required_failures': [],
         'best_effort_failures': [],
-        'vectors_deleted': 6,
+        'vectors_deleted': 3,
         'recordings_deleted': 3,
     }
 
@@ -563,15 +549,8 @@ def test_purge_derived_user_data_continues_after_each_failure(monkeypatch):
     monkeypatch.setattr(account_deletion, 'get_conversation_ids', MagicMock(side_effect=Exception('read down')))
     monkeypatch.setattr(account_deletion, 'delete_conversation_vectors_batch', MagicMock())
     monkeypatch.setattr(account_deletion, 'delete_transcript_chunk_vectors_batch', MagicMock())
-    monkeypatch.setattr(account_deletion, 'get_memory_ids', MagicMock(return_value=['m1']))
-    monkeypatch.setattr(
-        account_deletion, 'delete_memory_vectors_batch', MagicMock(side_effect=Exception('pinecone down'))
-    )
     monkeypatch.setattr(
         account_deletion, 'delete_all_conversation_recordings', MagicMock(side_effect=Exception('gcs down'))
-    )
-    monkeypatch.setattr(
-        account_deletion, 'purge_canonical_derived_user_data', MagicMock(side_effect=Exception('canonical down'))
     )
 
     result = account_deletion.purge_derived_user_data('uid1')
@@ -579,15 +558,11 @@ def test_purge_derived_user_data_continues_after_each_failure(monkeypatch):
     assert account_deletion.get_conversation_ids.call_count == 2
     account_deletion.delete_conversation_vectors_batch.assert_not_called()
     account_deletion.delete_transcript_chunk_vectors_batch.assert_not_called()
-    account_deletion.delete_memory_vectors_batch.assert_called_once_with('uid1', ['m1'])
     account_deletion.delete_all_conversation_recordings.assert_called_once_with('uid1')
-    account_deletion.purge_canonical_derived_user_data.assert_called_once_with('uid1')
     assert [failure['operation'] for failure in result['required_failures']] == [
         'conversation_vectors',
         'transcript_chunk_vectors',
-        'memory_vectors',
         'conversation_recordings',
-        'canonical_derived_data',
     ]
     assert result['best_effort_failures'] == []
 
@@ -595,23 +570,18 @@ def test_purge_derived_user_data_continues_after_each_failure(monkeypatch):
 def test_purge_derived_user_data_fails_required_vectors_when_index_missing(monkeypatch):
     monkeypatch.setattr(account_deletion.vector_db, 'index', None)
     monkeypatch.setattr(account_deletion, 'get_conversation_ids', MagicMock(return_value=['c1']))
-    monkeypatch.setattr(account_deletion, 'get_memory_ids', MagicMock(return_value=['m1']))
     monkeypatch.setattr(account_deletion, 'delete_conversation_vectors_batch', MagicMock())
     monkeypatch.setattr(account_deletion, 'delete_transcript_chunk_vectors_batch', MagicMock())
-    monkeypatch.setattr(account_deletion, 'delete_memory_vectors_batch', MagicMock())
     monkeypatch.setattr(account_deletion, 'delete_all_conversation_recordings', MagicMock())
-    monkeypatch.setattr(account_deletion, 'purge_canonical_derived_user_data', MagicMock())
 
     result = account_deletion.purge_derived_user_data('uid1')
 
     assert [failure['operation'] for failure in result['required_failures']] == [
         'conversation_vectors',
         'transcript_chunk_vectors',
-        'memory_vectors',
     ]
     account_deletion.delete_conversation_vectors_batch.assert_not_called()
     account_deletion.delete_transcript_chunk_vectors_batch.assert_not_called()
-    account_deletion.delete_memory_vectors_batch.assert_not_called()
 
 
 def test_background_wipe_user_data_does_not_complete_when_required_derived_purge_fails(monkeypatch):
@@ -620,7 +590,7 @@ def test_background_wipe_user_data_does_not_complete_when_required_derived_purge
     monkeypatch.setattr(
         account_deletion,
         'purge_derived_user_data',
-        MagicMock(return_value={'required_failures': [{'operation': 'memory_vectors', 'error': 'down'}]}),
+        MagicMock(return_value={'required_failures': [{'operation': 'conversation_vectors', 'error': 'down'}]}),
     )
     monkeypatch.setattr(account_deletion.users_db, 'delete_user_data', MagicMock())
     monkeypatch.setattr(account_deletion.users_db, 'mark_user_deletion_wipe_failed', MagicMock())
@@ -742,7 +712,7 @@ def test_background_wipe_emits_failed_operations_and_attempt_context(monkeypatch
         'purge_derived_user_data',
         MagicMock(
             return_value={
-                'required_failures': [{'operation': 'memory_vectors', 'error': 'secret provider body'}],
+                'required_failures': [{'operation': 'conversation_vectors', 'error': 'secret provider body'}],
                 'best_effort_failures': [],
                 'vectors_deleted': 0,
                 'recordings_deleted': 0,
@@ -758,7 +728,7 @@ def test_background_wipe_emits_failed_operations_and_attempt_context(monkeypatch
         'omi-service:account-deletion',
         'Account Deletion Wipe Failed',
         {
-            'failed_operations': ['memory_vectors'],
+            'failed_operations': ['conversation_vectors'],
             'retry_count': 2,
             'terminal': True,
             '$process_person_profile': False,

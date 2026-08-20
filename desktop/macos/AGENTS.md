@@ -201,17 +201,18 @@ do not hand-edit those paths to match a specific machine.
 | `DesktopLocalProfile` harness | Auth emulator bootstrap | Re-bootstrap emulator session; no prod invalidation side effects |
 
 ### Database Structure
-- **GRDB/SQLite**: owner-scoped conversation, task, and simple-goal authority; stable local IDs and derived reminders
-- **Firestore** (`based-hardware`): retained user, Memory, and later-slice state; never task/goal authority
+- **GRDB/SQLite**: Mac authority for conversations, Memory, tasks, and simple goals
+- **Firestore**: user and later-slice state only; never Mac authority
 - **Redis**: Caching
 - **Typesense**: Search
 
 ### User Subcollections (Firestore)
-- `users/{uid}/conversations` - S-16/S-23 server residue; never Mac authority
+- `users/{uid}/conversations` - S-23 residue; never Mac/listen authority
 - `users/{uid}/fcm_tokens` - Token ID prefix = platform (ios_, android_, macos_)
-- `users/{uid}/memories` - Extracted memories
 - Capture creates its UUID before ingestion; reads and mutations stay local.
-- `/v4/listen` is transient; `/v1/conversation-compute/*` returns untrusted local-commit candidates. Never restore `ServerConversation`/reconciliation, People speakers, cloud playback, or removed privacy controls; test only named non-production bundles.
+- `/v4/listen` is transient; conversation compute returns untrusted local candidates. Never restore retired conversation authority or UI; test named non-production bundles only.
+- Memory CRUD uses `MemoryStorage`; only compute/embeddings leave the Mac, behind owner/revision fences.
+- Task/goal CRUD uses `ActionItemStorage`/`GoalStorage`; reminders stay local.
 
 ### Platform Detection
 - **FCM tokens**: Document ID prefix (e.g., `macos_abc123`)

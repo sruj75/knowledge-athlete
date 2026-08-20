@@ -415,13 +415,12 @@ def test_provision_missing_uses_gcloud_with_every_manifest_field_and_waits_for_r
 
 def test_live_gcloud_indexes_derive_collection_group_with_explicit_document_id():
     live_index = {
-        'name': ('projects/dev-project/databases/(default)/collectionGroups/' 'memory_items/indexes/index-id'),
+        'name': ('projects/dev-project/databases/(default)/collectionGroups/' 'chat_sessions/indexes/index-id'),
         'queryScope': 'COLLECTION',
         'fields': [
-            {'fieldPath': 'tier', 'order': 'ASCENDING'},
-            {'fieldPath': 'status', 'order': 'ASCENDING'},
-            {'fieldPath': 'expires_at', 'order': 'ASCENDING'},
-            {'fieldPath': '__name__', 'order': 'ASCENDING'},
+            {'fieldPath': 'starred', 'order': 'ASCENDING'},
+            {'fieldPath': 'updated_at', 'order': 'DESCENDING'},
+            {'fieldPath': '__name__', 'order': 'DESCENDING'},
         ],
         'state': 'READY',
     }
@@ -433,25 +432,22 @@ def test_live_gcloud_indexes_derive_collection_group_with_explicit_document_id()
         project='dev-project', database='(default)', runner=runner
     )
 
-    attention_override_signature = (
-        'memory_items',
+    starred_chat_signature = (
+        'chat_sessions',
         'COLLECTION',
         (
-            ('tier', 'ASCENDING'),
-            ('status', 'ASCENDING'),
-            ('expires_at', 'ASCENDING'),
-            ('__name__', 'ASCENDING'),
+            ('starred', 'ASCENDING'),
+            ('updated_at', 'DESCENDING'),
+            ('__name__', 'DESCENDING'),
         ),
     )
-    assert attention_override_signature in reconcile_firestore_indexes.expected_index_signatures(
-        firebase_index_manifest()
-    )
+    assert starred_chat_signature in reconcile_firestore_indexes.expected_index_signatures(firebase_index_manifest())
     assert reconcile_firestore_indexes.expected_index_states(
-        expected={attention_override_signature},
+        expected={starred_chat_signature},
         live_indexes=live_indexes,
         project='dev-project',
         database='(default)',
-    ) == {attention_override_signature: 'READY'}
+    ) == {starred_chat_signature: 'READY'}
 
 
 def test_live_gcloud_indexes_do_not_alias_implicit_terminal_document_id():
@@ -640,7 +636,7 @@ def test_provisioning_dry_run_only_lists_indexes_and_does_not_write(capsys):
             '--format=json',
         ]
     ]
-    assert 'would create COLLECTION/memory_items' in capsys.readouterr().out
+    assert 'would create COLLECTION/chat_sessions' in capsys.readouterr().out
 
 
 def test_provisioning_fails_closed_when_gcloud_cannot_create_a_missing_index():

@@ -6,6 +6,7 @@ app: non-prod
 covers:
   - desktop/macos/Desktop/Sources/Chat/ScreenContextTelemetry.swift
   - desktop/macos/Desktop/Sources/MainWindow/CaptureListeningControls.swift
+  - desktop/macos/Desktop/Sources/FloatingControlBar/AboutUserCard.swift
   - desktop/macos/Desktop/Sources/ProactiveAssistants/Services/AIUserProfileService.swift
   - desktop/macos/Desktop/Sources/MainWindow/Components/ChatMessagesView.swift
   - desktop/macos/Desktop/Sources/MainWindow/HomeStatusControls.swift

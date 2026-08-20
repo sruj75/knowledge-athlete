@@ -17,8 +17,6 @@
 # --- (1) merge-casualty files ---
 backend/tests/unit/test_delete_account_purge_storage.py
 backend/tests/unit/test_llm_usage_db.py
-backend/tests/unit/test_memory_ledger.py
-backend/tests/unit/test_vector_repair_outbox_worker.py
 
 # --- (2) surfaced by P1 control-flow-descent fix (loop/conditional-wrapped writes) ---
 backend/tests/services/users/test_account_deletion.py
@@ -38,8 +36,6 @@ backend/tests/unit/test_fair_use_flagged_limit_clamp.py
 backend/tests/unit/test_firestore_read_ops_cache.py
 backend/tests/unit/test_llm_provider_plugin_structure.py
 backend/tests/unit/test_lock_bypass_fixes.py
-backend/tests/unit/test_memories_batch.py
-backend/tests/unit/test_memories_pagination_clamp.py
 backend/tests/unit/test_omi_qos_tiers.py
 backend/tests/unit/test_resample_pcm_divzero.py
 backend/tests/unit/test_speech_profile_wav_decode.py

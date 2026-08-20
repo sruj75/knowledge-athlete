@@ -233,8 +233,11 @@ struct GeminiHomeSuggestionGenerator: HomeSuggestionGenerating {
   ) async throws -> [String] {
     // nil = that fetch failed (vs. succeeded with no data) — the distinction
     // drives outage-vs-thin classification below.
-    async let memoriesFetch = { () async -> [ServerMemory]? in
-      try? await APIClient.shared.getMemories(limit: 200, authorizationSnapshot: snapshot)
+    async let memoriesFetch = { () async -> [MemoryItem]? in
+      guard RuntimeOwnerIdentity.isAuthorizationCurrent(snapshot) else { return nil }
+      let result = try? await MemoryStorage.shared.list(limit: 200)
+      guard RuntimeOwnerIdentity.isAuthorizationCurrent(snapshot) else { return nil }
+      return result
     }()
     async let conversationsFetch = { () async -> [LocalConversation]? in
       guard RuntimeOwnerIdentity.isAuthorizationCurrent(snapshot) else { return nil }

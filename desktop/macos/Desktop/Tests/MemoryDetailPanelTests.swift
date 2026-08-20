@@ -24,7 +24,7 @@ final class MemoryDetailPanelTests: XCTestCase {
     await RewindStorageTestIsolation.tearDown(userDir: userDir)
   }
 
-  /// `ServerMemory.content` is immutable and `selectedMemory` holds a value
+  /// `MemoryItem.content` is immutable and `selectedMemory` holds a value
   /// copy, so a successful edit used to leave the open panel rendering the text
   /// the user had just replaced — indistinguishable from Save doing nothing.
   func testSavedEditIsReflectedInTheOpenPanel() async {
@@ -42,12 +42,12 @@ final class MemoryDetailPanelTests: XCTestCase {
 
   func testRefreshFallsBackToTheCacheWhenTheReloadedPageOmitsTheMemory() async throws {
     let viewModel = MemoriesViewModel()
-    let cached = makeMemory(id: "cached-1", content: "cached content")
-    try await MemoryStorage.shared.syncServerMemories([cached])
+    let cached = try await MemoryStorage.shared.acceptAssertion(
+      MemoryAssertion(content: "cached content", layer: .longTerm))
 
-    viewModel.selectedMemory = makeMemory(id: "cached-1", content: "stale content")
-    // The reloaded page is tier-filtered and device-scoped; the open memory can
-    // legitimately fall outside it while still existing.
+    viewModel.selectedMemory = makeMemory(id: cached.id, content: "stale content")
+    // The reloaded page is layer-filtered; the open memory can legitimately
+    // fall outside it while still existing locally.
     viewModel.memories = []
 
     await viewModel.refreshSelectedMemory()
@@ -93,6 +93,9 @@ final class MemoryDetailPanelTests: XCTestCase {
     XCTAssertFalse(panel.contains("isConfirmingPublic"))
     XCTAssertFalse(panel.contains("Make public"))
     XCTAssertFalse(panel.contains("Make private"))
+    XCTAssertFalse(panel.contains("[Protected"))
+    XCTAssertFalse(panel.contains("[Encrypted"))
+    XCTAssertFalse(panel.contains("Protected memory"))
   }
 
   private func memoriesPageSource() throws -> String {
@@ -104,21 +107,21 @@ final class MemoryDetailPanelTests: XCTestCase {
     return try String(contentsOf: url, encoding: .utf8)
   }
 
-  private func makeMemory(id: String, content: String) -> ServerMemory {
-    ServerMemory(
+  private func makeMemory(id: String, content: String) -> MemoryItem {
+    MemoryItem(
       id: id,
       content: content,
       category: .system,
-      tier: .longTerm,
-      tierIsExplicit: true,
+      layer: .longTerm,
+      expiresAt: nil,
+      revision: 1,
       createdAt: Date(timeIntervalSince1970: 1),
       updatedAt: Date(timeIntervalSince1970: 2),
+      correctedAt: nil,
       conversationId: nil,
-      reviewed: false,
-      userReview: nil,
+      sourceSegmentId: nil,
       manuallyAdded: false,
-      scoring: nil,
-      source: "desktop",
+      source: .desktop,
       confidence: nil,
       sourceApp: nil,
       contextSummary: nil,
@@ -129,7 +132,7 @@ final class MemoryDetailPanelTests: XCTestCase {
       currentActivity: nil,
       inputDeviceName: nil,
       windowTitle: nil,
-      headline: nil
+      screenshotId: nil
     )
   }
 }

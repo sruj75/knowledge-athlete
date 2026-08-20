@@ -1251,7 +1251,7 @@ class ChatProvider: ObservableObject {
   }
 
   // MARK: - Cached Context for Prompts
-  private var cachedMemories: [ServerMemory] = []
+  private var cachedMemories: [MemoryItem] = []
   private var memoriesLoaded = false
   private var cachedGoals: [LocalGoal] = []
   private var goalsLoaded = false
@@ -2090,7 +2090,7 @@ class ChatProvider: ObservableObject {
       }
     #endif
     do {
-      cachedMemories = try await MemoryStorage.shared.getLocalMemories(limit: 50)
+      cachedMemories = try await MemoryStorage.shared.list(limit: 50)
       memoriesLoaded = true
       log("ChatProvider refreshed \(cachedMemories.count) memories from local DB")
     } catch {

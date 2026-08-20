@@ -879,8 +879,8 @@ struct DesktopHomeView: View {
       // are not re-rendered when AppState publishes unrelated changes.
       VStack(spacing: 0) {
         // Constant floating top bar — primary nav, new-item counts, and the
-        // Capture/Listening controls. Replaces the old left nav rail. Hidden
-        // for the Memory atlas (see showsTopBar), which has its own chrome.
+        // Capture/Listening controls. Replaces the old left nav rail. Some
+        // full-screen destinations hide it through showsTopBar.
         if showsTopBar {
           DesktopTopBar(
             selectedIndex: $selectedIndex,

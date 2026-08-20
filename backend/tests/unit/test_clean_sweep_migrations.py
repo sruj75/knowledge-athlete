@@ -12,20 +12,6 @@ def _read_source(rel_path: str) -> str:
         return f.read()
 
 
-class TestMemoriesExecutorMigration:
-    """Verify memories router dispatches background work via executors, not bare threads."""
-
-    def test_create_memory_uses_postprocess_executor(self):
-        """create_memory dispatches retained postprocessing through the bounded executor."""
-        src = _read_source('routers/memories.py')
-        assert 'postprocess_executor' in src
-
-    def test_no_threading_thread_in_memories(self):
-        """No bare threading.Thread usage in memories router."""
-        src = _read_source('routers/memories.py')
-        assert 'threading.Thread' not in src
-
-
 class TestHumeHttpxMigration:
     """Verify Hume client uses httpx, not requests."""
 

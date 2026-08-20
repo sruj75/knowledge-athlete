@@ -266,20 +266,11 @@ def conversation_processing_fixture_check(config: SyntheticConfig) -> tuple[str,
     )
 
 
-def listen_protocol_fixture_check(config: SyntheticConfig) -> tuple[str, str, dict[str, Any]]:
-    return _run_e2e_selection(
-        config,
-        "Listen custom-STT protocol fixture",
-        "testing/e2e/test_listen_stt.py::test_web_listen_custom_stt_suggested_transcript_is_emitted_and_persisted",
-    )
-
-
 def build_report(config: SyntheticConfig) -> dict[str, Any]:
     checks = [
         timed_check("backend_health", lambda: backend_health_check(config)),
         timed_check("llm_gateway_chat_fake_provider", lambda: llm_gateway_fake_provider_check(config)),
         timed_check("conversation_processing_local_fixture", lambda: conversation_processing_fixture_check(config)),
-        timed_check("listen_protocol_local_fixture", lambda: listen_protocol_fixture_check(config)),
     ]
     counts = {status: sum(1 for check in checks if check.status == status) for status in sorted(VALID_STATUSES)}
     overall_status = STATUS_FAIL if counts[STATUS_FAIL] else STATUS_PASS

@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
 # `open` launches the app from launchd rather than from run.sh's shell, so an
-# environment override documented in run.sh --help reaches the app only if it
-# is forwarded with `open --env`. Before this guard,
-# OMI_FORCE_CANONICAL_MEMORY_ATLAS was documented but never forwarded, so the
-# canonical-atlas QA override silently did nothing on the normal launch path.
+# environment override documented in run.sh reaches the app only if it is
+# forwarded with `open --env`. This guard keeps the retained automation token
+# overrides working on the normal launch path.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -18,7 +17,7 @@ fi
 
 # Unset: no --env arguments, so a normal launch is untouched.
 (
-  unset OMI_FORCE_CANONICAL_MEMORY_ATLAS
+  unset OMI_AUTOMATION_TOKEN_FILE OMI_AUTOMATION_TOKEN
   eval "$BUILD_FUNCTION"
   build_launch_env_args
 
@@ -28,18 +27,22 @@ fi
   fi
 )
 
-# Set: forwarded verbatim as an `open --env` pair.
+# Set: retained automation overrides are forwarded verbatim as `open --env`
+# pairs.
 (
-  export OMI_FORCE_CANONICAL_MEMORY_ATLAS=1
+  export OMI_AUTOMATION_TOKEN_FILE=/tmp/omi-test-token
+  export OMI_AUTOMATION_TOKEN=test-token
   eval "$BUILD_FUNCTION"
   build_launch_env_args
 
-  if [ "${#LAUNCH_ENV_ARGS[@]}" -ne 2 ]; then
-    echo "FAIL: expected 2 --env arguments, got ${#LAUNCH_ENV_ARGS[@]}: ${LAUNCH_ENV_ARGS[*]}" >&2
+  if [ "${#LAUNCH_ENV_ARGS[@]}" -ne 4 ]; then
+    echo "FAIL: expected 4 --env arguments, got ${#LAUNCH_ENV_ARGS[@]}: ${LAUNCH_ENV_ARGS[*]}" >&2
     exit 1
   fi
   test "${LAUNCH_ENV_ARGS[0]}" = "--env"
-  test "${LAUNCH_ENV_ARGS[1]}" = "OMI_FORCE_CANONICAL_MEMORY_ATLAS=1"
+  test "${LAUNCH_ENV_ARGS[1]}" = "OMI_AUTOMATION_TOKEN_FILE=/tmp/omi-test-token"
+  test "${LAUNCH_ENV_ARGS[2]}" = "--env"
+  test "${LAUNCH_ENV_ARGS[3]}" = "OMI_AUTOMATION_TOKEN=test-token"
 )
 
 # Every `open` invocation on the launch path must carry the forwarded env, or
@@ -63,12 +66,6 @@ fi
 
 if grep -qE '^[[:space:]]*if ! open .*[^+]"\$\{LAUNCH_ENV_ARGS\[@\]\}"' "$RUN"; then
   echo "FAIL: bare \"\${LAUNCH_ENV_ARGS[@]}\" expansion traps under set -u on bash 3.2 (FC-shell-unset-array-under-nounset)" >&2
-  exit 1
-fi
-
-# Documented overrides must stay documented: help text and forwarding agree.
-if ! grep -q "OMI_FORCE_CANONICAL_MEMORY_ATLAS=1  Non-production-only local QA override" "$RUN"; then
-  echo "FAIL: OMI_FORCE_CANONICAL_MEMORY_ATLAS is forwarded but no longer documented in run.sh --help" >&2
   exit 1
 fi
 

@@ -18,7 +18,7 @@ import urllib.request
 from pathlib import Path
 from typing import Iterable
 
-from . import config, providers, qualification, safety, memory_scenarios
+from . import config, providers, qualification, safety, synthetic_profiles
 
 OWNERSHIP_PREFIX = "omi-dev-harness"
 
@@ -350,42 +350,12 @@ def _git_metadata(repo_root: Path) -> dict[str, object]:
     return {"commit": run_git(["rev-parse", "HEAD"]), "dirty": bool(run_git(["status", "--porcelain"]))}
 
 
-def _current_scenario_manifest(cfg: config.HarnessConfig) -> dict[str, object] | None:
-    current = cfg.layout.state_root / "manifests" / "memory-scenario-current.json"
-    if current.is_file():
-        data = _load_json(current, {})
-        if data:
-            return data
-    manifests = sorted((cfg.layout.state_root / "manifests").glob("memory-scenario-*-seed.json"))
-    if not manifests:
-        return None
-    latest = max(manifests, key=lambda path: path.stat().st_mtime)
-    return _load_json(latest, {})
-
-
-def _scenario_users_from_seed_manifest(cfg: config.HarnessConfig) -> list[str]:
-    manifests = sorted((cfg.layout.state_root / "manifests").glob("memory-scenario-*-seed.json"))
-    if not manifests:
-        return []
-    latest = max(manifests, key=lambda path: path.stat().st_mtime)
-    data = _load_json(latest, {})
-    operations = data.get("operations", [])
-    if not isinstance(operations, list):
-        return []
-    users = [
-        str(op.get("target"))
-        for op in operations
-        if isinstance(op, dict) and op.get("kind") == "auth" and op.get("action") == "upsert"
-    ]
-    return sorted(set(users))
-
-
 def _summary_path(cfg: config.HarnessConfig) -> Path:
-    return cfg.layout.reports_dir / "local-emulator-memory-session-summary.json"
+    return cfg.layout.reports_dir / "local-emulator-session-summary.json"
 
 
 def build_session_summary(cfg: config.HarnessConfig, provider_report: providers.ProviderPreflight) -> dict[str, object]:
-    scenario = _current_scenario_manifest(cfg) or {}
+    profiles = synthetic_profiles.load_manifest(cfg)
     config_digest = _load_json(cfg.layout.config_digest_path, {})
     endpoints = {
         "firestore": cfg.firestore_host,
@@ -410,10 +380,8 @@ def build_session_summary(cfg: config.HarnessConfig, provider_report: providers.
         "credential_fingerprints": dict(provider_report.fingerprints),
         "offline_fake_sources": dict(provider_report.offline_fake_sources),
         "local_endpoints": endpoints,
-        "scenario_id": scenario.get("scenario_id"),
-        "scenario_digest": scenario.get("scenario_digest"),
-        "selected_user": scenario.get("selected_user"),
-        "seeded_users": _scenario_users_from_seed_manifest(cfg),
+        "selected_user": profiles.get("selected_user"),
+        "seeded_users": synthetic_profiles.profile_aliases(cfg),
         "git": _git_metadata(cfg.repo_root),
         "config_digest": _json_digest(config_digest) if config_digest else None,
         "session_budget": {
@@ -424,12 +392,6 @@ def build_session_summary(cfg: config.HarnessConfig, provider_report: providers.
         "external_provider_call_summary": {
             "instrumented": False,
             "placeholder": "Provider broker policy is present; live per-call accounting is not wired in this manual-QA slice.",
-        },
-        "memory_write_attempt_instrumentation": {
-            "instrumented": False,
-            "placeholder": "Firestore adapter/client-boundary write-attempt counters are reserved for the live desktop/backend instrumentation slice.",
-            "attempted_write_count": None,
-            "blocked_write_count": None,
         },
         "protected_state_digest": {
             "computed": False,
@@ -445,7 +407,7 @@ def build_session_summary(cfg: config.HarnessConfig, provider_report: providers.
         "non_claims": [
             "Not DEV_CLOUD_PROOF.",
             "Not production, dev-cloud, IAM, deployed index, telemetry sink, rollback, or activation proof.",
-            "Does not imply prod/dev-cloud memory activation eligibility.",
+            "Does not imply production or dev-cloud activation eligibility.",
         ],
     }
 
@@ -881,12 +843,12 @@ def cmd_up(args: argparse.Namespace) -> int:
             print(f"  - {failure}")
         print(f"Inspect logs with: make dev-logs OMI_LOCAL_STATE_ROOT={cfg.layout.state_root.parent}")
         return 1
-    if _current_scenario_manifest(cfg) is None:
-        try:
-            memory_scenarios.seed_scenario("happy_path", cfg)
-            print("auto-seeded scenario=happy_path (first run)")
-        except Exception as exc:  # noqa: BLE001
-            print(f"warning: auto-seed happy_path failed: {exc}")
+    try:
+        synthetic_profiles.seed_profiles(cfg)
+        print("synthetic desktop profiles: ready")
+    except Exception as exc:  # noqa: BLE001
+        print(f"synthetic desktop profile seed failed: {exc}")
+        return 1
     print("\nLocal dev harness is up.")
     return 0
 
@@ -909,18 +871,14 @@ def cmd_status(args: argparse.Namespace) -> int:
     else:
         safety.read_and_validate_sentinel(cfg.layout.state_root, repo_root=cfg.repo_root, instance=cfg.instance)
         print("sentinel: ok")
-    scenario = _current_scenario_manifest(cfg)
-    print("\nMemory manual-QA state:")
-    if scenario:
-        print(f"  scenario_id: {scenario.get('scenario_id')}")
-        print(f"  scenario_digest: {scenario.get('scenario_digest')}")
-        print(f"  selected_user: {scenario.get('selected_user')}")
-        users = _scenario_users_from_seed_manifest(cfg)
+    profiles = synthetic_profiles.load_manifest(cfg)
+    print("\nSynthetic desktop profiles:")
+    if profiles:
+        print(f"  selected_user: {profiles.get('selected_user')}")
+        users = synthetic_profiles.profile_aliases(cfg)
         print(f"  seeded_users: {', '.join(users) if users else 'unknown'}")
     else:
-        print(
-            "  scenario_id: none (run make dev-up to auto-seed happy_path, or make seed-memory-scenario SCENARIO=happy_path)"
-        )
+        print("  profiles: none (run make dev-init, then make dev-up)")
         print("  seeded_users: none")
     print(f"  session_summary_path: {_summary_path(cfg)}")
     if getattr(args, "write_summary", False):

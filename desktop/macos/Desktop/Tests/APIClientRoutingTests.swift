@@ -538,17 +538,6 @@ final class APIClientRoutingTests: XCTestCase {
     }
   }
 
-  // -- Memories (POST → Python) --
-
-  func testCreateMemoryRoutesToPython() async {
-    let client = await makeTestClient()
-    _ = try? await client.createMemory(content: "test memory") as CreateMemoryResponse
-    assertRoutes(
-      URLCapture.capturedRequests, host: "python-test", port: 9001,
-      pathContains: "v3/memories", method: "POST",
-      label: "createMemory")
-  }
-
   // -- User settings (GET → Python) --
 
   func testGetDailySummarySettingsRoutesToPython() async {

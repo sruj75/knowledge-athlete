@@ -158,6 +158,51 @@ extension TranscriptionStorage {
       conversationId: conversationId, segments: segments, authorization: authorization)
   }
 
+  func attachTranslation(
+    sessionId: Int64,
+    segmentId: String,
+    translation: ConversationSegmentTranslation,
+    authorization suppliedAuthorization: LocalMutationAuthorization? = nil
+  ) async throws {
+    guard UUID(uuidString: segmentId) != nil,
+      !translation.language.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+      !translation.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    else { throw TranscriptionStorageError.invalidState("translation is invalid") }
+    let authorization = try localAuthorityAuthorization(suppliedAuthorization)
+    let db = try await localAuthorityDatabase()
+    let input = try await authorization.withCommitLease {
+      try await db.read { database in
+        try authorization.require()
+        guard
+          let row = try Row.fetchOne(
+            database,
+            sql: """
+              SELECT speakerId, text, startTime, endTime, isUser, translationsJson
+              FROM conversation_segment_ingestion
+              WHERE sessionId = ? AND segmentId = ?
+              """,
+            arguments: [sessionId, segmentId.lowercased()])
+        else { throw TranscriptionStorageError.invalidState("translation segment was not found") }
+        let json: String? = row["translationsJson"]
+        var translations = Self.decodeJSON([ConversationSegmentTranslation].self, from: json) ?? []
+        translations.removeAll { $0.language == translation.language }
+        translations.append(translation)
+        return ConversationSegmentInput(
+          segmentId: segmentId.lowercased(),
+          speakerId: row["speakerId"],
+          text: row["text"],
+          startTime: row["startTime"],
+          endTime: row["endTime"],
+          isUser: row["isUser"],
+          translations: translations)
+      }
+    }
+    try await upsertSegments(
+      sessionId: sessionId,
+      segments: [input],
+      authorization: authorization)
+  }
+
   func conversationDetail(id conversationId: String) async throws -> LocalConversationDetail? {
     let db = try await localAuthorityDatabase()
     return try await db.read { database in

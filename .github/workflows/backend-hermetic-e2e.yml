@@ -105,94 +105,18 @@ jobs:
           TIKTOKEN_CACHE_DIR: ${{ runner.temp }}/tiktoken-cache
         run: bash backend/testing/e2e/run.sh -q --tb=short
 
-  listen-pusher-stack-gauntlet:
-    name: Listen Pusher Stack Gauntlet
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    needs: scope
-    if: needs.scope.outputs.applies == 'true'
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v7
-
-      - name: Set up Python
-        uses: actions/setup-python@v6
-        with:
-          python-version-file: backend/.python-version
-
-      - name: Set up uv
-        uses: astral-sh/setup-uv@ecd24dd710f2fb0dca1693a67af11fc4a5c5ec84
-        with:
-          enable-cache: true
-          cache-dependency-glob: backend/pylock*.toml
-
-      - name: Install backend dependencies in the gauntlet virtualenv
-        working-directory: backend
-        run: |
-          uv venv .venv
-          uv pip sync pylock.toml --python .venv/bin/python
-
-      - name: Set up Node.js for the Firestore emulator
-        uses: actions/setup-node@v7
-        with:
-          node-version: '22'
-          cache: npm
-          cache-dependency-path: package-lock.json
-
-      - name: Install pinned Firebase CLI dependencies
-        run: |
-          for attempt in 1 2 3; do
-            if npm ci --ignore-scripts --prefer-offline --no-audit --fund=false; then
-              exit 0
-            fi
-            if [[ "$attempt" == 3 ]]; then
-              echo "Pinned Firebase CLI dependency install failed after 3 attempts." >&2
-              npm cache verify || true
-              exit 1
-            fi
-            echo "npm ci failed on attempt $attempt/3; verifying cache before bounded retry." >&2
-            npm cache verify
-            sleep "$attempt"
-          done
-
-      - name: Set up Java for the Firestore emulator
-        uses: actions/setup-java@v5
-        with:
-          distribution: temurin
-          java-version: '21'
-
-      - name: Install Redis server
-        run: |
-          sudo apt-get update
-          sudo apt-get install --yes redis-server
-
-      - name: Run listen to pusher stack gauntlet
-        run: npm run test:listen-pusher-stack:emulator -- --state-dir "$RUNNER_TEMP/listen-pusher-stack"
-
-      - name: Show listen gauntlet process diagnostics on failure
-        if: failure()
-        run: |
-          state_dir="$RUNNER_TEMP/listen-pusher-stack"
-          if [[ -d "$state_dir" ]]; then
-            find "$state_dir" -type f \( -name '*.log' -o -name '*.jsonl' \) -print -exec tail -n 160 {} \;
-          else
-            echo "Listen gauntlet state directory was not retained."
-          fi
-
   merge-gate:
     name: Backend Hermetic Merge Gate
     runs-on: ubuntu-latest
     timeout-minutes: 2
     if: ${{ always() }}
-    needs: [scope, hermetic-e2e, listen-pusher-stack-gauntlet]
+    needs: [scope, hermetic-e2e]
     steps:
       - name: Fail closed on selected hermetic checks
         env:
           SCOPE_RESULT: ${{ needs.scope.result }}
           SCOPE_APPLIES: ${{ needs.scope.outputs.applies }}
           HERMETIC_E2E_RESULT: ${{ needs.hermetic-e2e.result }}
-          LISTEN_PUSHER_RESULT: ${{ needs.listen-pusher-stack-gauntlet.result }}
         run: |
           if [[ "$SCOPE_RESULT" != 'success' ]]; then
             echo "Hermetic backend scope failed with result: $SCOPE_RESULT" >&2
@@ -209,7 +133,7 @@ jobs:
           esac
 
           failed=0
-          for result_name in HERMETIC_E2E_RESULT LISTEN_PUSHER_RESULT; do
+          for result_name in HERMETIC_E2E_RESULT; do
             result="${!result_name}"
             if [[ "$result" != "$required_result" ]]; then
               echo "$result_name must be $required_result, got ${result:-<empty>}" >&2

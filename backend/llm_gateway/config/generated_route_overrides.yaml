@@ -27,24 +27,6 @@ generated_route_overrides:
   - feature: fair_use
     primary: {provider: openai, model: gpt-5.6-luna}
     provider_options: {reasoning_effort: medium}
-  - feature: learnings
-    primary: {provider: openai, model: gpt-5.6-luna}
-    provider_options: {reasoning_effort: medium}
-  - feature: memories
-    primary: {provider: openai, model: gpt-5.4-nano}
-    provider_options: {reasoning_effort: low}
-  - feature: memory_category
-    primary: {provider: openai, model: gpt-5-nano}
-    provider_options: {reasoning_effort: minimal}
-  - feature: memory_conflict
-    primary: {provider: openai, model: gpt-5.4-nano}
-    provider_options: {reasoning_effort: low}
-  - feature: memory_l1
-    primary: {provider: openai, model: gpt-5.4-nano}
-    provider_options: {reasoning_effort: low}
-  - feature: memory_l2
-    primary: {provider: openai, model: gpt-5.4-nano}
-    provider_options: {reasoning_effort: medium}
   - feature: notifications
     primary: {provider: openai, model: gpt-5.6-luna}
     provider_options: {reasoning_effort: low}

@@ -30,7 +30,6 @@ from routers import (
     trends,
     sync,
     payment,
-    memories,
     auth,
     other,
     updates,
@@ -50,10 +49,9 @@ from routers import (
     desktop_realtime,
     desktop_tts_updates,
     tts,
-    memory_admin,
-    memory_product,
     conversation_finalization,
     conversation_compute,
+    memory_compute,
 )
 
 from utils.other.timeout import TimeoutMiddleware
@@ -115,7 +113,6 @@ app.add_middleware(
 app.include_router(transcribe.router)
 app.include_router(omni_relay.router)
 app.include_router(auto_model.router)
-app.include_router(memories.router)
 app.include_router(chat.router)
 app.include_router(speech_profile.router)
 # app.include_router(screenpipe.router)
@@ -124,6 +121,7 @@ app.include_router(agents.router)
 app.include_router(users.router)
 app.include_router(conversation_finalization.router)
 app.include_router(conversation_compute.router)
+app.include_router(memory_compute.router)
 app.include_router(trends.router)
 
 app.include_router(other.router)
@@ -146,8 +144,6 @@ app.include_router(focus_sessions.router)
 app.include_router(advice.router)
 app.include_router(chat_sessions.router)
 app.include_router(tts.router)
-app.include_router(memory_admin.router)
-app.include_router(memory_product.router)
 app.include_router(desktop_core.router)
 app.include_router(desktop_chat.router)
 app.include_router(desktop_proxy.router)

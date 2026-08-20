@@ -16,4 +16,14 @@ final class AssistantSettingsVocabularyTests: XCTestCase {
       UserDefaults.standard.stringArray(forKey: .transcriptionVocabulary),
       ["[[MARKER:vocabulary-race]]"])
   }
+
+  func testEffectiveVocabularyIsOrderedAndDeduplicatedForSessionSnapshot() {
+    let settings = AssistantSettings.shared
+    let original = settings.transcriptionVocabulary
+    defer { settings.transcriptionVocabulary = original }
+
+    settings.transcriptionVocabulary = ["Knowledge Athlete", "omi", "Hypermind", "Knowledge Athlete"]
+
+    XCTAssertEqual(settings.effectiveVocabulary, ["Omi", "Knowledge Athlete", "Hypermind"])
+  }
 }

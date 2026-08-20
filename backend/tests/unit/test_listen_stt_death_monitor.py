@@ -32,8 +32,7 @@ def _monitor_self(*, dead: bool):
 
     host = SimpleNamespace(
         state=state,
-        request=SimpleNamespace(websocket=object()),
-        client_device_context=SimpleNamespace(platform='ios'),
+        request=SimpleNamespace(websocket=object(), platform='macos'),
         wait=wait,
     )
     return SimpleNamespace(host=host, stt_socket=SimpleNamespace(is_connection_dead=dead))
@@ -43,7 +42,7 @@ def _monitor_self(*, dead: bool):
 async def test_monitor_terminates_when_provider_socket_dead():
     monitor_self = _monitor_self(dead=True)
     with patch.object(receiver_mod, 'terminate_live_stt_session', new=AsyncMock()) as terminate:
-        await ListenReceiver._monitor_stt_death(monitor_self, provider='modulate')
+        await ListenReceiver._monitor_stt_death(monitor_self)
     terminate.assert_awaited_once()
     assert terminate.await_args.kwargs['reason'] == 'connection_lost'
 
@@ -52,7 +51,7 @@ async def test_monitor_terminates_when_provider_socket_dead():
 async def test_monitor_does_not_terminate_a_live_socket():
     monitor_self = _monitor_self(dead=False)
     with patch.object(receiver_mod, 'terminate_live_stt_session', new=AsyncMock()) as terminate:
-        await ListenReceiver._monitor_stt_death(monitor_self, provider='modulate')
+        await ListenReceiver._monitor_stt_death(monitor_self)
     terminate.assert_not_awaited()
 
 
@@ -61,5 +60,5 @@ async def test_monitor_exits_without_terminating_once_already_terminal():
     monitor_self = _monitor_self(dead=True)
     monitor_self.host.state.stt_terminal_failure = True  # another path already terminalized
     with patch.object(receiver_mod, 'terminate_live_stt_session', new=AsyncMock()) as terminate:
-        await ListenReceiver._monitor_stt_death(monitor_self, provider='modulate')
+        await ListenReceiver._monitor_stt_death(monitor_self)
     terminate.assert_not_awaited()

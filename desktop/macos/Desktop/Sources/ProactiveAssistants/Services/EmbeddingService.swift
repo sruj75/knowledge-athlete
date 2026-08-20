@@ -30,6 +30,19 @@ actor EmbeddingService {
     return try await authService.getAuthHeader()
   }
 
+  private func authorizedAuthHeader(
+    _ snapshot: RuntimeOwnerAuthorizationSnapshot?
+  ) async throws -> String {
+    if let snapshot, !RuntimeOwnerIdentity.isAuthorizationCurrent(snapshot) {
+      throw LocalMutationAuthorizationError.revoked
+    }
+    let header = try await authHeader()
+    if let snapshot, !RuntimeOwnerIdentity.isAuthorizationCurrent(snapshot) {
+      throw LocalMutationAuthorizationError.revoked
+    }
+    return header
+  }
+
   private init() {}
 
   // MARK: - Embedding API
@@ -38,7 +51,11 @@ actor EmbeddingService {
   /// - Parameters:
   ///   - text: Text to embed
   ///   - taskType: Optional Gemini task type (e.g. "RETRIEVAL_DOCUMENT", "RETRIEVAL_QUERY")
-  func embed(text: String, taskType: String? = nil) async throws -> [Float] {
+  func embed(
+    text: String,
+    taskType: String? = nil,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot? = nil
+  ) async throws -> [Float] {
     guard !Self.proxyBaseURL.isEmpty else {
       throw EmbeddingError.missingAPIKey
     }
@@ -60,10 +77,17 @@ actor EmbeddingService {
     var request = URLRequest(url: url)
     request.httpMethod = "POST"
     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-    request.setValue(try await authHeader(), forHTTPHeaderField: "Authorization")
+    request.setValue(
+      try await authorizedAuthHeader(authorizationSnapshot),
+      forHTTPHeaderField: "Authorization")
     request.timeoutInterval = 30
     request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
 
+    if let authorizationSnapshot,
+      !RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
+    {
+      throw LocalMutationAuthorizationError.revoked
+    }
     let (data, response) = try await URLSession.shared.data(for: request)
 
     // Check HTTP status before parsing — non-JSON error bodies (HTML 401/500)
@@ -88,7 +112,11 @@ actor EmbeddingService {
   /// - Parameters:
   ///   - texts: Texts to embed
   ///   - taskType: Optional Gemini task type (e.g. "RETRIEVAL_DOCUMENT", "RETRIEVAL_QUERY")
-  func embedBatch(texts: [String], taskType: String? = nil) async throws -> [[Float]] {
+  func embedBatch(
+    texts: [String],
+    taskType: String? = nil,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot? = nil
+  ) async throws -> [[Float]] {
     guard !Self.proxyBaseURL.isEmpty else {
       throw EmbeddingError.missingAPIKey
     }
@@ -115,10 +143,17 @@ actor EmbeddingService {
     var request = URLRequest(url: url)
     request.httpMethod = "POST"
     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-    request.setValue(try await authHeader(), forHTTPHeaderField: "Authorization")
+    request.setValue(
+      try await authorizedAuthHeader(authorizationSnapshot),
+      forHTTPHeaderField: "Authorization")
     request.timeoutInterval = 60
     request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
 
+    if let authorizationSnapshot,
+      !RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
+    {
+      throw LocalMutationAuthorizationError.revoked
+    }
     let (data, response) = try await URLSession.shared.data(for: request)
 
     // Check HTTP status before parsing — non-JSON error bodies (HTML 401/500)

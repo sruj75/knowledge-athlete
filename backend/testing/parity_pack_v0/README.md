@@ -28,12 +28,10 @@ cassette bytes and retains only bounded lane/reason metadata.
 
 ## Live surface wiring
 
-The `/v4/listen` runtime creates `routers.listen.parity_capture.ListenParityCapture`
-only after Firebase WebSocket authentication and STT provider selection. It uses
-the Firebase UID solely for the exact `CaptureWhitelist` comparison, derives
-anonymous session/event identifiers before cassette creation, and records decoded
-client audio, the successful STT socket send, and provider transcript callbacks.
-The capture persists during normal listen-session teardown.
+Retained product surfaces construct `SurfaceParityCapture` only after their own
+authentication and provider selection. The adapter uses the principal solely
+for the exact `CaptureWhitelist` comparison, derives anonymous identifiers
+before cassette creation, and bounds every captured value before persistence.
 
 Set a fourth, required operator-only variable to an absolute path outside the
 repository:
@@ -49,15 +47,14 @@ path. The local cassette may include restricted audio/transcript event payloads,
 so keep its root outside Git and never attach it to a PR.
 
 `SurfaceParityCapture` uses the same gate/exporter for the additional
-memory-forming surfaces below.  It extends the cassette document with optional
+retained surfaces below. It extends the cassette document with optional
 top-level discriminators while leaving the v1 identity, fingerprint, and event
 contract unchanged for existing players:
 
 | `surface` | `source` | Captured seam |
 | --- | --- | --- |
 | `ptt` | `desktop_ptt_http`, `desktop_ptt_stream` | Desktop PCM PTT and live PTT STT (bounded audio + transcript events) |
-| `conversation_finalization` | `conversation_<source>` | Transcript input, memory extraction result, and accepted memories |
-| `memory_write` | `v3_memory_create`, `v3_memory_batch_create` | Retained manual/API memory writers |
+| `conversation_finalization` | `conversation_<source>` | Transcript input and retained finalization result |
 
 The development listen deployment mounts `/var/omi-parity-pack` as an `emptyDir`
 for explicitly allowlisted dogfood principals and best-effort exports cassette

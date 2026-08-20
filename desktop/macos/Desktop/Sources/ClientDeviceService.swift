@@ -56,31 +56,6 @@ final class ClientDeviceService {
     "macos_\(deviceIdHash)"
   }
 
-  func deviceProvenanceLabel(for memory: ServerMemory) -> String? {
-    let localId = clientDeviceId
-    if memory.primaryCaptureDevice == localId {
-      return "This Mac"
-    }
-    if let device = memory.primaryCaptureDevice, !device.isEmpty {
-      let platform = device.split(separator: "_").first.map(String.init) ?? device
-      switch platform {
-      case "macos": return "Mac"
-      case "ios": return "iPhone"
-      case "android": return "Android"
-      default: return platform.capitalized
-      }
-    }
-    return nil
-  }
-
-  func memoryMatchesThisDevice(_ memory: ServerMemory) -> Bool {
-    let localId = clientDeviceId
-    if memory.primaryCaptureDevice == localId {
-      return true
-    }
-    return memory.captureDeviceIds.contains(localId)
-  }
-
   private func resolveInstallId() -> String {
     cacheLock.lock()
     defer { cacheLock.unlock() }

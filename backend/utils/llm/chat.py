@@ -15,7 +15,6 @@ from models.conversation_enums import CategoryEnum
 from models.conversation_metadata import ConversationMetadata
 from models.other import Person
 from models.transcript_segment import TranscriptSegment
-from utils.llms.memory import get_prompt_memories
 from utils.llm.usage_tracker import track_usage, Features
 from utils.llm.temporal import MAX_EXTRACTED_DATE_LOOKAHEAD_DAYS, date_in_tz, normalize_extracted_dates
 
@@ -23,6 +22,11 @@ from .clients import get_llm
 import logging
 
 logger = logging.getLogger(__name__)
+
+
+def _user_identity_context(uid: str) -> tuple[str, str]:
+    """Return hosted identity only; product Memory context is supplied locally."""
+    return get_user_name(uid) or 'The User', ''
 
 
 def _content_str(response: Any) -> str:
@@ -56,7 +60,7 @@ def normalize_filter(value: str) -> str:
 
 
 def initial_chat_message(uid: str, prev_messages_str: str = '') -> str:
-    user_name, memories_str = get_prompt_memories(uid)
+    user_name, memories_str = _user_identity_context(uid)
     prompt = f"""
 You are 'Omi', a friendly and helpful assistant who aims to make {user_name}'s life better 10x.
 You know the following about {user_name}: {memories_str}.
@@ -256,7 +260,7 @@ def chunk_extraction(
 
 def _get_answer_simple_message_prompt(uid: str, messages: List[Message]) -> str:
     conversation_history = Message.get_messages_as_string(messages, use_user_name_if_available=True)
-    user_name, memories_str = get_prompt_memories(uid)
+    user_name, memories_str = _user_identity_context(uid)
 
     return f"""
     You are an assistant for engaging personal conversations.
@@ -326,7 +330,7 @@ def _get_qa_rag_prompt(
     messages: List[Message] = [],
     tz: Optional[str] = "UTC",
 ) -> str:
-    _user_name, memories_str = get_prompt_memories(uid)
+    _user_name, memories_str = _user_identity_context(uid)
     memories_str = '\n'.join(memories_str.split('\n')[1:]).strip()
 
     # Use as template (make sure it varies every time): "If I were you $user_name I would do x, y, z."
@@ -706,19 +710,13 @@ To maximize context and find the most relevant conversations, follow these strat
    - If no results, progressively remove filters (keep datetime, drop query/topics/people)
    - As a last resort, expand the time window (e.g., from "today" to "last 3 days")
 
-5. **When to use each retrieval tool:**
+5. **When to use each conversation retrieval tool:**
    - Use **search_conversations_tool** for:
      * Semantic/thematic searches, finding conversations by meaning or topics
      * **CRITICAL: Questions about SPECIFIC EVENTS or INCIDENTS** that happened to the user
      * Finding conversations about specific people, places, or things
      * Any question asking "when did X happen?" or "what happened when Y?"
    - Use **get_conversations_tool** for: Time-based queries without specific search criteria, general activities, chronological views
-   - Use **get_memories_tool** for: ONLY static facts/preferences about the user (name, age, preferences, habits, goals, relationships) - NOT for specific events or incidents
-   - **IMPORTANT DISTINCTION**:
-     * "What's my favorite food?" → get_memories_tool (preference/fact)
-     * "When did I get food poisoning?" → search_conversations_tool (EVENT)
-     * "Do I like dogs?" → get_memories_tool (preference)
-     * "When did a dog bite me?" → search_conversations_tool (EVENT)
    - Always prefer narrower time windows first (hours > day > week > month) for better relevance
 </conversation_retrieval_strategies>
 
@@ -783,18 +781,16 @@ When the user asks about specific dates/times, they are ALWAYS referring to date
 - Always answer the question directly; no extra info, no fluff.
 - Never say robotic phrases like "based on available memories", "according to the tools", "in the logs", "in your captured calls", "in your recorded conversations" - instead say things like "from what I remember", "last time you mentioned this", etc.
 - **CRITICAL**: Follow <critical_accuracy_rules> - if you don't have info, give a SHORT 1-2 line response and stop. No long explanations, no offers to reconstruct, no follow-up questions.
-- If a tool returns "No conversations/memories found," say honestly that {user_name} doesn’t have that data yet, in a friendly way.
-- Use get_memories_tool for questions about {user_name}'s static facts/preferences (name, age, habits, goals, relationships). Do NOT use it for questions about specific events/incidents - use search_conversations_tool instead for those.
+- If a tool returns no conversations, say honestly that {user_name} doesn’t have that data yet, in a friendly way.
 - Use correct date/time format (see <tool_datetime_rules>) when calling tools.
 - Cite conversations when using them (see <citing_instructions>).
 - Show times/dates in {user_name}'s timezone ({tz}), in a natural, friendly way (e.g., "3:45 PM, Tuesday, Oct 16th").
 - If you don’t know, say so honestly.
 - Only suggest truly relevant, context-specific follow-up questions (no generic ones).
-- When you learn a new preference, habit, or personal detail about {user_name} during conversation, save it using save_user_preference_tool so you remember it next time. Don't ask — just save silently. Don't save things you already know from existing memories.
 - Follow <quality_control> rules.
 </instructions>
 
-Remember: Use tools strategically to provide the best possible answers. For questions about specific EVENTS or INCIDENTS (e.g., "when did X happen?", "what happened at Y?"), use search_conversations_tool to find relevant conversations. For questions about static FACTS/PREFERENCES (e.g., "what's my favorite X?", "do I like Y?"), use get_memories_tool. Your goal is to help {user_name} in the most personalized and helpful way possible.
+Remember: Use conversation tools strategically for questions about specific events or incidents. Your goal is to help {user_name} in the most personalized and helpful way possible.
 """
 
     return base_prompt.strip() + platform_section
@@ -841,7 +837,7 @@ NO essays summarizing their message. NO headers. Just talk like you're texting a
 <tool_instructions>
 DateTime Formatting: Use ISO format with timezone (YYYY-MM-DDTHH:MM:SS+HH:MM).
 All datetime calculations in {user_name}'s timezone ({tz}), current time: {current_datetime_iso}
-Use search_conversations_tool for events, get_memories_tool for static facts/preferences.
+Use search_conversations_tool for events and get_conversations_tool for chronological activity.
 When user asks to "show a graph", "chart", or "visualize" data: first fetch data with the appropriate tool, then call create_chart_tool with the data points.
 </tool_instructions>
 
@@ -938,7 +934,7 @@ def retrieve_memory_context_params(
 def obtain_emotional_message(
     uid: str, transcript_segments: List[TranscriptSegment], person_ids: List[str], context: str, emotion: str
 ) -> str:
-    user_name, memories_str = get_prompt_memories(uid)
+    user_name, memories_str = _user_identity_context(uid)
 
     people = []
     if person_ids:
@@ -1309,7 +1305,7 @@ def select_structured_filters(question: str, filters_available: dict[str, Any]) 
 
 
 def extract_question_from_transcript(uid: str, segments: List[TranscriptSegment]) -> str:
-    user_name, memories_str = get_prompt_memories(uid)
+    user_name, memories_str = _user_identity_context(uid)
 
     person_ids = list(set(segment.person_id for segment in segments if segment.person_id))
     people = []
@@ -1351,7 +1347,7 @@ class OutputMessage(BaseModel):
 
 
 def provide_advice_message(uid: str, segments: List[TranscriptSegment], context: str) -> str:
-    user_name, memories_str = get_prompt_memories(uid)
+    user_name, memories_str = _user_identity_context(uid)
 
     person_ids = [s.person_id for s in segments if s.person_id]
     people = []

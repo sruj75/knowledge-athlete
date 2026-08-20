@@ -33,7 +33,6 @@ if not hasattr(database_mod, '__path__'):
     database_mod.__path__ = []
 for submodule in [
     "redis_db",
-    "memories",
     "conversations",
     "users",
     "tasks",
@@ -82,12 +81,6 @@ tracker_mod.Features = MagicMock()
 tracker_mod.track_usage = MagicMock()
 
 # Stub other modules needed by chat.py
-llms_mod = _stub_module("utils.llms")
-if not hasattr(llms_mod, '__path__'):
-    llms_mod.__path__ = []
-llms_memory_mod = _stub_module("utils.llms.memory")
-llms_memory_mod.get_prompt_memories = MagicMock(return_value=("TestUser", "Some facts about user"))
-
 obs_mod = _stub_module("utils.observability")
 if not hasattr(obs_mod, '__path__'):
     obs_mod.__path__ = []

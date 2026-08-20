@@ -34,7 +34,7 @@ enum AboutUserCard {
     let name = rawName.trimmingCharacters(in: .whitespacesAndNewlines)
 
     var facts: [String] = []
-    if let memories = try? await MemoryStorage.shared.getLocalMemories(limit: 8) {
+    if let memories = try? await MemoryStorage.shared.list(limit: 8) {
       facts = memories.prefix(8).compactMap { mem in
         let t = mem.content.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !t.isEmpty else { return nil }

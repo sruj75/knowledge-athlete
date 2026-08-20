@@ -6,7 +6,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 MACOS_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$MACOS_DIR"
 
-FILTER='MemoryAuthoritativeTierSyncTests|MemoryReconciliationScopeTests|MemoriesViewModelObserverTests'
+FILTER='MemoryLocalAuthorityTests|LocalMemoryLifecycleRunnerTests|MemoriesViewModelObserverTests|MemoriesViewModelOwnerFenceTests'
 
 echo "=== Combined memory suite regression (single process) ==="
 xcrun swift test --package-path Desktop --filter "$FILTER"

@@ -133,6 +133,7 @@ final class StartupWarmupCoordinator {
     }
 
     tasksStore.scheduleStartupMaintenanceIfNeeded()
+    await LocalMemoryLifecycleRunner.shared.start()
 
     logPerf("DATA LOAD: DB warmup complete", cpu: true)
   }

@@ -47,6 +47,35 @@ and commits them locally. Cloud conversation playback, reusable People/voice
 identity, public conversation sharing, and Store Recordings/Private Cloud Sync
 settings are not macOS product surfaces.
 
+Continuous cloud transcription uses one Firebase-authenticated `/v4/listen`
+socket. The Mac snapshots language, optional translation target, and ordered
+vocabulary for the recording; audio is fixed mono 16 kHz signed PCM. The backend
+streams it to managed Modulate and returns only stable UUID segments with
+zero-based numeric speakers, truthful transport/account status, and optional
+Gemini 2.5 Flash-Lite translations keyed to the segment. It does not create,
+persist, identify, roll over, reconcile, or finalize a conversation.
+
+## macOS Memory authority
+
+The Mac owns its Memory archive in the same owner-scoped local `omi.db` boundary
+as conversations. Add, edit, delete/Undo, bulk deletion, page/search queries,
+source provenance, lifecycle transitions, and semantic vectors commit through
+`MemoryStorage`; they do not reconcile with or fall back to a hosted Memory
+store. Default reads include active Short-term and Long-term rows and hide
+Archive, expired, dismissed, and pending-deletion rows.
+
+New local intake begins in Short-term. A restart-safe local lifecycle runner
+normalizes assertions, consolidates grounded candidates, expires or archives
+rows, and records revision-bound transition receipts. Every delayed result is
+committed only while its captured owner and input revision remain current.
+Embedding compute is transient; vectors and similarity search remain local.
+
+The backend exposes only three authenticated, bounded proposal operations for
+Memory extraction, normalization, and consolidation. They use the pinned
+OpenAI GPT-4.1-mini model, return opaque local tokens rather than durable IDs,
+and own no Memory persistence, search index, maintenance schedule, or product
+mutation authority.
+
 ## macOS task and goal authority
 
 The Mac owns tasks and simple goals in the same owner-scoped local GRDB database.
@@ -62,24 +91,6 @@ ranking, productivity score, task-attached chat/agent/workstream, numeric or
 AI-generated goal system, or task-specific push-notification path. The backend
 may return an untrusted action-item candidate from transient conversation compute,
 but the Mac alone decides whether and how it becomes a durable task.
-
-## Proposed canonical memory lifecycle
-
-This direction remains proposed; it is not an enforced contract until the
-owning implementation and concrete guard tests establish it.
-
-All new memory intake starts as broad Short-term capture. Maintenance gives
-each pending item exactly one consolidation route: promote, archive, review, or
-reject. Promotion is the only route into Long-term, and it is admitted only
-when one atomic ledger transaction records the server-authored promotion
-receipt binding the source revision, output content, evidence, and superseded
-memories. There is no direct, generic, or fast-track promotion path.
-
-Default retrieval includes eligible Short-term and Long-term memory, collapsed
-by canonical lineage so one logical memory appears once. Search/vector and
-compatibility projections are derived views: their updates are committed to
-the outbox with canonical state and retried from authoritative memory, never
-treated as memory authority themselves.
 
 ## Before you build
 

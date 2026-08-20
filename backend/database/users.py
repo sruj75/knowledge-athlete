@@ -39,7 +39,6 @@ class DeletionWipeIntent(TypedDict):
 # Conservative low-risk user projections. Do NOT use these policies for
 # entitlement, data-protection, privacy-consent, or full user-doc caching.
 _USER_LANGUAGE_CACHE = CachePolicy(namespace='user_language', version=1, ttl_seconds=300)
-_USER_TRANSCRIPTION_PREFS_CACHE = CachePolicy(namespace='user_transcription_prefs', version=1, ttl_seconds=120)
 _USER_AI_PROFILE_CACHE = CachePolicy(namespace='user_ai_profile', version=1, ttl_seconds=300)
 
 
@@ -1285,7 +1284,6 @@ def set_user_language_preference(uid: str, language: str) -> None:
     user_ref = db.collection('users').document(uid)
     user_ref.set({'language': language}, merge=True)
     invalidate(_USER_LANGUAGE_CACHE, uid)
-    invalidate(_USER_TRANSCRIPTION_PREFS_CACHE, uid)
 
 
 def get_user_subscription(uid: str) -> Subscription:
@@ -1354,93 +1352,6 @@ def get_user_valid_subscription(uid: str) -> Optional[Subscription]:
 
     # Fallback to default basic subscription
     return get_default_free_subscription()
-
-
-# **************************************
-# ***** Transcription Preferences ******
-# **************************************
-
-
-def get_user_transcription_preferences(uid: str) -> dict:
-    """
-    Get the user's transcription preferences.
-
-    Returns:
-        dict with 'single_language_mode' (bool), 'vocabulary' (List[str]), and 'language' (str)
-    """
-
-    def fetch_preferences():
-        user_ref = db.collection('users').document(uid)
-        user_doc = user_ref.get(['transcription_preferences', 'language'])
-
-        if user_doc.exists:
-            user_data = user_doc.to_dict()
-            prefs = user_data.get('transcription_preferences', {})
-            return {
-                'single_language_mode': prefs.get('single_language_mode', False),
-                'vocabulary': prefs.get('vocabulary', []),
-                'language': user_data.get('language', ''),
-                'uses_custom_stt': prefs.get('uses_custom_stt', False),
-                'custom_stt_since': prefs.get('custom_stt_since'),
-            }
-
-        return {
-            'single_language_mode': False,
-            'vocabulary': [],
-            'language': '',
-            'uses_custom_stt': False,
-            'custom_stt_since': None,
-        }
-
-    # DESIGN DECISION: cache this typed user projection, not the full users/{uid} doc.
-    # It includes only transcription startup preferences and language. It does not
-    # include entitlement, data-protection, or privacy-consent fields.
-    return get_or_fetch(_USER_TRANSCRIPTION_PREFS_CACHE, uid, fetch_preferences)
-
-
-def set_user_transcription_preferences(uid: str, single_language_mode: bool = None, vocabulary: list = None) -> None:
-    """
-    Set the user's transcription preferences.
-
-    Args:
-        uid: User ID
-        single_language_mode: If True, use exact language instead of multi-language detection
-        vocabulary: List of custom keywords/terms for better transcription accuracy
-    """
-    user_ref = db.collection('users').document(uid)
-    update_data = {}
-
-    if single_language_mode is not None:
-        update_data['transcription_preferences.single_language_mode'] = single_language_mode
-
-    if vocabulary is not None:
-        # Limit vocabulary to 100 terms max
-        update_data['transcription_preferences.vocabulary'] = vocabulary[:100]
-
-    if update_data:
-        user_ref.update(update_data)
-        invalidate(_USER_TRANSCRIPTION_PREFS_CACHE, uid)
-
-
-def set_user_custom_stt_usage(uid: str, uses_custom_stt: bool) -> None:
-    """Persist whether the user is using a custom (third-party) mobile STT provider.
-
-    There is no other record that a user is on custom STT — the app only sends a
-    per-session `custom_stt=enabled` WS param. This stamps it onto the user doc so
-    custom-STT users are queryable/meterable (see #7690).
-
-    - `transcription_preferences.uses_custom_stt`: current state (bool).
-    - `transcription_preferences.custom_stt_since`: when the current custom-STT
-      streak began (set on the off->on transition; cleared when turned off).
-
-    Callers should only invoke this when the value actually changes, so the
-    `_since` timestamp is not overwritten on every session and writes stay rare.
-    """
-    user_ref = db.collection('users').document(uid)
-    update_data = {'transcription_preferences.uses_custom_stt': uses_custom_stt}
-    update_data['transcription_preferences.custom_stt_since'] = datetime.now(timezone.utc) if uses_custom_stt else None
-    user_ref.update(update_data)
-    invalidate(_USER_TRANSCRIPTION_PREFS_CACHE, uid)
 
 
 # ============================================================================

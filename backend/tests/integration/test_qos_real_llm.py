@@ -68,7 +68,6 @@ class TestPremiumFlagship:
         'conv_action_items',
         'conv_structure',
         'daily_summary',
-        'learnings',
         'chat_responses',
         'notifications',
     ]
@@ -90,8 +89,6 @@ class TestPremiumMini:
     """Test gpt-4.1-mini features in premium profile respond to real prompts."""
 
     MINI_FEATURES = [
-        'memories',
-        'memory_conflict',
         'chat_extraction',
         'proactive_notification',
     ]
@@ -116,7 +113,6 @@ class TestPremiumNano:
         'conv_folder',
         'conv_discard',
         'daily_summary_simple',
-        'memory_category',
     ]
 
     @pytest.mark.parametrize("feature", NANO_FEATURES)

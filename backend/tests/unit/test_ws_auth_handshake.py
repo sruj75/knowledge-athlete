@@ -3,7 +3,7 @@
 Verifies that:
 1. get_current_user_uid_ws_listen sends proper close frames on auth failure (no rate limiter)
 2. get_current_user_uid_ws adds per-UID rate limiting on top of auth
-3. /v4/web/listen is NOT affected (uses accept-first pattern)
+3. /v4/listen retains Firebase upgrade authentication
 
 Isolation: ``utils.other.endpoints`` transitively imports ``firebase_admin.auth`` and
 several ``database.*`` modules that construct clients / require a Firebase app at
@@ -445,8 +445,8 @@ class TestWebSocketCloseFrameBehavior(WebSocketAuthTestCase):
         self.assertEqual(len(close_messages), 0, f"HTTPException should not send close frame, got: {sent_messages}")
 
 
-class TestListenEndpointNotAffectWebListen(WebSocketAuthTestCase):
-    """Verify /v4/listen uses WS auth (no rate limiter) and /v4/web/listen is unchanged (source-level check)."""
+class TestListenEndpointAuth(WebSocketAuthTestCase):
+    """Verify /v4/listen uses Firebase WS auth without the general rate limiter."""
 
     def _read_transcribe_source(self):
         import os
@@ -469,24 +469,6 @@ class TestListenEndpointNotAffectWebListen(WebSocketAuthTestCase):
         handler_sig = listen_match.group()
         self.assertIn(
             'get_current_user_uid_ws_listen', handler_sig, "/v4/listen must use get_current_user_uid_ws_listen"
-        )
-
-    def test_web_listen_has_no_uid_dependency(self):
-        """web_listen_handler should NOT have uid Depends — uses first-message auth."""
-        source = self._read_transcribe_source()
-        import re
-
-        web_match = re.search(
-            r"@router\.websocket\(['\"]/v4/web/listen['\"]\)\s*\nasync def web_listen_handler\([^)]+\)",
-            source,
-            re.DOTALL,
-        )
-        self.assertIsNotNone(web_match, "Could not find /v4/web/listen handler")
-        handler_sig = web_match.group()
-        self.assertNotIn(
-            'get_current_user_uid',
-            handler_sig,
-            "/v4/web/listen must NOT have auth dependency — uses accept-first pattern",
         )
 
 

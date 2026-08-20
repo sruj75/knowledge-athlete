@@ -22,8 +22,8 @@ FULL_TEST_ROOTS = (
 )
 FULL_TEST_GLOBS = (BACKEND_DIR / 'tests',)
 
-# Hermetic e2e tests selected by workflow contracts / memory policy core — not part of --all.
-EXTRA_DISCOVERABLE_TESTS = (BACKEND_DIR / 'testing' / 'e2e' / 'test_canonical_memory_pipeline.py',)
+# Hermetic tests outside the normal unit roots may be listed here.
+EXTRA_DISCOVERABLE_TESTS: tuple[Path, ...] = ()
 
 LEGACY_UNLISTED_TESTS = {
     'tests/test_cache_manager.py',
@@ -67,22 +67,12 @@ FULL_RUN_GLOBS = (
     'backend/utils/encryption.py',
 )
 
-MEMORY_POLICY_CORE_PATH_PREFIXES = ('backend/utils/memory/',)
-
-MEMORY_POLICY_CORE_PATH_GLOBS = (
-    'backend/database/memory_*.py',
-    'backend/models/product_memory.py',
-    'backend/models/memory_search_gateway.py',
-    'backend/routers/memory_*.py',
-    'backend/routers/memories.py',
-)
-
-MEMORY_POLICY_CORE_TESTS = (
-    'tests/unit/test_inv_mem_1_guard.py',
-    'testing/e2e/test_canonical_memory_pipeline.py',
-)
-
 AREA_TESTS = (
+    (
+        ('backend/routers/memory_compute', 'backend/utils/llm/memory_compute'),
+        (),
+        ('tests/unit/test_memory_compute.py',),
+    ),
     (
         (
             'backend/utils/retrieval/agentic.py',
@@ -139,11 +129,6 @@ AREA_TESTS = (
             'tests/unit/test_folder_*.py',
             'tests/unit/test_retrieval_*.py',
         ),
-    ),
-    (
-        ('backend/routers/memories', 'backend/services/memories/', 'backend/utils/memories'),
-        (),
-        ('tests/unit/test_memories_*.py', 'tests/unit/test_memory_*.py'),
     ),
     (
         ('backend/routers/action_items', 'backend/services/action_items/', 'backend/utils/action_items'),
@@ -265,12 +250,6 @@ def path_matches(path: str, pattern: str) -> bool:
     return PurePosixPath(path).match(pattern)
 
 
-def is_memory_policy_core_path(path: str) -> bool:
-    if any(path.startswith(prefix) for prefix in MEMORY_POLICY_CORE_PATH_PREFIXES):
-        return True
-    return any(path_matches(path, pattern) for pattern in MEMORY_POLICY_CORE_PATH_GLOBS)
-
-
 def load_workflow_contracts() -> List[Dict[str, Any]]:
     if not WORKFLOW_CONTRACTS_PATH.exists():
         return []
@@ -338,10 +317,6 @@ def tests_for_changed_paths(changed_paths: list[str], all_tests: list[str]) -> t
             ):
                 mapped_backend_sources.add(path)
                 selected.update(match_tests(all_tests, test_globs))
-
-    if any(is_memory_policy_core_path(path) for path in backend_paths):
-        mapped_backend_sources.update(path for path in backend_paths if is_memory_policy_core_path(path))
-        selected.update(test for test in MEMORY_POLICY_CORE_TESTS if test in all_tests)
 
     unmapped_backend_sources = [
         path for path in backend_paths if path not in test_paths and path not in mapped_backend_sources

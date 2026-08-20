@@ -13,7 +13,7 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
-from routers.listen.contracts import ListenRequest
+from routers.listen.contracts import ListenRequest, ListenSessionConfig
 from routers.listen.runtime import ListenSessionRuntime
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]
@@ -40,9 +40,15 @@ class FakeWebSocket:
         self.closed.append((code, reason))
 
 
-def _runtime(uid='test-user', source='desktop'):
+def _runtime(uid='test-user', platform='macos'):
     websocket = FakeWebSocket()
-    return ListenSessionRuntime(ListenRequest(websocket=websocket, uid=uid, source=source)), websocket
+    request = ListenRequest(
+        websocket=websocket,
+        uid=uid,
+        config=ListenSessionConfig(language='en'),
+        platform=platform,
+    )
+    return ListenSessionRuntime(request), websocket
 
 
 class TestAdmissionPhase:
@@ -54,7 +60,7 @@ class TestAdmissionPhase:
 
         async def fake_run_blocking(_executor, function, *args):
             assert function.__name__ == 'is_trial_paywalled'
-            assert args == ('test-user', 'desktop')
+            assert args == ('test-user', 'macos')
             return True
 
         monkeypatch.setattr('routers.listen.runtime.run_blocking', fake_run_blocking)
@@ -64,16 +70,10 @@ class TestAdmissionPhase:
         assert runtime.task_supervisor._session_started is False
 
     @pytest.mark.asyncio
-    async def test_bad_uid_and_audio_format_are_rejected_without_starting_session(self, monkeypatch):
+    async def test_bad_uid_is_rejected_without_starting_session(self):
         missing_uid, missing_uid_socket = _runtime(uid='')
         assert await missing_uid._admit() is False
         assert missing_uid_socket.closed == [(1008, 'Bad uid')]
-
-        invalid_audio, invalid_audio_socket = _runtime()
-        monkeypatch.setattr('routers.listen.runtime.validate_audio_format', lambda *_args: 'bad_audio')
-        assert await invalid_audio._admit() is False
-        assert invalid_audio_socket.closed == [(1003, 'bad_audio')]
-        assert invalid_audio.task_supervisor._session_started is False
 
 
 class TestNoPaywallBlockInSession:
@@ -148,14 +148,14 @@ class TestPlatformFiltering:
         fn_body = src[fn_start : src.find('\ndef ', fn_start + 1)]
         assert '.lower()' in fn_body, "is_trial_paywalled must use .lower() for case-insensitive matching"
 
-    def test_admission_calls_is_trial_paywalled_with_source(self):
+    def test_admission_calls_is_trial_paywalled_with_coarse_platform(self):
         src = _read_source(RUNTIME_SRC_PATH)
         admission_start = src.find('async def _admit(')
         admission_end = src.find('    async def _bootstrap', admission_start)
         admission_body = src[admission_start:admission_end]
         assert (
-            'run_blocking(db_executor, is_trial_paywalled, self.request.uid, self.request.source)' in admission_body
-        ), "admission phase must offload is_trial_paywalled with uid and source"
+            'run_blocking(db_executor, is_trial_paywalled, self.request.uid, self.request.platform)' in admission_body
+        ), "admission phase must offload is_trial_paywalled with uid and coarse platform"
 
 
 class TestIsTrialPaywalledBehavioral:

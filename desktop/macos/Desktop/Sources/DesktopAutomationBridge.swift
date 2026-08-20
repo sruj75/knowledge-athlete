@@ -914,15 +914,13 @@ final class DesktopAutomationActionRegistry {
         ]
       }
       do {
-        // Same local-first path MemoriesViewModel.loadMemories uses: API page → SQLite sync → count.
-        let page = try await APIClient.shared.getMemoriesPage(limit: 100, offset: 0)
-        try await MemoryStorage.shared.syncServerMemories(page.memories)
-        let memoryCount = try await MemoryStorage.shared.getLocalMemoriesCount()
+        let page = try await MemoryStorage.shared.list(limit: 100)
+        let memoryCount = try await MemoryStorage.shared.count()
         return [
           "is_signed_in": "true",
           "load_state": "loaded",
           "memory_count": "\(memoryCount)",
-          "api_page_count": "\(page.memories.count)",
+          "page_count": "\(page.count)",
           "memory_count_valid": "true",
           "has_error": "false",
         ]
@@ -1608,18 +1606,18 @@ final class DesktopAutomationActionRegistry {
 
     register(
       name: "memories_qa_export",
-      summary: "Export memory counts by tier from the live API (local QA automation)",
+      summary: "Export local Memory counts by layer for QA automation",
       params: ["limit"]
     ) { params in
       let limit = Int(params["limit"] ?? "") ?? 50
-      let memories = try await APIClient.shared.getMemories(limit: limit, offset: 0)
-      let shortCount = memories.filter { $0.tier == .shortTerm }.count
-      let longCount = memories.filter { $0.tier == .longTerm }.count
+      let memories = try await MemoryStorage.shared.list(
+        scope: .allIncludingArchive, limit: limit, offset: 0)
+      let shortCount = memories.filter { $0.layer == .shortTerm }.count
+      let longCount = memories.filter { $0.layer == .longTerm }.count
       let samples: [[String: String]] = memories.prefix(12).map { memory in
         [
           "id": memory.id,
-          "tier": memory.tier.rawValue,
-          "tierIsExplicit": memory.tierIsExplicit ? "true" : "false",
+          "layer": memory.layer.rawValue,
           "content": String(memory.content.prefix(90)),
           "conversationId": memory.conversationId ?? "",
         ]
@@ -2084,21 +2082,15 @@ final class DesktopAutomationActionRegistry {
 
     register(
       name: "create_test_memory",
-      summary: "Create a hermetic test memory via the real API",
+      summary: "Create a hermetic test Memory through the local production command",
       params: ["content", "source"]
     ) { params in
       guard AppBuild.isNonProduction else {
         return ["error": "create_test_memory is disabled on production bundles"]
       }
       let content = params["content"] ?? "[[MARKER:memory-crud]] hermetic desktop memory"
-      let response = try await APIClient.shared.createMemory(
-        content: content,
-        source: params["source"] ?? "harness"
-      )
-      if let page = try? await APIClient.shared.getMemoriesPage(limit: 100, offset: 0) {
-        try? await MemoryStorage.shared.syncServerMemories(page.memories)
-      }
-      let memoryCount = (try? await MemoryStorage.shared.getLocalMemoriesCount()) ?? 0
+      let response = try await MemoryStorage.shared.acceptExplicitAssertion(content: content)
+      let memoryCount = (try? await MemoryStorage.shared.count()) ?? 0
       return [
         "created": "true",
         "memory_id": response.id,
@@ -2108,7 +2100,7 @@ final class DesktopAutomationActionRegistry {
 
     register(
       name: "edit_test_memory",
-      summary: "Edit a hermetic test memory via the real API",
+      summary: "Edit a hermetic test Memory through the local production command",
       params: ["id", "marker", "content"]
     ) { params in
       guard AppBuild.isNonProduction else {
@@ -2122,18 +2114,20 @@ final class DesktopAutomationActionRegistry {
       if let explicit = params["id"]?.trimmingCharacters(in: .whitespacesAndNewlines), !explicit.isEmpty {
         id = explicit
       } else if let marker = params["marker"]?.trimmingCharacters(in: .whitespacesAndNewlines), !marker.isEmpty {
-        let page = try await APIClient.shared.getMemoriesPage(limit: 100, offset: 0)
-        id = page.memories.first(where: { $0.content.contains(marker) })?.id
+        let page = try await MemoryStorage.shared.list(
+          scope: .allIncludingArchive, limit: 100, offset: 0)
+        id = page.first(where: { $0.content.contains(marker) })?.id
       } else {
         id = nil
       }
       guard let id, !id.isEmpty else {
         return ["error": "missing id or marker match"]
       }
-      try await APIClient.shared.editMemory(id: id, content: content)
-      if let page = try? await APIClient.shared.getMemoriesPage(limit: 100, offset: 0) {
-        try? await MemoryStorage.shared.syncServerMemories(page.memories)
+      guard let current = try await MemoryStorage.shared.memory(id: id) else {
+        return ["error": "memory not found"]
       }
+      _ = try await MemoryStorage.shared.correct(
+        id: id, expectedRevision: current.revision, content: content)
       return [
         "edited": id,
         "content": content,
@@ -2142,7 +2136,7 @@ final class DesktopAutomationActionRegistry {
 
     register(
       name: "delete_test_memory",
-      summary: "Delete a hermetic test memory via the real API",
+      summary: "Delete a hermetic test Memory through the local production command",
       params: ["id", "marker"]
     ) { params in
       guard AppBuild.isNonProduction else {
@@ -2152,20 +2146,18 @@ final class DesktopAutomationActionRegistry {
       if let explicit = params["id"]?.trimmingCharacters(in: .whitespacesAndNewlines), !explicit.isEmpty {
         id = explicit
       } else if let marker = params["marker"]?.trimmingCharacters(in: .whitespacesAndNewlines), !marker.isEmpty {
-        let page = try await APIClient.shared.getMemoriesPage(limit: 100, offset: 0)
-        id = page.memories.first(where: { $0.content.contains(marker) })?.id
+        let page = try await MemoryStorage.shared.list(
+          scope: .allIncludingArchive, limit: 100, offset: 0)
+        id = page.first(where: { $0.content.contains(marker) })?.id
       } else {
         id = nil
       }
       guard let id, !id.isEmpty else {
         return ["error": "missing id or marker match"]
       }
-      try await APIClient.shared.deleteMemory(id: id)
-      try? await MemoryStorage.shared.deleteMemoryByBackendId(id)
-      if let page = try? await APIClient.shared.getMemoriesPage(limit: 100, offset: 0) {
-        try? await MemoryStorage.shared.syncServerMemories(page.memories)
-      }
-      let memoryCount = (try? await MemoryStorage.shared.getLocalMemoriesCount()) ?? 0
+      _ = try await MemoryStorage.shared.beginDeletion(id: id)
+      try await MemoryStorage.shared.finalizeDeletion(id: id)
+      let memoryCount = (try? await MemoryStorage.shared.count()) ?? 0
       return [
         "deleted": id,
         "memory_count": "\(memoryCount)",

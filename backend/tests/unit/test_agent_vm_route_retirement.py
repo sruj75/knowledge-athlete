@@ -40,7 +40,7 @@ def test_neighboring_retained_routes_keep_their_existing_contracts() -> None:
     main_client = TestClient(main.app, raise_server_exceptions=False)
     desktop_client = TestClient(desktop_backend.app, raise_server_exceptions=False)
 
-    assert main_client.get("/v1/tools/memories").status_code == 401
+    assert main_client.post("/v1/memory/compute/extract").status_code == 401
     assert main_client.post("/v1/agents/hume/callback").status_code == 422
     assert desktop_client.get("/health").status_code == 200
     assert desktop_client.post("/v2/chat/completions").status_code == 401

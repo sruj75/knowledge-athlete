@@ -395,7 +395,7 @@ actor AIUserProfileService {
 
   private func fetchMemories() async -> [String] {
     do {
-      let memories = try await APIClient.shared.getMemories(limit: 100)
+      let memories = try await MemoryStorage.shared.list(limit: 100)
       return memories.map { "[\($0.category.rawValue)] \($0.content)" }
     } catch {
       log("AIUserProfileService: Failed to fetch memories: \(error.localizedDescription)")

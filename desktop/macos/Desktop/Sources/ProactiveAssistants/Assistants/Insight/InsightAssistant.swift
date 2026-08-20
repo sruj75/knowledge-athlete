@@ -103,10 +103,10 @@ actor InsightAssistant: ProactiveAssistant {
   /// Load previous insights from SQLite to persist dedup across app restarts
   private func loadPreviousAdviceFromDB() async {
     do {
-      let memories = try await MemoryStorage.shared.getLocalMemories(
-        limit: maxPreviousInsights,
-        category: "system",
-        tags: ["tips"]
+      let memories = try await MemoryStorage.shared.list(
+        categories: [.interesting],
+        tags: ["tips"],
+        limit: maxPreviousInsights
       )
       for memory in memories {
         let insight = ExtractedInsight(
@@ -250,7 +250,8 @@ actor InsightAssistant: ProactiveAssistant {
       previousInsights.removeLast()
     }
 
-    // Save to SQLite first
+    // The local Memory row is the sole durable Memory record. The separate
+    // StoredInsight cache remains presentation state owned by the Insight slice.
     let extractionRecord = await saveInsightToSQLite(
       insight: extractedInsight,
       screenshotId: screenshotId,
@@ -261,28 +262,10 @@ actor InsightAssistant: ProactiveAssistant {
     )
     guard RuntimeOwnerIdentity.currentOwnerId() == ownerID else { return }
 
-    // Sync to backend and update local record with backendId
-    if let backendMemory = await syncInsightToBackend(
-      insight: extractedInsight,
-      insightResult: adviceResult,
-      windowTitle: windowTitle,
-      ownerID: ownerID)
-    {
-      guard RuntimeOwnerIdentity.currentOwnerId() == ownerID else { return }
-      if let recordId = extractionRecord?.id {
-        do {
-          try await MemoryStorage.shared.markSynced(id: recordId, serverMemory: backendMemory)
-          guard RuntimeOwnerIdentity.currentOwnerId() == ownerID else { return }
-        } catch {
-          logError("Insight: Failed to update sync status", error: error)
-        }
-      }
-    }
-
     // Also update InsightStorage cache (for UI display)
     await MainActor.run {
       guard RuntimeOwnerIdentity.currentOwnerId() == ownerID else { return }
-      InsightStorage.shared.addInsight(adviceResult)
+      InsightStorage.shared.addInsight(adviceResult, memoryID: extractionRecord.flatMap { Int64($0.id) })
     }
     guard RuntimeOwnerIdentity.currentOwnerId() == ownerID else { return }
 
@@ -327,82 +310,39 @@ actor InsightAssistant: ProactiveAssistant {
     currentActivity: String,
     windowTitle: String? = nil,
     ownerID: String
-  ) async -> MemoryRecord? {
-    guard RuntimeOwnerIdentity.currentOwnerId() == ownerID else { return nil }
+  ) async -> MemoryItem? {
+    guard RuntimeOwnerIdentity.currentOwnerId() == ownerID,
+      let snapshot = RuntimeOwnerIdentity.captureAuthorizationSnapshot(expectedOwnerID: ownerID)
+    else { return nil }
+    let authorization = LocalMutationAuthorization {
+      RuntimeOwnerIdentity.isAuthorizationCurrent(snapshot)
+    }
     // Build tags: ["tips", "<category>"]
     let categoryTag = insight.category.rawValue.lowercased()
     let tags = ["tips", categoryTag]
 
-    // Encode tags as JSON
-    let tagsJson: String?
-    if let data = try? JSONEncoder().encode(tags),
-      let json = String(data: data, encoding: .utf8)
-    {
-      tagsJson = json
-    } else {
-      tagsJson = nil
-    }
-
-    let record = MemoryRecord(
-      backendSynced: false,
-      content: insight.insight,
-      category: "system",  // Tips are stored as system category with tags
-      tagsJson: tagsJson,
-      source: "screenshot",
-      screenshotId: screenshotId,
-      confidence: insight.confidence,
-      reasoning: insight.reasoning,
-      sourceApp: insight.sourceApp,
-      windowTitle: windowTitle,
-      contextSummary: contextSummary,
-      currentActivity: currentActivity,
-      headline: insight.headline
-    )
-
     do {
-      let inserted = try await MemoryStorage.shared.insertLocalMemory(record)
-      guard RuntimeOwnerIdentity.currentOwnerId() == ownerID else { return nil }
-      log("Insight: Saved to SQLite (id: \(inserted.id ?? -1)) with tags \(tags)")
+      let inserted = try await MemoryStorage.shared.acceptAssertion(
+        MemoryAssertion(
+          content: insight.insight,
+          category: .interesting,
+          tags: tags,
+          source: .insight,
+          screenshotId: screenshotId,
+          confidence: insight.confidence,
+          reasoning: insight.reasoning,
+          sourceApp: insight.sourceApp,
+          windowTitle: windowTitle,
+          contextSummary: contextSummary,
+          currentActivity: currentActivity
+        ),
+        authorization: authorization
+      )
+      guard RuntimeOwnerIdentity.isAuthorizationCurrent(snapshot) else { return nil }
+      log("Insight: Saved to SQLite (id: \(inserted.id)) with tags \(tags)")
       return inserted
     } catch {
       logError("Insight: Failed to save to SQLite", error: error)
-      return nil
-    }
-  }
-
-  /// Sync insight to backend API, returns backend ID if successful
-  private func syncInsightToBackend(
-    insight: ExtractedInsight,
-    insightResult: InsightExtractionResult,
-    windowTitle: String? = nil,
-    ownerID: String
-  ) async -> ServerMemory? {
-    guard RuntimeOwnerIdentity.currentOwnerId() == ownerID else { return nil }
-    do {
-      // Build tags: ["tips", "<category>"]
-      let categoryTag = insight.category.rawValue.lowercased()
-      let tags = ["tips", categoryTag]
-
-      let response = try await APIClient.shared.createMemory(
-        content: insight.insight,
-        category: .interesting,
-        confidence: insight.confidence,
-        sourceApp: insight.sourceApp,
-        contextSummary: insightResult.contextSummary,
-        tags: tags,
-        reasoning: insight.reasoning,
-        currentActivity: insightResult.currentActivity,
-        source: "screenshot",
-        windowTitle: windowTitle,
-        headline: insight.headline,
-        expectedOwnerId: ownerID
-      )
-      guard RuntimeOwnerIdentity.currentOwnerId() == ownerID else { return nil }
-
-      log("Insight: Synced to backend (id: \(response.id))")
-      return response
-    } catch {
-      logError("Insight: Failed to sync to backend", error: error)
       return nil
     }
   }

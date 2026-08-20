@@ -463,9 +463,9 @@ routes:
         state: active
       owner: backend
   - route_type: http
-    method: DELETE
-    path: /v3/memories/batch
-    policy:
+    method: POST
+    path: /v1/memory/compute/consolidate
+    policy: &memory_compute_policy
       review_status: reviewed
       auth:
         mechanisms:
@@ -473,10 +473,10 @@ routes:
         placement: dependency
         scopes: []
       rate_limit:
-        policy_name: memories:delete_batch
-        key_subject: uid
-        enforcement: fail_closed
-        placement: wrapper
+        policy_name: none
+        key_subject: none
+        enforcement: none
+        placement: none
       timeout_class: default_method
       surface: first_party_app
       visibility: first_party
@@ -485,27 +485,13 @@ routes:
         state: active
       owner: backend
   - route_type: http
-    method: PATCH
-    path: /v3/memories/{memory_id}/baseline
-    policy:
-      review_status: reviewed
-      auth:
-        mechanisms:
-          - firebase_id_token
-        placement: dependency
-        scopes: []
-      rate_limit:
-        policy_name: memories:modify
-        key_subject: uid
-        enforcement: fail_closed
-        placement: wrapper
-      timeout_class: default_method
-      surface: first_party_app
-      visibility: first_party
-      data_domain: memories
-      deprecation:
-        state: active
-      owner: backend
+    method: POST
+    path: /v1/memory/compute/extract
+    policy: *memory_compute_policy
+  - route_type: http
+    method: POST
+    path: /v1/memory/compute/normalize
+    policy: *memory_compute_policy
   - route_type: http
     method: POST
     path: /v1/users/account-deletion-wipes/run

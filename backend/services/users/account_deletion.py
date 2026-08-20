@@ -8,10 +8,8 @@ from typing import Any, Callable, Literal, TypedDict, cast
 from database import vector_db
 from database import users as users_db
 from database.conversations import get_conversation_ids
-from database.memories import get_memory_ids
 from database.vector_db import (
     delete_conversation_vectors_batch,
-    delete_memory_vectors_batch,
     delete_transcript_chunk_vectors_batch,
 )
 from utils.billing.service import cancel_subscription_for_account_deletion
@@ -19,7 +17,6 @@ from utils.cloud_tasks import enqueue_account_deletion_wipe, is_account_deletion
 from utils.executors import cleanup_executor, submit_with_context
 from utils.log_sanitizer import sanitize
 from utils.other import endpoints as auth
-from utils.memory.canonical_memory_adapter import purge_canonical_derived_user_data
 from utils.other.storage import delete_all_conversation_recordings
 from utils.twilio_service import delete_user_caller_ids_strict as delete_user_caller_ids
 from utils.posthog_telemetry import emit_posthog_event
@@ -62,10 +59,6 @@ def purge_derived_user_data(uid: str) -> PurgeResult:
     ) -> None:
         result[kind].append({'operation': operation, 'error': sanitize(str(error))})
 
-    def require_deleted_count(operation: str, expected: int, deleted: int | None):
-        if expected and isinstance(deleted, int) and deleted < expected:
-            raise RuntimeError(f'{operation} only deleted {deleted}/{expected} records')
-
     def require_vector_index(operation: str):
         if vector_db.index is None:
             raise RuntimeError(f'Pinecone index not initialized for {operation}')
@@ -92,30 +85,10 @@ def purge_derived_user_data(uid: str) -> PurgeResult:
         logger.error(f'delete_account purge transcript chunk vectors failed for {uid}: {sanitize(str(e))}')
 
     try:
-        memory_ids = get_memory_ids(uid)
-        if memory_ids:
-            require_vector_index('memory_vectors')
-            deleted = delete_memory_vectors_batch(uid, memory_ids)
-            require_deleted_count('memory_vectors', len(memory_ids), deleted)
-            result['vectors_deleted'] += deleted or 0
-    except Exception as e:
-        record_failure('required_failures', 'memory_vectors', e)
-        logger.error(f'delete_account purge memory vectors failed for {uid}: {sanitize(str(e))}')
-
-    try:
         result['recordings_deleted'] = delete_all_conversation_recordings(uid) or 0
     except Exception as e:
         record_failure('required_failures', 'conversation_recordings', e)
         logger.error(f'delete_account purge recordings failed for {uid}: {sanitize(str(e))}')
-
-    try:
-        canonical_result = purge_canonical_derived_user_data(uid)
-        vector_ids = canonical_result.get('vector_ids', [])
-        if isinstance(vector_ids, list):
-            result['vectors_deleted'] += len(cast(list[object], vector_ids))
-    except Exception as e:
-        record_failure('required_failures', 'canonical_derived_data', e)
-        logger.error(f'delete_account purge canonical vectors failed for {uid}: {sanitize(str(e))}')
 
     return result
 

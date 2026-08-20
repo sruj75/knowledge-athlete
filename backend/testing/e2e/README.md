@@ -21,18 +21,15 @@ python -m pip install -r testing/e2e/requirements.txt
 
 ## Scope of v1
 
-This version proves the backend can boot hermetically and that selected Memory CRUD, user/account, storage, listen-routing, retrieval/search, and legacy-shape paths can execute without real Firestore, Redis, GCS, Pinecone, Typesense, Google ADC, or production API keys. Conversation CRUD and task/goal CRUD are deliberately absent: the Mac owns those products locally, while hosted listen persistence remains an internal S-16/S-23 handoff.
+This version proves the backend can boot hermetically and that selected user/account, storage, retrieval/search, and legacy-shape paths can execute without real Firestore, Redis, GCS, Pinecone, Typesense, Google ADC, or production API keys. Conversation, Memory, task, and goal CRUD are deliberately absent because the Mac owns those products locally; the backend retains only bounded conversation/Memory compute routes. The authenticated transient listen route is exercised by `tests/unit/test_listen_transient_contract.py` with the real FastAPI route/runtime and a fake Modulate socket.
 
 | Scenario | Status | Notes |
 |---|---:|---|
-| CRUD golden path | ✅ Green | Memories use real create/update/delete routes. Public conversation CRUD was retired by S-10; hosted task/goal CRUD was retired by S-13. |
-| Canonical Memory ingress | ✅ | The Memory pipeline test invokes the retained server-internal processing seam directly; it does not restore the retired public conversation processing API. |
-| Listen/STT route seam | ✅ | `/v4/web/listen` websocket auth/query parsing/custom-STT dispatch is covered; managed-STT scenarios run the real Modulate socket against a loopback peer and inspect retained server-internal persistence directly. S-16 owns final web-listen/protocol retirement. |
+| Listen/STT route seam | ✅ | `/v4/listen` authentication, exact query parsing, fixed audio contract, managed Modulate transport, direct segment delivery, and optional translation are covered without server conversation persistence. `/v4/web/listen` is retired. |
 | Storage / speech profile | ✅ Green | `google.cloud.storage.Client` is patched to a temp-dir fake; speech-profile presence, signed URL, sample list, and delete paths run through real routes/helpers. |
 | User/auth/profile/account | ✅ Green | Auth guard, profile, onboarding, general language, notification/assistant settings, and AI profile are covered. S-10 removed Mac transcription preferences and People CRUD. Account deletion additionally exercises its real admission route, durable marker, opaque Cloud Tasks payload, worker claim, required-purge retry, and idempotent redelivery against local fakes. Firebase deletion, billing lookup, Twilio, and derived-data purge stay controlled test seams. |
-| Retrieval/search | ✅ Partial | Memory, conversation summary, and transcript-chunk retrieval routes run through real public APIs with Firestore-backed records and a deterministic in-memory replacement for Pinecone/OpenAI embeddings at the `database.vector_db` client seam. Full Pinecone/Typesense service compatibility remains out of scope. |
-| Failure / edge modes | ✅ Partial | Invalid input and edge-case coverage runs. Redis-unavailable, LLM 500, and STT timeout cases are explicitly skipped or deferred until per-test failure fakes are wired. |
-| Legacy shape compatibility | ✅ Green | Exercises retained server-internal conversation storage and legacy Memory shapes plus deterministic fake-store repeated writes. It does not expose conversation routes or execute production migration scripts. |
+| Retrieval/search | ✅ Partial | Conversation-summary and transcript-chunk retrieval routes run through real public APIs with Firestore-backed records. Full Pinecone/Typesense service compatibility remains out of scope. |
+| Legacy shape compatibility | ✅ Green | Exercises retained server-internal conversation storage and deterministic fake-store repeated writes. It does not expose conversation routes or execute production migration scripts. |
 
 ## What is faked or disabled
 
@@ -43,7 +40,7 @@ This version proves the backend can boot hermetically and that selected Memory C
 | Google Cloud Storage | `google.cloud.storage.Client` patched to a filesystem-backed fake | Enables storage-backed routes without GCS credentials/network. |
 | Cloud Tasks / OIDC | Strict in-memory `tasks_v2.CloudTasksClient` plus a local token-verification seam in the account-deletion lifecycle test | Exercises the production task protobuf, queue payload, OIDC identity/audience, and retry headers without a Cloud Tasks control plane or Google token verification. |
 | Google ADC | `google.auth.default` returns anonymous credentials | Prevents real credential lookup at import time. |
-| Pinecone | `PINECONE_API_KEY` removed globally; targeted retrieval/search tests monkeypatch `database.vector_db.index` to a deterministic in-memory fake | Keeps app import hermetic while allowing route-level vector upsert/query/delete assertions without real Pinecone. |
+| Pinecone | `PINECONE_API_KEY` removed globally; the shared vector client remains a deterministic in-memory fake | Keeps app import hermetic without restoring hosted Memory vector authority. |
 | Typesense | Dummy host/port/API key | Lets import-time Typesense client construction succeed; retrieval/search tests rely on vector results and fail-open keyword search rather than real Typesense compatibility. |
 | Google Translate | Anonymous Google credentials | Allows import-time client construction; v1 tests do not call live translation. |
 | LLM/STT/VAD/embeddings | Fake modules scaffolded; route and custom-STT suggested-transcript seams covered where deterministic patching is practical | Kept as v2 work where scenarios need real outbound HTTP/WS/provider assertions. |
@@ -60,12 +57,6 @@ This version proves the backend can boot hermetically and that selected Memory C
 ## Running individual scenarios
 
 ```bash
-# CRUD / data shape
-bash backend/testing/e2e/run.sh -k "test_crud"
-
-# Listen/STT websocket route seam
-bash backend/testing/e2e/run.sh -k "listen_stt"
-
 # Storage-backed speech profile routes
 bash backend/testing/e2e/run.sh -k "storage_speech_profile"
 
@@ -77,9 +68,6 @@ bash backend/testing/e2e/run.sh -k "user_auth_profile"
 
 # Durable account-deletion Cloud Tasks lifecycle
 bash backend/testing/e2e/run.sh -k "account_deletion_cloud_tasks"
-
-# Failure / edge modes
-bash backend/testing/e2e/run.sh -k "test_failure_modes"
 
 # Legacy shape compatibility
 bash backend/testing/e2e/run.sh -k "test_migration_safety"
@@ -100,16 +88,10 @@ run.sh
         │   ├── stt.py                          # deterministic custom and managed-STT socket helpers
         │   └── embeddings.py                   # VAD/diarization/embedding fake scaffold
         ├── fixtures/
-        │   ├── conversations.json
-        │   └── memories.json
-        ├── test_crud.py
-        ├── test_canonical_memory_pipeline.py
+        │   └── conversations.json
         ├── test_account_deletion_cloud_tasks.py
-        ├── test_failure_modes.py
         ├── test_harness_guards.py
-        ├── test_listen_stt.py
         ├── test_migration_safety.py
-        ├── test_retrieval_search.py
         ├── test_storage_speech_profile.py
         ├── test_user_auth_profile.py
         └── test_webhooks.py
@@ -129,7 +111,7 @@ run.sh
 
 ## Adding tests
 
-Prefer real retained public routes. For S-16/S-23-owned listen or datastore behavior, seed through `fakes.firestore.seed_*` and inspect the direct internal seam; do not recreate a public conversation compatibility route.
+Prefer real retained public routes, including `/v4/listen` for transient STT. For S-23-owned historical datastore behavior, seed through `fakes.firestore.seed_*` and inspect the direct internal seam; do not recreate a public conversation compatibility route.
 
 ```python
 from fakes.firestore import read_conversation, seed_conversation

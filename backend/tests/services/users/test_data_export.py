@@ -4,7 +4,7 @@ import json
 import sys
 import types
 from datetime import datetime, timezone
-from unittest.mock import MagicMock, call
+from unittest.mock import MagicMock
 
 
 class _AutoMockModule(types.ModuleType):
@@ -78,7 +78,6 @@ def test_iter_user_data_export_streams_all_top_level_sections(monkeypatch):
         'get_user_profile',
         MagicMock(return_value={'name': 'Legacy Firestore Name', 'created_at': now}),
     )
-    monkeypatch.setattr(data_export.memories_db, 'get_non_filtered_memories', MagicMock(return_value=[{'id': 'mem1'}]))
     monkeypatch.setattr(data_export, 'get_people', MagicMock(return_value=[{'id': 'person1'}]))
     monkeypatch.setattr(
         data_export.conversations_db,
@@ -95,18 +94,15 @@ def test_iter_user_data_export_streams_all_top_level_sections(monkeypatch):
     assert payload == {
         'profile': {'created_at': '2026-01-02T03:04:05+00:00'},
         'conversations': [{'id': 'conv1', 'is_locked': True}, {'id': 'conv2'}],
-        'memories': [{'id': 'mem1'}],
         'people': [{'id': 'person1'}],
         'chat_messages': [{'id': 'msg1', 'created_at': '2026-01-02T03:04:05+00:00'}],
     }
-    data_export.memories_db.get_non_filtered_memories.assert_called_once_with('uid1', limit=1000, offset=0)
     data_export.conversations_db.iter_all_conversations.assert_called_once_with('uid1', include_discarded=True)
     data_export.chat_db.iter_all_messages.assert_called_once_with('uid1')
 
 
 def test_iter_user_data_export_uses_empty_profile_object(monkeypatch):
     monkeypatch.setattr(data_export, 'get_user_profile', MagicMock(return_value=None))
-    monkeypatch.setattr(data_export.memories_db, 'get_non_filtered_memories', MagicMock(return_value=[]))
     monkeypatch.setattr(data_export, 'get_people', MagicMock(return_value=[]))
     monkeypatch.setattr(data_export.conversations_db, 'iter_all_conversations', MagicMock(return_value=iter([])))
     monkeypatch.setattr(data_export.chat_db, 'iter_all_messages', MagicMock(return_value=iter([])))
@@ -119,7 +115,6 @@ def test_iter_user_data_export_uses_empty_profile_object(monkeypatch):
 def test_iter_user_data_export_yields_before_heavy_reads(monkeypatch):
     get_profile = MagicMock(return_value={})
     monkeypatch.setattr(data_export, 'get_user_profile', get_profile)
-    monkeypatch.setattr(data_export.memories_db, 'get_non_filtered_memories', MagicMock(return_value=[]))
     monkeypatch.setattr(data_export, 'get_people', MagicMock(return_value=[]))
     monkeypatch.setattr(data_export.conversations_db, 'iter_all_conversations', MagicMock(return_value=iter([])))
     monkeypatch.setattr(data_export.chat_db, 'iter_all_messages', MagicMock(return_value=iter([])))
@@ -128,26 +123,3 @@ def test_iter_user_data_export_yields_before_heavy_reads(monkeypatch):
 
     assert next(chunks) == '{\n'
     get_profile.assert_not_called()
-
-
-def test_iter_user_data_export_paginates_complete_collections(monkeypatch):
-    monkeypatch.setattr(data_export, 'get_user_profile', MagicMock(return_value={}))
-    monkeypatch.setattr(data_export, 'get_people', MagicMock(return_value=[]))
-    monkeypatch.setattr(data_export.conversations_db, 'iter_all_conversations', MagicMock(return_value=iter([])))
-    monkeypatch.setattr(data_export.chat_db, 'iter_all_messages', MagicMock(return_value=iter([])))
-
-    memory_pages = [
-        [{'id': f'mem-{i}'} for i in range(1000)],
-        [{'id': 'mem-1000'}],
-    ]
-    get_non_filtered_memories = MagicMock(side_effect=memory_pages)
-    monkeypatch.setattr(data_export.memories_db, 'get_non_filtered_memories', get_non_filtered_memories)
-
-    payload = json.loads(''.join(data_export.iter_user_data_export('uid1')))
-
-    assert len(payload['memories']) == 1001
-    assert payload['memories'][-1] == {'id': 'mem-1000'}
-    assert get_non_filtered_memories.call_args_list == [
-        call('uid1', limit=1000, offset=0),
-        call('uid1', limit=1000, offset=1000),
-    ]

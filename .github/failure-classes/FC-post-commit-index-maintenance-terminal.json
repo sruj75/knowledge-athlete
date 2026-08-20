@@ -12,7 +12,7 @@
   ],
   "canonical_prevention_artifact": [
     "backend/database/vector_db.py",
-    "backend/tests/unit/test_memories_create.py"
+    "backend/tests/unit/test_vector_db_index_none_guard.py"
   ],
   "status": "open"
 }

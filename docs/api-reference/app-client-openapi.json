@@ -333,63 +333,6 @@
         "title": "AssistantSettingsResponse",
         "type": "object"
       },
-      "BatchDeleteMemoriesRequest": {
-        "properties": {
-          "memory_ids": {
-            "description": "Memory IDs to delete in a single batch request",
-            "items": {
-              "type": "string"
-            },
-            "maxItems": 100,
-            "title": "Memory Ids",
-            "type": "array"
-          }
-        },
-        "required": [
-          "memory_ids"
-        ],
-        "title": "BatchDeleteMemoriesRequest",
-        "type": "object"
-      },
-      "BatchMemoriesRequest": {
-        "properties": {
-          "memories": {
-            "description": "List of memories to create in a single batch request",
-            "items": {
-              "$ref": "#/components/schemas/Memory"
-            },
-            "maxItems": 100,
-            "title": "Memories",
-            "type": "array"
-          }
-        },
-        "required": [
-          "memories"
-        ],
-        "title": "BatchMemoriesRequest",
-        "type": "object"
-      },
-      "BatchMemoriesResponse": {
-        "properties": {
-          "created_count": {
-            "title": "Created Count",
-            "type": "integer"
-          },
-          "memories": {
-            "items": {
-              "$ref": "#/components/schemas/MemoryDB"
-            },
-            "title": "Memories",
-            "type": "array"
-          }
-        },
-        "required": [
-          "memories",
-          "created_count"
-        ],
-        "title": "BatchMemoriesResponse",
-        "type": "object"
-      },
       "BillingAvailability": {
         "properties": {
           "checkout_enabled": {
@@ -1687,86 +1630,6 @@
         "title": "ErrorResponse",
         "type": "object"
       },
-      "Evidence": {
-        "properties": {
-          "artifact_ref": {
-            "additionalProperties": true,
-            "title": "Artifact Ref",
-            "type": "object"
-          },
-          "capture_confidence": {
-            "default": 0.5,
-            "title": "Capture Confidence",
-            "type": "number"
-          },
-          "client_device_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Client Device Id"
-          },
-          "created_at": {
-            "format": "date-time",
-            "title": "Created At",
-            "type": "string"
-          },
-          "evidence_id": {
-            "title": "Evidence Id",
-            "type": "string"
-          },
-          "extractor_id": {
-            "default": "unknown",
-            "title": "Extractor Id",
-            "type": "string"
-          },
-          "extractor_version": {
-            "default": "unknown",
-            "title": "Extractor Version",
-            "type": "string"
-          },
-          "independence_group": {
-            "title": "Independence Group",
-            "type": "string"
-          },
-          "redaction_status": {
-            "default": "active",
-            "title": "Redaction Status",
-            "type": "string"
-          },
-          "source_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Source Id"
-          },
-          "source_signal": {
-            "default": "unknown",
-            "title": "Source Signal",
-            "type": "string"
-          },
-          "source_type": {
-            "default": "unknown",
-            "title": "Source Type",
-            "type": "string"
-          }
-        },
-        "required": [
-          "evidence_id",
-          "independence_group"
-        ],
-        "title": "Evidence",
-        "type": "object"
-      },
       "FairUseDailyGenerationsBudgetResponse": {
         "properties": {
           "daily_limit_ms": {
@@ -2124,138 +1987,6 @@
         "title": "LlmTotalCostResponse",
         "type": "object"
       },
-      "Memory": {
-        "properties": {
-          "arguments": {
-            "additionalProperties": true,
-            "description": "Canonical proposition arguments keyed by semantic slot",
-            "title": "Arguments",
-            "type": "object"
-          },
-          "capture_confidence": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Fixed confidence that the source was captured correctly",
-            "title": "Capture Confidence"
-          },
-          "category": {
-            "$ref": "#/components/schemas/MemoryCategory",
-            "default": "interesting",
-            "description": "The category of the memory"
-          },
-          "content": {
-            "description": "The content of the memory",
-            "title": "Content",
-            "type": "string"
-          },
-          "durability": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Expected durability horizon for the fact",
-            "title": "Durability"
-          },
-          "headline": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Short headline for notification preview (max 5 words)",
-            "title": "Headline"
-          },
-          "object_entity_ids": {
-            "description": "Stable entity ids referenced by the fact arguments",
-            "items": {
-              "type": "string"
-            },
-            "title": "Object Entity Ids",
-            "type": "array"
-          },
-          "predicate": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Canonical relation for the fact, e.g. resides_in, works_at, prefers",
-            "title": "Predicate"
-          },
-          "qualifiers": {
-            "additionalProperties": true,
-            "description": "Optional proposition qualifiers such as scope, valid_time, or epistemic_status",
-            "title": "Qualifiers",
-            "type": "object"
-          },
-          "subject_attribution": {
-            "$ref": "#/components/schemas/SubjectAttribution",
-            "default": "unknown",
-            "description": "How the memory subject was attributed"
-          },
-          "subject_entity_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Stable entity id for who/what the fact is about",
-            "title": "Subject Entity Id"
-          },
-          "tags": {
-            "description": "The tags of the memory and learning",
-            "items": {
-              "type": "string"
-            },
-            "title": "Tags",
-            "type": "array"
-          },
-          "uncertainty_reasons": {
-            "description": "Reasons this fact needs caution or review",
-            "items": {
-              "type": "string"
-            },
-            "title": "Uncertainty Reasons",
-            "type": "array"
-          },
-          "veracity": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Current belief that the fact is true",
-            "title": "Veracity"
-          }
-        },
-        "required": [
-          "content"
-        ],
-        "title": "Memory",
-        "type": "object"
-      },
       "MemoryAssistantSettings": {
         "properties": {
           "analysis_prompt": {
@@ -2334,364 +2065,686 @@
         "title": "MemoryAssistantSettings",
         "type": "object"
       },
-      "MemoryCategory": {
-        "enum": [
-          "interesting",
-          "system",
-          "manual",
-          "core",
-          "hobbies",
-          "lifestyle",
-          "interests",
-          "habits",
-          "work",
-          "skills",
-          "learnings",
-          "other",
-          "auto"
-        ],
-        "title": "MemoryCategory",
-        "type": "string"
-      },
-      "MemoryDB": {
+      "MemoryConsolidateActiveMemory": {
+        "additionalProperties": false,
         "properties": {
           "arguments": {
-            "additionalProperties": true,
-            "description": "Canonical proposition arguments keyed by semantic slot",
+            "additionalProperties": {
+              "type": "string"
+            },
             "title": "Arguments",
             "type": "object"
           },
-          "capture_confidence": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Fixed confidence that the source was captured correctly",
-            "title": "Capture Confidence"
-          },
-          "category": {
-            "$ref": "#/components/schemas/MemoryCategory",
-            "default": "interesting",
-            "description": "The category of the memory"
-          },
           "content": {
-            "description": "The content of the memory",
+            "maxLength": 50000,
+            "minLength": 1,
             "title": "Content",
             "type": "string"
           },
-          "conversation_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Conversation Id"
-          },
-          "created_at": {
-            "format": "date-time",
-            "title": "Created At",
-            "type": "string"
-          },
-          "data_protection_level": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Data Protection Level"
-          },
-          "durability": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Expected durability horizon for the fact",
-            "title": "Durability"
-          },
-          "edited": {
-            "default": false,
-            "title": "Edited",
-            "type": "boolean"
-          },
-          "evidence": {
-            "items": {
-              "$ref": "#/components/schemas/Evidence"
-            },
-            "title": "Evidence",
-            "type": "array"
-          },
-          "headline": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Short headline for notification preview (max 5 words)",
-            "title": "Headline"
-          },
-          "id": {
-            "title": "Id",
-            "type": "string"
-          },
-          "invalid_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Invalid At"
-          },
-          "is_baseline": {
-            "default": false,
-            "title": "Is Baseline",
-            "type": "boolean"
-          },
-          "is_locked": {
-            "default": false,
-            "title": "Is Locked",
-            "type": "boolean"
-          },
           "layer": {
+            "enum": [
+              "short_term",
+              "long_term"
+            ],
+            "title": "Layer",
+            "type": "string"
+          },
+          "predicate": {
             "anyOf": [
               {
+                "maxLength": 256,
+                "minLength": 1,
                 "type": "string"
               },
               {
                 "type": "null"
               }
             ],
-            "description": "Canonical product lifecycle layer (Q6/WS-K); derived from memory_tier at serialization only.",
-            "readOnly": true,
-            "title": "Layer"
+            "title": "Predicate"
           },
-          "manually_added": {
-            "default": false,
-            "title": "Manually Added",
-            "type": "boolean"
+          "revision": {
+            "exclusiveMinimum": 0.0,
+            "title": "Revision",
+            "type": "integer"
           },
-          "memory_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Memory Id"
-          },
-          "memory_tier": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/MemoryLayer"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "object_entity_ids": {
-            "description": "Stable entity ids referenced by the fact arguments",
+          "sensitivity_labels": {
             "items": {
+              "maxLength": 256,
+              "minLength": 1,
               "type": "string"
             },
-            "title": "Object Entity Ids",
+            "maxItems": 16,
+            "title": "Sensitivity Labels",
+            "type": "array"
+          },
+          "subject": {
+            "enum": [
+              "primary_user",
+              "user_owned_project",
+              "user_relationship",
+              "third_party",
+              "unclear"
+            ],
+            "title": "Subject",
+            "type": "string"
+          },
+          "token": {
+            "pattern": "^m[0-9]+$",
+            "title": "Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "token",
+          "content",
+          "layer",
+          "revision",
+          "subject"
+        ],
+        "title": "MemoryConsolidateActiveMemory",
+        "type": "object"
+      },
+      "MemoryConsolidateCandidate": {
+        "additionalProperties": false,
+        "properties": {
+          "arguments": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Arguments",
+            "type": "object"
+          },
+          "content": {
+            "maxLength": 50000,
+            "minLength": 1,
+            "title": "Content",
+            "type": "string"
+          },
+          "evidence_tokens": {
+            "items": {
+              "pattern": "^s[0-9]+$",
+              "type": "string"
+            },
+            "maxItems": 32,
+            "title": "Evidence Tokens",
             "type": "array"
           },
           "predicate": {
             "anyOf": [
               {
+                "maxLength": 256,
+                "minLength": 1,
                 "type": "string"
               },
               {
                 "type": "null"
               }
             ],
-            "description": "Canonical relation for the fact, e.g. resides_in, works_at, prefers",
             "title": "Predicate"
           },
-          "qualifiers": {
-            "additionalProperties": true,
-            "description": "Optional proposition qualifiers such as scope, valid_time, or epistemic_status",
-            "title": "Qualifiers",
+          "sensitivity_labels": {
+            "items": {
+              "maxLength": 256,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 16,
+            "title": "Sensitivity Labels",
+            "type": "array"
+          },
+          "subject": {
+            "enum": [
+              "primary_user",
+              "user_owned_project",
+              "user_relationship",
+              "third_party",
+              "unclear"
+            ],
+            "title": "Subject",
+            "type": "string"
+          },
+          "token": {
+            "pattern": "^c[0-9]+$",
+            "title": "Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "token",
+          "content",
+          "subject"
+        ],
+        "title": "MemoryConsolidateCandidate",
+        "type": "object"
+      },
+      "MemoryConsolidateDecision": {
+        "additionalProperties": false,
+        "properties": {
+          "aboutness": {
+            "enum": [
+              "primary_user",
+              "user_owned_project",
+              "user_relationship",
+              "third_party",
+              "unclear"
+            ],
+            "title": "Aboutness",
+            "type": "string"
+          },
+          "action": {
+            "enum": [
+              "promote",
+              "archive",
+              "review",
+              "reject"
+            ],
+            "title": "Action",
+            "type": "string"
+          },
+          "arguments": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Arguments",
             "type": "object"
           },
-          "reviewed": {
-            "default": false,
-            "title": "Reviewed",
-            "type": "boolean"
-          },
-          "scoring": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
+          "basis_for_memory": {
+            "enum": [
+              "explicit",
+              "recurring",
+              "inferred_pattern",
+              "weak_or_none"
             ],
-            "title": "Scoring"
-          },
-          "subject_attribution": {
-            "$ref": "#/components/schemas/SubjectAttribution",
-            "default": "unknown",
-            "description": "How the memory subject was attributed"
-          },
-          "subject_entity_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Stable entity id for who/what the fact is about",
-            "title": "Subject Entity Id"
-          },
-          "superseded_by": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Superseded By"
-          },
-          "tags": {
-            "description": "The tags of the memory and learning",
-            "items": {
-              "type": "string"
-            },
-            "title": "Tags",
-            "type": "array"
-          },
-          "uid": {
-            "title": "Uid",
+            "title": "Basis For Memory",
             "type": "string"
           },
-          "uncertainty_reasons": {
-            "description": "Reasons this fact needs caution or review",
-            "items": {
-              "type": "string"
-            },
-            "title": "Uncertainty Reasons",
-            "type": "array"
-          },
-          "updated_at": {
-            "format": "date-time",
-            "title": "Updated At",
+          "candidate_token": {
+            "pattern": "^c[0-9]+$",
+            "title": "Candidate Token",
             "type": "string"
           },
-          "user_review": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
+          "confidence": {
+            "enum": [
+              "high",
+              "medium",
+              "low"
             ],
-            "title": "User Review"
+            "title": "Confidence",
+            "type": "string"
           },
-          "valid_at": {
+          "evidence_tokens": {
+            "items": {
+              "pattern": "^s[0-9]+$",
+              "type": "string"
+            },
+            "maxItems": 32,
+            "title": "Evidence Tokens",
+            "type": "array"
+          },
+          "memory_text": {
             "anyOf": [
               {
-                "format": "date-time",
+                "maxLength": 50000,
+                "minLength": 1,
                 "type": "string"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Valid At"
+            "title": "Memory Text"
           },
-          "veracity": {
+          "predicate": {
             "anyOf": [
               {
-                "type": "number"
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
               },
               {
                 "type": "null"
               }
             ],
-            "description": "Current belief that the fact is true",
-            "title": "Veracity"
+            "title": "Predicate"
+          },
+          "rationale": {
+            "maxLength": 4096,
+            "minLength": 1,
+            "title": "Rationale",
+            "type": "string"
+          },
+          "reconciliation": {
+            "enum": [
+              "create",
+              "duplicate",
+              "replace",
+              "merge",
+              "keep_both"
+            ],
+            "title": "Reconciliation",
+            "type": "string"
+          },
+          "relationship_to_user": {
+            "enum": [
+              "self",
+              "owned_work",
+              "adopted",
+              "asking_about",
+              "encountered",
+              "other_speaker",
+              "unclear"
+            ],
+            "title": "Relationship To User",
+            "type": "string"
+          },
+          "sensitivity_labels": {
+            "items": {
+              "maxLength": 256,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 16,
+            "title": "Sensitivity Labels",
+            "type": "array"
+          },
+          "subject": {
+            "enum": [
+              "primary_user",
+              "user_owned_project",
+              "user_relationship",
+              "third_party",
+              "unclear"
+            ],
+            "title": "Subject",
+            "type": "string"
+          },
+          "target_memory_tokens": {
+            "items": {
+              "pattern": "^m[0-9]+$",
+              "type": "string"
+            },
+            "maxItems": 8,
+            "title": "Target Memory Tokens",
+            "type": "array"
+          }
+        },
+        "required": [
+          "candidate_token",
+          "action",
+          "reconciliation",
+          "subject",
+          "relationship_to_user",
+          "aboutness",
+          "basis_for_memory",
+          "confidence",
+          "rationale"
+        ],
+        "title": "MemoryConsolidateDecision",
+        "type": "object"
+      },
+      "MemoryConsolidateRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "active_memories": {
+            "items": {
+              "$ref": "#/components/schemas/MemoryConsolidateActiveMemory"
+            },
+            "maxItems": 128,
+            "title": "Active Memories",
+            "type": "array"
+          },
+          "candidates": {
+            "items": {
+              "$ref": "#/components/schemas/MemoryConsolidateCandidate"
+            },
+            "maxItems": 32,
+            "minItems": 1,
+            "title": "Candidates",
+            "type": "array"
+          },
+          "generation": {
+            "minimum": 0.0,
+            "title": "Generation",
+            "type": "integer"
+          },
+          "request_id": {
+            "format": "uuid",
+            "title": "Request Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "request_id",
+          "generation",
+          "candidates"
+        ],
+        "title": "MemoryConsolidateRequest",
+        "type": "object"
+      },
+      "MemoryConsolidateResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "decisions": {
+            "items": {
+              "$ref": "#/components/schemas/MemoryConsolidateDecision"
+            },
+            "maxItems": 32,
+            "minItems": 1,
+            "title": "Decisions",
+            "type": "array"
+          },
+          "generation": {
+            "minimum": 0.0,
+            "title": "Generation",
+            "type": "integer"
+          },
+          "request_id": {
+            "format": "uuid",
+            "title": "Request Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "request_id",
+          "generation",
+          "decisions"
+        ],
+        "title": "MemoryConsolidateResponse",
+        "type": "object"
+      },
+      "MemoryExtractCandidate": {
+        "additionalProperties": false,
+        "properties": {
+          "about": {
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "About",
+            "type": "string"
+          },
+          "archive_class": {
+            "default": "general",
+            "enum": [
+              "general",
+              "sensitive"
+            ],
+            "title": "Archive Class",
+            "type": "string"
+          },
+          "category": {
+            "enum": [
+              "system",
+              "interesting"
+            ],
+            "title": "Category",
+            "type": "string"
+          },
+          "confidence": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Confidence",
+            "type": "number"
+          },
+          "content": {
+            "maxLength": 50000,
+            "minLength": 1,
+            "title": "Content",
+            "type": "string"
+          },
+          "quote": {
+            "maxLength": 50000,
+            "minLength": 1,
+            "title": "Quote",
+            "type": "string"
+          },
+          "risk_flags": {
+            "items": {
+              "maxLength": 256,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 16,
+            "title": "Risk Flags",
+            "type": "array"
+          },
+          "segment_token": {
+            "pattern": "^s[0-9]+$",
+            "title": "Segment Token",
+            "type": "string"
+          },
+          "sensitivity_labels": {
+            "items": {
+              "maxLength": 256,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 16,
+            "title": "Sensitivity Labels",
+            "type": "array"
+          },
+          "speaker_label": {
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Speaker Label",
+            "type": "string"
+          },
+          "subject": {
+            "enum": [
+              "primary_user",
+              "other_speaker"
+            ],
+            "title": "Subject",
+            "type": "string"
           }
         },
         "required": [
           "content",
-          "id",
-          "uid",
-          "created_at",
-          "updated_at",
-          "layer"
+          "category",
+          "quote",
+          "segment_token",
+          "speaker_label",
+          "subject",
+          "about",
+          "confidence"
         ],
-        "title": "MemoryDB",
+        "title": "MemoryExtractCandidate",
         "type": "object"
       },
-      "MemoryLayer": {
-        "enum": [
-          "short_term",
-          "long_term",
-          "archive"
-        ],
-        "title": "MemoryLayer",
-        "type": "string"
-      },
-      "MemoryMutationResponse": {
+      "MemoryExtractRequest": {
+        "additionalProperties": false,
         "properties": {
-          "status": {
-            "title": "Status",
-            "type": "string"
-          }
-        },
-        "required": [
-          "status"
-        ],
-        "title": "MemoryMutationResponse",
-        "type": "object"
-      },
-      "MemoryReviewItemResponse": {
-        "additionalProperties": true,
-        "properties": {
-          "review_id": {
-            "title": "Review Id",
+          "generation": {
+            "minimum": 0.0,
+            "title": "Generation",
+            "type": "integer"
+          },
+          "language": {
+            "default": "en",
+            "maxLength": 32,
+            "minLength": 1,
+            "title": "Language",
             "type": "string"
           },
-          "status": {
-            "default": "pending",
-            "title": "Status",
+          "request_id": {
+            "format": "uuid",
+            "title": "Request Id",
+            "type": "string"
+          },
+          "segments": {
+            "items": {
+              "$ref": "#/components/schemas/MemoryTranscriptSegment"
+            },
+            "maxItems": 500,
+            "minItems": 1,
+            "title": "Segments",
+            "type": "array"
+          }
+        },
+        "required": [
+          "request_id",
+          "generation",
+          "segments"
+        ],
+        "title": "MemoryExtractRequest",
+        "type": "object"
+      },
+      "MemoryExtractResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "candidates": {
+            "items": {
+              "$ref": "#/components/schemas/MemoryExtractCandidate"
+            },
+            "maxItems": 32,
+            "title": "Candidates",
+            "type": "array"
+          },
+          "generation": {
+            "minimum": 0.0,
+            "title": "Generation",
+            "type": "integer"
+          },
+          "request_id": {
+            "format": "uuid",
+            "title": "Request Id",
             "type": "string"
           }
         },
         "required": [
-          "review_id"
+          "request_id",
+          "generation"
         ],
-        "title": "MemoryReviewItemResponse",
+        "title": "MemoryExtractResponse",
+        "type": "object"
+      },
+      "MemoryNormalizeRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "assertion": {
+            "maxLength": 50000,
+            "minLength": 1,
+            "title": "Assertion",
+            "type": "string"
+          },
+          "provenance_tokens": {
+            "items": {
+              "maxLength": 256,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 16,
+            "title": "Provenance Tokens",
+            "type": "array"
+          },
+          "request_id": {
+            "format": "uuid",
+            "title": "Request Id",
+            "type": "string"
+          },
+          "revision": {
+            "exclusiveMinimum": 0.0,
+            "title": "Revision",
+            "type": "integer"
+          },
+          "source": {
+            "enum": [
+              "manual",
+              "correction"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "source_attribution": {
+            "enum": [
+              "primary_user",
+              "user_owned_project",
+              "user_relationship",
+              "third_party",
+              "unclear"
+            ],
+            "title": "Source Attribution",
+            "type": "string"
+          }
+        },
+        "required": [
+          "request_id",
+          "revision",
+          "assertion",
+          "source",
+          "source_attribution"
+        ],
+        "title": "MemoryNormalizeRequest",
+        "type": "object"
+      },
+      "MemoryNormalizeResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "arguments": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Arguments",
+            "type": "object"
+          },
+          "normalized_content": {
+            "maxLength": 50000,
+            "minLength": 1,
+            "title": "Normalized Content",
+            "type": "string"
+          },
+          "predicate": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "title": "Predicate",
+            "type": "string"
+          },
+          "rationale": {
+            "maxLength": 4096,
+            "minLength": 1,
+            "title": "Rationale",
+            "type": "string"
+          },
+          "request_id": {
+            "format": "uuid",
+            "title": "Request Id",
+            "type": "string"
+          },
+          "revision": {
+            "exclusiveMinimum": 0.0,
+            "title": "Revision",
+            "type": "integer"
+          },
+          "sensitivity_labels": {
+            "items": {
+              "maxLength": 256,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 16,
+            "title": "Sensitivity Labels",
+            "type": "array"
+          },
+          "subject": {
+            "enum": [
+              "primary_user",
+              "user_owned_project",
+              "user_relationship",
+              "third_party",
+              "unclear"
+            ],
+            "title": "Subject",
+            "type": "string"
+          }
+        },
+        "required": [
+          "normalized_content",
+          "subject",
+          "predicate",
+          "rationale",
+          "request_id",
+          "revision"
+        ],
+        "title": "MemoryNormalizeResponse",
         "type": "object"
       },
       "MemorySummaryRatingResponse": {
@@ -2718,19 +2771,38 @@
         "title": "MemorySummaryRatingResponse",
         "type": "object"
       },
-      "MemoryValueRequest": {
+      "MemoryTranscriptSegment": {
         "additionalProperties": false,
-        "description": "Canonical body for single-value memory mutations.",
         "properties": {
-          "value": {
-            "title": "Value",
+          "is_user": {
+            "title": "Is User",
+            "type": "boolean"
+          },
+          "speaker_label": {
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Speaker Label",
+            "type": "string"
+          },
+          "text": {
+            "maxLength": 50000,
+            "minLength": 1,
+            "title": "Text",
+            "type": "string"
+          },
+          "token": {
+            "pattern": "^s[0-9]+$",
+            "title": "Token",
             "type": "string"
           }
         },
         "required": [
-          "value"
+          "token",
+          "speaker_label",
+          "text",
+          "is_user"
         ],
-        "title": "MemoryValueRequest",
+        "title": "MemoryTranscriptSegment",
         "type": "object"
       },
       "MentorNotificationSettingsResponse": {
@@ -3725,62 +3797,6 @@
         "title": "ResponseMessage",
         "type": "object"
       },
-      "ReviewResolutionRequest": {
-        "properties": {
-          "correction": {
-            "anyOf": [
-              {
-                "additionalProperties": true,
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Correction"
-          },
-          "current_veracity": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Current Veracity"
-          },
-          "decision": {
-            "description": "accept, reject, correct, or timeout",
-            "title": "Decision",
-            "type": "string"
-          },
-          "reason": {
-            "default": "",
-            "title": "Reason",
-            "type": "string"
-          }
-        },
-        "required": [
-          "decision"
-        ],
-        "title": "ReviewResolutionRequest",
-        "type": "object"
-      },
-      "ReviewResolutionResponse": {
-        "additionalProperties": true,
-        "properties": {
-          "status": {
-            "title": "Status",
-            "type": "string"
-          }
-        },
-        "required": [
-          "status"
-        ],
-        "title": "ReviewResolutionResponse",
-        "type": "object"
-      },
       "SaveFcmTokenRequest": {
         "properties": {
           "fcm_token": {
@@ -3942,16 +3958,6 @@
         ],
         "title": "SpeechProfileUploadResponse",
         "type": "object"
-      },
-      "SubjectAttribution": {
-        "enum": [
-          "user",
-          "third_party",
-          "unknown",
-          "legacy_assumed"
-        ],
-        "title": "SubjectAttribution",
-        "type": "string"
       },
       "Subscription": {
         "properties": {
@@ -4813,14 +4819,6 @@
             "title": "Conversations",
             "type": "array"
           },
-          "memories": {
-            "items": {
-              "additionalProperties": true,
-              "type": "object"
-            },
-            "title": "Memories",
-            "type": "array"
-          },
           "people": {
             "items": {
               "additionalProperties": true,
@@ -5327,7 +5325,7 @@
       "name": "Omi",
       "url": "https://omi.me/"
     },
-    "description": "First-party Omi app access to transient conversation compute, memories, and product services.",
+    "description": "First-party Omi app access to transient conversation and Memory compute and product services.",
     "license": {
       "name": "MIT",
       "url": "https://github.com/BasedHardware/omi/blob/main/LICENSE"
@@ -6514,6 +6512,267 @@
         "summary": "Get My Fair Use Status",
         "tags": [
           "fair_use"
+        ]
+      }
+    },
+    "/v1/memory/compute/consolidate": {
+      "post": {
+        "operationId": "consolidate_memory_candidates_v1_memory_compute_consolidate_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "title": "Authorization",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-App-Platform",
+            "required": false,
+            "schema": {
+              "title": "X-App-Platform",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Device-Id-Hash",
+            "required": false,
+            "schema": {
+              "title": "X-Device-Id-Hash",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-App-Version",
+            "required": false,
+            "schema": {
+              "title": "X-App-Version",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MemoryConsolidateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryConsolidateResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "firebaseBearer": []
+          }
+        ],
+        "summary": "Consolidate Memory Candidates",
+        "tags": [
+          "Memory Compute"
+        ]
+      }
+    },
+    "/v1/memory/compute/extract": {
+      "post": {
+        "operationId": "extract_memory_candidates_v1_memory_compute_extract_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "title": "Authorization",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-App-Platform",
+            "required": false,
+            "schema": {
+              "title": "X-App-Platform",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Device-Id-Hash",
+            "required": false,
+            "schema": {
+              "title": "X-Device-Id-Hash",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-App-Version",
+            "required": false,
+            "schema": {
+              "title": "X-App-Version",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MemoryExtractRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryExtractResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "firebaseBearer": []
+          }
+        ],
+        "summary": "Extract Memory Candidates",
+        "tags": [
+          "Memory Compute"
+        ]
+      }
+    },
+    "/v1/memory/compute/normalize": {
+      "post": {
+        "operationId": "normalize_memory_assertion_v1_memory_compute_normalize_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "title": "Authorization",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-App-Platform",
+            "required": false,
+            "schema": {
+              "title": "X-App-Platform",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Device-Id-Hash",
+            "required": false,
+            "schema": {
+              "title": "X-Device-Id-Hash",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-App-Version",
+            "required": false,
+            "schema": {
+              "title": "X-App-Version",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MemoryNormalizeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryNormalizeResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "firebaseBearer": []
+          }
+        ],
+        "summary": "Normalize Memory Assertion",
+        "tags": [
+          "Memory Compute"
         ]
       }
     },
@@ -10781,1154 +11040,6 @@
         "summary": "Create Voice Message Stream"
       }
     },
-    "/v3/memories": {
-      "delete": {
-        "operationId": "delete_memories_v3_memories_delete",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "title": "Authorization",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-App-Platform",
-            "required": false,
-            "schema": {
-              "title": "X-App-Platform",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-Device-Id-Hash",
-            "required": false,
-            "schema": {
-              "title": "X-Device-Id-Hash",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-App-Version",
-            "required": false,
-            "schema": {
-              "title": "X-App-Version",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MemoryMutationResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "401": {
-            "$ref": "#/components/responses/Error401"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "firebaseBearer": []
-          }
-        ],
-        "summary": "Delete Memories",
-        "tags": [
-          "memories"
-        ]
-      },
-      "get": {
-        "operationId": "get_memories_v3_memories_get",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "limit",
-            "required": false,
-            "schema": {
-              "default": 100,
-              "title": "Limit",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "query",
-            "name": "offset",
-            "required": false,
-            "schema": {
-              "default": 0,
-              "title": "Offset",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "query",
-            "name": "cursor",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Cursor"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "title": "Authorization",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-App-Platform",
-            "required": false,
-            "schema": {
-              "title": "X-App-Platform",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-Device-Id-Hash",
-            "required": false,
-            "schema": {
-              "title": "X-Device-Id-Hash",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-App-Version",
-            "required": false,
-            "schema": {
-              "title": "X-App-Version",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/MemoryDB"
-                  },
-                  "title": "Response Get Memories V3 Memories Get",
-                  "type": "array"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "401": {
-            "$ref": "#/components/responses/Error401"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "firebaseBearer": []
-          }
-        ],
-        "summary": "Get Memories",
-        "tags": [
-          "memories"
-        ]
-      },
-      "post": {
-        "operationId": "create_memory_v3_memories_post",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "title": "Authorization",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-App-Platform",
-            "required": false,
-            "schema": {
-              "title": "X-App-Platform",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-Device-Id-Hash",
-            "required": false,
-            "schema": {
-              "title": "X-Device-Id-Hash",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-App-Version",
-            "required": false,
-            "schema": {
-              "title": "X-App-Version",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/Memory"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MemoryDB"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "401": {
-            "$ref": "#/components/responses/Error401"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "firebaseBearer": []
-          }
-        ],
-        "summary": "Create Memory",
-        "tags": [
-          "memories"
-        ]
-      }
-    },
-    "/v3/memories/batch": {
-      "delete": {
-        "description": "Delete up to MEMORIES_BATCH_MAX memories in one request.\n\nReplaces the N concurrent DELETE /v3/memories/{id} calls the web UI used to fan out\non bulk selection, which blew through the per-UID rate limiter and 429'd.\n\nAuthorization parity with DELETE /v3/memories/{memory_id}: every requested id is\nvalidated with the SAME business rules as the single-delete path. Validation is\nall-or-nothing — if any id fails, nothing is deleted, so the batch route can never\nbypass the single-delete guardrails (missing/not-owned -> 404, locked paid-plan\nmemory -> 402).",
-        "operationId": "delete_memories_batch_v3_memories_batch_delete",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "title": "Authorization",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-App-Platform",
-            "required": false,
-            "schema": {
-              "title": "X-App-Platform",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-Device-Id-Hash",
-            "required": false,
-            "schema": {
-              "title": "X-Device-Id-Hash",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-App-Version",
-            "required": false,
-            "schema": {
-              "title": "X-App-Version",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/BatchDeleteMemoriesRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MemoryMutationResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "401": {
-            "$ref": "#/components/responses/Error401"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "firebaseBearer": []
-          }
-        ],
-        "summary": "Delete Memories Batch",
-        "tags": [
-          "memories"
-        ]
-      },
-      "post": {
-        "description": "Create many memories in a single request.\n\nSolves the Cloud Armor throttling seen on onboarding: the desktop client\nused to fan out one `POST /v3/memories` per local-file memory (up to 2800\nper user), blowing through the 120 req/min per-Authorization Cloud Armor\nrule and collaterally 429-ing unrelated calls (goals, sync, chat).\n\nOne HTTP request here = one Firestore batch write + one embeddings call +\none Pinecone upsert, regardless of batch size.",
-        "operationId": "create_memories_batch_v3_memories_batch_post",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "title": "Authorization",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-App-Platform",
-            "required": false,
-            "schema": {
-              "title": "X-App-Platform",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-Device-Id-Hash",
-            "required": false,
-            "schema": {
-              "title": "X-Device-Id-Hash",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-App-Version",
-            "required": false,
-            "schema": {
-              "title": "X-App-Version",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/BatchMemoriesRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BatchMemoriesResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "401": {
-            "$ref": "#/components/responses/Error401"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "firebaseBearer": []
-          }
-        ],
-        "summary": "Create Memories Batch",
-        "tags": [
-          "memories"
-        ]
-      }
-    },
-    "/v3/memories/review-queue": {
-      "get": {
-        "operationId": "list_memory_review_queue_v3_memories_review_queue_get",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "status",
-            "required": false,
-            "schema": {
-              "default": "pending",
-              "title": "Status",
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "limit",
-            "required": false,
-            "schema": {
-              "default": 100,
-              "maximum": 500,
-              "minimum": 1,
-              "title": "Limit",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "title": "Authorization",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-App-Platform",
-            "required": false,
-            "schema": {
-              "title": "X-App-Platform",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-Device-Id-Hash",
-            "required": false,
-            "schema": {
-              "title": "X-Device-Id-Hash",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-App-Version",
-            "required": false,
-            "schema": {
-              "title": "X-App-Version",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "additionalProperties": true,
-                    "type": "object"
-                  },
-                  "title": "Response List Memory Review Queue V3 Memories Review Queue Get",
-                  "type": "array"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "401": {
-            "$ref": "#/components/responses/Error401"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "firebaseBearer": []
-          }
-        ],
-        "summary": "List Memory Review Queue",
-        "tags": [
-          "memories"
-        ]
-      }
-    },
-    "/v3/memories/review-queue/{review_id}": {
-      "get": {
-        "description": "Fetch a single memory review conflict by id.\n\nThe list endpoint only returns conflicts in the 'pending' status, so once a conflict is\nresolved it can no longer be retrieved. This fetches any of the user's review conflicts\nby id regardless of status, returning 404 if it does not exist.",
-        "operationId": "get_memory_review_item_v3_memories_review_queue__review_id__get",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "review_id",
-            "required": true,
-            "schema": {
-              "title": "Review Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "title": "Authorization",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-App-Platform",
-            "required": false,
-            "schema": {
-              "title": "X-App-Platform",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-Device-Id-Hash",
-            "required": false,
-            "schema": {
-              "title": "X-Device-Id-Hash",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-App-Version",
-            "required": false,
-            "schema": {
-              "title": "X-App-Version",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MemoryReviewItemResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "401": {
-            "$ref": "#/components/responses/Error401"
-          },
-          "404": {
-            "$ref": "#/components/responses/Error404"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "firebaseBearer": []
-          }
-        ],
-        "summary": "Get Memory Review Item",
-        "tags": [
-          "memories"
-        ]
-      }
-    },
-    "/v3/memories/review-queue/{review_id}/resolve": {
-      "post": {
-        "operationId": "resolve_memory_review_item_v3_memories_review_queue__review_id__resolve_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "review_id",
-            "required": true,
-            "schema": {
-              "title": "Review Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "title": "Authorization",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-App-Platform",
-            "required": false,
-            "schema": {
-              "title": "X-App-Platform",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-Device-Id-Hash",
-            "required": false,
-            "schema": {
-              "title": "X-Device-Id-Hash",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-App-Version",
-            "required": false,
-            "schema": {
-              "title": "X-App-Version",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ReviewResolutionRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ReviewResolutionResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "401": {
-            "$ref": "#/components/responses/Error401"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "firebaseBearer": []
-          }
-        ],
-        "summary": "Resolve Memory Review Item",
-        "tags": [
-          "memories"
-        ]
-      }
-    },
-    "/v3/memories/{memory_id}": {
-      "delete": {
-        "operationId": "delete_memory_v3_memories__memory_id__delete",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "memory_id",
-            "required": true,
-            "schema": {
-              "title": "Memory Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "title": "Authorization",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-App-Platform",
-            "required": false,
-            "schema": {
-              "title": "X-App-Platform",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-Device-Id-Hash",
-            "required": false,
-            "schema": {
-              "title": "X-Device-Id-Hash",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-App-Version",
-            "required": false,
-            "schema": {
-              "title": "X-App-Version",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MemoryMutationResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "401": {
-            "$ref": "#/components/responses/Error401"
-          },
-          "404": {
-            "$ref": "#/components/responses/Error404"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "firebaseBearer": []
-          }
-        ],
-        "summary": "Delete Memory",
-        "tags": [
-          "memories"
-        ]
-      },
-      "patch": {
-        "operationId": "edit_memory_v3_memories__memory_id__patch",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "memory_id",
-            "required": true,
-            "schema": {
-              "title": "Memory Id",
-              "type": "string"
-            }
-          },
-          {
-            "deprecated": true,
-            "description": "Deprecated; send JSON body {'value': ...} instead",
-            "in": "query",
-            "name": "value",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "deprecated": true,
-              "description": "Deprecated; send JSON body {'value': ...} instead",
-              "title": "Value"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "title": "Authorization",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-App-Platform",
-            "required": false,
-            "schema": {
-              "title": "X-App-Platform",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-Device-Id-Hash",
-            "required": false,
-            "schema": {
-              "title": "X-Device-Id-Hash",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-App-Version",
-            "required": false,
-            "schema": {
-              "title": "X-App-Version",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "anyOf": [
-                  {
-                    "$ref": "#/components/schemas/MemoryValueRequest"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "title": "Request"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MemoryMutationResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "401": {
-            "$ref": "#/components/responses/Error401"
-          },
-          "404": {
-            "$ref": "#/components/responses/Error404"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "firebaseBearer": []
-          }
-        ],
-        "summary": "Edit Memory",
-        "tags": [
-          "memories"
-        ]
-      }
-    },
-    "/v3/memories/{memory_id}/baseline": {
-      "patch": {
-        "description": "Toggle the baseline flag for a memory.\n\nBaseline memories are always injected first into the AI context window.\nNot supported for canonical-path users: MemoryItem has no is_baseline field,\nso writing to the legacy store would silently have no effect for canonical readers.\nCanonical users receive 503 explicitly rather than a silent wrong-store write.",
-        "operationId": "update_memory_baseline_v3_memories__memory_id__baseline_patch",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "memory_id",
-            "required": true,
-            "schema": {
-              "title": "Memory Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "value",
-            "required": true,
-            "schema": {
-              "title": "Value",
-              "type": "boolean"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "title": "Authorization",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-App-Platform",
-            "required": false,
-            "schema": {
-              "title": "X-App-Platform",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-Device-Id-Hash",
-            "required": false,
-            "schema": {
-              "title": "X-Device-Id-Hash",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-App-Version",
-            "required": false,
-            "schema": {
-              "title": "X-App-Version",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MemoryMutationResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "401": {
-            "$ref": "#/components/responses/Error401"
-          },
-          "404": {
-            "$ref": "#/components/responses/Error404"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "firebaseBearer": []
-          }
-        ],
-        "summary": "Update Memory Baseline",
-        "tags": [
-          "memories"
-        ]
-      }
-    },
-    "/v3/memories/{memory_id}/review": {
-      "post": {
-        "operationId": "review_memory_v3_memories__memory_id__review_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "memory_id",
-            "required": true,
-            "schema": {
-              "title": "Memory Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "value",
-            "required": true,
-            "schema": {
-              "title": "Value",
-              "type": "boolean"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "title": "Authorization",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-App-Platform",
-            "required": false,
-            "schema": {
-              "title": "X-App-Platform",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-Device-Id-Hash",
-            "required": false,
-            "schema": {
-              "title": "X-Device-Id-Hash",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-App-Version",
-            "required": false,
-            "schema": {
-              "title": "X-App-Version",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MemoryMutationResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "401": {
-            "$ref": "#/components/responses/Error401"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "firebaseBearer": []
-          }
-        ],
-        "summary": "Review Memory",
-        "tags": [
-          "memories"
-        ]
-      }
-    },
     "/v3/speech-profile": {
       "get": {
         "operationId": "has_speech_profile_v3_speech_profile_get",
@@ -12385,8 +11496,8 @@
   ],
   "tags": [
     {
-      "description": "Read and write user memories - timeless facts, preferences, and insights.",
-      "name": "Memories"
+      "description": "Compute bounded Memory proposals without backend persistence.",
+      "name": "Memory Compute"
     },
     {
       "description": "Compute bounded conversation candidates without backend persistence.",

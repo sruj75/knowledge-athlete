@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import logging
 from collections import Counter
 from dataclasses import dataclass
 from enum import Enum
@@ -17,9 +16,7 @@ from utils.translation_core.planner import (
     build_translation_plan,
     fingerprint_text,
 )
-from utils.translation_core.providers import TranslationProviderChain, TranslationProviderError
-
-logger = logging.getLogger(__name__)
+from utils.translation_core.providers import GeminiTranslationExecutor, TranslationExecutionError
 
 
 class TranslationStatus(str, Enum):
@@ -43,11 +40,11 @@ class TranslationEngine:
     def __init__(
         self,
         cache: TranslationCache,
-        providers: TranslationProviderChain,
+        translation_executor: GeminiTranslationExecutor,
         profile_resolver: Callable[[], TranslationProfile] = resolve_translation_profile,
     ) -> None:
         self.cache = cache
-        self._providers = providers
+        self._translation_executor = translation_executor
         self._profile_resolver = profile_resolver
 
     def translate(
@@ -61,7 +58,6 @@ class TranslationEngine:
             return []
 
         profile = self._profile_resolver()
-        self._report_config_diagnostics(profile)
         outcomes: dict[int, TranslationOutcome] = {}
         pending: list[TranslationUnit] = []
 
@@ -105,24 +101,24 @@ class TranslationEngine:
                 missing.append((segment.fingerprint, segment.text))
 
         staged: dict[str, CachedTranslation] = {}
-        provider_failure: TranslationProviderError | None = None
+        provider_failure: TranslationExecutionError | None = None
         if missing:
             try:
                 for start in range(0, len(missing), profile.max_batch_size):
                     chunk = missing[start : start + profile.max_batch_size]
-                    batch = self._providers.translate(
+                    translations = self._translation_executor.translate(
                         [text for _fingerprint_value, text in chunk],
                         target_language,
                         source_language,
                         profile,
                         mode.value,
                     )
-                    for (fingerprint, _text), translation in zip(chunk, batch.translations):
+                    for (fingerprint, _text), translation in zip(chunk, translations):
                         staged[fingerprint] = CachedTranslation(
                             text=translation.text,
                             detected_language=translation.detected_language,
                         )
-            except TranslationProviderError as error:
+            except TranslationExecutionError as error:
                 provider_failure = error
 
         # Provider results become visible to either cache layer only after every
@@ -151,13 +147,6 @@ class TranslationEngine:
                 self.cache.put(planned_unit.full_fingerprint, target_language, full_value, profile)
 
         return _ordered(units, outcomes)
-
-    @staticmethod
-    def _report_config_diagnostics(profile: TranslationProfile) -> None:
-        if profile.unsupported_tokens:
-            logger.warning('Ignoring unsupported translation providers: %s', ','.join(profile.unsupported_tokens))
-        if profile.unavailable_tokens:
-            logger.warning('Ignoring unavailable translation providers: %s', ','.join(profile.unavailable_tokens))
 
 
 def _reconstruct(

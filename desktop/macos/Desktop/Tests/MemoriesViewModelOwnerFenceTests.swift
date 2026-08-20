@@ -10,20 +10,20 @@ final class MemoriesViewModelOwnerFenceTests: XCTestCase {
   func testRuntimeOwnerChangeClearsThePreviousAccountsMemories() {
     let vm = MemoriesViewModel()
     vm.memories = [
-      ServerMemory(
+      MemoryItem(
         id: "previous-account-memory",
         content: "Previous account's memory",
         category: .system,
-        tier: .shortTerm,
-        tierIsExplicit: false,
+        layer: .shortTerm,
+        expiresAt: Date(timeIntervalSince1970: 2_592_001),
+        revision: 1,
         createdAt: Date(timeIntervalSince1970: 1),
         updatedAt: Date(timeIntervalSince1970: 1),
+        correctedAt: nil,
         conversationId: nil,
-        reviewed: false,
-        userReview: nil,
+        sourceSegmentId: nil,
         manuallyAdded: false,
-        scoring: nil,
-        source: "desktop",
+        source: .desktop,
         confidence: nil,
         sourceApp: nil,
         contextSummary: nil,
@@ -34,7 +34,7 @@ final class MemoriesViewModelOwnerFenceTests: XCTestCase {
         currentActivity: nil,
         inputDeviceName: nil,
         windowTitle: nil,
-        headline: nil
+        screenshotId: nil
       )
     ]
 

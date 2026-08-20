@@ -1,7 +1,7 @@
 """Public translation façade backed by one canonical planner/executor.
 
-Callers keep importing ``utils.translation``. Provider selection, cache policy,
-planning, strict response validation, and reconstruction live in focused,
+Callers keep importing ``utils.translation``. Fixed Gemini execution, cache
+policy, planning, strict response validation, and reconstruction live in focused,
 injectable modules under ``utils.translation_core``.
 """
 
@@ -9,8 +9,7 @@ from __future__ import annotations
 
 from typing import Callable
 
-from config.translation import TranslationProfile, TranslationProvider, resolve_translation_profile
-from utils.observability.fallback import record_fallback
+from config.translation import TranslationProfile, resolve_translation_profile
 from utils.translation_core.cache import (
     CachedTranslation,
     TranslationCache,
@@ -24,16 +23,15 @@ from utils.translation_core.engine import (
 from utils.translation_core.metrics import TranslationMetrics, get_translation_metrics
 from utils.translation_core.planner import TranslationMode, TranslationUnit
 from utils.translation_core.providers import (
-    TranslationProviderChain,
-    default_provider_chain,
-    get_default_provider_chain,
+    GeminiTranslationExecutor,
+    default_translation_executor,
+    get_default_translation_executor,
 )
 from utils.translation_language import (
     CONFIDENCE_FOREIGN_TRANSLATE,
     CONFIDENCE_TARGET_SKIP,
     LANGDETECT_RELIABLE_LANGUAGES,
     MIN_CONFIDENT_CHARS,
-    NLLB_SUPPORTED_SOURCE_LANGUAGES,
     TranslationNeed,
     classify_translation_need,
     detect_language,
@@ -50,10 +48,9 @@ class TranslationService:
         *,
         engine: TranslationEngine | None = None,
         cache: TranslationCache | None = None,
-        provider_chain: TranslationProviderChain | None = None,
+        translation_executor: GeminiTranslationExecutor | None = None,
         profile_resolver: Callable[[], TranslationProfile] = resolve_translation_profile,
         metrics: TranslationMetrics | None = None,
-        fallback_recorder: Callable[..., None] = record_fallback,
     ) -> None:
         self._profile_resolver = profile_resolver
         if engine is not None:
@@ -66,15 +63,15 @@ class TranslationService:
             persistent=get_default_translation_store(),
             metrics=selected_metrics,
         )
-        if provider_chain is not None:
-            selected_chain = provider_chain
-        elif metrics is None and fallback_recorder is record_fallback:
-            selected_chain = get_default_provider_chain()
+        if translation_executor is not None:
+            selected_executor = translation_executor
+        elif metrics is None:
+            selected_executor = get_default_translation_executor()
         else:
-            selected_chain = default_provider_chain(selected_metrics, fallback_recorder)
+            selected_executor = default_translation_executor(selected_metrics)
         self._engine = TranslationEngine(
             cache=self.cache,
-            providers=selected_chain,
+            translation_executor=selected_executor,
             profile_resolver=profile_resolver,
         )
 
@@ -170,12 +167,10 @@ __all__ = [
     'CONFIDENCE_TARGET_SKIP',
     'LANGDETECT_RELIABLE_LANGUAGES',
     'MIN_CONFIDENT_CHARS',
-    'NLLB_SUPPORTED_SOURCE_LANGUAGES',
     'TranslationMode',
     'TranslationNeed',
     'TranslationOutcome',
     'TranslationProfile',
-    'TranslationProvider',
     'TranslationService',
     'TranslationStatus',
     'classify_translation_need',

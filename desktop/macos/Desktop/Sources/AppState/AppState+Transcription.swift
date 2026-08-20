@@ -92,6 +92,7 @@ extension AppState {
       currentSessionId = handle.sessionId
       currentConversationId = handle.conversationId
       currentSessionAuthorization = admission.authorization
+      let producerSessionId = handle.sessionId
       LiveNotesMonitor.shared.startSession(sessionId: handle.sessionId)
       startConversationLocationCaptureIfEnabled(
         conversationId: handle.conversationId,
@@ -113,11 +114,12 @@ extension AppState {
         log("Transcription: ON-DEVICE Parakeet mode (OMI_LOCAL_STT) — no cloud STT")
         // Segments are delivered on the main actor by the service, so no Task hop here.
         let onLocalSegments: LocalTranscriptionService.SegmentsHandler = { [weak self] segments in
-          await self?.handleBackendSegments(segments)
+          await self?.handleBackendSegments(segments, expectedSessionId: producerSessionId)
         }
         // If the on-device model can't load, fall back to cloud STT instead of recording
         // into a void (the failure is otherwise silent — a blank transcript).
         let onModelLoadFailed: @MainActor () -> Void = { [weak self] in
+          guard self?.currentSessionId == producerSessionId else { return }
           self?.handleLocalSTTModelLoadFailure()
         }
         // Mic = the user; system audio = another speaker. Transcribed separately for diarization.
@@ -131,8 +133,11 @@ extension AppState {
         localSystemAudioSink.completeHandoff(to: system)
       } else {
         // Always streaming via Python backend /v4/listen
+        let settings = AssistantSettings.shared
         transcriptionService = try TranscriptionService(
-          language: effectiveLanguage
+          language: effectiveLanguage,
+          translationTarget: settings.transcriptionAutoDetect ? settings.transcriptionLanguage : nil,
+          vocabulary: settings.effectiveVocabulary
         )
       }
 
@@ -159,23 +164,25 @@ extension AppState {
       // Streaming mode: start transcription service first, then audio on connect.
       // Local (Parakeet) mode has no WebSocket — start capture immediately instead.
       if sttSession.useLocalSTT {
-        Task { [weak self] in
+        Task { @MainActor [weak self] in
+          guard self?.currentSessionId == producerSessionId else { return }
           await self?.startAudioCapture()
         }
       } else {
         transcriptionService?.start(
           onSegments: { [weak self] segments in
             self?.segmentDeliveryQueue.submit { [weak self] in
-              await self?.handleBackendSegments(segments)
+              await self?.handleBackendSegments(segments, expectedSessionId: producerSessionId)
             }
           },
           onEvent: { [weak self] event in
-            Task { @MainActor in
-              self?.handleListenEvent(event)
+            self?.segmentDeliveryQueue.submit { [weak self] in
+              await self?.handleListenEvent(event, expectedSessionId: producerSessionId)
             }
           },
           onError: { [weak self] error in
             Task { @MainActor in
+              guard let self, self.currentSessionId == producerSessionId else { return }
               logError("Transcription error", error: error)
               AnalyticsManager.shared.recordingError(
                 error: error.localizedDescription,
@@ -185,14 +192,15 @@ extension AppState {
               )
               // Cloud WS gave up (reconnects exhausted) → try to keep recording on-device
               // instead of dropping it. Falls through to stopTranscription if not possible.
-              self?.handleCloudSTTReconnectFailure()
+              self.handleCloudSTTReconnectFailure()
             }
           },
           onConnected: { [weak self] in
             Task { @MainActor in
+              guard let self, self.currentSessionId == producerSessionId else { return }
               log("Transcription: Connected to Python backend")
               // Start audio capture once connected
-              await self?.startAudioCapture()
+              await self.startAudioCapture()
             }
           },
           onDisconnected: {
@@ -872,6 +880,7 @@ extension AppState {
 
     let nextAdmissionGeneration = recordingGeneration
     let lang = AssistantSettings.shared.effectiveTranscriptionLanguage
+    let producerSessionId: Int64
     do {
       let admission = try await beginLocalConversation(
         language: lang, inputDeviceName: recordingInputDeviceName)
@@ -884,6 +893,7 @@ extension AppState {
       currentSessionId = handle.sessionId
       currentConversationId = handle.conversationId
       currentSessionAuthorization = admission.authorization
+      producerSessionId = handle.sessionId
       LiveNotesMonitor.shared.startSession(sessionId: handle.sessionId)
       startConversationLocationCaptureIfEnabled(
         conversationId: handle.conversationId,
@@ -943,13 +953,14 @@ extension AppState {
         // conversation — do NOT reconnect the cloud WebSocket. Stopping the old ones flushes
         // their final tails; the source-routed capture callbacks feed the new instances.
         let onLocalSegments: LocalTranscriptionService.SegmentsHandler = { [weak self] segments in
-          await self?.handleBackendSegments(segments)
+          await self?.handleBackendSegments(segments, expectedSessionId: producerSessionId)
         }
         // Mirror startTranscription: wire onModelLoadFailed so a Parakeet model
         // load failure on the re-armed instances falls back to cloud instead of
         // recording into a void (a silent blank transcript). Without this, every
         // conversation after the first in a session loses that protection.
         let onModelLoadFailed: @MainActor () -> Void = { [weak self] in
+          guard self?.currentSessionId == producerSessionId else { return }
           self?.handleLocalSTTModelLoadFailure()
         }
         let mic = LocalTranscriptionService(language: effectiveLanguage, isUser: true)
@@ -962,29 +973,33 @@ extension AppState {
         localSystemAudioSink.completeHandoff(to: system)
         log("Transcription: Re-armed on-device Parakeet (mic + system) for next conversation")
       } else {
+        let settings = AssistantSettings.shared
         transcriptionService = try TranscriptionService(
-          language: effectiveLanguage
+          language: effectiveLanguage,
+          translationTarget: settings.transcriptionAutoDetect ? settings.transcriptionLanguage : nil,
+          vocabulary: settings.effectiveVocabulary
         )
         transcriptionService?.start(
           onSegments: { [weak self] segments in
             self?.segmentDeliveryQueue.submit { [weak self] in
-              await self?.handleBackendSegments(segments)
+              await self?.handleBackendSegments(segments, expectedSessionId: producerSessionId)
             }
           },
           onEvent: { [weak self] event in
-            Task { @MainActor in
-              self?.handleListenEvent(event)
+            self?.segmentDeliveryQueue.submit { [weak self] in
+              await self?.handleListenEvent(event, expectedSessionId: producerSessionId)
             }
           },
           onError: { [weak self] error in
             Task { @MainActor in
+              guard let self, self.currentSessionId == producerSessionId else { return }
               logError("Transcription error (reconnect)", error: error)
               // Mirror startTranscription: on cloud reconnect exhaustion, fail
               // over to on-device Parakeet (Apple Silicon) instead of hard-
               // stopping capture mid-meeting. Plain stopTranscription() here
               // dropped the cloud->local resilience for every conversation after
               // the first.
-              self?.handleCloudSTTReconnectFailure()
+              self.handleCloudSTTReconnectFailure()
             }
           },
           onConnected: {
@@ -1199,14 +1214,12 @@ extension AppState {
     guard isTranscribing else { return ["error": "no active capture session"] }
     let start = recordingStartTime.map { Date().timeIntervalSince($0) } ?? 0
     let segment = TranscriptionService.BackendSegment(
-      id: UUID().uuidString.lowercased(),
+      segmentId: UUID().uuidString.lowercased(),
+      speakerId: 0,
       text: trimmed,
-      speaker: "SPEAKER_00",
-      speaker_id: 0,
-      is_user: true,
+      isUser: true,
       start: max(0, start),
-      end: max(0.1, start + 0.5),
-      translations: nil
+      end: max(0.1, start + 0.5)
     )
     await handleBackendSegments([segment])
     return [
@@ -1263,14 +1276,12 @@ extension AppState {
       let segmentEnd = raw["end"] as? Double ?? (segmentStart + 0.5)
       backendSegments.append(
         TranscriptionService.BackendSegment(
-          id: UUID().uuidString.lowercased(),
+          segmentId: UUID().uuidString.lowercased(),
+          speakerId: speakerId,
           text: text,
-          speaker: speaker,
-          speaker_id: speakerId,
-          is_user: isUser,
+          isUser: isUser,
           start: segmentStart,
-          end: max(segmentEnd, segmentStart + 0.1),
-          translations: nil
+          end: max(segmentEnd, segmentStart + 0.1)
         )
       )
       speakerLabels.append(speaker)

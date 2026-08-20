@@ -15,14 +15,7 @@ backend-main:http:DELETE:/v1/users/delete-account
 backend-main:http:DELETE:/v2/chat-sessions/{session_id}
 backend-main:http:DELETE:/v2/desktop/messages
 backend-main:http:DELETE:/v2/messages
-backend-main:http:DELETE:/v3/memories
-backend-main:http:DELETE:/v3/memories/{memory_id}
 backend-main:http:DELETE:/v3/speech-profile/expand
-backend-main:http:GET:/memory/admin/users/{uid}/non-active-route-report
-backend-main:http:GET:/memory/admin/users/{uid}/read-rollout-decision
-backend-main:http:GET:/memory/archive/search
-backend-main:http:GET:/memory/search
-backend-main:http:GET:/memory/vector/search
 backend-main:http:GET:/metrics
 backend-main:http:GET:/v1/admin/fair-use/case/{case_ref}
 backend-main:http:GET:/v1/admin/fair-use/flagged
@@ -46,7 +39,6 @@ backend-main:http:GET:/v1/focus-stats
 backend-main:http:GET:/v1/health
 backend-main:http:GET:/v1/phone/numbers
 backend-main:http:GET:/v1/tools/conversations
-backend-main:http:GET:/v1/tools/memories
 backend-main:http:GET:/v1/trends
 backend-main:http:GET:/v1/users/ai-profile
 backend-main:http:GET:/v1/users/analytics/memory_summary
@@ -74,9 +66,6 @@ backend-main:http:GET:/v2/desktop/download/latest
 backend-main:http:GET:/v2/desktop/messages
 backend-main:http:GET:/v2/desktop/update-policy
 backend-main:http:GET:/v2/messages
-backend-main:http:GET:/v3/memories
-backend-main:http:GET:/v3/memories/review-queue
-backend-main:http:GET:/v3/memories/review-queue/{review_id}
 backend-main:http:GET:/v3/speech-profile
 backend-main:http:GET:/v3/speech-profile/expand
 backend-main:http:GET:/v4/speech-profile
@@ -91,8 +80,6 @@ backend-main:http:PATCH:/v1/users/notification-settings
 backend-main:http:PATCH:/v2/chat-sessions/{session_id}
 backend-main:http:PATCH:/v2/desktop/messages/{message_id}/rating
 backend-main:http:PATCH:/v2/messages/{message_id}/rating
-backend-main:http:PATCH:/v3/memories/{memory_id}
-backend-main:http:POST:/memory/admin/users/{uid}/short-term-lifecycle/run
 backend-main:http:POST:/v1/admin/fair-use/user/{uid}/reset
 backend-main:http:POST:/v1/admin/fair-use/user/{uid}/resolve-event/{event_id}
 backend-main:http:POST:/v1/admin/fair-use/user/{uid}/set-stage
@@ -115,7 +102,6 @@ backend-main:http:POST:/v1/phone/token
 backend-main:http:POST:/v1/phone/twiml
 backend-main:http:POST:/v1/tools/conversations/search
 backend-main:http:POST:/v1/tools/conversations/search-chunks
-backend-main:http:POST:/v1/tools/memories/search
 backend-main:http:POST:/v1/users/analytics/chat_message
 backend-main:http:POST:/v1/users/analytics/memory_summary
 backend-main:http:POST:/v1/users/daily-summaries/{summary_id}/regenerate
@@ -135,13 +121,8 @@ backend-main:http:POST:/v2/messages/{message_id}/report
 backend-main:http:POST:/v2/tts/synthesize
 backend-main:http:POST:/v2/voice-message/transcribe
 backend-main:http:POST:/v2/voice-messages
-backend-main:http:POST:/v3/memories
-backend-main:http:POST:/v3/memories/batch
-backend-main:http:POST:/v3/memories/review-queue/{review_id}/resolve
-backend-main:http:POST:/v3/memories/{memory_id}/review
 backend-main:http:POST:/v3/upload-audio
 backend-main:http:PUT:/v1/announcements/{announcement_id}
 backend-main:websocket:WEBSOCKET:/v1/omni/relay
 backend-main:websocket:WEBSOCKET:/v2/voice-message/transcribe-stream
 backend-main:websocket:WEBSOCKET:/v4/listen
-backend-main:websocket:WEBSOCKET:/v4/web/listen

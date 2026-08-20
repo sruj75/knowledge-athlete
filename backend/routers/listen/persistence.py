@@ -1,4 +1,4 @@
-"""Executor-backed synchronous storage boundary for live listen sessions."""
+"""Executor-backed account and usage boundary for live listen sessions."""
 
 from __future__ import annotations
 

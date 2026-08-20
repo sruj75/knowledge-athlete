@@ -19,7 +19,6 @@ covers:
   - desktop/macos/Desktop/Sources/FloatingControlBar/FloatingControlBarView.swift
   - desktop/macos/Desktop/Sources/FloatingControlBar/FloatingControlBarWindow.swift
   - desktop/macos/Desktop/Sources/FloatingControlBar/PTTContextVocabularyProvider.swift
-  - desktop/macos/Desktop/Sources/FloatingControlBar/ProactiveTaskExecute.swift
   - desktop/macos/Desktop/Sources/FloatingControlBar/PushToTalkManager.swift
   - desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeHubController.swift
   - desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeHubController+AgentCompletionContext.swift

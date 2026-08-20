@@ -25,7 +25,6 @@ from scripts.check_unit_test_discovery import (
 
 FAKE_WORKFLOWS = {
     'backend-hermetic-e2e.yml': 'run: bash backend/testing/e2e/run.sh',
-    'desktop-backend-contracts.yml': 'run: python -m pytest backend/testing/contracts -v',
 }
 
 
@@ -36,7 +35,7 @@ def test_orphan_outside_all_runners_is_reported():
 
 
 def test_directory_mode_covers_whole_tree():
-    all_files = {'testing/e2e/test_new_flow.py', 'testing/contracts/test_new_contract.py'}
+    all_files = {'testing/e2e/test_new_flow.py'}
     assert find_orphans(all_files, set(), set(), FAKE_WORKFLOWS) == []
 
 
@@ -78,15 +77,15 @@ def test_backslash_continuation_keeps_path_attached_to_its_invocation():
 
 
 def test_missing_workflow_file_is_an_error():
-    errors = workflow_map_errors({'backend-hermetic-e2e.yml': '', 'desktop-backend-contracts.yml': 'x'})
+    errors = workflow_map_errors({'backend-hermetic-e2e.yml': ''})
     assert any('backend-hermetic-e2e.yml' in e and 'does not exist' in e for e in errors)
 
 
 def test_directory_workflow_must_reference_its_tree():
     texts = dict(FAKE_WORKFLOWS)
-    texts['desktop-backend-contracts.yml'] = 'run: echo no contracts here'
+    texts['backend-hermetic-e2e.yml'] = 'run: echo no e2e here'
     errors = workflow_map_errors(texts)
-    assert any('desktop-backend-contracts.yml' in e and 'testing/contracts' in e for e in errors)
+    assert any('backend-hermetic-e2e.yml' in e and 'testing/e2e' in e for e in errors)
 
 
 def test_valid_workflow_map_has_no_errors():

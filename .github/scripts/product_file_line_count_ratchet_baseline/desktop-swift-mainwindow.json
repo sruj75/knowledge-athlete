@@ -1,13 +1,13 @@
 {
   "files": {
     "desktop/macos/Desktop/Sources/MainWindow/Components/ChatBubble.swift": 1792,
-    "desktop/macos/Desktop/Sources/MainWindow/Pages/MemoriesPage.swift": 3186,
+    "desktop/macos/Desktop/Sources/MainWindow/Pages/MemoriesPage.swift": 1621,
     "desktop/macos/Desktop/Sources/MainWindow/SidebarView.swift": 1676
   },
   "raise_justifications": {
     "desktop/macos/Desktop/Sources/MainWindow/Components/ChatBubble.swift": "Final-assistant Omi mark ownership and canonical expandable tool-call presentation are row-level rendering contracts that belong with bubble equality and layout. The mark remains an overlay so it cannot shift bubbles horizontally, while its owner row reserves the mark's height to prevent an empty streaming reply from clipping at the transcript live edge.",
-    "desktop/macos/Desktop/Sources/MainWindow/Pages/MemoriesPage.swift": "Memory search waits for its active projection, while canonical lifecycle capability, the Brain Map evidence inspector, and the split list/detail presentation remain owned by the Memories page; local-only identity resolution and its guarded delete/undo lifecycle remain with its optimistic mutation owner rather than exposing coordination state across view-model boundaries.",
-    "desktop/macos/Desktop/Sources/MainWindow/SidebarView.swift": "SB redesign: adds the hover-expand AppNavRail (icons\u2192labels) and the merged/simplified navigation (Memory, Insights) driving selectedIndex; a component split is tracked follow-up."
+    "desktop/macos/Desktop/Sources/MainWindow/Pages/MemoriesPage.swift": "The retained local Memories page owns its split list/detail presentation, filters, Add/Edit, delete/Undo, bulk-delete confirmation, source navigation, and Tips presentation; state, paging, and mutation coordination are isolated in MemoriesViewModel.",
+    "desktop/macos/Desktop/Sources/MainWindow/SidebarView.swift": "SB redesign: adds the hover-expand AppNavRail (icons→labels) and the merged/simplified navigation (Memory, Insights) driving selectedIndex; a component split is tracked follow-up."
   },
   "threshold": 1500
 }
