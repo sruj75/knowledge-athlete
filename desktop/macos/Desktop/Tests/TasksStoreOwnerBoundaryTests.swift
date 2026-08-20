@@ -32,7 +32,6 @@ final class TasksStoreOwnerBoundaryTests: XCTestCase {
   private let store = TasksStore.shared
 
   override func setUp() async throws {
-    try await super.setUp()
     fixture = try await RewindStorageTestIsolation.setUp(userIdPrefix: "tasks-store-owner")
     let ownerFixture = RuntimeOwnerAuthorityTestFixture()
     self.ownerFixture = ownerFixture
@@ -46,7 +45,6 @@ final class TasksStoreOwnerBoundaryTests: XCTestCase {
     ownerFixture = nil
     await RewindStorageTestIsolation.tearDown(userDir: fixture?.userDir)
     fixture = nil
-    try await super.tearDown()
   }
 
   func testLocalPagingStartsAt100AndUsesIndependentOffsets() async throws {

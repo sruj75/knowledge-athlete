@@ -41,7 +41,6 @@ final class TaskReminderServiceTests: XCTestCase {
   private var authSnapshot: RewindStorageTestIsolation.AuthSnapshot?
 
   override func setUp() async throws {
-    try await super.setUp()
     authSnapshot = RewindStorageTestIsolation.captureAuthSnapshot()
     fixture = try await RewindStorageTestIsolation.setUp(userIdPrefix: "task-reminder")
     RewindStorageTestIsolation.signInForTests(userId: try XCTUnwrap(fixture?.testUserId))
@@ -52,7 +51,6 @@ final class TaskReminderServiceTests: XCTestCase {
     authSnapshot = nil
     await RewindStorageTestIsolation.tearDown(userDir: fixture?.userDir)
     fixture = nil
-    try await super.tearDown()
   }
 
   func testOwnerReconcileRemovesStaleRequestsAndSchedulesOnlyAuthoritativeFutureTasks() async {
