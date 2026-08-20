@@ -1372,12 +1372,9 @@ def _cloud_run_secret_ref(entry: EnvEntry) -> StringMap | None:
 
 
 def _fetch_live_cloud_run_state(env_config: ConfigDict) -> ConfigDict:
-    # This deploy pipeline (gcp_backend.yml) deploys Cloud Run *services* only — the declared
-    # Cloud Run jobs such as notifications-job ship via their own workflows,
-    # so their live state is owned elsewhere. Fetch and live-validate services only; validating
-    # a job this pipeline does not deploy produced false failures (a not-found job crashed the
-    # whole deploy, and notifications-job's separately-managed env legitimately differs). The
-    # job contract is still validated statically against the rendered state.
+    # This deploy pipeline (gcp_backend.yml) deploys Cloud Run services only.
+    # Fetch and live-validate those services; any separately owned job contract
+    # is validated statically against the rendered state.
     services: ConfigDict = {}
     project = env_config['gcp_project']
     region = env_config['region']

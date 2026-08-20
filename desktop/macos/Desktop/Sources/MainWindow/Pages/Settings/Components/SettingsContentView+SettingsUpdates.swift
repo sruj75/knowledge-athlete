@@ -23,35 +23,10 @@ extension SettingsContentView {
     NSWorkspace.shared.open(url)
   }
 
-  func updateDailySummarySettings(enabled: Bool? = nil, hour: Int? = nil) {
-    Task {
-      do {
-        let _ = try await APIClient.shared.updateDailySummarySettings(enabled: enabled, hour: hour)
-      } catch {
-        logError("Failed to update daily summary settings", error: error)
-      }
-    }
-  }
-
   func updateNotificationSettings(enabled: Bool? = nil, frequency: Int? = nil) {
-    if let enabled {
-      // Mirror locally so NotificationService suppresses/resumes proactive notifications
-      // immediately when the master toggle flips, even before the backend round-trip completes.
-      UserDefaults.standard.set(enabled, forKey: NotificationService.masterEnabledDefaultsKey)
-    }
-    if let frequency {
-      // Mirror locally so NotificationService picks up the new throttle level immediately,
-      // even before the backend round-trip completes.
-      UserDefaults.standard.set(frequency, forKey: NotificationService.frequencyDefaultsKey)
-    }
-    Task {
-      do {
-        let _ = try await APIClient.shared.updateNotificationSettings(
-          enabled: enabled, frequency: frequency)
-      } catch {
-        logError("Failed to update notification settings", error: error)
-      }
-    }
+    let saved = LocalNotificationSettings().update(enabled: enabled, frequency: frequency)
+    notificationsEnabled = saved.enabled
+    notificationFrequency = saved.frequency
   }
 
   func updateLanguage(_ language: String) {

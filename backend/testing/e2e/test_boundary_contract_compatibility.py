@@ -7,10 +7,7 @@ FastAPI parameter binding, auth, multipart parsing, and fake storage side effect
 
 
 def test_real_routes_reject_invalid_boundary_query_values_without_500(client, auth_headers):
-    cases = [
-        ("/v1/calendar/meetings?limit=101", 422),
-        ("/v1/focus-sessions?date=2024-02-30", 422),
-    ]
+    cases = [("/v1/calendar/meetings?limit=101", 422)]
 
     for path, expected_status in cases:
         response = client.get(path, headers=auth_headers)

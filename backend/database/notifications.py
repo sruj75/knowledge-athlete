@@ -13,7 +13,6 @@ from google.cloud.firestore_v1.base_query import FieldFilter
 from google.cloud import firestore
 from google.cloud.firestore import DELETE_FIELD
 from ._client import db
-from .cache import get_memory_cache
 import logging
 from typing import Any, Dict, List, Optional, Tuple, Union, cast
 
@@ -95,116 +94,6 @@ def get_user_time_zone(uid: str) -> Optional[str]:
 
 
 # **************************************
-# *** Daily Summary Time Preferences ***
-# **************************************
-
-# Default: 22:00 local time (10 PM)
-DEFAULT_DAILY_SUMMARY_HOUR_LOCAL = 22
-
-
-def get_daily_summary_hour_local(uid: str) -> int | None:
-    """Get user's preferred daily summary hour in local time. Returns None if not set."""
-    user_ref = db.collection('users').document(uid).get()
-    if getattr(user_ref, "exists", False):
-        user_data = _typed_doc(user_ref)
-        value = user_data.get('daily_summary_hour_local')
-        return int(value) if isinstance(value, (int, float)) else None
-    return None
-
-
-def set_daily_summary_hour_local(uid: str, hour_local: int) -> bool:
-    """
-    Set user's preferred daily summary hour in local time.
-
-    Args:
-        uid: User ID
-        hour_local: Hour in local timezone (0-23)
-
-    Returns:
-        True if successful
-    """
-    if not (0 <= hour_local <= 23):
-        raise ValueError(f"Invalid hour: {hour_local}. Must be 0-23.")
-
-    user_ref = db.collection('users').document(uid)
-    user_ref.set({'daily_summary_hour_local': hour_local}, merge=True)
-    return True
-
-
-def get_daily_summary_enabled(uid: str) -> bool:
-    """Check if daily summary is enabled for user. Enabled by default."""
-    user_ref = db.collection('users').document(uid).get()
-    if getattr(user_ref, "exists", False):
-        user_data = _typed_doc(user_ref)
-        return bool(user_data.get('daily_summary_enabled', True))
-    return True
-
-
-def set_daily_summary_enabled(uid: str, enabled: bool) -> bool:
-    """Enable or disable daily summary for user."""
-    user_ref = db.collection('users').document(uid)
-    user_ref.set({'daily_summary_enabled': enabled}, merge=True)
-    return True
-
-
-# **************************************
-# *** Mentor Notification Frequency ***
-# **************************************
-
-# Default: 0 (disabled by default, user must explicitly enable)
-# Range: 0-5 where 0=disabled, 1=most selective, 5=most proactive
-DEFAULT_MENTOR_NOTIFICATION_FREQUENCY = 0
-
-
-def get_mentor_notification_frequency(uid: str) -> int:
-    """
-    Get user's mentor notification frequency preference.
-    Returns 0-5 where:
-    - 0 = disabled
-    - 1 = ultra selective (least frequent)
-    - 3 = balanced (default)
-    - 5 = very proactive (most frequent)
-
-    Uses in-memory cache (30s TTL) + field projection to avoid reading the full
-    user doc every 1s per stream. (#5439 sub-task 2)
-    """
-    cache = get_memory_cache()
-
-    def fetch() -> int:
-        doc = db.collection('users').document(uid).get(field_paths=['mentor_notification_frequency'])
-        if getattr(doc, "exists", False):
-            data = _typed_doc(doc)
-            value = data.get('mentor_notification_frequency', DEFAULT_MENTOR_NOTIFICATION_FREQUENCY)
-            return int(value) if isinstance(value, (int, float)) else DEFAULT_MENTOR_NOTIFICATION_FREQUENCY
-        return DEFAULT_MENTOR_NOTIFICATION_FREQUENCY
-
-    return cache.get_or_fetch(f"mentor_frequency:{uid}", fetch, ttl=30)
-
-
-def set_mentor_notification_frequency(uid: str, frequency: int) -> bool:
-    """
-    Set user's mentor notification frequency preference.
-
-    Args:
-        uid: User ID
-        frequency: Notification frequency (0-5)
-
-    Returns:
-        True if successful
-
-    Raises:
-        ValueError if frequency is not in valid range
-    """
-    if not (0 <= frequency <= 5):
-        raise ValueError(f"Invalid frequency: {frequency}. Must be 0-5.")
-
-    user_ref = db.collection('users').document(uid)
-    user_ref.set({'mentor_notification_frequency': frequency}, merge=True)
-    # Invalidate local cache so this instance sees the update immediately
-    get_memory_cache().delete(f"mentor_frequency:{uid}")
-    return True
-
-
 def get_all_tokens(uid: str) -> list[str]:
     """Get all device tokens for a user from subcollection and legacy field"""
     tokens: List[str] = []
@@ -276,78 +165,6 @@ def get_users_token_in_timezones(timezones: list[str]) -> List[str]:
 
 def get_users_id_in_timezones(timezones: list[str]) -> List[Union[str, Tuple[str, List[str], Any]]]:
     return _get_users_in_timezones(timezones, 'id')
-
-
-def get_users_for_daily_summary(timezones: list[str], target_local_hour: int) -> List[Tuple[str, List[str], Any]]:
-    """
-    Get users who should receive daily summary notifications.
-
-    This function queries users who:
-    1. Are in one of the provided timezones (where it's currently target_local_hour)
-    2. Have daily_summary_hour_local set to target_local_hour OR have no preference (uses default)
-    3. Have daily_summary_enabled not explicitly set to False
-
-    Args:
-        timezones: List of IANA timezone names where it's currently target_local_hour
-        target_local_hour: The local hour we're sending notifications for (0-23)
-
-    Returns:
-        List of (uid, [tokens], time_zone) tuples.
-    """
-    if not timezones:
-        return []
-
-    users: List[Tuple[str, List[str], Any]] = []
-
-    # 'Where in' query only supports 30 or fewer items in list so we split in chunks
-    timezone_chunks = [timezones[i : i + 30] for i in range(0, len(timezones), 30)]
-
-    for chunk in timezone_chunks:
-        chunk_users: List[Tuple[str, List[str], Any]] = []
-        try:
-            # Query users in these timezones
-            query = db.collection('users').where(filter=FieldFilter('time_zone', 'in', chunk))
-
-            for user_doc in query.stream():
-                uid = str(user_doc.id)
-                user_data = _typed_doc(user_doc)
-
-                # Check if daily summary is enabled (default: True)
-                if user_data.get('daily_summary_enabled') is False:
-                    continue
-
-                # Check if user's preferred hour matches target hour
-                # If not set, use default (22 = 10 PM)
-                user_hour = user_data.get('daily_summary_hour_local', DEFAULT_DAILY_SUMMARY_HOUR_LOCAL)
-                if user_hour != target_local_hour:
-                    continue
-
-                # Collect tokens from subcollection
-                tokens: List[str] = []
-                token_docs = db.collection('users').document(uid).collection('fcm_tokens').stream()
-                for token_doc in token_docs:
-                    token_data = _typed_doc(token_doc)
-                    token_value = token_data.get('token')
-                    if token_value:
-                        tokens.append(str(token_value))
-
-                # Add legacy token if exists and not already in list
-                legacy_token = user_data.get('fcm_token')
-                if legacy_token and legacy_token not in tokens:
-                    tokens.append(str(legacy_token))
-
-                # Skip users with no tokens
-                if not tokens:
-                    continue
-
-                time_zone = user_data.get('time_zone')
-                chunk_users.append((uid, tokens, time_zone))
-
-        except Exception as e:
-            logger.error(f"Error querying chunk for daily summary: {e}")
-        users.extend(chunk_users)
-
-    return users
 
 
 def _get_users_in_timezones(timezones: list[str], filter: str) -> List[Any]:

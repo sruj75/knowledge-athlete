@@ -33,15 +33,6 @@ enum SettingsControlMetrics {
     return Int(round(fraction * CGFloat(stepCount - 1)))
   }
 
-  static func dailySummaryDate(forHour hour: Int, referenceDate: Date, calendar: Calendar = .current) -> Date {
-    let normalizedHour = max(0, min(23, hour))
-    return calendar.date(bySettingHour: normalizedHour, minute: 0, second: 0, of: referenceDate)
-      ?? referenceDate
-  }
-
-  static func dailySummaryHour(from date: Date, calendar: Calendar = .current) -> Int {
-    calendar.component(.hour, from: date)
-  }
 }
 
 struct SettingsMenuPicker<SelectionValue: Hashable, Content: View>: View {

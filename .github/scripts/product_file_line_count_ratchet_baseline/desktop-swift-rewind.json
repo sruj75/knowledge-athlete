@@ -1,12 +1,14 @@
 {
   "files": {
-    "desktop/macos/Desktop/Sources/Rewind/Core/RewindDatabase.swift": 3684,
-    "desktop/macos/Desktop/Sources/Rewind/Core/TranscriptionStorage+LocalAuthority.swift": 1905,
+    "desktop/macos/Desktop/Sources/Rewind/Core/MemoryStorage.swift": 1513,
+    "desktop/macos/Desktop/Sources/Rewind/Core/RewindDatabase.swift": 3738,
+    "desktop/macos/Desktop/Sources/Rewind/Core/TranscriptionStorage+LocalAuthority.swift": 1913,
     "desktop/macos/Desktop/Sources/Rewind/UI/RewindPage.swift": 1841
   },
   "raise_justifications": {
-    "desktop/macos/Desktop/Sources/Rewind/Core/RewindDatabase.swift": "S-12 and S-13 add forward migrations that converge Memory, task, and goal data onto the retained owner-local schema while preserving identities and source links.",
-    "desktop/macos/Desktop/Sources/Rewind/Core/TranscriptionStorage+LocalAuthority.swift": "S-16 keeps transient managed-STT segment and translation persistence inside the existing owner-fenced local conversation transaction boundary.",
+    "desktop/macos/Desktop/Sources/Rewind/Core/MemoryStorage.swift": "S-14 adds the owner-local newest-100 Insight-tip projection and durable tip-only mutations at the existing GRDB memory authority.",
+    "desktop/macos/Desktop/Sources/Rewind/Core/RewindDatabase.swift": "S-14 adds the forward migration that preserves Focus and AI Profile rows while removing retired sync columns from their final local-authoritative schemas.",
+    "desktop/macos/Desktop/Sources/Rewind/Core/TranscriptionStorage+LocalAuthority.swift": "S-14 adds the bounded completed-conversation query used by local AI Profile generation at the existing owner-fenced conversation read boundary.",
     "desktop/macos/Desktop/Sources/Rewind/UI/RewindPage.swift": "Search-result rows load a downsampled ImageIO thumbnail instead of the full-resolution screenshot, so a long results list no longer retains full-size images behind a 120x80 view."
   },
   "threshold": 1500

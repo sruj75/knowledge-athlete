@@ -635,7 +635,6 @@ class AuthService {
             }
             AuthState.shared.userEmail = user.email
             self.loadNameFromFirebaseIfNeeded()
-            Task { await SettingsSyncManager.shared.syncFromServer() }
           }
         } else {
           // Firebase has no user - check if we have a saved session (for dev builds where Keychain doesn't persist)

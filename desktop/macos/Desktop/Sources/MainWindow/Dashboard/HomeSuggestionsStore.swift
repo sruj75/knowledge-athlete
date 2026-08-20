@@ -48,6 +48,16 @@ enum HomeSuggestionComposer {
   }
 }
 
+enum HomeSuggestionSelection: Equatable {
+  case ignore
+  case prefill(String)
+
+  static func resolve(_ suggestion: String) -> Self {
+    let text = suggestion.trimmingCharacters(in: .whitespacesAndNewlines)
+    return text.isEmpty ? .ignore : .prefill(text)
+  }
+}
+
 // MARK: - Generation seam
 
 protocol HomeSuggestionGenerating: Sendable {
@@ -257,6 +267,23 @@ struct GeminiHomeSuggestionGenerator: HomeSuggestionGenerating {
     self.sources = sources
   }
 
+  /// Fence the actual transport dispatch with the generation-bearing owner
+  /// snapshot. A post-read check alone is too late: stale private prompt data
+  /// must never be transmitted after sign-out or same-UID reauthentication.
+  static func performAuthorizedTextRequest(
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot,
+    request: @Sendable () async throws -> String
+  ) async throws -> String {
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else {
+      throw LocalMutationAuthorizationError.revoked
+    }
+    let response = try await request()
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else {
+      throw LocalMutationAuthorizationError.revoked
+    }
+    return response
+  }
+
   static func boundedContext<S: Sequence>(_ values: S) -> String where S.Element == String {
     var result = ""
     for value in values {
@@ -392,12 +419,17 @@ struct GeminiHomeSuggestionGenerator: HomeSuggestionGenerating {
       """
 
     let client = try GeminiClient()
-    let responseText = try await client.sendRequest(
-      prompt: prompt,
-      systemPrompt:
-        "You write the suggested questions shown under the ask bar of omi, the user's personal AI assistant. The questions are ones the user would tap to ask about their own life and work.",
-      responseSchema: responseSchema
-    )
+    let schema = responseSchema
+    let responseText = try await Self.performAuthorizedTextRequest(
+      authorizationSnapshot: snapshot
+    ) {
+      try await client.sendRequest(
+        prompt: prompt,
+        systemPrompt:
+          "You write the suggested questions shown under the ask bar of omi, the user's personal AI assistant. The questions are ones the user would tap to ask about their own life and work.",
+        responseSchema: schema
+      )
+    }
 
     guard let data = responseText.data(using: .utf8) else { return [] }
     return try JSONDecoder().decode(Response.self, from: data).questions

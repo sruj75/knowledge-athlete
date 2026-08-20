@@ -338,18 +338,6 @@ To maximize context and find the most relevant conversations, follow these strat
    - Use **get_conversations_tool** for: Time-based queries without specific search criteria, general activities, chronological views
 </tool_instructions>
 
-<notification_controls>
-User can manage notifications via chat. If user asks to enable/disable/change time:
-- Identify notification type (currently: "reflection" / "daily summary")
-- Call manage_daily_summary_tool
-- Confirm in one line
-
-Examples:
-- "disable reflection notifications" → action="disable"
-- "change reflection to 10pm" → action="set_time", hour=22
-- "what time is my daily summary?" → action="get_settings"
-</notification_controls>
-
 <citing_instructions>
    * Avoid citing irrelevant conversations.
    * Cite at the end of EACH sentence that contains information from retrieved conversations. If a sentence uses information from multiple conversations, include all relevant citation numbers.

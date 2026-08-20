@@ -230,8 +230,8 @@ struct DesktopHomeView: View {
               log("DesktopHomeView: API keys loaded — retrying deferred services")
               restorePersistedCaptureServices(reason: "key load")
             }
-            .onReceive(NotificationCenter.default.publisher(for: .assistantSettingsDidSyncFromServer)) { _ in
-              reconcileCaptureServicesAfterSettingsSync()
+            .onReceive(NotificationCenter.default.publisher(for: .assistantSettingsDidChange)) { _ in
+              reconcileCaptureServicesAfterLocalSettingsChange()
             }
             // Cmd+R: refresh all data (conversations, chat, tasks, memories)
             .onReceive(NotificationCenter.default.publisher(for: .refreshAllData)) { _ in
@@ -483,7 +483,8 @@ struct DesktopHomeView: View {
     guard !nonMainPages.contains(selectedIndex) else { return }
 
     var visibleRawValues: Set<Int> = [
-      SidebarNavItem.dashboard.rawValue, SidebarNavItem.rewind.rawValue,
+      SidebarNavItem.dashboard.rawValue, SidebarNavItem.insights.rawValue,
+      SidebarNavItem.rewind.rawValue,
     ]
     if currentTierLevel >= 2 { visibleRawValues.insert(SidebarNavItem.memories.rawValue) }
     if currentTierLevel >= 3 { visibleRawValues.insert(SidebarNavItem.tasks.rawValue) }
@@ -632,9 +633,11 @@ struct DesktopHomeView: View {
     case "tasks":
       return .tasks
     case "focus":
-      return .focus
-    case "insight":
-      return .insight
+      InsightsHubNavigationStore.shared.request(segment: .focus)
+      return .insights
+    case "insight", "insights":
+      InsightsHubNavigationStore.shared.request(segment: .insights)
+      return .insights
     case "rewind":
       return .rewind
     case "settings":
@@ -772,13 +775,13 @@ struct DesktopHomeView: View {
     }
   }
 
-  private func reconcileCaptureServicesAfterSettingsSync() {
+  private func reconcileCaptureServicesAfterLocalSettingsChange() {
     let plugin = ProactiveAssistantsPlugin.shared
     if !AssistantSettings.shared.screenAnalysisEnabled, plugin.isMonitoring {
-      log("DesktopHomeView: Stopping screen analysis after server settings sync")
+      log("DesktopHomeView: Stopping screen analysis after local settings change")
       plugin.stopMonitoring()
     }
-    restorePersistedCaptureServices(reason: "settings sync")
+    restorePersistedCaptureServices(reason: "local settings change")
   }
 
   private func updateStoreActivity(for index: Int) {
@@ -963,8 +966,13 @@ struct DesktopHomeView: View {
         {
           if let destination = MemoryHubDestination.destination(for: item) {
             memoryDestinationRawValue = destination.rawValue
+            selectedIndex = SidebarNavItem.conversations.rawValue
+          } else {
+            if item == .insights {
+              InsightsHubNavigationStore.shared.request(segment: .insights)
+            }
+            selectedIndex = item.rawValue
           }
-          selectedIndex = item.rawValue
         }
       }
       .onReceive(NotificationCenter.default.publisher(for: .desktopAutomationOpenConversationRequested)) { _ in
@@ -996,7 +1004,7 @@ struct DesktopHomeView: View {
 
   private func navigateHomeOnEscapeIfNeeded() {
     guard let item = SidebarNavItem(rawValue: selectedIndex) else { return }
-    guard [.conversations, .memories, .tasks, .rewind].contains(item) else { return }
+    guard [.conversations, .memories, .tasks, .insights, .rewind].contains(item) else { return }
     OmiMotion.withGated(Self.pageNavigationAnimation) {
       selectedIndex = SidebarNavItem.dashboard.rawValue
     }
@@ -1010,23 +1018,22 @@ struct DesktopHomeView: View {
 /// one tab (Conversations/Memories, Focus/Insights).
 private struct HubSegmentedControl: View {
   @Environment(\.sbTheme) private var sb
-  let segments: [String]
-  @Binding var selection: Int
+  @Binding var selection: InsightsHubSegment
 
   var body: some View {
     HStack(spacing: 4) {
-      ForEach(Array(segments.enumerated()), id: \.offset) { index, segment in
+      ForEach(InsightsHubSegment.allCases, id: \.rawValue) { segment in
         Button {
-          withAnimation(.easeOut(duration: 0.15)) { selection = index }
+          withAnimation(.easeOut(duration: 0.15)) { selection = segment }
         } label: {
-          Text(segment)
-            .geist(size: 13, weight: selection == index ? .semibold : .medium)
-            .foregroundStyle(selection == index ? sb.ink : sb.ink(.w45))
+          Text(segment == .insights ? "Insights" : "Focus")
+            .geist(size: 13, weight: selection == segment ? .semibold : .medium)
+            .foregroundStyle(selection == segment ? sb.ink : sb.ink(.w45))
             .padding(.horizontal, 14)
             .padding(.vertical, 6)
             .background(
               RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(selection == index ? sb.ink(.w1) : Color.clear)
+                .fill(selection == segment ? sb.ink(.w1) : Color.clear)
             )
         }
         .buttonStyle(.plain)
@@ -1086,23 +1093,50 @@ private struct MemoryHubPage: View {
   }
 }
 
-/// "Focus" tab — Focus + Insights folded into one surface.
-private struct FocusHubPage: View {
-  @State private var segment = 0
+/// Canonical Insights tab — Insight history and Focus history share one surface.
+private struct InsightsHubPage: View {
+  @ObservedObject private var navigation = InsightsHubNavigationStore.shared
+  @State private var segment: InsightsHubSegment = .insights
+  @State private var requestedInsightID: String?
 
   var body: some View {
     VStack(spacing: 0) {
-      HubSegmentedControl(segments: ["Insights", "Focus"], selection: $segment)
+      HubSegmentedControl(selection: $segment)
         .padding(.top, 22)
         .padding(.horizontal, 28)
         .padding(.bottom, 4)
 
-      if segment == 0 {
-        InsightPage()
+      if segment == .insights {
+        InsightPage(
+          requestedInsightID: requestedInsightID,
+          onRequestConsumed: { requestedInsightID = nil }
+        )
       } else {
         FocusPage()
       }
     }
+    .onAppear(perform: consumePendingRequest)
+    .onReceive(navigation.$pendingRequest) { request in
+      guard request != nil else { return }
+      consumePendingRequest()
+    }
+    .alert(
+      "Insight unavailable",
+      isPresented: Binding(
+        get: { navigation.unavailableMessage != nil },
+        set: { if !$0 { navigation.dismissUnavailableMessage() } }
+      )
+    ) {
+      Button("OK") { navigation.dismissUnavailableMessage() }
+    } message: {
+      Text("This Insight is no longer available for the current account.")
+    }
+  }
+
+  private func consumePendingRequest() {
+    guard let request = navigation.consume() else { return }
+    segment = request.segment
+    requestedInsightID = request.insightID
   }
 }
 
@@ -1175,9 +1209,7 @@ private struct PageContentView: View {
             viewModel: viewModelContainer.tasksViewModel,
             chatProvider: viewModelContainer.chatProvider))
       case 5:
-        FocusHubPage()
-      case 6:
-        InsightPage()
+        InsightsHubPage()
       case 7:
         RewindPage(appState: appState)
       case 9:

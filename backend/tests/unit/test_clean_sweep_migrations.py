@@ -171,29 +171,6 @@ class TestPostprocessExecutorMigration:
         assert 'storage_executor.submit(' in src
 
 
-class TestNotificationsExecutorMigration:
-    """Verify notifications uses postprocess_executor for batch cron work (#7387), not threading.Thread."""
-
-    def test_no_threading_thread(self):
-        src = _read_source('utils/other/notifications.py')
-        assert 'threading.Thread' not in src
-
-    def test_uses_postprocess_executor(self):
-        """Batch notification work uses postprocess_executor for retained LLM and database work."""
-        src = _read_source('utils/other/notifications.py')
-        assert 'postprocess_executor' in src
-
-    def test_does_not_use_storage_executor(self):
-        """Batch notification work must not use storage_executor (wrong pool, #7387)."""
-        src = _read_source('utils/other/notifications.py')
-        assert 'storage_executor' not in src
-
-    def test_does_not_use_critical_executor(self):
-        """Batch cron work must not use critical_executor (would starve request-path)."""
-        src = _read_source('utils/other/notifications.py')
-        assert 'critical_executor' not in src
-
-
 class TestStorageExecutorMigration:
     """Verify storage uses storage_executor, not ad-hoc ThreadPoolExecutor."""
 

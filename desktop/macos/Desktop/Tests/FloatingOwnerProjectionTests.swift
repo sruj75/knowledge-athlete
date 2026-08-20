@@ -29,6 +29,15 @@ private final class FloatingOwnerBox {
   }
 }
 
+@MainActor
+private final class FloatingOwnerAuthorizationBox {
+  var isCurrent: Bool
+
+  init(_ isCurrent: Bool) {
+    self.isCurrent = isCurrent
+  }
+}
+
 private enum SpawnOutcome: Sendable, Equatable {
   case rejectedBeforeDispatch
   case staleReceipt(String)
@@ -38,18 +47,14 @@ private enum SpawnOutcome: Sendable, Equatable {
 @MainActor
 final class FloatingOwnerProjectionTests: XCTestCase {
   @MainActor
-  func testLateNotificationWorkflowCannotPresentOrScheduleJournalForReplacementOwner() async {
-    let defaults = UserDefaults.standard
-    let previousOwner = defaults.object(forKey: .authUserId)
-    let previousOverride = defaults.object(forKey: .automationOwnerOverride)
+  func testLateNotificationWorkflowCannotPresentOrScheduleJournalForReplacementOwner() async throws {
+    let ownerFixture = RuntimeOwnerAuthorityTestFixture()
     let manager = FloatingControlBarManager.shared
     defer {
-      restore(previousOwner, key: .authUserId, defaults: defaults)
-      restore(previousOverride, key: .automationOwnerOverride, defaults: defaults)
       manager.resetOwnerProjection()
     }
-    defaults.removeObject(forKey: .automationOwnerOverride)
-    defaults.set("owner-a", forKey: .authUserId)
+    await ownerFixture.establish(authOwnerID: "owner-a")
+    let authorizationSnapshot = try XCTUnwrap(RuntimeOwnerIdentity.captureAuthorizationSnapshot())
     manager.resetOwnerProjection()
     let baseline = manager.notificationProjectionSnapshot
     let gate = FloatingOwnerPauseGate()
@@ -58,18 +63,20 @@ final class FloatingOwnerProjectionTests: XCTestCase {
       await gate.pause()
       return manager.showNotification(
         ownerID: "owner-a",
+        authorizationSnapshot: authorizationSnapshot,
         title: "owner A private title",
         message: "owner A private content",
         assistantId: "insight",
         sound: .none)
     }
     await gate.waitUntilStarted()
-    defaults.set("owner-b", forKey: .authUserId)
+    await ownerFixture.establish(authOwnerID: "owner-b")
     await gate.release()
 
     let result = await workflow.value
     XCTAssertEqual(result, .rejectedOwnerChange)
     XCTAssertEqual(manager.notificationProjectionSnapshot, baseline)
+    await ownerFixture.restore()
   }
 
   @MainActor
@@ -94,7 +101,7 @@ final class FloatingOwnerProjectionTests: XCTestCase {
 
     let appState = AppState()
     var presentedOwners: [String] = []
-    service.start(appState: appState) { ownerID, _, _ in
+    service.start(appState: appState) { ownerID, _, _, _ in
       presentedOwners.append(ownerID)
       return .presented
     }
@@ -119,21 +126,25 @@ final class FloatingOwnerProjectionTests: XCTestCase {
   }
 
   @MainActor
-  func testNotificationAdmissionSuspendedAcrossOwnerSwitchReturnsNoMessage() async {
-    let owner = FloatingOwnerBox("owner-a")
+  func testNotificationAdmissionSuspendedAcrossOwnerSwitchReturnsNoMessage() async throws {
+    let fixture = RuntimeOwnerAuthorityTestFixture()
+    await fixture.establish(authOwnerID: "owner-a")
+    defer { Task { await fixture.restore() } }
+    let authorizationSnapshot = try XCTUnwrap(RuntimeOwnerIdentity.captureAuthorizationSnapshot())
+    let authorization = FloatingOwnerAuthorizationBox(true)
     let gate = FloatingOwnerPauseGate()
 
     let admission = Task { @MainActor in
       await FloatingControlBarManager.performOwnerBoundNotificationAdmission(
-        ownerID: "owner-a",
-        currentOwnerID: { owner.value },
+        authorizationSnapshot: authorizationSnapshot,
+        isAuthorizationCurrent: { _ in authorization.isCurrent },
         record: {
           await gate.pause()
           return "owner-a-private-notification"
         })
     }
     await gate.waitUntilStarted()
-    owner.value = "owner-b"
+    authorization.isCurrent = false
     await gate.release()
 
     let admitted = await admission.value

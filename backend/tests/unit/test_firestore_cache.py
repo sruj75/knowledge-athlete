@@ -112,7 +112,6 @@ def test_users_module_only_wires_safe_projection_caches():
     source = _USERS_SOURCE.read_text()
 
     assert "namespace='user_language'" in source
-    assert "namespace='user_ai_profile'" in source
 
     forbidden_sections = [
         'def get_user_subscription',
@@ -126,14 +125,3 @@ def test_users_module_only_wires_safe_projection_caches():
         next_def = source.find('\ndef ', start + 1)
         block = source[start : next_def if next_def != -1 else len(source)]
         assert 'get_or_fetch(' not in block, f'{section} must not use projection cache in PR #29'
-
-
-def test_ai_profile_update_bypasses_cached_getter_for_merge_safety():
-    source = _USERS_SOURCE.read_text()
-    start = source.find('def update_ai_user_profile')
-    assert start != -1
-    next_def = source.find('\ndef ', start + 1)
-    block = source[start : next_def if next_def != -1 else len(source)]
-
-    assert '_get_ai_user_profile_from_firestore(uid)' in block
-    assert 'get_ai_user_profile(uid)' not in block

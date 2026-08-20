@@ -65,7 +65,8 @@ final class DashboardCaptureStateTests: XCTestCase {
       source.range(
         of: #"\.onExitCommand\s*\{\s*navigateHomeOnEscapeIfNeeded\(\)\s*\}"#,
         options: .regularExpression) != nil)
-    XCTAssertTrue(source.contains("[.conversations, .memories, .tasks, .rewind].contains(item)"))
+    XCTAssertTrue(
+      source.contains("[.conversations, .memories, .tasks, .insights, .rewind].contains(item)"))
   }
 
   private func dashboardSource() throws -> String {

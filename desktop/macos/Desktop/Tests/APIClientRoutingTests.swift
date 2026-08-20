@@ -538,17 +538,6 @@ final class APIClientRoutingTests: XCTestCase {
     }
   }
 
-  // -- User settings (GET → Python) --
-
-  func testGetDailySummarySettingsRoutesToPython() async {
-    let client = await makeTestClient()
-    _ = try? await client.getDailySummarySettings() as DailySummarySettings
-    assertRoutes(
-      URLCapture.capturedRequests, host: "python-test", port: 9001,
-      pathContains: "v1/users/daily-summary-settings", method: "GET",
-      label: "getDailySummarySettings")
-  }
-
   // -- Subscription/payments (GET → Python, was explicit pythonBackendURL, now default) --
 
   func testGetUserSubscriptionRoutesToPython() async {
@@ -593,28 +582,6 @@ final class APIClientRoutingTests: XCTestCase {
     XCTAssertEqual(body?["text"] as? String, "Hello")
     XCTAssertEqual(body?["voice_id"] as? String, "onyx")
     XCTAssertEqual(body?["instructions"] as? String, "Speak naturally")
-  }
-
-  // -- Assistant settings (GET → Python, migrated from Rust) --
-
-  func testGetAssistantSettingsRoutesToPython() async {
-    let client = await makeTestClient()
-    _ = try? await client.getAssistantSettings() as AssistantSettingsResponse
-    assertRoutes(
-      URLCapture.capturedRequests, host: "python-test", port: 9001,
-      pathContains: "v1/users/assistant-settings", method: "GET",
-      label: "getAssistantSettings")
-  }
-
-  // -- Notification settings (GET → Python, migrated from Rust) --
-
-  func testGetNotificationSettingsRoutesToPython() async {
-    let client = await makeTestClient()
-    _ = try? await client.getNotificationSettings() as NotificationSettingsResponse
-    assertRoutes(
-      URLCapture.capturedRequests, host: "python-test", port: 9001,
-      pathContains: "v1/users/notification-settings", method: "GET",
-      label: "getNotificationSettings")
   }
 
   // MARK: - Python-routed: remaining manual URL builders

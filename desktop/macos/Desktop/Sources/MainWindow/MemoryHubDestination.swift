@@ -24,17 +24,19 @@ enum MemoryHubDestination: Int, CaseIterable, Identifiable {
     }
   }
 
-  /// Resolves navigation into the Memory rail item. Existing callers such as
-  /// Cmd+2 and desktop automation only know about the rail item, so they must
-  /// land on Conversations instead of whichever Memory destination was last
-  /// persisted.
+  /// Resolves legacy rail destinations into the canonical Memory hub.
+  /// Callers such as Cmd+2 still carry a `SidebarNavItem`, so normalize both
+  /// former standalone pages before the shell selects the hub route.
   static func destination(
     for sidebarItem: SidebarNavItem,
     requestedRawValue: Int? = nil
   ) -> MemoryHubDestination? {
-    guard sidebarItem == .conversations else { return nil }
-    guard let requestedRawValue else { return .conversations }
-    return MemoryHubDestination(rawValue: requestedRawValue) ?? .conversations
+    guard sidebarItem == .conversations || sidebarItem == .memories else { return nil }
+    guard let requestedRawValue else {
+      return sidebarItem == .memories ? .memories : .conversations
+    }
+    return MemoryHubDestination(rawValue: requestedRawValue)
+      ?? (sidebarItem == .memories ? .memories : .conversations)
   }
 }
 

@@ -12,7 +12,6 @@ class MessageSender(str, Enum):
 
 class MessageType(str, Enum):
     text = 'text'
-    day_summary = 'day_summary'
 
 
 class MessageConversationStructured(BaseModel):

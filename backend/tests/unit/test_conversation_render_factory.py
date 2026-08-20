@@ -230,7 +230,6 @@ class TestProductionCallSitesMigrated:
     """Verify production files use render/factory instead of Conversation.conversations_to_string."""
 
     RENDER_CONSUMERS = [
-        'utils/llm/daily_summary.py',
         'utils/retrieval/tool_services/conversations.py',
         'utils/retrieval/tools/conversation_tools.py',
     ]

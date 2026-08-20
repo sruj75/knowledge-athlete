@@ -15,9 +15,6 @@ from .omi_tools import (
 from .file_tools import (
     search_files_tool,
 )
-from .notification_settings_tools import (
-    manage_daily_summary_tool,
-)
 from .chart_tools import (
     create_chart_tool,
 )
@@ -30,7 +27,6 @@ __all__ = [
     'search_conversations_tool',
     'get_omi_product_info_tool',
     'search_files_tool',
-    'manage_daily_summary_tool',
     'create_chart_tool',
     'fetch_url_tool',
 ]

@@ -238,6 +238,18 @@ actor MemoryStorage {
       offset: offset)
   }
 
+  /// Newest-first Insight projection. The `tips` tag is the authority boundary;
+  /// the limit bounds presentation only and never prunes older rows.
+  func listInsights(limit: Int = 100, includeDismissed: Bool = true) async throws -> [MemoryItem] {
+    try await list(
+      scope: .allIncludingArchive,
+      categories: [.interesting],
+      tags: ["tips"],
+      includeDismissed: includeDismissed,
+      limit: limit,
+      offset: 0)
+  }
+
   func listForTool(
     scope: MemoryLayerScope = .defaultAccess,
     categories: [MemoryCategory] = [],
@@ -453,6 +465,114 @@ actor MemoryStorage {
     try await updateFlags(
       id: id, isRead: nil, isDismissed: isDismissed, now: now,
       authorization: authorization)
+  }
+
+  func markInsightRead(
+    id: String,
+    now: Date = Date(),
+    authorization: LocalMutationAuthorization
+  ) async throws {
+    try await updateInsightFlags(
+      id: id,
+      isRead: true,
+      isDismissed: nil,
+      now: now,
+      authorization: authorization)
+  }
+
+  func markInsightDismissed(
+    id: String,
+    isDismissed: Bool,
+    now: Date = Date(),
+    authorization: LocalMutationAuthorization
+  ) async throws {
+    try await updateInsightFlags(
+      id: id,
+      isRead: nil,
+      isDismissed: isDismissed,
+      now: now,
+      authorization: authorization)
+  }
+
+  private func updateInsightFlags(
+    id: String,
+    isRead: Bool?,
+    isDismissed: Bool?,
+    now: Date,
+    authorization: LocalMutationAuthorization
+  ) async throws {
+    let rowID = try Self.localID(id)
+    let pool = try await database()
+    try await authorization.withCommitLease {
+      try await pool.write { db in
+        try authorization.require()
+        guard var record = try MemoryRecord.fetchOne(db, key: rowID),
+          record.tags.contains("tips")
+        else { throw MemoryStorageError.recordNotFound }
+        if let isRead { record.isRead = isRead }
+        if let isDismissed { record.isDismissed = isDismissed }
+        record.updatedAt = now
+        try record.update(db)
+        try authorization.require()
+      }
+    }
+  }
+
+  func markAllInsightsRead(
+    now: Date = Date(),
+    authorization: LocalMutationAuthorization
+  ) async throws {
+    let pool = try await database()
+    try await authorization.withCommitLease {
+      try await pool.write { db in
+        try authorization.require()
+        let records = try MemoryRecord.fetchAll(db).filter { $0.tags.contains("tips") }
+        for var record in records where !record.isRead {
+          record.isRead = true
+          record.updatedAt = now
+          try record.update(db)
+        }
+        try authorization.require()
+      }
+    }
+  }
+
+  func deleteInsight(
+    id: String,
+    authorization: LocalMutationAuthorization
+  ) async throws {
+    let rowID = try Self.localID(id)
+    let pool = try await database()
+    try await authorization.withCommitLease {
+      try await pool.write { db in
+        try authorization.require()
+        guard let record = try MemoryRecord.fetchOne(db, key: rowID),
+          record.tags.contains("tips")
+        else { throw MemoryStorageError.recordNotFound }
+        try record.delete(db)
+        try authorization.require()
+      }
+    }
+  }
+
+  @discardableResult
+  func clearInsights(authorization: LocalMutationAuthorization) async throws -> Int {
+    let pool = try await database()
+    return try await authorization.withCommitLease {
+      try await pool.write { db -> Int in
+        try authorization.require()
+        let ids = try MemoryRecord.fetchAll(db).compactMap { record in
+          record.tags.contains("tips") ? record.id : nil
+        }
+        guard !ids.isEmpty else { return 0 }
+        let placeholders = ids.map { _ in "?" }.joined(separator: ", ")
+        try db.execute(
+          sql: "DELETE FROM memories WHERE id IN (\(placeholders))",
+          arguments: StatementArguments(ids))
+        try authorization.require()
+        return db.changesCount
+      }
+    }
   }
 
   private func updateFlags(

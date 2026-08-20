@@ -2,7 +2,7 @@ import OmiTheme
 import SwiftUI
 
 /// The constant floating top bar that replaces the left nav rail: primary
-/// navigation (Home / Memory / Tasks) and the Capture/Listening controls on
+/// navigation (Home / Memory / Tasks / Insights) and the Capture/Listening controls on
 /// the right.
 struct DesktopTopBar: View {
   @Binding var selectedIndex: Int
@@ -65,6 +65,7 @@ struct DesktopTopBar: View {
     } else {
       Button {
         dismissMemoryDropdown()
+        preparePrimaryNavigation(item)
         OmiMotion.withGated(.easeOut(duration: 0.08)) {
           selectedIndex = item.index
         }
@@ -105,6 +106,7 @@ struct DesktopTopBar: View {
         } else {
           Button {
             dismissMemoryDropdown()
+            preparePrimaryNavigation(item)
             OmiMotion.withGated(.easeOut(duration: 0.08)) { selectedIndex = item.index }
           } label: {
             TopNavigationPill(
@@ -220,6 +222,11 @@ struct DesktopTopBar: View {
   private func dismissMemoryDropdown() {
     memoryDropdownTask?.cancel()
     memoryDropdownState.dismiss()
+  }
+
+  private func preparePrimaryNavigation(_ item: TopNavigationItem) {
+    guard item.index == SidebarNavItem.insights.rawValue else { return }
+    InsightsHubNavigationStore.shared.request(segment: .insights)
   }
 
 }
@@ -351,6 +358,7 @@ enum TopNavigationRoutes {
     TopNavigationItem(index: SidebarNavItem.dashboard.rawValue, title: "Home", icon: "house.fill"),
     TopNavigationItem(index: SidebarNavItem.conversations.rawValue, title: "Memory", icon: "brain"),
     TopNavigationItem(index: SidebarNavItem.tasks.rawValue, title: "Tasks", icon: "checklist"),
+    TopNavigationItem(index: SidebarNavItem.insights.rawValue, title: "Insights", icon: "lightbulb.fill"),
   ]
 
   static let memoryDestinations = MemoryHubDestination.allCases
@@ -370,6 +378,8 @@ enum TopNavigationPillMetrics {
       baseWidth = 128
     case SidebarNavItem.tasks.rawValue:
       baseWidth = 84
+    case SidebarNavItem.insights.rawValue:
+      baseWidth = 100
     default:
       baseWidth = 88
     }

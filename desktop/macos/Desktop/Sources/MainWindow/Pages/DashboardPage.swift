@@ -547,10 +547,13 @@ struct DashboardPage: View {
       }
       navigate(to: .tasks)
     case .insight(let id):
-      insightStorage.markAsRead(id)
-      navigate(to: .insight)
+      guard InsightsHubNavigationStore.shared.request(segment: .insights, insightID: id) else {
+        return
+      }
+      navigate(to: .insights)
     case .focus:
-      navigate(to: .focus)
+      guard InsightsHubNavigationStore.shared.request(segment: .focus) else { return }
+      navigate(to: .insights)
     case .question:
       chatProvider.draftText = row.text
       openHomeChat()
@@ -560,7 +563,7 @@ struct DashboardPage: View {
   private func dismissKnowsRow(_ row: HomeKnowsRow) {
     switch row.kind {
     case .task(let id): dismissedKnowsTaskIDs.insert(id)
-    case .insight(let id): insightStorage.dismissInsight(id)
+    case .insight(let id): Task { await insightStorage.dismissInsight(id) }
     case .focus, .question: break
     }
   }
@@ -574,10 +577,9 @@ struct DashboardPage: View {
   }
 
   private func askHomeSuggestion(_ suggestion: String) {
-    let text = suggestion.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !text.isEmpty else { return }
-    openHomeChat(focusInput: false)
-    Task { await chatProvider.sendMessage(text) }
+    guard case .prefill(let text) = HomeSuggestionSelection.resolve(suggestion) else { return }
+    chatProvider.draftText = text
+    openHomeChat()
   }
 
   private func openHomeChat(focusInput: Bool = true) {

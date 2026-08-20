@@ -418,7 +418,7 @@ Settings (SettingsPage.swift) — use `click` for section rows
 ├── Account & Plan — user info, sign out, delete account, subscription/plan, billing
 ├── Transcription — Language Mode (Auto-Detect / Single Language), Voice Assistant Languages, Custom Vocabulary
 ├── Floating Bar — show/hide, background style, draggable, typed questions, screen sharing, voice
-├── Notifications & Privacy — notification frequency/types, daily summary
+├── Notifications & Privacy — local master/frequency and assistant notification controls
 ├── Rewind — storage info, excluded apps list
 ├── Shortcuts — Open Omi shortcut, Push to Talk key, PTT microphone, locked mode, PTT sounds
 ├── Advanced — AI Setup (Voice Model, Ask Mode)

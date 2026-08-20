@@ -485,58 +485,18 @@ extension SettingsContentView {
     return "\(hour):00"
   }
 
-  // MARK: - Backend Settings
+  // MARK: - Local Settings
 
-  func loadBackendSettings() {
-    guard !isLoadingSettings else { return }
-    isLoadingSettings = true
-
-    // Load local transcription settings first (these are used immediately)
+  func loadLocalSettings() {
     transcriptionLanguage = AssistantSettings.shared.transcriptionLanguage
     transcriptionAutoDetect = AssistantSettings.shared.transcriptionAutoDetect
     vocabularyList = AssistantSettings.shared.transcriptionVocabulary
     conversationLocationEnabled = AssistantSettings.shared.conversationLocationEnabled
     vadGateEnabled = AssistantSettings.shared.vadGateEnabled
     systemAudioCaptureMode = AssistantSettings.shared.systemAudioCaptureMode
-
-    Task {
-      do {
-        // Load all settings in parallel
-        async let dailySummaryTask = APIClient.shared.getDailySummarySettings()
-        async let notificationsTask = APIClient.shared.getNotificationSettings()
-
-        // Sync assistant settings from server in parallel
-        async let assistantSyncTask: () = SettingsSyncManager.shared.syncFromServer()
-
-        let (dailySummary, notifications, _) = try await (
-          dailySummaryTask,
-          notificationsTask,
-          assistantSyncTask
-        )
-
-        await MainActor.run {
-          dailySummaryEnabled = dailySummary.enabled
-          dailySummaryHour = dailySummary.hour
-          dailySummaryTime = SettingsControlMetrics.dailySummaryDate(
-            forHour: dailySummary.hour, referenceDate: Date())
-          notificationsEnabled = notifications.enabled
-          notificationFrequency = notifications.frequency
-          // Mirror to UserDefaults so NotificationService can gate/throttle without a backend roundtrip.
-          UserDefaults.standard.set(
-            notifications.enabled, forKey: NotificationService.masterEnabledDefaultsKey)
-          UserDefaults.standard.set(notifications.frequency, forKey: NotificationService.frequencyDefaultsKey)
-
-          isLoadingSettings = false
-          viewModel.markBackendSettingsLoaded()
-        }
-
-      } catch {
-        logError("Failed to load backend settings", error: error)
-        await MainActor.run {
-          isLoadingSettings = false
-        }
-      }
-    }
+    let notifications = LocalNotificationSettings().snapshot()
+    notificationsEnabled = notifications.enabled
+    notificationFrequency = notifications.frequency
   }
 
   func loadSubscriptionInfo() {

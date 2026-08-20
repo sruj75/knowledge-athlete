@@ -175,9 +175,12 @@ final class NotchMomentsCoordinator {
   // MARK: posting
 
   private func post(title: String, message: String, assistantId: String) {
-    guard let ownerID = RuntimeOwnerIdentity.currentOwnerId() else { return }
+    guard let ownerID = RuntimeOwnerIdentity.currentOwnerId(),
+      let authorizationSnapshot = RuntimeOwnerIdentity.captureAuthorizationSnapshot(expectedOwnerID: ownerID)
+    else { return }
     _ = FloatingControlBarManager.shared.showNotification(
       ownerID: ownerID,
+      authorizationSnapshot: authorizationSnapshot,
       title: title,
       message: message,
       assistantId: assistantId,

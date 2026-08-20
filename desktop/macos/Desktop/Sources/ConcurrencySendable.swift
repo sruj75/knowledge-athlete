@@ -52,6 +52,5 @@ extension KeyPath: @retroactive @unchecked Sendable {}
 // are effectively immutable after decoding.
 
 extension ToolChatResult: @unchecked Sendable {}
-extension AssistantSettingsResponse: @unchecked Sendable {}
 extension GeminiRequest.GenerationConfig.ResponseSchema: @unchecked Sendable {}
 extension GeminiRequest.GenerationConfig.ResponseSchema.Property: @unchecked Sendable {}

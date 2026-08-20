@@ -136,48 +136,6 @@ final class OnboardingSkipBehaviorTests: XCTestCase {
         onboardingExitOutcome: OnboardingExitPersistence.outcome(in: defaults)))
   }
 
-  func testSkippedOutcomeRejectsRemoteScreenIntent() {
-    XCTAssertFalse(
-      SettingsSyncManager.shouldImportScreenAnalysis(
-        usesLazyDevPermissions: false,
-        onboardingExitOutcome: .skipped))
-    XCTAssertTrue(
-      SettingsSyncManager.shouldImportScreenAnalysis(
-        usesLazyDevPermissions: false,
-        onboardingExitOutcome: .completed))
-  }
-
-  func testSettingsSyncCannotReenableScreenIntentAfterSkip() {
-    let defaults = UserDefaults.standard
-    let screenIntentKey = "screenAnalysisEnabled"
-    let previousOutcome = defaults.object(forKey: .onboardingExitOutcome)
-    let previousScreenIntent = defaults.object(forKey: screenIntentKey)
-    defer {
-      if let previousOutcome {
-        defaults.set(previousOutcome, forKey: .onboardingExitOutcome)
-      } else {
-        defaults.removeObject(forKey: .onboardingExitOutcome)
-      }
-      if let previousScreenIntent {
-        defaults.set(previousScreenIntent, forKey: screenIntentKey)
-      } else {
-        defaults.removeObject(forKey: screenIntentKey)
-      }
-    }
-    OnboardingExitPersistence.persist(.skipped)
-    AssistantSettings.shared.screenAnalysisEnabled = false
-
-    SettingsSyncManager.shared.applyRemoteSettings(
-      AssistantSettingsResponse(
-        shared: SharedAssistantSettingsResponse(
-          cooldownInterval: nil,
-          glowOverlayEnabled: nil,
-          analysisDelay: nil,
-          screenAnalysisEnabled: true)))
-
-    XCTAssertFalse(AssistantSettings.shared.screenAnalysisEnabled)
-  }
-
   /// Static absence tripwire: retired auto-start migrations must not be able to
   /// overwrite the explicit no-capture Skip outcome.
   func testRetiredScreenAutoStartMigrationsStayAbsent() throws {

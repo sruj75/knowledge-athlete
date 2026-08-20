@@ -194,17 +194,13 @@ class Features:
     CHAT = "chat"
     CONVERSATION_PROCESSING = "conversation_processing"
     RAG = "rag"
-    NOTIFICATIONS = "notifications"
     TRENDS = "trends"
     MEMORY_L1 = "memory_l1"
     MEMORY_L2 = "memory_l2"
     MEMORY_CONFLICT = "memory_conflict"
     TRANSCRIBE = "transcribe"
-    DAILY_SUMMARY = "daily_summary"
-    SUBSCRIPTION_NOTIFICATION = "subscription_notification"
     OTHER = "other"
 
-    PROACTIVE_NOTIFICATION = "proactive_notification"
     FOLLOWUP = "followup"
     ONBOARDING = "onboarding"
 

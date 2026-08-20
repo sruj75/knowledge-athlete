@@ -107,6 +107,7 @@ final class TopNavigationBarLayoutTests: XCTestCase {
         SidebarNavItem.dashboard.rawValue,
         SidebarNavItem.conversations.rawValue,
         SidebarNavItem.tasks.rawValue,
+        SidebarNavItem.insights.rawValue,
       ]
     )
     XCTAssertEqual(TopNavigationRoutes.memoryDestinations, [.memories, .conversations])

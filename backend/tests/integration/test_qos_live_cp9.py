@@ -114,13 +114,6 @@ class TestP6_StructuredOutput:
     class SimpleOutput(BaseModel):
         word: str = Field(description="A single word greeting")
 
-    def test_structured_output_proactive_notification(self):
-        llm = get_llm('proactive_notification')
-        structured = llm.with_structured_output(self.SimpleOutput)
-        result = structured.invoke("Reply with a JSON object containing a single word: hello")
-        assert isinstance(result, self.SimpleOutput)
-        print(f"  P6 structured proactive_notification: {result.word}")
-
     @pytest.mark.skipif(not HAS_GEMINI_KEY, reason="GEMINI_API_KEY not set — trends is on Gemini in premium")
     def test_structured_output_trends_gemini(self):
         """trends is on gemini-2.5-flash-lite in premium — test SO on Gemini."""
@@ -132,7 +125,6 @@ class TestP6_StructuredOutput:
 
     def test_structured_output_features_set(self):
         assert _STRUCTURED_OUTPUT_FEATURES == {
-            'proactive_notification',
             'trends',
             'translation',
         }

@@ -17,13 +17,19 @@ actor MemoryAssistant: ProactiveAssistant {
   nonisolated let identifier = "memory-extraction"
   nonisolated let displayName = "Memory Extractor"
 
+  nonisolated static func discoveryEnabled(settingsEnabled: Bool, notificationsEnabled: Bool) -> Bool {
+    settingsEnabled && notificationsEnabled
+  }
+
   var isEnabled: Bool {
     get async {
       await MainActor.run {
         // Gate the Gemini screen analysis on notifications (off by default) — no
         // notification, no Gemini call. Re-enabling notifications resumes analysis.
-        MemoryAssistantSettings.shared.isEnabled
-          && MemoryAssistantSettings.shared.notificationsEnabled
+        Self.discoveryEnabled(
+          settingsEnabled: MemoryAssistantSettings.shared.isEnabled,
+          notificationsEnabled: MemoryAssistantSettings.shared.notificationsEnabled
+        )
       }
     }
   }

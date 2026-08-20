@@ -25,8 +25,6 @@ extension SettingsContentView {
               .labelsHidden()
               .onChange(of: focusEnabled) { _, newValue in
                 FocusAssistantSettings.shared.isEnabled = newValue
-                SettingsSyncManager.shared.pushPartialUpdate(
-                  AssistantSettingsResponse(focus: FocusSettingsResponse(enabled: newValue)))
               }
           }
 
@@ -48,9 +46,6 @@ extension SettingsContentView {
                 .disabled(isPreviewRunning)
                 .onChange(of: glowOverlayEnabled) { _, newValue in
                   AssistantSettings.shared.glowOverlayEnabled = newValue
-                  SettingsSyncManager.shared.pushPartialUpdate(
-                    AssistantSettingsResponse(
-                      shared: SharedAssistantSettingsResponse(glowOverlayEnabled: newValue)))
                   if newValue {
                     startGlowPreview()
                   }
@@ -68,9 +63,6 @@ extension SettingsContentView {
               }
               .onChange(of: cooldownInterval) { _, newValue in
                 FocusAssistantSettings.shared.cooldownInterval = newValue
-                SettingsSyncManager.shared.pushPartialUpdate(
-                  AssistantSettingsResponse(
-                    focus: FocusSettingsResponse(cooldownInterval: newValue)))
               }
             }
 
@@ -425,8 +417,6 @@ extension SettingsContentView {
               .labelsHidden()
               .onChange(of: insightEnabled) { _, newValue in
                 InsightAssistantSettings.shared.isEnabled = newValue
-                SettingsSyncManager.shared.pushPartialUpdate(
-                  AssistantSettingsResponse(insight: InsightSettingsResponse(enabled: newValue)))
               }
           }
 
@@ -468,9 +458,6 @@ extension SettingsContentView {
               .onChange(of: insightExtractionInterval) { _, newValue in
                 performStepHaptic()
                 InsightAssistantSettings.shared.extractionInterval = newValue
-                SettingsSyncManager.shared.pushPartialUpdate(
-                  AssistantSettingsResponse(
-                    insight: InsightSettingsResponse(extractionInterval: newValue)))
               }
             }
 
@@ -499,9 +486,6 @@ extension SettingsContentView {
                 .onChange(of: insightMinConfidence) { _, newValue in
                   performStepHaptic()
                   InsightAssistantSettings.shared.minConfidence = newValue
-                  SettingsSyncManager.shared.pushPartialUpdate(
-                    AssistantSettingsResponse(
-                      insight: InsightSettingsResponse(minConfidence: newValue)))
                 }
             }
 
@@ -629,8 +613,6 @@ extension SettingsContentView {
               .labelsHidden()
               .onChange(of: memoryEnabled) { _, newValue in
                 MemoryAssistantSettings.shared.applyUserSettingChange(.enabled, value: newValue)
-                SettingsSyncManager.shared.pushPartialUpdate(
-                  AssistantSettingsResponse(memory: MemorySettingsResponse(enabled: newValue)))
               }
           }
 
@@ -672,9 +654,6 @@ extension SettingsContentView {
               .onChange(of: memoryExtractionInterval) { _, newValue in
                 performStepHaptic()
                 MemoryAssistantSettings.shared.extractionInterval = newValue
-                SettingsSyncManager.shared.pushPartialUpdate(
-                  AssistantSettingsResponse(
-                    memory: MemorySettingsResponse(extractionInterval: newValue)))
               }
             }
 
@@ -703,9 +682,6 @@ extension SettingsContentView {
                 .onChange(of: memoryMinConfidence) { _, newValue in
                   performStepHaptic()
                   MemoryAssistantSettings.shared.minConfidence = newValue
-                  SettingsSyncManager.shared.pushPartialUpdate(
-                    AssistantSettingsResponse(
-                      memory: MemorySettingsResponse(minConfidence: newValue)))
                 }
             }
 
@@ -832,9 +808,6 @@ extension SettingsContentView {
           .onChange(of: analysisDelay) { _, newValue in
             performStepHaptic()
             AssistantSettings.shared.analysisDelay = newValue
-            SettingsSyncManager.shared.pushPartialUpdate(
-              AssistantSettingsResponse(
-                shared: SharedAssistantSettingsResponse(analysisDelay: newValue)))
           }
         }
       }

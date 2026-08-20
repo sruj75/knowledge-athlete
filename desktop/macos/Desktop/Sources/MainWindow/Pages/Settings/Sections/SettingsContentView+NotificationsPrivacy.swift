@@ -58,9 +58,6 @@ extension SettingsContentView {
                 .labelsHidden()
                 .onChange(of: focusNotificationsEnabled) { _, newValue in
                   FocusAssistantSettings.shared.notificationsEnabled = newValue
-                  SettingsSyncManager.shared.pushPartialUpdate(
-                    AssistantSettingsResponse(
-                      focus: FocusSettingsResponse(notificationsEnabled: newValue)))
                 }
             }
 
@@ -87,9 +84,6 @@ extension SettingsContentView {
                 .labelsHidden()
                 .onChange(of: insightNotificationsEnabled) { _, newValue in
                   InsightAssistantSettings.shared.notificationsEnabled = newValue
-                  SettingsSyncManager.shared.pushPartialUpdate(
-                    AssistantSettingsResponse(
-                      insight: InsightSettingsResponse(notificationsEnabled: newValue)))
                 }
             }
 
@@ -103,62 +97,11 @@ extension SettingsContentView {
                 .labelsHidden()
                 .onChange(of: memoryNotificationsEnabled) { _, newValue in
                   MemoryAssistantSettings.shared.applyUserSettingChange(.notificationsEnabled, value: newValue)
-                  SettingsSyncManager.shared.pushPartialUpdate(
-                    AssistantSettingsResponse(
-                      memory: MemorySettingsResponse(notificationsEnabled: newValue)))
                 }
             }
           }
         }
       }
-
-      // Daily Summary
-      settingsCard(settingId: "notifications.dailysummary") {
-        VStack(alignment: .leading, spacing: OmiSpacing.lg) {
-          HStack {
-            settingsCardHeader(icon: "text.badge.checkmark", title: "Daily Summary")
-
-            Spacer()
-
-            Toggle("", isOn: $dailySummaryEnabled)
-              .toggleStyle(OmiToggleStyle())
-              .labelsHidden()
-              .onChange(of: dailySummaryEnabled) { _, newValue in
-                updateDailySummarySettings(enabled: newValue)
-              }
-          }
-
-          Text("Receive a daily summary of your conversations and activities")
-            .scaledFont(size: OmiType.body)
-            .foregroundColor(OmiColors.textTertiary)
-
-          if dailySummaryEnabled {
-            Divider()
-              .background(OmiColors.backgroundQuaternary)
-
-            settingRow(
-              title: "Summary Time", subtitle: "When to send your daily summary",
-              settingId: "notifications.summarytime"
-            ) {
-              DatePicker(
-                "",
-                selection: $dailySummaryTime,
-                displayedComponents: .hourAndMinute
-              )
-              .datePickerStyle(.stepperField)
-              .labelsHidden()
-              .fixedSize()
-              .onChange(of: dailySummaryTime) { _, selectedTime in
-                let hour = SettingsControlMetrics.dailySummaryHour(from: selectedTime)
-                guard hour != dailySummaryHour else { return }
-                dailySummaryHour = hour
-                updateDailySummarySettings(hour: hour)
-              }
-            }
-          }
-        }
-      }
-
     }
   }
 

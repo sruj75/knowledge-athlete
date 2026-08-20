@@ -2,27 +2,38 @@ import Combine
 import OmiTheme
 import SwiftUI
 
+enum FocusMonitoringPresentation {
+  static let emptyTitle = "No sessions yet"
+  static let emptyBody =
+    "Focus sessions appear here as you work.\nEnable Focus monitoring in Settings to begin."
+  static let refreshLabel = "Refresh"
+  static let historyTitle = "Today's sessions"
+
+  static func errorText(_ error: String) -> String {
+    "Focus history could not be loaded: \(error)"
+  }
+
+  static func statusText(focusEnabled: Bool, captureStatus: HomeStatusState) -> String {
+    guard focusEnabled else { return "Focus disabled" }
+    switch captureStatus {
+    case .active: return "Monitoring"
+    case .inactive: return "Capture off"
+    case .blocked: return "Capture blocked"
+    }
+  }
+}
+
 // MARK: - Focus View Model
 
 @MainActor
 class FocusViewModel: ObservableObject {
-  @Published var searchText = ""
-  @Published var showHistorical = false
   @Published var isLoading = false
 
   private let storage = FocusStorage.shared
   private let settings = FocusAssistantSettings.shared
 
-  var filteredSessions: [StoredFocusSession] {
-    let base = showHistorical ? storage.sessions : storage.todaySessions
-
-    guard !searchText.isEmpty else { return base }
-
-    return base.filter {
-      $0.appOrSite.localizedCaseInsensitiveContains(searchText)
-        || $0.description.localizedCaseInsensitiveContains(searchText)
-        || ($0.message?.localizedCaseInsensitiveContains(searchText) ?? false)
-    }
+  var recentSessions: [StoredFocusSession] {
+    storage.todaySessions
   }
 
   var currentStatus: FocusStatus? {
@@ -53,7 +64,23 @@ class FocusViewModel: ObservableObject {
   }
 
   var isMonitoring: Bool {
-    settings.isEnabled
+    settings.isEnabled && captureStatus == .active
+  }
+
+  var captureStatus: HomeStatusState {
+    if let appState = AppState.current {
+      return CaptureListeningLogic.captureStatus(
+        appState: appState,
+        isCaptureMonitoring: ProactiveAssistantsPlugin.shared.isMonitoring)
+    }
+    if !ProactiveAssistantsPlugin.shared.hasScreenRecordingPermission { return .blocked }
+    return ProactiveAssistantsPlugin.shared.isMonitoring ? .active : .inactive
+  }
+
+  var monitoringStatusText: String {
+    FocusMonitoringPresentation.statusText(
+      focusEnabled: settings.isEnabled,
+      captureStatus: captureStatus)
   }
 
   var todayCount: Int {
@@ -61,24 +88,27 @@ class FocusViewModel: ObservableObject {
   }
 
   func deleteSession(_ id: String) {
-    storage.deleteSession(id)
-    objectWillChange.send()
+    Task {
+      await storage.deleteSession(id)
+      objectWillChange.send()
+    }
   }
 
   func clearAll() {
-    storage.clearAll()
-    objectWillChange.send()
+    Task {
+      await storage.clearAll()
+      objectWillChange.send()
+    }
   }
 
   func refresh(force: Bool = false) async {
-    // Skip redundant reload if storage already has cached data
-    // FocusStorage.init() already loads from UserDefaults + SQLite
+    // Skip redundant reload if the local projection is already populated.
     if !force && !storage.sessions.isEmpty {
       NotificationCenter.default.post(name: .focusPageDidLoad, object: nil)
       return
     }
     isLoading = true
-    await storage.refreshFromBackend()
+    await storage.refreshLocal()
     await MainActor.run {
       isLoading = false
       objectWillChange.send()
@@ -132,16 +162,15 @@ struct FocusPage: View {
         // Page header — title, monitoring status, actions
         header
 
+        if let error = storage.lastError {
+          errorBanner(error)
+        }
+
         // Current status banner (detected app, delay, cooldown, or analyzed status)
         statusBanner
 
         // Today's summary stats
         statsSection
-
-        // Top distractions (if any)
-        if !viewModel.stats.topDistractions.isEmpty {
-          topDistractionsSection
-        }
 
         // Session history
         historySection
@@ -176,6 +205,24 @@ struct FocusPage: View {
     }
   }
 
+  private func errorBanner(_ message: String) -> some View {
+    HStack(spacing: 12) {
+      Image(systemName: "exclamationmark.triangle")
+        .foregroundStyle(Color.orange)
+      Text(FocusMonitoringPresentation.errorText(message))
+        .geist(size: 13)
+        .foregroundStyle(sb.ink(.w55))
+      Spacer()
+      Button(FocusMonitoringPresentation.refreshLabel) {
+        Task { await viewModel.refresh(force: true) }
+      }
+      .buttonStyle(.plain)
+      .foregroundStyle(sb.ink)
+    }
+    .padding(12)
+    .background(sb.ink(.w04), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+  }
+
   // MARK: - Header
 
   private var header: some View {
@@ -190,7 +237,7 @@ struct FocusPage: View {
             .fill(viewModel.isMonitoring ? Color.green.opacity(0.9) : sb.ink(.w25))
             .frame(width: 7, height: 7)
 
-          Text(viewModel.isMonitoring ? "Monitoring" : "Not monitoring")
+          Text(viewModel.monitoringStatusText)
             .geist(size: 13)
             .foregroundStyle(sb.ink(.w45))
 
@@ -208,18 +255,11 @@ struct FocusPage: View {
 
       // Actions
       HStack(spacing: 16) {
-        HStack(spacing: 8) {
-          Text("Show all")
-            .geist(size: 13)
-            .foregroundStyle(sb.ink(.w55))
-          SBToggleSwitch(isOn: $viewModel.showHistorical)
-        }
-
         Menu {
           Button {
             Task { await viewModel.refresh(force: true) }
           } label: {
-            Label("Refresh", systemImage: "arrow.clockwise")
+            Label(FocusMonitoringPresentation.refreshLabel, systemImage: "arrow.clockwise")
           }
 
           Divider()
@@ -454,90 +494,18 @@ struct FocusPage: View {
     }
   }
 
-  // MARK: - Top Distractions
-
-  private var topDistractionsSection: some View {
-    VStack(alignment: .leading, spacing: 6) {
-      SBSectionLabel(text: "Top distractions")
-
-      VStack(spacing: 0) {
-        ForEach(viewModel.stats.topDistractions.prefix(5), id: \.appOrSite) { entry in
-          FocusHairlineRow {
-            Circle()
-              .fill(Color.orange.opacity(0.9))
-              .frame(width: 6, height: 6)
-
-            Text(entry.appOrSite)
-              .geist(size: 15)
-              .foregroundStyle(sb.ink(.w85))
-              .lineLimit(1)
-
-            Spacer(minLength: 12)
-
-            Text("\(entry.count)×")
-              .geistMono(size: 12, tracking: 0)
-              .foregroundStyle(sb.ink(.w35))
-
-            Text(formatDuration(entry.totalSeconds))
-              .geistMono(size: 13, weight: .medium, tracking: 0)
-              .foregroundStyle(sb.ink(.w7))
-              .frame(width: 56, alignment: .trailing)
-          }
-        }
-      }
-    }
-  }
-
   // MARK: - History Section
 
   private var historySection: some View {
     VStack(alignment: .leading, spacing: 6) {
-      HStack(alignment: .center) {
-        SBSectionLabel(text: viewModel.showHistorical ? "All sessions" : "Today's sessions")
+      SBSectionLabel(text: FocusMonitoringPresentation.historyTitle)
+        .padding(.bottom, 4)
 
-        Spacer()
-
-        // Search field
-        HStack(spacing: 7) {
-          Image(systemName: "magnifyingglass")
-            .font(.system(size: 11, weight: .medium))
-            .foregroundStyle(sb.ink(.w35))
-
-          TextField("Search…", text: $viewModel.searchText)
-            .textFieldStyle(.plain)
-            .geist(size: 13)
-            .foregroundStyle(sb.ink)
-
-          if !viewModel.searchText.isEmpty {
-            Button {
-              viewModel.searchText = ""
-            } label: {
-              Image(systemName: "xmark.circle.fill")
-                .font(.system(size: 12))
-                .foregroundStyle(sb.ink(.w35))
-            }
-            .buttonStyle(.plain)
-          }
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
-        .frame(width: 190)
-        .background(
-          RoundedRectangle(cornerRadius: 9, style: .continuous)
-            .fill(sb.ink(.w06))
-        )
-        .overlay(
-          RoundedRectangle(cornerRadius: 9, style: .continuous)
-            .stroke(sb.ink(.w12), lineWidth: 1)
-        )
-      }
-      .padding(.bottom, 4)
-
-      if viewModel.filteredSessions.isEmpty {
+      if viewModel.recentSessions.isEmpty {
         emptyHistoryView
       } else {
         LazyVStack(spacing: 0) {
-          ForEach(viewModel.filteredSessions) { session in
+          ForEach(viewModel.recentSessions) { session in
             FocusSessionRow(
               session: session,
               onDelete: { viewModel.deleteSession(session.id) }
@@ -552,17 +520,17 @@ struct FocusPage: View {
     VStack(spacing: 14) {
       SBLogo(size: 30, opacity: 0.5)
 
-      Text("No sessions yet")
+      Text(FocusMonitoringPresentation.emptyTitle)
         .geist(size: 17, weight: .semibold)
         .foregroundStyle(sb.ink(.w85))
 
-      Text("Focus sessions appear here as you work.\nEnable Focus monitoring in Settings to begin.")
+      Text(FocusMonitoringPresentation.emptyBody)
         .geist(size: 13.5)
         .foregroundStyle(sb.ink(.w45))
         .multilineTextAlignment(.center)
         .lineSpacing(2)
 
-      SBInkButton(title: "Refresh") {
+      SBInkButton(title: FocusMonitoringPresentation.refreshLabel) {
         Task { await viewModel.refresh(force: true) }
       }
       .padding(.top, 4)
@@ -571,17 +539,6 @@ struct FocusPage: View {
     .padding(.vertical, 48)
   }
 
-  // MARK: - Helpers
-
-  private func formatDuration(_ seconds: Int) -> String {
-    let minutes = seconds / 60
-    if minutes < 60 {
-      return "\(minutes)m"
-    }
-    let hours = minutes / 60
-    let remainingMinutes = minutes % 60
-    return "\(hours)h \(remainingMinutes)m"
-  }
 }
 
 // MARK: - SB Stat Tile
@@ -626,8 +583,7 @@ private struct SBStatTile: View {
 
 // MARK: - Focus Hairline Row (shared list primitive with hover fill)
 
-/// A hover-highlighting list row with a hairline separator underneath. Used by
-/// the Top Distractions list and (via `FocusSessionRow`) the session history.
+/// A hover-highlighting list row with a hairline separator underneath.
 private struct FocusHairlineRow<Content: View>: View {
   @Environment(\.sbTheme) private var sb
   var onHover: ((Bool) -> Void)? = nil
@@ -701,14 +657,6 @@ struct FocusSessionRow: View {
           .foregroundStyle(sb.ink(.w35))
           .lineLimit(1)
           .frame(maxWidth: 160, alignment: .trailing)
-      }
-
-      // Sync status
-      if !session.isSynced {
-        Image(systemName: "arrow.triangle.2.circlepath")
-          .font(.system(size: 11))
-          .foregroundStyle(sb.ink(.w35))
-          .help("Pending sync")
       }
 
       // Time

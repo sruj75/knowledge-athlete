@@ -200,6 +200,7 @@ final class KernelTurnProjection {
   private struct OwnerLease: Equatable {
     let ownerID: String
     let epoch: UInt64
+    let authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot?
   }
 
   struct ExchangeTurn {
@@ -224,6 +225,13 @@ final class KernelTurnProjection {
   ) async throws -> Int
 
   typealias KernelReadyOperation = () async -> Bool
+  typealias JournalRecordExchangeOperation = (
+    _ client: AgentClient.Session,
+    _ surface: AgentSurfaceReference,
+    _ ownerID: String,
+    _ writes: [KernelJournalTurnWrite],
+    _ authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot?
+  ) async throws -> AgentRuntimeProcess.JournalOperationResult
 
   private weak var host: ChatProvider?
   private var client: AgentClient.Session?
@@ -232,6 +240,7 @@ final class KernelTurnProjection {
   private let journalListOperation: JournalListOperation?
   private let journalClearOperation: JournalClearOperation?
   private let kernelReadyOperation: KernelReadyOperation?
+  private let journalRecordExchangeOperation: JournalRecordExchangeOperation?
   private var projectionEpoch: UInt64 = 0
   private var boundOwnerID: String?
   private var highWaterByConversation: [String: Int] = [:]
@@ -246,7 +255,8 @@ final class KernelTurnProjection {
     ownerIDProvider: @escaping () -> String? = { RuntimeOwnerIdentity.currentOwnerId() },
     journalListOperation: JournalListOperation? = nil,
     journalClearOperation: JournalClearOperation? = nil,
-    kernelReadyOperation: KernelReadyOperation? = nil
+    kernelReadyOperation: KernelReadyOperation? = nil,
+    journalRecordExchangeOperation: JournalRecordExchangeOperation? = nil
   ) {
     self.host = host
     self.client = client
@@ -254,6 +264,7 @@ final class KernelTurnProjection {
     self.journalListOperation = journalListOperation
     self.journalClearOperation = journalClearOperation
     self.kernelReadyOperation = kernelReadyOperation
+    self.journalRecordExchangeOperation = journalRecordExchangeOperation
   }
 
   func attachClient(_ client: AgentClient.Session) async {
@@ -681,7 +692,8 @@ final class KernelTurnProjection {
     continuityKey: String,
     assistantContentBlocks: [ChatContentBlock] = [],
     resources: [ChatResource] = [],
-    ownerID: String? = nil
+    ownerID: String? = nil,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot? = nil
   ) async -> Bool {
     let baseDate = Date()
     var writes: [KernelJournalTurnWrite] = []
@@ -725,7 +737,8 @@ final class KernelTurnProjection {
     return await recordExchange(
       surface: surface,
       writes: writes,
-      ownerID: ownerID
+      ownerID: ownerID,
+      authorizationSnapshot: authorizationSnapshot
     ) != nil
   }
 
@@ -740,7 +753,8 @@ final class KernelTurnProjection {
     continuityKey: String,
     sessionId: String? = nil,
     messageSource: String,
-    ownerID: String? = nil
+    ownerID: String? = nil,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot? = nil
   ) async -> [KernelJournalTurn]? {
     let writes = turns.map { entry in
       entry.message.journalWrite(
@@ -751,14 +765,19 @@ final class KernelTurnProjection {
         messageSource: messageSource
       )
     }
-    return await recordExchange(surface: surface, writes: writes, ownerID: ownerID)
+    return await recordExchange(
+      surface: surface,
+      writes: writes,
+      ownerID: ownerID,
+      authorizationSnapshot: authorizationSnapshot)
   }
 
   @discardableResult
   private func recordExchange(
     surface: AgentSurfaceReference,
     writes: [KernelJournalTurnWrite],
-    ownerID: String?
+    ownerID: String?,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot?
   ) async -> [KernelJournalTurn]? {
     guard !writes.isEmpty, writes.count <= 2 else { return nil }
     let roles = writes.map(\.role)
@@ -766,15 +785,37 @@ final class KernelTurnProjection {
       roles == ["user"] || roles == ["assistant"]
         || roles == ["user", "assistant"]
     else { return nil }
-    guard let lease = captureOwnerLease(ownerID: ownerID), let host else { return nil }
-    guard await host.ensureBridgeStartedForKernel(), isCurrent(lease), let client else { return nil }
+    guard
+      let lease = captureOwnerLease(
+        ownerID: ownerID,
+        authorizationSnapshot: authorizationSnapshot),
+      let host
+    else { return nil }
+    let kernelReady =
+      if let kernelReadyOperation {
+        await kernelReadyOperation()
+      } else {
+        await host.ensureBridgeStartedForKernel()
+      }
+    guard kernelReady, isCurrent(lease), let client else { return nil }
 
     do {
-      let result = try await client.recordJournalExchange(
-        surface: surface,
-        ownerID: lease.ownerID,
-        turns: writes
-      )
+      let result =
+        if let journalRecordExchangeOperation {
+          try await journalRecordExchangeOperation(
+            client,
+            surface,
+            lease.ownerID,
+            writes,
+            lease.authorizationSnapshot)
+        } else {
+          try await client.recordJournalExchange(
+            surface: surface,
+            ownerID: lease.ownerID,
+            turns: writes,
+            authorizationSnapshot: lease.authorizationSnapshot
+          )
+        }
       guard isCurrent(lease), result.operation == "record_exchange" else { return nil }
       let expectedTurnIDs = Set(writes.map(\.turnId))
       guard
@@ -1147,7 +1188,10 @@ final class KernelTurnProjection {
     )
   }
 
-  private func captureOwnerLease(ownerID: String? = nil) -> OwnerLease? {
+  private func captureOwnerLease(
+    ownerID: String? = nil,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot? = nil
+  ) -> OwnerLease? {
     guard let currentOwnerID = Self.normalizedOwnerID(ownerIDProvider()) else {
       return nil
     }
@@ -1157,17 +1201,26 @@ final class KernelTurnProjection {
         requestedOwnerID == currentOwnerID
       else { return nil }
     }
+    if let authorizationSnapshot {
+      guard authorizationSnapshot.ownerID == currentOwnerID,
+        RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
+      else { return nil }
+    }
     if let boundOwnerID, boundOwnerID != currentOwnerID {
       invalidateOwnerState()
     }
     boundOwnerID = currentOwnerID
-    return OwnerLease(ownerID: currentOwnerID, epoch: projectionEpoch)
+    return OwnerLease(
+      ownerID: currentOwnerID,
+      epoch: projectionEpoch,
+      authorizationSnapshot: authorizationSnapshot)
   }
 
   private func isCurrent(_ lease: OwnerLease) -> Bool {
     projectionEpoch == lease.epoch
       && boundOwnerID == lease.ownerID
       && Self.normalizedOwnerID(ownerIDProvider()) == lease.ownerID
+      && lease.authorizationSnapshot.map(RuntimeOwnerIdentity.isAuthorizationCurrent) != false
   }
 
   nonisolated private static func normalizedOwnerID(_ ownerID: String?) -> String? {

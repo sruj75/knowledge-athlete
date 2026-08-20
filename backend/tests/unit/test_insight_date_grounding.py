@@ -1,9 +1,4 @@
-"""Tests for current-date grounding in proactive insight generation.
-
-The proactive insight notifications ask the model to reason about whether dated content
-is upcoming or in the future. These tests cover the shared current-date helper and date
-injection into the four proactive prompts.
-"""
+"""Tests for the retained current-date grounding helpers."""
 
 import importlib.util
 import os
@@ -54,11 +49,7 @@ for _p in ["database", "utils", "utils.llm"]:
     _pkg(_p)
 _nb = _mod("database.notifications")
 _nb.get_user_time_zone = MagicMock(return_value="UTC")
-_clients = _mod("utils.llm.clients")
-_clients.get_llm = MagicMock(return_value=MagicMock())
-
 temporal = _load("utils.llm.temporal", "utils/llm/temporal.py")
-proactive = _load("utils.llm.proactive_notification", "utils/llm/proactive_notification.py")
 
 _FIXED = datetime(2026, 5, 21, 12, 0)
 
@@ -112,84 +103,3 @@ class TestDateInTz:
     def test_invalid_tz_falls_back_to_utc(self):
         dt = datetime(2026, 5, 21, 12, 0, tzinfo=timezone.utc)
         assert temporal.date_in_tz(dt, "Not/AZone") == "2026-05-21"
-
-
-def _capture_prompt(fn, **kwargs):
-    """Run a proactive builder with the LLM mocked and return the prompt string it built."""
-    captured = {}
-    structured = MagicMock()
-    structured.invoke.side_effect = lambda p: captured.__setitem__("prompt", p) or MagicMock()
-    llm = MagicMock()
-    llm.with_structured_output.return_value = structured
-    with patch.object(proactive, "get_llm", return_value=llm):
-        fn(**kwargs)
-    return captured["prompt"]
-
-
-class TestProactivePromptsGrounded:
-    def test_gate_prompt_states_today(self):
-        prompt = _capture_prompt(
-            proactive.evaluate_relevance,
-            user_name="Zach",
-            user_facts="",
-            goals=[],
-            current_messages=[],
-            recent_notifications=[],
-            current_date="2026-05-21",
-        )
-        assert "Today is 2026-05-21" in prompt
-
-    def test_generate_prompt_states_today(self):
-        prompt = _capture_prompt(
-            proactive.generate_notification,
-            user_name="Zach",
-            user_facts="",
-            goals=[],
-            past_conversations_str="",
-            current_messages=[],
-            recent_notifications=[],
-            frequency=3,
-            gate_reasoning="something",
-            current_date="2026-05-21",
-        )
-        assert "Today is 2026-05-21" in prompt
-
-    def test_critic_prompt_rejects_wrong_clock_claims(self):
-        prompt = _capture_prompt(
-            proactive.validate_notification,
-            user_name="Zach",
-            notification_text="Your system clock is wrong",
-            draft_reasoning="date looks like the future",
-            current_messages=[],
-            goals=[],
-            current_date="2026-05-21",
-        )
-        assert "2026-05-21" in prompt
-        # The critic must be told to reject the exact bug class.
-        assert "REJECT" in prompt and "clock" in prompt
-
-    def test_legacy_template_states_today(self):
-        prompt = _capture_prompt(
-            proactive.evaluate_proactive_notification,
-            user_name="Zach",
-            user_facts="",
-            goals=[],
-            past_conversations_str="",
-            current_messages=[],
-            recent_notifications=[],
-            frequency=3,
-            current_date="2026-05-21",
-        )
-        assert "Today is 2026-05-21" in prompt
-
-    def test_date_is_grounded_even_without_explicit_value(self):
-        # When the caller passes no date, the builder still injects a real one (UTC fallback).
-        prompt = _capture_prompt(
-            proactive.evaluate_relevance,
-            user_name="Zach",
-            user_facts="",
-            goals=[],
-            current_messages=[],
-            recent_notifications=[],
-        )
-        assert re.search(r"Today is \d{4}-\d{2}-\d{2}", prompt)

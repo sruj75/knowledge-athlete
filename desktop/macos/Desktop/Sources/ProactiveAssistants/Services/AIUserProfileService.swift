@@ -1,6 +1,36 @@
 import Foundation
 @preconcurrency import GRDB
 
+enum AIUserProfileInputPolicy {
+  static let memoryLimit = 100
+  static let taskLimit = 50
+  static let conversationLimit = 20
+  static let conversationLookbackDays = 7
+  static let journalMessageLimit = 30
+  static let priorProfileLimit = 5
+  static let settingsHistoryLimit = 30
+
+  static func conversationQuery(now: Date = Date()) -> ConversationLocalQuery {
+    ConversationLocalQuery(
+      starredOnly: false,
+      startDate: Calendar.current.date(
+        byAdding: .day,
+        value: -conversationLookbackDays,
+        to: now),
+      endDate: nil,
+      folderId: nil,
+      statuses: [.completed])
+  }
+}
+
+struct AIUserProfileInputs: Sendable {
+  let memories: [String]
+  let tasks: [String]
+  let goals: [String]
+  let conversations: [String]
+  let journalMessages: [String]
+}
+
 // MARK: - Database Record
 
 /// Database record for AI-generated user profile history
@@ -8,7 +38,6 @@ struct AIUserProfileRecord: Codable, FetchableRecord, PersistableRecord, Identif
   var id: Int64?
   var profileText: String
   var dataSourcesUsed: Int
-  var backendSynced: Bool
   var generatedAt: Date
 
   static let databaseTableName = "ai_user_profiles"
@@ -34,7 +63,17 @@ extension AIUserProfileRecord: TableDocumented {
 actor AIUserProfileService {
   static let shared = AIUserProfileService()
 
+  typealias TextRequest =
+    @Sendable (
+      _ prompt: String,
+      _ systemPrompt: String,
+      _ authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+    ) async throws -> String
+  typealias DataSourceLoader = @Sendable (_ ownerID: String) async -> AIUserProfileInputs
+
   private let maxProfileLength = 10000
+  private let textRequest: TextRequest
+  private let dataSourceLoader: DataSourceLoader?
 
   /// Whether profile generation is currently in progress
   private var isGenerating = false
@@ -42,6 +81,39 @@ actor AIUserProfileService {
   /// Cached database pool
   private var _dbQueue: DatabasePool?
   private var _dbGeneration = -1
+
+  init(
+    textRequest: @escaping TextRequest = { prompt, systemPrompt, authorizationSnapshot in
+      try await AIUserProfileService.performAuthorizedTextRequest(
+        authorizationSnapshot: authorizationSnapshot
+      ) {
+        let gemini = try GeminiClient()
+        return try await gemini.sendTextRequest(prompt: prompt, systemPrompt: systemPrompt)
+      }
+    },
+    dataSourceLoader: DataSourceLoader? = nil
+  ) {
+    self.textRequest = textRequest
+    self.dataSourceLoader = dataSourceLoader
+  }
+
+  /// The authorization check lives immediately around the outbound request,
+  /// not only around prompt construction. Reauthenticating as the same UID
+  /// advances the generation and therefore prevents stale private context
+  /// from leaving the process.
+  static func performAuthorizedTextRequest(
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot,
+    request: @Sendable () async throws -> String
+  ) async throws -> String {
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else {
+      throw LocalMutationAuthorizationError.revoked
+    }
+    let response = try await request()
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else {
+      throw LocalMutationAuthorizationError.revoked
+    }
+    return response
+  }
 
   /// Invalidate cached DB queue (called on user switch / sign-out)
   func invalidateCache() {
@@ -66,6 +138,7 @@ actor AIUserProfileService {
 
   /// Check if we should generate a new profile (>24h since last generation)
   func shouldGenerate() async -> Bool {
+    guard let snapshot = RuntimeOwnerIdentity.captureAuthorizationSnapshot() else { return false }
     guard let db = try? await ensureDB() else { return false }
     do {
       let latest = try await db.read { database in
@@ -73,6 +146,7 @@ actor AIUserProfileService {
           .order(Column("generatedAt").desc)
           .fetchOne(database)
       }
+      guard RuntimeOwnerIdentity.isAuthorizationCurrent(snapshot) else { return false }
       guard let latest else { return true }  // Never generated
       return Date().timeIntervalSince(latest.generatedAt) > 86400
     } catch {
@@ -82,60 +156,61 @@ actor AIUserProfileService {
 
   /// Get the latest stored profile
   func getLatestProfile() async -> AIUserProfileRecord? {
+    guard let snapshot = RuntimeOwnerIdentity.captureAuthorizationSnapshot() else { return nil }
     guard let db = try? await ensureDB() else { return nil }
-    return try? await db.read { database in
+    let profile = try? await db.read { database in
       try AIUserProfileRecord
         .order(Column("generatedAt").desc)
         .fetchOne(database)
     }
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(snapshot) else { return nil }
+    return profile
   }
 
   /// Delete a profile by ID and return the next latest profile
   func deleteProfile(id: Int64) async -> AIUserProfileRecord? {
+    guard let authorization = currentOwnerAuthorization() else { return nil }
     guard let db = try? await ensureDB() else { return nil }
-    _ = try? await db.write { database in
-      try database.execute(
-        sql: "DELETE FROM ai_user_profiles WHERE id = ?",
-        arguments: [id]
-      )
-    }
-    return await getLatestProfile()
-  }
-
-  /// Update the profile text of an existing record and sync to backend
-  func updateProfileText(id: Int64, newText: String) async -> Bool {
-    guard let db = try? await ensureDB() else { return false }
     do {
-      try await db.write { database in
-        try database.execute(
-          sql: "UPDATE ai_user_profiles SET profileText = ? WHERE id = ?",
-          arguments: [newText, id]
-        )
-      }
-      // Sync updated profile to backend (fire-and-forget)
-      let text = newText
-      Task {
-        do {
-          // Fetch the record to get generatedAt and dataSourcesUsed
-          let record = try? await db.read { database in
-            try AIUserProfileRecord.fetchOne(database, key: id)
-          }
-          try await APIClient.shared.syncAIUserProfile(
-            profileText: text,
-            generatedAt: record?.generatedAt ?? Date(),
-            dataSourcesUsed: record?.dataSourcesUsed ?? 0
+      let nextProfile = try await authorization.withCommitLease {
+        try await db.write { database in
+          try authorization.require()
+          try database.execute(
+            sql: "DELETE FROM ai_user_profiles WHERE id = ?",
+            arguments: [id]
           )
-          _ = try? await db.write { database in
-            try database.execute(
-              sql: "UPDATE ai_user_profiles SET backendSynced = 1 WHERE id = ?",
-              arguments: [id]
-            )
-          }
-          log("AIUserProfileService: Synced updated profile to backend")
-        } catch {
-          log("AIUserProfileService: Failed to sync updated profile to backend: \(error.localizedDescription)")
+          let next =
+            try AIUserProfileRecord
+            .order(Column("generatedAt").desc)
+            .fetchOne(database)
+          try authorization.require()
+          return next
         }
       }
+      try authorization.require()
+      return nextProfile
+    } catch {
+      log("AIUserProfileService: Failed to delete profile: \(error.localizedDescription)")
+      return nil
+    }
+  }
+
+  /// Update the profile text of an existing local record.
+  func updateProfileText(id: Int64, newText: String) async -> Bool {
+    guard let authorization = currentOwnerAuthorization() else { return false }
+    guard let db = try? await ensureDB() else { return false }
+    do {
+      try await authorization.withCommitLease {
+        try await db.write { database in
+          try authorization.require()
+          try database.execute(
+            sql: "UPDATE ai_user_profiles SET profileText = ? WHERE id = ?",
+            arguments: [newText, id]
+          )
+          try authorization.require()
+        }
+      }
+      try authorization.require()
       return true
     } catch {
       log("AIUserProfileService: Failed to update profile text: \(error.localizedDescription)")
@@ -145,6 +220,7 @@ actor AIUserProfileService {
 
   /// Save exploration text as a new profile record (when no profile exists yet)
   func saveExplorationAsProfile(text: String) async -> Bool {
+    guard let authorization = currentOwnerAuthorization() else { return false }
     guard let db = try? await ensureDB() else {
       log("AIUserProfileService: DB not available for saving exploration profile")
       return false
@@ -153,40 +229,21 @@ actor AIUserProfileService {
     let record = AIUserProfileRecord(
       profileText: String(text.prefix(maxProfileLength)),
       dataSourcesUsed: 1,
-      backendSynced: false,
       generatedAt: generatedAt
     )
     do {
-      let insertedId = try await db.write { database -> Int64? in
-        let mutableRecord = record
-        try mutableRecord.insert(database)
-        return mutableRecord.id
-      }
-      log("AIUserProfileService: Saved exploration as new profile (\(record.profileText.count) chars)")
-
-      // Sync to backend (fire-and-forget)
-      let profileText = record.profileText
-      let recordId = insertedId
-      Task {
-        do {
-          try await APIClient.shared.syncAIUserProfile(
-            profileText: profileText,
-            generatedAt: generatedAt,
-            dataSourcesUsed: 1
-          )
-          if let id = recordId, let db = try? await self.ensureDB() {
-            _ = try? await db.write { database in
-              try database.execute(
-                sql: "UPDATE ai_user_profiles SET backendSynced = 1 WHERE id = ?",
-                arguments: [id]
-              )
-            }
-          }
-          log("AIUserProfileService: Synced exploration profile to backend")
-        } catch {
-          log("AIUserProfileService: Failed to sync exploration profile to backend: \(error.localizedDescription)")
+      _ = try await authorization.withCommitLease {
+        try await db.write { database -> Int64? in
+          try authorization.require()
+          let mutableRecord = record
+          try mutableRecord.insert(database)
+          try authorization.require()
+          return mutableRecord.id
         }
       }
+      try authorization.require()
+      log("AIUserProfileService: Saved exploration as new profile (\(record.profileText.count) chars)")
+
       return true
     } catch {
       log("AIUserProfileService: Failed to save exploration profile: \(error.localizedDescription)")
@@ -196,26 +253,40 @@ actor AIUserProfileService {
 
   /// Delete all stored profiles
   func deleteAllProfiles() async {
+    guard let authorization = currentOwnerAuthorization() else { return }
     guard let db = try? await ensureDB() else { return }
-    _ = try? await db.write { database in
-      try database.execute(sql: "DELETE FROM ai_user_profiles")
+    _ = try? await authorization.withCommitLease {
+      try await db.write { database in
+        try authorization.require()
+        try database.execute(sql: "DELETE FROM ai_user_profiles")
+        try authorization.require()
+      }
     }
   }
 
   /// Get all stored profiles (newest first)
-  func getAllProfiles(limit: Int = 30) async -> [AIUserProfileRecord] {
+  func getAllProfiles(limit: Int = AIUserProfileInputPolicy.settingsHistoryLimit) async -> [AIUserProfileRecord] {
+    guard let snapshot = RuntimeOwnerIdentity.captureAuthorizationSnapshot() else { return [] }
     guard let db = try? await ensureDB() else { return [] }
-    return
+    let profiles =
       (try? await db.read { database in
         try AIUserProfileRecord
           .order(Column("generatedAt").desc)
           .limit(limit)
           .fetchAll(database)
       }) ?? []
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(snapshot) else { return [] }
+    return profiles
   }
 
   /// Generate a new AI user profile from all available data sources
   func generateProfile() async throws -> AIUserProfileRecord {
+    guard let ownerSnapshot = RuntimeOwnerIdentity.captureAuthorizationSnapshot() else {
+      throw LocalMutationAuthorizationError.revoked
+    }
+    let authorization = LocalMutationAuthorization {
+      RuntimeOwnerIdentity.isAuthorizationCurrent(ownerSnapshot)
+    }
     guard !isGenerating else {
       throw ProfileError.alreadyGenerating
     }
@@ -225,10 +296,21 @@ actor AIUserProfileService {
     log("AIUserProfileService: Starting profile generation")
 
     // 1. Fetch all data sources in parallel
-    let (memories, tasks, goals, conversations) = await fetchDataSources()
+    let inputs =
+      if let dataSourceLoader {
+        await dataSourceLoader(ownerSnapshot.ownerID)
+      } else {
+        await fetchDataSources(ownerID: ownerSnapshot.ownerID)
+      }
+    let memories = inputs.memories
+    let tasks = inputs.tasks
+    let goals = inputs.goals
+    let conversations = inputs.conversations
+    let journalMessages = inputs.journalMessages
+    try authorization.require()
 
     // 2. Count total data items
-    let dataSourcesUsed = memories.count + tasks.count + goals.count + conversations.count
+    let dataSourcesUsed = memories.count + tasks.count + goals.count + conversations.count + journalMessages.count
     log(
       "AIUserProfileService: Fetched \(dataSourcesUsed) data items (memories=\(memories.count), tasks=\(tasks.count), goals=\(goals.count), convos=\(conversations.count))"
     )
@@ -239,10 +321,13 @@ actor AIUserProfileService {
 
     // 3. Build prompt
     let prompt = buildPrompt(
-      memories: memories, tasks: tasks, goals: goals, conversations: conversations)
+      memories: memories,
+      tasks: tasks,
+      goals: goals,
+      conversations: conversations,
+      journalMessages: journalMessages)
 
     // 4. Call Gemini
-    let gemini = try GeminiClient()
     let systemPrompt = """
       You are generating a structured user profile that will be injected as context into AI pipelines \
       (task extraction, goal extraction, memory extraction) that analyze the user's screen and audio activity.
@@ -279,20 +364,19 @@ actor AIUserProfileService {
       The output MUST be under 2000 characters total.
       """
 
-    let stageOneText = try await gemini.sendTextRequest(prompt: prompt, systemPrompt: systemPrompt)
+    try authorization.require()
+    let stageOneText = try await textRequest(prompt, systemPrompt, ownerSnapshot)
+    try authorization.require()
     log("AIUserProfileService: Stage 1 complete (\(stageOneText.count) chars)")
 
     // 5. Stage 2 — Consolidate with past profiles for holistic view
-    let pastProfiles = await getAllProfiles(limit: 5)
-    let finalText: String
-    if pastProfiles.isEmpty {
-      finalText = stageOneText
-    } else {
-      let consolidationPrompt = buildConsolidationPrompt(
-        newProfile: stageOneText,
-        pastProfiles: pastProfiles
-      )
-      let consolidationSystemPrompt = """
+    let pastProfiles = await getAllProfiles(limit: AIUserProfileInputPolicy.priorProfileLimit)
+    try authorization.require()
+    let consolidationPrompt = buildConsolidationPrompt(
+      newProfile: stageOneText,
+      pastProfiles: pastProfiles
+    )
+    let consolidationSystemPrompt = """
         You are merging a newly generated user profile with historical profiles to create \
         one holistic, up-to-date user profile. This profile is injected as context into AI pipelines \
         (task extraction, goal extraction, memory extraction) that analyze the user's screen and audio activity.
@@ -316,13 +400,14 @@ actor AIUserProfileService {
         - Do NOT add commentary about changes or evolution over time
 
         The output MUST be under 2000 characters total.
-        """
-      finalText = try await gemini.sendTextRequest(
-        prompt: consolidationPrompt,
-        systemPrompt: consolidationSystemPrompt
-      )
-      log("AIUserProfileService: Stage 2 consolidation complete (\(finalText.count) chars)")
-    }
+      """
+    try authorization.require()
+    let finalText = try await textRequest(
+      consolidationPrompt,
+      consolidationSystemPrompt,
+      ownerSnapshot)
+    try authorization.require()
+    log("AIUserProfileService: Stage 2 consolidation complete (\(finalText.count) chars)")
 
     // 6. Truncate if needed
     let truncated = String(finalText.prefix(maxProfileLength))
@@ -333,36 +418,16 @@ actor AIUserProfileService {
     let record = AIUserProfileRecord(
       profileText: truncated,
       dataSourcesUsed: dataSourcesUsed,
-      backendSynced: false,
       generatedAt: generatedAt
     )
-    try await db.write { database in
-      try record.insert(database)
-    }
-
-    // 7. Sync to backend (fire-and-forget)
-    let recordId = record.id
-    Task {
-      do {
-        try await APIClient.shared.syncAIUserProfile(
-          profileText: truncated,
-          generatedAt: generatedAt,
-          dataSourcesUsed: dataSourcesUsed
-        )
-        // Mark as synced
-        if let id = recordId, let db = try? await self.ensureDB() {
-          _ = try? await db.write { database in
-            try database.execute(
-              sql: "UPDATE ai_user_profiles SET backendSynced = 1 WHERE id = ?",
-              arguments: [id]
-            )
-          }
-        }
-        log("AIUserProfileService: Synced profile to backend")
-      } catch {
-        log("AIUserProfileService: Failed to sync profile to backend: \(error.localizedDescription)")
+    try await authorization.withCommitLease {
+      try await db.write { database in
+        try authorization.require()
+        try record.insert(database)
+        try authorization.require()
       }
     }
+    try authorization.require()
 
     log(
       "AIUserProfileService: Profile generated successfully (\(truncated.count) chars, \(dataSourcesUsed) data items)")
@@ -371,27 +436,29 @@ actor AIUserProfileService {
 
   // MARK: - Data Fetching
 
-  private func fetchDataSources() async -> (
-    memories: [String],
-    tasks: [String],
-    goals: [String],
-    conversations: [String]
-  ) {
+  private func fetchDataSources(ownerID: String) async -> AIUserProfileInputs {
     async let memoriesTask = fetchMemories()
     async let tasksTask = fetchTasks()
     async let goalsTask = fetchGoals()
     async let conversationsTask = fetchConversations()
+    async let journalTask = fetchJournalMessages(ownerID: ownerID)
 
     let memories = await memoriesTask
     let tasks = await tasksTask
     let goals = await goalsTask
     let conversations = await conversationsTask
-    return (memories, tasks, goals, conversations)
+    let journalMessages = await journalTask
+    return AIUserProfileInputs(
+      memories: memories,
+      tasks: tasks,
+      goals: goals,
+      conversations: conversations,
+      journalMessages: journalMessages)
   }
 
   private func fetchMemories() async -> [String] {
     do {
-      let memories = try await MemoryStorage.shared.list(limit: 100)
+      let memories = try await MemoryStorage.shared.list(limit: AIUserProfileInputPolicy.memoryLimit)
       return memories.map { "[\($0.category.rawValue)] \($0.content)" }
     } catch {
       log("AIUserProfileService: Failed to fetch memories: \(error.localizedDescription)")
@@ -401,7 +468,7 @@ actor AIUserProfileService {
 
   private func fetchTasks() async -> [String] {
     do {
-      let tasks = try await ActionItemStorage.shared.getLocalActionItems(limit: 50)
+      let tasks = try await ActionItemStorage.shared.getLocalActionItems(limit: AIUserProfileInputPolicy.taskLimit)
       return tasks.map { item in
         let status = item.completed ? "done" : "todo"
         let priority = item.priority ?? "medium"
@@ -425,15 +492,10 @@ actor AIUserProfileService {
 
   private func fetchConversations() async -> [String] {
     do {
-      let sevenDaysAgo = Calendar.current.date(byAdding: .day, value: -7, to: Date())
       let conversations = try await TranscriptionStorage.shared.conversationPage(
-        query: ConversationLocalQuery(
-          starredOnly: false,
-          startDate: sevenDaysAgo,
-          endDate: nil,
-          folderId: nil),
+        query: AIUserProfileInputPolicy.conversationQuery(),
         offset: 0,
-        limit: 20)
+        limit: AIUserProfileInputPolicy.conversationLimit)
       return conversations.compactMap { convo in
         let title = convo.title ?? ""
         let summary = convo.overview ?? ""
@@ -446,13 +508,36 @@ actor AIUserProfileService {
     }
   }
 
+  private func fetchJournalMessages(ownerID: String) async -> [String] {
+    let session = AgentClient.makeSession()
+    do {
+      try await session.start()
+      let surface = AgentSurfaceReference.mainChat(chatId: nil)
+      let resolved = try await session.resolveSurfaceSession(surface)
+      let snapshot = try await session.getContextSnapshot(
+        sessionId: resolved.sessionId,
+        surfaceKind: surface.surfaceKind)
+      await session.stopAndWaitForExit()
+      guard RuntimeOwnerIdentity.currentOwnerId() == ownerID else { return [] }
+      return snapshot.recentTurns
+        .compactMap(AgentContextRecentTurn.init(dictionary:))
+        .suffix(AIUserProfileInputPolicy.journalMessageLimit)
+        .map { "[\($0.role)] \($0.content)" }
+    } catch {
+      await session.stopAndWaitForExit()
+      log("AIUserProfileService: Failed to fetch local journal messages: \(error.localizedDescription)")
+      return []
+    }
+  }
+
   // MARK: - Prompt Building
 
   private func buildPrompt(
     memories: [String],
     tasks: [String],
     goals: [String],
-    conversations: [String]
+    conversations: [String],
+    journalMessages: [String]
   ) -> String {
     var sections: [String] = []
 
@@ -470,6 +555,10 @@ actor AIUserProfileService {
 
     if !conversations.isEmpty {
       sections.append("## Recent conversations (past 7 days)\n\(conversations.joined(separator: "\n"))")
+    }
+
+    if !journalMessages.isEmpty {
+      sections.append("## Recent local chat messages\n\(journalMessages.joined(separator: "\n"))")
     }
 
     return """
@@ -492,7 +581,7 @@ actor AIUserProfileService {
     dateFormatter.timeStyle = .none
 
     var pastSection = ""
-    for profile in pastProfiles {
+    for profile in pastProfiles.reversed() {
       let dateStr = dateFormatter.string(from: profile.generatedAt)
       pastSection += "--- Profile from \(dateStr) ---\n\(profile.profileText)\n\n"
     }
@@ -525,5 +614,10 @@ actor AIUserProfileService {
         return "Database is not available"
       }
     }
+  }
+
+  private func currentOwnerAuthorization() -> LocalMutationAuthorization? {
+    guard let snapshot = RuntimeOwnerIdentity.captureAuthorizationSnapshot() else { return nil }
+    return LocalMutationAuthorization { RuntimeOwnerIdentity.isAuthorizationCurrent(snapshot) }
   }
 }

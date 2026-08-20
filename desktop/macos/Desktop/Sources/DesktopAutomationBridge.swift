@@ -2502,8 +2502,7 @@ final class DesktopAutomationActionRegistry {
       name: "settings_notifications_snapshot",
       summary: "Return notification settings and local permission state"
     ) { _ in
-      async let settingsTask = APIClient.shared.getNotificationSettings()
-      let settings = try await settingsTask
+      let settings = LocalNotificationSettings().snapshot()
       let appState = await MainActor.run { AppState.current }
       let hasPermission = appState?.hasNotificationPermission ?? false
       let bannersDisabled = appState?.isNotificationBannerDisabled ?? false
@@ -2518,15 +2517,12 @@ final class DesktopAutomationActionRegistry {
 
     register(
       name: "set_notification_settings",
-      summary: "Update notification settings via the real API",
+      summary: "Update local notification settings",
       params: ["enabled", "frequency"]
     ) { params in
       let enabled = params["enabled"].map { boolParam($0, default: true) }
       let frequency = params["frequency"].flatMap { Int($0) }
-      let response = try await APIClient.shared.updateNotificationSettings(
-        enabled: enabled,
-        frequency: frequency
-      )
+      let response = LocalNotificationSettings().update(enabled: enabled, frequency: frequency)
       return [
         "saved": "true",
         "enabled": response.enabled ? "true" : "false",
@@ -2552,25 +2548,15 @@ final class DesktopAutomationActionRegistry {
     registerRewindArtifactRecoveryGauntlet()
     register(
       name: "navigate_via_shortcut",
-      summary: "Post the same sidebar navigation notification as Cmd+1..5 / Cmd+, shortcuts",
+      summary: "Post the same navigation notification as Cmd+1..4 / Cmd+, shortcuts",
       params: ["shortcut"]
     ) { params in
       let shortcut = (params["shortcut"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         .lowercased()
       guard !shortcut.isEmpty else {
-        return ["error": "missing shortcut (1-6 or comma)"]
+        return ["error": "missing shortcut (1-4 or comma)"]
       }
-      let item: SidebarNavItem?
-      switch shortcut {
-      case "1", "home", "dashboard": item = .dashboard
-      case "2", "conversations": item = .conversations
-      case "3", "memories": item = .memories
-      case "4", "tasks": item = .tasks
-      case "5", "rewind": item = .rewind
-      case ",", "comma", "settings": item = .settings
-      default: item = nil
-      }
-      guard let item else {
+      guard let item = PrimaryNavigationShortcut.destination(for: shortcut) else {
         return ["error": "unsupported shortcut '\(shortcut)'"]
       }
       NotificationCenter.default.post(

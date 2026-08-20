@@ -143,7 +143,6 @@ def _desktop_transcribe_isolation():
             'calendar_meetings',
             'chat',
             'conversations',
-            'daily_summaries',
             'fair_use',
             'folders',
             'helpers',

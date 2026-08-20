@@ -106,6 +106,27 @@ AI-generated goal system, or task-specific push-notification path. The backend
 may return an untrusted action-item candidate from transient conversation compute,
 but the Mac alone decides whether and how it becomes a durable task.
 
+## macOS Focus, Insights, and profile authority
+
+The Mac owns Focus sessions and AI Profile history in its owner-scoped local
+GRDB database. Focus retains the current state, truthful capture status, today
+totals, and a short recent history. AI Profile generation uses bounded local
+inputs, commits only locally, and keeps five prior profiles. Neither product
+syncs to or falls back to a hosted data authority.
+
+Insights are owner-local Memory records tagged `tips`; the Insights UI is a
+projection of that one authority, not a second store. Home questions use bounded
+local context and owner/day caching. Home, Focus, and stored Insights navigate
+through one top-level Insights hub, while Live Suggestions remain a distinct
+local assistant behavior.
+
+Assistant controls and the master notification switch/frequency are local
+preferences. Proactive cards and macOS notifications may enter Chat only through
+the accepted local journal continuity path. Daily Summary, server AI Profile,
+server Focus, hosted assistant/notification/Mentor settings, personalized
+purchase/quota push copy, and the Notifications Cloud Run job are not product
+authorities. Generic FCM delivery remains only for separately owned callers.
+
 ## Before you build
 
 - Large or ambiguous features start as a GitHub issue.

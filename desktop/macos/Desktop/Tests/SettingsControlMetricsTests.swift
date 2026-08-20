@@ -31,16 +31,4 @@ final class SettingsControlMetricsTests: XCTestCase {
         locationX: lastPosition, stepCount: 6, containerWidth: containerWidth), 5)
   }
 
-  func testDailySummaryDateAlwaysUsesWholeHour() {
-    var calendar = Calendar(identifier: .gregorian)
-    calendar.timeZone = TimeZone(secondsFromGMT: 0)!
-    let referenceDate = Date(timeIntervalSince1970: 1_784_020_500)
-
-    let summaryDate = SettingsControlMetrics.dailySummaryDate(
-      forHour: 20, referenceDate: referenceDate, calendar: calendar)
-
-    XCTAssertEqual(calendar.component(.hour, from: summaryDate), 20)
-    XCTAssertEqual(calendar.component(.minute, from: summaryDate), 0)
-    XCTAssertEqual(SettingsControlMetrics.dailySummaryHour(from: summaryDate, calendar: calendar), 20)
-  }
 }

@@ -2478,6 +2478,62 @@ enum OwnerBoundNotificationPresentationResult: Equatable {
   case presented
 }
 
+enum ProactiveNotificationInteraction: Sendable {
+  case click
+  case dismiss
+  case timeout
+}
+
+enum ProactiveNotificationInteractionEffect: Equatable, Sendable {
+  case openLocalChat
+  case presentationOnly
+  case rejectOwnerChange
+}
+
+enum ProactiveNotificationContinuityPolicy {
+  static let journalOrigin = "proactive_notification"
+
+  static func effect(
+    for interaction: ProactiveNotificationInteraction,
+    notificationOwnerID: String,
+    currentOwnerID: String?
+  ) -> ProactiveNotificationInteractionEffect {
+    guard !notificationOwnerID.isEmpty, notificationOwnerID == currentOwnerID else {
+      return .rejectOwnerChange
+    }
+    switch interaction {
+    case .click: return .openLocalChat
+    case .dismiss, .timeout: return .presentationOnly
+    }
+  }
+}
+
+/// Lets a click wait for an already-started canonical journal admission instead
+/// of racing the async write and silently losing the requested chat open.
+@MainActor
+final class NotificationJournalAdmissionWaiters<Key: Hashable> {
+  private var waiters: [Key: [CheckedContinuation<Bool, Never>]] = [:]
+
+  func wait(for key: Key, isAdmitted: Bool, isPending: Bool) async -> Bool {
+    if isAdmitted { return true }
+    guard isPending else { return false }
+    return await withCheckedContinuation { continuation in
+      waiters[key, default: []].append(continuation)
+    }
+  }
+
+  func resolve(_ key: Key, admitted: Bool) {
+    let pending = waiters.removeValue(forKey: key) ?? []
+    pending.forEach { $0.resume(returning: admitted) }
+  }
+
+  func cancelAll() {
+    let pending = waiters.values.flatMap { $0 }
+    waiters.removeAll()
+    pending.forEach { $0.resume(returning: false) }
+  }
+}
+
 /// Singleton manager that owns the floating bar window and coordinates with AppState / ChatProvider.
 @MainActor
 class FloatingControlBarManager {
@@ -2639,6 +2695,8 @@ class FloatingControlBarManager {
   private var notificationWasTemporarilyShown = false
   private var storedNotificationMessages: [OwnerNotificationKey: StoredNotificationMessage] = [:]
   private var pendingNotificationJournalWrites: Set<OwnerNotificationKey> = []
+  private let notificationJournalAdmissionWaiters =
+    NotificationJournalAdmissionWaiters<OwnerNotificationKey>()
   private var mostRecentNotificationKey: OwnerNotificationKey?
   private var ownerChangeCancellable: AnyCancellable?
   private var pendingNotificationContext: PendingNotificationContext?
@@ -2737,6 +2795,7 @@ class FloatingControlBarManager {
     notificationDismissWorkItem = nil
     pendingNotifications.removeAll()
     pendingNotificationJournalWrites.removeAll()
+    notificationJournalAdmissionWaiters.cancelAll()
     storedNotificationMessages.removeAll()
     mostRecentNotificationKey = nil
     pendingNotificationContext = nil
@@ -2755,15 +2814,15 @@ class FloatingControlBarManager {
   }
 
   static func performOwnerBoundNotificationAdmission<Value: Sendable>(
-    ownerID: String,
-    currentOwnerID: @escaping @MainActor () -> String? = {
-      RuntimeOwnerIdentity.currentOwnerId()
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot,
+    isAuthorizationCurrent: @escaping @MainActor (RuntimeOwnerAuthorizationSnapshot) -> Bool = {
+      RuntimeOwnerIdentity.isAuthorizationCurrent($0)
     },
     record: () async -> Value?
   ) async -> Value? {
-    guard !ownerID.isEmpty, currentOwnerID() == ownerID else { return nil }
+    guard isAuthorizationCurrent(authorizationSnapshot) else { return nil }
     guard let value = await record() else { return nil }
-    guard currentOwnerID() == ownerID else { return nil }
+    guard isAuthorizationCurrent(authorizationSnapshot) else { return nil }
     return value
   }
 
@@ -3175,6 +3234,7 @@ class FloatingControlBarManager {
   @discardableResult
   func showNotification(
     ownerID: String,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot,
     title: String,
     message: String,
     assistantId: String,
@@ -3183,12 +3243,16 @@ class FloatingControlBarManager {
     suggestionTelemetryIdentity: SuggestionAssistantTelemetry.NotificationIdentity? = nil,
     screenshotData: Data? = nil
   ) -> OwnerBoundNotificationPresentationResult {
-    guard !ownerID.isEmpty, RuntimeOwnerIdentity.currentOwnerId() == ownerID else {
+    guard !ownerID.isEmpty,
+      authorizationSnapshot.ownerID == ownerID,
+      RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
+    else {
       log("FloatingControlBarManager: rejecting notification from stale runtime owner")
       return .rejectedOwnerChange
     }
     let notification = FloatingBarNotification(
       ownerID: ownerID,
+      authorizationSnapshot: authorizationSnapshot,
       title: title,
       message: message,
       assistantId: assistantId,
@@ -3239,7 +3303,9 @@ class FloatingControlBarManager {
     else { return }
     while !pendingNotifications.isEmpty {
       let nextNotification = pendingNotifications.removeFirst()
-      guard nextNotification.ownerID == RuntimeOwnerIdentity.currentOwnerId() else {
+      guard let authorizationSnapshot = nextNotification.authorizationSnapshot,
+        RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
+      else {
         log("FloatingControlBarManager: dropping queued notification from stale runtime owner")
         continue
       }
@@ -3787,7 +3853,14 @@ class FloatingControlBarManager {
   }
 
   func openNotificationAsChat(_ notification: FloatingBarNotification) {
-    guard notification.ownerID == RuntimeOwnerIdentity.currentOwnerId(),
+    guard
+      let authorizationSnapshot = notification.authorizationSnapshot,
+      RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot),
+      ProactiveNotificationContinuityPolicy.effect(
+        for: .click,
+        notificationOwnerID: notification.ownerID,
+        currentOwnerID: RuntimeOwnerIdentity.currentOwnerId()
+      ) == .openLocalChat,
       let window
     else { return }
 
@@ -3802,11 +3875,29 @@ class FloatingControlBarManager {
     notificationDismissWorkItem?.cancel()
     notificationDismissWorkItem = nil
     dismissNotificationAndAdvanceQueue(trackDismissal: false)
-    _ = openNotificationConversation(notificationID: notification.id, in: window)
+    if openNotificationConversation(notificationID: notification.id, in: window) { return }
+
+    let key = OwnerNotificationKey(ownerID: notification.ownerID, notificationID: notification.id)
+    Task { @MainActor [weak self] in
+      guard let self else { return }
+      let admitted = await self.notificationJournalAdmissionWaiters.wait(
+        for: key,
+        isAdmitted: self.storedNotificationMessages[key] != nil,
+        isPending: self.pendingNotificationJournalWrites.contains(key))
+      guard admitted,
+        RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot),
+        let currentWindow = self.window
+      else { return }
+      _ = self.openNotificationConversation(
+        notificationID: notification.id,
+        in: currentWindow)
+    }
   }
 
   private func presentNotification(_ notification: FloatingBarNotification, in window: FloatingControlBarWindow) {
-    guard notification.ownerID == RuntimeOwnerIdentity.currentOwnerId() else {
+    guard let authorizationSnapshot = notification.authorizationSnapshot,
+      RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
+    else {
       log("FloatingControlBarManager: refusing to present stale-owner notification")
       return
     }
@@ -3876,7 +3967,9 @@ class FloatingControlBarManager {
     if !window.state.showingAIConversation {
       while !pendingNotifications.isEmpty {
         let nextNotification = pendingNotifications.removeFirst()
-        guard nextNotification.ownerID == RuntimeOwnerIdentity.currentOwnerId() else {
+        guard let authorizationSnapshot = nextNotification.authorizationSnapshot,
+          RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
+        else {
           log("FloatingControlBarManager: dropping queued notification from stale runtime owner")
           continue
         }
@@ -3894,7 +3987,8 @@ class FloatingControlBarManager {
   private func persistNotificationMessageIfNeeded(_ notification: FloatingBarNotification) {
     let ownerID = notification.ownerID
     guard !ownerID.isEmpty,
-      RuntimeOwnerIdentity.currentOwnerId() == ownerID,
+      let authorizationSnapshot = notification.authorizationSnapshot,
+      RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot),
       let provider = historyChatProvider
     else { return }
     let surface = provider.mainChatSurfaceReference()
@@ -3914,10 +4008,11 @@ class FloatingControlBarManager {
       guard let self else { return }
       guard let provider else {
         self.pendingNotificationJournalWrites.remove(key)
+        self.notificationJournalAdmissionWaiters.resolve(key, admitted: false)
         return
       }
       let storedMessage = await Self.performOwnerBoundNotificationAdmission(
-        ownerID: ownerID
+        authorizationSnapshot: authorizationSnapshot
       ) {
         let recorded = await provider.recordJournalExchange(
           surface: surface,
@@ -3925,12 +4020,14 @@ class FloatingControlBarManager {
           continuityKey: continuityKey,
           userText: "",
           assistantText: messageText,
-          origin: "proactive_notification"
+          origin: ProactiveNotificationContinuityPolicy.journalOrigin,
+          authorizationSnapshot: authorizationSnapshot
         )
         return recorded.assistant
       }
       self.pendingNotificationJournalWrites.remove(key)
       guard storedMessage != nil else {
+        self.notificationJournalAdmissionWaiters.resolve(key, admitted: false)
         log("FloatingControlBarManager: notification journal admission rejected")
         return
       }
@@ -3941,6 +4038,7 @@ class FloatingControlBarManager {
         createdAt: Date()
       )
       self.mostRecentNotificationKey = key
+      self.notificationJournalAdmissionWaiters.resolve(key, admitted: true)
     }
   }
 

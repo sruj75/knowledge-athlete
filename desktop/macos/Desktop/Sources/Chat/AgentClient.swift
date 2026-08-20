@@ -282,12 +282,14 @@ enum AgentClient {
     func recordJournalExchange(
       surface: AgentSurfaceReference,
       ownerID: String,
-      turns: [KernelJournalTurnWrite]
+      turns: [KernelJournalTurnWrite],
+      authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot? = nil
     ) async throws -> AgentRuntimeProcess.JournalOperationResult {
       try await bridge.recordJournalExchange(
         surface: surface,
         ownerID: ownerID,
-        turns: turns
+        turns: turns,
+        authorizationSnapshot: authorizationSnapshot
       )
     }
 
