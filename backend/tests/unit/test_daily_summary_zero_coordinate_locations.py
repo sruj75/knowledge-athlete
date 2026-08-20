@@ -62,7 +62,6 @@ def ext():
         "utils.conversations": _real_pkg("utils", "conversations"),
         "models": _real_pkg("models", "models"),
         "database": _real_pkg("database", "database"),
-        "database.action_items": _leaf("database.action_items"),
         "database.users": _leaf("database.users"),
         "models.conversation": _leaf("models.conversation"),
         "models.daily_summary_payload": _leaf("models.daily_summary_payload"),
@@ -107,7 +106,6 @@ class _Convo:
 def _configure(ext):
     ext.users_db.get_user_profile = MagicMock(return_value={"time_zone": "UTC", "language": "en"})
     ext.users_db.get_people_by_ids = MagicMock(return_value=[])
-    ext.action_items_db.get_action_items = MagicMock(return_value=[])
     ext.get_prompt_memories = MagicMock(return_value=("TestUser", ""))
     ext.conversations_to_string = MagicMock(return_value="history")
     # Non-JSON LLM output -> JSONDecodeError -> _basic_daily_summary(..., locations)

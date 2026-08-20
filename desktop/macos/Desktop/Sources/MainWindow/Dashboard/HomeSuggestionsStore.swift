@@ -248,12 +248,17 @@ struct GeminiHomeSuggestionGenerator: HomeSuggestionGenerating {
       guard RuntimeOwnerIdentity.isAuthorizationCurrent(snapshot) else { return nil }
       return result
     }()
-    async let actionItemsFetch = { () async -> ActionItemsListResponse? in
-      try? await APIClient.shared.getActionItems(
-        limit: 50, completed: false, authorizationSnapshot: snapshot)
+    async let actionItemsFetch = { () async -> [TaskActionItem]? in
+      guard RuntimeOwnerIdentity.isAuthorizationCurrent(snapshot) else { return nil }
+      let tasks = try? await ActionItemStorage.shared.getLocalActionItems(limit: 50, completed: false)
+      guard RuntimeOwnerIdentity.isAuthorizationCurrent(snapshot) else { return nil }
+      return tasks
     }()
-    async let goalsFetch = { () async -> [Goal]? in
-      try? await APIClient.shared.getGoals(authorizationSnapshot: snapshot)
+    async let goalsFetch = { () async -> [LocalGoal]? in
+      guard RuntimeOwnerIdentity.isAuthorizationCurrent(snapshot) else { return nil }
+      let goals = try? await GoalStorage.shared.getLocalGoals(activeOnly: true)
+      guard RuntimeOwnerIdentity.isAuthorizationCurrent(snapshot) else { return nil }
+      return goals
     }()
 
     let (memories, conversations, actionItems, goals) = await (
@@ -266,7 +271,7 @@ struct GeminiHomeSuggestionGenerator: HomeSuggestionGenerating {
         $0.compactMap { $0.structured.overview.isEmpty ? nil : $0.structured.overview }
           .joined(separator: "\n")
       },
-      tasks: actionItems.map { $0.items.map { $0.description }.joined(separator: "\n") },
+      tasks: actionItems.map { $0.map { $0.description }.joined(separator: "\n") },
       goals: goals.map { $0.map { $0.title }.joined(separator: "\n") }
     )
 

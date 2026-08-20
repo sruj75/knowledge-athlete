@@ -15,7 +15,6 @@ extension DesktopAutomationActionRegistry {
       return [
         "focus_enabled": focus.isEnabled ? "true" : "false",
         "task_enabled": task.isEnabled ? "true" : "false",
-        "task_chat_agent_enabled": TaskAgentSettings.shared.isChatEnabled ? "true" : "false",
         "insight_enabled": insight.isEnabled ? "true" : "false",
         "memory_enabled": memory.isEnabled ? "true" : "false",
         "screen_analysis_enabled": assistant.screenAnalysisEnabled ? "true" : "false",

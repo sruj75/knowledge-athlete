@@ -62,13 +62,13 @@ describe("desktop tool policy", () => {
     expect(denied.reason).toContain("Missing selected bundle");
   });
 
-  it("keeps workstream external sends blocked until a matching scoped grant exists", () => {
+  it("keeps project-scoped external sends blocked until a matching scoped grant exists", () => {
     const base = {
       requestedBundles: ["external.write_send"] as const,
       selectedBundles: ["external.write_send"] as const,
       externalSend: true,
       operation: "send_email",
-      resourceRef: "workstream:ws-launch",
+      resourceRef: "project:launch",
       nowMs: 1_000,
     };
 
@@ -80,7 +80,7 @@ describe("desktop tool policy", () => {
           {
             bundle: "external.write_send" as const,
             operation: "send_email",
-            resourceRef: "workstream:ws-launch",
+            resourceRef: "project:launch",
             effect: "allow" as const,
             expiresAtMs: 2_000,
           },
@@ -90,12 +90,12 @@ describe("desktop tool policy", () => {
     expect(
       evaluateDesktopToolPolicy({
         ...base,
-        resourceRef: "workstream:ws-other",
+        resourceRef: "project:other",
         grants: [
           {
             bundle: "external.write_send" as const,
             operation: "send_email",
-            resourceRef: "workstream:ws-launch",
+            resourceRef: "project:launch",
             effect: "allow" as const,
             expiresAtMs: 2_000,
           },

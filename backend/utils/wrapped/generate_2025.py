@@ -10,7 +10,6 @@ from typing import List, Dict, Any, Set, cast
 
 import database.wrapped as wrapped_db
 import database.conversations as conversations_db
-import database.action_items as action_items_db
 from database.wrapped import WrappedStatus
 from models.conversation import Conversation
 from utils.conversations.factory import deserialize_conversations
@@ -782,23 +781,9 @@ def generate_wrapped_2025(uid: str, year: int = 2025):
             logger.info(f"[Wrapped]   - First conversation date: {conversations[0].created_at}")
             logger.info(f"[Wrapped]   - Last conversation date: {conversations[-1].created_at}")
 
-        # Step 2: Fetch action items
+        # Tasks are local-authoritative and are not available to the hosted Wrapped job.
         step_start = time.time()
-        _update_progress(uid, year, "Fetching action items...", 0.2)
-        logger.info(f"[Wrapped] Step 2: Fetching action items...")
-
-        action_items = action_items_db.get_action_items(
-            uid=uid,
-            start_date=YEAR_2025_START,
-            end_date=YEAR_2025_END,
-            limit=10000,
-        )
-        logger.info(
-            f"[Wrapped] Step 2 complete: Found {len(action_items)} action items for 2025 (took {time.time() - step_start:.2f}s)"
-        )
-
-        completed_count = sum(1 for item in action_items if item.get("completed", False))
-        logger.info(f"[Wrapped]   - Completed: {completed_count}, Pending: {len(action_items) - completed_count}")
+        action_items: List[Dict[str, Any]] = []
 
         # Step 3: Compute basic stats
         step_start = time.time()

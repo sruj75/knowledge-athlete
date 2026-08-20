@@ -1,13 +1,11 @@
 version: 2
 name: tasks-crud
 tier: 2
-description: Hermetic task create, toggle, dump, and delete via bridge actions
+description: Hermetic local task create, complete, readback, and delete via production bridge paths
 app: non-prod
 covers:
   - desktop/macos/Desktop/Sources/MainWindow/Pages/TasksPage.swift
-  - desktop/macos/Desktop/Sources/Services/APIClient/APIClient+TaskCatalog.swift
-  - desktop/macos/Desktop/Sources/Services/LocalMutationAuthorization.swift
-  - desktop/macos/Desktop/Sources/Stores/APIClient+Tasks.swift
+  - desktop/macos/Desktop/Sources/Rewind/Core/ActionItemStorage.swift
   - desktop/macos/Desktop/Sources/Stores/TasksStore.swift
 preconditions:
   - automation_bridge_ready
@@ -22,23 +20,27 @@ steps:
       state.selectedTabIndex: 4
 
   - id: S2
-    name: Create hermetic task
+    name: Create a local task
     bridge.action:
       name: create_task
       params:
         description: "[[MARKER:tasks-crud]] harness task"
+        priority: high
     expect:
-      result.detail.synced: "true"
+      result.detail.local_id: "true"
 
   - id: S3
-    name: Dump tasks
+    name: Read the task from local storage
     bridge.action:
       name: dump_tasks
+      params:
+        marker: "[[MARKER:tasks-crud]]"
     expect:
       result.detail.count: { min: 1 }
+      result.detail.marker_absent: "false"
 
   - id: S4
-    name: Toggle task by marker description
+    name: Complete the local task
     bridge.action:
       name: toggle_task
       params:
@@ -47,7 +49,17 @@ steps:
       result.detail.completed: "true"
 
   - id: S5
-    name: Delete task by marker description
+    name: Read completed history
+    bridge.action:
+      name: dump_tasks
+      params:
+        includeCompleted: "true"
+        marker: "[[MARKER:tasks-crud]]"
+    expect:
+      result.detail.marker_absent: "false"
+
+  - id: S6
+    name: Delete the same local task
     bridge.action:
       name: delete_task
       params:
@@ -55,17 +67,19 @@ steps:
     expect:
       result.detail.deleted: "true"
 
-  - id: S6
-    name: Verify task removed (dump absence)
+  - id: S7
+    name: Verify the task is absent
     bridge.action:
       name: dump_tasks
       params:
+        includeCompleted: "true"
         marker: "[[MARKER:tasks-crud]]"
     expect:
       result.detail.marker_absent: "true"
 
-  - id: S7
-    name: Logs clean
+  - id: S8
+    name: Logs contain no task transport failure
     log.expect:
       absent:
         - "DesktopAutomationBridge: failed"
+        - "/v1/action-items"

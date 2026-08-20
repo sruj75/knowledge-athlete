@@ -12,8 +12,7 @@ struct LiveConversationTaskSimilarityProvider: ConversationTaskSimilarityProvidi
     guard await EmbeddingService.shared.indexLoaded else { return [] }
     let embedding = try await EmbeddingService.shared.embed(
       text: transcript, taskType: "RETRIEVAL_QUERY")
-    return await EmbeddingService.shared.searchSimilar(query: embedding, topK: 30).compactMap { result in
-      guard result.source == .actionItem else { return nil }
+    return await EmbeddingService.shared.searchSimilar(query: embedding, topK: 30).map { result in
       return ConversationTaskSimilarityMatch(localRowId: result.id, similarity: result.similarity)
     }
   }

@@ -79,7 +79,6 @@ const AUTOMATION_READ_TOOLS = new Set(["check_permission_status"]);
 const LOCAL_READ_TOOLS = new Set([
   "execute_sql",
   "get_daily_recap",
-  "search_tasks",
   "get_conversations",
   "search_conversations",
   "get_memories",

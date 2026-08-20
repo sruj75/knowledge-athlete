@@ -1,17 +1,12 @@
 version: 2
 name: goals-dashboard
 tier: 2
-description: Hermetic dashboard goals create + snapshot via bridge actions
+description: Hermetic simple local goal creation and Dashboard projection
 app: non-prod
 covers:
   - desktop/macos/Desktop/Sources/MainWindow/Components/GoalsWidget.swift
-  - desktop/macos/Desktop/Sources/MainWindow/Pages/GoalsHistoryPage.swift
-  - desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/Goals/GoalGenerationService.swift
-  - desktop/macos/Desktop/Sources/ProactiveAssistants/Core/AssistantProtocol.swift
-  - desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/Goals/GoalsAIService.swift
+  - desktop/macos/Desktop/Sources/MainWindow/Pages/DashboardPage.swift
   - desktop/macos/Desktop/Sources/Rewind/Core/GoalStorage.swift
-  - desktop/macos/Desktop/Sources/MainWindow/Components/GoalCelebrationView.swift
-  - desktop/macos/Desktop/Sources/Services/APIClient/APIClient+GoalModels.swift
 preconditions:
   - automation_bridge_ready
 
@@ -25,32 +20,32 @@ steps:
       state.selectedTabIndex: 0
 
   - id: S2
-    name: Baseline goals snapshot
+    name: Baseline local goals
     bridge.action:
       name: goals_snapshot
     expect:
       ok: true
 
   - id: S3
-    name: Create hermetic test goal
+    name: Create a simple local goal
     bridge.action:
       name: create_test_goal
       params:
         title: "[[MARKER:goals-dashboard]] harness goal"
-        targetValue: "10"
-        currentValue: "2"
+        description: "Local lifecycle acceptance"
     expect:
       result.detail.created: "true"
 
   - id: S4
-    name: Goals snapshot after create
+    name: Read the goal from local storage
     bridge.action:
       name: goals_snapshot
     expect:
       ok: true
 
   - id: S5
-    name: Logs clean
+    name: Logs contain no goal transport failure
     log.expect:
       absent:
         - "DesktopAutomationBridge: failed"
+        - "/v1/goals"

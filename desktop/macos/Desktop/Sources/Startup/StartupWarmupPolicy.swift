@@ -76,7 +76,6 @@ enum StartupWarmupPolicy {
   static let proactiveAssistantsStartDelay: TimeInterval = 6.0
   static let conversationWarmupDelay: TimeInterval = 6.0
   static let transcriptionRetryRecoveryDelay: TimeInterval = 8.0
-  static let recurringTaskSchedulerInitialDelay: TimeInterval = 12.0
   /// Remaining warmup delay, measured from a launch anchor rather than from
   /// the triggering event. Warmup delays exist to keep heavy work out of the
   /// busy launch window, so late triggers must not re-pay the full delay:

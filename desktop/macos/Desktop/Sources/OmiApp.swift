@@ -1289,9 +1289,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, @unchecked S
     // Stop transcription retry service
     TranscriptionRetryService.shared.stop()
 
-    // Stop recurring task scheduler
-    RecurringTaskScheduler.shared.stop()
-
     // Finalize the active Rewind MP4 chunk while the app is still alive.
     // AVAssetWriter files are not readable until finishWriting writes the trailer.
     let didFlushRewind = RewindShutdownFlush.flush(timeout: 5, context: "AppDelegate")

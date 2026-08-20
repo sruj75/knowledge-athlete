@@ -69,7 +69,6 @@ class TestPremiumFlagship:
         'conv_structure',
         'daily_summary',
         'chat_responses',
-        'goals_advice',
         'notifications',
     ]
 
@@ -91,7 +90,6 @@ class TestPremiumMini:
 
     MINI_FEATURES = [
         'chat_extraction',
-        'goals',
         'proactive_notification',
     ]
 

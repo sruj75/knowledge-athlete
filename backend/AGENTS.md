@@ -41,10 +41,9 @@ backend/
     helpers.py            #   Decorators: data protection levels, encryption/decryption on read/write
     conversations.py      #   Conversations with encrypted segments, photos, processing status
     users.py              #   Profiles, subscriptions, people/contacts, private cloud sync settings
-    action_items.py       #   Tasks with due dates, completion status
     vector_db.py          #   Pinecone integration for semantic search
     fair_use.py           #   Usage limits and soft-cap tracking
-    ...                   #   + folders, goals, phone_calls, daily_summaries, trends, etc.
+    ...                   #   + folders, phone_calls, daily_summaries, trends, etc.
   routers/                # FastAPI route handlers, one per retained feature domain
     transcribe.py         #   /v4/listen WebSocket — auth + exact transient session contract
     listen/               #   Modulate transport, VAD, metering, canonical segments, direct translation
@@ -54,10 +53,10 @@ backend/
     sync.py               #   Internal audio-merge Cloud Tasks handler retained for S-25
     auth.py               #   Google/Apple OAuth callbacks, session management
     users.py              #   Profile, subscription, settings (1200 LOC)
-    ...                   #   + action_items, goals, payment, and other retained product routes
+    ...                   #   + payment and other retained product routes
   utils/                  # Business logic — 60+ files (never import from routers/)
     llm/                  #   LLM orchestration (14 files): chat processing, conversation post-processing,
-                          #   transient Memory proposal compute, proactive notifications, goal tracking,
+                          #   transient Memory proposal compute and proactive notifications,
                           #   fair-use classification, and usage tracking
       clients.py          #     Model instances: OpenAI (gpt-4.1-mini, o4-mini), Anthropic (claude-sonnet-4-6),
                           #     OpenRouter (gemini-flash), with prompt caching and usage callbacks
@@ -65,7 +64,7 @@ backend/
                           #   pre-recorded batch transcription, speaker embeddings
     conversations/        #   Conversation lifecycle (6 files): ingestion, action items,
                           #   merge, post-processing, search
-    retrieval/            #   RAG pipeline for retained action-item, conversation,
+    retrieval/            #   RAG pipeline for retained conversation,
                           #   explicit-file, web-search, and notification tools
     other/                #   Storage (GCS), auth dependencies, timeout middleware, Hume emotion detection
     log_sanitizer.py      #   sanitize() / sanitize_pii() — required for all logging

@@ -15,15 +15,12 @@ final class TasksViewModelCompletedToggleTests: XCTestCase {
 
   func testToggleFlipsBetweenTodoAndDoneViews() {
     let vm = TasksViewModel()
-    XCTAssertEqual(vm.selectedTags, [.todo], "default view is To Do, like mobile")
     XCTAssertFalse(vm.showCompleted)
 
     vm.toggleShowCompletedView()
-    XCTAssertEqual(vm.selectedTags, [.done])
     XCTAssertTrue(vm.showCompleted)
 
     vm.toggleShowCompletedView()
-    XCTAssertEqual(vm.selectedTags, [.todo])
     XCTAssertFalse(vm.showCompleted)
   }
 
@@ -37,7 +34,7 @@ final class TasksViewModelCompletedToggleTests: XCTestCase {
     store.incompleteTasks = [active, completedStray]
 
     let vm = TasksViewModel()
-    vm.selectedTags = [.todo]
+    vm.recompute()
 
     let categorized = TaskCategory.allCases.flatMap { vm.getOrderedTasks(for: $0) }
     XCTAssertEqual(
@@ -65,10 +62,11 @@ final class TasksViewModelCompletedToggleTests: XCTestCase {
     store.isLoadingIncomplete = true
 
     let vm = TasksViewModel()
+    vm.recompute()
 
-    XCTAssertTrue(vm.activeTasks.isEmpty)
-    XCTAssertTrue(vm.isActiveViewLoading)
-    XCTAssertFalse(vm.hasLoadedActiveView)
+    XCTAssertTrue(vm.displayTasks.isEmpty)
+    XCTAssertTrue(vm.isLoading)
+    XCTAssertFalse(store.hasLoadedIncompleteTasks)
   }
 
   private func task(id: String, completed: Bool) -> TaskActionItem {

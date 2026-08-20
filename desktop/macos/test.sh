@@ -38,7 +38,7 @@ cd "$SCRIPT_DIR"
 # Each XCTest suite runs in its own `swift test --filter` process.
 #
 # Why: many suites share process-global singletons (RewindDatabase.shared,
-# MemoryStorage.shared, AuthState.shared, StagedTaskStorage.shared), a real
+# MemoryStorage.shared and AuthState.shared), a real
 # on-disk SQLite, and UserDefaults. In a single combined `swift test` run that
 # state leaks across suites and hard-crashes a co-scheduled memory/storage suite.
 # The crash is a scheduling-dependent moving target, so no fixed --skip set makes

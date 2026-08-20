@@ -70,7 +70,6 @@ for module_prefix in [
     "routers.chat_sessions",
     "routers.focus_sessions",
     "routers.advice",
-    "routers.staged_tasks",
 ]:
     _remove_module_tree(module_prefix)
 
@@ -171,13 +170,6 @@ endpoints_stub.timeit = lambda f: f
 _stub_module("utils.observability")
 fallback_stub = _stub_module("utils.observability.fallback")
 fallback_stub.record_fallback = MagicMock()
-task_intelligence_stub = _stub_package("utils.task_intelligence")
-candidate_service_stub = _stub_module("utils.task_intelligence.candidate_service")
-candidate_service_stub.create_candidate = MagicMock()
-task_intelligence_stub.candidate_service = candidate_service_stub
-staged_migration_stub = _stub_module("utils.task_intelligence.staged_migration")
-staged_migration_stub.proposal_from_legacy_staged = MagicMock()
-staged_migration_stub.migrate_staged_tasks = MagicMock()
 request_validation_stub = _stub_module("utils.request_validation")
 request_validation_stub.validate_calendar_date = lambda value, field_name='date': value
 redis_stub = _stub_module("database.redis_db")
@@ -190,9 +182,7 @@ redis_stub.try_acquire_user_platform_write_lock = MagicMock(return_value=True)
 # ---------------------------------------------------------------------------
 import database.users as users_db  # noqa: E402
 import database.chat as chat_db  # noqa: E402
-import database.action_items as action_items_db  # noqa: E402
 import database.llm_usage as llm_usage_db  # noqa: E402
-import database.staged_tasks as staged_tasks_db  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Import Pydantic models from lightweight router files
@@ -202,7 +192,6 @@ from pydantic import BaseModel, Field, ValidationError  # noqa: E402
 from routers.chat_sessions import SaveMessageRequest, RateMessageRequest  # noqa: E402
 from routers.focus_sessions import CreateFocusSessionRequest  # noqa: E402
 from routers.advice import CreateAdviceRequest  # noqa: E402
-from routers.staged_tasks import BatchUpdateScoresRequest, BatchScoreEntry  # noqa: E402
 
 _ensure_package_path("models", BACKEND_DIR / "models")
 _ensure_package_path("utils", BACKEND_DIR / "utils")
@@ -1444,252 +1433,6 @@ class TestLlmUsageBucketParam:
         assert result == 0.5  # Only custom_feature, not custom_feature_openai or desktop_chat
 
 
-# ===========================================================================
-# 3. SCORE COMPUTATION TESTS (mock Firestore)
-# ===========================================================================
-
-
-class TestDailyScoreWireCompat:
-    """Verify daily-score returns Swift DailyScore-compatible fields."""
-
-    def _make_mock_doc(self, data):
-        doc = MagicMock()
-        doc.to_dict.return_value = data
-        doc.id = data.get('id', 'doc-1')
-        return doc
-
-    def test_daily_score_uses_completed_tasks_and_total_tasks(self):
-        """get_daily_score returns completed_tasks/total_tasks, not completed/total."""
-        mock_col = MagicMock()
-        mock_query = MagicMock()
-        mock_query.where.return_value = mock_query
-        mock_query.stream.return_value = [
-            self._make_mock_doc({'completed': True}),
-            self._make_mock_doc({'completed': False}),
-        ]
-        mock_col.where.return_value = mock_query
-
-        with patch.object(action_items_db, 'db') as patched_db:
-            patched_db.collection.return_value.document.return_value.collection.return_value = mock_col
-            result = action_items_db.get_daily_score('test-uid', date='2025-01-15')
-
-        assert 'completed_tasks' in result, f"Expected completed_tasks, got keys: {result.keys()}"
-        assert 'total_tasks' in result, f"Expected total_tasks, got keys: {result.keys()}"
-        assert 'completed' not in result, "Should not have raw 'completed' key"
-        assert 'total' not in result, "Should not have raw 'total' key"
-        assert result['completed_tasks'] == 1
-        assert result['total_tasks'] == 2
-        assert result['date'] == '2025-01-15'
-        assert result['score'] == 50
-
-
-class TestScoreComputation:
-    """Verify score computation logic."""
-
-    def _make_mock_doc(self, data):
-        doc = MagicMock()
-        doc.to_dict.return_value = data
-        doc.id = data.get('id', 'doc-1')
-        return doc
-
-    def test_weekly_uses_created_at_not_due_at(self):
-        """get_scores weekly query uses created_at field, not due_at."""
-        mock_col = MagicMock()
-
-        # Daily query (due_at) returns empty
-        daily_query = MagicMock()
-        daily_query.where.return_value = daily_query
-        daily_query.stream.return_value = []
-
-        # Weekly query (created_at) returns 1 completed task
-        weekly_query = MagicMock()
-        weekly_query.where.return_value = weekly_query
-        weekly_doc = self._make_mock_doc({'completed': True, 'created_at': datetime.now(timezone.utc)})
-        weekly_query.stream.return_value = [weekly_doc]
-
-        # Overall stream returns same
-        mock_col.stream.return_value = [weekly_doc]
-
-        # Track which field filters are created
-        captured_filters = []
-        original_ff = action_items_db.FieldFilter
-
-        def tracking_filter(field, op, value):
-            captured_filters.append(field)
-            return original_ff(field, op, value)
-
-        call_count = [0]
-
-        def col_where(**kwargs):
-            call_count[0] += 1
-            if call_count[0] <= 1:
-                return daily_query
-            else:
-                return weekly_query
-
-        mock_col.where = col_where
-
-        with patch.object(action_items_db, 'db') as patched_db, patch.object(
-            action_items_db, 'FieldFilter', side_effect=tracking_filter
-        ):
-            patched_db.collection.return_value.document.return_value.collection.return_value = mock_col
-            result = action_items_db.get_scores('test-uid', date='2025-01-15')
-
-        # Verify created_at was used in filter calls (for weekly query)
-        assert 'created_at' in captured_filters, f"Expected created_at in filters, got: {captured_filters}"
-
-    def test_weekly_window_spans_seven_days_ending_on_date(self):
-        """The weekly window is the 7 days ending on `date`, i.e. [date-6, date+1).
-
-        Regression: it was [date-7, date+1) — 8 calendar days — which over-counted
-        every task created on the date-7 day, inconsistent with the docstring and
-        with the one-day daily window [date, date+1).
-        """
-        from datetime import timedelta
-
-        mock_col = MagicMock()
-        empty = MagicMock()
-        empty.where.return_value = empty
-        empty.stream.return_value = []
-        mock_col.where.return_value = empty
-        mock_col.stream.return_value = []
-
-        captured = []  # (field, op, value)
-        original_ff = action_items_db.FieldFilter
-
-        def tracking_filter(field, op, value):
-            captured.append((field, op, value))
-            return original_ff(field, op, value)
-
-        with patch.object(action_items_db, 'db') as patched_db, patch.object(
-            action_items_db, 'FieldFilter', side_effect=tracking_filter
-        ):
-            patched_db.collection.return_value.document.return_value.collection.return_value = mock_col
-            action_items_db.get_scores('test-uid', date='2026-07-19')
-
-        day = datetime(2026, 7, 19, tzinfo=timezone.utc)
-        created_at_lower = [v for (f, op, v) in captured if f == 'created_at' and op == '>=']
-        assert created_at_lower, f"no created_at >= filter captured: {captured}"
-        # 7 days ending on 2026-07-19 -> lower bound is 2026-07-13 (day-6), not 2026-07-12 (day-7).
-        assert created_at_lower[0] == day - timedelta(days=6), created_at_lower[0]
-
-    def test_default_tab_daily_when_highest(self):
-        """default_tab is 'daily' when daily has tasks and highest score."""
-        mock_col = MagicMock()
-
-        # Daily: 2/2 completed = 100%
-        daily_docs = [
-            self._make_mock_doc({'completed': True}),
-            self._make_mock_doc({'completed': True}),
-        ]
-        daily_query = MagicMock()
-        daily_query.where.return_value = daily_query
-        daily_query.stream.return_value = daily_docs
-
-        # Weekly: 1/2 = 50%
-        weekly_docs = [
-            self._make_mock_doc({'completed': True}),
-            self._make_mock_doc({'completed': False}),
-        ]
-        weekly_query = MagicMock()
-        weekly_query.where.return_value = weekly_query
-        weekly_query.stream.return_value = weekly_docs
-
-        # Overall: same as weekly
-        mock_col.stream.return_value = weekly_docs
-
-        call_count = [0]
-
-        def col_where(**kwargs):
-            call_count[0] += 1
-            if call_count[0] <= 1:
-                return daily_query
-            else:
-                return weekly_query
-
-        mock_col.where = col_where
-
-        with patch.object(action_items_db, 'db') as patched_db:
-            patched_db.collection.return_value.document.return_value.collection.return_value = mock_col
-            result = action_items_db.get_scores('test-uid', date='2025-01-15')
-
-        assert result['default_tab'] == 'daily'
-
-    def test_default_tab_weekly_when_no_daily_tasks(self):
-        """default_tab is 'weekly' when daily has no tasks."""
-        mock_col = MagicMock()
-
-        # Daily: 0 tasks
-        daily_query = MagicMock()
-        daily_query.where.return_value = daily_query
-        daily_query.stream.return_value = []
-
-        # Weekly: 1/1 = 100%
-        weekly_doc = self._make_mock_doc({'completed': True})
-        weekly_query = MagicMock()
-        weekly_query.where.return_value = weekly_query
-        weekly_query.stream.return_value = [weekly_doc]
-
-        # Overall: 1/2 = 50%
-        overall_docs = [
-            self._make_mock_doc({'completed': True}),
-            self._make_mock_doc({'completed': False}),
-        ]
-        mock_col.stream.return_value = overall_docs
-
-        call_count = [0]
-
-        def col_where(**kwargs):
-            call_count[0] += 1
-            if call_count[0] <= 1:
-                return daily_query
-            else:
-                return weekly_query
-
-        mock_col.where = col_where
-
-        with patch.object(action_items_db, 'db') as patched_db:
-            patched_db.collection.return_value.document.return_value.collection.return_value = mock_col
-            result = action_items_db.get_scores('test-uid', date='2025-01-15')
-
-        assert result['default_tab'] == 'weekly'
-
-    def test_default_tab_overall_when_lowest_weekly(self):
-        """default_tab is 'overall' when overall score exceeds weekly."""
-        mock_col = MagicMock()
-
-        # Daily: 0 tasks
-        daily_query = MagicMock()
-        daily_query.where.return_value = daily_query
-        daily_query.stream.return_value = []
-
-        # Weekly: 0/1 = 0%
-        weekly_query = MagicMock()
-        weekly_query.where.return_value = weekly_query
-        weekly_query.stream.return_value = [self._make_mock_doc({'completed': False})]
-
-        # Overall: 1/1 = 100%
-        mock_col.stream.return_value = [self._make_mock_doc({'completed': True})]
-
-        call_count = [0]
-
-        def col_where(**kwargs):
-            call_count[0] += 1
-            if call_count[0] <= 1:
-                return daily_query
-            else:
-                return weekly_query
-
-        mock_col.where = col_where
-
-        with patch.object(action_items_db, 'db') as patched_db:
-            patched_db.collection.return_value.document.return_value.collection.return_value = mock_col
-            result = action_items_db.get_scores('test-uid', date='2025-01-15')
-
-        assert result['default_tab'] == 'overall'
-
-
-# ===========================================================================
 # 4. LLM USAGE TESTS (mock Firestore)
 # ===========================================================================
 
@@ -1778,100 +1521,7 @@ class TestLlmUsage:
         assert total == 0.01
 
 
-# ===========================================================================
-# 5. BATCH LIMIT TEST
-# ===========================================================================
-
-
-class TestBatchLimit:
-    """Verify _commit_batch triggers commit at BATCH_LIMIT=500."""
-
-    def test_commit_at_batch_limit(self):
-        """_commit_batch commits and returns fresh batch when count >= BATCH_LIMIT."""
-        mock_batch = MagicMock()
-        new_batch = MagicMock()
-        with patch.object(staged_tasks_db, 'db') as patched_db:
-            patched_db.batch.return_value = new_batch
-            result_batch, result_count = staged_tasks_db._commit_batch(mock_batch, 500)
-
-        mock_batch.commit.assert_called_once()
-        assert result_batch is new_batch
-        assert result_count == 0
-
-    def test_no_commit_below_limit(self):
-        """_commit_batch does NOT commit when count < BATCH_LIMIT."""
-        mock_batch = MagicMock()
-
-        result_batch, result_count = staged_tasks_db._commit_batch(mock_batch, 499)
-
-        mock_batch.commit.assert_not_called()
-        assert result_batch is mock_batch
-        assert result_count == 499
-
-    def test_batch_limit_is_500(self):
-        """BATCH_LIMIT constant is 500."""
-        assert staged_tasks_db.BATCH_LIMIT == 500
-
-
-# ===========================================================================
-# 6. PROMOTE RESPONSE WIRE-COMPAT (PromoteResponse envelope)
-# ===========================================================================
-
 import database.focus_sessions as focus_sessions_db
-
-
-class TestPromoteResponseWireCompat:
-    """Verify promote endpoint returns PromoteResponse envelope expected by Swift client."""
-
-    def test_promote_returns_envelope_when_task_exists(self):
-        """Router wraps promoted action_item in {promoted: true, reason: null, promoted_task: {...}}."""
-        from routers.staged_tasks import promote_staged_task
-
-        mock_action_item = {'id': 'ai-1', 'description': 'Test task', 'completed': False}
-
-        with patch.object(staged_tasks_db, 'promote_staged_task', return_value=mock_action_item):
-            result = promote_staged_task(uid='test-uid')
-
-        assert result['promoted'] is True
-        assert result['reason'] is None
-        assert result['promoted_task'] == mock_action_item
-
-    def test_promote_returns_envelope_when_no_tasks(self):
-        """Router wraps None in {promoted: false, reason: '...', promoted_task: null}."""
-        from routers.staged_tasks import promote_staged_task
-
-        with patch.object(staged_tasks_db, 'promote_staged_task', return_value=None):
-            result = promote_staged_task(uid='test-uid')
-
-        assert result['promoted'] is False
-        assert result['reason'] is not None
-        assert result['promoted_task'] is None
-
-    def test_migrate_returns_status_string(self):
-        """migrate endpoint returns {status: str} matching Swift StatusResponse."""
-        from routers.staged_tasks import migrate_ai_tasks
-
-        with patch.object(staged_tasks_db, 'migrate_ai_tasks', return_value={'moved': 5, 'kept': 3}):
-            result = migrate_ai_tasks(uid='test-uid')
-
-        assert 'status' in result
-        assert isinstance(result['status'], str)
-
-    def test_migrate_conversation_items_returns_status_migrated_deleted(self):
-        """migrate-conversation-items returns {status, migrated, deleted} matching Swift MigrateResponse."""
-        from routers.staged_tasks import migrate_conversation_items
-
-        with patch.object(staged_tasks_db, 'migrate_conversation_items_to_staged', return_value={'moved': 10}):
-            result = migrate_conversation_items(uid='test-uid')
-
-        assert result['status'] == 'ok'
-        assert result['migrated'] == 10
-        assert 'deleted' in result
-
-
-# ===========================================================================
-# 7. FOCUS STATS WIRE-COMPAT (FocusStatsResponse shape)
-# ===========================================================================
 
 
 class TestFocusStatsWireCompat:
@@ -1983,57 +1633,6 @@ class TestRatingZeroBoundary:
         assert '400' in str(exc_info.value) or 'Rating must be' in str(exc_info.value)
 
 
-# ===========================================================================
-# 10. MIGRATION BATCH INTEGRATION (exercises real caller accounting)
-# ===========================================================================
-
-
-class TestMigrationBatchIntegration:
-    """Exercise migration functions with enough items to cross batch boundary."""
-
-    def test_migrate_ai_tasks_commits_at_batch_boundary(self):
-        """migrate_ai_tasks with 260 AI tasks triggers batch commit (260*2=520 ops > 500)."""
-
-        def _make_doc(i, source='screenshot'):
-            doc = MagicMock()
-            doc.id = f'task-{i}'
-            doc.to_dict.return_value = {
-                'id': f'task-{i}',
-                'completed': False,
-                'source': source,
-                'relevance_score': i,
-            }
-            return doc
-
-        ai_docs = [_make_doc(i) for i in range(260)]
-
-        mock_action_col = MagicMock()
-        mock_query = MagicMock()
-        mock_query.stream.return_value = ai_docs
-        mock_action_col.where.return_value = mock_query
-        mock_action_col.document.return_value = MagicMock()
-
-        mock_staged_col = MagicMock()
-        mock_staged_col.document.return_value = MagicMock()
-
-        batch1 = MagicMock()
-        batch2 = MagicMock()
-
-        def col_side_effect(col_name):
-            if col_name == 'action_items':
-                return mock_action_col
-            return mock_staged_col
-
-        with patch.object(staged_tasks_db, 'db') as patched_db:
-            patched_db.batch.side_effect = [batch1, batch2]
-            patched_db.collection.return_value.document.return_value.collection.side_effect = col_side_effect
-            result = staged_tasks_db.migrate_ai_tasks('test-uid')
-
-        assert result['moved'] == 257  # 260 - 3 kept
-        batch1.commit.assert_called()  # intermediate commit at 500 ops
-
-
-# ============================================================================
 # TESTER-REQUESTED: Focus-stats duration_seconds=0 boundary
 # ============================================================================
 
@@ -2064,30 +1663,6 @@ class TestFocusStatsDurationBoundary:
         assert result['focused_minutes'] == 0
 
 
-# ============================================================================
-# TESTER-REQUESTED: BatchUpdateScoresRequest max_length=500 validation
-# ============================================================================
-
-
-class TestBatchScoresOverflow:
-    """Verify batch-scores rejects >500 items via Pydantic validation."""
-
-    def test_501_scores_rejected(self):
-        """BatchUpdateScoresRequest rejects list with 501 entries."""
-        with pytest.raises(ValidationError):
-            BatchUpdateScoresRequest(
-                scores=[BatchScoreEntry(id=f'id-{i}', relevance_score=i % 1000) for i in range(501)]
-            )
-
-    def test_500_scores_accepted(self):
-        """BatchUpdateScoresRequest accepts list with exactly 500 entries."""
-        req = BatchUpdateScoresRequest(
-            scores=[BatchScoreEntry(id=f'id-{i}', relevance_score=i % 1000) for i in range(500)]
-        )
-        assert len(req.scores) == 500
-
-
-# ============================================================================
 # TESTER-REQUESTED: LLM dual-write full payload parity
 # ============================================================================
 

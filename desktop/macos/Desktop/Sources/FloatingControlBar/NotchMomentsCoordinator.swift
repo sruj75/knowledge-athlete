@@ -29,8 +29,8 @@ final class NotchMomentsCoordinator {
   private var sessionStartedAt: Date?
   /// The task shown in the most recent receipt (so Undo can retract it).
   private var lastReceiptTask: TaskActionItem?
-  /// Receipt verification runs asynchronously against the canonical action-items
-  /// read path. Keep one request per observed task so cache updates cannot emit
+  /// Receipt verification runs asynchronously against the durable local task
+  /// read path. Keep one request per observed task so projection updates cannot emit
   /// duplicate success receipts while that read is in flight.
   private var pendingReceiptVerificationIDs = Set<String>()
 
@@ -114,8 +114,8 @@ final class NotchMomentsCoordinator {
     verifyAndPostReceipt(for: newTask)
   }
 
-  /// A local cache insert is not a durable-save acknowledgement. Read the task
-  /// through the canonical API before claiming it was saved, then make sure it
+  /// A projected row is not by itself a durable-save acknowledgement. Read the task
+  /// through the local authority before claiming it was saved, then make sure it
   /// still remains in the active local projection before presenting the receipt.
   private func verifyAndPostReceipt(for task: TaskActionItem) {
     guard pendingReceiptVerificationIDs.insert(task.id).inserted else { return }
@@ -130,10 +130,8 @@ final class NotchMomentsCoordinator {
       defer { self?.pendingReceiptVerificationIDs.remove(task.id) }
       guard let self else { return }
       do {
-        let canonicalTask = try await APIClient.shared.getActionItem(
-          id: task.id,
-          expectedOwnerId: ownerID,
-          authorizationSnapshot: authorizationSnapshot)
+        guard let canonicalTask = try await ActionItemStorage.shared.getLocalActionItem(surfacedId: task.id)
+        else { return }
         guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot),
           self.appState?.isTranscribing == true,
           Self.isReceiptConfirmation(task, canonicalTask),
@@ -144,9 +142,7 @@ final class NotchMomentsCoordinator {
           title: "✓ Saved to Tasks — \(canonicalTask.description)", message: "",
           assistantId: NotchMoment.receiptAssistantId)
       } catch {
-        // Deliberately do not claim a save when the canonical task read fails.
-        // The next store update can re-attempt with a new task identity once
-        // the task has actually made it through the durable read path.
+        // Deliberately do not claim a save when the durable local read fails.
         log("NotchMoments: Suppressed unconfirmed task receipt")
       }
     }

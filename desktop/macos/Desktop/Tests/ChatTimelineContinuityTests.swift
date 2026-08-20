@@ -411,20 +411,6 @@ final class ChatTimelineContinuityTests: XCTestCase {
     XCTAssertEqual(runId, "run-1")
     XCTAssertEqual(output, "Done.")
 
-    let message = ChatMessage(text: "Done.", sender: .ai, contentBlocks: [block])
-    let record = TaskChatMessageRecord.from(message, taskId: "task-roundtrip")
-    let restored = record.toChatMessage()
-    XCTAssertEqual(restored.contentBlocks.count, 1)
-    guard
-      case .agentCompletion(_, let restoredPill, let restoredSession, let restoredRun, _, _, let restoredOutput, _) =
-        restored.contentBlocks.first
-    else {
-      return XCTFail("agentCompletion must round-trip through contentBlocksJson")
-    }
-    XCTAssertEqual(restoredPill, pillId)
-    XCTAssertEqual(restoredSession, "sess-1")
-    XCTAssertEqual(restoredRun, "run-1")
-    XCTAssertEqual(restoredOutput, "Done.")
   }
 
   func testAgentLifecycleDisplayProjectionShowsOneTerminalCardAndKeepsCompletionResources() {
@@ -1628,15 +1614,6 @@ final class ChatTimelineContinuityTests: XCTestCase {
       """
     )
 
-    let schedulerSource = try String(
-      contentsOf: sourcesRoot().appendingPathComponent("Services/RecurringTaskScheduler.swift"),
-      encoding: .utf8
-    )
-    XCTAssertTrue(schedulerSource.contains("configure(taskChatCoordinator:"))
-    XCTAssertFalse(
-      schedulerSource.contains("ChatProvider()"),
-      "RecurringTaskScheduler must reuse the shared TaskChatCoordinator"
-    )
   }
 
   private func sourcesRoot() -> URL {

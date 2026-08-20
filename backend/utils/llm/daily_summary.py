@@ -10,7 +10,6 @@ from typing import Any, Dict, List, Optional, cast
 import pytz
 from pydantic import ValidationError
 
-import database.action_items as action_items_db
 import database.users as users_db
 from database.auth import get_user_name
 from models.conversation import Conversation
@@ -33,7 +32,6 @@ def _basic_daily_summary(
     date_str: str,
     total_conversations: int,
     total_duration_minutes: float,
-    actual_action_items: List[Dict[str, Any]],
     locations: List[Dict[str, Any]],
 ) -> Dict[str, Any]:
     return {
@@ -46,10 +44,8 @@ def _basic_daily_summary(
         "stats": {
             "total_conversations": total_conversations,
             "total_duration_minutes": int(total_duration_minutes),
-            "action_items_count": len(actual_action_items),
         },
         "highlights": [],
-        "action_items": actual_action_items,
         "unresolved_questions": [],
         "decisions_made": [],
         "knowledge_nuggets": [],
@@ -122,21 +118,6 @@ def generate_comprehensive_daily_summary(
                     "address": c.geolocation.address,
                     "conversation_id": c.id,
                     "time": local_time,
-                }
-            )
-
-    # Fetch action items for the specific conversations being summarised.
-    # Querying by conversation_id (not date range) prevents pulling in items whose
-    # async processing happened to land on the same UTC day as an unrelated conversation.
-    actual_action_items: List[Dict[str, Any]] = []
-    for c in non_discarded:
-        for item in action_items_db.get_action_items(uid, conversation_id=c.id):
-            actual_action_items.append(
-                {
-                    "description": item.get("description", ""),
-                    "priority": "high" if item.get("completed") == False else "medium",
-                    "completed": item.get("completed", False),
-                    "source_conversation_id": item.get("conversation_id"),
                 }
             )
 
@@ -266,10 +247,8 @@ Respond with ONLY valid JSON. Do not include any other text or comments."""
             "stats": {
                 "total_conversations": total_conversations,
                 "total_duration_minutes": int(total_duration_minutes),
-                "action_items_count": len(actual_action_items),
             },
             "highlights": highlights,
-            "action_items": actual_action_items,
             "unresolved_questions": unresolved_questions,
             "decisions_made": decisions_made,
             "knowledge_nuggets": knowledge_nuggets,
@@ -277,11 +256,7 @@ Respond with ONLY valid JSON. Do not include any other text or comments."""
         }
     except json.JSONDecodeError as e:
         logger.error("Failed to decode daily summary payload JSON: %s", sanitize(str(e)))
-        return _basic_daily_summary(
-            date_str, total_conversations, total_duration_minutes, actual_action_items, locations
-        )
+        return _basic_daily_summary(date_str, total_conversations, total_duration_minutes, locations)
     except ValidationError as e:
         logger.error("Failed to validate daily summary payload: %s", sanitize_validation_error(cast(Any, e)))
-        return _basic_daily_summary(
-            date_str, total_conversations, total_duration_minutes, actual_action_items, locations
-        )
+        return _basic_daily_summary(date_str, total_conversations, total_duration_minutes, locations)

@@ -988,7 +988,7 @@ describe("AgentRuntimeKernel run and attempt lifecycle", () => {
     let store = new SqliteAgentStore({ databasePath, reconcileOnOpen: false, nowMs: () => now });
     const session = store.insertSession({
       ownerId: "owner",
-      surfaceKind: "task_chat",
+      surfaceKind: "main_chat",
       defaultAdapterId: "test-adapter",
     });
     const nativeBinding = store.insertAdapterBinding({

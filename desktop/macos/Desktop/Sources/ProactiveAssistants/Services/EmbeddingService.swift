@@ -1,22 +1,6 @@
 import Accelerate
 import Foundation
 
-/// Which table an embedding-index entry came from. `action_items` and
-/// `staged_tasks` are separate SQLite tables whose autoincrement rowids both
-/// start at 1, so a raw-`Int64`-keyed index silently collides low ids across the
-/// two tables. Carrying the source makes the key unique and lets search results
-/// be resolved against the correct table deterministically.
-enum TaskEmbeddingSource: String, Sendable {
-  case actionItem
-  case staged
-}
-
-/// Composite key for the in-memory task-embedding index (source + row id).
-struct TaskEmbeddingKey: Hashable, Sendable {
-  let source: TaskEmbeddingSource
-  let id: Int64
-}
-
 /// Actor-based service for embeddings using Gemini (3072-dim)
 actor EmbeddingService {
   static let shared = EmbeddingService()
@@ -25,10 +9,8 @@ actor EmbeddingService {
   static let embeddingDimension = 3072
   static var modelName: String { ModelQoS.Gemini.embedding }
 
-  /// In-memory index: (source, row id) -> normalized embedding. Keyed by source
-  /// so action_items and staged_tasks with the same rowid never overwrite each
-  /// other (see TaskEmbeddingSource).
-  private var index: [TaskEmbeddingKey: [Float]] = [:]
+  /// In-memory index: authoritative local task row ID -> normalized embedding.
+  private var index: [Int64: [Float]] = [:]
   private var isIndexLoaded = false
 
   /// Cap in-memory embeddings to limit memory (~12KB each, 5000 = ~60MB max)
@@ -205,7 +187,7 @@ actor EmbeddingService {
 
   // MARK: - In-Memory Index
 
-  /// Load embeddings from SQLite into memory (action_items + staged_tasks, capped)
+  /// Load ordinary local task embeddings from SQLite into memory.
   func loadIndex() async {
     do {
       let rows = try await ActionItemStorage.shared.getAllEmbeddings()
@@ -213,64 +195,44 @@ actor EmbeddingService {
       // Only keep the most recent embeddings (suffix = highest IDs = newest)
       for (id, data) in rows.suffix(maxIndexSize) {
         if let floats = dataToFloats(data) {
-          index[TaskEmbeddingKey(source: .actionItem, id: id)] = floats
+          index[id] = floats
         }
       }
-      let actionCount = index.count
-
-      // Also load staged task embeddings (fill remaining capacity)
-      let remaining = maxIndexSize - index.count
-      if remaining > 0 {
-        let stagedRows = try await StagedTaskStorage.shared.getAllEmbeddings()
-        for (id, data) in stagedRows.suffix(remaining) {
-          if let floats = dataToFloats(data) {
-            index[TaskEmbeddingKey(source: .staged, id: id)] = floats
-          }
-        }
-      }
-
       isIndexLoaded = true
-      log(
-        "EmbeddingService: Loaded \(index.count) embeddings into memory (\(actionCount) action_items, \(index.count - actionCount) staged_tasks, cap=\(maxIndexSize))"
-      )
+      log("EmbeddingService: Loaded \(index.count) local task embeddings (cap=\(maxIndexSize))")
     } catch {
       logError("EmbeddingService: Failed to load index", error: error)
     }
   }
 
-  /// Add a single embedding to the in-memory index (respects maxIndexSize).
-  /// `source` disambiguates action_items vs staged_tasks so colliding rowids do
-  /// not overwrite each other.
-  func addToIndex(source: TaskEmbeddingSource, id: Int64, embedding: [Float]) {
-    let key = TaskEmbeddingKey(source: source, id: id)
+  /// Add a single task embedding to the in-memory index (respects maxIndexSize).
+  func addToIndex(id: Int64, embedding: [Float]) {
     // If at capacity and this is a new key, evict the oldest (lowest ID)
-    if index[key] == nil && index.count >= maxIndexSize {
-      if let oldestKey = index.keys.min(by: { $0.id < $1.id }) {
+    if index[id] == nil && index.count >= maxIndexSize {
+      if let oldestKey = index.keys.min() {
         index.removeValue(forKey: oldestKey)
       }
     }
-    index[key] = embedding
+    index[id] = embedding
   }
 
   /// Remove an entry from the index
-  func removeFromIndex(source: TaskEmbeddingSource, id: Int64) {
-    index.removeValue(forKey: TaskEmbeddingKey(source: source, id: id))
+  func removeFromIndex(id: Int64) {
+    index.removeValue(forKey: id)
   }
 
   /// Search for similar items using cosine similarity via Accelerate/vDSP.
-  /// Each result carries its `source` so the caller resolves it against the
-  /// correct table (action_items vs staged_tasks) instead of guessing.
   func searchSimilar(query: [Float], topK: Int = 10)
-    -> [(source: TaskEmbeddingSource, id: Int64, similarity: Float)]
+    -> [(id: Int64, similarity: Float)]
   {
     guard !index.isEmpty else { return [] }
 
-    var results: [(source: TaskEmbeddingSource, id: Int64, similarity: Float)] = []
+    var results: [(id: Int64, similarity: Float)] = []
     results.reserveCapacity(index.count)
 
-    for (key, stored) in index {
+    for (id, stored) in index {
       let sim = cosineSimilarity(query, stored)
-      results.append((key.source, key.id, sim))
+      results.append((id, sim))
     }
 
     // Sort descending by similarity and take topK
@@ -286,7 +248,7 @@ actor EmbeddingService {
 
   // MARK: - Backfill
 
-  /// Batch-embed all tasks missing embeddings (action_items + staged_tasks)
+  /// Batch-embed all ordinary local tasks missing embeddings.
   func backfillIfNeeded() async {
     guard let authorizationSnapshot = RuntimeOwnerIdentity.captureAuthorizationSnapshot() else {
       return
@@ -317,35 +279,13 @@ actor EmbeddingService {
             }
           )
           guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
-          addToIndex(source: .actionItem, id: item.id, embedding: embedding)
+          addToIndex(id: item.id, embedding: embedding)
         }
 
         totalProcessed += items.count
         log("EmbeddingService: Backfill progress: \(totalProcessed) action_items")
 
         // Small delay to avoid rate limiting
-        try await Task.sleep(nanoseconds: 200_000_000)  // 200ms
-      }
-
-      // Backfill staged_tasks
-      while true {
-        guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
-        let items = try await StagedTaskStorage.shared.getItemsMissingEmbeddings(limit: batchSize)
-        if items.isEmpty { break }
-
-        let texts = items.map { $0.description }
-        let embeddings = try await embedBatch(texts: texts)
-
-        for (i, embedding) in embeddings.enumerated() where i < items.count {
-          let item = items[i]
-          let data = floatsToData(embedding)
-          try await StagedTaskStorage.shared.updateEmbedding(id: item.id, embedding: data)
-          addToIndex(source: .staged, id: item.id, embedding: embedding)
-        }
-
-        totalProcessed += items.count
-        log("EmbeddingService: Backfill progress: \(totalProcessed) total (incl. staged)")
-
         try await Task.sleep(nanoseconds: 200_000_000)  // 200ms
       }
 

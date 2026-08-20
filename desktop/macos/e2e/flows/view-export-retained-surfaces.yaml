@@ -1,7 +1,7 @@
 version: 2
 name: view-export-retained-surfaces
 tier: manual
-description: Live P2 — run the named-bundle CLI exporter and verify its retained page registry
+description: Run the named-bundle CLI exporter and verify its retained page registry
 app: non-prod
 covers:
   - desktop/macos/Desktop/Sources/Rewind/Core/ConversationArchiveReader.swift
@@ -12,18 +12,18 @@ preconditions:
 steps:
   - id: S1
     name: Export retained standalone views
-    do: "Stop only the disposable named test bundle, create a fresh temporary output directory, then run that named bundle's executable with --export-views and the directory path. Wait for the exporter process to exit successfully."
+    do: "Stop only the disposable named test bundle, create a fresh temporary output directory, then run that named bundle executable with --export-views and the directory path. Wait for a successful exit."
     expect:
       interactive_count: { min: 1 }
 
   - id: S2
-    name: Verify retained export inventory
-    do: "Inspect the exporter log and output directory. Verify retained sign-in, dashboard, chat, conversations, focus, insight, rewind, permissions, desktop-home, daily-score, chat-sessions, and settings exports complete, with no Apps, Brain Map, onboarding, or marketplace export."
+    name: Verify retained standalone inventory
+    do: "Inspect the exporter log and output directory. Verify sign-in, dashboard, chat, conversations, focus, insight, rewind, permissions, desktop-home, chat-sessions, and settings exports complete. Verify there is no daily-score, Apps, Brain Map, onboarding, marketplace, task-chat, Suggested, or workstream export."
     expect:
       interactive_count: { min: 1 }
 
   - id: S3
     name: Export retained full-page views
-    do: "Run the same named-bundle executable with --export-fullpages into a second fresh temporary directory. Verify the process exits successfully and every rendered sidebar omits Apps."
+    do: "Run the same named-bundle executable with --export-fullpages into a second fresh temporary directory. Verify the process exits successfully, the Tasks page is present, and every rendered sidebar omits Apps."
     expect:
       interactive_count: { min: 1 }

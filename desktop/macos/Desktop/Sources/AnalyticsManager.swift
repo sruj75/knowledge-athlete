@@ -698,18 +698,6 @@ class AnalyticsManager {
     PostHogManager.shared.taskExtracted(taskCount: taskCount)
   }
 
-  func taskIntelligenceAttribution(_ event: TaskIntelligenceAttributionEvent) {
-    PostHogManager.shared.taskIntelligenceAttribution(event)
-  }
-
-  func proactiveTaskGateEvaluated(_ trace: TaskInterruptionGateTrace) {
-    PostHogManager.shared.proactiveTaskGateEvaluated(trace)
-  }
-
-  func taskPromoted(taskCount: Int) {
-    PostHogManager.shared.taskPromoted(taskCount: taskCount)
-  }
-
   func taskCompleted(source: String?) {
     PostHogManager.shared.taskCompleted(source: source)
   }

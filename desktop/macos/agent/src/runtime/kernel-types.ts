@@ -34,7 +34,6 @@ import type {
   DesktopAttentionOverride,
   DesktopCoordinatorDispatch,
   DesktopMemoryCandidate,
-  DesktopTaskCandidate,
   NewDesktopCoordinatorDispatch,
 } from "./types.js";
 
@@ -238,7 +237,6 @@ export interface DesktopAwarenessSnapshot {
   dispatches: DesktopCoordinatorDispatch[];
   artifactDeliveries: DesktopArtifactDelivery[];
   memoryCandidates: DesktopMemoryCandidate[];
-  taskCandidates: DesktopTaskCandidate[];
   actionQueue: DesktopActionQueueItem[];
   runtime: {
     activeExecutionCount: number;
@@ -249,11 +247,6 @@ export interface DesktopAwarenessSnapshot {
 export interface DesktopActionQueueInput {
   ownerId?: string;
   staleAfterMs?: number;
-  limit?: number;
-}
-
-export interface DesktopOpenLoopsInput {
-  ownerId?: string;
   limit?: number;
 }
 

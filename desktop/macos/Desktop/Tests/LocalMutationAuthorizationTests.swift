@@ -100,74 +100,62 @@ final class LocalMutationAuthorizationTests: XCTestCase {
 
   func testPostDMLRevocationRollsBackEveryTaskMutationBoundary() async throws {
     let original = try await ActionItemStorage.shared.insertLocalActionItem(
-      ActionItemRecord(
-        backendId: "task-owner-a",
-        description: "must remain unchanged",
-        relevanceScore: 2),
+      ActionItemRecord(description: "must remain unchanged", source: "manual"),
       // Fixture setup precedes the revocation gates exercised below.
       authorization: .unrestricted)
     let localID = try XCTUnwrap(original.id)
+    let surfacedID = "local_\(localID)"
 
-    let markSyncedObserver = LocalMutationTransactionObserver()
+    let updateObserver = LocalMutationTransactionObserver()
     let maybePool = await RewindDatabase.shared.getDatabaseQueue()
     let pool = try XCTUnwrap(maybePool)
-    pool.add(transactionObserver: markSyncedObserver, extent: .nextTransaction)
+    pool.add(transactionObserver: updateObserver, extent: .nextTransaction)
 
     await assertRevoked {
-      try await ActionItemStorage.shared.markSynced(
-        id: localID,
-        backendId: "replacement-id",
+      try await ActionItemStorage.shared.updateActionItemFields(
+        surfacedId: surfacedID,
+        description: "must roll back",
         authorization: MutationAuthorizationGate().authorization())
     }
-    var storedValue = try await ActionItemStorage.shared.getActionItem(id: localID)
-    var stored = try XCTUnwrap(storedValue)
-    XCTAssertEqual(stored.backendId, "task-owner-a")
-    XCTAssertFalse(stored.backendSynced)
-    let markSyncedTransaction = markSyncedObserver.snapshot()
-    XCTAssertTrue(markSyncedTransaction.observedDML)
-    XCTAssertTrue(markSyncedTransaction.rolledBack)
+    var fetched = try await ActionItemStorage.shared.getActionItem(id: localID)
+    var stored = try XCTUnwrap(fetched)
+    XCTAssertEqual(stored.description, "must remain unchanged")
+    let updateTransaction = updateObserver.snapshot()
+    XCTAssertTrue(updateTransaction.observedDML)
+    XCTAssertTrue(updateTransaction.rolledBack)
 
     await assertRevoked {
-      try await ActionItemStorage.shared.updateCompletionStatus(
-        backendId: "task-owner-a",
+      _ = try await ActionItemStorage.shared.setCompletionAndCreateNextOccurrence(
+        surfacedId: surfacedID,
         completed: true,
+        nextDueAt: nil,
         authorization: MutationAuthorizationGate().authorization())
     }
-    storedValue = try await ActionItemStorage.shared.getActionItem(id: localID)
-    stored = try XCTUnwrap(storedValue)
+    fetched = try await ActionItemStorage.shared.getActionItem(id: localID)
+    stored = try XCTUnwrap(fetched)
     XCTAssertFalse(stored.completed)
 
     await assertRevoked {
-      try await ActionItemStorage.shared.compactScoresAfterRemoval(
-        removedScore: 1,
+      try await ActionItemStorage.shared.reorderTask(
+        surfacedId: surfacedID,
+        dueAt: Date().addingTimeInterval(3_600),
+        orderedIds: [surfacedID],
+        categoryIndex: 1,
         authorization: MutationAuthorizationGate().authorization())
     }
-    storedValue = try await ActionItemStorage.shared.getActionItem(id: localID)
-    stored = try XCTUnwrap(storedValue)
-    XCTAssertEqual(stored.relevanceScore, 2)
+    fetched = try await ActionItemStorage.shared.getActionItem(id: localID)
+    stored = try XCTUnwrap(fetched)
+    XCTAssertNil(stored.dueAt)
+    XCTAssertNil(stored.sortOrder)
 
     await assertRevoked {
-      try await ActionItemStorage.shared.syncTaskActionItems(
-        [
-          TaskActionItem(
-            id: "incoming-owner-a",
-            description: "must not insert",
-            completed: false,
-            createdAt: Date())
-        ],
+      try await ActionItemStorage.shared.softDelete(
+        surfacedId: surfacedID,
         authorization: MutationAuthorizationGate().authorization())
     }
-    let incoming = try await ActionItemStorage.shared.getLocalActionItem(
-      byBackendId: "incoming-owner-a")
-    XCTAssertNil(incoming)
-
-    await assertRevoked {
-      try await ActionItemStorage.shared.deleteActionItemByBackendId(
-        "task-owner-a",
-        authorization: MutationAuthorizationGate().authorization())
-    }
-    let afterRejectedDelete = try await ActionItemStorage.shared.getActionItem(id: localID)
-    XCTAssertNotNil(afterRejectedDelete)
+    fetched = try await ActionItemStorage.shared.getActionItem(id: localID)
+    stored = try XCTUnwrap(fetched)
+    XCTAssertFalse(stored.deleted)
   }
 
   func testOwnerQuiescenceCompletesBeforeOwnerMutationAndOwnerBAdmission() async throws {

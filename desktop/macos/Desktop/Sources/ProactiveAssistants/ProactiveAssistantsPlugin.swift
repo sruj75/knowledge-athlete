@@ -379,10 +379,6 @@ public class ProactiveAssistantsPlugin: NSObject {
         AssistantCoordinator.shared.register(task)
       }
 
-      Task { await TaskDeduplicationService.shared.start() }
-      Task { await TaskPrioritizationService.shared.start() }
-      Task { await TaskPromotionService.shared.start() }
-
       insightAssistant = try InsightAssistant()
 
       if let insight = insightAssistant {
@@ -542,8 +538,6 @@ public class ProactiveAssistantsPlugin: NSObject {
         await task.stop()
       }
     }
-    Task { await TaskDeduplicationService.shared.stop() }
-    Task { await TaskPromotionService.shared.stop() }
     if let insight = insightAssistant {
       Task {
         await insight.stop()

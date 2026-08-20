@@ -19,6 +19,56 @@ actor TaskAssistant: ProactiveAssistant {
     settingsEnabled
   }
 
+  nonisolated static func shouldAdmit(_ task: ExtractedTask, minimumConfidence: Double) -> Bool {
+    guard task.duplicateOf == nil, task.refinesTask == nil,
+      task.captureKind != "already_done", task.alreadyDone != true,
+      task.concreteDeliverable != false, task.publicBroadcast != true
+    else { return false }
+
+    if task.captureKind == "explicit_command" { return true }
+
+    let isOwnedCaptureKind =
+      task.captureKind == "clear_commitment"
+      || (task.captureKind == "direct_request" && task.directMention == true)
+    return isOwnedCaptureKind
+      && task.owner == "user"
+      && task.concreteDeliverable == true
+      && (task.ownershipConfidence ?? 0) >= 0.8
+      && task.confidence >= max(0.8, minimumConfidence)
+  }
+
+  nonisolated static func storedProvenance(
+    for task: ExtractedTask,
+    screenshotId: Int64?
+  ) -> String? {
+    let evidence =
+      screenshotId.map {
+        [
+          TaskEvidenceRef(
+            deviceId: nil,
+            excerptHash: nil,
+            id: "screenshot:\($0)",
+            kind: .localScreen,
+            scope: .deviceLocal,
+            version: "1"
+          )
+        ]
+      } ?? []
+    let provenance = StoredTaskProvenance(
+      evidence: evidence,
+      capturePolicy: TaskCapturePolicyFacts(
+        captureKind: task.captureKind,
+        owner: task.owner,
+        concreteDeliverable: task.concreteDeliverable,
+        publicBroadcast: task.publicBroadcast,
+        directMention: task.directMention,
+        ownershipConfidence: task.ownershipConfidence
+      )
+    )
+    guard let data = try? JSONEncoder().encode(provenance) else { return nil }
+    return String(data: data, encoding: .utf8)
+  }
+
   var isEnabled: Bool {
     get async {
       await MainActor.run {
@@ -73,11 +123,6 @@ actor TaskAssistant: ProactiveAssistant {
   ]
 
   private static let messagingFastPathDelay: TimeInterval = 15.0
-
-  // Cached goals (refreshed every 5 minutes)
-  private var cachedGoals: [Goal] = []
-  private var lastGoalsRefresh: Date = .distantPast
-  private let goalsRefreshInterval: TimeInterval = 300
 
   // MARK: - Due Date Helpers
 
@@ -191,22 +236,7 @@ actor TaskAssistant: ProactiveAssistant {
     self.triggerStream = stream
     self.triggerContinuation = continuation
 
-    // Start processing loop + embedding index
-    Task {
-      await self.startProcessing()
-      await self.initializeEmbeddings()
-    }
-  }
-
-  // MARK: - Embedding Lifecycle
-
-  /// Load embedding index and kick off backfill
-  private func initializeEmbeddings() async {
-    await EmbeddingService.shared.loadIndex()
-    // Backfill in background
-    Task {
-      await EmbeddingService.shared.backfillIfNeeded()
-    }
+    Task { await self.startProcessing() }
   }
 
   // MARK: - Processing
@@ -214,54 +244,7 @@ actor TaskAssistant: ProactiveAssistant {
   private func startProcessing() {
     isRunning = true
     processingTask = Task {
-      await retryCanonicalOutbox()
       await processLoop()
-    }
-  }
-
-  private func retryCanonicalOutbox() async {
-    let records: [StagedTaskRecord]
-    do {
-      records = try await StagedTaskStorage.shared.getUnsyncedCanonicalOutbox()
-    } catch {
-      logError("Task: Failed to load canonical capture outbox", error: error)
-      return
-    }
-    for record in records {
-      let metadata = record.metadata ?? [:]
-      let formatter = ISO8601DateFormatter()
-      formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-      let task = ExtractedTask(
-        title: record.description,
-        description: metadata["reasoning"] as? String,
-        priority: TaskPriority(rawValue: record.priority ?? "medium") ?? .medium,
-        sourceApp: record.sourceApp ?? "Unknown",
-        inferredDeadline: record.dueAt.map { formatter.string(from: $0) },
-        confidence: record.confidence ?? 0.5,
-        tags: record.tags,
-        sourceCategory: metadata["source_category"] as? String ?? "other",
-        sourceSubcategory: metadata["source_subcategory"] as? String ?? "other",
-        captureKind: metadata["capture_kind"] as? String,
-        owner: metadata["owner"] as? String,
-        concreteDeliverable: metadata["concrete_deliverable"] as? Bool,
-        publicBroadcast: metadata["public_broadcast"] as? Bool,
-        directMention: metadata["direct_mention"] as? Bool,
-        alreadyDone: metadata["already_done"] as? Bool,
-        duplicateOf: metadata["duplicate_of"] as? String,
-        refinesTask: metadata["refines_task"] as? String,
-        ownershipConfidence: metadata["ownership_confidence"] as? Double
-      )
-      await syncTaskToBackend(
-        task: task,
-        taskResult: TaskExtractionResult(
-          hasNewTask: true,
-          task: task,
-          contextSummary: record.contextSummary ?? "",
-          currentActivity: record.currentActivity ?? ""
-        ),
-        localRecord: record,
-        windowTitle: record.windowTitle
-      )
     }
   }
 
@@ -403,8 +386,6 @@ actor TaskAssistant: ProactiveAssistant {
       currentActivity: taskResult.currentActivity,
       hasTask: taskResult.hasNewTask,
       taskTitle: taskResult.task?.title,
-      sourceCategory: taskResult.task?.sourceCategory,
-      sourceSubcategory: taskResult.task?.sourceSubcategory,
       createdAt: Date()
     )
     let observationAuthorizationSnapshot = RuntimeOwnerIdentity.captureAuthorizationSnapshot()
@@ -417,6 +398,7 @@ actor TaskAssistant: ProactiveAssistant {
             RuntimeOwnerIdentity.isAuthorizationCurrent(
               observationAuthorizationSnapshot
             )
+              && TaskAssistantSettings.isEnabledForCommit()
           }
         )
       } catch {
@@ -430,10 +412,10 @@ actor TaskAssistant: ProactiveAssistant {
       return
     }
 
-    let threshold = await minConfidence
+    let threshold = max(0.8, await minConfidence)
     let confidencePercent = Int(task.confidence * 100)
 
-    guard task.confidence >= threshold else {
+    guard Self.shouldAdmit(task, minimumConfidence: threshold) else {
       log("Task: [\(confidencePercent)% < \(Int(threshold * 100))%] Filtered: \"\(task.title)\"")
       return
     }
@@ -445,20 +427,15 @@ actor TaskAssistant: ProactiveAssistant {
       previousTasks.removeLast()
     }
 
-    // Persist a hidden outbox row before any backend work.
-    let extractionRecord = await saveTaskToSQLite(
-      task: task,
-      screenshotId: screenshotId,
-      contextSummary: taskResult.contextSummary,
-      windowTitle: windowTitle
-    )
-
-    await syncTaskToBackend(
-      task: task,
-      taskResult: taskResult,
-      localRecord: extractionRecord,
-      windowTitle: windowTitle
-    )
+    guard
+      await saveTaskLocally(
+        task: task,
+        screenshotId: screenshotId,
+        contextSummary: taskResult.contextSummary,
+        currentActivity: taskResult.currentActivity,
+        windowTitle: windowTitle
+      )
+    else { return }
 
     await MainActor.run {
       AnalyticsManager.shared.taskExtracted(taskCount: 1)
@@ -473,264 +450,55 @@ actor TaskAssistant: ProactiveAssistant {
       ])
   }
 
-  /// Generate embedding for a newly saved staged task and store it
-  private func generateEmbeddingForTask(id: Int64, text: String) async {
-    do {
-      let embedding = try await EmbeddingService.shared.embed(text: text)
-      let data = await EmbeddingService.shared.floatsToData(embedding)
-      try await StagedTaskStorage.shared.updateEmbedding(id: id, embedding: data)
-      await EmbeddingService.shared.addToIndex(source: .staged, id: id, embedding: embedding)
-      log("Task: Generated embedding for staged task \(id)")
-    } catch {
-      logError("Task: Failed to generate embedding for staged task \(id)", error: error)
-    }
-  }
-
-  /// Save extracted task to staged_tasks SQLite table
-  private func saveTaskToSQLite(
+  /// Admit a policy-approved extraction directly into the current owner's task
+  /// database. The owner generation is revalidated at the GRDB commit boundary,
+  /// so an account switch or disabled Assistant can never leak an in-flight task.
+  private func saveTaskLocally(
     task: ExtractedTask,
     screenshotId: Int64?,
     contextSummary: String,
+    currentActivity: String,
     windowTitle: String? = nil
-  ) async -> StagedTaskRecord? {
-    var metadata: [String: Any] = [
-      "tags": task.tags,
-      "context_summary": contextSummary,
-      "source_category": task.sourceCategory,
-      "source_subcategory": task.sourceSubcategory,
-      "capture_kind": task.captureKind ?? "direct_request",
-      "owner": task.owner ?? "unknown",
-      "concrete_deliverable": task.concreteDeliverable ?? false,
-      "public_broadcast": task.publicBroadcast ?? false,
-      "direct_mention": task.directMention ?? false,
-      "already_done": task.alreadyDone ?? false,
-      "ownership_confidence": task.ownershipConfidence ?? 0.5,
-    ]
-    if let duplicateOf = task.duplicateOf { metadata["duplicate_of"] = duplicateOf }
-    if let refinesTask = task.refinesTask { metadata["refines_task"] = refinesTask }
-    if let primaryTag = task.primaryTag {
-      metadata["category"] = primaryTag
-    }
-    if let deadline = task.inferredDeadline {
-      metadata["inferred_deadline"] = deadline
-    }
-    if let windowTitle = windowTitle {
-      metadata["window_title"] = windowTitle
-    }
-
-    let metadataJson: String?
-    if let data = try? JSONSerialization.data(withJSONObject: metadata),
-      let json = String(data: data, encoding: .utf8)
-    {
-      metadataJson = json
-    } else {
-      metadataJson = nil
-    }
-
-    let tagsJson: String?
-    if let data = try? JSONEncoder().encode(task.tags),
-      let json = String(data: data, encoding: .utf8)
-    {
-      tagsJson = json
-    } else {
-      tagsJson = nil
-    }
-
-    let dueAt = parseDueDate(from: task.inferredDeadline)
-
-    let record = StagedTaskRecord(
-      backendSynced: false,
-      description: task.title,
-      // The row is born hidden and retryable. Mode resolution may later
-      // convert it to legacy staging, but a crash can never expose a local
-      // Candidate that canonical authority has not received.
-      source: "candidate_outbox",
-      priority: task.priority.rawValue,
-      category: task.primaryTag,
-      tagsJson: tagsJson,
-      dueAt: dueAt,
-      screenshotId: screenshotId,
-      confidence: task.confidence,
-      sourceApp: task.sourceApp,
-      windowTitle: windowTitle,
-      contextSummary: contextSummary,
-      metadataJson: metadataJson,
-      relevanceScore: nil,
-      scoredAt: nil
-    )
-
-    do {
-      let inserted = try await StagedTaskStorage.shared.insertLocalStagedTask(record)
-      log("Task: Saved retryable capture outbox row (id: \(inserted.id ?? -1))")
-      return inserted
-    } catch {
-      logError("Task: Failed to save to staged_tasks", error: error)
-      return nil
-    }
-  }
-
-  /// Deliver the local outbox row through the mode-owned backend authority.
-  private func syncTaskToBackend(
-    task: ExtractedTask,
-    taskResult: TaskExtractionResult,
-    localRecord: StagedTaskRecord?,
-    windowTitle: String? = nil
-  ) async {
-    guard let localRecord, let localID = localRecord.id else {
-      log("Task: Capture outbox persistence failed; refusing an untracked backend write")
-      return
+  ) async -> Bool {
+    guard let ownerSnapshot = RuntimeOwnerIdentity.captureAuthorizationSnapshot() else { return false }
+    let stillAuthorized = LocalMutationAuthorization {
+      RuntimeOwnerIdentity.isAuthorizationCurrent(ownerSnapshot)
+        && TaskAssistantSettings.isEnabledForCommit()
     }
     do {
-      // Hide the row before mode resolution. A transient backend failure must
-      // leave retry state, never an independently actionable local Candidate.
-      let control = try await APIClient.shared.getCandidateWorkflowControl()
-      guard let mode = control.workflowMode else {
-        log("Task: Workflow control omitted mode; capture remains retryable")
-        return
-      }
-
-      if mode == .read {
-        guard let generation = control.accountGeneration else {
-          log("Task: Workflow control omitted generation; capture remains retryable")
-          return
-        }
-        let decision = ScreenCandidateAdapter.adapt(
-          task: task,
-          dueAt: parseDueDate(from: task.inferredDeadline),
-          localEvidenceID: "screen-\(localRecord.screenshotId ?? localID)",
-          deviceID: ClientDeviceService.shared.clientDeviceId
-        )
-        guard decision.candidate != nil else {
-          try await StagedTaskStorage.shared.discardCanonicalOutbox(id: localID)
-          return
-        }
-        let delivery = CanonicalScreenCandidateDelivery(
-          client: APICanonicalScreenCandidateClient()
-        )
-        guard
-          let canonicalState = try await delivery.deliver(
-            decision,
-            localID: localID,
-            deviceID: ClientDeviceService.shared.deviceIdHash,
-            accountGeneration: generation
-          )
-        else { return }
-        let canonicalStatus = canonicalState.status
-        let canonicalTaskID = canonicalState.taskID
-        try await StagedTaskStorage.shared.markCanonicalReceipt(
-          id: localID,
-          candidateID: canonicalState.candidateID,
-          status: canonicalStatus.rawValue,
-          taskID: canonicalTaskID
-        )
-        let confidenceBand = TaskIntelligenceConfidenceBand.forCapture(
-          confidence: task.confidence,
-          explicit: task.captureKind == "explicit_command"
-        )
-        let capturedAttribution = TaskIntelligenceAttributionEvent.candidateCaptured(
-          candidateID: canonicalState.candidateID,
-          confidenceBand: confidenceBand
-        )
-        let resolvedAttribution: TaskIntelligenceAttributionEvent? = {
-          if canonicalStatus == .accepted, let canonicalTaskID {
-            return .candidateResolved(
-              candidateID: canonicalState.candidateID,
-              taskID: canonicalTaskID,
-              resolutionCode: .accepted
-            )
-          }
-          if canonicalStatus == .rejected {
-            return .candidateResolved(
-              candidateID: canonicalState.candidateID,
-              taskID: nil,
-              resolutionCode: .rejected
-            )
-          }
-          if canonicalStatus == .expired {
-            return .candidateResolved(
-              candidateID: canonicalState.candidateID,
-              taskID: nil,
-              resolutionCode: .expired
-            )
-          }
-          return nil
-        }()
-        await MainActor.run {
-          AnalyticsManager.shared.taskIntelligenceAttribution(capturedAttribution)
-          if let resolvedAttribution {
-            AnalyticsManager.shared.taskIntelligenceAttribution(resolvedAttribution)
-          }
-        }
-        log(
-          "Task: Canonical capture reconciled candidate=\(canonicalState.candidateID) outcome=\(decision.outcome.rawValue)"
-        )
-        return
-      }
-
-      guard TaskCaptureModePolicy.usesLegacyStaging(mode) else {
-        DesktopDiagnosticsManager.shared.recordFallback(
-          area: "task_workflow",
-          from: "workflow_control",
-          to: "capture_deferred",
-          reason: "other",
-          outcome: .degraded
-        )
-        log("Task: Unknown workflow mode; capture remains retryable")
-        return
-      }
-
-      let shadowOutcome = ScreenCapturePolicy.evaluate(ScreenCandidateAdapter.facts(for: task))
-      if mode == .shadow {
-        log("Task: Shadow capture outcome=\(shadowOutcome.rawValue)")
-      }
-      var metadata: [String: Any] = [
-        "source_app": task.sourceApp,
-        "confidence": task.confidence,
-        "context_summary": taskResult.contextSummary,
-        "current_activity": taskResult.currentActivity,
-        "tags": task.tags,
-        "source_category": task.sourceCategory,
-        "source_subcategory": task.sourceSubcategory,
-      ]
-      if let primaryTag = task.primaryTag {
-        metadata["category"] = primaryTag
-      }
-      if let reasoning = task.description {
-        metadata["reasoning"] = reasoning
-      }
-      if let deadline = task.inferredDeadline {
-        metadata["inferred_deadline"] = deadline
-      }
-      if let windowTitle = windowTitle {
-        metadata["window_title"] = windowTitle
-      }
-
-      let dueAt = parseDueDate(from: task.inferredDeadline)
-
-      let response = try await APIClient.shared.createStagedTask(
+      let record = ActionItemRecord(
         description: task.title,
-        dueAt: dueAt,
         source: "screenshot",
         priority: task.priority.rawValue,
-        category: task.primaryTag,
-        metadata: metadata,
-        relevanceScore: nil
+        dueAt: parseDueDate(from: task.inferredDeadline),
+        provenanceJson: Self.storedProvenance(for: task, screenshotId: screenshotId),
+        screenshotId: screenshotId,
+        confidence: task.confidence,
+        sourceApp: task.sourceApp,
+        windowTitle: windowTitle,
+        contextSummary: contextSummary,
+        currentActivity: currentActivity
       )
-
-      log("Task: Synced to staged_tasks backend (id: \(response.id))")
-      try await StagedTaskStorage.shared.markSynced(
-        id: localID,
-        backendId: response.id,
-        source: "screenshot"
+      guard
+        let inserted = try await ActionItemStorage.shared.insertLocalActionItemIfDescriptionAbsent(
+          record,
+          authorization: stillAuthorized
+        )
+      else {
+        log("Task: Exact local duplicate discarded: \"\(task.title)\"")
+        return false
+      }
+      guard RuntimeOwnerIdentity.isAuthorizationCurrent(ownerSnapshot) else { return false }
+      await TasksStore.shared.reloadFromLocalCache(
+        expectedOwnerID: ownerSnapshot.ownerID,
+        authorizationSnapshot: ownerSnapshot
       )
-      Task {
-        await self.generateEmbeddingForTask(id: localID, text: task.title)
-      }
-      Task {
-        await TaskPromotionService.shared.promoteIfNeeded()
-      }
+      guard RuntimeOwnerIdentity.isAuthorizationCurrent(ownerSnapshot) else { return false }
+      log("Task: Saved local task (id: local_\(inserted.id ?? -1))")
+      return true
     } catch {
-      logError("Task: Candidate outbox delivery failed; will retry", error: error)
+      logError("Task: Failed to save local task", error: error)
+      return false
     }
   }
 
@@ -1014,7 +782,6 @@ actor TaskAssistant: ProactiveAssistant {
             "description": .init(
               type: "string", description: "Additional context about the task. Empty string if none."),
             "priority": .init(type: "string", description: "Task priority", enumValues: ["high", "medium", "low"]),
-            "tags": .init(type: "array", description: "1-3 relevant tags", items: .init(type: "string")),
             "source_app": .init(type: "string", description: "App where the task was found"),
             "inferred_deadline": .init(
               type: "string",
@@ -1024,18 +791,6 @@ actor TaskAssistant: ProactiveAssistant {
             "confidence": .init(type: "number", description: "Confidence score 0.0-1.0"),
             "context_summary": .init(type: "string", description: "Brief summary of what user is looking at"),
             "current_activity": .init(type: "string", description: "What the user is actively doing"),
-            "source_category": .init(
-              type: "string", description: "Where the task originated",
-              enumValues: [
-                "direct_request", "self_generated", "calendar_driven", "reactive", "external_system", "other",
-              ]),
-            "source_subcategory": .init(
-              type: "string", description: "Specific origin within category",
-              enumValues: [
-                "message", "meeting", "mention", "commitment", "idea", "reminder", "goal_subtask", "event_prep",
-                "recurring", "deadline", "error", "notification", "observation", "project_tool", "alert",
-                "documentation", "other",
-              ]),
             "capture_kind": .init(
               type: "string", description: "Shared capture-policy fact",
               enumValues: [
@@ -1054,8 +809,8 @@ actor TaskAssistant: ProactiveAssistant {
             "ownership_confidence": .init(type: "number", description: "Owner confidence 0.0-1.0"),
           ],
           required: [
-            "title", "description", "priority", "tags", "source_app", "inferred_deadline", "confidence",
-            "context_summary", "current_activity", "source_category", "source_subcategory", "capture_kind", "owner",
+            "title", "description", "priority", "source_app", "inferred_deadline", "confidence",
+            "context_summary", "current_activity", "capture_kind", "owner",
             "concrete_deliverable", "public_broadcast", "direct_mention", "duplicate_of", "refines_task",
             "ownership_confidence",
           ]
@@ -1185,12 +940,6 @@ actor TaskAssistant: ProactiveAssistant {
         let description = toolCall.arguments["description"] as? String
         let priorityStr = toolCall.arguments["priority"] as? String ?? "medium"
         let priority = TaskPriority(rawValue: priorityStr) ?? .medium
-        let tags: [String]
-        if let tagArray = toolCall.arguments["tags"] as? [Any] {
-          tags = tagArray.compactMap { $0 as? String }
-        } else {
-          tags = []
-        }
         let sourceApp = toolCall.arguments["source_app"] as? String ?? appName
         let inferredDeadline = toolCall.arguments["inferred_deadline"] as? String
         let confidence: Double
@@ -1201,8 +950,6 @@ actor TaskAssistant: ProactiveAssistant {
         } else {
           confidence = 0.5
         }
-        let sourceCategory = toolCall.arguments["source_category"] as? String ?? "other"
-        let sourceSubcategory = toolCall.arguments["source_subcategory"] as? String ?? "other"
         let captureKind = toolCall.arguments["capture_kind"] as? String
         let owner = toolCall.arguments["owner"] as? String
         let concreteDeliverable = toolCall.arguments["concrete_deliverable"] as? Bool
@@ -1221,9 +968,6 @@ actor TaskAssistant: ProactiveAssistant {
           sourceApp: sourceApp,
           inferredDeadline: inferredDeadline?.isEmpty == true ? nil : inferredDeadline,
           confidence: confidence,
-          tags: tags,
-          sourceCategory: sourceCategory,
-          sourceSubcategory: sourceSubcategory,
           captureKind: captureKind,
           owner: owner,
           concreteDeliverable: concreteDeliverable,
@@ -1431,9 +1175,7 @@ actor TaskAssistant: ProactiveAssistant {
   /// Renders the task-context evidence block of the extraction prompt. Extracted
   /// as a pure function so the id contract is unit-testable: only ACTIVE TASKS
   /// carry an `[id:…]` the model may target with duplicate_of/refines_task;
-  /// completed, deleted, and staged tasks are id-less "do not re-extract"
-  /// evidence. Staged tasks have no backend id, so they must never appear in the
-  /// id'd active list (they used to, all as `id:0`, producing bogus updates).
+  /// completed and deleted tasks are id-less "do not re-extract" evidence.
   static func contextEvidencePrompt(_ context: TaskExtractionContext) -> String {
     var prompt = ""
 
@@ -1460,16 +1202,6 @@ actor TaskAssistant: ProactiveAssistant {
       prompt += "USER-DELETED TASKS (user explicitly rejected these — do not re-extract similar):\n"
       for (i, task) in context.deletedTasks.enumerated() {
         prompt += "\(i + 1). \(task.description)\n"
-      }
-      prompt += "\n"
-    }
-
-    if !context.stagedTaskDescriptions.isEmpty {
-      prompt +=
-        "ALREADY CAPTURED — STAGED (these are already tracked locally; do not re-extract duplicates. "
-        + "They have no id, so never target them with duplicate_of/refines_task):\n"
-      for (i, description) in context.stagedTaskDescriptions.enumerated() {
-        prompt += "\(i + 1). \(description)\n"
       }
       prompt += "\n"
     }
@@ -1537,47 +1269,17 @@ actor TaskAssistant: ProactiveAssistant {
 
   /// Refresh context from local SQLite + cached goals
   private func refreshContext() async -> TaskExtractionContext {
-    var topRelevanceTasks: [(id: String, description: String, priority: String?, relevanceScore: Int?)] = []
-    var recentTasks: [(id: String, description: String, priority: String?, relevanceScore: Int?)] = []
+    var activeTasks: [(id: String, description: String, priority: String?)] = []
     var completedTasks: [(id: Int64, description: String)] = []
     var deletedTasks: [(id: Int64, description: String)] = []
 
-    // Query both action_items (promoted + manual) and staged_tasks for full context
     do {
-      topRelevanceTasks = try await ActionItemStorage.shared.getTopRelevanceTasks(limit: 30).compactMap {
-        guard let backendId = $0.backendId, !backendId.isEmpty else { return nil }
-        return (id: backendId, description: $0.description, priority: $0.priority, relevanceScore: $0.relevanceScore)
-      }
-    } catch {
-      logError("Task: Failed to load top relevance tasks", error: error)
-    }
-
-    do {
-      recentTasks = try await ActionItemStorage.shared.getRecentActiveTasks(limit: 30).compactMap {
-        guard let backendId = $0.backendId, !backendId.isEmpty else { return nil }
-        return (id: backendId, description: $0.description, priority: $0.priority, relevanceScore: $0.relevanceScore)
+      activeTasks = try await ActionItemStorage.shared.getRecentActiveTasks(limit: 60).map {
+        (id: "local_\($0.id)", description: $0.description, priority: $0.priority)
       }
     } catch {
       logError("Task: Failed to load recent tasks", error: error)
     }
-
-    // Also load staged tasks for dedup context. These are local-only (no
-    // backend id), so they are surfaced separately as "already captured — do
-    // not re-extract" evidence rather than in the id'd active-task list. Putting
-    // them in activeTasks previously stamped every one with `id:0`, which the
-    // model could echo back as `duplicate_of:0`, driving an update against a
-    // non-existent backend task.
-    var stagedTaskDescriptions: [String] = []
-    do {
-      let stagedTasks = try await StagedTaskStorage.shared.getAllStagedTasks(limit: 30)
-      stagedTaskDescriptions = stagedTasks.map { $0.description }
-    } catch {
-      logError("Task: Failed to load staged tasks for context", error: error)
-    }
-
-    // Merge: top relevance tasks first, then recent ones not already included
-    let topIds = Set(topRelevanceTasks.map { $0.id })
-    let activeTasks = topRelevanceTasks + recentTasks.filter { !topIds.contains($0.id) }
 
     do {
       completedTasks = try await ActionItemStorage.shared.getRecentCompletedTasks(limit: 10)
@@ -1591,24 +1293,13 @@ actor TaskAssistant: ProactiveAssistant {
       logError("Task: Failed to load deleted tasks", error: error)
     }
 
-    // Refresh goals if stale
-    let timeSinceGoals = Date().timeIntervalSince(lastGoalsRefresh)
-    if timeSinceGoals >= goalsRefreshInterval {
-      do {
-        cachedGoals = try await APIClient.shared.getGoals()
-        lastGoalsRefresh = Date()
-        log("Task: Refreshed \(cachedGoals.count) goals")
-      } catch {
-        logError("Task: Failed to refresh goals", error: error)
-      }
-    }
+    let goals = (try? await GoalStorage.shared.getLocalGoals(activeOnly: true)) ?? []
 
     return TaskExtractionContext(
       activeTasks: activeTasks,
       completedTasks: completedTasks,
       deletedTasks: deletedTasks,
-      stagedTaskDescriptions: stagedTaskDescriptions,
-      goals: cachedGoals
+      goals: goals
     )
   }
 
@@ -1621,52 +1312,24 @@ actor TaskAssistant: ProactiveAssistant {
       let vectorResults = await EmbeddingService.shared.searchSimilar(query: queryEmbedding, topK: 10)
 
       for result in vectorResults where result.similarity > 0.3 {
-        // Resolve against the exact table the embedding came from — the
-        // index key now carries its source, so no more guessing/fallback
-        // that returned an unrelated task on a rowid collision.
-        switch result.source {
-        case .actionItem:
-          if let record = try await ActionItemStorage.shared.getActionItem(id: result.id) {
-            let status: String
-            if record.deleted {
-              status = "deleted"
-            } else if record.completed {
-              status = "completed"
-            } else {
-              status = "active"
-            }
-
-            results.append(
-              TaskSearchResult(
-                taskID: record.backendId,
-                description: record.description,
-                status: status,
-                similarity: Double(result.similarity),
-                matchType: "vector",
-                relevanceScore: record.relevanceScore
-              ))
+        if let record = try await ActionItemStorage.shared.getActionItem(id: result.id) {
+          let status: String
+          if record.deleted {
+            status = "deleted"
+          } else if record.completed {
+            status = "completed"
+          } else {
+            status = "active"
           }
-        case .staged:
-          if let staged = try await StagedTaskStorage.shared.getStagedTask(id: result.id) {
-            let status: String
-            if staged.deleted {
-              status = "deleted"
-            } else if staged.completed {
-              status = "completed"
-            } else {
-              status = "active"
-            }
 
-            results.append(
-              TaskSearchResult(
-                taskID: nil,
-                description: staged.description,
-                status: status,
-                similarity: Double(result.similarity),
-                matchType: "vector",
-                relevanceScore: staged.relevanceScore
-              ))
-          }
+          results.append(
+            TaskSearchResult(
+              taskID: record.toTaskActionItem().id,
+              description: record.description,
+              status: status,
+              similarity: Double(result.similarity),
+              matchType: "vector"
+            ))
         }
       }
     } catch {
@@ -1676,7 +1339,7 @@ actor TaskAssistant: ProactiveAssistant {
     return results.sorted { ($0.similarity ?? 0) > ($1.similarity ?? 0) }
   }
 
-  /// Execute FTS5 keyword search (searches both action_items and staged_tasks)
+  /// Execute local FTS5 keyword search across ordinary tasks.
   private func executeKeywordSearch(query: String) async -> [TaskSearchResult] {
     var results: [TaskSearchResult] = []
 
@@ -1707,29 +1370,11 @@ actor TaskAssistant: ProactiveAssistant {
 
           results.append(
             TaskSearchResult(
-              taskID: result.backendId,
+              taskID: "local_\(result.id)",
               description: result.description,
               status: status,
               similarity: nil,
-              matchType: "fts",
-              relevanceScore: result.relevanceScore
-            ))
-        }
-
-        // Also search staged_tasks
-        let stagedResults = try await StagedTaskStorage.shared.searchFTS(
-          query: ftsQuery,
-          limit: 10
-        )
-        for result in stagedResults {
-          results.append(
-            TaskSearchResult(
-              taskID: nil,
-              description: result.description,
-              status: "active",
-              similarity: nil,
-              matchType: "fts",
-              relevanceScore: result.relevanceScore
+              matchType: "fts"
             ))
         }
       }

@@ -385,7 +385,6 @@ enum ChatContentBlock: Identifiable {
     case "semantic_search": return "Searching conversations"
     case "spawn_agent": return "Starting agent"
     case "run_agent_and_wait": return "Running agent"
-    case "search_tasks": return "Searching tasks"
     case "Read": return "Reading file"
     case "Write": return "Writing file"
     case "Edit": return "Editing file"
@@ -416,7 +415,7 @@ enum ChatContentBlock: Identifiable {
     if slowPrefixes.contains(where: { lower.hasPrefix($0) }) { return true }
     let slowExact: Set<String> = [
       "execute_sql", "semantic_search", "spawn_agent",
-      "search_tasks", "run_attempt", "run_agent_and_wait", "send_agent_message",
+      "run_attempt", "run_agent_and_wait", "send_agent_message",
     ]
     // Strip any embedded summary suffix ("Bash: cmd" style) before matching.
     let head = lower.split(separator: ":").first.map(String.init) ?? lower
@@ -466,8 +465,6 @@ enum ChatContentBlock: Identifiable {
       summary = (input["objective"] ?? input["brief"] ?? input["query"]) as? String
     case "run_agent_and_wait":
       summary = input["objective"] as? String
-    case "search_tasks":
-      summary = input["query"] as? String
     case "request_permission":
       summary = input["type"] as? String
     default:
@@ -762,7 +759,6 @@ struct MessageMetadata {
       "semantic_search",
       "spawn_agent",
       "run_agent_and_wait",
-      "search_tasks",
       "get_daily_recap",
       "complete_task",
       "delete_task",
@@ -874,19 +870,18 @@ enum ChatTurnOwner: Equatable {
   case mainChat
   case floatingDefault
   case floatingVoice
-  case taskChat(String)
   case agentPill(UUID)
 
   /// Per-turn reasoning-effort lane relayed to the desktop gateway.
   /// Typed chat runs "adaptive": the model decides how much to think per
   /// question (including explicit "think properly / take 5 minutes" asks).
   /// PTT/voice runs "fast": thinking off, low effort, latency-optimized.
-  /// Background surfaces (task chat, agent pills) keep the legacy behavior.
+  /// Background agent pills keep the legacy behavior.
   var reasoningEffort: String? {
     switch self {
     case .floatingVoice: return "fast"
     case .mainChat, .floatingDefault: return "adaptive"
-    case .taskChat, .agentPill: return nil
+    case .agentPill: return nil
     }
   }
 
@@ -897,8 +892,6 @@ enum ChatTurnOwner: Equatable {
       (.floatingVoice, .floatingDefault),
       (.floatingVoice, .floatingVoice):
       return true
-    case (.taskChat(let lhs), .taskChat(let rhs)):
-      return lhs == rhs
     case (.agentPill(let lhs), .agentPill(let rhs)):
       return lhs == rhs
     default:
@@ -1260,7 +1253,7 @@ class ChatProvider: ObservableObject {
   // MARK: - Cached Context for Prompts
   private var cachedMemories: [MemoryItem] = []
   private var memoriesLoaded = false
-  private var cachedGoals: [Goal] = []
+  private var cachedGoals: [LocalGoal] = []
   private var goalsLoaded = false
   private var cachedTasks: [TaskActionItem] = []
   private var tasksLoaded = false
@@ -1572,8 +1565,6 @@ class ChatProvider: ObservableObject {
     switch surface.surfaceKind {
     case "floating_chat", "floating_bar": return "floating_chat"
     case "realtime": return "realtime_voice"
-    case "task_chat": return "task_chat"
-    case "workstream": return "workstream"
     default: return "typed_chat"
     }
   }
@@ -1866,7 +1857,7 @@ class ChatProvider: ObservableObject {
       log("Created new chat session: \(session.id)")
       AnalyticsManager.shared.chatSessionCreated()
 
-      // Generate initial greeting message (skip for task chats that send their own context)
+      // Generate the initial greeting message for the visible chat.
       if !skipGreeting {
         await fetchInitialMessage(for: session, authoritativeSendGeneration: authoritativeSendGeneration)
       }
@@ -2125,12 +2116,11 @@ class ChatProvider: ObservableObject {
 
   // MARK: - Load Goals
 
-  /// Loads user goals from local SQLite for use in prompts
+  /// Refreshes user goals from the current owner's local SQLite database for
+  /// every prompt so a task/goal mutation is visible on the next Chat turn.
   private func loadGoalsIfNeeded() async {
-    guard !goalsLoaded else { return }
-
     do {
-      cachedGoals = try await GoalStorage.shared.getLocalGoals(activeOnly: false)
+      cachedGoals = try await GoalStorage.shared.getLocalGoals(activeOnly: true)
       goalsLoaded = true
       log("ChatProvider loaded \(cachedGoals.count) goals from local DB")
     } catch {
@@ -2140,19 +2130,13 @@ class ChatProvider: ObservableObject {
 
   /// Formats goals into a prompt section
   private func formatGoalSection() -> String {
-    let activeGoals = cachedGoals.filter { $0.isActive }
-    guard !activeGoals.isEmpty else { return "" }
+    guard !cachedGoals.isEmpty else { return "" }
 
     var lines: [String] = ["\n<user_goals>"]
-    for goal in activeGoals {
+    for goal in cachedGoals {
       var line = "- \(goal.title)"
       if let desc = goal.description, !desc.isEmpty {
         line += ": \(desc)"
-      }
-      if goal.goalType != .boolean {
-        line += " (progress: \(Int(goal.currentValue))/\(Int(goal.targetValue))"
-        if let unit = goal.unit, !unit.isEmpty { line += " \(unit)" }
-        line += ")"
       }
       lines.append(line)
     }
@@ -2162,10 +2146,9 @@ class ChatProvider: ObservableObject {
 
   // MARK: - Load Tasks
 
-  /// Fetches the latest 20 active tasks from local database for context
+  /// Refreshes the latest 20 active tasks for every prompt. This deliberately
+  /// avoids a process-lifetime cache crossing local mutations or owner changes.
   private func loadTasksIfNeeded() async {
-    guard !tasksLoaded else { return }
-
     do {
       cachedTasks = try await ActionItemStorage.shared.getLocalActionItems(
         limit: 20,
@@ -2194,9 +2177,6 @@ class ChatProvider: ObservableObject {
         formatter.dateStyle = .short
         formatter.timeStyle = .short
         line += " [due: \(formatter.string(from: dueAt))]"
-      }
-      if let category = task.category {
-        line += " [category: \(category)]"
       }
       lines.append(line)
     }
@@ -3521,7 +3501,7 @@ class ChatProvider: ObservableObject {
       {
         let screenRecordingGranted = CGPreflightScreenCaptureAccess()
         if !screenRecordingGranted && !screenContextReason.isExplicitScreenRequest {
-          // Ambient floating/task-agent turns are allowed to use screen context when already granted,
+          // Ambient floating turns are allowed to use screen context when already granted,
           // but they must not manufacture a screen-permission request for generic utterances.
           // Still tell the model WHY there is no screen context, so a
           // screen-dependent question gets an honest "enable Screen
@@ -4078,11 +4058,6 @@ class ChatProvider: ObservableObject {
         showOmiThresholdAlert = true
       }
 
-      // Fire-and-forget: check if user's message mentions goal progress
-      let chatText = trimmedText
-      Task.detached(priority: .background) {
-        await GoalsAIService.shared.extractProgressFromAllGoals(text: chatText)
-      }
       completedResponseText = messageText
     } catch {
       if activeBridgeSendGeneration == sendGen {
@@ -4403,7 +4378,6 @@ class ChatProvider: ObservableObject {
     switch turnOwner {
     case .floatingDefault: return "floating_text"
     case .floatingVoice: return "floating_voice"
-    case .taskChat: return "task_chat"
     case .agentPill: return "agent_pill"
     case .mainChat:
       return systemPromptStyle == .floating ? "floating_text" : "main_chat"

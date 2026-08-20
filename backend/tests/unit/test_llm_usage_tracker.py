@@ -379,7 +379,6 @@ def test_features_constants_have_expected_values():
     assert usage_tracker.Features.CONVERSATION_PROCESSING == "conversation_processing"
     assert usage_tracker.Features.RAG == "rag"
     assert usage_tracker.Features.NOTIFICATIONS == "notifications"
-    assert usage_tracker.Features.GOALS == "goals"
     assert usage_tracker.Features.TRENDS == "trends"
     assert usage_tracker.Features.MEMORY_L1 == "memory_l1"
     assert usage_tracker.Features.MEMORY_L2 == "memory_l2"

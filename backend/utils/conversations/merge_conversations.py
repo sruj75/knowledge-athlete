@@ -480,19 +480,11 @@ def _delete_conversation_and_related_data(uid: str, conversation_id: str) -> Non
     Delete a conversation and all its generated/related data.
 
     Deletes:
-    - Action items linked to this conversation (standalone collection)
     - Audio chunks in GCS
     - Vector embedding
     - Conversation document
     """
     # Import here to avoid circular imports
-    import database.action_items as action_items_db
-
-    try:
-        # Delete action items from standalone collection
-        action_items_db.delete_action_items_for_conversation(uid, conversation_id)
-    except Exception as e:
-        logger.error(f"Error deleting action items for {conversation_id}: {e}")
 
     try:
         # Delete audio chunks from GCS

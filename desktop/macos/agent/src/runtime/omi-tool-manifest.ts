@@ -12,7 +12,7 @@ export type OmiToolCondition =
   | "coordinatorOnly";
 export type OmiToolExecutorKind = "swiftTool" | "runtimeControl";
 export type OmiToolTimeoutClass = "normal" | "long";
-export type OmiToolSurface = "desktop_chat" | "realtime_voice" | "onboarding" | "task_chat";
+export type OmiToolSurface = "desktop_chat" | "realtime_voice" | "onboarding";
 
 export interface OmiToolCapabilityDoc {
   title: string;
@@ -233,19 +233,6 @@ const swiftToolSurfacePatches: Record<string, OmiToolSurfacePatch> = {
         "Get a recap of what the user actually DID on their Mac — apps used (with minutes), conversations, tasks, focus sessions, and screen activity — for a day. First choice for 'what did I do yesterday', 'what did I do today', 'which apps did I use the most', 'how did I spend my time': one fast synchronous read, where searching conversations or spawning an agent would be slower and less complete. Speak a short summary of what it returns.",
     },
   },
-  search_tasks: {
-    surfaces: ["desktop_chat"],
-    capabilityDoc: doc(
-      "Search Tasks",
-      "Vector similarity search on tasks (action_items + staged_tasks).",
-      [
-        "Use for finding tasks by meaning, not exact keywords, e.g. \"find tasks about shopping\".",
-        "Examples: \"tasks about shopping\", \"anything related to the presentation\".",
-        "Parameters: query (required), include_completed (default false).",
-        "More reliable than hand-writing MATCH queries for task search.",
-      ],
-    ),
-  },
   get_tasks: {
     surfaces: ["realtime_voice"],
     capabilityDoc: doc(
@@ -266,16 +253,16 @@ const swiftToolSurfacePatches: Record<string, OmiToolSurfacePatch> = {
     surfaces: ["desktop_chat"],
     capabilityDoc: doc(
       "Complete Task",
-      "Toggle a task's completion status by backendId.",
-      ["Use after finding the task with execute_sql or search_tasks."],
+      "Mark a task complete by surfaced local ID.",
+      ["Use after finding the task with get_action_items or execute_sql."],
     ),
   },
   delete_task: {
     surfaces: ["desktop_chat"],
     capabilityDoc: doc(
       "Delete Task",
-      "Delete a task permanently by backendId.",
-      ["Use after finding the task with execute_sql or search_tasks."],
+      "Delete a task by surfaced local ID.",
+      ["Use after finding the task with get_action_items or execute_sql."],
     ),
   },
   load_skill: {
@@ -364,7 +351,7 @@ const swiftToolSurfacePatches: Record<string, OmiToolSurfacePatch> = {
       "Create a new task, to-do, or reminder.",
       [
         "Use when the user explicitly asks to add something to their list.",
-        "Pass a concise description and due_at only when the user gave a time.",
+        "Pass a concise description; omit due_at to use the local 24-hour default.",
       ],
     ),
     voice: {
@@ -588,51 +575,31 @@ const swiftToolManifestDrafts: OmiToolManifestEntryDraft[] = [
     adapters: piOnly(),
   },
   {
-    name: "search_tasks",
-    label: "Search Tasks",
-    description: "Vector similarity search on tasks. Find tasks by meaning or topic.",
-    promptSnippet: "search_tasks - Find tasks by meaning",
-    latency: "fast local",
-    inputSchema: schema(
-      {
-        query: { type: "string", description: "Natural language task description" },
-        include_completed: { type: "boolean", description: "Include completed tasks" },
-      },
-      ["query"],
-    ),
-    annotations: readOnlyLocal,
-    timeoutClass: "normal",
-    executor: { kind: "swiftTool" },
-    intendedForAgents: true,
-    runtimePreconditions: ["Requires local task index."],
-    adapters: piOnly(),
-  },
-  {
     name: "complete_task",
     label: "Complete Task",
-    description: "Toggle a task's completion status. Syncs to backend.",
-    promptSnippet: "complete_task - Mark a task as complete/incomplete",
+    description: "Mark a task complete in local task storage.",
+    promptSnippet: "complete_task - Mark a task as complete",
     latency: "fast local",
-    inputSchema: schema({ task_id: { type: "string", description: "backendId from action_items" } }, ["task_id"]),
+    inputSchema: schema({ task_id: { type: "string", description: "Surfaced local_<rowid> from action_items" } }, ["task_id"]),
     annotations: localWrite,
     timeoutClass: "normal",
     executor: { kind: "swiftTool" },
     intendedForAgents: true,
-    runtimePreconditions: ["Requires a backendId found via execute_sql or search_tasks."],
+    runtimePreconditions: ["Requires a surfaced local task ID found via get_action_items or execute_sql."],
     adapters: piOnly(),
   },
   {
     name: "delete_task",
     label: "Delete Task",
-    description: "Delete a task permanently. Syncs to backend.",
+    description: "Delete a task in local task storage.",
     promptSnippet: "delete_task - Delete a task permanently",
     latency: "fast local",
-    inputSchema: schema({ task_id: { type: "string", description: "backendId from action_items" } }, ["task_id"]),
+    inputSchema: schema({ task_id: { type: "string", description: "Surfaced local_<rowid> from action_items" } }, ["task_id"]),
     annotations: destructiveLocal,
     timeoutClass: "normal",
     executor: { kind: "swiftTool" },
     intendedForAgents: true,
-    runtimePreconditions: ["Requires a backendId found via execute_sql or search_tasks."],
+    runtimePreconditions: ["Requires a surfaced local task ID found via get_action_items or execute_sql."],
     adapters: piOnly(),
   },
   {
@@ -720,9 +687,9 @@ const swiftToolManifestDrafts: OmiToolManifestEntryDraft[] = [
   {
     name: "get_action_items",
     label: "Get Action Items",
-    description: "Retrieve user tasks from Omi backend. Filter by completion status or due date.",
+    description: "Retrieve owner-local tasks. Filter by completion status or due date.",
     promptSnippet: "get_action_items - Retrieve tasks",
-    latency: "fast network",
+    latency: "fast local",
     inputSchema: schema({
       limit: { type: "number" },
       offset: { type: "number" },
@@ -736,7 +703,7 @@ const swiftToolManifestDrafts: OmiToolManifestEntryDraft[] = [
     timeoutClass: "normal",
     executor: { kind: "swiftTool" },
     intendedForAgents: true,
-    runtimePreconditions: ["Requires authenticated backend access."],
+    runtimePreconditions: ["Requires the current owner's local task database."],
     adapters: piOnly(),
   },
   {
@@ -744,12 +711,11 @@ const swiftToolManifestDrafts: OmiToolManifestEntryDraft[] = [
     label: "Create Action Item",
     description: "Create a new task. Use when user explicitly asks to add a task.",
     promptSnippet: "create_action_item - Create a new task",
-    latency: "fast network",
+    latency: "fast local",
     inputSchema: schema(
       {
         description: { type: "string", description: "Short task description" },
         due_at: { type: "string", description: "Due date ISO" },
-        conversation_id: { type: "string" },
       },
       ["description"],
     ),
@@ -757,7 +723,7 @@ const swiftToolManifestDrafts: OmiToolManifestEntryDraft[] = [
     timeoutClass: "normal",
     executor: { kind: "swiftTool" },
     intendedForAgents: true,
-    runtimePreconditions: ["Requires authenticated backend access."],
+    runtimePreconditions: ["Requires the current owner's local task database."],
     adapters: piOnly(),
   },
   {
@@ -765,10 +731,10 @@ const swiftToolManifestDrafts: OmiToolManifestEntryDraft[] = [
     label: "Update Action Item",
     description: "Update task status, description, or due date.",
     promptSnippet: "update_action_item - Update an existing task",
-    latency: "fast network",
+    latency: "fast local",
     inputSchema: schema(
       {
-        action_item_id: { type: "string", description: "Task ID (required)" },
+        action_item_id: { type: "string", description: "Surfaced local_<rowid> task ID (required)" },
         completed: { type: "boolean" },
         description: { type: "string" },
         due_at: { type: "string" },
@@ -779,7 +745,7 @@ const swiftToolManifestDrafts: OmiToolManifestEntryDraft[] = [
     timeoutClass: "normal",
     executor: { kind: "swiftTool" },
     intendedForAgents: true,
-    runtimePreconditions: ["Requires authenticated backend access."],
+    runtimePreconditions: ["Requires the current owner's local task database."],
     adapters: piOnly(),
   },
   {
@@ -997,12 +963,12 @@ const controlVoicePatches: Partial<Record<AgentControlManifestTool["name"], OmiT
   },
   list_agent_sessions: {
     realtimeDescription:
-      "List canonical Omi-managed agents and subagents, including their sessions/runs, across chat, PTT/realtime, task chat, floating-bar pills, and migrated surfaces. For a prior child agent's final answer, omit status filters: session archive state is not run completion. List recent sessions, then answer from latestRun.finalText or inspect the returned run with get_agent_run. Keep internal ids out of the user-visible response.",
+      "List canonical Omi-managed agents and subagents, including their sessions/runs, across chat, PTT/realtime, floating-bar pills, and migrated general-agent surfaces. For a prior child agent's final answer, omit status filters: session archive state is not run completion. List recent sessions, then answer from latestRun.finalText or inspect the returned run with get_agent_run. Keep internal ids out of the user-visible response.",
     schemaOverride: schema(
       {
         surfaceKind: {
           type: "string",
-          enum: ["main_chat", "task_chat", "realtime", "delegated_agent", "background_agent", "floating_bar", "floating_pill"],
+          enum: ["main_chat", "realtime", "delegated_agent", "background_agent", "floating_bar", "floating_pill"],
           description: "Optional surface hint. background_agent and delegated_agent discover recent child sessions across concrete surfaces.",
         },
         limit: { type: "number", description: "Maximum sessions to return. Default 50." },

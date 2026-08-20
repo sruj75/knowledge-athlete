@@ -105,13 +105,11 @@ _stubs = [
     'database.cache',
     'database.redis_db',
     'database.conversations',
-    'database.action_items',
     'database.folders',
     'database.users',
     'database.user_usage',
     'database.vector_db',
     'database.chat',
-    'database.goals',
     'database.notifications',
     'database.daily_summaries',
     'database.fair_use',
@@ -550,23 +548,22 @@ class TestUsersLockEnforcement:
         # Patches must stay active during body consumption since the generator is lazy.
         with patch('services.users.data_export.get_user_profile', return_value={'name': 'Test'}):
             with patch('services.users.data_export.get_people', return_value=[]):
-                with patch('services.users.data_export.get_standalone_action_items', return_value=[]):
-                    from routers.users import export_all_user_data
+                from routers.users import export_all_user_data
 
-                    response = export_all_user_data(uid='test-uid')
+                response = export_all_user_data(uid='test-uid')
 
-                    # Consume body inside patches — the generator is lazy.
-                    # StreamingResponse wraps sync generators as async iterators,
-                    # so iterate the underlying generator directly.
-                    import asyncio
+                # Consume body inside patches — the generator is lazy.
+                # StreamingResponse wraps sync generators as async iterators,
+                # so iterate the underlying generator directly.
+                import asyncio
 
-                    async def _consume():
-                        parts = []
-                        async for chunk in response.body_iterator:
-                            parts.append(chunk)
-                        return ''.join(parts)
+                async def _consume():
+                    parts = []
+                    async for chunk in response.body_iterator:
+                        parts.append(chunk)
+                    return ''.join(parts)
 
-                    body = asyncio.run(_consume())
+                body = asyncio.run(_consume())
 
         import json
 
@@ -631,33 +628,3 @@ class TestScheduledDailySummaryLockFilter:
 
 
 # =============================================================================
-# Test goal context excludes locked conversations
-# =============================================================================
-
-
-class TestGoalContextLockFilter:
-    """Goal suggestion/advice must exclude locked conversations."""
-
-    def test_get_goal_context_filters_locked_conversations(self):
-        """_get_goal_context excludes locked conversations from vector and recent results."""
-        import database.conversations as conversations_db
-        import database.chat as chat_db
-
-        locked_conv = _make_conversation(locked=True)
-        locked_conv['structured']['overview'] = 'SECRET_LOCKED_OVERVIEW'
-        unlocked_conv = _make_conversation(locked=False, conversation_id='conv-2')
-        unlocked_conv['structured']['overview'] = 'VISIBLE_UNLOCKED_OVERVIEW'
-
-        # Mock vector search to return both conv IDs
-        with patch('utils.llm.goals.vector_search', return_value=['conv-1', 'conv-2']):
-            conversations_db.get_conversations_by_id = MagicMock(return_value=[locked_conv, unlocked_conv])
-            conversations_db.get_conversations = MagicMock(return_value=[])
-            chat_db.get_messages = MagicMock(return_value=[])
-
-            from utils.llm.goals import _get_goal_context
-
-            result = _get_goal_context('test-uid', 'Exercise more')
-
-        # Locked overview must not appear in context
-        assert 'SECRET_LOCKED_OVERVIEW' not in result['conversation_context']
-        assert 'VISIBLE_UNLOCKED_OVERVIEW' in result['conversation_context']

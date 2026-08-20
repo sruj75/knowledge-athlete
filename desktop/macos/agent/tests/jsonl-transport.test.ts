@@ -204,16 +204,16 @@ describe("JsonlTransport kernel-owned query contract", () => {
     });
     const otherSession = store.insertSession({
       ownerId: session.ownerId,
-      surfaceKind: "task_chat",
-      externalRefKind: "task",
-      externalRefId: "other-task",
+      surfaceKind: "service",
+      externalRefKind: "service",
+      externalRefId: "other-service",
       defaultAdapterId: "fake",
     });
     store.insertSurfaceConversation({
       ownerId: session.ownerId,
-      surfaceKind: "task_chat",
-      externalRefKind: "task",
-      externalRefId: "other-task",
+      surfaceKind: "service",
+      externalRefKind: "service",
+      externalRefId: "other-service",
       conversationId: "conv-query-other-session",
       agentSessionId: otherSession.sessionId,
       createdAtMs: 2,
@@ -224,8 +224,8 @@ describe("JsonlTransport kernel-owned query contract", () => {
       conversationId: "conv-query-other-session",
       turnId: "turn-forged-other-session",
       role: "assistant",
-      surfaceKind: "task_chat",
-      origin: "task_chat",
+      surfaceKind: "service",
+      origin: "typed_chat",
       status: "pending",
       content: "Must remain unbound",
       contentBlocks: [],

@@ -199,8 +199,6 @@ extension SettingsContentView {
               .labelsHidden()
               .onChange(of: taskEnabled) { _, newValue in
                 TaskAssistantSettings.shared.isEnabled = newValue
-                SettingsSyncManager.shared.pushPartialUpdate(
-                  AssistantSettingsResponse(task: TaskSettingsResponse(enabled: newValue)))
               }
           }
 
@@ -209,73 +207,6 @@ extension SettingsContentView {
             .foregroundColor(OmiColors.textTertiary)
 
           if taskEnabled {
-            Divider()
-              .background(OmiColors.backgroundQuaternary)
-
-            // Task Agent (chat / investigate) toggle
-            HStack {
-              VStack(alignment: .leading, spacing: OmiSpacing.hairline) {
-                Text("Task Agent")
-                  .scaledFont(size: OmiType.body)
-                  .foregroundColor(OmiColors.textSecondary)
-                Text("Investigate button and sidebar chat for tasks")
-                  .scaledFont(size: OmiType.caption)
-                  .foregroundColor(OmiColors.textTertiary)
-              }
-
-              Spacer()
-
-              Toggle("", isOn: $taskChatAgentEnabled)
-                .toggleStyle(OmiToggleStyle())
-                .labelsHidden()
-                .onChange(of: taskChatAgentEnabled) { _, newValue in
-                  TaskAgentSettings.shared.isChatEnabled = newValue
-                }
-            }
-
-            // Working Directory (shared by chat agent and terminal agent)
-            HStack(spacing: OmiSpacing.sm) {
-              VStack(alignment: .leading, spacing: OmiSpacing.hairline) {
-                Text("Working Directory")
-                  .scaledFont(size: OmiType.body)
-                  .foregroundColor(OmiColors.textSecondary)
-                Text(
-                  taskAgentWorkingDirectory.isEmpty
-                    ? "Not set — chat agent defaults to ~" : taskAgentWorkingDirectory
-                )
-                .scaledFont(size: OmiType.caption)
-                .foregroundColor(OmiColors.textTertiary)
-                .lineLimit(1)
-                .truncationMode(.middle)
-              }
-
-              Spacer()
-
-              Button("Browse...") {
-                let panel = NSOpenPanel()
-                panel.canChooseFiles = false
-                panel.canChooseDirectories = true
-                panel.allowsMultipleSelection = false
-                panel.canCreateDirectories = true
-                if !taskAgentWorkingDirectory.isEmpty {
-                  panel.directoryURL = URL(fileURLWithPath: taskAgentWorkingDirectory)
-                }
-                if panel.runModal() == .OK, let url = panel.url {
-                  taskAgentWorkingDirectory = url.path
-                  TaskAgentSettings.shared.workingDirectory = url.path
-                }
-              }
-              .buttonStyle(OmiButtonStyle(.primary, size: .compact))
-
-              if !taskAgentWorkingDirectory.isEmpty {
-                Button("Clear") {
-                  taskAgentWorkingDirectory = ""
-                  TaskAgentSettings.shared.workingDirectory = ""
-                }
-                .buttonStyle(OmiButtonStyle(.primary, size: .compact))
-              }
-            }
-
             Divider()
               .background(OmiColors.backgroundQuaternary)
 
@@ -309,9 +240,6 @@ extension SettingsContentView {
               .onChange(of: taskExtractionInterval) { _, newValue in
                 performStepHaptic()
                 TaskAssistantSettings.shared.extractionInterval = newValue
-                SettingsSyncManager.shared.pushPartialUpdate(
-                  AssistantSettingsResponse(
-                    task: TaskSettingsResponse(extractionInterval: newValue)))
               }
             }
 
@@ -340,8 +268,6 @@ extension SettingsContentView {
                 .onChange(of: taskMinConfidence) { _, newValue in
                   performStepHaptic()
                   TaskAssistantSettings.shared.minConfidence = newValue
-                  SettingsSyncManager.shared.pushPartialUpdate(
-                    AssistantSettingsResponse(task: TaskSettingsResponse(minConfidence: newValue)))
                 }
             }
 
@@ -473,43 +399,8 @@ extension SettingsContentView {
               )
             }
 
-            Divider()
-              .background(OmiColors.backgroundQuaternary)
-
-            // Task Prioritization Re-score
-            settingRow(
-              title: "Task Prioritization",
-              subtitle: "Re-score all tasks by relevance to your profile and goals",
-              settingId: "advanced.taskassistant.prioritization"
-            ) {
-              if isRescoringTasks {
-                ProgressView()
-                  .controlSize(.small)
-              } else {
-                Button(action: {
-                  isRescoringTasks = true
-                  Task {
-                    await TaskPrioritizationService.shared.forceFullRescore()
-                    await MainActor.run { isRescoringTasks = false }
-                  }
-                }) {
-                  HStack(spacing: OmiSpacing.xxs) {
-                    Image(systemName: "arrow.trianglehead.counterclockwise")
-                      .scaledFont(size: OmiType.caption)
-                    Text("Re-score")
-                      .scaledFont(size: OmiType.caption)
-                  }
-                }
-                .buttonStyle(OmiButtonStyle(.primary, size: .compact))
-              }
-            }
           }  // end if taskEnabled
         }
-      }
-
-      // Task Agent Settings (merged into Task Assistant subsection)
-      settingsCard(settingId: "advanced.taskassistant.agent") {
-        TaskAgentSettingsView()
       }
     }
   }
@@ -944,46 +835,6 @@ extension SettingsContentView {
             SettingsSyncManager.shared.pushPartialUpdate(
               AssistantSettingsResponse(
                 shared: SharedAssistantSettingsResponse(analysisDelay: newValue)))
-          }
-        }
-      }
-    }
-  }
-
-  var goalsSubsection: some View {
-    VStack(spacing: OmiSpacing.xl) {
-      settingsCard(settingId: "advanced.goals") {
-        VStack(alignment: .leading, spacing: OmiSpacing.lg) {
-          HStack {
-            Image(systemName: "target")
-              .scaledFont(size: OmiType.subheading)
-              .foregroundColor(OmiColors.textSecondary)
-
-            Text("Goals")
-              .scaledFont(size: OmiType.subheading, weight: .medium)
-              .foregroundColor(OmiColors.textPrimary)
-
-            Spacer()
-          }
-
-          Text("Track personal goals with AI-powered progress detection from your conversations")
-            .scaledFont(size: OmiType.body)
-            .foregroundColor(OmiColors.textTertiary)
-
-          Divider()
-            .background(OmiColors.backgroundQuaternary)
-
-          settingRow(
-            title: "Auto-Generate Goals",
-            subtitle: "Automatically suggest new goals daily based on your conversations and tasks",
-            settingId: "advanced.goals.autogenerate"
-          ) {
-            Toggle("", isOn: $goalsAutoGenerateEnabled)
-              .toggleStyle(OmiToggleStyle())
-              .labelsHidden()
-              .onChange(of: goalsAutoGenerateEnabled) { _, newValue in
-                GoalGenerationService.shared.isAutoGenerationEnabled = newValue
-              }
           }
         }
       }

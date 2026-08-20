@@ -201,18 +201,18 @@ do not hand-edit those paths to match a specific machine.
 | `DesktopLocalProfile` harness | Auth emulator bootstrap | Re-bootstrap emulator session; no prod invalidation side effects |
 
 ### Database Structure
-- **GRDB/SQLite**: Mac conversation and Memory authority; see `docs/memory-local-authority.md`
-- **Firestore**: user/task state; never Mac conversation or Memory authority
+- **GRDB/SQLite**: Mac authority for conversations, Memory, tasks, and simple goals
+- **Firestore**: user and later-slice state only; never Mac authority
 - **Redis**: Caching
 - **Typesense**: Search
 
 ### User Subcollections (Firestore)
 - `users/{uid}/conversations` - S-23 residue; never Mac/listen authority
-- `users/{uid}/action_items` - Tasks (no platform tracking)
 - `users/{uid}/fcm_tokens` - Token ID prefix = platform (ios_, android_, macos_)
 - Capture creates its UUID before ingestion; reads and mutations stay local.
 - `/v4/listen` is transient; conversation compute returns untrusted local candidates. Never restore retired conversation authority or UI; test named non-production bundles only.
 - Memory CRUD uses `MemoryStorage`; only compute/embeddings leave the Mac, behind owner/revision fences.
+- Task/goal CRUD uses `ActionItemStorage`/`GoalStorage`; reminders stay local.
 
 ### Platform Detection
 - **FCM tokens**: Document ID prefix (e.g., `macos_abc123`)

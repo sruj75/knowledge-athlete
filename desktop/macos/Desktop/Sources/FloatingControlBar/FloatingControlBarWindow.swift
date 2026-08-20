@@ -3180,7 +3180,6 @@ class FloatingControlBarManager {
     assistantId: String,
     sound: NotificationSound,
     context: FloatingBarNotificationContext? = nil,
-    action: FloatingBarNotificationAction? = nil,
     suggestionTelemetryIdentity: SuggestionAssistantTelemetry.NotificationIdentity? = nil,
     screenshotData: Data? = nil
   ) -> OwnerBoundNotificationPresentationResult {
@@ -3194,7 +3193,6 @@ class FloatingControlBarManager {
       message: message,
       assistantId: assistantId,
       context: context,
-      action: action,
       suggestionTelemetryIdentity: suggestionTelemetryIdentity,
       screenshotData: screenshotData
     )
@@ -3804,10 +3802,6 @@ class FloatingControlBarManager {
     notificationDismissWorkItem?.cancel()
     notificationDismissWorkItem = nil
     dismissNotificationAndAdvanceQueue(trackDismissal: false)
-    if case .openWhatMattersNow(let recommendationID) = notification.action {
-      ContextualTaskNavigationRouter.shared.request(recommendationID: recommendationID)
-      return
-    }
     _ = openNotificationConversation(notificationID: notification.id, in: window)
   }
 
@@ -4059,7 +4053,6 @@ class FloatingControlBarManager {
         }
       )
     else { return false }
-    observeAgentCompletionContext(pillID: pillID, runId: runId)
     if !resources.isEmpty {
       // Project the canonical journal revision synchronously so main and notch agree before the floating
       // viewport update.
@@ -4079,28 +4072,6 @@ class FloatingControlBarManager {
     guard let value = await record() else { return nil }
     guard currentOwnerID() == ownerID else { return nil }
     return value
-  }
-
-  private func observeAgentCompletionContext(pillID: UUID, runId: String?) {
-    guard AuthService.shared.isSignedIn else { return }
-    let stableReference = runId.flatMap { $0.isEmpty ? nil : $0 } ?? pillID.uuidString
-    let subject: TaskContextSubject? =
-      runId
-      .flatMap { AgentRuntimeStatusStore.shared.projection(forRunID: $0) }
-      .flatMap { projection in
-        guard projection.surface.surfaceKind == "workstream" else { return nil }
-        let workstreamID = projection.surface.externalRefId
-        return TaskContextSubject(kind: .workstream, id: workstreamID, workstreamID: workstreamID)
-      }
-    guard
-      let event = TaskLocalContextEvent.normalized(
-        kind: .agent,
-        rawReference: "agent-completed:\(stableReference)",
-        subject: subject
-      )
-    else { return }
-    let matched = TaskContextSubjectMatcher.shared.resolve(event)
-    Task { await TaskContextualResurfacingService.shared.observe(matched) }
   }
 
   private func openRecentNotificationConversationIfAvailable(in window: FloatingControlBarWindow) -> Bool {

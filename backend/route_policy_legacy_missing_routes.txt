@@ -4,16 +4,12 @@
 # missing entries while failing when a new registered backend route is
 # added without a matching backend/route_policy_manifest.yaml entry.
 # Remove keys from this file as routes get reviewed and added to the manifest.
-backend-main:http:DELETE:/v1/action-items/{action_item_id}
 backend-main:http:DELETE:/v1/advice/{advice_id}
 backend-main:http:DELETE:/v1/announcements/{announcement_id}
 backend-main:http:DELETE:/v1/focus-sessions/{session_id}
-backend-main:http:DELETE:/v1/goals/{goal_id}
 backend-main:http:DELETE:/v1/joan/{memory_id}/followup-question
 backend-main:http:DELETE:/v1/messages
 backend-main:http:DELETE:/v1/phone/numbers/{phone_number_id}
-backend-main:http:DELETE:/v1/staged-tasks
-backend-main:http:DELETE:/v1/staged-tasks/{task_id}
 backend-main:http:DELETE:/v1/users/daily-summaries/{summary_id}
 backend-main:http:DELETE:/v1/users/delete-account
 backend-main:http:DELETE:/v2/chat-sessions/{session_id}
@@ -21,10 +17,6 @@ backend-main:http:DELETE:/v2/desktop/messages
 backend-main:http:DELETE:/v2/messages
 backend-main:http:DELETE:/v3/speech-profile/expand
 backend-main:http:GET:/metrics
-backend-main:http:GET:/v1/action-items
-backend-main:http:GET:/v1/action-items/ids
-backend-main:http:GET:/v1/action-items/search
-backend-main:http:GET:/v1/action-items/{action_item_id}
 backend-main:http:GET:/v1/admin/fair-use/case/{case_ref}
 backend-main:http:GET:/v1/admin/fair-use/flagged
 backend-main:http:GET:/v1/admin/fair-use/user/{uid}
@@ -40,22 +32,12 @@ backend-main:http:GET:/v1/auth/callback/google
 backend-main:http:GET:/v1/auto/model-pick
 backend-main:http:GET:/v1/calendar/meetings
 backend-main:http:GET:/v1/calendar/meetings/{meeting_id}
-backend-main:http:GET:/v1/daily-score
 backend-main:http:GET:/v1/fair-use/case/{case_ref}/status
 backend-main:http:GET:/v1/fair-use/status
 backend-main:http:GET:/v1/focus-sessions
 backend-main:http:GET:/v1/focus-stats
-backend-main:http:GET:/v1/goals
-backend-main:http:GET:/v1/goals/advice
-backend-main:http:GET:/v1/goals/all
-backend-main:http:GET:/v1/goals/suggest
-backend-main:http:GET:/v1/goals/{goal_id}/advice
-backend-main:http:GET:/v1/goals/{goal_id}/history
 backend-main:http:GET:/v1/health
 backend-main:http:GET:/v1/phone/numbers
-backend-main:http:GET:/v1/scores
-backend-main:http:GET:/v1/staged-tasks
-backend-main:http:GET:/v1/tools/action-items
 backend-main:http:GET:/v1/tools/conversations
 backend-main:http:GET:/v1/trends
 backend-main:http:GET:/v1/users/ai-profile
@@ -88,14 +70,7 @@ backend-main:http:GET:/v3/speech-profile
 backend-main:http:GET:/v3/speech-profile/expand
 backend-main:http:GET:/v4/speech-profile
 backend-main:http:HEAD:/v1/health
-backend-main:http:PATCH:/v1/action-items/batch
-backend-main:http:PATCH:/v1/action-items/{action_item_id}
-backend-main:http:PATCH:/v1/action-items/{action_item_id}/completed
 backend-main:http:PATCH:/v1/advice/{advice_id}
-backend-main:http:PATCH:/v1/goals/{goal_id}
-backend-main:http:PATCH:/v1/goals/{goal_id}/progress
-backend-main:http:PATCH:/v1/staged-tasks/batch-scores
-backend-main:http:PATCH:/v1/tools/action-items/{action_item_id}
 backend-main:http:PATCH:/v1/users/ai-profile
 backend-main:http:PATCH:/v1/users/assistant-settings
 backend-main:http:PATCH:/v1/users/daily-summary-settings
@@ -105,9 +80,6 @@ backend-main:http:PATCH:/v1/users/notification-settings
 backend-main:http:PATCH:/v2/chat-sessions/{session_id}
 backend-main:http:PATCH:/v2/desktop/messages/{message_id}/rating
 backend-main:http:PATCH:/v2/messages/{message_id}/rating
-backend-main:http:POST:/v1/action-items
-backend-main:http:POST:/v1/action-items/batch
-backend-main:http:POST:/v1/action-items/batch-delete
 backend-main:http:POST:/v1/admin/fair-use/user/{uid}/reset
 backend-main:http:POST:/v1/admin/fair-use/user/{uid}/resolve-event/{event_id}
 backend-main:http:POST:/v1/admin/fair-use/user/{uid}/set-stage
@@ -121,8 +93,6 @@ backend-main:http:POST:/v1/auth/token
 backend-main:http:POST:/v1/calendar/meetings
 backend-main:http:POST:/v1/files
 backend-main:http:POST:/v1/focus-sessions
-backend-main:http:POST:/v1/goals
-backend-main:http:POST:/v1/goals/extract-progress
 backend-main:http:POST:/v1/initial-message
 backend-main:http:POST:/v1/messages/{message_id}/report
 backend-main:http:POST:/v1/notification
@@ -130,12 +100,6 @@ backend-main:http:POST:/v1/phone/numbers/verify
 backend-main:http:POST:/v1/phone/numbers/verify/check
 backend-main:http:POST:/v1/phone/token
 backend-main:http:POST:/v1/phone/twiml
-backend-main:http:POST:/v1/staged-tasks
-backend-main:http:POST:/v1/staged-tasks/migrate
-backend-main:http:POST:/v1/staged-tasks/migrate-conversation-items
-backend-main:http:POST:/v1/staged-tasks/promote
-backend-main:http:POST:/v1/staged-tasks/{task_id}/promote
-backend-main:http:POST:/v1/tools/action-items
 backend-main:http:POST:/v1/tools/conversations/search
 backend-main:http:POST:/v1/tools/conversations/search-chunks
 backend-main:http:POST:/v1/users/analytics/chat_message

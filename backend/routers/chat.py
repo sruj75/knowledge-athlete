@@ -58,8 +58,7 @@ from config.prerecorded_stt import TranscriptionOutcome
 from config.stt_provider_policy import MODULATE_MODEL, MODULATE_PROVIDER, STTServingSurface
 from utils.stt.outcomes import TranscriptionFailure, failure_from_exception
 from utils.observability.transcription import TranscriptionAttempt
-from utils.llm.goals import extract_and_update_goal_progress
-from database.redis_db import try_acquire_goal_extraction_lock, check_rate_limit
+from database.redis_db import check_rate_limit
 from database.users import set_chat_message_rating_score
 from utils.rate_limit_config import get_effective_limit, RATE_LIMIT_SHADOW
 from utils.subscription import enforce_chat_quota, is_trial_paywalled
@@ -310,10 +309,6 @@ def send_message(
         chat_session_id=message.chat_session_id,
         platform=x_app_platform,
     )
-
-    # Check for goal progress (background) — rate-limited to one call per user per 5 min
-    if try_acquire_goal_extraction_lock(uid):
-        llm_executor.submit(extract_and_update_goal_progress, uid, data.text)
 
     # Skip a malformed/legacy stored message rather than 500 the whole chat send.
     messages = list(

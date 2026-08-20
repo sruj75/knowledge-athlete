@@ -189,7 +189,7 @@ describe("kernel conversation journal", () => {
     const store = new SqliteAgentStore({ stateDir: newStateDir(), reconcileOnOpen: false });
     const main = insertSurface(store, "main_chat", "chat", "canonical-main");
     const onboarding = insertSurface(store, "onboarding", "session", "canonical-onboarding");
-    const task = insertSurface(store, "task_chat", "task", "canonical-task");
+    const task = insertSurface(store, "onboarding", "task", "canonical-task");
     const base = {
       ownerId: main.ownerId,
       role: "user" as const,
@@ -210,8 +210,8 @@ describe("kernel conversation journal", () => {
       ...base,
       conversationId: task.conversationId,
       turnId: "turn-task",
-      surfaceKind: "task_chat",
-      origin: "task_chat",
+      surfaceKind: "onboarding",
+      origin: "typed_chat",
     })).toMatchObject({ created: true, outboxStatus: null });
     expect(recordJournalTurn(store, {
       ...base,
@@ -223,8 +223,8 @@ describe("kernel conversation journal", () => {
       ...base,
       conversationId: main.conversationId,
       turnId: "turn-main-surface-spoof",
-      surfaceKind: "task_chat",
-      origin: "task_chat",
+      surfaceKind: "onboarding",
+      origin: "typed_chat",
     })).toThrow(/canonical conversation delivery boundary/i);
 
     expect(store.getRow("SELECT COUNT(*) AS count FROM conversation_turns").count).toBe(3);
@@ -294,8 +294,8 @@ describe("kernel conversation journal", () => {
         {
           turnId: "turn-mixed-assistant",
           role: "assistant",
-          surfaceKind: "task_chat",
-          origin: "task_chat",
+          surfaceKind: "onboarding",
+          origin: "typed_chat",
           status: "completed",
           content: "Assistant half",
           contentBlocks: [],
@@ -306,12 +306,12 @@ describe("kernel conversation journal", () => {
 
     const localSession = fixture.store.insertSession({
       ownerId: fixture.ownerId,
-      surfaceKind: "task_chat",
+      surfaceKind: "onboarding",
       defaultAdapterId: "test-adapter",
     });
     fixture.store.insertSurfaceConversation({
       ownerId: fixture.ownerId,
-      surfaceKind: "task_chat",
+      surfaceKind: "onboarding",
       externalRefKind: "task",
       externalRefId: "mixed-delivery-task",
       conversationId: fixture.conversationId,
@@ -405,11 +405,11 @@ describe("kernel conversation journal", () => {
   });
 
   it("terminalizes a producing turn from the exact canonical run attempt and replays idempotently", () => {
-    const fixture = newSurface("task_chat", "task", "terminal-success");
+    const fixture = newSurface("onboarding", "task", "terminal-success");
     const run = fixture.store.insertRun({
       sessionId: fixture.sessionId,
       runId: "run_terminal_success",
-      clientId: "task-chat",
+      clientId: "local-surface",
       requestId: "terminal-success",
       status: "succeeded",
       mode: "act",
@@ -427,8 +427,8 @@ describe("kernel conversation journal", () => {
       conversationId: fixture.conversationId,
       turnId: "turn-terminal-success",
       role: "assistant",
-      surfaceKind: "task_chat",
-      origin: "task_chat",
+      surfaceKind: "onboarding",
+      origin: "typed_chat",
       status: "streaming",
       content: "Working",
       contentBlocks: [{ type: "text", id: "terminal:text", text: "Working" }],
@@ -640,11 +640,11 @@ describe("kernel conversation journal", () => {
   });
 
   it("rejects stale, unknown, and nonterminal attempt proofs without mutating the turn", () => {
-    const fixture = newSurface("task_chat", "task", "terminal-authority");
+    const fixture = newSurface("onboarding", "task", "terminal-authority");
     const run = fixture.store.insertRun({
       sessionId: fixture.sessionId,
       runId: "run_terminal_authority",
-      clientId: "task-chat",
+      clientId: "local-surface",
       requestId: "terminal-authority",
       status: "succeeded",
       mode: "act",
@@ -670,8 +670,8 @@ describe("kernel conversation journal", () => {
       conversationId: fixture.conversationId,
       turnId: "turn-terminal-authority",
       role: "assistant",
-      surfaceKind: "task_chat",
-      origin: "task_chat",
+      surfaceKind: "onboarding",
+      origin: "typed_chat",
       status: "streaming",
       content: "Unchanged",
       contentBlocks: [],
@@ -713,7 +713,7 @@ describe("kernel conversation journal", () => {
     const activeRun = fixture.store.insertRun({
       sessionId: fixture.sessionId,
       runId: "run_terminal_active",
-      clientId: "task-chat",
+      clientId: "local-surface",
       requestId: "terminal-active",
       status: "running",
       mode: "act",
@@ -735,11 +735,11 @@ describe("kernel conversation journal", () => {
   });
 
   it("maps a canonical cancelled run to a failed journal terminal state atomically", () => {
-    const fixture = newSurface("task_chat", "task", "terminal-cancelled");
+    const fixture = newSurface("onboarding", "task", "terminal-cancelled");
     const run = fixture.store.insertRun({
       sessionId: fixture.sessionId,
       runId: "run_terminal_cancelled",
-      clientId: "task-chat",
+      clientId: "local-surface",
       requestId: "terminal-cancelled",
       status: "cancelled",
       mode: "act",
@@ -757,8 +757,8 @@ describe("kernel conversation journal", () => {
       conversationId: fixture.conversationId,
       turnId: "turn-terminal-cancelled",
       role: "assistant",
-      surfaceKind: "task_chat",
-      origin: "task_chat",
+      surfaceKind: "onboarding",
+      origin: "typed_chat",
       status: "pending",
       content: "",
       contentBlocks: [],
@@ -1048,7 +1048,7 @@ describe("kernel conversation journal", () => {
     const databasePath = newDatabasePath();
     let store = new SqliteAgentStore({ databasePath, reconcileOnOpen: false });
     const source = insertSurface(store, "main_chat", "chat", "legacy-task");
-    const destination = insertSurface(store, "main_chat", "chat", "canonical-workstream");
+    const destination = insertSurface(store, "main_chat", "chat", "canonical-session");
     recordCompletedTextTurn(destination, "turn-existing", "Existing canonical turn", 10);
     recordJournalTurn(store, {
       ownerId: source.ownerId,
@@ -2440,43 +2440,6 @@ describe("kernel conversation journal", () => {
       ]);
       fixture.store.close();
     }
-  });
-
-  it("keeps task and workstream turns in the same journal without backend outbox rows", () => {
-    const dir = newStateDir();
-    const store = new SqliteAgentStore({ stateDir: dir, reconcileOnOpen: false });
-    const task = insertSurface(store, "task_chat", "task", "task-1");
-    const workstream = insertSurface(store, "workstream", "workstream", "ws-1");
-
-    for (const [fixture, origin, turnId] of [
-      [task, "task_chat", "turn-task"],
-      [workstream, "workstream", "turn-workstream"],
-    ] as const) {
-      expect(recordJournalTurn(store, {
-        ownerId: fixture.ownerId,
-        conversationId: fixture.conversationId,
-        turnId,
-        role: "user",
-        surfaceKind: origin,
-        origin,
-        status: "completed",
-        content: `Local ${origin}`,
-        contentBlocks: [{ type: "text", id: `${turnId}:text`, text: `Local ${origin}` }],
-        createdAtMs: 20,
-      })).toMatchObject({ created: true, outboxStatus: null });
-    }
-    expect(store.getRow("SELECT COUNT(*) AS count FROM conversation_turns").count).toBe(2);
-    expect(store.getRow("SELECT COUNT(*) AS count FROM backend_turn_outbox").count).toBe(0);
-    expect(recordJournalTurn(store, {
-      ownerId: task.ownerId,
-      conversationId: task.conversationId,
-      role: "user",
-      surfaceKind: "task_chat",
-      origin: "task_chat",
-      content: "Wrong destination",
-      contentBlocks: [{ type: "text", id: "wrong:text", text: "Wrong destination" }],
-    })).toMatchObject({ created: true, outboxStatus: null });
-    store.close();
   });
 
   it("adds agent completion and resources to the producing turn idempotently", () => {

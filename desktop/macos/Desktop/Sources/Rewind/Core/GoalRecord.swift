@@ -1,121 +1,58 @@
 import Foundation
 @preconcurrency import GRDB
 
-struct GoalRecord: Codable, FetchableRecord, PersistableRecord, Identifiable {
-  var id: Int64?
-
-  // Backend sync
-  var backendId: String?
-  var backendSynced: Bool
-
-  // Core Goal fields (mirrors APIClient.Goal)
+struct LocalGoal: Identifiable, Equatable, Sendable {
+  let id: String
+  let rowID: Int64
   var title: String
-  var goalDescription: String?  // "description" is reserved in some contexts
-  var goalType: String  // "boolean", "scale", "numeric"
-  var targetValue: Double
-  var currentValue: Double
-  var minValue: Double
-  var maxValue: Double
-  var unit: String?
+  var description: String?
   var isActive: Bool
   var completedAt: Date?
+  let createdAt: Date
+  var updatedAt: Date
+}
 
-  // Status
-  var deleted: Bool
-
-  // Timestamps
+struct GoalRecord: Codable, FetchableRecord, PersistableRecord, Identifiable {
+  var id: Int64?
+  var title: String
+  var goalDescription: String?
+  var isActive: Bool
+  var completedAt: Date?
   var createdAt: Date
   var updatedAt: Date
 
   static let databaseTableName = "goals"
 
-  // MARK: - Persistence Callbacks
-
   mutating func didInsert(_ inserted: InsertionSuccess) {
     id = inserted.rowID
   }
-}
 
-// MARK: - Server Conversion
-
-extension GoalRecord {
-  /// Create local record from API Goal
-  static func from(_ goal: Goal) -> GoalRecord {
-    GoalRecord(
-      backendId: goal.id,
-      backendSynced: true,
-      title: goal.title,
-      goalDescription: goal.description,
-      goalType: goal.goalType.rawValue,
-      targetValue: goal.targetValue,
-      currentValue: goal.currentValue,
-      minValue: goal.minValue,
-      maxValue: goal.maxValue,
-      unit: goal.unit,
-      isActive: goal.isActive,
-      completedAt: goal.completedAt,
-      deleted: false,
-      createdAt: goal.createdAt,
-      updatedAt: goal.updatedAt
+  func toLocalGoal() -> LocalGoal? {
+    guard let id else { return nil }
+    return LocalGoal(
+      id: "local_\(id)",
+      rowID: id,
+      title: title,
+      description: goalDescription,
+      isActive: isActive,
+      completedAt: completedAt,
+      createdAt: createdAt,
+      updatedAt: updatedAt
     )
   }
-
-  /// Update existing record from API Goal (preserves local ID)
-  mutating func updateFrom(_ goal: Goal) {
-    backendId = goal.id
-    backendSynced = true
-    title = goal.title
-    goalDescription = goal.description
-    goalType = goal.goalType.rawValue
-    targetValue = goal.targetValue
-    currentValue = goal.currentValue
-    minValue = goal.minValue
-    maxValue = goal.maxValue
-    unit = goal.unit
-    isActive = goal.isActive
-    completedAt = goal.completedAt
-    updatedAt = goal.updatedAt
-  }
-
-  /// Convert back to API Goal for UI display
-  func toGoal() -> Goal? {
-    let goalId = backendId ?? "local_\(id ?? 0)"
-    let type = GoalType(rawValue: goalType) ?? .boolean
-
-    // Use Goal's memberwise-compatible approach via decoding
-    let json: [String: Any] = [
-      "id": goalId,
-      "title": title,
-      "description": goalDescription as Any,
-      "goal_type": type.rawValue,
-      "target_value": targetValue,
-      "current_value": currentValue,
-      "min_value": minValue,
-      "max_value": maxValue,
-      "unit": unit as Any,
-      "is_active": isActive,
-      "created_at": ISO8601DateFormatter().string(from: createdAt),
-      "updated_at": ISO8601DateFormatter().string(from: updatedAt),
-      "completed_at": completedAt.map { ISO8601DateFormatter().string(from: $0) } as Any,
-    ]
-
-    guard let data = try? JSONSerialization.data(withJSONObject: json),
-      let decoder: JSONDecoder = {
-        let d = JSONDecoder()
-        d.dateDecodingStrategy = .iso8601
-        return d
-      }(),
-      let goal = try? decoder.decode(Goal.self, from: data)
-    else {
-      return nil
-    }
-    return goal
-  }
 }
 
-// MARK: - TableDocumented
-
 extension GoalRecord: TableDocumented {
-  static var tableDescription: String { ChatPrompts.tableAnnotations["goals"]! }
-  static var columnDescriptions: [String: String] { ChatPrompts.columnAnnotations["goals"] ?? [:] }
+  static var tableDescription: String { "Simple goals stored only in the current owner's local database." }
+  static var columnDescriptions: [String: String] {
+    [
+      "id": "Stable local goal row ID.",
+      "title": "Goal title.",
+      "goalDescription": "Optional goal description.",
+      "isActive": "Whether the goal is active rather than completed.",
+      "completedAt": "Local completion timestamp.",
+      "createdAt": "Local creation timestamp.",
+      "updatedAt": "Local update timestamp.",
+    ]
+  }
 }

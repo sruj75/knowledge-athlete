@@ -53,11 +53,6 @@ const FORBIDDEN: ForbiddenPattern[] = [
     pattern: /pendingSurfaceTurns|PendingSaveCounter|pollForNewMessages|textPrefix/,
   },
   {
-    id: "task-chat-second-writer",
-    relativePath: "Desktop/Sources/Rewind/Core/TaskChatMessageStorage.swift",
-    pattern: /func\s+(?:saveMessage|updateMessage|markSynced|deleteMessage)\s*\(/,
-  },
-  {
     id: "swift-capability-authority",
     relativePath: "Desktop/Sources/Chat/AgentRuntimeProcess.swift",
     pattern: /RunToolCapabilityRegistry|tool_capability_(?:register|revoke)|activeRequests\[[^\]]+\].*onToolCall/s,
@@ -213,7 +208,6 @@ describe("#9515 single-owner authority ratchets", () => {
   it("requires explicit owners and removal contracts on convergence compatibility readers", () => {
     const contracts = [
       readFileSync(join(SWIFT_SOURCES, "Providers", "ChatProvider.swift"), "utf8"),
-      readFileSync(join(SWIFT_SOURCES, "Rewind", "Core", "TaskChatMessageStorage.swift"), "utf8"),
       readFileSync(join(SWIFT_SOURCES, "FloatingControlBar", "LegacyVoiceJournalImporter.swift"), "utf8"),
       readFileSync(join(SWIFT_SOURCES, "Chat", "AgentBridge.swift"), "utf8"),
       readFileSync(join(AGENT_SOURCES, "runtime", "surface-session.ts"), "utf8"),

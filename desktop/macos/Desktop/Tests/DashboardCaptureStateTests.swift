@@ -2,7 +2,7 @@ import XCTest
 
 final class DashboardCaptureStateTests: XCTestCase {
   func testDashboardCaptureStatusUsesLiveMonitoringState() throws {
-    let source = try dashboardSource()
+    let source = try captureControlsSource()
     let logic = try captureLogicSource()
 
     XCTAssertTrue(
@@ -14,7 +14,7 @@ final class DashboardCaptureStateTests: XCTestCase {
   }
 
   func testDashboardCaptureToggleDerivesFromLiveState() throws {
-    let source = try dashboardSource()
+    let source = try captureControlsSource()
     let logic = try captureLogicSource()
 
     XCTAssertTrue(source.contains("CaptureListeningLogic.toggleCapture("))
@@ -26,12 +26,14 @@ final class DashboardCaptureStateTests: XCTestCase {
   }
 
   func testListeningPillShowsAndTogglesCaptureMode() throws {
-    let source = try dashboardSource()
+    let source = try captureControlsSource()
+    let topBar = try desktopTopBarSource()
     let logic = try captureLogicSource()
 
     XCTAssertTrue(source.contains("@AppStorage(\"systemAudioCaptureMode\")"))
     XCTAssertTrue(source.contains("HomeListeningStatusButton("))
     XCTAssertTrue(source.contains("modeAction: toggleListeningMode"))
+    XCTAssertTrue(topBar.contains("CaptureListeningControls(appState: appState, onRewind: onRewind)"))
     XCTAssertTrue(logic.contains("AssistantSettings.shared.systemAudioCaptureMode = nextMode"))
     XCTAssertFalse(source.contains("OmiColors.purplePrimary"))
   }
@@ -75,6 +77,22 @@ final class DashboardCaptureStateTests: XCTestCase {
       .deletingLastPathComponent()
       .deletingLastPathComponent()
       .appendingPathComponent("Sources/MainWindow/DesktopHomeView.swift")
+    return try String(contentsOf: path, encoding: .utf8)
+  }
+
+  private func captureControlsSource() throws -> String {
+    let path = URL(fileURLWithPath: #filePath)
+      .deletingLastPathComponent()
+      .deletingLastPathComponent()
+      .appendingPathComponent("Sources/MainWindow/CaptureListeningControls.swift")
+    return try String(contentsOf: path, encoding: .utf8)
+  }
+
+  private func desktopTopBarSource() throws -> String {
+    let path = URL(fileURLWithPath: #filePath)
+      .deletingLastPathComponent()
+      .deletingLastPathComponent()
+      .appendingPathComponent("Sources/MainWindow/DesktopTopBar.swift")
     return try String(contentsOf: path, encoding: .utf8)
   }
 

@@ -31,7 +31,7 @@ def test_swift_dto_file_is_generated_from_live_app_client_openapi():
 def test_swift_dto_file_covers_desktop_high_traffic_read_schemas():
     generated = SWIFT_PATH.read_text()
 
-    # The retained conversation-compute, Memory-compute, task, and goal endpoints
+    # The retained conversation-compute and Memory-compute endpoints
     # decode these generated DTOs through narrow adapter layers.
     for name in (
         'struct ConversationDiscardRequest:',
@@ -40,35 +40,20 @@ def test_swift_dto_file_covers_desktop_high_traffic_read_schemas():
         'struct ConversationStructureResponse:',
         'struct ConversationActionItemsRequest:',
         'struct ConversationActionItemsResponse:',
-        'struct ActionItemResponse:',
-        'struct ActionItemCreateRequest:',
-        'struct ActionItemUpdateRequest:',
         'struct MemoryExtractRequest:',
         'struct MemoryExtractResponse:',
         'struct MemoryNormalizeRequest:',
         'struct MemoryNormalizeResponse:',
         'struct MemoryConsolidateRequest:',
         'struct MemoryConsolidateResponse:',
-        'struct GoalResponse:',
-        'struct GoalDetailProjection:',
-        'struct CandidateRecord:',
-        'struct WorkstreamDetailProjection:',
-        'struct ArtifactDescriptor:',
-        'struct ContinuationCheckpoint:',
     ):
         assert f'public {name}' in generated, f'OmiAPI.{name} missing from generated Swift DTOs'
 
     # Enums the desktop consumes via the wire.
     assert 'public struct ConversationActionCandidate:' in generated
-    assert 'public enum GoalType:' in generated
-    assert 'public enum CandidateTaskChange: Codable {' in generated
-    assert 'public enum CandidateCreate: Codable {' in generated
     assert 'public enum OmiPatchField<Value: Codable>: Codable {' in generated
-    assert 'public let goalId: OmiPatchField<String>' in generated
-    assert 'public struct GoalUpdate: Codable {' in generated
-    assert 'public let desiredOutcome: OmiPatchField<String>' in generated
-    assert 'public let nextReviewAt: OmiPatchField<String>' in generated
-    assert 'taskChange = .create(try c.decode(TaskCreatePayload.self' in generated
+    for retired in ('ActionItemResponse', 'GoalResponse', 'CandidateRecord', 'WorkstreamDetailProjection'):
+        assert retired not in generated
 
 
 def test_swift_generator_handles_refs_optionals_and_enums():

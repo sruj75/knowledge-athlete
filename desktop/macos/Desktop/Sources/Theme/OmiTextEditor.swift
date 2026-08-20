@@ -166,7 +166,7 @@ package struct OmiTextEditor: NSViewRepresentable {
       }
 
       // Re-focus the text view when content changes programmatically
-      // (e.g. switching between task chats reuses this NSView).
+      // (e.g. switching between chat contexts reuses this NSView).
       // Guard: skip if the text view already has focus to avoid a
       // focus-thrash loop with SwiftUI's SelectionOverlay.
       if focusOnAppear, let window = scrollView.window,
@@ -195,7 +195,7 @@ package struct OmiTextEditor: NSViewRepresentable {
   /// recurse through the parent hierarchy to infer the editor's height.
   /// Without this, NSViewRepresentable reports no intrinsic size and SwiftUI
   /// keeps propagating unconstrained proposals upward, contributing to the
-  /// recursive StackLayout sizing loop seen in the task chat panel.
+  /// recursive StackLayout sizing loop seen in narrow chat panels.
   package func sizeThatFits(_ proposal: ProposedViewSize, nsView: NSScrollView, context: Context) -> CGSize? {
     guard let minH = minHeight, let maxH = maxHeight else {
       return nil  // no height tracking — let SwiftUI use default NSView sizing

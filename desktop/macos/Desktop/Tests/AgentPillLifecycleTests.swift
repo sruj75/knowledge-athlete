@@ -1415,7 +1415,7 @@ import XCTest
     let agentSource = try agentPillSource()
 
     // Terminal projections must preserve the final result text so consumers
-    // (floating pill latestActivity, task agent voice summary) can display it.
+    // (for example, floating pill latestActivity) can display it.
     XCTAssertFalse(source.contains("projection.statusText = terminal ? nil : statusText"))
     XCTAssertTrue(source.contains("projection.statusText = statusText"))
     XCTAssertTrue(agentSource.contains("case .succeeded:"))

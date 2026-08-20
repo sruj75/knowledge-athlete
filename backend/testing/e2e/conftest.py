@@ -367,14 +367,6 @@ def conversation_fixture():
         return json.load(f)
 
 
-@pytest.fixture()
-def action_item_fixture():
-    """Load action item fixture data from JSON."""
-    fixture_path = E2E_DIR / "fixtures" / "action_items.json"
-    with open(fixture_path) as f:
-        return json.load(f)
-
-
 # ─── Utility fixtures ──────────────────────────────────────────────────
 
 
@@ -429,13 +421,4 @@ def sample_conversation_data(fresh_uid):
         "discarded": False,
         "status": "completed",
         "is_locked": False,
-    }
-
-
-@pytest.fixture()
-def sample_action_item_data():
-    """Return dict suitable for creating an action item via POST /v1/action-items."""
-    return {
-        "description": "Complete the e2e harness setup",
-        "completed": False,
     }

@@ -1,7 +1,7 @@
 import Foundation
 
 /// Shared encode/decode for structured chat content blocks.
-/// Used by task-chat local SQLite and main-chat `saveMessage` metadata so
+/// Used by main-chat `saveMessage` metadata so
 /// `agentSpawn` / `agentCompletion` survive reload (INV-6 rule 4).
 enum ChatContentBlockCodec {
   static let messageMetadataKey = "content_blocks"

@@ -134,7 +134,6 @@ def _desktop_transcribe_isolation():
 
         for _sub in [
             '_client',
-            'action_items',
             'announcements',
             'auth',
             'cache',
@@ -145,7 +144,6 @@ def _desktop_transcribe_isolation():
             'daily_summaries',
             'fair_use',
             'folders',
-            'goals',
             'helpers',
             'import_jobs',
             'llm_usage',

@@ -43,7 +43,6 @@ describe("SqliteAgentStore", () => {
       "desktop_context_packets",
       "desktop_dispatches",
       "desktop_memory_candidates",
-      "desktop_task_candidates",
       "events",
       "grants",
       "run_attempts",
@@ -53,9 +52,6 @@ describe("SqliteAgentStore", () => {
       "sessions",
       "surface_conversations",
       "tool_invocation_ledger",
-      "workstream_artifact_heads",
-      "workstream_artifact_versions",
-      "workstream_continuation_checkpoints",
     ]);
     expect(tableNames(store)).not.toContain("desktop_action_queue");
 
@@ -481,16 +477,6 @@ describe("SqliteAgentStore", () => {
       confidence: 0.8,
       sensitivityTier: "low",
     });
-    const task = store.insertDesktopTaskCandidate({
-      ownerId: "owner",
-      sourceSessionId: session.sessionId,
-      sourceRunId: run.runId,
-      action: "create",
-      proposedChangeJson: "{}",
-      evidenceRefsJson: "[]",
-      confidence: 0.7,
-      requiresApproval: 1,
-    });
     const access = store.insertDesktopContextAccessLog({
       ownerId: "owner",
       packetId: packet.packetId,
@@ -556,7 +542,6 @@ describe("SqliteAgentStore", () => {
     });
     expect(store.getRow("SELECT delivery_status FROM desktop_artifact_deliveries WHERE delivery_id = ?", [delivery.deliveryId]).delivery_status).toBe("delivered");
     expect(store.getRow("SELECT status FROM desktop_memory_candidates WHERE candidate_id = ?", [memory.candidateId]).status).toBe("pending");
-    expect(store.getRow("SELECT requires_approval FROM desktop_task_candidates WHERE candidate_id = ?", [task.candidateId]).requires_approval).toBe(1);
     expect(store.getRow("SELECT policy_decision FROM desktop_context_access_log WHERE access_id = ?", [access.accessId]).policy_decision).toBe("allowed");
     expect(store.getRow("SELECT hidden_until_ms FROM desktop_attention_overrides WHERE owner_id = ? AND subject_kind = ? AND subject_id = ?", [
       override.ownerId,
@@ -675,7 +660,7 @@ describe("SqliteAgentStore", () => {
     let store = new SqliteAgentStore({ databasePath, reconcileOnOpen: false, nowMs: () => 100 });
     const session = store.insertSession({
       ownerId: "owner",
-      surfaceKind: "task_chat",
+      surfaceKind: "service",
       defaultAdapterId: "test-adapter",
     });
     const binding = store.insertAdapterBinding({
@@ -746,17 +731,17 @@ describe("SqliteAgentStore", () => {
     const store = newStore({ reconcileOnOpen: false });
     const session = store.insertSession({
       ownerId: "owner",
-      surfaceKind: "task_chat",
-      externalRefKind: "task",
-      externalRefId: "task-1",
+      surfaceKind: "service",
+      externalRefKind: "service",
+      externalRefId: "service-1",
       defaultAdapterId: "test-adapter",
     });
 
     expect(() => store.insertSession({
       ownerId: "owner",
-      surfaceKind: "task_chat",
-      externalRefKind: "task",
-      externalRefId: "task-1",
+      surfaceKind: "service",
+      externalRefKind: "service",
+      externalRefId: "service-1",
       defaultAdapterId: "test-adapter",
     })).toThrow();
 

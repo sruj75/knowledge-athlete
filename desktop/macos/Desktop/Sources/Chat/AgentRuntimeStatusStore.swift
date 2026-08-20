@@ -36,18 +36,6 @@ struct AgentSurfaceReference: Hashable, Sendable {
     )
   }
 
-  static func taskChat(taskId: String) -> AgentSurfaceReference {
-    AgentSurfaceReference(surfaceKind: "task_chat", externalRefKind: "task", externalRefId: taskId)
-  }
-
-  static func workstream(workstreamId: String) -> AgentSurfaceReference {
-    AgentSurfaceReference(
-      surfaceKind: "workstream",
-      externalRefKind: "workstream",
-      externalRefId: workstreamId
-    )
-  }
-
   /// Notch / floating "Omi Chat" text conversation. Used as an independent
   /// completed-agent-delta consumer so a finished sub-agent's artifacts can be
   /// delivered to the floating bar separately from the main chat.
@@ -337,14 +325,6 @@ final class AgentRuntimeStatusStore: ObservableObject {
       .unknown:
       break
     }
-  }
-
-  func taskProjections(limit: Int = 20) -> [AgentRunProjection] {
-    projectionsBySurface.values
-      .filter { $0.surface.surfaceKind == "task_chat" }
-      .sorted { $0.updatedAt > $1.updatedAt }
-      .prefix(limit)
-      .map { $0 }
   }
 
   func floatingPillProjections(limit: Int = 20) -> [AgentRunProjection] {

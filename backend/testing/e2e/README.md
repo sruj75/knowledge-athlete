@@ -21,16 +21,14 @@ python -m pip install -r testing/e2e/requirements.txt
 
 ## Scope of v1
 
-This version proves the backend can boot hermetically and that selected task CRUD, user/account, storage, retrieval/search, and legacy-shape paths can execute without real Firestore, Redis, GCS, Pinecone, Typesense, Google ADC, or production API keys. Conversation CRUD and processing are deliberately absent because the Mac owns its conversation archive locally. Memory product CRUD/search is also absent because the Mac owns durable Memory state locally; only the three stateless Memory compute routes remain on the backend. The authenticated transient listen route is exercised by `tests/unit/test_listen_transient_contract.py` with the real FastAPI route/runtime and a fake Modulate socket.
+This version proves the backend can boot hermetically and that selected user/account, storage, retrieval/search, and legacy-shape paths can execute without real Firestore, Redis, GCS, Pinecone, Typesense, Google ADC, or production API keys. Conversation, Memory, task, and goal CRUD are deliberately absent because the Mac owns those products locally; the backend retains only bounded conversation/Memory compute routes. The authenticated transient listen route is exercised by `tests/unit/test_listen_transient_contract.py` with the real FastAPI route/runtime and a fake Modulate socket.
 
 | Scenario | Status | Notes |
 |---|---:|---|
-| CRUD golden path | ✅ Green | Action items use real create/update/delete routes. Public conversation CRUD was retired by S-10 and hosted Memory CRUD was retired by S-12. |
 | Listen/STT route seam | ✅ | `/v4/listen` authentication, exact query parsing, fixed audio contract, managed Modulate transport, direct segment delivery, and optional translation are covered without server conversation persistence. `/v4/web/listen` is retired. |
 | Storage / speech profile | ✅ Green | `google.cloud.storage.Client` is patched to a temp-dir fake; speech-profile presence, signed URL, sample list, and delete paths run through real routes/helpers. |
 | User/auth/profile/account | ✅ Green | Auth guard, profile, onboarding, general language, notification/assistant settings, and AI profile are covered. S-10 removed Mac transcription preferences and People CRUD. Account deletion additionally exercises its real admission route, durable marker, opaque Cloud Tasks payload, worker claim, required-purge retry, and idempotent redelivery against local fakes. Firebase deletion, billing lookup, Twilio, and derived-data purge stay controlled test seams. |
-| Retrieval/search | ✅ Partial | Action-item, conversation-summary, and transcript-chunk retrieval routes run through real public APIs with Firestore-backed records. Full Pinecone/Typesense service compatibility remains out of scope. |
-| Failure / edge modes | ✅ Partial | Invalid input and edge-case coverage runs. Redis-unavailable, LLM 500, and STT timeout cases are explicitly skipped or deferred until per-test failure fakes are wired. |
+| Retrieval/search | ✅ Partial | Conversation-summary and transcript-chunk retrieval routes run through real public APIs with Firestore-backed records. Full Pinecone/Typesense service compatibility remains out of scope. |
 | Legacy shape compatibility | ✅ Green | Exercises retained server-internal conversation storage and deterministic fake-store repeated writes. It does not expose conversation routes or execute production migration scripts. |
 
 ## What is faked or disabled
@@ -59,9 +57,6 @@ This version proves the backend can boot hermetically and that selected task CRU
 ## Running individual scenarios
 
 ```bash
-# CRUD / data shape
-bash backend/testing/e2e/run.sh -k "test_crud"
-
 # Storage-backed speech profile routes
 bash backend/testing/e2e/run.sh -k "storage_speech_profile"
 
@@ -73,9 +68,6 @@ bash backend/testing/e2e/run.sh -k "user_auth_profile"
 
 # Durable account-deletion Cloud Tasks lifecycle
 bash backend/testing/e2e/run.sh -k "account_deletion_cloud_tasks"
-
-# Failure / edge modes
-bash backend/testing/e2e/run.sh -k "test_failure_modes"
 
 # Legacy shape compatibility
 bash backend/testing/e2e/run.sh -k "test_migration_safety"
@@ -96,11 +88,8 @@ run.sh
         │   ├── stt.py                          # deterministic custom and managed-STT socket helpers
         │   └── embeddings.py                   # VAD/diarization/embedding fake scaffold
         ├── fixtures/
-        │   ├── conversations.json
-        │   └── action_items.json
-        ├── test_crud.py
+        │   └── conversations.json
         ├── test_account_deletion_cloud_tasks.py
-        ├── test_failure_modes.py
         ├── test_harness_guards.py
         ├── test_migration_safety.py
         ├── test_storage_speech_profile.py

@@ -29,9 +29,8 @@ private actor RewindStorageTestGate {
 
 /// Shared setup/teardown for XCTest suites that touch Rewind storage singletons.
 ///
-/// Mirrors the lifecycle used by `StagedTaskSyncIntegrityTests`: close the database,
-/// invalidate cached storage actors, configure a throwaway user, initialize, and on
-/// teardown close again before deleting the user directory.
+/// Closes the database, invalidates cached storage actors, configures a
+/// throwaway owner, and removes that owner's directory during teardown.
 enum RewindStorageTestIsolation {
   struct Fixture {
     let testUserId: String
@@ -101,10 +100,8 @@ enum RewindStorageTestIsolation {
     await MemoryStorage.shared.invalidateCache()
     await ActionItemStorage.shared.invalidateCache()
     await TranscriptionStorage.shared.invalidateCache()
-    await StagedTaskStorage.shared.invalidateCache()
     await GoalStorage.shared.invalidateCache()
     await ProactiveStorage.shared.invalidateCache()
-    await TaskChatMessageStorage.shared.invalidateCache()
   }
 
   static func userDirectory(for testUserId: String) -> URL {

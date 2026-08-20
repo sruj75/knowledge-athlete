@@ -538,17 +538,6 @@ final class APIClientRoutingTests: XCTestCase {
     }
   }
 
-  // -- Goals: manual URL path (PATCH → Python) --
-
-  func testUpdateGoalProgressRoutesToPython() async {
-    let client = await makeTestClient()
-    _ = try? await client.updateGoalProgress(goalId: "g1", currentValue: 42.0) as Goal
-    assertRoutes(
-      URLCapture.capturedRequests, host: "python-test", port: 9001,
-      pathContains: "v1/goals/g1/progress", method: "PATCH",
-      label: "updateGoalProgress")
-  }
-
   // -- User settings (GET → Python) --
 
   func testGetDailySummarySettingsRoutesToPython() async {
@@ -628,26 +617,6 @@ final class APIClientRoutingTests: XCTestCase {
       label: "getNotificationSettings")
   }
 
-  // -- Staged tasks (GET, DELETE → Python, migrated from Rust) --
-
-  func testGetStagedTasksRoutesToPython() async {
-    let client = await makeTestClient()
-    _ = try? await client.getStagedTasks() as ActionItemsListResponse
-    assertRoutes(
-      URLCapture.capturedRequests, host: "python-test", port: 9001,
-      pathContains: "v1/staged-tasks", method: "GET",
-      label: "getStagedTasks")
-  }
-
-  func testDeleteStagedTaskRoutesToPython() async {
-    let client = await makeTestClient()
-    try? await client.deleteStagedTask(id: "st-1")
-    assertRoutes(
-      URLCapture.capturedRequests, host: "python-test", port: 9001,
-      pathContains: "v1/staged-tasks/st-1", method: "DELETE",
-      label: "deleteStagedTask")
-  }
-
   // -- Chat sessions (GET, POST, DELETE → Python, migrated from Rust) --
 
   func testGetChatSessionsRoutesToPython() async {
@@ -700,17 +669,6 @@ final class APIClientRoutingTests: XCTestCase {
   }
 
   // MARK: - Python-routed: remaining manual URL builders
-
-  // -- completeGoal: manual URL PATCH → Python --
-
-  func testCompleteGoalRoutesToPython() async {
-    let client = await makeTestClient()
-    _ = try? await client.completeGoal(id: "g2") as Goal
-    assertRoutes(
-      URLCapture.capturedRequests, host: "python-test", port: 9001,
-      pathContains: "v1/goals/g2", method: "PATCH",
-      label: "completeGoal")
-  }
 
   // -- Chat AI endpoints (migrated from Rust to Python) --
 

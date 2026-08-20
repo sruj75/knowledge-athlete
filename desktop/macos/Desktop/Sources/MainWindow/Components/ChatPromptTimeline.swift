@@ -273,7 +273,7 @@ struct ChatPromptTimeline: View {
 ///
 /// The rail is only ever drawn in space the transcript is not using: a surface
 /// whose column spans the whole width has no gutter, so it gets no rail and
-/// needs no flag saying so. That keeps the narrow panels — the task chat, the
+/// needs no flag saying so. That keeps narrow panels and the
 /// agent sheet — free of a rail jammed against their text, and hands one to any
 /// surface that later caps its column.
 struct ChatPromptTimelineOverlay: View {

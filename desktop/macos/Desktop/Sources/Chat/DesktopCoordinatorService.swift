@@ -29,13 +29,11 @@ enum DesktopCoordinatorOriginSurface: String, CaseIterable, Sendable {
   case mainChat = "main_chat"
   case floatingBar = "floating_bar"
   case realtime = "realtime"
-  case taskChat = "task_chat"
 
   init(surfaceKind: String?) {
     switch surfaceKind {
     case "floating_bar": self = .floatingBar
     case "realtime", "realtime_voice": self = .realtime
-    case "task_chat", "workstream": self = .taskChat
     default: self = .mainChat
     }
   }

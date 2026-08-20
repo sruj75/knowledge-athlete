@@ -180,37 +180,6 @@ private actor PermissionCallbackBox<Value: Sendable> {
     await AuthorizedToolOwnerURLProtocol.gate.reset()
   }
 
-  func testActionItemWriteKeepsOriginalCredentialAndRejectsResultAfterMidFlightAccountSwitch() async {
-    let client = await makeClient()
-    let operation = Task { @MainActor in
-      await ChatToolExecutor.execute(
-        ToolCall(
-          name: "create_action_item",
-          arguments: ["description": "owner-a-private-task"],
-          thoughtSignature: nil),
-        expectedOwnerID: "owner-a",
-        backendAPIClient: client)
-    }
-
-    let request = await AuthorizedToolOwnerURLProtocol.gate.waitForRequest(path: "/v1/tools/action-items")
-    XCTAssertEqual(request.httpMethod, "POST")
-    XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer owner-a-token")
-    let body = AuthorizedToolOwnerURLProtocol.bodyData(from: request).flatMap {
-      try? JSONSerialization.jsonObject(with: $0) as? [String: Any]
-    }
-    XCTAssertEqual(body?["description"] as? String, "owner-a-private-task")
-
-    UserDefaults.standard.set("owner-b", forKey: .authUserId)
-    await AuthorizedToolOwnerURLProtocol.gate.succeed(
-      path: "/v1/tools/action-items",
-      with:
-        #"{"tool_name":"create_action_item","result_text":"created-owner-a-task","is_error":false}"#)
-
-    let result = await operation.value
-    XCTAssertEqual(result, ChatToolExecutor.authorizedOwnerChangedResult())
-    XCTAssertFalse(result.contains("created-owner-a-task"))
-  }
-
   func testRealtimeHigherModelNeverReleasesOwnerAContextAfterMidFlightAccountSwitch() async {
     let client = await makeClient()
     let operation = Task { @MainActor in
@@ -368,66 +337,16 @@ private actor PermissionCallbackBox<Value: Sendable> {
     XCTAssertFalse(RuntimeOwnerIdentity.isAuthorizationCurrent(authorization))
   }
 
-  func testSQLPostCommitDoesNotRetryUnderReplacementOwner() async {
-    var currentOwner = "owner-a"
-    var reloadCount = 0
-    var retryCount = 0
-
-    let completed = await ChatToolExecutor.executeOwnerBoundSQLPostCommitEffects(
-      changes: 1,
-      query: "INSERT INTO action_items (description) VALUES ('owner-a-private-task')",
-      expectedOwnerID: "owner-a",
-      ownerIsCurrent: { $0 == currentOwner },
-      reloadTasks: {
-        reloadCount += 1
-        currentOwner = "owner-b"
-      },
-      retryUnsyncedTasks: {
-        retryCount += 1
-      })
-
-    XCTAssertFalse(completed)
-    XCTAssertEqual(reloadCount, 1)
-    XCTAssertEqual(retryCount, 0)
-  }
-
-  func testBackendTaskWriteRefreshesTasksForCreateActionItem() async {
-    var refreshCount = 0
-    let completed = await ChatToolExecutor.executeBackendTaskWritePostEffects(
-      toolName: "create_action_item",
-      expectedOwnerID: "owner-a",
-      ownerIsCurrent: { _ in true },
-      refreshTasksFromServer: { refreshCount += 1 })
-
-    // Regression: an agent-created task must refresh the list from the server
-    // so it appears without waiting for the next poll or a manual reload.
-    XCTAssertTrue(completed)
-    XCTAssertEqual(refreshCount, 1)
-  }
-
-  func testBackendTaskWriteDoesNotRefreshForReadTools() async {
-    var refreshCount = 0
-    let completed = await ChatToolExecutor.executeBackendTaskWritePostEffects(
-      toolName: "get_action_items",
-      expectedOwnerID: "owner-a",
-      ownerIsCurrent: { _ in true },
-      refreshTasksFromServer: { refreshCount += 1 })
-
-    // Read tools (and non-task writes) must not trigger a server refresh.
-    XCTAssertTrue(completed)
-    XCTAssertEqual(refreshCount, 0)
-  }
-
-  func testBackendTaskWriteDoesNotRefreshUnderReplacementOwner() async {
-    var refreshCount = 0
-    let completed = await ChatToolExecutor.executeBackendTaskWritePostEffects(
-      toolName: "create_action_item",
-      expectedOwnerID: "owner-a",
-      ownerIsCurrent: { $0 == "owner-b" },  // expected owner-a is no longer current
-      refreshTasksFromServer: { refreshCount += 1 })
-
-    XCTAssertFalse(completed)
-    XCTAssertEqual(refreshCount, 0)
+  func testSQLTaskAndGoalWritesRequireTypedLocalTools() {
+    XCTAssertTrue(
+      ChatToolExecutor.requiresTypedLocalMutation(
+        "INSERT INTO action_items (description) VALUES ('owner-a-private-task')"))
+    XCTAssertTrue(
+      ChatToolExecutor.requiresTypedLocalMutation(
+        "UPDATE goals SET title = 'unsafe' WHERE id = 1"))
+    XCTAssertFalse(
+      ChatToolExecutor.requiresTypedLocalMutation(
+        "INSERT INTO owner_probe(value) VALUES ('ordinary-local-write')"))
   }
 
   func testNonHubProviderDispatchIsNotCalledAfterOwnerChangesDuringPreparation() async {

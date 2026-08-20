@@ -1,7 +1,3 @@
 {
-  "backend/database/candidates.py": 3,
-  "backend/database/goals.py": 2,
-  "backend/database/task_recommendations.py": 7,
-  "backend/database/user_usage.py": 4,
-  "backend/database/workstreams.py": 10
+  "backend/database/user_usage.py": 4
 }

@@ -76,6 +76,22 @@ OpenAI GPT-4.1-mini model, return opaque local tokens rather than durable IDs,
 and own no Memory persistence, search index, maintenance schedule, or product
 mutation authority.
 
+## macOS task and goal authority
+
+The Mac owns tasks and simple goals in the same owner-scoped local GRDB database.
+Tasks expose one stable `local_<rowid>` identity and retain local CRUD, grouped
+To Do/Done lists, search, due dates and reminders, priority, recurrence, order,
+provenance, source-session linkage, and five-second Undo. One simple goal retains
+a stable local identity, title, optional description, and active/completed state.
+Dashboard, Chat, voice tools, automation, and Task Assistant all read or commit
+through these local stores; their success never waits for a network response.
+
+There is no hosted task/goal authority, task staging or suggestion queue, task
+ranking, productivity score, task-attached chat/agent/workstream, numeric or
+AI-generated goal system, or task-specific push-notification path. The backend
+may return an untrusted action-item candidate from transient conversation compute,
+but the Mac alone decides whether and how it becomes a durable task.
+
 ## Before you build
 
 - Large or ambiguous features start as a GitHub issue.

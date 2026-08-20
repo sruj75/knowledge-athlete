@@ -1,62 +1,64 @@
 version: 2
 name: tasks
 tier: manual
-description: Tasks tab — search, Today/No Deadline sections, keyboard toolbar (v0.12.119+ redesign)
-app: com.omi.computer-macos
+description: Local-authoritative Tasks UI with one To Do/Done list and retained inline controls
+app: non-prod
 covers:
   - desktop/macos/Desktop/Sources/MainWindow/Pages/TasksPage.swift
-  - desktop/macos/Desktop/Sources/MainWindow/Components/TaskChatPanel.swift
-  - desktop/macos/Desktop/Sources/MainWindow/Tasks/SuggestedTasksSection.swift
-  - desktop/macos/Desktop/Sources/MainWindow/Tasks/SuggestedTasksStore.swift
+  - desktop/macos/Desktop/Sources/MainWindow/Pages/TaskDetailViews.swift
   - desktop/macos/Desktop/Sources/Stores/TasksStore.swift
-  - desktop/macos/Desktop/Sources/Services/APIClient/APIClient+TaskCatalog.swift
+  - desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/TaskExtraction/TaskAssistant.swift
+  - desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/TaskExtraction/TaskAssistantSettings.swift
+  - desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/TaskExtraction/TaskModels.swift
+  - desktop/macos/Desktop/Sources/ProactiveAssistants/Core/AssistantCoordinator.swift
+  - desktop/macos/Desktop/Sources/ProactiveAssistants/Services/EmbeddingService.swift
+  - desktop/macos/Desktop/Sources/ProactiveAssistants/UI/TaskTestRunnerWindow.swift
+  - desktop/macos/Desktop/Sources/Rewind/Core/ActionItemStorage.swift
+  - desktop/macos/Desktop/Sources/Rewind/Core/ActionItemModels.swift
+  - desktop/macos/Desktop/Sources/Rewind/Core/ObservationRecord.swift
+  - desktop/macos/Desktop/Sources/TaskActionItem.swift
+  - desktop/macos/Desktop/Sources/Theme/OmiTextEditor.swift
+  - desktop/macos/Desktop/Sources/ProactiveAssistants/Services/TaskReminderService.swift
 preconditions:
   - auth_ready
-  - suggested_task_candidate_ready
 
 steps:
   - id: S1
-    name: Navigate to Tasks tab
-    do: "Click the Tasks button in the top nav bar (agent-swift find text 'Tasks' click). Verify Tasks page loads with search bar ('Search tasks...') and task list."
+    name: Navigate to the local Tasks list
+    do: "Click Tasks in the top navigation. Verify one task page with Search tasks, a To Do/Done switch, and no Board or Suggested surface."
     expect:
       text_visible:
         - Tasks
+        - Search tasks
 
   - id: S2
-    name: Verify Today section
-    do: "Verify the 'Today' section header is visible with task items listed below. Each task should have a checkbox circle and task text."
-    expect:
-      text_visible:
-        - Today
-
-  - id: S3
-    name: Verify No Deadline section
-    do: "Scroll down if needed to find the 'No Deadline' section. Verify it exists with a count badge and task items."
-    expect:
-      text_visible:
-        - No Deadline
-
-  - id: S4
-    name: Verify keyboard toolbar
-    do: "Verify the keyboard toolbar at the bottom shows navigation and editing controls: Navigate, New, Delete, Indent, Outdent."
+    name: Create and edit inline
+    do: "Use + or Command-N to create a task inline. Save it, select it, press Return twice within 0.4 seconds, edit the title, and press Escape; verify Escape saves the trimmed edit and exits editing."
     expect:
       interactive_count: { min: 3 }
 
+  - id: S3
+    name: Exercise retained task metadata
+    do: "Set the task to High priority, assign a date and time, remove the deadline, then assign it again with weekly recurrence. Open Details and verify only retained description, due date, priority, recurrence, source, source app/window, context, confidence, and evidence fields can appear."
+    expect:
+      interactive_count: { min: 3 }
+
+  - id: S4
+    name: Verify grouped sections and local order
+    do: "Verify Today & Overdue, Upcoming, Later, and No Deadline group only the To Do rows. Drag within To Do and across due sections, then search; verify drag is unavailable while search is active and in Done."
+    expect:
+      text_visible:
+        - Today & Overdue
+        - No Deadline
+
   - id: S5
-    name: Verify search and filter controls
-    do: "Verify the search bar is present at the top. Check for filter/settings icons next to the search bar and the add (+) button."
+    name: Complete reopen and Undo
+    do: "Complete the recurring task and verify it moves to Done while exactly one future row remains in To Do. Reopen the same completed row, delete it, verify the five-second Undo toast, and Undo; verify the same local row and metadata return."
     expect:
       interactive_count: { min: 2 }
 
   - id: S6
-    name: Verify retained Omi suggestion provenance
-    do: "Find the seeded pending suggestion in the Suggested section. Verify its provenance reads 'Suggested by Omi', then leave it pending so this read-only flow does not mutate the task list."
+    name: Verify rejected controls stay absent
+    do: "Inspect the full Tasks page and selected task. Verify there is no Board, bulk selection, indent/outdent, tags, semantic category, Re-score, Suggested tasks, Work on this, Execute, task chat, task agent, or workstream control."
     expect:
-      text_visible:
-        - Suggested by Omi
-
-  - id: S7
-    name: Open the retained task chat panel
-    do: "Select a task row, then click the control whose help text is 'Open task chat'. Verify the right-side task chat panel appears with its close control and message composer; close it before leaving the page."
-    expect:
-      interactive_count: { min: 2 }
+      interactive_count: { min: 1 }

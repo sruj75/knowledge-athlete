@@ -180,24 +180,6 @@ import XCTest
       XCTAssertEqual(snapshot["retry_outcome"] as? String, "succeeded")
     }
 
-    func testGoalMutationsUseShared401Recovery() async throws {
-      let config = URLSessionConfiguration.ephemeral
-      config.protocolClasses = [AuthRetryURLStub.self]
-      let client = APIClient(session: URLSession(configuration: config))
-      try configureRefreshableSession()
-      setenv("FIREBASE_API_KEY", "test-key", 1)
-      defer { unsetenv("FIREBASE_API_KEY") }
-      AuthRetryURLStub.returnSuccessAfterInitialUnauthorized(status: 200, body: "{}")
-
-      _ = try await client.updateGoalProgress(goalId: "goal-1", currentValue: 2)
-      XCTAssertEqual(AuthRetryURLStub.attempts, 2)
-
-      AuthRetryURLStub.reset()
-      AuthRetryURLStub.returnSuccessAfterInitialUnauthorized(status: 200, body: "{}")
-      _ = try await client.completeGoal(id: "goal-1")
-      XCTAssertEqual(AuthRetryURLStub.attempts, 2)
-    }
-
     func testOwnerBoundResponseIsRejectedAfterSameUIDSessionGenerationChanges() async throws {
       struct Response: Decodable { let ok: Bool }
       let auth = AuthService.shared

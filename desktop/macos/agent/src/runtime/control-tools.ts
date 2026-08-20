@@ -24,11 +24,6 @@ import {
 } from "./agent-spawn-journal.js";
 import { evaluateDesktopToolPolicy } from "./desktop-tool-policy.js";
 import type { DesktopCoordinatorBundle } from "./desktop-tool-policy.js";
-import type {
-  EvidenceRef,
-  WorkstreamContinuationCheckpoint,
-  WorkstreamProductContext,
-} from "./workstream-continuity.js";
 import {
   executionRoleAllowsTool,
   LEAF_AGENT_CONTROL_TOOLS,
@@ -42,7 +37,6 @@ const sessionStatusSchema = z.enum(["open", "archived", "closed"]);
 const terminalRunStatuses = new Set(["succeeded", "failed", "cancelled", "timed_out", "orphaned"]);
 const agentSurfaceKindSchema = z.enum([
   "main_chat",
-  "task_chat",
   "realtime",
   "delegated_agent",
   "background_agent",
@@ -53,7 +47,6 @@ const originSurfaceKindSchema = z.enum([
   "main_chat",
   "floating_bar",
   "realtime",
-  "task_chat",
   "agent_control",
 ]);
 const artifactRoleSchema = z.enum(["input", "result", "checkpoint", "tool_output", "log", "other"]);
@@ -101,11 +94,6 @@ const listDesktopActionQueueSchema = strictObject({
   limit: z.coerce.number().int().positive().max(200).default(50),
 });
 
-const getDesktopOpenLoopsSchema = strictObject({
-  ownerId: z.string().min(1).optional(),
-  limit: z.coerce.number().int().positive().max(200).default(50),
-});
-
 const contextSnippetSchema = strictObject({
   snippetId: z.string().min(1),
   sourceKind: z.enum([
@@ -116,7 +104,6 @@ const contextSnippetSchema = strictObject({
     "local_agent_api",
     "automation_bridge",
     "chat_surface",
-    "task_chat",
   ]),
   operation: z.string().min(1),
   provenance: z.record(z.string(), z.unknown()).default({}),
@@ -200,7 +187,6 @@ const createDesktopDispatchSchema = strictObject({
     "failure_recovery",
     "artifact_review",
     "memory_candidate",
-    "task_candidate",
     "external_draft",
     "screen_context",
   ]),
@@ -359,100 +345,11 @@ const setDesktopAttentionOverrideSchema = strictObject({
   reason: z.string().min(1).optional(),
 });
 
-const evidenceRefSchema = strictObject({
-  kind: z.enum([
-    "conversation",
-    "memory_item",
-    "workstream_event",
-    "artifact",
-    "chat_message",
-    "local_screen",
-    "external",
-  ]),
-  id: z.string().min(1),
-  version: z.string().min(1).optional(),
-  scope: z.enum(["canonical", "device_local"]),
-  device_id: z.string().min(1).optional(),
-  excerpt_hash: z.string().min(1).optional(),
-});
-
-const prepareWorkstreamContinuitySchema = strictObject({
-  ownerId: z.string().min(1).optional(),
-  workstreamId: z.string().min(1),
-  taskIds: z.array(z.string().min(1)).max(100).default([]),
-  checkpoint: strictObject({
-    checkpointId: z.string().min(1),
-    runtimeId: z.string().min(1),
-    lastEventSequence: z.coerce.number().int().nonnegative(),
-    contextSummary: z.string().max(4_000),
-    evidenceRefs: z.array(evidenceRefSchema).max(50).default([]),
-    updatedAtMs: z.coerce.number().int().positive(),
-  })
-    .nullable()
-    .optional(),
-});
-
-const persistWorkstreamContinuitySchema = strictObject({
-  ownerId: z.string().min(1).optional(),
-  workstreamId: z.string().min(1),
-  context: z.record(z.string(), z.unknown()),
-  artifacts: z
-    .array(
-      strictObject({
-        logicalKey: z.string().min(1).max(256),
-        evidenceRefs: z.array(evidenceRefSchema).min(1).max(20),
-        kind: z.string().min(1),
-        role: z.enum(["input", "result", "checkpoint", "tool_output", "log", "other"]),
-        uri: z.string().min(1),
-        displayName: z.string().nullable().optional(),
-        mimeType: z.string().nullable().optional(),
-        contentHash: z.string().nullable().optional(),
-        sizeBytes: z.coerce.number().int().nonnegative().nullable().optional(),
-        runId: z.string().nullable().optional(),
-        attemptId: z.string().nullable().optional(),
-        sourceArtifactId: z.string().min(1),
-      }),
-    )
-    .max(50),
-  ttlMs: z.coerce
-    .number()
-    .int()
-    .positive()
-    .max(7 * 24 * 60 * 60 * 1_000)
-    .default(7 * 24 * 60 * 60 * 1_000),
-});
-
-const persistPreparedWorkstreamArtifactSchema = strictObject({
-  ownerId: z.string().min(1).optional(),
-  workstreamId: z.string().min(1),
-  logicalKey: z.string().min(1).max(256),
-  evidenceRefs: z.array(evidenceRefSchema).min(1).max(20),
-  kind: z.string().min(1),
-  uri: z.string().min(1),
-  contentHash: z.string().min(16),
-  sourceArtifactId: z.string().min(1),
-  grantId: z.string().min(1),
-});
-
-const resolveWorkstreamContinuityDeliverySchema = strictObject({
-  ownerId: z.string().min(1).optional(),
-  deliveryId: z.string().min(1),
-  status: z.enum(["delivered", "failed", "retrying"]),
-  receipt: z.record(z.string(), z.unknown()).optional(),
-  error: z.record(z.string(), z.unknown()).optional(),
-});
-
-const projectWorkstreamContinuitySchema = strictObject({
-  ownerId: z.string().min(1).optional(),
-  workstreamId: z.string().min(1),
-});
-
 export const agentControlToolSchemas = {
   list_agent_sessions: listAgentSessionsSchema,
   get_agent_run: getAgentRunSchema,
   build_desktop_awareness_snapshot: buildDesktopAwarenessSnapshotSchema,
   list_desktop_action_queue: listDesktopActionQueueSchema,
-  get_desktop_open_loops: getDesktopOpenLoopsSchema,
   build_desktop_context_packet: buildDesktopContextPacketSchema,
   route_desktop_intent: routeDesktopIntentSchema,
   evaluate_desktop_tool_policy: evaluateDesktopToolPolicySchema,
@@ -468,22 +365,11 @@ export const agentControlToolSchemas = {
   spawn_agent: spawnAgentSchema,
   run_agent_and_wait: runAgentAndWaitSchema,
   set_desktop_attention_override: setDesktopAttentionOverrideSchema,
-  prepare_workstream_continuity: prepareWorkstreamContinuitySchema,
-  persist_workstream_continuity: persistWorkstreamContinuitySchema,
-  persist_prepared_workstream_artifact: persistPreparedWorkstreamArtifactSchema,
-  resolve_workstream_continuity_delivery: resolveWorkstreamContinuityDeliverySchema,
-  project_workstream_continuity: projectWorkstreamContinuitySchema,
 } as const;
 
 export type AgentControlToolName = keyof typeof agentControlToolSchemas;
 
-export const INTERNAL_AGENT_CONTROL_TOOL_NAMES = [
-  "prepare_workstream_continuity",
-  "persist_workstream_continuity",
-  "persist_prepared_workstream_artifact",
-  "resolve_workstream_continuity_delivery",
-  "project_workstream_continuity",
-] as const satisfies readonly AgentControlToolName[];
+export const INTERNAL_AGENT_CONTROL_TOOL_NAMES = [] as const satisfies readonly AgentControlToolName[];
 
 export const AGENT_CONTROL_TOOL_NAMES = agentControlCapabilityManifest.map(
   (tool) => tool.name,
@@ -833,14 +719,6 @@ export async function handleAgentControlToolCall(
           ownerId: effectiveControlToolOwnerId(context, parsed.ownerId),
         });
         return stringifyToolResult({ actionQueue });
-      }
-      case "get_desktop_open_loops": {
-        const parsed = agentControlToolSchemas.get_desktop_open_loops.parse(input);
-        const openLoops = context.kernel.getDesktopOpenLoops({
-          ...parsed,
-          ownerId: effectiveControlToolOwnerId(context, parsed.ownerId),
-        });
-        return stringifyToolResult({ openLoops });
       }
       case "build_desktop_context_packet": {
         const parsed = agentControlToolSchemas.build_desktop_context_packet.parse(input);
@@ -1345,304 +1223,6 @@ export async function handleAgentControlToolCall(
           reason: parsed.reason ?? null,
         }));
         return stringifyToolResult({ override });
-      }
-      case "prepare_workstream_continuity": {
-        const parsed = agentControlToolSchemas.prepare_workstream_continuity.parse(input);
-        const ownerId = effectiveControlToolOwnerId(context, parsed.ownerId);
-        const migration = await executeAuthorizedControlEffect(context, () =>
-          context.kernel.migrateTaskSessionsToWorkstreams({
-            ownerId,
-            mappings: parsed.taskIds.map((taskId) => ({
-              taskId,
-              workstreamId: parsed.workstreamId,
-            })),
-          }));
-        let importedSession = null;
-        if (parsed.checkpoint) {
-          const now = Date.now();
-          const createdAtMs = now;
-          const checkpoint: WorkstreamContinuationCheckpoint = {
-            checkpointId: parsed.checkpoint.checkpointId,
-            ownerId,
-            workstreamId: parsed.workstreamId,
-            sourceRuntimeId: parsed.checkpoint.runtimeId,
-            canonicalSummary: parsed.checkpoint.contextSummary,
-            redactedCanonicalSummary: parsed.checkpoint.contextSummary,
-            summarySensitivityTier: "private",
-            currentTask: null,
-            selectedEvents: [],
-            artifactHeads: [],
-            provenance: {
-              snapshotVersion: `backend-checkpoint:${parsed.checkpoint.lastEventSequence}`,
-              fetchedAtMs: now,
-              source: "canonical_backend",
-            },
-            evidenceRefs: parsed.checkpoint.evidenceRefs as EvidenceRef[],
-            lastEventSequence: parsed.checkpoint.lastEventSequence,
-            createdAtMs,
-            expiresAtMs: now + 7 * 24 * 60 * 60 * 1_000,
-          };
-          importedSession = await executeAuthorizedControlEffect(context, () =>
-            context.kernel.importWorkstreamContinuationCheckpoint(checkpoint));
-        }
-        const session = await executeAuthorizedControlEffect(context, () => context.kernel.resolveWorkstreamSession({
-          ownerId,
-          workstreamId: parsed.workstreamId,
-        }));
-        const summary = context.kernel
-          .listSessions({ ownerId, surfaceKind: "workstream", limit: 200 })
-          .find((candidate) => candidate.session.sessionId === session.agentSessionId);
-        const run = summary?.activeRun ?? summary?.latestRun ?? null;
-        return stringifyToolResult({
-          migration,
-          importedSession,
-          session,
-          run: run
-            ? {
-                runId: run.runId,
-                status: run.status,
-                statusText: run.finalText,
-                errorMessage: run.errorMessage,
-                updatedAtMs: run.updatedAtMs,
-                completedAtMs: run.completedAtMs,
-              }
-            : null,
-          deliveries: context.kernel
-            .listArtifactDeliveries({
-              ownerId,
-              targetRef: parsed.workstreamId,
-              statuses: ["pending", "failed", "retrying"],
-            })
-            .map(serializeContinuityDelivery),
-        });
-      }
-      case "persist_workstream_continuity": {
-        const parsed = agentControlToolSchemas.persist_workstream_continuity.parse(input);
-        const ownerId = effectiveControlToolOwnerId(context, parsed.ownerId);
-        const contextPacket = await executeAuthorizedControlEffect(context, () =>
-          context.kernel.persistWorkstreamContextPacket({
-            ownerId,
-            workstreamId: parsed.workstreamId,
-            objective: "Continue canonical workstream",
-            context: parsed.context as unknown as WorkstreamProductContext,
-          }));
-        const artifactVersions: Array<ReturnType<AgentRuntimeKernel["persistWorkstreamArtifactVersion"]>> = [];
-        for (const artifact of parsed.artifacts) {
-          artifactVersions.push(await executeAuthorizedControlEffect(context, () =>
-            context.kernel.persistWorkstreamArtifactVersion({
-              ownerId,
-              workstreamId: parsed.workstreamId,
-              logicalKey: artifact.logicalKey,
-              evidenceRefs: artifact.evidenceRefs as EvidenceRef[],
-              sourceArtifactId: artifact.sourceArtifactId,
-              artifact: {
-                kind: artifact.kind,
-                role: artifact.role,
-                uri: artifact.uri,
-                displayName: artifact.displayName ?? null,
-                mimeType: artifact.mimeType ?? null,
-                contentHash: artifact.contentHash ?? null,
-                sizeBytes: artifact.sizeBytes ?? null,
-                runId: artifact.runId ?? null,
-                attemptId: artifact.attemptId ?? null,
-                metadataJson: "{}",
-              },
-            })));
-        }
-        const checkpoint = await executeAuthorizedControlEffect(context, () =>
-          context.kernel.exportWorkstreamContinuationCheckpoint({
-            ownerId,
-            workstreamId: parsed.workstreamId,
-            // Device-local citations can support the local artifact record, but
-            // must not cross the backend checkpoint boundary without a separate
-            // export approval. The durable checkpoint remains useful with its
-            // canonical evidence subset.
-            context: canonicalCheckpointContext(parsed.context as unknown as WorkstreamProductContext),
-            ttlMs: parsed.ttlMs,
-          }));
-        const artifactDeliveries: Array<ReturnType<AgentRuntimeKernel["queueArtifactDelivery"]>> = [];
-        for (const [index, version] of artifactVersions.entries()) {
-          const contentHash = version.artifact.contentHash ?? hashReadableFileArtifact(version.artifact.uri);
-          artifactDeliveries.push(await executeAuthorizedControlEffect(context, () =>
-            context.kernel.queueArtifactDelivery({
-              deliveryId: `artifactDelivery:workstream:${parsed.workstreamId}:${parsed.artifacts[index]!.sourceArtifactId}`,
-              artifactId: version.artifact.artifactId,
-              ownerId,
-              sourceSessionId: version.artifact.sessionId,
-              sourceRunId: version.artifact.runId,
-              sourceAttemptId: version.artifact.attemptId,
-              intendedSurface: "canonical_workstream",
-              targetKind: "task_chat",
-              targetRef: parsed.workstreamId,
-              contentHash,
-              deliveryStatus: contentHash ? "pending" : "cancelled",
-              errorJson: contentHash
-                ? null
-                : JSON.stringify({
-                  code: "local_only_artifact",
-                  message: "Artifact has no content hash and is not a readable local file",
-                }),
-              receiptJson: JSON.stringify({
-                kind: "artifact_descriptor",
-                sourceArtifactId: parsed.artifacts[index]!.sourceArtifactId,
-                logicalKey: version.logicalKey,
-                artifactKind: version.artifact.kind,
-                uri: version.artifact.uri,
-                contentHash,
-                sourceRunId: version.artifact.runId,
-                evidenceRefs: version.evidenceRefs,
-              }),
-            })));
-        }
-        const checkpointArtifactId = `artifact_${checkpoint.checkpointId}`;
-        let checkpointArtifact;
-        try {
-          checkpointArtifact = context.kernel.inspectArtifacts({
-            artifactId: checkpointArtifactId,
-            ownerId,
-            limit: 1,
-          })[0];
-        } catch {
-          checkpointArtifact = undefined;
-        }
-        if (!checkpointArtifact) {
-          const session = await executeAuthorizedControlEffect(context, () => context.kernel.resolveWorkstreamSession({
-            ownerId,
-            workstreamId: parsed.workstreamId,
-          }));
-          checkpointArtifact = await executeAuthorizedControlEffect(context, () => context.kernel.persistArtifact({
-            artifactId: checkpointArtifactId,
-            sessionId: session.agentSessionId,
-            kind: "workstream_continuation_checkpoint",
-            role: "checkpoint",
-            uri: `omi-artifact://workstream-checkpoint/${checkpoint.checkpointId}`,
-            displayName: "Workstream continuation checkpoint",
-            metadata: { checkpoint },
-          }));
-        }
-        const checkpointDelivery = await executeAuthorizedControlEffect(context, () =>
-          context.kernel.queueArtifactDelivery({
-            deliveryId: `artifactDelivery:workstream-checkpoint:${checkpoint.checkpointId}`,
-            artifactId: checkpointArtifact.artifactId,
-            ownerId,
-            sourceSessionId: checkpointArtifact.sessionId,
-            intendedSurface: "canonical_workstream",
-            targetKind: "task_chat",
-            targetRef: parsed.workstreamId,
-            receiptJson: JSON.stringify({
-              kind: "continuation_checkpoint",
-              checkpoint,
-            }),
-          }));
-        return stringifyToolResult({
-          contextPacket: { packetId: contextPacket.packet.packetId },
-          artifactVersions: artifactVersions.map((version, index) => ({
-            sourceArtifactId: parsed.artifacts[index]?.sourceArtifactId,
-            logicalKey: version.logicalKey,
-            version: version.version,
-            supersedesArtifactId: version.supersedesArtifactId,
-            evidenceRefs: version.evidenceRefs,
-            artifact: serializeArtifact(version.artifact),
-          })),
-          checkpoint,
-          deliveries: [...artifactDeliveries, checkpointDelivery]
-            .filter((delivery) => delivery.deliveryStatus !== "delivered" && delivery.deliveryStatus !== "cancelled")
-            .map(serializeContinuityDelivery),
-        });
-      }
-      case "persist_prepared_workstream_artifact": {
-        const parsed = agentControlToolSchemas.persist_prepared_workstream_artifact.parse(input);
-        const ownerId = effectiveControlToolOwnerId(context, parsed.ownerId);
-        const version = await executeAuthorizedControlEffect(context, () =>
-          context.kernel.persistAuthorizedPreparedArtifact({
-            ownerId,
-            workstreamId: parsed.workstreamId,
-            logicalKey: parsed.logicalKey,
-            evidenceRefs: parsed.evidenceRefs as EvidenceRef[],
-            sourceArtifactId: parsed.sourceArtifactId,
-            grantId: parsed.grantId,
-            artifact: {
-              kind: parsed.kind,
-              role: "result",
-              uri: parsed.uri,
-              contentHash: parsed.contentHash,
-              metadataJson: JSON.stringify({ status: "awaiting_review" }),
-            },
-          }));
-        const delivery = await executeAuthorizedControlEffect(context, () =>
-          context.kernel.queueArtifactDelivery({
-            deliveryId: `artifactDelivery:workstream:${parsed.workstreamId}:${parsed.sourceArtifactId}`,
-            artifactId: version.artifact.artifactId,
-            ownerId,
-            sourceSessionId: version.artifact.sessionId,
-            sourceRunId: version.artifact.runId,
-            sourceAttemptId: version.artifact.attemptId,
-            intendedSurface: "canonical_workstream",
-            targetKind: "task_chat",
-            targetRef: parsed.workstreamId,
-            contentHash: parsed.contentHash,
-            receiptJson: JSON.stringify({
-              kind: "artifact_descriptor",
-              sourceArtifactId: parsed.sourceArtifactId,
-              logicalKey: version.logicalKey,
-              artifactKind: version.artifact.kind,
-              uri: version.artifact.uri,
-              contentHash: parsed.contentHash,
-              sourceRunId: version.artifact.runId,
-              evidenceRefs: version.evidenceRefs,
-            }),
-          }));
-        return stringifyToolResult({
-          artifactVersion: {
-            sourceArtifactId: parsed.sourceArtifactId,
-            logicalKey: version.logicalKey,
-            version: version.version,
-            supersedesArtifactId: version.supersedesArtifactId,
-            evidenceRefs: version.evidenceRefs,
-            artifact: serializeArtifact(version.artifact),
-          },
-          deliveries:
-            delivery.deliveryStatus === "delivered" || delivery.deliveryStatus === "cancelled"
-              ? []
-              : [serializeContinuityDelivery(delivery)],
-        });
-      }
-      case "resolve_workstream_continuity_delivery": {
-        const parsed = agentControlToolSchemas.resolve_workstream_continuity_delivery.parse(input);
-        const ownerId = effectiveControlToolOwnerId(context, parsed.ownerId);
-        const current = context.kernel
-          .listArtifactDeliveries({ ownerId, limit: 500 })
-          .find((delivery) => delivery.deliveryId === parsed.deliveryId);
-        if (!current) throw new Error(`Unknown continuity delivery ${parsed.deliveryId}`);
-        const delivery = await executeAuthorizedControlEffect(context, () =>
-          context.kernel.updateArtifactDelivery(parsed.deliveryId, {
-            ownerId,
-            deliveryStatus: parsed.status,
-            attemptCount: current.attemptCount + 1,
-            receiptJson: parsed.receipt ? JSON.stringify(parsed.receipt) : current.receiptJson,
-            errorJson: parsed.error ? JSON.stringify(parsed.error) : current.errorJson,
-            deliveredAtMs: parsed.status === "delivered" ? Date.now() : null,
-          }));
-        return stringifyToolResult({
-          delivery: serializeContinuityDelivery(delivery),
-        });
-      }
-      case "project_workstream_continuity": {
-        const parsed = agentControlToolSchemas.project_workstream_continuity.parse(input);
-        const ownerId = effectiveControlToolOwnerId(context, parsed.ownerId);
-        const projection = context.kernel.projectWorkstreamContinuity({
-          ownerId,
-          workstreamId: parsed.workstreamId,
-        });
-        return stringifyToolResult({
-          projection: {
-            ...projection,
-            artifactVersions: projection.artifactVersions.map((version) => ({
-              ...version,
-              artifact: serializeArtifact(version.artifact),
-            })),
-          },
-        });
       }
     }
     } catch (error) {
@@ -2212,51 +1792,6 @@ function compactProviderValue(
   return compact;
 }
 
-function serializeContinuityDelivery(delivery: {
-  deliveryId: string;
-  artifactId: string;
-  deliveryStatus: string;
-  attemptCount: number;
-  receiptJson: string | null;
-  errorJson: string | null;
-}): Record<string, unknown> {
-  return {
-    deliveryId: delivery.deliveryId,
-    artifactId: delivery.artifactId,
-    status: delivery.deliveryStatus,
-    attemptCount: delivery.attemptCount,
-    payload: delivery.receiptJson ? JSON.parse(delivery.receiptJson) : {},
-    error: delivery.errorJson ? JSON.parse(delivery.errorJson) : null,
-  };
-}
-
-function canonicalCheckpointContext(context: WorkstreamProductContext): WorkstreamProductContext {
-  const canonicalEvidence = (refs: EvidenceRef[] | undefined): EvidenceRef[] | undefined =>
-    refs?.filter((ref) => ref.scope === "canonical");
-  return {
-    ...context,
-    selectedEvents: context.selectedEvents?.map((event) => ({
-      ...event,
-      evidenceRefs: canonicalEvidence(event.evidenceRefs),
-    })),
-    artifactHeads: context.artifactHeads?.map((artifact) => ({
-      ...artifact,
-      evidenceRefs: canonicalEvidence(artifact.evidenceRefs),
-    })),
-  };
-}
-
-function hashReadableFileArtifact(uri: string): string | null {
-  if (!uri.startsWith("file://")) return null;
-  try {
-    return `sha256:${createHash("sha256")
-      .update(readFileSync(fileURLToPath(uri)))
-      .digest("hex")}`;
-  } catch {
-    return null;
-  }
-}
-
 function serializeAgentSessionsList(
   sessions: Parameters<typeof serializeSessionSummary>[0][],
   overrides: {
@@ -2285,7 +1820,6 @@ function serializeAgentSessionsList(
   // `get_agent_run` and the internal awareness snapshot.
   const serializedSessions: Record<string, unknown>[] = [];
   const floatingAgentPills: Record<string, unknown>[] = [];
-  const taskAgents: Record<string, unknown>[] = [];
   let truncated = false;
 
   for (const summary of sessions) {
@@ -2299,14 +1833,11 @@ function serializeAgentSessionsList(
       && !(runId && dismissed.has(`run:${runId}`))
       && !dismissed.has(`session:${sessionId}`)
     ) ? serializeFloatingPillSnapshot(summary) : null;
-    const taskAgent = surfaceKind === "task_chat" ? serializeTaskAgentSnapshot(summary) : null;
 
     serializedSessions.push(serializedSession);
     if (floatingPill) floatingAgentPills.push(floatingPill);
-    if (taskAgent) taskAgents.push(taskAgent);
     const candidate = {
       sessions: serializedSessions,
-      task_agents: taskAgents,
       floating_agent_pills: floatingAgentPills,
       truncated: false,
       fetched_session_count: sessions.length,
@@ -2314,7 +1845,6 @@ function serializeAgentSessionsList(
     if (Buffer.byteLength(JSON.stringify({ ok: true, ...candidate }), "utf8") > maximumSerializedBytes) {
       serializedSessions.pop();
       if (floatingPill) floatingAgentPills.pop();
-      if (taskAgent) taskAgents.pop();
       truncated = true;
       break;
     }
@@ -2322,7 +1852,6 @@ function serializeAgentSessionsList(
 
   return {
     sessions: serializedSessions,
-    task_agents: taskAgents,
     floating_agent_pills: floatingAgentPills,
     truncated,
     returned_session_count: serializedSessions.length,
@@ -2477,25 +2006,6 @@ function serializeFloatingPillSnapshot(summary: {
   };
 }
 
-function serializeTaskAgentSnapshot(summary: {
-  session: AgentSession;
-  latestRun?: AgentRun;
-  activeRun?: AgentRun;
-}): Record<string, unknown> {
-  const session = summary.session;
-  const run = summary.activeRun ?? summary.latestRun;
-  return {
-    taskId: session.externalRefId ?? null,
-    sessionId: session.sessionId ?? null,
-    runId: run?.runId ?? null,
-    title: boundedControlListText(session.title, 160),
-    status: run?.status ?? session.status,
-    statusText: boundedControlListText(run?.finalText),
-    lastError: boundedControlListText(run?.errorMessage),
-    updatedAtMs: run?.updatedAtMs ?? session.updatedAtMs ?? null,
-  };
-}
-
 function serializeSessionSummary(summary: {
   session: AgentSession;
   latestRun?: AgentRun;
@@ -2554,7 +2064,6 @@ function serializeAwarenessSnapshot(snapshot: DesktopAwarenessSnapshot): Record<
     dispatches: snapshot.dispatches,
     artifactDeliveries: snapshot.artifactDeliveries,
     memoryCandidates: snapshot.memoryCandidates,
-    taskCandidates: snapshot.taskCandidates,
     actionQueue: snapshot.actionQueue,
     runtime: snapshot.runtime,
   };

@@ -22,9 +22,6 @@ from models.chat import Message, ChatSession, PageContext
 from utils.retrieval.tools import (
     get_conversations_tool,
     search_conversations_tool,
-    get_action_items_tool,
-    create_action_item_tool,
-    update_action_item_tool,
     get_omi_product_info_tool,
     search_files_tool,
     manage_daily_summary_tool,
@@ -115,9 +112,6 @@ AGENT_STREAM_FAILURE_MESSAGE = 'Unable to complete the response. Please try agai
 CORE_TOOLS = [
     get_conversations_tool,
     search_conversations_tool,
-    get_action_items_tool,
-    create_action_item_tool,
-    update_action_item_tool,
     get_omi_product_info_tool,
     search_files_tool,
     manage_daily_summary_tool,
@@ -136,9 +130,6 @@ def get_tool_display_name(tool_name: str, tool_obj: Optional[Any] = None) -> str
         'web_search': 'Searching the web',
         'get_conversations_tool': 'Searching conversations',
         'search_conversations_tool': 'Searching conversations',
-        'get_action_items_tool': 'Checking action items',
-        'create_action_item_tool': 'Creating action item',
-        'update_action_item_tool': 'Updating action item',
         'get_omi_product_info_tool': 'Looking up product info',
         'manage_daily_summary_tool': 'Updating notification settings',
         'create_chart_tool': 'Creating chart',
@@ -154,9 +145,6 @@ def get_tool_display_name(tool_name: str, tool_obj: Optional[Any] = None) -> str
         return 'Searching the web'
     elif 'conversation' in tool_name.lower():
         return 'Searching conversations'
-    elif 'action' in tool_name.lower():
-        return 'Checking action items'
-
     return tool_name.replace('_', ' ').title()
 
 

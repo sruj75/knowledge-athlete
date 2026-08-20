@@ -20,9 +20,6 @@ struct ChatDraftKey: Hashable, Sendable {
     Self(scope: "floating_agent", contextID: id.uuidString.lowercased())
   }
 
-  static func taskChat(_ taskID: String) -> Self {
-    Self(scope: "task_chat", contextID: taskID)
-  }
 }
 
 private struct ChatDraftRecord: Codable, Sendable {

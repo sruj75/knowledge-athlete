@@ -77,8 +77,6 @@ export type ConversationTurnOrigin =
   | "notification"
   | "tool_runtime"
   | "backend_import"
-  | "task_chat"
-  | "workstream"
   | "swift_backfill"
   | "legacy";
 
@@ -237,7 +235,6 @@ export type AgentIdKind =
   | "dispatch"
   | "artifactDelivery"
   | "memoryCandidate"
-  | "taskCandidate"
   | "contextAccess";
 
 export type DesktopContextRetentionClass = "ephemeral" | "debug" | "core";
@@ -247,17 +244,13 @@ export type DesktopDispatchKind =
   | "failure_recovery"
   | "artifact_review"
   | "memory_candidate"
-  | "task_candidate"
   | "external_draft"
   | "screen_context";
 export type DesktopDispatchStatus = "pending" | "resolved" | "expired" | "cancelled";
-export type DesktopArtifactDeliveryTargetKind = "ask_omi" | "task_chat" | "local_file" | "external_draft";
+export type DesktopArtifactDeliveryTargetKind = "ask_omi" | "local_file" | "external_draft";
 export type DesktopArtifactDeliveryReviewStatus = "not_required" | "pending" | "approved" | "rejected";
 export type DesktopArtifactDeliveryStatus = "pending" | "delivered" | "failed" | "retrying" | "cancelled";
 export type DesktopCandidateStatus = "pending" | "accepted" | "rejected" | "expired";
-export type DesktopTaskCandidateStatus = DesktopCandidateStatus | "forwarded";
-export type DesktopTaskCandidateAction = "create" | "update" | "complete" | "delete" | "supersede";
-export type DesktopTaskCandidateDeliveryStatus = "pending" | "delivering" | "delivered" | "failed" | "blocked";
 export type DesktopContextSourceKind =
   | "omi_db"
   | "rewind_timeline"
@@ -265,8 +258,7 @@ export type DesktopContextSourceKind =
   | "screenshot_image"
   | "local_agent_api"
   | "automation_bridge"
-  | "chat_surface"
-  | "task_chat";
+  | "chat_surface";
 export type DesktopContextPolicyDecision = "allowed" | "denied" | "dispatch_created";
 
 export interface AgentSession {
@@ -511,41 +503,6 @@ export interface DesktopMemoryCandidate {
 export type NewDesktopMemoryCandidate = Partial<DesktopMemoryCandidate> &
   Pick<DesktopMemoryCandidate, "ownerId" | "sourceSessionId" | "proposedFact" | "evidenceRefsJson" | "confidence" | "sensitivityTier">;
 
-export interface DesktopTaskCandidate {
-  candidateId: string;
-  ownerId: string;
-  sourceSessionId: string | null;
-  sourceRunId: string | null;
-  action: DesktopTaskCandidateAction;
-  taskRef: string | null;
-  proposedChangeJson: string;
-  evidenceRefsJson: string;
-  confidence: number;
-  ownershipConfidence: number;
-  requiresApproval: 0 | 1;
-  goalRef: string | null;
-  workstreamRef: string | null;
-  sourceSurface: string;
-  accountGeneration: number;
-  generationReconciled: 0 | 1;
-  status: DesktopTaskCandidateStatus;
-  deliveryStatus: DesktopTaskCandidateDeliveryStatus;
-  deliveryAttemptCount: number;
-  deliveryKey: string;
-  backendCandidateId: string | null;
-  backendReceiptJson: string | null;
-  backendResolutionReceiptJson: string | null;
-  backendResolutionStatus: string | null;
-  lastDeliveryErrorJson: string | null;
-  createdAtMs: number;
-  updatedAtMs: number;
-  deliveredAtMs: number | null;
-  resolvedAtMs: number | null;
-}
-
-export type NewDesktopTaskCandidate = Partial<DesktopTaskCandidate> &
-  Pick<DesktopTaskCandidate, "ownerId" | "action" | "proposedChangeJson" | "evidenceRefsJson" | "confidence" | "requiresApproval">;
-
 export interface DesktopContextAccessLog {
   accessId: string;
   ownerId: string;
@@ -645,9 +602,7 @@ export interface StartupReconciliationResult {
   orphanedRunIds: string[];
   staleBindingIds: string[];
   expiredContextPacketIds: string[];
-  expiredContinuationCheckpointIds: string[];
   failedArtifactDeliveryIds: string[];
-  failedTaskCandidateDeliveryIds: string[];
   requeuedBackendTurnOutboxIds: string[];
   requeuedBackendConversationDeleteIds: string[];
   failedPreparedToolInvocationIds: string[];
@@ -685,7 +640,6 @@ export interface AgentStore {
   insertDesktopArtifactDelivery(input: NewDesktopArtifactDelivery): DesktopArtifactDelivery;
   updateDesktopArtifactDelivery(deliveryId: string, input: { ownerId: string } & Partial<Pick<DesktopArtifactDelivery, "reviewStatus" | "deliveryStatus" | "attemptCount" | "receiptJson" | "errorJson" | "deliveredAtMs">>): DesktopArtifactDelivery;
   insertDesktopMemoryCandidate(input: NewDesktopMemoryCandidate): DesktopMemoryCandidate;
-  insertDesktopTaskCandidate(input: NewDesktopTaskCandidate): DesktopTaskCandidate;
   insertDesktopContextAccessLog(input: NewDesktopContextAccessLog): DesktopContextAccessLog;
   upsertDesktopAttentionOverride(input: NewDesktopAttentionOverride): DesktopAttentionOverride;
   execute(sql: string, values?: unknown[]): number;

@@ -42,6 +42,7 @@ enum DefaultsKey: String {
   case onboardingExitOutcome = "onboardingExitOutcome"
   case homeOmiDeviceAccountHistory = "home-omi-device-account-history"
   case chatScreenshotSharingEnabled = "chatScreenshotSharingEnabled"
+  case taskAssistantEnabled = "taskAssistantEnabled"
   /// Test hook: forces TTS playback start to report failure (non-prod gauntlets).
   case forceTTSPlaybackStartFalse = "forceTTSPlaybackStartFalse"
   case shortcutPTTInputDeviceUID = "shortcut_pttInputDeviceUID"

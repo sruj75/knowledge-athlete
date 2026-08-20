@@ -415,14 +415,12 @@ def test_provision_missing_uses_gcloud_with_every_manifest_field_and_waits_for_r
 
 def test_live_gcloud_indexes_derive_collection_group_with_explicit_document_id():
     live_index = {
-        'name': (
-            'projects/dev-project/databases/(default)/collectionGroups/' 'task_attention_overrides/indexes/index-id'
-        ),
+        'name': ('projects/dev-project/databases/(default)/collectionGroups/' 'chat_sessions/indexes/index-id'),
         'queryScope': 'COLLECTION',
         'fields': [
-            {'fieldPath': 'account_generation', 'order': 'ASCENDING'},
-            {'fieldPath': 'expires_at', 'order': 'ASCENDING'},
-            {'fieldPath': '__name__', 'order': 'ASCENDING'},
+            {'fieldPath': 'starred', 'order': 'ASCENDING'},
+            {'fieldPath': 'updated_at', 'order': 'DESCENDING'},
+            {'fieldPath': '__name__', 'order': 'DESCENDING'},
         ],
         'state': 'READY',
     }
@@ -434,32 +432,30 @@ def test_live_gcloud_indexes_derive_collection_group_with_explicit_document_id()
         project='dev-project', database='(default)', runner=runner
     )
 
-    attention_override_signature = (
-        'task_attention_overrides',
+    starred_chat_signature = (
+        'chat_sessions',
         'COLLECTION',
         (
-            ('account_generation', 'ASCENDING'),
-            ('expires_at', 'ASCENDING'),
-            ('__name__', 'ASCENDING'),
+            ('starred', 'ASCENDING'),
+            ('updated_at', 'DESCENDING'),
+            ('__name__', 'DESCENDING'),
         ),
     )
-    assert attention_override_signature in reconcile_firestore_indexes.expected_index_signatures(
-        firebase_index_manifest()
-    )
+    assert starred_chat_signature in reconcile_firestore_indexes.expected_index_signatures(firebase_index_manifest())
     assert reconcile_firestore_indexes.expected_index_states(
-        expected={attention_override_signature},
+        expected={starred_chat_signature},
         live_indexes=live_indexes,
         project='dev-project',
         database='(default)',
-    ) == {attention_override_signature: 'READY'}
+    ) == {starred_chat_signature: 'READY'}
 
 
 def test_live_gcloud_indexes_do_not_alias_implicit_terminal_document_id():
     live_index = {
-        'name': 'projects/dev-project/databases/(default)/collectionGroups/task_attention_overrides/indexes/index-id',
+        'name': 'projects/dev-project/databases/(default)/collectionGroups/memory_items/indexes/index-id',
         'queryScope': 'COLLECTION',
         'fields': [
-            {'fieldPath': 'account_generation', 'order': 'ASCENDING'},
+            {'fieldPath': 'tier', 'order': 'ASCENDING'},
             {'fieldPath': 'expires_at', 'order': 'ASCENDING'},
             {'fieldPath': '__name__', 'order': 'ASCENDING'},
         ],
@@ -474,9 +470,9 @@ def test_live_gcloud_indexes_do_not_alias_implicit_terminal_document_id():
     )
 
     implicit_signature = (
-        'task_attention_overrides',
+        'memory_items',
         'COLLECTION',
-        (('account_generation', 'ASCENDING'), ('expires_at', 'ASCENDING')),
+        (('tier', 'ASCENDING'), ('expires_at', 'ASCENDING')),
     )
     assert reconcile_firestore_indexes.expected_index_states(
         expected={implicit_signature},
@@ -496,15 +492,15 @@ def test_live_gcloud_indexes_do_not_alias_implicit_terminal_document_id():
 @pytest.mark.parametrize('check_only', [False, True])
 def test_writer_and_check_only_share_exact_signature_matching(monkeypatch, check_only, tmp_path):
     implicit_signature = (
-        'task_attention_overrides',
+        'memory_items',
         'COLLECTION',
-        (('account_generation', 'ASCENDING'), ('expires_at', 'ASCENDING')),
+        (('tier', 'ASCENDING'), ('expires_at', 'ASCENDING')),
     )
     live_index = {
-        'name': 'projects/dev-project/databases/(default)/collectionGroups/task_attention_overrides/indexes/index-id',
+        'name': 'projects/dev-project/databases/(default)/collectionGroups/memory_items/indexes/index-id',
         'queryScope': 'COLLECTION',
         'fields': [
-            {'fieldPath': 'account_generation', 'order': 'ASCENDING'},
+            {'fieldPath': 'tier', 'order': 'ASCENDING'},
             {'fieldPath': 'expires_at', 'order': 'ASCENDING'},
             {'fieldPath': '__name__', 'order': 'ASCENDING'},
         ],
@@ -546,16 +542,16 @@ def test_dev_provisioning_does_not_accept_an_implicit_document_id_alias():
     commands = []
     expected = {
         (
-            'task_attention_overrides',
+            'memory_items',
             'COLLECTION',
-            (('account_generation', 'ASCENDING'), ('expires_at', 'ASCENDING')),
+            (('tier', 'ASCENDING'), ('expires_at', 'ASCENDING')),
         )
     }
     live_index = {
-        'name': 'projects/dev-project/databases/(default)/collectionGroups/task_attention_overrides/indexes/index-id',
+        'name': 'projects/dev-project/databases/(default)/collectionGroups/memory_items/indexes/index-id',
         'queryScope': 'COLLECTION',
         'fields': [
-            {'fieldPath': 'account_generation', 'order': 'ASCENDING'},
+            {'fieldPath': 'tier', 'order': 'ASCENDING'},
             {'fieldPath': 'expires_at', 'order': 'ASCENDING'},
             {'fieldPath': '__name__', 'order': 'ASCENDING'},
         ],
@@ -581,15 +577,15 @@ def test_dev_provisioning_does_not_accept_an_implicit_document_id_alias():
 
 def test_live_index_from_another_resource_identity_does_not_satisfy_the_manifest():
     signature = (
-        'task_attention_overrides',
+        'memory_items',
         'COLLECTION',
-        (('account_generation', 'ASCENDING'), ('expires_at', 'ASCENDING')),
+        (('tier', 'ASCENDING'), ('expires_at', 'ASCENDING')),
     )
     live_index = {
-        'name': 'projects/other-project/databases/(default)/collectionGroups/task_attention_overrides/indexes/index-id',
+        'name': 'projects/other-project/databases/(default)/collectionGroups/memory_items/indexes/index-id',
         'queryScope': 'COLLECTION',
         'fields': [
-            {'fieldPath': 'account_generation', 'order': 'ASCENDING'},
+            {'fieldPath': 'tier', 'order': 'ASCENDING'},
             {'fieldPath': 'expires_at', 'order': 'ASCENDING'},
         ],
         'state': 'READY',
@@ -640,7 +636,7 @@ def test_provisioning_dry_run_only_lists_indexes_and_does_not_write(capsys):
             '--format=json',
         ]
     ]
-    assert 'would create COLLECTION/task_attention_overrides' in capsys.readouterr().out
+    assert 'would create COLLECTION/chat_sessions' in capsys.readouterr().out
 
 
 def test_provisioning_fails_closed_when_gcloud_cannot_create_a_missing_index():

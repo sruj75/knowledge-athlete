@@ -77,13 +77,6 @@ final class StartupWarmupPolicyTests: XCTestCase {
     )
   }
 
-  func testRecurringTaskSchedulerWaitsUntilAfterDeferredWarmupStarts() {
-    XCTAssertGreaterThan(
-      StartupWarmupPolicy.recurringTaskSchedulerInitialDelay,
-      StartupWarmupPolicy.deferredWarmupDelay
-    )
-  }
-
   func testDashboardNetworkRefreshWaitsUntilAfterDeferredWarmupStarts() {
     XCTAssertGreaterThan(
       StartupWarmupPolicy.dashboardNetworkRefreshDelay,
@@ -253,30 +246,13 @@ final class StartupWarmupPolicyTests: XCTestCase {
     }
     await ownerFixture.establish(authOwnerID: "startup-maintenance-owner")
     store.resetSessionState()
-    let counter = StartupMaintenanceCounter()
 
-    store.scheduleStartupMaintenanceIfNeeded(
-      fullSyncAndRetry: { _ in await counter.recordFullSyncAndRetry() },
-      relevanceBackfill: { _ in await counter.recordRelevanceBackfill() }
-    )
-
-    try? await Task.sleep(nanoseconds: 50_000_000)
+    let firstTasks = store.scheduleStartupMaintenanceIfNeeded()
+    for task in firstTasks { await task.value }
     XCTAssertTrue(store.hasScheduledStartupMaintenance)
-    let initialFullSyncAndRetryCount = await counter.fullSyncAndRetryCount
-    let initialRelevanceBackfillCount = await counter.relevanceBackfillCount
-    XCTAssertEqual(initialFullSyncAndRetryCount, 1)
-    XCTAssertEqual(initialRelevanceBackfillCount, 1)
+    XCTAssertEqual(firstTasks.count, 1)
 
-    store.scheduleStartupMaintenanceIfNeeded(
-      fullSyncAndRetry: { _ in await counter.recordFullSyncAndRetry() },
-      relevanceBackfill: { _ in await counter.recordRelevanceBackfill() }
-    )
-
-    try? await Task.sleep(nanoseconds: 50_000_000)
-    let finalFullSyncAndRetryCount = await counter.fullSyncAndRetryCount
-    let finalRelevanceBackfillCount = await counter.relevanceBackfillCount
-    XCTAssertEqual(finalFullSyncAndRetryCount, 1)
-    XCTAssertEqual(finalRelevanceBackfillCount, 1)
+    XCTAssertTrue(store.scheduleStartupMaintenanceIfNeeded().isEmpty)
   }
 
   func testDashboardOnlyActivationRefreshDoesNotRequireTasksPageHydration() throws {
@@ -364,11 +340,7 @@ final class StartupWarmupPolicyTests: XCTestCase {
 
     XCTAssertTrue(
       containerSource.contains("dashboardViewModel.resetSessionState()"),
-      "Startup reset must clear DashboardViewModel so account switches cannot show the previous user's score or goals"
-    )
-    XCTAssertTrue(
-      dashboardSource.contains("scoreResponse = nil"),
-      "Dashboard reset must clear the previous user's score"
+      "Startup reset must clear DashboardViewModel so account switches cannot show the previous user's goals"
     )
     XCTAssertTrue(
       dashboardSource.contains("goals = []"),
@@ -411,21 +383,5 @@ final class StartupWarmupPolicyTests: XCTestCase {
       source.contains("clearOwnerState()"),
       "RuntimeOwnerIdentity's correlated transition barrier must be the exclusive owner revoker"
     )
-  }
-}
-
-private actor StartupMaintenanceCounter {
-  private var fullSyncAndRetryTotal = 0
-  private var relevanceBackfillTotal = 0
-
-  var fullSyncAndRetryCount: Int { fullSyncAndRetryTotal }
-  var relevanceBackfillCount: Int { relevanceBackfillTotal }
-
-  func recordFullSyncAndRetry() {
-    fullSyncAndRetryTotal += 1
-  }
-
-  func recordRelevanceBackfill() {
-    relevanceBackfillTotal += 1
   }
 }

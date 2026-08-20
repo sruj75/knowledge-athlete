@@ -138,21 +138,10 @@ def test_out_of_scope_prefixes_match_at_least_one_route():
 KNOWN_MISSING_ROUTES: Set[str] = {
     # Desktop calls these but no matching backend route exists — likely dead
     # endpoints or naming drift to be resolved in a follow-up slice.
-    '/v1/action-items/batch-scores',
-    '/v1/goals/completed',
     # These backend routes exist but return unmodeled (loose) responses, so
     # adding them to the app-client surface would regress the strict
     # `unmodeled_success_response_count == 0` gate. They are tracked for a
     # follow-up that adds Pydantic response_models first, then exports them.
-    '/v1/scores',
-    '/v1/staged-tasks',
-    '/v1/staged-tasks/{param}',
-    '/v1/staged-tasks/batch-scores',
-    '/v1/staged-tasks/migrate',
-    '/v1/staged-tasks/migrate-conversation-items',
-    '/v1/staged-tasks/promote',
-    '/v1/tools/action-items',
-    '/v1/tools/action-items/{param}',
     '/v1/tools/conversations',
     '/v1/tools/conversations/search',
 }
@@ -194,6 +183,26 @@ def test_retired_s10_projection_routes_are_absent_from_desktop_sources():
     assert sorted(route for route in routes if route.startswith(retired_prefixes)) == []
 
 
+def test_retired_s13_task_goal_and_score_routes_are_absent_from_desktop_sources():
+    routes = _extract_routes_from_swift(_load_api_client_sources())
+    retired_prefixes = (
+        '/v1/action-items',
+        '/v1/tools/action-items',
+        '/v1/staged-tasks',
+        '/v1/candidates',
+        '/v1/task-intelligence',
+        '/v1/what-matters-now',
+        '/v1/goals',
+        '/v1/work-intents',
+        '/v1/workstreams',
+        '/v1/workflow-migrations/task-goal-links',
+        '/v1/daily-score',
+        '/v1/scores',
+    )
+
+    assert sorted(route for route in routes if route.startswith(retired_prefixes)) == []
+
+
 def test_known_missing_routes_do_not_drift():
     """The KNOWN_MISSING set must stay accurate.
 
@@ -229,7 +238,7 @@ def test_desktop_rest_inventory_is_nonempty():
     """Sanity guard: the extractor must keep finding routes."""
     source = _load_api_client_sources()
     in_scope = _in_scope(_extract_routes_from_swift(source))
-    assert len(in_scope) >= 20, (
-        f'Expected at least 20 in-scope desktop REST routes, found {len(in_scope)}. '
+    assert len(in_scope) >= 15, (
+        f'Expected at least 15 in-scope desktop REST routes, found {len(in_scope)}. '
         'The Swift route extractor may have regressed.'
     )

@@ -278,16 +278,6 @@ struct TaskTestRunnerView: View {
                 .padding(.vertical, OmiSpacing.hairline)
                 .background(priorityColor(task.priority))
                 .cornerRadius(OmiChrome.stripRadius)
-              Text("\(task.sourceCategory)/\(task.sourceSubcategory)")
-                .scaledFont(size: OmiType.micro, weight: .medium)
-                .foregroundColor(.white)
-                .padding(.horizontal, OmiSpacing.xs)
-                .padding(.vertical, OmiSpacing.hairline)
-                .background(Color.teal.opacity(0.7))
-                .cornerRadius(OmiChrome.stripRadius)
-              Text(task.tags.joined(separator: ", "))
-                .scaledFont(size: OmiType.micro)
-                .foregroundColor(.secondary)
             }
           }
         } else {

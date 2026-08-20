@@ -47,7 +47,6 @@ def test_neighboring_retained_product_routes_remain_registered() -> None:
     route_keys = {(method, route.path) for route in main.app.routes for method in getattr(route, "methods", set())}
 
     for route_key in (
-        ("GET", "/v1/action-items"),
         ("POST", "/v1/memory/compute/extract"),
         ("POST", "/v1/memory/compute/normalize"),
         ("POST", "/v1/memory/compute/consolidate"),

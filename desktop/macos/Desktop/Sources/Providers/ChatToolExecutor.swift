@@ -178,9 +178,6 @@ class ChatToolExecutor {
     case .getDailyRecap:
       return await executeDailyRecap(toolCall.arguments, expectedOwnerID: expectedOwnerID)
 
-    case .searchTasks:
-      return await executeSearchTasks(toolCall.arguments, expectedOwnerID: expectedOwnerID)
-
     case .completeTask:
       return await executeCompleteTask(
         toolCall.arguments,
@@ -812,6 +809,9 @@ class ChatToolExecutor {
   ) async throws
     -> String
   {
+    guard !requiresTypedLocalMutation(query) else {
+      return "Error: task and goal writes must use the typed local tools"
+    }
     guard ownerIsCurrent(expectedOwnerID) else { return authorizedOwnerChangedResult() }
     let authorization = LocalMutationAuthorization {
       ownerIsCurrent(expectedOwnerID)
@@ -842,16 +842,20 @@ class ChatToolExecutor {
         await TasksStore.shared.reloadFromLocalCache(
           expectedOwnerID: expectedOwnerID,
           authorizationSnapshot: currentOwnerAuthorizationSnapshot)
-      },
-      retryUnsyncedTasks: {
-        await TasksStore.shared.retryUnsyncedItems(
-          includeRecent: true,
-          expectedOwnerID: expectedOwnerID,
-          authorizationSnapshot: currentOwnerAuthorizationSnapshot)
       })
     guard completedPostCommitEffects else { return authorizedOwnerChangedResult() }
 
     return "OK: \(changes) row(s) affected"
+  }
+
+  static func requiresTypedLocalMutation(_ query: String) -> Bool {
+    let normalized =
+      query
+      .replacingOccurrences(of: #"--[^\n]*"#, with: " ", options: .regularExpression)
+      .replacingOccurrences(of: #"/\*[\s\S]*?\*/"#, with: " ", options: .regularExpression)
+      .uppercased()
+    return normalized.range(of: #"\bACTION_ITEMS\b"#, options: .regularExpression) != nil
+      || normalized.range(of: #"\bGOALS\b"#, options: .regularExpression) != nil
   }
 
   static func executeOwnerBoundSQLPostCommitEffects(
@@ -859,8 +863,7 @@ class ChatToolExecutor {
     query: String,
     expectedOwnerID: String?,
     ownerIsCurrent: (String?) -> Bool = { isExpectedOwnerCurrent($0) },
-    reloadTasks: () async -> Void,
-    retryUnsyncedTasks: () async -> Void
+    reloadTasks: () async -> Void
   ) async -> Bool {
     guard ownerIsCurrent(expectedOwnerID) else { return false }
     guard changes > 0 else { return true }
@@ -868,35 +871,6 @@ class ChatToolExecutor {
     guard upper.contains("ACTION_ITEMS") else { return true }
     log("Tool execute_sql: action_items modified, refreshing TasksStore")
     await reloadTasks()
-    guard ownerIsCurrent(expectedOwnerID) else { return false }
-    if upper.contains("INSERT") {
-      await retryUnsyncedTasks()
-      guard ownerIsCurrent(expectedOwnerID) else { return false }
-    }
-    return true
-  }
-
-  /// Backend tools that write the user's tasks to the server. Unlike the local
-  /// `execute_sql` write path (handled above), the `create_action_item` /
-  /// `update_action_item` backend tools had no post-write refresh — so an
-  /// agent-created task was persisted on the server but never pulled into the
-  /// local TasksStore, leaving it invisible in the task list until a manual
-  /// reload (while the "+" button, which writes through TasksStore, showed up
-  /// immediately). Returns false when the expected owner is no longer current.
-  static func backendToolWritesTasks(_ toolName: String) -> Bool {
-    toolName == "create_action_item" || toolName == "update_action_item"
-  }
-
-  static func executeBackendTaskWritePostEffects(
-    toolName: String,
-    expectedOwnerID: String?,
-    ownerIsCurrent: (String?) -> Bool = { isExpectedOwnerCurrent($0) },
-    refreshTasksFromServer: () async -> Void
-  ) async -> Bool {
-    guard backendToolWritesTasks(toolName) else { return true }
-    guard ownerIsCurrent(expectedOwnerID) else { return false }
-    log("Tool \(toolName): backend task write, refreshing TasksStore from server")
-    await refreshTasksFromServer()
     return ownerIsCurrent(expectedOwnerID)
   }
 
@@ -1327,110 +1301,9 @@ class ChatToolExecutor {
     return id
   }
 
-  // MARK: - Task Search
-
-  /// Vector similarity search on action_items + staged_tasks using EmbeddingService
-  private static func executeSearchTasks(
-    _ args: [String: Any],
-    expectedOwnerID: String?
-  ) async -> String {
-    guard isExpectedOwnerCurrent(expectedOwnerID) else { return authorizedOwnerChangedResult() }
-    guard let query = args["query"] as? String, !query.isEmpty else {
-      return "Error: query is required"
-    }
-
-    let includeCompleted = (args["include_completed"] as? Bool) ?? false
-
-    do {
-      // Ensure index is loaded
-      if !(await EmbeddingService.shared.indexLoaded) {
-        guard isExpectedOwnerCurrent(expectedOwnerID) else {
-          return authorizedOwnerChangedResult()
-        }
-        await EmbeddingService.shared.loadIndex()
-      }
-      guard isExpectedOwnerCurrent(expectedOwnerID) else { return authorizedOwnerChangedResult() }
-
-      // Verify index actually has entries (loadIndex swallows errors)
-      if !(await EmbeddingService.shared.indexLoaded) {
-        return "Error: embedding index failed to load. Task vector search is unavailable."
-      }
-
-      // Embed the query text. The in-memory index is keyed by (source, id), so
-      // each search result resolves deterministically against its own table
-      // instead of the old staged-first/action-fallback guessing that returned an
-      // unrelated task when action_item and staged_task rowids collided.
-      let queryEmbedding = try await EmbeddingService.shared.embed(
-        text: query, taskType: "RETRIEVAL_QUERY")
-      guard isExpectedOwnerCurrent(expectedOwnerID) else { return authorizedOwnerChangedResult() }
-
-      // Search the in-memory index (action_items + staged_tasks share this index)
-      let vectorResults = await EmbeddingService.shared.searchSimilar(
-        query: queryEmbedding, topK: 15)
-      guard isExpectedOwnerCurrent(expectedOwnerID) else { return authorizedOwnerChangedResult() }
-
-      var lines: [String] = []
-      var count = 0
-
-      for result in vectorResults where result.similarity > 0.3 {
-        guard isExpectedOwnerCurrent(expectedOwnerID) else {
-          return authorizedOwnerChangedResult()
-        }
-        switch result.source {
-        case .staged:
-          guard let staged = try? await StagedTaskStorage.shared.getStagedTask(id: result.id) else {
-            continue
-          }
-          guard isExpectedOwnerCurrent(expectedOwnerID) else {
-            return authorizedOwnerChangedResult()
-          }
-          if staged.deleted { continue }
-          if !includeCompleted && staged.completed { continue }
-          count += 1
-          let check = staged.completed ? "[x]" : "[ ]"
-          let sim = String(format: "%.2f", result.similarity)
-          lines.append(
-            "\(count). \(check) \(staged.description) (similarity: \(sim), id: \(result.id), source: staged_tasks)"
-          )
-        case .actionItem:
-          guard let record = try? await ActionItemStorage.shared.getActionItem(id: result.id) else {
-            continue
-          }
-          guard isExpectedOwnerCurrent(expectedOwnerID) else {
-            return authorizedOwnerChangedResult()
-          }
-          if record.deleted { continue }
-          if !includeCompleted && record.completed { continue }
-          count += 1
-          let check = record.completed ? "[x]" : "[ ]"
-          let pri = (record.priority ?? "").isEmpty ? "" : " [\(record.priority!)]"
-          let sim = String(format: "%.2f", result.similarity)
-          lines.append(
-            "\(count). \(check) \(record.description)\(pri) (similarity: \(sim), id: \(result.id), source: action_items)"
-          )
-        }
-
-        if count >= 10 { break }
-      }
-
-      if lines.isEmpty {
-        return
-          "No tasks found matching \"\(query)\". The embedding index may not be loaded yet, or no tasks have embeddings."
-      }
-
-      lines.insert("Found \(count) task(s) matching \"\(query)\":", at: 0)
-      log("Tool search_tasks returned \(count) results")
-      return lines.joined(separator: "\n")
-
-    } catch {
-      logError("Tool search_tasks failed", error: error)
-      return "Error: \(error.localizedDescription)"
-    }
-  }
-
   // MARK: - Task Tools
 
-  /// Mark a task completed via TasksStore (handles local + API sync)
+  /// Mark a task completed through the owner-local task authority.
   private static func executeCompleteTask(
     _ args: [String: Any],
     expectedOwnerID: String?
@@ -1443,7 +1316,7 @@ class ChatToolExecutor {
     }
 
     do {
-      guard let task = try await ActionItemStorage.shared.getLocalActionItem(byBackendId: taskId)
+      guard let task = try await ActionItemStorage.shared.getLocalActionItem(surfacedId: taskId)
       else {
         return "Error: task not found with id '\(taskId)'"
       }
@@ -1460,24 +1333,30 @@ class ChatToolExecutor {
         return "OK: task '\(task.description)' is already completed"
       }
 
-      await TasksStore.shared.toggleTask(
-        task,
-        expectedOwnerID: expectedOwnerID,
-        authorizationSnapshot: currentOwnerAuthorizationSnapshot)
+      guard
+        await TasksStore.shared.toggleTask(
+          task,
+          expectedOwnerID: expectedOwnerID,
+          authorizationSnapshot: currentOwnerAuthorizationSnapshot)
+      else { return "Error: local task completion did not commit" }
 
       guard isExpectedOwnerCurrent(expectedOwnerID) else {
         return authorizedOwnerChangedResult()
       }
 
       log("Tool complete_task: marked '\(task.description)' as completed")
-      return "OK: task '\(task.description)' marked as completed"
+      let warning =
+        TasksStore.shared.reminderError == nil
+        ? ""
+        : " Warning: task saved, but its reminder could not be scheduled."
+      return "OK: task '\(task.description)' marked as completed\(warning)"
     } catch {
       logError("Tool complete_task failed", error: error)
       return "Error: \(error.localizedDescription)"
     }
   }
 
-  /// Delete a task via TasksStore (handles local + API sync)
+  /// Delete a task through the owner-local task authority.
   private static func executeDeleteTask(
     _ args: [String: Any],
     expectedOwnerID: String?
@@ -1490,7 +1369,7 @@ class ChatToolExecutor {
     }
 
     do {
-      guard let task = try await ActionItemStorage.shared.getLocalActionItem(byBackendId: taskId)
+      guard let task = try await ActionItemStorage.shared.getLocalActionItem(surfacedId: taskId)
       else {
         return "Error: task not found with id '\(taskId)'"
       }
@@ -1502,17 +1381,23 @@ class ChatToolExecutor {
         return "Error: task '\(task.description)' is already deleted"
       }
 
-      await TasksStore.shared.deleteTask(
-        task,
-        expectedOwnerID: expectedOwnerID,
-        authorizationSnapshot: currentOwnerAuthorizationSnapshot)
+      guard
+        await TasksStore.shared.deleteTask(
+          task,
+          expectedOwnerID: expectedOwnerID,
+          authorizationSnapshot: currentOwnerAuthorizationSnapshot)
+      else { return "Error: local task deletion did not commit" }
 
       guard isExpectedOwnerCurrent(expectedOwnerID) else {
         return authorizedOwnerChangedResult()
       }
 
       log("Tool delete_task: deleted '\(task.description)'")
-      return "OK: task '\(task.description)' deleted"
+      let warning =
+        TasksStore.shared.reminderError == nil
+        ? ""
+        : " Warning: task saved, but its reminder could not be scheduled."
+      return "OK: task '\(task.description)' deleted\(warning)"
     } catch {
       logError("Tool delete_task failed", error: error)
       return "Error: \(error.localizedDescription)"
@@ -1892,6 +1777,42 @@ class ChatToolExecutor {
     )
   }
 
+  private static func parseISODate(_ value: String?) -> Date? {
+    guard let value else { return nil }
+    let formatter = ISO8601DateFormatter()
+    formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+    if let date = formatter.date(from: value) { return date }
+    formatter.formatOptions = [.withInternetDateTime]
+    return formatter.date(from: value)
+  }
+
+  private static func localTaskToolPayload(
+    _ tasks: [TaskActionItem],
+    reminderError: String? = nil
+  ) -> String {
+    let formatter = ISO8601DateFormatter()
+    let items = tasks.map { task -> [String: Any] in
+      var item: [String: Any] = [
+        "id": task.id,
+        "description": task.description,
+        "completed": task.completed,
+        "created_at": formatter.string(from: task.createdAt),
+        "updated_at": formatter.string(from: task.updatedAt ?? task.createdAt),
+      ]
+      if let dueAt = task.dueAt { item["due_at"] = formatter.string(from: dueAt) }
+      if let priority = task.priority { item["priority"] = priority }
+      return item
+    }
+    var payload: [String: Any] = ["items": items, "count": items.count]
+    if reminderError != nil {
+      payload["reminder_warning"] = "Task saved, but its reminder could not be scheduled."
+    }
+    guard let data = try? JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys]),
+      let text = String(data: data, encoding: .utf8)
+    else { return #"{"items":[],"count":0}"# }
+    return text
+  }
+
   // MARK: - Backend RAG Tools
 
   private static func executeLocalMemoryTool(
@@ -2050,84 +1971,101 @@ class ChatToolExecutor {
           if let error = result.error { return error }
           validatedDueEnd = result.valid
         }
-        let resp = try await api.toolGetActionItems(
+        guard isExpectedOwnerCurrent(expectedOwnerID) else { return authorizedOwnerChangedResult() }
+        let tasks = try await ActionItemStorage.shared.getFilteredActionItems(
           limit: args["limit"] as? Int ?? 50,
           offset: args["offset"] as? Int ?? 0,
-          completed: args["completed"] as? Bool,
-          startDate: validatedStartDate,
-          endDate: validatedEndDate,
-          dueStartDate: validatedDueStart,
-          dueEndDate: validatedDueEnd,
-          expectedOwnerId: expectedOwnerID,
-          authorizationSnapshot: currentOwnerAuthorizationSnapshot
+          completedStates: (args["completed"] as? Bool).map { [$0] },
+          dueDateAfter: parseISODate(validatedDueStart),
+          dueDateBefore: parseISODate(validatedDueEnd),
+          createdAfter: parseISODate(validatedStartDate),
+          createdBefore: parseISODate(validatedEndDate)
         )
-        return resp.resultText
+        guard isExpectedOwnerCurrent(expectedOwnerID) else { return authorizedOwnerChangedResult() }
+        return localTaskToolPayload(tasks)
 
       case "create_action_item":
         guard let desc = args["description"] as? String, !desc.isEmpty else {
           return "Error: description is required"
         }
-        var validatedDueAt: String? = nil
+        let dueAt: Date
         if let da = args["due_at"] as? String {
           let result = validateISODate(da, paramName: "due_at")
           if let error = result.error { return error }
-          validatedDueAt = result.valid
+          guard let explicit = parseISODate(result.valid) else {
+            return "Error: due_at could not be parsed"
+          }
+          dueAt = explicit
+        } else {
+          dueAt = Date().addingTimeInterval(24 * 60 * 60)
         }
-        let resp = try await api.toolCreateActionItem(
-          description: desc,
-          dueAt: validatedDueAt,
-          conversationId: args["conversation_id"] as? String,
-          expectedOwnerId: expectedOwnerID,
-          authorizationSnapshot: currentOwnerAuthorizationSnapshot
-        )
+        guard isExpectedOwnerCurrent(expectedOwnerID) else { return authorizedOwnerChangedResult() }
         guard
-          await executeBackendTaskWritePostEffects(
-            toolName: "create_action_item",
-            expectedOwnerID: expectedOwnerID,
-            refreshTasksFromServer: {
-              await TasksStore.shared.refreshDashboardTasksFromServer(
-                expectedOwnerID: expectedOwnerID,
-                authorizationSnapshot: currentOwnerAuthorizationSnapshot)
-            })
-        else { return authorizedOwnerChangedResult() }
-        return resp.resultText
+          let task = await TasksStore.shared.createTask(
+            description: desc,
+            dueAt: dueAt,
+            priority: args["priority"] as? String,
+            source: "assistant",
+            expectedOwnerID: expectedOwnerID
+          )
+        else {
+          return isExpectedOwnerCurrent(expectedOwnerID)
+            ? "Error: local task creation did not commit"
+            : authorizedOwnerChangedResult()
+        }
+        return localTaskToolPayload(
+          [task],
+          reminderError: TasksStore.shared.reminderError
+        )
 
       case "update_action_item":
         guard let itemId = resolveActionItemID(args) else {
           return "Error: action_item_id is required"
         }
-        var validatedUpdateDueAt: String? = nil
+        guard var task = try await ActionItemStorage.shared.getLocalActionItem(surfacedId: itemId),
+          task.deleted != true
+        else { return "Error: task not found" }
+        var validatedUpdateDueAt: Date?
+        let clearsDueAt = args["due_at"] is NSNull
         if let da = args["due_at"] as? String {
           let result = validateISODate(da, paramName: "due_at")
           if let error = result.error { return error }
-          validatedUpdateDueAt = result.valid
+          validatedUpdateDueAt = parseISODate(result.valid)
         }
-        let resp = try await api.toolUpdateActionItem(
-          id: itemId,
-          completed: args["completed"] as? Bool,
-          description: args["description"] as? String,
-          dueAt: validatedUpdateDueAt,
-          expectedOwnerId: expectedOwnerID,
-          authorizationSnapshot: currentOwnerAuthorizationSnapshot
-        )
-        guard
-          await executeBackendTaskWritePostEffects(
-            toolName: "update_action_item",
-            expectedOwnerID: expectedOwnerID,
-            refreshTasksFromServer: {
-              await TasksStore.shared.refreshDashboardTasksFromServer(
-                expectedOwnerID: expectedOwnerID,
-                authorizationSnapshot: currentOwnerAuthorizationSnapshot)
-            })
+        if let completed = args["completed"] as? Bool, completed != task.completed {
+          guard await TasksStore.shared.toggleTask(task, expectedOwnerID: expectedOwnerID) else {
+            return "Error: local task completion update did not commit"
+          }
+          guard isExpectedOwnerCurrent(expectedOwnerID),
+            let refreshed = try await ActionItemStorage.shared.getLocalActionItem(surfacedId: itemId)
+          else { return authorizedOwnerChangedResult() }
+          task = refreshed
+        }
+        if args["description"] != nil || args["due_at"] != nil {
+          guard
+            await TasksStore.shared.updateTask(
+              task,
+              description: args["description"] as? String,
+              dueAt: validatedUpdateDueAt,
+              clearDueAt: clearsDueAt,
+              expectedOwnerID: expectedOwnerID
+            )
+          else { return "Error: local task field update did not commit" }
+        }
+        guard isExpectedOwnerCurrent(expectedOwnerID),
+          let updated = try await ActionItemStorage.shared.getLocalActionItem(surfacedId: itemId)
         else { return authorizedOwnerChangedResult() }
-        return resp.resultText
+        return localTaskToolPayload(
+          [updated],
+          reminderError: TasksStore.shared.reminderError
+        )
 
       default:
-        return "Unknown backend tool: \(toolCall.name)"
+        return "Unknown data tool: \(toolCall.name)"
       }
     } catch {
-      log("Backend tool error (\(toolCall.name)): \(error)")
-      return "Error calling backend: \(error.localizedDescription)"
+      log("Data tool error (\(toolCall.name)): \(error)")
+      return "Error running tool: \(error.localizedDescription)"
     }
   }
 }

@@ -52,7 +52,6 @@ import type {
   DesktopCoordinatorDispatch,
   DesktopArtifactDelivery,
   DesktopMemoryCandidate,
-  DesktopTaskCandidate,
 } from "./types.js";
 import type { QueueRunInput } from "./desktop-action-queue.js";
 import { buildDesktopActionQueue } from "./desktop-action-queue.js";
@@ -90,12 +89,10 @@ import {
   desktopDispatchFromRow,
   desktopArtifactDeliveryFromRow,
   desktopMemoryCandidateFromRow,
-  desktopTaskCandidateFromRow,
   desktopAttentionOverrideFromRow,
   dispatchToQueueInput,
   deliveryToQueueInput,
   memoryCandidateToQueueInput,
-  taskCandidateToQueueInput,
   overrideToQueueInput,
   intentCandidateStatus,
   updateByColumns,
@@ -493,8 +490,7 @@ export class KernelCore {
     delete metadata.producerJournal;
     const surfaceKind = String(producerSurface.surface_kind);
     const originSurfaceKind = surfaceKind === "main_chat" ? "main_chat"
-      : surfaceKind === "task_chat" ? "task_chat"
-        : ["realtime", "realtime_voice"].includes(surfaceKind) ? "realtime"
+      : ["realtime", "realtime_voice"].includes(surfaceKind) ? "realtime"
           : ["floating_chat", "floating_bar"].includes(surfaceKind) ? "floating_bar"
             : "agent_control";
     const producerJournal = {
@@ -2495,18 +2491,6 @@ export class KernelCore {
         [ownerId, limit],
       )
       .map(desktopMemoryCandidateFromRow);
-  }
-
-  protected readDesktopTaskCandidates(ownerId: string, limit: number): DesktopTaskCandidate[] {
-    return this.store
-      .allRows(
-        `SELECT * FROM desktop_task_candidates
-         WHERE owner_id = ?
-         ORDER BY status = 'pending' DESC, created_at_ms DESC
-         LIMIT ?`,
-        [ownerId, limit],
-      )
-      .map(desktopTaskCandidateFromRow);
   }
 
   protected readDesktopAttentionOverrides(ownerId: string): DesktopAttentionOverride[] {

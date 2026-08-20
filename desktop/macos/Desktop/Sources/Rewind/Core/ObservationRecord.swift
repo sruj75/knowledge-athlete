@@ -11,8 +11,6 @@ struct ObservationRecord: Codable, FetchableRecord, PersistableRecord, Identifia
   var currentActivity: String
   var hasTask: Bool
   var taskTitle: String?
-  var sourceCategory: String?
-  var sourceSubcategory: String?
   var metadataJson: String?
   var createdAt: Date
 

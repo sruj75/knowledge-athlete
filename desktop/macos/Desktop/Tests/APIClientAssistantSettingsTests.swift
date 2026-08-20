@@ -8,10 +8,6 @@ final class APIClientAssistantSettingsTests: XCTestCase {
     let data = """
       {
         "focus": "not-yet-a-focus-object",
-        "task": {
-          "enabled": true,
-          "min_confidence": 0.72
-        },
         "floating_bar": {
           "voice_answers_enabled": true,
           "elevenlabs_voice_id": "voice-123"
@@ -23,8 +19,6 @@ final class APIClientAssistantSettingsTests: XCTestCase {
     let response = try JSONDecoder().decode(AssistantSettingsResponse.self, from: data)
 
     XCTAssertNil(response.focus)
-    XCTAssertEqual(response.task?.enabled, true)
-    XCTAssertEqual(response.task?.minConfidence, 0.72)
     XCTAssertEqual(response.floatingBar?.voiceAnswersEnabled, true)
     XCTAssertEqual(response.floatingBar?.elevenlabsVoiceId, "voice-123")
     XCTAssertEqual(response.updateChannel, "beta")

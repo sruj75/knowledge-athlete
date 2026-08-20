@@ -195,7 +195,6 @@ class Features:
     CONVERSATION_PROCESSING = "conversation_processing"
     RAG = "rag"
     NOTIFICATIONS = "notifications"
-    GOALS = "goals"
     TRENDS = "trends"
     MEMORY_L1 = "memory_l1"
     MEMORY_L2 = "memory_l2"

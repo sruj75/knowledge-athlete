@@ -37,14 +37,12 @@ for submodule in [
     "users",
     "tasks",
     "trends",
-    "action_items",
     "folders",
     "calendar_meetings",
     "vector_db",
     "llm_usage",
     "_client",
     "chat",
-    "goals",
     "daily_summaries",
     "notifications",
     "auth",
@@ -56,8 +54,6 @@ sys.modules["database.llm_usage"].record_llm_usage = MagicMock()
 sys.modules["database.notifications"].get_mentor_notification_frequency = MagicMock(return_value=3)
 sys.modules["database.notifications"].get_user_time_zone = MagicMock(return_value="America/Los_Angeles")
 sys.modules["database.auth"].get_user_name = MagicMock(return_value="TestUser")
-sys.modules["database.goals"].get_user_goal = MagicMock(return_value=None)
-sys.modules["database.goals"].get_user_goals = MagicMock(return_value=[])
 sys.modules["database.redis_db"].get_filter_category_items = MagicMock(return_value=[])
 sys.modules["database.redis_db"].add_filter_category_item = MagicMock()
 
@@ -221,4 +217,3 @@ def test_static_prefix_has_no_dynamic_refs():
     assert "{user_name}" not in static_prefix, "Static prefix should not contain {user_name}"
     assert "{tz}" not in static_prefix, "Static prefix should not contain {tz}"
     assert "{current_datetime" not in static_prefix, "Static prefix should not contain {current_datetime}"
-    assert "{goal_section}" not in static_prefix, "Static prefix should not contain {goal_section}"

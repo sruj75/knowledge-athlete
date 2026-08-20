@@ -25,9 +25,8 @@ routers/<domain>.py         → returns the normalized dict
 FastAPI response_model      → validates dict against Pydantic model, serializes to JSON
 ```
 
-**Exemplar:** `database/goals.py:get_user_goal()` →
-`utils/goals_response.py:normalize_goal_response()` →
-`routers/goals.py:get_current_goal(response_model=GoalResponse)`.
+Use a retained domain-specific response model and normalizer; hosted task and
+goal response paths were retired when macOS became local-authoritative.
 
 The normalizer handles coercion that Pydantic's runtime validation cannot:
 Firestore `Datetime` → `datetime`, stringy booleans, missing-field defaults,
@@ -41,7 +40,7 @@ the normalizer is the adapter that makes DB output conform to it.
    `response_model` (enforced by `scripts/check_response_model_coverage.py`).
 2. **Type coercion lives in `utils/<domain>_response.py`**, not inline in the
    router. If a router is hand-coercing DB types (`entry['x'] = ...isoformat()`),
-   extract it into the domain normalizer. See `developer.py:get_goal_history`
+   extract it into the domain normalizer.
    for the before/after.
 3. **`database/` stays dict-based.** New DB functions return `dict` or
    `List[dict]`. Do not import `models/` from `database/`.
