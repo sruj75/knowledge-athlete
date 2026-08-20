@@ -9,12 +9,12 @@ class TaskAssistantSettings {
   /// This is intentionally nonisolated so owner-fenced database transactions
   /// can recheck it synchronously immediately before commit.
   nonisolated static func isEnabledForCommit(defaults: UserDefaults = .standard) -> Bool {
-    (defaults.object(forKey: "taskAssistantEnabled") as? Bool) ?? true
+    (defaults.object(forKey: .taskAssistantEnabled) as? Bool) ?? true
   }
 
   // MARK: - UserDefaults Keys
 
-  private let enabledKey = "taskAssistantEnabled"
+  private let enabledKey = DefaultsKey.taskAssistantEnabled.rawValue
   private let analysisPromptKey = "taskAnalysisPrompt"
   private let extractionIntervalKey = "taskExtractionInterval"
   private let minConfidenceKey = "taskMinConfidence"

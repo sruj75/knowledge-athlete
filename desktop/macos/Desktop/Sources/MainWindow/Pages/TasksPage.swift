@@ -190,8 +190,10 @@ final class TasksViewModel: ObservableObject {
   static func category(for task: TaskActionItem, now: Date = Date(), calendar: Calendar = .current) -> TaskCategory {
     guard let due = task.dueAt else { return .noDeadline }
     let today = calendar.startOfDay(for: now)
-    let tomorrow = calendar.date(byAdding: .day, value: 1, to: today)!
-    let dayAfterTomorrow = calendar.date(byAdding: .day, value: 2, to: today)!
+    guard
+      let tomorrow = calendar.date(byAdding: .day, value: 1, to: today),
+      let dayAfterTomorrow = calendar.date(byAdding: .day, value: 2, to: today)
+    else { return .later }
     if due < tomorrow { return .today }
     if due < dayAfterTomorrow { return .tomorrow }
     return .later
@@ -477,9 +479,10 @@ final class TasksViewModel: ObservableObject {
     ) { [weak self] params in
       guard let self else { return ["error": "tasks view model deallocated"] }
       let description = params["description"]?.trimmingCharacters(in: .whitespacesAndNewlines)
+      let resolvedDescription = description.flatMap { $0.isEmpty ? nil : $0 } ?? "Automation task"
       guard
         let task = await self.createTask(
-          description: description?.isEmpty == false ? description! : "Automation task",
+          description: resolvedDescription,
           dueAt: nil,
           priority: params["priority"]
         )
