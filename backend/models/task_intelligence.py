@@ -72,13 +72,12 @@ class TaskIntelligenceOutcomeCode(str, Enum):
 
 
 class TaskIntelligenceRolloutDecision(BaseModel):
-    """Pure rollout decision; memory cohort membership is an independent input."""
+    """Pure workflow-migration decision."""
 
     model_config = ConfigDict(extra='forbid', frozen=True)
 
     uid: str = Field(min_length=1)
     workflow_mode: TaskWorkflowMode
-    memory_cohort_eligible: bool
     account_generation: int = Field(default=0, ge=0)
     legacy_reads_authoritative: bool
     legacy_writes_enabled: bool

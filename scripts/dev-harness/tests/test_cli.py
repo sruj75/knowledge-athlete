@@ -138,14 +138,14 @@ def test_reset_command_is_idempotent_with_temp_state(tmp_path: Path) -> None:
     safety.read_and_validate_sentinel(layout.state_root, repo_root=REPO_ROOT, instance="default")
 
 
-def test_status_reports_seeded_scenario_and_summary_path(tmp_path: Path) -> None:
+def test_status_reports_synthetic_profiles_and_summary_path(tmp_path: Path) -> None:
     env = os.environ.copy()
     env["PROVIDER_MODE"] = "offline"
     env["OMI_LOCAL_STATE_ROOT"] = str(tmp_path / "state")
     _prepend_dev_harness_pythonpath(env)
 
-    seed = subprocess.run(
-        [sys.executable, "scripts/dev-harness/seed-memory-scenario.py", "happy_path", "--dry-run"],
+    initialized = subprocess.run(
+        [sys.executable, "-m", "dev_harness.synthetic_profiles", "init"],
         cwd=REPO_ROOT,
         env=env,
         text=True,
@@ -153,7 +153,7 @@ def test_status_reports_seeded_scenario_and_summary_path(tmp_path: Path) -> None
         stderr=subprocess.STDOUT,
         timeout=30,
     )
-    assert seed.returncode == 0, seed.stdout
+    assert initialized.returncode == 0, initialized.stdout
 
     result = subprocess.run(
         [sys.executable, "-m", "dev_harness.cli", "status"],
@@ -165,7 +165,7 @@ def test_status_reports_seeded_scenario_and_summary_path(tmp_path: Path) -> None
         timeout=30,
     )
     assert result.returncode == 0, result.stdout
-    assert "scenario_id: happy_path" in result.stdout
+    assert "selected_user: alice" in result.stdout
     assert "seeded_users: alice, bob, local_default_user" in result.stdout
     assert "session_summary_path:" in result.stdout
     assert "PROVIDER_MODE=offline active" in result.stdout
@@ -177,8 +177,8 @@ def test_session_summary_is_local_emulator_non_activation(tmp_path: Path) -> Non
     env["OMI_LOCAL_STATE_ROOT"] = str(tmp_path / "state")
     _prepend_dev_harness_pythonpath(env)
 
-    seed = subprocess.run(
-        [sys.executable, "scripts/dev-harness/seed-memory-scenario.py", "happy_path", "--dry-run"],
+    initialized = subprocess.run(
+        [sys.executable, "-m", "dev_harness.synthetic_profiles", "init"],
         cwd=REPO_ROOT,
         env=env,
         text=True,
@@ -186,7 +186,7 @@ def test_session_summary_is_local_emulator_non_activation(tmp_path: Path) -> Non
         stderr=subprocess.STDOUT,
         timeout=30,
     )
-    assert seed.returncode == 0, seed.stdout
+    assert initialized.returncode == 0, initialized.stdout
     summary = subprocess.run(
         [sys.executable, "-m", "dev_harness.cli", "summary"],
         cwd=REPO_ROOT,
@@ -202,6 +202,6 @@ def test_session_summary_is_local_emulator_non_activation(tmp_path: Path) -> Non
     assert payload["evidence_class"] == "LOCAL_EMULATOR_DEV"
     assert payload["activation_eligible"] is False
     assert payload["provider_mode"] == "offline"
-    assert payload["memory_write_attempt_instrumentation"]["instrumented"] is False
+    assert payload["selected_user"] == "alice"
     assert "before_digest" in payload["protected_state_digest"]
     assert any("Not DEV_CLOUD_PROOF" in item for item in payload["non_claims"])

@@ -46,23 +46,27 @@ actor ConversationFinalizationService {
     storage: .shared,
     discard: .shared,
     structure: .shared,
-    actionItems: .shared)
+    actionItems: .shared,
+    memoryRunner: .shared)
 
   private let storage: TranscriptionStorage
   private let discard: ConversationDiscardAdmission
   private let structure: ConversationStructureEnrichment
   private let actionItems: ConversationActionItemEnrichment
+  private let memoryRunner: LocalMemoryLifecycleRunner?
 
   init(
     storage: TranscriptionStorage,
     discard: ConversationDiscardAdmission,
     structure: ConversationStructureEnrichment,
-    actionItems: ConversationActionItemEnrichment
+    actionItems: ConversationActionItemEnrichment,
+    memoryRunner: LocalMemoryLifecycleRunner? = nil
   ) {
     self.storage = storage
     self.discard = discard
     self.structure = structure
     self.actionItems = actionItems
+    self.memoryRunner = memoryRunner
   }
 
   func finalizeSession(
@@ -87,6 +91,7 @@ actor ConversationFinalizationService {
     async let structureResult = structure.process(conversationId: conversationId)
     async let actionResult = actionItems.process(conversationId: conversationId)
     _ = await (structureResult, actionResult)
+    await enqueueAndProcessMemoryExtraction(conversationId: conversationId)
   }
 
   /// Mutations can invalidate either pre-admission or post-admission work. Inspect the current
@@ -122,6 +127,7 @@ actor ConversationFinalizationService {
       for conversationId in actionIds where !discardIds.contains(conversationId) {
         _ = await actionItems.process(conversationId: conversationId)
       }
+      _ = await memoryRunner?.runOnce()
     } catch {
       logError("ConversationFinalization: Local recovery failed", error: error)
     }
@@ -134,8 +140,29 @@ actor ConversationFinalizationService {
       async let structureResult = structure.process(conversationId: conversationId)
       async let actionResult = actionItems.process(conversationId: conversationId)
       _ = await (structureResult, actionResult)
+      await enqueueAndProcessMemoryExtraction(conversationId: conversationId)
     case .deleted, .stale, .noPendingWork:
       break
+    }
+  }
+
+  private func enqueueAndProcessMemoryExtraction(conversationId: String) async {
+    guard let memoryRunner else { return }
+    do {
+      guard let snapshot = RuntimeOwnerIdentity.captureAuthorizationSnapshot() else { return }
+      let authorization = LocalMutationAuthorization {
+        RuntimeOwnerIdentity.isAuthorizationCurrent(snapshot)
+      }
+      guard let detail = try await storage.conversationDetail(id: conversationId) else { return }
+      let ownerGeneration = await RewindDatabase.shared.poolGeneration()
+      try await MemoryStorage.shared.enqueueConversationExtraction(
+        conversationId: conversationId,
+        generation: detail.contentGeneration,
+        ownerGeneration: ownerGeneration,
+        authorization: authorization)
+      _ = await memoryRunner.runOnce()
+    } catch {
+      logError("ConversationFinalization: Failed to schedule local Memory extraction", error: error)
     }
   }
 }

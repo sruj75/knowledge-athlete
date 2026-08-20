@@ -21,7 +21,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from tests.unit.memory_import_isolation import restore_sys_modules, snapshot_sys_modules
+from tests.unit.import_isolation import restore_sys_modules, snapshot_sys_modules
 
 # ---------------------------------------------------------------------------
 # Paths

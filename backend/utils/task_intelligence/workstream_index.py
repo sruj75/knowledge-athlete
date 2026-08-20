@@ -10,9 +10,18 @@ from database.vector_db import (
     upsert_workstream_association_vector,
 )
 from models.workstream import Workstream, WorkstreamStatus
-from models.workstream_association import WorkstreamIndexRebuildReport
-from utils.memory.memory_system import MemorySystem, resolve_memory_system
+from pydantic import BaseModel, ConfigDict, Field
 from utils.observability.fallback import record_fallback
+
+
+class WorkstreamIndexRebuildReport(BaseModel):
+    model_config = ConfigDict(extra='forbid', frozen=True)
+
+    uid: str
+    index_version: str = 'workstream-association-v2'
+    source_count: int = Field(ge=0)
+    indexed_count: int = Field(ge=0)
+    failed_workstream_ids: list[str] = Field(default_factory=list)
 
 
 def refresh_workstream_association_index(
@@ -24,8 +33,6 @@ def refresh_workstream_association_index(
     upsert_index: Callable[..., bool] = upsert_workstream_association_vector,
     delete_index: Callable[..., bool] = delete_workstream_association_vector,
 ) -> bool:
-    if resolve_memory_system(uid, db_client=firestore_client) != MemorySystem.CANONICAL:
-        return False
     try:
         control = workstreams_db.get_task_workflow_control(uid, firestore_client=firestore_client)
         workstream = hydrate(
@@ -62,8 +69,6 @@ def rebuild_workstream_association_index(
     reset_index: Callable[..., bool] = reset_workstream_association_vectors,
     upsert_index: Callable[..., bool] = upsert_workstream_association_vector,
 ) -> WorkstreamIndexRebuildReport:
-    if resolve_memory_system(uid, db_client=firestore_client) != MemorySystem.CANONICAL:
-        return WorkstreamIndexRebuildReport(uid=uid, source_count=0, indexed_count=0)
     control = workstreams_db.get_task_workflow_control(uid, firestore_client=firestore_client)
     workstreams = [
         item

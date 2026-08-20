@@ -140,8 +140,6 @@ KNOWN_MISSING_ROUTES: Set[str] = {
     # endpoints or naming drift to be resolved in a follow-up slice.
     '/v1/action-items/batch-scores',
     '/v1/goals/completed',
-    '/v3/memories/mark-all-read',
-    '/v3/memories/{param}/read',
     # These backend routes exist but return unmodeled (loose) responses, so
     # adding them to the app-client surface would regress the strict
     # `unmodeled_success_response_count == 0` gate. They are tracked for a
@@ -157,8 +155,6 @@ KNOWN_MISSING_ROUTES: Set[str] = {
     '/v1/tools/action-items/{param}',
     '/v1/tools/conversations',
     '/v1/tools/conversations/search',
-    '/v1/tools/memories',
-    '/v1/tools/memories/search',
 }
 
 

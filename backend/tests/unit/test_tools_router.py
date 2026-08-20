@@ -1,14 +1,6 @@
 """Tests for /v1/tools/* REST router and shared service functions.
 
-Covers:
-1. get_conversations_text — date parsing, limit caps, empty results
-2. search_conversations_text — query routing, date conversion to timestamps
-3. get_memories_text — date parsing, locked memory filtering
-4. search_memories_text — vector search delegation
-5. get_action_items_text — date parsing, status filtering
-6. create_action_item_text — validation, default due date, past-date rejection
-7. update_action_item_text — exists check, field updates
-8. Router _ok envelope — is_error flag detection
+Covers the retained conversation and action-item tool services and REST routes.
 """
 
 import importlib
@@ -25,7 +17,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from tests.unit.memory_import_isolation import restore_sys_modules, snapshot_sys_modules
+from tests.unit.import_isolation import restore_sys_modules, snapshot_sys_modules
 
 # ---------------------------------------------------------------------------
 # Paths
@@ -97,7 +89,6 @@ _SYS_MODULE_NAMES = [
     "database.auth",
     "database.conversations",
     "database.users",
-    "database.memories",
     "database.vector_db",
     "database.action_items",
     "database.notifications",
@@ -112,24 +103,16 @@ _SYS_MODULE_NAMES = [
     "utils.retrieval.tools",
     "utils.retrieval.tool_services",
     "utils.retrieval.tool_services.conversations",
-    "utils.retrieval.tool_services.memories",
     "utils.retrieval.tool_services.action_items",
     "utils.retrieval.tool_result_boundaries",
     "utils.other",
     "utils.other.endpoints",
-    "utils.memory",
-    "utils.memory.chat_memory_adapter",
-    "utils.memory.default_read_rollout",
-    "utils.memory.memory_system",
-    "utils.memory.memory_service",
-    "utils.memory.surface_routing",
     "utils.rate_limit_config",
     "routers",
     "routers.tools",
     "models",
     "models.conversation",
     "models.other",
-    "models.memories",
 ]
 _SYS_MODULES_SNAPSHOT = snapshot_sys_modules(_SYS_MODULE_NAMES)
 
@@ -168,15 +151,9 @@ conversations_db.get_conversations_by_id = MagicMock(return_value=[])
 users_db = _stub_module("database.users")
 users_db.get_people_by_ids = MagicMock(return_value=[])
 
-# Stub database.memories
-memories_db = _stub_module("database.memories")
-memories_db.get_memories = MagicMock(return_value=[])
-memories_db.get_memories_by_ids = MagicMock(return_value=[])
-
 # Stub database.vector_db
 vector_db = _stub_module("database.vector_db")
 vector_db.query_vectors = MagicMock(return_value=[])
-vector_db.find_similar_memories = MagicMock(return_value=[])
 
 # Stub database.action_items
 action_items_db = _stub_module("database.action_items")
@@ -203,38 +180,6 @@ _stub_package("utils.retrieval")
 _stub_package("utils.retrieval.tools")
 _stub_package("utils.retrieval.tool_services")
 _stub_package("utils.other")
-_stub_package("utils.memory")
-
-memory_adapter_stub = _stub_module("utils.memory.chat_memory_adapter")
-memory_adapter_stub.list_default_chat_memories_decision_text = MagicMock(
-    return_value=types.SimpleNamespace(read_decision="use_legacy_safe", text="", fallback_reason="test")
-)
-memory_adapter_stub.search_memory_default_chat_memories_vector_decision_text = MagicMock(
-    return_value=types.SimpleNamespace(read_decision="use_legacy_safe", text="", fallback_reason="test")
-)
-memory_adapter_stub.chat_legacy_read_authorized = MagicMock(
-    side_effect=lambda result: result.read_decision == "use_legacy_safe"
-    or (result.read_decision == "deny_memory" and result.fallback_reason == "missing_rollout_state")
-)
-read_rollout_stub = _stub_module("utils.memory.default_read_rollout")
-read_rollout_stub.MemoryReadDecision = types.SimpleNamespace(
-    USE_MEMORY="use_memory",
-    USE_LEGACY_SAFE="use_legacy_safe",
-    DENY_MEMORY="deny_memory",
-)
-
-memory_system_stub = _stub_module("utils.memory.memory_system")
-memory_system_stub.MemorySystem = types.SimpleNamespace(LEGACY="legacy", CANONICAL="canonical")
-
-memory_service_stub = _stub_module("utils.memory.memory_service")
-memory_service_stub.MemoryService = MagicMock
-
-surface_routing_stub = _stub_module("utils.memory.surface_routing")
-surface_routing_stub.pin_memory_system = MagicMock(return_value=memory_system_stub.MemorySystem.LEGACY)
-boundary_stub = _stub_module("utils.retrieval.tool_result_boundaries")
-boundary_stub.preserve_chat_memory_tool_result_boundary = MagicMock(side_effect=lambda _tool_name, result: result)
-
-
 # Stub render and factory modules
 render_mod = _stub_module("utils.conversations.render")
 
@@ -339,31 +284,6 @@ class FakePerson:
 
 other_mod.Person = FakePerson
 
-# Stub MemoryDB model
-from enum import Enum
-
-
-class FakeCategory(Enum):
-    other = "other"
-
-
-memories_model_mod = _stub_module("models.memories")
-
-
-class FakeMemoryDB:
-    def __init__(self, **kwargs):
-        self.id = kwargs.get('id', 'test-mem-id')
-        self.content = kwargs.get('content', 'test memory')
-        self.category = FakeCategory.other
-        self.created_at = kwargs.get('created_at', datetime.now(timezone.utc))
-
-    @staticmethod
-    def get_memories_as_str(memories):
-        return '\n'.join(f"- {m.content}" for m in memories)
-
-
-memories_model_mod.MemoryDB = FakeMemoryDB
-
 # ---------------------------------------------------------------------------
 # Add backend to path and load service modules
 # ---------------------------------------------------------------------------
@@ -373,10 +293,6 @@ sys.path.insert(0, str(BACKEND_DIR))
 conversations_svc = _load_module_from_file(
     "utils.retrieval.tool_services.conversations",
     BACKEND_DIR / "utils" / "retrieval" / "tool_services" / "conversations.py",
-)
-memories_svc = _load_module_from_file(
-    "utils.retrieval.tool_services.memories",
-    BACKEND_DIR / "utils" / "retrieval" / "tool_services" / "memories.py",
 )
 action_items_svc = _load_module_from_file(
     "utils.retrieval.tool_services.action_items",
@@ -478,9 +394,9 @@ class TestParseIsoDate:
             pytest.skip("APIClient sources not found (backend-only test environment)")
         source = "\n".join(path.read_text(encoding="utf-8") for path in paths)
         assert 'func encodeQueryDate' in source, "encodeQueryDate helper must exist in the APIClient extension set"
-        # 8 call sites + 1 definition = at least 9 occurrences
+        # 6 retained call sites + 1 definition = at least 7 occurrences.
         count = source.count('encodeQueryDate(')
-        assert count >= 9, f"Expected >= 9 encodeQueryDate( occurrences (1 def + 8 calls), got {count}"
+        assert count >= 7, f"Expected >= 7 encodeQueryDate( occurrences (1 def + 6 calls), got {count}"
 
 
 # ===========================================================================
@@ -599,59 +515,6 @@ class TestSearchConversationsText:
         call_kwargs = vector_db.query_vectors.call_args
         assert call_kwargs[1]['starts_at'] == 0
         assert call_kwargs[1]['ends_at'] is not None
-
-
-# ===========================================================================
-# Tests: get_memories_text
-# ===========================================================================
-class TestGetMemoriesText:
-    def setup_method(self):
-        memories_db.get_memories.reset_mock()
-        memories_db.get_memories.return_value = []
-
-    def test_empty_result(self):
-        result = memories_svc.get_memories_text(uid="test-uid")
-        assert "No memories found" in result
-
-    def test_filters_locked(self):
-        memories_db.get_memories.return_value = [
-            {'id': 'mem-1', 'content': 'visible', 'is_locked': False, 'created_at': datetime.now(timezone.utc)},
-            {'id': 'mem-2', 'content': 'locked', 'is_locked': True, 'created_at': datetime.now(timezone.utc)},
-        ]
-        result = memories_svc.get_memories_text(uid="test-uid")
-        assert "1 total" in result
-
-    def test_limit_cap(self):
-        memories_svc.get_memories_text(uid="test-uid", limit=99999)
-        call_kwargs = memories_db.get_memories.call_args
-        assert call_kwargs[1]['limit'] <= 5000
-
-
-# ===========================================================================
-# Tests: search_memories_text
-# ===========================================================================
-class TestSearchMemoriesText:
-    def setup_method(self):
-        vector_db.find_similar_memories.reset_mock()
-        vector_db.find_similar_memories.return_value = []
-        memories_db.get_memories_by_ids.reset_mock()
-        memories_db.get_memories_by_ids.return_value = []
-
-    def test_no_results(self):
-        result = memories_svc.search_memories_text(uid="test-uid", query="cooking")
-        assert "No memories found" in result
-        assert "cooking" in result
-
-    def test_with_results(self):
-        vector_db.find_similar_memories.return_value = [
-            {'memory_id': 'mem-1', 'score': 0.95},
-        ]
-        memories_db.get_memories_by_ids.return_value = [
-            {'id': 'mem-1', 'content': 'likes pasta', 'is_locked': False, 'created_at': datetime.now(timezone.utc)},
-        ]
-        result = memories_svc.search_memories_text(uid="test-uid", query="food")
-        assert "likes pasta" in result
-        assert "0.95" in result
 
 
 # ===========================================================================
@@ -829,12 +692,6 @@ class TestRouterEndpoints:
         conversations_db.get_conversations_by_id.return_value = []
         vector_db.query_vectors.reset_mock()
         vector_db.query_vectors.return_value = []
-        memories_db.get_memories.reset_mock()
-        memories_db.get_memories.return_value = []
-        memories_db.get_memories_by_ids.reset_mock()
-        memories_db.get_memories_by_ids.return_value = []
-        vector_db.find_similar_memories.reset_mock()
-        vector_db.find_similar_memories.return_value = []
         action_items_db.get_action_items.reset_mock()
         action_items_db.get_action_items.return_value = []
         action_items_db.get_action_item.reset_mock()
@@ -856,18 +713,6 @@ class TestRouterEndpoints:
         assert resp.status_code == 200
         body = resp.json()
         assert body["tool_name"] == "search_conversations"
-
-    def test_get_memories_endpoint(self):
-        resp = self.client.get("/v1/tools/memories")
-        assert resp.status_code == 200
-        body = resp.json()
-        assert body["tool_name"] == "get_memories"
-
-    def test_search_memories_endpoint(self):
-        resp = self.client.post("/v1/tools/memories/search", json={"query": "food"})
-        assert resp.status_code == 200
-        body = resp.json()
-        assert body["tool_name"] == "search_memories"
 
     def test_get_action_items_endpoint(self):
         resp = self.client.get("/v1/tools/action-items")
@@ -1006,41 +851,6 @@ class TestConversationLockedFiltering:
 
 
 # ===========================================================================
-# Tests: Search memories locked filtering
-# ===========================================================================
-class TestSearchMemoriesLockedFiltering:
-    def setup_method(self):
-        vector_db.find_similar_memories.reset_mock()
-        memories_db.get_memories_by_ids.reset_mock()
-
-    def test_search_memories_filters_locked(self):
-        """Locked memories are excluded from search results."""
-        vector_db.find_similar_memories.return_value = [
-            {'memory_id': 'mem-1', 'score': 0.9},
-            {'memory_id': 'mem-2', 'score': 0.8},
-        ]
-        memories_db.get_memories_by_ids.return_value = [
-            {'id': 'mem-1', 'content': 'visible', 'is_locked': False, 'created_at': datetime.now(timezone.utc)},
-            {'id': 'mem-2', 'content': 'locked', 'is_locked': True, 'created_at': datetime.now(timezone.utc)},
-        ]
-        result = memories_svc.search_memories_text(uid="test-uid", query="test")
-        assert "visible" in result
-        assert "locked" not in result
-        assert "1 memories" in result
-
-    def test_search_memories_all_locked_returns_empty(self):
-        """All locked memories in search returns 'no memories' message."""
-        vector_db.find_similar_memories.return_value = [
-            {'memory_id': 'mem-1', 'score': 0.9},
-        ]
-        memories_db.get_memories_by_ids.return_value = [
-            {'id': 'mem-1', 'content': 'locked', 'is_locked': True, 'created_at': datetime.now(timezone.utc)},
-        ]
-        result = memories_svc.search_memories_text(uid="test-uid", query="test")
-        assert "No memories found" in result
-
-
-# ===========================================================================
 # Tests: Error handling — DB/vector failures
 # ===========================================================================
 class TestErrorHandling:
@@ -1048,8 +858,6 @@ class TestErrorHandling:
         conversations_db.get_conversations.reset_mock()
         conversations_db.get_conversations_by_id.reset_mock()
         vector_db.query_vectors.reset_mock()
-        memories_db.get_memories.reset_mock()
-        vector_db.find_similar_memories.reset_mock()
         action_items_db.get_action_items.reset_mock()
         action_items_db.create_action_item.reset_mock()
         action_items_db.get_action_item.reset_mock()
@@ -1070,22 +878,6 @@ class TestErrorHandling:
         assert "Error" in result
         assert "Pinecone timeout" in result
         vector_db.query_vectors.side_effect = None
-
-    def test_get_memories_db_error(self):
-        """DB failure in get_memories returns error text."""
-        memories_db.get_memories.side_effect = Exception("Firestore down")
-        result = memories_svc.get_memories_text(uid="test-uid")
-        assert "Error" in result
-        assert "Firestore down" in result
-        memories_db.get_memories.side_effect = None
-
-    def test_search_memories_vector_error(self):
-        """Vector DB failure in search_memories returns error text."""
-        vector_db.find_similar_memories.side_effect = Exception("Vector timeout")
-        result = memories_svc.search_memories_text(uid="test-uid", query="test")
-        assert "Error" in result
-        assert "Vector timeout" in result
-        vector_db.find_similar_memories.side_effect = None
 
     def test_get_action_items_db_error(self):
         """DB failure in get_action_items returns error text."""
@@ -1136,10 +928,6 @@ class TestBoundaryConditions:
         conversations_db.get_conversations.return_value = []
         vector_db.query_vectors.reset_mock()
         vector_db.query_vectors.return_value = []
-        memories_db.get_memories.reset_mock()
-        memories_db.get_memories.return_value = []
-        vector_db.find_similar_memories.reset_mock()
-        vector_db.find_similar_memories.return_value = []
         action_items_db.get_action_items.reset_mock()
         action_items_db.get_action_items.return_value = []
 
@@ -1148,13 +936,6 @@ class TestBoundaryConditions:
         conversations_svc.search_conversations_text(uid="test-uid", query="test", limit=100)
         call_kwargs = vector_db.query_vectors.call_args[1]
         assert call_kwargs['k'] <= 20
-
-    def test_search_memories_limit_cap(self):
-        """search_memories_text caps limit at 20."""
-        memories_svc.search_memories_text(uid="test-uid", query="test", limit=100)
-        call_kwargs = vector_db.find_similar_memories.call_args
-        # limit is positional arg 3 or keyword
-        assert call_kwargs[1].get('limit', call_kwargs[0][2] if len(call_kwargs[0]) > 2 else 20) <= 20
 
     def test_action_items_limit_cap(self):
         """get_action_items_text caps limit at 500."""

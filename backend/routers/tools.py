@@ -7,8 +7,6 @@ desktop, web, and mobile agent clients.
 Endpoints:
 - GET   /v1/tools/conversations          — list conversations
 - POST  /v1/tools/conversations/search   — semantic search conversations
-- GET   /v1/tools/memories               — list memories/facts
-- POST  /v1/tools/memories/search        — semantic search memories
 - GET   /v1/tools/action-items           — list action items
 - POST  /v1/tools/action-items           — create action item
 - PATCH /v1/tools/action-items/{id}      — update action item
@@ -24,8 +22,6 @@ import database.vector_db as vector_db
 from utils.other.endpoints import get_current_user_uid, with_rate_limit
 from utils.conversations.transcript_chunks import hydrate_chunk_texts
 from utils.retrieval.tool_services.conversations import get_conversations_text, search_conversations_text
-from utils.retrieval.tool_services.memories import get_memories_text, search_memories_text
-from utils.retrieval.tool_result_boundaries import preserve_chat_memory_tool_result_boundary
 from utils.retrieval.tool_services.action_items import (
     get_action_items_text,
     create_action_item_text,
@@ -59,11 +55,6 @@ class SearchConversationsRequest(BaseModel):
     end_date: Optional[str] = Field(default=None, description="ISO date with timezone")
     limit: int = Field(default=5, ge=1, le=20)
     include_transcript: bool = Field(default=True)
-
-
-class SearchMemoriesRequest(BaseModel):
-    query: str = Field(description="Semantic search query")
-    limit: int = Field(default=5, ge=1, le=20)
 
 
 class CreateActionItemRequest(BaseModel):
@@ -141,42 +132,6 @@ def search_conversation_chunks(
     for i, r in enumerate(rows, 1):
         parts.append(f"Excerpt {i} (relevance: {r['score']:.2f}):\n{r['text']}")
     return _ok("search_conversation_chunks", "\n\n".join(parts))
-
-
-# --------------- memory endpoints ---------------
-
-
-@router.get("/v1/tools/memories", response_model=ToolResponse)
-def get_memories(
-    limit: int = Query(default=50, ge=1, le=5000),
-    offset: int = Query(default=0, ge=0),
-    start_date: Optional[str] = Query(default=None, description="ISO date with timezone"),
-    end_date: Optional[str] = Query(default=None, description="ISO date with timezone"),
-    uid: str = Depends(get_current_user_uid),
-):
-    result = get_memories_text(
-        uid=uid,
-        limit=limit,
-        offset=offset,
-        start_date=start_date,
-        end_date=end_date,
-    )
-    result = preserve_chat_memory_tool_result_boundary('get_memories_tool', result)
-    return _ok("get_memories", result)
-
-
-@router.post("/v1/tools/memories/search", response_model=ToolResponse)
-def search_memories(
-    body: SearchMemoriesRequest,
-    uid: str = Depends(with_rate_limit(get_current_user_uid, "tools:search")),
-):
-    result = search_memories_text(
-        uid=uid,
-        query=body.query,
-        limit=body.limit,
-    )
-    result = preserve_chat_memory_tool_result_boundary('search_memories_tool', result)
-    return _ok("search_memories", result)
 
 
 # --------------- action item endpoints ---------------

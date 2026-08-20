@@ -1,11 +1,8 @@
-"""Tests for current-date grounding in insight + memory generation.
+"""Tests for current-date grounding in proactive insight generation.
 
-The proactive insight notifications and the memory extractors asked the model to reason
-about whether dated content is upcoming or in the future, but never told it what "today"
-is. With no anchor the model fell back to its training-cutoff year and flagged correctly
-recorded future-year dates as wrong ("your clock is wrong", "this date is in the future").
-These tests cover the fix: a shared current-date helper, the date injected into the four
-proactive prompts, and the two memory-extraction templates now requiring a current_date.
+The proactive insight notifications ask the model to reason about whether dated content
+is upcoming or in the future. These tests cover the shared current-date helper and date
+injection into the four proactive prompts.
 """
 
 import importlib.util
@@ -62,7 +59,6 @@ _clients.get_llm = MagicMock(return_value=MagicMock())
 
 temporal = _load("utils.llm.temporal", "utils/llm/temporal.py")
 proactive = _load("utils.llm.proactive_notification", "utils/llm/proactive_notification.py")
-prompts = _load("utils.prompts", "utils/prompts.py")
 
 _FIXED = datetime(2026, 5, 21, 12, 0)
 
@@ -197,8 +193,3 @@ class TestProactivePromptsGrounded:
             recent_notifications=[],
         )
         assert re.search(r"Today is \d{4}-\d{2}-\d{2}", prompt)
-
-
-class TestMemoryPromptsRequireDate:
-    def test_conversation_memory_prompt_requires_current_date(self):
-        assert "current_date" in prompts.extract_memories_prompt.input_variables

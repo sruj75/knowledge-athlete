@@ -29,11 +29,6 @@ DEFAULT_STRUCTURED_RESPONSE = {
     "events": [],
 }
 
-DEFAULT_MEMORY_EXTRACTION = [
-    {"content": "User is working on a quarterly report review", "category": "system"},
-    {"content": "Follow-up meeting needs to be scheduled", "category": "interesting"},
-]
-
 DEFAULT_SUMMARY = "Discussion about Q4 planning and deliverables."
 
 

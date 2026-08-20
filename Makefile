@@ -16,7 +16,7 @@ PYTHON_RUNNER := $(BASH) scripts/dev-harness/run-python.sh
 DESKTOP_USER ?= alice
 DESKTOP_APP_NAME ?=
 
-.PHONY: setup setup-main setup-hooks setup-backend preflight runtime-image-source-closure runtime-image-smoke dev-check dev-up dev-status dev-summary dev-reset dev-down dev-logs dev dev-desktop dev-init dev-verify list-memory-scenarios seed-memory-scenario reset-memory-scenario desktop-run-local run-canonical-maintenance
+.PHONY: setup setup-main setup-hooks setup-backend preflight runtime-image-source-closure runtime-image-smoke dev-check dev-up dev-status dev-summary dev-reset dev-down dev-logs dev dev-desktop dev-init dev-verify desktop-run-local
 
 # Baseline setup is deliberately limited to prerequisites that the default
 # pre-push gate may require; app and desktop runtime environments stay opt-in.
@@ -76,21 +76,9 @@ dev-down:
 dev-logs:
 	$(BASH) scripts/dev-harness/dev-logs.sh
 
-list-memory-scenarios:
-	$(PYTHON_RUNNER) scripts/dev-harness/list-memory-scenarios.py
-
-seed-memory-scenario:
-	$(PYTHON_RUNNER) scripts/dev-harness/seed-memory-scenario.py $(SCENARIO)
-
-reset-memory-scenario:
-	$(PYTHON_RUNNER) scripts/dev-harness/reset-memory-scenario.py $(SCENARIO)
-
 desktop-run-local:
 	@if [ -n "$(DESKTOP_APP_NAME)" ]; then \
 		OMI_APP_NAME="$(DESKTOP_APP_NAME)" $(BASH) scripts/dev-harness/desktop-run-local.sh "$(DESKTOP_USER)"; \
 	else \
 		$(BASH) scripts/dev-harness/desktop-run-local.sh "$(DESKTOP_USER)"; \
 	fi
-
-run-canonical-maintenance:
-	$(PYTHON_RUNNER) scripts/dev-harness/run-canonical-maintenance.py "$(MAINTENANCE_USER)"

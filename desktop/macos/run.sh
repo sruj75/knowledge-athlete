@@ -70,7 +70,6 @@ Options (via environment variables):
   OMI_ENABLE_LOCAL_AUTOMATION=1   Force the automation bridge on (auto-on for non-prod bundles; see scripts/omi-ctl)
   OMI_DISABLE_LOCAL_AUTOMATION=1  Run a dev build "clean" with the bridge off
   OMI_AUTOMATION_PORT=47777       Bridge port (set per bundle when running several at once)
-  OMI_FORCE_CANONICAL_MEMORY_ATLAS=1  Non-production-only local QA override for the canonical atlas rollout gate
   OMI_DESKTOP_LOCAL_PROFILE=1     Local harness profile; localhost endpoints/Auth emulator only
 
 Required files:
@@ -1298,9 +1297,6 @@ auth_debug "BEFORE launch: $(defaults read "$BUNDLE_ID" auth_isSignedIn 2>&1 || 
 # direct-exec fallback below inherits this shell's environment.
 build_launch_env_args() {
     LAUNCH_ENV_ARGS=()
-    if [ -n "${OMI_FORCE_CANONICAL_MEMORY_ATLAS:-}" ]; then
-        LAUNCH_ENV_ARGS+=(--env "OMI_FORCE_CANONICAL_MEMORY_ATLAS=$OMI_FORCE_CANONICAL_MEMORY_ATLAS")
-    fi
     # Forward automation token overrides when the caller already pinned them
     # (e.g. qualify-desktop-beta.sh). Default token discovery prefers Darwin
     # user temp in harness clients, matching NSTemporaryDirectory().

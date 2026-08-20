@@ -33,7 +33,6 @@ def _stub_module(name: str) -> types.ModuleType:
 
 _DATABASE_SUBMODULES = (
     "redis_db",
-    "memories",
     "conversations",
     "users",
     "tasks",
@@ -55,8 +54,6 @@ _RESTORED_MODULES = tuple(
     + [
         "utils",
         "utils.llm",
-        "utils.llms",
-        "utils.llms.memory",
         "utils.llm.clients",
         "utils.llm.usage_tracker",
         "utils.llm.goals",
@@ -66,8 +63,6 @@ _PARENT_ATTRS = tuple(
     [("database", submodule) for submodule in _DATABASE_SUBMODULES]
     + [
         ("utils", "llm"),
-        ("utils", "llms"),
-        ("utils.llms", "memory"),
         ("utils.llm", "clients"),
         ("utils.llm", "usage_tracker"),
         ("utils.llm", "goals"),
@@ -115,18 +110,10 @@ sys.modules["database.llm_usage"].record_llm_usage = MagicMock()
 sys.modules["database.goals"].get_user_goal = MagicMock(return_value=None)
 sys.modules["database.goals"].get_user_goals = MagicMock(return_value=[])
 sys.modules["database.goals"].update_goal_progress = MagicMock()
-sys.modules["database.memories"].get_memories = MagicMock(return_value=[])
 sys.modules["database.conversations"].get_conversations = MagicMock(return_value=[])
 sys.modules["database.conversations"].get_conversations_by_id = MagicMock(return_value=[])
 sys.modules["database.chat"].get_messages = MagicMock(return_value=[])
 sys.modules["database.vector_db"].query_vectors = MagicMock(return_value=[])
-
-# Stub utils.llms.memory
-llms_mod = _stub_module("utils.llms")
-if not hasattr(llms_mod, '__path__'):
-    llms_mod.__path__ = []
-_stub_module("utils.llms.memory")
-sys.modules["utils.llms.memory"].get_prompt_memories = MagicMock(return_value=("TestUser", "some memories"))
 
 # Ensure clients module has mocks (but don't create new ones if already set)
 clients_mod = _stub_module("utils.llm.clients")
@@ -145,11 +132,9 @@ usage_tracker_mod.Features = types.SimpleNamespace(GOALS="goals")
 # Shortcut references to mocked modules and functions
 mock_llm_usage_db = sys.modules["database.llm_usage"]
 mock_goals_db = sys.modules["database.goals"]
-mock_memories_db = sys.modules["database.memories"]
 mock_conversations_db = sys.modules["database.conversations"]
 mock_chat_db = sys.modules["database.chat"]
 mock_vector_db = sys.modules["database.vector_db"]
-mock_memory_module = sys.modules["utils.llms.memory"]
 
 try:
     _goals_module = importlib.import_module("utils.llm.goals")
@@ -209,12 +194,10 @@ def reset_mocks():
     _reset_mock(mock_goals_db.get_user_goal, return_value=None)
     _reset_mock(mock_goals_db.get_user_goals, return_value=[])
     _reset_mock(mock_goals_db.update_goal_progress)
-    _reset_mock(mock_memories_db.get_memories, return_value=[])
     _reset_mock(mock_conversations_db.get_conversations, return_value=[])
     _reset_mock(mock_conversations_db.get_conversations_by_id, return_value=[])
     _reset_mock(mock_chat_db.get_messages, return_value=[])
     _reset_mock(mock_vector_db.query_vectors, return_value=[])
-    _reset_mock(mock_memory_module.get_prompt_memories, return_value=("TestUser", "some memories"))
 
     goals_module = _import_goals_module()
     _reset_mock(goals_module.track_usage, side_effect=lambda *args, **kwargs: nullcontext())

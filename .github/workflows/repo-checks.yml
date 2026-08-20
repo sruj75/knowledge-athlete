@@ -133,9 +133,6 @@ jobs:
         if: github.event_name != 'pull_request'
         run: python3 .github/scripts/run_checks.py --lane ci --base "${{ needs.changes.outputs.diff_base }}" --skip-pr-body-checks
 
-      - name: Check typed error flow-control ratchet
-        run: python3 .github/scripts/check_isinstance_return_ratchet.py
-
       - name: Check desktop prod promotion policy
         run: python3 .github/scripts/check-desktop-prod-promotion-policy.py
 

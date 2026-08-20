@@ -37,7 +37,6 @@ def users_service():
         "database.users": AutoMockModule("database.users"),
         "database.action_items": AutoMockModule("database.action_items"),
         "database.conversations": AutoMockModule("database.conversations"),
-        "database.memories": AutoMockModule("database.memories"),
         "database.vector_db": AutoMockModule("database.vector_db"),
         "utils": _pkg("utils"),
         "utils.cloud_tasks": AutoMockModule("utils.cloud_tasks"),
@@ -48,8 +47,6 @@ def users_service():
         "utils.posthog_telemetry": AutoMockModule("utils.posthog_telemetry"),
         "utils.other": _pkg("utils.other"),
         "utils.other.endpoints": AutoMockModule("utils.other.endpoints"),
-        "utils.memory": _pkg("utils.memory"),
-        "utils.memory.canonical_memory_adapter": AutoMockModule("utils.memory.canonical_memory_adapter"),
         "utils.other.storage": AutoMockModule("utils.other.storage"),
         "utils.twilio_service": AutoMockModule("utils.twilio_service"),
     }

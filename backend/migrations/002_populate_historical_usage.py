@@ -17,7 +17,6 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from database import user_usage as user_usage_db
 from models.conversation import Conversation
-from models.memories import MemoryDB
 from utils import encryption
 import logging
 
@@ -102,32 +101,6 @@ def get_all_conversations_for_user(uid: str) -> list[Conversation]:
     return conversations
 
 
-def _decrypt_memory_data(memory_data: dict, uid: str) -> dict:
-    """Helper to decrypt memory content, inspired by memories_db."""
-    data = copy.deepcopy(memory_data)
-    if 'content' in data and isinstance(data['content'], str):
-        try:
-            data['content'] = encryption.decrypt(data['content'], uid)
-        except Exception:
-            pass  # Ignore decryption errors for now
-    return data
-
-
-def get_all_memories_for_user(uid: str) -> list[MemoryDB]:
-    """Fetches and decrypts all memories for a user directly from Firestore."""
-    memories_ref = db.collection('users').document(uid).collection('memories')
-    memories = []
-    for doc in memories_ref.stream():
-        data = doc.to_dict()
-        if data.get('data_protection_level') == 'enhanced':
-            data = _decrypt_memory_data(data, uid)
-        try:
-            memories.append(MemoryDB(**data))
-        except Exception as e:
-            logger.error(f"Warning: Could not parse memory {doc.id} for user {uid}. Error: {e}")
-    return memories
-
-
 def delete_hourly_usage_for_user(uid: str):
     """Deletes all documents in the hourly_usage subcollection for a user to ensure idempotency."""
     logger.info(f"Deleting existing hourly usage data for user {uid}...")
@@ -153,9 +126,7 @@ def migrate_user_usage(uid: str):
 
         delete_hourly_usage_for_user(uid)
 
-        hourly_updates = defaultdict(
-            lambda: {'transcription_seconds': 0, 'words_transcribed': 0, 'insights_gained': 0, 'memories_created': 0}
-        )
+        hourly_updates = defaultdict(lambda: {'transcription_seconds': 0, 'words_transcribed': 0, 'insights_gained': 0})
 
         # Process Conversations
         conversations = get_all_conversations_for_user(uid)
@@ -190,16 +161,6 @@ def migrate_user_usage(uid: str):
                     insights += len(conv.structured.events)
 
                 hourly_updates[hour_key]['insights_gained'] += insights
-
-        # Process Memories
-        memories = get_all_memories_for_user(uid)
-        if memories:
-            logger.info(f"  Processing {len(memories)} memories for {uid}...")
-            for mem in memories:
-                if not mem.created_at:
-                    continue
-                hour_key = mem.created_at.astimezone(timezone.utc).replace(minute=0, second=0, microsecond=0)
-                hourly_updates[hour_key]['memories_created'] += 1
 
         if not hourly_updates:
             logger.info(f"No usage data found to migrate for user {uid}.")

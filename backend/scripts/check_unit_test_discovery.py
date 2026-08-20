@@ -38,7 +38,6 @@ from scripts.select_backend_unit_tests import LEGACY_UNLISTED_TESTS, discover_un
 # missing from the list is an orphan even though the directory is "covered").
 WORKFLOW_COVERED_PREFIXES = {
     'testing/e2e/': ('backend-hermetic-e2e.yml', 'directory'),
-    'testing/contracts/': ('desktop-backend-contracts.yml', 'directory'),
 }
 
 # Excluded from CI by written policy (AGENTS.md Testing: live-service tests

@@ -10,7 +10,6 @@ from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List, Optional, Set, cast
 
 import database.goals as goals_db
-import database.memories as memories_db
 import database.conversations as conversations_db
 import database.chat as chat_db
 from database.vector_db import query_vectors as vector_search
@@ -27,9 +26,7 @@ def _get_goal_context(uid: str, goal_title: str) -> Dict[str, str]:
     1. Vector search for goal-relevant conversations
     2. Recent conversations (last 7 days)
     3. Recent chat messages
-    4. User memories/facts
-
-    Returns dict with conversation_context, chat_context, memory_context
+    Returns conversation and chat context. Product Memory context stays local.
     """
     conv_summaries: List[str] = []
     seen_ids: Set[str] = set()
@@ -88,32 +85,20 @@ def _get_goal_context(uid: str, goal_title: str) -> Dict[str, str]:
     except Exception as e:
         logger.error(f"[GOAL-ADVICE] Chat messages error: {e}")
 
-    # 4. User memories/facts
-    memory_context = ""
-    try:
-        memories = memories_db.get_memories(uid, limit=30, offset=0)
-        memory_texts = [
-            m.get('content', '')[:150] for m in memories[:15] if m.get('content') and not m.get('is_locked')
-        ]
-        memory_context = '\n'.join(memory_texts)
-    except Exception as e:
-        logger.error(f"[GOAL-ADVICE] Memories error: {e}")
-
     return {
         'conversation_context': '\n'.join(conv_summaries),
         'chat_context': chat_context,
-        'memory_context': memory_context,
     }
 
 
 def suggest_goal(uid: str) -> Dict[str, Any]:
-    """Generate an AI-suggested goal based on user's memories and conversations."""
+    """Generate an AI-suggested goal from retained conversation and chat context."""
     try:
-        # Get user's memories for context
-        memories = memories_db.get_memories(uid, limit=100, offset=0)
-
-        if not memories:
-            # Default suggestion when no memories
+        context = _get_goal_context(uid, 'personal goals')
+        source_context = '\n'.join(part for part in (context['conversation_context'], context['chat_context']) if part)[
+            :3000
+        ]
+        if not source_context:
             return {
                 'suggested_title': 'Learn something new every day',
                 'suggested_type': 'scale',
@@ -123,16 +108,10 @@ def suggest_goal(uid: str) -> Dict[str, Any]:
                 'reasoning': 'Start tracking your daily learning progress!',
             }
 
-        # Prepare memory context for AI — exclude locked memories
-        memory_texts = [
-            cast(str, m.get('content', '')) for m in memories[:50] if m.get('content') and not m.get('is_locked')
-        ]
-        memory_context = '\n'.join(memory_texts[:20])  # Limit context size
+        prompt = f"""Based on the user's recent conversations, suggest ONE meaningful personal goal they could track.
 
-        prompt = f"""Based on the user's memories and interests, suggest ONE meaningful personal goal they could track.
-
-User's recent memories/learnings:
-{memory_context}
+Recent context:
+{source_context}
 
 Generate a goal suggestion in this exact JSON format:
 {{
@@ -220,9 +199,6 @@ RECENT CONVERSATIONS (what they've been discussing/working on):
 
 RECENT CHAT (what they're currently thinking about):
 {context['chat_context'][:800] if context['chat_context'] else 'No recent chat'}
-
-USER FACTS:
-{context['memory_context'][:600] if context['memory_context'] else 'No facts available'}
 
 Give ONE specific action in 1-2 sentences. Be concise but complete. No generic advice."""
 

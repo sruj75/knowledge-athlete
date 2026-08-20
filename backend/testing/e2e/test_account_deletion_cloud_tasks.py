@@ -143,13 +143,13 @@ def _worker_headers(retry_count: int) -> dict[str, str]:
 def _seed_deletable_user(fake_firestore, test_uid: str) -> None:
     user = fake_firestore.collection("users").document(test_uid)
     user.set({"uid": test_uid, "name": "Hermetic deletion user"})
-    user.collection("memories").document("deletion-memory").set({"id": "deletion-memory", "uid": test_uid})
+    user.collection("action_items").document("deletion-task").set({"id": "deletion-task", "uid": test_uid})
 
 
 def _assert_user_data_deleted(fake_firestore, test_uid: str) -> None:
     user = fake_firestore.collection("users").document(test_uid)
     assert not user.get().exists
-    assert not user.collection("memories").document("deletion-memory").get().exists
+    assert not user.collection("action_items").document("deletion-task").get().exists
 
 
 def _stub_external_deletion_boundaries(monkeypatch) -> None:
@@ -330,7 +330,7 @@ def test_account_deletion_cloud_task_retries_required_purge_failure_without_losi
     assert _read_marker(fake_firestore, test_uid)["wipe_status"] == "failed"
     user = fake_firestore.collection("users").document(test_uid)
     assert user.get().exists
-    assert user.collection("memories").document("deletion-memory").get().exists
+    assert user.collection("action_items").document("deletion-task").get().exists
     assert len(claimed_markers) == 1
     assert claimed_markers[0]["wipe_status"] == "retrying"
     assert "wipe_claimed_at" in claimed_markers[0]
@@ -460,7 +460,7 @@ def test_missing_root_document_does_not_hide_immediate_child_data(
     test_uid, auth_headers = account_deletion_identity
     _configure_durable_account_deletion(monkeypatch)
     _stub_external_deletion_boundaries(monkeypatch)
-    orphan_child = fake_firestore.collection("users").document(test_uid).collection("memories").document("orphan")
+    orphan_child = fake_firestore.collection("users").document(test_uid).collection("action_items").document("orphan")
     orphan_child.set({"id": "orphan", "uid": test_uid})
     assert not fake_firestore.collection("users").document(test_uid).get().exists
     monkeypatch.setattr(

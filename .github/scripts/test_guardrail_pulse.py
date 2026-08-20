@@ -16,11 +16,11 @@ class GuardrailPulseTests(unittest.TestCase):
     def test_format_text_parses_counts(self) -> None:
         text = guardrail_pulse.format_text(
             [
-                guardrail_pulse.Metric("union_return_isinstance", 0, 0),
+                guardrail_pulse.Metric("brand_ui_purple", 0, 0),
                 guardrail_pulse.Metric("lifecycle_unlabeled_scripts", 14, 19),
             ]
         )
-        self.assertIn("union_return_isinstance", text)
+        self.assertIn("brand_ui_purple", text)
         self.assertIn("0", text)
         self.assertIn("(baseline 0)", text)
         self.assertIn("lifecycle_unlabeled_scripts", text)
@@ -73,10 +73,10 @@ class GuardrailPulseTests(unittest.TestCase):
         as_of = date(2026, 7, 23)
         old = (as_of - timedelta(days=40)).isoformat()
         history = [
-            {"date": old, "metrics": {"union_return_isinstance": {"count": 0, "baseline": 0}}},
+            {"date": old, "metrics": {"brand_ui_purple": {"count": 0, "baseline": 0}}},
             {
                 "date": as_of.isoformat(),
-                "metrics": {"union_return_isinstance": {"count": 0, "baseline": 0}},
+                "metrics": {"brand_ui_purple": {"count": 0, "baseline": 0}},
             },
         ]
         self.assertEqual(guardrail_pulse.find_stale_metrics(history, as_of=as_of), [])
@@ -85,7 +85,7 @@ class GuardrailPulseTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             history = Path(tmp) / "history.jsonl"
             payload = guardrail_pulse.metrics_payload(
-                [guardrail_pulse.Metric("union_return_isinstance", 0, 0)],
+                [guardrail_pulse.Metric("brand_ui_purple", 0, 0)],
                 recorded_at="2026-07-23",
             )
             guardrail_pulse.append_history(history, payload)
@@ -93,7 +93,7 @@ class GuardrailPulseTests(unittest.TestCase):
             rows = guardrail_pulse.load_history(history)
             self.assertEqual(len(rows), 2)
             self.assertEqual(rows[0]["date"], "2026-07-23")
-            self.assertEqual(rows[0]["metrics"]["union_return_isinstance"]["count"], 0)
+            self.assertEqual(rows[0]["metrics"]["brand_ui_purple"]["count"], 0)
 
     def test_json_round_trip_shape(self) -> None:
         payload = guardrail_pulse.metrics_payload(

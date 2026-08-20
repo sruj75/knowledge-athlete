@@ -258,7 +258,7 @@ def delete_goal(goal_id: str, uid: str = Depends(auth.get_current_user_uid)) -> 
 
 @router.get('/v1/goals/suggest', tags=['goals'], response_model=GoalSuggestionResponse)
 def suggest_goal(uid: str = Depends(auth.with_rate_limit(auth.get_current_user_uid, "goals:suggest"))) -> dict:
-    """Generate an AI-suggested goal based on user's memories and conversations."""
+    """Generate an AI-suggested goal from recent conversation context."""
     return suggest_goal_llm(uid)
 
 

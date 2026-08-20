@@ -61,8 +61,15 @@ final class ChatDiscoverabilityTests: XCTestCase {
 
   func testMemoriesHasKeyColumnAnnotations() {
     let cols = ChatPrompts.columnAnnotations["memories"]!
-    XCTAssertNotNil(cols["content"])
-    XCTAssertNotNil(cols["category"])
+    for retained in [
+      "content", "category", "layer", "expiresAt", "revision", "sourceSegmentId",
+      "pendingDeleteDeadline", "correctedAt",
+    ] {
+      XCTAssertNotNil(cols[retained], "Missing local Memory column \(retained)")
+    }
+    for retired in ["visibility", "reviewed", "userReview", "scoring", "deleted", "backendId"] {
+      XCTAssertNil(cols[retired], "Retired hosted Memory column \(retired) must not be advertised")
+    }
     XCTAssertNotNil(cols["source"])
   }
 

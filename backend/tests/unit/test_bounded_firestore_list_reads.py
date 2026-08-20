@@ -1,4 +1,4 @@
-"""Bounded Firestore list reads for prod GET 504s (action-items / memories / KG).
+"""Bounded Firestore list reads for prod GET 504s (action-items / KG).
 
 Regression coverage for Closes #10746: list paths must not full-collection stream.
 """
@@ -174,21 +174,3 @@ def test_get_action_items_skips_deleted_in_active_bucket(ai_mod, monkeypatch):
     ids = [x['id'] for x in page]
     assert 'del1' not in ids
     assert ids[0] == 'a1'
-
-
-def test_legacy_get_memories_no_first_page_5000_force():
-    import routers.memories as mem
-
-    calls = []
-
-    def fake_get(uid, limit, offset):
-        calls.append((uid, limit, offset))
-        return []
-
-    with patch.object(mem.memories_db, 'get_memories', side_effect=fake_get):
-        mem._legacy_get_memories('u', limit=100, offset=0)
-    assert calls == [('u', 100, 0)]
-
-    with patch.object(mem.memories_db, 'get_memories', side_effect=fake_get):
-        mem._legacy_get_memories('u', limit=9999, offset=0)
-    assert calls[-1] == ('u', 500, 0)

@@ -4,16 +4,19 @@ import OmiTheme
 import SwiftUI
 
 extension Notification.Name {
-  /// Automation-only: opens a memory's detail panel by backend id, or closes it
+  /// Automation-only: opens a memory's detail panel by local row ID, or closes it
   /// when no id is supplied.
   static let desktopAutomationMemoryDetailOpenRequested = Notification.Name(
     "desktopAutomationMemoryDetailOpenRequested"
   )
 }
 
-/// Memory categories for filtering. Mirrors the mobile app: filtering is driven
-/// purely by the backend `category` field (no tag-derived pseudo-categories), so
-/// desktop and mobile stay in lockstep. Labels match mobile exactly.
+enum MemoryPageCopy {
+  static let subtitle = "Memories and insights saved on this Mac"
+}
+
+/// Memory categories for filtering. Categories are stored in the effective
+/// owner's local database; tags remain independent presentation metadata.
 enum MemoryTag: String, CaseIterable, Identifiable {
   case manual
   case system
@@ -39,7 +42,6 @@ enum MemoryTag: String, CaseIterable, Identifiable {
 
   var color: Color { OmiColors.textSecondary }
 
-  /// Backend category this filter maps to.
   var category: MemoryCategory {
     switch self {
     case .manual: return .manual
@@ -48,8 +50,7 @@ enum MemoryTag: String, CaseIterable, Identifiable {
     }
   }
 
-  /// Check if a memory matches this category (by backend category, like mobile).
-  func matches(_ memory: ServerMemory) -> Bool {
+  func matches(_ memory: MemoryItem) -> Bool {
     memory.category == category
   }
 }
@@ -84,1422 +85,14 @@ enum MemoryLayerFilter: String, CaseIterable, Identifiable {
     switch self {
     case .defaultAccess: return .defaultAccess
     case .shortTerm:
-      return MemoryLayerScope(tiers: [.shortTerm], requiresArchiveAcknowledgement: false)
+      return MemoryLayerScope(layers: [.shortTerm], requiresArchiveAcknowledgement: false)
     case .longTerm:
-      return MemoryLayerScope(tiers: [.longTerm], requiresArchiveAcknowledgement: false)
+      return MemoryLayerScope(layers: [.longTerm], requiresArchiveAcknowledgement: false)
     case .archive: return .archiveOnly
     }
   }
 
-  var allowedLayers: [MemoryLayer] { layerScope.tiers }
-}
-
-/// Reversible alias during WS-G client rename (Wave 36).
-typealias MemoryTierFilter = MemoryLayerFilter
-
-// MARK: - Memories View Model
-
-@MainActor
-class MemoriesViewModel: ObservableObject {
-  @Published var memories: [ServerMemory] = [] {
-    didSet { recomputeCaches() }
-  }
-  @Published var isLoading = false {
-    didSet { resumeMemoryLoadLifecycleWaitersIfIdle() }
-  }
-  @Published var isLoadingMore = false {
-    didSet { resumeMemoryLoadLifecycleWaitersIfIdle() }
-  }
-  @Published var hasMoreMemories = true
-  @Published var errorMessage: String?
-  @Published var searchText = "" {
-    didSet {
-      if oldValue != searchText {
-        bumpScopeGeneration()
-        displayLimit = pageSize
-        searchCoordinator.submit(searchText) { [weak self] _ in
-          await self?.performSearch()
-        }
-      }
-    }
-  }
-  @Published private(set) var isSearching = false
-  @Published private(set) var searchResults: [ServerMemory] = []
-  private let searchCoordinator = DebouncedSearchCoordinator()
-  @Published var selectedLayerFilter: MemoryLayerFilter = .defaultAccess {
-    didSet {
-      guard oldValue != selectedLayerFilter else { return }
-      bumpScopeGeneration()
-      displayLimit = pageSize
-      Task { await reloadForCurrentLayerFilter() }
-    }
-  }
-
-  /// Whether the lifecycle capability is known at all yet.
-  ///
-  /// `canonicalLifecycleExposed` is a Bool, so on its own it cannot tell
-  /// "this account is not canonical" apart from "no authoritative response has
-  /// arrived". Surfaces that pick a whole presentation from the capability
-  /// need the difference: guessing wrong for one frame means mounting the
-  /// surface they are about to discard.
-  @Published private(set) var canonicalLifecycleCapabilityEstablished = false
-
-  @Published private(set) var canonicalLifecycleExposed = false {
-    didSet {
-      guard oldValue != canonicalLifecycleExposed else { return }
-      if !canonicalLifecycleExposed, selectedLayerFilter != .defaultAccess {
-        selectedLayerFilter = .defaultAccess
-      }
-      memories = displayMemories(memories, lifecycleExposed: canonicalLifecycleExposed)
-      searchResults = displayMemories(searchResults, lifecycleExposed: canonicalLifecycleExposed)
-      filteredFromDatabase = displayMemories(filteredFromDatabase, lifecycleExposed: canonicalLifecycleExposed)
-      recomputeFilteredMemories()
-    }
-  }
-
-  @Published var selectedTags: Set<MemoryTag> = [] {
-    didSet {
-      // Reset display limit when filters change
-      bumpScopeGeneration()
-      displayLimit = pageSize
-      // When tags are selected, query SQLite directly
-      if !selectedTags.isEmpty {
-        Task { await loadFilteredMemoriesFromDatabase() }
-      } else {
-        filteredFromDatabase = []
-        allFilteredResults = []
-        hasMoreFilteredResults = false
-        recomputeFilteredMemories()
-      }
-    }
-  }
-
-  /// Memories loaded from SQLite with filters applied
-  @Published private(set) var filteredFromDatabase: [ServerMemory] = []
-  @Published private(set) var isLoadingFiltered = false
-
-  /// Counter bumped at the top of `refreshMemoriesIfNeeded()`, before any of
-  /// the early-exit guards. Lets `MemoriesViewModelObserverTests` prove that
-  /// posting `didBecomeActive` / `.refreshAllData` actually reaches the refresh
-  /// method — if the observer rewire regresses, the counter stays flat and the
-  /// test fails.
-  /// Deliberately **not** `@Published` — publishing on every activation/Cmd+R
-  /// refresh would emit `objectWillChange` and invalidate any SwiftUI view
-  /// observing `MemoriesViewModel`, which is a pure production cost for a
-  /// value nothing drives UI from.
-  private(set) var refreshInvocations: Int = 0
-  /// Bumped at the top of `handleConversationDeleted()` for observer wiring tests.
-  private(set) var conversationDeleteInvocations: Int = 0
-  @Published var showingAddMemory = false
-  @Published var newMemoryText = ""
-  @Published var editingMemory: ServerMemory? = nil
-  @Published var editText = ""
-  @Published var selectedMemory: ServerMemory? = nil
-
-  // Undo delete state
-  @Published var pendingDeleteMemory: ServerMemory? = nil
-  @Published var undoTimeRemaining: Double = 0
-  private var deleteTask: Task<Void, Never>? = nil
-  private var finalizingDeleteMemoryIDs = Set<String>()
-  private var cancellables = Set<AnyCancellable>()
-  private var hasLoadedInitially = false
-
-  /// A cache-first initial load can clear `isLoading` while its authoritative
-  /// API projection is still syncing. Automation search must wait for that
-  /// lifecycle to finish instead of treating the temporarily hidden spinner as
-  /// an idle projection.
-  private var inFlightInitialMemoryLoads = 0
-  private var memoryLoadLifecycleWaiters: [CheckedContinuation<Void, Never>] = []
-  private(set) var memoryLoadLifecycleWaiterCount = 0
-
-  /// Whether the memories page is currently visible.
-  /// Auto-refresh only runs when active to avoid unnecessary API calls.
-  var isActive = false {
-    didSet {
-      if isActive && !oldValue && hasLoadedInitially {
-        // Refresh immediately when becoming active
-        Task { await refreshMemoriesIfNeeded() }
-      }
-    }
-  }
-
-  // Pagination state
-  private var currentOffset = 0
-  // Tracks the raw backend fetch cursor independently from the visible/SQLite
-  // cursor (currentOffset). The API returns unscoped/default-scope pages that
-  // may contain items excluded by the current layer filter. Advancing the
-  // backend offset by only the visible count would re-request part of the same
-  // raw page on the next loadMore(), causing overlapping pages and duplicates.
-  private var rawBackendOffset = 0
-  private let pageSize = 100  // Reduced from 500 for better performance
-
-  // Bulk operations state
-  @Published var showingDeleteAllConfirmation = false
-  @Published var isBulkOperationInProgress = false
-
-  // Conversation linking state
-  @Published var linkedConversation: LocalConversation? = nil
-  @Published var isLoadingConversation = false
-
-  // MARK: - Cached Properties (avoid recomputation on every render)
-
-  /// Cached filtered and sorted memories - only recomputed when inputs change
-  @Published private(set) var filteredMemories: [ServerMemory] = []
-
-  /// Cached tag counts - only recomputed when memories change
-  @Published private(set) var tagCounts: [MemoryTag: Int] = [:]
-
-  /// Total memory count from SQLite (not just loaded items)
-  @Published private(set) var totalMemoriesCount: Int = 0
-
-  /// Whether there are more filtered/search results beyond the display limit
-  @Published private(set) var hasMoreFilteredResults = false
-
-  /// Full filtered results before display cap (kept in memory for pagination)
-  private var allFilteredResults: [ServerMemory] = []
-
-  /// Current display limit for filtered/search results
-  private var displayLimit = 100
-
-  /// Count memories for a specific tag (uses cached value)
-  func tagCount(_ tag: MemoryTag) -> Int {
-    tagCounts[tag] ?? 0
-  }
-
-  private struct MemoryScopeToken: Equatable {
-    let generation: Int
-    let layerFilter: MemoryLayerFilter
-    let searchText: String
-    let selectedTags: Set<MemoryTag>
-  }
-
-  private var scopeGeneration = 0
-
-  private var activeLayerFilter: [MemoryLayer]? { canonicalLifecycleExposed ? selectedLayerFilter.allowedLayers : nil }
-  private var activeLayerScope: MemoryLayerScope { selectedLayerFilter.layerScope }
-
-  private var currentScopeToken: MemoryScopeToken {
-    MemoryScopeToken(
-      generation: scopeGeneration,
-      layerFilter: selectedLayerFilter,
-      searchText: searchText.trimmingCharacters(in: .whitespacesAndNewlines),
-      selectedTags: selectedTags
-    )
-  }
-
-  private func bumpScopeGeneration() {
-    scopeGeneration += 1
-  }
-
-  private func isCurrentScope(_ token: MemoryScopeToken) -> Bool {
-    token == currentScopeToken
-  }
-
-  private func layers(for token: MemoryScopeToken) -> [MemoryLayer]? {
-    canonicalLifecycleExposed ? token.layerFilter.allowedLayers : nil
-  }
-
-  private func recordReadScope(for token: MemoryScopeToken) -> MemoryRecordReadScope {
-    canonicalLifecycleExposed ? .canonicalProduct : .legacyCompatibility
-  }
-
-  private func displayMemories(_ values: [ServerMemory], for token: MemoryScopeToken) -> [ServerMemory] {
-    displayMemories(values, lifecycleExposed: canonicalLifecycleExposed)
-  }
-
-  private func displayCacheMemories(_ values: [ServerMemory], for token: MemoryScopeToken) -> [ServerMemory] {
-    displayMemories(values, for: token)
-  }
-
-  private func displayMemories(_ values: [ServerMemory], lifecycleExposed: Bool) -> [ServerMemory] {
-    values.filter { $0.tierIsExplicit == lifecycleExposed }
-  }
-
-  private var lifecycleExposureCapabilityKey: String {
-    let userId = UserDefaults.standard.string(forKey: "auth_userId") ?? "unknown"
-    return "memoriesCanonicalLifecycleExposure_v1_\(userId)"
-  }
-
-  /// Restores the last authoritative lifecycle capability for this account.
-  ///
-  /// The cache itself cannot prove whether an untiered row is a legacy
-  /// compatibility record or a local-pending write. Until the first response
-  /// establishes that capability, defer cache rendering instead of briefly
-  /// presenting those rows as product memories.
-  @discardableResult
-  private func restoreCanonicalLifecycleExposure() -> Bool {
-    guard let exposed = UserDefaults.standard.object(forKey: lifecycleExposureCapabilityKey) as? Bool else {
-      return false
-    }
-    canonicalLifecycleExposed = exposed
-    canonicalLifecycleCapabilityEstablished = true
-    return true
-  }
-
-  private func persistCanonicalLifecycleExposure(_ exposed: Bool) {
-    UserDefaults.standard.set(exposed, forKey: lifecycleExposureCapabilityKey)
-  }
-
-  @discardableResult
-  private func commitMemoryPageCapabilities(
-    _ page: APIClient.MemoryListPage,
-    for token: MemoryScopeToken,
-    expectedOffset: Int? = nil
-  ) -> Bool {
-    guard isCurrentScope(token) else { return false }
-    if let expectedOffset, currentOffset != expectedOffset { return false }
-    canonicalLifecycleExposed = page.canonicalLifecycleExposed
-    canonicalLifecycleCapabilityEstablished = true
-    persistCanonicalLifecycleExposure(page.canonicalLifecycleExposed)
-    return isCurrentScope(token)
-  }
-
-  private func layerAllowed(_ memory: ServerMemory, for token: MemoryScopeToken) -> Bool {
-    guard memory.tierIsExplicit == canonicalLifecycleExposed else { return false }
-    guard let allowedLayers = layers(for: token) else { return true }
-    return Set(allowedLayers).contains(memory.tier)
-  }
-
-  private func reloadForCurrentLayerFilter() async {
-    let token = currentScopeToken
-    if !token.searchText.isEmpty {
-      await performSearch()
-      guard isCurrentScope(token) else { return }
-    }
-    if !token.selectedTags.isEmpty {
-      await loadFilteredMemoriesFromDatabase()
-      guard isCurrentScope(token) else { return }
-    } else {
-      do {
-        let loaded = try await MemoryStorage.shared.getLocalMemories(
-          limit: pageSize,
-          offset: 0,
-          tiers: layers(for: token),
-          scope: recordReadScope(for: token)
-        )
-        guard isCurrentScope(token) else { return }
-        memories = displayCacheMemories(loaded, for: token)
-        currentOffset = loaded.count
-        hasMoreMemories = loaded.count >= pageSize
-        recomputeFilteredMemories()
-      } catch {
-        guard isCurrentScope(token) else { return }
-        logError("MemoriesViewModel: Failed to reload tier-filtered memories", error: error)
-        recomputeFilteredMemories()
-      }
-    }
-    guard isCurrentScope(token) else { return }
-    await loadTagCountsFromDatabase()
-  }
-
-  private var bulkServerMutationsAvailable: Bool { false }
-  var areBulkServerMutationsAvailable: Bool { bulkServerMutationsAvailable }
-
-  // MARK: - Initialization
-
-  private let deleteMemoryRequest: (String) async throws -> Void
-
-  init(deleteMemoryRequest: ((String) async throws -> Void)? = nil) {
-    self.deleteMemoryRequest =
-      deleteMemoryRequest ?? { id in
-        try await APIClient.shared.deleteMemory(id: id)
-      }
-    // Owner fencing: an in-place account switch posts only
-    // .runtimeOwnerDidChange (never .userDidSignOut), so without this reset the
-    // previous owner's memories keep rendering until the container's deferred
-    // startup reset runs. Mirrors TasksStore.resetSessionState's subscription.
-    NotificationCenter.default.publisher(for: .runtimeOwnerDidChange)
-      .sink { [weak self] _ in
-        MainActor.assumeIsolated {
-          self?.resetSessionState()
-        }
-      }
-      .store(in: &cancellables)
-
-    // Refresh memories when app becomes active
-    NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)
-      .sink { [weak self] _ in
-        Task { await self?.refreshMemoriesIfNeeded() }
-      }
-      .store(in: &cancellables)
-
-    // Cmd+R: refresh memories on demand
-    NotificationCenter.default.publisher(for: .refreshAllData)
-      .sink { [weak self] _ in
-        Task { await self?.refreshMemoriesIfNeeded() }
-      }
-      .store(in: &cancellables)
-
-    // Conversation delete: purge conversation-sourced memories from local cache + re-fetch.
-    NotificationCenter.default.publisher(for: .conversationDeleted)
-      .sink { [weak self] notification in
-        guard let conversationId = notification.userInfo?["conversationId"] as? String else { return }
-        Task { await self?.handleConversationDeleted(conversationId) }
-      }
-      .store(in: &cancellables)
-  }
-
-  /// After conversation delete (server cascade retract + local cache purge).
-  func handleConversationDeleted(_ conversationId: String) async {
-    conversationDeleteInvocations += 1
-    guard AuthState.shared.isSignedIn else { return }
-
-    do {
-      let removed = try await MemoryStorage.shared.softDeleteMemoriesByConversationId(conversationId)
-      if removed > 0 {
-        log("MemoriesViewModel: Soft-deleted \(removed) local memories for conversation \(conversationId)")
-      }
-    } catch {
-      logError("MemoriesViewModel: Failed to soft-delete memories for conversation \(conversationId)", error: error)
-    }
-
-    memories.removeAll { $0.conversationId == conversationId }
-    recomputeFilteredMemories()
-
-    // Re-fetch from backend (source of truth after cascade retract).
-    if hasLoadedInitially {
-      await refreshMemoriesAfterConversationCascade()
-    }
-  }
-
-  /// Paginated server pull + orphan prune after conversation cascade delete.
-  /// Catches promoted memories whose projection dropped `conversation_id`.
-  private func refreshMemoriesAfterConversationCascade() async {
-    let token = currentScopeToken
-    var offset = 0
-    let batchSize = 500
-    var allFetched: [ServerMemory] = []
-    var fetchedLifecycleExposure: Bool?
-
-    do {
-      while true {
-        let page = try await APIClient.shared.getMemoriesPage(limit: batchSize, offset: offset)
-        fetchedLifecycleExposure = page.canonicalLifecycleExposed
-        let batch = page.memories
-        if batch.isEmpty { break }
-        allFetched.append(contentsOf: batch)
-        offset += batch.count
-        if batch.count < batchSize { break }
-      }
-
-      // A successful fetch (even if empty) is an authoritative keep-set for
-      // pruning. Without this, stale SQLite rows remain visible after a
-      // conversation cascade delete retracts all backend memories.
-      let pruned = try await MemoryStorage.shared.syncServerMemoriesAndPruneAbsent(
-        allFetched,
-        within: .defaultAccess
-      )
-      if pruned > 0 {
-        log("MemoriesViewModel: Pruned \(pruned) server-backed orphans after conversation delete")
-      }
-
-      let reloadLimit = max(pageSize, memories.count)
-      let mergedMemories = try await MemoryStorage.shared.getLocalMemories(
-        limit: reloadLimit,
-        offset: 0,
-        tiers: layers(for: token),
-        scope: recordReadScope(for: token)
-      )
-      guard isCurrentScope(token) else { return }
-      if let fetchedLifecycleExposure {
-        canonicalLifecycleExposed = fetchedLifecycleExposure
-        canonicalLifecycleCapabilityEstablished = true
-        guard isCurrentScope(token) else { return }
-      }
-      memories = displayCacheMemories(mergedMemories, for: token)
-      currentOffset = mergedMemories.count
-      hasMoreMemories = mergedMemories.count >= reloadLimit
-      recomputeFilteredMemories()
-      await loadTagCountsFromDatabase()
-    } catch {
-      logError("MemoriesViewModel: Failed to refresh after conversation delete", error: error)
-      await loadMemories()
-    }
-  }
-
-  func resetSessionState() {
-    deleteTask?.cancel()
-    deleteTask = nil
-    memories = []
-    isLoading = false
-    isLoadingMore = false
-    hasMoreMemories = true
-    errorMessage = nil
-    searchText = ""
-    isSearching = false
-    searchResults = []
-    canonicalLifecycleExposed = false
-    canonicalLifecycleCapabilityEstablished = false
-    selectedLayerFilter = .defaultAccess
-    selectedTags = []
-    filteredFromDatabase = []
-    isLoadingFiltered = false
-    refreshInvocations = 0
-    showingAddMemory = false
-    newMemoryText = ""
-    editingMemory = nil
-    editText = ""
-    selectedMemory = nil
-    pendingDeleteMemory = nil
-    undoTimeRemaining = 0
-    hasLoadedInitially = false
-    isActive = false
-    currentOffset = 0
-    rawBackendOffset = 0
-    showingDeleteAllConfirmation = false
-    isBulkOperationInProgress = false
-    linkedConversation = nil
-    isLoadingConversation = false
-    totalMemoriesCount = 0
-    hasMoreFilteredResults = false
-    allFilteredResults = []
-    displayLimit = pageSize
-  }
-
-  /// Refresh memories if already loaded (for auto-refresh).
-  ///
-  /// The automation bridge invokes this immediately before a lifecycle-scoped
-  /// SQLite search. Await an active initial/paginated load first so that search
-  /// cannot observe the stale capability projection which that load is about to
-  /// replace.
-  func refreshMemoriesIfNeeded() async {
-    refreshInvocations += 1
-    // Skip if user is signed out (tokens are cleared)
-    guard AuthState.shared.isSignedIn else { return }
-    // Skip if page is not visible
-    guard isActive else { return }
-
-    await waitForMemoryLoadLifecycleToSettle()
-
-    // An initial request may fail, in which case there is no authoritative
-    // projection to refresh yet.
-    guard !isLoading, !isLoadingMore, hasLoadedInitially else { return }
-
-    // Skip if there's a pending delete (avoid interfering with undo)
-    guard pendingDeleteMemory == nil else { return }
-
-    // Silently sync from API and reload from local cache (local-first pattern)
-    let token = currentScopeToken
-    do {
-      let reloadLimit = max(pageSize, memories.count)
-      let page = try await APIClient.shared.getMemoriesPage(limit: reloadLimit, offset: 0)
-      let apiMemories = page.memories
-      guard commitMemoryPageCapabilities(page, for: token) else { return }
-
-      // Sync API results to local cache
-      try await MemoryStorage.shared.syncServerMemories(apiMemories)
-
-      // Reload from local cache to get merged data (local + synced)
-      let mergedMemories = try await MemoryStorage.shared.getLocalMemories(
-        limit: reloadLimit,
-        offset: 0,
-        tiers: layers(for: token),
-        scope: recordReadScope(for: token)
-      )
-      guard isCurrentScope(token) else { return }
-      log(
-        "MemoriesViewModel: Auto-refresh showing \(mergedMemories.count) memories (API had \(apiMemories.count))"
-      )
-      memories = displayCacheMemories(mergedMemories, for: token)
-      currentOffset = mergedMemories.count
-      rawBackendOffset = apiMemories.count
-      hasMoreMemories = mergedMemories.count >= reloadLimit
-    } catch {
-      // Silently ignore errors during auto-refresh
-      logError("MemoriesViewModel: Auto-refresh failed", error: error)
-    }
-  }
-
-  private var isMemoryLoadLifecycleActive: Bool {
-    inFlightInitialMemoryLoads > 0 || isLoading || isLoadingMore
-  }
-
-  private func waitForMemoryLoadLifecycleToSettle() async {
-    guard isMemoryLoadLifecycleActive else { return }
-    await withCheckedContinuation { continuation in
-      guard isMemoryLoadLifecycleActive else {
-        continuation.resume()
-        return
-      }
-      memoryLoadLifecycleWaiters.append(continuation)
-      memoryLoadLifecycleWaiterCount = memoryLoadLifecycleWaiters.count
-    }
-  }
-
-  private func resumeMemoryLoadLifecycleWaitersIfIdle() {
-    guard !isMemoryLoadLifecycleActive else { return }
-    let waiters = memoryLoadLifecycleWaiters
-    memoryLoadLifecycleWaiters.removeAll()
-    memoryLoadLifecycleWaiterCount = 0
-    for waiter in waiters {
-      waiter.resume()
-    }
-  }
-
-  /// Recompute all caches when memories change
-  private func recomputeCaches() {
-    // Recompute filtered memories first (fast, in-memory)
-    recomputeFilteredMemories()
-
-    // Load true tag counts and unread tips count from SQLite asynchronously
-    Task {
-      await loadTagCountsFromDatabase()
-    }
-  }
-
-  /// Resolve specific memories by id for retained surfaces that cite them.
-  ///
-  /// Reads the local cache rather than `memories`. The visible array is one
-  /// page of a tier-filtered, device-scoped browse, so a cited memory is
-  /// routinely absent from it even though it is fully synced: the inspector
-  /// reported "not loaded yet" for evidence that was on disk the whole time.
-  /// Unsynced local-only rows still resolve because the cache holds them too;
-  /// the visible page is only a last-resort fallback for a cache read failure.
-  func memories(withIDs ids: [String]) async -> [ServerMemory] {
-    guard !ids.isEmpty else { return [] }
-    do {
-      return try await MemoryStorage.shared.getMemories(backendIds: ids)
-    } catch {
-      logError("MemoriesViewModel: Failed to resolve cited memories from cache", error: error)
-      let wanted = Set(ids)
-      return memories.filter { wanted.contains($0.id) }
-    }
-  }
-
-  /// Load tag counts from SQLite database (shows true totals, not just loaded items)
-  private func loadTagCountsFromDatabase() async {
-    do {
-      var counts: [MemoryTag: Int] = [:]
-
-      // Get total count (no filters) and store for "All" badge
-      let totalCount = try await MemoryStorage.shared.getLocalMemoriesCount(
-        tiers: activeLayerFilter,
-        scope: canonicalLifecycleExposed ? .canonicalProduct : .legacyCompatibility
-      )
-      totalMemoriesCount = totalCount
-
-      // One count per backend category (mirrors mobile).
-      for tag in MemoryTag.allCases {
-        counts[tag] = try await MemoryStorage.shared.getLocalMemoriesCount(
-          category: tag.rawValue,
-          tiers: activeLayerFilter,
-          scope: canonicalLifecycleExposed ? .canonicalProduct : .legacyCompatibility
-        )
-      }
-
-      tagCounts = counts
-      log("MemoriesViewModel: Loaded tag counts from database (total: \(totalCount))")
-    } catch {
-      logError("MemoriesViewModel: Failed to load tag counts from database", error: error)
-      // Fall back to in-memory counts
-      var counts: [MemoryTag: Int] = [:]
-      for tag in MemoryTag.allCases {
-        counts[tag] = memories.filter { tag.matches($0) }.count
-      }
-      tagCounts = counts
-    }
-  }
-
-  /// Load filtered memories from SQLite when tag filters are applied
-  private func loadFilteredMemoriesFromDatabase() async {
-    let token = currentScopeToken
-    guard !token.selectedTags.isEmpty else {
-      guard isCurrentScope(token) else { return }
-      filteredFromDatabase = []
-      recomputeFilteredMemories()
-      return
-    }
-
-    isLoadingFiltered = true
-
-    // Filter purely by backend category (OR logic across selected categories).
-    let matchAnyCategory: [String] = token.selectedTags.map { $0.rawValue }
-
-    do {
-      let results = try await MemoryStorage.shared.getFilteredMemories(
-        limit: 10000,
-        matchAnyTag: nil,
-        matchAnyCategory: matchAnyCategory.isEmpty ? nil : matchAnyCategory,
-        tiers: layers(for: token),
-        scope: recordReadScope(for: token)
-      )
-
-      guard isCurrentScope(token) else { return }
-      let filteredResults = results.filter { memory in
-        token.selectedTags.contains { tag in tag.matches(memory) }
-      }
-
-      filteredFromDatabase = displayCacheMemories(filteredResults, for: token)
-      log(
-        "MemoriesViewModel: Loaded \(filteredResults.count) filtered memories from SQLite (raw: \(results.count))"
-      )
-    } catch {
-      guard isCurrentScope(token) else { return }
-      logError("MemoriesViewModel: Failed to load filtered memories", error: error)
-      filteredFromDatabase = []
-    }
-
-    guard isCurrentScope(token) else { return }
-    isLoadingFiltered = false
-    recomputeFilteredMemories()
-  }
-
-  /// Recompute filtered memories when search/tags/layer change
-  private func recomputeFilteredMemories() {
-    // Must match the isInFilteredMode property so pagination routing is
-    // consistent. Layer-only views and device-scoped views are excluded from
-    // "filtered mode" because they paginate via loadMore()
-    // (SQLite/API batches), not loadMoreFiltered() (in-memory expansion of a
-    // single-page allFilteredResults array).
-    let isInFilteredMode = !searchText.isEmpty || !selectedTags.isEmpty
-
-    // Determine source based on current state
-    var result: [ServerMemory]
-
-    if !searchText.isEmpty {
-      // Searching: use search results from SQLite
-      result = searchResults
-      // Apply tag filters to search results
-      if !selectedTags.isEmpty {
-        result = result.filter { memory in
-          selectedTags.contains { tag in tag.matches(memory) }
-        }
-      }
-    } else if !filteredFromDatabase.isEmpty {
-      // Tag filters applied: use SQLite filtered results
-      result = filteredFromDatabase
-    } else {
-      // No filters: use loaded memories
-      result = memories
-    }
-
-    // Guardrail: Archive is never part of the default list unless the user explicitly selects Archive.
-    if let allowedLayers = activeLayerFilter {
-      let allowedTiers = Set(allowedLayers)
-      result = result.filter { allowedTiers.contains($0.tier) }
-    }
-
-    // Sort by date (newest first)
-    result.sort { $0.createdAt > $1.createdAt }
-
-    if isInFilteredMode {
-      // Store full results for pagination, apply display cap
-      allFilteredResults = result
-      filteredMemories = Array(result.prefix(displayLimit))
-      hasMoreFilteredResults = result.count > displayLimit
-    } else {
-      allFilteredResults = []
-      hasMoreFilteredResults = false
-      filteredMemories = result
-    }
-  }
-
-  /// Load more filtered/search results (pagination within already-queried results)
-  func loadMoreFiltered() {
-    displayLimit += pageSize
-    filteredMemories = Array(allFilteredResults.prefix(displayLimit))
-    hasMoreFilteredResults = allFilteredResults.count > displayLimit
-  }
-
-  /// Perform search against SQLite database for efficient full-text search
-  private func performSearch() async {
-    let token = currentScopeToken
-    let query = token.searchText
-
-    // If search is empty, clear results and show all memories
-    if query.isEmpty {
-      guard isCurrentScope(token) else { return }
-      searchResults = []
-      isSearching = false
-      recomputeFilteredMemories()
-      return
-    }
-
-    isSearching = true
-
-    do {
-      let results = try await MemoryStorage.shared.searchLocalMemories(
-        query: query,
-        limit: 10000,
-        tiers: layers(for: token),
-        scope: recordReadScope(for: token)
-      )
-      guard isCurrentScope(token) else { return }
-      searchResults = displayCacheMemories(results, for: token)
-      log("MemoriesViewModel: Search for '\(query)' found \(results.count) results")
-    } catch {
-      guard isCurrentScope(token) else { return }
-      logError("MemoriesViewModel: Search failed", error: error)
-      // Fall back to in-memory filtering within the captured tier scope.
-      searchResults = memories.filter {
-        layerAllowed($0, for: token) && $0.content.localizedCaseInsensitiveContains(query)
-      }
-    }
-
-    guard isCurrentScope(token) else { return }
-    isSearching = false
-    recomputeFilteredMemories()
-  }
-
-  // MARK: - API Actions
-
-  /// Load memories using local-first pattern:
-  /// 1. Load from local cache first (instant display)
-  /// 2. Fetch from API in background
-  /// 3. Update UI with API data
-  /// 4. Sync to local cache in background
-  func loadMemories() async {
-    guard !isLoading else { return }
-
-    inFlightInitialMemoryLoads += 1
-    defer {
-      inFlightInitialMemoryLoads -= 1
-      resumeMemoryLoadLifecycleWaitersIfIdle()
-    }
-
-    isLoading = true
-    errorMessage = nil
-    currentOffset = 0
-    rawBackendOffset = 0
-    let token = currentScopeToken
-    let tokenTiers = layers(for: token)
-    let hasRememberedLifecycleExposure = restoreCanonicalLifecycleExposure()
-
-    // Step 1: Load from local cache first for instant display
-    // A cache alone cannot establish an account's lifecycle capability. On a
-    // first launch, wait for the authoritative response rather than flash
-    // untiered legacy/local-pending records in a canonical user experience.
-    // Use timeout to avoid blocking UI if database is initializing (e.g. recovery).
-    if hasRememberedLifecycleExposure {
-      do {
-        let cachedMemories = try await withThrowingTaskGroup(of: [ServerMemory].self) { group in
-          group.addTask {
-            try await MemoryStorage.shared.getLocalMemories(
-              limit: self.pageSize,
-              offset: 0,
-              tiers: tokenTiers,
-              scope: self.recordReadScope(for: token)
-            )
-          }
-          group.addTask {
-            try await Task.sleep(nanoseconds: 3_000_000_000)  // 3 second timeout
-            throw CancellationError()
-          }
-          let result = try await group.next()!
-          group.cancelAll()
-          return result
-        }
-
-        if !cachedMemories.isEmpty, isCurrentScope(token) {
-          memories = displayCacheMemories(cachedMemories, for: token)
-          currentOffset = cachedMemories.count
-          hasMoreMemories = cachedMemories.count >= pageSize
-          isLoading = false  // Show cached data immediately
-          log("MemoriesViewModel: Loaded \(cachedMemories.count) memories from local cache")
-        }
-      } catch {
-        log("MemoriesViewModel: Local cache unavailable, falling back to API")
-        // Continue to API fetch even if cache fails
-      }
-    } else {
-      log("MemoriesViewModel: Deferring unclassified cache until lifecycle capability is confirmed")
-    }
-
-    // Step 2: Fetch from API in background and sync to local cache
-    do {
-      let page = try await APIClient.shared.getMemoriesPage(limit: pageSize, offset: 0)
-      let fetchedMemories = page.memories
-      guard isCurrentScope(token) else {
-        // Scope changed mid-load; reset loading state so the replacement load
-        // (gated by `guard !isLoading`) is not permanently blocked.
-        isLoading = false
-        return
-      }
-      guard commitMemoryPageCapabilities(page, for: token) else {
-        isLoading = false
-        return
-      }
-      hasLoadedInitially = true
-      log("MemoriesViewModel: Fetched \(fetchedMemories.count) memories from API")
-
-      // Step 3: Sync API results to local cache, then reload from cache
-      // This ensures we show ALL local data (including locally-created memories)
-      // merged with any updates from the server
-      do {
-        try await MemoryStorage.shared.syncServerMemories(fetchedMemories)
-        log("MemoriesViewModel: Synced \(fetchedMemories.count) memories to local cache")
-
-        let displayMemories = try await MemoryStorage.shared.getLocalMemories(
-          limit: pageSize,
-          offset: 0,
-          tiers: layers(for: token),
-          scope: recordReadScope(for: token)
-        )
-        guard isCurrentScope(token) else {
-          // Scope changed mid-merge; reset loading state so the replacement
-          // load is not permanently blocked.
-          isLoading = false
-          return
-        }
-        let visibleMemories = self.displayCacheMemories(displayMemories, for: token)
-        memories = visibleMemories
-        currentOffset = visibleMemories.count
-        // Track the raw backend cursor for subsequent loadMore() fetches.
-        rawBackendOffset = fetchedMemories.count
-        // Use the raw backend page count for pagination, not the tier-filtered
-        // count. The API fetch is an unscoped/default-scope page, so a full raw
-        // page may contain fewer tier-matching items than pageSize while later
-        // backend pages still hold matches for the selected layer. Deriving
-        // hasMoreMemories from the filtered count would disable scrolling and
-        // permanently hide those memories. This matches the error-fallback path
-        // below and the loadMore() API path.
-        hasMoreMemories = fetchedMemories.count >= pageSize
-        log("MemoriesViewModel: Showing \(visibleMemories.count) memories from merged local cache")
-      } catch {
-        logError("MemoriesViewModel: Failed to sync/reload from local cache", error: error)
-        // Fall back to API data if sync fails, preserving the desktop default-access guardrail.
-        memories = displayMemories(fetchedMemories.filter { layerAllowed($0, for: token) }, for: token)
-        currentOffset = memories.count
-        rawBackendOffset = fetchedMemories.count
-        hasMoreMemories = fetchedMemories.count >= pageSize
-      }
-    } catch {
-      // Only show error if we don't have cached data
-      if memories.isEmpty {
-        errorMessage = UserFacingErrorPresentation.message(for: error, while: .memories)
-      }
-      logError("Failed to load memories from API", error: error)
-    }
-
-    isLoading = false
-
-    // Kick off one-time full sync, then a one-time cache reconcile, in background.
-    Task {
-      await performFullSyncIfNeeded()
-      await reconcileCacheIfNeeded()
-    }
-  }
-
-  func loadMemoriesIfNeeded() async {
-    guard !hasLoadedInitially && memories.isEmpty else { return }
-    await loadMemories()
-  }
-
-  /// One-time cache reconcile. The local SQLite cache can diverge from the
-  /// backend (the source of truth): stale categories after the server-side
-  /// category cleanup, plus "orphan" rows whose backendId no longer exists on
-  /// the backend. This re-pulls every backend memory (fixing categories via the
-  /// normal upsert) and soft-deletes synced local rows the backend no longer
-  /// has. Local-only unsynced memories are preserved. Runs once per user.
-  private func reconcileCacheIfNeeded() async {
-    let userId = UserDefaults.standard.string(forKey: "auth_userId") ?? "unknown"
-    let reconcileKey = "memoriesCacheReconcile_v2_defaultScopeNoPrune_\(userId)"
-
-    guard !UserDefaults.standard.bool(forKey: reconcileKey) else { return }
-
-    log("MemoriesViewModel: Starting one-time cache reconcile for user \(userId)")
-
-    var offset = 0
-    let batchSize = 500
-    var backendIds = Set<String>()
-
-    do {
-      while true {
-        let page = try await APIClient.shared.getMemoriesPage(limit: batchSize, offset: offset)
-        let batch = page.memories
-        if batch.isEmpty { break }
-
-        try await MemoryStorage.shared.syncServerMemories(batch)
-        for memory in batch { backendIds.insert(memory.id) }
-        offset += batch.count
-
-        if batch.count < batchSize { break }
-      }
-
-      // Guard against pruning on a partial/failed pull: only reconcile when the
-      // backend actually returned memories. An empty result here would otherwise
-      // wrongly delete the entire local cache.
-      guard !backendIds.isEmpty else {
-        log("MemoriesViewModel: Cache reconcile skipped pruning (no backend memories returned)")
-        return
-      }
-
-      // The current API does not return authoritative tier-scope/completeness metadata.
-      // Fail closed: sync returned default-scope rows, but do not prune orphans until the
-      // backend can prove this page set is complete for an explicit scope. This preserves
-      // Archive rows when the default endpoint omits them by design.
-      UserDefaults.standard.set(true, forKey: reconcileKey)
-      log("MemoriesViewModel: Cache reconcile skipped orphan pruning because backend completeness is unknown")
-
-      await loadTagCountsFromDatabase()
-      await loadMemories()
-    } catch {
-      logError("MemoriesViewModel: Cache reconcile failed (will retry next launch)", error: error)
-    }
-  }
-
-  /// One-time background sync for the backend default memory scope.
-  /// Archive requires an explicit backend contract before desktop syncs or reconciles it.
-  private func performFullSyncIfNeeded() async {
-    let userId = UserDefaults.standard.string(forKey: "auth_userId") ?? "unknown"
-    let syncKey = "memoriesDefaultScopeSyncCompleted_v3_\(userId)"
-
-    guard !UserDefaults.standard.bool(forKey: syncKey) else {
-      log("MemoriesViewModel: Full sync already completed for user \(userId)")
-      return
-    }
-
-    log("MemoriesViewModel: Starting one-time default-scope sync for user \(userId)")
-
-    var offset = 0
-    var totalSynced = 0
-    let batchSize = 500
-
-    do {
-      while true {
-        let page = try await APIClient.shared.getMemoriesPage(limit: batchSize, offset: offset)
-        let batch = page.memories
-        if batch.isEmpty { break }
-
-        try await MemoryStorage.shared.syncServerMemories(batch)
-        totalSynced += batch.count
-        offset += batch.count
-        log("MemoriesViewModel: Full sync progress - \(totalSynced) additional memories synced")
-
-        if batch.count < batchSize { break }
-      }
-
-      UserDefaults.standard.set(true, forKey: syncKey)
-      log("MemoriesViewModel: Default-scope sync completed - \(totalSynced) additional memories synced")
-
-      // Refresh tag counts now that SQLite has everything
-      await loadTagCountsFromDatabase()
-    } catch {
-      logError("MemoriesViewModel: Full sync failed (will retry next launch)", error: error)
-    }
-  }
-
-  /// Whether we're currently in a filtered/search mode.
-  ///
-  /// Layer-only views (Short-term/Long-term/Archive) and device-scoped views
-  /// are intentionally NOT included here: they load paginated batches from
-  /// SQLite via the same loadMore() path as the default view, just with a
-  /// tier/device filter applied. Treating them as "filtered" would route
-  /// pagination through loadMoreFiltered(), which only expands the in-memory
-  /// allFilteredResults array (capped at one page), preventing further
-  /// SQLite/API pagination.
-  var isInFilteredMode: Bool {
-    !searchText.isEmpty || !selectedTags.isEmpty
-  }
-
-  /// Load more memories (pagination) - triggered by scrolling near end
-  func loadMoreIfNeeded(currentMemory: ServerMemory) async {
-    let hasMore = isInFilteredMode ? hasMoreFilteredResults : hasMoreMemories
-    guard hasMore, !isLoading, !isLoadingMore else { return }
-
-    // Only load more when near the end of the list
-    let thresholdIndex =
-      filteredMemories.index(
-        filteredMemories.endIndex, offsetBy: -10, limitedBy: filteredMemories.startIndex)
-      ?? filteredMemories.startIndex
-    guard let memoryIndex = filteredMemories.firstIndex(where: { $0.id == currentMemory.id }),
-      memoryIndex >= thresholdIndex
-    else {
-      return
-    }
-
-    if isInFilteredMode {
-      loadMoreFiltered()
-    } else {
-      await loadMore()
-    }
-  }
-
-  /// Explicitly load more memories (for button tap)
-  /// Uses local-first: try local cache first, then API
-  func loadMore() async {
-    guard hasMoreMemories, !isLoading, !isLoadingMore else { return }
-
-    isLoadingMore = true
-    // Clear the flag on every exit path, including stale-scope guard returns,
-    // so pagination is not permanently blocked by `guard !isLoadingMore`.
-    defer {
-      isLoadingMore = false
-      resumeMemoryLoadLifecycleWaitersIfIdle()
-    }
-    let token = currentScopeToken
-    let requestedOffset = currentOffset
-    let requestedRawOffset = rawBackendOffset
-
-    // Step 1: Try to load more from local cache first
-    do {
-      let moreFromCache = try await MemoryStorage.shared.getLocalMemories(
-        limit: pageSize,
-        offset: requestedOffset,
-        tiers: layers(for: token),
-        scope: recordReadScope(for: token)
-      )
-
-      guard isCurrentScope(token), currentOffset == requestedOffset else { return }
-      if !moreFromCache.isEmpty {
-        let visibleMemories = displayCacheMemories(moreFromCache, for: token)
-        memories.append(contentsOf: visibleMemories)
-        // Advance the SQLite paging cursor by the RAW row count returned by the
-        // query, not the tier-filtered visible count. getLocalMemories(offset:)
-        // pages over raw rows, so advancing by the smaller filtered count makes the
-        // next page re-fetch the filtered-out rows — duplicate/stuck paging once
-        // hasMoreMemories (below) correctly stays true on a filtered page.
-        currentOffset += moreFromCache.count
-        // Derive hasMoreMemories from the RAW cache count, not the tier-filtered
-        // visible count. A full raw page whose visible subset is < pageSize still
-        // has more cached rows to page; using the filtered count here disabled
-        // scrolling and permanently hid those memories (the initial-load path
-        // already documents this exact raw-vs-filtered pagination rule).
-        hasMoreMemories = moreFromCache.count >= pageSize
-        log(
-          "MemoriesViewModel: Loaded \(visibleMemories.count) more from local cache (total: \(memories.count))"
-        )
-        return
-      }
-    } catch {
-      log("MemoriesViewModel: Local cache pagination failed, trying API")
-    }
-
-    // Step 2: If local cache is exhausted, fetch from API.
-    // Use the raw backend offset (not the visible/SQLite offset) so that layer
-    // filtering does not cause overlapping pages or duplicate appends.
-    do {
-      let page = try await APIClient.shared.getMemoriesPage(limit: pageSize, offset: requestedRawOffset)
-      let newMemories = page.memories
-      guard
-        commitMemoryPageCapabilities(page, for: token, expectedOffset: requestedOffset)
-      else { return }
-
-      // Sync to local cache first
-      try await MemoryStorage.shared.syncServerMemories(newMemories)
-
-      let visibleNewMemories = displayMemories(newMemories.filter { layerAllowed($0, for: token) }, for: token)
-
-      // Then append to display
-      memories.append(contentsOf: visibleNewMemories)
-      currentOffset += visibleNewMemories.count
-      // Advance the raw backend cursor by the raw page size so the next fetch
-      // starts after all items in this page, not just the visible subset.
-      rawBackendOffset += newMemories.count
-      hasMoreMemories = newMemories.count >= pageSize
-      log(
-        "MemoriesViewModel: Loaded \(visibleNewMemories.count) more visible memories from API (raw: \(newMemories.count), total: \(memories.count))"
-      )
-    } catch {
-      logError("Failed to load more memories", error: error)
-    }
-  }
-
-  func createMemory() async {
-    guard !newMemoryText.isEmpty else { return }
-
-    do {
-      _ = try await APIClient.shared.createMemory(content: newMemoryText, category: .manual)
-      showingAddMemory = false
-      newMemoryText = ""
-      await loadMemories()
-    } catch {
-      logError("Failed to create memory", error: error)
-    }
-  }
-
-  func deleteMemory(_ memory: ServerMemory) async {
-    // Cancel any existing pending delete
-    deleteTask?.cancel()
-    if let existingPending = pendingDeleteMemory {
-      // Immediately delete the previous pending memory
-      await performActualDelete(existingPending)
-    }
-
-    do {
-      try await MemoryStorage.shared.deleteMemory(surfacedId: memory.id)
-    } catch {
-      logError("Failed to soft-delete memory locally", error: error)
-    }
-
-    // Remove from UI immediately (optimistic) — must also remove from filter source arrays
-    // so recomputeFilteredMemories() doesn't resurrect the deleted memory.
-    OmiMotion.withGated(.easeInOut(duration: 0.2)) {
-      memories.removeAll { $0.id == memory.id }
-      filteredFromDatabase.removeAll { $0.id == memory.id }
-      allFilteredResults.removeAll { $0.id == memory.id }
-      searchResults.removeAll { $0.id == memory.id }
-      pendingDeleteMemory = memory
-      undoTimeRemaining = 4
-    }
-
-    // The soft-delete above immediately drops this row from getLocalMemories(), so
-    // the SQLite paging cursor is now one position too high — the next loadMore()
-    // would skip the item that shifted into the old cursor slot. Back the
-    // visible/cache cursor off by one. (rawBackendOffset is adjusted separately in
-    // performActualDelete, only after the backend row is actually removed, because
-    // the backend still holds the row during the undo window.) Undo and
-    // delete-failure both call reloadForCurrentLayerFilter(), which recomputes
-    // currentOffset from offset 0, so this decrement safely unwinds.
-    currentOffset = max(0, currentOffset - 1)
-
-    // Start countdown timer
-    deleteTask = Task {
-      // Update countdown every 100ms
-      for _ in 0..<40 {
-        try? await Task.sleep(nanoseconds: 100_000_000)  // 100ms
-        if Task.isCancelled { return }
-        await MainActor.run {
-          undoTimeRemaining = max(0, undoTimeRemaining - 0.1)
-        }
-      }
-
-      if Task.isCancelled { return }
-
-      // Timer expired, perform actual delete
-      await MainActor.run { _ = confirmDelete() }
-    }
-  }
-
-  func undoDelete() {
-    guard let memory = pendingDeleteMemory else { return }
-
-    // Cancel the delete timer
-    deleteTask?.cancel()
-    deleteTask = nil
-
-    OmiMotion.withGated(.easeInOut(duration: 0.2)) {
-      pendingDeleteMemory = nil
-      undoTimeRemaining = 0
-    }
-
-    Task {
-      do {
-        try await MemoryStorage.shared.restoreMemory(surfacedId: memory.id)
-      } catch {
-        logError("Failed to restore memory locally", error: error)
-      }
-      await reloadForCurrentLayerFilter()
-    }
-  }
-
-  @discardableResult
-  func confirmDelete() -> Task<Void, Never> {
-    guard let memory = pendingDeleteMemory else { return Task {} }
-
-    // Cancel timer if still running
-    deleteTask?.cancel()
-    deleteTask = nil
-
-    return Task { [weak self] in
-      guard let self else { return }
-      await performActualDelete(memory)
-      guard self.pendingDeleteMemory?.id == memory.id else { return }
-      OmiMotion.withGated(.easeInOut(duration: 0.2)) {
-        self.pendingDeleteMemory = nil
-        self.undoTimeRemaining = 0
-      }
-    }
-  }
-
-  private func performActualDelete(_ memory: ServerMemory) async {
-    guard finalizingDeleteMemoryIDs.insert(memory.id).inserted else { return }
-    defer { finalizingDeleteMemoryIDs.remove(memory.id) }
-
-    if MemoryIdentity(surfacedId: memory.id).isLocalOnly {
-      return
-    }
-
-    do {
-      try await deleteMemoryRequest(memory.id)
-      AnalyticsManager.shared.memoryDeleted(conversationId: memory.id)
-      // The backend row is now gone, so the raw backend paging cursor is one
-      // position too high — decrement it so the next API-backed loadMore() doesn't
-      // skip the item that shifted into the old cursor slot. Done here rather than
-      // in the optimistic block because the backend still holds the row during the
-      // undo window; decrementing earlier would re-fetch and duplicate it.
-      rawBackendOffset = max(0, rawBackendOffset - 1)
-    } catch {
-      logError("Failed to delete memory", error: error)
-      do {
-        try await MemoryStorage.shared.restoreMemory(surfacedId: memory.id)
-      } catch {
-        logError("Failed to restore memory after delete failure", error: error)
-      }
-      await reloadForCurrentLayerFilter()
-    }
-  }
-
-  func saveEditedMemory(_ memory: ServerMemory) async {
-    guard !editText.isEmpty else { return }
-
-    do {
-      try await APIClient.shared.editMemory(id: memory.id, content: editText)
-
-      // Update content in SQLite so auto-refresh doesn't revert the edit
-      try await MemoryStorage.shared.updateContentByBackendId(memory.id, content: editText)
-
-      editingMemory = nil
-      editText = ""
-      await loadMemories()
-      await refreshSelectedMemory()
-    } catch {
-      logError("Failed to edit memory", error: error)
-    }
-  }
-
-  /// Re-reads the open memory after it changes on the server.
-  ///
-  /// `selectedMemory` holds a value copy, and `ServerMemory.content` is
-  /// immutable, so a successful edit left the detail panel rendering the text
-  /// the user had just replaced. As a modal that dismissed on save this was
-  /// invisible; as a persistent side panel it reads as "Save did nothing".
-  func refreshSelectedMemory() async {
-    guard let current = selectedMemory else { return }
-    if let refreshed = memories.first(where: { $0.id == current.id }) {
-      selectedMemory = refreshed
-      return
-    }
-    // The reloaded page is scope-filtered and may not contain it; the cache is
-    // authoritative for a single known id.
-    if let cached = await self.memories(withIDs: [current.id]).first {
-      selectedMemory = cached
-    }
-  }
-
-  /// Opens one memory in the detail panel by id, from anywhere in the app.
-  ///
-  /// Resolves through the cache rather than the visible page because the page
-  /// on screen may be a tier-filtered slice. Returns whether the memory was
-  /// found, so a caller that also switches surfaces does not navigate away to
-  /// an empty panel.
-  @discardableResult
-  func openMemory(id: String) async -> Bool {
-    if let onPage = memories.first(where: { $0.id == id }) {
-      selectedMemory = onPage
-      return true
-    }
-    guard let cached = await self.memories(withIDs: [id]).first else { return false }
-    selectedMemory = cached
-    return true
-  }
-
-  // MARK: - Bulk Operations
-
-  private var currentBulkScope: MemoryLayerScope { activeLayerScope }
-
-  func deleteMemories(scope: MemoryLayerScope? = nil, archiveAcknowledged: Bool = false) async {
-    let scope = scope ?? currentBulkScope
-    if scope.includesArchive && !archiveAcknowledged {
-      errorMessage = "Archive deletion requires explicit Archive confirmation."
-      return
-    }
-
-    isBulkOperationInProgress = true
-    defer { isBulkOperationInProgress = false }
-
-    // Cancel any pending single delete
-    deleteTask?.cancel()
-    pendingDeleteMemory = nil
-
-    do {
-      try await APIClient.shared.deleteAllMemories(scope: scope)
-      try await MemoryStorage.shared.deleteAllMemories(scope: scope)
-      await reloadForCurrentLayerFilter()
-    } catch {
-      errorMessage = UserFacingErrorPresentation.message(for: error, while: .memoryDeletion)
-      logError("Bulk delete disabled or failed", error: error)
-    }
-  }
-
-  // MARK: - Automation (headless memory search/filter for desktop bridge)
-
-  private var didRegisterAutomationActions = false
-
-  func registerAutomationActions() {
-    guard !didRegisterAutomationActions else { return }
-    didRegisterAutomationActions = true
-    let registry = DesktopAutomationActionRegistry.shared
-    registry.register(
-      name: "memories_search",
-      summary: "Set memories search query and return filtered result count",
-      params: ["query"]
-    ) { [weak self] params in
-      guard let self else { return ["error": "memories view model deallocated"] }
-      await self.refreshMemoriesIfNeeded()
-      let query = params["query"] ?? ""
-      self.searchText = query
-      let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-      if !trimmed.isEmpty {
-        let startDeadline = Date().addingTimeInterval(2)
-        while !self.isSearching, Date() < startDeadline {
-          try? await Task.sleep(nanoseconds: 10_000_000)
-        }
-      }
-      let deadline = Date().addingTimeInterval(10)
-      while self.isSearching, Date() < deadline {
-        try? await Task.sleep(nanoseconds: 50_000_000)
-      }
-      return [
-        "query": query,
-        "result_count": "\(self.filteredMemories.count)",
-        "search_active": query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "false" : "true",
-        "is_searching": self.isSearching ? "true" : "false",
-      ]
-    }
-
-    registry.register(
-      name: "memories_set_tag_filter",
-      summary: "Set memory tag/category filters and return filtered count",
-      params: ["tags"]
-    ) { [weak self] params in
-      guard let self else { return ["error": "memories view model deallocated"] }
-      let raw = params["tags"] ?? ""
-      let tags: Set<MemoryTag>
-      if raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-        tags = []
-      } else {
-        let parsed = raw.split(separator: ",")
-          .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
-          .compactMap { MemoryTag(rawValue: $0) }
-        tags = Set(parsed)
-      }
-      self.selectedTags = tags
-      if !tags.isEmpty {
-        let startDeadline = Date().addingTimeInterval(2)
-        while !self.isLoadingFiltered, Date() < startDeadline {
-          try? await Task.sleep(nanoseconds: 10_000_000)
-        }
-      }
-      let deadline = Date().addingTimeInterval(10)
-      while self.isLoadingFiltered, Date() < deadline {
-        try? await Task.sleep(nanoseconds: 50_000_000)
-      }
-      let tagList = tags.map(\.rawValue).sorted().joined(separator: ",")
-      return [
-        "tags": tagList.isEmpty ? "none" : tagList,
-        "filtered_count": "\(self.filteredMemories.count)",
-        "tag_filter_active": tags.isEmpty ? "false" : "true",
-      ]
-    }
-
-  }
-
-  // MARK: - Conversation Linking
-
-  func navigateToConversation(id: String) async {
-    isLoadingConversation = true
-    do {
-      linkedConversation = try await LocalAuthorityConversationDataSource().detail(id: id)
-    } catch {
-      logError("Failed to load conversation", error: error)
-    }
-    isLoadingConversation = false
-  }
-
-  func dismissConversation() {
-    linkedConversation = nil
-  }
+  var allowedLayers: [MemoryLayer] { layerScope.layers }
 }
 
 // MARK: - Memories Page
@@ -1507,7 +100,6 @@ class MemoriesViewModel: ObservableObject {
 struct MemoriesPage: View {
   @ObservedObject var viewModel: MemoriesViewModel
   @State private var showCategoryFilter = false
-  @State private var categorySearchText = ""
   @State private var pendingSelectedTags: Set<MemoryTag> = []
   @State private var showManagementMenu = false
 
@@ -1547,7 +139,7 @@ struct MemoriesPage: View {
     .frame(maxWidth: .infinity, maxHeight: .infinity)
   }
 
-  private func memoryDetailPanel(_ memory: ServerMemory) -> some View {
+  private func memoryDetailPanel(_ memory: MemoryItem) -> some View {
     MemoryDetailPanel(
       memory: memory,
       viewModel: viewModel,
@@ -1588,12 +180,6 @@ struct MemoriesPage: View {
     .dismissableSheet(isPresented: $viewModel.showingAddMemory) {
       AddMemorySheet(viewModel: viewModel, onDismiss: { viewModel.showingAddMemory = false })
         .frame(width: 400)
-    }
-    .dismissableSheet(item: $viewModel.editingMemory) { memory in
-      EditMemorySheet(
-        memory: memory, viewModel: viewModel, onDismiss: { viewModel.editingMemory = nil }
-      )
-      .frame(width: 400)
     }
     .overlay(alignment: .bottom) {
       undoDeleteToast
@@ -1649,7 +235,7 @@ struct MemoriesPage: View {
           .monospacedDigit()
 
         Button {
-          viewModel.undoDelete()
+          Task { await viewModel.undoDelete() }
         } label: {
           Text("Undo")
             .scaledFont(size: OmiType.body, weight: .semibold)
@@ -1689,7 +275,7 @@ struct MemoriesPage: View {
           Text("Memories")
             .scaledFont(size: OmiType.heading, weight: .semibold)
             .foregroundStyle(OmiColors.textPrimary)
-          Text("What Omi has learned and saved for you")
+          Text(MemoryPageCopy.subtitle)
             .scaledFont(size: OmiType.caption)
             .foregroundStyle(OmiColors.textTertiary)
         }
@@ -1725,11 +311,7 @@ struct MemoriesPage: View {
         Task { await viewModel.deleteMemories(scope: .defaultAccess) }
       }
     } message: {
-      Text(
-        viewModel.canonicalLifecycleExposed
-          ? "This would delete Short-term and Long-term memories only. Archive is not included. Bulk deletion remains disabled until the backend supports layer-scoped mutation semantics."
-          : "This would delete default memories. Bulk deletion remains disabled until the backend supports scoped mutation semantics."
-      )
+      Text("This deletes Short-term and Long-term memories saved on this Mac. Archive is not included.")
     }
   }
 
@@ -1743,65 +325,59 @@ struct MemoriesPage: View {
 
   @ViewBuilder
   private var filterControls: some View {
-    if viewModel.canonicalLifecycleExposed {
-      // Layer filter dropdown. Default is product default access: Short-term + Long-term.
-      Menu {
-        ForEach(MemoryLayerFilter.allCases) { filter in
-          Button {
-            viewModel.selectedLayerFilter = filter
-          } label: {
-            HStack {
-              Text(filter.displayName)
-              if viewModel.selectedLayerFilter == filter {
-                Image(systemName: "checkmark")
-              }
+    // Layer filter dropdown. Default is product default access: Short-term + Long-term.
+    Menu {
+      ForEach(MemoryLayerFilter.allCases) { filter in
+        Button {
+          viewModel.selectedLayerFilter = filter
+        } label: {
+          HStack {
+            Text(filter.displayName)
+            if viewModel.selectedLayerFilter == filter {
+              Image(systemName: "checkmark")
             }
           }
-          .help(filter.description)
         }
-      } label: {
-        HStack(spacing: OmiSpacing.xs) {
-          Image(
-            systemName: viewModel.selectedLayerFilter == .archive
-              ? "archivebox" : "clock.badge.checkmark"
-          )
-          .scaledFont(size: OmiType.caption)
-          // Pills keep their intrinsic width so the search field absorbs
-          // the squeeze. Without this the detail panel narrows the column
-          // and "Default" wraps to "Defa / ult" inside its own pill.
-          Text(viewModel.selectedLayerFilter.displayName)
-            .scaledFont(
-              size: OmiType.body,
-              weight: viewModel.selectedLayerFilter == .defaultAccess ? .regular : .medium
-            )
-            .lineLimit(1)
-            .fixedSize(horizontal: true, vertical: false)
-          Image(systemName: "chevron.down")
-            .scaledFont(size: OmiType.micro)
-        }
-        .foregroundColor(
-          viewModel.selectedLayerFilter == .defaultAccess
-            ? OmiColors.textSecondary : OmiColors.textPrimary
-        )
-        .padding(.horizontal, OmiSpacing.md)
-        .frame(minHeight: 44)
-        .omiControlSurface(
-          fill: viewModel.selectedLayerFilter == .defaultAccess
-            ? OmiColors.backgroundSecondary : OmiColors.backgroundRaised,
-          radius: 16,
-          stroke: OmiColors.border.opacity(
-            viewModel.selectedLayerFilter == .defaultAccess ? 0.18 : 0.6)
-        )
+        .help(filter.description)
       }
-      .menuStyle(.button)
-      .buttonStyle(.plain)
-      .help("Default shows Short-term + Long-term. Archive is explicit.")
+    } label: {
+      HStack(spacing: OmiSpacing.xs) {
+        Image(
+          systemName: viewModel.selectedLayerFilter == .archive
+            ? "archivebox" : "clock.badge.checkmark"
+        )
+        .scaledFont(size: OmiType.caption)
+        Text(viewModel.selectedLayerFilter.displayName)
+          .scaledFont(
+            size: OmiType.body,
+            weight: viewModel.selectedLayerFilter == .defaultAccess ? .regular : .medium
+          )
+          .lineLimit(1)
+          .fixedSize(horizontal: true, vertical: false)
+        Image(systemName: "chevron.down")
+          .scaledFont(size: OmiType.micro)
+      }
+      .foregroundColor(
+        viewModel.selectedLayerFilter == .defaultAccess
+          ? OmiColors.textSecondary : OmiColors.textPrimary
+      )
+      .padding(.horizontal, OmiSpacing.md)
+      .frame(minHeight: 44)
+      .omiControlSurface(
+        fill: viewModel.selectedLayerFilter == .defaultAccess
+          ? OmiColors.backgroundSecondary : OmiColors.backgroundRaised,
+        radius: 16,
+        stroke: OmiColors.border.opacity(
+          viewModel.selectedLayerFilter == .defaultAccess ? 0.18 : 0.6)
+      )
     }
+    .menuStyle(.button)
+    .buttonStyle(.plain)
+    .help("Default shows Short-term + Long-term. Archive is explicit.")
 
     // Category filter dropdown
     Button {
       pendingSelectedTags = viewModel.selectedTags
-      categorySearchText = ""
       showCategoryFilter = true
     } label: {
       HStack(spacing: OmiSpacing.xs) {
@@ -1880,55 +456,13 @@ struct MemoriesPage: View {
     }
   }
 
-  /// Filtered and sorted categories (by count, highest first)
+  /// Categories sorted by local count (highest first).
   private var filteredCategories: [MemoryTag] {
-    let categories: [MemoryTag]
-    if categorySearchText.isEmpty {
-      categories = Array(MemoryTag.allCases)
-    } else {
-      categories = MemoryTag.allCases.filter {
-        $0.displayName.localizedCaseInsensitiveContains(categorySearchText)
-      }
-    }
-    // Sort by count (highest first)
-    return categories.sorted { viewModel.tagCount($0) > viewModel.tagCount($1) }
+    MemoryTag.allCases.sorted { viewModel.tagCount($0) > viewModel.tagCount($1) }
   }
 
   private var categoryFilterPopover: some View {
     VStack(spacing: 0) {
-      // Search field
-      HStack(spacing: OmiSpacing.sm) {
-        Image(systemName: "magnifyingglass")
-          .foregroundColor(OmiColors.textTertiary)
-          .scaledFont(size: OmiType.caption)
-
-        TextField("Search categories...", text: $categorySearchText)
-          .textFieldStyle(.plain)
-          .scaledFont(size: OmiType.body)
-          .foregroundColor(OmiColors.textPrimary)
-
-        if !categorySearchText.isEmpty {
-          Button {
-            categorySearchText = ""
-          } label: {
-            Image(systemName: "xmark.circle.fill")
-              .foregroundColor(OmiColors.textTertiary)
-              .scaledFont(size: OmiType.caption)
-          }
-          .buttonStyle(.plain)
-        }
-      }
-      .padding(.horizontal, OmiSpacing.md)
-      .padding(.vertical, OmiSpacing.sm)
-      .background(OmiColors.backgroundTertiary)
-      .cornerRadius(OmiChrome.badgeRadius)
-      .padding(.horizontal, OmiSpacing.md)
-      .padding(.top, OmiSpacing.md)
-      .padding(.bottom, OmiSpacing.sm)
-
-      Divider()
-        .padding(.horizontal, OmiSpacing.md)
-
       // Category list
       ScrollView {
         VStack(spacing: OmiSpacing.hairline) {
@@ -2079,13 +613,13 @@ struct MemoriesPage: View {
       }
       .buttonStyle(.plain)
       .disabled(
-        !viewModel.areBulkServerMutationsAvailable || viewModel.memories.isEmpty || viewModel.isBulkOperationInProgress
+        !viewModel.areBulkMutationsAvailable || viewModel.memories.isEmpty || viewModel.isBulkOperationInProgress
       )
       .opacity(
-        !viewModel.areBulkServerMutationsAvailable || viewModel.memories.isEmpty || viewModel.isBulkOperationInProgress
+        !viewModel.areBulkMutationsAvailable || viewModel.memories.isEmpty || viewModel.isBulkOperationInProgress
           ? 0.5 : 1
       )
-      .help("Bulk memory deletion is disabled until the backend supports layer-scoped operations.")
+      .help("Deletes Short-term and Long-term memories. Archive remains available.")
     }
     .padding(.vertical, OmiSpacing.xxs)
     .frame(width: 200)
@@ -2220,7 +754,7 @@ struct MemoriesPage: View {
         .foregroundColor(OmiColors.textPrimary)
 
       Text(
-        "Your memories and tips will appear here.\nMemories are extracted from your conversations."
+        "Memories you add and insights learned from your conversations and activity will appear here."
       )
       .scaledFont(size: OmiType.body)
       .foregroundColor(OmiColors.textTertiary)
@@ -2287,7 +821,7 @@ struct MemoriesPage: View {
     .frame(maxWidth: .infinity, maxHeight: .infinity)
   }
 
-  private func errorView(_: String) -> some View {
+  private func errorView(_ error: String) -> some View {
     VStack(spacing: OmiSpacing.lg) {
       Image(systemName: "exclamationmark.triangle")
         .scaledFont(size: 36)
@@ -2297,7 +831,7 @@ struct MemoriesPage: View {
         .scaledFont(size: OmiType.heading, weight: .semibold)
         .foregroundColor(OmiColors.textPrimary)
 
-      Text("Check your connection and try again.")
+      Text(error)
         .scaledFont(size: OmiType.body)
         .foregroundColor(OmiColors.textTertiary)
 
@@ -2364,11 +898,8 @@ private struct MemoryLayerBadge: View {
   }
 }
 
-/// Reversible alias during WS-G client rename (Wave 36).
-private typealias MemoryTierBadge = MemoryLayerBadge
-
 private struct MemoryCardView: View {
-  let memory: ServerMemory
+  let memory: MemoryItem
   let onTap: () -> Void
   let categoryIcon: (MemoryCategory) -> String
   let categoryColor: (MemoryCategory) -> Color
@@ -2386,20 +917,12 @@ private struct MemoryCardView: View {
     Button(action: onTap) {
       VStack(alignment: .leading, spacing: OmiSpacing.sm) {
         HStack(alignment: .top, spacing: OmiSpacing.sm) {
-          Group {
-            if memory.content.hasPrefix("[Protected") || memory.content.hasPrefix("[Encrypted") {
-              Text("Protected memory")
-                .italic()
-                .foregroundColor(OmiColors.textTertiary)
-            } else {
-              Text(memory.content)
-                .foregroundColor(OmiColors.textPrimary)
-            }
-          }
-          .scaledFont(size: 13.5)
-          .lineLimit(2)
-          .truncationMode(.tail)
-          .frame(maxWidth: .infinity, alignment: .leading)
+          Text(memory.content)
+            .foregroundColor(OmiColors.textPrimary)
+            .scaledFont(size: 13.5)
+            .lineLimit(2)
+            .truncationMode(.tail)
+            .frame(maxWidth: .infinity, alignment: .leading)
 
           if isNewlyCreated {
             NewBadge()
@@ -2411,18 +934,7 @@ private struct MemoryCardView: View {
             .scaledFont(size: OmiType.caption)
             .foregroundColor(OmiColors.textSecondary)
 
-          if let deviceLabel = ClientDeviceService.shared.deviceProvenanceLabel(for: memory) {
-            Text(deviceLabel)
-              .scaledFont(size: OmiType.caption)
-              .foregroundColor(OmiColors.textTertiary)
-          }
-
-          // Badge when the server sent an authoritative layer (canonical cohort always does).
-          // Only badge memories the backend actually tiered; legacy/untiered
-          // records carry no real tier, so we show no badge for them.
-          if memory.tierIsExplicit {
-            MemoryLayerBadge(layer: memory.tier)
-          }
+          MemoryLayerBadge(layer: memory.layer)
 
           if let sourceName = memory.sourceName {
             Text("From \(sourceName)")
@@ -2478,7 +990,7 @@ private struct MemoryCardView: View {
 /// Small inline info button with hover preview showing memory metadata.
 /// Follows the same pattern as TaskDetailButton in TaskDetailViews.swift.
 private struct MemoryDetailButton: View {
-  let memory: ServerMemory
+  let memory: MemoryItem
   let categoryIcon: (MemoryCategory) -> String
   let categoryColor: (MemoryCategory) -> Color
   let tagColorFor: (String) -> Color
@@ -2528,18 +1040,18 @@ private struct MemoryDetailButton: View {
 
 /// Compact hover preview showing memory metadata (category, tags, source, etc.)
 private struct MemoryDetailTooltip: View {
-  let memory: ServerMemory
+  let memory: MemoryItem
   let categoryIcon: (MemoryCategory) -> String
   let categoryColor: (MemoryCategory) -> Color
   let tagColorFor: (String) -> Color
 
   var body: some View {
     VStack(alignment: .leading, spacing: OmiSpacing.xs) {
-      if memory.tierIsExplicit, memory.tier == .shortTerm, let expiresAt = memory.expiresAt {
-        tooltipRow("Layer", memory.tier.displayName)
+      if memory.layer == .shortTerm, let expiresAt = memory.expiresAt {
+        tooltipRow("Layer", memory.layer.displayName)
         tooltipRow("Expires", expiresAt.formatted(date: .abbreviated, time: .shortened))
-      } else if memory.tierIsExplicit {
-        tooltipRow("Layer", memory.tier.displayName)
+      } else {
+        tooltipRow("Layer", memory.layer.displayName)
       }
 
       // Category
@@ -2588,9 +1100,8 @@ private struct MemoryDetailTooltip: View {
         tooltipRow("Confidence", conf)
       }
 
-      // Reasoning
-      if let reasoning = memory.reasoning, !reasoning.isEmpty {
-        tooltipBlock("Reasoning", reasoning)
+      if memory.isTip, let reasoning = memory.reasoning, !reasoning.isEmpty {
+        tooltipBlock("Why this tip", reasoning)
       }
 
       // Created date
@@ -2613,6 +1124,10 @@ private struct MemoryDetailTooltip: View {
         .scaledFont(size: OmiType.caption, weight: .medium)
         .foregroundColor(OmiColors.textTertiary)
         .frame(width: 70, alignment: .trailing)
+
+      Text(value)
+        .scaledFont(size: OmiType.caption)
+        .foregroundColor(OmiColors.textPrimary)
 
       Text(value)
         .scaledFont(size: OmiType.caption)
@@ -2646,7 +1161,7 @@ private struct MemoryDetailTooltip: View {
 /// clipped mid-word, while its 600pt background stopped short of the window.
 ///
 struct MemoryDetailPanel: View {
-  let memory: ServerMemory
+  let memory: MemoryItem
   @ObservedObject var viewModel: MemoriesViewModel
   let categoryIcon: (MemoryCategory) -> String
   let categoryColor: (MemoryCategory) -> Color
@@ -2688,8 +1203,8 @@ struct MemoryDetailPanel: View {
             }
           }
 
-          if let reasoning = memory.reasoning, !reasoning.isEmpty {
-            section(memory.isTip ? "Why this tip" : "Reasoning") {
+          if memory.isTip, let reasoning = memory.reasoning, !reasoning.isEmpty {
+            section("Why this tip") {
               Text(reasoning)
                 .scaledFont(size: OmiType.body)
                 .foregroundColor(OmiColors.textSecondary)
@@ -2828,8 +1343,9 @@ struct MemoryDetailPanel: View {
           Button {
             viewModel.editText = editContentText
             Task {
-              await viewModel.saveEditedMemory(memory)
-              isEditingContent = false
+              if await viewModel.saveEditedMemory(memory) {
+                isEditingContent = false
+              }
             }
           } label: {
             Text("Save")
@@ -2841,15 +1357,9 @@ struct MemoryDetailPanel: View {
               .cornerRadius(OmiChrome.badgeRadius)
           }
           .buttonStyle(.plain)
-          .disabled(editContentText.isEmpty)
+          .disabled(editContentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         }
       }
-    } else if memory.content.hasPrefix("[Protected") || memory.content.hasPrefix("[Encrypted") {
-      Text("Protected memory")
-        .italic()
-        .scaledFont(size: OmiType.subheading)
-        .foregroundColor(OmiColors.textTertiary)
-        .fixedSize(horizontal: false, vertical: true)
     } else {
       Text(memory.content)
         .scaledFont(size: OmiType.subheading)
@@ -2897,10 +1407,7 @@ struct MemoryDetailPanel: View {
   }
 
   private var provenanceFacts: [MemoryProvenanceFact] {
-    MemoryProvenance.facts(
-      for: memory,
-      deviceLabel: ClientDeviceService.shared.deviceProvenanceLabel(for: memory)
-    )
+    MemoryProvenance.facts(for: memory)
   }
 
   private var hasContext: Bool {
@@ -3105,78 +1612,6 @@ struct AddMemorySheet: View {
         }
         .buttonStyle(.plain)
         .disabled(viewModel.newMemoryText.isEmpty)
-      }
-    }
-    .padding(OmiSpacing.xxl)
-    .frame(width: 400)
-    .background(OmiColors.backgroundSecondary)
-  }
-}
-
-// MARK: - Edit Memory Sheet
-
-struct EditMemorySheet: View {
-  let memory: ServerMemory
-  @ObservedObject var viewModel: MemoriesViewModel
-  var onDismiss: (() -> Void)? = nil
-
-  @Environment(\.dismiss) private var environmentDismiss
-
-  private func dismissSheet() {
-    viewModel.editText = ""
-    if let onDismiss = onDismiss {
-      onDismiss()
-    } else {
-      environmentDismiss()
-    }
-  }
-
-  var body: some View {
-    VStack(spacing: OmiSpacing.xl) {
-      // Header with close button
-      HStack {
-        Text("Edit Memory")
-          .scaledFont(size: OmiType.heading, weight: .semibold)
-          .foregroundColor(OmiColors.textPrimary)
-        Spacer()
-        DismissButton(action: dismissSheet)
-      }
-
-      TextEditor(text: $viewModel.editText)
-        .scaledFont(size: OmiType.body)
-        .foregroundColor(OmiColors.textPrimary)
-        .scrollContentBackground(.hidden)
-        .padding(OmiSpacing.md)
-        .background(OmiColors.backgroundTertiary)
-        .cornerRadius(OmiChrome.elementRadius)
-        .frame(height: 150)
-
-      HStack(spacing: OmiSpacing.md) {
-        // Cancel button
-        Button(action: dismissSheet) {
-          Text("Cancel")
-            .foregroundColor(OmiColors.textSecondary)
-        }
-
-        Spacer()
-
-        Button {
-          Task { await viewModel.saveEditedMemory(memory) }
-        } label: {
-          Text("Save")
-            .scaledFont(size: OmiType.body, weight: .medium)
-            .foregroundColor(viewModel.editText.isEmpty ? OmiColors.textTertiary : .black)
-            .padding(.horizontal, OmiSpacing.xl)
-            .padding(.vertical, OmiSpacing.sm)
-            .background(viewModel.editText.isEmpty ? OmiColors.backgroundTertiary : Color.white)
-            .cornerRadius(OmiChrome.elementRadius)
-            .overlay(
-              RoundedRectangle(cornerRadius: OmiChrome.elementRadius)
-                .stroke(viewModel.editText.isEmpty ? Color.clear : OmiColors.border, lineWidth: 1)
-            )
-        }
-        .buttonStyle(.plain)
-        .disabled(viewModel.editText.isEmpty)
       }
     }
     .padding(OmiSpacing.xxl)

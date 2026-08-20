@@ -90,22 +90,6 @@ environments:
             secret:
               name: dev-omi-backend-secrets
               key: OMI_LLM_GATEWAY_SERVICE_TOKEN
-          MEMORY_MODE:
-            value: read
-            category: memory_rollout
-          MEMORY_ENABLED_USERS:
-            value: vi7SA9ckQCe4ccobWNxlbdcNdC23
-          # Next dogfood (re-enable soon): ,viUv7GtdoHXbK1UBCDlPuTDuPgJ2
-            category: memory_rollout
-          MEMORY_V3_GET_ENABLED:
-            value: 'true'
-            category: memory_rollout
-          MEMORY_CANONICAL_MAINTENANCE_ENABLED:
-            value: 'false'
-            category: memory_rollout
-          MEMORY_TYPESENSE_COLLECTION:
-            value: canonical_memory_atoms
-            category: memory_rollout
           LISTEN_FINALIZATION_ORPHAN_STALE_SECONDS:
             value: '900'
             category: reliability
@@ -198,8 +182,6 @@ environments:
         - .github/workflows/gcp_backend_auto_dev.yml
         - .github/workflows/gcp_backend.yml
         - .github/workflows/gcp_notifications_job.yml
-        - .github/workflows/gcp_memory_maintenance_job.yml
-        - .github/workflows/gcp_memory_maintenance_job_auto_dev.yml
       network:
         flags:
           --network: omi-dev-vpc-1
@@ -286,22 +268,6 @@ environments:
             POSTHOG_HOST:
               value: https://app.posthog.com
               category: telemetry
-            MEMORY_MODE:
-              value: read
-              category: memory_rollout
-            MEMORY_ENABLED_USERS:
-              value: vi7SA9ckQCe4ccobWNxlbdcNdC23
-            # Next dogfood (re-enable soon): ,viUv7GtdoHXbK1UBCDlPuTDuPgJ2
-              category: memory_rollout
-            MEMORY_V3_GET_ENABLED:
-              value: 'true'
-              category: memory_rollout
-            MEMORY_CANONICAL_MAINTENANCE_ENABLED:
-              value: 'false'
-              category: memory_rollout
-            MEMORY_TYPESENSE_COLLECTION:
-              value: canonical_memory_atoms
-              category: memory_rollout
             LISTEN_FINALIZATION_ORPHAN_STALE_SECONDS:
               value: '900'
               category: reliability
@@ -384,22 +350,6 @@ environments:
             POSTHOG_HOST:
               value: https://app.posthog.com
               category: telemetry
-            MEMORY_MODE:
-              value: read
-              category: memory_rollout
-            MEMORY_ENABLED_USERS:
-              value: vi7SA9ckQCe4ccobWNxlbdcNdC23
-            # Next dogfood (re-enable soon): ,viUv7GtdoHXbK1UBCDlPuTDuPgJ2
-              category: memory_rollout
-            MEMORY_V3_GET_ENABLED:
-              value: 'true'
-              category: memory_rollout
-            MEMORY_CANONICAL_MAINTENANCE_ENABLED:
-              value: 'false'
-              category: memory_rollout
-            MEMORY_TYPESENSE_COLLECTION:
-              value: canonical_memory_atoms
-              category: memory_rollout
             LISTEN_FINALIZATION_ORPHAN_STALE_SECONDS:
               value: '900'
               category: reliability
@@ -443,64 +393,6 @@ environments:
               version: latest
             OPENAI_API_KEY:
               secret: OPENAI_API_KEY
-              version: latest
-        memory-maintenance-job:
-          # Keep the known-good dev maintenance capacity in the checked-in deploy contract.
-          # These must not rely on a prior Cloud Run revision retaining live-only patches.
-          flags:
-            --task-timeout: 3600s
-            --cpu: '2'
-            --memory: 2Gi
-            --remove-env-vars: MEMORY_CANONICAL_PROMOTION_CRON_ENABLED,MEMORY_CANONICAL_PROMOTION_CRON_INTERVAL_HOURS,MEMORY_CANONICAL_PROMOTION_FAST_TRACK_ENABLED
-          env:
-            GOOGLE_CLOUD_PROJECT:
-              value: based-hardware
-            OMI_ENV_STAGE:
-              value: dev
-              category: runtime_identity
-            MEMORY_MODE:
-              value: read
-              category: memory_rollout
-            MEMORY_ENABLED_USERS:
-              value: vi7SA9ckQCe4ccobWNxlbdcNdC23
-            # Next dogfood (re-enable soon): ,viUv7GtdoHXbK1UBCDlPuTDuPgJ2
-              category: memory_rollout
-            MEMORY_V3_GET_ENABLED:
-              value: 'true'
-              category: memory_rollout
-            MEMORY_CANONICAL_MAINTENANCE_ENABLED:
-              value: 'true'
-              category: memory_rollout
-            MEMORY_CANONICAL_CONSOLIDATION_ENABLED:
-              value: 'true'
-              category: memory_rollout
-            MEMORY_TYPESENSE_COLLECTION:
-              value: canonical_memory_atoms
-              category: memory_rollout
-            TYPESENSE_HOST_PORT:
-              value: '443'
-              category: memory_rollout
-            PINECONE_INDEX_NAME:
-              value: memories-backend-dev
-              category: memory_rollout
-          secrets:
-            SERVICE_ACCOUNT_JSON:
-              secret: SERVICE_ACCOUNT_JSON
-              version: latest
-            ENCRYPTION_SECRET:
-              secret: ENCRYPTION_SECRET
-              version: latest
-            OPENAI_API_KEY:
-              secret: OPENAI_API_KEY
-              version: latest
-            PINECONE_API_KEY:
-              secret: PINECONE_API_KEY
-              version: latest
-            TYPESENSE_HOST:
-              secret: TYPESENSE_HOST
-              version: latest
-            TYPESENSE_API_KEY:
-              secret: TYPESENSE_API_KEY
               version: latest
   prod:
     gcp_project: based-hardware
@@ -605,21 +497,6 @@ environments:
             secret:
               name: prod-omi-backend-secrets
               key: OMI_LLM_GATEWAY_SERVICE_TOKEN
-          MEMORY_MODE:
-            value: "off"
-            category: memory_rollout
-          MEMORY_ENABLED_USERS:
-            value: ''
-            category: memory_rollout
-          MEMORY_V3_GET_ENABLED:
-            value: 'false'
-            category: memory_rollout
-          MEMORY_CANONICAL_MAINTENANCE_ENABLED:
-            value: 'false'
-            category: memory_rollout
-          MEMORY_TYPESENSE_COLLECTION:
-            value: canonical_memory_atoms
-            category: memory_rollout
           LISTEN_FINALIZATION_ORPHAN_STALE_SECONDS:
             value: '900'
             category: reliability
@@ -627,7 +504,6 @@ environments:
       workflow_files:
         - .github/workflows/gcp_backend.yml
         - .github/workflows/gcp_notifications_job.yml
-        - .github/workflows/gcp_memory_maintenance_job.yml
       network:
         flags:
           --network:
@@ -716,21 +592,6 @@ environments:
             POSTHOG_HOST:
               value: https://app.posthog.com
               category: telemetry
-            MEMORY_MODE:
-              value: "off"
-              category: memory_rollout
-            MEMORY_ENABLED_USERS:
-              value: ''
-              category: memory_rollout
-            MEMORY_V3_GET_ENABLED:
-              value: 'false'
-              category: memory_rollout
-            MEMORY_CANONICAL_MAINTENANCE_ENABLED:
-              value: 'false'
-              category: memory_rollout
-            MEMORY_TYPESENSE_COLLECTION:
-              value: canonical_memory_atoms
-              category: memory_rollout
             LISTEN_FINALIZATION_ORPHAN_STALE_SECONDS:
               value: '900'
               category: reliability
@@ -822,21 +683,6 @@ environments:
             POSTHOG_HOST:
               value: https://app.posthog.com
               category: telemetry
-            MEMORY_MODE:
-              value: "off"
-              category: memory_rollout
-            MEMORY_ENABLED_USERS:
-              value: ''
-              category: memory_rollout
-            MEMORY_V3_GET_ENABLED:
-              value: 'false'
-              category: memory_rollout
-            MEMORY_CANONICAL_MAINTENANCE_ENABLED:
-              value: 'false'
-              category: memory_rollout
-            MEMORY_TYPESENSE_COLLECTION:
-              value: canonical_memory_atoms
-              category: memory_rollout
             LISTEN_FINALIZATION_ORPHAN_STALE_SECONDS:
               value: '900'
               category: reliability
@@ -868,54 +714,4 @@ environments:
               version: latest
             OPENAI_API_KEY:
               secret: OPENAI_API_KEY
-              version: latest
-        memory-maintenance-job:
-          flags:
-            --remove-env-vars: MEMORY_CANONICAL_PROMOTION_CRON_ENABLED,MEMORY_CANONICAL_PROMOTION_CRON_INTERVAL_HOURS,MEMORY_CANONICAL_PROMOTION_FAST_TRACK_ENABLED
-          env:
-            OMI_ENV_STAGE:
-              value: prod
-              category: runtime_identity
-            MEMORY_MODE:
-              value: "off"
-              category: memory_rollout
-            MEMORY_ENABLED_USERS:
-              value: ''
-              category: memory_rollout
-            MEMORY_V3_GET_ENABLED:
-              value: 'false'
-              category: memory_rollout
-            MEMORY_CANONICAL_MAINTENANCE_ENABLED:
-              value: 'false'
-              category: memory_rollout
-            MEMORY_CANONICAL_CONSOLIDATION_ENABLED:
-              value: 'true'
-              category: memory_rollout
-            MEMORY_TYPESENSE_COLLECTION:
-              value: canonical_memory_atoms
-              category: memory_rollout
-            TYPESENSE_HOST_PORT:
-              value: '443'
-              category: memory_rollout
-            PINECONE_INDEX_NAME:
-              value: memories-backend
-              category: memory_rollout
-          secrets:
-            SERVICE_ACCOUNT_JSON:
-              secret: SERVICE_ACCOUNT_JSON
-              version: latest
-            ENCRYPTION_SECRET:
-              secret: ENCRYPTION_SECRET
-              version: latest
-            OPENAI_API_KEY:
-              secret: OPENAI_API_KEY
-              version: latest
-            PINECONE_API_KEY:
-              secret: PINECONE_API_KEY
-              version: latest
-            TYPESENSE_HOST:
-              secret: TYPESENSE_HOST
-              version: latest
-            TYPESENSE_API_KEY:
-              secret: TYPESENSE_API_KEY
               version: latest

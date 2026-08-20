@@ -716,7 +716,7 @@ actor FocusAssistant: ProactiveAssistant {
 
     // Recent memories
     do {
-      let memories = try await MemoryStorage.shared.getLocalMemories(limit: 50, category: "core")
+      let memories = try await MemoryStorage.shared.list(limit: 50)
       if !memories.isEmpty {
         var lines = ["RECENT MEMORIES:"]
         for (i, memory) in memories.enumerated() {
@@ -778,7 +778,7 @@ actor FocusAssistant: ProactiveAssistant {
 
   // MARK: - Storage
 
-  /// Save focus session to SQLite (both tables) and sync to backend.
+  /// Save focus session and its Memory assertion to their local authorities.
   /// Returns the inserted `focus_sessions` rowid so the caller can reuse it as
   /// the in-memory session id (see `FocusStorage.addSession(from:sqliteId:)`).
   @discardableResult
@@ -788,7 +788,12 @@ actor FocusAssistant: ProactiveAssistant {
     windowTitle: String? = nil,
     ownerID: String
   ) async -> Int64? {
-    guard RuntimeOwnerIdentity.currentOwnerId() == ownerID else { return nil }
+    guard RuntimeOwnerIdentity.currentOwnerId() == ownerID,
+      let snapshot = RuntimeOwnerIdentity.captureAuthorizationSnapshot(expectedOwnerID: ownerID)
+    else { return nil }
+    let authorization = LocalMutationAuthorization {
+      RuntimeOwnerIdentity.isAuthorizationCurrent(snapshot)
+    }
     // Save to focus_sessions table (for detailed tracking)
     let focusRecord = FocusSessionRecord(
       screenshotId: screenshotId,
@@ -810,44 +815,12 @@ actor FocusAssistant: ProactiveAssistant {
     }
 
     // Save to unified memories table (for search/filter)
-    let memoryId = await saveFocusToMemoriesTable(
+    _ = await saveFocusToMemoriesTable(
       analysis: analysis,
       screenshotId: screenshotId,
       windowTitle: windowTitle,
-      ownerID: ownerID)
-    guard RuntimeOwnerIdentity.currentOwnerId() == ownerID else { return focusSessionId }
-
-    // Sync to backend once and update both tables with backendId
-    if let backendMemory = await syncFocusSessionToBackend(
-      analysis: analysis,
-      windowTitle: windowTitle,
-      ownerID: ownerID)
-    {
-      guard RuntimeOwnerIdentity.currentOwnerId() == ownerID else { return focusSessionId }
-      // Update focus_sessions table
-      if let recordId = focusSessionId {
-        do {
-          try await ProactiveStorage.shared.updateFocusSessionSyncStatus(
-            id: recordId,
-            backendId: backendMemory.id,
-            synced: true
-          )
-          guard RuntimeOwnerIdentity.currentOwnerId() == ownerID else { return focusSessionId }
-        } catch {
-          logError("Focus: Failed to update focus_sessions sync status", error: error)
-        }
-      }
-
-      // Update memories table
-      if let memId = memoryId {
-        do {
-          try await MemoryStorage.shared.markSynced(id: memId, serverMemory: backendMemory)
-          guard RuntimeOwnerIdentity.currentOwnerId() == ownerID else { return focusSessionId }
-        } catch {
-          logError("Focus: Failed to update memories sync status", error: error)
-        }
-      }
-    }
+      ownerID: ownerID,
+      authorization: authorization)
     return focusSessionId
   }
 
@@ -857,7 +830,8 @@ actor FocusAssistant: ProactiveAssistant {
     analysis: ScreenAnalysis,
     screenshotId: Int64?,
     windowTitle: String? = nil,
-    ownerID: String
+    ownerID: String,
+    authorization: LocalMutationAuthorization
   ) async -> Int64? {
     guard RuntimeOwnerIdentity.currentOwnerId() == ownerID else { return nil }
     // Build content for the memory
@@ -874,81 +848,26 @@ actor FocusAssistant: ProactiveAssistant {
       tags.append("has-message")
     }
 
-    // Encode tags as JSON
-    let tagsJson: String?
-    if let data = try? JSONEncoder().encode(tags),
-      let json = String(data: data, encoding: .utf8)
-    {
-      tagsJson = json
-    } else {
-      tagsJson = nil
-    }
-
-    let memoryRecord = MemoryRecord(
-      backendSynced: false,
-      content: content,
-      category: "system",
-      tagsJson: tagsJson,
-      source: "desktop",
-      screenshotId: screenshotId,
-      sourceApp: analysis.appOrSite,
-      windowTitle: windowTitle,
-      contextSummary: analysis.description
-    )
-
     do {
-      let insertedMemory = try await MemoryStorage.shared.insertLocalMemory(memoryRecord)
-      guard RuntimeOwnerIdentity.currentOwnerId() == ownerID else { return nil }
-      log("Focus: Saved to memories (id: \(insertedMemory.id ?? -1)) with tags \(tags)")
-      return insertedMemory.id
+      let insertedMemory = try await MemoryStorage.shared.acceptAssertion(
+        MemoryAssertion(
+          content: content,
+          category: .system,
+          layer: .shortTerm,
+          tags: tags,
+          source: .focus,
+          screenshotId: screenshotId,
+          sourceApp: analysis.appOrSite,
+          windowTitle: windowTitle,
+          contextSummary: analysis.description),
+        authorization: authorization)
+      try authorization.require()
+      log("Focus: Saved to memories (id: \(insertedMemory.id)) with tags \(tags)")
+      return Int64(insertedMemory.id)
     } catch {
       logError("Focus: Failed to save to memories table", error: error)
       return nil
     }
   }
 
-  /// Sync focus session to backend as a memory with focus tags, returns backend ID if successful
-  private func syncFocusSessionToBackend(
-    analysis: ScreenAnalysis,
-    windowTitle: String? = nil,
-    ownerID: String
-  ) async -> ServerMemory? {
-    guard RuntimeOwnerIdentity.currentOwnerId() == ownerID else { return nil }
-    do {
-      // Build content for the memory
-      let statusText = analysis.status == .focused ? "Focused" : "Distracted"
-      let content = "\(statusText) on \(analysis.appOrSite): \(analysis.description)"
-
-      // Build tags: ["focus", "focused"/"distracted", "app:{appName}"]
-      let statusTag = analysis.status == .focused ? "focused" : "distracted"
-      let appTag = "app:\(analysis.appOrSite)"
-      var tags = ["focus", statusTag, appTag]
-
-      // Add message indicator if present
-      if let message = analysis.message, !message.isEmpty {
-        tags.append("has-message")
-      }
-
-      let response = try await APIClient.shared.createMemory(
-        content: content,
-        category: .system,
-        tags: tags,
-        source: "desktop",
-        windowTitle: windowTitle,
-        expectedOwnerId: ownerID
-      )
-      guard RuntimeOwnerIdentity.currentOwnerId() == ownerID else { return nil }
-
-      log("Focus: Synced as memory to backend (id: \(response.id))")
-      return response
-    } catch {
-      logError("Focus: Failed to sync to backend", error: error)
-      return nil
-    }
-  }
 }
-
-// MARK: - Backward Compatibility
-
-/// Alias for backward compatibility
-typealias GeminiService = FocusAssistant
