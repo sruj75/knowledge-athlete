@@ -4,8 +4,11 @@ tier: 2
 description: Redesigned Home stage transitions (hub/chat) via automation bridge
 app: non-prod
 covers:
+  - desktop/macos/Desktop/Sources/Chat/ScreenContextTelemetry.swift
+  - desktop/macos/Desktop/Sources/MainWindow/CaptureListeningControls.swift
   - desktop/macos/Desktop/Sources/ProactiveAssistants/Services/AIUserProfileService.swift
   - desktop/macos/Desktop/Sources/MainWindow/Components/ChatMessagesView.swift
+  - desktop/macos/Desktop/Sources/MainWindow/HomeStatusControls.swift
   - desktop/macos/Desktop/Sources/MainWindow/Pages/DashboardPage.swift
   - desktop/macos/Desktop/Sources/MainWindow/Pages/HomeStagePresentation.swift
   - desktop/macos/Desktop/Sources/MainWindow/Pages/HomeStatusStore.swift

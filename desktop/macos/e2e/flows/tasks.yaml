@@ -7,7 +7,17 @@ covers:
   - desktop/macos/Desktop/Sources/MainWindow/Pages/TasksPage.swift
   - desktop/macos/Desktop/Sources/MainWindow/Pages/TaskDetailViews.swift
   - desktop/macos/Desktop/Sources/Stores/TasksStore.swift
+  - desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/TaskExtraction/TaskAssistant.swift
+  - desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/TaskExtraction/TaskAssistantSettings.swift
+  - desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/TaskExtraction/TaskModels.swift
+  - desktop/macos/Desktop/Sources/ProactiveAssistants/Core/AssistantCoordinator.swift
+  - desktop/macos/Desktop/Sources/ProactiveAssistants/Services/EmbeddingService.swift
+  - desktop/macos/Desktop/Sources/ProactiveAssistants/UI/TaskTestRunnerWindow.swift
   - desktop/macos/Desktop/Sources/Rewind/Core/ActionItemStorage.swift
+  - desktop/macos/Desktop/Sources/Rewind/Core/ActionItemModels.swift
+  - desktop/macos/Desktop/Sources/Rewind/Core/ObservationRecord.swift
+  - desktop/macos/Desktop/Sources/TaskActionItem.swift
+  - desktop/macos/Desktop/Sources/Theme/OmiTextEditor.swift
   - desktop/macos/Desktop/Sources/ProactiveAssistants/Services/TaskReminderService.swift
 preconditions:
   - auth_ready

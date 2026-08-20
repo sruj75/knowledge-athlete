@@ -5,6 +5,7 @@ description: Simple local goal create, edit, complete, Chat context, and restart
 app: non-prod
 covers:
   - desktop/macos/Desktop/Sources/MainWindow/Components/GoalsWidget.swift
+  - desktop/macos/Desktop/Sources/Rewind/Core/GoalRecord.swift
   - desktop/macos/Desktop/Sources/Rewind/Core/GoalStorage.swift
   - desktop/macos/Desktop/Sources/Providers/ChatProvider.swift
 preconditions:
