@@ -22,7 +22,7 @@ final class DailyRecapLocalAuthorityTests: XCTestCase {
     let owner = try makeOwner()
     defer { owner.cleanup() }
     var calendar = Calendar(identifier: .gregorian)
-    calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+    calendar.timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: 0))
     let now = Date(timeIntervalSince1970: 1_704_283_200)  // 2024-01-03 12:00 UTC
     let previousDay = Date(timeIntervalSince1970: 1_704_196_800)  // 2024-01-02 12:00 UTC
     try await seed(owner.pool, at: previousDay)
