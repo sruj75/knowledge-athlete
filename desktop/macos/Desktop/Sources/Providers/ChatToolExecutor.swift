@@ -1164,15 +1164,12 @@ class ChatToolExecutor {
     guard let query = args["query"] as? String, !query.isEmpty else {
       return "Error: query is required"
     }
-
     let days = max(1, intArgument(args["days"]) ?? 7)
     let appFilter = args["app_filter"] as? String
     let limit = min(max(1, intArgument(args["limit"]) ?? 15), 50)
-
     let calendar = Calendar.current
     let endDate = Date()
     let startDate = calendar.date(byAdding: .day, value: -days, to: endDate) ?? endDate
-
     do {
       guard let authorizationSnapshot = currentOwnerAuthorizationSnapshot else {
         return authorizedOwnerChangedResult()
@@ -1186,7 +1183,6 @@ class ChatToolExecutor {
         authorizationSnapshot: authorizationSnapshot
       )
       guard isExpectedOwnerCurrent(expectedOwnerID) else { return authorizedOwnerChangedResult() }
-
       log("Tool semantic_search: vector returned \(vectorResults.count) results")
 
       // Filter by similarity threshold and fetch screenshot details
