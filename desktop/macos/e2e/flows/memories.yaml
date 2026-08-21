@@ -17,6 +17,7 @@ covers:
   - desktop/macos/Desktop/Sources/Rewind/Core/MemoryStorage.swift
   - desktop/macos/Desktop/Sources/Rewind/Core/MemoryStorage+Semantic.swift
   - desktop/macos/Desktop/Sources/Rewind/Core/RewindDatabase+MemoryLocalAuthority.swift
+  - desktop/macos/Desktop/Sources/Rewind/Services/OCREmbeddingService.swift
   - desktop/macos/Desktop/Sources/Services/APIClient/APIClient+MemoryCompute.swift
 preconditions:
   - auth_ready

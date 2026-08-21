@@ -113,8 +113,11 @@ actor RewindIndexer {
     setupPowerMonitorCallback()
 
     // Kick off OCR embedding backfill in background
-    Task(priority: .background) {
-      await OCREmbeddingService.shared.backfillIfNeeded()
+    if let authorizationSnapshot = RuntimeOwnerIdentity.captureAuthorizationSnapshot() {
+      Task(priority: .background) {
+        await OCREmbeddingService.shared.backfillIfNeeded(
+          authorizationSnapshot: authorizationSnapshot)
+      }
     }
 
     // Reduce ocrDataJson float precision for existing rows (one-time migration)
@@ -330,9 +333,15 @@ actor RewindIndexer {
 
       // Embed OCR text for semantic search (non-blocking)
       if let ocrText = ocrText, !ocrText.isEmpty, let id = inserted.id {
-        Task(priority: .utility) {
-          await OCREmbeddingService.shared.embedScreenshot(
-            id: id, ocrText: ocrText, appName: frame.appName, windowTitle: frame.windowTitle)
+        if let authorizationSnapshot = RuntimeOwnerIdentity.captureAuthorizationSnapshot() {
+          Task(priority: .utility) {
+            await OCREmbeddingService.shared.embedScreenshot(
+              id: id,
+              ocrText: ocrText,
+              appName: frame.appName,
+              windowTitle: frame.windowTitle,
+              authorizationSnapshot: authorizationSnapshot)
+          }
         }
       }
 
@@ -420,9 +429,15 @@ actor RewindIndexer {
 
       // Embed OCR text for semantic search (non-blocking)
       if let ocrText = ocrText, !ocrText.isEmpty, let id = inserted.id {
-        Task(priority: .utility) {
-          await OCREmbeddingService.shared.embedScreenshot(
-            id: id, ocrText: ocrText, appName: appName, windowTitle: windowTitle)
+        if let authorizationSnapshot = RuntimeOwnerIdentity.captureAuthorizationSnapshot() {
+          Task(priority: .utility) {
+            await OCREmbeddingService.shared.embedScreenshot(
+              id: id,
+              ocrText: ocrText,
+              appName: appName,
+              windowTitle: windowTitle,
+              authorizationSnapshot: authorizationSnapshot)
+          }
         }
       }
 
@@ -546,9 +561,15 @@ actor RewindIndexer {
 
       // Embed OCR text for semantic search (non-blocking)
       if let ocrText = ocrText, !ocrText.isEmpty, let id = inserted.id {
-        Task(priority: .utility) {
-          await OCREmbeddingService.shared.embedScreenshot(
-            id: id, ocrText: ocrText, appName: frame.appName, windowTitle: frame.windowTitle)
+        if let authorizationSnapshot = RuntimeOwnerIdentity.captureAuthorizationSnapshot() {
+          Task(priority: .utility) {
+            await OCREmbeddingService.shared.embedScreenshot(
+              id: id,
+              ocrText: ocrText,
+              appName: frame.appName,
+              windowTitle: frame.windowTitle,
+              authorizationSnapshot: authorizationSnapshot)
+          }
         }
       }
 

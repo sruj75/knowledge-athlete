@@ -297,10 +297,10 @@ actor EmbeddingService {
   // MARK: - Backfill
 
   /// Batch-embed all ordinary local tasks missing embeddings.
-  func backfillIfNeeded() async {
-    guard let authorizationSnapshot = RuntimeOwnerIdentity.captureAuthorizationSnapshot() else {
-      return
-    }
+  func backfillIfNeeded(
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async {
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
     let batchSize = 100
     var totalProcessed = 0
 

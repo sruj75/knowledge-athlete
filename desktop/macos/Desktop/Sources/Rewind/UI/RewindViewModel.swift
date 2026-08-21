@@ -215,6 +215,11 @@ class RewindViewModel: ObservableObject {
     let calendar = Calendar.current
     let startDate = calendar.startOfDay(for: selectedDate)
     let endDate = calendar.date(byAdding: .day, value: 1, to: startDate)!
+    guard let authorizationSnapshot = RuntimeOwnerIdentity.captureAuthorizationSnapshot() else {
+      screenshots = []
+      isSearching = false
+      return
+    }
 
     searchTask = Task {
       do {
@@ -231,7 +236,8 @@ class RewindViewModel: ObservableObject {
           startDate: startDate,
           endDate: endDate,
           appFilter: selectedApp,
-          topK: 50
+          topK: 50,
+          authorizationSnapshot: authorizationSnapshot
         )
 
         let fts = try await ftsResults

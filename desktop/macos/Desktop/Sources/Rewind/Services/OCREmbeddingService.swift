@@ -116,9 +116,15 @@ actor OCREmbeddingService {
   /// Queue a screenshot for batched embedding instead of embedding immediately.
   /// Screenshots are accumulated and flushed every 60 seconds or when the
   /// buffer reaches 100 items, whichever comes first.
-  func embedScreenshot(id: Int64, ocrText: String, appName: String, windowTitle: String?) async {
+  func embedScreenshot(
+    id: Int64,
+    ocrText: String,
+    appName: String,
+    windowTitle: String?,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async {
     guard ocrText.count >= minTextLength else { return }
-    guard let authorizationSnapshot = RuntimeOwnerIdentity.captureAuthorizationSnapshot() else { return }
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
 
     let formatted = Self.formatForEmbedding(ocrText: ocrText, appName: appName, windowTitle: windowTitle)
     let hash = Self.contentHash(formatted)
@@ -137,7 +143,7 @@ actor OCREmbeddingService {
 
     // Force flush if we hit the batch limit
     if pendingItems.count >= maxPendingItems {
-      await flushPendingEmbeddings()
+      await flushPendingEmbeddings(authorizationSnapshot: authorizationSnapshot)
     } else {
       startFlushTimerIfNeeded()
     }
@@ -146,15 +152,18 @@ actor OCREmbeddingService {
   /// Start a timer to flush pending embeddings after the flush interval
   private func startFlushTimerIfNeeded() {
     guard flushTask == nil else { return }
+    guard let authorizationSnapshot = pendingItems.first?.authorizationSnapshot else { return }
     flushTask = Task {
       try? await Task.sleep(nanoseconds: flushIntervalNanos)
       guard !Task.isCancelled else { return }
-      await self.flushPendingEmbeddings()
+      await self.flushPendingEmbeddings(authorizationSnapshot: authorizationSnapshot)
     }
   }
 
   /// Flush all pending screenshots: deduplicate, batch-embed, store results
-  func flushPendingEmbeddings() async {
+  func flushPendingEmbeddings(
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async {
     flushTask?.cancel()
     flushTask = nil
 
@@ -169,8 +178,7 @@ actor OCREmbeddingService {
     // Take the current batch and clear the buffer
     let batch = pendingItems
     pendingItems = []
-    guard let authorizationSnapshot = batch.first?.authorizationSnapshot,
-      batch.allSatisfy({ $0.authorizationSnapshot == authorizationSnapshot }),
+    guard batch.allSatisfy({ $0.authorizationSnapshot == authorizationSnapshot }),
       RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
     else { return }
 
@@ -251,7 +259,9 @@ actor OCREmbeddingService {
         // Re-queue failed items for next flush — but only if we are still the
         // same owner. Re-queueing across a retarget would seed the next owner's
         // buffer with the previous owner's rowids.
-        guard generation == ownerGeneration else {
+        guard generation == ownerGeneration,
+          RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
+        else {
           log("OCREmbeddingService: Owner changed mid-flush — not re-queueing \(chunk.count) stale items")
           return
         }
@@ -270,11 +280,19 @@ actor OCREmbeddingService {
 
   /// Backfill embeddings for existing screenshots that have OCR text but no embedding.
   /// Capped at 5000 items per launch to prevent cost spikes.
-  func backfillIfNeeded() async {
-    guard let authorizationSnapshot = RuntimeOwnerIdentity.captureAuthorizationSnapshot() else { return }
+  func backfillIfNeeded(
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async {
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
+    let generation = ownerGeneration
     do {
+      guard generation == ownerGeneration,
+        RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
+      else { return }
       let status = try await RewindDatabase.shared.getScreenshotEmbeddingBackfillStatus()
-      guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
+      guard generation == ownerGeneration,
+        RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
+      else { return }
       if status.completed {
         log("OCREmbeddingService: Backfill already complete, skipping")
         return
@@ -289,8 +307,13 @@ actor OCREmbeddingService {
       var hitError = false
 
       while processedThisLaunch < maxItemsPerLaunch {
+        guard generation == ownerGeneration,
+          RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
+        else { return }
         let items = try await RewindDatabase.shared.getScreenshotsMissingEmbeddings(limit: batchSize)
-        guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
+        guard generation == ownerGeneration,
+          RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
+        else { return }
         if items.isEmpty { break }
 
         let itemsToProcess = items
@@ -319,11 +342,18 @@ actor OCREmbeddingService {
         }
 
         for (i, embedding) in embeddings.enumerated() where i < itemsToProcess.count {
-          guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
+          guard generation == ownerGeneration,
+            RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
+          else { return }
           let item = itemsToProcess[i]
           let data = await EmbeddingService.shared.floatsToData(embedding)
+          guard generation == ownerGeneration,
+            RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
+          else { return }
           try await RewindDatabase.shared.updateScreenshotEmbedding(id: item.id, embedding: data)
-          guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
+          guard generation == ownerGeneration,
+            RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
+          else { return }
         }
 
         totalProcessed += itemsToProcess.count
@@ -331,30 +361,60 @@ actor OCREmbeddingService {
 
         // Update progress every 1000 items
         if totalProcessed % 1000 < batchSize {
+          guard generation == ownerGeneration,
+            RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
+          else { return }
           try await RewindDatabase.shared.updateScreenshotEmbeddingBackfillStatus(
             completed: false, processedCount: totalProcessed)
+          guard generation == ownerGeneration,
+            RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
+          else { return }
           log(
             "OCREmbeddingService: Backfill progress: \(totalProcessed) items (\(processedThisLaunch)/\(maxItemsPerLaunch) this launch)"
           )
         }
 
         // Rate limiting delay between batches
+        guard generation == ownerGeneration,
+          RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
+        else { return }
         try await Task.sleep(nanoseconds: 200_000_000)  // 200ms
+        guard generation == ownerGeneration,
+          RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
+        else { return }
       }
 
       if processedThisLaunch >= maxItemsPerLaunch {
+        guard generation == ownerGeneration,
+          RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
+        else { return }
         try await RewindDatabase.shared.updateScreenshotEmbeddingBackfillStatus(
           completed: false, processedCount: totalProcessed)
+        guard generation == ownerGeneration,
+          RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
+        else { return }
         log(
           "OCREmbeddingService: Backfill paused at \(totalProcessed) items (cap of \(maxItemsPerLaunch)/launch reached), will continue on next launch"
         )
       } else if hitError {
+        guard generation == ownerGeneration,
+          RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
+        else { return }
         try await RewindDatabase.shared.updateScreenshotEmbeddingBackfillStatus(
           completed: false, processedCount: totalProcessed)
+        guard generation == ownerGeneration,
+          RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
+        else { return }
         log("OCREmbeddingService: Backfill paused at \(totalProcessed) items due to error, will resume on next launch")
       } else {
+        guard generation == ownerGeneration,
+          RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
+        else { return }
         try await RewindDatabase.shared.updateScreenshotEmbeddingBackfillStatus(
           completed: true, processedCount: totalProcessed)
+        guard generation == ownerGeneration,
+          RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
+        else { return }
         log("OCREmbeddingService: Backfill complete — \(totalProcessed) items embedded")
       }
 
@@ -374,14 +434,18 @@ actor OCREmbeddingService {
     startDate: Date,
     endDate: Date,
     appFilter: String? = nil,
-    topK: Int = 50
+    topK: Int = 50,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
   ) async throws -> [(screenshotId: Int64, similarity: Float)] {
-    guard let authorizationSnapshot = RuntimeOwnerIdentity.captureAuthorizationSnapshot() else {
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else {
       throw LocalMutationAuthorizationError.revoked
     }
+    let generation = ownerGeneration
     // Flush any pending embeddings before searching so recent screenshots are findable
-    await flushPendingEmbeddings()
-    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else {
+    await flushPendingEmbeddings(authorizationSnapshot: authorizationSnapshot)
+    guard generation == ownerGeneration,
+      RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
+    else {
       throw LocalMutationAuthorizationError.revoked
     }
 
@@ -396,6 +460,11 @@ actor OCREmbeddingService {
     var topResults: [(screenshotId: Int64, similarity: Float)] = []
 
     while true {
+      guard generation == ownerGeneration,
+        RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
+      else {
+        throw LocalMutationAuthorizationError.revoked
+      }
       let batch = try await RewindDatabase.shared.readEmbeddingBatch(
         startDate: startDate,
         endDate: endDate,
@@ -403,7 +472,9 @@ actor OCREmbeddingService {
         limit: batchSize,
         offset: offset
       )
-      guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else {
+      guard generation == ownerGeneration,
+        RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
+      else {
         throw LocalMutationAuthorizationError.revoked
       }
 

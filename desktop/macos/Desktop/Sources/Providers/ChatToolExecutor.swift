@@ -1174,12 +1174,16 @@ class ChatToolExecutor {
     let startDate = calendar.date(byAdding: .day, value: -days, to: endDate) ?? endDate
 
     do {
+      guard let authorizationSnapshot = currentOwnerAuthorizationSnapshot else {
+        return authorizedOwnerChangedResult()
+      }
       let vectorResults = try await OCREmbeddingService.shared.searchSimilar(
         query: query,
         startDate: startDate,
         endDate: endDate,
         appFilter: appFilter,
-        topK: max(limit * 2, 20)
+        topK: max(limit * 2, 20),
+        authorizationSnapshot: authorizationSnapshot
       )
       guard isExpectedOwnerCurrent(expectedOwnerID) else { return authorizedOwnerChangedResult() }
 
