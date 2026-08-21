@@ -99,13 +99,13 @@ final class PTTBatchLanguagePolicyTests: XCTestCase {
     XCTAssertTrue(snapshot.keywords.contains("Private"))
     XCTAssertTrue(snapshot.keywords.contains("words"))
     XCTAssertEqual(
-      PushToTalkManager.batchContextKeywords(
+      PTTBatchTranscriptionPolicy.backendContextKeywords(
         contextSnapshot: nil,
         settingsVocabulary: ["Hypermind"]),
       ["Hypermind"],
       "slow OCR must not suppress explicit Settings vocabulary")
     XCTAssertEqual(
-      PushToTalkManager.batchContextKeywords(
+      PTTBatchTranscriptionPolicy.backendContextKeywords(
         contextSnapshot: snapshot,
         settingsVocabulary: ["changed-after-capture"]),
       ["Hypermind"])

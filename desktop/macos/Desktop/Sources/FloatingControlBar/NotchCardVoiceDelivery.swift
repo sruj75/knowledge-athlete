@@ -138,7 +138,7 @@ final class NotchCardVoiceDelivery {
   /// The untrusted framing matters more here than anywhere else: this is the one path that
   /// injects card text into a live session automatically, without the user having tapped
   /// anything. `text` already arrives wrapped by
-  /// `FloatingControlBarWindow.untrustedNotificationContextBlock`, so this only adds the
+  /// `FloatingBarNotificationContextFormatter.untrustedBlock`, so this only adds the
   /// delivery framing and must not re-assert authority over it.
   static func contextBlock(for text: String) -> String {
     """

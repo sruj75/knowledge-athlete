@@ -316,24 +316,6 @@ class PushToTalkManager: ObservableObject {
     return false
   }
 
-  nonisolated static func captureTerminal(
-    for reason: VoiceTurnTerminalReason
-  ) -> PTTCaptureAudioTransition.Terminal {
-    switch reason {
-    case .success:
-      return .completed
-    case .ownerChanged:
-      return .ownerChanged
-    case .cancelled, .interruptedByBargeIn, .explicitInterrupt, .cleanup:
-      return .cancelled
-    case .tooShort, .silentRejected, .permissionDenied, .captureFailed,
-      .transcriptionFailed, .providerFailed, .providerNoResponse, .hubWarmTimeout,
-      .deferredCommitTimeout, .bargeInReplacementTimeout, .toolTimeout,
-      .playbackFailed, .journalFailed:
-      return .failed
-    }
-  }
-
   private init() {}
 
   private nonisolated static func playCaptureCue(named name: NSSound.Name) {
@@ -753,7 +735,7 @@ class PushToTalkManager: ObservableObject {
 
   private func performTerminalCleanup(reason: VoiceTurnTerminalReason) {
     // Always restore audio on teardown (cancel, error, cleanup) so we never leave it muted.
-    captureAudioTransition.end(Self.captureTerminal(for: reason))
+    captureAudioTransition.end(PTTCaptureAudioTransition.terminal(for: reason))
     let discardBufferedAudio = reason == .ownerChanged
     contextCaptureTask?.cancel()
     contextCaptureTask = nil
@@ -1145,7 +1127,7 @@ class PushToTalkManager: ObservableObject {
       audioData: audioData,
       voiceLanguages: voiceLanguages,
       verdictCode: verdict?.languageCode,
-      contextKeywords: Self.batchContextKeywords(
+      contextKeywords: PTTBatchTranscriptionPolicy.backendContextKeywords(
         contextSnapshot: currentContextSnapshot,
         settingsVocabulary: settings.effectiveVocabulary),
       isAuthorized: { self.voiceTurnCoordinator.activeTurnID == turnID }
@@ -1155,13 +1137,6 @@ class PushToTalkManager: ObservableObject {
         language: language,
         contextKeywords: keywords)
     }
-  }
-
-  nonisolated static func batchContextKeywords(
-    contextSnapshot: PTTContextSnapshot?,
-    settingsVocabulary: [String]
-  ) -> [String] {
-    contextSnapshot?.backendKeywords ?? settingsVocabulary
   }
 
   private func continueFinalization() {

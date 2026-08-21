@@ -26,7 +26,7 @@ final class UntrustedNotificationContextTests: XCTestCase {
   // MARK: - Typed / non-hub wrapper
 
   private func typedBlock(title: String = "Visible title", body: String, provenance: String = "") -> String {
-    FloatingControlBarManager.untrustedNotificationContextBlock(
+    FloatingBarNotificationContextFormatter.untrustedBlock(
       title: title,
       message: body,
       provenance: provenance)

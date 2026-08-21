@@ -4,6 +4,13 @@ import Foundation
 /// recovery route. Ambient meeting-transcription settings are intentionally not
 /// an input.
 enum PTTBatchTranscriptionPolicy {
+  static func backendContextKeywords(
+    contextSnapshot: PTTContextSnapshot?,
+    settingsVocabulary: [String]
+  ) -> [String] {
+    contextSnapshot?.backendKeywords ?? settingsVocabulary
+  }
+
   @MainActor
   static func transcribe(
     audioData: Data,

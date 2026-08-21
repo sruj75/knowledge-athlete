@@ -83,11 +83,11 @@ final class PTTCaptureCueLifecycleTests: XCTestCase {
   }
 
   func testVoiceTerminalReasonsMapToNamedCaptureSemantics() {
-    XCTAssertEqual(PushToTalkManager.captureTerminal(for: .success), .completed)
-    XCTAssertEqual(PushToTalkManager.captureTerminal(for: .ownerChanged), .ownerChanged)
-    XCTAssertEqual(PushToTalkManager.captureTerminal(for: .cancelled), .cancelled)
-    XCTAssertEqual(PushToTalkManager.captureTerminal(for: .tooShort), .failed)
-    XCTAssertEqual(PushToTalkManager.captureTerminal(for: .providerFailed), .failed)
+    XCTAssertEqual(PTTCaptureAudioTransition.terminal(for: .success), .completed)
+    XCTAssertEqual(PTTCaptureAudioTransition.terminal(for: .ownerChanged), .ownerChanged)
+    XCTAssertEqual(PTTCaptureAudioTransition.terminal(for: .cancelled), .cancelled)
+    XCTAssertEqual(PTTCaptureAudioTransition.terminal(for: .tooShort), .failed)
+    XCTAssertEqual(PTTCaptureAudioTransition.terminal(for: .providerFailed), .failed)
   }
 
   func testEndWithoutAStartedCaptureOnlyRestoresOutput() {

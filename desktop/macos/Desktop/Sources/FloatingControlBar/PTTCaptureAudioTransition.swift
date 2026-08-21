@@ -1,4 +1,5 @@
 import Foundation
+import VoiceTurnDomain
 
 /// Owns only the audible transition around a real PTT capture. The voice-turn
 /// reducer remains the lifecycle authority; this seam makes the ordering of the
@@ -9,6 +10,22 @@ final class PTTCaptureAudioTransition {
     case cancelled
     case failed
     case ownerChanged
+  }
+
+  static func terminal(for reason: VoiceTurnTerminalReason) -> Terminal {
+    switch reason {
+    case .success:
+      return .completed
+    case .ownerChanged:
+      return .ownerChanged
+    case .cancelled, .interruptedByBargeIn, .explicitInterrupt, .cleanup:
+      return .cancelled
+    case .tooShort, .silentRejected, .permissionDenied, .captureFailed,
+      .transcriptionFailed, .providerFailed, .providerNoResponse, .hubWarmTimeout,
+      .deferredCommitTimeout, .bargeInReplacementTimeout, .toolTimeout,
+      .playbackFailed, .journalFailed:
+      return .failed
+    }
   }
 
   private let playStartCue: () -> Void
