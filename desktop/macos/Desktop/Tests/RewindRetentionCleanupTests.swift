@@ -15,24 +15,20 @@ final class RewindRetentionCleanupTests: XCTestCase {
   private var testUserId: String!
   private var userDir: URL!
   private var savedRetentionDays: Int = 7
+  private var ownerFixture: RuntimeOwnerAuthorityTestFixture?
+  private var storageFixture: RewindStorageTestIsolation.Fixture?
 
   override func setUp() async throws {
     try await super.setUp()
 
-    // Isolate all Rewind storage to a unique throwaway user so we never touch
-    // real recordings (storage is keyed by userId, not bundle id).
-    testUserId = "retention-test-\(UUID().uuidString)"
-    RewindDatabase.currentUserId = testUserId
-    try await RewindDatabase.shared.initialize()
+    storageFixture = try await RewindStorageTestIsolation.setUp(
+      userIdPrefix: "retention-test")
+    let storageFixture = try XCTUnwrap(storageFixture)
+    testUserId = storageFixture.testUserId
+    userDir = storageFixture.userDir
+    ownerFixture = await MainActor.run { RuntimeOwnerAuthorityTestFixture() }
+    try await XCTUnwrap(ownerFixture).establish(authOwnerID: testUserId)
     try await RewindStorage.shared.initialize()
-
-    let appSupport = FileManager.default
-      .urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-    userDir =
-      appSupport
-      .appendingPathComponent("Omi", isDirectory: true)
-      .appendingPathComponent("users", isDirectory: true)
-      .appendingPathComponent(testUserId, isDirectory: true)
 
     // Pin retention to a known value so the test is deterministic.
     savedRetentionDays = RewindSettings.shared.retentionDays
@@ -41,8 +37,12 @@ final class RewindRetentionCleanupTests: XCTestCase {
 
   override func tearDown() async throws {
     RewindSettings.shared.retentionDays = savedRetentionDays
-    if let userDir { try? FileManager.default.removeItem(at: userDir) }
-    RewindDatabase.currentUserId = nil
+    if let ownerFixture {
+      await ownerFixture.restore()
+    }
+    ownerFixture = nil
+    await RewindStorageTestIsolation.tearDown(userDir: storageFixture?.userDir)
+    storageFixture = nil
     try await super.tearDown()
   }
 
@@ -80,7 +80,10 @@ final class RewindRetentionCleanupTests: XCTestCase {
         frameOffset: 0, isIndexed: true))
 
     // Exercise the exact production cleanup that the fix now schedules.
-    await RewindIndexer.shared.runCleanup()
+    let authorizationSnapshot = try XCTUnwrap(
+      RuntimeOwnerIdentity.captureAuthorizationSnapshot(expectedOwnerID: testUserId))
+    await RewindIndexer.shared.runCleanup(
+      authorizationSnapshot: authorizationSnapshot)
 
     XCTAssertFalse(
       fm.fileExists(atPath: oldPath),

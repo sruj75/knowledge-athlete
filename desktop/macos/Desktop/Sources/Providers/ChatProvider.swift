@@ -3772,6 +3772,13 @@ class ChatProvider: ObservableObject {
       errorMessage = "Sign in again to continue."
       return nil
     }
+    guard
+      let turnAuthorizationSnapshot = RuntimeOwnerIdentity.captureAuthorizationSnapshot(
+        expectedOwnerID: capturedRuntimeOwnerID)
+    else {
+      errorMessage = "Sign in again to continue."
+      return nil
+    }
     let usesMainComposer = turnOwner == .mainChat && surfaceRef == nil
     let submittedDraftKey = activeDraftKey
     let submittedIsDefaultChat = isInDefaultChat
@@ -4265,7 +4272,8 @@ class ChatProvider: ObservableObject {
             )
           } else {
             let rawScreenContextPayloadBox = await ScreenContextWorkContextBuilder.payloadBox(
-              arguments: RuntimeJSONPayloadBox(["minutes": 10])
+              arguments: RuntimeJSONPayloadBox(["minutes": 10]),
+              authorizationSnapshot: turnAuthorizationSnapshot
             )
             let rawScreenContextPayload = rawScreenContextPayloadBox.value
             screenContextPayload = ScreenContextWorkContextBuilder.ambientPayload(from: rawScreenContextPayload)

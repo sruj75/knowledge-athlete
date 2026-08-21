@@ -213,6 +213,42 @@ final class LocalMutationAuthorizationTests: XCTestCase {
       ])
   }
 
+  func testReadLeaseKeepsOwnerTransitionParkedUntilPhysicalReadFinishes() async throws {
+    let probe = EffectiveOwnerTransitionProbe()
+    let readEntered = OwnerTransitionTestGate()
+    let allowReadToFinish = OwnerTransitionTestGate()
+    let authorization = LocalMutationAuthorization {
+      probe.owner() == "owner-a"
+    }
+
+    let read = Task {
+      try await authorization.withReadLease {
+        await readEntered.open()
+        await allowReadToFinish.wait()
+        return probe.owner()
+      }
+    }
+
+    await readEntered.wait()
+    let transition = Task {
+      try await EffectiveOwnerTransitionFence.shared.performEffectiveOwnerTransition(
+        currentOwner: { probe.owner() },
+        plannedNextOwner: { _ in "owner-b" },
+        quiescePreviousOwner: { _, _ in },
+        transition: { probe.setOwner("owner-b") },
+        retargetLocalStorage: { _, _ in },
+        ownerDidChange: {})
+    }
+    await EffectiveOwnerTransitionFence.shared.waitUntilTransitionIsPending()
+
+    XCTAssertEqual(probe.owner(), "owner-a")
+    await allowReadToFinish.open()
+    let readOwner = try await read.value
+    XCTAssertEqual(readOwner, "owner-a")
+    try await transition.value
+    XCTAssertEqual(probe.owner(), "owner-b")
+  }
+
   private func assertRevoked(
     _ operation: () async throws -> Void,
     file: StaticString = #filePath,

@@ -89,7 +89,13 @@ actor SuggestionAssistant: ProactiveAssistant {
 
   // MARK: - Trigger
 
-  func onContextSwitch(departingFrame: CapturedFrame?, newApp: String, newWindowTitle: String?) async {
+  func onContextSwitch(
+    departingFrame: CapturedFrame?,
+    newApp: String,
+    newWindowTitle: String?,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async {
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
     pendingContextSwitchAt = Date()
     pendingApp = newApp
     pendingWindowTitle = newWindowTitle
@@ -103,13 +109,21 @@ actor SuggestionAssistant: ProactiveAssistant {
     return true
   }
 
-  func analyze(frame: CapturedFrame) async -> AssistantResult? {
+  func analyze(
+    frame: CapturedFrame,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async -> AssistantResult? {
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return nil }
     guard pendingContextSwitchAt != nil else { return nil }
 
     let enabled = await isEnabled
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return nil }
     let excluded = await MainActor.run { SuggestionAssistantSettings.shared.isAppExcluded(frame.appName) }
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return nil }
     let snoozed = await MainActor.run { FloatingControlBarManager.shared.isSnoozed }
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return nil }
     let cooldown = await cooldownInterval
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return nil }
 
     let now = Date()
     let dwell = pendingContextSwitchAt.map { now.timeIntervalSince($0) } ?? 0
@@ -129,8 +143,10 @@ actor SuggestionAssistant: ProactiveAssistant {
 
     guard decision.allowsEvaluation else {
       await MainActor.run {
+        guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
         AnalyticsManager.shared.suggestionAssistantGateOutcome(.init(decision))
       }
+      guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return nil }
       // Dwell and cooldown are "not yet", so the pending context survives to be retried on
       // a later frame. Everything else is "not at all" and is consumed here, otherwise a
       // blocked context re-checks on every capture tick.
@@ -145,10 +161,19 @@ actor SuggestionAssistant: ProactiveAssistant {
     // spend decision. If Omi knows nothing about this context it has no advantage over the
     // user's own eyes, and a suggestion from that position is the ~25%-CTR noise that got
     // the old surface switched off.
-    let grounding = await assembleGrounding(for: frame)
+    let grounding: SuggestionGrounding
+    do {
+      grounding = try await assembleGrounding(
+        for: frame,
+        authorizationSnapshot: authorizationSnapshot)
+    } catch {
+      return nil
+    }
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return nil }
     guard !grounding.isEmpty else {
       clearPendingContext()
       await MainActor.run {
+        guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
         AnalyticsManager.shared.suggestionAssistantGateOutcome(.noGrounding)
       }
       log("Suggestion: skipped (skippedNoGrounding) app=\(frame.appName)")
@@ -156,14 +181,19 @@ actor SuggestionAssistant: ProactiveAssistant {
     }
 
     await MainActor.run {
+      guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
       AnalyticsManager.shared.suggestionAssistantGateOutcome(.eligible)
     }
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return nil }
     clearPendingContext()
     lastEvaluationAt = now
     dailyBudget.recordEvaluation(now: now)
 
     do {
-      return try await evaluate(frame: frame, grounding: grounding)
+      return try await evaluate(
+        frame: frame,
+        grounding: grounding,
+        authorizationSnapshot: authorizationSnapshot)
     } catch {
       logError("Suggestion: evaluation failed", error: error)
       return nil
@@ -188,7 +218,11 @@ actor SuggestionAssistant: ProactiveAssistant {
   /// Best-effort by design — a source that fails contributes nothing rather than blocking
   /// the card, since a well-grounded suggestion that arrives after the user has moved on
   /// is worth less than a thinner one that arrives in time.
-  private func assembleGrounding(for frame: CapturedFrame) async -> SuggestionGrounding {
+  private func assembleGrounding(
+    for frame: CapturedFrame,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async throws -> SuggestionGrounding {
+    try requireCurrentAuthorization(authorizationSnapshot)
     var grounding = SuggestionGrounding()
 
     // Overdue and due-today work is relevant regardless of what is on screen, and reading
@@ -198,6 +232,7 @@ actor SuggestionAssistant: ProactiveAssistant {
         .prefix(15)
         .map(Self.describeCommitment)
     }
+    try requireCurrentAuthorization(authorizationSnapshot)
     grounding.openCommitments = Array(alwaysRelevant)
 
     // The window title is the topic or person the user is looking at. Without it there is
@@ -213,17 +248,27 @@ actor SuggestionAssistant: ProactiveAssistant {
       let commitments = try await ActionItemStorage.shared.searchFTS(
         query: searchTerm,
         limit: 10,
-        includeCompleted: false
+        includeCompleted: false,
+        authorizationSnapshot: authorizationSnapshot
       )
+      try requireCurrentAuthorization(authorizationSnapshot)
       let scoped = commitments.map(\.description).filter { !grounding.openCommitments.contains($0) }
       grounding.openCommitments.append(contentsOf: scoped)
+    } catch let error as LocalMutationAuthorizationError {
+      throw error
     } catch {
       logError("Suggestion: commitment grounding unavailable", error: error)
     }
 
     do {
-      let memories = try await MemoryStorage.shared.literalSearch(searchTerm, limit: 15)
+      let memories = try await MemoryStorage.shared.literalSearch(
+        searchTerm,
+        limit: 15,
+        authorizationSnapshot: authorizationSnapshot)
+      try requireCurrentAuthorization(authorizationSnapshot)
       grounding.memories = memories.map(\.content)
+    } catch let error as LocalMutationAuthorizationError {
+      throw error
     } catch {
       logError("Suggestion: memory grounding unavailable", error: error)
     }
@@ -232,13 +277,18 @@ actor SuggestionAssistant: ProactiveAssistant {
       let screens = try await RewindDatabase.shared.search(
         query: searchTerm,
         startDate: lookbackStart,
-        limit: 12
+        limit: 12,
+        authorizationSnapshot: authorizationSnapshot
       )
+      try requireCurrentAuthorization(authorizationSnapshot)
       grounding.relatedScreens = screens.compactMap { Self.describeScreen($0, excluding: frame) }
+    } catch let error as LocalMutationAuthorizationError {
+      throw error
     } catch {
       logError("Suggestion: screen-history grounding unavailable", error: error)
     }
 
+    try requireCurrentAuthorization(authorizationSnapshot)
     return grounding
   }
 
@@ -278,9 +328,15 @@ actor SuggestionAssistant: ProactiveAssistant {
 
   // MARK: - Judgment
 
-  private func evaluate(frame: CapturedFrame, grounding: SuggestionGrounding) async throws -> SuggestionResult? {
+  private func evaluate(
+    frame: CapturedFrame,
+    grounding: SuggestionGrounding,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async throws -> SuggestionResult? {
+    try requireCurrentAuthorization(authorizationSnapshot)
     let prompt = buildPrompt(frame: frame, grounding: grounding)
     let systemPrompt = await systemPrompt
+    try requireCurrentAuthorization(authorizationSnapshot)
     let preview = SuggestionFramePreview.downscaledJPEG(from: frame.jpegData)
     let identity = SuggestionAssistantTelemetry.Identity()
     let shape = SuggestionAssistantTelemetry.EvaluationShape(
@@ -289,8 +345,10 @@ actor SuggestionAssistant: ProactiveAssistant {
       grounding: grounding
     )
     await MainActor.run {
+      guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
       AnalyticsManager.shared.suggestionAssistantEvaluationStarted(identity: identity, shape: shape)
     }
+    try requireCurrentAuthorization(authorizationSnapshot)
 
     let startedAt = Date()
     do {
@@ -298,8 +356,10 @@ actor SuggestionAssistant: ProactiveAssistant {
         prompt: prompt,
         imageData: preview,
         systemPrompt: systemPrompt,
-        responseSchema: Self.responseSchema
+        responseSchema: Self.responseSchema,
+        authorizationSnapshot: authorizationSnapshot
       )
+      try requireCurrentAuthorization(authorizationSnapshot)
       guard let data = response.data(using: .utf8) else {
         throw SuggestionEvaluationError.invalidResponse
       }
@@ -309,6 +369,7 @@ actor SuggestionAssistant: ProactiveAssistant {
       let completedIdentity = producedSuggestion ? identity.withSuggestion() : identity
       result.telemetryIdentity = completedIdentity
       await MainActor.run {
+        guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
         AnalyticsManager.shared.suggestionAssistantEvaluationCompleted(
           identity: completedIdentity,
           shape: shape,
@@ -316,14 +377,18 @@ actor SuggestionAssistant: ProactiveAssistant {
           producedSuggestion: producedSuggestion
         )
       }
+      try requireCurrentAuthorization(authorizationSnapshot)
       return result
     } catch {
-      await MainActor.run {
-        AnalyticsManager.shared.suggestionAssistantEvaluationFailed(
-          identity: identity,
-          shape: shape,
-          latency: Date().timeIntervalSince(startedAt)
-        )
+      if RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) {
+        await MainActor.run {
+          guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
+          AnalyticsManager.shared.suggestionAssistantEvaluationFailed(
+            identity: identity,
+            shape: shape,
+            latency: Date().timeIntervalSince(startedAt)
+          )
+        }
       }
       throw error
     }
@@ -388,7 +453,12 @@ actor SuggestionAssistant: ProactiveAssistant {
 
   // MARK: - Delivery
 
-  func handleResult(_ result: AssistantResult, sendEvent: @escaping @Sendable (String, [String: Any]) -> Void) async {
+  func handleResult(
+    _ result: AssistantResult,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot,
+    sendEvent: @escaping @Sendable (String, [String: Any]) -> Void
+  ) async {
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
     guard let result = result as? SuggestionResult else { return }
     guard result.hasSuggestion, let suggestion = result.suggestion else {
       log("Suggestion: nothing worth saying — \(result.currentActivity)")
@@ -396,14 +466,28 @@ actor SuggestionAssistant: ProactiveAssistant {
     }
     let telemetryIdentity = SuggestionAssistantTelemetry.NotificationIdentity(result.telemetryIdentity)
 
-    guard let ownerID = RuntimeOwnerIdentity.currentOwnerId() else {
-      await emitDeliveryOutcome(.rejectedOwner, identity: telemetryIdentity)
+    let ownerID = authorizationSnapshot.ownerID
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else {
+      await emitDeliveryOutcome(
+        .rejectedOwner,
+        identity: telemetryIdentity,
+        authorizationSnapshot: authorizationSnapshot)
       return
     }
 
     let threshold = await minConfidence
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else {
+      await emitDeliveryOutcome(
+        .rejectedOwner,
+        identity: telemetryIdentity,
+        authorizationSnapshot: authorizationSnapshot)
+      return
+    }
     guard suggestion.confidence >= threshold else {
-      await emitDeliveryOutcome(.filteredLowConfidence, identity: telemetryIdentity)
+      await emitDeliveryOutcome(
+        .filteredLowConfidence,
+        identity: telemetryIdentity,
+        authorizationSnapshot: authorizationSnapshot)
       log(
         "Suggestion: below bar [\(Int(suggestion.confidence * 100))% < \(Int(threshold * 100))%] "
           + "\"\(suggestion.suggestion)\""
@@ -412,13 +496,19 @@ actor SuggestionAssistant: ProactiveAssistant {
     }
 
     guard !SuggestionDeduplication.isDuplicate(suggestion.suggestion, of: recentSuggestions) else {
-      await emitDeliveryOutcome(.filteredDuplicate, identity: telemetryIdentity)
+      await emitDeliveryOutcome(
+        .filteredDuplicate,
+        identity: telemetryIdentity,
+        authorizationSnapshot: authorizationSnapshot)
       log("Suggestion: duplicate of a recent suggestion — \"\(suggestion.suggestion)\"")
       return
     }
 
-    guard RuntimeOwnerIdentity.currentOwnerId() == ownerID else {
-      await emitDeliveryOutcome(.rejectedOwner, identity: telemetryIdentity)
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else {
+      await emitDeliveryOutcome(
+        .rejectedOwner,
+        identity: telemetryIdentity,
+        authorizationSnapshot: authorizationSnapshot)
       return
     }
 
@@ -431,16 +521,21 @@ actor SuggestionAssistant: ProactiveAssistant {
       suggestion,
       result: result,
       ownerID: ownerID,
+      authorizationSnapshot: authorizationSnapshot,
       telemetryIdentity: telemetryIdentity
     )
   }
 
   private func emitDeliveryOutcome(
     _ outcome: SuggestionAssistantTelemetry.DeliveryOutcome,
-    identity: SuggestionAssistantTelemetry.NotificationIdentity?
+    identity: SuggestionAssistantTelemetry.NotificationIdentity?,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
   ) async {
-    guard let identity else { return }
+    guard let identity,
+      RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
+    else { return }
     await MainActor.run {
+      guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
       AnalyticsManager.shared.suggestionAssistantDeliveryOutcome(outcome, identity: identity)
     }
   }
@@ -449,8 +544,10 @@ actor SuggestionAssistant: ProactiveAssistant {
     _ suggestion: ExtractedSuggestion,
     result: SuggestionResult,
     ownerID: String,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot,
     telemetryIdentity: SuggestionAssistantTelemetry.NotificationIdentity?
   ) async {
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
     let context = FloatingBarNotificationContext(
       sourceTitle: "Suggestion",
       assistantId: identifier,
@@ -465,32 +562,56 @@ actor SuggestionAssistant: ProactiveAssistant {
     log("Suggestion: delivering [\(Int(suggestion.confidence * 100))%] \"\(suggestion.suggestion)\"")
 
     await MainActor.run {
+      guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
       NotificationService.shared.sendNotification(
         ownerID: ownerID,
         title: "Suggestion",
         message: suggestion.suggestion,
         assistantId: identifier,
         context: context,
-        suggestionTelemetryIdentity: telemetryIdentity
+        suggestionTelemetryIdentity: telemetryIdentity,
+        authorizationSnapshot: authorizationSnapshot
       )
     }
   }
 
   // MARK: - Lifecycle
 
-  func clearPendingWork() async {
+  func clearPendingWork(
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async {
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
     clearPendingContext()
+  }
+
+  var recentSuggestionsCount: Int { recentSuggestions.count }
+
+  func recordEvaluationForTests(now: Date) {
+    dailyBudget.recordEvaluation(now: now)
+  }
+
+  func evaluationsTodayForTests(now: Date) -> Int {
+    dailyBudget.countToday(now: now)
   }
 
   func resetForOwnerChange() async {
     clearPendingContext()
     lastEvaluationAt = nil
+    dailyBudget = SuggestionDailyBudget()
     recentSuggestions.removeAll()
   }
 
   func stop() async {
     clearPendingContext()
     recentSuggestions.removeAll()
+  }
+
+  private func requireCurrentAuthorization(
+    _ authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) throws {
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else {
+      throw LocalMutationAuthorizationError.revoked
+    }
   }
 }
 

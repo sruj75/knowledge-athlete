@@ -500,15 +500,32 @@ enum ScreenContextWorkContextBuilder {
     ]
   }
 
-  static func payload(arguments: RuntimeJSONPayloadBox) async -> [String: Any] {
-    await payload(arguments: arguments.value)
+  static func payload(
+    arguments: RuntimeJSONPayloadBox,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async -> [String: Any] {
+    await payload(
+      arguments: arguments.value,
+      authorizationSnapshot: authorizationSnapshot)
   }
 
-  static func payloadBox(arguments: RuntimeJSONPayloadBox) async -> RuntimeJSONPayloadBox {
-    RuntimeJSONPayloadBox(await payload(arguments: arguments.value))
+  static func payloadBox(
+    arguments: RuntimeJSONPayloadBox,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async -> RuntimeJSONPayloadBox {
+    RuntimeJSONPayloadBox(
+      await payload(
+        arguments: arguments.value,
+        authorizationSnapshot: authorizationSnapshot))
   }
 
-  static func payload(arguments: [String: Any]) async -> [String: Any] {
+  static func payload(
+    arguments: [String: Any],
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async -> [String: Any] {
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else {
+      return ["ok": false, "failure_code": ScreenContextFailureCode.databaseUnavailable.rawValue]
+    }
     let minutes = max(1, min(120, Int(parseInt64(arguments["minutes"]) ?? 10)))
     let staleThresholdSeconds = max(
       1,
@@ -522,7 +539,10 @@ enum ScreenContextWorkContextBuilder {
       return permissionDeniedPayload(windowMinutes: minutes)
     }
 
-    guard await RewindDatabase.shared.getDatabaseQueue() != nil else {
+    guard
+      (try? await RewindDatabase.shared.isAvailable(
+        authorizationSnapshot: authorizationSnapshot)) == true
+    else {
       if let fresh = freshScreenCapturePayload(now: now, formatter: formatter) {
         return [
           "ok": true,
@@ -551,8 +571,14 @@ enum ScreenContextWorkContextBuilder {
     var failureCode: ScreenContextFailureCode?
     var latestCaptureAgeSeconds: Int?
     let activeChunk = await VideoChunkEncoder.shared.currentChunkPath
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else {
+      return ["ok": false, "failure_code": ScreenContextFailureCode.databaseUnavailable.rawValue]
+    }
 
-    if let recent = try? await RewindDatabase.shared.getRecentScreenshots(limit: 25) {
+    if let recent = try? await RewindDatabase.shared.getRecentScreenshots(
+      limit: 25,
+      authorizationSnapshot: authorizationSnapshot)
+    {
       latestCaptureAgeSeconds = recent.first.map { max(0, Int(now.timeIntervalSince($0.timestamp))) }
       var firstUnavailable: ScreenContextFailureCode?
       for shot in recent {
@@ -562,7 +588,12 @@ enum ScreenContextWorkContextBuilder {
           continue
         }
         do {
-          let data = try await loadScreenshotDataEnsuringStorage(for: shot)
+          let data = try await loadScreenshotDataEnsuringStorage(
+            for: shot,
+            authorizationSnapshot: authorizationSnapshot)
+          guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else {
+            return ["ok": false, "failure_code": ScreenContextFailureCode.databaseUnavailable.rawValue]
+          }
           screenNow = [
             "available": true,
             "screenshot_id": sid,
@@ -627,7 +658,12 @@ enum ScreenContextWorkContextBuilder {
       let c = calendar.dateComponents([.hour, .minute], from: date)
       return String(format: "%02d:%02d", c.hour ?? 0, c.minute ?? 0)
     }
-    if let shots = try? await RewindDatabase.shared.getScreenshotsSampled(from: start, to: now, targetCount: 80) {
+    if let shots = try? await RewindDatabase.shared.getScreenshotsSampled(
+      from: start,
+      to: now,
+      targetCount: 80,
+      authorizationSnapshot: authorizationSnapshot)
+    {
       var runs: [(app: String, window: String, start: String, end: String, frames: Int)] = []
       for shot in shots {
         let window = normalizeWindow(shot.windowTitle ?? "")
@@ -768,12 +804,25 @@ enum ScreenContextWorkContextBuilder {
     )
   }
 
-  private static func loadScreenshotDataEnsuringStorage(for screenshot: Screenshot) async throws -> Data {
+  private static func loadScreenshotDataEnsuringStorage(
+    for screenshot: Screenshot,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async throws -> Data {
     do {
-      return try await RewindStorage.shared.loadScreenshotData(for: screenshot)
+      return try await RewindStorage.shared.loadScreenshotData(
+        for: screenshot,
+        authorizationSnapshot: authorizationSnapshot)
     } catch {
+      guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else {
+        throw LocalMutationAuthorizationError.revoked
+      }
       try await RewindStorage.shared.initialize()
-      return try await RewindStorage.shared.loadScreenshotData(for: screenshot)
+      guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else {
+        throw LocalMutationAuthorizationError.revoked
+      }
+      return try await RewindStorage.shared.loadScreenshotData(
+        for: screenshot,
+        authorizationSnapshot: authorizationSnapshot)
     }
   }
 

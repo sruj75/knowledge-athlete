@@ -92,7 +92,7 @@ final class OCREmbeddingServiceOwnerResetTests: XCTestCase {
         await releaseEmbed.wait()
         return texts.map { _ in [Float](repeating: 0, count: dimension) }
       },
-      embeddingWriterForTesting: { screenshotId, _ in
+      embeddingWriterForTesting: { screenshotId, _, _ in
         await writes.record(screenshotId)
       }
     )
@@ -137,7 +137,7 @@ final class OCREmbeddingServiceOwnerResetTests: XCTestCase {
         await releaseEmbed.wait()
         return texts.map { _ in [Float](repeating: 0, count: dimension) }
       },
-      embeddingWriterForTesting: { screenshotId, _ in
+      embeddingWriterForTesting: { screenshotId, _, _ in
         await writes.record(screenshotId)
       })
 

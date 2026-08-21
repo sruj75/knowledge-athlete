@@ -156,7 +156,8 @@ actor InsightAssistant: ProactiveAssistant {
       let memories = try await MemoryStorage.shared.list(
         categories: [.interesting],
         tags: ["tips"],
-        limit: maxPreviousInsights
+        limit: maxPreviousInsights,
+        authorizationSnapshot: authorizationSnapshot
       )
       guard ownerBoundary?.accepts(authorizationSnapshot) == true else { return }
       let loadedInsights = memories.map { memory in
@@ -174,6 +175,8 @@ actor InsightAssistant: ProactiveAssistant {
       if !previousInsights.isEmpty {
         log("Insight: Loaded \(previousInsights.count) previous tips from DB for dedup")
       }
+    } catch is LocalMutationAuthorizationError {
+      return
     } catch {
       logError("Insight: Failed to load previous tips from DB", error: error)
     }
@@ -336,18 +339,19 @@ actor InsightAssistant: ProactiveAssistant {
     return true
   }
 
-  func analyze(frame: CapturedFrame) async -> AssistantResult? {
+  func analyze(
+    frame: CapturedFrame,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async -> AssistantResult? {
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return nil }
     // Skip apps excluded from insight extraction (built-in + user's custom list)
     let excluded = await MainActor.run { InsightAssistantSettings.shared.isAppExcluded(frame.appName) }
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return nil }
     if excluded {
       log("Insight: Skipping excluded app '\(frame.appName)'")
       return nil
     }
 
-    guard let authorizationSnapshot = RuntimeOwnerIdentity.captureAuthorizationSnapshot() else {
-      resetOwnerContext()
-      return nil
-    }
     await bindOwnerContext(to: authorizationSnapshot)
     guard ownerBoundary?.accepts(authorizationSnapshot) == true else { return nil }
 
@@ -360,12 +364,15 @@ actor InsightAssistant: ProactiveAssistant {
     return nil
   }
 
-  func handleResult(_ result: AssistantResult, sendEvent: @escaping @Sendable (String, [String: Any]) -> Void) async {
+  func handleResult(
+    _ result: AssistantResult,
+    authorizationSnapshot ownerAuthorization: RuntimeOwnerAuthorizationSnapshot,
+    sendEvent: @escaping @Sendable (String, [String: Any]) -> Void
+  ) async {
     // This method is required by protocol but we use handleResultWithScreenshot instead
     guard let insightResult = result as? InsightExtractionResult else { return }
-    guard let ownerID = RuntimeOwnerIdentity.currentOwnerId(),
-      let ownerAuthorization = RuntimeOwnerIdentity.captureAuthorizationSnapshot(expectedOwnerID: ownerID)
-    else { return }
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(ownerAuthorization) else { return }
+    let ownerID = ownerAuthorization.ownerID
     await handleResultWithScreenshot(
       insightResult,
       ownerID: ownerID,
@@ -546,7 +553,11 @@ actor InsightAssistant: ProactiveAssistant {
     }
   }
 
-  func onAppSwitch(newApp: String) async {
+  func onAppSwitch(
+    newApp: String,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async {
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
     if newApp != currentApp {
       if let previousApp = currentApp {
         log("Insight: APP SWITCH: \(previousApp) -> \(newApp)")
@@ -557,7 +568,10 @@ actor InsightAssistant: ProactiveAssistant {
     }
   }
 
-  func clearPendingWork() async {
+  func clearPendingWork(
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async {
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
     pendingFrame = nil
     log("Insight: Cleared pending frame")
   }
@@ -676,7 +690,10 @@ actor InsightAssistant: ProactiveAssistant {
             authorizationSnapshot: ownerAuthorization,
             value: payload
           ) { payload in
-            AssistantCoordinator.shared.sendEvent(type: type, data: payload.value)
+            AssistantCoordinator.shared.sendEvent(
+              type: type,
+              data: payload.value,
+              authorizationSnapshot: ownerAuthorization)
           }
         }
       }
@@ -743,7 +760,10 @@ actor InsightAssistant: ProactiveAssistant {
     // Add activity summary from database, anchored to the reference time
     let elapsed = referenceTime.timeIntervalSince(lookbackStart)
     log("Insight: Activity lookback: \(String(format: "%.0f", elapsed))s (\(lookbackStart) to \(referenceTime))")
-    let activitySummary = await buildActivitySummary(from: lookbackStart, to: referenceTime)
+    let activitySummary = try await buildActivitySummary(
+      from: lookbackStart,
+      to: referenceTime,
+      authorizationSnapshot: authorizationSnapshot)
     if !activitySummary.isEmpty {
       prompt += "\n\n" + activitySummary
       log("Insight: --- ACTIVITY SUMMARY ---\n\(activitySummary)")
@@ -752,7 +772,9 @@ actor InsightAssistant: ProactiveAssistant {
     }
 
     // Add user profile for context
-    if let profile = await AIUserProfileService.shared.getLatestProfile() {
+    if let profile = await AIUserProfileService.shared.getLatestProfile(
+      authorizationSnapshot: authorizationSnapshot)
+    {
       prompt += "\n\nUSER PROFILE (who this user is):\n"
       prompt += profile.profileText + "\n"
     }
@@ -824,7 +846,8 @@ actor InsightAssistant: ProactiveAssistant {
             systemPrompt: iterSystemPrompt,
             tools: iterTools,
             forceToolCall: iterForce,
-            thinkingBudget: 1024
+            thinkingBudget: 1024,
+            authorizationSnapshot: authorizationSnapshot
           )
         }
         guard ownerBoundary?.accepts(authorizationSnapshot) == true else {
@@ -846,7 +869,10 @@ actor InsightAssistant: ProactiveAssistant {
         sqlCount += 1
         log("Insight: P1 execute_sql iter \(iteration): \(query)")
         let sqlToolCall = ToolCall(name: "execute_sql", arguments: ["query": query], thoughtSignature: nil)
-        let resultStr = await ChatToolExecutor.execute(sqlToolCall)
+        let resultStr = await ChatToolExecutor.execute(
+          sqlToolCall,
+          expectedOwnerID: authorizationSnapshot.ownerID,
+          authorizationSnapshot: authorizationSnapshot)
         guard ownerBoundary?.accepts(authorizationSnapshot) == true else {
           throw LocalMutationAuthorizationError.revoked
         }
@@ -936,7 +962,11 @@ actor InsightAssistant: ProactiveAssistant {
     // Load the screenshot image
     let imageData: Data
     do {
-      guard let screenshot = try await RewindDatabase.shared.getScreenshot(id: screenshotId) else {
+      guard
+        let screenshot = try await RewindDatabase.shared.getScreenshot(
+          id: screenshotId,
+          authorizationSnapshot: authorizationSnapshot)
+      else {
         log("Insight: P2 screenshot not in DB: \(screenshotId)")
         return (nil, sqlCount)
       }
@@ -948,12 +978,16 @@ actor InsightAssistant: ProactiveAssistant {
           return (nil, sqlCount)
         }
       }
-      let rawData = try await RewindStorage.shared.loadScreenshotData(for: screenshot)
+      let rawData = try await RewindStorage.shared.loadScreenshotData(
+        for: screenshot,
+        authorizationSnapshot: authorizationSnapshot)
       imageData = Self.compressForGemini(rawData) ?? rawData
       guard ownerBoundary?.accepts(authorizationSnapshot) == true else {
         throw LocalMutationAuthorizationError.revoked
       }
       log("Insight: P2 loaded \(imageData.count) bytes (\(rawData.count) raw) from \(screenshot.appName)")
+    } catch let error as LocalMutationAuthorizationError {
+      throw error
     } catch {
       log("Insight: P2 screenshot load failed: \(error.localizedDescription)")
       return (nil, sqlCount)
@@ -1006,7 +1040,8 @@ actor InsightAssistant: ProactiveAssistant {
             systemPrompt: p2SystemPrompt,
             tools: p2Tools,
             forceToolCall: p2Force,
-            thinkingBudget: 1024
+            thinkingBudget: 1024,
+            authorizationSnapshot: authorizationSnapshot
           )
         }
         guard ownerBoundary?.accepts(authorizationSnapshot) == true else {
@@ -1028,7 +1063,10 @@ actor InsightAssistant: ProactiveAssistant {
         sqlCount += 1
         log("Insight: P2 execute_sql iter \(p2Iteration): \(query)")
         let sqlToolCall = ToolCall(name: "execute_sql", arguments: ["query": query], thoughtSignature: nil)
-        let resultStr = await ChatToolExecutor.execute(sqlToolCall)
+        let resultStr = await ChatToolExecutor.execute(
+          sqlToolCall,
+          expectedOwnerID: authorizationSnapshot.ownerID,
+          authorizationSnapshot: authorizationSnapshot)
         guard ownerBoundary?.accepts(authorizationSnapshot) == true else {
           throw LocalMutationAuthorizationError.revoked
         }
@@ -1089,63 +1127,82 @@ actor InsightAssistant: ProactiveAssistant {
   /// Query the screenshots table to build a summary of recent activity.
   /// - `from`: lower bound (e.g. last analysis time or screenshot.timestamp - interval)
   /// - `to`: upper bound (e.g. now or the screenshot's timestamp)
-  private func buildActivitySummary(from lookbackStart: Date, to referenceTime: Date) async -> String {
-    guard let dbQueue = await RewindDatabase.shared.getDatabaseQueue() else {
-      return ""
+  private func buildActivitySummary(
+    from lookbackStart: Date,
+    to referenceTime: Date,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async throws -> String {
+    guard ownerBoundary?.accepts(authorizationSnapshot) == true else {
+      throw LocalMutationAuthorizationError.revoked
+    }
+    let authorization = LocalMutationAuthorization {
+      RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
     }
 
     do {
-      return try await dbQueue.read { db in
-        // Pass Date objects directly — GRDB encodes them as UTC strings
-        // matching the stored format. Manual DateFormatter uses local timezone
-        // which causes mismatches.
-        let rows = try Row.fetchAll(
-          db,
-          sql: """
-            SELECT appName, windowTitle, COUNT(*) as count,
-                   MIN(timestamp) as first_seen, MAX(timestamp) as last_seen
-            FROM screenshots
-            WHERE timestamp >= ? AND timestamp <= ?
-              AND appName IS NOT NULL AND appName != ''
-            GROUP BY appName, windowTitle
-            ORDER BY count DESC
-            LIMIT 30
-            """, arguments: [lookbackStart, referenceTime])
-
-        if rows.isEmpty {
+      let summary = try await authorization.withReadLease {
+        try authorization.require()
+        guard let dbQueue = await RewindDatabase.shared.getDatabaseQueue() else {
           return ""
         }
+        try authorization.require()
+        let value = try await dbQueue.read { db in
+          try authorization.require()
+          // Pass Date objects directly — GRDB encodes them as UTC strings
+          // matching the stored format. Manual DateFormatter uses local timezone
+          // which causes mismatches.
+          let rows = try Row.fetchAll(
+            db,
+            sql: """
+              SELECT appName, windowTitle, COUNT(*) as count,
+                     MIN(timestamp) as first_seen, MAX(timestamp) as last_seen
+              FROM screenshots
+              WHERE timestamp >= ? AND timestamp <= ?
+                AND appName IS NOT NULL AND appName != ''
+              GROUP BY appName, windowTitle
+              ORDER BY count DESC
+              LIMIT 30
+              """, arguments: [lookbackStart, referenceTime])
 
-        let totalScreenshots = rows.reduce(0) {
-          $0 + (($1["count"] as? Int64).map(Int.init) ?? ($1["count"] as? Int) ?? 0)
+          if rows.isEmpty { return "" }
+          let totalScreenshots = rows.reduce(0) {
+            $0 + (($1["count"] as? Int64).map(Int.init) ?? ($1["count"] as? Int) ?? 0)
+          }
+          let elapsedMin = referenceTime.timeIntervalSince(lookbackStart) / 60.0
+          let timeOnlyFormatter = DateFormatter()
+          timeOnlyFormatter.dateFormat = "HH:mm:ss"
+          var lines: [String] = []
+          lines.append("ACTIVITY SUMMARY (last \(Int(elapsedMin)) min, \(totalScreenshots) screenshots):")
+          lines.append(
+            "Time range: \(timeOnlyFormatter.string(from: lookbackStart)) – \(timeOnlyFormatter.string(from: referenceTime))"
+          )
+          lines.append("")
+          lines.append("App | Window | Screenshots | Est. Duration")
+          lines.append(String(repeating: "-", count: 60))
+          for row in rows {
+            let app = row["appName"] as? String ?? "Unknown"
+            let window = row["windowTitle"] as? String ?? ""
+            let count = (row["count"] as? Int64).map(Int.init) ?? (row["count"] as? Int) ?? 0
+            let estMinutes = String(format: "%.1f", Double(count) / 60.0)
+            let windowDisplay = window.isEmpty ? "(no title)" : String(window.prefix(50))
+            lines.append("\(app) | \(windowDisplay) | \(count) | \(estMinutes) min")
+          }
+          try authorization.require()
+          return lines.joined(separator: "\n")
         }
-        let elapsedMin = referenceTime.timeIntervalSince(lookbackStart) / 60.0
-
-        let timeOnlyFormatter = DateFormatter()
-        timeOnlyFormatter.dateFormat = "HH:mm:ss"
-
-        var lines: [String] = []
-        lines.append("ACTIVITY SUMMARY (last \(Int(elapsedMin)) min, \(totalScreenshots) screenshots):")
-        lines.append(
-          "Time range: \(timeOnlyFormatter.string(from: lookbackStart)) – \(timeOnlyFormatter.string(from: referenceTime))"
-        )
-        lines.append("")
-        lines.append("App | Window | Screenshots | Est. Duration")
-        lines.append(String(repeating: "-", count: 60))
-
-        for row in rows {
-          let app = row["appName"] as? String ?? "Unknown"
-          let window = row["windowTitle"] as? String ?? ""
-          let count = (row["count"] as? Int64).map(Int.init) ?? (row["count"] as? Int) ?? 0
-          let estMinutes = String(format: "%.1f", Double(count) / 60.0)
-          let windowDisplay = window.isEmpty ? "(no title)" : String(window.prefix(50))
-          lines.append("\(app) | \(windowDisplay) | \(count) | \(estMinutes) min")
-        }
-
-        let summary = lines.joined(separator: "\n")
-        log("Insight: Activity summary (last \(Int(elapsedMin)) min, \(totalScreenshots) screenshots)")
-        return summary
+        try authorization.require()
+        return value
       }
+      guard ownerBoundary?.accepts(authorizationSnapshot) == true else {
+        throw LocalMutationAuthorizationError.revoked
+      }
+      if !summary.isEmpty {
+        let elapsedMin = referenceTime.timeIntervalSince(lookbackStart) / 60.0
+        log("Insight: Activity summary (last \(Int(elapsedMin)) min)")
+      }
+      return summary
+    } catch let error as LocalMutationAuthorizationError {
+      throw error
     } catch {
       logError("Insight: Failed to build activity summary", error: error)
       return ""

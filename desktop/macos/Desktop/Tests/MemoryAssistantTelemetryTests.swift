@@ -241,7 +241,7 @@ final class MemoryAssistantAnalysisFailureTests: XCTestCase {
     captured = []
   }
 
-  func testThrowingAnalysisEmitsExactlyOneBoundedAnalysisFailedTerminal() async {
+  func testThrowingAnalysisEmitsExactlyOneBoundedAnalysisFailedTerminal() async throws {
     let operations = MemoryAssistantDurabilityFixtureOperations(succeeds: false)
     let assistant = MemoryAssistant(
       extractionOverride: { _, _ in
@@ -249,13 +249,16 @@ final class MemoryAssistantAnalysisFailureTests: XCTestCase {
       },
       durabilityRunner: MemoryAssistantProductionDurability(operations: operations)
     )
+    let authorizationSnapshot = try XCTUnwrap(
+      RuntimeOwnerIdentity.captureAuthorizationSnapshot())
 
     await assistant.processFrame(
       CapturedFrame(
         jpegData: Data([0xFF, 0xD8, 0xFF]),
         appName: "must-not-leak",
         frameNumber: 1
-      )
+      ),
+      authorizationSnapshot: authorizationSnapshot
     )
 
     XCTAssertEqual(captured.count, 1)
@@ -286,13 +289,16 @@ final class MemoryAssistantAnalysisFailureTests: XCTestCase {
       extractionOverride: { _, _ in try await gate.extract() },
       durabilityRunner: MemoryAssistantProductionDurability(operations: operations)
     )
+    let authorizationSnapshot = try XCTUnwrap(
+      RuntimeOwnerIdentity.captureAuthorizationSnapshot())
 
     let processing = Task {
       await assistant.processFrame(
         CapturedFrame(
           jpegData: Data([0xFF, 0xD8, 0xFF]),
           appName: "Notes",
-          frameNumber: 2))
+          frameNumber: 2),
+        authorizationSnapshot: authorizationSnapshot)
     }
     await gate.waitUntilEntered()
     await ownerFixture.establish(authOwnerID: nil)

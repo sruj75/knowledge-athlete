@@ -201,7 +201,8 @@ actor EmbeddingService {
   func loadIndex(authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot) async {
     guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
     do {
-      let rows = try await ActionItemStorage.shared.getAllEmbeddings()
+      let rows = try await ActionItemStorage.shared.getAllEmbeddings(
+        authorizationSnapshot: authorizationSnapshot)
       guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
       index.removeAll(keepingCapacity: true)
       // Only keep the most recent embeddings (suffix = highest IDs = newest)
@@ -308,7 +309,9 @@ actor EmbeddingService {
       // Backfill action_items
       while true {
         guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
-        let items = try await ActionItemStorage.shared.getItemsMissingEmbeddings(limit: batchSize)
+        let items = try await ActionItemStorage.shared.getItemsMissingEmbeddings(
+          limit: batchSize,
+          authorizationSnapshot: authorizationSnapshot)
         guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
         if items.isEmpty { break }
 

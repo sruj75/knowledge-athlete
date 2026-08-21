@@ -6,7 +6,7 @@ actor FocusAssistant: ProactiveAssistant {
   typealias AnalysisOverride =
     @Sendable (
       _ jpegData: Data,
-      _ authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot?
+      _ authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
     ) async throws -> ScreenAnalysis?
   typealias FocusSessionPersister =
     @Sendable (
@@ -35,14 +35,14 @@ actor FocusAssistant: ProactiveAssistant {
   private let geminiClient: GeminiClient?
   private let analysisOverride: AnalysisOverride?
   private let focusSessionPersister: FocusSessionPersister
-  private let onAlert: @Sendable (String) -> Void
-  private let onStatusChange: (@Sendable (FocusStatus) -> Void)?
-  private let onRefocus: (@Sendable () -> Void)?
-  private let onDistraction: (@Sendable () -> Void)?
+  private let onAlert: @Sendable (String, RuntimeOwnerAuthorizationSnapshot) -> Void
+  private let onStatusChange: (@Sendable (FocusStatus, RuntimeOwnerAuthorizationSnapshot) -> Void)?
+  private let onRefocus: (@Sendable (RuntimeOwnerAuthorizationSnapshot) -> Void)?
+  private let onDistraction: (@Sendable (RuntimeOwnerAuthorizationSnapshot) -> Void)?
 
   private var isRunning = false
-  private let frameStream: AsyncStream<CapturedFrame>
-  private let frameContinuation: AsyncStream<CapturedFrame>.Continuation
+  private let frameStream: AsyncStream<OwnerBoundCapturedFrame>
+  private let frameContinuation: AsyncStream<OwnerBoundCapturedFrame>.Continuation
   private var analysisHistory: [ScreenAnalysis] = []
   private let maxHistorySize = 10
   private var lastStatus: FocusStatus?
@@ -51,6 +51,9 @@ actor FocusAssistant: ProactiveAssistant {
   private var pendingTasks: Set<Task<Void, Never>> = []
   private let maxPendingTasks = 3
   private var currentApp: String?
+  private var commitTurnActive = false
+  private var commitTurnWaiters: [CheckedContinuation<Void, Never>] = []
+  private var commitTurnWaiterObservers: [CheckedContinuation<Void, Never>] = []
 
   // MARK: - Context Cache
   // Cached context from local DB (goals, tasks, memories) to enrich focus analysis
@@ -88,10 +91,10 @@ actor FocusAssistant: ProactiveAssistant {
 
   init(
     apiKey: String? = nil,
-    onAlert: @escaping @Sendable (String) -> Void = { _ in },
-    onStatusChange: (@Sendable (FocusStatus) -> Void)? = nil,
-    onRefocus: (@Sendable () -> Void)? = nil,
-    onDistraction: (@Sendable () -> Void)? = nil
+    onAlert: @escaping @Sendable (String, RuntimeOwnerAuthorizationSnapshot) -> Void = { _, _ in },
+    onStatusChange: (@Sendable (FocusStatus, RuntimeOwnerAuthorizationSnapshot) -> Void)? = nil,
+    onRefocus: (@Sendable (RuntimeOwnerAuthorizationSnapshot) -> Void)? = nil,
+    onDistraction: (@Sendable (RuntimeOwnerAuthorizationSnapshot) -> Void)? = nil
   ) throws {
     self.geminiClient = try GeminiClient(apiKey: apiKey, fallbackModel: "gemini-2.5-flash")
     self.analysisOverride = nil
@@ -105,7 +108,7 @@ actor FocusAssistant: ProactiveAssistant {
     self.onRefocus = onRefocus
     self.onDistraction = onDistraction
 
-    let (stream, continuation) = AsyncStream.makeStream(of: CapturedFrame.self)
+    let (stream, continuation) = AsyncStream.makeStream(of: OwnerBoundCapturedFrame.self)
     self.frameStream = stream
     self.frameContinuation = continuation
 
@@ -118,10 +121,10 @@ actor FocusAssistant: ProactiveAssistant {
   init(
     analysisOverride: @escaping AnalysisOverride,
     focusSessionPersister: @escaping FocusSessionPersister,
-    onAlert: @escaping @Sendable (String) -> Void = { _ in },
-    onStatusChange: (@Sendable (FocusStatus) -> Void)? = nil,
-    onRefocus: (@Sendable () -> Void)? = nil,
-    onDistraction: (@Sendable () -> Void)? = nil
+    onAlert: @escaping @Sendable (String, RuntimeOwnerAuthorizationSnapshot) -> Void = { _, _ in },
+    onStatusChange: (@Sendable (FocusStatus, RuntimeOwnerAuthorizationSnapshot) -> Void)? = nil,
+    onRefocus: (@Sendable (RuntimeOwnerAuthorizationSnapshot) -> Void)? = nil,
+    onDistraction: (@Sendable (RuntimeOwnerAuthorizationSnapshot) -> Void)? = nil
   ) {
     self.geminiClient = nil
     self.analysisOverride = analysisOverride
@@ -130,7 +133,7 @@ actor FocusAssistant: ProactiveAssistant {
     self.onStatusChange = onStatusChange
     self.onRefocus = onRefocus
     self.onDistraction = onDistraction
-    let (stream, continuation) = AsyncStream.makeStream(of: CapturedFrame.self)
+    let (stream, continuation) = AsyncStream.makeStream(of: OwnerBoundCapturedFrame.self)
     self.frameStream = stream
     self.frameContinuation = continuation
   }
@@ -139,6 +142,27 @@ actor FocusAssistant: ProactiveAssistant {
 
   private func removePendingTask(_ task: Task<Void, Never>) {
     pendingTasks.remove(task)
+  }
+
+  private func acquireCommitTurn() async {
+    guard commitTurnActive else {
+      commitTurnActive = true
+      return
+    }
+    await withCheckedContinuation { continuation in
+      commitTurnWaiters.append(continuation)
+      let observers = commitTurnWaiterObservers
+      commitTurnWaiterObservers.removeAll()
+      observers.forEach { $0.resume() }
+    }
+  }
+
+  private func releaseCommitTurn() {
+    guard !commitTurnWaiters.isEmpty else {
+      commitTurnActive = false
+      return
+    }
+    commitTurnWaiters.removeFirst().resume()
   }
 
   private func startProcessing() {
@@ -151,7 +175,7 @@ actor FocusAssistant: ProactiveAssistant {
   private func processFrameLoop() async {
     log("Focus assistant started (parallel mode)")
 
-    for await frame in frameStream {
+    for await ownerBoundFrame in frameStream {
       guard isRunning else { break }
 
       // Backpressure: skip frame if too many analyses in flight
@@ -161,7 +185,9 @@ actor FocusAssistant: ProactiveAssistant {
 
       // Fire off analysis in background (don't wait) - like Python version
       let task = Task { [weak self] () -> Void in
-        await self?.processFrame(frame)
+        await self?.processFrame(
+          ownerBoundFrame.frame,
+          authorizationSnapshot: ownerBoundFrame.authorizationSnapshot)
       }
       pendingTasks.insert(task)
 
@@ -187,7 +213,11 @@ actor FocusAssistant: ProactiveAssistant {
     return true
   }
 
-  func analyze(frame: CapturedFrame) async -> AssistantResult? {
+  func analyze(
+    frame: CapturedFrame,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async -> AssistantResult? {
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return nil }
     // Skip lock screen / login screen — no useful content to analyze
     let skipApps = ["loginwindow", "ScreenSaverEngine"]
     if skipApps.contains(frame.appName) {
@@ -196,13 +226,14 @@ actor FocusAssistant: ProactiveAssistant {
 
     // Skip apps excluded from focus analysis
     let excluded = await MainActor.run { FocusAssistantSettings.shared.isAppExcluded(frame.appName) }
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return nil }
     if excluded {
       log("Focus: Skipping excluded app '\(frame.appName)'")
       return nil
     }
 
     // Smart filtering: Skip analysis if user is focused on the same context
-    if shouldSkipAnalysis(for: frame) {
+    if shouldSkipAnalysis(for: frame, authorizationSnapshot: authorizationSnapshot) {
       return nil
     }
 
@@ -212,7 +243,10 @@ actor FocusAssistant: ProactiveAssistant {
     lastAnalyzedWindowTitle = frame.windowTitle
 
     // Submit frame to stream for processing
-    frameContinuation.yield(frame)
+    frameContinuation.yield(
+      OwnerBoundCapturedFrame(
+        frame: frame,
+        authorizationSnapshot: authorizationSnapshot))
     log("Focus: Analyzing frame \(frame.frameNumber): App=\(frame.appName), Window=\(frame.windowTitle ?? "unknown")")
 
     // Return nil since we process asynchronously
@@ -224,7 +258,10 @@ actor FocusAssistant: ProactiveAssistant {
   /// - User is focused on the same app AND same window title
   /// - OR we're in cooldown period after distraction (unless context changed)
   /// - OR we're in error backoff period
-  private func shouldSkipAnalysis(for frame: CapturedFrame) -> Bool {
+  private func shouldSkipAnalysis(
+    for frame: CapturedFrame,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) -> Bool {
     // Check error backoff FIRST (before the lastStatus guard)
     // This prevents infinite retry loops when lastStatus is nil due to repeated errors
     if let backoffEnd = errorBackoffEndTime {
@@ -259,6 +296,7 @@ actor FocusAssistant: ProactiveAssistant {
         analysisCooldownEndTime = nil
         // Clear cooldown in UI
         Task { @MainActor in
+          guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
           FocusStorage.shared.updateCooldownEndTime(nil)
         }
       } else {
@@ -280,6 +318,7 @@ actor FocusAssistant: ProactiveAssistant {
         log("Focus: Cooldown ended, resuming analysis")
         // Clear cooldown in UI
         Task { @MainActor in
+          guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
           FocusStorage.shared.updateCooldownEndTime(nil)
         }
       }
@@ -295,11 +334,19 @@ actor FocusAssistant: ProactiveAssistant {
     return false
   }
 
-  func handleResult(_ result: AssistantResult, sendEvent: @escaping @Sendable (String, [String: Any]) -> Void) async {
+  func handleResult(
+    _ result: AssistantResult,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot,
+    sendEvent: @escaping @Sendable (String, [String: Any]) -> Void
+  ) async {
     // Results are handled internally in processFrame
   }
 
-  func onAppSwitch(newApp: String) async {
+  func onAppSwitch(
+    newApp: String,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async {
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
     if newApp != currentApp {
       if let currentApp = currentApp {
         log("Focus: APP SWITCH: \(currentApp) -> \(newApp)")
@@ -314,7 +361,14 @@ actor FocusAssistant: ProactiveAssistant {
     lastNotifiedState == .distracted
   }
 
-  func clearPendingWork() async {
+  func clearPendingWork(
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async {
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
+    clearPendingWorkForOwnerReset()
+  }
+
+  private func clearPendingWorkForOwnerReset() {
     // Cancel pending analysis tasks since those frames are now stale
     let count = pendingTasks.count
     for task in pendingTasks {
@@ -327,7 +381,7 @@ actor FocusAssistant: ProactiveAssistant {
   }
 
   func resetForOwnerChange() async {
-    await clearPendingWork()
+    clearPendingWorkForOwnerReset()
     analysisHistory.removeAll()
     testAnalysisHistory.removeAll()
     lastProcessedFrameNum = 0
@@ -378,15 +432,35 @@ actor FocusAssistant: ProactiveAssistant {
   /// Number of pending analysis tasks (for memory diagnostics)
   var pendingTasksCount: Int { pendingTasks.count }
 
+  /// Starts the real queue consumer for hermetic queue-boundary tests. The
+  /// production initializer starts it automatically.
+  func startProcessingForTests() {
+    guard !isRunning else { return }
+    startProcessing()
+  }
+
   /// Number of analysis history entries retained
   var analysisHistoryCount: Int { analysisHistory.count }
+  var lastProcessedFrameNumberForTests: Int { lastProcessedFrameNum }
+
+  func waitUntilCommitTurnQueuedForTests() async {
+    guard commitTurnWaiters.isEmpty else { return }
+    await withCheckedContinuation { continuation in
+      commitTurnWaiterObservers.append(continuation)
+    }
+  }
 
   // MARK: - Test API
 
   /// Run analysis on a screenshot with no side effects (no saving, no state updates, no notifications).
   /// Used by the test runner GUI and CLI.
   func testAnalyze(jpegData: Data, appName: String) async throws -> ScreenAnalysis? {
-    return try await analyzeScreenshot(jpegData: jpegData, authorizationSnapshot: nil)
+    guard let authorizationSnapshot = RuntimeOwnerIdentity.captureAuthorizationSnapshot() else {
+      throw LocalMutationAuthorizationError.revoked
+    }
+    return try await analyzeScreenshot(
+      jpegData: jpegData,
+      authorizationSnapshot: authorizationSnapshot)
   }
 
   /// Reset test history — call before starting a test run to get a clean slate.
@@ -397,7 +471,14 @@ actor FocusAssistant: ProactiveAssistant {
   /// Run analysis with accumulating history across calls (simulates production behavior).
   /// Each result is appended to a separate test history buffer so the model sees prior decisions.
   func testAnalyzeWithHistory(jpegData: Data, appName: String) async throws -> ScreenAnalysis? {
-    let result = try await analyzeScreenshotWithHistory(jpegData: jpegData, history: testAnalysisHistory)
+    guard let authorizationSnapshot = RuntimeOwnerIdentity.captureAuthorizationSnapshot() else {
+      throw LocalMutationAuthorizationError.revoked
+    }
+    let result = try await analyzeScreenshotWithHistory(
+      jpegData: jpegData,
+      history: testAnalysisHistory,
+      authorizationSnapshot: authorizationSnapshot)
+    try requireCurrentAuthorization(authorizationSnapshot)
     if let result = result {
       testAnalysisHistory.append(result)
       if testAnalysisHistory.count > maxHistorySize {
@@ -409,10 +490,21 @@ actor FocusAssistant: ProactiveAssistant {
 
   /// Separate history buffer for test runs (doesn't pollute production history)
   private var testAnalysisHistory: [ScreenAnalysis] = []
+  var testAnalysisHistoryCountForTests: Int { testAnalysisHistory.count }
 
   /// Variant of analyzeScreenshot that accepts an explicit history array
-  private func analyzeScreenshotWithHistory(jpegData: Data, history: [ScreenAnalysis]) async throws -> ScreenAnalysis? {
-    let context = await refreshContext(authorizationSnapshot: nil)
+  private func analyzeScreenshotWithHistory(
+    jpegData: Data,
+    history: [ScreenAnalysis],
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async throws -> ScreenAnalysis? {
+    if let analysisOverride {
+      let result = try await analysisOverride(jpegData, authorizationSnapshot)
+      try requireCurrentAuthorization(authorizationSnapshot)
+      return result
+    }
+    let context = try await refreshContext(
+      authorizationSnapshot: authorizationSnapshot)
 
     // Format provided history
     var historyText = ""
@@ -438,6 +530,7 @@ actor FocusAssistant: ProactiveAssistant {
     let prompt = promptParts.joined(separator: "\n\n")
 
     let currentSystemPrompt = await systemPrompt
+    try requireCurrentAuthorization(authorizationSnapshot)
 
     let responseSchema = GeminiRequest.GenerationConfig.ResponseSchema(
       type: "object",
@@ -456,10 +549,14 @@ actor FocusAssistant: ProactiveAssistant {
       prompt: prompt,
       imageData: jpegData,
       systemPrompt: currentSystemPrompt,
-      responseSchema: responseSchema
+      responseSchema: responseSchema,
+      authorizationSnapshot: authorizationSnapshot
     )
+    try requireCurrentAuthorization(authorizationSnapshot)
 
-    return try JSONDecoder().decode(ScreenAnalysis.self, from: Data(responseText.utf8))
+    let result = try JSONDecoder().decode(ScreenAnalysis.self, from: Data(responseText.utf8))
+    try requireCurrentAuthorization(authorizationSnapshot)
+    return result
   }
 
   // MARK: - Analysis
@@ -477,8 +574,11 @@ actor FocusAssistant: ProactiveAssistant {
     return lines.joined(separator: "\n")
   }
 
-  func processFrame(_ frame: CapturedFrame) async {
-    guard let ownerAuthorization = RuntimeOwnerIdentity.captureAuthorizationSnapshot() else { return }
+  func processFrame(
+    _ frame: CapturedFrame,
+    authorizationSnapshot ownerAuthorization: RuntimeOwnerAuthorizationSnapshot
+  ) async {
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(ownerAuthorization) else { return }
     let ownerID = ownerAuthorization.ownerID
     guard await isEnabled,
       RuntimeOwnerIdentity.isAuthorizationCurrent(ownerAuthorization)
@@ -490,6 +590,10 @@ actor FocusAssistant: ProactiveAssistant {
           jpegData: frame.jpegData,
           authorizationSnapshot: ownerAuthorization)
       else { return }
+      guard RuntimeOwnerIdentity.isAuthorizationCurrent(ownerAuthorization) else { return }
+
+      await acquireCommitTurn()
+      defer { releaseCommitTurn() }
       guard RuntimeOwnerIdentity.isAuthorizationCurrent(ownerAuthorization) else { return }
 
       guard frame.frameNumber > lastProcessedFrameNum else {
@@ -520,7 +624,7 @@ actor FocusAssistant: ProactiveAssistant {
       if analysisHistory.count > maxHistorySize { analysisHistory.removeFirst() }
       lastStatus = analysis.status
       if isStateTransition { lastNotifiedState = analysis.status }
-      onStatusChange?(analysis.status)
+      onStatusChange?(analysis.status, ownerAuthorization)
 
       log(
         "[Frame \(frame.frameNumber)] Focus state accepted (status=\(analysis.status.rawValue))"
@@ -541,7 +645,7 @@ actor FocusAssistant: ProactiveAssistant {
             windowTitle: frame.windowTitle)
         }
         guard RuntimeOwnerIdentity.isAuthorizationCurrent(ownerAuthorization) else { return }
-        onDistraction?()
+        onDistraction?(ownerAuthorization)
 
         let cooldownSeconds = await MainActor.run {
           FocusAssistantSettings.shared.cooldownIntervalSeconds
@@ -585,7 +689,7 @@ actor FocusAssistant: ProactiveAssistant {
             }
           }
           guard RuntimeOwnerIdentity.isAuthorizationCurrent(ownerAuthorization) else { return }
-          onAlert(fullMessage)
+          onAlert(fullMessage, ownerAuthorization)
         }
       } else if previousNotifiedState == .distracted {
         await MainActor.run {
@@ -593,7 +697,7 @@ actor FocusAssistant: ProactiveAssistant {
           AnalyticsManager.shared.focusRestored(app: analysis.appOrSite)
         }
         guard RuntimeOwnerIdentity.isAuthorizationCurrent(ownerAuthorization) else { return }
-        onRefocus?()
+        onRefocus?(ownerAuthorization)
 
         if let message = analysis.message {
           let notificationsEnabled = await MainActor.run {
@@ -637,9 +741,9 @@ actor FocusAssistant: ProactiveAssistant {
 
   /// Refresh context from local DB (goals, tasks, memories) with caching
   private func refreshContext(
-    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot?
-  ) async -> String {
-    guard authorizationIsCurrent(authorizationSnapshot) else { return "" }
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async throws -> String {
+    try requireCurrentAuthorization(authorizationSnapshot)
     // Return cached context if fresh
     if let cached = cachedContextString,
       let cacheTime = contextCacheTime,
@@ -652,10 +756,13 @@ actor FocusAssistant: ProactiveAssistant {
 
     // AI User Profile
     do {
-      if let profile = await AIUserProfileService.shared.getLatestProfile() {
-        guard authorizationIsCurrent(authorizationSnapshot) else { return "" }
+      if let profile = await AIUserProfileService.shared.getLatestProfile(
+        authorizationSnapshot: authorizationSnapshot)
+      {
+        try requireCurrentAuthorization(authorizationSnapshot)
         sections.append("USER PROFILE (who this user is):\n\(profile.profileText)")
       }
+      try requireCurrentAuthorization(authorizationSnapshot)
     }
 
     // Time context
@@ -665,8 +772,10 @@ actor FocusAssistant: ProactiveAssistant {
 
     // Active goals
     do {
-      let goals = try await GoalStorage.shared.getLocalGoals(activeOnly: true)
-      guard authorizationIsCurrent(authorizationSnapshot) else { return "" }
+      let goals = try await GoalStorage.shared.getLocalGoals(
+        activeOnly: true,
+        authorizationSnapshot: authorizationSnapshot)
+      try requireCurrentAuthorization(authorizationSnapshot)
       if !goals.isEmpty {
         var lines = ["ACTIVE GOALS:"]
         for (i, goal) in goals.prefix(10).enumerated() {
@@ -675,6 +784,8 @@ actor FocusAssistant: ProactiveAssistant {
         }
         sections.append(lines.joined(separator: "\n"))
       }
+    } catch is LocalMutationAuthorizationError {
+      throw LocalMutationAuthorizationError.revoked
     } catch {
       logError(
         "Focus: Failed to load goals for context",
@@ -689,8 +800,11 @@ actor FocusAssistant: ProactiveAssistant {
 
     // Current local tasks in deterministic priority/due/order/recency order.
     do {
-      let tasks = try await ActionItemStorage.shared.getLocalActionItems(limit: 50, completed: false)
-      guard authorizationIsCurrent(authorizationSnapshot) else { return "" }
+      let tasks = try await ActionItemStorage.shared.getLocalActionItems(
+        limit: 50,
+        completed: false,
+        authorizationSnapshot: authorizationSnapshot)
+      try requireCurrentAuthorization(authorizationSnapshot)
       if !tasks.isEmpty {
         var lines = ["CURRENT TASKS:"]
         for (i, task) in tasks.enumerated() {
@@ -699,14 +813,18 @@ actor FocusAssistant: ProactiveAssistant {
         }
         sections.append(lines.joined(separator: "\n"))
       }
+    } catch is LocalMutationAuthorizationError {
+      throw LocalMutationAuthorizationError.revoked
     } catch {
       logError("Focus: Failed to load tasks for context", error: error)
     }
 
     // Recent memories
     do {
-      let memories = try await MemoryStorage.shared.list(limit: 50)
-      guard authorizationIsCurrent(authorizationSnapshot) else { return "" }
+      let memories = try await MemoryStorage.shared.list(
+        limit: 50,
+        authorizationSnapshot: authorizationSnapshot)
+      try requireCurrentAuthorization(authorizationSnapshot)
       if !memories.isEmpty {
         var lines = ["RECENT MEMORIES:"]
         for (i, memory) in memories.enumerated() {
@@ -714,12 +832,14 @@ actor FocusAssistant: ProactiveAssistant {
         }
         sections.append(lines.joined(separator: "\n"))
       }
+    } catch is LocalMutationAuthorizationError {
+      throw LocalMutationAuthorizationError.revoked
     } catch {
       logError("Focus: Failed to load memories for context", error: error)
     }
 
     let contextString = sections.joined(separator: "\n\n")
-    guard authorizationIsCurrent(authorizationSnapshot) else { return "" }
+    try requireCurrentAuthorization(authorizationSnapshot)
     cachedContextString = contextString
     contextCacheTime = Date()
     return contextString
@@ -727,17 +847,17 @@ actor FocusAssistant: ProactiveAssistant {
 
   private func analyzeScreenshot(
     jpegData: Data,
-    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot?
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
   ) async throws -> ScreenAnalysis? {
     if let analysisOverride {
-      return try await analysisOverride(jpegData, authorizationSnapshot)
+      let result = try await analysisOverride(jpegData, authorizationSnapshot)
+      try requireCurrentAuthorization(authorizationSnapshot)
+      return result
     }
     guard let geminiClient else { return nil }
     // Refresh context from local DB
-    let context = await refreshContext(authorizationSnapshot: authorizationSnapshot)
-    guard authorizationIsCurrent(authorizationSnapshot) else {
-      throw LocalMutationAuthorizationError.revoked
-    }
+    let context = try await refreshContext(authorizationSnapshot: authorizationSnapshot)
+    try requireCurrentAuthorization(authorizationSnapshot)
 
     // Build prompt with context + history
     let historyText = formatHistory()
@@ -753,9 +873,7 @@ actor FocusAssistant: ProactiveAssistant {
 
     // Get current system prompt from settings
     let currentSystemPrompt = await systemPrompt
-    guard authorizationIsCurrent(authorizationSnapshot) else {
-      throw LocalMutationAuthorizationError.revoked
-    }
+    try requireCurrentAuthorization(authorizationSnapshot)
 
     // Build response schema
     let responseSchema = GeminiRequest.GenerationConfig.ResponseSchema(
@@ -820,10 +938,12 @@ actor FocusAssistant: ProactiveAssistant {
     return focusSessionId
   }
 
-  private func authorizationIsCurrent(
-    _ authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot?
-  ) -> Bool {
-    authorizationSnapshot.map(RuntimeOwnerIdentity.isAuthorizationCurrent) ?? true
+  private func requireCurrentAuthorization(
+    _ authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) throws {
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else {
+      throw LocalMutationAuthorizationError.revoked
+    }
   }
 
 }

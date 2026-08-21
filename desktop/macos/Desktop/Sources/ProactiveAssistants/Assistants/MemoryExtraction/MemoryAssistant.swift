@@ -44,7 +44,7 @@ actor MemoryAssistant: ProactiveAssistant {
   private var previousMemories: [ExtractedMemory] = []  // Last 20 extracted memories for deduplication
   private let maxPreviousMemories = 20
   private var currentApp: String?
-  private var pendingFrame: CapturedFrame?
+  private var pendingFrame: OwnerBoundCapturedFrame?
   private var processingTask: Task<Void, Never>?
   private let frameSignal: AsyncStream<Void>
   private let frameSignalContinuation: AsyncStream<Void>.Continuation
@@ -137,12 +137,14 @@ actor MemoryAssistant: ProactiveAssistant {
       }
 
       // Grab the latest frame (may have been updated or cleared during sleep)
-      guard let frame = pendingFrame else { continue }
+      guard let ownerBoundFrame = pendingFrame else { continue }
       let waited = Date().timeIntervalSince(lastAnalysisTime)
       log("Memory: Starting analysis (interval: \(Int(interval))s, waited: \(Int(waited))s)")
       pendingFrame = nil
       lastAnalysisTime = Date()
-      await processFrame(frame)
+      await processFrame(
+        ownerBoundFrame.frame,
+        authorizationSnapshot: ownerBoundFrame.authorizationSnapshot)
     }
 
     log("Memory assistant stopped")
@@ -157,9 +159,14 @@ actor MemoryAssistant: ProactiveAssistant {
     return true
   }
 
-  func analyze(frame: CapturedFrame) async -> AssistantResult? {
+  func analyze(
+    frame: CapturedFrame,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async -> AssistantResult? {
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return nil }
     // Skip apps excluded from memory extraction (built-in + user's custom list)
     let excluded = await MainActor.run { MemoryAssistantSettings.shared.isAppExcluded(frame.appName) }
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return nil }
     if excluded {
       log("Memory: Skipping excluded app '\(frame.appName)'")
       return nil
@@ -167,7 +174,9 @@ actor MemoryAssistant: ProactiveAssistant {
 
     // Store the latest frame - we'll process it when the interval has passed
     let hadPending = pendingFrame != nil
-    pendingFrame = frame
+    pendingFrame = OwnerBoundCapturedFrame(
+      frame: frame,
+      authorizationSnapshot: authorizationSnapshot)
     if !hadPending {
       log("Memory: Received frame from \(frame.appName), queued for analysis")
     }
@@ -176,10 +185,14 @@ actor MemoryAssistant: ProactiveAssistant {
     return nil
   }
 
-  func handleResult(_ result: AssistantResult, sendEvent: @escaping @Sendable (String, [String: Any]) -> Void) async {
+  func handleResult(
+    _ result: AssistantResult,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot,
+    sendEvent: @escaping @Sendable (String, [String: Any]) -> Void
+  ) async {
     // This method is required by protocol but we use handleResultWithScreenshot instead
     guard let memoryResult = result as? MemoryExtractionResult else { return }
-    guard let authorizationSnapshot = RuntimeOwnerIdentity.captureAuthorizationSnapshot() else { return }
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
     await handleResultWithScreenshot(
       memoryResult,
       authorizationSnapshot: authorizationSnapshot,
@@ -224,13 +237,6 @@ actor MemoryAssistant: ProactiveAssistant {
 
     log("Memory: [\(confidencePercent)% conf.] [\(memory.category.rawValue)] \"\(memory.content)\"")
 
-    // Add to previous memories (keep last 20 for deduplication context)
-    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
-    previousMemories.insert(memory, at: 0)
-    if previousMemories.count > maxPreviousMemories {
-      previousMemories.removeLast()
-    }
-
     let durability = await durabilityPipeline.persistAndEmit(
       MemoryAssistantDurabilityRequest(
         memory: memory,
@@ -247,6 +253,14 @@ actor MemoryAssistant: ProactiveAssistant {
     // one closed analysis terminal (and historical success where appropriate).
     guard durability.shouldEmitMemoryExtracted else { return }
     guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
+
+    // A failed or revoked write must not leave a phantom entry in the prompt's
+    // deduplication history. Publish the accepted memory to that cache only
+    // after the canonical row is durable.
+    previousMemories.insert(memory, at: 0)
+    if previousMemories.count > maxPreviousMemories {
+      previousMemories.removeLast()
+    }
 
     // Send notification if enabled
     let notificationsEnabled = await MainActor.run {
@@ -320,7 +334,11 @@ actor MemoryAssistant: ProactiveAssistant {
     }
   }
 
-  func onAppSwitch(newApp: String) async {
+  func onAppSwitch(
+    newApp: String,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async {
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
     if newApp != currentApp {
       if let currentApp = currentApp {
         log("Memory: APP SWITCH: \(currentApp) -> \(newApp)")
@@ -332,13 +350,20 @@ actor MemoryAssistant: ProactiveAssistant {
     }
   }
 
-  func clearPendingWork() async {
+  func clearPendingWork(
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async {
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
+    clearPendingWorkForOwnerReset()
+  }
+
+  private func clearPendingWorkForOwnerReset() {
     pendingFrame = nil
     log("Memory: Cleared pending frame")
   }
 
   func resetForOwnerChange() async {
-    pendingFrame = nil
+    clearPendingWorkForOwnerReset()
     previousMemories.removeAll()
     currentApp = nil
     lastAnalysisTime = .distantPast
@@ -353,8 +378,11 @@ actor MemoryAssistant: ProactiveAssistant {
 
   // MARK: - Analysis
 
-  func processFrame(_ frame: CapturedFrame) async {
-    guard let authorizationSnapshot = RuntimeOwnerIdentity.captureAuthorizationSnapshot() else { return }
+  func processFrame(
+    _ frame: CapturedFrame,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async {
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
     let enabled = await isEnabled
     guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
     guard enabled else {
@@ -391,7 +419,11 @@ actor MemoryAssistant: ProactiveAssistant {
       ) { type, data in
         let payload = EventPayloadBox(value: data)
         Task { @MainActor in
-          AssistantCoordinator.shared.sendEvent(type: type, data: payload.value)
+          guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
+          AssistantCoordinator.shared.sendEvent(
+            type: type,
+            data: payload.value,
+            authorizationSnapshot: authorizationSnapshot)
         }
       }
     } catch {

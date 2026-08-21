@@ -2535,7 +2535,13 @@ final class DesktopAutomationActionRegistry {
       summary: "Return Rewind settings retention and excluded-app counts"
     ) { _ in
       let settings = RewindSettings.shared
-      let stats = await RewindIndexer.shared.getStats()
+      let stats: (total: Int, indexed: Int, storageSize: Int64)?
+      if let authorizationSnapshot = RuntimeOwnerIdentity.captureAuthorizationSnapshot() {
+        stats = await RewindIndexer.shared.getStats(
+          authorizationSnapshot: authorizationSnapshot)
+      } else {
+        stats = nil
+      }
       return [
         "retention_days": "\(settings.retentionDays)",
         "capture_interval": String(format: "%.1f", settings.captureInterval),

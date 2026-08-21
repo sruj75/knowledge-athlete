@@ -10,6 +10,7 @@ import XCTest
 /// generation usable.
 final class RewindAbandonedChunkRecoveryTests: XCTestCase {
   private var fixture: RewindStorageTestIsolation.Fixture?
+  private var ownerFixture: RuntimeOwnerAuthorityTestFixture?
 
   override func setUp() async throws {
     try await super.setUp()
@@ -21,6 +22,9 @@ final class RewindAbandonedChunkRecoveryTests: XCTestCase {
     await RewindIndexer.shared.reset()
     await RewindStorage.shared.reset()
     fixture = try await RewindStorageTestIsolation.setUp(userIdPrefix: "rewind-abandoned-chunk")
+    let ownerFixture = await MainActor.run { RuntimeOwnerAuthorityTestFixture() }
+    self.ownerFixture = ownerFixture
+    await ownerFixture.establish(authOwnerID: try XCTUnwrap(fixture?.testUserId))
     try await RewindIndexer.shared.initialize()
   }
 
@@ -33,6 +37,8 @@ final class RewindAbandonedChunkRecoveryTests: XCTestCase {
     await VideoChunkEncoder.shared.cancel()
     await RewindIndexer.shared.reset()
     await RewindStorage.shared.reset()
+    if let ownerFixture { await ownerFixture.restore() }
+    ownerFixture = nil
     await RewindStorageTestIsolation.tearDown(userDir: fixture?.userDir)
     fixture = nil
     try await super.tearDown()

@@ -19,11 +19,12 @@ class AssistantCoordinator {
   // MARK: - Context Tracking (for context switch detection)
   private var lastTrackedApp: String?
   private var lastTrackedWindowTitle: String?
-  private var lastTrackedFrame: CapturedFrame?
+  private var lastTrackedFrame: OwnerBoundCapturedFrame?
 
   /// Backpressure: track which assistants are currently analyzing a frame.
   /// Prevents Task closures from accumulating CapturedFrame JPEG data when analyze() is slow.
-  private var isAnalyzing: Set<String> = []
+  private var activeAnalysisAuthorization: [String: RuntimeOwnerAuthorizationSnapshot] = [:]
+  private var ownerChangeResetCallback: (() -> Void)?
 
   private init() {}
 
@@ -62,12 +63,27 @@ class AssistantCoordinator {
 
   /// Set the callback for sending events to Flutter
   /// - Parameter callback: Function that takes event type and data
-  func setEventCallback(_ callback: @escaping (String, [String: Any]) -> Void) {
+  func setEventCallback(_ callback: ((String, [String: Any]) -> Void)?) {
     self.eventCallback = callback
+  }
+
+  func setOwnerChangeResetCallback(_ callback: @escaping () -> Void) {
+    ownerChangeResetCallback = callback
   }
 
   /// Send an event to Flutter
   func sendEvent(type: String, data: [String: Any]) {
+    eventCallback?(type, data)
+  }
+
+  /// Owner-bound event publication. The check happens on the main actor at the
+  /// actual callback boundary, not merely before a task is enqueued.
+  func sendEvent(
+    type: String,
+    data: [String: Any],
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) {
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
     eventCallback?(type, data)
   }
 
@@ -78,7 +94,12 @@ class AssistantCoordinator {
   /// and window title changes — one unified path with one delay mechanism.
   /// - Returns: `true` if a context switch was detected and fired.
   @discardableResult
-  func checkContextSwitch(newApp: String, newWindowTitle: String?) -> Bool {
+  func checkContextSwitch(
+    newApp: String,
+    newWindowTitle: String?,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) -> Bool {
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return false }
     guard lastTrackedApp != nil else {
       lastTrackedApp = newApp
       lastTrackedWindowTitle = newWindowTitle
@@ -93,7 +114,12 @@ class AssistantCoordinator {
     )
     guard changed else { return false }
 
-    let departingFrame = lastTrackedFrame
+    let departingFrame: CapturedFrame? = lastTrackedFrame.flatMap { ownerBoundFrame in
+      guard ownerBoundFrame.authorizationSnapshot == authorizationSnapshot,
+        RuntimeOwnerIdentity.isAuthorizationCurrent(ownerBoundFrame.authorizationSnapshot)
+      else { return nil }
+      return ownerBoundFrame.frame
+    }
     log(
       "Context switch detected: \(lastTrackedApp ?? "nil") (\(ContextDetection.normalizeWindowTitle(lastTrackedWindowTitle) ?? "nil")) -> \(newApp) (\(ContextDetection.normalizeWindowTitle(newWindowTitle) ?? "nil"))"
     )
@@ -105,10 +131,12 @@ class AssistantCoordinator {
     // Fire on all assistants
     for (_, assistant) in assistants {
       Task {
+        guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
         await assistant.onContextSwitch(
           departingFrame: departingFrame,
           newApp: newApp,
-          newWindowTitle: newWindowTitle
+          newWindowTitle: newWindowTitle,
+          authorizationSnapshot: authorizationSnapshot
         )
       }
     }
@@ -119,29 +147,47 @@ class AssistantCoordinator {
   // MARK: - Frame Tracking & Distribution
 
   /// Keep the latest frame reference fresh (call on every capture, even during delay).
-  func trackFrame(_ frame: CapturedFrame) {
-    lastTrackedFrame = frame
+  func trackFrame(
+    _ frame: CapturedFrame,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) {
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
+    lastTrackedFrame = OwnerBoundCapturedFrame(
+      frame: frame,
+      authorizationSnapshot: authorizationSnapshot)
+  }
+
+  var trackedFrameAuthorizationForTests: RuntimeOwnerAuthorizationSnapshot? {
+    lastTrackedFrame?.authorizationSnapshot
   }
 
   /// Distribute a captured frame to all enabled assistants
   /// - Parameter frame: The captured frame to analyze
-  func distributeFrame(_ frame: CapturedFrame) {
+  func distributeFrame(
+    _ frame: CapturedFrame,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) {
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
     for (identifier, assistant) in assistants {
       // Backpressure: skip if this assistant is still analyzing a previous frame
-      guard !isAnalyzing.contains(identifier) else { continue }
+      guard activeAnalysisAuthorization[identifier] == nil else { continue }
 
       let timeSinceLastAnalysis = Date().timeIntervalSince(lastAnalysisTime[identifier] ?? .distantPast)
-      isAnalyzing.insert(identifier)
+      activeAnalysisAuthorization[identifier] = authorizationSnapshot
 
       Task { [weak self] in
         defer {
           Task { @MainActor in
-            self?.isAnalyzing.remove(identifier)
+            guard self?.activeAnalysisAuthorization[identifier] == authorizationSnapshot else { return }
+            self?.activeAnalysisAuthorization.removeValue(forKey: identifier)
           }
         }
 
+        guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
+
         // Check if assistant is enabled
         guard await assistant.isEnabled else { return }
+        guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
 
         // Check if assistant wants to analyze this frame
         guard
@@ -149,18 +195,32 @@ class AssistantCoordinator {
         else {
           return
         }
+        guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
 
         // Update last analysis time
         await MainActor.run {
+          guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
           self?.lastAnalysisTime[identifier] = Date()
         }
+        guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
 
         // Analyze and handle result
-        if let result = await assistant.analyze(frame: frame) {
-          await assistant.handleResult(result) { [weak self] type, data in
+        if let result = await assistant.analyze(
+          frame: frame,
+          authorizationSnapshot: authorizationSnapshot)
+        {
+          guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
+          await assistant.handleResult(
+            result,
+            authorizationSnapshot: authorizationSnapshot
+          ) { [weak self] type, data in
             let dataBox = AssistantEventDataBox(data)
             Task { @MainActor in
-              self?.sendEvent(type: type, data: dataBox.value)
+              guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
+              self?.sendEvent(
+                type: type,
+                data: dataBox.value,
+                authorizationSnapshot: authorizationSnapshot)
             }
           }
         }
@@ -170,38 +230,60 @@ class AssistantCoordinator {
 
   /// Distribute a frame only to assistants that opted into receiving frames during the delay period.
   /// Used for time-sensitive detections like refocus tracking.
-  func distributeFrameDuringDelay(_ frame: CapturedFrame) {
+  func distributeFrameDuringDelay(
+    _ frame: CapturedFrame,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) {
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
     for (identifier, assistant) in assistants {
       // Backpressure: skip if this assistant is still analyzing a previous frame
-      guard !isAnalyzing.contains(identifier) else { continue }
+      guard activeAnalysisAuthorization[identifier] == nil else { continue }
 
       let timeSinceLastAnalysis = Date().timeIntervalSince(lastAnalysisTime[identifier] ?? .distantPast)
-      isAnalyzing.insert(identifier)
+      activeAnalysisAuthorization[identifier] = authorizationSnapshot
 
       Task { [weak self] in
         defer {
           Task { @MainActor in
-            self?.isAnalyzing.remove(identifier)
+            guard self?.activeAnalysisAuthorization[identifier] == authorizationSnapshot else { return }
+            self?.activeAnalysisAuthorization.removeValue(forKey: identifier)
           }
         }
 
+        guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
         guard await assistant.isEnabled else { return }
+        guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
         guard await assistant.needsFrameDuringDelay else { return }
+        guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
         guard
           await assistant.shouldAnalyze(frameNumber: frame.frameNumber, timeSinceLastAnalysis: timeSinceLastAnalysis)
         else {
           return
         }
+        guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
 
         await MainActor.run {
+          guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
           self?.lastAnalysisTime[identifier] = Date()
         }
+        guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
 
-        if let result = await assistant.analyze(frame: frame) {
-          await assistant.handleResult(result) { [weak self] type, data in
+        if let result = await assistant.analyze(
+          frame: frame,
+          authorizationSnapshot: authorizationSnapshot)
+        {
+          guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
+          await assistant.handleResult(
+            result,
+            authorizationSnapshot: authorizationSnapshot
+          ) { [weak self] type, data in
             let dataBox = AssistantEventDataBox(data)
             Task { @MainActor in
-              self?.sendEvent(type: type, data: dataBox.value)
+              guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
+              self?.sendEvent(
+                type: type,
+                data: dataBox.value,
+                authorizationSnapshot: authorizationSnapshot)
             }
           }
         }
@@ -213,19 +295,30 @@ class AssistantCoordinator {
 
   /// Notify all assistants of an app switch (legacy onAppSwitch callback).
   /// Context switch detection is handled separately via `checkContextSwitch`.
-  func notifyAppSwitch(newApp: String) {
+  func notifyAppSwitch(
+    newApp: String,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) {
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
     for (_, assistant) in assistants {
       Task {
-        await assistant.onAppSwitch(newApp: newApp)
+        guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
+        await assistant.onAppSwitch(
+          newApp: newApp,
+          authorizationSnapshot: authorizationSnapshot)
       }
     }
   }
 
   /// Clear pending work for all assistants
-  func clearAllPendingWork() {
+  func clearAllPendingWork(
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) {
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
     for (_, assistant) in assistants {
       Task {
-        await assistant.clearPendingWork()
+        guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
+        await assistant.clearPendingWork(authorizationSnapshot: authorizationSnapshot)
       }
     }
   }
@@ -240,7 +333,8 @@ class AssistantCoordinator {
     lastTrackedApp = nil
     lastTrackedWindowTitle = nil
     lastTrackedFrame = nil
-    isAnalyzing.removeAll()
+    activeAnalysisAuthorization.removeAll()
+    ownerChangeResetCallback?()
     for assistant in assistants.values {
       await assistant.resetForOwnerChange()
     }

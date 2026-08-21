@@ -55,13 +55,16 @@ final class TaskAssistantOwnerFenceTests: XCTestCase {
       currentActivity: "messaging")
     let gate = TaskExtractionGate(result: ([result], 0))
     let assistant = TaskAssistant { _, _, _ in try await gate.extract() }
+    let authorizationSnapshot = try XCTUnwrap(
+      RuntimeOwnerIdentity.captureAuthorizationSnapshot())
 
     let processing = Task {
       await assistant.processFrame(
         CapturedFrame(
           jpegData: Data([0xFF, 0xD8, 0xFF]),
           appName: "Messages",
-          frameNumber: 1))
+          frameNumber: 1),
+        authorizationSnapshot: authorizationSnapshot)
     }
     await gate.waitUntilEntered()
     await ownerFixture.establish(authOwnerID: nil)

@@ -388,9 +388,13 @@ final class LocalMemoryLifecycleRunnerTests: XCTestCase {
       computer: MemoryComputeStub(),
       embedder: embedder,
       requiresOwnerAuthorization: true)
+    let authorizationSnapshot = try XCTUnwrap(
+      RuntimeOwnerIdentity.captureAuthorizationSnapshot())
 
     let report = await runner.runOnce()
-    let matches = try await MemoryStorage.shared.semanticSearch(queryVector: [1, 0])
+    let matches = try await MemoryStorage.shared.semanticSearch(
+      queryVector: [1, 0],
+      authorizationSnapshot: authorizationSnapshot)
     let batches = await embedder.batches
 
     XCTAssertEqual(report.embedded, 1)

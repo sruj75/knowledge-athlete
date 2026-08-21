@@ -36,7 +36,12 @@ extension SettingsContentView {
         }
       }
       .task {
-        rewindStats = await RewindIndexer.shared.getStats()
+        guard let authorizationSnapshot = RuntimeOwnerIdentity.captureAuthorizationSnapshot() else {
+          rewindStats = nil
+          return
+        }
+        rewindStats = await RewindIndexer.shared.getStats(
+          authorizationSnapshot: authorizationSnapshot)
       }
 
       // Excluded Apps

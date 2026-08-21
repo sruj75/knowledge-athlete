@@ -518,7 +518,12 @@ class ChatToolExecutor {
     expectedOwnerID: String?
   ) async -> String {
     guard isExpectedOwnerCurrent(expectedOwnerID) else { return authorizedOwnerChangedResult() }
-    let payloadBox = await ScreenContextWorkContextBuilder.payloadBox(arguments: RuntimeJSONPayloadBox(arguments))
+    guard let authorizationSnapshot = currentOwnerAuthorizationSnapshot else {
+      return authorizedOwnerChangedResult()
+    }
+    let payloadBox = await ScreenContextWorkContextBuilder.payloadBox(
+      arguments: RuntimeJSONPayloadBox(arguments),
+      authorizationSnapshot: authorizationSnapshot)
     let payload = payloadBox.value
     guard isExpectedOwnerCurrent(expectedOwnerID) else { return authorizedOwnerChangedResult() }
     let telemetry = ScreenContextWorkContextBuilder.telemetryValues(from: payload)
@@ -739,6 +744,9 @@ class ChatToolExecutor {
     async throws -> String
   {
     guard isExpectedOwnerCurrent(expectedOwnerID) else { return authorizedOwnerChangedResult() }
+    let authorization = LocalMutationAuthorization {
+      isExpectedOwnerCurrent(expectedOwnerID)
+    }
     // Auto-append LIMIT 200 if no LIMIT clause
     var finalQuery = query
     if !upper.contains("LIMIT") {
@@ -750,48 +758,52 @@ class ChatToolExecutor {
     }
 
     let query = finalQuery
-    let formatted = try await dbQueue.read { db -> (text: String, count: Int) in
-      let rows = try Row.fetchAll(db, sql: query, arguments: StatementArguments(parameters))
+    let formatted = try await authorization.withReadLease {
+      try await dbQueue.read { db -> (text: String, count: Int) in
+        try authorization.require()
+        let rows = try Row.fetchAll(db, sql: query, arguments: StatementArguments(parameters))
 
-      if rows.isEmpty {
-        return ("No results", 0)
-      }
-
-      // Get column names from first row
-      let columns = Array(rows[0].columnNames)
-      var lines: [String] = []
-
-      // Header
-      lines.append(columns.joined(separator: " | "))
-      lines.append(String(repeating: "-", count: min(columns.count * 20, 120)))
-
-      // Rows (max 200) — Row is RandomAccessCollection of (String, DatabaseValue)
-      for row in rows.prefix(200) {
-        let values = row.map { (_, dbValue) -> String in
-          let value: String
-          switch dbValue.storage {
-          case .null:
-            value = "NULL"
-          case .int64(let i):
-            value = String(i)
-          case .double(let d):
-            value = String(d)
-          case .string(let s):
-            value = s
-          case .blob(let data):
-            value = "<\(data.count) bytes>"
-          }
-          // Truncate long cell values
-          if value.count > 500 {
-            return String(value.prefix(500)) + "..."
-          }
-          return value
+        if rows.isEmpty {
+          return ("No results", 0)
         }
-        lines.append(values.joined(separator: " | "))
-      }
 
-      lines.append("\n\(rows.count) row(s)")
-      return (lines.joined(separator: "\n"), rows.count)
+        // Get column names from first row
+        let columns = Array(rows[0].columnNames)
+        var lines: [String] = []
+
+        // Header
+        lines.append(columns.joined(separator: " | "))
+        lines.append(String(repeating: "-", count: min(columns.count * 20, 120)))
+
+        // Rows (max 200) — Row is RandomAccessCollection of (String, DatabaseValue)
+        for row in rows.prefix(200) {
+          let values = row.map { (_, dbValue) -> String in
+            let value: String
+            switch dbValue.storage {
+            case .null:
+              value = "NULL"
+            case .int64(let i):
+              value = String(i)
+            case .double(let d):
+              value = String(d)
+            case .string(let s):
+              value = s
+            case .blob(let data):
+              value = "<\(data.count) bytes>"
+            }
+            // Truncate long cell values
+            if value.count > 500 {
+              return String(value.prefix(500)) + "..."
+            }
+            return value
+          }
+          lines.append(values.joined(separator: " | "))
+        }
+
+        lines.append("\n\(rows.count) row(s)")
+        try authorization.require()
+        return (lines.joined(separator: "\n"), rows.count)
+      }
     }
     guard isExpectedOwnerCurrent(expectedOwnerID) else { return authorizedOwnerChangedResult() }
 
@@ -878,7 +890,19 @@ class ChatToolExecutor {
 
   private static func executeLocalStatus(expectedOwnerID: String?) async -> String {
     guard isExpectedOwnerCurrent(expectedOwnerID) else { return authorizedOwnerChangedResult() }
-    guard await RewindDatabase.shared.getDatabaseQueue() != nil else {
+    guard let authorizationSnapshot = currentOwnerAuthorizationSnapshot else {
+      return authorizedOwnerChangedResult()
+    }
+    let databaseAvailable: Bool
+    do {
+      databaseAvailable = try await RewindDatabase.shared.isAvailable(
+        authorizationSnapshot: authorizationSnapshot)
+    } catch LocalMutationAuthorizationError.revoked {
+      return authorizedOwnerChangedResult()
+    } catch {
+      databaseAvailable = false
+    }
+    guard databaseAvailable else {
       return """
         {
           "ok": false,
@@ -893,7 +917,8 @@ class ChatToolExecutor {
     guard isExpectedOwnerCurrent(expectedOwnerID) else { return authorizedOwnerChangedResult() }
 
     do {
-      let stats = try await RewindDatabase.shared.getStats()
+      let stats = try await RewindDatabase.shared.getStats(
+        authorizationSnapshot: authorizationSnapshot)
       guard isExpectedOwnerCurrent(expectedOwnerID) else { return authorizedOwnerChangedResult() }
       let formatter = ISO8601DateFormatter()
       let payload: [String: Any] = [
@@ -935,27 +960,6 @@ class ChatToolExecutor {
     }
   }
 
-  private static let localAffordances = [
-    "Rewind screen history and OCR search",
-    "raw screenshot image retrieval by screenshot_id",
-    "local transcription and conversation tables",
-    "read-only SQL over the local Omi Desktop database",
-    "daily activity recaps",
-    "indexed files and app/window activity",
-    "local goals and progress data",
-    "local task search, completion, and deletion",
-  ]
-
-  private static func localAffordancesJSON() -> String {
-    guard
-      let data = try? JSONSerialization.data(withJSONObject: localAffordances, options: [.sortedKeys]),
-      let json = String(data: data, encoding: .utf8)
-    else {
-      return "[]"
-    }
-    return json
-  }
-
   // MARK: - Daily Recap
 
   /// Get a pre-formatted daily activity recap
@@ -964,6 +968,9 @@ class ChatToolExecutor {
     expectedOwnerID: String?
   ) async -> String {
     guard isExpectedOwnerCurrent(expectedOwnerID) else { return authorizedOwnerChangedResult() }
+    guard let authorizationSnapshot = currentOwnerAuthorizationSnapshot else {
+      return authorizedOwnerChangedResult()
+    }
     let daysAgo = max(0, (args["days_ago"] as? Int) ?? 1)
     let dateLabel = daysAgo == 0 ? "Today" : daysAgo == 1 ? "Yesterday" : "Past \(daysAgo) days"
 
@@ -979,171 +986,178 @@ class ChatToolExecutor {
       : "datetime('now', 'start of day', 'localtime')"
 
     do {
-      let result = try await dbQueue.read { db in
-        // Q1: App usage
-        let apps = try Row.fetchAll(
-          db,
-          sql: """
-            SELECT appName, COUNT(*) as screenshots, ROUND(COUNT(*) * 10.0 / 60, 1) as minutes,
-                MIN(time(timestamp, 'localtime')) as first_seen, MAX(time(timestamp, 'localtime')) as last_seen
-            FROM screenshots
-            WHERE timestamp >= datetime('now', 'start of day', '-\(daysAgo) day', 'localtime')
-                AND timestamp < \(upperBound)
-                AND appName IS NOT NULL AND appName != ''
-            GROUP BY appName ORDER BY screenshots DESC
-            """)
+      let authorization = LocalMutationAuthorization {
+        RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
+      }
+      let result = try await authorization.withReadLease {
+        try await dbQueue.read { db in
+          try authorization.require()
+          // Q1: App usage
+          let apps = try Row.fetchAll(
+            db,
+            sql: """
+              SELECT appName, COUNT(*) as screenshots, ROUND(COUNT(*) * 10.0 / 60, 1) as minutes,
+                  MIN(time(timestamp, 'localtime')) as first_seen, MAX(time(timestamp, 'localtime')) as last_seen
+              FROM screenshots
+              WHERE timestamp >= datetime('now', 'start of day', '-\(daysAgo) day', 'localtime')
+                  AND timestamp < \(upperBound)
+                  AND appName IS NOT NULL AND appName != ''
+              GROUP BY appName ORDER BY screenshots DESC
+              """)
 
-        // Q2: Conversations
-        let convos = try Row.fetchAll(
-          db,
-          sql: """
-            SELECT title, overview, emoji, category, startedAt, finishedAt,
-                ROUND((julianday(finishedAt) - julianday(startedAt)) * 1440, 1) as duration_min
-            FROM transcription_sessions
-            WHERE startedAt >= datetime('now', 'start of day', '-\(daysAgo) day', 'localtime')
-                AND startedAt < \(upperBound)
-                AND deleted = 0 AND discarded = 0
-            ORDER BY startedAt DESC
-            """)
+          // Q2: Conversations
+          let convos = try Row.fetchAll(
+            db,
+            sql: """
+              SELECT title, overview, emoji, category, startedAt, finishedAt,
+                  ROUND((julianday(finishedAt) - julianday(startedAt)) * 1440, 1) as duration_min
+              FROM transcription_sessions
+              WHERE startedAt >= datetime('now', 'start of day', '-\(daysAgo) day', 'localtime')
+                  AND startedAt < \(upperBound)
+                  AND deleted = 0 AND discarded = 0
+              ORDER BY startedAt DESC
+              """)
 
-        // Q3: Action items
-        let tasks = try Row.fetchAll(
-          db,
-          sql: """
-            SELECT description, completed, priority, createdAt FROM action_items
-            WHERE createdAt >= datetime('now', 'start of day', '-\(daysAgo) day', 'localtime')
-                AND createdAt < \(upperBound)
-                AND deleted = 0
-            ORDER BY createdAt DESC
-            """)
+          // Q3: Action items
+          let tasks = try Row.fetchAll(
+            db,
+            sql: """
+              SELECT description, completed, priority, createdAt FROM action_items
+              WHERE createdAt >= datetime('now', 'start of day', '-\(daysAgo) day', 'localtime')
+                  AND createdAt < \(upperBound)
+                  AND deleted = 0
+              ORDER BY createdAt DESC
+              """)
 
-        // Q4: Focus sessions
-        let focusSessions = try Row.fetchAll(
-          db,
-          sql: """
-            SELECT status, appOrSite, description, durationSeconds FROM focus_sessions
-            WHERE createdAt >= datetime('now', 'start of day', '-\(daysAgo) day', 'localtime')
-                AND createdAt < \(upperBound)
-            ORDER BY createdAt DESC
-            """)
+          // Q4: Focus sessions
+          let focusSessions = try Row.fetchAll(
+            db,
+            sql: """
+              SELECT status, appOrSite, description, durationSeconds FROM focus_sessions
+              WHERE createdAt >= datetime('now', 'start of day', '-\(daysAgo) day', 'localtime')
+                  AND createdAt < \(upperBound)
+              ORDER BY createdAt DESC
+              """)
 
-        // Q5: Memories created
-        let memories = try Row.fetchAll(
-          db,
-          sql: """
-            SELECT content, category, source FROM memories
-            WHERE createdAt >= datetime('now', 'start of day', '-\(daysAgo) day', 'localtime')
-                AND createdAt < \(upperBound)
-                AND deleted = 0
-            ORDER BY createdAt DESC
-            """)
+          // Q5: Memories created
+          let memories = try Row.fetchAll(
+            db,
+            sql: """
+              SELECT content, category, source FROM memories
+              WHERE createdAt >= datetime('now', 'start of day', '-\(daysAgo) day', 'localtime')
+                  AND createdAt < \(upperBound)
+                  AND deleted = 0
+              ORDER BY createdAt DESC
+              """)
 
-        // Q6: Observations (screen context summaries)
-        let observations = try Row.fetchAll(
-          db,
-          sql: """
-            SELECT appName, currentActivity, contextSummary FROM observations
-            WHERE createdAt >= datetime('now', 'start of day', '-\(daysAgo) day', 'localtime')
-                AND createdAt < \(upperBound)
-            ORDER BY createdAt DESC
-            LIMIT 20
-            """)
+          // Q6: Observations (screen context summaries)
+          let observations = try Row.fetchAll(
+            db,
+            sql: """
+              SELECT appName, currentActivity, contextSummary FROM observations
+              WHERE createdAt >= datetime('now', 'start of day', '-\(daysAgo) day', 'localtime')
+                  AND createdAt < \(upperBound)
+              ORDER BY createdAt DESC
+              LIMIT 20
+              """)
 
-        // Format compact markdown
-        var out = "# \(dateLabel) Recap\n\n"
+          // Format compact markdown
+          var out = "# \(dateLabel) Recap\n\n"
 
-        out += "## Apps (\(apps.count) apps)\n"
-        if apps.isEmpty {
-          out += "No screen activity recorded.\n"
-        } else {
-          for app in apps.prefix(20) {
-            let name = app["appName"] as? String ?? "Unknown"
-            let minutes = app["minutes"] as? Double ?? 0
-            let screenshots = Self.rowInt(app["screenshots"]) ?? 0
-            let firstSeen = app["first_seen"] as? String ?? ""
-            let lastSeen = app["last_seen"] as? String ?? ""
-            out +=
-              "- **\(name)**: \(minutes) min (\(screenshots) captures, \(firstSeen)–\(lastSeen))\n"
+          out += "## Apps (\(apps.count) apps)\n"
+          if apps.isEmpty {
+            out += "No screen activity recorded.\n"
+          } else {
+            for app in apps.prefix(20) {
+              let name = app["appName"] as? String ?? "Unknown"
+              let minutes = app["minutes"] as? Double ?? 0
+              let screenshots = Self.rowInt(app["screenshots"]) ?? 0
+              let firstSeen = app["first_seen"] as? String ?? ""
+              let lastSeen = app["last_seen"] as? String ?? ""
+              out +=
+                "- **\(name)**: \(minutes) min (\(screenshots) captures, \(firstSeen)–\(lastSeen))\n"
+            }
+            if apps.count > 20 { out += "- ...and \(apps.count - 20) more apps\n" }
           }
-          if apps.count > 20 { out += "- ...and \(apps.count - 20) more apps\n" }
+
+          out += "\n## Conversations (\(convos.count))\n"
+          if convos.isEmpty {
+            out += "No conversations recorded.\n"
+          } else {
+            for convo in convos {
+              let title = convo["title"] as? String ?? "Untitled"
+              let overview = convo["overview"] as? String ?? "No summary"
+              let emoji = convo["emoji"] as? String ?? ""
+              let durMin = convo["duration_min"] as? Double ?? 0
+              let dur = durMin > 0 ? " (\(durMin) min)" : ""
+              out += "- \(emoji) **\(title)**\(dur): \(overview)\n"
+            }
+          }
+
+          out += "\n## Tasks (\(tasks.count))\n"
+          if tasks.isEmpty {
+            out += "No tasks created.\n"
+          } else {
+            for task in tasks {
+              let desc = task["description"] as? String ?? ""
+              let completed = (Self.rowInt(task["completed"]) ?? 0) == 1
+              let priority = task["priority"] as? String ?? ""
+              let check = completed ? "[x]" : "[ ]"
+              let pri = priority.isEmpty ? "" : " (\(priority))"
+              out += "- \(check) \(desc)\(pri)\n"
+            }
+          }
+
+          // Focus sessions
+          let focused = focusSessions.filter { ($0["status"] as? String) == "focused" }
+          let distracted = focusSessions.filter { ($0["status"] as? String) == "distracted" }
+          if !focusSessions.isEmpty {
+            out += "\n## Focus (\(focused.count) focused, \(distracted.count) distracted)\n"
+            for session in focusSessions.prefix(10) {
+              let status = session["status"] as? String ?? ""
+              let app = session["appOrSite"] as? String ?? ""
+              let desc = session["description"] as? String ?? ""
+              let dur = Self.rowInt(session["durationSeconds"]) ?? 0
+              let durStr = dur > 0 ? " (\(dur / 60)m)" : ""
+              let icon = status == "focused" ? "+" : "-"
+              out += "- \(icon) \(app)\(durStr): \(desc)\n"
+            }
+            if focusSessions.count > 10 {
+              out += "- ...and \(focusSessions.count - 10) more sessions\n"
+            }
+          }
+
+          // Memories
+          if !memories.isEmpty {
+            out += "\n## Memories Learned (\(memories.count))\n"
+            for memory in memories.prefix(10) {
+              let content = memory["content"] as? String ?? ""
+              let category = memory["category"] as? String ?? ""
+              let catStr = category.isEmpty ? "" : " [\(category)]"
+              out += "- \(content)\(catStr)\n"
+            }
+            if memories.count > 10 { out += "- ...and \(memories.count - 10) more\n" }
+          }
+
+          // Observations (context summaries)
+          if !observations.isEmpty {
+            out += "\n## Screen Context (\(observations.count) observations)\n"
+            for obs in observations.prefix(10) {
+              let app = obs["appName"] as? String ?? ""
+              let activity = obs["currentActivity"] as? String ?? ""
+              out += "- \(app): \(activity)\n"
+            }
+            if observations.count > 10 {
+              out += "- ...and \(observations.count - 10) more observations\n"
+            }
+          }
+
+          log(
+            "Tool get_daily_recap: \(apps.count) apps, \(convos.count) convos, \(tasks.count) tasks, \(focusSessions.count) focus, \(memories.count) memories, \(observations.count) observations"
+          )
+          try authorization.require()
+          return out
         }
-
-        out += "\n## Conversations (\(convos.count))\n"
-        if convos.isEmpty {
-          out += "No conversations recorded.\n"
-        } else {
-          for convo in convos {
-            let title = convo["title"] as? String ?? "Untitled"
-            let overview = convo["overview"] as? String ?? "No summary"
-            let emoji = convo["emoji"] as? String ?? ""
-            let durMin = convo["duration_min"] as? Double ?? 0
-            let dur = durMin > 0 ? " (\(durMin) min)" : ""
-            out += "- \(emoji) **\(title)**\(dur): \(overview)\n"
-          }
-        }
-
-        out += "\n## Tasks (\(tasks.count))\n"
-        if tasks.isEmpty {
-          out += "No tasks created.\n"
-        } else {
-          for task in tasks {
-            let desc = task["description"] as? String ?? ""
-            let completed = (Self.rowInt(task["completed"]) ?? 0) == 1
-            let priority = task["priority"] as? String ?? ""
-            let check = completed ? "[x]" : "[ ]"
-            let pri = priority.isEmpty ? "" : " (\(priority))"
-            out += "- \(check) \(desc)\(pri)\n"
-          }
-        }
-
-        // Focus sessions
-        let focused = focusSessions.filter { ($0["status"] as? String) == "focused" }
-        let distracted = focusSessions.filter { ($0["status"] as? String) == "distracted" }
-        if !focusSessions.isEmpty {
-          out += "\n## Focus (\(focused.count) focused, \(distracted.count) distracted)\n"
-          for session in focusSessions.prefix(10) {
-            let status = session["status"] as? String ?? ""
-            let app = session["appOrSite"] as? String ?? ""
-            let desc = session["description"] as? String ?? ""
-            let dur = Self.rowInt(session["durationSeconds"]) ?? 0
-            let durStr = dur > 0 ? " (\(dur / 60)m)" : ""
-            let icon = status == "focused" ? "+" : "-"
-            out += "- \(icon) \(app)\(durStr): \(desc)\n"
-          }
-          if focusSessions.count > 10 {
-            out += "- ...and \(focusSessions.count - 10) more sessions\n"
-          }
-        }
-
-        // Memories
-        if !memories.isEmpty {
-          out += "\n## Memories Learned (\(memories.count))\n"
-          for memory in memories.prefix(10) {
-            let content = memory["content"] as? String ?? ""
-            let category = memory["category"] as? String ?? ""
-            let catStr = category.isEmpty ? "" : " [\(category)]"
-            out += "- \(content)\(catStr)\n"
-          }
-          if memories.count > 10 { out += "- ...and \(memories.count - 10) more\n" }
-        }
-
-        // Observations (context summaries)
-        if !observations.isEmpty {
-          out += "\n## Screen Context (\(observations.count) observations)\n"
-          for obs in observations.prefix(10) {
-            let app = obs["appName"] as? String ?? ""
-            let activity = obs["currentActivity"] as? String ?? ""
-            out += "- \(app): \(activity)\n"
-          }
-          if observations.count > 10 {
-            out += "- ...and \(observations.count - 10) more observations\n"
-          }
-        }
-
-        log(
-          "Tool get_daily_recap: \(apps.count) apps, \(convos.count) convos, \(tasks.count) tasks, \(focusSessions.count) focus, \(memories.count) memories, \(observations.count) observations"
-        )
-        return out
       }
       guard isExpectedOwnerCurrent(expectedOwnerID) else { return authorizedOwnerChangedResult() }
       return result
@@ -1198,7 +1212,9 @@ class ChatToolExecutor {
           return authorizedOwnerChangedResult()
         }
         guard
-          let screenshot = try? await RewindDatabase.shared.getScreenshot(id: result.screenshotId)
+          let screenshot = try? await RewindDatabase.shared.getScreenshot(
+            id: result.screenshotId,
+            authorizationSnapshot: authorizationSnapshot)
         else {
           continue
         }
@@ -1241,36 +1257,6 @@ class ChatToolExecutor {
     } catch {
       logError("Tool semantic_search failed", error: error)
       return "Failed to search: \(error.localizedDescription)"
-    }
-  }
-
-  private static func emptySemanticSearchMessage(
-    query: String,
-    days: Int,
-    appFilter: String?,
-    expectedOwnerID: String?
-  ) async -> String {
-    guard isExpectedOwnerCurrent(expectedOwnerID) else { return authorizedOwnerChangedResult() }
-    do {
-      let stats = try await RewindDatabase.shared.getStats()
-      guard isExpectedOwnerCurrent(expectedOwnerID) else { return authorizedOwnerChangedResult() }
-      if stats.total == 0 {
-        return """
-          No screen history is available yet. Omi Desktop has not captured screenshots on this Mac, so there are no results for "\(query)".
-          """
-      }
-      if stats.indexed == 0 {
-        return """
-          Omi has \(stats.total) screenshot(s), but they are not ready to search yet. Keep Omi Desktop running and try again in a bit, or use SQL for exact local checks.
-          """
-      }
-      let appText = appFilter.map { " with app filter \"\($0)\"" } ?? ""
-      return """
-        No matching screen-history results for "\(query)" in the last \(days) day(s)\(appText). Local history exists (\(stats.total) screenshot(s), \(stats.indexed) indexed), so try a broader query, a wider days window, or use execute_sql for exact app/window/OCR filters.
-        """
-    } catch {
-      return
-        "No screenshots found matching \"\(query)\" in the last \(days) day(s). Local status could not be read: \(error.localizedDescription)"
     }
   }
 

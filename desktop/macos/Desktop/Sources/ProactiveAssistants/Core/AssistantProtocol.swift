@@ -1,5 +1,13 @@
 import Foundation
 
+/// A captured frame and the authenticated generation that observed it. Delayed
+/// assistant queues must retain this pair so a frame can never be rebound to a
+/// replacement session after an account transition.
+struct OwnerBoundCapturedFrame: Sendable {
+  let frame: CapturedFrame
+  let authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+}
+
 /// Result from an assistant's analysis
 protocol AssistantResult: Sendable {
   /// Convert result to dictionary for Flutter communication
@@ -27,17 +35,27 @@ protocol ProactiveAssistant: Actor {
   /// Analyze a captured frame
   /// - Parameter frame: The captured frame to analyze
   /// - Returns: Analysis result, or nil if analysis should be skipped
-  func analyze(frame: CapturedFrame) async -> AssistantResult?
+  func analyze(
+    frame: CapturedFrame,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async -> AssistantResult?
 
   /// Handle the analysis result (notifications, events, etc.)
   /// - Parameters:
   ///   - result: The analysis result to handle
   ///   - sendEvent: Callback to send events to Flutter
-  func handleResult(_ result: AssistantResult, sendEvent: @escaping @Sendable (String, [String: Any]) -> Void) async
+  func handleResult(
+    _ result: AssistantResult,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot,
+    sendEvent: @escaping @Sendable (String, [String: Any]) -> Void
+  ) async
 
   /// Called when the active application changes
   /// - Parameter newApp: Name of the newly active application
-  func onAppSwitch(newApp: String) async
+  func onAppSwitch(
+    newApp: String,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async
 
   /// Called when the user switches context (app or window title change).
   /// The departing frame is the last frame captured before the switch.
@@ -45,14 +63,21 @@ protocol ProactiveAssistant: Actor {
   ///   - departingFrame: The last captured frame from the context being left (nil if none available)
   ///   - newApp: Name of the newly active application
   ///   - newWindowTitle: Title of the new window (if available)
-  func onContextSwitch(departingFrame: CapturedFrame?, newApp: String, newWindowTitle: String?) async
+  func onContextSwitch(
+    departingFrame: CapturedFrame?,
+    newApp: String,
+    newWindowTitle: String?,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async
 
   /// Whether this assistant needs to receive frames even during the analysis delay period.
   /// Used for time-sensitive detections like refocus tracking.
   var needsFrameDuringDelay: Bool { get async }
 
   /// Clear any pending work (e.g., queued frames)
-  func clearPendingWork() async
+  func clearPendingWork(
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async
 
   /// Revoke all queued work and owner-derived in-memory state during the
   /// exclusive effective-owner transition. Every conformer implements this
@@ -71,10 +96,18 @@ extension ProactiveAssistant {
   }
 
   /// Default: no-op for app switch
-  func onAppSwitch(newApp: String) async {}
+  func onAppSwitch(
+    newApp: String,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async {}
 
   /// Default: no-op for context switch
-  func onContextSwitch(departingFrame: CapturedFrame?, newApp: String, newWindowTitle: String?) async {}
+  func onContextSwitch(
+    departingFrame: CapturedFrame?,
+    newApp: String,
+    newWindowTitle: String?,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async {}
 
   /// Default: don't need frames during delay
   var needsFrameDuringDelay: Bool {
@@ -82,5 +115,7 @@ extension ProactiveAssistant {
   }
 
   /// Default: no-op for clearing pending work
-  func clearPendingWork() async {}
+  func clearPendingWork(
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async {}
 }

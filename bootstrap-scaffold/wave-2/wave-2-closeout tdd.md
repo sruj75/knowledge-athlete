@@ -113,15 +113,21 @@ behavior was changed.
 
 ### Green closeout evidence
 
-- The focused owner-fence selection passed 21/21 after the final SwiftLint-safe
-  test cleanup. Earlier focused runs also passed the Memory/Task/Focus,
-  conversation, reminder, embedding, and OCR same-UID/cross-owner cases.
+- The expanded changed-surface selection passed 131/131. A final file-isolated
+  rerun passed 49/49 across every test file changed by the last owner-fence
+  repair. Together they cover Memory, Task,
+  Focus, Insight, suggestion, reminder, embedding, OCR, conversation, migration,
+  Chat-discoverability, and same-UID/cross-owner publication boundaries.
 - `S14LocalAuthorityMigrationTests` passed 4/4, including duplicate legacy rows,
   canonical work-queue handoff, unknown-type rejection, and final schema
   retirement. Canonical Chat discoverability coverage passed with the migration
   selection.
-- `desktop/macos/scripts/agent-logic-harness.sh` passed all four stages in 86.70
-  seconds.
+- `desktop/macos/scripts/agent-logic-harness.sh` passed all four stages on the
+  final source tree in 114.63 seconds.
+- Independent standards and specification review found and drove repairs for
+  owner-unbound buffered frames, queued callbacks/events, search publication,
+  proactive grounding reads, coordinator bookkeeping, and Task context reads.
+  Each repaired boundary has focused behavioral coverage.
 - The focused backend billing/rate-limit/migration selection passed 76 tests.
   The full file-isolated backend runner's three maximum-parallel timing failures
   (`test_chat_agent_provider_retry.py`, `test_rate_limiting.py`, and

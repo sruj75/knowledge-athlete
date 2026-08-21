@@ -100,15 +100,15 @@ actor TaskAssistant: ProactiveAssistant {
 
   // MARK: - Event-Driven Trigger System
   private enum TriggerEvent {
-    case contextSwitch(CapturedFrame)  // departing frame from context being left
-    case timerFallback(CapturedFrame)  // latest frame after extraction interval
+    case contextSwitch(OwnerBoundCapturedFrame)  // departing frame from context being left
+    case timerFallback(OwnerBoundCapturedFrame)  // latest frame after extraction interval
   }
 
   private let triggerStream: AsyncStream<TriggerEvent>
   private let triggerContinuation: AsyncStream<TriggerEvent>.Continuation
 
   /// Always holds the most recent frame for fallback timer use
-  private var latestFrame: CapturedFrame?
+  private var latestFrame: OwnerBoundCapturedFrame?
   /// Fallback timer that fires after extractionInterval if no context switch occurs
   private var fallbackTimerTask: Task<Void, Never>?
   // Per-(app, normalized-window) timestamp of the last yielded context switch.
@@ -131,81 +131,6 @@ actor TaskAssistant: ProactiveAssistant {
   ]
 
   private static let messagingFastPathDelay: TimeInterval = 15.0
-
-  // MARK: - Due Date Helpers
-
-  /// Parse an inferred deadline string into a Date, or default to end of today.
-  /// Tries ISO8601, then common natural language patterns.
-  private func parseDueDate(from inferredDeadline: String?) -> Date? {
-    guard let deadline = inferredDeadline, !deadline.isEmpty else {
-      return nil
-    }
-    let startOfToday = Calendar.current.startOfDay(for: Date())
-
-    // Try ISO8601 first (e.g. "2025-10-04T14:00:00Z")
-    let iso = ISO8601DateFormatter()
-    if let date = iso.date(from: deadline) {
-      if date < startOfToday {
-        log(
-          "Task: Rejected past due date '\(deadline)' → \(date). Today is \(Date()). Due dates must be today or in the future."
-        )
-        return nil
-      }
-      return date
-    }
-    // Try common date formats
-    let formats = [
-      "yyyy-MM-dd'T'HH:mm:ssZ",
-      "yyyy-MM-dd'T'HH:mm:ss",
-      "yyyy-MM-dd HH:mm:ss",
-      "yyyy-MM-dd",
-      "MM/dd/yyyy",
-      "MMMM d, yyyy",
-      "MMM d, yyyy",
-      "MMMM d",
-      "MMM d",
-    ]
-    let formatter = DateFormatter()
-    formatter.locale = Locale(identifier: "en_US_POSIX")
-    for format in formats {
-      formatter.dateFormat = format
-      if let date = formatter.date(from: deadline) {
-        if date < startOfToday {
-          log(
-            "Task: Rejected past due date '\(deadline)' → \(date). Today is \(Date()). Due dates must be today or in the future."
-          )
-          return nil
-        }
-        return date
-      }
-    }
-
-    // Fallback: try macOS natural language date parsing (handles "Thursday", "next week", etc.)
-    let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.date.rawValue)
-    if let match = detector?.firstMatch(in: deadline, range: NSRange(deadline.startIndex..., in: deadline)),
-      let date = match.date
-    {
-      // Validate that the parsed date is not in the past
-      let startOfToday = Calendar.current.startOfDay(for: Date())
-      if date < startOfToday {
-        log(
-          "Task: Rejected past due date '\(deadline)' → \(date). Today is \(Date()). Due dates must be today or in the future."
-        )
-        return nil
-      }
-      return date
-    }
-
-    log("Task: Could not parse inferred_deadline '\(deadline)', skipping deadline")
-    return nil
-  }
-
-  /// Returns 11:59 PM today in the user's local timezone
-  private static func endOfToday() -> Date {
-    let calendar = Calendar.current
-    let startOfDay = calendar.startOfDay(for: Date())
-    return calendar.date(bySettingHour: 23, minute: 59, second: 0, of: startOfDay) ?? startOfDay
-  }
 
   /// Get the current system prompt from settings (accessed on MainActor for thread safety)
   private var systemPrompt: String {
@@ -273,20 +198,23 @@ actor TaskAssistant: ProactiveAssistant {
     for await trigger in triggerStream {
       guard isRunning else { break }
 
-      let (frame, triggerType): (CapturedFrame, String) = {
+      let (ownerBoundFrame, triggerType): (OwnerBoundCapturedFrame, String) = {
         switch trigger {
         case .contextSwitch(let f): return (f, "context_switch")
         case .timerFallback(let f): return (f, "timer_fallback")
         }
       }()
 
+      let frame = ownerBoundFrame.frame
       log("Task: Processing \(triggerType) trigger from \(frame.appName) (window: \(frame.windowTitle ?? "nil"))")
 
       // Cancel fallback timer before processing
       fallbackTimerTask?.cancel()
       fallbackTimerTask = nil
 
-      await processFrame(frame)
+      await processFrame(
+        frame,
+        authorizationSnapshot: ownerBoundFrame.authorizationSnapshot)
 
       // Start a new fallback timer after processing
       startFallbackTimer()
@@ -302,9 +230,10 @@ actor TaskAssistant: ProactiveAssistant {
       let interval = await self.extractionInterval
       try? await Task.sleep(nanoseconds: UInt64(interval * 1_000_000_000))
       guard !Task.isCancelled else { return }
-      guard let frame = self.latestFrame else { return }
+      guard let ownerBoundFrame = self.latestFrame else { return }
+      guard RuntimeOwnerIdentity.isAuthorizationCurrent(ownerBoundFrame.authorizationSnapshot) else { return }
       log("Task: Fallback timer fired after \(Int(interval))s")
-      self.triggerContinuation.yield(.timerFallback(frame))
+      self.triggerContinuation.yield(.timerFallback(ownerBoundFrame))
     }
   }
 
@@ -330,7 +259,11 @@ actor TaskAssistant: ProactiveAssistant {
     return true
   }
 
-  func analyze(frame: CapturedFrame) async -> AssistantResult? {
+  func analyze(
+    frame: CapturedFrame,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async -> AssistantResult? {
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return nil }
     // Defense-in-depth: skip Rewind privacy-excluded apps (password managers, keychains)
     if RewindSettings.shared.isAppExcluded(frame.appName) {
       return nil
@@ -338,6 +271,7 @@ actor TaskAssistant: ProactiveAssistant {
 
     // Only analyze apps on the whitelist
     let allowed = await MainActor.run { TaskAssistantSettings.shared.isAppAllowed(frame.appName) }
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return nil }
     if !allowed {
       return nil
     }
@@ -346,12 +280,16 @@ actor TaskAssistant: ProactiveAssistant {
     let windowAllowed = await MainActor.run {
       TaskAssistantSettings.shared.isWindowAllowed(appName: frame.appName, windowTitle: frame.windowTitle)
     }
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return nil }
     if !windowAllowed {
       return nil
     }
 
     // Store as latest frame (used by fallback timer and context switch)
-    latestFrame = frame
+    let ownerBoundFrame = OwnerBoundCapturedFrame(
+      frame: frame,
+      authorizationSnapshot: authorizationSnapshot)
+    latestFrame = ownerBoundFrame
 
     // Start fallback timer if not already running
     if fallbackTimerTask == nil {
@@ -361,7 +299,7 @@ actor TaskAssistant: ProactiveAssistant {
     // Fast in-app trigger: for messaging apps, arm a ~15s timer keyed to the
     // current (app, window). Lets a new chat message turn into a task without
     // requiring the user to leave the app.
-    armFastFallbackIfNeeded(frame: frame)
+    armFastFallbackIfNeeded(ownerBoundFrame: ownerBoundFrame)
 
     return nil
   }
@@ -370,7 +308,9 @@ actor TaskAssistant: ProactiveAssistant {
   /// arrives (subject to the per-window dedupe TTL). Lets chat content turn into a task
   /// without requiring the user to leave the app. Non-messaging apps continue to rely on
   /// the regular context-switch + fallback-timer path.
-  private func armFastFallbackIfNeeded(frame: CapturedFrame) {
+  private func armFastFallbackIfNeeded(ownerBoundFrame: OwnerBoundCapturedFrame) {
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(ownerBoundFrame.authorizationSnapshot) else { return }
+    let frame = ownerBoundFrame.frame
     guard Self.messagingFastPathApps.contains(frame.appName) else { return }
 
     let key = Self.analyzedKey(for: frame)
@@ -386,12 +326,16 @@ actor TaskAssistant: ProactiveAssistant {
 
     log("Task: Fast in-app trigger firing immediately for messaging window '\(key)'")
     lastAnalyzedByKey[key] = Date()
-    triggerContinuation.yield(.timerFallback(frame))
+    triggerContinuation.yield(.timerFallback(ownerBoundFrame))
   }
 
-  func handleResult(_ result: AssistantResult, sendEvent: @escaping @Sendable (String, [String: Any]) -> Void) async {
+  func handleResult(
+    _ result: AssistantResult,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot,
+    sendEvent: @escaping @Sendable (String, [String: Any]) -> Void
+  ) async {
     guard let taskResult = result as? TaskExtractionResult else { return }
-    guard let authorizationSnapshot = RuntimeOwnerIdentity.captureAuthorizationSnapshot() else { return }
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
     await handleResultWithScreenshot(
       taskResult,
       authorizationSnapshot: authorizationSnapshot,
@@ -454,12 +398,6 @@ actor TaskAssistant: ProactiveAssistant {
 
     log("Task: Candidate admitted by policy (confidence=\(confidencePercent)%)")
 
-    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
-    previousTasks.insert(task, at: 0)
-    if previousTasks.count > maxPreviousTasks {
-      previousTasks.removeLast()
-    }
-
     guard
       await saveTaskLocally(
         task: task,
@@ -472,6 +410,11 @@ actor TaskAssistant: ProactiveAssistant {
     else { return }
 
     guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
+    previousTasks.insert(task, at: 0)
+    if previousTasks.count > maxPreviousTasks {
+      previousTasks.removeLast()
+    }
+
     await MainActor.run {
       guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
       AnalyticsManager.shared.taskExtracted(taskCount: 1)
@@ -540,7 +483,11 @@ actor TaskAssistant: ProactiveAssistant {
     }
   }
 
-  func onAppSwitch(newApp: String) async {
+  func onAppSwitch(
+    newApp: String,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async {
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
     if newApp != currentApp {
       if let currentApp = currentApp {
         log("Task: APP SWITCH: \(currentApp) -> \(newApp)")
@@ -551,19 +498,31 @@ actor TaskAssistant: ProactiveAssistant {
     }
   }
 
-  func onContextSwitch(departingFrame: CapturedFrame?, newApp: String, newWindowTitle: String?) async {
+  func onContextSwitch(
+    departingFrame: CapturedFrame?,
+    newApp: String,
+    newWindowTitle: String?,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async {
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
     // Use latestFrame if departing frame is unavailable or stale (from a different app due to delay periods)
-    let frame: CapturedFrame? = {
+    let ownerBoundFrame: OwnerBoundCapturedFrame? = {
       if let departing = departingFrame {
-        return departing
+        return OwnerBoundCapturedFrame(
+          frame: departing,
+          authorizationSnapshot: authorizationSnapshot)
       }
       return latestFrame
     }()
 
-    guard let frame = frame else {
+    guard let ownerBoundFrame,
+      ownerBoundFrame.authorizationSnapshot == authorizationSnapshot,
+      RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
+    else {
       log("Task: Context switch but no frame available")
       return
     }
+    let frame = ownerBoundFrame.frame
 
     // Defense-in-depth: skip Rewind privacy-excluded apps
     if RewindSettings.shared.isAppExcluded(frame.appName) {
@@ -575,6 +534,7 @@ actor TaskAssistant: ProactiveAssistant {
 
     // Check frame's app is on the whitelist
     let allowed = await MainActor.run { TaskAssistantSettings.shared.isAppAllowed(frame.appName) }
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
     if !allowed {
       log("Task: Context switch from non-whitelisted app '\(frame.appName)', skipping")
       // Still cancel fallback timer on any context switch
@@ -587,6 +547,7 @@ actor TaskAssistant: ProactiveAssistant {
     let windowAllowed = await MainActor.run {
       TaskAssistantSettings.shared.isWindowAllowed(appName: frame.appName, windowTitle: frame.windowTitle)
     }
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
     if !windowAllowed {
       log("Task: Context switch from filtered browser window, skipping")
       fallbackTimerTask?.cancel()
@@ -604,6 +565,7 @@ actor TaskAssistant: ProactiveAssistant {
     // Messaging apps use a shorter dedupe so a new message in the same chat doesn't
     // wait a full minute before getting re-analyzed.
     let analysisDelay = await MainActor.run { AssistantSettings.shared.analysisDelay }
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
     let dedupeKey = Self.analyzedKey(for: frame)
     let dedupeTTL: TimeInterval =
       Self.messagingFastPathApps.contains(frame.appName)
@@ -629,7 +591,7 @@ actor TaskAssistant: ProactiveAssistant {
     // Yield context switch trigger with the frame
     lastAnalyzedByKey[dedupeKey] = now
     pruneStaleDedupeEntries(now: now, ttl: TimeInterval(max(analysisDelay, 60) * 5))
-    triggerContinuation.yield(.contextSwitch(frame))
+    triggerContinuation.yield(.contextSwitch(ownerBoundFrame))
   }
 
   /// Normalize (app, window) into a stable dedupe key. Strips Telegram-style trailing
@@ -657,15 +619,21 @@ actor TaskAssistant: ProactiveAssistant {
     lastAnalyzedByKey = lastAnalyzedByKey.filter { $0.value >= cutoff }
   }
 
-  func clearPendingWork() async {
+  func clearPendingWork(
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async {
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
+    clearPendingWorkForOwnerReset()
+  }
+
+  private func clearPendingWorkForOwnerReset() {
     fallbackTimerTask?.cancel()
     fallbackTimerTask = nil
     log("Task: Cleared fallback timer")
   }
 
   func resetForOwnerChange() async {
-    fallbackTimerTask?.cancel()
-    fallbackTimerTask = nil
+    clearPendingWorkForOwnerReset()
     latestFrame = nil
     previousTasks.removeAll()
     lastAnalyzedByKey.removeAll()
@@ -683,8 +651,11 @@ actor TaskAssistant: ProactiveAssistant {
 
   // MARK: - Single-Stage Analysis with Tool Calling
 
-  func processFrame(_ frame: CapturedFrame) async {
-    guard let authorizationSnapshot = RuntimeOwnerIdentity.captureAuthorizationSnapshot() else { return }
+  func processFrame(
+    _ frame: CapturedFrame,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async {
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
     let enabled = await isEnabled
     guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
     guard enabled else {
@@ -720,7 +691,11 @@ actor TaskAssistant: ProactiveAssistant {
         ) { type, data in
           let boxed = TaskAssistantEventPayloadBox(data)
           Task { @MainActor in
-            AssistantCoordinator.shared.sendEvent(type: type, data: boxed.value)
+            guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
+            AssistantCoordinator.shared.sendEvent(
+              type: type,
+              data: boxed.value,
+              authorizationSnapshot: authorizationSnapshot)
           }
         }
       }
@@ -778,10 +753,14 @@ actor TaskAssistant: ProactiveAssistant {
     }
 
     // Inject AI user profile for context
-    if let profile = await AIUserProfileService.shared.getLatestProfile() {
+    if let profile = await AIUserProfileService.shared.getLatestProfile(
+      authorizationSnapshot: authorizationSnapshot)
+    {
+      try requireCurrentAuthorization(authorizationSnapshot)
       prompt += "USER PROFILE (who this user is — use for context, not as a task source):\n"
       prompt += profile.profileText + "\n\n"
     }
+    try requireCurrentAuthorization(authorizationSnapshot)
 
     prompt += Self.contextEvidencePrompt(context)
 
@@ -1355,30 +1334,53 @@ actor TaskAssistant: ProactiveAssistant {
     var deletedTasks: [(id: Int64, description: String)] = []
 
     do {
-      activeTasks = try await ActionItemStorage.shared.getRecentActiveTasks(limit: 60).map {
+      activeTasks = try await ActionItemStorage.shared.getRecentActiveTasks(
+        limit: 60,
+        authorizationSnapshot: authorizationSnapshot
+      ).map {
         (id: "local_\($0.id)", description: $0.description, priority: $0.priority)
       }
       try requireCurrentAuthorization(authorizationSnapshot)
+    } catch is LocalMutationAuthorizationError {
+      throw LocalMutationAuthorizationError.revoked
     } catch {
       logError("Task: Failed to load recent tasks", error: error)
     }
 
     do {
-      completedTasks = try await ActionItemStorage.shared.getRecentCompletedTasks(limit: 10)
+      completedTasks = try await ActionItemStorage.shared.getRecentCompletedTasks(
+        limit: 10,
+        authorizationSnapshot: authorizationSnapshot)
       try requireCurrentAuthorization(authorizationSnapshot)
+    } catch is LocalMutationAuthorizationError {
+      throw LocalMutationAuthorizationError.revoked
     } catch {
       logError("Task: Failed to load completed tasks", error: error)
     }
 
     do {
-      deletedTasks = try await ActionItemStorage.shared.getRecentDeletedTasks(limit: 10, deletedBy: "user")
+      deletedTasks = try await ActionItemStorage.shared.getRecentDeletedTasks(
+        limit: 10,
+        deletedBy: "user",
+        authorizationSnapshot: authorizationSnapshot)
       try requireCurrentAuthorization(authorizationSnapshot)
+    } catch is LocalMutationAuthorizationError {
+      throw LocalMutationAuthorizationError.revoked
     } catch {
       logError("Task: Failed to load deleted tasks", error: error)
     }
 
-    let goals = (try? await GoalStorage.shared.getLocalGoals(activeOnly: true)) ?? []
-    try requireCurrentAuthorization(authorizationSnapshot)
+    var goals: [LocalGoal] = []
+    do {
+      goals = try await GoalStorage.shared.getLocalGoals(
+        activeOnly: true,
+        authorizationSnapshot: authorizationSnapshot)
+      try requireCurrentAuthorization(authorizationSnapshot)
+    } catch is LocalMutationAuthorizationError {
+      throw LocalMutationAuthorizationError.revoked
+    } catch {
+      logError("Task: Failed to load active goals", error: error)
+    }
 
     return TaskExtractionContext(
       activeTasks: activeTasks,
@@ -1406,7 +1408,10 @@ actor TaskAssistant: ProactiveAssistant {
         authorizationSnapshot: authorizationSnapshot)
 
       for result in vectorResults where result.similarity > 0.3 {
-        if let record = try await ActionItemStorage.shared.getActionItem(id: result.id) {
+        if let record = try await ActionItemStorage.shared.getActionItem(
+          id: result.id,
+          authorizationSnapshot: authorizationSnapshot)
+        {
           guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return [] }
           let status: String
           if record.deleted {
@@ -1427,6 +1432,8 @@ actor TaskAssistant: ProactiveAssistant {
             ))
         }
       }
+    } catch is LocalMutationAuthorizationError {
+      return []
     } catch {
       logError("Task: Vector search failed", error: error)
     }
@@ -1453,7 +1460,8 @@ actor TaskAssistant: ProactiveAssistant {
           query: ftsQuery,
           limit: 10,
           includeCompleted: true,
-          includeDeleted: true
+          includeDeleted: true,
+          authorizationSnapshot: authorizationSnapshot
         )
         guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return [] }
 
@@ -1477,6 +1485,8 @@ actor TaskAssistant: ProactiveAssistant {
             ))
         }
       }
+    } catch is LocalMutationAuthorizationError {
+      return []
     } catch {
       logError("Task: FTS search failed", error: error)
     }
@@ -1484,11 +1494,4 @@ actor TaskAssistant: ProactiveAssistant {
     return results
   }
 
-  private func requireCurrentAuthorization(
-    _ authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
-  ) throws {
-    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else {
-      throw LocalMutationAuthorizationError.revoked
-    }
-  }
 }

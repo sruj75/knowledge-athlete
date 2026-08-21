@@ -70,9 +70,24 @@ final class TaskReminderService {
     authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot,
     removeOtherOwners: Bool = false
   ) async -> TaskReminderResult {
-    guard isAuthorized(authorizationSnapshot, ownerID: ownerID) else {
-      return TaskReminderResult(errorDescription: nil)
+    await withNotificationMutationLease(
+      ownerID: ownerID,
+      authorizationSnapshot: authorizationSnapshot
+    ) {
+      await self.reconcileAuthorized(
+        tasks: tasks,
+        ownerID: ownerID,
+        authorizationSnapshot: authorizationSnapshot,
+        removeOtherOwners: removeOtherOwners)
     }
+  }
+
+  private func reconcileAuthorized(
+    tasks: [TaskActionItem],
+    ownerID: String,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot,
+    removeOtherOwners: Bool
+  ) async -> TaskReminderResult {
     let currentTime = now()
     let desired = Dictionary(
       lastWriteWins: tasks.compactMap { task -> (String, TaskActionItem)? in
@@ -98,7 +113,7 @@ final class TaskReminderService {
         return TaskReminderResult(errorDescription: nil)
       }
       guard let dueAt = task.dueAt else { continue }
-      let result = await schedule(
+      let result = await scheduleAuthorized(
         task: task,
         ownerID: ownerID,
         dueAt: dueAt,
@@ -114,42 +129,51 @@ final class TaskReminderService {
     ownerID: String,
     authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
   ) async -> TaskReminderResult {
-    guard isAuthorized(authorizationSnapshot, ownerID: ownerID) else {
-      return TaskReminderResult(errorDescription: nil)
-    }
-    guard !task.completed, task.deleted != true, let dueAt = task.dueAt, dueAt > now() else {
-      cancel(
-        taskID: task.id,
-        ownerID: ownerID,
-        authorizationSnapshot: authorizationSnapshot)
-      return TaskReminderResult(errorDescription: nil)
-    }
-    return await schedule(
-      task: task,
+    await withNotificationMutationLease(
       ownerID: ownerID,
-      dueAt: dueAt,
-      identifier: Self.requestIdentifier(ownerID: ownerID, taskID: task.id),
       authorizationSnapshot: authorizationSnapshot
-    )
+    ) {
+      guard !task.completed, task.deleted != true, let dueAt = task.dueAt, dueAt > self.now() else {
+        self.notifications.removePendingRequests(
+          withIdentifiers: [Self.requestIdentifier(ownerID: ownerID, taskID: task.id)])
+        return TaskReminderResult(errorDescription: nil)
+      }
+      return await self.scheduleAuthorized(
+        task: task,
+        ownerID: ownerID,
+        dueAt: dueAt,
+        identifier: Self.requestIdentifier(ownerID: ownerID, taskID: task.id),
+        authorizationSnapshot: authorizationSnapshot)
+    }
   }
 
   func cancel(
     taskID: String,
     ownerID: String,
     authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
-  ) {
-    guard isAuthorized(authorizationSnapshot, ownerID: ownerID) else { return }
-    notifications.removePendingRequests(
-      withIdentifiers: [Self.requestIdentifier(ownerID: ownerID, taskID: taskID)]
-    )
+  ) async {
+    _ = await withNotificationMutationLease(
+      ownerID: ownerID,
+      authorizationSnapshot: authorizationSnapshot
+    ) {
+      self.notifications.removePendingRequests(
+        withIdentifiers: [Self.requestIdentifier(ownerID: ownerID, taskID: taskID)])
+      return TaskReminderResult(errorDescription: nil)
+    }
   }
 
   func removeAllTaskRemindersWhileSignedOut() async {
-    guard RuntimeOwnerIdentity.currentOwnerId() == nil else { return }
-    let identifiers = await notifications.pendingRequestIdentifiers()
-      .filter { $0.hasPrefix(Self.namespace) }
-    guard RuntimeOwnerIdentity.currentOwnerId() == nil else { return }
-    notifications.removePendingRequests(withIdentifiers: identifiers)
+    let authorization = LocalMutationAuthorization {
+      RuntimeOwnerIdentity.currentOwnerId() == nil
+    }
+    _ = try? await authorization.withCommitLease { @MainActor in
+      try authorization.require()
+      let identifiers = await self.notifications.pendingRequestIdentifiers()
+        .filter { $0.hasPrefix(Self.namespace) }
+      try authorization.require()
+      self.notifications.removePendingRequests(withIdentifiers: identifiers)
+      try authorization.require()
+    }
   }
 
   private static func ownerPrefix(ownerID: String) -> String {
@@ -157,7 +181,7 @@ final class TaskReminderService {
     return sample
   }
 
-  private func schedule(
+  private func scheduleAuthorized(
     task: TaskActionItem,
     ownerID: String,
     dueAt: Date,
@@ -184,12 +208,30 @@ final class TaskReminderService {
     )
     let result = await notifications.add(request)
     guard isAuthorized(authorizationSnapshot, ownerID: ownerID) else {
-      // The add may have crossed an account transition. Remove only the exact
-      // stale request that just completed; never sweep the replacement owner.
-      notifications.removePendingRequests(withIdentifiers: [identifier])
       return TaskReminderResult(errorDescription: nil)
     }
     return TaskReminderResult(errorDescription: result.errorDescription)
+  }
+
+  private func withNotificationMutationLease(
+    ownerID: String,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot,
+    operation: @escaping @MainActor @Sendable () async -> TaskReminderResult
+  ) async -> TaskReminderResult {
+    let authorization = LocalMutationAuthorization {
+      authorizationSnapshot.ownerID == ownerID
+        && RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
+    }
+    do {
+      return try await authorization.withCommitLease { @MainActor in
+        try authorization.require()
+        let result = await operation()
+        try authorization.require()
+        return result
+      }
+    } catch {
+      return TaskReminderResult(errorDescription: nil)
+    }
   }
 
   private func isAuthorized(

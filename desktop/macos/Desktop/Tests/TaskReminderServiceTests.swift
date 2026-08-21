@@ -120,7 +120,7 @@ final class TaskReminderServiceTests: XCTestCase {
     XCTAssertNil(notifications.requests[identifier])
 
     notifications.seed(identifier: identifier)
-    service.cancel(
+    await service.cancel(
       taskID: "local_4",
       ownerID: ownerID,
       authorizationSnapshot: authorizationSnapshot)
@@ -164,7 +164,7 @@ final class TaskReminderServiceTests: XCTestCase {
     XCTAssertEqual(persisted?.description, "Committed without reminder")
   }
 
-  func testAddCompletingAfterSameUIDReauthenticationRemovesExactStaleRequest() async throws {
+  func testSuspendedAddCannotDeleteSameUIDReplacementReminder() async throws {
     let ownerFixture = try XCTUnwrap(ownerFixture)
     let notifications = FakeTaskReminderNotifications()
     let gate = TaskReminderAddGate()
@@ -173,33 +173,56 @@ final class TaskReminderServiceTests: XCTestCase {
     let ownerID = try XCTUnwrap(fixture?.testUserId)
     let authorizationSnapshot = try XCTUnwrap(
       RuntimeOwnerIdentity.captureAuthorizationSnapshot(expectedOwnerID: ownerID))
-    let task = task(id: "local_77", dueAt: now.addingTimeInterval(300))
-    let identifier = TaskReminderService.requestIdentifier(ownerID: ownerID, taskID: task.id)
+    let scheduledTask = task(
+      id: "local_77",
+      description: "Old generation reminder",
+      dueAt: now.addingTimeInterval(300))
+    let identifier = TaskReminderService.requestIdentifier(ownerID: ownerID, taskID: scheduledTask.id)
 
     let scheduling = Task {
       await service.schedule(
-        task: task,
+        task: scheduledTask,
         ownerID: ownerID,
         authorizationSnapshot: authorizationSnapshot)
     }
     await gate.waitUntilEntered()
-    await ownerFixture.establish(authOwnerID: nil)
-    await ownerFixture.establish(authOwnerID: ownerID)
+    let transition = Task {
+      await ownerFixture.establish(authOwnerID: nil)
+      await ownerFixture.establish(authOwnerID: ownerID)
+    }
+    await EffectiveOwnerTransitionFence.shared.waitUntilTransitionIsPending()
     await gate.release()
     _ = await scheduling.value
+    await transition.value
 
-    XCTAssertNil(notifications.requests[identifier])
-    XCTAssertTrue(notifications.removedBatches.contains([identifier]))
+    let replacementSnapshot = try XCTUnwrap(
+      RuntimeOwnerIdentity.captureAuthorizationSnapshot(expectedOwnerID: ownerID))
+    let replacement = task(
+      id: "local_77",
+      description: "Replacement generation reminder",
+      dueAt: now.addingTimeInterval(600))
+    _ = await service.schedule(
+      task: replacement,
+      ownerID: ownerID,
+      authorizationSnapshot: replacementSnapshot)
+
+    XCTAssertEqual(
+      notifications.requests[identifier]?.content.body,
+      "Replacement generation reminder")
+    XCTAssertEqual(
+      notifications.removedBatches.filter { $0 == [identifier] }.count,
+      2)
   }
 
   private func task(
     id: String,
+    description: String? = nil,
     completed: Bool = false,
     dueAt: Date?
   ) -> TaskActionItem {
     TaskActionItem(
       id: id,
-      description: "Task \(id)",
+      description: description ?? "Task \(id)",
       completed: completed,
       createdAt: now.addingTimeInterval(-100),
       dueAt: dueAt,

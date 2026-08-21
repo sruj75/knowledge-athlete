@@ -5,57 +5,76 @@ extension MemoryStorage {
   func semanticMatches(
     queryVector: [Double],
     scope: MemoryLayerScope = .defaultAccess,
-    limit: Int = 20
+    limit: Int = 20,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
   ) async throws -> [MemorySemanticMatch] {
-    guard !queryVector.isEmpty, queryVector.allSatisfy(\.isFinite) else {
-      throw MemoryStorageError.invalidEmbedding
+    let authorization = LocalMutationAuthorization {
+      RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
     }
-    let pool = try await database()
-    return try await pool.read { db in
-      let placeholders = scope.layers.map { _ in "?" }.joined(separator: ", ")
-      let expiryClause =
-        scope == .defaultAccess
-        ? "AND (m.layer != ? OR m.expiresAt IS NULL OR m.expiresAt > ?)"
-        : ""
-      var arguments: [DatabaseValue] = scope.layers.map { $0.rawValue.databaseValue }
-      if scope == .defaultAccess {
-        arguments.append(MemoryLayer.shortTerm.rawValue.databaseValue)
-        arguments.append(Date().databaseValue)
+    return try await authorization.withReadLease {
+      try authorization.require()
+      guard !queryVector.isEmpty, queryVector.allSatisfy(\.isFinite) else {
+        throw MemoryStorageError.invalidEmbedding
       }
-      let rows = try Row.fetchAll(
-        db,
-        sql: """
-          SELECT m.*, e.vectorJson
-          FROM memories m JOIN memory_embeddings e ON e.memoryId = m.id AND e.revision = m.revision
-          WHERE m.pendingDeleteDeadline IS NULL AND m.isDismissed = 0
-            AND m.layer IN (\(placeholders))
-            \(expiryClause)
-          """,
-        arguments: StatementArguments(arguments))
-      return rows.compactMap { row -> (MemoryItem, Double)? in
-        guard let record = try? MemoryRecord(row: row).toMemoryItem(),
-          let json: String = row["vectorJson"],
-          let data = json.data(using: .utf8),
-          let vector = try? JSONDecoder().decode([Double].self, from: data),
-          vector.count == queryVector.count,
-          let score = Self.cosine(queryVector, vector)
-        else { return nil }
-        return (record, score)
+      let pool = try await self.database()
+      try authorization.require()
+      let matches = try await pool.read { db in
+        try authorization.require()
+        let placeholders = scope.layers.map { _ in "?" }.joined(separator: ", ")
+        let expiryClause =
+          scope == .defaultAccess
+          ? "AND (m.layer != ? OR m.expiresAt IS NULL OR m.expiresAt > ?)"
+          : ""
+        var arguments: [DatabaseValue] = scope.layers.map { $0.rawValue.databaseValue }
+        if scope == .defaultAccess {
+          arguments.append(MemoryLayer.shortTerm.rawValue.databaseValue)
+          arguments.append(Date().databaseValue)
+        }
+        let rows = try Row.fetchAll(
+          db,
+          sql: """
+            SELECT m.*, e.vectorJson
+            FROM memories m JOIN memory_embeddings e ON e.memoryId = m.id AND e.revision = m.revision
+            WHERE m.pendingDeleteDeadline IS NULL AND m.isDismissed = 0
+              AND m.layer IN (\(placeholders))
+              \(expiryClause)
+            """,
+          arguments: StatementArguments(arguments))
+        let ranked = rows.compactMap { row -> (MemoryItem, Double)? in
+          guard let record = try? MemoryRecord(row: row).toMemoryItem(),
+            let json: String = row["vectorJson"],
+            let data = json.data(using: .utf8),
+            let vector = try? JSONDecoder().decode([Double].self, from: data),
+            vector.count == queryVector.count,
+            let score = Self.cosine(queryVector, vector)
+          else { return nil }
+          return (record, score)
+        }
+        .sorted { lhs, rhs in
+          lhs.1 == rhs.1 ? lhs.0.createdAt > rhs.0.createdAt : lhs.1 > rhs.1
+        }
+        .prefix(max(0, limit))
+        .map { MemorySemanticMatch(memory: $0.0, score: $0.1) }
+        try authorization.require()
+        return ranked
       }
-      .sorted { lhs, rhs in
-        lhs.1 == rhs.1 ? lhs.0.createdAt > rhs.0.createdAt : lhs.1 > rhs.1
-      }
-      .prefix(max(0, limit))
-      .map { MemorySemanticMatch(memory: $0.0, score: $0.1) }
+      try authorization.require()
+      return matches
     }
   }
 
   func semanticSearch(
     queryVector: [Double],
     scope: MemoryLayerScope = .defaultAccess,
-    limit: Int = 20
+    limit: Int = 20,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
   ) async throws -> [MemoryItem] {
-    try await semanticMatches(queryVector: queryVector, scope: scope, limit: limit).map(\.memory)
+    try await semanticMatches(
+      queryVector: queryVector,
+      scope: scope,
+      limit: limit,
+      authorizationSnapshot: authorizationSnapshot
+    ).map(\.memory)
   }
 
   /// Selects bounded active context by local vector similarity to the due

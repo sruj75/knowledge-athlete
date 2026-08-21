@@ -54,7 +54,12 @@ actor OCREmbeddingService {
       _ taskType: String?,
       _ authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
     ) async throws -> [[Float]]
-  typealias EmbeddingWriter = @Sendable (_ screenshotId: Int64, _ embedding: Data) async throws -> Void
+  typealias EmbeddingWriter =
+    @Sendable (
+      _ screenshotId: Int64,
+      _ embedding: Data,
+      _ authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+    ) async throws -> Void
   private let batchEmbedder: BatchEmbedder
   private let embeddingWriter: EmbeddingWriter
 
@@ -65,8 +70,11 @@ actor OCREmbeddingService {
         taskType: taskType,
         authorizationSnapshot: authorizationSnapshot)
     }
-    self.embeddingWriter = { screenshotId, embedding in
-      try await RewindDatabase.shared.updateScreenshotEmbedding(id: screenshotId, embedding: embedding)
+    self.embeddingWriter = { screenshotId, embedding, authorizationSnapshot in
+      try await RewindDatabase.shared.updateScreenshotEmbedding(
+        id: screenshotId,
+        embedding: embedding,
+        authorizationSnapshot: authorizationSnapshot)
     }
   }
 
@@ -233,7 +241,10 @@ actor OCREmbeddingService {
             guard generation == ownerGeneration,
               RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
             else { return }
-            try await embeddingWriter(screenshotId, data)
+            try await embeddingWriter(
+              screenshotId,
+              data,
+              authorizationSnapshot)
             guard generation == ownerGeneration,
               RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
             else { return }
@@ -289,7 +300,8 @@ actor OCREmbeddingService {
       guard generation == ownerGeneration,
         RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
       else { return }
-      let status = try await RewindDatabase.shared.getScreenshotEmbeddingBackfillStatus()
+      let status = try await RewindDatabase.shared.getScreenshotEmbeddingBackfillStatus(
+        authorizationSnapshot: authorizationSnapshot)
       guard generation == ownerGeneration,
         RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
       else { return }
@@ -310,7 +322,9 @@ actor OCREmbeddingService {
         guard generation == ownerGeneration,
           RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
         else { return }
-        let items = try await RewindDatabase.shared.getScreenshotsMissingEmbeddings(limit: batchSize)
+        let items = try await RewindDatabase.shared.getScreenshotsMissingEmbeddings(
+          limit: batchSize,
+          authorizationSnapshot: authorizationSnapshot)
         guard generation == ownerGeneration,
           RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
         else { return }
@@ -350,7 +364,10 @@ actor OCREmbeddingService {
           guard generation == ownerGeneration,
             RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
           else { return }
-          try await RewindDatabase.shared.updateScreenshotEmbedding(id: item.id, embedding: data)
+          try await RewindDatabase.shared.updateScreenshotEmbedding(
+            id: item.id,
+            embedding: data,
+            authorizationSnapshot: authorizationSnapshot)
           guard generation == ownerGeneration,
             RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
           else { return }
@@ -365,7 +382,9 @@ actor OCREmbeddingService {
             RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
           else { return }
           try await RewindDatabase.shared.updateScreenshotEmbeddingBackfillStatus(
-            completed: false, processedCount: totalProcessed)
+            completed: false,
+            processedCount: totalProcessed,
+            authorizationSnapshot: authorizationSnapshot)
           guard generation == ownerGeneration,
             RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
           else { return }
@@ -389,7 +408,9 @@ actor OCREmbeddingService {
           RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
         else { return }
         try await RewindDatabase.shared.updateScreenshotEmbeddingBackfillStatus(
-          completed: false, processedCount: totalProcessed)
+          completed: false,
+          processedCount: totalProcessed,
+          authorizationSnapshot: authorizationSnapshot)
         guard generation == ownerGeneration,
           RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
         else { return }
@@ -401,7 +422,9 @@ actor OCREmbeddingService {
           RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
         else { return }
         try await RewindDatabase.shared.updateScreenshotEmbeddingBackfillStatus(
-          completed: false, processedCount: totalProcessed)
+          completed: false,
+          processedCount: totalProcessed,
+          authorizationSnapshot: authorizationSnapshot)
         guard generation == ownerGeneration,
           RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
         else { return }
@@ -411,7 +434,9 @@ actor OCREmbeddingService {
           RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
         else { return }
         try await RewindDatabase.shared.updateScreenshotEmbeddingBackfillStatus(
-          completed: true, processedCount: totalProcessed)
+          completed: true,
+          processedCount: totalProcessed,
+          authorizationSnapshot: authorizationSnapshot)
         guard generation == ownerGeneration,
           RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
         else { return }
@@ -470,7 +495,8 @@ actor OCREmbeddingService {
         endDate: endDate,
         appFilter: appFilter,
         limit: batchSize,
-        offset: offset
+        offset: offset,
+        authorizationSnapshot: authorizationSnapshot
       )
       guard generation == ownerGeneration,
         RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
