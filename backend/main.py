@@ -37,7 +37,6 @@ from routers import (
     wrapped,
     announcements,
     phone_calls,
-    tools,
     metrics,
     fair_use_admin,
     advice,
@@ -136,7 +135,6 @@ app.include_router(payment.router)
 app.include_router(wrapped.router)
 app.include_router(announcements.router)
 app.include_router(phone_calls.router)
-app.include_router(tools.router)
 app.include_router(metrics.router)
 app.include_router(fair_use_admin.router)
 app.include_router(advice.router)

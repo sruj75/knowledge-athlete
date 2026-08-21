@@ -53,12 +53,10 @@ def test_retired_hosted_authority_modules_are_deleted() -> None:
     assert [path for path in retired if (ROOT / path).exists()] == []
 
 
-def test_transient_compute_and_retained_retrieval_routes_remain() -> None:
+def test_transient_compute_routes_remain() -> None:
     source = _router_source()
     for path in (
         '/v1/conversation-compute/action-items',
-        '/v1/tools/conversations',
-        '/v1/tools/conversations/search',
         '/v1/memory/compute/extract',
         '/v1/memory/compute/normalize',
         '/v1/memory/compute/consolidate',

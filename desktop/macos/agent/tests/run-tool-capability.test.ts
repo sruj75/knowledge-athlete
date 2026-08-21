@@ -347,10 +347,7 @@ describe("RunToolCapabilityBroker", () => {
     store.close();
   });
 
-  it("authorizes surface-scoped voice tools for swift_realtime runs without leaking them elsewhere", () => {
-    // Regression: realtime-voice runs relay Swift-executed voice tools that no
-    // chat adapter advertises. An adapter-only allowlist rejected every such
-    // tool (ask_higher_model, point_click) with tool_not_allowed in production.
+  it("authorizes retained surface-scoped voice tools and rejects retired tools", () => {
     const root = mkdtempSync(join(tmpdir(), "omi-capability-"));
     roots.push(root);
     const store = new SqliteAgentStore({ databasePath: join(root, "agent.sqlite"), reconcileOnOpen: false });
@@ -385,21 +382,47 @@ describe("RunToolCapabilityBroker", () => {
       attemptId: attempt.attemptId,
     });
     expect(capability.surfaceKind).toBe("realtime_voice");
-    expect(capability.allowedToolNames).toContain("ask_higher_model");
-    expect(capability.allowedToolNames).toContain("point_click");
+    expect(capability.allowedToolNames).toContain("screenshot");
+    expect(capability.allowedToolNames).toContain("report_screen_observation");
+    expect(capability.allowedToolNames).not.toContain("ask_higher_model");
+    expect(capability.allowedToolNames).not.toContain("point_click");
     const authorized = broker.authorize({
       capabilityRef: capability.capabilityRef,
       invocationId: "invoke-voice",
       runId: run.runId,
       attemptId: attempt.attemptId,
       activeOwnerId: session.ownerId,
-      toolName: "ask_higher_model",
-      toolInput: { query: "what's the weather in nyc right now?" },
+      toolName: "screenshot",
+      toolInput: {},
     });
-    expect(authorized.canonicalToolName).toBe("ask_higher_model");
+    expect(authorized.canonicalToolName).toBe("screenshot");
+    expectCode(
+      () => broker.authorize({
+        capabilityRef: capability.capabilityRef,
+        invocationId: "invoke-retired-higher-model",
+        runId: run.runId,
+        attemptId: attempt.attemptId,
+        activeOwnerId: session.ownerId,
+        toolName: "ask_higher_model",
+        toolInput: { query: "look this up" },
+      }),
+      "tool_not_manifested",
+    );
+    expectCode(
+      () => broker.authorize({
+        capabilityRef: capability.capabilityRef,
+        invocationId: "invoke-retired-click",
+        runId: run.runId,
+        attemptId: attempt.attemptId,
+        activeOwnerId: session.ownerId,
+        toolName: "point_click",
+        toolInput: { x: 10, y: 20 },
+      }),
+      "tool_not_manifested",
+    );
     store.close();
 
-    // A plain chat run must not inherit voice-only tools.
+    // A plain chat run must not resurrect retired voice tools.
     const chat = fixture();
     const chatCapability = createBroker(chat.store).register({
       ownerId: chat.session.ownerId,

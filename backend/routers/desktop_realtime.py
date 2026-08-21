@@ -1,4 +1,3 @@
-import hashlib
 import json
 import logging
 import os
@@ -9,7 +8,7 @@ import httpx
 from fastapi import APIRouter, Depends, Response
 from fastapi.responses import JSONResponse
 from google.cloud import firestore
-from pydantic import BaseModel, StrictInt, StrictStr
+from pydantic import BaseModel, ConfigDict, StrictInt, StrictStr
 
 from database._client import get_firestore_client
 from utils.executors import db_executor, run_blocking
@@ -25,6 +24,7 @@ _OPENAI_REALTIME_MODEL = "gpt-realtime-2"
 _GEMINI_LIVE_MODEL = "models/gemini-3.1-flash-live-preview"
 _SESSION_START_WINDOW_MIN = 2
 _SESSION_MAX_MIN = 30
+_TRIAL_EXPIRED_MESSAGE = "Desktop trial expired. Upgrade to continue managed voice."
 
 
 class MintRequest(BaseModel):
@@ -32,6 +32,8 @@ class MintRequest(BaseModel):
 
 
 class UsageReport(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     provider: StrictStr
     model: StrictStr = ""
     input_text_tokens: StrictInt = 0
@@ -39,10 +41,6 @@ class UsageReport(BaseModel):
     input_cached_tokens: StrictInt = 0
     output_text_tokens: StrictInt = 0
     output_audio_tokens: StrictInt = 0
-    context_plan_id: StrictStr = ""
-    stable_cache_identity: StrictStr = ""
-    dynamic_context_identity: StrictStr = ""
-    context_cache_replaced: bool = False
 
 
 def _error(
@@ -115,34 +113,12 @@ async def _post_json(
     return data, None
 
 
-def _record_session(uid: str, token: str, provider: str, model: str, expires_at: str) -> None:
-    get_firestore_client().collection("users").document(uid).collection("realtime_sessions").document(
-        hashlib.sha256(token.encode()).hexdigest()
-    ).set(
-        {
-            "provider": provider,
-            "model": model,
-            "status": "minted",
-            "minted_at": datetime.now(timezone.utc),
-            "expires_at": expires_at,
-            "max_minutes": _SESSION_MAX_MIN,
-        }
-    )
-
-
-async def _persist_session(uid: str, token: str, provider: str, model: str, expires_at: str) -> None:
-    try:
-        await run_blocking(db_executor, _record_session, uid, token, provider, model, expires_at)
-    except Exception:
-        logger.warning("realtime session-record write failed for uid=%s", uid)
-
-
 @router.post("/v2/realtime/session")
 async def mint_session(request: MintRequest, uid: str = Depends(get_current_user_uid)) -> JSONResponse:
     if await run_blocking(db_executor, is_trial_paywalled, uid, "desktop"):
         return JSONResponse(
             status_code=402,
-            content={"error": "trial_expired", "message": "Desktop trial expired. Upgrade or bring your own keys."},
+            content={"error": "trial_expired", "message": _TRIAL_EXPIRED_MESSAGE},
         )
     if request.provider == "openai":
         key = os.getenv("OPENAI_API_KEY", "").strip()
@@ -162,7 +138,6 @@ async def mint_session(request: MintRequest, uid: str = Depends(get_current_user
                 502, "provider_mint_transport_error", "openai mint: no client secret in response", retryable=True
             )
         expires_at = json.dumps(data["expires_at"], separators=(",", ":")) if data and "expires_at" in data else None
-        await _persist_session(uid, token, "openai", _OPENAI_REALTIME_MODEL, expires_at or "")
         return JSONResponse(
             {"provider": "openai", "token": token, **({"expires_at": expires_at} if expires_at is not None else {})}
         )
@@ -187,7 +162,6 @@ async def mint_session(request: MintRequest, uid: str = Depends(get_current_user
             return _error(
                 502, "provider_mint_transport_error", "gemini mint: no token name in response", retryable=True
             )
-        await _persist_session(uid, token, "gemini", _GEMINI_LIVE_MODEL, expires_at)
         return JSONResponse({"provider": "gemini", "token": token, "expires_at": expires_at})
     return _error(400, "bad_provider", 'provider must be "openai" or "gemini"')
 
@@ -248,7 +222,7 @@ async def report_usage(report: UsageReport, uid: str = Depends(get_current_user_
     if await run_blocking(db_executor, is_trial_paywalled, uid, "desktop"):
         return JSONResponse(
             status_code=402,
-            content={"error": "trial_expired", "message": "Desktop trial expired. Upgrade or bring your own keys."},
+            content={"error": "trial_expired", "message": _TRIAL_EXPIRED_MESSAGE},
         )
     input_tokens = max(report.input_text_tokens, 0) + max(report.input_audio_tokens, 0)
     output_tokens = max(report.output_text_tokens, 0) + max(report.output_audio_tokens, 0)

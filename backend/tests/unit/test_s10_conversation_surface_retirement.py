@@ -27,16 +27,13 @@ def test_retired_conversation_projection_routes_are_absent() -> None:
     assert surviving == []
 
 
-def test_transient_compute_listen_ptt_and_worker_routes_remain() -> None:
+def test_transient_compute_listen_and_worker_routes_remain() -> None:
     route_keys = _route_keys()
 
     for route_key in (
         ("POST", "/v1/conversation-compute/discard"),
         ("POST", "/v1/conversation-compute/structure"),
         ("POST", "/v1/conversation-compute/action-items"),
-        ("GET", "/v1/tools/conversations"),
-        ("POST", "/v1/tools/conversations/search"),
-        ("POST", "/v1/tools/conversations/search-chunks"),
         ("POST", "/v1/memory/compute/extract"),
         ("POST", "/v1/memory/compute/normalize"),
         ("POST", "/v1/memory/compute/consolidate"),

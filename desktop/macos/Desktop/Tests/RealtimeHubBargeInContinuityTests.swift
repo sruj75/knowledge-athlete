@@ -729,27 +729,27 @@ final class RealtimeHubBargeInContinuityTests: XCTestCase {
         usedOverride: false))
   }
 
-  func testCompletedProviderCallReplayCannotExecutePhysicalToolTwice() {
+  func testCompletedProviderCallReplayCannotExecuteAuthorizedToolTwice() {
     let turnID = VoiceTurnID()
     let invocationID = RealtimeExternalToolInvocationIdentity.make(
       turnID: turnID,
       providerCallID: "provider-call-7",
-      toolName: "point_click")
+      toolName: "screenshot")
     XCTAssertEqual(
       invocationID,
       RealtimeExternalToolInvocationIdentity.make(
         turnID: turnID,
         providerCallID: "provider-call-7",
-        toolName: "point_click"))
+        toolName: "screenshot"))
     XCTAssertNotEqual(
       invocationID,
       RealtimeExternalToolInvocationIdentity.make(
         turnID: turnID,
         providerCallID: "provider-call-8",
-        toolName: "point_click"))
+        toolName: "screenshot"))
 
     var completed: Set<String> = []
-    var physicalExecutionCount = 0
+    var executionCount = 0
     for _ in 0..<2 {
       guard
         RealtimeAuthorizedInvocationReplayGate.shouldExecute(
@@ -757,9 +757,9 @@ final class RealtimeHubBargeInContinuityTests: XCTestCase {
           completedInvocationIDs: completed)
       else { continue }
       completed.insert(invocationID)
-      physicalExecutionCount += 1
+      executionCount += 1
     }
-    XCTAssertEqual(physicalExecutionCount, 1)
+    XCTAssertEqual(executionCount, 1)
   }
 
   func testProviderEventIdentityCannotCrossTurnOrResponseBoundary() {

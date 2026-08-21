@@ -194,7 +194,6 @@ class TestCallSitesUseHybridSearch:
         'rel_path',
         [
             'utils/retrieval/tools/conversation_tools.py',
-            'utils/retrieval/tool_services/conversations.py',
         ],
     )
     def test_call_site_merges_keyword_and_vector(self, rel_path):

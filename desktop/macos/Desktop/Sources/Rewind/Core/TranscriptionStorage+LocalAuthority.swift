@@ -244,7 +244,7 @@ extension TranscriptionStorage {
   ) async throws -> [LocalConversationSummary] {
     let db = try await localAuthorityDatabase()
     let boundedOffset = max(0, offset)
-    let boundedLimit = max(1, min(limit, 200))
+    let boundedLimit = max(1, min(limit, 5_000))
     let predicate = Self.localConversationPredicate(query: query)
     return try await db.read { database in
       var arguments = predicate.arguments
@@ -1774,7 +1774,7 @@ extension TranscriptionStorage {
       speakerLabels: labels)
   }
 
-  private static func makeLocalConversationSummary(_ row: Row) -> LocalConversationSummary {
+  static func makeLocalConversationSummary(_ row: Row) -> LocalConversationSummary {
     LocalConversationSummary(
       conversationId: row["conversationId"],
       startedAt: row["startedAt"],

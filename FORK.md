@@ -209,10 +209,35 @@ server-side residue is intentionally bounded:
 | PTT provider-result telemetry in `TranscriptionService.swift` and `PushToTalkManager.swift` | S-19 | Batch PTT still records the backend-selected provider as transient diagnostics; ambient conversation capture neither sends nor persists a provider identity. |
 | Generated speech-profile DTO/client residue in `OmiApi.generated.swift` | S-23 | The app-client generator still exports the separately owned speech-profile surface. S-10 removed all Mac People and persistent voice-identity callers; S-16 removed listen's dependency without hand-editing shared generated output. |
 | Backend People, speech-profile, speaker-matching, and reusable person-ID helpers/models | S-23 | Server-only historical workflows still own these internals. Listen no longer reads profiles, matches persistent voices, or returns person identity. |
-| `/v1/tools/conversations`, `/v1/tools/conversations/search`, and `/v1/tools/conversations/search-chunks` | S-19 | Push-to-talk retrieval remains a separate remote tool boundary. |
+| Local PTT conversation list and hybrid search | S-19 | Owner-fenced GRDB summaries plus local FTS5/persisted vectors replace the retired `/v1/tools/conversations*` boundary. Shared hosted Conversation persistence, transcript hydration, and vector infrastructure remain for S-23/S-24. |
 | `backend/database/conversations.py`, `backend/database/folders.py`, hosted finalization/process helpers, and their direct tests/fixtures | S-23 | Existing server workflows still require the datastore; S-10 stops new Mac projection but does not wipe live data or remove shared persistence. |
 | `/v2/audio-merge-jobs/run`, audio merge helpers/tests, queues, and stored playback artifacts | S-25 | The public playback surface is gone, but operational worker/deployment teardown requires a separately authorized drain. |
 | `conv_discard`, `conv_structure`, and `conv_action_items` model-policy configuration | S-22 | S-10 consumes these existing feature keys through stateless compute routes; model routing remains independently owned. |
+
+S-19 leaves the following exact hosted-search handoff for S-24, after S-23 has
+removed the shared hosted Conversation callers:
+
+- `backend/database/vector_db.py`: the Pinecone client and conversation-vector
+  functions, including `upsert_transcript_chunk_vectors`,
+  `search_transcript_chunks`, `delete_transcript_chunk_vectors`, and
+  `delete_transcript_chunk_vectors_batch`.
+- `backend/utils/conversations/search.py` and
+  `backend/utils/retrieval/tools/conversation_tools.py`: the retained Typesense
+  keyword and Pinecone hybrid-search callers used by hosted Chat/Conversation
+  workflows, not by macOS PTT.
+- `backend/utils/conversations/transcript_chunks.py`,
+  `backend/utils/conversations/process_conversation.py`, and
+  `backend/services/users/account_deletion.py`: Firestore transcript hydration,
+  vector production, and required account-deletion cleanup.
+- `PINECONE_API_KEY`, `PINECONE_INDEX_NAME`, `TYPESENSE_HOST`,
+  `TYPESENSE_HOST_PORT`, and `TYPESENSE_API_KEY`, together with their env
+  templates, dependency locks, runtime/deploy configuration, backend-listen and
+  pusher chart bindings, secret mappings, and deterministic test/dev fakes.
+
+None of those shared symbols or resources is used by the retired
+`/v1/tools/conversations*` boundary. They remain because S-23-owned server
+workflows and deletion guarantees still call them; S-24 owns their final caller
+inventory and infrastructure removal.
 
 ### Local Chat authority and exact handoffs
 

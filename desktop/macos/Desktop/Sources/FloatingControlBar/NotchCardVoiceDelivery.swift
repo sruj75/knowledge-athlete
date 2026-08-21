@@ -22,6 +22,8 @@ final class NotchCardVoiceDelivery {
   /// One card's worth of context, keyed so the same card is never injected twice.
   struct Card: Equatable {
     let id: UUID
+    let ownerID: String
+    let authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
     let text: String
   }
 
@@ -54,10 +56,23 @@ final class NotchCardVoiceDelivery {
   // MARK: - Entry points
 
   /// A card was presented on the notch.
-  func cardPresented(id: UUID, text: String) {
+  func cardPresented(
+    id: UUID,
+    ownerID: String,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot,
+    text: String
+  ) {
     let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !trimmed.isEmpty, !deliveredCardIDs.contains(id) else { return }
-    pendingCard = Card(id: id, text: trimmed)
+    guard authorizationSnapshot.ownerID == ownerID,
+      RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot),
+      !trimmed.isEmpty,
+      !deliveredCardIDs.contains(id)
+    else { return }
+    pendingCard = Card(
+      id: id,
+      ownerID: ownerID,
+      authorizationSnapshot: authorizationSnapshot,
+      text: trimmed)
     scheduleDelivery()
   }
 
@@ -76,6 +91,10 @@ final class NotchCardVoiceDelivery {
 
   private func scheduleDelivery() {
     guard let pending = pendingCard, !isDelivering else { return }
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(pending.authorizationSnapshot) else {
+      pendingCard = nil
+      return
+    }
     guard isVoiceSessionLive() else {
       log("NotchCardVoiceDelivery: no live voice session — card \(pending.id) stays pending")
       return
@@ -89,8 +108,13 @@ final class NotchCardVoiceDelivery {
   private func deliverPending() async {
     defer { isDelivering = false }
     guard let card = pendingCard else { return }
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(card.authorizationSnapshot) else {
+      pendingCard = nil
+      return
+    }
 
     let delivered = await injectContext(Self.contextBlock(for: card.text))
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(card.authorizationSnapshot) else { return }
     guard delivered else {
       // Stays pending; retried on the next capability signal.
       log("NotchCardVoiceDelivery: session refused card \(card.id) — will retry on connect/input-window")
@@ -131,6 +155,10 @@ final class NotchCardVoiceDelivery {
 
   /// Reset for tests that reuse the shared instance.
   func resetForTesting() {
+    resetOwnerProjection()
+  }
+
+  func resetOwnerProjection() {
     pendingCard = nil
     deliveredCardIDs.removeAll()
     isDelivering = false

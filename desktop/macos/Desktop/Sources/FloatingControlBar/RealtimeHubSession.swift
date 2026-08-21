@@ -1297,11 +1297,7 @@ final class RealtimeHubSession: NSObject, @unchecked Sendable {
     Task {
       await APIClient.shared.reportRealtimeUsage(
         provider: providerName, model: model,
-        inputText: it, inputAudio: ia, inputCached: ic, outputText: ot, outputAudio: oa,
-        contextPlanID: self.contextPlanID,
-        stableCacheIdentity: self.stableCacheIdentity,
-        dynamicContextIdentity: self.dynamicContextIdentity,
-        contextCacheReplaced: self.contextCacheReplaced)
+        inputText: it, inputAudio: ia, inputCached: ic, outputText: ot, outputAudio: oa)
     }
   }
 

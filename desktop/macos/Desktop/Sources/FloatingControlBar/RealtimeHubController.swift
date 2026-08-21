@@ -1027,7 +1027,7 @@ final class RealtimeHubController: NSObject, RealtimeHubSessionDelegate {
       guard await waitUntilActive(timeout: 15) else {
         _ = cancelTurn(turnID: turnID)
         VoiceTurnCoordinator.shared.publish(.finish(turnID: turnID, reason: .providerFailed))
-        return ["error": "hub session did not become active (check sign-in / provider keys)"]
+        return ["error": "hub session did not become active (check sign-in or managed voice availability)"]
       }
       try? await Task.sleep(nanoseconds: 500_000_000)
       ensureWarm()
