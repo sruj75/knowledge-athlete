@@ -7,7 +7,6 @@ final class EmbeddingServiceOwnerFenceTests: XCTestCase {
   private var ownerFixture: RuntimeOwnerAuthorityTestFixture!
 
   override func setUp() async throws {
-    try await super.setUp()
     ownerFixture = RuntimeOwnerAuthorityTestFixture()
     await ownerFixture.establish(authOwnerID: "embedding-owner")
     await EmbeddingService.shared.resetForOwnerChange()
@@ -17,7 +16,6 @@ final class EmbeddingServiceOwnerFenceTests: XCTestCase {
     await EmbeddingService.shared.resetForOwnerChange()
     await ownerFixture.restore()
     ownerFixture = nil
-    try await super.tearDown()
   }
 
   func testSameUIDReauthenticationCannotReadPreviousGenerationTaskIndex() async throws {

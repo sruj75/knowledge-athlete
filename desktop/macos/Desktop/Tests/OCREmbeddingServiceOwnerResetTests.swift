@@ -15,7 +15,6 @@ final class OCREmbeddingServiceOwnerResetTests: XCTestCase {
   private var ownerFixture: RuntimeOwnerAuthorityTestFixture!
 
   override func setUp() async throws {
-    try await super.setUp()
     ownerFixture = RuntimeOwnerAuthorityTestFixture()
     await ownerFixture.establish(authOwnerID: "ocr-embedding-owner")
     await OCREmbeddingService.shared.reset()
@@ -25,7 +24,6 @@ final class OCREmbeddingServiceOwnerResetTests: XCTestCase {
     await OCREmbeddingService.shared.reset()
     await ownerFixture.restore()
     ownerFixture = nil
-    try await super.tearDown()
   }
 
   func testResetDropsPendingQueueAndDedupHashes() async {

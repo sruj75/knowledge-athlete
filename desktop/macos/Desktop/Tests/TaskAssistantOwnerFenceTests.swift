@@ -10,7 +10,6 @@ final class TaskAssistantOwnerFenceTests: XCTestCase {
   private var savedEnabled = false
 
   override func setUp() async throws {
-    try await super.setUp()
     authSnapshot = RewindStorageTestIsolation.captureAuthSnapshot()
     rewindFixture = try await RewindStorageTestIsolation.setUp(userIdPrefix: "task-assistant-owner")
     ownerFixture = RuntimeOwnerAuthorityTestFixture()
@@ -27,7 +26,6 @@ final class TaskAssistantOwnerFenceTests: XCTestCase {
     authSnapshot = nil
     await RewindStorageTestIsolation.tearDown(userDir: rewindFixture.userDir)
     rewindFixture = nil
-    try await super.tearDown()
   }
 
   func testSameUIDReauthenticationDropsSuspendedTaskAnalysis() async throws {

@@ -42,7 +42,6 @@ final class ConversationActionItemEnrichmentTests: XCTestCase {
   private var ownerFixture: RuntimeOwnerAuthorityTestFixture!
 
   override func setUp() async throws {
-    try await super.setUp()
     ownerFixture = RuntimeOwnerAuthorityTestFixture()
     await ownerFixture.establish(authOwnerID: "conversation-enrichment-owner")
   }
@@ -50,7 +49,6 @@ final class ConversationActionItemEnrichmentTests: XCTestCase {
   override func tearDown() async throws {
     await ownerFixture.restore()
     ownerFixture = nil
-    try await super.tearDown()
   }
 
   func testRelatedContextKeepsOnlyOpenRecentUnrelatedActionItemsAboveThreshold() async throws {

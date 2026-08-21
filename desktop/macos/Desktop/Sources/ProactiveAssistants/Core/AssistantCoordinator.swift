@@ -233,7 +233,10 @@ class AssistantCoordinator {
   /// Clear coordinator bookkeeping and every assistant's owner-derived state
   /// before the replacement owner generation becomes visible.
   func resetForOwnerChange() async {
-    lastAnalysisTime = Dictionary(uniqueKeysWithValues: assistants.keys.map { ($0, .distantPast) })
+    lastAnalysisTime.removeAll(keepingCapacity: true)
+    for identifier in assistants.keys {
+      lastAnalysisTime[identifier] = .distantPast
+    }
     lastTrackedApp = nil
     lastTrackedWindowTitle = nil
     lastTrackedFrame = nil

@@ -10,7 +10,6 @@ final class FocusAssistantOwnerFenceTests: XCTestCase {
   private var savedNotifications = false
 
   override func setUp() async throws {
-    try await super.setUp()
     ownerFixture = RuntimeOwnerAuthorityTestFixture()
     await ownerFixture.establish(authOwnerID: "focus-owner")
     savedEnabled = FocusAssistantSettings.shared.isEnabled
@@ -24,7 +23,6 @@ final class FocusAssistantOwnerFenceTests: XCTestCase {
     FocusAssistantSettings.shared.notificationsEnabled = savedNotifications
     await ownerFixture.restore()
     ownerFixture = nil
-    try await super.tearDown()
   }
 
   func testSameUIDReauthenticationDropsSuspendedAnalysisBeforePersistenceOrPublication() async {
