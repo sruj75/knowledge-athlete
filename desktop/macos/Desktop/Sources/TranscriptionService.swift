@@ -119,6 +119,41 @@ class TranscriptionService: @unchecked Sendable {
     }
   }
 
+  private struct ListenFairUseReviewWire: Decodable {
+    let type: String
+    let reviewId: String
+    let trigger: String
+    let windowSpeechMs: [String: Int]
+    let thresholdsMs: [String: Int]
+    let classifierContract: String
+    let requestedAt: String
+    let expiresAt: String
+
+    enum CodingKeys: String, CodingKey {
+      case type, trigger
+      case reviewId = "review_id"
+      case windowSpeechMs = "window_speech_ms"
+      case thresholdsMs = "thresholds_ms"
+      case classifierContract = "classifier_contract"
+      case requestedAt = "requested_at"
+      case expiresAt = "expires_at"
+    }
+  }
+
+  private struct ListenFairUseManagedCloudExhaustedWire: Decodable {
+    let type: String
+    let resetsAt: String
+    let caseRef: String
+    let supportEmail: String
+
+    enum CodingKeys: String, CodingKey {
+      case type
+      case resetsAt = "resets_at"
+      case caseRef = "case_ref"
+      case supportEmail = "support_email"
+    }
+  }
+
   private struct PTTSegmentWire: Decodable {
     let id: String?
     let text: String
@@ -139,12 +174,16 @@ class TranscriptionService: @unchecked Sendable {
     case serviceStatus(ListenServiceStatus)
     case translation(segmentId: String, language: String, text: String)
     case freemiumThresholdReached(remainingSeconds: Int, action: String)
+    case fairUseReviewRequested(FairUseReviewRequest)
+    case fairUseManagedCloudExhausted(FairUseManagedCloudExhaustion)
 
     var type: String {
       switch self {
       case .serviceStatus: "service_status"
       case .translation: "translation"
       case .freemiumThresholdReached: "freemium_threshold_reached"
+      case .fairUseReviewRequested: "fair_use_review_requested"
+      case .fairUseManagedCloudExhausted: "fair_use_managed_cloud_exhausted"
       }
     }
   }
@@ -189,6 +228,7 @@ class TranscriptionService: @unchecked Sendable {
   // Internal for @testable import access in unit tests
   var isConnected = false
   var shouldReconnect = false
+  private(set) var managedCloudAudioQuiesced = false
 
   // Callbacks
   private var onBackendSegments: BackendSegmentsHandler?
@@ -350,6 +390,7 @@ class TranscriptionService: @unchecked Sendable {
     self.onConnected = onConnected
     self.onDisconnected = onDisconnected
     self.shouldReconnect = true
+    self.managedCloudAudioQuiesced = false
     self.reconnectAttempts = 0
 
     connect()
@@ -362,6 +403,7 @@ class TranscriptionService: @unchecked Sendable {
     reconnectTask = nil
     watchdogTask?.cancel()
     watchdogTask = nil
+    managedCloudAudioQuiesced = false
 
     if discardBufferedAudio {
       audioBufferLock.lock()
@@ -377,9 +419,21 @@ class TranscriptionService: @unchecked Sendable {
     onBackendSegments = nil
   }
 
+  /// Stop provider-funded audio and reconnect ownership after a fair-use handoff while retaining
+  /// the authenticated listen socket long enough for its server heartbeat to remain stable.
+  func quiesceManagedCloudAudioForFairUse() {
+    managedCloudAudioQuiesced = true
+    shouldReconnect = false
+    reconnectTask?.cancel()
+    reconnectTask = nil
+    audioBufferLock.lock()
+    audioBuffer = Data()
+    audioBufferLock.unlock()
+  }
+
   /// Send audio data to the backend (buffered for efficiency)
   func sendAudio(_ data: Data) {
-    guard isConnected else { return }
+    guard isConnected, !managedCloudAudioQuiesced else { return }
 
     audioBufferLock.lock()
     audioBuffer.append(data)
@@ -725,6 +779,13 @@ class TranscriptionService: @unchecked Sendable {
     // Handle heartbeat ping
     let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
     if trimmed == "ping" {
+      if managedCloudAudioQuiesced, let webSocketTask {
+        // A zero-length binary frame updates the listen runtime's client-activity
+        // clock without forwarding provider audio or consuming fair-use budget.
+        webSocketTask.send(.data(Data())) { [weak self] error in
+          if error != nil { self?.handleDisconnection() }
+        }
+      }
       return
     }
 
@@ -822,6 +883,48 @@ class TranscriptionService: @unchecked Sendable {
           onListenEvent?(
             .freemiumThresholdReached(
               remainingSeconds: wire.remainingSeconds, action: wire.action))
+        case "fair_use_review_requested":
+          guard
+            Set(dict.keys) == [
+              "type", "review_id", "trigger", "window_speech_ms", "thresholds_ms", "classifier_contract",
+              "requested_at", "expires_at",
+            ]
+          else { return }
+          let wire = try JSONDecoder().decode(ListenFairUseReviewWire.self, from: data)
+          let expectedWindowKeys: Set<String> = ["daily_ms", "three_day_ms", "weekly_ms"]
+          let formatter = ISO8601DateFormatter()
+          guard wire.type == "fair_use_review_requested",
+            UUID(uuidString: wire.reviewId) != nil,
+            ["daily", "3day", "weekly"].contains(wire.trigger),
+            Set(wire.windowSpeechMs.keys) == expectedWindowKeys,
+            Set(wire.thresholdsMs.keys) == expectedWindowKeys,
+            wire.windowSpeechMs.values.allSatisfy({ $0 >= 0 }),
+            wire.thresholdsMs.values.allSatisfy({ $0 > 0 }),
+            wire.classifierContract == "openai/gpt-5.1:prompt-v2",
+            let requestedAt = formatter.date(from: wire.requestedAt),
+            let expiresAt = formatter.date(from: wire.expiresAt),
+            expiresAt > requestedAt
+          else { return }
+          onListenEvent?(
+            .fairUseReviewRequested(
+              FairUseReviewRequest(
+                reviewId: wire.reviewId.lowercased(), trigger: wire.trigger,
+                windowSpeechMs: wire.windowSpeechMs, thresholdsMs: wire.thresholdsMs,
+                classifierContract: wire.classifierContract, requestedAt: requestedAt, expiresAt: expiresAt)))
+        case "fair_use_managed_cloud_exhausted":
+          guard
+            Set(dict.keys) == ["type", "resets_at", "case_ref", "support_email"]
+          else { return }
+          let wire = try JSONDecoder().decode(ListenFairUseManagedCloudExhaustedWire.self, from: data)
+          let formatter = ISO8601DateFormatter()
+          guard wire.type == "fair_use_managed_cloud_exhausted",
+            formatter.date(from: wire.resetsAt) != nil,
+            wire.caseRef.isEmpty || wire.caseRef.range(of: #"^FU-[A-F0-9]{12}$"#, options: .regularExpression) != nil,
+            wire.supportEmail == "support@heyintentive.com"
+          else { return }
+          onListenEvent?(
+            .fairUseManagedCloudExhausted(
+              FairUseManagedCloudExhaustion(resetsAt: wire.resetsAt, caseRef: wire.caseRef)))
         default:
           return
         }

@@ -74,6 +74,49 @@ public enum OmiAPI {
   }
 
 
+  public enum CategoryEnum: String, Codable, CaseIterable {
+    case personal
+    case education
+    case health
+    case finance
+    case legal
+    case philosophy
+    case spiritual
+    case science
+    case entrepreneurship
+    case parenting
+    case romantic
+    case travel
+    case inspiration
+    case technology
+    case business
+    case social
+    case work
+    case sports
+    case politics
+    case literature
+    case history
+    case architecture
+    case music
+    case weather
+    case news
+    case entertainment
+    case psychology
+    case real
+    case design
+    case family
+    case economics
+    case environment
+    case other
+    case _unknown = "__unknown__"
+    public init(from decoder: Decoder) throws {
+      let c = try decoder.singleValueContainer()
+      let raw = try c.decode(String.self)
+      self = CategoryEnum(rawValue: raw) ?? ._unknown
+    }
+  }
+
+
   public struct ConversationActionCandidate: Codable {
     public let action: String
     public let description_: String
@@ -289,6 +332,7 @@ public enum OmiAPI {
 
 
   public struct ConversationStructureResponse: Codable {
+    public let category: CategoryEnum
     public let commitments: [ConversationCommitmentCandidate]
     public let emoji: String
     public let generationId: String
@@ -296,6 +340,7 @@ public enum OmiAPI {
     public let title: String
 
     private enum CodingKeys: String, CodingKey {
+      case category
       case commitments
       case emoji
       case generationId = "generation_id"
@@ -305,6 +350,7 @@ public enum OmiAPI {
 
     public init(from decoder: Decoder) throws {
       let c = try decoder.container(keyedBy: CodingKeys.self)
+      category = try c.decode(CategoryEnum.self, forKey: .category)
       commitments = try c.decode([ConversationCommitmentCandidate].self, forKey: .commitments)
       emoji = try c.decode(String.self, forKey: .emoji)
       generationId = try c.decode(String.self, forKey: .generationId)
@@ -312,12 +358,121 @@ public enum OmiAPI {
       title = try c.decode(String.self, forKey: .title)
     }
 
-    public init(commitments: [ConversationCommitmentCandidate], emoji: String, generationId: String, overview: String, title: String) {
+    public init(category: CategoryEnum, commitments: [ConversationCommitmentCandidate], emoji: String, generationId: String, overview: String, title: String) {
+      self.category = category
       self.commitments = commitments
       self.emoji = emoji
       self.generationId = generationId
       self.overview = overview
       self.title = title
+    }
+  }
+
+
+  public struct FairUseClassificationRequest: Codable {
+    public let conversations: [FairUseConversationEvidence]
+
+    public init(from decoder: Decoder) throws {
+      let c = try decoder.container(keyedBy: CodingKeys.self)
+      conversations = try c.decode([FairUseConversationEvidence].self, forKey: .conversations)
+    }
+
+    public init(conversations: [FairUseConversationEvidence]) {
+      self.conversations = conversations
+    }
+  }
+
+
+  public struct FairUseClassificationResponse: Codable {
+    public let accepted: Bool
+    public let action: String
+    public let caseRef: String?
+    public let idempotent: Bool
+    public let reviewId: String
+    public let stage: FairUseStage
+
+    private enum CodingKeys: String, CodingKey {
+      case accepted
+      case action
+      case caseRef = "case_ref"
+      case idempotent
+      case reviewId = "review_id"
+      case stage
+    }
+
+    public init(from decoder: Decoder) throws {
+      let c = try decoder.container(keyedBy: CodingKeys.self)
+      accepted = try c.decode(Bool.self, forKey: .accepted)
+      action = try c.decode(String.self, forKey: .action)
+      caseRef = try c.decodeIfPresent(String.self, forKey: .caseRef)
+      idempotent = try c.decode(Bool.self, forKey: .idempotent)
+      reviewId = try c.decode(String.self, forKey: .reviewId)
+      stage = try c.decode(FairUseStage.self, forKey: .stage)
+    }
+
+    public init(accepted: Bool, action: String, caseRef: String?, idempotent: Bool, reviewId: String, stage: FairUseStage) {
+      self.accepted = accepted
+      self.action = action
+      self.caseRef = caseRef
+      self.idempotent = idempotent
+      self.reviewId = reviewId
+      self.stage = stage
+    }
+  }
+
+
+  public struct FairUseConversationEvidence: Codable {
+    public let category: String?
+    public let conversationId: String
+    public let createdAt: String
+    public let durationMinutes: Double
+    public let overview: String?
+    public let source: String?
+    public let title: String?
+
+    private enum CodingKeys: String, CodingKey {
+      case category
+      case conversationId = "conversation_id"
+      case createdAt = "created_at"
+      case durationMinutes = "duration_minutes"
+      case overview
+      case source
+      case title
+    }
+
+    public init(from decoder: Decoder) throws {
+      let c = try decoder.container(keyedBy: CodingKeys.self)
+      category = try c.decodeIfPresent(String.self, forKey: .category)
+      conversationId = try c.decode(String.self, forKey: .conversationId)
+      createdAt = try c.decode(String.self, forKey: .createdAt)
+      durationMinutes = try c.decode(Double.self, forKey: .durationMinutes)
+      overview = try c.decodeIfPresent(String.self, forKey: .overview)
+      source = try c.decodeIfPresent(String.self, forKey: .source)
+      title = try c.decodeIfPresent(String.self, forKey: .title)
+    }
+
+    public init(category: String?, conversationId: String, createdAt: String, durationMinutes: Double, overview: String?, source: String?, title: String?) {
+      self.category = category
+      self.conversationId = conversationId
+      self.createdAt = createdAt
+      self.durationMinutes = durationMinutes
+      self.overview = overview
+      self.source = source
+      self.title = title
+    }
+  }
+
+
+  public enum FairUseStage: String, Codable, CaseIterable {
+    case none_ = "none"
+    case warning
+    case throttle
+    case restrict
+    case _unknown = "__unknown__"
+    public init(from decoder: Decoder) throws {
+      let c = try decoder.singleValueContainer()
+      let raw = try c.decode(String.self)
+      self = FairUseStage(rawValue: raw) ?? ._unknown
     }
   }
 
@@ -1228,34 +1383,14 @@ public enum OmiAPI {
     return try JSONDecoder().decode(ConversationStructureResponse.self, from: data)
   }
 
-  public static func getPublicCaseStatusV1FairUseCaseCaseRefStatusGet(client: OmiApiClient, caseRef: String) async throws -> OmiAnyCodable {
-    let _path = "/v1/fair-use/case/\(caseRef)/status"
+  public static func classifyReviewV1FairUseReviewsReviewIdClassifyPost(client: OmiApiClient, reviewId: String, authorization: String? = nil, xAppPlatform: String? = nil, xDeviceIdHash: String? = nil, xAppVersion: String? = nil, body: FairUseClassificationRequest) async throws -> FairUseClassificationResponse {
+    let _path = "/v1/fair-use/reviews/\(reviewId)/classify"
     guard let components = URLComponents(string: client.baseURL + _path) else {
       throw OmiApiError.invalidURL
     }
     guard let url = components.url else { throw OmiApiError.invalidURL }
     var req = URLRequest(url: url)
-    req.httpMethod = "GET"
-    for (name, value) in client.headers { req.setValue(value, forHTTPHeaderField: name) }
-    if let token = client.token {
-      req.setValue("Bearer " + token, forHTTPHeaderField: "Authorization")
-    }
-    let (data, resp) = try await URLSession.shared.data(for: req)
-    guard let http = resp as? HTTPURLResponse else { throw OmiApiError.invalidURL }
-    guard (200..<300).contains(http.statusCode) else {
-      throw OmiApiError.httpError(status: http.statusCode, data: data)
-    }
-    return try JSONDecoder().decode(OmiAnyCodable.self, from: data)
-  }
-
-  public static func getMyFairUseStatusV1FairUseStatusGet(client: OmiApiClient, authorization: String? = nil, xAppPlatform: String? = nil, xDeviceIdHash: String? = nil, xAppVersion: String? = nil) async throws -> OmiAnyCodable {
-    let _path = "/v1/fair-use/status"
-    guard let components = URLComponents(string: client.baseURL + _path) else {
-      throw OmiApiError.invalidURL
-    }
-    guard let url = components.url else { throw OmiApiError.invalidURL }
-    var req = URLRequest(url: url)
-    req.httpMethod = "GET"
+    req.httpMethod = "POST"
     for (name, value) in client.headers { req.setValue(value, forHTTPHeaderField: name) }
     if let token = client.token {
       req.setValue("Bearer " + token, forHTTPHeaderField: "Authorization")
@@ -1264,12 +1399,14 @@ public enum OmiAPI {
     if let xAppPlatform { req.setValue(String(xAppPlatform), forHTTPHeaderField: "X-App-Platform") }
     if let xDeviceIdHash { req.setValue(String(xDeviceIdHash), forHTTPHeaderField: "X-Device-Id-Hash") }
     if let xAppVersion { req.setValue(String(xAppVersion), forHTTPHeaderField: "X-App-Version") }
+    req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    req.httpBody = try JSONEncoder().encode(body)
     let (data, resp) = try await URLSession.shared.data(for: req)
     guard let http = resp as? HTTPURLResponse else { throw OmiApiError.invalidURL }
     guard (200..<300).contains(http.statusCode) else {
       throw OmiApiError.httpError(status: http.statusCode, data: data)
     }
-    return try JSONDecoder().decode(OmiAnyCodable.self, from: data)
+    return try JSONDecoder().decode(FairUseClassificationResponse.self, from: data)
   }
 
   public static func consolidateMemoryCandidatesV1MemoryComputeConsolidatePost(client: OmiApiClient, authorization: String? = nil, xAppPlatform: String? = nil, xDeviceIdHash: String? = nil, xAppVersion: String? = nil, body: MemoryConsolidateRequest) async throws -> MemoryConsolidateResponse {
@@ -2152,5 +2289,5 @@ public enum OmiAPI {
     return try JSONDecoder().decode(OmiAnyCodable.self, from: data)
   }
 
-  // Total: 50 Swift client methods generated.
+  // Total: 49 Swift client methods generated.
 }

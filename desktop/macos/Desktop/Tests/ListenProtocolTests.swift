@@ -90,13 +90,56 @@ final class ListenProtocolTests: XCTestCase {
     )
     service.parseBackendResponse(
       "{\"type\":\"freemium_threshold_reached\",\"remaining_seconds\":120,\"action\":\"setup_on_device_stt\"}")
+    service.parseBackendResponse(
+      """
+      {"type":"fair_use_review_requested","review_id":"11111111-1111-4111-8111-111111111111","trigger":"daily","window_speech_ms":{"daily_ms":7200001,"three_day_ms":7200001,"weekly_ms":7200001},"thresholds_ms":{"daily_ms":7200000,"three_day_ms":28800000,"weekly_ms":36000000},"classifier_contract":"openai/gpt-5.1:prompt-v2","requested_at":"2026-08-21T08:00:00Z","expires_at":"2026-08-21T20:00:00Z"}
+      """)
+    service.parseBackendResponse(
+      """
+      {"type":"fair_use_managed_cloud_exhausted","resets_at":"2026-08-22T00:00:00Z","case_ref":"FU-ABC123DEF456","support_email":"support@heyintentive.com"}
+      """)
     service.parseBackendResponse("{\"type\":\"conversation_session\",\"conversation_id\":\"forbidden\"}")
     service.parseBackendResponse("{\"type\":\"speaker_label_suggestion\",\"speaker_id\":0}")
     service.parseBackendResponse("{\"type\":\"future_event\"}")
 
     XCTAssertEqual(
       eventTypes,
-      ["service_status", "service_status", "translation", "freemium_threshold_reached"])
+      [
+        "service_status", "service_status", "translation", "freemium_threshold_reached",
+        "fair_use_review_requested", "fair_use_managed_cloud_exhausted",
+      ])
+  }
+
+  func testManagedCloudExhaustionParserRejectsExtraContentAndWrongSupportDestination() throws {
+    var eventCalls = 0
+    let service = try wiredConversationService(onEvent: { _ in eventCalls += 1 })
+    let base =
+      """
+      {"type":"fair_use_managed_cloud_exhausted","resets_at":"2026-08-22T00:00:00Z","case_ref":"FU-ABC123DEF456","support_email":"support@heyintentive.com"
+      """
+
+    service.parseBackendResponse(base + ",\"title\":\"must not cross\"}")
+    service.parseBackendResponse(
+      """
+      {"type":"fair_use_managed_cloud_exhausted","resets_at":"2026-08-22T00:00:00Z","case_ref":"FU-ABC123DEF456","support_email":"wrong@example.com"}
+      """)
+
+    XCTAssertEqual(eventCalls, 0)
+  }
+
+  func testFairUseReviewParserRejectsExtraContentAndServerOwnedPolicyFields() throws {
+    var eventCalls = 0
+    let service = try wiredConversationService(onEvent: { _ in eventCalls += 1 })
+    let base =
+      """
+      {"type":"fair_use_review_requested","review_id":"11111111-1111-4111-8111-111111111111","trigger":"daily","window_speech_ms":{"daily_ms":7200001,"three_day_ms":7200001,"weekly_ms":7200001},"thresholds_ms":{"daily_ms":7200000,"three_day_ms":28800000,"weekly_ms":36000000},"classifier_contract":"openai/gpt-5.1:prompt-v2","requested_at":"2026-08-21T08:00:00Z","expires_at":"2026-08-21T20:00:00Z"
+      """
+
+    service.parseBackendResponse(base + ",\"title\":\"must not cross\"}")
+    service.parseBackendResponse(base + ",\"score\":1.0}")
+    service.parseBackendResponse(base + ",\"uid\":\"owner-a\"}")
+
+    XCTAssertEqual(eventCalls, 0)
   }
 
   func testParserIgnoresHeartbeatAndMalformedPayloads() throws {
@@ -136,6 +179,21 @@ final class ListenProtocolTests: XCTestCase {
 
     XCTAssertFalse(service.isConnected)
     XCTAssertEqual(service.reconnectAttempts, 1)
+  }
+
+  func testFairUseQuiesceRetainsSocketButDisablesAudioAndReconnectOwnership() throws {
+    let service = try TranscriptionService(language: "en")
+    service.isConnected = true
+    service.shouldReconnect = true
+    service.reconnectAttempts = 0
+
+    service.quiesceManagedCloudAudioForFairUse()
+
+    XCTAssertTrue(service.isConnected)
+    XCTAssertTrue(service.managedCloudAudioQuiesced)
+    XCTAssertFalse(service.shouldReconnect)
+    service.handleDisconnection()
+    XCTAssertEqual(service.reconnectAttempts, 0)
   }
 
   func testReconnectExhaustionSurfacesError() throws {

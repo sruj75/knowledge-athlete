@@ -4,9 +4,11 @@ This fixture models document-reference ``get(transaction=...)`` plus transaction
 ``create``, ``set``, and ``update``. It enforces Firestore's rule that every
 transactional read must occur before the first transactional write.
 
-It deliberately does not model queries, deletes, commit/rollback visibility,
-or retry and contention semantics. Extend it only when an incident proves that
-one of those boundaries needs a hermetic guard.
+It deliberately models only the single-field ``>=`` query used by the S-20
+transactional enforcement core. Optional staged writes model commit/rollback
+visibility and injected commit failure; retry and contention semantics remain
+out of scope. Extend it only when an incident proves that another boundary
+needs a hermetic guard.
 
 As fixture-integrity policy, a transaction accepts references created by its
 own ``StrictFirestore`` instance only. This prevents accidental mixing of
@@ -18,6 +20,8 @@ from __future__ import annotations
 from copy import deepcopy
 from threading import RLock
 from typing import Any
+
+from google.api_core.exceptions import AlreadyExists, FailedPrecondition
 
 
 class ReadAfterWriteError(RuntimeError):
@@ -32,13 +36,16 @@ class UnsupportedFirestoreOperationError(NotImplementedError):
     """Raised for a Firestore operation this narrow fixture does not model."""
 
 
-_SUPPORTED_OPERATIONS = 'document get/create, transaction-bound document get, transaction create/set/update'
+_SUPPORTED_OPERATIONS = (
+    'document get/create, transaction-bound document/query get, single-field >= query, ' 'transaction create/set/update'
+)
 
 
 class StrictFirestoreSnapshot:
-    def __init__(self, data: dict[str, Any] | None):
+    def __init__(self, data: dict[str, Any] | None, update_time: int = 0):
         self._data = deepcopy(data)
         self.exists = data is not None
+        self.update_time = update_time
 
     def to_dict(self) -> dict[str, Any] | None:
         return deepcopy(self._data)
@@ -56,12 +63,27 @@ class StrictFirestoreDocument:
         if transaction is not None:
             transaction._assert_reference_belongs(self)
             transaction._assert_read_allowed()
-        return StrictFirestoreSnapshot(self._database.rows.get(self.path))
+        with self._database.lock:
+            return StrictFirestoreSnapshot(
+                self._database.rows.get(self.path),
+                self._database.versions.get(self.path, 0),
+            )
 
     def create(self, data: dict[str, Any]) -> None:
-        if self.path in self._database.rows:
-            raise RuntimeError('document already exists')
-        self._database.rows[self.path] = deepcopy(data)
+        with self._database.lock:
+            if self.path in self._database.rows:
+                raise AlreadyExists('document already exists')
+            self._database.rows[self.path] = deepcopy(data)
+            self._database.versions[self.path] = self._database.versions.get(self.path, 0) + 1
+
+    def update(self, data: dict[str, Any], option: StrictFirestoreWriteOption | None = None) -> None:
+        with self._database.lock:
+            if self.path not in self._database.rows:
+                raise FailedPrecondition('missing row')
+            if option is not None and self._database.versions.get(self.path, 0) != option.last_update_time:
+                raise FailedPrecondition('document changed after read')
+            self._database.rows[self.path].update(deepcopy(data))
+            self._database.versions[self.path] = self._database.versions.get(self.path, 0) + 1
 
     def delete(self, *args: Any, **kwargs: Any) -> None:
         raise UnsupportedFirestoreOperationError(f'StrictFirestore supports only {_SUPPORTED_OPERATIONS}')
@@ -75,11 +97,47 @@ class StrictFirestoreCollection:
     def document(self, name: str) -> StrictFirestoreDocument:
         return StrictFirestoreDocument(self._database, (*self._path, name))
 
-    def where(self, *args: Any, **kwargs: Any) -> None:
-        raise UnsupportedFirestoreOperationError(f'StrictFirestore supports only {_SUPPORTED_OPERATIONS}')
+    def where(self, field_path: str, op_string: str, value: Any) -> StrictFirestoreQuery:
+        if op_string != '>=':
+            raise UnsupportedFirestoreOperationError(f'StrictFirestore supports only {_SUPPORTED_OPERATIONS}')
+        return StrictFirestoreQuery(self._database, self._path, field_path, value)
 
     def stream(self, *args: Any, **kwargs: Any) -> None:
         raise UnsupportedFirestoreOperationError(f'StrictFirestore supports only {_SUPPORTED_OPERATIONS}')
+
+
+class StrictFirestoreQuery:
+    def __init__(
+        self,
+        database: StrictFirestore,
+        collection_path: tuple[str, ...],
+        field_path: str,
+        lower_bound: Any,
+    ):
+        self._database = database
+        self._collection_path = collection_path
+        self._field_path = field_path
+        self._lower_bound = lower_bound
+
+    def get(self, transaction: StrictFirestoreTransaction | None = None) -> list[StrictFirestoreSnapshot]:
+        if transaction is not None:
+            if transaction._database is not self._database:
+                raise ForeignTransactionError('Firestore transaction and query must belong to the same store')
+            transaction._assert_read_allowed()
+        expected_length = len(self._collection_path) + 1
+        snapshots: list[StrictFirestoreSnapshot] = []
+        for path, row in self._database.rows.items():
+            if len(path) != expected_length or path[: len(self._collection_path)] != self._collection_path:
+                continue
+            candidate = row.get(self._field_path)
+            if candidate is not None and candidate >= self._lower_bound:
+                snapshots.append(StrictFirestoreSnapshot(row))
+        return snapshots
+
+
+class StrictFirestoreWriteOption:
+    def __init__(self, last_update_time: int):
+        self.last_update_time = last_update_time
 
 
 class StrictFirestoreTransaction:
@@ -94,21 +152,47 @@ class StrictFirestoreTransaction:
         self._read_only = False
         self._max_attempts = 1
         self._id: bytes | None = None
+        self._staged_operations: list[tuple[str, tuple[str, ...], dict[str, Any], bool]] = []
 
     # The Firestore ``@transactional`` decorator drives these lifecycle hooks.
     # They deliberately keep this fixture single-attempt: it guards production
     # read-before-write ordering without pretending to model contention retries.
     def _clean_up(self) -> None:
         self._id = None
+        self._staged_operations = []
 
     def _begin(self, retry_id: bytes | None = None) -> None:
         self._id = retry_id or b'strict-firestore-transaction'
 
-    def _commit(self) -> None:
-        return None
+    def _commit(self) -> list[Any]:
+        if not self._database._stage_transaction_writes:
+            self._clean_up()
+            return []
+        if self._database._fail_transaction_commit:
+            raise RuntimeError('injected Firestore transaction commit failure')
+
+        with self._database.lock:
+            rows = deepcopy(self._database.rows)
+            versions = deepcopy(self._database.versions)
+            for operation, path, payload, merge in self._staged_operations:
+                if operation == 'create' and path in rows:
+                    raise RuntimeError('document already exists')
+                if operation == 'update' and path not in rows:
+                    raise RuntimeError('missing row')
+                if operation == 'set' and merge:
+                    rows.setdefault(path, {}).update(payload)
+                elif operation == 'update':
+                    rows[path].update(payload)
+                else:
+                    rows[path] = payload
+                versions[path] = versions.get(path, 0) + 1
+            self._database.rows = rows
+            self._database.versions = versions
+        self._clean_up()
+        return []
 
     def _rollback(self) -> None:
-        return None
+        self._clean_up()
 
     def _assert_read_allowed(self) -> None:
         if self.has_written and not self._allow_reads_after_writes:
@@ -118,21 +202,33 @@ class StrictFirestoreTransaction:
         if ref._database is not self._database:
             raise ForeignTransactionError('Firestore transaction and document reference must belong to the same store')
 
-    def set(self, ref: StrictFirestoreDocument, data: dict[str, Any]) -> None:
+    def set(self, ref: StrictFirestoreDocument, data: dict[str, Any], merge: bool = False) -> None:
         self._assert_reference_belongs(ref)
         self.has_written = True
         payload = deepcopy(data)
         self.sets.append((ref.path, payload))
-        self._database.rows[ref.path] = payload
+        if self._database._stage_transaction_writes:
+            self._staged_operations.append(('set', ref.path, payload, merge))
+            return
+        if merge:
+            self._database.rows.setdefault(ref.path, {}).update(payload)
+        else:
+            self._database.rows[ref.path] = payload
+        self._database.versions[ref.path] = self._database.versions.get(ref.path, 0) + 1
 
     def create(self, ref: StrictFirestoreDocument, data: dict[str, Any]) -> None:
         self._assert_reference_belongs(ref)
         self.has_written = True
-        if ref.path in self._database.rows:
+        staged_paths = {path for _operation, path, _payload, _merge in self._staged_operations}
+        if ref.path in self._database.rows or ref.path in staged_paths:
             raise RuntimeError('document already exists')
         payload = deepcopy(data)
         self.creates.append((ref.path, payload))
+        if self._database._stage_transaction_writes:
+            self._staged_operations.append(('create', ref.path, payload, False))
+            return
         self._database.rows[ref.path] = payload
+        self._database.versions[ref.path] = self._database.versions.get(ref.path, 0) + 1
 
     def update(self, ref: StrictFirestoreDocument, patch: dict[str, Any]) -> None:
         self._assert_reference_belongs(ref)
@@ -141,7 +237,11 @@ class StrictFirestoreTransaction:
             raise RuntimeError('missing row')
         payload = deepcopy(patch)
         self.updates.append((ref.path, payload))
+        if self._database._stage_transaction_writes:
+            self._staged_operations.append(('update', ref.path, payload, True))
+            return
         self._database.rows[ref.path].update(payload)
+        self._database.versions[ref.path] = self._database.versions.get(ref.path, 0) + 1
 
     def delete(self, *args: Any, **kwargs: Any) -> None:
         raise UnsupportedFirestoreOperationError(f'StrictFirestore supports only {_SUPPORTED_OPERATIONS}')
@@ -166,10 +266,15 @@ class StrictFirestore:
         rows: dict[tuple[str, ...], dict[str, Any]] | None = None,
         *,
         allow_reads_after_writes: bool = False,
+        stage_transaction_writes: bool = False,
+        fail_transaction_commit: bool = False,
     ):
         self.rows = deepcopy(rows or {})
+        self.versions = {path: 0 for path in self.rows}
         self.lock = RLock()
         self._allow_reads_after_writes = allow_reads_after_writes
+        self._stage_transaction_writes = stage_transaction_writes
+        self._fail_transaction_commit = fail_transaction_commit
         self.transactions: list[StrictFirestoreTransaction] = []
 
     def collection(self, name: str) -> StrictFirestoreCollection:
@@ -179,3 +284,6 @@ class StrictFirestore:
         transaction = StrictFirestoreTransaction(self, allow_reads_after_writes=self._allow_reads_after_writes)
         self.transactions.append(transaction)
         return transaction
+
+    def write_option(self, *, last_update_time: int) -> StrictFirestoreWriteOption:
+        return StrictFirestoreWriteOption(last_update_time)

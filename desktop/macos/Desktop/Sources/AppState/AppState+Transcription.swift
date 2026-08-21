@@ -6,6 +6,19 @@ import SwiftUI
 @MainActor
 extension AppState {
   func quiesceAmbientCaptureForOwnerTransition() async {
+    let pendingFallbackRestart = localSTTFallbackRestartTask
+    pendingFallbackRestart?.cancel()
+    localSTTFallbackRestartTask = nil
+    if pendingFallbackRestart != nil {
+      sttSession.completeFallback()
+    }
+    // A local→cloud recovery marks capture inactive before its asynchronous
+    // final-tail flush completes. Owner rotation must still await that exact
+    // task so old-owner callbacks finish before the authority generation moves.
+    if let inFlightStop = transcriptionStopTask {
+      await inFlightStop.value
+      return
+    }
     guard isTranscribing || transcriptionStartTask != nil else { return }
     recordingGeneration &+= 1
     transcriptionStartTask?.cancel()
@@ -21,11 +34,11 @@ extension AppState {
     localSystemService = nil
     transcriptionService = nil
     stopAudioCapture()
+    cloud?.stop(discardBufferedAudio: true)
     if wasLocalSTT {
       mic?.discardBufferedAudio()
       system?.discardBufferedAudio()
     } else {
-      cloud?.stop(discardBufferedAudio: true)
       await segmentDeliveryQueue.drain()
     }
     localMicAudioSink.clear()
@@ -118,17 +131,17 @@ extension AppState {
         }
         // If the on-device model can't load, fall back to cloud STT instead of recording
         // into a void (the failure is otherwise silent — a blank transcript).
-        let onModelLoadFailed: @MainActor () -> Void = { [weak self] in
+        let onLocalFailure: LocalTranscriptionService.FailureHandler = { [weak self] reason in
           guard self?.currentSessionId == producerSessionId else { return }
-          self?.handleLocalSTTModelLoadFailure()
+          self?.handleLocalSTTFailure(reason)
         }
         // Mic = the user; system audio = another speaker. Transcribed separately for diarization.
         let mic = LocalTranscriptionService(language: effectiveLanguage, isUser: true)
-        mic.start(onSegments: onLocalSegments, onModelLoadFailed: onModelLoadFailed)
+        mic.start(onSegments: onLocalSegments, onFailure: onLocalFailure)
         localMicService = mic
         localMicAudioSink.completeHandoff(to: mic)
         let system = LocalTranscriptionService(language: effectiveLanguage, isUser: false)
-        system.start(onSegments: onLocalSegments, onModelLoadFailed: onModelLoadFailed)
+        system.start(onSegments: onLocalSegments, onFailure: onLocalFailure)
         localSystemService = system
         localSystemAudioSink.completeHandoff(to: system)
       } else {
@@ -675,7 +688,15 @@ extension AppState {
   /// Stop real-time transcription.
   /// Both local and managed STT feed the same locally authoritative finalization path.
   func stopTranscription() {
-    guard transcriptionStopTask == nil else { return }
+    guard transcriptionStopTask == nil else {
+      // A second stop is explicit stop intent while a local→cloud recovery is
+      // still flushing. Cancel its pending restart so the completed teardown
+      // cannot turn capture back on behind the user's back.
+      localSTTFallbackRestartTask?.cancel()
+      localSTTFallbackRestartTask = nil
+      sttSession.completeFallback()
+      return
+    }
     recordingGeneration &+= 1
     transcriptionStartTask?.cancel()
     transcriptionStartTask = nil
@@ -696,6 +717,10 @@ extension AppState {
         self.stopAudioCapture()
         await mic?.finish()
         await sys?.finish()
+        // A fair-use producer handoff can have already-admitted cloud callbacks
+        // queued behind the exhaustion event. Drain them before clearing the
+        // unchanged conversation so its final cloud tail is not session-fenced.
+        await self.segmentDeliveryQueue.drain()
         self.clearTranscriptionState(
           finalizationReason: .userStop, runFinalizer: false, finishSession: false)
         self.silentMicFallbackInProgress = false
@@ -736,32 +761,59 @@ extension AppState {
     await transcriptionStopTask?.value
   }
 
-  /// On-device Parakeet failed to load — fall back to cloud STT instead of silently recording a
-  /// blank transcript. Cleanly stops the dead on-device session and restarts the SAME recording in
-  /// cloud mode (no fragile mid-stream audio rerouting). Sticky for the app run so we don't retry a
-  /// broken model on every recording.
+  /// On-device Parakeet became unusable — fall back to cloud STT instead of silently recording a
+  /// blank transcript. The typed reason keeps load, buffer, and inference failures distinct in
+  /// telemetry. Sticky for the app run so we don't retry a broken engine on every recording.
   @MainActor
-  func handleLocalSTTModelLoadFailure() {
+  func handleLocalSTTFailure(
+    _ reason: LocalTranscriptionService.FailureReason,
+    restartAfterStop: (@MainActor () -> Void)? = nil
+  ) {
     guard sttSession.canBeginLocalToCloudFallback(isTranscribing: isTranscribing) else { return }
     sttSession.beginLocalToCloudFallback()
-    log("Transcription: Parakeet model load failed — falling back to cloud STT")
+    log("Transcription: Parakeet \(reason.rawValue) — falling back to cloud STT")
     AnalyticsManager.shared.recordingError(
-      error: "parakeet_model_load_failed_fallback_cloud",
-      reason: "local_stt_model_load_failed",
+      error: "parakeet_\(reason.rawValue)_fallback_cloud",
+      reason: "local_stt_\(reason.rawValue)",
       source: "desktop",
       stage: "fallback"
     )
+    DesktopDiagnosticsManager.shared.recordFallback(
+      area: "local_stt",
+      from: "local",
+      to: "cloud",
+      reason: reason.rawValue,
+      outcome: .degraded,
+      extra: ["source": "desktop"])
+    let fallbackAuthorization = currentSessionAuthorization
     stopTranscription()
-    // Restart in cloud mode once stop has settled (isTranscribing flips false inside the stop's
-    // async teardown). Bounded wait avoids racing the `!isTranscribing` guard in startTranscription.
-    Task { @MainActor [weak self] in
+    // Await the exact teardown task. Local inference can legitimately take
+    // longer than a polling deadline while flushing the unaffected producer's
+    // final tail; restarting before that task finishes loses the restart.
+    let stopTask = transcriptionStopTask
+    let stoppedRecordingGeneration = recordingGeneration
+    localSTTFallbackRestartTask?.cancel()
+    localSTTFallbackRestartTask = Task { @MainActor [weak self] in
+      await stopTask?.value
       guard let self else { return }
-      for _ in 0..<20 {
-        if !self.isTranscribing { break }
-        try? await Task.sleep(nanoseconds: 100_000_000)
+      defer {
+        self.sttSession.completeFallback()
+        self.localSTTFallbackRestartTask = nil
       }
-      self.startTranscription()
-      self.sttSession.completeFallback()
+      guard !Task.isCancelled else { return }
+      guard self.recordingGeneration == stoppedRecordingGeneration,
+        let fallbackAuthorization
+      else { return }
+      do {
+        try fallbackAuthorization.require()
+      } catch {
+        return
+      }
+      if let restartAfterStop {
+        restartAfterStop()
+      } else {
+        self.startTranscription()
+      }
     }
   }
 
@@ -814,6 +866,241 @@ extension AppState {
       self.startTranscription()
       self.sttSession.completeFallback()
     }
+  }
+
+  /// The restricted managed-cloud allowance is exhausted, but the authenticated socket stays
+  /// open. Move only the audio producer to Parakeet so the local conversation and its captured
+  /// owner authorization remain unchanged. If Parakeet is unavailable, stop the truthful product
+  /// state and surface the server-owned UTC reset and support facts.
+  @MainActor
+  @discardableResult
+  func handleFairUseManagedCloudExhausted(
+    _ exhaustion: FairUseManagedCloudExhaustion,
+    automationReadiness: Bool? = nil,
+    automationReadinessWaiter: (@Sendable () async -> Void)? = nil
+  ) async -> FairUseManagedCloudHandoffOutcome {
+    guard isTranscribing, !sttSession.useLocalSTT else { return .ignored }
+    guard let producerSessionId = currentSessionId, let producerAuthorization = currentSessionAuthorization else {
+      return .ignored
+    }
+    do {
+      try producerAuthorization.require()
+    } catch {
+      return .ignored
+    }
+    guard
+      sttSession.canBeginManagedRestrictionHandoff(
+        isTranscribing: isTranscribing,
+        isAppleSilicon: Self.isAppleSilicon)
+    else {
+      handleFairUseManagedCloudUnavailable(exhaustion)
+      return .stoppedUnavailable
+    }
+    let producerRecordingGeneration = recordingGeneration
+
+    sttSession.beginManagedRestrictionHandoff()
+    transcriptionService?.quiesceManagedCloudAudioForFairUse()
+    transcriptionServiceError = "Switching to on-device transcription…"
+    if let automationReadiness {
+      // Non-production acceptance still enters the real AppState coordinator,
+      // conversation/owner guards, and state transition. It substitutes only
+      // the physical microphone/model I/O for the headless harness session.
+      await automationReadinessWaiter?()
+      guard
+        fairUseManagedCloudHandoffIsCurrent(
+          expectedSessionId: producerSessionId,
+          expectedRecordingGeneration: producerRecordingGeneration,
+          authorization: producerAuthorization)
+      else { return .ignored }
+      guard automationReadiness else {
+        sttSession.abortManagedRestrictionHandoff(localModelUnavailable: true)
+        handleFairUseManagedCloudUnavailable(exhaustion, presentAlert: false)
+        return .stoppedUnavailable
+      }
+      sttSession.completeManagedRestrictionHandoff()
+      transcriptionServiceError = nil
+      log("Transcription: fair-use automation probe continued the same conversation locally")
+      return .continuedLocally
+    }
+
+    let effectiveLanguage = AssistantSettings.shared.effectiveTranscriptionLanguage
+    let onLocalSegments: LocalTranscriptionService.SegmentsHandler = { [weak self] segments in
+      await self?.handleBackendSegments(segments, expectedSessionId: producerSessionId)
+    }
+    let onLocalServiceUnavailable: LocalTranscriptionService.FailureHandler = { [weak self] reason in
+      self?.handleFairUseLocalServiceUnavailable(
+        exhaustion,
+        expectedSessionId: producerSessionId,
+        expectedRecordingGeneration: producerRecordingGeneration,
+        authorization: producerAuthorization,
+        failureReason: reason)
+    }
+    let mic = LocalTranscriptionService(language: effectiveLanguage, isUser: true)
+    mic.start(onSegments: onLocalSegments, onFailure: onLocalServiceUnavailable)
+    let system = LocalTranscriptionService(language: effectiveLanguage, isUser: false)
+    system.start(onSegments: onLocalSegments, onFailure: onLocalServiceUnavailable)
+
+    // Re-arm physical capture against the local producer before awaiting model
+    // readiness. LocalTranscriptionService buffers admitted PCM while its model
+    // loads, so a successful handoff does not lose the transition interval.
+    localMicAudioSink.beginHandoff()
+    localSystemAudioSink.beginHandoff()
+    if #available(macOS 14.4, *),
+      let systemService = systemAudioCaptureService as? SystemAudioCaptureService
+    {
+      systemService.stopCapture()
+    }
+    audioCaptureService?.stopCapture()
+    audioMixer?.stop()
+    localMicService = mic
+    localMicAudioSink.completeHandoff(to: mic)
+    localSystemService = system
+    localSystemAudioSink.completeHandoff(to: system)
+    await startMicrophoneAudioCapture()
+    let microphoneArmed = audioCaptureService?.capturing == true || isAwaitingMeeting
+    guard
+      fairUseManagedCloudHandoffIsCurrent(
+        expectedSessionId: producerSessionId,
+        expectedRecordingGeneration: producerRecordingGeneration,
+        authorization: producerAuthorization)
+    else {
+      mic.discardBufferedAudio()
+      system.discardBufferedAudio()
+      return .ignored
+    }
+    guard microphoneArmed else {
+      mic.discardBufferedAudio()
+      system.discardBufferedAudio()
+      sttSession.abortManagedRestrictionHandoff(localModelUnavailable: false)
+      handleFairUseManagedCloudUnavailable(exhaustion)
+      return .stoppedUnavailable
+    }
+
+    // Model download/load is an external boundary. Bound the time and the
+    // service-side PCM buffer so a stalled provider cannot leave the UI in
+    // "switching" forever or grow memory without limit.
+    let readinessTimeoutNanoseconds: UInt64 = 120_000_000_000
+    async let micReady = mic.waitUntilReady(timeoutNanoseconds: readinessTimeoutNanoseconds)
+    async let systemReady = system.waitUntilReady(timeoutNanoseconds: readinessTimeoutNanoseconds)
+    let readiness = await (micReady, systemReady)
+    guard
+      fairUseManagedCloudHandoffIsCurrent(
+        expectedSessionId: producerSessionId,
+        expectedRecordingGeneration: producerRecordingGeneration,
+        authorization: producerAuthorization)
+    else {
+      mic.discardBufferedAudio()
+      system.discardBufferedAudio()
+      return .ignored
+    }
+    guard readiness.0, readiness.1 else {
+      let failureReason =
+        mic.terminalFailureReason
+        ?? system.terminalFailureReason
+        ?? .modelLoad
+      if !mic.isUsableForCapture { mic.discardBufferedAudio() }
+      if !system.isUsableForCapture { system.discardBufferedAudio() }
+      handleFairUseLocalServiceUnavailable(
+        exhaustion,
+        expectedSessionId: producerSessionId,
+        expectedRecordingGeneration: producerRecordingGeneration,
+        authorization: producerAuthorization,
+        failureReason: failureReason)
+      return .stoppedUnavailable
+    }
+    guard mic.isUsableForCapture, system.isUsableForCapture else {
+      let failureReason =
+        mic.terminalFailureReason
+        ?? system.terminalFailureReason
+        ?? .bufferExhausted
+      handleFairUseLocalServiceUnavailable(
+        exhaustion,
+        expectedSessionId: producerSessionId,
+        expectedRecordingGeneration: producerRecordingGeneration,
+        authorization: producerAuthorization,
+        failureReason: failureReason)
+      return .stoppedUnavailable
+    }
+    guard
+      fairUseManagedCloudHandoffIsCurrent(
+        expectedSessionId: producerSessionId,
+        expectedRecordingGeneration: producerRecordingGeneration,
+        authorization: producerAuthorization)
+    else {
+      mic.discardBufferedAudio()
+      system.discardBufferedAudio()
+      return .ignored
+    }
+    sttSession.completeManagedRestrictionHandoff()
+    transcriptionServiceError = nil
+    DesktopDiagnosticsManager.shared.recordFallback(
+      area: "fair_use_managed_cloud",
+      from: "cloud",
+      to: "local",
+      reason: "daily_allowance_exhausted",
+      outcome: .recovered,
+      extra: ["source": "desktop"])
+    log("Transcription: managed-cloud allowance exhausted — continued on-device in the same conversation")
+    return .continuedLocally
+  }
+
+  @MainActor
+  func handleFairUseLocalServiceUnavailable(
+    _ exhaustion: FairUseManagedCloudExhaustion,
+    expectedSessionId: Int64,
+    expectedRecordingGeneration: UInt64,
+    authorization: LocalMutationAuthorization,
+    failureReason: LocalTranscriptionService.FailureReason,
+    presentAlert: Bool = true
+  ) {
+    guard
+      fairUseManagedCloudHandoffIsCurrent(
+        expectedSessionId: expectedSessionId,
+        expectedRecordingGeneration: expectedRecordingGeneration,
+        authorization: authorization),
+      sttSession.useLocalSTT
+    else { return }
+    sttSession.prepareManagedRestrictionFailureForLocalTeardown()
+    log("Transcription: fair-use local handoff failed (\(failureReason.rawValue))")
+    handleFairUseManagedCloudUnavailable(exhaustion, presentAlert: presentAlert)
+  }
+
+  @MainActor
+  private func fairUseManagedCloudHandoffIsCurrent(
+    expectedSessionId: Int64,
+    expectedRecordingGeneration: UInt64,
+    authorization: LocalMutationAuthorization
+  ) -> Bool {
+    guard
+      isTranscribing,
+      currentSessionId == expectedSessionId,
+      recordingGeneration == expectedRecordingGeneration,
+      currentSessionAuthorization != nil
+    else { return false }
+    do {
+      try authorization.require()
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  @MainActor
+  private func handleFairUseManagedCloudUnavailable(
+    _ exhaustion: FairUseManagedCloudExhaustion,
+    presentAlert: Bool = true
+  ) {
+    DesktopDiagnosticsManager.shared.recordFallback(
+      area: "fair_use_managed_cloud",
+      from: "cloud",
+      to: "stopped",
+      reason: "local_unavailable",
+      outcome: .exhausted,
+      extra: ["source": "desktop"])
+    let presentation = FairUseManagedCloudPresentation.blocked(
+      resetsAt: exhaustion.resetsAt, caseRef: exhaustion.caseRef)
+    if isTranscribing { stopTranscription() }
+    if presentAlert { showAlert(title: presentation.title, message: presentation.message) }
   }
 
   /// Finish the current conversation and keep recording for a new one.
@@ -955,20 +1242,19 @@ extension AppState {
         let onLocalSegments: LocalTranscriptionService.SegmentsHandler = { [weak self] segments in
           await self?.handleBackendSegments(segments, expectedSessionId: producerSessionId)
         }
-        // Mirror startTranscription: wire onModelLoadFailed so a Parakeet model
-        // load failure on the re-armed instances falls back to cloud instead of
-        // recording into a void (a silent blank transcript). Without this, every
+        // Mirror startTranscription: wire typed Parakeet failure handling so a
+        // re-armed instance cannot keep recording into a silent void. Without this, every
         // conversation after the first in a session loses that protection.
-        let onModelLoadFailed: @MainActor () -> Void = { [weak self] in
+        let onLocalFailure: LocalTranscriptionService.FailureHandler = { [weak self] reason in
           guard self?.currentSessionId == producerSessionId else { return }
-          self?.handleLocalSTTModelLoadFailure()
+          self?.handleLocalSTTFailure(reason)
         }
         let mic = LocalTranscriptionService(language: effectiveLanguage, isUser: true)
-        mic.start(onSegments: onLocalSegments, onModelLoadFailed: onModelLoadFailed)
+        mic.start(onSegments: onLocalSegments, onFailure: onLocalFailure)
         localMicService = mic
         localMicAudioSink.completeHandoff(to: mic)
         let system = LocalTranscriptionService(language: effectiveLanguage, isUser: false)
-        system.start(onSegments: onLocalSegments, onModelLoadFailed: onModelLoadFailed)
+        system.start(onSegments: onLocalSegments, onFailure: onLocalFailure)
         localSystemService = system
         localSystemAudioSink.completeHandoff(to: system)
         log("Transcription: Re-armed on-device Parakeet (mic + system) for next conversation")
@@ -1156,9 +1442,49 @@ extension AppState {
 
   // MARK: - Automation capture test seam (non-prod hermetic E2E)
 
+  /// Exercise the production fair-use AppState coordinator against a real owner-scoped
+  /// headless conversation while substituting only physical audio/model I/O.
+  func automationExerciseFairUseManagedCloudHandoff(
+    isNonProduction: Bool = AppBuild.isNonProduction
+  ) async -> [String: String] {
+    guard isNonProduction else {
+      return ["error": "fair-use handoff probe disabled on production bundles"]
+    }
+    let start = await automationStartCaptureTestSession(isNonProduction: isNonProduction)
+    if let error = start["error"] { return ["error": error] }
+    guard let beforeSessionId = currentSessionId, let beforeConversationId = currentConversationId else {
+      _ = await automationStopCaptureTestSession(isNonProduction: isNonProduction)
+      return ["error": "headless fair-use conversation identity unavailable"]
+    }
+
+    // The headless capture seam starts locally by default. Set only the producer
+    // projection to cloud so the production managed-restriction guard is exercised.
+    sttSession.activeMode = .cloud
+    let outcome = await handleFairUseManagedCloudExhausted(
+      FairUseManagedCloudExhaustion(
+        resetsAt: "2026-08-22T00:00:00Z",
+        caseRef: "FU-A1B2C3D4E5F6"),
+      automationReadiness: true)
+    let sameSession = currentSessionId == beforeSessionId
+    let sameConversation = currentConversationId == beforeConversationId
+    let activeMode = sttSession.activeMode == .local ? "local" : "cloud"
+    let stop = await automationStopCaptureTestSession(isNonProduction: isNonProduction)
+
+    return [
+      "outcome": outcome.rawValue,
+      "active_mode": activeMode,
+      "same_session": sameSession ? "true" : "false",
+      "same_conversation": sameConversation ? "true" : "false",
+      "cleanup_stopped": stop["stopped"] == "true" ? "true" : "false",
+      "content_fields_exposed": "false",
+    ]
+  }
+
   /// Start a headless capture session without mic/audio — T2 hermetic only.
-  func automationStartCaptureTestSession() async -> [String: String] {
-    guard AppBuild.isNonProduction else {
+  func automationStartCaptureTestSession(
+    isNonProduction: Bool = AppBuild.isNonProduction
+  ) async -> [String: String] {
+    guard isNonProduction else {
       return ["error": "capture test session disabled on production bundles"]
     }
     if isTranscribing {
@@ -1171,6 +1497,7 @@ extension AppState {
       }
       return ["error": "real capture session already active"]
     }
+    recordingGeneration &+= 1
     do {
       let admission = try await beginLocalConversation(
         language: AssistantSettings.shared.effectiveTranscriptionLanguage,
@@ -1303,8 +1630,10 @@ extension AppState {
   /// `stopTranscription()` (finish session, finalize conversation, clear live
   /// transcript state, reload conversations) without stopping the audio engine
   /// or cloud STT WebSocket. Keep this in sync when `stopTranscription()` changes.
-  func automationStopCaptureTestSession() async -> [String: String] {
-    guard AppBuild.isNonProduction else {
+  func automationStopCaptureTestSession(
+    isNonProduction: Bool = AppBuild.isNonProduction
+  ) async -> [String: String] {
+    guard isNonProduction else {
       return ["error": "capture test session disabled on production bundles"]
     }
     guard automationCaptureTestSessionActive else {
@@ -1323,6 +1652,7 @@ extension AppState {
         "conversation_count": "\(totalConversationsCount ?? conversations.count)",
       ]
     }
+    recordingGeneration &+= 1
     let beforeCount = totalConversationsCount ?? conversations.count
     let sessionId = currentSessionId
     let authorization = currentSessionAuthorization
@@ -1394,6 +1724,7 @@ extension AppState {
         timezone: TimeZone.current.identifier,
         inputDeviceName: inputDeviceName,
         location: nil),
+      classifierSource: "desktop",
       authorization: authorization)
     return (handle, authorization)
   }

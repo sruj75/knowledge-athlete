@@ -7,22 +7,16 @@ import os
 from datetime import datetime
 from typing import Any, Dict, Optional
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from pydantic import BaseModel, ConfigDict, Field
 from models.shared import StatusResponse
 
 import database.fair_use as fair_use_db
 from database._client import db
-from utils.other.endpoints import get_current_user_uid, rate_limit_dependency
 from utils.fair_use import (
     get_rolling_speech_ms,
-    get_managed_stt_budget_status,
     invalidate_enforcement_cache,
-    normalize_expired_restriction_state,
     FAIR_USE_ENABLED,
-    FAIR_USE_DAILY_SPEECH_MS,
-    FAIR_USE_3DAY_SPEECH_MS,
-    FAIR_USE_WEEKLY_SPEECH_MS,
 )
 
 logger = logging.getLogger(__name__)
@@ -32,52 +26,37 @@ router = APIRouter()
 ADMIN_KEY = os.getenv('ADMIN_KEY', '')
 
 
-class FairUseLimitsResponse(BaseModel):
-    daily_hours: float
-    three_day_hours: float
-    weekly_hours: float
-
-
-class FairUseUsagePctResponse(BaseModel):
-    daily: float
-    three_day: float
-    weekly: float
-
-
-class FairUseDailyGenerationsBudgetResponse(BaseModel):
-    daily_limit_ms: int
-    used_ms: int
-    remaining_ms: int
-    exhausted: bool
-    resets_at: Optional[str] = None
-
-
-class FairUseStatusResponse(BaseModel):
-    stage: str
-    case_ref: str
-    speech_hours_today: float
-    speech_hours_3day: float
-    speech_hours_weekly: float
-    limits: FairUseLimitsResponse
-    usage_pct: FairUseUsagePctResponse
-    managed_stt_budget: FairUseDailyGenerationsBudgetResponse
-    message: str
-
-
-class PublicFairUseCaseStatusResponse(BaseModel):
-    case_ref: str
-    stage: str
-    message: str
-    created_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
-    support_email: str
-
-
 class FlaggedUsersResponse(BaseModel):
-    """Admin dashboard: users with active fair-use enforcement."""
+    """Protected support response for users with active fair-use enforcement."""
 
     users: list[Dict[str, Any]] = Field(description='Users with active enforcement, each a fair-use state dict.')
     fair_use_enabled: bool = Field(description='Whether fair-use enforcement is globally enabled.')
+
+
+class FairUseSupportEventResponse(BaseModel):
+    """Content-free fair-use history exposed to protected support tooling."""
+
+    model_config = ConfigDict(extra='forbid')
+    id: str = ''
+    review_id: str = ''
+    created_at: Optional[datetime] = None
+    session_id: str = ''
+    trigger: str = 'daily'
+    window_speech_ms: Dict[str, int] = Field(default_factory=dict)
+    thresholds_ms: Dict[str, int] = Field(default_factory=dict)
+    classifier_score: float = 0.0
+    classifier_type: str = 'none'
+    classifier_confidence: float = 0.0
+    classifier_model: str = ''
+    classifier_prompt_version: str = ''
+    enforcement_action: str = 'none'
+    previous_stage: str = 'none'
+    new_stage: str = 'none'
+    case_ref: str = ''
+    admin_notes: str = ''
+    resolved: bool = False
+    resolved_at: Optional[datetime] = None
+    resolved_by: str = ''
 
 
 class FairUseUserDetailResponse(BaseModel):
@@ -85,7 +64,7 @@ class FairUseUserDetailResponse(BaseModel):
 
     uid: str = Field(description='User UID.')
     state: Dict[str, Any] = Field(description='Current fair-use state document.')
-    events: list[Dict[str, Any]] = Field(description='Recent fair-use events.')
+    events: list[FairUseSupportEventResponse] = Field(description='Recent content-free fair-use events.')
     current_speech_ms: Dict[str, int] = Field(
         description='Rolling speech usage in milliseconds: daily_ms, three_day_ms, weekly_ms.'
     )
@@ -98,16 +77,18 @@ class FairUseSetStageResponse(BaseModel):
     stage: str = Field(description='The enforcement stage that was set (none|warning|throttle|restrict).')
 
 
-class FairUseCaseLookupResponse(BaseModel):
-    """A fair-use event located by case reference (support team lookup).
+class FairUseCaseLookupResponse(FairUseSupportEventResponse):
+    """A content-free fair-use event located by case reference."""
 
-    The Firestore event document carries dynamic fields beyond uid/event_id;
-    extra='allow' passes them through without modelling every key.
-    """
-
-    model_config = ConfigDict(extra='allow')
     uid: str = Field(description='User UID who owns the event.')
     event_id: str = Field(description='Event identifier.')
+
+
+_SUPPORT_EVENT_FIELDS = frozenset(FairUseSupportEventResponse.model_fields)
+
+
+def _content_free_support_event(event: Dict[str, Any]) -> Dict[str, Any]:
+    return {key: value for key, value in event.items() if key in _SUPPORT_EVENT_FIELDS}
 
 
 def _verify_admin_key(x_admin_key: str = Header(..., alias='X-Admin-Key')) -> str:
@@ -121,7 +102,7 @@ def _verify_admin_key(x_admin_key: str = Header(..., alias='X-Admin-Key')) -> st
 
 
 # ---------------------------------------------------------------------------
-# Dashboard
+# Protected support reads
 # ---------------------------------------------------------------------------
 
 
@@ -143,7 +124,7 @@ def get_flagged_users(
 def get_user_fair_use_detail(uid: str, admin_id: str = Depends(_verify_admin_key)):
     """Get detailed fair-use state and events for a specific user."""
     state = fair_use_db.get_fair_use_state(uid)
-    events = fair_use_db.get_fair_use_events(uid, limit=50)
+    events = [_content_free_support_event(event) for event in fair_use_db.get_fair_use_events(uid, limit=50)]
     speech = get_rolling_speech_ms(uid)
 
     return {
@@ -202,115 +183,5 @@ def lookup_case(case_ref: str, admin_id: str = Depends(_verify_admin_key)):
         if len(path_parts) >= 2:
             data['uid'] = path_parts[1]
         data['event_id'] = doc.id
-        return data
+        return _content_free_support_event(data) | {'uid': data.get('uid', ''), 'event_id': doc.id}
     raise HTTPException(status_code=404, detail=f'Case {case_ref} not found')
-
-
-SUPPORT_EMAIL = 'team@basedhardware.com'
-
-
-# ---------------------------------------------------------------------------
-# Public: unauthenticated case status lookup (for tracking page)
-# ---------------------------------------------------------------------------
-
-
-@router.get(
-    '/v1/fair-use/case/{case_ref}/status',
-    tags=['fair_use'],
-    dependencies=[Depends(rate_limit_dependency('fair_use_case_status', requests_per_window=10, window_seconds=60))],
-    response_model=PublicFairUseCaseStatusResponse,
-)
-def get_public_case_status(case_ref: str):
-    """Public unauthenticated endpoint: look up case status by reference.
-
-    Returns only non-sensitive info: stage, message, timestamps, support email.
-    No usage data or user identity exposed.
-    """
-    query = db.collection_group('fair_use_events').where('case_ref', '==', case_ref).limit(1)
-    for doc in query.stream():
-        data = doc.to_dict()
-        # Extract uid to get current enforcement stage
-        path_parts = doc.reference.path.split('/')
-        uid = path_parts[1] if len(path_parts) >= 2 else None
-
-        stage = 'none'
-        if uid:
-            state = fair_use_db.get_fair_use_state(uid)
-            stage = state.get('stage', 'none')
-
-        created_at = data.get('created_at')
-        updated_at = data.get('resolved_at') or created_at
-
-        return {
-            'case_ref': case_ref,
-            'stage': stage,
-            'message': _user_facing_message(stage, case_ref),
-            'created_at': str(created_at) if created_at else None,
-            'updated_at': str(updated_at) if updated_at else None,
-            'support_email': SUPPORT_EMAIL,
-        }
-    raise HTTPException(status_code=404, detail='Case not found')
-
-
-# ---------------------------------------------------------------------------
-# Support: user-facing endpoint to see their own fair-use status
-# ---------------------------------------------------------------------------
-
-
-@router.get('/v1/fair-use/status', tags=['fair_use'], response_model=FairUseStatusResponse)
-def get_my_fair_use_status(uid: str = Depends(get_current_user_uid)):
-    """User-facing endpoint: see your own fair-use status and speech usage."""
-    state = normalize_expired_restriction_state(uid, fair_use_db.get_fair_use_state(uid))
-    speech = get_rolling_speech_ms(uid)
-
-    stage = state.get('stage', 'none')
-    case_ref = state.get('last_case_ref', '')
-
-    daily_ms = speech.get('daily_ms', 0)
-    three_day_ms = speech.get('three_day_ms', 0)
-    weekly_ms = speech.get('weekly_ms', 0)
-
-    # managed STT budget (only meaningful for restrict stage, but always returned for frontend simplicity)
-    managed_stt_budget = get_managed_stt_budget_status(uid)
-
-    return {
-        'stage': stage,
-        'case_ref': case_ref,
-        'speech_hours_today': round(daily_ms / 3600000, 2),
-        'speech_hours_3day': round(three_day_ms / 3600000, 2),
-        'speech_hours_weekly': round(weekly_ms / 3600000, 2),
-        'limits': {
-            'daily_hours': round(FAIR_USE_DAILY_SPEECH_MS / 3600000, 2),
-            'three_day_hours': round(FAIR_USE_3DAY_SPEECH_MS / 3600000, 2),
-            'weekly_hours': round(FAIR_USE_WEEKLY_SPEECH_MS / 3600000, 2),
-        },
-        'usage_pct': {
-            'daily': round(daily_ms / FAIR_USE_DAILY_SPEECH_MS * 100, 1) if FAIR_USE_DAILY_SPEECH_MS else 0,
-            'three_day': round(three_day_ms / FAIR_USE_3DAY_SPEECH_MS * 100, 1) if FAIR_USE_3DAY_SPEECH_MS else 0,
-            'weekly': round(weekly_ms / FAIR_USE_WEEKLY_SPEECH_MS * 100, 1) if FAIR_USE_WEEKLY_SPEECH_MS else 0,
-        },
-        'managed_stt_budget': managed_stt_budget,
-        'message': _user_facing_message(stage, case_ref),
-    }
-
-
-def _user_facing_message(stage: str, case_ref: str = '') -> str:
-    ref_note = f' Your case reference is {case_ref}.' if case_ref else ''
-    messages = {
-        'none': 'Your usage is within normal limits.',
-        'warning': (
-            'Your usage is higher than typical. Omi is designed for personal conversations. '
-            f'If non-personal content transcription continues, your service may be adjusted.{ref_note}'
-        ),
-        'throttle': (
-            'Your transcription quality has been temporarily reduced due to high non-personal usage. '
-            'This will reset automatically. Contact support at team@basedhardware.com if you believe this is an error. '
-            f'Please quote your case reference when contacting support.{ref_note}'
-        ),
-        'restrict': (
-            'Your cloud transcription is temporarily limited. On-device transcription continues normally. '
-            'Contact support at team@basedhardware.com to discuss your usage and resolve this. '
-            f'Please quote your case reference when contacting support.{ref_note}'
-        ),
-    }
-    return messages.get(stage, messages['none'])

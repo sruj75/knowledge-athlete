@@ -54,6 +54,15 @@ def test_transaction_ordering_state_is_local_to_each_transaction():
     assert source.get(transaction=database.transaction()).to_dict() == {'value': 'source'}
 
 
+def test_transaction_set_merge_preserves_unmodified_fields():
+    database = StrictFirestore({('users', 'user-1', 'records', 'record'): {'keep': True, 'value': 'before'}})
+    record = _record(database)
+
+    database.transaction().set(record, {'value': 'after'}, merge=True)
+
+    assert record.get(transaction=database.transaction()).to_dict() == {'keep': True, 'value': 'after'}
+
+
 def test_named_opt_out_allows_reads_after_writes():
     database = StrictFirestore(
         {('users', 'user-1', 'records', 'record'): {'value': 'before'}},
@@ -120,3 +129,22 @@ def test_transaction_create_inserts_a_new_document_and_rejects_an_existing_one()
 
     with pytest.raises(RuntimeError, match='document already exists'):
         transaction.create(record, {'value': 'again'})
+
+
+def test_staged_transaction_commit_failure_rolls_back_every_write():
+    database = StrictFirestore(
+        {('users', 'user-1', 'records', 'source'): {'value': 'before'}},
+        stage_transaction_writes=True,
+        fail_transaction_commit=True,
+    )
+    source = database.collection('users').document('user-1').collection('records').document('source')
+    created = _record(database)
+    transaction = database.transaction()
+    transaction.set(source, {'value': 'after'}, merge=True)
+    transaction.create(created, {'value': 'created'})
+
+    with pytest.raises(RuntimeError, match='injected Firestore transaction commit failure'):
+        transaction._commit()
+    transaction._rollback()
+
+    assert database.rows == {('users', 'user-1', 'records', 'source'): {'value': 'before'}}

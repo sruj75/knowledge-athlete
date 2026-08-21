@@ -191,6 +191,21 @@ extension RewindDatabase {
           ])
       }
     }
+
+    migrator.registerMigration("addFairUseClassifierMetadataS20") { db in
+      guard try db.tableExists("transcription_sessions") else { return }
+      let columns = Set(try db.columns(in: "transcription_sessions").map(\.name))
+      if !columns.contains("classifierCategory") {
+        try db.alter(table: "transcription_sessions") { table in
+          table.add(column: "classifierCategory", .text)
+        }
+      }
+      if !columns.contains("classifierSource") {
+        try db.alter(table: "transcription_sessions") { table in
+          table.add(column: "classifierSource", .text)
+        }
+      }
+    }
   }
 
   private struct MigratedCommitment: Codable {

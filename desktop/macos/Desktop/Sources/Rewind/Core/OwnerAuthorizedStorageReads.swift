@@ -123,6 +123,21 @@ extension GoalStorage {
 }
 
 extension TranscriptionStorage {
+  func fairUseEvidence(
+    now: Date = Date(),
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async throws -> [FairUseConversationEvidence] {
+    let authorization = LocalMutationAuthorization {
+      RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
+    }
+    return try await authorization.withReadLease {
+      try authorization.require()
+      let results = try await self.fairUseEvidence(now: now)
+      try authorization.require()
+      return results
+    }
+  }
+
   func conversationPage(
     query: ConversationLocalQuery,
     offset: Int,

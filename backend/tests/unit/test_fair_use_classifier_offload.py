@@ -1,6 +1,6 @@
-"""Structural test: the fair-use classifier trigger offloads its blocking Firestore read.
+"""Structural test: the Free synthetic trigger offloads its blocking Firestore read.
 
-trigger_classifier_if_needed in utils/fair_use.py is an async helper that runs the enforcement
+trigger_free_exhaustion_if_needed in utils/fair_use.py is an async helper that runs the enforcement
 escalation pipeline off the WebSocket path. When an action is taken it read the latest fair-use event
 through the synchronous fair_use_db.get_fair_use_events (a Firestore read in database/fair_use.py),
 which blocks the event loop for the duration of that call. This test parses the source (no import)
@@ -13,7 +13,7 @@ from pathlib import Path
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]
 FAIR_USE = BACKEND_DIR / 'utils' / 'fair_use.py'
-TARGET_FN = 'trigger_classifier_if_needed'
+TARGET_FN = 'trigger_free_exhaustion_if_needed'
 BLOCKING_CALL = 'get_fair_use_events'
 
 

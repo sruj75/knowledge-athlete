@@ -161,7 +161,8 @@ final class ConversationLocalFinalizationTests: XCTestCase {
     XCTAssertEqual(second.attemptCount, first.attemptCount + 1)
 
     let response = ConversationStructureComputeResponse(
-      generationId: UUID(), title: "Recovered", overview: "Safe", emoji: "✅", commitments: [])
+      generationId: UUID(), title: "Recovered", overview: "Safe", emoji: "✅", category: "other",
+      commitments: [])
     let stale = try await owner.storage.completeStructureWork(
       conversationId: handle.conversationId,
       contentGeneration: first.contentGeneration,

@@ -6,6 +6,7 @@ extension TranscriptionStorage {
     configuration: ConversationCaptureConfiguration,
     startedAt: Date = Date(),
     conversationId: String = UUID().uuidString.lowercased(),
+    classifierSource: String? = nil,
     authorization suppliedAuthorization: LocalMutationAuthorization? = nil
   ) async throws -> ConversationCaptureHandle {
     guard UUID(uuidString: conversationId) != nil else {
@@ -22,13 +23,14 @@ extension TranscriptionStorage {
           sql: """
             INSERT INTO transcription_sessions
               (conversationId, startedAt, language, timezone, inputDeviceName, status, isTitleManuallyEdited,
-               geolocationJson, starred, createdAt, updatedAt, contentGeneration, autoDetectLanguage, vocabularyJson)
-            VALUES (?, ?, ?, ?, ?, 'recording', 0, ?, 0, ?, ?, 0, ?, ?)
+               geolocationJson, starred, createdAt, updatedAt, contentGeneration, autoDetectLanguage, vocabularyJson,
+               classifierSource)
+            VALUES (?, ?, ?, ?, ?, 'recording', 0, ?, 0, ?, ?, 0, ?, ?, ?)
             """,
           arguments: [
             conversationId.lowercased(), startedAt, configuration.language, configuration.timezone,
             configuration.inputDeviceName, locationJson, startedAt, startedAt, configuration.autoDetectLanguage,
-            vocabularyJson,
+            vocabularyJson, classifierSource,
           ])
         return ConversationCaptureHandle(
           sessionId: database.lastInsertedRowID, conversationId: conversationId.lowercased())
@@ -272,6 +274,38 @@ extension TranscriptionStorage {
         database,
         sql: "SELECT COUNT(*) FROM transcription_sessions s WHERE \(predicate.sql)",
         arguments: predicate.arguments) ?? 0
+    }
+  }
+
+  func fairUseEvidence(now: Date = Date()) async throws -> [FairUseConversationEvidence] {
+    let db = try await localAuthorityDatabase()
+    let cutoff = now.addingTimeInterval(-7 * 24 * 60 * 60)
+    return try await db.read { database in
+      try Row.fetchAll(
+        database,
+        sql: """
+          SELECT title, overview, classifierCategory, classifierSource, startedAt, finishedAt, createdAt
+          FROM transcription_sessions
+          WHERE createdAt >= ? AND createdAt <= ?
+            AND status NOT IN ('recording', 'merging')
+          ORDER BY createdAt DESC, id DESC
+          LIMIT 30
+          """,
+        arguments: [cutoff, now]
+      ).map { row in
+        let startedAt: Date = row["startedAt"]
+        let finishedAt: Date? = row["finishedAt"]
+        let duration = finishedAt.map { max(0, $0.timeIntervalSince(startedAt) / 60) } ?? 0
+        let overview: String = row["overview"] ?? ""
+        return FairUseConversationEvidence(
+          conversationId: UUID().uuidString.lowercased(),
+          title: row["title"] ?? "",
+          overview: String(overview.prefix(200)),
+          category: row["classifierCategory"] ?? "",
+          durationMinutes: (duration * 10).rounded() / 10,
+          source: row["classifierSource"] ?? "",
+          createdAt: row["createdAt"])
+      }
     }
   }
 
@@ -1357,13 +1391,15 @@ extension TranscriptionStorage {
         if manual {
           try database.execute(
             sql:
-              "UPDATE transcription_sessions SET overview = ?, emoji = ?, commitmentsJson = ?, updatedAt = ? WHERE conversationId = ?",
-            arguments: [response.overview, response.emoji, commitments, now, conversationId])
+              "UPDATE transcription_sessions SET overview = ?, emoji = ?, commitmentsJson = ?, classifierCategory = ?, updatedAt = ? WHERE conversationId = ?",
+            arguments: [response.overview, response.emoji, commitments, response.category, now, conversationId])
         } else {
           try database.execute(
             sql:
-              "UPDATE transcription_sessions SET title = ?, overview = ?, emoji = ?, commitmentsJson = ?, updatedAt = ? WHERE conversationId = ?",
-            arguments: [response.title, response.overview, response.emoji, commitments, now, conversationId])
+              "UPDATE transcription_sessions SET title = ?, overview = ?, emoji = ?, commitmentsJson = ?, classifierCategory = ?, updatedAt = ? WHERE conversationId = ?",
+            arguments: [
+              response.title, response.overview, response.emoji, commitments, response.category, now, conversationId,
+            ])
         }
         try database.execute(
           sql:

@@ -12,6 +12,7 @@ import regex
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, ValidationError, field_validator, model_validator
 
+from models.conversation_enums import CategoryEnum
 from utils.llm import conversation_processing
 from utils.llm.usage_tracker import Features, track_usage
 from utils.other.endpoints import get_current_user_uid
@@ -75,6 +76,7 @@ class ConversationStructureResponse(BaseModel):
     title: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=256)]
     overview: Annotated[str, StringConstraints(strip_whitespace=True, max_length=50_000)]
     emoji: str
+    category: CategoryEnum
     commitments: list[ConversationCommitmentCandidate] = Field(max_length=100)
 
     @field_validator('title')
@@ -198,6 +200,7 @@ def compute_structure(
             title=result.title,
             overview=result.overview,
             emoji=result.emoji,
+            category=result.category,
             commitments=[
                 ConversationCommitmentCandidate(
                     title=event.title,

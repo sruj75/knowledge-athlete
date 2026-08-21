@@ -133,7 +133,7 @@ _ensure_attrs(
         'get_rolling_speech_ms',
         'check_soft_caps',
         'is_hard_restricted',
-        'trigger_classifier_if_needed',
+        'trigger_free_exhaustion_if_needed',
         'is_managed_stt_budget_exhausted',
         'get_enforcement_stage',
         'record_managed_stt_usage_ms',

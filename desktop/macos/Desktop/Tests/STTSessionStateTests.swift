@@ -181,4 +181,94 @@ final class STTSessionStateTests: XCTestCase {
     XCTAssertTrue(session.appRunForceCloud)
     XCTAssertTrue(session.fallbackInProgress)
   }
+
+  func testManagedCloudExhaustionSwitchesTransportInPlaceWhenLocalSTTIsUsable() {
+    var session = STTSessionState()
+    session.beginRecording(isAppleSilicon: true, debugForceCloud: true)
+
+    XCTAssertTrue(
+      session.canBeginManagedRestrictionHandoff(
+        isTranscribing: true, isAppleSilicon: true))
+    session.beginManagedRestrictionHandoff()
+
+    XCTAssertEqual(session.activeMode, .local)
+    XCTAssertTrue(session.fallbackInProgress)
+    session.completeManagedRestrictionHandoff()
+
+    XCTAssertEqual(session.activeMode, .local)
+    XCTAssertFalse(session.fallbackInProgress)
+    XCTAssertTrue(session.cloudToLocalFallbackTried)
+  }
+
+  func testManagedCloudExhaustionCannotRetryParakeetAfterItsModelFailed() {
+    var session = STTSessionState()
+    session.beginRecording(isAppleSilicon: true, debugForceCloud: false)
+    session.beginLocalToCloudFallback()
+    session.completeFallback()
+    session.activeMode = .cloud
+
+    XCTAssertFalse(
+      session.canBeginManagedRestrictionHandoff(
+        isTranscribing: true, isAppleSilicon: true))
+  }
+
+  func testFailedManagedRestrictionHandoffDoesNotPoisonFallbackLifecycle() {
+    var session = STTSessionState()
+    session.beginRecording(isAppleSilicon: true, debugForceCloud: true)
+    session.beginManagedRestrictionHandoff()
+
+    session.abortManagedRestrictionHandoff(localModelUnavailable: true)
+
+    XCTAssertFalse(session.fallbackInProgress)
+    XCTAssertEqual(session.activeMode, .cloud)
+    XCTAssertTrue(session.appRunForceCloud)
+    session.endRecording()
+    session.prepareForStart()
+    session.beginRecording(isAppleSilicon: true, debugForceCloud: false)
+    XCTAssertEqual(session.activeMode, .cloud)
+  }
+
+  func testManagedRestrictionFailureKeepsLocalModeForTailTeardownThenForcesFutureCloud() {
+    var session = STTSessionState()
+    session.beginRecording(isAppleSilicon: true, debugForceCloud: true)
+    session.beginManagedRestrictionHandoff()
+
+    session.prepareManagedRestrictionFailureForLocalTeardown()
+
+    XCTAssertEqual(session.activeMode, .local)
+    XCTAssertFalse(session.fallbackInProgress)
+    XCTAssertTrue(session.appRunForceCloud)
+    session.endRecording()
+    session.prepareForStart()
+    session.beginRecording(isAppleSilicon: true, debugForceCloud: false)
+    XCTAssertEqual(session.activeMode, .cloud)
+  }
+
+  func testCancelledManagedRestrictionHandoffAllowsNextLocalSession() {
+    var session = STTSessionState()
+    session.beginRecording(isAppleSilicon: true, debugForceCloud: true)
+    session.beginManagedRestrictionHandoff()
+
+    session.abortManagedRestrictionHandoff(localModelUnavailable: false)
+    session.endRecording()
+    session.prepareForStart()
+    session.beginRecording(isAppleSilicon: true, debugForceCloud: false)
+
+    XCTAssertEqual(session.activeMode, .local)
+    XCTAssertFalse(session.fallbackInProgress)
+  }
+
+  func testEndingRecordingCancelsAnInFlightManagedRestrictionHandoff() {
+    var session = STTSessionState()
+    session.beginRecording(isAppleSilicon: true, debugForceCloud: true)
+    session.beginManagedRestrictionHandoff()
+
+    session.endRecording()
+    session.prepareForStart()
+    session.beginRecording(isAppleSilicon: true, debugForceCloud: false)
+
+    XCTAssertEqual(session.activeMode, .local)
+    XCTAssertFalse(session.fallbackInProgress)
+    XCTAssertFalse(session.sessionForceLocal)
+  }
 }

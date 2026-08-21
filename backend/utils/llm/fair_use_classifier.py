@@ -7,20 +7,16 @@ patterns (audiobook transcription, podcast transcription, pre-recorded content).
 
 import json
 import logging
-import os
-from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, cast
 
-import database.conversations as conversations_db
-from utils.executors import db_executor, run_blocking
-from utils.llm.clients import get_llm
-from utils.llm.model_config import get_model, get_provider
+from models.fair_use import normalize_usage_type
+from utils.llm.model_config import get_route_options
+from utils.llm.providers import get_default_client
 from utils.llm.usage_tracker import Features, track_usage
 
 logger = logging.getLogger(__name__)
 
-CLASSIFIER_ROUTE = f"{get_provider('fair_use')}/{get_model('fair_use')}"
-CLASSIFIER_LOOKBACK_DAYS = int(os.getenv('FAIR_USE_CLASSIFIER_LOOKBACK_DAYS', '7'))
+CLASSIFIER_ROUTE = 'openai/gpt-5.1'
 CLASSIFIER_MAX_CONVERSATIONS = 30
 _classifier_llm = None
 
@@ -155,51 +151,8 @@ def _select_recipes(conversation_summaries: List[Dict[str, Any]]) -> str:
     return '\n'.join(recipes)
 
 
-def _prepare_conversation_summaries(uid: str) -> List[Dict[str, Any]]:
-    """Fetch recent conversations and extract metadata for classification."""
-    start_date = datetime.now(timezone.utc) - timedelta(days=CLASSIFIER_LOOKBACK_DAYS)
-
-    conversations = conversations_db.get_conversations(
-        uid,
-        limit=CLASSIFIER_MAX_CONVERSATIONS,
-        start_date=start_date,
-    )
-
-    summaries: List[Dict[str, Any]] = []
-    for conv in conversations:
-        structured = cast(Dict[str, Any], conv.get('structured') or {})
-        started = conv.get('started_at')
-        ended = conv.get('finished_at') or conv.get('ended_at')
-
-        duration_minutes = 0
-        if started and ended:
-            try:
-                if isinstance(started, datetime) and isinstance(ended, datetime):
-                    duration_minutes = (ended - started).total_seconds() / 60
-            except Exception:
-                pass
-
-        summaries.append(
-            {
-                'conversation_id': conv.get('id', ''),
-                'title': structured.get('title', '') or '',
-                'overview': (structured.get('overview', '') or '')[:200],  # Truncate for token efficiency
-                'category': structured.get('category', '') or '',
-                'duration_minutes': round(duration_minutes, 1),
-                'source': conv.get('source', ''),
-                'created_at': str(conv.get('created_at', '')),
-            }
-        )
-
-    return summaries
-
-
-async def classify_user_purpose(uid: str) -> Dict[str, Any]:
-    """Run LLM classification on a user's recent conversations.
-
-    Returns a dict matching the ClassifierResult model:
-      {misuse_score, usage_type, confidence, evidence, model, prompt_version}
-    """
+async def classify_fair_use_evidence(uid: str, summaries: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Run the frozen fair-use classifier contract over caller-supplied evidence."""
     default_result: Dict[str, Any] = {
         'misuse_score': 0.0,
         'usage_type': 'none',
@@ -210,7 +163,6 @@ async def classify_user_purpose(uid: str) -> Dict[str, Any]:
     }
 
     try:
-        summaries = await run_blocking(db_executor, _prepare_conversation_summaries, uid)
         if not summaries:
             logger.info(f'fair_use: no conversations to classify for {uid}')
             return default_result
@@ -227,7 +179,9 @@ CONVERSATIONS:
 Respond with ONLY the JSON output, no other text."""
 
         with track_usage(uid, Features.OTHER):
-            classifier_llm = _classifier_llm or get_llm('fair_use')
+            classifier_llm = _classifier_llm or get_default_client(
+                'gpt-5.1', 'openai', False, get_route_options('fair_use', 'gpt-5.1', 'openai')
+            )
             response = await classifier_llm.ainvoke(
                 [
                     {"role": "system", "content": SYSTEM_PROMPT},
@@ -253,16 +207,16 @@ Respond with ONLY the JSON output, no other text."""
         # (misuse_score 0.0 = "not abuse"), silently disabling abuse detection for that run.
         result['misuse_score'] = max(0.0, min(1.0, float(result.get('misuse_score') or 0.0)))
         result['confidence'] = max(0.0, min(1.0, float(result.get('confidence') or 0.0)))
-        result['usage_type'] = result.get('usage_type') or 'none'
+        result['usage_type'] = normalize_usage_type(result.get('usage_type')).value
         result['evidence'] = (result.get('evidence') or [])[:10]  # Cap evidence entries
         result['model'] = CLASSIFIER_ROUTE
         result['prompt_version'] = 'v2'
 
         return result
 
-    except json.JSONDecodeError as e:
-        logger.error(f'fair_use: classifier JSON parse error for {uid}: {e}')
+    except json.JSONDecodeError:
+        logger.error(f'fair_use: classifier JSON parse error for {uid}')
         return default_result
     except Exception as e:
-        logger.error(f'fair_use: classifier error for {uid}: {e}')
+        logger.error(f'fair_use: classifier error for {uid}: {type(e).__name__}')
         return default_result

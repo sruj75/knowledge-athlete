@@ -120,6 +120,8 @@ class ListenReceiver:
         if not decision.should_flush:
             return
         if self.host.state.fair_use_managed_stt_budget_exhausted:
+            if self.host.state.fair_use_allowance_handoff_required:
+                await self.host.notify_managed_cloud_exhausted()
             buffer.clear()
             return
         sent = await flush_live_stt_buffer(

@@ -108,7 +108,7 @@ MODEL_QOS_PROFILES: Dict[str, Dict[str, Tuple[str, str]]] = {
 # Pinned features — (model, provider) fixed regardless of profile or env override.
 _PINNED_FEATURES: Dict[str, Tuple[str, str]] = {
     'chat_greeting': ('gpt-5.4-mini', 'openai'),
-    'fair_use': (os.getenv('FAIR_USE_CLASSIFIER_MODEL', 'gpt-5.1').strip() or 'gpt-5.1', 'openai'),
+    'fair_use': ('gpt-5.1', 'openai'),
     'memory_l1': ('gpt-4.1-mini', 'openai'),
     'memory_l2': ('gpt-4.1-mini', 'openai'),
     'memory_conflict': ('gpt-4.1-mini', 'openai'),

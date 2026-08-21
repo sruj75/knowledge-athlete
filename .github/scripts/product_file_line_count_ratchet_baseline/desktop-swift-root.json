@@ -1,11 +1,11 @@
 {
   "files": {
     "desktop/macos/Desktop/Sources/AuthService.swift": 2799,
-    "desktop/macos/Desktop/Sources/DesktopAutomationBridge.swift": 3461
+    "desktop/macos/Desktop/Sources/DesktopAutomationBridge.swift": 3521
   },
   "raise_justifications": {
     "desktop/macos/Desktop/Sources/AuthService.swift": "S-11 sign-out captures journal attachment references before deleting draft-only managed files so durable local chat history remains readable.",
-    "desktop/macos/Desktop/Sources/DesktopAutomationBridge.swift": "S-11 adds retained named-bundle Home chat catalog controls and a create-rename-star-delete acceptance round trip through the production ChatProvider boundary."
+    "desktop/macos/Desktop/Sources/DesktopAutomationBridge.swift": "S-20 adds a named-bundle acceptance action that drives the production fair-use review and local-enforcement boundary."
   },
   "threshold": 1500
 }

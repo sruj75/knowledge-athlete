@@ -834,6 +834,66 @@ final class DesktopAutomationActionRegistry {
     }
 
     register(
+      name: "fair_use_local_enforcement_probe",
+      summary:
+        "Run content-redacted fair-use admission, owner-local evidence, or managed-cloud handoff probes. Non-prod only.",
+      params: ["phase"],
+      category: "coordinator",
+      surfaces: ["ambient_transcription"],
+      safety: "non_production_probe",
+      sideEffects: [
+        "may read bounded owner-local conversation metadata",
+        "creates then finalizes one empty owner-local harness conversation",
+      ]
+    ) { params in
+      guard AppBuild.isNonProduction else {
+        return ["error": "fair_use_local_enforcement_probe is disabled on production bundles"]
+      }
+      let phase = (params["phase"] ?? "handoff").lowercased()
+      switch phase {
+      case "admission":
+        return await FairUseAutomationProbe.rejectedExpiredAdmission()
+      case "evidence":
+        guard let authorization = RuntimeOwnerIdentity.captureAuthorizationSnapshot() else {
+          return [
+            "status": "owner_unavailable",
+            "maximum_rows": "30",
+            "content_fields_exposed": "false",
+          ]
+        }
+        do {
+          let evidence = try await TranscriptionStorage.shared.fairUseEvidence(
+            now: Date(), authorizationSnapshot: authorization)
+          let localRows = try await TranscriptionStorage.shared.conversationPage(
+            query: .all, offset: 0, limit: 200, authorizationSnapshot: authorization)
+          let canonicalIDs = Set(localRows.map(\.id))
+          return [
+            "status": "loaded",
+            "evidence_count": "\(evidence.count)",
+            "maximum_rows": "30",
+            "within_row_limit": evidence.count <= 30 ? "true" : "false",
+            "request_ids_are_opaque": evidence.allSatisfy { !canonicalIDs.contains($0.conversationId) }
+              ? "true" : "false",
+            "authorization_current": RuntimeOwnerIdentity.isAuthorizationCurrent(authorization)
+              ? "true" : "false",
+            "content_fields_exposed": "false",
+          ]
+        } catch {
+          return [
+            "status": "read_rejected",
+            "maximum_rows": "30",
+            "content_fields_exposed": "false",
+          ]
+        }
+      case "handoff":
+        guard let appState = AppState.current else { return ["error": "app state unavailable"] }
+        return await appState.automationExerciseFairUseManagedCloudHandoff()
+      default:
+        return ["error": "phase must be admission, evidence, or handoff"]
+      }
+    }
+
+    register(
       name: "conversation_list_snapshot",
       summary: "Return conversation list counts and recent titles for harness assertions",
       params: ["limit"]

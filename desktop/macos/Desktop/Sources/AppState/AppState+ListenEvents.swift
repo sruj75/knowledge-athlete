@@ -129,6 +129,12 @@ extension AppState {
         ProactiveAssistantsPlugin.shared.stopMonitoring()
       }
 
+    case .fairUseReviewRequested(let request):
+      await FairUseReviewCoordinator.shared.handle(request)
+
+    case .fairUseManagedCloudExhausted(let exhaustion):
+      await handleFairUseManagedCloudExhausted(exhaustion)
+
     case .translation(let segmentId, let language, let text):
       let translation = SegmentTranslation(lang: language, text: text)
       if let index = speakerSegments.firstIndex(where: { $0.segmentId == segmentId }) {

@@ -13,10 +13,13 @@ from starlette.websockets import WebSocketState
 
 import database.redis_db as redis_db
 import database.users as user_db
+import database.fair_use as fair_use_db
 from config.stt_provider_policy import MODULATE_PROVIDER
 from models.message_event import (
     FREEMIUM_ACTION_SETUP_ON_DEVICE_STT,
     FreemiumThresholdReachedEvent,
+    FairUseReviewRequestedEvent,
+    FairUseManagedCloudExhaustedEvent,
     MessageEvent,
     MessageServiceStatusEvent,
 )
@@ -30,12 +33,15 @@ from utils.fair_use import (
     check_soft_caps,
     get_enforcement_stage,
     get_rolling_speech_ms,
+    get_managed_stt_budget_status,
     is_daily_audio_ceiling_exceeded,
     is_managed_stt_budget_exhausted,
+    is_free_credits_exhausted,
     record_managed_stt_usage_ms,
     record_speech_ms,
-    trigger_classifier_if_needed,
+    trigger_free_exhaustion_if_needed,
 )
+from utils.fair_use_reviews import create_pending_fair_use_review, get_pending_fair_use_review
 from utils.listen_session_bootstrap import load_listen_admission
 from utils.metrics import BACKEND_LISTEN_ACTIVE_WS_CONNECTIONS
 from utils.observability.transcription import LiveSTTAttempt
@@ -69,6 +75,7 @@ class ListenSessionRuntime:
         self.state.shutdown_event = self.task_supervisor.shutdown_event
         self.transcripts = TransientTranscriptProcessor(self)
         self.receiver = ListenReceiver(self)
+        self._fair_use_managed_cloud_exhausted_in_progress = False
 
     @staticmethod
     def now() -> float:
@@ -97,6 +104,48 @@ class ListenSessionRuntime:
 
     async def send_event(self, event: MessageEvent) -> bool:
         return await self.send_json(event.to_json())
+
+    async def _send_fair_use_review(self, review: dict[str, Any] | None) -> None:
+        if review is None or review.get('review_id') == self.state.fair_use_review_sent_id:
+            return
+        sent = await self.send_event(
+            FairUseReviewRequestedEvent(
+                review_id=str(review['review_id']),
+                trigger=str(review['trigger']),
+                window_speech_ms=dict(review['window_speech_ms']),
+                thresholds_ms=dict(review['thresholds_ms']),
+                classifier_contract=str(review['classifier_contract']),
+                requested_at=str(review['requested_at']),
+                expires_at=str(review['expires_at']),
+            )
+        )
+        if sent:
+            self.state.fair_use_review_sent_id = str(review['review_id'])
+
+    async def notify_managed_cloud_exhausted(self) -> None:
+        if self.state.fair_use_managed_cloud_exhausted_sent or self._fair_use_managed_cloud_exhausted_in_progress:
+            return
+        # The check-and-claim is synchronous on this runtime's event loop, so
+        # periodic refresh and audio flush cannot both pass it before either
+        # reaches persistence or websocket suspension points.
+        self._fair_use_managed_cloud_exhausted_in_progress = True
+        try:
+            budget = await self.persistence.call(get_managed_stt_budget_status, self.request.uid)
+            state = await self.persistence.call(fair_use_db.get_fair_use_state, self.request.uid)
+            resets_at = budget.get('resets_at')
+            if not isinstance(resets_at, str) or not resets_at:
+                logger.warning('Listen fair-use allowance reset was unavailable')
+                return
+            sent = await self.send_event(
+                FairUseManagedCloudExhaustedEvent(
+                    resets_at=resets_at,
+                    case_ref=str(state.get('last_case_ref', '')),
+                )
+            )
+            if sent:
+                self.state.fair_use_managed_cloud_exhausted_sent = True
+        finally:
+            self._fair_use_managed_cloud_exhausted_in_progress = False
 
     def start_live_transcription(self) -> None:
         if self.state.live_transcription_attempt is None:
@@ -142,6 +191,7 @@ class ListenSessionRuntime:
         self.user_has_credits = admission.user_has_credits
         self.state.fair_use_track_managed_stt_usage = admission.fair_use_track_managed_stt_usage
         self.state.fair_use_managed_stt_budget_exhausted = admission.fair_use_managed_stt_budget_exhausted
+        self.state.fair_use_allowance_handoff_required = admission.fair_use_managed_stt_budget_exhausted
         if not admission.user_has_credits:
             await self.send_event(
                 FreemiumThresholdReachedEvent(
@@ -150,6 +200,11 @@ class ListenSessionRuntime:
                 )
             )
             self.state.freemium_threshold_sent = True
+        if FAIR_USE_ENABLED:
+            pending_review = await self.persistence.call(get_pending_fair_use_review, self.request.uid)
+            await self._send_fair_use_review(pending_review)
+            if self.state.fair_use_managed_stt_budget_exhausted:
+                await self.notify_managed_cloud_exhausted()
         return True
 
     async def _send_ping(self) -> bool:
@@ -197,21 +252,37 @@ class ListenSessionRuntime:
                 speech_totals=totals,
                 entitlement_policy=self.state.fair_use_entitlement_policy,
             )
-            if caps:
-                start_background_task(
-                    trigger_classifier_if_needed(self.request.uid, caps, self.session_id),
-                    name=f"fair_use_classifier:{self.request.uid}:{self.session_id}",
-                )
             stage = await self.persistence.call(get_enforcement_stage, self.request.uid)
+            if caps and stage != "restrict":
+                free_exhausted = await self.persistence.call(is_free_credits_exhausted, self.request.uid)
+                if free_exhausted:
+                    start_background_task(
+                        trigger_free_exhaustion_if_needed(self.request.uid, caps, self.session_id),
+                        name=f"fair_use_free_exhausted:{self.request.uid}:{self.session_id}",
+                    )
+                else:
+                    review = await self.persistence.call(
+                        create_pending_fair_use_review,
+                        self.request.uid,
+                        caps,
+                        totals,
+                        self.state.fair_use_entitlement_policy,
+                        self.session_id,
+                    )
+                    await self._send_fair_use_review(review)
             restricts_managed = stage == "restrict" and FAIR_USE_RESTRICT_DAILY_MANAGED_STT_MS > 0
             self.state.fair_use_track_managed_stt_usage = restricts_managed or bool(
                 caps and FAIR_USE_RESTRICT_DAILY_MANAGED_STT_MS > 0
             )
-            self.state.fair_use_managed_stt_budget_exhausted = bool(
+            restricted_allowance_exhausted = bool(
                 restricts_managed and await self.persistence.call(is_managed_stt_budget_exhausted, self.request.uid)
             )
+            self.state.fair_use_allowance_handoff_required = restricted_allowance_exhausted
+            self.state.fair_use_managed_stt_budget_exhausted = restricted_allowance_exhausted
             if is_daily_audio_ceiling_exceeded(self.request.uid, speech_totals=totals):
                 self.state.fair_use_managed_stt_budget_exhausted = True
+            if self.state.fair_use_allowance_handoff_required:
+                await self.notify_managed_cloud_exhausted()
         except Exception as error:
             logger.warning("Fair-use listen check failed type=%s", type(error).__name__)
 

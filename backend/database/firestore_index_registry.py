@@ -146,9 +146,22 @@ STARRED_CHAT_SESSIONS_QUERY = FirestoreQuerySpec(
     ),
 )
 
+FAIR_USE_FLAGGED_STATES_QUERY = FirestoreQuerySpec(
+    identifier='fair_use_flagged_states_by_updated_at',
+    collection_group='fair_use_state',
+    query_scope='COLLECTION_GROUP',
+    filters=(FirestoreQueryFilter('stage', 'in', 'active_stages'),),
+    index_fields=(
+        _asc('stage'),
+        _desc('updated_at'),
+        _desc('__name__'),
+    ),
+)
+
 QUERY_SPECS = (
     STALE_IN_PROGRESS_CONVERSATIONS_QUERY,
     STARRED_CHAT_SESSIONS_QUERY,
+    FAIR_USE_FLAGGED_STATES_QUERY,
 )
 INDEX_REQUIREMENTS = (
     *INDEX_ONLY_REQUIREMENTS,
