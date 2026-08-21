@@ -856,7 +856,7 @@ Repository merge does not authorize deployment, traffic changes, queue purge, pr
 
 | Risk / missing input | Affected cycles | Safe work now | Evidence required to reopen / owner |
 |---|---|---|---|
-| S-20 implementation and local semantic-model gate are not integrated | 13, 18 | Inventory and retained notification characterization | Integrated S-20 commit, authenticated structured-state contract, warning acceptance; S-20/product owner |
+| S-20 local-GRDB/transient-GPT-5.1 implementation is not integrated | 13, 18 | Inventory and retained notification characterization | Integrated S-20 commit, bounded authenticated evidence contract, content-free durable state, and warning acceptance; S-20/product owner |
 | S-20 currently plans FCM for retained warnings | 13 | Preserve semantics; define no second API | Stable authenticated Mac state interaction covering required transitions/restart/dedup; S-20/S-23 owners |
 | S-22 implementation is absent or its OpenRouter handoff is not Wrapped-only | 10, 15, 18 | Delete no provider; record current caller | Closed S-22 result with exact Wrapped-only handoff; S-23 owner stops on any additional caller |
 | S-19 hosted conversation tools may still be live | 3, 6, 18 | Other product families | Integrated local PTT tool/search caller-absence proof; S-19 owner |

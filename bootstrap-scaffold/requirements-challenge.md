@@ -491,8 +491,8 @@ Decisions are `keep`, `delete candidate`, or `unresolved`.
 | IR-609 | Backend model workloads require three global model-quality profiles named `premium`, `max`, and `byok` | Reviewed | Delete the global profile system; keep one explicit managed provider/model route per surviving workload |
 | IR-610 | Cloud transcription fair-use enforcement requires GPT classification of recent hosted conversation summaries and a warning/throttle/restrict case system | Reviewed | Keep and adapt the fair-use system; all evidence, inference, stages, thresholds, support, retention, and override children are resolved by IR-611 through IR-709 |
 | IR-611 | The adapted fair-use classifier requires private conversation titles and overview text from the Mac's local-authoritative history | Reviewed at evidence-source boundary | Reuse the current recent-conversation evidence pattern, assembled from local GRDB; do not restore hosted conversation copies |
-| IR-612 | Running fair-use classification "locally" requires a genuinely on-device semantic model rather than the local AgentBridge forwarding content to managed Claude | Reviewed after correction | Move the existing classifier pattern onto the Mac unchanged in product semantics; use genuinely local inference and send only its verdict to the backend |
-| IR-613 | Durable fair-use case records require the classifier's conversation titles, local IDs, and content-specific evidence reasons | Reviewed by local-boundary decision | Keep content evidence local with the classifier; backend case records retain only verdict, usage, and enforcement facts |
+| IR-612 | Local-authoritative fair-use evidence must preserve the existing GPT-5.1 classifier rather than introducing a different local model | Reviewed after correction | Keep GPT-5.1 as transient managed compute over bounded evidence assembled from local GRDB; do not add an on-device model/runtime or hosted conversation authority |
+| IR-613 | Durable fair-use case records require the classifier's conversation titles, local IDs, and content-specific evidence reasons | Reviewed by transient-compute boundary | Permit bounded evidence only in the transient GPT-5.1 request; persist only content-free verdict, usage, and enforcement facts in the backend |
 | IR-614 | The seven-day fair-use `throttle` stage must actually reduce transcription quality | Reviewed | Keep the three-strike pattern; present throttle as a notify-only final warning and make its seven-day reset real |
 | IR-615 | Exhausting the Free plan's ordinary transcription allowance must be recorded as a perfect-score fair-use violation | Reviewed | Keep the current combined quota and fair-use path unchanged, including synthetic `free_exhausted` escalation and upgrade cleanup |
 | IR-616 | One canonical Tasks list versus the unreachable Board view | Reviewed | keep the current grouped Tasks list and delete the unreachable Board implementation |
@@ -583,8 +583,8 @@ Decisions are `keep`, `delete candidate`, or `unresolved`.
 | IR-701 | A restricted account receives only thirty minutes of managed cloud STT per UTC day while local transcription remains available | Reviewed | Keep the 30-minute daily managed-cloud allowance; emit an explicit Mac handoff and show a truthful blocked state when local STT is unavailable |
 | IR-702 | A thirty-day fair-use restriction must automatically recover through the retained final-warning stage | Reviewed | Normalize every enforcement read through 30 days restricted, 7 days final warning, then warning after a clean window |
 | IR-703 | A fair-use case reference must be queryable through an unauthenticated public status endpoint | Reviewed | Delete the unused public lookup; keep case codes and protected support operations, with the signed-in route subsequently deleted by IR-704 |
-| IR-704 | Fair-use notifications that direct customers to Plan and Usage require a real signed-in status surface there | Reviewed | Keep the simpler notification-to-case-code-to-support pattern; delete the false Settings direction and unused signed-in status route |
-| IR-705 | Retained fair-use operations require a protected API-only support toolkit without a dedicated dashboard | Reviewed | Keep all six protected API operations, adapt branding/state consistency, and do not build a support dashboard |
+| IR-704 | Fair-use notifications that direct customers to Plan and Usage require a real signed-in status surface there | Reviewed | Keep the simpler notification-to-case-code-to-`support@heyintentive.com` pattern; delete the false Settings direction and unused signed-in status route |
+| IR-705 | Retained fair-use operations require a protected API-only support toolkit without a dedicated dashboard | Reviewed | Keep all six protected API operations, use `support@heyintentive.com`, adapt branding/state consistency, and do not build a support dashboard |
 | IR-706 | Manual support stage changes must obey the same timers and cleanup as automatic fair-use transitions | Reviewed | Keep raw manual stage writes unchanged; manual final-warning/restrict overrides remain until support changes or resets them |
 | IR-707 | Every fair-use classifier review in the last seven and thirty days counts as a violation even when its score is below the misuse threshold | Reviewed | Count only verdicts at or above 0.7 created after the latest support reset; keep lower-score reviews as non-strike history |
 | IR-708 | Content-free fair-use event and support history must remain indefinitely until account deletion | Reviewed | Keep the current account-lifetime history exactly; no TTL or cleanup service, with deletion through account deletion |
@@ -970,8 +970,8 @@ macOS product
 │   ├── global premium/max/BYOK model-QoS profiles             DELETE; ONE ROUTE PER WORKLOAD (IR-609)
 │   ├── GPT fair-use classifier + graduated restriction       KEEP + ADAPT; CHILDREN RESOLVED (IR-610)
 │   │   ├── classifier evidence from local conversations       KEEP SAME PATTERN; SOURCE FROM LOCAL GRDB (IR-611)
-│   │   ├── on-device versus cloud model inference             SAME CLASSIFIER; MOVE ONTO MAC (IR-612)
-│   │   ├── durable storage of classifier content evidence     LOCAL ONLY; VERDICT TO BACKEND (IR-613)
+│   │   ├── local authority versus cloud model inference       LOCAL GRDB + TRANSIENT GPT-5.1 (IR-612)
+│   │   ├── durable storage of classifier content evidence     DISCARD CONTENT; STORE FACTS ONLY (IR-613)
 │   │   ├── seven-day throttle-stage product effect             FINAL WARNING + REAL RESET (IR-614)
 │   │   ├── Free allowance exhaustion as fair-use abuse          KEEP CURRENT PATTERN (IR-615)
 │   │   ├── bounded versus unlimited review thresholds           KEEP EXACT BANDS; ADAPT PLAN MAPPING (IR-700)
@@ -22205,8 +22205,8 @@ PTT spoken-assistant capability                                  KEEP; CHILDREN 
 │   ├── global premium/max/BYOK model-QoS profiles             DELETE; ONE ROUTE PER WORKLOAD (IR-609)
 │   ├── GPT fair-use classifier + graduated restriction       KEEP + ADAPT; CHILDREN RESOLVED (IR-610)
 │   │   ├── classifier evidence from local conversations       KEEP SAME PATTERN; SOURCE FROM LOCAL GRDB (IR-611)
-│   │   ├── on-device versus cloud model inference             SAME CLASSIFIER; MOVE ONTO MAC (IR-612)
-│   │   ├── durable storage of classifier content evidence     LOCAL ONLY; VERDICT TO BACKEND (IR-613)
+│   │   ├── local authority versus cloud model inference       LOCAL GRDB + TRANSIENT GPT-5.1 (IR-612)
+│   │   ├── durable storage of classifier content evidence     DISCARD CONTENT; STORE FACTS ONLY (IR-613)
 │   │   ├── seven-day throttle-stage product effect             FINAL WARNING + REAL RESET (IR-614)
 │   │   ├── Free allowance exhaustion as fair-use abuse          KEEP CURRENT PATTERN (IR-615)
 │   │   ├── bounded versus unlimited review thresholds           KEEP EXACT BANDS; ADAPT PLAN MAPPING (IR-700)
@@ -23487,7 +23487,7 @@ Confirmed: preserve rolling usage awareness, a conservative abuse-review step af
 
 This is not approval to keep the current implementation verbatim. Its hosted-conversation evidence is no longer authoritative, the `throttle` stage currently claims a quality reduction that no production reader performs, and Omi/Deepgram/on-device wording and legacy plan types must become our own Dodo-backed contract. IR-611 through IR-709 now resolve the evidence, inference, thresholds, enforcement effects, recovery, user/support surfaces, retention, and operational-override boundaries.
 
-The fair-use branch is now closed. Its children preserve the existing product pattern while moving classification onto the Mac, keeping content evidence local, retaining content-free backend enforcement/support state, and recording the user's explicit choices where current behavior remains intentionally imperfect.
+The fair-use branch is now closed. Its children preserve the existing product pattern while moving durable evidence authority to local GRDB, retaining backend GPT-5.1 as bounded transient compute, retaining content-free backend enforcement/support state, and recording the user's explicit choices where current behavior remains intentionally imperfect.
 
 No product code deletion is authorized yet.
 
@@ -23542,62 +23542,63 @@ This decision establishes where the evidence comes from, not yet where model inf
 
 No product code deletion is authorized yet.
 
-## IR-612 - Genuinely on-device versus cloud fair-use inference
+## IR-612 - Local-authoritative evidence with the existing cloud GPT-5.1 classifier
 
 ### Ambiguity exposed by "run the same pattern locally"
 
 There are two different meanings of local in the current desktop architecture:
 
 ```text
-local data + local orchestration
-  -> AgentBridge/Node runs on the Mac
-  -> managed model request still leaves the Mac
+local-authoritative data + transient managed compute
+  -> canonical evidence is read from owner-scoped Mac GRDB
+  -> one bounded request reaches the existing backend GPT-5.1 classifier
+  -> no hosted conversation record or durable content-bearing case is created
 
-local data + local inference
+local-authoritative data + local inference
   -> an on-device model/rule engine reads the evidence
   -> conversation title/overview content never leaves the Mac
 ```
 
-The codebase currently has on-device speech transcription, but no general-purpose on-device language model that can perform the existing semantic audiobook/podcast/prerecorded/commercial classification. Reusing `AgentBridge` would preserve the prompt pattern but would route the evidence to managed Sonnet; calling that fully local would be misleading.
+The established product pattern already separates local durable authority from transient managed compute. Normal Chat, embeddings, conversation structure, Memory proposals, and other retained workloads may use a managed model without making that model the durable owner of the resulting product data. The current fair-use behavior specifically uses backend GPT-5.1. Replacing it with a new on-device model would add a model/runtime, packaging and hardware matrix, and a separate quality migration while changing the classifier that the user explicitly chose to preserve.
 
 ### Choices
 
-1. **Require genuinely on-device semantic inference.** Add and support an on-device language-model boundary capable of classifying the bounded local title/overview evidence. Only the score, coarse type, confidence, and non-content enforcement facts leave the Mac. This best matches a literal local requirement but introduces a new model/runtime, hardware/OS support matrix, download/availability behavior, and tamper/trust problem for server-side cost enforcement.
-2. **Use local evidence assembly with managed cloud inference.** The Mac reads local GRDB only after a soft trigger and sends the bounded evidence to our Python backend/model for the existing semantic judgment. No hosted conversation copy is created, but derived private content leaves the Mac for inference and must be disclosed and protected.
+1. **Use local evidence assembly with the existing managed GPT-5.1 classifier.** The Mac reads local GRDB only after a soft trigger and sends the exact bounded evidence to the existing Python classifier. No hosted conversation copy is created; the request content is transient and excluded from durable storage, logs, metrics, notifications, and support responses.
+2. **Require genuinely on-device semantic inference.** Add and support a different on-device language model. This prevents evidence from leaving the Mac but changes the classifier and adds model/runtime, packaging, hardware, performance, and quality behavior that does not exist today.
 3. **Use a content-free local rules/model fallback.** Keep everything on-device using duration, turn-taking, audio-source proportions, repetition, and other behavioral signals. This preserves privacy and broad Mac compatibility but cannot honestly identify a specific audiobook, podcast, movie, or television programme.
 
 ### Recommendation
 
-`move the existing semantic classifier onto the Mac behind the same input/output contract`
+`keep the existing GPT-5.1 classifier as transient compute over local-authoritative evidence`
 
-This is the narrow relocation that satisfies the local boundary without redesigning fair-use policy: local GRDB supplies the same evidence, a genuinely local model runs the same conservative prompt/schema, and only the verdict leaves the Mac. The implementation must not call the managed `AgentBridge` path and describe it as local.
+This is the narrow relocation that preserves behavior without reinventing the classifier: local GRDB replaces hosted Firestore as the evidence authority, while the same backend GPT-5.1 model, prompt, recipes, parser, output, and fail-open behavior remain. The backend may observe the bounded request only while computing the result; it must not recreate hosted conversation documents or persist content-bearing classifier evidence.
 
 ### Question
 
-Should the existing semantic classifier run through a genuinely local model on the Mac and send only its verdict to the backend?
+Should the Mac own the evidence while the existing backend GPT-5.1 classifier remains transient compute with no durable conversation or content-bearing case copy?
 
 ### Decision
 
-`resolved after correction - move the existing classifier pattern and inference onto the Mac`
+`resolved after correction - keep local-authoritative evidence with the existing cloud GPT-5.1 classifier`
 
 Confirmed flow:
 
 ```text
 backend detects a rolling soft-cap trigger
-  -> authenticated Mac runs the fair-use review locally
-  -> read up to thirty local evidence records
-  -> use the existing conservative prompt/recipes and strict JSON schema
-  -> local model returns misuse_score, type, confidence,
+  -> authenticated Mac reads up to thirty local evidence records
+  -> send one bounded, owner-authorized evidence request
+  -> existing backend GPT-5.1 classifier uses the same prompt/recipes/schema
+  -> transient result contains misuse_score, type, confidence,
      evidence, and reasoning
-  -> send only the bounded verdict/enforcement facts to backend
+  -> discard request content and detailed result after deriving bounded facts
   -> backend applies the retained graduated enforcement policy
 ```
 
-Preserve the existing semantic behavior rather than inventing a replacement heuristic: the same recent seven-day/up-to-thirty-conversation window, title/overview/category/duration/source/time evidence, conservative legitimate-use rules, misuse score, coarse usage type, confidence, evidence selection, and warning/throttle/restrict decision contract. The implementation change is the execution boundary: local GRDB replaces hosted conversation queries, and a genuinely local model replaces the backend GPT call.
+Preserve the existing semantic behavior rather than inventing a replacement model or heuristic: the same GPT-5.1 model, recent seven-day/up-to-thirty-conversation window, title/overview/category/duration/source/time evidence, prompt, recipes, conservative legitimate-use rules, misuse score, coarse usage type, confidence, evidence selection, parser behavior, and warning/throttle/restrict decision contract. The implementation change is only the durable authority: local GRDB replaces hosted conversation queries.
 
-No raw audio, full transcript, screenshot, title, overview, local conversation identity, or classifier prompt payload leaves the Mac. The backend remains authoritative for metered cloud usage and enforcement state, and the deterministic impossible-volume ceiling remains server-side even if a local client fails or is bypassed. The repository does not currently ship the required general-purpose local semantic model, so implementation must add a local inference adapter that preserves the existing classifier input/output contract; that is relocation work, not a new product policy.
+No raw audio, full transcript, screenshot, person/name, or unbounded conversation payload leaves the Mac. The exact bounded title/overview/category/duration/source/time evidence may cross only in the authenticated transient classification request. It must not enter Firestore, Redis, logs, metrics, crash reports, notifications, support responses, or a hosted conversation store. The backend remains authoritative for metered cloud usage, strikes, enforcement state, and the deterministic 30-hour ceiling.
 
-IR-613 is resolved by this local boundary: content-specific evidence remains available only in local classifier state, while the backend receives and stores only the bounded verdict plus usage/enforcement facts.
+IR-613 is resolved by this transient-compute boundary: GPT-5.1 may observe bounded evidence for the live request, while the backend durably stores only content-free verdict, usage, and enforcement facts.
 
 No product code deletion is authorized yet.
 
@@ -23605,11 +23606,11 @@ No product code deletion is authorized yet.
 
 ### Requirement implied by the current case schema
 
-> After the local LLM makes a fair-use decision, the backend must persist the classifier's conversation identifiers, titles, and content-specific reasons inside its Firestore `fair_use_events` case.
+> After transient GPT-5.1 classification, the backend must persist the classifier's conversation identifiers, titles, and content-specific reasons inside its Firestore `fair_use_events` case.
 
 ### Exact difference between temporary inference and durable storage
 
-IR-612 keeps both evidence and inference on the Mac. Sending the resulting verdict to the backend does not require copying the local input or content-specific evidence into the backend case.
+IR-612 keeps evidence authority on the Mac and retains GPT-5.1 as transient backend compute. The classifier must observe the bounded request to preserve current behavior, but that does not require copying its input or content-specific output into the durable backend case.
 
 The current classifier returns evidence shaped like:
 
@@ -23621,11 +23622,11 @@ The current classifier returns evidence shaped like:
 }
 ```
 
-The current backend nests that result in a durable Firestore fair-use event because it owns the classifier today. After relocation, the Mac can retain the detailed evidence locally. Persisting its local ID/title in the backend would recreate a searchable cloud content record even though both the main conversation and classifier now remain local.
+The current backend nests that result in a durable Firestore fair-use event because it also reads hosted conversations today. After relocation, the bounded request and detailed result are transient compute values. Persisting a local ID/title or content-specific reason would recreate a searchable cloud content record even though the canonical conversation remains local.
 
 ### Choices
 
-1. **Persist only content-free decision/audit facts.** Keep account UID, usage-window totals and thresholds, model/provider and prompt version, score, coarse type, confidence, bounded non-content reason codes, previous/new stage, action, timestamps, and case reference. Hold titles/overviews only in memory for the LLM request and exclude them from logs, metrics, Firestore, notifications, and support list responses.
+1. **Persist only content-free decision/audit facts.** Keep account UID, usage-window totals and thresholds, model/provider and prompt version, score, the existing coarse usage type, confidence, previous/new stage, action, timestamps, and case reference. Hold titles/overviews only in request memory for GPT-5.1 and exclude them from logs, metrics, Firestore, notifications, and support list responses. Do not invent a new reason-code taxonomy.
 2. **Persist selected titles and model reasons in the case.** Give support richer evidence for appeals, accepting that private derived conversation content becomes a durable backend record with retention, deletion, access-control, and disclosure obligations.
 3. **Persist opaque local references only.** Store local IDs/hashes without text so the Mac can later resolve the conversations during an appeal. This couples server cases to owner-local records and still needs explicit user-mediated evidence sharing; the backend cannot interpret the references itself.
 
@@ -23633,17 +23634,17 @@ The current backend nests that result in a durable Firestore fair-use event beca
 
 `persist only content-free decision and enforcement facts; discard title/overview evidence after the LLM response`
 
-Support needs to know why an enforcement stage changed, but it does not need a permanent cloud index of private conversation titles. Coarse reasons such as `sequential_long_sessions`, `low_user_participation`, or `uniform_prerecorded_pattern` plus the score and usage totals are enough for operational review. If a customer appeals, they can explicitly choose what local evidence to share at that time.
+Support needs to know that the existing score/type/confidence and usage facts caused an enforcement stage change, but it does not need a permanent cloud index of private conversation titles. The existing coarse usage type plus score, confidence, and usage totals are enough for operational review; do not invent a new reason-code taxonomy. If a customer appeals, they can explicitly choose what local evidence to share at that time.
 
 ### Question
 
-After local classification finishes, should the Mac send only the content-free score, reason codes, usage facts, and enforcement recommendation to the backend?
+After transient GPT-5.1 classification finishes, should the backend discard the content request/result and persist only the existing content-free score/type/confidence plus usage and enforcement facts?
 
 ### Decision
 
-`resolved by IR-612 - keep classifier content evidence local and persist only content-free case facts in the backend`
+`resolved by IR-612 - allow transient classifier content and persist only content-free case facts`
 
-Confirmed: local classifier state may retain the selected local conversation references, titles, and content-specific reasons needed to explain its own decision on that Mac. The backend fair-use event retains account UID, rolling usage and thresholds, local-classifier version, score, coarse usage type, confidence, bounded non-content reason codes, prior/new stage, action, timestamps, and case reference. It receives no title, overview, transcript, raw audio, name, local conversation ID, or content-specific reasoning text.
+Confirmed: the authenticated classification request may contain only the existing title, first 200 overview characters, category, duration, source, time, and an opaque request-local evidence token for at most thirty conversations. The backend fair-use event retains account UID, rolling usage and thresholds, GPT-5.1/prompt version, score, the existing coarse usage type, confidence, prior/new stage, action, timestamps, and case reference. No title, overview, transcript, raw audio, name, local conversation ID, prompt payload, selected evidence, content-specific reasoning text, or newly invented reason-code taxonomy is durably stored or logged.
 
 No code deletion is authorized yet.
 
@@ -23905,7 +23906,7 @@ Should we delete the unused public `/v1/fair-use/case/{case_ref}/status` endpoin
 
 Remove `/v1/fair-use/case/{case_ref}/status`, its public response contract, rate-limit registration, generated-client methods, route-policy entry, and tests that exist only for anonymous case tracking. Do not build a replacement public tracking page.
 
-Retain random case references in enforcement events/notifications and protected operator list/detail/case lookup/reset/stage/resolve actions. Retain the case-reference Firestore query/index wherever the protected support lookup still requires it. Rebrand the surviving support destination separately. IR-704 subsequently resolves the separate authenticated own-status route as unused and deletes it with the false Settings direction.
+Retain random case references in enforcement events/notifications and protected operator list/detail/case lookup/reset/stage/resolve actions. Retain the case-reference Firestore query/index wherever the protected support lookup still requires it. The surviving support destination is `support@heyintentive.com`. IR-704 subsequently resolves the separate authenticated own-status route as unused and deletes it with the false Settings direction.
 
 No product code deletion is authorized yet.
 
@@ -23933,7 +23934,7 @@ The endpoint also always reports the lower default 2/8/10-hour thresholds, even 
 
 ### Choices
 
-1. **Complete the existing Settings promise.** Add a compact Fair Use card to Account and Plan when the signed-in user's stage is not `none`. Use the normalized authoritative state, entitlement-correct thresholds, final-warning language from IR-614, restriction allowance/reset from IR-701, case reference, and our support destination. Keep local classifier evidence off the backend/card under IR-613.
+1. **Complete the existing Settings promise.** Add a compact Fair Use card to Account and Plan when the signed-in user's stage is not `none`. Use the normalized authoritative state, entitlement-correct thresholds, final-warning language from IR-614, restriction allowance/reset from IR-701, case reference, and our support destination. Keep transient classifier request/result content off durable backend state and the card under IR-613.
 2. **Remove the Settings promise and own-status endpoint.** Notifications state the stage and support code directly; customers must contact support for detail. This is smaller but makes retained enforcement less inspectable.
 3. **Keep the dead endpoint and misleading navigation text.** Preserve the current gap.
 
@@ -23951,9 +23952,9 @@ Should Account and Plan show a Fair Use card whenever the signed-in customer is 
 
 `resolved - keep the simpler notification -> case code -> support pattern`
 
-Do not add a Fair Use card to Account and Plan. Keep stage-change push notifications with truthful stage wording, applicable timer/cloud-allowance information, a random case reference, and our rebranded support destination. Remove the false instruction to check Settings for details.
+Do not add a Fair Use card to Account and Plan. Keep stage-change push notifications with truthful stage wording, applicable timer/cloud-allowance information, a random case reference, and `support@heyintentive.com`. Remove the false instruction to check Settings for details.
 
-Because no retained Mac or other handwritten client will consume `/v1/fair-use/status`, delete that signed-in own-status endpoint, response models, generated-client methods, route-policy entry, and exclusive tests. This supersedes IR-703's provisional retention of the authenticated route; protected operator lookup and actions remain. Keep content-specific classifier evidence local under IR-613.
+Because no retained Mac or other handwritten client will consume `/v1/fair-use/status`, delete that signed-in own-status endpoint, response models, generated-client methods, route-policy entry, and exclusive tests. This supersedes IR-703's provisional retention of the authenticated route; protected operator lookup and actions remain. Keep content-specific classifier request/result data transient and out of durable backend state under IR-613.
 
 No product code deletion is authorized yet.
 
@@ -24004,7 +24005,7 @@ Should we keep the current protected lookup/list/detail/resolve/reset/set-stage 
 
 Retain protected operations to list flagged accounts, inspect one account/events, look up a quoted case reference, resolve an event with notes, reset enforcement, and manually set the enforcement stage. Keep the deployment-secret `X-Admin-Key` pattern for v1; do not ship that key to the Mac or build staff accounts, RBAC, or a graphical support dashboard in this scope.
 
-Rebrand support addresses/copy and update the operator runbook. Preserve bounded validation and mutation audit metadata. Every retained manual mutation must comply with the authoritative timer/state transitions resolved in IR-614/702; IR-706 owns that child consistency rule.
+Use `support@heyintentive.com` in retained support addresses/copy and update the operator runbook. Preserve bounded validation and mutation audit metadata. Every retained manual mutation must comply with the authoritative timer/state transitions resolved in IR-614/702; IR-706 owns that child consistency rule.
 
 No product code deletion is authorized yet.
 
@@ -24123,7 +24124,7 @@ No product code deletion is authorized yet.
 
 ### Exact current behavior
 
-Each classifier review creates one Firestore event. After the local-boundary decisions, a retained backend event contains only bounded account/usage/enforcement facts: UID, timestamps, thresholds and usage totals, local classifier version, score, coarse type/confidence/reason codes, prior/new stage, action, case reference, and later support resolution metadata. It contains no title, overview, transcript, audio, screenshot, local conversation ID, or detailed local evidence.
+Each classifier review creates one Firestore event. After the local-authority/transient-compute decisions, a retained backend event contains only bounded account/usage/enforcement facts: UID, timestamps, thresholds and usage totals, GPT-5.1/prompt version, score, the existing coarse type/confidence, prior/new stage, action, case reference, and later support resolution metadata. It contains no title, overview, transcript, audio, screenshot, local conversation ID, prompt payload, selected evidence, detailed classifier reasoning, or new reason-code taxonomy.
 
 Automatic escalation looks only at the recent seven-/thirty-day qualifying window established in IR-707. Support normally loads at most the newest fifty events. But the database has no TTL, cap, or deletion job for older events. Reset changes the counting boundary without deleting history. The retained account-deletion worker eventually removes the user's Firestore subtree, including these records.
 
@@ -24149,7 +24150,7 @@ Should we keep content-free fair-use event/support history until account deletio
 
 Retain fair-use event and support history without a TTL, cap, scheduled cleanup service, or shorter retention window. Old events remain queryable for protected support/audit purposes while IR-707 prevents them from acting as current strikes outside the recent post-reset qualifying window.
 
-The retained account-deletion worker remains the deletion boundary for the entire user Firestore subtree, including fair-use state/events. Keep IR-613's content-local boundary: account-lifetime backend history must not regain titles, overviews, transcripts, audio, screenshots, local conversation IDs, or detailed local classifier evidence.
+The retained account-deletion worker remains the deletion boundary for the entire user Firestore subtree, including fair-use state/events. Keep IR-613's transient-compute boundary: account-lifetime backend history must not regain titles, overviews, transcripts, audio, screenshots, local conversation IDs, prompt payloads, selected evidence, or detailed classifier reasoning.
 
 No product code deletion is authorized yet.
 

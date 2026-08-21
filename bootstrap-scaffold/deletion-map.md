@@ -1281,7 +1281,7 @@ through IR-926, IR-932
 ### S-20 — Move fair-use evidence local and keep only enforcement facts in cloud
 
 **Type:** split-authority adaptation<br>
-**Research status:** split; local semantic-model adapter is a required start gate<br>
+**Research status:** ready to start; the local-authority/transient-GPT-5.1 boundary is resolved<br>
 **Depends on:** S-10, S-16, and S-18<br>
 **Primary decisions:** IR-610 through IR-615, IR-700 through IR-709
 
@@ -1289,15 +1289,17 @@ through IR-926, IR-932
   quota/fair-use path, warning/final-warning/restrict lifecycle, restricted
   30-minute managed-cloud allowance, protected support operations, account-life
   event history, and explicitly accepted partial kill-switch behavior.
-- **Adapt:** assemble recent conversation evidence from local GRDB, run the same
-  classifier semantics through genuinely local inference, retain content evidence
-  locally, and send only verdict/usage/enforcement facts to the backend; map
+- **Adapt:** assemble the same bounded recent-conversation evidence from local
+  GRDB and submit it only as a transient authenticated request to the existing
+  backend GPT-5.1 classifier. Preserve its prompt, recipes, thresholds, output,
+  cadence, fail-open behavior, and backend enforcement authority; create no
+  hosted conversation copy and persist only content-free enforcement facts. Map
   bounded/unlimited through Dodo.
 - **Delete:** hosted conversation evidence, content-bearing case fields, public
   case lookup, unused signed-in status route, and false Settings direction.
 - **Close when:** threshold, recovery, support reset, repeat-strike counting,
   restricted cloud allowance, and local fallback/blocked presentation pass with
-  no private conversation text in the backend case record.
+  no private conversation text in any durable backend case, log, or cache.
 
 ### S-21 — Simplify navigation, Settings, and the surviving Home shell
 

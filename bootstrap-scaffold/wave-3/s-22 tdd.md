@@ -172,13 +172,14 @@ prompt edits happen after S-19, never by maintaining two versions.
 
 ### S-20 non-absorption gate
 
-The current fair-use classifier still uses a managed backend model and hosted
-evidence. S-20 begins with the required genuinely local inference adapter and owns
-classifier semantics, thresholds, strikes, support reset, restricted allowance, and
-content-free enforcement facts. S-22 may preserve the present feature key while
-inventorying; it must not call that managed agent “local,” select S-20's local model,
-or delete/alter fair-use behavior. Final profile removal consumes S-20's integrated
-explicit local seam, then removes only obsolete managed-route vocabulary.
+The current fair-use classifier couples managed GPT-5.1 compute to hosted Firestore
+evidence. S-20 moves only the durable evidence authority to local GRDB and retains the
+existing GPT-5.1 classifier as bounded transient backend compute. S-20 owns the exact
+model, prompt, recipes, parser/output, cadence, thresholds, strikes, support reset,
+restricted allowance, and content-free durable enforcement facts. S-22 must preserve
+that explicit OpenAI GPT-5.1 workload while removing generic profile/gateway routing;
+it must not select another model, delete the feature key before replacing it with the
+explicit route, or alter fair-use behavior.
 
 ### S-23/S-25 owner boundary
 
@@ -433,7 +434,7 @@ consumer or confirms helper-level availability is the intended v1 behavior.
 | OpenAI `gpt-4o-mini-tts` | `POST /v1/tts/synthesize` | Canonical backend | Transient audio playback; no product record | KEEP exactly |
 | LangSmith tracing | LangChain env + startup/scoped helpers | Canonical backend / LangSmith | Operator trace project only | KEEP, privacy disclosure handoff |
 | LangSmith Prompt Hub | helper fetch/cache/fallback; current production consumer unresolved | Canonical backend / LangSmith | In-process TTL cache; repository fallback | KEEP; C15 closure gate |
-| Fair-use semantic classifier | Current managed classifier until S-20 | S-20 | Local evidence plus cloud enforcement facts after S-20 | OUT OF SCOPE; consume final S-20 seam only |
+| OpenAI GPT-5.1 fair-use classifier | S-20 bounded classify route with exact retained prompt/recipes/parser | Canonical backend direct OpenAI route | Local GRDB evidence remains canonical; request content is transient; durable enforcement facts are content-free | KEEP exact model/behavior; S-20 owns semantics, S-22 removes only generic routing |
 
 ### Rejected or successor-owned model families
 
@@ -486,7 +487,7 @@ consumer or confirms helper-level availability is the intended v1 behavior.
 | **SIMPLIFY AFTER** | After behavior GREEN, collapse provider factories to the smallest shared in-process client layer, remove one-item provider lists and compatibility/default branches, keep one typed workload registry and one error/usage callback path, update model inventory, and remove dead tests/docs/config. No broad refactor of Chat, proactive assistants, local stores, listen, or billing. |
 | **ACCELERATE AFTER** | Measure focused explicit-workload/provider contract tests, generated-contract checks, and named-bundle managed-compute time after GREEN. Improve only a measured repeated bottleneck; otherwise `none`. |
 | **AUTOMATE LAST** | Once the caller/result-owner inventory is stable, register only a deterministic recurring inventory or residue check in existing local and CI lanes and cite the real failure it prevents; otherwise `none`. |
-| **OUT OF SCOPE / DEFERRED** | S-19 local PTT tools/lifecycle and session-audit removal; S-20 local fair-use classifier; S-23 hosted products/routes/data; S-24 Typesense/Pinecone/OpenAI Files/GCS product data; S-25 jobs/services/deploy/live gateway decommission; S-30 product/privacy/rebrand truth; S-18 Dodo activation; future choice of one realtime provider; model upgrades/prompt redesign; Windows; live provider/cloud mutation. |
+| **OUT OF SCOPE / DEFERRED** | S-19 local PTT tools/lifecycle and session-audit removal; S-20 fair-use evidence transport/classifier semantics/enforcement; S-23 hosted products/routes/data; S-24 Typesense/Pinecone/OpenAI Files/GCS product data; S-25 jobs/services/deploy/live gateway decommission; S-30 product/privacy/rebrand truth; S-18 Dodo activation; future choice of one realtime provider; model upgrades/prompt redesign; Windows; live provider/cloud mutation. |
 
 Five-step delivery remains explicit: revalidate decisions; delete only rejected paths;
 simplify after parity; measure focused edit/test/named-bundle time; automate only a
@@ -969,8 +970,8 @@ seam; source/residue assertions are explicitly labelled static tripwires.
 - **Deletion/simplification enabled:** profile/gateway compatibility wrappers and broad
   integration tests over rejected feature maps.
 - **Stop:** the C12 successor handoff cannot survive without implicit profile routing,
-  S-20 still depends on managed profile routing, or any final route is inferred/defaulted
-  rather than decided.
+  S-20's fair-use workload is not explicitly pinned to direct OpenAI GPT-5.1, or any
+  final route is inferred/defaulted rather than decided.
 
 ### Cycle 14 — remove unread accounting and collapse gateway application code
 
@@ -1070,7 +1071,7 @@ seam; source/residue assertions are explicitly labelled static tripwires.
 | S-14 | Consume local proactive/Profile/Focus/Insights and negative cloud-model proof. | Change prompts/cadence/thresholds/settings/notification copy. |
 | S-16 | Consume Gemini-only translation and transient listen. | Change STT protocol/providers or restore NLLB. |
 | S-19 | Consume final tool manifest and absence of higher-model voice escalation; preserve both providers. | Re-delete/rewrite PTT tools, lifecycle, local grounding, or session audit. |
-| S-20 | Later consume genuinely local classifier seam and remove obsolete managed feature key. | Choose its local model or alter enforcement semantics/private evidence. |
+| S-20 | Consume its local-GRDB evidence seam and retain direct OpenAI GPT-5.1 transient classification while removing obsolete generic gateway/profile routing. | Change its model, prompt, recipes, output/parser, cadence, thresholds, fail-open behavior, evidence bounds, or enforcement semantics. |
 | S-21 | Hand final Settings/model-entry absence to shell convergence. | Redesign Settings/navigation or Voice Model picker. |
 | S-23 | Hand exactly one rejected live binding—Wrapped's `wrapped_analysis` through OpenRouter—plus zero other generic provider residue. S-23 deletes both together and runs S-22 retained-provider tests; S-22 is not reopened. | Delete or redesign hosted product routes/data/schema, or preserve a second OpenRouter caller/default. |
 | S-24 | Hand proof that embeddings are transient and vectors/indexes local. | Delete Typesense/Pinecone/OpenAI Files/GCS product data. |
@@ -1337,7 +1338,7 @@ acceptance in `../dodo-integration.md` remains a separate post-Wave-6 operation.
 | Risk / ambiguity | Safe response and evidence needed |
 |---|---|
 | S-19 not integrated | Rebase and refresh; consume its generated tool result. C5/final PTT proof stop until then. |
-| S-20 classifier still managed/cloud-evidence | Preserve without relabelling; wait for S-20 local inference contract. C13 cannot delete its feature route prematurely. |
+| S-20 local-evidence classify route is not integrated | Preserve the current GPT-5.1 workload without changing it; wait for S-20's bounded local-GRDB evidence contract. C13 cannot delete its feature route before replacing generic routing with the explicit direct GPT-5.1 route. |
 | Wrapped/OpenRouter handoff grows beyond one product binding | S-22 stops and classifies the caller. Closure permits only the exact Wrapped-only handoff; S-23 deletes both without reopening S-22. |
 | Gateway application deletion overlaps S-25 deployed service ownership | S-22 proves/migrates zero callers; S-25 owns deploy/live teardown. Record exact file split before C14. |
 | Prompt Hub/scoped LangSmith helpers have no non-test consumer | Preserve authorized helpers; do not wire a new product path. C15/final closure needs owner clarification if “live consumer” is required. |
@@ -1374,8 +1375,8 @@ Missing inputs and reopening evidence:
 - [ ] Every assigned IR-053, IR-113, IR-600–609, IR-710–732, IR-827 and IR-828 is represented by a cycle, retained proof, or explicit owner gate.
 - [ ] S-19 is integrated; higher-model voice tool is absent; both realtime providers,
       Auto/manual choice and failover pass without S-22 reimplementing S-19.
-- [ ] S-20 local classifier boundary is consumed without changing classifier semantics or
-      retaining an obsolete managed route.
+- [ ] S-20 local-GRDB/transient-GPT-5.1 boundary is consumed without changing its model,
+      classifier semantics, evidence bounds, fail-open behavior, or enforcement.
 - [ ] Every surviving model identifier has one named caller, exact route/provider,
       bounded contract, usage owner, failure policy, and local/no-result owner.
 - [ ] Unknown/deleted workload keys fail closed; global profiles, defaults, hidden tiers,

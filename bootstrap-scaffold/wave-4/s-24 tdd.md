@@ -689,7 +689,7 @@ that work.
 | S-15 | Local Rewind and absence of `ns3` | Do not touch Rewind storage/search or reintroduce screen cloud paths. |
 | S-18 | Billing remains disabled; deletion cancellation seam retained | Dodo acceptance remains post-Wave-6. |
 | S-19 | Final local PTT conversation tools and both realtime providers | S-24 deletes the hosted search/vector siblings only after proof. |
-| S-20 | Content-free fair-use evidence/enforcement | Preserve Redis/rate/quota semantics. |
+| S-20 | Local fair-use evidence authority, transient GPT-5.1 request, and content-free durable enforcement | Preserve classifier and Redis/rate/quota semantics; do not treat transient request content as a hosted data index. |
 | S-22 | Fixed retained model/STT portfolio and byte-capable managed adapters | Do not change provider/model/failover decisions. Return missing byte equivalence to S-22. |
 | S-23 | Rejected product routes/schemas/writers/readers/product jobs are gone; one exact Pinecone purge/counter seam is handed off | If any other product caller/cleanup survives, S-23 fixes it; S-24 deletes Pinecone and shared provider/object infrastructure. |
 | S-25 | Receives a content-free topology: no search/vector/product-object workload | Owns job/queue/worker/service/image/GKE deletion and account-task retarget. S-24 must not leave an empty compatibility service or delete its topology. |

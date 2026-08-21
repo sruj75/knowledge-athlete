@@ -40,7 +40,7 @@ Current baseline facts that matter to execution:
 - S-10, S-11, S-15, S-16, and S-17 are repository-integrated. The Wave 2 closeout completed the S-12, S-13, and S-14 repository dependency for Wave 3.
 - S-06 and S-07 repository deletion is integrated. Apps, Brain Map, broad indexing, connector UI, and BYOK must stay gone.
 - S-18 is deliberately at `BILLING_MODE=disabled`. That checkpoint permits S-21 repository work but does not authorize Dodo credentials, provider construction, checkout, a paid release, or a transaction.
-- S-20 remains a hard predecessor. Its local classifier and content-free fair-use result must be integrated before S-21 consumes the final Plan/Usage shell.
+- S-20 remains a hard predecessor. Its local-GRDB evidence path, retained transient GPT-5.1 classifier, and content-free durable enforcement result must be integrated before S-21 consumes the final Plan/Usage shell.
 - S-09's repository consent/Privacy seam is a predecessor only for Cycle 4. The baseline still contains an inaccurate hard-coded Privacy status, stale disclosure content, no production consent control in the visible view, and an inverted PostHog automation projection. Those are S-09 work, not an invitation for S-21 to create another telemetry owner. S-09's live owned-project proof is separate operational acceptance.
 - The closeout truthfully records 19 inherited Swift-suite failures and ten red Tier-2 integration flows. Establish an execution-HEAD baseline to diagnose them, but close that debt before S-21 closure: the official affected component suite must pass.
 
@@ -125,7 +125,7 @@ S-20 and the domain/shell owners below are mandatory before S-21 production work
 | S-15 | Rewind remains local and exact; its rejected cloud/search entries are gone. | Rewind behavior plus exact search-ID handoff. |
 | S-17 | Narrowed onboarding/reset/permission state is integrated and has no deleted Settings entrances. | Onboarding/reset named-bundle evidence. |
 | S-18 | Disabled checkpoint is integrated; Account & Plan consumes the normalized projection; no Stripe/Dodo transaction can occur in disabled mode. | `plan-usage.yaml`, zero-provider-call evidence, and `dodo-integration.md` handoff. Final Dodo activation is not required or authorized. |
-| S-20 | Local fair-use evidence and content-free cloud enforcement are integrated; Settings/usage consumes only the final presentation/result seam. | S-20 local-classifier Gate 0, threshold/restriction tests, and no-content backend proof. |
+| S-20 | Local-GRDB fair-use evidence, transient GPT-5.1 classification, and content-free durable backend enforcement are integrated; Settings/usage consumes only the final presentation/result seam. | S-20 Gate 0 parity, threshold/restriction tests, and no-durable-content backend proof. |
 
 If a predecessor is unmet, stop only the cycle that consumes its public seam and continue independently safe cycles. A missing S-20 result blocks all S-21 production cycles; a missing S-09 repository seam blocks only Cycle 4. Do not reproduce a predecessor, add a fallback API, retain a dead page, or introduce a temporary compatibility route. Reopen the affected cycle when the missing owner's public seam and tests are on the execution head.
 
@@ -441,7 +441,7 @@ Every RED below must fail for the stated behavioral reason before its GREEN is i
 | S-15 | Exact Rewind behavior and deleted search-ID handoff | Preserves Rewind UI/mode/command/settings; removes only final shell/search residue. |
 | S-17 | Narrow onboarding/reset/permission result | Preserves reset and permission routes; removes no onboarding state. |
 | S-18 | Account & Plan, disabled billing, future Dodo architecture | Preserves the target and disabled Skip; final Dodo remains post-Wave-6 under `dodo-integration.md`. |
-| S-20 | Final local-classifier/content-free enforcement presentation | Consumes only final usage/fair-use state. No classifier logic or content handling in S-21. |
+| S-20 | Final local-evidence/transient-GPT-5.1/content-free-enforcement presentation | Consumes only final usage/fair-use state. No classifier logic or content handling in S-21. |
 | S-22/S-23/S-24 | Later model/product/storage deletion | Receives a shell with no rejected caller; S-21 does not delete backend families or model routes. |
 | S-28 | Later clean product namespaces | Receives the final retained preferences/routes. S-21 deletes tier/legacy keys but does not rename bundle/storage roots. |
 | S-29 | Signing, Sparkle/release infrastructure, website/legal destinations | Receives retained update/link rows. S-21 deletes Help Center and does not guess replacement URLs. |
@@ -658,7 +658,7 @@ No backup, retention, legal, rollback, or resource-deletion plan is necessary fo
 
 | Risk or ambiguity | Safe work that can proceed | Evidence required to reopen / stop point |
 |---|---|---|
-| S-20 absent | Read-only inventory and unchanged keep tests only | Integrated local classifier/content-free enforcement and final Settings projection. All production cycles stop until present. |
+| S-20 absent | Read-only inventory and unchanged keep tests only | Integrated local-GRDB/transient-GPT-5.1 classifier path, content-free durable enforcement, and final Settings projection. All production cycles stop until present. |
 | S-09 repository consent/Privacy seam not integrated | Cycles 1–3 and 5–7 after other gates; inventory current Privacy/search without editing it | One startup-safe PostHog owner, separate Sentry, truthful final cards, and fixed semantic snapshot. Cycle 4 stops; owned-project proof remains S-09 operational evidence. |
 | S-18 disabled vs final Dodo | Preserve disabled UI and run zero-call tests | No additional input for S-21. Any request to activate provider is out of scope and stops. |
 | Future website/Terms/changelog/product identity unknown | Delete Help Center and rename local Privacy exactly | S-29/S-30 provide owned destinations/identity. S-21 must not guess or remove retained rows. |
