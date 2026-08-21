@@ -136,7 +136,7 @@ behavior was changed.
 - `python3 bootstrap-scaffold/validate-requirements-ledger.py` passed with 714
   indexed rows and 714 detailed sections.
 - Both local `make preflight` and CI-lane `scripts/pr-preflight --pr-body-file`
-  passed all 30 selected checks with `Failure-Class:
+  passed all 32 selected checks with `Failure-Class:
   FC-split-mutation-authority`. `git diff --check`, Swift format, SwiftLint, the
   test-quality ratchet, E2E-flow coverage, and the source line-count ratchet are
   green.
@@ -145,6 +145,10 @@ behavior was changed.
   the same four core flows again as Bob. The billing flow proved literal
   **Skip**, checkout/portal disabled, no entitlement/quota/paywall mutation, and
   no checkout request. Neither production Omi bundle was touched.
+- Final HEAD was rebuilt into that same named bundle and passed signature,
+  bridge-health, owner-fenced Rewind-stat, unlimited disabled-quota, and literal
+  **Skip** smoke checks. Its private launch log contained no Dodo, Stripe,
+  checkout, or portal activity.
 
 ### Truthful inherited-suite record
 
