@@ -1,91 +1,6 @@
 import Foundation
 @preconcurrency import GRDB
 
-// MARK: - Extraction Type
-
-/// Types of proactive extractions
-enum ExtractionType: String, Codable, CaseIterable {
-  case memory
-  case task
-  case insight
-}
-
-// MARK: - Proactive Extraction Record
-
-/// Database record for memories, tasks, and advice extracted from screenshots
-struct ProactiveExtractionRecord: Codable, FetchableRecord, PersistableRecord, Identifiable {
-  var id: Int64?
-  var screenshotId: Int64?
-  var type: ExtractionType
-  var content: String
-  var category: String?
-  var confidence: Double?
-  var reasoning: String?
-  var sourceApp: String
-  var contextSummary: String?
-  var priority: String?
-  var isRead: Bool
-  var isDismissed: Bool
-  var backendId: String?
-  var backendSynced: Bool
-  var createdAt: Date
-  var updatedAt: Date
-
-  static let databaseTableName = "proactive_extractions"
-
-  // MARK: - Initialization
-
-  init(
-    id: Int64? = nil,
-    screenshotId: Int64? = nil,
-    type: ExtractionType,
-    content: String,
-    category: String? = nil,
-    confidence: Double? = nil,
-    reasoning: String? = nil,
-    sourceApp: String,
-    contextSummary: String? = nil,
-    priority: String? = nil,
-    isRead: Bool = false,
-    isDismissed: Bool = false,
-    backendId: String? = nil,
-    backendSynced: Bool = false,
-    createdAt: Date = Date(),
-    updatedAt: Date = Date()
-  ) {
-    self.id = id
-    self.screenshotId = screenshotId
-    self.type = type
-    self.content = content
-    self.category = category
-    self.confidence = confidence
-    self.reasoning = reasoning
-    self.sourceApp = sourceApp
-    self.contextSummary = contextSummary
-    self.priority = priority
-    self.isRead = isRead
-    self.isDismissed = isDismissed
-    self.backendId = backendId
-    self.backendSynced = backendSynced
-    self.createdAt = createdAt
-    self.updatedAt = updatedAt
-  }
-
-  // MARK: - Persistence Callbacks
-
-  mutating func didInsert(_ inserted: InsertionSuccess) {
-    id = inserted.rowID
-  }
-
-  // MARK: - Relationships
-
-  static let screenshot = belongsTo(Screenshot.self)
-
-  var screenshot: QueryInterfaceRequest<Screenshot> {
-    request(for: ProactiveExtractionRecord.screenshot)
-  }
-}
-
 // MARK: - Focus Session Record
 
 /// Database record for focus tracking sessions
@@ -191,40 +106,14 @@ struct TaskDedupLogRecord: Codable, FetchableRecord, PersistableRecord, Identifi
 // MARK: - Screenshot Extensions for Relationships
 
 extension Screenshot {
-  static let extractions = hasMany(ProactiveExtractionRecord.self)
   static let focusSessions = hasMany(FocusSessionRecord.self)
-
-  var extractions: QueryInterfaceRequest<ProactiveExtractionRecord> {
-    request(for: Screenshot.extractions)
-  }
 
   var focusSessions: QueryInterfaceRequest<FocusSessionRecord> {
     request(for: Screenshot.focusSessions)
   }
 }
 
-// MARK: - Extraction with Screenshot
-
-/// Combined extraction and screenshot data for UI display
-struct ExtractionWithScreenshot {
-  let extraction: ProactiveExtractionRecord
-  let screenshot: Screenshot?
-
-  var imagePath: String? {
-    screenshot?.imagePath
-  }
-
-  var screenshotTimestamp: Date? {
-    screenshot?.timestamp
-  }
-}
-
 // MARK: - TableDocumented
-
-extension ProactiveExtractionRecord: TableDocumented {
-  static var tableDescription: String { ChatPrompts.tableAnnotations["proactive_extractions"]! }
-  static var columnDescriptions: [String: String] { ChatPrompts.columnAnnotations["proactive_extractions"] ?? [:] }
-}
 
 extension FocusSessionRecord: TableDocumented {
   static var tableDescription: String { ChatPrompts.tableAnnotations["focus_sessions"]! }

@@ -2612,6 +2612,7 @@ actor RewindDatabase {
     migrator.registerMigration("makeProactiveSurfacesLocalAuthoritative") { db in
       try Self.makeProactiveSurfacesLocalAuthoritative(in: db)
     }
+    Self.registerProactiveAuthorityRetirementMigration(on: &migrator)
     RewindAbandonedVideoChunkQuarantine.registerMigration(on: &migrator)
     try migrator.migrate(queue)
   }

@@ -10,7 +10,8 @@ final class ChatDiscoverabilityTests: XCTestCase {
     let footer = ChatPrompts.schemaFooter
     XCTAssertTrue(footer.contains("screenshots_fts"))
     XCTAssertTrue(footer.contains("action_items_fts"))
-    XCTAssertTrue(footer.contains("proactive_extractions_fts"))
+    XCTAssertFalse(footer.contains("proactive_extractions_fts"))
+    XCTAssertFalse(footer.contains("proactive_extractions"))
   }
 
   func testSchemaFooterIncludesMATCHPattern() {
@@ -69,6 +70,10 @@ final class ChatDiscoverabilityTests: XCTestCase {
       XCTAssertNil(cols[retired], "Retired hosted Memory column \(retired) must not be advertised")
     }
     XCTAssertNotNil(cols["source"])
+    XCTAssertNotNil(cols["tagsJson"], "Tips Insights remain discoverable through canonical Memories")
+    XCTAssertTrue(ChatPrompts.tableAnnotations["memories"]?.contains("Insights") == true)
+    XCTAssertNil(ChatPrompts.tableAnnotations["proactive_extractions"])
+    XCTAssertNil(ChatPrompts.columnAnnotations["proactive_extractions"])
   }
 
   func testConversationPromptSchemaMatchesLocalAuthority() throws {
@@ -116,10 +121,10 @@ final class ChatDiscoverabilityTests: XCTestCase {
 
   // MARK: - Tool Prompt
 
-  func testToolPromptIncludesSearchTasks() {
+  func testToolPromptIncludesCanonicalTaskLookup() {
     let prompt = ChatPrompts.desktopChat
-    XCTAssertTrue(prompt.contains("**search_tasks**"))
-    XCTAssertTrue(prompt.contains("Vector similarity search on tasks"))
+    XCTAssertTrue(prompt.contains("**get_action_items**"))
+    XCTAssertTrue(prompt.contains("Retrieve the user's tasks"))
   }
 
   func testToolPromptDoesNotPinStaleToolCount() {
@@ -137,9 +142,10 @@ final class ChatDiscoverabilityTests: XCTestCase {
     XCTAssertTrue(prompt.contains("Never claim that public information is unavailable"))
   }
 
-  func testToolPromptListsSearchTasksInWhenToUse() {
+  func testToolPromptKeepsStructuredTaskLookupGuidance() {
     let prompt = ChatPrompts.desktopChat
-    XCTAssertTrue(prompt.contains("find tasks about shopping"))
+    XCTAssertTrue(prompt.contains("task lookups"))
+    XCTAssertTrue(prompt.contains("SELECT id, description, priority, dueAt, createdAt FROM action_items"))
   }
 
   func testDesktopPromptMentionsEveryDesktopCapability() {
@@ -189,7 +195,7 @@ final class ChatDiscoverabilityTests: XCTestCase {
     XCTAssertTrue(prompt.contains("Do not guess when you can look it up"))
     XCTAssertTrue(prompt.contains("Supports SELECT, INSERT, UPDATE, DELETE"))
     XCTAssertTrue(prompt.contains("Supports FTS5 MATCH queries"))
-    XCTAssertTrue(prompt.contains("More reliable than hand-writing MATCH queries for task search"))
+    XCTAssertTrue(prompt.contains("backend task tools for creating/updating tasks"))
   }
 
   func testDesktopPromptPreservesPersonalDataLookupContract() {
