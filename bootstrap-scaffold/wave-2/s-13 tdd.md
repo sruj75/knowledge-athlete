@@ -862,3 +862,18 @@ Only after explicit user authorization and repository merge may the appropriate 
 - [ ] The real named non-production bundle was exercised; exact bundle ID/PID/port/log/evidence and any unavailable external input are stated honestly.
 - [ ] Component/product docs describe local Tasks/simple Goals and do not promise deleted behavior; historical changelog/migration records remain historical.
 - [ ] Repository closure and any separately authorized live operational closure are reported separately; no live mutation is implied by merge.
+
+## 19. Wave 2 closeout status — 2026-08-21
+
+**Repository status: complete for the Wave 3 dependency.** The unnumbered
+[`wave-2-closeout tdd.md`](wave-2-closeout%20tdd.md) adds the production Task
+extraction seam, carries one owner-generation snapshot through observation and
+task insertion, fences every reminder suspension, partitions the task embedding
+index by owner generation, and removes raw task titles from logs. Cross-owner and
+same-UID late-result tests passed, as did Task CRUD under the named bundle before
+and after owner change/restart.
+
+This status does not claim separately authorized live resource deletion or an
+external-provider run. The original planning checklist remains the detailed
+historical contract; closeout evidence and inherited target-branch suite blockers
+are recorded in the closeout slice.

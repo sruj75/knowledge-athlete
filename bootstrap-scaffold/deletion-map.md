@@ -254,6 +254,10 @@ WAVE 2 — make retained Mac behavior authoritative
   S-16 transient cloud listen     S-17 narrowed onboarding/permissions
   S-18 Dodo billing/quota
 
+  Repository gate: the Wave 2 closeout plus S-18's disabled checkpoint satisfies
+  Wave 3 source dependencies. Final paid-path acceptance remains a post-Wave-6
+  release gate documented in `bootstrap-scaffold/dodo-integration.md`.
+
 WAVE 3 — reconnect retained cross-domain behavior to local owners
   S-19 PTT local grounding/tools
   S-20 fair-use local evidence and retained enforcement
@@ -1218,6 +1222,8 @@ through IR-735
 
 **Type:** provider adaptation and plan simplification<br>
 **Research status:** split; exact Dodo contract is a required start gate<br>
+**Repository status:** disabled checkpoint reached, final activation outstanding;
+this state permits Wave 3 repository work but not a paid release<br>
 **Depends on:** S-07 and S-08<br>
 **Primary decisions:** IR-006, IR-007, IR-191 through IR-203, IR-700, IR-831,
 IR-835
@@ -1237,6 +1243,9 @@ IR-835
   existing usage-limit action say **Skip** and dismiss without granting paid
   state or clearing quota. Do not add an onboarding paywall. This is a short
   validation stop, not S-18 closure or a change to the destination below.
+- **Permanent activation handoff:** follow
+  [`dodo-integration.md`](dodo-integration.md) only after all six waves; test-mode
+  acceptance and separately authorized live proof remain mandatory.
 - **Close when:** checkout, webhook reconciliation, portal, entitlement changes,
   quota denial, and cancellation work end to end using Dodo test then production
   configuration without a Stripe or Omi plan identifier.

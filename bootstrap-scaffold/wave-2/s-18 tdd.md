@@ -715,3 +715,16 @@ Requires another explicit authorization after test closure. It owns production D
 - [ ] Named bundle `omi-dodo-billing` proves disabled-MVP behavior, owner isolation, restart behavior, retained adjacent paths, and zero transaction calls.
 - [ ] No product credentials, provider resources, deployments, transactions, production app processes, Windows artifacts, or historical changelogs were changed by repository implementation.
 - [ ] The interim repository/MVP checkpoint is reported separately and is not described as final S-18 closure while Dodo test and production activation remain outstanding.
+
+## 19. Wave 2 closeout status — 2026-08-21
+
+**Repository status: disabled checkpoint reached, final activation outstanding.**
+The named `omi-wave2-closeout` bundle passed the disabled-billing flow: the
+primary action remained **Skip**, checkout and portal stayed disabled, no
+entitlement/quota/paywall state changed, reconciliation retained its bounded
+budget, and logs contained no checkout request. This checkpoint satisfies the
+Wave 3 repository dependency while the MVP remains free through Wave 6.
+
+S-18 is not complete. Follow [`../dodo-integration.md`](../dodo-integration.md)
+after Wave 6 for separately authorized Dodo test-mode acceptance and the later,
+separately authorized bounded live transaction/cancellation proof.
