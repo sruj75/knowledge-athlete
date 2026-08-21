@@ -5,6 +5,7 @@ description: Upgrade a named bundle from the legacy S-06 schema and prove retain
 app: non-prod
 covers:
   - desktop/macos/Desktop/Sources/Rewind/Core/RewindDatabase+ExternalSurfaceRetirement.swift
+  - desktop/macos/Desktop/Sources/Rewind/Core/RewindDatabase+ProactiveAuthorityRetirement.swift
   - desktop/macos/Desktop/Sources/Rewind/Core/RewindDatabase.swift
 preconditions:
   - named_test_bundle_only

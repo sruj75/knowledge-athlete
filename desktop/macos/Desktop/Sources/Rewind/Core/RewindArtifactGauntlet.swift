@@ -181,11 +181,13 @@ enum RewindArtifactGauntlet {
     captureTime: Date
   ) async -> Bool {
     guard !RewindSettings.shared.isAppExcluded(appName) else { return false }
+    guard let authorizationSnapshot = RuntimeOwnerIdentity.captureAuthorizationSnapshot() else { return false }
     await RewindIndexer.shared.processFrame(
       cgImage: cgImage,
       appName: appName,
       windowTitle: windowTitle,
-      captureTime: captureTime
+      captureTime: captureTime,
+      authorizationSnapshot: authorizationSnapshot
     )
     return true
   }

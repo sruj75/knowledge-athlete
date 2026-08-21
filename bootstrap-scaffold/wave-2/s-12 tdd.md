@@ -696,3 +696,17 @@ Hard stop rules also apply if a test would assert source-string order instead of
 - [ ] Repository closure and live operational closure are reported separately; no live resource was mutated without explicit authorization.
 - [ ] User-visible changelog and truthful `PRODUCT.md`, `FORK.md`, architecture/component/E2E documentation move with the implementation.
 - [ ] Final diff contains the intended implementation only, no Windows work, no requirements/roadmap edits, no unrelated cleanup, and no orphaned TODO/FIXME/HACK.
+
+## 19. Wave 2 closeout status — 2026-08-21
+
+**Repository status: complete for the Wave 3 dependency.** The unnumbered
+[`wave-2-closeout tdd.md`](wave-2-closeout%20tdd.md) closes the late-result
+authorization defect: Memory extraction now carries its original owner-generation
+snapshot through compute, durability, telemetry, notification, and publication.
+Cross-owner and same-UID sign-out/sign-in tests reject stale results, and the
+named-bundle Memory CRUD path passed before and after an owner change/restart.
+
+This status does not claim separately authorized live cloud deletion or
+real-provider quality acceptance. The original planning checklist above remains
+the detailed historical contract; closeout evidence and inherited target-branch
+suite blockers are recorded in the closeout slice.

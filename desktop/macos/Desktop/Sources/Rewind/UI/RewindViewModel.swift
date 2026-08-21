@@ -57,6 +57,7 @@ class RewindViewModel: ObservableObject {
   // MARK: - Private State
 
   private var searchTask: Task<Void, Never>?
+  private var activeSearchOperationID: UUID?
   private var cancellables = Set<AnyCancellable>()
 
   /// Whether initial data has been loaded (prevents race condition with debounced search)
@@ -98,6 +99,7 @@ class RewindViewModel: ObservableObject {
   /// Uses a silent path that never sets isLoading and only updates screenshots
   /// when the data actually changed, preventing view-tree destruction.
   private func refreshTimelineIfViewingToday() async {
+    guard let authorizationSnapshot = RuntimeOwnerIdentity.captureAuthorizationSnapshot() else { return }
     // Skip if not initialized or currently loading
     guard isInitialized, !isLoading, !isSearching else { return }
 
@@ -113,12 +115,18 @@ class RewindViewModel: ObservableObject {
     guard calendar.isDateInToday(selectedDate) else { return }
 
     // Silent refresh: don't set isLoading, and only update if data changed
-    await silentLoadScreenshotsForDate(selectedDate)
+    await silentLoadScreenshotsForDate(
+      selectedDate,
+      authorizationSnapshot: authorizationSnapshot)
   }
 
   /// Update only the stats (for live frame count updates)
   private func updateStatsOnly() async {
-    if let indexerStats = await RewindIndexer.shared.getStats() {
+    guard let authorizationSnapshot = RuntimeOwnerIdentity.captureAuthorizationSnapshot() else { return }
+    if let indexerStats = await RewindIndexer.shared.getStats(
+      authorizationSnapshot: authorizationSnapshot),
+      RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
+    {
       stats = indexerStats
     }
   }
@@ -126,21 +134,26 @@ class RewindViewModel: ObservableObject {
   // MARK: - Loading
 
   func loadInitialData() async {
+    guard let authorizationSnapshot = RuntimeOwnerIdentity.captureAuthorizationSnapshot() else { return }
     isLoading = true
     errorMessage = nil
 
     do {
       // Initialize the indexer if needed
       try await RewindIndexer.shared.initialize()
+      guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
 
       // Ensure database is ready — RewindIndexer.initialize() may return early
       // (already initialized) while the database is being re-opened for a different
       // user by ViewModelContainer. This call waits for any in-progress init.
       try await RewindDatabase.shared.initialize()
+      guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
 
       // Check if database was recovered from corruption
       let recovered = await RewindDatabase.shared.didRecoverFromCorruption
+      guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
       let recoveredCount = await RewindDatabase.shared.recoveredRecordCount
+      guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
 
       if recovered {
         didRecoverFromCorruption = true
@@ -150,19 +163,28 @@ class RewindViewModel: ObservableObject {
       }
 
       // Load today's screenshots (date filter is always active)
-      await loadScreenshotsForDate(selectedDate)
+      await loadScreenshotsForDate(
+        selectedDate,
+        authorizationSnapshot: authorizationSnapshot)
+      guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
 
       // Load available apps for filtering
-      availableApps = try await RewindDatabase.shared.getUniqueAppNames()
+      let apps = try await RewindDatabase.shared.getUniqueAppNames(
+        authorizationSnapshot: authorizationSnapshot)
+      guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
+      availableApps = apps
 
       // Mark as initialized after successful load
       isInitialized = true
 
     } catch {
-      errorMessage = error.localizedDescription
-      logError("RewindViewModel: Failed to load initial data: \(error)")
+      if RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) {
+        errorMessage = error.localizedDescription
+        logError("RewindViewModel: Failed to load initial data: \(error)")
+      }
     }
 
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
     isLoading = false
 
     // Notify that Rewind page finished loading (for sidebar loading indicator)
@@ -170,9 +192,12 @@ class RewindViewModel: ObservableObject {
     NotificationCenter.default.post(name: .rewindPageDidLoad, object: nil)
 
     // Load stats asynchronously (includes storage size calculation which can be slow)
-    Task {
-      if let indexerStats = await RewindIndexer.shared.getStats() {
-        stats = indexerStats
+    Task { [weak self] in
+      if let indexerStats = await RewindIndexer.shared.getStats(
+        authorizationSnapshot: authorizationSnapshot),
+        RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
+      {
+        self?.stats = indexerStats
       }
     }
   }
@@ -191,6 +216,7 @@ class RewindViewModel: ObservableObject {
   private func performSearch(query: String) async {
     // Skip if not yet initialized (prevents race condition with debounced publisher)
     guard isInitialized else { return }
+    guard let authorizationSnapshot = RuntimeOwnerIdentity.captureAuthorizationSnapshot() else { return }
 
     // Cancel any existing search
     searchTask?.cancel()
@@ -201,7 +227,10 @@ class RewindViewModel: ObservableObject {
       // Reset to date-filtered view (date filter is always active)
       isSearching = false
       activeSearchQuery = nil
-      await loadScreenshotsForDate(selectedDate)
+      activeSearchOperationID = nil
+      await loadScreenshotsForDate(
+        selectedDate,
+        authorizationSnapshot: authorizationSnapshot)
       return
     }
 
@@ -215,8 +244,18 @@ class RewindViewModel: ObservableObject {
     let calendar = Calendar.current
     let startDate = calendar.startOfDay(for: selectedDate)
     let endDate = calendar.date(byAdding: .day, value: 1, to: startDate)!
+    let searchOperationID = UUID()
+    activeSearchOperationID = searchOperationID
 
     searchTask = Task {
+      defer {
+        if activeSearchOperationID == searchOperationID,
+          RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
+        {
+          activeSearchOperationID = nil
+          isSearching = false
+        }
+      }
       do {
         // Run FTS and vector search in parallel
         async let ftsResults = RewindDatabase.shared.search(
@@ -224,66 +263,97 @@ class RewindViewModel: ObservableObject {
           appFilter: selectedApp,
           startDate: startDate,
           endDate: endDate,
-          limit: 100
+          limit: 100,
+          authorizationSnapshot: authorizationSnapshot
         )
         async let vectorResults = OCREmbeddingService.shared.searchSimilar(
           query: trimmedQuery,
           startDate: startDate,
           endDate: endDate,
           appFilter: selectedApp,
-          topK: 50
+          topK: 50,
+          authorizationSnapshot: authorizationSnapshot
         )
 
         let fts = try await ftsResults
+        guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
         // Vector search failures are non-fatal — FTS results still show
         let vector = (try? await vectorResults) ?? []
+        guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
 
-        if !Task.isCancelled {
+        if !Task.isCancelled,
+          RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
+        {
           // Merge: FTS first, then add vector-only results above threshold
           let ftsIds = Set(fts.compactMap { $0.id })
           var merged = fts
           for result in vector where result.similarity > 0.5 && !ftsIds.contains(result.screenshotId) {
-            if let screenshot = try? await RewindDatabase.shared.getScreenshot(id: result.screenshotId) {
+            if let screenshot = try? await RewindDatabase.shared.getScreenshot(
+              id: result.screenshotId,
+              authorizationSnapshot: authorizationSnapshot)
+            {
+              guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
               merged.append(screenshot)
             }
           }
-          screenshots = merged
+          _ = publishSearchResults(
+            merged,
+            authorizationSnapshot: authorizationSnapshot)
         }
       } catch {
-        if !Task.isCancelled {
+        if !Task.isCancelled,
+          RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
+        {
           logError("RewindViewModel: Search failed: \(error)")
         }
       }
-
-      if !Task.isCancelled {
-        isSearching = false
-      }
     }
+  }
+
+  /// The single publication boundary for owner-bound search results.
+  @discardableResult
+  func publishSearchResults(
+    _ results: [Screenshot],
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) -> Bool {
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return false }
+    screenshots = results
+    return true
   }
 
   // MARK: - Filtering
 
   func filterByApp(_ app: String?) async {
+    guard let authorizationSnapshot = RuntimeOwnerIdentity.captureAuthorizationSnapshot() else { return }
     selectedApp = app
 
     if !searchQuery.isEmpty {
       await performSearch(query: searchQuery)
     } else {
-      await loadScreenshotsForDate(selectedDate)
+      await loadScreenshotsForDate(
+        selectedDate,
+        authorizationSnapshot: authorizationSnapshot)
     }
   }
 
   func filterByDate(_ date: Date) async {
+    guard let authorizationSnapshot = RuntimeOwnerIdentity.captureAuthorizationSnapshot() else { return }
     selectedDate = date
 
     if !searchQuery.isEmpty {
       await performSearch(query: searchQuery)
     } else {
-      await loadScreenshotsForDate(date)
+      await loadScreenshotsForDate(
+        date,
+        authorizationSnapshot: authorizationSnapshot)
     }
   }
 
-  private func loadScreenshotsForDate(_ date: Date) async {
+  private func loadScreenshotsForDate(
+    _ date: Date,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async {
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
     isLoading = true
 
     let calendar = Calendar.current
@@ -294,11 +364,14 @@ class RewindViewModel: ObservableObject {
       var results = try await RewindDatabase.shared.getScreenshotsSampled(
         from: startOfDay,
         to: endOfDay,
-        targetCount: 500
+        targetCount: 500,
+        authorizationSnapshot: authorizationSnapshot
       )
+      guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
 
       // Filter out frames from the active (unfinalized) video chunk — they can't be displayed yet
       let activeChunk = await VideoChunkEncoder.shared.currentChunkPath
+      guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
       if let activeChunk = activeChunk {
         results = results.filter { $0.videoChunkPath != activeChunk }
       }
@@ -308,19 +381,28 @@ class RewindViewModel: ObservableObject {
         results = results.filter { $0.appName == app }
       }
 
+      guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
       screenshots = results
 
     } catch {
-      logError("RewindViewModel: Failed to load screenshots for date: \(error)")
+      if RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) {
+        logError("RewindViewModel: Failed to load screenshots for date: \(error)")
+      }
     }
 
-    isLoading = false
+    if RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) {
+      isLoading = false
+    }
   }
 
   /// Silent variant for auto-refresh: never touches isLoading, and only
   /// updates `screenshots` when the fetched IDs differ from the current set.
   /// This prevents unnecessary SwiftUI view-tree rebuilds that destroy @State.
-  private func silentLoadScreenshotsForDate(_ date: Date) async {
+  private func silentLoadScreenshotsForDate(
+    _ date: Date,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async {
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
     let calendar = Calendar.current
     let startOfDay = calendar.startOfDay(for: date)
     let endOfDay = calendar.date(byAdding: .day, value: 1, to: startOfDay)!
@@ -329,11 +411,14 @@ class RewindViewModel: ObservableObject {
       var results = try await RewindDatabase.shared.getScreenshotsSampled(
         from: startOfDay,
         to: endOfDay,
-        targetCount: 500
+        targetCount: 500,
+        authorizationSnapshot: authorizationSnapshot
       )
+      guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
 
       // Filter out frames from the active (unfinalized) video chunk
       let activeChunk = await VideoChunkEncoder.shared.currentChunkPath
+      guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
       if let activeChunk = activeChunk {
         results = results.filter { $0.videoChunkPath != activeChunk }
       }
@@ -347,11 +432,14 @@ class RewindViewModel: ObservableObject {
       let oldIds = screenshots.compactMap { $0.id }
       let newIds = results.compactMap { $0.id }
       if oldIds != newIds {
+        guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
         screenshots = results
       }
 
     } catch {
-      logError("RewindViewModel: Failed to silently refresh screenshots: \(error)")
+      if RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) {
+        logError("RewindViewModel: Failed to silently refresh screenshots: \(error)")
+      }
     }
   }
 
@@ -400,19 +488,13 @@ class RewindViewModel: ObservableObject {
 
   func deleteScreenshot(_ screenshot: Screenshot) async {
     guard let id = screenshot.id else { return }
+    guard let authorizationSnapshot = RuntimeOwnerIdentity.captureAuthorizationSnapshot() else { return }
 
     do {
-      // Delete from database (returns storage info)
-      if let result = try await RewindDatabase.shared.deleteScreenshot(id: id) {
-        // Delete legacy JPEG if present
-        if let imagePath = result.imagePath {
-          try await RewindStorage.shared.deleteScreenshot(relativePath: imagePath)
-        }
-        // Delete video chunk if this was the last frame in it
-        if result.isLastFrameInChunk, let videoChunkPath = result.videoChunkPath {
-          try await RewindStorage.shared.deleteVideoChunk(relativePath: videoChunkPath)
-        }
-      }
+      _ = try await RewindDatabase.shared.deleteScreenshotAndArtifacts(
+        id: id,
+        authorizationSnapshot: authorizationSnapshot)
+      guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
 
       // Remove from local array
       screenshots.removeAll { $0.id == id }
@@ -423,14 +505,20 @@ class RewindViewModel: ObservableObject {
       }
 
     } catch {
-      logError("RewindViewModel: Failed to delete screenshot: \(error)")
+      if RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) {
+        logError("RewindViewModel: Failed to delete screenshot: \(error)")
+      }
     }
   }
 
   // MARK: - Stats
 
   func refreshStats() async {
-    if let indexerStats = await RewindIndexer.shared.getStats() {
+    guard let authorizationSnapshot = RuntimeOwnerIdentity.captureAuthorizationSnapshot() else { return }
+    if let indexerStats = await RewindIndexer.shared.getStats(
+      authorizationSnapshot: authorizationSnapshot),
+      RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
+    {
       stats = indexerStats
     }
   }

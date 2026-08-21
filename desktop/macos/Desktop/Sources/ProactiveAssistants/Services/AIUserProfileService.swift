@@ -69,7 +69,8 @@ actor AIUserProfileService {
       _ systemPrompt: String,
       _ authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
     ) async throws -> String
-  typealias DataSourceLoader = @Sendable (_ ownerID: String) async -> AIUserProfileInputs
+  typealias DataSourceLoader =
+    @Sendable (_ authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot) async -> AIUserProfileInputs
 
   private let maxProfileLength = 10000
   private let textRequest: TextRequest
@@ -139,32 +140,60 @@ actor AIUserProfileService {
   /// Check if we should generate a new profile (>24h since last generation)
   func shouldGenerate() async -> Bool {
     guard let snapshot = RuntimeOwnerIdentity.captureAuthorizationSnapshot() else { return false }
-    guard let db = try? await ensureDB() else { return false }
+    let authorization = LocalMutationAuthorization {
+      RuntimeOwnerIdentity.isAuthorizationCurrent(snapshot)
+    }
     do {
-      let latest = try await db.read { database in
-        try AIUserProfileRecord
-          .order(Column("generatedAt").desc)
-          .fetchOne(database)
+      return try await authorization.withReadLease {
+        try authorization.require()
+        let db = try await self.ensureDB()
+        try authorization.require()
+        let latest = try await db.read { database in
+          try authorization.require()
+          return
+            try AIUserProfileRecord
+            .order(Column("generatedAt").desc)
+            .fetchOne(database)
+        }
+        try authorization.require()
+        guard let latest else { return true }
+        return Date().timeIntervalSince(latest.generatedAt) > 86400
       }
-      guard RuntimeOwnerIdentity.isAuthorizationCurrent(snapshot) else { return false }
-      guard let latest else { return true }  // Never generated
-      return Date().timeIntervalSince(latest.generatedAt) > 86400
     } catch {
-      return true
+      return RuntimeOwnerIdentity.isAuthorizationCurrent(snapshot)
     }
   }
 
   /// Get the latest stored profile
   func getLatestProfile() async -> AIUserProfileRecord? {
     guard let snapshot = RuntimeOwnerIdentity.captureAuthorizationSnapshot() else { return nil }
-    guard let db = try? await ensureDB() else { return nil }
-    let profile = try? await db.read { database in
-      try AIUserProfileRecord
-        .order(Column("generatedAt").desc)
-        .fetchOne(database)
+    return await getLatestProfile(authorizationSnapshot: snapshot)
+  }
+
+  func getLatestProfile(
+    authorizationSnapshot snapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async -> AIUserProfileRecord? {
+    let authorization = LocalMutationAuthorization {
+      RuntimeOwnerIdentity.isAuthorizationCurrent(snapshot)
     }
-    guard RuntimeOwnerIdentity.isAuthorizationCurrent(snapshot) else { return nil }
-    return profile
+    do {
+      return try await authorization.withReadLease {
+        try authorization.require()
+        let db = try await self.ensureDB()
+        try authorization.require()
+        let profile = try await db.read { database in
+          try authorization.require()
+          return
+            try AIUserProfileRecord
+            .order(Column("generatedAt").desc)
+            .fetchOne(database)
+        }
+        try authorization.require()
+        return profile
+      }
+    } catch {
+      return nil
+    }
   }
 
   /// Delete a profile by ID and return the next latest profile
@@ -267,16 +296,37 @@ actor AIUserProfileService {
   /// Get all stored profiles (newest first)
   func getAllProfiles(limit: Int = AIUserProfileInputPolicy.settingsHistoryLimit) async -> [AIUserProfileRecord] {
     guard let snapshot = RuntimeOwnerIdentity.captureAuthorizationSnapshot() else { return [] }
-    guard let db = try? await ensureDB() else { return [] }
-    let profiles =
-      (try? await db.read { database in
-        try AIUserProfileRecord
-          .order(Column("generatedAt").desc)
-          .limit(limit)
-          .fetchAll(database)
-      }) ?? []
-    guard RuntimeOwnerIdentity.isAuthorizationCurrent(snapshot) else { return [] }
-    return profiles
+    return await getAllProfiles(
+      limit: limit,
+      authorizationSnapshot: snapshot)
+  }
+
+  private func getAllProfiles(
+    limit: Int,
+    authorizationSnapshot snapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async -> [AIUserProfileRecord] {
+    let authorization = LocalMutationAuthorization {
+      RuntimeOwnerIdentity.isAuthorizationCurrent(snapshot)
+    }
+    do {
+      return try await authorization.withReadLease {
+        try authorization.require()
+        let db = try await self.ensureDB()
+        try authorization.require()
+        let profiles = try await db.read { database in
+          try authorization.require()
+          return
+            try AIUserProfileRecord
+            .order(Column("generatedAt").desc)
+            .limit(limit)
+            .fetchAll(database)
+        }
+        try authorization.require()
+        return profiles
+      }
+    } catch {
+      return []
+    }
   }
 
   /// Generate a new AI user profile from all available data sources
@@ -298,9 +348,9 @@ actor AIUserProfileService {
     // 1. Fetch all data sources in parallel
     let inputs =
       if let dataSourceLoader {
-        await dataSourceLoader(ownerSnapshot.ownerID)
+        await dataSourceLoader(ownerSnapshot)
       } else {
-        await fetchDataSources(ownerID: ownerSnapshot.ownerID)
+        await fetchDataSources(authorizationSnapshot: ownerSnapshot)
       }
     let memories = inputs.memories
     let tasks = inputs.tasks
@@ -370,7 +420,9 @@ actor AIUserProfileService {
     log("AIUserProfileService: Stage 1 complete (\(stageOneText.count) chars)")
 
     // 5. Stage 2 — Consolidate with past profiles for holistic view
-    let pastProfiles = await getAllProfiles(limit: AIUserProfileInputPolicy.priorProfileLimit)
+    let pastProfiles = await getAllProfiles(
+      limit: AIUserProfileInputPolicy.priorProfileLimit,
+      authorizationSnapshot: ownerSnapshot)
     try authorization.require()
     let consolidationPrompt = buildConsolidationPrompt(
       newProfile: stageOneText,
@@ -436,12 +488,16 @@ actor AIUserProfileService {
 
   // MARK: - Data Fetching
 
-  private func fetchDataSources(ownerID: String) async -> AIUserProfileInputs {
-    async let memoriesTask = fetchMemories()
-    async let tasksTask = fetchTasks()
-    async let goalsTask = fetchGoals()
-    async let conversationsTask = fetchConversations()
-    async let journalTask = fetchJournalMessages(ownerID: ownerID)
+  private func fetchDataSources(
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async -> AIUserProfileInputs {
+    async let memoriesTask = fetchMemories(authorizationSnapshot: authorizationSnapshot)
+    async let tasksTask = fetchTasks(authorizationSnapshot: authorizationSnapshot)
+    async let goalsTask = fetchGoals(authorizationSnapshot: authorizationSnapshot)
+    async let conversationsTask = fetchConversations(
+      authorizationSnapshot: authorizationSnapshot)
+    async let journalTask = fetchJournalMessages(
+      authorizationSnapshot: authorizationSnapshot)
 
     let memories = await memoriesTask
     let tasks = await tasksTask
@@ -456,9 +512,13 @@ actor AIUserProfileService {
       journalMessages: journalMessages)
   }
 
-  private func fetchMemories() async -> [String] {
+  private func fetchMemories(
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async -> [String] {
     do {
-      let memories = try await MemoryStorage.shared.list(limit: AIUserProfileInputPolicy.memoryLimit)
+      let memories = try await MemoryStorage.shared.list(
+        limit: AIUserProfileInputPolicy.memoryLimit,
+        authorizationSnapshot: authorizationSnapshot)
       return memories.map { "[\($0.category.rawValue)] \($0.content)" }
     } catch {
       log("AIUserProfileService: Failed to fetch memories: \(error.localizedDescription)")
@@ -466,9 +526,13 @@ actor AIUserProfileService {
     }
   }
 
-  private func fetchTasks() async -> [String] {
+  private func fetchTasks(
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async -> [String] {
     do {
-      let tasks = try await ActionItemStorage.shared.getLocalActionItems(limit: AIUserProfileInputPolicy.taskLimit)
+      let tasks = try await ActionItemStorage.shared.getLocalActionItems(
+        limit: AIUserProfileInputPolicy.taskLimit,
+        authorizationSnapshot: authorizationSnapshot)
       return tasks.map { item in
         let status = item.completed ? "done" : "todo"
         let priority = item.priority ?? "medium"
@@ -480,9 +544,13 @@ actor AIUserProfileService {
     }
   }
 
-  private func fetchGoals() async -> [String] {
+  private func fetchGoals(
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async -> [String] {
     do {
-      let goals = try await GoalStorage.shared.getLocalGoals(activeOnly: true)
+      let goals = try await GoalStorage.shared.getLocalGoals(
+        activeOnly: true,
+        authorizationSnapshot: authorizationSnapshot)
       return goals.map(\.title)
     } catch {
       log("AIUserProfileService: Failed to fetch goals: \(error.localizedDescription)")
@@ -490,12 +558,15 @@ actor AIUserProfileService {
     }
   }
 
-  private func fetchConversations() async -> [String] {
+  private func fetchConversations(
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async -> [String] {
     do {
       let conversations = try await TranscriptionStorage.shared.conversationPage(
         query: AIUserProfileInputPolicy.conversationQuery(),
         offset: 0,
-        limit: AIUserProfileInputPolicy.conversationLimit)
+        limit: AIUserProfileInputPolicy.conversationLimit,
+        authorizationSnapshot: authorizationSnapshot)
       return conversations.compactMap { convo in
         let title = convo.title ?? ""
         let summary = convo.overview ?? ""
@@ -508,17 +579,28 @@ actor AIUserProfileService {
     }
   }
 
-  private func fetchJournalMessages(ownerID: String) async -> [String] {
+  private func fetchJournalMessages(
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async -> [String] {
     let session = AgentClient.makeSession()
     do {
+      guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else {
+        throw LocalMutationAuthorizationError.revoked
+      }
       try await session.start()
+      guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else {
+        throw LocalMutationAuthorizationError.revoked
+      }
       let surface = AgentSurfaceReference.mainChat(chatId: nil)
       let resolved = try await session.resolveSurfaceSession(surface)
+      guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else {
+        throw LocalMutationAuthorizationError.revoked
+      }
       let snapshot = try await session.getContextSnapshot(
         sessionId: resolved.sessionId,
         surfaceKind: surface.surfaceKind)
       await session.stopAndWaitForExit()
-      guard RuntimeOwnerIdentity.currentOwnerId() == ownerID else { return [] }
+      guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return [] }
       return snapshot.recentTurns
         .compactMap(AgentContextRecentTurn.init(dictionary:))
         .suffix(AIUserProfileInputPolicy.journalMessageLimit)

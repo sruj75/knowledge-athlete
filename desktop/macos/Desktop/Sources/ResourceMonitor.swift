@@ -556,9 +556,13 @@ class ResourceMonitor {
     )
 
     let memoryBefore = getMemoryFootprintMB()
+    let authorizationSnapshot = RuntimeOwnerIdentity.captureAuthorizationSnapshot()
 
     // Clear queued frames in assistant coordinator
-    AssistantCoordinator.shared.clearAllPendingWork()
+    if let authorizationSnapshot {
+      AssistantCoordinator.shared.clearAllPendingWork(
+        authorizationSnapshot: authorizationSnapshot)
+    }
 
     // Trim in-memory transcript segments (already persisted in SQLite)
     onMemoryPressureTrimTranscript?()
@@ -574,8 +578,11 @@ class ResourceMonitor {
       }
 
       // Clear focus assistant pending tasks specifically
-      if let focusAssistant = ProactiveAssistantsPlugin.shared.currentFocusAssistant {
-        await focusAssistant.clearPendingWork()
+      if let focusAssistant = ProactiveAssistantsPlugin.shared.currentFocusAssistant,
+        let authorizationSnapshot
+      {
+        await focusAssistant.clearPendingWork(
+          authorizationSnapshot: authorizationSnapshot)
       }
 
       let memoryAfter = await MainActor.run { self.getMemoryFootprintMB() }

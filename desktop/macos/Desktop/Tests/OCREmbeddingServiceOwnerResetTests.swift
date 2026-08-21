@@ -10,21 +10,30 @@ import XCTest
 /// so its 60s flush (or the next semantic search) wrote the previous owner's
 /// embeddings into the next owner's Rewind database. `reset()` must drop all
 /// queued owner-bound state at the transition boundary.
+@MainActor
 final class OCREmbeddingServiceOwnerResetTests: XCTestCase {
+  private var ownerFixture: RuntimeOwnerAuthorityTestFixture?
+
   override func setUp() async throws {
-    try await super.setUp()
+    let ownerFixture = RuntimeOwnerAuthorityTestFixture()
+    self.ownerFixture = ownerFixture
+    await ownerFixture.establish(authOwnerID: "ocr-embedding-owner")
     await OCREmbeddingService.shared.reset()
   }
 
   override func tearDown() async throws {
     await OCREmbeddingService.shared.reset()
-    try await super.tearDown()
+    if let ownerFixture { await ownerFixture.restore() }
+    ownerFixture = nil
   }
 
-  func testResetDropsPendingQueueAndDedupHashes() async {
+  func testResetDropsPendingQueueAndDedupHashes() async throws {
+    let authorizationSnapshot = try XCTUnwrap(
+      RuntimeOwnerIdentity.captureAuthorizationSnapshot())
     let text = "sensitive on-screen text from the previous account, long enough to queue"
     await OCREmbeddingService.shared.embedScreenshot(
-      id: 41, ocrText: text, appName: "Notes", windowTitle: "Draft")
+      id: 41, ocrText: text, appName: "Notes", windowTitle: "Draft",
+      authorizationSnapshot: authorizationSnapshot)
     var pending = await OCREmbeddingService.shared.pendingCount
     XCTAssertEqual(pending, 1, "enqueue should buffer the screenshot")
 
@@ -35,20 +44,25 @@ final class OCREmbeddingServiceOwnerResetTests: XCTestCase {
     // The dedup hash set is also owner-bound state: identical text from the
     // next owner must be embeddable again after reset.
     await OCREmbeddingService.shared.embedScreenshot(
-      id: 7, ocrText: text, appName: "Notes", windowTitle: "Draft")
+      id: 7, ocrText: text, appName: "Notes", windowTitle: "Draft",
+      authorizationSnapshot: authorizationSnapshot)
     pending = await OCREmbeddingService.shared.pendingCount
     XCTAssertEqual(pending, 1, "reset must clear recent-hash dedup state")
 
     await OCREmbeddingService.shared.reset()
   }
 
-  func testFlushAfterResetIsANoOp() async {
+  func testFlushAfterResetIsANoOp() async throws {
+    let authorizationSnapshot = try XCTUnwrap(
+      RuntimeOwnerIdentity.captureAuthorizationSnapshot())
     await OCREmbeddingService.shared.embedScreenshot(
       id: 99, ocrText: String(repeating: "previous owner screen text ", count: 3),
-      appName: "Safari", windowTitle: nil)
+      appName: "Safari", windowTitle: nil,
+      authorizationSnapshot: authorizationSnapshot)
     await OCREmbeddingService.shared.reset()
     // Must return without touching the (new owner's) database or network.
-    await OCREmbeddingService.shared.flushPendingEmbeddings()
+    await OCREmbeddingService.shared.flushPendingEmbeddings(
+      authorizationSnapshot: authorizationSnapshot)
     let pending = await OCREmbeddingService.shared.pendingCount
     XCTAssertEqual(pending, 0)
   }
@@ -62,30 +76,35 @@ final class OCREmbeddingServiceOwnerResetTests: XCTestCase {
   /// suspends the flush at its await, the test runs `reset()` during that
   /// suspension, then releases the embedder. The generation fence must drop the
   /// batch before the writer runs.
-  func testResetDuringInFlightFlushDropsStaleBatchBeforeWrite() async {
+  func testResetDuringInFlightFlushDropsStaleBatchBeforeWrite() async throws {
+    let authorizationSnapshot = try XCTUnwrap(
+      RuntimeOwnerIdentity.captureAuthorizationSnapshot())
     let dimension = EmbeddingService.embeddingDimension
     let flushSuspended = AsyncGate()
     let releaseEmbed = AsyncGate()
     let writes = WriteSpy()
 
     let service = OCREmbeddingService(
-      batchEmbedderForTesting: { texts, _ in
+      batchEmbedderForTesting: { texts, _, _ in
         // Signal that the flush is now parked inside the embed await, then wait
         // until the test has run reset() before returning results.
         await flushSuspended.open()
         await releaseEmbed.wait()
         return texts.map { _ in [Float](repeating: 0, count: dimension) }
       },
-      embeddingWriterForTesting: { screenshotId, _ in
+      embeddingWriterForTesting: { screenshotId, _, _ in
         await writes.record(screenshotId)
       }
     )
 
     await service.embedScreenshot(
       id: 500, ocrText: String(repeating: "previous owner text ", count: 3),
-      appName: "Notes", windowTitle: nil)
+      appName: "Notes", windowTitle: nil,
+      authorizationSnapshot: authorizationSnapshot)
 
-    let flush = Task { await service.flushPendingEmbeddings() }
+    let flush = Task {
+      await service.flushPendingEmbeddings(authorizationSnapshot: authorizationSnapshot)
+    }
 
     // Wait until the flush is suspended inside the embedder (batch + generation
     // already captured), then retarget the owner.
@@ -102,6 +121,45 @@ final class OCREmbeddingServiceOwnerResetTests: XCTestCase {
       "a flush interrupted mid-embed by an owner reset must not write the previous owner's embeddings")
     let pending = await service.pendingCount
     XCTAssertEqual(pending, 0, "the stale batch must be dropped, not re-queued into the new owner's buffer")
+  }
+
+  func testSameUIDReauthenticationDuringFlushRejectsOriginalSnapshot() async throws {
+    let ownerFixture = try XCTUnwrap(ownerFixture)
+    let authorizationSnapshot = try XCTUnwrap(
+      RuntimeOwnerIdentity.captureAuthorizationSnapshot())
+    let dimension = EmbeddingService.embeddingDimension
+    let flushSuspended = AsyncGate()
+    let releaseEmbed = AsyncGate()
+    let writes = WriteSpy()
+    let service = OCREmbeddingService(
+      batchEmbedderForTesting: { texts, _, _ in
+        await flushSuspended.open()
+        await releaseEmbed.wait()
+        return texts.map { _ in [Float](repeating: 0, count: dimension) }
+      },
+      embeddingWriterForTesting: { screenshotId, _, _ in
+        await writes.record(screenshotId)
+      })
+
+    await service.embedScreenshot(
+      id: 700,
+      ocrText: String(repeating: "same uid previous session text ", count: 3),
+      appName: "Notes",
+      windowTitle: nil,
+      authorizationSnapshot: authorizationSnapshot)
+    let flush = Task {
+      await service.flushPendingEmbeddings(authorizationSnapshot: authorizationSnapshot)
+    }
+
+    await flushSuspended.wait()
+    await ownerFixture.establish(authOwnerID: "ocr-embedding-owner")
+    await releaseEmbed.open()
+    await flush.value
+
+    let recorded = await writes.ids
+    let pending = await service.pendingCount
+    XCTAssertTrue(recorded.isEmpty)
+    XCTAssertEqual(pending, 0)
   }
 }
 

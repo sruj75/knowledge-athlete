@@ -85,7 +85,11 @@ actor RewindIndexer {
   }
 
   /// Initialize all Rewind services
-  func initialize() async throws {
+  func initialize(
+    authorizationSnapshot providedAuthorizationSnapshot: RuntimeOwnerAuthorizationSnapshot? = nil
+  ) async throws {
+    let authorizationSnapshot =
+      providedAuthorizationSnapshot ?? RuntimeOwnerIdentity.captureAuthorizationSnapshot()
     guard !ownerTransitionSuspended else {
       throw RewindError.storageError("Rewind initialization is suspended during an effective-owner transition")
     }
@@ -101,9 +105,18 @@ actor RewindIndexer {
 
     // Initialize database
     try await RewindDatabase.shared.initialize()
+    if let authorizationSnapshot {
+      try requireCurrentAuthorization(authorizationSnapshot)
+    }
 
     // Initialize storage
     try await RewindStorage.shared.initialize()
+    if let authorizationSnapshot {
+      try requireCurrentAuthorization(authorizationSnapshot)
+    }
+    guard !ownerTransitionSuspended else {
+      throw RewindError.storageError("Rewind initialization crossed an effective-owner transition")
+    }
 
     isInitialized = true
     initFailureCount = 0
@@ -113,20 +126,40 @@ actor RewindIndexer {
     setupPowerMonitorCallback()
 
     // Kick off OCR embedding backfill in background
-    Task(priority: .background) {
-      await OCREmbeddingService.shared.backfillIfNeeded()
-    }
+    if let authorizationSnapshot {
+      Task(priority: .background) {
+        await OCREmbeddingService.shared.backfillIfNeeded(
+          authorizationSnapshot: authorizationSnapshot)
+      }
 
-    // Reduce ocrDataJson float precision for existing rows (one-time migration)
-    Task(priority: .background) {
-      await RewindDatabase.shared.reduceOCRDataPrecisionIfNeeded()
+      // Reduce ocrDataJson float precision for existing rows (one-time migration)
+      Task(priority: .background) {
+        let authorization = self.ownerAuthorization(authorizationSnapshot)
+        _ = try? await authorization.withCommitLease {
+          try authorization.require()
+          await RewindDatabase.shared.reduceOCRDataPrecisionIfNeeded()
+          try authorization.require()
+        }
+      }
     }
   }
 
   /// Try to initialize with exponential backoff. Returns true if initialized.
-  private func ensureInitialized() async -> Bool {
+  private func ensureInitialized(
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot? = nil
+  ) async -> Bool {
     guard !ownerTransitionSuspended else { return false }
+    if let authorizationSnapshot,
+      !RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
+    {
+      return false
+    }
     let databaseIsInitialized = await RewindDatabase.shared.isInitialized
+    if let authorizationSnapshot,
+      !RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
+    {
+      return false
+    }
     if isInitialized && databaseIsInitialized { return true }
 
     // RewindDatabase can close itself after recovery while this actor retains
@@ -139,7 +172,7 @@ actor RewindIndexer {
     }
 
     do {
-      try await initialize()
+      try await initialize(authorizationSnapshot: authorizationSnapshot)
       return true
     } catch {
       initFailureCount += 1
@@ -241,13 +274,79 @@ actor RewindIndexer {
     }
   }
 
+  @discardableResult
+  private func discardAbandonedVideoChunkIfNeeded(
+    _ error: Error,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async -> Bool {
+    let authorization = ownerAuthorization(authorizationSnapshot)
+    do {
+      return try await authorization.withCommitLease {
+        try authorization.require()
+        let recovered = try await RewindStorage.shared.recoverAbandonedVideoChunkIfNeeded(error)
+        try authorization.require()
+        return recovered
+      }
+    } catch {
+      guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return true }
+      logError("RewindIndexer: Failed to discard abandoned video chunk", error: error)
+      return true
+    }
+  }
+
+  private func addVideoFrame(
+    image: CGImage,
+    timestamp: Date,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async throws -> VideoChunkEncoder.EncodedFrame? {
+    let authorization = ownerAuthorization(authorizationSnapshot)
+    return try await authorization.withCommitLease {
+      try authorization.require()
+      let encoded = try await VideoChunkEncoder.shared.addFrame(
+        image: image,
+        timestamp: timestamp)
+      try authorization.require()
+      return encoded
+    }
+  }
+
+  private nonisolated func ownerAuthorization(
+    _ authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) -> LocalMutationAuthorization {
+    LocalMutationAuthorization {
+      RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
+    }
+  }
+
+  private nonisolated func requireCurrentAuthorization(
+    _ authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) throws {
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else {
+      throw LocalMutationAuthorizationError.revoked
+    }
+  }
+
+  private func publishFrameCaptured(
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) {
+    Task { @MainActor in
+      guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
+      NotificationCenter.default.post(name: .rewindFrameCaptured, object: nil)
+    }
+  }
+
   // MARK: - Frame Processing
 
   /// Process a captured frame from ProactiveAssistantsPlugin
-  func processFrame(_ frame: CapturedFrame) async {
+  func processFrame(
+    _ frame: CapturedFrame,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async {
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
     // Ensure initialized with backoff
-    guard await ensureInitialized() else { return }
-    scheduleRetentionCleanupIfDue()
+    guard await ensureInitialized(authorizationSnapshot: authorizationSnapshot) else { return }
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
+    scheduleRetentionCleanupIfDue(authorizationSnapshot: authorizationSnapshot)
 
     do {
       // Convert JPEG to CGImage for video encoding.
@@ -268,17 +367,21 @@ actor RewindIndexer {
       if await shouldSkipFrameForDedupe(dedupeSignature, timestamp: frame.captureTime) {
         return
       }
+      guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
 
       // Add frame to video encoder
-      let encodedFrame = try await VideoChunkEncoder.shared.addFrame(
+      let encodedFrame = try await addVideoFrame(
         image: cgImage,
-        timestamp: frame.captureTime
+        timestamp: frame.captureTime,
+        authorizationSnapshot: authorizationSnapshot
       )
 
       // Frame was dropped by encoder (e.g. aspect ratio debounce) — skip DB insert
       // since there's no video chunk to load later
       guard let encodedFrame = encodedFrame else { return }
-      guard !ownerTransitionSuspended else { return }
+      guard !ownerTransitionSuspended,
+        RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
+      else { return }
 
       // OCR gating: throttle frequency, deduplicate, then check battery
       var ocrText: String?
@@ -290,6 +393,7 @@ actor RewindIndexer {
         recordOCROutcome(.skippedFrequency)
         isIndexed = true
       } else if await RewindOCRService.shared.shouldSkipOCR(for: cgImage) {
+        guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
         recordOCROutcome(.skippedDedup)
         isIndexed = true
       } else {
@@ -299,6 +403,7 @@ actor RewindIndexer {
           let ocrResult = try await Task(priority: .utility) {
             try await RewindOCRService.shared.extractTextWithBounds(from: cgImage)
           }.value
+          guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
           ocrText = ocrResult.fullText
           if let data = try? JSONEncoder().encode(ocrResult) {
             ocrDataJson = String(data: data, encoding: .utf8)
@@ -324,52 +429,77 @@ actor RewindIndexer {
         clientDeviceId: currentClientDeviceId
       )
 
-      guard !ownerTransitionSuspended else { return }
-      let inserted = try await RewindDatabase.shared.insertScreenshot(screenshot)
+      guard !ownerTransitionSuspended,
+        RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
+      else { return }
+      let inserted = try await RewindDatabase.shared.insertScreenshot(
+        screenshot,
+        authorizationSnapshot: authorizationSnapshot)
+      guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
       markFrameEncodedForDedupe(dedupeSignature, timestamp: frame.captureTime)
 
       // Embed OCR text for semantic search (non-blocking)
       if let ocrText = ocrText, !ocrText.isEmpty, let id = inserted.id {
         Task(priority: .utility) {
+          guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
           await OCREmbeddingService.shared.embedScreenshot(
-            id: id, ocrText: ocrText, appName: frame.appName, windowTitle: frame.windowTitle)
+            id: id,
+            ocrText: ocrText,
+            appName: frame.appName,
+            windowTitle: frame.windowTitle,
+            authorizationSnapshot: authorizationSnapshot)
         }
       }
 
       // Notify that a new frame was captured (for live UI updates)
-      DispatchQueue.main.async {
-        NotificationCenter.default.post(name: .rewindFrameCaptured, object: nil)
-      }
+      publishFrameCaptured(authorizationSnapshot: authorizationSnapshot)
 
     } catch {
-      if await discardAbandonedVideoChunkIfNeeded(error) {
+      guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
+      if await discardAbandonedVideoChunkIfNeeded(
+        error,
+        authorizationSnapshot: authorizationSnapshot)
+      {
         return
       }
+      guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
       logError("RewindIndexer: Failed to process frame", error: error)
       await RewindDatabase.shared.reportQueryError(error)
     }
   }
 
   /// Process a frame directly from a CGImage (macOS 14+ path, avoids JPEG decode round-trip)
-  func processFrame(cgImage: CGImage, appName: String, windowTitle: String?, captureTime: Date) async {
-    guard await ensureInitialized() else { return }
-    scheduleRetentionCleanupIfDue()
+  func processFrame(
+    cgImage: CGImage,
+    appName: String,
+    windowTitle: String?,
+    captureTime: Date,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async {
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
+    guard await ensureInitialized(authorizationSnapshot: authorizationSnapshot) else { return }
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
+    scheduleRetentionCleanupIfDue(authorizationSnapshot: authorizationSnapshot)
 
     do {
       let dedupeSignature = makeFrameDedupeSignature(cgImage: cgImage, appName: appName, windowTitle: windowTitle)
       if await shouldSkipFrameForDedupe(dedupeSignature, timestamp: captureTime) {
         return
       }
+      guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
 
       // Add frame to video encoder (CGImage directly, no decode needed)
-      let encodedFrame = try await VideoChunkEncoder.shared.addFrame(
+      let encodedFrame = try await addVideoFrame(
         image: cgImage,
-        timestamp: captureTime
+        timestamp: captureTime,
+        authorizationSnapshot: authorizationSnapshot
       )
 
       // Frame was dropped by encoder (e.g. aspect ratio debounce) — skip DB insert
       guard let encodedFrame = encodedFrame else { return }
-      guard !ownerTransitionSuspended else { return }
+      guard !ownerTransitionSuspended,
+        RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
+      else { return }
 
       // OCR gating: throttle frequency, deduplicate, then check battery
       var ocrText: String?
@@ -381,6 +511,7 @@ actor RewindIndexer {
         recordOCROutcome(.skippedFrequency)
         isIndexed = true
       } else if await RewindOCRService.shared.shouldSkipOCR(for: cgImage) {
+        guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
         recordOCROutcome(.skippedDedup)
         isIndexed = true
       } else {
@@ -390,6 +521,7 @@ actor RewindIndexer {
           let ocrResult = try await Task(priority: .utility) {
             try await RewindOCRService.shared.extractTextWithBounds(from: cgImage)
           }.value
+          guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
           ocrText = ocrResult.fullText
           if let data = try? JSONEncoder().encode(ocrResult) {
             ocrDataJson = String(data: data, encoding: .utf8)
@@ -414,26 +546,39 @@ actor RewindIndexer {
         clientDeviceId: currentClientDeviceId
       )
 
-      guard !ownerTransitionSuspended else { return }
-      let inserted = try await RewindDatabase.shared.insertScreenshot(screenshot)
+      guard !ownerTransitionSuspended,
+        RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
+      else { return }
+      let inserted = try await RewindDatabase.shared.insertScreenshot(
+        screenshot,
+        authorizationSnapshot: authorizationSnapshot)
+      guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
       markFrameEncodedForDedupe(dedupeSignature, timestamp: captureTime)
 
       // Embed OCR text for semantic search (non-blocking)
       if let ocrText = ocrText, !ocrText.isEmpty, let id = inserted.id {
         Task(priority: .utility) {
+          guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
           await OCREmbeddingService.shared.embedScreenshot(
-            id: id, ocrText: ocrText, appName: appName, windowTitle: windowTitle)
+            id: id,
+            ocrText: ocrText,
+            appName: appName,
+            windowTitle: windowTitle,
+            authorizationSnapshot: authorizationSnapshot)
         }
       }
 
-      DispatchQueue.main.async {
-        NotificationCenter.default.post(name: .rewindFrameCaptured, object: nil)
-      }
+      publishFrameCaptured(authorizationSnapshot: authorizationSnapshot)
 
     } catch {
-      if await discardAbandonedVideoChunkIfNeeded(error) {
+      guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
+      if await discardAbandonedVideoChunkIfNeeded(
+        error,
+        authorizationSnapshot: authorizationSnapshot)
+      {
         return
       }
+      guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
       logError(
         "RewindIndexer: Failed to process CGImage frame",
         error: error,
@@ -448,9 +593,17 @@ actor RewindIndexer {
   }
 
   /// Process a frame with additional metadata (focus status, etc.)
-  func processFrame(_ frame: CapturedFrame, focusStatus: String?, extractedTasks: [String]?, insight: String?) async {
-    guard await ensureInitialized() else { return }
-    scheduleRetentionCleanupIfDue()
+  func processFrame(
+    _ frame: CapturedFrame,
+    focusStatus: String?,
+    extractedTasks: [String]?,
+    insight: String?,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async {
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
+    guard await ensureInitialized(authorizationSnapshot: authorizationSnapshot) else { return }
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
+    scheduleRetentionCleanupIfDue(authorizationSnapshot: authorizationSnapshot)
 
     do {
       // Convert JPEG to CGImage for video encoding.
@@ -472,16 +625,20 @@ actor RewindIndexer {
       if !carriesMetadata, await shouldSkipFrameForDedupe(dedupeSignature, timestamp: frame.captureTime) {
         return
       }
+      guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
 
       // Add frame to video encoder
-      let encodedFrame = try await VideoChunkEncoder.shared.addFrame(
+      let encodedFrame = try await addVideoFrame(
         image: cgImage,
-        timestamp: frame.captureTime
+        timestamp: frame.captureTime,
+        authorizationSnapshot: authorizationSnapshot
       )
 
       // Frame was dropped by encoder (e.g. aspect ratio debounce) — skip DB insert
       guard let encodedFrame = encodedFrame else { return }
-      guard !ownerTransitionSuspended else { return }
+      guard !ownerTransitionSuspended,
+        RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
+      else { return }
 
       // OCR gating: throttle frequency, deduplicate, then check battery
       var ocrText: String?
@@ -493,6 +650,7 @@ actor RewindIndexer {
         recordOCROutcome(.skippedFrequency)
         isIndexed = true
       } else if await RewindOCRService.shared.shouldSkipOCR(for: cgImage) {
+        guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
         recordOCROutcome(.skippedDedup)
         isIndexed = true
       } else {
@@ -502,6 +660,7 @@ actor RewindIndexer {
           let ocrResult = try await Task(priority: .utility) {
             try await RewindOCRService.shared.extractTextWithBounds(from: cgImage)
           }.value
+          guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
           ocrText = ocrResult.fullText
           if let data = try? JSONEncoder().encode(ocrResult) {
             ocrDataJson = String(data: data, encoding: .utf8)
@@ -538,8 +697,13 @@ actor RewindIndexer {
         clientDeviceId: currentClientDeviceId
       )
 
-      guard !ownerTransitionSuspended else { return }
-      let inserted = try await RewindDatabase.shared.insertScreenshot(screenshot)
+      guard !ownerTransitionSuspended,
+        RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
+      else { return }
+      let inserted = try await RewindDatabase.shared.insertScreenshot(
+        screenshot,
+        authorizationSnapshot: authorizationSnapshot)
+      guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
       if !carriesMetadata {
         markFrameEncodedForDedupe(dedupeSignature, timestamp: frame.captureTime)
       }
@@ -547,20 +711,28 @@ actor RewindIndexer {
       // Embed OCR text for semantic search (non-blocking)
       if let ocrText = ocrText, !ocrText.isEmpty, let id = inserted.id {
         Task(priority: .utility) {
+          guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
           await OCREmbeddingService.shared.embedScreenshot(
-            id: id, ocrText: ocrText, appName: frame.appName, windowTitle: frame.windowTitle)
+            id: id,
+            ocrText: ocrText,
+            appName: frame.appName,
+            windowTitle: frame.windowTitle,
+            authorizationSnapshot: authorizationSnapshot)
         }
       }
 
       // Notify that a new frame was captured (for live UI updates)
-      DispatchQueue.main.async {
-        NotificationCenter.default.post(name: .rewindFrameCaptured, object: nil)
-      }
+      publishFrameCaptured(authorizationSnapshot: authorizationSnapshot)
 
     } catch {
-      if await discardAbandonedVideoChunkIfNeeded(error) {
+      guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
+      if await discardAbandonedVideoChunkIfNeeded(
+        error,
+        authorizationSnapshot: authorizationSnapshot)
+      {
         return
       }
+      guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
       logError("RewindIndexer: Failed to process frame with metadata", error: error)
       await RewindDatabase.shared.reportQueryError(error)
     }
@@ -572,14 +744,38 @@ actor RewindIndexer {
   /// per `retentionCleanupInterval` and fire-and-forget so frame ingestion is
   /// never blocked by deletion. Called from the frame pipeline; the first frame
   /// after launch prunes anything past the retention setting.
-  private func scheduleRetentionCleanupIfDue() {
+  private func scheduleRetentionCleanupIfDue(
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) {
     guard Date().timeIntervalSince(lastRetentionCleanupAt) >= retentionCleanupInterval else { return }
     lastRetentionCleanupAt = Date()
-    Task { await self.runCleanup() }
+    Task {
+      await self.runCleanup(authorizationSnapshot: authorizationSnapshot)
+    }
   }
 
   /// Run cleanup to remove old screenshots
-  func runCleanup() async {
+  func runCleanup(
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async {
+    let authorization = ownerAuthorization(authorizationSnapshot)
+    do {
+      try await authorization.withCommitLease {
+        try authorization.require()
+        try await self.runAuthorizedCleanup(authorization: authorization)
+        try authorization.require()
+      }
+    } catch LocalMutationAuthorizationError.revoked {
+      return
+    } catch {
+      guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
+      logError("RewindIndexer: Cleanup failed", error: error)
+    }
+  }
+
+  private func runAuthorizedCleanup(
+    authorization: LocalMutationAuthorization
+  ) async throws {
     guard !isRetentionCleanupRunning else {
       log("RewindIndexer: Cleanup already in progress, skipping")
       return
@@ -589,39 +785,47 @@ actor RewindIndexer {
 
     let retentionDays = RewindSettings.shared.retentionDays
 
-    do {
-      // Ensure recovery has a chance to run if a previous cleanup closed the DB
-      // after a corruption/I/O error.
-      try await RewindDatabase.shared.initialize()
+    // Ensure recovery has a chance to run if a previous cleanup closed the DB
+    // after a corruption/I/O error.
+    try await RewindDatabase.shared.initialize()
+    try authorization.require()
 
-      // Get cutoff date
-      let cutoffDate = Calendar.current.date(byAdding: .day, value: -retentionDays, to: Date())!
+    // Get cutoff date
+    guard
+      let cutoffDate = Calendar.current.date(
+        byAdding: .day,
+        value: -retentionDays,
+        to: Date()
+      )
+    else {
+      throw RewindError.storageError("Unable to calculate the Rewind retention cutoff date")
+    }
 
-      // Delete from database and get paths to delete
-      let deleteResult = try await RewindDatabase.shared.deleteScreenshotsOlderThan(cutoffDate)
+    // Delete from database and get paths to delete
+    let deleteResult = try await RewindDatabase.shared.deleteScreenshotsOlderThan(cutoffDate)
+    try authorization.require()
 
-      // Delete legacy JPEG files
-      if !deleteResult.imagePaths.isEmpty {
-        try await RewindStorage.shared.deleteScreenshots(relativePaths: deleteResult.imagePaths)
-      }
+    // Delete legacy JPEG files
+    if !deleteResult.imagePaths.isEmpty {
+      try await RewindStorage.shared.deleteScreenshots(relativePaths: deleteResult.imagePaths)
+      try authorization.require()
+    }
 
-      // Delete orphaned video chunks (all frames deleted)
-      if !deleteResult.orphanedVideoChunks.isEmpty {
-        try await RewindStorage.shared.deleteVideoChunks(relativePaths: deleteResult.orphanedVideoChunks)
-      }
+    // Delete orphaned video chunks (all frames deleted)
+    if !deleteResult.orphanedVideoChunks.isEmpty {
+      try await RewindStorage.shared.deleteVideoChunks(relativePaths: deleteResult.orphanedVideoChunks)
+      try authorization.require()
+    }
 
-      // Clean up empty directories
-      try await RewindStorage.shared.cleanupEmptyDirectories()
+    // Clean up empty directories
+    try await RewindStorage.shared.cleanupEmptyDirectories()
+    try authorization.require()
 
-      let totalDeleted = deleteResult.imagePaths.count + deleteResult.orphanedVideoChunks.count
-      if totalDeleted > 0 {
-        log(
-          "RewindIndexer: Cleaned up \(deleteResult.imagePaths.count) old JPEGs and \(deleteResult.orphanedVideoChunks.count) video chunks"
-        )
-      }
-
-    } catch {
-      logError("RewindIndexer: Cleanup failed: \(error)")
+    let totalDeleted = deleteResult.imagePaths.count + deleteResult.orphanedVideoChunks.count
+    if totalDeleted > 0 {
+      log(
+        "RewindIndexer: Cleaned up \(deleteResult.imagePaths.count) old JPEGs and \(deleteResult.orphanedVideoChunks.count) video chunks"
+      )
     }
   }
 
@@ -646,12 +850,16 @@ actor RewindIndexer {
   private var isBackfilling = false
 
   /// Run OCR on screenshots that were skipped due to battery
-  func backfillUnindexedScreenshots() async {
+  func backfillUnindexedScreenshots(
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async {
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
     guard !isBackfilling else {
       log("RewindIndexer: Backfill already in progress, skipping")
       return
     }
-    guard await ensureInitialized() else { return }
+    guard await ensureInitialized(authorizationSnapshot: authorizationSnapshot) else { return }
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
 
     isBackfilling = true
     defer { isBackfilling = false }
@@ -667,7 +875,9 @@ actor RewindIndexer {
           return
         }
 
-        let pending = try await RewindDatabase.shared.getBatterySkippedScreenshots(limit: batchSize)
+        let pending = try await RewindDatabase.shared.getBatterySkippedScreenshots(
+          limit: batchSize,
+          authorizationSnapshot: authorizationSnapshot)
         if pending.isEmpty { break }
 
         for screenshot in pending {
@@ -679,31 +889,46 @@ actor RewindIndexer {
           guard let id = screenshot.id else { continue }
 
           do {
-            let imageData = try await RewindStorage.shared.loadScreenshotData(for: screenshot)
+            let imageData = try await RewindStorage.shared.loadScreenshotData(
+              for: screenshot,
+              authorizationSnapshot: authorizationSnapshot)
             guard let cgImage = NSImage(data: imageData)?.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
               continue
             }
+            guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
 
             let ocrResult = try await Task(priority: .utility) {
               try await RewindOCRService.shared.extractTextWithBounds(from: cgImage)
             }.value
+            guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
 
-            try await RewindDatabase.shared.updateOCRResult(id: id, ocrResult: ocrResult)
+            try await RewindDatabase.shared.updateOCRResult(
+              id: id,
+              ocrResult: ocrResult,
+              authorizationSnapshot: authorizationSnapshot)
             totalProcessed += 1
           } catch RewindError.screenshotNotFound {
             // Screenshot/video file is permanently missing — clear skippedForBattery so we don't retry forever
-            try? await RewindDatabase.shared.clearSkippedForBattery(id: id)
+            try? await RewindDatabase.shared.clearSkippedForBattery(
+              id: id,
+              authorizationSnapshot: authorizationSnapshot)
           } catch let RewindError.corruptedVideoChunk(path) {
             log("RewindIndexer: Skipping corrupted chunk \(path) for screenshot \(id)")
-            try? await RewindDatabase.shared.clearSkippedForBattery(id: id)
+            try? await RewindDatabase.shared.clearSkippedForBattery(
+              id: id,
+              authorizationSnapshot: authorizationSnapshot)
           } catch {
+            guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
             logError("RewindIndexer: Backfill OCR failed for screenshot \(id): \(error)")
             // Clear flag to prevent infinite retry loop for permanently broken screenshots
-            try? await RewindDatabase.shared.clearSkippedForBattery(id: id)
+            try? await RewindDatabase.shared.clearSkippedForBattery(
+              id: id,
+              authorizationSnapshot: authorizationSnapshot)
           }
 
           // Small delay to avoid hogging CPU
           try? await Task.sleep(nanoseconds: 100_000_000)  // 100ms
+          guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
         }
       }
 
@@ -717,8 +942,10 @@ actor RewindIndexer {
   func setupPowerMonitorCallback() {
     Task { @MainActor in
       PowerMonitor.shared.onACReconnected = {
+        guard let authorizationSnapshot = RuntimeOwnerIdentity.captureAuthorizationSnapshot() else { return }
         Task {
-          await RewindIndexer.shared.backfillUnindexedScreenshots()
+          await RewindIndexer.shared.backfillUnindexedScreenshots(
+            authorizationSnapshot: authorizationSnapshot)
         }
       }
     }
@@ -727,12 +954,21 @@ actor RewindIndexer {
   // MARK: - Statistics
 
   /// Get indexer statistics
-  func getStats() async -> (total: Int, indexed: Int, storageSize: Int64)? {
+  func getStats(
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async -> (total: Int, indexed: Int, storageSize: Int64)? {
+    let authorization = ownerAuthorization(authorizationSnapshot)
     do {
-      let dbStats = try await RewindDatabase.shared.getStats()
-      let storageSize = try await RewindStorage.shared.getTotalStorageSize()
-      return (dbStats.total, dbStats.indexed, storageSize)
+      return try await authorization.withReadLease {
+        try authorization.require()
+        let dbStats = try await RewindDatabase.shared.getStats()
+        try authorization.require()
+        let storageSize = try await RewindStorage.shared.getTotalStorageSize()
+        try authorization.require()
+        return (dbStats.total, dbStats.indexed, storageSize)
+      }
     } catch {
+      guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return nil }
       logError("RewindIndexer: Failed to get stats: \(error)")
       return nil
     }

@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 import XCTest
 
@@ -112,5 +113,27 @@ final class RuntimeOwnerAuthorityTestFixture: @unchecked Sendable {
     guard let value else { return nil }
     let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines)
     return normalized.isEmpty ? nil : normalized
+  }
+}
+
+extension RewindIndexer {
+  /// Test-target convenience for legacy artifact fixtures. Production capture
+  /// has no ownerless overload and must pass the snapshot captured with the frame.
+  func processFrame(
+    cgImage: CGImage,
+    appName: String,
+    windowTitle: String?,
+    captureTime: Date
+  ) async {
+    guard let authorizationSnapshot = RuntimeOwnerIdentity.captureAuthorizationSnapshot() else {
+      XCTFail("Rewind frame test requires an authenticated owner generation")
+      return
+    }
+    await processFrame(
+      cgImage: cgImage,
+      appName: appName,
+      windowTitle: windowTitle,
+      captureTime: captureTime,
+      authorizationSnapshot: authorizationSnapshot)
   }
 }

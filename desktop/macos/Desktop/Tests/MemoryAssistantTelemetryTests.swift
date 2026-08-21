@@ -136,8 +136,12 @@ private actor MemoryAssistantDurabilityFixtureOperations: MemoryAssistantDurabil
 final class MemoryAssistantDurabilityPipelineTests: XCTestCase {
   private typealias CapturedEvent = (name: String, properties: [String: Any])
   private var captured: [CapturedEvent] = []
+  private var ownerFixture: RuntimeOwnerAuthorityTestFixture?
 
   override func setUp() async throws {
+    let ownerFixture = RuntimeOwnerAuthorityTestFixture()
+    self.ownerFixture = ownerFixture
+    await ownerFixture.establish(authOwnerID: "memory-durability-owner")
     captured = []
     AnalyticsManager.shared.setMemoryAssistantTelemetryCaptureForTests { [weak self] name, properties in
       self?.captured.append((name, properties))
@@ -147,9 +151,13 @@ final class MemoryAssistantDurabilityPipelineTests: XCTestCase {
   override func tearDown() async throws {
     AnalyticsManager.shared.setMemoryAssistantTelemetryCaptureForTests(nil)
     captured = []
+    if let ownerFixture { await ownerFixture.restore() }
+    ownerFixture = nil
   }
 
-  func testProductionPipelineEmitsLocalDurabilityTerminalAndHistoricalSuccess() async {
+  func testProductionPipelineEmitsLocalDurabilityTerminalAndHistoricalSuccess() async throws {
+    let authorizationSnapshot = try XCTUnwrap(
+      RuntimeOwnerIdentity.captureAuthorizationSnapshot())
     let cases:
       [(
         succeeds: Bool,
@@ -174,7 +182,7 @@ final class MemoryAssistantDurabilityPipelineTests: XCTestCase {
           screenshotId: nil,
           contextSummary: "test",
           windowTitle: nil,
-          ownerID: "test-owner"
+          authorizationSnapshot: authorizationSnapshot
         ),
         confidence: 0.82
       )
@@ -204,20 +212,18 @@ private enum MemoryAssistantAnalysisFixtureError: Error {
 /// coverage for Gemini/provider/decoding errors, not a source-text tripwire.
 @MainActor
 final class MemoryAssistantAnalysisFailureTests: XCTestCase {
-  private var savedOwner: String?
-  private var savedAutomationOwner: String?
+  private var ownerFixture: RuntimeOwnerAuthorityTestFixture?
   private var savedEnabled = false
   private var savedNotifications = false
   private var captured: [(name: String, properties: [String: Any])] = []
 
   override func setUp() async throws {
-    savedOwner = UserDefaults.standard.string(forKey: .authUserId)
-    savedAutomationOwner = UserDefaults.standard.string(forKey: .automationOwnerOverride)
+    let ownerFixture = RuntimeOwnerAuthorityTestFixture()
+    self.ownerFixture = ownerFixture
+    await ownerFixture.establish(authOwnerID: "analysis-owner")
     savedEnabled = MemoryAssistantSettings.shared.isEnabled
     savedNotifications = MemoryAssistantSettings.shared.notificationsEnabled
 
-    UserDefaults.standard.set("analysis-owner", forKey: .authUserId)
-    UserDefaults.standard.set("analysis-owner", forKey: .automationOwnerOverride)
     MemoryAssistantSettings.shared.isEnabled = true
     MemoryAssistantSettings.shared.notificationsEnabled = true
     captured = []
@@ -227,23 +233,15 @@ final class MemoryAssistantAnalysisFailureTests: XCTestCase {
   }
 
   override func tearDown() async throws {
-    if let savedOwner {
-      UserDefaults.standard.set(savedOwner, forKey: .authUserId)
-    } else {
-      UserDefaults.standard.removeObject(forKey: .authUserId)
-    }
-    if let savedAutomationOwner {
-      UserDefaults.standard.set(savedAutomationOwner, forKey: .automationOwnerOverride)
-    } else {
-      UserDefaults.standard.removeObject(forKey: .automationOwnerOverride)
-    }
+    if let ownerFixture { await ownerFixture.restore() }
+    ownerFixture = nil
     MemoryAssistantSettings.shared.isEnabled = savedEnabled
     MemoryAssistantSettings.shared.notificationsEnabled = savedNotifications
     AnalyticsManager.shared.setMemoryAssistantTelemetryCaptureForTests(nil)
     captured = []
   }
 
-  func testThrowingAnalysisEmitsExactlyOneBoundedAnalysisFailedTerminal() async {
+  func testThrowingAnalysisEmitsExactlyOneBoundedAnalysisFailedTerminal() async throws {
     let operations = MemoryAssistantDurabilityFixtureOperations(succeeds: false)
     let assistant = MemoryAssistant(
       extractionOverride: { _, _ in
@@ -251,13 +249,16 @@ final class MemoryAssistantAnalysisFailureTests: XCTestCase {
       },
       durabilityRunner: MemoryAssistantProductionDurability(operations: operations)
     )
+    let authorizationSnapshot = try XCTUnwrap(
+      RuntimeOwnerIdentity.captureAuthorizationSnapshot())
 
     await assistant.processFrame(
       CapturedFrame(
         jpegData: Data([0xFF, 0xD8, 0xFF]),
         appName: "must-not-leak",
         frameNumber: 1
-      )
+      ),
+      authorizationSnapshot: authorizationSnapshot
     )
 
     XCTAssertEqual(captured.count, 1)
@@ -267,6 +268,82 @@ final class MemoryAssistantAnalysisFailureTests: XCTestCase {
     XCTAssertFalse(String(describing: captured[0].properties).contains("must-not-leak"))
     let durabilityCalls = await operations.recordedCalls()
     XCTAssertEqual(durabilityCalls, [])
+  }
+
+  func testSameUIDReauthenticationDropsSuspendedExtractionWithoutSideEffects() async throws {
+    let ownerFixture = try XCTUnwrap(ownerFixture)
+    let result = MemoryExtractionResult(
+      hasNewMemory: true,
+      memories: [
+        ExtractedMemory(
+          content: "private stale memory",
+          category: .system,
+          sourceApp: "Notes",
+          confidence: 0.95)
+      ],
+      contextSummary: "private context",
+      currentActivity: "writing")
+    let gate = MemoryExtractionGate(result: result)
+    let operations = MemoryAssistantDurabilityFixtureOperations(succeeds: true)
+    let assistant = MemoryAssistant(
+      extractionOverride: { _, _ in try await gate.extract() },
+      durabilityRunner: MemoryAssistantProductionDurability(operations: operations)
+    )
+    let authorizationSnapshot = try XCTUnwrap(
+      RuntimeOwnerIdentity.captureAuthorizationSnapshot())
+
+    let processing = Task {
+      await assistant.processFrame(
+        CapturedFrame(
+          jpegData: Data([0xFF, 0xD8, 0xFF]),
+          appName: "Notes",
+          frameNumber: 2),
+        authorizationSnapshot: authorizationSnapshot)
+    }
+    await gate.waitUntilEntered()
+    await ownerFixture.establish(authOwnerID: nil)
+    await ownerFixture.establish(authOwnerID: "analysis-owner")
+    await gate.release()
+    await processing.value
+
+    let calls = await operations.recordedCalls()
+    XCTAssertEqual(calls, [])
+    XCTAssertTrue(captured.isEmpty)
+  }
+}
+
+private actor MemoryExtractionGate {
+  private let result: MemoryExtractionResult
+  private var entered = false
+  private var released = false
+  private var enteredWaiters: [CheckedContinuation<Void, Never>] = []
+  private var releaseWaiters: [CheckedContinuation<Void, Never>] = []
+
+  init(result: MemoryExtractionResult) {
+    self.result = result
+  }
+
+  func extract() async throws -> MemoryExtractionResult {
+    entered = true
+    let waiters = enteredWaiters
+    enteredWaiters.removeAll()
+    waiters.forEach { $0.resume() }
+    if !released {
+      await withCheckedContinuation { releaseWaiters.append($0) }
+    }
+    return result
+  }
+
+  func waitUntilEntered() async {
+    if entered { return }
+    await withCheckedContinuation { enteredWaiters.append($0) }
+  }
+
+  func release() {
+    released = true
+    let waiters = releaseWaiters
+    releaseWaiters.removeAll()
+    waiters.forEach { $0.resume() }
   }
 }
 

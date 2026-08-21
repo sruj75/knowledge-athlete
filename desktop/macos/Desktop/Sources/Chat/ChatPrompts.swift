@@ -173,11 +173,10 @@ struct ChatPrompts {
     "conversation_folders": "user-created conversation folders",
     "conversation_speaker_labels": "conversation-scoped names for numeric speakers",
     "conversation_merge_sources": "source conversation IDs retained by a local merge",
-    "proactive_extractions": "memories, advice, tasks extracted from screenshots",
     "focus_sessions": "focus tracking",
     "live_notes": "AI-generated notes during recording",
     "memories":
-      "user facts, preferences, personal details (age, relationships, habits, interests) — PRIMARY source for personal questions",
+      "user facts, preferences, personal details, and Tips Insights — PRIMARY source for personal questions and local advice",
     "ai_user_profiles": "daily AI-generated user profile summaries",
     "goals": "owner-scoped local goals with active/completed state",
     "observations": "per-screenshot AI observations used to detect tasks and activities",
@@ -304,19 +303,6 @@ struct ChatPrompts {
       "segmentStartOrder": "First segment order this note references",
       "segmentEndOrder": "Last segment order this note references",
     ],
-    "proactive_extractions": [
-      "screenshotId": "FK to screenshots — source screen",
-      "type": "memory | task | advice",
-      "content": "The extracted text content",
-      "category": "Topic category assigned by AI",
-      "confidence": "Extraction confidence 0–1",
-      "reasoning": "AI explanation for this extraction",
-      "sourceApp": "App active at extraction time",
-      "contextSummary": "AI summary of screen context",
-      "priority": "Priority if type=task: high | medium | low",
-      "isRead": "Whether user has seen this extraction",
-      "isDismissed": "Whether user dismissed it",
-    ],
     "focus_sessions": [
       "screenshotId": "FK to screenshots",
       "status": "focused | distracted",
@@ -369,7 +355,6 @@ struct ChatPrompts {
     **FTS5 full-text search tables** (use MATCH for keyword search, BM25 for ranking):
     - screenshots_fts(ocrText, windowTitle, appName)
     - action_items_fts(description)
-    - proactive_extractions_fts(content, reasoning, contextSummary)
 
     FTS query patterns:
     -- Keyword search with JOIN:
@@ -389,7 +374,6 @@ struct ChatPrompts {
     - memories.screenshotId → screenshots.id (screen context)
     - memories.conversationId → transcription_sessions.conversationId (voice session source)
     - live_notes.sessionId → transcription_sessions.id (recording notes)
-    - proactive_extractions.screenshotId → screenshots.id (source screen)
 
     Full DDL for any table: SELECT sql FROM sqlite_master WHERE name='table_name'
     """

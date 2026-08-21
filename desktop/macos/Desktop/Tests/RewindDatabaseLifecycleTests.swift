@@ -91,6 +91,8 @@ final class RewindDatabaseLifecycleTests: XCTestCase {
     await RewindDatabase.shared.close()
     RewindDatabase.currentUserId = testUserId
     await RewindDatabase.shared.configure(userId: testUserId)
+    let ownerFixture = await MainActor.run { RuntimeOwnerAuthorityTestFixture() }
+    await ownerFixture.establish(authOwnerID: testUserId)
     try await RewindIndexer.shared.initialize()
     let initializedBeforeClose = await RewindDatabase.shared.isInitialized
     XCTAssertTrue(initializedBeforeClose)
@@ -110,6 +112,7 @@ final class RewindDatabaseLifecycleTests: XCTestCase {
     await RewindStorage.shared.reset()
     await RewindDatabase.shared.close()
     RewindDatabase.currentUserId = nil
+    await ownerFixture.restore()
   }
 
   func testProcessFrameReopensDatabaseClosedAfterIndexerInitialization() async throws {
@@ -129,6 +132,8 @@ final class RewindDatabaseLifecycleTests: XCTestCase {
     await RewindDatabase.shared.close()
     RewindDatabase.currentUserId = testUserId
     await RewindDatabase.shared.configure(userId: testUserId)
+    let ownerFixture = await MainActor.run { RuntimeOwnerAuthorityTestFixture() }
+    await ownerFixture.establish(authOwnerID: testUserId)
     try await RewindIndexer.shared.initialize()
     let frame = try makeTestFrameImage()
 
@@ -160,6 +165,7 @@ final class RewindDatabaseLifecycleTests: XCTestCase {
     await RewindStorage.shared.reset()
     await RewindDatabase.shared.close()
     RewindDatabase.currentUserId = nil
+    await ownerFixture.restore()
   }
 
   private func makeTestFrameImage() throws -> CGImage {

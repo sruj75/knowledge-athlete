@@ -118,14 +118,15 @@ struct MemoryAssistantDurabilityRequest: Sendable {
   let screenshotId: Int64?
   let contextSummary: String
   let windowTitle: String?
-  let ownerID: String
+  let authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  var ownerID: String { authorizationSnapshot.ownerID }
 
   init(
     memory: ExtractedMemory,
     screenshotId: Int64?,
     contextSummary: String,
     windowTitle: String?,
-    ownerID: String
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
   ) {
     content = memory.content
     category = memory.category.rawValue
@@ -134,7 +135,7 @@ struct MemoryAssistantDurabilityRequest: Sendable {
     self.screenshotId = screenshotId
     self.contextSummary = contextSummary
     self.windowTitle = windowTitle
-    self.ownerID = ownerID
+    self.authorizationSnapshot = authorizationSnapshot
   }
 }
 
@@ -199,9 +200,8 @@ actor MemoryAssistantProductionDurability: MemoryAssistantDurabilityRunning {
 /// Live SQLite implementation. Owner checks stay adjacent to the product mutation.
 actor MemoryAssistantLiveDurabilityOperations: MemoryAssistantDurabilityOperating {
   func acceptLocalMemory(_ request: MemoryAssistantDurabilityRequest) async -> Bool {
-    guard RuntimeOwnerIdentity.currentOwnerId() == request.ownerID,
-      let snapshot = RuntimeOwnerIdentity.captureAuthorizationSnapshot(expectedOwnerID: request.ownerID)
-    else {
+    let snapshot = request.authorizationSnapshot
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(snapshot) else {
       return false
     }
     let authorization = LocalMutationAuthorization {
@@ -246,8 +246,15 @@ actor MemoryAssistantDurabilityPipeline {
     _ request: MemoryAssistantDurabilityRequest,
     confidence: Double
   ) async -> MemoryAssistantDurability.Outcome {
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(request.authorizationSnapshot) else {
+      return .localPersistenceFailed
+    }
     let outcome = await runner.persistLocally(request)
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(request.authorizationSnapshot) else {
+      return .localPersistenceFailed
+    }
     await MainActor.run {
+      guard RuntimeOwnerIdentity.isAuthorizationCurrent(request.authorizationSnapshot) else { return }
       MemoryAssistantDurability.emitPersistenceTerminal(outcome, confidence: confidence)
     }
     return outcome

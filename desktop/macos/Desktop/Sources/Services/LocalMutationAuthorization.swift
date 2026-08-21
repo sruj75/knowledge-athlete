@@ -193,6 +193,20 @@ struct LocalMutationAuthorization: Sendable {
   func withCommitLease<T: Sendable>(
     _ operation: @escaping @Sendable () async throws -> T
   ) async throws -> T {
+    try await withOwnerLease(operation)
+  }
+
+  /// Hold the same exclusive owner-generation lease across a delayed read so
+  /// the underlying database pool cannot retarget while the read is in flight.
+  func withReadLease<T: Sendable>(
+    _ operation: @escaping @Sendable () async throws -> T
+  ) async throws -> T {
+    try await withOwnerLease(operation)
+  }
+
+  private func withOwnerLease<T: Sendable>(
+    _ operation: @escaping @Sendable () async throws -> T
+  ) async throws -> T {
     let fence = EffectiveOwnerTransitionFence.shared
     let lease = try await fence.acquireMutationLease(validating: validator)
     do {

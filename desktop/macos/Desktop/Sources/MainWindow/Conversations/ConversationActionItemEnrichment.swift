@@ -1,18 +1,36 @@
 import Foundation
 
 protocol ConversationTaskSimilarityProviding: Sendable {
-  func similarActionItems(for transcript: String) async throws -> [ConversationTaskSimilarityMatch]
+  func similarActionItems(
+    for transcript: String,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async throws -> [ConversationTaskSimilarityMatch]
 }
 
 struct LiveConversationTaskSimilarityProvider: ConversationTaskSimilarityProviding {
-  func similarActionItems(for transcript: String) async throws -> [ConversationTaskSimilarityMatch] {
-    if !(await EmbeddingService.shared.indexLoaded) {
-      await EmbeddingService.shared.loadIndex()
+  func similarActionItems(
+    for transcript: String,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async throws -> [ConversationTaskSimilarityMatch] {
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else {
+      throw LocalMutationAuthorizationError.revoked
     }
-    guard await EmbeddingService.shared.indexLoaded else { return [] }
+    if !(await EmbeddingService.shared.indexLoaded(authorizationSnapshot: authorizationSnapshot)) {
+      await EmbeddingService.shared.loadIndex(authorizationSnapshot: authorizationSnapshot)
+    }
+    guard
+      await EmbeddingService.shared.indexLoaded(
+        authorizationSnapshot: authorizationSnapshot)
+    else { return [] }
     let embedding = try await EmbeddingService.shared.embed(
-      text: transcript, taskType: "RETRIEVAL_QUERY")
-    return await EmbeddingService.shared.searchSimilar(query: embedding, topK: 30).map { result in
+      text: transcript,
+      taskType: "RETRIEVAL_QUERY",
+      authorizationSnapshot: authorizationSnapshot)
+    return await EmbeddingService.shared.searchSimilar(
+      query: embedding,
+      topK: 30,
+      authorizationSnapshot: authorizationSnapshot
+    ).map { result in
       return ConversationTaskSimilarityMatch(localRowId: result.id, similarity: result.similarity)
     }
   }
@@ -67,7 +85,16 @@ actor ConversationActionItemEnrichment {
         speakerLabels: claim.conversation.speakerLabels.mapValues(\.name),
         userName: nil,
         includeTimestamps: false)
-      let matches = (try? await similarityProvider.similarActionItems(for: transcript)) ?? []
+      let matches: [ConversationTaskSimilarityMatch]
+      if let snapshot {
+        matches =
+          (try? await similarityProvider.similarActionItems(
+            for: transcript,
+            authorizationSnapshot: snapshot)) ?? []
+      } else {
+        matches = []
+      }
+      if let snapshot, !RuntimeOwnerIdentity.isAuthorizationCurrent(snapshot) { return .stale }
       let related = try await storage.relatedOpenActionItems(
         conversationId: conversationId, matches: matches, now: now())
       let tokenMap = related.enumerated().map {

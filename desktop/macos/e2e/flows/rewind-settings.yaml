@@ -6,6 +6,7 @@ app: non-prod
 covers:
   - desktop/macos/Desktop/Sources/MainWindow/Pages/Settings/Sections/SettingsContentView+Rewind.swift
   - desktop/macos/Desktop/Sources/Rewind/Core/RewindModels.swift
+  - desktop/macos/Desktop/Sources/Rewind/Services/RewindIndexer+OwnerAuthorization.swift
 preconditions:
   - automation_bridge_ready
 

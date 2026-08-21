@@ -3768,10 +3768,8 @@ class ChatProvider: ObservableObject {
       errorMessage = "Wait for chat deletion to finish before sending."
       return nil
     }
-    guard let capturedRuntimeOwnerID = runtimeOwnerId else {
-      errorMessage = "Sign in again to continue."
-      return nil
-    }
+    guard let turnAuthorizationSnapshot = authorizeTurn(for: runtimeOwnerId) else { return nil }
+    let capturedRuntimeOwnerID = turnAuthorizationSnapshot.ownerID
     let usesMainComposer = turnOwner == .mainChat && surfaceRef == nil
     let submittedDraftKey = activeDraftKey
     let submittedIsDefaultChat = isInDefaultChat
@@ -4265,7 +4263,8 @@ class ChatProvider: ObservableObject {
             )
           } else {
             let rawScreenContextPayloadBox = await ScreenContextWorkContextBuilder.payloadBox(
-              arguments: RuntimeJSONPayloadBox(["minutes": 10])
+              arguments: RuntimeJSONPayloadBox(["minutes": 10]),
+              authorizationSnapshot: turnAuthorizationSnapshot
             )
             let rawScreenContextPayload = rawScreenContextPayloadBox.value
             screenContextPayload = ScreenContextWorkContextBuilder.ambientPayload(from: rawScreenContextPayload)

@@ -12,6 +12,7 @@ actor EmbeddingService {
   /// In-memory index: authoritative local task row ID -> normalized embedding.
   private var index: [Int64: [Float]] = [:]
   private var isIndexLoaded = false
+  private var indexAuthorization: RuntimeOwnerAuthorizationSnapshot?
 
   /// Cap in-memory embeddings to limit memory (~12KB each, 5000 = ~60MB max)
   private let maxIndexSize = 5000
@@ -31,13 +32,13 @@ actor EmbeddingService {
   }
 
   private func authorizedAuthHeader(
-    _ snapshot: RuntimeOwnerAuthorizationSnapshot?
+    _ snapshot: RuntimeOwnerAuthorizationSnapshot
   ) async throws -> String {
-    if let snapshot, !RuntimeOwnerIdentity.isAuthorizationCurrent(snapshot) {
+    if !RuntimeOwnerIdentity.isAuthorizationCurrent(snapshot) {
       throw LocalMutationAuthorizationError.revoked
     }
     let header = try await authHeader()
-    if let snapshot, !RuntimeOwnerIdentity.isAuthorizationCurrent(snapshot) {
+    if !RuntimeOwnerIdentity.isAuthorizationCurrent(snapshot) {
       throw LocalMutationAuthorizationError.revoked
     }
     return header
@@ -54,7 +55,7 @@ actor EmbeddingService {
   func embed(
     text: String,
     taskType: String? = nil,
-    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot? = nil
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
   ) async throws -> [Float] {
     guard !Self.proxyBaseURL.isEmpty else {
       throw EmbeddingError.missingAPIKey
@@ -83,12 +84,13 @@ actor EmbeddingService {
     request.timeoutInterval = 30
     request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
 
-    if let authorizationSnapshot,
-      !RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
-    {
+    if !RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) {
       throw LocalMutationAuthorizationError.revoked
     }
     let (data, response) = try await URLSession.shared.data(for: request)
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else {
+      throw LocalMutationAuthorizationError.revoked
+    }
 
     // Check HTTP status before parsing — non-JSON error bodies (HTML 401/500)
     // cause "data couldn't be read" errors that mask the real problem.
@@ -104,6 +106,9 @@ actor EmbeddingService {
       throw EmbeddingError.invalidResponse
     }
 
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else {
+      throw LocalMutationAuthorizationError.revoked
+    }
     let floats = values.map { Float($0) }
     return normalize(floats)
   }
@@ -115,7 +120,7 @@ actor EmbeddingService {
   func embedBatch(
     texts: [String],
     taskType: String? = nil,
-    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot? = nil
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
   ) async throws -> [[Float]] {
     guard !Self.proxyBaseURL.isEmpty else {
       throw EmbeddingError.missingAPIKey
@@ -149,12 +154,13 @@ actor EmbeddingService {
     request.timeoutInterval = 60
     request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
 
-    if let authorizationSnapshot,
-      !RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
-    {
+    if !RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) {
       throw LocalMutationAuthorizationError.revoked
     }
     let (data, response) = try await URLSession.shared.data(for: request)
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else {
+      throw LocalMutationAuthorizationError.revoked
+    }
 
     // Check HTTP status before parsing — non-JSON error bodies (HTML 401/500)
     // cause "data couldn't be read" errors that mask the real problem.
@@ -177,20 +183,27 @@ actor EmbeddingService {
     guard embeddings.count == texts.count else {
       throw EmbeddingError.invalidResponse
     }
-    return try embeddings.map { embedding in
+    let normalized = try embeddings.map { embedding in
       guard let values = embedding["values"] as? [Double] else {
         throw EmbeddingError.invalidResponse
       }
       return normalize(values.map { Float($0) })
     }
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else {
+      throw LocalMutationAuthorizationError.revoked
+    }
+    return normalized
   }
 
   // MARK: - In-Memory Index
 
   /// Load ordinary local task embeddings from SQLite into memory.
-  func loadIndex() async {
+  func loadIndex(authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot) async {
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
     do {
-      let rows = try await ActionItemStorage.shared.getAllEmbeddings()
+      let rows = try await ActionItemStorage.shared.getAllEmbeddings(
+        authorizationSnapshot: authorizationSnapshot)
+      guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
       index.removeAll(keepingCapacity: true)
       // Only keep the most recent embeddings (suffix = highest IDs = newest)
       for (id, data) in rows.suffix(maxIndexSize) {
@@ -199,6 +212,7 @@ actor EmbeddingService {
         }
       }
       isIndexLoaded = true
+      indexAuthorization = authorizationSnapshot
       log("EmbeddingService: Loaded \(index.count) local task embeddings (cap=\(maxIndexSize))")
     } catch {
       logError("EmbeddingService: Failed to load index", error: error)
@@ -206,7 +220,17 @@ actor EmbeddingService {
   }
 
   /// Add a single task embedding to the in-memory index (respects maxIndexSize).
-  func addToIndex(id: Int64, embedding: [Float]) {
+  func addToIndex(
+    id: Int64,
+    embedding: [Float],
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) {
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
+    if indexAuthorization != authorizationSnapshot {
+      index.removeAll(keepingCapacity: true)
+      isIndexLoaded = false
+      indexAuthorization = authorizationSnapshot
+    }
     // If at capacity and this is a new key, evict the oldest (lowest ID)
     if index[id] == nil && index.count >= maxIndexSize {
       if let oldestKey = index.keys.min() {
@@ -217,15 +241,28 @@ actor EmbeddingService {
   }
 
   /// Remove an entry from the index
-  func removeFromIndex(id: Int64) {
+  func removeFromIndex(
+    id: Int64,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) {
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot),
+      indexAuthorization == authorizationSnapshot
+    else { return }
     index.removeValue(forKey: id)
   }
 
   /// Search for similar items using cosine similarity via Accelerate/vDSP.
-  func searchSimilar(query: [Float], topK: Int = 10)
+  func searchSimilar(
+    query: [Float],
+    topK: Int = 10,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  )
     -> [(id: Int64, similarity: Float)]
   {
-    guard !index.isEmpty else { return [] }
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot),
+      indexAuthorization == authorizationSnapshot,
+      !index.isEmpty
+    else { return [] }
 
     var results: [(id: Int64, similarity: Float)] = []
     results.reserveCapacity(index.count)
@@ -241,18 +278,30 @@ actor EmbeddingService {
   }
 
   /// Whether the index has been loaded
-  var indexLoaded: Bool { isIndexLoaded }
+  func indexLoaded(authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot) -> Bool {
+    RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
+      && indexAuthorization == authorizationSnapshot
+      && isIndexLoaded
+  }
 
   /// Number of items in the index
   var indexSize: Int { index.count }
 
+  /// Drop all task embeddings and their owner generation while the exclusive
+  /// owner transition is active.
+  func resetForOwnerChange() {
+    index.removeAll(keepingCapacity: false)
+    isIndexLoaded = false
+    indexAuthorization = nil
+  }
+
   // MARK: - Backfill
 
   /// Batch-embed all ordinary local tasks missing embeddings.
-  func backfillIfNeeded() async {
-    guard let authorizationSnapshot = RuntimeOwnerIdentity.captureAuthorizationSnapshot() else {
-      return
-    }
+  func backfillIfNeeded(
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async {
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
     let batchSize = 100
     var totalProcessed = 0
 
@@ -260,12 +309,16 @@ actor EmbeddingService {
       // Backfill action_items
       while true {
         guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
-        let items = try await ActionItemStorage.shared.getItemsMissingEmbeddings(limit: batchSize)
+        let items = try await ActionItemStorage.shared.getItemsMissingEmbeddings(
+          limit: batchSize,
+          authorizationSnapshot: authorizationSnapshot)
         guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
         if items.isEmpty { break }
 
         let texts = items.map { $0.description }
-        let embeddings = try await embedBatch(texts: texts)
+        let embeddings = try await embedBatch(
+          texts: texts,
+          authorizationSnapshot: authorizationSnapshot)
 
         for (i, embedding) in embeddings.enumerated() where i < items.count {
           guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
@@ -279,7 +332,10 @@ actor EmbeddingService {
             }
           )
           guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
-          addToIndex(id: item.id, embedding: embedding)
+          addToIndex(
+            id: item.id,
+            embedding: embedding,
+            authorizationSnapshot: authorizationSnapshot)
         }
 
         totalProcessed += items.count

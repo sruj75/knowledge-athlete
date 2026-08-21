@@ -249,3 +249,19 @@ persist input/output. Gemini embedding remains a transient shared proxy; the
 Mac owns the resulting vectors. S-22 may replace provider routing, S-23 owns
 remaining hosted conversation internals, and S-24/S-25 own their separately
 listed cloud-state and operational teardown boundaries.
+
+### Payment activation checkpoint
+
+No payment feature is currently live. The MVP stays free through all six waves,
+with `BILLING_MODE=disabled`, no purchasable catalog, **Skip** as the usage-limit
+action, no entitlement grant, and zero Dodo or Stripe calls. The permanent
+operator handoff is [`bootstrap-scaffold/dodo-integration.md`](bootstrap-scaffold/dodo-integration.md).
+
+- [x] Free MVP and disabled billing checkpoint are the current repository state.
+- [x] Wave 3 may consume this repository checkpoint without activating payments.
+- [x] Checkout, webhook, portal, plan-change, cancellation, quota/fair-use, and
+  account-deletion behavior remain retained behind the disabled boundary.
+- [ ] After Wave 6, run the complete Dodo test-mode E2E and preserve evidence.
+- [ ] Obtain separate authorization before configuring live Dodo resources.
+- [ ] Mark S-18 complete only after the bounded live transaction, cancellation,
+  monitoring, cleanup, and rollback proof pass.

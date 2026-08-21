@@ -36,6 +36,7 @@ covers:
   - desktop/macos/Desktop/Sources/MainWindow/DesktopHomeView.swift
   - desktop/macos/Desktop/Sources/MainWindow/Components/OmiMarkdown.swift
   - desktop/macos/Desktop/Sources/Providers/ChatProvider.swift
+  - desktop/macos/Desktop/Sources/Providers/ChatProvider+QuerySurface.swift
   - desktop/macos/Desktop/Sources/Providers/ChatProvider+HarnessReset.swift
   - desktop/macos/Desktop/Sources/Services/APIClient/APIClient+ChatCompute.swift
   - desktop/macos/Desktop/Sources/Chat/LocalChatAttachmentStore.swift

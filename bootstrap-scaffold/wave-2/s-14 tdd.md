@@ -842,3 +842,17 @@ Do not guess scheduler names or Secret Manager resources from repository labels.
 - [ ] `PRODUCT.md`, component `AGENTS.md` guidance, generated docs/contracts, and one desktop changelog fragment moved with behavior.
 - [ ] Repository closure and live operational closure are reported separately; no live destructive action is implied by a green repository PR.
 - [ ] Final `git status --short` and diff review prove the implementation PR contains intentional S-14 files only; for this planning task, only `bootstrap-scaffold/wave-2/s-14 tdd.md` was modified.
+
+## 19. Wave 2 closeout status — 2026-08-21
+
+**Repository status: complete for the Wave 3 dependency.** The unnumbered
+[`wave-2-closeout tdd.md`](wave-2-closeout%20tdd.md) makes Focus commit before
+publication, resets every proactive assistant on an owner transition, and retires
+`proactive_extractions` through a forward migration. Migration fixtures preserve
+legacy memory, advice, and task data exactly once; current Chat discoverability
+uses canonical Memories, Tasks, and `tips` only.
+
+This status does not claim separately authorized live resource deletion. The
+original planning checklist remains the detailed historical contract; closeout
+evidence and inherited target-branch suite blockers are recorded in the closeout
+slice.

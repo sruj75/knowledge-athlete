@@ -347,6 +347,33 @@ actor GeminiClient {
     return try await authService.getAuthHeader()
   }
 
+  private func authorizedAuthHeader(
+    _ authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot?
+  ) async throws -> String {
+    if let authorizationSnapshot,
+      !RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
+    {
+      throw LocalMutationAuthorizationError.revoked
+    }
+    let header = try await authHeader()
+    if let authorizationSnapshot,
+      !RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
+    {
+      throw LocalMutationAuthorizationError.revoked
+    }
+    return header
+  }
+
+  private func requireCurrentAuthorization(
+    _ authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot?
+  ) throws {
+    if let authorizationSnapshot,
+      !RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
+    {
+      throw LocalMutationAuthorizationError.revoked
+    }
+  }
+
   /// Build proxy URL for a Gemini model action. Pass `modelOverride` to use a model
   /// other than the instance default (e.g. the fallback model).
   private func proxyURL(action: String, modelOverride: String? = nil) -> URL {
@@ -479,7 +506,8 @@ actor GeminiClient {
     imageData: Data,
     systemPrompt: String,
     responseSchema: GeminiRequest.GenerationConfig.ResponseSchema,
-    thinkingBudget: Int = 0
+    thinkingBudget: Int = 0,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot? = nil
   ) async throws -> String {
     let maxRetries = 2
     var lastError: Error?
@@ -517,11 +545,14 @@ actor GeminiClient {
         var urlRequest = URLRequest(url: url)
         urlRequest.httpMethod = "POST"
         urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        urlRequest.setValue(try await authHeader(), forHTTPHeaderField: "Authorization")
+        urlRequest.setValue(
+          try await authorizedAuthHeader(authorizationSnapshot),
+          forHTTPHeaderField: "Authorization")
         urlRequest.timeoutInterval = 300
         urlRequest.httpBody = requestBody
 
         let (data, urlResponse) = try await URLSession.shared.data(for: urlRequest)
+        try requireCurrentAuthorization(authorizationSnapshot)
         try checkHTTPStatus(urlResponse, data: data)
 
         let response = try JSONDecoder().decode(GeminiResponse.self, from: data)
@@ -565,7 +596,8 @@ actor GeminiClient {
     systemPrompt: String,
     maxRetries: Int = 2,
     timeout: TimeInterval = 300,
-    thinkingBudget: Int = 0
+    thinkingBudget: Int = 0,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot? = nil
   ) async throws -> String {
     var lastError: Error?
 
@@ -592,11 +624,14 @@ actor GeminiClient {
         var urlRequest = URLRequest(url: url)
         urlRequest.httpMethod = "POST"
         urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        urlRequest.setValue(try await authHeader(), forHTTPHeaderField: "Authorization")
+        urlRequest.setValue(
+          try await authorizedAuthHeader(authorizationSnapshot),
+          forHTTPHeaderField: "Authorization")
         urlRequest.timeoutInterval = timeout
         urlRequest.httpBody = try JSONEncoder().encode(request)
 
         let (data, urlResponse) = try await URLSession.shared.data(for: urlRequest)
+        try requireCurrentAuthorization(authorizationSnapshot)
         try checkHTTPStatus(urlResponse, data: data)
 
         let response = try JSONDecoder().decode(GeminiResponse.self, from: data)
@@ -636,7 +671,8 @@ actor GeminiClient {
     prompt: String,
     systemPrompt: String,
     responseSchema: GeminiRequest.GenerationConfig.ResponseSchema,
-    thinkingBudget: Int = 0
+    thinkingBudget: Int = 0,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot? = nil
   ) async throws -> String {
     let maxRetries = 2
     var lastError: Error?
@@ -664,11 +700,14 @@ actor GeminiClient {
         var urlRequest = URLRequest(url: url)
         urlRequest.httpMethod = "POST"
         urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        urlRequest.setValue(try await authHeader(), forHTTPHeaderField: "Authorization")
+        urlRequest.setValue(
+          try await authorizedAuthHeader(authorizationSnapshot),
+          forHTTPHeaderField: "Authorization")
         urlRequest.timeoutInterval = 300
         urlRequest.httpBody = try JSONEncoder().encode(request)
 
         let (data, urlResponse) = try await URLSession.shared.data(for: urlRequest)
+        try requireCurrentAuthorization(authorizationSnapshot)
         try checkHTTPStatus(urlResponse, data: data)
 
         let response = try JSONDecoder().decode(GeminiResponse.self, from: data)
@@ -926,7 +965,8 @@ extension GeminiClient {
     systemPrompt: String,
     tools: [GeminiTool],
     forceToolCall: Bool = false,
-    thinkingBudget: Int = 0
+    thinkingBudget: Int = 0,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot? = nil
   ) async throws -> ToolChatResult {
     // Try the primary model first; if it keeps failing transiently, fall back to the
     // secondary model (e.g. Pro overloaded → Flash) before giving up.
@@ -969,11 +1009,14 @@ extension GeminiClient {
           var urlRequest = URLRequest(url: url)
           urlRequest.httpMethod = "POST"
           urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
-          urlRequest.setValue(try await authHeader(), forHTTPHeaderField: "Authorization")
+          urlRequest.setValue(
+            try await authorizedAuthHeader(authorizationSnapshot),
+            forHTTPHeaderField: "Authorization")
           urlRequest.timeoutInterval = 300
           urlRequest.httpBody = requestBody
 
           let (data, urlResponse) = try await URLSession.shared.data(for: urlRequest)
+          try requireCurrentAuthorization(authorizationSnapshot)
           try checkHTTPStatus(urlResponse, data: data)
 
           let response = try JSONDecoder().decode(GeminiToolResponse.self, from: data)

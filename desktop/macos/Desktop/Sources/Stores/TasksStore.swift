@@ -701,7 +701,8 @@ final class TasksStore: ObservableObject {
     guard isCurrent(lease) else { return }
     let result = await reminderService.reconcile(
       tasks: authoritative,
-      ownerID: lease.ownerID
+      ownerID: lease.ownerID,
+      authorizationSnapshot: lease.authorizationSnapshot
     )
     guard isCurrent(lease) else { return }
     reminderError = result.errorDescription
@@ -712,7 +713,7 @@ final class TasksStore: ObservableObject {
 
   private func reconcileCurrentOwnerReminders(removeOtherOwners: Bool) async {
     guard let lease = captureLease() else {
-      await reminderService.removeAllTaskReminders()
+      await reminderService.removeAllTaskRemindersWhileSignedOut()
       return
     }
     let authoritative =
@@ -724,6 +725,7 @@ final class TasksStore: ObservableObject {
     let result = await reminderService.reconcile(
       tasks: authoritative,
       ownerID: lease.ownerID,
+      authorizationSnapshot: lease.authorizationSnapshot,
       removeOtherOwners: removeOtherOwners
     )
     guard isCurrent(lease) else { return }

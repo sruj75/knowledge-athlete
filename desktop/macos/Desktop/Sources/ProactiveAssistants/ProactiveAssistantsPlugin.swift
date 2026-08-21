@@ -5,14 +5,10 @@ import CoreGraphics
 /// Service that manages proactive assistants - screen monitoring, frame capture, and assistant coordination
 @MainActor
 public class ProactiveAssistantsPlugin: NSObject {
-
   // MARK: - Singleton
-
   /// Shared instance
   public static let shared = ProactiveAssistantsPlugin()
-
   // MARK: - Properties
-
   private var screenCaptureService: ScreenCaptureService?
   private var windowMonitor: WindowMonitor?
   private var focusAssistant: FocusAssistant?
@@ -24,8 +20,8 @@ public class ProactiveAssistantsPlugin: NSObject {
   private var memoryAssistant: MemoryAssistant?
   private var suggestionAssistant: SuggestionAssistant?
   private var captureTimer: Timer?
-  private var analysisDelayTimer: Timer?
-  private var isInDelayPeriod = false
+  var analysisDelayTimer: Timer?
+  var isInDelayPeriod = false
 
   private(set) var isMonitoring = false
   private var isStartingMonitoring = false  // Prevents race condition with async startMonitoring
@@ -45,7 +41,8 @@ public class ProactiveAssistantsPlugin: NSObject {
 
   // Backpressure: prevents unbounded CGImage accumulation (~24MB each) when video
   // encoding is slower than the capture rate — the primary cause of multi-GB memory growth.
-  private(set) var isProcessingRewindFrame = false
+  var isProcessingRewindFrame = false
+  var rewindFrameAuthorization: RuntimeOwnerAuthorizationSnapshot?
   private(set) var droppedFrameCount = 0
 
   /// Periodic screen recording permission recheck interval (60 seconds).
@@ -77,9 +74,9 @@ public class ProactiveAssistantsPlugin: NSObject {
 
   // Change-gated distribution: only distribute frames to assistants when context changes.
   // Eliminates continuous polling when the user stays on the same app/window.
-  private var distributionGate = ProactiveFrameDistributionGate()
-  private var distributionDebounceTimer: Timer?
-  private var latestCapturedFrame: CapturedFrame?
+  var distributionGate = ProactiveFrameDistributionGate()
+  var distributionDebounceTimer: Timer?
+  var latestCapturedFrame: OwnerBoundCapturedFrame?
   /// Fallback interval: re-distribute even without context change to catch visual-only updates.
   private let distributionFallbackInterval: TimeInterval = 60
   private let messagingDistributionFallbackInterval: TimeInterval = 15
@@ -175,6 +172,9 @@ public class ProactiveAssistantsPlugin: NSObject {
     // Set up the coordinator event callback
     AssistantCoordinator.shared.setEventCallback { [weak self] type, data in
       self?.sendEvent(type: type, data: data)
+    }
+    AssistantCoordinator.shared.setOwnerChangeResetCallback { [weak self] in
+      self?.resetOwnerBoundDistributionState()
     }
 
     // Set up system event observers for sleep/wake/lock recovery
@@ -325,18 +325,6 @@ public class ProactiveAssistantsPlugin: NSObject {
     }
   }
 
-  /// Repair LaunchServices registration when notification authorization fails with "not allowed".
-  /// The launch-disabled flag in LaunchServices prevents notification center registration.
-  /// Unregistering and re-registering clears the flag, then retries authorization.
-  static func repairNotificationRegistration() {
-    NotificationRegistrationRepair.repair(reason: "legacy_call_site", includeUnregister: true) { _ in
-      NotificationRegistrationRepair.requestAuthorizationRepairingLaunchServices(
-        reason: "legacy_call_site_retry",
-        previousStatus: "post_repair"
-      ) { _ in }
-    }
-  }
-
   private func continueStartMonitoring(completion: @escaping (Bool, String?) -> Void) {
     // Report resources before starting heavy monitoring
     ResourceMonitor.shared.reportResourcesNow(context: "before_monitoring_start")
@@ -346,24 +334,28 @@ public class ProactiveAssistantsPlugin: NSObject {
 
     do {
       focusAssistant = try FocusAssistant(
-        onAlert: { [weak self] message in
+        onAlert: { [weak self] message, authorizationSnapshot in
           Task { @MainActor in
+            guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
             self?.sendEvent(type: "alert", data: ["message": message])
           }
         },
-        onStatusChange: { [weak self] status in
+        onStatusChange: { [weak self] status, authorizationSnapshot in
           Task { @MainActor in
+            guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
             self?.lastStatus = status
             self?.sendEvent(type: "statusChange", data: ["status": status.rawValue])
           }
         },
-        onRefocus: {
+        onRefocus: { authorizationSnapshot in
           Task { @MainActor in
+            guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
             OverlayService.shared.showGlowAroundActiveWindow(colorMode: .focused)
           }
         },
-        onDistraction: {
+        onDistraction: { authorizationSnapshot in
           Task { @MainActor in
+            guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
             OverlayService.shared.showGlowAroundActiveWindow(colorMode: .distracted)
           }
         }
@@ -407,11 +399,15 @@ public class ProactiveAssistantsPlugin: NSObject {
 
     // Get initial app state
     let (appName, _, _) = WindowMonitor.getActiveWindowInfoStatic()
-    if let appName = appName {
+    if let appName = appName,
+      let authorizationSnapshot = RuntimeOwnerIdentity.captureAuthorizationSnapshot()
+    {
       currentApp = appName
       // Update FocusStorage with initial detected app
       FocusStorage.shared.updateDetectedApp(appName)
-      AssistantCoordinator.shared.notifyAppSwitch(newApp: appName)
+      AssistantCoordinator.shared.notifyAppSwitch(
+        newApp: appName,
+        authorizationSnapshot: authorizationSnapshot)
     }
 
     // Start window monitor
@@ -559,6 +555,7 @@ public class ProactiveAssistantsPlugin: NSObject {
     isMonitoring = false
     isStartingMonitoring = false  // Reset in case stop was called during startup
     isProcessingRewindFrame = false
+    rewindFrameAuthorization = nil
     if droppedFrameCount > 0 {
       log("RewindBackpressure: Session total dropped frames: \(droppedFrameCount)")
     }
@@ -642,13 +639,8 @@ public class ProactiveAssistantsPlugin: NSObject {
 
   // MARK: - Frame Capture
 
-  /// Seconds since the last HID (keyboard/mouse) event. Used to pause capture
-  /// when the user is away from the machine without polling the screen.
-  private func systemIdleSeconds() -> TimeInterval {
-    TimeInterval(CGEventSource.secondsSinceLastEventType(.hidSystemState, eventType: .null))
-  }
-
   private func onAppActivated(appName: String) {
+    guard let authorizationSnapshot = RuntimeOwnerIdentity.captureAuthorizationSnapshot() else { return }
     guard appName != currentApp else { return }
     currentApp = appName
     currentAppBundleID = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
@@ -660,7 +652,9 @@ public class ProactiveAssistantsPlugin: NSObject {
     FocusStorage.shared.updateDetectedApp(appName)
 
     // Notify all assistants
-    AssistantCoordinator.shared.notifyAppSwitch(newApp: appName)
+    AssistantCoordinator.shared.notifyAppSwitch(
+      newApp: appName,
+      authorizationSnapshot: authorizationSnapshot)
 
     sendEvent(type: "appSwitch", data: ["app": appName])
 
@@ -671,23 +665,10 @@ public class ProactiveAssistantsPlugin: NSObject {
     analysisDelayTimer = nil
 
     if delaySeconds > 0 {
-      isInDelayPeriod = true
-      AssistantCoordinator.shared.clearAllPendingWork()
-      log("App switch detected, starting \(delaySeconds)s analysis delay")
-
-      // Update FocusStorage with delay end time
-      let delayEndTime = Date().addingTimeInterval(TimeInterval(delaySeconds))
-      FocusStorage.shared.updateDelayEndTime(delayEndTime)
-
-      analysisDelayTimer = Timer.scheduledTimer(withTimeInterval: TimeInterval(delaySeconds), repeats: false) {
-        [weak self] _ in
-        Task { @MainActor in
-          self?.isInDelayPeriod = false
-          self?.analysisDelayTimer = nil
-          FocusStorage.shared.updateDelayEndTime(nil)
-          log("Analysis delay ended, resuming frame processing")
-        }
-      }
+      beginAnalysisDelay(
+        seconds: delaySeconds,
+        reason: "App switch detected",
+        authorizationSnapshot: authorizationSnapshot)
     } else {
       isInDelayPeriod = false
       FocusStorage.shared.updateDelayEndTime(nil)
@@ -709,6 +690,7 @@ public class ProactiveAssistantsPlugin: NSObject {
 
   private func captureFrame() async {
     guard isMonitoring, let screenCaptureService = screenCaptureService else { return }
+    guard let authorizationSnapshot = RuntimeOwnerIdentity.captureAuthorizationSnapshot() else { return }
 
     // Periodic screen recording permission recheck (issue #5792).
     // Detects when the user revokes permission via System Settings while monitoring is active,
@@ -760,6 +742,7 @@ public class ProactiveAssistantsPlugin: NSObject {
 
     // Get current window info (use real app name, not cached)
     let (realAppName, windowTitle, windowID) = await WindowMonitor.getActiveWindowInfoAsync()
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
     guard !ScreenCaptureTargetPolicy.shouldWaitForUserWindow(appName: realAppName) else { return }
 
     guard let windowID else {
@@ -795,28 +778,16 @@ public class ProactiveAssistantsPlugin: NSObject {
     if let appForCheck = realAppName ?? currentApp {
       let switched = AssistantCoordinator.shared.checkContextSwitch(
         newApp: appForCheck,
-        newWindowTitle: windowTitle
+        newWindowTitle: windowTitle,
+        authorizationSnapshot: authorizationSnapshot
       )
       if switched && !isInDelayPeriod {
         let delaySeconds = AssistantSettings.shared.analysisDelay
         if delaySeconds > 0 {
-          isInDelayPeriod = true
-          AssistantCoordinator.shared.clearAllPendingWork()
-          log("Context switch detected, starting \(delaySeconds)s analysis delay")
-
-          analysisDelayTimer?.invalidate()
-          let delayEndTime = Date().addingTimeInterval(TimeInterval(delaySeconds))
-          FocusStorage.shared.updateDelayEndTime(delayEndTime)
-
-          analysisDelayTimer = Timer.scheduledTimer(withTimeInterval: TimeInterval(delaySeconds), repeats: false) {
-            [weak self] _ in
-            Task { @MainActor in
-              self?.isInDelayPeriod = false
-              self?.analysisDelayTimer = nil
-              FocusStorage.shared.updateDelayEndTime(nil)
-              log("Analysis delay ended, resuming frame processing")
-            }
-          }
+          beginAnalysisDelay(
+            seconds: delaySeconds,
+            reason: "Context switch detected",
+            authorizationSnapshot: authorizationSnapshot)
         }
       }
     }
@@ -884,14 +855,17 @@ public class ProactiveAssistantsPlugin: NSObject {
       // from a second getActiveWindowInfoAsync() call inside captureActiveWindowCGImage().
       var cgImage: CGImage? = nil
       var captureResult = await screenCaptureService.captureWindowCGImage(windowID: windowID)
+      guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
       if case .windowGone = captureResult {
         // The target disappeared or ScreenCaptureKit does not expose it. Retry
         // once after a fresh resolution, then treat a second unavailable target
         // as a normal paused tick rather than an engine failure.
         captureResult = await screenCaptureService.captureActiveWindowCGImage()
+        guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
         // Privacy: re-resolve app name since captureActiveWindowCGImage captures
         // whatever is currently active, which may differ from the earlier resolution.
         let (fallbackApp, fallbackTitle, _) = await WindowMonitor.getActiveWindowInfoAsync()
+        guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
         if let fallbackApp = fallbackApp {
           appName = fallbackApp
           currentWindowTitle = fallbackTitle
@@ -939,12 +913,18 @@ public class ProactiveAssistantsPlugin: NSObject {
             frameNumber: frameCount,
             captureTime: captureTime
           )
-          AssistantCoordinator.shared.trackFrame(frame)
+          AssistantCoordinator.shared.trackFrame(
+            frame,
+            authorizationSnapshot: authorizationSnapshot)
           if !isInDelayPeriod {
-            distributeFrameIfChanged(frame)
+            distributeFrameIfChanged(
+              frame,
+              authorizationSnapshot: authorizationSnapshot)
           } else {
             // During delay, still distribute to assistants that need it (e.g. refocus detection)
-            AssistantCoordinator.shared.distributeFrameDuringDelay(frame)
+            AssistantCoordinator.shared.distributeFrameDuringDelay(
+              frame,
+              authorizationSnapshot: authorizationSnapshot)
           }
         }
 
@@ -960,16 +940,20 @@ public class ProactiveAssistantsPlugin: NSObject {
             }
           } else {
             isProcessingRewindFrame = true
+            rewindFrameAuthorization = authorizationSnapshot
             let windowTitle = self.currentWindowTitle
             Task { [weak self] in
               await RewindIndexer.shared.processFrame(
                 cgImage: cgImage,
                 appName: appName,
                 windowTitle: windowTitle,
-                captureTime: captureTime
+                captureTime: captureTime,
+                authorizationSnapshot: authorizationSnapshot
               )
               await MainActor.run {
+                guard self?.rewindFrameAuthorization == authorizationSnapshot else { return }
                 self?.isProcessingRewindFrame = false
+                self?.rewindFrameAuthorization = nil
               }
             }
           }
@@ -981,11 +965,13 @@ public class ProactiveAssistantsPlugin: NSObject {
     } else if let jpegData = await screenCaptureService.captureActiveWindowAsync(),
       let appName = appName
     {
+      guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
       // macOS 13.x fallback: existing JPEG-based path
       // Privacy: re-resolve app name since captureActiveWindowAsync captures
       // whatever is currently active, which may differ from the earlier resolution.
       var resolvedApp = appName
       let (freshApp, freshTitle, _) = await WindowMonitor.getActiveWindowInfoAsync()
+      guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
       if let freshApp = freshApp {
         resolvedApp = freshApp
         currentWindowTitle = freshTitle
@@ -1018,12 +1004,18 @@ public class ProactiveAssistantsPlugin: NSObject {
         log("PrivacyGate: Blocked frame from Rewind-excluded app '\(resolvedApp)' — not sent to assistants")
       }
       if !isRewindExcluded {
-        AssistantCoordinator.shared.trackFrame(frame)
+        AssistantCoordinator.shared.trackFrame(
+          frame,
+          authorizationSnapshot: authorizationSnapshot)
         if !isInDelayPeriod {
-          distributeFrameIfChanged(frame)
+          distributeFrameIfChanged(
+            frame,
+            authorizationSnapshot: authorizationSnapshot)
         } else {
           // During delay, still distribute to assistants that need it (e.g. refocus detection)
-          AssistantCoordinator.shared.distributeFrameDuringDelay(frame)
+          AssistantCoordinator.shared.distributeFrameDuringDelay(
+            frame,
+            authorizationSnapshot: authorizationSnapshot)
         }
       }
 
@@ -1035,10 +1027,15 @@ public class ProactiveAssistantsPlugin: NSObject {
           }
         } else {
           isProcessingRewindFrame = true
+          rewindFrameAuthorization = authorizationSnapshot
           Task { [weak self] in
-            await RewindIndexer.shared.processFrame(frame)
+            await RewindIndexer.shared.processFrame(
+              frame,
+              authorizationSnapshot: authorizationSnapshot)
             await MainActor.run {
+              guard self?.rewindFrameAuthorization == authorizationSnapshot else { return }
               self?.isProcessingRewindFrame = false
+              self?.rewindFrameAuthorization = nil
             }
           }
         }
@@ -1048,13 +1045,17 @@ public class ProactiveAssistantsPlugin: NSObject {
     }
   }
 
-  // MARK: - Change-Gated Distribution
-
   /// Distribute a frame to assistants only when context changed (app or window title),
   /// with a 3-second debounce to let rapid switches settle, and a 60-second fallback
   /// for periodic re-analysis within the same context.
-  private func distributeFrameIfChanged(_ frame: CapturedFrame) {
-    latestCapturedFrame = frame
+  private func distributeFrameIfChanged(
+    _ frame: CapturedFrame,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) {
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
+    latestCapturedFrame = OwnerBoundCapturedFrame(
+      frame: frame,
+      authorizationSnapshot: authorizationSnapshot)
 
     let now = Date()
     switch distributionGate.nextAction(
@@ -1083,7 +1084,13 @@ public class ProactiveAssistantsPlugin: NSObject {
 
   /// Flush the latest captured frame to all assistants (called when debounce timer fires or fallback is due).
   private func flushDebouncedFrame() {
-    guard let frame = latestCapturedFrame else { return }
+    guard let ownerBoundFrame = latestCapturedFrame,
+      RuntimeOwnerIdentity.isAuthorizationCurrent(ownerBoundFrame.authorizationSnapshot)
+    else {
+      resetOwnerBoundDistributionState()
+      return
+    }
+    let frame = ownerBoundFrame.frame
 
     distributionGate.markFlushed(
       frameApp: frame.appName,
@@ -1092,34 +1099,9 @@ public class ProactiveAssistantsPlugin: NSObject {
     )
     distributionDebounceTimer = nil
 
-    AssistantCoordinator.shared.distributeFrame(frame)
-  }
-
-  // MARK: - Event Broadcasting
-
-  private func sendEvent(type: String, data: [String: Any]) {
-    var event = data
-    event["type"] = type
-    event["timestamp"] = ISO8601DateFormatter().string(from: Date())
-
-    // Post notification for any listeners
-    NotificationCenter.default.post(
-      name: .assistantEvent,
-      object: nil,
-      userInfo: event
-    )
-  }
-
-  // MARK: - Utility Methods
-
-  /// Open screen recording preferences
-  public func openScreenRecordingPreferences() {
-    ScreenCaptureService.openScreenRecordingPreferences()
-  }
-
-  /// Trigger glow effect manually (for testing)
-  func triggerGlow(colorMode: GlowColorMode = .focused) {
-    OverlayService.shared.showGlowAroundActiveWindow(colorMode: colorMode)
+    AssistantCoordinator.shared.distributeFrame(
+      frame,
+      authorizationSnapshot: ownerBoundFrame.authorizationSnapshot)
   }
 
   // MARK: - CLI Test Triggers

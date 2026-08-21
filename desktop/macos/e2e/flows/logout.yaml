@@ -8,6 +8,9 @@ covers:
   - desktop/macos/Desktop/Sources/Auth/FirebaseAuthAvailability.swift
   - desktop/macos/Desktop/Sources/AuthService.swift
   - desktop/macos/Desktop/Sources/Chat/RuntimeOwnerIdentity.swift
+  - desktop/macos/Desktop/Sources/Rewind/Core/RewindDatabase+OwnerAuthorization.swift
+  - desktop/macos/Desktop/Sources/Services/LocalMutationAuthorization.swift
+  - desktop/macos/Desktop/Sources/ProactiveAssistants/Core/AssistantProtocol.swift
   - desktop/macos/Desktop/Sources/Auth/ExplicitSignOutAction.swift
   - desktop/macos/Desktop/Sources/OmiApp.swift
   - desktop/macos/Desktop/Sources/SignInView.swift

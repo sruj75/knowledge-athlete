@@ -463,11 +463,6 @@ class TestRouterWiring(unittest.TestCase):
         matches = self._grep_file("routers/chat.py", r"with_rate_limit.*file:upload")
         self.assertEqual(len(matches), 1, f"chat.py expected the retained v1 file:upload limit, got {len(matches)}")
 
-    def test_goals_router_has_rate_limits(self):
-        matches = self._grep_file("routers/goals.py", r"with_rate_limit.*goals:")
-        # suggest, advice(x2), extract = 4
-        self.assertEqual(len(matches), 4, f"goals.py expected 4 rate limits, got {len(matches)}")
-
     def test_wrapped_router_has_rate_limit(self):
         matches = self._grep_file("routers/wrapped.py", r"with_rate_limit.*wrapped:")
         self.assertGreaterEqual(len(matches), 1, "wrapped.py missing rate limit wiring")

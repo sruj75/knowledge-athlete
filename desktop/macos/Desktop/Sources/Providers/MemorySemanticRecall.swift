@@ -17,6 +17,7 @@ actor MemorySemanticRecall {
     }
     return try await MemoryStorage.shared.semanticMatches(
       queryVector: queryVector.map(Double.init),
-      limit: max(1, min(limit, 20)))
+      limit: max(1, min(limit, 20)),
+      authorizationSnapshot: authorizationSnapshot)
   }
 }

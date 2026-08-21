@@ -8,6 +8,8 @@ covers:
   - desktop/macos/Desktop/Sources/MainWindow/Pages/TaskDetailViews.swift
   - desktop/macos/Desktop/Sources/Stores/TasksStore.swift
   - desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/TaskExtraction/TaskAssistant.swift
+  - desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/TaskExtraction/TaskAssistant+DueDates.swift
+  - desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/TaskExtraction/TaskAssistant+OwnerAuthorization.swift
   - desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/TaskExtraction/TaskAssistantSettings.swift
   - desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/TaskExtraction/TaskModels.swift
   - desktop/macos/Desktop/Sources/ProactiveAssistants/Core/AssistantCoordinator.swift

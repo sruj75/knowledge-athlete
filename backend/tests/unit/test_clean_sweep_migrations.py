@@ -111,14 +111,6 @@ class TestLocationHttpxMigration:
 # Round 3: threading.Thread → executor and more requests → httpx
 
 
-class TestActionItemsExecutorMigration:
-    """Verify retained action-item routes do not spawn bare threads."""
-
-    def test_no_threading_thread(self):
-        src = _read_source('routers/action_items.py')
-        assert 'threading.Thread' not in src
-
-
 class TestChatExecutorMigration:
     """Verify the retained chat router uses the shared rate-limit executor."""
 
