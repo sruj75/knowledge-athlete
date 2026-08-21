@@ -50,7 +50,7 @@ private actor MemoryEmbeddingStub: MemoryEmbeddingComputing {
   func embedBatch(
     texts: [String],
     taskType: String?,
-    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot?
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
   ) async throws -> [[Float]] {
     batches.append(texts)
     return texts.map { _ in [1, 0] }
@@ -376,6 +376,9 @@ final class LocalMemoryLifecycleRunnerTests: XCTestCase {
   }
 
   func testRunnerBatchEmbedsCurrentRevisionsBeforeSearch() async throws {
+    let ownerFixture = RuntimeOwnerAuthorityTestFixture()
+    await ownerFixture.establish(authOwnerID: "memory-lifecycle-embedding-owner")
+    defer { Task { await ownerFixture.restore() } }
     let memory = try await MemoryStorage.shared.acceptAssertion(
       MemoryAssertion(content: "Prefers unusual single-origin coffee", layer: .longTerm))
     let embedder = MemoryEmbeddingStub()
@@ -384,7 +387,7 @@ final class LocalMemoryLifecycleRunnerTests: XCTestCase {
       conversations: .shared,
       computer: MemoryComputeStub(),
       embedder: embedder,
-      requiresOwnerAuthorization: false)
+      requiresOwnerAuthorization: true)
 
     let report = await runner.runOnce()
     let matches = try await MemoryStorage.shared.semanticSearch(queryVector: [1, 0])

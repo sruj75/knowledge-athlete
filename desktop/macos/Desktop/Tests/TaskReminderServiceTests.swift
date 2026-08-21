@@ -9,8 +9,10 @@ private final class FakeTaskReminderNotifications: TaskReminderNotificationBound
   var requests: [String: UNNotificationRequest] = [:]
   var removedBatches: [[String]] = []
   var addError: String?
+  var addGate: TaskReminderAddGate?
 
   func add(_ request: UNNotificationRequest) async -> UserNotificationDeliveryResult {
+    if let addGate { await addGate.enterAndWait() }
     if addError == nil { requests[request.identifier] = request }
     return UserNotificationDeliveryResult(errorDescription: addError)
   }
@@ -39,24 +41,31 @@ final class TaskReminderServiceTests: XCTestCase {
   private let now = Date(timeIntervalSince1970: 1_800_000_000)
   private var fixture: RewindStorageTestIsolation.Fixture?
   private var authSnapshot: RewindStorageTestIsolation.AuthSnapshot?
+  private var ownerFixture: RuntimeOwnerAuthorityTestFixture!
 
   override func setUp() async throws {
     authSnapshot = RewindStorageTestIsolation.captureAuthSnapshot()
     fixture = try await RewindStorageTestIsolation.setUp(userIdPrefix: "task-reminder")
     RewindStorageTestIsolation.signInForTests(userId: try XCTUnwrap(fixture?.testUserId))
+    ownerFixture = RuntimeOwnerAuthorityTestFixture()
+    await ownerFixture.establish(authOwnerID: try XCTUnwrap(fixture?.testUserId))
   }
 
   override func tearDown() async throws {
+    await ownerFixture.restore()
+    ownerFixture = nil
     if let authSnapshot { RewindStorageTestIsolation.restoreAuthSnapshot(authSnapshot) }
     authSnapshot = nil
     await RewindStorageTestIsolation.tearDown(userDir: fixture?.userDir)
     fixture = nil
   }
 
-  func testOwnerReconcileRemovesStaleRequestsAndSchedulesOnlyAuthoritativeFutureTasks() async {
+  func testOwnerReconcileRemovesStaleRequestsAndSchedulesOnlyAuthoritativeFutureTasks() async throws {
     let notifications = FakeTaskReminderNotifications()
     let service = TaskReminderService(notifications: notifications, now: { self.now })
-    let ownerID = "owner-a@example.com"
+    let ownerID = try XCTUnwrap(fixture?.testUserId)
+    let authorizationSnapshot = try XCTUnwrap(
+      RuntimeOwnerIdentity.captureAuthorizationSnapshot(expectedOwnerID: ownerID))
     let wantedID = TaskReminderService.requestIdentifier(ownerID: ownerID, taskID: "local_7")
     let staleSameOwner = TaskReminderService.requestIdentifier(ownerID: ownerID, taskID: "local_8")
     let staleOtherOwner = TaskReminderService.requestIdentifier(ownerID: "owner-b", taskID: "local_9")
@@ -71,6 +80,7 @@ final class TaskReminderServiceTests: XCTestCase {
         task(id: "local_11", completed: true, dueAt: now.addingTimeInterval(3_600)),
       ],
       ownerID: ownerID,
+      authorizationSnapshot: authorizationSnapshot,
       removeOtherOwners: true
     )
 
@@ -83,38 +93,51 @@ final class TaskReminderServiceTests: XCTestCase {
     XCTAssertFalse(wantedID.contains(ownerID))
   }
 
-  func testCompletionDeadlineRemovalAndDeleteCancelExactLocalIdentifier() async {
+  func testCompletionDeadlineRemovalAndDeleteCancelExactLocalIdentifier() async throws {
     let notifications = FakeTaskReminderNotifications()
     let service = TaskReminderService(notifications: notifications, now: { self.now })
-    let ownerID = "owner-a"
+    let ownerID = try XCTUnwrap(fixture?.testUserId)
+    let authorizationSnapshot = try XCTUnwrap(
+      RuntimeOwnerIdentity.captureAuthorizationSnapshot(expectedOwnerID: ownerID))
     let identifier = TaskReminderService.requestIdentifier(ownerID: ownerID, taskID: "local_4")
     notifications.seed(identifier: identifier)
 
     let completed = await service.schedule(
       task: task(id: "local_4", completed: true, dueAt: now.addingTimeInterval(100)),
-      ownerID: ownerID
+      ownerID: ownerID,
+      authorizationSnapshot: authorizationSnapshot
     )
     XCTAssertTrue(completed.succeeded)
     XCTAssertNil(notifications.requests[identifier])
 
     notifications.seed(identifier: identifier)
-    let noDeadline = await service.schedule(task: task(id: "local_4", dueAt: nil), ownerID: ownerID)
+    let noDeadline = await service.schedule(
+      task: task(id: "local_4", dueAt: nil),
+      ownerID: ownerID,
+      authorizationSnapshot: authorizationSnapshot)
     XCTAssertTrue(noDeadline.succeeded)
     XCTAssertNil(notifications.requests[identifier])
 
     notifications.seed(identifier: identifier)
-    service.cancel(taskID: "local_4", ownerID: ownerID)
+    service.cancel(
+      taskID: "local_4",
+      ownerID: ownerID,
+      authorizationSnapshot: authorizationSnapshot)
     XCTAssertNil(notifications.requests[identifier])
   }
 
-  func testSchedulingFailureIsReminderSpecific() async {
+  func testSchedulingFailureIsReminderSpecific() async throws {
     let notifications = FakeTaskReminderNotifications()
     notifications.addError = "notifications denied"
     let service = TaskReminderService(notifications: notifications, now: { self.now })
 
+    let ownerID = try XCTUnwrap(fixture?.testUserId)
+    let authorizationSnapshot = try XCTUnwrap(
+      RuntimeOwnerIdentity.captureAuthorizationSnapshot(expectedOwnerID: ownerID))
     let result = await service.schedule(
       task: task(id: "local_12", dueAt: now.addingTimeInterval(60)),
-      ownerID: "owner-a"
+      ownerID: ownerID,
+      authorizationSnapshot: authorizationSnapshot
     )
 
     XCTAssertEqual(result.errorDescription, "notifications denied")
@@ -140,6 +163,33 @@ final class TaskReminderServiceTests: XCTestCase {
     XCTAssertEqual(persisted?.description, "Committed without reminder")
   }
 
+  func testAddCompletingAfterSameUIDReauthenticationRemovesExactStaleRequest() async throws {
+    let notifications = FakeTaskReminderNotifications()
+    let gate = TaskReminderAddGate()
+    notifications.addGate = gate
+    let service = TaskReminderService(notifications: notifications, now: { self.now })
+    let ownerID = try XCTUnwrap(fixture?.testUserId)
+    let authorizationSnapshot = try XCTUnwrap(
+      RuntimeOwnerIdentity.captureAuthorizationSnapshot(expectedOwnerID: ownerID))
+    let task = task(id: "local_77", dueAt: now.addingTimeInterval(300))
+    let identifier = TaskReminderService.requestIdentifier(ownerID: ownerID, taskID: task.id)
+
+    let scheduling = Task {
+      await service.schedule(
+        task: task,
+        ownerID: ownerID,
+        authorizationSnapshot: authorizationSnapshot)
+    }
+    await gate.waitUntilEntered()
+    await ownerFixture.establish(authOwnerID: nil)
+    await ownerFixture.establish(authOwnerID: ownerID)
+    await gate.release()
+    _ = await scheduling.value
+
+    XCTAssertNil(notifications.requests[identifier])
+    XCTAssertTrue(notifications.removedBatches.contains([identifier]))
+  }
+
   private func task(
     id: String,
     completed: Bool = false,
@@ -153,5 +203,34 @@ final class TaskReminderServiceTests: XCTestCase {
       dueAt: dueAt,
       deleted: false
     )
+  }
+}
+
+private actor TaskReminderAddGate {
+  private var entered = false
+  private var released = false
+  private var enteredWaiters: [CheckedContinuation<Void, Never>] = []
+  private var releaseWaiters: [CheckedContinuation<Void, Never>] = []
+
+  func enterAndWait() async {
+    entered = true
+    let waiters = enteredWaiters
+    enteredWaiters.removeAll()
+    waiters.forEach { $0.resume() }
+    if !released {
+      await withCheckedContinuation { releaseWaiters.append($0) }
+    }
+  }
+
+  func waitUntilEntered() async {
+    if entered { return }
+    await withCheckedContinuation { enteredWaiters.append($0) }
+  }
+
+  func release() {
+    released = true
+    let waiters = releaseWaiters
+    releaseWaiters.removeAll()
+    waiters.forEach { $0.resume() }
   }
 }

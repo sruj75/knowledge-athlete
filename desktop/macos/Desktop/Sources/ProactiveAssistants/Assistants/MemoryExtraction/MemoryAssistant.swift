@@ -179,10 +179,10 @@ actor MemoryAssistant: ProactiveAssistant {
   func handleResult(_ result: AssistantResult, sendEvent: @escaping @Sendable (String, [String: Any]) -> Void) async {
     // This method is required by protocol but we use handleResultWithScreenshot instead
     guard let memoryResult = result as? MemoryExtractionResult else { return }
-    guard let ownerID = RuntimeOwnerIdentity.currentOwnerId() else { return }
+    guard let authorizationSnapshot = RuntimeOwnerIdentity.captureAuthorizationSnapshot() else { return }
     await handleResultWithScreenshot(
       memoryResult,
-      ownerID: ownerID,
+      authorizationSnapshot: authorizationSnapshot,
       screenshotId: nil,
       sendEvent: sendEvent
     )
@@ -191,21 +191,21 @@ actor MemoryAssistant: ProactiveAssistant {
   /// Handle result with screenshot ID for SQLite storage
   private func handleResultWithScreenshot(
     _ memoryResult: MemoryExtractionResult,
-    ownerID: String,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot,
     screenshotId: Int64?,
     windowTitle: String? = nil,
     sendEvent: @escaping (String, [String: Any]) -> Void
   ) async {
-    guard RuntimeOwnerIdentity.currentOwnerId() == ownerID else { return }
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
     // Check if AI found new memories
     guard memoryResult.hasNewMemory, !memoryResult.memories.isEmpty else {
-      await recordAnalysisOutcome(.noNewMemory, ownerID: ownerID)
+      await recordAnalysisOutcome(.noNewMemory, authorizationSnapshot: authorizationSnapshot)
       return
     }
 
     // Get min confidence threshold
     let threshold = await minConfidence
-    guard RuntimeOwnerIdentity.currentOwnerId() == ownerID else { return }
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
 
     // Only process the first memory (max 1 per analysis)
     guard let memory = memoryResult.memories.first else { return }
@@ -215,13 +215,17 @@ actor MemoryAssistant: ProactiveAssistant {
     // Check confidence threshold
     guard memory.confidence >= threshold else {
       log("Memory: [\(confidencePercent)% < \(Int(threshold * 100))%] Filtered: \"\(memory.content)\"")
-      await recordAnalysisOutcome(.filteredLowConfidence, confidence: memory.confidence, ownerID: ownerID)
+      await recordAnalysisOutcome(
+        .filteredLowConfidence,
+        confidence: memory.confidence,
+        authorizationSnapshot: authorizationSnapshot)
       return
     }
 
     log("Memory: [\(confidencePercent)% conf.] [\(memory.category.rawValue)] \"\(memory.content)\"")
 
     // Add to previous memories (keep last 20 for deduplication context)
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
     previousMemories.insert(memory, at: 0)
     if previousMemories.count > maxPreviousMemories {
       previousMemories.removeLast()
@@ -233,31 +237,31 @@ actor MemoryAssistant: ProactiveAssistant {
         screenshotId: screenshotId,
         contextSummary: memoryResult.contextSummary,
         windowTitle: windowTitle,
-        ownerID: ownerID
+        authorizationSnapshot: authorizationSnapshot
       ),
       confidence: memory.confidence
     )
-    guard RuntimeOwnerIdentity.currentOwnerId() == ownerID else { return }
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
     // A failed insert must never be reported as the historical extraction
     // success. The pipeline already recorded exactly
     // one closed analysis terminal (and historical success where appropriate).
     guard durability.shouldEmitMemoryExtracted else { return }
-    guard RuntimeOwnerIdentity.currentOwnerId() == ownerID else { return }
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
 
     // Send notification if enabled
     let notificationsEnabled = await MainActor.run {
       MemoryAssistantSettings.shared.notificationsEnabled
     }
-    guard RuntimeOwnerIdentity.currentOwnerId() == ownerID else { return }
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
     if notificationsEnabled {
       await sendMemoryNotification(
-        ownerID: ownerID,
+        authorizationSnapshot: authorizationSnapshot,
         memory: memory,
         result: memoryResult,
         windowTitle: windowTitle
       )
     }
-    guard RuntimeOwnerIdentity.currentOwnerId() == ownerID else { return }
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
 
     // Send event to Flutter
     sendEvent(
@@ -276,17 +280,17 @@ actor MemoryAssistant: ProactiveAssistant {
   private func recordAnalysisOutcome(
     _ outcome: MemoryAssistantTelemetry.AnalysisOutcome,
     confidence: Double? = nil,
-    ownerID: String
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
   ) async {
     await MainActor.run {
-      guard RuntimeOwnerIdentity.currentOwnerId() == ownerID else { return }
+      guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
       AnalyticsManager.shared.memoryAssistantAnalysisRun(outcome: outcome, confidence: confidence)
     }
   }
 
   /// Send a notification for the extracted memory
   private func sendMemoryNotification(
-    ownerID: String,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot,
     memory: ExtractedMemory,
     result: MemoryExtractionResult,
     windowTitle: String?
@@ -306,11 +310,12 @@ actor MemoryAssistant: ProactiveAssistant {
 
     await MainActor.run {
       NotificationService.shared.sendNotification(
-        ownerID: ownerID,
+        ownerID: authorizationSnapshot.ownerID,
         title: title,
         message: message,
         assistantId: identifier,
-        context: context
+        context: context,
+        authorizationSnapshot: authorizationSnapshot
       )
     }
   }
@@ -332,6 +337,13 @@ actor MemoryAssistant: ProactiveAssistant {
     log("Memory: Cleared pending frame")
   }
 
+  func resetForOwnerChange() async {
+    pendingFrame = nil
+    previousMemories.removeAll()
+    currentApp = nil
+    lastAnalysisTime = .distantPast
+  }
+
   func stop() async {
     isRunning = false
     frameSignalContinuation.finish()
@@ -342,8 +354,9 @@ actor MemoryAssistant: ProactiveAssistant {
   // MARK: - Analysis
 
   func processFrame(_ frame: CapturedFrame) async {
-    guard let ownerID = RuntimeOwnerIdentity.currentOwnerId() else { return }
+    guard let authorizationSnapshot = RuntimeOwnerIdentity.captureAuthorizationSnapshot() else { return }
     let enabled = await isEnabled
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
     guard enabled else {
       log("Memory: Skipping analysis (disabled)")
       return
@@ -351,11 +364,19 @@ actor MemoryAssistant: ProactiveAssistant {
 
     log("Memory: Analyzing frame from \(frame.appName)...")
     do {
-      guard let result = try await extractMemories(from: frame.jpegData, appName: frame.appName) else {
+      guard
+        let result = try await extractMemories(
+          from: frame.jpegData,
+          appName: frame.appName,
+          authorizationSnapshot: authorizationSnapshot)
+      else {
         log("Memory: Analysis returned no result")
-        await recordAnalysisOutcome(.analysisFailed, ownerID: ownerID)
+        await recordAnalysisOutcome(
+          .analysisFailed,
+          authorizationSnapshot: authorizationSnapshot)
         return
       }
+      guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
 
       log(
         "Memory: Analysis complete - hasNewMemory: \(result.hasNewMemory), count: \(result.memories.count), context: \(result.contextSummary)"
@@ -364,7 +385,7 @@ actor MemoryAssistant: ProactiveAssistant {
       // Handle the result with screenshot ID for SQLite storage
       await handleResultWithScreenshot(
         result,
-        ownerID: ownerID,
+        authorizationSnapshot: authorizationSnapshot,
         screenshotId: frame.screenshotId,
         windowTitle: frame.windowTitle
       ) { type, data in
@@ -374,12 +395,19 @@ actor MemoryAssistant: ProactiveAssistant {
         }
       }
     } catch {
+      guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
       logError("Memory extraction error", error: error)
-      await recordAnalysisOutcome(.analysisFailed, ownerID: ownerID)
+      await recordAnalysisOutcome(
+        .analysisFailed,
+        authorizationSnapshot: authorizationSnapshot)
     }
   }
 
-  private func extractMemories(from jpegData: Data, appName: String) async throws -> MemoryExtractionResult? {
+  private func extractMemories(
+    from jpegData: Data,
+    appName: String,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async throws -> MemoryExtractionResult? {
     if let extractionOverride {
       return try await extractionOverride(jpegData, appName)
     }
@@ -402,6 +430,9 @@ actor MemoryAssistant: ProactiveAssistant {
 
     // Get current system prompt from settings
     let currentSystemPrompt = await systemPrompt
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else {
+      throw LocalMutationAuthorizationError.revoked
+    }
 
     // Build response schema for memory extraction
     let memoryProperties: [String: GeminiRequest.GenerationConfig.ResponseSchema.Property] = [
@@ -434,7 +465,8 @@ actor MemoryAssistant: ProactiveAssistant {
       prompt: prompt,
       imageData: jpegData,
       systemPrompt: currentSystemPrompt,
-      responseSchema: responseSchema
+      responseSchema: responseSchema,
+      authorizationSnapshot: authorizationSnapshot
     )
 
     return try JSONDecoder().decode(MemoryExtractionResult.self, from: Data(responseText.utf8))

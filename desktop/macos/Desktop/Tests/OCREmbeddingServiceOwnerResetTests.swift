@@ -10,14 +10,21 @@ import XCTest
 /// so its 60s flush (or the next semantic search) wrote the previous owner's
 /// embeddings into the next owner's Rewind database. `reset()` must drop all
 /// queued owner-bound state at the transition boundary.
+@MainActor
 final class OCREmbeddingServiceOwnerResetTests: XCTestCase {
+  private var ownerFixture: RuntimeOwnerAuthorityTestFixture!
+
   override func setUp() async throws {
     try await super.setUp()
+    ownerFixture = RuntimeOwnerAuthorityTestFixture()
+    await ownerFixture.establish(authOwnerID: "ocr-embedding-owner")
     await OCREmbeddingService.shared.reset()
   }
 
   override func tearDown() async throws {
     await OCREmbeddingService.shared.reset()
+    await ownerFixture.restore()
+    ownerFixture = nil
     try await super.tearDown()
   }
 
@@ -69,7 +76,7 @@ final class OCREmbeddingServiceOwnerResetTests: XCTestCase {
     let writes = WriteSpy()
 
     let service = OCREmbeddingService(
-      batchEmbedderForTesting: { texts, _ in
+      batchEmbedderForTesting: { texts, _, _ in
         // Signal that the flush is now parked inside the embed await, then wait
         // until the test has run reset() before returning results.
         await flushSuspended.open()

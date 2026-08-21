@@ -8,7 +8,10 @@ private struct ActionSimilarityStub: ConversationTaskSimilarityProviding {
   let matches: [ConversationTaskSimilarityMatch]
   let fails: Bool
 
-  func similarActionItems(for transcript: String) async throws -> [ConversationTaskSimilarityMatch] {
+  func similarActionItems(
+    for transcript: String,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async throws -> [ConversationTaskSimilarityMatch] {
     if fails { throw APIError.invalidResponse }
     return matches
   }
@@ -34,7 +37,22 @@ private actor ActionComputerStub: ConversationActionItemsComputing {
   func lastRequest() -> ConversationActionItemsComputeRequest? { requests.last }
 }
 
+@MainActor
 final class ConversationActionItemEnrichmentTests: XCTestCase {
+  private var ownerFixture: RuntimeOwnerAuthorityTestFixture!
+
+  override func setUp() async throws {
+    try await super.setUp()
+    ownerFixture = RuntimeOwnerAuthorityTestFixture()
+    await ownerFixture.establish(authOwnerID: "conversation-enrichment-owner")
+  }
+
+  override func tearDown() async throws {
+    await ownerFixture.restore()
+    ownerFixture = nil
+    try await super.tearDown()
+  }
+
   func testRelatedContextKeepsOnlyOpenRecentUnrelatedActionItemsAboveThreshold() async throws {
     let owner = try makeActionOwner()
     defer { owner.cleanup() }
@@ -97,7 +115,6 @@ final class ConversationActionItemEnrichmentTests: XCTestCase {
       computer: computer,
       similarityProvider: ActionSimilarityStub(
         matches: [.init(localRowId: existing, similarity: 0.9)], fails: false),
-      requiresOwnerAuthorization: false,
       requestGeneration: { requestGeneration },
       now: { now })
 
@@ -134,7 +151,6 @@ final class ConversationActionItemEnrichmentTests: XCTestCase {
       storage: owner.storage,
       computer: computer,
       similarityProvider: ActionSimilarityStub(matches: [], fails: true),
-      requiresOwnerAuthorization: false,
       now: { now })
 
     let result = await service.process(conversationId: handle.conversationId)

@@ -562,6 +562,11 @@ actor InsightAssistant: ProactiveAssistant {
     log("Insight: Cleared pending frame")
   }
 
+  func resetForOwnerChange() async {
+    resetOwnerContext()
+    lastAnalysisTime = .distantPast
+  }
+
   func stop() async {
     isRunning = false
     frameSignalContinuation.finish()

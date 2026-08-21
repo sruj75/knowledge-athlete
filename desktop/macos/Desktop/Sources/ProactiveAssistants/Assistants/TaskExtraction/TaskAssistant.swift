@@ -10,6 +10,13 @@ private struct TaskAssistantEventPayloadBox: @unchecked Sendable {
 /// Task extraction assistant that identifies tasks and action items from screen content
 /// Uses single-stage Gemini tool calling with vector + FTS5 search for deduplication
 actor TaskAssistant: ProactiveAssistant {
+  typealias ExtractionOverride =
+    @Sendable (
+      _ jpegData: Data,
+      _ appName: String,
+      _ authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+    ) async throws -> ([TaskExtractionResult], Int)
+
   // MARK: - ProactiveAssistant Protocol
 
   nonisolated let identifier = "task-extraction"
@@ -83,7 +90,8 @@ actor TaskAssistant: ProactiveAssistant {
 
   // MARK: - Properties
 
-  private let geminiClient: GeminiClient
+  private let geminiClient: GeminiClient?
+  private let extractionOverride: ExtractionOverride?
   private var isRunning = false
   private var previousTasks: [ExtractedTask] = []  // Last 10 extracted tasks for context
   private let maxPreviousTasks = 10
@@ -231,12 +239,23 @@ actor TaskAssistant: ProactiveAssistant {
   init(apiKey: String? = nil) throws {
     self.geminiClient = try GeminiClient(
       apiKey: apiKey, model: ModelQoS.Gemini.taskExtraction, fallbackModel: "gemini-2.5-flash")
+    self.extractionOverride = nil
 
     let (stream, continuation) = AsyncStream.makeStream(of: TriggerEvent.self, bufferingPolicy: .bufferingNewest(1))
     self.triggerStream = stream
     self.triggerContinuation = continuation
 
     Task { await self.startProcessing() }
+  }
+
+  init(extractionOverride: @escaping ExtractionOverride) {
+    self.geminiClient = nil
+    self.extractionOverride = extractionOverride
+    let (stream, continuation) = AsyncStream.makeStream(
+      of: TriggerEvent.self,
+      bufferingPolicy: .bufferingNewest(1))
+    self.triggerStream = stream
+    self.triggerContinuation = continuation
   }
 
   // MARK: - Processing
@@ -296,7 +315,13 @@ actor TaskAssistant: ProactiveAssistant {
   /// Returns (results, searchCount) — results is one entry per extracted task plus one
   /// terminator entry (no_task_found/reject_task) when no tasks were extracted.
   func testAnalyze(jpegData: Data, appName: String) async throws -> ([TaskExtractionResult], Int) {
-    return try await extractTaskSingleStage(from: jpegData, appName: appName)
+    guard let authorizationSnapshot = RuntimeOwnerIdentity.captureAuthorizationSnapshot() else {
+      throw LocalMutationAuthorizationError.revoked
+    }
+    return try await extractTaskSingleStage(
+      from: jpegData,
+      appName: appName,
+      authorizationSnapshot: authorizationSnapshot)
   }
 
   // MARK: - ProactiveAssistant Protocol Methods
@@ -366,17 +391,25 @@ actor TaskAssistant: ProactiveAssistant {
 
   func handleResult(_ result: AssistantResult, sendEvent: @escaping @Sendable (String, [String: Any]) -> Void) async {
     guard let taskResult = result as? TaskExtractionResult else { return }
-    await handleResultWithScreenshot(taskResult, screenshotId: nil, appName: "Unknown", sendEvent: sendEvent)
+    guard let authorizationSnapshot = RuntimeOwnerIdentity.captureAuthorizationSnapshot() else { return }
+    await handleResultWithScreenshot(
+      taskResult,
+      authorizationSnapshot: authorizationSnapshot,
+      screenshotId: nil,
+      appName: "Unknown",
+      sendEvent: sendEvent)
   }
 
   /// Handle result with screenshot ID for SQLite storage
   private func handleResultWithScreenshot(
     _ taskResult: TaskExtractionResult,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot,
     screenshotId: Int64?,
     appName: String,
     windowTitle: String? = nil,
     sendEvent: @escaping (String, [String: Any]) -> Void
   ) async {
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
     // Save observation for every result (fire-and-forget)
     let observationApp = taskResult.task?.sourceApp ?? appName
     let observation = ObservationRecord(
@@ -388,21 +421,20 @@ actor TaskAssistant: ProactiveAssistant {
       taskTitle: taskResult.task?.title,
       createdAt: Date()
     )
-    let observationAuthorizationSnapshot = RuntimeOwnerIdentity.captureAuthorizationSnapshot()
     Task {
-      guard let observationAuthorizationSnapshot else { return }
+      guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
       do {
         try await ActionItemStorage.shared.insertObservation(
           observation,
           authorization: LocalMutationAuthorization {
             RuntimeOwnerIdentity.isAuthorizationCurrent(
-              observationAuthorizationSnapshot
+              authorizationSnapshot
             )
               && TaskAssistantSettings.isEnabledForCommit()
           }
         )
       } catch {
-        if RuntimeOwnerIdentity.isAuthorizationCurrent(observationAuthorizationSnapshot) {
+        if RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) {
           logError("Task: Failed to insert observation", error: error)
         }
       }
@@ -416,12 +448,13 @@ actor TaskAssistant: ProactiveAssistant {
     let confidencePercent = Int(task.confidence * 100)
 
     guard Self.shouldAdmit(task, minimumConfidence: threshold) else {
-      log("Task: [\(confidencePercent)% < \(Int(threshold * 100))%] Filtered: \"\(task.title)\"")
+      log("Task: Candidate filtered below admission policy (confidence=\(confidencePercent)%)")
       return
     }
 
-    log("Task: [\(confidencePercent)% conf.] \"\(task.title)\"")
+    log("Task: Candidate admitted by policy (confidence=\(confidencePercent)%)")
 
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
     previousTasks.insert(task, at: 0)
     if previousTasks.count > maxPreviousTasks {
       previousTasks.removeLast()
@@ -433,13 +466,18 @@ actor TaskAssistant: ProactiveAssistant {
         screenshotId: screenshotId,
         contextSummary: taskResult.contextSummary,
         currentActivity: taskResult.currentActivity,
-        windowTitle: windowTitle
+        windowTitle: windowTitle,
+        authorizationSnapshot: authorizationSnapshot
       )
     else { return }
 
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
     await MainActor.run {
+      guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
       AnalyticsManager.shared.taskExtracted(taskCount: 1)
     }
+
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
 
     sendEvent(
       "taskExtracted",
@@ -458,11 +496,11 @@ actor TaskAssistant: ProactiveAssistant {
     screenshotId: Int64?,
     contextSummary: String,
     currentActivity: String,
-    windowTitle: String? = nil
+    windowTitle: String? = nil,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
   ) async -> Bool {
-    guard let ownerSnapshot = RuntimeOwnerIdentity.captureAuthorizationSnapshot() else { return false }
     let stillAuthorized = LocalMutationAuthorization {
-      RuntimeOwnerIdentity.isAuthorizationCurrent(ownerSnapshot)
+      RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
         && TaskAssistantSettings.isEnabledForCommit()
     }
     do {
@@ -485,15 +523,15 @@ actor TaskAssistant: ProactiveAssistant {
           authorization: stillAuthorized
         )
       else {
-        log("Task: Exact local duplicate discarded: \"\(task.title)\"")
+        log("Task: Exact local duplicate discarded")
         return false
       }
-      guard RuntimeOwnerIdentity.isAuthorizationCurrent(ownerSnapshot) else { return false }
+      guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return false }
       await TasksStore.shared.reloadFromLocalCache(
-        expectedOwnerID: ownerSnapshot.ownerID,
-        authorizationSnapshot: ownerSnapshot
+        expectedOwnerID: authorizationSnapshot.ownerID,
+        authorizationSnapshot: authorizationSnapshot
       )
-      guard RuntimeOwnerIdentity.isAuthorizationCurrent(ownerSnapshot) else { return false }
+      guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return false }
       log("Task: Saved local task (id: local_\(inserted.id ?? -1))")
       return true
     } catch {
@@ -625,6 +663,15 @@ actor TaskAssistant: ProactiveAssistant {
     log("Task: Cleared fallback timer")
   }
 
+  func resetForOwnerChange() async {
+    fallbackTimerTask?.cancel()
+    fallbackTimerTask = nil
+    latestFrame = nil
+    previousTasks.removeAll()
+    lastAnalyzedByKey.removeAll()
+    currentApp = nil
+  }
+
   func stop() async {
     isRunning = false
     fallbackTimerTask?.cancel()
@@ -636,8 +683,10 @@ actor TaskAssistant: ProactiveAssistant {
 
   // MARK: - Single-Stage Analysis with Tool Calling
 
-  private func processFrame(_ frame: CapturedFrame) async {
+  func processFrame(_ frame: CapturedFrame) async {
+    guard let authorizationSnapshot = RuntimeOwnerIdentity.captureAuthorizationSnapshot() else { return }
     let enabled = await isEnabled
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
     guard enabled else {
       log("Task: Skipping analysis (disabled)")
       return
@@ -645,7 +694,11 @@ actor TaskAssistant: ProactiveAssistant {
 
     log("Task: Analyzing frame from \(frame.appName)...")
     do {
-      let (results, searchCount) = try await extractTaskSingleStage(from: frame.jpegData, appName: frame.appName)
+      let (results, searchCount) = try await extractTaskSingleStage(
+        from: frame.jpegData,
+        appName: frame.appName,
+        authorizationSnapshot: authorizationSnapshot)
+      guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
       guard !results.isEmpty else {
         log("Task: Analysis returned no results")
         return
@@ -653,12 +706,17 @@ actor TaskAssistant: ProactiveAssistant {
 
       let extractedCount = results.filter { $0.hasNewTask }.count
       log(
-        "Task: Analysis complete - results: \(results.count) (extracted: \(extractedCount)), context: \(results.first?.contextSummary ?? ""), searches: \(searchCount)"
+        "Task: Analysis complete - results: \(results.count) (extracted: \(extractedCount)), searches: \(searchCount)"
       )
 
       for result in results {
+        guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
         await handleResultWithScreenshot(
-          result, screenshotId: frame.screenshotId, appName: frame.appName, windowTitle: frame.windowTitle
+          result,
+          authorizationSnapshot: authorizationSnapshot,
+          screenshotId: frame.screenshotId,
+          appName: frame.appName,
+          windowTitle: frame.windowTitle
         ) { type, data in
           let boxed = TaskAssistantEventPayloadBox(data)
           Task { @MainActor in
@@ -667,6 +725,7 @@ actor TaskAssistant: ProactiveAssistant {
         }
       }
     } catch {
+      guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
       logError("Task extraction error", error: error)
     }
   }
@@ -678,11 +737,21 @@ actor TaskAssistant: ProactiveAssistant {
   /// until no_task_found terminates it or the iteration budget is exhausted.
   /// Returns (results, searchCount) — one TaskExtractionResult per extract_task plus a
   /// terminator result when zero tasks were extracted.
-  private func extractTaskSingleStage(from jpegData: Data, appName: String) async throws -> (
+  private func extractTaskSingleStage(
+    from jpegData: Data,
+    appName: String,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async throws -> (
     [TaskExtractionResult], Int
   ) {
+    if let extractionOverride {
+      return try await extractionOverride(jpegData, appName, authorizationSnapshot)
+    }
+    guard let geminiClient else { return ([], 0) }
+    try requireCurrentAuthorization(authorizationSnapshot)
     // 1. Gather context
-    let context = await refreshContext()
+    let context = try await refreshContext(authorizationSnapshot: authorizationSnapshot)
+    try requireCurrentAuthorization(authorizationSnapshot)
 
     // 2. Build prompt with injected context
     let dateFormatter = DateFormatter()
@@ -836,6 +905,7 @@ actor TaskAssistant: ProactiveAssistant {
 
     // 4. Get system prompt
     let currentSystemPrompt = await systemPrompt
+    try requireCurrentAuthorization(authorizationSnapshot)
 
     // 5. Build initial contents
     // Wrap base64 encoding in autoreleasepool — Swift concurrency doesn't
@@ -866,8 +936,10 @@ actor TaskAssistant: ProactiveAssistant {
         systemPrompt: currentSystemPrompt,
         tools: [tools],
         forceToolCall: iteration == 0,
-        thinkingBudget: 1024
+        thinkingBudget: 1024,
+        authorizationSnapshot: authorizationSnapshot
       )
+      try requireCurrentAuthorization(authorizationSnapshot)
 
       guard let toolCall = result.toolCalls.first else {
         log("Task: No tool call received on iteration \(iteration), breaking")
@@ -878,7 +950,7 @@ actor TaskAssistant: ProactiveAssistant {
       case "no_task_found":
         let contextSummary = toolCall.arguments["context_summary"] as? String ?? "No task on screen"
         let currentActivity = toolCall.arguments["current_activity"] as? String ?? "Unknown"
-        log("Task: no_task_found — \(contextSummary)")
+        log("Task: no_task_found")
         if !extractedResults.isEmpty {
           // Already extracted at least one task — terminator can be implicit, just return.
           return (extractedResults, searchCount)
@@ -903,7 +975,7 @@ actor TaskAssistant: ProactiveAssistant {
         let titleWords = title.split(separator: " ").count
         let validationError = Self.validateTaskTitle(title, wordCount: titleWords)
         if let error = validationError {
-          log("Task: Title rejected (\(error)): \"\(title)\"")
+          log("Task: Title rejected by structural policy (reason=\(error))")
 
           // Feed rejection back into the loop so the model can retry with more specifics
           contents.append(
@@ -980,7 +1052,7 @@ actor TaskAssistant: ProactiveAssistant {
         )
 
         log(
-          "Task: extract_task — \"\(title)\" (confidence: \(confidence), priority: \(priorityStr), capture: \(captureKind ?? "unknown"))"
+          "Task: extract_task (confidence=\(confidence), priority=\(priorityStr), capture=\(captureKind ?? "unknown"))"
         )
         extractedResults.append(
           TaskExtractionResult(
@@ -1027,7 +1099,7 @@ actor TaskAssistant: ProactiveAssistant {
         let reason = toolCall.arguments["reason"] as? String ?? "Unknown reason"
         let contextSummary = toolCall.arguments["context_summary"] as? String ?? ""
         let currentActivity = toolCall.arguments["current_activity"] as? String ?? ""
-        log("Task: reject_task — \(reason)")
+        log("Task: reject_task")
         lastContextSummary = contextSummary
         lastCurrentActivity = currentActivity
         // reject_task no longer kills the frame — Claude may have only rejected one
@@ -1064,8 +1136,11 @@ actor TaskAssistant: ProactiveAssistant {
       case "search_similar":
         let query = toolCall.arguments["query"] as? String ?? ""
         searchCount += 1
-        log("Task: search_similar query: \"\(query)\"")
-        let searchResults = await executeVectorSearch(query: query)
+        log("Task: search_similar")
+        let searchResults = await executeVectorSearch(
+          query: query,
+          authorizationSnapshot: authorizationSnapshot)
+        try requireCurrentAuthorization(authorizationSnapshot)
         log("Task: Vector search returned \(searchResults.count) results")
 
         let searchResultsJson: String
@@ -1104,8 +1179,11 @@ actor TaskAssistant: ProactiveAssistant {
       case "search_keywords":
         let query = toolCall.arguments["query"] as? String ?? ""
         searchCount += 1
-        log("Task: search_keywords query: \"\(query)\"")
-        let searchResults = await executeKeywordSearch(query: query)
+        log("Task: search_keywords")
+        let searchResults = await executeKeywordSearch(
+          query: query,
+          authorizationSnapshot: authorizationSnapshot)
+        try requireCurrentAuthorization(authorizationSnapshot)
         log("Task: Keyword search returned \(searchResults.count) results")
 
         let searchResultsJson: String
@@ -1268,7 +1346,10 @@ actor TaskAssistant: ProactiveAssistant {
   // MARK: - Context & Search
 
   /// Refresh context from local SQLite + cached goals
-  private func refreshContext() async -> TaskExtractionContext {
+  private func refreshContext(
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async throws -> TaskExtractionContext {
+    try requireCurrentAuthorization(authorizationSnapshot)
     var activeTasks: [(id: String, description: String, priority: String?)] = []
     var completedTasks: [(id: Int64, description: String)] = []
     var deletedTasks: [(id: Int64, description: String)] = []
@@ -1277,23 +1358,27 @@ actor TaskAssistant: ProactiveAssistant {
       activeTasks = try await ActionItemStorage.shared.getRecentActiveTasks(limit: 60).map {
         (id: "local_\($0.id)", description: $0.description, priority: $0.priority)
       }
+      try requireCurrentAuthorization(authorizationSnapshot)
     } catch {
       logError("Task: Failed to load recent tasks", error: error)
     }
 
     do {
       completedTasks = try await ActionItemStorage.shared.getRecentCompletedTasks(limit: 10)
+      try requireCurrentAuthorization(authorizationSnapshot)
     } catch {
       logError("Task: Failed to load completed tasks", error: error)
     }
 
     do {
       deletedTasks = try await ActionItemStorage.shared.getRecentDeletedTasks(limit: 10, deletedBy: "user")
+      try requireCurrentAuthorization(authorizationSnapshot)
     } catch {
       logError("Task: Failed to load deleted tasks", error: error)
     }
 
     let goals = (try? await GoalStorage.shared.getLocalGoals(activeOnly: true)) ?? []
+    try requireCurrentAuthorization(authorizationSnapshot)
 
     return TaskExtractionContext(
       activeTasks: activeTasks,
@@ -1304,15 +1389,25 @@ actor TaskAssistant: ProactiveAssistant {
   }
 
   /// Execute vector similarity search
-  private func executeVectorSearch(query: String) async -> [TaskSearchResult] {
+  private func executeVectorSearch(
+    query: String,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async -> [TaskSearchResult] {
     var results: [TaskSearchResult] = []
 
     do {
-      let queryEmbedding = try await EmbeddingService.shared.embed(text: query)
-      let vectorResults = await EmbeddingService.shared.searchSimilar(query: queryEmbedding, topK: 10)
+      let queryEmbedding = try await EmbeddingService.shared.embed(
+        text: query,
+        authorizationSnapshot: authorizationSnapshot)
+      guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return [] }
+      let vectorResults = await EmbeddingService.shared.searchSimilar(
+        query: queryEmbedding,
+        topK: 10,
+        authorizationSnapshot: authorizationSnapshot)
 
       for result in vectorResults where result.similarity > 0.3 {
         if let record = try await ActionItemStorage.shared.getActionItem(id: result.id) {
+          guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return [] }
           let status: String
           if record.deleted {
             status = "deleted"
@@ -1340,7 +1435,10 @@ actor TaskAssistant: ProactiveAssistant {
   }
 
   /// Execute local FTS5 keyword search across ordinary tasks.
-  private func executeKeywordSearch(query: String) async -> [TaskSearchResult] {
+  private func executeKeywordSearch(
+    query: String,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async -> [TaskSearchResult] {
     var results: [TaskSearchResult] = []
 
     do {
@@ -1357,6 +1455,7 @@ actor TaskAssistant: ProactiveAssistant {
           includeCompleted: true,
           includeDeleted: true
         )
+        guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return [] }
 
         for result in ftsResults {
           let status: String
@@ -1383,5 +1482,13 @@ actor TaskAssistant: ProactiveAssistant {
     }
 
     return results
+  }
+
+  private func requireCurrentAuthorization(
+    _ authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) throws {
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else {
+      throw LocalMutationAuthorizationError.revoked
+    }
   }
 }

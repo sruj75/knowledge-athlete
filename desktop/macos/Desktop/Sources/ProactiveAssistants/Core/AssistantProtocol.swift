@@ -54,6 +54,11 @@ protocol ProactiveAssistant: Actor {
   /// Clear any pending work (e.g., queued frames)
   func clearPendingWork() async
 
+  /// Revoke all queued work and owner-derived in-memory state during the
+  /// exclusive effective-owner transition. Every conformer implements this
+  /// explicitly so newly added caches cannot silently cross accounts.
+  func resetForOwnerChange() async
+
   /// Stop the assistant and clean up resources
   func stop() async
 }

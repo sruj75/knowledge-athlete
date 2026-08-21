@@ -230,6 +230,19 @@ class AssistantCoordinator {
     }
   }
 
+  /// Clear coordinator bookkeeping and every assistant's owner-derived state
+  /// before the replacement owner generation becomes visible.
+  func resetForOwnerChange() async {
+    lastAnalysisTime = Dictionary(uniqueKeysWithValues: assistants.keys.map { ($0, .distantPast) })
+    lastTrackedApp = nil
+    lastTrackedWindowTitle = nil
+    lastTrackedFrame = nil
+    isAnalyzing.removeAll()
+    for assistant in assistants.values {
+      await assistant.resetForOwnerChange()
+    }
+  }
+
   // MARK: - Lifecycle
 
   /// Stop all assistants

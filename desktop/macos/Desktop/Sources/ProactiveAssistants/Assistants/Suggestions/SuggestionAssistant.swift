@@ -482,6 +482,12 @@ actor SuggestionAssistant: ProactiveAssistant {
     clearPendingContext()
   }
 
+  func resetForOwnerChange() async {
+    clearPendingContext()
+    lastEvaluationAt = nil
+    recentSuggestions.removeAll()
+  }
+
   func stop() async {
     clearPendingContext()
     recentSuggestions.removeAll()

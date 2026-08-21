@@ -13,7 +13,7 @@ protocol MemoryEmbeddingComputing: Sendable {
   func embedBatch(
     texts: [String],
     taskType: String?,
-    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot?
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
   ) async throws -> [[Float]]
 }
 
@@ -246,6 +246,10 @@ actor LocalMemoryLifecycleRunner {
     report: inout LocalMemoryLifecycleReport
   ) async {
     guard let embedder else { return }
+    guard let snapshot else {
+      report.failures += 1
+      return
+    }
     let leases: [LeasedMemoryWork]
     do {
       leases = try await storage.leaseDueWork(
