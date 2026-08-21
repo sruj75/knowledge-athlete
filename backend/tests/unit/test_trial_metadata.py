@@ -74,6 +74,31 @@ def test_disabled_trial_policy_and_lookup_failures_fail_open(monkeypatch) -> Non
     assert subscription.get_trial_metadata('uid').trial_expired is False
 
 
+def test_cached_paywall_revalidation_failure_fails_open_with_shared_sanitized_telemetry(monkeypatch) -> None:
+    monkeypatch.setattr(subscription.redis_db, 'get_generic_cache', MagicMock(return_value=True))
+    monkeypatch.setattr(
+        subscription.users_db,
+        'get_user_valid_subscription',
+        MagicMock(side_effect=RuntimeError('private provider detail')),
+    )
+    events = []
+    monkeypatch.setattr(subscription, 'record_fallback', lambda **fields: events.append(fields))
+
+    assert subscription._is_trial_expired_cached('private-user-id') is False
+    assert events == [
+        {
+            'component': 'other',
+            'from_mode': 'trial_paywall',
+            'to_mode': 'fail_open',
+            'reason': 'policy',
+            'outcome': 'degraded',
+            'log': subscription.logger,
+        }
+    ]
+    assert 'private-user-id' not in str(events)
+    assert 'private provider detail' not in str(events)
+
+
 def test_normalized_desktop_access_policy() -> None:
     assert subscription.desktop_trial_paywall_eligible(PlanType.free) is True
     assert subscription.plan_grants_desktop(PlanType.free) is False

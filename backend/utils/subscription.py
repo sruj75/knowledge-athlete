@@ -127,6 +127,14 @@ def _is_trial_expired_cached(uid: str) -> bool:
                     return False
             except Exception as exc:
                 logger.warning('trial paywall cache revalidation failed for uid=%s: %s', uid, exc)
+                record_fallback(
+                    component='other',
+                    from_mode='trial_paywall',
+                    to_mode='fail_open',
+                    reason='policy',
+                    outcome='degraded',
+                    log=logger,
+                )
                 return False
         return bool(cached)
     expired = _is_trial_expired_uncached(uid)
