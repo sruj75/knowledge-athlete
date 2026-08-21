@@ -5,6 +5,8 @@ description: Live P2 — retained scoped tool crosses managed Pi and OMI_BRIDGE_
 app: non-prod
 covers:
   - desktop/macos/Desktop/Sources/Providers/ChatToolExecutor.swift
+  - desktop/macos/Desktop/Sources/Providers/ChatToolExecutor+LocalStatus.swift
+  - desktop/macos/Desktop/Sources/ResourceMonitor.swift
   - desktop/macos/Desktop/Sources/Chat/AgentRuntimeProcess.swift
 preconditions:
   - auth_ready
