@@ -129,8 +129,14 @@ final class S14LocalAuthorityMigrationTests: XCTestCase {
         type: "memory", content: "Unmatched local memory", category: "system",
         sourceApp: "Safari", createdAt: createdAt.addingTimeInterval(1), in: db)
       try Self.insertLegacyExtraction(
+        type: "memory", content: "Unmatched local memory", category: "system",
+        sourceApp: "Safari", createdAt: createdAt.addingTimeInterval(1), in: db)
+      try Self.insertLegacyExtraction(
         type: "advice", content: "Take a short walk", category: "wellbeing",
         sourceApp: "Calendar", createdAt: createdAt.addingTimeInterval(2), in: db)
+      try Self.insertLegacyExtraction(
+        type: "task", content: "Send the draft", category: "work", priority: "high",
+        sourceApp: "Mail", createdAt: createdAt.addingTimeInterval(3), in: db)
       try Self.insertLegacyExtraction(
         type: "task", content: "Send the draft", category: "work", priority: "high",
         sourceApp: "Mail", createdAt: createdAt.addingTimeInterval(3), in: db)
@@ -146,6 +152,18 @@ final class S14LocalAuthorityMigrationTests: XCTestCase {
       XCTAssertEqual(
         try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM memories WHERE content = 'Unmatched local memory'"),
         1)
+      XCTAssertEqual(
+        try String.fetchAll(
+          db,
+          sql: """
+            SELECT kind
+            FROM memory_processing_work
+            WHERE memoryId = (
+              SELECT id FROM memories WHERE content = 'Unmatched local memory'
+            )
+            ORDER BY kind
+            """),
+        ["consolidate", "embed"])
       let tip = try Row.fetchOne(db, sql: "SELECT * FROM memories WHERE content = 'Take a short walk'")
       XCTAssertEqual(tip?["category"] as String?, "interesting")
       XCTAssertEqual(tip?["tagsJson"] as String?, "[\"tips\",\"wellbeing\"]")
@@ -154,6 +172,9 @@ final class S14LocalAuthorityMigrationTests: XCTestCase {
       let task = try Row.fetchOne(db, sql: "SELECT * FROM action_items WHERE description = 'Send the draft'")
       XCTAssertEqual(task?["priority"] as String?, "high")
       XCTAssertEqual(task?["source"] as String?, "screenshot")
+      XCTAssertEqual(
+        try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM action_items WHERE description = 'Send the draft'"),
+        1)
 
       let residue = try String.fetchAll(
         db,
@@ -219,6 +240,22 @@ final class S14LocalAuthorityMigrationTests: XCTestCase {
       t.column("confidence", .double)
       t.column("sourceApp", .text)
       t.column("contextSummary", .text)
+      t.column("createdAt", .datetime).notNull()
+      t.column("updatedAt", .datetime).notNull()
+    }
+    try db.create(table: "memory_processing_work") { t in
+      t.column("id", .text).primaryKey()
+      t.column("memoryId", .integer).references("memories", onDelete: .cascade)
+      t.column("conversationId", .text)
+      t.column("kind", .text).notNull()
+      t.column("inputRevision", .integer).notNull()
+      t.column("inputGeneration", .integer).notNull()
+      t.column("ownerGeneration", .integer).notNull()
+      t.column("state", .text).notNull()
+      t.column("attemptCount", .integer).notNull().defaults(to: 0)
+      t.column("nextAttemptAt", .datetime).notNull()
+      t.column("leaseExpiresAt", .datetime)
+      t.column("lastErrorCode", .text)
       t.column("createdAt", .datetime).notNull()
       t.column("updatedAt", .datetime).notNull()
     }
