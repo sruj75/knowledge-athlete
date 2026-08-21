@@ -12,22 +12,24 @@ import XCTest
 /// queued owner-bound state at the transition boundary.
 @MainActor
 final class OCREmbeddingServiceOwnerResetTests: XCTestCase {
-  private var ownerFixture: RuntimeOwnerAuthorityTestFixture!
+  private var ownerFixture: RuntimeOwnerAuthorityTestFixture?
 
   override func setUp() async throws {
-    ownerFixture = RuntimeOwnerAuthorityTestFixture()
+    let ownerFixture = RuntimeOwnerAuthorityTestFixture()
+    self.ownerFixture = ownerFixture
     await ownerFixture.establish(authOwnerID: "ocr-embedding-owner")
     await OCREmbeddingService.shared.reset()
   }
 
   override func tearDown() async throws {
     await OCREmbeddingService.shared.reset()
-    await ownerFixture.restore()
+    if let ownerFixture { await ownerFixture.restore() }
     ownerFixture = nil
   }
 
-  func testResetDropsPendingQueueAndDedupHashes() async {
-    let authorizationSnapshot = RuntimeOwnerIdentity.captureAuthorizationSnapshot()!
+  func testResetDropsPendingQueueAndDedupHashes() async throws {
+    let authorizationSnapshot = try XCTUnwrap(
+      RuntimeOwnerIdentity.captureAuthorizationSnapshot())
     let text = "sensitive on-screen text from the previous account, long enough to queue"
     await OCREmbeddingService.shared.embedScreenshot(
       id: 41, ocrText: text, appName: "Notes", windowTitle: "Draft",
@@ -50,8 +52,9 @@ final class OCREmbeddingServiceOwnerResetTests: XCTestCase {
     await OCREmbeddingService.shared.reset()
   }
 
-  func testFlushAfterResetIsANoOp() async {
-    let authorizationSnapshot = RuntimeOwnerIdentity.captureAuthorizationSnapshot()!
+  func testFlushAfterResetIsANoOp() async throws {
+    let authorizationSnapshot = try XCTUnwrap(
+      RuntimeOwnerIdentity.captureAuthorizationSnapshot())
     await OCREmbeddingService.shared.embedScreenshot(
       id: 99, ocrText: String(repeating: "previous owner screen text ", count: 3),
       appName: "Safari", windowTitle: nil,
@@ -73,8 +76,9 @@ final class OCREmbeddingServiceOwnerResetTests: XCTestCase {
   /// suspends the flush at its await, the test runs `reset()` during that
   /// suspension, then releases the embedder. The generation fence must drop the
   /// batch before the writer runs.
-  func testResetDuringInFlightFlushDropsStaleBatchBeforeWrite() async {
-    let authorizationSnapshot = RuntimeOwnerIdentity.captureAuthorizationSnapshot()!
+  func testResetDuringInFlightFlushDropsStaleBatchBeforeWrite() async throws {
+    let authorizationSnapshot = try XCTUnwrap(
+      RuntimeOwnerIdentity.captureAuthorizationSnapshot())
     let dimension = EmbeddingService.embeddingDimension
     let flushSuspended = AsyncGate()
     let releaseEmbed = AsyncGate()
@@ -119,8 +123,10 @@ final class OCREmbeddingServiceOwnerResetTests: XCTestCase {
     XCTAssertEqual(pending, 0, "the stale batch must be dropped, not re-queued into the new owner's buffer")
   }
 
-  func testSameUIDReauthenticationDuringFlushRejectsOriginalSnapshot() async {
-    let authorizationSnapshot = RuntimeOwnerIdentity.captureAuthorizationSnapshot()!
+  func testSameUIDReauthenticationDuringFlushRejectsOriginalSnapshot() async throws {
+    let ownerFixture = try XCTUnwrap(ownerFixture)
+    let authorizationSnapshot = try XCTUnwrap(
+      RuntimeOwnerIdentity.captureAuthorizationSnapshot())
     let dimension = EmbeddingService.embeddingDimension
     let flushSuspended = AsyncGate()
     let releaseEmbed = AsyncGate()

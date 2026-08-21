@@ -5,12 +5,13 @@ import XCTest
 
 @MainActor
 final class FocusAssistantOwnerFenceTests: XCTestCase {
-  private var ownerFixture: RuntimeOwnerAuthorityTestFixture!
+  private var ownerFixture: RuntimeOwnerAuthorityTestFixture?
   private var savedEnabled = false
   private var savedNotifications = false
 
   override func setUp() async throws {
-    ownerFixture = RuntimeOwnerAuthorityTestFixture()
+    let ownerFixture = RuntimeOwnerAuthorityTestFixture()
+    self.ownerFixture = ownerFixture
     await ownerFixture.establish(authOwnerID: "focus-owner")
     savedEnabled = FocusAssistantSettings.shared.isEnabled
     savedNotifications = FocusAssistantSettings.shared.notificationsEnabled
@@ -21,11 +22,12 @@ final class FocusAssistantOwnerFenceTests: XCTestCase {
   override func tearDown() async throws {
     FocusAssistantSettings.shared.isEnabled = savedEnabled
     FocusAssistantSettings.shared.notificationsEnabled = savedNotifications
-    await ownerFixture.restore()
+    if let ownerFixture { await ownerFixture.restore() }
     ownerFixture = nil
   }
 
-  func testSameUIDReauthenticationDropsSuspendedAnalysisBeforePersistenceOrPublication() async {
+  func testSameUIDReauthenticationDropsSuspendedAnalysisBeforePersistenceOrPublication() async throws {
+    let ownerFixture = try XCTUnwrap(ownerFixture)
     let gate = FocusAnalysisGate(result: distractedAnalysis)
     let recorder = FocusEventRecorder()
     let assistant = FocusAssistant(

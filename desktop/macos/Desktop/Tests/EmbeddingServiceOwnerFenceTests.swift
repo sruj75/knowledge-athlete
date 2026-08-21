@@ -4,21 +4,23 @@ import XCTest
 
 @MainActor
 final class EmbeddingServiceOwnerFenceTests: XCTestCase {
-  private var ownerFixture: RuntimeOwnerAuthorityTestFixture!
+  private var ownerFixture: RuntimeOwnerAuthorityTestFixture?
 
   override func setUp() async throws {
-    ownerFixture = RuntimeOwnerAuthorityTestFixture()
+    let ownerFixture = RuntimeOwnerAuthorityTestFixture()
+    self.ownerFixture = ownerFixture
     await ownerFixture.establish(authOwnerID: "embedding-owner")
     await EmbeddingService.shared.resetForOwnerChange()
   }
 
   override func tearDown() async throws {
     await EmbeddingService.shared.resetForOwnerChange()
-    await ownerFixture.restore()
+    if let ownerFixture { await ownerFixture.restore() }
     ownerFixture = nil
   }
 
   func testSameUIDReauthenticationCannotReadPreviousGenerationTaskIndex() async throws {
+    let ownerFixture = try XCTUnwrap(ownerFixture)
     let original = try XCTUnwrap(RuntimeOwnerIdentity.captureAuthorizationSnapshot())
     let vector = [Float](repeating: 0, count: EmbeddingService.embeddingDimension)
     await EmbeddingService.shared.addToIndex(

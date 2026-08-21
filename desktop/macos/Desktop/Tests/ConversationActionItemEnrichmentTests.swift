@@ -39,15 +39,16 @@ private actor ActionComputerStub: ConversationActionItemsComputing {
 
 @MainActor
 final class ConversationActionItemEnrichmentTests: XCTestCase {
-  private var ownerFixture: RuntimeOwnerAuthorityTestFixture!
+  private var ownerFixture: RuntimeOwnerAuthorityTestFixture?
 
   override func setUp() async throws {
-    ownerFixture = RuntimeOwnerAuthorityTestFixture()
+    let ownerFixture = RuntimeOwnerAuthorityTestFixture()
+    self.ownerFixture = ownerFixture
     await ownerFixture.establish(authOwnerID: "conversation-enrichment-owner")
   }
 
   override func tearDown() async throws {
-    await ownerFixture.restore()
+    if let ownerFixture { await ownerFixture.restore() }
     ownerFixture = nil
   }
 

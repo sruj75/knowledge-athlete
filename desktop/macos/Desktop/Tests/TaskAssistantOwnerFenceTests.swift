@@ -4,15 +4,17 @@ import XCTest
 
 @MainActor
 final class TaskAssistantOwnerFenceTests: XCTestCase {
-  private var ownerFixture: RuntimeOwnerAuthorityTestFixture!
-  private var rewindFixture: RewindStorageTestIsolation.Fixture!
-  private var authSnapshot: RewindStorageTestIsolation.AuthSnapshot!
+  private var ownerFixture: RuntimeOwnerAuthorityTestFixture?
+  private var rewindFixture: RewindStorageTestIsolation.Fixture?
+  private var authSnapshot: RewindStorageTestIsolation.AuthSnapshot?
   private var savedEnabled = false
 
   override func setUp() async throws {
     authSnapshot = RewindStorageTestIsolation.captureAuthSnapshot()
-    rewindFixture = try await RewindStorageTestIsolation.setUp(userIdPrefix: "task-assistant-owner")
-    ownerFixture = RuntimeOwnerAuthorityTestFixture()
+    let rewindFixture = try await RewindStorageTestIsolation.setUp(userIdPrefix: "task-assistant-owner")
+    self.rewindFixture = rewindFixture
+    let ownerFixture = RuntimeOwnerAuthorityTestFixture()
+    self.ownerFixture = ownerFixture
     await ownerFixture.establish(authOwnerID: rewindFixture.testUserId)
     savedEnabled = TaskAssistantSettings.shared.isEnabled
     TaskAssistantSettings.shared.isEnabled = true
@@ -20,15 +22,17 @@ final class TaskAssistantOwnerFenceTests: XCTestCase {
 
   override func tearDown() async throws {
     TaskAssistantSettings.shared.isEnabled = savedEnabled
-    await ownerFixture.restore()
+    if let ownerFixture { await ownerFixture.restore() }
     ownerFixture = nil
-    RewindStorageTestIsolation.restoreAuthSnapshot(authSnapshot)
+    if let authSnapshot { RewindStorageTestIsolation.restoreAuthSnapshot(authSnapshot) }
     authSnapshot = nil
-    await RewindStorageTestIsolation.tearDown(userDir: rewindFixture.userDir)
+    await RewindStorageTestIsolation.tearDown(userDir: rewindFixture?.userDir)
     rewindFixture = nil
   }
 
   func testSameUIDReauthenticationDropsSuspendedTaskAnalysis() async throws {
+    let ownerFixture = try XCTUnwrap(ownerFixture)
+    let rewindFixture = try XCTUnwrap(rewindFixture)
     let result = TaskExtractionResult(
       hasNewTask: true,
       task: ExtractedTask(

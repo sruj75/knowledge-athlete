@@ -41,18 +41,19 @@ final class TaskReminderServiceTests: XCTestCase {
   private let now = Date(timeIntervalSince1970: 1_800_000_000)
   private var fixture: RewindStorageTestIsolation.Fixture?
   private var authSnapshot: RewindStorageTestIsolation.AuthSnapshot?
-  private var ownerFixture: RuntimeOwnerAuthorityTestFixture!
+  private var ownerFixture: RuntimeOwnerAuthorityTestFixture?
 
   override func setUp() async throws {
     authSnapshot = RewindStorageTestIsolation.captureAuthSnapshot()
     fixture = try await RewindStorageTestIsolation.setUp(userIdPrefix: "task-reminder")
     RewindStorageTestIsolation.signInForTests(userId: try XCTUnwrap(fixture?.testUserId))
-    ownerFixture = RuntimeOwnerAuthorityTestFixture()
+    let ownerFixture = RuntimeOwnerAuthorityTestFixture()
+    self.ownerFixture = ownerFixture
     await ownerFixture.establish(authOwnerID: try XCTUnwrap(fixture?.testUserId))
   }
 
   override func tearDown() async throws {
-    await ownerFixture.restore()
+    if let ownerFixture { await ownerFixture.restore() }
     ownerFixture = nil
     if let authSnapshot { RewindStorageTestIsolation.restoreAuthSnapshot(authSnapshot) }
     authSnapshot = nil
@@ -164,6 +165,7 @@ final class TaskReminderServiceTests: XCTestCase {
   }
 
   func testAddCompletingAfterSameUIDReauthenticationRemovesExactStaleRequest() async throws {
+    let ownerFixture = try XCTUnwrap(ownerFixture)
     let notifications = FakeTaskReminderNotifications()
     let gate = TaskReminderAddGate()
     notifications.addGate = gate
