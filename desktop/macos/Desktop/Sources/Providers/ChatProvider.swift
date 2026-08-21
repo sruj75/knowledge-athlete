@@ -3768,17 +3768,8 @@ class ChatProvider: ObservableObject {
       errorMessage = "Wait for chat deletion to finish before sending."
       return nil
     }
-    guard let capturedRuntimeOwnerID = runtimeOwnerId else {
-      errorMessage = "Sign in again to continue."
-      return nil
-    }
-    guard
-      let turnAuthorizationSnapshot = RuntimeOwnerIdentity.captureAuthorizationSnapshot(
-        expectedOwnerID: capturedRuntimeOwnerID)
-    else {
-      errorMessage = "Sign in again to continue."
-      return nil
-    }
+    guard let turnAuthorizationSnapshot = authorizeTurn(for: runtimeOwnerId) else { return nil }
+    let capturedRuntimeOwnerID = turnAuthorizationSnapshot.ownerID
     let usesMainComposer = turnOwner == .mainChat && surfaceRef == nil
     let submittedDraftKey = activeDraftKey
     let submittedIsDefaultChat = isInDefaultChat

@@ -1,6 +1,17 @@
 import Foundation
 
 extension ChatProvider {
+  func authorizeTurn(for expectedOwnerID: String?) -> RuntimeOwnerAuthorizationSnapshot? {
+    guard let expectedOwnerID,
+      let snapshot = RuntimeOwnerIdentity.captureAuthorizationSnapshot(
+        expectedOwnerID: expectedOwnerID)
+    else {
+      errorMessage = "Sign in again to continue."
+      return nil
+    }
+    return snapshot
+  }
+
   /// Which surface a query resolves to. Extracted as a pure decision (in its own
   /// file so the already-oversized `ChatProvider.swift` doesn't grow) so the
   /// onboarding-isolation precedence — the part that regressed — is unit-testable.
