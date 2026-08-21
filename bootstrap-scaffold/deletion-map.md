@@ -298,6 +298,8 @@ already-integrated predecessor shape first.
 | Wearable and Limitless paths | S-02 deletes direct wearable hardware, including direct Limitless support. S-06 deletes only the hosted Limitless ZIP importer. |
 | Agent VM-adjacent journals and screen history | S-01 removes VM copies only. S-11 owns normal backend-journal removal; S-15 owns shared cloud screen-history removal. |
 | Account and telemetry identity | S-08 publishes the canonical account/sign-in/sign-out seam before S-09 adapts identity attachment and detachment. |
+| Managed-model portfolio and rejected model-backed products | S-22 closes every retained/transient model route and hands one exact still-live `Wrapped -> wrapped_analysis -> OpenRouter` binding to S-23. S-23 deletes Wrapped and that now-exclusive OpenRouter integration together; S-22 is not reopened. |
+| Rejected-product cleanup in durable account deletion | S-23 removes Twilio, recording, cloud-memory, and other product-specific cleanup branches while preserving one exact Pinecone purge handoff. S-24 deletes Pinecone, including that purge/counter surface. S-25 then retargets the still-durable retained account-deletion task before deleting the old service topology. |
 
 Repository closure and live operational closure remain separate. Migrations,
 decommissions, data deletion, deploys, and other external mutations follow the
@@ -1301,7 +1303,9 @@ through IR-926, IR-932
 
 **Type:** UI convergence after product deletion<br>
 **Research status:** split; must land after domain owners<br>
-**Depends on:** S-05 through S-07; S-09 through S-15; S-17, S-18, and S-20<br>
+**Depends on:** S-05 through S-07; S-10 through S-15; S-17, S-18, and S-20.
+S-09's repository consent/privacy seam gates only S-21's Privacy/Settings cycle;
+S-09 live owned-project proof remains S-09 operational acceptance.<br>
 **Primary decisions:** IR-191 through IR-255, IR-500 through IR-530, IR-616,
 IR-659, IR-681, IR-930, IR-933<br>
 **Protecting handoff:** S-05 implements IR-801 and IR-802 while deleting the
@@ -1343,16 +1347,21 @@ IR-732, IR-827, IR-828
 - **Delete:** higher-model/live-web voice escalation, cosmetic Pill model call,
   Chat Prompt Lab, Opus/Haiku/ChatLab residue, attempt-cost documents, independent
   LLM gateway, global premium/max/BYOK profiles, Perplexity/Sonar, all public web
-  search, callerless ElevenLabs, unused Gemini Pro/streaming, OpenRouter, NLLB,
+  search, callerless ElevenLabs, unused Gemini Pro/streaming, NLLB,
   old memory/chat/persona/proactive/glasses routes, and rejected provider config.
+- **Successor handoff:** S-22 closes with exactly one rejected live model binding:
+  Wrapped's `wrapped_analysis` call through OpenRouter. S-23 deletes Wrapped and
+  that now-exclusive OpenRouter integration together under IR-720/IR-820; S-22
+  is not reopened afterward.
 - **Failure-class lifecycle:** the public-web implementation PR deletes
   `backend/desktop_fixtures/public-web-routing-contract.fixture.json` and its
   Pi-adapter/doc consumers. After that PR merges, the same owner opens a separate
   registry-lifecycle PR that marks `FC-public-web-routing-parity` dormant with
   `dormant_since`; do not combine the transition or erase the historical record.
-- **Close when:** every model identifier has a named retained caller and result
-  owner, every removed route has no caller/config/secret/test, and no user data
-  becomes durable merely because compute ran in the backend.
+- **Close when:** every S-22-owned model identifier has a named retained caller
+  and result owner, every S-22-removed route has no caller/config/secret/test,
+  the sole Wrapped/OpenRouter successor handoff is exact and tested, and no user
+  data becomes durable merely because compute ran in the backend.
 
 ### S-23 — Delete rejected hosted products and their product-data schemas
 
@@ -1366,7 +1375,8 @@ IR-714 through IR-725, IR-805, IR-814 through IR-835
 
 - **Delete as complete products:** Daily Summary; cloud recordings/playback and
   training opt-in; persistent voice recognition/People; public sharing/persona;
-  Twilio calls; Wrapped; cloud announcements; Trends; wearable firmware/photo /
+  Twilio calls; Wrapped together with its exclusive OpenRouter integration;
+  cloud announcements; Trends; wearable firmware/photo /
   glasses; Limitless import; task productivity scores; FCM; cloud ratings;
   Joan; detailed usage readers; Sentry-to-Tasks; obsolete model routes; and all
   exclusive collections, buckets, schemas, indexes, jobs, generated non-Windows
@@ -1376,7 +1386,8 @@ IR-714 through IR-725, IR-805, IR-814 through IR-835
   shared primitive proven to have a retained caller.
 - **Close when:** a route/storage owner matrix shows no rejected product route or
   data schema remains in either Python entrypoint, OpenAPI, Firestore registry,
-  GCS policy, Redis namespace, account-deletion enumeration, or docs.
+  GCS policy, Redis namespace, or docs; account deletion has no S-23-owned product
+  cleanup and names only the exact S-24-owned Pinecone purge handoff.
 
 ### S-24 — Delete hosted search, vector, and product-object authority
 
@@ -1391,7 +1402,8 @@ IR-806 through IR-809
   transient embedding compute, and one GCS bucket only for signed updates and
   previews.
 - **Delete:** Typesense and synchronization, Pinecone and every namespace/repair
-  path, cloud attachment/OpenAI Files copies, product-data GCS paths, hosted
+  path including its account-deletion purge/counters, cloud attachment/OpenAI
+  Files copies, product-data GCS paths, hosted
   graph/vector consumers, rejected credentials, alerts, migrations, and tests.
 - **Close when:** every retained search executes against local indexes, deleting
   a local record maintains its local index, and cloud storage inventory contains
