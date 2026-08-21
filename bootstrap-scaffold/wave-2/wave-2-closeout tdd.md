@@ -102,3 +102,63 @@ After all six waves, separately authorize Dodo test credentials and prove hosted
 - S-12, S-13, and S-14 have green repository evidence.
 - The disabled S-18 checkpoint is clearly sufficient for Wave 3 source work and clearly incomplete for paid release.
 - No credentials, live provider resources, Windows changes, production app operations, push, PR, merge, or deployment are part of this slice.
+
+## 19. Implementation and verification record — 2026-08-21
+
+**Repository outcome:** S-12, S-13, and S-14 closeout defects are repaired and
+their repository dependency is complete for Wave 3. S-18 remains **disabled
+checkpoint reached, final activation outstanding**. No prompt, threshold,
+cadence, notification copy, UI flow, search/task/Focus policy, or free-MVP
+behavior was changed.
+
+### Green closeout evidence
+
+- The focused owner-fence selection passed 21/21 after the final SwiftLint-safe
+  test cleanup. Earlier focused runs also passed the Memory/Task/Focus,
+  conversation, reminder, embedding, and OCR same-UID/cross-owner cases.
+- `S14LocalAuthorityMigrationTests` passed 4/4, including duplicate legacy rows,
+  canonical work-queue handoff, unknown-type rejection, and final schema
+  retirement. Canonical Chat discoverability coverage passed with the migration
+  selection.
+- `desktop/macos/scripts/agent-logic-harness.sh` passed all four stages in 86.70
+  seconds.
+- The focused backend billing/rate-limit/migration selection passed 76 tests.
+  The full file-isolated backend runner's three maximum-parallel timing failures
+  (`test_chat_agent_provider_retry.py`, `test_rate_limiting.py`, and
+  `test_clean_sweep_migrations.py`) then passed 87/87 when rerun through the same
+  official `test.sh` runner.
+- `python3 bootstrap-scaffold/validate-requirements-ledger.py` passed with 714
+  indexed rows and 714 detailed sections.
+- Both local `make preflight` and CI-lane `scripts/pr-preflight --pr-body-file`
+  passed all 30 selected checks with `Failure-Class:
+  FC-split-mutation-authority`. `git diff --check`, Swift format, SwiftLint, the
+  test-quality ratchet, E2E-flow coverage, and the source line-count ratchet are
+  green.
+- The offline `omi-wave2-closeout` bundle passed Memory CRUD, Task CRUD,
+  disabled billing, Rewind artifact recovery, Alice sign-out, Bob restart, and
+  the same four core flows again as Bob. The billing flow proved literal
+  **Skip**, checkout/portal disabled, no entitlement/quota/paywall mutation, and
+  no checkout request. Neither production Omi bundle was touched.
+
+### Truthful inherited-suite record
+
+The repository-wide Swift runner built all closeout code and ran 366 suites, but
+19 target-branch suites remained red. Two representative failures were rerun
+unchanged on detached `origin/main` and reproduced there:
+`LocalMemoryLifecycleRunnerTests` (fixture extraction count) and
+`TasksStoreOwnerBoundaryTests` (UserNotifications bundle proxy). The other red
+suites were not individually claimed as baseline-reproduced. Therefore this
+record does not falsely claim one clean `desktop/macos/test.sh` pass.
+
+The offline Tier-2 matrix passed 19/29 entries, including every core closeout
+flow above and the spatial-overlay suite. Its ten remaining red integration
+flows were `capture-lifecycle`, `chat-hermetic`, `conversation-detail`,
+`floating-bar-functional`, `home-stage`, `keyboard-shortcuts`, `memory-depth`,
+`quick-note`, `recording-finalization`, and `speaker-naming`. These failures and
+the full-suite debt are reported rather than broadened into behavior-changing
+repairs. They do not restore a cloud authority or change the Wave 3 source
+dependency, but they remain release-suite debt to clear before claiming a fully
+green repository-wide desktop release.
+
+No real provider credentials, Dodo/Stripe call, cloud mutation, deployment,
+production-app operation, push, PR, or merge occurred.
