@@ -143,7 +143,6 @@ def compute_structure_candidate(request: ConversationCandidateRequest, uid: str)
         language_code=request.language,
         tz=request.timezone,
         uid=uid,
-        calendar_meeting_context=None,
         output_language_code=request.output_language,
     )
 
@@ -165,7 +164,6 @@ def compute_action_item_candidates(request: ConversationActionItemsRequest, uid:
         language_code=request.language,
         tz=request.timezone,
         existing_action_items=existing,
-        calendar_meeting_context=None,
         output_language_code=request.output_language,
         raise_on_error=True,
     )

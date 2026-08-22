@@ -28,7 +28,6 @@ EXTRA_DISCOVERABLE_TESTS: tuple[Path, ...] = ()
 LEGACY_UNLISTED_TESTS = {
     'tests/test_cache_manager.py',
     'tests/unit/test_diarizer_dockerfile.py',
-    'tests/unit/test_lazy_conversation_processing.py',
 }
 
 FULL_RUN_PATHS = (
@@ -123,11 +122,6 @@ AREA_TESTS = (
         ),
     ),
     (
-        ('backend/routers/action_items', 'backend/services/action_items/', 'backend/utils/action_items'),
-        (),
-        ('tests/unit/test_action_item*.py',),
-    ),
-    (
         ('backend/routers/payment', 'backend/utils/billing/'),
         (),
         (
@@ -138,11 +132,6 @@ AREA_TESTS = (
             'tests/unit/test_paywall_reconnect_gate.py',
             'tests/unit/test_chat_quota.py',
         ),
-    ),
-    (
-        ('backend/routers/folders', 'backend/services/folders/', 'backend/utils/folders'),
-        (),
-        ('tests/unit/test_folder_*.py',),
     ),
     (
         ('backend/routers/sync', 'backend/services/sync/', 'backend/utils/sync'),
@@ -158,11 +147,6 @@ AREA_TESTS = (
         ('backend/routers/notifications', 'backend/services/notifications/', 'backend/utils/notifications'),
         (),
         ('tests/unit/test_*notification*.py', 'tests/unit/test_mentor_notifications.py'),
-    ),
-    (
-        ('backend/routers/twilio', 'backend/services/twilio/', 'backend/utils/twilio'),
-        (),
-        ('tests/unit/test_twilio_*.py', 'tests/unit/test_phone_*.py'),
     ),
     (
         ('backend/routers/geocoding', 'backend/services/geocoding/', 'backend/utils/geocoding'),

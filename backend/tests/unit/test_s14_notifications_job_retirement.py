@@ -33,11 +33,12 @@ def test_notifications_job_is_absent_from_runtime_registries() -> None:
         assert '.github/workflows/gcp_notifications_job.yml' not in cloud_run.get('workflow_files', [])
 
 
-def test_retained_generic_notification_and_listen_modules_import() -> None:
+def test_listen_imports_without_deleted_cloud_notification_module() -> None:
     subprocess.run(
-        [sys.executable, '-c', 'import routers.listen.runtime; import utils.notifications'],
+        [sys.executable, '-c', 'import routers.listen.runtime'],
         cwd=ROOT,
         check=True,
         capture_output=True,
         text=True,
     )
+    assert not (ROOT / 'utils/notifications.py').exists()

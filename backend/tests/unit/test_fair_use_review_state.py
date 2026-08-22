@@ -7,8 +7,7 @@ import database.fair_use as fair_use_db
 from tests.unit.fixtures.strict_firestore_transaction import StrictFirestore
 
 
-def test_concurrent_review_claims_finish_with_exactly_one_owner():
-    receipt_path = ('users', 'owner-a', 'fair_use_review_receipts', 'review-1')
+def test_concurrent_review_processing_claims_finish_with_exactly_one_owner():
     client = StrictFirestore()
     now = datetime(2026, 8, 21, 8, tzinfo=timezone.utc)
 
@@ -30,56 +29,6 @@ def test_concurrent_review_claims_finish_with_exactly_one_owner():
     assert all(not thread.is_alive() for thread in processing_threads)
     assert len(processing_claims) == 2
     assert sum(claim is not None for claim in processing_claims) == 1
-
-    client.rows[receipt_path] = {'notification_pending': True}
-    notification_barrier = threading.Barrier(2)
-    notification_claims: list[str | None] = []
-
-    def claim_notification() -> None:
-        notification_barrier.wait()
-        notification_claims.append(
-            fair_use_db.claim_fair_use_review_notification('owner-a', 'review-1', firestore_client=client, now=now)
-        )
-
-    notification_threads = [threading.Thread(target=claim_notification) for _ in range(2)]
-    for thread in notification_threads:
-        thread.start()
-    for thread in notification_threads:
-        thread.join(timeout=2)
-
-    assert all(not thread.is_alive() for thread in notification_threads)
-    assert len(notification_claims) == 2
-    assert sum(claim is not None for claim in notification_claims) == 1
-
-
-def test_notification_delivery_claim_is_single_owner_and_token_fenced(monkeypatch):
-    monkeypatch.setattr(fair_use_db.firestore, 'transactional', lambda function: function)
-    receipt_path = ('users', 'owner-a', 'fair_use_review_receipts', 'review-1')
-    client = StrictFirestore({receipt_path: {'notification_pending': True}})
-    now = datetime(2026, 8, 21, 8, tzinfo=timezone.utc)
-
-    first = fair_use_db.claim_fair_use_review_notification('owner-a', 'review-1', firestore_client=client, now=now)
-    concurrent = fair_use_db.claim_fair_use_review_notification('owner-a', 'review-1', firestore_client=client, now=now)
-
-    assert first is not None
-    assert concurrent is None
-    fair_use_db.release_fair_use_review_notification('owner-a', 'review-1', 'stale-token', firestore_client=client)
-    assert client.rows[receipt_path]['notification_dispatch_token'] == first
-    fair_use_db.release_fair_use_review_notification('owner-a', 'review-1', first, firestore_client=client)
-    assert client.rows[receipt_path]['notification_dispatch_token'] is None
-
-    second = fair_use_db.claim_fair_use_review_notification('owner-a', 'review-1', firestore_client=client, now=now)
-    assert second is not None and second != first
-    assert (
-        fair_use_db.mark_fair_use_review_notification_sent(
-            'owner-a', 'review-1', first, firestore_client=client, now=now
-        )
-        is False
-    )
-    assert fair_use_db.mark_fair_use_review_notification_sent(
-        'owner-a', 'review-1', second, firestore_client=client, now=now
-    )
-    assert client.rows[receipt_path]['notification_pending'] is False
 
 
 def test_review_receipt_uses_the_injected_firestore_client():
@@ -157,7 +106,8 @@ def test_transactional_review_core_persists_one_content_free_transition_and_idem
     assert client.rows[state_path]['stage'] == 'throttle'
     assert client.rows[state_path]['violation_count_7d'] == 2
     assert client.rows[state_path]['violation_count_30d'] == 2
-    assert client.rows[receipt_path]['notification_pending'] is True
+    assert 'notification_pending' not in client.rows[receipt_path]
+    assert 'notification_dispatch_token' not in client.rows[receipt_path]
     assert client.rows[event_path]['new_stage'] == 'throttle'
     for forbidden in ('title', 'overview', 'category', 'source', 'time', 'duration', 'evidence', 'reasoning'):
         assert forbidden not in client.rows[event_path]

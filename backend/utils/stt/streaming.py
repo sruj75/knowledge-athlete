@@ -343,7 +343,6 @@ class SafeModulateSocket(STTSocket):
                 'end': start,
                 'text': text,
                 'is_user': False,
-                'person_id': None,
             }
         ]
         self._stream_transcript(segments)
@@ -384,7 +383,6 @@ class SafeModulateSocket(STTSocket):
                 'end': end,
                 'text': text,
                 'is_user': False,
-                'person_id': None,
             }
         ]
         self._stream_transcript(segments)

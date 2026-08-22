@@ -215,7 +215,7 @@ class VADStreamingGate:
         self._speech_ms_delta: float = 0.0
 
     def activate(self) -> None:
-        """Switch from shadow to active mode (used after speech profile completes).
+        """Switch a diagnostics-only shadow gate to active filtering.
 
         Advances the WallTimeMapper cursor to account for all audio sent during
         shadow mode. Without this, the mapper would think provider cursor is at 0

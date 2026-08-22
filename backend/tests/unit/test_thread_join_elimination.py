@@ -76,32 +76,21 @@ class TestThreadPoolExecutorUsed:
 class TestAsyncSTTVariants:
     """Phase 4: verify async STT variants exist."""
 
-    def test_async_extract_embedding_exists(self):
-        filepath = os.path.join(BACKEND_DIR, 'utils', 'stt', 'speaker_embedding.py')
-        source = _read_source(filepath)
-        assert 'async def async_extract_embedding(' in source
-        assert 'async def async_extract_embedding_from_bytes(' in source
-
     def test_async_vad_exists(self):
         filepath = os.path.join(BACKEND_DIR, 'utils', 'stt', 'vad.py')
         source = _read_source(filepath)
         assert 'async def async_vad_is_empty(' in source
 
-    def test_async_speech_profile_exists(self):
-        filepath = os.path.join(BACKEND_DIR, 'utils', 'stt', 'speech_profile.py')
-        source = _read_source(filepath)
-        assert 'async def async_get_speech_profile_matching_predictions(' in source
-
     def test_stt_async_uses_httpx_client(self):
         """Async STT variants should use shared httpx client, not create per-call clients."""
-        for filename in ['speaker_embedding.py', 'vad.py', 'speech_profile.py']:
+        for filename in ['vad.py']:
             filepath = os.path.join(BACKEND_DIR, 'utils', 'stt', filename)
             source = _read_source(filepath)
             assert 'get_stt_client' in source, f"{filename} should use shared get_stt_client()"
 
     def test_stt_async_offloads_file_io(self):
         """Async STT variants should offload file reads via run_blocking."""
-        for filename in ['speaker_embedding.py', 'vad.py', 'speech_profile.py']:
+        for filename in ['vad.py']:
             filepath = os.path.join(BACKEND_DIR, 'utils', 'stt', filename)
             source = _read_source(filepath)
             assert 'run_blocking(storage_executor' in source, f"{filename} should offload file I/O via storage_executor"
@@ -110,31 +99,6 @@ class TestAsyncSTTVariants:
 @pytest.mark.slow
 class TestAsyncSTTBehavior:
     """Runtime behavior tests for async STT variants."""
-
-    @pytest.mark.asyncio
-    async def test_async_extract_embedding_from_bytes_short_audio_rejected(self, monkeypatch):
-        """Short audio should raise ValueError before any HTTP call."""
-        distance_mod = types.ModuleType('scipy.spatial.distance')
-        distance_mod.cdist = lambda *args, **kwargs: [[0.0]]
-        spatial_mod = types.ModuleType('scipy.spatial')
-        spatial_mod.distance = distance_mod
-        scipy_mod = types.ModuleType('scipy')
-        scipy_mod.spatial = spatial_mod
-        monkeypatch.setitem(sys.modules, 'scipy', scipy_mod)
-        monkeypatch.setitem(sys.modules, 'scipy.spatial', spatial_mod)
-        monkeypatch.setitem(sys.modules, 'scipy.spatial.distance', distance_mod)
-        monkeypatch.delitem(sys.modules, 'utils.stt.speaker_embedding', raising=False)
-
-        # 44-byte WAV header with 0 data frames = 0s duration
-        short_wav = (
-            b'RIFF$\x00\x00\x00WAVEfmt \x10\x00\x00\x00'
-            b'\x01\x00\x01\x00\x80>\x00\x00\x00}\x00\x00'
-            b'\x02\x00\x10\x00data\x00\x00\x00\x00'
-        )
-
-        with pytest.raises(ValueError, match="Audio too short"):
-            mod = importlib.import_module('utils.stt.speaker_embedding')
-            await mod.async_extract_embedding_from_bytes(short_wav)
 
     @pytest.mark.asyncio
     async def test_async_vad_local_fallback(self, monkeypatch):

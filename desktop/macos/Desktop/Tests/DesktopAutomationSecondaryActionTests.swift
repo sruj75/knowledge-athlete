@@ -17,6 +17,7 @@ final class DesktopAutomationSecondaryActionTests: XCTestCase {
       "vocabulary_set_terms",
       "goals_snapshot",
       "create_test_goal",
+      "export_my_data",
       "subscription_snapshot",
       "settings_privacy_snapshot",
       "open_conversation",
@@ -178,6 +179,15 @@ final class DesktopAutomationSecondaryActionTests: XCTestCase {
     XCTAssertFalse(body.contains("getPrivateCloudSync"))
     XCTAssertFalse(body.contains("store_recordings"))
     XCTAssertFalse(body.contains("cloud_sync"))
+  }
+
+  func testExportMyDataActionUsesProductionLocalExporterAndDisposableFile() throws {
+    let body = try actionBody(named: "export_my_data", in: try bridgeSource())
+    XCTAssertTrue(body.contains("LocalUserDataExport().export"))
+    XCTAssertTrue(body.contains("FileManager.default.temporaryDirectory"))
+    XCTAssertTrue(body.contains("removeItem(at: directory)"))
+    XCTAssertTrue(body.contains("RuntimeOwnerIdentity.currentOwnerId()"))
+    XCTAssertFalse(body.contains("APIClient"))
   }
 
   func testSubscriptionSnapshotReadsBillingAPI() throws {

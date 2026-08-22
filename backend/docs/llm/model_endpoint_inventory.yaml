@@ -64,22 +64,6 @@ workloads:
     provider_model: openai/gpt-5.1
     caller: S-20 bounded fair-use classify route
     result_owner: S-20 Mac GRDB evidence and content-free enforcement facts
-  - key: wrapped_analysis
-    lifecycle: successor_s23
-    provider_model: openrouter/gemini-3-flash-preview
-    caller: backend/routers/wrapped.py
-    result_owner: S-23 Wrapped product
-  - key: followup
-    lifecycle: successor_s23
-    provider_model: gemini/gemini-2.5-flash-lite
-    caller: DELETE /v1/joan/{memory_id}/followup-question
-    result_owner: S-23 Joan product
-  - key: conv_folder
-    lifecycle: successor_s23
-    provider_model: openai/gpt-4.1-nano
-    caller: hosted conversation finalization folder assignment
-    result_owner: S-23 hosted conversation product
-
 adjacent_direct_surfaces:
   - surface: desktop_gemini_generation
     provider_models:
@@ -113,8 +97,5 @@ retired_surfaces:
 
 closure:
   status: complete
-  permitted_s23_handoffs:
-    - followup -> Joan
-    - conv_folder -> automatic folder assignment
-    - wrapped_analysis/openrouter -> Wrapped
+  permitted_s23_handoffs: []
   s25_handoff: callerless standalone gateway source and deployment topology remain intact

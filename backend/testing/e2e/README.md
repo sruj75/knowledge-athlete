@@ -21,15 +21,14 @@ python -m pip install -r testing/e2e/requirements.txt
 
 ## Scope of v1
 
-This version proves the backend can boot hermetically and that selected user/account, storage, retrieval/search, and legacy-shape paths can execute without real Firestore, Redis, GCS, Pinecone, Typesense, Google ADC, or production API keys. Conversation, Memory, task, and goal CRUD are deliberately absent because the Mac owns those products locally; the backend retains only bounded conversation/Memory compute routes. The authenticated transient listen route is exercised by `tests/unit/test_listen_transient_contract.py` with the real FastAPI route/runtime and a fake Modulate socket.
+This version proves the backend can boot hermetically and that selected retained user/account and durable account-deletion paths execute without real Firestore, Redis, GCS, Pinecone, Typesense, Google ADC, or production API keys. Conversation, Memory, task, goal, People, notification, and recording products are deliberately absent because the Mac owns those products locally. The authenticated transient listen route is exercised separately by `tests/unit/test_listen_transient_contract.py` with the real FastAPI route/runtime and a fake Modulate socket.
 
 | Scenario | Status | Notes |
 |---|---:|---|
 | Listen/STT route seam | ✅ | `/v4/listen` authentication, exact query parsing, fixed audio contract, managed Modulate transport, direct segment delivery, and optional translation are covered without server conversation persistence. `/v4/web/listen` is retired. |
-| Storage / speech profile | ✅ Green | `google.cloud.storage.Client` is patched to a temp-dir fake; speech-profile presence, signed URL, sample list, and delete paths run through real routes/helpers. |
-| User/auth/profile/account | ✅ Green | Auth guard, account profile, onboarding, and general language are covered. Mac notification/assistant settings and AI Profile are local authorities. S-10 removed Mac transcription preferences and People CRUD. Account deletion additionally exercises its real admission route, durable marker, opaque Cloud Tasks payload, worker claim, required-purge retry, and idempotent redelivery against local fakes. Firebase deletion, billing lookup, Twilio, and derived-data purge stay controlled test seams. |
-| Retrieval/search | ✅ Partial | Conversation-summary and transcript-chunk retrieval routes run through real public APIs with Firestore-backed records. Full Pinecone/Typesense service compatibility remains out of scope. |
-| Legacy shape compatibility | ✅ Green | Exercises retained server-internal conversation storage and deterministic fake-store repeated writes. It does not expose conversation routes or execute production migration scripts. |
+| Storage bootstrap | ✅ Green | `google.cloud.storage.Client` is patched to a temp-dir fake so callerless S-25 drain imports cannot contact GCS. No customer recording or speech-profile route is exercised. |
+| User/auth/profile/account | ✅ Green | Auth guard, account profile, and general language are covered. Account deletion additionally exercises its real admission route, durable marker, opaque Cloud Tasks payload, worker claim, exact Pinecone purge handoff, required-purge retry, and idempotent redelivery against local fakes. Firebase deletion and billing lookup stay controlled test seams. |
+| Removed product boundaries | ✅ Green | Product route/schema absence is owned by the focused S-23 unit contracts; the harness contains no hosted conversation, People, recording, notification, or retrieval fixture. |
 
 ## What is faked or disabled
 
@@ -37,11 +36,11 @@ This version proves the backend can boot hermetically and that selected user/acc
 |---|---|---|
 | Firestore | `fake-firestore` `MockFirestore` | In-memory datastore backing the real database modules. |
 | Redis | `fakeredis` | In-memory Redis replacement. |
-| Google Cloud Storage | `google.cloud.storage.Client` patched to a filesystem-backed fake | Enables storage-backed routes without GCS credentials/network. |
+| Google Cloud Storage | `google.cloud.storage.Client` patched to a filesystem-backed fake | Keeps shared S-25 drain imports hermetic without restoring customer storage routes. |
 | Cloud Tasks / OIDC | Strict in-memory `tasks_v2.CloudTasksClient` plus a local token-verification seam in the account-deletion lifecycle test | Exercises the production task protobuf, queue payload, OIDC identity/audience, and retry headers without a Cloud Tasks control plane or Google token verification. |
 | Google ADC | `google.auth.default` returns anonymous credentials | Prevents real credential lookup at import time. |
-| Pinecone | `PINECONE_API_KEY` removed globally; the shared vector client remains a deterministic in-memory fake | Keeps app import hermetic without restoring hosted Memory vector authority. |
-| Typesense | Dummy host/port/API key | Lets import-time Typesense client construction succeed; retrieval/search tests rely on vector results and fail-open keyword search rather than real Typesense compatibility. |
+| Pinecone | `PINECONE_API_KEY` removed globally; account deletion injects the exact S-24 purge result | Keeps app import hermetic without restoring hosted Memory or conversation vector readers. |
+| Typesense | Dummy host/port/API key | Lets remaining later-slice imports construct without testing hosted product search. |
 | Google Translate | Anonymous Google credentials | Allows import-time client construction; v1 tests do not call live translation. |
 | LLM/STT/VAD/embeddings | Fake modules scaffolded; route and custom-STT suggested-transcript seams covered where deterministic patching is practical | Kept as v2 work where scenarios need real outbound HTTP/WS/provider assertions. |
 
@@ -49,28 +48,22 @@ This version proves the backend can boot hermetically and that selected user/acc
 
 - FastAPI app import via `main.app`
 - Routers, middleware, auth dependency, websocket route entrypoints, Pydantic request/response validation
-- Database modules and model serialization/deserialization
+- Retained account database modules and profile serialization
 - Firestore query/update/delete code paths, backed by `MockFirestore`
 - Redis client construction and delegated fakeredis operations
-- Storage helper code paths, backed by temp-dir fake GCS
+- Storage client construction, backed by temp-dir fake GCS
 
 ## Running individual scenarios
 
 ```bash
-# Storage-backed speech profile routes
-bash backend/testing/e2e/run.sh -k "storage_speech_profile"
-
-# Retrieval/search seams
-bash backend/testing/e2e/run.sh -k "search or retrieval or embedding or vector"
-
 # User/auth/profile/account routes
 bash backend/testing/e2e/run.sh -k "user_auth_profile"
 
 # Durable account-deletion Cloud Tasks lifecycle
 bash backend/testing/e2e/run.sh -k "account_deletion_cloud_tasks"
 
-# Legacy shape compatibility
-bash backend/testing/e2e/run.sh -k "test_migration_safety"
+# Hermetic boot and socket guards
+bash backend/testing/e2e/run.sh -k "harness_guards"
 ```
 
 ## Architecture
@@ -80,21 +73,16 @@ run.sh
   └── pytest testing/e2e/
         ├── conftest.py                         # env, auth, fake setup, TestClient
         ├── fakes/
-        │   ├── firestore.py                    # MockFirestore + seed/read helpers
+        │   ├── firestore.py                    # MockFirestore retained-account support
         │   ├── redis.py                        # FakeRedis + redis.Redis patch
         │   ├── storage.py                      # filesystem-backed fake GCS client
-        │   ├── vector_search.py                # deterministic embeddings + in-memory Pinecone-like index
+        │   ├── vector_search.py                # hermetic S-24 purge/import seam
         │   ├── llm.py                          # deterministic LLM fake scaffold
         │   ├── stt.py                          # deterministic custom and managed-STT socket helpers
         │   └── embeddings.py                   # VAD/diarization/embedding fake scaffold
-        ├── fixtures/
-        │   └── conversations.json
         ├── test_account_deletion_cloud_tasks.py
         ├── test_harness_guards.py
-        ├── test_migration_safety.py
-        ├── test_storage_speech_profile.py
-        ├── test_user_auth_profile.py
-        └── test_webhooks.py
+        └── test_user_auth_profile.py
 ```
 
 ## Test lifecycle
@@ -106,31 +94,19 @@ run.sh
 5. Patch Firestore/Redis/Storage client constructors before `import main`.
 6. Import the real FastAPI app and wrap it with `TestClient`.
 7. Clear fake Firestore/Redis/Storage state around each test.
-8. Seed retained server-internal data only where a later-slice contract requires it.
+8. Seed only retained account state or an exact later-slice handoff.
 9. Run route-level assertions through the real app.
 
 ## Adding tests
 
-Prefer real retained public routes, including `/v4/listen` for transient STT. For S-23-owned historical datastore behavior, seed through `fakes.firestore.seed_*` and inspect the direct internal seam; do not recreate a public conversation compatibility route.
-
-```python
-from fakes.firestore import read_conversation, seed_conversation
-
-
-def test_server_internal_conversation_fixture(sample_conversation_data):
-    seed_conversation("123", sample_conversation_data)
-    stored = read_conversation("123", sample_conversation_data["id"])
-    assert stored is not None
-```
+Prefer real retained public routes and durable worker paths. Product absence belongs in focused assembled-app 404/schema tests; do not add hosted conversation, People, notification, recording, or retrieval fixtures to this harness.
 
 ## Current limitations / v2 work
 
 - [x] Add hermetic core-flow coverage for custom-STT listen reconnect/finalize and conversation finalization.
-- [ ] Wire deterministic LLM endpoints into all OpenAI/Anthropic/OpenRouter clients used by processing code.
+- [ ] Wire deterministic retained LLM endpoints into all in-scope provider clients.
 - [ ] Add per-test HTTP failure injection for LLM 500 / timeout scenarios.
 - [ ] Add real Redis-unavailable fail-open tests; v1 uses fakeredis-backed paths.
-- [ ] Execute production migration scripts against fake fixtures if migration-script coverage is needed.
-- [ ] Expand retrieval/search beyond the deterministic in-memory vector seam to cover real Typesense keyword behavior and closer Pinecone response compatibility if those service contracts become in-scope.
 - [x] Run under Python 3.11 in CI-like environments; the required `Backend Hermetic E2E` GitHub Action now installs dependencies, prewarms tokenizer cache, and runs the harness.
 
 ## Dependencies

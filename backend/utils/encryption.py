@@ -9,18 +9,17 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-# Load the master secret from environment variables. This must be a securely managed 32-byte key.
+# Historical S-25 drain reads resolve the retired product key lazily. Importing
+# the retained backend must not require product-only configuration.
 ENCRYPTION_SECRET = os.getenv('ENCRYPTION_SECRET', '').encode('utf-8')
-if not ENCRYPTION_SECRET or len(ENCRYPTION_SECRET) < 32:
-    raise ValueError(
-        "ENCRYPTION_SECRET environment variable not set or is too short. " "It must be a securely managed 32-byte key."
-    )
 
 
 def derive_key(uid: str) -> bytes:
     """
     Derives a user-specific 32-byte key from the master secret and user ID (salt).
     """
+    if len(ENCRYPTION_SECRET) < 32:
+        raise RuntimeError('Historical encrypted drain data requires ENCRYPTION_SECRET')
     hkdf = HKDF(
         algorithm=hashes.SHA256(),
         length=32,

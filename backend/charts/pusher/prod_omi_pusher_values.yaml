@@ -110,8 +110,6 @@ envFrom:
       name: prod-omi-backend-config
 
 env:
-  - name: BUCKET_SPEECH_PROFILES
-    value: "profiles"
   - name: GITHUB_TOKEN
     valueFrom:
       secretKeyRef:
@@ -132,8 +130,6 @@ env:
       secretKeyRef:
         name: prod-omi-backend-secrets
         key: GROQ_API_KEY
-  - name: HOSTED_SPEECH_PROFILE_API_URL
-    value: "http://vad.omi.me:80/v1/speaker-identification"
   - name: HOSTED_SPEAKER_EMBEDDING_API_URL
     value: "http://diarizer.omi.me:80"
   - name: PINECONE_API_KEY
@@ -186,8 +182,6 @@ env:
       secretKeyRef:
         name: prod-omi-backend-secrets
         key: ENCRYPTION_SECRET
-  - name: BUCKET_PRIVATE_CLOUD_SYNC
-    value: "omi-private-cloud-sync"
   - name: BUCKET_PLUGINS_LOGOS
     value: "omi_plugins"
   - name: LANGCHAIN_TRACING_V2
@@ -237,11 +231,6 @@ env:
       secretKeyRef:
         name: prod-omi-backend-secrets
         key: TYPESENSE_API_KEY
-  - name: OPENROUTER_API_KEY
-    valueFrom:
-      secretKeyRef:
-        name: prod-omi-backend-secrets
-        key: OPENROUTER_API_KEY
   - name: GOOGLE_CLOUD_PROJECT
     value: "based-hardware"
   - name: BASIC_TIER_MINUTES_LIMIT_PER_MONTH

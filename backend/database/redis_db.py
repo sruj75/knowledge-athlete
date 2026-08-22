@@ -114,126 +114,6 @@ def get_cached_user_geolocation(uid: str) -> Optional[Dict[str, Any]]:
     return cast(Dict[str, Any], loaded) if isinstance(loaded, dict) else None
 
 
-def set_in_progress_conversation_id(uid: str, conversation_id: str, ttl: int = 300) -> None:
-    r.set(f'users:{uid}:in_progress_memory_id', conversation_id)
-    r.expire(f'users:{uid}:in_progress_memory_id', ttl)
-
-
-def remove_in_progress_conversation_id(uid: str) -> None:
-    r.delete(f'users:{uid}:in_progress_memory_id')
-
-
-def get_in_progress_conversation_id(uid: str) -> str:
-    conversation_id = r.get(f'users:{uid}:in_progress_memory_id')
-    if not conversation_id:
-        return ''
-    return conversation_id.decode()
-
-
-def set_conversation_meeting_id(conversation_id: str, meeting_id: str, ttl: int = 86400) -> None:
-    """Store the meeting_id for a conversation. TTL defaults to 24 hours."""
-    r.set(f'conversation:{conversation_id}:meeting_id', meeting_id)
-    r.expire(f'conversation:{conversation_id}:meeting_id', ttl)
-
-
-def get_conversation_meeting_id(conversation_id: str) -> Optional[str]:
-    """Retrieve the meeting_id associated with a conversation."""
-    meeting_id = r.get(f'conversation:{conversation_id}:meeting_id')
-    if not meeting_id:
-        return None
-    return meeting_id.decode()
-
-
-def get_filter_category_items(uid: str, category: str, limit: Optional[int] = None) -> List[str]:
-    key = f'users:{uid}:filters:{category}'
-    if limit:
-        # Get random sample if limit specified
-        val = r.srandmember(key, limit)
-    else:
-        # Get all items (existing behavior)
-        val = r.smembers(key)
-
-    if not val:
-        return []
-    return [x.decode() for x in val]
-
-
-def add_filter_category_item(uid: str, category: str, item: str) -> None:
-    r.sadd(f'users:{uid}:filters:{category}', item)
-
-
-def save_migrated_retrieval_conversation_id(conversation_id: str) -> None:
-    r.sadd('migrated_retrieval_memory_ids', conversation_id)
-    r.expire('migrated_retrieval_memory_ids', 60 * 60 * 24 * 7)
-
-
-@try_catch_decorator
-def incr_daily_notification_count(uid: str) -> int:
-    """Atomically increment the daily proactive-notification count for a user."""
-    from datetime import datetime, timezone
-
-    key = f'{uid}:daily_noti_count:{datetime.now(timezone.utc).strftime("%Y-%m-%d")}'
-    count = r.incr(key)
-    r.expire(key, 90000)  # 25 hours TTL
-    return count
-
-
-@try_catch_decorator
-def get_daily_notification_count(uid: str) -> int:
-    """Get the current daily proactive-notification count for a user."""
-    from datetime import datetime, timezone
-
-    key = f'{uid}:daily_noti_count:{datetime.now(timezone.utc).strftime("%Y-%m-%d")}'
-    val = r.get(key)
-    if not val:
-        return 0
-    return int(val)
-
-
-@try_catch_decorator
-def set_user_data_protection_level(uid: str, level: str) -> None:
-    """Caches the user's data protection level."""
-    key = f'user:{uid}:data_protection_level'
-    r.set(key, level)
-
-
-@try_catch_decorator
-def get_user_data_protection_level(uid: str) -> Optional[str]:
-    """Retrieves the user's cached data protection level."""
-    key = f'user:{uid}:data_protection_level'
-    level = r.get(key)
-    return level.decode() if level else None
-
-
-# ******************************************************
-# **************** DATA MIGRATION STATUS ***************
-# ******************************************************
-
-
-def set_migration_status(
-    uid: str,
-    status: str,
-    processed: Optional[int] = None,
-    total: Optional[int] = None,
-    error: Optional[str] = None,
-) -> None:
-    key = f"migration_status:{uid}"
-    data: Dict[str, Any] = {"status": status}
-    if processed is not None:
-        data["processed"] = processed
-    if total is not None:
-        data["total"] = total
-    if error is not None:
-        data["error"] = error
-
-    r.set(key, json.dumps(data), ex=3600)  # Expire after 1 hour
-
-
-# ******************************************************
-# ******************* AUTH SESSION *********************
-# ******************************************************
-
-
 @try_catch_decorator
 def set_auth_session(session_id: str, session_data: Dict[str, Any], ttl: int = 600) -> None:
     """Store auth session data with expiration (default 10 minutes)"""
@@ -269,38 +149,8 @@ def delete_auth_code(auth_code: str) -> None:
     r.delete(f'auth_code:{auth_code}')
 
 
-def set_silent_user_notification_sent(uid: str, ttl: int = 60 * 60 * 24) -> None:
-    """Cache that silent user notification was sent to user (24 hours TTL by default)"""
-    r.set(f'users:{uid}:silent_notification_sent', '1', ex=ttl)
-
-
-def has_silent_user_notification_been_sent(uid: str) -> bool:
-    """Check if silent user notification was already sent to user recently"""
-    return r.exists(f'users:{uid}:silent_notification_sent')
-
-
-# ******************************************************
-# ******* IMPORTANT CONVERSATION NOTIFICATIONS *********
-# ******************************************************
-
-
-def set_important_conversation_notification_sent(uid: str, conversation_id: str) -> None:
-    """Mark that important conversation notification was sent for this conversation (no expiry - one-time per conversation)"""
-    r.set(f'users:{uid}:important_conv_notif:{conversation_id}', '1')
-
-
-def has_important_conversation_notification_been_sent(uid: str, conversation_id: str) -> bool:
-    """Check if important conversation notification was already sent for this conversation"""
-    return r.exists(f'users:{uid}:important_conv_notif:{conversation_id}')
-
-
-# ******************************************************
-# *************** RATE LIMITING ************************
-# ******************************************************
-
-# Lua script: atomic increment + TTL in a single round-trip.
-# Returns [current_count, ttl_remaining].  Sets TTL on first hit
-# and self-heals any key that lost its TTL (prevents permanent buckets).
+# Atomic increment + TTL in one round-trip. The TTL repair prevents a Redis
+# key that lost expiry metadata from becoming a permanent rate-limit bucket.
 _RATE_LIMIT_LUA = r.register_script(
     """
 local key = KEYS[1]
@@ -446,17 +296,6 @@ def try_acquire_user_platform_write_lock(uid: str, platform: str, ttl: int = 600
         return True
 
 
-# ******************************************************
-# *************** SPEECH PROFILE CACHE *****************
-# ******************************************************
-
-
-@try_catch_decorator
-def set_speech_profile_duration(uid: str, duration: float) -> None:
-    """Cache speech profile duration (write-ahead on upload)"""
-    r.set(f'users:{uid}:speech_profile_duration', str(duration))
-
-
 @try_catch_decorator
 def set_credits_invalidation_signal(uid: str, ttl: int = 120) -> None:
     """Signal active WebSocket sessions to refresh credits immediately.
@@ -484,15 +323,3 @@ def check_credits_invalidation(uid: str) -> bool:
 # ******************************************************
 # *************** GOAL RATE LIMITING *******************
 # ******************************************************
-
-
-def try_acquire_goal_extraction_lock(uid: str, ttl: int = 300) -> bool:
-    """Per-user rate limit for goal extraction. Returns True if acquired (not rate limited)."""
-    result = r.set(f'users:{uid}:goal_extraction_lock', '1', ex=ttl, nx=True)
-    return result is not None
-
-
-def try_acquire_conversation_goal_lock(uid: str, conversation_id: str, ttl: int = 3600) -> bool:
-    """Idempotency lock: one goal extraction per conversation. Returns True if acquired."""
-    result = r.set(f'users:{uid}:conv_goal_lock:{conversation_id}', '1', ex=ttl, nx=True)
-    return result is not None

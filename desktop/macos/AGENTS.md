@@ -207,20 +207,17 @@ do not hand-edit those paths to match a specific machine.
 - **Typesense**: Search
 
 ### User Subcollections (Firestore)
-- `users/{uid}/conversations` - S-23 residue; never Mac/listen authority
-- `users/{uid}/fcm_tokens` - Token ID prefix = platform (ios_, android_, macos_)
+- `users/{uid}/conversations` - callerless S-25 drain residue; never Mac/listen authority
 - Capture creates its UUID before ingestion; reads and mutations stay local.
 - `/v4/listen` returns untrusted local candidates; Mac UI/authority stays local. Retired: Daily Summary, hosted assistant/notification/Mentor/Focus/AI Profile routes.
 - `MemoryStorage` owns Memory/Insight tips; compute/embeddings leave the Mac, owner/revision-fenced.
 - `ActionItemStorage`/`GoalStorage` own task/goal CRUD; reminders and assistant/notification prefs stay local.
 
 ### Platform Detection
-- **FCM tokens**: Document ID prefix (e.g., `macos_abc123`)
 - **Conversations**: local capture metadata; no broad hosted `source` taxonomy
 - **Action items**: No platform tracking
 
 ### Known Limitations
-- Firestore has no collection group indexes for `source` field
 - Counting users by platform requires iterating all users (slow)
 - Apple Sign-In: Only one Services ID per Firebase project
 

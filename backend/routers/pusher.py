@@ -1,77 +1,34 @@
-import struct
+"""Temporary S-25 finalization control socket.
+
+S-23 removes every private-cloud audio and persistent-speaker frame. The
+deployed socket remains only so S-25 can drain the finalization topology.
+"""
+
 import asyncio
-import time
-from collections import deque
-from typing import Any, Dict, List, Optional, cast
+import logging
+import struct
 
 from fastapi import APIRouter
-from fastapi.websockets import WebSocketDisconnect, WebSocket
+from fastapi.websockets import WebSocket, WebSocketDisconnect
 from starlette.websockets import WebSocketState
 
-import database.conversations as conversations_db
-from database import users as users_db
+from utils.executors import start_background_task
+from utils.metrics import PUSHER_ACTIVE_WS_CONNECTIONS
+from utils.observability.journeys import JourneyAttempt
 from utils.pusher_finalization import process_conversation_task
 from utils.pusher_protocol import (
-    BUFFERED_AUDIO_MAX_BYTES,
     MAX_SAMPLE_RATE,
     MIN_SAMPLE_RATE,
-    PRIVATE_CLOUD_QUEUE_MAX_SIZE,
-    ByteBudget,
-    PrivateCloudChunk,
-    SpeakerSampleRequest,
-    append_bounded,
-    bound_private_pending,
-    extend_bounded,
     frame_header,
     json_object,
     pusher_session_outcome,
 )
-from utils.executors import db_executor, storage_executor, run_blocking, start_background_task
-from utils.async_tasks import (
-    supervise_tasks,
-    drain_tasks,
-    create_named_task,
-    wait_for_event,
-)
-from utils.cloud_tasks import is_audio_merge_dispatch_enabled
-from utils.other.storage import maybe_invalidate_conversation_playback, upload_audio_chunks_batch
-from utils.metrics import (
-    PUSHER_ACTIVE_WS_CONNECTIONS,
-    PUSHER_PRIVATE_CLOUD_UPLOAD_DROPS,
-)
 from utils.readiness import ReadinessGate
-from utils.observability.journeys import JourneyAttempt
-from utils.speaker_identification import extract_speaker_samples
-import logging
 
 logger = logging.getLogger(__name__)
-
 router = APIRouter()
 
-# Constants for speaker sample extraction
-SPEAKER_SAMPLE_PROCESS_INTERVAL = 15.0
-SPEAKER_SAMPLE_MIN_AGE = 120.0
-
-# Constants for private cloud sync
-PRIVATE_CLOUD_SYNC_PROCESS_INTERVAL = 1.0
-PRIVATE_CLOUD_CHUNK_DURATION = 60.0
-PRIVATE_CLOUD_BATCH_MAX_AGE = 60.0  # seconds — flush batch if oldest chunk exceeds this age
-PRIVATE_CLOUD_SYNC_MAX_RETRIES = 3
-
-# Queue size limits
-SPEAKER_SAMPLE_QUEUE_WARN_SIZE = 100
-
-
-# Receive timeout: if no data arrives for this long, the connection is considered dead.
-# Backend-listen sends heartbeats every ~30s, so 5 minutes without ANY data means the
-# upstream connection is gone.  Without this, half-open TCP connections hang forever,
-# leaking the gauge + ~15 MB per ghost connection.
-WS_RECEIVE_TIMEOUT = 300.0  # seconds
-
-# After receive_task exits, background tasks get this long to drain their queues
-# before being force-cancelled. Prevents hung GCS uploads from
-# blocking cleanup indefinitely.
-BG_DRAIN_TIMEOUT = 30.0  # seconds
+WS_RECEIVE_TIMEOUT = 300.0
 
 
 async def _websocket_util_trigger(
@@ -79,497 +36,82 @@ async def _websocket_util_trigger(
     uid: str,
     sample_rate: int = 8000,
 ) -> None:
-    logger.info(f'_websocket_util_trigger {uid}')
-
     try:
         await websocket.accept()
-    except RuntimeError as e:
-        logger.error(e)
+    except RuntimeError as error:
+        logger.error(error)
         await websocket.close(code=1011, reason="Dirty state")
         return
-
     if not MIN_SAMPLE_RATE <= sample_rate <= MAX_SAMPLE_RATE:
-        await websocket.close(code=1008, reason='Invalid sample rate')
+        await websocket.close(code=1008, reason="Invalid sample rate")
         return
-
-    # Defense-in-depth: during drain the LB should already have removed us from
-    # the NEG, but reject straggler NEW connections.  We accept the handshake
-    # FIRST so the client sees a clean WS close frame (1001 Going Away) rather
-    # than a failed HTTP upgrade — a pre-accept close is surfaced as an
-    # exception by the websockets client and recorded as a circuit-breaker
-    # failure in backend-listen (backend/utils/pusher.py), which can trip the
-    # pod's pusher circuit during a normal rollout.
     if not ReadinessGate.is_serving():
-        logger.info(f'Rejecting new WS for {uid}: pusher is draining')
         await websocket.close(code=1001)
         return
 
     journey_attempt = JourneyAttempt('pusher_session')
-    websocket_active = True
-    shutdown_event = asyncio.Event()
-    websocket_close_code = 1000
+    close_code = 1000
     application_failed = False
-
+    PUSHER_ACTIVE_WS_CONNECTIONS.inc()
     try:
-        private_cloud_sync_enabled = await run_blocking(db_executor, users_db.get_user_private_cloud_sync_enabled, uid)
-        cached_protection_level = (
-            (await run_blocking(db_executor, users_db.get_data_protection_level, uid))
-            if private_cloud_sync_enabled
-            else None
-        )
-    except asyncio.CancelledError:
-        journey_attempt.finish('cancelled')
-        raise
-    except Exception:
-        journey_attempt.finish('failure')
-        raise
+        while True:
+            data = await asyncio.wait_for(websocket.receive_bytes(), timeout=WS_RECEIVE_TIMEOUT)
+            header_type = frame_header(data)
+            if header_type == 100:
+                continue
+            if header_type != 104:
+                raise ValueError('retired pusher product-data frame')
 
-    # Bounded queues — prevent unbounded memory growth during backpressure
-    speaker_sample_queue: deque[SpeakerSampleRequest] = deque(maxlen=SPEAKER_SAMPLE_QUEUE_WARN_SIZE)
-    # private_cloud_queue caps at PRIVATE_CLOUD_QUEUE_MAX_SIZE to prevent OOM kills.
-    # An OOM kill loses ALL queued data for ALL users on the pod — dropping the oldest
-    # chunk for one user is strictly better than killing the pod.
-    private_cloud_queue: deque[PrivateCloudChunk] = deque(maxlen=PRIVATE_CLOUD_QUEUE_MAX_SIZE)
-    audio_budget = ByteBudget(BUFFERED_AUDIO_MAX_BYTES)
+            payload = json_object(data)
+            conversation_id = payload.get('conversation_id')
+            language = payload.get('language', 'en')
+            finalization_job_id = payload.get('finalization_job_id')
+            dispatch_generation = payload.get('dispatch_generation')
+            if not isinstance(conversation_id, str) or not conversation_id or not isinstance(language, str):
+                raise ValueError('invalid finalization control frame')
+            if finalization_job_id is not None and not isinstance(finalization_job_id, str):
+                raise ValueError('invalid finalization job id')
+            if dispatch_generation is not None and (
+                isinstance(dispatch_generation, bool) or not isinstance(dispatch_generation, int)
+            ):
+                raise ValueError('invalid dispatch generation')
 
-    async def process_private_cloud_queue() -> None:
-        """Background task that batches private cloud sync uploads by conversation_id.
-
-        Chunks are accumulated per conversation and flushed when:
-        - The batch reaches 60s of audio data, or
-        - The oldest chunk in the batch exceeds PRIVATE_CLOUD_BATCH_MAX_AGE, or
-        - The websocket disconnects (shutdown flush).
-        """
-        nonlocal websocket_active
-        nonlocal application_failed
-
-        # Pending batches keyed by conversation_id
-        pending: Dict[str, Dict[str, Any]] = {}
-
-        def _add_to_batch(chunk_info: PrivateCloudChunk) -> None:
-            conv_id = chunk_info['conversation_id']
-            if conv_id not in pending:
-                bound_private_pending(pending, audio_budget)
-                pending[conv_id] = {
-                    'data': bytearray(),
-                    'conversation_id': conv_id,
-                    'timestamp': chunk_info['timestamp'],  # oldest chunk timestamp
-                    'queued_at': time.monotonic(),
-                    'retries': 0,
-                }
-            batch = pending[conv_id]
-            batch['data'].extend(chunk_info['data'])
-
-        async def _flush_batch(conv_id: str):
-            """Upload a batched chunk and update audio files."""
-            nonlocal application_failed
-            batch = pending.pop(conv_id, None)
-            if not batch or len(batch['data']) == 0:
-                return
-            chunk_data = bytes(batch['data'])
-            del batch['data']  # free bytearray immediately — chunk_data holds the bytes copy
-            timestamp = batch['timestamp']
-            retries = batch.get('retries', 0)
-            try:
-                chunks_to_upload: List[Dict[str, Any]] = [{'data': chunk_data, 'timestamp': timestamp}]
-                await run_blocking(
-                    storage_executor,
-                    cast(Any, upload_audio_chunks_batch),
-                    chunks_to_upload,
+            start_background_task(
+                process_conversation_task(
                     uid,
-                    conv_id,
-                    cast(str, cached_protection_level),
-                )
-                del chunks_to_upload
-                try:
-                    audio_files = await run_blocking(
-                        storage_executor, conversations_db.create_audio_files_from_chunks, uid, conv_id
-                    )
-                    if audio_files:
-                        files_payload = [af.model_dump() for af in audio_files]
-                        await run_blocking(
-                            storage_executor,
-                            conversations_db.update_conversation,
-                            uid,
-                            conv_id,
-                            {'audio_files': files_payload},
-                        )
-                        # Rebuild the conversation playback artifact if a stamped one
-                        # went stale. No stamp (the live-conversation common case) → no-op.
-                        if is_audio_merge_dispatch_enabled():
-                            stamp = await run_blocking(
-                                storage_executor, conversations_db.get_conversation_audio_stamp, uid, conv_id
-                            )
-                            if stamp:
-                                await run_blocking(
-                                    storage_executor,
-                                    maybe_invalidate_conversation_playback,
-                                    uid,
-                                    conv_id,
-                                    {'conversation_audio': stamp},
-                                    files_payload,
-                                    'pusher_flush',
-                                )
-                except Exception as e:
-                    logger.error(f"Error updating audio files: {e} {uid} {conv_id}")
-                audio_budget.release(len(chunk_data))
-            except Exception as e:
-                if retries < PRIVATE_CLOUD_SYNC_MAX_RETRIES:
-                    batch['retries'] = retries + 1
-                    batch['data'] = bytearray(chunk_data)
-                    batch['queued_at'] = 0.0 if not websocket_active else time.monotonic()
-                    pending[conv_id] = batch
-                    logger.error(f"Private cloud batch upload failed (retry {retries + 1}): {e} {uid} {conv_id}")
-                else:
-                    audio_budget.release(len(chunk_data))
-                    PUSHER_PRIVATE_CLOUD_UPLOAD_DROPS.inc()
-                    application_failed = True
-                    logger.info(
-                        f"Private cloud batch upload failed after {PRIVATE_CLOUD_SYNC_MAX_RETRIES} retries, dropping: {e} {uid} {conv_id}"
-                    )
-            del chunk_data
-
-        while websocket_active or len(private_cloud_queue) > 0 or len(pending) > 0:
-            await wait_for_event(shutdown_event, PRIVATE_CLOUD_SYNC_PROCESS_INTERVAL)
-
-            # Drain queue into pending batches
-            if private_cloud_queue:
-                chunks_to_process = private_cloud_queue.copy()
-                private_cloud_queue.clear()
-                for chunk_info in chunks_to_process:
-                    _add_to_batch(chunk_info)
-
-            if not pending:
-                continue
-
-            now = time.monotonic()
-            batch_size_threshold = sample_rate * 2 * PRIVATE_CLOUD_CHUNK_DURATION
-
-            # Determine which conversations to flush
-            conv_ids_to_flush: List[str] = []
-            for conv_id, batch in pending.items():
-                batch_age = now - batch['queued_at']
-                is_shutdown = not websocket_active
-                is_size_ready = len(batch['data']) >= batch_size_threshold
-                is_age_ready = batch_age >= PRIVATE_CLOUD_BATCH_MAX_AGE
-                if is_shutdown or is_size_ready or is_age_ready:
-                    conv_ids_to_flush.append(conv_id)
-
-            for conv_id in conv_ids_to_flush:
-                await _flush_batch(conv_id)
-
-    async def process_speaker_sample_queue() -> None:
-        """Background task that processes speaker sample extraction requests."""
-        nonlocal websocket_active
-
-        while websocket_active or len(speaker_sample_queue) > 0:
-            await wait_for_event(shutdown_event, SPEAKER_SAMPLE_PROCESS_INTERVAL)
-
-            if not speaker_sample_queue:
-                continue
-
-            current_time = time.time()
-            is_shutdown = not websocket_active
-
-            # Separate ready and pending requests.
-            # On shutdown, skip the age check — process everything so pending
-            # samples aren't silently dropped when the drain timeout fires.
-            ready_requests: List[SpeakerSampleRequest] = []
-            pending_requests: List[SpeakerSampleRequest] = []
-
-            for request in list(speaker_sample_queue):
-                if is_shutdown or current_time - request['queued_at'] >= SPEAKER_SAMPLE_MIN_AGE:
-                    ready_requests.append(request)
-                else:
-                    pending_requests.append(request)
-
-            # Keep pending requests in queue (rebuild deque with pending only)
-            speaker_sample_queue.clear()
-            speaker_sample_queue.extend(pending_requests)
-
-            # Process ready requests (fire and forget)
-            for request in ready_requests:
-                person_id = request['person_id']
-                conv_id = request['conversation_id']
-                segment_ids = request['segment_ids']
-
-                try:
-                    await extract_speaker_samples(
-                        uid=uid,
-                        person_id=person_id,
-                        conversation_id=conv_id,
-                        segment_ids=segment_ids,
-                        sample_rate=sample_rate,
-                    )
-                except Exception as e:
-                    logger.error(f"Error extracting speaker samples: {e} {uid} {conv_id}")
-
-    async def receive_tasks() -> None:
-        nonlocal websocket_active
-        nonlocal websocket_close_code
-        nonlocal application_failed
-        nonlocal speaker_sample_queue
-        private_cloud_sync_buffer = bytearray()
-        private_cloud_chunk_start_time: Optional[float] = None
-        current_conversation_id: Optional[str] = None
-
-        try:
-            while websocket_active:
-                try:
-                    data = await asyncio.wait_for(websocket.receive_bytes(), timeout=WS_RECEIVE_TIMEOUT)
-                except asyncio.TimeoutError:
-                    logger.warning(f"WebSocket receive timeout ({WS_RECEIVE_TIMEOUT}s), closing connection {uid}")
-                    # This is a dead upstream, not a normal remote close. Keep its
-                    # terminal outcome distinct from protocol close codes 1000/1001.
-                    websocket_close_code = 1011
-                    application_failed = True
-                    break
-                header_type = frame_header(data)
-
-                # Heartbeat (data-frame keepalive from backend to reset GKE ILB idle timer)
-                if header_type == 100:
-                    continue
-
-                # Conversation ID
-                if header_type == 103:
-                    new_conversation_id = bytes(data[4:]).decode("utf-8")
-                    # Flush private cloud buffer for the old conversation before switching
-                    if (
-                        private_cloud_sync_enabled
-                        and current_conversation_id
-                        and current_conversation_id != new_conversation_id
-                        and len(private_cloud_sync_buffer) > 0
-                    ):
-                        if len(private_cloud_queue) >= PRIVATE_CLOUD_QUEUE_MAX_SIZE:
-                            logger.warning(
-                                f"private_cloud_queue full ({len(private_cloud_queue)}/{PRIVATE_CLOUD_QUEUE_MAX_SIZE}), "
-                                f"dropping oldest chunk to prevent OOM {uid}"
-                            )
-                        append_bounded(
-                            private_cloud_queue,
-                            {
-                                'data': bytes(private_cloud_sync_buffer),
-                                'conversation_id': current_conversation_id,
-                                'timestamp': private_cloud_chunk_start_time or time.time(),
-                            },
-                            'private_cloud',
-                            byte_budget=audio_budget,
-                            size_of=lambda chunk: len(chunk['data']),
-                        )
-                        logger.info(
-                            f"Flushed private cloud buffer on conversation switch: {len(private_cloud_sync_buffer)} bytes {uid}"
-                        )
-                        private_cloud_sync_buffer = bytearray()
-                        private_cloud_chunk_start_time = None
-                    current_conversation_id = new_conversation_id
-                    logger.info(f"Pusher received conversation_id: {current_conversation_id} {uid}")
-                    continue
-
-                # Process conversation request
-                if header_type == 104:
-                    res = json_object(data)
-                    conversation_id = res.get('conversation_id')
-                    language = res.get('language', 'en')
-                    finalization_job_id = res.get('finalization_job_id')
-                    dispatch_generation = res.get('dispatch_generation')
-                    if conversation_id is not None and not isinstance(conversation_id, str):
-                        raise ValueError('conversation_id must be a string')
-                    if not isinstance(language, str):
-                        raise ValueError('language must be a string')
-                    if finalization_job_id is not None and not isinstance(finalization_job_id, str):
-                        raise ValueError('finalization_job_id must be a string')
-                    if dispatch_generation is not None and (
-                        isinstance(dispatch_generation, bool) or not isinstance(dispatch_generation, int)
-                    ):
-                        raise ValueError('dispatch_generation must be an integer')
-                    if conversation_id:
-                        logger.info(f"Pusher received process_conversation request: {conversation_id} {uid}")
-                        # Durable finalization already has a Firestore owner. It
-                        # must survive an originating listen socket close after
-                        # this handoff, so pusher owns it at process scope. Its
-                        # lifespan drains tracked tasks on process shutdown.
-                        start_background_task(
-                            process_conversation_task(
-                                uid,
-                                conversation_id,
-                                language,
-                                websocket,
-                                finalization_job_id if isinstance(finalization_job_id, str) else None,
-                                dispatch_generation if isinstance(dispatch_generation, int) else None,
-                            ),
-                            name=f'pusher_finalization:{uid}:{conversation_id}',
-                        )
-                    continue
-
-                # Speaker sample extraction request - queue for background processing
-                if header_type == 105:
-                    res = json_object(data)
-                    person_id = res.get('person_id')
-                    conv_id = res.get('conversation_id')
-                    segment_ids = res.get('segment_ids', [])
-                    if person_id is not None and not isinstance(person_id, str):
-                        raise ValueError('person_id must be a string')
-                    if conv_id is not None and not isinstance(conv_id, str):
-                        raise ValueError('conversation_id must be a string')
-                    if not isinstance(segment_ids, list) or not all(
-                        isinstance(segment_id, str) for segment_id in segment_ids
-                    ):
-                        raise ValueError('segment_ids must be a list of strings')
-                    if person_id and conv_id and segment_ids:
-                        if len(speaker_sample_queue) >= SPEAKER_SAMPLE_QUEUE_WARN_SIZE:
-                            logger.warning(f"Warning: speaker_sample_queue size {len(speaker_sample_queue)} {uid}")
-                        logger.info(
-                            f"Queued speaker sample request: person={person_id}, {len(segment_ids)} segments {uid}"
-                        )
-                        append_bounded(
-                            speaker_sample_queue,
-                            {
-                                'person_id': person_id,
-                                'conversation_id': conv_id,
-                                'segment_ids': segment_ids,
-                                'queued_at': time.time(),
-                            },
-                            'speaker_sample',
-                        )
-                    continue
-
-                # Audio bytes
-                if header_type == 101:
-                    # Parse: header(4) | timestamp(8 bytes double) | audio_data
-                    buffer_start_timestamp = struct.unpack("d", data[4:12])[0]
-                    audio_data = data[12:]
-
-                    # Private cloud sync - queue chunks for background processing
-                    if private_cloud_sync_enabled and current_conversation_id:
-                        if private_cloud_chunk_start_time is None:
-                            # Use timestamp from first buffer of this 5-second chunk
-                            private_cloud_chunk_start_time = buffer_start_timestamp
-
-                        extend_bounded(
-                            private_cloud_sync_buffer,
-                            audio_data,
-                            'private_cloud_buffer',
-                            audio_budget,
-                        )
-                        # Queue chunk every PRIVATE_CLOUD_CHUNK_DURATION seconds
-                        if len(private_cloud_sync_buffer) >= sample_rate * 2 * PRIVATE_CLOUD_CHUNK_DURATION:
-                            if len(private_cloud_queue) >= PRIVATE_CLOUD_QUEUE_MAX_SIZE:
-                                logger.warning(
-                                    f"private_cloud_queue full ({len(private_cloud_queue)}/{PRIVATE_CLOUD_QUEUE_MAX_SIZE}), "
-                                    f"dropping oldest chunk to prevent OOM {uid}"
-                                )
-                            append_bounded(
-                                private_cloud_queue,
-                                {
-                                    'data': bytes(private_cloud_sync_buffer),
-                                    'conversation_id': current_conversation_id,
-                                    'timestamp': cast(float, private_cloud_chunk_start_time),
-                                },
-                                'private_cloud',
-                                byte_budget=audio_budget,
-                                size_of=lambda chunk: len(chunk['data']),
-                            )
-                            private_cloud_sync_buffer = bytearray()
-                            private_cloud_chunk_start_time = None
-
-                    continue
-
-        except (ValueError, struct.error, UnicodeDecodeError) as exc:
-            websocket_close_code = 1003
-            logger.warning(f'Invalid pusher frame: {type(exc).__name__} {uid}')
-        except WebSocketDisconnect as exc:
-            websocket_close_code = exc.code or 1006
-            logger.info("WebSocket disconnected")
-        except Exception as e:
-            logger.error(f'Could not process audio: error {e}')
-            websocket_close_code = 1011
-            application_failed = True
-        finally:
-            # Flush any remaining private cloud sync buffer before shutdown
-            if private_cloud_sync_enabled and current_conversation_id and len(private_cloud_sync_buffer) > 0:
-                if len(private_cloud_queue) >= PRIVATE_CLOUD_QUEUE_MAX_SIZE:
-                    logger.warning(
-                        f"private_cloud_queue full ({len(private_cloud_queue)}/{PRIVATE_CLOUD_QUEUE_MAX_SIZE}), "
-                        f"dropping oldest chunk to prevent OOM {uid}"
-                    )
-                append_bounded(
-                    private_cloud_queue,
-                    {
-                        'data': bytes(private_cloud_sync_buffer),
-                        'conversation_id': current_conversation_id,
-                        'timestamp': private_cloud_chunk_start_time or time.time(),
-                    },
-                    'private_cloud',
-                    byte_budget=audio_budget,
-                    size_of=lambda chunk: len(chunk['data']),
-                )
-                logger.info(f"Flushed final private cloud buffer: {len(private_cloud_sync_buffer)} bytes {uid}")
-            websocket_active = False
-
-    bg_main_tasks: List[asyncio.Task[Any]] = []
-    try:
-        PUSHER_ACTIVE_WS_CONNECTIONS.inc()
-        receive_task = create_named_task(receive_tasks(), name=f"ws:{uid}:receive")
-        bg_main_tasks = [
-            create_named_task(process_speaker_sample_queue(), name=f"ws:{uid}:speaker_samples"),
-            create_named_task(process_private_cloud_queue(), name=f"ws:{uid}:private_cloud"),
-        ]
-
-        exit_result = await supervise_tasks(
-            receive_task=receive_task,
-            bg_tasks=bg_main_tasks,
-            finite_tasks=None,
-            label="pusher",
-        )
-        logger.info(f"Supervisor exited: reason={exit_result.reason} task={exit_result.task_name} {uid}")
-        if exit_result.reason in {'crash', 'lifetime_done'}:
-            # A background worker dying or unexpectedly returning ends an accepted
-            # session abnormally even though the socket itself has no close frame.
-            websocket_close_code = 1011
-            application_failed = True
-
-        if receive_task.done() and not receive_task.cancelled():
-            exc = receive_task.exception()
-            if exc is not None:
-                raise exc
-
-        if not receive_task.done():
-            websocket_active = False
-            receive_task.cancel()
-            try:
-                await receive_task
-            except asyncio.CancelledError:
-                pass
-
-        shutdown_event.set()
-        await drain_tasks(bg_main_tasks, timeout=BG_DRAIN_TIMEOUT, label="pusher_bg", cancel=False)
-
+                    conversation_id,
+                    language,
+                    websocket,
+                    finalization_job_id,
+                    dispatch_generation,
+                ),
+                name=f'pusher_finalization:{uid}:{conversation_id}',
+            )
+    except asyncio.TimeoutError:
+        close_code = 1011
+        application_failed = True
+    except (ValueError, struct.error, UnicodeDecodeError):
+        close_code = 1003
+    except WebSocketDisconnect as error:
+        close_code = error.code or 1006
     except asyncio.CancelledError:
-        websocket_close_code = 1006
+        close_code = 1006
         raise
-    except Exception as e:
-        logger.error(f"Error during WebSocket operation: {e}")
-        websocket_close_code = 1011
+    except Exception as error:
+        logger.error('Pusher finalization socket failed: %s', error)
+        close_code = 1011
         application_failed = True
     finally:
-        shutdown_event.set()
-        websocket_active = False
-
-        all_to_cancel = [t for t in bg_main_tasks if not t.done()]
-        await drain_tasks(all_to_cancel, timeout=5.0, label="pusher_cleanup", cancel=True)
-
         PUSHER_ACTIVE_WS_CONNECTIONS.dec()
-
-        journey_attempt.finish(pusher_session_outcome(websocket_close_code, application_failed=application_failed))
-
+        journey_attempt.finish(pusher_session_outcome(close_code, application_failed=application_failed))
         if websocket.client_state == WebSocketState.CONNECTED:
             try:
-                await websocket.close(code=websocket_close_code)
-            except Exception as e:
-                logger.error(f"Error closing WebSocket: {e}")
+                await websocket.close(code=close_code)
+            except Exception as error:
+                logger.error('Error closing WebSocket: %s', error)
 
 
-@router.websocket("/v1/trigger/listen")
+@router.websocket('/v1/trigger/listen')
 async def websocket_endpoint_trigger(
     websocket: WebSocket,
     uid: str,

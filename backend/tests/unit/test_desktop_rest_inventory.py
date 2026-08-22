@@ -31,7 +31,6 @@ APICLIENT_SWIFT = APICLIENT_SOURCE_ROOT / 'APIClient.swift'
 # APIClient.swift owns only the stateful transport/auth boundary. Feature APIs
 # and DTOs live in nested APIClient+*.swift extensions.
 APICLIENT_SWIFT_MAX_LINES = 1500
-CONVERSATIONS_DB = ROOT_DIR / 'backend' / 'database' / 'conversations.py'
 
 # Route prefixes that belong to other service boundaries / protocols and are
 # explicitly out of scope for the Python-backend REST SSoT rollout.
@@ -210,16 +209,6 @@ def test_known_missing_routes_do_not_drift():
     assert not stale, 'These KNOWN_MISSING_ROUTES are now in the app-client spec — remove ' 'them from the set: ' + str(
         stale
     )
-
-
-def test_conversation_id_hydration_backfills_legacy_missing_ids():
-    source = CONVERSATIONS_DB.read_text()
-    helper_start = source.index('def _get_conversations_by_id(')
-    helper_end = source.index('# **************************************', helper_start)
-    helper_source = source[helper_start:helper_end]
-
-    assert "data.setdefault('id', doc.id)" in helper_source
-    assert "conversations_by_id[str(data['id'])] = data" in helper_source
 
 
 def test_desktop_rest_inventory_is_nonempty():

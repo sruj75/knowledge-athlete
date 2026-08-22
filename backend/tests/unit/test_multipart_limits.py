@@ -17,12 +17,6 @@ EXPECTED_ROUTE_LIMITS = {
         ('POST', '/v2/voice-message/transcribe'): 'VOICE_MESSAGE_MAX_PART_SIZE',
         ('POST', '/v1/files'): 'CHAT_FILE_MAX_PART_SIZE',
     },
-    'routers/phone_calls.py': {
-        ('POST', '/v1/phone/twiml'): 'PHONE_CALL_MAX_PART_SIZE',
-    },
-    'routers/speech_profile.py': {
-        ('POST', '/v3/upload-audio'): 'SPEECH_PROFILE_MAX_PART_SIZE',
-    },
 }
 
 

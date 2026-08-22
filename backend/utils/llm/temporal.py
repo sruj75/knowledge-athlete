@@ -51,14 +51,14 @@ def date_in_tz(dt: datetime, tz: Optional[str] = None) -> str:
 def current_date_for_uid(uid: str) -> str:
     """Current date (YYYY-MM-DD) in the user's saved timezone, UTC fallback on any error.
 
-    The ``database.notifications`` import is deferred so importing this module for the pure
+    The ``database.users`` import is deferred so importing this module for the pure
     helpers above never pulls the Firestore client (which initializes at import time), and a
     timezone lookup failure falls back to UTC rather than raising.
     """
-    import database.notifications as notification_db
+    import database.users as users_db
 
     try:
-        tz = notification_db.get_user_time_zone(uid)
+        tz = users_db.get_user_time_zone(uid)
     except Exception as e:  # noqa: BLE001 - lookup failure must not abort generation
         logger.warning(f"current_date_for_uid - timezone lookup failed, using UTC: {e}")
         tz = None

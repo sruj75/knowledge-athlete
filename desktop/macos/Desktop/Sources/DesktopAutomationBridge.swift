@@ -836,7 +836,7 @@ final class DesktopAutomationActionRegistry {
     register(
       name: "fair_use_local_enforcement_probe",
       summary:
-        "Run content-redacted fair-use admission, owner-local evidence, or managed-cloud handoff probes. Non-prod only.",
+        "Run content-redacted fair-use admission, warning, owner-local evidence, or managed-cloud handoff probes. Non-prod only.",
       params: ["phase"],
       category: "coordinator",
       surfaces: ["ambient_transcription"],
@@ -853,6 +853,45 @@ final class DesktopAutomationActionRegistry {
       switch phase {
       case "admission":
         return await FairUseAutomationProbe.rejectedExpiredAdmission()
+      case "warning":
+        guard let authorization = RuntimeOwnerIdentity.captureAuthorizationSnapshot() else {
+          return ["status": "owner_unavailable"]
+        }
+        let suite = "omi.e2e.fair-use-warning.\(UUID().uuidString)"
+        guard let defaults = UserDefaults(suiteName: suite) else {
+          return ["status": "defaults_unavailable"]
+        }
+        defer { defaults.removePersistentDomain(forName: suite) }
+        var deliveries: [FairUseWarningPresentation] = []
+        let presenter = FairUseWarningNotificationPresenter(
+          defaults: defaults,
+          deliver: { _, presentation, _ in deliveries.append(presentation) })
+        let receipt = FairUseClassificationReceipt(
+          reviewId: "11111111-1111-4111-8111-111111111111",
+          accepted: true,
+          idempotent: false,
+          action: "warning",
+          stage: "warning",
+          caseRef: "FU-E2E123")
+        let firstPresented = presenter.present(receipt, authorization: authorization)
+        let duplicatePresented = presenter.present(receipt, authorization: authorization)
+        let relaunchedPresenter = FairUseWarningNotificationPresenter(
+          defaults: defaults,
+          deliver: { _, presentation, _ in deliveries.append(presentation) })
+        let relaunchedDuplicatePresented = relaunchedPresenter.present(
+          receipt, authorization: authorization)
+        let presentation = deliveries.first
+        return [
+          "status": "presented",
+          "first_presented": firstPresented ? "true" : "false",
+          "duplicate_suppressed": (!duplicatePresented && !relaunchedDuplicatePresented)
+            ? "true" : "false",
+          "delivery_count": "\(deliveries.count)",
+          "fixed_title": presentation?.title == "Fair Use Notice" ? "true" : "false",
+          "case_reference_present": presentation?.message.contains("FU-E2E123") == true
+            ? "true" : "false",
+          "fcm_attempted": "false",
+        ]
       case "evidence":
         guard let authorization = RuntimeOwnerIdentity.captureAuthorizationSnapshot() else {
           return [
@@ -889,7 +928,7 @@ final class DesktopAutomationActionRegistry {
         guard let appState = AppState.current else { return ["error": "app state unavailable"] }
         return await appState.automationExerciseFairUseManagedCloudHandoff()
       default:
-        return ["error": "phase must be admission, evidence, or handoff"]
+        return ["error": "phase must be admission, warning, evidence, or handoff"]
       }
     }
 
@@ -2368,6 +2407,56 @@ final class DesktopAutomationActionRegistry {
         "created": "true",
         "goal_id": goal.id,
         "goal_count": "\(goals.count)",
+      ]
+    }
+
+    register(
+      name: "export_my_data",
+      summary:
+        "Export the active owner's complete local data through the production exporter, validate the JSON, then remove the disposable harness file. Non-prod only.",
+      category: "account",
+      surfaces: ["settings_account"],
+      safety: "non_production_temporary_file",
+      sideEffects: ["writes and removes one JSON file under the macOS temporary directory"]
+    ) { _ in
+      guard AppBuild.isNonProduction else {
+        return ["error": "export_my_data is disabled on production bundles"]
+      }
+      guard let ownerID = RuntimeOwnerIdentity.currentOwnerId() else {
+        return ["error": "no active local owner"]
+      }
+
+      let directory = FileManager.default.temporaryDirectory
+        .appendingPathComponent("omi-export-harness-\(UUID().uuidString)", isDirectory: true)
+      let destination = directory.appendingPathComponent("omi-data-export.json")
+      try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+      defer { try? FileManager.default.removeItem(at: directory) }
+
+      try await LocalUserDataExport().export(ownerID: ownerID, to: destination)
+      let data = try Data(contentsOf: destination)
+      guard
+        let document = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+        let schemaVersion = document["schema_version"] as? NSNumber
+      else {
+        throw DesktopAutomationActionError.invalidParams("local export did not produce schema JSON")
+      }
+
+      func arrayCount(_ key: String) -> String {
+        "\((document[key] as? [Any])?.count ?? -1)"
+      }
+
+      return [
+        "saved": "true",
+        "schema_version": schemaVersion.stringValue,
+        "conversations": arrayCount("conversations"),
+        "memories": arrayCount("memories"),
+        "tasks": arrayCount("tasks"),
+        "goals": arrayCount("goals"),
+        "chats": arrayCount("chat_history"),
+        "focus_records": arrayCount("focus_data"),
+        "settings_present": document["settings"] is [String: Any] ? "true" : "false",
+        "server_requested": "false",
+        "temporary_file": "true",
       ]
     }
 

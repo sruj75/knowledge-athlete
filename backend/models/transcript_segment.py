@@ -4,8 +4,6 @@ import uuid
 import re
 from pydantic import BaseModel, Field
 
-from models.other import Person
-
 # Unicode sentence-ending punctuation used across supported locales.
 # Conservative set: English (.!?), CJK (。！？), Arabic/Urdu (؟۔), Hindi/Sanskrit (।॥)
 SENTENCE_ENDERS = frozenset('.?!。！？؟۔।॥')
@@ -29,11 +27,9 @@ class TranscriptSegment(BaseModel):
     speaker: Optional[str] = 'SPEAKER_00'
     speaker_id: Optional[int] = None
     is_user: bool
-    person_id: Optional[str] = None
     start: float
     end: float
     translations: Optional[List[Translation]] = Field(default_factory=list)
-    speech_profile_processed: bool = True
     stt_provider: Optional[str] = None
 
     def __init__(self, **data: Any):
@@ -59,22 +55,17 @@ class TranscriptSegment(BaseModel):
         segments: List['TranscriptSegment'],
         include_timestamps: bool = False,
         user_name: Optional[str] = None,
-        people: Optional[List[Person]] = None,
     ) -> str:
         if not user_name:
             user_name = 'User'
         transcript = ''
-        people_map = {person.id: person.name for person in people} if people else {}
         include_timestamps = include_timestamps and TranscriptSegment.can_display_seconds(segments)
         for segment in segments:
             segment_text = segment.text.strip()
             timestamp_str = f'[{segment.get_timestamp_string()}] ' if include_timestamps else ''
             speaker_name = user_name
             if not segment.is_user:
-                if segment.person_id and segment.person_id in people_map:
-                    speaker_name = people_map[segment.person_id]
-                else:
-                    speaker_name = f'Speaker {segment.speaker_id}'
+                speaker_name = f'Speaker {segment.speaker_id}'
             transcript += f'{timestamp_str}{speaker_name}: {segment_text}\n\n'
 
         return transcript.strip()
@@ -145,7 +136,6 @@ class TranscriptSegment(BaseModel):
         def _should_merge_same_speaker(a: 'TranscriptSegment', b: 'TranscriptSegment') -> bool:
             return (
                 (a.speaker == b.speaker or (a.is_user and b.is_user))
-                and a.speech_profile_processed == b.speech_profile_processed
                 and (b.start - a.end < 3)
                 and (len(a.text) < 125 or a.text[-1] not in SENTENCE_ENDERS)
             )
@@ -157,7 +147,6 @@ class TranscriptSegment(BaseModel):
                 and (a.speaker == b.speaker or (a.is_user and b.is_user))
                 and a.text[-1] not in SENTENCE_ENDERS
                 and _starts_with_lowercase_cased(b.text)
-                and a.speech_profile_processed == b.speech_profile_processed
             )
 
         # Combined
@@ -235,12 +224,3 @@ class TranscriptSegment(BaseModel):
             )
 
         return segments, joined_similar_segments, removed_ids
-
-
-class ImprovedTranscriptSegment(BaseModel):
-    speaker_id: int = Field(..., description='The correctly assigned speaker id')
-    text: str = Field(..., description='The corrected text of the segment')
-
-
-class ImprovedTranscript(BaseModel):
-    result: List[ImprovedTranscriptSegment]

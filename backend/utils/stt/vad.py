@@ -7,7 +7,6 @@ import httpx
 import numpy as np
 import onnxruntime as ort  # onnxruntime is untyped
 import requests
-from fastapi import HTTPException
 from pydub import AudioSegment  # pydub is untyped
 
 from database import redis_db
@@ -335,36 +334,3 @@ async def async_vad_is_empty(
         return segments
     logger.info(f'async_vad_is_empty {len(segments) == 0}')
     return len(segments) == 0
-
-
-def apply_vad_for_speech_profile(file_path: str) -> None:
-    logger.info(f'apply_vad_for_speech_profile {file_path}')
-    voice_segments = vad_is_empty(file_path, return_segments=True)
-    if len(voice_segments) == 0:  # TODO: front error on post-processing, audio sent is bad.
-        raise HTTPException(status_code=400, detail="Audio is empty")
-    joined_segments: List[Dict[str, Any]] = []
-    for i, segment in enumerate(voice_segments):
-        if joined_segments and (segment['start'] - joined_segments[-1]['end']) < 1:
-            joined_segments[-1]['end'] = segment['end']
-        else:
-            joined_segments.append(segment)
-
-    # Load audio file once instead of repeatedly in the loop
-    full_audio: Any = AudioSegment.from_wav(file_path)  # type: ignore[reportUnknownMemberType]  # pydub untyped
-
-    trimmed_aseg: Any = AudioSegment.empty()
-    try:
-        # trim silence out of file_path, but leave 1 sec of silence within chunks
-        for i, segment in enumerate(joined_segments):
-            start = segment['start'] * 1000
-            end = segment['end'] * 1000
-            trimmed_aseg += full_audio[start:end]  # type: ignore[reportUnknownMemberType]  # pydub untyped
-            if i < len(joined_segments) - 1:
-                trimmed_aseg += full_audio[end : end + 1000]  # type: ignore[reportUnknownMemberType]  # pydub untyped
-
-        # file_path.replace('.wav', '-cleaned.wav')
-        trimmed_aseg.export(file_path, format="wav")  # type: ignore[reportUnknownMemberType]  # pydub untyped
-    finally:
-        # Explicitly free memory
-        del full_audio
-        del trimmed_aseg

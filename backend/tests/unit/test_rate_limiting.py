@@ -112,20 +112,6 @@ class TestRatePolicies(unittest.TestCase):
             self.assertGreater(max_req, 0, f"{name}: max_requests must be > 0")
             self.assertGreater(window, 0, f"{name}: window must be > 0")
 
-    def test_expensive_endpoints_have_low_limits(self):
-        """Expensive endpoints should have lower limits."""
-        expensive = ['wrapped:generate', 'conversations:reprocess']
-        for name in expensive:
-            max_req, _ = RATE_POLICIES[name]
-            self.assertLessEqual(max_req, 5, f"{name} should have low base limit")
-
-    def test_bursty_endpoints_have_high_limits(self):
-        """The retained agent endpoint should allow bursts."""
-        bursty = ['agent:execute_tool']
-        for name in bursty:
-            max_req, _ = RATE_POLICIES[name]
-            self.assertGreaterEqual(max_req, 100, f"{name} should allow bursts")
-
 
 class TestBoostFactor(unittest.TestCase):
     """Test boost factor applies correctly."""
@@ -134,22 +120,22 @@ class TestBoostFactor(unittest.TestCase):
         self.assertEqual(RATE_LIMIT_BOOST, 1.0)
 
     def test_boost_multiplies_limit(self):
-        max_req, window = get_effective_limit("chat:send_message", boost=2.0)
-        base, _ = RATE_POLICIES["chat:send_message"]
+        max_req, window = get_effective_limit("chat:initial", boost=2.0)
+        base, _ = RATE_POLICIES["chat:initial"]
         self.assertEqual(max_req, base * 2)
 
     def test_boost_below_1_tightens(self):
-        max_req, window = get_effective_limit("chat:send_message", boost=0.5)
-        base, _ = RATE_POLICIES["chat:send_message"]
+        max_req, window = get_effective_limit("chat:initial", boost=0.5)
+        base, _ = RATE_POLICIES["chat:initial"]
         self.assertEqual(max_req, int(base * 0.5))
 
     def test_boost_never_goes_below_1(self):
-        max_req, _ = get_effective_limit("conversations:reprocess", boost=0.01)
+        max_req, _ = get_effective_limit("memory:extract", boost=0.01)
         self.assertGreaterEqual(max_req, 1)
 
     def test_boost_preserves_window(self):
-        _, window = get_effective_limit("chat:send_message", boost=5.0)
-        _, base_window = RATE_POLICIES["chat:send_message"]
+        _, window = get_effective_limit("chat:initial", boost=5.0)
+        _, base_window = RATE_POLICIES["chat:initial"]
         self.assertEqual(window, base_window)
 
 
@@ -242,7 +228,7 @@ class TestEnforceRateLimit(unittest.TestCase):
     @patch('utils.other.endpoints.check_rate_limit', return_value=(True, 50, 0))
     def test_allowed_request_passes(self, mock_check):
         # Should not raise
-        self.ep._enforce_rate_limit("uid123", "chat:send_message")
+        self.ep._enforce_rate_limit("uid123", "chat:initial")
         mock_check.assert_called_once()
 
     @patch('utils.other.endpoints.check_rate_limit', return_value=(False, 0, 42))
@@ -251,7 +237,7 @@ class TestEnforceRateLimit(unittest.TestCase):
         from fastapi import HTTPException
 
         with self.assertRaises(HTTPException) as ctx:
-            self.ep._enforce_rate_limit("uid123", "chat:send_message")
+            self.ep._enforce_rate_limit("uid123", "chat:initial")
         self.assertEqual(ctx.exception.status_code, 429)
         self.assertIn("42", ctx.exception.detail)
         self.assertEqual(ctx.exception.headers["Retry-After"], "42")
@@ -260,12 +246,12 @@ class TestEnforceRateLimit(unittest.TestCase):
     @patch('utils.other.endpoints.RATE_LIMIT_SHADOW', True)
     def test_shadow_mode_logs_instead_of_blocking(self, mock_check):
         # Should not raise even though rate limit exceeded
-        self.ep._enforce_rate_limit("uid123", "chat:send_message")
+        self.ep._enforce_rate_limit("uid123", "chat:initial")
 
     @patch('utils.other.endpoints.check_rate_limit', side_effect=_RedisError("connection lost"))
     def test_fail_open_on_redis_error(self, mock_check):
         # Should not raise — fail open
-        self.ep._enforce_rate_limit("uid123", "chat:send_message")
+        self.ep._enforce_rate_limit("uid123", "chat:initial")
 
 
 class TestCheckRateLimitBoundary(unittest.TestCase):
@@ -318,8 +304,8 @@ class TestCheckRateLimitBoundary(unittest.TestCase):
     def test_key_namespacing(self):
         """Verify Redis key includes policy and key."""
         with patch.object(self.rdb, '_RATE_LIMIT_LUA', return_value=[1, 3600]) as mock_lua:
-            self.rdb.check_rate_limit("user42", "chat:send_message", 100, 3600)
-            mock_lua.assert_called_once_with(keys=['rl:chat:send_message:user42'], args=[3600])
+            self.rdb.check_rate_limit("user42", "chat:initial", 100, 3600)
+            mock_lua.assert_called_once_with(keys=['rl:chat:initial:user42'], args=[3600])
 
 
 class TestWithRateLimitWrapper(unittest.TestCase):
@@ -335,7 +321,7 @@ class TestWithRateLimitWrapper(unittest.TestCase):
             self.ep.with_rate_limit(lambda: "uid", "nonexistent:policy")
 
     def test_valid_policy_returns_callable(self):
-        result = self.ep.with_rate_limit(lambda: "uid", "chat:send_message")
+        result = self.ep.with_rate_limit(lambda: "uid", "chat:initial")
         self.assertTrue(callable(result))
 
     @patch('utils.other.endpoints._enforce_rate_limit')
@@ -343,10 +329,10 @@ class TestWithRateLimitWrapper(unittest.TestCase):
         """Execute the async dependency closure and verify it enforces + returns uid."""
         import asyncio
 
-        dep_func = self.ep.with_rate_limit(lambda: "test_uid", "chat:send_message")
+        dep_func = self.ep.with_rate_limit(lambda: "test_uid", "chat:initial")
         # The inner dependency expects uid as a keyword arg (from Depends)
         result = asyncio.run(dep_func(uid="user123"))
-        mock_enforce.assert_called_once_with("user123", "chat:send_message")
+        mock_enforce.assert_called_once_with("user123", "chat:initial")
         self.assertEqual(result, "user123")
 
     @patch('utils.other.endpoints._enforce_rate_limit', side_effect=HTTPException(status_code=429, detail="blocked"))
@@ -354,7 +340,7 @@ class TestWithRateLimitWrapper(unittest.TestCase):
         """Verify 429 from _enforce propagates through the dependency."""
         import asyncio
 
-        dep_func = self.ep.with_rate_limit(lambda: "uid", "chat:send_message")
+        dep_func = self.ep.with_rate_limit(lambda: "uid", "chat:initial")
         with self.assertRaises(HTTPException) as ctx:
             asyncio.run(dep_func(uid="user123"))
         self.assertEqual(ctx.exception.status_code, 429)
@@ -369,7 +355,7 @@ class TestWithRateLimitWrapper(unittest.TestCase):
                 loop.call_soon_threadsafe(entered.set)
                 release.wait()
 
-            dep_func = self.ep.with_rate_limit(lambda: "uid", "chat:send_message")
+            dep_func = self.ep.with_rate_limit(lambda: "uid", "chat:initial")
             with patch.object(self.ep, "_enforce_rate_limit", blocking_enforce):
                 dependency_task = asyncio.create_task(dep_func(uid="user123"))
                 await entered.wait()
@@ -392,8 +378,8 @@ class TestBoostEnvVar(unittest.TestCase):
 
             importlib.reload(rlc)
             self.assertEqual(rlc.RATE_LIMIT_BOOST, 3.0)
-            max_req, _ = rlc.get_effective_limit("chat:send_message")
-            base, _ = rlc.RATE_POLICIES["chat:send_message"]
+            max_req, _ = rlc.get_effective_limit("chat:initial")
+            base, _ = rlc.RATE_POLICIES["chat:initial"]
             self.assertEqual(max_req, int(base * 3.0))
         importlib.reload(rlc)
 
@@ -404,30 +390,17 @@ class TestRouterPolicyMapping(unittest.TestCase):
     def test_all_router_policies_exist(self):
         """Every policy name used in routers must exist in RATE_POLICIES."""
         # These are all the policy names referenced in router files
-        used_policies = [
-            "conversations:create",
-            "conversations:reprocess",
-            "conversations:search",
-            "conversations:merge",
-            "conversations:from-segments",
-            "chat:send_message",
+        used_policies = {
             "chat:initial",
             "voice:message",
             "voice:transcribe",
             "voice:transcribe_stream",
             "file:upload",
-            "agent:execute_tool",
-            "tools:search",
-            "tools:mutate",
-            "action_items:write",
-            "goals:suggest",
-            "goals:advice",
-            "goals:extract",
-            "wrapped:generate",
-            "test:prompt",
-        ]
-        for policy in used_policies:
-            self.assertIn(policy, RATE_POLICIES, f"Policy '{policy}' used in router but missing from config")
+            "memory:extract",
+            "memory:normalize",
+            "memory:consolidate",
+        }
+        self.assertEqual(set(RATE_POLICIES), used_policies)
 
 
 class TestRouterWiring(unittest.TestCase):
@@ -461,10 +434,6 @@ class TestRouterWiring(unittest.TestCase):
         """Legacy v1/files must also be rate limited to prevent bypass."""
         matches = self._grep_file("routers/chat.py", r"with_rate_limit.*file:upload")
         self.assertEqual(len(matches), 1, f"chat.py expected the retained v1 file:upload limit, got {len(matches)}")
-
-    def test_wrapped_router_has_rate_limit(self):
-        matches = self._grep_file("routers/wrapped.py", r"with_rate_limit.*wrapped:")
-        self.assertGreaterEqual(len(matches), 1, "wrapped.py missing rate limit wiring")
 
 
 class TestRealCheckRateLimit(unittest.TestCase):
@@ -532,8 +501,8 @@ class TestRealCheckRateLimit(unittest.TestCase):
         """Verify production key format is rl:{policy}:{key}."""
         self.mock_lua.reset_mock()
         self.mock_lua.return_value = [5, 3000]
-        self.real_module.check_rate_limit("user42", "chat:send_message", 100, 3600)
-        self.mock_lua.assert_called_once_with(keys=['rl:chat:send_message:user42'], args=[3600])
+        self.real_module.check_rate_limit("user42", "chat:initial", 100, 3600)
+        self.mock_lua.assert_called_once_with(keys=['rl:chat:initial:user42'], args=[3600])
 
     def test_real_check_rate_limit_under_limit(self):
         """Verify real function correctly interprets under-limit response."""

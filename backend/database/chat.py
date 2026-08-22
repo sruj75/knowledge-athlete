@@ -1,14 +1,10 @@
-import copy
 import logging
 from datetime import datetime, timezone
-from typing import Any, Dict, Iterator, List, Optional, cast
+from typing import Any, Dict, List, Optional, cast
 
 from google.cloud import firestore
 from google.cloud.firestore_v1 import FieldFilter
 
-from database.read_boundary import parse_snapshot_or_none
-from models.chat import Message
-from utils import encryption
 from ._client import db
 
 logger = logging.getLogger(__name__)
@@ -22,84 +18,6 @@ def _typed_doc(doc: Any) -> Dict[str, Any]:
     """
     raw: object = doc.to_dict()
     return cast(Dict[str, Any], raw) if isinstance(raw, dict) else {}
-
-
-# *********************************
-# ******* ENCRYPTION HELPERS ******
-# *********************************
-
-
-def _decrypt_chat_data(chat_data: Dict[str, Any], uid: str) -> Dict[str, Any]:
-    data = copy.deepcopy(chat_data)
-
-    if 'text' in data and isinstance(data['text'], str):
-        try:
-            data['text'] = encryption.decrypt(data['text'], uid)
-        except Exception:
-            pass
-
-    return data
-
-
-def _prepare_message_for_read(message_data: Dict[str, Any], uid: str) -> Dict[str, Any]:
-    level = message_data.get('data_protection_level')
-    if level == 'enhanced':
-        return _decrypt_chat_data(message_data, uid)
-
-    return message_data
-
-
-# *****************************
-# ********** CRUD *************
-# *****************************
-
-
-def iter_all_messages(uid: str, batch_size: int = 1000) -> Iterator[Dict[str, Any]]:
-    """Yield all chat messages for a user, decrypted, in batches. Used for streaming data export."""
-    user_ref = db.collection('users').document(uid)
-    msgs_ref = user_ref.collection('messages').order_by('created_at', direction=firestore.Query.DESCENDING)
-    offset = 0
-    while True:
-        batch_ref = msgs_ref.limit(batch_size).offset(offset)
-        batch: List[Dict[str, Any]] = []
-        for doc in batch_ref.stream():
-            msg: Dict[str, Any] = _typed_doc(doc)
-            msg['id'] = doc.id
-            msg = _prepare_message_for_read(msg, uid) or msg
-            batch.append(msg)
-        yield from batch
-        if len(batch) < batch_size:
-            break
-        offset += batch_size
-
-
-def get_message(uid: str, message_id: str) -> tuple[Message, str] | None:
-    user_ref = db.collection('users').document(uid)
-    message_ref = user_ref.collection('messages').where('id', '==', message_id).limit(1).stream()
-    message_doc = next(message_ref, None)
-    if not message_doc:
-        return None
-
-    message = parse_snapshot_or_none(
-        Message,
-        message_doc,
-        payload_from_snapshot=lambda snapshot: _prepare_message_for_read(_typed_doc(snapshot), uid),
-    )
-    if message is None:
-        return None
-
-    return message, message_doc.id
-
-
-def report_message(uid: str, msg_doc_id: str) -> Dict[str, str]:
-    user_ref = db.collection('users').document(uid)
-    message_ref = user_ref.collection('messages').document(msg_doc_id)
-    try:
-        message_ref.update({'reported': True})
-        return {"message": "Message reported"}
-    except Exception as e:
-        logger.error(f"Update failed: {e}")
-        return {"message": f"Update failed: {e}"}
 
 
 def add_multi_files(uid: str, files_data: List[Dict[str, Any]]) -> None:
@@ -213,60 +131,3 @@ def update_chat_session_openai_ids(uid: str, chat_session_id: str, thread_id: st
     if update_data:
         session_ref.update(update_data)
         logger.info(f"Updated session {chat_session_id} with thread {thread_id} and assistant {assistant_id}")
-
-
-# **************************************
-# ********* MIGRATION HELPERS **********
-# **************************************
-
-
-def get_chats_to_migrate(uid: str, target_level: str) -> List[Dict[str, Any]]:
-    """
-    Finds all chat messages that are not at the target protection level by fetching all documents
-    and filtering them in memory. This simplifies the code but may be less performant for
-    users with a very large number of documents.
-    """
-    messages_ref = db.collection('users').document(uid).collection('messages')
-    all_messages = messages_ref.select(['data_protection_level']).stream()
-
-    to_migrate: List[Dict[str, Any]] = []
-    for doc in all_messages:
-        doc_data: Dict[str, Any] = _typed_doc(doc)
-        current_level = doc_data.get('data_protection_level', 'standard')
-        if target_level != current_level:
-            to_migrate.append({'id': doc.id, 'type': 'chat'})
-
-    return to_migrate
-
-
-def migrate_chats_level_batch(uid: str, message_doc_ids: List[str], target_level: str) -> None:
-    """
-    Migrates a batch of chat messages to the target protection level.
-    """
-    batch = db.batch()
-    messages_ref = db.collection('users').document(uid).collection('messages')
-    doc_refs = [messages_ref.document(msg_id) for msg_id in message_doc_ids]
-    doc_snapshots = db.get_all(doc_refs)
-
-    for doc_snapshot in doc_snapshots:
-        if not doc_snapshot.exists:
-            logger.warning(f"Message {doc_snapshot.id} not found, skipping.")
-            continue
-
-        message_data: Dict[str, Any] = _typed_doc(doc_snapshot)
-        current_level = message_data.get('data_protection_level', 'standard')
-
-        if current_level == target_level:
-            continue
-
-        plain_data: Dict[str, Any] = _prepare_message_for_read(message_data, uid)
-        plain_text = plain_data.get('text')
-        migrated_text = plain_text
-        if target_level == 'enhanced':
-            if isinstance(plain_text, str):
-                migrated_text = encryption.encrypt(plain_text, uid)
-
-        update_data: Dict[str, Any] = {'data_protection_level': target_level, 'text': migrated_text}
-        batch.update(doc_snapshot.reference, update_data)
-
-    batch.commit()

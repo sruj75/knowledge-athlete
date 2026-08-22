@@ -301,12 +301,6 @@ sdist = { url = "https://files.pythonhosted.org/packages/0a/ed/86ed74d8829c3bc56
 wheels = [{ url = "https://files.pythonhosted.org/packages/fd/4d/e6e40f93031adbf654d34e542bd396e9f3bc1c6209b40c920d58c9e1317a/fakeredis-2.36.2-py3-none-any.whl", upload-time = 2026-06-17T13:25:36Z, size = 141039, hashes = { sha256 = "84cbb9c74ca8946c0d2499daadf3a5d0bfe3cfbac71e3398316d1a1eab3421c4" } }]
 
 [[packages]]
-name = "fal-client"
-version = "0.4.1"
-sdist = { url = "https://files.pythonhosted.org/packages/e3/54/7674e1c8181e5b4125dba43ea10e2324131bfee0498444d5bdf39907713b/fal_client-0.4.1.tar.gz", upload-time = 2024-06-28T18:43:25Z, size = 8413, hashes = { sha256 = "3121cdbf4be8a47226e6df8e782340c1a603b17ec04942a131c2929a32aedff3" } }
-wheels = [{ url = "https://files.pythonhosted.org/packages/0d/fd/340396fdceb9ac2fac768f9d91b0e8a1cf18c554567afd9bf01b60c949e8/fal_client-0.4.1-py3-none-any.whl", upload-time = 2024-06-28T18:43:24Z, size = 6296, hashes = { sha256 = "3fe13ac5108a02c1c27e146e52dcbb0b10d33694d870c8a1769966af18ff4a3f" } }]
-
-[[packages]]
 name = "fastapi"
 version = "0.121.0"
 sdist = { url = "https://files.pythonhosted.org/packages/8c/e3/77a2df0946703973b9905fd0cde6172c15e0781984320123b4f5079e7113/fastapi-0.121.0.tar.gz", upload-time = 2025-11-03T10:25:54Z, size = 342412, hashes = { sha256 = "06663356a0b1ee93e875bbf05a31fb22314f5bed455afaaad2b2dad7f26e98fa" } }
@@ -462,12 +456,6 @@ name = "graphviz"
 version = "0.20.3"
 sdist = { url = "https://files.pythonhosted.org/packages/fa/83/5a40d19b8347f017e417710907f824915fba411a9befd092e52746b63e9f/graphviz-0.20.3.zip", upload-time = 2024-03-21T07:50:45Z, size = 256455, hashes = { sha256 = "09d6bc81e6a9fa392e7ba52135a9d49f1ed62526f96499325930e87ca1b5925d" } }
 wheels = [{ url = "https://files.pythonhosted.org/packages/00/be/d59db2d1d52697c6adc9eacaf50e8965b6345cc143f671e1ed068818d5cf/graphviz-0.20.3-py3-none-any.whl", upload-time = 2024-03-21T07:50:43Z, size = 47126, hashes = { sha256 = "81f848f2904515d8cd359cc611faba817598d2feaac4027b266aa3eda7b3dde5" } }]
-
-[[packages]]
-name = "groq"
-version = "0.9.0"
-sdist = { url = "https://files.pythonhosted.org/packages/48/c8/5ea4aa6b329fd01795acdf4cb0c78d92860253d108eddfc008fccbe56642/groq-0.9.0.tar.gz", upload-time = 2024-06-11T20:12:03Z, size = 68728, hashes = { sha256 = "130ed5e35d3acfaab46b9e7a078eeaebf91052f4a9d71f86f87fb319b5fec332" } }
-wheels = [{ url = "https://files.pythonhosted.org/packages/59/7c/81b1302925c2452d540c7d7784b316017b69e1f3f19c2996bcb09360437b/groq-0.9.0-py3-none-any.whl", upload-time = 2024-06-11T20:12:02Z, size = 103457, hashes = { sha256 = "d0e46f4ad645504672bb09c8100af3ced3a7db0d5119dc13e4aca535fc455874" } }]
 
 [[packages]]
 name = "grpc-google-iam-v1"
@@ -1467,12 +1455,6 @@ name = "traitlets"
 version = "5.14.3"
 sdist = { url = "https://files.pythonhosted.org/packages/eb/79/72064e6a701c2183016abbbfedaba506d81e30e232a68c9f0d6f6fcd1574/traitlets-5.14.3.tar.gz", upload-time = 2024-04-19T11:11:49Z, size = 161621, hashes = { sha256 = "9ed0579d3502c94b4b3732ac120375cda96f923114522847de4b3bb98b96b6b7" } }
 wheels = [{ url = "https://files.pythonhosted.org/packages/00/c0/8f5d070730d7836adc9c9b6408dec68c6ced86b304a9b26a14df072a6e8c/traitlets-5.14.3-py3-none-any.whl", upload-time = 2024-04-19T11:11:46Z, size = 85359, hashes = { sha256 = "b74e89e397b1ed28cc831db7aea759ba6640cb3de13090ca145426688ff1ac4f" } }]
-
-[[packages]]
-name = "twilio"
-version = "9.5.0"
-sdist = { url = "https://files.pythonhosted.org/packages/eb/a3/68d476e978930d6f1cfe802187b644505a4d5a0495a4ba730f80e9772c93/twilio-9.5.0.tar.gz", upload-time = 2025-03-11T12:56:31Z, size = 991636, hashes = { sha256 = "633d213c21b394297a27a92f20498adb1c4cd2f6fc3f4e2bfcc7d787b29fc034" } }
-wheels = [{ url = "https://files.pythonhosted.org/packages/06/f0/0b875419fa7ddfa6c4a07954f4991e50b37dcc9922bc502f023b12be67e1/twilio-9.5.0-py2.py3-none-any.whl", upload-time = 2025-03-11T12:56:28Z, size = 1882103, hashes = { sha256 = "e6d0ccf9162a83acfa6d21a02e90a22fdbc53f4269be3402ba579f13b2a259fc" } }]
 
 [[packages]]
 name = "typer"

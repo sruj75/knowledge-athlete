@@ -8,7 +8,6 @@ from langchain_core.output_parsers import PydanticOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel, Field
 
-from models.calendar_context import CalendarMeetingContext
 from models.conversation import Conversation
 from models.structured import ActionItem, Event, Structured
 from models.structured_extraction import ActionItemsExtraction, StructuredExtraction
@@ -17,11 +16,6 @@ from .discard_parser import DiscardConversation, LenientDiscardParser
 
 
 logger = logging.getLogger(__name__)
-# =============================================
-#            FOLDER ASSIGNMENT
-# =============================================
-# The implementation moved to conversation_folder.py; that route still uses
-# the explicit ``conv_folder`` workload as the production provider plug-in seam.
 
 
 class SpeakerIdMatch(BaseModel):
@@ -161,44 +155,9 @@ Content:
 # =============================================
 
 
-def _build_conversation_context(
-    transcript: str,
-    calendar_meeting_context: Optional['CalendarMeetingContext'] = None,
-) -> str:
-    """Build the conversation context string shared across LLM prompts.
-
-    Produces a deterministic string from transcript and calendar context.
-    Used as the second system message (after static instructions) so that the static
-    instruction prefix enables cross-conversation OpenAI prompt caching.
-
-    Returns:
-        Formatted context string, or empty string if no content provided.
-    """
-    context_parts: List[str] = []
-
-    if calendar_meeting_context:
-        participants_str = ", ".join(
-            [
-                f"{p.name} <{p.email}>" if p.name and p.email else p.name or p.email or "Unknown"
-                for p in calendar_meeting_context.participants
-            ]
-        )
-        calendar_context_str = f"""
-CALENDAR MEETING CONTEXT:
-- Meeting Title: {calendar_meeting_context.title}
-- Scheduled Time: {calendar_meeting_context.start_time.strftime('%Y-%m-%d %H:%M UTC')}
-- Duration: {calendar_meeting_context.duration_minutes} minutes
-- Platform: {calendar_meeting_context.platform or 'Not specified'}
-- Participants: {participants_str or 'None listed'}
-{f'- Meeting Notes: {calendar_meeting_context.notes}' if calendar_meeting_context.notes else ''}
-{f'- Meeting Link: {calendar_meeting_context.meeting_link}' if calendar_meeting_context.meeting_link else ''}
-""".strip()
-        context_parts.append(calendar_context_str)
-
-    if transcript and transcript.strip():
-        context_parts.append(f"Transcript: ```{transcript.strip()}```")
-
-    return "\n\n".join(context_parts)
+def _build_conversation_context(transcript: str) -> str:
+    """Build the deterministic transcript-only context used by retained compute."""
+    return f"Transcript: ```{transcript.strip()}```" if transcript and transcript.strip() else ''
 
 
 def extract_action_items(
@@ -207,7 +166,6 @@ def extract_action_items(
     language_code: str,
     tz: str,
     existing_action_items: Optional[List[Dict[str, Any]]] = None,
-    calendar_meeting_context: Optional['CalendarMeetingContext'] = None,
     output_language_code: Optional[str] = None,
     raise_on_error: bool = False,
 ) -> List[ActionItem]:
@@ -227,7 +185,7 @@ def extract_action_items(
     Returns:
         List of extracted ActionItem objects
     """
-    conversation_context = _build_conversation_context(transcript, calendar_meeting_context)
+    conversation_context = _build_conversation_context(transcript)
     if not conversation_context:
         return []
 
@@ -286,15 +244,6 @@ def extract_action_items(
     # NOTE: {language_code} is in the context message, not here, to keep this prefix fully static across all languages.
     instructions_text = '''You are an expert action item extractor. Your sole purpose is to identify and extract high-quality, actionable tasks from the provided content.
 
-    CRITICAL: If CALENDAR MEETING CONTEXT is provided with participant names, you MUST use those names:
-    - The conversation DEFINITELY happened between the named participants
-    - NEVER use "Speaker 0", "Speaker 1", "Speaker 2", etc. when participant names are available
-    - Match transcript speakers to participant names by analyzing the conversation context
-    - Use participant names in ALL action items (e.g., "Follow up with Sarah" NOT "Follow up with Speaker 0")
-    - Reference the meeting title/context when relevant to the action item
-    - Consider the scheduled meeting time and duration when extracting due dates
-    - If you cannot confidently match a speaker to a name, use the action description without speaker references
-
     DEDUPLICATION RULES — be conservative about suppressing:
     • The "POTENTIALLY RELATED OPEN TASKS" section lists open items recently active in the user's task list, semantically similar to this conversation. They may or may not be true duplicates.
     • Only suppress a candidate if you are 100% confident the existing task captures this EXACT intent and the user is just re-mentioning it (not re-doing it).
@@ -343,12 +292,7 @@ def extract_action_items(
        - Look for cues: who is asking questions, who is receiving advice/tasks, who initiates topics
        - For tasks assigned to the primary user: phrase them directly (start with verb)
        - For tasks assigned to others: include them ONLY if primary user is dependent on them or needs to track them
-       - **CRITICAL**: When CALENDAR MEETING CONTEXT provides participant names:
-         * Analyze the transcript to match speakers to the named participants
-         * Use the actual participant names in ALL action items
-         * ABSOLUTELY NEVER use "Speaker 0", "Speaker 1", "Speaker 2", etc.
-         * Example: "Follow up with Sarah about budget" NOT "Follow up with Speaker 0 about budget"
-       - If no calendar context: NEVER use "Speaker 0", "Speaker 1", etc. in the final action item description
+       - NEVER use "Speaker 0", "Speaker 1", etc. in the final action item description
        - If unsure about names, use natural phrasing like "Follow up on...", "Ensure...", etc.
 
     2. **Concrete Action**: The task describes a specific, actionable next step (not vague intentions)
@@ -531,14 +475,13 @@ def get_transcript_structure(
     language_code: str,
     tz: str,
     uid: str,
-    calendar_meeting_context: Optional['CalendarMeetingContext'] = None,
     output_language_code: Optional[str] = None,
 ) -> Structured:
     # Keep this import at the invocation boundary: selected unit tests load
     # this pure processing module in isolation without the full LLM package.
     from utils.llm.usage_tracker import Features, track_usage
 
-    conversation_context = _build_conversation_context(transcript, calendar_meeting_context)
+    conversation_context = _build_conversation_context(transcript)
     if not conversation_context:
         return Structured()  # Should be caught by discard logic, but as a safeguard.
 
@@ -548,18 +491,8 @@ def get_transcript_structure(
     # NOTE: language instructions are in context_message (second message) to keep this prefix fully static.
     instructions_text = '''You are an expert content analyzer. Your task is to analyze the provided transcript and provide structure and clarity.
 
-    CRITICAL: If CALENDAR MEETING CONTEXT is provided with participant names, you MUST use those names:
-    - The conversation DEFINITELY happened between the named participants
-    - NEVER use "Speaker 0", "Speaker 1", "Speaker 2", etc. when participant names are available
-    - Match transcript speakers to participant names by carefully analyzing the conversation context
-    - Use participant names throughout the title, overview, and all generated content
-    - Use the meeting title as a strong signal for the conversation title (but you can refine it based on the actual discussion)
-    - Use the meeting platform and scheduled time to provide better context in the overview
-    - Consider the meeting notes/description when analyzing the conversation's purpose
-    - If there are 2-3 participants with known names, naturally mention them in the title (e.g., "Sarah and John Discuss Q2 Budget", "Team Meeting with Alex, Maria, and Chris")
-
-    For the title, Write a clear, compelling headline (≤ 10 words) that captures the central topic and outcome. Use Title Case, avoid filler words, and include a key noun + verb where possible (e.g., "Team Finalizes Q2 Budget" or "Family Plans Weekend Road Trip"). If calendar context provides participant names (2-3 people), naturally include them when relevant (e.g., "John and Sarah Plan Marketing Campaign").
-    For the overview, condense the content into a summary with the main topics discussed or scenes observed, making sure to capture the key points and important details. When calendar context provides participant names, you MUST use their actual names instead of "Speaker 0" or "Speaker 1" to make the summary readable and personal. Analyze the transcript to understand who said what and match speakers to participant names.
+    For the title, Write a clear, compelling headline (≤ 10 words) that captures the central topic and outcome. Use Title Case, avoid filler words, and include a key noun + verb where possible (e.g., "Team Finalizes Q2 Budget" or "Family Plans Weekend Road Trip").
+    For the overview, condense the content into a summary with the main topics discussed or scenes observed, making sure to capture the key points and important details.
     For the emoji, select a single emoji that vividly reflects the core subject, mood, or outcome of the content. Strive for an emoji that is specific and evocative, rather than generic (e.g., prefer 🎉 for a celebration over 👍 for general agreement, or 💡 for a new idea over 🧠 for general thought).
 
     For the category, classify the content into one of the available categories.

@@ -110,12 +110,11 @@ async def finalize_persisted_conversation(
             )
             return ConversationFinalizationDisposition.fenced
 
-        # Ownership fence before any canonical side effect.  The lifecycle
+        # Ownership fence before the retained usage receipt. The lifecycle
         # transaction re-reads the durable conversation together with the job
         # lease, so a discard or superseding generation cannot slip between a
         # stale pre-read and the derived-effect bundle.  This fence must
-        # precede every derived effect (usage, vector, action/goal, audio) so a
-        # losing finalizer produces
+        # precedes the only drain side effect so a losing finalizer produces
         # zero canonical side effects (#10468 r5).
         fanout = await run_blocking(
             db_executor,
@@ -136,10 +135,9 @@ async def finalize_persisted_conversation(
         if fanout['status'] != 'claimed':
             raise ConversationFinalizationError('fanout_lease_conflict')
 
-        # Ownership is now proven. Emit every retained derived side effect —
-        # usage, vector, action/goal, and audio artifact/enqueue — only behind
-        # the winning claim. A processing conversation hands the bundle back
-        # from process_conversation.
+        # Ownership is now proven. Emit the retained usage receipt only behind
+        # the winning claim. A processing row hands that receipt back from
+        # process_conversation.
         if derived_effects:
             await run_blocking(postprocess_executor, derived_effects[0])
         fanout_completed = await run_blocking(

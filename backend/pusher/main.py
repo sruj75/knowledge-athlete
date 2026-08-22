@@ -57,11 +57,6 @@ app = FastAPI(lifespan=lifespan)
 app.include_router(pusher.router)
 app.include_router(metrics.router)
 
-paths = ['_temp', '_samples', '_segments', '_speech_profiles']
-for path in paths:
-    if not os.path.exists(path):
-        os.makedirs(path)
-
 
 @app.get('/health')
 async def health_check() -> dict[str, str]:

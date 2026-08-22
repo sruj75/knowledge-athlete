@@ -106,8 +106,6 @@ env:
       secretKeyRef:
         name: prod-omi-backend-secrets
         key: GEMINI_API_KEY
-  - name: BUCKET_SPEECH_PROFILES
-    value: "speech-profiles"
   - name: GITHUB_TOKEN
     valueFrom:
       secretKeyRef:
@@ -150,8 +148,6 @@ env:
         key: GROQ_API_KEY
   - name: HOSTED_VAD_API_URL
     value: "http://vad.omi.me:80/v1/vad"
-  - name: HOSTED_SPEECH_PROFILE_API_URL
-    value: "http://vad.omi.me:80/v1/speaker-identification"
   - name: HOSTED_SPEAKER_EMBEDDING_API_URL
     value: "http://diarizer.omi.me:80"
   - name: PINECONE_API_KEY
@@ -245,11 +241,6 @@ env:
       secretKeyRef:
         name: prod-omi-backend-secrets
         key: TYPESENSE_API_KEY
-  - name: OPENROUTER_API_KEY
-    valueFrom:
-      secretKeyRef:
-        name: prod-omi-backend-secrets
-        key: OPENROUTER_API_KEY
   - name: GOOGLE_CLOUD_PROJECT
     value: "based-hardware"
   - name: GCP_LOCATION
@@ -267,18 +258,6 @@ env:
     value: "0"
   - name: SUBSCRIPTION_LAUNCH_DATE
     value: "2025-08-21"
-  - name: BUCKET_PRIVATE_CLOUD_SYNC
-    value: "omi-private-cloud-sync"
-  - name: TWILIO_AUTH_TOKEN
-    valueFrom:
-      secretKeyRef:
-        name: prod-omi-backend-secrets
-        key: TWILIO_AUTH_TOKEN
-  - name: TWILIO_API_KEY_SECRET
-    valueFrom:
-      secretKeyRef:
-        name: prod-omi-backend-secrets
-        key: TWILIO_API_KEY_SECRET
   - name: VAD_GATE_MODE
     value: "active"
   # Fair-use system (PR #5748)

@@ -2,8 +2,7 @@
 
 Several simple getters did `user_ref.get().to_dict().get(field)`. When the user document does not
 exist, `.to_dict()` returns None, so `.get(field)` raised AttributeError, surfacing as a 500 on
-authenticated endpoints (store-recording permission, private-cloud-sync, settings getters,
-training-data opt-in) and in conversation post-processing. A UID can be
+authenticated account endpoints. A UID can be
 valid in auth but missing from Firestore (new user before doc creation, mid-deletion, or a data
 race). These getters now use the file's existing `.to_dict() or {}` guard so a missing doc yields
 the same default as a missing field instead of crashing. These cover the pure getter behavior.
@@ -64,7 +63,6 @@ def users():
             SubscriptionStatus=MagicMock(),
         ),
         "utils.subscription": _module("utils.subscription", get_default_free_subscription=MagicMock()),
-        "models.other": _module("models.other", Person=MagicMock()),
     }
     with stub_modules(fakes):
         yield load_module_fresh("database.users", str(BACKEND_DIR / "database" / "users.py"))
@@ -81,8 +79,6 @@ def _db_for(to_dict_result):
 
 # (getter name, field key, default when missing, a present value)
 CASES = [
-    ("get_user_store_recording_permission", "store_recording_permission", False, True),
-    ("get_user_private_cloud_sync_enabled", "private_cloud_sync_enabled", True, False),
     ("get_paypal_payment_details", "paypal_details", None, {"email": "x@y.z"}),
     ("get_default_payment_method", "default_payment_method", None, "pm_123"),
 ]

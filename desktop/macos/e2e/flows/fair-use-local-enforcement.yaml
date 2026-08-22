@@ -9,6 +9,7 @@ covers:
   - desktop/macos/Desktop/Sources/AppState/STTSessionState.swift
   - desktop/macos/Desktop/Sources/FairUse/FairUseEvidence.swift
   - desktop/macos/Desktop/Sources/FairUse/FairUseReviewCoordinator.swift
+  - desktop/macos/Desktop/Sources/FairUse/FairUseWarningNotification.swift
 preconditions:
   - automation_bridge_ready
 
@@ -25,6 +26,21 @@ steps:
       result.detail.content_fields_exposed: "false"
 
   - id: S2
+    name: Present one fixed owner-scoped local warning without FCM
+    bridge.action:
+      name: fair_use_local_enforcement_probe
+      params:
+        phase: warning
+    expect:
+      result.detail.status: presented
+      result.detail.first_presented: "true"
+      result.detail.duplicate_suppressed: "true"
+      result.detail.delivery_count: "1"
+      result.detail.fixed_title: "true"
+      result.detail.case_reference_present: "true"
+      result.detail.fcm_attempted: "false"
+
+  - id: S3
     name: Inspect the bounded owner-local evidence projection
     bridge.action:
       name: fair_use_local_enforcement_probe
@@ -34,7 +50,7 @@ steps:
       result.detail.maximum_rows: "30"
       result.detail.content_fields_exposed: "false"
 
-  - id: S3
+  - id: S4
     name: Exercise the real AppState handoff in one owner-local conversation
     bridge.action:
       name: fair_use_local_enforcement_probe
@@ -48,7 +64,7 @@ steps:
       result.detail.cleanup_stopped: "true"
       result.detail.content_fields_exposed: "false"
 
-  - id: S4
+  - id: S5
     name: Logs remain free of bridge failures
     log.expect:
       absent:

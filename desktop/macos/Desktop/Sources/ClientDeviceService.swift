@@ -51,7 +51,7 @@ final class ClientDeviceService {
     return digest.map { String(format: "%02x", $0) }.joined().prefix(8).description
   }
 
-  /// Contract: `{platform}_{hash}` — same shape as backend FCM `device_key`.
+  /// Contract: `{platform}_{hash}` for retained auth, abuse, update, and metrics identity.
   var clientDeviceId: String {
     "macos_\(deviceIdHash)"
   }

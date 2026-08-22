@@ -9,9 +9,6 @@ required_config=(
   GOOGLE_CLIENT_ID
   REDIS_DB_HOST
   TYPESENSE_HOST
-  TWILIO_ACCOUNT_SID
-  TWILIO_API_KEY_SID
-  TWILIO_TWIML_APP_SID
 )
 
 if [[ "$ENVIRONMENT" == "prod" ]]; then

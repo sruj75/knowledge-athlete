@@ -23,20 +23,12 @@ from routers import (
     transcribe,
     omni_relay,
     auto_model,
-    notifications,
-    speech_profile,
-    agents,
     users,
-    trends,
     sync,
     payment,
     auth,
     other,
     updates,
-    calendar_meetings,
-    wrapped,
-    announcements,
-    phone_calls,
     metrics,
     fair_use_admin,
     fair_use_reviews,
@@ -112,29 +104,21 @@ app.include_router(transcribe.router)
 app.include_router(omni_relay.router)
 app.include_router(auto_model.router)
 app.include_router(chat.router)
-app.include_router(speech_profile.router)
 # app.include_router(screenpipe.router)
-app.include_router(notifications.router)
-app.include_router(agents.router)
 app.include_router(users.router)
 app.include_router(conversation_finalization.router)
 app.include_router(conversation_compute.router)
 app.include_router(memory_compute.router)
-app.include_router(trends.router)
 
 app.include_router(other.router)
 
 app.include_router(updates.router)
 app.include_router(sync.router)
 
-app.include_router(calendar_meetings.router)
 app.include_router(auth.router)  # Added auth router (for the main Omi App, this is the core auth router)
 
 
 app.include_router(payment.router)
-app.include_router(wrapped.router)
-app.include_router(announcements.router)
-app.include_router(phone_calls.router)
 app.include_router(metrics.router)
 app.include_router(fair_use_admin.router)
 app.include_router(fair_use_reviews.router)
@@ -267,9 +251,3 @@ async def _periodic_listen_finalization_reconcile(interval_seconds: int | None =
 async def shutdown_event():
     await drain_background_tasks(timeout=10.0)
     await close_all_clients()
-
-
-paths = ['_temp', '_samples', '_segments', '_speech_profiles']
-for path in paths:
-    if not os.path.exists(path):
-        os.makedirs(path)

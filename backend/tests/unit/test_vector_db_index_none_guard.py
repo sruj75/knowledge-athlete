@@ -1,28 +1,27 @@
-"""Regression: vector_db functions must fail open when no Pinecone index is configured.
+"""Canonical guard after S-23 retired product vector maintenance.
 
-database.vector_db.index is None on deploys without Pinecone (self-hosted, offline, local dev).
-20+ functions guard `if index is None`, but query_vectors_by_metadata, upsert_vector2, and
-update_vector_metadata dereferenced index directly, raising AttributeError instead of the intended
-empty/skip. That either silently dropped the proactive-notification memory lookup or died as an
-unlogged AttributeError on the structured-vector save. The guards restore the fail-open contract.
+The historical failure class covered best-effort product query/upsert helpers.
+Those helpers no longer exist. The only retained boundary is the S-24-owned,
+fail-closed account-deletion purge, whose retention obligation is explicitly
+outside that failure class.
 """
+
+import pytest
 
 import database.vector_db as vector_db
 
 
-def test_query_vectors_by_metadata_returns_empty_without_index(monkeypatch):
+def test_product_vector_maintenance_helpers_remain_retired():
+    for name in (
+        'query_vectors_by_metadata',
+        'upsert_vector2',
+        'update_vector_metadata',
+    ):
+        assert not hasattr(vector_db, name)
+
+
+def test_account_deletion_purge_stays_loud_without_the_s24_index(monkeypatch):
     monkeypatch.setattr(vector_db, 'index', None)
-    result = vector_db.query_vectors_by_metadata('uid1', [0.1, 0.2], [], [], [], [], [], limit=5)
-    assert result == []
 
-
-def test_upsert_vector2_is_a_noop_without_index(monkeypatch):
-    monkeypatch.setattr(vector_db, 'index', None)
-    # Must not raise (previously AttributeError on index.upsert).
-    assert vector_db.upsert_vector2('uid1', 'conv1', [0.1, 0.2], {'k': 'v'}) is None
-
-
-def test_update_vector_metadata_returns_empty_without_index(monkeypatch):
-    monkeypatch.setattr(vector_db, 'index', None)
-    result = vector_db.update_vector_metadata('uid1', 'conv1', {'k': 'v'})
-    assert result == {}
+    with pytest.raises(RuntimeError, match='Pinecone index not initialized'):
+        vector_db.purge_user_vectors('owner-1')

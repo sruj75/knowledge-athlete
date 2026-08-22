@@ -153,13 +153,12 @@ def _assert_user_data_deleted(fake_firestore, test_uid: str) -> None:
 
 
 def _stub_external_deletion_boundaries(monkeypatch) -> None:
-    """Keep Firebase, Twilio, billing, and vector service calls inside the harness."""
+    """Keep Firebase, billing, and the S-24 Pinecone handoff inside the harness."""
 
     from services.users import account_deletion
 
     monkeypatch.setattr(account_deletion.auth, "delete_account", lambda _uid: None)
     monkeypatch.setattr(account_deletion.users_db, "get_user_subscription", lambda _uid: None)
-    monkeypatch.setattr(account_deletion, "delete_user_caller_ids", lambda _uid: None)
 
 
 def _assert_enqueued_task_schema(tasks_client: _CapturedCloudTasksClient, wipe_job_id: str) -> dict[str, str]:
@@ -222,13 +221,13 @@ def test_account_deletion_cloud_task_completes_once_and_redelivery_is_acked(
     _stub_external_deletion_boundaries(monkeypatch)
     purge_calls: list[str] = []
 
-    def successful_purge(uid: str) -> dict[str, list[dict[str, str]]]:
+    def successful_purge(uid: str) -> dict[str, object]:
         purge_calls.append(uid)
-        return {"required_failures": [], "best_effort_failures": []}
+        return {"required_failures": [], "pinecone_namespaces_purged": 2}
 
     monkeypatch.setattr(
         account_deletion,
-        "purge_derived_user_data",
+        "purge_pinecone_user_data",
         successful_purge,
     )
     _seed_deletable_user(fake_firestore, test_uid)
@@ -301,18 +300,18 @@ def test_account_deletion_cloud_task_retries_required_purge_failure_without_losi
     purge_results = iter(
         [
             {
-                "required_failures": [{"operation": "conversation_vectors", "error": "fake unavailable"}],
-                "best_effort_failures": [],
+                "required_failures": [{"operation": "pinecone_user_vectors", "error": "fake unavailable"}],
+                "pinecone_namespaces_purged": 0,
             },
-            {"required_failures": [], "best_effort_failures": []},
+            {"required_failures": [], "pinecone_namespaces_purged": 2},
         ]
     )
 
-    def controlled_purge(uid: str) -> dict[str, list[dict[str, str]]]:
+    def controlled_purge(uid: str) -> dict[str, object]:
         purge_calls.append(uid)
         return next(purge_results)
 
-    monkeypatch.setattr(account_deletion, "purge_derived_user_data", controlled_purge)
+    monkeypatch.setattr(account_deletion, "purge_pinecone_user_data", controlled_purge)
     _seed_deletable_user(fake_firestore, test_uid)
     cloud_tasks_client.expect_pending_marker(fake_firestore, test_uid)
     claimed_markers = _observe_claim_transitions(monkeypatch, fake_firestore, test_uid)
@@ -374,8 +373,8 @@ def test_queue_not_found_preserves_auth_and_reconciles_from_the_marker(
     monkeypatch.setattr(account_deletion.auth, "delete_account", lambda uid: auth_deletions.append(uid))
     monkeypatch.setattr(
         account_deletion,
-        "purge_derived_user_data",
-        lambda _uid: {"required_failures": [], "best_effort_failures": []},
+        "purge_pinecone_user_data",
+        lambda _uid: {"required_failures": [], "pinecone_namespaces_purged": 2},
     )
     cloud_tasks_client.create_error = NotFound("account-deletion queue is absent")
 
@@ -422,8 +421,8 @@ def test_repeated_delete_request_joins_running_wipe_without_requeueing(
     _seed_deletable_user(fake_firestore, test_uid)
     monkeypatch.setattr(
         account_deletion,
-        "purge_derived_user_data",
-        lambda _uid: {"required_failures": [], "best_effort_failures": []},
+        "purge_pinecone_user_data",
+        lambda _uid: {"required_failures": [], "pinecone_namespaces_purged": 2},
     )
 
     first = client.delete("/v1/users/delete-account", headers=auth_headers)
@@ -465,8 +464,8 @@ def test_missing_root_document_does_not_hide_immediate_child_data(
     assert not fake_firestore.collection("users").document(test_uid).get().exists
     monkeypatch.setattr(
         account_deletion,
-        "purge_derived_user_data",
-        lambda _uid: {"required_failures": [], "best_effort_failures": []},
+        "purge_pinecone_user_data",
+        lambda _uid: {"required_failures": [], "pinecone_namespaces_purged": 2},
     )
 
     admitted = client.delete("/v1/users/delete-account", headers=auth_headers)

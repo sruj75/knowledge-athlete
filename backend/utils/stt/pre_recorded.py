@@ -291,7 +291,6 @@ def _words_cleaning(words: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
                 'speaker': w['speaker'],
                 'text': str(w['text']).strip(),
                 'is_user': False,
-                'person_id': None,
             }
         )
 
@@ -371,7 +370,6 @@ def _segments_as_objects(segments: List[Dict[str, Any]]) -> List[TranscriptSegme
             text=str(segment['text']).strip().capitalize(),
             speaker=segment['speaker'],
             is_user=segment['is_user'],
-            person_id=None,
             start=round(segment['start'] - starts_at, 2),
             end=round(segment['end'] - starts_at, 2),
         )

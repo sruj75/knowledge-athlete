@@ -116,10 +116,6 @@ def _cleanup_temp_voice_wavs(paths: List[str], uid: str) -> None:
                 pass
 
 
-class MessageReportResponse(BaseModel):
-    message: str
-
-
 def _parse_context_keywords(raw: Optional[str]) -> List[str]:
     if not raw:
         return []
@@ -138,20 +134,6 @@ def _parse_context_keywords(raw: Optional[str]) -> List[str]:
         if len(keywords) >= 100:
             break
     return keywords
-
-
-@router.post('/v2/messages/{message_id}/report', tags=['chat'], response_model=MessageReportResponse)
-def report_message(message_id: str, uid: str = Depends(auth.get_current_user_uid)):
-    result = chat_db.get_message(uid, message_id)
-    if result is None:
-        raise HTTPException(status_code=404, detail='Message not found')
-    message, msg_doc_id = result
-    if message.sender != 'ai':
-        raise HTTPException(status_code=400, detail='Only AI messages can be reported')
-    if message.reported:
-        raise HTTPException(status_code=400, detail='Message already reported')
-    chat_db.report_message(uid, msg_doc_id)
-    return {'message': 'Message reported'}
 
 
 @router.post(
@@ -606,7 +588,7 @@ async def transcribe_voice_message_stream(
         - text "finalize": flush remaining audio + trigger provider finalization
     Server sends: JSON arrays of transcript segments
         [{"speaker": "SPEAKER_00", "start": 0.0, "end": 1.5, "text": "Hello world",
-          "is_user": false, "person_id": null}]
+          "is_user": false}]
     """
     await websocket.accept()
 
@@ -968,17 +950,3 @@ def upload_file_chat(
     response = [fc.model_dump() for fc in files_chat]
 
     return response
-
-
-@router.post('/v1/messages/{message_id}/report', tags=['chat'], response_model=dict)
-def report_message(message_id: str, uid: str = Depends(auth.get_current_user_uid)):
-    result = chat_db.get_message(uid, message_id)
-    if result is None:
-        raise HTTPException(status_code=404, detail='Message not found')
-    message, msg_doc_id = result
-    if message.sender != 'ai':
-        raise HTTPException(status_code=400, detail='Only AI messages can be reported')
-    if message.reported:
-        raise HTTPException(status_code=400, detail='Message already reported')
-    chat_db.report_message(uid, msg_doc_id)
-    return {'message': 'Message reported'}

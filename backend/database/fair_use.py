@@ -253,70 +253,6 @@ def release_fair_use_review_processing(
     _release(transaction)
 
 
-def claim_fair_use_review_notification(
-    uid: str,
-    review_id: str,
-    *,
-    firestore_client: Any | None = None,
-    now: datetime | None = None,
-) -> str | None:
-    """Claim one at-most-once external dispatch from the durable disposition."""
-    client = firestore_client or get_firestore_client()
-    effective_now = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
-    ref = client.collection('users').document(uid).collection('fair_use_review_receipts').document(review_id)
-    token = str(uuid.uuid4())
-    snapshot = ref.get()
-    if not getattr(snapshot, 'exists', False):
-        return None
-    raw = snapshot.to_dict()
-    receipt = raw if isinstance(raw, dict) else {}
-    if not receipt.get('notification_pending'):
-        return None
-    try:
-        ref.update(
-            {
-                'notification_pending': False,
-                'notification_dispatch_token': token,
-                'notification_dispatch_started_at': effective_now,
-            },
-            option=client.write_option(last_update_time=snapshot.update_time),
-        )
-        return token
-    except (FailedPrecondition, NotFound):
-        return None
-
-
-def release_fair_use_review_notification(
-    uid: str,
-    review_id: str,
-    token: str,
-    *,
-    firestore_client: Any | None = None,
-) -> None:
-    """Release a failed delivery only while its claim token is still current."""
-    client = firestore_client or get_firestore_client()
-    ref = client.collection('users').document(uid).collection('fair_use_review_receipts').document(review_id)
-    transaction = client.transaction()
-
-    @firestore.transactional
-    def _release(transaction: Any) -> None:
-        snapshot = ref.get(transaction=transaction)
-        raw = snapshot.to_dict() if getattr(snapshot, 'exists', False) else {}
-        receipt = raw if isinstance(raw, dict) else {}
-        if receipt.get('notification_dispatch_token') == token and not receipt.get('notification_pending'):
-            transaction.set(
-                ref,
-                {
-                    'notification_pending': True,
-                    'notification_dispatch_token': None,
-                    'notification_dispatch_started_at': None,
-                },
-                merge=True,
-            )
-
-    _release(transaction)
-
-
 def _review_stage_transition(stage: str, positive_count_7d: int, positive: bool) -> tuple[str, str]:
     if not positive:
         return stage, 'none'
@@ -446,7 +382,6 @@ def apply_fair_use_review_result(
             'action': action,
             'stage': new_stage,
             'case_ref': case_ref,
-            'notification_pending': action != 'none',
             'created_at': effective_now,
         }
         transaction.set(event_ref, event)
@@ -455,41 +390,6 @@ def apply_fair_use_review_result(
         return _review_receipt_response(receipt, idempotent=False)
 
     return _apply(transaction)
-
-
-def mark_fair_use_review_notification_sent(
-    uid: str,
-    review_id: str,
-    token: str,
-    *,
-    firestore_client: Any | None = None,
-    now: datetime | None = None,
-) -> bool:
-    """Commit delivery only for the current notification lease owner."""
-    client = firestore_client or get_firestore_client()
-    effective_now = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
-    ref = client.collection('users').document(uid).collection('fair_use_review_receipts').document(review_id)
-    transaction = client.transaction()
-
-    @firestore.transactional
-    def _mark(transaction: Any) -> bool:
-        snapshot = ref.get(transaction=transaction)
-        raw = snapshot.to_dict() if getattr(snapshot, 'exists', False) else {}
-        receipt = raw if isinstance(raw, dict) else {}
-        if receipt.get('notification_dispatch_token') != token or receipt.get('notification_pending'):
-            return False
-        transaction.set(
-            ref,
-            {
-                'notification_pending': False,
-                'notification_sent_at': effective_now,
-                'notification_dispatch_token': None,
-            },
-            merge=True,
-        )
-        return True
-
-    return _mark(transaction)
 
 
 def get_fair_use_events(uid: str, limit: int = 50) -> List[Dict[str, Any]]:

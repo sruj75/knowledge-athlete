@@ -60,7 +60,6 @@ LEGACY_UNLISTED_BASELINE = frozenset(
     {
         'tests/test_cache_manager.py',
         'tests/unit/test_diarizer_dockerfile.py',
-        'tests/unit/test_lazy_conversation_processing.py',
     }
 )
 

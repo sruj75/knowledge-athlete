@@ -30,7 +30,7 @@ with Python 3.11 on Linux in strict mode, and treats warnings as failures.
 | `llm_gateway/` | Internal LLM gateway service |
 | `pusher/` | Audio push WebSocket service |
 | `diarizer/` | Speaker embedding service |
-| `modal/` | VAD + speech profile service |
+| `modal/` | Callerless S-25 hosted VAD deployment handoff |
 | `main.py` | FastAPI app entry point |
 
 Selected non-throwaway scripts are enrolled individually. Benchmark/test scripts

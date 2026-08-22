@@ -21,8 +21,6 @@ ENV PATH="/opt/venv/bin:$PATH"
 RUN apt-get update && apt-get -y install ffmpeg curl libjemalloc2 && \
     groupadd --system --gid 10001 pusher && \
     useradd --system --uid 10001 --gid 10001 --home-dir /app pusher && \
-    mkdir -p _temp _samples _segments _speech_profiles && \
-    chown -R 10001:10001 _temp _samples _segments _speech_profiles && \
     rm -rf /var/lib/apt/lists/*
 
 # jemalloc eliminates glibc malloc fragmentation that causes RSS to grow linearly

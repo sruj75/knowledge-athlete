@@ -1,14 +1,9 @@
 """
 Tools for LangGraph agentic chat system.
 
-These tools provide raw access to conversations and other hosted user data.
-The LLM decides which tools to use and extracts the parameters needed.
+Retained tools operate only on bounded non-product surfaces.
 """
 
-from .conversation_tools import (
-    get_conversations_tool,
-    search_conversations_tool,
-)
 from .omi_tools import (
     get_omi_product_info_tool,
 )
@@ -23,8 +18,6 @@ from .web_tools import (
 )
 
 __all__ = [
-    'get_conversations_tool',
-    'search_conversations_tool',
     'get_omi_product_info_tool',
     'search_files_tool',
     'create_chart_tool',

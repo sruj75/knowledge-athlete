@@ -549,9 +549,6 @@ jobs:
           GOOGLE_CLIENT_ID: ${{ vars.GOOGLE_CLIENT_ID }}
           REDIS_DB_HOST: ${{ vars.REDIS_DB_HOST }}
           TYPESENSE_HOST: ${{ vars.TYPESENSE_HOST }}
-          TWILIO_ACCOUNT_SID: ${{ vars.TWILIO_ACCOUNT_SID }}
-          TWILIO_API_KEY_SID: ${{ vars.TWILIO_API_KEY_SID }}
-          TWILIO_TWIML_APP_SID: ${{ vars.TWILIO_TWIML_APP_SID }}
         run: backend/scripts/deploy-backend-config.sh
 
       - name: Deploy backend-secrets to GKE

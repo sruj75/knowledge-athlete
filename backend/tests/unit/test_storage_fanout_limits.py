@@ -1,7 +1,7 @@
 """Tests for bounded fan-out concurrency limits in storage operations (#7387).
 
 Verifies that storage_executor submissions are gated by semaphores to prevent
-queue spikes from unbounded parallel chunk downloads and audio file precaching.
+queue spikes from unbounded parallel chunk downloads.
 
 Source-level tests (no heavy module imports) — checks code structure, not runtime.
 Behavioral tests use a standalone sliding-window implementation to verify the pattern.
@@ -18,14 +18,6 @@ def _read_source(rel_path):
     base = os.path.join(os.path.dirname(__file__), '..', '..')
     with open(os.path.join(base, rel_path), encoding='utf-8') as f:
         return f.read()
-
-
-def _function_body(src, function_name):
-    func_start = src.index(f'def {function_name}')
-    next_def_idx = src.find('\ndef ', func_start + 1)
-    if next_def_idx == -1:
-        return src[func_start:]
-    return src[func_start:next_def_idx]
 
 
 class TestChunkDownloadSlidingWindow:
@@ -89,95 +81,6 @@ class TestChunkDownloadSlidingWindow:
         next_def = src.index('\ndef ', func_start + 1)
         func_body = src[func_start:next_def]
         assert "('individual'" in func_body or "('batch'" in func_body
-
-
-class TestPrecacheFileSemaphore:
-    """Audio file precache operations must be gated by _PRECACHE_FILE_SEM."""
-
-    def test_precache_file_semaphore_exists(self):
-        """Module must define _PRECACHE_FILE_SEM."""
-        src = _read_source('utils/other/storage.py')
-        assert '_PRECACHE_FILE_SEM' in src
-
-    def test_precache_file_semaphore_is_4(self):
-        """Global precache file semaphore must be BoundedSemaphore(4).
-
-        Was 2 while storage_executor was saturated by per-file sleep(480)
-        deletion timers; restored to 4 once the janitor thread took those
-        over (see test_deferred_blob_janitor.py)."""
-        src = _read_source('utils/other/storage.py')
-        assert '_PRECACHE_FILE_SEM = threading.BoundedSemaphore(4)' in src
-
-    def test_precache_conversation_audio_uses_semaphore(self):
-        """precache_conversation_audio must gate submissions with _PRECACHE_FILE_SEM."""
-        src = _read_source('utils/other/storage.py')
-        func_start = src.index('def precache_conversation_audio')
-        next_def_idx = src.find('\ndef ', func_start + 1)
-        if next_def_idx == -1:
-            func_body = src[func_start:]
-        else:
-            func_body = src[func_start:next_def_idx]
-        assert '_PRECACHE_FILE_SEM.acquire()' in func_body
-        assert '_PRECACHE_FILE_SEM.release()' in func_body
-
-    def test_precache_sem_released_on_submit_failure(self):
-        """Semaphore must be released in except block if submit() raises."""
-        src = _read_source('utils/other/storage.py')
-        func_start = src.index('def precache_conversation_audio')
-        next_def_idx = src.find('\ndef ', func_start + 1)
-        if next_def_idx == -1:
-            func_body = src[func_start:]
-        else:
-            func_body = src[func_start:next_def_idx]
-        acquire_idx = func_body.index('_PRECACHE_FILE_SEM.acquire()')
-        except_block = func_body[acquire_idx:]
-        assert 'except' in except_block
-        release_after_except = except_block.index('except')
-        assert '_PRECACHE_FILE_SEM.release()' in except_block[release_after_except:]
-
-
-class TestPrecacheSyncImport:
-    """Playback sync service must import and use _PRECACHE_FILE_SEM from storage."""
-
-    def test_sync_imports_precache_file_sem(self):
-        """utils/sync/playback.py must import _PRECACHE_FILE_SEM."""
-        src = _read_source('utils/sync/playback.py')
-        assert '_PRECACHE_FILE_SEM' in src
-
-    def test_sync_precache_all_uses_semaphore(self):
-        """_precache_all_parallel must delegate to the semaphore-gated helper."""
-        src = _read_source('utils/sync/playback.py')
-        helper_body = _function_body(src, '_run_parallel_precache')
-        assert '_PRECACHE_FILE_SEM.acquire()' in helper_body
-        assert '_PRECACHE_FILE_SEM.release()' in helper_body
-        assert 'add_done_callback' in helper_body
-
-        func_start = src.index('def _precache_all_parallel')
-        func_body = src[func_start : func_start + 400]
-        assert '_run_parallel_precache(' in func_body
-
-    def test_sync_cache_uncached_uses_semaphore(self):
-        """_cache_uncached_parallel must delegate to the semaphore-gated helper."""
-        src = _read_source('utils/sync/playback.py')
-        helper_body = _function_body(src, '_run_parallel_precache')
-        assert '_PRECACHE_FILE_SEM.acquire()' in helper_body
-        assert '_PRECACHE_FILE_SEM.release()' in helper_body
-        assert 'add_done_callback' in helper_body
-
-        func_start = src.index('def _cache_uncached_parallel')
-        func_body = src[func_start : func_start + 400]
-        assert '_run_parallel_precache(' in func_body
-
-
-class TestSpeakerIdentificationPool:
-    """speaker_identification must not use storage_executor as parent for download_audio_chunks_and_merge."""
-
-    def test_speaker_id_uses_sync_executor_for_merge(self):
-        """Parent call to download_audio_chunks_and_merge must use sync_executor, not storage_executor."""
-        src = _read_source('utils/speaker_identification.py')
-        merge_idx = src.index('download_audio_chunks_and_merge')
-        context = src[max(0, merge_idx - 200) : merge_idx + 50]
-        assert 'sync_executor' in context
 
 
 @pytest.mark.slow

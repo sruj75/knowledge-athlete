@@ -43,18 +43,6 @@ environments:
             config_map:
               name: dev-omi-backend-config
               key: TYPESENSE_HOST
-          TWILIO_ACCOUNT_SID:
-            config_map:
-              name: dev-omi-backend-config
-              key: TWILIO_ACCOUNT_SID
-          TWILIO_API_KEY_SID:
-            config_map:
-              name: dev-omi-backend-config
-              key: TWILIO_API_KEY_SID
-          TWILIO_TWIML_APP_SID:
-            config_map:
-              name: dev-omi-backend-config
-              key: TWILIO_TWIML_APP_SID
           MODULATE_API_KEY:
             secret:
               name: dev-omi-backend-secrets
@@ -434,18 +422,6 @@ environments:
             config_map:
               name: prod-omi-backend-config
               key: TYPESENSE_HOST
-          TWILIO_ACCOUNT_SID:
-            config_map:
-              name: prod-omi-backend-config
-              key: TWILIO_ACCOUNT_SID
-          TWILIO_API_KEY_SID:
-            config_map:
-              name: prod-omi-backend-config
-              key: TWILIO_API_KEY_SID
-          TWILIO_TWIML_APP_SID:
-            config_map:
-              name: prod-omi-backend-config
-              key: TWILIO_TWIML_APP_SID
           MODULATE_API_KEY:
             secret:
               name: prod-omi-backend-secrets

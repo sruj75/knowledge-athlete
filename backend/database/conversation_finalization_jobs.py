@@ -10,13 +10,11 @@ from __future__ import annotations
 import os
 from hashlib import sha256
 from datetime import datetime, timedelta, timezone
-from typing import Any, Callable, Literal, Mapping, TypedDict
+from typing import Any, Callable, Mapping, TypedDict
 
 from google.cloud import firestore
 
-from database import conversations as conversations_db
-from database._client import document_id_from_seed, get_firestore_client
-from database.firestore_transaction_retry import run_with_transaction_contention_retry
+from database._client import get_firestore_client
 
 CONVERSATIONS_COLLECTION = 'conversations'
 FINALIZATION_JOBS_COLLECTION = 'conversation_finalization_jobs'
@@ -28,7 +26,6 @@ FINALIZATION_PROJECTION_COLLECTION = 'conversation_finalization_projection_shard
 FINALIZATION_PROJECTION_GENERATION = 'terminal-outcomes-v1'
 FINALIZATION_PROJECTION_SHARD_COUNT = 16
 
-FinalizationJobStatus = Literal['queued', 'leased', 'completed', 'dead_letter']
 TERMINAL_JOB_STATUSES = frozenset({'completed', 'dead_letter'})
 NONTERMINAL_JOB_STATUSES = frozenset({'queued', 'leased'})
 DEFAULT_LEASE_SECONDS = 1500
@@ -45,15 +42,6 @@ class FinalizationIntent(TypedDict):
     dispatch_generation: int | None
     fanout_key: str | None
     created: bool
-
-
-class FinalizationAdmission(TypedDict):
-    """Pure lifecycle-service decision evaluated inside the outbox transaction."""
-
-    accepted: bool
-    terminal: bool
-    reason: str
-    fanout_key: str | None
 
 
 class FinalizationFanoutClaim(TypedDict):
@@ -74,6 +62,17 @@ class FinalizationClaim(TypedDict):
 
 def _now() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def _intent_from_job(job_id: str, data: dict[str, Any]) -> FinalizationIntent:
+    """Project one existing S-25 job for bounded replay."""
+    return {
+        'job_id': job_id,
+        'status': str(data.get('status') or 'queued'),
+        'dispatch_generation': int(data.get('dispatch_generation') or 1),
+        'fanout_key': data.get('fanout_key') if isinstance(data.get('fanout_key'), str) else None,
+        'created': False,
+    }
 
 
 def get_finalization_reconcile_stale_after() -> timedelta:
@@ -184,179 +183,6 @@ def _record_projection_delta(
     if len(fields) == 2:
         return
     transaction.set(shard_ref, fields, merge=True)
-
-
-def _job_id(uid: str, conversation_id: str, revision: int) -> str:
-    return document_id_from_seed(f'listen-finalization:{uid}:{conversation_id}:{revision}')
-
-
-def _intent_from_job(job_id: str, data: dict[str, Any], *, created: bool = False) -> FinalizationIntent:
-    return {
-        'job_id': job_id,
-        'status': str(data.get('status') or 'queued'),
-        'dispatch_generation': int(data.get('dispatch_generation') or 1),
-        'fanout_key': data.get('fanout_key') if isinstance(data.get('fanout_key'), str) else None,
-        'created': created,
-    }
-
-
-def _no_finalization_intent(status: str) -> FinalizationIntent:
-    return {
-        'job_id': None,
-        'status': status,
-        'dispatch_generation': None,
-        'fanout_key': None,
-        'created': False,
-    }
-
-
-def _conversation_has_finalization_content(uid: str, conversation: Mapping[str, Any]) -> bool:
-    return conversations_db.raw_conversation_has_content(uid, dict(conversation))
-
-
-def _create_or_get_finalization_intent_txn(
-    transaction: Any,
-    conversation_ref: Any,
-    jobs_collection: Any,
-    uid: str,
-    conversation_id: str,
-    finalization_admission: Callable[[Mapping[str, Any]], FinalizationAdmission],
-    now: datetime,
-    *,
-    projection_collection: Any | None = None,
-    force_process: bool = False,
-    extra_updates: Mapping[str, Any] | None = None,
-) -> FinalizationIntent:
-    """Persist finalization ownership before any pusher or task handoff."""
-    conversation_snapshot = conversation_ref.get(transaction=transaction)
-    if not getattr(conversation_snapshot, 'exists', False):
-        return _no_finalization_intent('missing')
-
-    conversation = conversation_snapshot.to_dict() or {}
-    if conversation.get('deferred'):
-        return _no_finalization_intent('deferred')
-    if not _conversation_has_finalization_content(uid, conversation):
-        return _no_finalization_intent('no_content')
-
-    # The lifecycle service owns this pure decision, but it is evaluated while
-    # Firestore holds the conversation transaction snapshot. A late disconnect
-    # therefore cannot reopen a failed/discarded terminal row after a stale
-    # pre-transaction read.
-    admission = finalization_admission(conversation)
-    if admission['terminal']:
-        return _no_finalization_intent(admission['reason'])
-
-    existing_job_id = conversation.get('finalization_job_id')
-    if isinstance(existing_job_id, str) and existing_job_id:
-        existing_ref = jobs_collection.document(existing_job_id)
-        existing_snapshot = existing_ref.get(transaction=transaction)
-        if getattr(existing_snapshot, 'exists', False):
-            return _intent_from_job(existing_job_id, existing_snapshot.to_dict() or {})
-
-    if not admission['accepted'] or not admission['fanout_key']:
-        return _no_finalization_intent(admission['reason'])
-
-    revision = int(conversation.get('finalization_revision') or 0) + 1
-    job_id = _job_id(uid, conversation_id, revision)
-    job_ref = jobs_collection.document(job_id)
-    job_snapshot = job_ref.get(transaction=transaction)
-    if getattr(job_snapshot, 'exists', False):
-        job = job_snapshot.to_dict() or {}
-        transaction.update(
-            conversation_ref,
-            {
-                'status': 'processing',
-                'finalization_job_id': job_id,
-                'finalization_revision': revision,
-                'finalization_status': job.get('status', 'queued'),
-            },
-        )
-        return _intent_from_job(job_id, job)
-
-    status: FinalizationJobStatus = 'queued'
-    job = {
-        'schema_version': 1,
-        'uid': uid,
-        'conversation_id': conversation_id,
-        'finalization_revision': revision,
-        'status': status,
-        # REST finalization has historically forced enrichment while the listen
-        # pipeline retains its existing default. Persist the choice with the
-        # immutable finalization generation so a replay cannot change it.
-        'force_process': force_process,
-        'fanout_key': admission['fanout_key'],
-        'fanout_status': 'pending',
-        'dispatch_generation': 1,
-        'attempt_count': 0,
-        'task_retry_count': 0,
-        'projection_generation': FINALIZATION_PROJECTION_GENERATION,
-        'projection_shard': _projection_shard(job_id),
-        'created_at': now,
-        'updated_at': now,
-        'dispatch_requested_at': now,
-    }
-    job['reconcile_after_at'] = now + get_finalization_reconcile_stale_after()
-    transaction.set(job_ref, job)
-    _record_projection_delta(
-        transaction,
-        projection_collection,
-        job,
-        accepted=1,
-        queued=1,
-    )
-    conversation_updates = dict(extra_updates or {})
-    # Lifecycle fields are authoritative to this outbox transaction. Callers
-    # may atomically persist request metadata (for example calendar context),
-    # but cannot override the accepted generation's identity or status.
-    conversation_updates.update(
-        {
-            'status': 'processing',
-            'finalization_job_id': job_id,
-            'finalization_revision': revision,
-            'finalization_status': status,
-        }
-    )
-    transaction.update(conversation_ref, conversation_updates)
-    return _intent_from_job(job_id, job, created=True)
-
-
-def create_or_get_finalization_intent(
-    uid: str,
-    conversation_id: str,
-    *,
-    finalization_admission: Callable[[Mapping[str, Any]], FinalizationAdmission],
-    force_process: bool = False,
-    extra_updates: Mapping[str, Any] | None = None,
-    firestore_client: Any = None,
-) -> FinalizationIntent:
-    client = _client(firestore_client)
-    conversation_ref = _conversation_ref(client, uid, conversation_id)
-    jobs_collection = client.collection(FINALIZATION_JOBS_COLLECTION)
-    projection_collection = client.collection(FINALIZATION_PROJECTION_COLLECTION)
-
-    def create_intent_in_transaction(transaction: Any) -> FinalizationIntent:
-        # The Firestore SDK's transactional wrapper retains retry state. Build
-        # it for this outer attempt so concurrent REST finalizers always get a
-        # fresh transaction and wrapper after read-time contention.
-        transactional = firestore.transactional(_create_or_get_finalization_intent_txn)
-        return transactional(
-            transaction,
-            conversation_ref,
-            jobs_collection,
-            uid,
-            conversation_id,
-            finalization_admission,
-            _now(),
-            projection_collection=projection_collection,
-            force_process=force_process,
-            extra_updates=extra_updates,
-        )
-
-    return run_with_transaction_contention_retry(
-        client.transaction,
-        create_intent_in_transaction,
-        operation_name='conversation_finalization_intent',
-    )
 
 
 def _claim_finalization_job_txn(
@@ -930,7 +756,7 @@ def get_stale_processing_orphan_candidates(
 
     Eligibility is bounded by the authoritative, server-owned admission fence
     ``processing_admitted_at`` — never caller-controlled ``created_at``. A bare
-    ``processing`` row (no ``finalization_job_id``) that is not ``deferred`` is:
+    ``processing`` row with no ``finalization_job_id`` is:
 
     * returned with ``legacy=False`` when its admission age exceeds
       ``stale_after`` (a genuine crash orphan ready for exactly one terminal), and
@@ -944,7 +770,7 @@ def get_stale_processing_orphan_candidates(
     ``status == 'processing'``. A single-field equality query is served by
     Firestore's automatic single-field index, so no composite index is registered
     or deployed and the query is deliberately not collection-scoped. Because
-    client-side exclusion (deferred / durable-job-owned / fresh / legacy) happens
+    client-side exclusion (durable-job-owned / fresh / legacy) happens
     after the page cap, the sweep pages with a ``start_after`` cursor so a stable
     first page of excluded rows cannot starve a later eligible orphan.
 
@@ -993,7 +819,7 @@ def get_stale_processing_orphan_candidates(
             if uid is None:
                 continue
             data = snapshot.to_dict() or {}
-            if data.get('deferred') or data.get('finalization_job_id'):
+            if data.get('finalization_job_id'):
                 continue
             admitted_at = data.get('processing_admitted_at')
             if isinstance(admitted_at, datetime):
@@ -1145,7 +971,7 @@ def _complete_unstampable_orphan_conversation_txn(
     data = snapshot.to_dict() or {}
     if data.get('status') != 'processing':
         return False
-    if data.get('discarded') or data.get('deferred') or data.get('finalization_job_id'):
+    if data.get('discarded') or data.get('finalization_job_id'):
         return False
     if isinstance(data.get('processing_admitted_at'), datetime):
         return False  # no longer a legacy row: the admission-fenced path owns it
@@ -1173,7 +999,6 @@ def _complete_orphan_conversation_txn(
 
     Verified immediately before the write, inside the transaction:
     * still ``processing`` (not already completed/discarded/merging),
-    * not ``deferred`` (a desktop lazy row that intentionally stays on processing),
     * no ``finalization_job_id`` (a finalizer attached durable ownership after
       discovery), and
     * ``processing_admitted_at`` still equals the scanned generation (the processor
@@ -1190,7 +1015,7 @@ def _complete_orphan_conversation_txn(
     data = snapshot.to_dict() or {}
     if data.get('status') != 'processing':
         return False
-    if data.get('discarded') or data.get('deferred') or data.get('finalization_job_id'):
+    if data.get('discarded') or data.get('finalization_job_id'):
         return False
     admitted_at = data.get('processing_admitted_at')
     if not isinstance(admitted_at, datetime) or admitted_at != expected_admitted_at:
@@ -1207,52 +1032,6 @@ def complete_orphan_conversation(
     transaction = client.transaction()
     transactional = firestore.transactional(_complete_orphan_conversation_txn)
     return transactional(transaction, _conversation_ref(client, uid, conversation_id), expected_admitted_at, _now())
-
-
-def _renew_processing_lease_txn(transaction: Any, conversation_ref: Any, now: datetime) -> bool:
-    """Refresh the admission lease on a still-processing row owned by a live processor."""
-    snapshot = conversation_ref.get(transaction=transaction)
-    if not getattr(snapshot, 'exists', False):
-        return False
-    data = snapshot.to_dict() or {}
-    if data.get('status') != 'processing' or data.get('discarded'):
-        return False
-    transaction.update(conversation_ref, {'processing_admitted_at': now})
-    return True
-
-
-def renew_processing_lease(uid: str, conversation_id: str, *, firestore_client: Any = None) -> bool:
-    """Renew the server-owned admission lease so recovery cannot mistake a live processor for a crash."""
-    client = _client(firestore_client)
-    transaction = client.transaction()
-    transactional = firestore.transactional(_renew_processing_lease_txn)
-    return transactional(transaction, _conversation_ref(client, uid, conversation_id), _now())
-
-
-def _reacquire_deferred_processing_txn(transaction: Any, conversation_ref: Any, now: datetime) -> bool:
-    """Atomically clear ``deferred`` and renew the admission lease.
-
-    This eliminates the window between clearing ``deferred`` and the first
-    heartbeat renewal where the orphan sweep could terminalize the row.  If
-    the row is no longer ``processing`` or was discarded, the transition
-    fails closed so a stale processor produces no derived side effects.
-    """
-    snapshot = conversation_ref.get(transaction=transaction)
-    if not getattr(snapshot, 'exists', False):
-        return False
-    data = snapshot.to_dict() or {}
-    if data.get('status') != 'processing' or data.get('discarded'):
-        return False
-    transaction.update(conversation_ref, {'deferred': False, 'processing_admitted_at': now})
-    return True
-
-
-def reacquire_deferred_processing(uid: str, conversation_id: str, *, firestore_client: Any = None) -> bool:
-    """Atomically clear deferred and renew the admission lease in one transaction."""
-    client = _client(firestore_client)
-    transaction = client.transaction()
-    transactional = firestore.transactional(_reacquire_deferred_processing_txn)
-    return transactional(transaction, _conversation_ref(client, uid, conversation_id), _now())
 
 
 def get_finalization_job_summary(*, firestore_client: Any = None) -> dict[str, float | int]:

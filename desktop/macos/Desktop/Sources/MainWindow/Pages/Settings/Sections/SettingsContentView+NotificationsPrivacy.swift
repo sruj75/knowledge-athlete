@@ -176,7 +176,6 @@ extension SettingsContentView {
               trackingItem("Conversation creation and updates")
               trackingItem("Memory extraction events")
               trackingItem("Chat interactions")
-              trackingItem("Speech profile creation")
               trackingItem("Focus session events")
               trackingItem("App open/close events")
             }

@@ -201,11 +201,9 @@ class Features:
     TRANSCRIBE = "transcribe"
     OTHER = "other"
 
-    FOLLOWUP = "followup"
     ONBOARDING = "onboarding"
 
     # Conversation processing sub-features (granular cost tracking)
     CONVERSATION_DISCARD = "conv_discard"
     CONVERSATION_STRUCTURE = "conv_structure"
     CONVERSATION_ACTION_ITEMS = "conv_action_items"
-    CONVERSATION_FOLDER = "conv_folder"

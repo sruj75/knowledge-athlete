@@ -52,11 +52,6 @@ python -c "import fastapi; import firebase_admin; import google.cloud.firestore"
     exit 1
 }
 
-# ─── Create temp dirs that main.py expects ─────────────────────────────
-for d in _temp _samples _segments _speech_profiles; do
-    mkdir -p "$d" 2>/dev/null || true
-done
-
 # ─── Run pytest ────────────────────────────────────────────────────────
 echo ""
 echo "Running e2e tests..."

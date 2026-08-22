@@ -11,18 +11,45 @@ Stored in Firestore so the flag can be flipped without a redeploy:
     reviewer_uids:   list[str]   # specific UIDs to always hide for
 
 A version in `hidden_versions` matches the app version using the same
-semantic-vs-build comparison the announcements module already uses, so an
+semantic-vs-build comparison moved here when the announcements product was removed, so an
 entry like "1.0.531" matches every build of that semantic version.
 """
 
 from typing import Any, Optional, cast
 
 from database._client import db
-from database.announcements import compare_versions
 from database.cache import get_memory_cache
 
 _CACHE_KEY_PREFIX = "app_review_config:"
 _CACHE_TTL_SECONDS = 60  # short so flag flips propagate within a minute
+
+
+def _parse_version(version: str) -> tuple[tuple[int, int, int], int, bool]:
+    if not version:
+        return (0, 0, 0), 0, False
+    semantic, separator, build_text = version.lstrip('v').partition('+')
+    try:
+        parts = tuple(int(part) for part in semantic.split('.'))
+    except ValueError:
+        return (0, 0, 0), 0, False
+    padded = (parts + (0, 0, 0))[:3]
+    try:
+        build = int(build_text) if separator else 0
+    except ValueError:
+        build = 0
+    return cast(tuple[int, int, int], padded), build, bool(separator)
+
+
+def compare_versions(left: str, right: str) -> int:
+    """Compare semantic versions, treating a missing build as a wildcard."""
+
+    left_semantic, left_build, left_has_build = _parse_version(left)
+    right_semantic, right_build, right_has_build = _parse_version(right)
+    if left_semantic != right_semantic:
+        return -1 if left_semantic < right_semantic else 1
+    if not left_has_build or not right_has_build or left_build == right_build:
+        return 0
+    return -1 if left_build < right_build else 1
 
 
 def _fetch_review_config(platform: str) -> dict[str, Any]:
