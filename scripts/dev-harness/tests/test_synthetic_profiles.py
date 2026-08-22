@@ -35,3 +35,18 @@ def test_desktop_profile_uses_neutral_manifest_credentials(tmp_path: Path) -> No
     assert profile.selected_user == "alice"
     assert profile.selected_user_email == "alice@local.omi.invalid"
     assert profile.selected_user_display_name == "Synthetic Alice"
+
+
+def test_profile_seed_uses_firestore_emulator_admin_authorization(monkeypatch, tmp_path: Path) -> None:
+    cfg = _config(tmp_path)
+    requests: list[dict[str, str] | None] = []
+
+    def fake_request(method, url, payload, *, headers=None):
+        requests.append(headers)
+        return 200, "{}"
+
+    monkeypatch.setattr(synthetic_profiles, "_request_json", fake_request)
+
+    synthetic_profiles._write_profile(cfg, synthetic_profiles.PROFILES[1], "synthetic-alice-uid")
+
+    assert requests == [{"Authorization": "Bearer owner"}]
