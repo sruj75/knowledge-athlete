@@ -2,7 +2,7 @@ version: 2
 name: delete-account
 tier: manual
 description: Delete Account confirmation sheet only — never confirm deletion (Live P2; not qualification tier)
-app: com.omi.computer-macos
+app: non-prod
 covers:
   - desktop/macos/Desktop/Sources/Services/APIClient/APIClient+Account.swift
   - desktop/macos/Desktop/Sources/MainWindow/Pages/Settings/Sections/SettingsContentView+AccountBilling.swift
@@ -14,7 +14,7 @@ preconditions:
 steps:
   - id: S1
     name: Navigate to Settings Account section
-    do: "Click the Settings sidebar icon (identifier: sidebar_settings), then open the Account section in the settings sidebar. Verify account email and Sign Out button are visible."
+    do: "Click the top-bar Settings gear (identifier: gearshape), then open Account & Plan in the Settings sidebar. Verify account email and Sign Out button are visible."
     expect:
       interactive_count: { min: 5 }
       text_visible:
@@ -35,9 +35,9 @@ steps:
       interactive_count: { min: 5 }
 
   - id: S4
-    name: Return to Dashboard
-    do: "Click the Dashboard sidebar icon (identifier: sidebar_dashboard) to return to the Dashboard page."
+    name: Return to Home
+    do: "Click Home in the retained top bar to return to the Home page."
     expect:
       interactive_count: { min: 5 }
       text_visible:
-        - Dashboard
+        - Home

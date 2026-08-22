@@ -45,7 +45,6 @@ final class ScreenRecordingPermissionPolicyTests: XCTestCase {
     // register-first helper (each of these files had an open-then-register path).
     for path in [
       "Sources/MainWindow/Pages/PermissionsPage.swift",
-      "Sources/MainWindow/SidebarView.swift",
       "Sources/Rewind/UI/RewindPage.swift",
       // DashboardPage's capture toggle now delegates to CaptureListeningLogic,
       // which owns the register-first screen-recording grant.
@@ -63,7 +62,6 @@ final class ScreenRecordingPermissionPolicyTests: XCTestCase {
     // Negative guard: the register-after-open-Settings anti-pattern is gone.
     for path in [
       "Sources/MainWindow/Pages/PermissionsPage.swift",
-      "Sources/MainWindow/SidebarView.swift",
       "Sources/Rewind/UI/RewindPage.swift",
       "Sources/MainWindow/Pages/DashboardPage.swift",
       "Sources/MainWindow/CaptureListeningLogic.swift",

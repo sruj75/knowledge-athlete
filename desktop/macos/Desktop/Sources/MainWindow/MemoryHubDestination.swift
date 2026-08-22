@@ -1,7 +1,7 @@
 import CoreGraphics
 
 /// Destinations available from the Memory navigation menu.
-enum MemoryHubDestination: Int, CaseIterable, Identifiable {
+enum MemoryHubDestination: Int, CaseIterable, Identifiable, Sendable {
   static let storageKey = "memoryHubDestination"
   static let dropdownDestinations: [MemoryHubDestination] = [.conversations]
 
@@ -24,19 +24,17 @@ enum MemoryHubDestination: Int, CaseIterable, Identifiable {
     }
   }
 
-  /// Resolves legacy rail destinations into the canonical Memory hub.
-  /// Callers such as Cmd+2 still carry a `SidebarNavItem`, so normalize both
-  /// former standalone pages before the shell selects the hub route.
+  /// Resolves retained raw destinations into the canonical Memory hub.
   static func destination(
-    for sidebarItem: SidebarNavItem,
+    for desktopDestination: DesktopDestination,
     requestedRawValue: Int? = nil
   ) -> MemoryHubDestination? {
-    guard sidebarItem == .conversations || sidebarItem == .memories else { return nil }
+    guard desktopDestination == .memory || desktopDestination == .memories else { return nil }
     guard let requestedRawValue else {
-      return sidebarItem == .memories ? .memories : .conversations
+      return desktopDestination == .memories ? .memories : .conversations
     }
     return MemoryHubDestination(rawValue: requestedRawValue)
-      ?? (sidebarItem == .memories ? .memories : .conversations)
+      ?? (desktopDestination == .memories ? .memories : .conversations)
   }
 }
 

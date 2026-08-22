@@ -1,18 +1,17 @@
 version: 2
 name: goals-dashboard
 tier: 2
-description: Hermetic simple local goal creation and Dashboard projection
+description: Hermetic simple local goal creation and storage lifecycle; S-21 has no Home goal widget
 app: non-prod
 covers:
-  - desktop/macos/Desktop/Sources/MainWindow/Components/GoalsWidget.swift
-  - desktop/macos/Desktop/Sources/MainWindow/Pages/DashboardPage.swift
+  - desktop/macos/Desktop/Sources/DesktopAutomationBridge.swift
   - desktop/macos/Desktop/Sources/Rewind/Core/GoalStorage.swift
 preconditions:
   - automation_bridge_ready
 
 steps:
   - id: S1
-    name: Navigate to Dashboard
+    name: Establish Home shell state
     bridge.navigate:
       target: dashboard
       activateApp: false
@@ -37,7 +36,7 @@ steps:
       result.detail.created: "true"
 
   - id: S4
-    name: Read the goal from local storage
+    name: Read the goal from local storage without a shell projection
     bridge.action:
       name: goals_snapshot
     expect:

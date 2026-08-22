@@ -66,6 +66,11 @@ turns; Swift owns drafts and app-managed attachment bytes. The desktop does not
 project normal Chat sessions, messages, ratings, or attachments to Firestore and
 does not reconcile a server catalog.
 
+The persistent primary navigation is Home, Memory, Tasks, and Insights. Memory
+owns the Memories and Conversations destinations, while Insights owns Insights
+and Focus. Semantic Chat navigation opens the Chat stage inside Home; it is not a
+standalone page or raw navigation destination.
+
 The backend is transient compute only for managed assistant completion and the
 authenticated, bounded greeting and title routes. Greeting and title results are
 identified and committed locally. Home reads tasks, Focus, Insights, and daily

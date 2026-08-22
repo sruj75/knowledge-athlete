@@ -927,17 +927,6 @@ extension PostHogManager {
       ])
   }
 
-  // MARK: - Tier Events
-
-  func tierChanged(tier: Int, reason: String) {
-    track(
-      "Tier Changed",
-      properties: [
-        "tier": tier,
-        "reason": reason,
-      ])
-  }
-
   // MARK: - Settings State
 
   /// Comprehensive all-settings snapshot (fired on app launch, at most once per day)

@@ -2,8 +2,8 @@ import OmiTheme
 import SwiftUI
 
 /// The constant floating top bar that replaces the left nav rail: primary
-/// navigation (Home / Memory / Tasks / Insights) and the Capture/Listening controls on
-/// the right.
+/// navigation (Home / Memory / Tasks / Insights), Capture/Listening, permission
+/// recovery when needed, and Settings.
 struct DesktopTopBar: View {
   @Binding var selectedIndex: Int
   @Binding var memoryDestinationRawValue: Int
@@ -20,7 +20,7 @@ struct DesktopTopBar: View {
       expandedNavigation: { navPills },
       compactNavigation: { compactNavigationMenu },
       persistentControls: { CaptureListeningControls(appState: appState, onRewind: onRewind) },
-      settings: { settingsButton }
+      settings: { utilityButtons }
     )
     .frame(maxWidth: .infinity)
     .frame(height: 44)
@@ -50,7 +50,7 @@ struct DesktopTopBar: View {
 
   @ViewBuilder
   private func compactNavigationItem(_ item: TopNavigationItem) -> some View {
-    if item.index == SidebarNavItem.conversations.rawValue {
+    if item.index == DesktopDestination.memory.rawValue {
       Menu {
         ForEach(TopNavigationRoutes.memoryDestinations) { destination in
           Button {
@@ -77,12 +77,45 @@ struct DesktopTopBar: View {
 
   /// Gear that opens Settings. The old left rail held the settings/profile entry;
   /// with the rail gone this is the only visible way in (⌘, still works too).
+  private var utilityButtons: some View {
+    HStack(spacing: OmiSpacing.sm) {
+      if let destination = DesktopUtilityNavigation.permissionRecoveryDestination(
+        hasMissingPermissions: appState.hasMissingPermissions,
+        selectedIndex: selectedIndex)
+      {
+        Button {
+          dismissMemoryDropdown()
+          OmiMotion.withGated(.easeOut(duration: 0.08)) {
+            selectedIndex = destination.rawValue
+          }
+        } label: {
+          Image(systemName: "exclamationmark.shield")
+            .scaledFont(size: OmiType.body, weight: .semibold)
+            .foregroundColor(OmiColors.warning)
+            .frame(width: 32, height: 32)
+            .background(
+              Circle().fill(
+                selectedIndex == destination.rawValue
+                  ? OmiColors.warning.opacity(0.14) : Color.clear)
+            )
+            .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .help("Fix Permissions")
+        .accessibilityLabel("Fix Permissions")
+        .accessibilityIdentifier("permission-recovery-button")
+      }
+
+      settingsButton
+    }
+  }
+
   private var settingsButton: some View {
-    let isActive = selectedIndex == SidebarNavItem.settings.rawValue
+    let isActive = selectedIndex == DesktopDestination.settings.rawValue
     return Button {
       dismissMemoryDropdown()
       OmiMotion.withGated(.easeOut(duration: 0.08)) {
-        selectedIndex = SidebarNavItem.settings.rawValue
+        selectedIndex = DesktopDestination.settings.rawValue
       }
     } label: {
       Image(systemName: "gearshape")
@@ -101,7 +134,7 @@ struct DesktopTopBar: View {
     // items are muted text; the selected item gets a subtle highlight only.
     HStack(spacing: TopNavigationPillMetrics.itemSpacing) {
       ForEach(navItems) { item in
-        if item.index == SidebarNavItem.conversations.rawValue {
+        if item.index == DesktopDestination.memory.rawValue {
           memoryNavigationItem(item)
         } else {
           Button {
@@ -131,7 +164,7 @@ struct DesktopTopBar: View {
     dismissMemoryDropdown()
     memoryDestinationRawValue = destination.rawValue
     OmiMotion.withGated(.easeOut(duration: 0.08)) {
-      selectedIndex = SidebarNavItem.conversations.rawValue
+      selectedIndex = DesktopDestination.memory.rawValue
     }
   }
 
@@ -225,7 +258,7 @@ struct DesktopTopBar: View {
   }
 
   private func preparePrimaryNavigation(_ item: TopNavigationItem) {
-    guard item.index == SidebarNavItem.insights.rawValue else { return }
+    guard item.index == DesktopDestination.insights.rawValue else { return }
     InsightsHubNavigationStore.shared.request(segment: .insights)
   }
 
@@ -354,14 +387,22 @@ struct TopNavigationItem: Identifiable, Equatable {
 }
 
 enum TopNavigationRoutes {
-  static let primaryItems = [
-    TopNavigationItem(index: SidebarNavItem.dashboard.rawValue, title: "Home", icon: "house.fill"),
-    TopNavigationItem(index: SidebarNavItem.conversations.rawValue, title: "Memory", icon: "brain"),
-    TopNavigationItem(index: SidebarNavItem.tasks.rawValue, title: "Tasks", icon: "checklist"),
-    TopNavigationItem(index: SidebarNavItem.insights.rawValue, title: "Insights", icon: "lightbulb.fill"),
-  ]
+  static let primaryItems = DesktopNavigationPolicy.primaryDestinations.map {
+    TopNavigationItem(index: $0.rawValue, title: $0.title, icon: $0.icon)
+  }
 
   static let memoryDestinations = MemoryHubDestination.allCases
+}
+
+enum DesktopUtilityNavigation {
+  static func permissionRecoveryDestination(
+    hasMissingPermissions: Bool,
+    selectedIndex: Int
+  ) -> DesktopDestination? {
+    let permissions = DesktopDestination.permissions
+    guard hasMissingPermissions || selectedIndex == permissions.rawValue else { return nil }
+    return permissions
+  }
 }
 
 enum TopNavigationPillMetrics {
@@ -372,13 +413,13 @@ enum TopNavigationPillMetrics {
   static func width(for itemIndex: Int) -> CGFloat {
     let baseWidth: CGFloat
     switch itemIndex {
-    case SidebarNavItem.dashboard.rawValue:
+    case DesktopDestination.home.rawValue:
       baseWidth = 88
-    case SidebarNavItem.conversations.rawValue:
+    case DesktopDestination.memory.rawValue:
       baseWidth = 128
-    case SidebarNavItem.tasks.rawValue:
+    case DesktopDestination.tasks.rawValue:
       baseWidth = 84
-    case SidebarNavItem.insights.rawValue:
+    case DesktopDestination.insights.rawValue:
       baseWidth = 100
     default:
       baseWidth = 88

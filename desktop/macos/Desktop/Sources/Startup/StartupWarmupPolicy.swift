@@ -42,7 +42,6 @@ struct RetryableDelayedStartGate {
 enum StartupWarmupTaskID: Hashable {
   case serviceWarmup
   case databaseWarmup
-  case dashboardNetworkRefresh
   case chatPromptContextWarmup
   case databaseRetry
   case conversationWarmup
@@ -68,7 +67,6 @@ enum StartupWarmupPolicy {
   static let deferredWarmupDelay: TimeInterval = 2.0
   static let databaseRetryInitialDelay: TimeInterval = 1.0
   static let databaseRetryMaxDelay: TimeInterval = 30.0
-  static let dashboardNetworkRefreshDelay: TimeInterval = 4.0
   static let apiKeyFetchDelay: TimeInterval = 9.0
   static let chatPromptContextWarmupDelay: TimeInterval = 10.0
   static let floatingBarPlanFetchDelay: TimeInterval = 0.0

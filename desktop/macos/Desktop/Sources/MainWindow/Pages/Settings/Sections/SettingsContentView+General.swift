@@ -103,7 +103,7 @@ extension SettingsContentView {
       }
 
       // Notifications toggle
-      settingsCard(settingId: "general.notifications") {
+      settingsCard(destination: .generalNotifications) {
         VStack(spacing: OmiSpacing.md) {
           HStack(spacing: OmiSpacing.lg) {
             Image(systemName: "bell.fill")
@@ -184,7 +184,7 @@ extension SettingsContentView {
 
       // System Audio capture mode (macOS 14.4+ — system audio capture requires Core Audio taps)
       if #available(macOS 14.4, *) {
-        settingsCard(settingId: "general.systemaudio") {
+        settingsCard(destination: .systemAudio) {
           VStack(alignment: .leading, spacing: OmiSpacing.md) {
             HStack(spacing: OmiSpacing.lg) {
               Image(systemName: "speaker.wave.2.fill")
@@ -232,7 +232,7 @@ extension SettingsContentView {
       }
 
       // Font Size
-      settingsCard(settingId: "general.fontsize") {
+      settingsCard(destination: .fontSize) {
         VStack(spacing: OmiSpacing.md) {
           HStack(spacing: OmiSpacing.lg) {
             Image(systemName: "textformat.size")

@@ -6,19 +6,6 @@ enum InsightsHubSegment: Int, CaseIterable, Sendable {
   case focus
 }
 
-enum PrimaryNavigationShortcut {
-  static func destination(for shortcut: String) -> SidebarNavItem? {
-    switch shortcut.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
-    case "1", "home", "dashboard": return .dashboard
-    case "2", "memory", "memories": return .memories
-    case "3", "tasks": return .tasks
-    case "4", "insight", "insights": return .insights
-    case ",", "comma", "settings": return .settings
-    default: return nil
-    }
-  }
-}
-
 struct InsightsHubRequest: Equatable, Sendable {
   let segment: InsightsHubSegment
   let authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot

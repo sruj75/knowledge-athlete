@@ -25,7 +25,8 @@ steps:
       target: chat
       activateApp: false
     wait:
-      state.selectedTabIndex: 2
+      state.selectedTabIndex: 0
+      state.homeMode: chat
 
   - id: S3
     name: Send chat query against fault backend

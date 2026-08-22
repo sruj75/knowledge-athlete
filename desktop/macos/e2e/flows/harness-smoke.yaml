@@ -60,7 +60,7 @@ steps:
       target: memories
       activateApp: false
     wait:
-      state.selectedTabIndex: 3
+      state.selectedTabIndex: 1
 
   - id: S5
     name: Refresh Data

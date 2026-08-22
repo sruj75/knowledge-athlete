@@ -68,7 +68,7 @@ Local full T0 (includes backend preflight + pytest desktop contracts):
 | Transcription / audio capture | T2 |
 | Rewind artifact persistence / recovery / privacy admission | T2 |
 | ChatProvider / agent runtime | T0 + T3 |
-| Sidebar / navigation | T1 |
+| Top navigation / retained destinations | T1 |
 | Redesigned Home stage (hub/chat) | T2 (`home-stage.yaml`) |
 | Memories / tasks CRUD surfaces | T2 |
 | Secondary surfaces (detail, vocabulary, goals, billing, privacy mutations) | T2 + Live P2 for manual-only |
@@ -83,7 +83,7 @@ healthy enough to boot the hermetic T2 stack. Stable nomination and production p
 | Flow | Schema | Runnable | `tier` | Notes |
 | --- | --- | --- | --- | --- |
 | `harness-smoke` | v1 legacy | typed bridge | 1 | Upgrade to v2 over time |
-| `navigation` | v2 | typed bridge | 1 | Sidebar navigation |
+| `navigation` | v2 | typed bridge | 1 | Home / Memory / Tasks / Insights top navigation |
 | `capture-lifecycle` | v2 | typed bridge | 2 | STT seam via `capture_test_transcript` |
 | `rewind-artifact-recovery` | v2 | typed bridge | 2 | Synthetic Rewind → HEVC → SQLite → finalized-video readback, privacy admission, and database reopen |
 | `chat-hermetic` | v2 | typed bridge | 2 | Rust `OMI_LLM_STUB=1` |
@@ -101,7 +101,7 @@ healthy enough to boot the hermetic T2 stack. Stable nomination and production p
 | `about-settings` | v2 | typed bridge | 2 | About section + version snapshot |
 | `notifications-settings` | v2 | typed bridge | 2 | Notifications snapshot + API update |
 | `rewind-settings` | v2 | typed bridge | 2 | Rewind retention/excluded-apps snapshot |
-| `keyboard-shortcuts` | v2 | typed bridge | 2 | Cmd+1..5 / Cmd+, navigation |
+| `keyboard-shortcuts` | v2 | typed bridge | 2 | Cmd+1..4 / Cmd+, navigation |
 | `conversation-detail` | v2 | typed bridge | 2 | Capture seam + detail/transcript drawer snapshot |
 | `memory-crud` | v2 | typed bridge | 2 | Memory create/edit/delete via bridge actions |
 | `vocabulary` | v2 | typed bridge | 2 | Transcription vocabulary set + snapshot |

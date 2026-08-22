@@ -817,7 +817,7 @@ extension SettingsContentView {
   var preferencesSubsection: some View {
     VStack(spacing: OmiSpacing.xl) {
       // Multiple Chat Sessions toggle
-      settingsCard(settingId: "advanced.preferences.multichat") {
+      settingsCard(destination: .multipleChats) {
         HStack(spacing: OmiSpacing.lg) {
           Image(systemName: "bubble.left.and.bubble.right")
             .scaledFont(size: OmiType.subheading)
@@ -847,7 +847,7 @@ extension SettingsContentView {
       }
 
       // Launch at Login toggle
-      settingsCard(settingId: "advanced.preferences.launchatlogin") {
+      settingsCard(destination: .launchAtLogin) {
         HStack(spacing: OmiSpacing.lg) {
           Image(systemName: "power")
             .scaledFont(size: OmiType.subheading)
@@ -890,7 +890,7 @@ extension SettingsContentView {
   var troubleshootingSubsection: some View {
     VStack(spacing: OmiSpacing.xl) {
       // Report Issue
-      settingsCard(settingId: "advanced.troubleshooting.reportissue") {
+      settingsCard(destination: .advancedReportIssue) {
         HStack(spacing: OmiSpacing.lg) {
           Image(systemName: "exclamationmark.bubble")
             .scaledFont(size: OmiType.subheading)
@@ -925,7 +925,7 @@ extension SettingsContentView {
 
   var resetOnboardingSubsection: some View {
     VStack(spacing: OmiSpacing.xl) {
-      settingsCard(settingId: "advanced.resetonboarding") {
+      settingsCard(destination: .resetOnboarding) {
         HStack(spacing: OmiSpacing.lg) {
           Image(systemName: "arrow.counterclockwise")
             .scaledFont(size: OmiType.subheading)

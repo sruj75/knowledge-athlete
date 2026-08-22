@@ -1,5 +1,7 @@
 import XCTest
 
+@testable import Omi_Computer
+
 final class DashboardCaptureStateTests: XCTestCase {
   func testDashboardCaptureStatusUsesLiveMonitoringState() throws {
     let source = try captureControlsSource()
@@ -65,8 +67,11 @@ final class DashboardCaptureStateTests: XCTestCase {
       source.range(
         of: #"\.onExitCommand\s*\{\s*navigateHomeOnEscapeIfNeeded\(\)\s*\}"#,
         options: .regularExpression) != nil)
-    XCTAssertTrue(
-      source.contains("[.conversations, .memories, .tasks, .insights, .rewind].contains(item)"))
+    XCTAssertTrue(DesktopNavigationPolicy.returnsHomeOnUnhandledEscape(from: .memory))
+    XCTAssertTrue(DesktopNavigationPolicy.returnsHomeOnUnhandledEscape(from: .memories))
+    XCTAssertTrue(DesktopNavigationPolicy.returnsHomeOnUnhandledEscape(from: .tasks))
+    XCTAssertTrue(DesktopNavigationPolicy.returnsHomeOnUnhandledEscape(from: .rewind))
+    XCTAssertFalse(DesktopNavigationPolicy.returnsHomeOnUnhandledEscape(from: .insights))
   }
 
   private func dashboardSource() throws -> String {
