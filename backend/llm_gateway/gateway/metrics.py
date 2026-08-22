@@ -7,7 +7,6 @@ from typing import Protocol
 
 from prometheus_client import Counter, Histogram
 
-from llm_gateway.gateway.accounting import AccountingEvent
 from llm_gateway.gateway.errors import GatewayError
 from llm_gateway.gateway.output_budget import OutputBudgetDecision, output_budget_bucket
 from llm_gateway.gateway.schemas import FailureClass, ProviderRejection
@@ -69,12 +68,6 @@ STREAM_TTFB_SECONDS = Histogram(
     'Time to first non-empty stream chunk by bounded API surface, provider, and credential source',
     ['api_surface', 'provider', 'credential_source'],
     buckets=(0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 20, 40, 60, 120),
-)
-
-ACCOUNTING_EVENTS_TOTAL = Counter(
-    'llm_gateway_accounting_events_total',
-    'LLM gateway accounting-event delivery by bounded provider and accounting state',
-    ['api_surface', 'provider', 'payer', 'usage_status', 'cost_status', 'delivery'],
 )
 
 
@@ -262,19 +255,6 @@ def observe_request_rejection(*, api_surface: str, error_class: str, request_id:
         surface_label,
         error_label,
     )
-
-
-def observe_accounting_event(event: AccountingEvent, *, delivery: str) -> None:
-    """Observe accounting delivery without user, request, or model labels."""
-    delivery_label = delivery if delivery in {'written', 'duplicate', 'failed', 'dropped'} else 'unknown'
-    ACCOUNTING_EVENTS_TOTAL.labels(
-        api_surface=_bounded(event.api_surface),
-        provider=_bounded(event.provider),
-        payer=_bounded(event.payer),
-        usage_status=_bounded(event.usage_status.value),
-        cost_status=_bounded(event.cost_status.value),
-        delivery=delivery_label,
-    ).inc()
 
 
 def report_observation_failure(*, api_surface: str, request_id: str) -> None:

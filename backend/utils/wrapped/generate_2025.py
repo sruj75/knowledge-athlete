@@ -13,7 +13,7 @@ import database.conversations as conversations_db
 from database.wrapped import WrappedStatus
 from models.conversation import Conversation
 from utils.conversations.factory import deserialize_conversations
-from utils.llm.clients import get_llm
+from utils.llm.clients import get_workload_client
 from utils.notifications import send_notification
 import json
 import logging
@@ -156,7 +156,7 @@ Return as JSON (no markdown):
 Make the description specific to THIS person based on what you see in their conversations, not generic."""
 
         logger.info(f"[Wrapped]     - Calling Gemini for decision style...")
-        response = get_llm('wrapped_analysis').invoke(prompt)
+        response = get_workload_client('wrapped_analysis').invoke(prompt)
         content = _content_str(response).strip()
         logger.info(f"[Wrapped]     - Gemini response received: {len(content)} chars")
 
@@ -215,7 +215,7 @@ Return as JSON (no markdown):
 Be specific with actual phrases from their conversations. Avoid generic filler words like "um", "like", "you know"."""
 
         logger.info(f"[Wrapped]     - Calling Gemini for top phrases...")
-        response = get_llm('wrapped_analysis').invoke(prompt)
+        response = get_workload_client('wrapped_analysis').invoke(prompt)
         content = _content_str(response).strip()
         logger.info(f"[Wrapped]     - Gemini response received: {len(content)} chars")
 
@@ -318,7 +318,7 @@ IMPORTANT: Each description MUST be exactly 15-20 words. No more, no less.
 Be specific and reference actual events from the conversations. Make titles catchy and memorable."""
 
         logger.info(f"[Wrapped]     - Calling Gemini for memorable days...")
-        response = get_llm('wrapped_analysis').invoke(prompt)
+        response = get_workload_client('wrapped_analysis').invoke(prompt)
         content = _content_str(response).strip()
         logger.info(f"[Wrapped]     - Gemini response received: {len(content)} chars")
 
@@ -393,7 +393,7 @@ IMPORTANT: The story MUST be exactly 20-30 words. No more, no less.
 Pick something genuinely funny and retell it in an entertaining way. Make the user smile when they read it!"""
 
         logger.info(f"[Wrapped]     - Calling Gemini for funniest event...")
-        response = get_llm('wrapped_analysis').invoke(prompt)
+        response = get_workload_client('wrapped_analysis').invoke(prompt)
         content = _content_str(response).strip()
         logger.info(f"[Wrapped]     - Gemini response received: {len(content)} chars")
 
@@ -453,7 +453,7 @@ IMPORTANT: The story MUST be exactly 20-30 words. No more, no less.
 Frame it in a lighthearted, relatable way - we've all been there! Make it funny rather than cruel."""
 
         logger.info(f"[Wrapped]     - Calling Gemini for most embarrassing event...")
-        response = get_llm('wrapped_analysis').invoke(prompt)
+        response = get_workload_client('wrapped_analysis').invoke(prompt)
         content = _content_str(response).strip()
         logger.info(f"[Wrapped]     - Gemini response received: {len(content)} chars")
 
@@ -516,7 +516,7 @@ IMPORTANT:
 - Each context MUST be 10-15 words max"""
 
         logger.info(f"[Wrapped]     - Calling Gemini for top buddies...")
-        response = get_llm('wrapped_analysis').invoke(prompt)
+        response = get_workload_client('wrapped_analysis').invoke(prompt)
         content = _content_str(response).strip()
         logger.info(f"[Wrapped]     - Gemini response received: {len(content)} chars")
 
@@ -592,7 +592,7 @@ Return as JSON (no markdown):
 Be specific with actual names. If something isn't clearly mentioned, make your best inference or use "Not mentioned"."""
 
         logger.info(f"[Wrapped]     - Calling Gemini for obsessions...")
-        response = get_llm('wrapped_analysis').invoke(prompt)
+        response = get_workload_client('wrapped_analysis').invoke(prompt)
         content = _content_str(response).strip()
         logger.info(f"[Wrapped]     - Gemini response received: {len(content)} chars")
 
@@ -649,7 +649,7 @@ Return as JSON (no markdown):
 Include a mix of movies they mentioned AND movies that match their vibe/interests. Use actual movie titles."""
 
         logger.info(f"[Wrapped]     - Calling Gemini for movie recommendations...")
-        response = get_llm('wrapped_analysis').invoke(prompt)
+        response = get_workload_client('wrapped_analysis').invoke(prompt)
         content = _content_str(response).strip()
         logger.info(f"[Wrapped]     - Gemini response received: {len(content)} chars")
 
@@ -714,7 +714,7 @@ Return as JSON (no markdown):
 Be specific and empathetic. These should feel personal and meaningful."""
 
         logger.info(f"[Wrapped]     - Calling Gemini for struggles and wins...")
-        response = get_llm('wrapped_analysis').invoke(prompt)
+        response = get_workload_client('wrapped_analysis').invoke(prompt)
         content = _content_str(response).strip()
         logger.info(f"[Wrapped]     - Gemini response received: {len(content)} chars")
 

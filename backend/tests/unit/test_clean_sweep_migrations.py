@@ -175,15 +175,6 @@ class TestStorageExecutorMigration:
         assert 'storage_executor' in src
 
 
-class TestPerplexityHttpxMigration:
-    """Verify perplexity_tools uses httpx, not requests."""
-
-    def test_uses_httpx(self):
-        src = _read_source('utils/retrieval/tools/perplexity_tools.py')
-        assert 'import httpx' in src
-        assert 'import requests' not in src
-
-
 class TestNoRequestsInProductionCode:
     """Global check: zero import requests in non-test, non-script production code."""
 

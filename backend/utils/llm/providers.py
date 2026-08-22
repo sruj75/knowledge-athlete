@@ -2,28 +2,49 @@
 
 This module owns the mechanics of turning a resolved provider/model route into a
 LangChain ``BaseChatModel``. Keep product features out of this file: callers
-should route by feature through ``utils.llm.clients.get_llm()`` and let the model
-configuration decide which provider/model to use.
+should route by feature through ``utils.llm.clients.get_workload_client()`` and
+let the explicit workload inventory decide which provider/model to use.
 """
 
 import logging
 import os
-import hashlib
 from dataclasses import dataclass, field
 from typing import Any, Dict, Optional
 
+from langchain_core.callbacks import BaseCallbackHandler
 from langchain_core.language_models import BaseChatModel
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI
 from pydantic import SecretStr
 
-from utils.llm.gateway_client import GatewayContextChatOpenAI, get_llm_gateway_base_url, get_llm_gateway_service_token
-from utils.llm.gateway_resilience import gateway_transport_timeout
+from utils.llm.provider_errors import handle_llm_error
 from utils.llm.usage_tracker import get_usage_callback
 
 logger = logging.getLogger(__name__)
 
 _usage_callback = get_usage_callback()
+_error_callbacks: Dict[tuple[str, str, str], BaseCallbackHandler] = {}
+
+
+class _ManagedProviderErrorCallback(BaseCallbackHandler):
+    def __init__(self, provider: str, model: str, feature: str) -> None:
+        self.provider = provider
+        self.model = model
+        self.feature = feature
+
+    def on_llm_error(self, error: BaseException, **_kwargs: Any) -> None:
+        if isinstance(error, Exception):
+            handle_llm_error(error, self.provider, feature=self.feature, model=self.model)
+
+
+def _callbacks(provider: str, model: str, feature: str) -> list[BaseCallbackHandler]:
+    key = (provider, model, feature)
+    callback = _error_callbacks.get(key)
+    if callback is None:
+        callback = _ManagedProviderErrorCallback(provider, model, feature)
+        _error_callbacks[key] = callback
+    return [_usage_callback, callback]
+
 
 # Google's OpenAI-compatible endpoint used by the credential-free placeholder
 # when managed Gemini configuration is absent.
@@ -71,6 +92,7 @@ def get_or_create_openai_compatible_llm(
     model_name: str,
     streaming: bool = False,
     options: Optional[Dict[str, Any]] = None,
+    feature: str = '',
 ) -> ChatOpenAI:
     """Get or create a cached ChatOpenAI-compatible chat model."""
 
@@ -91,10 +113,10 @@ def get_or_create_openai_compatible_llm(
         'api_key',
     }
     _effective_options = {k: v for k, v in options.items() if k in _handled_options}
-    key = _cache_key(provider, model_name, streaming, _effective_options)
+    key = (*_cache_key(provider, model_name, streaming, _effective_options), feature)
     if key not in _llm_cache:
         kwargs: Dict[str, Any] = {
-            'callbacks': [_usage_callback],
+            'callbacks': _callbacks(provider, model_name, feature),
             # The direct provider is the recovery path. Keep its established
             # deadline/retry budget; only the optional gateway hop is short.
             'request_timeout': options.get('request_timeout', 120),
@@ -119,55 +141,11 @@ def get_or_create_openai_compatible_llm(
     return _llm_cache[key]
 
 
-def get_or_create_omi_gateway_llm(
-    lane_id: str,
-    streaming: bool = False,
-    options: Optional[Dict[str, Any]] = None,
-    *,
-    feature: str | None = None,
-) -> ChatOpenAI:
-    """Get or create a cached LangChain chat model backed by the Omi LLM gateway."""
-
-    options = options or {}
-    base_url = f'{get_llm_gateway_base_url()}/v1'
-    request_timeout = options.get('request_timeout', gateway_transport_timeout())
-    max_retries = options.get('max_retries', 0)
-    service_token = get_llm_gateway_service_token()
-    default_headers = {'X-Omi-Service-Caller': 'backend'}
-    if service_token:
-        default_headers['Authorization'] = f'Bearer {service_token}'
-    service_token_cache_key = hashlib.sha256(service_token.encode()).hexdigest() if service_token else 'none'
-
-    key = _cache_key(
-        'omi_gateway',
-        lane_id,
-        streaming,
-        {
-            'base_url': base_url,
-            'service_token': service_token_cache_key,
-            'request_timeout': repr(request_timeout),
-            'max_retries': max_retries,
-            'feature': feature,
-        },
-    )
-    if key not in _llm_cache:
-        kwargs: Dict[str, Any] = {
-            'api_key': SecretStr('omi-gateway'),
-            'base_url': base_url,
-            'callbacks': [_usage_callback],
-            'default_headers': default_headers,
-            'request_timeout': request_timeout,
-            'max_retries': max_retries,
-        }
-        if streaming:
-            kwargs['streaming'] = True
-            kwargs['stream_options'] = {"include_usage": True}
-        _llm_cache[key] = GatewayContextChatOpenAI(model=lane_id, omi_gateway_feature=feature, **kwargs)
-    return _llm_cache[key]
-
-
 def get_or_create_gemini_llm(
-    model_name: str, streaming: bool = False, thinking_budget: Optional[int] = None
+    model_name: str,
+    streaming: bool = False,
+    thinking_budget: Optional[int] = None,
+    feature: str = '',
 ) -> BaseChatModel:
     """Get or create a cached ChatGoogleGenerativeAI for a Gemini model via native SDK.
 
@@ -185,12 +163,16 @@ def get_or_create_gemini_llm(
         os.environ.get('USE_VERTEX_AI', '').lower() == 'true' and os.environ.get('GOOGLE_CLOUD_PROJECT', '')
     ) or bool(os.environ.get('GEMINI_API_KEY', ''))
     cache_budget = thinking_budget if _has_gemini_creds else None
-    key = (model_name, streaming, 'gemini', cache_budget)
+    key = (model_name, streaming, 'gemini', cache_budget, feature)
     if key not in _llm_cache:
         use_vertex = os.environ.get('USE_VERTEX_AI', '').lower() == 'true'
         gcp_project = os.environ.get('GOOGLE_CLOUD_PROJECT', '') if use_vertex else ''
         gemini_key = os.environ.get('GEMINI_API_KEY', '')
-        kwargs: Dict[str, Any] = {'callbacks': [_usage_callback], 'timeout': 120, 'max_retries': 1}
+        kwargs: Dict[str, Any] = {
+            'callbacks': _callbacks('gemini', model_name, feature),
+            'timeout': 120,
+            'max_retries': 1,
+        }
         if streaming:
             kwargs['streaming'] = True
         if thinking_budget is not None and model_name.startswith('gemini-2.5'):
@@ -223,10 +205,17 @@ def get_default_client(
     provider: str,
     streaming: bool,
     options: Optional[Dict[str, Any]] = None,
+    *,
+    feature: str = '',
 ) -> BaseChatModel:
     """Get the cached default client for a model/provider combo."""
 
     options = options or {}
     if provider == 'gemini':
-        return get_or_create_gemini_llm(model, streaming, thinking_budget=options.get('thinking_budget'))
-    return get_or_create_openai_compatible_llm(provider, model, streaming, options)
+        return get_or_create_gemini_llm(
+            model,
+            streaming,
+            thinking_budget=options.get('thinking_budget'),
+            feature=feature,
+        )
+    return get_or_create_openai_compatible_llm(provider, model, streaming, options, feature=feature)

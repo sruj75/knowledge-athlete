@@ -10,7 +10,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, cast
 
-from llm_gateway.gateway.accounting import AttemptTrace, ProviderResponseMetadata, UsageStatus
+from llm_gateway.gateway.provider_usage import AttemptTrace, ProviderResponseMetadata, UsageStatus
 from llm_gateway.gateway.errors import (
     GatewayCapabilityMismatchError,
     GatewayError,

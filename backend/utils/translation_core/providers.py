@@ -12,7 +12,7 @@ from typing import Any, Callable, Protocol
 from pydantic import BaseModel
 
 from config.translation import TranslationProfile
-from utils.llm.clients import get_llm
+from utils.llm.clients import get_workload_client
 from utils.translation_core.metrics import TranslationMetrics, get_translation_metrics
 
 
@@ -142,7 +142,7 @@ def get_default_translation_executor() -> GeminiTranslationExecutor:
 
 
 def _create_gemini_translation_client() -> Any:
-    return get_llm('translation')
+    return get_workload_client('translation')
 
 
 def _translation_prompt(contents: list[str], target_language: str, source_language: str) -> str:

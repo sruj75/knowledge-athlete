@@ -85,10 +85,6 @@ def test_bucket_reason_respects_allowlist_override():
     assert fallback_mod.bucket_reason('custom', allowed=frozenset({'custom', 'other'})) == 'custom'
 
 
-def test_llm_gateway_is_a_bounded_fallback_component():
-    assert fallback_mod.bucket_component('llm_gateway') == 'llm_gateway'
-
-
 def test_firestore_malformed_document_labels_are_bounded():
     assert fallback_mod.bucket_component('firestore_read') == 'firestore_read'
     assert fallback_mod.bucket_reason('malformed_doc') == 'malformed_doc'

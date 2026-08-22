@@ -59,7 +59,7 @@ def test_discard_over_one_hundred_words_keeps_without_model_call(monkeypatch):
     model_calls = []
     monkeypatch.setattr(
         conversation_compute.conversation_processing,
-        'get_llm',
+        'get_workload_client',
         lambda *_args, **_kwargs: model_calls.append(True),
     )
     generation_id = str(uuid4())

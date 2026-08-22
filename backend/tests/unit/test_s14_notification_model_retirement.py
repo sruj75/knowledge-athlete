@@ -12,12 +12,7 @@ def test_notification_only_llm_modules_and_routes_are_absent() -> None:
     assert not (ROOT / 'utils/llm/proactive_notification.py').exists()
     assert not (ROOT / 'utils/llm/notifications.py').exists()
 
-    for profile in model_config.MODEL_QOS_PROFILES.values():
-        for feature in ('daily_summary', 'proactive_notification', 'notifications'):
-            assert feature not in profile
-
-    for feature in ('daily_summary', 'proactive_notification', 'notifications'):
-        assert feature not in model_config._AUTO_LANE_FEATURES
+    assert {'daily_summary', 'proactive_notification', 'notifications'}.isdisjoint(model_config.get_all_workloads())
 
 
 def test_notification_only_usage_features_are_absent() -> None:

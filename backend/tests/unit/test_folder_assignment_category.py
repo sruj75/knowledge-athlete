@@ -79,7 +79,7 @@ _lop.PydanticOutputParser = MagicMock()
 _lpr = _mod("langchain_core.prompts")
 _lpr.ChatPromptTemplate = MagicMock()
 _clients = _mod("utils.llm.clients")
-_clients.get_llm = MagicMock(return_value=MagicMock())
+_clients.get_workload_client = MagicMock(return_value=MagicMock())
 
 folders_db = _load_module_from_file("database.folders", BACKEND_DIR / "database" / "folders.py")
 conv_folder = _load_module_from_file(
@@ -181,7 +181,7 @@ def _run_assign(llm_folder_id, confidence, category_folder_id):
     mock_chain.__or__ = MagicMock(return_value=mock_chain)
     mock_llm = MagicMock()
     mock_llm.__or__ = MagicMock(return_value=mock_chain)
-    with patch.object(conv_folder, "get_llm", return_value=mock_llm), patch.object(
+    with patch.object(conv_folder, "get_workload_client", return_value=mock_llm), patch.object(
         conv_folder, "ChatPromptTemplate"
     ) as mock_prompt_cls, patch.object(conv_folder, "PydanticOutputParser", return_value=MagicMock()):
         mock_prompt = MagicMock()

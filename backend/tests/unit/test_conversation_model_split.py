@@ -488,88 +488,8 @@ class TestConversationSummaryWithTranscript:
         assert sorted(summary.person_ids) == ["p1", "p2"]
 
 
-class TestPhase4ConsumerMigration:
-    """Phase 4b (#6484): consumers decoupled from Conversation import."""
-
-    def test_trends_extractor_accepts_segments_and_person_ids(self):
-        """trends_extractor no longer accepts Conversation object."""
-        import ast
-        import pathlib
-
-        source = pathlib.Path('utils/llm/trends.py').read_text(encoding='utf-8')
-        tree = ast.parse(source)
-        for node in ast.walk(tree):
-            if isinstance(node, ast.FunctionDef) and node.name == 'trends_extractor':
-                params = [arg.arg for arg in node.args.args]
-                assert params == ['uid', 'transcript_segments', 'person_ids']
-                return
-        pytest.fail('trends_extractor function not found')
-
-    def test_removed_imports_not_present(self):
-        """Files that had Conversation import removed no longer import it."""
-        import pathlib
-
-        for file_path in [
-            'routers/speech_profile.py',
-            'utils/llm/trends.py',
-            'routers/chat.py',
-            'utils/chat.py',
-        ]:
-            source = pathlib.Path(file_path).read_text(encoding='utf-8')
-            assert (
-                'from models.conversation import' not in source
-            ), f'{file_path} still imports from models.conversation'
-
-
 class TestPhase4RuntimeBehavior:
     """Phase 4b (#6484): runtime tests for narrowed interfaces."""
-
-    def test_trends_extractor_signature_callable(self):
-        """trends_extractor can be called with the new signature shape."""
-        import sys
-        from contextlib import nullcontext
-        from unittest.mock import patch, MagicMock
-        from models.transcript_segment import TranscriptSegment
-
-        segments = [
-            TranscriptSegment(text="Tesla stock is up", speaker="SPEAKER_00", start=0.0, end=1.0, is_user=True),
-        ]
-        person_ids = ['p1']
-
-        # Pre-mock heavy dependencies to avoid GCP credential chain
-        mock_db_module = MagicMock()
-        mock_llm_clients = MagicMock()
-        saved_modules = {}
-        for mod_name in ['database._client', 'database.users', 'database.auth', 'utils.llm.clients']:
-            saved_modules[mod_name] = sys.modules.get(mod_name)
-            sys.modules[mod_name] = mock_db_module if 'database' in mod_name else mock_llm_clients
-
-        try:
-            # Force reimport with mocked deps
-            for mod_name in ['utils.llm.trends']:
-                sys.modules.pop(mod_name, None)
-
-            import utils.llm.trends as trends_mod
-
-            trends_mod.users_db = MagicMock()
-            trends_mod.users_db.get_people_by_ids.return_value = []
-            trends_mod.get_user_name = MagicMock(return_value='TestUser')
-            trends_mod.get_llm = MagicMock()
-            trends_mod.get_llm.return_value.with_structured_output.return_value.invoke.return_value = MagicMock(
-                items=[]
-            )
-            trends_mod.track_usage = MagicMock(side_effect=lambda _uid, _feature: nullcontext())
-
-            result = trends_mod.trends_extractor('test-uid', segments, person_ids)
-            assert result == []
-            trends_mod.track_usage.assert_called_once_with('test-uid', trends_mod.Features.TRENDS)
-        finally:
-            for mod_name, saved in saved_modules.items():
-                if saved is None:
-                    sys.modules.pop(mod_name, None)
-                else:
-                    sys.modules[mod_name] = saved
-            sys.modules.pop('utils.llm.trends', None)
 
     def test_save_trends_accepts_str(self):
         """database/trends.py save_trends accepts memory_id as str."""

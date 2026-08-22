@@ -105,6 +105,32 @@ def test_sanitize_rejects_multiple_candidates_and_path_is_allowlisted():
         desktop_proxy._path_parts("models/gemini-2.5-pro:deleteModel")
 
 
+def test_proxy_rejects_product_dead_pro_and_streaming_actions():
+    with pytest.raises(HTTPException) as pro_error:
+        desktop_proxy._path_parts("models/gemini-2.5-pro:generateContent")
+    assert pro_error.value.status_code == 403
+
+    with pytest.raises(HTTPException) as streaming_error:
+        desktop_proxy._path_parts("models/gemini-2.5-flash:streamGenerateContent")
+    assert streaming_error.value.status_code == 403
+
+
+def test_streaming_proxy_route_is_absent():
+    app = FastAPI()
+    app.include_router(desktop_proxy.router)
+    app.dependency_overrides[desktop_proxy._authorized_desktop_user] = lambda: 'managed-user'
+    try:
+        with TestClient(app) as client:
+            response = client.post(
+                '/v1/proxy/gemini-stream/models/gemini-2.5-flash:generateContent',
+                json={'contents': [{'role': 'user', 'parts': [{'text': 'hello'}]}]},
+            )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 404
+
+
 def test_desktop_live_suggestions_model_is_allowed_and_vertex_routed(monkeypatch):
     """Desktop live suggestions run on Flash-Lite (ModelQoS.suggestions), so the proxy must forward it."""
     assert desktop_proxy._path_parts("models/gemini-2.5-flash-lite:generateContent") == (
@@ -160,7 +186,7 @@ async def test_gemini_proxy_rejects_paywalled_desktop_user(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_server_gemini_meter_downgrades_pro_after_the_soft_limit(monkeypatch):
+async def test_server_gemini_meter_preserves_the_explicit_flash_route(monkeypatch):
     async def run_blocking(_, function, *args, **kwargs):
         if function is desktop_proxy.redis_db.check_rate_limit:
             if args[1] == "desktop_gemini_daily":
@@ -169,11 +195,11 @@ async def test_server_gemini_meter_downgrades_pro_after_the_soft_limit(monkeypat
         return 31, 86_400
 
     monkeypatch.setattr(desktop_proxy, "run_blocking", run_blocking)
-    monkeypatch.delenv("OMI_MODEL_TIER", raising=False)
+    monkeypatch.setenv("OMI_MODEL_TIER", "max")
 
     assert (
         await desktop_proxy._meter_server_request(
-            "user", "models/gemini-2.5-pro:generateContent", "gemini-2.5-pro", "generateContent"
+            "user", "models/gemini-2.5-flash:generateContent", "gemini-2.5-flash", "generateContent"
         )
         == "models/gemini-2.5-flash:generateContent"
     )

@@ -9,7 +9,6 @@ import yaml
 from pydantic import BaseModel, ConfigDict
 
 from llm_gateway.gateway.schemas import FeatureBundle, GeneratedRouteOverride, LaneConfig, RouteArtifact
-from utils.llm.gateway_client import feature_auto_lane_id
 from utils.llm.model_config import (
     get_all_configured_features,
     get_model,
@@ -22,6 +21,17 @@ DEFAULT_CONFIG_DIR = Path(__file__).resolve().parents[1] / 'config'
 PROD_ENV_VAR = 'OMI_LLM_GATEWAY_PROD'
 GENERATED_ROUTE_OVERRIDES_FILE = 'generated_route_overrides.yaml'
 ConfigItem: TypeAlias = dict[str, Any]
+
+# The independently deployed gateway remains an S-25 teardown handoff after
+# S-22 removes every application caller. Keep its historical Chat lane owned
+# here instead of restoring the retired application workload key.
+_GATEWAY_ONLY_BASE_ROUTES: dict[str, tuple[str, str, dict[str, object]]] = {
+    'chat_responses': (
+        'gpt-5.4-mini',
+        'openai',
+        {'extra_body': {'prompt_cache_retention': '24h'}},
+    ),
+}
 
 
 class ConfigValidationError(ValueError):
@@ -67,7 +77,7 @@ def load_generated_route_overrides(
         resolved_config_dir / GENERATED_ROUTE_OVERRIDES_FILE,
         'generated_route_overrides',
     )
-    configured_features = get_all_configured_features()
+    configured_features = _configured_gateway_features()
     overrides: dict[str, GeneratedRouteOverride] = {}
     for item in items:
         override = GeneratedRouteOverride.model_validate(item)
@@ -194,7 +204,19 @@ def _validate_feature_bundles(feature_bundles: dict[str, FeatureBundle], lanes: 
 
 
 def feature_lane_id(feature: str) -> str:
-    return feature_auto_lane_id(feature)
+    return f"omi:auto:{feature.replace('_', '-')}"
+
+
+def _configured_gateway_features() -> set[str]:
+    return get_all_configured_features() | set(_GATEWAY_ONLY_BASE_ROUTES)
+
+
+def _gateway_base_route(feature: str) -> tuple[str, str, dict[str, object]]:
+    gateway_only = _GATEWAY_ONLY_BASE_ROUTES.get(feature)
+    if gateway_only is not None:
+        model, provider, options = gateway_only
+        return model, provider, dict(options)
+    return get_model(feature), get_provider(feature), get_route_options(feature)
 
 
 def _generated_feature_route_items(
@@ -203,9 +225,8 @@ def _generated_feature_route_items(
     lanes: list[dict[str, Any]] = []
     artifacts: list[dict[str, Any]] = []
     bundles: list[dict[str, Any]] = []
-    for feature in sorted(get_all_configured_features()):
-        legacy_model = get_model(feature)
-        legacy_provider = get_provider(feature)
+    for feature in sorted(_configured_gateway_features()):
+        legacy_model, legacy_provider, provider_options = _gateway_base_route(feature)
         override = route_overrides.get(feature)
         model = override.primary.model if override is not None else legacy_model
         provider = override.primary.provider if override is not None else legacy_provider
@@ -224,7 +245,6 @@ def _generated_feature_route_items(
             }
         )
         primary = {'provider': provider, 'model': _provider_model_name(provider, model)}
-        provider_options = get_route_options(feature, model, provider)
         if override is not None:
             provider_options.update(override.provider_options)
         artifacts.append(

@@ -116,36 +116,6 @@ LISTEN_FINALIZATION_STALE_PROCESSING_RECONCILIATIONS_TOTAL = Counter(
 for _outcome in ('completed', 'migrated', 'skipped', 'error'):
     LISTEN_FINALIZATION_STALE_PROCESSING_RECONCILIATIONS_TOTAL.labels(outcome=_outcome)
 
-LLM_GATEWAY_STRUCTURED_REQUESTS = Counter(
-    'llm_gateway_structured_requests_total',
-    'LLM gateway routing outcomes by feature (serving, fallback, direct_exception, shadow)',
-    ['feature', 'mode', 'outcome', 'reason'],
-)
-
-LLM_GATEWAY_DIRECT_EXCEPTION_REQUESTS = Counter(
-    'llm_gateway_direct_exception_requests_total',
-    'Inventoried direct-provider surfaces used while gateway feature mode is active',
-    ['surface', 'reason'],
-)
-
-LLM_GATEWAY_STRUCTURED_COMPARISONS = Counter(
-    'llm_gateway_structured_comparisons_total',
-    'Privacy-safe comparison buckets between shadow gateway output and legacy extraction output',
-    ['feature', 'field', 'outcome'],
-)
-
-LLM_GATEWAY_CIRCUIT_OPEN = Gauge(
-    'llm_gateway_circuit_open',
-    'Whether this backend process is bypassing the LLM gateway after transport failures',
-)
-
-LLM_GATEWAY_CLIENT_FIRST_BYTE_SECONDS = Histogram(
-    'llm_gateway_client_first_byte_seconds',
-    'Client time until the gateway returns a non-streaming response, first stream event, or transport failure',
-    ['feature', 'outcome'],
-    buckets=(0.1, 0.25, 0.5, 1, 2, 3, 5, 10, 15, 30),
-)
-
 OMI_FALLBACK_TOTAL = Counter(
     'omi_fallback_total',
     'Fallback / resilience transitions by component, path, reason, and outcome',

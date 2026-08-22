@@ -20,6 +20,7 @@ from utils.llm.desktop_llm_stub import (
     stub_chat_completions_json,
     stub_chat_completions_stream,
 )
+from utils.llm.provider_errors import handle_llm_error
 from utils.other import endpoints as auth
 from utils.subscription import enforce_chat_quota
 
@@ -62,13 +63,6 @@ router = APIRouter(route_class=_BoundedChatRoute)
 
 _MODEL_ROUTES = {
     'omi-sonnet': 'claude-sonnet-4-6',
-    'omi-opus': 'claude-opus-4-6',
-    'claude-opus-4-6': 'claude-opus-4-6',
-    'claude-sonnet-4-6': 'claude-sonnet-4-6',
-    'claude-opus-4-20250514': 'claude-opus-4-6',
-    'claude-sonnet-4-20250514': 'claude-sonnet-4-6',
-    'claude-haiku-4-5-20251001': 'claude-haiku-4-5',
-    'claude-haiku-4-5': 'claude-haiku-4-5',
 }
 _MAX_TOKENS = 16_384
 
@@ -383,7 +377,8 @@ async def _stream(payload: dict[str, object], public_model: str, uid: str) -> As
                                 'usage': _usage(usage),
                             }
                         )
-    except Exception:
+    except Exception as exc:
+        handle_llm_error(exc, 'anthropic', feature='chat_agent', model=_MODEL_ROUTES[public_model])
         yield _sse({'error': {'message': 'Upstream provider error', 'type': 'server_error', 'code': 502}})
     yield 'data: [DONE]\n\n'
 
@@ -462,6 +457,7 @@ async def chat_completions(
     try:
         message = await anthropic_client.messages.create(**payload)
     except Exception as exc:
+        handle_llm_error(exc, 'anthropic', feature='chat_agent', model=_MODEL_ROUTES[public_model])
         raise HTTPException(status_code=502, detail='Upstream provider error') from exc
     await _record_usage(uid, getattr(message, 'usage', None))
     return JSONResponse(

@@ -1,16 +1,10 @@
-import hashlib
 import logging
-import os
-import time
 import unicodedata
 from datetime import datetime, timedelta, timezone
-from difflib import SequenceMatcher
 from zoneinfo import ZoneInfo
 from typing import Any, Dict, List, Optional, Tuple, cast
 
-import tiktoken
 from langchain_core.output_parsers import PydanticOutputParser
-from langchain_core.messages import SystemMessage
 from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel, Field
 
@@ -18,83 +12,20 @@ from models.calendar_context import CalendarMeetingContext
 from models.conversation import Conversation
 from models.structured import ActionItem, Event, Structured
 from models.structured_extraction import ActionItemsExtraction, StructuredExtraction
-from .clients import get_llm, get_llm_gateway_chat_structured, parser
+from .clients import get_workload_client, parser
 from .discard_parser import DiscardConversation, LenientDiscardParser
-from utils.llm.gateway_client import record_gateway_structured_result
-from utils.llm.gateway_observability import record_gateway_shadow_comparison
-
-try:
-    from utils.llm.gateway_client import should_route_features_through_gateway
-except ImportError:  # pragma: no cover - isolated legacy tests provide only the shadow seam
-
-    def should_route_features_through_gateway() -> bool:
-        return False
 
 
 logger = logging.getLogger(__name__)
-CONVERSATION_STRUCTURE_SHADOW_FEATURE = 'conversation_structure.extract.shadow'
-CONVERSATION_STRUCTURE_SHADOW_ENABLED_ENV = 'OMI_LLM_GATEWAY_CONVERSATION_STRUCTURE_SHADOW_ENABLED'
-CONVERSATION_STRUCTURE_SHADOW_SAMPLE_RATE_ENV = 'OMI_LLM_GATEWAY_CONVERSATION_STRUCTURE_SHADOW_SAMPLE_RATE'
-CONVERSATION_ACTION_ITEMS_SHADOW_FEATURE = 'conversation_action_items.extract.shadow'
-CONVERSATION_ACTION_ITEMS_SHADOW_ENABLED_ENV = 'OMI_LLM_GATEWAY_CONVERSATION_ACTION_ITEMS_SHADOW_ENABLED'
-CONVERSATION_ACTION_ITEMS_SHADOW_SAMPLE_RATE_ENV = 'OMI_LLM_GATEWAY_CONVERSATION_ACTION_ITEMS_SHADOW_SAMPLE_RATE'
-GPT56_EXPLICIT_CACHE_OPTIONS = {'mode': 'explicit', 'ttl': '30m'}
-CONVERSATION_CACHE_BUCKET_COUNT = 4
-CONVERSATION_CACHE_BUCKET_SECONDS = 15
-GPT56_CACHE_MINIMUM_TOKENS = 1024
-
-
-def _cache_bucket_key(prefix: str, *, now: float | None = None) -> str:
-    """Return a fixed, opaque cache-routing bucket without user-derived input."""
-    slot = int(time.time() if now is None else now) // CONVERSATION_CACHE_BUCKET_SECONDS
-    return f'{prefix}-v1-b{slot % CONVERSATION_CACHE_BUCKET_COUNT}'
-
-
-def _gpt56_cacheable_system_message(content: str, *, cache_enabled: bool) -> Any:
-    """Mark a static system prefix only when the request uses the GPT-5.6 gateway."""
-    if not cache_enabled:
-        return ('system', content)
-    # A concrete message prevents ChatPromptTemplate from treating literal JSON
-    # braces in parser instructions as template variables.
-    return SystemMessage(
-        content=[
-            {
-                'type': 'text',
-                'text': content,
-                'prompt_cache_breakpoint': {'mode': 'explicit'},
-            }
-        ]
-    )
-
-
-def _has_gpt56_cacheable_static_prefix(content: str) -> bool:
-    """Use the model-family tokenizer as a conservative preflight for a cache write."""
-    try:
-        return len(tiktoken.get_encoding('o200k_base').encode(content)) >= GPT56_CACHE_MINIMUM_TOKENS
-    except AttributeError:
-        # Do not make a cache write merely because an optional tokenizer dependency is unavailable.
-        return len(content) >= GPT56_CACHE_MINIMUM_TOKENS * 4
-
-
 # =============================================
 #            FOLDER ASSIGNMENT
 # =============================================
 # The implementation moved to conversation_folder.py; that route still uses
-# get_llm('conv_folder') as the production model/provider plug-in seam.
+# the explicit ``conv_folder`` workload as the production provider plug-in seam.
 
 
 class SpeakerIdMatch(BaseModel):
     speaker_id: int = Field(description="The speaker id assigned to the segment")
-
-
-def _invoke_gateway_shadow_chain(chain: Any, values: dict[str, Any], *, feature: str) -> BaseModel | None:
-    try:
-        response = chain.invoke(values)
-    except Exception:
-        record_gateway_structured_result(feature=feature, outcome='fallback', reason='unexpected_error')
-        return None
-    record_gateway_structured_result(feature=feature, outcome='success', reason='ok')
-    return response
 
 
 def _word_count(text: str) -> int:
@@ -140,373 +71,6 @@ def _normalize_action_item_due_dates(
                 logger.warning('Clearing action-item due date outside the retained time boundary')
             action_item.due_at = None
     return action_items
-
-
-def _record_gateway_shadow_comparison(*, feature: str, field: str, outcome: str) -> None:
-    record_gateway_shadow_comparison(feature=feature, field=field, outcome=outcome)
-
-
-def _env_flag_enabled(name: str, *, default: bool = False) -> bool:
-    value = os.getenv(name)
-    if value is None:
-        return default
-    return value.strip().casefold() in {'1', 'true', 'yes', 'on'}
-
-
-def _env_sample_rate(name: str, *, default: float = 0.0) -> float:
-    value = os.getenv(name)
-    if value is None or not value.strip():
-        return default
-    try:
-        return max(0.0, min(1.0, float(value)))
-    except ValueError:
-        return default
-
-
-def _should_run_gateway_shadow(
-    *,
-    feature: str,
-    enabled_env: str,
-    sample_rate_env: str,
-    sample_id: str,
-    started_at: datetime,
-    conversation_context: str,
-) -> bool:
-    if not _env_flag_enabled(enabled_env):
-        record_gateway_structured_result(
-            feature=feature,
-            outcome='skipped',
-            reason='disabled',
-        )
-        return False
-
-    sample_rate = _env_sample_rate(sample_rate_env, default=1.0)
-    if sample_rate <= 0:
-        record_gateway_structured_result(
-            feature=feature,
-            outcome='skipped',
-            reason='sample_rate_zero',
-        )
-        return False
-    if sample_rate >= 1:
-        return True
-
-    sample_key = f'{sample_id}:{started_at.isoformat()}:{len(conversation_context)}'
-    sample_value = int(hashlib.sha256(sample_key.encode('utf-8')).hexdigest()[:8], 16) / 0xFFFFFFFF
-    if sample_value < sample_rate:
-        return True
-
-    record_gateway_structured_result(
-        feature=feature,
-        outcome='skipped',
-        reason='sampled_out',
-    )
-    return False
-
-
-def _should_run_conversation_structure_shadow(uid: str, started_at: datetime, conversation_context: str) -> bool:
-    return _should_run_gateway_shadow(
-        feature=CONVERSATION_STRUCTURE_SHADOW_FEATURE,
-        enabled_env=CONVERSATION_STRUCTURE_SHADOW_ENABLED_ENV,
-        sample_rate_env=CONVERSATION_STRUCTURE_SHADOW_SAMPLE_RATE_ENV,
-        sample_id=uid,
-        started_at=started_at,
-        conversation_context=conversation_context,
-    )
-
-
-def _should_run_conversation_action_items_shadow(
-    sample_id: str, started_at: datetime, conversation_context: str
-) -> bool:
-    return _should_run_gateway_shadow(
-        feature=CONVERSATION_ACTION_ITEMS_SHADOW_FEATURE,
-        enabled_env=CONVERSATION_ACTION_ITEMS_SHADOW_ENABLED_ENV,
-        sample_rate_env=CONVERSATION_ACTION_ITEMS_SHADOW_SAMPLE_RATE_ENV,
-        sample_id=sample_id,
-        started_at=started_at,
-        conversation_context=conversation_context,
-    )
-
-
-def _normalized_text(value: object) -> str:
-    if value is None:
-        return ''
-    return ' '.join(str(value).casefold().split())
-
-
-def _text_similarity_bucket(left: object, right: object) -> str:
-    normalized_left = _normalized_text(left)
-    normalized_right = _normalized_text(right)
-    if not normalized_left and not normalized_right:
-        return 'both_empty'
-    if not normalized_left:
-        return 'legacy_empty_gateway_present'
-    if not normalized_right:
-        return 'legacy_present_gateway_empty'
-    if normalized_left == normalized_right:
-        return 'exact_match'
-    ratio = SequenceMatcher(None, normalized_left, normalized_right).ratio()
-    if ratio >= 0.85:
-        return 'high_similarity'
-    if ratio >= 0.60:
-        return 'medium_similarity'
-    return 'low_similarity'
-
-
-def _length_ratio_bucket(left: object, right: object) -> str:
-    normalized_left = _normalized_text(left)
-    normalized_right = _normalized_text(right)
-    left_len = len(normalized_left)
-    right_len = len(normalized_right)
-    if left_len == 0 and right_len == 0:
-        return 'both_empty'
-    if left_len == 0:
-        return 'legacy_empty_gateway_present'
-    if right_len == 0:
-        return 'legacy_present_gateway_empty'
-    ratio = right_len / left_len
-    if ratio < 0.5:
-        return 'gateway_much_shorter'
-    if ratio < 0.8:
-        return 'gateway_shorter'
-    if ratio <= 1.25:
-        return 'similar_length'
-    if ratio <= 2.0:
-        return 'gateway_longer'
-    return 'gateway_much_longer'
-
-
-def _record_conversation_structure_shadow_comparison(
-    gateway_response: Structured | None,
-    legacy_response: Structured,
-) -> None:
-    if gateway_response is None:
-        return
-
-    legacy_category = getattr(legacy_response.category, 'value', legacy_response.category)
-    gateway_category = getattr(gateway_response.category, 'value', gateway_response.category)
-
-    _record_gateway_shadow_comparison(
-        feature=CONVERSATION_STRUCTURE_SHADOW_FEATURE,
-        field='category',
-        outcome='exact_match' if legacy_category == gateway_category else 'mismatch',
-    )
-    _record_gateway_shadow_comparison(
-        feature=CONVERSATION_STRUCTURE_SHADOW_FEATURE,
-        field='emoji',
-        outcome='exact_match' if legacy_response.emoji == gateway_response.emoji else 'mismatch',
-    )
-    _record_gateway_shadow_comparison(
-        feature=CONVERSATION_STRUCTURE_SHADOW_FEATURE,
-        field='title_similarity',
-        outcome=_text_similarity_bucket(legacy_response.title, gateway_response.title),
-    )
-    _record_gateway_shadow_comparison(
-        feature=CONVERSATION_STRUCTURE_SHADOW_FEATURE,
-        field='overview_similarity',
-        outcome=_text_similarity_bucket(legacy_response.overview, gateway_response.overview),
-    )
-    _record_gateway_shadow_comparison(
-        feature=CONVERSATION_STRUCTURE_SHADOW_FEATURE,
-        field='overview_length_ratio',
-        outcome=_length_ratio_bucket(legacy_response.overview, gateway_response.overview),
-    )
-
-
-def _count_comparison_bucket(legacy_count: int, gateway_count: int) -> str:
-    if legacy_count == gateway_count:
-        return 'exact_match'
-    if gateway_count < legacy_count:
-        return 'gateway_fewer'
-    return 'gateway_more'
-
-
-def _ordered_description_similarity_bucket(legacy_items: List[ActionItem], gateway_items: List[ActionItem]) -> str:
-    if not legacy_items and not gateway_items:
-        return 'both_empty'
-    if not legacy_items:
-        return 'legacy_empty_gateway_present'
-    if not gateway_items:
-        return 'legacy_present_gateway_empty'
-    if len(legacy_items) != len(gateway_items):
-        return 'count_mismatch'
-
-    buckets = [
-        _text_similarity_bucket(left.description, right.description) for left, right in zip(legacy_items, gateway_items)
-    ]
-    if all(bucket == 'exact_match' for bucket in buckets):
-        return 'all_exact_match'
-    if all(bucket in {'exact_match', 'high_similarity'} for bucket in buckets):
-        return 'all_high_similarity'
-    if all(bucket in {'exact_match', 'high_similarity', 'medium_similarity'} for bucket in buckets):
-        return 'all_medium_similarity'
-    return 'low_similarity'
-
-
-def _due_at_presence_bucket(legacy_items: List[ActionItem], gateway_items: List[ActionItem]) -> str:
-    if not legacy_items and not gateway_items:
-        return 'both_empty'
-    if len(legacy_items) != len(gateway_items):
-        return 'count_mismatch'
-    legacy_presence = [item.due_at is not None for item in legacy_items]
-    gateway_presence = [item.due_at is not None for item in gateway_items]
-    return 'exact_match' if legacy_presence == gateway_presence else 'mismatch'
-
-
-def _due_at_value_bucket(legacy_items: List[ActionItem], gateway_items: List[ActionItem]) -> str:
-    if not legacy_items and not gateway_items:
-        return 'both_empty'
-    if len(legacy_items) != len(gateway_items):
-        return 'count_mismatch'
-
-    legacy_due_at = [item.due_at for item in legacy_items]
-    gateway_due_at = [item.due_at for item in gateway_items]
-    if not any(legacy_due_at) and not any(gateway_due_at):
-        return 'no_due_dates'
-    if legacy_due_at == gateway_due_at:
-        return 'exact_match'
-    return 'mismatch'
-
-
-def _record_conversation_action_items_shadow_comparison(
-    gateway_response: ActionItemsExtraction | None,
-    legacy_response: List[ActionItem],
-    *,
-    user_tz: Any,
-    now: datetime,
-) -> None:
-    if gateway_response is None:
-        return
-
-    gateway_items = _coerce_action_items(gateway_response)
-    _normalize_action_item_due_dates(gateway_items, user_tz=user_tz, now=now, log_past_due_clears=False)
-    _record_gateway_shadow_comparison(
-        feature=CONVERSATION_ACTION_ITEMS_SHADOW_FEATURE,
-        field='count',
-        outcome=_count_comparison_bucket(len(legacy_response), len(gateway_items)),
-    )
-    _record_gateway_shadow_comparison(
-        feature=CONVERSATION_ACTION_ITEMS_SHADOW_FEATURE,
-        field='description_similarity',
-        outcome=_ordered_description_similarity_bucket(legacy_response, gateway_items),
-    )
-    _record_gateway_shadow_comparison(
-        feature=CONVERSATION_ACTION_ITEMS_SHADOW_FEATURE,
-        field='due_at_presence',
-        outcome=_due_at_presence_bucket(legacy_response, gateway_items),
-    )
-    _record_gateway_shadow_comparison(
-        feature=CONVERSATION_ACTION_ITEMS_SHADOW_FEATURE,
-        field='due_at_value',
-        outcome=_due_at_value_bucket(legacy_response, gateway_items),
-    )
-
-
-def _run_conversation_structure_shadow(
-    prompt: ChatPromptTemplate, prompt_values: dict[str, Any], legacy_response: Structured
-) -> None:
-    gateway_chain = cast(
-        Any,
-        prompt | get_llm_gateway_chat_structured(cache_key='omi-transcript-structure') | parser,
-    )
-    gateway_response = _invoke_gateway_shadow_chain(
-        gateway_chain,
-        prompt_values,
-        feature=CONVERSATION_STRUCTURE_SHADOW_FEATURE,
-    )
-    if gateway_response is not None:
-        _record_conversation_structure_shadow_comparison(
-            _coerce_structured(cast(Structured | StructuredExtraction, gateway_response)), legacy_response
-        )
-
-
-def _run_conversation_action_items_shadow(
-    prompt: ChatPromptTemplate,
-    prompt_values: dict[str, Any],
-    legacy_response: List[ActionItem],
-    user_tz: Any,
-    now: datetime,
-) -> None:
-    gateway_chain = cast(
-        Any,
-        prompt
-        | get_llm_gateway_chat_structured(cache_key='omi-extract-actions')
-        | PydanticOutputParser(pydantic_object=ActionItemsExtraction),
-    )
-    gateway_response = _invoke_gateway_shadow_chain(
-        gateway_chain,
-        prompt_values,
-        feature=CONVERSATION_ACTION_ITEMS_SHADOW_FEATURE,
-    )
-    _record_conversation_action_items_shadow_comparison(
-        cast(Optional[ActionItemsExtraction], gateway_response),
-        legacy_response,
-        user_tz=user_tz,
-        now=now,
-    )
-
-
-def _submit_llm_background(fn: Any, *args: Any) -> Any:
-    from utils.executors import llm_executor, submit_with_context
-
-    return submit_with_context(llm_executor, fn, *args)
-
-
-def _submit_gateway_shadow(
-    worker_fn: Any,
-    feature: str,
-    log_label: str,
-    *args: Any,
-) -> None:
-    try:
-        future = _submit_llm_background(worker_fn, *args)
-    except Exception:
-        record_gateway_structured_result(
-            feature=feature,
-            outcome='skipped',
-            reason='submit_error',
-        )
-        return
-
-    def _log_shadow_failure(completed_future: Any) -> None:
-        try:
-            completed_future.result()
-        except Exception:
-            logger.exception('%s shadow task failed', log_label)
-
-    future.add_done_callback(_log_shadow_failure)
-
-
-def _submit_conversation_structure_shadow(
-    prompt: ChatPromptTemplate, prompt_values: dict[str, Any], legacy_response: Structured
-) -> None:
-    _submit_gateway_shadow(
-        _run_conversation_structure_shadow,
-        CONVERSATION_STRUCTURE_SHADOW_FEATURE,
-        'conversation_structure',
-        prompt,
-        prompt_values,
-        legacy_response,
-    )
-
-
-def _submit_conversation_action_items_shadow(
-    prompt: ChatPromptTemplate,
-    prompt_values: dict[str, Any],
-    legacy_response: List[ActionItem],
-    user_tz: Any,
-    now: datetime,
-) -> None:
-    _submit_gateway_shadow(
-        _run_conversation_action_items_shadow,
-        CONVERSATION_ACTION_ITEMS_SHADOW_FEATURE,
-        'conversation_action_items',
-        prompt,
-        prompt_values,
-        legacy_response,
-        user_tz,
-        now,
-    )
 
 
 def should_discard_conversation(
@@ -580,7 +144,7 @@ Content:
     }
 
     prompt = cast(Any, ChatPromptTemplate).from_messages([prompt_template])
-    chain = prompt | get_llm('conv_discard') | custom_parser
+    chain = prompt | get_workload_client('conv_discard') | custom_parser
     try:
         response: DiscardConversation = chain.invoke(prompt_values)
         return response.discard
@@ -878,33 +442,13 @@ def extract_action_items(
 
     Content:
     {conversation_context}{existing_items_context}'''
-    gateway_mode_enabled = should_route_features_through_gateway()
-    if gateway_mode_enabled:
-        instructions_text = instructions_text.format(
-            format_instructions=action_items_parser.get_format_instructions(),
-            commitment_capture_rules=commitment_capture_rules,
-            workflow_filter_rules=workflow_filter_rules,
-            live_work_exclusion_rules=live_work_exclusion_rules,
-            completion_targeting_rule=completion_targeting_rule,
-            quality_threshold_rules=quality_threshold_rules,
-            strict_filter_intro=strict_filter_intro,
-            timing_importance_rules=timing_importance_rules,
-        )
-    gateway_cache_enabled = gateway_mode_enabled and _has_gpt56_cacheable_static_prefix(instructions_text)
     prompt = cast(Any, ChatPromptTemplate).from_messages(
         [
-            _gpt56_cacheable_system_message(instructions_text, cache_enabled=gateway_cache_enabled),
+            ('system', instructions_text),
             ('system', context_message),
         ]
     )
-    if gateway_cache_enabled:
-        cache_key = _cache_bucket_key('omi-extract-actions')
-    elif gateway_mode_enabled:
-        cache_key = None
-    else:
-        cache_key = 'omi-extract-actions'
-    cache_options = GPT56_EXPLICIT_CACHE_OPTIONS if gateway_cache_enabled else None
-    action_items_llm = get_llm('conv_action_items', cache_key=cache_key, prompt_cache_options=cache_options)
+    action_items_llm = get_workload_client('conv_action_items', cache_key='omi-extract-actions')
     chain = prompt | action_items_llm | action_items_parser
 
     current_time = datetime.now(timezone.utc)
@@ -931,19 +475,18 @@ def extract_action_items(
         'tz': tz or 'UTC',
         'existing_items_context': existing_items_context,
     }
-    if not gateway_cache_enabled:
-        prompt_values.update(
-            {
-                'format_instructions': action_items_parser.get_format_instructions(),
-                'commitment_capture_rules': commitment_capture_rules,
-                'workflow_filter_rules': workflow_filter_rules,
-                'live_work_exclusion_rules': live_work_exclusion_rules,
-                'completion_targeting_rule': completion_targeting_rule,
-                'quality_threshold_rules': quality_threshold_rules,
-                'strict_filter_intro': strict_filter_intro,
-                'timing_importance_rules': timing_importance_rules,
-            }
-        )
+    prompt_values.update(
+        {
+            'format_instructions': action_items_parser.get_format_instructions(),
+            'commitment_capture_rules': commitment_capture_rules,
+            'workflow_filter_rules': workflow_filter_rules,
+            'live_work_exclusion_rules': live_work_exclusion_rules,
+            'completion_targeting_rule': completion_targeting_rule,
+            'quality_threshold_rules': quality_threshold_rules,
+            'strict_filter_intro': strict_filter_intro,
+            'timing_importance_rules': timing_importance_rules,
+        }
+    )
 
     try:
         response = chain.invoke(prompt_values)
@@ -957,9 +500,6 @@ def extract_action_items(
         # The LLM returns naive LOCAL time; convert to UTC deterministically (and normalize any
         # tz-aware value), then clear due dates more than 1 day in the past.
         _normalize_action_item_due_dates(action_items, user_tz=user_tz, now=now, log_past_due_clears=True)
-
-        if _should_run_conversation_action_items_shadow('conversation_action_items', started_at, conversation_context):
-            _submit_conversation_action_items_shadow(prompt, prompt_values, action_items, user_tz, now)
 
         return action_items
 
@@ -1055,13 +595,9 @@ def get_transcript_structure(
         'Interpret it as-is and describe times of day in the title and overview accordingly; do not re-interpret this '
         'timestamp as UTC.\n\nContent:\n{conversation_context}'
     )
-    gateway_mode_enabled = should_route_features_through_gateway()
-    if gateway_mode_enabled:
-        instructions_text = instructions_text.format(format_instructions=parser.get_format_instructions())
-    gateway_cache_enabled = gateway_mode_enabled and _has_gpt56_cacheable_static_prefix(instructions_text)
     prompt = cast(Any, ChatPromptTemplate).from_messages(
         [
-            _gpt56_cacheable_system_message(instructions_text, cache_enabled=gateway_cache_enabled),
+            ('system', instructions_text),
             ('system', context_message),
         ]
     )
@@ -1072,26 +608,12 @@ def get_transcript_structure(
         'started_at': _local_started_at_iso(started_at, tz),
         'tz': tz or 'UTC',
     }
-    if not gateway_cache_enabled:
-        legacy_prompt_values['format_instructions'] = parser.get_format_instructions()
+    legacy_prompt_values['format_instructions'] = parser.get_format_instructions()
 
     with track_usage(uid, Features.CONVERSATION_STRUCTURE):
-        if gateway_cache_enabled:
-            cache_key = _cache_bucket_key('omi-transcript-structure')
-        elif gateway_mode_enabled:
-            cache_key = None
-        else:
-            cache_key = 'omi-transcript-structure'
-        cache_options = GPT56_EXPLICIT_CACHE_OPTIONS if gateway_cache_enabled else None
-        structure_llm = get_llm('conv_structure', cache_key=cache_key, prompt_cache_options=cache_options)
+        structure_llm = get_workload_client('conv_structure', cache_key='omi-transcript-structure')
         chain = prompt | structure_llm | parser
         response = _coerce_structured(chain.invoke(legacy_prompt_values))
-    if _should_run_conversation_structure_shadow(uid, started_at, conversation_context):
-        _submit_conversation_structure_shadow(
-            prompt,
-            legacy_prompt_values,
-            response,
-        )
 
     for event in response.events or []:
         if event.duration > 180:
@@ -1157,12 +679,7 @@ def get_reprocess_transcript_structure(
     ).strip()
 
     prompt = cast(Any, ChatPromptTemplate).from_messages([('system', prompt_text)])
-    gateway_cache_enabled = should_route_features_through_gateway()
-    # Reprocessing has no eligible static prefix, so explicit mode avoids both
-    # cache reads and billable cache writes on the GPT-5.6 route.
-    cache_key = None if gateway_cache_enabled else 'omi-transcript-structure'
-    cache_options = GPT56_EXPLICIT_CACHE_OPTIONS if gateway_cache_enabled else None
-    structure_llm = get_llm('conv_structure', cache_key=cache_key, prompt_cache_options=cache_options)
+    structure_llm = get_workload_client('conv_structure', cache_key='omi-transcript-structure')
     chain = prompt | structure_llm | parser
 
     response = _coerce_structured(

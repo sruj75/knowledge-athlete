@@ -12,8 +12,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from llm_gateway.gateway.providers import OpenAICompatibleChatCompletionProvider
 from llm_gateway.gateway.schemas import ProviderRef
+from llm_gateway.gateway.structured_payload import build_structured_gateway_payload
 from models.structured_extraction import ActionItemsExtraction, ConversationStructureExtraction
-from utils.llm.gateway_client import build_structured_gateway_payload
 
 PROVIDER_REF = ProviderRef(provider='openai', model='gpt-4.1-mini')
 SMOKE_FEATURES = (

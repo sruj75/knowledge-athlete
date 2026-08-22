@@ -377,7 +377,7 @@ def test_compute_failures_do_not_echo_private_input(client: TestClient, monkeypa
     assert 'private assertion contents' not in response.text
 
 
-def test_model_invocation_is_pinned_to_gpt_4_1_mini(monkeypatch: pytest.MonkeyPatch):
+def test_model_invocation_uses_the_explicit_memory_l2_workload(monkeypatch: pytest.MonkeyPatch):
     calls = []
 
     class FakeModel:
@@ -395,11 +395,11 @@ def test_model_invocation_is_pinned_to_gpt_4_1_mini(monkeypatch: pytest.MonkeyPa
                 },
             )()
 
-    def fake_client(provider, model, streaming=False, options=None):
-        calls.append((provider, model, streaming, options))
+    def fake_client(feature):
+        calls.append(feature)
         return FakeModel()
 
-    monkeypatch.setattr(compute_service, 'get_or_create_openai_compatible_llm', fake_client)
+    monkeypatch.setattr(compute_service, 'get_workload_client', fake_client)
     request_id = uuid4()
     response = compute_service.compute_normalize(
         compute_service.MemoryNormalizeRequest(
@@ -413,7 +413,7 @@ def test_model_invocation_is_pinned_to_gpt_4_1_mini(monkeypatch: pytest.MonkeyPa
     )
 
     assert response.request_id == request_id
-    assert calls == [('openai', 'gpt-4.1-mini', False, None)]
+    assert calls == ['memory_l2']
 
 
 def test_paid_compute_dependency_returns_429_before_model_invocation(monkeypatch: pytest.MonkeyPatch):

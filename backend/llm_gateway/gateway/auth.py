@@ -119,7 +119,7 @@ def allowed_service_callers() -> frozenset[str]:
 
 
 def _configured_service_token() -> str | None:
-    # Match the client precedence (utils.llm.gateway_client): the OMI_ prefixed
+    # Prefer the current OMI-prefixed name over the legacy deployment alias.
     # env var wins; the bare name is kept as a legacy fallback so local dev and
     # token rotation work even when the two disagree.
     for env_var in SERVICE_TOKEN_ENV_VARS:

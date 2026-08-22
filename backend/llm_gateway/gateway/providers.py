@@ -13,7 +13,7 @@ import google.auth
 from google.auth.transport.requests import Request as GoogleAuthRequest
 import httpx
 
-from llm_gateway.gateway.accounting import (
+from llm_gateway.gateway.provider_usage import (
     ProviderResponseMetadata,
     ProviderUsage,
     anthropic_usage_from_response,

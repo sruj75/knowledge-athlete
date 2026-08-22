@@ -13,8 +13,7 @@ import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import JSONResponse, StreamingResponse
 
-from llm_gateway.gateway.accounting import (
-    AccountingContext,
+from llm_gateway.gateway.provider_usage import (
     AttemptTrace,
     ProviderResponseMetadata,
     UsageStatus,
@@ -22,7 +21,6 @@ from llm_gateway.gateway.accounting import (
     cache_requested_for_anthropic_request,
     cache_write_ttl_for_anthropic_request,
 )
-from llm_gateway.gateway.accounting_sink import schedule_attempt_trace
 from llm_gateway.gateway.auth import ServiceAuthDependency
 from llm_gateway.gateway.config_loader import GatewayConfig
 from llm_gateway.gateway.metrics import (
@@ -82,14 +80,6 @@ async def create_anthropic_message(
         credential_source='omi_managed',
         request_id=request_id,
     )
-    accounting_context = AccountingContext.create(
-        request_id=request_id,
-        caller=caller.name,
-        user_uid=caller.user_uid,
-        feature=_accounting_feature(caller, fallback=route.lane_id),
-        api_surface='anthropic_messages',
-        payer='omi',
-    )
     attempt_trace = AttemptTrace()
     body['model'] = route.primary.model
     body.update(route.provider_options)
@@ -114,7 +104,6 @@ async def create_anthropic_message(
             body,
             headers=headers,
             metric_context=metric_context,
-            accounting_context=accounting_context,
             attempt_trace=attempt_trace,
         )
 
@@ -135,7 +124,6 @@ async def create_anthropic_message(
             error_class='client_cancelled',
             usage_status=UsageStatus.INDETERMINATE,
         )
-        schedule_attempt_trace(accounting_context, attempt_trace)
         _observe_message_terminal(
             metric_context,
             outcome='cancelled',
@@ -154,7 +142,6 @@ async def create_anthropic_message(
             error_class='timeout_before_output',
             usage_status=UsageStatus.INDETERMINATE,
         )
-        schedule_attempt_trace(accounting_context, attempt_trace)
         _observe_message_terminal(
             metric_context,
             outcome='error',
@@ -173,7 +160,6 @@ async def create_anthropic_message(
             error_class='transport_before_output',
             usage_status=UsageStatus.INDETERMINATE,
         )
-        schedule_attempt_trace(accounting_context, attempt_trace)
         _observe_message_terminal(
             metric_context,
             outcome='error',
@@ -193,7 +179,6 @@ async def create_anthropic_message(
             error_class=_provider_status_error_class(response.status_code),
             usage_status=UsageStatus.INDETERMINATE,
         )
-        schedule_attempt_trace(accounting_context, attempt_trace)
         _observe_message_terminal(
             metric_context,
             outcome='error',
@@ -215,7 +200,6 @@ async def create_anthropic_message(
             error_class='invalid_provider_response',
             usage_status=UsageStatus.INDETERMINATE,
         )
-        schedule_attempt_trace(accounting_context, attempt_trace)
         _observe_message_terminal(
             metric_context,
             outcome='error',
@@ -246,7 +230,6 @@ async def create_anthropic_message(
         error_class='none',
         metadata=response_metadata,
     )
-    schedule_attempt_trace(accounting_context, attempt_trace)
     _observe_message_terminal(metric_context, outcome='success', error_class='none', phase='terminal')
     return JSONResponse(status_code=response.status_code, content=response_body)
 
@@ -323,7 +306,6 @@ async def _streaming_anthropic_messages_response(
     *,
     headers: Mapping[str, str],
     metric_context: _AnthropicMetricContext,
-    accounting_context: AccountingContext | None = None,
     attempt_trace: AttemptTrace | None = None,
 ) -> JSONResponse | StreamingResponse:
     """Open the upstream stream before committing HTTP status.
@@ -352,8 +334,6 @@ async def _streaming_anthropic_messages_response(
                 error_class='client_cancelled',
                 usage_status=UsageStatus.INDETERMINATE,
             )
-        if accounting_context is not None and attempt_trace is not None:
-            schedule_attempt_trace(accounting_context, attempt_trace)
         _observe_message_terminal(
             metric_context,
             outcome='cancelled',
@@ -374,8 +354,6 @@ async def _streaming_anthropic_messages_response(
                 error_class='timeout_before_output',
                 usage_status=UsageStatus.INDETERMINATE,
             )
-        if accounting_context is not None and attempt_trace is not None:
-            schedule_attempt_trace(accounting_context, attempt_trace)
         _observe_message_terminal(
             metric_context,
             outcome='error',
@@ -396,8 +374,6 @@ async def _streaming_anthropic_messages_response(
                 error_class='transport_before_output',
                 usage_status=UsageStatus.INDETERMINATE,
             )
-        if accounting_context is not None and attempt_trace is not None:
-            schedule_attempt_trace(accounting_context, attempt_trace)
         _observe_message_terminal(
             metric_context,
             outcome='error',
@@ -423,8 +399,6 @@ async def _streaming_anthropic_messages_response(
                         error_class=_provider_status_error_class(response.status_code),
                         usage_status=UsageStatus.INDETERMINATE,
                     )
-                if accounting_context is not None and attempt_trace is not None:
-                    schedule_attempt_trace(accounting_context, attempt_trace)
                 _observe_message_terminal(
                     metric_context,
                     outcome='error',
@@ -441,7 +415,6 @@ async def _streaming_anthropic_messages_response(
             stream_cm,
             response,
             metric_context=metric_context,
-            accounting_context=accounting_context,
             attempt_trace=attempt_trace,
             cache_requested=cache_requested_for_anthropic_request(body),
             cache_write_ttl=cache_write_ttl_for_anthropic_request(body),
@@ -455,7 +428,6 @@ async def _iter_open_anthropic_stream(
     response: Any,
     *,
     metric_context: _AnthropicMetricContext,
-    accounting_context: AccountingContext | None = None,
     attempt_trace: AttemptTrace | None = None,
     cache_requested: bool = False,
     cache_write_ttl: str | None = None,
@@ -500,8 +472,6 @@ async def _iter_open_anthropic_stream(
                     else UsageStatus.NOT_REPORTED if outcome == 'success' else UsageStatus.INDETERMINATE
                 ),
             )
-        if accounting_context is not None and attempt_trace is not None:
-            schedule_attempt_trace(accounting_context, attempt_trace)
         _observe_message_terminal(
             metric_context,
             outcome=outcome,
@@ -659,11 +629,6 @@ def _bytes_json_or_error(body: bytes) -> object:
         return json.loads(body)
     except ValueError:
         return {'error': {'message': 'invalid anthropic response', 'type': 'api_error'}}
-
-
-def _accounting_feature(caller: ServiceAuthDependency, *, fallback: str) -> str:
-    """Feature attribution comes only from an authenticated, bounded header."""
-    return caller.usage_feature or fallback
 
 
 def _event_payload(data: str) -> dict[str, Any] | None:
