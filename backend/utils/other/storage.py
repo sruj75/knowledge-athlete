@@ -312,7 +312,7 @@ def download_audio_chunks_and_merge(
 
         try:
             chunk_data = bucket.blob(path).download_as_bytes()
-        except NotFound:
+        except BlobNotFound:
             return None
 
         try:
@@ -347,7 +347,7 @@ def download_audio_chunks_and_merge(
             chunk_path = f'chunks/{uid}/{conversation_id}/{formatted_timestamp}.{ext}'
             try:
                 chunk_data = bucket.blob(chunk_path).download_as_bytes()
-            except NotFound:
+            except BlobNotFound:
                 continue
 
             try:

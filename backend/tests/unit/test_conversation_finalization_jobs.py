@@ -145,6 +145,7 @@ def test_finalization_completion_requires_durable_fanout_completion():
 
 def test_admitted_terminal_replay_updates_its_shard_once():
     now = _now()
+    persisted_shard = 7
     ref = _Ref(
         'job-1',
         {
@@ -153,7 +154,7 @@ def test_admitted_terminal_replay_updates_its_shard_once():
             'lease_epoch': 4,
             'fanout_status': 'completed',
             'projection_generation': jobs.FINALIZATION_PROJECTION_GENERATION,
-            'projection_shard': jobs._projection_shard('job-1'),
+            'projection_shard': persisted_shard,
         },
     )
     projection = _Collection({})
@@ -161,9 +162,7 @@ def test_admitted_terminal_replay_updates_its_shard_once():
     first = _Transaction()
     assert jobs._mark_finalization_completed_txn(first, ref, 1, 4, now, projection) is True
     assert len(first.sets) == 1
-    assert first.sets[0][0].id == jobs._projection_shard_id(
-        jobs.FINALIZATION_PROJECTION_GENERATION, jobs._projection_shard('job-1')
-    )
+    assert first.sets[0][0].id == jobs._projection_shard_id(jobs.FINALIZATION_PROJECTION_GENERATION, persisted_shard)
 
     # A Firestore retry observes the committed terminal snapshot and performs
     # no second aggregate write, even though the API remains idempotently true.

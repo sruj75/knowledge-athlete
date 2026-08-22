@@ -6,8 +6,8 @@ Schema: users/{uid}/llm_usage/{date} -> {feature -> {model -> {input_tokens, out
 """
 
 import hashlib
-from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Optional, cast
+from datetime import datetime, timezone
+from typing import Any, Dict, Optional, cast
 
 from google.cloud import firestore
 

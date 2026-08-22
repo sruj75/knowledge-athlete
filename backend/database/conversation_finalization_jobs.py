@@ -8,7 +8,6 @@ No transcript, credential, request header, or raw exception is stored here.
 from __future__ import annotations
 
 import os
-from hashlib import sha256
 from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Mapping, TypedDict
 
@@ -140,11 +139,6 @@ def _uid_from_conversation_path(path: str) -> str | None:
 
 def _job_ref(client: Any, job_id: str) -> Any:
     return client.collection(FINALIZATION_JOBS_COLLECTION).document(job_id)
-
-
-def _projection_shard(job_id: str) -> int:
-    """Choose a stable aggregate shard without exposing job identity in metrics."""
-    return int.from_bytes(sha256(job_id.encode('utf-8')).digest()[:4], 'big') % FINALIZATION_PROJECTION_SHARD_COUNT
 
 
 def _projection_shard_id(generation: str, shard: int) -> str:

@@ -8,7 +8,6 @@ service topology after its backlog and rollback window are closed.
 
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 import struct
