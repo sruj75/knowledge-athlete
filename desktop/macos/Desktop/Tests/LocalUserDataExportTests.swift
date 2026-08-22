@@ -79,6 +79,34 @@ final class LocalUserDataExportTests: XCTestCase {
     XCTAssertFalse(FileManager.default.fileExists(atPath: destination.path))
   }
 
+  func testOwnerTransitionWaitsForPhysicalExportCommit() async throws {
+    let fixture = RuntimeOwnerAuthorityTestFixture()
+    await fixture.establish(authOwnerID: "export-owner-a")
+    defer { Task { @MainActor in await fixture.restore() } }
+    let writer = BlockingExportWriter()
+    let destination = FileManager.default.temporaryDirectory
+      .appendingPathComponent("leased-export-\(UUID().uuidString).json")
+    defer { try? FileManager.default.removeItem(at: destination) }
+    let exporter = LocalUserDataExport(reader: ExportReaderFake(), writer: writer)
+
+    let export = Task {
+      try await exporter.export(ownerID: "export-owner-a", to: destination)
+    }
+    await writer.waitUntilWriteStarts()
+    let transition = Task { @MainActor in
+      await fixture.establish(authOwnerID: "export-owner-b")
+    }
+    await EffectiveOwnerTransitionFence.shared.waitUntilTransitionIsPending()
+
+    XCTAssertEqual(RuntimeOwnerIdentity.currentOwnerId(), "export-owner-a")
+    writer.allowWriteToFinish()
+    try await export.value
+    await transition.value
+
+    XCTAssertEqual(RuntimeOwnerIdentity.currentOwnerId(), "export-owner-b")
+    XCTAssertTrue(FileManager.default.fileExists(atPath: destination.path))
+  }
+
   func testReadAndWriteFailuresLeaveNoPartialFile() async throws {
     let fixture = RuntimeOwnerAuthorityTestFixture()
     await fixture.establish(authOwnerID: "export-owner")
@@ -340,6 +368,39 @@ private actor ExportReaderFake: LocalUserDataExportReading {
 
 private struct FailingExportWriter: LocalUserDataExportFileWriting {
   func writeAtomically(_: Data, to _: URL) throws { throw ExportTestError.failed }
+}
+
+private final class BlockingExportWriter: LocalUserDataExportFileWriting, @unchecked Sendable {
+  private let lock = NSLock()
+  private var writeStarted = false
+  private var writeStartedContinuation: CheckedContinuation<Void, Never>?
+  private let finishWrite = DispatchSemaphore(value: 0)
+
+  func writeAtomically(_ data: Data, to destination: URL) throws {
+    let continuation = lock.withLock {
+      writeStarted = true
+      defer { writeStartedContinuation = nil }
+      return writeStartedContinuation
+    }
+    continuation?.resume()
+    finishWrite.wait()
+    try LocalUserDataAtomicFileWriter().writeAtomically(data, to: destination)
+  }
+
+  func waitUntilWriteStarts() async {
+    await withCheckedContinuation { continuation in
+      let shouldResume = lock.withLock {
+        if writeStarted { return true }
+        writeStartedContinuation = continuation
+        return false
+      }
+      if shouldResume { continuation.resume() }
+    }
+  }
+
+  func allowWriteToFinish() {
+    finishWrite.signal()
+  }
 }
 
 private enum ExportTestError: Error { case failed }

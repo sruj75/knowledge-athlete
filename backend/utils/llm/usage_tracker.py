@@ -194,7 +194,6 @@ class Features:
     CHAT = "chat"
     CONVERSATION_PROCESSING = "conversation_processing"
     RAG = "rag"
-    TRENDS = "trends"
     MEMORY_L1 = "memory_l1"
     MEMORY_L2 = "memory_l2"
     MEMORY_CONFLICT = "memory_conflict"

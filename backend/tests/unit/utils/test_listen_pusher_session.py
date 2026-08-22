@@ -87,8 +87,20 @@ async def test_retryable_error_keeps_request_buffered():
 
 
 @pytest.mark.asyncio
-async def test_pending_buffer_is_bounded():
+async def test_pending_buffer_is_bounded_and_records_eviction_fallback(monkeypatch):
+    recorded = []
+    monkeypatch.setattr('utils.listen_pusher_session.record_fallback', lambda **fields: recorded.append(fields))
     session, _, _, _ = _session(max_pending_requests=1)
     await session.request_conversation_processing('old', finalization_job_id='job-old', dispatch_generation=1)
     await session.request_conversation_processing('new', finalization_job_id='job-new', dispatch_generation=1)
     assert list(session.pending_conversation_requests) == ['new']
+    assert recorded == [
+        {
+            'component': 'pusher',
+            'from_mode': 'durable_pending_buffer',
+            'to_mode': 'evicted_oldest_request',
+            'reason': 'capacity_full',
+            'outcome': 'degraded',
+            'log': __import__('utils.listen_pusher_session', fromlist=['logger']).logger,
+        }
+    ]

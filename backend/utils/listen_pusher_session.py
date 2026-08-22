@@ -15,6 +15,7 @@ import struct
 from dataclasses import dataclass
 from typing import Any, Awaitable, Callable, Dict, Optional, Protocol, cast
 
+from utils.observability.fallback import record_fallback
 from utils.pusher import connect_to_trigger_pusher
 
 logger = logging.getLogger(__name__)
@@ -70,7 +71,14 @@ class ListenPusherSession:
         ):
             oldest_id = next(iter(self.pending_conversation_requests))
             del self.pending_conversation_requests[oldest_id]
-            logger.warning('Dropped oldest pending Pusher finalization control request')
+            record_fallback(
+                component='pusher',
+                from_mode='durable_pending_buffer',
+                to_mode='evicted_oldest_request',
+                reason='capacity_full',
+                outcome='degraded',
+                log=logger,
+            )
         self.pending_conversation_requests[conversation_id] = {
             'finalization_job_id': finalization_job_id,
             'dispatch_generation': dispatch_generation,

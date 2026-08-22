@@ -104,7 +104,7 @@ actor FairUseReviewCoordinator {
       @escaping @Sendable (
         FairUseClassificationReceipt, RuntimeOwnerAuthorizationSnapshot
       ) async -> Void = { receipt, authorization in
-        FairUseWarningNotificationPresenter.shared.present(
+        await FairUseWarningNotificationPresenter.shared.present(
           receipt, authorization: authorization)
       },
     recordFailure: @escaping @Sendable (String) -> Void = { reason in

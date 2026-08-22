@@ -45,24 +45,30 @@ final class FairUseWarningNotificationPresenter {
 
   private let defaults: UserDefaults
   private let isAuthorizationCurrent: (RuntimeOwnerAuthorizationSnapshot) -> Bool
-  private let deliver: (String, FairUseWarningPresentation, RuntimeOwnerAuthorizationSnapshot) -> Void
+  private let deliver: (String, FairUseWarningPresentation, RuntimeOwnerAuthorizationSnapshot) async -> Bool
 
   init(
     defaults: UserDefaults = .standard,
     isAuthorizationCurrent: @escaping (RuntimeOwnerAuthorizationSnapshot) -> Bool = {
       RuntimeOwnerIdentity.isAuthorizationCurrent($0)
     },
-    deliver: @escaping (String, FairUseWarningPresentation, RuntimeOwnerAuthorizationSnapshot) -> Void = {
-      ownerID, presentation, authorization in
-      NotificationService.shared.sendNotification(
-        ownerID: ownerID,
-        title: presentation.title,
-        message: presentation.message,
-        assistantId: "fair_use",
-        deliverSystemBanner: true,
-        respectFrequency: false,
-        authorizationSnapshot: authorization)
-    }
+    deliver:
+      @escaping (
+        String, FairUseWarningPresentation, RuntimeOwnerAuthorizationSnapshot
+      ) async -> Bool = {
+        ownerID, presentation, authorization in
+        await withCheckedContinuation { continuation in
+          NotificationService.shared.sendNotification(
+            ownerID: ownerID,
+            title: presentation.title,
+            message: presentation.message,
+            assistantId: "fair_use",
+            deliverSystemBanner: true,
+            respectFrequency: false,
+            authorizationSnapshot: authorization,
+            completion: { delivered in continuation.resume(returning: delivered) })
+        }
+      }
   ) {
     self.defaults = defaults
     self.isAuthorizationCurrent = isAuthorizationCurrent
@@ -73,7 +79,7 @@ final class FairUseWarningNotificationPresenter {
   func present(
     _ receipt: FairUseClassificationReceipt,
     authorization: RuntimeOwnerAuthorizationSnapshot
-  ) -> Bool {
+  ) async -> Bool {
     guard authorization.ownerID.isEmpty == false,
       isAuthorizationCurrent(authorization),
       let presentation = FairUseWarningPresentation.from(receipt)
@@ -83,7 +89,8 @@ final class FairUseWarningNotificationPresenter {
     guard defaults.bool(forKey: key) == false else { return false }
     guard isAuthorizationCurrent(authorization) else { return false }
 
-    deliver(authorization.ownerID, presentation, authorization)
+    let delivered = await deliver(authorization.ownerID, presentation, authorization)
+    guard delivered, isAuthorizationCurrent(authorization) else { return false }
     defaults.set(true, forKey: key)
     return true
   }

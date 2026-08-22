@@ -326,8 +326,18 @@ struct LocalUserDataExport: Sendable {
       encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
       let data = try encoder.encode(document)
       try requireCurrent(authorization)
+      let commitAuthorization = LocalMutationAuthorization {
+        isAuthorizationCurrent(authorization)
+      }
       do {
-        try writer.writeAtomically(data, to: destination)
+        try await commitAuthorization.withCommitLease {
+          try requireCurrent(authorization)
+          try writer.writeAtomically(data, to: destination)
+        }
+      } catch LocalMutationAuthorizationError.revoked {
+        throw LocalUserDataExportError.ownerChanged
+      } catch let error as LocalUserDataExportError {
+        throw error
       } catch {
         throw LocalUserDataExportError.writeFailed(String(describing: error))
       }

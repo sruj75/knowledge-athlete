@@ -382,7 +382,8 @@ class NotificationService: NSObject, UNUserNotificationCenterDelegate {
     screenshotData: Data? = nil,
     deliverSystemBanner: Bool = false,
     respectFrequency: Bool = true,
-    authorizationSnapshot suppliedAuthorizationSnapshot: RuntimeOwnerAuthorizationSnapshot? = nil
+    authorizationSnapshot suppliedAuthorizationSnapshot: RuntimeOwnerAuthorizationSnapshot? = nil,
+    completion: (@MainActor @Sendable (Bool) -> Void)? = nil
   ) {
     guard !ownerID.isEmpty,
       let authorizationSnapshot = suppliedAuthorizationSnapshot
@@ -391,6 +392,7 @@ class NotificationService: NSObject, UNUserNotificationCenterDelegate {
       RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
     else {
       log("NotificationService: rejecting notification from stale runtime owner")
+      completion?(false)
       return
     }
     prepareOwnerScopedState(for: authorizationSnapshot)
@@ -410,6 +412,7 @@ class NotificationService: NSObject, UNUserNotificationCenterDelegate {
       && UserDefaults.standard.bool(forKey: Self.screenCaptureResetShownKey)
     {
       log("NotificationService: suppressing duplicate screen capture reset notification")
+      completion?(false)
       return
     }
 
@@ -417,6 +420,7 @@ class NotificationService: NSObject, UNUserNotificationCenterDelegate {
     // macOS banner — the user opted into "no notifications for 2h".
     if FloatingControlBarManager.shared.isSnoozed {
       log("NotificationService: suppressing notification because floating bar is snoozed")
+      completion?(false)
       return
     }
 
@@ -427,6 +431,7 @@ class NotificationService: NSObject, UNUserNotificationCenterDelegate {
     // to bypass this, matching the frequency gate below.
     if respectFrequency && !Self.areNotificationsEnabled() {
       log("NotificationService: suppressing \(assistantId) notification because notifications are disabled")
+      completion?(false)
       return
     }
 
@@ -440,11 +445,13 @@ class NotificationService: NSObject, UNUserNotificationCenterDelegate {
       )
     {
       log("NotificationService: throttled \(assistantId) notification (frequency=\(Self.currentFrequencyLevel()))")
+      completion?(false)
       return
     }
 
     guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else {
       log("NotificationService: owner changed before notification presentation")
+      completion?(false)
       return
     }
 
@@ -469,11 +476,15 @@ class NotificationService: NSObject, UNUserNotificationCenterDelegate {
 
     // Default path: floating-bar only. Functional callers opt-in via
     // `deliverSystemBanner: true` (see the parameter doc above).
-    guard deliverSystemBanner else { return }
+    guard deliverSystemBanner else {
+      completion?(true)
+      return
+    }
 
     UserNotificationCallbackBridge.authorizationStatus { [weak self] authorizationStatus in
       guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else {
         log("NotificationService: dropping stale-owner system notification")
+        completion?(false)
         return
       }
       guard authorizationStatus == .authorized else {
@@ -494,6 +505,7 @@ class NotificationService: NSObject, UNUserNotificationCenterDelegate {
             ProactiveAssistantsPlugin.repairNotificationRegistration()
           }
         }
+        completion?(false)
         return
       }
 
@@ -502,7 +514,8 @@ class NotificationService: NSObject, UNUserNotificationCenterDelegate {
         message: message,
         assistantId: assistantId,
         sound: sound,
-        authorizationSnapshot: authorizationSnapshot
+        authorizationSnapshot: authorizationSnapshot,
+        completion: completion
       )
     }
   }
@@ -512,9 +525,13 @@ class NotificationService: NSObject, UNUserNotificationCenterDelegate {
     message: String,
     assistantId: String,
     sound: NotificationSound,
-    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot,
+    completion: (@MainActor @Sendable (Bool) -> Void)?
   ) {
-    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else {
+      completion?(false)
+      return
+    }
     let content = UNMutableNotificationContent()
     content.title = title
     content.body = message
@@ -554,16 +571,21 @@ class NotificationService: NSObject, UNUserNotificationCenterDelegate {
         // Clean up metadata on error
         self?.notificationMetadata.removeValue(forKey: notificationId)
         self?.notificationMetadataOrder.removeAll { $0 == notificationId }
+        completion?(false)
       } else {
         print("Notification sent successfully")
         // Track notification sent
-        guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
+        guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else {
+          completion?(false)
+          return
+        }
         AnalyticsManager.shared.notificationSent(
           notificationId: notificationId,
           title: title,
           assistantId: assistantId,
           surface: "system_notification"
         )
+        completion?(true)
       }
     }
   }

@@ -6,6 +6,7 @@ app: non-prod
 covers:
   - desktop/macos/Desktop/Sources/Account/Export/LocalUserDataExport.swift
   - desktop/macos/Desktop/Sources/Account/Export/LocalUserDataExportAction.swift
+  - desktop/macos/Desktop/Sources/Automation/DesktopAutomationS23Actions.swift
   - desktop/macos/Desktop/Sources/DesktopAutomationBridge.swift
   - desktop/macos/Desktop/Sources/MainWindow/Pages/Settings/Sections/SettingsContentView+AccountBilling.swift
 preconditions:

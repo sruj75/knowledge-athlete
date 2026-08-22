@@ -4,6 +4,7 @@ tier: 2
 description: Content-redacted local-evidence review admission and same-conversation managed-cloud handoff
 app: non-prod
 covers:
+  - desktop/macos/Desktop/Sources/Automation/DesktopAutomationS23Actions.swift
   - desktop/macos/Desktop/Sources/DesktopAutomationBridge.swift
   - desktop/macos/Desktop/Sources/AppState/AppState+Transcription.swift
   - desktop/macos/Desktop/Sources/AppState/STTSessionState.swift

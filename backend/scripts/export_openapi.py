@@ -128,8 +128,6 @@ def configure_hermetic_environment() -> None:
         'GOOGLE_APPLICATION_CREDENTIALS',
         'PINECONE_API_KEY',
         'LANGCHAIN_API_KEY',
-        'HUME_API_KEY',
-        'HUME_CALLBACK_URL',
     ):
         os.environ.pop(secret_var, None)
 
