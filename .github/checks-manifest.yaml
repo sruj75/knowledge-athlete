@@ -303,6 +303,11 @@ checks:
     triggers: ["backend/**/*.py"]
     lanes: ["local", "ci"]
     reason: "backend production Python changes must retain import-time purity"
+  - id: managed-model-callsite-inventory
+    command: ["bash", "-lc", "cd backend && .venv/bin/python -m pytest -q -m slow tests/unit/test_managed_model_workloads.py::test_application_model_call_sites_cannot_bypass_the_typed_inventory"]
+    triggers: ["backend/**/*.py", ".github/checks-manifest.yaml"]
+    lanes: ["local", "ci"]
+    reason: "S-22 C12 requires actual application provider construction and model call sites to stay inside the typed workload inventory, with exactly three S-23 successor bindings"
   - id: backend-runtime-image-source-closure
     command: ["python3", "backend/scripts/runtime_image_contracts.py", "check"]
     triggers: ["backend/**/*.py", "backend/**/Dockerfile*", "backend/runtime_images.json", "backend/scripts/runtime_image_contracts.py", ".github/workflows/runtime_image_contracts.yml", ".github/workflows/desktop_backend_auto_dev.yml", ".github/workflows/gcp_backend*.yml", ".github/workflows/gcp_diarizer.yml", ".github/workflows/gcp_models.yml"]

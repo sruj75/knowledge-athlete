@@ -14,12 +14,18 @@ from fastapi.routing import APIRoute
 from database import llm_usage as llm_usage_db
 from database import redis_db
 from utils.executors import critical_executor, db_executor, run_blocking
+from utils.llm.anthropic_transport import (
+    ANTHROPIC_STREAM_HEARTBEAT,
+    create_managed_anthropic_message,
+    stream_managed_anthropic_events,
+)
 from utils.llm.clients import anthropic_client
 from utils.llm.desktop_llm_stub import (
     llm_stub_enabled,
     stub_chat_completions_json,
     stub_chat_completions_stream,
 )
+from utils.llm.model_config import get_model
 from utils.llm.provider_errors import handle_llm_error
 from utils.other import endpoints as auth
 from utils.subscription import enforce_chat_quota
@@ -62,7 +68,7 @@ class _BoundedChatRoute(APIRoute):
 router = APIRouter(route_class=_BoundedChatRoute)
 
 _MODEL_ROUTES = {
-    'omi-sonnet': 'claude-sonnet-4-6',
+    'omi-sonnet': get_model('chat_agent'),
 }
 _MAX_TOKENS = 16_384
 
@@ -276,59 +282,37 @@ async def _record_usage(uid: str, usage: object) -> None:
 async def _stream(payload: dict[str, object], public_model: str, uid: str) -> AsyncIterator[str]:
     stream_id = f'chatcmpl-{uuid4()}'
     created = int(time.time())
-    yield _sse(
-        {
-            'id': stream_id,
-            'object': 'chat.completion.chunk',
-            'created': created,
-            'model': public_model,
-            'choices': [{'index': 0, 'delta': {'role': 'assistant'}, 'finish_reason': None}],
-        }
-    )
+    announced = False
     try:
-        async with anthropic_client.messages.stream(**payload) as stream:
-            async for event in stream:
-                event_type = getattr(event, 'type', '')
-                if event_type == 'content_block_delta':
-                    delta = cast(Any, getattr(event, 'delta', None))
-                    if getattr(delta, 'type', '') == 'text_delta':
-                        yield _sse(
-                            {
-                                'id': stream_id,
-                                'object': 'chat.completion.chunk',
-                                'created': created,
-                                'model': public_model,
-                                'choices': [{'index': 0, 'delta': {'content': delta.text}, 'finish_reason': None}],
-                            }
-                        )
-                    elif getattr(delta, 'type', '') == 'input_json_delta':
-                        yield _sse(
-                            {
-                                'id': stream_id,
-                                'object': 'chat.completion.chunk',
-                                'created': created,
-                                'model': public_model,
-                                'choices': [
-                                    {
-                                        'index': 0,
-                                        'delta': {
-                                            'tool_calls': [
-                                                {
-                                                    'index': getattr(event, 'index', 0),
-                                                    'function': {'arguments': delta.partial_json},
-                                                }
-                                            ]
-                                        },
-                                        'finish_reason': None,
-                                    }
-                                ],
-                            }
-                        )
-                elif (
-                    event_type == 'content_block_start'
-                    and getattr(getattr(event, 'content_block', None), 'type', '') == 'tool_use'
-                ):
-                    block = event.content_block
+        async for event in stream_managed_anthropic_events(anthropic_client.messages, payload):
+            if event is ANTHROPIC_STREAM_HEARTBEAT:
+                yield ': keep-alive\n\n'
+                continue
+            if not announced:
+                announced = True
+                yield _sse(
+                    {
+                        'id': stream_id,
+                        'object': 'chat.completion.chunk',
+                        'created': created,
+                        'model': public_model,
+                        'choices': [{'index': 0, 'delta': {'role': 'assistant'}, 'finish_reason': None}],
+                    }
+                )
+            event_type = getattr(event, 'type', '')
+            if event_type == 'content_block_delta':
+                delta = cast(Any, getattr(event, 'delta', None))
+                if getattr(delta, 'type', '') == 'text_delta':
+                    yield _sse(
+                        {
+                            'id': stream_id,
+                            'object': 'chat.completion.chunk',
+                            'created': created,
+                            'model': public_model,
+                            'choices': [{'index': 0, 'delta': {'content': delta.text}, 'finish_reason': None}],
+                        }
+                    )
+                elif getattr(delta, 'type', '') == 'input_json_delta':
                     yield _sse(
                         {
                             'id': stream_id,
@@ -342,9 +326,7 @@ async def _stream(payload: dict[str, object], public_model: str, uid: str) -> As
                                         'tool_calls': [
                                             {
                                                 'index': getattr(event, 'index', 0),
-                                                'id': block.id,
-                                                'type': 'function',
-                                                'function': {'name': block.name, 'arguments': ''},
+                                                'function': {'arguments': delta.partial_json},
                                             }
                                         ]
                                     },
@@ -353,30 +335,59 @@ async def _stream(payload: dict[str, object], public_model: str, uid: str) -> As
                             ],
                         }
                     )
-                elif event_type == 'message_delta':
-                    reason = _stop_reason(getattr(getattr(event, 'delta', None), 'stop_reason', None))
+            elif (
+                event_type == 'content_block_start'
+                and getattr(getattr(event, 'content_block', None), 'type', '') == 'tool_use'
+            ):
+                block = event.content_block
+                yield _sse(
+                    {
+                        'id': stream_id,
+                        'object': 'chat.completion.chunk',
+                        'created': created,
+                        'model': public_model,
+                        'choices': [
+                            {
+                                'index': 0,
+                                'delta': {
+                                    'tool_calls': [
+                                        {
+                                            'index': getattr(event, 'index', 0),
+                                            'id': block.id,
+                                            'type': 'function',
+                                            'function': {'name': block.name, 'arguments': ''},
+                                        }
+                                    ]
+                                },
+                                'finish_reason': None,
+                            }
+                        ],
+                    }
+                )
+            elif event_type == 'message_delta':
+                reason = _stop_reason(getattr(getattr(event, 'delta', None), 'stop_reason', None))
+                yield _sse(
+                    {
+                        'id': stream_id,
+                        'object': 'chat.completion.chunk',
+                        'created': created,
+                        'model': public_model,
+                        'choices': [{'index': 0, 'delta': {}, 'finish_reason': reason}],
+                    }
+                )
+                usage = getattr(event, 'usage', None)
+                if usage is not None:
+                    await _record_usage(uid, usage)
                     yield _sse(
                         {
                             'id': stream_id,
                             'object': 'chat.completion.chunk',
                             'created': created,
                             'model': public_model,
-                            'choices': [{'index': 0, 'delta': {}, 'finish_reason': reason}],
+                            'choices': [],
+                            'usage': _usage(usage),
                         }
                     )
-                    usage = getattr(event, 'usage', None)
-                    if usage is not None:
-                        await _record_usage(uid, usage)
-                        yield _sse(
-                            {
-                                'id': stream_id,
-                                'object': 'chat.completion.chunk',
-                                'created': created,
-                                'model': public_model,
-                                'choices': [],
-                                'usage': _usage(usage),
-                            }
-                        )
     except Exception as exc:
         handle_llm_error(exc, 'anthropic', feature='chat_agent', model=_MODEL_ROUTES[public_model])
         yield _sse({'error': {'message': 'Upstream provider error', 'type': 'server_error', 'code': 502}})
@@ -455,7 +466,7 @@ async def chat_completions(
             },
         )
     try:
-        message = await anthropic_client.messages.create(**payload)
+        message = await create_managed_anthropic_message(anthropic_client.messages, payload)
     except Exception as exc:
         handle_llm_error(exc, 'anthropic', feature='chat_agent', model=_MODEL_ROUTES[public_model])
         raise HTTPException(status_code=502, detail='Upstream provider error') from exc

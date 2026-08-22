@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import ast
+from collections import Counter
 import importlib
 from pathlib import Path
 
@@ -25,6 +27,84 @@ EXPECTED_ROUTES = {
     'translation': ('gemini', 'gemini-2.5-flash-lite'),
     'wrapped_analysis': ('openrouter', 'gemini-3-flash-preview'),
 }
+
+_PROVIDER_CONSTRUCTORS = {
+    'Anthropic',
+    'AsyncAnthropic',
+    'AsyncOpenAI',
+    'ChatAnthropic',
+    'ChatGoogleGenerativeAI',
+    'ChatOpenAI',
+    'OpenAI',
+    'OpenAIEmbeddings',
+}
+_EXPECTED_PROVIDER_CONSTRUCTION = Counter(
+    {
+        ('utils/llm/clients.py', 'AsyncAnthropic'): 1,
+        ('utils/llm/clients.py', 'OpenAIEmbeddings'): 1,
+        ('utils/llm/providers.py', 'ChatGoogleGenerativeAI'): 2,
+        ('utils/llm/providers.py', 'ChatOpenAI'): 2,
+        ('utils/other/chat_file.py', 'AsyncOpenAI'): 1,
+    }
+)
+_EXPECTED_DIRECT_DEFAULT_CLIENT_CALLS = Counter(
+    {
+        'utils/llm/clients.py': 1,
+        'utils/llm/fair_use_classifier.py': 1,
+    }
+)
+_APPLICATION_MODEL_CALL_TOKENS = tuple(sorted({'get_default_client', 'get_workload_client', *_PROVIDER_CONSTRUCTORS}))
+
+
+def _application_python_sources() -> list[tuple[str, str]]:
+    backend = Path(__file__).resolve().parents[2]
+    excluded_roots = {'llm_gateway', 'migrations', 'scripts', 'tests'}
+    sources = []
+    for path in backend.rglob('*.py'):
+        if path.relative_to(backend).parts[0] in excluded_roots or any(
+            part in {'.openapi-venv', '.venv', '__pycache__'} for part in path.parts
+        ):
+            continue
+        source = path.read_text(encoding='utf-8')
+        if any(token in source for token in _APPLICATION_MODEL_CALL_TOKENS):
+            sources.append((path.relative_to(backend).as_posix(), source))
+    return sources
+
+
+def _call_name(node: ast.expr, imported_names: dict[str, str]) -> str:
+    if isinstance(node, ast.Name):
+        return imported_names.get(node.id, node.id)
+    if isinstance(node, ast.Attribute):
+        return node.attr
+    return ''
+
+
+def _application_model_calls():
+    workload_calls: list[tuple[str, int, object]] = []
+    direct_default_calls: Counter[str] = Counter()
+    provider_construction: Counter[tuple[str, str]] = Counter()
+
+    for relative_path, source in _application_python_sources():
+        tree = ast.parse(source, filename=relative_path)
+        imported_names = {
+            alias.asname or alias.name: alias.name
+            for node in ast.walk(tree)
+            if isinstance(node, ast.ImportFrom)
+            for alias in node.names
+        }
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            call_name = _call_name(node.func, imported_names)
+            if call_name == 'get_workload_client':
+                feature = node.args[0].value if node.args and isinstance(node.args[0], ast.Constant) else None
+                workload_calls.append((relative_path, node.lineno, feature))
+            elif call_name == 'get_default_client':
+                direct_default_calls[relative_path] += 1
+            elif call_name in _PROVIDER_CONSTRUCTORS:
+                provider_construction[(relative_path, call_name)] += 1
+
+    return workload_calls, direct_default_calls, provider_construction
 
 
 def test_workload_inventory_is_exhaustive_and_names_every_result_owner():
@@ -53,6 +133,30 @@ def test_inventory_contains_only_retained_workloads_plus_declared_handoffs():
         'wrapped_analysis',
     }
     assert not {key for key, value in workloads.items() if value.lifecycle is WorkloadLifecycle.RETIRING_S22}
+
+
+@pytest.mark.slow
+def test_application_model_call_sites_cannot_bypass_the_typed_inventory():
+    """Static C12 tripwire: all application construction stays in its declared owner seam."""
+
+    workload_calls, direct_default_calls, provider_construction = _application_model_calls()
+    workloads = model_config.get_all_workloads()
+
+    assert [
+        (path, line, feature) for path, line, feature in workload_calls if feature and feature not in workloads
+    ] == []
+    assert Counter(path for path, _, feature in workload_calls if feature is None) == Counter(
+        {'utils/llm/memory_compute.py': 1}
+    )
+    assert direct_default_calls == _EXPECTED_DIRECT_DEFAULT_CLIENT_CALLS
+    assert provider_construction == _EXPECTED_PROVIDER_CONSTRUCTION
+
+    called_successor_workloads = {
+        feature
+        for _, _, feature in workload_calls
+        if feature is not None and workloads[feature].lifecycle is WorkloadLifecycle.SUCCESSOR_S23
+    }
+    assert called_successor_workloads == {'conv_folder', 'followup', 'wrapped_analysis'}
 
 
 def test_wrapped_is_the_only_openrouter_workload():

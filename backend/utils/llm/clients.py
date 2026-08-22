@@ -23,7 +23,7 @@ class _AnthropicClientProxy:
     def _default_client(self) -> anthropic.AsyncAnthropic:
         default = self._default
         if default is None:
-            default = anthropic.AsyncAnthropic(timeout=120.0, max_retries=1)
+            default = anthropic.AsyncAnthropic(timeout=120.0, max_retries=0)
             object.__setattr__(self, '_default', default)
         return default
 

@@ -5,6 +5,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from routers import desktop_chat
+from utils.llm import model_config
 
 
 def test_anthropic_adapter_uses_managed_client():
@@ -50,7 +51,7 @@ def test_request_translates_openai_tool_history_and_alias():
         }
     )
     assert public_model == 'omi-sonnet'
-    assert payload['model'] == 'claude-sonnet-4-6'
+    assert payload['model'] == model_config.get_model('chat_agent')
     assert payload['max_tokens'] == 16_384
     assert payload['system'] == 'be concise'
     assert payload['messages'][1]['content'][0]['tool_use_id'] == 'call_1'
@@ -163,7 +164,7 @@ async def test_stream_reports_managed_provider_failure_without_echoing_detail(mo
     ]
 
     assert recorded[0][0][1] == 'anthropic'
-    assert recorded[0][1] == {'feature': 'chat_agent', 'model': 'claude-sonnet-4-6'}
+    assert recorded[0][1] == {'feature': 'chat_agent', 'model': model_config.get_model('chat_agent')}
     assert sentinel not in ''.join(events)
 
 
