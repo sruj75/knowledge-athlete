@@ -108,8 +108,9 @@ async def stream_managed_anthropic_events(
             remaining = turn_deadline - _monotonic()
             if remaining <= 0:
                 raise TimeoutError('managed Anthropic stream exceeded its turn deadline')
-            manager = messages.stream(**dict(payload))
-            active = await asyncio.wait_for(manager.__aenter__(), timeout=first_event_deadline - _monotonic())
+            stream_manager = messages.stream(**dict(payload))
+            manager = stream_manager
+            active = await asyncio.wait_for(stream_manager.__aenter__(), timeout=first_event_deadline - _monotonic())
             opened = True
             iterator = active.__aiter__()
 

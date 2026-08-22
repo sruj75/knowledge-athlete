@@ -335,11 +335,10 @@ async def _stream(payload: dict[str, object], public_model: str, uid: str) -> As
                             ],
                         }
                     )
-            elif (
-                event_type == 'content_block_start'
-                and getattr(getattr(event, 'content_block', None), 'type', '') == 'tool_use'
-            ):
-                block = event.content_block
+            elif event_type == 'content_block_start':
+                block = cast(Any, getattr(event, 'content_block', None))
+                if getattr(block, 'type', '') != 'tool_use':
+                    continue
                 yield _sse(
                     {
                         'id': stream_id,
