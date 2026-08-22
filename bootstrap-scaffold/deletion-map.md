@@ -1347,10 +1347,14 @@ IR-732, IR-827, IR-828
   store; provider calls live directly in the canonical backend where cloud
   mediation is required.
 - **Delete:** higher-model/live-web voice escalation, cosmetic Pill model call,
-  Chat Prompt Lab, Opus/Haiku/ChatLab residue, attempt-cost documents, independent
-  LLM gateway, global premium/max/BYOK profiles, Perplexity/Sonar, all public web
-  search, callerless ElevenLabs, unused Gemini Pro/streaming, NLLB,
+  Chat Prompt Lab, Opus/Haiku/ChatLab residue, attempt-cost documents, gateway
+  application mediation/accounting/callers, global premium/max/BYOK profiles,
+  Perplexity/Sonar, all public web search, callerless ElevenLabs, unused Gemini
+  Pro/streaming, NLLB,
   old memory/chat/persona/proactive/glasses routes, and rejected provider config.
+- **Preserve for S-25:** the zero-application-caller standalone gateway deployment,
+  image, workflow, secret, and live-resource topology. S-22 records the handoff and
+  performs no operational deletion.
 - **Successor handoff:** S-22 closes with exactly three rejected live model bindings:
   Joan's `followup`, automatic folder assignment's `conv_folder`, and Wrapped's
   `wrapped_analysis` call through OpenRouter. S-23 deletes each binding together

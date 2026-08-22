@@ -112,7 +112,7 @@ retired_surfaces:
   - callerless onboarding and trends model helpers
 
 closure:
-  status: in_progress
+  status: complete
   permitted_s23_handoffs:
     - followup -> Joan
     - conv_folder -> automatic folder assignment
