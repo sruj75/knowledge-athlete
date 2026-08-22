@@ -24,6 +24,23 @@ final class SettingsDestinationContractTests: XCTestCase {
 
   func testSearchOnlyExposesAlwaysMountedTargetsAndRevealsHiddenStatsContainer() {
     XCTAssertFalse(SettingsSearchItem.allSearchableItems.contains { $0.name == "Available Plans" })
+    XCTAssertFalse(
+      SettingsSearchItem.availableSearchItems(systemAudioSupported: false).contains {
+        $0.destination == .systemAudio
+      })
+    XCTAssertTrue(
+      SettingsSearchItem.availableSearchItems(systemAudioSupported: true).contains {
+        $0.destination == .systemAudio
+      })
+    XCTAssertTrue(
+      SettingsDestination.notificationFrequency.isMountedForSearch(
+        systemAudioSupported: false))
+    XCTAssertTrue(
+      SettingsDestination.focusNotifications.isMountedForSearch(
+        systemAudioSupported: false))
+    XCTAssertTrue(
+      SettingsDestination.autoInstallUpdates.isMountedForSearch(
+        systemAudioSupported: false))
     XCTAssertTrue(SettingsDestination.aiUserProfile.revealsProfileAndStats)
     XCTAssertTrue(SettingsDestination.stats.revealsProfileAndStats)
     XCTAssertFalse(SettingsDestination.currentPlan.revealsProfileAndStats)

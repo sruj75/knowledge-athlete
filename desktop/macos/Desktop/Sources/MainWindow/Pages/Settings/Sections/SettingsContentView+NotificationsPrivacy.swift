@@ -27,10 +27,10 @@ extension SettingsContentView {
             .scaledFont(size: OmiType.body)
             .foregroundColor(OmiColors.textTertiary)
 
-          if notificationsEnabled {
-            Divider()
-              .background(OmiColors.backgroundQuaternary)
+          Divider()
+            .background(OmiColors.backgroundQuaternary)
 
+          Group {
             notificationFrequencySlider(destination: .notificationFrequency)
 
             // Sits under the master toggle and the frequency slider because both gate it:
@@ -100,6 +100,8 @@ extension SettingsContentView {
                 }
             }
           }
+          .disabled(!notificationsEnabled)
+          .opacity(notificationsEnabled ? 1 : 0.55)
         }
       }
     }

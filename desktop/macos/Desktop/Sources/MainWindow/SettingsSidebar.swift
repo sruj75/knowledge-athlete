@@ -80,6 +80,10 @@ enum SettingsDestination: String, CaseIterable, Hashable, Sendable {
   var revealsProfileAndStats: Bool {
     self == .aiUserProfile || self == .stats
   }
+
+  func isMountedForSearch(systemAudioSupported: Bool) -> Bool {
+    self != .systemAudio || systemAudioSupported
+  }
 }
 
 struct SettingsDeepLinkPresentation: Equatable {
@@ -143,6 +147,19 @@ struct SettingsSearchItem: Identifiable {
 
   var breadcrumb: String {
     return section.rawValue
+  }
+
+  static func availableSearchItems(systemAudioSupported: Bool) -> [SettingsSearchItem] {
+    allSearchableItems.filter {
+      $0.destination.isMountedForSearch(systemAudioSupported: systemAudioSupported)
+    }
+  }
+
+  static var availableSearchItemsForCurrentOS: [SettingsSearchItem] {
+    if #available(macOS 14.4, *) {
+      return availableSearchItems(systemAudioSupported: true)
+    }
+    return availableSearchItems(systemAudioSupported: false)
   }
 
   static let allSearchableItems: [SettingsSearchItem] = [
@@ -402,7 +419,7 @@ struct SettingsSidebar: View {
     guard !searchQuery.isEmpty else { return [] }
     let words = searchQuery.lowercased().split(separator: " ").map(String.init)
     guard !words.isEmpty else { return [] }
-    return SettingsSearchItem.allSearchableItems.filter { item in
+    return SettingsSearchItem.availableSearchItemsForCurrentOS.filter { item in
       let nameLower = item.name.lowercased()
       let subtitleLower = item.subtitle.lowercased()
       let keywordsLower = item.keywords.map { $0.lowercased() }

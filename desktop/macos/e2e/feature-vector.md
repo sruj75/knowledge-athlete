@@ -37,7 +37,7 @@ Prioritized feature map to guide desktop E2E coverage. Uses the same two-dimensi
 
 | # | Feature | Layer | Priority | Bridge | Walker | Coverage Status |
 |---|---------|-------|----------|--------|--------|-----------------|
-| 1 | Dashboard — conversations list, refresh | intelligence (3) | 9 | 2 | 2 | ✅ flow: `dashboard.yaml` (nav + `conversation_list_snapshot`) |
+| 1 | Conversations — list, refresh (Memory) | intelligence (3) | 9 | 2 | 2 | ✅ flow: `dashboard.yaml` (local `conversation_list_snapshot`) |
 | 2 | Chat — send message, AI response | intelligence (3) | 9 | 2 | 2 | ✅ flow: `chat-hermetic.yaml` |
 | 3 | Top navigation — Home, Memory, Tasks, Insights | retrieval-action (3) | 9 | 2 | 3 | ✅ flow: `navigation.yaml` |
 | 4 | Home stage (hub / chat) | intelligence (3) | 9 | 2 | 2 | ✅ flow: `home-stage.yaml` |
@@ -47,7 +47,7 @@ Prioritized feature map to guide desktop E2E coverage. Uses the same two-dimensi
 | 8 | Memory list & browse | memory (4) | 12 | 2 | 2 | ✅ flow: `memories.yaml` (nav + search step) |
 | 9 | Memory search | memory (4) | 12 | 3 | 2 | ✅ flow: `memory-depth.yaml` + `memories.yaml` |
 | 10 | Tasks — list, refresh | retrieval-action (3) | 9 | 3 | 2 | ✅ flow: `tasks-crud.yaml` + `tasks.yaml` |
-| 11 | Quick Note (dashboard) | intelligence (3) | 9 | 2 | 2 | ✅ flow: `quick-note.yaml` |
+| 11 | Quick Note (Conversations) | intelligence (3) | 9 | 2 | 2 | ✅ flow: `quick-note.yaml` |
 | 12 | Floating bar / Ask Omi | intelligence (3) | 9 | 2 | 2 | ✅ flow: `floating-bar-functional.yaml` |
 
 ### SECONDARY SURFACES (priority 6-12) — first-class rows
@@ -60,7 +60,7 @@ Prioritized feature map to guide desktop E2E coverage. Uses the same two-dimensi
 | 17 | Memory CRUD (create / edit / delete) | memory (4) | 8 | 3 | 2 | ✅ flow: `memory-crud.yaml` |
 | 20 | Memory tag filtering | memory (4) | 8 | 3 | 2 | ✅ flow: `memory-depth.yaml` |
 | 21 | Custom vocabulary | understand (4) | 8 | 3 | 2 | ✅ flow: `vocabulary.yaml` |
-| 22 | Goals tracking (dashboard widget) | intelligence (3) | 6 | 3 | 2 | ✅ flow: `goals-dashboard.yaml` |
+| 22 | Goals — local storage lifecycle (no shell widget) | intelligence (3) | 6 | 3 | 2 | ✅ flow: `goals-dashboard.yaml` |
 | 23 | Transcription language settings | understand (4) | 8 | 3 | 3 | ✅ flow: `language.yaml` (set + snapshot) |
 | 24 | Privacy disclosure and tracking snapshot | — | 5 | 2 | 2 | ✅ flow: `privacy-settings.yaml` (toggle snapshot) |
 | 25 | Plan / usage (billing) | — | 5 | 2 | 1 | ✅ flow: `plan-usage.yaml` (subscription snapshot) |

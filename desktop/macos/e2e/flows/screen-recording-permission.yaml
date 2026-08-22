@@ -2,7 +2,7 @@ version: 2
 name: screen-recording-permission
 tier: manual
 description: Screen Recording permission flow — verify Rewind permission state, grant flow, toggle monitoring, and Settings integration
-app: com.omi.computer-macos
+app: non-prod
 covers:
   - desktop/macos/Desktop/Sources/Rewind/UI/RewindPage.swift
   - desktop/macos/Desktop/Sources/ScreenCaptureService.swift
@@ -37,7 +37,7 @@ preconditions:
 steps:
   - id: S1
     name: Navigate to Rewind page
-    do: "Click the Rewind sidebar icon (identifier: sidebar_rewind) to navigate to the Rewind page. Verify the page loads with the Rewind title, search field, date display, and settings gear icon."
+    do: "Press Command-Option-R to open the retained Rewind route. Verify the page loads with the Rewind title, search field, date display, and settings gear icon."
     expect:
       interactive_count: { min: 3 }
       text_visible:
@@ -76,7 +76,7 @@ steps:
         - Rewind
 
   - id: S7
-    name: Return to Dashboard
+    name: Return to Home
     do: "Click Home in the top bar to return to the Home page."
     expect:
       interactive_count: { min: 5 }

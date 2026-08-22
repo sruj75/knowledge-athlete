@@ -497,18 +497,20 @@ extension SettingsContentView {
               .disabled(updaterViewModel.usesManagedUpdatePolicy || AnalyticsManager.isDevBuild)
           }
 
-          if updaterViewModel.automaticallyChecksForUpdates {
-            settingRow(
-              title: "Auto-Install Updates",
-              subtitle: "Automatically download and install updates when available",
-              destination: .autoInstallUpdates
-            ) {
-              Toggle("", isOn: $updaterViewModel.automaticallyDownloadsUpdates)
-                .toggleStyle(OmiToggleStyle())
-                .labelsHidden()
-                .disabled(updaterViewModel.usesManagedUpdatePolicy || AnalyticsManager.isDevBuild)
-            }
+          settingRow(
+            title: "Auto-Install Updates",
+            subtitle: "Automatically download and install updates when available",
+            destination: .autoInstallUpdates
+          ) {
+            Toggle("", isOn: $updaterViewModel.automaticallyDownloadsUpdates)
+              .toggleStyle(OmiToggleStyle())
+              .labelsHidden()
+              .disabled(
+                !updaterViewModel.automaticallyChecksForUpdates
+                  || updaterViewModel.usesManagedUpdatePolicy
+                  || AnalyticsManager.isDevBuild)
           }
+          .opacity(updaterViewModel.automaticallyChecksForUpdates ? 1 : 0.55)
 
           if updaterViewModel.usesManagedUpdatePolicy {
             Text("Release builds always auto-check and auto-install updates in the background.")

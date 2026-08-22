@@ -3,6 +3,50 @@ import AppKit
 import OmiTheme
 import SwiftUI
 
+enum PermissionRecoverySection: CaseIterable, Hashable {
+  case microphone
+  case screenRecording
+  case systemAudio
+  case notifications
+  case accessibility
+}
+
+enum NotificationPermissionRecoveryMode: Equatable {
+  case granted
+  case authorizationMissing(isDenied: Bool)
+  case bannersDisabled
+
+  init(hasPermission: Bool, bannersDisabled: Bool, isDenied: Bool) {
+    if !hasPermission {
+      self = .authorizationMissing(isDenied: isDenied)
+    } else if bannersDisabled {
+      self = .bannersDisabled
+    } else {
+      self = .granted
+    }
+  }
+
+  var requiresRepair: Bool { self != .granted }
+}
+
+enum AccessibilityPermissionRecoveryMode: Equatable {
+  case granted
+  case missing
+  case broken
+
+  init(hasPermission: Bool, isBroken: Bool) {
+    if isBroken {
+      self = .broken
+    } else if hasPermission {
+      self = .granted
+    } else {
+      self = .missing
+    }
+  }
+
+  var requiresRepair: Bool { self != .granted }
+}
+
 struct PermissionsPage: View {
   @ObservedObject var appState: AppState
 
@@ -29,19 +73,22 @@ struct PermissionsPage: View {
 
         // Permission sections
         VStack(spacing: OmiSpacing.xl) {
-          // Microphone Permission
-          MicrophonePermissionSection(appState: appState)
-
-          // Screen Recording Permission
-          ScreenRecordingPermissionSection(appState: appState)
-
-          // System Audio Permission (Core Audio process taps, macOS 14.4+)
-          if #available(macOS 14.4, *) {
-            SystemAudioPermissionSection(appState: appState)
+          ForEach(PermissionRecoverySection.allCases, id: \.self) { section in
+            switch section {
+            case .microphone:
+              MicrophonePermissionSection(appState: appState)
+            case .screenRecording:
+              ScreenRecordingPermissionSection(appState: appState)
+            case .systemAudio:
+              if #available(macOS 14.4, *) {
+                SystemAudioPermissionSection(appState: appState)
+              }
+            case .notifications:
+              NotificationPermissionSection(appState: appState)
+            case .accessibility:
+              AccessibilityPermissionSection(appState: appState)
+            }
           }
-
-          // Notification Permission
-          NotificationPermissionSection(appState: appState)
         }
 
         // All permissions granted message
@@ -938,34 +985,54 @@ struct NotificationPermissionSection: View {
     return appState.isNotificationPermissionDenied()
   }
 
+  private var recoveryMode: NotificationPermissionRecoveryMode {
+    NotificationPermissionRecoveryMode(
+      hasPermission: appState.hasNotificationPermission,
+      bannersDisabled: appState.isNotificationBannerDisabled,
+      isDenied: isPermissionDenied)
+  }
+
   // Colors based on state
   private var iconBackgroundColor: Color {
-    if appState.hasNotificationPermission {
+    if recoveryMode == .granted {
       return Color.green.opacity(0.15)
-    } else if isPermissionDenied {
+    } else if case .authorizationMissing(isDenied: true) = recoveryMode {
       return Color.red.opacity(0.15)
     } else {
-      return OmiColors.backgroundTertiary
+      return OmiColors.warning.opacity(0.15)
     }
   }
 
   private var iconColor: Color {
-    if appState.hasNotificationPermission {
+    if recoveryMode == .granted {
       return .green
-    } else if isPermissionDenied {
+    } else if case .authorizationMissing(isDenied: true) = recoveryMode {
       return .red
     } else {
-      return OmiColors.textSecondary
+      return OmiColors.warning
     }
   }
 
   private var borderColor: Color {
-    if appState.hasNotificationPermission {
+    if recoveryMode == .granted {
       return Color.green.opacity(0.3)
-    } else if isPermissionDenied {
+    } else if case .authorizationMissing(isDenied: true) = recoveryMode {
       return Color.red.opacity(0.5)
     } else {
-      return OmiColors.backgroundQuaternary.opacity(0.5)
+      return OmiColors.warning.opacity(0.5)
+    }
+  }
+
+  private var statusDescription: String {
+    switch recoveryMode {
+    case .granted:
+      return "Required for proactive assistant alerts"
+    case .authorizationMissing(isDenied: true):
+      return "Permission was denied - enable in System Settings"
+    case .authorizationMissing(isDenied: false):
+      return "Required for proactive assistant alerts"
+    case .bannersDisabled:
+      return "Notifications are allowed, but visual banners are disabled"
     }
   }
 
@@ -980,7 +1047,7 @@ struct NotificationPermissionSection: View {
               .fill(iconBackgroundColor)
               .frame(width: 48, height: 48)
 
-            Image(systemName: isPermissionDenied ? "bell.slash.fill" : "bell.fill")
+            Image(systemName: recoveryMode == .granted ? "bell.fill" : "bell.slash.fill")
               .scaledFont(size: OmiType.heading)
               .foregroundColor(iconColor)
           }
@@ -995,13 +1062,9 @@ struct NotificationPermissionSection: View {
               notificationStatusBadge
             }
 
-            Text(
-              isPermissionDenied
-                ? "Permission was denied - enable in System Settings"
-                : "Required for proactive assistant alerts"
-            )
-            .scaledFont(size: OmiType.body)
-            .foregroundColor(isPermissionDenied ? .red.opacity(0.8) : OmiColors.textTertiary)
+            Text(statusDescription)
+              .scaledFont(size: OmiType.body)
+              .foregroundColor(iconColor)
           }
 
           Spacer()
@@ -1015,17 +1078,20 @@ struct NotificationPermissionSection: View {
       .buttonStyle(.plain)
 
       // Expanded content
-      if isExpanded && !appState.hasNotificationPermission {
+      if isExpanded && recoveryMode.requiresRepair {
         VStack(alignment: .leading, spacing: OmiSpacing.lg) {
           Divider()
             .background(OmiColors.backgroundQuaternary)
 
-          if isPermissionDenied {
-            // DENIED STATE - Show settings instructions
+          switch recoveryMode {
+          case .authorizationMissing(isDenied: true):
             deniedStateContent
-          } else {
-            // NOT DETERMINED - Show normal grant flow
+          case .authorizationMissing(isDenied: false):
             notDeterminedStateContent
+          case .bannersDisabled:
+            bannersDisabledStateContent
+          case .granted:
+            EmptyView()
           }
         }
         .padding(.horizontal, OmiSpacing.xl)
@@ -1034,35 +1100,64 @@ struct NotificationPermissionSection: View {
     }
     .background(
       RoundedRectangle(cornerRadius: OmiChrome.controlRadius)
-        .fill(isPermissionDenied ? Color.red.opacity(0.05) : OmiColors.backgroundSecondary.opacity(0.5))
+        .fill(
+          recoveryMode == .granted
+            ? OmiColors.backgroundSecondary.opacity(0.5) : OmiColors.warning.opacity(0.05)
+        )
         .overlay(
           RoundedRectangle(cornerRadius: OmiChrome.controlRadius)
-            .stroke(borderColor, lineWidth: isPermissionDenied ? 2 : 1)
+            .stroke(borderColor, lineWidth: recoveryMode.requiresRepair ? 2 : 1)
         )
     )
   }
 
   // Status badge for notifications
   private var notificationStatusBadge: some View {
-    HStack(spacing: OmiSpacing.xxs) {
-      Image(
-        systemName: appState.hasNotificationPermission
-          ? "checkmark.circle.fill" : (isPermissionDenied ? "xmark.circle.fill" : "exclamationmark.circle.fill")
-      )
-      .scaledFont(size: OmiType.caption)
-      Text(appState.hasNotificationPermission ? "Granted" : (isPermissionDenied ? "Denied" : "Not Granted"))
+    let presentation: (icon: String, text: String, color: Color) =
+      switch recoveryMode {
+      case .granted:
+        ("checkmark.circle.fill", "Granted", .green)
+      case .authorizationMissing(isDenied: true):
+        ("xmark.circle.fill", "Denied", .red)
+      case .authorizationMissing(isDenied: false):
+        ("exclamationmark.circle.fill", "Not Granted", OmiColors.warning)
+      case .bannersDisabled:
+        ("exclamationmark.circle.fill", "Banners Off", OmiColors.warning)
+      }
+
+    return HStack(spacing: OmiSpacing.xxs) {
+      Image(systemName: presentation.icon)
+        .scaledFont(size: OmiType.caption)
+      Text(presentation.text)
         .scaledFont(size: OmiType.caption, weight: .medium)
     }
-    .foregroundColor(appState.hasNotificationPermission ? .green : (isPermissionDenied ? .red : OmiColors.warning))
+    .foregroundColor(presentation.color)
     .padding(.horizontal, OmiSpacing.sm)
     .padding(.vertical, OmiSpacing.xxs)
     .background(
       Capsule()
-        .fill(
-          appState.hasNotificationPermission
-            ? Color.green.opacity(0.15)
-            : (isPermissionDenied ? Color.red.opacity(0.15) : OmiColors.warning.opacity(0.15)))
+        .fill(presentation.color.opacity(0.15))
     )
+  }
+
+  private var bannersDisabledStateContent: some View {
+    VStack(alignment: .leading, spacing: OmiSpacing.lg) {
+      Text("Notification permission is granted, but banners are disabled in System Settings:")
+        .scaledFont(size: OmiType.body, weight: .medium)
+        .foregroundColor(OmiColors.textPrimary)
+
+      VStack(alignment: .leading, spacing: OmiSpacing.md) {
+        instructionStep(number: 1, text: "Click \"Open Notification Settings\" below")
+        instructionStep(number: 2, text: "Choose \"Banners\" or \"Alerts\" as the alert style")
+        instructionStep(number: 3, text: "Return to omi; the status refreshes automatically")
+      }
+
+      Button("Open Notification Settings") {
+        appState.openNotificationPreferences()
+      }
+      .buttonStyle(OmiButtonStyle(.primary, size: .compact))
+      .accessibilityIdentifier("notification-banner-recovery-action")
+    }
   }
 
   // Content for DENIED state - shows settings instructions
@@ -1134,6 +1229,126 @@ struct NotificationPermissionSection: View {
       }
       .buttonStyle(.plain)
     }
+  }
+}
+
+// MARK: - Accessibility Permission Section
+
+struct AccessibilityPermissionSection: View {
+  @ObservedObject var appState: AppState
+  @State private var isExpanded = true
+
+  private var recoveryMode: AccessibilityPermissionRecoveryMode {
+    AccessibilityPermissionRecoveryMode(
+      hasPermission: appState.hasAccessibilityPermission,
+      isBroken: appState.isAccessibilityBroken)
+  }
+
+  private var statusPresentation: (icon: String, text: String, color: Color) {
+    switch recoveryMode {
+    case .granted:
+      return ("checkmark.circle.fill", "Granted", .green)
+    case .missing:
+      return ("exclamationmark.circle.fill", "Not Granted", OmiColors.warning)
+    case .broken:
+      return ("xmark.circle.fill", "Needs Reset", .red)
+    }
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 0) {
+      Button(action: { OmiMotion.withGated { isExpanded.toggle() } }) {
+        HStack(spacing: OmiSpacing.lg) {
+          ZStack {
+            Circle()
+              .fill(statusPresentation.color.opacity(0.15))
+              .frame(width: 48, height: 48)
+
+            Image(systemName: "accessibility")
+              .scaledFont(size: OmiType.heading)
+              .foregroundColor(statusPresentation.color)
+          }
+
+          VStack(alignment: .leading, spacing: OmiSpacing.xxs) {
+            HStack(spacing: OmiSpacing.sm) {
+              Text("Accessibility")
+                .scaledFont(size: OmiType.subheading, weight: .semibold)
+                .foregroundColor(OmiColors.textPrimary)
+
+              HStack(spacing: OmiSpacing.xxs) {
+                Image(systemName: statusPresentation.icon)
+                Text(statusPresentation.text)
+              }
+              .scaledFont(size: OmiType.caption, weight: .medium)
+              .foregroundColor(statusPresentation.color)
+              .padding(.horizontal, OmiSpacing.sm)
+              .padding(.vertical, OmiSpacing.xxs)
+              .background(Capsule().fill(statusPresentation.color.opacity(0.15)))
+            }
+
+            Text(
+              recoveryMode == .broken
+                ? "Permission is listed as granted, but omi cannot use it"
+                : "Required for global shortcuts and assisted interaction"
+            )
+            .scaledFont(size: OmiType.body)
+            .foregroundColor(
+              recoveryMode == .broken ? .red.opacity(0.8) : OmiColors.textTertiary)
+          }
+
+          Spacer()
+
+          Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+            .scaledFont(size: OmiType.body, weight: .medium)
+            .foregroundColor(OmiColors.textTertiary)
+        }
+        .padding(OmiSpacing.xl)
+      }
+      .buttonStyle(.plain)
+
+      if isExpanded && recoveryMode.requiresRepair {
+        VStack(alignment: .leading, spacing: OmiSpacing.lg) {
+          Divider().background(OmiColors.backgroundQuaternary)
+
+          if recoveryMode == .broken {
+            Text("Reset the stale Accessibility grant, then restart omi and grant access again.")
+              .scaledFont(size: OmiType.body, weight: .medium)
+              .foregroundColor(OmiColors.textPrimary)
+
+            Button("Reset & Restart") {
+              appState.resetAccessibilityPermissionAndRestart()
+            }
+            .buttonStyle(OmiButtonStyle(.primary, size: .compact))
+            .accessibilityIdentifier("accessibility-reset-recovery-action")
+          } else {
+            VStack(alignment: .leading, spacing: OmiSpacing.md) {
+              instructionStep(number: 1, text: "Click \"Grant Access\" below")
+              instructionStep(number: 2, text: "Enable omi in Privacy & Security > Accessibility")
+              instructionStep(number: 3, text: "Return to omi; the status refreshes automatically")
+            }
+
+            Button("Grant Access") {
+              appState.triggerAccessibilityPermission()
+            }
+            .buttonStyle(OmiButtonStyle(.primary, size: .compact))
+            .accessibilityIdentifier("accessibility-grant-recovery-action")
+          }
+        }
+        .padding(.horizontal, OmiSpacing.xl)
+        .padding(.bottom, OmiSpacing.xl)
+      }
+    }
+    .background(
+      RoundedRectangle(cornerRadius: OmiChrome.controlRadius)
+        .fill(
+          recoveryMode == .granted
+            ? OmiColors.backgroundSecondary.opacity(0.5) : statusPresentation.color.opacity(0.05)
+        )
+        .overlay(
+          RoundedRectangle(cornerRadius: OmiChrome.controlRadius)
+            .stroke(statusPresentation.color.opacity(0.5), lineWidth: recoveryMode.requiresRepair ? 2 : 1)
+        )
+    )
   }
 }
 

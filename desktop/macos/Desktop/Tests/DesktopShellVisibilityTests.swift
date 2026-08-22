@@ -39,4 +39,39 @@ final class DesktopShellVisibilityTests: XCTestCase {
       .permissions,
       "the recovery page must retain a top-bar exit after permissions become healthy")
   }
+
+  func testPermissionRecoveryMountsEveryConditionThatCanRaiseTheWarningButton() {
+    XCTAssertEqual(
+      PermissionRecoverySection.allCases,
+      [.microphone, .screenRecording, .systemAudio, .notifications, .accessibility])
+
+    XCTAssertEqual(
+      NotificationPermissionRecoveryMode(
+        hasPermission: true,
+        bannersDisabled: true,
+        isDenied: false),
+      .bannersDisabled)
+    XCTAssertTrue(
+      NotificationPermissionRecoveryMode(
+        hasPermission: true,
+        bannersDisabled: true,
+        isDenied: false
+      ).requiresRepair)
+
+    XCTAssertEqual(
+      AccessibilityPermissionRecoveryMode(
+        hasPermission: false,
+        isBroken: false),
+      .missing)
+    XCTAssertEqual(
+      AccessibilityPermissionRecoveryMode(
+        hasPermission: true,
+        isBroken: true),
+      .broken)
+    XCTAssertTrue(
+      AccessibilityPermissionRecoveryMode(
+        hasPermission: true,
+        isBroken: true
+      ).requiresRepair)
+  }
 }
