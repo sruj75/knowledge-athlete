@@ -65,9 +65,7 @@ RESILIENCE_GENERIC_CHAT_PATTERNS = {
     "requestAlreadyActive",
     "response_already_running",
 }
-EXACT_VOICE_AGENT_MEMORY_REQUEST = (
-    "Have an agent look through my memories today and surface one surprising insight."
-)
+EXACT_VOICE_AGENT_MEMORY_REQUEST = "Have an agent look through my memories today and surface one surprising insight."
 EXACT_VOICE_AGENT_MEMORY_FOLLOWUP = (
     "Continue in this same agent session. Call get_memories again for today, then "
     "return one additional surprising insight. Do not spawn another agent."
@@ -459,19 +457,23 @@ def _new_trace_lines(cursor: TraceCursor, trace_log: Path = TRACE_LOG) -> list[T
         lines: list[TraceLogLine] = []
         if backup is not None and backup[1] == cursor_identity:
             backup_offset = cursor.offset if _trace_cursor_prefix_matches(backup, cursor) else 0
-            lines.extend(_read_trace_file_lines(
-                backup,
-                offset=backup_offset,
-                first_line_number=cursor.line_count + 1 if backup_offset else 1,
-                source=backup_log.name,
-            ))
+            lines.extend(
+                _read_trace_file_lines(
+                    backup,
+                    offset=backup_offset,
+                    first_line_number=cursor.line_count + 1 if backup_offset else 1,
+                    source=backup_log.name,
+                )
+            )
         if active is not None:
-            lines.extend(_read_trace_file_lines(
-                active,
-                offset=0,
-                first_line_number=1,
-                source=trace_log.name,
-            ))
+            lines.extend(
+                _read_trace_file_lines(
+                    active,
+                    offset=0,
+                    first_line_number=1,
+                    source=trace_log.name,
+                )
+            )
         return lines
     finally:
         if active is not None:
@@ -570,9 +572,7 @@ def embedded_coordinator_payload(
         try:
             payload = json.loads(raw)
         except json.JSONDecodeError as exc:
-            raise ValueError(
-                f"{detail_key} contains malformed coordinator JSON: {exc.msg}"
-            ) from exc
+            raise ValueError(f"{detail_key} contains malformed coordinator JSON: {exc.msg}") from exc
     else:
         raise ValueError(f"automation action omitted {detail_key}")
     if not isinstance(payload, dict):
@@ -757,9 +757,7 @@ def run_terminal_event_count(payload: dict[str, Any], run_id: str, status: str) 
     return sum(
         1
         for event in payload.get("events", [])
-        if isinstance(event, dict)
-        and event.get("runId") == run_id
-        and event.get("type") == f"run.{status}"
+        if isinstance(event, dict) and event.get("runId") == run_id and event.get("type") == f"run.{status}"
     )
 
 
@@ -908,9 +906,7 @@ def current_turn_snapshot_text(snapshot_detail: dict[str, str], query_text: str)
     return json.dumps(messages[start_index:], sort_keys=True)
 
 
-def terminal_assistant_for_exact_turn(
-    snapshot_detail: dict[str, str], query_text: str
-) -> dict[str, Any] | None:
+def terminal_assistant_for_exact_turn(snapshot_detail: dict[str, str], query_text: str) -> dict[str, Any] | None:
     """Return only this query's terminal assistant, never a neighboring turn's."""
     try:
         messages = json.loads(snapshot_detail.get("messages_json", "[]"))
@@ -995,8 +991,7 @@ def exact_voice_agent_turn_signature(
             producing_assistants.append((index, message, candidate_blocks))
     if len(producing_assistants) != 1:
         raise ValueError(
-            "expected one producing assistant for the accepted child, "
-            f"found {len(producing_assistants)}"
+            "expected one producing assistant for the accepted child, " f"found {len(producing_assistants)}"
         )
     assistant_index, assistant, blocks = producing_assistants[0]
     adjacent_users = [
@@ -1004,13 +999,10 @@ def exact_voice_agent_turn_signature(
         for message in messages[max(0, assistant_index - 1) : assistant_index]
         if isinstance(message, dict)
         and message.get("role") == "user"
-        and str(message.get("raw_text") or message.get("text") or "").strip()
-        == EXACT_VOICE_AGENT_MEMORY_REQUEST
+        and str(message.get("raw_text") or message.get("text") or "").strip() == EXACT_VOICE_AGENT_MEMORY_REQUEST
     ]
     if len(adjacent_users) != 1:
-        raise ValueError(
-            "accepted child producing assistant does not have exactly one adjacent exact voice user turn"
-        )
+        raise ValueError("accepted child producing assistant does not have exactly one adjacent exact voice user turn")
     assistant_raw_text = str(assistant.get("raw_text") or assistant.get("text") or "").strip()
     if not assistant_raw_text:
         raise ValueError("producing assistant omitted its canonical spawn acknowledgement")
@@ -1032,13 +1024,9 @@ def exact_voice_agent_turn_signature(
     if not isinstance(blocks, list) or not isinstance(resources, list):
         raise ValueError("producing turn blocks/resources are not arrays")
     spawns = [block for block in blocks if isinstance(block, dict) and block.get("type") == "agentSpawn"]
-    completions = [
-        block for block in blocks if isinstance(block, dict) and block.get("type") == "agentCompletion"
-    ]
+    completions = [block for block in blocks if isinstance(block, dict) and block.get("type") == "agentCompletion"]
     matching_spawns = [
-        block
-        for block in spawns
-        if block.get("sessionId") == child_session_id and block.get("runId") == child_run_id
+        block for block in spawns if block.get("sessionId") == child_session_id and block.get("runId") == child_run_id
     ]
     matching_completions = [
         block
@@ -1089,9 +1077,7 @@ def exact_voice_agent_turn_signature(
         "sessionId": spawn.get("sessionId"),
         "runId": spawn.get("runId"),
         "resourceIds": sorted(
-            str(resource.get("id"))
-            for resource in resources
-            if isinstance(resource, dict) and resource.get("id")
+            str(resource.get("id")) for resource in resources if isinstance(resource, dict) and resource.get("id")
         ),
     }
 
@@ -1271,11 +1257,7 @@ class GauntletRunner:
             [
                 json.dumps(send, sort_keys=True, default=str),
                 current_turn_snapshot_text(snapshot, query),
-                "\n".join(
-                    str(value)
-                    for key, value in snapshot.items()
-                    if "error" in key.lower() and value
-                ),
+                "\n".join(str(value) for key, value in snapshot.items() if "error" in key.lower() and value),
                 assistant,
                 "\n".join(flatten_trace_text(trace) for trace in trace_matches),
             ]
@@ -1318,15 +1300,12 @@ class GauntletRunner:
     def ensure_bridge(self) -> None:
         health = bridge_request(self.port, "GET", "/health")
         if not health.get("ok"):
-            raise SystemExit(
-                f"automation bridge unavailable on port {self.port}: {health.get('error', health)}"
-            )
+            raise SystemExit(f"automation bridge unavailable on port {self.port}: {health.get('error', health)}")
         state = bridge_state(self.port)
         classification, detail = classify_restarted_bundle_state(state, self.bundle_id, self.port)
         if classification != "ready":
             raise SystemExit(
-                f"automation bridge on port {self.port} does not match ready bundle "
-                f"{self.bundle_id}: {detail}"
+                f"automation bridge on port {self.port} does not match ready bundle " f"{self.bundle_id}: {detail}"
             )
 
     def navigate_chat(self) -> None:
@@ -1368,7 +1347,7 @@ class GauntletRunner:
         capture_log_excerpt(self.log_path, self.log_offset, step_dir / "app-log-excerpt.txt")
         self.log_offset = self.log_path.stat().st_size if self.log_path.exists() else self.log_offset
 
-        runtime = self.bridge_act( "agent_runtime_evidence")
+        runtime = self.bridge_act("agent_runtime_evidence")
         runtime_detail = runtime.get("result", {}).get("detail", runtime)
         write_json(step_dir / "runtime-sqlite.json", runtime_detail)
 
@@ -1383,8 +1362,7 @@ class GauntletRunner:
                 self.baseline_identity = identity
             elif identity != self.baseline_identity:
                 self.fail(
-                    f"{name}: conversation identity drifted "
-                    f"(baseline={self.baseline_identity}, current={identity})"
+                    f"{name}: conversation identity drifted " f"(baseline={self.baseline_identity}, current={identity})"
                 )
 
         record = {
@@ -1438,7 +1416,9 @@ class GauntletRunner:
             {"cleared": True, "detail": detail},
         )
 
-    def ask_floating_and_wait(self, query: str, timeout_ms: int) -> tuple[dict[str, Any], dict[str, str], list[dict[str, Any]]]:
+    def ask_floating_and_wait(
+        self, query: str, timeout_ms: int
+    ) -> tuple[dict[str, Any], dict[str, str], list[dict[str, Any]]]:
         trace_start = capture_trace_cursor()
         send = self.bridge_act("ask", {"query": query})
         if send.get("ok") is False:
@@ -1554,9 +1534,7 @@ class GauntletRunner:
                 if payload.get("missingRequestedRunIds"):
                     raise ValueError(f"requested run missing: {payload['missingRequestedRunIds']}")
                 matching = [
-                    entry
-                    for entry in payload["entries"]
-                    if isinstance(entry, dict) and entry.get("runId") == run_id
+                    entry for entry in payload["entries"] if isinstance(entry, dict) and entry.get("runId") == run_id
                 ]
                 if len(matching) != 1:
                     raise ValueError(f"expected one lifecycle entry for run, found {len(matching)}")
@@ -1591,9 +1569,7 @@ class GauntletRunner:
         if not before_pid or not isinstance(before_result, dict):
             self.fail("cannot prove named-bundle restart without the original listener/state")
             return False
-        before_classification, before_detail = classify_restarted_bundle_state(
-            before_state, self.bundle_id, self.port
-        )
+        before_classification, before_detail = classify_restarted_bundle_state(before_state, self.bundle_id, self.port)
         if before_classification != "ready":
             self.fail(f"cannot prove named-bundle restart from the expected ready bundle: {before_detail}")
             return False
@@ -1613,9 +1589,7 @@ class GauntletRunner:
                 saw_replacement = True
                 state = bridge_state(self.port)
                 last_restart_state = state
-                classification, last_restart_detail = classify_restarted_bundle_state(
-                    state, self.bundle_id, self.port
-                )
+                classification, last_restart_detail = classify_restarted_bundle_state(state, self.bundle_id, self.port)
                 if classification == "fail":
                     self.fail(last_restart_detail)
                     return False
@@ -1636,10 +1610,7 @@ class GauntletRunner:
                     "state": last_restart_state,
                 },
             )
-            self.fail(
-                "quit-and-reopen replacement did not finish auth/onboarding restore "
-                f"({last_restart_detail})"
-            )
+            self.fail("quit-and-reopen replacement did not finish auth/onboarding restore " f"({last_restart_detail})")
             return False
         self.fail(
             "named bundle did not replace its automation listener after quit-and-reopen "
@@ -1699,12 +1670,9 @@ class GauntletRunner:
                 )
                 break
             latest_children = new_leaf_session_summaries(snapshot, baseline_session_ids)
-            latest_parent_ids = sorted(
-                set(exact_external_parent_run_ids(snapshot)) - baseline_run_ids
-            )
+            latest_parent_ids = sorted(set(exact_external_parent_run_ids(snapshot)) - baseline_run_ids)
             child_ids = sorted(
-                str(awareness_session_parts(summary)[0].get("sessionId") or "")
-                for summary in latest_children
+                str(awareness_session_parts(summary)[0].get("sessionId") or "") for summary in latest_children
             )
             signature = (tuple(child_ids), tuple(latest_parent_ids))
             stable_polls = stable_polls + 1 if signature == stable_signature else 1
@@ -1725,10 +1693,7 @@ class GauntletRunner:
             )
 
             if len(latest_children) > 1:
-                self.fail(
-                    "exact voice spawn created more than one new leaf session "
-                    f"({child_ids})"
-                )
+                self.fail("exact voice spawn created more than one new leaf session " f"({child_ids})")
                 break
             if len(latest_children) == 1 and latest_parent_ids and stable_polls >= 4:
                 break
@@ -1849,18 +1814,13 @@ class GauntletRunner:
             contract_errors = tool_invocation_contract_errors(payload, run_id)
             if contract_errors:
                 self.fail(f"{label}: invalid bounded tool ledger: {contract_errors}")
-            attempts = [
-                attempt
-                for attempt in payload.get("attempts", [])
-                if isinstance(attempt, dict)
-            ]
+            attempts = [attempt for attempt in payload.get("attempts", []) if isinstance(attempt, dict)]
             if not attempts or attempts[-1].get("status") != "succeeded":
                 self.fail(f"{label}: latest attempt is not terminal succeeded")
             pending = [
                 invocation
                 for invocation in invocations
-                if isinstance(invocation, dict)
-                and invocation.get("status") in {"prepared", "dispatched"}
+                if isinstance(invocation, dict) and invocation.get("status") in {"prepared", "dispatched"}
             ]
             if pending:
                 self.fail(f"{label}: terminal run retained pending tool invocations")
@@ -1875,14 +1835,11 @@ class GauntletRunner:
                 or not isinstance(invocation.get("completedAtMs"), int)
             ]
             if rejected:
-                self.fail(
-                    f"{label}: {required_tool} did not complete successfully: {rejected}"
-                )
+                self.fail(f"{label}: {required_tool} did not complete successfully: {rejected}")
             completion_count = run_terminal_event_count(payload, run_id, "succeeded")
             if completion_count != 1:
                 self.fail(
-                    f"{label}: expected one canonical run.succeeded completion event, "
-                    f"found {completion_count}"
+                    f"{label}: expected one canonical run.succeeded completion event, " f"found {completion_count}"
                 )
             break
         else:
@@ -1929,10 +1886,7 @@ class GauntletRunner:
                     return None
                 contract_errors = tool_invocation_contract_errors(payload, run_id)
                 if contract_errors:
-                    self.fail(
-                        f"exact voice parent {run_id} has invalid bounded tool ledger: "
-                        f"{contract_errors}"
-                    )
+                    self.fail(f"exact voice parent {run_id} has invalid bounded tool ledger: " f"{contract_errors}")
                     return None
                 for invocation in tool_invocations_named(payload, "spawn_agent"):
                     spawn_rows.append((run_id, payload, invocation))
@@ -1986,22 +1940,17 @@ class GauntletRunner:
 
         run_id, payload, invocation = selected
         if invocation.get("errorCode") not in {None, ""}:
-            self.fail(
-                f"exact voice spawn invocation retained errorCode={invocation.get('errorCode')!r}"
-            )
+            self.fail(f"exact voice spawn invocation retained errorCode={invocation.get('errorCode')!r}")
         if not isinstance(invocation.get("completedAtMs"), int):
             self.fail("exact voice spawn invocation omitted completedAtMs")
         completion_count = run_terminal_event_count(payload, run_id, "succeeded")
         if completion_count != 1:
-            self.fail(
-                "exact voice parent expected one canonical run.succeeded event, "
-                f"found {completion_count}"
-            )
+            self.fail("exact voice parent expected one canonical run.succeeded event, " f"found {completion_count}")
         return selected
 
     def send_and_wait(self, query: str, timeout_ms: int) -> tuple[dict[str, Any], dict[str, str], list[dict[str, Any]]]:
         trace_start = capture_trace_cursor()
-        send = self.bridge_act( "ask_main_chat", {"query": query})
+        send = self.bridge_act("ask_main_chat", {"query": query})
         if send.get("ok") is False:
             raise SystemExit(f"ask_main_chat failed: {send.get('error', send)}")
         detail = send.get("result", {}).get("detail", {})
@@ -2024,12 +1973,9 @@ class GauntletRunner:
                     break
             time.sleep(0.25)
         else:
-            self.fail(
-                "timed out waiting for query-specific terminal assistant row after query: "
-                f"{query[:120]}"
-            )
+            self.fail("timed out waiting for query-specific terminal assistant row after query: " f"{query[:120]}")
 
-        snapshot = self.bridge_act( "main_chat_snapshot", {"limit": "80"})
+        snapshot = self.bridge_act("main_chat_snapshot", {"limit": "80"})
         snapshot_detail = snapshot.get("result", {}).get("detail", snapshot_detail)
         traces = read_new_traces(trace_start)
         return send, snapshot_detail, traces
@@ -2065,8 +2011,7 @@ class GauntletRunner:
             time.sleep(0.25)
         else:
             self.fail(
-                "timed out waiting for resilience query-specific terminal assistant row after query: "
-                f"{query[:120]}"
+                "timed out waiting for resilience query-specific terminal assistant row after query: " f"{query[:120]}"
             )
 
         snapshot = self.bridge_act("main_chat_snapshot", {"limit": "80"})
@@ -2122,8 +2067,7 @@ class GauntletRunner:
             "ptt_marker_in_assistant": ptt_marker in assistant_text,
             "ptt_marker_in_trace_excl_probe": ptt_marker in trace_text,
             "conversation_history_in_trace": (
-                "<conversation_history>" in trace_text
-                or "# Recent turns from other surfaces" in trace_text
+                "<conversation_history>" in trace_text or "# Recent turns from other surfaces" in trace_text
             ),
         }
         if not checks["ptt_marker_in_assistant"]:
@@ -2188,7 +2132,14 @@ class GauntletRunner:
             "Reply with one short sentence acknowledging the marker."
         )
         send, snapshot, traces = self.send_and_wait(typed_query, self.args.turn_timeout_ms)
-        self.record_step("01-typed-turn", "typed turn", user_text=typed_query, action_response=send, snapshot_detail=snapshot, traces=traces)
+        self.record_step(
+            "01-typed-turn",
+            "typed turn",
+            user_text=typed_query,
+            action_response=send,
+            snapshot_detail=snapshot,
+            traces=traces,
+        )
         self.assert_assistant_mentions(
             current_turn_assistant_text(snapshot, typed_query),
             [self.markers["typed"]],
@@ -2362,21 +2313,11 @@ class GauntletRunner:
             ptt_detail = {}
         write_json(step_dir / "ptt-diagnostics.json", ptt_detail)
         if ptt.get("ok") is False or ptt_detail.get("error"):
-            self.fail(
-                "exact voice PTT provider path failed: "
-                f"{ptt_detail.get('error', ptt.get('error', ptt))}"
-            )
+            self.fail("exact voice PTT provider path failed: " f"{ptt_detail.get('error', ptt.get('error', ptt))}")
             return
-        saved_user_text = str(
-            ptt_detail.get("saved_user_text")
-            or ptt_detail.get("provider_transcript")
-            or ""
-        ).strip()
+        saved_user_text = str(ptt_detail.get("saved_user_text") or ptt_detail.get("provider_transcript") or "").strip()
         if saved_user_text != EXACT_VOICE_AGENT_MEMORY_REQUEST:
-            self.fail(
-                "exact voice PTT did not persist the exact acceptance request "
-                f"(saved={saved_user_text!r})"
-            )
+            self.fail("exact voice PTT did not persist the exact acceptance request " f"(saved={saved_user_text!r})")
         if not str(ptt_detail.get("provider") or "").strip():
             self.fail("exact voice PTT diagnostics omitted the realtime provider")
         if not str(ptt_detail.get("assistant_reply") or "").strip():
@@ -2429,9 +2370,7 @@ class GauntletRunner:
         continuation_detail = continuation.get("result", {}).get("detail", {})
         if not isinstance(continuation_detail, dict):
             continuation_detail = {}
-        continuation_error = str(
-            continuation_detail.get("error") or continuation.get("error") or ""
-        ).strip()
+        continuation_error = str(continuation_detail.get("error") or continuation.get("error") or "").strip()
         continuation_session_id = str(continuation_detail.get("session_id") or "")
         continuation_run_id = str(continuation_detail.get("run_id") or "")
         if continuation.get("ok") is False or continuation_error:
@@ -2482,10 +2421,7 @@ class GauntletRunner:
                 expected_assistant_text=str(ptt_detail.get("assistant_reply") or "").strip(),
                 timeout_sec=60,
             )
-            if (
-                producing_after_restart is not None
-                and producing_after_restart[1] != producing_before_restart[1]
-            ):
+            if producing_after_restart is not None and producing_after_restart[1] != producing_before_restart[1]:
                 self.fail(
                     "exact voice producing turn identity/blocks/resources changed across restart "
                     f"(before={producing_before_restart[1]}, after={producing_after_restart[1]})"
@@ -2502,8 +2438,7 @@ class GauntletRunner:
                 baseline_session_ids,
             )
             final_leaf_ids = {
-                str(awareness_session_parts(summary)[0].get("sessionId") or "")
-                for summary in final_leaf_summaries
+                str(awareness_session_parts(summary)[0].get("sessionId") or "") for summary in final_leaf_summaries
             }
             if final_leaf_ids != {child_session_id}:
                 self.fail(
@@ -2515,10 +2450,7 @@ class GauntletRunner:
         write_json(step_dir / "query-traces.json", traces)
         write_json(step_dir / "malformed-query-trace-jsonl.json", malformed_traces)
         if malformed_traces:
-            self.fail(
-                "exact voice flow emitted malformed QueryTracer JSONL rows "
-                f"({len(malformed_traces)})"
-            )
+            self.fail("exact voice flow emitted malformed QueryTracer JSONL rows " f"({len(malformed_traces)})")
 
         log_text = ""
         if self.log_path.exists():
@@ -2576,9 +2508,7 @@ class GauntletRunner:
 
         parent_run_id = parent_authority[0] if parent_authority is not None else ""
         parent_invocation_id = (
-            str(parent_authority[2].get("invocationId") or "")
-            if parent_authority is not None
-            else ""
+            str(parent_authority[2].get("invocationId") or "") if parent_authority is not None else ""
         )
         summary = {
             "ownerId": baseline_owner_id,
@@ -2606,9 +2536,7 @@ class GauntletRunner:
             "producingTurnBeforeRestart": (
                 producing_before_restart[1] if producing_before_restart is not None else None
             ),
-            "producingTurnAfterRestart": (
-                producing_after_restart[1] if producing_after_restart is not None else None
-            ),
+            "producingTurnAfterRestart": (producing_after_restart[1] if producing_after_restart is not None else None),
             "producingTurnSurvivedRestart": (
                 producing_before_restart is not None
                 and producing_after_restart is not None
@@ -2663,7 +2591,7 @@ class GauntletRunner:
             if spawn_tools:
                 break
             time.sleep(0.25)
-        coordinator = self.bridge_act( "coordinator_awareness_snapshot")
+        coordinator = self.bridge_act("coordinator_awareness_snapshot")
         self.record_step(
             "04-spawn-agent",
             "background agent spawn",
@@ -2691,8 +2619,7 @@ class GauntletRunner:
             if failed_spawns:
                 failed_tool, failure = failed_spawns[0]
                 self.fail(
-                    f"spawn_agent execution reported failure: {failure}; "
-                    f"output={failed_tool.get('output')!r}"
+                    f"spawn_agent execution reported failure: {failure}; " f"output={failed_tool.get('output')!r}"
                 )
 
         # Step 5 — status query about spawned agent
@@ -2769,9 +2696,7 @@ class GauntletRunner:
             traces=casual_traces,
         )
 
-        spawn_send, spawn_snapshot, spawn_traces = self.ask_floating_and_wait(
-            spawn_query, self.args.turn_timeout_ms
-        )
+        spawn_send, spawn_snapshot, spawn_traces = self.ask_floating_and_wait(spawn_query, self.args.turn_timeout_ms)
         kernel_tail = self.kernel_turn_tail_blob(limit=12)
         self.record_step(
             "07b-floating-spawn",
@@ -2824,8 +2749,7 @@ class GauntletRunner:
             saved_user = ptt_detail.get("saved_user_text") or ptt_detail.get("provider_transcript") or ""
             if recency_probe.strip() not in str(saved_user):
                 self.warn(
-                    f"spawn-recall PTT attempt {attempt + 1}: saved transcript mismatch "
-                    f"({str(saved_user)[:120]!r})"
+                    f"spawn-recall PTT attempt {attempt + 1}: saved transcript mismatch " f"({str(saved_user)[:120]!r})"
                 )
             if ptt_assistant and "didn't catch" not in ptt_assistant.lower():
                 break
@@ -2847,8 +2771,7 @@ class GauntletRunner:
             and spawn_title.lower() not in ptt_evidence.lower()
         ):
             self.fail(
-                "spawn-recall PTT probe did not reference floating spawn handoff "
-                f"(reply={ptt_assistant[:160]!r})"
+                "spawn-recall PTT probe did not reference floating spawn handoff " f"(reply={ptt_assistant[:160]!r})"
             )
         self.record_step(
             "07c-spawn-recall-ptt",
@@ -2876,8 +2799,7 @@ class GauntletRunner:
             and spawn_title.lower() not in typed_evidence.lower()
         ):
             self.fail(
-                "spawn-recall typed probe did not reference floating spawn handoff "
-                f"(reply={assistant[:160]!r})"
+                "spawn-recall typed probe did not reference floating spawn handoff " f"(reply={assistant[:160]!r})"
             )
         self.record_step(
             "07d-spawn-recall-typed",
@@ -2912,8 +2834,7 @@ class GauntletRunner:
         owner_a_identity = dict(self.baseline_identity)
         owner_b_id = f"gauntlet-owner-b-{self.run_id}"
         probe_query = (
-            "Reply with the single word PROBE only. "
-            "Do not reference any prior GAUNTLET continuity markers."
+            "Reply with the single word PROBE only. " "Do not reference any prior GAUNTLET continuity markers."
         )
         trace_start = capture_trace_cursor()
         swap = self.bridge_act(
@@ -2945,10 +2866,7 @@ class GauntletRunner:
                 "this clears Firebase tokens via getIdToken mismatch"
             )
         if swapped_override != owner_b_id:
-            self.fail(
-                "owner-switch: owner_override mismatch "
-                f"(expected={owner_b_id}, actual={swapped_override})"
-            )
+            self.fail("owner-switch: owner_override mismatch " f"(expected={owner_b_id}, actual={swapped_override})")
 
         deadline = time.monotonic() + (self.args.turn_timeout_ms / 1000.0)
         snapshot_detail: dict[str, str] = swap_detail
@@ -2992,8 +2910,7 @@ class GauntletRunner:
             "owner_b_id_matches": owner_b_identity.get("owner_id") == owner_b_id,
             "conversation_id_disjoint": (
                 bool(owner_a_kernel and owner_b_kernel)
-                and owner_a_kernel.get("conversation_id")
-                != owner_b_kernel.get("conversation_id")
+                and owner_a_kernel.get("conversation_id") != owner_b_kernel.get("conversation_id")
             ),
             "trace_count": len(traces),
         }
@@ -3011,8 +2928,7 @@ class GauntletRunner:
             self.fail("owner-switch: could not read kernel surface_conversations for both owners")
         elif owner_a_kernel.get("conversation_id") == owner_b_kernel.get("conversation_id"):
             self.fail(
-                "owner-switch: owner B reused owner A conversation_id "
-                f"({owner_a_kernel.get('conversation_id')})"
+                "owner-switch: owner B reused owner A conversation_id " f"({owner_a_kernel.get('conversation_id')})"
             )
 
         self.record_step(
@@ -3133,70 +3049,61 @@ class GauntletRunner:
         if len(assistant) > 450:
             self.warn(f"P3 register: unknown-person reply too long ({len(assistant)} chars)")
 
-        # P4 — public web: this is deliberately a live contract probe. The
-        # Anthropic server-side tool is invisible to the desktop query trace,
-        # so require the terminal product outcome (a source URL) and fail on
-        # the provider's direct-tool-choice error. This catches a deployed
-        # gateway that has an incompatible web_search payload even when the
-        # local Rust translation unit test is green.
+        # P4 — current facts without public web: typed Chat must not invent a
+        # browsing/tool lifecycle or citation after the capability is removed.
         p4_query = (
-            "Search the public web for the current National Weather Service forecast page "
-            "for New York City. Use public web search before answering, then reply with "
-            "exactly one full https source URL."
+            "What is the current National Weather Service forecast for New York City? "
+            "Answer honestly and briefly; do not use my private history."
         )
         send, snapshot, traces = self.send_and_wait(
             p4_query,
             min(self.args.turn_timeout_ms, 90_000),
         )
         assistant = current_turn_assistant_text(snapshot, p4_query)
-        p4_evidence = "\n".join(
-            (
+        trace_evidence = "\n".join(flatten_trace_text(trace) for trace in traces_for_query(traces, p4_query)).lower()
+        synthetic_web_markers = (
+            "gateway-public-web",
+            '"name":"web_search"',
+            '"tool_name":"web_search"',
+            "<omi_retrieval_policy>",
+        )
+        browsing_claim = (
+            re.search(
+                r"\b(?:i|we)\s+(?:searched|browsed|looked up|verified)\s+(?:the\s+)?(?:web|internet|online)",
                 assistant,
-                current_turn_snapshot_text(snapshot, p4_query),
-                json.dumps(send, sort_keys=True, default=str),
-                "\n".join(flatten_trace_text(trace) for trace in traces_for_query(traces, p4_query)),
+                flags=re.IGNORECASE,
             )
-        ).lower()
-        provider_errors = (
-            "tool_choice.name",
-            "invalid_request_error",
-            "this tool only allows calls from",
-            "required public web search is unavailable",
+            is not None
         )
         has_source_url = re.search(r"https://[^\s)]+", assistant, flags=re.IGNORECASE) is not None
         self.record_step(
-            "p4-public-web",
-            "prompt probe: public-web lookup completes with source evidence",
+            "p4-no-public-web",
+            "prompt probe: current-fact answer has no synthetic web activity or citation claim",
             user_text=p4_query,
             action_response=send,
             snapshot_detail=snapshot,
             traces=traces,
             extra={
-                "provider_error_markers": [
-                    marker for marker in provider_errors if marker in p4_evidence
-                ],
+                "synthetic_web_markers": [marker for marker in synthetic_web_markers if marker in trace_evidence],
+                "browsing_claim": browsing_claim,
                 "has_source_url": has_source_url,
             },
         )
-        matched_errors = [marker for marker in provider_errors if marker in p4_evidence]
-        if matched_errors:
-            self.fail(
-                "P4 public web: gateway rejected the server-side lookup contract "
-                f"({matched_errors})"
-            )
+        matched_markers = [marker for marker in synthetic_web_markers if marker in trace_evidence]
+        if matched_markers:
+            self.fail("P4 current facts: synthetic public-web activity reappeared " f"({matched_markers})")
         elif not assistant:
-            self.fail("P4 public web: lookup produced no terminal assistant response")
-        elif not has_source_url:
+            self.fail("P4 current facts: prompt produced no terminal assistant response")
+        elif browsing_claim or has_source_url:
             self.fail(
-                "P4 public web: lookup completed without the requested https source URL "
+                "P4 current facts: assistant claimed browsing or emitted a source URL "
                 f"(assistant={assistant[:160]!r})"
             )
 
     def run_resilience_r3_race_policy(self) -> None:
         """Probe concurrent main-chat send rejection via no-wait + busy-state actions."""
         long_query = (
-            f"Resilience race hold {self.run_id}. "
-            "Take about twenty seconds to reply with exactly: RACE_HOLD_DONE"
+            f"Resilience race hold {self.run_id}. " "Take about twenty seconds to reply with exactly: RACE_HOLD_DONE"
         )
         race_query = f"Resilience race probe {self.run_id}. Reply with exactly: RACE_PROBE_REJECTED"
         # Deterministic busy window (bridge latch) so R3 does not depend on LLM latency.
@@ -3245,14 +3152,9 @@ class GauntletRunner:
                         "generic_chat_error",
                         {"phase": "busy_poll", "busy_detail": busy_detail, "busy": busy},
                     )
-                    self.fail(
-                        f"R3 race policy: main_chat_busy_state failed: {busy_detail.get('error', busy)}"
-                    )
+                    self.fail(f"R3 race policy: main_chat_busy_state failed: {busy_detail.get('error', busy)}")
                     return
-                if (
-                    busy_detail.get("is_sending") == "true"
-                    or busy_detail.get("is_streaming") == "true"
-                ):
+                if busy_detail.get("is_sending") == "true" or busy_detail.get("is_streaming") == "true":
                     provider_busy_seen = True
                 if busy_detail.get("busy") == "true":
                     busy_seen = True
@@ -3297,9 +3199,7 @@ class GauntletRunner:
             # Latch may keep busy=true after provider idle; that is OK for the race
             # window only after provider_busy_seen above.
             pre_race = self.bridge_act("main_chat_busy_state")
-            pre_race_detail = (
-                pre_race.get("result", {}).get("detail", {}) if isinstance(pre_race, dict) else {}
-            )
+            pre_race_detail = pre_race.get("result", {}).get("detail", {}) if isinstance(pre_race, dict) else {}
             if pre_race.get("ok") is False or pre_race_detail.get("error"):
                 self.record_resilience_diagnostic(
                     "R3-already-running-race-policy",
@@ -3341,9 +3241,7 @@ class GauntletRunner:
                     "generic_chat_error",
                     {"phase": "race", "race_detail": race_detail, "race": race},
                 )
-                self.fail(
-                    f"R3 race policy: concurrent no-wait send errored: {race_detail.get('error', race)}"
-                )
+                self.fail(f"R3 race policy: concurrent no-wait send errored: {race_detail.get('error', race)}")
                 return
 
             rejected = (
@@ -3394,9 +3292,7 @@ class GauntletRunner:
             )
             wait_detail = wait.get("result", {}).get("detail", {}) if isinstance(wait, dict) else {}
             drain_ok = (
-                wait.get("ok") is not False
-                and not wait_detail.get("error")
-                and wait_detail.get("idle") == "true"
+                wait.get("ok") is not False and not wait_detail.get("error") and wait_detail.get("idle") == "true"
             )
             if not drain_ok:
                 self.record_resilience_diagnostic(
@@ -3411,8 +3307,7 @@ class GauntletRunner:
                     },
                 )
                 self.fail(
-                    "R3 race policy: wait_main_chat_idle did not reach idle before R4 "
-                    f"(wait_detail={wait_detail})"
+                    "R3 race policy: wait_main_chat_idle did not reach idle before R4 " f"(wait_detail={wait_detail})"
                 )
                 terminal_reason = "generic_chat_error"
             self.record_step(
@@ -3440,17 +3335,12 @@ class GauntletRunner:
         includes this suite alongside the canonical continuity, agents, owner, and
         prompt checks.
         """
-        self.manifest["resilience_forbidden_terminal_reasons"] = sorted(
-            RESILIENCE_FORBIDDEN_TERMINAL_REASONS
-        )
+        self.manifest["resilience_forbidden_terminal_reasons"] = sorted(RESILIENCE_FORBIDDEN_TERMINAL_REASONS)
 
         # R1 — cold/simple bridge launch probe. ask_main_chat goes through the
         # real agent bridge and QueryTracer; it is safe for a named non-prod bundle
         # and avoids process restarts or destructive simulation.
-        r1_query = (
-            f"Resilience startup probe {self.run_id}. "
-            "Reply with exactly: RESILIENCE_BRIDGE_READY"
-        )
+        r1_query = f"Resilience startup probe {self.run_id}. " "Reply with exactly: RESILIENCE_BRIDGE_READY"
         send, snapshot, traces = self.send_and_wait_resilience(r1_query, self.args.turn_timeout_ms)
         r1_reason = self.classify_resilience_turn(
             scenario="R1-cold-simple-bridge-launch",
@@ -3578,9 +3468,7 @@ class GauntletRunner:
             )
             self.fail("R4 subagent launch: no spawn_agent execution carrying the resilience marker")
         spawn_failures = [
-            error
-            for tool in spawn_tools
-            if (error := spawn_tool_acceptance_error(tool.get("output"))) is not None
+            error for tool in spawn_tools if (error := spawn_tool_acceptance_error(tool.get("output"))) is not None
         ]
         if spawn_failures:
             self.record_resilience_diagnostic(
@@ -3667,12 +3555,8 @@ class GauntletRunner:
         manifest = self.manifest
         manifest["finished_at"] = datetime.now(timezone.utc).isoformat()
         if "resilience" in self.suites:
-            manifest["resilience_terminal_reason_counts"] = dict(
-                sorted(self.resilience_terminal_reason_counts.items())
-            )
-            manifest["resilience_forbidden_terminal_reasons"] = sorted(
-                RESILIENCE_FORBIDDEN_TERMINAL_REASONS
-            )
+            manifest["resilience_terminal_reason_counts"] = dict(sorted(self.resilience_terminal_reason_counts.items()))
+            manifest["resilience_forbidden_terminal_reasons"] = sorted(RESILIENCE_FORBIDDEN_TERMINAL_REASONS)
         manifest["steps"] = self.steps
         manifest["failures"] = self.failures
         manifest["warnings"] = self.warnings
@@ -3716,9 +3600,7 @@ def trace_cursor_self_check_failures() -> list[str]:
     failures: list[str] = []
 
     def trace_row(trace_id: str, *, padding: str = "", query_text: str = "") -> str:
-        return json.dumps(
-            {"trace_id": trace_id, "padding": padding, "query_text": query_text}
-        ) + "\n"
+        return json.dumps({"trace_id": trace_id, "padding": padding, "query_text": query_text}) + "\n"
 
     def trace_ids(traces: list[dict[str, Any]]) -> list[str]:
         return [str(trace.get("trace_id", "")) for trace in traces]
@@ -3755,10 +3637,7 @@ def trace_cursor_self_check_failures() -> list[str]:
         rotated_traces, malformed = read_new_trace_diagnostics(cursor, active)
         rotated_ids = trace_ids(rotated_traces)
         if rotated_ids != ["before-rotate", "after-rotate"]:
-            failures.append(
-                "rotation expected ['before-rotate', 'after-rotate'], "
-                f"got {rotated_ids}"
-            )
+            failures.append("rotation expected ['before-rotate', 'after-rotate'], " f"got {rotated_ids}")
         if len(malformed) != 1 or malformed[0].get("source") != active.name:
             failures.append(f"rotation malformed diagnostics lost source identity: {malformed}")
 
@@ -3776,10 +3655,7 @@ def trace_cursor_self_check_failures() -> list[str]:
         active.write_text(trace_row("regrow-base", padding="x" * 512), encoding="utf-8")
         cursor = capture_trace_cursor(active)
         original_inode = active.stat().st_ino
-        regrown_rows = "".join(
-            trace_row(f"after-regrow-{index}", padding="y" * 256)
-            for index in range(1, 4)
-        )
+        regrown_rows = "".join(trace_row(f"after-regrow-{index}", padding="y" * 256) for index in range(1, 4))
         with active.open("r+b") as handle:
             handle.seek(0)
             handle.truncate()
@@ -3789,9 +3665,7 @@ def trace_cursor_self_check_failures() -> list[str]:
         regrown_ids = trace_ids(read_new_traces(cursor, active))
         expected_regrown_ids = ["after-regrow-1", "after-regrow-2", "after-regrow-3"]
         if regrown_ids != expected_regrown_ids:
-            failures.append(
-                f"truncate-regrow expected {expected_regrown_ids}, got {regrown_ids}"
-            )
+            failures.append(f"truncate-regrow expected {expected_regrown_ids}, got {regrown_ids}")
 
         active.write_text(trace_row("identity-base"), encoding="utf-8")
         cursor = capture_trace_cursor(active)
@@ -3800,10 +3674,7 @@ def trace_cursor_self_check_failures() -> list[str]:
         os.replace(replacement, active)
         replacement_ids = trace_ids(read_new_traces(cursor, active))
         if replacement_ids != ["after-identity-change"]:
-            failures.append(
-                "identity change expected ['after-identity-change'], "
-                f"got {replacement_ids}"
-            )
+            failures.append("identity change expected ['after-identity-change'], " f"got {replacement_ids}")
 
         active.write_text(trace_row("query-base"), encoding="utf-8")
         cursor = capture_trace_cursor(active)
@@ -3843,15 +3714,11 @@ def owner_trace_gate_self_check_failures(driver_source: str) -> list[str]:
     waits = [
         node
         for node in ast.walk(owner_suite)
-        if isinstance(node, ast.Call)
-        and isinstance(node.func, ast.Name)
-        and node.func.id == "wait_for_new_traces"
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "wait_for_new_traces"
     ]
     has_exact_query_gate = any(
         any(
-            keyword.arg == "query_text"
-            and isinstance(keyword.value, ast.Name)
-            and keyword.value.id == "probe_query"
+            keyword.arg == "query_text" and isinstance(keyword.value, ast.Name) and keyword.value.id == "probe_query"
             for keyword in call.keywords
         )
         for call in waits
@@ -3941,8 +3808,7 @@ def self_check() -> int:
     missing_exact_voice_checks = exact_voice_acceptance_self_check_failures(driver_source)
     if missing_exact_voice_checks:
         print(
-            "self-check failed: exact voice acceptance wiring missing "
-            f"{missing_exact_voice_checks}",
+            "self-check failed: exact voice acceptance wiring missing " f"{missing_exact_voice_checks}",
             file=sys.stderr,
         )
         return 1
@@ -3996,18 +3862,15 @@ def self_check() -> int:
         {"role": "user", "text": "new query", "streaming": "false"},
     ]
     stale_turn_snapshot = {"messages_json": json.dumps(stale_turn_messages)}
-    if (
-        current_turn_assistant_text(stale_turn_snapshot, "new query")
-        or current_turn_has_terminal_assistant(stale_turn_snapshot, "new query")
+    if current_turn_assistant_text(stale_turn_snapshot, "new query") or current_turn_has_terminal_assistant(
+        stale_turn_snapshot, "new query"
     ):
         print(
             "self-check failed: query-specific evidence inherited a prior assistant turn",
             file=sys.stderr,
         )
         return 1
-    stale_turn_messages.append(
-        {"role": "assistant", "text": "", "streaming": "false", "status": "failed"}
-    )
+    stale_turn_messages.append({"role": "assistant", "text": "", "streaming": "false", "status": "failed"})
     terminal_failure_snapshot = {"messages_json": json.dumps(stale_turn_messages)}
     if not current_turn_has_terminal_assistant(terminal_failure_snapshot, "new query"):
         print(
@@ -4084,14 +3947,10 @@ def spawn_acceptance_self_check_failures(driver_source: str) -> list[str]:
     )
     if spawn_tool_acceptance_error(accepted) is not None:
         failures.append("ok=true queued delegation is accepted despite nested error keys")
-    starting = json.dumps(
-        {"ok": True, "requestedAgentCount": 1, "agents": [{"run": {"status": "starting"}}]}
-    )
+    starting = json.dumps({"ok": True, "requestedAgentCount": 1, "agents": [{"run": {"status": "starting"}}]})
     if spawn_tool_acceptance_error(starting) is not None:
         failures.append("ok=true starting child is accepted as an admitted asynchronous spawn")
-    rejected = json.dumps(
-        {"ok": False, "error": {"code": "spawn_denied", "message": "denied by policy"}}
-    )
+    rejected = json.dumps({"ok": False, "error": {"code": "spawn_denied", "message": "denied by policy"}})
     if spawn_tool_acceptance_error(rejected) is None:
         failures.append("ok=false response is rejected")
     failed_child = json.dumps(
@@ -4191,11 +4050,7 @@ def exact_voice_acceptance_self_check_failures(driver_source: str) -> list[str]:
     failures: list[str] = []
     tree = ast.parse(driver_source)
     runner = next(
-        (
-            node
-            for node in tree.body
-            if isinstance(node, ast.ClassDef) and node.name == "GauntletRunner"
-        ),
+        (node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == "GauntletRunner"),
         None,
     )
     methods = {
@@ -4390,16 +4245,8 @@ def bridge_auth_self_check_failures(driver_source: str) -> list[str]:
     """Fail if bridge_request no longer sends the automation bearer token."""
     tree = ast.parse(driver_source)
     failures: list[str] = []
-    funcs = {
-        node.name: node
-        for node in tree.body
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-    }
-    classes = {
-        node.name: node
-        for node in tree.body
-        if isinstance(node, ast.ClassDef)
-    }
+    funcs = {node.name: node for node in tree.body if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))}
+    classes = {node.name: node for node in tree.body if isinstance(node, ast.ClassDef)}
     if "AutomationTokenError" not in classes:
         failures.append("AutomationTokenError class")
     token_fn = funcs.get("automation_token")
@@ -4434,21 +4281,13 @@ def resilience_driver_self_check_failures(driver_source: str) -> list[str]:
     tree = ast.parse(driver_source)
     failures: list[str] = []
     runner = next(
-        (
-            node
-            for node in tree.body
-            if isinstance(node, ast.ClassDef) and node.name == "GauntletRunner"
-        ),
+        (node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == "GauntletRunner"),
         None,
     )
     if runner is None:
         return ["GauntletRunner class"]
 
-    methods = {
-        node.name: node
-        for node in runner.body
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-    }
+    methods = {node.name: node for node in runner.body if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))}
     for method_name in (
         "record_resilience_diagnostic",
         "run_resilience_suite",
@@ -4519,42 +4358,27 @@ def ast_literal_set(tree: ast.Module, name: str, *, key: str | None = None) -> s
             else:
                 return set()
         if isinstance(value, (ast.Set, ast.List, ast.Tuple)):
-            return {
-                item.value
-                for item in value.elts
-                if isinstance(item, ast.Constant) and isinstance(item.value, str)
-            }
+            return {item.value for item in value.elts if isinstance(item, ast.Constant) and isinstance(item.value, str)}
     return set()
 
 
 def method_contains_string(node: ast.AST | None, text: str) -> bool:
-    return node is not None and any(
-        isinstance(child, ast.Constant) and child.value == text
-        for child in ast.walk(node)
-    )
+    return node is not None and any(isinstance(child, ast.Constant) and child.value == text for child in ast.walk(node))
 
 
 def method_contains_string_prefix(node: ast.AST | None, prefix: str) -> bool:
     return node is not None and any(
-        isinstance(child, ast.Constant)
-        and isinstance(child.value, str)
-        and child.value.startswith(prefix)
+        isinstance(child, ast.Constant) and isinstance(child.value, str) and child.value.startswith(prefix)
         for child in ast.walk(node)
     )
 
 
 def method_references_name(node: ast.AST | None, name: str) -> bool:
-    return node is not None and any(
-        isinstance(child, ast.Name) and child.id == name
-        for child in ast.walk(node)
-    )
+    return node is not None and any(isinstance(child, ast.Name) and child.id == name for child in ast.walk(node))
 
 
 def method_contains_attr(node: ast.AST | None, name: str) -> bool:
-    return node is not None and any(
-        isinstance(child, ast.Attribute) and child.attr == name
-        for child in ast.walk(node)
-    )
+    return node is not None and any(isinstance(child, ast.Attribute) and child.attr == name for child in ast.walk(node))
 
 
 def method_calls(node: ast.AST | None, method_name: str) -> bool:
@@ -4590,16 +4414,16 @@ def expand_suites(raw: str) -> set[str]:
         elif token in SUITE_NAMES:
             enabled.add(token)
         else:
-            raise SystemExit(
-                f"unknown suite {token!r}; choose from {sorted(SUITE_NAMES | set(SUITE_ALIASES))}"
-            )
+            raise SystemExit(f"unknown suite {token!r}; choose from {sorted(SUITE_NAMES | set(SUITE_ALIASES))}")
     return enabled or SUITE_ALIASES["core"]
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Desktop agent continuity gauntlet (INV-6)")
     parser.add_argument("--port", type=int, default=DEFAULT_PORT)
-    parser.add_argument("--bundle-id", default=os.environ.get("OMI_GAUNTLET_BUNDLE_ID", f"com.omi.{DEFAULT_BUNDLE_SUFFIX}"))
+    parser.add_argument(
+        "--bundle-id", default=os.environ.get("OMI_GAUNTLET_BUNDLE_ID", f"com.omi.{DEFAULT_BUNDLE_SUFFIX}")
+    )
     parser.add_argument("--run-id", default=None)
     parser.add_argument("--run-dir", default=None)
     parser.add_argument("--log-path", default=None)

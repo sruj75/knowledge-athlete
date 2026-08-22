@@ -44,14 +44,14 @@ def test_parser_still_raises_on_a_reply_with_no_decision():
 
 def test_should_discard_conversation_honors_python_boolean_reply(monkeypatch):
     fake_llm = FakeMessagesListChatModel(responses=[AIMessage(content='{"discard": True}')])
-    monkeypatch.setattr(conversation_processing, 'get_llm', lambda feature, **kwargs: fake_llm)
+    monkeypatch.setattr(conversation_processing, 'get_workload_client', lambda feature, **kwargs: fake_llm)
 
     assert conversation_processing.should_discard_conversation('hello there', duration_seconds=15) is True
 
 
 def test_should_discard_conversation_fails_open_when_reply_is_unusable(monkeypatch):
     fake_llm = FakeMessagesListChatModel(responses=[AIMessage(content='no idea')])
-    monkeypatch.setattr(conversation_processing, 'get_llm', lambda feature, **kwargs: fake_llm)
+    monkeypatch.setattr(conversation_processing, 'get_workload_client', lambda feature, **kwargs: fake_llm)
 
     assert conversation_processing.should_discard_conversation('hello there', duration_seconds=15) is False
 
@@ -59,7 +59,7 @@ def test_should_discard_conversation_fails_open_when_reply_is_unusable(monkeypat
 def test_should_discard_failure_log_does_not_include_model_output(monkeypatch, caplog):
     sentinel = 'SENSITIVE MODEL OUTPUT'
     fake_llm = FakeMessagesListChatModel(responses=[AIMessage(content=sentinel)])
-    monkeypatch.setattr(conversation_processing, 'get_llm', lambda feature, **kwargs: fake_llm)
+    monkeypatch.setattr(conversation_processing, 'get_workload_client', lambda feature, **kwargs: fake_llm)
 
     assert conversation_processing.should_discard_conversation('hello there', duration_seconds=15) is False
     assert 'Error determining conversation discard' in caplog.text

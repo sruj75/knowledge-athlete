@@ -11,8 +11,7 @@ import httpx
 import os
 from fastapi.responses import JSONResponse, StreamingResponse
 
-from llm_gateway.gateway.accounting import (
-    AccountingContext,
+from llm_gateway.gateway.provider_usage import (
     AttemptTrace,
     ProviderResponseMetadata,
     UsageStatus,
@@ -20,7 +19,6 @@ from llm_gateway.gateway.accounting import (
     image_usage,
     openai_usage_from_sse_payload,
 )
-from llm_gateway.gateway.accounting_sink import schedule_attempt_trace
 from llm_gateway.gateway.auth import ServiceAuthDependency
 from llm_gateway.gateway.config_loader import GatewayConfig
 from llm_gateway.gateway.errors import (
@@ -72,19 +70,11 @@ async def create_chat_completion(
     credential_source = 'unknown'
     is_streaming = False
     request_id = request_id_for(request)
-    accounting_context: AccountingContext | None = None
     attempt_trace = AttemptTrace()
     try:
         request_body = await _request_json(request)
         resolved_route = resolve_chat_completion_route(config, request_body)
         credential_source = 'omi_managed'
-        accounting_context = _accounting_context(
-            request_id=request_id,
-            caller=caller,
-            api_surface='openai_chat_completions',
-            payer='omi',
-            fallback_feature=resolved_route.lane.lane_id,
-        )
         is_streaming = resolved_route.validated_request.forwarded_params.get('stream') is True
         if is_streaming:
             return await _streaming_response(
@@ -92,7 +82,6 @@ async def create_chat_completion(
                 provider_registry,
                 started_at=started_at,
                 request_id=request_id,
-                accounting_context=accounting_context,
                 attempt_trace=attempt_trace,
             )
         result = await execute_chat_completion(
@@ -100,7 +89,6 @@ async def create_chat_completion(
             provider_registry,
             attempt_trace=attempt_trace,
         )
-        schedule_attempt_trace(accounting_context, attempt_trace)
         _safe_observe(
             lambda: observe_success(
                 started_at,
@@ -115,8 +103,6 @@ async def create_chat_completion(
         )
         return JSONResponse(content=result.response)
     except asyncio.CancelledError:
-        if accounting_context is not None:
-            schedule_attempt_trace(accounting_context, attempt_trace)
         if resolved_route is not None:
             route = selected_serving_route(resolved_route)
             _safe_observe(
@@ -142,8 +128,6 @@ async def create_chat_completion(
             )
         raise
     except GatewayError as exc:
-        if accounting_context is not None:
-            schedule_attempt_trace(accounting_context, attempt_trace)
         if resolved_route is not None:
             _safe_observe(
                 lambda: observe_error(
@@ -170,8 +154,6 @@ async def create_chat_completion(
             )
         return _error_response(exc)
     except Exception:
-        if accounting_context is not None:
-            schedule_attempt_trace(accounting_context, attempt_trace)
         if resolved_route is not None:
             route = selected_serving_route(resolved_route)
             _safe_observe(
@@ -288,14 +270,6 @@ def _status_code_for_error(exc: GatewayError) -> int:
 async def create_image_generation(request: Request, caller: ServiceAuthDependency):
     request_body = await _request_json(request)
     _normalize_image_request_defaults(request_body)
-    request_id = request_id_for(request)
-    context = _accounting_context(
-        request_id=request_id,
-        caller=caller,
-        api_surface='openai_images_generations',
-        payer='omi',
-        fallback_feature='image_generation',
-    )
     trace = AttemptTrace()
     api_key = os.getenv('OPENAI_API_KEY', '').strip()
     if not api_key:
@@ -309,7 +283,6 @@ async def create_image_generation(request: Request, caller: ServiceAuthDependenc
             error_class='invalid_config',
             usage_status=UsageStatus.INDETERMINATE,
         )
-        schedule_attempt_trace(context, trace)
         return JSONResponse(
             status_code=503,
             content={'error': {'message': 'provider request failed: invalid_config', 'type': 'api_error'}},
@@ -349,7 +322,6 @@ async def create_image_generation(request: Request, caller: ServiceAuthDependenc
                     )
                 ),
             )
-        schedule_attempt_trace(context, trace)
         return JSONResponse(status_code=response.status_code, content=body)
     except (httpx.HTTPError, ValueError):
         trace.record(
@@ -362,7 +334,6 @@ async def create_image_generation(request: Request, caller: ServiceAuthDependenc
             error_class='transport_or_invalid_response',
             usage_status=UsageStatus.INDETERMINATE,
         )
-        schedule_attempt_trace(context, trace)
         return JSONResponse(
             status_code=502,
             content={'error': {'message': 'provider request failed', 'type': 'api_error'}},
@@ -389,7 +360,6 @@ async def _streaming_response(
     *,
     started_at: float,
     request_id: str,
-    accounting_context: AccountingContext,
     attempt_trace: AttemptTrace,
 ) -> StreamingResponse:
     route = selected_serving_route(resolved_route)
@@ -408,7 +378,6 @@ async def _streaming_response(
         started_at=started_at,
         request_id=request_id,
         output_budget=output_budget,
-        accounting_context=accounting_context,
         attempt_trace=attempt_trace,
     )
 
@@ -502,7 +471,6 @@ async def _stream_with_terminal_metrics(
     started_at: float,
     request_id: str,
     output_budget: OutputBudgetDecision | None = None,
-    accounting_context: AccountingContext | None = None,
     attempt_trace: AttemptTrace | None = None,
 ) -> AsyncIterator[bytes]:
     trace = attempt_trace or AttemptTrace()
@@ -536,8 +504,6 @@ async def _stream_with_terminal_metrics(
                 else UsageStatus.NOT_REPORTED if outcome == 'success' else UsageStatus.INDETERMINATE
             ),
         )
-        if accounting_context is not None:
-            schedule_attempt_trace(accounting_context, trace)
         _safe_observe(
             lambda: observe_route_result(
                 started_at,
@@ -626,25 +592,6 @@ async def _stream_with_terminal_metrics(
                 error_class='consumer_abandoned_stream',
                 phase='midstream' if saw_output else 'before_output',
             )
-
-
-def _accounting_context(
-    *,
-    request_id: str,
-    caller: ServiceAuthDependency,
-    api_surface: str,
-    payer: str,
-    fallback_feature: str,
-) -> AccountingContext:
-    feature = caller.usage_feature or fallback_feature
-    return AccountingContext.create(
-        request_id=request_id,
-        caller=caller.name,
-        user_uid=caller.user_uid,
-        feature=feature.strip(),
-        api_surface=api_surface,
-        payer=payer,
-    )
 
 
 def _request_stream_usage(request: dict[str, Any], provider: str) -> None:

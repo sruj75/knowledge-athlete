@@ -1,255 +1,277 @@
-"""Model/profile configuration for backend LLM feature routing.
+"""Explicit managed-model workload inventory.
 
-This module is the source of truth for feature → (model, provider) routing.
-Provider-specific client construction lives in ``providers.py``; callers should
-continue to use ``clients.get_llm(feature)``.
+Every constructible workload names one provider, model, caller, result owner,
+and failure policy. Runtime environment cannot select a global profile or an
+implicit fallback route.
 """
 
-import logging
-import os
 from dataclasses import dataclass
-from typing import Dict, Tuple, Union
+from enum import Enum
+from typing import Dict, Tuple
 
-from utils.llm.gateway_client import is_auto_lane_id
 
-logger = logging.getLogger(__name__)
+class WorkloadLifecycle(str, Enum):
+    """Implementation ownership for one managed-model workload."""
+
+    RETAINED = 'retained'
+    RETIRING_S22 = 'retiring_s22'
+    SUCCESSOR_S23 = 'successor_s23'
+    DEPENDENCY_S20 = 'dependency_s20'
 
 
 @dataclass(frozen=True)
-class ExplicitRouteRef:
-    feature: str
-    model: str
+class ManagedModelWorkload:
+    """Auditable contract for one model-backed product workload."""
+
+    key: str
     provider: str
-    options: Dict[str, object]
+    model: str
+    caller: str
+    input_contract: str
+    output_contract: str
+    usage_feature: str
+    result_owner: str
+    failure_policy: str
+    lifecycle: WorkloadLifecycle
 
 
-@dataclass(frozen=True)
-class AutoLaneRouteRef:
-    feature: str
-    lane_id: str
+def _workload(
+    key: str,
+    provider: str,
+    model: str,
+    caller: str,
+    input_contract: str,
+    output_contract: str,
+    usage_feature: str,
+    result_owner: str,
+    failure_policy: str,
+    lifecycle: WorkloadLifecycle = WorkloadLifecycle.RETAINED,
+) -> ManagedModelWorkload:
+    return ManagedModelWorkload(
+        key=key,
+        provider=provider,
+        model=model,
+        caller=caller,
+        input_contract=input_contract,
+        output_contract=output_contract,
+        usage_feature=usage_feature,
+        result_owner=result_owner,
+        failure_policy=failure_policy,
+        lifecycle=lifecycle,
+    )
 
 
-RouteRef = Union[ExplicitRouteRef, AutoLaneRouteRef]
-
-# ---------------------------------------------------------------------------
-# Model QoS Profile System
-#
-# Each profile maps every feature to a (model, provider) tuple.
-# The profile is the SINGLE SOURCE OF TRUTH for both model and provider.
-# Provider is never inferred from model name — it is declared explicitly.
-#
-# This means the same model can be hosted by different providers:
-#   feature_a: ('gemini-2.5-flash', 'gemini')      → Google direct
-#   feature_b: ('gemini-2.5-flash', 'openrouter')   → OpenRouter
-#
-# Global switch:     MODEL_QOS=premium        (selects entire profile)
-#
-# Profiles:
-#   premium  — maximize cost savings while preserving 80% of max quality
-#   max      — 100% quality, best models available, no cost optimization
-# ---------------------------------------------------------------------------
-
-MODEL_QOS_PROFILES: Dict[str, Dict[str, Tuple[str, str]]] = {
-    # -----------------------------------------------------------------------
-    # premium — maximize cost savings while preserving 80% of max quality.
-    # Uses gpt-5.4-mini (not gpt-5.4) for core features, gpt-4.1-mini (not gpt-4.1)
-    # for quality-sensitive tasks, gpt-4.1-nano for simple routing/classification,
-    # and Gemini flash-lite for low-complexity free-text (titles, followups, onboarding).
-    # -----------------------------------------------------------------------
-    'premium': {
-        # OpenAI — conversation processing
-        'conv_action_items': ('gpt-5.4-mini', 'openai'),
-        'conv_structure': ('gpt-5.4-mini', 'openai'),
-        'conv_folder': ('gpt-4.1-nano', 'openai'),
-        'conv_discard': ('gpt-4.1-nano', 'openai'),
-        # OpenAI — chat
-        'chat_responses': ('gpt-5.4-mini', 'openai'),
-        'session_titles': ('gemini-2.5-flash-lite', 'gemini'),
-        # Features
-        'followup': ('gemini-2.5-flash-lite', 'gemini'),
-        'onboarding': ('gemini-2.5-flash-lite', 'gemini'),
-        'trends': ('gemini-2.5-flash-lite', 'gemini'),
-        'translation': ('gemini-2.5-flash-lite', 'gemini'),
-        # Anthropic (used via get_model() + anthropic_client)
-        'chat_agent': ('claude-sonnet-4-6', 'anthropic'),
-        # OpenRouter
-        'wrapped_analysis': ('gemini-3-flash-preview', 'openrouter'),
-        # Perplexity
-        'web_search': ('sonar-pro', 'perplexity'),
-    },
-    # -----------------------------------------------------------------------
-    # max — 100% quality, best models available, no cost optimization.
-    # Uses gpt-5.4 for all core features.
-    # Pure OpenAI for highest accuracy.
-    # -----------------------------------------------------------------------
-    'max': {
-        # OpenAI — conversation processing
-        'conv_action_items': ('gpt-5.4', 'openai'),
-        'conv_structure': ('gpt-5.4', 'openai'),
-        'conv_folder': ('gpt-4.1-mini', 'openai'),
-        'conv_discard': ('gpt-4.1-mini', 'openai'),
-        # OpenAI — chat
-        'chat_responses': ('gpt-5.4', 'openai'),
-        'session_titles': ('gemini-2.5-flash-lite', 'gemini'),
-        # Features
-        'followup': ('gpt-4.1-mini', 'openai'),
-        'onboarding': ('gpt-4.1-mini', 'openai'),
-        'trends': ('gpt-4.1-mini', 'openai'),
-        'translation': ('gemini-2.5-flash-lite', 'gemini'),
-        # Anthropic
-        'chat_agent': ('claude-sonnet-4-6', 'anthropic'),
-        # OpenRouter
-        'wrapped_analysis': ('gemini-3-flash-preview', 'openrouter'),
-        # Perplexity
-        'web_search': ('sonar-pro', 'perplexity'),
-    },
+_WORKLOADS: Dict[str, ManagedModelWorkload] = {
+    'conv_action_items': _workload(
+        'conv_action_items',
+        'openai',
+        'gpt-5.4-mini',
+        'POST /v1/conversation-compute/action-items',
+        'bounded local transcript plus local time and related-task facts',
+        'validated action-item candidates',
+        'conversation_processing',
+        'Mac ActionItemStorage transaction',
+        'independent non-fatal candidate failure',
+    ),
+    'conv_structure': _workload(
+        'conv_structure',
+        'openai',
+        'gpt-5.4-mini',
+        'POST /v1/conversation-compute/structure',
+        'bounded local transcript plus language and local-time facts',
+        'validated conversation structure candidate',
+        'conversation_processing',
+        'Mac conversation transaction',
+        'independent non-fatal candidate failure',
+    ),
+    'conv_discard': _workload(
+        'conv_discard',
+        'openai',
+        'gpt-4.1-nano',
+        'POST /v1/conversation-compute/discard',
+        'bounded local transcript, duration, and word count',
+        'validated discard candidate',
+        'conversation_processing',
+        'Mac conversation finalization transaction',
+        'keep on provider or parse failure',
+    ),
+    'chat_greeting': _workload(
+        'chat_greeting',
+        'openai',
+        'gpt-5.4-mini',
+        'POST /v2/chat/initial-message',
+        'bounded local profile and memory context',
+        'validated greeting candidate',
+        'chat_greeting',
+        'owner-scoped Mac Node journal',
+        'non-fatal welcome fallback',
+    ),
+    'session_titles': _workload(
+        'session_titles',
+        'gemini',
+        'gemini-2.5-flash-lite',
+        'POST /v2/chat/generate-title',
+        'bounded first accepted local Chat exchange',
+        'validated six-word title candidate',
+        'session_titles',
+        'owner-scoped Mac Chat catalog',
+        'non-fatal New Chat fallback',
+    ),
+    'translation': _workload(
+        'translation',
+        'gemini',
+        'gemini-2.5-flash-lite',
+        'POST /v4/listen translation coordinator',
+        'bounded managed-STT segment batch and target language',
+        'cardinality-matched translated candidates',
+        'translation',
+        'matching Mac transcript segments',
+        'preserve original transcript on failure',
+    ),
+    'chat_agent': _workload(
+        'chat_agent',
+        'anthropic',
+        'claude-sonnet-4-6',
+        'POST /v2/chat/completions from local Node/Pi',
+        'bounded owner-scoped local Chat context and tool schema',
+        'Anthropic text and tool-call stream',
+        'chat_agent',
+        'owner-scoped Mac Node journal',
+        'typed provider failure without cloud journal fallback',
+    ),
+    'fair_use': _workload(
+        'fair_use',
+        'openai',
+        'gpt-5.1',
+        'S-20 bounded fair-use classify route',
+        'bounded local fair-use evidence packet',
+        'validated classification candidate',
+        'fair_use',
+        'S-20 Mac GRDB evidence and content-free enforcement facts',
+        'retain S-20 fail-open classification behavior',
+        WorkloadLifecycle.DEPENDENCY_S20,
+    ),
+    'memory_l1': _workload(
+        'memory_l1',
+        'openai',
+        'gpt-4.1-mini',
+        'POST /v1/memory/compute/extract',
+        'bounded readable local transcript and evidence references',
+        'validated grounded Memory candidates',
+        'memory_l1',
+        'Mac MemoryStorage lifecycle transaction',
+        'no mutation on provider, parse, or evidence failure',
+    ),
+    'memory_l2': _workload(
+        'memory_l2',
+        'openai',
+        'gpt-4.1-mini',
+        'POST /v1/memory/compute/normalize',
+        'bounded explicit assertion, provenance, and revision',
+        'validated normalized Memory proposal',
+        'memory_l2',
+        'Mac MemoryStorage lifecycle transaction',
+        'retryable no-mutation failure',
+    ),
+    'memory_conflict': _workload(
+        'memory_conflict',
+        'openai',
+        'gpt-4.1-mini',
+        'POST /v1/memory/compute/consolidate',
+        'bounded due candidates and relevant local Memory references',
+        'conserved lifecycle and relationship proposals',
+        'memory_conflict',
+        'Mac MemoryStorage atomic lifecycle transaction',
+        'retry or review without partial mutation',
+    ),
+    'followup': _workload(
+        'followup',
+        'gemini',
+        'gemini-2.5-flash-lite',
+        'DELETE /v1/joan/{memory_id}/followup-question',
+        'hosted conversation transcript',
+        'one follow-up question',
+        'followup',
+        'S-23 Joan product',
+        'S-23 deletes the endpoint and helper together',
+        WorkloadLifecycle.SUCCESSOR_S23,
+    ),
+    'conv_folder': _workload(
+        'conv_folder',
+        'openai',
+        'gpt-4.1-nano',
+        'hosted conversation finalization folder assignment',
+        'hosted generated conversation metadata and cloud folders',
+        'folder assignment candidate',
+        'conversation_processing',
+        'S-23 hosted conversation product',
+        'S-23 deletes automatic assignment and its product state',
+        WorkloadLifecycle.SUCCESSOR_S23,
+    ),
+    'wrapped_analysis': _workload(
+        'wrapped_analysis',
+        'openrouter',
+        'gemini-3-flash-preview',
+        'backend/routers/wrapped.py -> utils/wrapped/generate_2025.py',
+        'hosted Wrapped product data',
+        'Wrapped analysis content',
+        'wrapped_analysis',
+        'S-23 Wrapped product',
+        'S-23 deletes Wrapped and OpenRouter together',
+        WorkloadLifecycle.SUCCESSOR_S23,
+    ),
 }
 
-# Pinned features — (model, provider) fixed regardless of profile or env override.
-_PINNED_FEATURES: Dict[str, Tuple[str, str]] = {
-    'chat_greeting': ('gpt-5.4-mini', 'openai'),
-    'fair_use': ('gpt-5.1', 'openai'),
-    'memory_l1': ('gpt-4.1-mini', 'openai'),
-    'memory_l2': ('gpt-4.1-mini', 'openai'),
-    'memory_conflict': ('gpt-4.1-mini', 'openai'),
-    'session_titles': ('gemini-2.5-flash-lite', 'gemini'),
-}
-
-# Resolve active profile once at startup.
-_active_profile_name = os.environ.get('MODEL_QOS', 'premium').strip().lower()
-if _active_profile_name not in MODEL_QOS_PROFILES:
-    logger.warning('MODEL_QOS=%s is not a valid profile, falling back to premium', _active_profile_name)
-    _active_profile_name = 'premium'
-_active_profile = MODEL_QOS_PROFILES[_active_profile_name]
-
-# Features that can't go through get_llm() (non-ChatOpenAI providers).
-_ANTHROPIC_ONLY_FEATURES = {'chat_agent'}
-_PERPLEXITY_ONLY_FEATURES = {'web_search'}
-
-
-# Feature-specific client config (temperature, headers — orthogonal to model choice).
-# Only applied when a feature resolves to an OpenRouter model.
-_OPENROUTER_TEMPERATURES: Dict[str, float] = {
-    'wrapped_analysis': 0.7,
-}
-
-# Prompt-cache capability detection.
-#
-# OpenAI prompt caching is a capability of whole model families, not of specific point
-# releases. Gating on exact names (e.g. {'gpt-5.4', 'gpt-5.4-mini'}) silently breaks the
-# moment a model is renamed or a new family member ships, so we detect by family prefix.
-#
-#   prompt_cache_key             — prefix-cache request routing. Supported by the gpt-4o,
-#                                  gpt-4.1, gpt-5.x and o-series families.
-#   prompt_cache_retention='24h' — extended (24h) cache retention. Supported by the
-#                                  gpt-5.x and o-series families.
 _CACHE_KEY_MODEL_PREFIXES = ('gpt-5', 'gpt-4.1', 'gpt-4o', 'o1', 'o3', 'o4')
 _CACHE_RETENTION_MODEL_PREFIXES = ('gpt-5', 'o1', 'o3', 'o4')
+_STRUCTURED_OUTPUT_FEATURES = {'translation'}
 
-# Features that call .with_structured_output() — logged when resolving to Gemini for compat monitoring.
-_STRUCTURED_OUTPUT_FEATURES = {
-    'trends',
-    'translation',
-}
-STRUCTURED_OUTPUT_FEATURES = _STRUCTURED_OUTPUT_FEATURES
 
-_DEFAULT_CONFIG: Tuple[str, str] = ('gpt-4.1-mini', 'openai')
-DEFAULT_CONFIG = _DEFAULT_CONFIG
+def get_workload(feature: str) -> ManagedModelWorkload:
+    try:
+        return _WORKLOADS[feature]
+    except KeyError as exc:
+        raise KeyError(f"Unknown managed-model workload '{feature}'") from exc
 
-# Future migration point for features that should call the gateway via an auto
-# lane. Keep empty until a ticket explicitly wires and verifies shadow/live
-# traffic; existing direct LLM routing never consults this map.
-_AUTO_LANE_FEATURES: Dict[str, str] = {}
+
+def get_all_workloads() -> Dict[str, ManagedModelWorkload]:
+    return {key: _WORKLOADS[key] for key in sorted(_WORKLOADS)}
 
 
 def _get_model_config(feature: str) -> Tuple[str, str]:
-    """Get the (model, provider) tuple for a feature. Internal — used by get_llm/get_model/get_provider.
-
-    Resolution order: pinned > active profile > fallback.
-    """
-    if feature in _PINNED_FEATURES:
-        return _PINNED_FEATURES[feature]
-    return _active_profile.get(feature, _DEFAULT_CONFIG)
+    workload = get_workload(feature)
+    return workload.model, workload.provider
 
 
 def get_model_config(feature: str) -> Tuple[str, str]:
-    """Get the (model, provider) tuple for a feature.
-
-    Resolution order: pinned > active profile > fallback.
-    """
     return _get_model_config(feature)
 
 
 def get_model(feature: str) -> str:
-    """Get the model name for a feature from the active Model QoS profile.
-
-    Resolution order: pinned > active profile > fallback.
-
-    Args:
-        feature: Feature name (e.g. 'conv_action_items', 'chat_agent').
-
-    Returns:
-        Model name string (e.g. 'gpt-4.1-mini', 'claude-sonnet-4-6').
-    """
-    return _get_model_config(feature)[0]
+    return get_workload(feature).model
 
 
 def get_provider(feature: str) -> str:
-    """Get the provider for a feature from the active Model QoS profile.
-
-    Returns:
-        Provider string: 'openai', 'gemini', 'openrouter', 'anthropic', 'perplexity'.
-    """
-    return _get_model_config(feature)[1]
+    return get_workload(feature).provider
 
 
-def get_route_options(feature: str, model: str, provider: str) -> Dict[str, object]:
-    """Return provider/model construction options for a resolved route."""
-
+def get_route_options(feature: str) -> Dict[str, object]:
+    workload = get_workload(feature)
     options: Dict[str, object] = {}
-    if supports_cache_retention(model):
-        options['extra_body'] = {"prompt_cache_retention": "24h"}
-    if provider == 'openrouter':
-        temperature = _OPENROUTER_TEMPERATURES.get(feature)
-        if temperature is not None:
-            options['temperature'] = temperature
-    if provider == 'gemini' and not is_structured_output_feature(feature):
-        # Structured-output features use .with_structured_output(), which routes through
-        # Completions.parse() and rejects thinking_budget (issue #7898).
+    if supports_cache_retention(workload.model):
+        options['extra_body'] = {'prompt_cache_retention': '24h'}
+    if feature == 'wrapped_analysis':
+        options['temperature'] = 0.7
+    if workload.provider == 'gemini' and not is_structured_output_feature(feature):
         options['thinking_budget'] = 0
     return options
 
 
-def get_route_ref(feature: str) -> RouteRef:
-    """Return the typed route reference for a feature without changing legacy routing.
-
-    Existing features resolve to explicit provider/model refs by default. Auto-lane
-    refs are opt-in through _AUTO_LANE_FEATURES and are not used by get_model(),
-    get_provider(), or get_llm().
-    """
-
-    lane_id = _AUTO_LANE_FEATURES.get(feature)
-    if lane_id is not None:
-        if not is_auto_lane_id(lane_id):
-            raise ValueError(f"Auto lane route for feature '{feature}' must use omi:auto: namespace")
-        return AutoLaneRouteRef(feature=feature, lane_id=lane_id)
-
-    model, provider = _get_model_config(feature)
-    return ExplicitRouteRef(
-        feature=feature,
-        model=model,
-        provider=provider,
-        options=get_route_options(feature, model, provider),
-    )
-
-
 def supports_prompt_cache(model: str) -> bool:
-    """Whether a model supports OpenAI prompt-cache routing (prompt_cache_key)."""
     return bool(model) and model.startswith(_CACHE_KEY_MODEL_PREFIXES)
 
 
 def supports_cache_retention(model: str) -> bool:
-    """Whether a model supports 24h OpenAI prompt-cache retention (prompt_cache_retention='24h')."""
     return bool(model) and model.startswith(_CACHE_RETENTION_MODEL_PREFIXES)
 
 
@@ -258,40 +280,13 @@ def is_structured_output_feature(feature: str) -> bool:
 
 
 def is_anthropic_only_feature(feature: str) -> bool:
-    return feature in _ANTHROPIC_ONLY_FEATURES
+    return feature == 'chat_agent'
 
 
 def is_perplexity_only_feature(feature: str) -> bool:
-    return feature in _PERPLEXITY_ONLY_FEATURES
-
-
-def get_active_profile_name() -> str:
-    return _active_profile_name
-
-
-def get_active_profile() -> Dict[str, Tuple[str, str]]:
-    return _active_profile
+    del feature
+    return False
 
 
 def get_all_configured_features() -> set[str]:
-    return set(_active_profile.keys()) | set(_PINNED_FEATURES.keys())
-
-
-def get_default_config() -> Tuple[str, str]:
-    return _DEFAULT_CONFIG
-
-
-def get_openrouter_temperatures() -> Dict[str, float]:
-    return _OPENROUTER_TEMPERATURES
-
-
-def get_pinned_features() -> Dict[str, Tuple[str, str]]:
-    return _PINNED_FEATURES
-
-
-def get_anthropic_only_features() -> set[str]:
-    return _ANTHROPIC_ONLY_FEATURES
-
-
-def get_perplexity_only_features() -> set[str]:
-    return _PERPLEXITY_ONLY_FEATURES
+    return set(_WORKLOADS)

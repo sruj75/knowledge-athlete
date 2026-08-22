@@ -12,7 +12,7 @@ from llm_gateway.gateway.errors import (
     GatewayProviderFailureError,
     GatewayProviderRequestRejectedError,
 )
-from llm_gateway.gateway.accounting import AttemptTrace
+from llm_gateway.gateway.provider_usage import AttemptTrace
 from llm_gateway.gateway.executor import ProviderRegistry, execute_chat_completion, selected_serving_route_artifact_id
 from llm_gateway.gateway.providers import FakeChatCompletionProvider, ProviderFailure, fake_success_response
 from llm_gateway.gateway.resolver import resolve_chat_completion_route

@@ -5,16 +5,26 @@ from unittest.mock import MagicMock
 import pytest
 
 from routers import desktop_chat
+from utils.llm import model_config
 
 
-def test_anthropic_adapter_uses_managed_client(monkeypatch):
+def test_anthropic_adapter_uses_managed_client():
     from utils.llm import clients
 
     managed_messages = object()
     proxy = clients._AnthropicClientProxy(default=SimpleNamespace(messages=managed_messages))
-    monkeypatch.setattr(clients, 'should_route_features_through_gateway', lambda: False)
+    assert proxy.messages is managed_messages
+
+
+def test_anthropic_adapter_has_no_retired_gateway_controls():
+    from utils.llm import clients
+
+    managed_messages = object()
+    proxy = clients._AnthropicClientProxy(default=SimpleNamespace(messages=managed_messages))
 
     assert proxy.messages is managed_messages
+    assert not hasattr(clients, 'get_gateway_anthropic_client')
+    assert not hasattr(clients, 'should_route_features_through_gateway')
 
 
 def test_request_translates_openai_tool_history_and_alias():
@@ -41,11 +51,28 @@ def test_request_translates_openai_tool_history_and_alias():
         }
     )
     assert public_model == 'omi-sonnet'
-    assert payload['model'] == 'claude-sonnet-4-6'
+    assert payload['model'] == model_config.get_model('chat_agent')
     assert payload['max_tokens'] == 16_384
     assert payload['system'] == 'be concise'
     assert payload['messages'][1]['content'][0]['tool_use_id'] == 'call_1'
     assert payload['tool_choice'] == {'type': 'auto'}
+
+
+@pytest.mark.parametrize(
+    'retired_alias',
+    [
+        'omi-opus',
+        'claude-opus-4-6',
+        'claude-opus-4-20250514',
+        'claude-sonnet-4-6',
+        'claude-sonnet-4-20250514',
+        'claude-haiku-4-5',
+        'claude-haiku-4-5-20251001',
+    ],
+)
+def test_request_rejects_noncanonical_model_aliases(retired_alias):
+    with pytest.raises(ValueError, match='unsupported model'):
+        desktop_chat._request({'model': retired_alias, 'messages': []})
 
 
 def test_response_preserves_openai_tool_and_cache_usage():
@@ -108,6 +135,37 @@ async def test_stream_emits_openai_terminal_event(monkeypatch):
     ]
     assert json.loads(events[1][6:])['choices'][0]['delta'] == {'content': 'hello'}
     assert events[-1] == 'data: [DONE]\n\n'
+
+
+@pytest.mark.asyncio
+async def test_stream_reports_managed_provider_failure_without_echoing_detail(monkeypatch):
+    sentinel = 'private upstream detail'
+    recorded = []
+
+    class FailedStream:
+        async def __aenter__(self):
+            raise RuntimeError(sentinel)
+
+        async def __aexit__(self, *_):
+            return None
+
+    monkeypatch.setattr(
+        desktop_chat,
+        'anthropic_client',
+        SimpleNamespace(messages=SimpleNamespace(stream=lambda **_: FailedStream())),
+    )
+    monkeypatch.setattr(desktop_chat, 'handle_llm_error', lambda *args, **kwargs: recorded.append((args, kwargs)))
+
+    events = [
+        event
+        async for event in desktop_chat._stream(
+            {'model': 'claude-sonnet-4-6', 'max_tokens': 1, 'messages': []}, 'omi-sonnet', 'user'
+        )
+    ]
+
+    assert recorded[0][0][1] == 'anthropic'
+    assert recorded[0][1] == {'feature': 'chat_agent', 'model': model_config.get_model('chat_agent')}
+    assert sentinel not in ''.join(events)
 
 
 @pytest.mark.asyncio

@@ -4,7 +4,7 @@
   "violated_contract": "Compatibility projections of public-web routing must make the same routing decision as the authoritative gateway policy.",
   "canonical_prevention": "Keep the Python gateway authoritative and run every compatibility projection against one shared behavioral routing corpus.",
   "canonical_prevention_artifact": [
-    "backend/desktop_fixtures/public-web-routing-contract.fixture.json"
+    "desktop/macos/agent/tests/pi-mono-adapter.test.ts"
   ],
   "evidence_prs": [10422],
   "scope_hints": [

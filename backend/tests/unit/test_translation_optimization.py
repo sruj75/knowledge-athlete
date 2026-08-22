@@ -12,6 +12,16 @@ from utils.translation import (
     split_into_sentences,
 )
 from utils.translation_cache import should_emit_translation
+from utils.translation_core import providers
+
+
+def test_default_translation_client_uses_the_explicit_translation_workload(monkeypatch):
+    client = object()
+    calls = []
+    monkeypatch.setattr(providers, 'get_workload_client', lambda feature: calls.append(feature) or client)
+
+    assert providers._create_gemini_translation_client() is client
+    assert calls == ['translation']
 
 
 def test_sentence_splitter_preserves_abbreviations_and_decimals():

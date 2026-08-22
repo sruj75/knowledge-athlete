@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 import os
 import re
-from collections.abc import AsyncIterator, Mapping, Sequence
+from collections.abc import AsyncIterator, Mapping
 from dataclasses import dataclass
 from datetime import date
 from typing import Any, Literal
@@ -469,26 +469,5 @@ def gemini_json_payload(text: str) -> dict[str, object]:
     }
 
 
-def gemini_stream_chunks(text: str) -> list[str]:
-    return [
-        _sse({'candidates': [{'content': {'parts': [{'text': text}], 'role': 'model'}}]}),
-        _sse(
-            {
-                'candidates': [
-                    {
-                        'content': {'parts': [{'text': ''}], 'role': 'model'},
-                        'finishReason': 'STOP',
-                    }
-                ]
-            }
-        ),
-        'data: [DONE]\n\n',
-    ]
-
-
 def stub_gemini_proxy_json(body_text: str) -> dict[str, object]:
     return gemini_json_payload(stub_assistant_text(extract_latest_gemini_user_text(body_text)))
-
-
-def stub_gemini_proxy_stream_chunks(body_text: str) -> Sequence[str]:
-    return gemini_stream_chunks(stub_assistant_text(extract_latest_gemini_user_text(body_text)))

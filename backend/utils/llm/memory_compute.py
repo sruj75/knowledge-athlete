@@ -21,10 +21,9 @@ from models.memory_compute import (
     MemoryNormalizeRequest,
     MemoryNormalizeResponse,
 )
-from utils.llm.providers import get_or_create_openai_compatible_llm
+from utils.llm.clients import get_workload_client
 
 Proposal = TypeVar('Proposal', bound=BaseModel)
-PINNED_MEMORY_COMPUTE_MODEL = 'gpt-4.1-mini'
 
 EXTRACT_PROMPT = """
 You propose bounded, source-aware personal Memory candidates from speaker-labelled transcript
@@ -85,10 +84,9 @@ def _response_text(response: Any) -> str:
 
 
 def invoke_model(feature: str, prompt: str, proposal_type: type[Proposal]) -> Proposal:
-    """Invoke the immutable S-12 OpenAI model; ``feature`` remains usage context only."""
-    del feature
+    """Invoke the explicit S-12 workload route without owning durable Memory state."""
     parser = PydanticOutputParser(pydantic_object=proposal_type)
-    response = get_or_create_openai_compatible_llm('openai', PINNED_MEMORY_COMPUTE_MODEL).invoke(prompt)
+    response = get_workload_client(feature).invoke(prompt)
     return parser.parse(_response_text(response))
 
 

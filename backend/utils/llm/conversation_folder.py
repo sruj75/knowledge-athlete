@@ -3,7 +3,7 @@
 Folder assignment has route-specific safety semantics: returned folder IDs must
 exist in the user's folder list, and low-confidence assignments fall back to the
 user's default folder. Keeping that logic in one small module makes it safe to
-change providers/models through ``get_llm('conv_folder')`` without duplicating
+change providers/models through the explicit ``conv_folder`` workload without duplicating
 validation in each experiment or callsite.
 """
 
@@ -15,7 +15,7 @@ from langchain_core.output_parsers import PydanticOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel, Field
 
-from .clients import get_llm
+from .clients import get_workload_client
 
 logger = logging.getLogger(__name__)
 
@@ -212,7 +212,7 @@ Provide:
 
     folder_parser = PydanticOutputParser(pydantic_object=FolderAssignment)
     prompt = cast(Any, ChatPromptTemplate).from_messages([('system', prompt_text)])
-    chain = prompt | get_llm('conv_folder') | folder_parser
+    chain = prompt | get_workload_client('conv_folder') | folder_parser
 
     try:
         response = cast(

@@ -142,8 +142,7 @@ def test_openai_compatible_provider_applies_base_url_headers_and_google_prefix(m
     assert call['api_key'] == 'sk-openrouter'
     assert call['base_url'] == 'https://openrouter.ai/api/v1'
     assert call['default_headers'] == {'X-Title': 'Omi Chat'}
-    # Direct providers are the gateway recovery path and retain their existing
-    # provider-sized timeout/retry budget.
+    # Explicit direct workloads retain their provider-sized timeout/retry budget.
     assert call['request_timeout'] == 120
     assert call['max_retries'] == 1
     assert call['temperature'] == 0.7
@@ -155,9 +154,9 @@ def test_unknown_openai_compatible_provider_fails_loudly():
 
 
 def test_route_options_keep_provider_quirks_out_of_callsites():
-    assert get_route_options('wrapped_analysis', 'gemini-3-flash-preview', 'openrouter')['temperature'] == 0.7
-    assert get_route_options('followup', 'gemini-2.5-flash-lite', 'gemini')['thinking_budget'] == 0
-    assert get_route_options('fair_use', 'gpt-5.1', 'openai')['extra_body'] == {"prompt_cache_retention": "24h"}
+    assert get_route_options('wrapped_analysis')['temperature'] == 0.7
+    assert get_route_options('followup')['thinking_budget'] == 0
+    assert get_route_options('fair_use')['extra_body'] == {"prompt_cache_retention": "24h"}
 
 
 def test_validate_folder_assignment_rejects_unknown_folder_id():

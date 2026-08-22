@@ -76,14 +76,6 @@ def get_stt_semaphore() -> asyncio.Semaphore:
     return _get_semaphore('stt', 8)
 
 
-def get_tts_semaphore() -> asyncio.Semaphore:
-    return _get_semaphore('tts', 32)
-
-
-def get_llm_gateway_semaphore() -> asyncio.Semaphore:
-    return _get_semaphore('llm_gateway', 24)
-
-
 # ---------------------------------------------------------------------------
 # Shared httpx.AsyncClient instances
 # ---------------------------------------------------------------------------
@@ -163,11 +155,10 @@ def get_maps_client() -> httpx.AsyncClient:
 def get_auth_client() -> httpx.AsyncClient:
     """Return a shared async HTTP client for OAuth/auth token exchanges.
 
-    Keep-alive is disabled (`max_keepalive_connections=0`) for the same reason
-    as `get_tts_client()`: in Cloud Run we observed stale keep-alive sockets
-    being reused after the remote (Google/Apple/Firebase token endpoints) or an
-    intermediate NAT silently dropped them, raising asyncio's "handler is
-    closed" RuntimeError mid-request. That surfaced as intermittent HTTP 500s
+    Keep-alive is disabled (`max_keepalive_connections=0`) because Cloud Run
+    reused stale sockets after the remote (Google/Apple/Firebase token
+    endpoints) or an intermediate NAT silently dropped them, raising asyncio's
+    "handler is closed" RuntimeError mid-request. That surfaced as intermittent HTTP 500s
     on `/v1/auth/callback/{google,apple}` and `/v1/auth/token`, breaking both
     Sign in with Google and Sign in with Apple (both providers share this
     client). Auth token-exchange volume is low, so paying a TLS handshake per
@@ -193,25 +184,6 @@ def get_stt_client() -> httpx.AsyncClient:
     )
 
 
-def get_tts_client() -> httpx.AsyncClient:
-    """Return a shared async HTTP client for TTS streaming (ElevenLabs).
-
-    Keep-alive is disabled (`max_keepalive_connections=0`) because in Cloud
-    Run we observed stale keep-alive sockets being reused after the remote
-    or an intermediate NAT silently dropped them, raising asyncio's
-    "handler is closed" error and returning 502 to the client. TTS
-    volume is low enough that paying a TLS handshake per request is fine,
-    and the correctness win is worth it.
-    """
-    return _get_client(
-        'tts',
-        lambda: httpx.AsyncClient(
-            timeout=httpx.Timeout(60.0, connect=5.0),
-            limits=httpx.Limits(max_connections=32, max_keepalive_connections=0),
-        ),
-    )
-
-
 def get_web_fetch_client() -> httpx.AsyncClient:
     """Return a shared async HTTP client for user-initiated URL fetches.
 
@@ -223,17 +195,6 @@ def get_web_fetch_client() -> httpx.AsyncClient:
         lambda: httpx.AsyncClient(
             timeout=httpx.Timeout(15.0, connect=5.0),
             limits=httpx.Limits(max_connections=16, max_keepalive_connections=4),
-        ),
-    )
-
-
-def get_llm_gateway_client() -> httpx.AsyncClient:
-    """Return the shared async client for the internal LLM gateway."""
-    return _get_client(
-        'llm_gateway',
-        lambda: httpx.AsyncClient(
-            timeout=httpx.Timeout(20.0, connect=3.0),
-            limits=httpx.Limits(max_connections=24, max_keepalive_connections=12),
         ),
     )
 

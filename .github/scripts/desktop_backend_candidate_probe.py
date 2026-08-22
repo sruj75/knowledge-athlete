@@ -6,9 +6,7 @@ The probe is deliberately bounded and content-free in its evidence. It proves:
 * the tagged candidate reports the admitted backend source identity;
 * readiness dependencies are healthy;
 * the versioned desktop chat contract is advertised on health and responses;
-* a public-web turn completes; and
-* an ordinary follow-up completes in the same history, so web routing from the
-  prior turn cannot poison later chat.
+* two ordinary turns complete in the same history.
 
 The Firebase ID token is read from a mode-0600 file and is never printed.
 """
@@ -44,7 +42,6 @@ class ChatResult:
     elapsed_seconds: float
     first_event_seconds: float
     saw_usage: bool
-    web_search_requests: int
 
 
 def _require_object(value: object, *, stage: str) -> dict[str, Any]:
@@ -122,10 +119,9 @@ def parse_sse(
     stage: str,
     started_at: float | None = None,
     max_elapsed_seconds: float | None = None,
-) -> tuple[str, bool, int, float, bool]:
+) -> tuple[str, bool, float, bool]:
     text: list[str] = []
     saw_done = False
-    web_search_requests = 0
     saw_usage = False
     first_event_seconds: float | None = None
     started_at = time.monotonic() if started_at is None else started_at
@@ -158,10 +154,6 @@ def parse_sse(
         usage = event.get("usage")
         if isinstance(usage, dict):
             saw_usage = True
-            count = usage.get("web_search_requests", 0)
-            if not isinstance(count, int) or count < 0:
-                raise ProbeError(f"{stage}: invalid web search usage")
-            web_search_requests = max(web_search_requests, count)
         choices = event.get("choices")
         if not isinstance(choices, list):
             continue
@@ -178,7 +170,7 @@ def parse_sse(
         raise ProbeError(f"{stage}: stream completed without answer text")
     if first_event_seconds is None:
         raise ProbeError(f"{stage}: stream completed without events")
-    return answer, saw_done, web_search_requests, first_event_seconds, saw_usage
+    return answer, saw_done, first_event_seconds, saw_usage
 
 
 def _request_json(url: str, *, timeout: int = HTTP_TIMEOUT_SECONDS) -> object:
@@ -258,7 +250,7 @@ def _chat_request(
                     f"{stage}: response contract mismatch "
                     f"(expected={contract_version}, actual={response_contract or 'missing'})"
                 )
-            answer, _, web_search_requests, first_event_seconds, saw_usage = parse_sse(
+            answer, _, first_event_seconds, saw_usage = parse_sse(
                 response,
                 stage=stage,
                 started_at=started_at,
@@ -272,7 +264,6 @@ def _chat_request(
                 elapsed_seconds=elapsed_seconds,
                 first_event_seconds=first_event_seconds,
                 saw_usage=saw_usage,
-                web_search_requests=web_search_requests,
             )
     except ProbeError:
         raise

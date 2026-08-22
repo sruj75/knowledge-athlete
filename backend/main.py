@@ -47,7 +47,6 @@ from routers import (
     desktop_proxy,
     desktop_realtime,
     desktop_tts_updates,
-    tts,
     conversation_finalization,
     conversation_compute,
     memory_compute,
@@ -141,7 +140,6 @@ app.include_router(fair_use_admin.router)
 app.include_router(fair_use_reviews.router)
 app.include_router(advice.router)
 app.include_router(chat_sessions.router)
-app.include_router(tts.router)
 app.include_router(desktop_core.router)
 app.include_router(desktop_chat.router)
 app.include_router(desktop_proxy.router)

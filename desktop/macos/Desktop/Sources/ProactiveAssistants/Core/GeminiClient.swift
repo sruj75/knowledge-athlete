@@ -2,9 +2,8 @@ import Foundation
 
 // MARK: - Thinking Budget Configuration
 
-/// Controls how many tokens Gemini 2.5 spends on internal reasoning.
+/// Controls how many tokens retained Gemini Flash models spend on internal reasoning.
 /// Budget 0 disables thinking (cheapest). Budget -1 = dynamic (model decides).
-/// Flash range: 0–24576. Pro range: 128–32768.
 struct ThinkingConfig: Encodable {
   let thinkingBudget: Int
 
@@ -12,10 +11,8 @@ struct ThinkingConfig: Encodable {
     case thinkingBudget = "thinking_budget"
   }
 
-  /// Minimum thinking budget that disables or minimizes reasoning for a given model.
-  /// Flash supports 0 (fully off). Pro requires at least 128.
-  static func minimumBudget(for model: String) -> Int {
-    model.contains("pro") ? 128 : 0
+  static func normalizedBudget(_ requestedBudget: Int) -> Int {
+    max(requestedBudget, 0)
   }
 }
 
@@ -534,7 +531,7 @@ actor GeminiClient {
               responseMimeType: "application/json",
               responseSchema: responseSchema,
               thinkingConfig: ThinkingConfig(
-                thinkingBudget: max(thinkingBudget, ThinkingConfig.minimumBudget(for: model)))
+                thinkingBudget: ThinkingConfig.normalizedBudget(thinkingBudget))
             )
           )
 
@@ -616,7 +613,7 @@ actor GeminiClient {
             responseMimeType: nil,
             responseSchema: nil,
             thinkingConfig: ThinkingConfig(
-              thinkingBudget: max(thinkingBudget, ThinkingConfig.minimumBudget(for: model)))
+              thinkingBudget: ThinkingConfig.normalizedBudget(thinkingBudget))
           )
         )
 
@@ -692,7 +689,7 @@ actor GeminiClient {
             responseMimeType: "application/json",
             responseSchema: responseSchema,
             thinkingConfig: ThinkingConfig(
-              thinkingBudget: max(thinkingBudget, ThinkingConfig.minimumBudget(for: model)))
+              thinkingBudget: ThinkingConfig.normalizedBudget(thinkingBudget))
           )
         )
 
@@ -996,7 +993,7 @@ extension GeminiClient {
               ),
               generationConfig: GeminiImageToolRequest.GenerationConfig(
                 thinkingConfig: ThinkingConfig(
-                  thinkingBudget: max(thinkingBudget, ThinkingConfig.minimumBudget(for: activeModel)))
+                  thinkingBudget: ThinkingConfig.normalizedBudget(thinkingBudget))
               ),
               tools: tools,
               toolConfig: toolConfig

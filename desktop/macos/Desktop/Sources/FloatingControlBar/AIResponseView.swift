@@ -663,16 +663,3 @@ struct MessageMetadataPopover: View {
     }
   }
 }
-
-// MARK: - Model Menu Helper
-
-class ModelMenuTarget: NSObject {
-  nonisolated(unsafe) static let shared = ModelMenuTarget()
-  var onSelect: ((String) -> Void)?
-
-  @objc func selectModel(_ sender: NSMenuItem) {
-    if let modelId = sender.representedObject as? String {
-      onSelect?(modelId)
-    }
-  }
-}

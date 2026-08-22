@@ -1,104 +1,27 @@
-import Foundation
-
-// MARK: - Model QoS Tier System
-//
-// Central model configuration with switchable tiers.
-// Change `activeTier` to switch all models at once.
-// Individual workloads can also override their tier.
-
-enum ModelTier: String, CaseIterable {
-  case premium  // Cost-optimized: Sonnet + Haiku for Claude, Flash for Gemini
-  case max  // Quality-optimized: higher rate limits, same models
-}
-
 struct ModelQoS {
-  // MARK: - Active Tier (single switch)
-
-  private static let tierKey = "modelQoS_activeTier"
-
-  static var activeTier: ModelTier {
-    get {
-      guard let raw = UserDefaults.standard.string(forKey: tierKey),
-        let tier = ModelTier(rawValue: raw)
-      else {
-        return .premium
-      }
-      return tier
-    }
-    set {
-      UserDefaults.standard.set(newValue.rawValue, forKey: tierKey)
-      NotificationCenter.default.post(name: .modelTierDidChange, object: nil)
-    }
-  }
-
-  // MARK: - Claude Models
-
   struct Claude {
     /// Main chat session model (user-facing conversations)
-    static var chat: String { "claude-sonnet-4-6" }
+    static let chat = "claude-sonnet-4-6"
 
     /// Floating bar responses
-    static var floatingBar: String { "claude-sonnet-4-6" }
-
+    static let floatingBar = "claude-sonnet-4-6"
   }
-
-  // MARK: - Gemini Models (tier-dependent, stable GA models)
-  //
-  // Provider routing (Vertex AI vs AI Studio) is handled by the Rust backend
-  // based on model_qos::is_vertex_available(). The Swift app just picks the model.
 
   struct Gemini {
     /// Proactive assistants (screenshot analysis, context detection)
-    static var proactive: String {
-      switch activeTier {
-      case .premium: return "gemini-2.5-flash"
-      case .max: return "gemini-2.5-pro"
-      }
-    }
+    static let proactive = "gemini-2.5-flash"
 
     /// Task extraction
-    static var taskExtraction: String {
-      switch activeTier {
-      case .premium: return "gemini-2.5-flash"
-      case .max: return "gemini-2.5-pro"
-      }
-    }
+    static let taskExtraction = "gemini-2.5-flash"
 
     /// Insight generation
-    static var insight: String {
-      switch activeTier {
-      case .premium: return "gemini-2.5-flash"
-      case .max: return "gemini-2.5-pro"
-      }
-    }
+    static let insight = "gemini-2.5-flash"
 
-    /// Live notch suggestions.
-    ///
-    /// Deliberately a tier below the other proactive assistants. This one is triggered by
-    /// ordinary context changes rather than a slow timer, so its call volume is an order of
-    /// magnitude higher; the work — "does this screen plus what Omi already knows justify
-    /// one short sentence?" — is well within Flash-Lite. Cost, not capability, sets this.
-    static var suggestions: String {
-      switch activeTier {
-      case .premium: return "gemini-2.5-flash-lite"
-      case .max: return "gemini-2.5-flash"
-      }
-    }
+    /// Live notch suggestions use Flash-Lite because ordinary context changes
+    /// trigger them much more often than the slower proactive assistants.
+    static let suggestions = "gemini-2.5-flash-lite"
 
-    /// Embeddings (not tier-dependent, kept separate)
-    static var embedding: String { "gemini-embedding-001" }
+    /// Embeddings
+    static let embedding = "gemini-embedding-001"
   }
-
-  // MARK: - Tier Info (for UI / debugging)
-
-  static var tierDescription: String {
-    switch activeTier {
-    case .premium: return "Premium (cost-optimized)"
-    case .max: return "Max (quality-optimized)"
-    }
-  }
-}
-
-extension Notification.Name {
-  static let modelTierDidChange = Notification.Name("modelTierDidChange")
 }

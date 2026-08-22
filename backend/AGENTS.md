@@ -25,9 +25,7 @@ By default, the lock refresh preserves already-locked package versions so unrela
 
 Key env vars: `OPENAI_API_KEY` (LLM calls — not `OPENAI_ADMIN_KEY` which is billing-only), `MODULATE_API_KEY` (managed live and prerecorded STT), `GEMINI_API_KEY` and `ANTHROPIC_API_KEY` (desktop-backend chat/realtime), `ENCRYPTION_SECRET` (required for tests), `REDIS_DB_HOST` (cache/rate-limiting, fail-open without it), and `SERVICE_ACCOUNT_JSON` / `GOOGLE_APPLICATION_CREDENTIALS` (Firebase Admin credentials; prefer the secret value in Cloud Run, never commit files). Dodo billing is enabled only by the explicit billing mode above; checkout accepts an opaque server-owned offer ID, and the provider webhook is the only authority that projects paid entitlement state.
 
-Chat SSE deadlines: `AGENT_STREAM_FIRST_EVENT_TIMEOUT_SECONDS` (default `25`), `AGENT_STREAM_PROGRESS_HEARTBEAT_SECONDS` (default `20`), `AGENT_STREAM_MAX_DURATION_SECONDS` (default `150`), and `AGENT_STREAM_CANCEL_GRACE_SECONDS` (default `2`) bound silent setup/producer work and keep valid long tool calls observable. Values must be positive. The agent's provider call is re-issued on transport-class failures up to `AGENT_STREAM_PROVIDER_MAX_ATTEMPTS` (default `3`), spaced by `AGENT_STREAM_PROVIDER_RETRY_BACKOFF_SECONDS` (default `1`), and only while at least `AGENT_STREAM_PROVIDER_MIN_RETRY_HEADROOM_SECONDS` (default `45`) of the turn budget remains. The silent-interval bound on the call itself stays with the transport — in prod that is the gateway client's `OMI_LLM_GATEWAY_FIRST_BYTE_TIMEOUT_SECONDS` (default `15`), since `OMI_LLM_GATEWAY_FEATURE_MODE=gateway` routes chat through it — and must not be overridden with a per-request `timeout=`.
-
-LLM gateway resilience: `OMI_LLM_GATEWAY_CONNECT_TIMEOUT_SECONDS` (default `3`), `OMI_LLM_GATEWAY_FIRST_BYTE_TIMEOUT_SECONDS` (default `15`), `OMI_LLM_GATEWAY_CIRCUIT_FAILURE_THRESHOLD` (default `2`), and `OMI_LLM_GATEWAY_CIRCUIT_COOLDOWN_SECONDS` (default `30`) bound the optional gateway hop. Gateway-first callers use the shared process-local circuit and may fall back only before stream output. Never restore a production `OMI_LLM_GATEWAY_URL` static IP: the backend deployment derives it after `verify-llm-gateway-serving.py` validates the ready Kubernetes workload, ingress/ILB attachment, and Cloud Run VPC smoke route.
+Chat SSE deadlines: `AGENT_STREAM_FIRST_EVENT_TIMEOUT_SECONDS` (default `25`), `AGENT_STREAM_PROGRESS_HEARTBEAT_SECONDS` (default `20`), `AGENT_STREAM_MAX_DURATION_SECONDS` (default `150`), and `AGENT_STREAM_CANCEL_GRACE_SECONDS` (default `2`) bound silent setup/producer work and keep valid long tool calls observable. Values must be positive. The agent's direct managed-Anthropic call is re-issued on transport-class failures up to `AGENT_STREAM_PROVIDER_MAX_ATTEMPTS` (default `3`), spaced by `AGENT_STREAM_PROVIDER_RETRY_BACKOFF_SECONDS` (default `1`), and only while at least `AGENT_STREAM_PROVIDER_MIN_RETRY_HEADROOM_SECONDS` (default `45`) of the turn budget remains. Do not route normal Chat through an auto lane or introduce a per-request provider switch.
 
 ## Directory Structure
 
@@ -59,8 +57,7 @@ backend/
     llm/                  #   LLM orchestration (14 files): chat processing, conversation post-processing,
                           #   transient Memory proposal compute,
                           #   fair-use classification, and usage tracking
-      clients.py          #     Model instances: OpenAI (gpt-4.1-mini, o4-mini), Anthropic (claude-sonnet-4-6),
-                          #     OpenRouter (gemini-flash), with prompt caching and usage callbacks
+      clients.py          #     Explicit direct workload clients with prompt caching and usage callbacks
     stt/                  #   Managed Modulate speech-to-text, provider-neutral VAD gating, speech profiles,
                           #   pre-recorded batch transcription, speaker embeddings
     conversations/        #   Conversation lifecycle (6 files): ingestion, action items,
@@ -80,7 +77,7 @@ backend/
                           #   - Batches + uploads audio to private cloud storage (60s batches, 3 retries)
                           #   - Queues speaker sample extraction (120s age minimum)
                           #   - 5 concurrent background tasks per WebSocket connection
-  llm_gateway/            # Subservice: internal Omi-managed LLM auto-lane gateway
+  llm_gateway/            # Callerless legacy subservice source awaiting the S-25 topology teardown
   diarizer/              # Subservice: speaker audio analysis (separate Docker, GPU/CUDA)
                           #   - POST /v1/diarization — speaker boundary detection (pyannote/speaker-diarization)
                           #   - POST /v1/embedding — speaker vector extraction (pyannote/embedding)
@@ -105,7 +102,7 @@ backend (main.py)
   ├── ──────► diarizer (diarizer/)
   ├── ──────► vad (modal/)
   ├── ──────► modulate (managed API)
-  └── ──────► llm-gateway (llm_gateway/main.py)
+  └── ──────► managed model providers through explicit in-process workload clients
 
 pusher
   ├── ──────► diarizer (diarizer/)
@@ -122,9 +119,9 @@ Helm charts: `backend/charts/{backend-listen,backend-secrets,diarizer,llm-gatewa
 
 Managed STT is fixed to Modulate. `config/stt_provider_policy.py` owns its language/capability policy, and the runtime manifest binds only `MODULATE_API_KEY` on transcription-capable services.
 
-- **backend** (`main.py`) — REST API. `/v4/listen` streams fixed PCM directly to Modulate and returns transient canonical segments without Pusher, People, or conversation storage. Other retained server workflows call diarizer for speaker embeddings (`utils/stt/speaker_embedding.py`) and vad for voice activity detection and speaker identification (`utils/stt/vad.py`, `utils/stt/speech_profile.py`). Managed live and prerecorded STT uses Modulate (`MODULATE_API_KEY`). Transient live translation uses Gemini 2.5 Flash-Lite through the LLM gateway (`utils/translation.py`).
+- **backend** (`main.py`) — REST API. `/v4/listen` streams fixed PCM directly to Modulate and returns transient canonical segments without Pusher, People, or conversation storage. Other retained server workflows call diarizer for speaker embeddings (`utils/stt/speaker_embedding.py`) and vad for voice activity detection and speaker identification (`utils/stt/vad.py`, `utils/stt/speech_profile.py`). Managed live and prerecorded STT uses Modulate (`MODULATE_API_KEY`). Retained Python model workloads, including transient translation, call their declared providers directly through `utils/llm/clients.py`.
 - **Fair-use review** — `/v4/listen` owns speech meters, thresholds, cooldown, enforcement, and the restricted managed-cloud budget. It requests one content-free review from the authenticated owner Mac; `POST /v1/fair-use/reviews/{review_id}/classify` accepts only the bounded seven-day local evidence projection, invokes direct OpenAI GPT-5.1 transiently, and persists only content-free classifier/enforcement facts. Conversation evidence never becomes backend authority or durable case data.
-- **llm-gateway** (`llm_gateway/main.py`) — Internal FastAPI service for Omi-managed LLM auto lanes. Called by backend with service auth for `omi:auto:*` chat-completions routes; not exposed to clients.
+- **llm-gateway** (`llm_gateway/main.py`) — Callerless legacy deployment/source handed to S-25 for repository and live topology teardown. Application code must not import it or call `omi:auto:*` lanes.
 - **pusher** (`pusher/main.py`) — Receives audio via binary WebSocket protocol. Calls diarizer and managed Modulate STT for speaker sample extraction (`utils/speaker_identification.py` → `utils/speaker_sample.py`).
 - **diarizer** (`diarizer/main.py`) — GPU. Speaker embeddings at `/v2/embedding`. Called by backend and pusher (`HOSTED_SPEAKER_EMBEDDING_API_URL`).
 - **vad** (`modal/main.py`) — GPU. `/v1/vad` and `/v1/speaker-identification`. Called by backend only.
@@ -173,7 +170,7 @@ or a notifications cron job. Generic FCM primitives remain only for separately
 owned live callers; managed Gemini remains transient compute and owns no product
 records.
 
-Backend runtime env contract: keep `backend/deploy/runtime_env.yaml` aligned with GKE Helm values and Cloud Run runtime env; run `backend/scripts/pre-deploy-check.sh` after backend runtime env or deploy workflow changes. The `llm_gateway` manifest section owns the release, ingress, and static-address identity; a reserved address alone is never an endpoint contract. Gateway-mode promotion requires the control-plane gate plus `probe-llm-gateway-from-cloud-run.sh` before Cloud Run revisions are created.
+Backend runtime env contract: keep `backend/deploy/runtime_env.yaml` aligned with GKE Helm values and Cloud Run runtime env; run `backend/scripts/pre-deploy-check.sh` after backend runtime env or deploy workflow changes. The remaining `llm_gateway` manifest/chart/workflow/secret/traffic entries are a callerless S-25 handoff, not an application routing contract; do not add new consumers while that topology awaits deletion.
 
 Firestore index boundary: backend deploy workflows run `reconcile_firestore_indexes.py --check-only` against `RUNTIME_GCP_PROJECT_ID` in an isolated approved-source job using dedicated read-only credentials. Auto-dev deploys accept only a first-attempt successful same-repository `Release Eligibility` proof for `main` whose `head_sha` still equals freshly fetched and checked-out `main`, then use that admitted SHA for every source-derived step; manual **deploy** mode accepts only an exact main SHA with the same successful proof. Traffic-only repair leaves that input empty and stays source-independent because it changes no source-derived runtime state. A failed gate writes and locally revalidates a short-lived, redacted create-only proposal before upload; backend deployment must never mutate the serving schema.
 
@@ -276,7 +273,7 @@ Never block the event loop — it freezes health checks, HPA scaling, and all co
   - **Pool assignment** (match work type to pool):
     - `critical_executor` (8w) — auth gates only: `_verify_ws_auth`, `check_rate_limit`, `is_hard_restricted`, session/code Redis ops in `auth.py`
     - `db_executor` (24w) — Firestore/Redis CRUD, vector DB queries
-    - `llm_executor` (6w) — retained LLM API calls (`get_llm().invoke()` and first-party generation/classification work)
+    - `llm_executor` (6w) — retained explicit-workload provider calls and first-party generation/classification work
     - `billing_executor` (4w) — billing-provider API calls
     - `sync_executor` (16w) — sync endpoint pipeline work, parent calls that fan out to storage_executor
     - `postprocess_executor` (24w) — post-conversation processing, coordinator functions

@@ -90,8 +90,7 @@ langchain_prompts.ChatPromptTemplate = MagicMock()
 _stub_package("utils")
 _stub_package("utils.llm")
 llm_clients_stub = _stub_module("utils.llm.clients")
-llm_clients_stub.get_llm = MagicMock(return_value=MagicMock())
-llm_clients_stub.get_llm_gateway_chat_structured = MagicMock(return_value=MagicMock())
+llm_clients_stub.get_workload_client = MagicMock(return_value=MagicMock())
 llm_clients_stub.parser = MagicMock()
 usage_tracker_stub = _stub_module("utils.llm.usage_tracker")
 
@@ -106,14 +105,6 @@ conversation_folder_stub = _stub_module("utils.llm.conversation_folder")
 conversation_folder_stub.FolderAssignment = MagicMock
 conversation_folder_stub.assign_conversation_to_folder = MagicMock(return_value=None)
 conversation_folder_stub.build_folders_context = MagicMock(return_value="")
-
-gateway_stub = _stub_module("utils.llm.gateway_client")
-gateway_stub.invoke_chat_structured_gateway = MagicMock(return_value=None)
-gateway_stub.record_gateway_structured_result = MagicMock()
-gateway_stub.BACKGROUND_STRUCTURED_TIMEOUT_SECONDS = 35.0
-
-gateway_observability_stub = _stub_module("utils.llm.gateway_observability")
-gateway_observability_stub.record_gateway_shadow_comparison = MagicMock()
 
 conversation_folder_stub = _stub_module("utils.llm.conversation_folder")
 conversation_folder_stub.FolderAssignment = MagicMock()
@@ -224,7 +215,7 @@ def _capture_structure(fn, **kwargs):
     mock_llm = MagicMock()
     mock_llm.__or__ = MagicMock(return_value=mock_chain)
 
-    with patch.object(conv_proc, "get_llm", return_value=mock_llm), patch.object(
+    with patch.object(conv_proc, "get_workload_client", return_value=mock_llm), patch.object(
         conv_proc, "ChatPromptTemplate"
     ) as mock_prompt_cls, patch.object(conv_proc, "_build_conversation_context", return_value="ctx"):
         mock_prompt = MagicMock()
@@ -320,16 +311,3 @@ class TestStructureFunctionsTimezone:
             assert "do not re-interpret this timestamp as UTC" in text
             # The old buggy instruction asking the model to convert must be gone.
             assert "respond in user local timezone" not in text
-
-
-def test_gpt56_cache_buckets_are_fixed_and_never_include_request_content():
-    keys = {conv_proc._cache_bucket_key('omi-transcript-structure', now=offset * 15) for offset in range(8)}
-
-    assert keys == {
-        'omi-transcript-structure-v1-b0',
-        'omi-transcript-structure-v1-b1',
-        'omi-transcript-structure-v1-b2',
-        'omi-transcript-structure-v1-b3',
-    }
-    assert conv_proc._has_gpt56_cacheable_static_prefix('static ' * 1_100)
-    assert not conv_proc._has_gpt56_cacheable_static_prefix('short prefix')

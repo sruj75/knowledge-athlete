@@ -9,7 +9,7 @@ from models.chat_session import (
     GenerateTitleResponse,
     InitialMessageResponse,
 )
-from utils.llm.clients import bind_llm_output_token_limit, get_llm
+from utils.llm.clients import bind_llm_output_token_limit, get_workload_client
 from utils.llm.usage_tracker import Features, track_usage
 from utils.other import endpoints as auth
 
@@ -70,9 +70,9 @@ appropriate. Do not say that you are an assistant or that this is an initial mes
     with track_usage(uid, Features.CHAT):
         response = cast(
             Any,
-            bind_llm_output_token_limit('chat_greeting', get_llm('chat_greeting'), _GREETING_MAX_OUTPUT_TOKENS).invoke(
-                prompt
-            ),
+            bind_llm_output_token_limit(
+                'chat_greeting', get_workload_client('chat_greeting'), _GREETING_MAX_OUTPUT_TOKENS
+            ).invoke(prompt),
         )
     message = str(response.content).strip()
     if not message:
@@ -102,9 +102,9 @@ def generate_session_title(
     with track_usage(uid, Features.CHAT):
         response = cast(
             Any,
-            bind_llm_output_token_limit('session_titles', get_llm('session_titles'), _TITLE_MAX_OUTPUT_TOKENS).invoke(
-                prompt
-            ),
+            bind_llm_output_token_limit(
+                'session_titles', get_workload_client('session_titles'), _TITLE_MAX_OUTPUT_TOKENS
+            ).invoke(prompt),
         )
     title: str = response.content.strip().strip('"\'')
     if not title:

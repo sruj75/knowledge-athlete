@@ -1,29 +1,26 @@
-import asyncio
 import json
 import os
-from collections.abc import AsyncIterator
 from typing import Any
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import Response, StreamingResponse
+from fastapi.responses import Response
 
-from llm_gateway.gateway.providers import VertexAccessTokenSupplier
 from database import redis_db
 from utils.executors import critical_executor, db_executor, run_blocking
 from utils.llm.desktop_llm_stub import (
     llm_stub_enabled,
     stub_gemini_proxy_json,
-    stub_gemini_proxy_stream_chunks,
 )
+from utils.llm.vertex_auth import VertexAccessTokenSupplier
 from utils.other.endpoints import get_current_user_uid
 from utils.subscription import is_trial_paywalled
 
 router = APIRouter()
 
-_ALLOWED_ACTIONS = frozenset({"generateContent", "streamGenerateContent", "embedContent", "batchEmbedContents"})
-_ALLOWED_MODELS = frozenset({"gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.5-pro", "gemini-embedding-001"})
-_VERTEX_MODELS = frozenset({"gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.5-pro", "gemini-embedding-001"})
+_ALLOWED_ACTIONS = frozenset({"generateContent", "embedContent", "batchEmbedContents"})
+_ALLOWED_MODELS = frozenset({"gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-embedding-001"})
+_VERTEX_MODELS = frozenset({"gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-embedding-001"})
 _MAX_BODY_BYTES = 5 * 1024 * 1024
 _MAX_OUTPUT_TOKENS = 8192
 _DEFAULT_THINKING_BUDGET = 1024
@@ -162,9 +159,6 @@ async def _meter_server_request(uid: str, path: str, model: str, action: str) ->
         raise HTTPException(status_code=503, detail="Gemini rate limiter is unavailable") from exc
     if int(current) > _DAILY_HARD_LIMIT:
         raise HTTPException(status_code=429, detail="Gemini daily request limit exceeded")
-    soft_limit = 300 if os.getenv("OMI_MODEL_TIER", "").strip().lower() == "max" else 30
-    if int(current) > soft_limit and action not in {"embedContent", "batchEmbedContents"} and model == "gemini-2.5-pro":
-        return f"models/gemini-2.5-flash:{action}"
     return path
 
 
@@ -189,30 +183,13 @@ def _vertex_embedding_response(body: bytes) -> bytes:
     return json.dumps({"embedding": {"values": values}}, separators=(",", ":")).encode()
 
 
-async def _stream_response(client: httpx.AsyncClient, context: Any, upstream: httpx.Response) -> AsyncIterator[bytes]:
-    try:
-        async for chunk in upstream.aiter_bytes():
-            yield chunk
-    finally:
-        await context.__aexit__(None, None, None)
-        await client.aclose()
-
-
-async def _proxy(request: Request, path: str, streaming: bool, uid: str) -> Response:
+async def _proxy(request: Request, path: str, uid: str) -> Response:
     body = await request.body()
     if len(body) > _MAX_BODY_BYTES:
         raise HTTPException(status_code=413, detail="Request body is too large")
     path, model, action = _path_parts(path)
     if llm_stub_enabled():
         body_text = body.decode("utf-8", errors="replace")
-        if streaming or action == "streamGenerateContent":
-            chunks = stub_gemini_proxy_stream_chunks(body_text)
-
-            async def stub_stream() -> AsyncIterator[bytes]:
-                for chunk in chunks:
-                    yield chunk.encode("utf-8")
-
-            return StreamingResponse(stub_stream(), media_type="text/event-stream")
         payload = stub_gemini_proxy_json(body_text)
         return Response(
             json.dumps(payload, separators=(",", ":")).encode("utf-8"),
@@ -225,22 +202,6 @@ async def _proxy(request: Request, path: str, streaming: bool, uid: str) -> Resp
     if using_vertex and action == "embedContent":
         body = _vertex_embedding_request(body)
     try:
-        if streaming:
-            client = httpx.AsyncClient(timeout=httpx.Timeout(connect=10, read=None, write=240, pool=10))
-            context = client.stream(
-                "POST", url, params=params, content=body, headers={"Content-Type": "application/json", **headers}
-            )
-            upstream = await context.__aenter__()
-            if upstream.status_code >= 400:
-                content = await upstream.aread()
-                await context.__aexit__(None, None, None)
-                await client.aclose()
-                return Response(content, status_code=upstream.status_code, media_type="text/event-stream")
-            return StreamingResponse(
-                _stream_response(client, context, upstream),
-                status_code=upstream.status_code,
-                media_type="text/event-stream",
-            )
         async with httpx.AsyncClient(timeout=httpx.Timeout(240, connect=10)) as client:
             response = await client.post(
                 url, params=params, content=body, headers={"Content-Type": "application/json", **headers}
@@ -251,7 +212,7 @@ async def _proxy(request: Request, path: str, streaming: bool, uid: str) -> Resp
             else response.content
         )
         return Response(content, status_code=response.status_code, media_type=response.headers.get("content-type"))
-    except (httpx.TimeoutException, asyncio.TimeoutError) as exc:
+    except httpx.TimeoutException as exc:
         raise HTTPException(status_code=504, detail="Gemini request timed out") from exc
     except httpx.HTTPError as exc:
         raise HTTPException(status_code=502, detail="Gemini upstream request failed") from exc
@@ -265,9 +226,4 @@ async def _authorized_desktop_user(uid: str = Depends(get_current_user_uid)) -> 
 
 @router.post("/v1/proxy/gemini/{path:path}")
 async def gemini_proxy(request: Request, path: str, uid: str = Depends(_authorized_desktop_user)) -> Response:
-    return await _proxy(request, path, False, uid)
-
-
-@router.post("/v1/proxy/gemini-stream/{path:path}")
-async def gemini_stream_proxy(request: Request, path: str, uid: str = Depends(_authorized_desktop_user)) -> Response:
-    return await _proxy(request, path, True, uid)
+    return await _proxy(request, path, uid)

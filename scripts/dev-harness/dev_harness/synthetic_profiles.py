@@ -94,12 +94,20 @@ def profile_payload(cfg: config.HarnessConfig, alias: str) -> dict[str, str]:
     return {}
 
 
-def _request_json(method: str, url: str, payload: Mapping[str, object]) -> tuple[int, str]:
+def _request_json(
+    method: str,
+    url: str,
+    payload: Mapping[str, object],
+    *,
+    headers: Mapping[str, str] | None = None,
+) -> tuple[int, str]:
+    request_headers = {"Content-Type": "application/json"}
+    request_headers.update(headers or {})
     request = urllib.request.Request(
         url,
         data=json.dumps(payload).encode("utf-8"),
         method=method,
-        headers={"Content-Type": "application/json"},
+        headers=request_headers,
     )
     try:
         with urllib.request.urlopen(request, timeout=2) as response:
@@ -166,6 +174,7 @@ def _write_profile(cfg: config.HarnessConfig, profile: SyntheticProfile, uid: st
         "PATCH",
         url,
         {"fields": {key: _firestore_value(value) for key, value in fields.items()}},
+        headers={"Authorization": "Bearer owner"},
     )
     if status >= 400:
         raise RuntimeError(f"Firestore emulator profile seed failed for {profile.alias}: HTTP {status} {body[:200]}")

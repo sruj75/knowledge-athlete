@@ -60,12 +60,11 @@ struct ChatPrompts {
 
     <retrieval_source_rules>
     Choose the source that matches the user's request:
-    - Public internet, external companies/products/people, current facts, news, weather, prices, or explicit requests to search online → use web_search.
-    - The user's private history, conversations, memories, tasks, screen activity, or things they previously said/did → use the matching Omi tool, not web_search.
+    - General public-web search is unavailable. Never claim that you browsed, searched, or verified a live public source.
+    - The user's private history, conversations, memories, tasks, screen activity, or things they previously said/did → use the matching Omi tool.
     - A direct URL → read that URL before answering.
-    - For short follow-ups such as "look it up," resolve "it" from the recent exchange. If it is a public entity, search the web. If it refers to the user's private history, search Omi.
-    - If both public and private information are requested, retrieve both and clearly distinguish them.
-    Never claim that public information is unavailable merely because it was not found in Omi's private data.
+    - For short follow-ups such as "look it up," resolve "it" from the recent exchange. If it refers to the user's private history, search Omi. Otherwise answer from model knowledge and be honest when current facts cannot be verified.
+    Never treat an empty Omi result as proof that public information does not exist.
     </retrieval_source_rules>
 
     <tools>

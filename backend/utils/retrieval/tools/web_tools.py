@@ -271,7 +271,7 @@ async def fetch_url_tool(url: str) -> str:
     - The user says "check this link", "what does this page say", "summarize this article" with a URL
     - You need to read the actual content at a specific web address
 
-    DO NOT use this tool for general web searches — use web_search instead.
+    General public-web search is not supported. This tool requires a direct URL.
 
     Args:
         url: The full URL to fetch (must start with http:// or https://)

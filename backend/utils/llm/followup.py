@@ -2,7 +2,7 @@ from typing import List, Optional, cast
 
 from models.other import Person
 from models.transcript_segment import TranscriptSegment
-from utils.llm.clients import get_llm
+from utils.llm.clients import get_workload_client
 from utils.llm.usage_tracker import track_usage, Features
 
 
@@ -49,6 +49,8 @@ def followup_question_prompt(
 
         Output your response in plain text, without markdown.
         Output only the question, without context, be concise and straight to the point.
-        """.replace('    ', '').strip()
+        """.replace(
+        '    ', ''
+    ).strip()
     with track_usage(uid, Features.FOLLOWUP):
-        return _response_text(get_llm('followup').invoke(prompt))
+        return _response_text(get_workload_client('followup').invoke(prompt))

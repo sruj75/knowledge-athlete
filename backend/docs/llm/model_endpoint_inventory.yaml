@@ -1,98 +1,120 @@
-schema_version: llm_model_endpoint_inventory.v1
-scope:
-  in_scope: backend chat/completion/generation/model calls, including streaming, tool calling, image generation, file chat, realtime relay, and provider web search
-  out_of_scope: embeddings/vector APIs only
-out_of_scope_surfaces:
+schema_version: llm_model_endpoint_inventory.v2
+route_authority: backend/utils/llm/model_config.py
+routing_contract:
+  mode: explicit_direct_workload
+  unknown_key: fail_closed
+  environment_selectable_profile: false
+  customer_provider_selection: false
+  application_gateway_callers: 0
+  persistent_attempt_ledger: false
+
+workloads:
+  - key: chat_agent
+    lifecycle: retained
+    provider_model: anthropic/claude-sonnet-4-6
+    caller: POST /v2/chat/completions from local Node/Pi
+    result_owner: owner-scoped Mac Node journal
+  - key: chat_greeting
+    lifecycle: retained
+    provider_model: openai/gpt-5.4-mini
+    caller: POST /v2/chat/initial-message
+    result_owner: owner-scoped Mac Node journal
+  - key: session_titles
+    lifecycle: retained
+    provider_model: gemini/gemini-2.5-flash-lite
+    caller: POST /v2/chat/generate-title
+    result_owner: owner-scoped Mac Chat catalog
+  - key: conv_discard
+    lifecycle: retained
+    provider_model: openai/gpt-4.1-nano
+    caller: POST /v1/conversation-compute/discard
+    result_owner: Mac conversation finalization transaction
+  - key: conv_structure
+    lifecycle: retained
+    provider_model: openai/gpt-5.4-mini
+    caller: POST /v1/conversation-compute/structure
+    result_owner: Mac conversation transaction
+  - key: conv_action_items
+    lifecycle: retained
+    provider_model: openai/gpt-5.4-mini
+    caller: POST /v1/conversation-compute/action-items
+    result_owner: Mac ActionItemStorage transaction
+  - key: memory_l1
+    lifecycle: retained
+    provider_model: openai/gpt-4.1-mini
+    caller: POST /v1/memory/compute/extract
+    result_owner: Mac MemoryStorage lifecycle transaction
+  - key: memory_l2
+    lifecycle: retained
+    provider_model: openai/gpt-4.1-mini
+    caller: POST /v1/memory/compute/normalize
+    result_owner: Mac MemoryStorage lifecycle transaction
+  - key: memory_conflict
+    lifecycle: retained
+    provider_model: openai/gpt-4.1-mini
+    caller: POST /v1/memory/compute/consolidate
+    result_owner: Mac MemoryStorage lifecycle transaction
+  - key: translation
+    lifecycle: retained
+    provider_model: gemini/gemini-2.5-flash-lite
+    caller: POST /v4/listen translation coordinator
+    result_owner: matching Mac transcript segments
+  - key: fair_use
+    lifecycle: dependency_s20
+    provider_model: openai/gpt-5.1
+    caller: S-20 bounded fair-use classify route
+    result_owner: S-20 Mac GRDB evidence and content-free enforcement facts
+  - key: wrapped_analysis
+    lifecycle: successor_s23
+    provider_model: openrouter/gemini-3-flash-preview
+    caller: backend/routers/wrapped.py
+    result_owner: S-23 Wrapped product
+  - key: followup
+    lifecycle: successor_s23
+    provider_model: gemini/gemini-2.5-flash-lite
+    caller: DELETE /v1/joan/{memory_id}/followup-question
+    result_owner: S-23 Joan product
+  - key: conv_folder
+    lifecycle: successor_s23
+    provider_model: openai/gpt-4.1-nano
+    caller: hosted conversation finalization folder assignment
+    result_owner: S-23 hosted conversation product
+
+adjacent_direct_surfaces:
+  - surface: desktop_gemini_generation
+    provider_models:
+      - gemini/gemini-2.5-flash
+      - gemini/gemini-2.5-flash-lite
+    owner: authenticated desktop proxy
+    contract: non-stream generation only; Pro is rejected
+  - surface: desktop_gemini_embeddings
+    provider_model: gemini/gemini-embedding-001
+    owner: authenticated desktop proxy
   - surface: openai_embeddings
-    code_path: backend/utils/llm/clients.py:OpenAIEmbeddings,generate_embedding
     provider_model: openai/text-embedding-3-large
-    request_shape: embedding
-    reason: Embeddings are explicitly out of scope for this phase.
-model_config_features:
-  status: gateway_lane_generated_from_model_config
-  source_of_truth: backend/utils/llm/model_config.py
-  gateway_lane: omi:auto:<feature-with-underscores-as-hyphens>
-  code_paths:
-    - backend/utils/llm/clients.py:get_llm
-    - backend/llm_gateway/gateway/config_loader.py:_generated_feature_route_items
-  request_shapes:
-    plain_chat:
-      - chat_greeting
-      - conv_action_items
-      - conv_discard
-      - conv_folder
-      - conv_structure
-      - followup
-      - onboarding
-      - session_titles
-      - wrapped_analysis
-    structured_output:
-      - translation
-      - trends
-    streaming:
-      - chat_responses
-    tool_calling:
-      - chat_agent
-    provider_search:
-      - web_search
-    pinned:
-      - memory_conflict
-      - memory_l1
-      - memory_l2
-    direct_pinned:
-      - fair_use
-  gateway_capability_needed: OpenAI-compatible chat-completions lane with provider refs for openai, native Vertex Gemini, openrouter, perplexity, and anthropic; fair_use is the retained direct OpenAI GPT-5.1 exception.
-  migration_status: get_llm centrally switches Omi-managed feature traffic to generated gateway lanes with OMI_LLM_GATEWAY_FEATURE_MODE=gateway and does not retain a direct-provider fallback; fair_use bypasses get_llm to preserve its explicit OpenAI GPT-5.1 route; gateway Gemini uses native Vertex generateContent authenticated by GKE Workload Identity.
-  test_guardrail_coverage:
-    - backend/tests/unit/test_llm_gateway_coverage_guardrails.py::test_every_model_config_feature_has_inventory_and_gateway_lane
-    - backend/tests/unit/test_llm_gateway_client_config.py::test_get_llm_feature_gateway_mode_uses_generated_auto_lane
-surfaces:
-  - surface: langchain_feature_routing
-    code_path: backend/utils/llm/clients.py:get_llm
-    current_provider_model: utils.llm.model_config feature profile
-    request_shape: plain chat, structured output, parser chain, streaming, tool calling via LangChain
-    gateway_lane_capability_needed: generated feature lanes
-    migration_status: gateway_capable_central_flip
-    test_guardrail_coverage: backend/tests/unit/test_llm_gateway_coverage_guardrails.py
-  - surface: anthropic_agentic_chat
-    code_path: backend/utils/llm/gateway_anthropic.py:_GatewayAnthropicStream
-    current_provider_model: anthropic/chat_agent
-    request_shape: streaming, native tool calling, server-side web search
-    gateway_lane_capability_needed: native anthropic.messages surface with streaming and tools on omi:auto:chat-agent
-    migration_status: gateway_only_fail_closed; transport failures and an open circuit return a typed gateway-unavailable error without constructing or calling a direct Anthropic client
-    test_guardrail_coverage: backend/tests/unit/test_gateway_anthropic_client.py
-  - surface: perplexity_web_search_tool
-    code_path: backend/utils/retrieval/tools/perplexity_tools.py:perplexity_web_search_tool
-    current_provider_model: perplexity/web_search
-    request_shape: provider search chat completion
-    gateway_lane_capability_needed: perplexity OpenAI-compatible provider adapter on omi:auto:web-search
-    migration_status: gateway_only_fail_closed
-    test_guardrail_coverage: backend/tests/unit/test_llm_gateway_client_config.py::test_perplexity_tool_always_uses_gateway
-  - surface: file_chat_vision
-    code_path: backend/utils/other/chat_file.py:_ask_vision_stream
-    current_provider_model: openai/gpt-4.1
-    request_shape: streaming vision chat completion
-    gateway_lane_capability_needed: gateway-owned vision chat lane or file-chat replacement retrieval path
-    migration_status: inventoried_direct_file_lifecycle_surface; blocked during OMI_LLM_GATEWAY_FEATURE_MODE=gateway and checked-in serving configuration does not permit the exception
-    test_guardrail_coverage: backend/tests/unit/test_llm_gateway_coverage_guardrails.py
-  - surface: file_chat_assistants
-    code_path: backend/utils/other/chat_file.py:FileChatTool
-    current_provider_model: openai/gpt-4.1 with Assistants, Threads, Files, File Search
-    request_shape: file upload, assistants, file_search, streaming run deltas
-    gateway_lane_capability_needed: gateway-owned file/assistant lifecycle or replacement retrieval path
-    migration_status: inventoried_direct_file_lifecycle_surface; blocked during OMI_LLM_GATEWAY_FEATURE_MODE=gateway and checked-in serving configuration does not permit the exception
-    test_guardrail_coverage: backend/tests/unit/test_llm_gateway_coverage_guardrails.py
+    owner: explicit embedding callers
   - surface: omni_realtime_relay
-    code_path: backend/routers/omni_relay.py
-    current_provider_model: openai realtime or gemini live selected by client query
-    request_shape: realtime websocket relay
-    gateway_lane_capability_needed: gateway-owned realtime websocket relay
-    migration_status: inventoried_direct_realtime_surface; blocked during OMI_LLM_GATEWAY_FEATURE_MODE=gateway and checked-in serving configuration does not permit the exception
-    test_guardrail_coverage: backend/tests/unit/test_llm_gateway_coverage_guardrails.py
-  - surface: fair_use_classifier
-    code_path: backend/utils/llm/fair_use_classifier.py:classify_fair_use_evidence
-    current_provider_model: openai/gpt-5.1 pinned feature
-    request_shape: authenticated bounded local-evidence async plain chat JSON
-    gateway_lane_capability_needed: none; retained direct OpenAI exception
-    migration_status: direct_explicit_route
-    test_guardrail_coverage: backend/tests/unit/test_llm_gateway_coverage_guardrails.py
+    provider_models:
+      - openai/realtime
+      - gemini/live
+    owner: native realtime voice policy; outside managed workload registry
+  - surface: file_chat
+    provider_model: openai/gpt-4.1
+    owner: explicit-file lifecycle; outside managed workload registry
+
+retired_surfaces:
+  - global premium/max/BYOK profiles
+  - application gateway mode/auto lanes/shadow/circuit transport
+  - Firestore llm_gateway_attempts ledger and cost cards
+  - Perplexity/Sonar helper and credential templates
+  - ElevenLabs /v2 TTS route
+  - Gemini Pro and streaming desktop proxy routes
+  - callerless onboarding and trends model helpers
+
+closure:
+  status: complete
+  permitted_s23_handoffs:
+    - followup -> Joan
+    - conv_folder -> automatic folder assignment
+    - wrapped_analysis/openrouter -> Wrapped
+  s25_handoff: callerless standalone gateway source and deployment topology remain intact

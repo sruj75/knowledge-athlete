@@ -75,9 +75,6 @@ RATE_POLICIES: dict[str, tuple[int, int]] = {
     # Not migrated to per-UID Lua limiter intentionally.
     # Test
     "test:prompt": (30, 3600),
-    # TTS — ElevenLabs proxy. Coarse outer ring; fine-grained burst + daily
-    # char caps are enforced in database.redis_db.check_tts_rate_limit.
-    "tts:synthesize": (300, 3600),
 }
 
 

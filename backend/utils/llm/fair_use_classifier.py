@@ -180,7 +180,7 @@ Respond with ONLY the JSON output, no other text."""
 
         with track_usage(uid, Features.OTHER):
             classifier_llm = _classifier_llm or get_default_client(
-                'gpt-5.1', 'openai', False, get_route_options('fair_use', 'gpt-5.1', 'openai')
+                'gpt-5.1', 'openai', False, get_route_options('fair_use')
             )
             response = await classifier_llm.ainvoke(
                 [

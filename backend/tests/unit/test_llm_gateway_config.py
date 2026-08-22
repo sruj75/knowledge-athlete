@@ -48,6 +48,20 @@ def test_gateway_route_overrides_do_not_change_the_legacy_model_profile():
     assert chat_agent_lane.capabilities.tools is True
 
 
+def test_callerless_gateway_keeps_its_chat_lane_without_restoring_an_application_workload():
+    config = load_gateway_config(prod_mode=True)
+
+    assert 'chat_responses' not in get_all_configured_features()
+    lane = config.lanes['omi:auto:chat-responses']
+    route = config.route_artifacts[lane.active_route]
+    assert route.primary.provider == 'openai'
+    assert route.primary.model == 'gpt-5.6-luna'
+    assert route.provider_options == {
+        'extra_body': {'prompt_cache_retention': '24h'},
+        'reasoning_effort': 'medium',
+    }
+
+
 def test_translation_uses_the_gateway_translation_capability():
     config = load_gateway_config(prod_mode=True)
 

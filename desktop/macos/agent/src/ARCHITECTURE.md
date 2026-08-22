@@ -64,11 +64,8 @@ Swift desktop client
   attempt receives that directory as its adapter cwd; delegated objectives and
   raw control-tool cwd values cannot default a deliverable to Desktop. Explicit
   external-delivery reports are copied into the managed directory.
-- Pi's public-web prompt routing is a rollout compatibility projection, not a
-  second policy owner. Its positive decisions must match the Python gateway cases
-  in `../../../../backend/desktop_fixtures/public-web-routing-contract.fixture.json`;
-  otherwise the adapter can display synthetic search activity for a lookup the
-  gateway never performed.
+- Pi forwards typed prompts without adding a public-web policy or synthetic tool
+  activity. Private Omi tools and explicit URL readers remain separate capabilities.
 - Generated tool manifests and Swift executors are updated together through
   `../scripts/generate-tool-surfaces.mjs`; hand-edited capability mirrors are
   prohibited.

@@ -89,8 +89,6 @@
         "utils/conversations/process_conversation.py",
         "utils/llm/clients.py",
         "utils/llm/conversation_processing.py",
-        "utils/llm/gateway_shadow.py",
-        "utils/llm/gateway_serving.py",
         "utils/llm/providers.py",
         "utils/retrieval/agentic.py",
         "utils/retrieval/tools/preference_tools.py"

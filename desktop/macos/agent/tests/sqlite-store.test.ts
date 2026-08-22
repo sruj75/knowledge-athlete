@@ -61,7 +61,7 @@ describe("SqliteAgentStore", () => {
       { adapterId: "acp", modelProfile: "claude-sonnet-4-6" },
       { adapterId: "hermes", modelProfile: "claude-sonnet-4-6" },
       { adapterId: "openclaw", modelProfile: null },
-      { adapterId: "pi-mono", modelProfile: "omi-opus" },
+      { adapterId: "pi-mono", modelProfile: "omi-sonnet" },
     ];
     const sessions = legacyProfiles.map(({ adapterId, modelProfile }, index) => {
       const session = store.insertSession({

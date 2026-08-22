@@ -14,10 +14,10 @@ from llm_gateway.gateway.executor import ProviderRegistry, provider_request_for
 from llm_gateway.gateway.providers import FakeChatCompletionProvider, ProviderFailure
 from llm_gateway.gateway.resolver import resolve_chat_completion_route
 from llm_gateway.gateway.schemas import FailureClass, ProviderRef, ProviderRejection
+from llm_gateway.gateway.structured_payload import build_structured_gateway_payload
 from llm_gateway.main import app
 from llm_gateway.routers import dependencies, openai_compatible
 from models.structured_extraction import ActionItemsExtraction, ConversationStructureExtraction
-from utils.llm.gateway_client import build_structured_gateway_payload
 
 LANE_ID = 'omi:auto:chat-structured'
 
@@ -134,50 +134,6 @@ def test_provider_rejection_preserves_exact_terminal_class_and_bounded_member(
     assert error.provider_rejection == provider_rejection
 
 
-def test_chat_completions_persists_cache_aware_attempt_with_authenticated_attribution(monkeypatch):
-    monkeypatch.setenv('LLM_GATEWAY_SERVICE_TOKEN', 'shared-secret')
-    persisted = []
-
-    def capture_persist(context, trace):
-        persisted.append((context, trace))
-
-    provider = FakeChatCompletionProvider(
-        [
-            {
-                'id': 'chatcmpl-accounted',
-                'object': 'chat.completion',
-                'created': 1,
-                'model': 'gpt-5.4-nano',
-                'choices': [{'index': 0, 'message': {'role': 'assistant', 'content': '{}'}, 'finish_reason': 'stop'}],
-                'usage': {
-                    'prompt_tokens': 100,
-                    'completion_tokens': 20,
-                    'prompt_tokens_details': {'cached_tokens': 40},
-                },
-            }
-        ]
-    )
-    monkeypatch.setattr(openai_compatible, 'schedule_attempt_trace', capture_persist)
-    app.dependency_overrides[dependencies.get_provider_registry] = lambda: ProviderRegistry({'openai': provider})
-    try:
-        response = TestClient(app).post(
-            '/v1/chat/completions',
-            json=valid_request(prompt_cache_key='conversation-123'),
-            headers={**auth_headers(), 'x-omi-llm-feature': 'conversation_processing'},
-        )
-    finally:
-        app.dependency_overrides.clear()
-
-    assert response.status_code == 200
-    assert len(persisted) == 1
-    context, trace = persisted[0]
-    assert context.user_uid == 'user-123'
-    assert context.feature == 'conversation_processing'
-    assert trace.attempts[0].usage is not None
-    assert trace.attempts[0].usage.cached_input_tokens == 40
-    assert trace.attempts[0].usage.cache_status.value == 'partial_hit'
-
-
 def test_gateway_provider_body_forwards_validated_gpt56_cache_fields_unchanged():
     request = valid_request(
         prompt_cache_key='omi-extract-actions-v1-b0',
@@ -230,43 +186,14 @@ def test_gateway_provider_body_strips_gpt56_cache_fields_for_legacy_route():
     assert forwarded['messages'][0]['content'] == [{'type': 'text', 'text': 'Stable instructions.'}]
 
 
-def test_metadata_feature_never_enters_the_accounting_context(monkeypatch):
-    monkeypatch.setenv('LLM_GATEWAY_SERVICE_TOKEN', 'shared-secret')
-    persisted = []
-
-    def capture_persist(context, trace):
-        persisted.append((context, trace))
-
-    monkeypatch.setattr(openai_compatible, 'schedule_attempt_trace', capture_persist)
-    provider = FakeChatCompletionProvider()
-    app.dependency_overrides[dependencies.get_provider_registry] = lambda: ProviderRegistry({'openai': provider})
-    try:
-        response = TestClient(app).post(
-            '/v1/chat/completions',
-            json=valid_request(metadata={'omi_feature': 'private user supplied metadata'}),
-            headers=auth_headers(),
-        )
-    finally:
-        app.dependency_overrides.clear()
-
-    assert response.status_code == 200
-    assert persisted[0][0].feature == LANE_ID
-
-
-def test_image_generation_records_gateway_attempt(monkeypatch):
+def test_image_generation_forwards_to_managed_provider(monkeypatch):
     class FakeImageClient:
         async def post(self, *_args, **_kwargs):
             return httpx.Response(200, json={'created': 1, 'data': [{'url': 'https://example.invalid/image'}]})
 
     monkeypatch.setenv('LLM_GATEWAY_SERVICE_TOKEN', 'shared-secret')
     monkeypatch.setenv('OPENAI_API_KEY', 'omi-openai-key')
-    persisted = []
-
-    def capture_persist(context, trace):
-        persisted.append((context, trace))
-
     monkeypatch.setattr(openai_compatible, '_get_image_generation_client', lambda: FakeImageClient())
-    monkeypatch.setattr(openai_compatible, 'schedule_attempt_trace', capture_persist)
     response = TestClient(app).post(
         '/v1/images/generations',
         json={'model': 'gpt-image-1', 'prompt': 'private prompt', 'size': '1024x1024', 'quality': 'high', 'n': 2},
@@ -274,16 +201,9 @@ def test_image_generation_records_gateway_attempt(monkeypatch):
     )
 
     assert response.status_code == 200
-    assert len(persisted) == 1
-    context, trace = persisted[0]
-    assert context.api_surface == 'openai_images_generations'
-    assert context.feature == 'app_generator'
-    assert trace.attempts[0].usage is not None
-    assert trace.attempts[0].usage.unit_type == 'images'
-    assert trace.attempts[0].usage.image_count == 2
 
 
-def test_image_generation_normalizes_auto_defaults_for_estimated_accounting(monkeypatch):
+def test_image_generation_normalizes_auto_defaults(monkeypatch):
     class FakeImageClient:
         def __init__(self):
             self.calls = []
@@ -294,12 +214,8 @@ def test_image_generation_normalizes_auto_defaults_for_estimated_accounting(monk
 
     monkeypatch.setenv('LLM_GATEWAY_SERVICE_TOKEN', 'shared-secret')
     monkeypatch.setenv('OPENAI_API_KEY', 'omi-openai-key')
-    persisted = []
     client = FakeImageClient()
     monkeypatch.setattr(openai_compatible, '_get_image_generation_client', lambda: client)
-    monkeypatch.setattr(
-        openai_compatible, 'schedule_attempt_trace', lambda context, trace: persisted.append((context, trace))
-    )
 
     response = TestClient(app).post(
         '/v1/images/generations',
@@ -307,13 +223,9 @@ def test_image_generation_normalizes_auto_defaults_for_estimated_accounting(monk
         headers=auth_headers(),
     )
 
-    usage = persisted[0][1].attempts[0].usage
     assert response.status_code == 200
     assert client.calls[0]['json']['size'] == 'auto'
     assert client.calls[0]['json']['quality'] == 'auto'
-    assert usage is not None
-    assert usage.image_size == 'auto'
-    assert usage.image_quality == 'auto'
 
 
 def test_chat_completions_forwards_action_item_extraction_strict_schema(monkeypatch):
@@ -528,7 +440,6 @@ class TerminalStreamProvider(FakeChatCompletionProvider):
 def test_streaming_ignores_retired_customer_key_header_and_records_managed_source(monkeypatch):
     monkeypatch.setenv('LLM_GATEWAY_SERVICE_TOKEN', 'shared-secret')
     recorded: list[dict] = []
-    persisted = []
     request_id = 'f6720df5-245e-4fd7-b10b-ec869888e1de'
     provider = TerminalStreamProvider(
         [
@@ -539,10 +450,6 @@ def test_streaming_ignores_retired_customer_key_header_and_records_managed_sourc
     )
     monkeypatch.setattr(openai_compatible, 'observe_route_result', lambda *_args, **kwargs: recorded.append(kwargs))
 
-    def capture_persist(context, trace):
-        persisted.append((context, trace))
-
-    monkeypatch.setattr(openai_compatible, 'schedule_attempt_trace', capture_persist)
     app.dependency_overrides[dependencies.get_gateway_config] = _streaming_enabled_gateway_config
     app.dependency_overrides[dependencies.get_provider_registry] = lambda: ProviderRegistry({'openai': provider})
     try:
@@ -571,11 +478,6 @@ def test_streaming_ignores_retired_customer_key_header_and_records_managed_sourc
     assert recorded[0]['output_budget'] == 'none'
     assert recorded[0]['completion_size'] == 'le_64'
     assert recorded[0]['finish_reason'] == 'unknown'
-    assert len(persisted) == 1
-    context, trace = persisted[0]
-    assert context.payer == 'omi'
-    assert trace.attempts[-1].usage is not None
-    assert trace.attempts[-1].usage.cache_status.value == 'no_cache_read_observed'
     assert provider.stream_requests[0]['stream_options']['include_usage'] is True
 
 

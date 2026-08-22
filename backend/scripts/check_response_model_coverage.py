@@ -44,7 +44,6 @@ LEGIT_NON_JSON: dict[tuple[str, str], str] = {
     ("updates.py", "get_desktop_appcast_xml"): "XML appcast (Sparkle update feed)",
     ("updates.py", "download_latest_desktop_release"): "binary file download (StreamingResponse)",
     ("updates.py", "download_beta_desktop_release"): "binary file download (StreamingResponse)",
-    ("tts.py", "tts_synthesize"): "binary audio stream (StreamingResponse)",
     ("users.py", "export_all_user_data"): "StreamingResponse data-export download",
     # --- 204 No Content (genuine empty-body deletes; FastAPI rejects response_model+204) ---
     ("action_items.py", "delete_action_item"): "204 No Content",

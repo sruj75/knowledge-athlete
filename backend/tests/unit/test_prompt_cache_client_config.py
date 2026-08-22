@@ -1,22 +1,13 @@
-"""Retained prompt-cache routing contracts for the shared LLM client."""
+"""Retained prompt-cache routing contracts for explicit direct workloads."""
 
-from pathlib import Path
-
-
-BACKEND_DIR = Path(__file__).resolve().parents[2]
+from utils.llm.model_config import get_route_options, supports_prompt_cache
 
 
-def _source(relative_path: str) -> str:
-    return (BACKEND_DIR / relative_path).read_text(encoding='utf-8')
+def test_direct_workloads_expose_cache_key_capability():
+    assert supports_prompt_cache('gpt-5.4-mini')
+    assert supports_prompt_cache('gpt-4.1-mini')
+    assert not supports_prompt_cache('gemini-2.5-flash-lite')
 
 
-def test_qos_cache_key_in_clients():
-    source = _source('utils/llm/clients.py')
-    assert 'cache_key' in source
-    assert 'supports_prompt_cache' in source
-    assert '_CACHE_KEY_MODEL_PREFIXES' in _source('utils/llm/model_config.py')
-
-
-def test_qos_medium_tier_uses_extra_body_for_cache_retention():
-    source = _source('utils/llm/clients.py') + _source('utils/llm/model_config.py')
-    assert 'extra_body={"prompt_cache_retention"' in source or '"prompt_cache_retention": "24h"' in source
+def test_openai_workload_owns_cache_retention_option():
+    assert get_route_options('conv_action_items') == {'extra_body': {'prompt_cache_retention': '24h'}}

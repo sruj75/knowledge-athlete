@@ -58,10 +58,6 @@ routes:
     policy: *desktop_migration_policy
   - route_type: http
     method: POST
-    path: /v1/proxy/gemini-stream/{path:path}
-    policy: *desktop_migration_policy
-  - route_type: http
-    method: POST
     path: /v1/proxy/gemini/{path:path}
     policy: *desktop_migration_policy
   - route_type: http

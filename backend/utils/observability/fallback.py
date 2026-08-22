@@ -58,8 +58,6 @@ ALLOWED_COMPONENTS = frozenset(
         'ptt_cascade',
         'gemini_model',
         'gemini_proxy',
-        'gemini_stream_proxy',
-        'llm_gateway',
         'memory_analytics',
         'redis_ratelimit',
         'silent_mic',
