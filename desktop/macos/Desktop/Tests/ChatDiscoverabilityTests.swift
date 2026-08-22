@@ -133,13 +133,14 @@ final class ChatDiscoverabilityTests: XCTestCase {
     XCTAssertFalse(prompt.contains("You have \(DesktopCapabilityRegistry.desktopToolNames.count) Omi tools"))
   }
 
-  func testDesktopPromptDistinguishesPublicWebFromPrivateOmiRetrieval() {
+  func testDesktopPromptKeepsPrivateAndExplicitURLRetrievalWithoutClaimingPublicWeb() {
     let prompt = ChatPrompts.desktopChat
-    XCTAssertTrue(prompt.contains("Public internet, external companies/products/people"))
-    XCTAssertTrue(prompt.contains("use web_search"))
+    XCTAssertTrue(prompt.contains("General public-web search is unavailable"))
+    XCTAssertFalse(prompt.contains("use web_search"))
     XCTAssertTrue(prompt.contains("private history, conversations, memories"))
+    XCTAssertTrue(prompt.contains("A direct URL → read that URL"))
     XCTAssertTrue(prompt.contains("For short follow-ups such as \"look it up,\""))
-    XCTAssertTrue(prompt.contains("Never claim that public information is unavailable"))
+    XCTAssertTrue(prompt.contains("Never treat an empty Omi result"))
   }
 
   func testToolPromptKeepsStructuredTaskLookupGuidance() {

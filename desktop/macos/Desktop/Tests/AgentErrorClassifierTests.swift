@@ -158,7 +158,7 @@ final class AgentErrorClassifierTests: XCTestCase {
       ("Managed Omi agents can only use Omi cloud routing.", true, false),
       ("Authentication required", true, false),
       (
-        "400 tool_choice.name 'web_search' cannot be used because this tool only allows calls from ['code_execution_20260120'].",
+        "400 tool_choice.name 'unsupported_tool' cannot be used because this tool only allows calls from ['code_execution_20260120'].",
         true, false
       ),
       ("400 Your credit balance is too low to access the Anthropic API.", true, false),

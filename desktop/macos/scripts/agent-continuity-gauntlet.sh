@@ -38,7 +38,7 @@
 # Usage:
 #   cd desktop/macos && ./scripts/agent-continuity-gauntlet.sh
 #   ./scripts/agent-continuity-gauntlet.sh --self-check          # validate hooks only
-#   ./scripts/agent-continuity-gauntlet.sh --suite prompts       # fast typed-only prompt probes (P1-P4, including live public-web)
+#   ./scripts/agent-continuity-gauntlet.sh --suite prompts       # fast typed-only prompt probes (P1-P4, including no-public-web truthfulness)
 #   ./scripts/agent-continuity-gauntlet.sh --suite continuity    # steps 1-3 only (includes PTT)
 #   ./scripts/agent-continuity-gauntlet.sh --suite agents        # exact voice-memory authority + agent probes
 #   ./scripts/agent-continuity-gauntlet.sh --suite resilience    # startup/resilience probes (R1-R4)

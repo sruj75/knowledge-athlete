@@ -144,10 +144,10 @@ final class ToolCallStatusTests: XCTestCase {
         isStreaming: true,
         contentBlocks: [
           .toolCall(
-            id: "web-search",
-            name: "web_search",
+            id: "fetch-url",
+            name: "fetch_url",
             status: .running,
-            toolUseId: "tool-web-search",
+            toolUseId: "tool-fetch-url",
             input: nil,
             output: nil
           )

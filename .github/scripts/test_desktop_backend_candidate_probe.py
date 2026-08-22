@@ -90,9 +90,7 @@ class CandidateProbeTests(unittest.TestCase):
             {"status": "ready", "redis": "ready"},
         )
         with self.assertRaises(PROBE.ProbeError):
-            PROBE.validate_readiness(
-                {"status": "not_ready", "redis": {"status": "unavailable"}}
-            )
+            PROBE.validate_readiness({"status": "not_ready", "redis": {"status": "unavailable"}})
 
     def test_health_only_evidence_excludes_chat_claims(self) -> None:
         original = PROBE._request_json
@@ -133,17 +131,16 @@ class CandidateProbeTests(unittest.TestCase):
         self.assertNotIn("backend_release_sha", evidence["desktop_backend"])
 
     def test_sse_parser_requires_text_and_terminal_marker(self) -> None:
-        answer, done, searches, _, saw_usage = PROBE.parse_sse(
+        answer, done, _, saw_usage = PROBE.parse_sse(
             [
                 sse_event({"choices": [{"delta": {"content": "hello"}}]}),
-                sse_event({"choices": [], "usage": {"web_search_requests": 1}}),
+                sse_event({"choices": [], "usage": {"input_tokens": 2}}),
                 b"data: [DONE]\n",
             ],
             stage="chat",
         )
         self.assertEqual(answer, "hello")
         self.assertTrue(done)
-        self.assertEqual(searches, 1)
         self.assertTrue(saw_usage)
 
         with self.assertRaisesRegex(PROBE.ProbeError, "without \\[DONE\\]"):
@@ -165,18 +162,7 @@ class CandidateProbeTests(unittest.TestCase):
                         }
                     )
                 ],
-                stage="public_web_turn",
-            )
-
-    def test_sse_parser_rejects_invalid_web_search_usage(self) -> None:
-        with self.assertRaisesRegex(PROBE.ProbeError, "invalid web search usage"):
-            PROBE.parse_sse(
-                [
-                    sse_event({"choices": [{"delta": {"content": "answer"}}]}),
-                    sse_event({"choices": [], "usage": {"web_search_requests": -1}}),
-                    b"data: [DONE]\n",
-                ],
-                stage="public_web_turn",
+                stage="chat",
             )
 
     def test_token_file_must_be_regular_mode_0600(self) -> None:
@@ -260,8 +246,8 @@ class CandidateProbeTests(unittest.TestCase):
         }
         readiness = {"status": "ready", "redis": {"status": "ready"}}
         chat_results = [
-            PROBE.ChatResult("first answer", 1.2, 0.2, True, 0),
-            PROBE.ChatResult("follow-up answer", 0.8, 0.1, True, 0),
+            PROBE.ChatResult("first answer", 1.2, 0.2, True),
+            PROBE.ChatResult("follow-up answer", 0.8, 0.1, True),
         ]
         with mock.patch.object(PROBE, "_request_json", side_effect=[health, readiness]), mock.patch.object(
             PROBE, "_require_firestore_read", return_value={"status": "passed"}
@@ -296,7 +282,7 @@ class CandidateProbeTests(unittest.TestCase):
         ), mock.patch.object(
             PROBE,
             "_chat_request",
-            return_value=PROBE.ChatResult("answer", 0.5, 0.1, False, 0),
+            return_value=PROBE.ChatResult("answer", 0.5, 0.1, False),
         ):
             with self.assertRaisesRegex(PROBE.ProbeError, "initial_turn: provider did not report terminal usage"):
                 PROBE.probe_candidate(

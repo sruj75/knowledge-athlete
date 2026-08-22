@@ -187,211 +187,6 @@ function resolveBundledExtension(): string {
   ).pathname);
 }
 
-const PUBLIC_WEB_ROUTING_INSTRUCTION = "<omi_retrieval_policy>Web search is required and available for this fresh public request. Use a live public-web or search tool before answering. Base time-sensitive claims only on that lookup and identify the source. Never say, imply, or hedge that you lack internet, web-search, real-time-data, or tool access; if the lookup itself fails, state that the lookup failed instead. Do not use private Omi context unless the user explicitly asks for it.</omi_retrieval_policy>";
-
-const EXPLICIT_WEB_REQUESTS = [
-  "search the web", "search web", "search the internet", "search online",
-  "look it up online", "look this up online", "look that up online",
-  "find it online", "find this online", "find that online",
-  "google it", "google this", "google that", "browse the web",
-  "web search", "internet search",
-];
-
-const EXPLICIT_WEB_PROHIBITIONS = [
-  "don't call web search", "do not call web search",
-  "don't call the web search", "do not call the web search",
-  "don't call internet search", "do not call internet search",
-  "don't call the internet search", "do not call the internet search",
-  "don't use web search", "do not use web search",
-  "don't use the web search", "do not use the web search",
-  "don't use internet search", "do not use internet search",
-  "don't use the internet search", "do not use the internet search",
-  "don't search the web", "do not search the web",
-  "don't search the internet", "do not search the internet",
-  "without web search",
-];
-
-function explicitlyProhibitsPublicWeb(normalized: string): boolean {
-  if (EXPLICIT_WEB_PROHIBITIONS.some((phrase) => {
-    let searchStart = 0;
-    while (searchStart < normalized.length) {
-      const start = normalized.indexOf(phrase, searchStart);
-      if (start < 0) {
-        return false;
-      }
-      const suffix = normalized.slice(start + phrase.length).trimStart();
-      if (!/^results?\b/.test(suffix)) {
-        return true;
-      }
-      searchStart = start + phrase.length;
-    }
-    return false;
-  })) {
-    return true;
-  }
-  return ["web search tool", "internet search tool"].some((referent) => {
-    const start = normalized.indexOf(referent);
-    if (start < 0) {
-      return false;
-    }
-    const tail = normalized.slice(start + referent.length, start + referent.length + 160);
-    return [
-      "don't call it because", "do not call it because",
-      "don't call it again", "do not call it again",
-    ].some((phrase) => tail.includes(phrase));
-  });
-}
-
-const FRESH_PUBLIC_REQUESTS = [
-  "latest news", "latest on", "what's the latest", "what is the latest",
-  "current weather", "weather right now", "current price", "price right now",
-  "current score", "score right now", "current president", "current ceo",
-  "who is the current", "today's news", "news today", "recent news",
-  "released this week", "released today", "released recently", "newly released",
-];
-
-const CURRENT_WEATHER_PREFIXES = [
-  "what's the weather", "what is the weather", "whats the weather",
-  "how's the weather", "how is the weather", "hows the weather",
-  "weather in ", "weather for ", "weather at ",
-];
-
-const FRESH_PUBLIC_TEMPORAL_QUALIFIERS = ["right now", "currently", "today", "this week"];
-const FRESH_PUBLIC_LOOKUP_TERMS = [
-  "world cup", "schedule", "fixture", "standings", "match", "game", "playing",
-  "score", "weather", "price", "news", "release", "released", "election", "market",
-];
-
-const RESEARCH_INTENT_VERBS = [
-  "find out", "look up", "look him up", "look her up", "look them up",
-  "research", "tell me about", "everything about", "everything on",
-  "all about", "information about", "information on", "who is", "who's",
-];
-
-const PUBLIC_WEB_LOCUS = ["online", "on the web", "on the internet"];
-const MAX_GENERIC_LOOKUP_CHARS = 240;
-const ALPHANUMERIC_CHAR = /[\p{L}\p{N}]/u;
-
-const EXPLICIT_PRIVATE_CONTEXT = [
-  "my conversations", "our conversations", "my memories", "your memory of me",
-  "my screen history", "my screen activity", "my calendar", "your calendar",
-  "my email", "your email", "my files", "your files", "my tasks", "your tasks",
-  "my action items", "my notes", "your notes", "what did i say", "what have i said",
-  "what did i do", "when did i", "what was i doing", "what do you remember about me",
-];
-
-const PUBLIC_WEB_ACCESS_DENIAL = /\b(?:I\s+)?(?:do\s+not|don't|cannot|can't|can not)\s+(?:(?:have\s+)?(?:direct\s+)?(?:access\s+to\s+)?(?:the\s+)?(?:internet|web(?:[ -]?search)?|browser|real[- ]time(?:\s+\w+){0,2}(?:\s+data)?)(?:\s+(?:or|and)\s+(?:the\s+)?(?:internet|web(?:[ -]?search)?|browser|real[- ]time(?:\s+\w+){0,2}(?:\s+data)?))*|(?:have\s+)?(?:direct\s+)?(?:internet|web(?:[ -]?search)?|browser)\s+access|(?:browse|search)\s+(?:the\s+)?(?:web|internet))/i;
-
-// kernel-core renders inherited context before the authoritative instruction
-// using this delimiter. Retrieval routing is an input policy, so historical
-// transcript/context text must never select a gateway tool for a new turn.
-const CURRENT_USER_MESSAGE_DELIMITER = "\n# User Message\n";
-
-function currentUserInstruction(renderedPrompt: string): string {
-  const delimiterIndex = renderedPrompt.lastIndexOf(CURRENT_USER_MESSAGE_DELIMITER);
-  return delimiterIndex === -1
-    ? renderedPrompt
-    : renderedPrompt.slice(delimiterIndex + CURRENT_USER_MESSAGE_DELIMITER.length);
-}
-
-function containsWholeTerm(text: string, terms: string[]): boolean {
-  return terms.some((term) => {
-    let searchStart = 0;
-    while (searchStart < text.length) {
-      const start = text.indexOf(term, searchStart);
-      if (start < 0) return false;
-      const before = text[start - 1];
-      const after = text[start + term.length];
-      const beforeIsWord = before !== undefined && ALPHANUMERIC_CHAR.test(before);
-      const afterIsWord = after !== undefined && ALPHANUMERIC_CHAR.test(after);
-      if (!beforeIsWord && !afterIsWord) return true;
-      searchStart = start + term.length;
-    }
-    return false;
-  });
-}
-
-function normalizedLookupText(text: string): string {
-  return text
-    .trim()
-    .replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, "")
-    .toLowerCase()
-    .replace(/[\u2018\u2019]/g, "'");
-}
-
-function utf8ByteLength(text: string): number {
-  let bytes = 0;
-  for (const char of text) {
-    const codePoint = char.codePointAt(0) ?? 0;
-    bytes += codePoint <= 0x7f ? 1 : codePoint <= 0x7ff ? 2 : codePoint <= 0xffff ? 3 : 4;
-  }
-  return bytes;
-}
-
-type PublicWebTurnState = {
-  bufferedText: string;
-  emittedText: string;
-  /**
-   * The Rust gateway resolves Anthropic's server-side web tool internally, so
-   * Pi never receives a local tool lifecycle. This synthetic, query-scoped
-   * activity is the truthful UI projection of the required gateway lookup.
-   */
-  progressToolUseId: string;
-};
-
-/// Compatibility routing for already-deployed desktop backends. The current
-/// request is sent through both coordinator and leaf Pi sessions, so putting
-/// the instruction here guarantees public-web queries keep working for main
-/// agents and subagents while the backend fleet rolls forward independently.
-export function routePromptForPublicWeb(message: string): string {
-  // The adapter receives the full rendered prompt, including inherited context
-  // and prior turns. Inspect only the current user instruction when deciding
-  // whether this particular turn requires a public-web lookup.
-  const normalized = normalizedLookupText(currentUserInstruction(message));
-  if (!normalized) return message;
-  const hasExplicitWebReference = EXPLICIT_WEB_REQUESTS.some(
-    (phrase) => normalized.includes(phrase)
-  );
-  if (
-    hasExplicitWebReference
-    && explicitlyProhibitsPublicWeb(normalized)
-  ) {
-    return message;
-  }
-  const hasExplicitPrivateContext = EXPLICIT_PRIVATE_CONTEXT.some(
-    (phrase) => normalized.includes(phrase)
-  );
-  if (hasExplicitPrivateContext && !hasExplicitWebReference) return message;
-
-  const isShortLookup = utf8ByteLength(normalized) <= MAX_GENERIC_LOOKUP_CHARS;
-  const hasFreshPublicTemporalLookup = isShortLookup
-    && containsWholeTerm(normalized, FRESH_PUBLIC_TEMPORAL_QUALIFIERS)
-    && containsWholeTerm(normalized, FRESH_PUBLIC_LOOKUP_TERMS);
-  const hasResearchIntentLookup = isShortLookup
-    && containsWholeTerm(normalized, PUBLIC_WEB_LOCUS)
-    && RESEARCH_INTENT_VERBS.some((verb) => normalized.includes(verb));
-  const requiresWeb = hasExplicitWebReference
-    || containsWholeTerm(normalized, FRESH_PUBLIC_REQUESTS)
-    || CURRENT_WEATHER_PREFIXES.some((phrase) => normalized.includes(phrase))
-    || hasFreshPublicTemporalLookup
-    || hasResearchIntentLookup;
-  return requiresWeb ? `${PUBLIC_WEB_ROUTING_INSTRUCTION}\n\n${message}` : message;
-}
-
-export function stripFalsePublicWebAvailabilityDisclaimers(text: string): string {
-  const sentences = text.match(/[^.!?]+(?:[.!?]+|$)/g) ?? [text];
-  return sentences
-    .map((sentence) => {
-      if (!PUBLIC_WEB_ACCESS_DENIAL.test(sentence)) return sentence;
-      // Keep a true continuation such as "but I can retrieve it with the
-      // terminal" while removing only the contradictory no-access clause.
-      return sentence.replace(/^\s*(?:I\s+)?(?:do\s+not|don't|cannot|can't|can not)[^.?!]*?\b(?:but|however)\s+/i, "");
-    })
-    .filter((sentence) => !PUBLIC_WEB_ACCESS_DENIAL.test(sentence))
-    .join("")
-    .replace(/^\s+/, "");
-}
-
 export class PiMonoAdapter implements HarnessAdapter {
   private static nextAdapterInstanceId = 1;
 
@@ -425,9 +220,6 @@ export class PiMonoAdapter implements HarnessAdapter {
   private requiredAgentControlFailures = new Map<string, string>();
   private requiredControlInputs = new Map<string, Record<string, unknown>>();
   private currentAbortController: AbortController | null = null;
-  /** State for projecting gateway-owned public-web progress without waiting for
-   * the terminal turn before forwarding model text. */
-  private activePublicWebTurn: PublicWebTurnState | null = null;
   private piPath: string;
   private extensionPath: string;
   private readonly contextFilePath = join(
@@ -553,8 +345,6 @@ export class PiMonoAdapter implements HarnessAdapter {
       }
       this.pendingRequests.clear();
       this.activePromptGeneration = 0;
-      this.finishPublicWebProgress(this.activePublicWebTurn, "failed");
-      this.activePublicWebTurn = null;
       rmSync(this.contextFilePath, { force: true });
     });
   }
@@ -581,8 +371,6 @@ export class PiMonoAdapter implements HarnessAdapter {
     this.sessions.clear();
     this.pendingRequests.clear();
     this.activePromptGeneration = 0;
-    this.finishPublicWebProgress(this.activePublicWebTurn, "failed");
-    this.activePublicWebTurn = null;
     rmSync(this.contextFilePath, { force: true });
   }
 
@@ -677,24 +465,7 @@ export class PiMonoAdapter implements HarnessAdapter {
       }
     }
 
-    const rawMessage = textParts.join("\n");
-    const message = routePromptForPublicWeb(rawMessage);
-    this.activePublicWebTurn = message === rawMessage
-      ? null
-      : {
-          bufferedText: "",
-          emittedText: "",
-          progressToolUseId: `gateway-public-web-${generation}`,
-        };
-    if (this.activePublicWebTurn) {
-      this.eventHandler?.({
-        type: "tool_activity",
-        name: "web_search",
-        status: "started",
-        toolUseId: this.activePublicWebTurn.progressToolUseId,
-        input: { executor: "gateway" },
-      });
-    }
+    const message = textParts.join("\n");
 
     const cmd: PiRpcCommand = {
       type: "prompt",
@@ -708,10 +479,7 @@ export class PiMonoAdapter implements HarnessAdapter {
       this.sendCommand(cmd);
     } catch (error) {
       // `sendCommand` can fail synchronously if Pi exits between prompt setup
-      // and stdin write. The synthetic server-search activity has already been
-      // projected, so it must be terminalized before this async call rejects.
-      this.finishPublicWebProgress(this.activePublicWebTurn, "failed");
-      this.activePublicWebTurn = null;
+      // and stdin write.
       this.activePromptGeneration = 0;
       this.currentAbortController = null;
       this.eventHandler = null;
@@ -734,8 +502,7 @@ export class PiMonoAdapter implements HarnessAdapter {
     try {
       this.sendCommand({ type: "abort" });
     } catch (error) {
-      // The process may already be gone. Keep the normal cancellation cleanup
-      // below so a visible gateway-search activity cannot remain in progress.
+      // The process may already be gone. Keep the normal cancellation cleanup.
       process.stderr.write(`[pi-mono] abort dispatch failed: ${String(error)}\n`);
     }
     this.currentAbortController?.abort();
@@ -744,8 +511,6 @@ export class PiMonoAdapter implements HarnessAdapter {
     // CLEAR activePromptGeneration so a stray late turn_end is dropped instead
     // of completing whatever comes next.
     const generation = this.activePromptGeneration;
-    this.finishPublicWebProgress(this.activePublicWebTurn, "failed");
-    this.activePublicWebTurn = null;
     if (generation === 0) return;
     const pending = this.pendingRequests.get(generation);
     if (pending) {
@@ -1037,12 +802,7 @@ export class PiMonoAdapter implements HarnessAdapter {
     switch (msgEvent.type) {
       case "text_delta":
         if (msgEvent.delta) {
-          if (this.activePublicWebTurn) {
-            this.activePublicWebTurn.bufferedText += msgEvent.delta;
-            this.emitPublicWebText(this.activePublicWebTurn);
-          } else {
-            this.eventHandler?.({ type: "text_delta", text: msgEvent.delta });
-          }
+          this.eventHandler?.({ type: "text_delta", text: msgEvent.delta });
         }
         break;
 
@@ -1182,8 +942,6 @@ export class PiMonoAdapter implements HarnessAdapter {
         `[pi-mono] dropping stray turn_end for generation ${generation}\n`
       );
       this.activePromptGeneration = 0;
-      this.finishPublicWebProgress(this.activePublicWebTurn, "failed");
-      this.activePublicWebTurn = null;
       return;
     }
 
@@ -1192,7 +950,6 @@ export class PiMonoAdapter implements HarnessAdapter {
       ? normalizeProviderHTTPErrorMessage(message.errorMessage)
       : undefined;
     if (errorMessage) {
-      this.finishPublicWebProgress(this.activePublicWebTurn, "failed");
       this.eventHandler?.({
         type: "error",
         message: errorMessage,
@@ -1200,7 +957,6 @@ export class PiMonoAdapter implements HarnessAdapter {
       });
       this.pendingRequests.delete(generation);
       this.activePromptGeneration = 0;
-      this.activePublicWebTurn = null;
       pending.reject(new Error(errorMessage));
       this.eventHandler = null;
       this.toolExecutor = null;
@@ -1223,7 +979,6 @@ export class PiMonoAdapter implements HarnessAdapter {
 
     const controlFailure = this.requiredAgentControlFailures.values().next().value as string | undefined;
     if (controlFailure) {
-      this.finishPublicWebProgress(this.activePublicWebTurn, "failed");
       this.eventHandler?.({
         type: "error",
         message: controlFailure,
@@ -1231,15 +986,11 @@ export class PiMonoAdapter implements HarnessAdapter {
       });
       this.pendingRequests.delete(generation);
       this.activePromptGeneration = 0;
-      this.activePublicWebTurn = null;
       pending.reject(new Error(controlFailure));
       this.eventHandler = null;
       this.toolExecutor = null;
       return;
     }
-
-    const publicWebTurn = this.activePublicWebTurn;
-    this.activePublicWebTurn = null;
 
     // Extract text from content blocks
     let text = "";
@@ -1249,16 +1000,6 @@ export class PiMonoAdapter implements HarnessAdapter {
         .map((b) => b.text || "")
         .join("");
     }
-    if (publicWebTurn) {
-      text = publicWebTurn.bufferedText || text;
-      // A terminal public-web turn proves the gateway completed the required
-      // provider interaction. Do not make this depend on local Pi tool events:
-      // Anthropic's server-side web_search intentionally never exposes one.
-      text = stripFalsePublicWebAvailabilityDisclaimers(text);
-      this.emitPublicWebText(publicWebTurn, true);
-      this.finishPublicWebProgress(publicWebTurn, "completed");
-    }
-
     // Extract usage
     const usage = message?.usage;
     const costUsd = usage?.cost?.total ?? 0;
@@ -1282,53 +1023,6 @@ export class PiMonoAdapter implements HarnessAdapter {
     this.toolExecutor = null;
   }
 
-  private finishPublicWebProgress(
-    publicWebTurn: PublicWebTurnState | null,
-    status: "completed" | "failed",
-  ): void {
-    if (!publicWebTurn) return;
-    this.eventHandler?.({
-      type: "tool_activity",
-      name: "web_search",
-      status,
-      toolUseId: publicWebTurn.progressToolUseId,
-    });
-  }
-
-  private emitPublicWebText(publicWebTurn: PublicWebTurnState, terminal = false): void {
-    const raw = publicWebTurn.bufferedText;
-    const normalized = raw.trimStart().toLowerCase();
-    const possibleDenialPrefixes = [
-      "i don't",
-      "i do not",
-      "i cannot",
-      "i can't",
-      "i can not",
-      "don't",
-      "do not",
-      "cannot",
-      "can't",
-      "can not",
-    ];
-    const mayBecomeAvailabilityDenial = possibleDenialPrefixes.some(
-      (prefix) => prefix.startsWith(normalized) || normalized.startsWith(prefix),
-    );
-    if (
-      !terminal
-      && publicWebTurn.emittedText.length === 0
-      && mayBecomeAvailabilityDenial
-      && !/[.!?]/.test(raw)
-      && !/\b(?:but|however)\b/i.test(raw)
-    ) {
-      return;
-    }
-
-    const sanitized = stripFalsePublicWebAvailabilityDisclaimers(raw);
-    if (!sanitized.startsWith(publicWebTurn.emittedText)) return;
-    const delta = sanitized.slice(publicWebTurn.emittedText.length);
-    publicWebTurn.emittedText = sanitized;
-    if (delta) this.eventHandler?.({ type: "text_delta", text: delta });
-  }
 }
 
 /** Allowlisted per-turn effort lane from run metadata — anything else is dropped. */

@@ -9,7 +9,6 @@ import { routeExternalSurfaceTool } from "../src/runtime/external-surface-tool-p
 import { omiToolManifest } from "../src/runtime/omi-tool-manifest.js";
 import { SqliteAgentStore } from "../src/runtime/sqlite-store.js";
 import { resolveSurfaceSession } from "../src/runtime/surface-session.js";
-import { routePromptForPublicWeb } from "../src/adapters/pi-mono.js";
 
 describe("cross-surface contract smoke", () => {
   let stateDir: string;
@@ -76,7 +75,7 @@ describe("cross-surface contract smoke", () => {
     }).turns.map((turn) => turn.turnId)).toEqual(["turn:typed:1", "turn:voice:1"]);
   });
 
-  it("keeps permission, public-web, and managed Pi capability decisions compatible across coordinator and PTT paths", () => {
+  it("keeps permission and managed Pi capability decisions compatible across coordinator and PTT paths", () => {
     const permissionTool = omiToolManifest.find((tool) => tool.name === "request_permission");
     expect(permissionTool?.surfaces).toEqual(expect.arrayContaining(["desktop_chat", "realtime_voice"]));
 
@@ -113,16 +112,6 @@ describe("cross-surface contract smoke", () => {
       toolName: "spawn_agent",
       recoveredFromDelegation: false,
     });
-
-    for (const query of [
-      "what's the weather in NYC right now?",
-      "what AI models were released this week?",
-    ]) {
-      expect(routePromptForPublicWeb(query)).toContain("<omi_retrieval_policy>");
-    }
-    expect(routePromptForPublicWeb("search my calendar for weather in NYC")).toBe(
-      "search my calendar for weather in NYC",
-    );
 
     expect(adapterCapabilitiesFor("pi-mono").supportsTools).toBe(true);
   });
