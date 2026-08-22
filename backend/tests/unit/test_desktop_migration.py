@@ -192,8 +192,8 @@ _ensure_package_path("models", BACKEND_DIR / "models")
 _ensure_package_path("utils", BACKEND_DIR / "utils")
 _ensure_package_path("utils.other", BACKEND_DIR / "utils" / "other")
 
-# Cannot import routers.users directly — it pulls in database.conversations → utils.other.hume
-# which has heavy deps. Mirror the models here and verify parity via AST test below.
+# Cannot import routers.users directly because it pulls in heavyweight runtime
+# database/API dependencies. Mirror the models here and verify parity via AST below.
 
 
 class RecordLlmUsageBucketRequest(BaseModel):

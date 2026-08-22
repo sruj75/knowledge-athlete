@@ -51,7 +51,7 @@ final class LocalWarningNotificationTests: XCTestCase {
     var deliveries: [FairUseWarningPresentation] = []
     let presenter = FairUseWarningNotificationPresenter(
       defaults: defaults,
-      deliver: { _, presentation, _, _, _, commitInApp, commitSystem in
+      deliver: { _, presentation, _, _, _, _, commitInApp, commitSystem in
         deliveries.append(presentation)
         commitInApp()
         commitSystem()
@@ -71,7 +71,7 @@ final class LocalWarningNotificationTests: XCTestCase {
     XCTAssertFalse(duplicatePresented)
     let relaunchedPresenter = FairUseWarningNotificationPresenter(
       defaults: defaults,
-      deliver: { _, presentation, _, _, _, commitInApp, commitSystem in
+      deliver: { _, presentation, _, _, _, _, commitInApp, commitSystem in
         deliveries.append(presentation)
         commitInApp()
         commitSystem()
@@ -98,7 +98,7 @@ final class LocalWarningNotificationTests: XCTestCase {
     let presenter = FairUseWarningNotificationPresenter(
       defaults: defaults,
       isAuthorizationCurrent: { _ in false },
-      deliver: { _, _, _, _, _, commitInApp, commitSystem in
+      deliver: { _, _, _, _, _, _, commitInApp, commitSystem in
         deliveryCount += 1
         commitInApp()
         commitSystem()
@@ -128,7 +128,7 @@ final class LocalWarningNotificationTests: XCTestCase {
     var inAppFlags: [Bool] = []
     let presenter = FairUseWarningNotificationPresenter(
       defaults: defaults,
-      deliver: { _, _, _, deliverInApp, deliverSystem, commitInApp, _ in
+      deliver: { _, _, _, deliverInApp, deliverSystem, _, commitInApp, _ in
         inAppFlags.append(deliverInApp)
         XCTAssertTrue(deliverSystem)
         if deliverInApp { commitInApp() }
@@ -145,7 +145,7 @@ final class LocalWarningNotificationTests: XCTestCase {
     let rejected = await presenter.present(receipt, authorization: authorization)
     let relaunchedPresenter = FairUseWarningNotificationPresenter(
       defaults: defaults,
-      deliver: { _, _, _, deliverInApp, deliverSystem, commitInApp, commitSystem in
+      deliver: { _, _, _, deliverInApp, deliverSystem, _, commitInApp, commitSystem in
         inAppFlags.append(deliverInApp)
         XCTAssertTrue(deliverSystem)
         if deliverInApp { commitInApp() }
@@ -178,7 +178,7 @@ final class LocalWarningNotificationTests: XCTestCase {
     var deliveryFlags: [(Bool, Bool)] = []
     let unavailablePresenter = FairUseWarningNotificationPresenter(
       defaults: defaults,
-      deliver: { _, _, _, deliverInApp, deliverSystem, _, commitSystem in
+      deliver: { _, _, _, deliverInApp, deliverSystem, _, _, commitSystem in
         deliveryFlags.append((deliverInApp, deliverSystem))
         commitSystem()
         return true
@@ -187,7 +187,7 @@ final class LocalWarningNotificationTests: XCTestCase {
     let incomplete = await unavailablePresenter.present(receipt, authorization: authorization)
     let relaunchedPresenter = FairUseWarningNotificationPresenter(
       defaults: defaults,
-      deliver: { _, _, _, deliverInApp, deliverSystem, commitInApp, _ in
+      deliver: { _, _, _, deliverInApp, deliverSystem, _, commitInApp, _ in
         deliveryFlags.append((deliverInApp, deliverSystem))
         commitInApp()
         return true
@@ -200,6 +200,134 @@ final class LocalWarningNotificationTests: XCTestCase {
     XCTAssertFalse(duplicate)
     XCTAssertEqual(deliveryFlags.map(\.0), [true, true])
     XCTAssertEqual(deliveryFlags.map(\.1), [true, false])
+  }
+
+  func testQueuedInAppSurfaceSurvivesRelaunchWithoutDuplicateQueueAdmission() async throws {
+    let suite = "LocalWarningNotificationQueuedRetryTests.\(UUID().uuidString)"
+    let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let fixture = RuntimeOwnerAuthorityTestFixture()
+    await fixture.establish(authOwnerID: "warning-owner-a")
+    defer { Task { @MainActor in await fixture.restore() } }
+    let authorization = try XCTUnwrap(RuntimeOwnerIdentity.captureAuthorizationSnapshot())
+    let receipt = FairUseClassificationReceipt(
+      reviewId: UUID().uuidString,
+      accepted: true,
+      idempotent: false,
+      action: "warning",
+      stage: "warning",
+      caseRef: "FU-QUEUED-RETRY")
+    var deliveryFlags: [(Bool, Bool)] = []
+    let queuedPresenter = FairUseWarningNotificationPresenter(
+      defaults: defaults,
+      deliver: { _, _, _, deliverInApp, deliverSystem, queueInApp, _, commitSystem in
+        deliveryFlags.append((deliverInApp, deliverSystem))
+        if deliverInApp { queueInApp() }
+        if deliverSystem { commitSystem() }
+        return true
+      })
+
+    let incomplete = await queuedPresenter.present(receipt, authorization: authorization)
+    let sameProcessReplay = await queuedPresenter.replayPending(authorization: authorization)
+    let relaunchedPresenter = FairUseWarningNotificationPresenter(
+      defaults: defaults,
+      deliver: { _, _, _, deliverInApp, deliverSystem, _, commitInApp, _ in
+        deliveryFlags.append((deliverInApp, deliverSystem))
+        if deliverInApp { commitInApp() }
+        return true
+      })
+    let relaunchedReplay = await relaunchedPresenter.replayPending(authorization: authorization)
+
+    XCTAssertFalse(incomplete)
+    XCTAssertEqual(sameProcessReplay, 0)
+    XCTAssertEqual(relaunchedReplay, 1)
+    XCTAssertEqual(deliveryFlags.map(\.0), [true, true])
+    XCTAssertEqual(deliveryFlags.map(\.1), [true, false])
+  }
+
+  func testQueuedInAppSurfaceIsReplayableAfterOwnerGenerationChange() async throws {
+    let suite = "LocalWarningNotificationQueuedOwnerTests.\(UUID().uuidString)"
+    let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let fixture = RuntimeOwnerAuthorityTestFixture()
+    await fixture.establish(authOwnerID: "warning-owner-a")
+    defer { Task { @MainActor in await fixture.restore() } }
+    let firstAuthorization = try XCTUnwrap(RuntimeOwnerIdentity.captureAuthorizationSnapshot())
+    let receipt = FairUseClassificationReceipt(
+      reviewId: UUID().uuidString,
+      accepted: true,
+      idempotent: false,
+      action: "warning",
+      stage: "warning",
+      caseRef: "FU-QUEUED-OWNER")
+    var deliveryFlags: [(Bool, Bool)] = []
+    let presenter = FairUseWarningNotificationPresenter(
+      defaults: defaults,
+      deliver: { _, _, _, deliverInApp, deliverSystem, queueInApp, commitInApp, commitSystem in
+        deliveryFlags.append((deliverInApp, deliverSystem))
+        if deliveryFlags.count == 1 {
+          queueInApp()
+          commitSystem()
+        } else {
+          commitInApp()
+        }
+        return true
+      })
+
+    let incomplete = await presenter.present(receipt, authorization: firstAuthorization)
+    await fixture.establish(authOwnerID: "warning-owner-b")
+    await fixture.establish(authOwnerID: "warning-owner-a")
+    let replacementAuthorization = try XCTUnwrap(
+      RuntimeOwnerIdentity.captureAuthorizationSnapshot())
+    let replayed = await presenter.replayPending(authorization: replacementAuthorization)
+
+    XCTAssertFalse(incomplete)
+    XCTAssertEqual(replayed, 1)
+    XCTAssertEqual(deliveryFlags.map(\.0), [true, true])
+    XCTAssertEqual(deliveryFlags.map(\.1), [true, false])
+  }
+
+  func testConcurrentReplayAttemptsAdmitOnlyOnePhysicalDelivery() async throws {
+    let suite = "LocalWarningNotificationConcurrentReplayTests.\(UUID().uuidString)"
+    let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let fixture = RuntimeOwnerAuthorityTestFixture()
+    await fixture.establish(authOwnerID: "warning-owner-a")
+    defer { Task { @MainActor in await fixture.restore() } }
+    let authorization = try XCTUnwrap(RuntimeOwnerIdentity.captureAuthorizationSnapshot())
+    let receipt = FairUseClassificationReceipt(
+      reviewId: UUID().uuidString,
+      accepted: true,
+      idempotent: false,
+      action: "warning",
+      stage: "warning",
+      caseRef: "FU-CONCURRENT-REPLAY")
+    let suspension = WarningDeliverySuspension()
+    var deliveryAttempts = 0
+    let presenter = FairUseWarningNotificationPresenter(
+      defaults: defaults,
+      deliver: { _, _, _, _, _, _, commitInApp, commitSystem in
+        deliveryAttempts += 1
+        _ = await suspension.deliver()
+        commitInApp()
+        commitSystem()
+        return true
+      })
+
+    let firstAttempt = Task { @MainActor in
+      await presenter.accept(receipt, authorization: authorization)
+    }
+    await suspension.waitUntilStarted()
+    let overlappingReplay = Task { @MainActor in
+      await presenter.replayPending(authorization: authorization)
+    }
+
+    let overlappingReplayCount = await overlappingReplay.value
+    XCTAssertEqual(overlappingReplayCount, 0)
+    await suspension.allowDelivery()
+    let accepted = await firstAttempt.value
+    XCTAssertTrue(accepted)
+    XCTAssertEqual(deliveryAttempts, 1)
   }
 
   func testSnoozedAttemptSurvivesRestartAndPresentsBothSurfaces() async throws {
@@ -219,14 +347,14 @@ final class LocalWarningNotificationTests: XCTestCase {
       caseRef: "FU-SNOOZE")
     let snoozedPresenter = FairUseWarningNotificationPresenter(
       defaults: defaults,
-      deliver: { _, _, _, _, _, _, _ in false })
+      deliver: { _, _, _, _, _, _, _, _ in false })
 
     let acceptedForReplay = await snoozedPresenter.accept(
       receipt, authorization: authorization)
     var replayedInApp = false
     let relaunchedPresenter = FairUseWarningNotificationPresenter(
       defaults: defaults,
-      deliver: { _, _, _, deliverInApp, deliverSystem, commitInApp, commitSystem in
+      deliver: { _, _, _, deliverInApp, deliverSystem, _, commitInApp, commitSystem in
         replayedInApp = deliverInApp
         XCTAssertTrue(deliverSystem)
         commitInApp()
@@ -251,7 +379,7 @@ final class LocalWarningNotificationTests: XCTestCase {
     let suspension = WarningDeliverySuspension()
     let presenter = FairUseWarningNotificationPresenter(
       defaults: defaults,
-      deliver: { _, _, authorization, _, _, commitInApp, commitSystem in
+      deliver: { _, _, authorization, _, _, _, commitInApp, commitSystem in
         let mutationAuthorization = LocalMutationAuthorization {
           RuntimeOwnerIdentity.isAuthorizationCurrent(authorization)
         }

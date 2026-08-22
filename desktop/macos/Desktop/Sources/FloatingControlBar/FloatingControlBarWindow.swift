@@ -3244,7 +3244,8 @@ class FloatingControlBarManager {
     sound: NotificationSound,
     context: FloatingBarNotificationContext? = nil,
     suggestionTelemetryIdentity: SuggestionAssistantTelemetry.NotificationIdentity? = nil,
-    screenshotData: Data? = nil
+    screenshotData: Data? = nil,
+    onPresented: (@MainActor @Sendable () -> Void)? = nil
   ) -> OwnerBoundNotificationPresentationResult {
     guard !ownerID.isEmpty,
       authorizationSnapshot.ownerID == ownerID,
@@ -3261,7 +3262,8 @@ class FloatingControlBarManager {
       assistantId: assistantId,
       context: context,
       suggestionTelemetryIdentity: suggestionTelemetryIdentity,
-      screenshotData: screenshotData
+      screenshotData: screenshotData,
+      onPresented: onPresented
     )
     guard let window else {
       log("FloatingControlBarManager: dropping notification because window is not set up")
@@ -3936,6 +3938,7 @@ class FloatingControlBarManager {
     }
 
     window.showNotification(notification)
+    notification.onPresented?()
     if let suggestionIdentity = notification.suggestionTelemetryIdentity {
       AnalyticsManager.shared.suggestionAssistantDeliveryOutcome(.delivered, identity: suggestionIdentity)
     }

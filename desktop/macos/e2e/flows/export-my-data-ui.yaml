@@ -59,4 +59,4 @@ steps:
     name: Account Settings reports the saved local file
     ax.expect:
       text_visible:
-        - Saved as
+        - Saved omi-data-export-

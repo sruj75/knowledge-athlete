@@ -9,7 +9,7 @@ Provides shared executors with strict separation (bulkhead pattern):
 - billing_executor: billing-provider API calls. External network I/O
   with unpredictable latency, isolated from everything else.
 - sync_executor: sync pipeline VAD/STT/segment processing.
-- postprocess_executor: best-effort post-processing (memories, trends, vectors,
+- postprocess_executor: best-effort post-processing (memories, vectors,
   action items, goals, and conversation processing).
 - cleanup_executor: long-running account-deletion wipes (vectors, recordings,
   Firestore subcollections). Bulkheaded so bursts of account deletions cannot

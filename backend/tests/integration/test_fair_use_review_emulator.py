@@ -19,7 +19,6 @@ from google.cloud import firestore
 from database.fair_use import (
     FairUseReviewProcessingClaimLost,
     apply_fair_use_review_result,
-    claim_fair_use_review_notification,
     claim_fair_use_review_processing,
     release_fair_use_review_processing,
 )
@@ -127,31 +126,6 @@ def test_review_claims_and_commit_are_durable_in_firestore_emulator():
         replacement_token,
         firestore_client=client,
     )
-
-    notification_claims: list[str | None] = []
-    notification_errors: list[BaseException] = []
-
-    def claim_notification() -> None:
-        worker_client = firestore.Client(project='demo-fair-use-s20')
-        try:
-            notification_claims.append(
-                claim_fair_use_review_notification(uid, review_id, firestore_client=worker_client)
-            )
-        except BaseException as error:
-            notification_errors.append(error)
-        finally:
-            worker_client.close()
-
-    notification_threads = [threading.Thread(target=claim_notification) for _ in range(2)]
-    for thread in notification_threads:
-        thread.start()
-    for thread in notification_threads:
-        thread.join(timeout=20)
-
-    assert all(not thread.is_alive() for thread in notification_threads)
-    assert not notification_errors
-    assert len(notification_claims) == 2
-    assert sum(claim is not None for claim in notification_claims) == 1
 
     for collection_name in (
         'fair_use_events',

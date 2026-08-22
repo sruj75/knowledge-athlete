@@ -19,3 +19,5 @@ def test_fcm_routes_and_delivery_leases_are_absent_while_fair_use_receipts_remai
     assert not hasattr(fair_use_db, 'mark_fair_use_review_notification_sent')
     retired_runbook = Path(__file__).resolve().parents[1] / 'integration' / 'README.md'
     assert not retired_runbook.exists()
+    emulator_test = Path(__file__).resolve().parents[1] / 'integration' / 'test_fair_use_review_emulator.py'
+    assert 'claim_fair_use_review_notification' not in emulator_test.read_text()

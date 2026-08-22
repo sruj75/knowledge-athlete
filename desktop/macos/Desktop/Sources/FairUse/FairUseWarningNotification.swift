@@ -52,11 +52,14 @@ final class FairUseWarningNotificationPresenter {
   private static let maximumPendingReceipts = 16
 
   private let defaults: UserDefaults
+  private var inFlightReceiptAuthorizations: [String: RuntimeOwnerAuthorizationSnapshot] = [:]
+  private var queuedInAppAuthorizations: [String: RuntimeOwnerAuthorizationSnapshot] = [:]
   private let isAuthorizationCurrent: @Sendable (RuntimeOwnerAuthorizationSnapshot) -> Bool
   private let deliver:
     @MainActor (
       String, FairUseWarningPresentation, RuntimeOwnerAuthorizationSnapshot,
       Bool, Bool,
+      @escaping @MainActor @Sendable () -> Void,
       @escaping @MainActor @Sendable () -> Void,
       @escaping @MainActor @Sendable () -> Void
     ) async -> Bool
@@ -71,10 +74,11 @@ final class FairUseWarningNotificationPresenter {
         String, FairUseWarningPresentation, RuntimeOwnerAuthorizationSnapshot,
         Bool, Bool,
         @escaping @MainActor @Sendable () -> Void,
+        @escaping @MainActor @Sendable () -> Void,
         @escaping @MainActor @Sendable () -> Void
       ) async -> Bool = {
-        ownerID, presentation, authorization, deliverInApp, deliverSystemBanner, commitInApp,
-        commitSystemBanner in
+        ownerID, presentation, authorization, deliverInApp, deliverSystemBanner, queueInApp,
+        commitInApp, commitSystemBanner in
         await withCheckedContinuation { continuation in
           NotificationService.shared.sendNotification(
             ownerID: ownerID,
@@ -85,6 +89,7 @@ final class FairUseWarningNotificationPresenter {
             deliverSystemBanner: deliverSystemBanner,
             respectFrequency: false,
             authorizationSnapshot: authorization,
+            onInAppQueued: queueInApp,
             onInAppPresented: commitInApp,
             onSystemBannerDeliveredWithinCommit: commitSystemBanner,
             completion: { delivered in continuation.resume(returning: delivered) })
@@ -183,10 +188,23 @@ final class FairUseWarningNotificationPresenter {
       ownerID: authorization.ownerID, reviewID: receipt.reviewId)
     let systemKey = systemDeduplicationKey(
       ownerID: authorization.ownerID, reviewID: receipt.reviewId)
+    let receiptKey = deduplicationDigest(
+      ownerID: authorization.ownerID, reviewID: receipt.reviewId)
+    guard inFlightReceiptAuthorizations[receiptKey] != authorization else { return false }
+    inFlightReceiptAuthorizations[receiptKey] = authorization
+    defer {
+      if inFlightReceiptAuthorizations[receiptKey] == authorization {
+        inFlightReceiptAuthorizations.removeValue(forKey: receiptKey)
+      }
+    }
     let inAppPresented = defaults.bool(forKey: inAppKey)
+    let inAppQueued = queuedInAppAuthorizations[receiptKey] == authorization
     let systemBannerDelivered = defaults.bool(forKey: systemKey)
     guard !inAppPresented || !systemBannerDelivered else {
       removePending(receipt, ownerID: authorization.ownerID)
+      return false
+    }
+    if inAppQueued && systemBannerDelivered {
       return false
     }
 
@@ -194,10 +212,22 @@ final class FairUseWarningNotificationPresenter {
       authorization.ownerID,
       presentation,
       authorization,
-      !inAppPresented,
+      !inAppPresented && !inAppQueued,
       !systemBannerDelivered,
-      { [defaults] in defaults.set(true, forKey: inAppKey) },
-      { [defaults] in defaults.set(true, forKey: systemKey) })
+      { [self] in queuedInAppAuthorizations[receiptKey] = authorization },
+      { [self, defaults] in
+        queuedInAppAuthorizations.removeValue(forKey: receiptKey)
+        defaults.set(true, forKey: inAppKey)
+        if defaults.bool(forKey: systemKey) {
+          removePending(receipt, ownerID: authorization.ownerID)
+        }
+      },
+      { [self, defaults] in
+        defaults.set(true, forKey: systemKey)
+        if defaults.bool(forKey: inAppKey) {
+          removePending(receipt, ownerID: authorization.ownerID)
+        }
+      })
     let complete = defaults.bool(forKey: inAppKey) && defaults.bool(forKey: systemKey)
     if complete {
       removePending(receipt, ownerID: authorization.ownerID)
@@ -224,10 +254,19 @@ final class FairUseWarningNotificationPresenter {
   }
 
   private func pendingReceipts(ownerID: String) -> [FairUseClassificationReceipt] {
-    guard let data = defaults.data(forKey: pendingKey(ownerID: ownerID)),
-      let receipts = try? JSONDecoder().decode([FairUseClassificationReceipt].self, from: data)
-    else { return [] }
-    return receipts
+    guard let data = defaults.data(forKey: pendingKey(ownerID: ownerID)) else { return [] }
+    do {
+      return try JSONDecoder().decode([FairUseClassificationReceipt].self, from: data)
+    } catch {
+      DesktopDiagnosticsManager.shared.recordFallback(
+        area: "fair_use_review",
+        from: "durable_pending_receipts",
+        to: "empty_projection",
+        reason: "state_divergence",
+        outcome: .exhausted,
+        extra: ["failure_class": "pending_receipt_decode_failed"])
+      return []
+    }
   }
 
   private func stagePending(_ receipt: FairUseClassificationReceipt, ownerID: String) {
@@ -236,11 +275,12 @@ final class FairUseWarningNotificationPresenter {
     receipts.append(receipt)
     if receipts.count > Self.maximumPendingReceipts {
       DesktopDiagnosticsManager.shared.recordFallback(
-        area: "fair_use_warning",
+        area: "fair_use_review",
         from: "pending_replay_queue",
         to: "bounded_oldest_eviction",
-        reason: "pending_receipt_capacity",
-        outcome: .degraded)
+        reason: "policy",
+        outcome: .degraded,
+        extra: ["failure_class": "pending_receipt_capacity"])
       receipts.removeFirst(receipts.count - Self.maximumPendingReceipts)
     }
     persistPending(receipts, ownerID: ownerID)
@@ -258,8 +298,17 @@ final class FairUseWarningNotificationPresenter {
       defaults.removeObject(forKey: key)
       return
     }
-    if let data = try? JSONEncoder().encode(receipts) {
+    do {
+      let data = try JSONEncoder().encode(receipts)
       defaults.set(data, forKey: key)
+    } catch {
+      DesktopDiagnosticsManager.shared.recordFallback(
+        area: "fair_use_review",
+        from: "pending_receipt",
+        to: "prior_durable_projection",
+        reason: "state_divergence",
+        outcome: .exhausted,
+        extra: ["failure_class": "pending_receipt_encode_failed"])
     }
   }
 }

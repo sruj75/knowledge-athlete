@@ -193,6 +193,9 @@ struct FloatingBarNotification: Identifiable, Equatable {
   let suggestionTelemetryIdentity: SuggestionAssistantTelemetry.NotificationIdentity?
   /// Screenshot JPEG data from the moment the notification was generated (not shown in UI)
   let screenshotData: Data?
+  /// Runs only when the notification becomes the physically visible card. A
+  /// queued notification deliberately carries this callback until queue drain.
+  let onPresented: (@MainActor @Sendable () -> Void)?
 
   init(
     ownerID: String,
@@ -202,7 +205,8 @@ struct FloatingBarNotification: Identifiable, Equatable {
     assistantId: String,
     context: FloatingBarNotificationContext? = nil,
     suggestionTelemetryIdentity: SuggestionAssistantTelemetry.NotificationIdentity? = nil,
-    screenshotData: Data? = nil
+    screenshotData: Data? = nil,
+    onPresented: (@MainActor @Sendable () -> Void)? = nil
   ) {
     self.ownerID = ownerID
     self.authorizationSnapshot = authorizationSnapshot
@@ -212,6 +216,7 @@ struct FloatingBarNotification: Identifiable, Equatable {
     self.context = context
     self.suggestionTelemetryIdentity = suggestionTelemetryIdentity
     self.screenshotData = screenshotData
+    self.onPresented = onPresented
   }
 
   static func == (lhs: FloatingBarNotification, rhs: FloatingBarNotification) -> Bool {
