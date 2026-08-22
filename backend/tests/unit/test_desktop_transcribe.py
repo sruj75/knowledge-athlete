@@ -6,6 +6,7 @@ Verifies:
 """
 
 import importlib.util
+import asyncio
 import base64
 import io
 import json
@@ -650,6 +651,49 @@ class TestVoiceMessageTranscribeEndpoint:
             transcribe.assert_called_once_with(wav_bytes, diarize=False, language='en', return_language=False)
             fail_on_touch.assert_not_called()
         finally:
+            _cleanup_chat_client(saved)
+
+    def test_file_voice_admission_bounds_bytes_until_provider_completion(self):
+        client, module, saved = _make_chat_client()
+        try:
+
+            async def scenario():
+                admission = asyncio.Semaphore(1)
+                provider_entered = asyncio.Event()
+                release_provider = asyncio.Event()
+                loaded_paths = []
+                provider_calls = 0
+
+                async def fake_run_blocking(_executor, function, *args, **kwargs):
+                    nonlocal provider_calls
+                    if function is module.load_voice_message_segment_bytes:
+                        loaded_paths.append(args[0])
+                        return b"wav", "en", None
+                    if function is module.transcribe_voice_message_bytes:
+                        provider_calls += 1
+                        if provider_calls == 1:
+                            provider_entered.set()
+                            await release_provider.wait()
+                        return "transcript", "en"
+                    raise AssertionError(f"unexpected blocking function: {function}")
+
+                with (
+                    patch.object(module, "get_stt_semaphore", return_value=admission),
+                    patch.object(module, "run_blocking", side_effect=fake_run_blocking),
+                ):
+                    first = asyncio.create_task(module._transcribe_voice_message_file("first.wav", "uid", "en"))
+                    await provider_entered.wait()
+                    second = asyncio.create_task(module._transcribe_voice_message_file("second.wav", "uid", "en"))
+                    await asyncio.sleep(0)
+
+                    assert loaded_paths == ["first.wav"]
+                    release_provider.set()
+                    assert await asyncio.gather(first, second) == [("transcript", "en"), ("transcript", "en")]
+                    assert loaded_paths == ["first.wav", "second.wav"]
+
+            asyncio.run(scenario())
+        finally:
+            client.close()
             _cleanup_chat_client(saved)
 
     @patch('utils.chat.transcribe_pcm_bytes')

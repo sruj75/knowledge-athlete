@@ -8,6 +8,7 @@ from typing import List, Optional
 from pathlib import Path
 
 from utils.executors import critical_executor, db_executor, storage_executor, sync_executor, run_blocking
+from utils.http_client import get_stt_semaphore
 
 from fastapi import (
     APIRouter,
@@ -137,21 +138,24 @@ async def _transcribe_voice_message_file(
     uid: str,
     language: str,
 ) -> tuple[Optional[str], Optional[str]]:
-    audio_bytes, resolved_language, silence_language = await run_blocking(
-        storage_executor,
-        load_voice_message_segment_bytes,
-        path,
-        uid,
-        language=language,
-    )
-    if audio_bytes is None:
-        return None, silence_language
-    return await run_blocking(
-        sync_executor,
-        transcribe_voice_message_bytes,
-        audio_bytes,
-        resolved_language,
-    )
+    # Hold admission from before the bounded file read until the provider call
+    # completes. Executor queues retain paths, never many 200 MiB byte arrays.
+    async with get_stt_semaphore():
+        audio_bytes, resolved_language, silence_language = await run_blocking(
+            storage_executor,
+            load_voice_message_segment_bytes,
+            path,
+            uid,
+            language=language,
+        )
+        if audio_bytes is None:
+            return None, silence_language
+        return await run_blocking(
+            sync_executor,
+            transcribe_voice_message_bytes,
+            audio_bytes,
+            resolved_language,
+        )
 
 
 @router.post(

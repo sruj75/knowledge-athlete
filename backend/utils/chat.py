@@ -61,6 +61,26 @@ def _validated_wav_is_silent(path: str, *, provider: str) -> bool:
         raise TranscriptionFailure(TranscriptionOutcome.UPSTREAM_ERROR, provider=provider) from error
 
 
+def _prerecorded_voice_message_from_bytes(
+    audio_bytes: bytes,
+    *,
+    stt_language: str,
+    return_language: bool,
+):
+    """Preserve the five-attempt budget of the retired signed-URL adapter."""
+    kwargs = {
+        'diarize': False,
+        'language': stt_language,
+        'return_language': return_language,
+    }
+    try:
+        return prerecorded_from_bytes(audio_bytes, **kwargs)
+    except RuntimeError:
+        # The byte adapter has exhausted attempts 1-3. The old URL adapter then
+        # resumed it at attempt index 1, providing two final provider attempts.
+        return prerecorded_from_bytes(audio_bytes, **kwargs, attempts=1)
+
+
 def transcribe_voice_message_bytes(
     audio_bytes: bytes,
     language: str,
@@ -71,17 +91,15 @@ def transcribe_voice_message_bytes(
     is_multi = stt_language == 'multi'
     try:
         if is_multi and detect_language:
-            words, detected_language = prerecorded_from_bytes(
+            words, detected_language = _prerecorded_voice_message_from_bytes(
                 audio_bytes,
-                diarize=False,
-                language=stt_language,
+                stt_language=stt_language,
                 return_language=True,
             )
         else:
-            words = prerecorded_from_bytes(
+            words = _prerecorded_voice_message_from_bytes(
                 audio_bytes,
-                diarize=False,
-                language=stt_language,
+                stt_language=stt_language,
                 return_language=False,
             )
             detected_language = stt_language

@@ -5,7 +5,7 @@ Unit tests for voice message language resolution.
 import os
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, call
 
 import pytest
 
@@ -156,3 +156,17 @@ def test_voice_message_uses_request_local_bytes_without_storage(chat, monkeypatc
     assert (audio_bytes, language, silence_language) == (payload, "en", None)
     assert chat.transcribe_voice_message_bytes(audio_bytes, language) == ("hello", "en")
     transcribe.assert_called_once_with(payload, diarize=False, language="en", return_language=False)
+
+
+def test_voice_message_preserves_legacy_provider_retry_budget(chat, monkeypatch):
+    """Continue with attempts 4-5 after the byte adapter exhausts attempts 1-3."""
+    monkeypatch.setattr(chat, "get_prerecorded_service", lambda language: ("modulate", "en", "modulate-velma-2"))
+    transcribe = MagicMock(side_effect=[RuntimeError("first three attempts failed"), [object()]])
+    monkeypatch.setattr(chat, "prerecorded_from_bytes", transcribe)
+    monkeypatch.setattr(chat, "postprocess_words", lambda words, offset: [SimpleNamespace(text="recovered")])
+
+    assert chat.transcribe_voice_message_bytes(b"wav", "en") == ("recovered", "en")
+    assert transcribe.call_args_list == [
+        call(b"wav", diarize=False, language="en", return_language=False),
+        call(b"wav", diarize=False, language="en", return_language=False, attempts=1),
+    ]

@@ -49,8 +49,10 @@ make dev-up          # Firebase Auth + Firestore emulators + local Redis
 make dev-desktop     # the above, then launch the macOS app against it
 ```
 
-The emulators replace Google, not the AI vendors — you still need OpenAI and
-Modulate keys in `backend/.env` for the app to do anything useful.
+The emulators replace Google, not the AI vendors. For a hermetic local stack,
+run `PROVIDER_MODE=offline make dev-up` without provider credentials. Real mode
+requires OpenAI, Modulate, Gemini, and Anthropic keys in
+`backend/.env.local-dev`; `make dev-init` creates that untracked file.
 
 `desktop/macos/run.sh --yolo` skips all local infrastructure and points at omi's
 hosted dev backend. Convenient, but per upstream's own warning it uses **production
@@ -238,7 +240,7 @@ callers and later owners:
 | Retained residue | Later owner | Why it remains after S-11 |
 |---|---|---|
 | `chat_responses`, `session_titles`, and their gateway/model-policy artifacts | S-22 | `session_titles` is the pinned transient S-11 title workload; `chat_responses` still has gateway/QoS callers that S-22 owns. |
-| `/v2/voice-messages`, `/v2/voice-message/transcribe`, `/v2/voice-message/transcribe-stream`, and their multipart, duration, and `transcribe_voice_message_segment` helpers | S-19 | Voice-message and push-to-talk speech transport are transient STT, distinct from the deleted hosted Chat persona and from local Chat persistence. |
+| `/v2/voice-messages`, `/v2/voice-message/transcribe`, `/v2/voice-message/transcribe-stream`, and their multipart, duration, `load_voice_message_segment_bytes`, and `transcribe_voice_message_bytes` helpers | S-19 | Voice-message and push-to-talk speech transport are transient STT, distinct from the deleted hosted Chat persona and from local Chat persistence. |
 
 S-24 removes the final hosted file/session helpers, OpenAI Files/Assistants
 integration, cloud thumbnails, and `/v1/files`. Ordinary attachments remain

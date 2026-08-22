@@ -74,7 +74,6 @@ run.sh
         │   ├── firestore.py                    # MockFirestore retained-account support
         │   ├── redis.py                        # FakeRedis + redis.Redis patch
         │   ├── storage.py                      # filesystem-backed fake GCS client
-        │   ├── vector_search.py                # hermetic S-24 purge/import seam
         │   ├── llm.py                          # deterministic LLM fake scaffold
         │   ├── stt.py                          # deterministic custom and managed-STT socket helpers
         │   └── embeddings.py                   # VAD/diarization/embedding fake scaffold
