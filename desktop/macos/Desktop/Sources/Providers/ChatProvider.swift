@@ -1941,7 +1941,7 @@ class ChatProvider: ObservableObject {
 
   // MARK: - Session Management
 
-  private func listLocalChatCatalog() async throws -> LocalChatCatalogSnapshot {
+  func listLocalChatCatalog() async throws -> LocalChatCatalogSnapshot {
     #if DEBUG
       if let listChatCatalogForTests {
         return LocalChatCatalogSnapshot(
@@ -1951,19 +1951,6 @@ class ChatProvider: ObservableObject {
       }
     #endif
     return try await resolvedAgentClient().listChatCatalog()
-  }
-
-  func localChatMessageCount(
-    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
-  ) async throws -> Int {
-    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else {
-      throw BridgeError.authMissing
-    }
-    let catalog = try await listLocalChatCatalog()
-    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else {
-      throw BridgeError.authMissing
-    }
-    return catalog.chats.reduce(0) { $0 + $1.messageCount }
   }
 
   private func createLocalChatCatalog(chatID: String, title: String?) async throws -> LocalChatSummary {
