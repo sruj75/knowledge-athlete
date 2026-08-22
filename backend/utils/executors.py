@@ -9,11 +9,11 @@ Provides shared executors with strict separation (bulkhead pattern):
 - billing_executor: billing-provider API calls. External network I/O
   with unpredictable latency, isolated from everything else.
 - sync_executor: sync pipeline VAD/STT/segment processing.
-- postprocess_executor: best-effort post-processing (memories, vectors,
-  action items, goals, and conversation processing).
-- cleanup_executor: long-running account-deletion wipes (vectors, recordings,
-  Firestore subcollections). Bulkheaded so bursts of account deletions cannot
-  starve normal post-processing.
+- postprocess_executor: durable conversation finalization and its retained
+  usage receipt, isolated from request/event loops.
+- cleanup_executor: account-deletion wipes across billing, Firebase Auth,
+  the S-24 Pinecone handoff, and retained Firestore deletion state. Bulkheaded
+  so deletion retries cannot starve finalization.
 - storage_executor: audio file precaching, GCS operations.
 
 These replace ad-hoc ThreadPoolExecutor creation throughout the codebase,

@@ -385,6 +385,7 @@ class NotificationService: NSObject, UNUserNotificationCenterDelegate {
     respectFrequency: Bool = true,
     authorizationSnapshot suppliedAuthorizationSnapshot: RuntimeOwnerAuthorizationSnapshot? = nil,
     onInAppQueued: (@MainActor @Sendable () -> Void)? = nil,
+    onInAppQueueCancelled: (@MainActor @Sendable () -> Void)? = nil,
     onInAppPresented: (@MainActor @Sendable () -> Void)? = nil,
     onSystemBannerDeliveredWithinCommit: (@MainActor @Sendable () -> Void)? = nil,
     completion: (@MainActor @Sendable (Bool) -> Void)? = nil
@@ -477,7 +478,8 @@ class NotificationService: NSObject, UNUserNotificationCenterDelegate {
         context: context,
         suggestionTelemetryIdentity: suggestionTelemetryIdentity,
         screenshotData: screenshotData,
-        onPresented: onInAppPresented
+        onPresented: onInAppPresented,
+        onPresentationCancelled: onInAppQueueCancelled
       )
       if presentationResult == .queued {
         onInAppQueued?()

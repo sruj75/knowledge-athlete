@@ -196,6 +196,9 @@ struct FloatingBarNotification: Identifiable, Equatable {
   /// Runs only when the notification becomes the physically visible card. A
   /// queued notification deliberately carries this callback until queue drain.
   let onPresented: (@MainActor @Sendable () -> Void)?
+  /// Releases transient queue admission when the queue owner drops this card
+  /// without presenting it (for example, snooze or owner transition).
+  let onPresentationCancelled: (@MainActor @Sendable () -> Void)?
 
   init(
     ownerID: String,
@@ -206,7 +209,8 @@ struct FloatingBarNotification: Identifiable, Equatable {
     context: FloatingBarNotificationContext? = nil,
     suggestionTelemetryIdentity: SuggestionAssistantTelemetry.NotificationIdentity? = nil,
     screenshotData: Data? = nil,
-    onPresented: (@MainActor @Sendable () -> Void)? = nil
+    onPresented: (@MainActor @Sendable () -> Void)? = nil,
+    onPresentationCancelled: (@MainActor @Sendable () -> Void)? = nil
   ) {
     self.ownerID = ownerID
     self.authorizationSnapshot = authorizationSnapshot
@@ -217,6 +221,7 @@ struct FloatingBarNotification: Identifiable, Equatable {
     self.suggestionTelemetryIdentity = suggestionTelemetryIdentity
     self.screenshotData = screenshotData
     self.onPresented = onPresented
+    self.onPresentationCancelled = onPresentationCancelled
   }
 
   static func == (lhs: FloatingBarNotification, rhs: FloatingBarNotification) -> Bool {

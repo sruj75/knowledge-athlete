@@ -61,6 +61,7 @@ final class FairUseWarningNotificationPresenter {
       Bool, Bool,
       @escaping @MainActor @Sendable () -> Void,
       @escaping @MainActor @Sendable () -> Void,
+      @escaping @MainActor @Sendable () -> Void,
       @escaping @MainActor @Sendable () -> Void
     ) async -> Bool
 
@@ -75,10 +76,11 @@ final class FairUseWarningNotificationPresenter {
         Bool, Bool,
         @escaping @MainActor @Sendable () -> Void,
         @escaping @MainActor @Sendable () -> Void,
+        @escaping @MainActor @Sendable () -> Void,
         @escaping @MainActor @Sendable () -> Void
       ) async -> Bool = {
         ownerID, presentation, authorization, deliverInApp, deliverSystemBanner, queueInApp,
-        commitInApp, commitSystemBanner in
+        cancelQueuedInApp, commitInApp, commitSystemBanner in
         await withCheckedContinuation { continuation in
           NotificationService.shared.sendNotification(
             ownerID: ownerID,
@@ -90,6 +92,7 @@ final class FairUseWarningNotificationPresenter {
             respectFrequency: false,
             authorizationSnapshot: authorization,
             onInAppQueued: queueInApp,
+            onInAppQueueCancelled: cancelQueuedInApp,
             onInAppPresented: commitInApp,
             onSystemBannerDeliveredWithinCommit: commitSystemBanner,
             completion: { delivered in continuation.resume(returning: delivered) })
@@ -215,6 +218,11 @@ final class FairUseWarningNotificationPresenter {
       !inAppPresented && !inAppQueued,
       !systemBannerDelivered,
       { [self] in queuedInAppAuthorizations[receiptKey] = authorization },
+      { [self] in
+        if queuedInAppAuthorizations[receiptKey] == authorization {
+          queuedInAppAuthorizations.removeValue(forKey: receiptKey)
+        }
+      },
       { [self, defaults] in
         queuedInAppAuthorizations.removeValue(forKey: receiptKey)
         defaults.set(true, forKey: inAppKey)

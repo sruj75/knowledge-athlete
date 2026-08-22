@@ -2748,7 +2748,7 @@ class FloatingControlBarManager {
     snoozedUntil = until
     notificationDismissWorkItem?.cancel()
     notificationDismissWorkItem = nil
-    pendingNotifications.removeAll()
+    cancelPendingNotifications()
     if let window, window.state.currentNotification != nil {
       window.dismissNotification(animated: false)
     }
@@ -2795,7 +2795,7 @@ class FloatingControlBarManager {
     activeQueryGeneration &+= 1
     notificationDismissWorkItem?.cancel()
     notificationDismissWorkItem = nil
-    pendingNotifications.removeAll()
+    cancelPendingNotifications()
     pendingNotificationJournalWrites.removeAll()
     notificationJournalAdmissionWaiters.cancelAll()
     storedNotificationMessages.removeAll()
@@ -2815,6 +2815,20 @@ class FloatingControlBarManager {
       storedJournalCount: storedNotificationMessages.count
     )
   }
+
+  private func cancelPendingNotifications(
+    where shouldCancel: (FloatingBarNotification) -> Bool = { _ in true }
+  ) {
+    let cancelled = pendingNotifications.filter(shouldCancel)
+    pendingNotifications.removeAll(where: shouldCancel)
+    cancelled.forEach { $0.onPresentationCancelled?() }
+  }
+
+  #if DEBUG
+    func enqueueNotificationForTesting(_ notification: FloatingBarNotification) {
+      pendingNotifications.append(notification)
+    }
+  #endif
 
   static func performOwnerBoundNotificationAdmission<Value: Sendable>(
     authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot,
@@ -3245,7 +3259,8 @@ class FloatingControlBarManager {
     context: FloatingBarNotificationContext? = nil,
     suggestionTelemetryIdentity: SuggestionAssistantTelemetry.NotificationIdentity? = nil,
     screenshotData: Data? = nil,
-    onPresented: (@MainActor @Sendable () -> Void)? = nil
+    onPresented: (@MainActor @Sendable () -> Void)? = nil,
+    onPresentationCancelled: (@MainActor @Sendable () -> Void)? = nil
   ) -> OwnerBoundNotificationPresentationResult {
     guard !ownerID.isEmpty,
       authorizationSnapshot.ownerID == ownerID,
@@ -3263,7 +3278,8 @@ class FloatingControlBarManager {
       context: context,
       suggestionTelemetryIdentity: suggestionTelemetryIdentity,
       screenshotData: screenshotData,
-      onPresented: onPresented
+      onPresented: onPresented,
+      onPresentationCancelled: onPresentationCancelled
     )
     guard let window else {
       log("FloatingControlBarManager: dropping notification because window is not set up")
@@ -3312,6 +3328,7 @@ class FloatingControlBarManager {
         RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
       else {
         log("FloatingControlBarManager: dropping queued notification from stale runtime owner")
+        nextNotification.onPresentationCancelled?()
         continue
       }
       presentNotification(nextNotification, in: window)
@@ -3980,6 +3997,7 @@ class FloatingControlBarManager {
           RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
         else {
           log("FloatingControlBarManager: dropping queued notification from stale runtime owner")
+          nextNotification.onPresentationCancelled?()
           continue
         }
         presentNotification(nextNotification, in: window)
@@ -4236,7 +4254,7 @@ class FloatingControlBarManager {
     }
     notificationDismissWorkItem?.cancel()
     notificationDismissWorkItem = nil
-    pendingNotifications.removeAll { $0.id == notificationID }
+    cancelPendingNotifications { $0.id == notificationID }
     if window.state.currentNotification != nil {
       window.dismissNotification()
     }
