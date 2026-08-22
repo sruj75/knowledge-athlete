@@ -425,7 +425,6 @@ class TestRouterPolicyMapping(unittest.TestCase):
             "goals:extract",
             "wrapped:generate",
             "test:prompt",
-            "tts:synthesize",
         ]
         for policy in used_policies:
             self.assertIn(policy, RATE_POLICIES, f"Policy '{policy}' used in router but missing from config")

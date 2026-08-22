@@ -84,7 +84,7 @@ PROHIBITED_PROJECT_PATTERNS = (
 PROVIDER_CREDENTIAL_PATTERNS = (
     re.compile(r"\b(?:sk|sk-proj)-[A-Za-z0-9_-]{12,}\b"),
     re.compile(r"\bAIza[0-9A-Za-z_-]{20,}\b"),
-    re.compile(r"\b(?:OPENAI|DEEPGRAM|ANTHROPIC|GROQ|ELEVENLABS|GEMINI|GOOGLE)_?(?:API_)?KEY\s*="),
+    re.compile(r"\b(?:OPENAI|DEEPGRAM|ANTHROPIC|GROQ|GEMINI|GOOGLE)_?(?:API_)?KEY\s*="),
     re.compile(r"\b(?:ACCESS_TOKEN|AUTH_TOKEN|SECRET)\s*="),
 )
 _PROVIDER_ENV_NAMES = (
@@ -93,7 +93,6 @@ _PROVIDER_ENV_NAMES = (
     "ANTHROPIC_API_KEY",
     "OPENROUTER_API_KEY",
     "GROQ_API_KEY",
-    "ELEVENLABS_API_KEY",
     "GEMINI_API_KEY",
     "GOOGLE_API_KEY",
 )

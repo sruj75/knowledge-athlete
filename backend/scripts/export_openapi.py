@@ -47,7 +47,6 @@ APP_CLIENT_PREFIXES = (
     '/v2/chat/generate-title',
     '/v2/chat/initial-message',
     '/v2/messages',
-    '/v2/tts',
     '/v2/voice-messages',
     '/v2/voice-message',
     '/v3/speech-profile',
