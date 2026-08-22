@@ -29,7 +29,6 @@ from fastapi import HTTPException
 
 os.environ.setdefault("ENCRYPTION_SECRET", "omi_test_secret_for_ci_only_0123456789")
 os.environ.setdefault("OPENAI_API_KEY", "sk-fake")
-os.environ.setdefault("PINECONE_API_KEY", "fake")
 
 # Sanctioned pattern (backend/docs/test_isolation.md): import the router module
 # normally at module scope. No sys.modules mutation, no import-hook stubbing —

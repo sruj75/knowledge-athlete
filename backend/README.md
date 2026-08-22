@@ -50,10 +50,6 @@ This README provides a quick setup guide for the Omi backend. For a comprehensiv
     - Modulate API key for managed transcription
     - Redis credentials from your [Upstash Console](https://console.upstash.com/)
     - Set `ADMIN_KEY` to a temporary value (e.g., `123`) for local development
-    - **IMPORTANT:** For Pinecone vector database:
-      - Make sure to set `PINECONE_INDEX_NAME` to the name of your Pinecone index
-      - If you don't have a Pinecone index yet, [create one in the Pinecone Console](https://app.pinecone.io/)
-      - The index should be created with the appropriate dimension setting (e.g., 1536 for OpenAI embeddings)
 
 12. Install Python dependencies (choose one of the following approaches):
 

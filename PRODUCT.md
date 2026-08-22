@@ -148,10 +148,10 @@ and never dumps raw databases, credentials, prompts, caches, or diagnostics.
 The backend export returns retained account/subscription/usage metadata only.
 
 Account deletion remains a durable backend job. Its required boundaries are
-billing cancellation, Firebase Authentication deletion, recursive retained
-Firestore deletion, and the exact Pinecone namespace-purge handoff owned by the
-next storage slice. It does not restore cleanup clients for retired recordings,
-People/voice identity, phone calling, notifications, or hosted product data.
+billing cancellation, Firebase Authentication deletion, and recursive retained
+Firestore deletion. It does not restore cleanup clients for retired recordings,
+People/voice identity, phone calling, notifications, hosted search, or hosted
+product data.
 
 ## Before you build
 

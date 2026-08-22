@@ -13,22 +13,21 @@ inventory to the rendered chart before either dev pusher workflow runs. It then
 checks only Kubernetes object existence and `.data` key names; it never reads or
 prints ConfigMap or Secret values.
 
-`TYPESENSE_HOST` is configuration from `dev-omi-backend-config`, consistent
-with `config/deployment-setting-classification.json` and
-`backend/scripts/deploy-backend-config.sh`. `TYPESENSE_API_KEY` and
-`GOOGLE_CLIENT_SECRET` remain direct keys from `dev-omi-backend-secrets`.
+`GOOGLE_CLIENT_SECRET` remains a direct key from
+`dev-omi-backend-secrets`. Retired hosted-search settings are absent from the
+source contract and rendered pusher environment.
 
 ## Historical Secret-to-ConfigMap transitions
 
 Kubernetes strategically merges a Deployment's `containers[].env` entries by
 name. When a historical named item used `secretKeyRef`, merely adding a
 `configMapKeyRef` retains the old nested field and can leave an invalid
-dual-source item. The dev source contract marks `REDIS_DB_HOST`,
-`GOOGLE_CLIENT_ID`, and `TYPESENSE_HOST` as transitions. Their values retain
+dual-source item. The dev source contract marks `REDIS_DB_HOST` and
+`GOOGLE_CLIENT_ID` as transitions. Their values retain
 `secretKeyRef: null` so an ordinary Helm upgrade removes the historical Secret
 source.
 
-The focused regression test exercises that strategic merge for all three names
+The focused regression test exercises that strategic merge for both names
 without a cluster. The preflight also checks every declared key before Helm
 runs, preventing a later `CreateContainerConfigError` for an omitted direct
 binding.

@@ -139,13 +139,13 @@ client_stub.delete_collection_recursive = MagicMock()
 client_stub.document_id_from_seed = MagicMock(return_value="seed-id")
 client_stub.get_firestore_client = MagicMock(return_value=mock_db)
 
-# Stub database.helpers (used by chat.py)
+# Stub database.helpers for retained database modules.
 helpers_stub = _stub_module("database.helpers")
 helpers_stub.set_data_protection_level = lambda **kw: (lambda f: f)
 helpers_stub.prepare_for_write = lambda **kw: (lambda f: f)
 helpers_stub.prepare_for_read = lambda **kw: (lambda f: f)
 
-# Stub models and utils needed by database.users and database.chat
+# Stub models and utils needed by database.users.
 _ensure_package_path("models", BACKEND_DIR / "models")
 models_users_stub = _stub_module("models.users")
 models_users_stub.Subscription = MagicMock()
@@ -178,7 +178,6 @@ redis_stub.try_acquire_user_platform_write_lock = MagicMock(return_value=True)
 # Import domain-specific database modules
 # ---------------------------------------------------------------------------
 import database.users as users_db  # noqa: E402
-import database.chat as chat_db  # noqa: E402
 import database.llm_usage as llm_usage_db  # noqa: E402
 
 # ---------------------------------------------------------------------------

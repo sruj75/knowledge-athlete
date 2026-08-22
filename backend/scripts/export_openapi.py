@@ -110,23 +110,15 @@ def configure_hermetic_environment() -> None:
     os.environ['OPENAI_API_KEY'] = 'fake-openai-key'
     os.environ['ANTHROPIC_API_KEY'] = 'fake-anthropic-key'
     os.environ['GOOGLE_API_KEY'] = 'fake-google-key'
-    os.environ['TYPESENSE_HOST'] = 'localhost'
-    os.environ['TYPESENSE_HOST_PORT'] = '8108'
-    os.environ['TYPESENSE_API_KEY'] = 'fake-typesense-key'
     os.environ['BILLING_MODE'] = 'disabled'
     os.environ['ADMIN_KEY'] = ''
 
-    for bucket_var in (
-        'BUCKET_TEMPORAL_SYNC_LOCAL',
-        'BUCKET_CHAT_FILES',
-        'BUCKET_DESKTOP_UPDATES',
-    ):
+    for bucket_var in ('BUCKET_DESKTOP_UPDATES',):
         os.environ[bucket_var] = bucket_var.lower().replace('bucket_', '').replace('_', '-')
 
     for secret_var in (
         'SERVICE_ACCOUNT_JSON',
         'GOOGLE_APPLICATION_CREDENTIALS',
-        'PINECONE_API_KEY',
         'LANGCHAIN_API_KEY',
     ):
         os.environ.pop(secret_var, None)

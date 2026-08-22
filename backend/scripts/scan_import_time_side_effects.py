@@ -11,10 +11,9 @@ source so the disease is not regenerated. See ``backend/docs/test_isolation.md``
 WHAT IT DETECTS (at module scope only — inside functions/classes is allowed):
   - Calls to a curated list of side-effecting constructors, e.g.:
       OpenAI / AsyncOpenAI / Anthropic / AsyncAnthropic
-      Pinecone
       firebase_admin.initialize_app
       tiktoken.encoding_for_model / tiktoken.get_encoding
-      typesense.Client / pusher.Client
+      pusher.Client
       requests.Session / httpx.Client / httpx.AsyncClient
       firestore.Client / firestore.Firestore / redis.Redis
     (The list is maintained in ``SIDE_EFFECT_CTORS``; adding constructors is
@@ -65,11 +64,9 @@ SIDE_EFFECT_CTORS: list[tuple[str, str]] = [
     ("langchain_openai", "OpenAIEmbeddings"),
     ("anthropic", "Anthropic"),
     ("anthropic", "AsyncAnthropic"),
-    ("pinecone", "Pinecone"),
     ("firebase_admin", "initialize_app"),
     ("tiktoken", "encoding_for_model"),
     ("tiktoken", "get_encoding"),
-    ("typesense", "Client"),
     ("pusher", "Client"),
     ("requests", "Session"),
     ("httpx", "Client"),

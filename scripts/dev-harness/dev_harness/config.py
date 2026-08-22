@@ -17,12 +17,6 @@ AUTH_PORT = 9099
 BACKEND_PORT = 8000
 DESKTOP_BACKEND_PORT = 10201
 REDIS_PORT = 6380
-TYPESENSE_PORT = 8108
-# The official container listens on its internal default unless an explicit
-# --api-port is supplied. Harness instances vary only the loopback host port.
-TYPESENSE_CONTAINER_PORT = 8108
-TYPESENSE_PINNED_VERSION = "27.1"
-LOCAL_TYPESENSE_API_KEY = "local-typesense-api-key-not-real"
 LOCAL_FIREBASE_API_KEY = "local-firebase-auth-emulator-api-key"
 PORT_OFFSET_ENV = "OMI_HARNESS_PORT_OFFSET"
 PORT_OVERRIDE_ENVS = {
@@ -31,7 +25,6 @@ PORT_OVERRIDE_ENVS = {
     "backend": "OMI_HARNESS_BACKEND_PORT",
     "desktop_backend": "OMI_HARNESS_DESKTOP_BACKEND_PORT",
     "redis": "OMI_HARNESS_REDIS_PORT",
-    "typesense": "OMI_HARNESS_TYPESENSE_PORT",
 }
 PROVIDER_MODES = providers.PROVIDER_MODES
 CORE_PROVIDER_ENV = (
@@ -64,7 +57,6 @@ class HarnessConfig:
     desktop_backend_port: int = DESKTOP_BACKEND_PORT
     redis_host: str = "127.0.0.1"
     redis_port: int = REDIS_PORT
-    typesense_port: int = TYPESENSE_PORT
 
     @property
     def firestore_host(self) -> str:
@@ -135,7 +127,6 @@ def harness_ports_from_env(env: Mapping[str, str] | None = None) -> dict[str, in
         "backend": BACKEND_PORT,
         "desktop_backend": DESKTOP_BACKEND_PORT,
         "redis": REDIS_PORT,
-        "typesense": TYPESENSE_PORT,
     }
     ports = {name: _port_from_env(source, name, default, offset) for name, default in defaults.items()}
     duplicates = sorted(port for port in set(ports.values()) if list(ports.values()).count(port) > 1)
@@ -236,7 +227,6 @@ def load_config(repo_root: Path, env: Mapping[str, str] | None = None, *, create
         backend_port=ports["backend"],
         desktop_backend_port=ports["desktop_backend"],
         redis_port=ports["redis"],
-        typesense_port=ports["typesense"],
     )
     parsed = parse_secrets_file(cfg)
     if parsed.secrets.get("PROVIDER_MODE"):
@@ -251,7 +241,6 @@ def load_config(repo_root: Path, env: Mapping[str, str] | None = None, *, create
             backend_port=cfg.backend_port,
             desktop_backend_port=cfg.desktop_backend_port,
             redis_port=cfg.redis_port,
-            typesense_port=cfg.typesense_port,
         )
     safety.validate_harness_runtime_config(
         project_id=cfg.project_id,
@@ -277,10 +266,6 @@ def _harness_service_extra(cfg: HarnessConfig) -> dict[str, str]:
         "ENVIRONMENT": "local-dev-harness",
         "ENCRYPTION_SECRET": "omi_local_dev_harness_32_byte_test_secret_not_prod",
         "ADMIN_KEY": "local-dev-admin-key-",
-        "TYPESENSE_HOST": "127.0.0.1",
-        "TYPESENSE_HOST_PORT": str(cfg.typesense_port),
-        "TYPESENSE_API_KEY": LOCAL_TYPESENSE_API_KEY,
-        "TYPESENSE_PROTOCOL": "http",
         "BASE_API_URL": cfg.backend_url,
         "API_BASE_URL": cfg.backend_url,
     }

@@ -11,8 +11,8 @@
     "backend/routers/**"
   ],
   "canonical_prevention_artifact": [
-    "backend/database/vector_db.py",
-    "backend/tests/unit/test_vector_db_index_none_guard.py"
+    "backend/tests/unit/test_clean_sweep_migrations.py",
+    "backend/tests/services/users/test_account_deletion.py"
   ],
   "status": "open"
 }

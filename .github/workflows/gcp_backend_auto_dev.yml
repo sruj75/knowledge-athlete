@@ -548,7 +548,6 @@ jobs:
           ENVIRONMENT: ${{ vars.ENV }}
           GOOGLE_CLIENT_ID: ${{ vars.GOOGLE_CLIENT_ID }}
           REDIS_DB_HOST: ${{ vars.REDIS_DB_HOST }}
-          TYPESENSE_HOST: ${{ vars.TYPESENSE_HOST }}
         run: backend/scripts/deploy-backend-config.sh
 
       - name: Deploy backend-secrets to GKE

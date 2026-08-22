@@ -33,7 +33,7 @@ def test_state_root_layout_and_sentinel(tmp_path: Path) -> None:
     assert (layout.services_dir / "firestore").is_dir()
     assert (layout.services_dir / "auth").is_dir()
     assert (layout.services_dir / "redis").is_dir()
-    assert (layout.services_dir / "typesense").is_dir()
+    assert not (layout.services_dir / "typesense").exists()
 
     sentinel = safety.read_and_validate_sentinel(layout.state_root, repo_root=REPO_ROOT, instance="default")
     assert sentinel["project_id"] == safety.DEFAULT_LOCAL_FIREBASE_PROJECT_ID
@@ -102,12 +102,10 @@ def test_child_environment_strips_cloud_defaults_and_offline_provider_secrets() 
         extra={
             "ENCRYPTION_SECRET": "local-only-test-secret",
             "ADMIN_KEY": "local-admin",
-            "TYPESENSE_API_KEY": "local-typesense",
         },
     )
     assert env_with_backend_secret["ENCRYPTION_SECRET"] == "local-only-test-secret"
     assert env_with_backend_secret["ADMIN_KEY"] == "local-admin"
-    assert env_with_backend_secret["TYPESENSE_API_KEY"] == "local-typesense"
 
     with pytest.raises(safety.SafetyError, match="provider credential"):
         safety.build_child_env(parent, provider_mode="offline", extra={"DEEPGRAM_API_KEY": "x"})
@@ -178,9 +176,7 @@ def test_windows_process_probe_reports_close_failure(monkeypatch: pytest.MonkeyP
         safety.process_exists(456)
 
 
-def test_windows_command_line_probe_ignores_path_shadowing(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
+def test_windows_command_line_probe_ignores_path_shadowing(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     if os.name != "nt":
         pytest.skip("Windows PowerShell lookup is not used on this platform")
 

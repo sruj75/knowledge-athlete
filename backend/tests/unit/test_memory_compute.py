@@ -447,7 +447,7 @@ def test_compute_modules_have_no_durable_storage_dependencies():
         backend / 'routers' / 'memory_compute.py',
         backend / 'utils' / 'llm' / 'memory_compute.py',
     )
-    forbidden_roots = {'database', 'firebase_admin', 'redis', 'pinecone'}
+    forbidden_roots = {'database', 'firebase_admin', 'redis'}
 
     for path in paths:
         tree = ast.parse(path.read_text(encoding='utf-8'), filename=str(path))

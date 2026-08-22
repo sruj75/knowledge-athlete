@@ -89,7 +89,7 @@ def stub_modules(mapping: dict[str, ModuleType | None]) -> Iterator[None]:
 
     Example::
 
-        with stub_modules({"database.vector_db": AutoMockModule("database.vector_db")}):
+        with stub_modules({"database.users": AutoMockModule("database.users")}):
             from routers.search import router  # picks up the fake
     """
     # Explicit per-name state for the requested fakes (presence + parent attr).

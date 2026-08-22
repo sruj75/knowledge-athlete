@@ -4,7 +4,7 @@ Unit tests for voice message language resolution.
 
 import os
 from pathlib import Path
-from types import ModuleType
+from types import ModuleType, SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
@@ -48,8 +48,8 @@ def _build_google_stubs() -> dict[str, ModuleType]:
 def chat():
     """Load utils.chat fresh against a stubbed db/llm/models chain.
 
-    utils.chat pulls a heavy import chain at import time (typesense clients, llm
-    clients, etc.) that cannot run in a hermetic unit process. The fakes below
+    utils.chat pulls a heavy import chain at import time (database and LLM
+    clients) that cannot run in a hermetic unit process. The fakes below
     short-circuit that chain so only the pure ``resolve_voice_message_language``
     logic is exercised. The fake must precede the import — see
     ``backend/docs/test_isolation.md`` and ``testing/import_isolation``.
@@ -65,7 +65,6 @@ def chat():
 
     fakes: dict[str, object] = {
         "database._client": MagicMock(),
-        "database.chat": MagicMock(),
         "database.notifications": MagicMock(),
         "database.auth": MagicMock(),
         "database.users": MagicMock(),
@@ -137,27 +136,23 @@ def test_no_preference_detect_language(chat, monkeypatch):
     assert language == "multi"
 
 
-def test_prepare_voice_message_url_signs_and_schedules_same_path(chat, monkeypatch):
-    signed_url = "https://signed.test/audio"
-    sign = MagicMock(return_value=signed_url)
-    schedule_cleanup = MagicMock()
-    monkeypatch.setattr(chat, "get_syncing_file_temporal_signed_url", sign)
-    monkeypatch.setattr(chat, "schedule_syncing_temporal_file_deletion", schedule_cleanup)
-
-    assert chat._prepare_voice_message_url("audio.wav") == signed_url
-    sign.assert_called_once_with("audio.wav")
-    schedule_cleanup.assert_called_once_with("audio.wav")
-
-
-def test_silent_voice_message_still_schedules_temporary_audio_cleanup(chat, monkeypatch):
-    """Silence is terminal, but it must not leave uploaded audio retained."""
-    sign = MagicMock(return_value="https://signed.test/audio")
-    schedule_cleanup = MagicMock()
-    monkeypatch.setattr(chat, "get_syncing_file_temporal_signed_url", sign)
-    monkeypatch.setattr(chat, "schedule_syncing_temporal_file_deletion", schedule_cleanup)
+def test_voice_message_uses_request_local_bytes_without_storage(chat, monkeypatch, tmp_path):
+    audio = tmp_path / "audio.wav"
+    payload = b"synthetic-wav-bytes"
+    audio.write_bytes(payload)
+    assert not hasattr(chat, "get_syncing_file_temporal_signed_url")
+    assert not hasattr(chat, "schedule_syncing_temporal_file_deletion")
     monkeypatch.setattr(chat, "get_prerecorded_service", lambda language: ("modulate", "en", "modulate-velma-2"))
     monkeypatch.setattr(chat, "_validated_wav_is_silent", lambda path, provider: True)
 
-    assert chat.transcribe_voice_message_segment("audio.wav", "uid", "en") == (None, "en")
-    sign.assert_called_once_with("audio.wav")
-    schedule_cleanup.assert_called_once_with("audio.wav")
+    assert chat.load_voice_message_segment_bytes(str(audio), "uid", "en") == (None, "en", "en")
+
+    monkeypatch.setattr(chat, "_validated_wav_is_silent", lambda path, provider: False)
+    transcribe = MagicMock(return_value=[object()])
+    monkeypatch.setattr(chat, "prerecorded_from_bytes", transcribe)
+    monkeypatch.setattr(chat, "postprocess_words", lambda words, offset: [SimpleNamespace(text="hello")])
+
+    audio_bytes, language, silence_language = chat.load_voice_message_segment_bytes(str(audio), "uid", "en")
+    assert (audio_bytes, language, silence_language) == (payload, "en", None)
+    assert chat.transcribe_voice_message_bytes(audio_bytes, language) == ("hello", "en")
+    transcribe.assert_called_once_with(payload, diarize=False, language="en", return_language=False)

@@ -8,7 +8,6 @@ set -euo pipefail
 required_config=(
   GOOGLE_CLIENT_ID
   REDIS_DB_HOST
-  TYPESENSE_HOST
 )
 
 if [[ "$ENVIRONMENT" == "prod" ]]; then

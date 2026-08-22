@@ -51,20 +51,17 @@ langchain-community==0.4.1
 langchain-core==1.3.3
 langchain-google-genai==3.2.0
 langchain-openai==1.1.14
-langchain-pinecone==0.2.13
 langchain-text-splitters==1.1.2
 langgraph==1.0.10
 langsmith==0.8.5
 
 # Vector databases
-pinecone==7.3.0
 qdrant-client==1.11.0
 
 
 # Security & encryption
 cryptography==48.0.1
 
-# Image processing (via tools/__init__ -> file_tools -> chat_file -> PIL)
 pillow==12.3.0
 
 # Utilities
@@ -78,9 +75,6 @@ python-ulid==3.0.0
 pytz==2024.1
 
 # Communication
-
-# Search
-typesense==0.21.0
 
 # Locale
 pycountry==24.6.1

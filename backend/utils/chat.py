@@ -1,12 +1,11 @@
 from typing import List, Optional, Tuple
+from pathlib import Path
 
 import database.users as user_db
 from config.stt_provider_policy import supports_live_multilingual_mode
 from models.transcript_segment import TranscriptSegment
-from utils.other.storage import get_syncing_file_temporal_signed_url, schedule_syncing_temporal_file_deletion
 from utils.stt.pre_recorded import (
     postprocess_words,
-    prerecorded,
     prerecorded_from_bytes,
     get_prerecorded_service,
 )
@@ -44,11 +43,7 @@ def resolve_voice_message_language(uid: str, request_language: Optional[str]) ->
     return 'multi'
 
 
-def _prepare_voice_message_url(path: str) -> str:
-    """Create the signed input URL and schedule its cleanup on the storage lane."""
-    url = get_syncing_file_temporal_signed_url(path)
-    schedule_syncing_temporal_file_deletion(path)
-    return url
+_MAX_VOICE_MESSAGE_BYTES = 200 * 1024 * 1024
 
 
 def _validated_wav_is_silent(path: str, *, provider: str) -> bool:
@@ -66,20 +61,29 @@ def _validated_wav_is_silent(path: str, *, provider: str) -> bool:
         raise TranscriptionFailure(TranscriptionOutcome.UPSTREAM_ERROR, provider=provider) from error
 
 
-def _transcribe_voice_message_url(
-    url: str,
-    path: str,
+def transcribe_voice_message_bytes(
+    audio_bytes: bytes,
     language: str,
     detect_language: bool = True,
 ) -> Tuple[Optional[str], Optional[str]]:
-    """Run the synchronous prerecorded-STT pipeline for one signed URL."""
+    """Run the synchronous prerecorded-STT pipeline on request-local WAV bytes."""
     provider, stt_language, _ = get_prerecorded_service(language)
     is_multi = stt_language == 'multi'
     try:
         if is_multi and detect_language:
-            words, detected_language = prerecorded(url, diarize=False, language=stt_language, return_language=True)
+            words, detected_language = prerecorded_from_bytes(
+                audio_bytes,
+                diarize=False,
+                language=stt_language,
+                return_language=True,
+            )
         else:
-            words = prerecorded(url, diarize=False, language=stt_language, return_language=False)
+            words = prerecorded_from_bytes(
+                audio_bytes,
+                diarize=False,
+                language=stt_language,
+                return_language=False,
+            )
             detected_language = stt_language
     except Exception as error:
         failure = failure_from_exception(error, provider=provider)
@@ -109,22 +113,31 @@ def _transcribe_voice_message_url(
     return text, detected_language
 
 
-def transcribe_voice_message_segment(
+def load_voice_message_segment_bytes(
     path: str,
     uid: str,
     language: str = 'multi',
-) -> Tuple[Optional[str], Optional[str]]:
+) -> Tuple[Optional[bytes], str, Optional[str]]:
+    """Validate and load one request-local WAV on the storage lane.
+
+    The third tuple item carries the detected-language response for the silence
+    outcome, where no provider call is needed.
+    """
     if not language:
         language = resolve_voice_message_language(uid, None)
     provider, provider_language, _ = get_prerecorded_service(language)
-    # Schedule deletion before the VAD gate as well: silence is a valid
-    # terminal outcome, not a reason to retain temporary customer audio.
-    url = _prepare_voice_message_url(path)
     if _validated_wav_is_silent(path, provider=provider):
         detected_language = provider_language if provider_language != 'multi' else None
-        return None, detected_language
+        return None, language, detected_language
 
-    return _transcribe_voice_message_url(url, path, language)
+    audio_path = Path(path)
+    if audio_path.stat().st_size > _MAX_VOICE_MESSAGE_BYTES:
+        raise TranscriptionFailure(
+            TranscriptionOutcome.INVALID_INPUT,
+            provider=provider,
+            retryable=False,
+        )
+    return audio_path.read_bytes(), language, None
 
 
 def transcribe_pcm_bytes(

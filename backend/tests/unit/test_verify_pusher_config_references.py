@@ -105,26 +105,20 @@ def test_rendered_dev_pusher_google_client_id_clears_legacy_secret_source(prefli
 
 
 @pytest.mark.parametrize("environment", ["dev", "prod"])
-def test_rendered_pusher_typesense_host_clears_legacy_secret_source(preflight: SimpleNamespace, environment: str):
+def test_rendered_pusher_omits_retired_typesense_bindings(preflight: SimpleNamespace, environment: str):
     deployment = next(document for document in preflight.render(environment) if document.get("kind") == "Deployment")
     env = deployment["spec"]["template"]["spec"]["containers"][0]["env"]
-    typesense_host = next(item for item in env if item["name"] == "TYPESENSE_HOST")
-    typesense_api_key = next(item for item in env if item["name"] == "TYPESENSE_API_KEY")
+    names = {item["name"] for item in env}
 
-    assert typesense_host["valueFrom"] == {
-        "configMapKeyRef": {"name": f"{environment}-omi-backend-config", "key": "TYPESENSE_HOST"},
-        "secretKeyRef": None,
-    }
-    assert typesense_api_key["valueFrom"] == {
-        "secretKeyRef": {"name": f"{environment}-omi-backend-secrets", "key": "TYPESENSE_API_KEY"}
-    }
+    assert {"TYPESENSE_HOST", "TYPESENSE_HOST_PORT", "TYPESENSE_API_KEY"}.isdisjoint(names)
 
 
-def test_typesense_and_google_binding_classifications_are_explicit():
+def test_google_binding_classifications_remain_explicit_after_typesense_retirement():
     kinds = json.loads(CLASSIFICATION.read_text(encoding="utf-8"))["kinds"]
 
-    assert "TYPESENSE_HOST" in kinds["config"]
-    assert {"TYPESENSE_API_KEY", "GOOGLE_CLIENT_SECRET"}.issubset(kinds["secret"])
+    assert "TYPESENSE_HOST" not in kinds["config"]
+    assert "TYPESENSE_API_KEY" not in kinds["secret"]
+    assert "GOOGLE_CLIENT_SECRET" in kinds["secret"]
 
 
 def test_standalone_pusher_reconciles_non_secret_config_before_preflight():
@@ -133,7 +127,6 @@ def test_standalone_pusher_reconciles_non_secret_config_before_preflight():
     required_config = {
         "GOOGLE_CLIENT_ID",
         "REDIS_DB_HOST",
-        "TYPESENSE_HOST",
     }
     prod_only_config = {
         "ACCOUNT_DELETION_HANDLER_URL",
@@ -163,7 +156,7 @@ def test_rendered_dev_pusher_direct_bindings_match_source_contract(preflight: Si
     assert literals == {
         "GOOGLE_CLOUD_PROJECT": "based-hardware-dev",
     }
-    assert clear_historical_secret == {"REDIS_DB_HOST", "GOOGLE_CLIENT_ID", "TYPESENSE_HOST"}
+    assert clear_historical_secret == {"REDIS_DB_HOST", "GOOGLE_CLIENT_ID"}
     assert preflight.validate_dev_pusher_binding_contract(deployment) == []
 
 
@@ -193,14 +186,14 @@ def test_dev_pusher_contract_rejects_missing_managed_stt_binding(preflight: Simp
     ]
 
 
-def test_dev_pusher_contract_requires_typesense_host_secret_clear(preflight: SimpleNamespace):
+def test_dev_pusher_contract_requires_google_client_id_secret_clear(preflight: SimpleNamespace):
     deployment = copy.deepcopy(preflight.rendered_pusher_deployment("dev"))
     env = deployment["spec"]["template"]["spec"]["containers"][0]["env"]
-    typesense_host = next(item for item in env if item["name"] == "TYPESENSE_HOST")
-    del typesense_host["valueFrom"]["secretKeyRef"]
+    google_client_id = next(item for item in env if item["name"] == "GOOGLE_CLIENT_ID")
+    del google_client_id["valueFrom"]["secretKeyRef"]
 
     assert preflight.validate_dev_pusher_binding_contract(deployment) == [
-        "dev pusher binding contract must clear historical Secret source for TYPESENSE_HOST"
+        "dev pusher binding contract must clear historical Secret source for GOOGLE_CLIENT_ID"
     ]
 
 
@@ -210,7 +203,6 @@ def test_dev_pusher_contract_requires_typesense_host_secret_clear(preflight: Sim
     [
         ("dev", "REDIS_DB_HOST"),
         ("dev", "GOOGLE_CLIENT_ID"),
-        ("dev", "TYPESENSE_HOST"),
         ("prod", "REDIS_DB_HOST"),
     ],
 )

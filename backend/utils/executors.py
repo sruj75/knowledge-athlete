@@ -11,8 +11,8 @@ Provides shared executors with strict separation (bulkhead pattern):
 - sync_executor: sync pipeline VAD/STT/segment processing.
 - postprocess_executor: durable conversation finalization and its retained
   usage receipt, isolated from request/event loops.
-- cleanup_executor: account-deletion wipes across billing, Firebase Auth,
-  the S-24 Pinecone handoff, and retained Firestore deletion state. Bulkheaded
+- cleanup_executor: account-deletion wipes across billing, Firebase Auth, and
+  retained Firestore deletion state. Bulkheaded
   so deletion retries cannot starve finalization.
 - storage_executor: audio file precaching, GCS operations.
 

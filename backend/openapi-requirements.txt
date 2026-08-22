@@ -72,8 +72,6 @@ openai==2.38.0
 orjson==3.11.6
 packaging==24.2
 pillow==12.3.0
-pinecone==7.3.0
-pinecone-plugin-interface==0.0.7
 posthog==3.5.2
 prometheus-client==0.21.1
 proto-plus==1.24.0
@@ -109,7 +107,6 @@ dodopayments[webhooks]==1.109.0
 tenacity==8.2.3
 tiktoken==0.7.0
 tqdm==4.66.5
-typesense==0.21.0
 typing_extensions==4.15.0
 typing-inspection==0.4.2
 typing-inspect==0.9.0

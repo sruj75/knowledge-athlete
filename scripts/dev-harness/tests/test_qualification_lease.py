@@ -581,36 +581,30 @@ def test_supervisor_dead_with_exact_recorded_process_group_reclaims_fixed_port(
     assert (root / "state" / lease_id / qualification.COMPLETION_FILENAME).is_file()
 
 
-def test_docker_typesense_proxy_listener_is_reclaimed_only_with_exact_container_binding(
+def test_owned_listener_is_signalled_only_with_process_group_lineage(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """Docker owns the host listener outside the supervisor's process group."""
-    lease_id, supervisor_pid, proxy_pid, port = "qualification-typesense", 42424, 51515, 49199
-    container = f"omi-dev-harness-{lease_id}-typesense"
+    supervisor_pid, listener_pid, port = 42424, 51515, 49199
     record = {
-        "service": "typesense",
+        "service": "backend",
         "pid": supervisor_pid,
         "process_group": supervisor_pid,
         "port": port,
-        "command": [
-            "docker",
-            "run",
-            "--rm",
-            "--name",
-            container,
-            "-p",
-            f"127.0.0.1:{port}:8108",
-        ],
+        "command": ["uvicorn", "main:app"],
     }
     signalled: list[tuple[int, signal.Signals]] = []
     monkeypatch.setattr(safety, "validate_owned_pid", lambda *args, **kwargs: None)
     monkeypatch.setattr(safety, "validate_port_owner", lambda *args, **kwargs: None)
-    monkeypatch.setattr(safety, "listening_pids", lambda observed_port: (proxy_pid,) if observed_port == port else ())
-    monkeypatch.setattr(safety, "is_descendant_of", lambda child, parent: False)
+    monkeypatch.setattr(
+        safety, "listening_pids", lambda observed_port: (listener_pid,) if observed_port == port else ()
+    )
+    monkeypatch.setattr(
+        safety, "is_descendant_of", lambda child, parent: child == listener_pid and parent == supervisor_pid
+    )
     monkeypatch.setattr(
         qualification.os,
         "getpgid",
-        lambda pid: supervisor_pid if pid == supervisor_pid else proxy_pid,
+        lambda pid: supervisor_pid if pid in {supervisor_pid, listener_pid} else pid,
         raising=False,
     )
     monkeypatch.setattr(
@@ -619,56 +613,33 @@ def test_docker_typesense_proxy_listener_is_reclaimed_only_with_exact_container_
         lambda pid, sig: signalled.append((pid, sig)),
         raising=False,
     )
-    monkeypatch.setattr(
-        qualification.subprocess,
-        "run",
-        lambda _args, **kwargs: subprocess.CompletedProcess(
-            ["docker", "inspect"],
-            0,
-            stdout=json.dumps(
-                {
-                    "Name": f"/{container}",
-                    "State": {"Running": True},
-                    "NetworkSettings": {"Ports": {"8108/tcp": [{"HostIp": "127.0.0.1", "HostPort": str(port)}]}},
-                }
-            ),
-        ),
-    )
-
-    qualification._validated_signal(
-        record, tmp_path / "processes.json", tmp_path / "ports.json", signal.SIGTERM, lease_id
-    )
+    qualification._validated_signal(record, tmp_path / "processes.json", tmp_path / "ports.json", signal.SIGTERM)
 
     assert signalled == [(supervisor_pid, signal.SIGTERM)]
 
 
-def test_external_typesense_listener_without_exact_docker_binding_is_not_signalled(
+def test_external_listener_without_process_group_lineage_is_not_signalled(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    lease_id, supervisor_pid, proxy_pid, port = "qualification-typesense", 42424, 51515, 49199
+    supervisor_pid, external_pid, port = 42424, 51515, 49199
     record = {
-        "service": "typesense",
+        "service": "backend",
         "pid": supervisor_pid,
         "process_group": supervisor_pid,
         "port": port,
-        "command": [
-            "docker",
-            "run",
-            "--name",
-            f"omi-dev-harness-{lease_id}-typesense",
-            "-p",
-            f"127.0.0.1:{port}:8108",
-        ],
+        "command": ["uvicorn", "main:app"],
     }
     signalled: list[tuple[int, signal.Signals]] = []
     monkeypatch.setattr(safety, "validate_owned_pid", lambda *args, **kwargs: None)
     monkeypatch.setattr(safety, "validate_port_owner", lambda *args, **kwargs: None)
-    monkeypatch.setattr(safety, "listening_pids", lambda observed_port: (proxy_pid,) if observed_port == port else ())
+    monkeypatch.setattr(
+        safety, "listening_pids", lambda observed_port: (external_pid,) if observed_port == port else ()
+    )
     monkeypatch.setattr(safety, "is_descendant_of", lambda child, parent: False)
     monkeypatch.setattr(
         qualification.os,
         "getpgid",
-        lambda pid: supervisor_pid if pid == supervisor_pid else proxy_pid,
+        lambda pid: supervisor_pid if pid == supervisor_pid else external_pid,
         raising=False,
     )
     monkeypatch.setattr(
@@ -679,68 +650,41 @@ def test_external_typesense_listener_without_exact_docker_binding_is_not_signall
     )
 
     with pytest.raises(qualification.QualificationLeaseError, match="lease lineage is unproven"):
-        qualification._validated_signal(
-            record, tmp_path / "processes.json", tmp_path / "ports.json", signal.SIGTERM, lease_id
-        )
+        qualification._validated_signal(record, tmp_path / "processes.json", tmp_path / "ports.json", signal.SIGTERM)
 
     assert signalled == []
 
 
-def test_orphaned_typesense_container_is_stopped_only_after_exact_binding(
+def test_orphaned_listener_in_recorded_process_group_is_stopped(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    lease_id, supervisor_pid, proxy_pid, port = "qualification-typesense-orphan", 42424, 51515, 49199
-    container = f"omi-dev-harness-{lease_id}-typesense"
+    lease_id, supervisor_pid, listener_pid, port = "qualification-orphan", 42424, 51515, 49199
     record = {
-        "service": "typesense",
+        "service": "backend",
         "pid": supervisor_pid,
         "process_group": supervisor_pid,
         "port": port,
-        "command": [
-            "docker",
-            "run",
-            "--rm",
-            "--name",
-            container,
-            "-p",
-            f"127.0.0.1:{port}:8108",
-        ],
+        "command": ["uvicorn", "main:app"],
     }
     running = True
-    calls: list[list[str]] = []
 
-    def run(command: list[str], **_kwargs: object) -> subprocess.CompletedProcess[str]:
+    def getpgid(pid: int) -> int:
+        assert pid == listener_pid
+        return supervisor_pid
+
+    def killpg(process_group: int, _sig: signal.Signals) -> None:
         nonlocal running
-        calls.append(command)
-        if command[:2] == ["docker", "inspect"]:
-            return subprocess.CompletedProcess(
-                command,
-                0 if running else 1,
-                stdout=(
-                    json.dumps(
-                        {
-                            "Name": f"/{container}",
-                            "State": {"Running": True},
-                            "NetworkSettings": {
-                                "Ports": {"8108/tcp": [{"HostIp": "127.0.0.1", "HostPort": str(port)}]}
-                            },
-                        }
-                    )
-                    if running
-                    else ""
-                ),
-                stderr="",
-            )
-        if command[:2] == ["docker", "stop"]:
-            running = False
-            return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
-        raise AssertionError(command)
+        assert process_group == supervisor_pid
+        running = False
 
     monkeypatch.setattr(qualification, "STOP_PHASES", ((signal.SIGTERM, 0),))
     monkeypatch.setattr(safety, "process_exists", lambda _pid: False)
     monkeypatch.setattr(safety, "validate_port_owner", lambda *args, **kwargs: None)
-    monkeypatch.setattr(safety, "listening_pids", lambda observed: (proxy_pid,) if observed == port and running else ())
-    monkeypatch.setattr(qualification.subprocess, "run", run)
+    monkeypatch.setattr(
+        safety, "listening_pids", lambda observed: (listener_pid,) if observed == port and running else ()
+    )
+    monkeypatch.setattr(qualification.os, "getpgid", getpgid, raising=False)
+    monkeypatch.setattr(qualification.os, "killpg", killpg, raising=False)
 
     qualification._stop_owned_records(
         [record],
@@ -749,5 +693,4 @@ def test_orphaned_typesense_container_is_stopped_only_after_exact_binding(
         lease_id,
     )
 
-    assert ["docker", "stop", "--time", "10", container] in calls
     assert not running

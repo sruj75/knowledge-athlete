@@ -22,7 +22,6 @@ from google.cloud.exceptions import NotFound as BlobNotFound
 
 from database.redis_db import cache_signed_url, get_cached_signed_url
 from utils import encryption
-from utils.other.deferred_delete import DeferredDeleter
 import logging
 
 logger = logging.getLogger(__name__)
@@ -63,8 +62,6 @@ def _get_storage_client() -> Any:
 
 
 private_cloud_sync_bucket = os.getenv('BUCKET_PRIVATE_CLOUD_SYNC', 'omi-private-cloud-sync')
-syncing_local_bucket = os.getenv('BUCKET_TEMPORAL_SYNC_LOCAL')
-chat_files_bucket = os.getenv('BUCKET_CHAT_FILES')
 desktop_updates_bucket = os.getenv('BUCKET_DESKTOP_UPDATES')
 PLAYBACK_ARTIFACT_PREFIX = 'playback'
 CONVERSATION_ARTIFACT_NAME = 'conversation'
@@ -77,40 +74,6 @@ def _get_opuslib() -> Any:
             'Install the OS-level Opus package before encoding or decoding .opus audio.'
         ) from _opus_import_error
     return opuslib
-
-
-def get_syncing_file_temporal_signed_url(file_path: str):
-    bucket = _get_storage_client().bucket(syncing_local_bucket)
-    blob = bucket.blob(file_path)
-    blob.upload_from_filename(file_path)
-    return _get_signed_url(blob, 15)
-
-
-def delete_syncing_temporal_file(file_path: str):
-    bucket = _get_storage_client().bucket(syncing_local_bucket)
-    blob = bucket.blob(file_path)
-    try:
-        blob.delete()
-    except BlobNotFound:
-        pass
-
-
-# Long enough for every signed-URL consumer (managed STT fetch, speaker-ID
-# download) to finish; the URLs themselves expire at 15 minutes.
-SYNCING_TEMPORAL_DELETE_DELAY_SECONDS = 480
-
-_syncing_temporal_deleter = DeferredDeleter(delete_syncing_temporal_file, name='syncing-blob-janitor')
-
-
-def schedule_syncing_temporal_file_deletion(
-    file_path: str, delay_seconds: float = SYNCING_TEMPORAL_DELETE_DELAY_SECONDS
-):
-    """Delete a temporal syncing blob once its signed-URL consumers are done.
-
-    One janitor thread + a due-time heap, instead of the previous per-file
-    time.sleep(480) that parked a storage_executor thread per blob (#7531).
-    """
-    _syncing_temporal_deleter.schedule(file_path, delay_seconds)
 
 
 # ************************************************
@@ -560,37 +523,6 @@ def _get_signed_url(blob: Any, minutes: int) -> str:
     )
     cache_signed_url(blob.name, signed_url, minutes * 60)
     return signed_url
-
-
-# **********************************
-# ************* CHAT FILES **************
-# **********************************
-def upload_multi_chat_files(files_name: List[str], uid: str) -> Dict[str, str]:
-    """
-    Upload multiple files to Google Cloud Storage in the chat files bucket.
-
-    Args:
-        files_name: List of file paths to upload
-        uid: User ID to use as part of the storage path
-
-    Returns:
-        dict: A dictionary mapping original filenames to their Google Cloud Storage URLs
-    """
-    bucket = _get_storage_client().bucket(chat_files_bucket)
-    dictFiles: Dict[str, str] = {}
-    for name in files_name:
-        try:
-            blob = bucket.blob(f'{uid}/{name}')
-            blob.cache_control = 'public, no-cache'
-            blob.upload_from_filename(f'./{name}')
-            try:
-                blob.make_public()
-            except Exception as e:
-                logger.warning(f"Could not make blob public (may need bucket-level IAM): {e}")
-            dictFiles[name] = f'https://storage.googleapis.com/{chat_files_bucket}/{uid}/{name}'
-        except Exception as e:
-            logger.error("Failed to upload {} due to exception: {}".format(name, e))
-    return dictFiles
 
 
 # **************************************************

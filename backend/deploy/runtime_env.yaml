@@ -39,10 +39,6 @@ environments:
             config_map:
               name: dev-omi-backend-config
               key: REDIS_DB_HOST
-          TYPESENSE_HOST:
-            config_map:
-              name: dev-omi-backend-config
-              key: TYPESENSE_HOST
           MODULATE_API_KEY:
             secret:
               name: dev-omi-backend-secrets
@@ -96,10 +92,6 @@ environments:
             secret:
               name: dev-omi-backend-secrets
               key: FAL_KEY
-          PINECONE_API_KEY:
-            secret:
-              name: dev-omi-backend-secrets
-              key: PINECONE_API_KEY
           REDIS_DB_HOST:
             config_map:
               name: dev-omi-backend-config
@@ -145,15 +137,6 @@ environments:
             secret:
               name: dev-omi-backend-secrets
               key: LANGCHAIN_API_KEY
-          TYPESENSE_HOST:
-            config_map:
-              name: dev-omi-backend-config
-              key: TYPESENSE_HOST
-            clear_historical_secret: true
-          TYPESENSE_API_KEY:
-            secret:
-              name: dev-omi-backend-secrets
-              key: TYPESENSE_API_KEY
           SERVICE_ACCOUNT_JSON:
             secret:
               name: dev-omi-backend-secrets
@@ -418,10 +401,6 @@ environments:
             config_map:
               name: prod-omi-backend-config
               key: REDIS_DB_HOST
-          TYPESENSE_HOST:
-            config_map:
-              name: prod-omi-backend-config
-              key: TYPESENSE_HOST
           MODULATE_API_KEY:
             secret:
               name: prod-omi-backend-secrets

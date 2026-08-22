@@ -329,7 +329,6 @@ jobs:
           REDIS_DB_HOST: ${{ vars.REDIS_DB_HOST }}
           SYNC_TASKS_HANDLER_URL: ${{ steps.pusher-runtime-targets.outputs.sync_tasks_handler_url }}
           SYNC_TASKS_INVOKER_SA: ${{ steps.pusher-runtime-targets.outputs.sync_tasks_invoker_sa }}
-          TYPESENSE_HOST: ${{ vars.TYPESENSE_HOST }}
         run: backend/scripts/deploy-backend-config.sh
 
       - name: Verify reconciled pusher ConfigMap and Secret references

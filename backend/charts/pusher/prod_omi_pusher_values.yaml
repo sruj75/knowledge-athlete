@@ -132,13 +132,6 @@ env:
         key: GROQ_API_KEY
   - name: HOSTED_SPEAKER_EMBEDDING_API_URL
     value: "http://diarizer.omi.me:80"
-  - name: PINECONE_API_KEY
-    valueFrom:
-      secretKeyRef:
-        name: prod-omi-backend-secrets
-        key: PINECONE_API_KEY
-  - name: PINECONE_INDEX_NAME
-    value: "memories-backend"
   - name: REDIS_DB_PORT
     value: "13151"
   - name: REDIS_DB_HOST
@@ -175,8 +168,6 @@ env:
         key: GOOGLE_CLIENT_SECRET
   - name: NO_SOCKET_TIMEOUT
     value: "true"
-  - name: BUCKET_TEMPORAL_SYNC_LOCAL
-    value: "syncing-local"
   - name: ENCRYPTION_SECRET
     valueFrom:
       secretKeyRef:
@@ -216,21 +207,6 @@ env:
     value: "prod"
   - name: DD_VERSION
     value: "1"
-  - name: TYPESENSE_HOST
-    valueFrom:
-      configMapKeyRef:
-        name: prod-omi-backend-config
-        key: TYPESENSE_HOST
-      # TYPESENSE_HOST is public runtime configuration. Clear a historical
-      # Secret-backed binding when Helm strategically merges this named env.
-      secretKeyRef: null
-  - name: TYPESENSE_HOST_PORT
-    value: "443"
-  - name: TYPESENSE_API_KEY
-    valueFrom:
-      secretKeyRef:
-        name: prod-omi-backend-secrets
-        key: TYPESENSE_API_KEY
   - name: GOOGLE_CLOUD_PROJECT
     value: "based-hardware"
   - name: BASIC_TIER_MINUTES_LIMIT_PER_MONTH

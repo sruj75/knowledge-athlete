@@ -21,10 +21,10 @@ artifacts are listed in `qualification-cleanup.md`.
   sentinel-proven state/log pairs (defaults: 3 runs and 14 days).
 - `OMI_QUALIFICATION_SWIFT_CACHE_ROOT` — owner-only exact-SHA SwiftPM cache.
   Defaults to `~/Library/Caches/OmiDesktop/qualification-swiftpm-v2`.
-- `OMI_HARNESS_PORT_OFFSET` and `OMI_HARNESS_{FIRESTORE,AUTH,BACKEND,DESKTOP_BACKEND,REDIS,TYPESENSE}_PORT` — dev-harness controls. The qualifier exports the offset; direct per-service overrides remain available for debugging.
+- `OMI_HARNESS_PORT_OFFSET` and `OMI_HARNESS_{FIRESTORE,AUTH,BACKEND,DESKTOP_BACKEND,REDIS}_PORT` — dev-harness controls. The qualifier exports the offset; direct per-service overrides remain available for debugging.
 
 The offset applies to Firestore, Firebase Auth, backend, desktop backend,
-Redis, and Typesense. The script also derives `OMI_AUTOMATION_PORT`; invalid
+and Redis. The script also derives `OMI_AUTOMATION_PORT`; invalid
 ports fail before launch.
 
 ## Gate phases
@@ -111,7 +111,7 @@ If Actions loses communication before the normal finalizer runs, the next
 pre-tag or qualification invocation runs the self-clean entrypoint before
 acquiring new capabilities. It reclaims only the dead authenticated lease,
 listeners that remain in the exact recorded PGID (including fixed 8085/9099),
-an exactly bound `omi-dev-harness-<lease>-typesense` container, token/start-time/
+token/start-time/
 command-hash-proven `omi-fault-*` apps, and non-current numeric run stages with
 no live path reference. `/Applications/Omi.app`, `Omi Beta.app`, their bundle
 IDs, foreign listeners, and name-only process matches are never cleanup targets.

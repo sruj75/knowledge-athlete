@@ -3,10 +3,9 @@ from __future__ import annotations
 import logging
 
 import time
-from typing import Any, Callable, Literal, TypedDict, cast
+from typing import Any, Callable, Literal
 
 from database import users as users_db
-from database.vector_db import purge_user_vectors
 from utils.billing.service import cancel_subscription_for_account_deletion
 from utils.cloud_tasks import enqueue_account_deletion_wipe, is_account_deletion_dispatch_enabled
 from utils.executors import cleanup_executor, submit_with_context
@@ -17,52 +16,8 @@ from utils.posthog_telemetry import emit_posthog_event
 logger = logging.getLogger(__name__)
 
 
-class PurgeFailure(TypedDict):
-    operation: str
-    error: str
-
-
-class PurgeResult(TypedDict):
-    required_failures: list[PurgeFailure]
-    pinecone_namespaces_purged: int
-
-
 ACCOUNT_DELETION_WIPE_COMPLETED = 'Account Deletion Wipe Completed'
 ACCOUNT_DELETION_WIPE_FAILED = 'Account Deletion Wipe Failed'
-
-
-def purge_pinecone_user_data(uid: str) -> PurgeResult:
-    """Run the exact S-24-owned Pinecone purge before Firestore deletion."""
-    result: PurgeResult = {
-        'required_failures': [],
-        'pinecone_namespaces_purged': 0,
-    }
-    try:
-        result['pinecone_namespaces_purged'] = purge_user_vectors(uid)
-    except Exception as e:
-        result['required_failures'].append({'operation': 'pinecone_user_vectors', 'error': sanitize(str(e))})
-        logger.error(f'delete_account Pinecone purge failed for {uid}: {sanitize(str(e))}')
-
-    return result
-
-
-def _required_failures_from_purge_result(purge_result: object) -> list[PurgeFailure]:
-    if not isinstance(purge_result, dict):
-        return []
-    purge_result_dict = cast(dict[str, object], purge_result)
-    required_failures_value = purge_result_dict.get('required_failures', [])
-    if not isinstance(required_failures_value, list):
-        return []
-    required_failure_items = cast(list[object], required_failures_value)
-    failures: list[PurgeFailure] = []
-    for failure in required_failure_items:
-        if not isinstance(failure, dict):
-            continue
-        failure_dict = cast(dict[str, object], failure)
-        failures.append(
-            {'operation': str(failure_dict.get('operation', 'unknown')), 'error': str(failure_dict.get('error', ''))}
-        )
-    return failures
 
 
 # Service-level PostHog distinct_id only. Never re-identify a deleted Firebase UID
@@ -72,12 +27,9 @@ _ACCOUNT_DELETION_TELEMETRY_DISTINCT_ID = 'omi-service:account-deletion'
 
 def _emit_deletion_telemetry(uid: str, event: str, properties: dict[str, object]) -> None:
     logger.info(
-        'account_deletion_telemetry event=%s duration_seconds=%s pinecone_namespaces_purged=%s '
-        'required_failure_count=%s failed_operations=%s retry_count=%s terminal=%s',
+        'account_deletion_telemetry event=%s duration_seconds=%s failed_operations=%s retry_count=%s terminal=%s',
         event,
         properties.get('duration_seconds'),
-        properties.get('pinecone_namespaces_purged'),
-        properties.get('required_failure_count'),
         properties.get('failed_operations'),
         properties.get('retry_count'),
         properties.get('terminal'),
@@ -92,23 +44,14 @@ def _emit_deletion_telemetry(uid: str, event: str, properties: dict[str, object]
 class AccountCleanupFailure(RuntimeError):
     """A provider or retained Firestore cleanup failed before completion."""
 
-    def __init__(self, operation: str, purge_result: PurgeResult, cause: Exception):
+    def __init__(self, operation: str, cause: Exception):
         super().__init__(str(cause))
         self.operation = operation
-        self.purge_result = purge_result
 
 
-def _empty_purge_result() -> PurgeResult:
-    return {
-        'required_failures': [],
-        'pinecone_namespaces_purged': 0,
-    }
-
-
-def _perform_account_cleanup(uid: str) -> PurgeResult:
+def _perform_account_cleanup(uid: str) -> None:
     """Compose every required external cleanup behind the durable worker."""
     current_operation = 'billing_subscription'
-    purge_result = _empty_purge_result()
     try:
         _cancel_subscription_for_account_deletion(uid)
         current_operation = 'firebase_auth'
@@ -120,25 +63,17 @@ def _perform_account_cleanup(uid: str) -> PurgeResult:
                 logger.info('delete_account worker observed Firebase Auth user already absent')
             else:
                 raise
-        current_operation = 'pinecone_user_vectors'
-        purge_result = purge_pinecone_user_data(uid)
-        required_failures = _required_failures_from_purge_result(purge_result)
-        if required_failures:
-            failed_operations = ', '.join(failure['operation'] for failure in required_failures)
-            raise RuntimeError(f'required derived purge failed: {failed_operations}')
         current_operation = 'firestore_user_data'
         wipe_result = users_db.delete_user_data(uid)
         if wipe_result.get('status') != 'ok':
             raise RuntimeError('authoritative Firestore user-data wipe did not complete')
     except Exception as e:
-        raise AccountCleanupFailure(current_operation, purge_result, e) from e
-    return purge_result
+        raise AccountCleanupFailure(current_operation, e) from e
 
 
 def background_wipe_user_data(uid: str, retry_count: int = 0, terminal: bool = False) -> bool:
     started_at = time.monotonic()
     current_operation = 'wipe_running_marker'
-    purge_result = _empty_purge_result()
     try:
         # Transition to ``running`` so the reconciler can distinguish a
         # genuinely orphaned ``pending`` marker (queued but never started)
@@ -149,12 +84,11 @@ def background_wipe_user_data(uid: str, retry_count: int = 0, terminal: bool = F
         # irreversible step below. In particular, do not cancel billing or
         # remove Firebase Auth from the request thread: a queue NotFound must
         # leave an account usable and recoverable.
-        purge_result = _perform_account_cleanup(uid)
+        _perform_account_cleanup(uid)
         logger.info('delete_account background wipe complete')
     except Exception as e:
         if isinstance(e, AccountCleanupFailure):
             current_operation = e.operation
-            purge_result = e.purge_result
         logger.error(f'delete_account background wipe failed for {uid}: {sanitize(str(e))}')
         # Mark the wipe as failed so a reconciliation worker can retry. Do NOT mark
         # completed — that would hide a partial wipe from the recovery path.
@@ -162,13 +96,11 @@ def background_wipe_user_data(uid: str, retry_count: int = 0, terminal: bool = F
             users_db.mark_user_deletion_wipe_failed(uid)
         except Exception as persist_err:
             logger.error(f'delete_account wipe status persist failed for {uid}: {sanitize(str(persist_err))}')
-        required_failures = _required_failures_from_purge_result(purge_result)
-        failed_operations = [failure['operation'] for failure in required_failures] or [current_operation]
         _emit_deletion_telemetry(
             uid,
             ACCOUNT_DELETION_WIPE_FAILED,
             {
-                'failed_operations': failed_operations,
+                'failed_operations': [current_operation],
                 'retry_count': max(0, retry_count),
                 'terminal': terminal,
             },
@@ -193,15 +125,12 @@ def background_wipe_user_data(uid: str, retry_count: int = 0, terminal: bool = F
                 },
             )
             return False
-        required_failures = _required_failures_from_purge_result(purge_result)
         _emit_deletion_telemetry(
             uid,
             ACCOUNT_DELETION_WIPE_COMPLETED,
             {
                 'duration_seconds': round(time.monotonic() - started_at, 3),
-                'pinecone_namespaces_purged': purge_result.get('pinecone_namespaces_purged', 0),
-                'required_failure_count': len(required_failures),
-                'failed_operations': [failure['operation'] for failure in required_failures],
+                'failed_operations': [],
             },
         )
         return True

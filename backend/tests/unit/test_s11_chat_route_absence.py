@@ -30,17 +30,24 @@ def test_retired_chat_storage_routes_return_404_from_the_mounted_app() -> None:
         ('GET', '/v1/users/stats/chat-messages'),
         ('POST', '/v1/users/analytics/chat_message'),
         ('POST', '/v2/files'),
+        ('POST', '/v1/files'),
     )
 
     for method, path in retired:
         assert client.request(method, path).status_code == 404, f'{method} {path} is still mounted'
 
 
-def test_retained_chat_compute_and_file_routes_remain_mounted() -> None:
+def test_retained_chat_compute_routes_remain_mounted() -> None:
     client = TestClient(main.app, raise_server_exceptions=False)
 
     assert client.post('/v2/chat/initial-message').status_code == 401
     assert client.post('/v2/chat/generate-title').status_code == 401
     assert client.post('/v2/chat/completions').status_code == 401
     assert client.post('/v2/voice-messages').status_code == 401
-    assert client.post('/v1/files').status_code == 401
+
+
+def test_retired_v1_files_is_genuine_404_before_authentication() -> None:
+    client = TestClient(main.app, raise_server_exceptions=False)
+
+    assert client.post('/v1/files').status_code == 404
+    assert client.post('/v1/files', headers={'Authorization': 'Bearer synthetic'}).status_code == 404

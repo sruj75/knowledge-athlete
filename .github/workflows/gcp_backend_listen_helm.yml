@@ -180,7 +180,6 @@ jobs:
           ACCOUNT_DELETION_HANDLER_URL: ${{ env.ACCOUNT_DELETION_HANDLER_URL }}
           SYNC_TASKS_HANDLER_URL: ${{ env.SYNC_TASKS_HANDLER_URL }}
           SYNC_TASKS_INVOKER_SA: ${{ env.SYNC_TASKS_INVOKER_SA }}
-          TYPESENSE_HOST: ${{ vars.TYPESENSE_HOST }}
         run: backend/scripts/deploy-backend-config.sh
 
       - name: Ensure dev parity-pack bucket (development only)

@@ -31,10 +31,6 @@ DEFAULT_RETENTION_MAX_AGE_SECONDS = 14 * 24 * 60 * 60
 COMPLETION_FILENAME = "qualification-completed.json"
 QUARANTINE_DIRNAME = "quarantined-lease-pointers"
 FAULT_STATE_DIRNAME = "fault"
-# Docker's official Typesense image listens on this fixed internal port. The
-# harness varies only the loopback host port; keep this dependency-free because
-# runner self-clean imports the lease authority before any venv is provisioned.
-TYPESENSE_CONTAINER_PORT = 8108
 STOP_PHASES: tuple[tuple[signal.Signals, float], ...] = tuple(
     (signal.Signals(value), wait_seconds)
     for name, wait_seconds in (("SIGINT", 8), ("SIGTERM", 5), ("SIGKILL", 2))
@@ -472,56 +468,11 @@ def preflight_fault_cleanup(*, repo_root: Path, lease_id: str, token: str, resul
         raise
 
 
-def _is_exact_typesense_docker_proxy(record: dict[str, object], lease_id: str | None) -> bool:
-    """Prove Docker's external port proxy belongs to this exact lease container."""
-
-    if lease_id is None or str(record.get("service", "")) != "typesense":
-        return False
-    port = int(str(record["port"]))
-    container = f"omi-dev-harness-{lease_id}-typesense"
-    expected_prefix = [
-        "docker",
-        "run",
-        "--rm",
-        "--name",
-        container,
-        "-p",
-        f"127.0.0.1:{port}:{TYPESENSE_CONTAINER_PORT}",
-    ]
-    command = record.get("command")
-    if not isinstance(command, list) or command[: len(expected_prefix)] != expected_prefix:
-        return False
-    try:
-        inspected = subprocess.run(
-            ["docker", "inspect", "--format", "{{json .}}", container],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
-            text=True,
-            timeout=5,
-            check=False,
-        )
-        payload = json.loads(inspected.stdout) if inspected.returncode == 0 else {}
-    except (OSError, subprocess.SubprocessError, json.JSONDecodeError):
-        return False
-    if not isinstance(payload, dict) or payload.get("Name") != f"/{container}":
-        return False
-    if not isinstance(payload.get("State"), dict) or payload["State"].get("Running") is not True:
-        return False
-    network = payload.get("NetworkSettings")
-    ports = network.get("Ports") if isinstance(network, dict) else None
-    bindings = ports.get(f"{TYPESENSE_CONTAINER_PORT}/tcp") if isinstance(ports, dict) else None
-    return isinstance(bindings, list) and any(
-        isinstance(binding, dict) and binding.get("HostIp") == "127.0.0.1" and binding.get("HostPort") == str(port)
-        for binding in bindings
-    )
-
-
 def _validated_signal(
     record: dict[str, object],
     process_manifest: Path,
     port_manifest: Path,
     sig: signal.Signals,
-    lease_id: str | None = None,
     *,
     allow_unproven_listener_skip: bool = False,
 ) -> bool:
@@ -543,7 +494,7 @@ def _validated_signal(
         raise QualificationLeaseError("Refusing to signal a qualification process group whose ownership changed")
     safety.validate_port_owner(port, pid=pid, port_manifest=port_manifest, process_manifest=None, service=service)
     listeners = safety.listening_pids(port)
-    if listeners and not _is_exact_typesense_docker_proxy(record, lease_id):
+    if listeners:
         for listener_pid in listeners:
             if getpgid(listener_pid) != process_group or not safety.is_descendant_of(listener_pid, pid):
                 if allow_unproven_listener_skip:
@@ -562,14 +513,11 @@ def _orphaned_record_cleanup_mode(
     record: dict[str, object],
     process_manifest: Path,
     port_manifest: Path,
-    lease_id: str,
 ) -> str:
     """Classify a dead supervisor's surviving listener without name matching.
 
     A POSIX process group remains authoritative after its leader exits: the PGID
-    cannot be reused while members remain. Docker's host proxy is the one known
-    exception because it lives outside the recorded supervisor group, so it is
-    accepted only after the exact lease container binding is re-proved.
+    cannot be reused while members remain.
     """
 
     pid = int(record["pid"])
@@ -588,8 +536,6 @@ def _orphaned_record_cleanup_mode(
     listeners = safety.listening_pids(port)
     if not listeners:
         return "none"
-    if _is_exact_typesense_docker_proxy(record, lease_id):
-        return "docker"
     getpgid, _killpg = _posix_process_group_api()
     try:
         listener_groups = tuple(getpgid(listener_pid) for listener_pid in listeners)
@@ -600,29 +546,6 @@ def _orphaned_record_cleanup_mode(
             "Refusing to signal an orphaned qualification listener whose recorded process group is unproven"
         )
     return "process-group"
-
-
-def _stop_exact_typesense_container(record: dict[str, object], lease_id: str, sig: signal.Signals) -> None:
-    if not _is_exact_typesense_docker_proxy(record, lease_id):
-        raise QualificationLeaseError("Refusing to stop a Typesense container whose exact lease binding is unproven")
-    container = f"omi-dev-harness-{lease_id}-typesense"
-    command = ["docker", "kill", container] if sig.name == "SIGKILL" else ["docker", "stop", "--time", "10", container]
-    try:
-        stopped = subprocess.run(
-            command,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.PIPE,
-            text=True,
-            timeout=15,
-            check=False,
-        )
-    except (OSError, subprocess.SubprocessError) as exc:
-        raise QualificationLeaseError(f"Cannot stop recorded qualification Typesense container: {exc}") from exc
-    if stopped.returncode != 0:
-        detail = stopped.stderr.strip()[:200]
-        raise QualificationLeaseError(
-            f"Cannot stop recorded qualification Typesense container {container}: {detail or stopped.returncode}"
-        )
 
 
 def _open_recorded_ports(records: list[dict[str, object]]) -> list[tuple[str, int, tuple[int, ...]]]:
@@ -666,14 +589,13 @@ def _stop_owned_records(
                     process_manifest,
                     port_manifest,
                     sig,
-                    lease_id,
                     allow_unproven_listener_skip=allow_unproven_listener_skip,
                 )
                 if not signaled:
                     skipped_unproven = True
                 continue
             try:
-                cleanup_mode = _orphaned_record_cleanup_mode(record, process_manifest, port_manifest, lease_id)
+                cleanup_mode = _orphaned_record_cleanup_mode(record, process_manifest, port_manifest)
             except QualificationLeaseError:
                 if allow_unproven_listener_skip:
                     skipped_unproven = True
@@ -685,8 +607,6 @@ def _stop_owned_records(
                     killpg(int(record["process_group"]), sig)
                 except (ProcessLookupError, PermissionError) as exc:
                     raise QualificationLeaseError(f"Cannot signal orphaned qualification process group: {exc}") from exc
-            elif cleanup_mode == "docker":
-                _stop_exact_typesense_container(record, lease_id, sig)
         open_ports = _wait_for_ports_to_close(records, wait_seconds)
         if not open_ports:
             return
@@ -804,7 +724,7 @@ def reclaim_abandoned(*, lease_root: Path, repo_root: Path, dry_run: bool = Fals
         fault_record = _validated_fault_record(state_root, token)
         for record in records:
             if not safety.process_exists(int(record["pid"])):
-                _orphaned_record_cleanup_mode(record, process_manifest, port_manifest, lease_id)
+                _orphaned_record_cleanup_mode(record, process_manifest, port_manifest)
         if dry_run:
             return {
                 "status": "would-reclaim",

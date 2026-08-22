@@ -780,7 +780,6 @@ jobs:
           REDIS_DB_HOST: ${{ vars.REDIS_DB_HOST }}
           SYNC_TASKS_HANDLER_URL: ${{ steps.account-deletion-target.outputs.sync_tasks_handler_url }}
           SYNC_TASKS_INVOKER_SA: ${{ steps.account-deletion-target.outputs.sync_tasks_invoker_sa }}
-          TYPESENSE_HOST: ${{ vars.TYPESENSE_HOST }}
         run: bash "$DEPLOY_CONTROL_SCRIPTS/deploy-backend-config.sh"
 
       - name: Deploy backend-secrets to GKE using Helm

@@ -128,7 +128,7 @@ class TestConstants:
 # ---------------------------------------------------------------------------
 # Wiring guard: parse the agent source (no import, so no heavy chat/LLM deps) and assert the
 # oversized-input check runs before the model producer task is ever started. Mirrors the AST
-# style of test_chat_file_stream_async.py and stops a refactor from silently dropping the guard.
+# same AST style as the other wiring guards and stops a refactor from silently dropping the guard.
 # ---------------------------------------------------------------------------
 
 import ast

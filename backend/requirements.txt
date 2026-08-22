@@ -95,8 +95,6 @@ langchain-community==0.4.1
 langchain-core==1.3.3
 langchain-google-genai==3.2.0
 langchain-openai==1.1.14
-langchain-pinecone==0.2.13
-pinecone==7.3.0
 langchain-text-splitters==1.1.2
 langgraph==1.0.10
 langgraph-checkpoint==4.0.3
@@ -221,6 +219,5 @@ webrtcvad==2.0.10
 websockets==12.0
 yarl==1.17.0
 dodopayments[webhooks]==1.109.0
-typesense==0.21.0
 pycountry==24.6.1
 langdetect==1.0.9

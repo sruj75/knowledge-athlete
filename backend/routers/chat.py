@@ -1,7 +1,6 @@
 import asyncio
 import base64
 import json
-import tempfile
 import uuid
 import re
 from datetime import datetime, timezone
@@ -26,14 +25,13 @@ from fastapi.responses import StreamingResponse
 from multipart.multipart import shutil
 from pydantic import BaseModel
 
-import database.chat as chat_db
 from models.chat import (
     Message,
-    FileChat,
 )
 from utils.chat import (
+    load_voice_message_segment_bytes,
     resolve_voice_message_language,
-    transcribe_voice_message_segment,
+    transcribe_voice_message_bytes,
     transcribe_pcm_bytes,
 )
 from utils.sync.files import retrieve_file_paths, decode_files_to_wav
@@ -46,10 +44,8 @@ from utils.observability.transcription import TranscriptionAttempt
 from database.redis_db import check_rate_limit
 from utils.rate_limit_config import get_effective_limit, RATE_LIMIT_SHADOW
 from utils.subscription import is_trial_paywalled
-from utils.other import endpoints as auth, storage
-from utils.other.chat_file import FileChatTool
+from utils.other import endpoints as auth
 from utils.multipart import (
-    CHAT_FILE_MAX_PART_SIZE,
     MultipartMaxPartSizeRoute,
     VOICE_MESSAGE_MAX_PART_SIZE,
     max_part_size,
@@ -136,6 +132,28 @@ def _parse_context_keywords(raw: Optional[str]) -> List[str]:
     return keywords
 
 
+async def _transcribe_voice_message_file(
+    path: str,
+    uid: str,
+    language: str,
+) -> tuple[Optional[str], Optional[str]]:
+    audio_bytes, resolved_language, silence_language = await run_blocking(
+        storage_executor,
+        load_voice_message_segment_bytes,
+        path,
+        uid,
+        language=language,
+    )
+    if audio_bytes is None:
+        return None, silence_language
+    return await run_blocking(
+        sync_executor,
+        transcribe_voice_message_bytes,
+        audio_bytes,
+        resolved_language,
+    )
+
+
 @router.post(
     "/v2/voice-messages",
     response_class=StreamingResponse,
@@ -208,9 +226,7 @@ def create_voice_message_stream(
             platform=x_app_platform,
         )
         try:
-            text, _detected_language = await run_blocking(
-                sync_executor,
-                transcribe_voice_message_segment,
+            text, _detected_language = await _transcribe_voice_message_file(
                 first_wav,
                 uid,
                 language=resolved_language,
@@ -490,8 +506,10 @@ async def transcribe_voice_message(
             platform=x_app_platform,
         )
         for wav_path in wav_paths:
-            transcript, detected_language = await run_blocking(
-                sync_executor, transcribe_voice_message_segment, wav_path, uid, language=resolved_language
+            transcript, detected_language = await _transcribe_voice_message_file(
+                wav_path,
+                uid,
+                language=resolved_language,
             )
             if transcript:
                 transcripts.append(transcript)
@@ -894,59 +912,3 @@ async def transcribe_voice_message_stream(
 
         del stt_audio_buffer
         parity_capture.persist()
-
-
-@router.post('/v1/files', response_model=List[FileChat], tags=['chat'])
-@max_part_size(CHAT_FILE_MAX_PART_SIZE)
-def upload_file_chat(
-    files: List[UploadFile] = File(...),
-    uid: str = Depends(auth.with_rate_limit(auth.get_current_user_uid, "file:upload")),
-):
-    thumbs_name = []
-    files_chat = []
-    for file in files:
-        # Use a UUID-based temp file name to prevent path traversal via user-controlled filename
-        safe_suffix = Path(file.filename).name if file.filename else "upload"
-        temp_file = Path(tempfile.gettempdir()) / f"{uuid.uuid4().hex}_{safe_suffix}"
-        try:
-            with temp_file.open("wb") as buffer:
-                shutil.copyfileobj(file.file, buffer)
-
-            result = FileChatTool.upload(temp_file)
-
-            thumb_name = result.get("thumbnail_name", "")
-            if thumb_name != "":
-                thumbs_name.append(thumb_name)
-
-            filechat = FileChat(
-                id=str(uuid.uuid4()),
-                name=result.get("file_name", ""),
-                mime_type=result.get("mime_type", ""),
-                openai_file_id=result.get("file_id", ""),
-                created_at=datetime.now(timezone.utc),
-                thumb_name=thumb_name,
-            )
-            files_chat.append(filechat)
-        finally:
-            if temp_file.exists():
-                temp_file.unlink()
-
-    if len(thumbs_name) > 0:
-        thumbs_path = storage.upload_multi_chat_files(thumbs_name, uid)
-        for fc in files_chat:
-            if not fc.is_image():
-                continue
-            thumb_path = thumbs_path.get(fc.thumb_name, "")
-            fc.thumbnail = thumb_path
-            # cleanup file thumb
-            thumb_file = Path(fc.thumb_name)
-            thumb_file.unlink()
-
-    # save db
-    files_chat_dict = [fc.model_dump() for fc in files_chat]
-
-    chat_db.add_multi_files(uid, files_chat_dict)
-
-    response = [fc.model_dump() for fc in files_chat]
-
-    return response

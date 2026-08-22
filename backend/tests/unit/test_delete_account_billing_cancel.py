@@ -36,7 +36,6 @@ def users_service():
         "database": _pkg("database"),
         "database.users": AutoMockModule("database.users"),
         "database.conversations": AutoMockModule("database.conversations"),
-        "database.vector_db": AutoMockModule("database.vector_db"),
         "utils": _pkg("utils"),
         "utils.cloud_tasks": AutoMockModule("utils.cloud_tasks"),
         "utils.billing": _pkg("utils.billing"),
