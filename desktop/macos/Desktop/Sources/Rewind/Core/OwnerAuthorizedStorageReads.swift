@@ -1,6 +1,41 @@
 import Foundation
 
 extension ActionItemStorage {
+  func getFilteredActionItems(
+    limit: Int = 200,
+    offset: Int = 0,
+    completedStates: [Bool]? = nil,
+    includeDeleted: Bool = false,
+    dueDateAfter: Date? = nil,
+    dueDateBefore: Date? = nil,
+    dueDateIsNull: Bool? = nil,
+    createdAfter: Date? = nil,
+    createdBefore: Date? = nil,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async throws -> [TaskActionItem] {
+    try await withOwnerRead(authorizationSnapshot) {
+      try await self.getFilteredActionItems(
+        limit: limit,
+        offset: offset,
+        completedStates: completedStates,
+        includeDeleted: includeDeleted,
+        dueDateAfter: dueDateAfter,
+        dueDateBefore: dueDateBefore,
+        dueDateIsNull: dueDateIsNull,
+        createdAfter: createdAfter,
+        createdBefore: createdBefore)
+    }
+  }
+
+  func getLocalActionItem(
+    surfacedId: String,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async throws -> TaskActionItem? {
+    try await withOwnerRead(authorizationSnapshot) {
+      try await self.getLocalActionItem(surfacedId: surfacedId)
+    }
+  }
+
   func getAllEmbeddings(
     authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
   ) async throws -> [(id: Int64, embedding: Data)] {
@@ -160,6 +195,30 @@ extension TranscriptionStorage {
 }
 
 extension MemoryStorage {
+  func listForTool(
+    scope: MemoryLayerScope = .defaultAccess,
+    categories: [MemoryCategory] = [],
+    tags: [String] = [],
+    includeDismissed: Bool = false,
+    startDate: Date? = nil,
+    endDate: Date? = nil,
+    limit: Int = 100,
+    offset: Int = 0,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async throws -> [MemoryItem] {
+    try await withOwnerRead(authorizationSnapshot) {
+      try await self.listForTool(
+        scope: scope,
+        categories: categories,
+        tags: tags,
+        includeDismissed: includeDismissed,
+        startDate: startDate,
+        endDate: endDate,
+        limit: limit,
+        offset: offset)
+    }
+  }
+
   func literalSearch(
     _ text: String,
     scope: MemoryLayerScope = .defaultAccess,

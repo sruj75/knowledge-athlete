@@ -12,6 +12,7 @@ covers:
   - desktop/macos/Desktop/Sources/FloatingControlBar/AgentPill.swift
   - desktop/macos/Desktop/Sources/FloatingControlBar/DelayedActionScheduler.swift
   - desktop/macos/Desktop/Sources/FloatingControlBar/FloatingBarLaunchPolicy.swift
+  - desktop/macos/Desktop/Sources/FloatingControlBar/FloatingBarNotificationContextFormatter.swift
   - desktop/macos/Desktop/Sources/FloatingControlBar/FloatingBarPresentation.swift
   - desktop/macos/Desktop/Sources/FloatingControlBar/FloatingBarVoicePlaybackService.swift
   - desktop/macos/Desktop/Sources/FloatingControlBar/FloatingControlBarGeometry.swift
@@ -41,7 +42,6 @@ covers:
   - desktop/macos/Desktop/Sources/Generated/GeneratedRealtimeTools.swift
   - desktop/macos/Desktop/Sources/FloatingControlBar/FloatingBackgroundModifier.swift
   - desktop/macos/Desktop/Sources/FloatingControlBar/VoiceWaveformBars.swift
-  - desktop/macos/Desktop/Sources/Services/APIClient/APIClient+Tools.swift
   - desktop/macos/Desktop/Sources/FloatingControlBar/NotchMomentsCoordinator.swift
   - desktop/macos/Desktop/Sources/FloatingControlBar/FloatingControlBarReceiptCard.swift
   - desktop/macos/Desktop/Sources/FloatingControlBar/NotchCardVoiceDelivery.swift

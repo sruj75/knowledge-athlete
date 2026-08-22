@@ -95,7 +95,7 @@ final class TrialBannerService {
         ownerID: ownerID,
         authorizationSnapshot: authorizationSnapshot,
         title: "Trial Ended",
-        message: "Your 3-day premium trial has ended. Upgrade to keep unlimited access or bring your own API keys.",
+        message: "Your 3-day premium trial has ended. Upgrade to continue managed access.",
         presenter: presenter)
       return
     }

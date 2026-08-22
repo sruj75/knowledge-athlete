@@ -7,6 +7,9 @@ struct PTTContextSnapshot {
   /// current-screen truth; realtime screen understanding comes from the voice
   /// hub's screen_now context and explicit screenshot tool.
   let keywords: [String]
+  /// Explicit Settings vocabulary that may cross the managed batch-STT wire.
+  /// Screen-derived OCR stays in `keywords` for local correction only.
+  let backendKeywords: [String]
   let sourceCount: Int
 }
 
@@ -46,14 +49,14 @@ enum PTTContextVocabularyProvider {
     }
 
     let keywords = collector.values
-    let sample = keywords.prefix(12).joined(separator: ", ")
     let immediateSourceCount = (visibleText?.isEmpty == false) ? 1 : 0
     log(
       "PTTContextVocabulary: captured \(keywords.count) transcription keyword(s) from "
-        + "\(immediateSourceCount) turn-scoped immediate OCR source(s); sample=[\(sample)]")
+        + "\(immediateSourceCount) turn-scoped immediate OCR source(s)")
     return PTTContextSnapshot(
       capturedAt: capturedAt,
       keywords: keywords,
+      backendKeywords: settingsVocabulary,
       sourceCount: immediateSourceCount
     )
   }

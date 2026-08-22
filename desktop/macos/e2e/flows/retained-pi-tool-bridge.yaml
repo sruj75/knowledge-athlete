@@ -6,6 +6,10 @@ app: non-prod
 covers:
   - desktop/macos/Desktop/Sources/Providers/ChatToolExecutor.swift
   - desktop/macos/Desktop/Sources/Providers/ChatToolExecutor+LocalStatus.swift
+  - desktop/macos/Desktop/Sources/Providers/ConversationSemanticRecall.swift
+  - desktop/macos/Desktop/Sources/Providers/LocalConversationToolService.swift
+  - desktop/macos/Desktop/Sources/Rewind/Core/DailyRecapLocalAuthority.swift
+  - desktop/macos/Desktop/Sources/Rewind/Core/TranscriptionStorage+SemanticSearch.swift
   - desktop/macos/Desktop/Sources/ResourceMonitor.swift
   - desktop/macos/Desktop/Sources/Chat/AgentRuntimeProcess.swift
 preconditions:
@@ -27,6 +31,12 @@ steps:
       interactive_count: { min: 2 }
 
   - id: S3
+    name: Invoke retained owner-local PTT data tools
+    do: "Ask the assistant to list recent conversations, search those summaries, and produce a daily recap. Verify each completed tool activity reads owner-local data and no /v1/tools/conversations request appears in the named-bundle or backend logs."
+    expect:
+      interactive_count: { min: 2 }
+
+  - id: S4
     name: Verify the private bridge receipt
     do: "Inspect the named-bundle logs and verify the call crossed the packaged Pi extension through OMI_BRIDGE_PIPE into ChatToolExecutor, with no hosted MCP, Calendar creation, file scan, knowledge-graph write, or omi-tools-stdio fallback."
     expect:

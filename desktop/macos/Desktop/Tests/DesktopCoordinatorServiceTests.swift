@@ -463,7 +463,7 @@ final class DesktopCoordinatorServiceTests: XCTestCase {
     XCTAssertTrue(hubSource.contains("guard let ownerID = RuntimeOwnerIdentity.currentOwnerId()"))
     XCTAssertFalse(hubSource.contains("RealtimeVoiceTurnOutbox"))
     XCTAssertTrue(hubSource.contains("origin: \"realtime_voice\""))
-    XCTAssertTrue(hubSource.contains("escalateToHigherModel"))
+    XCTAssertFalse(hubSource.contains("escalateToHigherModel"))
     XCTAssertFalse(hubSource.contains("AgentDelegationResolver"))
     XCTAssertFalse(hubSource.contains("AgentDelegationExecutor.shared.spawnResolvedDelegation"))
     XCTAssertTrue(hubSource.contains("AgentRuntimeProcess.shared.invokeExternalSurfaceTool("))

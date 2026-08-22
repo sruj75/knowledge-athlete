@@ -4,10 +4,11 @@ import Foundation
 actor MemorySemanticRecall {
   static let shared = MemorySemanticRecall()
 
-  func search(query: String, limit: Int) async throws -> [MemorySemanticMatch] {
-    guard let authorizationSnapshot = RuntimeOwnerIdentity.captureAuthorizationSnapshot() else {
-      throw LocalMutationAuthorizationError.revoked
-    }
+  func search(
+    query: String,
+    limit: Int,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async throws -> [MemorySemanticMatch] {
     let queryVector = try await EmbeddingService.shared.embed(
       text: query,
       taskType: "RETRIEVAL_QUERY",

@@ -28,7 +28,6 @@ backend-main:http:GET:/v1/calendar/meetings
 backend-main:http:GET:/v1/calendar/meetings/{meeting_id}
 backend-main:http:GET:/v1/health
 backend-main:http:GET:/v1/phone/numbers
-backend-main:http:GET:/v1/tools/conversations
 backend-main:http:GET:/v1/trends
 backend-main:http:GET:/v1/users/analytics/memory_summary
 backend-main:http:GET:/v1/users/export
@@ -68,8 +67,6 @@ backend-main:http:POST:/v1/phone/numbers/verify
 backend-main:http:POST:/v1/phone/numbers/verify/check
 backend-main:http:POST:/v1/phone/token
 backend-main:http:POST:/v1/phone/twiml
-backend-main:http:POST:/v1/tools/conversations/search
-backend-main:http:POST:/v1/tools/conversations/search-chunks
 backend-main:http:POST:/v1/users/analytics/memory_summary
 backend-main:http:POST:/v1/users/fcm-token
 backend-main:http:POST:/v1/wrapped/{year}/generate
