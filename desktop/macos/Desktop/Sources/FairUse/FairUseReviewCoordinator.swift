@@ -80,7 +80,7 @@ actor FairUseReviewCoordinator {
   private let presentReceipt:
     @Sendable (
       FairUseClassificationReceipt, RuntimeOwnerAuthorizationSnapshot
-    ) async -> Void
+    ) async -> Bool
   private var inFlight = Set<String>()
   private var completed = Set<String>()
   private var retryTasks: [String: Task<Void, Never>] = [:]
@@ -103,8 +103,9 @@ actor FairUseReviewCoordinator {
     presentReceipt:
       @escaping @Sendable (
         FairUseClassificationReceipt, RuntimeOwnerAuthorizationSnapshot
-      ) async -> Void = { receipt, authorization in
-        await FairUseWarningNotificationPresenter.shared.present(
+      ) async -> Bool = { receipt, authorization in
+        if receipt.action == "none" { return true }
+        return await FairUseWarningNotificationPresenter.shared.present(
           receipt, authorization: authorization)
       },
     recordFailure: @escaping @Sendable (String) -> Void = { reason in
@@ -152,8 +153,21 @@ actor FairUseReviewCoordinator {
         conversations: Array(evidence.prefix(30)),
         authorizationSnapshot: authorization)
       guard isAuthorizationCurrent(authorization) else { return }
-      await presentReceipt(receipt, authorization)
+      let presented = await presentReceipt(receipt, authorization)
       guard isAuthorizationCurrent(authorization) else { return }
+      guard presented else {
+        let attempt = submissionAttempts[request.reviewId, default: 0] + 1
+        submissionAttempts[request.reviewId] = attempt
+        guard attempt < Self.maximumSubmissionAttempts else {
+          recordFailure("presentation_failed_permanent")
+          submissionAttempts.removeValue(forKey: request.reviewId)
+          retryTasks.removeValue(forKey: request.reviewId)?.cancel()
+          return
+        }
+        recordFailure("presentation_failed_retryable")
+        scheduleRetry(request, authorization: authorization, attempt: attempt)
+        return
+      }
       completed.insert(request.reviewId)
       submissionAttempts.removeValue(forKey: request.reviewId)
       retryTasks.removeValue(forKey: request.reviewId)?.cancel()

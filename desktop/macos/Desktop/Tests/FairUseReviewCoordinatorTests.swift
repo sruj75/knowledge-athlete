@@ -79,6 +79,16 @@ private final class FairUseFailureRecorder: @unchecked Sendable {
 
   func append(_ value: String) { lock.withLock { values.append(value) } }
   func isEmpty() -> Bool { lock.withLock { values.isEmpty } }
+  func snapshot() -> [String] { lock.withLock { values } }
+}
+
+private actor FairUsePresentationStub {
+  private(set) var attempts = 0
+
+  func present() -> Bool {
+    attempts += 1
+    return attempts > 1
+  }
 }
 
 final class FairUseReviewCoordinatorTests: XCTestCase {
@@ -168,6 +178,39 @@ final class FairUseReviewCoordinatorTests: XCTestCase {
     XCTAssertEqual(retryableFailure["area"] as? String, "fair_use_review")
     XCTAssertEqual(retryableFailure["reason"] as? String, "submission_failed_retryable")
     DesktopDiagnosticsManager.shared.resetForTests()
+  }
+
+  @MainActor
+  func testRejectedPresentationRetriesBeforeReviewIsCompleted() async throws {
+    let fixture = RuntimeOwnerAuthorityTestFixture()
+    await fixture.establish(authOwnerID: "fair-use-owner-a")
+    defer { Task { @MainActor in await fixture.restore() } }
+    let snapshot = try XCTUnwrap(RuntimeOwnerIdentity.captureAuthorizationSnapshot())
+    let reader = FairUseEvidenceReaderStub(evidence: [])
+    let submitter = FairUseSubmitterStub()
+    let presentation = FairUsePresentationStub()
+    let failures = FairUseFailureRecorder()
+    let coordinator = FairUseReviewCoordinator(
+      storage: reader,
+      submitter: submitter,
+      captureAuthorization: { snapshot },
+      now: { Date(timeIntervalSince1970: 1_800_000_000) },
+      retryDelay: { _ in },
+      presentReceipt: { _, _ in await presentation.present() },
+      recordFailure: { reason in failures.append(reason) })
+
+    await coordinator.handle(makeRequest())
+    for _ in 0..<100 {
+      if await presentation.attempts >= 2 { break }
+      await Task.yield()
+    }
+    await coordinator.handle(makeRequest())
+
+    let presentationAttempts = await presentation.attempts
+    let submissions = await submitter.submissions
+    XCTAssertEqual(presentationAttempts, 2)
+    XCTAssertEqual(submissions.count, 2)
+    XCTAssertEqual(failures.snapshot(), ["presentation_failed_retryable"])
   }
 
   @MainActor

@@ -52,8 +52,8 @@ async def _websocket_util_trigger(
     journey_attempt = JourneyAttempt('pusher_session')
     close_code = 1000
     application_failed = False
-    PUSHER_ACTIVE_WS_CONNECTIONS.inc()
     try:
+        PUSHER_ACTIVE_WS_CONNECTIONS.inc()
         while True:
             data = await asyncio.wait_for(websocket.receive_bytes(), timeout=WS_RECEIVE_TIMEOUT)
             header_type = frame_header(data)

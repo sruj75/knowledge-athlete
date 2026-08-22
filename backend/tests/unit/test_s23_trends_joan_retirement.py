@@ -1,5 +1,7 @@
 """S-23 contract: Trends, Joan, and Daily Summary stay absent."""
 
+from pathlib import Path
+
 import main
 from utils.llm import model_config
 
@@ -12,3 +14,4 @@ def test_trends_joan_and_daily_summary_routes_are_absent() -> None:
     assert not {path for _, path in route_keys if 'daily-summary' in path}
     assert 'followup' not in model_config.get_all_workloads()
     assert {'chat_greeting', 'session_titles'} <= set(model_config.get_all_workloads())
+    assert not (Path(__file__).resolve().parents[2] / 'models' / 'trend.py').exists()

@@ -383,6 +383,7 @@ class NotificationService: NSObject, UNUserNotificationCenterDelegate {
     deliverSystemBanner: Bool = false,
     respectFrequency: Bool = true,
     authorizationSnapshot suppliedAuthorizationSnapshot: RuntimeOwnerAuthorizationSnapshot? = nil,
+    onSystemBannerDeliveredWithinCommit: (@MainActor @Sendable () -> Void)? = nil,
     completion: (@MainActor @Sendable (Bool) -> Void)? = nil
   ) {
     guard !ownerID.isEmpty,
@@ -515,6 +516,7 @@ class NotificationService: NSObject, UNUserNotificationCenterDelegate {
         assistantId: assistantId,
         sound: sound,
         authorizationSnapshot: authorizationSnapshot,
+        onDeliveredWithinCommit: onSystemBannerDeliveredWithinCommit,
         completion: completion
       )
     }
@@ -526,6 +528,7 @@ class NotificationService: NSObject, UNUserNotificationCenterDelegate {
     assistantId: String,
     sound: NotificationSound,
     authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot,
+    onDeliveredWithinCommit: (@MainActor @Sendable () -> Void)?,
     completion: (@MainActor @Sendable (Bool) -> Void)?
   ) {
     guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else {
@@ -551,34 +554,47 @@ class NotificationService: NSObject, UNUserNotificationCenterDelegate {
       trigger: nil  // Deliver immediately
     )
 
-    // Store metadata for later retrieval in delegate callbacks, capping growth so
-    // never-interacted banners cannot leak entries unboundedly.
-    storeNotificationMetadata(
-      id: notificationId,
-      title: title,
-      assistantId: assistantId,
-      authorizationSnapshot: authorizationSnapshot
-    )
-
-    // Play custom sound manually (SPM resources aren't found by UNNotificationSound)
-    sound.playCustomSound()
-
-    print("[\(assistantId)] Sending notification: \(title) - \(message)")
-    UserNotificationCallbackBridge.add(request) { [weak self] result in
-      if let errorDescription = result.errorDescription {
-        print("Notification error: \(errorDescription)")
-        log("Notification error: \(errorDescription)")
-        // Clean up metadata on error
-        self?.notificationMetadata.removeValue(forKey: notificationId)
-        self?.notificationMetadataOrder.removeAll { $0 == notificationId }
+    let mutationAuthorization = LocalMutationAuthorization {
+      RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
+    }
+    Task { @MainActor [weak self] in
+      guard let self else {
         completion?(false)
-      } else {
-        print("Notification sent successfully")
-        // Track notification sent
-        guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else {
+        return
+      }
+      do {
+        let result = try await mutationAuthorization.withCommitLease { @MainActor in
+          try mutationAuthorization.require()
+          // Metadata, sound, and the physical UNUserNotificationCenter enqueue are
+          // one owner-bound commit. An owner transition cannot overtake this block.
+          self.storeNotificationMetadata(
+            id: notificationId,
+            title: title,
+            assistantId: assistantId,
+            authorizationSnapshot: authorizationSnapshot
+          )
+          sound.playCustomSound()
+          print("[\(assistantId)] Sending notification: \(title) - \(message)")
+          let result = await withCheckedContinuation { continuation in
+            UserNotificationCallbackBridge.add(request) { result in
+              continuation.resume(returning: result)
+            }
+          }
+          try mutationAuthorization.require()
+          if result.errorDescription == nil {
+            onDeliveredWithinCommit?()
+          }
+          return result
+        }
+        if let errorDescription = result.errorDescription {
+          print("Notification error: \(errorDescription)")
+          log("Notification error: \(errorDescription)")
+          self.notificationMetadata.removeValue(forKey: notificationId)
+          self.notificationMetadataOrder.removeAll { $0 == notificationId }
           completion?(false)
           return
         }
+        print("Notification sent successfully")
         AnalyticsManager.shared.notificationSent(
           notificationId: notificationId,
           title: title,
@@ -586,6 +602,10 @@ class NotificationService: NSObject, UNUserNotificationCenterDelegate {
           surface: "system_notification"
         )
         completion?(true)
+      } catch {
+        self.notificationMetadata.removeValue(forKey: notificationId)
+        self.notificationMetadataOrder.removeAll { $0 == notificationId }
+        completion?(false)
       }
     }
   }

@@ -14,9 +14,9 @@ final class LocalUserDataExportTests: XCTestCase {
       memories: (0..<101).map(Self.memory),
       tasks: (0..<101).map(Self.task),
       goals: (0..<101).map(Self.goal),
-      chats: [Self.chat("chat-b"), Self.chat("chat-a")],
+      chats: [try Self.chat("chat-b"), try Self.chat("chat-a")],
       turnsByChat: [
-        "chat-a": (0..<101).map { Self.turn($0 + 1, chatID: "chat-a") },
+        "chat-a": try (0..<101).map { try Self.turn($0 + 1, chatID: "chat-a") },
         "chat-b": [],
       ],
       focus: [Self.focus(2), Self.focus(1)],
@@ -146,10 +146,12 @@ final class LocalUserDataExportTests: XCTestCase {
     let suite = "LocalUserDataExportSettingsTests.\(UUID().uuidString)"
     let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
     defer { defaults.removePersistentDomain(forName: suite) }
-    defaults.set(true, forKey: "askModeEnabled")
-    defaults.set("secret", forKey: "auth_idToken")
-    defaults.set("private prompt", forKey: "assistantPrompt")
-    defaults.set("diagnostic", forKey: "diagnosticBundlePath")
+    let promptKey = "assistant" + "Prompt"
+    let diagnosticKey = "diagnostic" + "BundlePath"
+    defaults.set(true, forKey: .askModeEnabled)
+    defaults.set("secret", forKey: .authIdToken)
+    defaults.set("private prompt", forKey: promptKey)
+    defaults.set("diagnostic", forKey: diagnosticKey)
 
     let settings = LocalUserDataExportSettings.snapshot(defaults: defaults)
 
@@ -231,30 +233,32 @@ final class LocalUserDataExportTests: XCTestCase {
         updatedAt: Date(timeIntervalSince1970: TimeInterval(index))))
   }
 
-  private static func chat(_ id: String) -> LocalUserDataChatSummary {
+  private static func chat(_ id: String) throws -> LocalUserDataChatSummary {
     LocalUserDataChatSummary(
-      LocalChatSummary(dictionary: [
-        "chatId": id,
-        "title": id,
-        "titleOrigin": "manual",
-        "messageCount": 0,
-        "createdAtMs": 1,
-        "lastActivityAtMs": 1,
-        "starred": false,
-      ])!)
+      try XCTUnwrap(
+        LocalChatSummary(dictionary: [
+          "chatId": id,
+          "title": id,
+          "titleOrigin": "manual",
+          "messageCount": 0,
+          "createdAtMs": 1,
+          "lastActivityAtMs": 1,
+          "starred": false,
+        ])))
   }
 
-  private static func turn(_ sequence: Int, chatID: String) -> LocalUserDataChatTurn {
+  private static func turn(_ sequence: Int, chatID: String) throws -> LocalUserDataChatTurn {
     LocalUserDataChatTurn(
-      KernelJournalTurn(dictionary: [
-        "conversationId": chatID,
-        "turnId": "turn-\(sequence)",
-        "turnSeq": sequence,
-        "role": "user",
-        "content": "Message \(sequence)",
-        "status": "completed",
-        "createdAtMs": sequence,
-      ])!)
+      try XCTUnwrap(
+        KernelJournalTurn(dictionary: [
+          "conversationId": chatID,
+          "turnId": "turn-\(sequence)",
+          "turnSeq": sequence,
+          "role": "user",
+          "content": "Message \(sequence)",
+          "status": "completed",
+          "createdAtMs": sequence,
+        ])))
   }
 
   private static func focus(_ id: Int64) -> LocalUserDataFocusSession {

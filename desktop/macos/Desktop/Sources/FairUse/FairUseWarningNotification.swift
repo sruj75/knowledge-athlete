@@ -44,19 +44,24 @@ final class FairUseWarningNotificationPresenter {
   static let shared = FairUseWarningNotificationPresenter()
 
   private let defaults: UserDefaults
-  private let isAuthorizationCurrent: (RuntimeOwnerAuthorizationSnapshot) -> Bool
-  private let deliver: (String, FairUseWarningPresentation, RuntimeOwnerAuthorizationSnapshot) async -> Bool
+  private let isAuthorizationCurrent: @Sendable (RuntimeOwnerAuthorizationSnapshot) -> Bool
+  private let deliver:
+    @MainActor (
+      String, FairUseWarningPresentation, RuntimeOwnerAuthorizationSnapshot,
+      @escaping @MainActor @Sendable () -> Void
+    ) async -> Bool
 
   init(
     defaults: UserDefaults = .standard,
-    isAuthorizationCurrent: @escaping (RuntimeOwnerAuthorizationSnapshot) -> Bool = {
+    isAuthorizationCurrent: @escaping @Sendable (RuntimeOwnerAuthorizationSnapshot) -> Bool = {
       RuntimeOwnerIdentity.isAuthorizationCurrent($0)
     },
     deliver:
-      @escaping (
-        String, FairUseWarningPresentation, RuntimeOwnerAuthorizationSnapshot
+      @escaping @MainActor (
+        String, FairUseWarningPresentation, RuntimeOwnerAuthorizationSnapshot,
+        @escaping @MainActor @Sendable () -> Void
       ) async -> Bool = {
-        ownerID, presentation, authorization in
+        ownerID, presentation, authorization, commit in
         await withCheckedContinuation { continuation in
           NotificationService.shared.sendNotification(
             ownerID: ownerID,
@@ -66,6 +71,7 @@ final class FairUseWarningNotificationPresenter {
             deliverSystemBanner: true,
             respectFrequency: false,
             authorizationSnapshot: authorization,
+            onSystemBannerDeliveredWithinCommit: commit,
             completion: { delivered in continuation.resume(returning: delivered) })
         }
       }
@@ -89,10 +95,9 @@ final class FairUseWarningNotificationPresenter {
     guard defaults.bool(forKey: key) == false else { return false }
     guard isAuthorizationCurrent(authorization) else { return false }
 
-    let delivered = await deliver(authorization.ownerID, presentation, authorization)
-    guard delivered, isAuthorizationCurrent(authorization) else { return false }
-    defaults.set(true, forKey: key)
-    return true
+    return await deliver(authorization.ownerID, presentation, authorization) { [defaults] in
+      defaults.set(true, forKey: key)
+    }
   }
 
   private func deduplicationKey(ownerID: String, reviewID: String) -> String {
