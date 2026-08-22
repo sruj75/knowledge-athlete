@@ -64,6 +64,10 @@ class AppState: ObservableObject {
   /// Used by background services (e.g. TranscriptionRetryService) to check recording state.
   static weak var current: AppState?
 
+  /// Production listen-event owner. Non-production automation can inject a
+  /// hermetic submitter while still entering through `handleListenEvent`.
+  var fairUseReviewCoordinator: FairUseReviewCoordinator = .shared
+
   static func quiesceCurrentAmbientCaptureForOwnerTransition() async {
     await current?.quiesceAmbientCaptureForOwnerTransition()
   }

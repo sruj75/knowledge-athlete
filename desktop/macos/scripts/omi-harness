@@ -502,7 +502,7 @@ def step_prefix(index: int, step: dict[str, typing.Any]) -> str:
 
 def run_agent_swift(ctx: HarnessContext, args: list[str]) -> subprocess.CompletedProcess[str]:
     if not ctx.bundle_id:
-        raise RuntimeError("ax.expect requires --bundle-id")
+        raise RuntimeError("Accessibility steps require --bundle-id")
     connect = subprocess.run(
         ["agent-swift", "connect", "--bundle-id", ctx.bundle_id],
         check=False,
@@ -582,6 +582,29 @@ def assert_ax(ctx: HarnessContext, spec: dict[str, typing.Any], path: Path) -> t
     missing = [item for item in visible if item not in text]
     if missing:
         return False, f"AX snapshot missing text: {missing}"
+    return True, None
+
+
+def run_ax_action(ctx: HarnessContext, spec: dict[str, typing.Any], path: Path) -> tuple[bool, str | None]:
+    if ctx.lane != "ui":
+        return True, "skipped outside ui lane"
+    locator = str(spec.get("locator") or "")
+    value = str(spec.get("value") or "")
+    action = str(spec.get("action") or "")
+    if locator not in {"role", "text", "identifier"} or not value:
+        return False, "ax.action requires locator=role|text|identifier and a value"
+    if action not in {"click", "press", "fill", "get"}:
+        return False, "ax.action requires action=click|press|fill|get"
+    args = ["find", locator, value, action]
+    if action in {"fill", "get"}:
+        action_arg = spec.get("argument")
+        if action_arg is None:
+            return False, f"ax.action {action} requires argument"
+        args.append(str(action_arg))
+    result = run_agent_swift(ctx, args)
+    path.write_text(result.stdout, encoding="utf-8")
+    if result.returncode != 0:
+        return False, f"agent-swift {' '.join(args)} failed"
     return True, None
 
 
@@ -768,6 +791,16 @@ def execute_step(ctx: HarnessContext, index: int, step: dict[str, typing.Any]) -
             path = ctx.steps_dir / f"{prefix}-ax.json"
             ok, error = assert_ax(ctx, dict(step["ax.expect"] or {}), path)
             result.update(operation="ax.expect", ok=ok)
+            result["artifacts"]["ax"] = str(path)
+            if error and ok:
+                result["warnings"].append(error)
+            elif error:
+                result["error"] = error
+
+        elif "ax.action" in step:
+            path = ctx.steps_dir / f"{prefix}-ax-action.txt"
+            ok, error = run_ax_action(ctx, dict(step["ax.action"] or {}), path)
+            result.update(operation="ax.action", ok=ok)
             result["artifacts"]["ax"] = str(path)
             if error and ok:
                 result["warnings"].append(error)

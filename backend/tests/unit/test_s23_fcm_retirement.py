@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from fastapi.routing import APIRoute
 
 import main
@@ -15,3 +17,5 @@ def test_fcm_routes_and_delivery_leases_are_absent_while_fair_use_receipts_remai
     assert not hasattr(fair_use_db, 'claim_fair_use_review_notification')
     assert not hasattr(fair_use_db, 'release_fair_use_review_notification')
     assert not hasattr(fair_use_db, 'mark_fair_use_review_notification_sent')
+    retired_runbook = Path(__file__).resolve().parents[1] / 'integration' / 'README.md'
+    assert not retired_runbook.exists()

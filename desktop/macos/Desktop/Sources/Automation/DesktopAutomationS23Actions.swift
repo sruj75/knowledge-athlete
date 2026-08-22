@@ -1,5 +1,30 @@
 import Foundation
 
+private actor S23FairUseEvidenceReader: FairUseEvidenceReading {
+  func fairUseEvidence(
+    now: Date,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async throws -> [FairUseConversationEvidence] { [] }
+}
+
+private actor S23FairUseSubmitter: FairUseReviewSubmitting {
+  private(set) var submissions = 0
+  let receipt: FairUseClassificationReceipt
+
+  init(receipt: FairUseClassificationReceipt) {
+    self.receipt = receipt
+  }
+
+  func classifyFairUseReview(
+    reviewId: String,
+    conversations: [FairUseConversationEvidence],
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async throws -> FairUseClassificationReceipt {
+    submissions += 1
+    return receipt
+  }
+}
+
 extension DesktopAutomationActionRegistry {
   func registerS23Actions() {
     registerFairUseLocalEnforcementProbe()
@@ -17,6 +42,7 @@ extension DesktopAutomationActionRegistry {
       safety: "non_production_probe",
       sideEffects: [
         "may read bounded owner-local conversation metadata",
+        "may present one owner-local fair-use warning",
         "creates then finalizes one empty owner-local harness conversation",
       ]
     ) { params in
@@ -41,7 +67,9 @@ extension DesktopAutomationActionRegistry {
   }
 
   private static func warningProbeResult() async -> [String: String] {
-    guard let authorization = RuntimeOwnerIdentity.captureAuthorizationSnapshot() else {
+    guard let appState = AppState.current,
+      let authorization = RuntimeOwnerIdentity.captureAuthorizationSnapshot()
+    else {
       return ["status": "owner_unavailable"]
     }
     let suite = "omi.e2e.fair-use-warning.\(UUID().uuidString)"
@@ -49,7 +77,6 @@ extension DesktopAutomationActionRegistry {
       return ["status": "defaults_unavailable"]
     }
     defer { defaults.removePersistentDomain(forName: suite) }
-    let presenter = FairUseWarningNotificationPresenter(defaults: defaults)
     let receipt = FairUseClassificationReceipt(
       reviewId: "11111111-1111-4111-8111-111111111111",
       accepted: true,
@@ -57,18 +84,44 @@ extension DesktopAutomationActionRegistry {
       action: "warning",
       stage: "warning",
       caseRef: "FU-E2E123")
+    let presenter = FairUseWarningNotificationPresenter(defaults: defaults)
+    let submitter = S23FairUseSubmitter(receipt: receipt)
+    let coordinator = FairUseReviewCoordinator(
+      storage: S23FairUseEvidenceReader(),
+      submitter: submitter,
+      presentReceipt: { receipt, authorization in
+        await presenter.accept(receipt, authorization: authorization)
+      })
+    let previousCoordinator = appState.fairUseReviewCoordinator
+    appState.fairUseReviewCoordinator = coordinator
+    defer { appState.fairUseReviewCoordinator = previousCoordinator }
+    let now = Date()
+    let request = FairUseReviewRequest(
+      reviewId: receipt.reviewId,
+      trigger: "automation_probe",
+      windowSpeechMs: ["daily_ms": 7_200_001],
+      thresholdsMs: ["daily_ms": 7_200_000],
+      classifierContract: "openai/gpt-5.1:prompt-v2",
+      requestedAt: now,
+      expiresAt: now.addingTimeInterval(300))
     let presentation = FairUseWarningPresentation.from(receipt)
-    let firstPresented = await presenter.present(receipt, authorization: authorization)
-    let duplicatePresented = await presenter.present(receipt, authorization: authorization)
+    await appState.handleListenEvent(.fairUseReviewRequested(request))
+    let firstStatus = presenter.deliveryStatus(for: receipt, ownerID: authorization.ownerID)
+    await appState.handleListenEvent(.fairUseReviewRequested(request))
     let relaunchedPresenter = FairUseWarningNotificationPresenter(defaults: defaults)
-    let relaunchedDuplicatePresented = await relaunchedPresenter.present(
-      receipt, authorization: authorization)
+    let replayDeliveryCount = await relaunchedPresenter.replayPending(authorization: authorization)
+    let finalStatus = relaunchedPresenter.deliveryStatus(
+      for: receipt, ownerID: authorization.ownerID)
+    let submissions = await submitter.submissions
     return [
-      "status": firstPresented ? "presented" : "delivery_rejected",
-      "first_presented": firstPresented ? "true" : "false",
-      "duplicate_suppressed": (firstPresented && !duplicatePresented && !relaunchedDuplicatePresented)
-        ? "true" : "false",
-      "delivery_count": firstPresented ? "1" : "0",
+      "status": finalStatus.systemBannerDelivered ? "presented" : "pending_replay",
+      "receipt_owned": (finalStatus.systemBannerDelivered || finalStatus.pendingReplay) ? "true" : "false",
+      "first_in_app_presented": firstStatus.inAppPresented ? "true" : "false",
+      "system_banner_delivered": finalStatus.systemBannerDelivered ? "true" : "false",
+      "pending_replay": finalStatus.pendingReplay ? "true" : "false",
+      "replay_delivery_count": "\(replayDeliveryCount)",
+      "duplicate_event_suppressed": submissions == 1 ? "true" : "false",
+      "production_event_seam": "true",
       "fixed_title": presentation?.title == "Fair Use Notice" ? "true" : "false",
       "case_reference_present": presentation?.message.contains("FU-E2E123") == true ? "true" : "false",
       "fcm_attempted": "false",

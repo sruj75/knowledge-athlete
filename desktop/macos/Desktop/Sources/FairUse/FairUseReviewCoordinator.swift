@@ -105,7 +105,7 @@ actor FairUseReviewCoordinator {
         FairUseClassificationReceipt, RuntimeOwnerAuthorizationSnapshot
       ) async -> Bool = { receipt, authorization in
         if receipt.action == "none" { return true }
-        return await FairUseWarningNotificationPresenter.shared.present(
+        return await FairUseWarningNotificationPresenter.shared.accept(
           receipt, authorization: authorization)
       },
     recordFailure: @escaping @Sendable (String) -> Void = { reason in

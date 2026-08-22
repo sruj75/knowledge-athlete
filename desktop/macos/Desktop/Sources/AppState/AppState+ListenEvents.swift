@@ -109,6 +109,10 @@ extension AppState {
         transcriptionServiceError = "Transcription unavailable"
       } else if status == .ready {
         transcriptionServiceError = nil
+        if let authorization = RuntimeOwnerIdentity.captureAuthorizationSnapshot() {
+          await FairUseWarningNotificationPresenter.shared.replayPending(
+            authorization: authorization)
+        }
       }
       log("Transcription: Backend service status: \(status.rawValue)")
 
@@ -130,7 +134,7 @@ extension AppState {
       }
 
     case .fairUseReviewRequested(let request):
-      await FairUseReviewCoordinator.shared.handle(request)
+      await fairUseReviewCoordinator.handle(request)
 
     case .fairUseManagedCloudExhausted(let exhaustion):
       await handleFairUseManagedCloudExhausted(exhaustion)

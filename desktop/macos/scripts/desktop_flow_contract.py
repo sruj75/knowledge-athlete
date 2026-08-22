@@ -9,6 +9,7 @@ ACTION_SOURCE_RELATIVE_PATHS = (
     "Desktop/Sources/DesktopAutomationBridge.swift",
     "Desktop/Sources/DesktopAutomationManagedAccessActions.swift",
     "Desktop/Sources/Automation/DesktopAutomationBillingActions.swift",
+    "Desktop/Sources/Automation/DesktopAutomationS23Actions.swift",
     "Desktop/Sources/FloatingControlBar/RealtimeHubController.swift",
     "Desktop/Sources/Rewind/Core/RewindArtifactGauntlet.swift",
     "Desktop/Sources/DesktopAutomationOpenOmiShortcutQA.swift",

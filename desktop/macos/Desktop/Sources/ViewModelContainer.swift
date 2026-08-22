@@ -100,6 +100,10 @@ class ViewModelContainer: ObservableObject {
     // DB-dependent loads are guarded — skip them if database init failed
     // to prevent a stampede of retries from each storage actor
     let dbAvailable = !databaseInitFailed
+    if let authorization = RuntimeOwnerIdentity.captureAuthorizationSnapshot() {
+      await FairUseWarningNotificationPresenter.shared.replayPending(
+        authorization: authorization)
+    }
     schedulePostInteractiveWarmup(dbAvailable: dbAvailable)
     isLoading = false
 

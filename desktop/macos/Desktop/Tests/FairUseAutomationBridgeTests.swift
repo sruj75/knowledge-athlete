@@ -67,6 +67,46 @@ private actor FairUseDeliveryProbe {
 
 @MainActor
 final class FairUseAutomationBridgeTests: XCTestCase {
+  func testWarningProbeEntersThroughTheProductionAppStateEventSeam() async throws {
+    let ownerFixture = RuntimeOwnerAuthorityTestFixture()
+    await ownerFixture.establish(authOwnerID: "fair-use-event-owner")
+    defer { Task { @MainActor in await ownerFixture.restore() } }
+    let snapshot = try XCTUnwrap(RuntimeOwnerIdentity.captureAuthorizationSnapshot())
+    let reader = FairUseAutomationEvidenceReaderStub()
+    let submitter = FairUseAutomationSubmitterStub()
+    let delivery = FairUseDeliveryProbe()
+    let coordinator = FairUseReviewCoordinator(
+      storage: reader,
+      submitter: submitter,
+      captureAuthorization: { snapshot },
+      presentReceipt: { _, _ in
+        await delivery.record()
+        return true
+      })
+    let appState = AppState()
+    appState.fairUseReviewCoordinator = coordinator
+    let now = Date()
+    let request = FairUseReviewRequest(
+      reviewId: UUID().uuidString,
+      trigger: "automation_probe",
+      windowSpeechMs: [:],
+      thresholdsMs: [:],
+      classifierContract: "openai/gpt-5.1:prompt-v2",
+      requestedAt: now,
+      expiresAt: now.addingTimeInterval(300))
+
+    await appState.handleListenEvent(.fairUseReviewRequested(request))
+    await appState.handleListenEvent(.fairUseReviewRequested(request))
+
+    let reads = await reader.reads
+    let submissions = await submitter.submissions
+    let wasDelivered = await delivery.wasDelivered()
+    XCTAssertEqual(reads, 1)
+    XCTAssertEqual(submissions, 1)
+    XCTAssertTrue(wasDelivered)
+    AppState.current = nil
+  }
+
   func testProbeExercisesExpiredAdmissionWithoutBackendSubmission() async throws {
     let reader = FairUseAutomationEvidenceReaderStub()
     let submitter = FairUseAutomationSubmitterStub()
@@ -502,6 +542,7 @@ final class FairUseAutomationBridgeTests: XCTestCase {
       descriptor.sideEffects,
       [
         "may read bounded owner-local conversation metadata",
+        "may present one owner-local fair-use warning",
         "creates then finalizes one empty owner-local harness conversation",
       ])
   }

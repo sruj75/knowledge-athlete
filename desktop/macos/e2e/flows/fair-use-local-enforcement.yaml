@@ -27,16 +27,15 @@ steps:
       result.detail.content_fields_exposed: "false"
 
   - id: S2
-    name: Present one fixed owner-scoped local warning without FCM
+    name: Consume one S-20 review event through AppState and durably own its local warning
     bridge.action:
       name: fair_use_local_enforcement_probe
       params:
         phase: warning
     expect:
-      result.detail.status: presented
-      result.detail.first_presented: "true"
-      result.detail.duplicate_suppressed: "true"
-      result.detail.delivery_count: "1"
+      result.detail.receipt_owned: "true"
+      result.detail.duplicate_event_suppressed: "true"
+      result.detail.production_event_seam: "true"
       result.detail.fixed_title: "true"
       result.detail.case_reference_present: "true"
       result.detail.fcm_attempted: "false"

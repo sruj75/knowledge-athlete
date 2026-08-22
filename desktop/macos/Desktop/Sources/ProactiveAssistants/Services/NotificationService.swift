@@ -380,9 +380,11 @@ class NotificationService: NSObject, UNUserNotificationCenterDelegate {
     context: FloatingBarNotificationContext? = nil,
     suggestionTelemetryIdentity: SuggestionAssistantTelemetry.NotificationIdentity? = nil,
     screenshotData: Data? = nil,
+    deliverInAppPresentation: Bool = true,
     deliverSystemBanner: Bool = false,
     respectFrequency: Bool = true,
     authorizationSnapshot suppliedAuthorizationSnapshot: RuntimeOwnerAuthorizationSnapshot? = nil,
+    onInAppPresented: (@MainActor @Sendable () -> Void)? = nil,
     onSystemBannerDeliveredWithinCommit: (@MainActor @Sendable () -> Void)? = nil,
     completion: (@MainActor @Sendable (Bool) -> Void)? = nil
   ) {
@@ -463,17 +465,22 @@ class NotificationService: NSObject, UNUserNotificationCenterDelegate {
       UserDefaults.standard.set(true, forKey: Self.screenCaptureResetShownKey)
     }
 
-    FloatingControlBarManager.shared.showNotification(
-      ownerID: ownerID,
-      authorizationSnapshot: authorizationSnapshot,
-      title: title,
-      message: message,
-      assistantId: assistantId,
-      sound: sound,
-      context: context,
-      suggestionTelemetryIdentity: suggestionTelemetryIdentity,
-      screenshotData: screenshotData
-    )
+    if deliverInAppPresentation {
+      let presentationResult = FloatingControlBarManager.shared.showNotification(
+        ownerID: ownerID,
+        authorizationSnapshot: authorizationSnapshot,
+        title: title,
+        message: message,
+        assistantId: assistantId,
+        sound: sound,
+        context: context,
+        suggestionTelemetryIdentity: suggestionTelemetryIdentity,
+        screenshotData: screenshotData
+      )
+      if presentationResult == .presented || presentationResult == .queued {
+        onInAppPresented?()
+      }
+    }
 
     // Default path: floating-bar only. Functional callers opt-in via
     // `deliverSystemBanner: true` (see the parameter doc above).

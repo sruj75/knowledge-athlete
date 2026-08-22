@@ -39,15 +39,25 @@ struct FairUseWarningPresentation: Equatable, Sendable {
   }
 }
 
+struct FairUseWarningDeliveryStatus: Equatable, Sendable {
+  let inAppPresented: Bool
+  let systemBannerDelivered: Bool
+  let pendingReplay: Bool
+}
+
 @MainActor
 final class FairUseWarningNotificationPresenter {
   static let shared = FairUseWarningNotificationPresenter()
+
+  private static let maximumPendingReceipts = 16
 
   private let defaults: UserDefaults
   private let isAuthorizationCurrent: @Sendable (RuntimeOwnerAuthorizationSnapshot) -> Bool
   private let deliver:
     @MainActor (
       String, FairUseWarningPresentation, RuntimeOwnerAuthorizationSnapshot,
+      Bool, Bool,
+      @escaping @MainActor @Sendable () -> Void,
       @escaping @MainActor @Sendable () -> Void
     ) async -> Bool
 
@@ -59,19 +69,24 @@ final class FairUseWarningNotificationPresenter {
     deliver:
       @escaping @MainActor (
         String, FairUseWarningPresentation, RuntimeOwnerAuthorizationSnapshot,
+        Bool, Bool,
+        @escaping @MainActor @Sendable () -> Void,
         @escaping @MainActor @Sendable () -> Void
       ) async -> Bool = {
-        ownerID, presentation, authorization, commit in
+        ownerID, presentation, authorization, deliverInApp, deliverSystemBanner, commitInApp,
+        commitSystemBanner in
         await withCheckedContinuation { continuation in
           NotificationService.shared.sendNotification(
             ownerID: ownerID,
             title: presentation.title,
             message: presentation.message,
             assistantId: "fair_use",
-            deliverSystemBanner: true,
+            deliverInAppPresentation: deliverInApp,
+            deliverSystemBanner: deliverSystemBanner,
             respectFrequency: false,
             authorizationSnapshot: authorization,
-            onSystemBannerDeliveredWithinCommit: commit,
+            onInAppPresented: commitInApp,
+            onSystemBannerDeliveredWithinCommit: commitSystemBanner,
             completion: { delivered in continuation.resume(returning: delivered) })
         }
       }
@@ -81,6 +96,32 @@ final class FairUseWarningNotificationPresenter {
     self.deliver = deliver
   }
 
+  /// Accept durable ownership of a classified warning before attempting either
+  /// presentation surface. The coordinator may then retire the transient socket
+  /// event: denied/snoozed delivery remains replayable by this owner on reconnect
+  /// or process restart without re-running classification.
+  func accept(
+    _ receipt: FairUseClassificationReceipt,
+    authorization: RuntimeOwnerAuthorizationSnapshot
+  ) async -> Bool {
+    guard authorization.ownerID.isEmpty == false,
+      isAuthorizationCurrent(authorization),
+      FairUseWarningPresentation.from(receipt) != nil
+    else { return false }
+
+    let inAppKey = inAppDeduplicationKey(
+      ownerID: authorization.ownerID, reviewID: receipt.reviewId)
+    let systemKey = systemDeduplicationKey(
+      ownerID: authorization.ownerID, reviewID: receipt.reviewId)
+    if defaults.bool(forKey: inAppKey), defaults.bool(forKey: systemKey) {
+      removePending(receipt, ownerID: authorization.ownerID)
+      return true
+    }
+    stagePending(receipt, ownerID: authorization.ownerID)
+    _ = await attemptPresentation(receipt, authorization: authorization)
+    return true
+  }
+
   @discardableResult
   func present(
     _ receipt: FairUseClassificationReceipt,
@@ -88,21 +129,137 @@ final class FairUseWarningNotificationPresenter {
   ) async -> Bool {
     guard authorization.ownerID.isEmpty == false,
       isAuthorizationCurrent(authorization),
+      FairUseWarningPresentation.from(receipt) != nil
+    else { return false }
+
+    let inAppKey = inAppDeduplicationKey(
+      ownerID: authorization.ownerID, reviewID: receipt.reviewId)
+    let systemKey = systemDeduplicationKey(
+      ownerID: authorization.ownerID, reviewID: receipt.reviewId)
+    guard !defaults.bool(forKey: inAppKey) || !defaults.bool(forKey: systemKey) else {
+      return false
+    }
+    stagePending(receipt, ownerID: authorization.ownerID)
+    return await attemptPresentation(receipt, authorization: authorization)
+  }
+
+  @discardableResult
+  func replayPending(authorization: RuntimeOwnerAuthorizationSnapshot) async -> Int {
+    guard isAuthorizationCurrent(authorization) else { return 0 }
+    var delivered = 0
+    for receipt in pendingReceipts(ownerID: authorization.ownerID) {
+      guard isAuthorizationCurrent(authorization) else { break }
+      if await attemptPresentation(receipt, authorization: authorization) {
+        delivered += 1
+      }
+    }
+    return delivered
+  }
+
+  func deliveryStatus(
+    for receipt: FairUseClassificationReceipt,
+    ownerID: String
+  ) -> FairUseWarningDeliveryStatus {
+    let pending = pendingReceipts(ownerID: ownerID).contains {
+      $0.reviewId.caseInsensitiveCompare(receipt.reviewId) == .orderedSame
+    }
+    return FairUseWarningDeliveryStatus(
+      inAppPresented: defaults.bool(
+        forKey: inAppDeduplicationKey(ownerID: ownerID, reviewID: receipt.reviewId)),
+      systemBannerDelivered: defaults.bool(
+        forKey: systemDeduplicationKey(ownerID: ownerID, reviewID: receipt.reviewId)),
+      pendingReplay: pending)
+  }
+
+  private func attemptPresentation(
+    _ receipt: FairUseClassificationReceipt,
+    authorization: RuntimeOwnerAuthorizationSnapshot
+  ) async -> Bool {
+    guard isAuthorizationCurrent(authorization),
       let presentation = FairUseWarningPresentation.from(receipt)
     else { return false }
 
-    let key = deduplicationKey(ownerID: authorization.ownerID, reviewID: receipt.reviewId)
-    guard defaults.bool(forKey: key) == false else { return false }
-    guard isAuthorizationCurrent(authorization) else { return false }
-
-    return await deliver(authorization.ownerID, presentation, authorization) { [defaults] in
-      defaults.set(true, forKey: key)
+    let inAppKey = inAppDeduplicationKey(
+      ownerID: authorization.ownerID, reviewID: receipt.reviewId)
+    let systemKey = systemDeduplicationKey(
+      ownerID: authorization.ownerID, reviewID: receipt.reviewId)
+    let inAppPresented = defaults.bool(forKey: inAppKey)
+    let systemBannerDelivered = defaults.bool(forKey: systemKey)
+    guard !inAppPresented || !systemBannerDelivered else {
+      removePending(receipt, ownerID: authorization.ownerID)
+      return false
     }
+
+    _ = await deliver(
+      authorization.ownerID,
+      presentation,
+      authorization,
+      !inAppPresented,
+      !systemBannerDelivered,
+      { [defaults] in defaults.set(true, forKey: inAppKey) },
+      { [defaults] in defaults.set(true, forKey: systemKey) })
+    let complete = defaults.bool(forKey: inAppKey) && defaults.bool(forKey: systemKey)
+    if complete {
+      removePending(receipt, ownerID: authorization.ownerID)
+    }
+    return complete
   }
 
-  private func deduplicationKey(ownerID: String, reviewID: String) -> String {
+  private func inAppDeduplicationKey(ownerID: String, reviewID: String) -> String {
+    "fair_use_warning_in_app_presented.\(deduplicationDigest(ownerID: ownerID, reviewID: reviewID))"
+  }
+
+  private func systemDeduplicationKey(ownerID: String, reviewID: String) -> String {
+    "fair_use_warning_system_presented.\(deduplicationDigest(ownerID: ownerID, reviewID: reviewID))"
+  }
+
+  private func deduplicationDigest(ownerID: String, reviewID: String) -> String {
     let identity = Data("\(ownerID):\(reviewID.lowercased())".utf8)
-    let digest = SHA256.hash(data: identity).map { String(format: "%02x", $0) }.joined()
-    return "fair_use_warning_presented.\(digest)"
+    return SHA256.hash(data: identity).map { String(format: "%02x", $0) }.joined()
+  }
+
+  private func pendingKey(ownerID: String) -> String {
+    let digest = SHA256.hash(data: Data(ownerID.utf8)).map { String(format: "%02x", $0) }.joined()
+    return "fair_use_warning_pending.\(digest)"
+  }
+
+  private func pendingReceipts(ownerID: String) -> [FairUseClassificationReceipt] {
+    guard let data = defaults.data(forKey: pendingKey(ownerID: ownerID)),
+      let receipts = try? JSONDecoder().decode([FairUseClassificationReceipt].self, from: data)
+    else { return [] }
+    return receipts
+  }
+
+  private func stagePending(_ receipt: FairUseClassificationReceipt, ownerID: String) {
+    var receipts = pendingReceipts(ownerID: ownerID)
+    receipts.removeAll { $0.reviewId.caseInsensitiveCompare(receipt.reviewId) == .orderedSame }
+    receipts.append(receipt)
+    if receipts.count > Self.maximumPendingReceipts {
+      DesktopDiagnosticsManager.shared.recordFallback(
+        area: "fair_use_warning",
+        from: "pending_replay_queue",
+        to: "bounded_oldest_eviction",
+        reason: "pending_receipt_capacity",
+        outcome: .degraded)
+      receipts.removeFirst(receipts.count - Self.maximumPendingReceipts)
+    }
+    persistPending(receipts, ownerID: ownerID)
+  }
+
+  private func removePending(_ receipt: FairUseClassificationReceipt, ownerID: String) {
+    var receipts = pendingReceipts(ownerID: ownerID)
+    receipts.removeAll { $0.reviewId.caseInsensitiveCompare(receipt.reviewId) == .orderedSame }
+    persistPending(receipts, ownerID: ownerID)
+  }
+
+  private func persistPending(_ receipts: [FairUseClassificationReceipt], ownerID: String) {
+    let key = pendingKey(ownerID: ownerID)
+    guard !receipts.isEmpty else {
+      defaults.removeObject(forKey: key)
+      return
+    }
+    if let data = try? JSONEncoder().encode(receipts) {
+      defaults.set(data, forKey: key)
+    }
   }
 }
