@@ -7,7 +7,7 @@ import WebKit
 extension SettingsContentView {
   var accountSection: some View {
     VStack(spacing: OmiSpacing.xl) {
-      settingsCard(settingId: "account.account") {
+      settingsCard(destination: .account) {
         VStack(alignment: .leading, spacing: OmiSpacing.md) {
           HStack(spacing: OmiSpacing.lg) {
             Image(systemName: "person.circle.fill")
@@ -294,7 +294,7 @@ extension SettingsContentView {
     VStack(spacing: OmiSpacing.xl) {
       trialCountdownCard
 
-      settingsCard(settingId: "planusage.current") {
+      settingsCard(settingId: PlanUsageCardIdentity.currentPlan.rawValue) {
         VStack(alignment: .leading, spacing: OmiSpacing.md) {
           HStack(spacing: OmiSpacing.lg) {
             Image(systemName: "creditcard.fill")
@@ -357,7 +357,7 @@ extension SettingsContentView {
       }
 
       if shouldShowPlanPurchaseOptions {
-        settingsCard(settingId: "planusage.purchase") {
+        settingsCard(settingId: PlanUsageCardIdentity.purchase.rawValue) {
           VStack(alignment: .leading, spacing: OmiSpacing.lg) {
             // All plan cards share the row width — no horizontal scrolling.
             HStack(alignment: .top, spacing: OmiSpacing.lg) {
@@ -379,7 +379,7 @@ extension SettingsContentView {
   @ViewBuilder
   var chatUsageQuotaCard: some View {
     if let quota = chatUsageQuota {
-      settingsCard(settingId: "planusage.current") {
+      settingsCard(settingId: PlanUsageCardIdentity.quota.rawValue) {
         VStack(alignment: .leading, spacing: OmiSpacing.md) {
           HStack {
             Text("Usage this month")
@@ -420,7 +420,7 @@ extension SettingsContentView {
         }
       }
     } else if isLoadingChatUsage {
-      settingsCard(settingId: "planusage.current") {
+      settingsCard(settingId: PlanUsageCardIdentity.quotaLoading.rawValue) {
         HStack {
           ProgressView().controlSize(.small)
           Text("Loading usage…")

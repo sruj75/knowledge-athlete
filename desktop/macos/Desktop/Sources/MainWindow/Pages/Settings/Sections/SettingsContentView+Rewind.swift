@@ -8,7 +8,7 @@ extension SettingsContentView {
   var rewindSection: some View {
     VStack(spacing: OmiSpacing.xl) {
       // Storage Stats
-      settingsCard(settingId: "rewind.storage") {
+      settingsCard(destination: .rewindStorage) {
         VStack(alignment: .leading, spacing: OmiSpacing.lg) {
           HStack {
             Image(systemName: "internaldrive.fill")
@@ -45,7 +45,7 @@ extension SettingsContentView {
       }
 
       // Excluded Apps
-      settingsCard(settingId: "rewind.excludedapps") {
+      settingsCard(destination: .rewindExcludedApps) {
         VStack(alignment: .leading, spacing: OmiSpacing.lg) {
           HStack {
             Image(systemName: "eye.slash.fill")
@@ -119,7 +119,7 @@ extension SettingsContentView {
       }
 
       // Battery Settings
-      settingsCard(settingId: "rewind.battery") {
+      settingsCard(destination: .rewindBattery) {
         VStack(alignment: .leading, spacing: OmiSpacing.lg) {
           HStack {
             Image(systemName: "battery.75percent")
@@ -148,7 +148,7 @@ extension SettingsContentView {
       }
 
       // Retention Settings
-      settingsCard(settingId: "rewind.retention") {
+      settingsCard(destination: .rewindRetention) {
         VStack(alignment: .leading, spacing: OmiSpacing.lg) {
           HStack {
             Image(systemName: "clock.fill")

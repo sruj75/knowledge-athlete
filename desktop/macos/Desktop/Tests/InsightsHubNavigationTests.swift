@@ -38,8 +38,8 @@ final class InsightsHubNavigationTests: XCTestCase {
 
   func testCanonicalHubIsTheOnlyInsightsRoute() {
     XCTAssertEqual(InsightsHubSegment.allCases, [.insights, .focus])
-    XCTAssertEqual(SidebarNavItem.insights.rawValue, 5)
-    XCTAssertNil(SidebarNavItem(rawValue: 6))
+    XCTAssertEqual(DesktopDestination.insights.rawValue, 5)
+    XCTAssertNil(DesktopDestination(rawValue: 6))
     XCTAssertEqual(
       TopNavigationRoutes.primaryItems.map(\.title),
       ["Home", "Memory", "Tasks", "Insights"]
@@ -58,14 +58,14 @@ final class InsightsHubNavigationTests: XCTestCase {
   }
 
   func testPrimaryShortcutsMatchCanonicalNavigationAndExcludeNumberedRewind() {
-    XCTAssertEqual(PrimaryNavigationShortcut.destination(for: "1"), .dashboard)
-    XCTAssertEqual(PrimaryNavigationShortcut.destination(for: "2"), .memories)
-    XCTAssertEqual(PrimaryNavigationShortcut.destination(for: "3"), .tasks)
-    XCTAssertEqual(PrimaryNavigationShortcut.destination(for: "4"), .insights)
-    XCTAssertEqual(PrimaryNavigationShortcut.destination(for: ","), .settings)
-    XCTAssertNil(PrimaryNavigationShortcut.destination(for: "5"))
-    XCTAssertNil(PrimaryNavigationShortcut.destination(for: "rewind"))
+    XCTAssertEqual(DesktopNavigationPolicy.destination(forShortcut: "1"), .home)
+    XCTAssertEqual(DesktopNavigationPolicy.destination(forShortcut: "2"), .memories)
+    XCTAssertEqual(DesktopNavigationPolicy.destination(forShortcut: "3"), .tasks)
+    XCTAssertEqual(DesktopNavigationPolicy.destination(forShortcut: "4"), .insights)
+    XCTAssertEqual(DesktopNavigationPolicy.destination(forShortcut: ","), .settings)
+    XCTAssertNil(DesktopNavigationPolicy.destination(forShortcut: "5"))
+    XCTAssertNil(DesktopNavigationPolicy.destination(forShortcut: "rewind"))
     XCTAssertEqual(MemoryHubDestination.destination(for: .memories), .memories)
-    XCTAssertEqual(MemoryHubDestination.destination(for: .conversations), .conversations)
+    XCTAssertEqual(MemoryHubDestination.destination(for: .memory), .conversations)
   }
 }

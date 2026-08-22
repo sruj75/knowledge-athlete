@@ -1,7 +1,7 @@
 {
   "files": {
     "desktop/macos/Desktop/Sources/AuthService.swift": 2799,
-    "desktop/macos/Desktop/Sources/DesktopAutomationBridge.swift": 3463
+    "desktop/macos/Desktop/Sources/DesktopAutomationBridge.swift": 3452
   },
   "raise_justifications": {
     "desktop/macos/Desktop/Sources/AuthService.swift": "S-11 sign-out captures journal attachment references before deleting draft-only managed files so durable local chat history remains readable.",

@@ -964,12 +964,6 @@ class AnalyticsManager {
     PostHogManager.shared.menuBarActionClicked(action: action)
   }
 
-  // MARK: - Tier Events
-
-  func tierChanged(tier: Int, reason: String) {
-    PostHogManager.shared.tierChanged(tier: tier, reason: reason)
-  }
-
   // MARK: - Floating Bar Events
 
   /// Track when the floating bar is toggled visible/hidden

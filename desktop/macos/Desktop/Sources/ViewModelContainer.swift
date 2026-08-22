@@ -12,7 +12,6 @@ class ViewModelContainer: ObservableObject {
   private let launchDate = Date()
 
   // ViewModels for each page
-  let dashboardViewModel = DashboardViewModel()
   let tasksViewModel = TasksViewModel()
   let memoriesViewModel = MemoriesViewModel()
   /// Brain-map graph — persistent so the SceneKit scene, force layout, and
@@ -20,7 +19,6 @@ class ViewModelContainer: ObservableObject {
   let chatProvider: ChatProvider
   private lazy var warmupCoordinator = StartupWarmupCoordinator(
     tasksStore: tasksStore,
-    dashboardViewModel: dashboardViewModel,
     chatProvider: chatProvider,
     retryDatabaseInit: { [weak self] in
       await self?.retryDatabaseInit() ?? false
@@ -133,7 +131,6 @@ class ViewModelContainer: ObservableObject {
   func resetStartupState() {
     warmupCoordinator.reset()
     tasksStore.resetSessionState()
-    dashboardViewModel.resetSessionState()
     memoriesViewModel.resetSessionState()
     isInitialLoadComplete = false
     isLoading = false

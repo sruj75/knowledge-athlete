@@ -56,7 +56,7 @@ enum ViewExporter {
         {
           AnyView(
             DashboardPage(
-              viewModel: DashboardViewModel(),
+              tasksStore: TasksStore(observesNotifications: false),
               appState: AppState(),
               chatProvider: previewChatProvider(),
               memoriesViewModel: MemoriesViewModel(),
@@ -215,7 +215,7 @@ enum ViewExporter {
         {
           AnyView(
             DashboardPage(
-              viewModel: DashboardViewModel(),
+              tasksStore: TasksStore(observesNotifications: false),
               appState: AppState(),
               chatProvider: ChatProvider(),
               memoriesViewModel: previewMemoriesViewModel(),

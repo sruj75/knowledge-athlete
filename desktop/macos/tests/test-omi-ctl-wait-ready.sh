@@ -72,7 +72,7 @@ write_state "$ready" true false true false
 run_wait_ready "$ready" >/dev/null
 
 screens="$($OMI_CTL screens)"
-expected_screens="dashboard|home  conversations  chat  memories  tasks  focus  insight  rewind  settings  permissions"
+expected_screens="dashboard|home (Home hub)  chat (Home Chat)  conversations  memories  tasks  focus  insight|insights  rewind  settings  permissions"
 if [ "$screens" != "$expected_screens" ]; then
   echo "FAIL: omi-ctl screens advertised an unexpected target: $screens" >&2
   exit 1

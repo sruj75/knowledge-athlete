@@ -16,7 +16,7 @@ steps:
       target: memories
       activateApp: false
     wait:
-      state.selectedTabIndex: 3
+      state.selectedTabIndex: 1
 
   - id: S2
     name: Baseline memories snapshot

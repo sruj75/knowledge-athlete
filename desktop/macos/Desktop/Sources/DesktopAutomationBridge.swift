@@ -121,12 +121,9 @@ struct DesktopAutomationSnapshot: Codable, Sendable {
   var selectedTabIndex: Int?
   var selectedSettingsSection: String?
   var highlightedSettingId: String?
-  var usesLegacyHomeDesign: Bool
-  /// Redesigned Home stage mode: `hub` or `chat`. Nil when legacy home or not on Dashboard.
+  /// Home stage mode: `hub` or `chat`. Nil when not on Home.
   var homeMode: String?
   var homeCatalogOpen: Bool = false
-  var showsPrimarySidebar: Bool
-  var isSidebarCollapsed: Bool
   var hasCompletedOnboarding: Bool
   var isSignedIn: Bool
   var isRestoringAuth: Bool
@@ -145,14 +142,6 @@ struct DesktopAutomationSnapshot: Codable, Sendable {
   /// read during sign-in. The bridge still answers `/state` so harnesses don't
   /// hang; callers can detect that the live fields may be stale.
   var snapshotStale: Bool = false
-}
-
-struct DesktopAutomationNavigationRequest: Codable {
-  let target: String
-  let settingsSection: String?
-  let highlightedSettingId: String?
-  let activateApp: Bool?
-  let settleMs: Int?
 }
 
 struct DesktopAutomationOpenConversationRequest: Codable {
@@ -401,10 +390,7 @@ final class DesktopAutomationStateStore {
     selectedTabIndex: nil,
     selectedSettingsSection: nil,
     highlightedSettingId: nil,
-    usesLegacyHomeDesign: false,
     homeMode: nil,
-    showsPrimarySidebar: false,
-    isSidebarCollapsed: true,
     hasCompletedOnboarding: false,
     isSignedIn: false,
     isRestoringAuth: true,
@@ -581,7 +567,7 @@ private func ensureConversationsTabVisibleForAutomation() async throws {
   NotificationCenter.default.post(
     name: .navigateToSidebarItem,
     object: nil,
-    userInfo: ["rawValue": SidebarNavItem.conversations.rawValue]
+    userInfo: ["rawValue": DesktopDestination.memory.rawValue]
   )
   // Propagate cancellation instead of swallowing it with try? — if the
   // automation task is cancelled during the settle sleep, the caller should
@@ -2483,7 +2469,7 @@ final class DesktopAutomationActionRegistry {
       NotificationCenter.default.post(name: .navigateToRewindNotes, object: nil)
       return [
         "posted": "navigateToRewindNotes",
-        "expected_tab_index": "\(SidebarNavItem.rewind.rawValue)",
+        "expected_tab_index": "\(DesktopDestination.rewind.rawValue)",
       ]
     }
 
@@ -2558,7 +2544,7 @@ final class DesktopAutomationActionRegistry {
       guard !shortcut.isEmpty else {
         return ["error": "missing shortcut (1-4 or comma)"]
       }
-      guard let item = PrimaryNavigationShortcut.destination(for: shortcut) else {
+      guard let item = DesktopNavigationPolicy.destination(forShortcut: shortcut) else {
         return ["error": "unsupported shortcut '\(shortcut)'"]
       }
       NotificationCenter.default.post(
@@ -2566,9 +2552,11 @@ final class DesktopAutomationActionRegistry {
         object: nil,
         userInfo: ["rawValue": item.rawValue]
       )
+      let selectedDestination: DesktopDestination =
+        MemoryHubDestination.destination(for: item) == nil ? item : .memory
       return [
         "navigated": item.title,
-        "selected_tab_index": "\(item.rawValue)",
+        "selected_tab_index": "\(selectedDestination.rawValue)",
       ]
     }
 
@@ -3205,15 +3193,16 @@ final class DesktopAutomationBridge: @unchecked Sendable {
   }
 
   private func dispatchNavigation(_ payload: DesktopAutomationNavigationRequest) async throws {
+    let route = try payload.validatedRoute()
     await activateMainWindowIfNeeded(payload.activateApp ?? true)
     await MainActor.run {
       NotificationCenter.default.post(
         name: .desktopAutomationNavigateRequested,
         object: nil,
         userInfo: [
-          "target": payload.target,
-          "settingsSection": payload.settingsSection as Any,
-          "highlightedSettingId": payload.highlightedSettingId as Any,
+          "route": route.resolution,
+          "settingsSection": route.settingsSection as Any,
+          "highlightedSetting": route.highlightedSetting as Any,
         ]
       )
     }

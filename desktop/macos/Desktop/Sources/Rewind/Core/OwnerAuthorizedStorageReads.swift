@@ -11,6 +11,14 @@ extension ActionItemStorage {
     }
   }
 
+  func getFilterCounts(
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async throws -> (todo: Int, done: Int, deleted: Int) {
+    try await withOwnerRead(authorizationSnapshot) {
+      try await self.getFilterCounts()
+    }
+  }
+
   func getFilteredActionItems(
     limit: Int = 200,
     offset: Int = 0,
@@ -78,6 +86,21 @@ extension ActionItemStorage {
         completed: completed,
         includeDeleted: includeDeleted,
         startDate: startDate)
+    }
+  }
+
+  func getLocalActionItemsCount(
+    completed: Bool? = nil,
+    includeDeleted: Bool = false,
+    startDate: Date? = nil,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async throws -> Int {
+    try await withOwnerRead(authorizationSnapshot) {
+      try await self.getLocalActionItemsCount(
+        completed: completed,
+        includeDeleted: includeDeleted,
+        startDate: startDate
+      )
     }
   }
 
@@ -200,6 +223,21 @@ extension TranscriptionStorage {
     }
   }
 
+  func conversationCount(
+    query: ConversationLocalQuery,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async throws -> Int {
+    let authorization = LocalMutationAuthorization {
+      RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
+    }
+    return try await authorization.withReadLease {
+      try authorization.require()
+      let result = try await self.conversationCount(query: query)
+      try authorization.require()
+      return result
+    }
+  }
+
   func fairUseEvidence(
     now: Date = Date(),
     authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
@@ -256,6 +294,20 @@ extension ProactiveStorage {
 }
 
 extension MemoryStorage {
+  func getStats(
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async throws -> MemoryStats {
+    let authorization = LocalMutationAuthorization {
+      RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
+    }
+    return try await authorization.withReadLease {
+      try authorization.require()
+      let result = try await self.getStats()
+      try authorization.require()
+      return result
+    }
+  }
+
   func listForTool(
     scope: MemoryLayerScope = .defaultAccess,
     categories: [MemoryCategory] = [],
@@ -351,6 +403,22 @@ extension RewindStorage {
       let data = try await self.loadScreenshotData(for: screenshot)
       try authorization.require()
       return data
+    }
+  }
+}
+
+extension ProactiveStorage {
+  func getTotalFocusSessionCount(
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async throws -> Int {
+    let authorization = LocalMutationAuthorization {
+      RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
+    }
+    return try await authorization.withReadLease {
+      try authorization.require()
+      let result = try await self.getTotalFocusSessionCount()
+      try authorization.require()
+      return result
     }
   }
 }

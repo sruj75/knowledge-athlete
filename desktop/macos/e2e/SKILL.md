@@ -413,6 +413,8 @@ Main Window — Top Navigation Bar (use `click` for all nav buttons)
 │   ├── Memories — search, lifecycle/category filters, memory list
 │   ├── Conversations — Live section, search, category filters (All/Starred/Work/Personal/Social), conversation list
 ├── Tasks — one To Do/Done list, search, grouped deadlines, inline CRUD, details, and Undo
+├── Insights — Insights and Focus segments
+├── Rewind — retained View menu / Cmd+Option-R destination
 │
 ├── Capture status button (top-right, red when blocked)
 ├── Listening status button (top-right, green when active)
@@ -424,11 +426,11 @@ Settings (SettingsPage.swift) — use `click` for section rows
 ├── Account & Plan — user info, sign out, delete account, subscription/plan, billing
 ├── Transcription — Language Mode (Auto-Detect / Single Language), Voice Assistant Languages, Custom Vocabulary
 ├── Floating Bar — show/hide, background style, draggable, typed questions, screen sharing, voice
-├── Notifications & Privacy — local master/frequency and assistant notification controls
+├── Notifications & Privacy — local master/frequency, assistant notifications, and privacy controls
 ├── Rewind — storage info, excluded apps list
 ├── Shortcuts — Open Omi shortcut, Push to Talk key, PTT microphone, locked mode, PTT sounds
 ├── Advanced — AI Setup (Voice Model, Ask Mode)
-└── About — version info, links, software updates, update channel
+└── About — version info, Privacy & Data, retained links, software updates, update channel
 
 Rewind overlay (View menu → Rewind or ⌘⌥R)
 ├── Search bar, date picker, settings gear, toggle

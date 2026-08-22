@@ -213,8 +213,10 @@ enum AgentClient {
       )
     }
 
-    func listChatCatalog() async throws -> LocalChatCatalogSnapshot {
-      try await bridge.listChatCatalog()
+    func listChatCatalog(
+      authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot? = nil
+    ) async throws -> LocalChatCatalogSnapshot {
+      try await bridge.listChatCatalog(authorizationSnapshot: authorizationSnapshot)
     }
 
     func createChatCatalog(chatID: String, title: String? = nil) async throws -> LocalChatSummary {

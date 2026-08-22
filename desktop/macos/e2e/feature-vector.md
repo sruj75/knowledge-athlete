@@ -37,9 +37,9 @@ Prioritized feature map to guide desktop E2E coverage. Uses the same two-dimensi
 
 | # | Feature | Layer | Priority | Bridge | Walker | Coverage Status |
 |---|---------|-------|----------|--------|--------|-----------------|
-| 1 | Dashboard — conversations list, refresh | intelligence (3) | 9 | 2 | 2 | ✅ flow: `dashboard.yaml` (nav + `conversation_list_snapshot`) |
+| 1 | Conversations — list, refresh (Memory) | intelligence (3) | 9 | 2 | 2 | ✅ flow: `dashboard.yaml` (local `conversation_list_snapshot`) |
 | 2 | Chat — send message, AI response | intelligence (3) | 9 | 2 | 2 | ✅ flow: `chat-hermetic.yaml` |
-| 3 | Sidebar navigation — all sections | retrieval-action (3) | 9 | 2 | 3 | ✅ flow: `navigation.yaml` |
+| 3 | Top navigation — Home, Memory, Tasks, Insights | retrieval-action (3) | 9 | 2 | 3 | ✅ flow: `navigation.yaml` |
 | 4 | Home stage (hub / chat) | intelligence (3) | 9 | 2 | 2 | ✅ flow: `home-stage.yaml` |
 | 5 | Capture lifecycle (hermetic transcript seam) | capture (5) | 15 | 2 | 1 | ✅ flow: `capture-lifecycle.yaml` |
 | 6 | Screen capture (Rewind) | capture (5) | 15 | 0 | 2 | ⚠️ manual: `rewind.yaml`, `screen-recording-permission.yaml` (TCC) |
@@ -47,7 +47,7 @@ Prioritized feature map to guide desktop E2E coverage. Uses the same two-dimensi
 | 8 | Memory list & browse | memory (4) | 12 | 2 | 2 | ✅ flow: `memories.yaml` (nav + search step) |
 | 9 | Memory search | memory (4) | 12 | 3 | 2 | ✅ flow: `memory-depth.yaml` + `memories.yaml` |
 | 10 | Tasks — list, refresh | retrieval-action (3) | 9 | 3 | 2 | ✅ flow: `tasks-crud.yaml` + `tasks.yaml` |
-| 11 | Quick Note (dashboard) | intelligence (3) | 9 | 2 | 2 | ✅ flow: `quick-note.yaml` |
+| 11 | Quick Note (Conversations) | intelligence (3) | 9 | 2 | 2 | ✅ flow: `quick-note.yaml` |
 | 12 | Floating bar / Ask Omi | intelligence (3) | 9 | 2 | 2 | ✅ flow: `floating-bar-functional.yaml` |
 
 ### SECONDARY SURFACES (priority 6-12) — first-class rows
@@ -60,9 +60,9 @@ Prioritized feature map to guide desktop E2E coverage. Uses the same two-dimensi
 | 17 | Memory CRUD (create / edit / delete) | memory (4) | 8 | 3 | 2 | ✅ flow: `memory-crud.yaml` |
 | 20 | Memory tag filtering | memory (4) | 8 | 3 | 2 | ✅ flow: `memory-depth.yaml` |
 | 21 | Custom vocabulary | understand (4) | 8 | 3 | 2 | ✅ flow: `vocabulary.yaml` |
-| 22 | Goals tracking (dashboard widget) | intelligence (3) | 6 | 3 | 2 | ✅ flow: `goals-dashboard.yaml` |
+| 22 | Goals — local storage lifecycle (no shell widget) | intelligence (3) | 6 | 3 | 2 | ✅ flow: `goals-dashboard.yaml` |
 | 23 | Transcription language settings | understand (4) | 8 | 3 | 3 | ✅ flow: `language.yaml` (set + snapshot) |
-| 24 | Privacy toggles (store recordings, tracking) | — | 5 | 2 | 2 | ✅ flow: `privacy-settings.yaml` (toggle snapshot) |
+| 24 | Privacy disclosure and tracking snapshot | — | 5 | 2 | 2 | ✅ flow: `privacy-settings.yaml` (toggle snapshot) |
 | 25 | Plan / usage (billing) | — | 5 | 2 | 1 | ✅ flow: `plan-usage.yaml` (subscription snapshot) |
 | 28 | Refer a Friend (external affiliate URL) | retrieval-action (3) | 6 | 0 | 2 | ⚠️ manual: `refer-external.yaml` (profile menu → browser) |
 | 29 | Delete account (confirmation only) | — | 5 | 0 | 2 | ⚠️ manual: `delete-account.yaml` (never confirms) |
@@ -79,7 +79,7 @@ Prioritized feature map to guide desktop E2E coverage. Uses the same two-dimensi
 | 35 | Advanced AI Setup (Voice Model + Ask Mode) | intelligence (3) | 3 | 2 | 2 | ✅ manual flow: `settings-basic.yaml` |
 | 36 | Advanced / Developer options | — | 3 | 2 | 2 | ✅ flow: `settings-basic.yaml` (`advanced_settings_snapshot`) |
 | 37 | System tray menu | — | 5 | 0 | 3 | ⚠️ partial: covered indirectly by manual logout/onboarding |
-| 38 | Keyboard shortcuts (Cmd+1..5, Cmd+,) | — | 5 | 2 | 3 | ✅ flow: `keyboard-shortcuts.yaml` |
+| 38 | Keyboard shortcuts (Cmd+1..4, Cmd+,) | — | 5 | 2 | 3 | ✅ flow: `keyboard-shortcuts.yaml` |
 | 39 | Notifications settings | — | 3 | 2 | 2 | ✅ flow: `notifications-settings.yaml` |
 | 40 | About page (version info) | — | 3 | 2 | 3 | ✅ flow: `about-settings.yaml` |
 | 41 | Auth (Sign In — Google/Apple) | — | 5 | 0 | 0 | blocked: external OAuth |
@@ -172,8 +172,8 @@ T2 qualification matrix: **32/32 flows green** (2026-07-09 manual qualification 
 
 - **Bridge first:** `scripts/omi-ctl` + `e2e/flows/*.yaml` with `bridge.navigate` / `bridge.action`.
 - **Walker second:** `agent-swift` for manual Live P2 lane and TCC-dependent flows.
-- Sidebar AX identifiers: `sidebar_dashboard`, `sidebar_chat`, `sidebar_memories`, `sidebar_tasks`, `sidebar_rewind`, `sidebar_settings`. Refer a Friend lives in the **profile menu popover**, not a sidebar item.
+- Primary AX navigation is the top bar: Home, Memory, Tasks, and Insights. Memory owns Memories and Conversations; Insights owns Insights and Focus. Refer a Friend lives in the profile menu popover.
 - System tray menu items: `openOmiFromMenu`, `checkForUpdates`, `resetOnboarding`, `reportIssue`, `signOut`, `quitApp`
-- Keyboard shortcuts via View menu: Cmd+1 (Dashboard), Cmd+2 (Conversations), Cmd+3 (Memories), Cmd+4 (Tasks), Cmd+5 (Rewind), Cmd+, (Settings)
+- Keyboard shortcuts via View menu: Cmd+1 (Home), Cmd+2 (Memories), Cmd+3 (Tasks), Cmd+4 (Insights), Cmd+, (Settings). Cmd+Option-R retains Rewind.
 - Beta app bundle ID: `com.omi.computer-macos` (flow-walker default)
 - Dev / hermetic bundle: `com.omi.omi-core-e2e` with `make desktop-run-local` (Auth emulator)

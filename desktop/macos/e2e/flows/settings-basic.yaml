@@ -4,7 +4,8 @@ tier: manual
 description: Settings navigation smoke — open Settings via gear icon, navigate all 9 sections (v0.12.119+ redesign)
 app: com.omi.computer-macos
 covers:
-  - desktop/macos/Desktop/Sources/TierManager.swift
+  - desktop/macos/Desktop/Sources/Providers/ChatProvider+LocalStats.swift
+  - desktop/macos/Desktop/Sources/MainWindow/DesktopNavigation.swift
   - desktop/macos/Desktop/Sources/MainWindow/Pages/Settings/SettingsViewModel.swift
   - desktop/macos/Desktop/Sources/MainWindow/Pages/SettingsPage.swift
   - desktop/macos/Desktop/Sources/MainWindow/Pages/Settings/Components/AppRuleEditorView.swift
@@ -12,6 +13,7 @@ covers:
   - desktop/macos/Desktop/Sources/MainWindow/Pages/Settings/Sections/SettingsContentView+FloatingBarAndChat.swift
   - desktop/macos/Desktop/Sources/MainWindow/Pages/Settings/Sections/SettingsContentView+General.swift
   - desktop/macos/Desktop/Sources/MainWindow/Pages/Settings/Sections/SettingsContentView+Advanced.swift
+  - desktop/macos/Desktop/Sources/MainWindow/Pages/Settings/YourStatsLocalProjection.swift
   - desktop/macos/Desktop/Sources/MainWindow/SettingsSidebar.swift
   - desktop/macos/Desktop/Sources/Services/APIClient/APIClient+Settings.swift
 preconditions:
@@ -88,7 +90,7 @@ steps:
 
   - id: S10
     name: Navigate to About section
-    do: "Click 'About' in the Settings section list. Verify About section shows app name, version info, links (What's New, Visit Website, Help Center, Privacy Policy, Terms of Service), Software Updates with Check Now button, and Update Channel."
+    do: "Click 'About' in the Settings section list. Verify About shows app name and version, What's New, Visit Website, Privacy & Data, Terms of Service, Software Updates with Check Now, and Update Channel. Verify Help Center and the old Privacy Policy label are absent."
     expect:
       text_visible:
         - About

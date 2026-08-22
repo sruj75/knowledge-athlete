@@ -71,7 +71,7 @@ extension SettingsContentView {
 
   var advancedAISetupSubsection: some View {
     VStack(spacing: OmiSpacing.xl) {
-      settingsCard(settingId: "advanced.ai.voice") {
+      settingsCard(destination: .voiceModel) {
         VStack(alignment: .leading, spacing: OmiSpacing.md) {
           HStack {
             Image(systemName: "waveform")
@@ -111,7 +111,7 @@ extension SettingsContentView {
         }
       }
 
-      settingsCard(settingId: "advanced.ai.askmode") {
+      settingsCard(destination: .askMode) {
         VStack(alignment: .leading, spacing: OmiSpacing.md) {
           HStack {
             Image(systemName: "bubble.left.and.bubble.right")
@@ -179,7 +179,7 @@ extension SettingsContentView {
 
   var aiUserProfileSubsection: some View {
     VStack(spacing: OmiSpacing.xl) {
-      settingsCard(settingId: "advanced.aiuserprofile") {
+      settingsCard(destination: .aiUserProfile) {
         VStack(alignment: .leading, spacing: OmiSpacing.lg) {
           HStack(spacing: OmiSpacing.sm) {
             Image(systemName: "brain")
@@ -334,7 +334,7 @@ extension SettingsContentView {
 
   var statsSubsection: some View {
     VStack(spacing: OmiSpacing.xl) {
-      settingsCard(settingId: "advanced.stats") {
+      settingsCard(destination: .stats) {
         VStack(alignment: .leading, spacing: OmiSpacing.lg) {
           HStack(spacing: OmiSpacing.sm) {
             Image(systemName: "chart.bar")
@@ -353,16 +353,16 @@ extension SettingsContentView {
 
           if let stats = advancedStats {
             statRow(label: "Conversations", value: stats.conversations)
-            statRow(label: "Screenshots", value: stats.screenshotsTotal)
+            statRow(label: "AI Chat Messages", value: stats.chatMessages)
+            statRow(label: "Screenshots", value: stats.screenshots)
             statRow(label: "Focus Sessions", value: stats.focusSessions)
             statRow(label: "Tasks (To Do)", value: stats.tasksTodo)
             statRow(label: "Tasks (Done)", value: stats.tasksDone)
             statRow(label: "Tasks (Removed)", value: stats.tasksDeleted)
-            statRow(label: "Goals", value: stats.goalsCount)
-            statRow(label: "Memories", value: stats.memoriesTotal)
+            statRow(label: "Goals", value: stats.goals)
+            statRow(label: "Memories", value: stats.memories)
           } else if isLoadingStats {
             statRowLoading(label: "Conversations")
-            statRowLoading(label: "Apps Installed")
             statRowLoading(label: "AI Chat Messages")
             statRowLoading(label: "Screenshots")
             statRowLoading(label: "Focus Sessions")
@@ -379,101 +379,8 @@ extension SettingsContentView {
         }
       }
     }
-    .task {
+    .task(id: statsRefreshState.ownerGeneration) {
       await loadAdvancedStats()
-    }
-  }
-
-  var featureTiersSubsection: some View {
-    VStack(spacing: OmiSpacing.xl) {
-      settingsCard(settingId: "advanced.featuretiers") {
-        VStack(alignment: .leading, spacing: OmiSpacing.lg) {
-          HStack(spacing: OmiSpacing.sm) {
-            Image(systemName: "lock.shield")
-              .scaledFont(size: OmiType.subheading)
-              .foregroundColor(OmiColors.textSecondary)
-
-            Text("Feature Tiers")
-              .scaledFont(size: OmiType.subheading, weight: .medium)
-              .foregroundColor(OmiColors.textPrimary)
-
-            Spacer()
-          }
-
-          Divider()
-            .background(OmiColors.backgroundQuaternary)
-
-          // Tier picker — radio-style selector
-          VStack(alignment: .leading, spacing: OmiSpacing.xs) {
-            tierPickerRow(tier: 0, label: "Show All Features", subtitle: "Unlock everything")
-            tierPickerRow(tier: 1, label: "Tier 1", subtitle: "Conversations + Rewind")
-            tierPickerRow(tier: 2, label: "Tier 2", subtitle: "+ Memories (100 memories)")
-            tierPickerRow(tier: 3, label: "Tier 3", subtitle: "+ Tasks (100 tasks)")
-            tierPickerRow(tier: 4, label: "Tier 4", subtitle: "+ AI Chat (100 conversations)")
-            tierPickerRow(
-              tier: 5, label: "Tier 5", subtitle: "+ Home (200 convos + 2K screenshots)")
-            tierPickerRow(tier: 6, label: "Tier 6", subtitle: "+ Apps (300 conversations)")
-          }
-
-          if currentTierLevel > 0 {
-            Divider()
-              .background(OmiColors.backgroundQuaternary)
-
-            Text("Progress")
-              .scaledFont(size: OmiType.subheading, weight: .semibold)
-              .foregroundColor(OmiColors.textSecondary)
-
-            // Tier 1 — always unlocked
-            tierFeatureRow(
-              tier: 1, name: "Conversations + Rewind",
-              requirement: "Always unlocked",
-              progress: nil, unlocked: true
-            )
-
-            // Tier 2 — 100 memories
-            tierFeatureRow(
-              tier: 2, name: "Memories",
-              requirement: "100 memories",
-              progress: advancedStats.map { "\($0.memoriesTotal) / 100" },
-              unlocked: currentTierLevel >= 2
-            )
-
-            // Tier 3 — 100 tasks
-            tierFeatureRow(
-              tier: 3, name: "Tasks",
-              requirement: "100 tasks (todo + done)",
-              progress: advancedStats.map { "\($0.tasksTodo + $0.tasksDone) / 100" },
-              unlocked: currentTierLevel >= 3
-            )
-
-            // Tier 4 — 100 conversations
-            tierFeatureRow(
-              tier: 4, name: "AI Chat",
-              requirement: "100 conversations",
-              progress: advancedStats.map { "\($0.conversations) / 100" },
-              unlocked: currentTierLevel >= 4
-            )
-
-            // Tier 5 — 200 conversations + 2,000 screenshots
-            tierFeatureRow(
-              tier: 5, name: "Home",
-              requirement: "200 conversations + 2K screenshots",
-              progress: advancedStats.map {
-                "\($0.conversations) / 200 convos, \($0.screenshotsTotal) / 2,000 screenshots"
-              },
-              unlocked: currentTierLevel >= 5
-            )
-
-            // Tier 6 — 300 conversations
-            tierFeatureRow(
-              tier: 6, name: "Apps",
-              requirement: "300 conversations",
-              progress: advancedStats.map { "\($0.conversations) / 300" },
-              unlocked: currentTierLevel >= 6
-            )
-          }
-        }
-      }
     }
   }
 

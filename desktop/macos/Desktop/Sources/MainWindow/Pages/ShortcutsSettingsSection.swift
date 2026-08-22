@@ -80,7 +80,7 @@ struct ShortcutsSettingsSection: View {
     )
     .modifier(
       SettingHighlightModifier(
-        settingId: "floatingbar.shortcut", highlightedSettingId: $highlightedSettingId))
+        destination: .openOmiShortcut, highlightedSettingId: $highlightedSettingId))
   }
 
   private func askOmiKeyButton(_ shortcut: ShortcutSettings.KeyboardShortcut) -> some View {
@@ -141,7 +141,7 @@ struct ShortcutsSettingsSection: View {
     )
     .modifier(
       SettingHighlightModifier(
-        settingId: "floatingbar.ptt", highlightedSettingId: $highlightedSettingId))
+        destination: .pushToTalk, highlightedSettingId: $highlightedSettingId))
   }
 
   private func pttKeyButton(_ shortcut: ShortcutSettings.KeyboardShortcut) -> some View {
@@ -219,7 +219,7 @@ struct ShortcutsSettingsSection: View {
     .disabled(!settings.pttEnabled)
     .modifier(
       SettingHighlightModifier(
-        settingId: "floatingbar.doubletap", highlightedSettingId: $highlightedSettingId))
+        destination: .pushToTalkDoubleTap, highlightedSettingId: $highlightedSettingId))
   }
 
   private var pttSoundsCard: some View {
@@ -245,7 +245,7 @@ struct ShortcutsSettingsSection: View {
     .disabled(!settings.pttEnabled)
     .modifier(
       SettingHighlightModifier(
-        settingId: "floatingbar.pttsounds", highlightedSettingId: $highlightedSettingId))
+        destination: .pushToTalkSounds, highlightedSettingId: $highlightedSettingId))
   }
 
   private var muteAudioCard: some View {

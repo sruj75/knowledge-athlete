@@ -89,14 +89,14 @@ extension SettingsContentView {
     )
   }
 
-  func voiceSpeedSlider(settingId: String) -> some View {
+  func voiceSpeedSlider(destination: SettingsDestination) -> some View {
     let steps = ShortcutSettings.voiceSpeedSteps
     let currentSpeed = shortcutSettings.voicePlaybackSpeed
     let currentIndex =
       steps.enumerated().min(by: { abs($0.element - currentSpeed) < abs($1.element - currentSpeed) }
       )?.offset ?? 3
 
-    return settingsCard(settingId: settingId) {
+    return settingsCard(destination: destination) {
       VStack(spacing: OmiSpacing.lg) {
         HStack {
           VStack(alignment: .leading, spacing: OmiSpacing.hairline) {
@@ -192,7 +192,7 @@ extension SettingsContentView {
   /// pattern. Six positions: Off / Minimal / Low / Balanced / High / Maximum.
   /// Sits inside the existing Notifications card, so it does not wrap itself in
   /// another `settingsCard` — it just applies the highlight modifier directly.
-  func notificationFrequencySlider(settingId: String) -> some View {
+  func notificationFrequencySlider(destination: SettingsDestination) -> some View {
     let stepCount = frequencyOptions.count  // 6
     let segmentCount = CGFloat(stepCount - 1)
     let currentIndex = max(0, min(stepCount - 1, notificationFrequency))
@@ -287,86 +287,7 @@ extension SettingsContentView {
 
     return body.modifier(
       SettingHighlightModifier(
-        settingId: settingId, highlightedSettingId: $highlightedSettingId))
-  }
-
-  func tierPickerRow(tier: Int, label: String, subtitle: String) -> some View {
-    let isSelected = currentTierLevel == tier
-    return Button(action: {
-      TierManager.shared.userDidSetTier(tier)
-    }) {
-      HStack(spacing: OmiSpacing.sm) {
-        Image(systemName: isSelected ? "largecircle.fill.circle" : "circle")
-          .scaledFont(size: OmiType.subheading)
-          .foregroundColor(isSelected ? OmiColors.accent : OmiColors.textTertiary)
-
-        VStack(alignment: .leading, spacing: OmiSpacing.hairline) {
-          Text(label)
-            .scaledFont(size: OmiType.body, weight: isSelected ? .medium : .regular)
-            .foregroundColor(isSelected ? OmiColors.textPrimary : OmiColors.textSecondary)
-
-          Text(subtitle)
-            .scaledFont(size: OmiType.caption)
-            .foregroundColor(OmiColors.textTertiary)
-        }
-
-        Spacer()
-      }
-      .padding(.vertical, OmiSpacing.xs)
-      .padding(.horizontal, OmiSpacing.sm)
-      .background(
-        RoundedRectangle(cornerRadius: OmiChrome.elementRadius)
-          .fill(isSelected ? OmiColors.accent.opacity(0.1) : Color.clear)
-      )
-    }
-    .buttonStyle(.plain)
-  }
-
-  func tierFeatureRow(
-    tier: Int, name: String, requirement: String, progress: String?, unlocked: Bool
-  ) -> some View {
-    VStack(alignment: .leading, spacing: OmiSpacing.xxs) {
-      HStack {
-        Text("Tier \(tier)")
-          .scaledFont(size: OmiType.caption, weight: .semibold)
-          .foregroundColor(unlocked ? OmiColors.accent : OmiColors.textTertiary)
-          .padding(.horizontal, OmiSpacing.xs)
-          .padding(.vertical, OmiSpacing.hairline)
-          .background(
-            RoundedRectangle(cornerRadius: OmiChrome.stripRadius)
-              .fill(unlocked ? OmiColors.accent.opacity(0.15) : OmiColors.backgroundTertiary)
-          )
-
-        Text(name)
-          .scaledFont(size: OmiType.body, weight: .medium)
-          .foregroundColor(unlocked ? OmiColors.textPrimary : OmiColors.textTertiary)
-
-        Spacer()
-
-        if unlocked {
-          Image(systemName: "checkmark.circle.fill")
-            .scaledFont(size: OmiType.body)
-            .foregroundColor(.green)
-        } else {
-          Image(systemName: "lock.fill")
-            .scaledFont(size: OmiType.caption)
-            .foregroundColor(OmiColors.textTertiary)
-        }
-      }
-
-      HStack(spacing: OmiSpacing.sm) {
-        Text(requirement)
-          .scaledFont(size: OmiType.caption)
-          .foregroundColor(OmiColors.textTertiary)
-
-        if let progress = progress, !unlocked {
-          Text("(\(progress))")
-            .scaledMonospacedDigitFont(size: 12)
-            .foregroundColor(OmiColors.textTertiary.opacity(0.7))
-        }
-      }
-    }
-    .padding(.vertical, OmiSpacing.xxs)
+        destination: destination, highlightedSettingId: $highlightedSettingId))
   }
 
   func statRow(label: String, value: Int) -> some View {
@@ -403,41 +324,21 @@ extension SettingsContentView {
   }
 
   func loadAdvancedStats() async {
+    statsLoadGeneration &+= 1
+    let generation = statsLoadGeneration
     isLoadingStats = true
-    defer { isLoadingStats = false }
+    defer {
+      if generation == statsLoadGeneration { isLoadingStats = false }
+    }
 
     do {
-      async let conversationsCount = TranscriptionStorage.shared.conversationCount(query: .all)
-      async let focusCount = ProactiveStorage.shared.getTotalFocusSessionCount()
-      async let filterCounts = ActionItemStorage.shared.getFilterCounts()
-      async let goals = GoalStorage.shared.getLocalGoals(activeOnly: false)
-      async let memoryStats = MemoryStorage.shared.getStats()
-
-      let cc = try await conversationsCount
-      let fc = try await focusCount
-      let filters = try await filterCounts
-      let g = try await goals
-      let ms = try await memoryStats
-
-      let screenshotCount: Int
-      do {
-        screenshotCount = try await RewindDatabase.shared.getScreenshotCount()
-      } catch {
-        screenshotCount = 0
-      }
-
-      advancedStats = UserStats(
-        conversations: cc,
-        screenshotsTotal: screenshotCount,
-        focusSessions: fc,
-        tasksTodo: filters.todo,
-        tasksDone: filters.done,
-        tasksDeleted: filters.deleted,
-        goalsCount: g.count,
-        memoriesTotal: ms.total
-      )
+      let snapshot = try await YourStatsLocalLoader.load()
+      guard generation == statsLoadGeneration, let snapshot else { return }
+      advancedStats = snapshot
     } catch {
-      print("SETTINGS: Failed to load advanced stats: \(error)")
+      guard generation == statsLoadGeneration else { return }
+      advancedStats = nil
+      logError("Settings: Failed to load local stats", error: error)
     }
   }
 
@@ -445,7 +346,7 @@ extension SettingsContentView {
 
   var aboutSection: some View {
     VStack(spacing: OmiSpacing.xl) {
-      settingsCard(settingId: "about.version") {
+      settingsCard(destination: .version) {
         VStack(spacing: OmiSpacing.lg) {
           // App info
           HStack(spacing: OmiSpacing.lg) {
@@ -487,12 +388,11 @@ extension SettingsContentView {
           // Links
           linkRow(title: "What's New", url: AppBuild.changelogURLString)
           linkRow(title: "Visit Website", url: "https://omi.me")
-          linkRow(title: "Help Center", url: "https://help.omi.me")
           Button(action: {
             selectedSection = .privacy
           }) {
             HStack {
-              Text("Privacy Policy")
+              Text("Privacy & Data")
                 .scaledFont(size: OmiType.body)
                 .foregroundColor(OmiColors.textSecondary)
 
@@ -509,7 +409,7 @@ extension SettingsContentView {
       }
 
       // Software Updates
-      settingsCard(settingId: "about.updates") {
+      settingsCard(destination: .softwareUpdates) {
         VStack(alignment: .leading, spacing: OmiSpacing.lg) {
           HStack {
             Image(systemName: "arrow.triangle.2.circlepath")
@@ -589,7 +489,7 @@ extension SettingsContentView {
           settingRow(
             title: "Automatic Updates",
             subtitle: "Check for updates automatically in the background",
-            settingId: "about.autoupdates"
+            destination: .automaticUpdates
           ) {
             Toggle("", isOn: $updaterViewModel.automaticallyChecksForUpdates)
               .toggleStyle(OmiToggleStyle())
@@ -597,18 +497,20 @@ extension SettingsContentView {
               .disabled(updaterViewModel.usesManagedUpdatePolicy || AnalyticsManager.isDevBuild)
           }
 
-          if updaterViewModel.automaticallyChecksForUpdates {
-            settingRow(
-              title: "Auto-Install Updates",
-              subtitle: "Automatically download and install updates when available",
-              settingId: "about.autoinstall"
-            ) {
-              Toggle("", isOn: $updaterViewModel.automaticallyDownloadsUpdates)
-                .toggleStyle(OmiToggleStyle())
-                .labelsHidden()
-                .disabled(updaterViewModel.usesManagedUpdatePolicy || AnalyticsManager.isDevBuild)
-            }
+          settingRow(
+            title: "Auto-Install Updates",
+            subtitle: "Automatically download and install updates when available",
+            destination: .autoInstallUpdates
+          ) {
+            Toggle("", isOn: $updaterViewModel.automaticallyDownloadsUpdates)
+              .toggleStyle(OmiToggleStyle())
+              .labelsHidden()
+              .disabled(
+                !updaterViewModel.automaticallyChecksForUpdates
+                  || updaterViewModel.usesManagedUpdatePolicy
+                  || AnalyticsManager.isDevBuild)
           }
+          .opacity(updaterViewModel.automaticallyChecksForUpdates ? 1 : 0.55)
 
           if updaterViewModel.usesManagedUpdatePolicy {
             Text("Release builds always auto-check and auto-install updates in the background.")
@@ -631,7 +533,7 @@ extension SettingsContentView {
 
           settingRow(
             title: "Update Channel", subtitle: updaterViewModel.updateChannel.description,
-            settingId: "about.channel"
+            destination: .updateChannel
           ) {
             if AppBuild.isBetaProductionBundle {
               // Omi Beta is permanently a beta-channel client; switching it to stable
@@ -678,7 +580,7 @@ extension SettingsContentView {
         )
       }
 
-      settingsCard(settingId: "about.reportissue") {
+      settingsCard(destination: .aboutReportIssue) {
         HStack(spacing: OmiSpacing.lg) {
           Image(systemName: "exclamationmark.bubble.fill")
             .scaledFont(size: OmiType.subheading)
@@ -748,6 +650,12 @@ extension SettingsContentView {
     }
   }
 
+  func settingsCard<Content: View>(
+    destination: SettingsDestination, @ViewBuilder content: () -> Content
+  ) -> some View {
+    settingsCard(settingId: destination.rawValue, content: content)
+  }
+
   func settingRow<Content: View>(
     title: String, subtitle: String, settingId: String? = nil, @ViewBuilder control: () -> Content
   ) -> some View {
@@ -774,6 +682,18 @@ extension SettingsContentView {
         row
       }
     }
+  }
+
+  func settingRow<Content: View>(
+    title: String, subtitle: String, destination: SettingsDestination,
+    @ViewBuilder control: () -> Content
+  ) -> some View {
+    settingRow(
+      title: title,
+      subtitle: subtitle,
+      settingId: destination.rawValue,
+      control: control
+    )
   }
 
   func settingsCardHeader(icon: String, title: String) -> some View {
