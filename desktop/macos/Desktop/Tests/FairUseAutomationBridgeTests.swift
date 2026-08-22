@@ -67,6 +67,50 @@ private actor FairUseDeliveryProbe {
 
 @MainActor
 final class FairUseAutomationBridgeTests: XCTestCase {
+  func testWarningReplayAcceptanceAllowsOneSuccessfulRecoveryDelivery() {
+    let initiallyPending = FairUseWarningDeliveryStatus(
+      inAppPresented: true,
+      systemBannerDelivered: false,
+      pendingReplay: true)
+    let recovered = FairUseWarningDeliveryStatus(
+      inAppPresented: true,
+      systemBannerDelivered: true,
+      pendingReplay: false)
+
+    XCTAssertTrue(
+      FairUseWarningAutomationAcceptance.replayStateIsTruthful(
+        first: initiallyPending,
+        final: recovered,
+        replayDeliveryCount: 1))
+    XCTAssertFalse(
+      FairUseWarningAutomationAcceptance.replayStateIsTruthful(
+        first: initiallyPending,
+        final: recovered,
+        replayDeliveryCount: 0))
+  }
+
+  func testWarningReplayAcceptanceRequiresPendingStateAfterFailedReplay() {
+    let initiallyPending = FairUseWarningDeliveryStatus(
+      inAppPresented: true,
+      systemBannerDelivered: false,
+      pendingReplay: true)
+    let stillPending = FairUseWarningDeliveryStatus(
+      inAppPresented: true,
+      systemBannerDelivered: false,
+      pendingReplay: true)
+
+    XCTAssertTrue(
+      FairUseWarningAutomationAcceptance.replayStateIsTruthful(
+        first: initiallyPending,
+        final: stillPending,
+        replayDeliveryCount: 0))
+    XCTAssertFalse(
+      FairUseWarningAutomationAcceptance.replayStateIsTruthful(
+        first: initiallyPending,
+        final: stillPending,
+        replayDeliveryCount: 1))
+  }
+
   func testWarningProbeEntersThroughTheProductionAppStateEventSeam() async throws {
     let ownerFixture = RuntimeOwnerAuthorityTestFixture()
     await ownerFixture.establish(authOwnerID: "fair-use-event-owner")

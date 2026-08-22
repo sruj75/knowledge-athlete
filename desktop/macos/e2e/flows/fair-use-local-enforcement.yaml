@@ -11,6 +11,7 @@ covers:
   - desktop/macos/Desktop/Sources/FairUse/FairUseEvidence.swift
   - desktop/macos/Desktop/Sources/FairUse/FairUseReviewCoordinator.swift
   - desktop/macos/Desktop/Sources/FairUse/FairUseWarningNotification.swift
+  - desktop/macos/Desktop/Sources/FloatingControlBar/FloatingBarNotificationPolicy.swift
 preconditions:
   - automation_bridge_ready
 

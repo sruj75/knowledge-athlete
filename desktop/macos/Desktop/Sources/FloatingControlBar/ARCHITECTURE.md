@@ -27,6 +27,13 @@ journal operations, but it must not reach directly into `ChatProvider` or make
 agent-routing decisions. Provider tools remain untrusted until the kernel
 returns an authorized command.
 
+## Notifications
+
+`FloatingControlBarManager` owns notification queueing and physical card
+presentation. `FloatingBarNotificationPolicy` contains the independently
+testable owner-bound result, continuity policy, and journal-admission waiter;
+it does not own mutable presentation state or a window.
+
 ## Verification
 
 Run the focused Swift tests with `xcrun swift test --package-path Desktop`, then

@@ -513,7 +513,19 @@ def run_agent_swift(ctx: HarnessContext, args: list[str]) -> subprocess.Complete
     )
     if connect.returncode != 0:
         return connect
-    return subprocess.run(["agent-swift", *args], check=False, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=20)
+    command_timeout = 20.0
+    if "--timeout" in args:
+        timeout_index = args.index("--timeout") + 1
+        if timeout_index < len(args):
+            command_timeout = min(60.0, max(command_timeout, int(args[timeout_index]) / 1000 + 5))
+    return subprocess.run(
+        ["agent-swift", *args],
+        check=False,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        timeout=command_timeout,
+    )
 
 
 def action_payload(spec: dict[str, typing.Any]) -> dict[str, typing.Any]:
@@ -571,17 +583,23 @@ def assert_trace(ctx: HarnessContext, spec: dict[str, typing.Any], path: Path) -
 def assert_ax(ctx: HarnessContext, spec: dict[str, typing.Any], path: Path) -> tuple[bool, str | None]:
     if ctx.lane != "ui":
         return True, "skipped outside ui lane"
-    result = run_agent_swift(ctx, ["snapshot", "--json"])
-    path.write_text(result.stdout, encoding="utf-8")
-    if result.returncode != 0:
-        return False, "agent-swift snapshot failed"
-    text = result.stdout
     visible = spec.get("text_visible", [])
     if isinstance(visible, str):
         visible = [visible]
-    missing = [item for item in visible if item not in text]
+    timeout_ms = int(spec.get("timeout_ms", 5000))
+    if not 1 <= timeout_ms <= 55_000:
+        return False, "ax.expect timeout_ms must be between 1 and 55000"
+    results = [
+        (item, run_agent_swift(ctx, ["wait", "text", item, "--timeout", str(timeout_ms), "--json"]))
+        for item in visible
+    ]
+    path.write_text(
+        "\n".join(result.stdout for _, result in results),
+        encoding="utf-8",
+    )
+    missing = [item for item, result in results if result.returncode != 0]
     if missing:
-        return False, f"AX snapshot missing text: {missing}"
+        return False, f"AX tree missing visible text: {missing}"
     return True, None
 
 

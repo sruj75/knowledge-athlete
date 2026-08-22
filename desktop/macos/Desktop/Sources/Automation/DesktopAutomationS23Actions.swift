@@ -117,9 +117,10 @@ extension DesktopAutomationActionRegistry {
       firstStatus.inAppPresented
       && (finalStatus.systemBannerDelivered != finalStatus.pendingReplay)
     let replayStateTruthful =
-      finalStatus.systemBannerDelivered
-      ? replayDeliveryCount == 0
-      : finalStatus.pendingReplay
+      FairUseWarningAutomationAcceptance.replayStateIsTruthful(
+        first: firstStatus,
+        final: finalStatus,
+        replayDeliveryCount: replayDeliveryCount)
     return [
       "status": finalStatus.systemBannerDelivered ? "presented" : "pending_replay",
       "receipt_owned": (finalStatus.systemBannerDelivered || finalStatus.pendingReplay) ? "true" : "false",
@@ -220,5 +221,18 @@ extension DesktopAutomationActionRegistry {
         "temporary_file": "true",
       ]
     }
+  }
+}
+
+enum FairUseWarningAutomationAcceptance {
+  static func replayStateIsTruthful(
+    first: FairUseWarningDeliveryStatus,
+    final: FairUseWarningDeliveryStatus,
+    replayDeliveryCount: Int
+  ) -> Bool {
+    if final.systemBannerDelivered {
+      return replayDeliveryCount == (first.systemBannerDelivered ? 0 : 1)
+    }
+    return final.pendingReplay && replayDeliveryCount == 0
   }
 }
