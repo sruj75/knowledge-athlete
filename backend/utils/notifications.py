@@ -164,13 +164,13 @@ def _send_to_user(
     is_background: bool = False,
     priority: str = 'normal',
     tokens: Optional[List[str]] = None,
-) -> int:
-    """Send a message to all user's devices using batch send. Returns count of successful sends."""
+) -> int | None:
+    """Return successes, or ``None`` when the user has no registered device."""
     if tokens is None:
         tokens = notification_db.get_all_tokens(user_id)
     if not tokens:
         logger.info(f"No tokens found for user {user_id}")
-        return 0
+        return None
 
     # Build messages for all tokens
     messages = [_build_message(token, tag, notification, data, is_background, priority) for token in tokens]
@@ -225,13 +225,13 @@ async def _send_to_user_async(
 
 def send_notification(
     user_id: str, title: str, body: str, data: Optional[Dict[str, Any]] = None, tokens: Optional[List[str]] = None
-) -> None:
+) -> int | None:
     """Send notification to all user's devices. Optionally pass pre-fetched tokens to avoid DB lookup."""
     logger.info(f'send_notification to user {user_id}')
     body = to_plain_text(body)
     tag = _generate_notification_tag(user_id, title, body, data)
     notification = messaging.Notification(title=title, body=body)
-    _send_to_user(user_id, tag, notification=notification, data=data, tokens=tokens)
+    return _send_to_user(user_id, tag, notification=notification, data=data, tokens=tokens)
 
 
 async def send_notification_async(

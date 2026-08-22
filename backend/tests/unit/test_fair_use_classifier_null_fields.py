@@ -1,6 +1,6 @@
 """Regression test: a null field in the classifier response must not disable abuse detection.
 
-utils.llm.fair_use_classifier.classify_user_purpose parses the LLM's JSON, then validated fields
+utils.llm.fair_use_classifier.classify_fair_use_evidence parses the LLM's JSON, then validated fields
 with result.get(k, default). get's default only applies to an ABSENT key, so a present-but-null
 field (misuse_score / confidence / evidence: null) slipped through and raised (float(None),
 None[:10]). The broad except then swallowed it and returned default_result (misuse_score 0.0 =
@@ -26,9 +26,8 @@ class _FakeLLM:
 
 
 def _run(monkeypatch, content):
-    monkeypatch.setattr(fuc, '_prepare_conversation_summaries', lambda uid: [{'duration_minutes': 5}])
     monkeypatch.setattr(fuc, '_classifier_llm', _FakeLLM(content))
-    return asyncio.run(fuc.classify_user_purpose('u1'))
+    return asyncio.run(fuc.classify_fair_use_evidence('u1', [{'duration_minutes': 5}]))
 
 
 def test_null_evidence_does_not_swallow_the_score(monkeypatch):

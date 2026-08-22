@@ -134,7 +134,8 @@ final class ConversationSpeakerLabelTests: XCTestCase {
       contentGeneration: oldStructure.contentGeneration,
       attemptCount: oldStructure.attemptCount,
       response: ConversationStructureComputeResponse(
-        generationId: UUID(), title: "Stale", overview: "Stale", emoji: "✅", commitments: []),
+        generationId: UUID(), title: "Stale", overview: "Stale", emoji: "✅", category: "other",
+        commitments: []),
       authorization: .unrestricted)
     let loadedAfter = try await owner.storage.conversationDetail(id: handle.conversationId)
     let after = try XCTUnwrap(loadedAfter)

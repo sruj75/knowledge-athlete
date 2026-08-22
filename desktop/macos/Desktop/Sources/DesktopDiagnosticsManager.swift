@@ -1338,6 +1338,9 @@ final class DesktopDiagnosticsManager {
     "auth_storage",
     "state_authority",
     "ptt_input_routing",
+    "local_stt",
+    "fair_use_managed_cloud",
+    "fair_use_review",
     "other",
   ]
 
@@ -1365,6 +1368,13 @@ final class DesktopDiagnosticsManager {
     "db_backoff",
     "state_divergence",
     "status_inferred",
+    "model_load_failed",
+    "buffer_exhausted",
+    "inference_failed",
+    "daily_allowance_exhausted",
+    "local_unavailable",
+    "submission_failed_retryable",
+    "submission_failed_permanent",
   ]
 
   private func bucketFallbackArea(_ area: String) -> String {

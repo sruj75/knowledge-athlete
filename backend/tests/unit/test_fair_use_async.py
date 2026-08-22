@@ -5,7 +5,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-import routers.fair_use_admin as fair_use_admin_mod
 import utils.fair_use as fair_use_mod
 from models.fair_use import SoftCapTrigger
 
@@ -55,152 +54,84 @@ def _reset():
         getattr(r, attr).return_value = MagicMock()
 
 
-class TestTriggerClassifierIfNeeded:
-    """Test the async classifier trigger with lock dedup."""
-
-    def setup_method(self):
-        _reset()
-
-    @pytest.mark.asyncio
-    @patch.object(fair_use_mod, 'FAIR_USE_ENABLED', True)
-    @patch.object(fair_use_mod, '_get_classify_user_purpose')
-    @patch.object(fair_use_mod, 'escalate_enforcement')
-    @patch.object(fair_use_mod, '_send_fair_use_notification', new_callable=AsyncMock)
-    async def test_runs_classifier_and_escalates(self, mock_notify, mock_escalate, mock_get_classify):
-        mock_classify = AsyncMock(return_value={'misuse_score': 0.9, 'usage_type': 'audiobook'})
-        mock_get_classify.return_value = mock_classify
-        _redis().set.return_value = True  # Lock acquired
-        mock_escalate.return_value = {'action': 'warning', 'previous_stage': 'none', 'new_stage': 'warning'}
-
-        triggered = [{'trigger': SoftCapTrigger.DAILY, 'speech_ms': 8000000, 'threshold_ms': 7200000}]
-        await fair_use_mod.trigger_classifier_if_needed('user1', triggered)
-
-        mock_classify.assert_called_once_with('user1')
-        mock_escalate.assert_called_once()
-        mock_notify.assert_called_once_with('user1', 'warning', case_ref='FU-TEST01')
-        # Lock should NOT be released on success (5-min TTL cooldown prevents repeated LLM calls)
-        _redis().eval.assert_not_called()
-
-    @pytest.mark.asyncio
-    @patch.object(fair_use_mod, 'FAIR_USE_ENABLED', True)
-    async def test_skips_when_lock_not_acquired(self):
-        _redis().set.return_value = False  # Lock not acquired
-
-        triggered = [{'trigger': SoftCapTrigger.DAILY, 'speech_ms': 8000000, 'threshold_ms': 7200000}]
-        await fair_use_mod.trigger_classifier_if_needed('user1', triggered)
-
-        _redis().eval.assert_not_called()
-
-    @pytest.mark.asyncio
-    @patch.object(fair_use_mod, 'FAIR_USE_ENABLED', True)
-    @patch.object(fair_use_mod, '_get_classify_user_purpose')
-    @patch.object(fair_use_mod, 'escalate_enforcement')
-    @patch.object(fair_use_mod, '_send_fair_use_notification', new_callable=AsyncMock)
-    async def test_no_notification_when_no_action(self, mock_notify, mock_escalate, mock_get_classify):
-        mock_classify = AsyncMock(return_value={'misuse_score': 0.1, 'usage_type': 'none'})
-        mock_get_classify.return_value = mock_classify
-        _redis().set.return_value = True
-        mock_escalate.return_value = {'action': 'none', 'previous_stage': 'none', 'new_stage': 'none'}
-
-        triggered = [{'trigger': SoftCapTrigger.DAILY, 'speech_ms': 8000000, 'threshold_ms': 7200000}]
-        await fair_use_mod.trigger_classifier_if_needed('user1', triggered)
-
-        mock_notify.assert_not_called()
-
-    @pytest.mark.asyncio
-    @patch.object(fair_use_mod, 'FAIR_USE_ENABLED', True)
-    @patch.object(fair_use_mod, '_get_classify_user_purpose')
-    async def test_releases_lock_on_classifier_error(self, mock_get_classify):
-        mock_classify = AsyncMock(side_effect=Exception('LLM timeout'))
-        mock_get_classify.return_value = mock_classify
-        _redis().set.return_value = True
-
-        triggered = [{'trigger': SoftCapTrigger.DAILY, 'speech_ms': 8000000, 'threshold_ms': 7200000}]
-        await fair_use_mod.trigger_classifier_if_needed('user1', triggered)
-
-        # Lock should still be released via compare-and-delete
-        _redis().eval.assert_called_once()
-
-    @pytest.mark.asyncio
-    @patch.object(fair_use_mod, 'FAIR_USE_ENABLED', True)
-    async def test_handles_redis_lock_error(self):
-        _redis().set.side_effect = Exception('Redis down')
-
-        triggered = [{'trigger': SoftCapTrigger.DAILY, 'speech_ms': 8000000, 'threshold_ms': 7200000}]
-        # Should not raise
-        await fair_use_mod.trigger_classifier_if_needed('user1', triggered)
-
-    @pytest.mark.asyncio
-    async def test_routes_every_sync_classifier_boundary_to_db_executor(self):
-        calls = []
-
-        async def tracking_run_blocking(executor, func, *args, **kwargs):
-            calls.append((executor, func))
-            return func(*args, **kwargs)
-
-        classify = AsyncMock(return_value={'misuse_score': 0.2, 'usage_type': 'personal'})
-        stage = MagicMock(return_value='none')
-        exhausted = MagicMock(return_value=False)
-        escalate = MagicMock(return_value={'action': 'none', 'previous_stage': 'none', 'new_stage': 'none'})
-        _redis().set.return_value = True
-
-        with patch.object(fair_use_mod, 'run_blocking', tracking_run_blocking), patch.object(
-            fair_use_mod, 'get_enforcement_stage', stage
-        ), patch.object(fair_use_mod, 'is_free_credits_exhausted', exhausted), patch.object(
-            fair_use_mod, 'escalate_enforcement', escalate
-        ), patch.object(
-            fair_use_mod, '_get_classify_user_purpose', return_value=classify
-        ):
-            await fair_use_mod.trigger_classifier_if_needed(
-                'user1',
-                [{'trigger': SoftCapTrigger.DAILY, 'speech_ms': 8_000_000, 'threshold_ms': 7_200_000}],
-            )
-
-        assert [func for _, func in calls] == [stage, _redis().set, exhausted, escalate]
-        assert all(executor is fair_use_mod.db_executor for executor, _ in calls)
-
-
 class TestSendFairUseNotification:
     """Test notification dispatch for each enforcement stage."""
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ('delivery_result', 'expected'),
+        [
+            (None, True),
+            (0, False),
+            (2, True),
+        ],
+    )
+    @patch.object(fair_use_mod, '_get_send_notification')
+    async def test_maps_production_delivery_results(self, mock_get_send, delivery_result, expected):
+        mock_get_send.return_value = MagicMock(return_value=delivery_result)
+
+        delivered = await fair_use_mod.send_fair_use_notification('user1', 'warning', case_ref='FU-ABC123DEF456')
+
+        assert delivered is expected
 
     @pytest.mark.asyncio
     @patch.object(fair_use_mod, '_get_send_notification')
     async def test_sends_warning_notification(self, mock_get_send):
         mock_send = MagicMock()
         mock_get_send.return_value = mock_send
-        await fair_use_mod._send_fair_use_notification('user1', 'warning')
+        await fair_use_mod.send_fair_use_notification('user1', 'warning', case_ref='FU-ABC123DEF456')
 
         mock_send.assert_called_once()
         args = mock_send.call_args
         assert args[0][0] == 'user1'
-        assert 'Fair Use Notice' in args[0][1]
+        assert args[0][1] == 'Fair Use Notice'
+        assert args[0][2] == (
+            'Your speech usage is unusually high. This service is designed for personal conversations. '
+            'If this continues, you may receive a final fair-use warning. '
+            'Contact support@heyintentive.com if you believe this is an error. '
+            'Quote your case reference when contacting support. Reference: FU-ABC123DEF456'
+        )
 
     @pytest.mark.asyncio
     @patch.object(fair_use_mod, '_get_send_notification')
     async def test_sends_throttle_notification(self, mock_get_send):
         mock_send = MagicMock()
         mock_get_send.return_value = mock_send
-        await fair_use_mod._send_fair_use_notification('user1', 'throttle')
+        await fair_use_mod.send_fair_use_notification('user1', 'throttle', case_ref='FU-ABC123DEF456')
 
         mock_send.assert_called_once()
-        assert 'Transcription Quality Reduced' in mock_send.call_args[0][1]
+        assert mock_send.call_args[0][1] == 'Final Fair Use Warning'
+        assert mock_send.call_args[0][2] == (
+            'Due to high non-conversational usage, this is your final fair-use warning. '
+            'Transcription quality and access have not changed. '
+            'This warning resets after seven days without another qualifying violation. '
+            'Contact support@heyintentive.com if you believe this is an error. '
+            'Quote your case reference when contacting support. Reference: FU-ABC123DEF456'
+        )
 
     @pytest.mark.asyncio
     @patch.object(fair_use_mod, '_get_send_notification')
     async def test_sends_restrict_notification(self, mock_get_send):
         mock_send = MagicMock()
         mock_get_send.return_value = mock_send
-        await fair_use_mod._send_fair_use_notification('user1', 'restrict')
+        await fair_use_mod.send_fair_use_notification('user1', 'restrict', case_ref='FU-ABC123DEF456')
 
         mock_send.assert_called_once()
-        assert 'Transcription Limit Reached' in mock_send.call_args[0][1]
+        assert mock_send.call_args[0][1] == 'Transcription Limit Reached'
+        assert mock_send.call_args[0][2] == (
+            'Your managed cloud transcription is temporarily limited for 30 days due to repeated fair-use violations. '
+            'Up to 30 minutes of managed cloud transcription remains available each UTC day. '
+            'On-device transcription continues only when it is available on this Mac. '
+            'Contact support@heyintentive.com to discuss your usage. '
+            'Quote your case reference when contacting support. Reference: FU-ABC123DEF456'
+        )
 
     @pytest.mark.asyncio
     @patch.object(fair_use_mod, '_get_send_notification')
     async def test_no_notification_for_unknown_action(self, mock_get_send):
         mock_send = MagicMock()
         mock_get_send.return_value = mock_send
-        await fair_use_mod._send_fair_use_notification('user1', 'unknown_action')
+        await fair_use_mod.send_fair_use_notification('user1', 'unknown_action')
 
         mock_send.assert_not_called()
 
@@ -273,63 +204,6 @@ class TestHardRestrictBoundary:
         mock_speech.return_value = {'daily_ms': 7200000, 'three_day_ms': 28800000, 'weekly_ms': 36000000}
 
         assert fair_use_mod.is_hard_restricted('user1') is False
-
-
-class TestFairUseStatusRestrictionExpiry:
-    def setup_method(self):
-        _reset()
-        _fair_use_db.get_fair_use_state.reset_mock()
-        _fair_use_db.update_fair_use_state.reset_mock()
-
-    @staticmethod
-    def _managed_stt_budget():
-        return {
-            'daily_limit_ms': 0,
-            'used_ms': 0,
-            'remaining_ms': 0,
-            'exhausted': False,
-            'resets_at': None,
-        }
-
-    def test_status_normalizes_naturally_expired_restriction_with_one_state_read(self):
-        _fair_use_db.get_fair_use_state.return_value = {
-            'stage': 'restrict',
-            'restrict_until': datetime.utcnow() - timedelta(seconds=1),
-            'last_case_ref': 'FU-EXPIRED',
-        }
-
-        with patch.object(fair_use_admin_mod, 'fair_use_db', _fair_use_db), patch.object(
-            fair_use_admin_mod,
-            'get_rolling_speech_ms',
-            return_value={'daily_ms': 0, 'three_day_ms': 0, 'weekly_ms': 0},
-        ), patch.object(fair_use_admin_mod, 'get_managed_stt_budget_status', return_value=self._managed_stt_budget()):
-            result = fair_use_admin_mod.get_my_fair_use_status('user1')
-
-        assert result['stage'] == 'throttle'
-        assert 'temporarily reduced' in result['message']
-        _fair_use_db.get_fair_use_state.assert_called_once_with('user1')
-        _fair_use_db.update_fair_use_state.assert_called_once_with(
-            'user1', {'stage': 'throttle', 'restrict_until': None}
-        )
-
-    def test_status_preserves_active_restriction_with_one_state_read(self):
-        _fair_use_db.get_fair_use_state.return_value = {
-            'stage': 'restrict',
-            'restrict_until': datetime.utcnow() + timedelta(days=1),
-            'last_case_ref': 'FU-ACTIVE',
-        }
-
-        with patch.object(fair_use_admin_mod, 'fair_use_db', _fair_use_db), patch.object(
-            fair_use_admin_mod,
-            'get_rolling_speech_ms',
-            return_value={'daily_ms': 0, 'three_day_ms': 0, 'weekly_ms': 0},
-        ), patch.object(fair_use_admin_mod, 'get_managed_stt_budget_status', return_value=self._managed_stt_budget()):
-            result = fair_use_admin_mod.get_my_fair_use_status('user1')
-
-        assert result['stage'] == 'restrict'
-        assert 'temporarily limited' in result['message']
-        _fair_use_db.get_fair_use_state.assert_called_once_with('user1')
-        _fair_use_db.update_fair_use_state.assert_not_called()
 
 
 class TestOverflowAndInvalidData:

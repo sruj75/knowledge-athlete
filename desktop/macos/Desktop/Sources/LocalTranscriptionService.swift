@@ -89,6 +89,16 @@ private final class MusicTally: NSObject, SNResultsObserving {
 final class LocalTranscriptionService: @unchecked Sendable {
 
   typealias SegmentsHandler = @MainActor ([TranscriptionService.BackendSegment]) async -> Void
+  typealias ModelLoader = @Sendable (AsrModelVersion) async throws -> AsrManager
+  typealias WindowTranscriber = @Sendable (AsrManager, [Float]) async throws -> ASRResult
+
+  enum FailureReason: String, Sendable {
+    case modelLoad = "model_load_failed"
+    case bufferExhausted = "buffer_exhausted"
+    case inference = "inference_failed"
+  }
+
+  typealias FailureHandler = @MainActor (FailureReason) -> Void
 
   private struct DrainSnapshot {
     let manager: AsrManager
@@ -101,16 +111,19 @@ final class LocalTranscriptionService: @unchecked Sendable {
   /// Source-based diarization: mic = the user ("You"), system audio = another speaker.
   private let isUser: Bool
   private let speakerId: Int
+  private let modelLoader: ModelLoader
+  private let windowTranscriber: WindowTranscriber
   private let sampleRate = 16000
+  private let maxBufferedSamples: Int
   /// Window length transcribed at a time. Not real-time — gives a ~10 s "lag" like the user wants.
   private let windowSeconds = 10.0
   private var windowSamples: Int { Int(Double(sampleRate) * windowSeconds) }
 
   private var asrManager: AsrManager?
   private var onSegments: SegmentsHandler?
-  /// Fired (on the main actor) if the Parakeet model fails to download/load. Lets AppState
-  /// fall back to cloud STT instead of silently producing a blank transcript.
-  private var onModelLoadFailed: (@MainActor () -> Void)?
+  /// Fired (on the main actor) if Parakeet can no longer capture for any typed reason. Lets
+  /// AppState stop or fall back instead of silently producing a blank transcript.
+  private var onFailure: FailureHandler?
 
   // 16 kHz mono Float32 sample buffer, guarded by `lock`.
   private let lock = NSLock()
@@ -123,24 +136,43 @@ final class LocalTranscriptionService: @unchecked Sendable {
   /// silently dropped.
   private var acceptingAudio = true
   private var isRetiring = false
+  private var readinessResult: Bool?
+  private var terminalFailureReasonStorage: FailureReason?
+  private var readinessWaiters: [UUID: CheckedContinuation<Bool, Never>] = [:]
   private var flushWaiters: [CheckedContinuation<Void, Never>] = []
   private var emittedSeconds = 0.0  // absolute start offset of the next emitted segment
 
   private var pumpTask: Task<Void, Never>?
   private var modelLoadTask: Task<Void, Never>?
 
-  init(language: String = "en", isUser: Bool = true) {
+  init(
+    language: String = "en",
+    isUser: Bool = true,
+    maxBufferedSeconds: Double = 120,
+    modelLoader: @escaping ModelLoader = { version in
+      let models = try await AsrModels.downloadAndLoad(version: version)
+      let manager = AsrManager()
+      try await manager.loadModels(models)
+      return manager
+    },
+    windowTranscriber: @escaping WindowTranscriber = { manager, window in
+      var decoderState = try TdtDecoderState()
+      return try await manager.transcribe(window, decoderState: &decoderState, language: nil)
+    }
+  ) {
     self.language = language
     self.isUser = isUser
     self.speakerId = isUser ? 0 : 1
+    self.maxBufferedSamples = max(1, Int(16000 * maxBufferedSeconds))
+    self.modelLoader = modelLoader
+    self.windowTranscriber = windowTranscriber
   }
 
   /// Begin loading the model (async) and start the periodic flush loop.
-  /// `onModelLoadFailed` fires once if the model can't load, so the caller can fall back
-  /// to cloud transcription instead of recording into a void.
-  func start(onSegments: @escaping SegmentsHandler, onModelLoadFailed: (@MainActor () -> Void)? = nil) {
+  /// `onFailure` fires once with a typed reason when the local engine can no longer capture.
+  func start(onSegments: @escaping SegmentsHandler, onFailure: FailureHandler? = nil) {
     self.onSegments = onSegments
-    self.onModelLoadFailed = onModelLoadFailed
+    self.onFailure = onFailure
 
     modelLoadTask = Task { [weak self] in
       guard let self else { return }
@@ -157,20 +189,43 @@ final class LocalTranscriptionService: @unchecked Sendable {
         // v2 = English-only (better recall); v3 = 25 European languages.
         let version: AsrModelVersion = self.language.hasPrefix("en") ? .v2 : .v3
         let started = Date()
-        let models = try await AsrModels.downloadAndLoad(version: version)
-        let manager = AsrManager()
-        try await manager.loadModels(models)
-        self.lock.withLock {
+        let manager = try await self.modelLoader(version)
+        let waiters = self.lock.withLock {
+          guard self.readinessResult != false, self.acceptingAudio, !self.isRetiring else {
+            return [] as [CheckedContinuation<Bool, Never>]
+          }
           self.asrManager = manager
           self.isReady = true
+          self.readinessResult = true
+          self.terminalFailureReasonStorage = nil
+          let waiters = Array(self.readinessWaiters.values)
+          self.readinessWaiters.removeAll()
+          return waiters
         }
+        waiters.forEach { $0.resume(returning: true) }
         log(
           "LocalTranscriptionService: Parakeet \(version) ready in \(String(format: "%.1f", Date().timeIntervalSince(started)))s"
         )
       } catch {
         logError("LocalTranscriptionService: model load failed", error: error)
-        if self.onModelLoadFailed != nil {
-          await MainActor.run { self.onModelLoadFailed?() }
+        let failure = self.lock.withLock {
+          guard self.readinessResult != false else {
+            return ([], nil)
+              as (
+                [CheckedContinuation<Bool, Never>], FailureHandler?
+              )
+          }
+          self.readinessResult = false
+          self.terminalFailureReasonStorage = .modelLoad
+          let waiters = Array(self.readinessWaiters.values)
+          self.readinessWaiters.removeAll()
+          let callback = self.onFailure
+          self.onFailure = nil
+          return (waiters, callback)
+        }
+        failure.0.forEach { $0.resume(returning: false) }
+        if let callback = failure.1 {
+          await MainActor.run { callback(.modelLoad) }
         }
       }
     }
@@ -184,14 +239,82 @@ final class LocalTranscriptionService: @unchecked Sendable {
     }
   }
 
+  /// Wait until the asynchronous Parakeet load has either succeeded or failed.
+  /// Fair-use handoff uses this before claiming that local transcription recovered.
+  func waitUntilReady(timeoutNanoseconds: UInt64? = nil) async -> Bool {
+    let waiterID = UUID()
+    return await withCheckedContinuation { continuation in
+      let immediate = lock.withLock { () -> Bool? in
+        if let readinessResult {
+          return readinessResult && isReady && asrManager != nil && acceptingAudio && !isRetiring
+        }
+        guard modelLoadTask != nil, acceptingAudio, !isRetiring else { return false }
+        readinessWaiters[waiterID] = continuation
+        return nil
+      }
+      if let immediate {
+        continuation.resume(returning: immediate)
+        return
+      }
+      guard let timeoutNanoseconds else { return }
+      Task { [weak self] in
+        do {
+          try await Task.sleep(nanoseconds: timeoutNanoseconds)
+        } catch {
+          return
+        }
+        guard let self else { return }
+        let timedOut = self.lock.withLock { self.readinessWaiters.removeValue(forKey: waiterID) }
+        timedOut?.resume(returning: false)
+      }
+    }
+  }
+
+  var isUsableForCapture: Bool {
+    lock.withLock { readinessResult == true && isReady && asrManager != nil && acceptingAudio && !isRetiring }
+  }
+
+  var terminalFailureReason: FailureReason? {
+    lock.withLock { terminalFailureReasonStorage }
+  }
+
   /// Feed 16 kHz mono Int16 little-endian PCM — the same `Data` the WebSocket path sends.
   func appendAudio(_ data: Data) {
     let floats = Self.int16ToFloat32(data)
     guard !floats.isEmpty else { return }
-    lock.withLock {
-      if acceptingAudio {
-        buffer.append(contentsOf: floats)
+    let overflow = lock.withLock {
+      () -> (
+        [CheckedContinuation<Bool, Never>], FailureHandler?,
+        Task<Void, Never>?, Task<Void, Never>?
+      )? in
+      guard acceptingAudio else { return nil }
+      guard buffer.count + floats.count <= maxBufferedSamples else {
+        acceptingAudio = false
+        isRetiring = true
+        buffer.removeAll()
+        readinessResult = false
+        terminalFailureReasonStorage = .bufferExhausted
+        let waiters = Array(readinessWaiters.values)
+        readinessWaiters.removeAll()
+        let callback = onFailure
+        onFailure = nil
+        let tasks = (pumpTask, modelLoadTask)
+        pumpTask = nil
+        modelLoadTask = nil
+        return (waiters, callback, tasks.0, tasks.1)
       }
+      buffer.append(contentsOf: floats)
+      return nil
+    }
+    guard let overflow else { return }
+    overflow.2?.cancel()
+    overflow.3?.cancel()
+    overflow.0.forEach { $0.resume(returning: false) }
+    logError(
+      "LocalTranscriptionService: bounded model-readiness audio buffer exhausted",
+      error: NSError(domain: "LocalTranscriptionService", code: -2))
+    if let callback = overflow.1 {
+      Task { @MainActor in callback(.bufferExhausted) }
     }
   }
 
@@ -207,18 +330,26 @@ final class LocalTranscriptionService: @unchecked Sendable {
   /// Owner transitions revoke capture instead of flushing it. A flush can call the segment
   /// callback and must not wait on the owner-transition fence or reach a retargeted database.
   func discardBufferedAudio() {
-    let tasks = lock.withLock { () -> (Task<Void, Never>?, Task<Void, Never>?) in
+    let state = lock.withLock {
+      () -> (
+        Task<Void, Never>?, Task<Void, Never>?, [CheckedContinuation<Bool, Never>]
+      ) in
       acceptingAudio = false
       isRetiring = true
+      readinessResult = false
       buffer.removeAll()
       onSegments = nil
+      onFailure = nil
+      let waiters = Array(readinessWaiters.values)
+      readinessWaiters.removeAll()
       let tasks = (pumpTask, modelLoadTask)
       pumpTask = nil
       modelLoadTask = nil
-      return tasks
+      return (tasks.0, tasks.1, waiters)
     }
-    tasks.0?.cancel()
-    tasks.1?.cancel()
+    state.0?.cancel()
+    state.1?.cancel()
+    state.2.forEach { $0.resume(returning: false) }
   }
 
   /// Awaitable flush. Cancels the pump and transcribes ALL remaining audio, delivering the
@@ -229,7 +360,7 @@ final class LocalTranscriptionService: @unchecked Sendable {
     let mustWaitForFlush = lock.withLock {
       acceptingAudio = false
       isRetiring = true
-      onModelLoadFailed = nil
+      onFailure = nil
       return isFlushing
     }
     if mustWaitForFlush {
@@ -308,8 +439,7 @@ final class LocalTranscriptionService: @unchecked Sendable {
       // Fresh decoder state per window. Persisting TdtDecoderState across arbitrary 10 s
       // windows makes the transducer decoder drift — it starts looping ("...AND AND AND"),
       // Title-Casing every word, and emitting gibberish. Independent per-window decode is stable.
-      var ds = try TdtDecoderState()
-      let result = try await snapshot.manager.transcribe(snapshot.window, decoderState: &ds, language: nil)
+      let result = try await windowTranscriber(snapshot.manager, snapshot.window)
 
       var text = result.text.trimmingCharacters(in: .whitespacesAndNewlines)
       // Silence makes the TDT decoder emit just "." / "..." — drop windows with no real speech.
@@ -341,7 +471,43 @@ final class LocalTranscriptionService: @unchecked Sendable {
           format: "LocalTranscriptionService[%@]: %.1fs rms=%.4f conf=%.2f rtfx=%.0fx → %@",
           isUser ? "mic" : "sys", snapshot.durSec, rms, result.confidence, result.rtfx, text))
     } catch {
-      logError("LocalTranscriptionService: transcribe failed", error: error)
+      await retireAfterInferenceFailure(error)
+    }
+  }
+
+  /// Deterministic production-behavior seam for exercising a full buffered window in tests.
+  func processBufferedAudioForTesting() async {
+    await drain(force: false)
+  }
+
+  private func retireAfterInferenceFailure(_ error: Error) async {
+    let failure = lock.withLock {
+      () -> (
+        [CheckedContinuation<Bool, Never>], FailureHandler?, Task<Void, Never>?,
+        Task<Void, Never>?
+      ) in
+      acceptingAudio = false
+      isRetiring = true
+      isReady = false
+      asrManager = nil
+      readinessResult = false
+      terminalFailureReasonStorage = .inference
+      buffer.removeAll()
+      let waiters = Array(readinessWaiters.values)
+      readinessWaiters.removeAll()
+      let callback = onFailure
+      onFailure = nil
+      let tasks = (pumpTask, modelLoadTask)
+      pumpTask = nil
+      modelLoadTask = nil
+      return (waiters, callback, tasks.0, tasks.1)
+    }
+    failure.2?.cancel()
+    failure.3?.cancel()
+    failure.0.forEach { $0.resume(returning: false) }
+    logError("LocalTranscriptionService: transcribe failed", error: error)
+    if let callback = failure.1 {
+      await MainActor.run { callback(.inference) }
     }
   }
 

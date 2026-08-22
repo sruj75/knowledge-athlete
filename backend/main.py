@@ -39,6 +39,7 @@ from routers import (
     phone_calls,
     metrics,
     fair_use_admin,
+    fair_use_reviews,
     advice,
     chat_sessions,
     desktop_chat,
@@ -137,6 +138,7 @@ app.include_router(announcements.router)
 app.include_router(phone_calls.router)
 app.include_router(metrics.router)
 app.include_router(fair_use_admin.router)
+app.include_router(fair_use_reviews.router)
 app.include_router(advice.router)
 app.include_router(chat_sessions.router)
 app.include_router(tts.router)

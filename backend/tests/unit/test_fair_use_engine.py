@@ -363,7 +363,7 @@ class TestEscalateEnforcement:
     )
     def test_warning_stays_warning_with_insufficient_violations(self, _):
         _fair_use_db.get_fair_use_state.return_value = {'stage': 'warning'}
-        _fair_use_db.get_violation_counts.return_value = {'violation_count_7d': 1, 'violation_count_30d': 1}
+        _fair_use_db.get_violation_counts.return_value = {'violation_count_7d': 0, 'violation_count_30d': 0}
 
         triggered = [{'trigger': SoftCapTrigger.DAILY, 'speech_ms': 8000000, 'threshold_ms': 7200000}]
         classifier = {'misuse_score': 0.9, 'usage_type': 'audiobook'}
@@ -459,13 +459,15 @@ class TestIsHardRestricted:
     @patch.object(fair_use_mod, 'FAIR_USE_KILL_SWITCH', False)
     @patch.object(fair_use_mod, 'FAIR_USE_EXEMPT_UIDS', set())
     def test_expired_restriction_resets_to_throttle(self):
+        fresh_throttle = datetime.utcnow() + timedelta(days=7)
         _fair_use_db.get_fair_use_state.return_value = {
-            'stage': 'restrict',
-            'restrict_until': datetime.utcnow() - timedelta(days=1),  # Expired
+            'stage': 'throttle',
+            'restrict_until': None,
+            'throttle_until': fresh_throttle,
         }
         result = fair_use_mod.is_hard_restricted('user1')
         assert result is False
-        _fair_use_db.update_fair_use_state.assert_called_once()
+        _fair_use_db.get_fair_use_state.assert_called_with('user1')
 
 
 class TestEnforcementCache:
@@ -521,14 +523,15 @@ class TestDatetimeNormalization:
     def test_aware_datetime_does_not_raise(self):
         from datetime import timezone
 
-        # Simulate Firestore returning an aware datetime
-        aware_past = datetime.now(timezone.utc) - timedelta(days=1)
-        _fair_use_db.get_fair_use_state.return_value = {'stage': 'restrict', 'restrict_until': aware_past}
+        # The database boundary has already normalized an aware expired timer.
+        _fair_use_db.get_fair_use_state.return_value = {
+            'stage': 'throttle',
+            'restrict_until': None,
+            'throttle_until': datetime.now(timezone.utc) + timedelta(days=7),
+        }
 
-        # Should not raise TypeError from naive/aware comparison
         result = fair_use_mod.is_hard_restricted('user1')
-        assert result is False  # Expired restriction
-        _fair_use_db.update_fair_use_state.assert_called_once()
+        assert result is False
 
     @patch.object(fair_use_mod, 'FAIR_USE_ENABLED', True)
     @patch.object(fair_use_mod, 'FAIR_USE_KILL_SWITCH', False)

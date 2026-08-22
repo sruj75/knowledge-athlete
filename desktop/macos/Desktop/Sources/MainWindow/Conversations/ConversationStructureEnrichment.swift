@@ -15,6 +15,15 @@ private enum ConversationStructureCandidateValidator {
     guard response.emoji.count == 1 else {
       throw TranscriptionStorageError.invalidState("invalid structure emoji")
     }
+    let categories: Set<String> = [
+      "personal", "education", "health", "finance", "legal", "philosophy", "spiritual", "science",
+      "entrepreneurship", "parenting", "romantic", "travel", "inspiration", "technology", "business", "social",
+      "work", "sports", "politics", "literature", "history", "architecture", "music", "weather", "news",
+      "entertainment", "psychology", "real", "design", "family", "economics", "environment", "other",
+    ]
+    guard categories.contains(response.category) else {
+      throw TranscriptionStorageError.invalidState("invalid structure category")
+    }
     guard response.commitments.count <= 100 else {
       throw TranscriptionStorageError.invalidState("too many structure commitments")
     }
@@ -32,7 +41,7 @@ private enum ConversationStructureCandidateValidator {
     }
     return ConversationStructureComputeResponse(
       generationId: response.generationId, title: title, overview: overview,
-      emoji: response.emoji, commitments: commitments)
+      emoji: response.emoji, category: response.category, commitments: commitments)
   }
 }
 

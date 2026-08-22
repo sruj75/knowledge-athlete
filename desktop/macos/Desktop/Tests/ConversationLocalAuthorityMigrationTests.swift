@@ -32,9 +32,11 @@ final class ConversationLocalAuthorityMigrationTests: XCTestCase {
             "lastError", "finalizationReason", "finalizationStartedAt", "finalizationCompletedAt", "title",
             "isTitleManuallyEdited", "overview", "emoji", "commitmentsJson", "geolocationJson", "starred",
             "folderId", "createdAt", "updatedAt", "contentGeneration",
-            "autoDetectLanguage", "vocabularyJson",
+            "autoDetectLanguage", "vocabularyJson", "classifierCategory", "classifierSource",
           ]).isSubset(of: sessionNames)
         )
+        XCTAssertFalse(sessionColumns.first(where: { $0.name == "classifierCategory" })?.isNotNull ?? true)
+        XCTAssertFalse(sessionColumns.first(where: { $0.name == "classifierSource" })?.isNotNull ?? true)
         XCTAssertTrue(
           Set([
             "source", "backendId", "clientConversationId", "backendSynced", "serverUpdatedAt", "cacheCompleteness",

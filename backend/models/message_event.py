@@ -180,6 +180,36 @@ class FreemiumThresholdReachedEvent(MessageEvent):
         return j
 
 
+class FairUseReviewRequestedEvent(MessageEvent):
+    event_type: str = "fair_use_review_requested"
+    review_id: str
+    trigger: str
+    window_speech_ms: dict[str, int]
+    thresholds_ms: dict[str, int]
+    classifier_contract: str
+    requested_at: str
+    expires_at: str
+
+    def to_json(self):
+        j = self.model_dump(mode="json")
+        j["type"] = self.event_type
+        del j["event_type"]
+        return j
+
+
+class FairUseManagedCloudExhaustedEvent(MessageEvent):
+    event_type: str = "fair_use_managed_cloud_exhausted"
+    resets_at: str
+    case_ref: str = ""
+    support_email: str = "support@heyintentive.com"
+
+    def to_json(self):
+        j = self.model_dump(mode="json", exclude_none=True)
+        j["type"] = self.event_type
+        del j["event_type"]
+        return j
+
+
 class SegmentsDeletedEvent(MessageEvent):
     event_type: str = "segments_deleted"
     segment_ids: List[str]

@@ -1,0 +1,55 @@
+version: 2
+name: fair-use-local-enforcement
+tier: 2
+description: Content-redacted local-evidence review admission and same-conversation managed-cloud handoff
+app: non-prod
+covers:
+  - desktop/macos/Desktop/Sources/DesktopAutomationBridge.swift
+  - desktop/macos/Desktop/Sources/AppState/AppState+Transcription.swift
+  - desktop/macos/Desktop/Sources/AppState/STTSessionState.swift
+  - desktop/macos/Desktop/Sources/FairUse/FairUseEvidence.swift
+  - desktop/macos/Desktop/Sources/FairUse/FairUseReviewCoordinator.swift
+preconditions:
+  - automation_bridge_ready
+
+steps:
+  - id: S1
+    name: Reject an expired semantic review before submission
+    bridge.action:
+      name: fair_use_local_enforcement_probe
+      params:
+        phase: admission
+    expect:
+      result.detail.status: expired_rejected
+      result.detail.backend_submission_attempted: "false"
+      result.detail.content_fields_exposed: "false"
+
+  - id: S2
+    name: Inspect the bounded owner-local evidence projection
+    bridge.action:
+      name: fair_use_local_enforcement_probe
+      params:
+        phase: evidence
+    expect:
+      result.detail.maximum_rows: "30"
+      result.detail.content_fields_exposed: "false"
+
+  - id: S3
+    name: Exercise the real AppState handoff in one owner-local conversation
+    bridge.action:
+      name: fair_use_local_enforcement_probe
+      params:
+        phase: handoff
+    expect:
+      result.detail.outcome: continued_locally
+      result.detail.active_mode: local
+      result.detail.same_session: "true"
+      result.detail.same_conversation: "true"
+      result.detail.cleanup_stopped: "true"
+      result.detail.content_fields_exposed: "false"
+
+  - id: S4
+    name: Logs remain free of bridge failures
+    log.expect:
+      absent:
+        - "DesktopAutomationBridge: failed"

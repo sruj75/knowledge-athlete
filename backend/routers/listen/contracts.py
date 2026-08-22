@@ -121,8 +121,11 @@ class ListenSessionState:
     remaining_seconds_cache_initialized: bool = False
     fair_use_last_check_ts: float = 0.0
     fair_use_managed_stt_budget_exhausted: bool = False
+    fair_use_allowance_handoff_required: bool = False
     fair_use_track_managed_stt_usage: bool = False
     fair_use_entitlement_policy: Any = None
+    fair_use_review_sent_id: str | None = None
+    fair_use_managed_cloud_exhausted_sent: bool = False
     managed_stt_usage_ms_pending: int = 0
     last_audio_received_time: float | None = None
     last_activity_time: float | None = None

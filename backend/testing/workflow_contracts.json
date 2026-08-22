@@ -119,6 +119,40 @@
       ]
     },
     {
+      "id": "fair_use_review_enforcement",
+      "risk": "high",
+      "sources": [
+        "backend/routers/fair_use_reviews.py",
+        "backend/routers/fair_use_admin.py",
+        "backend/database/fair_use.py",
+        "backend/utils/fair_use.py",
+        "backend/utils/fair_use_reviews.py",
+        "backend/utils/llm/fair_use_classifier.py",
+        "backend/utils/notifications.py",
+        "backend/models/fair_use.py",
+        "backend/models/message_event.py",
+        "backend/routers/listen/runtime.py",
+        "backend/routers/listen/receiver.py",
+        "backend/routers/listen/contracts.py"
+      ],
+      "tests": [
+        "tests/unit/test_fair_use_review_requests.py",
+        "tests/unit/test_fair_use_review_state.py",
+        "tests/unit/test_fair_use_review_runtime.py",
+        "tests/unit/test_fair_use_automatic_recovery.py",
+        "tests/unit/test_fair_use_classifier.py",
+        "tests/unit/test_fair_use_violation_counts.py",
+        "tests/unit/test_fair_use_account_deletion.py"
+      ],
+      "checks": [],
+      "invariants": [
+        "bounded owner-local evidence is transient and only content-free classifier facts persist",
+        "review admission processing acceptance and notification are idempotent and token fenced",
+        "reset boundaries exclude pre-reset reviews even when classification completes later",
+        "restricted managed-cloud exhaustion emits one typed event and never forwards excess provider audio"
+      ]
+    },
+    {
       "id": "conversation_lifecycle",
       "risk": "high",
       "sources": [

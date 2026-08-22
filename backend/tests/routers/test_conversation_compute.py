@@ -180,6 +180,7 @@ def test_structure_returns_only_retained_candidates_and_tracks_usage(monkeypatch
         'title': 'Team Ships Local Conversations',
         'overview': 'The team agreed on the local authority boundary.',
         'emoji': '✅',
+        'category': 'business',
         'commitments': [
             {
                 'title': 'Review',
@@ -191,7 +192,6 @@ def test_structure_returns_only_retained_candidates_and_tracks_usage(monkeypatch
         ],
     }
     assert usage == [('user-1', 'conv_structure')]
-    assert 'category' not in response.text
     assert 'meeting_link' not in response.text
     assert 'action_items' not in response.text
 

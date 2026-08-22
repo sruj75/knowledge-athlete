@@ -40,12 +40,15 @@ write that local authority. The desktop does not project conversations to
 Firestore, reconcile server snapshots, or fall back to hosted conversation
 data.
 
-The backend remains a transient managed-compute boundary for live speech and
-the three candidate-only conversation operations: discard, structure, and
-action-item extraction. Those operations return candidates; the Mac validates
-and commits them locally. Cloud conversation playback, reusable People/voice
-identity, public conversation sharing, and Store Recordings/Private Cloud Sync
-settings are not macOS product surfaces.
+The backend remains a transient managed-compute boundary for live speech, the
+three candidate-only conversation operations (discard, structure, and
+action-item extraction), and fair-use classification. Conversation operations
+return candidates that the Mac validates and commits locally. Fair-use compute
+accepts only a bounded owner-local metadata projection, runs the pinned GPT-5.1
+contract transiently, and persists only content-free enforcement facts. Cloud
+conversation playback, reusable People/voice identity, public conversation
+sharing, and Store Recordings/Private Cloud Sync settings are not macOS product
+surfaces.
 
 Continuous cloud transcription uses one Firebase-authenticated `/v4/listen`
 socket. The Mac snapshots language, optional translation target, and ordered

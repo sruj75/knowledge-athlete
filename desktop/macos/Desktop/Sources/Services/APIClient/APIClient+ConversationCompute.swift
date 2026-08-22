@@ -65,11 +65,28 @@ struct ConversationStructureComputeResponse: Codable, Equatable, Sendable {
   let title: String
   let overview: String
   let emoji: String
+  let category: String
   let commitments: [ConversationCommitmentComputeCandidate]
+
+  init(
+    generationId: UUID,
+    title: String,
+    overview: String,
+    emoji: String,
+    category: String,
+    commitments: [ConversationCommitmentComputeCandidate]
+  ) {
+    self.generationId = generationId
+    self.title = title
+    self.overview = overview
+    self.emoji = emoji
+    self.category = category
+    self.commitments = commitments
+  }
 
   enum CodingKeys: String, CodingKey {
     case generationId = "generation_id"
-    case title, overview, emoji, commitments
+    case title, overview, emoji, category, commitments
   }
 }
 

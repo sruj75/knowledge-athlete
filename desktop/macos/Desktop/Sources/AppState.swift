@@ -73,6 +73,7 @@ class AppState: ObservableObject {
   // Transcription state
   @Published var isTranscribing = false
   var transcriptionStopTask: Task<Void, Never>?
+  var localSTTFallbackRestartTask: Task<Void, Never>?
   /// A terminal live-STT failure reported by `/v4/listen`; visible until the backend is ready or the session resets.
   @Published var transcriptionServiceError: String?
   /// Monotonically increasing counter — incremented each time a new recording starts.

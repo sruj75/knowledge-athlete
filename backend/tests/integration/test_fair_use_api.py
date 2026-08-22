@@ -1,7 +1,7 @@
 """
 Level 1 live test: fair-use API endpoints via FastAPI TestClient.
 
-Tests the admin and user-facing endpoints with reduced thresholds.
+Tests the protected fair-use support endpoints with fixture-scoped policy state.
 """
 
 import os
@@ -24,12 +24,6 @@ _events = []
 # so individual tests can drive ``collection_group`` via ``patch.object``.
 _fake_db = MagicMock()
 
-os.environ['FAIR_USE_ENABLED'] = 'true'
-os.environ['FAIR_USE_DAILY_SPEECH_MS'] = '10000'
-os.environ['FAIR_USE_3DAY_SPEECH_MS'] = '20000'
-os.environ['FAIR_USE_WEEKLY_SPEECH_MS'] = '30000'
-os.environ['ADMIN_KEY'] = 'test-admin-key-12345'
-
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -39,7 +33,6 @@ import utils.fair_use as fair_use
 
 # Import the router
 from routers.fair_use_admin import router as admin_router
-from utils.other.endpoints import get_current_user_uid
 
 app = FastAPI()
 app.include_router(admin_router)
@@ -107,6 +100,37 @@ def cleanup(monkeypatch):
 class TestAdminEndpoints:
     """Test admin fair-use endpoints."""
 
+    def test_exactly_six_protected_support_operations_remain(self):
+        operations = {
+            (method, route.path)
+            for route in admin_router.routes
+            for method in route.methods
+            if route.path.startswith('/v1/admin/fair-use')
+        }
+        assert operations == {
+            ('GET', '/v1/admin/fair-use/flagged'),
+            ('GET', '/v1/admin/fair-use/user/{uid}'),
+            ('POST', '/v1/admin/fair-use/user/{uid}/resolve-event/{event_id}'),
+            ('POST', '/v1/admin/fair-use/user/{uid}/reset'),
+            ('POST', '/v1/admin/fair-use/user/{uid}/set-stage'),
+            ('GET', '/v1/admin/fair-use/case/{case_ref}'),
+        }
+
+    @pytest.mark.parametrize(
+        ('method', 'path'),
+        [
+            ('GET', '/v1/admin/fair-use/flagged'),
+            ('GET', f'/v1/admin/fair-use/user/{TEST_UID}'),
+            ('POST', f'/v1/admin/fair-use/user/{TEST_UID}/resolve-event/event-1'),
+            ('POST', f'/v1/admin/fair-use/user/{TEST_UID}/reset'),
+            ('POST', f'/v1/admin/fair-use/user/{TEST_UID}/set-stage?stage=warning'),
+            ('GET', '/v1/admin/fair-use/case/FU-AABBCCDDEEFF'),
+        ],
+    )
+    def test_every_support_operation_requires_the_admin_key(self, method, path):
+        assert client.request(method, path).status_code == 422
+        assert client.request(method, path, headers={'X-Admin-Key': 'wrong'}).status_code == 403
+
     def test_get_flagged_users(self):
         """GET /v1/admin/fair-use/flagged returns users list."""
         resp = client.get('/v1/admin/fair-use/flagged', headers=ADMIN_HEADERS)
@@ -136,6 +160,27 @@ class TestAdminEndpoints:
         assert data['uid'] == TEST_UID
         assert 'current_speech_ms' in data
         assert data['current_speech_ms']['daily_ms'] == 5000
+
+    def test_support_detail_strips_content_bearing_legacy_event_fields(self):
+        _events.append(
+            {
+                'uid': TEST_UID,
+                'review_id': 'review-1',
+                'classifier_score': 0.91,
+                'title': 'must not leave durable support boundary',
+                'overview': 'must not leave durable support boundary',
+                'reasoning': 'must not leave durable support boundary',
+                'classifier': {'evidence': [{'conversation_id': 'local-id'}]},
+            }
+        )
+
+        response = client.get(f'/v1/admin/fair-use/user/{TEST_UID}', headers=ADMIN_HEADERS)
+
+        assert response.status_code == 200
+        event = response.json()['events'][0]
+        assert event['review_id'] == 'review-1'
+        assert event['classifier_score'] == 0.91
+        assert not {'title', 'overview', 'reasoning', 'classifier'} & event.keys()
 
     def test_set_stage(self):
         """POST /v1/admin/fair-use/user/{uid}/set-stage updates stage."""
@@ -180,143 +225,12 @@ class TestAdminEndpoints:
         assert state['restrict_until'] is None
 
 
-class TestUserFacingEndpoint:
-    """Test the user-facing /v1/fair-use/status endpoint."""
+class TestRemovedCustomerEndpoints:
+    def test_signed_in_status_route_is_absent(self):
+        assert client.get('/v1/fair-use/status').status_code == 404
 
-    def test_status_returns_speech_hours(self):
-        """User can see their own fair-use status."""
-        fair_use.record_speech_ms(TEST_UID, 5000)
-
-        # Patch get_current_user_uid to return our test uid
-        app.dependency_overrides[get_current_user_uid] = lambda: TEST_UID
-        resp = client.get('/v1/fair-use/status')
-        app.dependency_overrides.pop(get_current_user_uid, None)
-
-        assert resp.status_code == 200
-        data = resp.json()
-        assert data['stage'] == 'none'
-        assert 'speech_hours_today' in data
-        assert 'message' in data
-        assert 'normal limits' in data['message']
-
-    def test_status_shows_warning_message(self):
-        """Warning stage shows appropriate message."""
-        _state_store[TEST_UID] = {'stage': 'warning'}
-
-        app.dependency_overrides[get_current_user_uid] = lambda: TEST_UID
-        resp = client.get('/v1/fair-use/status')
-        app.dependency_overrides.pop(get_current_user_uid, None)
-
-        assert resp.status_code == 200
-        data = resp.json()
-        assert data['stage'] == 'warning'
-        assert 'personal conversations' in data['message']
-
-    def test_status_includes_managed_stt_budget(self):
-        """Status response includes managed_stt_budget fields."""
-        app.dependency_overrides[get_current_user_uid] = lambda: TEST_UID
-        resp = client.get('/v1/fair-use/status')
-        app.dependency_overrides.pop(get_current_user_uid, None)
-
-        assert resp.status_code == 200
-        data = resp.json()
-        assert 'managed_stt_budget' in data
-        budget = data['managed_stt_budget']
-        assert 'daily_limit_ms' in budget
-        assert 'used_ms' in budget
-        assert 'remaining_ms' in budget
-        assert 'exhausted' in budget
-        assert 'resets_at' in budget
-
-    def test_status_shows_restrict_message(self):
-        """Restrict stage shows support contact info."""
-        _state_store[TEST_UID] = {
-            'stage': 'restrict',
-            'restrict_until': datetime.utcnow() + timedelta(days=1),
-        }
-
-        app.dependency_overrides[get_current_user_uid] = lambda: TEST_UID
-        resp = client.get('/v1/fair-use/status')
-        app.dependency_overrides.pop(get_current_user_uid, None)
-
-        assert resp.status_code == 200
-        data = resp.json()
-        assert data['stage'] == 'restrict'
-        assert 'team@basedhardware.com' in data['message']
-
-    def test_status_naturally_expired_restriction_reports_throttle(self):
-        _state_store[TEST_UID] = {
-            'stage': 'restrict',
-            'restrict_until': datetime.utcnow() - timedelta(seconds=1),
-        }
-
-        app.dependency_overrides[get_current_user_uid] = lambda: TEST_UID
-        resp = client.get('/v1/fair-use/status')
-        app.dependency_overrides.pop(get_current_user_uid, None)
-
-        assert resp.status_code == 200
-        data = resp.json()
-        assert data['stage'] == 'throttle'
-        assert 'temporarily reduced' in data['message']
-        assert _state_store[TEST_UID]['stage'] == 'throttle'
-        assert _state_store[TEST_UID]['restrict_until'] is None
-
-
-class TestPublicCaseStatusEndpoint:
-    """Test the unauthenticated public case status lookup."""
-
-    def test_valid_case_ref_returns_status(self):
-        """Public endpoint returns stage, message, timestamps, support_email."""
-        _state_store[TEST_UID] = {'stage': 'warning'}
-        _events.append(
-            {
-                'uid': TEST_UID,
-                'case_ref': 'FU-AABBCCDDEEFF',
-                'created_at': '2026-03-18 01:00:00',
-            }
-        )
-
-        # Mock the Firestore collection_group query
-        mock_doc = MagicMock()
-        mock_doc.to_dict.return_value = {
-            'case_ref': 'FU-AABBCCDDEEFF',
-            'created_at': '2026-03-18 01:00:00',
-        }
-        mock_doc.reference.path = f'users/{TEST_UID}/fair_use_events/evt-1'
-
-        with patch.object(_fake_db, 'collection_group') as mock_cg:
-            mock_cg.return_value.where.return_value.limit.return_value.stream.return_value = [mock_doc]
-            resp = client.get('/v1/fair-use/case/FU-AABBCCDDEEFF/status')
-
-        assert resp.status_code == 200
-        data = resp.json()
-        assert data['case_ref'] == 'FU-AABBCCDDEEFF'
-        assert data['stage'] == 'warning'
-        assert data['support_email'] == 'team@basedhardware.com'
-        assert 'message' in data
-        assert 'created_at' in data
-        assert 'updated_at' in data
-        # Must NOT contain usage data or user identity
-        assert 'uid' not in data
-        assert 'usage_pct' not in data
-        assert 'speech_hours' not in str(data)
-
-    def test_invalid_case_ref_returns_404(self):
-        """Unknown case ref returns 404."""
-        with patch.object(_fake_db, 'collection_group') as mock_cg:
-            mock_cg.return_value.where.return_value.limit.return_value.stream.return_value = []
-            resp = client.get('/v1/fair-use/case/FU-DOESNOTEXIST/status')
-
-        assert resp.status_code == 404
-
-    def test_no_auth_required(self):
-        """Public endpoint works without any auth headers."""
-        with patch.object(_fake_db, 'collection_group') as mock_cg:
-            mock_cg.return_value.where.return_value.limit.return_value.stream.return_value = []
-            resp = client.get('/v1/fair-use/case/FU-ANYTHING/status')
-
-        # Should get 404 (not found), NOT 401/403/422 (auth error)
-        assert resp.status_code == 404
+    def test_public_case_status_route_is_absent(self):
+        assert client.get('/v1/fair-use/case/FU-AABBCCDDEEFF/status').status_code == 404
 
 
 class TestCaseRefFormat:
@@ -333,6 +247,7 @@ class TestCaseRefFormat:
         # Create a minimal database package with _client stub
         _client_stub = types.ModuleType('database._client')
         _client_stub.db = MagicMock()
+        _client_stub.get_firestore_client = MagicMock(return_value=_client_stub.db)
         saved = sys.modules.get('database._client')
         sys.modules['database._client'] = _client_stub
 
@@ -375,28 +290,6 @@ class TestCaseRefFormat:
         assert len(refs) == 100
 
 
-class TestPublicEndpointRateLimit:
-    """Test rate limiting on the public case status endpoint."""
-
-    def test_burst_over_limit_returns_429(self):
-        """Burst of requests beyond limit (10/min) should return 429."""
-        # Clear rate limit cache
-        from utils.other import endpoints as ep_mod
-
-        ep_mod.cached.clear()
-
-        with patch.object(_fake_db, 'collection_group') as mock_cg:
-            mock_cg.return_value.where.return_value.limit.return_value.stream.return_value = []
-            # First 10 should succeed (404 = not found, but not rate-limited)
-            for i in range(10):
-                resp = client.get(f'/v1/fair-use/case/FU-BURST{i:04d}/status')
-                assert resp.status_code == 404, f'Request {i+1} should be 404, got {resp.status_code}'
-
-            # 11th should be rate-limited
-            resp = client.get('/v1/fair-use/case/FU-BURST9999/status')
-            assert resp.status_code == 429
-
-
 class TestListenPathFairUseImports:
     """Structural test: extracted listen fair-use imports match expected design.
 
@@ -425,7 +318,8 @@ class TestListenPathFairUseImports:
         # Tracking functions
         assert 'record_speech_ms' in source
         assert 'check_soft_caps' in source
-        assert 'trigger_classifier_if_needed' in source
+        assert 'trigger_free_exhaustion_if_needed' in source
+        assert 'create_pending_fair_use_review' in source
         # managed STT budget gate (restrict-only)
         assert 'get_enforcement_stage' in source
         assert 'is_managed_stt_budget_exhausted' in source
@@ -465,13 +359,16 @@ class TestListenPathFairUseImports:
         accum_calls = re.findall(
             r'^\s+self\.host\.state\.managed_stt_usage_ms_pending\s*\+=', receiver_source, re.MULTILINE
         )
-        assert (
-            len(accum_calls) >= 2
-        ), f'Expected >=2 managed_stt_usage_ms_pending accumulation points, found {len(accum_calls)}'
+        assert len(accum_calls) >= 1, (
+            'The retained fixed managed-STT receiver must meter its provider-funded audio; '
+            f'found {len(accum_calls)} accumulation points'
+        )
 
         # Periodic and final writes share one flush implementation.
-        assert (
-            'record_managed_stt_usage_ms, self.request.uid, self.state.managed_stt_usage_ms_pending' in runtime_source
+        assert re.search(
+            r'self\.persistence\.call\(\s*record_managed_stt_usage_ms,\s*self\.request\.uid,\s*'
+            r'self\.state\.managed_stt_usage_ms_pending,',
+            runtime_source,
         )
         assert '_flush_usage(final=False)' in runtime_source
         assert '_flush_usage(final=True)' in runtime_source

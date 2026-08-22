@@ -1,0 +1,3 @@
+{
+  "change": "Made fair-use reviews use bounded local conversation evidence and added a truthful on-device fallback when managed transcription pauses"
+}

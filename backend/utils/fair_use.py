@@ -20,18 +20,12 @@ from models.fair_use import SoftCapTrigger
 from models.users import PlanType
 from utils.subscription import has_transcription_credits, is_paid_plan
 from utils.executors import db_executor, postprocess_executor, run_blocking
-from utils.llm.fair_use_classifier import classify_user_purpose
 from utils.notifications import send_notification
 
 # Patchable lazy-held callables keep tests at a production seam without using
 # in-function imports. Both imported modules are import-pure and construct their
 # provider clients only when the callable is invoked.
-_classify_user_purpose: Callable[..., Any] = classify_user_purpose
 _send_notification: Callable[..., Any] = send_notification
-
-
-def _get_classify_user_purpose() -> Callable[..., Any]:
-    return _classify_user_purpose
 
 
 def _get_send_notification() -> Callable[..., Any]:
@@ -323,12 +317,15 @@ def check_soft_caps(
 
 
 def get_enforcement_stage(uid: str) -> str:
-    """Get current enforcement stage from Firestore (cached in Redis for hot path)."""
+    """Get the normalized enforcement stage, caching only an authoritative result."""
     cache_key = f'fair_use:stage:{uid}'
+    cached_stage: str | None = None
     try:
         cached = redis_client.get(cache_key)
         if cached:
-            return cached.decode() if isinstance(cached, bytes) else cached
+            cached_stage = cached.decode() if isinstance(cached, bytes) else str(cached)
+            if cached_stage not in {'throttle', 'restrict'}:
+                return cached_stage
     except Exception:
         pass
 
@@ -369,13 +366,16 @@ def is_free_credits_exhausted(uid: str) -> bool:
 
 
 def escalate_enforcement(
-    uid: str, triggered_caps: List[Dict[str, Any]], classifier_result: Optional[Dict[str, Any]] = None
+    uid: str,
+    triggered_caps: List[Dict[str, Any]],
+    classifier_result: Optional[Dict[str, Any]] = None,
+    *,
+    session_id: str = '',
 ) -> Dict[str, Any]:
-    """Escalate enforcement based on violations and classifier result.
+    """Apply the retained synthetic Free-exhaustion result.
 
-    Used for both abuse detection (LLM classifier) and free-exhausted users (#6083).
-    Free-exhausted users get a synthetic score > 0.7 instead of LLM classification,
-    so they follow the same graduated escalation: none → warning → throttle → restrict.
+    Semantic GPT-5.1 results use the transactional review acceptance path. Free-exhausted
+    users still use this pre-Mac synthetic score and the same three-positive progression.
 
     Returns dict describing the action taken.
     """
@@ -390,6 +390,8 @@ def escalate_enforcement(
         usage_type = classifier_result.get('usage_type', 'none')
 
     passes_score_gate = misuse_score >= FAIR_USE_CLASSIFIER_MISUSE_THRESHOLD
+    current_positive_count_7d = counts['violation_count_7d'] + (1 if passes_score_gate else 0)
+    current_positive_count_30d = counts['violation_count_30d'] + (1 if passes_score_gate else 0)
 
     # Determine new stage based on current + violation history
     new_stage = current_stage
@@ -400,11 +402,13 @@ def escalate_enforcement(
             new_stage = 'warning'
             action = 'warning'
     elif current_stage == 'warning':
-        if counts['violation_count_7d'] >= 2 and passes_score_gate:
+        if current_positive_count_7d >= 2 and passes_score_gate:
             new_stage = 'throttle'
             action = 'throttle'
     elif current_stage == 'throttle':
-        if counts['violation_count_7d'] >= 3 and passes_score_gate:
+        # Throttle is the final warning. The next positive re-restricts even
+        # after the previous restriction expired and old positives aged out.
+        if passes_score_gate:
             new_stage = 'restrict'
             action = 'restrict'
 
@@ -415,8 +419,8 @@ def escalate_enforcement(
             'last_violation_at': datetime.now(timezone.utc),
             'last_classifier_score': misuse_score,
             'last_classifier_type': usage_type,
-            'violation_count_7d': counts['violation_count_7d'],
-            'violation_count_30d': counts['violation_count_30d'],
+            'violation_count_7d': current_positive_count_7d,
+            'violation_count_30d': current_positive_count_30d,
         }
 
         if new_stage == 'throttle':
@@ -430,15 +434,19 @@ def escalate_enforcement(
     # Record the event (create_fair_use_event auto-generates a case_ref)
     speech = get_rolling_speech_ms(uid)
     event_data: Dict[str, Any] = {
-        'session_id': '',
+        'session_id': session_id,
         'trigger': triggered_caps[0]['trigger'].value if triggered_caps else 'daily',
         'window_speech_ms': speech,
         'thresholds_ms': {
-            'daily': FAIR_USE_DAILY_SPEECH_MS,
-            'three_day': FAIR_USE_3DAY_SPEECH_MS,
-            'weekly': FAIR_USE_WEEKLY_SPEECH_MS,
+            'daily_ms': FAIR_USE_DAILY_SPEECH_MS,
+            'three_day_ms': FAIR_USE_3DAY_SPEECH_MS,
+            'weekly_ms': FAIR_USE_WEEKLY_SPEECH_MS,
         },
-        'classifier': classifier_result,
+        'classifier_score': misuse_score,
+        'classifier_type': usage_type,
+        'classifier_confidence': float((classifier_result or {}).get('confidence') or 0.0),
+        'classifier_model': str((classifier_result or {}).get('model') or 'synthetic/free-exhausted'),
+        'classifier_prompt_version': str((classifier_result or {}).get('prompt_version') or 'synthetic-v1'),
         'enforcement_action': action,
         'previous_stage': current_stage,
         'new_stage': new_stage,
@@ -517,29 +525,6 @@ def _retry_after_seconds_from_restrict_until(restrict_until: Any) -> int | None:
     return max(seconds, 1) if seconds > 0 else None
 
 
-def normalize_expired_restriction_state(
-    uid: str, state: Dict[str, Any], *, now: datetime | None = None
-) -> Dict[str, Any]:
-    """Return effective state, persisting the existing restrict→throttle expiry transition."""
-    normalized_state = dict(state)
-    if normalized_state.get('stage', 'none') != 'restrict':
-        return normalized_state
-
-    restrict_until_raw = normalized_state.get('restrict_until')
-    if not isinstance(restrict_until_raw, datetime):
-        return normalized_state
-
-    restrict_until = _as_utc(restrict_until_raw)
-    effective_now = _as_utc(now) if now is not None else datetime.now(timezone.utc)
-    if effective_now <= restrict_until:
-        return normalized_state
-
-    fair_use_db.update_fair_use_state(uid, {'stage': 'throttle', 'restrict_until': None})
-    invalidate_enforcement_cache(uid)
-    normalized_state.update({'stage': 'throttle', 'restrict_until': None})
-    return normalized_state
-
-
 def get_hard_restriction_status(uid: str) -> tuple[bool, int | None]:
     """Return whether the user is hard-restricted and, when known, the retry window in seconds."""
     if not FAIR_USE_ENABLED or FAIR_USE_KILL_SWITCH:
@@ -549,7 +534,7 @@ def get_hard_restriction_status(uid: str) -> tuple[bool, int | None]:
 
     # Single Firestore read — get_enforcement_stage uses cache, but we need
     # restrict_until too, so read the full state once and check stage from it.
-    state = normalize_expired_restriction_state(uid, fair_use_db.get_fair_use_state(uid))
+    state = fair_use_db.get_fair_use_state(uid)
     stage = state.get('stage', 'none')
     if stage != 'restrict':
         return False, None
@@ -655,21 +640,18 @@ def get_managed_stt_budget_status(uid: str) -> Dict[str, Any]:
     if not FAIR_USE_ENABLED or limit <= 0:
         return result
 
+    now = datetime.now(timezone.utc)
+    tomorrow = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+    result['resets_at'] = tomorrow.isoformat().replace('+00:00', 'Z')
+
     try:
         key = _managed_stt_budget_key(uid)
         used = redis_client.get(key)
         used_ms = int(used) if used else 0
         remaining = max(0, limit - used_ms)
-        # Next midnight UTC
-        now = datetime.now(timezone.utc)
-        tomorrow = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
         result['used_ms'] = used_ms
         result['remaining_ms'] = remaining
         result['exhausted'] = remaining <= 0
-        # tomorrow is tz-aware, so isoformat() already yields a "+00:00" offset; append the
-        # Zulu suffix by replacing that offset rather than concatenating (which would emit an
-        # invalid "…+00:00Z" that datetime.fromisoformat rejects). Matches models/integrations._serialize_datetime.
-        result['resets_at'] = tomorrow.isoformat().replace('+00:00', 'Z')
     except Exception as e:
         logger.error(f'fair_use: Redis error reading managed STT budget for {uid}: {e}')
 
@@ -698,14 +680,16 @@ def is_managed_stt_budget_exhausted(uid: str) -> bool:
 # ---------------------------------------------------------------------------
 
 
-async def trigger_classifier_if_needed(uid: str, triggered_caps: List[Dict[str, Any]], session_id: str = '') -> None:
-    """Check if we should run the LLM classifier and handle enforcement.
+async def trigger_free_exhaustion_if_needed(
+    uid: str, triggered_caps: List[Dict[str, Any]], session_id: str = ''
+) -> None:
+    """Apply the retained synthetic Free-exhaustion fair-use result.
 
     Uses a Redis lock to prevent concurrent runs for the same user.
     Runs asynchronously — does not block the WebSocket path.
 
-    Free-exhausted users (#6083) get a synthetic score of 1.0 instead of
-    the LLM classifier, then follow the same graduated escalation pipeline.
+    Semantic GPT-5.1 classification now enters only through the authenticated,
+    owner-bound local-evidence review endpoint.
     """
     # Already at terminal stage — no escalation possible, skip LLM + lock (#6316)
     try:
@@ -736,13 +720,14 @@ async def trigger_classifier_if_needed(uid: str, triggered_caps: List[Dict[str, 
         return
 
     try:
-        # Free-exhausted users: synthetic score > 0.7, skip LLM classifier (#6083)
-        if await run_blocking(db_executor, is_free_credits_exhausted, uid):
-            classifier_result = {'misuse_score': 1.0, 'usage_type': 'free_exhausted'}
-            logger.info(f'fair_use: free-exhausted uid={uid}, using synthetic score 1.0')
-        else:
-            classifier_result = await _get_classify_user_purpose()(uid)
-        escalation = await run_blocking(db_executor, escalate_enforcement, uid, triggered_caps, classifier_result)
+        if not await run_blocking(db_executor, is_free_credits_exhausted, uid):
+            await run_blocking(db_executor, _release_lock, lock_key, lock_token)
+            return
+        classifier_result = {'misuse_score': 1.0, 'usage_type': 'free_exhausted'}
+        logger.info(f'fair_use: free-exhausted uid={uid}, using synthetic score 1.0')
+        escalation = await run_blocking(
+            db_executor, escalate_enforcement, uid, triggered_caps, classifier_result, session_id=session_id
+        )
 
         logger.info(
             'fair_use: uid=%s action=%s score=%.2f type=%s stage=%s->%s',
@@ -759,7 +744,7 @@ async def trigger_classifier_if_needed(uid: str, triggered_caps: List[Dict[str, 
             # Offloaded: the Firestore read is sync and blocks the event loop in this async path.
             latest_events = await run_blocking(db_executor, fair_use_db.get_fair_use_events, uid, limit=1)
             case_ref = latest_events[0].get('case_ref', '') if latest_events else ''
-            await _send_fair_use_notification(uid, escalation['action'], case_ref=case_ref)
+            await send_fair_use_notification(uid, escalation['action'], case_ref=case_ref)
 
     except Exception as e:
         logger.error(f'fair_use: classifier/escalation error for {uid}: {e}')
@@ -769,11 +754,11 @@ async def trigger_classifier_if_needed(uid: str, triggered_caps: List[Dict[str, 
             pass
 
 
-async def _send_fair_use_notification(uid: str, action: str, case_ref: str = '') -> None:
-    """Send in-app push notification about fair-use enforcement."""
+async def send_fair_use_notification(uid: str, action: str, case_ref: str = '') -> bool:
+    """Return whether delivery succeeded or no registered device required it."""
     titles = {
         'warning': 'Fair Use Notice',
-        'throttle': 'Transcription Quality Reduced',
+        'throttle': 'Final Fair Use Warning',
         'restrict': 'Transcription Limit Reached',
     }
 
@@ -781,18 +766,23 @@ async def _send_fair_use_notification(uid: str, action: str, case_ref: str = '')
 
     bodies = {
         'warning': (
-            'Your speech usage is unusually high. Omi is designed for personal conversations. '
-            'If this continues, transcription quality may be reduced. '
-            f'Check Settings > Plan & Usage for details.{ref_suffix}'
+            'Your speech usage is unusually high. This service is designed for personal conversations. '
+            'If this continues, you may receive a final fair-use warning. '
+            'Contact support@heyintentive.com if you believe this is an error. '
+            f'Quote your case reference when contacting support.{ref_suffix}'
         ),
         'throttle': (
-            'Due to high non-conversational usage, your transcription quality has been temporarily reduced. '
-            'This will reset automatically. Contact team@basedhardware.com if you believe this is an error. '
+            'Due to high non-conversational usage, this is your final fair-use warning. '
+            'Transcription quality and access have not changed. '
+            'This warning resets after seven days without another qualifying violation. '
+            'Contact support@heyintentive.com if you believe this is an error. '
             f'Quote your case reference when contacting support.{ref_suffix}'
         ),
         'restrict': (
-            'Your cloud transcription has been temporarily limited due to repeated fair-use violations. '
-            'On-device transcription continues normally. Contact team@basedhardware.com to resolve. '
+            'Your managed cloud transcription is temporarily limited for 30 days due to repeated fair-use violations. '
+            'Up to 30 minutes of managed cloud transcription remains available each UTC day. '
+            'On-device transcription continues only when it is available on this Mac. '
+            'Contact support@heyintentive.com to discuss your usage. '
             f'Quote your case reference when contacting support.{ref_suffix}'
         ),
     }
@@ -803,4 +793,6 @@ async def _send_fair_use_notification(uid: str, action: str, case_ref: str = '')
         data = {'type': 'fair_use', 'action': action}
         if case_ref:
             data['case_ref'] = case_ref
-        await run_blocking(postprocess_executor, _get_send_notification(), uid, title, body, data=data)
+        delivered = await run_blocking(postprocess_executor, _get_send_notification(), uid, title, body, data=data)
+        return delivered is None or (isinstance(delivered, int) and delivered > 0)
+    return True

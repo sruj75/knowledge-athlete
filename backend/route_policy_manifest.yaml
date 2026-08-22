@@ -590,3 +590,25 @@ routes:
     method: POST
     path: /v1/conversation-compute/structure
     policy: *conversation_compute_policy
+  - route_type: http
+    method: POST
+    path: /v1/fair-use/reviews/{review_id}/classify
+    policy:
+      review_status: reviewed
+      auth:
+        mechanisms:
+          - firebase_id_token
+        placement: dependency
+        scopes: []
+      rate_limit:
+        policy_name: fair_use_review_cooldown
+        key_subject: uid
+        enforcement: fail_closed
+        placement: inline
+      timeout_class: default_method
+      surface: first_party_app
+      visibility: first_party
+      data_domain: metrics
+      deprecation:
+        state: active
+      owner: backend

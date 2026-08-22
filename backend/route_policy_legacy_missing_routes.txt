@@ -26,8 +26,6 @@ backend-main:http:GET:/v1/auth/callback/google
 backend-main:http:GET:/v1/auto/model-pick
 backend-main:http:GET:/v1/calendar/meetings
 backend-main:http:GET:/v1/calendar/meetings/{meeting_id}
-backend-main:http:GET:/v1/fair-use/case/{case_ref}/status
-backend-main:http:GET:/v1/fair-use/status
 backend-main:http:GET:/v1/health
 backend-main:http:GET:/v1/phone/numbers
 backend-main:http:GET:/v1/trends

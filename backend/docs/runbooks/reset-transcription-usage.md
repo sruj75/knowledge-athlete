@@ -67,7 +67,13 @@ python -m scripts.admin.reset_transcription_usage reset-month --uid <UID> \
   legacy `chat.*.call_count`); zeroing it safely needs integration testing
   against all those shapes, out of scope for this ops tool. Track separately.
 - **Fair-use reset** already exists at `POST /v1/admin/fair-use/user/{uid}/reset`
-  (`backend/routers/fair_use_admin.py`) — use that for speech-hour state.
+  (`backend/routers/fair_use_admin.py`) — use that for speech-hour state. Fair-use
+  support has exactly six `X-Admin-Key` operations under `/v1/admin/fair-use`:
+  flagged users, user detail, event resolution, reset, raw set-stage, and case
+  lookup. A raw manual `throttle` or `restrict` has no timer and remains until
+  support changes or resets it; setting `none` clears both timers. Customer
+  status and public case-status endpoints do not exist; use the protected case
+  lookup and `support@heyintentive.com` workflow.
 - **Automatic goodwill credits / billing policy** — product decision, out of scope.
 - **Prod runs** are operator-initiated; this repo's CI only unit-tests the pure
   logic. Never run `--apply` in CI / automated pipelines against real users

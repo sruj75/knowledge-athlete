@@ -38,6 +38,7 @@ final class ConversationStructureEnrichmentTests: XCTestCase {
           title: "Local Conversation",
           overview: "Stored only in GRDB",
           emoji: "✅",
+          category: "business",
           commitments: [
             ConversationCommitmentComputeCandidate(
               title: "Review", description: "Review result", start: Date(), durationMinutes: 30, created: false)
@@ -92,6 +93,7 @@ final class ConversationStructureEnrichmentTests: XCTestCase {
             title: "This title has more than ten words and must never be committed locally",
             overview: "Untrusted candidate",
             emoji: "✅✅",
+            category: "other",
             commitments: [
               ConversationCommitmentComputeCandidate(
                 title: "Calendar side effect", description: "", start: Date(),

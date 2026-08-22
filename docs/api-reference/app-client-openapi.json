@@ -209,6 +209,45 @@
         "title": "Body_upload_profile_v3_upload_audio_post",
         "type": "object"
       },
+      "CategoryEnum": {
+        "enum": [
+          "personal",
+          "education",
+          "health",
+          "finance",
+          "legal",
+          "philosophy",
+          "spiritual",
+          "science",
+          "entrepreneurship",
+          "parenting",
+          "romantic",
+          "travel",
+          "inspiration",
+          "technology",
+          "business",
+          "social",
+          "work",
+          "sports",
+          "politics",
+          "literature",
+          "history",
+          "architecture",
+          "music",
+          "weather",
+          "news",
+          "entertainment",
+          "psychology",
+          "real",
+          "design",
+          "family",
+          "economics",
+          "environment",
+          "other"
+        ],
+        "title": "CategoryEnum",
+        "type": "string"
+      },
       "ChatQuotaUnit": {
         "enum": [
           "questions",
@@ -580,6 +619,9 @@
       "ConversationStructureResponse": {
         "additionalProperties": false,
         "properties": {
+          "category": {
+            "$ref": "#/components/schemas/CategoryEnum"
+          },
           "commitments": {
             "items": {
               "$ref": "#/components/schemas/ConversationCommitmentCandidate"
@@ -614,6 +656,7 @@
           "title",
           "overview",
           "emoji",
+          "category",
           "commitments"
         ],
         "title": "ConversationStructureResponse",
@@ -816,140 +859,126 @@
         "title": "ErrorResponse",
         "type": "object"
       },
-      "FairUseDailyGenerationsBudgetResponse": {
+      "FairUseClassificationRequest": {
+        "additionalProperties": false,
         "properties": {
-          "daily_limit_ms": {
-            "title": "Daily Limit Ms",
-            "type": "integer"
-          },
-          "exhausted": {
-            "title": "Exhausted",
+          "conversations": {
+            "items": {
+              "$ref": "#/components/schemas/FairUseConversationEvidence"
+            },
+            "maxItems": 30,
+            "title": "Conversations",
+            "type": "array"
+          }
+        },
+        "required": [
+          "conversations"
+        ],
+        "title": "FairUseClassificationRequest",
+        "type": "object"
+      },
+      "FairUseClassificationResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "accepted": {
+            "title": "Accepted",
             "type": "boolean"
           },
-          "remaining_ms": {
-            "title": "Remaining Ms",
-            "type": "integer"
+          "action": {
+            "title": "Action",
+            "type": "string"
           },
-          "resets_at": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Resets At"
-          },
-          "used_ms": {
-            "title": "Used Ms",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "daily_limit_ms",
-          "used_ms",
-          "remaining_ms",
-          "exhausted"
-        ],
-        "title": "FairUseDailyGenerationsBudgetResponse",
-        "type": "object"
-      },
-      "FairUseLimitsResponse": {
-        "properties": {
-          "daily_hours": {
-            "title": "Daily Hours",
-            "type": "number"
-          },
-          "three_day_hours": {
-            "title": "Three Day Hours",
-            "type": "number"
-          },
-          "weekly_hours": {
-            "title": "Weekly Hours",
-            "type": "number"
-          }
-        },
-        "required": [
-          "daily_hours",
-          "three_day_hours",
-          "weekly_hours"
-        ],
-        "title": "FairUseLimitsResponse",
-        "type": "object"
-      },
-      "FairUseStatusResponse": {
-        "properties": {
           "case_ref": {
+            "default": "",
             "title": "Case Ref",
             "type": "string"
           },
-          "limits": {
-            "$ref": "#/components/schemas/FairUseLimitsResponse"
+          "idempotent": {
+            "title": "Idempotent",
+            "type": "boolean"
           },
-          "managed_stt_budget": {
-            "$ref": "#/components/schemas/FairUseDailyGenerationsBudgetResponse"
-          },
-          "message": {
-            "title": "Message",
+          "review_id": {
+            "title": "Review Id",
             "type": "string"
-          },
-          "speech_hours_3day": {
-            "title": "Speech Hours 3Day",
-            "type": "number"
-          },
-          "speech_hours_today": {
-            "title": "Speech Hours Today",
-            "type": "number"
-          },
-          "speech_hours_weekly": {
-            "title": "Speech Hours Weekly",
-            "type": "number"
           },
           "stage": {
-            "title": "Stage",
-            "type": "string"
-          },
-          "usage_pct": {
-            "$ref": "#/components/schemas/FairUseUsagePctResponse"
+            "$ref": "#/components/schemas/FairUseStage"
           }
         },
         "required": [
-          "stage",
-          "case_ref",
-          "speech_hours_today",
-          "speech_hours_3day",
-          "speech_hours_weekly",
-          "limits",
-          "usage_pct",
-          "managed_stt_budget",
-          "message"
+          "review_id",
+          "accepted",
+          "idempotent",
+          "action",
+          "stage"
         ],
-        "title": "FairUseStatusResponse",
+        "title": "FairUseClassificationResponse",
         "type": "object"
       },
-      "FairUseUsagePctResponse": {
+      "FairUseConversationEvidence": {
+        "additionalProperties": false,
+        "description": "The complete, bounded transient evidence shape accepted from an owner Mac.",
         "properties": {
-          "daily": {
-            "title": "Daily",
+          "category": {
+            "default": "",
+            "maxLength": 64,
+            "title": "Category",
+            "type": "string"
+          },
+          "conversation_id": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Conversation Id",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "duration_minutes": {
+            "maximum": 10080.0,
+            "minimum": 0.0,
+            "title": "Duration Minutes",
             "type": "number"
           },
-          "three_day": {
-            "title": "Three Day",
-            "type": "number"
+          "overview": {
+            "default": "",
+            "maxLength": 200,
+            "title": "Overview",
+            "type": "string"
           },
-          "weekly": {
-            "title": "Weekly",
-            "type": "number"
+          "source": {
+            "default": "",
+            "maxLength": 64,
+            "title": "Source",
+            "type": "string"
+          },
+          "title": {
+            "default": "",
+            "maxLength": 512,
+            "title": "Title",
+            "type": "string"
           }
         },
         "required": [
-          "daily",
-          "three_day",
-          "weekly"
+          "conversation_id",
+          "duration_minutes",
+          "created_at"
         ],
-        "title": "FairUseUsagePctResponse",
+        "title": "FairUseConversationEvidence",
         "type": "object"
+      },
+      "FairUseStage": {
+        "description": "Graduated enforcement stages.",
+        "enum": [
+          "none",
+          "warning",
+          "throttle",
+          "restrict"
+        ],
+        "title": "FairUseStage",
+        "type": "string"
       },
       "FcmTokenResponse": {
         "properties": {
@@ -2131,58 +2160,6 @@
           "interval"
         ],
         "title": "PricingOption",
-        "type": "object"
-      },
-      "PublicFairUseCaseStatusResponse": {
-        "properties": {
-          "case_ref": {
-            "title": "Case Ref",
-            "type": "string"
-          },
-          "created_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Created At"
-          },
-          "message": {
-            "title": "Message",
-            "type": "string"
-          },
-          "stage": {
-            "title": "Stage",
-            "type": "string"
-          },
-          "support_email": {
-            "title": "Support Email",
-            "type": "string"
-          },
-          "updated_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Updated At"
-          }
-        },
-        "required": [
-          "case_ref",
-          "stage",
-          "message",
-          "support_email"
-        ],
-        "title": "PublicFairUseCaseStatusResponse",
         "type": "object"
       },
       "RelatedTaskCandidate": {
@@ -4464,65 +4441,19 @@
         "summary": "Compute Structure"
       }
     },
-    "/v1/fair-use/case/{case_ref}/status": {
-      "get": {
-        "description": "Public unauthenticated endpoint: look up case status by reference.\n\nReturns only non-sensitive info: stage, message, timestamps, support email.\nNo usage data or user identity exposed.",
-        "operationId": "get_public_case_status_v1_fair_use_case__case_ref__status_get",
+    "/v1/fair-use/reviews/{review_id}/classify": {
+      "post": {
+        "operationId": "classify_review_v1_fair_use_reviews__review_id__classify_post",
         "parameters": [
           {
             "in": "path",
-            "name": "case_ref",
+            "name": "review_id",
             "required": true,
             "schema": {
-              "title": "Case Ref",
+              "title": "Review Id",
               "type": "string"
             }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PublicFairUseCaseStatusResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
           },
-          "401": {
-            "$ref": "#/components/responses/Error401"
-          },
-          "404": {
-            "$ref": "#/components/responses/Error404"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "firebaseBearer": []
-          }
-        ],
-        "summary": "Get Public Case Status",
-        "tags": [
-          "fair_use"
-        ]
-      }
-    },
-    "/v1/fair-use/status": {
-      "get": {
-        "description": "User-facing endpoint: see your own fair-use status and speech usage.",
-        "operationId": "get_my_fair_use_status_v1_fair_use_status_get",
-        "parameters": [
           {
             "in": "header",
             "name": "authorization",
@@ -4560,12 +4491,22 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FairUseClassificationRequest"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/FairUseStatusResponse"
+                  "$ref": "#/components/schemas/FairUseClassificationResponse"
                 }
               }
             },
@@ -4590,7 +4531,7 @@
             "firebaseBearer": []
           }
         ],
-        "summary": "Get My Fair Use Status",
+        "summary": "Classify Review",
         "tags": [
           "fair_use"
         ]
