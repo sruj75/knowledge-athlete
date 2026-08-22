@@ -191,6 +191,79 @@ extension RewindDatabase {
           ])
       }
     }
+
+    migrator.registerMigration("createConversationLocalSearchIndex") { db in
+      try db.execute(
+        sql: """
+          CREATE VIRTUAL TABLE IF NOT EXISTS conversation_search_fts USING fts5(
+            conversationId UNINDEXED,
+            title,
+            overview,
+            tokenize = 'unicode61 remove_diacritics 2'
+          )
+          """)
+      try db.create(table: "conversation_embeddings", ifNotExists: true) { table in
+        table.column("conversationId", .text).primaryKey()
+          .references("transcription_sessions", column: "conversationId", onDelete: .cascade)
+        table.column("contentGeneration", .integer).notNull()
+        table.column("contentHash", .text).notNull()
+        table.column("vectorJson", .text).notNull()
+        table.column("model", .text).notNull()
+        table.column("updatedAt", .datetime).notNull()
+      }
+
+      try db.execute(sql: "DROP TRIGGER IF EXISTS conversation_search_after_insert")
+      try db.execute(sql: "DROP TRIGGER IF EXISTS conversation_search_after_update")
+      try db.execute(sql: "DROP TRIGGER IF EXISTS conversation_search_after_delete")
+      try db.execute(sql: "DROP TRIGGER IF EXISTS conversation_embedding_after_content_update")
+      try db.execute(
+        sql: """
+          CREATE TRIGGER conversation_search_after_insert AFTER INSERT ON transcription_sessions
+          WHEN NEW.status NOT IN ('recording', 'merging')
+            AND TRIM(COALESCE(NEW.title, '') || ' ' || COALESCE(NEW.overview, '')) != ''
+          BEGIN
+            INSERT INTO conversation_search_fts(rowid, conversationId, title, overview)
+            VALUES (NEW.id, NEW.conversationId, COALESCE(NEW.title, ''), COALESCE(NEW.overview, ''));
+          END
+          """)
+      try db.execute(
+        sql: """
+          CREATE TRIGGER conversation_search_after_update
+          AFTER UPDATE OF title, overview, status ON transcription_sessions
+          BEGIN
+            DELETE FROM conversation_search_fts WHERE rowid = OLD.id;
+            INSERT INTO conversation_search_fts(rowid, conversationId, title, overview)
+            SELECT NEW.id, NEW.conversationId, COALESCE(NEW.title, ''), COALESCE(NEW.overview, '')
+            WHERE NEW.status NOT IN ('recording', 'merging')
+              AND TRIM(COALESCE(NEW.title, '') || ' ' || COALESCE(NEW.overview, '')) != '';
+          END
+          """)
+      try db.execute(
+        sql: """
+          CREATE TRIGGER conversation_search_after_delete AFTER DELETE ON transcription_sessions
+          BEGIN
+            DELETE FROM conversation_search_fts WHERE rowid = OLD.id;
+          END
+          """)
+      try db.execute(
+        sql: """
+          CREATE TRIGGER conversation_embedding_after_content_update
+          AFTER UPDATE OF title, overview ON transcription_sessions
+          WHEN OLD.title IS NOT NEW.title OR OLD.overview IS NOT NEW.overview
+          BEGIN
+            DELETE FROM conversation_embeddings WHERE conversationId = OLD.conversationId;
+          END
+          """)
+      try db.execute(sql: "DELETE FROM conversation_search_fts")
+      try db.execute(
+        sql: """
+          INSERT INTO conversation_search_fts(rowid, conversationId, title, overview)
+          SELECT id, conversationId, COALESCE(title, ''), COALESCE(overview, '')
+          FROM transcription_sessions
+          WHERE status NOT IN ('recording', 'merging')
+            AND TRIM(COALESCE(title, '') || ' ' || COALESCE(overview, '')) != ''
+          """)
+    }
   }
 
   private struct MigratedCommitment: Codable {

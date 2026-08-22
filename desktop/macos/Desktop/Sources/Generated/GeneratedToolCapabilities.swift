@@ -314,7 +314,7 @@ enum GeneratedToolCapabilities {
     Capability(
       toolName: "get_conversations",
       title: "Get Conversations",
-      latency: .fastNetwork,
+      latency: .fastLocal,
       surfaces: Set([.desktopChat, .realtimeHub]),
       summary: "Retrieve conversations by recency or date range.",
       bullets: [
@@ -325,7 +325,7 @@ enum GeneratedToolCapabilities {
     Capability(
       toolName: "search_conversations",
       title: "Search Conversations",
-      latency: .fastNetwork,
+      latency: .fastLocal,
       surfaces: Set([.desktopChat, .realtimeHub]),
       summary: "Semantic search across the user's past conversations.",
       bullets: [
@@ -335,7 +335,7 @@ enum GeneratedToolCapabilities {
     Capability(
       toolName: "get_memories",
       title: "Get Memories",
-      latency: .fastNetwork,
+      latency: .fastLocal,
       surfaces: Set([.desktopChat, .realtimeHub]),
       summary: "Retrieve stored facts, preferences, habits, people, and background about the user.",
       bullets: [
@@ -345,7 +345,7 @@ enum GeneratedToolCapabilities {
     Capability(
       toolName: "search_memories",
       title: "Search Memories",
-      latency: .fastNetwork,
+      latency: .fastLocal,
       surfaces: Set([.desktopChat, .realtimeHub]),
       summary: "Semantic search across user memories.",
       bullets: [
@@ -441,16 +441,6 @@ enum GeneratedToolCapabilities {
     ]
     ),
     Capability(
-      toolName: "ask_higher_model",
-      title: "Ask Higher Model",
-      latency: .fastNetwork,
-      surfaces: Set([.realtimeHub]),
-      summary: "Get a second opinion from the larger model when the user pushes back or current facts are needed.",
-      bullets: [
-      "Use sparingly; answer simple or creative requests yourself."
-    ]
-    ),
-    Capability(
       toolName: "screenshot",
       title: "Screenshot",
       latency: .fastLocal,
@@ -469,16 +459,6 @@ enum GeneratedToolCapabilities {
       bullets: [
       "Only call after screenshot returns the current image.",
       "Submit a concise visual observation, then answer the user's original request naturally."
-    ]
-    ),
-    Capability(
-      toolName: "point_click",
-      title: "Point Click",
-      latency: .fastLocal,
-      surfaces: Set([.realtimeHub]),
-      summary: "Click at on-screen pixel coordinates.",
-      bullets: [
-      "Use only when the user clearly asks you to click something."
     ]
     ),
     Capability(
@@ -507,6 +487,6 @@ enum GeneratedToolCapabilities {
   }
 
   static var realtimeToolNames: [String] {
-    ["ask_higher_model","cancel_agent_run","check_permission_status","create_action_item","get_action_items","get_agent_run","get_conversations","get_daily_recap","get_memories","get_tasks","inspect_agent_artifacts","list_agent_sessions","point_click","report_screen_observation","request_permission","screenshot","search_conversations","search_memories","search_screen_history","set_desktop_attention_override","spawn_agent","update_action_item","update_agent_artifact_lifecycle"]
+    ["cancel_agent_run","check_permission_status","create_action_item","get_action_items","get_agent_run","get_conversations","get_daily_recap","get_memories","get_tasks","inspect_agent_artifacts","list_agent_sessions","report_screen_observation","request_permission","screenshot","search_conversations","search_memories","search_screen_history","set_desktop_attention_override","spawn_agent","update_action_item","update_agent_artifact_lifecycle"]
   }
 }

@@ -18,10 +18,8 @@ enum GeneratedSwiftTool: String, CaseIterable {
   case checkPermissionStatus = "check_permission_status"
   case requestPermission = "request_permission"
   case getTasks = "get_tasks"
-  case askHigherModel = "ask_higher_model"
   case screenshot = "screenshot"
   case reportScreenObservation = "report_screen_observation"
-  case pointClick = "point_click"
   case getWorkContext = "get_work_context"
 }
 
@@ -32,7 +30,7 @@ enum GeneratedSwiftToolExecutor: String {
 
 enum GeneratedToolExecutors {
   static let manifestVersion = 1
-  static let manifestDigest = "sha256:80e0da90a76da08f01f1279d639adf7f458b2dc5a15fd51f9010eeff669a3199"
+  static let manifestDigest = "sha256:eea8847631cfbc93ef0782ec3a4164c450d1015942a5d9a422af5bba2b7fe773"
 
   static let aliasToCanonical: [String: GeneratedSwiftTool] = [
     "search_screen_history": .semanticSearch
@@ -55,10 +53,8 @@ enum GeneratedToolExecutors {
     .checkPermissionStatus: .chatToolExecutor,
     .requestPermission: .chatToolExecutor,
     .getTasks: .realtimeHub,
-    .askHigherModel: .realtimeHub,
     .screenshot: .realtimeHub,
     .reportScreenObservation: .realtimeHub,
-    .pointClick: .realtimeHub,
     .getWorkContext: .chatToolExecutor
   ]
 

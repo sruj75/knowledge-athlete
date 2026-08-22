@@ -1251,17 +1251,6 @@ import XCTest
     XCTAssertFalse(sessionSource.contains("let callId = call[\"id\"] as? String ?? name"))
   }
 
-  func testPointClickRejectsMissingAndMalformedCoordinates() {
-    XCTAssertNil(RealtimeHubController.finiteCoordinate(nil))
-    XCTAssertNil(RealtimeHubController.finiteCoordinate("12"))
-    XCTAssertNil(RealtimeHubController.finiteCoordinate(true))
-    XCTAssertNil(RealtimeHubController.finiteCoordinate(Double.nan))
-    XCTAssertNil(RealtimeHubController.finiteCoordinate(Double.infinity))
-    XCTAssertEqual(RealtimeHubController.finiteCoordinate(12), 12)
-    XCTAssertEqual(RealtimeHubController.finiteCoordinate(12.5), 12.5)
-    XCTAssertEqual(RealtimeHubController.finiteCoordinate(NSNumber(value: 7.25)), 7.25)
-  }
-
   func testCredentialHealthRetryAndFailoverInvariants() throws {
     let apiSource = try apiClientSource()
     let hubSource = try realtimeHubControllerSource()

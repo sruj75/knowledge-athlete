@@ -449,9 +449,14 @@ final class TasksStore: ObservableObject {
     priority: String?,
     recurrenceRule: String? = nil,
     source: String = "manual",
-    expectedOwnerID: String? = nil
+    expectedOwnerID: String? = nil,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot? = nil
   ) async -> TaskActionItem? {
-    guard let lease = captureLease(expectedOwnerID: expectedOwnerID) else { return nil }
+    guard
+      let lease = captureLease(
+        expectedOwnerID: expectedOwnerID,
+        authorizationSnapshot: authorizationSnapshot)
+    else { return nil }
     let trimmed = description.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty else { return nil }
     do {
@@ -607,9 +612,14 @@ final class TasksStore: ObservableObject {
     clearDueAt: Bool = false,
     priority: String? = nil,
     recurrenceRule: String? = nil,
-    expectedOwnerID: String? = nil
+    expectedOwnerID: String? = nil,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot? = nil
   ) async -> Bool {
-    guard let lease = captureLease(expectedOwnerID: expectedOwnerID) else { return false }
+    guard
+      let lease = captureLease(
+        expectedOwnerID: expectedOwnerID,
+        authorizationSnapshot: authorizationSnapshot)
+    else { return false }
     let normalizedDescription = description.map {
       $0.trimmingCharacters(in: .whitespacesAndNewlines)
     }
@@ -624,8 +634,12 @@ final class TasksStore: ObservableObject {
         recurrenceRule: recurrenceRule,
         authorization: Self.authorization(lease)
       )
-      guard isCurrent(lease),
-        let updated = try await ActionItemStorage.shared.getLocalActionItem(surfacedId: task.id)
+      guard isCurrent(lease) else { return false }
+      guard
+        let updated = try await ActionItemStorage.shared.getLocalActionItem(
+          surfacedId: task.id,
+          authorizationSnapshot: lease.authorizationSnapshot),
+        isCurrent(lease)
       else { return false }
       replaceTask(updated)
       await loadDashboardTasks(

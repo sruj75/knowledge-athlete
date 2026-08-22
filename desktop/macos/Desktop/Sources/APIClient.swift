@@ -275,11 +275,7 @@ actor APIClient {
     inputAudio: Int,
     inputCached: Int,
     outputText: Int,
-    outputAudio: Int,
-    contextPlanID: String = "",
-    stableCacheIdentity: String = "",
-    dynamicContextIdentity: String = "",
-    contextCacheReplaced: Bool = false
+    outputAudio: Int
   ) async {
     let base = rustBackendURL
     guard !base.isEmpty else { return }
@@ -300,11 +296,6 @@ actor APIClient {
         "input_cached_tokens": inputCached,
         "output_text_tokens": outputText,
         "output_audio_tokens": outputAudio,
-        // Opaque hashes/plan identifiers only; no rendered context or user text.
-        "context_plan_id": contextPlanID,
-        "stable_cache_identity": stableCacheIdentity,
-        "dynamic_context_identity": dynamicContextIdentity,
-        "context_cache_replaced": contextCacheReplaced,
       ]
       request.httpBody = try JSONSerialization.data(withJSONObject: body)
       _ = try await session.data(for: request)

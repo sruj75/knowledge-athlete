@@ -25,8 +25,11 @@ final class UntrustedNotificationContextTests: XCTestCase {
 
   // MARK: - Typed / non-hub wrapper
 
-  private func typedBlock(body: String, provenance: String = "") -> String {
-    FloatingControlBarManager.untrustedNotificationContextBlock(body: body, provenance: provenance)
+  private func typedBlock(title: String = "Visible title", body: String, provenance: String = "") -> String {
+    FloatingBarNotificationContextFormatter.untrustedBlock(
+      title: title,
+      message: body,
+      provenance: provenance)
   }
 
   func testWrapperDeclaresTheContentUntrusted() {
@@ -59,6 +62,12 @@ final class UntrustedNotificationContextTests: XCTestCase {
     for source in ["screen", "memor", "assistant message"] {
       XCTAssertTrue(lowered.contains(source), "the block should say the content came from \(source)")
     }
+  }
+
+  func testWrapperRepresentsTheExactVisibleTitleAndMessage() {
+    let block = typedBlock(title: "Visible title only", body: "Visible message only")
+    XCTAssertTrue(block.contains("title: Visible title only"))
+    XCTAssertTrue(block.contains("message: Visible message only"))
   }
 
   /// Injected text must still be carried verbatim — the defence is framing, not filtering,

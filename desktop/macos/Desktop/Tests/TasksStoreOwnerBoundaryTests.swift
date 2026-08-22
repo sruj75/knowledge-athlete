@@ -100,6 +100,35 @@ final class TasksStoreOwnerBoundaryTests: XCTestCase {
     XCTAssertEqual(stored?.completed, false)
   }
 
+  func testExplicitStaleAuthorizationRejectsVoiceCreateAndUpdate() async throws {
+    let ownerID = try XCTUnwrap(fixture?.testUserId)
+    let staleSnapshot = try XCTUnwrap(RuntimeOwnerIdentity.captureAuthorizationSnapshot())
+    let stored = try await ActionItemStorage.shared.insertLocalActionItem(
+      ActionItemRecord(description: "Retained task", source: "voice"),
+      authorization: .unrestricted)
+    let task = stored.toTaskActionItem()
+
+    await ownerFixture?.establish(authOwnerID: nil)
+    await ownerFixture?.establish(authOwnerID: ownerID)
+
+    let created = await store.createTask(
+      description: "Stale voice create",
+      dueAt: nil,
+      priority: nil,
+      expectedOwnerID: ownerID,
+      authorizationSnapshot: staleSnapshot)
+    XCTAssertNil(created)
+
+    let updated = await store.updateTask(
+      task,
+      description: "Stale voice update",
+      expectedOwnerID: ownerID,
+      authorizationSnapshot: staleSnapshot)
+    XCTAssertFalse(updated)
+    let unchanged = try await ActionItemStorage.shared.getLocalActionItem(surfacedId: task.id)
+    XCTAssertEqual(unchanged?.description, "Retained task")
+  }
+
   func testPausedDashboardReadCannotPublishAfterOwnerChanges() async throws {
     let ownerID = try XCTUnwrap(fixture?.testUserId)
     let original = task(id: "local_10")

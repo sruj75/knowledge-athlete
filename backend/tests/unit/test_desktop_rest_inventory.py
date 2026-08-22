@@ -39,7 +39,6 @@ OUT_OF_SCOPE_PREFIXES = (
     '/v2/realtime',  # Rust desktop backend
     '/v1/config/api-keys',  # Rust desktop backend
     '/v1/tts/synthesize',  # Rust desktop backend
-    '/v2/chat/completions',  # streaming chat / Rust
     '/v2/desktop/',  # Rust desktop backend
 )
 
@@ -133,16 +132,7 @@ def test_out_of_scope_prefixes_match_at_least_one_route():
 # currently expose in the app-client OpenAPI surface. Each must be fixed
 # (add the backend route + response_model, or correct the desktop path) and
 # removed from this set. Tracked as SSoT blockers, not silently tolerated.
-KNOWN_MISSING_ROUTES: Set[str] = {
-    # Desktop calls these but no matching backend route exists — likely dead
-    # endpoints or naming drift to be resolved in a follow-up slice.
-    # These backend routes exist but return unmodeled (loose) responses, so
-    # adding them to the app-client surface would regress the strict
-    # `unmodeled_success_response_count == 0` gate. They are tracked for a
-    # follow-up that adds Pydantic response_models first, then exports them.
-    '/v1/tools/conversations',
-    '/v1/tools/conversations/search',
-}
+KNOWN_MISSING_ROUTES: Set[str] = set()
 
 
 def test_every_in_scope_desktop_rest_route_exists_in_app_client_openapi():
@@ -236,7 +226,7 @@ def test_desktop_rest_inventory_is_nonempty():
     """Sanity guard: the extractor must keep finding routes."""
     source = _load_api_client_sources()
     in_scope = _in_scope(_extract_routes_from_swift(source))
-    assert len(in_scope) >= 11, (
-        f'Expected at least 11 in-scope desktop REST routes, found {len(in_scope)}. '
+    assert len(in_scope) >= 9, (
+        f'Expected at least 9 in-scope desktop REST routes, found {len(in_scope)}. '
         'The Swift route extractor may have regressed.'
     )

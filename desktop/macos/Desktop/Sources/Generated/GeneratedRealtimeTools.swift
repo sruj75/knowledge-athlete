@@ -21,10 +21,8 @@ enum HubTool: String {
   case checkPermissionStatus = "check_permission_status"
   case requestPermission = "request_permission"
   case getTasks = "get_tasks"
-  case askHigherModel = "ask_higher_model"
   case screenshot = "screenshot"
   case reportScreenObservation = "report_screen_observation"
-  case pointClick = "point_click"
 }
 
 enum GeneratedRealtimeTools {
@@ -332,10 +330,6 @@ enum GeneratedRealtimeTools {
         },
         "offset": {
           "type": "number"
-        },
-        "include_transcript": {
-          "type": "boolean",
-          "description": "Load speaker data"
         }
       },
       "required": []
@@ -361,9 +355,6 @@ enum GeneratedRealtimeTools {
         "limit": {
           "type": "number",
           "description": "Default 5, max 20"
-        },
-        "include_transcript": {
-          "type": "boolean"
         }
       },
       "required": [
@@ -419,7 +410,7 @@ enum GeneratedRealtimeTools {
   {
     "type": "function",
     "name": "get_action_items",
-    "description": "Read the user's tasks / to-dos from the backend, with optional filters. Use for COMPLETED tasks ('what did I finish'), a DATE RANGE ('what's due next week'), or the FULL list ('all my tasks') — for plain 'what's due today / overdue', prefer get_tasks. Fast synchronous read. Speak a short summary of what it returns.",
+    "description": "Read the user's owner-local tasks / to-dos with optional filters. Use for COMPLETED tasks ('what did I finish'), a DATE RANGE ('what's due next week'), or the FULL list ('all my tasks') — for plain 'what's due today / overdue', prefer get_tasks. Fast synchronous read. Speak a short summary of what it returns.",
     "parameters": {
       "type": "object",
       "properties": {
@@ -473,13 +464,13 @@ enum GeneratedRealtimeTools {
   {
     "type": "function",
     "name": "update_action_item",
-    "description": "Update an existing task: mark it done, edit its text, or reschedule it. You MUST first call get_tasks to get the matching task's id, then pass that id here. Fast synchronous write.",
+    "description": "Update an existing task: mark it done, edit its text, or reschedule it. First call get_tasks or get_action_items to get the matching local task id, then pass that id here. Fast synchronous write.",
     "parameters": {
       "type": "object",
       "properties": {
         "id": {
           "type": "string",
-          "description": "The task id from get_tasks."
+          "description": "The local task id from get_tasks or get_action_items."
         },
         "completed": {
           "type": "boolean",
@@ -555,27 +546,6 @@ enum GeneratedRealtimeTools {
   },
   {
     "type": "function",
-    "name": "ask_higher_model",
-    "description": "Get a second opinion from a smarter model and receive text to speak. Use it when the user is dissatisfied with your previous answer (pushes back, rephrases, says you're wrong, or asks for a better/deeper answer), or when you genuinely need precise up-to-date facts you don't know. Answer general, creative, and long-form requests yourself.",
-    "parameters": {
-      "type": "object",
-      "properties": {
-        "query": {
-          "type": "string",
-          "description": "The full question to escalate."
-        },
-        "context": {
-          "type": "string",
-          "description": "Relevant context you already have that helps answer well — facts you fetched, what the user is referring to, or the previous answer they pushed back on. Include only what's relevant; omit if there's nothing useful."
-        }
-      },
-      "required": [
-        "query"
-      ]
-    }
-  },
-  {
-    "type": "function",
     "name": "screenshot",
     "description": "Capture the user's current screen so you can see what they're looking at.",
     "parameters": {
@@ -598,28 +568,6 @@ enum GeneratedRealtimeTools {
       },
       "required": [
         "observation"
-      ]
-    }
-  },
-  {
-    "type": "function",
-    "name": "point_click",
-    "description": "Click the mouse at on-screen pixel coordinates.",
-    "parameters": {
-      "type": "object",
-      "properties": {
-        "x": {
-          "type": "number",
-          "description": "X pixel coordinate."
-        },
-        "y": {
-          "type": "number",
-          "description": "Y pixel coordinate."
-        }
-      },
-      "required": [
-        "x",
-        "y"
       ]
     }
   }

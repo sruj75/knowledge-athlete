@@ -372,6 +372,24 @@ describe("external realtime surface authority", () => {
     })).toMatchObject({ action: "reject", code: "permission_target_rejected" });
   });
 
+  it("rejects retired permission types instead of delegating or normalizing them", () => {
+    for (const type of ["automation", "full_disk_access"]) {
+      expect(routeExternalSurfaceTool({
+        toolName: "request_permission",
+        toolInput: { type },
+        originatingPrompt: `Please request ${type.replaceAll("_", " ")} permission`,
+      })).toMatchObject({ action: "reject", code: "permission_route_rejected" });
+    }
+
+    for (const objective of ["Request Automation permission", "Check Full Disk Access permission"]) {
+      expect(routeExternalSurfaceTool({
+        toolName: "spawn_agent",
+        toolInput: { objective },
+        originatingPrompt: objective,
+      })).toMatchObject({ action: "reject", code: "permission_route_rejected" });
+    }
+  });
+
   it("canonicalizes screen-share vocabulary to Omi's Screen Recording permission", () => {
     for (const [phrase, inputType] of [
       ["screen share", "screen_share"],

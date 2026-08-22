@@ -341,7 +341,7 @@ const swiftToolSurfacePatches: Record<string, OmiToolSurfacePatch> = {
     ),
     voice: {
       realtimeDescription:
-        "Read the user's tasks / to-dos from the backend, with optional filters. Use for COMPLETED tasks ('what did I finish'), a DATE RANGE ('what's due next week'), or the FULL list ('all my tasks') — for plain 'what's due today / overdue', prefer get_tasks. Fast synchronous read. Speak a short summary of what it returns.",
+        "Read the user's owner-local tasks / to-dos with optional filters. Use for COMPLETED tasks ('what did I finish'), a DATE RANGE ('what's due next week'), or the FULL list ('all my tasks') — for plain 'what's due today / overdue', prefer get_tasks. Fast synchronous read. Speak a short summary of what it returns.",
     },
   },
   create_action_item: {
@@ -368,10 +368,10 @@ const swiftToolSurfacePatches: Record<string, OmiToolSurfacePatch> = {
     ),
     voice: {
       realtimeDescription:
-        "Update an existing task: mark it done, edit its text, or reschedule it. You MUST first call get_tasks to get the matching task's id, then pass that id here. Fast synchronous write.",
+        "Update an existing task: mark it done, edit its text, or reschedule it. First call get_tasks or get_action_items to get the matching local task id, then pass that id here. Fast synchronous write.",
       schemaOverride: schema(
         {
-          id: { type: "string", description: "The task id from get_tasks." },
+          id: { type: "string", description: "The local task id from get_tasks or get_action_items." },
           completed: { type: "boolean", description: "Set true to mark the task done." },
           description: { type: "string", description: "New task text, if changing it." },
           due_at: { type: "string", description: "New ISO-8601 due date/time, if rescheduling." },
@@ -440,30 +440,6 @@ const swiftToolSurfacePatches: Record<string, OmiToolSurfacePatch> = {
       ],
     ),
   },
-  ask_higher_model: {
-    surfaces: ["realtime_voice"],
-    capabilityDoc: doc(
-      "Ask Higher Model",
-      "Get a second opinion from the larger model when the user pushes back or current facts are needed.",
-      ["Use sparingly; answer simple or creative requests yourself."],
-    ),
-    executor: { kind: "swiftTool", executorName: "realtimeHub" },
-    voice: {
-      realtimeDescription:
-        "Get a second opinion from a smarter model and receive text to speak. Use it when the user is dissatisfied with your previous answer (pushes back, rephrases, says you're wrong, or asks for a better/deeper answer), or when you genuinely need precise up-to-date facts you don't know. Answer general, creative, and long-form requests yourself.",
-      schemaOverride: schema(
-        {
-          query: { type: "string", description: "The full question to escalate." },
-          context: {
-            type: "string",
-            description:
-              "Relevant context you already have that helps answer well — facts you fetched, what the user is referring to, or the previous answer they pushed back on. Include only what's relevant; omit if there's nothing useful.",
-          },
-        },
-        ["query"],
-      ),
-    },
-  },
   screenshot: {
     surfaces: ["realtime_voice"],
     capabilityDoc: doc("Screenshot", "Capture the user's current screen.", [
@@ -484,23 +460,6 @@ const swiftToolSurfacePatches: Record<string, OmiToolSurfacePatch> = {
     voice: {
       realtimeDescription:
         "After screenshot succeeds for a current-screen question, report exactly one concise grounding observation. This report is internal verification, not the user-facing answer: when it succeeds, answer the user's original request naturally from the attached image.",
-    },
-  },
-  point_click: {
-    surfaces: ["realtime_voice"],
-    capabilityDoc: doc("Point Click", "Click at on-screen pixel coordinates.", [
-      "Use only when the user clearly asks you to click something.",
-    ]),
-    executor: { kind: "swiftTool", executorName: "realtimeHub" },
-    voice: {
-      realtimeDescription: "Click the mouse at on-screen pixel coordinates.",
-      schemaOverride: schema(
-        {
-          x: { type: "number", description: "X pixel coordinate." },
-          y: { type: "number", description: "Y pixel coordinate." },
-        },
-        ["x", "y"],
-      ),
     },
   },
 };
@@ -605,36 +564,34 @@ const swiftToolManifestDrafts: OmiToolManifestEntryDraft[] = [
   {
     name: "get_conversations",
     label: "Get Conversations",
-    description: "Retrieve user conversations with summaries, action items, metadata. Use for time-based queries or recaps.",
+    description: "Retrieve newest-first owner-local conversation titles and summaries. Use for time-based queries or recaps.",
     promptSnippet: "get_conversations - Retrieve conversations by date range",
-    latency: "fast network",
+    latency: "fast local",
     inputSchema: schema({
       start_date: { type: "string", description: "ISO date with timezone" },
       end_date: { type: "string", description: "ISO date with timezone" },
       limit: { type: "number", description: "Default 20" },
       offset: { type: "number" },
-      include_transcript: { type: "boolean", description: "Load speaker data" },
     }),
     annotations: readOnlyLocal,
     timeoutClass: "normal",
     executor: { kind: "swiftTool" },
     intendedForAgents: true,
-    runtimePreconditions: ["Requires authenticated backend access."],
+    runtimePreconditions: ["Requires the current owner's local Conversation database."],
     adapters: piOnly(),
   },
   {
     name: "search_conversations",
     label: "Search Conversations",
-    description: "Semantic search across conversations. Use for specific events or topics.",
+    description: "Hybrid keyword and local-vector search across owner-local conversation titles and summaries.",
     promptSnippet: "search_conversations - Find conversations about a topic",
-    latency: "fast network",
+    latency: "fast local",
     inputSchema: schema(
       {
         query: { type: "string", description: "Event or topic to search for" },
         start_date: { type: "string" },
         end_date: { type: "string" },
         limit: { type: "number", description: "Default 5, max 20" },
-        include_transcript: { type: "boolean" },
       },
       ["query"],
     ),
@@ -642,7 +599,10 @@ const swiftToolManifestDrafts: OmiToolManifestEntryDraft[] = [
     timeoutClass: "normal",
     executor: { kind: "swiftTool" },
     intendedForAgents: true,
-    runtimePreconditions: ["Requires authenticated backend access."],
+    runtimePreconditions: [
+      "Requires the current owner's local Conversation database.",
+      "Semantic ranking uses transient authenticated embedding compute when available; keyword recall remains local.",
+    ],
     adapters: piOnly(),
   },
   {
@@ -650,7 +610,7 @@ const swiftToolManifestDrafts: OmiToolManifestEntryDraft[] = [
     label: "Get Memories",
     description: "Retrieve user memories - facts, preferences, habits. Use for 'what do you know about me?' type questions.",
     promptSnippet: "get_memories - Retrieve stored facts and preferences",
-    latency: "fast network",
+    latency: "fast local",
     inputSchema: schema({
       limit: { type: "number", description: "Default 50" },
       offset: { type: "number" },
@@ -661,7 +621,7 @@ const swiftToolManifestDrafts: OmiToolManifestEntryDraft[] = [
     timeoutClass: "normal",
     executor: { kind: "swiftTool" },
     intendedForAgents: true,
-    runtimePreconditions: ["Requires authenticated backend access."],
+    runtimePreconditions: ["Requires the current owner's local Memory database."],
     adapters: piOnly(),
   },
   {
@@ -669,7 +629,7 @@ const swiftToolManifestDrafts: OmiToolManifestEntryDraft[] = [
     label: "Search Memories",
     description: "Semantic search across user memories. Find memories about a topic using AI embeddings.",
     promptSnippet: "search_memories - Find memories about a topic",
-    latency: "fast network",
+    latency: "fast local",
     inputSchema: schema(
       {
         query: { type: "string", description: "Topic to search for" },
@@ -681,7 +641,10 @@ const swiftToolManifestDrafts: OmiToolManifestEntryDraft[] = [
     timeoutClass: "normal",
     executor: { kind: "swiftTool" },
     intendedForAgents: true,
-    runtimePreconditions: ["Requires authenticated backend access."],
+    runtimePreconditions: [
+      "Requires the current owner's local Memory vector index.",
+      "Query embedding compute is transient and never becomes a hosted Memory read.",
+    ],
     adapters: piOnly(),
   },
   {
@@ -837,26 +800,6 @@ const swiftToolManifestDrafts: OmiToolManifestEntryDraft[] = [
     adapters: {},
   },
   {
-    name: "ask_higher_model",
-    label: "Ask Higher Model",
-    description: "Escalate a hard question to the larger model and speak its answer.",
-    promptSnippet: "ask_higher_model - Escalate to a higher model for a second opinion",
-    latency: "fast network",
-    inputSchema: schema(
-      {
-        query: { type: "string", description: "The full question to escalate." },
-        context: { type: "string", description: "Optional relevant context for the escalation." },
-      },
-      ["query"],
-    ),
-    annotations: readOnlyLocal,
-    timeoutClass: "normal",
-    executor: { kind: "swiftTool", executorName: "realtimeHub" },
-    intendedForAgents: true,
-    runtimePreconditions: ["Realtime voice only."],
-    adapters: {},
-  },
-  {
     name: "screenshot",
     label: "Screenshot",
     description: "Capture the user's current screen for realtime vision.",
@@ -897,26 +840,6 @@ const swiftToolManifestDrafts: OmiToolManifestEntryDraft[] = [
     executor: { kind: "swiftTool", executorName: "realtimeHub" },
     intendedForAgents: true,
     runtimePreconditions: ["Realtime voice only; screenshot evidence must belong to the active PTT turn."],
-    adapters: {},
-  },
-  {
-    name: "point_click",
-    label: "Point Click",
-    description: "Click at on-screen pixel coordinates.",
-    promptSnippet: "point_click - Click at on-screen coordinates",
-    latency: "fast local",
-    inputSchema: schema(
-      {
-        x: { type: "number", description: "X pixel coordinate." },
-        y: { type: "number", description: "Y pixel coordinate." },
-      },
-      ["x", "y"],
-    ),
-    annotations: localWrite,
-    timeoutClass: "normal",
-    executor: { kind: "swiftTool", executorName: "realtimeHub" },
-    intendedForAgents: true,
-    runtimePreconditions: ["Realtime voice only; requires Accessibility permission."],
     adapters: {},
   },
   {
@@ -1146,8 +1069,8 @@ export function toolNamesForAdapter(
 }
 
 /// Surface projection over the same manifest that generates the Swift surface
-/// allowlists. Realtime-voice runs authorize Swift-executed voice tools (e.g.
-/// ask_higher_model, point_click) that no chat adapter advertises, so the
+/// allowlists. Realtime-voice runs authorize Swift-executed voice tools that
+/// no chat adapter advertises, so the
 /// kernel capability allowlist must include the run surface's tools — an
 /// adapter-only projection structurally rejects every voice-only tool.
 export function toolsForSurface(surface: OmiToolSurface): OmiToolManifestEntry[] {

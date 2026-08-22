@@ -38,8 +38,6 @@ const PERMISSION_TYPES: ReadonlyArray<{ type: string; phrases: readonly string[]
   { type: "microphone", phrases: ["microphone", "mic permission", "microphone access"] },
   { type: "notifications", phrases: ["notification permission", "notifications permission", "omi notifications"] },
   { type: "accessibility", phrases: ["accessibility permission", "accessibility access"] },
-  { type: "automation", phrases: ["automation permission", "automation access"] },
-  { type: "full_disk_access", phrases: ["full disk access"] },
 ];
 
 const PERMISSION_CAPABILITY_SUBJECTS = new Set([
@@ -65,11 +63,6 @@ const PERMISSION_CAPABILITY_SUBJECTS = new Set([
   "accessibility",
   "accessibility permission",
   "accessibility access",
-  "automation",
-  "automation permission",
-  "automation access",
-  "full disk access",
-  "full disk access permission",
 ]);
 
 /**
@@ -301,7 +294,8 @@ function permissionRequest(text: string): { toolName: "check_permission_status" 
 
 function mentionsPermissionCapability(text: string): boolean {
   const normalized = text.toLowerCase();
-  return PERMISSION_TYPES.some(({ phrases }) => phrases.some((phrase) => normalized.includes(phrase)));
+  return PERMISSION_TYPES.some(({ phrases }) => phrases.some((phrase) => normalized.includes(phrase)))
+    || /\b(?:check|request|grant|allow|enable|give)\b[^.!?]{0,80}\b(?:permission|access)\b/.test(normalized);
 }
 
 function hasExplicitExternalPermissionTarget(
@@ -316,10 +310,10 @@ function hasExplicitExternalPermissionTarget(
   for (const narrative of [originatingPrompt, objective]) {
     const normalized = narrative.toLowerCase();
     const candidates = [
-      ...captures(normalized, /\b([a-z0-9._-]+(?:\s+[a-z0-9._-]+)?)['’]s\s+(?:screen recording|screen[- ]share(?:ing)?|microphone|mic|notifications?|accessibility|automation|full disk access)\b/g),
-      ...captures(normalized, /\b([a-z0-9._-]+(?:\s+[a-z0-9._-]+)?)\s+needs\s+(?:screen recording|screen[- ]share(?:ing)?|microphone|mic|notifications?|accessibility|automation|full disk access)\b/g),
-      ...captures(normalized, /\b(?:screen recording|screen[- ]share(?:ing)?|microphone|mic|notifications?|accessibility|automation|full disk access)(?:\s+permissions?|\s+access)?\s+for\s+([a-z0-9._ -]+?)(?:[?.!,]|$)/g),
-      ...captures(normalized, /\b(?:grant|allow|enable|give|check)\s+([a-z0-9._-]+(?:\s+[a-z0-9._-]+)?)\s+(?:screen recording|screen[- ]share(?:ing)?|microphone|mic|notifications?|accessibility|automation|full disk access)\b/g),
+      ...captures(normalized, /\b([a-z0-9._-]+(?:\s+[a-z0-9._-]+)?)['’]s\s+(?:screen recording|screen[- ]share(?:ing)?|microphone|mic|notifications?|accessibility)\b/g),
+      ...captures(normalized, /\b([a-z0-9._-]+(?:\s+[a-z0-9._-]+)?)\s+needs\s+(?:screen recording|screen[- ]share(?:ing)?|microphone|mic|notifications?|accessibility)\b/g),
+      ...captures(normalized, /\b(?:screen recording|screen[- ]share(?:ing)?|microphone|mic|notifications?|accessibility)(?:\s+permissions?|\s+access)?\s+for\s+([a-z0-9._ -]+?)(?:[?.!,]|$)/g),
+      ...captures(normalized, /\b(?:grant|allow|enable|give|check)\s+([a-z0-9._-]+(?:\s+[a-z0-9._-]+)?)\s+(?:screen recording|screen[- ]share(?:ing)?|microphone|mic|notifications?|accessibility)\b/g),
     ];
     for (const candidate of candidates) {
       const cleaned = normalizeTarget(candidate);

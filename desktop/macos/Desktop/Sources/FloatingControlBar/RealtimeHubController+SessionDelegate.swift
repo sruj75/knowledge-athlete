@@ -489,23 +489,6 @@ extension RealtimeHubController {
       if !today.isEmpty { output += "Due today (\(today.count)):\n\(list(today))\n" }
       return .succeeded(output.isEmpty ? "No tasks overdue or due today." : output)
 
-    case .askHigherModel:
-      let query = (command.input["query"] as? String) ?? turnTranscript
-      let toolContext = (command.input["context"] as? String) ?? ""
-      let kernelContext = voiceSessionContext(for: currentOwnerScope)
-      guard kernelContext.isResolved else {
-        return .failed(Self.authorizedRealtimeToolError(code: "kernel_context_unavailable"))
-      }
-      return await escalateToHigherModel(
-        query,
-        kernelSemanticGuidance: kernelContext.semanticGuidance,
-        kernelContext: kernelContext.rendered,
-        stableCacheIdentity: kernelContext.stableCacheIdentity,
-        dynamicContextIdentity: kernelContext.dynamicContextIdentity,
-        contextPlanID: kernelContext.planID,
-        toolContext: toolContext,
-        ownerID: command.ownerID)
-
     case .screenshot:
       // Preserve the original descriptor before suspension. The timeout branch must never read
       // mutable `screenEvidence` after a barge-in, because that may already belong to a new turn.
@@ -549,24 +532,6 @@ extension RealtimeHubController {
       // function, and a later pointer-selected display can never replace this evidence.
       authorizedRealtimeScreenshotImages[command.invocationID] = attachment
       return .succeeded(screenshotToolResultTextForCurrentProvider(attachment: attachment))
-
-    case .pointClick:
-      guard let x = Self.finiteCoordinate(command.input["x"]),
-        let y = Self.finiteCoordinate(command.input["y"])
-      else {
-        return .succeeded(
-          "Could not click: point_click requires finite numeric x and y coordinates.")
-      }
-      guard
-        Self.click(
-          at: CGPoint(x: x, y: y),
-          expectedOwnerID: command.ownerID)
-      else {
-        return AuthorizedToolExecution.isOwnerCurrent(command.ownerID)
-          ? .succeeded("Could not click.")
-          : .failed(Self.authorizedRealtimeOwnerChangedError())
-      }
-      return .succeeded("Clicked at \(Int(x)), \(Int(y)).")
 
     default:
       return .failed(Self.authorizedRealtimeToolError(code: "wrong_realtime_executor_tool"))

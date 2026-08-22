@@ -79,7 +79,6 @@
         "routers/payment.py",
         "routers/speech_profile.py",
         "routers/sync.py",
-        "routers/tools.py",
         "routers/transcribe.py",
         "routers/updates.py",
         "routers/users.py",

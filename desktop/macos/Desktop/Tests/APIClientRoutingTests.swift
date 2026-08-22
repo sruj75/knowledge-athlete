@@ -606,6 +606,33 @@ final class APIClientRoutingTests: XCTestCase {
       label: "generateSessionTitle")
   }
 
+  func testRealtimeUsageReportContainsOnlyProviderModelAndTokenCounts() async {
+    let client = await makeTestClient()
+
+    await client.reportRealtimeUsage(
+      provider: "openai",
+      model: "gpt-realtime-2",
+      inputText: 11,
+      inputAudio: 12,
+      inputCached: 13,
+      outputText: 14,
+      outputAudio: 15)
+
+    let requests = URLCapture.capturedRequests
+    assertRoutes(
+      requests, host: "rust-test", port: 9002,
+      pathContains: "v2/realtime/usage", method: "POST",
+      label: "reportRealtimeUsage")
+    let body = requests.first?.body.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
+    XCTAssertEqual(
+      Set(body?.keys.map { $0 } ?? []),
+      Set([
+        "provider", "model", "input_text_tokens", "input_audio_tokens", "input_cached_tokens",
+        "output_text_tokens", "output_audio_tokens",
+      ]))
+    XCTAssertEqual(body?["input_cached_tokens"] as? Int, 13)
+  }
+
   // MARK: - Billing routing and server-owned offer body tests
 
   func testCreateCheckoutSessionSendsOnlyOfferIdentity() async {

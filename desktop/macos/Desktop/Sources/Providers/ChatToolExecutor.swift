@@ -95,7 +95,7 @@ class ChatToolExecutor {
     isOnboardingSurface: Bool = false,
     expectedOwnerID: String? = nil,
     authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot? = nil,
-    backendAPIClient: APIClient = .shared
+    localConversationTools: LocalConversationToolService = .shared
   ) async -> String {
     let pinnedOwnerID = expectedOwnerID ?? RuntimeOwnerIdentity.currentOwnerId()
     let allowsSignedOutOnboardingPermission =
@@ -130,7 +130,7 @@ class ChatToolExecutor {
         originatingRunId: originatingRunId,
         isOnboardingSurface: isOnboardingSurface,
         expectedOwnerID: pinnedOwnerID,
-        backendAPIClient: backendAPIClient)
+        localConversationTools: localConversationTools)
       guard isExpectedOwnerCurrent(pinnedOwnerID) else {
         return authorizedOwnerChangedResult()
       }
@@ -146,7 +146,7 @@ class ChatToolExecutor {
     originatingRunId: String?,
     isOnboardingSurface: Bool,
     expectedOwnerID: String?,
-    backendAPIClient: APIClient
+    localConversationTools: LocalConversationToolService
   ) async -> String {
     log("Executing tool: \(toolCall.name) with args: \(toolCall.arguments)")
     let telemetryContext = ScreenContextTelemetryContext.from(
@@ -240,13 +240,18 @@ class ChatToolExecutor {
     case .getMemories, .searchMemories:
       return await executeLocalMemoryTool(toolCall, expectedOwnerID: expectedOwnerID)
 
-    // Remaining backend RAG/task tools call Python backend /v1/tools/* endpoints.
-    case .getConversations, .searchConversations, .getActionItems,
-      .createActionItem, .updateActionItem:
-      return await executeBackendTool(
+    case .getConversations, .searchConversations:
+      return await executeLocalConversationTool(
         toolCall,
         expectedOwnerID: expectedOwnerID,
-        api: backendAPIClient)
+        service: localConversationTools)
+
+    // Task tools are already local despite this legacy dispatcher name.
+    case .getActionItems,
+      .createActionItem, .updateActionItem:
+      return await executeLocalTaskTool(
+        toolCall,
+        expectedOwnerID: expectedOwnerID)
 
     case .unhandled:
       if toolCall.name == "get_local_status" {
@@ -972,199 +977,19 @@ class ChatToolExecutor {
       return authorizedOwnerChangedResult()
     }
     let daysAgo = max(0, (args["days_ago"] as? Int) ?? 1)
-    let dateLabel = daysAgo == 0 ? "Today" : daysAgo == 1 ? "Yesterday" : "Past \(daysAgo) days"
-
-    guard let dbQueue = await RewindDatabase.shared.getDatabaseQueue() else {
-      return "Error: database not available"
-    }
-    guard isExpectedOwnerCurrent(expectedOwnerID) else { return authorizedOwnerChangedResult() }
-
-    // For today (daysAgo=0), upper bound is now; for past days, upper bound is start of today
-    let upperBound =
-      daysAgo == 0
-      ? "datetime('now', 'localtime')"
-      : "datetime('now', 'start of day', 'localtime')"
-
     do {
-      let authorization = LocalMutationAuthorization {
-        RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
-      }
-      let result = try await authorization.withReadLease {
-        try await dbQueue.read { db in
-          try authorization.require()
-          // Q1: App usage
-          let apps = try Row.fetchAll(
-            db,
-            sql: """
-              SELECT appName, COUNT(*) as screenshots, ROUND(COUNT(*) * 10.0 / 60, 1) as minutes,
-                  MIN(time(timestamp, 'localtime')) as first_seen, MAX(time(timestamp, 'localtime')) as last_seen
-              FROM screenshots
-              WHERE timestamp >= datetime('now', 'start of day', '-\(daysAgo) day', 'localtime')
-                  AND timestamp < \(upperBound)
-                  AND appName IS NOT NULL AND appName != ''
-              GROUP BY appName ORDER BY screenshots DESC
-              """)
-
-          // Q2: Conversations
-          let convos = try Row.fetchAll(
-            db,
-            sql: """
-              SELECT title, overview, emoji, category, startedAt, finishedAt,
-                  ROUND((julianday(finishedAt) - julianday(startedAt)) * 1440, 1) as duration_min
-              FROM transcription_sessions
-              WHERE startedAt >= datetime('now', 'start of day', '-\(daysAgo) day', 'localtime')
-                  AND startedAt < \(upperBound)
-                  AND deleted = 0 AND discarded = 0
-              ORDER BY startedAt DESC
-              """)
-
-          // Q3: Action items
-          let tasks = try Row.fetchAll(
-            db,
-            sql: """
-              SELECT description, completed, priority, createdAt FROM action_items
-              WHERE createdAt >= datetime('now', 'start of day', '-\(daysAgo) day', 'localtime')
-                  AND createdAt < \(upperBound)
-                  AND deleted = 0
-              ORDER BY createdAt DESC
-              """)
-
-          // Q4: Focus sessions
-          let focusSessions = try Row.fetchAll(
-            db,
-            sql: """
-              SELECT status, appOrSite, description, durationSeconds FROM focus_sessions
-              WHERE createdAt >= datetime('now', 'start of day', '-\(daysAgo) day', 'localtime')
-                  AND createdAt < \(upperBound)
-              ORDER BY createdAt DESC
-              """)
-
-          // Q5: Memories created
-          let memories = try Row.fetchAll(
-            db,
-            sql: """
-              SELECT content, category, source FROM memories
-              WHERE createdAt >= datetime('now', 'start of day', '-\(daysAgo) day', 'localtime')
-                  AND createdAt < \(upperBound)
-                  AND deleted = 0
-              ORDER BY createdAt DESC
-              """)
-
-          // Q6: Observations (screen context summaries)
-          let observations = try Row.fetchAll(
-            db,
-            sql: """
-              SELECT appName, currentActivity, contextSummary FROM observations
-              WHERE createdAt >= datetime('now', 'start of day', '-\(daysAgo) day', 'localtime')
-                  AND createdAt < \(upperBound)
-              ORDER BY createdAt DESC
-              LIMIT 20
-              """)
-
-          // Format compact markdown
-          var out = "# \(dateLabel) Recap\n\n"
-
-          out += "## Apps (\(apps.count) apps)\n"
-          if apps.isEmpty {
-            out += "No screen activity recorded.\n"
-          } else {
-            for app in apps.prefix(20) {
-              let name = app["appName"] as? String ?? "Unknown"
-              let minutes = app["minutes"] as? Double ?? 0
-              let screenshots = Self.rowInt(app["screenshots"]) ?? 0
-              let firstSeen = app["first_seen"] as? String ?? ""
-              let lastSeen = app["last_seen"] as? String ?? ""
-              out +=
-                "- **\(name)**: \(minutes) min (\(screenshots) captures, \(firstSeen)–\(lastSeen))\n"
-            }
-            if apps.count > 20 { out += "- ...and \(apps.count - 20) more apps\n" }
-          }
-
-          out += "\n## Conversations (\(convos.count))\n"
-          if convos.isEmpty {
-            out += "No conversations recorded.\n"
-          } else {
-            for convo in convos {
-              let title = convo["title"] as? String ?? "Untitled"
-              let overview = convo["overview"] as? String ?? "No summary"
-              let emoji = convo["emoji"] as? String ?? ""
-              let durMin = convo["duration_min"] as? Double ?? 0
-              let dur = durMin > 0 ? " (\(durMin) min)" : ""
-              out += "- \(emoji) **\(title)**\(dur): \(overview)\n"
-            }
-          }
-
-          out += "\n## Tasks (\(tasks.count))\n"
-          if tasks.isEmpty {
-            out += "No tasks created.\n"
-          } else {
-            for task in tasks {
-              let desc = task["description"] as? String ?? ""
-              let completed = (Self.rowInt(task["completed"]) ?? 0) == 1
-              let priority = task["priority"] as? String ?? ""
-              let check = completed ? "[x]" : "[ ]"
-              let pri = priority.isEmpty ? "" : " (\(priority))"
-              out += "- \(check) \(desc)\(pri)\n"
-            }
-          }
-
-          // Focus sessions
-          let focused = focusSessions.filter { ($0["status"] as? String) == "focused" }
-          let distracted = focusSessions.filter { ($0["status"] as? String) == "distracted" }
-          if !focusSessions.isEmpty {
-            out += "\n## Focus (\(focused.count) focused, \(distracted.count) distracted)\n"
-            for session in focusSessions.prefix(10) {
-              let status = session["status"] as? String ?? ""
-              let app = session["appOrSite"] as? String ?? ""
-              let desc = session["description"] as? String ?? ""
-              let dur = Self.rowInt(session["durationSeconds"]) ?? 0
-              let durStr = dur > 0 ? " (\(dur / 60)m)" : ""
-              let icon = status == "focused" ? "+" : "-"
-              out += "- \(icon) \(app)\(durStr): \(desc)\n"
-            }
-            if focusSessions.count > 10 {
-              out += "- ...and \(focusSessions.count - 10) more sessions\n"
-            }
-          }
-
-          // Memories
-          if !memories.isEmpty {
-            out += "\n## Memories Learned (\(memories.count))\n"
-            for memory in memories.prefix(10) {
-              let content = memory["content"] as? String ?? ""
-              let category = memory["category"] as? String ?? ""
-              let catStr = category.isEmpty ? "" : " [\(category)]"
-              out += "- \(content)\(catStr)\n"
-            }
-            if memories.count > 10 { out += "- ...and \(memories.count - 10) more\n" }
-          }
-
-          // Observations (context summaries)
-          if !observations.isEmpty {
-            out += "\n## Screen Context (\(observations.count) observations)\n"
-            for obs in observations.prefix(10) {
-              let app = obs["appName"] as? String ?? ""
-              let activity = obs["currentActivity"] as? String ?? ""
-              out += "- \(app): \(activity)\n"
-            }
-            if observations.count > 10 {
-              out += "- ...and \(observations.count - 10) more observations\n"
-            }
-          }
-
-          log(
-            "Tool get_daily_recap: \(apps.count) apps, \(convos.count) convos, \(tasks.count) tasks, \(focusSessions.count) focus, \(memories.count) memories, \(observations.count) observations"
-          )
-          try authorization.require()
-          return out
-        }
-      }
+      let result = try await DailyRecapLocalAuthority.shared.recap(
+        daysAgo: daysAgo,
+        authorizationSnapshot: authorizationSnapshot)
       guard isExpectedOwnerCurrent(expectedOwnerID) else { return authorizedOwnerChangedResult() }
       return result
+    } catch LocalMutationAuthorizationError.revoked {
+      return authorizedOwnerChangedResult()
     } catch {
       logError("Tool get_daily_recap failed", error: error)
       return "Error: \(error.localizedDescription)"
     }
+
   }
 
   // MARK: - Semantic Search
@@ -1300,9 +1125,15 @@ class ChatToolExecutor {
     guard let taskId = args["task_id"] as? String, !taskId.isEmpty else {
       return "Error: task_id is required"
     }
+    guard let authorizationSnapshot = currentOwnerAuthorizationSnapshot else {
+      return authorizedOwnerChangedResult()
+    }
 
     do {
-      guard let task = try await ActionItemStorage.shared.getLocalActionItem(surfacedId: taskId)
+      guard
+        let task = try await ActionItemStorage.shared.getLocalActionItem(
+          surfacedId: taskId,
+          authorizationSnapshot: authorizationSnapshot)
       else {
         return "Error: task not found with id '\(taskId)'"
       }
@@ -1323,7 +1154,7 @@ class ChatToolExecutor {
         await TasksStore.shared.toggleTask(
           task,
           expectedOwnerID: expectedOwnerID,
-          authorizationSnapshot: currentOwnerAuthorizationSnapshot)
+          authorizationSnapshot: authorizationSnapshot)
       else { return "Error: local task completion did not commit" }
 
       guard isExpectedOwnerCurrent(expectedOwnerID) else {
@@ -1353,9 +1184,15 @@ class ChatToolExecutor {
     guard let taskId = args["task_id"] as? String, !taskId.isEmpty else {
       return "Error: task_id is required"
     }
+    guard let authorizationSnapshot = currentOwnerAuthorizationSnapshot else {
+      return authorizedOwnerChangedResult()
+    }
 
     do {
-      guard let task = try await ActionItemStorage.shared.getLocalActionItem(surfacedId: taskId)
+      guard
+        let task = try await ActionItemStorage.shared.getLocalActionItem(
+          surfacedId: taskId,
+          authorizationSnapshot: authorizationSnapshot)
       else {
         return "Error: task not found with id '\(taskId)'"
       }
@@ -1371,7 +1208,7 @@ class ChatToolExecutor {
         await TasksStore.shared.deleteTask(
           task,
           expectedOwnerID: expectedOwnerID,
-          authorizationSnapshot: currentOwnerAuthorizationSnapshot)
+          authorizationSnapshot: authorizationSnapshot)
       else { return "Error: local task deletion did not commit" }
 
       guard isExpectedOwnerCurrent(expectedOwnerID) else {
@@ -1801,12 +1638,67 @@ class ChatToolExecutor {
 
   // MARK: - Backend RAG Tools
 
+  private static func executeLocalConversationTool(
+    _ toolCall: ToolCall,
+    expectedOwnerID: String?,
+    service: LocalConversationToolService
+  ) async -> String {
+    guard isExpectedOwnerCurrent(expectedOwnerID),
+      let authorizationSnapshot = currentOwnerAuthorizationSnapshot
+    else { return authorizedOwnerChangedResult() }
+    do {
+      let args = toolCall.arguments
+      let startDate = try localConversationToolDate(args["start_date"] as? String, name: "start_date")
+      let endDate = try localConversationToolDate(args["end_date"] as? String, name: "end_date")
+      let result: String
+      if toolCall.name == "search_conversations" {
+        guard let query = args["query"] as? String,
+          !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        else { return "Error: query is required" }
+        result = try await service.search(
+          query: query,
+          startDate: startDate,
+          endDate: endDate,
+          limit: args["limit"] as? Int ?? 5,
+          authorizationSnapshot: authorizationSnapshot)
+      } else {
+        result = try await service.list(
+          startDate: startDate,
+          endDate: endDate,
+          limit: args["limit"] as? Int ?? 20,
+          offset: args["offset"] as? Int ?? 0,
+          authorizationSnapshot: authorizationSnapshot)
+      }
+      guard isExpectedOwnerCurrent(expectedOwnerID) else { return authorizedOwnerChangedResult() }
+      return result
+    } catch LocalMutationAuthorizationError.revoked {
+      return authorizedOwnerChangedResult()
+    } catch {
+      return "Error retrieving conversations: \(error.localizedDescription)"
+    }
+  }
+
+  private static func localConversationToolDate(_ value: String?, name: String) throws -> Date? {
+    guard let value else { return nil }
+    let formatter = ISO8601DateFormatter()
+    formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+    if let date = formatter.date(from: value) { return date }
+    formatter.formatOptions = [.withInternetDateTime]
+    if let date = formatter.date(from: value) { return date }
+    throw NSError(
+      domain: "ConversationTool", code: 1,
+      userInfo: [NSLocalizedDescriptionKey: "\(name) must be ISO format with timezone offset. Got: \(value)"])
+  }
+
   private static func executeLocalMemoryTool(
     _ toolCall: ToolCall,
     expectedOwnerID: String?
   ) async -> String {
     guard isExpectedOwnerCurrent(expectedOwnerID) else { return authorizedOwnerChangedResult() }
     let args = toolCall.arguments
+    guard let authorizationSnapshot = currentOwnerAuthorizationSnapshot else {
+      return authorizedOwnerChangedResult()
+    }
     do {
       switch toolCall.name {
       case "get_memories":
@@ -1816,7 +1708,8 @@ class ChatToolExecutor {
           startDate: startDate,
           endDate: endDate,
           limit: max(1, min(args["limit"] as? Int ?? 50, 5_000)),
-          offset: max(0, args["offset"] as? Int ?? 0))
+          offset: max(0, args["offset"] as? Int ?? 0),
+          authorizationSnapshot: authorizationSnapshot)
         guard isExpectedOwnerCurrent(expectedOwnerID) else { return authorizedOwnerChangedResult() }
         guard !memories.isEmpty else { return "No memories found." }
         return localMemoryToolResult(
@@ -1831,7 +1724,8 @@ class ChatToolExecutor {
         else { return "Error: query is required" }
         let matches = try await MemorySemanticRecall.shared.search(
           query: query,
-          limit: args["limit"] as? Int ?? 5)
+          limit: args["limit"] as? Int ?? 5,
+          authorizationSnapshot: authorizationSnapshot)
         guard isExpectedOwnerCurrent(expectedOwnerID) else { return authorizedOwnerChangedResult() }
         guard !matches.isEmpty else { return "No memories found matching '\(query)'." }
         return localMemoryToolResult(
@@ -1894,11 +1788,13 @@ class ChatToolExecutor {
     return lines.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
   }
 
-  private static func executeBackendTool(
+  private static func executeLocalTaskTool(
     _ toolCall: ToolCall,
-    expectedOwnerID: String?,
-    api: APIClient
+    expectedOwnerID: String?
   ) async -> String {
+    guard let authorizationSnapshot = currentOwnerAuthorizationSnapshot else {
+      return authorizedOwnerChangedResult()
+    }
     do {
       let args = toolCall.arguments
 
@@ -1917,33 +1813,6 @@ class ChatToolExecutor {
       }
 
       switch toolCall.name {
-      case "get_conversations":
-        let resp = try await api.toolGetConversations(
-          startDate: validatedStartDate,
-          endDate: validatedEndDate,
-          limit: args["limit"] as? Int ?? 20,
-          offset: args["offset"] as? Int ?? 0,
-          includeTranscript: args["include_transcript"] as? Bool ?? true,
-          expectedOwnerId: expectedOwnerID,
-          authorizationSnapshot: currentOwnerAuthorizationSnapshot
-        )
-        return resp.resultText
-
-      case "search_conversations":
-        guard let query = args["query"] as? String, !query.isEmpty else {
-          return "Error: query is required"
-        }
-        let resp = try await api.toolSearchConversations(
-          query: query,
-          startDate: validatedStartDate,
-          endDate: validatedEndDate,
-          limit: args["limit"] as? Int ?? 5,
-          includeTranscript: args["include_transcript"] as? Bool ?? true,
-          expectedOwnerId: expectedOwnerID,
-          authorizationSnapshot: currentOwnerAuthorizationSnapshot
-        )
-        return resp.resultText
-
       case "get_action_items":
         var validatedDueStart: String? = nil
         var validatedDueEnd: String? = nil
@@ -1965,7 +1834,8 @@ class ChatToolExecutor {
           dueDateAfter: parseISODate(validatedDueStart),
           dueDateBefore: parseISODate(validatedDueEnd),
           createdAfter: parseISODate(validatedStartDate),
-          createdBefore: parseISODate(validatedEndDate)
+          createdBefore: parseISODate(validatedEndDate),
+          authorizationSnapshot: authorizationSnapshot
         )
         guard isExpectedOwnerCurrent(expectedOwnerID) else { return authorizedOwnerChangedResult() }
         return localTaskToolPayload(tasks)
@@ -1992,7 +1862,8 @@ class ChatToolExecutor {
             dueAt: dueAt,
             priority: args["priority"] as? String,
             source: "assistant",
-            expectedOwnerID: expectedOwnerID
+            expectedOwnerID: expectedOwnerID,
+            authorizationSnapshot: authorizationSnapshot
           )
         else {
           return isExpectedOwnerCurrent(expectedOwnerID)
@@ -2008,7 +1879,10 @@ class ChatToolExecutor {
         guard let itemId = resolveActionItemID(args) else {
           return "Error: action_item_id is required"
         }
-        guard var task = try await ActionItemStorage.shared.getLocalActionItem(surfacedId: itemId),
+        guard
+          var task = try await ActionItemStorage.shared.getLocalActionItem(
+            surfacedId: itemId,
+            authorizationSnapshot: authorizationSnapshot),
           task.deleted != true
         else { return "Error: task not found" }
         var validatedUpdateDueAt: Date?
@@ -2019,11 +1893,18 @@ class ChatToolExecutor {
           validatedUpdateDueAt = parseISODate(result.valid)
         }
         if let completed = args["completed"] as? Bool, completed != task.completed {
-          guard await TasksStore.shared.toggleTask(task, expectedOwnerID: expectedOwnerID) else {
+          guard
+            await TasksStore.shared.toggleTask(
+              task,
+              expectedOwnerID: expectedOwnerID,
+              authorizationSnapshot: authorizationSnapshot)
+          else {
             return "Error: local task completion update did not commit"
           }
           guard isExpectedOwnerCurrent(expectedOwnerID),
-            let refreshed = try await ActionItemStorage.shared.getLocalActionItem(surfacedId: itemId)
+            let refreshed = try await ActionItemStorage.shared.getLocalActionItem(
+              surfacedId: itemId,
+              authorizationSnapshot: authorizationSnapshot)
           else { return authorizedOwnerChangedResult() }
           task = refreshed
         }
@@ -2034,12 +1915,15 @@ class ChatToolExecutor {
               description: args["description"] as? String,
               dueAt: validatedUpdateDueAt,
               clearDueAt: clearsDueAt,
-              expectedOwnerID: expectedOwnerID
+              expectedOwnerID: expectedOwnerID,
+              authorizationSnapshot: authorizationSnapshot
             )
           else { return "Error: local task field update did not commit" }
         }
         guard isExpectedOwnerCurrent(expectedOwnerID),
-          let updated = try await ActionItemStorage.shared.getLocalActionItem(surfacedId: itemId)
+          let updated = try await ActionItemStorage.shared.getLocalActionItem(
+            surfacedId: itemId,
+            authorizationSnapshot: authorizationSnapshot)
         else { return authorizedOwnerChangedResult() }
         return localTaskToolPayload(
           [updated],

@@ -187,6 +187,28 @@ final class Wave2OwnerPublicationFenceTests: XCTestCase {
     } catch {
       XCTAssertTrue(error is LocalMutationAuthorizationError)
     }
+    do {
+      _ = try await ActionItemStorage.shared.getFilteredActionItems(
+        authorizationSnapshot: staleSnapshot)
+      XCTFail("stale voice task listing must be revoked")
+    } catch {
+      XCTAssertTrue(error is LocalMutationAuthorizationError)
+    }
+    do {
+      _ = try await ActionItemStorage.shared.getLocalActionItem(
+        surfacedId: "local_1",
+        authorizationSnapshot: staleSnapshot)
+      XCTFail("stale voice task hydration must be revoked")
+    } catch {
+      XCTAssertTrue(error is LocalMutationAuthorizationError)
+    }
+    do {
+      _ = try await MemoryStorage.shared.listForTool(
+        authorizationSnapshot: staleSnapshot)
+      XCTFail("stale voice memory listing must be revoked")
+    } catch {
+      XCTAssertTrue(error is LocalMutationAuthorizationError)
+    }
   }
 
   func testQueuedAssistantEventChecksAuthorizationAtActualCallbackBoundary() async throws {
