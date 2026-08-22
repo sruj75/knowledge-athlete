@@ -52,6 +52,17 @@ class _Stream:
         return value
 
 
+class _DelayedEnterStream(_Stream):
+    def __init__(self, events, clock, enter_delay):
+        super().__init__(events)
+        self.clock = clock
+        self.enter_delay = enter_delay
+
+    async def __aenter__(self):
+        self.clock[0] += self.enter_delay
+        return self
+
+
 class _Messages:
     def __init__(self, *, streams=(), creates=()):
         self.streams = iter(streams)
@@ -98,6 +109,57 @@ async def test_stream_retries_transport_failure_before_first_event():
 
 
 @pytest.mark.asyncio
+async def test_stream_retries_empty_provider_stream_then_fails_closed():
+    first = _Stream([])
+    second = _Stream([])
+    messages = _Messages(streams=[first, second])
+
+    with pytest.raises(httpx.RemoteProtocolError, match='ended before its first event'):
+        _ = [
+            item
+            async for item in stream_managed_anthropic_events(
+                messages,
+                {},
+                policy=_policy(provider_max_attempts=2),
+                _sleep=_no_sleep,
+            )
+        ]
+
+    assert messages.stream_calls == 2
+    assert len(first.exits) == 1
+    assert len(second.exits) == 1
+
+
+@pytest.mark.asyncio
+async def test_first_event_deadline_includes_stream_setup_time():
+    clock = [0.0]
+    observed_timeouts = []
+
+    async def wait(tasks, *, timeout):
+        observed_timeouts.append(timeout)
+        return set(), set(tasks)
+
+    stream = _DelayedEnterStream([SimpleNamespace(type='message_start')], clock, enter_delay=20.0)
+    messages = _Messages(streams=[stream])
+
+    with pytest.raises(TimeoutError, match='produced no first event'):
+        _ = [
+            item
+            async for item in stream_managed_anthropic_events(
+                messages,
+                {},
+                policy=_policy(provider_max_attempts=1),
+                _monotonic=lambda: clock[0],
+                _wait=wait,
+            )
+        ]
+
+    assert observed_timeouts == [5.0]
+    assert messages.stream_calls == 1
+    assert len(stream.exits) == 1
+
+
+@pytest.mark.asyncio
 async def test_stream_never_retries_after_provider_output_begins():
     event = SimpleNamespace(type='message_start')
     stream = _Stream([event, httpx.ConnectError('disconnected')])
@@ -108,6 +170,63 @@ async def test_stream_never_retries_after_provider_output_begins():
 
     assert messages.stream_calls == 1
     assert len(stream.exits) == 1
+
+
+@pytest.mark.asyncio
+async def test_retry_headroom_is_measured_after_backoff():
+    clock = [0.0]
+    sleeps = []
+
+    class _TimedMessages(_Messages):
+        async def create(self, **payload):
+            clock[0] = 104.0
+            return await super().create(**payload)
+
+    async def sleep(seconds):
+        sleeps.append(seconds)
+
+    messages = _TimedMessages(creates=[httpx.ConnectError('offline')])
+
+    with pytest.raises(httpx.ConnectError):
+        await create_managed_anthropic_message(
+            messages,
+            {},
+            policy=_policy(provider_retry_backoff_seconds=2.0),
+            _monotonic=lambda: clock[0],
+            _sleep=sleep,
+        )
+
+    assert messages.create_calls == 1
+    assert sleeps == []
+
+
+@pytest.mark.asyncio
+async def test_retry_headroom_is_rechecked_after_a_late_backoff_wake():
+    clock = [0.0]
+    sleeps = []
+
+    class _TimedMessages(_Messages):
+        async def create(self, **payload):
+            clock[0] = 100.0
+            return await super().create(**payload)
+
+    async def late_sleep(seconds):
+        sleeps.append(seconds)
+        clock[0] += 6.0
+
+    messages = _TimedMessages(creates=[httpx.ConnectError('offline')])
+
+    with pytest.raises(httpx.ConnectError):
+        await create_managed_anthropic_message(
+            messages,
+            {},
+            policy=_policy(),
+            _monotonic=lambda: clock[0],
+            _sleep=late_sleep,
+        )
+
+    assert messages.create_calls == 1
+    assert sleeps == [1.0]
 
 
 @pytest.mark.asyncio

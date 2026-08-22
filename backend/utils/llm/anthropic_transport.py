@@ -52,10 +52,11 @@ async def create_managed_anthropic_message(
 ) -> Any:
     active_policy = policy or ManagedAnthropicPolicy.from_environment()
     started_at = _monotonic()
+    turn_deadline = started_at + active_policy.max_duration_seconds
     attempt = 0
     while True:
         attempt += 1
-        remaining = active_policy.max_duration_seconds - (_monotonic() - started_at)
+        remaining = turn_deadline - _monotonic()
         if remaining <= 0:
             raise TimeoutError('managed Anthropic request exceeded its turn deadline')
         try:
@@ -63,9 +64,18 @@ async def create_managed_anthropic_message(
         except asyncio.CancelledError:
             raise
         except Exception as exc:
-            if not _can_retry(exc, attempt, started_at, active_policy, _monotonic):
+            if not _can_retry(exc, attempt, turn_deadline, active_policy, _monotonic):
                 raise
-            await _sleep(active_policy.provider_retry_backoff_seconds)
+            has_retry_headroom = await _sleep_before_retry(
+                active_policy.provider_retry_backoff_seconds,
+                turn_deadline,
+                _monotonic,
+                _sleep,
+                active_policy.provider_min_retry_headroom_seconds,
+                deadline_message='managed Anthropic request exceeded its turn deadline',
+            )
+            if not has_retry_headroom:
+                raise
 
 
 async def stream_managed_anthropic_events(
@@ -81,39 +91,44 @@ async def stream_managed_anthropic_events(
 
     active_policy = policy or ManagedAnthropicPolicy.from_environment()
     started_at = _monotonic()
+    turn_deadline = started_at + active_policy.max_duration_seconds
     attempt = 0
 
     while True:
         attempt += 1
+        first_event_deadline = min(
+            turn_deadline,
+            _monotonic() + active_policy.first_event_timeout_seconds,
+        )
         manager: Any | None = None
         opened = False
         pending: asyncio.Task[Any] | None = None
         saw_event = False
         try:
-            remaining = active_policy.max_duration_seconds - (_monotonic() - started_at)
+            remaining = turn_deadline - _monotonic()
             if remaining <= 0:
                 raise TimeoutError('managed Anthropic stream exceeded its turn deadline')
             manager = messages.stream(**dict(payload))
-            active = await asyncio.wait_for(
-                manager.__aenter__(), timeout=min(active_policy.first_event_timeout_seconds, remaining)
-            )
+            active = await asyncio.wait_for(manager.__aenter__(), timeout=first_event_deadline - _monotonic())
             opened = True
             iterator = active.__aiter__()
 
             while True:
-                remaining = active_policy.max_duration_seconds - (_monotonic() - started_at)
+                remaining = turn_deadline - _monotonic()
                 if remaining <= 0:
                     raise TimeoutError('managed Anthropic stream exceeded its turn deadline')
                 if pending is None:
                     pending = asyncio.create_task(iterator.__anext__())
                 silent_limit = (
-                    active_policy.progress_heartbeat_seconds if saw_event else active_policy.first_event_timeout_seconds
+                    active_policy.progress_heartbeat_seconds if saw_event else first_event_deadline - _monotonic()
                 )
+                if silent_limit <= 0:
+                    raise TimeoutError('managed Anthropic stream produced no first event before its deadline')
                 done, _ = await _wait({pending}, timeout=min(silent_limit, remaining))
                 if not done:
                     if not saw_event:
                         raise TimeoutError('managed Anthropic stream produced no first event before its deadline')
-                    if _monotonic() - started_at >= active_policy.max_duration_seconds:
+                    if _monotonic() >= turn_deadline:
                         raise TimeoutError('managed Anthropic stream exceeded its turn deadline')
                     yield ANTHROPIC_STREAM_HEARTBEAT
                     continue
@@ -122,6 +137,8 @@ async def stream_managed_anthropic_events(
                     event = pending.result()
                 except StopAsyncIteration:
                     pending = None
+                    if not saw_event:
+                        raise httpx.RemoteProtocolError('managed Anthropic stream ended before its first event')
                     opened = False
                     await _close_stream(manager, None, active_policy.cancel_grace_seconds)
                     return
@@ -136,9 +153,18 @@ async def stream_managed_anthropic_events(
             if (
                 isinstance(exc, Exception)
                 and not saw_event
-                and _can_retry(exc, attempt, started_at, active_policy, _monotonic)
+                and _can_retry(exc, attempt, turn_deadline, active_policy, _monotonic)
             ):
-                await _sleep(active_policy.provider_retry_backoff_seconds)
+                has_retry_headroom = await _sleep_before_retry(
+                    active_policy.provider_retry_backoff_seconds,
+                    turn_deadline,
+                    _monotonic,
+                    _sleep,
+                    active_policy.provider_min_retry_headroom_seconds,
+                    deadline_message='managed Anthropic stream exceeded its turn deadline',
+                )
+                if not has_retry_headroom:
+                    raise
                 continue
             raise
 
@@ -146,20 +172,39 @@ async def stream_managed_anthropic_events(
 def _can_retry(
     exc: BaseException,
     attempt: int,
-    started_at: float,
+    turn_deadline: float,
     policy: ManagedAnthropicPolicy,
     monotonic: Callable[[], float],
 ) -> bool:
-    remaining = policy.max_duration_seconds - (monotonic() - started_at)
+    remaining_after_backoff = turn_deadline - monotonic() - policy.provider_retry_backoff_seconds
     retry_error = httpx.ReadTimeout(str(exc)) if isinstance(exc, TimeoutError) else exc
     return should_retry_provider_error(
         retry_error,
         attempts_made=attempt,
         max_attempts=policy.provider_max_attempts,
         text_already_streamed=False,
-        seconds_remaining=remaining,
+        seconds_remaining=remaining_after_backoff,
         min_headroom_seconds=policy.provider_min_retry_headroom_seconds,
     )
+
+
+async def _sleep_before_retry(
+    delay_seconds: float,
+    turn_deadline: float,
+    monotonic: Callable[[], float],
+    sleep: Callable[[float], Awaitable[None]],
+    minimum_headroom_seconds: float,
+    *,
+    deadline_message: str,
+) -> bool:
+    remaining = turn_deadline - monotonic()
+    if remaining <= 0:
+        raise TimeoutError(deadline_message)
+    try:
+        await asyncio.wait_for(sleep(delay_seconds), timeout=remaining)
+    except TimeoutError as exc:
+        raise TimeoutError(deadline_message) from exc
+    return turn_deadline - monotonic() >= minimum_headroom_seconds
 
 
 async def _cancel_pending(pending: asyncio.Task[Any] | None) -> None:
