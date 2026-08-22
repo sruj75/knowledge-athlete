@@ -139,7 +139,7 @@ final class TasksStoreOwnerBoundaryTests: XCTestCase {
     let refresh = Task { @MainActor in
       await store.loadDashboardTasks(
         expectedOwnerID: ownerID,
-        loader: {
+        loader: { _ in
           await gate.pause()
           return TasksStore.DashboardTaskSnapshot(
             overdue: [stale], today: [stale], noDueDate: [stale])
@@ -166,6 +166,7 @@ final class TasksStoreOwnerBoundaryTests: XCTestCase {
     ] {
       XCTAssertFalse(source.contains(retired), "retired transport residue: \(retired)")
     }
+
   }
 
   private func task(id: String) -> TaskActionItem {

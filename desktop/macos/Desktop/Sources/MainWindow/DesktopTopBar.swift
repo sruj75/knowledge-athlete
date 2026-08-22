@@ -2,8 +2,8 @@ import OmiTheme
 import SwiftUI
 
 /// The constant floating top bar that replaces the left nav rail: primary
-/// navigation (Home / Memory / Tasks / Insights) and the Capture/Listening controls on
-/// the right.
+/// navigation (Home / Memory / Tasks / Insights), Capture/Listening, permission
+/// recovery when needed, and Settings.
 struct DesktopTopBar: View {
   @Binding var selectedIndex: Int
   @Binding var memoryDestinationRawValue: Int
@@ -20,7 +20,7 @@ struct DesktopTopBar: View {
       expandedNavigation: { navPills },
       compactNavigation: { compactNavigationMenu },
       persistentControls: { CaptureListeningControls(appState: appState, onRewind: onRewind) },
-      settings: { settingsButton }
+      settings: { utilityButtons }
     )
     .frame(maxWidth: .infinity)
     .frame(height: 44)
@@ -77,6 +77,39 @@ struct DesktopTopBar: View {
 
   /// Gear that opens Settings. The old left rail held the settings/profile entry;
   /// with the rail gone this is the only visible way in (⌘, still works too).
+  private var utilityButtons: some View {
+    HStack(spacing: OmiSpacing.sm) {
+      if let destination = DesktopUtilityNavigation.permissionRecoveryDestination(
+        hasMissingPermissions: appState.hasMissingPermissions,
+        selectedIndex: selectedIndex)
+      {
+        Button {
+          dismissMemoryDropdown()
+          OmiMotion.withGated(.easeOut(duration: 0.08)) {
+            selectedIndex = destination.rawValue
+          }
+        } label: {
+          Image(systemName: "exclamationmark.shield")
+            .scaledFont(size: OmiType.body, weight: .semibold)
+            .foregroundColor(OmiColors.warning)
+            .frame(width: 32, height: 32)
+            .background(
+              Circle().fill(
+                selectedIndex == destination.rawValue
+                  ? OmiColors.warning.opacity(0.14) : Color.clear)
+            )
+            .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .help("Fix Permissions")
+        .accessibilityLabel("Fix Permissions")
+        .accessibilityIdentifier("permission-recovery-button")
+      }
+
+      settingsButton
+    }
+  }
+
   private var settingsButton: some View {
     let isActive = selectedIndex == DesktopDestination.settings.rawValue
     return Button {
@@ -359,6 +392,17 @@ enum TopNavigationRoutes {
   }
 
   static let memoryDestinations = MemoryHubDestination.allCases
+}
+
+enum DesktopUtilityNavigation {
+  static func permissionRecoveryDestination(
+    hasMissingPermissions: Bool,
+    selectedIndex: Int
+  ) -> DesktopDestination? {
+    let permissions = DesktopDestination.permissions
+    guard hasMissingPermissions || selectedIndex == permissions.rawValue else { return nil }
+    return permissions
+  }
 }
 
 enum TopNavigationPillMetrics {

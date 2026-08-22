@@ -26,7 +26,6 @@ enum SettingsDestination: String, CaseIterable, Hashable, Sendable {
   case tracking = "privacy.tracking"
   case account = "account.account"
   case currentPlan = "planusage.current"
-  case availablePlans = "planusage.purchase"
   case softwareUpdates = "about.updates"
   case automaticUpdates = "about.autoupdates"
   case autoInstallUpdates = "about.autoinstall"
@@ -63,7 +62,7 @@ enum SettingsDestination: String, CaseIterable, Hashable, Sendable {
       return .notifications
     case .localData, .tracking: return .privacy
     case .account: return .account
-    case .currentPlan, .availablePlans: return .planUsage
+    case .currentPlan: return .planUsage
     case .softwareUpdates, .automaticUpdates, .autoInstallUpdates, .updateChannel, .version,
       .aboutReportIssue:
       return .about
@@ -77,6 +76,42 @@ enum SettingsDestination: String, CaseIterable, Hashable, Sendable {
       return .shortcuts
     }
   }
+
+  var revealsProfileAndStats: Bool {
+    self == .aiUserProfile || self == .stats
+  }
+}
+
+struct SettingsDeepLinkPresentation: Equatable {
+  let settingId: String
+  let revealsProfileAndStats: Bool
+
+  init(settingId: String, revealsProfileAndStats: Bool) {
+    self.settingId = settingId
+    self.revealsProfileAndStats = revealsProfileAndStats
+  }
+
+  init?(rawValue: String?) {
+    guard let rawValue, !rawValue.isEmpty else { return nil }
+    settingId = rawValue
+    revealsProfileAndStats =
+      SettingsDestination(rawValue: rawValue)?.revealsProfileAndStats == true
+  }
+}
+
+struct SettingsStatsRefreshState: Equatable {
+  private(set) var ownerGeneration: UInt64 = 0
+
+  mutating func ownerDidChange() {
+    ownerGeneration &+= 1
+  }
+}
+
+enum PlanUsageCardIdentity: String, CaseIterable {
+  case currentPlan = "planusage.current"
+  case purchase = "planusage.purchase"
+  case quota = "planusage.quota"
+  case quotaLoading = "planusage.quota.loading"
 }
 
 struct SettingsSearchItem: Identifiable {
@@ -218,11 +253,6 @@ struct SettingsSearchItem: Identifiable {
       name: "Current Plan", subtitle: "See your current subscription and renewal status",
       keywords: ["current plan", "renewal", "billing"], section: .planUsage, icon: "creditcard",
       destination: .currentPlan),
-    SettingsSearchItem(
-      name: "Available Plans", subtitle: "Review server-provided billing offers",
-      keywords: ["upgrade", "buy", "pricing", "checkout"], section: .planUsage,
-      icon: "creditcard", destination: .availablePlans),
-
     // About
     SettingsSearchItem(
       name: "Software Updates", subtitle: "Check for and manage app updates",
@@ -702,14 +732,20 @@ struct SettingHighlightModifier: ViewModifier {
           .allowsHitTesting(false)
       )
       .onChange(of: highlightedSettingId) { _, newId in
-        if newId == settingId {
-          OmiMotion.withGated { isHighlighted = true }
-          DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-            OmiMotion.withGated(.easeInOut(duration: 0.5)) { isHighlighted = false }
-            if highlightedSettingId == settingId { highlightedSettingId = nil }
-          }
-        }
+        highlightIfNeeded(newId)
       }
+      .onAppear { highlightIfNeeded(highlightedSettingId) }
+  }
+
+  private func highlightIfNeeded(_ candidate: String?) {
+    guard SettingsDeepLinkPresentation(rawValue: candidate)?.settingId == settingId,
+      !isHighlighted
+    else { return }
+    OmiMotion.withGated { isHighlighted = true }
+    DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+      OmiMotion.withGated(.easeInOut(duration: 0.5)) { isHighlighted = false }
+      if highlightedSettingId == settingId { highlightedSettingId = nil }
+    }
   }
 }
 

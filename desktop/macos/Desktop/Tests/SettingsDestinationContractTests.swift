@@ -22,6 +22,28 @@ final class SettingsDestinationContractTests: XCTestCase {
     XCTAssertEqual(SettingsDestination.askMode.section, .advanced)
   }
 
+  func testSearchOnlyExposesAlwaysMountedTargetsAndRevealsHiddenStatsContainer() {
+    XCTAssertFalse(SettingsSearchItem.allSearchableItems.contains { $0.name == "Available Plans" })
+    XCTAssertTrue(SettingsDestination.aiUserProfile.revealsProfileAndStats)
+    XCTAssertTrue(SettingsDestination.stats.revealsProfileAndStats)
+    XCTAssertFalse(SettingsDestination.currentPlan.revealsProfileAndStats)
+    XCTAssertEqual(
+      SettingsDeepLinkPresentation(rawValue: SettingsDestination.stats.rawValue),
+      SettingsDeepLinkPresentation(
+        settingId: SettingsDestination.stats.rawValue,
+        revealsProfileAndStats: true))
+
+    var refreshState = SettingsStatsRefreshState()
+    let mountedTaskID = refreshState.ownerGeneration
+    refreshState.ownerDidChange()
+    XCTAssertNotEqual(refreshState.ownerGeneration, mountedTaskID)
+
+    XCTAssertEqual(Set(PlanUsageCardIdentity.allCases.map(\.rawValue)).count, 4)
+    XCTAssertEqual(
+      PlanUsageCardIdentity.currentPlan.rawValue,
+      SettingsDestination.currentPlan.rawValue)
+  }
+
   func testBrokenAndDuplicateDestinationsAreNotRepresentable() {
     let rawValues = Set(SettingsDestination.allCases.map(\.rawValue))
     XCTAssertFalse(rawValues.contains("account.signout"))
@@ -29,6 +51,7 @@ final class SettingsDestinationContractTests: XCTestCase {
     XCTAssertFalse(rawValues.contains("privacy.privacy"))
     XCTAssertFalse(rawValues.contains("advanced.goals"))
     XCTAssertFalse(rawValues.contains("advanced.goals.autogenerate"))
+    XCTAssertFalse(rawValues.contains("planusage.purchase"))
   }
 
   /// Source-inspection tripwire for exact retired About labels assigned by S-21.

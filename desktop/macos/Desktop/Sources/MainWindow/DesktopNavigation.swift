@@ -56,6 +56,10 @@ enum DesktopNavigationPolicy {
     DesktopDestination(rawValue: rawValue)
   }
 
+  static func showsTopBar(forRawValue rawValue: Int) -> Bool {
+    destination(forRawValue: rawValue) != nil
+  }
+
   static func destination(forShortcut shortcut: String) -> DesktopDestination? {
     switch normalized(shortcut) {
     case "1", "home", "dashboard": return .home

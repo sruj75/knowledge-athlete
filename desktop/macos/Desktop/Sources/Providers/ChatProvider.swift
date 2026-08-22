@@ -1941,7 +1941,7 @@ class ChatProvider: ObservableObject {
 
   // MARK: - Session Management
 
-  func listLocalChatCatalog() async throws -> LocalChatCatalogSnapshot {
+  private func listLocalChatCatalog() async throws -> LocalChatCatalogSnapshot {
     #if DEBUG
       if let listChatCatalogForTests {
         return LocalChatCatalogSnapshot(

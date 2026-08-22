@@ -9,8 +9,8 @@ import SwiftUI
 // MARK: - Launch Mode
 /// Determines which UI to show based on command-line arguments
 enum LaunchMode: String {
-  case full = "full"  // Normal app with full sidebar
-  case rewind = "rewind"  // Rewind-only mode (no sidebar)
+  case full = "full"  // Normal app with the complete desktop shell
+  case rewind = "rewind"  // Rewind-only shell
 
   static func fromCommandLine() -> LaunchMode {
     // Check for --mode=rewind argument
@@ -124,7 +124,7 @@ struct OMIApp: App {
   var body: some Scene {
     let _ = Self.registerOpenMainWindowHandler(openWindow)
 
-    // Main desktop window - same view for both modes, sidebar hidden in rewind mode
+    // Main desktop window - the same host selects either the complete or Rewind-only shell.
     return Window(windowTitle, id: "main") {
       DesktopHomeView()
         .environmentObject(appState)

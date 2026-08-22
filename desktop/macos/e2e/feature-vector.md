@@ -62,7 +62,7 @@ Prioritized feature map to guide desktop E2E coverage. Uses the same two-dimensi
 | 21 | Custom vocabulary | understand (4) | 8 | 3 | 2 | ✅ flow: `vocabulary.yaml` |
 | 22 | Goals tracking (dashboard widget) | intelligence (3) | 6 | 3 | 2 | ✅ flow: `goals-dashboard.yaml` |
 | 23 | Transcription language settings | understand (4) | 8 | 3 | 3 | ✅ flow: `language.yaml` (set + snapshot) |
-| 24 | Privacy toggles (store recordings, tracking) | — | 5 | 2 | 2 | ✅ flow: `privacy-settings.yaml` (toggle snapshot) |
+| 24 | Privacy disclosure and tracking snapshot | — | 5 | 2 | 2 | ✅ flow: `privacy-settings.yaml` (toggle snapshot) |
 | 25 | Plan / usage (billing) | — | 5 | 2 | 1 | ✅ flow: `plan-usage.yaml` (subscription snapshot) |
 | 28 | Refer a Friend (external affiliate URL) | retrieval-action (3) | 6 | 0 | 2 | ⚠️ manual: `refer-external.yaml` (profile menu → browser) |
 | 29 | Delete account (confirmation only) | — | 5 | 0 | 2 | ⚠️ manual: `delete-account.yaml` (never confirms) |

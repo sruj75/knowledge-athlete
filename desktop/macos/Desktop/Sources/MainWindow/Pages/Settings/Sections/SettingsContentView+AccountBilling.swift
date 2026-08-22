@@ -232,7 +232,7 @@ extension SettingsContentView {
     VStack(spacing: OmiSpacing.xl) {
       trialCountdownCard
 
-      settingsCard(destination: .currentPlan) {
+      settingsCard(settingId: PlanUsageCardIdentity.currentPlan.rawValue) {
         VStack(alignment: .leading, spacing: OmiSpacing.md) {
           HStack(spacing: OmiSpacing.lg) {
             Image(systemName: "creditcard.fill")
@@ -295,7 +295,7 @@ extension SettingsContentView {
       }
 
       if shouldShowPlanPurchaseOptions {
-        settingsCard(destination: .availablePlans) {
+        settingsCard(settingId: PlanUsageCardIdentity.purchase.rawValue) {
           VStack(alignment: .leading, spacing: OmiSpacing.lg) {
             // All plan cards share the row width — no horizontal scrolling.
             HStack(alignment: .top, spacing: OmiSpacing.lg) {
@@ -317,7 +317,7 @@ extension SettingsContentView {
   @ViewBuilder
   var chatUsageQuotaCard: some View {
     if let quota = chatUsageQuota {
-      settingsCard(destination: .currentPlan) {
+      settingsCard(settingId: PlanUsageCardIdentity.quota.rawValue) {
         VStack(alignment: .leading, spacing: OmiSpacing.md) {
           HStack {
             Text("Usage this month")
@@ -358,7 +358,7 @@ extension SettingsContentView {
         }
       }
     } else if isLoadingChatUsage {
-      settingsCard(destination: .currentPlan) {
+      settingsCard(settingId: PlanUsageCardIdentity.quotaLoading.rawValue) {
         HStack {
           ProgressView().controlSize(.small)
           Text("Loading usage…")

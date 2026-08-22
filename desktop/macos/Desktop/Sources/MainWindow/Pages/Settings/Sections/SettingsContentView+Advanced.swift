@@ -379,7 +379,7 @@ extension SettingsContentView {
         }
       }
     }
-    .task {
+    .task(id: statsRefreshState.ownerGeneration) {
       await loadAdvancedStats()
     }
   }

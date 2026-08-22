@@ -19,6 +19,34 @@ struct YourStatsSnapshot: Equatable, Sendable {
 }
 
 @MainActor
+enum YourStatsChatCatalogReader {
+  typealias CatalogReader =
+    @MainActor (RuntimeOwnerAuthorizationSnapshot) async throws -> LocalChatCatalogSnapshot
+
+  private static let liveSession = AgentClient.makeSession()
+
+  static func messageCount(
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot,
+    catalogReader: CatalogReader? = nil
+  ) async throws -> Int {
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else {
+      throw BridgeError.authMissing
+    }
+    let catalog: LocalChatCatalogSnapshot
+    if let catalogReader {
+      catalog = try await catalogReader(authorizationSnapshot)
+    } else {
+      catalog = try await liveSession.listChatCatalog(
+        authorizationSnapshot: authorizationSnapshot)
+    }
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else {
+      throw BridgeError.authMissing
+    }
+    return catalog.chats.reduce(0) { $0 + $1.messageCount }
+  }
+}
+
+@MainActor
 struct YourStatsLocalReaders {
   typealias CountReader = @MainActor (RuntimeOwnerAuthorizationSnapshot) async throws -> Int
   typealias TaskCountReader =
@@ -40,10 +68,7 @@ struct YourStatsLocalReaders {
       )
     },
     chatMessages: { snapshot in
-      guard let provider = ChatProvider.mainInstance else {
-        throw BridgeError.agentError("Main Chat is unavailable")
-      }
-      return try await provider.localChatMessageCount(authorizationSnapshot: snapshot)
+      try await YourStatsChatCatalogReader.messageCount(authorizationSnapshot: snapshot)
     },
     screenshots: { snapshot in
       try await RewindDatabase.shared.getScreenshotCount(authorizationSnapshot: snapshot)

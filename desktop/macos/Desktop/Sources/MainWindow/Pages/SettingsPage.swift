@@ -41,17 +41,22 @@ struct SettingsPage: View {
         }
       }
       .onChange(of: highlightedSettingId) { _, newId in
-        guard let newId = newId else { return }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-          OmiMotion.withGated(.easeInOut(duration: 0.3)) {
-            proxy.scrollTo(newId, anchor: .center)
-          }
-        }
+        scrollToHighlightedSetting(newId, with: proxy)
       }
+      .onAppear { scrollToHighlightedSetting(highlightedSettingId, with: proxy) }
     }
     .background(OmiColors.backgroundSecondary.opacity(0.3))
     .onAppear {
       AnalyticsManager.shared.settingsPageOpened()
+    }
+  }
+
+  private func scrollToHighlightedSetting(_ settingId: String?, with proxy: ScrollViewProxy) {
+    guard let presentation = SettingsDeepLinkPresentation(rawValue: settingId) else { return }
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+      OmiMotion.withGated(.easeInOut(duration: 0.3)) {
+        proxy.scrollTo(presentation.settingId, anchor: .center)
+      }
     }
   }
 }
@@ -130,6 +135,7 @@ struct SettingsContentView: View {
   @State var isLoadingStats = false
   @State var showProfileAndStats = false
   @State var statsLoadGeneration: UInt64 = 0
+  @State var statsRefreshState = SettingsStatsRefreshState()
 
   // AI User Profile
   @State var aiProfileId: Int64?
@@ -424,6 +430,7 @@ struct SettingsContentView: View {
       .omiAnimation(.easeInOut(duration: 0.15), value: selectedSection)
     }
     .onAppear {
+      revealHighlightedContainerIfNeeded(highlightedSettingId)
       loadLocalSettings()
       loadSubscriptionInfo()
       // Sync transcription state with appState
@@ -443,8 +450,12 @@ struct SettingsContentView: View {
     }
     .onReceive(NotificationCenter.default.publisher(for: .runtimeOwnerDidChange)) { _ in
       statsLoadGeneration &+= 1
+      statsRefreshState.ownerDidChange()
       advancedStats = nil
       isLoadingStats = false
+    }
+    .onChange(of: highlightedSettingId) { _, newValue in
+      revealHighlightedContainerIfNeeded(newValue)
     }
     .onChange(of: appState.isTranscribing) { _, newValue in
       isTranscribing = newValue
@@ -481,6 +492,13 @@ struct SettingsContentView: View {
         handleBillingFlowCompletion(outcome)
       }
     }
+  }
+
+  private func revealHighlightedContainerIfNeeded(_ rawValue: String?) {
+    guard SettingsDeepLinkPresentation(rawValue: rawValue)?.revealsProfileAndStats == true else {
+      return
+    }
+    showProfileAndStats = true
   }
 
   @ObservedObject var fontScaleSettings = FontScaleSettings.shared

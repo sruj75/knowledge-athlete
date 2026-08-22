@@ -22,7 +22,8 @@ final class TasksStore: ObservableObject {
     let noDueDate: [TaskActionItem]
   }
 
-  typealias DashboardTaskLoader = () async throws -> DashboardTaskSnapshot
+  typealias DashboardTaskLoader =
+    (RuntimeOwnerAuthorizationSnapshot) async throws -> DashboardTaskSnapshot
 
   struct HomeTaskSnapshot {
     let tasks: [TaskActionItem]
@@ -79,6 +80,7 @@ final class TasksStore: ObservableObject {
   private var hasLoadedIncomplete = false
   private var hasLoadedCompleted = false
   private var ownerOperationGeneration: UInt64 = 0
+  private var homeTaskLoadGeneration: UInt64 = 0
   private var cancellables = Set<AnyCancellable>()
   private let reminderService: TaskReminderService
 
@@ -130,6 +132,7 @@ final class TasksStore: ObservableObject {
 
   func resetSessionState() {
     ownerOperationGeneration &+= 1
+    homeTaskLoadGeneration &+= 1
     incompleteTasks = []
     completedTasks = []
     deletedTasks = []
@@ -316,12 +319,16 @@ final class TasksStore: ObservableObject {
       let lease = captureLease(
         expectedOwnerID: expectedOwnerID,
         authorizationSnapshot: authorizationSnapshot
-      ), !isLoadingHomeTasks
+      )
     else { return }
+    homeTaskLoadGeneration &+= 1
+    let loadGeneration = homeTaskLoadGeneration
     isLoadingHomeTasks = true
     homeTaskError = nil
     defer {
-      if isCurrent(lease) { isLoadingHomeTasks = false }
+      if isCurrent(lease), loadGeneration == homeTaskLoadGeneration {
+        isLoadingHomeTasks = false
+      }
     }
     do {
       let snapshot: HomeTaskSnapshot
@@ -339,11 +346,11 @@ final class TasksStore: ObservableObject {
         )
         snapshot = try await HomeTaskSnapshot(tasks: tasks, openCount: count)
       }
-      guard isCurrent(lease) else { return }
+      guard isCurrent(lease), loadGeneration == homeTaskLoadGeneration else { return }
       homeTasks = snapshot.tasks
       openTaskCount = snapshot.openCount
     } catch {
-      guard isCurrent(lease) else { return }
+      guard isCurrent(lease), loadGeneration == homeTaskLoadGeneration else { return }
       homeTaskError = error.localizedDescription
       logError("Home: Failed to read local tasks", error: error)
     }
@@ -379,25 +386,28 @@ final class TasksStore: ObservableObject {
     do {
       let snapshot: DashboardTaskSnapshot
       if let loader {
-        snapshot = try await loader()
+        snapshot = try await loader(lease.authorizationSnapshot)
       } else {
         async let overdue = ActionItemStorage.shared.getFilteredActionItems(
           limit: 50,
           completedStates: [false],
           dueDateAfter: sevenDaysAgo,
-          dueDateBefore: startOfToday
+          dueDateBefore: startOfToday,
+          authorizationSnapshot: lease.authorizationSnapshot
         )
         async let today = ActionItemStorage.shared.getFilteredActionItems(
           limit: 50,
           completedStates: [false],
           dueDateAfter: startOfToday,
-          dueDateBefore: endOfToday
+          dueDateBefore: endOfToday,
+          authorizationSnapshot: lease.authorizationSnapshot
         )
         async let undated = ActionItemStorage.shared.getFilteredActionItems(
           limit: 50,
           completedStates: [false],
           dueDateIsNull: true,
-          createdAfter: sevenDaysAgo
+          createdAfter: sevenDaysAgo,
+          authorizationSnapshot: lease.authorizationSnapshot
         )
         snapshot = try await DashboardTaskSnapshot(
           overdue: overdue,

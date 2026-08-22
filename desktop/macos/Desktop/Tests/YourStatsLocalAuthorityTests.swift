@@ -81,6 +81,46 @@ final class YourStatsLocalAuthorityTests: XCTestCase {
     XCTAssertEqual(snapshot.conversations, 1)
   }
 
+  func testChatCountUsesTheCapturedOwnerAuthorizedCatalog() async throws {
+    let expectedAuthorization = try XCTUnwrap(
+      RuntimeOwnerIdentity.captureAuthorizationSnapshot())
+    var receivedAuthorization: RuntimeOwnerAuthorizationSnapshot?
+
+    let count = try await YourStatsChatCatalogReader.messageCount(
+      authorizationSnapshot: expectedAuthorization,
+      catalogReader: { authorization in
+        receivedAuthorization = authorization
+        return LocalChatCatalogSnapshot(
+          chats: [
+            try self.chatSummary(id: "default", messageCount: 4),
+            try self.chatSummary(id: "named", messageCount: 7),
+          ],
+          retainedAttachmentURIs: [])
+      })
+
+    XCTAssertEqual(receivedAuthorization, expectedAuthorization)
+    XCTAssertEqual(count, 11)
+  }
+
+  func testChatCountRejectsCatalogResultAfterOwnerChanges() async throws {
+    let expectedAuthorization = try XCTUnwrap(
+      RuntimeOwnerIdentity.captureAuthorizationSnapshot())
+
+    do {
+      _ = try await YourStatsChatCatalogReader.messageCount(
+        authorizationSnapshot: expectedAuthorization,
+        catalogReader: { [ownerFixture] _ in
+          await ownerFixture?.establish(authOwnerID: "stats-owner-b")
+          return LocalChatCatalogSnapshot(chats: [], retainedAttachmentURIs: [])
+        })
+      XCTFail("owner-A catalog result must fail closed")
+    } catch {
+      guard case BridgeError.authMissing = error else {
+        return XCTFail("expected authMissing, got \(error)")
+      }
+    }
+  }
+
   func testRequiredReaderFailurePreservesCardFailure() async {
     var readers = readers()
     readers.memories = { _ in throw TestError.failed }
@@ -137,6 +177,19 @@ final class YourStatsLocalAuthorityTests: XCTestCase {
       goals: { _ in 8 },
       memories: { _ in 9 }
     )
+  }
+
+  private func chatSummary(id: String, messageCount: Int) throws -> LocalChatSummary {
+    try XCTUnwrap(
+      LocalChatSummary(dictionary: [
+        "chatId": id,
+        "title": id,
+        "titleOrigin": "default",
+        "messageCount": messageCount,
+        "createdAtMs": 1_000,
+        "lastActivityAtMs": 2_000,
+        "starred": false,
+      ]))
   }
 
   private func readers(

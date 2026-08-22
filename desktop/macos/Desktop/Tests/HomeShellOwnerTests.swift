@@ -72,6 +72,41 @@ final class HomeShellOwnerTests: XCTestCase {
     XCTAssertEqual(store.openTaskCount, 0)
   }
 
+  func testNewerHomeRefreshWinsWhenAnOlderReadFinishesLast() async {
+    let store = TasksStore(observesNotifications: false)
+    let gate = HomeTaskReadGate()
+    let staleRefresh = Task { @MainActor in
+      await store.loadHomeTasks {
+        await gate.pause()
+        return TasksStore.HomeTaskSnapshot(tasks: [self.task(id: "stale")], openCount: 1)
+      }
+    }
+
+    await gate.waitUntilEntered()
+    await store.loadHomeTasks {
+      TasksStore.HomeTaskSnapshot(tasks: [self.task(id: "fresh")], openCount: 9)
+    }
+    await gate.release()
+    await staleRefresh.value
+
+    XCTAssertEqual(store.homeTasks.map(\.id), ["fresh"])
+    XCTAssertEqual(store.openTaskCount, 9)
+    XCTAssertFalse(store.isLoadingHomeTasks)
+  }
+
+  func testDashboardProjectionPassesOneCapturedAuthorizationToItsReader() async throws {
+    let store = TasksStore(observesNotifications: false)
+    let expected = try XCTUnwrap(RuntimeOwnerIdentity.captureAuthorizationSnapshot())
+    var received: RuntimeOwnerAuthorizationSnapshot?
+
+    await store.loadDashboardTasks { authorization in
+      received = authorization
+      return TasksStore.DashboardTaskSnapshot(overdue: [], today: [], noDueDate: [])
+    }
+
+    XCTAssertEqual(received, expected)
+  }
+
   /// Source-inspection tripwire for an intentional owner deletion. The observable behavior above
   /// proves the surviving store; this assertion keeps the former parallel projection from returning.
   func testDashboardViewModelAndDuplicateHomeListAreGone() throws {

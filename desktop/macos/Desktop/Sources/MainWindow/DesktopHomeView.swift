@@ -455,12 +455,10 @@ struct DesktopHomeView: View {
 
   /// The constant floating top bar (navigation + Capture/Listening)
   /// replaces the old left nav rail. It shows on every main content page —
-  /// including Settings, whose page has no back button, so the bar's nav pills
-  /// are the way out. Permissions is a full-screen utility flow with its own
-  /// chrome and stays bar-less.
+  /// including Settings and permission recovery, whose pages have no separate
+  /// exit chrome, so the bar's nav pills remain the way out.
   private var showsTopBar: Bool {
-    guard let item = DesktopNavigationPolicy.destination(forRawValue: selectedIndex) else { return false }
-    return item != .permissions
+    DesktopNavigationPolicy.showsTopBar(forRawValue: selectedIndex)
   }
 
   private var currentAppStateLabel: String {
@@ -807,7 +805,7 @@ struct DesktopHomeView: View {
         selectedIndex = DesktopDestination.settings.rawValue
       }
       .onReceive(NotificationCenter.default.publisher(for: .navigateToRewind)) { _ in
-        // Navigate to Rewind page (index 6) - triggered by global hotkey Cmd+Option+R
+        // Navigate to Rewind through its retained raw destination (7).
         log(
           "DesktopHomeView: Received navigateToRewind notification, navigating to Rewind (index \(DesktopDestination.rewind.rawValue))"
         )
