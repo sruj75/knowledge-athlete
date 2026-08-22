@@ -8,7 +8,7 @@ from typing import Any
 import google.auth
 from google.auth.transport.requests import Request as GoogleAuthRequest
 
-from utils.executors import critical_executor, run_blocking
+from utils.executors import llm_executor, run_blocking
 
 GOOGLE_CLOUD_PLATFORM_SCOPE = 'https://www.googleapis.com/auth/cloud-platform'
 
@@ -37,7 +37,7 @@ class VertexAccessTokenSupplier:
         async with self._refresh_lock:
             if self._access_token and self._now() < self._expires_at - 60:
                 return self._access_token
-            token, expires_at = await run_blocking(critical_executor, self._refresh)
+            token, expires_at = await run_blocking(llm_executor, self._refresh)
             if not token:
                 raise RuntimeError('Vertex credentials did not provide an access token')
             self._access_token = token
