@@ -64,6 +64,7 @@ extension SettingsContentView {
             }
             .buttonStyle(OmiButtonStyle(.secondary, size: .compact))
             .disabled(isDeletingAccount || isExportingUserData)
+            .accessibilityIdentifier("export-my-data-button")
           }
 
           if let userDataExportStatus {

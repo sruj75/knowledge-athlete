@@ -571,7 +571,7 @@ def assert_trace(ctx: HarnessContext, spec: dict[str, typing.Any], path: Path) -
 def assert_ax(ctx: HarnessContext, spec: dict[str, typing.Any], path: Path) -> tuple[bool, str | None]:
     if ctx.lane != "ui":
         return True, "skipped outside ui lane"
-    result = run_agent_swift(ctx, ["snapshot", "-i", "--json"])
+    result = run_agent_swift(ctx, ["snapshot", "--json"])
     path.write_text(result.stdout, encoding="utf-8")
     if result.returncode != 0:
         return False, "agent-swift snapshot failed"

@@ -38,6 +38,9 @@ steps:
       result.detail.production_event_seam: "true"
       result.detail.fixed_title: "true"
       result.detail.case_reference_present: "true"
+      result.detail.first_in_app_presented: "true"
+      result.detail.delivery_state_truthful: "true"
+      result.detail.replay_state_truthful: "true"
       result.detail.fcm_attempted: "false"
 
   - id: S3

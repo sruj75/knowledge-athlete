@@ -45,6 +45,18 @@ struct FairUseWarningDeliveryStatus: Equatable, Sendable {
   let pendingReplay: Bool
 }
 
+struct FairUseWarningDeliveryPlan: Equatable, Sendable {
+  let inAppPresentation: Bool
+  let systemBanner: Bool
+}
+
+struct FairUseWarningDeliveryHooks: Sendable {
+  let queueInApp: @MainActor @Sendable () -> Void
+  let cancelQueuedInApp: @MainActor @Sendable () -> Void
+  let commitInApp: @MainActor @Sendable () -> Void
+  let commitSystemBanner: @MainActor @Sendable () -> Void
+}
+
 @MainActor
 final class FairUseWarningNotificationPresenter {
   static let shared = FairUseWarningNotificationPresenter()
@@ -58,11 +70,7 @@ final class FairUseWarningNotificationPresenter {
   private let deliver:
     @MainActor (
       String, FairUseWarningPresentation, RuntimeOwnerAuthorizationSnapshot,
-      Bool, Bool,
-      @escaping @MainActor @Sendable () -> Void,
-      @escaping @MainActor @Sendable () -> Void,
-      @escaping @MainActor @Sendable () -> Void,
-      @escaping @MainActor @Sendable () -> Void
+      FairUseWarningDeliveryPlan, FairUseWarningDeliveryHooks
     ) async -> Bool
 
   init(
@@ -73,28 +81,23 @@ final class FairUseWarningNotificationPresenter {
     deliver:
       @escaping @MainActor (
         String, FairUseWarningPresentation, RuntimeOwnerAuthorizationSnapshot,
-        Bool, Bool,
-        @escaping @MainActor @Sendable () -> Void,
-        @escaping @MainActor @Sendable () -> Void,
-        @escaping @MainActor @Sendable () -> Void,
-        @escaping @MainActor @Sendable () -> Void
+        FairUseWarningDeliveryPlan, FairUseWarningDeliveryHooks
       ) async -> Bool = {
-        ownerID, presentation, authorization, deliverInApp, deliverSystemBanner, queueInApp,
-        cancelQueuedInApp, commitInApp, commitSystemBanner in
+        ownerID, presentation, authorization, plan, hooks in
         await withCheckedContinuation { continuation in
           NotificationService.shared.sendNotification(
             ownerID: ownerID,
             title: presentation.title,
             message: presentation.message,
             assistantId: "fair_use",
-            deliverInAppPresentation: deliverInApp,
-            deliverSystemBanner: deliverSystemBanner,
+            deliverInAppPresentation: plan.inAppPresentation,
+            deliverSystemBanner: plan.systemBanner,
             respectFrequency: false,
             authorizationSnapshot: authorization,
-            onInAppQueued: queueInApp,
-            onInAppQueueCancelled: cancelQueuedInApp,
-            onInAppPresented: commitInApp,
-            onSystemBannerDeliveredWithinCommit: commitSystemBanner,
+            onInAppQueued: hooks.queueInApp,
+            onInAppQueueCancelled: hooks.cancelQueuedInApp,
+            onInAppPresented: hooks.commitInApp,
+            onSystemBannerDeliveredWithinCommit: hooks.commitSystemBanner,
             completion: { delivered in continuation.resume(returning: delivered) })
         }
       }
@@ -215,27 +218,29 @@ final class FairUseWarningNotificationPresenter {
       authorization.ownerID,
       presentation,
       authorization,
-      !inAppPresented && !inAppQueued,
-      !systemBannerDelivered,
-      { [self] in queuedInAppAuthorizations[receiptKey] = authorization },
-      { [self] in
-        if queuedInAppAuthorizations[receiptKey] == authorization {
+      FairUseWarningDeliveryPlan(
+        inAppPresentation: !inAppPresented && !inAppQueued,
+        systemBanner: !systemBannerDelivered),
+      FairUseWarningDeliveryHooks(
+        queueInApp: { [self] in queuedInAppAuthorizations[receiptKey] = authorization },
+        cancelQueuedInApp: { [self] in
+          if queuedInAppAuthorizations[receiptKey] == authorization {
+            queuedInAppAuthorizations.removeValue(forKey: receiptKey)
+          }
+        },
+        commitInApp: { [self, defaults] in
           queuedInAppAuthorizations.removeValue(forKey: receiptKey)
-        }
-      },
-      { [self, defaults] in
-        queuedInAppAuthorizations.removeValue(forKey: receiptKey)
-        defaults.set(true, forKey: inAppKey)
-        if defaults.bool(forKey: systemKey) {
-          removePending(receipt, ownerID: authorization.ownerID)
-        }
-      },
-      { [self, defaults] in
-        defaults.set(true, forKey: systemKey)
-        if defaults.bool(forKey: inAppKey) {
-          removePending(receipt, ownerID: authorization.ownerID)
-        }
-      })
+          defaults.set(true, forKey: inAppKey)
+          if defaults.bool(forKey: systemKey) {
+            removePending(receipt, ownerID: authorization.ownerID)
+          }
+        },
+        commitSystemBanner: { [self, defaults] in
+          defaults.set(true, forKey: systemKey)
+          if defaults.bool(forKey: inAppKey) {
+            removePending(receipt, ownerID: authorization.ownerID)
+          }
+        }))
     let complete = defaults.bool(forKey: inAppKey) && defaults.bool(forKey: systemKey)
     if complete {
       removePending(receipt, ownerID: authorization.ownerID)

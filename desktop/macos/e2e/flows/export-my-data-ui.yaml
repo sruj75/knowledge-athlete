@@ -23,39 +23,48 @@ steps:
   - id: S2
     name: Click the real Export row action
     ax.action:
-      locator: text
-      value: Export
+      locator: identifier
+      value: export-my-data-button
       action: click
 
   - id: S3
     name: Verify the native save panel
     ax.expect:
       text_visible:
-        - Export My Data
+        - omi-data-export-
         - Cancel
 
   - id: S4
     name: Cancel the native save panel
     ax.action:
-      locator: text
-      value: Cancel
+      locator: identifier
+      value: CancelButton
       action: click
 
   - id: S5
     name: Open the native save panel again
     ax.action:
-      locator: text
-      value: Export
+      locator: identifier
+      value: export-my-data-button
       action: click
 
   - id: S6
     name: Confirm UI-driven save through the panel prompt
     ax.action:
-      locator: text
-      value: Export
+      locator: identifier
+      value: OKButton
       action: click
 
   - id: S7
+    name: Return the Account Settings window to the foreground
+    bridge.navigate:
+      target: settings
+      settingsSection: Account
+      activateApp: true
+    wait:
+      state.selectedSettingsSection: Account
+
+  - id: S8
     name: Account Settings reports the saved local file
     ax.expect:
       text_visible:

@@ -120,6 +120,26 @@ module.run_agent_swift = original_run_agent_swift
 assert ax_ok and ax_error is None
 assert captured_ax_args == [["find", "text", "Export", "click"]]
 
+captured_ax_args = []
+module.run_agent_swift = lambda _ctx, args: (
+    captured_ax_args.append(args)
+    or __import__("subprocess").CompletedProcess(
+        args,
+        0,
+        stdout='[{"role":"AXStaticText","label":"Saved omi-data-export-2026-08-22.json"}]',
+        stderr="",
+    )
+)
+with tempfile.TemporaryDirectory() as out:
+    ax_ok, ax_error = module.assert_ax(
+        ui_context,
+        {"text_visible": ["Saved omi-data-export-"]},
+        Path(out) / "ax.json",
+    )
+module.run_agent_swift = original_run_agent_swift
+assert ax_ok and ax_error is None
+assert captured_ax_args == [["snapshot", "--json"]], "text assertions require the non-interactive AX tree"
+
 flow_path = Path(path).parent.parent / "e2e/flows/rewind-settings.yaml"
 flow_text = flow_path.read_text(encoding="utf-8")
 s1_block = flow_text.split("  - id: S1", 1)[1].split("  - id: S2", 1)[0]

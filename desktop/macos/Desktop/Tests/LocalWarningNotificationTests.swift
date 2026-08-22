@@ -51,10 +51,10 @@ final class LocalWarningNotificationTests: XCTestCase {
     var deliveries: [FairUseWarningPresentation] = []
     let presenter = FairUseWarningNotificationPresenter(
       defaults: defaults,
-      deliver: { _, presentation, _, _, _, _, _, commitInApp, commitSystem in
+      deliver: { _, presentation, _, _, hooks in
         deliveries.append(presentation)
-        commitInApp()
-        commitSystem()
+        hooks.commitInApp()
+        hooks.commitSystemBanner()
         return true
       })
     let receipt = FairUseClassificationReceipt(
@@ -71,10 +71,10 @@ final class LocalWarningNotificationTests: XCTestCase {
     XCTAssertFalse(duplicatePresented)
     let relaunchedPresenter = FairUseWarningNotificationPresenter(
       defaults: defaults,
-      deliver: { _, presentation, _, _, _, _, _, commitInApp, commitSystem in
+      deliver: { _, presentation, _, _, hooks in
         deliveries.append(presentation)
-        commitInApp()
-        commitSystem()
+        hooks.commitInApp()
+        hooks.commitSystemBanner()
         return true
       })
     let relaunchedDuplicatePresented = await relaunchedPresenter.present(
@@ -98,10 +98,10 @@ final class LocalWarningNotificationTests: XCTestCase {
     let presenter = FairUseWarningNotificationPresenter(
       defaults: defaults,
       isAuthorizationCurrent: { _ in false },
-      deliver: { _, _, _, _, _, _, _, commitInApp, commitSystem in
+      deliver: { _, _, _, _, hooks in
         deliveryCount += 1
-        commitInApp()
-        commitSystem()
+        hooks.commitInApp()
+        hooks.commitSystemBanner()
         return true
       })
     let receipt = FairUseClassificationReceipt(
@@ -128,10 +128,10 @@ final class LocalWarningNotificationTests: XCTestCase {
     var inAppFlags: [Bool] = []
     let presenter = FairUseWarningNotificationPresenter(
       defaults: defaults,
-      deliver: { _, _, _, deliverInApp, deliverSystem, _, _, commitInApp, _ in
-        inAppFlags.append(deliverInApp)
-        XCTAssertTrue(deliverSystem)
-        if deliverInApp { commitInApp() }
+      deliver: { _, _, _, plan, hooks in
+        inAppFlags.append(plan.inAppPresentation)
+        XCTAssertTrue(plan.systemBanner)
+        if plan.inAppPresentation { hooks.commitInApp() }
         return false
       })
     let receipt = FairUseClassificationReceipt(
@@ -145,11 +145,11 @@ final class LocalWarningNotificationTests: XCTestCase {
     let rejected = await presenter.present(receipt, authorization: authorization)
     let relaunchedPresenter = FairUseWarningNotificationPresenter(
       defaults: defaults,
-      deliver: { _, _, _, deliverInApp, deliverSystem, _, _, commitInApp, commitSystem in
-        inAppFlags.append(deliverInApp)
-        XCTAssertTrue(deliverSystem)
-        if deliverInApp { commitInApp() }
-        commitSystem()
+      deliver: { _, _, _, plan, hooks in
+        inAppFlags.append(plan.inAppPresentation)
+        XCTAssertTrue(plan.systemBanner)
+        if plan.inAppPresentation { hooks.commitInApp() }
+        hooks.commitSystemBanner()
         return true
       })
     let replayed = await relaunchedPresenter.replayPending(authorization: authorization)
@@ -178,18 +178,18 @@ final class LocalWarningNotificationTests: XCTestCase {
     var deliveryFlags: [(Bool, Bool)] = []
     let unavailablePresenter = FairUseWarningNotificationPresenter(
       defaults: defaults,
-      deliver: { _, _, _, deliverInApp, deliverSystem, _, _, _, commitSystem in
-        deliveryFlags.append((deliverInApp, deliverSystem))
-        commitSystem()
+      deliver: { _, _, _, plan, hooks in
+        deliveryFlags.append((plan.inAppPresentation, plan.systemBanner))
+        hooks.commitSystemBanner()
         return true
       })
 
     let incomplete = await unavailablePresenter.present(receipt, authorization: authorization)
     let relaunchedPresenter = FairUseWarningNotificationPresenter(
       defaults: defaults,
-      deliver: { _, _, _, deliverInApp, deliverSystem, _, _, commitInApp, _ in
-        deliveryFlags.append((deliverInApp, deliverSystem))
-        commitInApp()
+      deliver: { _, _, _, plan, hooks in
+        deliveryFlags.append((plan.inAppPresentation, plan.systemBanner))
+        hooks.commitInApp()
         return true
       })
     let replayed = await relaunchedPresenter.replayPending(authorization: authorization)
@@ -220,10 +220,10 @@ final class LocalWarningNotificationTests: XCTestCase {
     var deliveryFlags: [(Bool, Bool)] = []
     let queuedPresenter = FairUseWarningNotificationPresenter(
       defaults: defaults,
-      deliver: { _, _, _, deliverInApp, deliverSystem, queueInApp, _, _, commitSystem in
-        deliveryFlags.append((deliverInApp, deliverSystem))
-        if deliverInApp { queueInApp() }
-        if deliverSystem { commitSystem() }
+      deliver: { _, _, _, plan, hooks in
+        deliveryFlags.append((plan.inAppPresentation, plan.systemBanner))
+        if plan.inAppPresentation { hooks.queueInApp() }
+        if plan.systemBanner { hooks.commitSystemBanner() }
         return true
       })
 
@@ -231,9 +231,9 @@ final class LocalWarningNotificationTests: XCTestCase {
     let sameProcessReplay = await queuedPresenter.replayPending(authorization: authorization)
     let relaunchedPresenter = FairUseWarningNotificationPresenter(
       defaults: defaults,
-      deliver: { _, _, _, deliverInApp, deliverSystem, _, _, commitInApp, _ in
-        deliveryFlags.append((deliverInApp, deliverSystem))
-        if deliverInApp { commitInApp() }
+      deliver: { _, _, _, plan, hooks in
+        deliveryFlags.append((plan.inAppPresentation, plan.systemBanner))
+        if plan.inAppPresentation { hooks.commitInApp() }
         return true
       })
     let relaunchedReplay = await relaunchedPresenter.replayPending(authorization: authorization)
@@ -263,13 +263,13 @@ final class LocalWarningNotificationTests: XCTestCase {
     var deliveryFlags: [(Bool, Bool)] = []
     let presenter = FairUseWarningNotificationPresenter(
       defaults: defaults,
-      deliver: { _, _, _, deliverInApp, deliverSystem, queueInApp, _, commitInApp, commitSystem in
-        deliveryFlags.append((deliverInApp, deliverSystem))
+      deliver: { _, _, _, plan, hooks in
+        deliveryFlags.append((plan.inAppPresentation, plan.systemBanner))
         if deliveryFlags.count == 1 {
-          queueInApp()
-          commitSystem()
+          hooks.queueInApp()
+          hooks.commitSystemBanner()
         } else {
-          commitInApp()
+          hooks.commitInApp()
         }
         return true
       })
@@ -305,16 +305,14 @@ final class LocalWarningNotificationTests: XCTestCase {
     var deliveryFlags: [(Bool, Bool)] = []
     let presenter = FairUseWarningNotificationPresenter(
       defaults: defaults,
-      deliver: {
-        _, _, _, deliverInApp, deliverSystem, queueInApp, cancelQueuedInApp, commitInApp,
-        commitSystem in
-        deliveryFlags.append((deliverInApp, deliverSystem))
+      deliver: { _, _, _, plan, hooks in
+        deliveryFlags.append((plan.inAppPresentation, plan.systemBanner))
         if deliveryFlags.count == 1 {
-          queueInApp()
-          cancelQueuedInApp()
-          commitSystem()
+          hooks.queueInApp()
+          hooks.cancelQueuedInApp()
+          hooks.commitSystemBanner()
         } else {
-          commitInApp()
+          hooks.commitInApp()
         }
         return true
       })
@@ -347,11 +345,11 @@ final class LocalWarningNotificationTests: XCTestCase {
     var deliveryAttempts = 0
     let presenter = FairUseWarningNotificationPresenter(
       defaults: defaults,
-      deliver: { _, _, _, _, _, _, _, commitInApp, commitSystem in
+      deliver: { _, _, _, _, hooks in
         deliveryAttempts += 1
         _ = await suspension.deliver()
-        commitInApp()
-        commitSystem()
+        hooks.commitInApp()
+        hooks.commitSystemBanner()
         return true
       })
 
@@ -388,18 +386,18 @@ final class LocalWarningNotificationTests: XCTestCase {
       caseRef: "FU-SNOOZE")
     let snoozedPresenter = FairUseWarningNotificationPresenter(
       defaults: defaults,
-      deliver: { _, _, _, _, _, _, _, _, _ in false })
+      deliver: { _, _, _, _, _ in false })
 
     let acceptedForReplay = await snoozedPresenter.accept(
       receipt, authorization: authorization)
     var replayedInApp = false
     let relaunchedPresenter = FairUseWarningNotificationPresenter(
       defaults: defaults,
-      deliver: { _, _, _, deliverInApp, deliverSystem, _, _, commitInApp, commitSystem in
-        replayedInApp = deliverInApp
-        XCTAssertTrue(deliverSystem)
-        commitInApp()
-        commitSystem()
+      deliver: { _, _, _, plan, hooks in
+        replayedInApp = plan.inAppPresentation
+        XCTAssertTrue(plan.systemBanner)
+        hooks.commitInApp()
+        hooks.commitSystemBanner()
         return true
       })
     let replayed = await relaunchedPresenter.replayPending(authorization: authorization)
@@ -420,7 +418,7 @@ final class LocalWarningNotificationTests: XCTestCase {
     let suspension = WarningDeliverySuspension()
     let presenter = FairUseWarningNotificationPresenter(
       defaults: defaults,
-      deliver: { _, _, authorization, _, _, _, _, commitInApp, commitSystem in
+      deliver: { _, _, authorization, _, hooks in
         let mutationAuthorization = LocalMutationAuthorization {
           RuntimeOwnerIdentity.isAuthorizationCurrent(authorization)
         }
@@ -430,8 +428,8 @@ final class LocalWarningNotificationTests: XCTestCase {
             let delivered = await suspension.deliver()
             try mutationAuthorization.require()
             if delivered {
-              commitInApp()
-              commitSystem()
+              hooks.commitInApp()
+              hooks.commitSystemBanner()
             }
             return delivered
           }

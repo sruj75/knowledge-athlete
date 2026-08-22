@@ -3231,7 +3231,7 @@ final class DesktopAutomationBridge: @unchecked Sendable {
   private func activateMainWindowIfNeeded(_ activateApp: Bool) async {
     guard activateApp else { return }
     await MainActor.run {
-      NSApp.activate()
+      NSApp.activate(ignoringOtherApps: true)
       if let window = NSApp.windows.first(where: { $0.title.lowercased().hasPrefix("omi") }) {
         window.makeKeyAndOrderFront(nil)
       }

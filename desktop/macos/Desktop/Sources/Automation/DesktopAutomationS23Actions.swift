@@ -113,6 +113,13 @@ extension DesktopAutomationActionRegistry {
     let finalStatus = relaunchedPresenter.deliveryStatus(
       for: receipt, ownerID: authorization.ownerID)
     let submissions = await submitter.submissions
+    let deliveryStateTruthful =
+      firstStatus.inAppPresented
+      && (finalStatus.systemBannerDelivered != finalStatus.pendingReplay)
+    let replayStateTruthful =
+      finalStatus.systemBannerDelivered
+      ? replayDeliveryCount == 0
+      : finalStatus.pendingReplay
     return [
       "status": finalStatus.systemBannerDelivered ? "presented" : "pending_replay",
       "receipt_owned": (finalStatus.systemBannerDelivered || finalStatus.pendingReplay) ? "true" : "false",
@@ -120,6 +127,8 @@ extension DesktopAutomationActionRegistry {
       "system_banner_delivered": finalStatus.systemBannerDelivered ? "true" : "false",
       "pending_replay": finalStatus.pendingReplay ? "true" : "false",
       "replay_delivery_count": "\(replayDeliveryCount)",
+      "delivery_state_truthful": deliveryStateTruthful ? "true" : "false",
+      "replay_state_truthful": replayStateTruthful ? "true" : "false",
       "duplicate_event_suppressed": submissions == 1 ? "true" : "false",
       "production_event_seam": "true",
       "fixed_title": presentation?.title == "Fair Use Notice" ? "true" : "false",
