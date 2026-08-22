@@ -49,11 +49,9 @@ struct DesktopHomeView: View {
   @ObservedObject private var apiKeyService = APIKeyService.shared
   @ObservedObject private var updatePolicyManager = DesktopUpdatePolicyManager.shared
   @State private var selectedIndex: Int = {
-    if OMIApp.launchMode == .rewind { return SidebarNavItem.rewind.rawValue }
-    return SidebarNavItem.dashboard.rawValue
+    if OMIApp.launchMode == .rewind { return DesktopDestination.rewind.rawValue }
+    return DesktopDestination.home.rawValue
   }()
-  @State private var isSidebarCollapsed: Bool = true
-  @AppStorage("currentTierLevel") private var currentTierLevel = 0
   @AppStorage(MemoryHubDestination.storageKey) private var memoryDestinationRawValue =
     MemoryHubDestination.memories.rawValue
 
@@ -81,7 +79,7 @@ struct DesktopHomeView: View {
 
   /// Whether we're currently viewing the settings page
   private var isInSettings: Bool {
-    selectedIndex == SidebarNavItem.settings.rawValue
+    selectedIndex == DesktopDestination.settings.rawValue
   }
 
   var body: some View {
@@ -141,9 +139,8 @@ struct DesktopHomeView: View {
               if UserDefaults.standard.bool(forKey: .onboardingJustCompleted) {
                 UserDefaults.standard.removeObject(forKey: .onboardingJustCompleted)
                 log("DesktopHomeView: Onboarding just completed — landing on Home")
-                // Land on Home in the chat-first layout with the old rail collapsed.
-                selectedIndex = SidebarNavItem.dashboard.rawValue
-                isSidebarCollapsed = true
+                // Land on Home in the chat-first layout.
+                selectedIndex = DesktopDestination.home.rawValue
               }
             }
           mainContent
@@ -160,7 +157,7 @@ struct DesktopHomeView: View {
                     // "Account & Plan" page — scroll straight to the plan card.
                     highlightedSettingId = "planusage.current"
                     OmiMotion.withGated(Self.pageNavigationAnimation) {
-                      selectedIndex = SidebarNavItem.settings.rawValue
+                      selectedIndex = DesktopDestination.settings.rawValue
                     }
                   },
                   onDismiss: {
@@ -340,12 +337,6 @@ struct DesktopHomeView: View {
       // extrema and resets our pin, after which the window can be dragged small enough
       // to hide content. Re-pin on every live resize so AppKit keeps clamping the drag.
       installMinimumSizeGuardIfNeeded()
-      // Redirect if current page isn't visible at current tier
-      redirectIfPageHidden()
-      reportAutomationState()
-    }
-    .onChange(of: currentTierLevel) { _, _ in
-      redirectIfPageHidden()
       reportAutomationState()
     }
     .onChange(of: selectedIndex) { _, _ in
@@ -375,8 +366,8 @@ struct DesktopHomeView: View {
       // lives on the chat-first home. DashboardPage focuses the input when it's
       // already mounted; if we're on another tab, switch home first and re-emit
       // so the now-mounted page catches it. Guard on the tab to avoid a loop.
-      if selectedIndex != SidebarNavItem.dashboard.rawValue {
-        selectedIndex = SidebarNavItem.dashboard.rawValue
+      if selectedIndex != DesktopDestination.home.rawValue {
+        selectedIndex = DesktopDestination.home.rawValue
         DispatchQueue.main.async {
           NotificationCenter.default.post(name: .navigateToChat, object: nil)
         }
@@ -385,7 +376,7 @@ struct DesktopHomeView: View {
     // "Continue in Omi" from the floating bar: switch to the Home tab; the
     // dashboard consumes the pending request and opens the chat panel.
     .onReceive(NotificationCenter.default.publisher(for: .openMainChatRequested)) { _ in
-      selectedIndex = SidebarNavItem.dashboard.rawValue
+      selectedIndex = DesktopDestination.home.rawValue
     }
   }
 
@@ -445,19 +436,9 @@ struct DesktopHomeView: View {
   /// Recursively find all NSHostingViews in a window and set sizingOptions to [],
   /// disabling ALL size computations to prevent full-tree sizeThatFits() traversals.
   /// Window min/max sizes are enforced at the AppKit level via NSWindow.minSize instead.
-  /// NOTE: ClickThroughHostingView is excluded because it wraps the sidebar and needs
-  /// intrinsicContentSize for SwiftUI's .fixedSize() layout to compute the correct width.
   private static func disableMinSizeComputation(in window: NSWindow) {
     func visit(_ view: NSView) {
       if let hosting = view as? any HostingSizingConfigurable {
-        // Skip ClickThroughHostingView — it's an NSViewRepresentable boundary
-        // that needs intrinsicContentSize for the sidebar's .fixedSize() to work.
-        let typeName = String(describing: type(of: view))
-        guard !typeName.contains("ClickThroughHostingView") else {
-          // Still visit children
-          for subview in view.subviews { visit(subview) }
-          return
-        }
         let before = hosting.sizingOptions
         if before != [] {
           hosting.sizingOptions = []
@@ -472,46 +453,13 @@ struct DesktopHomeView: View {
     }
   }
 
-  /// Redirect to conversations if current page isn't visible at the current tier level
-  private func redirectIfPageHidden() {
-    // Tier 0 or tier 6+ shows everything — no redirect needed
-    guard currentTierLevel > 0 && currentTierLevel < 6 else { return }
-    // Don't redirect from settings/permissions pages
-    let nonMainPages: Set<Int> = [
-      SidebarNavItem.settings.rawValue, SidebarNavItem.permissions.rawValue,
-    ]
-    guard !nonMainPages.contains(selectedIndex) else { return }
-
-    var visibleRawValues: Set<Int> = [
-      SidebarNavItem.dashboard.rawValue, SidebarNavItem.insights.rawValue,
-      SidebarNavItem.rewind.rawValue,
-    ]
-    if currentTierLevel >= 2 { visibleRawValues.insert(SidebarNavItem.memories.rawValue) }
-    if currentTierLevel >= 3 { visibleRawValues.insert(SidebarNavItem.tasks.rawValue) }
-    // Conversations replaced Chat in the sidebar; tier 1 unlocks it.
-    if currentTierLevel >= 1 { visibleRawValues.insert(SidebarNavItem.conversations.rawValue) }
-
-    if !visibleRawValues.contains(selectedIndex) {
-      selectedIndex = SidebarNavItem.dashboard.rawValue
-    }
-  }
-
-  /// Whether to hide the sidebar (rewind mode)
-  private var hideSidebar: Bool {
-    OMIApp.launchMode == .rewind
-  }
-
-  private var showsPrimarySidebar: Bool {
-    false
-  }
-
   /// The constant floating top bar (navigation + Capture/Listening)
   /// replaces the old left nav rail. It shows on every main content page —
   /// including Settings, whose page has no back button, so the bar's nav pills
   /// are the way out. Permissions is a full-screen utility flow with its own
   /// chrome and stays bar-less.
   private var showsTopBar: Bool {
-    guard let item = SidebarNavItem(rawValue: selectedIndex) else { return false }
+    guard let item = DesktopNavigationPolicy.destination(forRawValue: selectedIndex) else { return false }
     return item != .permissions
   }
 
@@ -551,21 +499,18 @@ struct DesktopHomeView: View {
     let currentWindow = NSApp.windows.first(where: {
       $0.title.lowercased().hasPrefix("omi") && $0.isVisible
     })
-    let onDashboard = selectedIndex == SidebarNavItem.dashboard.rawValue
+    let onDashboard = selectedIndex == DesktopDestination.home.rawValue
     let priorHomeMode = DesktopAutomationStateStore.shared.current().homeMode
     let snapshot = DesktopAutomationSnapshot(
       bridgeEnabled: true,
       bridgePort: DesktopAutomationLaunchOptions.port,
       bundleIdentifier: Bundle.main.bundleIdentifier ?? "unknown",
       appState: currentAppStateLabel,
-      selectedTab: SidebarNavItem(rawValue: selectedIndex)?.title,
+      selectedTab: DesktopNavigationPolicy.destination(forRawValue: selectedIndex)?.title,
       selectedTabIndex: selectedIndex,
       selectedSettingsSection: isInSettings ? selectedSettingsSection.rawValue : nil,
       highlightedSettingId: highlightedSettingId,
-      usesLegacyHomeDesign: false,
       homeMode: onDashboard ? (priorHomeMode ?? "hub") : nil,
-      showsPrimarySidebar: showsPrimarySidebar,
-      isSidebarCollapsed: isSidebarCollapsed,
       hasCompletedOnboarding: appState.hasCompletedOnboarding,
       isSignedIn: authState.isSignedIn,
       isRestoringAuth: authState.isRestoringAuth,
@@ -586,67 +531,30 @@ struct DesktopHomeView: View {
 
   private func handleAutomationNavigation(_ notification: Notification) {
     guard DesktopAutomationLaunchOptions.isEnabled else { return }
-    guard let target = notification.userInfo?["target"] as? String else { return }
-
-    let settingsSectionRaw = notification.userInfo?["settingsSection"] as? String
-    let settingId = notification.userInfo?["highlightedSettingId"] as? String
-    let activateApp = notification.userInfo?["activateApp"] as? Bool ?? true
-
-    if activateApp {
-      NSApp.activate()
-      if let window = NSApp.windows.first(where: { $0.title.lowercased().hasPrefix("omi") }) {
-        window.makeKeyAndOrderFront(nil)
-      }
+    guard let resolution = notification.userInfo?["route"] as? DesktopNavigationResolution else {
+      return
     }
-
-    if let sectionRaw = settingsSectionRaw {
-      // Tolerant match (SET-01): omi-ctl sends the caller's casing verbatim (docs use
-      // lowercase, raw values are Title Case), so a strict rawValue init silently left
-      // navigation on General for every sub-section command.
-      if let section = SettingsContentView.SettingsSection.automationMatch(sectionRaw) {
-        selectedSettingsSection = section
-      } else {
-        log("AutomationNavigation: unknown settings section '\(sectionRaw)'")
-      }
+    if let section = notification.userInfo?["settingsSection"]
+      as? SettingsContentView.SettingsSection
+    {
+      selectedSettingsSection = section
     }
-    highlightedSettingId = settingId
+    highlightedSettingId =
+      (notification.userInfo?["highlightedSetting"] as? SettingsDestination)?.rawValue
 
-    if let item = resolvedAutomationTarget(target) {
-      selectedIndex = item.rawValue
+    switch resolution.effect {
+    case .none:
+      break
+    case .openHomeChat:
+      MainChatNavigationRequestStore.shared.request()
+    case .selectMemory(let destination):
+      memoryDestinationRawValue = destination.rawValue
+    case .selectInsights(let segment):
+      InsightsHubNavigationStore.shared.request(segment: segment)
     }
+    selectedIndex = resolution.destination.rawValue
 
     reportAutomationState()
-  }
-
-  private func resolvedAutomationTarget(_ target: String) -> SidebarNavItem? {
-    let normalized = target.lowercased().replacingOccurrences(of: "-", with: "_")
-    switch normalized {
-    case "dashboard", "home":
-      return .dashboard
-    case "conversations":
-      return .conversations
-    case "chat":
-      MainChatNavigationRequestStore.shared.request()
-      return .dashboard
-    case "memories":
-      return .memories
-    case "tasks":
-      return .tasks
-    case "focus":
-      InsightsHubNavigationStore.shared.request(segment: .focus)
-      return .insights
-    case "insight", "insights":
-      InsightsHubNavigationStore.shared.request(segment: .insights)
-      return .insights
-    case "rewind":
-      return .rewind
-    case "settings":
-      return .settings
-    case "permissions":
-      return .permissions
-    default:
-      return nil
-    }
   }
 
   /// Update store auto-refresh based on which page is visible
@@ -786,69 +694,29 @@ struct DesktopHomeView: View {
 
   private func updateStoreActivity(for index: Int) {
     viewModelContainer.tasksStore.isActive =
-      index == SidebarNavItem.dashboard.rawValue || index == SidebarNavItem.tasks.rawValue
+      index == DesktopDestination.home.rawValue || index == DesktopDestination.tasks.rawValue
     viewModelContainer.memoriesViewModel.isActive =
-      index == SidebarNavItem.conversations.rawValue || index == SidebarNavItem.memories.rawValue
+      index == DesktopDestination.memory.rawValue || index == DesktopDestination.memories.rawValue
   }
 
-  // Sidebar slot: settings sidebar overlays main sidebar
-  // IMPORTANT: SidebarView is kept alive (but hidden) when in settings to prevent
-  // EXC_BAD_ACCESS crash in SwiftUI's tooltip system. When the view is conditionally
-  // removed, its .help() tooltip graph nodes get invalidated, but the macOS tooltip
-  // tracking system still tries to evaluate them during window key state changes.
-  //
-  // Extracted from `mainContent` (rather than inlined in its HStack) so the
-  // compiler type-checks each slot independently instead of one very large
-  // combined expression.
-  @ViewBuilder
-  private var sidebarSlot: some View {
-    if isInSettings {
-      ZStack {
-        if showsPrimarySidebar {
-          SidebarView(
-            selectedIndex: $selectedIndex,
-            isCollapsed: $isSidebarCollapsed,
-            appState: appState
-          )
-          .opacity(0)
-          .allowsHitTesting(false)
+  private var settingsSidebar: some View {
+    SettingsSidebar(
+      selectedSection: $selectedSettingsSection,
+      highlightedSettingId: $highlightedSettingId,
+      onBack: {
+        OmiMotion.withGated(Self.pageNavigationAnimation) {
+          selectedIndex =
+            previousIndexBeforeSettings == DesktopDestination.settings.rawValue
+            ? DesktopDestination.home.rawValue
+            : previousIndexBeforeSettings
         }
-
-        SettingsSidebar(
-          selectedSection: $selectedSettingsSection,
-          highlightedSettingId: $highlightedSettingId,
-          onBack: {
-            OmiMotion.withGated(Self.pageNavigationAnimation) {
-              selectedIndex =
-                previousIndexBeforeSettings == SidebarNavItem.settings.rawValue
-                ? SidebarNavItem.dashboard.rawValue
-                : previousIndexBeforeSettings
-            }
-          }
-        )
       }
-      .fixedSize(horizontal: true, vertical: false)
-      .clipped()
-    } else if showsPrimarySidebar {
-      ZStack {
-        if showsPrimarySidebar {
-          SidebarView(
-            selectedIndex: $selectedIndex,
-            isCollapsed: $isSidebarCollapsed,
-            appState: appState
-          )
-          .opacity(isInSettings ? 0 : 1)
-          .allowsHitTesting(!isInSettings)
-        }
-
-      }
-      .fixedSize(horizontal: true, vertical: false)
-      .clipped()
-    }
+    )
+    .fixedSize(horizontal: true, vertical: false)
+    .clipped()
   }
 
-  // Main content area with rounded container. Extracted from `mainContent`
-  // for the same type-checker-budget reason as `sidebarSlot`.
+  // Main content area with rounded container.
   private var mainContentContainer: some View {
     ZStack {
       // Content container background — clean flat neutral dark (no gradient).
@@ -874,7 +742,7 @@ struct DesktopHomeView: View {
             appState: appState,
             onRewind: {
               OmiMotion.withGated(Self.pageNavigationAnimation) {
-                selectedIndex = SidebarNavItem.rewind.rawValue
+                selectedIndex = DesktopDestination.rewind.rawValue
               }
             }
           )
@@ -901,7 +769,9 @@ struct DesktopHomeView: View {
 
   private var mainContentWithOverlays: some View {
     HStack(spacing: 0) {
-      sidebarSlot
+      if isInSettings {
+        settingsSidebar
+      }
       mainContentContainer
     }
   }
@@ -917,16 +787,16 @@ struct DesktopHomeView: View {
       .onReceive(NotificationCenter.default.publisher(for: .navigateToRewindSettings)) { _ in
         // Set the section directly and navigate to settings
         selectedSettingsSection = .rewind
-        selectedIndex = SidebarNavItem.settings.rawValue
+        selectedIndex = DesktopDestination.settings.rawValue
       }
       .onReceive(NotificationCenter.default.publisher(for: .navigateToTaskSettings)) { _ in
         // Navigate to settings > advanced > task assistant subsection
         selectedSettingsSection = .advanced
-        selectedIndex = SidebarNavItem.settings.rawValue
+        selectedIndex = DesktopDestination.settings.rawValue
       }
       .onReceive(NotificationCenter.default.publisher(for: .navigateToFloatingBarSettings)) { _ in
         selectedSettingsSection = .floatingBar
-        selectedIndex = SidebarNavItem.settings.rawValue
+        selectedIndex = DesktopDestination.settings.rawValue
       }
   }
 
@@ -934,27 +804,27 @@ struct DesktopHomeView: View {
     mainContentWithNavigationNotifications
       .onReceive(NotificationCenter.default.publisher(for: .navigateToAdvancedAISettings)) { _ in
         selectedSettingsSection = .advanced
-        selectedIndex = SidebarNavItem.settings.rawValue
+        selectedIndex = DesktopDestination.settings.rawValue
       }
       .onReceive(NotificationCenter.default.publisher(for: .navigateToRewind)) { _ in
         // Navigate to Rewind page (index 6) - triggered by global hotkey Cmd+Option+R
         log(
-          "DesktopHomeView: Received navigateToRewind notification, navigating to Rewind (index \(SidebarNavItem.rewind.rawValue))"
+          "DesktopHomeView: Received navigateToRewind notification, navigating to Rewind (index \(DesktopDestination.rewind.rawValue))"
         )
-        selectedIndex = SidebarNavItem.rewind.rawValue
+        selectedIndex = DesktopDestination.rewind.rawValue
       }
       .onReceive(NotificationCenter.default.publisher(for: .navigateToRewindNotes)) { _ in
-        selectedIndex = SidebarNavItem.rewind.rawValue
+        selectedIndex = DesktopDestination.rewind.rawValue
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
           NotificationCenter.default.post(name: .expandRewindTranscript, object: nil)
         }
       }
       .onReceive(NotificationCenter.default.publisher(for: .navigateToChat)) { _ in
         // Chat now lives on the Dashboard page.
-        selectedIndex = SidebarNavItem.dashboard.rawValue
+        selectedIndex = DesktopDestination.home.rawValue
       }
       .onReceive(NotificationCenter.default.publisher(for: .navigateToTasks)) { _ in
-        selectedIndex = SidebarNavItem.tasks.rawValue
+        selectedIndex = DesktopDestination.tasks.rawValue
       }
   }
 
@@ -962,11 +832,11 @@ struct DesktopHomeView: View {
     mainContentWithRewindAndMemoryNotifications
       .onReceive(NotificationCenter.default.publisher(for: .navigateToSidebarItem)) { notification in
         if let rawValue = notification.userInfo?["rawValue"] as? Int,
-          let item = SidebarNavItem(rawValue: rawValue)
+          let item = DesktopNavigationPolicy.destination(forRawValue: rawValue)
         {
           if let destination = MemoryHubDestination.destination(for: item) {
             memoryDestinationRawValue = destination.rawValue
-            selectedIndex = SidebarNavItem.conversations.rawValue
+            selectedIndex = DesktopDestination.memory.rawValue
           } else {
             if item == .insights {
               InsightsHubNavigationStore.shared.request(segment: .insights)
@@ -980,7 +850,7 @@ struct DesktopHomeView: View {
         // the owning shell before the detail page mounts; its retained request is
         // then consumed by ConversationsPage on appearance.
         memoryDestinationRawValue = MemoryHubDestination.conversations.rawValue
-        selectedIndex = SidebarNavItem.conversations.rawValue
+        selectedIndex = DesktopDestination.memory.rawValue
       }
   }
 
@@ -988,8 +858,8 @@ struct DesktopHomeView: View {
     mainContentWithSidebarItemNotifications
       .onChange(of: selectedIndex) { oldValue, newValue in
         // Track the previous index when navigating to settings
-        if newValue == SidebarNavItem.settings.rawValue
-          && oldValue != SidebarNavItem.settings.rawValue
+        if newValue == DesktopDestination.settings.rawValue
+          && oldValue != DesktopDestination.settings.rawValue
         {
           previousIndexBeforeSettings = oldValue
         }
@@ -997,16 +867,15 @@ struct DesktopHomeView: View {
         updateStoreActivity(for: newValue)
       }
       .onAppear {
-        isSidebarCollapsed = true
         updateStoreActivity(for: selectedIndex)
       }
   }
 
   private func navigateHomeOnEscapeIfNeeded() {
-    guard let item = SidebarNavItem(rawValue: selectedIndex) else { return }
-    guard [.conversations, .memories, .tasks, .insights, .rewind].contains(item) else { return }
+    guard let item = DesktopNavigationPolicy.destination(forRawValue: selectedIndex) else { return }
+    guard DesktopNavigationPolicy.returnsHomeOnUnhandledEscape(from: item) else { return }
     OmiMotion.withGated(Self.pageNavigationAnimation) {
-      selectedIndex = SidebarNavItem.dashboard.rawValue
+      selectedIndex = DesktopDestination.home.rawValue
     }
   }
 }
@@ -1168,65 +1037,50 @@ private struct PageContentView: View {
   @ViewBuilder
   private var pages: some View {
     Group {
-      switch selectedIndex {
-      case 0:
-        DashboardPage(
-          viewModel: viewModelContainer.dashboardViewModel,
-          appState: appState,
-          chatProvider: viewModelContainer.chatProvider,
-          memoriesViewModel: viewModelContainer.memoriesViewModel,
-          selectedIndex: $selectedTabIndex)
-      case 1:
-        MemoryHubPage(
-          appState: appState,
-          viewModelContainer: viewModelContainer,
-          memoriesViewModel: viewModelContainer.memoriesViewModel,
-          destinationRawValue: $memoryDestinationRawValue
-        )
-      case 2:
-        DashboardPage(
-          viewModel: viewModelContainer.dashboardViewModel,
-          appState: appState,
-          chatProvider: viewModelContainer.chatProvider,
-          memoriesViewModel: viewModelContainer.memoriesViewModel,
-          selectedIndex: $selectedTabIndex
-        )
-        .onAppear {
-          selectedTabIndex = SidebarNavItem.dashboard.rawValue
-          MainChatNavigationRequestStore.shared.request()
-        }
-      case 3:
-        MemoriesPage(viewModel: viewModelContainer.memoriesViewModel)
-          .frame(
-            maxWidth: viewModelContainer.memoriesViewModel.selectedMemory == nil
-              ? MemoryHubLayoutPolicy.readableContentWidth : .infinity,
-            maxHeight: .infinity
+      if let destination = DesktopNavigationPolicy.destination(forRawValue: selectedIndex) {
+        switch destination {
+        case .home:
+          DashboardPage(
+            tasksStore: viewModelContainer.tasksStore,
+            appState: appState,
+            chatProvider: viewModelContainer.chatProvider,
+            memoriesViewModel: viewModelContainer.memoriesViewModel,
+            selectedIndex: $selectedTabIndex)
+        case .memory:
+          MemoryHubPage(
+            appState: appState,
+            viewModelContainer: viewModelContainer,
+            memoriesViewModel: viewModelContainer.memoriesViewModel,
+            destinationRawValue: $memoryDestinationRawValue
           )
-          .frame(maxWidth: .infinity, maxHeight: .infinity)
-      case 4:
-        constrainedListPage(
-          TasksPage(
-            viewModel: viewModelContainer.tasksViewModel,
-            chatProvider: viewModelContainer.chatProvider))
-      case 5:
-        InsightsHubPage()
-      case 7:
-        RewindPage(appState: appState)
-      case 9:
-        SettingsPage(
-          appState: appState,
-          selectedSection: $selectedSettingsSection,
-          highlightedSettingId: $highlightedSettingId
-        )
-      case 10:
-        PermissionsPage(appState: appState)
-      default:
-        DashboardPage(
-          viewModel: viewModelContainer.dashboardViewModel,
-          appState: appState,
-          chatProvider: viewModelContainer.chatProvider,
-          memoriesViewModel: viewModelContainer.memoriesViewModel,
-          selectedIndex: $selectedTabIndex)
+        case .memories:
+          MemoriesPage(viewModel: viewModelContainer.memoriesViewModel)
+            .frame(
+              maxWidth: viewModelContainer.memoriesViewModel.selectedMemory == nil
+                ? MemoryHubLayoutPolicy.readableContentWidth : .infinity,
+              maxHeight: .infinity
+            )
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        case .tasks:
+          constrainedListPage(
+            TasksPage(
+              viewModel: viewModelContainer.tasksViewModel,
+              chatProvider: viewModelContainer.chatProvider))
+        case .insights:
+          InsightsHubPage()
+        case .rewind:
+          RewindPage(appState: appState)
+        case .settings:
+          SettingsPage(
+            appState: appState,
+            selectedSection: $selectedSettingsSection,
+            highlightedSettingId: $highlightedSettingId
+          )
+        case .permissions:
+          PermissionsPage(appState: appState)
+        }
+      } else {
+        EmptyView()
       }
     }
   }

@@ -7,7 +7,7 @@ import WebKit
 extension SettingsContentView {
   var floatingBarSection: some View {
     VStack(spacing: OmiSpacing.xl) {
-      settingsCard(settingId: "floatingbar.show") {
+      settingsCard(destination: .floatingBar) {
         HStack(spacing: OmiSpacing.lg) {
           Text("Show floating bar")
             .scaledFont(size: OmiType.subheading, weight: .semibold)
@@ -28,7 +28,7 @@ extension SettingsContentView {
         }
       }
 
-      settingsCard(settingId: "floatingbar.background") {
+      settingsCard(destination: .floatingBarBackground) {
         VStack(alignment: .leading, spacing: OmiSpacing.lg) {
           Text("Background Style")
             .scaledFont(size: OmiType.subheading, weight: .semibold)
@@ -54,7 +54,7 @@ extension SettingsContentView {
         }
       }
 
-      settingsCard(settingId: "floatingbar.draggable") {
+      settingsCard(destination: .floatingBarDraggable) {
         HStack(spacing: OmiSpacing.lg) {
           VStack(alignment: .leading, spacing: OmiSpacing.xxs) {
             Text("Draggable Floating Bar")
@@ -70,7 +70,7 @@ extension SettingsContentView {
         }
       }
 
-      settingsCard(settingId: "floatingbar.typedvoiceanswers") {
+      settingsCard(destination: .typedVoiceAnswers) {
         HStack(spacing: OmiSpacing.lg) {
           VStack(alignment: .leading, spacing: OmiSpacing.xxs) {
             Text("Typed Questions")
@@ -86,7 +86,7 @@ extension SettingsContentView {
         }
       }
 
-      settingsCard(settingId: "floatingbar.screenshare") {
+      settingsCard(destination: .screenSharing) {
         HStack(spacing: OmiSpacing.lg) {
           VStack(alignment: .leading, spacing: OmiSpacing.xxs) {
             Text("Screen Sharing in Chat")
@@ -107,7 +107,7 @@ extension SettingsContentView {
         .opacity(shortcutSettings.hasAnyFloatingBarVoiceAnswersEnabled ? 1 : 0.55)
         .disabled(!shortcutSettings.hasAnyFloatingBarVoiceAnswersEnabled)
 
-      voiceSpeedSlider(settingId: "floatingbar.voicespeed")
+      voiceSpeedSlider(destination: .voiceSpeed)
         .opacity(shortcutSettings.hasAnyFloatingBarVoiceAnswersEnabled ? 1 : 0.55)
         .disabled(!shortcutSettings.hasAnyFloatingBarVoiceAnswersEnabled)
     }
@@ -141,18 +141,5 @@ extension SettingsContentView {
   }
 
   // MARK: - About Section
-
-  // MARK: - Advanced Section
-
-  struct UserStats {
-    let conversations: Int
-    let screenshotsTotal: Int
-    let focusSessions: Int
-    let tasksTodo: Int
-    let tasksDone: Int
-    let tasksDeleted: Int
-    let goalsCount: Int
-    let memoriesTotal: Int
-  }
 
 }

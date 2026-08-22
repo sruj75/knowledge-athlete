@@ -39,7 +39,7 @@ Prioritized feature map to guide desktop E2E coverage. Uses the same two-dimensi
 |---|---------|-------|----------|--------|--------|-----------------|
 | 1 | Dashboard — conversations list, refresh | intelligence (3) | 9 | 2 | 2 | ✅ flow: `dashboard.yaml` (nav + `conversation_list_snapshot`) |
 | 2 | Chat — send message, AI response | intelligence (3) | 9 | 2 | 2 | ✅ flow: `chat-hermetic.yaml` |
-| 3 | Sidebar navigation — all sections | retrieval-action (3) | 9 | 2 | 3 | ✅ flow: `navigation.yaml` |
+| 3 | Top navigation — Home, Memory, Tasks, Insights | retrieval-action (3) | 9 | 2 | 3 | ✅ flow: `navigation.yaml` |
 | 4 | Home stage (hub / chat) | intelligence (3) | 9 | 2 | 2 | ✅ flow: `home-stage.yaml` |
 | 5 | Capture lifecycle (hermetic transcript seam) | capture (5) | 15 | 2 | 1 | ✅ flow: `capture-lifecycle.yaml` |
 | 6 | Screen capture (Rewind) | capture (5) | 15 | 0 | 2 | ⚠️ manual: `rewind.yaml`, `screen-recording-permission.yaml` (TCC) |
@@ -79,7 +79,7 @@ Prioritized feature map to guide desktop E2E coverage. Uses the same two-dimensi
 | 35 | Advanced AI Setup (Voice Model + Ask Mode) | intelligence (3) | 3 | 2 | 2 | ✅ manual flow: `settings-basic.yaml` |
 | 36 | Advanced / Developer options | — | 3 | 2 | 2 | ✅ flow: `settings-basic.yaml` (`advanced_settings_snapshot`) |
 | 37 | System tray menu | — | 5 | 0 | 3 | ⚠️ partial: covered indirectly by manual logout/onboarding |
-| 38 | Keyboard shortcuts (Cmd+1..5, Cmd+,) | — | 5 | 2 | 3 | ✅ flow: `keyboard-shortcuts.yaml` |
+| 38 | Keyboard shortcuts (Cmd+1..4, Cmd+,) | — | 5 | 2 | 3 | ✅ flow: `keyboard-shortcuts.yaml` |
 | 39 | Notifications settings | — | 3 | 2 | 2 | ✅ flow: `notifications-settings.yaml` |
 | 40 | About page (version info) | — | 3 | 2 | 3 | ✅ flow: `about-settings.yaml` |
 | 41 | Auth (Sign In — Google/Apple) | — | 5 | 0 | 0 | blocked: external OAuth |
@@ -172,8 +172,8 @@ T2 qualification matrix: **32/32 flows green** (2026-07-09 manual qualification 
 
 - **Bridge first:** `scripts/omi-ctl` + `e2e/flows/*.yaml` with `bridge.navigate` / `bridge.action`.
 - **Walker second:** `agent-swift` for manual Live P2 lane and TCC-dependent flows.
-- Sidebar AX identifiers: `sidebar_dashboard`, `sidebar_chat`, `sidebar_memories`, `sidebar_tasks`, `sidebar_rewind`, `sidebar_settings`. Refer a Friend lives in the **profile menu popover**, not a sidebar item.
+- Primary AX navigation is the top bar: Home, Memory, Tasks, and Insights. Memory owns Memories and Conversations; Insights owns Insights and Focus. Refer a Friend lives in the profile menu popover.
 - System tray menu items: `openOmiFromMenu`, `checkForUpdates`, `resetOnboarding`, `reportIssue`, `signOut`, `quitApp`
-- Keyboard shortcuts via View menu: Cmd+1 (Dashboard), Cmd+2 (Conversations), Cmd+3 (Memories), Cmd+4 (Tasks), Cmd+5 (Rewind), Cmd+, (Settings)
+- Keyboard shortcuts via View menu: Cmd+1 (Home), Cmd+2 (Memories), Cmd+3 (Tasks), Cmd+4 (Insights), Cmd+, (Settings). Cmd+Option-R retains Rewind.
 - Beta app bundle ID: `com.omi.computer-macos` (flow-walker default)
 - Dev / hermetic bundle: `com.omi.omi-core-e2e` with `make desktop-run-local` (Auth emulator)

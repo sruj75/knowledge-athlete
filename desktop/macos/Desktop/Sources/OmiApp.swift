@@ -113,7 +113,7 @@ struct OMIApp: App {
   }
 
   private func navigate(using shortcut: String) {
-    guard let destination = PrimaryNavigationShortcut.destination(for: shortcut) else { return }
+    guard let destination = DesktopNavigationPolicy.destination(forShortcut: shortcut) else { return }
     NotificationCenter.default.post(
       name: .navigateToSidebarItem,
       object: nil,
@@ -464,19 +464,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, @unchecked S
     }
     AnalyticsManager.shared.appLaunched()
 
-    // Tier gating: migrate old boolean key to new 6-tier system
-    TierManager.migrateExistingUsersIfNeeded()
-
-    // All users get all features (tier 0 = show all)
-    // Note: hasLaunchedBefore is also set by trackFirstLaunchIfNeeded(), but that
-    // skips dev builds. Set it here too so tier doesn't reset on every dev launch.
-    if !UserDefaults.standard.bool(forKey: "hasLaunchedBefore") {
-      UserDefaults.standard.set(true, forKey: "hasLaunchedBefore")
-      UserDefaults.standard.set(0, forKey: "currentTierLevel")
-      UserDefaults.standard.set(0, forKey: "lastSeenTierLevel")
-      UserDefaults.standard.set(true, forKey: "userShowAllFeatures")
-    }
-
     AnalyticsManager.shared.trackFirstLaunchIfNeeded()
 
     // Start resource monitoring (memory, CPU, disk)
@@ -505,11 +492,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, @unchecked S
       if let state = AppState.current {
         state.startTrialMetadataRefresh()
         TrialBannerService.shared.start(appState: state)
-      }
-
-      // Check tier eligibility (at most once per day)
-      Task {
-        await TierManager.shared.checkTierIfNeeded()
       }
 
       // File indexing now runs through FileIndexingView UI (user consent required)
@@ -715,24 +697,22 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, @unchecked S
 
   /// Set up global keyboard shortcuts
   private func setupGlobalHotkeys() {
-    // Handler for Ctrl+Option+R -> Open Rewind
+    // Handler for Command+Option+R -> Open Rewind
     let hotkeyHandler: (NSEvent) -> NSEvent? = { event in
       let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
-      let keyCode = event.keyCode
 
       // Log modifier key presses for debugging
-      if modifiers.contains(.control) || modifiers.contains(.option) {
+      if modifiers.contains(.command) || modifiers.contains(.option) {
         log(
-          "AppDelegate: [HOTKEY] keyCode=\(keyCode), modifiers=\(modifiers.rawValue) (ctrl=\(modifiers.contains(.control)), opt=\(modifiers.contains(.option)))"
+          "AppDelegate: [HOTKEY] keyCode=\(event.keyCode), modifiers=\(modifiers.rawValue) (cmd=\(modifiers.contains(.command)), opt=\(modifiers.contains(.option)))"
         )
       }
 
-      // Check for Ctrl+Option+R (less likely to conflict with system shortcuts)
-      let isCtrlOption = modifiers.contains(.control) && modifiers.contains(.option)
-      let isR = keyCode == 15  // R key
-
-      if isCtrlOption && isR {
-        log("AppDelegate: [HOTKEY] Rewind hotkey MATCHED (Ctrl+Option+R)")
+      if DesktopNavigationPolicy.isRewindShortcut(
+        keyCode: event.keyCode,
+        modifiers: modifiers
+      ) {
+        log("AppDelegate: [HOTKEY] Rewind hotkey MATCHED (Command+Option+R)")
         DispatchQueue.main.async {
           log("AppDelegate: [HOTKEY] Activating app and posting notification")
           // Bring app to front
@@ -755,12 +735,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, @unchecked S
     // Ask Omi shortcut is registered via Carbon RegisterEventHotKey in
     // GlobalShortcutManager (works regardless of accessibility permission state).
 
-    // Global monitor - for when OTHER apps are focused (Ctrl+Option+R only)
+    // Global monitor - for when OTHER apps are focused (Command+Option+R only)
     globalHotkeyMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { event in
       _ = hotkeyHandler(event)
     }
 
-    // Local monitor - for when THIS app is focused (Ctrl+Option+R only)
+    // Local monitor - for when THIS app is focused (Command+Option+R only)
     localHotkeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
       return hotkeyHandler(event)
     }
@@ -768,7 +748,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, @unchecked S
     log(
       "AppDelegate: Hotkey monitors registered - global=\(globalHotkeyMonitor != nil), local=\(localHotkeyMonitor != nil)"
     )
-    log("AppDelegate: Hotkey is Ctrl+Option+R (⌃⌥R), Ask Omi via Carbon hotkeys")
+    log("AppDelegate: Hotkey is Command+Option+R (⌘⌥R), Ask Omi via Carbon hotkeys")
   }
 
   // Dock icon is always visible — LSUIElement=false and activation policy stays .regular

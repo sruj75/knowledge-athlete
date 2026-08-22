@@ -24,12 +24,23 @@ final class TasksStore: ObservableObject {
 
   typealias DashboardTaskLoader = () async throws -> DashboardTaskSnapshot
 
+  struct HomeTaskSnapshot {
+    let tasks: [TaskActionItem]
+    let openCount: Int
+  }
+
+  typealias HomeTaskLoader = () async throws -> HomeTaskSnapshot
+
   @Published var incompleteTasks: [TaskActionItem] = []
   @Published var completedTasks: [TaskActionItem] = []
   @Published var deletedTasks: [TaskActionItem] = []
   @Published var overdueTasks: [TaskActionItem] = []
   @Published var todaysTasks: [TaskActionItem] = []
   @Published var tasksWithoutDueDate: [TaskActionItem] = []
+  @Published private(set) var homeTasks: [TaskActionItem] = []
+  @Published private(set) var openTaskCount = 0
+  @Published private(set) var isLoadingHomeTasks = false
+  @Published private(set) var homeTaskError: String?
 
   @Published var isLoadingIncomplete = false
   @Published var isLoadingCompleted = false
@@ -125,6 +136,10 @@ final class TasksStore: ObservableObject {
     overdueTasks = []
     todaysTasks = []
     tasksWithoutDueDate = []
+    homeTasks = []
+    openTaskCount = 0
+    isLoadingHomeTasks = false
+    homeTaskError = nil
     isLoadingIncomplete = false
     isLoadingCompleted = false
     isLoadingDeleted = false
@@ -197,10 +212,7 @@ final class TasksStore: ObservableObject {
     guard isCurrent(lease) else { return }
     await loadIncompleteTasks(expectedOwnerID: lease.ownerID)
     guard isCurrent(lease) else { return }
-    await loadDashboardTasks(
-      expectedOwnerID: lease.ownerID,
-      authorizationSnapshot: lease.authorizationSnapshot
-    )
+    await refreshSummaryProjections(lease: lease)
     guard isCurrent(lease) else { return }
     await reconcileReminders(lease: lease)
   }
@@ -283,10 +295,7 @@ final class TasksStore: ObservableObject {
       await loadCompletedPage(lease: lease, replacing: true)
     }
     if isCurrent(lease) {
-      await loadDashboardTasks(
-        expectedOwnerID: lease.ownerID,
-        authorizationSnapshot: lease.authorizationSnapshot
-      )
+      await refreshSummaryProjections(lease: lease)
     }
     if isCurrent(lease) {
       await reconcileReminders(lease: lease)
@@ -296,6 +305,60 @@ final class TasksStore: ObservableObject {
   func refreshTasksIfNeeded() async {
     guard isActive || hasLoadedIncomplete else { return }
     await reloadFromLocalCache()
+  }
+
+  func loadHomeTasks(
+    expectedOwnerID: String? = nil,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot? = nil,
+    loader: HomeTaskLoader? = nil
+  ) async {
+    guard
+      let lease = captureLease(
+        expectedOwnerID: expectedOwnerID,
+        authorizationSnapshot: authorizationSnapshot
+      ), !isLoadingHomeTasks
+    else { return }
+    isLoadingHomeTasks = true
+    homeTaskError = nil
+    defer {
+      if isCurrent(lease) { isLoadingHomeTasks = false }
+    }
+    do {
+      let snapshot: HomeTaskSnapshot
+      if let loader {
+        snapshot = try await loader()
+      } else {
+        async let tasks = ActionItemStorage.shared.getLocalActionItems(
+          limit: 200,
+          completed: false,
+          authorizationSnapshot: lease.authorizationSnapshot
+        )
+        async let count = ActionItemStorage.shared.getLocalActionItemsCount(
+          completed: false,
+          authorizationSnapshot: lease.authorizationSnapshot
+        )
+        snapshot = try await HomeTaskSnapshot(tasks: tasks, openCount: count)
+      }
+      guard isCurrent(lease) else { return }
+      homeTasks = snapshot.tasks
+      openTaskCount = snapshot.openCount
+    } catch {
+      guard isCurrent(lease) else { return }
+      homeTaskError = error.localizedDescription
+      logError("Home: Failed to read local tasks", error: error)
+    }
+  }
+
+  private func refreshSummaryProjections(lease: OwnerLease) async {
+    async let dashboard: Void = loadDashboardTasks(
+      expectedOwnerID: lease.ownerID,
+      authorizationSnapshot: lease.authorizationSnapshot
+    )
+    async let home: Void = loadHomeTasks(
+      expectedOwnerID: lease.ownerID,
+      authorizationSnapshot: lease.authorizationSnapshot
+    )
+    _ = await (dashboard, home)
   }
 
   func loadDashboardTasks(
@@ -475,10 +538,7 @@ final class TasksStore: ObservableObject {
       let task = inserted.toTaskActionItem()
       incompleteTasks.insert(task, at: 0)
       AnalyticsManager.shared.taskAdded()
-      await loadDashboardTasks(
-        expectedOwnerID: lease.ownerID,
-        authorizationSnapshot: lease.authorizationSnapshot
-      )
+      await refreshSummaryProjections(lease: lease)
       await reconcileReminders(lease: lease)
       return task
     } catch {
@@ -524,10 +584,7 @@ final class TasksStore: ObservableObject {
         completedTasks.removeAll { $0.id == task.id }
         incompleteTasks.insert(result.task, at: 0)
       }
-      await loadDashboardTasks(
-        expectedOwnerID: lease.ownerID,
-        authorizationSnapshot: lease.authorizationSnapshot
-      )
+      await refreshSummaryProjections(lease: lease)
       await reconcileReminders(lease: lease)
       return true
     } catch {
@@ -563,10 +620,7 @@ final class TasksStore: ObservableObject {
       incompleteTasks.removeAll { $0.id == task.id }
       completedTasks.removeAll { $0.id == task.id }
       AnalyticsManager.shared.taskDeleted(source: task.source)
-      await loadDashboardTasks(
-        expectedOwnerID: lease.ownerID,
-        authorizationSnapshot: lease.authorizationSnapshot
-      )
+      await refreshSummaryProjections(lease: lease)
       await reconcileReminders(lease: lease)
       return true
     } catch {
@@ -591,10 +645,7 @@ final class TasksStore: ObservableObject {
       } else {
         incompleteTasks.insert(restored, at: 0)
       }
-      await loadDashboardTasks(
-        expectedOwnerID: lease.ownerID,
-        authorizationSnapshot: lease.authorizationSnapshot
-      )
+      await refreshSummaryProjections(lease: lease)
       await reconcileReminders(lease: lease)
     } catch {
       if isCurrent(lease) {
@@ -642,10 +693,7 @@ final class TasksStore: ObservableObject {
         isCurrent(lease)
       else { return false }
       replaceTask(updated)
-      await loadDashboardTasks(
-        expectedOwnerID: lease.ownerID,
-        authorizationSnapshot: lease.authorizationSnapshot
-      )
+      await refreshSummaryProjections(lease: lease)
       await reconcileReminders(lease: lease)
       return true
     } catch {

@@ -346,7 +346,7 @@ actor RewindDatabase {
 
   /// Returns the per-user base directory: ~/Library/Application Support/Omi/users/{userId}/
   /// Falls back to the static currentUserId (set synchronously at app start) when
-  /// configure() hasn't been called yet (e.g., TierManager triggers init early).
+  /// configure() hasn't been called yet (for example, an early service triggers initialization).
   private func targetUserId() -> String {
     if RewindDatabase.currentUserId == nil,
       UserDefaults.standard.string(forKey: .authUserId) == nil
@@ -646,7 +646,7 @@ actor RewindDatabase {
     let omiDir = appSupport.appendingPathComponent("Omi", isDirectory: true)
 
     // Determine migration source: prefer legacy root (Omi/omi.db), fall back to anonymous dir.
-    // The anonymous fallback covers the case where TierManager or another early caller
+    // The anonymous fallback covers the case where another early caller
     // triggered initialize() before configure(userId:) was called, causing data to land
     // in users/anonymous/ instead of the real user's directory.
     let legacyDB = omiDir.appendingPathComponent("omi.db")

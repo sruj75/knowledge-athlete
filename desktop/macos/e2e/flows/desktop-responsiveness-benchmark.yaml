@@ -24,12 +24,13 @@ steps:
       state.selectedTabIndex: 1
 
   - id: S3
-    name: Chat
+    name: Home Chat
     bridge.navigate:
       target: chat
       activateApp: false
     wait:
-      state.selectedTabIndex: 2
+      state.selectedTabIndex: 0
+      state.homeMode: chat
 
   - id: S4
     name: Memories
@@ -37,7 +38,7 @@ steps:
       target: memories
       activateApp: false
     wait:
-      state.selectedTabIndex: 3
+      state.selectedTabIndex: 1
 
   - id: S5
     name: Tasks

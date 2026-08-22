@@ -125,13 +125,11 @@ struct SettingsContentView: View {
   // Downgrade confirmation alert
   @State var showDowngradeAlert = false
 
-  // Tier gating (0 = show all, 1-6 = sequential tiers)
-  @AppStorage("currentTierLevel") var currentTierLevel = 0
-
   // Advanced stats
-  @State var advancedStats: UserStats?
+  @State var advancedStats: YourStatsSnapshot?
   @State var isLoadingStats = false
   @State var showProfileAndStats = false
+  @State var statsLoadGeneration: UInt64 = 0
 
   // AI User Profile
   @State var aiProfileId: Int64?
@@ -442,6 +440,11 @@ struct SettingsContentView: View {
         isMonitoring = state
       }
       screenCaptureHealth = ProactiveAssistantsPlugin.shared.screenCaptureHealth
+    }
+    .onReceive(NotificationCenter.default.publisher(for: .runtimeOwnerDidChange)) { _ in
+      statsLoadGeneration &+= 1
+      advancedStats = nil
+      isLoadingStats = false
     }
     .onChange(of: appState.isTranscribing) { _, newValue in
       isTranscribing = newValue

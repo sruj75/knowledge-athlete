@@ -1067,21 +1067,16 @@ final class HomeChatCatalogTests: XCTestCase {
     }
   }
 
-  func testRetiredChatRawValueRedirectsToCanonicalHomeWithoutRenumbering() throws {
-    XCTAssertNil(SidebarNavItem(rawValue: 2))
-    XCTAssertEqual(SidebarNavItem.memories.rawValue, 3)
-    XCTAssertEqual(SidebarNavItem.tasks.rawValue, 4)
-    XCTAssertEqual(SidebarNavItem.rewind.rawValue, 7)
-    XCTAssertEqual(SidebarNavItem.settings.rawValue, 9)
-
-    let path = URL(fileURLWithPath: #filePath)
-      .deletingLastPathComponent()
-      .deletingLastPathComponent()
-      .appendingPathComponent("Sources/MainWindow/DesktopHomeView.swift")
-    let source = try String(contentsOf: path, encoding: .utf8)
-    XCTAssertTrue(source.contains("case \"chat\":"))
-    XCTAssertTrue(source.contains("MainChatNavigationRequestStore.shared.request()"))
-    XCTAssertTrue(source.contains("return .dashboard"))
+  func testRetiredChatRawValueResolvesSemanticallyToCanonicalHomeWithoutRenumbering() {
+    XCTAssertNil(DesktopNavigationPolicy.destination(forRawValue: 2))
+    XCTAssertEqual(DesktopDestination.memories.rawValue, 3)
+    XCTAssertEqual(DesktopDestination.tasks.rawValue, 4)
+    XCTAssertEqual(DesktopDestination.rewind.rawValue, 7)
+    XCTAssertEqual(DesktopDestination.settings.rawValue, 9)
+    XCTAssertEqual(
+      DesktopNavigationPolicy.resolveAutomationTarget("chat"),
+      DesktopNavigationResolution(destination: .home, effect: .openHomeChat)
+    )
   }
 }
 

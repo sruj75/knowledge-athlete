@@ -8,7 +8,7 @@ extension SettingsContentView {
   var transcriptionSection: some View {
     VStack(spacing: OmiSpacing.xl) {
       // Language Mode
-      settingsCard(settingId: "transcription.languagemode") {
+      settingsCard(destination: .languageMode) {
         VStack(alignment: .leading, spacing: OmiSpacing.lg) {
           HStack {
             Image(systemName: "globe")
@@ -149,7 +149,7 @@ extension SettingsContentView {
         }
       }
 
-      settingsCard(settingId: "transcription.location") {
+      settingsCard(destination: .conversationLocation) {
         VStack(alignment: .leading, spacing: OmiSpacing.md) {
           HStack {
             Image(systemName: "location")
@@ -183,12 +183,12 @@ extension SettingsContentView {
       }
 
       // Voice assistant (push-to-talk) languages
-      settingsCard(settingId: "transcription.voicelanguages") {
+      settingsCard(destination: .voiceLanguages) {
         VoiceAssistantLanguagesCard()
       }
 
       // Custom Vocabulary
-      settingsCard(settingId: "transcription.vocabulary") {
+      settingsCard(destination: .vocabulary) {
         VStack(alignment: .leading, spacing: OmiSpacing.lg) {
           HStack {
             Image(systemName: "text.book.closed")
@@ -273,7 +273,7 @@ extension SettingsContentView {
       }
 
       // Local VAD Gate
-      settingsCard(settingId: "transcription.vadgate") {
+      settingsCard(destination: .vadGate) {
         VStack(alignment: .leading, spacing: OmiSpacing.md) {
           HStack {
             Image(systemName: "waveform.badge.minus")

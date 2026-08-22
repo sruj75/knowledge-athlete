@@ -37,8 +37,8 @@ final class SettingsSearchContractTests: XCTestCase {
       "transcription.vocabulary",
       "transcription.vadgate",
       "floatingbar.show",
-      "privacy.storerecordings",
-      "privacy.cloudsync",
+      "privacy.encryption",
+      "privacy.tracking",
     ]
     XCTAssertTrue(availableSettingIDs.isSubset(of: settingIDs))
   }

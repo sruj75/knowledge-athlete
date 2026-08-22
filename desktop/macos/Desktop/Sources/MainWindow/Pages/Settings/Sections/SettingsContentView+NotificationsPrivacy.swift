@@ -8,7 +8,7 @@ extension SettingsContentView {
   var notificationsSection: some View {
     VStack(spacing: OmiSpacing.xl) {
       // Notifications
-      settingsCard(settingId: "notifications.settings") {
+      settingsCard(destination: .notificationSettings) {
         VStack(alignment: .leading, spacing: OmiSpacing.lg) {
           HStack {
             settingsCardHeader(icon: "bell.badge.fill", title: "Notifications")
@@ -31,7 +31,7 @@ extension SettingsContentView {
             Divider()
               .background(OmiColors.backgroundQuaternary)
 
-            notificationFrequencySlider(settingId: "notifications.frequency")
+            notificationFrequencySlider(destination: .notificationFrequency)
 
             // Sits under the master toggle and the frequency slider because both gate it:
             // frequency caps how often any proactive card is delivered, and this decides
@@ -51,7 +51,7 @@ extension SettingsContentView {
 
             settingRow(
               title: "Focus Notifications", subtitle: "Show notification on focus changes",
-              settingId: "notifications.focus"
+              destination: .focusNotifications
             ) {
               Toggle("", isOn: $focusNotificationsEnabled)
                 .toggleStyle(OmiToggleStyle())
@@ -64,7 +64,7 @@ extension SettingsContentView {
             settingRow(
               title: "Task Notifications",
               subtitle: "Allow interruptions when a task needs attention",
-              settingId: "notifications.task"
+              destination: .taskNotifications
             ) {
               Toggle("", isOn: $taskNotificationsEnabled)
                 .toggleStyle(OmiToggleStyle())
@@ -77,7 +77,7 @@ extension SettingsContentView {
             settingRow(
               title: "Insight Notifications",
               subtitle: "Show notification when an insight is generated",
-              settingId: "notifications.insight"
+              destination: .insightNotifications
             ) {
               Toggle("", isOn: $insightNotificationsEnabled)
                 .toggleStyle(OmiToggleStyle())
@@ -90,7 +90,7 @@ extension SettingsContentView {
             settingRow(
               title: "Memory Notifications",
               subtitle: "Show notification when a memory is extracted",
-              settingId: "notifications.memory"
+              destination: .memoryNotifications
             ) {
               Toggle("", isOn: $memoryNotificationsEnabled)
                 .toggleStyle(OmiToggleStyle())
@@ -110,7 +110,7 @@ extension SettingsContentView {
   var privacySection: some View {
     VStack(spacing: OmiSpacing.xl) {
       // Encryption
-      settingsCard(settingId: "privacy.encryption") {
+      settingsCard(destination: .localData) {
         VStack(alignment: .leading, spacing: OmiSpacing.md) {
           settingsCardHeader(icon: "shield.lefthalf.filled", title: "Encryption")
 
@@ -140,7 +140,7 @@ extension SettingsContentView {
       }
 
       // What We Track
-      settingsCard(settingId: "privacy.tracking") {
+      settingsCard(destination: .tracking) {
         VStack(alignment: .leading, spacing: OmiSpacing.md) {
           Button(action: {
             OmiMotion.withGated(.easeInOut(duration: 0.2)) {

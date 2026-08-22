@@ -2,69 +2,11 @@ import AppKit
 import OmiTheme
 import SwiftUI
 
-@MainActor
-final class DashboardViewModel: ObservableObject {
-  @Published private(set) var homeTasks: [TaskActionItem] = []
-  @Published private(set) var openTaskCount = 0
-  @Published private(set) var isLoading = false
-  @Published private(set) var error: String?
-  private var ownerGeneration: UInt64 = 0
-
-  func loadDashboardData() async {
-    await refreshLocalTasks()
-  }
-
-  func loadCachedDashboardData() async {
-    await refreshLocalTasks()
-  }
-
-  func refreshLocalTasks() async {
-    let generation = ownerGeneration
-    guard let snapshot = RuntimeOwnerIdentity.captureAuthorizationSnapshot() else {
-      resetSessionState()
-      return
-    }
-    isLoading = true
-    do {
-      let tasks = try await ActionItemStorage.shared.getLocalActionItems(
-        limit: 200,
-        completed: false
-      )
-      let count = try await ActionItemStorage.shared.getLocalActionItemsCount(
-        completed: false
-      )
-      guard generation == ownerGeneration,
-        RuntimeOwnerIdentity.isAuthorizationCurrent(snapshot)
-      else { return }
-      homeTasks = tasks
-      openTaskCount = count
-      error = nil
-    } catch {
-      guard generation == ownerGeneration,
-        RuntimeOwnerIdentity.isAuthorizationCurrent(snapshot)
-      else { return }
-      self.error = error.localizedDescription
-      logError("Home: Failed to read local tasks", error: error)
-    }
-    if generation == ownerGeneration {
-      isLoading = false
-    }
-  }
-
-  func resetSessionState() {
-    ownerGeneration &+= 1
-    homeTasks = []
-    openTaskCount = 0
-    isLoading = false
-    error = nil
-  }
-}
-
 /// Canonical ordinary Chat host. Home renders the owner-scoped local catalog,
 /// journal timeline, composer, local task/Focus/Insight rows, and daily local
 /// suggestions through the single shared `ChatProvider` instance.
 struct DashboardPage: View {
-  @ObservedObject var viewModel: DashboardViewModel
+  @ObservedObject var tasksStore: TasksStore
   @ObservedObject var appState: AppState
   @ObservedObject var chatProvider: ChatProvider
   @ObservedObject var memoriesViewModel: MemoriesViewModel
@@ -119,10 +61,9 @@ struct DashboardPage: View {
       autoOpenChatForExistingHistoryIfNeeded()
     }
     .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
-      syncHomeState()
+      refreshNonTaskHomeState()
     }
     .onReceive(NotificationCenter.default.publisher(for: .runtimeOwnerDidChange)) { _ in
-      viewModel.resetSessionState()
       dismissedKnowsTaskIDs = []
       citationGeneration &+= 1
       citedConversation = nil
@@ -402,7 +343,7 @@ struct DashboardPage: View {
             .fill(OmiColors.backgroundSecondary)
         )
       }
-      if let error = viewModel.error, !error.isEmpty {
+      if let error = tasksStore.homeTaskError, !error.isEmpty {
         Text(error)
           .scaledFont(size: OmiType.caption)
           .foregroundStyle(OmiColors.textTertiary)
@@ -484,7 +425,7 @@ struct DashboardPage: View {
   }
 
   private var homeTaskCandidates: [HomeKnowsTaskCandidate] {
-    viewModel.homeTasks
+    tasksStore.homeTasks
       .filter { !$0.completed && $0.deleted != true }
       .map { HomeKnowsTaskCandidate(id: $0.id, text: $0.description) }
   }
@@ -506,7 +447,7 @@ struct DashboardPage: View {
   }
 
   private var homeDailyBrief: String {
-    let count = viewModel.openTaskCount
+    let count = tasksStore.openTaskCount
     let tail =
       count == 0 ? "nothing's waiting on you." : count == 1 ? "one thing needs you." : "\(count) things need you."
     let lead: String?
@@ -542,7 +483,7 @@ struct DashboardPage: View {
   private func openKnowsRow(_ row: HomeKnowsRow) {
     switch row.kind {
     case .task(let id):
-      if let task = viewModel.homeTasks.first(where: { $0.id == id }) {
+      if let task = tasksStore.homeTasks.first(where: { $0.id == id }) {
         TaskNavigationRequestStore.shared.request(task: task)
       }
       navigate(to: .tasks)
@@ -626,13 +567,20 @@ struct DashboardPage: View {
 
   private func syncHomeState() {
     Task {
-      await viewModel.refreshLocalTasks()
+      await tasksStore.loadHomeTasks()
       await insightStorage.refresh()
       await homeSuggestionsStore.refreshIfNeeded()
     }
   }
 
-  private func navigate(to item: SidebarNavItem) {
+  private func refreshNonTaskHomeState() {
+    Task {
+      await insightStorage.refresh()
+      await homeSuggestionsStore.refreshIfNeeded()
+    }
+  }
+
+  private func navigate(to item: DesktopDestination) {
     selectedIndex = item.rawValue
     AnalyticsManager.shared.tabChanged(tabName: item.title)
   }
@@ -673,11 +621,11 @@ struct DashboardPage: View {
 #if canImport(PreviewsMacros)
   #Preview {
     DashboardPage(
-      viewModel: DashboardViewModel(),
+      tasksStore: TasksStore(observesNotifications: false),
       appState: AppState(),
       chatProvider: ChatProvider(),
       memoriesViewModel: MemoriesViewModel(),
-      selectedIndex: .constant(SidebarNavItem.dashboard.rawValue)
+      selectedIndex: .constant(DesktopDestination.home.rawValue)
     )
   }
 #endif

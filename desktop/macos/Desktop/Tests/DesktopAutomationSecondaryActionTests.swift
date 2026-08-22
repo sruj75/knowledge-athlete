@@ -283,7 +283,7 @@ final class DesktopAutomationSecondaryActionTests: XCTestCase {
     let source = try bridgeSource()
     let body = try actionBody(named: "navigate_via_shortcut", in: source)
     XCTAssertTrue(body.contains("navigateToSidebarItem"))
-    XCTAssertTrue(body.contains("PrimaryNavigationShortcut.destination"))
+    XCTAssertTrue(body.contains("DesktopNavigationPolicy.destination"))
   }
 
   func testAssignLocalSpeakerLabelFixtureUsesNonProdGuard() throws {

@@ -77,21 +77,14 @@ final class StartupWarmupPolicyTests: XCTestCase {
     )
   }
 
-  func testDashboardNetworkRefreshWaitsUntilAfterDeferredWarmupStarts() {
-    XCTAssertGreaterThan(
-      StartupWarmupPolicy.dashboardNetworkRefreshDelay,
-      StartupWarmupPolicy.deferredWarmupDelay
-    )
-  }
-
   func testFloatingBarPlanFetchRunsImmediatelyForQuotaGate() {
     XCTAssertEqual(StartupWarmupPolicy.floatingBarPlanFetchDelay, 0)
   }
 
-  func testAPIKeyFetchWaitsUntilAfterDashboardNetworkRefresh() {
+  func testAPIKeyFetchWaitsUntilAfterDeferredWarmupStarts() {
     XCTAssertGreaterThan(
       StartupWarmupPolicy.apiKeyFetchDelay,
-      StartupWarmupPolicy.dashboardNetworkRefreshDelay
+      StartupWarmupPolicy.deferredWarmupDelay
     )
   }
 
@@ -217,9 +210,9 @@ final class StartupWarmupPolicyTests: XCTestCase {
   }
 
   func testSidebarRejectsRemovedHelpDestinationAndKeepsLocalRewind() {
-    XCTAssertFalse(SidebarNavItem.allCases.contains { $0.title == "Help from Founder" })
-    XCTAssertTrue(SidebarNavItem.allCases.contains(.rewind))
-    XCTAssertTrue(SidebarNavItem.allCases.contains(.settings))
+    XCTAssertFalse(DesktopDestination.allCases.contains { $0.title == "Help from Founder" })
+    XCTAssertTrue(DesktopDestination.allCases.contains(.rewind))
+    XCTAssertTrue(DesktopDestination.allCases.contains(.settings))
   }
 
   @MainActor
@@ -241,7 +234,7 @@ final class StartupWarmupPolicyTests: XCTestCase {
     XCTAssertTrue(store.scheduleStartupMaintenanceIfNeeded().isEmpty)
   }
 
-  func testDashboardOnlyActivationRefreshDoesNotRequireTasksPageHydration() throws {
+  func testActiveHomeRefreshDoesNotRequireTasksPageHydration() throws {
     let testsURL = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
     let sourceURL =
       testsURL
@@ -249,17 +242,10 @@ final class StartupWarmupPolicyTests: XCTestCase {
       .appendingPathComponent("Sources/Stores/TasksStore.swift")
     let source = try String(contentsOf: sourceURL, encoding: .utf8)
 
-    guard let dashboardRefreshRange = source.range(of: "await refreshDashboard(lease: lease, operations: operations)"),
-      let hydrationGuardRange = source.range(of: "guard hasLoadedIncomplete else")
-    else {
-      return XCTFail(
-        "TasksStore.refreshTasksIfNeeded must refresh dashboard slices before requiring Tasks page hydration")
-    }
-
-    XCTAssertLessThan(
-      hydrationGuardRange.lowerBound,
-      dashboardRefreshRange.lowerBound,
-      "Dashboard-only activation/Cmd+R refresh must fall back to the scoped dashboard refresh from the Tasks page hydration guard"
+    XCTAssertTrue(
+      source.contains("guard isActive || hasLoadedIncomplete else { return }")
+        && source.contains("await refreshSummaryProjections(lease: lease)"),
+      "An active Home must refresh its owner-fenced task projection without waiting for Tasks-page hydration"
     )
   }
 
@@ -272,7 +258,7 @@ final class StartupWarmupPolicyTests: XCTestCase {
     let source = try String(contentsOf: sourceURL, encoding: .utf8)
 
     guard let maintenanceRange = source.range(of: "tasksStore.scheduleStartupMaintenanceIfNeeded()"),
-      let lifecycleRange = source.range(of: "DATA LOAD: DB lifecycle warmup")
+      let lifecycleRange = source.range(of: "DATA LOAD: DB warmup complete")
     else {
       return XCTFail("Startup warmup must schedule task maintenance before DB lifecycle warmup")
     }
@@ -293,7 +279,7 @@ final class StartupWarmupPolicyTests: XCTestCase {
     let memoriesURL =
       testsURL
       .deletingLastPathComponent()
-      .appendingPathComponent("Sources/MainWindow/Pages/MemoriesPage.swift")
+      .appendingPathComponent("Sources/MainWindow/Pages/MemoriesViewModel.swift")
     let containerSource = try String(contentsOf: containerURL, encoding: .utf8)
     let memoriesSource = try String(contentsOf: memoriesURL, encoding: .utf8)
 
@@ -311,26 +297,17 @@ final class StartupWarmupPolicyTests: XCTestCase {
     )
   }
 
-  func testStartupResetClearsPerUserDashboardState() throws {
+  func testStartupResetClearsPerUserTaskState() throws {
     let testsURL = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
     let containerURL =
       testsURL
       .deletingLastPathComponent()
       .appendingPathComponent("Sources/ViewModelContainer.swift")
-    let dashboardURL =
-      testsURL
-      .deletingLastPathComponent()
-      .appendingPathComponent("Sources/MainWindow/Pages/DashboardPage.swift")
     let containerSource = try String(contentsOf: containerURL, encoding: .utf8)
-    let dashboardSource = try String(contentsOf: dashboardURL, encoding: .utf8)
 
     XCTAssertTrue(
-      containerSource.contains("dashboardViewModel.resetSessionState()"),
-      "Startup reset must clear DashboardViewModel so account switches cannot show the previous user's goals"
-    )
-    XCTAssertTrue(
-      dashboardSource.contains("goals = []"),
-      "Dashboard reset must clear the previous user's goals"
+      containerSource.contains("tasksStore.resetSessionState()"),
+      "Startup reset must clear the sole TasksStore projection across account switches"
     )
   }
 

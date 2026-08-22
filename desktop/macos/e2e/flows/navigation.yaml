@@ -5,7 +5,7 @@ description: Top navigation bar smoke — verify Home, Memory, Tasks, and the un
 app: com.omi.computer-macos
 covers:
   - desktop/macos/Desktop/Sources/OmiApp.swift
-  - desktop/macos/Desktop/Sources/MainWindow/SidebarView.swift
+  - desktop/macos/Desktop/Sources/MainWindow/DesktopNavigation.swift
   - desktop/macos/Desktop/Sources/MainWindow/DesktopHomeView.swift
   - desktop/macos/Desktop/Sources/MainWindow/DesktopTopBar.swift
   - desktop/macos/Desktop/Sources/MainWindow/InsightsHubNavigation.swift

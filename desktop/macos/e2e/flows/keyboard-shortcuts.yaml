@@ -1,7 +1,7 @@
 version: 2
 name: keyboard-shortcuts
 tier: 2
-description: Sidebar navigation via Cmd+1..5 and Cmd+, shortcut bridge actions
+description: Primary navigation via Cmd+1..4 and Cmd+, shortcut bridge actions
 app: non-prod
 covers:
   - desktop/macos/Desktop/Sources/OmiApp.swift
@@ -21,15 +21,33 @@ steps:
       state.selectedTabIndex: 0
 
   - id: S2
-    name: Navigate Memories via Cmd+3 equivalent
+    name: Navigate Memories via Cmd+2 equivalent
+    bridge.action:
+      name: navigate_via_shortcut
+      params:
+        shortcut: "2"
+    wait:
+      state.selectedTabIndex: 1
+
+  - id: S3
+    name: Navigate Tasks via Cmd+3 equivalent
     bridge.action:
       name: navigate_via_shortcut
       params:
         shortcut: "3"
     wait:
-      state.selectedTabIndex: 3
+      state.selectedTabIndex: 4
 
-  - id: S3
+  - id: S4
+    name: Navigate Insights via Cmd+4 equivalent
+    bridge.action:
+      name: navigate_via_shortcut
+      params:
+        shortcut: "4"
+    wait:
+      state.selectedTabIndex: 5
+
+  - id: S5
     name: Navigate Settings via Cmd+, equivalent
     bridge.action:
       name: navigate_via_shortcut
@@ -38,7 +56,7 @@ steps:
     wait:
       state.selectedTabIndex: 9
 
-  - id: S4
+  - id: S6
     name: Logs clean
     log.expect:
       absent:

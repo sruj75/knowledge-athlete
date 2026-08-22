@@ -3,7 +3,6 @@ import Foundation
 @MainActor
 final class StartupWarmupCoordinator {
   private let tasksStore: TasksStore
-  private let dashboardViewModel: DashboardViewModel
   private let chatProvider: ChatProvider
   private let retryDatabaseInit: () async -> Bool
   /// Warmup delays protect the busy launch window, so they count down from
@@ -20,13 +19,11 @@ final class StartupWarmupCoordinator {
 
   init(
     tasksStore: TasksStore,
-    dashboardViewModel: DashboardViewModel,
     chatProvider: ChatProvider,
     retryDatabaseInit: @escaping () async -> Bool,
     launchAnchor: Date = Date()
   ) {
     self.tasksStore = tasksStore
-    self.dashboardViewModel = dashboardViewModel
     self.chatProvider = chatProvider
     self.retryDatabaseInit = retryDatabaseInit
     self.launchAnchor = launchAnchor
@@ -108,7 +105,6 @@ final class StartupWarmupCoordinator {
       scheduleState.releaseDatabaseWarmup()
       return
     }
-    scheduleDashboardNetworkRefresh(dbAvailable: true)
     scheduleChatPromptContextWarmup()
   }
 
@@ -116,13 +112,13 @@ final class StartupWarmupCoordinator {
     guard await sleepForStartupDelay(StartupWarmupPolicy.immediateWarmupDelay) else { return }
 
     await measurePerfAsync("DATA LOAD: Immediate warmup") { [self] in
-      async let tasks: Void = measurePerfAsync("DATA LOAD: TasksStore dashboard snapshot") {
+      async let taskSummary: Void = measurePerfAsync("DATA LOAD: Task summary snapshot") {
         await tasksStore.loadDashboardTasks()
       }
-      async let dashboard: Void = measurePerfAsync("DATA LOAD: Dashboard cached snapshot") {
-        await dashboardViewModel.loadCachedDashboardData()
+      async let homeTasks: Void = measurePerfAsync("DATA LOAD: Home task snapshot") {
+        await tasksStore.loadHomeTasks()
       }
-      _ = await (tasks, dashboard)
+      _ = await (taskSummary, homeTasks)
     }
 
     guard await sleepForStartupDelay(StartupWarmupPolicy.deferredWarmupDelay) else { return }
@@ -152,21 +148,6 @@ final class StartupWarmupCoordinator {
     }
 
     logPerf("DATA LOAD: Service warmup complete", cpu: true)
-  }
-
-  private func scheduleDashboardNetworkRefresh(dbAvailable: Bool) {
-    guard dbAvailable else {
-      log("DATA LOAD: Skipping dashboard network refresh (database unavailable)")
-      return
-    }
-
-    scheduleSessionWarmup(id: .dashboardNetworkRefresh, delay: StartupWarmupPolicy.dashboardNetworkRefreshDelay) {
-      [weak self] in
-      guard let self else { return }
-      await measurePerfAsync("DATA LOAD: Dashboard network refresh") {
-        await self.dashboardViewModel.loadDashboardData()
-      }
-    }
   }
 
   private func scheduleChatPromptContextWarmup() {

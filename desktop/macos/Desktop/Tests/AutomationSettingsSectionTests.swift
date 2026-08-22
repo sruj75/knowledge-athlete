@@ -112,18 +112,20 @@ final class AutomationSettingsSectionTests: XCTestCase {
     }
   }
 
-  func testNavigationHandlerUsesTolerantMatch() throws {
-    // Source invariant: the automation navigation handler must go through
-    // automationMatch, not the strict rawValue init that caused SET-01.
-    let sourceURL = URL(fileURLWithPath: #filePath)
-      .deletingLastPathComponent()
-      .deletingLastPathComponent()
-      .appendingPathComponent("Sources/MainWindow/DesktopHomeView.swift")
-    let source = try String(contentsOf: sourceURL, encoding: .utf8)
-    // Identifier-independent: assert the handler resolves via the tolerant matcher and
-    // never via the strict rawValue init (renaming a local or reformatting must not
-    // break or bypass this invariant).
-    XCTAssertTrue(source.contains("SettingsSection.automationMatch("))
-    XCTAssertFalse(source.contains("SettingsSection(rawValue:"))
+  func testBridgeValidationUsesTolerantSettingsMatch() throws {
+    for (raw, expected) in [
+      ("rewind", Section.rewind),
+      ("plan-usage", Section.planUsage),
+      ("FLOATING BAR", Section.floatingBar),
+    ] {
+      let route = try DesktopAutomationNavigationRequest(
+        target: "settings",
+        settingsSection: raw,
+        highlightedSettingId: nil,
+        activateApp: false,
+        settleMs: 0
+      ).validatedRoute()
+      XCTAssertEqual(route.settingsSection, expected)
+    }
   }
 }

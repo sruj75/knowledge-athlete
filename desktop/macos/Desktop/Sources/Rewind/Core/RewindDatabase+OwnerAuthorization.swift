@@ -142,6 +142,14 @@ extension RewindDatabase {
     }
   }
 
+  func getScreenshotCount(
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async throws -> Int {
+    try await withOwnerRead(authorizationSnapshot) {
+      try await self.getScreenshotCount()
+    }
+  }
+
   func getBatterySkippedScreenshots(
     limit: Int = 10,
     authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
