@@ -195,17 +195,20 @@ The current tree still has live rejected-product callers:
 
 S-23 owns Joan, Wrapped, Trends, hosted conversation/folder, their product routes/data,
 and the provider integration that becomes exclusive when Wrapped is removed. S-25 owns
-deployed LLM-gateway service/image/workflow/secret/traffic closure. The deletion map now
-records the mechanical order:
+deployed LLM-gateway service/image/workflow/secret/traffic closure. The deletion map and
+cross-slice owner correction record the mechanical order:
 
-1. S-22 closes every retained/S-22-owned workload and records exactly one rejected live
-   binding: `Wrapped -> wrapped_analysis -> OpenRouter`.
-2. S-23 Cycle 10 deletes Wrapped and that now-exclusive OpenRouter application binding
-   together under IR-720/IR-820, then runs S-22's retained-provider regression suite.
+1. S-22 closes every retained/S-22-owned workload and records exactly three rejected
+   live S-23 handoffs: `followup -> Joan`, `conv_folder -> automatic folder assignment`,
+   and `wrapped_analysis/OpenRouter -> Wrapped`.
+2. S-23 deletes each binding together with its complete product: automatic folder
+   assignment in Cycle 6, Wrapped/OpenRouter in Cycle 10, and Joan/followup in Cycle 12.
+   It then runs S-22's retained-provider regression suite.
 3. S-25 deletes the already-callerless deployed gateway topology.
 
 S-22 does not wait for or reopen after S-23. Any second OpenRouter caller, generic default
-route, or additional rejected-product model binding is a defect that blocks S-22 closure.
+route, or rejected-product model binding outside those exact three handoffs is a defect
+that blocks S-22 closure.
 No no-op route, fake success, deprecated alias, or ignored model field may bridge the
 handoff.
 
@@ -456,8 +459,8 @@ consumer or confirms helper-level availability is the intended v1 behavior.
 | Legacy Memory routes | Canonical compute only; legacy model entries/functions absent | Preserve absence and negative tests |
 | `chat_extraction`/`chat_graph` | No current model route/caller found | Preserve absence; S-23 owns hosted Chat/persona product residue |
 | Wrapped/OpenRouter | Live Wrapped generator uses `wrapped_analysis`; OpenRouter config/provider support remains | Preserve as the one exact S-23 successor handoff; S-23 C10 deletes both and reruns retained-provider tests. Not an S-22 reopen gate. |
-| Joan follow-up | Live route in `users.py` uses `followup` | S-23 product owner; C12 gate |
-| Hosted folder assignment | Hosted processing imports `conv_folder` | S-23 product owner; C12 gate |
+| Joan follow-up | Live route in `users.py` uses `followup` | Preserve as the exact Joan S-23 handoff; S-23 deletes route/helper/model binding vertically. |
+| Hosted folder assignment | Hosted processing imports `conv_folder` | Preserve as the exact automatic-folder-assignment S-23 handoff; S-23 deletes prompt/model/state with the product. |
 | Trends/onboarding helpers | Model helpers remain; live route/caller is absent or non-model database presentation | Delete only after final reference trace and owner check |
 | Independent LLM gateway | Application clients/service/source/config/accounting/deploy topology remain | S-22 caller/application collapse; S-25 deployed topology/live decommission |
 
@@ -917,33 +920,36 @@ seam; source/residue assertions are explicitly labelled static tripwires.
 - **Stop:** a match is a retained local surface or S-23 product record; a backend alias
   has released-contract evidence; or removal would change Pill/assistant behavior.
 
-### Cycle 12 — close S-22 with one exact successor-owned model binding
+### Cycle 12 — close S-22 with three exact successor-owned model bindings
 
 - **Behavioral RED:** Build the executable caller/result-owner inventory and prove every
-  S-22-owned rejected workload is absent. The only permitted rejected live binding is
-  `backend/routers/wrapped.py -> wrapped_analysis -> OpenRouter`; a second OpenRouter
-  caller, generic unknown/default route, Joan/Trends/folder/onboarding model binding, or
-  unowned provider configuration fails the contract. Retained direct OpenAI/Anthropic/
-  Gemini workloads remain green.
+  S-22-owned rejected workload is absent. The only permitted rejected live bindings are
+  `followup -> Joan`, `conv_folder -> automatic folder assignment`, and
+  `backend/routers/wrapped.py -> wrapped_analysis -> OpenRouter`. A second OpenRouter
+  caller, generic unknown/default route, Trends/onboarding model binding, any fourth
+  rejected binding, or unowned provider configuration fails the contract. Retained
+  direct OpenAI/Anthropic/Gemini workloads remain green.
 - **Why RED now:** the current registry contains several rejected-product callers and
   broad provider/profile configuration, so the successor handoff is not yet isolated.
 - **Minimum GREEN:** delete callerless S-22-owned model routes/provider entries and make
-  the exhaustive inventory fail closed. Preserve only the smallest existing
-  Wrapped/OpenRouter application binding required for S-23 to delete the product
-  vertically; record its exact files/config/tests as the S-23 handoff. Do not delete or
-  change the Wrapped route/data/model semantics in S-22.
+  the exhaustive inventory fail closed. Preserve only the smallest existing bindings
+  for Joan/followup, automatic folder assignment/`conv_folder`, and
+  Wrapped/`wrapped_analysis`/OpenRouter; record their exact files/config/tests as the
+  S-23 handoff. Do not delete or change those routes, data, prompts, model semantics, or
+  isolated product pieces in S-22.
 - **Retained behavior:** all retained workloads and adjacent route 404/auth behavior.
 - **Authority before / after:** rejected hosted product owners disappear vertically;
   no new authority replaces them.
 - **Expected change:** S-22 provider/model inventory, fail-closed registry/config/tests,
-  and a precise S-23 handoff; no hosted product route/data schema.
+  and three precise S-23 handoffs; no hosted product route/data schema.
 - **Focused verification:** executable workload inventory, retained direct-provider
   tests, route policy/OpenAPI, unknown/default failure tests, and an exact assertion that
   Wrapped is the sole OpenRouter caller.
 - **Deletion/simplification enabled:** S-22 can close without a dependency cycle; S-23
   can delete Wrapped and OpenRouter together.
-- **Stop:** the handoff is not Wrapped-only, preserving it requires a generic fallback,
-  product behavior would change, or any additional rejected caller remains.
+- **Stop:** any handoff is not one of the exact three, preserving one requires a generic
+  fallback, product behavior would change, a second OpenRouter caller exists, or any
+  additional rejected caller remains.
 
 ### Cycle 13 — delete global QoS profiles and implicit routing
 
@@ -1073,7 +1079,7 @@ seam; source/residue assertions are explicitly labelled static tripwires.
 | S-19 | Consume final tool manifest and absence of higher-model voice escalation; preserve both providers. | Re-delete/rewrite PTT tools, lifecycle, local grounding, or session audit. |
 | S-20 | Consume its local-GRDB evidence seam and retain direct OpenAI GPT-5.1 transient classification while removing obsolete generic gateway/profile routing. | Change its model, prompt, recipes, output/parser, cadence, thresholds, fail-open behavior, evidence bounds, or enforcement semantics. |
 | S-21 | Hand final Settings/model-entry absence to shell convergence. | Redesign Settings/navigation or Voice Model picker. |
-| S-23 | Hand exactly one rejected live binding—Wrapped's `wrapped_analysis` through OpenRouter—plus zero other generic provider residue. S-23 deletes both together and runs S-22 retained-provider tests; S-22 is not reopened. | Delete or redesign hosted product routes/data/schema, or preserve a second OpenRouter caller/default. |
+| S-23 | Hand exactly three rejected live bindings—Joan/followup, automatic folder assignment/`conv_folder`, and Wrapped/`wrapped_analysis` through OpenRouter—plus zero other generic provider residue. S-23 deletes each with its complete product and runs S-22 retained-provider tests; S-22 is not reopened. | Delete isolated product pieces, redesign hosted product behavior, or preserve any fourth rejected binding/second OpenRouter caller/default. |
 | S-24 | Hand proof that embeddings are transient and vectors/indexes local. | Delete Typesense/Pinecone/OpenAI Files/GCS product data. |
 | S-25 | Hand zero gateway callers plus exact deployment/image/workflow/secret inventory. | Deploy, decommission, delete live resources, or retarget unrelated jobs. |
 | S-26/S-27 | Hand one explicit provider layer inside canonical backend and reduced env contract. | Broaden backend/deployment consolidation. |
@@ -1110,8 +1116,9 @@ rg -n -i 'perplexity|sonar-pro|openrouter|elevenlabs|/v2/tts/synthesize|nllb|gem
 ```
 
 Final production/config/test/doc hits for deleted S-22 families are zero. Generic words
-in decision records or historical changelogs are classified. Before S-23, OpenRouter
-hits must equal the exact Wrapped-only handoff; S-25 deployment hits are listed exactly.
+in decision records or historical changelogs are classified. Before S-23, rejected
+model bindings must equal the exact three handoffs and OpenRouter hits must remain
+Wrapped-only; S-25 deployment hits are listed exactly.
 
 ### Public web and S-19 boundary
 
@@ -1339,7 +1346,7 @@ acceptance in `../dodo-integration.md` remains a separate post-Wave-6 operation.
 |---|---|
 | S-19 not integrated | Rebase and refresh; consume its generated tool result. C5/final PTT proof stop until then. |
 | S-20 local-evidence classify route is not integrated | Preserve the current GPT-5.1 workload without changing it; wait for S-20's bounded local-GRDB evidence contract. C13 cannot delete its feature route before replacing generic routing with the explicit direct GPT-5.1 route. |
-| Wrapped/OpenRouter handoff grows beyond one product binding | S-22 stops and classifies the caller. Closure permits only the exact Wrapped-only handoff; S-23 deletes both without reopening S-22. |
+| S-23 model handoffs differ from the exact three | S-22 stops and classifies the caller. Closure permits only Joan/followup, automatic folder assignment/`conv_folder`, and Wrapped/`wrapped_analysis`/OpenRouter; S-23 deletes each vertically without reopening S-22. |
 | Gateway application deletion overlaps S-25 deployed service ownership | S-22 proves/migrates zero callers; S-25 owns deploy/live teardown. Record exact file split before C14. |
 | Prompt Hub/scoped LangSmith helpers have no non-test consumer | Preserve authorized helpers; do not wire a new product path. C15/final closure needs owner clarification if “live consumer” is required. |
 | Backend accepted Chat aliases may be released | Inspect app-client/release evidence; stop for explicit sunset/versioning. Do not keep dormant in-tree selection as fake compatibility. |
@@ -1358,8 +1365,10 @@ Missing inputs and reopening evidence:
 
 - **S-19 integration SHA and final generated tool manifest** — affects C5/C16; supplied by
   S-19 owner/integration. Safe work: C1–C4 and C6–C11.
-- **Wrapped-only OpenRouter handoff** — resolved by the deletion map; C12 must prove the
-  binding is exact. Any additional caller reopens classification, not S-23-first staging.
+- **Exact three S-23 model handoffs** — resolved by the owner correction; C12 must prove
+  Joan/followup, automatic folder assignment/`conv_folder`, and
+  Wrapped/`wrapped_analysis`/OpenRouter are the complete set. Any additional rejected
+  binding reopens classification, not S-23-first staging.
 - **S-25 repository/deploy split** — affects C14 and operational handoff; supplied by
   S-25 plan/integration owner. Safe work: direct caller migration and zero-caller proof.
 - **Prompt Hub/scoped tracing surviving consumer interpretation** — affects C15 final
@@ -1395,8 +1404,10 @@ Missing inputs and reopening evidence:
       models and commit only through current owner-local transactions.
 - [ ] Agent Pill/ChatLab/cloud proactive/notification/glasses/legacy Memory/hosted Chat
       model routes remain absent without deleting retained adjacent Mac behavior.
-- [ ] The only S-22 successor-owned rejected binding is Wrapped's `wrapped_analysis`
-      through OpenRouter; S-23 owns deleting both and S-22 needs no reopen.
+- [ ] The only S-22 successor-owned rejected bindings are `followup` for Joan,
+      `conv_folder` for automatic folder assignment, and `wrapped_analysis` through
+      OpenRouter for Wrapped; S-23 owns deleting each with its complete product and
+      S-22 needs no reopen.
 - [ ] `llm_gateway_attempts` writer and gateway application caller/source are absent;
       actual quota/usage and workload metrics pass.
 - [ ] S-25 has an exact zero-caller deployment/image/workflow/secret/live-resource handoff;

@@ -129,9 +129,10 @@ The live detailed decisions were re-read. The table names every assigned decisio
 | **IR-832** | Preserve LangSmith website/operator evaluation without restoring user ratings. | 7, 14 |
 | **IR-833** | Delete summary-rating routes, analytics documents/helpers, generated operations, and exclusive tests. | 7 |
 | **IR-834** | Delete Joan follow-up route/helper/model caller and exclusive data/tests. | 12, 15 |
+| **IR-305** | Delete automatic AI folder assignment, its Description semantics, `conv_folder` binding, hosted writes/reconciliation, and exclusive tests while preserving local manual folders and No folder. | 6, 15 |
 | **IR-835** | Keep authoritative subscription/quota/usage-total/fair-use/account-card behavior; keep detailed `/v1/users/me/usage` absent. | 14 |
 
-The live requirements challenge and deletion-map product decisions agree. The shared-owner order is resolved mechanically in §5 and §12: S-22 closes with one exact Wrapped/OpenRouter handoff; S-23 deletes both together; S-24 owns Pinecone including its deletion purge; and S-25—not S-23—owns operational worker/service teardown.
+The live requirements challenge and deletion-map product decisions agree. The shared-owner order is resolved mechanically in §5 and §12: S-22 closes with exactly three S-23 model handoffs—Joan/followup, automatic folder assignment/`conv_folder`, and Wrapped/`wrapped_analysis`/OpenRouter. S-23 deletes each binding together with its complete product; S-24 owns Pinecone including its deletion purge; and S-25—not S-23—owns operational worker/service teardown.
 
 ## 5. Dependencies and entry gates
 
@@ -151,17 +152,22 @@ Stop if the Wave 2 baseline is missing, a requirements decision changed, an uncl
 
 S-20 must first establish content-free enforcement state and its authenticated Mac interaction. Cycle 13 consumes that exact structured state; it must not recreate the classifier, alter thresholds/strikes/restriction timers, or continue sending FCM because local delivery is unfinished. Before FCM deletion, prove a retained Mac can receive or fetch every authoritative fair-use and managed-usage transition needed for in-app copy and local OS notification, including restart/reconnect and deduplication. If S-20 exposes no stable authenticated delivery/read seam, Cycle 13 stops for a cross-slice contract correction; it may not add a second shadow status API.
 
-### G2 — S-22 model portfolio handoff and Wrapped/OpenRouter order
+### G2 — S-22 model portfolio and exact three-product handoff
 
 S-22 must integrate every independent retained-model and provider change first: explicit retained callers/result owners, Flash/Lite/embedding proxy, direct Chat/greeting/title/conversation/Memory/translation compute, deletion of Perplexity/public web/ElevenLabs/Pro/streaming/gateway application mediation, and LangSmith/Prompt Hub fences.
 
-Wrapped still calls `get_llm('wrapped_analysis')` through OpenRouter. The deletion map fixes the integration shape:
+Joan still calls `followup`, automatic hosted folder assignment still calls
+`conv_folder`, and Wrapped still calls `wrapped_analysis` through OpenRouter. The owner
+correction fixes the integration shape:
 
-1. S-22 closes its owned portfolio and records OpenRouter as the single live Wrapped-only handoff.
-2. S-23 Cycle 10 deletes Wrapped vertically and removes the now-exclusive `wrapped_analysis`/OpenRouter application binding under IR-720.
-3. S-23 runs S-22's retained-provider regression suite and proves OpenRouter has no remaining caller. S-22 is not reopened.
+1. S-22 closes its owned portfolio and records those exact three live S-23 handoffs.
+2. S-23 Cycle 6 deletes automatic folder assignment and `conv_folder`, Cycle 10 deletes
+   Wrapped and `wrapped_analysis`/OpenRouter, and Cycle 12 deletes Joan and `followup`.
+3. S-23 runs S-22's retained-provider regression suite and proves no rejected binding
+   remains. S-22 is not reopened.
 
-No temporary provider adapter, dormant alias, or no-op Wrapped route is permitted.
+No temporary provider adapter, dormant alias, isolated model-binding deletion, or no-op
+product route is permitted.
 
 ### G3 — S-19 PTT hosted-conversation callers
 
@@ -334,7 +340,7 @@ The inventory below is complete for the pinned source tree. G0 must refresh it b
 | **SIMPLIFY AFTER** | Once family tests are green, collapse shallow hosted conversation/People/notification/data-export modules that have no retained caller; narrow shared storage/Redis/user models and imports; remove compatibility aliases and duplicate response shapes; keep only deep retained compute/account modules. No performance rewrite is required. |
 | **ACCELERATE AFTER** | Measure family-focused backend tests, generated-contract refresh, and named-bundle retained-path checks after each product GREEN. Improve only a repeated measured bottleneck; otherwise `none`. |
 | **AUTOMATE LAST** | After the product-owner matrix is stable, add only a deterministic recurring route/schema/residue check to an existing local and CI lane with a cited real failure; otherwise `none`. |
-| **OUT OF SCOPE / DEFERRED** | S-19 PTT lifecycle/tool migration; S-20 classifier semantics/thresholds/state machine; S-21 shell; S-22 retained model/provider semantics except the explicit Wrapped/OpenRouter handoff; S-24 physical Typesense/Pinecone/OpenAI Files/product-data GCS deletion and update/preview protection; S-25 jobs/workers/services/images/workflows/queues/secrets/GKE; S-26 entrypoint consolidation; S-27 live platform; S-28 namespaces; S-29 release infrastructure; S-30 rebrand/copy; S-31 release acceptance; Dodo activation; Windows; live-resource mutation. |
+| **OUT OF SCOPE / DEFERRED** | S-19 PTT lifecycle/tool migration; S-20 classifier semantics/thresholds/state machine; S-21 shell; S-22 retained model/provider semantics except the explicit Joan/followup, automatic-folder/`conv_folder`, and Wrapped/`wrapped_analysis`/OpenRouter handoffs; S-24 physical Typesense/Pinecone/OpenAI Files/product-data GCS deletion and update/preview protection; S-25 jobs/workers/services/images/workflows/queues/secrets/GKE; S-26 entrypoint consolidation; S-27 live platform; S-28 namespaces; S-29 release infrastructure; S-30 rebrand/copy; S-31 release acceptance; Dodo activation; Windows; live-resource mutation. |
 
 ## 9. Retained behavioral invariants
 
@@ -463,15 +469,15 @@ All cycles begin after G0; cycle-local gates are named explicitly. Each static r
 - **Deletion/simplification enabled:** `ENCRYPTION_SECRET` product-content use, compatibility aliases, Redis protection/migration keys, and broad source enum disappear if no other retained caller exists.
 - **Stop:** `ENCRYPTION_SECRET` or a field has another proven retained security owner, a local historical migration would be broken, or an operational device identifier is being deleted by name rather than ownership.
 
-### Cycle 6 — delete hosted conversation metadata, mutation, retrieval, sharing, and Calendar context
+### Cycle 6 — delete hosted conversation metadata, automatic folder assignment, mutation, retrieval, sharing, and Calendar context
 
 - **Gate:** G3.
-- **Intended behavioral RED:** summary/text PATCH, test-prompt, speaker analytics/search, Calendar meeting/context, public/share/link, and metadata-filter operations are 404 or absent; PTT/local search still returns equivalent retained local results; local commitment extraction remains local and performs no external calendar write.
-- **Why it fails before implementation:** request/analytics/metadata/calendar models, calendar routes/database/document IDs, processing prompt context, Redis filter/meeting keys, hosted retrieval services, tests, and stale share/link strings remain.
-- **Minimum GREEN:** after S-19's caller migration, delete complete hosted operations and data schemas, including People/topics/entities/dates and meeting/attendee/link storage. Remove generated operations and exclusive indexes/config/docs. Do not delete local FTS/vector/date search or commitments.
-- **Retained behavior protected:** local conversation list/detail/edit/merge/search/date filtering, Copy Transcript, PTT tools, local summary/action-item proposals, location, and local commitments.
+- **Intended behavioral RED:** summary/text PATCH, test-prompt, speaker analytics/search, Calendar meeting/context, public/share/link, metadata-filter, and automatic AI folder assignment operations are 404 or absent; no `conv_folder` model call, Description instruction, confidence/reasoning, hosted folder write, or manual-override reconciliation occurs. PTT/local search and local manual folder/No folder behavior remain equivalent; local commitment extraction remains local and performs no external calendar write.
+- **Why it fails before implementation:** request/analytics/metadata/calendar/folder models, calendar routes/database/document IDs, folder prompt/model/context and processing invocation, Description state, hosted assignment writes/reconciliation, Redis filter/meeting keys, hosted retrieval services, tests, and stale share/link strings remain.
+- **Minimum GREEN:** after S-19's caller migration, delete complete hosted operations and data schemas, including People/topics/entities/dates, meeting/attendee/link storage, and automatic folder assignment with its `conv_folder` binding and Description semantics. Remove generated operations and exclusive indexes/config/docs. Do not delete local FTS/vector/date search, commitments, manual folders, or No folder.
+- **Retained behavior protected:** local conversation list/detail/edit/merge/search/date filtering, manual folder creation/filtering/assignment/No folder, Copy Transcript, PTT tools, local summary/action-item proposals, location, and local commitments.
 - **Owner before -> after:** hosted Firestore/search/Calendar context -> local GRDB/search owners; external calendar has no writer.
-- **Expected change:** conversation/calendar/retrieval routers, models, database/utils, Redis, Firestore indexes, generated/tests/docs; behavioral `test_s23_conversation_operation_retirement.py`; S-19 PTT and local-search tests.
+- **Expected change:** conversation/calendar/folder/retrieval routers, models, database/utils, `conversation_folder.py`, model registry, Redis, Firestore indexes, generated/tests/docs; behavioral `test_s23_conversation_operation_retirement.py`; S-19 PTT, local-search, manual-folder, and S-22 retained-provider tests.
 - **Focused verification:** 404 matrix against `main.app`, PTT tool tests, local conversation/search/merge tests, OpenAPI generation, no-external-calendar-call fake.
 - **Deletion/simplification enabled:** hosted metadata catalogs, Calendar collections, mutation DTOs, sharing residue, and product-specific indexes disappear; S-24 gets a zero-caller search handoff.
 - **Stop:** S-19 remains on hosted tools, a route is a retained transient compute endpoint, or a search/index hit belongs to local FTS/embeddings.
@@ -642,7 +648,7 @@ After every GREEN, run a separate simplify review: remove only newly callerless 
 | **S-19** | Final local PTT tools/search and hosted-caller absence | Remove hosted conversation metadata/readers only afterward | Never recreate PTT tools or alter realtime lifecycle |
 | **S-20** | Content-free enforcement facts/authenticated Mac interaction | Mac warning presentation + FCM deletion | Classifier, thresholds, strike/timer/support semantics stay S-20 |
 | **S-21** | Final shell has no rejected navigation/caller | Backend product deletion only | Do not converge Settings/navigation here except Export My Data row |
-| **S-22** | Explicit retained model portfolio plus the exact Wrapped/OpenRouter handoff | Delete Wrapped and its exclusive OpenRouter binding; run retained-provider tests | Do not alter prompts/models/failover or reopen S-22 |
+| **S-22** | Explicit retained model portfolio plus exact Joan/followup, automatic-folder/`conv_folder`, and Wrapped/`wrapped_analysis`/OpenRouter handoffs | Delete each binding only with its complete S-23 product; run retained-provider tests | Do not alter retained prompts/models/failover or reopen S-22 |
 | **S-24** | Receives zero product callers, exact object/search paths, and one explicit Pinecone purge/counter seam | Repository product schema/caller and non-Pinecone cleanup deletion | Typesense/Pinecone—including account purge—OpenAI Files/product GCS resources and update/preview fence belong to S-24 |
 | **S-25** | Receives callerless audio/finalization/Pusher/model services and absent product APIs | No independent deployment deletion | Workers/routes/queues/reconcilers/services/images/workflows/secrets/GKE and account-task retarget belong to S-25 |
 | **S-26/S-27** | Receive truthful retained app/platform registry | No entrypoint/platform convergence | Canonical source merge, region/projects/domains/live platform remain later |
@@ -858,7 +864,7 @@ Repository merge does not authorize deployment, traffic changes, queue purge, pr
 |---|---|---|---|
 | S-20 local-GRDB/transient-GPT-5.1 implementation is not integrated | 13, 18 | Inventory and retained notification characterization | Integrated S-20 commit, bounded authenticated evidence contract, content-free durable state, and warning acceptance; S-20/product owner |
 | S-20 currently plans FCM for retained warnings | 13 | Preserve semantics; define no second API | Stable authenticated Mac state interaction covering required transitions/restart/dedup; S-20/S-23 owners |
-| S-22 implementation is absent or its OpenRouter handoff is not Wrapped-only | 10, 15, 18 | Delete no provider; record current caller | Closed S-22 result with exact Wrapped-only handoff; S-23 owner stops on any additional caller |
+| S-22 implementation is absent or its rejected-model handoffs are not the exact three | 6, 10, 12, 15, 18 | Delete no isolated binding; record current callers | Closed S-22 result with exact Joan/followup, automatic-folder/`conv_folder`, and Wrapped/`wrapped_analysis`/OpenRouter handoffs; S-23 stops on any additional caller |
 | S-19 hosted conversation tools may still be live | 3, 6, 18 | Other product families | Integrated local PTT tool/search caller-absence proof; S-19 owner |
 | Finalizer/audio-merge/Pusher code still needs S-25 operational order | 1-4, 18 | Remove product ingress/schema only where worker remains functional | Exact zero-producer handoff plus queue/backlog/rollback inventory; S-25/platform owner |
 | Physical product data may exist in Firestore/Redis/GCS/search/vector/files | 2-8, 16, operational | Stop new repository writers; no live query/mutation | Authorized read-only inventory, retention/legal/backup decision; S-24/data owner |
