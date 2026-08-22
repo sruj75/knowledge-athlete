@@ -65,26 +65,6 @@ def _required_failures_from_purge_result(purge_result: object) -> list[PurgeFail
     return failures
 
 
-def _purge_failures(purge_result: object) -> list[PurgeFailure]:
-    if not isinstance(purge_result, dict):
-        return []
-    result = cast(dict[str, object], purge_result)
-
-    def failures(key: str) -> list[PurgeFailure]:
-        value = result.get(key, [])
-        if not isinstance(value, list):
-            return []
-        bounded: list[PurgeFailure] = []
-        for item in cast(list[object], value):
-            if not isinstance(item, dict):
-                continue
-            item_dict = cast(dict[str, object], item)
-            bounded.append({'operation': str(item_dict.get('operation', 'unknown')), 'error': ''})
-        return bounded
-
-    return failures('required_failures')
-
-
 # Service-level PostHog distinct_id only. Never re-identify a deleted Firebase UID
 # as a person profile (success path runs after Auth + Firestore wipe).
 _ACCOUNT_DELETION_TELEMETRY_DISTINCT_ID = 'omi-service:account-deletion'
@@ -182,7 +162,7 @@ def background_wipe_user_data(uid: str, retry_count: int = 0, terminal: bool = F
             users_db.mark_user_deletion_wipe_failed(uid)
         except Exception as persist_err:
             logger.error(f'delete_account wipe status persist failed for {uid}: {sanitize(str(persist_err))}')
-        required_failures = _purge_failures(purge_result)
+        required_failures = _required_failures_from_purge_result(purge_result)
         failed_operations = [failure['operation'] for failure in required_failures] or [current_operation]
         _emit_deletion_telemetry(
             uid,
@@ -213,7 +193,7 @@ def background_wipe_user_data(uid: str, retry_count: int = 0, terminal: bool = F
                 },
             )
             return False
-        required_failures = _purge_failures(purge_result)
+        required_failures = _required_failures_from_purge_result(purge_result)
         _emit_deletion_telemetry(
             uid,
             ACCOUNT_DELETION_WIPE_COMPLETED,
