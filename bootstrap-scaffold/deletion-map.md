@@ -298,7 +298,7 @@ already-integrated predecessor shape first.
 | Wearable and Limitless paths | S-02 deletes direct wearable hardware, including direct Limitless support. S-06 deletes only the hosted Limitless ZIP importer. |
 | Agent VM-adjacent journals and screen history | S-01 removes VM copies only. S-11 owns normal backend-journal removal; S-15 owns shared cloud screen-history removal. |
 | Account and telemetry identity | S-08 publishes the canonical account/sign-in/sign-out seam before S-09 adapts identity attachment and detachment. |
-| Managed-model portfolio and rejected model-backed products | S-22 closes every retained/transient model route and hands one exact still-live `Wrapped -> wrapped_analysis -> OpenRouter` binding to S-23. S-23 deletes Wrapped and that now-exclusive OpenRouter integration together; S-22 is not reopened. |
+| Managed-model portfolio and rejected model-backed products | S-22 closes every retained/transient model route and hands exactly three still-live bindings to S-23: `Joan -> followup`, automatic folder assignment -> `conv_folder`, and `Wrapped -> wrapped_analysis -> OpenRouter`. S-23 deletes each binding together with its complete product; S-22 is not reopened. |
 | Rejected-product cleanup in durable account deletion | S-23 removes Twilio, recording, cloud-memory, and other product-specific cleanup branches while preserving one exact Pinecone purge handoff. S-24 deletes Pinecone, including that purge/counter surface. S-25 then retargets the still-durable retained account-deletion task before deleting the old service topology. |
 
 Repository closure and live operational closure remain separate. Migrations,
@@ -1351,10 +1351,11 @@ IR-732, IR-827, IR-828
   LLM gateway, global premium/max/BYOK profiles, Perplexity/Sonar, all public web
   search, callerless ElevenLabs, unused Gemini Pro/streaming, NLLB,
   old memory/chat/persona/proactive/glasses routes, and rejected provider config.
-- **Successor handoff:** S-22 closes with exactly one rejected live model binding:
-  Wrapped's `wrapped_analysis` call through OpenRouter. S-23 deletes Wrapped and
-  that now-exclusive OpenRouter integration together under IR-720/IR-820; S-22
-  is not reopened afterward.
+- **Successor handoff:** S-22 closes with exactly three rejected live model bindings:
+  Joan's `followup`, automatic folder assignment's `conv_folder`, and Wrapped's
+  `wrapped_analysis` call through OpenRouter. S-23 deletes each binding together
+  with its complete product under the matching owner cycle, including the now-exclusive
+  OpenRouter integration under IR-720/IR-820; S-22 is not reopened afterward.
 - **Failure-class lifecycle:** the public-web implementation PR deletes
   `backend/desktop_fixtures/public-web-routing-contract.fixture.json` and its
   Pi-adapter/doc consumers. After that PR merges, the same owner opens a separate
@@ -1362,8 +1363,8 @@ IR-732, IR-827, IR-828
   `dormant_since`; do not combine the transition or erase the historical record.
 - **Close when:** every S-22-owned model identifier has a named retained caller
   and result owner, every S-22-removed route has no caller/config/secret/test,
-  the sole Wrapped/OpenRouter successor handoff is exact and tested, and no user
-  data becomes durable merely because compute ran in the backend.
+  the three successor handoffs are exact and tested, Wrapped is the sole OpenRouter
+  caller, and no user data becomes durable merely because compute ran in the backend.
 
 ### S-23 — Delete rejected hosted products and their product-data schemas
 
