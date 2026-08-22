@@ -4,28 +4,6 @@ import XCTest
 
 final class ThinkingBudgetTests: XCTestCase {
 
-  // MARK: - ThinkingConfig.minimumBudget(for:)
-
-  func testFlashModelMinimumBudgetIsZero() {
-    XCTAssertEqual(ThinkingConfig.minimumBudget(for: "gemini-2.5-flash"), 0)
-  }
-
-  func testFlashPreviewModelMinimumBudgetIsZero() {
-    XCTAssertEqual(ThinkingConfig.minimumBudget(for: "gemini-2.5-flash-preview-04-17"), 0)
-  }
-
-  func testProModelMinimumBudgetIs128() {
-    XCTAssertEqual(ThinkingConfig.minimumBudget(for: "gemini-2.5-pro"), 128)
-  }
-
-  func testProPreviewModelMinimumBudgetIs128() {
-    XCTAssertEqual(ThinkingConfig.minimumBudget(for: "gemini-2.5-pro-preview-05-06"), 128)
-  }
-
-  func testUnknownModelDefaultsToZero() {
-    XCTAssertEqual(ThinkingConfig.minimumBudget(for: "gemini-2.0-flash"), 0)
-  }
-
   // MARK: - ThinkingConfig encoding
 
   func testThinkingConfigEncodesSnakeCase() throws {
@@ -43,26 +21,14 @@ final class ThinkingBudgetTests: XCTestCase {
     XCTAssertEqual(json["thinking_budget"] as? Int, 0)
   }
 
-  // MARK: - Budget floor enforcement via max()
+  // MARK: - Retained Flash budget normalization
 
-  func testFlashBudgetZeroPassesThroughAsZero() {
-    let budget = max(0, ThinkingConfig.minimumBudget(for: "gemini-2.5-flash"))
-    XCTAssertEqual(budget, 0)
+  func testNegativeBudgetNormalizesToZero() {
+    XCTAssertEqual(ThinkingConfig.normalizedBudget(-1), 0)
   }
 
-  func testProBudgetZeroFloorsTo128() {
-    let budget = max(0, ThinkingConfig.minimumBudget(for: "gemini-2.5-pro"))
-    XCTAssertEqual(budget, 128)
-  }
-
-  func testProBudget1024StaysAt1024() {
-    let budget = max(1024, ThinkingConfig.minimumBudget(for: "gemini-2.5-pro"))
-    XCTAssertEqual(budget, 1024)
-  }
-
-  func testFlashBudget1024StaysAt1024() {
-    let budget = max(1024, ThinkingConfig.minimumBudget(for: "gemini-2.5-flash"))
-    XCTAssertEqual(budget, 1024)
+  func testPositiveBudgetPassesThrough() {
+    XCTAssertEqual(ThinkingConfig.normalizedBudget(1024), 1024)
   }
 
   // MARK: - GeminiRequest includes thinkingConfig in generationConfig
