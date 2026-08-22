@@ -735,21 +735,6 @@ class TestStructuralUsage:
 
     BACKEND_DIR = Path(__file__).resolve().parent.parent.parent
 
-    def test_pusher_imports_async_tasks(self):
-        import ast
-
-        with open(self.BACKEND_DIR / 'routers/pusher.py', encoding='utf-8') as f:
-            tree = ast.parse(f.read())
-
-        imports = []
-        for node in ast.walk(tree):
-            if isinstance(node, ast.ImportFrom) and node.module == 'utils.async_tasks':
-                imports.extend(alias.name for alias in node.names)
-
-        assert 'supervise_tasks' in imports
-        assert 'drain_tasks' in imports
-        assert 'create_named_task' in imports
-
     def test_listen_runtime_imports_async_tasks(self):
         import ast
 

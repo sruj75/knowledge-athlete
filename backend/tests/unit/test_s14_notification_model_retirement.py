@@ -23,9 +23,7 @@ def test_notification_only_usage_features_are_absent() -> None:
 
 
 def test_mentor_notification_frequency_storage_is_absent() -> None:
-    source = (ROOT / 'database/notifications.py').read_text(encoding='utf-8')
-    assert 'mentor_notification_frequency' not in source
-    assert 'mentor_frequency:' not in source
+    assert not (ROOT / 'database/notifications.py').exists()
 
 
 def test_daily_summary_chat_message_type_is_absent() -> None:

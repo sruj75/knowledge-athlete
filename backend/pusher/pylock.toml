@@ -134,12 +134,6 @@ sdist = { url = "https://files.pythonhosted.org/packages/e0/4d/f332313098c1de1b2
 wheels = [{ url = "https://files.pythonhosted.org/packages/a7/5f/ed01f9a3cdffbd5a008556fc7b2a08ddb1cc6ace7effa7340604b1d16699/docstring_parser-0.18.0-py3-none-any.whl", upload-time = 2026-04-14T04:09:18Z, size = 22484, hashes = { sha256 = "b3fcbed555c47d8479be0796ef7e19c2670d428d72e96da63f3a40122860374b" } }]
 
 [[packages]]
-name = "fal-client"
-version = "0.4.1"
-sdist = { url = "https://files.pythonhosted.org/packages/e3/54/7674e1c8181e5b4125dba43ea10e2324131bfee0498444d5bdf39907713b/fal_client-0.4.1.tar.gz", upload-time = 2024-06-28T18:43:25Z, size = 8413, hashes = { sha256 = "3121cdbf4be8a47226e6df8e782340c1a603b17ec04942a131c2929a32aedff3" } }
-wheels = [{ url = "https://files.pythonhosted.org/packages/0d/fd/340396fdceb9ac2fac768f9d91b0e8a1cf18c554567afd9bf01b60c949e8/fal_client-0.4.1-py3-none-any.whl", upload-time = 2024-06-28T18:43:24Z, size = 6296, hashes = { sha256 = "3fe13ac5108a02c1c27e146e52dcbb0b10d33694d870c8a1769966af18ff4a3f" } }]
-
-[[packages]]
 name = "fastapi"
 version = "0.121.0"
 sdist = { url = "https://files.pythonhosted.org/packages/8c/e3/77a2df0946703973b9905fd0cde6172c15e0781984320123b4f5079e7113/fastapi-0.121.0.tar.gz", upload-time = 2025-11-03T10:25:54Z, size = 342412, hashes = { sha256 = "06663356a0b1ee93e875bbf05a31fb22314f5bed455afaaad2b2dad7f26e98fa" } }
@@ -244,12 +238,6 @@ version = "3.5.2"
 marker = "(python_full_version < '3.13' and platform_machine == 'AMD64') or (python_full_version < '3.13' and platform_machine == 'WIN32') or (python_full_version < '3.13' and platform_machine == 'aarch64') or (python_full_version < '3.13' and platform_machine == 'amd64') or (python_full_version < '3.13' and platform_machine == 'ppc64le') or (python_full_version < '3.13' and platform_machine == 'win32') or (python_full_version < '3.13' and platform_machine == 'x86_64')"
 sdist = { url = "https://files.pythonhosted.org/packages/dd/8b/befc3cb36965f397d87e86fb3b00e3ec0dc67c1ecb0986d7f54ee528f018/greenlet-3.5.2.tar.gz", upload-time = 2026-06-17T20:19:01Z, size = 199243, hashes = { sha256 = "c1b906220d83c140361cdd12eef970fb5881a168b98ee58a43786426173da14c" } }
 wheels = [{ url = "https://files.pythonhosted.org/packages/bd/d4/642833e778c17d32b5cabb793e14ce7364c55952462fc506fecdee55d485/greenlet-3.5.2-cp311-cp311-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", upload-time = 2026-06-17T17:39:26Z, size = 616877, hashes = { sha256 = "c1c1e5ad80f1f38ea479b83b39dccb20874cfe9ad5e52f87225fa294ba4d39a1" } }]
-
-[[packages]]
-name = "groq"
-version = "0.9.0"
-sdist = { url = "https://files.pythonhosted.org/packages/48/c8/5ea4aa6b329fd01795acdf4cb0c78d92860253d108eddfc008fccbe56642/groq-0.9.0.tar.gz", upload-time = 2024-06-11T20:12:03Z, size = 68728, hashes = { sha256 = "130ed5e35d3acfaab46b9e7a078eeaebf91052f4a9d71f86f87fb319b5fec332" } }
-wheels = [{ url = "https://files.pythonhosted.org/packages/59/7c/81b1302925c2452d540c7d7784b316017b69e1f3f19c2996bcb09360437b/groq-0.9.0-py3-none-any.whl", upload-time = 2024-06-11T20:12:02Z, size = 103457, hashes = { sha256 = "d0e46f4ad645504672bb09c8100af3ced3a7db0d5119dc13e4aca535fc455874" } }]
 
 [[packages]]
 name = "grpc-google-iam-v1"
@@ -729,12 +717,6 @@ sdist = { url = "https://files.pythonhosted.org/packages/aa/65/7d973b89c4d2351d7
 wheels = [{ url = "https://files.pythonhosted.org/packages/49/97/fa78e3d2f65c02c8e1268b9aba606569fe97f6c8f7c2d74394553347c145/rsa-4.9-py3-none-any.whl", upload-time = 2022-07-20T10:28:34Z, size = 34315, hashes = { sha256 = "90260d9058e514786967344d0ef75fa8727eed8a7d2e43ce9f4bcf1b536174f7" } }]
 
 [[packages]]
-name = "scipy"
-version = "1.14.0"
-sdist = { url = "https://files.pythonhosted.org/packages/4e/e5/0230da034a2e1b1feb32621d7cd57c59484091d6dccc9e6b855b0d309fc9/scipy-1.14.0.tar.gz", upload-time = 2024-06-24T20:35:18Z, size = 58618870, hashes = { sha256 = "b5923f48cb840380f9854339176ef21763118a7300a88203ccd0bdd26e58527b" } }
-wheels = [{ url = "https://files.pythonhosted.org/packages/89/bb/80c9c98d887c855710fd31fc5ae5574133e98203b3475b07579251803662/scipy-1.14.0-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", upload-time = 2024-06-24T20:33:26Z, size = 41132874, hashes = { sha256 = "9e3154691b9f7ed73778d746da2df67a19d046a6c8087c8b385bc4cdb2cfca74" } }]
-
-[[packages]]
 name = "setuptools"
 version = "82.0.1"
 sdist = { url = "https://files.pythonhosted.org/packages/4f/db/cfac1baf10650ab4d1c111714410d2fbb77ac5a616db26775db562c8fab2/setuptools-82.0.1.tar.gz", upload-time = 2026-03-09T12:47:17Z, size = 1152316, hashes = { sha256 = "7d872682c5d01cfde07da7bccc7b65469d3dca203318515ada1de5eda35efbf9" } }
@@ -790,12 +772,6 @@ name = "tqdm"
 version = "4.66.5"
 sdist = { url = "https://files.pythonhosted.org/packages/58/83/6ba9844a41128c62e810fddddd72473201f3eacde02046066142a2d96cc5/tqdm-4.66.5.tar.gz", upload-time = 2024-08-03T22:35:40Z, size = 169504, hashes = { sha256 = "e1020aef2e5096702d8a025ac7d16b1577279c9d63f8375b63083e9a5f0fcbad" } }
 wheels = [{ url = "https://files.pythonhosted.org/packages/48/5d/acf5905c36149bbaec41ccf7f2b68814647347b72075ac0b1fe3022fdc73/tqdm-4.66.5-py3-none-any.whl", upload-time = 2024-08-03T22:35:36Z, size = 78351, hashes = { sha256 = "90279a3770753eafc9194a0364852159802111925aa30eb3f9d85b0e805ac7cd" } }]
-
-[[packages]]
-name = "twilio"
-version = "9.5.0"
-sdist = { url = "https://files.pythonhosted.org/packages/eb/a3/68d476e978930d6f1cfe802187b644505a4d5a0495a4ba730f80e9772c93/twilio-9.5.0.tar.gz", upload-time = 2025-03-11T12:56:31Z, size = 991636, hashes = { sha256 = "633d213c21b394297a27a92f20498adb1c4cd2f6fc3f4e2bfcc7d787b29fc034" } }
-wheels = [{ url = "https://files.pythonhosted.org/packages/06/f0/0b875419fa7ddfa6c4a07954f4991e50b37dcc9922bc502f023b12be67e1/twilio-9.5.0-py2.py3-none-any.whl", upload-time = 2025-03-11T12:56:28Z, size = 1882103, hashes = { sha256 = "e6d0ccf9162a83acfa6d21a02e90a22fdbc53f4269be3402ba579f13b2a259fc" } }]
 
 [[packages]]
 name = "typesense"

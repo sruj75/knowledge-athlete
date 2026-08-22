@@ -133,7 +133,25 @@ preferences. Proactive cards and macOS notifications may enter Chat only through
 the accepted local journal continuity path. Daily Summary, server AI Profile,
 server Focus, hosted assistant/notification/Mentor settings, personalized
 purchase/quota push copy, and the Notifications Cloud Run job are not product
-authorities. Generic FCM delivery remains only for separately owned callers.
+authorities. Cloud FCM delivery is not a product surface. Retained fair-use and
+managed-usage facts remain server-authoritative, while the Mac presents fixed
+truthful in-app copy and deduplicated local OS notifications under the active
+owner boundary.
+
+## Account data lifecycle
+
+**Export My Data** writes one complete, deterministic JSON file from the active
+owner's local Mac authorities: conversations/transcripts, Memories, tasks,
+goals, Chat catalog/journal, Focus data, and a privacy-reviewed settings
+allowlist. Export is owner-generation fenced, works without product network,
+and never dumps raw databases, credentials, prompts, caches, or diagnostics.
+The backend export returns retained account/subscription/usage metadata only.
+
+Account deletion remains a durable backend job. Its required boundaries are
+billing cancellation, Firebase Authentication deletion, recursive retained
+Firestore deletion, and the exact Pinecone namespace-purge handoff owned by the
+next storage slice. It does not restore cleanup clients for retired recordings,
+People/voice identity, phone calling, notifications, or hosted product data.
 
 ## Before you build
 

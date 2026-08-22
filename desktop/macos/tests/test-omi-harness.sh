@@ -93,6 +93,55 @@ except RuntimeError:
 else:
     raise AssertionError("relative health log path must fail loudly")
 
+ui_context = module.HarnessContext(
+    base_url="http://127.0.0.1:59999",
+    flow_path=Path("export-my-data-ui.yaml"),
+    run_dir=Path("runs"),
+    steps_dir=Path("runs/steps"),
+    lane="ui",
+    log_path=Path("/private/tmp/omi/harness-test.log"),
+    log_start=0,
+    bundle_id="com.omi.omi-export-test",
+    process_match=None,
+)
+original_run_agent_swift = module.run_agent_swift
+captured_ax_args = []
+module.run_agent_swift = lambda _ctx, args: (
+    captured_ax_args.append(args)
+    or __import__("subprocess").CompletedProcess(args, 0, stdout="clicked", stderr="")
+)
+with tempfile.TemporaryDirectory() as out:
+    ax_ok, ax_error = module.run_ax_action(
+        ui_context,
+        {"locator": "text", "value": "Export", "action": "click"},
+        Path(out) / "ax.txt",
+    )
+module.run_agent_swift = original_run_agent_swift
+assert ax_ok and ax_error is None
+assert captured_ax_args == [["find", "text", "Export", "click"]]
+
+captured_ax_args = []
+module.run_agent_swift = lambda _ctx, args: (
+    captured_ax_args.append(args)
+    or __import__("subprocess").CompletedProcess(
+        args,
+        0,
+        stdout='{"matched":true}',
+        stderr="",
+    )
+)
+with tempfile.TemporaryDirectory() as out:
+    ax_ok, ax_error = module.assert_ax(
+        ui_context,
+        {"text_visible": ["Saved omi-data-export-"], "timeout_ms": 45_000},
+        Path(out) / "ax.json",
+    )
+module.run_agent_swift = original_run_agent_swift
+assert ax_ok and ax_error is None
+assert captured_ax_args == [
+    ["wait", "text", "Saved omi-data-export-", "--timeout", "45000", "--json"]
+], "text assertions must use a targeted query without dumping the full AX tree"
+
 flow_path = Path(path).parent.parent / "e2e/flows/rewind-settings.yaml"
 flow_text = flow_path.read_text(encoding="utf-8")
 s1_block = flow_text.split("  - id: S1", 1)[1].split("  - id: S2", 1)[0]

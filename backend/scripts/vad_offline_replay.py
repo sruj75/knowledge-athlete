@@ -110,7 +110,7 @@ def main() -> None:
     duration_s = len(samples) / (sr * channels)
     print(f'  Sample rate: {sr} Hz, Channels: {channels}, Duration: {duration_s:.1f}s')
 
-    # Create VAD gate in active mode (no speech profile delay)
+    # Create the VAD gate directly in active filtering mode.
     gate = VADStreamingGate(
         sample_rate=sr,
         channels=channels,

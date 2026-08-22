@@ -6,8 +6,8 @@ Schema: users/{uid}/llm_usage/{date} -> {feature -> {model -> {input_tokens, out
 """
 
 import hashlib
-from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Optional, cast
+from datetime import datetime, timezone
+from typing import Any, Dict, Optional, cast
 
 from google.cloud import firestore
 
@@ -162,143 +162,6 @@ def get_daily_usage(uid: str, date: Optional[datetime] = None) -> Dict[str, Any]
     if getattr(doc, "exists", False):
         return _typed_doc(doc)
     return {}
-
-
-def _aggregate_summary(data: Dict[str, Any]) -> Dict[str, Dict[str, int]]:
-    summary: Dict[str, Dict[str, int]] = {}
-    for feature, models in data.items():
-        if feature in ("last_updated",):
-            continue
-        if not isinstance(models, dict):
-            continue
-
-        if feature not in summary:
-            summary[feature] = {"input_tokens": 0, "output_tokens": 0, "call_count": 0}
-
-        models_dict: Dict[str, Any] = cast(Dict[str, Any], models)
-        for _, tokens in models_dict.items():
-            if isinstance(tokens, dict):
-                token_dict: Dict[str, Any] = cast(Dict[str, Any], tokens)
-                summary[feature]["input_tokens"] += int(token_dict.get("input_tokens", 0) or 0)
-                summary[feature]["output_tokens"] += int(token_dict.get("output_tokens", 0) or 0)
-                summary[feature]["call_count"] += int(token_dict.get("call_count", 0) or 0)
-    return summary
-
-
-def get_usage_summary(uid: str, days: int = 30) -> Dict[str, Dict[str, int]]:
-    """
-    Get aggregated LLM usage summary for the last N days.
-
-    Args:
-        uid: User ID
-        days: Number of days to aggregate
-
-    Returns:
-        Dict with total usage by feature
-    """
-    user_ref = db.collection("users").document(uid)
-    usage_collection = user_ref.collection("llm_usage")
-
-    # Query last N days
-    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
-    cutoff_id = f"{cutoff.year}-{cutoff.month:02d}-{cutoff.day:02d}"
-
-    docs = usage_collection.where("__name__", ">=", cutoff_id).stream()
-
-    # Aggregate by feature
-    summary: Dict[str, Dict[str, int]] = {}
-
-    for doc in docs:
-        data = _typed_doc(doc)
-        partial = _aggregate_summary(data)
-        for feature, tokens in partial.items():
-            if feature not in summary:
-                summary[feature] = {"input_tokens": 0, "output_tokens": 0, "call_count": 0}
-            summary[feature]["input_tokens"] += tokens["input_tokens"]
-            summary[feature]["output_tokens"] += tokens["output_tokens"]
-            summary[feature]["call_count"] += tokens["call_count"]
-
-    return summary
-
-
-def _features_from_summary(summary: Dict[str, Dict[str, int]], limit: int) -> List[Dict[str, Any]]:
-    features: List[Dict[str, Any]] = []
-    for feature, tokens in summary.items():
-        total = tokens.get("input_tokens", 0) + tokens.get("output_tokens", 0)
-        features.append(
-            {
-                "feature": feature,
-                "input_tokens": tokens.get("input_tokens", 0),
-                "output_tokens": tokens.get("output_tokens", 0),
-                "total_tokens": total,
-                "call_count": tokens.get("call_count", 0),
-            }
-        )
-
-    features.sort(key=lambda x: x["total_tokens"], reverse=True)
-    return features[:limit]
-
-
-def get_top_features(uid: str, days: int = 30, limit: int = 3) -> List[Dict[str, Any]]:
-    """
-    Get top features by total token usage.
-
-    Args:
-        uid: User ID
-        days: Number of days to aggregate
-        limit: Number of top features to return
-
-    Returns:
-        List of dicts with feature name and total tokens, sorted by usage
-    """
-    summary = get_usage_summary(uid, days)
-    return _features_from_summary(summary, limit)
-
-
-def get_global_top_features(days: int = 30, limit: int = 3) -> List[Dict[str, Any]]:
-    """
-    Get top features across all users by total token usage.
-
-    Args:
-        days: Number of days to aggregate
-        limit: Number of top features to return
-
-    Returns:
-        List of dicts with feature name and total tokens
-    """
-    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
-    cutoff_id = f"{cutoff.year}-{cutoff.month:02d}-{cutoff.day:02d}"
-
-    # Query all users' llm_usage subcollections
-    # Note: This is a collection group query; use 'date' field instead of __name__
-    # since __name__ comparisons don't work reliably for collection-group queries
-    usage_query = db.collection_group("llm_usage").where("date", ">=", cutoff_id)
-
-    global_summary: Dict[str, Dict[str, int]] = {}
-
-    for doc in usage_query.stream():
-        data = _typed_doc(doc)
-        partial = _aggregate_summary(data)
-        for feature, tokens in partial.items():
-            if feature not in global_summary:
-                global_summary[feature] = {"input_tokens": 0, "output_tokens": 0, "call_count": 0}
-            global_summary[feature]["input_tokens"] += tokens["input_tokens"]
-            global_summary[feature]["output_tokens"] += tokens["output_tokens"]
-            global_summary[feature]["call_count"] += tokens["call_count"]
-
-    return _features_from_summary(global_summary, limit)
-
-
-# ============================================================================
-# BUCKET-BASED LLM USAGE
-#
-# Flat key scheme ("desktop_chat" / "desktop_chat_{account}") with fields:
-# input_tokens, output_tokens, cache_read_tokens, cache_write_tokens,
-# total_tokens, cost_usd, call_count.
-#
-# This differs from the {feature}.{model} nesting above.  Both schemas
-# coexist in the same date-keyed documents using Firestore's schemaless design.
-# ============================================================================
 
 
 def record_llm_usage_bucket(

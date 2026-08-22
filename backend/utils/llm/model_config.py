@@ -14,8 +14,6 @@ class WorkloadLifecycle(str, Enum):
     """Implementation ownership for one managed-model workload."""
 
     RETAINED = 'retained'
-    RETIRING_S22 = 'retiring_s22'
-    SUCCESSOR_S23 = 'successor_s23'
     DEPENDENCY_S20 = 'dependency_s20'
 
 
@@ -184,42 +182,6 @@ _WORKLOADS: Dict[str, ManagedModelWorkload] = {
         'Mac MemoryStorage atomic lifecycle transaction',
         'retry or review without partial mutation',
     ),
-    'followup': _workload(
-        'followup',
-        'gemini',
-        'gemini-2.5-flash-lite',
-        'DELETE /v1/joan/{memory_id}/followup-question',
-        'hosted conversation transcript',
-        'one follow-up question',
-        'followup',
-        'S-23 Joan product',
-        'S-23 deletes the endpoint and helper together',
-        WorkloadLifecycle.SUCCESSOR_S23,
-    ),
-    'conv_folder': _workload(
-        'conv_folder',
-        'openai',
-        'gpt-4.1-nano',
-        'hosted conversation finalization folder assignment',
-        'hosted generated conversation metadata and cloud folders',
-        'folder assignment candidate',
-        'conversation_processing',
-        'S-23 hosted conversation product',
-        'S-23 deletes automatic assignment and its product state',
-        WorkloadLifecycle.SUCCESSOR_S23,
-    ),
-    'wrapped_analysis': _workload(
-        'wrapped_analysis',
-        'openrouter',
-        'gemini-3-flash-preview',
-        'backend/routers/wrapped.py -> utils/wrapped/generate_2025.py',
-        'hosted Wrapped product data',
-        'Wrapped analysis content',
-        'wrapped_analysis',
-        'S-23 Wrapped product',
-        'S-23 deletes Wrapped and OpenRouter together',
-        WorkloadLifecycle.SUCCESSOR_S23,
-    ),
 }
 
 _CACHE_KEY_MODEL_PREFIXES = ('gpt-5', 'gpt-4.1', 'gpt-4o', 'o1', 'o3', 'o4')
@@ -260,8 +222,6 @@ def get_route_options(feature: str) -> Dict[str, object]:
     options: Dict[str, object] = {}
     if supports_cache_retention(workload.model):
         options['extra_body'] = {'prompt_cache_retention': '24h'}
-    if feature == 'wrapped_analysis':
-        options['temperature'] = 0.7
     if workload.provider == 'gemini' and not is_structured_output_feature(feature):
         options['thinking_budget'] = 0
     return options
@@ -281,11 +241,6 @@ def is_structured_output_feature(feature: str) -> bool:
 
 def is_anthropic_only_feature(feature: str) -> bool:
     return feature == 'chat_agent'
-
-
-def is_perplexity_only_feature(feature: str) -> bool:
-    del feature
-    return False
 
 
 def get_all_configured_features() -> set[str]:

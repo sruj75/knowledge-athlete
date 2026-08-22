@@ -12,7 +12,7 @@ fail closed. Environment variables do not select a quality profile, provider, or
   shared embeddings, and structured parser primitives.
 - `anthropic_transport.py` — bounded direct Chat deadlines, pre-output transport retry,
   progress heartbeat, and cancellation cleanup.
-- `providers.py` — small OpenAI, Gemini, and OpenRouter construction primitives.
+- `providers.py` — small OpenAI and Gemini construction primitives.
 - `provider_errors.py` — sanitized managed-provider failure reporting.
 - `usage_tracker.py` — feature-level authoritative quota and usage accounting.
 - `vertex_auth.py` — shared bounded Vertex token refresh for the desktop Gemini proxy.
@@ -26,11 +26,11 @@ or import its auto-lane/config surface here.
 - `conversation_processing.py` — transient discard, structure, and action-item candidates.
 - `memory_compute.py` — transient Memory extraction, normalization, and conflict proposals.
 - `fair_use_classifier.py` — S-20's pinned direct OpenAI classification dependency.
-- `followup.py` and `conversation_folder.py` — two exact S-23-owned product bindings;
-  S-23 deletes each binding together with Joan or automatic folder assignment.
-- `wrapped/generate_2025.py` (outside this package) — the third exact S-23 successor
-  handoff and the sole OpenRouter workload; S-23 deletes Wrapped and OpenRouter together.
 - `temporal.py` and prompt/parser modules — deterministic prompt support only.
+
+Joan follow-ups, automatic folder assignment, Wrapped, and the application OpenRouter
+binding were deleted together in S-23. The standalone gateway remains only as the
+callerless S-25 teardown handoff described above.
 
 ## Conventions
 

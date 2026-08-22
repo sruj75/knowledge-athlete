@@ -22,6 +22,8 @@ def test_retired_chat_storage_routes_return_404_from_the_mounted_app() -> None:
         ('GET', '/v2/messages'),
         ('POST', '/v2/messages'),
         ('DELETE', '/v2/messages'),
+        ('POST', '/v2/messages/message-1/report'),
+        ('POST', '/v1/messages/message-1/report'),
         ('POST', '/v2/initial-message'),
         ('DELETE', '/v1/messages'),
         ('POST', '/v1/initial-message'),
@@ -34,13 +36,11 @@ def test_retired_chat_storage_routes_return_404_from_the_mounted_app() -> None:
         assert client.request(method, path).status_code == 404, f'{method} {path} is still mounted'
 
 
-def test_retained_chat_compute_report_and_file_routes_remain_mounted() -> None:
+def test_retained_chat_compute_and_file_routes_remain_mounted() -> None:
     client = TestClient(main.app, raise_server_exceptions=False)
 
     assert client.post('/v2/chat/initial-message').status_code == 401
     assert client.post('/v2/chat/generate-title').status_code == 401
     assert client.post('/v2/chat/completions').status_code == 401
-    assert client.post('/v2/messages/message-1/report').status_code == 401
-    assert client.post('/v1/messages/message-1/report').status_code == 401
     assert client.post('/v2/voice-messages').status_code == 401
     assert client.post('/v1/files').status_code == 401

@@ -77,6 +77,10 @@ actor FairUseReviewCoordinator {
   private let now: @Sendable () -> Date
   private let recordFailure: @Sendable (String) -> Void
   private let retryDelay: @Sendable (Int) async -> Void
+  private let presentReceipt:
+    @Sendable (
+      FairUseClassificationReceipt, RuntimeOwnerAuthorizationSnapshot
+    ) async -> Bool
   private var inFlight = Set<String>()
   private var completed = Set<String>()
   private var retryTasks: [String: Task<Void, Never>] = [:]
@@ -96,6 +100,14 @@ actor FairUseReviewCoordinator {
       let seconds = min(30 * (1 << max(0, attempt - 1)), 300)
       try? await Task.sleep(nanoseconds: UInt64(seconds) * 1_000_000_000)
     },
+    presentReceipt:
+      @escaping @Sendable (
+        FairUseClassificationReceipt, RuntimeOwnerAuthorizationSnapshot
+      ) async -> Bool = { receipt, authorization in
+        if receipt.action == "none" { return true }
+        return await FairUseWarningNotificationPresenter.shared.accept(
+          receipt, authorization: authorization)
+      },
     recordFailure: @escaping @Sendable (String) -> Void = { reason in
       DesktopDiagnosticsManager.shared.recordFallback(
         area: "fair_use_review", from: "local_evidence", to: "pending_replay",
@@ -108,6 +120,7 @@ actor FairUseReviewCoordinator {
     self.isAuthorizationCurrent = isAuthorizationCurrent
     self.now = now
     self.retryDelay = retryDelay
+    self.presentReceipt = presentReceipt
     self.recordFailure = recordFailure
   }
 
@@ -135,11 +148,26 @@ actor FairUseReviewCoordinator {
       let evidence = try await storage.fairUseEvidence(
         now: request.requestedAt, authorizationSnapshot: authorization)
       guard isAuthorizationCurrent(authorization), now() < request.expiresAt else { return }
-      _ = try await submitter.classifyFairUseReview(
+      let receipt = try await submitter.classifyFairUseReview(
         reviewId: request.reviewId,
         conversations: Array(evidence.prefix(30)),
         authorizationSnapshot: authorization)
       guard isAuthorizationCurrent(authorization) else { return }
+      let presented = await presentReceipt(receipt, authorization)
+      guard isAuthorizationCurrent(authorization) else { return }
+      guard presented else {
+        let attempt = submissionAttempts[request.reviewId, default: 0] + 1
+        submissionAttempts[request.reviewId] = attempt
+        guard attempt < Self.maximumSubmissionAttempts else {
+          recordFailure("presentation_failed_permanent")
+          submissionAttempts.removeValue(forKey: request.reviewId)
+          retryTasks.removeValue(forKey: request.reviewId)?.cancel()
+          return
+        }
+        recordFailure("presentation_failed_retryable")
+        scheduleRetry(request, authorization: authorization, attempt: attempt)
+        return
+      }
       completed.insert(request.reviewId)
       submissionAttempts.removeValue(forKey: request.reviewId)
       retryTasks.removeValue(forKey: request.reviewId)?.cancel()

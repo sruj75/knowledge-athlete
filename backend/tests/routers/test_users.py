@@ -369,7 +369,7 @@ def test_export_all_user_data_keeps_streaming_headers():
     response = users_router.export_all_user_data(uid='uid1')
 
     assert response.media_type == 'application/json'
-    assert response.headers['content-disposition'] == 'attachment; filename="omi-export.json"'
+    assert response.headers['content-disposition'] == 'attachment; filename="omi-account-metadata.json"'
     users_router.iter_user_data_export.assert_called_once_with('uid1')
 
     async def _consume():

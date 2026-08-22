@@ -18,13 +18,9 @@ import sys
 ROUTER_DIR = pathlib.Path(__file__).resolve().parent.parent / "routers"
 METHODS = {"get", "post", "put", "patch", "delete", "api_route", "head", "options", "websocket"}
 
-# (file, function_name) -> reason
-LEGIT_FREE_FORM: dict[tuple[str, str], str] = {
-    ("agents.py", "hume_expression_measurement_callback"): (
-        "External Hume AI webhook; payload is an arbitrarily-nested prosody "
-        "structure forwarded wholesale to HumeJobCallbackModel.from_dict."
-    ),
-}
+# (file, function_name) -> reason. Empty after S-23 retired the last free-form
+# product webhook; future exceptions must justify a live external contract.
+LEGIT_FREE_FORM: dict[tuple[str, str], str] = {}
 
 
 def _is_route_handler(node: ast.AST) -> bool:

@@ -138,7 +138,3 @@ class TestSleepPatternRemoved:
         src = _read_source('utils/other/storage.py')
         assert 'SYNCING_TEMPORAL_DELETE_DELAY_SECONDS = 480' in src
         assert 'def schedule_syncing_temporal_file_deletion' in src
-
-    def test_precache_sem_restored(self):
-        # 4 → 2 was load-shedding while the pool was full of sleepers (#7526)
-        assert '_PRECACHE_FILE_SEM = threading.BoundedSemaphore(4)' in _read_source('utils/other/storage.py')

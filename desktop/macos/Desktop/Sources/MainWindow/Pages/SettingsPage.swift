@@ -318,6 +318,8 @@ struct SettingsContentView: View {
 
   @State var isDeletingAccount: Bool = false
   @State var deleteAccountError: String?
+  @State var isExportingUserData: Bool = false
+  @State var userDataExportStatus: String?
 
   init(
     appState: AppState,

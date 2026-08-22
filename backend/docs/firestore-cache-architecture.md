@@ -48,9 +48,6 @@ Cached projections:
 Not cached:
 
 - `get_user_subscription()` / `get_user_valid_subscription()`
-- data protection level
-- private cloud sync flag
-- recording / training consent
 - full `get_user_profile()`
 
 ## Runtime flags

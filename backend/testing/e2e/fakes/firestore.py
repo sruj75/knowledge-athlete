@@ -7,7 +7,6 @@ subcollections, where filters, batch operations, get_all, etc.
 """
 
 from copy import deepcopy
-from datetime import datetime, timezone
 from typing import Optional
 
 from fake_firestore import MockFirestore
@@ -167,54 +166,12 @@ def patch_google_firestore():
     firestore.Client.__init__ = _fake_client_init
 
 
-def seed_conversation(uid: str, conversation_data: dict):
-    """Seed a conversation document into fake Firestore for testing."""
-    db = get_mock_firestore()
-    data = dict(conversation_data)
-    for timestamp_field in (
-        "created_at",
-        "updated_at",
-        "started_at",
-        "finished_at",
-        "discarded_at",
-        "deleted_at",
-        "structured_started_at",
-        "structured_finished_at",
-    ):
-        value = data.get(timestamp_field)
-        if isinstance(value, str):
-            data[timestamp_field] = datetime.fromisoformat(value.replace("Z", "+00:00"))
-    for segment in data.get("transcript_segments") or []:
-        if not isinstance(segment, dict):
-            continue
-        for timestamp_field in ("created_at", "updated_at"):
-            value = segment.get(timestamp_field)
-            if isinstance(value, str):
-                segment[timestamp_field] = datetime.fromisoformat(value.replace("Z", "+00:00"))
-    conv_id = data["id"]
-    db.collection("users").document(uid).collection("conversations").document(conv_id).set(data)
-
-
-def read_conversation(uid: str, conversation_id: str) -> Optional[dict]:
-    """Read a conversation directly from fake Firestore (bypassing API)."""
-    db = get_mock_firestore()
-    doc = db.collection("users").document(uid).collection("conversations").document(conversation_id).get()
-    if doc.exists:
-        return doc.to_dict()
-    return None
-
-
 def clear_user_data(uid: str):
     """Remove all data for a user from fake Firestore."""
     db = get_mock_firestore()
     user_ref = db.collection("users").document(uid)
     for coll_name in [
-        "conversations",
-        "memories",
         "action_items",
-        "people",
-        "chat_sessions",
-        "folders",
         "hourly_usage",
     ]:
         docs = list(user_ref.collection(coll_name).stream())

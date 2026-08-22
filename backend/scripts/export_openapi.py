@@ -32,26 +32,20 @@ E2E_DIR = BACKEND_DIR / 'testing' / 'e2e'
 DEFAULT_SPEC_PATH = ROOT_DIR / 'docs' / 'api-reference' / 'app-client-openapi.json'
 
 APP_CLIENT_PREFIXES = (
-    '/v1/announcements',
     '/v1/conversation-compute',
     '/v1/fair-use',
     '/v1/memory/compute',
     '/v1/payment-methods',
     '/v1/payments',
     '/v1/paypal',
-    '/v1/persons',
-    '/v1/phone',
     '/v1/sync',
     '/v1/users',
-    '/v1/wrapped',
     '/v2/chat/generate-title',
     '/v2/chat/initial-message',
     '/v2/messages',
     '/v2/voice-messages',
     '/v2/voice-message',
-    '/v3/speech-profile',
     '/v3/upload-audio',
-    '/v4/speech-profile',
 )
 
 HTTP_METHODS = {'GET', 'POST', 'PUT', 'PATCH', 'DELETE'}
@@ -95,19 +89,8 @@ COMMON_RESPONSES = {
     '403': {'description': 'Authenticated, but the token does not grant the required scope.'},
     '404': {'description': 'Requested resource was not found.'},
 }
-SIDE_EFFECT_PATHS = (
-    BACKEND_DIR / 'google-credentials.json',
-    BACKEND_DIR / '_temp',
-    BACKEND_DIR / '_samples',
-    BACKEND_DIR / '_segments',
-    BACKEND_DIR / '_speech_profiles',
-)
-RESTORABLE_SIDE_EFFECT_PATHS = {
-    BACKEND_DIR / '_temp': 'created by backend/main.py import-time temp-dir bootstrap',
-    BACKEND_DIR / '_samples': 'created by backend/main.py import-time temp-dir bootstrap',
-    BACKEND_DIR / '_segments': 'created by backend/main.py import-time temp-dir bootstrap',
-    BACKEND_DIR / '_speech_profiles': 'created by backend/main.py import-time temp-dir bootstrap',
-}
+SIDE_EFFECT_PATHS = (BACKEND_DIR / 'google-credentials.json',)
+RESTORABLE_SIDE_EFFECT_PATHS: dict[Path, str] = {}
 
 
 class OpenAPIContractError(RuntimeError):
@@ -126,7 +109,6 @@ def configure_hermetic_environment() -> None:
     os.environ['MODULATE_API_KEY'] = 'fake-modulate-key'
     os.environ['OPENAI_API_KEY'] = 'fake-openai-key'
     os.environ['ANTHROPIC_API_KEY'] = 'fake-anthropic-key'
-    os.environ['OPENROUTER_API_KEY'] = 'fake-openrouter-key'
     os.environ['GOOGLE_API_KEY'] = 'fake-google-key'
     os.environ['TYPESENSE_HOST'] = 'localhost'
     os.environ['TYPESENSE_HOST_PORT'] = '8108'
@@ -135,11 +117,7 @@ def configure_hermetic_environment() -> None:
     os.environ['ADMIN_KEY'] = ''
 
     for bucket_var in (
-        'BUCKET_SPEECH_PROFILES',
-        'BUCKET_POSTPROCESSING',
-        'BUCKET_PRIVATE_CLOUD_SYNC',
         'BUCKET_TEMPORAL_SYNC_LOCAL',
-        'BUCKET_MEMORIES_RECORDINGS',
         'BUCKET_CHAT_FILES',
         'BUCKET_DESKTOP_UPDATES',
     ):
@@ -150,8 +128,6 @@ def configure_hermetic_environment() -> None:
         'GOOGLE_APPLICATION_CREDENTIALS',
         'PINECONE_API_KEY',
         'LANGCHAIN_API_KEY',
-        'HUME_API_KEY',
-        'HUME_CALLBACK_URL',
     ):
         os.environ.pop(secret_var, None)
 

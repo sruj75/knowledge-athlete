@@ -1,4 +1,4 @@
-"""Tests for async fair-use flows: classifier trigger, notification, and admin router."""
+"""Tests for async fair-use flows: classifier trigger and admin router."""
 
 from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -52,88 +52,6 @@ def _reset():
     for attr in ('set', 'get', 'eval', 'delete', 'pipeline', 'zrangebyscore', 'hmget', 'setex', 'zadd', 'hincrby'):
         getattr(r, attr).side_effect = None
         getattr(r, attr).return_value = MagicMock()
-
-
-class TestSendFairUseNotification:
-    """Test notification dispatch for each enforcement stage."""
-
-    @pytest.mark.asyncio
-    @pytest.mark.parametrize(
-        ('delivery_result', 'expected'),
-        [
-            (None, True),
-            (0, False),
-            (2, True),
-        ],
-    )
-    @patch.object(fair_use_mod, '_get_send_notification')
-    async def test_maps_production_delivery_results(self, mock_get_send, delivery_result, expected):
-        mock_get_send.return_value = MagicMock(return_value=delivery_result)
-
-        delivered = await fair_use_mod.send_fair_use_notification('user1', 'warning', case_ref='FU-ABC123DEF456')
-
-        assert delivered is expected
-
-    @pytest.mark.asyncio
-    @patch.object(fair_use_mod, '_get_send_notification')
-    async def test_sends_warning_notification(self, mock_get_send):
-        mock_send = MagicMock()
-        mock_get_send.return_value = mock_send
-        await fair_use_mod.send_fair_use_notification('user1', 'warning', case_ref='FU-ABC123DEF456')
-
-        mock_send.assert_called_once()
-        args = mock_send.call_args
-        assert args[0][0] == 'user1'
-        assert args[0][1] == 'Fair Use Notice'
-        assert args[0][2] == (
-            'Your speech usage is unusually high. This service is designed for personal conversations. '
-            'If this continues, you may receive a final fair-use warning. '
-            'Contact support@heyintentive.com if you believe this is an error. '
-            'Quote your case reference when contacting support. Reference: FU-ABC123DEF456'
-        )
-
-    @pytest.mark.asyncio
-    @patch.object(fair_use_mod, '_get_send_notification')
-    async def test_sends_throttle_notification(self, mock_get_send):
-        mock_send = MagicMock()
-        mock_get_send.return_value = mock_send
-        await fair_use_mod.send_fair_use_notification('user1', 'throttle', case_ref='FU-ABC123DEF456')
-
-        mock_send.assert_called_once()
-        assert mock_send.call_args[0][1] == 'Final Fair Use Warning'
-        assert mock_send.call_args[0][2] == (
-            'Due to high non-conversational usage, this is your final fair-use warning. '
-            'Transcription quality and access have not changed. '
-            'This warning resets after seven days without another qualifying violation. '
-            'Contact support@heyintentive.com if you believe this is an error. '
-            'Quote your case reference when contacting support. Reference: FU-ABC123DEF456'
-        )
-
-    @pytest.mark.asyncio
-    @patch.object(fair_use_mod, '_get_send_notification')
-    async def test_sends_restrict_notification(self, mock_get_send):
-        mock_send = MagicMock()
-        mock_get_send.return_value = mock_send
-        await fair_use_mod.send_fair_use_notification('user1', 'restrict', case_ref='FU-ABC123DEF456')
-
-        mock_send.assert_called_once()
-        assert mock_send.call_args[0][1] == 'Transcription Limit Reached'
-        assert mock_send.call_args[0][2] == (
-            'Your managed cloud transcription is temporarily limited for 30 days due to repeated fair-use violations. '
-            'Up to 30 minutes of managed cloud transcription remains available each UTC day. '
-            'On-device transcription continues only when it is available on this Mac. '
-            'Contact support@heyintentive.com to discuss your usage. '
-            'Quote your case reference when contacting support. Reference: FU-ABC123DEF456'
-        )
-
-    @pytest.mark.asyncio
-    @patch.object(fair_use_mod, '_get_send_notification')
-    async def test_no_notification_for_unknown_action(self, mock_get_send):
-        mock_send = MagicMock()
-        mock_get_send.return_value = mock_send
-        await fair_use_mod.send_fair_use_notification('user1', 'unknown_action')
-
-        mock_send.assert_not_called()
 
 
 class TestBoundaryCaps:

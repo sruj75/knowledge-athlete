@@ -6,11 +6,9 @@ external-service boundaries for the v1 scenarios. Tests fail on non-local
 network attempts so accidental real service calls are surfaced.
 """
 
-import json
 import os
 import socket
 import sys
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Generator
 
@@ -73,7 +71,6 @@ def _set_e2e_env():
     os.environ["REDIS_DB_PASSWORD"] = ""
     os.environ["OPENAI_API_KEY"] = "fake-openai-key"
     os.environ["ANTHROPIC_API_KEY"] = "fake-anthropic-key"
-    os.environ["OPENROUTER_API_KEY"] = "fake-openrouter-key"
     os.environ["GOOGLE_API_KEY"] = "fake-google-key"
     # database/vector_db.py intentionally skips Pinecone only when this env var is absent.
     # An empty string still triggers Pinecone(api_key='') and fails at import time.
@@ -81,11 +78,7 @@ def _set_e2e_env():
     os.environ["TYPESENSE_HOST"] = "localhost"
     os.environ["TYPESENSE_HOST_PORT"] = "8108"
     os.environ["TYPESENSE_API_KEY"] = "fake-typesense-key"
-    os.environ["BUCKET_SPEECH_PROFILES"] = "speech-profiles"
-    os.environ["BUCKET_POSTPROCESSING"] = "postprocessing"
-    os.environ["BUCKET_PRIVATE_CLOUD_SYNC"] = "omi-private-cloud-sync"
     os.environ["BUCKET_TEMPORAL_SYNC_LOCAL"] = "sync-temporal"
-    os.environ["BUCKET_MEMORIES_RECORDINGS"] = "memories-recordings"
     os.environ["BUCKET_CHAT_FILES"] = "chat-files"
     os.environ["BUCKET_DESKTOP_UPDATES"] = "desktop-updates"
     os.environ["DEV_WEBHOOK_RETRY_DELAYS"] = "0,0,0"
@@ -359,14 +352,6 @@ def test_uid():
     return DEV_UID
 
 
-@pytest.fixture()
-def conversation_fixture():
-    """Load conversation fixture data from JSON."""
-    fixture_path = E2E_DIR / "fixtures" / "conversations.json"
-    with open(fixture_path) as f:
-        return json.load(f)
-
-
 # ─── Utility fixtures ──────────────────────────────────────────────────
 
 
@@ -376,49 +361,3 @@ def fresh_uid():
     import uuid
 
     return str(uuid.uuid4())
-
-
-def _now_iso() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-
-
-@pytest.fixture()
-def sample_conversation_data(fresh_uid):
-    """Return dict suitable for creating a conversation via API."""
-    return {
-        "id": f"conv-{fresh_uid[:8]}",
-        "created_at": _now_iso(),
-        "started_at": _now_iso(),
-        "finished_at": _now_iso(),
-        "source": "omi",
-        "language": "en",
-        "structured": {
-            "title": "Test Conversation",
-            "overview": "A test conversation created by e2e harness",
-            "emoji": "🧠",
-            "category": "other",
-            "action_items": [],
-            "events": [],
-        },
-        "transcript_segments": [
-            {
-                "id": "seg-test-1",
-                "text": "Hello, this is test transcript segment one.",
-                "speaker": "SPEAKER_00",
-                "is_user": True,
-                "start": 0.0,
-                "end": 2.5,
-            },
-            {
-                "id": "seg-test-2",
-                "text": "And this is segment two from the other speaker.",
-                "speaker": "SPEAKER_01",
-                "is_user": False,
-                "start": 2.6,
-                "end": 5.0,
-            },
-        ],
-        "discarded": False,
-        "status": "completed",
-        "is_locked": False,
-    }

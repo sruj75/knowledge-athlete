@@ -5,20 +5,13 @@ import logging
 import time
 from typing import Any, Callable, Literal, TypedDict, cast
 
-from database import vector_db
 from database import users as users_db
-from database.conversations import get_conversation_ids
-from database.vector_db import (
-    delete_conversation_vectors_batch,
-    delete_transcript_chunk_vectors_batch,
-)
+from database.vector_db import purge_user_vectors
 from utils.billing.service import cancel_subscription_for_account_deletion
 from utils.cloud_tasks import enqueue_account_deletion_wipe, is_account_deletion_dispatch_enabled
 from utils.executors import cleanup_executor, submit_with_context
 from utils.log_sanitizer import sanitize
 from utils.other import endpoints as auth
-from utils.other.storage import delete_all_conversation_recordings
-from utils.twilio_service import delete_user_caller_ids_strict as delete_user_caller_ids
 from utils.posthog_telemetry import emit_posthog_event
 
 logger = logging.getLogger(__name__)
@@ -31,64 +24,24 @@ class PurgeFailure(TypedDict):
 
 class PurgeResult(TypedDict):
     required_failures: list[PurgeFailure]
-    best_effort_failures: list[PurgeFailure]
-    vectors_deleted: int
-    recordings_deleted: int
+    pinecone_namespaces_purged: int
 
 
 ACCOUNT_DELETION_WIPE_COMPLETED = 'Account Deletion Wipe Completed'
 ACCOUNT_DELETION_WIPE_FAILED = 'Account Deletion Wipe Failed'
 
 
-def purge_derived_user_data(uid: str) -> PurgeResult:
-    """Purge a user's derived data outside Firestore.
-
-    Required failures must block the Firestore wipe because those IDs are
-    stored in Firestore and may become unrecoverable after ``delete_user_data``.
-    Best-effort failures are safe to retry independently or leave behind.
-    """
+def purge_pinecone_user_data(uid: str) -> PurgeResult:
+    """Run the exact S-24-owned Pinecone purge before Firestore deletion."""
     result: PurgeResult = {
         'required_failures': [],
-        'best_effort_failures': [],
-        'vectors_deleted': 0,
-        'recordings_deleted': 0,
+        'pinecone_namespaces_purged': 0,
     }
-
-    def record_failure(
-        kind: Literal['required_failures', 'best_effort_failures'], operation: str, error: Exception
-    ) -> None:
-        result[kind].append({'operation': operation, 'error': sanitize(str(error))})
-
-    def require_vector_index(operation: str):
-        if vector_db.index is None:
-            raise RuntimeError(f'Pinecone index not initialized for {operation}')
-
     try:
-        conversation_ids = get_conversation_ids(uid)
-        if conversation_ids:
-            require_vector_index('conversation_vectors')
-            delete_conversation_vectors_batch(uid, conversation_ids)
-            result['vectors_deleted'] += len(conversation_ids)
+        result['pinecone_namespaces_purged'] = purge_user_vectors(uid)
     except Exception as e:
-        record_failure('required_failures', 'conversation_vectors', e)
-        logger.error(f'delete_account purge conversation vectors failed for {uid}: {sanitize(str(e))}')
-
-    try:
-        conversation_ids = get_conversation_ids(uid)
-        if conversation_ids:
-            require_vector_index('transcript_chunk_vectors')
-            result['vectors_deleted'] += (
-                delete_transcript_chunk_vectors_batch(uid, conversation_ids, raise_on_failure=True) or 0
-            )
-    except Exception as e:
-        record_failure('required_failures', 'transcript_chunk_vectors', e)
-        logger.error(f'delete_account purge transcript chunk vectors failed for {uid}: {sanitize(str(e))}')
-
-    try:
-        result['recordings_deleted'] = delete_all_conversation_recordings(uid) or 0
-    except Exception as e:
-        record_failure('required_failures', 'conversation_recordings', e)
-        logger.error(f'delete_account purge recordings failed for {uid}: {sanitize(str(e))}')
+        result['required_failures'].append({'operation': 'pinecone_user_vectors', 'error': sanitize(str(e))})
+        logger.error(f'delete_account Pinecone purge failed for {uid}: {sanitize(str(e))}')
 
     return result
 
@@ -112,26 +65,6 @@ def _required_failures_from_purge_result(purge_result: object) -> list[PurgeFail
     return failures
 
 
-def _purge_failures(purge_result: object) -> tuple[list[PurgeFailure], list[PurgeFailure]]:
-    if not isinstance(purge_result, dict):
-        return [], []
-    result = cast(dict[str, object], purge_result)
-
-    def failures(key: str) -> list[PurgeFailure]:
-        value = result.get(key, [])
-        if not isinstance(value, list):
-            return []
-        bounded: list[PurgeFailure] = []
-        for item in cast(list[object], value):
-            if not isinstance(item, dict):
-                continue
-            item_dict = cast(dict[str, object], item)
-            bounded.append({'operation': str(item_dict.get('operation', 'unknown')), 'error': ''})
-        return bounded
-
-    return failures('required_failures'), failures('best_effort_failures')
-
-
 # Service-level PostHog distinct_id only. Never re-identify a deleted Firebase UID
 # as a person profile (success path runs after Auth + Firestore wipe).
 _ACCOUNT_DELETION_TELEMETRY_DISTINCT_ID = 'omi-service:account-deletion'
@@ -139,14 +72,12 @@ _ACCOUNT_DELETION_TELEMETRY_DISTINCT_ID = 'omi-service:account-deletion'
 
 def _emit_deletion_telemetry(uid: str, event: str, properties: dict[str, object]) -> None:
     logger.info(
-        'account_deletion_telemetry event=%s duration_seconds=%s vectors_deleted=%s recordings_deleted=%s '
-        'required_failure_count=%s best_effort_failure_count=%s failed_operations=%s retry_count=%s terminal=%s',
+        'account_deletion_telemetry event=%s duration_seconds=%s pinecone_namespaces_purged=%s '
+        'required_failure_count=%s failed_operations=%s retry_count=%s terminal=%s',
         event,
         properties.get('duration_seconds'),
-        properties.get('vectors_deleted'),
-        properties.get('recordings_deleted'),
+        properties.get('pinecone_namespaces_purged'),
         properties.get('required_failure_count'),
-        properties.get('best_effort_failure_count'),
         properties.get('failed_operations'),
         properties.get('retry_count'),
         properties.get('terminal'),
@@ -170,9 +101,7 @@ class AccountCleanupFailure(RuntimeError):
 def _empty_purge_result() -> PurgeResult:
     return {
         'required_failures': [],
-        'best_effort_failures': [],
-        'vectors_deleted': 0,
-        'recordings_deleted': 0,
+        'pinecone_namespaces_purged': 0,
     }
 
 
@@ -191,12 +120,8 @@ def _perform_account_cleanup(uid: str) -> PurgeResult:
                 logger.info('delete_account worker observed Firebase Auth user already absent')
             else:
                 raise
-        # Twilio caller IDs first, while the phone_numbers subcollection still
-        # carries twilio_sid metadata.
-        current_operation = 'twilio_caller_ids'
-        delete_user_caller_ids(uid)
-        current_operation = 'derived_data'
-        purge_result = purge_derived_user_data(uid)
+        current_operation = 'pinecone_user_vectors'
+        purge_result = purge_pinecone_user_data(uid)
         required_failures = _required_failures_from_purge_result(purge_result)
         if required_failures:
             failed_operations = ', '.join(failure['operation'] for failure in required_failures)
@@ -237,10 +162,8 @@ def background_wipe_user_data(uid: str, retry_count: int = 0, terminal: bool = F
             users_db.mark_user_deletion_wipe_failed(uid)
         except Exception as persist_err:
             logger.error(f'delete_account wipe status persist failed for {uid}: {sanitize(str(persist_err))}')
-        required_failures, best_effort_failures = _purge_failures(purge_result)
-        failed_operations = [failure['operation'] for failure in required_failures + best_effort_failures] or [
-            current_operation
-        ]
+        required_failures = _required_failures_from_purge_result(purge_result)
+        failed_operations = [failure['operation'] for failure in required_failures] or [current_operation]
         _emit_deletion_telemetry(
             uid,
             ACCOUNT_DELETION_WIPE_FAILED,
@@ -270,17 +193,15 @@ def background_wipe_user_data(uid: str, retry_count: int = 0, terminal: bool = F
                 },
             )
             return False
-        required_failures, best_effort_failures = _purge_failures(purge_result)
+        required_failures = _required_failures_from_purge_result(purge_result)
         _emit_deletion_telemetry(
             uid,
             ACCOUNT_DELETION_WIPE_COMPLETED,
             {
                 'duration_seconds': round(time.monotonic() - started_at, 3),
-                'vectors_deleted': purge_result.get('vectors_deleted', 0),
-                'recordings_deleted': purge_result.get('recordings_deleted', 0),
+                'pinecone_namespaces_purged': purge_result.get('pinecone_namespaces_purged', 0),
                 'required_failure_count': len(required_failures),
-                'best_effort_failure_count': len(best_effort_failures),
-                'failed_operations': [failure['operation'] for failure in required_failures + best_effort_failures],
+                'failed_operations': [failure['operation'] for failure in required_failures],
             },
         )
         return True

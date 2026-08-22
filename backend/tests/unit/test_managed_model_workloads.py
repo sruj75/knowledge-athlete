@@ -16,16 +16,13 @@ EXPECTED_ROUTES = {
     'chat_greeting': ('openai', 'gpt-5.4-mini'),
     'conv_action_items': ('openai', 'gpt-5.4-mini'),
     'conv_discard': ('openai', 'gpt-4.1-nano'),
-    'conv_folder': ('openai', 'gpt-4.1-nano'),
     'conv_structure': ('openai', 'gpt-5.4-mini'),
     'fair_use': ('openai', 'gpt-5.1'),
-    'followup': ('gemini', 'gemini-2.5-flash-lite'),
     'memory_conflict': ('openai', 'gpt-4.1-mini'),
     'memory_l1': ('openai', 'gpt-4.1-mini'),
     'memory_l2': ('openai', 'gpt-4.1-mini'),
     'session_titles': ('gemini', 'gemini-2.5-flash-lite'),
     'translation': ('gemini', 'gemini-2.5-flash-lite'),
-    'wrapped_analysis': ('openrouter', 'gemini-3-flash-preview'),
 }
 
 _PROVIDER_CONSTRUCTORS = {
@@ -53,11 +50,6 @@ _EXPECTED_DIRECT_DEFAULT_CLIENT_CALLS = Counter(
         'utils/llm/fair_use_classifier.py': 1,
     }
 )
-_EXPECTED_SUCCESSOR_OWNER_PATHS = {
-    'conv_folder': {'utils/llm/conversation_folder.py'},
-    'followup': {'utils/llm/followup.py'},
-    'wrapped_analysis': {'utils/wrapped/generate_2025.py'},
-}
 _APPLICATION_MODEL_CALL_TOKENS = tuple(sorted({'get_default_client', 'get_workload_client', *_PROVIDER_CONSTRUCTORS}))
 
 
@@ -126,18 +118,16 @@ def test_workload_inventory_is_exhaustive_and_names_every_result_owner():
         assert workload.failure_policy
 
 
-def test_inventory_contains_only_retained_workloads_plus_declared_handoffs():
+def test_inventory_contains_only_retained_workloads_plus_s20_dependency():
     workloads = model_config.get_all_workloads()
 
     assert {key for key, value in workloads.items() if value.lifecycle is WorkloadLifecycle.DEPENDENCY_S20} == {
         'fair_use'
     }
-    assert {key for key, value in workloads.items() if value.lifecycle is WorkloadLifecycle.SUCCESSOR_S23} == {
-        'conv_folder',
-        'followup',
-        'wrapped_analysis',
-    }
-    assert not {key for key, value in workloads.items() if value.lifecycle is WorkloadLifecycle.RETIRING_S22}
+    assert all(
+        value.lifecycle in {WorkloadLifecycle.RETAINED, WorkloadLifecycle.DEPENDENCY_S20}
+        for value in workloads.values()
+    )
 
 
 @pytest.mark.slow
@@ -156,17 +146,7 @@ def test_application_model_call_sites_cannot_bypass_the_typed_inventory():
     assert direct_default_calls == _EXPECTED_DIRECT_DEFAULT_CLIENT_CALLS
     assert provider_construction == _EXPECTED_PROVIDER_CONSTRUCTION
 
-    successor_owner_paths = {
-        feature: {path for path, _, called_feature in workload_calls if called_feature == feature}
-        for feature in _EXPECTED_SUCCESSOR_OWNER_PATHS
-    }
-    assert successor_owner_paths == _EXPECTED_SUCCESSOR_OWNER_PATHS
-
-
-def test_wrapped_is_the_only_openrouter_workload():
-    assert [key for key, workload in model_config.get_all_workloads().items() if workload.provider == 'openrouter'] == [
-        'wrapped_analysis'
-    ]
+    assert all(workload.provider != 'openrouter' for workload in workloads.values())
 
 
 def test_unknown_workload_fails_closed():
@@ -203,7 +183,6 @@ def test_retained_workload_client_uses_the_explicit_direct_route(monkeypatch):
 
 
 def test_route_options_are_workload_owned():
-    assert model_config.get_route_options('wrapped_analysis') == {'temperature': 0.7}
     assert model_config.get_route_options('translation') == {}
     assert model_config.get_route_options('chat_greeting') == {'extra_body': {'prompt_cache_retention': '24h'}}
 

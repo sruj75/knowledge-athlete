@@ -40,6 +40,45 @@ extension SettingsContentView {
 
           HStack(alignment: .center, spacing: OmiSpacing.lg) {
             VStack(alignment: .leading, spacing: OmiSpacing.xxs) {
+              Text("Export My Data")
+                .scaledFont(size: OmiType.subheading, weight: .semibold)
+                .foregroundColor(OmiColors.textPrimary)
+
+              Text(
+                "Save your conversations, memories, tasks, goals, chats, focus data, and settings as JSON. The export stays on this Mac."
+              )
+              .scaledFont(size: OmiType.body)
+              .foregroundColor(OmiColors.textTertiary)
+            }
+
+            Spacer()
+
+            Button(action: exportMyData) {
+              if isExportingUserData {
+                ProgressView()
+                  .controlSize(.small)
+              } else {
+                Text("Export")
+                  .scaledFont(size: OmiType.body, weight: .semibold)
+              }
+            }
+            .buttonStyle(OmiButtonStyle(.secondary, size: .compact))
+            .disabled(isDeletingAccount || isExportingUserData)
+            .accessibilityIdentifier("export-my-data-button")
+          }
+
+          if let userDataExportStatus {
+            Text(userDataExportStatus)
+              .scaledFont(size: OmiType.caption)
+              .foregroundColor(
+                userDataExportStatus.hasPrefix("Saved") ? OmiColors.textSecondary : OmiColors.warning)
+          }
+
+          Divider()
+            .overlay(OmiColors.backgroundQuaternary)
+
+          HStack(alignment: .center, spacing: OmiSpacing.lg) {
+            VStack(alignment: .leading, spacing: OmiSpacing.xxs) {
               Text("Delete Account & Data")
                 .scaledFont(size: OmiType.subheading, weight: .semibold)
                 .foregroundColor(OmiColors.error)
@@ -87,6 +126,29 @@ extension SettingsContentView {
         Text(
           "This cannot be undone. Your account, chat history, and all server data will be permanently deleted. Local data for this account will be cleared and you'll return to onboarding."
         )
+      }
+    }
+  }
+
+  @MainActor
+  private func exportMyData() {
+    guard let ownerID = RuntimeOwnerIdentity.currentOwnerId() else {
+      userDataExportStatus = LocalUserDataExportError.notAuthenticated.localizedDescription
+      return
+    }
+    userDataExportStatus = nil
+    isExportingUserData = true
+    Task { @MainActor in
+      defer { isExportingUserData = false }
+      do {
+        switch try await LocalUserDataExportAction.live.perform(ownerID: ownerID) {
+        case .cancelled:
+          break
+        case .saved(let destination):
+          userDataExportStatus = "Saved \(destination.lastPathComponent)"
+        }
+      } catch {
+        userDataExportStatus = error.localizedDescription
       }
     }
   }

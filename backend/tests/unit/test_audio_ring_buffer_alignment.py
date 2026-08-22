@@ -3,8 +3,8 @@
 utils.audio.AudioRingBuffer stores PCM16 mono audio. extract() computed start_offset as
 int((actual_start - buffer_start_ts) * bytes_per_second), which is odd about half the time
 because actual_start is an arbitrary float timestamp. An odd byte offset begins the copy on a
-sample's high byte, so every returned int16 sample is byte-shifted into noise. This audio feeds
-speaker-embedding cuts, so the misalignment intermittently corrupts speaker identification.
+sample's high byte, so every returned int16 sample is byte-shifted into noise for any retained
+PCM consumer.
 extract() now floors start_offset to the 2-byte sample boundary.
 """
 

@@ -64,13 +64,6 @@ class OpenAICompatibleProviderConfig:
 
 OPENAI_COMPATIBLE_PROVIDERS: Dict[str, OpenAICompatibleProviderConfig] = {
     'openai': OpenAICompatibleProviderConfig(name='openai', api_key_env='OPENAI_API_KEY'),
-    'openrouter': OpenAICompatibleProviderConfig(
-        name='openrouter',
-        api_key_env='OPENROUTER_API_KEY',
-        base_url="https://openrouter.ai/api/v1",
-        default_headers={"X-Title": "Omi Chat"},
-        prefix_google_models=True,
-    ),
 }
 
 _llm_cache: Dict[tuple, Any] = {}

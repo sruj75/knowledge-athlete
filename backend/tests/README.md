@@ -64,8 +64,8 @@ leave the PR lane (`not integration and not slow`) rather than being allowlisted
 ## Integration Tests
 
 Integration tests live under `tests/integration/` and are not run by `bash test.sh`. They may require Redis,
-Firebase credentials, API keys, or live external services. Run them explicitly with pytest after reading
-`tests/integration/README.md`.
+Firebase credentials, API keys, or live external services. Run them explicitly with pytest after reading the
+owning test module's header and prerequisites.
 
 Use `bash test-preflight.sh` before test runs. It validates dependencies and verifies that the selected Python
 interpreter matches `.python-version`.

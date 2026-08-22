@@ -34,6 +34,7 @@ TYPED_STEP_KEYS = {
     "log.expect",
     "trace.expect",
     "ax.expect",
+    "ax.action",
     "power.sample",
 }
 

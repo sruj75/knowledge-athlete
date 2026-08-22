@@ -46,7 +46,6 @@ prometheus-client==0.21.1
 # LLM services (for process_conversation)
 anthropic>=0.52.0
 openai==2.38.0
-groq==0.9.0
 langchain==1.2.10
 langchain-community==0.4.1
 langchain-core==1.3.3
@@ -79,7 +78,6 @@ python-ulid==3.0.0
 pytz==2024.1
 
 # Communication
-twilio==9.5.0
 
 # Search
 typesense==0.21.0
@@ -87,9 +85,3 @@ typesense==0.21.0
 # Locale
 pycountry==24.6.1
 langdetect==1.0.9
-
-# Speaker embedding (via speaker_identification -> speaker_embedding -> scipy)
-scipy==1.14.0
-
-# Audio transcription (via speaker_sample -> pre_recorded -> fal_client)
-fal_client==0.4.1

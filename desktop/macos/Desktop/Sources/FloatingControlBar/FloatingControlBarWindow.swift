@@ -2470,70 +2470,6 @@ enum VoiceOwnerBoundDispatch<Value: Sendable>: Sendable {
   case dispatched(Value)
 }
 
-enum OwnerBoundNotificationPresentationResult: Equatable {
-  case rejectedOwnerChange
-  case windowUnavailable
-  case suppressed
-  case queued
-  case presented
-}
-
-enum ProactiveNotificationInteraction: Sendable {
-  case click
-  case dismiss
-  case timeout
-}
-
-enum ProactiveNotificationInteractionEffect: Equatable, Sendable {
-  case openLocalChat
-  case presentationOnly
-  case rejectOwnerChange
-}
-
-enum ProactiveNotificationContinuityPolicy {
-  static let journalOrigin = "proactive_notification"
-
-  static func effect(
-    for interaction: ProactiveNotificationInteraction,
-    notificationOwnerID: String,
-    currentOwnerID: String?
-  ) -> ProactiveNotificationInteractionEffect {
-    guard !notificationOwnerID.isEmpty, notificationOwnerID == currentOwnerID else {
-      return .rejectOwnerChange
-    }
-    switch interaction {
-    case .click: return .openLocalChat
-    case .dismiss, .timeout: return .presentationOnly
-    }
-  }
-}
-
-/// Lets a click wait for an already-started canonical journal admission instead
-/// of racing the async write and silently losing the requested chat open.
-@MainActor
-final class NotificationJournalAdmissionWaiters<Key: Hashable> {
-  private var waiters: [Key: [CheckedContinuation<Bool, Never>]] = [:]
-
-  func wait(for key: Key, isAdmitted: Bool, isPending: Bool) async -> Bool {
-    if isAdmitted { return true }
-    guard isPending else { return false }
-    return await withCheckedContinuation { continuation in
-      waiters[key, default: []].append(continuation)
-    }
-  }
-
-  func resolve(_ key: Key, admitted: Bool) {
-    let pending = waiters.removeValue(forKey: key) ?? []
-    pending.forEach { $0.resume(returning: admitted) }
-  }
-
-  func cancelAll() {
-    let pending = waiters.values.flatMap { $0 }
-    waiters.removeAll()
-    pending.forEach { $0.resume(returning: false) }
-  }
-}
-
 /// Singleton manager that owns the floating bar window and coordinates with AppState / ChatProvider.
 @MainActor
 class FloatingControlBarManager {
@@ -2748,7 +2684,7 @@ class FloatingControlBarManager {
     snoozedUntil = until
     notificationDismissWorkItem?.cancel()
     notificationDismissWorkItem = nil
-    pendingNotifications.removeAll()
+    cancelPendingNotifications()
     if let window, window.state.currentNotification != nil {
       window.dismissNotification(animated: false)
     }
@@ -2795,7 +2731,7 @@ class FloatingControlBarManager {
     activeQueryGeneration &+= 1
     notificationDismissWorkItem?.cancel()
     notificationDismissWorkItem = nil
-    pendingNotifications.removeAll()
+    cancelPendingNotifications()
     pendingNotificationJournalWrites.removeAll()
     notificationJournalAdmissionWaiters.cancelAll()
     storedNotificationMessages.removeAll()
@@ -2815,6 +2751,20 @@ class FloatingControlBarManager {
       storedJournalCount: storedNotificationMessages.count
     )
   }
+
+  private func cancelPendingNotifications(
+    where shouldCancel: (FloatingBarNotification) -> Bool = { _ in true }
+  ) {
+    let cancelled = pendingNotifications.filter(shouldCancel)
+    pendingNotifications.removeAll(where: shouldCancel)
+    cancelled.forEach { $0.onPresentationCancelled?() }
+  }
+
+  #if DEBUG
+    func enqueueNotificationForTesting(_ notification: FloatingBarNotification) {
+      pendingNotifications.append(notification)
+    }
+  #endif
 
   static func performOwnerBoundNotificationAdmission<Value: Sendable>(
     authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot,
@@ -3244,7 +3194,9 @@ class FloatingControlBarManager {
     sound: NotificationSound,
     context: FloatingBarNotificationContext? = nil,
     suggestionTelemetryIdentity: SuggestionAssistantTelemetry.NotificationIdentity? = nil,
-    screenshotData: Data? = nil
+    screenshotData: Data? = nil,
+    onPresented: (@MainActor @Sendable () -> Void)? = nil,
+    onPresentationCancelled: (@MainActor @Sendable () -> Void)? = nil
   ) -> OwnerBoundNotificationPresentationResult {
     guard !ownerID.isEmpty,
       authorizationSnapshot.ownerID == ownerID,
@@ -3261,7 +3213,9 @@ class FloatingControlBarManager {
       assistantId: assistantId,
       context: context,
       suggestionTelemetryIdentity: suggestionTelemetryIdentity,
-      screenshotData: screenshotData
+      screenshotData: screenshotData,
+      onPresented: onPresented,
+      onPresentationCancelled: onPresentationCancelled
     )
     guard let window else {
       log("FloatingControlBarManager: dropping notification because window is not set up")
@@ -3310,6 +3264,7 @@ class FloatingControlBarManager {
         RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
       else {
         log("FloatingControlBarManager: dropping queued notification from stale runtime owner")
+        nextNotification.onPresentationCancelled?()
         continue
       }
       presentNotification(nextNotification, in: window)
@@ -3936,6 +3891,7 @@ class FloatingControlBarManager {
     }
 
     window.showNotification(notification)
+    notification.onPresented?()
     if let suggestionIdentity = notification.suggestionTelemetryIdentity {
       AnalyticsManager.shared.suggestionAssistantDeliveryOutcome(.delivered, identity: suggestionIdentity)
     }
@@ -3977,6 +3933,7 @@ class FloatingControlBarManager {
           RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
         else {
           log("FloatingControlBarManager: dropping queued notification from stale runtime owner")
+          nextNotification.onPresentationCancelled?()
           continue
         }
         presentNotification(nextNotification, in: window)
@@ -4233,7 +4190,7 @@ class FloatingControlBarManager {
     }
     notificationDismissWorkItem?.cancel()
     notificationDismissWorkItem = nil
-    pendingNotifications.removeAll { $0.id == notificationID }
+    cancelPendingNotifications { $0.id == notificationID }
     if window.state.currentNotification != nil {
       window.dismissNotification()
     }

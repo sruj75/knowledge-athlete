@@ -17,14 +17,9 @@ _storage_dir: Optional[str] = None
 
 
 DEFAULT_BUCKETS = [
-    "speech-profiles",
-    "postprocessing",
-    "backups",
-    "plugins-logos",
+    # Callerless S-25 drain artifacts still import the shared storage module.
     "omi-private-cloud-sync",
     "sync-temporal",
-    "memories-recordings",
-    "app-thumbnails",
     "chat-files",
     "desktop-updates",
 ]

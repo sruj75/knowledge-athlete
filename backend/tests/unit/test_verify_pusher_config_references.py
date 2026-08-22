@@ -134,9 +134,6 @@ def test_standalone_pusher_reconciles_non_secret_config_before_preflight():
         "GOOGLE_CLIENT_ID",
         "REDIS_DB_HOST",
         "TYPESENSE_HOST",
-        "TWILIO_ACCOUNT_SID",
-        "TWILIO_API_KEY_SID",
-        "TWILIO_TWIML_APP_SID",
     }
     prod_only_config = {
         "ACCOUNT_DELETION_HANDLER_URL",

@@ -5,10 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
-from google.api_core.exceptions import Aborted
-
 from database import conversation_finalization_jobs as jobs
-from database import firestore_transaction_retry
 
 
 class _Ref:
@@ -69,268 +66,6 @@ def _completed_finalization_conversation(job_id: str = 'job-1', revision: int = 
             **(data or {}),
         }
     )
-
-
-def _admit_finalization(_conversation_data: dict) -> jobs.FinalizationAdmission:
-    return {
-        'accepted': True,
-        'terminal': False,
-        'reason': 'accepted',
-        'fanout_key': 'fanout-key',
-    }
-
-
-def test_intent_persists_outbox_before_any_live_handoff_and_omits_request_material():
-    transaction = _Transaction()
-    conversation_ref = _conversation()
-    collection = _Collection({})
-
-    intent = jobs._create_or_get_finalization_intent_txn(
-        transaction,
-        conversation_ref,
-        collection,
-        'uid-1',
-        'conversation-1',
-        _admit_finalization,
-        _now(),
-    )
-
-    assert intent['status'] == 'queued'
-    assert intent['job_id']
-    assert len(transaction.sets) == 1
-    job = transaction.sets[0][1]
-    assert job['uid'] == 'uid-1'
-    assert job['conversation_id'] == 'conversation-1'
-    assert job['dispatch_generation'] == 1
-    assert job['status'] == 'queued'
-    assert job['fanout_key'] == 'fanout-key'
-    assert job['fanout_status'] == 'pending'
-    forbidden = {'transcript', 'transcript_segments', 'authorization', 'raw_error'}
-    assert forbidden.isdisjoint(job)
-    assert transaction.updates[0][1]['status'] == 'processing'
-    assert transaction.updates[0][1]['finalization_job_id'] == intent['job_id']
-
-
-def test_rest_intent_persists_its_force_mode_and_calendar_context_atomically():
-    transaction = _Transaction()
-    conversation_ref = _conversation()
-    collection = _Collection({})
-
-    intent = jobs._create_or_get_finalization_intent_txn(
-        transaction,
-        conversation_ref,
-        collection,
-        'uid-1',
-        'conversation-1',
-        _admit_finalization,
-        _now(),
-        force_process=True,
-        extra_updates={'external_data': {'calendar_meeting_context': {'event_id': 'event-1'}}},
-    )
-
-    assert transaction.sets[0][1]['force_process'] is True
-    assert transaction.updates == [
-        (
-            conversation_ref,
-            {
-                'external_data': {'calendar_meeting_context': {'event_id': 'event-1'}},
-                'status': 'processing',
-                'finalization_job_id': intent['job_id'],
-                'finalization_revision': 1,
-                'finalization_status': 'queued',
-            },
-        )
-    ]
-
-
-def test_create_or_get_intent_retries_read_contention_with_a_fresh_transaction(monkeypatch):
-    """Concurrent REST finalizers must recover a read-time Firestore abort."""
-
-    conversation_ref = _conversation()
-    jobs_collection = _Collection({})
-    projection_collection = _Collection({})
-    transactions: list[_Transaction] = []
-
-    class _Client:
-        def transaction(self):
-            transaction = _Transaction()
-            transactions.append(transaction)
-            return transaction
-
-        def collection(self, name: str):
-            if name == jobs.FINALIZATION_JOBS_COLLECTION:
-                return jobs_collection
-            assert name == jobs.FINALIZATION_PROJECTION_COLLECTION
-            return projection_collection
-
-    transactional_calls = 0
-
-    def transaction_wrapper(function):
-        def invoke(transaction, *args, **kwargs):
-            nonlocal transactional_calls
-            transactional_calls += 1
-            if transactional_calls == 1:
-                raise Aborted('read contention')
-            return function(transaction, *args, **kwargs)
-
-        return invoke
-
-    def fast_contention_retry(transaction_factory, operation, **kwargs):
-        return firestore_transaction_retry.run_with_transaction_contention_retry(
-            transaction_factory,
-            operation,
-            **kwargs,
-            sleep=lambda _delay: None,
-            random_value=lambda: 0.0,
-        )
-
-    monkeypatch.setattr(jobs, '_conversation_ref', lambda *_args: conversation_ref)
-    monkeypatch.setattr(jobs.firestore, 'transactional', transaction_wrapper)
-    monkeypatch.setattr(jobs, 'run_with_transaction_contention_retry', fast_contention_retry)
-
-    intent = jobs.create_or_get_finalization_intent(
-        'uid-1',
-        'conversation-1',
-        finalization_admission=_admit_finalization,
-        firestore_client=_Client(),
-    )
-
-    assert transactional_calls == 2
-    assert len(transactions) == 2
-    assert transactions[0] is not transactions[1]
-    assert transactions[0].sets == []
-    assert intent['status'] == 'queued'
-    # The retry's committed transaction creates exactly one job and one shard
-    # delta; the aborted attempt never contributes a second accepted count.
-    assert len(transactions[1].sets) == 2
-    assert transactions[1].sets[1][0].id == jobs._projection_shard_id(
-        jobs.FINALIZATION_PROJECTION_GENERATION,
-        transactions[1].sets[0][1]['projection_shard'],
-    )
-
-
-def test_conversation_with_durable_content_marker_is_admitted():
-    transaction = _Transaction()
-    conversation_ref = _conversation({'transcript_segments': [], 'has_content': True})
-    collection = _Collection({})
-
-    intent = jobs._create_or_get_finalization_intent_txn(
-        transaction,
-        conversation_ref,
-        collection,
-        'uid-1',
-        'conversation-1',
-        _admit_finalization,
-        _now(),
-    )
-
-    assert intent['status'] == 'queued'
-    assert len(transaction.sets) == 1
-    assert transaction.updates[0][1]['status'] == 'processing'
-
-
-def test_duplicate_reconnect_reuses_the_same_outbox_job():
-    job_id = 'job-1'
-    transaction = _Transaction()
-    conversation_ref = _conversation(
-        {'status': 'processing', 'finalization_job_id': job_id, 'finalization_revision': 1}
-    )
-    collection = _Collection(
-        {
-            job_id: _Ref(
-                job_id,
-                {'status': 'queued', 'dispatch_generation': 1},
-            )
-        }
-    )
-
-    intent = jobs._create_or_get_finalization_intent_txn(
-        transaction,
-        conversation_ref,
-        collection,
-        'uid-1',
-        'conversation-1',
-        _admit_finalization,
-        _now(),
-    )
-
-    assert intent == {
-        'job_id': job_id,
-        'status': 'queued',
-        'dispatch_generation': 1,
-        'fanout_key': None,
-        'created': False,
-    }
-    assert transaction.sets == []
-    assert transaction.updates == []
-
-
-def test_duplicate_finalization_intent_keeps_the_same_processing_admission():
-    """Characterize #2d67863cad: a disconnect/reconnect never starts a second job.
-
-    The first finalization transaction already moved the conversation to
-    ``processing``.  A later finalizer must reuse that durable identity without
-    another conversation write, so a future service migration cannot re-open
-    the disconnect race while rearranging the handoff.
-    """
-    job_id = 'job-1'
-    transaction = _Transaction()
-    conversation_ref = _conversation(
-        {
-            'status': 'processing',
-            'finalization_job_id': job_id,
-            'finalization_revision': 1,
-        }
-    )
-    collection = _Collection(
-        {
-            job_id: _Ref(
-                job_id,
-                {
-                    'status': 'queued',
-                    'dispatch_generation': 1,
-                },
-            )
-        }
-    )
-
-    intent = jobs._create_or_get_finalization_intent_txn(
-        transaction,
-        conversation_ref,
-        collection,
-        'uid-1',
-        'conversation-1',
-        _admit_finalization,
-        _now(),
-    )
-
-    assert intent['job_id'] == job_id
-    assert intent['dispatch_generation'] == 1
-    assert transaction.updates == []
-    assert transaction.sets == []
-
-
-def test_atomic_admission_rejects_terminal_snapshot_before_any_outbox_write():
-    transaction = _Transaction()
-    conversation_ref = _conversation({'status': 'failed'})
-    collection = _Collection({})
-
-    def terminal(_conversation_data: dict) -> jobs.FinalizationAdmission:
-        return {'accepted': False, 'terminal': True, 'reason': 'terminal', 'fanout_key': None}
-
-    intent = jobs._create_or_get_finalization_intent_txn(
-        transaction,
-        conversation_ref,
-        collection,
-        'uid-1',
-        'conversation-1',
-        terminal,
-        _now(),
-    )
-
-    assert intent['status'] == 'terminal'
-    assert transaction.sets == []
-    assert transaction.updates == []
 
 
 def test_duplicate_task_delivery_claims_only_once_until_lease_expires():
@@ -410,6 +145,7 @@ def test_finalization_completion_requires_durable_fanout_completion():
 
 def test_admitted_terminal_replay_updates_its_shard_once():
     now = _now()
+    persisted_shard = 7
     ref = _Ref(
         'job-1',
         {
@@ -418,7 +154,7 @@ def test_admitted_terminal_replay_updates_its_shard_once():
             'lease_epoch': 4,
             'fanout_status': 'completed',
             'projection_generation': jobs.FINALIZATION_PROJECTION_GENERATION,
-            'projection_shard': jobs._projection_shard('job-1'),
+            'projection_shard': persisted_shard,
         },
     )
     projection = _Collection({})
@@ -426,9 +162,7 @@ def test_admitted_terminal_replay_updates_its_shard_once():
     first = _Transaction()
     assert jobs._mark_finalization_completed_txn(first, ref, 1, 4, now, projection) is True
     assert len(first.sets) == 1
-    assert first.sets[0][0].id == jobs._projection_shard_id(
-        jobs.FINALIZATION_PROJECTION_GENERATION, jobs._projection_shard('job-1')
-    )
+    assert first.sets[0][0].id == jobs._projection_shard_id(jobs.FINALIZATION_PROJECTION_GENERATION, persisted_shard)
 
     # A Firestore retry observes the committed terminal snapshot and performs
     # no second aggregate write, even though the API remains idempotently true.
@@ -865,15 +599,12 @@ def _processing_snapshot(
     conversation_id: str,
     *,
     admitted_at: datetime | None,
-    deferred: bool = False,
     finalization_job_id: str | None = None,
     created_at: datetime | None = None,
 ) -> _OrphanSnapshot:
     data: dict = {'status': 'processing', 'created_at': created_at or admitted_at}
     if admitted_at is not None:
         data['processing_admitted_at'] = admitted_at
-    if deferred:
-        data['deferred'] = True
     if finalization_job_id:
         data['finalization_job_id'] = finalization_job_id
     return _OrphanSnapshot(uid, conversation_id, data)
@@ -1014,11 +745,10 @@ def test_stale_orphan_age_authority_is_processing_admitted_at_not_created_at(mon
     assert legacy['processing_admitted_at'] is None
 
 
-def test_stale_orphan_candidates_exclude_deferred_and_durable_job_rows():
+def test_stale_orphan_candidates_exclude_durable_job_rows():
     now = _now()
     aged = now - timedelta(seconds=1000)
     snapshots = [
-        _processing_snapshot('uid', 'deferred', admitted_at=aged, deferred=True),
         _processing_snapshot('uid', 'durable', admitted_at=aged, finalization_job_id='job-x'),
         _processing_snapshot('uid', 'orphan', admitted_at=aged),
     ]
@@ -1031,11 +761,13 @@ def test_stale_orphan_candidates_exclude_deferred_and_durable_job_rows():
     assert [candidate['conversation_id'] for candidate in candidates] == ['orphan']
 
 
-def test_stale_orphan_candidates_page_past_excluded_rows_to_reach_a_later_orphan():
+def test_stale_orphan_candidates_page_past_job_owned_rows_to_reach_a_later_orphan():
     """A stable first page of excluded rows cannot hide a later eligible orphan."""
     now = _now()
     aged = now - timedelta(seconds=1000)
-    snapshots = [_processing_snapshot('uid', f'deferred-{i}', admitted_at=aged, deferred=True) for i in range(120)]
+    snapshots = [
+        _processing_snapshot('uid', f'owned-{i}', admitted_at=aged, finalization_job_id=f'job-{i}') for i in range(120)
+    ]
     snapshots.append(_processing_snapshot('uid', 'later-orphan', admitted_at=aged))
     client = _OrphanClient(snapshots)
 
@@ -1053,7 +785,9 @@ def test_stale_orphan_candidates_bound_total_scan():
     """The per-sweep scan bound prevents an unbounded walk under backlog."""
     now = _now()
     aged = now - timedelta(seconds=1000)
-    snapshots = [_processing_snapshot('uid', f'deferred-{i}', admitted_at=aged, deferred=True) for i in range(50)]
+    snapshots = [
+        _processing_snapshot('uid', f'owned-{i}', admitted_at=aged, finalization_job_id=f'job-{i}') for i in range(50)
+    ]
     snapshots.append(_processing_snapshot('uid', 'later-orphan', admitted_at=aged))
 
     bounded = _OrphanClient(snapshots)
@@ -1082,7 +816,10 @@ def test_persisted_cursor_reaches_a_later_orphan_beyond_any_per_invocation_bound
     now = _now()
     aged = now - timedelta(seconds=1000)
     # An excluded prefix far larger than the per-invocation bound, then one orphan.
-    snapshots = [_processing_snapshot('uid', f'deferred-{i:04d}', admitted_at=aged, deferred=True) for i in range(2500)]
+    snapshots = [
+        _processing_snapshot('uid', f'owned-{i:04d}', admitted_at=aged, finalization_job_id=f'job-{i:04d}')
+        for i in range(2500)
+    ]
     snapshots.append(_processing_snapshot('uid', 'later-orphan', admitted_at=aged))
     client = _OrphanClient(snapshots)
 
@@ -1149,7 +886,7 @@ def test_stamp_processing_admission_if_absent_is_idempotent_and_fences_non_proce
 # Ownership fence (#10461 revision 2): the recovery transaction verifies the
 # exact orphan generation/ownership immediately before terminalization, so a live
 # synchronous processor (lease renewed), a finalizer that attached a durable job
-# after discovery, a deferred desktop row, or an already-terminal row can never
+# after discovery or an already-terminal row can never
 # be terminalized by the sweep.
 # ---------------------------------------------------------------------------
 
@@ -1190,33 +927,16 @@ def test_complete_orphan_fences_a_live_processor_that_renewed_its_lease():
     assert transaction.updates == []
 
 
-def test_complete_orphan_fences_deferred_and_terminal_and_discarded_rows():
+def test_complete_orphan_fences_terminal_and_discarded_rows():
     transaction = _Transaction()
     now = _now()
     admitted = now - timedelta(seconds=1000)
-    deferred = _Ref('deferred', {'status': 'processing', 'processing_admitted_at': admitted, 'deferred': True})
     terminal = _Ref('terminal', {'status': 'completed', 'processing_admitted_at': admitted})
     discarded = _Ref('discarded', {'status': 'processing', 'processing_admitted_at': admitted, 'discarded': True})
 
-    assert jobs._complete_orphan_conversation_txn(transaction, deferred, admitted, now) is False
     assert jobs._complete_orphan_conversation_txn(transaction, terminal, admitted, now) is False
     assert jobs._complete_orphan_conversation_txn(transaction, discarded, admitted, now) is False
     assert transaction.updates == []
-
-
-def test_renew_processing_lease_refreshes_only_a_live_processing_row():
-    transaction = _Transaction()
-    now = _now()
-    processing = _Ref('processing', {'status': 'processing', 'processing_admitted_at': now - timedelta(seconds=120)})
-    completed = _Ref('completed', {'status': 'completed'})
-    discarded = _Ref('discarded', {'status': 'processing', 'discarded': True})
-
-    assert jobs._renew_processing_lease_txn(transaction, processing, now) is True
-    assert transaction.updates == [(processing, {'processing_admitted_at': now})]
-    assert jobs._renew_processing_lease_txn(transaction, completed, now) is False
-    assert jobs._renew_processing_lease_txn(transaction, discarded, now) is False
-    # Only the still-processing, non-discarded row was refreshed.
-    assert transaction.updates == [(processing, {'processing_admitted_at': now})]
 
 
 def test_advance_cursor_succeeds_when_generation_matches():

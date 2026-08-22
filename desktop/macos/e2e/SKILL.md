@@ -387,6 +387,12 @@ agent-swift snapshot -i --json                       # see what's on screen
 | `get PROP @ref` | Read property value | `agent-swift get value @e5 --json` |
 | `screenshot PATH` | Capture app window | `agent-swift screenshot /tmp/screen.png` |
 
+Typed UI flows can use `ax.action` with `locator`, `value`, and
+`action: click|press|fill|get`; `fill` and `get` also require `argument`. These
+steps execute only in the `ui` lane and require `--bundle-id`.
+`ax.expect.text_visible` uses targeted `wait text` queries; set `timeout_ms`
+between 1 and 55,000 for a bounded long-running UI operation.
+
 **Key rules:**
 - `click` = CGEvent mouse click (SwiftUI). Use for top nav bar buttons, Settings section rows, NavigationLink.
 - `press` = AXPress action (AppKit). Use for AppKit-style buttons only.

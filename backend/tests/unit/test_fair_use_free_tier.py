@@ -33,18 +33,10 @@ _mock_redis = MagicMock()
 
 @pytest.fixture(autouse=True)
 def _bind_fair_use_fakes(monkeypatch):
-    """Bind fake db/redis/notification deps into fair_use_mod for the duration
-    of each test. Auto-restored at teardown by monkeypatch.
-
-    ``_send_notification`` is the lazy-loaded global in fair_use_mod; seeding it
-    with a MagicMock short-circuits ``_get_send_notification()`` so the real
-    ``utils.notifications`` chain (firebase_admin + network) is never imported
-    during escalation.
-    """
+    """Bind the retained database and Redis seams for each test."""
     monkeypatch.setattr(fair_use_mod, 'fair_use_db', _fair_use_db)
     monkeypatch.setattr(fair_use_mod, 'users_db', _users_db)
     monkeypatch.setattr(fair_use_mod, 'redis_client', _mock_redis)
-    monkeypatch.setattr(fair_use_mod, '_send_notification', MagicMock())
 
 
 # ---------------------------------------------------------------------------

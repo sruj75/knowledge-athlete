@@ -47,7 +47,6 @@ def users_service():
         "utils.other": _pkg("utils.other"),
         "utils.other.endpoints": AutoMockModule("utils.other.endpoints"),
         "utils.other.storage": AutoMockModule("utils.other.storage"),
-        "utils.twilio_service": AutoMockModule("utils.twilio_service"),
     }
     with stub_modules(fakes):
         service = load_module_fresh(

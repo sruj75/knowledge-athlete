@@ -10,15 +10,12 @@ from database.fair_use import (
     FairUseReviewProcessingClaimLost,
     apply_fair_use_review_result,
     claim_fair_use_review_processing,
-    claim_fair_use_review_notification,
     get_fair_use_review_receipt,
-    mark_fair_use_review_notification_sent,
     release_fair_use_review_processing,
-    release_fair_use_review_notification,
 )
 from models.fair_use import FairUseClassificationRequest, FairUseClassificationResponse
 from utils.executors import db_executor, run_blocking
-from utils.fair_use import invalidate_enforcement_cache, send_fair_use_notification
+from utils.fair_use import invalidate_enforcement_cache
 from utils.fair_use_reviews import (
     get_pending_fair_use_review,
     mark_fair_use_review_consumed,
@@ -63,36 +60,6 @@ def validate_evidence_window(request: FairUseClassificationRequest, pending: dic
         previous = created_at
 
 
-async def send_fair_use_notification_if_pending(uid: str, receipt: dict, *, allow_idempotent: bool = False) -> None:
-    if (receipt.get('idempotent') and not allow_idempotent) or receipt.get('action') == 'none':
-        return
-    review_id = str(receipt['review_id'])
-    claim_token = await run_blocking(db_executor, claim_fair_use_review_notification, uid, review_id)
-    if claim_token is None:
-        return
-    delivered = False
-    try:
-        delivered = await send_fair_use_notification(
-            uid, str(receipt['action']), case_ref=str(receipt.get('case_ref', ''))
-        )
-        if not delivered:
-            raise RuntimeError('fair_use_notification_delivery_failed')
-        await run_blocking(
-            db_executor,
-            mark_fair_use_review_notification_sent,
-            uid,
-            review_id,
-            claim_token,
-        )
-    except Exception:
-        # A definite pre-delivery failure is safe to retry. Once FCM reports a
-        # successful send, retain the durable lease if marking fails: releasing
-        # it would immediately admit a duplicate visible notification.
-        if not delivered:
-            await run_blocking(db_executor, release_fair_use_review_notification, uid, review_id, claim_token)
-        raise
-
-
 @router.post(
     '/v1/fair-use/reviews/{review_id}/classify',
     tags=['fair_use'],
@@ -106,7 +73,6 @@ async def classify_review(
     receipt = await run_blocking(db_executor, get_fair_use_review_receipt, uid, review_id)
     if receipt is not None:
         await run_blocking(db_executor, invalidate_enforcement_cache, uid)
-        await send_fair_use_notification_if_pending(uid, receipt, allow_idempotent=True)
         return FairUseClassificationResponse.model_validate(receipt)
 
     pending = await run_blocking(db_executor, get_pending_fair_use_review, uid, review_id)
@@ -119,7 +85,6 @@ async def classify_review(
         receipt = await run_blocking(db_executor, get_fair_use_review_receipt, uid, review_id)
         if receipt is not None:
             await run_blocking(db_executor, invalidate_enforcement_cache, uid)
-            await send_fair_use_notification_if_pending(uid, receipt, allow_idempotent=True)
             return FairUseClassificationResponse.model_validate(receipt)
         raise HTTPException(status_code=409, detail='review_in_progress')
 
@@ -130,7 +95,6 @@ async def classify_review(
         receipt = await run_blocking(db_executor, get_fair_use_review_receipt, uid, review_id)
         if receipt is not None:
             await run_blocking(db_executor, invalidate_enforcement_cache, uid)
-            await send_fair_use_notification_if_pending(uid, receipt, allow_idempotent=True)
             return FairUseClassificationResponse.model_validate(receipt)
         evidence = [item.model_dump(mode='json') for item in request.conversations]
         classifier_result = await classify_fair_use_evidence(uid, evidence)
@@ -148,13 +112,11 @@ async def classify_review(
         )
         await run_blocking(db_executor, invalidate_enforcement_cache, uid)
         await run_blocking(db_executor, mark_fair_use_review_consumed, uid, review_id)
-        await send_fair_use_notification_if_pending(uid, receipt)
         return FairUseClassificationResponse.model_validate(receipt)
     except FairUseReviewProcessingClaimLost:
         receipt = await run_blocking(db_executor, get_fair_use_review_receipt, uid, review_id)
         if receipt is not None:
             await run_blocking(db_executor, invalidate_enforcement_cache, uid)
-            await send_fair_use_notification_if_pending(uid, receipt, allow_idempotent=True)
             return FairUseClassificationResponse.model_validate(receipt)
         raise HTTPException(status_code=409, detail='review_in_progress') from None
     finally:

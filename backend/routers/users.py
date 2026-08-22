@@ -17,7 +17,6 @@ from database.job_run_locks import release_job_run_lock, try_acquire_job_run_loc
 from services.users.data_export import iter_user_data_export
 from services.users.account_deletion import background_wipe_user_data, start_account_deletion
 from database.app_review_config import should_hide_subscription_ui
-from database.conversations import get_in_progress_conversation, get_conversation
 from database.users import (
     claim_deletion_wipe_for_task,
     resolve_deletion_wipe_job_id,
@@ -27,8 +26,6 @@ from config.stt_provider_policy import supports_live_multilingual_mode
 from config.free_plan import get_default_free_subscription
 from utils.user_language import normalize_user_language
 from database.users import *
-from models.conversation import Conversation
-from utils.conversations.factory import deserialize_conversation
 from models.shared import StatusResponse
 from datetime import datetime
 
@@ -39,10 +36,8 @@ from models.users import (
     SubscriptionPlan,
     PlanType,
     PricingOption,
-    PhoneCallQuota,
     TrialMetadata,
 )
-from utils.phone_calls import get_quota_snapshot as get_phone_call_quota_snapshot
 from utils.subscription import (
     get_chat_quota_snapshot,
     get_plan_limits,
@@ -59,7 +54,6 @@ from utils.cloud_tasks import (
 )
 from utils.executors import cleanup_executor, db_executor, run_blocking
 from utils.log_sanitizer import sanitize
-from utils.llm.followup import followup_question_prompt
 from utils.other import endpoints as auth
 import logging
 
@@ -74,7 +68,10 @@ class UserStatusResponse(BaseModel):
 
 
 class UserProfileResponse(BaseModel):
-    model_config = ConfigDict(extra='allow')
+    # The account profile is an explicit retained-control projection. Product
+    # fields left in an inherited Firestore document must never become API
+    # compatibility surface merely because they are present in that document.
+    model_config = ConfigDict(extra='ignore')
 
     uid: str
     email: Optional[str] = None
@@ -84,15 +81,13 @@ class UserProfileResponse(BaseModel):
     use_case: Optional[str] = None
     job: Optional[str] = None
     company: Optional[str] = None
-    data_protection_level: Optional[str] = None
-    migration_status: Optional[Dict[str, Any]] = None
 
 
 class UserDataExportResponse(BaseModel):
-    profile: Dict[str, Any] = Field(default_factory=dict)
-    conversations: List[Dict[str, Any]] = Field(default_factory=list)
-    people: List[Dict[str, Any]] = Field(default_factory=list)
-    chat_messages: List[Dict[str, Any]] = Field(default_factory=list)
+    schema_version: int
+    account: Dict[str, Any] = Field(default_factory=dict)
+    subscription: Optional[Dict[str, Any]] = None
+    usage: Dict[str, Any] = Field(default_factory=dict)
 
 
 class UserLanguageResponse(BaseModel):
@@ -103,14 +98,9 @@ class UserLanguageUpdateResponse(UserStatusResponse):
     single_language_mode: bool
 
 
-class MemorySummaryRatingResponse(BaseModel):
-    has_rating: bool
-    rating: Optional[int] = None
-
-
 @router.get('/v1/users/profile', tags=['v1'], response_model=UserProfileResponse)
 def get_user_profile_endpoint(uid: str = Depends(auth.get_current_user_uid)):
-    """Gets the full user profile, including data protection and migration status."""
+    """Return the retained account profile projection."""
     profile = get_user_profile(uid)
     if not profile:
         raise HTTPException(status_code=410, detail="User not found")
@@ -232,60 +222,6 @@ async def run_account_deletion_wipe(
             await run_blocking(db_executor, release_job_run_lock, lock_key, lock_token)
 
 
-# **********************************************************
-# ************* RANDOM JOAN SPECIFIC FEATURES **************
-# **********************************************************
-
-
-class FollowupQuestionResponse(BaseModel):
-    """Response for the Joan follow-up question endpoint (a generated prompt)."""
-
-    result: str = Field(description='Generated follow-up question prompt text.')
-
-
-@router.delete('/v1/joan/{memory_id}/followup-question', tags=['v1'], response_model=FollowupQuestionResponse)
-def delete_person_endpoint(memory_id: str, uid: str = Depends(auth.get_current_user_uid)):
-    if memory_id == '0':
-        memory = get_in_progress_conversation(uid)
-        if not memory:
-            raise HTTPException(status_code=400, detail='No memory in progres')
-    else:
-        memory = get_conversation(uid, memory_id)
-    if not memory:
-        raise HTTPException(status_code=404, detail='Conversation not found')
-    if memory.get('is_locked', False):
-        raise HTTPException(status_code=402, detail='A paid plan is required to access this conversation.')
-    memory = deserialize_conversation(memory)
-    return {'result': followup_question_prompt(uid, memory.transcript_segments)}
-
-
-# **************************************
-# ************* Analytics **************
-# **************************************
-
-
-@router.post('/v1/users/analytics/memory_summary', tags=['v1'], response_model=UserStatusResponse)
-def set_memory_summary_rating(
-    memory_id: str,
-    value: int,  # 0, 1, -1 (shown)
-    uid: str = Depends(auth.get_current_user_uid),
-):
-    set_conversation_summary_rating_score(uid, memory_id, value)
-    return {'status': 'ok'}
-
-
-@router.get('/v1/users/analytics/memory_summary', tags=['v1'], response_model=MemorySummaryRatingResponse)
-def get_memory_summary_rating(
-    memory_id: str,
-    _: str = Depends(auth.get_current_user_uid),
-):
-    rating = get_conversation_summary_rating_score(memory_id)
-    # TODO: later ask reason, a set of options, if user says good, whats the best, if bad, whats the worst
-    if not rating:
-        return {'has_rating': False}
-    return {'has_rating': rating.get('value', -1) != -1, 'rating': rating.get('value', -1)}
-
-
 # ***************************************
 # ************* Language ****************
 # ***************************************
@@ -368,9 +304,6 @@ def get_user_subscription_endpoint(
 
     show_subscription_ui = not should_hide_subscription_ui(uid, x_app_platform, x_app_version)
 
-    # Phone-call feature access + monthly free-tier usage snapshot.
-    phone_call_quota = PhoneCallQuota(**get_phone_call_quota_snapshot(uid).to_client_dict())
-
     # Chat quota — reuse the shared snapshot helper
     chat_snapshot = get_chat_quota_snapshot(uid, platform=x_app_platform)
     chat_percent = 0.0
@@ -394,7 +327,6 @@ def get_user_subscription_endpoint(
         chat_quota_percent=chat_percent,
         chat_quota_allowed=chat_allowed,
         chat_quota_reset_at=chat_snapshot['reset_at'],
-        phone_call_quota=phone_call_quota,
     )
 
 
@@ -475,11 +407,11 @@ class LlmTotalCostResponse(BaseModel):
 # the responses= override documents the streamed shape in OpenAPI without enforcing response_model validation.
 @router.get('/v1/users/export', tags=['v1'], responses={200: {'model': UserDataExportResponse}})
 def export_all_user_data(uid: str = Depends(auth.get_current_user_uid)):
-    """Export all user data for GDPR/CCPA compliance. Streams response to avoid timeouts."""
+    """Export retained server-owned account and entitlement metadata."""
     return StreamingResponse(
         iter_user_data_export(uid),
         media_type='application/json',
-        headers={'Content-Disposition': 'attachment; filename="omi-export.json"'},
+        headers={'Content-Disposition': 'attachment; filename="omi-account-metadata.json"'},
     )
 
 

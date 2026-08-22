@@ -1,0 +1,70 @@
+version: 2
+name: export-my-data-ui
+tier: manual
+description: Native Account Settings export row, save-panel cancellation, and UI-driven save
+app: non-prod
+covers:
+  - desktop/macos/Desktop/Sources/Account/Export/LocalUserDataExportAction.swift
+  - desktop/macos/Desktop/Sources/MainWindow/Pages/Settings/Sections/SettingsContentView+AccountBilling.swift
+preconditions:
+  - automation_bridge_ready
+  - accessibility_permission
+
+steps:
+  - id: S1
+    name: Open the real Account Settings surface
+    bridge.navigate:
+      target: settings
+      settingsSection: Account
+      activateApp: true
+    wait:
+      state.selectedSettingsSection: Account
+
+  - id: S2
+    name: Wait for the real Account export row to render
+    ax.expect:
+      timeout_ms: 10000
+      text_visible:
+        - Export My Data
+
+  - id: S3
+    name: Click the real Export row action
+    ax.action:
+      locator: identifier
+      value: export-my-data-button
+      action: click
+
+  - id: S4
+    name: Verify the native save panel
+    ax.expect:
+      text_visible:
+        - omi-data-export-
+        - Cancel
+
+  - id: S5
+    name: Cancel the native save panel
+    ax.action:
+      locator: identifier
+      value: CancelButton
+      action: press
+
+  - id: S6
+    name: Open the native save panel again
+    ax.action:
+      locator: identifier
+      value: export-my-data-button
+      action: click
+
+  - id: S7
+    name: Confirm UI-driven save through the panel prompt
+    ax.action:
+      locator: identifier
+      value: OKButton
+      action: press
+
+  - id: S8
+    name: Account Settings reports the completed local save
+    ax.expect:
+      timeout_ms: 45000
+      text_visible:
+        - Saved omi-data-export-

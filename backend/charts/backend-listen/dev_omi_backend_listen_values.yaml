@@ -175,14 +175,10 @@ env:
       secretKeyRef:
         name: dev-omi-backend-secrets
         key: GITHUB_TOKEN
-  - name: BUCKET_SPEECH_PROFILES
-    value: "speech-profiles-dev"
   - name: BUCKET_TEMPORAL_SYNC_LOCAL
     value: "syncing-local-development"
   - name: HOSTED_VAD_API_URL
     value: "http://vad.omiapi.com:80/v1/vad"
-  - name: HOSTED_SPEECH_PROFILE_API_URL
-    value: "http://vad.omiapi.com:80/v1/speaker-identification"
   - name: HOSTED_SPEAKER_EMBEDDING_API_URL
     value: "http://diarizer.omiapi.com:80"
   - name: PINECONE_API_KEY
@@ -267,8 +263,6 @@ env:
     value: "0"
   - name: SUBSCRIPTION_LAUNCH_DATE
     value: "2025-08-21"
-  - name: BUCKET_PRIVATE_CLOUD_SYNC
-    value: "omi-dev-private-cloud-sync"
   - name: SERVICE_ACCOUNT_JSON
     valueFrom:
       secretKeyRef:
@@ -278,16 +272,6 @@ env:
     value: "based-hardware-dev"
   - name: GCP_LOCATION
     value: "us-central1"
-  - name: TWILIO_AUTH_TOKEN
-    valueFrom:
-      secretKeyRef:
-        name: dev-omi-backend-secrets
-        key: TWILIO_AUTH_TOKEN
-  - name: TWILIO_API_KEY_SECRET
-    valueFrom:
-      secretKeyRef:
-        name: dev-omi-backend-secrets
-        key: TWILIO_API_KEY_SECRET
   - name: VAD_GATE_MODE
     value: "active"
   # Fair-use system (PR #5748)
@@ -325,11 +309,6 @@ env:
       secretKeyRef:
         name: dev-omi-backend-secrets
         key: GROQ_API_KEY
-  - name: OPENROUTER_API_KEY
-    valueFrom:
-      secretKeyRef:
-        name: dev-omi-backend-secrets
-        key: OPENROUTER_API_KEY
 resources:
   # We usually recommend not to specify default resources and to leave this as a conscious
   # choice for the user. This also increases chances charts run on environments with little

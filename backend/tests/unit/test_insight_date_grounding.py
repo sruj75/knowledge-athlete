@@ -47,7 +47,7 @@ def _load(module_name, rel_path):
 # Stub the heavy leaves the modules under test import; langchain_core is used for real.
 for _p in ["database", "utils", "utils.llm"]:
     _pkg(_p)
-_nb = _mod("database.notifications")
+_nb = _mod("database.users")
 _nb.get_user_time_zone = MagicMock(return_value="UTC")
 temporal = _load("utils.llm.temporal", "utils/llm/temporal.py")
 
@@ -67,7 +67,7 @@ class TestCurrentDate:
             assert temporal.current_date_in_tz("Not/AZone") == "2026-05-21"
 
     def test_for_uid_reads_user_timezone(self):
-        # database.notifications is imported lazily inside current_date_for_uid, so patch the
+        # database.users is imported lazily inside current_date_for_uid, so patch the
         # stubbed module that the lazy import resolves to.
         with patch.object(temporal, "datetime") as md:
             md.now.return_value = _FIXED

@@ -11,7 +11,7 @@ import os
 import time
 import uuid
 from datetime import datetime, timedelta, timezone
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 import database.fair_use as fair_use_db
 import database.users as users_db
@@ -19,17 +19,7 @@ from database.redis_db import r as redis_client
 from models.fair_use import SoftCapTrigger
 from models.users import PlanType
 from utils.subscription import has_transcription_credits, is_paid_plan
-from utils.executors import db_executor, postprocess_executor, run_blocking
-from utils.notifications import send_notification
-
-# Patchable lazy-held callables keep tests at a production seam without using
-# in-function imports. Both imported modules are import-pure and construct their
-# provider clients only when the callable is invoked.
-_send_notification: Callable[..., Any] = send_notification
-
-
-def _get_send_notification() -> Callable[..., Any]:
-    return _send_notification
+from utils.executors import db_executor, run_blocking
 
 
 logger = logging.getLogger(__name__)
@@ -739,60 +729,9 @@ async def trigger_free_exhaustion_if_needed(
             escalation['new_stage'],
         )
 
-        # Send notification if action was taken
-        if escalation['action'] != 'none':
-            # Offloaded: the Firestore read is sync and blocks the event loop in this async path.
-            latest_events = await run_blocking(db_executor, fair_use_db.get_fair_use_events, uid, limit=1)
-            case_ref = latest_events[0].get('case_ref', '') if latest_events else ''
-            await send_fair_use_notification(uid, escalation['action'], case_ref=case_ref)
-
     except Exception as e:
         logger.error(f'fair_use: classifier/escalation error for {uid}: {e}')
         try:
             await run_blocking(db_executor, _release_lock, lock_key, lock_token)
         except Exception:
             pass
-
-
-async def send_fair_use_notification(uid: str, action: str, case_ref: str = '') -> bool:
-    """Return whether delivery succeeded or no registered device required it."""
-    titles = {
-        'warning': 'Fair Use Notice',
-        'throttle': 'Final Fair Use Warning',
-        'restrict': 'Transcription Limit Reached',
-    }
-
-    ref_suffix = f' Reference: {case_ref}' if case_ref else ''
-
-    bodies = {
-        'warning': (
-            'Your speech usage is unusually high. This service is designed for personal conversations. '
-            'If this continues, you may receive a final fair-use warning. '
-            'Contact support@heyintentive.com if you believe this is an error. '
-            f'Quote your case reference when contacting support.{ref_suffix}'
-        ),
-        'throttle': (
-            'Due to high non-conversational usage, this is your final fair-use warning. '
-            'Transcription quality and access have not changed. '
-            'This warning resets after seven days without another qualifying violation. '
-            'Contact support@heyintentive.com if you believe this is an error. '
-            f'Quote your case reference when contacting support.{ref_suffix}'
-        ),
-        'restrict': (
-            'Your managed cloud transcription is temporarily limited for 30 days due to repeated fair-use violations. '
-            'Up to 30 minutes of managed cloud transcription remains available each UTC day. '
-            'On-device transcription continues only when it is available on this Mac. '
-            'Contact support@heyintentive.com to discuss your usage. '
-            f'Quote your case reference when contacting support.{ref_suffix}'
-        ),
-    }
-
-    title = titles.get(action, 'Fair Use Notice')
-    body = bodies.get(action, '')
-    if body:
-        data = {'type': 'fair_use', 'action': action}
-        if case_ref:
-            data['case_ref'] = case_ref
-        delivered = await run_blocking(postprocess_executor, _get_send_notification(), uid, title, body, data=data)
-        return delivered is None or (isinstance(delivered, int) and delivered > 0)
-    return True

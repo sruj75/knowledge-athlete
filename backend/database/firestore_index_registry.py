@@ -110,16 +110,7 @@ def _desc(field_path: str) -> FirestoreIndexField:
     return FirestoreIndexField(field_path, order='DESCENDING')
 
 
-# These explicit requirements preserve the current deployed index set while
-# callers migrate one compound serving query at a time into QUERY_SPECS.
-INDEX_ONLY_REQUIREMENTS = (
-    FirestoreIndexRequirement(
-        'conversations_category_created',
-        'conversations',
-        'COLLECTION',
-        (_asc('discarded'), _asc('status'), _asc('structured.category'), _desc('created_at'), _desc('__name__')),
-    ),
-)
+INDEX_ONLY_REQUIREMENTS: tuple[FirestoreIndexRequirement, ...] = ()
 
 
 STALE_IN_PROGRESS_CONVERSATIONS_QUERY = FirestoreQuerySpec(

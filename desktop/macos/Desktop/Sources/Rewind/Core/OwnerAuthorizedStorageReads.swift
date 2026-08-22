@@ -1,6 +1,16 @@
 import Foundation
 
 extension ActionItemStorage {
+  func getLocalExportPage(
+    limit: Int = 100,
+    offset: Int = 0,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async throws -> [TaskActionItem] {
+    try await withOwnerRead(authorizationSnapshot) {
+      try await self.getLocalExportPage(limit: limit, offset: offset)
+    }
+  }
+
   func getFilterCounts(
     authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
   ) async throws -> (todo: Int, done: Int, deleted: Int) {
@@ -164,6 +174,22 @@ extension ActionItemStorage {
 }
 
 extension GoalStorage {
+  func getLocalExportPage(
+    limit: Int = 100,
+    offset: Int = 0,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async throws -> [LocalGoal] {
+    let authorization = LocalMutationAuthorization {
+      RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
+    }
+    return try await authorization.withReadLease {
+      try authorization.require()
+      let results = try await self.getLocalExportPage(limit: limit, offset: offset)
+      try authorization.require()
+      return results
+    }
+  }
+
   func getLocalGoals(
     activeOnly: Bool = true,
     authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
@@ -181,6 +207,22 @@ extension GoalStorage {
 }
 
 extension TranscriptionStorage {
+  func conversationArchivePage(
+    after conversationId: String?,
+    limit: Int,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async throws -> [ConversationArchiveRecord] {
+    let authorization = LocalMutationAuthorization {
+      RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
+    }
+    return try await authorization.withReadLease {
+      try authorization.require()
+      let results = try await self.conversationArchivePage(after: conversationId, limit: limit)
+      try authorization.require()
+      return results
+    }
+  }
+
   func conversationCount(
     query: ConversationLocalQuery,
     authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
@@ -226,6 +268,25 @@ extension TranscriptionStorage {
         query: query,
         offset: offset,
         limit: limit)
+      try authorization.require()
+      return results
+    }
+  }
+}
+
+extension ProactiveStorage {
+  func getFocusSessions(
+    from startDate: Date,
+    to endDate: Date,
+    limit: Int = 500,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) async throws -> [FocusSessionRecord] {
+    let authorization = LocalMutationAuthorization {
+      RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
+    }
+    return try await authorization.withReadLease {
+      try authorization.require()
+      let results = try await self.getFocusSessions(from: startDate, to: endDate, limit: limit)
       try authorization.require()
       return results
     }

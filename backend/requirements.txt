@@ -38,7 +38,6 @@ dnspython==2.6.1
 docopt==0.6.2
 email_validator==2.2.0
 executing==2.0.1
-fal_client==0.4.1
 fastapi==0.121.0
 fastapi-cli==0.0.5
 fastapi-utilities==0.2.0
@@ -64,7 +63,6 @@ google-crc32c==1.5.0
 google-resumable-media==2.7.1
 googleapis-common-protos==1.63.2
 graphviz==0.20.3
-groq==0.9.0
 grpcio==1.66.0
 grpcio-status==1.66.0
 grpcio-tools==1.66.0
@@ -127,7 +125,6 @@ numpy==1.26.4
 omegaconf==2.3.0
 onnxruntime==1.19.0
 openai==2.38.0
-scipy==1.14.0
 optuna==3.6.1
 opuslib==3.0.1
 orjson==3.11.6
@@ -227,4 +224,3 @@ dodopayments[webhooks]==1.109.0
 typesense==0.21.0
 pycountry==24.6.1
 langdetect==1.0.9
-twilio==9.5.0

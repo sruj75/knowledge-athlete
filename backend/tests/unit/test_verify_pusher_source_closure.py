@@ -93,8 +93,8 @@ def test_source_closure_excludes_builder_stage_copies() -> None:
     assert "backend/pusher/pylock.toml" not in sources
 
 
-def test_runtime_uses_a_non_root_user_with_writable_working_directories() -> None:
+def test_runtime_uses_a_non_root_user_without_product_temp_directories() -> None:
     dockerfile = (REPO / "backend/pusher/Dockerfile").read_text(encoding="utf-8")
-    assert "mkdir -p _temp _samples _segments _speech_profiles" in dockerfile
-    assert "chown -R 10001:10001 _temp _samples _segments _speech_profiles" in dockerfile
+    assert "_samples" not in dockerfile
+    assert "_segments" not in dockerfile
     assert "USER 10001:10001" in dockerfile

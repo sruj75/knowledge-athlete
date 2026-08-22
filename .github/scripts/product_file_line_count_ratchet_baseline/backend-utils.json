@@ -1,9 +1,5 @@
 {
-  "files": {
-    "backend/utils/other/storage.py": 1501
-  },
-  "raise_justifications": {
-    "backend/utils/other/storage.py": "delete_app_logo now requires an exact app-logo bucket prefix (startswith) so a foreign URL embedding the prefix later cannot delete an unrelated object on this deletion path (David review on #9873); the deletion purge path additionally records bounded storage wipe counters for telemetry."
-  },
+  "files": {},
+  "raise_justifications": {},
   "threshold": 1500
 }

@@ -3,8 +3,7 @@
 sample_rate reaches AudioRingBuffer straight from the /v4/listen WebSocket query parameter
 (routers/transcribe.py: `sample_rate: int = 8000`, no gt=0). validate_audio_format only
 range-checks sample_rate for the opus codecs, so for the default pcm codec a client can send 0 or
-a negative value. When speaker identification is enabled (a normal state for a user with an
-enrolled speech profile or private-cloud sync), routers/listen/runtime.py builds
+a negative value. A malformed capture rate could otherwise build
 AudioRingBuffer(duration, request.sample_rate), and receiver.py writes to it on the first audio
 frame.
 

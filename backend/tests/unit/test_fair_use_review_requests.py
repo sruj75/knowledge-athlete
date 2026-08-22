@@ -1,4 +1,3 @@
-import asyncio
 import json
 from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, Mock
@@ -201,7 +200,6 @@ def test_authenticated_classify_uses_pending_uid_and_returns_content_free_receip
     monkeypatch.setattr(fair_use_reviews, 'release_fair_use_review_processing', release)
     invalidate = Mock()
     monkeypatch.setattr(fair_use_reviews, 'invalidate_enforcement_cache', invalidate)
-    monkeypatch.setattr(fair_use_reviews, 'send_fair_use_notification_if_pending', AsyncMock())
 
     response = make_client().post('/v1/fair-use/reviews/review-1/classify', json={'conversations': [evidence()]})
 
@@ -231,7 +229,6 @@ def test_duplicate_returns_receipt_without_model_or_pending_payload(monkeypatch)
         'case_ref': 'FU-ABC123',
     }
     monkeypatch.setattr(fair_use_reviews, 'get_fair_use_review_receipt', lambda *_: receipt)
-    monkeypatch.setattr(fair_use_reviews, 'send_fair_use_notification_if_pending', AsyncMock())
     pending = lambda *_: pytest.fail('duplicate must not need transient evidence state')
     monkeypatch.setattr(fair_use_reviews, 'get_pending_fair_use_review', pending)
     classify = AsyncMock()
@@ -242,98 +239,6 @@ def test_duplicate_returns_receipt_without_model_or_pending_payload(monkeypatch)
     assert response.status_code == 200
     assert response.json()['idempotent'] is True
     classify.assert_not_awaited()
-
-
-def test_duplicate_retries_only_a_durable_pending_notification(monkeypatch):
-    receipt = {
-        'review_id': 'review-1',
-        'accepted': True,
-        'idempotent': True,
-        'action': 'warning',
-        'stage': 'warning',
-        'case_ref': 'FU-ABC123',
-    }
-    monkeypatch.setattr(fair_use_reviews, 'get_fair_use_review_receipt', lambda *_: receipt)
-    notify = AsyncMock()
-    monkeypatch.setattr(fair_use_reviews, 'send_fair_use_notification_if_pending', notify)
-    classify = AsyncMock()
-    monkeypatch.setattr(fair_use_reviews, 'classify_fair_use_evidence', classify)
-
-    response = make_client().post('/v1/fair-use/reviews/review-1/classify', json={'conversations': [evidence()]})
-
-    assert response.status_code == 200
-    notify.assert_awaited_once_with('owner-a', receipt, allow_idempotent=True)
-    classify.assert_not_awaited()
-
-
-@pytest.mark.asyncio
-async def test_concurrent_notification_retry_has_one_transactional_delivery_owner(monkeypatch):
-    receipt = {
-        'review_id': 'review-1',
-        'accepted': True,
-        'idempotent': True,
-        'action': 'warning',
-        'stage': 'warning',
-        'case_ref': 'FU-ABC123',
-    }
-    claims = iter(['notification-token', None])
-    monkeypatch.setattr(fair_use_reviews, 'claim_fair_use_review_notification', lambda *_: next(claims))
-    send = AsyncMock(return_value=True)
-    monkeypatch.setattr(fair_use_reviews, 'send_fair_use_notification', send)
-    mark_sent = Mock()
-    monkeypatch.setattr(fair_use_reviews, 'mark_fair_use_review_notification_sent', mark_sent)
-
-    await asyncio.gather(
-        fair_use_reviews.send_fair_use_notification_if_pending('owner-a', receipt, allow_idempotent=True),
-        fair_use_reviews.send_fair_use_notification_if_pending('owner-a', receipt, allow_idempotent=True),
-    )
-
-    send.assert_awaited_once_with('owner-a', 'warning', case_ref='FU-ABC123')
-    mark_sent.assert_called_once_with('owner-a', 'review-1', 'notification-token')
-
-
-@pytest.mark.asyncio
-async def test_notification_delivery_failure_releases_the_claim_without_marking_sent(monkeypatch):
-    receipt = {
-        'review_id': 'review-1',
-        'idempotent': True,
-        'action': 'warning',
-        'case_ref': 'FU-ABC123',
-    }
-    monkeypatch.setattr(fair_use_reviews, 'claim_fair_use_review_notification', lambda *_: 'notification-token')
-    monkeypatch.setattr(fair_use_reviews, 'send_fair_use_notification', AsyncMock(return_value=False))
-    mark_sent = Mock()
-    release = Mock()
-    monkeypatch.setattr(fair_use_reviews, 'mark_fair_use_review_notification_sent', mark_sent)
-    monkeypatch.setattr(fair_use_reviews, 'release_fair_use_review_notification', release)
-
-    with pytest.raises(RuntimeError, match='notification_delivery_failed'):
-        await fair_use_reviews.send_fair_use_notification_if_pending('owner-a', receipt, allow_idempotent=True)
-
-    mark_sent.assert_not_called()
-    release.assert_called_once_with('owner-a', 'review-1', 'notification-token')
-
-
-@pytest.mark.asyncio
-async def test_successful_notification_does_not_release_claim_when_sent_marker_fails(monkeypatch):
-    receipt = {
-        'review_id': 'review-1',
-        'idempotent': True,
-        'action': 'warning',
-        'case_ref': 'FU-ABC123',
-    }
-    monkeypatch.setattr(fair_use_reviews, 'claim_fair_use_review_notification', lambda *_: 'notification-token')
-    monkeypatch.setattr(fair_use_reviews, 'send_fair_use_notification', AsyncMock(return_value=True))
-    monkeypatch.setattr(
-        fair_use_reviews, 'mark_fair_use_review_notification_sent', Mock(side_effect=RuntimeError('write failed'))
-    )
-    release = Mock()
-    monkeypatch.setattr(fair_use_reviews, 'release_fair_use_review_notification', release)
-
-    with pytest.raises(RuntimeError, match='write failed'):
-        await fair_use_reviews.send_fair_use_notification_if_pending('owner-a', receipt, allow_idempotent=True)
-
-    release.assert_not_called()
 
 
 def test_unknown_or_other_owner_review_fails_closed(monkeypatch):
@@ -430,7 +335,7 @@ async def test_processing_claim_storage_failure_fails_closed_before_model(monkey
     classify.assert_not_awaited()
 
 
-def test_lock_loser_repairs_committed_cache_and_notification_disposition(monkeypatch):
+def test_lock_loser_repairs_committed_cache(monkeypatch):
     receipt = {
         'review_id': 'review-1',
         'accepted': True,
@@ -451,15 +356,12 @@ def test_lock_loser_repairs_committed_cache_and_notification_disposition(monkeyp
     )
     monkeypatch.setattr(fair_use_reviews, 'claim_fair_use_review_processing', lambda *_: None)
     invalidate = Mock()
-    notify = AsyncMock()
     monkeypatch.setattr(fair_use_reviews, 'invalidate_enforcement_cache', invalidate)
-    monkeypatch.setattr(fair_use_reviews, 'send_fair_use_notification_if_pending', notify)
 
     response = make_client().post('/v1/fair-use/reviews/review-1/classify', json={'conversations': [evidence()]})
 
     assert response.status_code == 200
     invalidate.assert_called_once_with('owner-a')
-    notify.assert_awaited_once_with('owner-a', receipt, allow_idempotent=True)
 
 
 def test_review_expiring_during_model_call_cannot_mutate_enforcement(monkeypatch):

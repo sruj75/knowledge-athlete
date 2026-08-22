@@ -3,10 +3,10 @@ from datetime import datetime, timedelta, timezone
 from typing import Literal, Optional, TypedDict
 
 from google.cloud import firestore
-from google.cloud.firestore_v1 import FieldFilter, transactional
-from ._client import db, delete_collection_recursive, document_id_from_seed
+from google.cloud.firestore_v1 import transactional
+from ._client import db, delete_collection_recursive
 from database.firestore_cache import CachePolicy, get_or_fetch, invalidate
-from database.read_boundary import parse_snapshot_or_none, parse_snapshot_strict
+from database.read_boundary import parse_snapshot_strict
 from database.redis_db import try_acquire_client_device_write_lock, try_acquire_user_platform_write_lock
 from config.free_plan import get_default_free_subscription
 from models.users import (
@@ -15,7 +15,6 @@ from models.users import (
     PlanType,
     SubscriptionStatus,
 )
-from models.other import Person
 import logging
 
 logger = logging.getLogger(__name__)
@@ -192,28 +191,12 @@ def get_user_profile(uid: str) -> dict:
     return {}
 
 
-def get_user_store_recording_permission(uid: str):
+def get_user_time_zone(uid: str) -> Optional[str]:
+    """Return retained account timezone metadata without importing FCM storage."""
     user_ref = db.collection('users').document(uid)
     user_data = user_ref.get().to_dict() or {}
-    return user_data.get('store_recording_permission', False)
-
-
-def set_user_store_recording_permission(uid: str, value: bool):
-    user_ref = db.collection('users').document(uid)
-    user_ref.update({'store_recording_permission': value})
-
-
-def get_user_private_cloud_sync_enabled(uid: str) -> bool:
-    """Check if user has private cloud sync enabled."""
-    user_ref = db.collection('users').document(uid)
-    user_data = user_ref.get().to_dict() or {}
-    return user_data.get('private_cloud_sync_enabled', True)
-
-
-def set_user_private_cloud_sync_enabled(uid: str, value: bool):
-    """Enable or disable private cloud sync for a user."""
-    user_ref = db.collection('users').document(uid)
-    user_ref.update({'private_cloud_sync_enabled': value})
+    value = user_data.get('time_zone')
+    return value if isinstance(value, str) and value else None
 
 
 def set_user_cancellation_feedback(uid: str, reason: str, reason_details: Optional[str] = None):
@@ -669,403 +652,6 @@ def claim_deletion_wipe_for_task(uid: str, running_stale_after: timedelta = DELE
     return _claim_deletion_wipe_task_txn(transaction, doc_ref, running_stale_after)
 
 
-def create_person(uid: str, data: dict):
-    people_ref = db.collection('users').document(uid).collection('people')
-    people_ref.document(data['id']).set(data)
-    return data
-
-
-def get_person(uid: str, person_id: str):
-    person_ref = db.collection('users').document(uid).collection('people').document(person_id)
-    person_doc = person_ref.get()
-    if not person_doc.exists:
-        return None
-    person_data = person_doc.to_dict()
-    person_data.setdefault('id', person_doc.id)
-    return person_data
-
-
-def get_people(uid: str):
-    people_ref = db.collection('users').document(uid).collection('people')
-    result = []
-    for person in people_ref.stream():
-        data = person.to_dict()
-        data.setdefault('id', person.id)
-        result.append(data)
-    return result
-
-
-def get_person_by_name(uid: str, name: str):
-    people_ref = db.collection('users').document(uid).collection('people')
-    query = people_ref.where(filter=FieldFilter('name', '==', name)).limit(1)
-    docs = list(query.stream())
-    if docs:
-        data = docs[0].to_dict()
-        data.setdefault('id', docs[0].id)
-        return data
-    return None
-
-
-def get_people_by_ids(uid: str, person_ids: list[str]):
-    """Fetch people docs by ID using db.get_all().
-
-    Note: db.get_all() returns results in arbitrary order (Firestore behavior).
-    Callers must not assume the result order matches person_ids order.
-    """
-    if not person_ids:
-        return []
-    people_ref = db.collection('users').document(uid).collection('people')
-    # Use document ID fetches instead of where("id", "in", ...) to handle
-    # legacy docs that may not have a stored 'id' field.
-    doc_refs = [people_ref.document(pid) for pid in person_ids]
-    all_people = []
-    for doc in db.get_all(doc_refs):
-        if doc.exists:
-            data = doc.to_dict()
-            data.setdefault('id', doc.id)
-            if parse_snapshot_or_none(Person, doc, document_id_field='id') is not None:
-                all_people.append(data)
-    return all_people
-
-
-def delete_person(uid: str, person_id: str):
-    person_ref = db.collection('users').document(uid).collection('people').document(person_id)
-    person_ref.delete()
-
-
-@transactional
-def _add_sample_transaction(transaction, person_ref, sample_path, transcript, max_samples):
-    """Transaction to atomically add sample and transcript."""
-    snapshot = person_ref.get(transaction=transaction)
-    if not snapshot.exists:
-        return False
-
-    person_data = snapshot.to_dict()
-    samples = person_data.get('speech_samples', [])
-
-    if len(samples) >= max_samples:
-        return False
-
-    samples.append(sample_path)
-    update_data = {
-        'speech_samples': samples,
-        'updated_at': datetime.now(timezone.utc),
-    }
-
-    if transcript is not None:
-        transcripts = person_data.get('speech_sample_transcripts', [])
-        # Ensure transcript array alignment with samples:
-        # If we're adding a transcript but existing samples don't have transcripts,
-        # pad with empty strings for the existing samples first (Dart expects non-null)
-        existing_sample_count = len(samples) - 1  # samples already has new one appended
-        if len(transcripts) < existing_sample_count:
-            # Pad with empty strings for each existing sample without a transcript
-            transcripts.extend([''] * (existing_sample_count - len(transcripts)))
-        transcripts.append(transcript)
-        update_data['speech_sample_transcripts'] = transcripts
-        update_data['speech_samples_version'] = 3
-
-    transaction.update(person_ref, update_data)
-    return True
-
-
-def add_person_speech_sample(
-    uid: str, person_id: str, sample_path: str, transcript: Optional[str] = None, max_samples: int = 5
-) -> bool:
-    """
-    Append speech sample path to person's speech_samples list.
-    Limits to max_samples to prevent unlimited growth.
-
-    Uses Firestore transaction to ensure atomic read-modify-write,
-    preventing array drift from concurrent updates.
-
-    Args:
-        uid: User ID
-        person_id: Person ID
-        sample_path: GCS path to the speech sample
-        transcript: Optional transcript text for the sample
-        max_samples: Maximum number of samples to keep (default 5)
-
-    Returns:
-        True if sample was added, False if limit reached or person not found
-    """
-    person_ref = db.collection('users').document(uid).collection('people').document(person_id)
-    transaction = db.transaction()
-    return _add_sample_transaction(transaction, person_ref, sample_path, transcript, max_samples)
-
-
-def get_person_speech_samples_count(uid: str, person_id: str) -> int:
-    """Get the count of speech samples for a person."""
-    person_ref = db.collection('users').document(uid).collection('people').document(person_id)
-    person_doc = person_ref.get()
-
-    if not person_doc.exists:
-        return 0
-
-    person_data = person_doc.to_dict()
-    return len(person_data.get('speech_samples', []))
-
-
-@transactional
-def _remove_sample_transaction(transaction, person_ref, sample_path: str) -> bool:
-    """Atomically remove a sample and its aligned transcript."""
-    snapshot = person_ref.get(transaction=transaction)
-    if not snapshot.exists:
-        return False
-
-    person_data = snapshot.to_dict()
-    samples = list(person_data.get('speech_samples', []))
-    transcripts = list(person_data.get('speech_sample_transcripts', []))
-
-    try:
-        idx = samples.index(sample_path)
-    except ValueError:
-        return False
-
-    samples.pop(idx)
-    if idx < len(transcripts):
-        transcripts.pop(idx)
-
-    transaction.update(
-        person_ref,
-        {
-            'speech_samples': samples,
-            'speech_sample_transcripts': transcripts,
-            'updated_at': datetime.now(timezone.utc),
-        },
-    )
-    return True
-
-
-def remove_person_speech_sample(uid: str, person_id: str, sample_path: str) -> bool:
-    """
-    Remove a speech sample path from person's speech_samples list.
-    Also removes the corresponding transcript at the same index to keep arrays in sync.
-
-    Args:
-        uid: User ID
-        person_id: Person ID
-        sample_path: GCS path to remove
-
-    Returns:
-        True if removed, False if person or sample not found
-    """
-    person_ref = db.collection('users').document(uid).collection('people').document(person_id)
-    transaction = db.transaction()
-    return _remove_sample_transaction(transaction, person_ref, sample_path)
-
-
-def set_user_speaker_embedding(uid: str, embedding: list) -> bool:
-    """Store speaker embedding for the user's own voice on their user document."""
-    user_ref = db.collection('users').document(uid)
-    user_ref.update(
-        {
-            'speaker_embedding': embedding,
-            'speaker_embedding_updated_at': datetime.now(timezone.utc),
-        }
-    )
-    return True
-
-
-def get_user_speaker_embedding(uid: str) -> Optional[list]:
-    """Get the user's own speaker embedding from their user document."""
-    user_ref = db.collection('users').document(uid)
-    user_doc = user_ref.get()
-    if not user_doc.exists:
-        return None
-    return user_doc.to_dict().get('speaker_embedding')
-
-
-def set_person_speaker_embedding(uid: str, person_id: str, embedding: list) -> bool:
-    """
-    Store speaker embedding for a person.
-
-    Args:
-        uid: User ID
-        person_id: Person ID
-        embedding: List of floats representing the speaker embedding
-
-    Returns:
-        True if stored successfully, False if person not found
-    """
-    person_ref = db.collection('users').document(uid).collection('people').document(person_id)
-    person_doc = person_ref.get()
-
-    if not person_doc.exists:
-        return False
-
-    person_ref.update(
-        {
-            'speaker_embedding': embedding,
-            'updated_at': datetime.now(timezone.utc),
-        }
-    )
-    return True
-
-
-def get_person_speaker_embedding(uid: str, person_id: str) -> Optional[list]:
-    """
-    Get speaker embedding for a person.
-
-    Args:
-        uid: User ID
-        person_id: Person ID
-
-    Returns:
-        List of floats representing the embedding, or None if not found
-    """
-    person_ref = db.collection('users').document(uid).collection('people').document(person_id)
-    person_doc = person_ref.get()
-
-    if not person_doc.exists:
-        return None
-
-    person_data = person_doc.to_dict()
-    return person_data.get('speaker_embedding')
-
-
-def set_person_speech_sample_transcript(uid: str, person_id: str, sample_index: int, transcript: str) -> bool:
-    """
-    Update transcript at a specific index in the speech_sample_transcripts array.
-
-    Args:
-        uid: User ID
-        person_id: Person ID
-        sample_index: Index of the sample/transcript to update
-        transcript: The transcript text to set
-
-    Returns:
-        True if updated successfully, False if person not found or index out of bounds
-    """
-    person_ref = db.collection('users').document(uid).collection('people').document(person_id)
-    person_doc = person_ref.get()
-
-    if not person_doc.exists:
-        return False
-
-    person_data = person_doc.to_dict()
-    samples = person_data.get('speech_samples', [])
-    transcripts = person_data.get('speech_sample_transcripts', [])
-
-    # Validate index
-    if sample_index < 0 or sample_index >= len(samples):
-        return False
-
-    # Extend transcripts array if needed
-    while len(transcripts) < len(samples):
-        transcripts.append('')
-
-    transcripts[sample_index] = transcript
-
-    person_ref.update(
-        {
-            'speech_sample_transcripts': transcripts,
-            'updated_at': datetime.now(timezone.utc),
-        }
-    )
-    return True
-
-
-def update_person_speech_samples_after_migration(
-    uid: str,
-    person_id: str,
-    samples: list,
-    transcripts: list,
-    version: int,
-    speaker_embedding: Optional[list] = None,
-) -> bool:
-    """
-    Replace all samples/transcripts/embedding and set version atomically.
-    Used after v1 to v2 migration to update all related fields together.
-
-    Args:
-        uid: User ID
-        person_id: Person ID
-        samples: List of sample paths (may have dropped invalid samples)
-        transcripts: List of transcript strings (parallel array with samples)
-        version: Version number to set (typically 2)
-        speaker_embedding: Optional new speaker embedding, or None to clear
-
-    Returns:
-        True if updated successfully, False if person not found
-    """
-    person_ref = db.collection('users').document(uid).collection('people').document(person_id)
-    person_doc = person_ref.get()
-
-    if not person_doc.exists:
-        return False
-
-    update_data = {
-        'speech_samples': samples,
-        'speech_sample_transcripts': transcripts,
-        'speech_samples_version': version,
-        'updated_at': datetime.now(timezone.utc),
-    }
-
-    # Set or clear speaker embedding
-    if speaker_embedding is not None:
-        update_data['speaker_embedding'] = speaker_embedding
-    else:
-        update_data['speaker_embedding'] = firestore.DELETE_FIELD
-
-    person_ref.update(update_data)
-    return True
-
-
-def clear_person_speaker_embedding(uid: str, person_id: str) -> bool:
-    """
-    Clear speaker embedding for a person.
-    Used when all samples are dropped during migration.
-
-    Args:
-        uid: User ID
-        person_id: Person ID
-
-    Returns:
-        True if cleared successfully, False if person not found
-    """
-    person_ref = db.collection('users').document(uid).collection('people').document(person_id)
-    person_doc = person_ref.get()
-
-    if not person_doc.exists:
-        return False
-
-    person_ref.update(
-        {
-            'speaker_embedding': firestore.DELETE_FIELD,
-            'updated_at': datetime.now(timezone.utc),
-        }
-    )
-    return True
-
-
-def update_person_speech_samples_version(uid: str, person_id: str, version: int) -> bool:
-    """
-    Update just the speech_samples_version field.
-
-    Args:
-        uid: User ID
-        person_id: Person ID
-        version: Version number to set
-
-    Returns:
-        True if updated successfully, False if person not found
-    """
-    person_ref = db.collection('users').document(uid).collection('people').document(person_id)
-    person_doc = person_ref.get()
-
-    if not person_doc.exists:
-        return False
-
-    person_ref.update(
-        {
-            'speech_samples_version': version,
-            'updated_at': datetime.now(timezone.utc),
-        }
-    )
-    return True
-
-
 def delete_user_data(uid: str):
     user_ref = db.collection('users').document(uid)
     root_exists = user_ref.get().exists
@@ -1074,10 +660,7 @@ def delete_user_data(uid: str):
     # Firestore permits immediate children to survive a parent deletion; an
     # early "User not found" return would falsely mark the deletion complete.
     # This picks up
-    # everything the user has written (conversations, memories, action_items,
-    # folders, goals, fcm_tokens, fair_use_*,
-    # hourly_usage, meetings, files, people, chat_sessions,
-    # messages, and any future additions).
+    # every retained or historical child document, including future additions.
     for sub in user_ref.collections():
         logger.info(f"Deleting subcollection {sub.id} for user {uid}")
         delete_collection_recursive(sub, client=db)
@@ -1086,34 +669,6 @@ def delete_user_data(uid: str):
         logger.info(f"Deleting user document: {uid}")
         user_ref.delete()
     return {'status': 'ok', 'message': 'Account deleted successfully'}
-
-
-# **************************************
-# ************* Analytics **************
-# **************************************
-
-
-def set_conversation_summary_rating_score(uid: str, conversation_id: str, value: int):
-    doc_id = document_id_from_seed('memory_summary' + conversation_id)
-    db.collection('analytics').document(doc_id).set(
-        {
-            'id': doc_id,
-            'memory_id': conversation_id,
-            'uid': uid,
-            'value': value,
-            'created_at': datetime.now(timezone.utc),
-            'type': 'memory_summary',
-        }
-    )
-
-
-def get_conversation_summary_rating_score(conversation_id: str):
-    doc_id = document_id_from_seed('memory_summary' + conversation_id)
-    doc_ref = db.collection('analytics').document(doc_id)
-    doc = doc_ref.get()
-    if doc.exists:
-        return doc.to_dict()
-    return None
 
 
 # **************************************
@@ -1141,58 +696,6 @@ def get_default_payment_method(uid: str):
     user_ref = db.collection('users').document(uid)
     user_data = user_ref.get().to_dict() or {}
     return user_data.get('default_payment_method', None)
-
-
-# **************************************
-# ********* Data Protection ************
-# **************************************
-
-
-def get_data_protection_level(uid: str) -> str:
-    """
-    Get the user's data protection level.
-
-    Args:
-        uid: User ID
-
-    Returns:
-        'enhanced' or 'e2ee'. Defaults to 'enhanced'.
-    """
-    user_ref = db.collection('users').document(uid)
-    user_doc = user_ref.get()
-
-    if user_doc.exists:
-        user_data = user_doc.to_dict()
-        return user_data.get('data_protection_level', 'enhanced')
-
-    return 'enhanced'
-
-
-def set_data_protection_level(uid: str, level: str) -> None:
-    """
-    Set the user's data protection level.
-
-    Args:
-        uid: User ID
-        level: 'enhanced', or 'e2ee'
-    """
-    if level not in ['enhanced', 'e2ee']:
-        raise ValueError("Invalid data protection level. Only 'enhanced' or 'e2ee' are supported.")
-    user_ref = db.collection('users').document(uid)
-    user_ref.set({'data_protection_level': level}, merge=True)
-
-
-def set_migration_status(uid: str, target_level: str):
-    """Sets the migration status on the user's profile."""
-    user_ref = db.collection('users').document(uid)
-    migration_status = {'target_level': target_level, 'status': 'in_progress', 'started_at': datetime.now(timezone.utc)}
-    user_ref.set({'migration_status': migration_status}, merge=True)
-
-
-def finalize_migration(uid: str, target_level: str):
-    """Atomically sets the new protection level and removes the migration status field."""
-    user_ref = db.collection('users').document(uid)
-    user_ref.update({'data_protection_level': target_level, 'migration_status': firestore.DELETE_FIELD})
 
 
 # **************************************

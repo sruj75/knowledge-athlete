@@ -194,18 +194,15 @@ class Features:
     CHAT = "chat"
     CONVERSATION_PROCESSING = "conversation_processing"
     RAG = "rag"
-    TRENDS = "trends"
     MEMORY_L1 = "memory_l1"
     MEMORY_L2 = "memory_l2"
     MEMORY_CONFLICT = "memory_conflict"
     TRANSCRIBE = "transcribe"
     OTHER = "other"
 
-    FOLLOWUP = "followup"
     ONBOARDING = "onboarding"
 
     # Conversation processing sub-features (granular cost tracking)
     CONVERSATION_DISCARD = "conv_discard"
     CONVERSATION_STRUCTURE = "conv_structure"
     CONVERSATION_ACTION_ITEMS = "conv_action_items"
-    CONVERSATION_FOLDER = "conv_folder"

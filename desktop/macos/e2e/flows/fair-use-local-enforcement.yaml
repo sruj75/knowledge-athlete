@@ -4,11 +4,14 @@ tier: 2
 description: Content-redacted local-evidence review admission and same-conversation managed-cloud handoff
 app: non-prod
 covers:
+  - desktop/macos/Desktop/Sources/Automation/DesktopAutomationS23Actions.swift
   - desktop/macos/Desktop/Sources/DesktopAutomationBridge.swift
   - desktop/macos/Desktop/Sources/AppState/AppState+Transcription.swift
   - desktop/macos/Desktop/Sources/AppState/STTSessionState.swift
   - desktop/macos/Desktop/Sources/FairUse/FairUseEvidence.swift
   - desktop/macos/Desktop/Sources/FairUse/FairUseReviewCoordinator.swift
+  - desktop/macos/Desktop/Sources/FairUse/FairUseWarningNotification.swift
+  - desktop/macos/Desktop/Sources/FloatingControlBar/FloatingBarNotificationPolicy.swift
 preconditions:
   - automation_bridge_ready
 
@@ -25,6 +28,23 @@ steps:
       result.detail.content_fields_exposed: "false"
 
   - id: S2
+    name: Consume one S-20 review event through AppState and durably own its local warning
+    bridge.action:
+      name: fair_use_local_enforcement_probe
+      params:
+        phase: warning
+    expect:
+      result.detail.receipt_owned: "true"
+      result.detail.duplicate_event_suppressed: "true"
+      result.detail.production_event_seam: "true"
+      result.detail.fixed_title: "true"
+      result.detail.case_reference_present: "true"
+      result.detail.first_in_app_presented: "true"
+      result.detail.delivery_state_truthful: "true"
+      result.detail.replay_state_truthful: "true"
+      result.detail.fcm_attempted: "false"
+
+  - id: S3
     name: Inspect the bounded owner-local evidence projection
     bridge.action:
       name: fair_use_local_enforcement_probe
@@ -34,7 +54,7 @@ steps:
       result.detail.maximum_rows: "30"
       result.detail.content_fields_exposed: "false"
 
-  - id: S3
+  - id: S4
     name: Exercise the real AppState handoff in one owner-local conversation
     bridge.action:
       name: fair_use_local_enforcement_probe
@@ -48,7 +68,7 @@ steps:
       result.detail.cleanup_stopped: "true"
       result.detail.content_fields_exposed: "false"
 
-  - id: S4
+  - id: S5
     name: Logs remain free of bridge failures
     log.expect:
       absent:

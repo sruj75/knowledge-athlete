@@ -380,9 +380,15 @@ class NotificationService: NSObject, UNUserNotificationCenterDelegate {
     context: FloatingBarNotificationContext? = nil,
     suggestionTelemetryIdentity: SuggestionAssistantTelemetry.NotificationIdentity? = nil,
     screenshotData: Data? = nil,
+    deliverInAppPresentation: Bool = true,
     deliverSystemBanner: Bool = false,
     respectFrequency: Bool = true,
-    authorizationSnapshot suppliedAuthorizationSnapshot: RuntimeOwnerAuthorizationSnapshot? = nil
+    authorizationSnapshot suppliedAuthorizationSnapshot: RuntimeOwnerAuthorizationSnapshot? = nil,
+    onInAppQueued: (@MainActor @Sendable () -> Void)? = nil,
+    onInAppQueueCancelled: (@MainActor @Sendable () -> Void)? = nil,
+    onInAppPresented: (@MainActor @Sendable () -> Void)? = nil,
+    onSystemBannerDeliveredWithinCommit: (@MainActor @Sendable () -> Void)? = nil,
+    completion: (@MainActor @Sendable (Bool) -> Void)? = nil
   ) {
     guard !ownerID.isEmpty,
       let authorizationSnapshot = suppliedAuthorizationSnapshot
@@ -391,6 +397,7 @@ class NotificationService: NSObject, UNUserNotificationCenterDelegate {
       RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
     else {
       log("NotificationService: rejecting notification from stale runtime owner")
+      completion?(false)
       return
     }
     prepareOwnerScopedState(for: authorizationSnapshot)
@@ -410,6 +417,7 @@ class NotificationService: NSObject, UNUserNotificationCenterDelegate {
       && UserDefaults.standard.bool(forKey: Self.screenCaptureResetShownKey)
     {
       log("NotificationService: suppressing duplicate screen capture reset notification")
+      completion?(false)
       return
     }
 
@@ -417,6 +425,7 @@ class NotificationService: NSObject, UNUserNotificationCenterDelegate {
     // macOS banner — the user opted into "no notifications for 2h".
     if FloatingControlBarManager.shared.isSnoozed {
       log("NotificationService: suppressing notification because floating bar is snoozed")
+      completion?(false)
       return
     }
 
@@ -427,6 +436,7 @@ class NotificationService: NSObject, UNUserNotificationCenterDelegate {
     // to bypass this, matching the frequency gate below.
     if respectFrequency && !Self.areNotificationsEnabled() {
       log("NotificationService: suppressing \(assistantId) notification because notifications are disabled")
+      completion?(false)
       return
     }
 
@@ -440,11 +450,13 @@ class NotificationService: NSObject, UNUserNotificationCenterDelegate {
       )
     {
       log("NotificationService: throttled \(assistantId) notification (frequency=\(Self.currentFrequencyLevel()))")
+      completion?(false)
       return
     }
 
     guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else {
       log("NotificationService: owner changed before notification presentation")
+      completion?(false)
       return
     }
 
@@ -455,25 +467,36 @@ class NotificationService: NSObject, UNUserNotificationCenterDelegate {
       UserDefaults.standard.set(true, forKey: Self.screenCaptureResetShownKey)
     }
 
-    FloatingControlBarManager.shared.showNotification(
-      ownerID: ownerID,
-      authorizationSnapshot: authorizationSnapshot,
-      title: title,
-      message: message,
-      assistantId: assistantId,
-      sound: sound,
-      context: context,
-      suggestionTelemetryIdentity: suggestionTelemetryIdentity,
-      screenshotData: screenshotData
-    )
+    if deliverInAppPresentation {
+      let presentationResult = FloatingControlBarManager.shared.showNotification(
+        ownerID: ownerID,
+        authorizationSnapshot: authorizationSnapshot,
+        title: title,
+        message: message,
+        assistantId: assistantId,
+        sound: sound,
+        context: context,
+        suggestionTelemetryIdentity: suggestionTelemetryIdentity,
+        screenshotData: screenshotData,
+        onPresented: onInAppPresented,
+        onPresentationCancelled: onInAppQueueCancelled
+      )
+      if presentationResult == .queued {
+        onInAppQueued?()
+      }
+    }
 
     // Default path: floating-bar only. Functional callers opt-in via
     // `deliverSystemBanner: true` (see the parameter doc above).
-    guard deliverSystemBanner else { return }
+    guard deliverSystemBanner else {
+      completion?(true)
+      return
+    }
 
     UserNotificationCallbackBridge.authorizationStatus { [weak self] authorizationStatus in
       guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else {
         log("NotificationService: dropping stale-owner system notification")
+        completion?(false)
         return
       }
       guard authorizationStatus == .authorized else {
@@ -494,6 +517,7 @@ class NotificationService: NSObject, UNUserNotificationCenterDelegate {
             ProactiveAssistantsPlugin.repairNotificationRegistration()
           }
         }
+        completion?(false)
         return
       }
 
@@ -502,7 +526,9 @@ class NotificationService: NSObject, UNUserNotificationCenterDelegate {
         message: message,
         assistantId: assistantId,
         sound: sound,
-        authorizationSnapshot: authorizationSnapshot
+        authorizationSnapshot: authorizationSnapshot,
+        onDeliveredWithinCommit: onSystemBannerDeliveredWithinCommit,
+        completion: completion
       )
     }
   }
@@ -512,9 +538,14 @@ class NotificationService: NSObject, UNUserNotificationCenterDelegate {
     message: String,
     assistantId: String,
     sound: NotificationSound,
-    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot,
+    onDeliveredWithinCommit: (@MainActor @Sendable () -> Void)?,
+    completion: (@MainActor @Sendable (Bool) -> Void)?
   ) {
-    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else {
+      completion?(false)
+      return
+    }
     let content = UNMutableNotificationContent()
     content.title = title
     content.body = message
@@ -534,36 +565,58 @@ class NotificationService: NSObject, UNUserNotificationCenterDelegate {
       trigger: nil  // Deliver immediately
     )
 
-    // Store metadata for later retrieval in delegate callbacks, capping growth so
-    // never-interacted banners cannot leak entries unboundedly.
-    storeNotificationMetadata(
-      id: notificationId,
-      title: title,
-      assistantId: assistantId,
-      authorizationSnapshot: authorizationSnapshot
-    )
-
-    // Play custom sound manually (SPM resources aren't found by UNNotificationSound)
-    sound.playCustomSound()
-
-    print("[\(assistantId)] Sending notification: \(title) - \(message)")
-    UserNotificationCallbackBridge.add(request) { [weak self] result in
-      if let errorDescription = result.errorDescription {
-        print("Notification error: \(errorDescription)")
-        log("Notification error: \(errorDescription)")
-        // Clean up metadata on error
-        self?.notificationMetadata.removeValue(forKey: notificationId)
-        self?.notificationMetadataOrder.removeAll { $0 == notificationId }
-      } else {
+    let mutationAuthorization = LocalMutationAuthorization {
+      RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
+    }
+    Task { @MainActor [weak self] in
+      guard let self else {
+        completion?(false)
+        return
+      }
+      do {
+        let result = try await mutationAuthorization.withCommitLease { @MainActor in
+          try mutationAuthorization.require()
+          // Metadata, sound, and the physical UNUserNotificationCenter enqueue are
+          // one owner-bound commit. An owner transition cannot overtake this block.
+          self.storeNotificationMetadata(
+            id: notificationId,
+            title: title,
+            assistantId: assistantId,
+            authorizationSnapshot: authorizationSnapshot
+          )
+          sound.playCustomSound()
+          print("[\(assistantId)] Sending notification: \(title) - \(message)")
+          let result = await withCheckedContinuation { continuation in
+            UserNotificationCallbackBridge.add(request) { result in
+              continuation.resume(returning: result)
+            }
+          }
+          try mutationAuthorization.require()
+          if result.errorDescription == nil {
+            onDeliveredWithinCommit?()
+          }
+          return result
+        }
+        if let errorDescription = result.errorDescription {
+          print("Notification error: \(errorDescription)")
+          log("Notification error: \(errorDescription)")
+          self.notificationMetadata.removeValue(forKey: notificationId)
+          self.notificationMetadataOrder.removeAll { $0 == notificationId }
+          completion?(false)
+          return
+        }
         print("Notification sent successfully")
-        // Track notification sent
-        guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
         AnalyticsManager.shared.notificationSent(
           notificationId: notificationId,
           title: title,
           assistantId: assistantId,
           surface: "system_notification"
         )
+        completion?(true)
+      } catch {
+        self.notificationMetadata.removeValue(forKey: notificationId)
+        self.notificationMetadataOrder.removeAll { $0 == notificationId }
+        completion?(false)
       }
     }
   }

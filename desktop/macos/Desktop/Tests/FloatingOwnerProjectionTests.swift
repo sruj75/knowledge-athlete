@@ -46,6 +46,30 @@ private enum SpawnOutcome: Sendable, Equatable {
 
 @MainActor
 final class FloatingOwnerProjectionTests: XCTestCase {
+  func testSnoozeCancelsTransientAdmissionForEveryQueuedNotification() {
+    let manager = FloatingControlBarManager.shared
+    manager.endSnooze()
+    manager.resetOwnerProjection()
+    defer {
+      manager.endSnooze()
+      manager.resetOwnerProjection()
+    }
+    var cancellations = 0
+    manager.enqueueNotificationForTesting(
+      FloatingBarNotification(
+        ownerID: "queued-owner",
+        title: "Queued warning",
+        message: "Must remain replayable",
+        assistantId: "fair_use",
+        onPresentationCancelled: { cancellations += 1 }))
+
+    XCTAssertEqual(manager.notificationProjectionSnapshot.queuedCount, 1)
+    manager.snooze(for: 60)
+
+    XCTAssertEqual(cancellations, 1)
+    XCTAssertEqual(manager.notificationProjectionSnapshot.queuedCount, 0)
+  }
+
   @MainActor
   func testLateNotificationWorkflowCannotPresentOrScheduleJournalForReplacementOwner() async throws {
     let ownerFixture = RuntimeOwnerAuthorityTestFixture()

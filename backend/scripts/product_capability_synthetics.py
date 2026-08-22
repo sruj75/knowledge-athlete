@@ -258,11 +258,11 @@ def _run_e2e_selection(config: SyntheticConfig, name: str, pytest_target: str) -
     )
 
 
-def conversation_processing_fixture_check(config: SyntheticConfig) -> tuple[str, str, dict[str, Any]]:
+def account_deletion_fixture_check(config: SyntheticConfig) -> tuple[str, str, dict[str, Any]]:
     return _run_e2e_selection(
         config,
-        "Conversation processing fixture",
-        "testing/e2e/test_conversation_processing.py::test_conversation_create_process_finalize_lifecycle",
+        "Account deletion fixture",
+        "testing/e2e/test_account_deletion_cloud_tasks.py::test_account_deletion_cloud_task_completes_once_and_redelivery_is_acked",
     )
 
 
@@ -270,7 +270,7 @@ def build_report(config: SyntheticConfig) -> dict[str, Any]:
     checks = [
         timed_check("backend_health", lambda: backend_health_check(config)),
         timed_check("llm_gateway_chat_fake_provider", lambda: llm_gateway_fake_provider_check(config)),
-        timed_check("conversation_processing_local_fixture", lambda: conversation_processing_fixture_check(config)),
+        timed_check("account_deletion_local_fixture", lambda: account_deletion_fixture_check(config)),
     ]
     counts = {status: sum(1 for check in checks if check.status == status) for status in sorted(VALID_STATUSES)}
     overall_status = STATUS_FAIL if counts[STATUS_FAIL] else STATUS_PASS

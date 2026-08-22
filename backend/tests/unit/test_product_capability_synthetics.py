@@ -42,7 +42,7 @@ def test_output_uses_required_status_vocabulary_and_json_formatting():
     fixture_details = {
         check["name"]: check["details"] for check in decoded["checks"] if check["name"].endswith("_local_fixture")
     }
-    assert "pytest_target" in fixture_details["conversation_processing_local_fixture"]
+    assert "pytest_target" in fixture_details["account_deletion_local_fixture"]
     assert decoded["secret_safety"]["uses_production_credentials"] is False
     assert decoded["secret_safety"]["uses_production_user_data"] is False
 
@@ -93,7 +93,7 @@ def test_failing_check_sets_overall_failure(monkeypatch):
     )
     monkeypatch.setattr(
         module,
-        "conversation_processing_fixture_check",
+        "account_deletion_fixture_check",
         lambda _config: ("NOT_RUN", "disabled", {}),
     )
     report = module.build_report(config)
@@ -146,15 +146,17 @@ def test_local_fixture_check_uses_pytest_selection_supported_by_runner(monkeypat
 
     monkeypatch.setattr(module.subprocess, "run", fake_run)
 
-    status, summary, details = module.conversation_processing_fixture_check(
+    status, summary, details = module.account_deletion_fixture_check(
         _config(module, run_local_fixtures=True, timeout_seconds=1.0, e2e_timeout="7s")
     )
 
     assert status == "PASS"
     assert "hermetic e2e harness" in summary
-    assert captured["command"][-2:] == ["-k", "test_conversation_create_process_finalize_lifecycle"]
-    assert "testing/e2e/test_conversation_processing.py::test_conversation_create_process_finalize_lifecycle" not in (
-        captured["command"]
-    )
+    assert captured["command"][-2:] == [
+        "-k",
+        "test_account_deletion_cloud_task_completes_once_and_redelivery_is_acked",
+    ]
     assert captured["env"]["E2E_PYTEST_TIMEOUT"] == "7s"
-    assert details["pytest_target"].endswith("::test_conversation_create_process_finalize_lifecycle")
+    assert details["pytest_target"].endswith(
+        "::test_account_deletion_cloud_task_completes_once_and_redelivery_is_acked"
+    )

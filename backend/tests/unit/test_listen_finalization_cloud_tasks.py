@@ -14,14 +14,11 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from database import conversation_finalization_jobs as jobs_db
-from database.firestore_transaction_retry import FirestoreContentionExhausted
 from models.conversation_enums import ConversationStatus
 from routers.conversation_finalization import _parse_task_payload
 import routers.conversation_finalization as finalization_router
-import routers.pusher as pusher_router
 import utils.pusher_finalization as pusher_finalization
 import utils.pusher_protocol as pusher_protocol
-from utils.conversations import lifecycle as lifecycle_service
 from utils import cloud_tasks
 from utils.conversations.finalizer import ConversationFinalizationDisposition, ConversationFinalizationError
 import utils.conversations.finalizer as persisted_finalizer
@@ -162,14 +159,6 @@ def test_prod_backend_sync_finalization_task_route_rejects_untrusted_identity(
     assert untrusted_identity.status_code == 403
 
 
-def _mock_lifecycle_conversation(monkeypatch, *, status: str = 'in_progress'):
-    monkeypatch.setattr(
-        lifecycle_service.conversations_db,
-        'get_conversation',
-        lambda uid, conversation_id: {'id': conversation_id, 'status': status},
-    )
-
-
 def test_enqueue_uses_only_opaque_job_routing_fields():
     with patch.object(cloud_tasks, '_enqueue_named_task') as enqueue:
         cloud_tasks.enqueue_listen_finalization_job('9ee6f9ce-d6dc-4b5d-bf13-f80eb4fabd36', 7)
@@ -189,91 +178,6 @@ def test_worker_rejects_task_payloads_with_content_or_credentials():
     )
     assert _parse_task_payload({'job_id': 'job-1', 'dispatch_generation': 1, 'transcript': 'private'}) is None
     assert _parse_task_payload({'job_id': 'job-1', 'dispatch_generation': 1, 'authorization': 'Bearer secret'}) is None
-
-
-def test_managed_job_dispatches_to_cloud_tasks(monkeypatch):
-    intent = {'job_id': 'job-1', 'status': 'queued', 'dispatch_generation': 2}
-    enqueue = MagicMock()
-    _mock_lifecycle_conversation(monkeypatch)
-    monkeypatch.setattr(lifecycle_service.jobs_db, 'create_or_get_finalization_intent', MagicMock(return_value=intent))
-    monkeypatch.setattr(lifecycle_service, 'is_listen_finalization_dispatch_enabled', lambda: True)
-    monkeypatch.setattr(lifecycle_service, 'enqueue_listen_finalization_job', enqueue)
-
-    result = lifecycle_service.request_finalization('uid-1', 'conversation-1')
-
-    assert result['route'] == 'cloud_tasks'
-    enqueue.assert_called_once_with('job-1', 2)
-
-
-def test_durable_finalization_acceptance_counts_only_a_new_outbox_job(monkeypatch):
-    intent = {'job_id': 'job-1', 'status': 'queued', 'dispatch_generation': 2, 'created': True}
-    accepted = MagicMock()
-    _mock_lifecycle_conversation(monkeypatch)
-    monkeypatch.setattr(lifecycle_service.jobs_db, 'create_or_get_finalization_intent', MagicMock(return_value=intent))
-    monkeypatch.setattr(lifecycle_service, 'is_listen_finalization_dispatch_enabled', lambda: False)
-    monkeypatch.setattr(lifecycle_service, 'record_journey_accepted', accepted)
-
-    result = lifecycle_service.request_finalization('uid-1', 'conversation-1')
-
-    assert result['route'] == 'pusher'
-    accepted.assert_called_once_with('capture_finalization')
-
-
-def test_durable_finalization_redelivery_does_not_count_as_new_traffic(monkeypatch):
-    intent = {'job_id': 'job-1', 'status': 'queued', 'dispatch_generation': 2, 'created': False}
-    accepted = MagicMock()
-    _mock_lifecycle_conversation(monkeypatch)
-    monkeypatch.setattr(lifecycle_service.jobs_db, 'create_or_get_finalization_intent', MagicMock(return_value=intent))
-    monkeypatch.setattr(lifecycle_service, 'is_listen_finalization_dispatch_enabled', lambda: False)
-    monkeypatch.setattr(lifecycle_service, 'record_journey_accepted', accepted)
-
-    lifecycle_service.request_finalization('uid-1', 'conversation-1')
-
-    accepted.assert_not_called()
-
-
-def test_enqueue_failure_leaves_job_queued_for_reconciler(monkeypatch):
-    intent = {'job_id': 'job-1', 'status': 'queued', 'dispatch_generation': 2}
-    fallback = MagicMock()
-    _mock_lifecycle_conversation(monkeypatch)
-    monkeypatch.setattr(lifecycle_service.jobs_db, 'create_or_get_finalization_intent', MagicMock(return_value=intent))
-    monkeypatch.setattr(lifecycle_service, 'is_listen_finalization_dispatch_enabled', lambda: True)
-    monkeypatch.setattr(
-        lifecycle_service, 'enqueue_listen_finalization_job', MagicMock(side_effect=RuntimeError('offline'))
-    )
-    monkeypatch.setattr(lifecycle_service, 'record_fallback', fallback)
-
-    result = lifecycle_service.request_finalization('uid-1', 'conversation-1')
-
-    assert result['route'] == 'queued'
-    fallback.assert_called_once()
-    assert fallback.call_args.kwargs['reason'] == 'enqueue_failed'
-
-
-def test_required_cloud_tasks_rejects_rest_admission_before_outbox_mutation(monkeypatch):
-    create = MagicMock()
-    monkeypatch.setattr(lifecycle_service.jobs_db, 'create_or_get_finalization_intent', create)
-    monkeypatch.setattr(lifecycle_service, 'is_listen_finalization_dispatch_configured', lambda: False)
-
-    with pytest.raises(lifecycle_service.FinalizationDispatchUnavailable):
-        lifecycle_service.request_finalization(
-            'uid-1',
-            'conversation-1',
-            require_cloud_tasks=True,
-        )
-
-    create.assert_not_called()
-
-
-def test_durable_finalization_maps_exhausted_firestore_contention_to_retryable_admission_failure(monkeypatch):
-    create = MagicMock(side_effect=FirestoreContentionExhausted('contention'))
-    monkeypatch.setattr(lifecycle_service.jobs_db, 'create_or_get_finalization_intent', create)
-
-    with pytest.raises(lifecycle_service.FinalizationDispatchUnavailable) as raised:
-        lifecycle_service.request_finalization('uid-1', 'conversation-1')
-
-    assert isinstance(raised.value.__cause__, FirestoreContentionExhausted)
-    create.assert_called_once()
 
 
 def test_listen_finalization_dispatch_configuration_requires_every_static_binding(monkeypatch):
@@ -299,96 +203,6 @@ def test_listen_finalization_dispatch_configuration_requires_every_static_bindin
     assert cloud_tasks.is_listen_finalization_dispatch_configured() is True
 
 
-def test_finalization_status_exposes_retry_and_terminal_state(monkeypatch):
-    monkeypatch.setattr(
-        lifecycle_service.conversations_db,
-        'get_conversation',
-        lambda uid, conversation_id: {'finalization_job_id': 'job-1'},
-    )
-    job = {'uid': 'uid-1', 'conversation_id': 'conversation-1', 'status': 'queued', 'attempt_count': 2}
-    monkeypatch.setattr(lifecycle_service.jobs_db, 'get_finalization_job', lambda job_id: job)
-
-    assert lifecycle_service.get_finalization_status('uid-1', 'conversation-1') == {
-        'job_id': 'job-1',
-        'status': 'queued',
-        'terminal': False,
-        'retryable': True,
-        'attempt_count': 2,
-        'task_retry_count': 0,
-    }
-
-    job['status'] = 'dead_letter'
-    job['task_retry_count'] = 3
-    assert lifecycle_service.get_finalization_status('uid-1', 'conversation-1') == {
-        'job_id': 'job-1',
-        'status': 'dead_letter',
-        'terminal': True,
-        'retryable': False,
-        'attempt_count': 2,
-        'task_retry_count': 3,
-    }
-
-
-def test_lifecycle_runtime_persists_the_fuzzer_decisions_fanout_key(monkeypatch):
-    original_decider = lifecycle_service.decide_finalization
-    decider = MagicMock(side_effect=original_decider)
-    intent = {
-        'job_id': 'job-1',
-        'status': 'queued',
-        'dispatch_generation': 1,
-        'fanout_key': 'conversation:conversation-1:finalization:1',
-    }
-    create_intent = MagicMock(return_value=intent)
-    monkeypatch.setattr(lifecycle_service, 'decide_finalization', decider)
-    monkeypatch.setattr(lifecycle_service.jobs_db, 'create_or_get_finalization_intent', create_intent)
-    monkeypatch.setattr(lifecycle_service, 'is_listen_finalization_dispatch_enabled', lambda: False)
-
-    result = lifecycle_service.request_finalization('uid-1', 'conversation-1')
-
-    assert result['route'] == 'pusher'
-    admission = create_intent.call_args.kwargs['finalization_admission'](
-        {'id': 'conversation-1', 'status': ConversationStatus.in_progress.value}
-    )
-    decider.assert_called_once()
-    assert admission['fanout_key'] == 'conversation:conversation-1:finalization:1'
-
-
-@pytest.mark.parametrize(
-    ('status', 'discarded'),
-    [
-        (ConversationStatus.failed.value, False),
-        (ConversationStatus.in_progress.value, True),
-    ],
-    ids=['failed', 'discarded'],
-)
-def test_lifecycle_runtime_rejects_late_terminal_finalization(monkeypatch, status, discarded):
-    observed = {}
-
-    def create_intent(_uid, _conversation_id, **kwargs):
-        admission = kwargs['finalization_admission'](
-            {
-                'id': 'conversation-1',
-                'status': status,
-                'discarded': discarded,
-                'transcript_segments': [{'text': 'persisted'}],
-            }
-        )
-        observed.update(admission)
-        return {
-            'job_id': None,
-            'status': admission['reason'],
-            'dispatch_generation': None,
-            'fanout_key': None,
-        }
-
-    monkeypatch.setattr(lifecycle_service.jobs_db, 'create_or_get_finalization_intent', create_intent)
-
-    result = lifecycle_service.request_finalization('uid-1', 'conversation-1')
-
-    assert result['route'] == 'noop'
-    assert observed == {'accepted': False, 'terminal': True, 'reason': 'terminal', 'fanout_key': None}
-
-
 class _Request:
     def __init__(self, payload):
         self.payload = payload
@@ -403,47 +217,6 @@ class _PusherWebSocket:
 
     async def send_bytes(self, payload: bytes) -> None:
         self.sent.append(payload)
-
-
-class _PusherLifecycleWebSocket:
-    def __init__(self, receive_bytes):
-        self._receive_bytes = receive_bytes
-        self.accepted = False
-        self.client_state = pusher_router.WebSocketState.DISCONNECTED
-
-    async def accept(self) -> None:
-        self.accepted = True
-
-    async def receive_bytes(self) -> bytes:
-        return await self._receive_bytes()
-
-
-class _PusherJourneyAttempt:
-    outcomes: list[str] = []
-
-    def __init__(self, journey: str) -> None:
-        assert journey == 'pusher_session'
-
-    def finish(self, outcome: str) -> None:
-        self.outcomes.append(outcome)
-
-
-def _patch_pusher_session_dependencies(monkeypatch) -> None:
-    monkeypatch.setattr(pusher_router.users_db, 'get_user_private_cloud_sync_enabled', lambda _uid: False)
-    monkeypatch.setattr(pusher_router, 'run_blocking', _inline_run_blocking)
-    monkeypatch.setattr(pusher_router, 'PUSHER_ACTIVE_WS_CONNECTIONS', MagicMock())
-    monkeypatch.setattr(pusher_router, 'JourneyAttempt', _PusherJourneyAttempt)
-    monkeypatch.setattr(pusher_router, 'create_named_task', lambda coro, *, name: asyncio.create_task(coro, name=name))
-
-    async def drain(tasks, *, cancel, **_kwargs):
-        if not cancel:
-            return
-        tasks = list(tasks)
-        for task in tasks:
-            task.cancel()
-        await asyncio.gather(*tasks, return_exceptions=True)
-
-    monkeypatch.setattr(pusher_router, 'drain_tasks', drain)
 
 
 async def _inline_run_blocking(_executor, func, *args, **kwargs):
@@ -667,63 +440,6 @@ async def test_pusher_rejects_legacy_finalization_without_a_durable_job():
 )
 def test_pusher_session_outcome_keeps_normal_disconnects_out_of_failures(close_code, application_failed, outcome):
     assert pusher_protocol.pusher_session_outcome(close_code, application_failed=application_failed) == outcome
-
-
-@pytest.mark.anyio
-async def test_pusher_setup_cancellation_terminalizes_an_accepted_session(monkeypatch):
-    _PusherJourneyAttempt.outcomes = []
-
-    async def cancel_during_setup(*_args, **_kwargs):
-        raise asyncio.CancelledError
-
-    websocket = _PusherLifecycleWebSocket(receive_bytes=AsyncMock())
-    monkeypatch.setattr(pusher_router, 'run_blocking', cancel_during_setup)
-    monkeypatch.setattr(pusher_router, 'JourneyAttempt', _PusherJourneyAttempt)
-
-    with pytest.raises(asyncio.CancelledError):
-        await pusher_router._websocket_util_trigger(websocket, 'uid-1')
-
-    assert websocket.accepted is True
-    assert _PusherJourneyAttempt.outcomes == ['cancelled']
-
-
-@pytest.mark.anyio
-async def test_pusher_background_task_crash_terminalizes_as_failure(monkeypatch):
-    _PusherJourneyAttempt.outcomes = []
-    _patch_pusher_session_dependencies(monkeypatch)
-    websocket = _PusherLifecycleWebSocket(receive_bytes=AsyncMock())
-
-    async def supervisor(**_kwargs):
-        return SimpleNamespace(reason='crash', task_name='ws:uid-1:transcripts')
-
-    monkeypatch.setattr(pusher_router, 'supervise_tasks', supervisor)
-
-    await pusher_router._websocket_util_trigger(websocket, 'uid-1')
-
-    assert websocket.accepted is True
-    assert _PusherJourneyAttempt.outcomes == ['failure']
-
-
-@pytest.mark.anyio
-async def test_pusher_dead_peer_timeout_terminalizes_as_failure(monkeypatch):
-    _PusherJourneyAttempt.outcomes = []
-    _patch_pusher_session_dependencies(monkeypatch)
-
-    async def timeout() -> bytes:
-        raise asyncio.TimeoutError
-
-    websocket = _PusherLifecycleWebSocket(receive_bytes=timeout)
-
-    async def supervisor(*, receive_task, **_kwargs):
-        await receive_task
-        return SimpleNamespace(reason='disconnect', task_name='ws:uid-1:receive')
-
-    monkeypatch.setattr(pusher_router, 'supervise_tasks', supervisor)
-
-    await pusher_router._websocket_util_trigger(websocket, 'uid-1')
-
-    assert websocket.accepted is True
-    assert _PusherJourneyAttempt.outcomes == ['failure']
 
 
 @pytest.mark.anyio

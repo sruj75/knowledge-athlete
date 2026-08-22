@@ -364,17 +364,10 @@ def test_background_wipe_user_data_preserves_order(monkeypatch):
     )
     monkeypatch.setattr(account_deletion.users_db, 'get_user_subscription', lambda uid: None)
     monkeypatch.setattr(account_deletion.auth, 'delete_account', lambda uid: calls.append(('auth', uid)))
-    monkeypatch.setattr(account_deletion, 'delete_user_caller_ids', lambda uid: calls.append(('twilio', uid)))
     monkeypatch.setattr(
         account_deletion,
-        'purge_derived_user_data',
-        lambda uid: calls.append(('purge', uid))
-        or {
-            'required_failures': [],
-            'best_effort_failures': [],
-            'vectors_deleted': 0,
-            'recordings_deleted': 0,
-        },
+        'purge_pinecone_user_data',
+        lambda uid: calls.append(('pinecone', uid)) or {'required_failures': [], 'pinecone_namespaces_purged': 2},
     )
     monkeypatch.setattr(
         account_deletion.users_db,
@@ -390,8 +383,7 @@ def test_background_wipe_user_data_preserves_order(monkeypatch):
     assert calls == [
         ('running', 'uid1'),
         ('auth', 'uid1'),
-        ('twilio', 'uid1'),
-        ('purge', 'uid1'),
+        ('pinecone', 'uid1'),
         ('firestore', 'uid1'),
         ('wipe_done', 'uid1'),
     ]
@@ -408,16 +400,10 @@ def test_background_wipe_confirms_billing_cancellation_before_irreversible_delet
         lambda subscription_id: calls.append(('billing', subscription_id)) or True,
     )
     monkeypatch.setattr(account_deletion.auth, 'delete_account', lambda uid: calls.append(('auth', uid)))
-    monkeypatch.setattr(account_deletion, 'delete_user_caller_ids', lambda uid: calls.append(('twilio', uid)))
     monkeypatch.setattr(
         account_deletion,
-        'purge_derived_user_data',
-        lambda uid: {
-            'required_failures': [],
-            'best_effort_failures': [],
-            'vectors_deleted': 0,
-            'recordings_deleted': 0,
-        },
+        'purge_pinecone_user_data',
+        lambda uid: {'required_failures': [], 'pinecone_namespaces_purged': 2},
     )
     monkeypatch.setattr(account_deletion.users_db, 'delete_user_data', lambda uid: {'status': 'ok'})
     monkeypatch.setattr(account_deletion.users_db, 'mark_user_deletion_wipe_completed', MagicMock())
@@ -442,18 +428,20 @@ def test_background_wipe_retries_when_billing_cancellation_is_uncertain(monkeypa
     account_deletion.users_db.mark_user_deletion_wipe_failed.assert_called_once_with('uid-1')
 
 
-def test_background_wipe_user_data_swallows_failures(monkeypatch):
+def test_background_wipe_user_data_retries_pinecone_failure(monkeypatch):
     monkeypatch.setattr(account_deletion.users_db, 'mark_user_deletion_wipe_running', MagicMock())
     monkeypatch.setattr(account_deletion.users_db, 'get_user_subscription', MagicMock(return_value=None))
-    monkeypatch.setattr(account_deletion, 'delete_user_caller_ids', MagicMock(side_effect=Exception('twilio down')))
-    monkeypatch.setattr(account_deletion, 'purge_derived_user_data', MagicMock())
+    monkeypatch.setattr(
+        account_deletion,
+        'purge_pinecone_user_data',
+        MagicMock(return_value={'required_failures': [{'operation': 'pinecone_user_vectors', 'error': 'down'}]}),
+    )
     monkeypatch.setattr(account_deletion.users_db, 'delete_user_data', MagicMock())
     monkeypatch.setattr(account_deletion.users_db, 'mark_user_deletion_wipe_failed', MagicMock())
     monkeypatch.setattr(account_deletion.users_db, 'mark_user_deletion_wipe_completed', MagicMock())
 
     account_deletion.background_wipe_user_data('uid1')
 
-    account_deletion.purge_derived_user_data.assert_not_called()
     account_deletion.users_db.delete_user_data.assert_not_called()
     # On failure, mark as failed (not completed) so a reconciliation worker can retry.
     account_deletion.users_db.mark_user_deletion_wipe_failed.assert_called_once_with('uid1')
@@ -464,11 +452,10 @@ def test_background_wipe_fails_closed_when_completed_tombstone_cannot_persist(mo
     monkeypatch.setattr(account_deletion.users_db, 'mark_user_deletion_wipe_running', MagicMock())
     monkeypatch.setattr(account_deletion.users_db, 'get_user_subscription', MagicMock(return_value=None))
     monkeypatch.setattr(account_deletion.auth, 'delete_account', MagicMock())
-    monkeypatch.setattr(account_deletion, 'delete_user_caller_ids', MagicMock())
     monkeypatch.setattr(
         account_deletion,
-        'purge_derived_user_data',
-        MagicMock(return_value={'required_failures': [], 'best_effort_failures': []}),
+        'purge_pinecone_user_data',
+        MagicMock(return_value={'required_failures': [], 'pinecone_namespaces_purged': 2}),
     )
     monkeypatch.setattr(account_deletion.users_db, 'delete_user_data', MagicMock(return_value={'status': 'ok'}))
     monkeypatch.setattr(
@@ -494,103 +481,43 @@ def test_background_wipe_fails_closed_when_running_marker_persist_fails(monkeypa
     monkeypatch.setattr(
         account_deletion.users_db, 'mark_user_deletion_wipe_running', MagicMock(side_effect=Exception('firestore down'))
     )
-    monkeypatch.setattr(account_deletion, 'delete_user_caller_ids', MagicMock())
-    monkeypatch.setattr(account_deletion, 'purge_derived_user_data', MagicMock())
+    monkeypatch.setattr(account_deletion, 'purge_pinecone_user_data', MagicMock())
     monkeypatch.setattr(account_deletion.users_db, 'delete_user_data', MagicMock())
     monkeypatch.setattr(account_deletion.users_db, 'mark_user_deletion_wipe_failed', MagicMock())
     monkeypatch.setattr(account_deletion.users_db, 'mark_user_deletion_wipe_completed', MagicMock())
 
     assert account_deletion.background_wipe_user_data('uid1') is False
 
-    account_deletion.delete_user_caller_ids.assert_not_called()
+    account_deletion.purge_pinecone_user_data.assert_not_called()
     account_deletion.users_db.mark_user_deletion_wipe_completed.assert_not_called()
     account_deletion.users_db.mark_user_deletion_wipe_failed.assert_called_once_with('uid1')
 
 
-def test_purge_derived_user_data_isolates_backends_and_reloads_conversation_ids(monkeypatch):
-    calls = []
-    conversation_calls = iter([['c1'], ['c2']])
-    monkeypatch.setattr(
-        account_deletion,
-        'get_conversation_ids',
-        lambda uid: calls.append(('get_conversations', uid)) or next(conversation_calls),
-    )
-    monkeypatch.setattr(
-        account_deletion,
-        'delete_conversation_vectors_batch',
-        lambda uid, ids: calls.append(('delete_conversation_vectors', uid, ids)),
-    )
-    monkeypatch.setattr(
-        account_deletion,
-        'delete_transcript_chunk_vectors_batch',
-        lambda uid, ids, **kwargs: calls.append(('delete_transcript_vectors', uid, ids, kwargs)) or 2,
-    )
-    monkeypatch.setattr(
-        account_deletion, 'delete_all_conversation_recordings', lambda uid: calls.append(('recordings', uid)) or 3
-    )
-    result = account_deletion.purge_derived_user_data('uid1')
+def test_purge_pinecone_user_data_has_one_exact_provider_handoff(monkeypatch):
+    purge = MagicMock(return_value=2)
+    monkeypatch.setattr(account_deletion, 'purge_user_vectors', purge)
 
-    assert calls == [
-        ('get_conversations', 'uid1'),
-        ('delete_conversation_vectors', 'uid1', ['c1']),
-        ('get_conversations', 'uid1'),
-        ('delete_transcript_vectors', 'uid1', ['c2'], {'raise_on_failure': True}),
-        ('recordings', 'uid1'),
-    ]
-    assert result == {
-        'required_failures': [],
-        'best_effort_failures': [],
-        'vectors_deleted': 3,
-        'recordings_deleted': 3,
-    }
+    result = account_deletion.purge_pinecone_user_data('uid1')
+
+    purge.assert_called_once_with('uid1')
+    assert result == {'required_failures': [], 'pinecone_namespaces_purged': 2}
 
 
-def test_purge_derived_user_data_continues_after_each_failure(monkeypatch):
-    monkeypatch.setattr(account_deletion, 'get_conversation_ids', MagicMock(side_effect=Exception('read down')))
-    monkeypatch.setattr(account_deletion, 'delete_conversation_vectors_batch', MagicMock())
-    monkeypatch.setattr(account_deletion, 'delete_transcript_chunk_vectors_batch', MagicMock())
-    monkeypatch.setattr(
-        account_deletion, 'delete_all_conversation_recordings', MagicMock(side_effect=Exception('gcs down'))
-    )
+def test_purge_pinecone_user_data_records_a_bounded_required_failure(monkeypatch):
+    monkeypatch.setattr(account_deletion, 'purge_user_vectors', MagicMock(side_effect=Exception('provider secret')))
 
-    result = account_deletion.purge_derived_user_data('uid1')
+    result = account_deletion.purge_pinecone_user_data('uid1')
 
-    assert account_deletion.get_conversation_ids.call_count == 2
-    account_deletion.delete_conversation_vectors_batch.assert_not_called()
-    account_deletion.delete_transcript_chunk_vectors_batch.assert_not_called()
-    account_deletion.delete_all_conversation_recordings.assert_called_once_with('uid1')
-    assert [failure['operation'] for failure in result['required_failures']] == [
-        'conversation_vectors',
-        'transcript_chunk_vectors',
-        'conversation_recordings',
-    ]
-    assert result['best_effort_failures'] == []
+    assert [failure['operation'] for failure in result['required_failures']] == ['pinecone_user_vectors']
+    assert result['pinecone_namespaces_purged'] == 0
 
 
-def test_purge_derived_user_data_fails_required_vectors_when_index_missing(monkeypatch):
-    monkeypatch.setattr(account_deletion.vector_db, 'index', None)
-    monkeypatch.setattr(account_deletion, 'get_conversation_ids', MagicMock(return_value=['c1']))
-    monkeypatch.setattr(account_deletion, 'delete_conversation_vectors_batch', MagicMock())
-    monkeypatch.setattr(account_deletion, 'delete_transcript_chunk_vectors_batch', MagicMock())
-    monkeypatch.setattr(account_deletion, 'delete_all_conversation_recordings', MagicMock())
-
-    result = account_deletion.purge_derived_user_data('uid1')
-
-    assert [failure['operation'] for failure in result['required_failures']] == [
-        'conversation_vectors',
-        'transcript_chunk_vectors',
-    ]
-    account_deletion.delete_conversation_vectors_batch.assert_not_called()
-    account_deletion.delete_transcript_chunk_vectors_batch.assert_not_called()
-
-
-def test_background_wipe_user_data_does_not_complete_when_required_derived_purge_fails(monkeypatch):
+def test_background_wipe_user_data_does_not_complete_when_required_pinecone_purge_fails(monkeypatch):
     monkeypatch.setattr(account_deletion.users_db, 'mark_user_deletion_wipe_running', MagicMock())
-    monkeypatch.setattr(account_deletion, 'delete_user_caller_ids', MagicMock())
     monkeypatch.setattr(
         account_deletion,
-        'purge_derived_user_data',
-        MagicMock(return_value={'required_failures': [{'operation': 'conversation_vectors', 'error': 'down'}]}),
+        'purge_pinecone_user_data',
+        MagicMock(return_value={'required_failures': [{'operation': 'pinecone_user_vectors', 'error': 'down'}]}),
     )
     monkeypatch.setattr(account_deletion.users_db, 'delete_user_data', MagicMock())
     monkeypatch.setattr(account_deletion.users_db, 'mark_user_deletion_wipe_failed', MagicMock())
@@ -606,11 +533,10 @@ def test_background_wipe_user_data_does_not_complete_when_required_derived_purge
 def test_background_wipe_user_data_does_not_complete_when_firestore_wipe_returns_error(monkeypatch):
     """A normal structured wipe failure is terminally unsafe, not success."""
     monkeypatch.setattr(account_deletion.users_db, 'mark_user_deletion_wipe_running', MagicMock())
-    monkeypatch.setattr(account_deletion, 'delete_user_caller_ids', MagicMock())
     monkeypatch.setattr(
         account_deletion,
-        'purge_derived_user_data',
-        MagicMock(return_value={'required_failures': [], 'best_effort_failures': []}),
+        'purge_pinecone_user_data',
+        MagicMock(return_value={'required_failures': [], 'pinecone_namespaces_purged': 2}),
     )
     monkeypatch.setattr(
         account_deletion.users_db,
@@ -634,18 +560,10 @@ def test_background_wipe_emits_bounded_completion_telemetry(monkeypatch):
     monkeypatch.setattr(account_deletion.users_db, 'mark_user_deletion_wipe_running', MagicMock())
     monkeypatch.setattr(account_deletion.users_db, 'get_user_subscription', MagicMock(return_value=None))
     monkeypatch.setattr(account_deletion.auth, 'delete_account', MagicMock())
-    monkeypatch.setattr(account_deletion, 'delete_user_caller_ids', MagicMock())
     monkeypatch.setattr(
         account_deletion,
-        'purge_derived_user_data',
-        MagicMock(
-            return_value={
-                'required_failures': [],
-                'best_effort_failures': [],
-                'vectors_deleted': 7,
-                'recordings_deleted': 2,
-            }
-        ),
+        'purge_pinecone_user_data',
+        MagicMock(return_value={'required_failures': [], 'pinecone_namespaces_purged': 2}),
     )
     monkeypatch.setattr(account_deletion.users_db, 'delete_user_data', MagicMock(return_value={'status': 'ok'}))
     monkeypatch.setattr(account_deletion.users_db, 'mark_user_deletion_wipe_completed', MagicMock())
@@ -657,10 +575,8 @@ def test_background_wipe_emits_bounded_completion_telemetry(monkeypatch):
         'Account Deletion Wipe Completed',
         {
             'duration_seconds': 2.346,
-            'vectors_deleted': 7,
-            'recordings_deleted': 2,
+            'pinecone_namespaces_purged': 2,
             'required_failure_count': 0,
-            'best_effort_failure_count': 0,
             'failed_operations': [],
             '$process_person_profile': False,
         },
@@ -678,11 +594,10 @@ def test_deletion_telemetry_never_uses_deleted_uid_as_distinct_id(monkeypatch):
     monkeypatch.setattr(account_deletion.users_db, 'mark_user_deletion_wipe_running', MagicMock())
     monkeypatch.setattr(account_deletion.users_db, 'get_user_subscription', MagicMock(return_value=None))
     monkeypatch.setattr(account_deletion.auth, 'delete_account', MagicMock())
-    monkeypatch.setattr(account_deletion, 'delete_user_caller_ids', MagicMock())
     monkeypatch.setattr(
         account_deletion,
-        'purge_derived_user_data',
-        MagicMock(return_value={'required_failures': [], 'best_effort_failures': []}),
+        'purge_pinecone_user_data',
+        MagicMock(return_value={'required_failures': [], 'pinecone_namespaces_purged': 2}),
     )
     monkeypatch.setattr(account_deletion.users_db, 'delete_user_data', MagicMock(return_value={'status': 'ok'}))
     monkeypatch.setattr(account_deletion.users_db, 'mark_user_deletion_wipe_completed', MagicMock())
@@ -706,16 +621,13 @@ def test_background_wipe_emits_failed_operations_and_attempt_context(monkeypatch
     monkeypatch.setattr(account_deletion.users_db, 'mark_user_deletion_wipe_running', MagicMock())
     monkeypatch.setattr(account_deletion.users_db, 'get_user_subscription', MagicMock(return_value=None))
     monkeypatch.setattr(account_deletion.auth, 'delete_account', MagicMock())
-    monkeypatch.setattr(account_deletion, 'delete_user_caller_ids', MagicMock())
     monkeypatch.setattr(
         account_deletion,
-        'purge_derived_user_data',
+        'purge_pinecone_user_data',
         MagicMock(
             return_value={
-                'required_failures': [{'operation': 'conversation_vectors', 'error': 'secret provider body'}],
-                'best_effort_failures': [],
-                'vectors_deleted': 0,
-                'recordings_deleted': 0,
+                'required_failures': [{'operation': 'pinecone_user_vectors', 'error': 'secret provider body'}],
+                'pinecone_namespaces_purged': 0,
             }
         ),
     )
@@ -728,7 +640,7 @@ def test_background_wipe_emits_failed_operations_and_attempt_context(monkeypatch
         'omi-service:account-deletion',
         'Account Deletion Wipe Failed',
         {
-            'failed_operations': ['conversation_vectors'],
+            'failed_operations': ['pinecone_user_vectors'],
             'retry_count': 2,
             'terminal': True,
             '$process_person_profile': False,

@@ -502,7 +502,7 @@ def step_prefix(index: int, step: dict[str, typing.Any]) -> str:
 
 def run_agent_swift(ctx: HarnessContext, args: list[str]) -> subprocess.CompletedProcess[str]:
     if not ctx.bundle_id:
-        raise RuntimeError("ax.expect requires --bundle-id")
+        raise RuntimeError("Accessibility steps require --bundle-id")
     connect = subprocess.run(
         ["agent-swift", "connect", "--bundle-id", ctx.bundle_id],
         check=False,
@@ -513,7 +513,19 @@ def run_agent_swift(ctx: HarnessContext, args: list[str]) -> subprocess.Complete
     )
     if connect.returncode != 0:
         return connect
-    return subprocess.run(["agent-swift", *args], check=False, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=20)
+    command_timeout = 20.0
+    if "--timeout" in args:
+        timeout_index = args.index("--timeout") + 1
+        if timeout_index < len(args):
+            command_timeout = min(60.0, max(command_timeout, int(args[timeout_index]) / 1000 + 5))
+    return subprocess.run(
+        ["agent-swift", *args],
+        check=False,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        timeout=command_timeout,
+    )
 
 
 def action_payload(spec: dict[str, typing.Any]) -> dict[str, typing.Any]:
@@ -571,17 +583,46 @@ def assert_trace(ctx: HarnessContext, spec: dict[str, typing.Any], path: Path) -
 def assert_ax(ctx: HarnessContext, spec: dict[str, typing.Any], path: Path) -> tuple[bool, str | None]:
     if ctx.lane != "ui":
         return True, "skipped outside ui lane"
-    result = run_agent_swift(ctx, ["snapshot", "-i", "--json"])
-    path.write_text(result.stdout, encoding="utf-8")
-    if result.returncode != 0:
-        return False, "agent-swift snapshot failed"
-    text = result.stdout
     visible = spec.get("text_visible", [])
     if isinstance(visible, str):
         visible = [visible]
-    missing = [item for item in visible if item not in text]
+    timeout_ms = int(spec.get("timeout_ms", 5000))
+    if not 1 <= timeout_ms <= 55_000:
+        return False, "ax.expect timeout_ms must be between 1 and 55000"
+    results = [
+        (item, run_agent_swift(ctx, ["wait", "text", item, "--timeout", str(timeout_ms), "--json"]))
+        for item in visible
+    ]
+    path.write_text(
+        "\n".join(result.stdout for _, result in results),
+        encoding="utf-8",
+    )
+    missing = [item for item, result in results if result.returncode != 0]
     if missing:
-        return False, f"AX snapshot missing text: {missing}"
+        return False, f"AX tree missing visible text: {missing}"
+    return True, None
+
+
+def run_ax_action(ctx: HarnessContext, spec: dict[str, typing.Any], path: Path) -> tuple[bool, str | None]:
+    if ctx.lane != "ui":
+        return True, "skipped outside ui lane"
+    locator = str(spec.get("locator") or "")
+    value = str(spec.get("value") or "")
+    action = str(spec.get("action") or "")
+    if locator not in {"role", "text", "identifier"} or not value:
+        return False, "ax.action requires locator=role|text|identifier and a value"
+    if action not in {"click", "press", "fill", "get"}:
+        return False, "ax.action requires action=click|press|fill|get"
+    args = ["find", locator, value, action]
+    if action in {"fill", "get"}:
+        action_arg = spec.get("argument")
+        if action_arg is None:
+            return False, f"ax.action {action} requires argument"
+        args.append(str(action_arg))
+    result = run_agent_swift(ctx, args)
+    path.write_text(result.stdout, encoding="utf-8")
+    if result.returncode != 0:
+        return False, f"agent-swift {' '.join(args)} failed"
     return True, None
 
 
@@ -768,6 +809,16 @@ def execute_step(ctx: HarnessContext, index: int, step: dict[str, typing.Any]) -
             path = ctx.steps_dir / f"{prefix}-ax.json"
             ok, error = assert_ax(ctx, dict(step["ax.expect"] or {}), path)
             result.update(operation="ax.expect", ok=ok)
+            result["artifacts"]["ax"] = str(path)
+            if error and ok:
+                result["warnings"].append(error)
+            elif error:
+                result["error"] = error
+
+        elif "ax.action" in step:
+            path = ctx.steps_dir / f"{prefix}-ax-action.txt"
+            ok, error = run_ax_action(ctx, dict(step["ax.action"] or {}), path)
+            result.update(operation="ax.action", ok=ok)
             result["artifacts"]["ax"] = str(path)
             if error and ok:
                 result["warnings"].append(error)

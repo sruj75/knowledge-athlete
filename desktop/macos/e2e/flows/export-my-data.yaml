@@ -1,0 +1,49 @@
+version: 2
+name: export-my-data
+tier: 2
+description: Complete owner-fenced local JSON export through Account Settings with no server product read
+app: non-prod
+covers:
+  - desktop/macos/Desktop/Sources/Account/Export/LocalUserDataExport.swift
+  - desktop/macos/Desktop/Sources/Account/Export/LocalUserDataExportAction.swift
+  - desktop/macos/Desktop/Sources/Automation/DesktopAutomationS23Actions.swift
+  - desktop/macos/Desktop/Sources/DesktopAutomationBridge.swift
+  - desktop/macos/Desktop/Sources/MainWindow/Pages/Settings/Sections/SettingsContentView+AccountBilling.swift
+preconditions:
+  - automation_bridge_ready
+
+steps:
+  - id: S1
+    name: Open Settings Account section
+    bridge.navigate:
+      target: settings
+      settingsSection: Account
+      activateApp: false
+    wait:
+      state.selectedSettingsSection: Account
+
+  - id: S2
+    name: Account Settings exposes the local export control
+    ax.expect:
+      text_visible:
+        - Export My Data
+        - Export
+
+  - id: S3
+    name: Export complete local owner data through the production exporter
+    bridge.action:
+      name: export_my_data
+    expect:
+      result.detail.saved: "true"
+      result.detail.schema_version: "1"
+      result.detail.settings_present: "true"
+      result.detail.server_requested: "false"
+      result.detail.temporary_file: "true"
+
+  - id: S4
+    name: Logs contain no export or bridge failure
+    log.expect:
+      absent:
+        - "DesktopAutomationBridge: failed"
+        - "Your local data could not be read"
+        - "/v1/users/export"

@@ -112,8 +112,6 @@ envFrom:
       name: dev-omi-backend-config
 
 env:
-  - name: BUCKET_SPEECH_PROFILES
-    value: "speech-profiles-dev"
   - name: GITHUB_TOKEN
     valueFrom:
       secretKeyRef:
@@ -129,8 +127,6 @@ env:
       secretKeyRef:
         name: dev-omi-backend-secrets
         key: FAL_KEY
-  - name: HOSTED_SPEECH_PROFILE_API_URL
-    value: "http://vad.omiapi.com:80/v1/speaker-identification"
   - name: HOSTED_SPEAKER_EMBEDDING_API_URL
     value: "http://diarizer.omiapi.com:80"
   - name: PINECONE_API_KEY
@@ -192,8 +188,6 @@ env:
       secretKeyRef:
         name: dev-omi-backend-secrets
         key: ENCRYPTION_SECRET
-  - name: BUCKET_PRIVATE_CLOUD_SYNC
-    value: "omi-dev-private-cloud-sync"
   - name: BUCKET_PLUGINS_LOGOS
     value: "plugin_resources"
   - name: DD_SERVICE

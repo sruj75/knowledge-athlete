@@ -31,21 +31,20 @@ Chat SSE deadlines: `AGENT_STREAM_FIRST_EVENT_TIMEOUT_SECONDS` (default `25`), `
 
 ```
 backend/
-  main.py                 # FastAPI entry, middleware, 45+ router registrations
+  main.py                 # FastAPI entry and retained route registration
   models/                 # Pydantic request/response schemas (conversation, transient Memory compute, chat, subscription, etc.)
   database/               # All persistence — 25+ domain modules
     _client.py            #   Firestore singleton + document_id_from_seed utility
     redis_db.py           #   Cache, rate limiting (Lua scripts), pub/sub, locks, geolocation
-    helpers.py            #   Decorators: data protection levels, encryption/decryption on read/write
-    conversations.py      #   Conversations with encrypted segments, photos, processing status
-    users.py              #   Profiles, subscriptions, people/contacts, private cloud sync settings
-    vector_db.py          #   Pinecone integration for semantic search
+    conversations.py      #   Existing-row finalization drain state only; no product API
+    users.py              #   Retained account, subscription, deletion, and language state
+    vector_db.py          #   Exact S-24-owned account-deletion Pinecone purge handoff
     fair_use.py           #   Usage limits and soft-cap tracking
-    ...                   #   + folders, phone_calls, trends, etc.
+    ...                   #   + auth, billing, updates, and operational job state
   routers/                # FastAPI route handlers, one per retained feature domain
     transcribe.py         #   /v4/listen WebSocket — auth + exact transient session contract
     listen/               #   Modulate transport, VAD, metering, canonical segments, direct translation
-    chat.py               #   retained message reports, voice STT, and legacy /v1 file upload
+    chat.py               #   stateless Chat compute, voice STT, and retained /v1 file upload
     chat_sessions.py      #   stateless /v2/chat greeting and title compute
     conversation_compute.py # /v1/conversation-compute — stateless discard/structure/action-item candidates
     memory_compute.py     #   Three authenticated, bounded, stateless Memory proposal routes
@@ -54,36 +53,22 @@ backend/
     users.py              #   Account profile, subscription, usage, export, and deletion routes
     ...                   #   + payment and other retained product routes
   utils/                  # Business logic — 60+ files (never import from routers/)
-    llm/                  #   LLM orchestration (14 files): chat processing, conversation post-processing,
-                          #   transient Memory proposal compute,
+    llm/                  #   LLM orchestration: stateless Chat/conversation/Memory compute,
                           #   fair-use classification, and usage tracking
       clients.py          #     Explicit direct workload clients with prompt caching and usage callbacks
-    stt/                  #   Managed Modulate speech-to-text, provider-neutral VAD gating, speech profiles,
-                          #   pre-recorded batch transcription, speaker embeddings
-    conversations/        #   Conversation lifecycle (6 files): ingestion, action items,
-                          #   merge, post-processing, search
-    retrieval/            #   Retained conversation, explicit-file, web-search,
-                          #   and notification tools (no hosted Chat RAG owner)
-    other/                #   Storage (GCS), auth dependencies, timeout middleware, Hume emotion detection
+    stt/                  #   Managed Modulate speech-to-text and provider-neutral VAD gating
+    conversations/        #   Callerless finalization drain plus transient compute helpers
+    retrieval/            #   Retained explicit-file/web/chart tools; no hosted product search
+    other/                #   Auth, timeout middleware, and S-25 drain storage helpers
     log_sanitizer.py      #   sanitize() / sanitize_pii() — required for all logging
     encryption.py         #   AES-256-GCM per-user encryption (HKDF-SHA256 key derivation)
     fair_use.py           #   Rolling speech-hour tracking via Redis minute buckets, soft-cap enforcement
     translation.py        #   Multi-language translation coordination
-    speaker_identification.py  # Speaker diarization + person matching against speech profiles
   pusher/                 # Subservice: real-time data distribution hub (separate Docker)
-                          #   - Retained for server workflows outside transient /v4/listen
-                          #   - Streams retained transcript/audio data to first-party consumers
-                          #   - Runs retained LLM-powered conversation analysis (action items and insights)
-                          #   - Batches + uploads audio to private cloud storage (60s batches, 3 retries)
-                          #   - Queues speaker sample extraction (120s age minimum)
-                          #   - 5 concurrent background tasks per WebSocket connection
+                          #   - Callerless S-25 handoff: heartbeat + durable finalization control only
   llm_gateway/            # Callerless legacy subservice source awaiting the S-25 topology teardown
-  diarizer/              # Subservice: speaker audio analysis (separate Docker, GPU/CUDA)
-                          #   - POST /v1/diarization — speaker boundary detection (pyannote/speaker-diarization)
-                          #   - POST /v1/embedding — speaker vector extraction (pyannote/embedding)
-                          #   - POST /v2/embedding — alt speaker vectors (wespeaker-voxceleb-resnet34-LM)
+  diarizer/              # Callerless legacy GPU subservice handed to S-25 for teardown
   modal/                 # Serverless GPU services deployed on Modal
-                          #   - Speaker identification: matches segments to speech profiles (SpeechBrain, T4 GPU)
                           #   - VAD: voice activity detection (pyannote/voice-activity-detection)
   tests/unit/            # 50+ unit tests (no external service deps)
   tests/integration/     # Integration tests (need Redis, Firebase, API keys)
@@ -98,15 +83,11 @@ backend/
 Shared: Firestore, Redis
 
 backend (main.py)
-  ├── ws ──► pusher (pusher/)
-  ├── ──────► diarizer (diarizer/)
   ├── ──────► vad (modal/)
   ├── ──────► modulate (managed API)
   └── ──────► managed model providers through explicit in-process workload clients
 
-pusher
-  ├── ──────► diarizer (diarizer/)
-  └── ──────► modulate (managed STT)
+pusher (callerless S-25 finalization-control drain)
 
 backend-sync (main.py, Cloud Run)
   ├── ──────► Cloud Tasks queue `audio-merge` ──► POST /v2/audio-merge-jobs/run (OIDC, same service)
@@ -119,12 +100,12 @@ Helm charts: `backend/charts/{backend-listen,backend-secrets,diarizer,llm-gatewa
 
 Managed STT is fixed to Modulate. `config/stt_provider_policy.py` owns its language/capability policy, and the runtime manifest binds only `MODULATE_API_KEY` on transcription-capable services.
 
-- **backend** (`main.py`) — REST API. `/v4/listen` streams fixed PCM directly to Modulate and returns transient canonical segments without Pusher, People, or conversation storage. Other retained server workflows call diarizer for speaker embeddings (`utils/stt/speaker_embedding.py`) and vad for voice activity detection and speaker identification (`utils/stt/vad.py`, `utils/stt/speech_profile.py`). Managed live and prerecorded STT uses Modulate (`MODULATE_API_KEY`). Retained Python model workloads, including transient translation, call their declared providers directly through `utils/llm/clients.py`.
+- **backend** (`main.py`) — REST API. `/v4/listen` streams fixed PCM directly to Modulate and returns transient canonical segments without Pusher, People, or conversation storage. Retained workflows use the VAD service and managed Modulate STT; retained Python model workloads call their declared providers directly through `utils/llm/clients.py`.
 - **Fair-use review** — `/v4/listen` owns speech meters, thresholds, cooldown, enforcement, and the restricted managed-cloud budget. It requests one content-free review from the authenticated owner Mac; `POST /v1/fair-use/reviews/{review_id}/classify` accepts only the bounded seven-day local evidence projection, invokes direct OpenAI GPT-5.1 transiently, and persists only content-free classifier/enforcement facts. Conversation evidence never becomes backend authority or durable case data.
 - **llm-gateway** (`llm_gateway/main.py`) — Callerless legacy deployment/source handed to S-25 for repository and live topology teardown. Application code must not import it or call `omi:auto:*` lanes.
-- **pusher** (`pusher/main.py`) — Receives audio via binary WebSocket protocol. Calls diarizer and managed Modulate STT for speaker sample extraction (`utils/speaker_identification.py` → `utils/speaker_sample.py`).
-- **diarizer** (`diarizer/main.py`) — GPU. Speaker embeddings at `/v2/embedding`. Called by backend and pusher (`HOSTED_SPEAKER_EMBEDDING_API_URL`).
-- **vad** (`modal/main.py`) — GPU. `/v1/vad` and `/v1/speaker-identification`. Called by backend only.
+- **pusher** (`pusher/main.py`) — Callerless S-25 drain surface that accepts only heartbeat and durable finalization-control frames. Product transcript/audio/identity frames are rejected.
+- **diarizer** (`diarizer/main.py`) — Callerless legacy GPU service handed to S-25; application code must not add consumers.
+- **vad** (`modal/main.py`) — GPU `/v1/vad`, called by retained backend paths.
 - **modulate** — The fixed managed STT adapter for configured languages. Called by transcription-capable services through their `MODULATE_API_KEY` binding.
 - **backend-sync** (`main.py`, same image as backend) — Shared Cloud Run task worker retained until S-25. S-10 removed public conversation playback routes; only the OIDC `/v2/audio-merge-jobs/run` worker remains for already-queued/stored artifacts. In production, account deletion requires `ACCOUNT_DELETION_DISPATCH_MODE=cloud_tasks` and complete Cloud Tasks bindings to enqueue opaque job IDs to queue `account-deletion`, which posts `/v1/users/account-deletion-wipes/run`; startup rejects inline or incomplete configuration, reconciliation only re-dispatches tasks so the OIDC handler is the sole wipe executor, and the post-deploy queue-drain window accepts the former sync OIDC audience only for legacy UID payloads. Conversation finalization is outside transient listen and remains with its storage owners. API success is returned only after the deletion marker is persisted and the wipe task is durably enqueued.
 
@@ -166,9 +147,9 @@ Focus sessions, `tips` Insights, AI Profile history, assistant controls, and the
 master notification/frequency controls are Mac-local authorities. Do not add
 backend Focus/stat APIs, AI Profile persistence, assistant/notification/Mentor
 settings mirrors, Daily Summary, personalized purchase/quota push generation,
-or a notifications cron job. Generic FCM primitives remain only for separately
-owned live callers; managed Gemini remains transient compute and owns no product
-records.
+or a notifications cron job. Cloud FCM delivery is retired; authoritative
+fair-use facts are presented by the Mac through fixed in-app and local OS copy.
+Managed Gemini remains transient compute and owns no product records.
 
 Backend runtime env contract: keep `backend/deploy/runtime_env.yaml` aligned with GKE Helm values and Cloud Run runtime env; run `backend/scripts/pre-deploy-check.sh` after backend runtime env or deploy workflow changes. The remaining `llm_gateway` manifest/chart/workflow/secret/traffic entries are a callerless S-25 handoff, not an application routing contract; do not add new consumers while that topology awaits deletion.
 
@@ -315,5 +296,4 @@ WS handlers in `routers/listen/runtime.py` and `pusher.py` manage concurrent tas
 7. **Mutable WebSocket state races** — snapshot `nonlocal` variables before spawning async work
 8. **Silent fire-and-forget drops** — functions gating on connection state must log when dropping work
 9. **New fallbacks** — call `utils.observability.fallback.record_fallback`; do not invent a new `*_fallback_total` Counter
-10. **Queue caps for user data** — `private_cloud_queue` uses `deque(maxlen=20)` to prevent OOM kills (sized for 30 conns/pod); dropping oldest chunk is better than killing the pod and losing ALL data for ALL users
-11. **`langdetect` unreliable on short text** — don't use on <20 chars or gate paid API calls on interim streaming text
+10. **`langdetect` unreliable on short text** — don't use on <20 chars or gate paid API calls on interim streaming text
