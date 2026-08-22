@@ -53,6 +53,11 @@ _EXPECTED_DIRECT_DEFAULT_CLIENT_CALLS = Counter(
         'utils/llm/fair_use_classifier.py': 1,
     }
 )
+_EXPECTED_SUCCESSOR_OWNER_PATHS = {
+    'conv_folder': {'utils/llm/conversation_folder.py'},
+    'followup': {'utils/llm/followup.py'},
+    'wrapped_analysis': {'utils/wrapped/generate_2025.py'},
+}
 _APPLICATION_MODEL_CALL_TOKENS = tuple(sorted({'get_default_client', 'get_workload_client', *_PROVIDER_CONSTRUCTORS}))
 
 
@@ -151,12 +156,11 @@ def test_application_model_call_sites_cannot_bypass_the_typed_inventory():
     assert direct_default_calls == _EXPECTED_DIRECT_DEFAULT_CLIENT_CALLS
     assert provider_construction == _EXPECTED_PROVIDER_CONSTRUCTION
 
-    called_successor_workloads = {
-        feature
-        for _, _, feature in workload_calls
-        if feature is not None and workloads[feature].lifecycle is WorkloadLifecycle.SUCCESSOR_S23
+    successor_owner_paths = {
+        feature: {path for path, _, called_feature in workload_calls if called_feature == feature}
+        for feature in _EXPECTED_SUCCESSOR_OWNER_PATHS
     }
-    assert called_successor_workloads == {'conv_folder', 'followup', 'wrapped_analysis'}
+    assert successor_owner_paths == _EXPECTED_SUCCESSOR_OWNER_PATHS
 
 
 def test_wrapped_is_the_only_openrouter_workload():
