@@ -11,6 +11,7 @@ from typing import Any
 from database import redis_db
 
 from .fair_use import FAIR_USE_CLASSIFIER_COOLDOWN_SECONDS, fair_use_caps_for_entitlement
+from .observability.fallback import record_fallback
 
 FAIR_USE_CLASSIFIER_CONTRACT = 'openai/gpt-5.1:prompt-v2'
 logger = logging.getLogger(__name__)
@@ -43,6 +44,17 @@ def _pending_key(uid: str) -> str:
 
 def _cooldown_key(uid: str) -> str:
     return f'fair_use:review:cooldown:{uid}'
+
+
+def _record_redis_failure(operation: str) -> None:
+    record_fallback(
+        component='fair_use',
+        from_mode=f'pending_review_{operation}',
+        to_mode='redis_unavailable',
+        reason='other',
+        outcome='degraded',
+        log=logger,
+    )
 
 
 def create_pending_fair_use_review(
@@ -92,6 +104,7 @@ def create_pending_fair_use_review(
         return request
     except Exception as error:
         logger.error('fair_use: pending review Redis error for %s: %s', uid, type(error).__name__)
+        _record_redis_failure('create')
         return None
 
 
@@ -100,6 +113,7 @@ def get_pending_fair_use_review(uid: str, review_id: str | None = None) -> dict[
         raw = redis_db.r.get(_pending_key(uid))
     except Exception as error:
         logger.error('fair_use: pending review Redis read error for %s: %s', uid, type(error).__name__)
+        _record_redis_failure('read')
         return None
     if not raw:
         return None
@@ -126,3 +140,4 @@ def mark_fair_use_review_consumed(uid: str, review_id: str) -> None:
         redis_db.r.eval(_CONSUME_PENDING_REVIEW_SCRIPT, 1, _pending_key(uid), review_id)
     except Exception as error:
         logger.error('fair_use: pending review Redis consume error for %s: %s', uid, type(error).__name__)
+        _record_redis_failure('consume')

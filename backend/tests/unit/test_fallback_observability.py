@@ -90,6 +90,10 @@ def test_firestore_malformed_document_labels_are_bounded():
     assert fallback_mod.bucket_reason('malformed_doc') == 'malformed_doc'
 
 
+def test_fair_use_is_a_bounded_component_label():
+    assert fallback_mod.bucket_component('fair_use') == 'fair_use'
+
+
 def test_record_fallback_never_raises_on_metric_or_log_failure(monkeypatch):
     class BoomCounter:
         def labels(self, **_labels):
