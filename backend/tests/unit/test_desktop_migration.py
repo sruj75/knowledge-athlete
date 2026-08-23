@@ -23,11 +23,6 @@ import pytest
 # ---------------------------------------------------------------------------
 BACKEND_DIR = Path(__file__).resolve().parent.parent.parent
 
-os.environ.setdefault(
-    "ENCRYPTION_SECRET",
-    "omi_ZwB2ZNqB2HHpMK6wStk7sTpavJiPTFg7gXUHnc4tFABPU6pZ2c2DKgehtfgi4RZv",
-)
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -157,9 +152,6 @@ _stub_package("utils")
 _stub_package("utils.other")
 utils_sub_stub = _stub_module("utils.subscription")
 utils_sub_stub.get_default_free_subscription = MagicMock()
-utils_enc_stub = _stub_module("utils.encryption")
-utils_enc_stub.encrypt = MagicMock(return_value="encrypted")
-utils_enc_stub.decrypt = MagicMock(return_value="decrypted")
 endpoints_stub = _stub_module("utils.other.endpoints")
 endpoints_stub.get_current_user_uid = MagicMock()
 endpoints_stub.with_rate_limit = lambda dep, policy: dep

@@ -1,39 +1,14 @@
-"""S-23 contract: the drain schema cannot restore hosted conversation products."""
+"""S-23/S-25 contract: hosted conversation schemas remain absent."""
 
-from datetime import datetime, timezone
+from pathlib import Path
 
-from models.conversation import Conversation
 from models.transcript_segment import TranscriptSegment
 
 
-RETIRED_CONVERSATION_FIELDS = {
-    'audio_files',
-    'call_id',
-    'calendar_event_id',
-    'client_device_id',
-    'client_platform',
-    'data_protection_level',
-    'external_data',
-    'folder_id',
-    'is_locked',
-    'processing_conversation_id',
-    'processing_memory_id',
-    'source',
-    'transcript_segments_compressed',
-    'visibility',
-}
+def test_hosted_conversation_drain_schema_is_absent():
+    backend_root = Path(__file__).resolve().parents[2]
 
-
-def test_minimal_drain_schema_ignores_historical_product_fields():
-    historical = {field: f'retired-{field}' for field in RETIRED_CONVERSATION_FIELDS}
-    conversation = Conversation(
-        id='conversation',
-        created_at=datetime(2026, 8, 22, tzinfo=timezone.utc),
-        **historical,
-    )
-
-    assert RETIRED_CONVERSATION_FIELDS.isdisjoint(Conversation.model_fields)
-    assert RETIRED_CONVERSATION_FIELDS.isdisjoint(conversation.model_dump())
+    assert not (backend_root / 'models/conversation.py').exists()
 
 
 def test_transcript_schema_keeps_generic_labels_without_reusable_identity():

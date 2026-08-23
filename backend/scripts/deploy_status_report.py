@@ -1,30 +1,18 @@
 #!/usr/bin/env python3
+"""Read-only rollout/status report for the canonical backend Cloud Run service."""
+
 from __future__ import annotations
 
 import argparse
-from collections import Counter
-from dataclasses import dataclass
-from datetime import datetime, timezone
 import json
 import subprocess
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping, cast
 
 DEFAULT_REGION = 'us-central1'
-DEFAULT_GKE_SERVICES = (
-    'backend-listen',
-    'pusher',
-    'llm-gateway',
-    'diarizer',
-    'vad',
-)
-DEFAULT_CLOUD_RUN_SERVICES = (
-    'backend',
-    'backend-sync',
-    'desktop-backend',
-)
-BAD_WAITING_REASONS = {'CrashLoopBackOff', 'ImagePullBackOff', 'ErrImagePull', 'CreateContainerConfigError'}
+DEFAULT_CLOUD_RUN_SERVICES = ('backend',)
 
 
 @dataclass(frozen=True)
@@ -41,76 +29,36 @@ class CloudRunFetchError:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description='Read-only deploy rollout/status reporter for Omi services.')
+    parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--env', choices=('dev', 'prod'), required=True)
     parser.add_argument('--project', help='GCP project id for live Cloud Run reads.')
     parser.add_argument('--region', default=DEFAULT_REGION)
-    parser.add_argument('--namespace', help='Kubernetes namespace. Defaults to <env>-omi-backend.')
-    parser.add_argument('--include-gke', action='store_true')
     parser.add_argument('--include-cloud-run', action='store_true')
-    parser.add_argument('--gke-service', action='append', dest='gke_services')
     parser.add_argument('--cloud-run-service', action='append', dest='cloud_run_services')
-    parser.add_argument('--stale-rs-threshold-minutes', type=int, default=15)
     parser.add_argument('--expect-cloud-run-traffic', action='append', default=[], metavar='SERVICE=REVISION')
-    parser.add_argument('--k8s-state', type=Path, help='Offline Kubernetes state JSON fixture.')
     parser.add_argument('--cloud-run-state', type=Path, help='Offline Cloud Run state JSON fixture.')
     parser.add_argument('--candidate-acceptance-manifest', type=Path)
     parser.add_argument('--candidate-acceptance-evidence', type=Path)
     parser.add_argument('--candidate-status-output', type=Path)
-    parser.add_argument('--now', help='ISO timestamp used by tests for age calculations.')
     args = parser.parse_args()
 
-    include_gke = args.include_gke or bool(args.k8s_state)
-    include_cloud_run = args.include_cloud_run or bool(args.cloud_run_state)
-    if not include_gke and not include_cloud_run:
-        include_gke = True
-        include_cloud_run = True
-
-    now = parse_timestamp(args.now) if args.now else datetime.now(timezone.utc)
-    namespace = args.namespace or f'{args.env}-omi-backend'
-    findings: list[Finding] = []
-    sections: list[str] = []
+    services = cast(list[str], args.cloud_run_services or list(DEFAULT_CLOUD_RUN_SERVICES))
+    if args.cloud_run_state:
+        cloud_run_state = load_json(args.cloud_run_state)
+    else:
+        if not args.project:
+            print('--project is required for live Cloud Run reads', file=sys.stderr)
+            return 2
+        cloud_run_state = fetch_cloud_run_state(project=args.project, region=args.region, services=services)
+    section, findings = render_cloud_run_report(
+        cloud_run_state,
+        services=services,
+        expected_traffic=parse_expected_traffic(args.expect_cloud_run_traffic),
+        project=args.project or '',
+        region=args.region,
+    )
+    sections = [section]
     candidate_tracker: dict[str, Any] | None = None
-
-    if include_gke:
-        k8s_state = load_json(args.k8s_state) if args.k8s_state else fetch_k8s_state(namespace)
-        gke_services = cast(list[str], args.gke_services or list(DEFAULT_GKE_SERVICES))
-        section, gke_findings = render_gke_report(
-            k8s_state,
-            namespace=namespace,
-            services=gke_services,
-            now=now,
-            stale_rs_threshold_minutes=args.stale_rs_threshold_minutes,
-        )
-        sections.append(section)
-        findings.extend(gke_findings)
-
-    if include_cloud_run:
-        if args.cloud_run_state:
-            cloud_run_state = load_json(args.cloud_run_state)
-        else:
-            if not args.project:
-                print('--project is required for live Cloud Run reads', file=sys.stderr)
-                return 2
-            cloud_run_state = fetch_cloud_run_state(
-                project=args.project,
-                region=args.region,
-                services=args.cloud_run_services or list(DEFAULT_CLOUD_RUN_SERVICES),
-            )
-        cloud_run_services = cast(list[str], args.cloud_run_services or list(DEFAULT_CLOUD_RUN_SERVICES))
-        expected_traffic = parse_expected_traffic(args.expect_cloud_run_traffic)
-        report_project = args.project or ''
-        report_region = args.region
-        section, cloud_findings = render_cloud_run_report(
-            cloud_run_state,
-            services=cloud_run_services,
-            expected_traffic=expected_traffic,
-            project=report_project,
-            region=report_region,
-        )
-        sections.append(section)
-        findings.extend(cloud_findings)
-
     if args.candidate_acceptance_manifest or args.candidate_acceptance_evidence:
         if not args.candidate_acceptance_manifest or not args.candidate_acceptance_evidence:
             print('candidate acceptance manifest and evidence must be supplied together', file=sys.stderr)
@@ -119,27 +67,23 @@ def main() -> int:
             manifest_path=args.candidate_acceptance_manifest,
             evidence_path=args.candidate_acceptance_evidence,
         )
-        section, candidate_findings = render_candidate_acceptance_report(candidate_tracker)
-        sections.append(section)
+        candidate_section, candidate_findings = render_candidate_acceptance_report(candidate_tracker)
+        sections.append(candidate_section)
         findings.extend(candidate_findings)
-
     if args.candidate_status_output:
         if candidate_tracker is None:
             print('--candidate-status-output requires candidate acceptance manifest and evidence', file=sys.stderr)
             return 2
         write_candidate_tracker(args.candidate_status_output, candidate_tracker)
-
     print('\n\n'.join(sections))
     if findings:
         print('\nFindings')
         for finding in findings:
             print(f'- {finding.severity} [{finding.scope}] {finding.message}')
-
-    return 1 if any(f.severity == 'FAIL' for f in findings) else 0
+    return 1 if any(finding.severity == 'FAIL' for finding in findings) else 0
 
 
 def candidate_acceptance_tracker(*, manifest_path: Path, evidence_path: Path) -> dict[str, Any]:
-    """Normalize only bounded candidate outcomes for deployment tracking artifacts."""
     try:
         manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
         services = manifest.get('services') if isinstance(manifest, Mapping) else None
@@ -153,13 +97,7 @@ def candidate_acceptance_tracker(*, manifest_path: Path, evidence_path: Path) ->
         if not expected or len(expected) != len(services):
             raise ValueError
     except (OSError, ValueError, json.JSONDecodeError, AttributeError):
-        return {
-            'schema_version': 1,
-            'status': 'FAIL',
-            'failed_contract_category': 'configuration',
-            'checks': [],
-        }
-
+        return {'schema_version': 1, 'status': 'FAIL', 'failed_contract_category': 'configuration', 'checks': []}
     try:
         evidence = json.loads(evidence_path.read_text(encoding='utf-8'))
     except FileNotFoundError:
@@ -173,35 +111,18 @@ def candidate_acceptance_tracker(*, manifest_path: Path, evidence_path: Path) ->
             ],
         }
     except (OSError, json.JSONDecodeError):
-        return {
-            'schema_version': 1,
-            'status': 'FAIL',
-            'failed_contract_category': 'configuration',
-            'checks': [],
-        }
-
+        return {'schema_version': 1, 'status': 'FAIL', 'failed_contract_category': 'configuration', 'checks': []}
     checks = evidence.get('checks') if isinstance(evidence, Mapping) else None
-    evidence_status = evidence.get('status') if isinstance(evidence, Mapping) else None
     normalized: list[dict[str, str]] = []
-    if not isinstance(checks, list):
-        checks = []
-    for raw_check in checks:
+    for raw_check in checks if isinstance(checks, list) else []:
         if not isinstance(raw_check, Mapping):
             continue
-        service = raw_check.get('service')
-        contract = raw_check.get('contract')
-        status = raw_check.get('status')
-        if (
-            isinstance(service, str)
-            and isinstance(contract, str)
-            and isinstance(status, str)
-            and status in {'PASS', 'FAIL', 'NOT_RUN'}
-        ):
-            normalized.append({'service': service, 'contract': contract, 'status': status})
+        service, contract, status = raw_check.get('service'), raw_check.get('contract'), raw_check.get('status')
+        if isinstance(service, str) and isinstance(contract, str) and status in {'PASS', 'FAIL', 'NOT_RUN'}:
+            normalized.append({'service': service, 'contract': contract, 'status': cast(str, status)})
     expected_pairs = {(service, contract) for service, contract in expected.items()}
     actual_pairs = {(check['service'], check['contract']) for check in normalized}
-    duplicate_pairs = len(actual_pairs) != len(normalized)
-    if actual_pairs != expected_pairs or duplicate_pairs:
+    if actual_pairs != expected_pairs or len(actual_pairs) != len(normalized):
         return {
             'schema_version': 1,
             'status': 'FAIL',
@@ -210,13 +131,9 @@ def candidate_acceptance_tracker(*, manifest_path: Path, evidence_path: Path) ->
         }
     failed = next((check['contract'] for check in normalized if check['status'] == 'FAIL'), None)
     expected_status = 'PASS' if all(check['status'] == 'PASS' for check in normalized) else 'FAIL'
-    if evidence_status != expected_status:
-        return {
-            'schema_version': 1,
-            'status': 'FAIL',
-            'failed_contract_category': 'configuration',
-            'checks': normalized,
-        }
+    if evidence.get('status') != expected_status:
+        expected_status = 'FAIL'
+        failed = 'configuration'
     return {
         'schema_version': 1,
         'status': expected_status,
@@ -226,15 +143,10 @@ def candidate_acceptance_tracker(*, manifest_path: Path, evidence_path: Path) ->
 
 
 def render_candidate_acceptance_report(tracker: Mapping[str, Any]) -> tuple[str, list[Finding]]:
-    lines = [
-        'Cloud Run candidate acceptance',
-        '| Service | Contract | Status |',
-        '|---|---|---|',
-    ]
+    lines = ['Cloud Run candidate acceptance', '| Service | Contract | Status |', '|---|---|---|']
     findings: list[Finding] = []
-    checks = tracker.get('checks')
-    if not isinstance(checks, list):
-        checks = []
+    raw_checks = tracker.get('checks')
+    checks = raw_checks if isinstance(raw_checks, list) else []
     for check in checks:
         if not isinstance(check, Mapping):
             continue
@@ -245,10 +157,7 @@ def render_candidate_acceptance_report(tracker: Mapping[str, Any]) -> tuple[str,
         if status == 'FAIL':
             findings.append(Finding('FAIL', service, f'candidate contract {contract} failed before traffic promotion'))
     status = str(tracker.get('status') or 'FAIL')
-    failed_category = tracker.get('failed_contract_category')
     lines.extend(['', f'Overall candidate status: **{status}**'])
-    if isinstance(failed_category, str):
-        lines.append(f'Failed contract category: `{failed_category}`')
     if status == 'FAIL' and not findings:
         findings.append(Finding('FAIL', 'candidate-acceptance', 'candidate acceptance evidence is invalid'))
     return '\n'.join(lines), findings
@@ -257,86 +166,6 @@ def render_candidate_acceptance_report(tracker: Mapping[str, Any]) -> tuple[str,
 def write_candidate_tracker(path: Path, tracker: Mapping[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(tracker, indent=2, sort_keys=True) + '\n', encoding='utf-8')
-
-
-def render_gke_report(
-    state: dict[str, Any],
-    *,
-    namespace: str,
-    services: list[str],
-    now: datetime,
-    stale_rs_threshold_minutes: int,
-) -> tuple[str, list[Finding]]:
-    deployments = items_by_name(state.get('deployments'))
-    replica_sets = state.get('replicaSets', [])
-    pods = state.get('pods', [])
-    events = state.get('events', [])
-    lines = [
-        f'GKE rollout status ({namespace})',
-        '| Deployment | Desired | Updated | Available | Image | Status |',
-        '|---|---:|---:|---:|---|---|',
-    ]
-    findings: list[Finding] = []
-    release_prefix = namespace.removesuffix('-backend')
-
-    for service in services:
-        deployment_name = service if service.startswith(release_prefix) else f'{release_prefix}-{service}'
-        if service == 'backend-listen':
-            deployment_name = f'{release_prefix}-backend-listen'
-        deployment = deployments.get(deployment_name)
-        if not deployment:
-            lines.append(f'| `{deployment_name}` | - | - | - | - | missing |')
-            findings.append(Finding('WARN', deployment_name, 'deployment not found in report input'))
-            continue
-
-        spec = deployment.get('spec', {})
-        metadata = deployment.get('metadata', {})
-        status = deployment.get('status', {})
-        desired = int(spec.get('replicas') or 0)
-        updated = int(status.get('updatedReplicas') or 0)
-        available = int(status.get('availableReplicas') or 0)
-        unavailable = int(status.get('unavailableReplicas') or 0)
-        generation = int(metadata.get('generation') or 0)
-        observed_generation = int(status.get('observedGeneration') or 0)
-        image = first_container_image(deployment)
-        deploy_status = 'ok'
-        if desired and (updated < desired or available < desired):
-            deploy_status = 'degraded'
-            findings.append(
-                Finding(
-                    'FAIL',
-                    deployment_name,
-                    f'rollout incomplete: desired={desired} updated={updated} available={available}',
-                )
-            )
-        if unavailable > 0:
-            deploy_status = 'degraded'
-            findings.append(Finding('FAIL', deployment_name, f'unavailable replicas remain: {unavailable}'))
-        if generation and observed_generation < generation:
-            deploy_status = 'stale-controller'
-            findings.append(
-                Finding(
-                    'FAIL',
-                    deployment_name,
-                    f'controller has not observed latest generation: generation={generation} observed={observed_generation}',
-                )
-            )
-        lines.append(f'| `{deployment_name}` | {desired} | {updated} | {available} | `{image}` | {deploy_status} |')
-
-        findings.extend(find_bad_pods(deployment_name, pods))
-        findings.extend(
-            find_stale_replica_sets(
-                deployment,
-                replica_sets,
-                now=now,
-                threshold_minutes=stale_rs_threshold_minutes,
-            )
-        )
-
-    event_lines = summarize_events(events)
-    lines.extend(['', 'Recent warning events'])
-    lines.extend(event_lines or ['- none'])
-    return '\n'.join(lines), findings
 
 
 def render_cloud_run_report(
@@ -357,7 +186,6 @@ def render_cloud_run_report(
         '|---|---|---|---|---|---|---|',
     ]
     findings: list[Finding] = []
-
     for service_name in services:
         service = service_map.get(service_name)
         if not service:
@@ -382,17 +210,12 @@ def render_cloud_run_report(
             else:
                 findings.append(Finding('WARN', service_name, 'Cloud Run service not found in report input'))
             continue
-
-        status = service.get('status', {})
-        spec = service.get('spec', {})
+        status = cast(dict[str, Any], service.get('status') or {})
+        spec = cast(dict[str, Any], service.get('spec') or {})
         latest_created = str(status.get('latestCreatedRevisionName') or '')
         latest_ready = str(status.get('latestReadyRevisionName') or '')
         status_traffic = cast(list[Any], status.get('traffic') or [])
         spec_traffic = cast(list[Any], spec.get('traffic') or [])
-        status_traffic_text = format_cloud_run_traffic(status_traffic)
-        spec_traffic_text = format_cloud_run_traffic(spec_traffic)
-        image = cloud_run_image(service)
-        ready_status = 'ok' if latest_ready and latest_ready == latest_created else 'not-ready'
         findings.extend(
             traffic_spec_status_findings(
                 service_name=service_name,
@@ -411,7 +234,6 @@ def render_cloud_run_report(
                     f'latest created revision {latest_created} is not latest ready ({latest_ready or "missing"})',
                 )
             )
-
         expected_revision = expected_traffic.get(service_name)
         if expected_revision:
             served = traffic_percent_for_revision(status_traffic, expected_revision)
@@ -431,11 +253,12 @@ def render_cloud_run_report(
                         f'expected served revision {expected_revision} to be latest ready, observed {latest_ready or "missing"}',
                     )
                 )
-
+        ready_status = 'ok' if latest_ready and latest_ready == latest_created else 'not-ready'
         lines.append(
-            f'| `{service_name}` | `{latest_created or "-"}` | `{latest_ready or "-"}` | {spec_traffic_text} | {status_traffic_text} | `{image}` | {ready_status} |'
+            f'| `{service_name}` | `{latest_created or "-"}` | `{latest_ready or "-"}` | '
+            f'{format_cloud_run_traffic(spec_traffic)} | {format_cloud_run_traffic(status_traffic)} | '
+            f'`{cloud_run_image(service)}` | {ready_status} |'
         )
-
     return '\n'.join(lines), findings
 
 
@@ -448,36 +271,29 @@ def traffic_spec_status_findings(
     region: str,
     latest_ready_revision: str = '',
 ) -> list[Finding]:
-    findings: list[Finding] = []
     spec_revision = primary_traffic_revision(spec_traffic, fallback_revision=latest_ready_revision)
     status_revision = primary_traffic_revision(status_traffic, fallback_revision=latest_ready_revision)
     if spec_revision and status_revision and spec_revision != status_revision:
-        repair_command = format_traffic_repair_command(
-            service=service_name,
-            revision=status_revision,
-            project=project,
-            region=region,
+        repair = format_traffic_repair_command(
+            service=service_name, revision=status_revision, project=project, region=region
         )
-        findings.append(
+        return [
             Finding(
                 'FAIL',
                 service_name,
-                f'spec.traffic ({spec_revision}) != status.traffic ({status_revision}); repair: {repair_command}',
+                f'spec.traffic ({spec_revision}) != status.traffic ({status_revision}); repair: {repair}',
             )
-        )
-    return findings
+        ]
+    return []
 
 
 def primary_traffic_revision(traffic: list[Any], *, fallback_revision: str = '') -> str | None:
-    for raw_target in traffic:
-        if not isinstance(raw_target, dict):
+    for target in traffic:
+        if not isinstance(target, dict) or int(target.get('percent') or 0) != 100:
             continue
-        target = cast(dict[str, Any], raw_target)
-        if int(target.get('percent') or 0) != 100:
-            continue
-        revision_name = target.get('revisionName')
-        if isinstance(revision_name, str) and revision_name:
-            return revision_name
+        revision = target.get('revisionName')
+        if isinstance(revision, str) and revision:
+            return revision
         if target.get('latestRevision') and fallback_revision:
             return fallback_revision
     return None
@@ -485,125 +301,33 @@ def primary_traffic_revision(traffic: list[Any], *, fallback_revision: str = '')
 
 def format_traffic_repair_command(*, service: str, revision: str, project: str, region: str) -> str:
     project_flag = f' --project={project}' if project else ''
-    return (
-        f'gcloud run services update-traffic {service}{project_flag} '
-        f'--region={region} --to-revisions={revision}=100 --quiet'
-    )
-
-
-def find_bad_pods(deployment_name: str, pods: Any) -> list[Finding]:
-    findings: list[Finding] = []
-    if not isinstance(pods, list):
-        return findings
-    for raw_pod in cast(list[Any], pods):
-        if not isinstance(raw_pod, dict):
-            continue
-        pod = cast(dict[str, Any], raw_pod)
-        if owner_name(pod) != deployment_name and deployment_name not in pod_name(pod):
-            continue
-        statuses = cast(list[Any], pod.get('status', {}).get('containerStatuses') or [])
-        for status in statuses:
-            status = cast(dict[str, Any], status)
-            state = cast(dict[str, Any], status.get('state') or {})
-            waiting = cast(dict[str, Any], state.get('waiting') or {})
-            reason = waiting.get('reason')
-            if reason in BAD_WAITING_REASONS:
-                findings.append(Finding('FAIL', pod_name(pod), f'container waiting reason {reason}'))
-    return findings
-
-
-def find_stale_replica_sets(
-    deployment: dict[str, Any],
-    replica_sets: Any,
-    *,
-    now: datetime,
-    threshold_minutes: int,
-) -> list[Finding]:
-    findings: list[Finding] = []
-    if not isinstance(replica_sets, list):
-        return findings
-    deployment_name = object_name(deployment)
-    current_revision = deployment.get('metadata', {}).get('annotations', {}).get('deployment.kubernetes.io/revision')
-    for rs in cast(list[Any], replica_sets):
-        if not isinstance(rs, dict):
-            continue
-        rs_dict = cast(dict[str, Any], rs)
-        if owner_name(rs_dict) != deployment_name:
-            continue
-        replicas = int(rs_dict.get('status', {}).get('replicas') or 0)
-        if replicas <= 0:
-            continue
-        rs_revision = rs_dict.get('metadata', {}).get('annotations', {}).get('deployment.kubernetes.io/revision')
-        if current_revision and rs_revision == current_revision:
-            continue
-        age_minutes = age_in_minutes(rs_dict.get('metadata', {}).get('creationTimestamp'), now)
-        if age_minutes is not None and age_minutes >= threshold_minutes:
-            findings.append(
-                Finding(
-                    'WARN',
-                    object_name(rs_dict),
-                    f'old ReplicaSet still has {replicas} replica(s) after {age_minutes}m',
-                )
-            )
-    return findings
-
-
-def summarize_events(events: Any) -> list[str]:
-    if not isinstance(events, list):
-        return []
-    counter: Counter[tuple[str, str]] = Counter()
-    for raw_event in cast(list[Any], events):
-        if not isinstance(raw_event, dict):
-            continue
-        event = cast(dict[str, Any], raw_event)
-        event_type = event.get('type') or event.get('regarding', {}).get('type')
-        if event_type and event_type != 'Warning':
-            continue
-        reason = str(event.get('reason') or 'Unknown')
-        message = str(event.get('message') or '').replace('\n', ' ')
-        counter[(reason, message[:140])] += int(event.get('count') or 1)
-    return [f'- {count}x `{reason}`: {message}' for (reason, message), count in counter.most_common(8)]
-
-
-def fetch_k8s_state(namespace: str) -> dict[str, Any]:
-    return {
-        'deployments': kubectl_json(namespace, 'deployments').get('items', []),
-        'replicaSets': kubectl_json(namespace, 'replicasets').get('items', []),
-        'pods': kubectl_json(namespace, 'pods').get('items', []),
-        'events': kubectl_json(namespace, 'events').get('items', []),
-    }
+    return f'gcloud run services update-traffic {service}{project_flag} --region={region} --to-revisions={revision}=100 --quiet'
 
 
 def fetch_cloud_run_state(*, project: str, region: str, services: list[str]) -> dict[str, Any]:
     fetched: list[Any] = []
     errors: list[dict[str, Any]] = []
     for service in services:
-        command = [
-            'gcloud',
-            'run',
-            'services',
-            'describe',
-            service,
-            f'--project={project}',
-            f'--region={region}',
-            '--format=json',
-        ]
-        result = subprocess.run(command, check=False, capture_output=True, text=True)
+        result = subprocess.run(
+            [
+                'gcloud',
+                'run',
+                'services',
+                'describe',
+                service,
+                f'--project={project}',
+                f'--region={region}',
+                '--format=json',
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
         if result.returncode == 0:
             fetched.append(json.loads(result.stdout))
         else:
             errors.append({'service': service, 'exitCode': result.returncode})
     return {'services': fetched, 'errors': errors, 'project': project, 'region': region}
-
-
-def kubectl_json(namespace: str, resource: str) -> dict[str, Any]:
-    result = subprocess.run(
-        ['kubectl', '-n', namespace, 'get', resource, '-o', 'json'],
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-    return json.loads(result.stdout)
 
 
 def load_json(path: Path | None) -> dict[str, Any]:
@@ -629,102 +353,48 @@ def parse_expected_traffic(entries: list[str]) -> dict[str, str]:
 def normalize_cloud_run_services(state: dict[str, Any]) -> dict[str, dict[str, Any]]:
     raw_services = state.get('services', [])
     if isinstance(raw_services, dict):
-        services_map = cast(dict[str, Any], raw_services)
-        return {
-            str(name): cast(dict[str, Any], service)
-            for name, service in services_map.items()
-            if isinstance(service, dict)
-        }
+        return {str(name): service for name, service in raw_services.items() if isinstance(service, dict)}
     if not isinstance(raw_services, list):
         return {}
     result: dict[str, dict[str, Any]] = {}
-    for raw_service in cast(list[Any], raw_services):
-        if not isinstance(raw_service, dict):
+    for service in raw_services:
+        if not isinstance(service, dict):
             continue
-        service = cast(dict[str, Any], raw_service)
-        name = object_name(service)
+        name = str(cast(dict[str, Any], service).get('metadata', {}).get('name') or '')
         if name:
-            result[name] = service
+            result[name] = cast(dict[str, Any], service)
     return result
 
 
 def cloud_run_fetch_errors_by_service(state: dict[str, Any]) -> dict[str, CloudRunFetchError]:
     raw_errors = state.get('errors') or state.get('fetchErrors')
-    if not isinstance(raw_errors, list):
-        return {}
     result: dict[str, CloudRunFetchError] = {}
-    for raw_error in cast(list[Any], raw_errors):
-        if not isinstance(raw_error, dict):
+    for error in raw_errors if isinstance(raw_errors, list) else []:
+        if not isinstance(error, dict):
             continue
-        error = cast(dict[str, Any], raw_error)
         service = str(error.get('service') or '')
-        if not service:
-            continue
-        result[service] = CloudRunFetchError(service=service, exit_code=int(error.get('exitCode') or 1))
+        if service:
+            result[service] = CloudRunFetchError(service=service, exit_code=int(error.get('exitCode') or 1))
     return result
-
-
-def items_by_name(items: Any) -> dict[str, dict[str, Any]]:
-    if not isinstance(items, list):
-        return {}
-    result: dict[str, dict[str, Any]] = {}
-    for raw_item in cast(list[Any], items):
-        if not isinstance(raw_item, dict):
-            continue
-        item = cast(dict[str, Any], raw_item)
-        name = object_name(item)
-        if name:
-            result[name] = item
-    return result
-
-
-def object_name(obj: dict[str, Any]) -> str:
-    return str(obj.get('metadata', {}).get('name') or '')
-
-
-def pod_name(pod: dict[str, Any]) -> str:
-    return object_name(pod)
-
-
-def owner_name(obj: dict[str, Any]) -> str:
-    owners = obj.get('metadata', {}).get('ownerReferences')
-    if isinstance(owners, list) and owners:
-        first = cast(list[Any], owners)[0]
-        if isinstance(first, dict):
-            return str(cast(dict[str, Any], first).get('name') or '')
-    return ''
-
-
-def first_container_image(deployment: dict[str, Any]) -> str:
-    containers = cast(list[Any], deployment.get('spec', {}).get('template', {}).get('spec', {}).get('containers') or [])
-    if containers and isinstance(containers[0], dict):
-        return str(cast(dict[str, Any], containers[0]).get('image') or '-')
-    return '-'
 
 
 def cloud_run_image(service: dict[str, Any]) -> str:
     containers = cast(list[Any], service.get('spec', {}).get('template', {}).get('spec', {}).get('containers') or [])
-    image = '-'
-    if containers and isinstance(containers[0], dict):
-        first = cast(dict[str, Any], containers[0])
-        image = str(first.get('image') or '-')
-        digest = first.get('imageDigest')
-        if isinstance(digest, str) and digest:
-            return f'{image}@{digest}'
-    digest = service.get('status', {}).get('imageDigest')
-    if isinstance(digest, str) and digest:
-        return f'{image}@{digest}'
-    return image
+    if not containers or not isinstance(containers[0], dict):
+        return '-'
+    first = cast(dict[str, Any], containers[0])
+    image = str(first.get('image') or '-')
+    digest = first.get('imageDigest') or service.get('status', {}).get('imageDigest')
+    return f'{image}@{digest}' if isinstance(digest, str) and digest else image
 
 
 def format_cloud_run_traffic(traffic: Any) -> str:
     if not isinstance(traffic, list) or not traffic:
         return '-'
     parts: list[str] = []
-    for raw_target in cast(list[Any], traffic):
-        if not isinstance(raw_target, dict):
+    for target in traffic:
+        if not isinstance(target, dict):
             continue
-        target = cast(dict[str, Any], raw_target)
         revision = target.get('revisionName') or ('latest' if target.get('latestRevision') else '-')
         parts.append(f'`{revision}`={int(target.get("percent") or 0)}%')
     return ', '.join(parts) or '-'
@@ -733,28 +403,11 @@ def format_cloud_run_traffic(traffic: Any) -> str:
 def traffic_percent_for_revision(traffic: Any, revision: str) -> int:
     if not isinstance(traffic, list):
         return 0
-    total = 0
-    for raw_target in cast(list[Any], traffic):
-        if not isinstance(raw_target, dict):
-            continue
-        target = cast(dict[str, Any], raw_target)
-        if target.get('revisionName') == revision:
-            total += int(target.get('percent') or 0)
-    return total
-
-
-def parse_timestamp(value: str) -> datetime:
-    parsed = datetime.fromisoformat(value.replace('Z', '+00:00'))
-    if parsed.tzinfo is None:
-        return parsed.replace(tzinfo=timezone.utc)
-    return parsed.astimezone(timezone.utc)
-
-
-def age_in_minutes(timestamp: Any, now: datetime) -> int | None:
-    if not isinstance(timestamp, str) or not timestamp:
-        return None
-    created_at = parse_timestamp(timestamp)
-    return int((now - created_at).total_seconds() // 60)
+    return sum(
+        int(target.get('percent') or 0)
+        for target in traffic
+        if isinstance(target, dict) and target.get('revisionName') == revision
+    )
 
 
 if __name__ == '__main__':

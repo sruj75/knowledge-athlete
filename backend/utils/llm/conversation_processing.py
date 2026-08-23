@@ -8,7 +8,6 @@ from langchain_core.output_parsers import PydanticOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel, Field
 
-from models.conversation import Conversation
 from models.structured import ActionItem, Event, Structured
 from models.structured_extraction import ActionItemsExtraction, StructuredExtraction
 from .clients import get_workload_client, parser

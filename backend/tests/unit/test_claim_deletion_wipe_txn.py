@@ -17,8 +17,6 @@ import types
 from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch
 
-os.environ.setdefault('ENCRYPTION_SECRET', 'test-secret-for-ci')
-
 # ---------------------------------------------------------------------------
 # Module stubbing with cleanup
 # ---------------------------------------------------------------------------

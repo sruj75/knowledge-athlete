@@ -28,7 +28,7 @@ workloads:
     lifecycle: retained
     provider_model: openai/gpt-4.1-nano
     caller: POST /v1/conversation-compute/discard
-    result_owner: Mac conversation finalization transaction
+    result_owner: Mac conversation transaction
   - key: conv_structure
     lifecycle: retained
     provider_model: openai/gpt-5.4-mini
@@ -98,4 +98,4 @@ retired_surfaces:
 closure:
   status: complete
   permitted_s23_handoffs: []
-  s25_handoff: callerless standalone gateway source and deployment topology remain intact
+  s25_handoff: complete; standalone routing topology removed

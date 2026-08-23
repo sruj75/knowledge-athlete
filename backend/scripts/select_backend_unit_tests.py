@@ -27,7 +27,6 @@ EXTRA_DISCOVERABLE_TESTS: tuple[Path, ...] = ()
 
 LEGACY_UNLISTED_TESTS = {
     'tests/test_cache_manager.py',
-    'tests/unit/test_diarizer_dockerfile.py',
 }
 
 FULL_RUN_PATHS = (
@@ -63,25 +62,26 @@ FULL_RUN_GLOBS = (
     'backend/utils/log_sanitizer.py',
     'backend/utils/http_client.py',
     'backend/utils/async_tasks.py',
-    'backend/utils/encryption.py',
 )
 
 AREA_TESTS = (
+    (
+        ('backend/routers/chat.py', 'backend/utils/voice_messages.py'),
+        (),
+        (
+            'tests/unit/test_voice_message_*.py',
+            'tests/unit/test_optional_audio_codecs.py',
+        ),
+    ),
     (
         ('backend/routers/memory_compute', 'backend/utils/llm/memory_compute'),
         (),
         ('tests/unit/test_memory_compute.py',),
     ),
     (
-        ('backend/llm_gateway/',),
-        (),
-        ('tests/unit/test_llm_gateway_*.py',),
-    ),
-    (
         (
             'backend/utils/stt/',
             'backend/config/prerecorded_stt',
-            'backend/pusher/',
             'backend/routers/transcribe',
             'backend/routers/listen',
         ),
@@ -89,15 +89,12 @@ AREA_TESTS = (
         (
             'tests/unit/test_*audio*.py',
             'tests/unit/test_*listen*.py',
-            'tests/unit/test_*pusher*.py',
             'tests/unit/test_*speaker*.py',
             'tests/unit/test_*speech*.py',
             'tests/unit/test_*stt*.py',
             'tests/unit/test_*streaming*.py',
-            'tests/unit/test_*sync*.py',
             'tests/unit/test_*transcribe*.py',
             'tests/unit/test_*vad*.py',
-            'tests/unit/utils/test_listen_pusher_session.py',
         ),
     ),
     (
@@ -112,16 +109,6 @@ AREA_TESTS = (
         ),
     ),
     (
-        ('backend/routers/conversations', 'backend/services/conversations/', 'backend/utils/conversations'),
-        (),
-        (
-            'tests/unit/test_conversation*.py',
-            'tests/unit/test_conversations*.py',
-            'tests/unit/test_folder_*.py',
-            'tests/unit/test_retrieval_*.py',
-        ),
-    ),
-    (
         ('backend/routers/payment', 'backend/utils/billing/'),
         (),
         (
@@ -132,11 +119,6 @@ AREA_TESTS = (
             'tests/unit/test_paywall_reconnect_gate.py',
             'tests/unit/test_chat_quota.py',
         ),
-    ),
-    (
-        ('backend/routers/sync', 'backend/services/sync/', 'backend/utils/sync'),
-        (),
-        ('tests/unit/test_sync_*.py', 'tests/unit/test_audio_merge_tasks.py'),
     ),
     (
         ('backend/routers/storage', 'backend/services/storage/', 'backend/utils/storage'),

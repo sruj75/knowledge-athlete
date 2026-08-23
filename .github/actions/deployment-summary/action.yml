@@ -13,7 +13,7 @@ inputs:
     required: false
     default: ''
   service:
-    description: Name of the service being deployed (e.g. backend, pusher)
+    description: Name of the Cloud Run service being deployed (for example, backend)
     required: true
 
 runs:

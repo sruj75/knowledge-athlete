@@ -25,7 +25,6 @@ if [[ -z "$PYTHON_BIN" ]]; then
   fi
 fi
 
-export ENCRYPTION_SECRET="omi_ZwB2ZNqB2HHpMK6wStk7sTpavJiPTFg7gXUHnc4tFABPU6pZ2c2DKgehtfgi4RZv"
 export OPENAI_API_KEY="test-openai-key-not-real"
 export BACKEND_PYTEST_TIMING_SUMMARY="${BACKEND_PYTEST_TIMING_SUMMARY:-1}"
 # Direct focused runs and pre-push keep the strict default. The CI runner alone supplies

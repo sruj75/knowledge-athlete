@@ -61,7 +61,6 @@ def _set_e2e_env():
     """
     os.environ["PYTHON_DOTENV_DISABLED"] = "1"
     os.environ["LOCAL_DEVELOPMENT"] = "true"
-    os.environ["ENCRYPTION_SECRET"] = "test-encryption-secret-for-e2e-testing-32chars!"
     os.environ["FIREBASE_PROJECT_ID"] = "test-e2e-project"
     os.environ["GOOGLE_CLOUD_PROJECT"] = "test-e2e-project"
     os.environ.pop("SERVICE_ACCOUNT_JSON", None)
@@ -74,7 +73,6 @@ def _set_e2e_env():
     os.environ["GOOGLE_API_KEY"] = "fake-google-key"
     os.environ["BUCKET_DESKTOP_UPDATES"] = "desktop-updates"
     os.environ["DEV_WEBHOOK_RETRY_DELAYS"] = "0,0,0"
-    os.environ["AUDIO_MERGE_DISPATCH_MODE"] = "inline"
     os.environ["BILLING_MODE"] = "disabled"
     os.environ["ADMIN_KEY"] = ""
     for proxy_var in (

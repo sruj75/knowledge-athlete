@@ -27,7 +27,7 @@ def test_retired_conversation_projection_routes_are_absent() -> None:
     assert surviving == []
 
 
-def test_transient_compute_listen_and_worker_routes_remain() -> None:
+def test_transient_compute_and_listen_routes_remain_without_worker_routes() -> None:
     route_keys = _route_keys()
 
     for route_key in (
@@ -37,11 +37,12 @@ def test_transient_compute_listen_and_worker_routes_remain() -> None:
         ("POST", "/v1/memory/compute/extract"),
         ("POST", "/v1/memory/compute/normalize"),
         ("POST", "/v1/memory/compute/consolidate"),
-        ("POST", "/v2/audio-merge-jobs/run"),
         ("GET", "/v1/users/language"),
         ("PATCH", "/v1/users/language"),
     ):
         assert route_key in route_keys, f"retained route {route_key} was unmounted"
+
+    assert ("POST", "/v2/audio-merge-jobs/run") not in route_keys
 
     websocket_paths = {route.path for route in main.app.routes if getattr(route, "path", None)}
     assert "/v4/listen" in websocket_paths

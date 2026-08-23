@@ -26,7 +26,7 @@ This version proves the backend can boot hermetically and that selected retained
 | Scenario | Status | Notes |
 |---|---:|---|
 | Listen/STT route seam | ✅ | `/v4/listen` authentication, exact query parsing, fixed audio contract, managed Modulate transport, direct segment delivery, and optional translation are covered without server conversation persistence. `/v4/web/listen` is retired. |
-| Storage bootstrap | ✅ Green | `google.cloud.storage.Client` is patched to a temp-dir fake so the S-25-owned finalization drain cannot contact GCS. No customer recording or speech-profile route is exercised. |
+| Storage bootstrap | ✅ Green | `google.cloud.storage.Client` is patched to a temp-dir fake for retained update-storage imports. No customer recording or speech-profile bucket is created. |
 | User/auth/profile/account | ✅ Green | Auth guard, account profile, and general language are covered. Account deletion additionally exercises its real admission route, durable marker, opaque Cloud Tasks payload, worker claim, retained fail-closed cleanup, and idempotent redelivery against local fakes. Firebase deletion and billing lookup stay controlled test seams. |
 | Removed product boundaries | ✅ Green | Product route/schema absence is owned by the focused S-23 unit contracts; the harness contains no hosted conversation, People, recording, notification, or retrieval fixture. |
 
@@ -36,11 +36,11 @@ This version proves the backend can boot hermetically and that selected retained
 |---|---|---|
 | Firestore | `fake-firestore` `MockFirestore` | In-memory datastore backing the real database modules. |
 | Redis | `fakeredis` | In-memory Redis replacement. |
-| Google Cloud Storage | `google.cloud.storage.Client` patched to a filesystem-backed fake | Keeps shared S-25 drain imports hermetic without restoring customer storage routes. |
+| Google Cloud Storage | `google.cloud.storage.Client` patched to a filesystem-backed fake | Keeps retained update-storage imports hermetic without restoring customer storage routes. |
 | Cloud Tasks / OIDC | Strict in-memory `tasks_v2.CloudTasksClient` plus a local token-verification seam in the account-deletion lifecycle test | Exercises the production task protobuf, queue payload, OIDC identity/audience, and retry headers without a Cloud Tasks control plane or Google token verification. |
 | Google ADC | `google.auth.default` returns anonymous credentials | Prevents real credential lookup at import time. |
 | Google Translate | Anonymous Google credentials | Allows import-time client construction; v1 tests do not call live translation. |
-| LLM/STT/VAD/embeddings | Fake modules scaffolded; route and custom-STT suggested-transcript seams covered where deterministic patching is practical | Kept as v2 work where scenarios need real outbound HTTP/WS/provider assertions. |
+| LLM/STT | Fake modules scaffolded; route and custom-STT suggested-transcript seams covered where deterministic patching is practical | Kept as v2 work where scenarios need real outbound HTTP/WS/provider assertions. |
 
 ## What's real
 
@@ -76,7 +76,6 @@ run.sh
         │   ├── storage.py                      # filesystem-backed fake GCS client
         │   ├── llm.py                          # deterministic LLM fake scaffold
         │   ├── stt.py                          # deterministic custom and managed-STT socket helpers
-        │   └── embeddings.py                   # VAD/diarization/embedding fake scaffold
         ├── test_account_deletion_cloud_tasks.py
         ├── test_harness_guards.py
         └── test_user_auth_profile.py
@@ -100,7 +99,7 @@ Prefer real retained public routes and durable worker paths. Product absence bel
 
 ## Current limitations / v2 work
 
-- [x] Add hermetic core-flow coverage for custom-STT listen reconnect/finalize and conversation finalization.
+- [x] Add hermetic core-flow coverage for custom-STT listen reconnect/finalize.
 - [ ] Wire deterministic retained LLM endpoints into all in-scope provider clients.
 - [ ] Add per-test HTTP failure injection for LLM 500 / timeout scenarios.
 - [ ] Add real Redis-unavailable fail-open tests; v1 uses fakeredis-backed paths.

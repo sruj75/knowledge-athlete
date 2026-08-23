@@ -10,26 +10,25 @@ def test_checked_in_manifest_declares_exactly_the_dev_cloud_run_candidates():
 
     assert [(check.service, check.contract) for check in checks] == [
         ('backend', 'health'),
-        ('backend-sync', 'health'),
     ]
     assert all('{base_url}' in check.command for check in checks)
 
 
 def test_candidate_urls_require_a_complete_unique_https_mapping():
-    expected = {'backend', 'backend-sync'}
+    expected = {'backend', 'backend-beta'}
 
     assert acceptance.parse_candidate_urls(
-        ['backend=https://backend-candidate.example', 'backend-sync=https://sync-candidate.example'],
+        ['backend=https://backend-candidate.example', 'backend-beta=https://beta-candidate.example'],
         expected_services=expected,
     ) == {
         'backend': 'https://backend-candidate.example',
-        'backend-sync': 'https://sync-candidate.example',
+        'backend-beta': 'https://beta-candidate.example',
     }
 
     for values in (
         ['backend=https://backend-candidate.example'],
         ['backend=https://backend-candidate.example', 'backend=https://other.example'],
-        ['backend=http://backend-candidate.example', 'backend-sync=https://sync-candidate.example'],
+        ['backend=http://backend-candidate.example', 'backend-beta=https://beta-candidate.example'],
     ):
         try:
             acceptance.parse_candidate_urls(values, expected_services=expected)
@@ -41,7 +40,7 @@ def test_candidate_urls_require_a_complete_unique_https_mapping():
 
 def test_candidate_check_passes_oidc_only_to_the_child_environment(monkeypatch):
     check = acceptance.CandidateCheck(
-        service='backend-sync',
+        service='backend-beta',
         contract='health',
         command=('python3', 'backend/scripts/smoke_cloud_run_health.py', '--base-url', '{base_url}'),
     )
@@ -61,7 +60,7 @@ def test_candidate_check_passes_oidc_only_to_the_child_environment(monkeypatch):
         audience='https://backend-service.example',
     )
 
-    assert outcome == acceptance.CheckOutcome(service='backend-sync', contract='health', status='PASS')
+    assert outcome == acceptance.CheckOutcome(service='backend-beta', contract='health', status='PASS')
     assert captured['command'][-1] == 'https://candidate.example'
     assert captured['environment'][acceptance.IDENTITY_TOKEN_ENV] == 'token-for:https://backend-service.example'
     assert 'token-for:' not in json.dumps(acceptance.evidence_document([outcome]))
@@ -124,7 +123,7 @@ def test_failure_marks_later_manifest_contracts_not_run(monkeypatch, tmp_path):
                 'schema_version': 1,
                 'services': {
                     'backend': {'contract': 'health', 'command': ['echo', '{base_url}']},
-                    'backend-sync': {'contract': 'health', 'command': ['echo', '{base_url}']},
+                    'backend-beta': {'contract': 'health', 'command': ['echo', '{base_url}']},
                 },
             }
         ),
@@ -144,11 +143,11 @@ def test_failure_marks_later_manifest_contracts_not_run(monkeypatch, tmp_path):
                 '--candidate',
                 'backend=https://candidate.example',
                 '--candidate',
-                'backend-sync=https://sync.example',
+                'backend-beta=https://beta.example',
                 '--audience',
                 'backend=https://backend-service.example',
                 '--audience',
-                'backend-sync=https://sync-service.example',
+                'backend-beta=https://beta-service.example',
                 '--evidence-path',
                 str(evidence_path),
             ]
@@ -158,5 +157,5 @@ def test_failure_marks_later_manifest_contracts_not_run(monkeypatch, tmp_path):
 
     assert json.loads(evidence_path.read_text(encoding='utf-8'))['checks'] == [
         {'contract': 'health', 'service': 'backend', 'status': 'FAIL'},
-        {'contract': 'health', 'service': 'backend-sync', 'status': 'NOT_RUN'},
+        {'contract': 'health', 'service': 'backend-beta', 'status': 'NOT_RUN'},
     ]

@@ -36,10 +36,6 @@ const KEY = env.VITE_OMI_API_KEY
 
 const hosts = [
   ['api.omi.me (prod)     ', 'wss://api.omi.me'],
-  // based-hardware-dev backend-listen service: serves /v4/listen, public invoke,
-  // verifies tokens against the PROD based-hardware Firebase project (same as the
-  // app), and its logs live in a project we can actually read.
-  ['backend-listen (dev)  ', 'wss://backend-listen-dt5lrfkkoa-uc.a.run.app'],
   ['backend (dev)         ', 'wss://backend-dt5lrfkkoa-uc.a.run.app'],
   ['desktop-backend       ', 'wss://desktop-backend-hhibjajaja-uc.a.run.app']
 ]

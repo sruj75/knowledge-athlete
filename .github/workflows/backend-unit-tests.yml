@@ -31,7 +31,6 @@ on:
       - '.github/workflows/gcp_backend_auto_dev.yml'
       - '.github/workflows/gcp_firestore_indexes.yml'
       - '.github/workflows/gcp_backend*.yml'
-      - '.github/workflows/gcp_llm_gateway.yml'
       - '.github/scripts/check_backend_deploy_source_admission.py'
       - '.github/scripts/verify_auto_backend_release_admission.py'
       - '.github/scripts/verify_backend_release_admission.py'
@@ -69,7 +68,6 @@ on:
       - '.github/workflows/gcp_backend_auto_dev.yml'
       - '.github/workflows/gcp_firestore_indexes.yml'
       - '.github/workflows/gcp_backend*.yml'
-      - '.github/workflows/gcp_llm_gateway.yml'
       - '.github/scripts/check_backend_deploy_source_admission.py'
       - '.github/scripts/verify_auto_backend_release_admission.py'
       - '.github/scripts/verify_backend_release_admission.py'
@@ -112,9 +110,6 @@ jobs:
         with:
           enable-cache: true
           cache-dependency-glob: backend/pylock*.toml
-
-      - name: Set up Helm
-        uses: azure/setup-helm@v5
 
       - name: Install backend dependencies
         working-directory: backend

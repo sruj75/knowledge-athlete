@@ -37,7 +37,6 @@ backend-main:http:POST:/v1/advice
 backend-main:http:POST:/v1/advice/mark-all-read
 backend-main:http:POST:/v1/auth/callback/apple
 backend-main:http:POST:/v1/auth/token
-backend-main:http:POST:/v2/audio-merge-jobs/run
 backend-main:http:POST:/v2/desktop/clear-cache
 backend-main:http:POST:/v2/voice-message/transcribe
 backend-main:websocket:WEBSOCKET:/v1/omni/relay

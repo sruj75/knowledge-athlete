@@ -39,7 +39,7 @@ done
 cat >"$TMPDIR/repo/backend/scripts/sync-python-deps.sh" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
-printf '%s\n' "backend-sync" >> setup-order.txt
+printf '%s\n' "backend-setup" >> setup-order.txt
 EOF
 chmod +x "$TMPDIR/repo/backend/scripts/sync-python-deps.sh"
 
@@ -48,7 +48,7 @@ chmod +x "$TMPDIR/repo/backend/scripts/sync-python-deps.sh"
   make setup >/dev/null
 )
 
-expected=$'setup-refresh-main.sh\ninstall-git-hooks.sh\nbackend-sync'
+expected=$'setup-refresh-main.sh\ninstall-git-hooks.sh\nbackend-setup'
 actual="$(cat "$TMPDIR/repo/setup-order.txt")"
 if [ "$actual" != "$expected" ]; then
   echo "FAIL: make setup did not provision baseline pre-push prerequisites in order." >&2

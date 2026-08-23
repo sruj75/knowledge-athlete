@@ -8,12 +8,9 @@ Provides shared executors with strict separation (bulkhead pattern):
   to prevent slow LLM retries from blocking DB or auth operations.
 - billing_executor: billing-provider API calls. External network I/O
   with unpredictable latency, isolated from everything else.
-- sync_executor: sync pipeline VAD/STT/segment processing.
-- postprocess_executor: durable conversation finalization and its retained
-  usage receipt, isolated from request/event loops.
+- sync_executor: retained voice-message and file-VAD compute.
 - cleanup_executor: account-deletion wipes across billing, Firebase Auth, and
-  retained Firestore deletion state. Bulkheaded
-  so deletion retries cannot starve finalization.
+  retained Firestore deletion state. Bulkheaded from request/event loops.
 - storage_executor: audio file precaching, GCS operations.
 
 These replace ad-hoc ThreadPoolExecutor creation throughout the codebase,
@@ -67,7 +64,6 @@ db_executor = MonitoredThreadPoolExecutor(name="db", max_workers=24, thread_name
 llm_executor = MonitoredThreadPoolExecutor(name="llm", max_workers=6, thread_name_prefix="llm")
 billing_executor = MonitoredThreadPoolExecutor(name="billing", max_workers=4, thread_name_prefix="billing")
 sync_executor = MonitoredThreadPoolExecutor(name="sync", max_workers=16, thread_name_prefix="sync")
-postprocess_executor = MonitoredThreadPoolExecutor(name="postprocess", max_workers=24, thread_name_prefix="postproc")
 cleanup_executor = MonitoredThreadPoolExecutor(name="cleanup", max_workers=4, thread_name_prefix="cleanup")
 storage_executor = MonitoredThreadPoolExecutor(name="storage", max_workers=128, thread_name_prefix="storage")
 
@@ -77,7 +73,6 @@ _ALL_EXECUTORS = [
     llm_executor,
     billing_executor,
     sync_executor,
-    postprocess_executor,
     cleanup_executor,
     storage_executor,
 ]

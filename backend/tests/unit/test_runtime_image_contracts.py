@@ -43,17 +43,17 @@ def test_registered_runtime_image_workflows_smoke_their_declared_dockerfile(cont
     assert contracts_module.workflow_contract_errors(contracts_module.load_contracts()) == []
 
 
-def test_pusher_contract_rejects_omitted_shared_package(contracts_module, tmp_path):
-    pusher = _contract(contracts_module, 'pusher')
+def test_backend_contract_rejects_omitted_runtime_source(contracts_module, tmp_path):
+    backend = _contract(contracts_module, 'backend')
     dockerfile = _dockerfile_without(
-        pusher.dockerfile,
-        'COPY backend/services/ ./services/\n',
+        backend.dockerfile,
+        'COPY backend/ .\n',
         tmp_path / 'Dockerfile',
     )
 
-    errors = contracts_module.source_closure_errors(replace(pusher, dockerfile=dockerfile))
+    errors = contracts_module.source_closure_errors(replace(backend, dockerfile=dockerfile))
 
-    assert any('services.conversation_finalization' in error for error in errors)
+    assert any("first-party module 'main' is absent" in error for error in errors)
 
 
 def test_relative_import_resolution_keeps_the_current_package(contracts_module):
@@ -71,7 +71,7 @@ def test_relative_import_resolution_keeps_the_current_package(contracts_module):
 
 def test_dependency_probe_checks_dotted_module_when_namespace_exists(contracts_module, monkeypatch, tmp_path):
     contract = replace(
-        _contract(contracts_module, 'pusher'),
+        _contract(contracts_module, 'backend'),
         entrypoints=('entrypoint',),
         entrypoint_source_root=tmp_path,
         source_root=tmp_path,
@@ -102,20 +102,15 @@ def test_image_smoke_is_network_isolated_and_uses_registered_entrypoint(contract
     monkeypatch.setattr(contracts_module, 'third_party_dependency_modules', lambda _: ('jsonschema',))
     monkeypatch.setattr(contracts_module.subprocess, 'run', lambda command, check: calls.append(command) or Result())
 
-    assert contracts_module.smoke_image('omi-pusher:test', [_contract(contracts_module, 'pusher')]) == 0
+    assert contracts_module.smoke_image('omi-backend:test', [_contract(contracts_module, 'backend')]) == 0
 
-    assert len(calls) == 2
+    assert len(calls) == 1
     for call in calls:
         assert call[:6] == ['docker', 'run', '--rm', '--network=none', '--entrypoint', 'python']
         assert '--network=none' in call
     assert 'jsonschema' in calls[0][-1]
     assert 'importlib.util.find_spec' in calls[0][-1]
     assert 'importlib.import_module(parent)' in calls[0][-1]
-    assert calls[1][-1] == (
-        "import importlib, sys; sys.path.insert(0, '/app'); "
-        "import tiktoken; tiktoken.encoding_for_model = lambda _: None; "
-        "importlib.import_module('routers.pusher')"
-    )
 
 
 def test_build_smoke_uses_the_registered_dockerfile_and_context(contracts_module, monkeypatch):
@@ -127,19 +122,15 @@ def test_build_smoke_uses_the_registered_dockerfile_and_context(contracts_module
     monkeypatch.setattr(contracts_module, 'third_party_dependency_modules', lambda _: ('jsonschema',))
     monkeypatch.setattr(contracts_module.subprocess, 'run', lambda command, check: calls.append(command) or Result())
 
-    assert contracts_module.build_and_smoke_image('omi-pusher:test', _contract(contracts_module, 'pusher')) == 0
+    assert contracts_module.build_and_smoke_image('omi-backend:test', _contract(contracts_module, 'backend')) == 0
 
-    assert calls[0] == ['docker', 'build', '--file', 'backend/pusher/Dockerfile', '--tag', 'omi-pusher:test', '.']
-    assert calls[1][0:11] == [
+    assert calls[0] == ['docker', 'build', '--file', 'backend/Dockerfile', '--tag', 'omi-backend:test', '.']
+    assert calls[1][0:7] == [
         'docker',
         'run',
         '--rm',
         '--network=none',
         '--entrypoint',
         'python',
-        '--env',
-        'ENCRYPTION_SECRET=0123456789abcdef0123456789abcdef',
-        '--env',
-        'OPENAI_API_KEY=sk-runtime-image-contract-test',
-        'omi-pusher:test',
+        'omi-backend:test',
     ]

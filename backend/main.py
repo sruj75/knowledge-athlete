@@ -24,7 +24,6 @@ from routers import (
     omni_relay,
     auto_model,
     users,
-    sync,
     payment,
     auth,
     other,
@@ -39,7 +38,6 @@ from routers import (
     desktop_proxy,
     desktop_realtime,
     desktop_tts_updates,
-    conversation_finalization,
     conversation_compute,
     memory_compute,
 )
@@ -56,8 +54,6 @@ from utils.executors import (
 )
 from utils.executors import start_background_task
 from utils.cloud_tasks import validate_account_deletion_dispatch_configuration
-from services.conversation_finalization import reconcile_listen_finalization_jobs
-from services.conversation_finalization import reconcile_stale_processing_conversations
 from services.users.account_deletion import reconcile_pending_deletion_wipes
 
 # Log LangSmith tracing status at startup
@@ -106,14 +102,12 @@ app.include_router(auto_model.router)
 app.include_router(chat.router)
 # app.include_router(screenpipe.router)
 app.include_router(users.router)
-app.include_router(conversation_finalization.router)
 app.include_router(conversation_compute.router)
 app.include_router(memory_compute.router)
 
 app.include_router(other.router)
 
 app.include_router(updates.router)
-app.include_router(sync.router)
 
 app.include_router(auth.router)  # Added auth router (for the main Omi App, this is the core auth router)
 
@@ -140,9 +134,7 @@ methods_timeout = {
 }
 
 paths_timeout = {
-    "/v2/audio-merge-jobs/run": os.environ.get('HTTP_AUDIO_MERGE_RUN_TIMEOUT', 600),
     "/v1/users/account-deletion-wipes/run": os.environ.get('HTTP_ACCOUNT_DELETION_WIPE_RUN_TIMEOUT', 1500),
-    "/v1/conversation-finalization-jobs/run": os.environ.get('HTTP_LISTEN_FINALIZATION_RUN_TIMEOUT', 1500),
 }
 
 app.add_middleware(TimeoutMiddleware, methods_timeout=methods_timeout, paths_timeout=paths_timeout)
@@ -161,15 +153,6 @@ async def startup_event():
     # Periodic reconciliation ensures stale retrying claims (worker crashed) and
     # new pending/failed wipes are retried without requiring a restart.
     start_background_task(_periodic_deletion_wipe_reconcile(), name='periodic_deletion_wipe_reconcile')
-    start_background_task(
-        run_blocking(db_executor, _drain_listen_finalization_jobs),
-        name='startup_listen_finalization_reconcile',
-    )
-    start_background_task(
-        run_blocking(db_executor, _drain_stale_processing_conversations),
-        name='startup_stale_processing_reconcile',
-    )
-    start_background_task(_periodic_listen_finalization_reconcile(), name='periodic_listen_finalization_reconcile')
 
 
 def _drain_pending_deletion_wipes():
@@ -196,55 +179,6 @@ async def _periodic_deletion_wipe_reconcile(interval_seconds: int = 300):
                 logger.info(f"Periodic deletion-wipe reconciliation: {result}")
         except Exception as e:
             logger.error(f"Periodic deletion-wipe reconciliation failed: {e}")
-
-
-def _drain_listen_finalization_jobs():
-    """Best-effort durable finalization recovery after a restart/deploy."""
-    try:
-        result = reconcile_listen_finalization_jobs()
-        if result.get('requeued'):
-            logger.info(f"Startup listen-finalization reconciliation: {result}")
-    except Exception as e:
-        logger.error(f"Startup listen-finalization reconciliation failed: {e}")
-
-
-def _drain_stale_processing_conversations():
-    """Best-effort recovery of bare-`processing` conversations orphaned by a sync-route crash."""
-    try:
-        result = reconcile_stale_processing_conversations()
-        if result.get('completed') or result.get('migrated'):
-            logger.info(f"Startup stale-processing reconciliation: {result}")
-    except Exception as e:
-        logger.error(f"Startup stale-processing reconciliation failed: {e}")
-
-
-def _listen_finalization_reconcile_interval_seconds() -> int:
-    """Periodic reconcile cadence; overridable for hermetic behavioral tests."""
-    try:
-        seconds = int(os.getenv('LISTEN_FINALIZATION_RECONCILE_INTERVAL_SECONDS', '300'))
-    except ValueError:
-        seconds = 300
-    return max(1, seconds)
-
-
-async def _periodic_listen_finalization_reconcile(interval_seconds: int | None = None):
-    """Replay stale finalization leases and publish durable backlog metrics."""
-    if interval_seconds is None:
-        interval_seconds = _listen_finalization_reconcile_interval_seconds()
-    while True:
-        await asyncio.sleep(interval_seconds)
-        try:
-            result = await run_blocking(db_executor, reconcile_listen_finalization_jobs)
-            if result.get('requeued'):
-                logger.info(f"Periodic listen-finalization reconciliation: {result}")
-        except Exception as e:
-            logger.error(f"Periodic listen-finalization reconciliation failed: {e}")
-        try:
-            stale_result = await run_blocking(db_executor, reconcile_stale_processing_conversations)
-            if stale_result.get('completed') or stale_result.get('migrated'):
-                logger.info(f"Periodic stale-processing reconciliation: {stale_result}")
-        except Exception as e:
-            logger.error(f"Periodic stale-processing reconciliation failed: {e}")
 
 
 @app.on_event("shutdown")  # type: ignore[reportDeprecated]  # FastAPI on_event still functional; lifespan migration would change app wiring

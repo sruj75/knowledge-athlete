@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from typing import Any, cast
 
 DEFAULT_REGION = 'us-central1'
-DEFAULT_SERVICES = ('backend', 'backend-sync')
+DEFAULT_SERVICES = ('backend',)
 
 
 @dataclass(frozen=True)

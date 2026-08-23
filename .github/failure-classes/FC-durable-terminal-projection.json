@@ -2,17 +2,14 @@
   "schema_version": 1,
   "id": "FC-durable-terminal-projection",
   "violated_contract": "Every accepted capture-finalization job must persist one bounded terminal outcome in its authoritative Firestore transition without relying on process-local emission.",
-  "canonical_prevention": "Write the terminal outcome in the lease-fenced completion, stale-fence, and dead-letter transactions; aggregate the closed outcome set from Firestore; and verify those worker transitions directly.",
+  "canonical_prevention": "Keep the retired capture-finalization producer, worker route, and durable projection absent from the assembled backend.",
   "canonical_prevention_artifact": [
-    "backend/tests/unit/test_conversation_finalization_jobs.py",
-    "backend/tests/unit/test_journey_observability.py"
+    "backend/tests/unit/test_s25_retired_worker_routes.py"
   ],
   "evidence_prs": [10468],
   "scope_hints": [
-    "backend/database/conversation_finalization_jobs.py",
-    "backend/services/conversation_finalization.py",
-    "backend/utils/metrics.py",
-    "backend/charts/monitoring/**"
+    "backend/main.py",
+    "backend/tests/unit/test_s25_retired_worker_routes.py"
   ],
   "status": "open"
 }

@@ -27,7 +27,6 @@ LEGIT_NON_JSON: dict[tuple[str, str], str] = {
     # --- WebSockets / SSE streaming ---
     ("transcribe.py", "listen_handler"): "WebSocket audio stream",
     ("transcribe.py", "web_listen_handler"): "WebSocket audio stream",
-    ("pusher.py", "websocket_endpoint_trigger"): "WebSocket audio stream",
     ("chat.py", "create_voice_message_stream"): "StreamingResponse audio",
     ("chat.py", "transcribe_voice_message_stream"): "StreamingResponse audio",
     # --- OAuth / redirect callbacks (return RedirectResponse or HTML) ---
@@ -49,12 +48,7 @@ LEGIT_NON_JSON: dict[tuple[str, str], str] = {
     ("action_items.py", "delete_action_item"): "204 No Content",
     # --- OAuth / OpenID well-known discovery documents (spec-defined, not app-consumed) ---
     # --- Cloud Tasks job runners (OIDC-verified internal, return JSONResponse acks directly) ---
-    ("sync.py", "run_audio_merge_job"): "Cloud Tasks job runner (OIDC-verified internal, JSONResponse acks)",
     ("users.py", "run_account_deletion_wipe"): "Cloud Tasks job runner (OIDC-verified internal, JSONResponse acks)",
-    (
-        "conversation_finalization.py",
-        "run_listen_finalization_job",
-    ): "Cloud Tasks job runner (OIDC-verified internal, JSONResponse acks)",
     ("omni_relay.py", "omni_relay"): "relay proxy (forwards to upstream, JSONResponse passthrough)",
 }
 

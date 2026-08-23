@@ -392,32 +392,38 @@ def test_check_reports_equivalent_path_template_duplicates():
 def test_timeout_override_validation_runs_both_directions():
     app = FastAPI()
 
-    @app.post('/v2/audio-merge-jobs/run')
-    def audio_merge_job():
+    @app.post('/v1/users/account-deletion-wipes/run')
+    def deletion_job():
         return {'ok': True}
 
     @app.post('/v2/no-override')
     def no_override():
         return {'ok': True}
 
-    entries = inventory.iter_inventory_entries(app, paths_timeout={'/v2/audio-merge-jobs/run': 1500, '/missing': 10})
+    entries = inventory.iter_inventory_entries(
+        app, paths_timeout={'/v1/users/account-deletion-wipes/run': 1500, '/missing': 10}
+    )
     manifest = _manifest(
         [
-            _route('POST', '/v2/audio-merge-jobs/run', policy=_policy(timeout_class='audio_merge')),
-            _route('POST', '/v2/no-override', policy=_policy(timeout_class='audio_merge')),
+            _route(
+                'POST',
+                '/v1/users/account-deletion-wipes/run',
+                policy=_policy(timeout_class='account_deletion_wipe'),
+            ),
+            _route('POST', '/v2/no-override', policy=_policy(timeout_class='account_deletion_wipe')),
         ]
     )
 
     problems, summary = inventory.validate_inventory(
         entries=entries,
         manifest=manifest,
-        paths_timeout={'/v2/audio-merge-jobs/run': 1500, '/missing': 10},
+        paths_timeout={'/v1/users/account-deletion-wipes/run': 1500, '/missing': 10},
     )
 
     joined = '\n'.join(problems)
     assert 'stale timeout override paths' in joined
     assert '/missing' in joined
-    assert 'declares audio_merge without a path override' in joined
+    assert 'declares account_deletion_wipe without a path override' in joined
     assert summary['stale_timeout_overrides'] == 1
     assert summary['missing_timeout_overrides'] == 1
 
@@ -425,20 +431,22 @@ def test_timeout_override_validation_runs_both_directions():
 def test_timeout_override_conflicts_with_default_manifest_class():
     app = FastAPI()
 
-    @app.post('/v2/audio-merge-jobs/run')
-    def audio_merge_job():
+    @app.post('/v1/users/account-deletion-wipes/run')
+    def deletion_job():
         return {'ok': True}
 
-    entries = inventory.iter_inventory_entries(app, paths_timeout={'/v2/audio-merge-jobs/run': 1500})
-    manifest = _manifest([_route('POST', '/v2/audio-merge-jobs/run', policy=_policy(timeout_class='default_method'))])
+    entries = inventory.iter_inventory_entries(app, paths_timeout={'/v1/users/account-deletion-wipes/run': 1500})
+    manifest = _manifest(
+        [_route('POST', '/v1/users/account-deletion-wipes/run', policy=_policy(timeout_class='default_method'))]
+    )
 
     problems, summary = inventory.validate_inventory(
         entries=entries,
         manifest=manifest,
-        paths_timeout={'/v2/audio-merge-jobs/run': 1500},
+        paths_timeout={'/v1/users/account-deletion-wipes/run': 1500},
     )
 
-    assert 'has audio_merge timeout override but manifest says default_method' in '\n'.join(problems)
+    assert 'has account_deletion_wipe timeout override but manifest says default_method' in '\n'.join(problems)
     assert summary['missing_timeout_overrides'] == 1
 
 

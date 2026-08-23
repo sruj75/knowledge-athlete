@@ -27,10 +27,6 @@ with Python 3.11 on Linux in strict mode, and treats warnings as failures.
 | `config/` | Runtime configuration |
 | `services/` | Service-layer helpers |
 | `jobs/` | Background job definitions |
-| `llm_gateway/` | Internal LLM gateway service |
-| `pusher/` | Audio push WebSocket service |
-| `diarizer/` | Speaker embedding service |
-| `modal/` | Callerless S-25 hosted VAD deployment handoff |
 | `main.py` | FastAPI app entry point |
 
 Selected non-throwaway scripts are enrolled individually. Benchmark/test scripts

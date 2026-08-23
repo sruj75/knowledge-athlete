@@ -264,7 +264,6 @@ def _harness_service_extra(cfg: HarnessConfig) -> dict[str, str]:
         "REDIS_DB_PORT": str(cfg.redis_port),
         "REDIS_DB_PASSWORD": "",
         "ENVIRONMENT": "local-dev-harness",
-        "ENCRYPTION_SECRET": "omi_local_dev_harness_32_byte_test_secret_not_prod",
         "ADMIN_KEY": "local-dev-admin-key-",
         "BASE_API_URL": cfg.backend_url,
         "API_BASE_URL": cfg.backend_url,

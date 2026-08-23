@@ -104,7 +104,7 @@ def _desktop_transcribe_isolation():
     import sys as _sys
 
     # Full object snapshot, not just a key set: a prior test file may have
-    # imported the real ``utils.stt.speaker_embedding`` / ``utils.conversations.factory``
+    # imported the real ``utils.stt.speaker_embedding`` module
     # which this fixture replaces with ModuleType stubs. Evicting only *new* keys
     # (the original ``_saved_keys = set(_sys.modules)`` approach) leaves those stubs
     # in place — the real module object is never restored and the hermeticity guard
@@ -327,9 +327,6 @@ def _desktop_transcribe_isolation():
         _duration_pb2.Duration = MagicMock
 
         os.environ.setdefault('OPENAI_API_KEY', 'sk-fake-for-test')
-        os.environ.setdefault(
-            'ENCRYPTION_SECRET', 'omi_ZwB2ZNqB2HHpMK6wStk7sTpavJiPTFg7gXUHnc4tFABPU6pZ2c2DKgehtfgi4RZv'
-        )
         os.makedirs('/tmp', exist_ok=True)
 
         # Stub transitive imports for utils.chat (avoid pulling in all of utils.llm etc.)
@@ -340,7 +337,6 @@ def _desktop_transcribe_isolation():
             'utils.llm.memories',
             'utils.llm.goals',
             'utils.llm.usage_tracker',
-            'utils.conversations.process_conversation',
             'utils.notifications',
             'utils.other.storage',
             'utils.retrieval',
@@ -353,15 +349,6 @@ def _desktop_transcribe_isolation():
             'models.goal',
         ]:
             sys.modules.setdefault(_ufull, MagicMock())
-
-        _utils_conversations_pkg = ModuleType('utils.conversations')
-        _utils_conversations_pkg.__path__ = []
-        _utils_conversations_pkg.__package__ = 'utils.conversations'
-        _utils_conversations_factory = ModuleType('utils.conversations.factory')
-        _utils_conversations_factory.deserialize_conversation = MagicMock(side_effect=lambda conversation: conversation)
-        sys.modules['utils.conversations'] = _utils_conversations_pkg
-        sys.modules['utils.conversations.factory'] = _utils_conversations_factory
-        setattr(_utils_conversations_pkg, 'factory', _utils_conversations_factory)
 
         # Force-import real models.chat (has no project deps, needed for FastAPI response_model)
         import importlib.util as _ilu

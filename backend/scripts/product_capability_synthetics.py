@@ -19,13 +19,6 @@ REPO_ROOT = BACKEND_DIR.parent
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-from fastapi.testclient import TestClient
-from llm_gateway.gateway.auth import LEGACY_SERVICE_TOKEN_ENV_VAR, PRIMARY_SERVICE_TOKEN_ENV_VAR
-from llm_gateway.gateway.executor import ProviderRegistry
-from llm_gateway.gateway.providers import FakeChatCompletionProvider
-from llm_gateway.main import app as llm_gateway_app
-from llm_gateway.routers import dependencies as llm_gateway_dependencies
-
 STATUS_PASS = "PASS"
 STATUS_FAIL = "FAIL"
 STATUS_SKIP_NO_CREDENTIALS = "SKIP_NO_CREDENTIALS"
@@ -139,71 +132,6 @@ def backend_health_check(config: SyntheticConfig) -> tuple[str, str, dict[str, A
     )
 
 
-def llm_gateway_fake_provider_check(config: SyntheticConfig) -> tuple[str, str, dict[str, Any]]:
-    sentinel_token = "product-synthetic-sentinel-token"
-    service_token_env_vars = (PRIMARY_SERVICE_TOKEN_ENV_VAR, LEGACY_SERVICE_TOKEN_ENV_VAR)
-    previous_service_tokens = {env_var: os.environ.get(env_var) for env_var in service_token_env_vars}
-    for env_var in service_token_env_vars:
-        os.environ[env_var] = sentinel_token
-
-    provider = FakeChatCompletionProvider()
-    llm_gateway_app.dependency_overrides[llm_gateway_dependencies.get_provider_registry] = lambda: ProviderRegistry(
-        {"openai": provider}
-    )
-    try:
-        response = TestClient(llm_gateway_app).post(
-            "/v1/chat/completions",
-            headers={
-                "authorization": f"Bearer {sentinel_token}",
-                "x-omi-service-caller": "backend",
-                "x-omi-user-uid": "synthetic-product-capability-user",
-            },
-            json={
-                "model": "omi:auto:chat-structured",
-                "messages": [{"role": "user", "content": "Return a JSON object with capability true."}],
-                "response_format": {
-                    "type": "json_schema",
-                    "json_schema": {
-                        "name": "ProductCapabilitySynthetic",
-                        "strict": True,
-                        "schema": {
-                            "type": "object",
-                            "properties": {"capability": {"type": "boolean"}},
-                            "required": ["capability"],
-                            "additionalProperties": False,
-                        },
-                    },
-                },
-            },
-        )
-    finally:
-        llm_gateway_app.dependency_overrides.clear()
-        for env_var, previous_value in previous_service_tokens.items():
-            if previous_value is None:
-                os.environ.pop(env_var, None)
-            else:
-                os.environ[env_var] = previous_value
-
-    if response.status_code != 200:
-        return (
-            STATUS_FAIL,
-            f"LLM gateway fake-provider chat auth smoke returned HTTP {response.status_code}.",
-            {"status_code": response.status_code, "body": response.text[:500]},
-        )
-    body = response.json()
-    if body.get("object") != "chat.completion" or body.get("model") != "omi:auto:chat-structured" or not provider.calls:
-        return STATUS_FAIL, "LLM gateway response did not match the OpenAI-compatible chat contract.", {"body": body}
-    return (
-        STATUS_PASS,
-        "LLM gateway service-auth and OpenAI-compatible chat path passed with fake provider.",
-        {
-            "status_code": response.status_code,
-            "provider_calls": len(provider.calls),
-            "network_or_provider_calls": False,
-        },
-    )
-
-
 def _pytest_k_expression(pytest_target: str) -> str:
     return pytest_target.rsplit("::", maxsplit=1)[-1]
 
@@ -269,7 +197,6 @@ def account_deletion_fixture_check(config: SyntheticConfig) -> tuple[str, str, d
 def build_report(config: SyntheticConfig) -> dict[str, Any]:
     checks = [
         timed_check("backend_health", lambda: backend_health_check(config)),
-        timed_check("llm_gateway_chat_fake_provider", lambda: llm_gateway_fake_provider_check(config)),
         timed_check("account_deletion_local_fixture", lambda: account_deletion_fixture_check(config)),
     ]
     counts = {status: sum(1 for check in checks if check.status == status) for status in sorted(VALID_STATUSES)}

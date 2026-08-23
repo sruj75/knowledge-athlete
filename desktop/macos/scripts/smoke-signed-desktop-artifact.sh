@@ -738,7 +738,7 @@ run_chat_probe() {
   [[ -n "$auth_header" ]] || fail "--chat requires OMI_SIGNED_ARTIFACT_SMOKE_AUTH_HEADER"
 
   local payload status
-  payload='{"model":"omi:auto:balanced","messages":[{"role":"user","content":"Reply with ok."}],"stream":false}'
+  payload='{"model":"omi-sonnet","messages":[{"role":"user","content":"Reply with ok."}],"stream":false}'
   status="$(curl -sS -o /tmp/omi-smoke-chat.out -w "%{http_code}" --max-time "$TIMEOUT_SECONDS" \
     -H "Authorization: $auth_header" -H "Content-Type: application/json" \
     -d "$payload" "$chat_url")" || fail "chat probe request failed"

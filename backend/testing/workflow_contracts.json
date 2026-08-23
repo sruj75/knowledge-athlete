@@ -152,63 +152,6 @@
       ]
     },
     {
-      "id": "conversation_lifecycle",
-      "risk": "high",
-      "sources": [
-        "backend/database/conversations.py",
-        "backend/database/conversation_finalization_jobs.py",
-        "backend/services/conversation_finalization.py",
-        "backend/utils/conversations/lifecycle.py",
-        "backend/utils/conversations/finalizer.py",
-        "backend/routers/transcribe.py",
-        "backend/routers/conversation_finalization.py",
-        "backend/routers/pusher.py",
-        "backend/routers/sync.py",
-        "backend/utils/conversations/process_conversation.py"
-      ],
-      "tests": [
-        "tests/unit/test_check_conversation_lifecycle_writes.py",
-        "tests/unit/test_conversation_finalization_jobs.py",
-        "tests/unit/test_listen_finalization_cloud_tasks.py",
-        "tests/unit/test_pusher_runtime_protocol.py",
-        "tests/unit/utils/test_listen_pusher_session.py"
-      ],
-      "checks": [
-        "conversation-lifecycle-write-guard"
-      ],
-      "invariants": [
-        "only one drain finalizer claim succeeds for an existing in-progress conversation",
-        "finalization outbox reconnects reuse one durable job and lease fences stale workers",
-        "only utils.conversations.lifecycle may invoke lifecycle persistence primitives",
-        "no recording session, merge, post-processing, or new hosted conversation product writer remains",
-        "the callerless finalization drain preserves rollback safety until S-25 removes its routes and workers"
-      ]
-    },
-    {
-      "id": "pusher_pipeline",
-      "risk": "high",
-      "sources": [
-        "backend/routers/pusher.py",
-        "backend/utils/listen_pusher_session.py",
-        "backend/utils/pusher.py",
-        "backend/utils/pusher_protocol.py",
-        "backend/pusher/main.py",
-        "backend/utils/conversations/finalizer.py",
-        "backend/utils/conversations/lifecycle.py"
-      ],
-      "tests": [
-        "tests/unit/test_pusher_runtime_protocol.py",
-        "tests/unit/utils/test_listen_pusher_session.py"
-      ],
-      "checks": [],
-      "invariants": [
-        "durable finalization-control requests replay after reconnect until acknowledged",
-        "the drain endpoint accepts control-plane heartbeat frames without creating product state",
-        "retired transcript audio speaker and conversation product frames are rejected",
-        "the callerless finalization-control handoff remains bounded until S-25 removes the service"
-      ]
-    },
-    {
       "id": "desktop_backend_realtime_provider_proof",
       "risk": "high",
       "sources": [
@@ -234,13 +177,10 @@
       "sources": [
         ".github/actions/transcription-release-candidate-probe/**",
         ".github/workflows/gcp_backend*.yml",
-        ".github/workflows/gcp_llm_gateway.yml",
         "backend/deploy/runtime_env.yaml",
         "backend/scripts/preflight-cloud-run-deploy.py",
         "backend/scripts/resolve_cloud_run_tagged_url.py",
         "backend/scripts/verify_backend_release_vector.py",
-        "backend/scripts/verify-llm-gateway-serving.py",
-        "backend/scripts/probe-llm-gateway-from-cloud-run.sh",
         "backend/scripts/render_backend_runtime_env.py",
         "backend/scripts/repair_cloud_run_traffic.py",
         "backend/scripts/cloud_run_traffic_snapshot.py",
@@ -258,69 +198,16 @@
         "tests/unit/test_cloud_run_traffic_snapshot.py",
         "tests/unit/test_deploy_status_report.py",
         "tests/unit/test_backend_runtime_env_validator.py",
-        "tests/unit/test_verify_llm_gateway_serving.py",
-        "tests/unit/test_llm_gateway_deploy_contract.py",
         "tests/unit/test_firebase_release_probe_token.py",
         "tests/unit/test_transcription_capability_probe.py"
       ],
       "checks": [],
       "invariants": [
         "preflight fails before revision creation when Secret Manager bindings are missing",
-        "traffic shifts only after candidate revisions are Ready=True",
-        "every Cloud Run traffic spec is durably captured before promotion and restored automatically after a failed shift, serving-vector check, or production serving smoke",
-        "GKE runtime config, backend secrets, and backend-listen mutate only after the no-traffic Cloud Run candidate is accepted",
+        "traffic shifts only after the canonical backend candidate revision is Ready=True",
+        "the Cloud Run traffic spec is captured before promotion and restored after a failed shift or serving smoke",
         "spec.traffic mismatches are repaired or block deploy with an explicit command",
-        "production backend traffic shifts only after the Cloud Run-only candidate vector passes, then rolls back if the post-promotion serving route or known-audio smoke fails",
-        "gateway-first serving cannot be promoted until the ready workload, EndpointSlice, ingress/ILB attachment, and authenticated Cloud Run VPC route all pass"
-      ]
-    },
-    {
-      "id": "pusher_rollout_readiness",
-      "risk": "high",
-      "sources": [
-        "backend/charts/pusher/**",
-        ".github/workflows/gcp_backend_pusher.yml",
-        ".github/workflows/gcp_backend_pusher_auto_deploy.yml",
-        "backend/scripts/verify_pusher_rollout_budget.py",
-        "backend/scripts/verify_pusher_live_deployment_gate.py",
-        "backend/scripts/verify_pusher_promotion_evidence.py",
-        "backend/scripts/verify_pusher_source_closure.py"
-      ],
-      "tests": [
-        "tests/unit/test_verify_pusher_rollout_budget.py",
-        "tests/unit/test_verify_pusher_live_deployment_gate.py",
-        "tests/unit/test_verify_pusher_promotion_evidence.py",
-        "tests/unit/test_pusher_deployment_control_workflow.py"
-      ],
-      "checks": [],
-      "invariants": [
-        "Pusher's Kubernetes progress deadline and CI rollout wait both cover every configured healthy-availability wave at the committed HPA ceiling",
-        "a chart change to Pusher startup/readiness/min-ready, HPA, or RollingUpdate inputs cannot silently make a healthy rollout appear failed",
-        "production Pusher deploys only an exact digest attested by a successful automatic development rollout and never rebuilds that production artifact",
-        "the live deployment gate rejects missing matching-node surge capacity before Helm can mutate the release",
-        "the prod freshness check compares the full Dockerfile COPY source closure so a post-qualification change to any shared backend module cannot ship a stale digest",
-        "the live capacity gate has a confirm-and-reason break-glass hatch that records a tracking issue, matching the repo's gated-surface contract"
-      ]
-    },
-    {
-      "id": "rendered_gke_deployment_identity",
-      "risk": "high",
-      "sources": [
-        "backend/charts/backend-listen/**",
-        "backend/charts/pusher/**",
-        "backend/charts/llm-gateway/**",
-        "backend/charts/diarizer/**",
-        "backend/charts/vad/**",
-        "backend/scripts/validate_rendered_deployment_contract.py"
-      ],
-      "tests": [
-        "tests/unit/test_rendered_deployment_contract.py"
-      ],
-      "checks": [],
-      "invariants": [
-        "every first-party GKE workload renders an explicit immutable image identity",
-        "rendered Deployments keep their environment-specific service account, secret references, port, and health probes",
-        "chart defaults cannot fall back to an application-version or latest image tag"
+        "production traffic shifts only after the canonical backend candidate passes the retained health and transcription probes"
       ]
     },
     {

@@ -24,7 +24,7 @@ this SHA is meaningful and cherry-picking upstream commits still applies cleanly
 |---|---|
 | `desktop/macos/` | Native Swift 6 / SwiftUI app + bundled Node agent runtime |
 | `desktop/windows/` | Electron + React + TS app (also builds mac/linux targets) |
-| `backend/` | FastAPI + Firestore/Redis/LLM gateway, Helm charts |
+| `backend/` | FastAPI + Firestore/Redis + direct managed providers, deployed through canonical Cloud Run workflows |
 | `scripts/` | `dev-instance.sh` (sourced by `desktop/macos/run.sh`) and `dev-harness/` (local emulator stack) |
 | `.github/` | CI + the desktop release chain |
 | `infrastructure/opentofu/` | GCP foundation + workload-identity-federation setup |
@@ -166,13 +166,13 @@ name with no direct user-visible identity.
 | Surface | Current identity | Authority | Role | Ownership | Coupling |
 |---|---|---|---|---|---|
 | GitHub source/releases | `BasedHardware/omi`; this fork's remote is `sruj75/knowledge-athlete` | Backend update routes, `desktop/macos/Desktop/Sources/AppBuild.swift`, Electron builder/updater, desktop workflows | Changelogs, update assets, preview admission, release evidence, and allowlists still resolve or require the upstream repository. | Omi/BasedHardware; local fork | service endpoint; release infrastructure |
-| GCP/Firebase projects | Production `based-hardware`; development `based-hardware-dev`; Omi-named Cloud Run, GKE, service-account, image, and secret resources | `.github/workflows/gcp_*.yml`, `.github/workflows/desktop_backend_*.yml`, `backend/deploy/runtime_env.yaml`, `infrastructure/opentofu/` | Deployment and runtime identities target Omi projects and cloud principals while unchanged. | Omi/BasedHardware; Google Cloud | external identifier; release infrastructure |
-| Helm/GKE deployment identities | Namespaces `dev-omi-backend`, `prod-omi-backend`; LLM Gateway releases `dev-omi-llm-gateway`, `prod-omi-llm-gateway`; backend-listen releases `<env>-omi-backend-listen`; selected config maps, secrets, services, and service accounts use `<env>-omi-*`. Images use `gcr.io/based-hardware[-dev]/<service>` repositories. | `backend/deploy/runtime_env.yaml`, retained charts such as `backend/charts/backend-listen/`, `.github/workflows/gcp_backend.yml`, `.github/workflows/gcp_backend_auto_dev.yml`, `.github/workflows/gcp_backend_pusher.yml`, `.github/workflows/gcp_llm_gateway.yml` | Helm history, Kubernetes discovery, workload identity, image lookup, secret/config references, and deployment automation remain coupled to these names. | Omi/BasedHardware deployment; Google Cloud | external identifier; release infrastructure |
+| GCP/Firebase projects | Production `based-hardware`; development `based-hardware-dev`; Omi-named Cloud Run, service-account, image, and secret resources | `.github/workflows/gcp_backend*.yml`, `.github/workflows/desktop_backend_*.yml`, `backend/deploy/runtime_env.yaml`, `infrastructure/opentofu/` | Deployment and runtime identities target Omi projects and cloud principals while unchanged. | Omi/BasedHardware; Google Cloud | external identifier; release infrastructure |
+| Canonical backend deployment identity | One `backend` Cloud Run service per environment using `gcr.io/based-hardware[-dev]/backend:<immutable-tag>`; `desktop-backend` remains an independently owned retained service | `backend/deploy/runtime_env.yaml`, `backend/runtime_images.json`, `.github/workflows/gcp_backend.yml`, `.github/workflows/gcp_backend_auto_dev.yml` | Image lookup, service IAM, runtime env, revision identity, traffic, and rollback remain coupled to these names until S-27 reowns the retained foundation. | Omi/BasedHardware deployment; Google Cloud | external identifier; release infrastructure |
 | CI control-plane credentials | `GCP_CREDENTIALS`, `GCP_FIRESTORE_READONLY_CREDENTIALS`, and `CODEMAGIC_API_TOKEN`; the Windows Azure secret set is inventoried above | `.github/workflows/gcp_*.yml`, `.github/workflows/desktop_*.yml`, `desktop/macos/AGENTS.md`, `desktop/windows/docs/release-pipeline.md` | Backend deploys, release eligibility, desktop promotion/rollback, Codemagic intake checks, and Windows signing authenticate to the accounts supplied by these secrets; missing values fail or downgrade the documented lane. Secret values and current GitHub environment population are not present in the tracked snapshot. | Omi/BasedHardware operator; Google Cloud; Codemagic; Azure | external identifier; release infrastructure |
-| Public domains | `api.omi.me`, `api.omiapi.com`, `h.omi.me`, `macos.omi.me`, `windows.omi.me`, and service-specific Omi hosts | Backend routers/config, desktop clients, charts, workflows | Auth callbacks, APIs, sharing, downloads, health checks, and provider routing remain bound to Omi DNS and certificates. | Omi/BasedHardware | service endpoint |
+| Public domains | `api.omi.me`, `api.omiapi.com`, `h.omi.me`, `macos.omi.me`, `windows.omi.me`, and retained service-specific Omi hosts | Backend routers/config, desktop clients, workflows | Auth callbacks, APIs, sharing, downloads, health checks, and provider routing remain bound to Omi DNS and certificates. | Omi/BasedHardware | service endpoint |
 | Update asset origin | `https://github.com/BasedHardware/omi/releases/download/` | `backend/routers/updates.py` | Generated macOS appcasts and Windows feed directories hand clients Omi-hosted binaries. | Omi/BasedHardware | service endpoint; release infrastructure |
-| Backend data plane | Firestore plus Redis, object/search stores, queues, and Omi-named service deployments | `backend/database/`, `backend/deploy/runtime_env.yaml`, charts and workflows | User identity, tasks, retained server conversation workflows, capture, release manifests, and operational state are owned by the configured Omi cloud environment. Mac conversations and Memories are excluded. | Omi/BasedHardware; cloud providers | service endpoint; persistent identity |
-| Provider credentials | OpenAI, Anthropic, Gemini, Modulate, Dodo Payments, email, connector, and related environment-backed accounts | Backend env templates, runtime env contract, charts, and workflow secrets | Values are not selected by a visual rebrand. Billing is disabled by default; an operator must explicitly select Dodo test or live mode and supply its API key, webhook key, and normalized server-owned offer catalog. | Third-party accounts configured by operator | service endpoint |
+| Backend data plane | Firestore plus Redis, retained update/preview object storage, the account-deletion queue, and canonical Cloud Run | `backend/database/`, `backend/deploy/runtime_env.yaml`, backend workflows | User identity, tasks, release manifests, durable deletion state, and retained operational state are owned by the configured Omi cloud environment. Mac conversations and Memories are excluded. | Omi/BasedHardware; cloud providers | service endpoint; persistent identity |
+| Provider credentials | OpenAI, Anthropic, Gemini, Modulate, Dodo Payments, email, connector, and related environment-backed accounts | Backend env templates, runtime env contract, and workflow secrets | Values are not selected by a visual rebrand. Billing is disabled by default; an operator must explicitly select Dodo test or live mode and supply its API key, webhook key, and normalized server-owned offer catalog. | Third-party accounts configured by operator | service endpoint |
 | macOS build lane | External workflow identity `omi-desktop-swift-release`, `CODEMAGIC_API_TOKEN`, self-hosted `omi-qual-m1-studio`, then GitHub promotion workflows | `desktop/macos/AGENTS.md`, release docs, `.github/workflows/desktop_*.yml` | GitHub can observe same-tag provider intake and qualify/publish an artifact, but this checkout has no tracked build-provider definition. S-29 owns adding that definition before the lane is self-contained. | Omi/BasedHardware; external build provider/self-hosted runner | release infrastructure |
 | Internal source naming | `Omi*` Swift/Python/TypeScript symbols plus repository-local `OMI_*` variables and `omi-*` development scripts/test conventions | Retained source and tests; macOS development controls are inventoried above | These symbols can remain without contacting Omi and do not by themselves preserve an upstream account, endpoint, shipped bundle identity, or deployment resource. Blind renames would still require coordinated in-tree caller and test changes. | Local repository | internal-only symbol |
 | Legal provenance | MIT copyright and license from the upstream snapshot | [LICENSE](LICENSE), this file's provenance section | Redistribution must retain the license notice; the code license does not transfer Omi trademark or service ownership. | Upstream authors | external identifier |
@@ -213,20 +213,15 @@ server-side residue is intentionally bounded:
 | Backend People, speech-profile, speaker-matching, and reusable person-ID helpers/models | S-23 | Server-only historical workflows still own these internals. Listen no longer reads profiles, matches persistent voices, or returns person identity. |
 | Local PTT conversation list and hybrid search | S-19 | Owner-fenced GRDB summaries plus local FTS5/persisted vectors replace the retired `/v1/tools/conversations*` boundary. Shared hosted Conversation persistence, transcript hydration, and vector infrastructure remain for S-23/S-24. |
 | `backend/database/conversations.py`, `backend/database/folders.py`, hosted finalization/process helpers, and their direct tests/fixtures | S-23 | Existing server workflows still require the datastore; S-10 stops new Mac projection but does not wipe live data or remove shared persistence. |
-| `/v2/audio-merge-jobs/run`, audio merge helpers/tests, queues, and stored playback artifacts | S-25 | The public playback surface is gone, but operational worker/deployment teardown requires a separately authorized drain. |
 | `conv_discard`, `conv_structure`, and `conv_action_items` model-policy configuration | S-22 | S-10 consumes these existing feature keys through stateless compute routes; model routing remains independently owned. |
 
 S-24 removes the hosted Typesense and Pinecone search handoff left after S-23.
 Local macOS FTS5 and persisted-vector search remain authoritative and do not
 depend on those providers.
 
-S-24 repository closure stops before the private-sync GCS family: the functional
-S-25-owned audio finalization drain still imports `routers/sync.py`,
-`utils/sync/playback.py`, and the private-cloud branch of
-`utils/other/storage.py`. Deleting that branch or `google-cloud-storage` here
-would break the live drain; leaving an empty worker would hide the same problem.
-S-25 must resolve that workload when it removes the queue/worker/service
-topology. The independently owned desktop update bucket remains with S-29.
+S-25 removed the private-sync audio worker, queue, playback helpers, and rejected
+storage branch. The independently owned desktop update and preview buckets
+remain with their release owners.
 
 ### Local Chat authority and exact handoffs
 
@@ -239,7 +234,7 @@ callers and later owners:
 
 | Retained residue | Later owner | Why it remains after S-11 |
 |---|---|---|
-| `chat_responses`, `session_titles`, and their gateway/model-policy artifacts | S-22 | `session_titles` is the pinned transient S-11 title workload; `chat_responses` still has gateway/QoS callers that S-22 owns. |
+| `chat_responses`, `session_titles`, and their typed model-policy artifacts | Retained direct-model owners | `session_titles` is the pinned transient S-11 title workload; retained Chat/model compute uses explicit direct provider clients and workload-owned QoS. |
 | `/v2/voice-messages`, `/v2/voice-message/transcribe`, `/v2/voice-message/transcribe-stream`, and their multipart, duration, `load_voice_message_segment_bytes`, and `transcribe_voice_message_bytes` helpers | S-19 | Voice-message and push-to-talk speech transport are transient STT, distinct from the deleted hosted Chat persona and from local Chat persistence. |
 
 S-24 removes the final hosted file/session helpers, OpenAI Files/Assistants

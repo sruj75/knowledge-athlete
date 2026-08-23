@@ -124,10 +124,7 @@ def test_discard_router_has_no_persistence_collaborators():
         if hasattr(value, '__name__') and isinstance(value.__name__, str)
     }
 
-    assert not any(
-        name == 'database' or name.startswith(('database.', 'services.', 'utils.conversations'))
-        for name in collaborator_modules
-    )
+    assert not any(name == 'database' or name.startswith(('database.', 'services.')) for name in collaborator_modules)
 
 
 def test_structure_returns_only_retained_candidates_and_tracks_usage(monkeypatch):

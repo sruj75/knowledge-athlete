@@ -15,7 +15,7 @@ The initial manifest covers the primary FastAPI app created in `backend/main.py`
 - Application WebSocket routes: included in inventory and manifest coverage checks
 - FastAPI-generated docs/OpenAPI/Redoc system routes: listed as excluded system routes in generated inventory
 
-Sibling FastAPI services such as `pusher`, `llm_gateway`, `diarizer`, and `modal` should get their own service ids or manifests later.
+S-25 removed the sibling worker applications, so this manifest now inventories the complete hosted backend route surface.
 
 ## Route Identity
 

@@ -22,7 +22,6 @@ from scripts.firestore_workflow_policy import (  # noqa: E402
 from scripts.runtime_env_durable_dispatch_contracts import (  # noqa: E402
     ValidationError,
     validate_account_deletion_dispatch_contract as _validate_account_deletion_dispatch_contract,
-    validate_listen_finalization_dispatch_contract as _validate_listen_finalization_dispatch_contract,
 )
 
 DEFAULT_MANIFEST = ROOT / 'backend/deploy/runtime_env.yaml'
@@ -31,8 +30,7 @@ EnvEntry = dict[str, Any]
 EnvEntryMap = dict[str, EnvEntry]
 StringMap = dict[str, str]
 
-_MANAGED_STT_GKE_SERVICES = ('backend-listen', 'pusher')
-_MANAGED_STT_CLOUD_RUN_SERVICES = ('backend', 'backend-sync')
+_MANAGED_STT_CLOUD_RUN_SERVICES = ('backend',)
 _RETIRED_STT_RUNTIME_ENV = frozenset(
     {
         'DEEPGRAM_API_KEY',
@@ -54,7 +52,7 @@ def _as_config_list(value: object) -> list[Any] | None:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description='Validate backend runtime env manifests against GKE and Cloud Run.')
+    parser = argparse.ArgumentParser(description='Validate the canonical backend Cloud Run runtime manifest.')
     parser.add_argument('--env', choices=('dev', 'prod'), required=True)
     parser.add_argument('--manifest', type=Path, default=DEFAULT_MANIFEST)
     parser.add_argument(
@@ -124,10 +122,8 @@ def validate_runtime_env(
     if errors:
         return errors
 
-    errors.extend(_validate_gke(env_config, strict_provisional=strict_provisional))
     errors.extend(_validate_managed_stt_contract(env, env_config))
     errors.extend(_validate_account_deletion_dispatch_contract(env, env_config))
-    errors.extend(_validate_listen_finalization_dispatch_contract(env, env_config))
     if check_workflows:
         errors.extend(
             _validate_cloud_run_workflows(
@@ -270,7 +266,7 @@ def _get_env_config(manifest: ConfigDict, env: str) -> ConfigDict:
 
 def _validate_manifest_shape(env_config: ConfigDict, env: str) -> list[ValidationError]:
     errors: list[ValidationError] = []
-    for key in ('gcp_project', 'region', 'gke', 'cloud_run'):
+    for key in ('gcp_project', 'region', 'cloud_run'):
         if key not in env_config:
             errors.append(ValidationError(env, f'missing {key}'))
     cloud_run = _as_config_dict(env_config.get('cloud_run')) or {}
@@ -297,17 +293,6 @@ def _validate_managed_stt_contract(env: str, env_config: ConfigDict) -> list[Val
     errors: list[ValidationError] = []
     surfaces: list[tuple[str, ConfigDict, ConfigDict]] = []
 
-    gke = _as_config_dict(env_config.get('gke')) or {}
-    for service, raw_service in gke.items():
-        service_config = _as_config_dict(raw_service) or {}
-        surfaces.append(
-            (
-                f'{env}/gke/{service}',
-                _as_config_dict(service_config.get('env')) or {},
-                _as_config_dict(service_config.get('secrets')) or {},
-            )
-        )
-
     cloud_run = _as_config_dict(env_config.get('cloud_run')) or {}
     cloud_run_services = _as_config_dict(cloud_run.get('services')) or {}
     for service, raw_service in cloud_run_services.items():
@@ -321,7 +306,6 @@ def _validate_managed_stt_contract(env: str, env_config: ConfigDict) -> list[Val
         )
 
     required_scopes = {
-        *(f'{env}/gke/{service}' for service in _MANAGED_STT_GKE_SERVICES if service in gke),
         *(f'{env}/cloud_run/{service}' for service in _MANAGED_STT_CLOUD_RUN_SERVICES if service in cloud_run_services),
     }
     for scope, env_map, secrets_map in surfaces:
@@ -334,29 +318,6 @@ def _validate_managed_stt_contract(env: str, env_config: ConfigDict) -> list[Val
             env_map, secrets_map, 'MODULATE_API_KEY'
         ):
             errors.append(ValidationError(scope, 'managed transcription surface is missing non-empty MODULATE_API_KEY'))
-    return errors
-
-
-def _validate_gke(env_config: ConfigDict, *, strict_provisional: bool) -> list[ValidationError]:
-    errors: list[ValidationError] = []
-    gke_config = _as_config_dict(env_config.get('gke')) or {}
-    for service, raw_service_config in gke_config.items():
-        service_config = _as_config_dict(raw_service_config)
-        if service_config is None:
-            errors.append(ValidationError(f'gke/{service}', 'service config must be a mapping'))
-            continue
-        values_file = ROOT / service_config['values_file']
-        values = _load_yaml(values_file)
-        actual_env = _env_entries_by_name(values.get('env', []))
-        errors.extend(
-            _validate_env_entries(
-                scope=f'gke/{service}',
-                expected=service_config.get('env', {}),
-                actual=actual_env,
-                strict_provisional=strict_provisional,
-                config_maps=_config_map_names(values.get('envFrom', [])),
-            )
-        )
     return errors
 
 
@@ -801,8 +762,6 @@ def _workflow_variable_map(env_config: ConfigDict, expected_services: ConfigDict
         '${{vars.GCP_PROJECT_ID}}': str(env_config['gcp_project']),
         '${{ vars.RUNTIME_GCP_PROJECT_ID }}': runtime_gcp_project,
         '${{vars.RUNTIME_GCP_PROJECT_ID}}': runtime_gcp_project,
-        '${{ vars.OMI_LLM_GATEWAY_URL }}': _manifest_env_value(expected_services, 'OMI_LLM_GATEWAY_URL'),
-        '${{vars.OMI_LLM_GATEWAY_URL}}': _manifest_env_value(expected_services, 'OMI_LLM_GATEWAY_URL'),
         '${{ vars.CLOUD_RUN_VPC_NETWORK }}': _expected_flag_value(
             env_config.get('cloud_run', {}).get('network', {}).get('flags', {}).get('--network', '')
         ),
@@ -822,16 +781,6 @@ def _network_flags(env_config: ConfigDict) -> ConfigDict:
     cloud_run = _as_config_dict(env_config.get('cloud_run')) or {}
     network = _as_config_dict(cloud_run.get('network')) or {}
     return _as_config_dict(network.get('flags')) or {}
-
-
-def _manifest_env_value(expected_services: ConfigDict, name: str) -> str:
-    for raw_service_config in expected_services.values():
-        service_config = _as_config_dict(raw_service_config) or {}
-        env_config = _as_config_dict(service_config.get('env')) or {}
-        env_entry = _as_config_dict(env_config.get(name))
-        if isinstance(env_entry, dict) and 'value' in env_entry:
-            return str(env_entry['value'])
-    return ''
 
 
 def _literal_env_value(entry: dict[str, Any]) -> str:
@@ -950,17 +899,6 @@ def _env_entries_by_name(raw_env: object) -> EnvEntryMap:
         if entry_dict is not None and isinstance(entry_dict.get('name'), str):
             result[entry_dict['name']] = entry_dict
     return result
-
-
-def _config_map_names(raw_env_from: object) -> set[str]:
-    entries = _as_config_list(raw_env_from) or []
-    names: set[str] = set()
-    for entry in entries:
-        config_map_ref = _as_config_dict((_as_config_dict(entry) or {}).get('configMapRef'))
-        name = config_map_ref.get('name') if config_map_ref is not None else None
-        if isinstance(name, str):
-            names.add(name)
-    return names
 
 
 def _literal_env_entries_by_name(raw_env: object, *, variables: StringMap | None = None) -> EnvEntryMap:

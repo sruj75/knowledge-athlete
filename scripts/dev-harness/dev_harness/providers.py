@@ -192,24 +192,6 @@ def default_provider_specs(repo_root: Path) -> tuple[ProviderSpec, ...]:
             allowed_capabilities=("llm.chat",),
             budget=ProviderBudget(max_requests_per_session=60, max_requests_per_day=300, max_tokens=200_000),
         ),
-        ProviderSpec(
-            name="hosted-ml-local-http",
-            credential_env=None,
-            billing_owner="developer-local-qa",
-            quota="local loopback-only hosted ML budget",
-            data_use="synthetic-or-local-QA audio only",
-            retention="none; local/loopback fake in offline mode",
-            region="local",
-            allowed_endpoints=(
-                "http://127.0.0.1:8001/v2/embedding",
-                "http://127.0.0.1:8001/v1/vad",
-                "http://127.0.0.1:8001/v1/speaker-identification",
-            ),
-            allowed_capabilities=("speaker.embedding", "vad.read", "speaker.identification"),
-            budget=ProviderBudget(max_requests_per_session=120, max_requests_per_day=600, timeout_seconds=30.0),
-            fake_module="embeddings",
-            fake_source_path=str(fake_root / "embeddings.py"),
-        ),
     )
 
 

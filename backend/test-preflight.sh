@@ -93,17 +93,6 @@ if [[ ${#missing_pkgs[@]} -gt 0 ]]; then
   echo -e "  ${YELLOW}→${NC} Run: ${PYTHON_BIN:-python} -m pip install -r requirements.txt"
 fi
 
-# ── Environment variables (required for unit tests) ──
-echo ""
-echo "Env vars (unit tests):"
-
-# ENCRYPTION_SECRET is set by test.sh, but check if it's already in env
-if [[ -n "${ENCRYPTION_SECRET:-}" ]]; then
-  ok "ENCRYPTION_SECRET (set in env)"
-else
-  ok "ENCRYPTION_SECRET (set by test.sh — no action needed)"
-fi
-
 # ── Environment variables (integration tests / optional) ──
 echo ""
 echo "Env vars (integration — optional):"

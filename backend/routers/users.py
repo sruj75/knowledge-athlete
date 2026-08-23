@@ -8,11 +8,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
 
-from database import (
-    conversations as conversations_db,
-    user_usage as user_usage_db,
-    llm_usage as llm_usage_db,
-)
+from database import user_usage as user_usage_db, llm_usage as llm_usage_db
 from database.job_run_locks import release_job_run_lock, try_acquire_job_run_lock
 from services.users.data_export import iter_user_data_export
 from services.users.account_deletion import background_wipe_user_data, start_account_deletion
@@ -148,11 +144,11 @@ async def run_account_deletion_wipe(
         logger.error(f'account_deletion handler: invalid payload, dropping task: {sanitize(str(e))}')
         return JSONResponse(status_code=200, content={'status': 'dropped', 'reason': 'invalid_payload'})
 
-    if task_authentication.audience == 'legacy_sync' and payload_kind != 'legacy_uid':
-        logger.warning('account_deletion handler: dropping job-ID payload with legacy sync audience')
+    if task_authentication.audience == 'legacy' and payload_kind != 'legacy_uid':
+        logger.warning('account_deletion handler: dropping job-ID payload with legacy audience')
         return JSONResponse(status_code=200, content={'status': 'dropped', 'reason': 'legacy_audience_for_job_id'})
 
-    if payload_kind == 'legacy_uid' and task_authentication.audience != 'legacy_sync':
+    if payload_kind == 'legacy_uid' and task_authentication.audience != 'legacy':
         logger.warning('account_deletion handler: dropping legacy uid payload with non-legacy audience')
         return JSONResponse(
             status_code=200, content={'status': 'dropped', 'reason': 'legacy_uid_requires_legacy_audience'}

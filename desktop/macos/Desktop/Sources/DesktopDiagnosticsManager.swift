@@ -1306,10 +1306,8 @@ final class DesktopDiagnosticsManager {
   ]
 
   private static let allowedFallbackAreas: Set<String> = [
-    "pusher",
     "stt_selection",
     "vad",
-    "audio_merge",
     "webhook",
     "realtime_hub",
     "ptt_cascade",

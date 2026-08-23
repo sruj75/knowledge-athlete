@@ -227,7 +227,7 @@ mkdir -p "$WORK/ci-fw/Payload/Runner.app/Frameworks/Leaked.framework"
 printf 'not-a-real-secret-value-test-8742' \
   > "$WORK/ci-fw/Payload/Runner.app/Frameworks/Leaked.framework/Leaked"
 make_zip "$WORK/ci-fw" "$WORK/ci-fw.ipa"
-ENCRYPTION_SECRET=not-a-real-secret-value-test-8742 \
+OPENAI_API_KEY=not-a-real-secret-value-test-8742 \
   run_expect_fail "ci-value-in-framework-still-caught" "current CI value" \
   python3 "$SCANNER" "$WORK/ci-fw.ipa"
 

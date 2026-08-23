@@ -70,7 +70,6 @@ def chat():
         "database.users": MagicMock(),
         "database.redis_db": redis_db,
         "models.chat": MagicMock(),
-        "models.conversation": MagicMock(),
         "models.notification_message": MagicMock(),
         "models.transcript_segment": MagicMock(),
         "utils.subscription": subscription,

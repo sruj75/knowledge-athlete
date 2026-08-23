@@ -42,7 +42,7 @@ OMI_PARITY_PACK_ROOT=/absolute/restricted/local/parity-pack
 
 There is no default root. A missing, relative, or repository-contained root is
 disabled; `OMI_ENV_STAGE` other than `dev`, a missing `OMI_PARITY_PACK_CAPTURE=1`,
-or an allowlist miss is also disabled. No Helm or production default enables this
+or an allowlist miss is also disabled. No production default enables this
 path. The local cassette may include restricted audio/transcript event payloads,
 so keep its root outside Git and never attach it to a PR.
 
@@ -54,11 +54,8 @@ contract unchanged for existing players:
 | `surface` | `source` | Captured seam |
 | --- | --- | --- |
 | `ptt` | `desktop_ptt_http`, `desktop_ptt_stream` | Desktop PCM PTT and live PTT STT (bounded audio + transcript events) |
-| `conversation_finalization` | `conversation_<source>` | Transcript input and retained finalization result |
-
-The development listen deployment mounts `/var/omi-parity-pack` as an `emptyDir`
-for explicitly allowlisted dogfood principals and best-effort exports cassette
-JSON to a private development bucket:
+The canonical development backend best-effort exports cassette JSON for
+explicitly allowlisted dogfood principals to a private development bucket:
 
 ```text
 gs://based-hardware-dev-omi-parity-pack-v0/parity-pack/v0/cassettes/<identity-key>.json
@@ -77,7 +74,7 @@ npm run test:parity-pack-v0
 ```
 
 Never promote cassettes to production storage or commit them to the repository.
-The emptyDir scratch is still lost on pod restart before a successful export.
+Local scratch is still lost on process restart before a successful export.
 
 ## Replay players
 

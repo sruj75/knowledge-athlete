@@ -100,7 +100,7 @@ def test_legacy_ratchet_rejects_growth():
 
 
 def test_legacy_ratchet_requires_baseline_cleanup_on_shrink():
-    smaller = set(sorted(LEGACY_UNLISTED_BASELINE)[:1])
+    smaller = set()
     errors = check_legacy_ratchet(smaller, smaller | set(MANUAL_ONLY_TESTS))
     assert len(errors) == 1
     assert 'LEGACY_UNLISTED_BASELINE' in errors[0]

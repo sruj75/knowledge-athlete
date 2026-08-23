@@ -49,10 +49,9 @@ ALLOWED_REASONS = frozenset(
 
 ALLOWED_COMPONENTS = frozenset(
     {
-        'pusher',
         'stt_selection',
         'vad',
-        'audio_merge',
+        'account_deletion',
         'webhook',
         'realtime_hub',
         'ptt_cascade',

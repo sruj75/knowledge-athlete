@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Capture and restore the four backend Cloud Run services' traffic specifications.
+"""Capture and restore the canonical backend Cloud Run traffic specification.
 
 The capture deliberately records only traffic-routing metadata. Cloud Run service
 documents also contain environment values and Secret Manager references, neither
@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence, cast
 
 DEFAULT_REGION = 'us-central1'
-DEFAULT_SERVICES = ('backend', 'backend-sync')
+DEFAULT_SERVICES = ('backend',)
 SNAPSHOT_SCHEMA_VERSION = 1
 
 RunCommand = Callable[[Sequence[str]], None]
