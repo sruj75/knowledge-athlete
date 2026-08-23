@@ -41,22 +41,20 @@ private final class TasksStoreNoopReminderNotifications: TaskReminderNotificatio
 final class TasksStoreOwnerBoundaryTests: XCTestCase {
   private var fixture: RewindStorageTestIsolation.Fixture?
   private var ownerFixture: RuntimeOwnerAuthorityTestFixture?
-  private var store: TasksStore!
+  private let store = TasksStore(
+    reminderService: TaskReminderService(notifications: TasksStoreNoopReminderNotifications()),
+    observesNotifications: false)
 
   override func setUp() async throws {
     fixture = try await RewindStorageTestIsolation.setUp(userIdPrefix: "tasks-store-owner")
     let ownerFixture = RuntimeOwnerAuthorityTestFixture()
     self.ownerFixture = ownerFixture
     await ownerFixture.establish(authOwnerID: fixture?.testUserId)
-    store = TasksStore(
-      reminderService: TaskReminderService(notifications: TasksStoreNoopReminderNotifications()),
-      observesNotifications: false)
     store.resetSessionState()
   }
 
   override func tearDown() async throws {
-    store?.resetSessionState()
-    store = nil
+    store.resetSessionState()
     await ownerFixture?.restore()
     ownerFixture = nil
     await RewindStorageTestIsolation.tearDown(userDir: fixture?.userDir)

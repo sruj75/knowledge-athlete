@@ -441,7 +441,7 @@ import XCTest
       config.protocolClasses = [AuthRetryURLStub.self]
       let client = APIClient(session: URLSession(configuration: config))
       await transitionOwnerForAuthTest(to: "user-1")
-      let ownerToken = token(ownerID: "user-1")
+      let ownerToken = try token(ownerID: "user-1")
       try configureRefreshableSession(idToken: ownerToken)
 
       do {
@@ -607,8 +607,8 @@ import XCTest
       )
     }
 
-    private func token(ownerID: String) -> String {
-      let payload = try! JSONSerialization.data(
+    private func token(ownerID: String) throws -> String {
+      let payload = try JSONSerialization.data(
         withJSONObject: ["user_id": ownerID],
         options: [.sortedKeys])
       let encoded = payload.base64EncodedString()
